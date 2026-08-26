@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>BRAMU Lab · Marcador</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0B1211" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       VISTA 1 · CONFIGURACIÓN PREVIA AL PARTIDO
+       ============================================================ -->
+  <section id="view-setup" class="view view--setup">
+
+    <div id="continue-banner" class="continue-banner" hidden>
+      <div class="continue-banner__text">
+        <strong>Tenés un partido en curso</strong>
+        <span id="continue-banner-detail">Set 1 · 0-0</span>
+      </div>
+      <button id="continue-match-btn" class="btn-mini" type="button">CONTINUAR</button>
+    </div>
+
+    <header class="setup-header">
+      <span class="wordmark"><span class="wordmark__brand">BRAMU</span><span class="wordmark__sub">lab</span></span>
+      <button id="open-history-btn" class="link-btn" type="button">Historial</button>
+    </header>
+
+    <form id="setup-form" class="setup-form" autocomplete="off">
+
+      <div class="team-block team-block--a">
+        <div class="team-block__label"><span class="team-dot team-dot--a"></span> Equipo A</div>
+        <div class="field"><input id="player-1" class="field__input" list="known-players" type="text" placeholder="Jugador 1" maxlength="18" /></div>
+        <div class="field"><input id="player-2" class="field__input" list="known-players" type="text" placeholder="Jugador 2" maxlength="18" /></div>
+      </div>
+
+      <div class="vs-divider" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
+
+      <div class="team-block team-block--b">
+        <div class="team-block__label"><span class="team-dot team-dot--b"></span> Equipo B</div>
+        <div class="field"><input id="player-3" class="field__input" list="known-players" type="text" placeholder="Jugador 3" maxlength="18" /></div>
+        <div class="field"><input id="player-4" class="field__input" list="known-players" type="text" placeholder="Jugador 4" maxlength="18" /></div>
+      </div>
+      <datalist id="known-players"></datalist>
+
+      <div class="setup-section">
+        <div class="setup-section__title">Método de puntuación</div>
+        <div id="scoring-options" class="option-row" role="radiogroup" aria-label="Método de puntuación">
+          <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
+          <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
+          <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
+        </div>
+        <div id="scoring-hint" class="setup-hint">Punto decisivo en 40–40</div>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-section__title">Formato de partido</div>
+        <div id="format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
+          <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
+            <span class="option-pill__title">Clásico</span>
+            <span class="option-pill__hint">Al mejor de 3 sets</span>
+          </button>
+          <button type="button" class="option-pill" data-value="americano" role="radio" aria-checked="false">
+            <span class="option-pill__title">Americano</span>
+            <span class="option-pill__hint">1 set · Tie break en 5–5</span>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
+    </form>
+    <div id="setup-footer" class="setup-footer">BRAMU Lab · Concepto y diseño por Sebastián Vila</div>
+  </section>
+
+  <!-- ============================================================
+       VISTA 2 · PARTIDO EN VIVO
+       ============================================================ -->
+  <section id="view-match" class="view view--match" hidden>
+
+    <div class="match-header">
+      <span class="match-header__timer" id="match-timer">00:00</span>
+      <button id="menu-btn" class="icon-btn" type="button" aria-label="Menú">☰</button>
+    </div>
+
+    <div class="scoreboard" id="scoreboard">
+      <div class="scoreboard__row" data-team="A" id="scoreboard-row-a">
+        <div class="scoreboard__names" id="scoreboard-names-a"></div>
+        <div class="scoreboard__cells" id="scoreboard-cells-a"></div>
+      </div>
+      <div class="scoreboard__row" data-team="B" id="scoreboard-row-b">
+        <div class="scoreboard__names" id="scoreboard-names-b"></div>
+        <div class="scoreboard__cells" id="scoreboard-cells-b"></div>
+      </div>
+    </div>
+
+    <div id="status-banner" class="status-banner" hidden>
+      <span id="status-banner-primary" class="status-banner__primary"></span>
+      <span id="tiebreak-mode-text" class="tb-mode-text" hidden></span>
+      <select id="tiebreak-mode-select" class="tb-select" hidden></select>
+    </div>
+
+    <div id="server-prompt" class="server-prompt" hidden>
+      <span class="server-prompt__label">🎾 ¿Quién saca?</span>
+      <div class="server-prompt__options" id="server-prompt-options"></div>
+    </div>
+
+    <button type="button" id="zone-a" class="team-zone team-zone--a" aria-label="Sumar punto a Equipo A">
+      <div class="team-zone__players" id="zone-players-a"></div>
+      <div class="team-zone__score" id="score-a">0</div>
+    </button>
+
+    <div class="control-bar">
+      <button id="undo-btn" class="control-btn" type="button" aria-label="Deshacer último punto">
+        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 5v3L7 4l5-4v3a8 8 0 108 8h2a10 10 0 11-10-10z"/></svg>
+        <span class="control-btn__label">Deshacer</span>
+      </button>
+      <button id="highlight-btn" class="control-btn" type="button" aria-label="Guardar highlight">
+        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 2l2.9 6.6L22 9.6l-5 4.9 1.2 7-6.2-3.4L5.8 21.5 7 14.5l-5-4.9 7.1-1z"/></svg>
+        <span class="control-btn__label">Highlight</span>
+      </button>
+      <button id="edit-btn" class="control-btn" type="button" aria-label="Editar marcador">
+        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        <span class="control-btn__label">Editar</span>
+      </button>
+    </div>
+
+    <!-- V10 (40-43): Highlight rápido — popup no invasivo para categorizar el highlight
+         recién guardado (el guardado en sí ya ocurrió al tocar el botón Highlight, esto
+         solo agrega una categoría opcional). Se cierra solo, tocando afuera, o eligiendo
+         una categoría; en ningún caso deshace el Highlight ya guardado. -->
+    <div id="highlight-popup" class="overlay overlay--highlight" hidden>
+      <div class="highlight-popup__card">
+        <div class="highlight-popup__ring">
+          <svg viewBox="0 0 36 36" class="highlight-popup__ring-svg" aria-hidden="true">
+            <circle class="highlight-popup__ring-track" cx="18" cy="18" r="16" />
+            <circle id="highlight-popup-ring-progress" class="highlight-popup__ring-progress" cx="18" cy="18" r="16" />
+          </svg>
+          <span class="highlight-popup__ring-icon">⭐</span>
+        </div>
+        <div id="highlight-popup-grid" class="highlight-popup__grid">
+          <button type="button" class="highlight-popup__btn" data-category="smash">Smash / X3</button>
+          <button type="button" class="highlight-popup__btn" data-category="dejada">Dejada</button>
+          <button type="button" class="highlight-popup__btn" data-category="recuperacion">Recuperación</button>
+          <button type="button" class="highlight-popup__btn" data-category="puntazo">Puntazo</button>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" id="zone-b" class="team-zone team-zone--b" aria-label="Sumar punto a Equipo B">
+      <div class="team-zone__players" id="zone-players-b"></div>
+      <div class="team-zone__score" id="score-b">0</div>
+    </button>
+
+    <!-- Menú -->
+    <div id="menu-overlay" class="overlay overlay--menu" hidden>
+      <div class="menu-sheet">
+        <button id="menu-finish" class="menu-item" type="button">Finalizar partido</button>
+        <button id="menu-pause" class="menu-item" type="button">Pausar cronómetro</button>
+        <div class="menu-sep"></div>
+        <button id="menu-reset" class="menu-item menu-item--danger" type="button">Reiniciar partido</button>
+        <button id="menu-home" class="menu-item menu-item--danger" type="button">Volver al inicio</button>
+        <button id="menu-close" class="menu-item menu-item--cancel" type="button">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Pausa -->
+    <div id="pause-overlay" class="overlay" hidden>
+      <div class="overlay__card">
+        <div class="overlay__title">PAUSA</div>
+        <p class="overlay__text">El cronómetro está detenido.</p>
+        <button id="resume-btn" class="btn-start btn-start--overlay" type="button">REANUDAR</button>
+      </div>
+    </div>
+
+    <!-- Confirmación genérica -->
+    <div id="confirm-overlay" class="overlay" hidden>
+      <div class="overlay__card">
+        <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
+        <p class="overlay__text" id="confirm-text"></p>
+        <div class="overlay__actions">
+          <button id="confirm-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="confirm-accept" class="btn-start btn-start--overlay" type="button">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finalizar manualmente -->
+    <div id="finish-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide">
+        <div class="overlay__title">FINALIZAR PARTIDO</div>
+        <div class="edit-field">
+          <div class="edit-field__label">Motivo</div>
+          <div class="option-grid" id="finish-reason-options" role="radiogroup">
+            <button type="button" class="option-pill is-selected" data-value="tiempo">Por tiempo</button>
+            <button type="button" class="option-pill" data-value="retiro">Retiro / lesión</button>
+            <button type="button" class="option-pill" data-value="suspendido">Suspendido</button>
+            <button type="button" class="option-pill" data-value="otro">Otro</button>
+          </div>
+        </div>
+        <div class="edit-field">
+          <div class="edit-field__label">Ganador</div>
+          <div class="option-grid" id="finish-winner-options" role="radiogroup">
+            <button type="button" class="option-pill" data-value="A">Gana Equipo A</button>
+            <button type="button" class="option-pill" data-value="B">Gana Equipo B</button>
+            <button type="button" class="option-pill is-selected" data-value="none">Sin definir</button>
+          </div>
+        </div>
+        <div class="overlay__actions">
+          <button id="finish-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="finish-confirm" class="btn-start btn-start--overlay" type="button">Finalizar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Editar marcador (basado en estados reglamentarios válidos) -->
+    <div id="edit-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide overlay__card--scroll">
+        <div class="overlay__title-row">
+          <div class="overlay__title" id="edit-modal-title">CORREGIR MARCADOR</div>
+          <button type="button" id="edit-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div id="edit-mode-body">
+        <p class="overlay__text" id="edit-mode-body-text">Solo se pueden elegir resultados reglamentariamente posibles. Lo que registres desde acá en adelante cuenta para las estadísticas.</p>
+        <p class="overlay__text overlay__text--note" id="edit-correct-note" hidden>Los puntos ya registrados se conservarán. El cambio quedará marcado como un ajuste manual.</p>
+
+        <div class="edit-field" id="edit-finished-sets-section">
+          <div class="edit-field__label">Sets finalizados</div>
+          <div id="edit-finished-sets-list" class="edit-chip-list"></div>
+          <div id="edit-add-set-row" class="edit-add-set-row">
+            <select id="edit-add-set-select" class="edit-select"></select>
+            <button id="edit-add-set-btn" type="button" class="btn-mini">+ Agregar</button>
+          </div>
+          <div id="edit-add-set-tb-row" class="edit-row" hidden>
+            <span class="edit-row__label">Tie break (opcional):</span>
+            <button type="button" class="stepper-btn" data-stepper="add-tb-a" data-delta="-1">–</button>
+            <span id="edit-add-tb-a" class="stepper-value">–</span>
+            <button type="button" class="stepper-btn" data-stepper="add-tb-a" data-delta="1">+</button>
+            <span class="edit-row__sep">–</span>
+            <button type="button" class="stepper-btn" data-stepper="add-tb-b" data-delta="-1">–</button>
+            <span id="edit-add-tb-b" class="stepper-value">–</span>
+            <button type="button" class="stepper-btn" data-stepper="add-tb-b" data-delta="1">+</button>
+          </div>
+        </div>
+
+        <div id="edit-current-set-section" class="edit-field">
+          <div class="edit-field__label">Set actual</div>
+          <div class="edit-row">
+            <button type="button" class="stepper-btn" data-stepper="cur-a" data-delta="-1">–</button>
+            <span id="edit-cur-a" class="stepper-value">0</span>
+            <button type="button" class="stepper-btn" data-stepper="cur-a" data-delta="1">+</button>
+            <span class="edit-row__sep">–</span>
+            <button type="button" class="stepper-btn" data-stepper="cur-b" data-delta="-1">–</button>
+            <span id="edit-cur-b" class="stepper-value">0</span>
+            <button type="button" class="stepper-btn" data-stepper="cur-b" data-delta="1">+</button>
+          </div>
+
+          <div id="edit-tb-section" class="edit-field" hidden>
+            <div class="edit-field__label">Tie break en curso</div>
+            <select id="edit-tb-mode-select" class="edit-select">
+              <option value="classic">Clásico</option>
+              <option value="death7">Muere en 7</option>
+              <option value="to15">Tie break a 15</option>
+            </select>
+            <div class="edit-row" style="margin-top:8px;">
+              <button type="button" class="stepper-btn" data-stepper="tb-a" data-delta="-1">–</button>
+              <span id="edit-tb-a" class="stepper-value">0</span>
+              <button type="button" class="stepper-btn" data-stepper="tb-a" data-delta="1">+</button>
+              <span class="edit-row__sep">–</span>
+              <button type="button" class="stepper-btn" data-stepper="tb-b" data-delta="-1">–</button>
+              <span id="edit-tb-b" class="stepper-value">0</span>
+              <button type="button" class="stepper-btn" data-stepper="tb-b" data-delta="1">+</button>
+            </div>
+          </div>
+
+          <div id="edit-points-section" class="edit-field">
+            <div class="edit-field__label">Puntos del game actual</div>
+            <div id="edit-points-normal">
+              <div class="point-track-label point-track-label--a">Equipo A</div>
+              <div id="edit-points-track-a" class="point-track"></div>
+              <div class="point-track-label point-track-label--b">Equipo B</div>
+              <div id="edit-points-track-b" class="point-track"></div>
+            </div>
+            <div id="edit-points-special" hidden>
+              <div id="edit-points-special-grid" class="option-grid"></div>
+              <button type="button" id="edit-points-special-back" class="link-btn">← Volver a puntos normales</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="edit-field">
+          <div class="edit-field__label">¿Quién está sacando ahora?</div>
+          <div id="edit-server-options" class="server-grid"></div>
+        </div>
+
+        <p id="edit-error" class="edit-error" hidden></p>
+
+        <div class="overlay__actions">
+          <button id="edit-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="edit-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
+        </div>
+        </div><!-- /edit-mode-body -->
+      </div>
+    </div>
+
+    <!-- V6 — Corrección rápida: alternativa liviana al Editor completo para el caso
+         común ("tenía 0-30 pero en realidad iba 15-30"), sin tocar sets/games. -->
+    <div id="quick-correction-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide">
+        <div class="overlay__title-row">
+          <div class="overlay__title">CORRECCIÓN RÁPIDA</div>
+          <button type="button" id="quick-correction-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <p class="overlay__text">Ajustá solo el punto del game actual. No toca sets ni games.</p>
+        <div id="quick-correction-body"></div>
+        <p id="quick-correction-error" class="edit-error" hidden></p>
+        <div class="overlay__actions">
+          <button id="quick-correction-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="quick-correction-save" class="btn-start btn-start--overlay" type="button">GUARDAR CORRECCIÓN</button>
+        </div>
+        <button type="button" id="quick-correction-full-editor" class="link-btn quick-correction-full-link">EDITAR MARCADOR COMPLETO</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================================================
+       VISTA 3 · RESUMEN INMEDIATO
+       ============================================================ -->
+  <section id="view-summary" class="view view--summary" hidden>
+    <div class="summary-card">
+      <button id="summary-back-btn" class="summary-undo-btn" type="button" hidden>← Volver a Análisis</button>
+      <button id="summary-undo-btn" class="summary-undo-btn" type="button">↩ Deshacer último punto</button>
+      <button id="summary-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
+      <div class="summary-card__title">RESUMEN DEL PARTIDO</div>
+      <div class="summary-card__reason" id="summary-reason" hidden></div>
+      <div id="summary-result-slot"></div>
+      <div id="summary-legal"></div>
+      <div class="summary-actions">
+        <button id="summary-analysis-btn" class="btn-secondary" type="button">VER ANÁLISIS</button>
+        <button id="summary-share-btn" class="btn-secondary" type="button">COMPARTIR</button>
+        <button id="summary-new-btn" class="btn-start" type="button">NUEVO PARTIDO</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA 4 · ANÁLISIS COMPLETO
+       ============================================================ -->
+  <section id="view-analysis" class="view view--analysis" hidden>
+    <div class="analysis-header">
+      <button id="analysis-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">ANÁLISIS DEL PARTIDO</span>
+      <button id="analysis-summary-btn" class="link-btn analysis-header__summary-btn" type="button">Ver resumen</button>
+    </div>
+    <div class="analysis-scroll">
+      <section class="analysis-section" id="analysis-result"></section>
+      <section class="analysis-section" id="analysis-intelligence">
+        <h3 class="analysis-section__title">BRAMU INTELLIGENCE</h3>
+        <div id="analysis-intelligence-text" class="intelligence-text"></div>
+        <p id="analysis-coverage-note" class="coverage-note" hidden></p>
+      </section>
+      <section class="analysis-section" id="analysis-stats">
+        <h3 class="analysis-section__title">ESTADÍSTICAS</h3>
+        <div id="stats-set-filter" class="set-filter-tabs"></div>
+        <div id="analysis-stats-grid" class="stats-grid"></div>
+        <p id="analysis-stats-legal" class="coverage-note" hidden></p>
+        <div id="analysis-per-player-serve" hidden>
+          <h4 class="analysis-subsection__title">SAQUE POR JUGADOR</h4>
+          <div id="analysis-per-player-serve-grid"></div>
+        </div>
+      </section>
+      <section class="analysis-section" id="analysis-momentum">
+        <h3 class="analysis-section__title">EVOLUCIÓN DEL PARTIDO</h3>
+        <div id="momentum-set-filter" class="set-filter-tabs"></div>
+        <p id="analysis-momentum-partial-note" class="coverage-note" hidden></p>
+        <p id="analysis-momentum-copy" class="coverage-note"></p>
+        <div id="analysis-momentum-legend" class="momentum-legend"></div>
+        <div id="analysis-momentum-chart"></div>
+      </section>
+      <section class="analysis-section" id="analysis-highlights" hidden>
+        <h3 class="analysis-section__title">HIGHLIGHTS</h3>
+        <div id="analysis-highlights-list"></div>
+      </section>
+      <section class="analysis-section" id="analysis-keymoments">
+        <h3 class="analysis-section__title">MOMENTOS CLAVE</h3>
+        <div id="analysis-keymoments-list" class="keymoments-list"></div>
+        <button id="analysis-full-timeline-btn" class="link-btn" type="button">VER TIMELINE COMPLETO</button>
+      </section>
+      <section class="analysis-section" id="analysis-share-section">
+        <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA 5 · TIMELINE COMPLETO
+       ============================================================ -->
+  <section id="view-timeline" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="timeline-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">TIMELINE COMPLETO</span>
+    </div>
+    <div class="analysis-scroll">
+      <div id="timeline-full-list"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA 6 · HISTORIAL
+       ============================================================ -->
+  <section id="view-history" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="history-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">HISTORIAL</span>
+    </div>
+    <div class="analysis-scroll">
+      <div id="history-list" class="history-list"></div>
+      <p id="history-empty" class="coverage-note" hidden>Todavía no jugaste ningún partido.</p>
+    </div>
+  </section>
+
+  <!-- Toast global (fuera de cualquier vista para que se vea desde Historial, Análisis, etc.) -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="engine.js"></script>
+  <script src="stats.js"></script>
+  <script src="store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
