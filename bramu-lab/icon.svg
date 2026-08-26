@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0B1211"/>
+  <circle cx="256" cy="256" r="150" fill="#C8FF3D"/>
+  <path d="M180 180 Q256 140 332 180 Q372 256 332 332 Q256 372 180 332 Q140 256 180 180 Z" fill="none" stroke="#0B1211" stroke-width="10"/>
+  <text x="256" y="470" font-family="Arial, sans-serif" font-weight="700" font-size="56" fill="#F4F7F2" text-anchor="middle">BRAMU LAB</text>
+</svg>
