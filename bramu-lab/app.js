@@ -2605,10 +2605,9 @@
      vez de redibujar una placa aparte con canvas nativo — así la imagen
      realmente se parece a BRAMU Lab. Se arma un DOM real, oculto fuera de
      pantalla, se convierte a SVG (foreignObject) y se rasteriza a PNG.
-     Si el dispositivo no puede hacer esa conversión (navegador viejo/raro),
-     hay una placa de respaldo dibujada a mano (misma que V6, con las
-     correcciones de copy/color de las secciones 106-107 ya aplicadas) para
-     que Compartir nunca quede roto del todo.                              */
+     Si el dispositivo no puede hacer esa conversión, se avisa con un error
+     real (ver `shareResult`) — la vieja placa de respaldo dibujada a mano
+     se eliminó en V8 a propósito, ver el comentario de `shareResult`.      */
   /* ------------------------------------------------------------------ */
 
   /** 99/100: arma el DOM (oculto) que se va a exportar, reutilizando exactamente los mismos
@@ -2721,9 +2720,25 @@
     });
   }
 
+  /** V10 — Safari/iOS rasteriza de forma poco confiable un `<img>` apuntando a una URL
+   *  `blob:` cuando el SVG contiene `foreignObject` (falla real reportada en iPhone: el
+   *  toast de error de Compartir). Es un problema conocido de WebKit con esta técnica —
+   *  el workaround estándar es convertir el Blob a una URI `data:` en base64 (FileReader
+   *  maneja el UTF-8 correctamente, sin los problemas clásicos de btoa/encodeURIComponent
+   *  a mano). Blob URLs siguen andando bien en Chrome/Firefox, así que este cambio no les
+   *  afecta — solo hace más confiable el camino que hoy falla en Safari. */
+  function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('No se pudo convertir el SVG de Compartir a data URI'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
   /** Arma el DOM real → SVG (foreignObject) → canvas → PNG. Lanza si el navegador no puede
-   *  completar la conversión, para que el llamador caiga al respaldo de canvas dibujado (12:
-   *  el error se deja pasar/loguear, nunca se traga en silencio). */
+   *  completar la conversión — el llamador (`shareResult`) nunca traga ese error en
+   *  silencio, lo muestra como tal. */
   async function buildShareImageBlob(f, kind) {
     const captureEl = buildShareCaptureElement(f, kind);
     // CORRECCIÓN: el ocultamiento fuera de pantalla vive en un CONTENEDOR PADRE aparte —
@@ -2737,8 +2752,13 @@
     document.body.appendChild(hiddenHost);
     try {
       if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) { /* seguir igual */ } }
-      // Esperar dos frames para que el layout (alto real del contenido) se asiente.
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // V10: antes esperaba dos `requestAnimationFrame` para que el layout se asiente, pero
+      // eso depende del bucle de repintado del navegador — se puede suspender indefinidamente
+      // en pestañas/paneles no visibles o en ahorro de batería (posible causa real del error
+      // de Compartir en iPhone). Leer `scrollHeight` ya fuerza un reflow SÍNCRONO por sí solo
+      // (comportamiento estándar del DOM), así que no hace falta ningún frame de por medio —
+      // un `setTimeout` mínimo alcanza como margen de seguridad y no depende de pintar nada.
+      await new Promise((r) => setTimeout(r, 0));
       const cssWidth = 540;
       const cssHeight = Math.max(200, Math.ceil(captureEl.scrollHeight));
       if (!cssHeight || cssHeight < 50) throw new Error('El contenido a exportar midió una altura inválida (' + cssHeight + 'px)');
@@ -2759,22 +2779,24 @@
         + `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${cssWidth}px;"><style type="text/css"><![CDATA[${safeStyles}]]></style>${captureMarkup}</div>`
         + `</foreignObject></svg>`;
       const svgBlob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      try {
-        const img = await loadImageEl(svgUrl);
-        const scale = 2; // 101: 1080px de ancho final (540 x 2)
-        const canvas = document.createElement('canvas');
-        canvas.width = cssWidth * scale;
-        canvas.height = cssHeight * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-        ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
-        return await new Promise((resolve, reject) => {
-          canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('canvas.toBlob() devolvió null'))), 'image/png');
-        });
-      } finally {
-        URL.revokeObjectURL(svgUrl);
-      }
+      const svgDataUrl = await blobToDataURL(svgBlob);
+      const img = await loadImageEl(svgDataUrl);
+      // V10: `img.decode()` espera a que la imagen esté REALMENTE lista para dibujarse —
+      // en Safari, `onload` puede disparar antes de que el contenido rasterizado del SVG
+      // (con foreignObject) esté completamente decodificado, dejando un `drawImage` en
+      // blanco sin ningún error visible. Si `decode()` no existe (navegador viejo), seguir
+      // igual — `onload` ya disparó, es la mejor garantía disponible en ese caso.
+      if (img.decode) { try { await img.decode(); } catch (e) { /* seguir con lo que haya */ } }
+      const scale = 2; // 101: 1080px de ancho final (540 x 2)
+      const canvas = document.createElement('canvas');
+      canvas.width = cssWidth * scale;
+      canvas.height = cssHeight * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, cssWidth, cssHeight);
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('canvas.toBlob() devolvió null'))), 'image/png');
+      });
     } finally {
       hiddenHost.remove();
     }
