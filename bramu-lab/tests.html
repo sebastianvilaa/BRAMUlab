@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>BRAMU Lab · Tests de Intelligence (V10)</title>
+<style>
+  body{ font-family: -apple-system, system-ui, sans-serif; background:#0B1211; color:#F4F7F2; padding:20px; max-width:820px; margin:0 auto; }
+  h1{ font-size:18px; } h2{ font-size:13px; color:#FFC93D; margin-top:28px; text-transform:uppercase; letter-spacing:.05em; }
+  .case{ border:1px solid rgba(244,247,242,0.12); border-radius:10px; padding:10px 14px; margin:8px 0; }
+  .case.pass{ border-color: rgba(200,255,61,0.4); }
+  .case.fail{ border-color: rgba(255,91,84,0.6); background: rgba(255,91,84,0.08); }
+  .case__title{ font-weight:700; font-size:13px; }
+  .case__detail{ font-size:12px; color:rgba(244,247,242,0.6); margin-top:4px; white-space:pre-wrap; }
+  #summary{ position:sticky; top:0; background:#0B1211; padding:10px 0; font-size:14px; font-weight:800; border-bottom:1px solid rgba(244,247,242,0.15); }
+  .ok{ color:#C8FF3D; } .bad{ color:#FF5B54; }
+</style>
+</head>
+<body>
+<div id="summary">Corriendo tests…</div>
+<h1>BRAMU Lab V10 — batería sintética de BRAMU Intelligence</h1>
+<div id="results"></div>
+
+<script src="engine.js"></script>
+<script src="stats.js"></script>
+<script>
+(function () {
+  'use strict';
+  const E = window.PLEngine;
+  const S = window.PLStats;
+  const results = [];
+
+  function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
+
+  function assert(name, cond, detail) { record(name, !!cond, detail); }
+
+  // ------------------------------------------------------------------
+  // Fixtures y helpers de simulación (motor real, sin DOM)
+  // ------------------------------------------------------------------
+  function makePlayers() {
+    return [
+      { id: 0, name: 'Ana', team: 'A' }, { id: 1, name: 'Bea', team: 'A' },
+      { id: 2, name: 'Cruz', team: 'B' }, { id: 3, name: 'Dan', team: 'B' },
+    ];
+  }
+
+  function newCtx(scoringSystem, formatId, tiebreakMode) {
+    return {
+      players: makePlayers(),
+      scoringSystem: scoringSystem || 'golden',
+      format: E.FORMATS[formatId || 'classic'],
+      tiebreakMode: tiebreakMode || 'classic',
+      baseline: null,
+      knowledge: E.createServerKnowledge(),
+      state: E.createInitialEngineState(),
+      events: [],
+      ms: 0,
+      seenSet: 0,
+    };
+  }
+
+  function ensureServer(ctx) {
+    const setNumber = ctx.state.sets.length + 1;
+    if (setNumber === ctx.seenSet) return;
+    const mgn = E.currentMatchGameNumber(ctx.state);
+    const wsgn = E.currentWithinSetGameNumber(ctx.state);
+    // `recordServerAnswer` solo completa el orden del EQUIPO al que pertenece el jugador
+    // pasado — hace falta sembrar ambos equipos (game 1 y game 2 de este set) para que
+    // `resolveServer` quede resuelto en TODOS los games del set, no solo los del primero
+    // que sacó (si no, la mitad de los games quedan "unknown" y ningún break se detecta).
+    const firstServer = setNumber % 2 === 1 ? 0 : 2; // alterna quién arranca sacando cada set
+    const secondServer = firstServer === 0 ? 2 : 0;
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, setNumber, mgn, wsgn, firstServer);
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, setNumber, mgn + 1, wsgn + 1, secondServer);
+    ctx.seenSet = setNumber;
+  }
+
+  function playPoint(ctx, team) {
+    ensureServer(ctx);
+    ctx.ms += 3000;
+    ctx.events.push({ team, matchTimeMs: ctx.ms });
+    ctx.state = E.applyPoint(ctx.state, team, ctx.scoringSystem, ctx.format, ctx.tiebreakMode);
+  }
+
+  /** Juega un game "limpio" (sin deuce) ganado en su totalidad por `team`. Con Punto de Oro
+   *  4 puntos alcanzan siempre para cerrar el game sin ambigüedad. */
+  function winGame(ctx, team) {
+    for (let i = 0; i < 4; i++) playPoint(ctx, team);
+  }
+
+  /** Variante "cerrada" del game: el que pierde también suma 2 puntos (40-30 en vez de
+   *  40-0), sin arriesgar deuce. Sirve para escenarios donde el resultado en GAMES debe
+   *  quedar parejo sin que el total de PUNTOS quede artificialmente inflado a favor de
+   *  quien barre todos los games limpios (eso dispara señales de "dominio" que no
+   *  corresponden a la historia que el test quiere representar, ver §50). */
+  function winGameClose(ctx, team) {
+    const loser = team === 'A' ? 'B' : 'A';
+    [team, loser, team, loser, team, team].forEach((t) => playPoint(ctx, t));
+  }
+
+  /** Juega un Tie break hasta un resultado EXACTO, sin disparar un cierre prematuro:
+   *  primero empata punto a punto hasta `finalLoserPts` para ambos, después define. */
+  function winTiebreak(ctx, winner, finalWinnerPts, finalLoserPts) {
+    const loser = winner === 'A' ? 'B' : 'A';
+    for (let i = 0; i < finalLoserPts; i++) { playPoint(ctx, loser); playPoint(ctx, winner); }
+    for (let i = 0; i < (finalWinnerPts - finalLoserPts); i++) playPoint(ctx, winner);
+  }
+
+  function ctxAsMatchCtx(ctx) {
+    return {
+      players: ctx.players, scoringSystem: ctx.scoringSystem, format: ctx.format,
+      tiebreakMode: ctx.tiebreakMode, serverKnowledge: ctx.knowledge, baseline: null, events: ctx.events,
+    };
+  }
+
+  function intelFromSim(ctx) {
+    const matchCtx = ctxAsMatchCtx(ctx);
+    const stats = S.computeStats(ctx.events, matchCtx);
+    const sets = ctx.state.sets;
+    const winnerTeam = ctx.state.matchWinner;
+    const text = S.generateBramuIntelligence(stats, matchCtx, sets, winnerTeam, null);
+    return { stats, sets, winnerTeam, text };
+  }
+
+  const emptyOpp = () => ({ opportunities: 0, converted: 0, saved: 0 });
+  function makeStats(overrides) {
+    return Object.assign({
+      totalPoints: 0, pointsA: 0, pointsB: 0,
+      goldenPoints: { played: 0, wonA: 0, wonB: 0 }, starPoints: { played: 0, wonA: 0, wonB: 0 },
+      hasServerInfo: false, serverFullyKnown: false,
+      serviceGames: { wonA: 0, wonB: 0, lostA: 0, lostB: 0, unknown: 0 },
+      serveStats: { A: { served: 0, wonServing: 0 }, B: { served: 0, wonServing: 0 } },
+      breaks: { A: 0, B: 0 },
+      breakPoints: emptyOpp2(), setPoints: emptyOpp2(), matchPoints: emptyOpp2(),
+      perPlayerServe: {}, maxStreak: { A: 0, B: 0 }, leadChanges: 0, setDurations: [],
+      matchDurationMs: 0, hasAdjustments: false, finalState: null,
+    }, overrides);
+  }
+  function emptyOpp2() { return { A: emptyOpp(), B: emptyOpp() }; }
+  function makeMatchCtx(overrides) {
+    return Object.assign({
+      players: makePlayers(), scoringSystem: 'golden', format: E.FORMATS.classic, tiebreakMode: 'classic',
+      baseline: null, events: [],
+    }, overrides);
+  }
+
+  // ------------------------------------------------------------------
+  // UNIT TESTS — funciones puras (§16/45.1, §53-57)
+  // ------------------------------------------------------------------
+  (function () {
+    assert('U1 · magnitud 7 vs 6 → "apenas"', S.describeMagnitude(7, 6) === 'apenas', S.describeMagnitude(7, 6));
+    assert('U2 · magnitud 9 vs 3 → "clara"', S.describeMagnitude(9, 3) === 'clara', S.describeMagnitude(9, 3));
+    assert('U3 · magnitud 16 vs 2 → "mucha"', S.describeMagnitude(16, 2) === 'mucha', S.describeMagnitude(16, 2));
+    assert('U4 · magnitud 16 vs 0 → "enorme"', S.describeMagnitude(16, 0) === 'enorme', S.describeMagnitude(16, 0));
+    assert('U5 · magnitud 5 vs 5 → sin diferencia (null)', S.describeMagnitude(5, 5) === null, S.describeMagnitude(5, 5));
+    assert('U6 · frase 7 vs 6 → "apenas una más"', S.magnitudeOpportunitiesPhrase(7, 6) === 'apenas una más', S.magnitudeOpportunitiesPhrase(7, 6));
+    assert('U7 · frase 16 vs 2 → "muchas más oportunidades"', S.magnitudeOpportunitiesPhrase(16, 2) === 'muchas más oportunidades', S.magnitudeOpportunitiesPhrase(16, 2));
+
+    const nameOf = (t) => (t === 'A' ? 'Ana y Bea' : 'Cruz y Dan');
+    const otherName = (t) => (t === 'A' ? 'Cruz y Dan' : 'Ana y Bea');
+
+    // §54 — EFICIENCIA: A consigue más quiebres (3 vs 2), B es más eficiente. Prohibido
+    // "A aprovechó mejor sus oportunidades".
+    const t54 = S.interpretBreakPointsNarrative({ opportunities: 9, converted: 3, saved: 0 }, { opportunities: 3, converted: 2, saved: 0 }, nameOf, otherName);
+    assert('U8 · §54 eficiencia: A más quiebres, B más eficiente', t54 && t54.includes('más eficiente') && t54.includes('Cruz y Dan'), t54);
+    assert('U9 · §54 eficiencia: frase prohibida ausente', !t54 || !t54.includes('aprovechó mejor sus oportunidades'), t54);
+
+    // §57 — 0/0: A 2/5, B 0/0. Prohibido "0 de 0" y comparar eficiencia de B.
+    const t57 = S.interpretBreakPointsNarrative({ opportunities: 5, converted: 2, saved: 0 }, { opportunities: 0, converted: 0, saved: 0 }, nameOf, otherName);
+    assert('U10 · §57 0/0: no dispuso de oportunidad', t57 && t57.includes('no llegaron a disponer'), t57);
+    assert('U11 · §57 0/0: nunca "0 de 0"', !t57 || !t57.includes('0 de 0'), t57);
+
+    // Orientación de marcador (§27): B ganó el set real A-B 4-6 → en prosa debe leerse "6-4".
+    assert('U12 · orientScore hacia el protagonista', S.orientScore(4, 6, 'B') === '6-4', S.orientScore(4, 6, 'B'));
+  })();
+
+  // ------------------------------------------------------------------
+  // TESTS DE INTEGRACIÓN — motor real (engine.js) → stats.js → Intelligence
+  // ------------------------------------------------------------------
+  (function () {
+    // §47 — DOMINIO TOTAL 6-0 · 6-0
+    const ctx1 = newCtx('golden', 'classic');
+    for (let s = 0; s < 2; s++) for (let g = 0; g < 6; g++) winGame(ctx1, 'A');
+    const r1 = intelFromSim(ctx1);
+    assert('F1 · §47 dominio total: menciona dominio', /domin/i.test(r1.text), r1.text);
+    assert('F1b · §47 dominio total: nunca "parejo"', !/parejo/i.test(r1.text), r1.text);
+
+    // §48 — 6-0 / 6-1
+    const ctx2 = newCtx('golden', 'classic');
+    winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A');
+    winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'A'); winGame(ctx2, 'B'); winGame(ctx2, 'A');
+    const r2 = intelFromSim(ctx2);
+    assert('F2 · §48 6-0/6-1: "de principio a fin"', /principio a fin/i.test(r2.text), r2.text);
+
+    // §50 — MISMO 6-3, HISTORIA B: 1-1→2-2→3-3→4-3→quiebre→6-3 (parejo hasta el quiebre
+    // tardío). Con el saque arrancando en A y alternando por game, este guion produce
+    // EXACTAMENTE un quiebre en el game 8 — el mismo caso del ejemplo del consolidado.
+    // americano (1 solo set) para que el partido quede REALMENTE terminado con winnerTeam
+    // definido — con 'classic' (mejor de 3) un único set 6-3 deja el partido a mitad de
+    // camino y varias historias que dependen de winnerTeam ni siquiera se evalúan.
+    const ctx3 = newCtx('golden', 'americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameClose(ctx3, t));
+    const r3 = intelFromSim(ctx3);
+    assert('F3 · §50 parejo + quiebre tardío: menciona paridad', /parejo/i.test(r3.text), r3.text);
+    assert('F3b · §50 parejo + quiebre tardío: nunca "de principio a fin"', !/principio a fin/i.test(r3.text), r3.text);
+    assert('F3c · §50 exactamente 1 quiebre en la simulación', (r3.stats.breaks.A + r3.stats.breaks.B) === 1, JSON.stringify(r3.stats.breaks));
+
+    // §52 — SIN BREAKS + TIE BREAK (Americano, TB en 5-5): 10 games alternados donde cada
+    // uno sostiene su propio saque (0 quiebres), define el Tie break.
+    const ctx4 = newCtx('golden', 'americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGame(ctx4, t));
+    winTiebreak(ctx4, 'A', 7, 5);
+    const r4 = intelFromSim(ctx4);
+    assert('F4 · §52 TB decisivo: 0 quiebres en la simulación', (r4.stats.breaks.A + r4.stats.breaks.B) === 0, JSON.stringify(r4.stats.breaks));
+    assert('F4b · §52 TB decisivo: menciona el Tie break', /tie break/i.test(r4.text), r4.text);
+    assert('F4c · §52 TB decisivo: nunca "dominaron"', !/domin/i.test(r4.text), r4.text);
+
+    // §53 — PRESIÓN SIN CONVERSIÓN (fixture directo): A 0/15 BP, B 1/1 BP.
+    const stats53 = makeStats({
+      hasServerInfo: true, serverFullyKnown: true,
+      totalPoints: 40, pointsA: 15, pointsB: 25,
+      breakPoints: { A: { opportunities: 15, converted: 0, saved: 0 }, B: { opportunities: 1, converted: 1, saved: 0 } },
+    });
+    const sets53 = [{ gamesA: 4, gamesB: 6, winner: 'B', tiebreak: null }];
+    const text53 = S.generateBramuIntelligence(stats53, makeMatchCtx(), sets53, 'B', null);
+    assert('F5 · §53 presión sin conversión: menciona oportunidades', /oportunidad/i.test(text53), text53);
+    assert('F5b · §53 presión sin conversión: nunca "0 de 0"', !text53.includes('0 de 0'), text53);
+    assert('F5c · §53 presión sin conversión: no lo llama dominio de A', !/Ana y Bea domin/i.test(text53), text53);
+
+    // §27/45.4 — ORIENTACIÓN DE MARCADOR sin ganador de partido todavía (partido parcial):
+    // set real A-B 4-6, ganado por B → la prosa debe decir "6-4", nunca "4-6".
+    const statsPartial = makeStats({ totalPoints: 0 });
+    const setsPartial = [{ gamesA: 4, gamesB: 6, winner: 'B', tiebreak: null }];
+    const textPartial = S.generateBramuIntelligence(statsPartial, makeMatchCtx(), setsPartial, null, null);
+    assert('F6 · orientación de marcador (sin ganador): "6-4" presente', textPartial.includes('6-4'), textPartial);
+    assert('F6b · orientación de marcador (sin ganador): "4-6" ausente', !textPartial.includes('4-6'), textPartial);
+  })();
+
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
+  const passCount = results.filter((r) => r.ok).length;
+  const failCount = results.length - passCount;
+  document.getElementById('summary').innerHTML =
+    `${passCount}/${results.length} tests OK` + (failCount ? ` — <span class="bad">${failCount} FALLARON</span>` : ' — <span class="ok">todo verde</span>');
+  document.getElementById('results').innerHTML = results.map((r) => `
+    <div class="case ${r.ok ? 'pass' : 'fail'}">
+      <div class="case__title">${r.ok ? '✅' : '❌'} ${r.name}</div>
+      ${r.detail ? `<div class="case__detail">${String(r.detail).replace(/</g, '&lt;')}</div>` : ''}
+    </div>
+  `).join('');
+})();
+</script>
+</body>
+</html>

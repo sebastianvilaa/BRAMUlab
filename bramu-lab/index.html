@@ -71,7 +71,7 @@
 
       <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
     </form>
-    <div class="setup-footer">BRAMU Lab · Concepto y diseño por Sebastián Vila</div>
+    <div id="setup-footer" class="setup-footer">BRAMU Lab · Concepto y diseño por Sebastián Vila</div>
   </section>
 
   <!-- ============================================================
@@ -124,6 +124,28 @@
         <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
         <span class="control-btn__label">Editar</span>
       </button>
+    </div>
+
+    <!-- V10 (40-43): Highlight rápido — popup no invasivo para categorizar el highlight
+         recién guardado (el guardado en sí ya ocurrió al tocar el botón Highlight, esto
+         solo agrega una categoría opcional). Se cierra solo, tocando afuera, o eligiendo
+         una categoría; en ningún caso deshace el Highlight ya guardado. -->
+    <div id="highlight-popup" class="overlay overlay--highlight" hidden>
+      <div class="highlight-popup__card">
+        <div class="highlight-popup__ring">
+          <svg viewBox="0 0 36 36" class="highlight-popup__ring-svg" aria-hidden="true">
+            <circle class="highlight-popup__ring-track" cx="18" cy="18" r="16" />
+            <circle id="highlight-popup-ring-progress" class="highlight-popup__ring-progress" cx="18" cy="18" r="16" />
+          </svg>
+          <span class="highlight-popup__ring-icon">⭐</span>
+        </div>
+        <div id="highlight-popup-grid" class="highlight-popup__grid">
+          <button type="button" class="highlight-popup__btn" data-category="smash">Smash / X3</button>
+          <button type="button" class="highlight-popup__btn" data-category="dejada">Dejada</button>
+          <button type="button" class="highlight-popup__btn" data-category="recuperacion">Recuperación</button>
+          <button type="button" class="highlight-popup__btn" data-category="puntazo">Puntazo</button>
+        </div>
+      </div>
     </div>
 
     <button type="button" id="zone-b" class="team-zone team-zone--b" aria-label="Sumar punto a Equipo B">

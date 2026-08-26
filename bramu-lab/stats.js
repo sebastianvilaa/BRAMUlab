@@ -241,7 +241,11 @@
       return `${nameOf(moreBreaks)} consiguió más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}, pero ${nameOf(fewerBreaks)} fue más eficiente y necesitó solo ${fewerBucket.opportunities} oportunidad${fewerBucket.opportunities === 1 ? '' : 'es'} para convertir ${fewerBucket.converted === 1 ? 'su quiebre' : 'sus quiebres'}.`;
     }
     if (moreBucket.opportunities > fewerBucket.opportunities) {
-      return `${nameOf(moreBreaks)} generó más chances de quiebre, ${moreBucket.opportunities} contra ${fewerBucket.opportunities}, y además las aprovechó mejor. Convirtió ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
+      // V10 (16/45.1): la calificación de "cuánto más" ahora depende de la magnitud real de
+      // la diferencia (7 vs 6 no es lo mismo que 16 vs 2), nunca un "más chances" plano.
+      const phrase = magnitudeOpportunitiesPhrase(moreBucket.opportunities, fewerBucket.opportunities);
+      const chancesClause = phrase ? `generó ${phrase} de quiebre` : `generó más chances de quiebre, ${moreBucket.opportunities} contra ${fewerBucket.opportunities}`;
+      return `${nameOf(moreBreaks)} ${chancesClause}, y además las aprovechó mejor. Convirtió ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
     }
     return `${nameOf(moreBreaks)} consiguió más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
   }
@@ -349,6 +353,40 @@
   }
   function capitalizeFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
+  /**
+   * V10 (16/45.1) — GRADACIÓN DE MAGNITUD: reemplaza las comparaciones binarias ("A > B =
+   * muchas más") por una lectura semántica de qué tan grande es realmente la diferencia.
+   * Pensada para conteos comparables (Break Points, puntos totales, breaks, rachas...).
+   * `bigger`/`smaller` son las dos cantidades (`bigger` >= `smaller`, ambas >= 0).
+   * Devuelve `null` cuando la diferencia es tan chica que ni vale la pena calificarla (el
+   * llamador decide si omite la comparación entera o solo el adjetivo, §55).
+   */
+  function describeMagnitude(bigger, smaller) {
+    const diff = bigger - smaller;
+    if (diff <= 0) return null; // sin diferencia real: nada que graduar (§55, puede omitirse)
+    if (smaller === 0) return 'enorme'; // "16 vs 0": diferencia enorme, no hay nada con qué comparar
+    if (diff === 1) return 'apenas'; // "7 vs 6": apenas una más
+    const ratio = bigger / smaller;
+    if (ratio < 2) return 'leve'; // "9 vs 6"
+    if (ratio < 4) return 'clara'; // "9 vs 3"
+    return 'mucha'; // "16 vs 2"
+  }
+
+  /** Convierte el calificador de `describeMagnitude` en el adjetivo/frase concreta para
+   *  "oportunidades" (Break Points u otro conteo de chances). `null` → sin calificar (el
+   *  llamador debe decidir si igual necesita mostrar el número crudo o directamente omitir). */
+  function magnitudeOpportunitiesPhrase(bigger, smaller) {
+    const m = describeMagnitude(bigger, smaller);
+    switch (m) {
+      case 'apenas': return 'apenas una más';
+      case 'leve': return 'algo más de oportunidades';
+      case 'clara': return 'claramente más oportunidades';
+      case 'mucha': return 'muchas más oportunidades';
+      case 'enorme': return 'muchas más oportunidades';
+      default: return null;
+    }
+  }
+
   /** V9 (3/8) — cuando la historia principal es una secuencia decisiva puntual (p.ej. un
    *  quiebre logrado con Punto de Oro sobre el final de un set), antepone un resumen
    *  cronológico breve de los sets ANTERIORES a ese, para dar contexto de "cómo se llegó"
@@ -415,7 +453,14 @@
       const lostSg = winnerTeam === 'A' ? stats.serviceGames.lostA : stats.serviceGames.lostB;
       const loserBpOpps = winnerTeam === 'A' ? stats.breakPoints.B.opportunities : stats.breakPoints.A.opportunities;
       neverBroken = wonSg > 0 && lostSg === 0;
-      if (neverBroken || loserBpOpps <= 1) serveSignal = true;
+      // V10 (§6.1/test §50): "nunca lo quebraron" o "el rival casi no tuvo Break Points"
+      // son casi SIEMPRE ciertos cuando el partido entero se definió por un único quiebre a
+      // favor de quien ganó — eso no es dominio, es exactamente el caso "partido parejo que
+      // se rompe con un solo quiebre tardío" que este archivo tiene que distinguir. Por eso
+      // esta señal de saque exige ADEMÁS que el ganador haya quebrado más de una vez — sin
+      // eso, un 6-3 de un único quiebre alcanzaba el umbral de "dominio claro" solo por
+      // combinarse con el margen de games (bug real encontrado con la batería de tests).
+      if (winnerBreaks >= 2 && (neverBroken || loserBpOpps <= 1)) serveSignal = true;
     }
     if (serveSignal) signals++;
 
@@ -695,6 +740,23 @@
       }
     }
 
+    // 4c) V10 (§6.12/test §52) — TIE BREAK DECISIVO SIN QUIEBRES: nadie rompió el servicio
+    //     en todo el partido y el desempate fue lo que realmente definió. Es la misma
+    //     jerarquía narrativa que "único quiebre" (89 vs 92) — un solo factor estructural
+    //     decide un partido por lo demás parejo — pero nunca debe leerse como dominio por
+    //     puntos totales (§52: paridad estructural, no volumen).
+    if (stats.hasServerInfo && stats.breaks.A === 0 && stats.breaks.B === 0 && winnerTeam) {
+      const decidingSet = sets[sets.length - 1];
+      if (decidingSet && decidingSet.tiebreak) {
+        const tb = decidingSet.tiebreak;
+        const tbResult = orientTiebreak(tb, winnerTeam);
+        const text = sets.length > 1
+          ? `Nadie quebró el servicio en todo el partido: la definición pasó por el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
+          : `Nadie quebró el servicio en todo el set: la definición pasó por el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
+        stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false });
+      }
+    }
+
     // 4) Dominio con el saque (prioridad 6 del consolidado — por debajo de remontada/cambio de set).
     if (stats.hasServerInfo && stats.serverFullyKnown) {
       const sgA = stats.serviceGames.wonA + stats.serviceGames.lostA;
@@ -742,7 +804,10 @@
           // V8.2 (24-27): el ejemplo del consolidado ya no restaña la fracción con dos
           // puntos ("...aprovecharlas: convirtieron X/Y") — corta ahí en punto y deja que
           // la cifra exacta viva en la grilla de Estadísticas, no repetida en la prosa.
-          text = `${nameOf(moreChances)} generaron muchas más oportunidades desde la devolución, pero les costó aprovecharlas. ${nameOf(other)} fueron mucho más contundentes y consiguieron ${otherBucket.converted} quiebre${otherBucket.converted === 1 ? '' : 's'} en ${otherBucket.opportunities} oportunidad${otherBucket.opportunities === 1 ? '' : 'es'}.`;
+          // V10 (16/45.1): magnitud graduada en vez de "muchas más" fijo — la brecha real
+          // entre las oportunidades es lo que decide el calificador.
+          const oppPhrase = magnitudeOpportunitiesPhrase(moreChancesBucket.opportunities, otherBucket.opportunities) || 'más oportunidades';
+          text = `${nameOf(moreChances)} generaron ${oppPhrase} desde la devolución, pero les costó aprovecharlas. ${nameOf(other)} fueron mucho más contundentes y consiguieron ${otherBucket.converted} quiebre${otherBucket.converted === 1 ? '' : 's'} en ${otherBucket.opportunities} oportunidad${otherBucket.opportunities === 1 ? '' : 'es'}.`;
         } else {
           // 23-24: interpretar el dato (implacables / misma cantidad pero distinta
           // efectividad / más chances Y más efectivos), nunca una oración con dos
@@ -762,12 +827,12 @@
     // ya estaba resuelto de principio a fin, ningún quiebre puntual debe encabezar la
     // historia (bug real V9.2, punto 1-2).
     if (stories.some((s) => s.kind === 'dominio-claro')) {
-      ['decisivo-oro-break', 'unico-break', 'remontada', 'remontada-set', 'casi-remontada', 'dominio-cambio', 'resto', 'saque'].forEach((k) => {
+      ['decisivo-oro-break', 'unico-break', 'tie-break-decisivo', 'remontada', 'remontada-set', 'casi-remontada', 'dominio-cambio', 'resto', 'saque'].forEach((k) => {
         const dupIdx = stories.findIndex((s) => s.kind === k);
         if (dupIdx !== -1) stories.splice(dupIdx, 1);
       });
     } else if (stories.some((s) => s.kind === 'decisivo-oro-break')) {
-      ['unico-break', 'remontada', 'remontada-set', 'casi-remontada', 'dominio-cambio'].forEach((k) => {
+      ['unico-break', 'tie-break-decisivo', 'remontada', 'remontada-set', 'casi-remontada', 'dominio-cambio'].forEach((k) => {
         const dupIdx = stories.findIndex((s) => s.kind === k);
         if (dupIdx !== -1) stories.splice(dupIdx, 1);
       });
@@ -807,7 +872,7 @@
     // games o menos), Y no hay ya una historia con más peso deportivo real contando el
     // partido (remontada, único quiebre, cambio de dominio, resultado contraintuitivo...).
     // Si esas existen, "el set más parejo" no suma nada y se omite (30).
-    const strongStoryKinds = ['remontada', 'remontada-set', 'casi-remontada', 'unico-break', 'contraintuitivo', 'dominio-cambio', 'decisivo-oro-break', 'dominio-claro'];
+    const strongStoryKinds = ['remontada', 'remontada-set', 'casi-remontada', 'unico-break', 'tie-break-decisivo', 'contraintuitivo', 'dominio-cambio', 'decisivo-oro-break', 'dominio-claro'];
     const hasStrongStory = usedKinds.some((k) => strongStoryKinds.includes(k));
     if (sets.length > 1 && !hasStrongStory) {
       const diffs = sets.map((s) => Math.abs(s.gamesA - s.gamesB));
@@ -937,10 +1002,13 @@
     if (!winnerTeam && sets.length >= 1) {
       let setsSummary;
       if (sets.length === 1) {
-        setsSummary = `${nameOf(sets[0].winner)} se quedaron con el primer set ${sets[0].gamesA}-${sets[0].gamesB}.`;
+        // V10 (27/45.4): marcador orientado hacia quien ganó el set, nunca el orden A-B
+        // crudo — bug residual detectado acá (esta rama solo corre sin ganador de partido
+        // todavía, p.ej. viendo Análisis de un partido en curso o parcial).
+        setsSummary = `${nameOf(sets[0].winner)} se quedaron con el primer set ${orientScore(sets[0].gamesA, sets[0].gamesB, sets[0].winner)}.`;
       } else {
         setsSummary = sets.map((s, i) => {
-          const seg = `${nameOf(s.winner)} ${i === 0 ? 'ganaron el primero' : 'se llevaron el ' + (i + 1) + '°'} ${s.gamesA}-${s.gamesB}`;
+          const seg = `${nameOf(s.winner)} ${i === 0 ? 'ganaron el primero' : 'se llevaron el ' + (i + 1) + '°'} ${orientScore(s.gamesA, s.gamesB, s.winner)}`;
           if (i === 0) return seg;
           return (s.winner !== sets[i - 1].winner ? ', pero ' : ', y ') + seg;
         }).join('') + '.';
@@ -1217,8 +1285,12 @@
             prev.indexB = Math.max(prev.indexB, peakB);
             prev.scoreLabel = scoreLabelBefore;
             prev.matchTimeMs = ev.matchTimeMs;
+            // V10 (35): cuenta cuántos Match/Set Points de esta misma secuencia se salvaron
+            // — la vista Partido lo usa para etiquetar "2 MP"/"3 MP" en vez de una línea por
+            // cada uno (agrupar Match Points consecutivos de una misma secuencia).
+            prev.count = (prev.count || 1) + 1;
           } else {
-            specialNodes.push({ afterGameIdx: gameIdx, team: h, kind: kindLabel, isGoldOrStar: isGoldOrStarPoint, indexA: peakA, indexB: peakB, setNumber, scoreLabel: scoreLabelBefore, matchTimeMs: ev.matchTimeMs });
+            specialNodes.push({ afterGameIdx: gameIdx, team: h, kind: kindLabel, isGoldOrStar: isGoldOrStarPoint, indexA: peakA, indexB: peakB, setNumber, scoreLabel: scoreLabelBefore, matchTimeMs: ev.matchTimeMs, count: 1 });
           }
         });
       }
@@ -1364,5 +1436,11 @@
     return merged;
   }
 
-  global.PLStats = { computeStats, generatePlayerIntelligence: generateBramuIntelligence, generateBramuIntelligence, computeEvolutionData, computeSetGameDeficits, computeSetSegments, teamLabel, fmtOpp, EVOLUTION_WEIGHTS };
+  global.PLStats = {
+    computeStats, generatePlayerIntelligence: generateBramuIntelligence, generateBramuIntelligence,
+    computeEvolutionData, computeSetGameDeficits, computeSetSegments, teamLabel, fmtOpp, EVOLUTION_WEIGHTS,
+    // V10 (46/89) — expuestas para el arnés de tests sintéticos (tests.html): son funciones
+    // puras, sin estado, así que exponerlas no cambia ningún comportamiento de la app.
+    describeMagnitude, magnitudeOpportunitiesPhrase, interpretBreakPointsNarrative, orientScore, orientTiebreak,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

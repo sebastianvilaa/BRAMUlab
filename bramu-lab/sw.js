@@ -4,10 +4,12 @@
    file://, donde los service workers no corren), la app sigue funcionando
    normalmente: este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// V9.2: bump de versión de cache (bramulab-v9-2). Esto NUNCA toca localStorage — el
-// historial y el partido en curso viven en otra capa de almacenamiento y no se
-// pierden por este cambio de versión.
-const CACHE_NAME = 'bramulab-v9-2';
+// V10: bump de versión de cache (bramulab-v10). Debe coincidir con PLStore.VERSION
+// (store.js) — un service worker no puede importar ese módulo, así que este string se
+// actualiza a mano en cada versión, pero es el ÚNICO lugar fuera de store.js donde
+// vive el número. Esto NUNCA toca localStorage — el historial y el partido en curso
+// viven en otra capa de almacenamiento y no se pierden por este cambio de versión.
+const CACHE_NAME = 'bramulab-v10';
 const CORE_ASSETS = [
   './',
   './index.html',

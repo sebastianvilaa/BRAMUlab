@@ -139,6 +139,10 @@
   };
 
   function initSetupScreen() {
+    // V10 (44/97): el número de versión sale de PLStore.VERSION (único punto central) —
+    // cambiarlo ahí alcanza para actualizar el footer sin tocar más archivos.
+    const footerEl = $('#setup-footer');
+    if (footerEl) footerEl.textContent = `BRAMU Lab · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
     $all('#scoring-options .option-col').forEach((btn) => {
       btn.addEventListener('click', () => {
         $all('#scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
@@ -501,10 +505,16 @@
     showToast('Partido reanudado');
   }
 
+  // V10 (42) — etiquetas visibles de las categorías opcionales de Highlight.
+  const HIGHLIGHT_CATEGORY_LABELS = { smash: 'Smash / X3', dejada: 'Dejada', recuperacion: 'Recuperación', puntazo: 'Puntazo' };
+  const HIGHLIGHT_POPUP_TIMEOUT_MS = 3500;
+  let highlightPopupTimeoutId = null;
+  let highlightPopupTarget = null; // referencia directa al objeto en `highlights` que está esperando categoría
+
   function saveHighlight() {
     const state = computeState();
     const serverInfo = resolveCurrentServer(state);
-    highlights.push({
+    const entry = {
       timestamp: new Date().toISOString(),
       matchTimeMs: getElapsedMs(),
       set: state.sets.length + 1,
@@ -513,12 +523,55 @@
         ? { tiebreak: true, a: state.tbA, b: state.tbB }
         : { tiebreak: false, pointsA: state.pointsA, pointsB: state.pointsB, scoringSystem: match.scoringSystem },
       server: serverInfo.resolved ? { id: serverInfo.playerId, name: playerName(match.players, serverInfo.playerId), team: serverInfo.team } : null,
-    });
+    };
+    // V10 (40): el Highlight se registra INMEDIATAMENTE — el popup de categoría que sigue
+    // es puramente opcional y nunca bloquea ni retrasa este guardado.
+    highlights.push(entry);
     autosave();
     const btn = $('#highlight-btn');
     btn.classList.add('control-btn--flash');
     setTimeout(() => btn.classList.remove('control-btn--flash'), 550);
     showToast('⭐ Highlight guardado');
+    openHighlightPopup(entry);
+  }
+
+  /** V10 (40-41) — popup rápido de categorización: aparece apenas se guarda el Highlight,
+   *  se autocierra a los 3-4s (queda como Highlight genérico) y el aro SVG comunica
+   *  visualmente el tiempo restante sin necesidad de números. */
+  function openHighlightPopup(entry) {
+    highlightPopupTarget = entry;
+    const popup = $('#highlight-popup');
+    const ring = $('#highlight-popup-ring-progress');
+    popup.hidden = false;
+    // Reinicia la animación del aro: saca la clase, fuerza reflow, la vuelve a poner con
+    // la duración exacta del timeout para que el drenaje visual y el auto-cierre coincidan.
+    ring.classList.remove('is-draining');
+    ring.style.transitionDuration = '0s';
+    // eslint-disable-next-line no-unused-expressions
+    ring.getBoundingClientRect(); // fuerza reflow
+    ring.style.transitionDuration = `${HIGHLIGHT_POPUP_TIMEOUT_MS}ms`;
+    ring.classList.add('is-draining');
+    clearTimeout(highlightPopupTimeoutId);
+    highlightPopupTimeoutId = setTimeout(() => closeHighlightPopup(), HIGHLIGHT_POPUP_TIMEOUT_MS);
+  }
+
+  /** Cierra el popup sin tocar el Highlight ya guardado (con o sin categoría elegida). */
+  function closeHighlightPopup() {
+    clearTimeout(highlightPopupTimeoutId);
+    highlightPopupTimeoutId = null;
+    highlightPopupTarget = null;
+    $('#highlight-popup').hidden = true;
+  }
+
+  function initHighlightPopup() {
+    $all('#highlight-popup-grid .highlight-popup__btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (highlightPopupTarget) { highlightPopupTarget.category = btn.dataset.category; autosave(); }
+        closeHighlightPopup();
+      });
+    });
+    // Tocar fuera de la tarjeta cierra el popup sin cancelar el Highlight (§40, paso 3C).
+    $('#highlight-popup').addEventListener('click', (e) => { if (e.target === $('#highlight-popup')) closeHighlightPopup(); });
   }
 
   /** Reconstruye la etiqueta de puntuación EXACTA de un highlight (Deuce/Ventaja/Star Point incluidos). */
@@ -1985,8 +2038,13 @@
       return '';
     }).join('');
 
-    // Breaks realmente convertidos + cierre de Tie break con resultado.
-    const eventMarkers = games.map((g, i) => {
+    // V10 (34/37): la vista PARTIDO se limpia — nada de mini-break, círculos de break ni
+    // cierre de Tie break sobre la curva global. Esos símbolos se conservan SOLO en la
+    // vista por Set (§36), donde el usuario ya está mirando un tramo puntual.
+    const isMatchView = setFilter === 'match';
+
+    // Breaks realmente convertidos + cierre de Tie break con resultado (solo vista Set).
+    const eventMarkers = isMatchView ? '' : games.map((g, i) => {
       if (g.isVirtualStart) return '';
       const x = xScale(i);
       let marks = '';
@@ -2003,18 +2061,34 @@
       return marks;
     }).join('');
 
-    // Picos especiales (Match Point / Set Point / Oro-Star / mini-break) — punto 22: marcadores
-    // discretos (rombo), sin llenar la curva de nodos por cada punto individual. Se ubican por
-    // `matchTimeMs` (nunca por `afterGameIdx` crudo) para no depender de si el array `games`
-    // tiene o no el nodo virtual de arranque adelante, ni de si está filtrado por set.
-    const specialMarkers = (setFilter === 'match' ? (evo.specialNodes || []) : (evo.specialNodes || []).filter((s) => s.setNumber === setFilter))
+    const specialNodesForFilter = setFilter === 'match' ? (evo.specialNodes || []) : (evo.specialNodes || []).filter((s) => s.setNumber === setFilter);
+
+    // V10 (35): vista PARTIDO — reemplaza el rombo flotante por una línea vertical fina y
+    // discreta con el color de quien tuvo el Match Point, etiquetada "MP" o "N MP" cuando
+    // esa secuencia agrupó varios (§35). Set Point / Oro-Star / mini-break rutinarios NO
+    // se muestran acá (§34) — solo lo verdaderamente decisivo del partido.
+    const matchPointLines = isMatchView ? specialNodesForFilter
+      .filter((s) => s.kind === 'match-point')
       .map((s) => {
+        let posIdx = games.findIndex((g) => !g.isVirtualStart && g.matchTimeMs >= s.matchTimeMs);
+        if (posIdx === -1) posIdx = games.length - 1;
+        const x = xScale(Math.max(0, posIdx - 0.4));
+        const color = s.team === 'A' ? 'var(--team-a)' : 'var(--team-b)';
+        const label = (s.count && s.count > 1) ? `${s.count} MP` : 'MP';
+        return `<line x1="${x.toFixed(1)}" y1="${topPad}" x2="${x.toFixed(1)}" y2="${h}" stroke="${color}" stroke-width="1.2" opacity="0.65"/>` +
+          `<text x="${x.toFixed(1)}" y="${(topPad - 6).toFixed(1)}" font-size="7.5" fill="${color}" text-anchor="middle" font-weight="700">${label}</text>`;
+      }).join('') : '';
+
+    // Vista por Set: se conserva el detalle previo (rombo con Match/Set Point, Oro-Star,
+    // mini-break) — el usuario ya está mirando un tramo puntual y puede sostener más
+    // información sin que el gráfico se sienta saturado (§36).
+    const specialMarkers = isMatchView ? '' : specialNodesForFilter.map((s) => {
         let posIdx = games.findIndex((g) => !g.isVirtualStart && g.matchTimeMs >= s.matchTimeMs);
         if (posIdx === -1) posIdx = games.length - 1;
         const x = xScale(Math.max(0, posIdx - 0.4));
         const y = yScale(s.team === 'A' ? s.indexA : s.indexB);
         const color = s.team === 'A' ? 'var(--team-a)' : 'var(--team-b)';
-        const label = s.kind === 'match-point' ? 'MP' : s.kind === 'set-point' ? 'SP' : s.kind === 'minibreak' ? 'mini-break' : (s.isGoldOrStar ? '★' : '');
+        const label = s.kind === 'match-point' ? ((s.count && s.count > 1) ? `${s.count} MP` : 'MP') : s.kind === 'set-point' ? 'SP' : s.kind === 'minibreak' ? 'mini-break' : (s.isGoldOrStar ? '★' : '');
         return `<rect x="${(x - 3).toFixed(1)}" y="${(y - 3).toFixed(1)}" width="6" height="6" fill="${color}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})" opacity="0.9"/>` +
           (label ? `<text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" font-size="6.5" fill="${color}" text-anchor="middle" font-weight="700">${label}</text>` : '');
       }).join('');
@@ -2047,6 +2121,7 @@
         ${pathB}
         ${eventMarkers}
         ${specialMarkers}
+        ${matchPointLines}
       </svg>`;
     return { html: pillsHTML + svg, isError: false };
   }
@@ -2065,9 +2140,13 @@
     </span>`;
   }
 
-  function buildEvolutionLegendHTML(f) {
+  /** V10 (34): en la vista PARTIDO la leyenda de símbolos (break/TB/rombo) ya no aplica —
+   *  ese detalle solo aparece en la vista por Set, así que la leyenda se simplifica a los
+   *  nombres de las parejas cuando se está mirando el partido completo. */
+  function buildEvolutionLegendHTML(f, setFilter) {
     const nameA = S.teamLabel(f.players, 'A'), nameB = S.teamLabel(f.players, 'B');
-    return `<span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--a"></span>${nameA}</span><span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--b"></span>${nameB}</span>${buildEvolutionSymbolsLegendHTML()}`;
+    const symbols = setFilter === 'match' ? '' : buildEvolutionSymbolsLegendHTML();
+    return `<span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--a"></span>${nameA}</span><span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--b"></span>${nameB}</span>${symbols}`;
   }
 
   /** V9: ya no es "% de los últimos N puntos" — es la posición competitiva de cada
@@ -2091,7 +2170,7 @@
       partialNote.hidden = true;
     }
 
-    legendWrap.innerHTML = buildEvolutionLegendHTML(f);
+    legendWrap.innerHTML = buildEvolutionLegendHTML(f, analysisSetFilter);
     wrap.innerHTML = buildEvolutionSvgHTML(f, analysisSetFilter).html;
   }
 
@@ -2099,9 +2178,10 @@
   function buildHighlightsListHTML(f) {
     return f.highlights.map((h) => {
       const scoreLabel = h.score.tiebreak ? `${h.score.a}-${h.score.b} (TB)` : highlightScoreLabel(h);
+      const categoryLabel = h.category ? HIGHLIGHT_CATEGORY_LABELS[h.category] : null;
       return `<div class="highlight-row">
         <span class="highlight-row__time">⭐ ${formatClock(h.matchTimeMs)} · ${formatRealTime(h.timestamp, f.timeZone)}</span>
-        <span class="highlight-row__meta">Set ${h.set} · ${h.games.a}-${h.games.b} · ${scoreLabel}${h.server ? ' · Saca ' + h.server.name : ''}</span>
+        <span class="highlight-row__meta">${categoryLabel ? categoryLabel + ' · ' : ''}Set ${h.set} · ${h.games.a}-${h.games.b} · ${scoreLabel}${h.server ? ' · Saca ' + h.server.name : ''}</span>
       </div>`;
     }).join('');
   }
@@ -2181,7 +2261,10 @@
       if (label) facts.push({ ms, real: tsByMs[ms], label });
     });
 
-    f.highlights.forEach((h) => facts.push({ ms: h.matchTimeMs, real: h.timestamp, label: `⭐ Highlight · Set ${h.set} · ${h.games.a}-${h.games.b}` }));
+    f.highlights.forEach((h) => {
+      const categoryLabel = h.category ? HIGHLIGHT_CATEGORY_LABELS[h.category] : null;
+      facts.push({ ms: h.matchTimeMs, real: h.timestamp, label: `⭐ Highlight${categoryLabel ? ' · ' + categoryLabel : ''} · Set ${h.set} · ${h.games.a}-${h.games.b}` });
+    });
     facts.sort((a, b) => a.ms - b.ms);
     return facts;
   }
@@ -2557,7 +2640,7 @@
         body += `<div class="share-capture__section"><h4 class="analysis-subsection__title">SAQUE POR JUGADOR</h4><div>${perPlayerHTML}</div></div>`;
       }
       const evoShare = buildEvolutionSvgHTML(f, 'match');
-      body += `<div class="share-capture__section"><h3 class="analysis-section__title">EVOLUCIÓN DEL PARTIDO</h3><div class="momentum-legend">${buildEvolutionLegendHTML(f)}</div><p class="coverage-note">${buildEvolutionCopyText()}</p>${evoShare.html}</div>`;
+      body += `<div class="share-capture__section"><h3 class="analysis-section__title">EVOLUCIÓN DEL PARTIDO</h3><div class="momentum-legend">${buildEvolutionLegendHTML(f, 'match')}</div><p class="coverage-note">${buildEvolutionCopyText()}</p>${evoShare.html}</div>`;
       if (f.highlights && f.highlights.length) {
         body += `<div class="share-capture__section"><h3 class="analysis-section__title">HIGHLIGHTS</h3>${buildHighlightsListHTML(f)}</div>`;
       }
@@ -2753,6 +2836,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     initSetupScreen();
     initMatchInteractions();
+    initHighlightPopup();
     initMenu();
     initConfirmModal();
     initFinishModal();

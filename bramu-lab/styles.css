@@ -375,6 +375,23 @@ input, select{ font-family: inherit; }
 .menu-item--cancel{ color: var(--paper-dim); }
 .menu-sep{ height: 1px; background: var(--line); }
 
+/* V10 (40-43) — Highlight rápido: popup pequeño y no invasivo (fondo mucho más liviano
+   que el resto de los overlays, ancla abajo cerca de donde está el pulgar) que aparece
+   apenas se guarda un Highlight para clasificarlo opcionalmente. Se autocierra solo. */
+/* padding-bottom mayor que el del .toast (96px) — ambos aparecen a la vez al guardar un
+   Highlight (§40) y el popup tiene que quedar arriba del pill de confirmación, no encima. */
+.overlay--highlight{ background: rgba(11,18,17,0.55); align-items:flex-end; padding-bottom: calc(150px + var(--safe-bottom)); }
+.highlight-popup__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 18px; padding: 16px; width: 100%; max-width: 320px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+.highlight-popup__ring{ position: relative; width: 30px; height: 30px; margin: 0 auto 10px; }
+.highlight-popup__ring-svg{ width: 30px; height: 30px; transform: rotate(-90deg); }
+.highlight-popup__ring-track{ fill:none; stroke: var(--line); stroke-width: 3; }
+.highlight-popup__ring-progress{ fill:none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: 0; }
+.highlight-popup__ring-progress.is-draining{ stroke-dashoffset: 100.53; transition: stroke-dashoffset linear; }
+.highlight-popup__ring-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size: 13px; }
+.highlight-popup__grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.highlight-popup__btn{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 12px; color: var(--paper); font-family: var(--font-body); font-weight: 800; font-size: 13px; padding: 14px 8px; cursor:pointer; }
+.highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--gold); color: var(--gold); }
+
 /* Edición basada en estados válidos */
 .edit-field{ margin-bottom: 16px; }
 .edit-field__label{ font-size: 12px; font-weight: 800; color: var(--paper-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }

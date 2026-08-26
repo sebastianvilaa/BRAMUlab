@@ -10,6 +10,9 @@
   'use strict';
 
   const SCHEMA_VERSION = 3;
+  // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
+  // acá alcanza para toda la app — nunca duplicar el string "v10" en otro archivo JS.
+  const APP_VERSION = 'v10';
   const KEYS = {
     ACTIVE_MATCH: 'padellab.activeMatch.v1',
     HISTORY: 'padellab.history.v1',
@@ -75,6 +78,7 @@
 
   global.PLStore = {
     SCHEMA_VERSION,
+    VERSION: APP_VERSION,
     saveActiveMatch, loadActiveMatch, clearActiveMatch,
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
