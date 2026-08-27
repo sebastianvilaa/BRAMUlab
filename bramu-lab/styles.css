@@ -710,7 +710,30 @@ input, select{ font-family: inherit; }
   .view--match{ max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
   .view--setup{ box-shadow: 0 0 60px rgba(0,0,0,0.5); }
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  .summary-card{ max-width: 560px; }
+  /* V11.10 (feedback real) — un poco más de aire en tablet, sigue sin llegar de punta a
+     punta (a 768px de vista, deja ~80px de margen por lado en un iPad portrait de 768-834px
+     — el "aire a los costados" que se pidió). */
+  .summary-card{ max-width: 600px; }
+}
+
+/* V11.10 (feedback real) — INICIO EN HORIZONTAL: Equipo A y Equipo B lado a lado en vez de
+   apilados, para aprovechar el ancho de sobra (tablet/celular apaisado) y que la pantalla
+   no necesite scrollear — mismo espíritu que el marcador en vivo (§V11.5), pero acá el
+   contenido es angosto (nombres de jugador, no números gigantes) así que le alcanza con el
+   ancho "contenido" (768px) que ya usan Análisis/Historial, sin inventar un tercer valor.
+   Formato/Sistema de puntuación siguen como están (ya son grillas de botones, no
+   necesitan más ancho). El "VS" pierde las líneas horizontales — no hay lugar natural
+   para una línea larga entre dos columnas angostas — y queda como insignia centrada. */
+@media (orientation: landscape) and (min-width: 700px){
+  .view--setup{ max-width: 768px; }
+  .setup-form{
+    display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 18px; row-gap: 16px; align-items: stretch;
+  }
+  .team-block--a{ grid-column: 1; }
+  .vs-divider{ grid-column: 2; flex-direction: column; align-self: center; }
+  .vs-divider__line{ display: none; }
+  .team-block--b{ grid-column: 3; }
+  .setup-section, #start-match-btn{ grid-column: 1 / -1; }
 }
 
 /* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se
