@@ -441,16 +441,23 @@ input, select{ font-family: inherit; }
 /* ==========================================================================
    RESUMEN INMEDIATO (overlay sobre la pantalla de partido)
    ========================================================================== */
+/* V11.9 (feedback real) — bug clásico de flexbox: centrar verticalmente con
+   `align-items:center` en un contenedor con `overflow-y:auto` recorta el lado de ARRIBA
+   cuando el contenido no entra (se puede scrollear hacia abajo pero no hacia arriba,
+   quedando siempre cortada la parte superior) — pasaba en tablet acostada, donde hay
+   menos alto disponible que en vertical. `margin:auto` en la tarjeta centra igual cuando
+   sobra espacio, pero deja de "recortar" cuando no entra: ahí el scroll arranca
+   normalmente desde arriba. */
 .view--summary{
   position: fixed; inset: 0; z-index: 25; background: var(--ink); overflow-y:auto;
-  display:flex; align-items:center; justify-content:center;
+  display:flex; justify-content:center;
   padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
 }
 .summary-undo-btn{
   display:block; margin: 0 auto 14px; background:none; border:none; color: var(--paper-dim);
   font-size: 12px; text-decoration: underline; cursor:pointer;
 }
-.summary-card{ max-width: 420px; width:100%; text-align:center; }
+.summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
 .summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--gold); margin-bottom: 6px; }
 .summary-card__reason{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-transform:uppercase; letter-spacing:0.08em; }
 .summary-stats{ display:flex; flex-direction:column; gap: 4px; margin: 16px 0 20px; }
