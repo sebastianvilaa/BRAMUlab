@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>BRAMU Lab · Tests de Intelligence (V10)</title>
+<title>BRAMU Lab · Tests de Intelligence (V11)</title>
 <style>
   body{ font-family: -apple-system, system-ui, sans-serif; background:#0B1211; color:#F4F7F2; padding:20px; max-width:820px; margin:0 auto; }
   h1{ font-size:18px; } h2{ font-size:13px; color:#FFC93D; margin-top:28px; text-transform:uppercase; letter-spacing:.05em; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div id="summary">Corriendo tests…</div>
-<h1>BRAMU Lab V10 — batería sintética de BRAMU Intelligence</h1>
+<h1>BRAMU Lab V11 — batería sintética de BRAMU Intelligence</h1>
 <div id="results"></div>
 
 <script src="engine.js"></script>
@@ -233,6 +233,136 @@
     const textPartial = S.generateBramuIntelligence(statsPartial, makeMatchCtx(), setsPartial, null, null);
     assert('F6 · orientación de marcador (sin ganador): "6-4" presente', textPartial.includes('6-4'), textPartial);
     assert('F6b · orientación de marcador (sin ganador): "4-6" ausente', !textPartial.includes('4-6'), textPartial);
+  })();
+
+  // ------------------------------------------------------------------
+  // V11 — UNIT TESTS: Break Points (§2.1/§2.2/§7.9/§8)
+  // ------------------------------------------------------------------
+  (function () {
+    const nameOf = (t) => (t === 'A' ? 'Ana y Bea' : 'Cruz y Dan');
+    const otherName = (t) => (t === 'A' ? 'Cruz y Dan' : 'Ana y Bea');
+
+    // §2.1 — BUG GRAVE: 0/3 vs 0/5 (ambos convierten 0). Prohibido "más contundente" y
+    // "consiguió/consiguieron 0 quiebres" como si fuera un logro.
+    const t1 = S.interpretBreakPointsNarrative({ opportunities: 3, converted: 0, saved: 3 }, { opportunities: 5, converted: 0, saved: 5 }, nameOf, otherName);
+    assert('U13 · §2.1 BP 0/3 vs 0/5: nunca "0 quiebres" como contundencia', !/consiguier\w* 0 quiebre/i.test(t1) && !/más contundente/i.test(t1), t1);
+    assert('U13b · §2.1 BP 0/3 vs 0/5: menciona oportunidades, no eficiencia', /oportunidad/i.test(t1), t1);
+
+    // §2.2 — misma eficiencia con distinta cantidad de oportunidades: 3/9 (33%) vs 2/6 (33%).
+    // Prohibido "aprovechó/aprovecharon mejor" — la tasa es idéntica.
+    const t2 = S.interpretBreakPointsNarrative({ opportunities: 9, converted: 3, saved: 6 }, { opportunities: 6, converted: 2, saved: 4 }, nameOf, otherName);
+    assert('U14 · §2.2 eficiencia igual (3/9 vs 2/6): nunca "aprovechó mejor"', !/aprovech\w* mejor/i.test(t2), t2);
+    assert('U14b · §2.2 eficiencia igual: menciona los quiebres (3 y 2)', t2.includes('3') && t2.includes('2'), t2);
+
+    // §7.9 — presión sin conversión: A generó 15 oportunidades y no convirtió ninguna: B tuvo
+    // 1 sola oportunidad y la convirtió. No confundir con dominio de A (quien más generó).
+    const t3 = S.interpretBreakPointsNarrative({ opportunities: 15, converted: 0, saved: 15 }, { opportunities: 1, converted: 1, saved: 0 }, nameOf, otherName);
+    assert('U15 · §7.9 presión sin conversión: menciona oportunidades y conversión', /oportunidad/i.test(t3) && /convert/i.test(t3), t3);
+
+    // §2.3 — concordancia gramatical: sujeto de dos jugadores siempre en plural. Barre TODAS
+    // las ramas de interpretBreakPointsNarrative con verbos en singular pegados al nombre.
+    const casosGramatica = [
+      S.interpretBreakPointsNarrative({ opportunities: 5, converted: 2, saved: 3 }, { opportunities: 0, converted: 0, saved: 0 }, nameOf, otherName),
+      S.interpretBreakPointsNarrative({ opportunities: 5, converted: 5, saved: 0 }, { opportunities: 0, converted: 0, saved: 0 }, nameOf, otherName),
+      S.interpretBreakPointsNarrative({ opportunities: 5, converted: 2, saved: 3 }, { opportunities: 3, converted: 2, saved: 1 }, nameOf, otherName),
+      t1, t2, t3,
+      S.interpretBreakPointsNarrative({ opportunities: 9, converted: 3, saved: 6 }, { opportunities: 3, converted: 2, saved: 1 }, nameOf, otherName),
+      S.interpretBreakPointsNarrative({ opportunities: 9, converted: 3, saved: 6 }, { opportunities: 6, converted: 1, saved: 5 }, nameOf, otherName),
+    ];
+    const singularBug = /(Ana y Bea|Cruz y Dan)\}?\s*(consiguió|generó|convirtió|aprovechó|necesitó|fue)\b/i;
+    casosGramatica.forEach((t, i) => {
+      if (t) assert(`U16.${i} · §2.3 concordancia plural (sin verbo singular)`, !singularBug.test(t), t);
+    });
+  })();
+
+  // ------------------------------------------------------------------
+  // V11 — INTEGRACIÓN: Narrative Planner (§3.1/§3.4), orientación (§2.4/§20.20),
+  // redundancia (§2.5), Match Points (§20.9), Tie break en saque/resto (§12/§20.16-19)
+  // ------------------------------------------------------------------
+  (function () {
+    /** Arma un game donde `leaderTeam` llega a tener Match/Set Point `saves` veces seguidas
+     *  (todas salvadas por el rival) y termina GANÁNDOLO el rival. Necesita scoringSystem
+     *  'classic' (Con Ventaja) para poder salvar de a uno real en vez de un solo Punto de
+     *  Oro/Star Point que decide el game de una. Nota: el propio camino a deuce (0-0→40-40)
+     *  ya pasa una vez por 40-30 a favor de `leaderTeam` — un game point real que también
+     *  cuenta como salvado — así que el bucle explícito de abajo solo necesita `saves - 1`
+     *  vueltas adicionales para totalizar exactamente `saves`. */
+    function playGameSavedByOpponent(ctx, leaderTeam, saves) {
+      const opp = leaderTeam === 'A' ? 'B' : 'A';
+      for (let i = 0; i < 3; i++) { playPoint(ctx, leaderTeam); playPoint(ctx, opp); } // 0-0 → 40-40
+      for (let i = 0; i < saves - 1; i++) { playPoint(ctx, leaderTeam); playPoint(ctx, opp); } // deuce↔ventaja
+      playPoint(ctx, opp); playPoint(ctx, opp); // el rival gana: ventaja + game
+    }
+
+    // ---- F7 · CASO PATRÓN §3.4: Set1 6-3 (A) · Set2 6-7 TB (B, con 3 MP de A salvados en
+    //      el Set 2) · Set3 6-2 (B) — el mismo desarrollo del ejemplo del consolidado. ----
+    const ctx7 = newCtx('classic', 'classic'); // "Con Ventaja" + Clásico (mejor de 3 sets)
+    // Set 1: A se lo lleva 6-3.
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGame(ctx7, t));
+    // Set 2: A llega a 5-1 (6 games)...
+    ['A', 'A', 'A', 'B', 'A', 'A'].forEach((t) => winGame(ctx7, t));
+    // ...B salva 3 Match Points de A en el 7° game y se lo termina llevando (5-2)...
+    playGameSavedByOpponent(ctx7, 'A', 3);
+    // ...B empareja a 5-5 (3 games más), A vuelve a 6-5, B fuerza el 6-6 y gana el Tie break.
+    ['B', 'B', 'B', 'A', 'B'].forEach((t) => winGame(ctx7, t));
+    winTiebreak(ctx7, 'B', 7, 5);
+    // Set 3: B gana 6-2 — un desarrollo totalmente distinto al Set 2, no puede omitirse.
+    ['A', 'B', 'A', 'B', 'B', 'B', 'B', 'B'].forEach((t) => winGame(ctx7, t));
+    const r7 = intelFromSim(ctx7);
+    assert('F7 · §3.4 caso patrón: B gana el partido', r7.winnerTeam === 'B', r7.winnerTeam);
+    assert('F7b · §3.4 caso patrón: 3 sets jugados', r7.sets.length === 3, r7.sets.length);
+    assert('F7c · §3.1 no omite el primer set (apertura)', r7.text.includes('primer set') && r7.text.includes('6-3'), r7.text);
+    assert('F7d · §3.4 identifica la remontada en el Set 2 (no el último)', r7.text.includes('Set 2'), r7.text);
+    assert('F7e · §3.4 marcador del peor momento (1-5 abajo)', r7.text.includes('1-5'), r7.text);
+    assert('F7f · §3.4 los 3 Match Points salvados quedan en el relato', r7.text.includes('3 Match Points'), r7.text);
+    assert('F7g · §3.4 menciona el Tie break del Set 2, orientado hacia quien ganó (7-5)', r7.text.includes('Tie break') && r7.text.includes('7-5'), r7.text);
+    assert('F7h · §3.1 no omite el desenlace del último set (Set 3, 6-2)', r7.text.includes('último set') && r7.text.includes('6-2'), r7.text);
+    assert('F7i · §3.2 profundidad: al menos 3 párrafos para un partido rico', r7.text.split('\n\n').length >= 3, r7.text);
+
+    // ---- F8 · §2.4/§20.20: remontada SIN Tie break — regresión puntual del bug real
+    //      "ganarlo 6-7" narrando al equipo que en realidad ganó 7-6 (acá, 4-6). Americano
+    //      dispara Tie break si el set pasa por 5-5 (a diferencia de Clásico, en 6-6) — el
+    //      guion evita ese empate exacto para poder aislar la orientación sin Tie break. ----
+    const ctx8 = newCtx('golden', 'americano'); // 1 solo set, alcanza para aislar la orientación
+    ['B', 'A', 'A', 'A', 'A'].forEach((t) => winGame(ctx8, t)); // B 1 - A 4 (déficit de B: 3)
+    ['B', 'B', 'B', 'B', 'B'].forEach((t) => winGame(ctx8, t)); // B remonta y cierra 6-4, sin pasar por 5-5
+    const r8 = intelFromSim(ctx8);
+    assert('F8 · §2.4 orientación de marcador en remontada sin TB: "6-4" presente', r8.text.includes('6-4'), r8.text);
+    assert('F8b · §2.4 orientación de marcador: "4-6" ausente (bug real: score crudo sin orientar)', !r8.text.includes('4-6'), r8.text);
+    assert('F8c · §3.1 remontada en el único set: no agrega un acto de cierre espurio', !r8.text.includes('otro desarrollo'), r8.text);
+
+    // ---- F4d/e/f/g/h · mismo fixture que F4 (§52, TB decisivo sin quiebres: 10 games
+    //      alternados sin quiebres + Tie break 7-5) para las regresiones de §2.5
+    //      (redundancia) y §12 (Tie break en saque/resto). Reconstruido acá porque F4 vive
+    //      en el IIFE anterior (fuera de este scope). ----------------------------------------
+    const ctx4b = newCtx('golden', 'americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGame(ctx4b, t));
+    winTiebreak(ctx4b, 'A', 7, 5);
+    const r4 = intelFromSim(ctx4b);
+    assert('F4d · §2.5 TB decisivo: no repite el resultado del Tie break', (r4.text.match(/7-5/g) || []).length <= 1, r4.text);
+    const stats4 = r4.stats;
+    const retWonA4 = stats4.serveStats.B.served - stats4.serveStats.B.wonServing;
+    const retWonB4 = stats4.serveStats.A.served - stats4.serveStats.A.wonServing;
+    assert('F4e · §12.1/§12.3 saque+resto = total de puntos ganados (A)', (stats4.serveStats.A.wonServing + retWonA4) === stats4.pointsA, `${stats4.serveStats.A.wonServing}+${retWonA4} vs ${stats4.pointsA}`);
+    assert('F4f · §12.1/§12.3 saque+resto = total de puntos ganados (B)', (stats4.serveStats.B.wonServing + retWonB4) === stats4.pointsB, `${stats4.serveStats.B.wonServing}+${retWonB4} vs ${stats4.pointsB}`);
+    const totalServiceGames4 = stats4.serviceGames.wonA + stats4.serviceGames.wonB + stats4.serviceGames.lostA + stats4.serviceGames.lostB;
+    assert('F4g · §12.2/§20.18 el Tie break NO suma a games de saque ganados/perdidos', totalServiceGames4 === 10, `${totalServiceGames4} games de saque (esperado 10, los normales — el TB no cuenta)`);
+    const sumPointsTotalA4 = stats4.perPlayerServe[0].pointsTotal + stats4.perPlayerServe[1].pointsTotal;
+    assert('F4h · §12.1/§20.17 saque por jugador incluye los puntos del Tie break', sumPointsTotalA4 === stats4.serveStats.A.served, `${sumPointsTotalA4} vs ${stats4.serveStats.A.served}`);
+
+    // ---- F9 · §20.9: Match Point salvado por quien de todos modos termina PERDIENDO —
+    //      prohibido "se agarraron al partido" (esa frase es solo para quien salva y GANA). ----
+    const ctx9 = newCtx('golden', 'americano');
+    for (let s = 0; s < 5; s++) winGame(ctx9, 'A'); // A 5 - B 0
+    // 6° game: A llega a 40-0 (Match Point), B lo salva 3 veces (40-15/30/40), y A termina
+    // convirtiendo en el Punto de Oro — cierra 6-0, pero necesitó 4 oportunidades de MP.
+    playPoint(ctx9, 'A'); playPoint(ctx9, 'A'); playPoint(ctx9, 'A');
+    playPoint(ctx9, 'B'); playPoint(ctx9, 'B'); playPoint(ctx9, 'B');
+    playPoint(ctx9, 'A');
+    const r9 = intelFromSim(ctx9);
+    assert('F9 · §20.9 winnerTeam A, con Match Points salvados por B en el camino', r9.winnerTeam === 'A', r9.winnerTeam);
+    assert('F9b · §20.9 "se mantuvieron con vida" para quien salvó y terminó perdiendo', /se mantuvieron con vida/i.test(r9.text), r9.text);
+    assert('F9c · §20.9 nunca "se agarraron al partido" (reservado para quien salva y GANA)', !/se agarraron al partido/i.test(r9.text), r9.text);
   })();
 
   // ------------------------------------------------------------------

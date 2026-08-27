@@ -1709,6 +1709,11 @@
 
     $('#analysis-full-timeline-btn').onclick = () => { renderFullTimeline(f); showView('timeline'); };
     $('#analysis-share-btn').onclick = () => shareResult(f, 'analisis');
+    // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
+    // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
+    // partido recién terminado como desde el Historial de un partido viejo, y en ese segundo
+    // caso podría haber un partido EN VIVO distinto todavía activo que no hay que borrar.
+    $('#analysis-home-btn').onclick = () => { checkForActiveMatch(); showView('setup'); };
   }
 
   /** Bloque S2/V5: pestañas PARTIDO/SET1/SET2/SET3, compartidas entre Estadísticas y Evolución.
@@ -2079,16 +2084,19 @@
           `<text x="${x.toFixed(1)}" y="${(topPad - 6).toFixed(1)}" font-size="7.5" fill="${color}" text-anchor="middle" font-weight="700">${label}</text>`;
       }).join('') : '';
 
-    // Vista por Set: se conserva el detalle previo (rombo con Match/Set Point, Oro-Star,
-    // mini-break) — el usuario ya está mirando un tramo puntual y puede sostener más
-    // información sin que el gráfico se sienta saturado (§36).
-    const specialMarkers = isMatchView ? '' : specialNodesForFilter.map((s) => {
+    // Vista por Set: se conserva el detalle previo (rombo con Match/Set Point, Oro-Star) —
+    // el usuario ya está mirando un tramo puntual y puede sostener más información sin que
+    // el gráfico se sienta saturado (§36). V11 (§13.2): los mini-breaks de Tie break quedan
+    // FUERA del dibujo — generaban un rombo + etiqueta "mini-break" por cada punto del
+    // desempate, y con un TB largo se amontonaban y se pisaban entre sí (bug real reportado).
+    // Siguen existiendo en los datos (cálculo interno, Momentos Clave); acá ya no se dibujan.
+    const specialMarkers = isMatchView ? '' : specialNodesForFilter.filter((s) => s.kind !== 'minibreak').map((s) => {
         let posIdx = games.findIndex((g) => !g.isVirtualStart && g.matchTimeMs >= s.matchTimeMs);
         if (posIdx === -1) posIdx = games.length - 1;
         const x = xScale(Math.max(0, posIdx - 0.4));
         const y = yScale(s.team === 'A' ? s.indexA : s.indexB);
         const color = s.team === 'A' ? 'var(--team-a)' : 'var(--team-b)';
-        const label = s.kind === 'match-point' ? ((s.count && s.count > 1) ? `${s.count} MP` : 'MP') : s.kind === 'set-point' ? 'SP' : s.kind === 'minibreak' ? 'mini-break' : (s.isGoldOrStar ? '★' : '');
+        const label = s.kind === 'match-point' ? ((s.count && s.count > 1) ? `${s.count} MP` : 'MP') : s.kind === 'set-point' ? 'SP' : (s.isGoldOrStar ? '★' : '');
         return `<rect x="${(x - 3).toFixed(1)}" y="${(y - 3).toFixed(1)}" width="6" height="6" fill="${color}" transform="rotate(45 ${x.toFixed(1)} ${y.toFixed(1)})" opacity="0.9"/>` +
           (label ? `<text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" font-size="6.5" fill="${color}" text-anchor="middle" font-weight="700">${label}</text>` : '');
       }).join('');
@@ -2109,6 +2117,17 @@
           }
           segStartIdx = i + 1;
         }
+      });
+    } else if (games.length > 1) {
+      // V11 (§13.3): lectura discreta por games en la vista SET — pequeños ticks + el
+      // marcador acumulado del set en cada game, para poder ubicar aproximadamente
+      // 1–0 / 2–0 / 3–1 / ... con solo mirar el gráfico, sin escribir los scores grandes ni
+      // ensuciarlo (legibilidad > cantidad de información, §13.3 explícito).
+      games.forEach((g, i) => {
+        if (g.isVirtualStart) return;
+        const x = xScale(i);
+        setLabelsSvg += `<line x1="${x.toFixed(1)}" y1="${(h - 4).toFixed(1)}" x2="${x.toFixed(1)}" y2="${h}" stroke="rgba(244,247,242,0.25)" stroke-width="1"/>`;
+        setLabelsSvg += `<text x="${x.toFixed(1)}" y="${h + 10}" font-size="6" fill="rgba(244,247,242,0.4)" text-anchor="middle">${g.gamesA}-${g.gamesB}</text>`;
       });
     }
 

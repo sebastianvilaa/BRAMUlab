@@ -1,10 +1,16 @@
 /* ==========================================================================
-   BRAMU Lab — stats.js (v9)
+   BRAMU Lab — stats.js (v11)
    Calcula estadísticas REALES a partir de eventos + resolución de saque.
    Reglas duras:
-     - El tie break NUNCA contribuye a: breaks, break points, games de
-       saque, ni estadísticas de saque/resto por punto. Sólo puede aportar
-       Set Points / Match Points.
+     - El tie break NUNCA contribuye a: breaks, break points, ni games de
+       saque ganados/perdidos (el TB no es un game de saque completo de una
+       pareja/jugador, el servicio se alterna dentro del propio desempate).
+     - V11 (§12): el tie break SÍ contribuye a: puntos ganados totales,
+       puntos ganados al saque/al resto (por equipo y por jugador), y
+       Set Points / Match Points cuando ocurren dentro del TB. Cada punto de
+       TB tiene un sacador conocido (vía resolución de sacador de TB), así
+       que sí puede atribuirse a saque/resto — lo único que no tiene es un
+       "game de saque" completo que ganar o perder.
      - Si falta información de saque, las métricas que dependen de él se
        omiten (o se marcan `hasServerInfo:false`), nunca se estiman.
    ========================================================================== */
@@ -107,8 +113,11 @@
       recordOpportunity(setPoints, importance.set, ev.team);
       recordOpportunity(matchPoints, importance.match, ev.team);
 
-      // Saque/resto por punto — EXCLUYE tie break por completo.
-      if (!before.inTiebreak && servingTeam) {
+      // V11 (§12.1): saque/resto por punto — INCLUYE tie break. Cada punto de TB tiene un
+      // sacador conocido (rotación dentro del propio TB, ya resuelto arriba vía
+      // resolveTiebreakServer); lo único que el TB nunca alimenta es un game de saque
+      // completo (más abajo, wasNormalGameEnd sigue excluyéndolo) ni breaks/Break Points.
+      if (servingTeam) {
         serveStats[servingTeam].served += 1;
         if (ev.team === servingTeam) serveStats[servingTeam].wonServing += 1;
         if (servingPlayerId != null && perPlayerServe[servingPlayerId]) {
@@ -192,13 +201,19 @@
    * en todo).
    */
   /**
-   * V9.2 (7-8) — reescrita por completo. Reglas duras:
+   * V11 (§2.1/§2.2/§2.3/§8) — reescrita de nuevo sobre la base V9.2. Reglas duras:
    *   - 0/0 NUNCA es una tasa de conversión: si una pareja no tuvo ninguna oportunidad real,
    *     jamás se la compara en "eficiencia" contra la otra ni se escribe "0 de 0".
-   *   - Prioridad de lectura: BREAKS CONVERTIDOS > EFICIENCIA > OPORTUNIDADES GENERADAS.
-   *     "Aprovechó mejor" / "fue más eficiente" solo se afirma cuando converted/opportunities
-   *     es realmente superior, y solo comparando dos parejas que tuvieron AMBAS al menos
-   *     una oportunidad real.
+   *   - Ambas parejas con oportunidades pero CERO conversiones de los dos lados: nunca
+   *     "más contundente" ni eficiencia — solo presión/oportunidades sin conversión (bug
+   *     real §2.1: "fueron mucho más contundentes y consiguieron 0 quiebres en 3
+   *     oportunidades", con 0/3 vs 0/5).
+   *   - Misma eficiencia con distinto número de oportunidades: nunca "aprovechó mejor" (bug
+   *     real §2.2: 3/9 y 2/6 son la MISMA eficiencia, 33%, aunque los breaks difieran).
+   *   - Prioridad de lectura: BREAKS CONVERTIDOS > EFICIENCIA > OPORTUNIDADES GENERADAS,
+   *     nunca forzando las tres a la vez.
+   *   - Sujeto de dos jugadores siempre en plural ("consiguieron", nunca "consiguió") — bug
+   *     real §2.3 encontrado en esta misma función (varias ramas usaban el verbo en singular).
    * Devuelve `null` si no hay nada interesante que contar.
    */
   function interpretBreakPointsNarrative(bpA, bpB, nameOf, otherName) {
@@ -222,9 +237,27 @@
     // Ambas parejas tuvieron oportunidades reales — prioridad: breaks convertidos primero.
     if (a.converted === b.converted) {
       if (a.opportunities === b.opportunities) return null; // igual en todo: no aporta
-      if (a.converted === 0) return null; // ninguna convirtió nada: no hay nada que destacar
-      const moreEff = a.opportunities < b.opportunities ? 'A' : 'B';
-      return `Ambos consiguieron la misma cantidad de quiebres (${a.converted}), pero ${nameOf(moreEff)} necesitaron menos oportunidades para lograrlo, ${moreEff === 'A' ? a.opportunities : b.opportunities} contra ${moreEff === 'A' ? b.opportunities : a.opportunities}.`;
+
+      if (a.converted === 0) {
+        // V11 (§2.1): ninguna convirtió nada, pero hubo distinta cantidad de oportunidades —
+        // se narra la presión sin conversión, nunca como eficiencia ni "más contundente".
+        const moreOppsTeam = a.opportunities > b.opportunities ? 'A' : 'B';
+        const moreVal = moreOppsTeam === 'A' ? a.opportunities : b.opportunities;
+        const fewerVal = moreOppsTeam === 'A' ? b.opportunities : a.opportunities;
+        const magnitude = describeMagnitude(moreVal, fewerVal);
+        if (!magnitude || magnitude === 'apenas') {
+          return 'Ambas parejas tuvieron oportunidades al resto, pero ninguna consiguió quebrar.';
+        }
+        const oppPhrase = magnitudeOpportunitiesPhrase(moreVal, fewerVal) || 'más oportunidades';
+        return `${nameOf(moreOppsTeam)} generaron ${oppPhrase} desde la devolución, con ${moreVal} oportunidades frente a ${fewerVal}, aunque ninguno de los dos equipos consiguió convertir un Break Point.`;
+      }
+
+      // Mismos quiebres convertidos (y al menos uno cada uno), distinta cantidad de
+      // oportunidades: sí hay algo real que contar — la eficiencia relativa.
+      const moreEffTeam = a.opportunities < b.opportunities ? 'A' : 'B';
+      const moreEffOpps = moreEffTeam === 'A' ? a.opportunities : b.opportunities;
+      const lessEffOpps = moreEffTeam === 'A' ? b.opportunities : a.opportunities;
+      return `Ambos consiguieron la misma cantidad de quiebres (${a.converted}), pero ${nameOf(moreEffTeam)} necesitaron menos oportunidades para lograrlo, ${moreEffOpps} contra ${lessEffOpps}.`;
     }
 
     const moreBreaks = a.converted > b.converted ? 'A' : 'B';
@@ -238,16 +271,29 @@
       // Sección 8 del consolidado: quien menos quebró fue realmente más eficiente — vale
       // contar las dos caras (más quiebres vs. más eficiente), nunca "aprovechó mejor" para
       // quien simplemente convirtió más con más chances.
-      return `${nameOf(moreBreaks)} consiguió más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}, pero ${nameOf(fewerBreaks)} fue más eficiente y necesitó solo ${fewerBucket.opportunities} oportunidad${fewerBucket.opportunities === 1 ? '' : 'es'} para convertir ${fewerBucket.converted === 1 ? 'su quiebre' : 'sus quiebres'}.`;
+      return `${nameOf(moreBreaks)} consiguieron más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}, pero ${nameOf(fewerBreaks)} fueron más eficientes y necesitaron solo ${fewerBucket.opportunities} oportunidad${fewerBucket.opportunities === 1 ? '' : 'es'} para convertir ${fewerBucket.converted === 1 ? 'su quiebre' : 'sus quiebres'}.`;
+    }
+    if (fewerBucket.converted > 0 && Math.abs(fewerRate - moreRate) < 1e-9) {
+      // V11 (§2.2): misma eficiencia con distinto número de oportunidades — nunca "aprovechó
+      // mejor" (bug real: 3/9 y 2/6 son la misma tasa, 33%, aunque los breaks difieran).
+      return `${nameOf(moreBreaks)} consiguieron más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}, con una efectividad de conversión similar.`;
     }
     if (moreBucket.opportunities > fewerBucket.opportunities) {
-      // V10 (16/45.1): la calificación de "cuánto más" ahora depende de la magnitud real de
-      // la diferencia (7 vs 6 no es lo mismo que 16 vs 2), nunca un "más chances" plano.
+      // V10 (16/45.1): la calificación de "cuánto más" depende de la magnitud real de la
+      // diferencia (7 vs 6 no es lo mismo que 16 vs 2), nunca un "más chances" plano.
       const phrase = magnitudeOpportunitiesPhrase(moreBucket.opportunities, fewerBucket.opportunities);
-      const chancesClause = phrase ? `generó ${phrase} de quiebre` : `generó más chances de quiebre, ${moreBucket.opportunities} contra ${fewerBucket.opportunities}`;
-      return `${nameOf(moreBreaks)} ${chancesClause}, y además las aprovechó mejor. Convirtió ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
+      const chancesClause = phrase ? `generaron ${phrase} de quiebre` : `generaron más chances de quiebre, ${moreBucket.opportunities} contra ${fewerBucket.opportunities}`;
+      return `${nameOf(moreBreaks)} ${chancesClause}, y además las aprovecharon mejor. Convirtieron ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
     }
-    return `${nameOf(moreBreaks)} consiguió más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
+    if (fewerBucket.opportunities > moreBucket.opportunities) {
+      // V11 (§7.9): PRESIÓN SIN CONVERSIÓN — quien convirtió MENOS en realidad generó MÁS
+      // oportunidades (presión real) pero no las aprovechó. No confundir con dominio de quien
+      // tuvo más chances: la conversión real fue del otro lado, y eso también hay que decirlo.
+      const oppPhrase = magnitudeOpportunitiesPhrase(fewerBucket.opportunities, moreBucket.opportunities);
+      const pressureClause = oppPhrase ? `generaron ${oppPhrase} de quiebre` : `generaron más oportunidades de quiebre, ${fewerBucket.opportunities} contra ${moreBucket.opportunities}`;
+      return `${nameOf(fewerBreaks)} ${pressureClause}, pero fueron ${nameOf(moreBreaks)} quienes más veces lograron convertir, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
+    }
+    return `${nameOf(moreBreaks)} consiguieron más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
   }
 
   /**
@@ -404,6 +450,36 @@
       const changed = s.winner !== priorSets[i - 1].winner;
       return (changed ? ', pero ' : ', y ') + `${nameOf(s.winner)} se llevaron el ${i + 1}° set ${orientScore(s.gamesA, s.gamesB, s.winner)}`;
     }).join('') + '.';
+  }
+
+  /**
+   * V11 (§3.1/§3.4) — ACTO DE CIERRE: cuando la remontada elegida como historia principal
+   * ocurrió en un set que NO es el último del partido, el desenlace real queda en un set
+   * completamente distinto (p.ej. remontada en el Set 2 de un partido a 3 sets — el Set 3
+   * es "otra película"). Devuelve `null` si `actSetNumber` YA es el último set (nada que
+   * agregar: la historia principal ya cubre el cierre). Reusa `computeSetSegments` +
+   * `computeStats` para tener datos REALES de ese set puntual (quiebres si se conoce el
+   * saque), nunca un resumen inventado.
+   */
+  function buildClosingActText(matchCtx, sets, actSetNumber, nameOf) {
+    if (!actSetNumber || actSetNumber >= sets.length) return null;
+    const lastSet = sets[sets.length - 1];
+    const segments = computeSetSegments(matchCtx.events || [], matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline);
+    const seg = segments.find((s) => s.setNumber === sets.length);
+    let winnerBreaksInSet = 0;
+    let hasServerInfoInSet = false;
+    if (seg) {
+      const segStats = computeStats(seg.events, Object.assign({}, matchCtx, { baseline: seg.baseline }));
+      winnerBreaksInSet = lastSet.winner === 'A' ? segStats.breaks.A : segStats.breaks.B;
+      hasServerInfoInSet = segStats.hasServerInfo;
+    }
+    const closeClause = lastSet.tiebreak
+      ? `en el Tie break, ${orientTiebreak(lastSet.tiebreak, lastSet.winner)}`
+      : orientScore(lastSet.gamesA, lastSet.gamesB, lastSet.winner);
+    const text = (hasServerInfoInSet && winnerBreaksInSet > 0)
+      ? `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} consiguieron ${winnerBreaksInSet === 1 ? 'un quiebre' : `${winnerBreaksInSet} quiebres`} y cerraron ${closeClause}.`
+      : `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} se quedaron con el set ${closeClause}.`;
+    return { text, tbMentioned: !!lastSet.tiebreak };
   }
 
   /**
@@ -598,10 +674,18 @@
       const winnerDeficits = setDeficits.filter((d) => d.winner === winnerTeam && d.deficitFacedByWinner >= 3);
       if (winnerDeficits.length) {
         const biggest = winnerDeficits.reduce((max, d) => (d.deficitFacedByWinner > max.deficitFacedByWinner ? d : max));
-        const isDecidingSet = biggest.setNumber === sets.length;
-        const loserMpSaved = isDecidingSet ? stats.matchPoints[loserTeam].opportunities : 0;
-        const decidingSet = isDecidingSet ? sets[sets.length - 1] : null;
-        const wasTiebreakClose = !!(decidingSet && decidingSet.tiebreak);
+        // V11 (§3.1/§3.4): la remontada puede haber ocurrido en CUALQUIER set del partido, no
+        // solo en el último — en un bo3, ir 1 set arriba ya genera Match Points reales en el
+        // segundo set aunque el partido siga a un tercero. Antes esto solo se enriquecía con
+        // Match Points/Tie break cuando coincidía con el ÚLTIMO set del partido — bug real: el
+        // caso patrón del consolidado (6-3 · 6-7 · 2-6) perdía los 3 Match Points salvados y
+        // el Tie break del segundo set por completo, porque ese set no era el último. Ahora se
+        // buscan los hechos puntuales DE ESE set específico, vía los mismos momentos que
+        // alimentan Evolución/Momentos Clave (nunca una segunda interpretación de los mismos
+        // datos, punto 24 del histórico).
+        const actSet = sets[biggest.setNumber - 1];
+        const loserMpSavedInSet = evoData.moments.filter((m) => m.kind === 'match-point-saved' && m.team === loserTeam && m.setNumber === biggest.setNumber).length;
+        const wasTiebreakClose = !!(actSet && actSet.tiebreak);
 
         let scoreAbajo = `por ${biggest.deficitFacedByWinner} games`;
         if (biggest.worstScoreForWinner) {
@@ -610,23 +694,33 @@
           scoreAbajo = `${theirs}-${opp}`;
         }
         let text = `${nameOf(winnerTeam)} protagonizaron una gran remontada en el Set ${biggest.setNumber}. Estuvieron ${scoreAbajo} abajo`;
-        if (loserMpSaved > 0) {
-          text += ` y salvaron ${loserMpSaved === 1 ? 'un Match Point' : `${loserMpSaved} Match Points`} de ${nameOf(loserTeam)}`;
+        if (loserMpSavedInSet > 0) {
+          text += ` y salvaron ${loserMpSavedInSet === 1 ? 'un Match Point' : `${loserMpSavedInSet} Match Points`} de ${nameOf(loserTeam)}`;
         }
         if (wasTiebreakClose) {
           // V9 (7): el marcador narrativo se orienta siempre hacia el protagonista de la
           // frase (acá, quien ganó) — nunca el orden fijo A-B del Tie break real, que es
           // el que usan la Timeline y las tarjetas de marcador (esos sí mantienen A-B).
-          text += ` antes de llevar el partido al Tie break, donde terminaron imponiéndose ${orientTiebreak(decidingSet.tiebreak, winnerTeam)}.`;
+          text += ` antes de llevar el set al Tie break, donde terminaron imponiéndose ${orientTiebreak(actSet.tiebreak, winnerTeam)}.`;
         } else {
-          text += ` y lo dieron vuelta para ganarlo ${biggest.gamesA}-${biggest.gamesB}.`;
+          // V11 (§2.4): marcador orientado hacia quien protagoniza la frase — nunca
+          // gamesA-gamesB crudo (bug real: "ganarlo 6-7" narrando al equipo que ganó 7-6).
+          text += ` y lo dieron vuelta para ganarlo ${orientScore(biggest.gamesA, biggest.gamesB, winnerTeam)}.`;
         }
-        const weight = (loserMpSaved > 0 && wasTiebreakClose) ? 97 : 90;
-        stories.push({ kind: 'remontada', weight, text, mpMentioned: loserMpSaved > 0 });
+        // V11 (§3.1): si hubo sets ANTES de este (p.ej. el rival se llevó el primero), se
+        // antepone su resumen — ningún acto de la "película" queda sin contar.
+        const arc = buildSetArcSentence(sets, nameOf, biggest.setNumber);
+        const weight = (loserMpSavedInSet > 0 && wasTiebreakClose) ? 97 : 90;
+        stories.push({
+          kind: 'remontada', weight, text: (arc ? arc + ' ' : '') + text,
+          mpMentioned: loserMpSavedInSet > 0, actSetNumber: biggest.setNumber,
+          tbMentionedSetNumber: wasTiebreakClose ? biggest.setNumber : null,
+        });
       } else if (sets.length >= 2 && sets[0].winner && sets[0].winner !== winnerTeam) {
         stories.push({
           kind: 'remontada-set', weight: 85, partialSensitive: false,
-          text: `${nameOf(winnerTeam)} arrancaron perdiendo el primer set (${sets[0].gamesA}-${sets[0].gamesB}) y se repusieron para llevarse el partido.`,
+          // V11 (§2.4): orientado hacia el protagonista de la frase — nunca el orden fijo A-B.
+          text: `${nameOf(winnerTeam)} arrancaron perdiendo el primer set (${orientScore(sets[0].gamesA, sets[0].gamesB, winnerTeam)}) y se repusieron para llevarse el partido.`,
         });
       } else {
         // V9.2 (10): "se agarraron al partido" se reserva EXCLUSIVAMENTE para quien salva
@@ -753,7 +847,10 @@
         const text = sets.length > 1
           ? `Nadie quebró el servicio en todo el partido: la definición pasó por el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
           : `Nadie quebró el servicio en todo el set: la definición pasó por el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
-        stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false });
+        // V11 (§2.5): marca que el Tie break del último set ya quedó narrado acá, para que el
+        // cierre por duración (párrafo final) no lo repita ("...cerrando el Tie break final
+        // X-Y" después de ya haberlo contado) — bug real de redundancia narrativa.
+        stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false, tbMentionedSetNumber: sets.length });
       }
     }
 
@@ -788,34 +885,14 @@
     //    mostrar solo las oportunidades generadas sin decir cuántas se convirtieron — “generó
     //    16 Break Points” sin más es una estadística aislada que cuenta una historia falsa si
     //    solo convirtió 2. Siempre oportunidad + conversión de ambas parejas (40).
+    // V11 (§2.1/§23): toda la interpretación (breaks > eficiencia > oportunidades, nunca "0
+    //    quiebres" como contundencia, nunca "aprovechó mejor" con la misma eficiencia) vive
+    //    entera en interpretBreakPointsNarrative — antes había una rama especial acá con sus
+    //    propias guardas, ligeramente distintas de las de esa función, y esa duplicación fue
+    //    exactamente lo que produjo el bug real de "0 quiebres" en V10.
     if (stats.hasServerInfo && stats.serverFullyKnown && (stats.breakPoints.A.opportunities + stats.breakPoints.B.opportunities) >= 6) {
-      const bpA = stats.breakPoints.A, bpB = stats.breakPoints.B;
-      if (bpA.opportunities !== bpB.opportunities || bpA.converted !== bpB.converted) {
-        const moreChances = bpA.opportunities >= bpB.opportunities ? 'A' : 'B';
-        const other = moreChances === 'A' ? 'B' : 'A';
-        const moreChancesBucket = moreChances === 'A' ? bpA : bpB;
-        const otherBucket = other === 'A' ? bpA : bpB;
-        let text;
-        // V9.2 (8): esta rama especial ("generó muchas más chances pero le costó
-        // aprovecharlas") solo tiene sentido si el OTRO lado realmente tuvo oportunidades
-        // para comparar — si otherBucket es 0/0, no hay nada que "aprovechar mejor" y cae
-        // en interpretBreakPointsNarrative (ya corregida para nunca decir "0 de 0").
-        if (otherBucket.opportunities > 0 && moreChancesBucket.converted <= otherBucket.converted && moreChancesBucket.opportunities > otherBucket.opportunities) {
-          // V8.2 (24-27): el ejemplo del consolidado ya no restaña la fracción con dos
-          // puntos ("...aprovecharlas: convirtieron X/Y") — corta ahí en punto y deja que
-          // la cifra exacta viva en la grilla de Estadísticas, no repetida en la prosa.
-          // V10 (16/45.1): magnitud graduada en vez de "muchas más" fijo — la brecha real
-          // entre las oportunidades es lo que decide el calificador.
-          const oppPhrase = magnitudeOpportunitiesPhrase(moreChancesBucket.opportunities, otherBucket.opportunities) || 'más oportunidades';
-          text = `${nameOf(moreChances)} generaron ${oppPhrase} desde la devolución, pero les costó aprovecharlas. ${nameOf(other)} fueron mucho más contundentes y consiguieron ${otherBucket.converted} quiebre${otherBucket.converted === 1 ? '' : 's'} en ${otherBucket.opportunities} oportunidad${otherBucket.opportunities === 1 ? '' : 'es'}.`;
-        } else {
-          // 23-24: interpretar el dato (implacables / misma cantidad pero distinta
-          // efectividad / más chances Y más efectivos), nunca una oración con dos
-          // fracciones pegadas ("convirtieron 7/7 y 3/6").
-          text = interpretBreakPointsNarrative(bpA, bpB, nameOf, otherName);
-        }
-        if (text) stories.push({ kind: 'resto', weight: 40, text });
-      }
+      const text = interpretBreakPointsNarrative(stats.breakPoints.A, stats.breakPoints.B, nameOf, otherName);
+      if (text) stories.push({ kind: 'resto', weight: 40, text });
     }
 
     // V9/V9.2: cuando aparece "dominio claro" (120) o la secuencia cronológica decisiva
@@ -884,6 +961,23 @@
       }
     }
 
+    // ---- Acto de cierre (V11 §3.1/§3.4): si la remontada elegida como historia principal
+    //      ocurrió en un set que NO es el último, el desenlace real del partido queda en un
+    //      set totalmente distinto que el párrafo principal no cubre — bug real reportado
+    //      (6-3 · 6-7 · 2-6: se omitía por completo el dominio del ganador en el tercer set).
+    //      Se agrega como párrafo propio, con datos reales de ESE set (quiebres si se conoce
+    //      el saque, marcador siempre orientado), para que ningún acto de la "película" quede
+    //      sin contar.
+    let closingActTbMentioned = false;
+    const remontadaStory = topStories.find((s) => s.kind === 'remontada');
+    if (remontadaStory && remontadaStory.actSetNumber) {
+      const closingAct = buildClosingActText(matchCtx, sets, remontadaStory.actSetNumber, nameOf);
+      if (closingAct) {
+        paras.push(closingAct.text);
+        closingActTbMentioned = closingAct.tbMentioned;
+      }
+    }
+
     // ---- Párrafo 2: puntos decisivos (R6/R7/R8/R9/AB) ----
     const sentences2 = [];
     // V8: si la historia principal (remontada o casi-remontada) YA narró estos mismos
@@ -936,16 +1030,10 @@
     // Evita repetir en el párrafo de puntos decisivos lo que ya se contó como historia
     // principal (párrafo 1) con la misma lectura de oportunidad+conversión.
     if (!usedKinds.includes('resto') && !usedKinds.includes('unico-break') && stats.hasServerInfo && (stats.breakPoints.A.opportunities + stats.breakPoints.B.opportunities) > 0) {
-      const a = stats.breakPoints.A, b = stats.breakPoints.B;
-      if (a.converted === b.converted && a.converted > 0 && a.opportunities !== b.opportunities) {
-        const moreEff = a.opportunities < b.opportunities ? 'A' : 'B';
-        sentences2.push(`Ambos quebraron el saque rival la misma cantidad de veces (${a.converted}), pero ${nameOf(moreEff)} necesitaron menos oportunidades para lograrlo (${fmtOpp(stats.breakPoints, moreEff)} contra ${fmtOpp(stats.breakPoints, moreEff === 'A' ? 'B' : 'A')}).`);
-      } else {
-        // 23-24: misma interpretación que en la historia principal — nunca la oración con
-        // dos fracciones pegadas ("convirtieron 7/7 y 3/6").
-        const interpreted = interpretBreakPointsNarrative(a, b, nameOf, otherName);
-        if (interpreted) sentences2.push(interpreted);
-      }
+      // V11 (§23): misma interpretación que en la historia principal, sin una rama propia
+      // separada — nunca la oración con dos fracciones pegadas ("convirtieron 7/7 y 3/6").
+      const interpreted = interpretBreakPointsNarrative(stats.breakPoints.A, stats.breakPoints.B, nameOf, otherName);
+      if (interpreted) sentences2.push(interpreted);
     }
     if (sentences2.length) paras.push(sentences2.join(' '));
 
@@ -978,6 +1066,10 @@
     } else if (winnerTeam) {
       const lastSet = sets[sets.length - 1];
       const wasTiebreak = lastSet && lastSet.tiebreak;
+      // V11 (§2.5): si el Tie break del último set ya se narró (como historia principal o en
+      // el acto de cierre de arriba), no se repite acá — bug real de redundancia narrativa
+      // ("...que ganaron 7-3" y después "...cerrando el Tie break final 7-3").
+      const tbAlreadyMentioned = closingActTbMentioned || topStories.some((s) => s.tbMentionedSetNumber === sets.length);
       // V8 (33): "dominio claro" — señal simple para decidir si vale la pena resaltar una
       // duración muy corta: una racha grande, o alguna pareja que no perdió ni un game de
       // saque en todo el partido.
@@ -986,9 +1078,9 @@
         (stats.serviceGames.wonB > 0 && stats.serviceGames.lostB === 0)
       ));
       const closingDuration = buildDurationClosingSentence(stats.matchDurationMs, nameOf(winnerTeam), hasClearDominance);
-      if (wasTiebreak && closingDuration) {
+      if (wasTiebreak && !tbAlreadyMentioned && closingDuration) {
         sentences3.push(`${closingDuration.replace(/\.$/, '')}, cerrando el Tie break final ${orientTiebreak(lastSet.tiebreak, winnerTeam)}.`);
-      } else if (wasTiebreak) {
+      } else if (wasTiebreak && !tbAlreadyMentioned) {
         sentences3.push(`Terminaron cerrando el Tie break final ${orientTiebreak(lastSet.tiebreak, winnerTeam)}.`);
       } else if (closingDuration) {
         sentences3.push(closingDuration);

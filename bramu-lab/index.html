@@ -46,16 +46,6 @@
       <datalist id="known-players"></datalist>
 
       <div class="setup-section">
-        <div class="setup-section__title">Método de puntuación</div>
-        <div id="scoring-options" class="option-row" role="radiogroup" aria-label="Método de puntuación">
-          <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
-          <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
-          <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
-        </div>
-        <div id="scoring-hint" class="setup-hint">Punto decisivo en 40–40</div>
-      </div>
-
-      <div class="setup-section">
         <div class="setup-section__title">Formato de partido</div>
         <div id="format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
           <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
@@ -67,6 +57,16 @@
             <span class="option-pill__hint">1 set · Tie break en 5–5</span>
           </button>
         </div>
+      </div>
+
+      <div class="setup-section">
+        <div class="setup-section__title">Sistema de puntuación</div>
+        <div id="scoring-options" class="option-row" role="radiogroup" aria-label="Sistema de puntuación">
+          <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
+          <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
+          <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
+        </div>
+        <div id="scoring-hint" class="setup-hint">Punto decisivo en 40–40</div>
       </div>
 
       <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
@@ -341,7 +341,7 @@
       <div class="summary-actions">
         <button id="summary-analysis-btn" class="btn-secondary" type="button">VER ANÁLISIS</button>
         <button id="summary-share-btn" class="btn-secondary" type="button">COMPARTIR</button>
-        <button id="summary-new-btn" class="btn-start" type="button">NUEVO PARTIDO</button>
+        <button id="summary-new-btn" class="btn-start" type="button">VOLVER AL INICIO</button>
       </div>
     </div>
   </section>
@@ -391,6 +391,7 @@
       </section>
       <section class="analysis-section" id="analysis-share-section">
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
+        <button id="analysis-home-btn" class="btn-secondary" type="button" style="width:100%">VOLVER AL INICIO</button>
       </section>
     </div>
   </section>
