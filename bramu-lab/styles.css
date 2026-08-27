@@ -736,16 +736,25 @@ input, select{ font-family: inherit; }
    contenido es angosto (nombres de jugador, no números gigantes) así que le alcanza con el
    ancho "contenido" (768px) que ya usan Análisis/Historial, sin inventar un tercer valor.
    Formato/Sistema de puntuación siguen como están (ya son grillas de botones, no
-   necesitan más ancho). El "VS" pierde las líneas horizontales — no hay lugar natural
-   para una línea larga entre dos columnas angostas — y queda como insignia centrada. */
+   necesitan más ancho).
+   V11.12 (feedback real, con Inspeccionar) — la línea divisoria con color no desaparece:
+   se rota vertical (mismo degradé equipo A → equipo B, ahora de arriba a abajo) en vez de
+   sacarla. La insignia "VS" pierde fondo/borde/padding acá (queda solo el texto, sobre la
+   línea) — más compacta, gana pixeles de ancho para los campos de nombre. Column-gap baja
+   de 18 a 10 por el mismo motivo. Todo esto es SOLO de esta vista horizontal — la vista
+   vertical (celular/tablet parado) sigue con la insignia con fondo tal cual ya estaba. */
 @media (orientation: landscape) and (min-width: 700px){
   .view--setup{ max-width: 768px; }
   .setup-form{
-    display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 18px; row-gap: 16px; align-items: stretch;
+    display: grid; grid-template-columns: 1fr auto 1fr; column-gap: 10px; row-gap: 16px; align-items: stretch;
   }
   .team-block--a{ grid-column: 1; }
-  .vs-divider{ grid-column: 2; flex-direction: column; align-self: center; }
-  .vs-divider__line{ display: none; }
+  .vs-divider{ grid-column: 2; flex-direction: column; align-self: stretch; }
+  .vs-divider__line{
+    width: 1px; height: auto;
+    background: linear-gradient(180deg, var(--team-a), var(--line) 40%, var(--line) 60%, var(--team-b));
+  }
+  .vs-divider__text{ padding: 0; border: none; background: none; }
   .team-block--b{ grid-column: 3; }
   .setup-section, #start-match-btn{ grid-column: 1 / -1; }
 }
