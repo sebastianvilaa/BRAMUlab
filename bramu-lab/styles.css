@@ -688,21 +688,22 @@ input, select{ font-family: inherit; }
 /* ==========================================================================
    RESPONSIVE
    ========================================================================== */
+/* V11.8 (feedback real) — SISTEMA DE ANCHOS EN DESKTOP/TABLET: antes cada vista tenía su
+   propio ancho y trato de fondo elegidos por separado (Resumen incluso terminó con un
+   fondo un tris distinto — #05100E acá vs var(--ink) en .view--summary —, dos oscuros
+   casi iguales pero no idénticos, que es justo lo que se notaba raro al navegar). Ahora
+   hay dos anchos, nunca más: "compacto" (560px — Inicio y Resumen, pantallas cortas tipo
+   formulario/tarjeta) y "contenido" (768px — Análisis/Historial/Timeline, pantallas
+   largas que de verdad se benefician de más ancho para scrollear menos). El fondo del
+   margen es siempre `var(--ink)` — el mismo token que ya usa el resto de la app, nunca
+   un valor suelto — así no hay manera de que se desalineen de nuevo. El marcador en vivo
+   (`.view--match`) es un caso aparte a propósito: es la única pantalla de control táctil,
+   no de lectura, y ya tiene su propio ancho vertical/horizontal resuelto (§V11.5/§V11.6). */
 @media (min-width: 720px){
   .view--match{ max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  html, body{ background: #05100E; }
-}
-
-/* V11.7 (feedback real) — en tablet, Análisis/Historial quedaban con el mismo ancho angosto
-   de "columna de celular" (480px) que el marcador en vivo, así que el contenido largo
-   (estadísticas, Evolución, Momentos Clave) scrolleaba mucho más de lo necesario aunque
-   sobrara ancho de pantalla. Se ensanchan a 768px — bastante más lectura por pantalla sin
-   llegar de punta a punta — mismo fondo/sombra que ya usa el resto en desktop. El Resumen
-   (tarjeta corta, no scrollea) se ensancha bastante menos, solo para que no se sienta
-   angosto al lado de las otras pantallas. */
-@media (min-width: 720px){
+  .view--setup{ box-shadow: 0 0 60px rgba(0,0,0,0.5); }
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  .summary-card{ max-width: 520px; }
+  .summary-card{ max-width: 560px; }
 }
 
 /* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se
@@ -745,7 +746,6 @@ input, select{ font-family: inherit; }
   .team-zone--b{
     grid-area: zone-b; border-top: none; border-bottom: none; padding-bottom: 10px;
   }
-  html, body{ background: #05100E; }
 }
 
 /* ==========================================================================
