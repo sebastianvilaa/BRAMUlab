@@ -4,12 +4,12 @@
    file://, donde los service workers no corren), la app sigue funcionando
    normalmente: este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// V11.14: bump de versión de cache (bramulab-v11.14). Debe coincidir con PLStore.VERSION
+// V11.15: bump de versión de cache (bramulab-v11.15). Debe coincidir con PLStore.VERSION
 // (store.js) — un service worker no puede importar ese módulo, así que este string se
 // actualiza a mano en cada versión, pero es el ÚNICO lugar fuera de store.js donde
 // vive el número. Esto NUNCA toca localStorage — el historial y el partido en curso
 // viven en otra capa de almacenamiento y no se pierden por este cambio de versión.
-const CACHE_NAME = 'bramulab-v11.14';
+const CACHE_NAME = 'bramulab-v11.15';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -19,7 +19,13 @@ const CORE_ASSETS = [
   './store.js',
   './app.js',
   './manifest.webmanifest',
-  './icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-512-maskable.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-64.png',
+  './icons/splash-b.png',
+  './icons/logo.png',
 ];
 
 self.addEventListener('install', (event) => {

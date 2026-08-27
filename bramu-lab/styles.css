@@ -29,6 +29,36 @@
 *{ box-sizing: border-box; }
 [hidden]{ display: none !important; }
 
+/* ==========================================================================
+   V11.15 — PANTALLA DE FLASH (splash) e ÍCONO/LOGO de marca
+   Fondo degradé + brillo provisto por Sebastián (sistema gráfico BRAMU Lab),
+   reusado acá tal cual para la pantalla de arranque. ========================================================================== */
+#app-splash{
+  position: fixed; inset: 0; z-index: 9999;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 18px;
+  background:
+    radial-gradient(
+      circle at 50% 38%,
+      rgba(22, 40, 31, 0.95) 0%,
+      rgba(16, 32, 29, 0.92) 38%,
+      rgba(11, 18, 17, 0.98) 72%,
+      #050907 100%
+    );
+  pointer-events: none;
+  animation: app-splash-out 1.5s ease forwards;
+}
+.app-splash__b{ width: 116px; height: auto; filter: drop-shadow(0 0 34px rgba(200,255,61,0.35)); }
+.app-splash__logo{ width: 168px; height: auto; opacity: 0.92; }
+@keyframes app-splash-out{
+  0%, 58% { opacity: 1; }
+  92% { opacity: 0; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+.brand-logo{ display:block; height: auto; }
+.brand-logo--header{ height: 24px; width: auto; }
+.brand-logo--footer{ height: 18px; width: auto; margin: 18px auto 0; opacity: 0.55; }
+
 html,body{
   margin:0; padding:0; height:100%;
   background: var(--ink);
@@ -65,9 +95,6 @@ input, select{ font-family: inherit; }
 }
 
 .setup-header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 22px; }
-.wordmark{ display:inline-flex; align-items:baseline; gap:3px; }
-.wordmark__brand{ font-family: var(--font-display); font-weight: 900; font-size: 24px; letter-spacing: 0.02em; color: var(--team-a); text-transform: uppercase; }
-.wordmark__sub{ font-family: var(--font-body); font-weight: 400; font-size: 16px; color: var(--paper); text-transform: lowercase; }
 .link-btn{ background:none; border:none; color: var(--paper-dim); font-size: 13px; font-weight:700; text-decoration: underline; cursor:pointer; }
 
 .setup-form{ display:flex; flex-direction:column; gap: 16px; }

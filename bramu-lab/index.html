@@ -6,9 +6,20 @@
 <title>BRAMU Lab · Marcador</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0B1211" />
+<link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
+  <!-- V11.15 — pantalla de Flash al arrancar la app: mismo fondo degradé + B con glow del
+       sistema gráfico. Puramente decorativa (nunca bloquea la interacción: pointer-events
+       none desde el arranque) y se apaga sola vía CSS, sin depender de que app.js termine
+       de inicializar. -->
+  <div id="app-splash" aria-hidden="true">
+    <img class="app-splash__b" src="icons/splash-b.png" alt="" />
+    <img class="app-splash__logo" src="icons/logo.png" alt="BRAMU Lab" />
+  </div>
 
   <!-- ============================================================
        VISTA 1 · CONFIGURACIÓN PREVIA AL PARTIDO
@@ -24,7 +35,7 @@
     </div>
 
     <header class="setup-header">
-      <span class="wordmark"><span class="wordmark__brand">BRAMU</span><span class="wordmark__sub">lab</span></span>
+      <img class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
       <button id="open-history-btn" class="link-btn" type="button">Historial</button>
     </header>
 
@@ -343,6 +354,7 @@
         <button id="summary-share-btn" class="btn-secondary" type="button">COMPARTIR</button>
         <button id="summary-new-btn" class="btn-start" type="button">VOLVER AL INICIO</button>
       </div>
+      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
     </div>
   </section>
 
@@ -393,6 +405,7 @@
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
       </section>
+      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
     </div>
   </section>
 
