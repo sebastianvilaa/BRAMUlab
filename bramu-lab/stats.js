@@ -759,6 +759,217 @@
   }
 
   /**
+   * V11.14 (feedback real, partido Seba/Matu vs Gusti/Esteban 6-4 · 3-6 · 6-4) — desarrollo
+   * del SET DECISIVO (siempre el último de un partido a 3 sets). Sigue la jerarquía
+   * orientativa del consolidado (§8 de la ronda V11.14): Tie break del propio set > remontada
+   * dentro del propio set > Punto de Oro/Star Point decisivo y tardío > quiebre único de alto
+   * impacto > resumen genérico de quiebres. Nunca relleno: si nada de eso aplica, se queda en
+   * el resultado con los quiebres que hubo (o sin ellos).
+   */
+  function buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf) {
+    const loserTeam = winnerTeam === 'A' ? 'B' : 'A';
+    const closeStr = orientScore(s3.gamesA, s3.gamesB, winnerTeam);
+
+    // 1) Tie break en el set decisivo: su propio desarrollo (no solo el resultado final) es
+    //    la historia — misma lógica que `describeTiebreakArc` usa en el resto del motor.
+    if (s3.tiebreak) {
+      const arc = describeTiebreakArc(matchCtx.events || [], matchCtx, sets.length, winnerTeam);
+      const arcClause = buildTiebreakArcClause(arc, nameOf, winnerTeam, loserTeam);
+      let text = `La definición llegó al Tie break del set decisivo, que ${nameOf(winnerTeam)} ganaron ${orientTiebreak(s3.tiebreak, winnerTeam)}.`;
+      if (arcClause) text += ' ' + arcClause;
+      return text;
+    }
+
+    // 2) Remontada del ganador dentro del propio set decisivo (déficit real de 3+ games).
+    const deficits = computeSetGameDeficits(matchCtx.events || [], matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline);
+    const s3Deficit = deficits.find((d) => d.setNumber === sets.length && d.winner === winnerTeam && d.deficitFacedByWinner >= 3);
+    if (s3Deficit) {
+      const scoreAbajo = s3Deficit.worstScoreForWinner
+        ? orientScore(s3Deficit.worstScoreForWinner.gamesA, s3Deficit.worstScoreForWinner.gamesB, winnerTeam)
+        : `por ${s3Deficit.deficitFacedByWinner} games`;
+      return `El tercer set también tuvo su propia vuelta de tuerca: ${nameOf(winnerTeam)} llegaron a estar ${scoreAbajo} abajo antes de dar vuelta el marcador y cerrar el partido ${closeStr}.`;
+    }
+
+    // 3) Punto de Oro/Star Point decisivo, tardío y con el set parejo — misma detección que
+    //    la secuencia cronológica decisiva del motor original, restringida al set decisivo.
+    const lateThreshold = Math.max(0, matchCtx.format.setWinTarget - 2);
+    const decisive = (evoData.moments || []).find((m) => {
+      if (m.kind !== 'break' || !m.isGoldOrStar || m.setNumber !== sets.length || m.team !== winnerTeam) return false;
+      const [beforeA, beforeB] = m.scoreBefore.split('-').map(Number);
+      return Math.max(beforeA, beforeB) >= lateThreshold && Math.abs(beforeA - beforeB) <= 1;
+    });
+    if (decisive) {
+      const [beforeA, beforeB] = decisive.scoreBefore.split('-').map(Number);
+      const [afterA, afterB] = decisive.scoreAfter.split('-').map(Number);
+      const gamesBeforeBreak = beforeA + beforeB;
+      const pointLabel = matchCtx.scoringSystem === 'golden' ? 'el Punto de Oro' : matchCtx.scoringSystem === 'starpoint' ? 'el Star Point' : 'el punto decisivo';
+      const serverClause = decisive.server ? ' sobre el saque rival' : '';
+      let text = gamesBeforeBreak >= 6
+        ? `Ninguna pareja consiguió quebrar durante los primeros ${gamesBeforeBreak} games del set decisivo y llegaron ${decisive.scoreBefore}. `
+        : `El set decisivo estuvo parejo hasta ${decisive.scoreBefore}. `;
+      text += `Ahí apareció la jugada que terminó inclinando el partido: ${nameOf(winnerTeam)} ganaron ${pointLabel}${serverClause}, consiguieron el quiebre para ${orientScore(afterA, afterB, winnerTeam)} y después sostuvieron su servicio para cerrar ${closeStr}.`;
+      return text;
+    }
+
+    // 4) Quiebre único del set decisivo (sin el patrón Oro/Star tardío de arriba).
+    if (st3 && st3.hasServerInfo && (st3.breaks.A + st3.breaks.B) === 1) {
+      const seg = computeSetSegments(matchCtx.events || [], matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline).find((sg) => sg.setNumber === sets.length);
+      const detail = seg ? findSoleBreakDetail(seg.events, Object.assign({}, matchCtx, { baseline: seg.baseline })) : null;
+      if (detail && detail.breakerTeam === winnerTeam) {
+        const beforeStr = orientScore(detail.scoreBefore.gamesA, detail.scoreBefore.gamesB, winnerTeam);
+        return `El set decisivo se definió por un solo quiebre: ${nameOf(winnerTeam)} lo consiguieron con el marcador en ${beforeStr}, y cerraron el partido ${closeStr}.`;
+      }
+    }
+
+    // 5) Genérico: resumen de quiebres del set decisivo (si los hay) + cierre.
+    if (st3 && st3.hasServerInfo && st3.serverFullyKnown && (st3.breaks.A + st3.breaks.B) > 1) {
+      const wB = winnerTeam === 'A' ? st3.breaks.A : st3.breaks.B;
+      const lB = winnerTeam === 'A' ? st3.breaks.B : st3.breaks.A;
+      return `El set decisivo tuvo quiebres de los dos lados (${wB} de ${nameOf(winnerTeam)} y ${lB} de ${nameOf(loserTeam)}) antes de que ${nameOf(winnerTeam)} se lo quedaran ${closeStr}.`;
+    }
+    return `${nameOf(winnerTeam)} se quedaron con el set decisivo ${closeStr} para cerrar el partido.`;
+  }
+
+  /**
+   * V11.14 — PÁRRAFO 4 opcional (lectura global del partido). Nunca repite los sets; solo
+   * aporta una conclusión objetiva cuando existe evidencia que realmente ayude a entender el
+   * resultado (§2/§6 del consolidado V11.14: "evidence selection", nunca cuota obligatoria de
+   * estadísticas). Deliberadamente NO usa la eficiencia agregada de Break Points del equipo
+   * perdedor como evidencia — bug real reportado: "necesitaron menos oportunidades para
+   * lograrlo" es correcto pero no explica por qué esa pareja perdió el partido. Prioriza
+   * paridad global en puntos y diferencia de quiebres, que sí hablan directamente del
+   * resultado.
+   */
+  function buildGlobalReadParagraph(stats, winnerTeam, nameOf) {
+    if (!winnerTeam || stats.totalPoints <= 0) return null;
+    const winnerPts = winnerTeam === 'A' ? stats.pointsA : stats.pointsB;
+    const loserPts = winnerTeam === 'A' ? stats.pointsB : stats.pointsA;
+    const diff = Math.abs(winnerPts - loserPts);
+    const closeOverall = diff <= Math.max(2, Math.round(stats.totalPoints * 0.04));
+    if (closeOverall) {
+      const pctWinner = Math.round((winnerPts / stats.totalPoints) * 100);
+      const pctLoser = 100 - pctWinner;
+      return `La paridad también quedó reflejada en el total de puntos: ${nameOf(winnerTeam)} terminaron apenas por encima, ${pctWinner}% a ${pctLoser}%. La diferencia final no estuvo en un dominio general del partido, sino en haber conseguido el quiebre decisivo cuando el resultado todavía estaba abierto.`;
+    }
+    if (stats.hasServerInfo && stats.serverFullyKnown) {
+      const bw = winnerTeam === 'A' ? stats.breaks.A : stats.breaks.B;
+      const bl = winnerTeam === 'A' ? stats.breaks.B : stats.breaks.A;
+      if (bw - bl >= 2) {
+        return `En el balance global del partido, ${nameOf(winnerTeam)} también se impusieron en la cuenta de quiebres, ${bw} contra ${bl}.`;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * V11.14 (feedback real) — COMPOSICIÓN CRONOLÓGICA para partidos Clásico completos a tres
+   * sets. Reemplaza el ranking global de historias (que hacía competir un hold del Set 1
+   * contra el cierre del Set 3 por los mismos dos lugares narrativos) por una estructura fija:
+   * Párrafo 1 = Set 1, Párrafo 2 = Set 2, Párrafo 3 = Set 3 (el set decisivo, máxima
+   * prioridad), Párrafo 4 (opcional) = lectura global. Story Ranking (`findDramaticHold`,
+   * etc.) se sigue usando, pero DENTRO de cada bloque cronológico — nunca para decidir qué
+   * bloque aparece o desaparece. Bug real que motivó este cambio: un hold del Set 1 que
+   * salvó Break Points terminaba narrado DESPUÉS del cierre del Set 3, y una comparación de
+   * eficiencia de Break Points del equipo perdedor —correcta pero irrelevante para explicar
+   * el resultado— le ganaba el lugar al desarrollo real del set decisivo.
+   *   REGLA DE UBICACIÓN DEL HOLD BAJO PRESIÓN (reemplaza la de V11.4): ya no tiene un lugar
+   *   garantizado en un párrafo fijo — tiene ubicación cronológica obligatoria SI es
+   *   seleccionado (se narra dentro del párrafo del set en el que ocurrió, nunca después).
+   */
+  function buildThreeSetChronologicalStory(stats, matchCtx, sets, winnerTeam, evoData, varietySeed, nameOf) {
+    const events = matchCtx.events || [];
+    const segments = computeSetSegments(events, matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline);
+    const setStats = sets.map((s, i) => {
+      const seg = segments.find((sg) => sg.setNumber === i + 1);
+      return seg ? computeStats(seg.events, Object.assign({}, matchCtx, { baseline: seg.baseline })) : null;
+    });
+    const setDeficits = computeSetGameDeficits(events, matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline);
+    const dramaticHold = stats.hasServerInfo ? findDramaticHold(events, matchCtx) : null;
+
+    function holdClause(setNumber) {
+      if (!dramaticHold || dramaticHold.setNumber !== setNumber) return '';
+      let c = ` ${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio`;
+      if (dramaticHold.closedMatch) c += ' en el game que terminó cerrando el partido.';
+      else if (dramaticHold.closedSet) c += ' en el game que cerró ese set.';
+      else c += '.';
+      return c;
+    }
+    function deficitFor(setNumber, team) {
+      const d = setDeficits.find((x) => x.setNumber === setNumber);
+      return (d && d.winner === team) ? d : null;
+    }
+
+    // Set 1/Set 2 comparten estructura: déficit real (con Match Points salvados si además esa
+    // pareja ya venía 1 set arriba, caso real §3.4) > resumen de quiebres > genérico. Ambas
+    // ramas reconocen si el set se resolvió en Tie break (nunca se pierde ese desarrollo por
+    // estar fuera del set decisivo, bug potencial detectado al reusar el caso de prueba §3.4).
+    function buildEarlySetParagraph(setNumber, phraseBank) {
+      const s = sets[setNumber - 1], st = setStats[setNumber - 1];
+      const winner = s.winner;
+      const opp = winner === 'A' ? 'B' : 'A';
+      const deficit = deficitFor(setNumber, winner);
+      const hasBigDeficit = deficit && deficit.deficitFacedByWinner >= 3;
+      // Match Point solo es posible si el RIVAL de quien ganó este set ya venía con un set de
+      // ventaja (cerrar este set hubiera cerrado el partido) — se detecta con los mismos
+      // `moments` que alimenta Evolución, nunca una segunda interpretación de los hechos.
+      const mpSaved = (evoData.moments || []).filter((m) => m.kind === 'match-point-saved' && m.team === opp && m.setNumber === setNumber).length;
+      const closeClause = s.tiebreak ? `en el Tie break, ${orientTiebreak(s.tiebreak, winner)}` : orientScore(s.gamesA, s.gamesB, winner);
+      // Solo el Set 2 "fuerza un tercero" — ganar el Set 1 nunca fuerza nada por sí solo.
+      const forcingSuffix = setNumber === 2 ? ' para forzar un tercero' : '';
+      const setWord = setNumber === 1 ? 'primer set' : 'segundo set';
+      let text;
+      if (hasBigDeficit) {
+        const scoreAbajo = deficit.worstScoreForWinner
+          ? orientScore(deficit.worstScoreForWinner.gamesA, deficit.worstScoreForWinner.gamesB, winner)
+          : `por ${deficit.deficitFacedByWinner} games`;
+        text = `${nameOf(winner)} ${pickPhrase(phraseBank, varietySeed)}: llegaron a estar ${scoreAbajo} abajo en el ${setWord}`;
+        if (mpSaved > 0) text += ` y salvaron ${mpSaved === 1 ? 'un Match Point' : `${mpSaved} Match Points`} de ${nameOf(opp)}`;
+        text += ` antes de dar vuelta el marcador y quedárselo ${closeClause}${forcingSuffix}.`;
+      } else if (st && st.hasServerInfo && st.serverFullyKnown) {
+        const wB = winner === 'A' ? st.breaks.A : st.breaks.B;
+        const lB = winner === 'A' ? st.breaks.B : st.breaks.A;
+        if (wB > 0 && lB === 0) {
+          text = `${nameOf(winner)} ${pickPhrase(phraseBank, varietySeed)} y, con ${wB === 1 ? 'un quiebre' : `${wB} quiebres`} a favor, se quedaron con ${setNumber === 1 ? 'un primer set competitivo' : 'el control del segundo set'} ${closeClause}${forcingSuffix}.`;
+        } else if (wB > 0 && lB > 0) {
+          text = `El ${setWord} tuvo quiebres de los dos lados antes de que ${nameOf(winner)} se lo llevaran ${closeClause}${forcingSuffix}.`;
+        } else {
+          text = `${nameOf(winner)} ${pickPhrase(phraseBank, varietySeed)} y se quedaron con el ${setWord} ${closeClause}${forcingSuffix}.`;
+        }
+        if (mpSaved > 0) text = text.replace(/\.$/, '') + `, salvando ${mpSaved === 1 ? 'un Match Point' : `${mpSaved} Match Points`} de ${nameOf(opp)} en el camino.`;
+      } else {
+        text = `${nameOf(winner)} se quedaron con el ${setWord} ${closeClause}${forcingSuffix}.`;
+        if (mpSaved > 0) text = text.replace(/\.$/, '') + `, salvando ${mpSaved === 1 ? 'un Match Point' : `${mpSaved} Match Points`} de ${nameOf(opp)} en el camino.`;
+      }
+      return text;
+    }
+
+    // ---- PÁRRAFO 1 — SET 1: cómo empezó, quién tomó ventaja, cómo terminó ----
+    let p1 = buildEarlySetParagraph(1, 'inicio');
+    p1 += holdClause(1);
+
+    // ---- PÁRRAFO 2 — SET 2: qué cambió, cómo reaccionó quien perdió el primero, cómo forzó
+    //      el tercer set. El ganador del Set 2 es siempre el perdedor del Set 1 (si no, el
+    //      partido ya habría terminado en 2 sets corridos y nunca llegaría acá). ----
+    let p2 = buildEarlySetParagraph(2, 'reaccion');
+    p2 += holdClause(2);
+
+    // ---- PÁRRAFO 3 — SET 3: el set decisivo, máxima prioridad narrativa ----
+    const s3 = sets[2], st3 = setStats[2];
+    let p3 = buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf);
+    p3 += holdClause(3);
+    const closingDuration = buildDurationClosingSentence(stats.matchDurationMs, nameOf(winnerTeam), false);
+    if (closingDuration && !s3.tiebreak) p3 += ' ' + closingDuration;
+
+    const paras = [p1, p2, p3];
+
+    // ---- PÁRRAFO 4 (opcional) — lectura global, nunca relleno obligatorio ----
+    const globalRead = buildGlobalReadParagraph(stats, winnerTeam, nameOf);
+    if (globalRead) paras.push(globalRead);
+
+    return paras.filter(Boolean).join('\n\n');
+  }
+
+  /**
    * Bloque R, ahora BRAMU Intelligence (V9) — "de cancha", no una plantilla de
    * estadísticas. Busca primero CUÁL ES LA HISTORIA del partido y recién después la
    * narra con lenguaje deportivo cercano, sin diagnosticar psicología, sin inventar
@@ -770,6 +981,10 @@
    * interpretación independiente de los mismos hechos (punto 24). V9.2: antes de eso,
    * se clasifica la FORMA GENERAL del partido (dominio claro o no) — ver
    * `detectClearDominance`.
+   * V11.14 (feedback real): partidos Clásico completos a tres sets pasan por
+   * `buildThreeSetChronologicalStory` en vez de este ranking global — ver esa función para
+   * el porqué. El resto de este cuerpo sigue vigente para todos los demás casos (Americano,
+   * partidos a un set, dos sets, cobertura parcial, finalización manual).
    */
   function generateBramuIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
     // R1: en texto narrativo, "Seba y Matu" — nunca "Seba / Matu" (esa barra es para UI, no para prosa).
@@ -785,6 +1000,17 @@
     // ---- Recolecta candidatas a "la historia principal" (R4/R5), en orden de prioridad ----
     const stories = [];
     const evoData = computeEvolutionData(events, matchCtx);
+
+    // V11.14 (feedback real): partido Clásico completo a tres sets — composición
+    // CRONOLÓGICA dedicada, ver `buildThreeSetChronologicalStory`. Nunca se activa con
+    // cobertura parcial (`partial`: hay adjustments o el registro arrancó a mitad de
+    // partido) ni con finalización manual — esos casos no tienen un desarrollo completo y
+    // confiable de CADA set para narrar capítulo por capítulo, así que siguen por el motor
+    // original de abajo. Solo es alcanzable en el formato Clásico (bestOfSets:3); Americano
+    // es bestOfSets:1 y nunca llega a sets.length === 3.
+    if (winnerTeam && sets.length === 3 && !partial && !(finishInfo && finishInfo.manual)) {
+      return buildThreeSetChronologicalStory(stats, matchCtx, sets, winnerTeam, evoData, varietySeed, nameOf);
+    }
 
     // -1) V9.2 (1-2) — DOMINIO CLARO: se evalúa ANTES que cualquier evento puntual. La
     //    prioridad narrativa depende del CONTEXTO GLOBAL del partido — un quiebre con Oro
@@ -1769,5 +1995,8 @@
     pickPhrase, varietySeedFor, PHRASE_BANKS,
     // V11.4 (feedback real) — ídem, paridad estadística y desarrollo del Tie break.
     detectStrongParity, describeTiebreakArc, buildTiebreakArcClause,
+    // V11.14 (feedback real) — composición cronológica de partidos a 3 sets, para poder
+    // testear cada párrafo por separado además del resultado combinado.
+    buildThreeSetChronologicalStory, buildDecidingSetParagraph, buildGlobalReadParagraph,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

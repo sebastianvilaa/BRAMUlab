@@ -558,6 +558,22 @@ input, select{ font-family: inherit; }
    contenedor (más detalle horizontal en pantallas grandes) pero el alto tiene que quedar
    fijo en el valor para el que está pensado el dibujo (topPad + h en app.js = 184px). */
 #analysis-momentum-chart svg{ display:block; width:100%; height:184px; }
+/* V11.14 (feedback real, partido a 3 sets) — en tablet horizontal/desktop el gráfico
+   necesita más "recorrido" horizontal para distinguir Set 1/Set 2/Set 3 y el cierre; un
+   partido a un set no lo necesita tanto. Reclama el padding lateral de `.analysis-scroll`
+   SOLO para el gráfico (nunca para el resto de la sección, que sigue con su padding de
+   lectura normal — el texto se beneficia de una columna angosta, un gráfico no) y sube el
+   alto un ~20% (184→220px — tope pedido en la ronda: 20-25% máximo), fijo por CSS y NUNCA
+   proporcional al ancho nuevo (no se toca la fórmula matemática de Evolución, esto es
+   puramente visual/responsive). No se puede "sangrar" más allá de la tarjeta de Análisis
+   sin reabrir el layout de scroll de toda la vista (`.analysis-scroll` ya usa scroll
+   vertical, lo que fuerza su overflow horizontal a recortar cualquier cosa más ancha que su
+   propio contenedor) — eso sí sería abrir un sistema nuevo, fuera del alcance de esta
+   ronda. En celular no se toca nada (legible, sin scroll horizontal). */
+@media (min-width:720px) {
+  #analysis-momentum-chart{ margin-left:-18px; margin-right:-18px; width:calc(100% + 36px); }
+  #analysis-momentum-chart svg{ height:220px; }
+}
 
 
 /* Bloque S2/V5 — selector de set compartido entre Estadísticas y Evolución */

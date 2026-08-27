@@ -311,13 +311,14 @@
     const r7 = intelFromSim(ctx7);
     assert('F7 · §3.4 caso patrón: B gana el partido', r7.winnerTeam === 'B', r7.winnerTeam);
     assert('F7b · §3.4 caso patrón: 3 sets jugados', r7.sets.length === 3, r7.sets.length);
-    assert('F7c · §3.1 no omite el primer set (apertura)', r7.text.includes('primer set') && r7.text.includes('6-3'), r7.text);
-    assert('F7d · §3.4 identifica la remontada en el Set 2 (no el último)', r7.text.includes('Set 2'), r7.text);
-    assert('F7e · §3.4 marcador del peor momento (1-5 abajo)', r7.text.includes('1-5'), r7.text);
-    assert('F7f · §3.4 los 3 Match Points salvados quedan en el relato', r7.text.includes('3 Match Points'), r7.text);
-    assert('F7g · §3.4 menciona el Tie break del Set 2, orientado hacia quien ganó (7-5)', r7.text.includes('Tie break') && r7.text.includes('7-5'), r7.text);
-    assert('F7h · §3.1 no omite el desenlace del último set (Set 3, 6-2)', r7.text.includes('último set') && r7.text.includes('6-2'), r7.text);
-    assert('F7i · §3.2 profundidad: al menos 3 párrafos para un partido rico', r7.text.split('\n\n').length >= 3, r7.text);
+    assert('F7c · V11.14 no omite el primer set (apertura)', r7.text.includes('primer set') && r7.text.includes('6-3'), r7.text);
+    assert('F7d · V11.14 dedica su propio párrafo al segundo set (composición cronológica)', r7.text.includes('segundo set'), r7.text);
+    assert('F7e · V11.14 marcador del peor momento (1-5 abajo) sobrevive en el párrafo del Set 2', r7.text.includes('1-5'), r7.text);
+    assert('F7f · V11.14 los 3 Match Points salvados quedan en el relato', r7.text.includes('3 Match Points'), r7.text);
+    assert('F7g · V11.14 menciona el Tie break del Set 2, orientado hacia quien ganó (7-5)', r7.text.includes('Tie break') && r7.text.includes('7-5'), r7.text);
+    assert('F7h · V11.14 no omite el desenlace del set decisivo (Set 3, 6-2)', r7.text.includes('set decisivo') && r7.text.includes('6-2'), r7.text);
+    assert('F7i · V11.14 orden cronológico: el primer set nunca aparece después del set decisivo', r7.text.indexOf('6-3') < r7.text.indexOf('set decisivo'), r7.text);
+    assert('F7j · §3.2 profundidad: al menos 3 párrafos para un partido rico', r7.text.split('\n\n').length >= 3, r7.text);
 
     // ---- F8 · §2.4/§20.20: remontada SIN Tie break — regresión puntual del bug real
     //      "ganarlo 6-7" narrando al equipo que en realidad ganó 7-6 (acá, 4-6). Americano
@@ -485,6 +486,90 @@
     assert('F12.8b · el hold bajo presión aparece una sola vez (sin duplicar el hecho)', (r12.text.match(/Break Points seguidos/g) || []).length === 1, r12.text);
     // Bonus: el resumen agregado de Break Points (antes crowded out) también sobrevive.
     assert('F12.9 · el resumen agregado de Break Points también aparece (no lo tapa el hold puntual)', /oportunidad/i.test(r12.text), r12.text);
+  })();
+
+  // ------------------------------------------------------------------
+  // V11.14 — CASO REAL: partido Clásico completo a tres sets (Seba/Matu vs
+  // Gusti/Esteban, Punto de Oro), 6-4 · 6-3 · 6-4. Reproduce el caso reportado por
+  // Sebastián: BRAMU debe narrar los TRES sets en orden cronológico (nunca un hold del
+  // Set 1 apareciendo después del cierre del Set 3), identificar el Punto de Oro + quiebre
+  // de 4-4 del set decisivo como la verdadera bisagra, y NO mencionar la eficiencia
+  // agregada de Break Points del equipo perdedor (correcta pero irrelevante para explicar
+  // el resultado).
+  // ------------------------------------------------------------------
+  (function () {
+    const ctx = newCtx('golden', 'classic');
+    ctx.players = [
+      { id: 0, name: 'Seba', team: 'A' }, { id: 1, name: 'Matu', team: 'A' },
+      { id: 2, name: 'Gusti', team: 'B' }, { id: 3, name: 'Esteban', team: 'B' },
+    ];
+
+    // ---- SET 1 (6-4, Seba/Matu) — incluye un hold bajo presión de Gusti/Esteban en el
+    //      game 4 (sacando el equipo B), que debe quedar narrado DENTRO del párrafo del
+    //      Set 1 — nunca después del cierre del Set 3 (el bug real reportado). ----
+    winGame(ctx, 'A'); // game1
+    winGame(ctx, 'B'); // game2
+    winGame(ctx, 'A'); // game3
+    ['A', 'A', 'A', 'B', 'B', 'B', 'B'].forEach((t) => playPoint(ctx, t)); // game4: B (saca) salva BP de A y sostiene
+    winGame(ctx, 'A'); // game5
+    winGame(ctx, 'B'); // game6
+    winGame(ctx, 'A'); // game7
+    winGame(ctx, 'B'); // game8
+    winGame(ctx, 'A'); // game9
+    winGame(ctx, 'A'); // game10 — 6-4 Seba/Matu
+
+    // ---- SET 2 (6-3, Gusti/Esteban) — reacción y toma de control, fuerza el tercero. ----
+    winGame(ctx, 'B'); winGame(ctx, 'A'); winGame(ctx, 'B'); winGame(ctx, 'A');
+    winGame(ctx, 'B'); winGame(ctx, 'A'); winGame(ctx, 'B'); winGame(ctx, 'B'); winGame(ctx, 'B'); // 6-3 B
+
+    // ---- SET 3 (6-4, Seba/Matu) — sin quiebres hasta 4-4; después, Punto de Oro sobre el
+    //      saque rival produce el quiebre para 5-4, y Seba/Matu sostienen su saque para
+    //      cerrar 6-4. El servidor del Set 3 se setea a mano (arranca sacando el equipo B)
+    //      para que el game decisivo (9°) quede servido por B — con la alternancia por
+    //      defecto del arnés (siempre arranca sacando el equipo A en sets impares) el game 9
+    //      quedaría servido por A, y el punto decisivo sería un hold, no un quiebre. ----
+    const mgn3 = E.currentMatchGameNumber(ctx.state);
+    const wsgn3 = E.currentWithinSetGameNumber(ctx.state);
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, 3, mgn3, wsgn3, 2);
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, 3, mgn3 + 1, wsgn3 + 1, 0);
+    ctx.seenSet = 3;
+    winGame(ctx, 'B'); winGame(ctx, 'A'); winGame(ctx, 'B'); winGame(ctx, 'A'); // 2-2
+    winGame(ctx, 'B'); winGame(ctx, 'A'); winGame(ctx, 'B'); winGame(ctx, 'A'); // 4-4, sin quiebres
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A'].forEach((t) => playPoint(ctx, t)); // game9: A gana el Punto de Oro sobre el saque de B → 5-4
+    winGame(ctx, 'A'); // game10: A sostiene su saque → 6-4, cierra el partido
+
+    const matchCtx = ctxAsMatchCtx(ctx);
+    const dh = S.findDramaticHold(ctx.events, matchCtx);
+    const r13 = intelFromSim(ctx);
+    const text = r13.text;
+
+    assert('F13-setup · partido 6-4 · 6-3 · 6-4, Seba/Matu ganan en 3 sets', r13.winnerTeam === 'A' && r13.sets.length === 3, JSON.stringify({ winnerTeam: r13.winnerTeam, sets: r13.sets }));
+    assert('F13-setup · el Set 3 termina 6-4', r13.sets[2].gamesA === 6 && r13.sets[2].gamesB === 4, JSON.stringify(r13.sets[2]));
+    assert('F13-setup · hay un hold bajo presión real en el Set 1', !!dh && dh.setNumber === 1 && dh.bpSaved >= 2, JSON.stringify(dh));
+
+    // 1) cubre el Set 1
+    assert('F13.1 · cubre el Set 1 (primer set, 6-4)', text.includes('primer set') && text.includes('6-4'), text);
+    // 2) cubre el cambio de desarrollo del Set 2
+    assert('F13.2 · cubre el Set 2 (segundo set, 6-3, reacción)', text.includes('segundo set') && text.includes('6-3'), text);
+    // 3) cubre el Set 3 como set decisivo
+    assert('F13.3 · cubre el Set 3 como set decisivo', text.includes('set decisivo'), text);
+    // 4) identifica el Punto de Oro + quiebre de 4-4 como momento decisivo
+    assert('F13.4 · identifica el Punto de Oro sobre el saque rival como la jugada decisiva', text.includes('4-4') && text.includes('Punto de Oro') && text.includes('sobre el saque rival') && text.includes('5-4'), text);
+    // 5) mantiene la cronología: primer set → segundo set → set decisivo, en ese orden
+    assert('F13.5 · mantiene el orden cronológico (Set 1 antes que Set 2 antes que el set decisivo)', text.indexOf('primer set') < text.indexOf('segundo set') && text.indexOf('segundo set') < text.indexOf('set decisivo'), text);
+    // 6) no pone un hecho del Set 1 después del cierre del Set 3 — el hold bajo presión debe
+    //    quedar ANTES del párrafo del Set 2 (nunca después del cierre del set decisivo).
+    const holdPhrase = dh ? `${dh.bpSaved} Break Points seguidos` : '';
+    assert('F13.6 · el hold bajo presión del Set 1 aparece antes del párrafo del Set 2 (nunca después del cierre)', !!dh && text.includes(holdPhrase) && text.indexOf(holdPhrase) < text.indexOf('segundo set'), text);
+    // 7) no introduce comparaciones estadísticas irrelevantes (eficiencia de Break Points del
+    //    equipo perdedor, correcta pero irrelevante para explicar el resultado — bug real).
+    assert('F13.7 · nunca "más eficientes" (comparación de eficiencia de Break Points suprimida)', !/más eficientes/i.test(text), text);
+    assert('F13.7b · nunca "necesitaron menos oportunidades" (misma comparación suprimida)', !/necesitaron menos oportunidades/i.test(text), text);
+    // 8) permite evidencia global útil si realmente aporta (párrafo 4 opcional, nunca relleno)
+    const paraCount = text.split('\n\n').length;
+    assert('F13.8 · entre 3 y 4 párrafos (el 4° es opcional, nunca relleno forzado)', paraCount === 3 || paraCount === 4, text);
+    // 9) no inventa psicología ni hechos no registrados
+    assert('F13.9 · nunca infiere psicología (nervios/carácter/presión mental)', !/nervio|carácter|presión mental/i.test(text), text);
   })();
 
   // ------------------------------------------------------------------

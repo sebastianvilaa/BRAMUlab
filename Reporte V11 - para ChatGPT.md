@@ -243,6 +243,107 @@ juego real.
 
 ---
 
+## PARTE 3 — V11.1 a V11.13: ronda de feedback real (después de probar la app de verdad)
+
+A diferencia de la Parte 2 (que respondía al Consolidado V11.md escrito con ChatGPT), esta
+parte no vino de un documento — vino de Sebastián probando la app en serio: jugando
+partidos reales, mirándola en el inspector de Chrome simulando iPad/iPhone/iPad mini, y
+usándola en su computadora de 23". Cada punto de acá es una corrección puntual sobre algo
+que se vio mal o se comportó mal en uso real, no una sección de un documento. Se hizo en
+13 subidas chicas (v11.1 → v11.13), cada una con su propio commit, tag, y verificación
+antes de subir — no una sola tanda grande.
+
+### BRAMU Intelligence — más profundidad narrativa (v11.2, v11.4)
+
+- **Variedad de lenguaje (§11.3 del Consolidado, que había quedado afuera en la Parte 2):**
+  4 bancos de sinónimos por función narrativa (Inicio/Reacción/Quiebre/Cierre), elegidos de
+  forma determinística a partir de datos reales del propio partido (nunca al azar) —
+  mismo partido siempre da el mismo texto, partidos distintos tienden a sonar distinto.
+- **Hold bajo presión (§4.3):** sin construir el motor genérico de leverage de doble eje
+  (que se dejó afuera a propósito, ver Parte 2), se agregó una señal puntual: cuando una
+  pareja sostiene su propio saque salvando 2+ Break Points seguidos en el mismo game, eso
+  se cuenta como su propio hecho en el relato — "no es lo mismo un hold 40-0 que un hold
+  salvando 0-40".
+- **Bug real encontrado por Sebastián jugando (caso: Americano, 5-5 sin quiebres, definido
+  en el Tie break):** BRAMU decía solo "ganaron el Tie break 7-3", sin contar la paridad
+  real del partido ni cómo se desarrolló el propio Tie break. Se encontraron dos causas:
+  (1) el hold bajo presión (agregado un día antes) tenía más peso que el resumen agregado
+  de Break Points y le tapaba el lugar protagónico — se movió a un párrafo secundario
+  garantizado, ya no compite por el titular; (2) el Tie break se narraba siempre como un
+  resultado final ("ganaron 7-3"), nunca como una secuencia con forma propia. Ahora BRAMU
+  reconoce paridad estadística real (varias señales objetivas de acuerdo, no solo el
+  marcador final ajustado) y cuenta el desarrollo del Tie break cuando hay una separación
+  real ("se separaron temprano y llegaron a sacar 4 de ventaja (5-1); el rival achicó la
+  diferencia hasta 5-3, pero esa separación inicial terminó siendo decisiva"). Reproducido
+  con la secuencia exacta de puntos que jugó Sebastián como test de regresión.
+
+### Evolución del partido (v11.3, v11.4, v11.13)
+
+- Los ticks de "cada game" en la vista Set se reemplazaron por checkpoints en los cambios
+  de lado reales del pádel (games 3, 5, 7, 9...), con el marcador real de ese momento.
+- Se agregó siempre un ancla "0-0" al comienzo de la curva y el resultado del primer game,
+  antes de esos checkpoints — en Americano esto también aparece en la vista Partido (es el
+  único set del partido).
+- **Bug real (encontrado por Sebastián, reproducido y confirmado con las medidas exactas
+  antes/después):** el gráfico SVG tenía `height:auto` en el CSS, que con un `viewBox` hace
+  que el navegador calcule el alto a partir del ancho renderizado usando la proporción del
+  dibujo — invisible con contenedores angostos, pero con los anchos de escritorio nuevos
+  (ver abajo) el alto se disparó a ~612px cuando debía ser 184px: todo el gráfico (curvas,
+  etiquetas de set, tipografía) se veía gigante. Corregido fijando el alto por CSS.
+
+### Layout responsive en tablet/desktop — la mayor parte de esta ronda (v11.1, v11.5–v11.13)
+
+Sebastián probó la app en tablet (real y simulada) y en su monitor de escritorio, y encontró
+una cadena de problemas de layout que no se habían probado en esos tamaños de pantalla
+antes:
+
+- Marcador en vivo: las dos zonas de saque (Equipo A/B) ahora se acomodan lado a lado
+  cuando el dispositivo está en horizontal, en vez de apiladas — aprovecha el ancho que
+  antes quedaba vacío. Tiene un tope de ancho (1100px) para no estirarse infinito en un
+  monitor grande.
+- Se encontró y corrigió una inconsistencia real de fondo: dos colores oscuros casi iguales
+  pero no idénticos (`#05100E` vs `var(--ink)`) se usaban en distintas pantallas, lo que se
+  notaba como "esta pantalla no tiene fondo" al navegar entre ellas. Ahora es un solo color
+  en toda la app.
+- Se armó un sistema de dos anchos para escritorio/tablet, después de varias idas y vueltas
+  probando qué se sentía consistente: 560px para pantallas cortas tipo formulario/tarjeta
+  (Inicio, Resumen) y 768px para pantallas largas de lectura (Análisis, Historial,
+  Timeline). Se probó también un tercer escalón de 1100px para escritorio grande, pero se
+  revirtió: comparado en pantalla contra Inicio (que se quedó en 768px), la inconsistencia
+  se notaba más de lo que sumaba el ancho extra.
+- Inicio también se rearma lado a lado (Equipo A / VS / Equipo B) en horizontal, con la
+  línea divisoria de color rotada vertical y la insignia "VS" más compacta (sin fondo/
+  borde/padding) para ganarle espacio a los campos de nombre — ajustado con varias vueltas
+  de detalle fino pedidas por Sebastián mirando el inspector de Chrome.
+- Bug real de flexbox corregido: Resumen usaba `align-items:center` en un contenedor con
+  scroll, que es un patrón conocido de CSS que recorta el borde de arriba cuando el
+  contenido no entra en pantalla (pasaba en tablet horizontal, con menos alto disponible)
+  — se podía scrollear hacia abajo pero nunca volver a ver el título. Corregido con
+  `margin:auto` en vez de `align-items:center`.
+- Se sacó la sombra que se le había puesto a Inicio (no sumaba en una pantalla corta tipo
+  formulario, la hacía sentir más chica en vez de darle aire).
+
+### Tests automáticos y verificación
+
+Todos los cambios de `stats.js` (BRAMU Intelligence) tienen test de regresión en
+`tests.html` — terminó la ronda en **82/82 tests en verde**, incluida una simulación punto
+por punto del caso real que reportó Sebastián. Los cambios de layout/CSS no tienen test
+automático (son visuales) — se verificaron uno por uno en el navegador, midiendo anchos y
+altos reales por JavaScript antes de dar cada uno por terminado, en al menos 3 tamaños de
+pantalla por cambio (celular, tablet, escritorio grande).
+
+### Sobre el método de esta ronda (para que ChatGPT opine)
+
+Trece subidas chicas en una sola conversación es mucho más granular que el patrón de V10/V11
+(pocos "toques" grandes). Tiene sentido acá porque el driver era feedback real e iterativo
+de uso — Sebastián probaba, encontraba algo, lo describía, y convenía corregir y subir
+antes de seguir probando lo siguiente, en vez de acumular una lista larga y arriesgar
+perder contexto de qué generó cada pedido. La contra: quedaron 13 tags nuevos (`v11.1` a
+`v11.13`) en vez de una sola versión redonda — si en algún momento se quiere "limpiar" el
+historial de tags para que sea más legible, se puede, pero no afecta el funcionamiento.
+
+---
+
 ## Sobre la próxima ronda
 
 Mismo mecanismo de siempre: un solo Consolidado activo por ronda, dejado en la carpeta de
