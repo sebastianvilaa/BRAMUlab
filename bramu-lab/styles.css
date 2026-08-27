@@ -702,8 +702,15 @@ input, select{ font-family: inherit; }
    `min-width` descarta los pocos celulares apaisados realmente angostos, donde no
    entrarían cómodas dos mitades. */
 @media (orientation: landscape) and (min-width: 560px){
+  /* V11.5.1 (feedback real) — en un monitor de escritorio grande (probado en 23", ventana a
+     pantalla completa) el layout apaisado se estiraba a todo el ancho: los nombres quedaban
+     pegados a las puntas y se sentía vacío en el medio. Igual que la vista vertical ya hace
+     en desktop (arriba, min-width:720px → 480px centrado), acá se pone un tope — más ancho
+     porque hay dos zonas lado a lado, no una sola — y se centra con el mismo fondo/sombra.
+     Tablets reales (iPad apaisado ≈1024px, iPad Pro ≈1194-1366px) quedan cómodos por debajo
+     o cerca del tope; solo el excedente en monitores grandes queda como margen a los costados. */
   .view--match{
-    max-width: none; margin: 0; box-shadow: none;
+    max-width: 1100px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5);
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto auto auto 1fr auto;
@@ -726,6 +733,7 @@ input, select{ font-family: inherit; }
   .team-zone--b{
     grid-area: zone-b; border-top: none; border-bottom: none; padding-bottom: 10px;
   }
+  html, body{ background: #05100E; }
 }
 
 /* ==========================================================================
