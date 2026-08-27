@@ -2003,7 +2003,27 @@
       virtualStart.registrationStartLabel = f.coverageStartLabel || '';
     }
     const allGames = [virtualStart, ...evo.games];
-    const games = setFilter === 'match' ? allGames : allGames.filter((g) => g.setNumber === setFilter);
+    // V11.4 — cada vista de SET necesita su propio ancla visual de arranque, no solo el
+    // Set 1 (que hereda el `virtualStart` del partido completo, arriba). El índice
+    // competitivo NUNCA "resetea" a 50/50 entre sets — se hereda del cierre del set
+    // anterior — así que el ancla de un Set 2/3 usa el índice real donde quedó ese set al
+    // empezar, no un 50/50 inventado (mismo criterio de no inventar datos que V9 ya usaba
+    // para el ancla del partido completo).
+    function buildSetStartAnchor(setNum) {
+      const priorSetGames = evo.games.filter((g) => g.setNumber < setNum);
+      const last = priorSetGames[priorSetGames.length - 1];
+      return {
+        idx: -1, indexA: last ? last.indexA : 50, indexB: last ? last.indexB : 50, isGap: false, isVirtualStart: true,
+        setNumber: setNum, matchTimeMs: (evo.games.find((g) => g.setNumber === setNum) || {}).matchTimeMs || 0,
+        winner: null, isBreak: false, closedSet: false, setResult: null, matchWinner: null,
+      };
+    }
+    const games = (() => {
+      if (setFilter === 'match') return allGames;
+      const filtered = allGames.filter((g) => g.setNumber === setFilter);
+      if (filtered.length && !filtered[0].isVirtualStart) return [buildSetStartAnchor(setFilter), ...filtered];
+      return filtered;
+    })();
     const realGames = games.filter((g) => !g.isVirtualStart);
     if (!realGames.length) return { html: pillsHTML + '<p class="coverage-note">Sin games registrados en este set.</p>', isError: true };
 
@@ -2116,17 +2136,27 @@
     // dentro del tramo mostrado — no el índice crudo del array, que puede arrancar corrido si
     // el nodo virtual de arranque (50/50) está presente (vista Set 1 y vista Partido en
     // Americano sí lo tienen; vista Set 2/3 no, al quedar filtrado fuera).
-    function buildGameCheckpointsSvg(gamesArr) {
+    // V11.4 (feedback real) — el "0-0" del arranque es siempre visible (ancla el comienzo de
+    // la curva); en modo 'full' además se agrega el resultado del PRIMER game (1-0/0-1, para
+    // ver de entrada hacia dónde empezó a moverse la curva) y se sigue con los checkpoints ya
+    // existentes (3, 5, 7, 9...). En modo 'anchorOnly' (vista PARTIDO de un Clásico
+    // multiset) solo se dibuja el "0-0" — el resto de los checkpoints vive en cada Set.
+    function drawCheckpoint(x, label) {
+      return `<line x1="${x.toFixed(1)}" y1="${topPad}" x2="${x.toFixed(1)}" y2="${h}" stroke="rgba(244,247,242,0.18)" stroke-width="1"/>` +
+        `<text x="${x.toFixed(1)}" y="${h + 11}" font-size="7.5" fill="rgba(244,247,242,0.45)" text-anchor="middle">${label}</text>`;
+    }
+    function buildGameCheckpointsSvg(gamesArr, mode) {
       let svg = '';
       let withinSetGameCounter = 0;
       gamesArr.forEach((g, i) => {
-        if (g.isVirtualStart) return;
+        if (g.isVirtualStart) { svg += drawCheckpoint(xScale(i), '0-0'); return; }
+        if (mode === 'anchorOnly') return;
         withinSetGameCounter += 1;
         if (g.isTiebreakClose) return;
-        if (withinSetGameCounter < 3 || withinSetGameCounter % 2 !== 1) return;
-        const x = xScale(i);
-        svg += `<line x1="${x.toFixed(1)}" y1="${topPad}" x2="${x.toFixed(1)}" y2="${h}" stroke="rgba(244,247,242,0.18)" stroke-width="1"/>`;
-        svg += `<text x="${x.toFixed(1)}" y="${h + 11}" font-size="7.5" fill="rgba(244,247,242,0.45)" text-anchor="middle">${g.gamesA}-${g.gamesB}</text>`;
+        const isFirstGame = withinSetGameCounter === 1;
+        const isOddCheckpoint = withinSetGameCounter >= 3 && withinSetGameCounter % 2 === 1;
+        if (!isFirstGame && !isOddCheckpoint) return;
+        svg += drawCheckpoint(xScale(i), `${g.gamesA}-${g.gamesB}`);
       });
       return svg;
     }
@@ -2149,10 +2179,11 @@
         }
       });
       // Americano: la vista PARTIDO es el único set completo — los checkpoints aportan
-      // lectura ahí (hoy queda casi vacía) sin saturar. Clásico se mantiene limpio.
-      if (isSingleSetFormat) setLabelsSvg += buildGameCheckpointsSvg(games);
+      // lectura ahí (hoy queda casi vacía) sin saturar. Clásico se mantiene limpio: solo el
+      // "0-0" inicial como referencia, nada de checkpoints por game (viven en cada Set).
+      setLabelsSvg += buildGameCheckpointsSvg(games, isSingleSetFormat ? 'full' : 'anchorOnly');
     } else {
-      setLabelsSvg += buildGameCheckpointsSvg(games);
+      setLabelsSvg += buildGameCheckpointsSvg(games, 'full');
     }
 
     const svg = `

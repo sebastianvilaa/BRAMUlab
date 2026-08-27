@@ -440,6 +440,96 @@
     return best;
   }
 
+  /**
+   * V11.4 (feedback real) — PARIDAD ESTADÍSTICA REAL: antes de narrar un partido definido
+   * por Tie break como "extremadamente parejo", exige evidencia — nunca alcanza con que el
+   * marcador final haya sido ajustado. Cuenta señales objetivas e independientes (puntos
+   * totales, % de saque, % de resto, ausencia de breaks, Punto de Oro/Star repartido); hacen
+   * falta varias coincidiendo, nunca una sola. Caso real que motivó esto: 5-5 sin quiebres,
+   * TB 7-3 — el marcador final "ajustado" (7-3) no demuestra nada por sí solo, pero la
+   * paridad de TODO lo anterior (puntos, saque, resto, Oro) sí.
+   */
+  function detectStrongParity(stats) {
+    if (!stats.hasServerInfo || !stats.serverFullyKnown) return false;
+    let signals = 0;
+    if (stats.totalPoints > 0) {
+      const diff = Math.abs(stats.pointsA - stats.pointsB);
+      if (diff <= Math.max(2, Math.round(stats.totalPoints * 0.04))) signals++;
+    }
+    const sgA = stats.serviceGames.wonA + stats.serviceGames.lostA;
+    const sgB = stats.serviceGames.wonB + stats.serviceGames.lostB;
+    const holdA = sgA > 0 ? stats.serviceGames.wonA / sgA : null;
+    const holdB = sgB > 0 ? stats.serviceGames.wonB / sgB : null;
+    if (holdA != null && holdB != null && Math.abs(holdA - holdB) <= 0.15) signals++;
+    const servedA = stats.serveStats.A.served, servedB = stats.serveStats.B.served;
+    const servePctA = servedA ? stats.serveStats.A.wonServing / servedA : null;
+    const servePctB = servedB ? stats.serveStats.B.wonServing / servedB : null;
+    if (servePctA != null && servePctB != null && Math.abs(servePctA - servePctB) <= 0.12) signals++;
+    if (stats.breaks.A === 0 && stats.breaks.B === 0) signals++;
+    const golden = stats.goldenPoints.played > 0 ? stats.goldenPoints : (stats.starPoints.played > 0 ? stats.starPoints : null);
+    if (golden && golden.played >= 2 && Math.abs(golden.wonA - golden.wonB) <= 1) signals++;
+    return signals >= 3;
+  }
+
+  /**
+   * V11.4 (feedback real) — DESARROLLO DEL TIE BREAK: hasta ahora el TB se narraba SOLO como
+   * un resultado final ("ganaron 7-3"), sin importar si fue parejo de punta a punta o si una
+   * pareja se separó temprano y administró la ventaja — perdiendo justo la parte de la
+   * historia que un TB reñido puede aportar. Reusa el mismo patrón de mínimos/máximos que
+   * `computeSetGameDeficits`, pero sobre los PUNTOS del propio Tie break, ya en términos de
+   * "ganador/perdedor" (no A/B) para no tener que reorientar después.
+   *   - `worstDiff` (<=0 si el ganador llegó a estar abajo): su peor momento dentro del TB.
+   *   - `bestDiff`/`bestScore`: la mayor ventaja que sacó el ganador en cualquier momento.
+   *   - `dipDiff`/`dipScore`: el punto más bajo que tocó esa ventaja DESPUÉS de alcanzar su
+   *     último máximo — permite distinguir "sacó 4 y lo administró" de "sacó 4, el rival lo
+   *     ajustó a 2, y recién ahí cerró" (dos historias distintas con el mismo marcador final).
+   */
+  function describeTiebreakArc(events, matchCtx, setNumber, winnerTeam) {
+    const { scoringSystem, format, tiebreakMode, baseline } = matchCtx;
+    let state = baseline ? E.computeStateFromEvents([], scoringSystem, format, tiebreakMode, baseline) : E.createInitialEngineState();
+    let winnerPts = 0, loserPts = 0;
+    let worstDiff = 0, worstScore = null;
+    let bestDiff = 0, bestScore = null;
+    let dipDiff = null, dipScore = null;
+    events.forEach((ev) => {
+      if (ev.type === 'adjustment') { state = E.applyAdjustment(ev.newState); return; }
+      const before = state;
+      const modeForThisPoint = ev.tbMode || tiebreakMode;
+      const curSetNumber = before.sets.length + 1;
+      const wasInThisTb = before.inTiebreak && curSetNumber === setNumber;
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      if (!wasInThisTb) return;
+      if (ev.team === winnerTeam) winnerPts += 1; else loserPts += 1;
+      const diff = winnerPts - loserPts;
+      if (diff < worstDiff) { worstDiff = diff; worstScore = { winner: winnerPts, loser: loserPts }; }
+      if (diff > bestDiff) {
+        bestDiff = diff; bestScore = { winner: winnerPts, loser: loserPts };
+        dipDiff = diff; dipScore = { winner: winnerPts, loser: loserPts }; // el "piso" arranca en el propio pico
+      } else if (dipDiff !== null && diff < dipDiff) {
+        dipDiff = diff; dipScore = { winner: winnerPts, loser: loserPts };
+      }
+    });
+    return { worstDiff, worstScore, bestDiff, bestScore, dipDiff, dipScore, finalWinner: winnerPts, finalLoser: loserPts };
+  }
+
+  /** Convierte `describeTiebreakArc` en prosa — `null` si el TB no tuvo una forma
+   *  narrativamente relevante (parejo de punta a punta, sin separación real). */
+  function buildTiebreakArcClause(arc, nameOf, winnerTeam, loserTeam) {
+    if (arc.worstDiff <= -2) {
+      return `${nameOf(winnerTeam)} llegaron a estar ${Math.abs(arc.worstDiff)} abajo en el propio Tie break, pero remontaron para cerrarlo.`;
+    }
+    if (arc.bestDiff >= 3) {
+      const finalDiff = arc.finalWinner - arc.finalLoser;
+      const wobbled = arc.dipDiff !== null && (arc.bestDiff - arc.dipDiff) >= 2 && arc.dipDiff !== finalDiff;
+      let text = `${nameOf(winnerTeam)} se separaron temprano en el Tie break y llegaron a sacar ${arc.bestDiff} de ventaja (${arc.bestScore.winner}-${arc.bestScore.loser})`;
+      text += wobbled
+        ? `; ${nameOf(loserTeam)} achicaron la diferencia hasta ${arc.dipScore.winner}-${arc.dipScore.loser}, pero esa separación inicial terminó siendo decisiva.`
+        : ', y administraron esa diferencia hasta el cierre.';
+      return text;
+    }
+    return null;
+  }
+
   const ORDINALS = { 1: 'primera', 2: 'segunda', 3: 'tercera', 4: 'cuarta', 5: 'quinta', 6: 'sexta' };
 
   /** V9.2 (11) — "ORIENTACIÓN DEL SCORE EN TODA LA NARRATIVA": helper general, no solo para
@@ -794,6 +884,12 @@
           // frase (acá, quien ganó) — nunca el orden fijo A-B del Tie break real, que es
           // el que usan la Timeline y las tarjetas de marcador (esos sí mantienen A-B).
           text += ` antes de llevar el set al Tie break, donde terminaron imponiéndose ${orientTiebreak(actSet.tiebreak, winnerTeam)}.`;
+          // V11.4 (feedback real) — mismo desarrollo del propio TB que la historia dedicada
+          // de "Tie break decisivo sin quiebres": si hubo una separación real dentro del
+          // desempate, contarla también acá en vez de quedarse solo en el resultado final.
+          const tbArc = describeTiebreakArc(events, matchCtx, biggest.setNumber, winnerTeam);
+          const tbArcClause = buildTiebreakArcClause(tbArc, nameOf, winnerTeam, loserTeam);
+          if (tbArcClause) text += ' ' + tbArcClause;
         } else {
           // V11 (§2.4): marcador orientado hacia quien protagoniza la frase — nunca
           // gamesA-gamesB crudo (bug real: "ganarlo 6-7" narrando al equipo que ganó 7-6).
@@ -933,34 +1029,38 @@
     //     jerarquía narrativa que "único quiebre" (89 vs 92) — un solo factor estructural
     //     decide un partido por lo demás parejo — pero nunca debe leerse como dominio por
     //     puntos totales (§52: paridad estructural, no volumen).
+    // V11.4 (feedback real, caso 5-5 sin breaks → TB 7-3): antes esto se quedaba en el
+    // resultado final del TB sin más — perdiendo tanto la paridad real que traía el resto
+    // del partido (puntos, saque, resto, Oro casi espejados) como el desarrollo del propio
+    // TB (una pareja se separa temprano, la otra ajusta, pero no alcanza). Ahora, cuando hay
+    // evidencia real, se agregan esas dos capas — nunca por relleno, solo si hay historia.
     if (stats.hasServerInfo && stats.breaks.A === 0 && stats.breaks.B === 0 && winnerTeam) {
       const decidingSet = sets[sets.length - 1];
       if (decidingSet && decidingSet.tiebreak) {
         const tb = decidingSet.tiebreak;
         const tbResult = orientTiebreak(tb, winnerTeam);
-        const text = sets.length > 1
-          ? `Nadie quebró el servicio en todo el partido: la definición pasó por el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
-          : `Nadie quebró el servicio en todo el set: la definición pasó por el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
+        const loserTeamTb = winnerTeam === 'A' ? 'B' : 'A';
+        const strongParity = detectStrongParity(stats);
+        let text;
+        if (strongParity) {
+          text = sets.length > 1
+            ? `El partido se mantuvo extremadamente parejo: nadie quebró el servicio y la diferencia apareció recién en el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
+            : `El partido se mantuvo extremadamente parejo: nadie quebró el servicio y la diferencia apareció recién en el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
+          if (stats.totalPoints > 0) {
+            text += ` Incluso los números terminaron parejos: ${stats.pointsA}-${stats.pointsB} en puntos ganados.`;
+          }
+        } else {
+          text = sets.length > 1
+            ? `Nadie quebró el servicio en todo el partido: la definición pasó por el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
+            : `Nadie quebró el servicio en todo el set: la definición pasó por el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
+        }
+        const arc = describeTiebreakArc(events, matchCtx, sets.length, winnerTeam);
+        const arcClause = buildTiebreakArcClause(arc, nameOf, winnerTeam, loserTeamTb);
+        if (arcClause) text += ' ' + arcClause;
         // V11 (§2.5): marca que el Tie break del último set ya quedó narrado acá, para que el
         // cierre por duración (párrafo final) no lo repita ("...cerrando el Tie break final
         // X-Y" después de ya haberlo contado) — bug real de redundancia narrativa.
         stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false, tbMentionedSetNumber: sets.length });
-      }
-    }
-
-    // 4a) V11.1 (§4.3) — HOLD BAJO PRESIÓN: el mismo resultado (game de saque sostenido) no
-    //     pesa igual si costó salvar varios Break Points seguidos. Señal puntual y concreta,
-    //     no el motor genérico de leverage de las secciones 4-5 (ver comentario de
-    //     `findDramaticHold`). Solo entra si hay al menos 2 Break Points salvados en un
-    //     mismo game — por debajo de eso no cambia la lectura del partido.
-    if (stats.hasServerInfo) {
-      const dramaticHold = findDramaticHold(events, matchCtx);
-      if (dramaticHold) {
-        let text = `${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio en el Set ${dramaticHold.setNumber}`;
-        if (dramaticHold.closedMatch) text += ', justo en el game que terminó cerrando el partido.';
-        else if (dramaticHold.closedSet) text += ', justo en el game que cerró ese set.';
-        else text += '.';
-        stories.push({ kind: 'hold-presion', weight: 45, text, partialSensitive: false });
       }
     }
 
@@ -1090,6 +1190,25 @@
 
     // ---- Párrafo 2: puntos decisivos (R6/R7/R8/R9/AB) ----
     const sentences2 = [];
+    // V11.4 (§4.3, feedback real): el hold bajo presión pasa a ser un agregado GARANTIZADO
+    // del párrafo de puntos decisivos, no una historia que compite por el lugar
+    // protagónico — antes, con peso propio, le podía ganar la portada al resumen agregado
+    // de Break Points (weight 40) en partidos sin dominancia ni remontada, dejando afuera
+    // justo la lectura más importante del partido (bug real reportado: un partido 5-5 sin
+    // breaks definido por Tie break terminaba mencionando SOLO un hold puntual del Set 1,
+    // sin una palabra sobre la paridad real ni el propio Tie break). `findDramaticHold` ya
+    // excluye los puntos que también fueron Match/Set Point (evita narrar la misma
+    // secuencia dos veces bajo dos etiquetas), así que agregarlo acá es seguro.
+    if (stats.hasServerInfo) {
+      const dramaticHold = findDramaticHold(events, matchCtx);
+      if (dramaticHold) {
+        let holdText = `${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio en el Set ${dramaticHold.setNumber}`;
+        if (dramaticHold.closedMatch) holdText += ', justo en el game que terminó cerrando el partido.';
+        else if (dramaticHold.closedSet) holdText += ', justo en el game que cerró ese set.';
+        else holdText += '.';
+        sentences2.push(holdText);
+      }
+    }
     // V8: si la historia principal (remontada o casi-remontada) YA narró estos mismos
     // Match Points salvados, no se repite acá con otra frase que cuenta lo mismo.
     const alreadyMentionedMp = topStories.some((s) => s.mpMentioned);
@@ -1648,5 +1767,7 @@
     findDramaticHold,
     // V11.1 (§11.3) — ídem, para poder testear que la elección de variantes es determinística.
     pickPhrase, varietySeedFor, PHRASE_BANKS,
+    // V11.4 (feedback real) — ídem, paridad estadística y desarrollo del Tie break.
+    detectStrongParity, describeTiebreakArc, buildTiebreakArcClause,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
