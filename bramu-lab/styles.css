@@ -708,12 +708,26 @@ input, select{ font-family: inherit; }
    no de lectura, y ya tiene su propio ancho vertical/horizontal resuelto (§V11.5/§V11.6). */
 @media (min-width: 720px){
   .view--match{ max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  .view--setup{ box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+  /* V11.11 (feedback real): la sombra en Inicio no sumaba — al ser una pantalla corta tipo
+     formulario, se sentía como si "encerrara" el contenido en vez de darle aire. Se saca
+     acá; Análisis/Historial/Match la conservan porque son pantallas de lectura/control más
+     largas, donde sí ayuda a separarse del margen. */
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
   /* V11.10 (feedback real) — un poco más de aire en tablet, sigue sin llegar de punta a
      punta (a 768px de vista, deja ~80px de margen por lado en un iPad portrait de 768-834px
      — el "aire a los costados" que se pidió). */
   .summary-card{ max-width: 600px; }
+}
+
+/* V11.11 (feedback real) — ESCRITORIO GRANDE: 768px queda bien en tablet, pero en un
+   monitor de escritorio (donde ya no hace falta "guardar" ancho para nada táctil) se sigue
+   sintiendo corto. Se agrega un tercer escalón SOLO para ventanas realmente anchas
+   (min-width:1200px descarta toda tablet real, incluida la 12.9" apaisada) que amplía
+   Análisis/Historial a 1100px — reusa el mismo número que ya usa el marcador en vivo
+   apaisado (§V11.6), nunca un cuarto valor suelto. Tablet (720-1199px) sigue en 768px sin
+   cambios. */
+@media (min-width: 1200px){
+  .view--analysis, .view--history{ max-width: 1100px; }
 }
 
 /* V11.10 (feedback real) — INICIO EN HORIZONTAL: Equipo A y Equipo B lado a lado en vez de
