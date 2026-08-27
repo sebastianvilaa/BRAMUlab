@@ -366,6 +366,67 @@
   })();
 
   // ------------------------------------------------------------------
+  // V11.1 — hold bajo presión (§4.3) y variedad de lenguaje (§11.3)
+  // ------------------------------------------------------------------
+  (function () {
+    /** Mismo helper que en el bloque anterior (reescrito acá porque cada IIFE tiene su
+     *  propio scope): arma un game donde `leaderTeam` llega a tener Break/Match/Set Point
+     *  `saves` veces seguidas (todas salvadas por el rival) y termina GANÁNDOLO el rival.
+     *  Usada acá con `leaderTeam` = el equipo que RESTA, para que el rival (el que SACA)
+     *  sea quien sostiene el servicio salvando Break Points — el "hold bajo presión". */
+    function playGameSavedByOpponent(ctx, leaderTeam, saves) {
+      const opp = leaderTeam === 'A' ? 'B' : 'A';
+      for (let i = 0; i < 3; i++) { playPoint(ctx, leaderTeam); playPoint(ctx, opp); }
+      for (let i = 0; i < saves - 1; i++) { playPoint(ctx, leaderTeam); playPoint(ctx, opp); }
+      playPoint(ctx, opp); playPoint(ctx, opp);
+    }
+
+    // ---- U17 · §4.3 findDramaticHold: detecta el hold que salvó 3 Break Points -----------
+    const ctxH = newCtx('classic', 'americano'); // Con Ventaja, 1 set alcanza para aislarlo
+    playGameSavedByOpponent(ctxH, 'B', 3); // B resta, A saca y sostiene salvando 3 BP
+    for (let i = 0; i < 5; i++) winGame(ctxH, 'A'); // A cierra el set con holds limpios después
+    const dh = S.findDramaticHold(ctxH.events, ctxAsMatchCtx(ctxH));
+    assert('U17 · §4.3 hold bajo presión: detecta al equipo correcto (A)', dh && dh.team === 'A', JSON.stringify(dh));
+    assert('U17b · §4.3 hold bajo presión: cuenta exactamente 3 Break Points salvados', dh && dh.bpSaved === 3, JSON.stringify(dh));
+    assert('U17c · §4.3 hold bajo presión: set correcto', dh && dh.setNumber === 1, JSON.stringify(dh));
+
+    // ---- U18 · §4.3 sin hold dramático: ningún game con 2+ BP salvados → null -----------
+    const ctxH2 = newCtx('classic', 'americano');
+    for (let i = 0; i < 4; i++) winGame(ctxH2, 'A');
+    for (let i = 0; i < 2; i++) winGame(ctxH2, 'B');
+    const dh2 = S.findDramaticHold(ctxH2.events, ctxAsMatchCtx(ctxH2));
+    assert('U18 · §4.3 sin holds bajo presión (todo limpio): null', dh2 === null, JSON.stringify(dh2));
+
+    // ---- F10 · §4.3 integrado: aparece en el texto de BRAMU Intelligence -----------------
+    const ctxH3 = newCtx('classic', 'americano');
+    playGameSavedByOpponent(ctxH3, 'B', 3);
+    for (let i = 0; i < 5; i++) winGame(ctxH3, 'A');
+    const r10 = intelFromSim(ctxH3);
+    assert('F10 · §4.3 el relato menciona el hold bajo presión (3 Break Points seguidos)', r10.text.includes('3 Break Points seguidos'), r10.text);
+    assert('F10b · §4.3 nunca infiere psicología (nervios/carácter) en esta frase', !/nervio|carácter|fortaleza mental/i.test(r10.text), r10.text);
+
+    // ---- U19 · §11.3 variedad de lenguaje: elección determinística ------------------------
+    const seedX = S.varietySeedFor({ totalPoints: 40, matchDurationMs: 120000 }, [{}, {}]);
+    const seedY = S.varietySeedFor({ totalPoints: 40, matchDurationMs: 120000 }, [{}, {}]);
+    assert('U19 · §11.3 misma entrada → misma semilla (determinístico)', seedX === seedY, `${seedX} vs ${seedY}`);
+    assert('U19b · §11.3 pickPhrase devuelve una variante real del banco', S.PHRASE_BANKS.inicio.includes(S.pickPhrase('inicio', seedX)), S.pickPhrase('inicio', seedX));
+    assert('U19c · §11.3 misma semilla → misma variante siempre', S.pickPhrase('cierre', 7) === S.pickPhrase('cierre', 7), '');
+
+    // ---- F11 · §11.3 dos partidos con desarrollos distintos → distinta variante ----------
+    // (No es un requisito absoluto — solo confirma que el mecanismo realmente varía y no
+    // quedó siempre fijo en el primer elemento del banco por algún error de cómputo.)
+    const ctx11a = newCtx('golden', 'classic');
+    ['A', 'A', 'B', 'A', 'A'].forEach((t) => winGameClose(ctx11a, t));
+    for (let i = 0; i < 2; i++) winGame(ctx11a, 'B');
+    const r11a = intelFromSim(ctx11a);
+    const ctx11b = newCtx('golden', 'classic');
+    ['A', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameClose(ctx11b, t));
+    winGame(ctx11b, 'B'); winGame(ctx11b, 'B'); winGame(ctx11b, 'B');
+    const r11b = intelFromSim(ctx11b);
+    assert('F11 · §11.3 dos partidos con distinta duración/puntaje: alguna variante difiere o el texto difiere', r11a.text !== r11b.text, `${r11a.text}\n---\n${r11b.text}`);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

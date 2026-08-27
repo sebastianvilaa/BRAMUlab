@@ -384,6 +384,62 @@
     return found;
   }
 
+  /**
+   * V11.1 (§4.3) — HOLD BAJO PRESIÓN: "no es lo mismo un hold 40-0 que un hold salvando
+   * 0-40" (ejemplo textual del consolidado). Localiza, entre todos los games sostenidos
+   * (holds) del partido, el que exigió salvar MÁS Break Points seguidos antes de cerrarlo.
+   * Deliberadamente NO es el motor genérico de "importancia por punto" de las secciones
+   * 4-5 del consolidado (dominancia × leverage combinados con una fórmula) — es una señal
+   * puntual y concreta, del mismo tipo que `findSoleBreakDetail`, reusando exactamente el
+   * mismo patrón de recorrido de eventos. Nunca infiere psicología (nervios, carácter): solo
+   * reporta el hecho observable. Devuelve `null` si ningún hold tuvo que salvar 2+ Break
+   * Points en el mismo game — por debajo de eso no aporta lo suficiente a la historia.
+   */
+  function findDramaticHold(events, matchCtx) {
+    const { players, scoringSystem, format, tiebreakMode, serverKnowledge, baseline } = matchCtx;
+    let state = baseline ? E.computeStateFromEvents([], scoringSystem, format, tiebreakMode, baseline) : E.createInitialEngineState();
+    let best = null;
+    let bpSavedThisGame = 0;
+    events.forEach((ev) => {
+      if (ev.type === 'adjustment') { state = E.applyAdjustment(ev.newState); bpSavedThisGame = 0; return; }
+      const before = state;
+      const modeForThisPoint = ev.tbMode || tiebreakMode;
+      const setNumber = before.sets.length + 1;
+      const matchGameNumber = E.currentMatchGameNumber(before);
+      const withinSetGameNumber = E.currentWithinSetGameNumber(before);
+      const resolved = serverKnowledge
+        ? (before.inTiebreak
+          ? E.resolveTiebreakServer(serverKnowledge, players, setNumber, before.tbBaseGameNumber, before.tbBaseWithinSet, before.tbA + before.tbB)
+          : E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber))
+        : { resolved: false };
+      const servingTeam = resolved.resolved ? resolved.team : null;
+      if (!before.inTiebreak && servingTeam) {
+        const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeam);
+        const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
+        // V11.1 (§2.5, aplicado acá): un Break Point que ADEMÁS es Match Point o Set Point ya
+        // queda cubierto por la historia de remontada/Match Points salvados (son literalmente
+        // los mismos puntos) — contarlo taquí también sería narrar la misma secuencia dos
+        // veces con dos etiquetas distintas. Solo cuenta la presión "pura" de Break Point,
+        // sin protagonismo de set/partido en juego todavía.
+        if ((importance.break === receivingTeam || importance.break === 'both') && !importance.match && !importance.set) {
+          // El resto tiene Break Point: si el punto lo termina ganando el que saca, lo salvó.
+          if (ev.team === servingTeam) bpSavedThisGame += 1;
+        }
+      }
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
+      if (wasNormalGameEnd) {
+        const closedSet = state.sets.length > before.sets.length;
+        const winnerOfGame = closedSet ? state.sets[state.sets.length - 1].winner : (state.gamesA > before.gamesA ? 'A' : 'B');
+        if (servingTeam && winnerOfGame === servingTeam && bpSavedThisGame >= 2 && (!best || bpSavedThisGame > best.bpSaved)) {
+          best = { team: servingTeam, setNumber, bpSaved: bpSavedThisGame, closedSet, closedMatch: !!state.matchWinner };
+        }
+        bpSavedThisGame = 0;
+      }
+    });
+    return best;
+  }
+
   const ORDINALS = { 1: 'primera', 2: 'segunda', 3: 'tercera', 4: 'cuarta', 5: 'quinta', 6: 'sexta' };
 
   /** V9.2 (11) — "ORIENTACIÓN DEL SCORE EN TODA LA NARRATIVA": helper general, no solo para
@@ -433,6 +489,38 @@
     }
   }
 
+  /**
+   * V11.1 (§11.3) — VARIEDAD DE LENGUAJE. Bancos de sinónimos agrupados por función
+   * narrativa exacta (nunca mezclados entre sí, para no cambiar el significado). La
+   * elección es DETERMINÍSTICA a partir de datos reales del propio partido (nunca
+   * `Math.random`) — el mismo partido siempre genera el mismo texto (tests reproducibles),
+   * pero partidos distintos (duración, puntos, sets distintos) tienden a elegir variantes
+   * distintas, así jugar varios partidos seguidos con amigos no suena siempre igual.
+   * Los 4 bancos y sus lugares de uso quedan documentados en cada punto de inyección
+   * (`pickPhrase('inicio'|'reaccion'|'quiebre'|'cierre', seed)`) — no se aplicó en TODOS
+   * los lugares posibles donde podría encajar una de estas palabras (p.ej. no se tocó
+   * `interpretBreakPointsNarrative`, ya bastante delicada en su lógica de precisión), solo
+   * en los puntos donde el cambio de palabra es 100% seguro y no interactúa con ninguna
+   * otra rama condicional.
+   */
+  const PHRASE_BANKS = {
+    inicio: ['arrancaron mejor', 'comenzaron mejor', 'tomaron primero la ventaja', 'marcaron las primeras diferencias'],
+    reaccion: ['respondieron', 'reaccionaron', 'recuperaron terreno', 'consiguieron igualar el desarrollo'],
+    quiebre: ['consiguieron el quiebre', 'encontraron el break', 'quebraron el servicio rival', 'aprovecharon la oportunidad al resto'],
+    cierre: ['cerraron', 'terminaron imponiéndose', 'se impusieron', 'aprovecharon la oportunidad para cerrarlo'],
+  };
+  function pickPhrase(bankKey, seed) {
+    const bank = PHRASE_BANKS[bankKey];
+    return bank[Math.abs(seed || 0) % bank.length];
+  }
+  /** Semilla determinística por partido — ninguna de estas cifras se elige a mano por el
+   *  jugador, así que dos partidos reales prácticamente nunca coinciden en los tres a la
+   *  vez (duración real en ms incluida a propósito: es la que más varía entre partidos con
+   *  un resultado parecido). */
+  function varietySeedFor(stats, sets) {
+    return (stats.totalPoints || 0) + (stats.matchDurationMs || 0) + (sets ? sets.length : 0) * 97;
+  }
+
   /** V9 (3/8) — cuando la historia principal es una secuencia decisiva puntual (p.ej. un
    *  quiebre logrado con Punto de Oro sobre el final de un set), antepone un resumen
    *  cronológico breve de los sets ANTERIORES a ese, para dar contexto de "cómo se llegó"
@@ -461,7 +549,7 @@
    * `computeStats` para tener datos REALES de ese set puntual (quiebres si se conoce el
    * saque), nunca un resumen inventado.
    */
-  function buildClosingActText(matchCtx, sets, actSetNumber, nameOf) {
+  function buildClosingActText(matchCtx, sets, actSetNumber, nameOf, seed) {
     if (!actSetNumber || actSetNumber >= sets.length) return null;
     const lastSet = sets[sets.length - 1];
     const segments = computeSetSegments(matchCtx.events || [], matchCtx.scoringSystem, matchCtx.format, matchCtx.tiebreakMode, matchCtx.baseline);
@@ -476,9 +564,12 @@
     const closeClause = lastSet.tiebreak
       ? `en el Tie break, ${orientTiebreak(lastSet.tiebreak, lastSet.winner)}`
       : orientScore(lastSet.gamesA, lastSet.gamesB, lastSet.winner);
+    // V11.1 (§11.3): verbo de cierre variable — "el set" ya quedó establecido en la frase
+    // de apertura ("El último set tuvo otro desarrollo"), así que el banco no lo repite.
+    const cierre = pickPhrase('cierre', seed);
     const text = (hasServerInfoInSet && winnerBreaksInSet > 0)
-      ? `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} consiguieron ${winnerBreaksInSet === 1 ? 'un quiebre' : `${winnerBreaksInSet} quiebres`} y cerraron ${closeClause}.`
-      : `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} se quedaron con el set ${closeClause}.`;
+      ? `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} consiguieron ${winnerBreaksInSet === 1 ? 'un quiebre' : `${winnerBreaksInSet} quiebres`} y ${cierre} ${closeClause}.`
+      : `El último set tuvo otro desarrollo: ${nameOf(lastSet.winner)} ${cierre} ${closeClause}.`;
     return { text, tbMentioned: !!lastSet.tiebreak };
   }
 
@@ -599,6 +690,7 @@
     const nameOf = (team) => (team === 'A' ? nameA : nameB);
     const partial = !!(stats.hasAdjustments || matchCtx.coverageStartLabel);
     const events = matchCtx.events || [];
+    const varietySeed = varietySeedFor(stats, sets); // V11.1 (§11.3): variedad de lenguaje
 
     // ---- Recolecta candidatas a "la historia principal" (R4/R5), en orden de prioridad ----
     const stories = [];
@@ -638,7 +730,7 @@
         const pointLabel = matchCtx.scoringSystem === 'golden' ? 'un Punto de Oro' : 'un Star Point';
         const serverClause = decisive.server ? ' sobre el saque rival' : '';
         let text = `El momento decisivo llegó con ${decisive.scoreBefore} en el ${decisive.setNumber}° set. `;
-        text += `${nameOf(decisive.team)} ganaron ${pointLabel}${serverClause}, consiguieron el quiebre`;
+        text += `${nameOf(decisive.team)} ganaron ${pointLabel}${serverClause}, ${pickPhrase('quiebre', varietySeed)}`;
         text += sets.length > 1
           ? ' y después sostuvieron su servicio para cerrar el partido.'
           : ` y después sostuvieron su servicio para cerrar ${orientScore(decidingSet.gamesA, decidingSet.gamesB, decisive.team)}.`;
@@ -720,7 +812,8 @@
         stories.push({
           kind: 'remontada-set', weight: 85, partialSensitive: false,
           // V11 (§2.4): orientado hacia el protagonista de la frase — nunca el orden fijo A-B.
-          text: `${nameOf(winnerTeam)} arrancaron perdiendo el primer set (${orientScore(sets[0].gamesA, sets[0].gamesB, winnerTeam)}) y se repusieron para llevarse el partido.`,
+          // V11.1 (§11.3): verbo de reacción variable.
+          text: `${nameOf(winnerTeam)} arrancaron perdiendo el primer set (${orientScore(sets[0].gamesA, sets[0].gamesB, winnerTeam)}) pero ${pickPhrase('reaccion', varietySeed)} y se llevaron el partido.`,
         });
       } else {
         // V9.2 (10): "se agarraron al partido" se reserva EXCLUSIVAMENTE para quien salva
@@ -781,7 +874,8 @@
       if (lastSet.winner === winnerTeam && sets.some((s) => s.winner !== winnerTeam)) {
         stories.push({
           kind: 'dominio-cambio', weight: 60, partialSensitive: false,
-          text: `${nameOf(winnerTeam)} empezaron mejor, pero ${otherName(winnerTeam)} les cambiaron el partido en el medio antes de que ${nameOf(winnerTeam)} volvieran a imponerse para cerrarlo.`,
+          // V11.1 (§11.3): verbo de apertura variable.
+          text: `${nameOf(winnerTeam)} ${pickPhrase('inicio', varietySeed)}, pero ${otherName(winnerTeam)} les cambiaron el partido en el medio antes de que ${nameOf(winnerTeam)} volvieran a imponerse para cerrarlo.`,
         });
       }
     }
@@ -851,6 +945,22 @@
         // cierre por duración (párrafo final) no lo repita ("...cerrando el Tie break final
         // X-Y" después de ya haberlo contado) — bug real de redundancia narrativa.
         stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false, tbMentionedSetNumber: sets.length });
+      }
+    }
+
+    // 4a) V11.1 (§4.3) — HOLD BAJO PRESIÓN: el mismo resultado (game de saque sostenido) no
+    //     pesa igual si costó salvar varios Break Points seguidos. Señal puntual y concreta,
+    //     no el motor genérico de leverage de las secciones 4-5 (ver comentario de
+    //     `findDramaticHold`). Solo entra si hay al menos 2 Break Points salvados en un
+    //     mismo game — por debajo de eso no cambia la lectura del partido.
+    if (stats.hasServerInfo) {
+      const dramaticHold = findDramaticHold(events, matchCtx);
+      if (dramaticHold) {
+        let text = `${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio en el Set ${dramaticHold.setNumber}`;
+        if (dramaticHold.closedMatch) text += ', justo en el game que terminó cerrando el partido.';
+        else if (dramaticHold.closedSet) text += ', justo en el game que cerró ese set.';
+        else text += '.';
+        stories.push({ kind: 'hold-presion', weight: 45, text, partialSensitive: false });
       }
     }
 
@@ -971,7 +1081,7 @@
     let closingActTbMentioned = false;
     const remontadaStory = topStories.find((s) => s.kind === 'remontada');
     if (remontadaStory && remontadaStory.actSetNumber) {
-      const closingAct = buildClosingActText(matchCtx, sets, remontadaStory.actSetNumber, nameOf);
+      const closingAct = buildClosingActText(matchCtx, sets, remontadaStory.actSetNumber, nameOf, varietySeed);
       if (closingAct) {
         paras.push(closingAct.text);
         closingActTbMentioned = closingAct.tbMentioned;
@@ -1534,5 +1644,9 @@
     // V10 (46/89) — expuestas para el arnés de tests sintéticos (tests.html): son funciones
     // puras, sin estado, así que exponerlas no cambia ningún comportamiento de la app.
     describeMagnitude, magnitudeOpportunitiesPhrase, interpretBreakPointsNarrative, orientScore, orientTiebreak,
+    // V11.1 (§4.3) — ídem, para poder testear la detección de hold bajo presión aislada.
+    findDramaticHold,
+    // V11.1 (§11.3) — ídem, para poder testear que la elección de variantes es determinística.
+    pickPhrase, varietySeedFor, PHRASE_BANKS,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
