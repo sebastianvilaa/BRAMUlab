@@ -689,8 +689,20 @@ input, select{ font-family: inherit; }
    RESPONSIVE
    ========================================================================== */
 @media (min-width: 720px){
-  .view--match, .view--analysis, .view--history{ max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+  .view--match{ max-width: 480px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
   html, body{ background: #05100E; }
+}
+
+/* V11.7 (feedback real) — en tablet, Análisis/Historial quedaban con el mismo ancho angosto
+   de "columna de celular" (480px) que el marcador en vivo, así que el contenido largo
+   (estadísticas, Evolución, Momentos Clave) scrolleaba mucho más de lo necesario aunque
+   sobrara ancho de pantalla. Se ensanchan a 768px — bastante más lectura por pantalla sin
+   llegar de punta a punta — mismo fondo/sombra que ya usa el resto en desktop. El Resumen
+   (tarjeta corta, no scrollea) se ensancha bastante menos, solo para que no se sienta
+   angosto al lado de las otras pantallas. */
+@media (min-width: 720px){
+  .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+  .summary-card{ max-width: 520px; }
 }
 
 /* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se

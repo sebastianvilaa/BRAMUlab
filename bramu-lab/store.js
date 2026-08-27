@@ -12,7 +12,7 @@
   const SCHEMA_VERSION = 3;
   // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
   // acá alcanza para toda la app — nunca duplicar el string de versión en otro archivo JS.
-  const APP_VERSION = 'v11.6';
+  const APP_VERSION = 'v11.7';
   const KEYS = {
     ACTIVE_MATCH: 'padellab.activeMatch.v1',
     HISTORY: 'padellab.history.v1',
