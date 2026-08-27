@@ -283,7 +283,13 @@
       // diferencia (7 vs 6 no es lo mismo que 16 vs 2), nunca un "más chances" plano.
       const phrase = magnitudeOpportunitiesPhrase(moreBucket.opportunities, fewerBucket.opportunities);
       const chancesClause = phrase ? `generaron ${phrase} de quiebre` : `generaron más chances de quiebre, ${moreBucket.opportunities} contra ${fewerBucket.opportunities}`;
-      return `${nameOf(moreBreaks)} ${chancesClause}, y además las aprovecharon mejor. Convirtieron ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
+      // V11.16 (feedback real): "convirtieron X quiebres contra los 0 de Fulano" suena a
+      // tabla leída en voz alta cuando el otro lado quedó en cero — se prefiere una frase
+      // natural que diga directamente que esa pareja no pudo convertir ninguna.
+      const convertedClause = fewerBucket.converted === 0
+        ? `Convirtieron ${moreBucket.converted === 1 ? 'su única oportunidad' : `${moreBucket.converted} de sus ${moreBucket.opportunities} oportunidades`}, mientras que ${nameOf(fewerBreaks)} no consiguieron convertir ${fewerBucket.opportunities === 1 ? 'la única que tuvieron' : 'ninguna de las suyas'}.`
+        : `Convirtieron ${moreBucket.converted} quiebres contra los ${fewerBucket.converted} de ${nameOf(fewerBreaks)}.`;
+      return `${nameOf(moreBreaks)} ${chancesClause}, y además las aprovecharon mejor. ${convertedClause}`;
     }
     if (fewerBucket.opportunities > moreBucket.opportunities) {
       // V11 (§7.9): PRESIÓN SIN CONVERSIÓN — quien convirtió MENOS en realidad generó MÁS
@@ -291,7 +297,16 @@
       // tuvo más chances: la conversión real fue del otro lado, y eso también hay que decirlo.
       const oppPhrase = magnitudeOpportunitiesPhrase(fewerBucket.opportunities, moreBucket.opportunities);
       const pressureClause = oppPhrase ? `generaron ${oppPhrase} de quiebre` : `generaron más oportunidades de quiebre, ${fewerBucket.opportunities} contra ${moreBucket.opportunities}`;
-      return `${nameOf(fewerBreaks)} ${pressureClause}, pero fueron ${nameOf(moreBreaks)} quienes más veces lograron convertir, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
+      // V11.16 (feedback real): misma preferencia por lenguaje natural cuando quien generó
+      // más presión terminó en cero conversiones.
+      const convertClause = fewerBucket.converted === 0
+        ? `pero no consiguieron convertir ${fewerBucket.opportunities === 1 ? 'la única' : 'ninguna de esas'} en quiebre; ${nameOf(moreBreaks)} sí aprovecharon las suyas y se quedaron con ${moreBucket.converted === 1 ? 'el único quiebre del partido' : `los ${moreBucket.converted} quiebres`}.`
+        : `pero fueron ${nameOf(moreBreaks)} quienes más veces lograron convertir, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
+      return `${nameOf(fewerBreaks)} ${pressureClause}, ${convertClause}`;
+    }
+    // V11.16 (feedback real): mismo ajuste en el fallback genérico (oportunidades iguales).
+    if (fewerBucket.converted === 0) {
+      return `${nameOf(moreBreaks)} ${moreBucket.converted === 1 ? 'convirtieron su única oportunidad de quiebre' : `convirtieron ${moreBucket.converted} de sus ${moreBucket.opportunities} oportunidades de quiebre`}, mientras que ${nameOf(fewerBreaks)} no consiguieron quebrar.`;
     }
     return `${nameOf(moreBreaks)} consiguieron más quiebres, ${moreBucket.converted} contra ${fewerBucket.converted}.`;
   }
@@ -432,7 +447,11 @@
         const closedSet = state.sets.length > before.sets.length;
         const winnerOfGame = closedSet ? state.sets[state.sets.length - 1].winner : (state.gamesA > before.gamesA ? 'A' : 'B');
         if (servingTeam && winnerOfGame === servingTeam && bpSavedThisGame >= 2 && (!best || bpSavedThisGame > best.bpSaved)) {
-          best = { team: servingTeam, setNumber, bpSaved: bpSavedThisGame, closedSet, closedMatch: !!state.matchWinner };
+          // V11.16 (feedback real): `withinSetGameNumber` viaja acá SOLO para poder describir
+          // el hold sin decir "en el Set 1" en partidos de un único set (Americano) — no
+          // cambia en nada CUÁL hold se elige (esa decisión sigue siendo bpSavedThisGame >= 2
+          // y el máximo entre los candidatos, sin tocar).
+          best = { team: servingTeam, setNumber, withinSetGameNumber, bpSaved: bpSavedThisGame, closedSet, closedMatch: !!state.matchWinner };
         }
         bpSavedThisGame = 0;
       }
@@ -530,7 +549,55 @@
     return null;
   }
 
+  /**
+   * V11.16 (feedback real) — cuenta cuántos Match Points de `winnerTeam` salvó `loserTeam`
+   * dentro de un set puntual, reusando los mismos `moments` de `computeEvolutionData` (nunca
+   * una segunda interpretación de los mismos hechos). Sirve para anteponer "Después de que
+   * [rival] salvaran N Match Points, ..." antes de narrar el punto que finalmente cerró el
+   * partido — en vez de mencionar esos Match Points recién en un párrafo posterior, fuera de
+   * orden cronológico (bug real reportado).
+   */
+  function countMatchPointsSavedInSet(evoData, winnerTeam, loserTeam, setNumber) {
+    return (evoData.moments || []).filter((m) => m.kind === 'match-point-saved' && m.team === winnerTeam && m.savedBy === loserTeam && m.setNumber === setNumber).length;
+  }
+
+  /**
+   * V11.16 (feedback real) — variante de `countMatchPointsSavedInSet` restringida a los
+   * Match Points salvados ANTES de que arrancara el Tie break de ese set (usa el momento
+   * `tiebreak-start` como corte cronológico — con `<=`, porque el punto que salva el ÚLTIMO
+   * Match Point y sostiene el servicio es exactamente el mismo punto que hace arrancar el
+   * TB, mismo `matchTimeMs`). Un partido puede llegar 5-5 justamente PORQUE una pareja salvó
+   * varios Match Points y sostuvo su servicio — ese hecho es el antecedente directo del
+   * propio Tie break y debe narrarse ANTES de su desarrollo interno, nunca después (bug real:
+   * BRAMU contaba primero el TB y volvía hacia atrás a mencionar los MP).
+   *   A diferencia de `countMatchPointsSavedInSet` (donde el "dueño" de los Match Points
+   * salvados es SIEMPRE quien ganó el partido — literalmente el mismo game del quiebre
+   * decisivo), acá NO se puede asumir de antemano si esos Match Points pertenecían a quien
+   * terminó ganando el partido o a quien terminó perdiéndolo: el punto de 5-5 solo fuerza el
+   * Tie break, no decide el partido — cualquiera de las dos parejas puede terminar
+   * quedándoselo. Por eso esta función detecta el "dueño" directamente de los hechos
+   * registrados, en vez de recibirlo como parámetro (bug real: asumir que siempre era
+   * `winnerTeam` dejaba en 0 el conteo cuando la pareja que remontó en el TB era distinta de
+   * la que había salvado esos Match Points).
+   */
+  function findPreTiebreakMatchPointsSaved(evoData, setNumber) {
+    const moments = evoData.moments || [];
+    const tbStart = moments.find((m) => m.kind === 'tiebreak-start' && m.setNumber === setNumber);
+    const cutoff = tbStart ? tbStart.matchTimeMs : Infinity;
+    const preTbSaved = moments.filter((m) => m.kind === 'match-point-saved' && m.setNumber === setNumber && m.matchTimeMs <= cutoff);
+    if (!preTbSaved.length) return null;
+    const holderTeam = preTbSaved[0].team;
+    const saverTeam = preTbSaved[0].savedBy;
+    return { holderTeam, saverTeam, count: preTbSaved.filter((m) => m.team === holderTeam).length };
+  }
+
   const ORDINALS = { 1: 'primera', 2: 'segunda', 3: 'tercera', 4: 'cuarta', 5: 'quinta', 6: 'sexta' };
+  // V11.16 (feedback real) — ordinales en MASCULINO (para "game", nunca los femeninos de
+  // ORDINALS de arriba, pensados para "oportunidad"). Usado para describir la ubicación de un
+  // hold bajo presión en partidos de un único set (Americano), donde "en el Set 1" suena
+  // mecánico al no existir posibilidad de un Set 2.
+  const GAME_ORDINALS_M = { 1: 'primer', 2: 'segundo', 3: 'tercer', 4: 'cuarto', 5: 'quinto', 6: 'sexto', 7: 'séptimo', 8: 'octavo', 9: 'noveno', 10: 'décimo' };
+  function ordinalGameWord(n) { return GAME_ORDINALS_M[n] ? `${GAME_ORDINALS_M[n]} game` : `game ${n}`; }
 
   /** V9.2 (11) — "ORIENTACIÓN DEL SCORE EN TODA LA NARRATIVA": helper general, no solo para
    *  Tie break. Cualquier marcador en prosa se lee con el número del protagonista primero
@@ -598,6 +665,12 @@
     reaccion: ['respondieron', 'reaccionaron', 'recuperaron terreno', 'consiguieron igualar el desarrollo'],
     quiebre: ['consiguieron el quiebre', 'encontraron el break', 'quebraron el servicio rival', 'aprovecharon la oportunidad al resto'],
     cierre: ['cerraron', 'terminaron imponiéndose', 'se impusieron', 'aprovecharon la oportunidad para cerrarlo'],
+    // V11.16 (feedback real) — variante segura para un hold que sostuvo el servicio después
+    // de atravesar presión real (Break Points, Match Points, 0-40 salvado). Nunca se usa en
+    // holds rutinarios (queda reservada a los lugares donde ya se confirmó presión real antes
+    // de llamarla) y nunca infiere actitud/carácter — describe solo el hecho observable de
+    // haber sostenido el servicio. Siempre en infinitivo, para usarse detrás de "para".
+    holdPresion: ['sostener el servicio', 'sacar adelante su servicio'],
   };
   function pickPhrase(bankKey, seed) {
     const bank = PHRASE_BANKS[bankKey];
@@ -766,16 +839,30 @@
    * impacto > resumen genérico de quiebres. Nunca relleno: si nada de eso aplica, se queda en
    * el resultado con los quiebres que hubo (o sin ellos).
    */
-  function buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf) {
+  function buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf, varietySeed) {
     const loserTeam = winnerTeam === 'A' ? 'B' : 'A';
     const closeStr = orientScore(s3.gamesA, s3.gamesB, winnerTeam);
 
     // 1) Tie break en el set decisivo: su propio desarrollo (no solo el resultado final) es
     //    la historia — misma lógica que `describeTiebreakArc` usa en el resto del motor.
     if (s3.tiebreak) {
+      // V11.16 (feedback real) — si el camino al Tie break pasó por salvar Match Points (la
+      // pareja que sirve sostiene su saque bajo presión real para forzar el desempate), ese
+      // hecho es el antecedente directo del TB y va PRIMERO — nunca después de contar cómo
+      // se desarrolló el propio Tie break (bug real de orden narrativo reportado).
+      const preTbMp = findPreTiebreakMatchPointsSaved(evoData, sets.length);
+      let leadIn = '';
+      if (preTbMp) {
+        leadIn = `${nameOf(preTbMp.saverTeam)} salvaron ${preTbMp.count === 1 ? 'un Match Point' : `${preTbMp.count} Match Points`} de ${nameOf(preTbMp.holderTeam)} para ${pickPhrase('holdPresion', varietySeed)} y forzar el Tie break del set decisivo. `;
+      }
       const arc = describeTiebreakArc(matchCtx.events || [], matchCtx, sets.length, winnerTeam);
       const arcClause = buildTiebreakArcClause(arc, nameOf, winnerTeam, loserTeam);
-      let text = `La definición llegó al Tie break del set decisivo, que ${nameOf(winnerTeam)} ganaron ${orientTiebreak(s3.tiebreak, winnerTeam)}.`;
+      // Sujeto SIEMPRE explícito acá: si quien salvó los Match Points (leadIn) no es
+      // `winnerTeam` (pudo haber sido cualquiera de las dos parejas — el 5-5 solo fuerza el
+      // TB, no decide el partido), un "lo ganaron" implícito quedaría ambiguo.
+      let text = leadIn + (preTbMp
+        ? `${nameOf(winnerTeam)} ganaron el Tie break del set decisivo ${orientTiebreak(s3.tiebreak, winnerTeam)}.`
+        : `La definición llegó al Tie break del set decisivo, que ${nameOf(winnerTeam)} ganaron ${orientTiebreak(s3.tiebreak, winnerTeam)}.`);
       if (arcClause) text += ' ' + arcClause;
       return text;
     }
@@ -804,10 +891,29 @@
       const gamesBeforeBreak = beforeA + beforeB;
       const pointLabel = matchCtx.scoringSystem === 'golden' ? 'el Punto de Oro' : matchCtx.scoringSystem === 'starpoint' ? 'el Star Point' : 'el punto decisivo';
       const serverClause = decisive.server ? ' sobre el saque rival' : '';
+      // V11.16 (feedback real) — este quiebre puede o no haber sido el ÚLTIMO punto del set:
+      // se compara con el momento `match-finish` (nunca con `decisive.scoreAfter`, que
+      // queda en "0-0" cuando el mismo punto que rompe TAMBIÉN cierra el set — el contador
+      // de games se resetea de cara al set siguiente, un detalle interno de
+      // `computeEvolutionData` que no se toca en esta ronda). Si no hubo ningún punto
+      // posterior, no hubo ningún hold que narrar (bug real: se afirmaba "y después
+      // sostuvieron su servicio" sobre un partido que ya había terminado en ese mismo punto).
+      const matchFinishMoment = (evoData.moments || []).find((m) => m.kind === 'match-finish');
+      const closedDirectly = !!matchFinishMoment && matchFinishMoment.matchTimeMs === decisive.matchTimeMs;
+      const mpSavedBeforeDecisive = countMatchPointsSavedInSet(evoData, winnerTeam, loserTeam, sets.length);
       let text = gamesBeforeBreak >= 6
         ? `Ninguna pareja consiguió quebrar durante los primeros ${gamesBeforeBreak} games del set decisivo y llegaron ${decisive.scoreBefore}. `
         : `El set decisivo estuvo parejo hasta ${decisive.scoreBefore}. `;
-      text += `Ahí apareció la jugada que terminó inclinando el partido: ${nameOf(winnerTeam)} ganaron ${pointLabel}${serverClause}, consiguieron el quiebre para ${orientScore(afterA, afterB, winnerTeam)} y después sostuvieron su servicio para cerrar ${closeStr}.`;
+      if (mpSavedBeforeDecisive > 0) {
+        // Los Match Points salvados son el antecedente directo del punto decisivo: van
+        // primero, cronológicamente (mismo bug de orden narrativo que en el Tie break).
+        text += `Después de que ${nameOf(loserTeam)} salvaran ${mpSavedBeforeDecisive === 1 ? 'un Match Point' : `${mpSavedBeforeDecisive} Match Points`}, ${nameOf(winnerTeam)} aprovecharon ${pointLabel}${serverClause} y consiguieron el quiebre`;
+      } else {
+        text += `Ahí apareció la jugada que terminó inclinando el partido: ${nameOf(winnerTeam)} ganaron ${pointLabel}${serverClause}, consiguieron el quiebre`;
+      }
+      text += closedDirectly
+        ? ` que cerró directamente el partido ${closeStr}.`
+        : ` para ${orientScore(afterA, afterB, winnerTeam)} y después sostuvieron su servicio para cerrar ${closeStr}.`;
       return text;
     }
 
@@ -888,7 +994,7 @@
 
     function holdClause(setNumber) {
       if (!dramaticHold || dramaticHold.setNumber !== setNumber) return '';
-      let c = ` ${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio`;
+      let c = ` ${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para ${pickPhrase('holdPresion', varietySeed)}`;
       if (dramaticHold.closedMatch) c += ' en el game que terminó cerrando el partido.';
       else if (dramaticHold.closedSet) c += ' en el game que cerró ese set.';
       else c += '.';
@@ -955,7 +1061,7 @@
 
     // ---- PÁRRAFO 3 — SET 3: el set decisivo, máxima prioridad narrativa ----
     const s3 = sets[2], st3 = setStats[2];
-    let p3 = buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf);
+    let p3 = buildDecidingSetParagraph(matchCtx, sets, s3, st3, winnerTeam, evoData, nameOf, varietySeed);
     p3 += holdClause(3);
     const closingDuration = buildDurationClosingSentence(stats.matchDurationMs, nameOf(winnerTeam), false);
     if (closingDuration && !s3.tiebreak) p3 += ' ' + closingDuration;
@@ -1045,13 +1151,36 @@
       if (decisive && decidingSet && decidingSet.winner === winnerTeam) {
         const pointLabel = matchCtx.scoringSystem === 'golden' ? 'un Punto de Oro' : 'un Star Point';
         const serverClause = decisive.server ? ' sobre el saque rival' : '';
-        let text = `El momento decisivo llegó con ${decisive.scoreBefore} en el ${decisive.setNumber}° set. `;
-        text += `${nameOf(decisive.team)} ganaron ${pointLabel}${serverClause}, ${pickPhrase('quiebre', varietySeed)}`;
-        text += sets.length > 1
-          ? ' y después sostuvieron su servicio para cerrar el partido.'
-          : ` y después sostuvieron su servicio para cerrar ${orientScore(decidingSet.gamesA, decidingSet.gamesB, decisive.team)}.`;
+        const loserTeamDec = winnerTeam === 'A' ? 'B' : 'A';
+        // V11.16 (feedback real) — este quiebre puede haber sido el ÚLTIMO punto jugado: se
+        // compara con el momento `match-finish` (nunca con `decisive.scoreAfter`, que queda
+        // en "0-0" cuando el mismo punto que rompe TAMBIÉN cierra el set/partido — el
+        // contador de games se resetea de cara a un set siguiente que acá no existe, un
+        // detalle interno de `computeEvolutionData` que no se toca en esta ronda). Si no hubo
+        // ningún punto posterior, no hubo ningún hold — bug real reportado: se afirmaba "y
+        // después sostuvieron su servicio para cerrar" sobre un partido ya terminado.
+        const matchFinishMoment = evoData.moments.find((m) => m.kind === 'match-finish');
+        const closedDirectly = !!matchFinishMoment && matchFinishMoment.matchTimeMs === decisive.matchTimeMs;
+        const finalScoreStr = orientScore(decidingSet.gamesA, decidingSet.gamesB, winnerTeam);
+        const mpSavedBeforeDecisive = countMatchPointsSavedInSet(evoData, winnerTeam, loserTeamDec, decisive.setNumber);
+
+        let text;
+        if (mpSavedBeforeDecisive > 0) {
+          // Los Match Points salvados son el antecedente directo del punto decisivo: van
+          // primero, cronológicamente (bug real de orden narrativo).
+          text = `Después de que ${nameOf(loserTeamDec)} salvaran ${mpSavedBeforeDecisive === 1 ? 'un Match Point' : `${mpSavedBeforeDecisive} Match Points`}, ${nameOf(winnerTeam)} aprovecharon ${pointLabel}${serverClause} y consiguieron el quiebre`;
+        } else {
+          // V11.16: "en el X° set" solo aporta con más de un set en juego (Clásico) — en
+          // Americano (un único set posible) suena mecánico, se omite.
+          const setClause = sets.length > 1 ? ` en el ${decisive.setNumber}° set` : '';
+          text = `El momento decisivo llegó con ${decisive.scoreBefore}${setClause}. `;
+          text += `${nameOf(decisive.team)} ganaron ${pointLabel}${serverClause}, ${pickPhrase('quiebre', varietySeed)}`;
+        }
+        text += closedDirectly
+          ? ` que cerró directamente el partido ${finalScoreStr}.`
+          : (sets.length > 1 ? ' y después sostuvieron su servicio para cerrar el partido.' : ` y después sostuvieron su servicio para cerrar ${finalScoreStr}.`);
         const arc = buildSetArcSentence(sets, nameOf, decisive.setNumber);
-        stories.push({ kind: 'decisivo-oro-break', weight: 110, text: (arc ? arc + ' ' : '') + text, partialSensitive: false });
+        stories.push({ kind: 'decisivo-oro-break', weight: 110, text: (arc ? arc + ' ' : '') + text, partialSensitive: false, mpMentioned: mpSavedBeforeDecisive > 0 });
       }
     }
 
@@ -1267,6 +1396,16 @@
         const tbResult = orientTiebreak(tb, winnerTeam);
         const loserTeamTb = winnerTeam === 'A' ? 'B' : 'A';
         const strongParity = detectStrongParity(stats);
+        // V11.16 (feedback real) — si el camino al Tie break pasó por salvar Match Points (la
+        // pareja que terminó ganando sostuvo su saque bajo presión real para forzar el
+        // desempate), ese hecho es el antecedente directo del propio TB: va PRIMERO, nunca
+        // después de contar cómo se desarrolló el desempate (bug real de orden narrativo:
+        // BRAMU contaba primero el TB y volvía hacia atrás a mencionar los Match Points).
+        const preTbMp = findPreTiebreakMatchPointsSaved(evoData, sets.length);
+        let leadIn = '';
+        if (preTbMp) {
+          leadIn = `${nameOf(preTbMp.saverTeam)} salvaron ${preTbMp.count === 1 ? 'un Match Point' : `${preTbMp.count} Match Points`} de ${nameOf(preTbMp.holderTeam)} para ${pickPhrase('holdPresion', varietySeed)} y forzar el Tie break. `;
+        }
         let text;
         if (strongParity) {
           text = sets.length > 1
@@ -1280,13 +1419,14 @@
             ? `Nadie quebró el servicio en todo el partido: la definición pasó por el Tie break del ${sets.length}° set, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`
             : `Nadie quebró el servicio en todo el set: la definición pasó por el Tie break, que ${nameOf(winnerTeam)} ganaron ${tbResult}.`;
         }
+        text = leadIn + text;
         const arc = describeTiebreakArc(events, matchCtx, sets.length, winnerTeam);
         const arcClause = buildTiebreakArcClause(arc, nameOf, winnerTeam, loserTeamTb);
         if (arcClause) text += ' ' + arcClause;
         // V11 (§2.5): marca que el Tie break del último set ya quedó narrado acá, para que el
         // cierre por duración (párrafo final) no lo repita ("...cerrando el Tie break final
         // X-Y" después de ya haberlo contado) — bug real de redundancia narrativa.
-        stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false, tbMentionedSetNumber: sets.length });
+        stories.push({ kind: 'tie-break-decisivo', weight: 89, text, partialSensitive: false, tbMentionedSetNumber: sets.length, mpMentioned: !!preTbMp });
       }
     }
 
@@ -1428,7 +1568,15 @@
     if (stats.hasServerInfo) {
       const dramaticHold = findDramaticHold(events, matchCtx);
       if (dramaticHold) {
-        let holdText = `${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para sostener el servicio en el Set ${dramaticHold.setNumber}`;
+        // V11.16 (feedback real) — "en el Set 1" suena mecánico en un partido Americano, que
+        // solo tiene un set posible (nunca hay un "Set 2" del que distinguirse). Ahí se usa
+        // el game exacto en su lugar; en Clásico (más de un set) "Set N" sigue ayudando a
+        // ordenar la crónica, así que se mantiene.
+        const isSingleSetMatch = sets.length === 1;
+        const locationClause = !isSingleSetMatch
+          ? ` en el Set ${dramaticHold.setNumber}`
+          : (dramaticHold.withinSetGameNumber ? ` en el ${ordinalGameWord(dramaticHold.withinSetGameNumber)}` : '');
+        let holdText = `${nameOf(dramaticHold.team)} tuvieron que salvar ${dramaticHold.bpSaved} Break Points seguidos para ${pickPhrase('holdPresion', varietySeed)}${locationClause}`;
         if (dramaticHold.closedMatch) holdText += ', justo en el game que terminó cerrando el partido.';
         else if (dramaticHold.closedSet) holdText += ', justo en el game que cerró ese set.';
         else holdText += '.';
@@ -1452,7 +1600,10 @@
       } else if (winnerMp.opportunities >= 4) {
         sentences2.push(`A ${nameOf(winnerTeam)} les costó cerrar: necesitaron ${winnerMp.opportunities} Match Points para terminar el partido.`);
       } else if (winnerMp.opportunities >= 2) {
-        sentences2.push(`Cerraron el partido en su ${ORDINALS[winnerMp.opportunities] || winnerMp.opportunities + 'ª'} oportunidad de Match Point.`);
+        // V11.16 (feedback real) — sujeto SIEMPRE explícito: si la oración anterior (p.ej. el
+        // hold bajo presión de arriba) tuvo a la pareja RIVAL como protagonista, un "Cerraron"
+        // sin sujeto queda ambiguo sobre quién cerró el partido.
+        sentences2.push(`${nameOf(winnerTeam)} cerraron el partido en su ${ORDINALS[winnerMp.opportunities] || winnerMp.opportunities + 'ª'} oportunidad de Match Point.`);
       }
 
       // V9.2 (10): esta es la otra cara — el GANADOR enfrentó Match Point(s) DEL RIVAL, los
@@ -1583,6 +1734,12 @@
    * menciona si además hubo un dominio claro; si no, no hace falta resaltarla. La
    * selección de variante es determinística sobre `ms` (no aleatoria) para que el mismo
    * partido narre siempre igual si se regenera.
+   * V11.16 (feedback real) — la duración "normal" (ni corta ni larga) tampoco se narra por
+   * obligación: antes SIEMPRE se agregaba una frase de cierre para partidos de 45-80 min,
+   * aunque esa duración no aportara nada a explicar el partido ("no debe entrar
+   * automáticamente"). Ahora exige la misma señal de dominio claro que el tramo corto — solo
+   * el tramo "muy largo" sigue siendo incondicional, porque ahí la duración en sí misma ya es
+   * la historia (desgaste).
    */
   function buildDurationClosingSentence(ms, winnerName, hasClearDominance) {
     if (!ms || ms < DURATION_RANGES.devSimulationMaxMs) return null;
@@ -1596,6 +1753,7 @@
       ]);
     }
     if (ms < DURATION_RANGES.normalMaxMs) {
+      if (!hasClearDominance) return null;
       return pick([
         `Después de ${durText}, ${winnerName} terminaron cerrando el partido.`,
         `Tras ${durText} de partido, ${winnerName} se quedaron con la victoria.`,
@@ -1998,5 +2156,8 @@
     // V11.14 (feedback real) — composición cronológica de partidos a 3 sets, para poder
     // testear cada párrafo por separado además del resultado combinado.
     buildThreeSetChronologicalStory, buildDecidingSetParagraph, buildGlobalReadParagraph,
+    // V11.16 (feedback real) — ídem, para poder testear aisladamente el conteo de Match
+    // Points salvados (antes/durante del Tie break) y el ordinal masculino de game.
+    countMatchPointsSavedInSet, findPreTiebreakMatchPointsSaved, ordinalGameWord,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

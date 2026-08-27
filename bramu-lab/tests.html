@@ -573,6 +573,71 @@
   })();
 
   // ------------------------------------------------------------------
+  // V11.16 — TEST A: BREAK QUE CIERRA DIRECTAMENTE EL PARTIDO. Americano 6-4, Punto de Oro.
+  // 5-4 Seba/Matu, saca Gusti, Seba/Matu tienen 3 Match Points, Gusti/Esteban los salvan los
+  // 3, llegan al Punto de Oro, Seba/Matu lo ganan al resto y ese mismo punto es el quiebre
+  // que cierra el partido 6-4 — SIN ningún hold posterior real. Reproduce el bug reportado:
+  // BRAMU narraba "...y después sostuvieron su servicio para cerrar 6-4" sobre un partido
+  // que ya había terminado en ese mismo punto.
+  // ------------------------------------------------------------------
+  (function () {
+    const ctxA = newCtx('golden', 'americano');
+    ctxA.players = [
+      { id: 0, name: 'Seba', team: 'A' }, { id: 1, name: 'Matu', team: 'A' },
+      { id: 2, name: 'Gusti', team: 'B' }, { id: 3, name: 'Esteban', team: 'B' },
+    ];
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A'].forEach((t) => winGame(ctxA, t)); // 5-4 Seba/Matu (game 10 lo saca Gusti)
+    ['A', 'A', 'A', 'B', 'B', 'B', 'A'].forEach((t) => playPoint(ctxA, t)); // 0-40, Gusti/Esteban salvan 3 MP, Seba/Matu ganan el Oro (break) -> 6-4
+    const rA = intelFromSim(ctxA);
+
+    assert('TESTA-setup · partido 6-4 Seba/Matu (Americano)', rA.winnerTeam === 'A' && rA.sets.length === 1 && rA.sets[0].gamesA === 6 && rA.sets[0].gamesB === 4, JSON.stringify(rA.sets));
+    // 1) NO narrar un hold posterior inexistente
+    assert('TESTA.1 · no inventa un hold posterior ("sostuvieron su servicio")', !rA.text.includes('sostuvieron su servicio'), rA.text);
+    // 2) reconocer que el break cierra directamente el partido
+    assert('TESTA.2 · reconoce que el quiebre cerró directamente el partido', rA.text.includes('cerró directamente el partido'), rA.text);
+    assert('TESTA.2b · menciona el marcador final 6-4', rA.text.includes('6-4'), rA.text);
+    // 3) mencionar correctamente los MP salvados
+    assert('TESTA.3 · menciona los 3 Match Points salvados por Gusti y Esteban, ANTES del punto decisivo', rA.text.includes('Gusti y Esteban salvaran 3 Match Points'), rA.text);
+    assert('TESTA.3b · nunca infiere psicología', !/nervio|carácter|presión mental/i.test(rA.text), rA.text);
+  })();
+
+  // ------------------------------------------------------------------
+  // V11.16 — TEST B: MATCH POINTS SALVADOS ANTES DEL TIE BREAK. Americano, mismo arranque
+  // (5-4 Seba/Matu, saca Gusti), pero acá Gusti/Esteban salvan 4 Match Points EN TOTAL y
+  // sostienen su servicio (5-5), forzando el Tie break — que arranca 3-0 para Seba/Matu,
+  // pero Gusti/Esteban ganan los 7 puntos siguientes y se imponen 7-3 (6-5 final). Reproduce
+  // el bug de orden narrativo: BRAMU contaba primero el desarrollo del Tie break y recién
+  // después, "volviendo hacia atrás", mencionaba los Match Points salvados.
+  // ------------------------------------------------------------------
+  (function () {
+    const ctxB = newCtx('golden', 'americano');
+    ctxB.players = [
+      { id: 0, name: 'Seba', team: 'A' }, { id: 1, name: 'Matu', team: 'A' },
+      { id: 2, name: 'Gusti', team: 'B' }, { id: 3, name: 'Esteban', team: 'B' },
+    ];
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A'].forEach((t) => winGame(ctxB, t)); // 5-4 Seba/Matu (game 10 lo saca Gusti)
+    ['A', 'A', 'A', 'B', 'B', 'B', 'B'].forEach((t) => playPoint(ctxB, t)); // 0-40 + Oro: Gusti/Esteban salvan 4 MP y sostienen -> 5-5
+    ['A', 'A', 'A', 'B', 'B', 'B', 'B', 'B', 'B', 'B'].forEach((t) => playPoint(ctxB, t)); // TB: 3-0 Seba/Matu, después 7 seguidos de Gusti/Esteban -> 7-3
+    const rB = intelFromSim(ctxB);
+
+    assert('TESTB-setup · partido definido por Tie break, Gusti/Esteban ganan 6-5', rB.winnerTeam === 'B' && rB.sets.length === 1 && rB.sets[0].tiebreak && rB.sets[0].gamesA === 5 && rB.sets[0].gamesB === 6, JSON.stringify(rB.sets));
+    assert('TESTB-setup · 0 quiebres en todo el partido (el hold bajo presión no es un quiebre)', rB.stats.breaks.A === 0 && rB.stats.breaks.B === 0, JSON.stringify(rB.stats.breaks));
+    // 1) MP salvados narrados ANTES del desarrollo del TB, y 2) el hold del 5-5 también antes
+    const mpIdx = rB.text.indexOf('Match Point');
+    const tbArcIdx = rB.text.search(/3 abajo|remontaron|separaron temprano/i);
+    assert('TESTB.1 · menciona los Match Points salvados por Seba y Matu', mpIdx !== -1, rB.text);
+    assert('TESTB.2 · los Match Points salvados aparecen ANTES del desarrollo interno del Tie break', mpIdx !== -1 && tbArcIdx !== -1 && mpIdx < tbArcIdx, rB.text);
+    assert('TESTB.2b · usa la variante seleccionada para hold bajo presión', /sostener el servicio|sacar adelante su servicio/.test(rB.text), rB.text);
+    // 3) desarrollo interno del TB (arranque 3-0 de Seba/Matu, reacción de Gusti/Esteban)
+    assert('TESTB.3 · cuenta el desarrollo interno del Tie break (arranque 3-0)', tbArcIdx !== -1, rB.text);
+    // 4) no repetir "cerrar/cerrarlo" en exceso
+    const cerrarCount = (rB.text.match(/cerr[aoó]/gi) || []).length;
+    assert('TESTB.4 · no repite "cerrar/cerrarlo" en exceso (máximo 2 menciones)', cerrarCount <= 2, rB.text);
+    // 5) sujeto correcto: el hold del 5-5 lo protagonizan Gusti y Esteban, el TB también
+    assert('TESTB.5 · sujeto explícito al narrar quién salvó los Match Points (Gusti y Esteban)', rB.text.includes('Gusti y Esteban salvaron'), rB.text);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;
