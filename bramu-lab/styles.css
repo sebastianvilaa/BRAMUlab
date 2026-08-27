@@ -693,6 +693,41 @@ input, select{ font-family: inherit; }
   html, body{ background: #05100E; }
 }
 
+/* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se
+   apilan arriba/abajo porque no hay ancho de sobra. Girado a horizontal (sobre todo en
+   tablet) sí hay ancho de sobra y apilarlas desperdicia toda esa pantalla — se
+   reacomodan lado a lado para aprovecharla, que es justamente donde más se usa la
+   pantalla (cargando puntos). El resto de las vistas (Análisis, Historial, etc.) ya
+   leen bien largas y angostas, así que esto solo toca la pantalla de partido en vivo.
+   `min-width` descarta los pocos celulares apaisados realmente angostos, donde no
+   entrarían cómodas dos mitades. */
+@media (orientation: landscape) and (min-width: 560px){
+  .view--match{
+    max-width: none; margin: 0; box-shadow: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto 1fr auto;
+    grid-template-areas:
+      "header      header"
+      "scoreboard  scoreboard"
+      "banner      banner"
+      "zone-a      zone-b"
+      "controlbar  controlbar";
+    height: 100vh; height: 100dvh;
+  }
+  .match-header{ grid-area: header; }
+  .scoreboard{ grid-area: scoreboard; }
+  #status-banner{ grid-area: banner; }
+  #server-prompt{ grid-area: banner; }
+  .control-bar{ grid-area: controlbar; }
+  .team-zone--a{
+    grid-area: zone-a; border-bottom: none; border-right: 1px solid var(--line);
+  }
+  .team-zone--b{
+    grid-area: zone-b; border-top: none; border-bottom: none; padding-bottom: 10px;
+  }
+}
+
 /* ==========================================================================
    COMPARTIR — V7 (97-102): contenedor de captura fuera de pantalla que
    reutiliza los mismos componentes visuales de la app (result-card,
