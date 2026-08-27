@@ -2047,6 +2047,12 @@
     // cierre de Tie break sobre la curva global. Esos símbolos se conservan SOLO en la
     // vista por Set (§36), donde el usuario ya está mirando un tramo puntual.
     const isMatchView = setFilter === 'match';
+    // V11.3 (checkpoints de cambio de lado) — Americano es 1 solo set, así que su vista
+    // PARTIDO ES el set completo: mostrar ahí los mismos checkpoints que en vista Set no
+    // satura nada (hoy queda casi vacía, solo curva + resultado). Clásico (varios sets)
+    // mantiene la vista PARTIDO limpia — los checkpoints solo aparecen al entrar a cada Set.
+    const formatConfig = E.FORMATS[f.formatId];
+    const isSingleSetFormat = !!(formatConfig && formatConfig.bestOfSets === 1);
 
     // Breaks realmente convertidos + cierre de Tie break con resultado (solo vista Set).
     const eventMarkers = isMatchView ? '' : games.map((g, i) => {
@@ -2101,6 +2107,30 @@
           (label ? `<text x="${x.toFixed(1)}" y="${(y - 7).toFixed(1)}" font-size="6.5" fill="${color}" text-anchor="middle" font-weight="700">${label}</text>` : '');
       }).join('');
 
+    // V11.3 — CHECKPOINTS DE CAMBIO DE LADO: en pádel se cambia de lado después del game 1,
+    // 3, 5, 7... (el cambio tras el game 1 no tiene pausa, así que no se marca). Se usan esos
+    // momentos naturales — no arbitrarios — como referencia temporal de la curva: una línea
+    // fina y discreta con el marcador real de ESE momento, cada dos games a partir del
+    // tercero (3, 5, 7, 9...). Nunca dentro del Tie break (se sigue representando solo con la
+    // curva, sin ningún checkpoint ni mini-break). `withinSetGameCounter` cuenta games REALES
+    // dentro del tramo mostrado — no el índice crudo del array, que puede arrancar corrido si
+    // el nodo virtual de arranque (50/50) está presente (vista Set 1 y vista Partido en
+    // Americano sí lo tienen; vista Set 2/3 no, al quedar filtrado fuera).
+    function buildGameCheckpointsSvg(gamesArr) {
+      let svg = '';
+      let withinSetGameCounter = 0;
+      gamesArr.forEach((g, i) => {
+        if (g.isVirtualStart) return;
+        withinSetGameCounter += 1;
+        if (g.isTiebreakClose) return;
+        if (withinSetGameCounter < 3 || withinSetGameCounter % 2 !== 1) return;
+        const x = xScale(i);
+        svg += `<line x1="${x.toFixed(1)}" y1="${topPad}" x2="${x.toFixed(1)}" y2="${h}" stroke="rgba(244,247,242,0.18)" stroke-width="1"/>`;
+        svg += `<text x="${x.toFixed(1)}" y="${h + 11}" font-size="7.5" fill="rgba(244,247,242,0.45)" text-anchor="middle">${g.gamesA}-${g.gamesB}</text>`;
+      });
+      return svg;
+    }
+
     // Etiqueta de set centrada dentro de su tramo + score de cierre.
     let setLabelsSvg = '';
     if (setFilter === 'match') {
@@ -2118,17 +2148,11 @@
           segStartIdx = i + 1;
         }
       });
-    } else if (games.length > 1) {
-      // V11 (§13.3): lectura discreta por games en la vista SET — pequeños ticks + el
-      // marcador acumulado del set en cada game, para poder ubicar aproximadamente
-      // 1–0 / 2–0 / 3–1 / ... con solo mirar el gráfico, sin escribir los scores grandes ni
-      // ensuciarlo (legibilidad > cantidad de información, §13.3 explícito).
-      games.forEach((g, i) => {
-        if (g.isVirtualStart) return;
-        const x = xScale(i);
-        setLabelsSvg += `<line x1="${x.toFixed(1)}" y1="${(h - 4).toFixed(1)}" x2="${x.toFixed(1)}" y2="${h}" stroke="rgba(244,247,242,0.25)" stroke-width="1"/>`;
-        setLabelsSvg += `<text x="${x.toFixed(1)}" y="${h + 10}" font-size="6" fill="rgba(244,247,242,0.4)" text-anchor="middle">${g.gamesA}-${g.gamesB}</text>`;
-      });
+      // Americano: la vista PARTIDO es el único set completo — los checkpoints aportan
+      // lectura ahí (hoy queda casi vacía) sin saturar. Clásico se mantiene limpio.
+      if (isSingleSetFormat) setLabelsSvg += buildGameCheckpointsSvg(games);
+    } else {
+      setLabelsSvg += buildGameCheckpointsSvg(games);
     }
 
     const svg = `
