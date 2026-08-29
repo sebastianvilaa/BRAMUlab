@@ -1464,7 +1464,11 @@
     // evidencia real, se agregan esas dos capas — nunca por relleno, solo si hay historia.
     if (stats.hasServerInfo && stats.breaks.A === 0 && stats.breaks.B === 0 && winnerTeam) {
       const decidingSet = sets[sets.length - 1];
-      if (decidingSet && decidingSet.tiebreak) {
+      // V12.2 (§3): un Tie break EXTRAORDINARIO nunca entra acá — `appendExtraordinaryTiebreakNote`
+      // (envoltorio de `generateBramuIntelligence`) ya lo narra completo con su propio
+      // contexto real (score previo, "resolver el partido"); dejar que esta historia
+      // también lo cuente duplicaba el mismo hecho con dos redacciones distintas.
+      if (decidingSet && decidingSet.tiebreak && !decidingSet.extraordinary) {
         const tb = decidingSet.tiebreak;
         const tbResult = orientTiebreak(tb, winnerTeam);
         const loserTeamTb = winnerTeam === 'A' ? 'B' : 'A';
@@ -1748,7 +1752,14 @@
       // V11 (§2.5): si el Tie break del último set ya se narró (como historia principal o en
       // el acto de cierre de arriba), no se repite acá — bug real de redundancia narrativa
       // ("...que ganaron 7-3" y después "...cerrando el Tie break final 7-3").
-      const tbAlreadyMentioned = closingActTbMentioned || topStories.some((s) => s.tbMentionedSetNumber === sets.length);
+      // V12.2 (§3): un Tie break EXTRAORDINARIO siempre queda cubierto por
+      // `appendExtraordinaryTiebreakNote` (envoltorio de `generateBramuIntelligence`, ver
+      // más abajo en el archivo) con la versión contextual completa — nunca debe repetirse
+      // acá como "Tie break final" genérico (bug real reportado: dos narraciones del mismo
+      // hecho). `lastSet` es siempre el segmento extraordinario cuando existe uno (el TB
+      // extraordinario termina el partido en el acto, V12.1 §1), así que alcanza con mirar
+      // ese único set, sin necesitar que el resto de la lógica de "historias" lo sepa.
+      const tbAlreadyMentioned = !!lastSet.extraordinary || closingActTbMentioned || topStories.some((s) => s.tbMentionedSetNumber === sets.length);
       // V8 (33): "dominio claro" — señal simple para decidir si vale la pena resaltar una
       // duración muy corta: una racha grande, o alguna pareja que no perdió ni un game de
       // saque en todo el partido.

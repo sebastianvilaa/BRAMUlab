@@ -102,6 +102,20 @@
     return `${disp.aText}-${disp.bText}`;
   }
 
+  /** V12.2 (§2) — texto plano de UN segmento de `sets[]`: un set reglamentario se muestra
+   *  como siempre ("6-3"); un segmento extraordinario (Resolver con Tie break, V12 §9-14)
+   *  agrega su propio resultado de TB aparte ("4-4 · TB 5-10") — mostrar solo `gamesA-gamesB`
+   *  ahí (4-4) sería engañoso: parece favorecer a un equipo cuando en realidad decidió el
+   *  otro. Usado en cualquier lugar que arme el score del partido como texto plano
+   *  (Momentos Clave, Historial) — la tarjeta de resultado (chips visuales) tiene su propia
+   *  versión en `buildScoreCardHTML`, porque necesita orientación por equipo.
+   */
+  function formatSetSegmentLabel(s) {
+    return s.extraordinary && s.tiebreak
+      ? `${s.gamesA}-${s.gamesB} · TB ${s.tiebreak.a}-${s.tiebreak.b}`
+      : `${s.gamesA}-${s.gamesB}`;
+  }
+
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline'].forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     if (name !== 'match') $('#view-summary').hidden = true;
@@ -2010,7 +2024,22 @@
       let cells = f.sets.map((s) => {
         const mine = team === 'A' ? s.gamesA : s.gamesB;
         const theirs = team === 'A' ? s.gamesB : s.gamesA;
-        return `<span class="result-card__set ${mine > theirs ? 'result-card__set--win' : 'result-card__set--lose'}">${mine}</span>`;
+        // V12.2 (§2) — un segmento extraordinario (Resolver con Tie break) nunca tiene un
+        // ganador de GAMES claro (puede llegar empatado, ej. 4-4) — mostrar esa celda como
+        // "ganada/perdida" sería engañoso (bug reportado: "el marcador parece favorecer a
+        // Equipo A pero la app declara ganador a Equipo B"). Se agrega una celda `TB` aparte
+        // con el resultado real del desempate, que es lo que efectivamente decidió — nunca
+        // se fabrica un score de games distinto (nunca 5-4/6-4/7-6).
+        const gameCls = mine === theirs ? '' : (mine > theirs ? 'result-card__set--win' : 'result-card__set--lose');
+        const gameCell = `<span class="result-card__set ${gameCls}">${mine}</span>`;
+        if (s.extraordinary && s.tiebreak) {
+          const mineTb = team === 'A' ? s.tiebreak.a : s.tiebreak.b;
+          const theirsTb = team === 'A' ? s.tiebreak.b : s.tiebreak.a;
+          const tbCls = mineTb > theirsTb ? 'result-card__set--win' : 'result-card__set--lose';
+          const tbCell = `<span class="result-card__set result-card__set--tb ${tbCls}"><span class="result-card__set-tb-label">TB</span>${mineTb}</span>`;
+          return gameCell + tbCell;
+        }
+        return gameCell;
       }).join('');
       if (f.currentPartial) {
         const mine = team === 'A' ? f.currentPartial.gamesA : f.currentPartial.gamesB;
@@ -2024,7 +2053,13 @@
 
     let durationsHTML = '';
     if (f.stats.setDurations && f.stats.setDurations.length) {
-      const cells = f.stats.setDurations.map((d) => `<span class="result-card__duration-cell">${formatDuration(d.ms)}</span>`).join('');
+      // V12.2 (§2): un segmento extraordinario ahora pinta 2 celdas de score (games + TB,
+      // ver `cellsForTeam`) — se agrega una celda de duración vacía en ese mismo lugar para
+      // que las columnas sigan alineadas con las de arriba.
+      const cells = f.stats.setDurations.map((d, i) => {
+        const cell = `<span class="result-card__duration-cell">${formatDuration(d.ms)}</span>`;
+        return (f.sets[i] && f.sets[i].extraordinary) ? cell + '<span class="result-card__duration-cell"></span>' : cell;
+      }).join('');
       const pad = f.currentPartial ? '<span class="result-card__duration-cell"></span>' : '';
       durationsHTML = `<div class="result-card__durations">${cells}${pad}</div>`;
     }
@@ -2844,7 +2879,7 @@
     const prefix = goldWon ? (goldWon.kind === 'gold-point-won' ? 'Punto de Oro · ' : 'Star Point · ') : '';
 
     if (structural && structural.kind === 'match-finish') {
-      const scoreStr = structural.sets.map((s) => `${s.gamesA}-${s.gamesB}`).join(' · ');
+      const scoreStr = structural.sets.map(formatSetSegmentLabel).join(' · ');
       if (breakM) return `${prefix}${teamNameOf(breakM.team)} quiebra y cierra el partido → ${scoreStr}`;
       return `${prefix}🏆 Fin del partido · ${scoreStr}`;
     }
@@ -3103,7 +3138,7 @@
       // `currentPartial` y el último set incompleto (partido finalizado manualmente a mitad
       // de un set) desaparecía del Historial. Ahora ambos se concatenan cuando corresponde:
       // sets terminados primero, y el set parcial al final marcado con "*".
-      const finishedSetsStr = m.sets.map((s) => `${s.gamesA}-${s.gamesB}`).join(' · ');
+      const finishedSetsStr = m.sets.map(formatSetSegmentLabel).join(' · ');
       const partialSetStr = m.currentPartial ? `${m.currentPartial.gamesA}-${m.currentPartial.gamesB}*` : '';
       const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
       const formatLabel = (E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label || '').toUpperCase();
