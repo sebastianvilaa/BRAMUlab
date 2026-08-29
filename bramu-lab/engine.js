@@ -623,6 +623,131 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* V13 — MOTOR "POR GAMES · BETA" (§4-17)                               */
+  /* Motor SEPARADO del de puntos: un toque = un game. No duplica          */
+  /* `applyPoint` — reutiliza todo lo que ya es agnóstico de puntos        */
+  /* (formatos, validadores de estados reglamentarios, resolución de       */
+  /* saque, modalidades de Tie break) y agrega solo lo que hace falta      */
+  /* para avanzar directo de "ganó el game" a games/sets/partido, sin      */
+  /* nunca contar puntos internos de un game o de un Tie break.            */
+  /* ------------------------------------------------------------------ */
+
+  function createInitialGameEngineState() {
+    return {
+      sets: [],
+      gamesA: 0, gamesB: 0,
+      gameIndex: 0,
+      setsWonA: 0, setsWonB: 0,
+      matchWinner: null,
+      // Igual forma que en el motor de puntos (§17): nunca fabrica games para llegar a
+      // un 6-6/7-6 que no ocurrió — el set/partido se cierra con el score real de games
+      // que había ANTES de resolver con Tie break.
+      extraordinaryTiebreak: null,
+    };
+  }
+
+  /** V13 (§4): número de game dentro del partido/del set en curso — en este motor NUNCA
+   *  hay un tramo "congelado" en el score de disparo del TB (a diferencia del motor de
+   *  puntos): el TB reglamentario se resuelve de una sola vez (ver `applyGameTiebreak`),
+   *  así que el game/within-set actual siempre se deriva directo de gameIndex/gamesA/gamesB. */
+  function currentMatchGameNumberGames(state) { return state.gameIndex + 1; }
+  function currentWithinSetGameNumberGames(state) { return state.gamesA + state.gamesB + 1; }
+
+  /** ¿El set en curso está en el score de disparo del Tie break (ej. 6-6 Clásico, 5-5
+   *  Americano)? Reutiliza `isCurrentlyTiebreakScore` (agnóstico de puntos) — cuando esto
+   *  da true, la pantalla en vivo debe abrir el flujo de Tie break reglamentario en vez de
+   *  aceptar un toque más como game normal (§14). */
+  function gamesModeAtTiebreakTrigger(state, format) {
+    return isCurrentlyTiebreakScore(state.gamesA, state.gamesB, format);
+  }
+
+  /** Avanza el estado con "esta pareja ganó el game" (§4). NUNCA se llama estando en el
+   *  score de disparo del TB (§14 lo intercepta antes) — si igual se llama ahí, no hace
+   *  nada (defensivo, evita un 8-6 imposible). */
+  function applyGameWin(state, team, format) {
+    const s = JSON.parse(JSON.stringify(state));
+    if (s.matchWinner) return s;
+    if (gamesModeAtTiebreakTrigger(s, format)) return s;
+    if (team === 'A') s.gamesA += 1; else s.gamesB += 1;
+    s.gameIndex += 1;
+    const gw = team === 'A' ? s.gamesA : s.gamesB;
+    const gl = team === 'A' ? s.gamesB : s.gamesA;
+    if (gw >= format.setWinTarget && gw - gl >= 2) {
+      s.sets.push({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: null, winner: team });
+      if (team === 'A') s.setsWonA += 1; else s.setsWonB += 1;
+      s.gamesA = 0; s.gamesB = 0;
+      if (s.setsWonA >= Math.ceil(format.bestOfSets / 2) || s.setsWonB >= Math.ceil(format.bestOfSets / 2)) {
+        s.matchWinner = s.setsWonA > s.setsWonB ? 'A' : 'B';
+      }
+    }
+    return s;
+  }
+
+  /** V13 (§14-16): resuelve un Tie break REGLAMENTARIO en un solo paso — ganador
+   *  obligatorio + score interno opcional (`score` es `{a,b}` o null si se omitió). Nunca
+   *  cuenta puntos del TB uno por uno: el set queda 7-6/6-5 directo (§15). */
+  function applyGameTiebreak(state, team, score, format) {
+    const s = JSON.parse(JSON.stringify(state));
+    if (s.matchWinner) return s;
+    if (!gamesModeAtTiebreakTrigger(s, format)) return s; // defensivo: solo tiene sentido en el score de disparo
+    const tbTrigger = format.tiebreakTriggerAt;
+    if (team === 'A') s.gamesA = tbTrigger + 1; else s.gamesB = tbTrigger + 1;
+    s.gameIndex += 1;
+    s.sets.push({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: score ? { a: score.a, b: score.b, mode: 'games' } : null, winner: team });
+    if (team === 'A') s.setsWonA += 1; else s.setsWonB += 1;
+    s.gamesA = 0; s.gamesB = 0;
+    if (s.setsWonA >= Math.ceil(format.bestOfSets / 2) || s.setsWonB >= Math.ceil(format.bestOfSets / 2)) {
+      s.matchWinner = s.setsWonA > s.setsWonB ? 'A' : 'B';
+    }
+    return s;
+  }
+
+  /** V13 (§17): "Resolver con Tie break" en modo Games — igual semántica que V12.1 en el
+   *  motor de puntos (decide el PARTIDO ENTERO, nunca solo un set), pero resuelto en un
+   *  solo paso (ganador + score interno opcional) en vez de punto por punto. Nunca fabrica
+   *  games: el segmento extraordinario guarda el score real que había antes (§17.5). */
+  function canStartExtraordinaryGameTiebreak(state) { return !state.matchWinner; }
+
+  function applyExtraordinaryGameTiebreak(state, team, score, winTarget, requireDiff2) {
+    const s = JSON.parse(JSON.stringify(state));
+    if (s.matchWinner) return s;
+    const startedAtGames = { a: s.gamesA, b: s.gamesB };
+    s.sets.push({
+      gamesA: startedAtGames.a, gamesB: startedAtGames.b,
+      tiebreak: score ? { a: score.a, b: score.b, mode: { winTarget, requireDiff2: !!requireDiff2 } } : null,
+      winner: team, extraordinary: true,
+    });
+    s.gamesA = 0; s.gamesB = 0;
+    s.matchWinner = team;
+    return s;
+  }
+
+  /**
+   * Reconstruye el estado del motor Por Games a partir de una secuencia de eventos:
+   *   - { type:'game', team }                                — game normal ganado (§4)
+   *   - { type:'tiebreak', team, score }                      — TB reglamentario (§14-16)
+   *   - { type:'extraordinary-tiebreak', team, score, winTarget, requireDiff2 } — §17
+   *   - { type:'adjustment', newState }                       — reemplaza el estado entero,
+   *     igual filosofía que en el motor de puntos: nunca se interpreta como games jugados,
+   *     así que nunca fabrica el orden real de un tramo corregido a mano (§11).
+   */
+  function computeGameStateFromEvents(events, format, baseline) {
+    let state = baseline ? cloneGameBaselineState(baseline) : createInitialGameEngineState();
+    for (const ev of events) {
+      if (ev.type === 'adjustment') { state = cloneGameBaselineState(ev.newState); continue; }
+      if (ev.type === 'tiebreak') { state = applyGameTiebreak(state, ev.team, ev.score || null, format); continue; }
+      if (ev.type === 'extraordinary-tiebreak') { state = applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2); continue; }
+      state = applyGameWin(state, ev.team, format); // ev.type === 'game'
+    }
+    return state;
+  }
+
+  function cloneGameBaselineState(baseline) {
+    const base = createInitialGameEngineState();
+    return Object.assign(base, JSON.parse(JSON.stringify(baseline)));
+  }
+
+  /* ------------------------------------------------------------------ */
   /* RESOLUCIÓN DE SAQUE (progresiva + retrospectiva)                    */
   /* ------------------------------------------------------------------ */
 
@@ -768,5 +893,15 @@
     resolveServer,
     resolveTiebreakServer,
     otherTeam,
+    // V13 — motor Por Games (§4-17)
+    createInitialGameEngineState,
+    currentMatchGameNumberGames,
+    currentWithinSetGameNumberGames,
+    gamesModeAtTiebreakTrigger,
+    applyGameWin,
+    applyGameTiebreak,
+    canStartExtraordinaryGameTiebreak,
+    applyExtraordinaryGameTiebreak,
+    computeGameStateFromEvents,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

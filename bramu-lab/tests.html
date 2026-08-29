@@ -947,6 +947,171 @@
     assert('PRUEBA OBLIGATORIA · el resultado del TB (10-5) aparece una sola vez en todo el texto', (r.text.match(/10-5/g) || []).length === 1, r.text);
   })();
 
+  // ==================================================================
+  // V13 — POR GAMES · BETA (motor + estadísticas + Intelligence)
+  // Casos A-J/N del Consolidado V13 (§29). Los casos D/E (lenguaje "GAME PARA
+  // EL SET/PARTIDO") y K/L/M (Editar jugadores, persistencia, Highlight en
+  // vivo) viven en app.js (UI), fuera del alcance de este arnés — se
+  // verificaron a mano en el navegador durante el desarrollo de V13.
+  // ==================================================================
+  function newGamesCtx(formatId) {
+    return {
+      players: makePlayers(),
+      format: E.FORMATS[formatId || 'classic'],
+      knowledge: E.createServerKnowledge(),
+      state: E.createInitialGameEngineState(),
+      events: [],
+      ms: 0,
+      seenSet: 0,
+    };
+  }
+  function ensureGameServer(ctx) {
+    const setNumber = ctx.state.sets.length + 1;
+    if (setNumber === ctx.seenSet) return;
+    const mgn = E.currentMatchGameNumberGames(ctx.state);
+    const wsgn = E.currentWithinSetGameNumberGames(ctx.state);
+    const firstServer = setNumber % 2 === 1 ? 0 : 2;
+    const secondServer = firstServer === 0 ? 2 : 0;
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, setNumber, mgn, wsgn, firstServer);
+    ctx.knowledge = E.recordServerAnswer(ctx.knowledge, ctx.players, setNumber, mgn + 1, wsgn + 1, secondServer);
+    ctx.seenSet = setNumber;
+  }
+  function winGameEv(ctx, team) {
+    ensureGameServer(ctx);
+    ctx.ms += 60000;
+    ctx.events.push({ team, matchTimeMs: ctx.ms, timestamp: new Date(ctx.ms).toISOString() });
+    ctx.state = E.applyGameWin(ctx.state, team, ctx.format);
+  }
+  function winTbEv(ctx, team, score) {
+    ctx.ms += 60000;
+    ctx.events.push({ type: 'tiebreak', team, score: score || null, matchTimeMs: ctx.ms, timestamp: new Date(ctx.ms).toISOString() });
+    ctx.state = E.applyGameTiebreak(ctx.state, team, score || null, ctx.format);
+  }
+  function winEtbEv(ctx, team, score, winTarget, requireDiff2) {
+    ctx.ms += 60000;
+    ctx.events.push({ type: 'extraordinary-tiebreak', team, score: score || null, winTarget, requireDiff2, matchTimeMs: ctx.ms, timestamp: new Date(ctx.ms).toISOString() });
+    ctx.state = E.applyExtraordinaryGameTiebreak(ctx.state, team, score || null, winTarget, requireDiff2);
+  }
+  function gamesStatsFor(ctx) {
+    return S.computeGamesStats(ctx.events, { players: ctx.players, format: ctx.format, serverKnowledge: ctx.knowledge, durationMs: ctx.ms });
+  }
+
+  // Caso A — Clásico normal: 6-3 · 6-4.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-3
+    assert('V13-A · Set 1 cierra 6-3 (A)', ctx.state.sets.length === 1 && ctx.state.sets[0].gamesA === 6 && ctx.state.sets[0].gamesB === 3, JSON.stringify(ctx.state.sets));
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2 6-4
+    assert('V13-A · Set 2 cierra 6-4, partido para A', ctx.state.sets.length === 2 && ctx.state.sets[1].gamesA === 6 && ctx.state.sets[1].gamesB === 4 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
+    const stats = gamesStatsFor(ctx);
+    assert('V13-A · rotación de saque resuelta en todos los games (sin "unknown")', stats.serviceGames.wonA + stats.serviceGames.wonB + stats.serviceGames.lostA + stats.serviceGames.lostB === stats.gamesA + stats.gamesB, JSON.stringify(stats.serviceGames));
+  })();
+
+  // Caso B — Break: saca Equipo A (parity de `ensureGameServer`), gana Equipo B.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    winGameEv(ctx, 'B');
+    const stats = gamesStatsFor(ctx);
+    assert('V13-B · Break B registrado automáticamente, sin pedir etiqueta', stats.breaksB === 1 && stats.breaksA === 0 && stats.holdsA === 0 && stats.holdsB === 0, JSON.stringify(stats));
+  })();
+
+  // Caso C — Hold: saca Equipo A, gana Equipo A.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    winGameEv(ctx, 'A');
+    const stats = gamesStatsFor(ctx);
+    assert('V13-C · Hold A registrado automáticamente', stats.holdsA === 1 && stats.breaksA === 0 && stats.breaksB === 0, JSON.stringify(stats));
+  })();
+
+  // Caso F — TB reglamentario con score conocido: 6-6 Clásico, B gana TB 7-4 → set final 6-7,
+  // detalle interno conservado para Historial/Intelligence.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 6-6
+    assert('V13-F · llega a 6-6 y dispara el trigger de TB', ctx.state.gamesA === 6 && ctx.state.gamesB === 6 && E.gamesModeAtTiebreakTrigger(ctx.state, ctx.format), JSON.stringify(ctx.state));
+    winTbEv(ctx, 'B', { a: 4, b: 7 });
+    assert('V13-F · set final 6-7 con detalle interno TB 4-7 conservado', ctx.state.sets[0].gamesA === 6 && ctx.state.sets[0].gamesB === 7 && ctx.state.sets[0].winner === 'B' && ctx.state.sets[0].tiebreak.a === 4 && ctx.state.sets[0].tiebreak.b === 7, JSON.stringify(ctx.state.sets[0]));
+  })();
+
+  // Caso G — TB reglamentario SIN score interno: 6-6, A gana, se omite → 7-6, nunca inventado.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t));
+    winTbEv(ctx, 'A', null);
+    assert('V13-G · set final 7-6 sin inventar score interno del TB', ctx.state.sets[0].gamesA === 7 && ctx.state.sets[0].gamesB === 6 && ctx.state.sets[0].tiebreak === null, JSON.stringify(ctx.state.sets[0]));
+  })();
+
+  // Caso H — Americano: 5-5 dispara TB, B gana → resultado final 5-6, score interno opcional.
+  (function () {
+    const ctx = newGamesCtx('americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 5-5
+    assert('V13-H · Americano en 5-5 dispara el TB (no 6-6)', E.gamesModeAtTiebreakTrigger(ctx.state, ctx.format), JSON.stringify(ctx.state));
+    winTbEv(ctx, 'B', { a: 5, b: 7 });
+    assert('V13-H · resultado final 5-6, partido cerrado en un set', ctx.state.sets[0].gamesA === 5 && ctx.state.sets[0].gamesB === 6 && ctx.state.matchWinner === 'B', JSON.stringify(ctx.state.sets[0]));
+  })();
+
+  // Caso I — Deshacer: 3-3 → registra error para B (3-4) → deshacer → vuelve a 3-3, revierte
+  // también rotación/estadísticas (simulado acá como "pop del último evento", igual que app.js).
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 3-3
+    assert('V13-I · llega a 3-3', ctx.state.gamesA === 3 && ctx.state.gamesB === 3, JSON.stringify(ctx.state));
+    winGameEv(ctx, 'B'); // error: 3-4
+    assert('V13-I · error registrado, 3-4', ctx.state.gamesA === 3 && ctx.state.gamesB === 4, JSON.stringify(ctx.state));
+    ctx.events.pop(); // Deshacer = pop del último evento (igual que undoLastGame en app.js)
+    ctx.state = E.computeGameStateFromEvents(ctx.events, ctx.format, null);
+    assert('V13-I · Deshacer vuelve exactamente a 3-3', ctx.state.gamesA === 3 && ctx.state.gamesB === 3, JSON.stringify(ctx.state));
+  })();
+
+  // Caso J — Corrección manual: 3-2 → EDITAR → 4-3. Se conserva el score/games totales
+  // (matemáticamente seguros); NO se inventa el orden real, así que holds/breaks/racha del
+  // tramo corregido no se le atribuyen a ningún equipo, y Evolución marca el nodo `partial`.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A'].forEach((t) => winGameEv(ctx, t)); // 3-2
+    assert('V13-J · llega a 3-2 antes de la corrección', ctx.state.gamesA === 3 && ctx.state.gamesB === 2, JSON.stringify(ctx.state));
+    const newState = { sets: [], gamesA: 4, gamesB: 3, gameIndex: 7, setsWonA: 0, setsWonB: 0, matchWinner: null, extraordinaryTiebreak: null };
+    ctx.events.push({ type: 'adjustment', newState, matchTimeMs: ctx.ms + 1000, scoreBeforeLabel: '3-2', scoreAfterLabel: '4-3' });
+    ctx.state = E.computeGameStateFromEvents(ctx.events, ctx.format, null);
+    assert('V13-J · score corregido llega a 4-3 (dato matemáticamente seguro)', ctx.state.gamesA === 4 && ctx.state.gamesB === 3, JSON.stringify(ctx.state));
+    const stats = gamesStatsFor(ctx);
+    assert('V13-J · marcado como parcial (hasAdjustments)', stats.hasAdjustments === true);
+    assert('V13-J · Games ganados sigue siendo 4-3 pese al ajuste (§11, total seguro)', stats.gamesA === 4 && stats.gamesB === 3, JSON.stringify(stats));
+    // Los 5 games REALES antes de la corrección (3 holds A, 2 holds B) sí se cuentan —
+    // lo que NO debe pasar es que el game adicional que trajo la corrección (3-2 → 4-3)
+    // se le atribuya a nadie: el total de holds+breaks tiene que seguir siendo 5, no 6.
+    assert('V13-J · el game que trae la corrección no se atribuye a ningún hold/break (total sigue en 5, no 6)', (stats.holdsA + stats.holdsB + stats.breaksA + stats.breaksB) === 5, JSON.stringify(stats));
+    const evo = S.computeGamesEvolutionData(ctx.events, { players: ctx.players, format: ctx.format });
+    const lastNode = evo.games[evo.games.length - 1];
+    assert('V13-J · Evolución llega a 4-3 sin fabricar el tramo intermedio', lastNode.diff === 1, JSON.stringify(lastNode));
+    assert('V13-J · el nodo posterior al ajuste queda marcado `partial`', lastNode.partial === true, JSON.stringify(lastNode));
+  })();
+
+  // Caso N — "RESOLVER CON TIE BREAK" en Por Games: 4-4, ganador obligatorio + score interno
+  // opcional, cierra el partido representando el TB honestamente (nunca fabrica games).
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 4-4
+    assert('V13-N · se puede resolver con TB en 4-4 (partido sin definir)', E.canStartExtraordinaryGameTiebreak(ctx.state), JSON.stringify(ctx.state));
+    winEtbEv(ctx, 'A', { a: 10, b: 8 }, 7, true);
+    assert('V13-N · cierra el partido para A, sin fabricar el score de games (sigue 4-4)', ctx.state.matchWinner === 'A' && ctx.state.sets[0].gamesA === 4 && ctx.state.sets[0].gamesB === 4 && ctx.state.sets[0].extraordinary === true, JSON.stringify(ctx.state.sets[0]));
+    assert('V13-N · el TB queda representado honestamente (10-8)', ctx.state.sets[0].tiebreak.a === 10 && ctx.state.sets[0].tiebreak.b === 8, JSON.stringify(ctx.state.sets[0].tiebreak));
+    const r = S.generateGamesIntelligence(gamesStatsFor(ctx), { players: ctx.players, format: ctx.format, durationMs: ctx.ms }, ctx.state.sets, ctx.state.matchWinner, { manual: false });
+    assert('V13-N · BRAMU Intelligence (Por Games) no está vacío y no arroja error', typeof r === 'string' && r.length > 0, r);
+  })();
+
+  // Regresión puntual (bug real detectado durante el desarrollo de V13): perder un set
+  // estando muy abajo (0-6) y arrancar el set siguiente en 0-0 NO debe acreditarse como una
+  // "remontada" — el reset de fin de set es un reset, no una recuperación.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-0 A, sin vaivén (aísla el bug del reset de set)
+    ['B', 'B', 'B', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // Set2 0-6 B
+    const stats = gamesStatsFor(ctx);
+    assert('V13-regresión · arrancar un set nuevo en 0-0 no es una "remontada" falsa', stats.maxComebackA === 0 && stats.maxComebackB === 0, JSON.stringify(stats));
+    assert('V13-regresión · la ventaja máxima de 6 games (0-6) sí se registra', stats.maxAdvantageB === 6, JSON.stringify(stats));
+  })();
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------

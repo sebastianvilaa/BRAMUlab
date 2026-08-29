@@ -12,11 +12,15 @@
   const SCHEMA_VERSION = 3;
   // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
   // acá alcanza para toda la app — nunca duplicar el string de versión en otro archivo JS.
-  const APP_VERSION = 'v12.2';
+  const APP_VERSION = 'v13';
   const KEYS = {
     ACTIVE_MATCH: 'padellab.activeMatch.v1',
     HISTORY: 'padellab.history.v1',
     PLAYER_NAMES: 'padellab.playerNames.v1',
+    // V13 (§2): última selección de modo de registro (Completo / Por games), recordada
+    // para la próxima vez que se abre Home. No forma parte del schemaVersion del partido
+    // en curso: es una preferencia de Home, no datos de un partido.
+    RECORDING_MODE: 'padellab.recordingMode.v1',
   };
 
   function safeGet(key) {
@@ -69,6 +73,9 @@
 
   function getHistoryEntry(matchId) { return loadHistory().find((m) => m.matchId === matchId) || null; }
 
+  function loadRecordingMode() { const m = safeGet(KEYS.RECORDING_MODE); return m === 'games' ? 'games' : 'complete'; }
+  function saveRecordingMode(mode) { safeSet(KEYS.RECORDING_MODE, mode === 'games' ? 'games' : 'complete'); }
+
   function loadPlayerNames() { return safeGet(KEYS.PLAYER_NAMES) || []; }
   function rememberPlayerNames(names) {
     const known = loadPlayerNames();
@@ -82,5 +89,6 @@
     saveActiveMatch, loadActiveMatch, clearActiveMatch,
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
+    loadRecordingMode, saveRecordingMode,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

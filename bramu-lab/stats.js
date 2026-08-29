@@ -2237,6 +2237,339 @@
     return merged;
   }
 
+  /* ======================================================================
+     V13 — ESTADÍSTICAS Y BRAMU INTELLIGENCE PARA "POR GAMES · BETA" (§20-25)
+     Módulo DELIBERADAMENTE separado de `computeStats`/`generateBramuIntelligence`
+     de arriba: esos leen un log de PUNTOS y no tienen manera honesta de producir
+     nada útil sobre un log de GAMES. En vez de fabricar puntos falsos para
+     reusar el motor existente (violaría el principio "no inventar" del
+     Consolidado V13), este módulo trabaja directo sobre `gameEvents` y produce
+     solo las métricas que esa granularidad respalda de verdad.
+     Reglas duras (§11/§24, mismo espíritu que arriba):
+       - Un evento `adjustment` reemplaza el estado entero; nunca se interpreta
+         como games jugados. Holds/breaks/racha/máxima ventaja/remontada NUNCA
+         cruzan ese punto — se cortan y se retoma desde 0 ahí (mejor
+         sub-reportar que inventar el orden real).
+       - Un Tie break (reglamentario o extraordinario) SÍ cuenta como "un game
+         ganado" para racha/máxima ventaja (cierra el set, es parte real de la
+         secuencia de games), pero NUNCA alimenta holds/breaks/games de saque:
+         no sabemos quién sacó cada punto del TB (§14, "no se pide etiquetar").
+     ====================================================================== */
+
+  /** V13 (§20/§22) — estadísticas Por Games para un tramo de eventos (partido completo o
+   *  un set, según qué lista de eventos se pase). `matchCtx = { players, format,
+   *  serverKnowledge }`. */
+  function computeGamesStats(events, matchCtx) {
+    const format = matchCtx.format;
+    const serverKnowledge = matchCtx.serverKnowledge;
+    const players = matchCtx.players;
+
+    let state = E.createInitialGameEngineState();
+    let gamesA = 0, gamesB = 0; // se derivan del estado final después del loop, ver más abajo (§11: total seguro)
+    const serviceGames = { wonA: 0, wonB: 0, lostA: 0, lostB: 0 };
+    let breaksA = 0, breaksB = 0, holdsA = 0, holdsB = 0;
+    let currentStreak = null; // { team, count }
+    let maxGameStreakA = 0, maxGameStreakB = 0;
+    let maxAdvantageA = 0, maxAdvantageB = 0;
+    let maxComebackA = 0, maxComebackB = 0;
+    let worstDiffA = 0, worstDiffB = 0; // §22 — trackers de remontada, ver comentario más abajo
+    const setDurations = [];
+    let lastSetEndMs = 0;
+    let hasAdjustments = false;
+
+    function noteStreak(team) {
+      if (currentStreak && currentStreak.team === team) currentStreak.count += 1;
+      else currentStreak = { team, count: 1 };
+      if (team === 'A') maxGameStreakA = Math.max(maxGameStreakA, currentStreak.count);
+      else maxGameStreakB = Math.max(maxGameStreakB, currentStreak.count);
+    }
+
+    /** §22 — "máxima ventaja" y "mayor desventaja remontada" a partir de la diferencia de
+     *  games EN CURSO (gamesA-gamesB del set que se está jugando en ese momento; se resetea
+     *  sola en cada set nuevo porque el motor resetea gamesA/gamesB a 0-0 al cerrar un set).
+     *  Remontada = se registra la primera vez que, habiendo estado abajo, se vuelve a 0 o
+     *  a favor — nunca se cuenta una recuperación PARCIAL que no llegó a igualar (§22,
+     *  ejemplo "1-4 → 3-4 → pierde 3-6" no cuenta). */
+    function sampleDiff(diff) {
+      if (diff > 0) maxAdvantageA = Math.max(maxAdvantageA, diff);
+      if (diff < 0) maxAdvantageB = Math.max(maxAdvantageB, -diff);
+      if (diff >= 0) { if (worstDiffA < 0) maxComebackA = Math.max(maxComebackA, -worstDiffA); worstDiffA = 0; }
+      else worstDiffA = Math.min(worstDiffA, diff);
+      const diffB = -diff;
+      if (diffB >= 0) { if (worstDiffB < 0) maxComebackB = Math.max(maxComebackB, -worstDiffB); worstDiffB = 0; }
+      else worstDiffB = Math.min(worstDiffB, diffB);
+    }
+    sampleDiff(0);
+
+    events.forEach((ev) => {
+      if (ev.type === 'adjustment') {
+        // Reemplaza el estado entero; corta racha y trackers de remontada (orden desconocido
+        // a partir de acá — §11/§24, mejor sub-reportar que inventar).
+        state = E.computeGameStateFromEvents([ev], format, null);
+        hasAdjustments = true;
+        currentStreak = null;
+        // Reset DIRECTO (no vía sampleDiff): un ajuste corta el tramo por completo — no debe
+        // acreditarse como "remontada completada" el déficit que hubiera quedado pendiente
+        // justo antes del ajuste (ese tramo queda con orden desconocido, §11/§24).
+        worstDiffA = 0; worstDiffB = 0;
+        return;
+      }
+      const before = state;
+      const isTbResolution = ev.type === 'tiebreak' || ev.type === 'extraordinary-tiebreak';
+      let winnerTeam;
+      if (ev.type === 'tiebreak') { state = E.applyGameTiebreak(state, ev.team, ev.score || null, format); winnerTeam = ev.team; }
+      else if (ev.type === 'extraordinary-tiebreak') { state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2); winnerTeam = ev.team; }
+      else { state = E.applyGameWin(state, ev.team, format); winnerTeam = ev.team; }
+
+      // Holds/breaks/games de saque: NUNCA en un TB (§14/regla dura de arriba) — el
+      // servicio se resuelve por punto dentro del TB, algo que este modo no observa.
+      if (!isTbResolution) {
+        const setNumber = before.sets.length + 1;
+        const matchGameNumber = E.currentMatchGameNumberGames(before);
+        const withinSetGameNumber = E.currentWithinSetGameNumberGames(before);
+        const info = E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber);
+        const servingTeam = info.resolved ? info.team : null;
+        if (servingTeam) {
+          if (servingTeam === winnerTeam) {
+            if (winnerTeam === 'A') { holdsA += 1; serviceGames.wonA += 1; } else { holdsB += 1; serviceGames.wonB += 1; }
+          } else {
+            if (winnerTeam === 'A') { breaksA += 1; serviceGames.lostB += 1; } else { breaksB += 1; serviceGames.lostA += 1; }
+          }
+        }
+      }
+
+      noteStreak(winnerTeam);
+
+      const setJustClosed = state.sets.length > before.sets.length;
+      if (setJustClosed) {
+        const closedSet = state.sets[state.sets.length - 1];
+        // Bug conocido en el motor de puntos (`scoreAfter` con "0-0" tras el reset de fin de
+        // set) también aplica acá: si leyéramos `state.gamesA/gamesB` DESPUÉS de este evento
+        // veríamos 0-0 (el motor ya reseteó para el set siguiente). Se lee del set recién
+        // cerrado, nunca del estado post-reset.
+        sampleDiff(closedSet.gamesA - closedSet.gamesB);
+        setDurations.push({ ms: Math.max(0, (ev.matchTimeMs || 0) - lastSetEndMs) });
+        lastSetEndMs = ev.matchTimeMs || lastSetEndMs;
+        // Reset DIRECTO al arrancar el set siguiente en 0-0 (no vía sampleDiff): perder un
+        // set estando abajo no es "una remontada" solo porque el set siguiente arranca
+        // parejo — eso acreditaba falsamente una remontada de 6 games con solo perder 0-6.
+        worstDiffA = 0; worstDiffB = 0;
+      } else {
+        sampleDiff(state.gamesA - state.gamesB);
+      }
+    });
+
+    // V13 (§11) — "games ganados" es un TOTAL, matemáticamente seguro incluso después de un
+    // `adjustment` (a diferencia de holds/breaks/racha/remontada, que sí dependen del orden
+    // real): se deriva directo del estado final — nunca de una cuenta evento por evento, que
+    // se quedaría corta con los games que un `adjustment` absorbió de una sola vez.
+    gamesA = state.sets.reduce((acc, s) => acc + s.gamesA, 0) + state.gamesA;
+    gamesB = state.sets.reduce((acc, s) => acc + s.gamesB, 0) + state.gamesB;
+
+    return {
+      gamesA, gamesB,
+      setsWonA: state.setsWonA, setsWonB: state.setsWonB,
+      matchWinner: state.matchWinner,
+      serviceGames, breaksA, breaksB, holdsA, holdsB,
+      maxGameStreakA, maxGameStreakB,
+      maxAdvantageA, maxAdvantageB,
+      maxComebackA, maxComebackB,
+      setDurations,
+      hasAdjustments,
+    };
+  }
+
+  /** V13 (§13/§26) — separa `gameEvents` en tramos por set, misma filosofía que
+   *  `computeSetSegments` pero para el motor de games (sin scoringSystem/tiebreakMode). */
+  function computeGameSetSegments(events, format) {
+    let state = E.createInitialGameEngineState();
+    const segments = [];
+    let startIdx = 0;
+    let curSetNumber = 1;
+    events.forEach((ev, i) => {
+      if (ev.type === 'adjustment') {
+        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i) });
+        state = E.computeGameStateFromEvents([ev], format, null);
+        startIdx = i;
+        curSetNumber = state.sets.length + 1;
+        return;
+      }
+      const before = state;
+      if (ev.type === 'tiebreak') state = E.applyGameTiebreak(state, ev.team, ev.score || null, format);
+      else if (ev.type === 'extraordinary-tiebreak') state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2);
+      else state = E.applyGameWin(state, ev.team, format);
+      if (state.sets.length > before.sets.length) {
+        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i + 1) });
+        startIdx = i + 1;
+        curSetNumber = state.sets.length + 1;
+      }
+    });
+    const tail = events.slice(startIdx);
+    if (tail.length || !state.matchWinner) segments.push({ setNumber: curSetNumber, events: tail });
+    const merged = [];
+    segments.forEach((seg) => {
+      const last = merged[merged.length - 1];
+      if (last && last.setNumber === seg.setNumber) last.events = last.events.concat(seg.events);
+      else merged.push({ setNumber: seg.setNumber, events: seg.events.slice() });
+    });
+    return merged;
+  }
+
+  /** V13 (§25) — curva de Evolución Por Games: un nodo por game jugado (incluye los
+   *  resueltos por Tie break), con la diferencia de games acumulada DEL SET en curso (se
+   *  resetea sola en cada set nuevo, igual razonamiento que `sampleDiff` de arriba). Tramos
+   *  posteriores a un `adjustment` se marcan `partial:true` (orden desconocido, §13) en vez
+   *  de fabricar un punto intermedio inventado. */
+  function computeGamesEvolutionData(events, matchCtx) {
+    const format = matchCtx.format;
+    let state = E.createInitialGameEngineState();
+    const games = [];
+    const moments = [];
+    let partial = false;
+    let idx = 0;
+    events.forEach((ev) => {
+      if (ev.type === 'adjustment') {
+        state = E.computeGameStateFromEvents([ev], format, null);
+        idx += 1;
+        // V13 (§13): la corrección SÍ tiene que llegar a verse en la curva (el Consolidado es
+        // explícito: "Evolución debe llegar correctamente a 4-3") — se agrega un nodo propio
+        // para el salto, marcado `partial`/`adjustment` (círculo hueco en el gráfico) en vez
+        // de omitirlo — omitirlo dejaría la curva "atrasada" hasta el próximo game real, que
+        // podría no llegar nunca si la corrección cierra el partido. `winner: null` porque acá
+        // no hubo un game individual que alguien "ganara": es un salto de marcador, no un game.
+        games.push({
+          index: idx, setNumber: state.sets.length + 1, winner: null, diff: state.gamesA - state.gamesB,
+          setJustClosed: false, matchWinnerAfter: state.matchWinner, partial: true, adjustment: true,
+          matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp,
+        });
+        if (state.matchWinner) moments.push({ kind: 'match-finish', gameIndex: idx, team: state.matchWinner, sets: state.sets.slice(), partial: true, matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp });
+        partial = true; // el PRÓXIMO game real también nace de un tramo con orden desconocido
+        return;
+      }
+      const before = state;
+      const isTbResolution = ev.type === 'tiebreak' || ev.type === 'extraordinary-tiebreak';
+      let winnerTeam;
+      if (ev.type === 'tiebreak') { state = E.applyGameTiebreak(state, ev.team, ev.score || null, format); winnerTeam = ev.team; }
+      else if (ev.type === 'extraordinary-tiebreak') { state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2); winnerTeam = ev.team; }
+      else { state = E.applyGameWin(state, ev.team, format); winnerTeam = ev.team; }
+      idx += 1;
+
+      const setJustClosed = state.sets.length > before.sets.length;
+      const closedSet = setJustClosed ? state.sets[state.sets.length - 1] : null;
+      const diff = setJustClosed ? (closedSet.gamesA - closedSet.gamesB) : (state.gamesA - state.gamesB);
+      const setNumberForThisGame = before.sets.length + 1;
+      games.push({
+        index: idx,
+        setNumber: setNumberForThisGame,
+        winner: winnerTeam,
+        diff,
+        setJustClosed,
+        matchWinnerAfter: state.matchWinner,
+        partial,
+        matchTimeMs: ev.matchTimeMs,
+        timestamp: ev.timestamp,
+      });
+
+      if (isTbResolution) moments.push({ kind: 'tiebreak', gameIndex: idx, team: winnerTeam, extraordinary: ev.type === 'extraordinary-tiebreak', partial, matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp });
+      if (setJustClosed) moments.push({ kind: 'set-finish', gameIndex: idx, team: winnerTeam, setNumber: setNumberForThisGame, closedSet, partial, matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp });
+      if (state.matchWinner) moments.push({ kind: 'match-finish', gameIndex: idx, team: state.matchWinner, sets: state.sets.slice(), partial, matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp });
+      partial = false; // el nodo ya quedó marcado; el siguiente vuelve a ser confiable salvo otro ajuste
+    });
+    return { games, moments };
+  }
+
+  const GAMES_PHRASE_BANKS = {
+    inicio: ['arrancaron mejor', 'comenzaron mejor', 'tomaron primero la ventaja'],
+    reaccion: ['reaccionaron', 'recuperaron terreno', 'consiguieron dar vuelta el desarrollo'],
+    cierre: ['cerraron', 'terminaron imponiéndose', 'se impusieron'],
+  };
+  function gamesPickPhrase(bankKey, seed) {
+    const bank = GAMES_PHRASE_BANKS[bankKey];
+    return bank[Math.abs(seed || 0) % bank.length];
+  }
+  function gamesVarietySeedFor(stats, sets, matchCtx) {
+    return (stats.gamesA || 0) * 3 + (stats.gamesB || 0) * 7 + (matchCtx.durationMs || 0) + (sets ? sets.length : 0) * 97;
+  }
+
+  /** V13 (§23/§24) — BRAMU Intelligence para Por Games: composición de texto MÁS CORTA y
+   *  deliberadamente más humilde que `generateBramuIntelligence` — nunca afirma nada que
+   *  dependa de puntos (§24). Construida sobre `computeGamesStats`/`computeGamesEvolutionData`,
+   *  nunca sobre datos fabricados. */
+  function generateGamesIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
+    const nameOf = (team) => teamLabel(matchCtx.players, team);
+    const seed = gamesVarietySeedFor(stats, sets, matchCtx);
+    const partial = !!stats.hasAdjustments;
+    const sentences = [];
+
+    if (!sets.length) {
+      return 'El partido no llegó a completar ningún set con datos suficientes para un resumen.';
+    }
+
+    // --- Resultado final / cómo se decidió ---
+    if (winnerTeam) {
+      const setsLabel = sets.map((s) => (s.extraordinary && s.tiebreak) ? `${s.gamesA}-${s.gamesB} (TB ${s.tiebreak.a}-${s.tiebreak.b})` : `${s.gamesA}-${s.gamesB}`).join(' · ');
+      const lastSet = sets[sets.length - 1];
+      if (lastSet.extraordinary) {
+        sentences.push(`${nameOf(winnerTeam)} se quedó con el partido tras resolverlo con un Tie break extraordinario, con el marcador regular en ${setsLabel.split(' · ').slice(0, -1).join(' · ') || `${lastSet.gamesA}-${lastSet.gamesB}`}.`);
+      } else if (lastSet.tiebreak) {
+        sentences.push(`${nameOf(winnerTeam)} se impuso ${setsLabel}, cerrando en el Tie break del último set.`);
+      } else {
+        sentences.push(`${nameOf(winnerTeam)} se impuso ${setsLabel}.`);
+      }
+    } else if (finishInfo && finishInfo.manual) {
+      sentences.push(`El partido se dio por finalizado antes de tiempo (${finishInfo.reasonLabel || 'motivo no especificado'}), sin un ganador definido.`);
+    }
+
+    // --- Quién arrancó mejor (primer set) ---
+    const firstSet = sets[0];
+    if (firstSet && Math.abs(firstSet.gamesA - firstSet.gamesB) >= 2) {
+      const leader = firstSet.gamesA > firstSet.gamesB ? 'A' : 'B';
+      sentences.push(`${nameOf(leader)} ${gamesPickPhrase('inicio', seed)} en el primer set (${firstSet.gamesA}-${firstSet.gamesB}).`);
+    }
+
+    // --- Máxima ventaja / mayor remontada (si hay algo que contar) ---
+    const bigAdvTeam = stats.maxAdvantageA >= stats.maxAdvantageB ? 'A' : 'B';
+    const bigAdv = Math.max(stats.maxAdvantageA, stats.maxAdvantageB);
+    if (bigAdv >= 3) {
+      sentences.push(`${nameOf(bigAdvTeam)} llegó a tener una ventaja de ${bigAdv} games en algún tramo del partido.`);
+    }
+    const comebackTeam = stats.maxComebackA >= stats.maxComebackB ? 'A' : 'B';
+    const comeback = Math.max(stats.maxComebackA, stats.maxComebackB);
+    if (comeback >= 3) {
+      sentences.push(`${nameOf(comebackTeam)} ${gamesPickPhrase('reaccion', seed)} después de estar ${comeback} games abajo.`);
+    }
+
+    // --- Breaks / holds (si hay información de saque) ---
+    const totalBreaks = stats.breaksA + stats.breaksB;
+    if (totalBreaks > 0) {
+      if (stats.breaksA === stats.breaksB) {
+        sentences.push(`Cada pareja quebró el servicio rival ${stats.breaksA} ${stats.breaksA === 1 ? 'vez' : 'veces'}.`);
+      } else {
+        const moreBreaksTeam = stats.breaksA > stats.breaksB ? 'A' : 'B';
+        sentences.push(`${nameOf(moreBreaksTeam)} fue más efectiva al resto, con ${Math.max(stats.breaksA, stats.breaksB)} quiebres contra ${Math.min(stats.breaksA, stats.breaksB)}.`);
+      }
+    }
+
+    // --- Racha máxima ---
+    const streakTeam = stats.maxGameStreakA >= stats.maxGameStreakB ? 'A' : 'B';
+    const streak = Math.max(stats.maxGameStreakA, stats.maxGameStreakB);
+    if (streak >= 4) {
+      sentences.push(`${nameOf(streakTeam)} llegó a encadenar ${streak} games seguidos.`);
+    }
+
+    // --- Sets parejos (diferencia de sets) ---
+    if (sets.length > 1) {
+      const closeSets = sets.filter((s) => Math.abs(s.gamesA - s.gamesB) <= 1 || s.tiebreak).length;
+      if (closeSets === sets.length) sentences.push('Todos los sets se definieron por poco margen.');
+    }
+
+    if (partial) {
+      sentences.push('Hubo una corrección manual del marcador durante el partido: algunas rachas y remontadas pueden estar incompletas.');
+    }
+
+    return sentences.join(' ');
+  }
+
   global.PLStats = {
     computeStats, generatePlayerIntelligence: generateBramuIntelligence, generateBramuIntelligence,
     computeEvolutionData, computeSetGameDeficits, computeSetSegments, teamLabel, fmtOpp, EVOLUTION_WEIGHTS,
@@ -2255,5 +2588,7 @@
     // V11.16 (feedback real) — ídem, para poder testear aisladamente el conteo de Match
     // Points salvados (antes/durante del Tie break) y el ordinal masculino de game.
     countMatchPointsSavedInSet, findPreTiebreakMatchPointsSaved, ordinalGameWord,
+    // V13 — estadísticas y BRAMU Intelligence de Por Games (§20-25)
+    computeGamesStats, computeGameSetSegments, computeGamesEvolutionData, generateGamesIntelligence,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

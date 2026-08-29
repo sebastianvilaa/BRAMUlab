@@ -14,6 +14,7 @@
   /* ------------------------------------------------------------------ */
   let match = null;
   let pointEvents = [];
+  let gameEvents = []; // V13 (§4) — log de eventos del motor Por Games, paralelo a pointEvents
   let highlights = [];
   let serverKnowledge = null;
   let manualFinish = null; // { reason, reasonLabel, declaredWinner } | null
@@ -32,6 +33,10 @@
   let summaryViewSource = 'live'; // 'live' | 'analysis' — de dónde se abrió el Resumen (Bloque P/AA1)
 
   function currentFormat() { return E.FORMATS[match.formatId]; }
+  /** V13 (§1-2): `match.mode` es 'complete' (motor punto por punto, de siempre) o 'games'
+   *  (V13, un toque por game). Ausente en partidos guardados antes de V13 → tratar como
+   *  'complete' (nunca reinterpretar historial viejo como Por Games). */
+  function isGamesMode() { return !!match && match.mode === 'games'; }
 
   /* ------------------------------------------------------------------ */
   /* UTILIDADES                                                           */
@@ -133,7 +138,7 @@
   /* ------------------------------------------------------------------ */
   function buildSnapshot() {
     return {
-      match, pointEvents, highlights, serverKnowledge, manualFinish,
+      match, pointEvents, gameEvents, highlights, serverKnowledge, manualFinish,
       timer: { startedAt: timer.startedAt, pausedAt: timer.pausedAt, totalPausedMs: timer.totalPausedMs },
       finished: !!finishedSnapshot,
     };
@@ -145,6 +150,9 @@
   /* ------------------------------------------------------------------ */
   let selectedScoring = 'golden';
   let selectedFormatId = 'classic';
+  let selectedRecordingMode = 'complete'; // 'complete' | 'games' — V13 (§2)
+
+  const RECORDING_MODE_LABELS = { complete: 'MODO COMPLETO', games: 'MODO POR GAMES · BETA' };
 
   const SCORING_HINTS = {
     starpoint: 'Dos ventajas y luego punto decisivo',
@@ -179,8 +187,31 @@
     $('#open-history-btn').addEventListener('click', () => { renderHistory(); showView('history'); });
     $('#continue-match-btn').addEventListener('click', continueActiveMatch);
 
+    initModeSelector();
     refreshKnownPlayersDatalist();
     checkForActiveMatch();
+  }
+
+  /* V13 (§2): selector de modo de registro en la navegación superior de Home, con lógica
+   *  tipo web (botón "MODO COMPLETO ▾" que abre un menú de 2 opciones). Se recuerda la
+   *  última elección (Store.loadRecordingMode) para la próxima vez que se abre Home. */
+  function initModeSelector() {
+    selectedRecordingMode = Store.loadRecordingMode();
+    updateModeSelectButtonLabel();
+    $('#mode-select-btn').addEventListener('click', () => { $('#mode-select-menu').hidden = false; });
+    $('#mode-select-cancel').addEventListener('click', () => { $('#mode-select-menu').hidden = true; });
+    $('#mode-select-menu').addEventListener('click', (e) => { if (e.target === $('#mode-select-menu')) $('#mode-select-menu').hidden = true; });
+    $all('#mode-select-menu [data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        selectedRecordingMode = btn.dataset.mode;
+        Store.saveRecordingMode(selectedRecordingMode);
+        updateModeSelectButtonLabel();
+        $('#mode-select-menu').hidden = true;
+      });
+    });
+  }
+  function updateModeSelectButtonLabel() {
+    $('#mode-select-btn').textContent = (RECORDING_MODE_LABELS[selectedRecordingMode] || RECORDING_MODE_LABELS.complete) + ' ▾';
   }
 
   function refreshKnownPlayersDatalist() {
@@ -192,7 +223,9 @@
   function checkForActiveMatch() {
     const snap = Store.loadActiveMatch();
     if (snap && snap.match && !snap.finished) {
-      const state = E.computeStateFromEvents(snap.pointEvents, snap.match.scoringSystem, E.FORMATS[snap.match.formatId], snap.match.tiebreakMode, snap.match.baseline);
+      const state = snap.match.mode === 'games'
+        ? E.computeGameStateFromEvents(snap.gameEvents || [], E.FORMATS[snap.match.formatId], null)
+        : E.computeStateFromEvents(snap.pointEvents, snap.match.scoringSystem, E.FORMATS[snap.match.formatId], snap.match.tiebreakMode, snap.match.baseline);
       $('#continue-banner-detail').textContent = `Set ${state.sets.length + 1} · ${state.gamesA}-${state.gamesB}`;
       $('#continue-banner').hidden = false;
     } else {
@@ -230,6 +263,7 @@
     match = {
       id: makeMatchId(),
       players,
+      mode: selectedRecordingMode, // V13 (§2): fijado al arrancar, queda bloqueado todo el partido
       scoringSystem: selectedScoring,
       formatId: selectedFormatId,
       tiebreakMode: 'classic',
@@ -241,6 +275,7 @@
       createdAt: now.toISOString(),
     };
     pointEvents = [];
+    gameEvents = [];
     highlights = [];
     serverKnowledge = E.createServerKnowledge();
     manualFinish = null;
@@ -259,6 +294,7 @@
     match = snap.match;
     if (match.tiebreakModeResetForBase === undefined) match.tiebreakModeResetForBase = -1;
     pointEvents = snap.pointEvents || [];
+    gameEvents = snap.gameEvents || [];
     highlights = snap.highlights || [];
     serverKnowledge = snap.serverKnowledge || E.createServerKnowledge();
     manualFinish = snap.manualFinish || null;
@@ -276,8 +312,14 @@
     // sistema son fijos para todo el partido, se pintan una sola vez acá.
     $('#match-header-format').textContent = E.FORMATS[match.formatId].label;
     $('#match-header-system').textContent = SCORING_SYSTEM_LABELS[match.scoringSystem] || '';
+    // V13 (§4): identifica el modo Por Games en el header sin robar protagonismo al marcador.
+    $('#match-header-mode').hidden = !isGamesMode();
+    $('#match-header-mode-sep').hidden = !isGamesMode();
+    // V13 (§7): en Por Games no se muestra Ajustar (Editar cubre corrección rápida y
+    // profunda) — se fija una sola vez acá porque el modo queda bloqueado todo el partido.
+    $('#adjust-btn').hidden = isGamesMode();
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
-    render();
+    if (isGamesMode()) renderGamesMode(); else render();
     autosave();
   }
 
@@ -499,6 +541,503 @@
     });
   }
 
+  /* ======================================================================
+     V13 — MOTOR "POR GAMES · BETA": PANTALLA EN VIVO (§4-17)
+     Sección encapsulada: reutiliza el DOM del marcador de siempre (mismas zonas, mismo
+     scoreboard, misma barra de herramientas) pero la alimenta desde `gameEvents` +
+     `E.computeGameStateFromEvents` en vez de `pointEvents`/`E.computeStateFromEvents`.
+     `serverKnowledge` SÍ se comparte con el motor de puntos (es agnóstico de puntos: solo
+     necesita número de game/set, ver engine.js §"RESOLUCIÓN DE SAQUE").
+     ====================================================================== */
+  function computeGameState() {
+    return E.computeGameStateFromEvents(gameEvents, currentFormat(), null);
+  }
+
+  function resolveCurrentGameServer(state) {
+    const setNumber = state.sets.length + 1;
+    const matchGameNumber = E.currentMatchGameNumberGames(state);
+    const withinSetGameNumber = E.currentWithinSetGameNumberGames(state);
+    return E.resolveServer(serverKnowledge, match.players, setNumber, matchGameNumber, withinSetGameNumber);
+  }
+
+  /** V13 (§4): un toque en la zona = "esa pareja ganó el game". En el score de disparo del
+   *  Tie break (§14), el mismo toque significa "esa pareja ganó el Tie break" — se abre el
+   *  flujo de TB con el ganador ya preseleccionado en vez de registrar un game normal. */
+  function registerGameWin(team) {
+    const state = computeGameState();
+    if (state.matchWinner) return;
+    const format = currentFormat();
+    if (E.gamesModeAtTiebreakTrigger(state, format)) { openGameTiebreakFlow(team, false, null); return; }
+    gameEvents.push({ team, timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs() });
+    renderGamesMode();
+  }
+
+  function undoLastGame() {
+    if (gameEvents.length === 0) { showToast('No hay games para deshacer'); return; }
+    const wasFinished = !!finishedSnapshot;
+    gameEvents.pop();
+    if (wasFinished) Store.removeFromHistory(match.id);
+    finishedSnapshot = null;
+    manualFinish = null;
+    $('#view-summary').hidden = true;
+    if (!timer.pausedAt) startTimerLoop();
+    renderGamesMode();
+    showToast('Último game deshecho');
+  }
+
+  function saveHighlightGames() {
+    const state = computeGameState();
+    const serverInfo = resolveCurrentGameServer(state);
+    const entry = {
+      timestamp: new Date().toISOString(),
+      matchTimeMs: getElapsedMs(),
+      set: state.sets.length + 1,
+      games: { a: state.gamesA, b: state.gamesB },
+      score: { gamesOnly: true }, // V13 (§9): en Por Games no existe score de puntos que guardar — nunca se inventa
+      server: serverInfo.resolved ? { id: serverInfo.playerId, name: playerName(match.players, serverInfo.playerId), team: serverInfo.team } : null,
+    };
+    highlights.push(entry);
+    autosave();
+    const btn = $('#highlight-btn');
+    btn.classList.add('control-btn--flash');
+    setTimeout(() => btn.classList.remove('control-btn--flash'), 550);
+    showToast('⭐ Highlight guardado');
+    openHighlightPopup(entry);
+  }
+
+  function renderGamesMode() {
+    const state = computeGameState();
+    const format = currentFormat();
+    const atTrigger = !state.matchWinner && E.gamesModeAtTiebreakTrigger(state, format);
+    const serverInfo = resolveCurrentGameServer(state);
+
+    setScoreText('#score-a', String(state.gamesA));
+    setScoreText('#score-b', String(state.gamesB));
+
+    renderGamesStatusBanner(state, format, atTrigger);
+    renderGamesScoreboard(state, serverInfo);
+    $('#game-progression').hidden = true; // V13 — sin equivalente en games: no hay "puntos recientes" que mostrar
+    renderServerPromptGames(state, serverInfo);
+    renderZonePlayers(state, serverInfo); // reutilizable tal cual (no lee nada punto-específico)
+
+    if (!manualFinish && state.matchWinner && !finishedSnapshot) {
+      finishMatchGames(state, null);
+    }
+    autosave();
+    return state;
+  }
+
+  /** V13 (§6): nunca lenguaje de puntos (Set/Break/Match Point). Solo "GAME PARA EL SET" /
+   *  "GAME PARA EL PARTIDO" (prioridad al partido), o el aviso de Tie break reglamentario. */
+  function renderGamesStatusBanner(state, format, atTrigger) {
+    const banner = $('#status-banner');
+    $('#tiebreak-mode-select').hidden = true;
+    $('#tiebreak-mode-text').hidden = true;
+    $('#etb-definition-label').hidden = true;
+
+    let bandKind = 'none', bandLabel = '', bandTeam = null;
+    if (!state.matchWinner) {
+      if (atTrigger) {
+        bandKind = 'tiebreak'; bandLabel = 'TIE BREAK REGLAMENTARIO · TOCÁ LA PAREJA GANADORA';
+      } else {
+        const need = Math.ceil(format.bestOfSets / 2);
+        ['A', 'B'].forEach((team) => {
+          const gw = (team === 'A' ? state.gamesA : state.gamesB) + 1;
+          const gl = team === 'A' ? state.gamesB : state.gamesA;
+          if (!(gw >= format.setWinTarget && gw - gl >= 2)) return;
+          const setsWon = (team === 'A' ? state.setsWonA : state.setsWonB) + 1;
+          if (setsWon >= need) { bandKind = 'match'; bandLabel = 'GAME PARA EL PARTIDO'; bandTeam = bandTeam && bandTeam !== team ? 'both' : team; }
+          else if (bandKind !== 'match') { bandKind = 'set'; bandLabel = 'GAME PARA EL SET'; bandTeam = bandTeam && bandTeam !== team ? 'both' : team; }
+        });
+      }
+    }
+    banner.className = 'status-banner status-banner--' + bandKind;
+    if (bandTeam) banner.classList.add('status-banner--team-' + bandTeam.toLowerCase());
+    if (bandKind === 'match') banner.classList.add('status-banner--escalate-match');
+    else if (bandKind === 'set') banner.classList.add('status-banner--escalate-set');
+    $('#status-banner-primary').textContent = bandLabel;
+    banner.hidden = bandKind === 'none';
+  }
+
+  function renderGamesScoreboard(state, serverInfo) {
+    renderNamesRowGames('#scoreboard-names-a', teamPlayers(match.players, 'A'), serverInfo);
+    renderNamesRowGames('#scoreboard-names-b', teamPlayers(match.players, 'B'), serverInfo);
+    renderGamesCellsRow('#scoreboard-cells-a', state, 'A');
+    renderGamesCellsRow('#scoreboard-cells-b', state, 'B');
+  }
+
+  /** Igual que `renderNamesRow` del motor de puntos, salvo el handler de corrección de
+   *  sacador (dedicado a games, ver más abajo). */
+  function renderNamesRowGames(sel, players, serverInfo) {
+    const wrap = $(sel);
+    wrap.innerHTML = '';
+    players.forEach((p, i) => {
+      if (i > 0) { const sep = document.createElement('span'); sep.className = 'scoreboard__sep'; sep.textContent = '/'; wrap.appendChild(sep); }
+      const span = document.createElement('span');
+      span.className = 'scoreboard__player';
+      if (serverInfo && serverInfo.resolved && serverInfo.playerId === p.id) span.classList.add('is-serving');
+      span.textContent = p.name;
+      span.addEventListener('click', openServerCorrectionModalGames);
+      wrap.appendChild(span);
+    });
+  }
+
+  /** Igual que `renderCellsRow` sin la celda de puntos (§21: en Por Games no hay puntos que mostrar). */
+  function renderGamesCellsRow(sel, state, team) {
+    const wrap = $(sel);
+    wrap.innerHTML = '';
+    state.sets.forEach((set) => {
+      const cell = document.createElement('span');
+      const mine = team === 'A' ? set.gamesA : set.gamesB;
+      const theirs = team === 'A' ? set.gamesB : set.gamesA;
+      cell.className = 'scoreboard__cell ' + (mine > theirs ? 'scoreboard__cell--done-win' : 'scoreboard__cell--done-lose');
+      cell.textContent = mine;
+      wrap.appendChild(cell);
+    });
+    const current = document.createElement('span');
+    current.className = 'scoreboard__cell scoreboard__cell--current';
+    current.dataset.teamColor = team;
+    current.textContent = team === 'A' ? state.gamesA : state.gamesB;
+    wrap.appendChild(current);
+  }
+
+  function renderServerPromptGames(state, serverInfo) {
+    const prompt = $('#server-prompt');
+    if (serverInfo.resolved || state.matchWinner) { prompt.hidden = true; lastServerPromptCtx = null; return; }
+    const setNumber = state.sets.length + 1;
+    const matchGameNumber = E.currentMatchGameNumberGames(state);
+    const withinSetGameNumber = E.currentWithinSetGameNumberGames(state);
+    lastServerPromptCtx = { setNumber, matchGameNumber, withinSetGameNumber };
+    prompt.hidden = false;
+    const optionsWrap = $('#server-prompt-options');
+    optionsWrap.innerHTML = '';
+    serverInfo.candidatePlayers.forEach((p) => {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'server-chip-btn'; btn.textContent = p.name;
+      btn.addEventListener('click', () => {
+        serverKnowledge = E.recordServerAnswer(serverKnowledge, match.players, lastServerPromptCtx.setNumber, lastServerPromptCtx.matchGameNumber, lastServerPromptCtx.withinSetGameNumber, p.id);
+        renderGamesMode();
+      });
+      optionsWrap.appendChild(btn);
+    });
+  }
+
+  /** Igual que `openServerCorrectionModal` del motor de puntos, sin la rama de "hay puntos
+   *  en curso": en Por Games un game es atómico, nunca hay puntos a medio jugar dentro de él. */
+  function openServerCorrectionModalGames() {
+    const state = computeGameState();
+    if (state.matchWinner) return;
+    $('#server-correction-title').textContent = '¿QUIÉN ESTÁ SACANDO?';
+    const setNumber = state.sets.length + 1;
+    const matchGameNumber = E.currentMatchGameNumberGames(state);
+    const withinSetGameNumber = E.currentWithinSetGameNumberGames(state);
+    const optionsWrap = $('#server-correction-options');
+    optionsWrap.innerHTML = '';
+    match.players.forEach((p) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'server-radio';
+      btn.textContent = p.name;
+      btn.addEventListener('click', () => {
+        $('#server-correction-modal').hidden = true;
+        serverKnowledge = E.recordServerCorrection(serverKnowledge, match.players, setNumber, matchGameNumber, withinSetGameNumber, p.id);
+        renderGamesMode();
+        showToast('Sacador corregido');
+      });
+      optionsWrap.appendChild(btn);
+    });
+    $('#server-correction-modal').hidden = false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13 (§14-17) — FLUJO DE TIE BREAK EN POR GAMES: ganador obligatorio + score interno
+   *  opcional, resuelto en un solo paso. Sirve para el TB reglamentario (ganador ya
+   *  conocido por el toque en la zona) y para "Resolver con Tie break" extraordinario
+   *  desde el menú (ahí sí hace falta el paso de elegir ganador). */
+  /* ------------------------------------------------------------------ */
+  let gameTbDraft = null; // { team, extraordinary, winTarget, requireDiff2, scoreA, scoreB, scoreKnown }
+
+  function openGameTiebreakFlow(presetTeam, extraordinary, etbParams) {
+    gameTbDraft = {
+      team: presetTeam || null,
+      extraordinary: !!extraordinary,
+      winTarget: etbParams ? etbParams.winTarget : 7,
+      requireDiff2: etbParams ? etbParams.requireDiff2 : true,
+      scoreA: null, scoreB: null, scoreKnown: false,
+    };
+    $('#game-tb-modal-title').textContent = extraordinary ? 'RESOLVER CON TIE BREAK' : 'TIE BREAK';
+    renderGameTbModal();
+    $('#game-tb-modal').hidden = false;
+  }
+
+  function renderGameTbModal() {
+    const needsWinner = !gameTbDraft.team;
+    $('#game-tb-winner-section').hidden = !needsWinner;
+    $all('#game-tb-winner-options .option-pill').forEach((btn) => btn.classList.toggle('is-selected', btn.dataset.team === gameTbDraft.team));
+    $('#game-tb-score-section').hidden = needsWinner;
+    $('#game-tb-confirm').hidden = needsWinner;
+    if (!needsWinner) {
+      const winnerName = S.teamLabel(match.players, gameTbDraft.team);
+      $('#game-tb-score-label').textContent = `Ganó ${winnerName} · ¿Sabés el resultado del Tie break?`;
+      $('#game-tb-score-a').textContent = gameTbDraft.scoreKnown ? gameTbDraft.scoreA : '–';
+      $('#game-tb-score-b').textContent = gameTbDraft.scoreKnown ? gameTbDraft.scoreB : '–';
+    }
+    $('#game-tb-error').hidden = true;
+  }
+
+  /** ¿(a,b) es un resultado FINAL válido de Tie break (alguien acaba de ganar, exacto) para
+   *  este objetivo? A diferencia de `E.isValidTiebreakScore` (que también acepta scores "en
+   *  curso"), acá solo interesa un resultado ya cerrado — no se registra un TB a medio jugar. */
+  function isValidFinalTbScore(a, b, cfg) {
+    const aWins = E.tiebreakIsWon(a, b, cfg) && !E.tiebreakIsWon(a - 1, b, cfg);
+    const bWins = E.tiebreakIsWon(b, a, cfg) && !E.tiebreakIsWon(b - 1, a, cfg);
+    return aWins || bWins;
+  }
+
+  function applyGameTbStepper(field, delta) {
+    const cfg = { winTarget: gameTbDraft.winTarget, requireDiff2: gameTbDraft.requireDiff2 };
+    let a = gameTbDraft.scoreA, b = gameTbDraft.scoreB;
+    if (!gameTbDraft.scoreKnown) {
+      a = gameTbDraft.team === 'A' ? cfg.winTarget : Math.max(0, cfg.winTarget - 2);
+      b = gameTbDraft.team === 'B' ? cfg.winTarget : Math.max(0, cfg.winTarget - 2);
+    } else if (field === 'gtb-a') { a += delta; } else { b += delta; }
+    if (a < 0 || b < 0) return;
+    if (!isValidFinalTbScore(a, b, cfg)) return;
+    const winnerWon = gameTbDraft.team === 'A' ? (a > b) : (b > a);
+    if (!winnerWon) return; // el ganador elegido en el paso 1 tiene que seguir siendo quien ganó
+    gameTbDraft.scoreA = a; gameTbDraft.scoreB = b; gameTbDraft.scoreKnown = true;
+    renderGameTbModal();
+  }
+
+  function confirmGameTbModal(omit) {
+    if (!gameTbDraft || !gameTbDraft.team) return;
+    const score = (!omit && gameTbDraft.scoreKnown) ? { a: gameTbDraft.scoreA, b: gameTbDraft.scoreB } : null;
+    if (gameTbDraft.extraordinary) {
+      gameEvents.push({ type: 'extraordinary-tiebreak', team: gameTbDraft.team, score, winTarget: gameTbDraft.winTarget, requireDiff2: gameTbDraft.requireDiff2, timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs() });
+    } else {
+      gameEvents.push({ type: 'tiebreak', team: gameTbDraft.team, score, timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs() });
+    }
+    $('#game-tb-modal').hidden = true;
+    gameTbDraft = null;
+    finishedSnapshot = null; manualFinish = null;
+    renderGamesMode();
+  }
+
+  function initGameTbModal() {
+    $('#game-tb-close-x').addEventListener('click', () => { $('#game-tb-modal').hidden = true; gameTbDraft = null; });
+    $('#game-tb-cancel').addEventListener('click', () => { $('#game-tb-modal').hidden = true; gameTbDraft = null; });
+    $all('#game-tb-winner-options .option-pill').forEach((btn) => {
+      btn.addEventListener('click', () => { gameTbDraft.team = btn.dataset.team; renderGameTbModal(); });
+    });
+    $all('#game-tb-modal .stepper-btn').forEach((btn) => {
+      btn.addEventListener('click', () => applyGameTbStepper(btn.dataset.stepper, Number(btn.dataset.delta)));
+    });
+    $('#game-tb-omit-btn').addEventListener('click', () => confirmGameTbModal(true));
+    $('#game-tb-confirm').addEventListener('click', () => confirmGameTbModal(false));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13 (§10-12) — EDITAR EN POR GAMES: corrección rápida (steppers 0-6 del set actual) con
+   *  revelado progresivo hacia la edición profunda (sets ya finalizados). Un solo `adjustment`
+   *  al guardar — nunca fabrica el orden real de los games corregidos (§11). */
+  /* ------------------------------------------------------------------ */
+  let gamesEditDraft = null;
+
+  function gamesEnumerateValidCompletedPairs(format) {
+    const pairs = [];
+    for (let a = 0; a <= format.setWinTarget + 1; a++) {
+      for (let b = 0; b <= format.setWinTarget + 1; b++) {
+        if (E.isValidCompletedSetScore(a, b, format)) pairs.push({ a, b });
+      }
+    }
+    return pairs;
+  }
+
+  function gamesDraftMatchDecided() {
+    const format = currentFormat();
+    const need = Math.ceil(format.bestOfSets / 2);
+    const setsWonA = gamesEditDraft.finishedSets.filter((s) => s.gamesA > s.gamesB).length;
+    const setsWonB = gamesEditDraft.finishedSets.filter((s) => s.gamesB > s.gamesA).length;
+    return setsWonA >= need || setsWonB >= need;
+  }
+  function gamesDraftWinner() {
+    const format = currentFormat();
+    const need = Math.ceil(format.bestOfSets / 2);
+    const setsWonA = gamesEditDraft.finishedSets.filter((s) => s.gamesA > s.gamesB).length;
+    const setsWonB = gamesEditDraft.finishedSets.filter((s) => s.gamesB > s.gamesA).length;
+    if (setsWonA >= need) return 'A';
+    if (setsWonB >= need) return 'B';
+    return null;
+  }
+
+  function openAdjustGamesModal() {
+    const state = computeGameState();
+    gamesEditDraft = {
+      finishedSets: state.sets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: s.tiebreak })),
+      curA: state.gamesA, curB: state.gamesB,
+      expanded: false,
+      pendingAddTbA: 0, pendingAddTbB: 0, pendingAddTbUnknown: true,
+    };
+    $('#games-editor-deep').hidden = true;
+    $('#games-editor-expand-btn').hidden = false;
+    renderGamesEditModal();
+    $('#games-editor-modal').hidden = false;
+  }
+
+  /** Picker 0-N estilo "paradas" (mismo componente visual que Ajustar de puntos, ver
+   *  `renderPointTrack`), pero para un valor entero cualquiera (games), no 0-15-30-40. */
+  function renderGamesStepperTrack(sel, currentVal, maxVal, onSelect) {
+    const wrap = $(sel);
+    wrap.innerHTML = '';
+    wrap.classList.add('point-track--games');
+    for (let v = 0; v <= maxVal; v++) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'point-track__stop' + (currentVal === v ? ' is-selected' : '');
+      btn.textContent = String(v);
+      btn.addEventListener('click', () => onSelect(v));
+      wrap.appendChild(btn);
+    }
+  }
+
+  function renderGamesEditModal() {
+    const format = currentFormat();
+    const decided = gamesDraftMatchDecided();
+    const singleSetFormat = format.bestOfSets === 1;
+    if (singleSetFormat && gamesEditDraft.finishedSets.length) gamesEditDraft.finishedSets = [];
+
+    $('#games-editor-cur-label-a').hidden = decided;
+    $('#games-editor-cur-track-a').hidden = decided;
+    $('#games-editor-cur-label-b').hidden = decided;
+    $('#games-editor-cur-track-b').hidden = decided;
+    if (!decided) {
+      // §14: nunca se persiste el score EXACTO de disparo del TB como "actual" — ese
+      // score se resuelve al instante (ver §4-17), así que el rango de "set en curso"
+      // excluye ese único valor (trigger-trigger).
+      const maxVal = format.setWinTarget + 1;
+      renderGamesStepperTrack('#games-editor-cur-track-a', gamesEditDraft.curA, maxVal, (v) => {
+        if (!gamesEditorInProgressValid(v, gamesEditDraft.curB, format)) return;
+        gamesEditDraft.curA = v; renderGamesEditModal();
+      });
+      renderGamesStepperTrack('#games-editor-cur-track-b', gamesEditDraft.curB, maxVal, (v) => {
+        if (!gamesEditorInProgressValid(gamesEditDraft.curA, v, format)) return;
+        gamesEditDraft.curB = v; renderGamesEditModal();
+      });
+    }
+
+    $('#games-editor-deep').hidden = !gamesEditDraft.expanded;
+    $('#games-editor-expand-btn').hidden = gamesEditDraft.expanded;
+    if (gamesEditDraft.expanded) {
+      $('#games-editor-add-set-row').hidden = decided || singleSetFormat;
+      const chipsWrap = $('#games-editor-finished-sets-list');
+      chipsWrap.innerHTML = '';
+      gamesEditDraft.finishedSets.forEach((s, idx) => {
+        const chip = document.createElement('span');
+        chip.className = 'edit-chip';
+        const tbTxt = s.tiebreak ? ` (TB ${s.tiebreak.a}-${s.tiebreak.b})` : (E.completedSetHasTiebreak(s.gamesA, s.gamesB, format) ? ' (TB ?)' : '');
+        chip.innerHTML = `<span>${s.gamesA}–${s.gamesB}${tbTxt}</span>`;
+        const rm = document.createElement('button');
+        rm.type = 'button'; rm.className = 'edit-chip__remove'; rm.textContent = '✕';
+        rm.addEventListener('click', () => { gamesEditDraft.finishedSets.splice(idx, 1); renderGamesEditModal(); });
+        chip.appendChild(rm);
+        chipsWrap.appendChild(chip);
+      });
+      if (!decided && !singleSetFormat) {
+        const select = $('#games-editor-add-set-select');
+        const pairs = gamesEnumerateValidCompletedPairs(format);
+        select.innerHTML = pairs.map((p) => `<option value="${p.a}-${p.b}">${p.a}–${p.b}</option>`).join('');
+        const showTbRowIfNeeded = () => {
+          const [a, b] = select.value.split('-').map(Number);
+          const hasTb = E.completedSetHasTiebreak(a, b, format);
+          $('#games-editor-add-set-tb-row').hidden = !hasTb;
+          if (hasTb) {
+            const cfg = E.tiebreakModeConfig('classic');
+            gamesEditDraft.pendingAddTbA = a > b ? cfg.winTarget : cfg.winTarget - 2;
+            gamesEditDraft.pendingAddTbB = a > b ? cfg.winTarget - 2 : cfg.winTarget;
+            $('#games-editor-add-tb-a').textContent = gamesEditDraft.pendingAddTbA;
+            $('#games-editor-add-tb-b').textContent = gamesEditDraft.pendingAddTbB;
+          }
+        };
+        select.onchange = showTbRowIfNeeded;
+        showTbRowIfNeeded();
+      }
+    }
+    $('#games-editor-error').hidden = true;
+  }
+
+  /** Rango válido de "set en curso" en Por Games: reutiliza el validador reglamentario de
+   *  siempre, pero excluye el score exacto de disparo del TB (esa situación nunca se
+   *  persiste como "actual" — se resuelve al instante, §14). */
+  function gamesEditorInProgressValid(a, b, format) {
+    if (a < 0 || b < 0) return false;
+    if (!E.isValidInProgressSetScore(a, b, format)) return false;
+    if (a === format.tiebreakTriggerAt && b === format.tiebreakTriggerAt) return false;
+    return true;
+  }
+
+  function saveGamesEditDraft() {
+    const format = currentFormat();
+    const decided = gamesDraftMatchDecided();
+    const winner = gamesDraftWinner();
+    const sets = gamesEditDraft.finishedSets.map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: s.tiebreak, winner: s.gamesA > s.gamesB ? 'A' : 'B' }));
+    const curA = decided ? 0 : gamesEditDraft.curA;
+    const curB = decided ? 0 : gamesEditDraft.curB;
+    const gameIndex = E.computeGameIndexFromParts(sets, curA, curB);
+
+    const newState = {
+      sets, gamesA: curA, gamesB: curB, gameIndex,
+      setsWonA: sets.filter((s) => s.winner === 'A').length,
+      setsWonB: sets.filter((s) => s.winner === 'B').length,
+      matchWinner: decided ? winner : null,
+      extraordinaryTiebreak: null,
+    };
+    const stateLabel = decided ? `Partido completo (${sets.length} sets)` : `Set ${sets.length + 1} · ${curA}-${curB}`;
+    const beforeState = computeGameState();
+    const scoreBeforeLabel = `${beforeState.gamesA}-${beforeState.gamesB}`;
+    gameEvents.push({
+      type: 'adjustment', timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs(), newState,
+      scoreBeforeLabel, scoreAfterLabel: stateLabel,
+    });
+    $('#games-editor-modal').hidden = true;
+    finishedSnapshot = null;
+    manualFinish = null;
+    renderGamesMode();
+    showToast('Marcador actualizado');
+  }
+
+  function initGamesEditModal() {
+    $('#games-editor-close-x').addEventListener('click', () => { $('#games-editor-modal').hidden = true; });
+    $('#games-editor-cancel').addEventListener('click', () => { $('#games-editor-modal').hidden = true; });
+    $('#games-editor-expand-btn').addEventListener('click', () => { gamesEditDraft.expanded = true; renderGamesEditModal(); });
+    $('#games-editor-add-set-btn').addEventListener('click', () => {
+      const format = currentFormat();
+      const [a, b] = $('#games-editor-add-set-select').value.split('-').map(Number);
+      const hasTb = E.completedSetHasTiebreak(a, b, format);
+      let tiebreak = null;
+      if (hasTb && !gamesEditDraft.pendingAddTbUnknown) tiebreak = { a: gamesEditDraft.pendingAddTbA, b: gamesEditDraft.pendingAddTbB };
+      gamesEditDraft.finishedSets.push({ gamesA: a, gamesB: b, tiebreak });
+      renderGamesEditModal();
+    });
+    $all('#games-editor-modal [data-stepper]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const field = btn.dataset.stepper;
+        const delta = Number(btn.dataset.delta);
+        gamesEditDraft.pendingAddTbUnknown = false;
+        const a = field === 'gadd-tb-a' ? gamesEditDraft.pendingAddTbA + delta : gamesEditDraft.pendingAddTbA;
+        const b = field === 'gadd-tb-b' ? gamesEditDraft.pendingAddTbB + delta : gamesEditDraft.pendingAddTbB;
+        if (a < 0 || b < 0) return;
+        const [selA, selB] = $('#games-editor-add-set-select').value.split('-').map(Number);
+        const winnerIsA = selA > selB;
+        const winnerScore = winnerIsA ? a : b, loserScore = winnerIsA ? b : a;
+        if (!E.isValidTiebreakScore(a, b, 'classic')) return;
+        if (E.tiebreakIsWon(loserScore, winnerScore, 'classic')) return;
+        gamesEditDraft.pendingAddTbA = a; gamesEditDraft.pendingAddTbB = b;
+        $('#games-editor-add-tb-a').textContent = a; $('#games-editor-add-tb-b').textContent = b;
+      });
+    });
+    $('#games-editor-confirm').addEventListener('click', saveGamesEditDraft);
+  }
+
   /* ------------------------------------------------------------------ */
   /* CORREGIR SACADOR (V12 §5) — a diferencia de `renderServerPrompt` (arriba, para cuando
      el saque es DESCONOCIDO), esto corrige un saque YA resuelto que se marcó mal. Usa
@@ -575,6 +1114,17 @@
   }
 
   function openExtraordinaryTbSelector() {
+    if (isGamesMode()) {
+      const gState = computeGameState();
+      if (!E.canStartExtraordinaryGameTiebreak(gState)) { showToast('El partido ya está definido.'); return; }
+      etbEditing = false;
+      etbDraft = { presetId: 'classic', target: 7, requireDiff2: true };
+      $('#etb-modal-title').textContent = 'RESOLVER CON TIE BREAK';
+      $('#etb-confirm').textContent = 'CONTINUAR';
+      renderEtbModal();
+      $('#etb-modal').hidden = false;
+      return;
+    }
     const state = computeState();
     if (!E.canStartExtraordinaryTiebreak(state)) { showToast('Solo se puede resolver con Tie break al empezar un game nuevo (0-0).'); return; }
     etbEditing = false;
@@ -622,6 +1172,14 @@
   function confirmEtbModal() {
     const target = etbDraft.target;
     const requireDiff2 = etbDraft.requireDiff2;
+    if (isGamesMode()) {
+      // V13 (§17): en Por Games no hay edición en vivo del objetivo (el TB se resuelve en
+      // un solo paso, nunca "está en curso") — este modal solo elige modalidad/objetivo,
+      // el siguiente paso pregunta ganador + score interno opcional.
+      $('#etb-modal').hidden = true;
+      openGameTiebreakFlow(null, true, { winTarget: target, requireDiff2 });
+      return;
+    }
     if (etbEditing) {
       const state = computeState();
       if (!E.isValidExtraordinaryTargetChange(state.tbA, state.tbB, target)) {
@@ -765,7 +1323,7 @@
     finishedSnapshot = null;
     $('#view-summary').hidden = true;
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
-    render();
+    if (isGamesMode()) renderGamesMode(); else render();
     showToast('Partido reanudado');
   }
 
@@ -878,13 +1436,68 @@
   function updateMenuPauseLabel() { $('#menu-pause').textContent = timer.pausedAt ? 'Reanudar cronómetro' : 'Pausar cronómetro'; }
 
   /* ------------------------------------------------------------------ */
+  /* EDITAR JUGADORES (V13 §18) — cambia el nombre visible; mismo ID por dentro, así que el
+   *  cambio es retroactivo a toda la presentación (marcador, Resumen, Análisis, Intelligence,
+   *  Historial, Highlights) sin tocar un solo evento ya registrado: todos esos lugares leen
+   *  el nombre a través de `playerName(players, id)`/`S.teamLabel`, nunca guardan el string
+   *  crudo. Deliberadamente separado de "tocar el indicador de saque" (corrige SACADOR, no
+   *  nombres) — solo se accede desde el menú ☰. */
+  /* ------------------------------------------------------------------ */
+  function openEditPlayersModal() {
+    const wrap = $('#edit-players-fields');
+    wrap.innerHTML = '';
+    match.players.forEach((p) => {
+      const field = document.createElement('div');
+      field.className = 'edit-field';
+      const label = document.createElement('div');
+      label.className = 'edit-field__label';
+      label.textContent = `Jugador ${p.id + 1}`;
+      const input = document.createElement('input');
+      input.className = 'field__input';
+      input.type = 'text';
+      input.maxLength = 18;
+      input.value = p.name;
+      input.dataset.playerId = String(p.id);
+      field.appendChild(label);
+      field.appendChild(input);
+      wrap.appendChild(field);
+    });
+    $('#edit-players-modal').hidden = false;
+  }
+
+  function saveEditPlayers() {
+    const newNames = [];
+    $all('#edit-players-fields input').forEach((input) => {
+      const id = Number(input.dataset.playerId);
+      const player = match.players.find((p) => p.id === id);
+      if (!player) return;
+      player.name = normalizePlayerName(input.value) || player.name; // nunca vacío
+      newNames.push(player.name);
+    });
+    Store.rememberPlayerNames(newNames);
+    $('#edit-players-modal').hidden = true;
+    render();
+    showToast('Jugadores actualizados');
+  }
+
+  function initEditPlayersModal() {
+    $('#menu-edit-players').addEventListener('click', () => { $('#menu-overlay').hidden = true; openEditPlayersModal(); });
+    $('#edit-players-close-x').addEventListener('click', () => { $('#edit-players-modal').hidden = true; });
+    $('#edit-players-cancel').addEventListener('click', () => { $('#edit-players-modal').hidden = true; });
+    $('#edit-players-save').addEventListener('click', saveEditPlayers);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* MENÚ                                                                 */
   /* ------------------------------------------------------------------ */
   function initMenu() {
     $('#menu-btn').addEventListener('click', () => {
       updateMenuPauseLabel();
       // V12 (§9.3): "Resolver con Tie break" solo tiene sentido con el game actual en 0-0.
-      $('#menu-extraordinary-tb').hidden = !E.canStartExtraordinaryTiebreak(computeState());
+      // V13: en Por Games no hay "game en curso" que bloquee esto — solo el partido decidido.
+      $('#menu-extraordinary-tb').hidden = isGamesMode()
+        ? !E.canStartExtraordinaryGameTiebreak(computeGameState())
+        : !E.canStartExtraordinaryTiebreak(computeState());
       $('#menu-overlay').hidden = false;
     });
     $('#menu-close').addEventListener('click', () => { $('#menu-overlay').hidden = true; });
@@ -903,6 +1516,7 @@
 
   function resetMatch() {
     pointEvents = [];
+    gameEvents = [];
     highlights = [];
     serverKnowledge = E.createServerKnowledge();
     manualFinish = null;
@@ -976,6 +1590,7 @@
         reasonLabel: reasonLabels[selectedFinishReason],
         declaredWinner: selectedFinishWinner === 'none' ? null : selectedFinishWinner,
       };
+      if (isGamesMode()) { finishMatchGames(computeGameState(), manualFinish); return; }
       const state = computeState();
       finishMatch(state, manualFinish);
     });
@@ -995,6 +1610,7 @@
    *   - Con puntos ya registrados: abre primero CORRECCIÓN RÁPIDA (el caso común de
    *     "tenía mal un punto"), nunca el Editor completo de entrada. */
   function openEditModal() {
+    if (isGamesMode()) { openAdjustGamesModal(); return; } // V13 (§7/§10): Editar cubre corrección rápida y profunda, sin Ajustar aparte
     const noEventsYet = pointEvents.length === 0 && !match.baseline;
     if (noEventsYet) {
       openFullEditor('partido-ya-empezado');
@@ -1943,6 +2559,7 @@
       timeZone: match.timeZone,
       finishedAt: new Date().toISOString(),
       players: match.players,
+      mode: match.mode || 'complete',
       scoringSystem: match.scoringSystem,
       formatId: match.formatId,
       tiebreakMode: match.tiebreakMode,
@@ -1975,9 +2592,75 @@
     $('#view-summary').hidden = false;
   }
 
+  /** V13 (§20-27) — equivalente de `finishMatch` para Por Games: usa los generadores de
+   *  estadísticas/Intelligence de games (stats.js) en vez de los de puntos, pero produce un
+   *  `finishedSnapshot` con la MISMA forma general (mismo Resumen/Análisis/Historial). */
+  function finishMatchGames(state, manual) {
+    stopTimerLoop();
+    const format = currentFormat();
+    const matchCtx = { players: match.players, format, serverKnowledge, durationMs: getElapsedMs() };
+    const gamesStats = S.computeGamesStats(gameEvents, matchCtx);
+    const winnerTeam = manual ? manual.declaredWinner : state.matchWinner;
+    const finishInfo = manual ? { manual: true, reason: manual.reason, declaredWinner: manual.declaredWinner } : { manual: false };
+    const intelligence = S.generateGamesIntelligence(gamesStats, matchCtx, state.sets, winnerTeam, finishInfo);
+    const gameSetSegments = S.computeGameSetSegments(gameEvents, format);
+    const perSetStats = gameSetSegments.map((seg) => ({ setNumber: seg.setNumber, stats: S.computeGamesStats(seg.events, matchCtx) }));
+    const evolution = S.computeGamesEvolutionData(gameEvents, matchCtx);
+
+    const hasPartialCurrent = !state.matchWinner && (state.gamesA > 0 || state.gamesB > 0);
+    const currentPartial = hasPartialCurrent ? { gamesA: state.gamesA, gamesB: state.gamesB, tiebreak: null } : null;
+
+    finishedSnapshot = {
+      matchId: match.id,
+      createdAt: match.createdAt,
+      startedAt: match.startedAt,
+      timeZone: match.timeZone,
+      finishedAt: new Date().toISOString(),
+      players: match.players,
+      mode: 'games',
+      scoringSystem: match.scoringSystem,
+      formatId: match.formatId,
+      tiebreakMode: null,
+      baseline: null,
+      sets: state.sets,
+      currentPartial,
+      winnerTeam,
+      terminationType: manual ? 'manual' : 'automatic',
+      terminationReason: manual ? manual.reason : null,
+      terminationReasonLabel: manual ? manual.reasonLabel : null,
+      regulationCompleted: !manual,
+      durationMs: getElapsedMs(),
+      stats: gamesStats,
+      perSetStats,
+      evolution,
+      intelligence,
+      highlights: JSON.parse(JSON.stringify(highlights)),
+      events: JSON.parse(JSON.stringify(gameEvents)),
+      coverageStartLabel: null,
+    };
+
+    Store.upsertHistory(finishedSnapshot);
+    Store.clearActiveMatch();
+    renderSummary();
+    $('#view-summary').hidden = false;
+  }
+
   /* ------------------------------------------------------------------ */
   /* COMPONENTE DE RESULTADO TIPO TV (V5 — reutilizado en Resumen/Análisis, Bloque Q) */
   /* ------------------------------------------------------------------ */
+
+  /** V13 (§20/§26/§27) — línea de metadata discreta para Resumen/Análisis/Historial:
+   *  fecha · hora · formato · sistema · modo. Se aplica a partidos vivos recién terminados
+   *  y a partidos reabiertos desde Historial (ambos comparten la misma forma de snapshot),
+   *  y también a Completo (no solo a Por Games) — mejora pedida por igual para los dos. */
+  function buildMatchMetaLine(f) {
+    const dateStr = formatRealDate(f.startedAt || f.createdAt, f.timeZone);
+    const timeStr = formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
+    const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label || '').toUpperCase();
+    const scoringLabel = HISTORY_SCORING_LABELS[f.scoringSystem] || '';
+    const modeLabel = f.mode === 'games' ? 'POR GAMES' : null;
+    return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel].filter(Boolean).join(' · ');
+  }
 
   /** ¿Las ESTADÍSTICAS de este partido son parciales? (empezó tarde y/o tuvo ajustes manuales). Bloque N. */
   function isStatsCoveragePartial(f) { return !!(f.coverageStartLabel || (f.stats && f.stats.hasAdjustments)); }
@@ -2090,13 +2773,37 @@
   /** V6 (21-27): tarjeta única del Resumen del partido — fusiona resultado + duración por set +
    *  estadísticas rápidas + duración total en UN solo componente visual grande. */
   function buildSummaryCardHTML(f) {
-    return buildWinnersBannerHTML(f) + buildScoreCardHTML(f, { statsHTML: buildSummaryStatsHTML(f) });
+    const statsHTML = f.mode === 'games' ? buildGamesSummaryStatsHTML(f) : buildSummaryStatsHTML(f);
+    return buildWinnersBannerHTML(f) + buildScoreCardHTML(f, { statsHTML });
+  }
+
+  /** V13 (§20-21) — métricas del Resumen en Por Games: games ganados, games de saque
+   *  ganados, breaks, racha máxima de games. Nunca puntos/Oro/BP/SP/MP (no existen en este
+   *  modo) — a diferencia de `buildHeadlineRows`, no hay que filtrar nada condicionalmente
+   *  porque el set de métricas ya es, por diseño, el único compatible. */
+  function buildGamesSummaryStatsHTML(f) {
+    const st = f.stats;
+    const rows = [
+      { a: st.gamesA, label: 'GAMES GANADOS', b: st.gamesB },
+      { a: `${st.serviceGames.wonA}/${st.serviceGames.wonA + st.serviceGames.lostA}`, label: 'GAMES DE SAQUE GANADOS', b: `${st.serviceGames.wonB}/${st.serviceGames.wonB + st.serviceGames.lostB}` },
+      { a: st.breaksA, label: 'BREAKS', b: st.breaksB },
+      { a: st.maxGameStreakA, label: 'RACHA MÁXIMA DE GAMES', b: st.maxGameStreakB },
+    ];
+    return rows.map((r, i) => {
+      // V13: a diferencia de "Puntos ganados" (Completo), acá no tiene sentido mostrar un
+      // desglose "% + pts" — son games, no puntos — así que la barra muestra la cantidad
+      // directamente como dato principal (pctPrimary=false).
+      if (i === 0) return sharedBarRowHTML(r.label, r.a, r.b, Number(r.a) || 0, Number(r.b) || 0, false, false);
+      return `<div class="summary-stat-row"><span class="summary-stat-row__a">${r.a}</span><span class="summary-stat-row__label">${r.label}</span><span class="summary-stat-row__b">${r.b}</span></div>`;
+    }).join('');
   }
 
   /** Bloque N: legal de datos parciales — se muestra solo cuando corresponde (nunca en partido completo sin ajustes). */
   function buildCoverageLegalHTML(f) {
     if (f.stats && f.stats.hasAdjustments) {
-      return '<p class="coverage-note">Marcador ajustado manualmente · Estadísticas basadas en puntos registrados</p>';
+      return f.mode === 'games'
+        ? '<p class="coverage-note">Marcador corregido manualmente · Datos parciales por corrección manual</p>'
+        : '<p class="coverage-note">Marcador ajustado manualmente · Estadísticas basadas en puntos registrados</p>';
     }
     if (f.coverageStartLabel) {
       return `<p class="coverage-note">Registro iniciado en ${f.coverageStartLabel} · Estadísticas parciales</p>`;
@@ -2147,6 +2854,7 @@
     const isLiveMatch = summaryViewSource === 'live' && f === finishedSnapshot;
 
     $('#summary-reason').hidden = true; // la razón ahora vive dentro del result-card
+    $('#summary-meta').textContent = buildMatchMetaLine(f);
     $('#summary-result-slot').innerHTML = buildSummaryCardHTML(f);
     $('#summary-legal').innerHTML = buildCoverageLegalHTML(f);
     $('#summary-undo-btn').hidden = !isLiveMatch || f.terminationType !== 'automatic';
@@ -2181,7 +2889,7 @@
       const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
       shareResult(f, 'resumen');
     });
-    $('#summary-undo-btn').addEventListener('click', undoLastPoint);
+    $('#summary-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
     $('#summary-resume-btn').addEventListener('click', resumeMatch);
     $('#summary-back-btn').addEventListener('click', () => { renderAnalysis(analysisCurrent); showView('analysis'); });
   }
@@ -2192,6 +2900,7 @@
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
+    $('#analysis-meta').textContent = buildMatchMetaLine(f);
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
     $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
     const covNote = $('#analysis-coverage-note');
@@ -2423,7 +3132,136 @@
     }).join('');
   }
 
+  /* ======================================================================
+     V13 — ANÁLISIS EN POR GAMES (§22/§25/§26): estadísticas, Evolución y
+     Momentos Clave adaptados a la granularidad de games. Encapsulado del
+     mismo modo que el resto del modo — no reutiliza los builders de puntos.
+     ====================================================================== */
+  function buildGamesStatsGridRowsHTML(f, stats) {
+    const isPartial = stats.hasAdjustments;
+    const rowsHTML = [];
+    rowsHTML.push(sharedBarRowHTML('Games ganados', stats.gamesA, stats.gamesB, stats.gamesA, stats.gamesB, false, false));
+    const sgA = stats.serviceGames.wonA + stats.serviceGames.lostA, sgB = stats.serviceGames.wonB + stats.serviceGames.lostB;
+    if (sgA + sgB > 0) {
+      const holdPctA = sgA ? (stats.serviceGames.wonA / sgA) * 100 : 0, holdPctB = sgB ? (stats.serviceGames.wonB / sgB) * 100 : 0;
+      rowsHTML.push(mirrorBarRowHTML('Games de saque ganados', `${Math.round(holdPctA)}%`, `${Math.round(holdPctB)}%`, holdPctA, holdPctB, false, `${stats.serviceGames.wonA}/${sgA} games`, `${stats.serviceGames.wonB}/${sgB} games`));
+    } else {
+      rowsHTML.push(dashRowHTML('Games de saque ganados'));
+    }
+    rowsHTML.push(noBarRowHTML(withPartialAsterisk('Breaks', isPartial), stats.breaksA, stats.breaksB));
+    rowsHTML.push(noBarRowHTML(withPartialAsterisk('Racha máxima de games', isPartial), stats.maxGameStreakA, stats.maxGameStreakB));
+    rowsHTML.push(noBarRowHTML(withPartialAsterisk('Máxima ventaja alcanzada', isPartial), stats.maxAdvantageA ? `+${stats.maxAdvantageA}` : '—', stats.maxAdvantageB ? `+${stats.maxAdvantageB}` : '—'));
+    rowsHTML.push(noBarRowHTML(withPartialAsterisk('Mayor desventaja remontada', isPartial), stats.maxComebackA || '—', stats.maxComebackB || '—'));
+    return rowsHTML.join('');
+  }
+
+  function renderGamesStatsGrid(f) {
+    renderSetFilterTabs('#stats-set-filter', f, () => { renderGamesStatsGrid(f); renderGamesEvolutionChart(f); });
+    const stats = statsForCurrentFilter(f);
+    $('#analysis-stats-grid').innerHTML = buildGamesStatsGridRowsHTML(f, stats);
+    $('#analysis-stats-legal').hidden = true;
+    $('#analysis-stats-legal').textContent = '';
+    const noteEl = $('#analysis-stats-partial-note');
+    // V13 (§12): nota única, mismo texto exacto que pide el Consolidado.
+    const noteText = stats.hasAdjustments ? '* Datos parciales por corrección manual' : '';
+    noteEl.hidden = !noteText;
+    noteEl.textContent = noteText;
+    $('#analysis-per-player-serve').hidden = true; // sin desglose individual en Por Games
+  }
+
+  /** V13 (§25): SVG simple propio — un segmento por set con la diferencia de games
+   *  acumulada (0 = arranque del set), sin la sofisticación del índice de momentum de
+   *  Completo (esa fórmula necesita puntos que este modo no observa). Nodos marcados
+   *  `partial` (después de una corrección manual) se dibujan huecos, nunca se inventa el
+   *  tramo intermedio. */
+  function buildGamesEvolutionSvgHTML(f, setFilter) {
+    const games = (f.evolution && f.evolution.games) || [];
+    const nodesBySet = {};
+    games.forEach((g) => { (nodesBySet[g.setNumber] = nodesBySet[g.setNumber] || []).push(g); });
+    const setNumbers = setFilter === 'match' ? Object.keys(nodesBySet).map(Number).sort((a, b) => a - b) : [setFilter];
+    if (!setNumbers.length || !nodesBySet[setNumbers[0]]) return { html: '<p class="coverage-note">Sin datos suficientes todavía.</p>' };
+
+    const maxAbs = Math.max(3, ...games.map((g) => Math.abs(g.diff)));
+    const H = 130, padTop = 16, padBottom = 16, plotH = H - padTop - padBottom;
+    const colWidth = 34;
+    let totalCols = 0;
+    setNumbers.forEach((sn) => { totalCols += (nodesBySet[sn] ? nodesBySet[sn].length : 0) + 1; });
+    const W = Math.max(240, totalCols * colWidth);
+    const yFor = (diff) => padTop + plotH / 2 - (diff / maxAbs) * (plotH / 2);
+
+    let x = 20;
+    const segmentsHTML = [];
+    setNumbers.forEach((sn, si) => {
+      const nodes = nodesBySet[sn] || [];
+      let path = `M ${x.toFixed(1)} ${yFor(0).toFixed(1)}`;
+      const dots = [];
+      nodes.forEach((g) => {
+        x += colWidth;
+        path += ` L ${x.toFixed(1)} ${yFor(g.diff).toFixed(1)}`;
+        // V13: un nodo de corrección manual (`g.adjustment`) no tiene un "ganador de ese
+        // game" real — es un salto de marcador, no un game — así que se pinta neutro en vez
+        // de caer por defecto en el color de Equipo B.
+        const color = g.winner === 'A' ? 'var(--team-a)' : (g.winner === 'B' ? 'var(--team-b)' : 'var(--paper-dim)');
+        dots.push(g.partial
+          ? `<circle cx="${x.toFixed(1)}" cy="${yFor(g.diff).toFixed(1)}" r="4" fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="2,2" />`
+          : `<circle cx="${x.toFixed(1)}" cy="${yFor(g.diff).toFixed(1)}" r="4" fill="${color}" />`);
+      });
+      segmentsHTML.push(`<path d="${path}" fill="none" stroke="var(--paper-faint)" stroke-width="1.5" />` + dots.join(''));
+      if (si < setNumbers.length - 1) {
+        segmentsHTML.push(`<line x1="${(x + colWidth / 2).toFixed(1)}" y1="${padTop}" x2="${(x + colWidth / 2).toFixed(1)}" y2="${H - padBottom}" stroke="var(--line)" stroke-dasharray="3,3" />`);
+        x += colWidth;
+      }
+    });
+    const zeroY = yFor(0).toFixed(1);
+    const zeroLine = `<line x1="10" y1="${zeroY}" x2="${W - 10}" y2="${zeroY}" stroke="var(--line)" stroke-width="1" />`;
+    return { html: `<svg viewBox="0 0 ${W} ${H}" class="momentum-svg" preserveAspectRatio="xMinYMid meet">${zeroLine}${segmentsHTML.join('')}</svg>` };
+  }
+
+  function buildGamesEvolutionLegendHTML(f) {
+    const nameA = S.teamLabel(f.players, 'A'), nameB = S.teamLabel(f.players, 'B');
+    return `<span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--a"></span>${nameA}</span><span class="momentum-legend__item"><span class="momentum-legend__dot momentum-legend__dot--b"></span>${nameB}</span>`;
+  }
+
+  function renderGamesEvolutionChart(f) {
+    renderSetFilterTabs('#momentum-set-filter', f, () => { renderGamesStatsGrid(f); renderGamesEvolutionChart(f); });
+    $('#analysis-momentum-copy').textContent = 'Cada punto es un game ganado. La línea sube o baja según la diferencia de games dentro del set.';
+    const partialNote = $('#analysis-momentum-partial-note');
+    const hadAdjustments = f.stats && f.stats.hasAdjustments;
+    partialNote.hidden = !hadAdjustments;
+    if (hadAdjustments) partialNote.textContent = 'Hubo una corrección manual: el tramo afectado se muestra con marcadores huecos (orden real desconocido).';
+    $('#analysis-momentum-legend').innerHTML = buildGamesEvolutionLegendHTML(f);
+    $('#analysis-momentum-chart').innerHTML = buildGamesEvolutionSvgHTML(f, analysisSetFilter).html;
+  }
+
+  /** V13 (§26) — Momentos Clave en Por Games: se arma directo de `f.evolution.moments`
+   *  (ya calculado al finalizar, con matchTimeMs) — no hace falta re-derivar el motor acá. */
+  function buildGamesKeyMomentsListHTML(f) {
+    const nameOf = (team) => S.teamLabel(f.players, team);
+    const facts = [{ ms: 0, real: f.startedAt, label: 'Inicio del partido' }];
+    ((f.evolution && f.evolution.moments) || []).forEach((m) => {
+      if (m.kind === 'match-finish') {
+        const scoreStr = (m.sets || []).map(formatSetSegmentLabel).join(' · ');
+        facts.push({ ms: m.matchTimeMs, real: m.timestamp, label: `🏆 ${nameOf(m.team)} gana el partido · ${scoreStr}` });
+      } else if (m.kind === 'set-finish') {
+        const scoreStr = m.closedSet ? formatSetSegmentLabel(m.closedSet) : '';
+        facts.push({ ms: m.matchTimeMs, real: m.timestamp, label: `${nameOf(m.team)} gana el Set ${m.setNumber}${scoreStr ? ' · ' + scoreStr : ''}` });
+      } else if (m.kind === 'tiebreak') {
+        facts.push({ ms: m.matchTimeMs, real: m.timestamp, label: `${nameOf(m.team)} gana el Tie break${m.extraordinary ? ' extraordinario' : ' reglamentario'}` });
+      }
+    });
+    f.highlights.forEach((h) => {
+      const categoryLabel = h.category ? HIGHLIGHT_CATEGORY_LABELS[h.category] : null;
+      facts.push({ ms: h.matchTimeMs, real: h.timestamp, label: `⭐ Highlight${categoryLabel ? ' · ' + categoryLabel : ''} · Set ${h.set} · ${h.games.a}-${h.games.b}` });
+    });
+    facts.sort((a, b) => a.ms - b.ms);
+    return facts.map((fact) => {
+      const realTime = fact.real ? formatRealTime(fact.real, f.timeZone) : '';
+      return `<div class="keymoment-row"><div class="keymoment-row__time">${formatClock(fact.ms)}${realTime ? ' · ' + realTime : ''}</div><div class="keymoment-row__label">${fact.label}</div></div>`;
+    }).join('');
+  }
+
   function renderStatsGrid(f) {
+    if (f.mode === 'games') { renderGamesStatsGrid(f); return; }
     renderSetFilterTabs('#stats-set-filter', f, () => { renderStatsGrid(f); renderEvolutionChart(f); });
     const stats = statsForCurrentFilter(f);
     $('#analysis-stats-grid').innerHTML = buildStatsGridRowsHTML(f, stats);
@@ -2751,6 +3589,7 @@
   }
 
   function renderEvolutionChart(f) {
+    if (f.mode === 'games') { renderGamesEvolutionChart(f); return; }
     renderSetFilterTabs('#momentum-set-filter', f, () => { renderStatsGrid(f); renderEvolutionChart(f); });
     const wrap = $('#analysis-momentum-chart');
     const legendWrap = $('#analysis-momentum-legend');
@@ -2771,11 +3610,13 @@
   /** V7 (97-108): HTML puro de la lista de Highlights, para pantalla y Compartir por igual. */
   function buildHighlightsListHTML(f) {
     return f.highlights.map((h) => {
-      const scoreLabel = h.score.tiebreak ? `${h.score.a}-${h.score.b} (TB)` : highlightScoreLabel(h);
+      // V13 (§9): un Highlight de Por Games no tiene score de puntos que mostrar (nunca se
+      // inventa) — el score de games ya se ve en "Set N · a-b", así que acá simplemente se omite.
+      const scoreLabel = (h.score && h.score.gamesOnly) ? '' : (h.score.tiebreak ? `${h.score.a}-${h.score.b} (TB)` : highlightScoreLabel(h));
       const categoryLabel = h.category ? HIGHLIGHT_CATEGORY_LABELS[h.category] : null;
       return `<div class="highlight-row">
         <span class="highlight-row__time">⭐ ${formatClock(h.matchTimeMs)} · ${formatRealTime(h.timestamp, f.timeZone)}</span>
-        <span class="highlight-row__meta">${categoryLabel ? categoryLabel + ' · ' : ''}Set ${h.set} · ${h.games.a}-${h.games.b} · ${scoreLabel}${h.server ? ' · Saca ' + h.server.name : ''}</span>
+        <span class="highlight-row__meta">${categoryLabel ? categoryLabel + ' · ' : ''}Set ${h.set} · ${h.games.a}-${h.games.b}${scoreLabel ? ' · ' + scoreLabel : ''}${h.server ? ' · Saca ' + h.server.name : ''}</span>
       </div>`;
     }).join('');
   }
@@ -2917,7 +3758,7 @@
   }
 
   function renderKeyMoments(f) {
-    $('#analysis-keymoments-list').innerHTML = buildKeyMomentsListHTML(f);
+    $('#analysis-keymoments-list').innerHTML = f.mode === 'games' ? buildGamesKeyMomentsListHTML(f) : buildKeyMomentsListHTML(f);
   }
 
   /* ------------------------------------------------------------------ */
@@ -3143,7 +3984,9 @@
       const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
       const formatLabel = (E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label || '').toUpperCase();
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
-      const subtitleStr = [formatLabel, scoringLabel].filter(Boolean).join(' · ');
+      // V13 (§26): distingue partidos Por Games de Completo en el Historial, discreto.
+      const modeLabel = m.mode === 'games' ? 'POR GAMES' : null;
+      const subtitleStr = [formatLabel, scoringLabel, modeLabel].filter(Boolean).join(' · ');
       const item = document.createElement('div');
       item.className = 'history-item';
       // V7 (45-46-107-112): mismo criterio cromático que Resumen/Análisis — el ganador se
@@ -3441,10 +4284,10 @@
   /* WIRING GENERAL                                                       */
   /* ------------------------------------------------------------------ */
   function initMatchInteractions() {
-    $('#zone-a').addEventListener('click', () => registerPoint('A'));
-    $('#zone-b').addEventListener('click', () => registerPoint('B'));
-    $('#undo-btn').addEventListener('click', undoLastPoint);
-    $('#highlight-btn').addEventListener('click', saveHighlight);
+    $('#zone-a').addEventListener('click', () => { if (isGamesMode()) registerGameWin('A'); else registerPoint('A'); });
+    $('#zone-b').addEventListener('click', () => { if (isGamesMode()) registerGameWin('B'); else registerPoint('B'); });
+    $('#undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
+    $('#highlight-btn').addEventListener('click', () => { if (isGamesMode()) saveHighlightGames(); else saveHighlight(); });
     $('#resume-btn').addEventListener('click', togglePause);
     $('#tiebreak-mode-select').addEventListener('change', (e) => {
       match.tiebreakMode = e.target.value;
@@ -3457,6 +4300,7 @@
     initMatchInteractions();
     initHighlightPopup();
     initMenu();
+    initEditPlayersModal();
     initConfirmModal();
     initFinishModal();
     initEditModal();
@@ -3464,6 +4308,8 @@
     initAdjustModal();
     initServerCorrectionModal();
     initEtbModal();
+    initGameTbModal();
+    initGamesEditModal();
     initSummaryScreen();
     initAnalysisScreen();
     initTimelineScreen();

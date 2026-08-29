@@ -36,8 +36,23 @@
 
     <header class="setup-header">
       <img class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
-      <button id="open-history-btn" class="link-btn" type="button">Historial</button>
+      <div class="setup-header__nav">
+        <button id="open-history-btn" class="link-btn" type="button">Historial</button>
+        <span class="setup-header__sep" aria-hidden="true">·</span>
+        <button id="mode-select-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
+      </div>
     </header>
+
+    <!-- V13 (§2) — selector de modo de registro: Completo (punto por punto) o Por Games ·
+         BETA (un toque por game). Se recuerda la última elección para la próxima vez que
+         se abre Home; una vez arrancado el partido, el modo queda bloqueado. -->
+    <div id="mode-select-menu" class="overlay overlay--menu" hidden>
+      <div class="menu-sheet">
+        <button type="button" class="menu-item" data-mode="complete">Completo</button>
+        <button type="button" class="menu-item" data-mode="games">Por games · BETA</button>
+        <button id="mode-select-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
+      </div>
+    </div>
 
     <form id="setup-form" class="setup-form" autocomplete="off">
 
@@ -98,6 +113,8 @@
         <span class="match-header__format" id="match-header-format"></span>
         <span class="match-header__sep" aria-hidden="true">·</span>
         <span class="match-header__system" id="match-header-system"></span>
+        <span class="match-header__sep" id="match-header-mode-sep" aria-hidden="true" hidden>·</span>
+        <span class="match-header__mode" id="match-header-mode" hidden>POR GAMES · BETA</span>
         <span class="match-header__sep" aria-hidden="true">·</span>
         <span class="match-header__timer" id="match-timer">00:00</span>
       </div>
@@ -190,6 +207,7 @@
         <button id="menu-finish" class="menu-item" type="button">Finalizar partido</button>
         <button id="menu-extraordinary-tb" class="menu-item" type="button" hidden>Resolver con Tie break</button>
         <button id="menu-pause" class="menu-item" type="button">Pausar cronómetro</button>
+        <button id="menu-edit-players" class="menu-item" type="button">Editar jugadores</button>
         <div class="menu-sep"></div>
         <button id="menu-reset" class="menu-item menu-item--danger" type="button">Reiniciar partido</button>
         <button id="menu-home" class="menu-item menu-item--danger" type="button">Volver al inicio</button>
@@ -392,6 +410,112 @@
       </div>
     </div>
 
+    <!-- V13 (§14-17) — flujo de Tie break en modo Por Games: ganador obligatorio + score
+         interno opcional, resuelto en un solo paso (nunca cuenta puntos del TB uno por
+         uno). Sirve tanto para el TB reglamentario (el ganador ya se sabe por el toque en
+         la zona, así que el paso 1 se salta) como para "Resolver con Tie break"
+         extraordinario desde el menú (ahí sí hace falta preguntar el ganador primero). -->
+    <div id="game-tb-modal" class="overlay" hidden>
+      <div class="overlay__card">
+        <div class="overlay__title-row">
+          <div class="overlay__title" id="game-tb-modal-title">TIE BREAK</div>
+          <button type="button" id="game-tb-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="game-tb-winner-section" class="edit-field" hidden>
+          <div class="edit-field__label">¿Quién ganó el Tie break?</div>
+          <div class="option-grid" id="game-tb-winner-options" role="radiogroup">
+            <button type="button" class="option-pill" data-team="A">Equipo A</button>
+            <button type="button" class="option-pill" data-team="B">Equipo B</button>
+          </div>
+        </div>
+        <div id="game-tb-score-section" class="edit-field" hidden>
+          <div class="edit-field__label" id="game-tb-score-label">¿Sabés el resultado del Tie break?</div>
+          <div class="edit-row">
+            <button type="button" class="stepper-btn" data-stepper="gtb-a" data-delta="-1">–</button>
+            <span id="game-tb-score-a" class="stepper-value">–</span>
+            <button type="button" class="stepper-btn" data-stepper="gtb-a" data-delta="1">+</button>
+            <span class="edit-row__sep">–</span>
+            <button type="button" class="stepper-btn" data-stepper="gtb-b" data-delta="-1">–</button>
+            <span id="game-tb-score-b" class="stepper-value">–</span>
+            <button type="button" class="stepper-btn" data-stepper="gtb-b" data-delta="1">+</button>
+          </div>
+          <button type="button" id="game-tb-omit-btn" class="link-btn">OMITIR</button>
+        </div>
+        <p class="overlay__text overlay__text--note" id="game-tb-error" hidden></p>
+        <div class="overlay__actions">
+          <button id="game-tb-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="game-tb-confirm" class="btn-start btn-start--overlay" type="button" hidden>Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- V13 (§10) — Editar en modo Por Games: primero corrección rápida (steppers de games
+         del set actual), con un link para expandir a la edición profunda (sets ya
+         finalizados). Un solo modal con revelado progresivo, en vez de duplicar toda la
+         estructura del Editor completo de puntos (que no aplica acá — no hay puntos). -->
+    <div id="games-editor-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide overlay__card--scroll">
+        <div class="overlay__title-row">
+          <div class="overlay__title">AJUSTAR GAMES</div>
+          <button type="button" id="games-editor-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <p class="overlay__text">Corregí el score de games del set actual. Lo que registres desde acá en adelante cuenta para las estadísticas.</p>
+        <div class="edit-field">
+          <div class="edit-field__label" id="games-editor-cur-label-a">Equipo A</div>
+          <div id="games-editor-cur-track-a" class="point-track"></div>
+        </div>
+        <div class="edit-field">
+          <div class="edit-field__label" id="games-editor-cur-label-b">Equipo B</div>
+          <div id="games-editor-cur-track-b" class="point-track"></div>
+        </div>
+        <button type="button" id="games-editor-expand-btn" class="link-btn">EDITAR MARCADOR COMPLETO</button>
+        <div id="games-editor-deep" hidden>
+          <div class="edit-field">
+            <div class="edit-field__label">Sets finalizados</div>
+            <div id="games-editor-finished-sets-list" class="edit-chip-list"></div>
+            <div id="games-editor-add-set-row" class="edit-add-set-row">
+              <select id="games-editor-add-set-select" class="edit-select"></select>
+              <button id="games-editor-add-set-btn" type="button" class="btn-mini">+ Agregar</button>
+            </div>
+            <div id="games-editor-add-set-tb-row" class="edit-row" hidden>
+              <span class="edit-row__label">Tie break (opcional):</span>
+              <button type="button" class="stepper-btn" data-stepper="gadd-tb-a" data-delta="-1">–</button>
+              <span id="games-editor-add-tb-a" class="stepper-value">–</span>
+              <button type="button" class="stepper-btn" data-stepper="gadd-tb-a" data-delta="1">+</button>
+              <span class="edit-row__sep">–</span>
+              <button type="button" class="stepper-btn" data-stepper="gadd-tb-b" data-delta="-1">–</button>
+              <span id="games-editor-add-tb-b" class="stepper-value">–</span>
+              <button type="button" class="stepper-btn" data-stepper="gadd-tb-b" data-delta="1">+</button>
+            </div>
+          </div>
+        </div>
+        <p class="overlay__text overlay__text--note" id="games-editor-error" hidden></p>
+        <div class="overlay__actions">
+          <button id="games-editor-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="games-editor-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- V13 (§18) — Editar jugadores: cambia el nombre visible de cada jugador, retroactivo a
+         toda la presentación (marcador, Resumen, Análisis, Intelligence, Historial,
+         Highlights) porque internamente sigue siendo el mismo ID. Nunca crea un jugador
+         nuevo. Deliberadamente separado del indicador de saque (que corrige SACADOR, no
+         nombres) — se accede solo desde el menú ☰. -->
+    <div id="edit-players-modal" class="overlay" hidden>
+      <div class="overlay__card">
+        <div class="overlay__title-row">
+          <div class="overlay__title">EDITAR JUGADORES</div>
+          <button type="button" id="edit-players-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="edit-players-fields"></div>
+        <div class="overlay__actions">
+          <button id="edit-players-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="edit-players-save" class="btn-start btn-start--overlay" type="button">Guardar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- V12 (§9-12) — Resolver con Tie break / Editar definición: mismo modal para arrancar
          un Tie break extraordinario (títulos/acción dinámicos) y para cambiar su objetivo en
          vivo — la elección de modalidad/objetivo es idéntica en ambos casos (§10, §12). -->
@@ -438,6 +562,7 @@
       <button id="summary-undo-btn" class="summary-undo-btn" type="button">↩ Deshacer último punto</button>
       <button id="summary-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
       <div class="summary-card__title">RESUMEN DEL PARTIDO</div>
+      <div class="summary-card__meta" id="summary-meta"></div>
       <div class="summary-card__reason" id="summary-reason" hidden></div>
       <div id="summary-result-slot"></div>
       <div id="summary-legal"></div>
@@ -460,6 +585,7 @@
       <button id="analysis-summary-btn" class="link-btn analysis-header__summary-btn" type="button">Ver resumen</button>
     </div>
     <div class="analysis-scroll">
+      <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
       <section class="analysis-section" id="analysis-intelligence">
         <h3 class="analysis-section__title">BRAMU INTELLIGENCE</h3>
