@@ -2491,83 +2491,192 @@
     return (stats.gamesA || 0) * 3 + (stats.gamesB || 0) * 7 + (matchCtx.durationMs || 0) + (sets ? sets.length : 0) * 97;
   }
 
-  /** V13 (§23/§24) — BRAMU Intelligence para Por Games: composición de texto MÁS CORTA y
-   *  deliberadamente más humilde que `generateBramuIntelligence` — nunca afirma nada que
-   *  dependa de puntos (§24). Construida sobre `computeGamesStats`/`computeGamesEvolutionData`,
-   *  nunca sobre datos fabricados. */
+  /** V13.1 — nombre de pareja para PROSA narrativa: "Seba y Matu", nunca "Seba / Matu" (esa
+   *  barra es para UI, no para texto — mismo criterio que `narrativeTeamLabel` del motor de
+   *  puntos). Necesario para que los verbos que siguen sean plurales de forma natural
+   *  ("se impusieron", nunca "se impuso"). */
+  function gamesNarrativeTeamLabel(players, team) {
+    return players.filter((p) => p.team === team).map((p) => p.name).join(' y ');
+  }
+
+  /** V13.1 (§2/§4) — recorre los eventos de UN SET (ya separado por `computeGameSetSegments`)
+   *  y devuelve la secuencia real de scores game a game: `[{a,b,winner}, ...]`, arrancando
+   *  en `{a:0,b:0,winner:null}`. Sirve para detectar empates intermedios, rachas de cierre y
+   *  cambios de mando SIN re-derivar nada que `computeGamesStats` no calcule ya — esto solo
+   *  agrega la secuencia completa (esa función solo guarda máximos). Mismo cuidado con el
+   *  reset de fin de set que en el resto del módulo: si el evento cierra el set, se lee el
+   *  score del set recién cerrado, nunca `state.gamesA/gamesB` ya reseteado a 0-0. */
+  function walkGamesProgression(events, format) {
+    let state = E.createInitialGameEngineState();
+    const seq = [{ a: 0, b: 0, winner: null }];
+    events.forEach((ev) => {
+      if (ev.type === 'adjustment') {
+        state = E.computeGameStateFromEvents([ev], format, null);
+        seq.push({ a: state.gamesA, b: state.gamesB, winner: null, adjustment: true });
+        return;
+      }
+      const before = state;
+      let winnerTeam;
+      if (ev.type === 'tiebreak') { state = E.applyGameTiebreak(state, ev.team, ev.score || null, format); winnerTeam = ev.team; }
+      else if (ev.type === 'extraordinary-tiebreak') { state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2); winnerTeam = ev.team; }
+      else { state = E.applyGameWin(state, ev.team, format); winnerTeam = ev.team; }
+      const closedSet = state.sets.length > before.sets.length ? state.sets[state.sets.length - 1] : null;
+      seq.push({ a: closedSet ? closedSet.gamesA : state.gamesA, b: closedSet ? closedSet.gamesB : state.gamesB, winner: winnerTeam });
+    });
+    return seq;
+  }
+
+  /** V13.1 (§4) — de la secuencia real de un set, extrae: el último empate ANTES del cierre
+   *  (para narrar "llegó a estar X-X"), cuántos games seguidos ganó el ganador para cerrar
+   *  (la "racha de cierre"), y cuántas veces cambió el mando (cruces de 0, ida y vuelta). */
+  function analyzeGamesSetProgression(seq, winner) {
+    let lastTie = null;
+    let domainChanges = 0;
+    let lastSign = 0;
+    seq.forEach((p, i) => {
+      if (i === 0 || p.adjustment) return;
+      const diff = p.a - p.b;
+      if (diff === 0) lastTie = p;
+      const sign = diff > 0 ? 1 : diff < 0 ? -1 : 0;
+      if (sign !== 0 && lastSign !== 0 && sign !== lastSign) domainChanges += 1;
+      if (sign !== 0) lastSign = sign;
+    });
+    let closingStreak = 0;
+    for (let i = seq.length - 1; i >= 1; i--) {
+      if (seq[i].adjustment) break;
+      if (seq[i].winner === winner) closingStreak += 1; else break;
+    }
+    return { lastTie, domainChanges, closingStreak };
+  }
+
+  /** V13.1 (§1/§2/§4/§6/§7) — párrafo de UN set reglamentario (nunca uno extraordinario, ese
+   *  se narra aparte — ver `appendGamesExtraordinaryNote`). Prioriza, en este orden: Tie
+   *  break reglamentario del set (score exterior siempre seguro, interno opcional — §7) >
+   *  tramo con corrección manual (descripción plana, sin inventar racha/remontada/cambio de
+   *  mando — §3/Caso C) > empate tardío + racha de cierre (el "tramo decisivo" que pide §4) >
+   *  empate tardío sin racha > varios cambios de mando > quiebres de los dos lados > un solo
+   *  lado quebró > genérico. El marcador SIEMPRE se narra orientado hacia quien ganó ESE
+   *  set (§6, `orientScore`/`orientTiebreak`, igual criterio que el motor de puntos). */
+  function buildGamesSetParagraph(setNumber, totalRegularSets, s, seq, hadAdjustment, setStats, nameOf, format, seed, bank) {
+    const winner = s.winner;
+    const setLabel = totalRegularSets === 1 ? 'set' : setNumber === 1 ? 'primer set' : (setNumber === totalRegularSets ? (totalRegularSets === 3 ? 'tercer set' : 'segundo set') : 'segundo set');
+    const wasTb = E.completedSetHasTiebreak(s.gamesA, s.gamesB, format);
+
+    if (wasTb) {
+      const trigger = format.tiebreakTriggerAt;
+      let sentence = `El ${setLabel} llegó al ${trigger}-${trigger} y ${nameOf(winner)} se lo llevaron en el Tie break, ${orientScore(s.gamesA, s.gamesB, winner)}`;
+      return sentence + (s.tiebreak ? ` (TB ${orientTiebreak(s.tiebreak, winner)}).` : '.'); // §7: nunca inventa el score interno si se omitió
+    }
+
+    const scoreClause = orientScore(s.gamesA, s.gamesB, winner);
+    if (hadAdjustment || !seq) {
+      // Caso C: tramo con orden desconocido — solo el score final es seguro (§11 del V13).
+      return `${nameOf(winner)} se quedaron con el ${setLabel} ${scoreClause}.`;
+    }
+
+    const analysis = analyzeGamesSetProgression(seq, winner);
+    if (analysis.lastTie && analysis.closingStreak >= 2) {
+      return `El ${setLabel} llegó ${orientScore(analysis.lastTie.a, analysis.lastTie.b, winner)} antes de que ${nameOf(winner)} ganaran los últimos ${analysis.closingStreak} games seguidos para cerrarlo ${scoreClause}.`;
+    }
+    if (analysis.lastTie) {
+      return `El ${setLabel} llegó ${orientScore(analysis.lastTie.a, analysis.lastTie.b, winner)} antes de que ${nameOf(winner)} se lo llevaran ${scoreClause}.`;
+    }
+    if (analysis.domainChanges >= 2) {
+      return `El ${setLabel} tuvo varios cambios de mando antes de que ${nameOf(winner)} se lo quedaran ${scoreClause}.`;
+    }
+    const wB = winner === 'A' ? setStats.breaksA : setStats.breaksB;
+    const lB = winner === 'A' ? setStats.breaksB : setStats.breaksA;
+    if (wB > 0 && lB === 0) {
+      return `${nameOf(winner)} ${gamesPickPhrase(bank, seed)} y, con ${wB === 1 ? 'un quiebre' : `${wB} quiebres`} a favor, se quedaron con el ${setLabel} ${scoreClause}.`;
+    }
+    if (wB > 0 && lB > 0) {
+      return `El ${setLabel} tuvo quiebres de los dos lados antes de que ${nameOf(winner)} se lo llevaran ${scoreClause}.`;
+    }
+    return `${nameOf(winner)} ${gamesPickPhrase(bank, seed)} y se quedaron con el ${setLabel} ${scoreClause}.`;
+  }
+
+  /** V13.1 (§3) — paridad real por combinación de señales (nunca por una sola métrica
+   *  aislada): diferencia total de games chica, máxima ventaja baja para ambos, breaks
+   *  parejos, y todos los sets cerrados por poco margen o en Tie break. */
+  function buildGamesGlobalReadParagraph(stats, regularSets, format) {
+    if (regularSets.length < 2) return null; // con un solo set no hace falta una lectura aparte
+    const totalGames = stats.gamesA + stats.gamesB;
+    const gameDiffRatio = totalGames > 0 ? Math.abs(stats.gamesA - stats.gamesB) / totalGames : 0;
+    const maxAdvBoth = Math.max(stats.maxAdvantageA, stats.maxAdvantageB);
+    const breaksClose = Math.abs(stats.breaksA - stats.breaksB) <= 1;
+    const closeSets = regularSets.filter((s) => Math.abs(s.gamesA - s.gamesB) <= 2 || E.completedSetHasTiebreak(s.gamesA, s.gamesB, format)).length;
+
+    let signals = 0;
+    if (gameDiffRatio <= 0.15) signals += 1;
+    if (maxAdvBoth <= 3) signals += 1;
+    if (breaksClose) signals += 1;
+    if (closeSets === regularSets.length) signals += 1;
+
+    if (signals >= 3) return 'Fue un partido muy parejo de principio a fin.';
+    return null;
+  }
+
+  /** V13.1 — equivalente de `appendExtraordinaryTiebreakNote` (motor de puntos) para Por
+   *  Games: el set extraordinario se narra aparte, con su score real previo (nunca
+   *  fabricado) y el resultado del TB si se conoce. */
+  function appendGamesExtraordinaryNote(text, sets, nameOf) {
+    const idx = sets.findIndex((s) => s.extraordinary);
+    if (idx === -1) return text;
+    const s = sets[idx];
+    const setLabel = sets.length === 1 ? 'el set' : (idx === 0 ? 'el primer set' : idx === 1 ? 'el segundo set' : 'el tercer set');
+    const cfg = s.tiebreak && s.tiebreak.mode;
+    const targetLabel = cfg && typeof cfg === 'object' && cfg.winTarget ? ` a ${cfg.winTarget}` : '';
+    const note = `Con ${setLabel} ${orientScore(s.gamesA, s.gamesB, s.winner)}, decidieron resolver el partido mediante un Tie break${targetLabel}.`
+      + (s.tiebreak ? ` ${nameOf(s.winner)} se impusieron ${orientTiebreak(s.tiebreak, s.winner)} y se quedaron con el encuentro.` : ` ${nameOf(s.winner)} se quedaron con el encuentro.`);
+    return text ? text + '\n\n' + note : note;
+  }
+
+  /** V13.1 (§1/§2) — BRAMU Intelligence para Por Games, reescrita para aprovechar mucho más
+   *  la información real disponible: un párrafo por set reglamentario (cronológico — Set 1,
+   *  Set 2, set decisivo, en ese orden, misma filosofía que `buildThreeSetChronologicalStory`
+   *  del motor de puntos) más una lectura global de paridad si corresponde, más una nota
+   *  aparte si algún set se resolvió con Tie break extraordinario. Nunca afirma nada de
+   *  puntos (§24 del V13) ni inventa el orden de un tramo corregido a mano (Caso C). */
   function generateGamesIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
-    const nameOf = (team) => teamLabel(matchCtx.players, team);
+    const format = matchCtx.format;
+    const nameOf = (team) => gamesNarrativeTeamLabel(matchCtx.players, team);
     const seed = gamesVarietySeedFor(stats, sets, matchCtx);
-    const partial = !!stats.hasAdjustments;
-    const sentences = [];
 
     if (!sets.length) {
+      if (finishInfo && finishInfo.manual) return `El partido se dio por finalizado antes de tiempo (${finishInfo.reasonLabel || 'motivo no especificado'}), sin datos suficientes para un resumen.`;
       return 'El partido no llegó a completar ningún set con datos suficientes para un resumen.';
     }
 
-    // --- Resultado final / cómo se decidió ---
-    if (winnerTeam) {
-      const setsLabel = sets.map((s) => (s.extraordinary && s.tiebreak) ? `${s.gamesA}-${s.gamesB} (TB ${s.tiebreak.a}-${s.tiebreak.b})` : `${s.gamesA}-${s.gamesB}`).join(' · ');
-      const lastSet = sets[sets.length - 1];
-      if (lastSet.extraordinary) {
-        sentences.push(`${nameOf(winnerTeam)} se quedó con el partido tras resolverlo con un Tie break extraordinario, con el marcador regular en ${setsLabel.split(' · ').slice(0, -1).join(' · ') || `${lastSet.gamesA}-${lastSet.gamesB}`}.`);
-      } else if (lastSet.tiebreak) {
-        sentences.push(`${nameOf(winnerTeam)} se impuso ${setsLabel}, cerrando en el Tie break del último set.`);
-      } else {
-        sentences.push(`${nameOf(winnerTeam)} se impuso ${setsLabel}.`);
-      }
-    } else if (finishInfo && finishInfo.manual) {
-      sentences.push(`El partido se dio por finalizado antes de tiempo (${finishInfo.reasonLabel || 'motivo no especificado'}), sin un ganador definido.`);
-    }
+    const regularSets = sets.filter((s) => !s.extraordinary);
+    const events = matchCtx.events || [];
+    const segs = computeGameSetSegments(events, format);
 
-    // --- Quién arrancó mejor (primer set) ---
-    const firstSet = sets[0];
-    if (firstSet && Math.abs(firstSet.gamesA - firstSet.gamesB) >= 2) {
-      const leader = firstSet.gamesA > firstSet.gamesB ? 'A' : 'B';
-      sentences.push(`${nameOf(leader)} ${gamesPickPhrase('inicio', seed)} en el primer set (${firstSet.gamesA}-${firstSet.gamesB}).`);
-    }
+    const paras = regularSets.map((s, i) => {
+      const setNumber = i + 1;
+      const seg = segs.find((sg) => sg.setNumber === setNumber);
+      const segEvents = seg ? seg.events : [];
+      const hadAdjustment = segEvents.some((ev) => ev.type === 'adjustment');
+      const seq = hadAdjustment ? null : walkGamesProgression(segEvents, format);
+      const setStats = computeGamesStats(segEvents, matchCtx);
+      const bank = regularSets.length === 3
+        ? (setNumber === 1 ? 'inicio' : setNumber === 2 ? 'reaccion' : 'cierre')
+        : (setNumber === regularSets.length ? 'cierre' : 'inicio');
+      return buildGamesSetParagraph(setNumber, regularSets.length, s, seq, hadAdjustment, setStats, nameOf, format, seed, bank);
+    });
 
-    // --- Máxima ventaja / mayor remontada (si hay algo que contar) ---
-    const bigAdvTeam = stats.maxAdvantageA >= stats.maxAdvantageB ? 'A' : 'B';
-    const bigAdv = Math.max(stats.maxAdvantageA, stats.maxAdvantageB);
-    if (bigAdv >= 3) {
-      sentences.push(`${nameOf(bigAdvTeam)} llegó a tener una ventaja de ${bigAdv} games en algún tramo del partido.`);
-    }
-    const comebackTeam = stats.maxComebackA >= stats.maxComebackB ? 'A' : 'B';
-    const comeback = Math.max(stats.maxComebackA, stats.maxComebackB);
-    if (comeback >= 3) {
-      sentences.push(`${nameOf(comebackTeam)} ${gamesPickPhrase('reaccion', seed)} después de estar ${comeback} games abajo.`);
-    }
+    const globalRead = buildGamesGlobalReadParagraph(stats, regularSets, format);
+    if (globalRead) paras.push(globalRead);
 
-    // --- Breaks / holds (si hay información de saque) ---
-    const totalBreaks = stats.breaksA + stats.breaksB;
-    if (totalBreaks > 0) {
-      if (stats.breaksA === stats.breaksB) {
-        sentences.push(`Cada pareja quebró el servicio rival ${stats.breaksA} ${stats.breaksA === 1 ? 'vez' : 'veces'}.`);
-      } else {
-        const moreBreaksTeam = stats.breaksA > stats.breaksB ? 'A' : 'B';
-        sentences.push(`${nameOf(moreBreaksTeam)} fue más efectiva al resto, con ${Math.max(stats.breaksA, stats.breaksB)} quiebres contra ${Math.min(stats.breaksA, stats.breaksB)}.`);
-      }
-    }
+    let text = paras.filter(Boolean).join('\n\n');
+    text = appendGamesExtraordinaryNote(text, sets, nameOf);
 
-    // --- Racha máxima ---
-    const streakTeam = stats.maxGameStreakA >= stats.maxGameStreakB ? 'A' : 'B';
-    const streak = Math.max(stats.maxGameStreakA, stats.maxGameStreakB);
-    if (streak >= 4) {
-      sentences.push(`${nameOf(streakTeam)} llegó a encadenar ${streak} games seguidos.`);
+    if (!winnerTeam && finishInfo && finishInfo.manual) {
+      text += `\n\nEl partido se dio por finalizado antes de tiempo (${finishInfo.reasonLabel || 'motivo no especificado'}), sin un ganador definido.`;
     }
-
-    // --- Sets parejos (diferencia de sets) ---
-    if (sets.length > 1) {
-      const closeSets = sets.filter((s) => Math.abs(s.gamesA - s.gamesB) <= 1 || s.tiebreak).length;
-      if (closeSets === sets.length) sentences.push('Todos los sets se definieron por poco margen.');
+    if (stats.hasAdjustments) {
+      text += '\n\nHubo una corrección manual del marcador durante el partido: algunas rachas y remontadas pueden estar incompletas.';
     }
-
-    if (partial) {
-      sentences.push('Hubo una corrección manual del marcador durante el partido: algunas rachas y remontadas pueden estar incompletas.');
-    }
-
-    return sentences.join(' ');
+    return text;
   }
 
   global.PLStats = {

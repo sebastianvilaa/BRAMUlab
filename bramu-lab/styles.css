@@ -453,6 +453,8 @@ input, select{ font-family: inherit; }
 .menu-item:last-child{ border-bottom:none; }
 .menu-item--danger{ color: var(--danger); }
 .menu-item--cancel{ color: var(--paper-dim); }
+/* V13.1 (§9) — título discreto arriba del modal de Herramientas (dev). */
+.menu-sheet__title{ padding: 12px 16px 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--paper-faint); text-transform: uppercase; }
 .menu-sep{ height: 1px; background: var(--line); }
 
 /* V10 (40-43) — Highlight rápido: popup pequeño y no invasivo (fondo mucho más liviano
@@ -560,7 +562,9 @@ input, select{ font-family: inherit; }
 .summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
 .summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--gold); margin-bottom: 6px; }
 .summary-card__meta{ font-size: 11px; color: var(--paper-faint); margin-bottom: 10px; letter-spacing:0.02em; }
-.analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 4px; padding: 0 2px; }
+/* V13.1 (§8): centrada, igual que en Resumen (`.summary-card` es `text-align:center` — acá
+   se replica solo en esta línea, sin volver centrado todo Análisis). */
+.analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 4px; padding: 0 2px; text-align: center; }
 .summary-card__reason{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-transform:uppercase; letter-spacing:0.08em; }
 .summary-stats{ display:flex; flex-direction:column; gap: 4px; margin: 16px 0 20px; }
 /* V7 (47): mismo aire entre tarjeta→VER ANÁLISIS que entre VER ANÁLISIS→COMPARTIR (10px,

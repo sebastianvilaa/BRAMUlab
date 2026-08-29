@@ -35,13 +35,27 @@
     </div>
 
     <header class="setup-header">
-      <img class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
+      <img id="home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="setup-header__nav">
         <button id="open-history-btn" class="link-btn" type="button">Historial</button>
         <span class="setup-header__sep" aria-hidden="true">·</span>
         <button id="mode-select-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
       </div>
     </header>
+
+    <!-- V13.1 (§9) — herramienta discreta de desarrollo: mantener presionado el logo ~2s
+         abre este modal. Pensada para forzar la actualización de la PWA en iPhone sin
+         depender de un hard refresh de escritorio, sin borrar ningún dato del usuario
+         (localStorage, partido en curso, Historial quedan intactos: solo se limpia la
+         caché de assets del service worker y se recarga). Fuera del flujo normal a
+         propósito — nunca un botón visible en la interfaz. -->
+    <div id="dev-tools-modal" class="overlay overlay--menu" hidden>
+      <div class="menu-sheet">
+        <div class="menu-sheet__title">HERRAMIENTAS</div>
+        <button id="dev-tools-force-update" class="menu-item" type="button">Forzar actualización</button>
+        <button id="dev-tools-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
+      </div>
+    </div>
 
     <!-- V13 (§2) — selector de modo de registro: Completo (punto por punto) o Por Games ·
          BETA (un toque por game). Se recuerda la última elección para la próxima vez que

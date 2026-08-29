@@ -992,8 +992,14 @@
     ctx.events.push({ type: 'extraordinary-tiebreak', team, score: score || null, winTarget, requireDiff2, matchTimeMs: ctx.ms, timestamp: new Date(ctx.ms).toISOString() });
     ctx.state = E.applyExtraordinaryGameTiebreak(ctx.state, team, score || null, winTarget, requireDiff2);
   }
+  function gamesMatchCtxFor(ctx) {
+    return { players: ctx.players, format: ctx.format, serverKnowledge: ctx.knowledge, durationMs: ctx.ms, events: ctx.events };
+  }
   function gamesStatsFor(ctx) {
-    return S.computeGamesStats(ctx.events, { players: ctx.players, format: ctx.format, serverKnowledge: ctx.knowledge, durationMs: ctx.ms });
+    return S.computeGamesStats(ctx.events, gamesMatchCtxFor(ctx));
+  }
+  function gamesIntelFor(ctx, finishInfo) {
+    return S.generateGamesIntelligence(gamesStatsFor(ctx), gamesMatchCtxFor(ctx), ctx.state.sets, ctx.state.matchWinner, finishInfo || { manual: false });
   }
 
   // Caso A — Clásico normal: 6-3 · 6-4.
@@ -1096,7 +1102,7 @@
     winEtbEv(ctx, 'A', { a: 10, b: 8 }, 7, true);
     assert('V13-N · cierra el partido para A, sin fabricar el score de games (sigue 4-4)', ctx.state.matchWinner === 'A' && ctx.state.sets[0].gamesA === 4 && ctx.state.sets[0].gamesB === 4 && ctx.state.sets[0].extraordinary === true, JSON.stringify(ctx.state.sets[0]));
     assert('V13-N · el TB queda representado honestamente (10-8)', ctx.state.sets[0].tiebreak.a === 10 && ctx.state.sets[0].tiebreak.b === 8, JSON.stringify(ctx.state.sets[0].tiebreak));
-    const r = S.generateGamesIntelligence(gamesStatsFor(ctx), { players: ctx.players, format: ctx.format, durationMs: ctx.ms }, ctx.state.sets, ctx.state.matchWinner, { manual: false });
+    const r = gamesIntelFor(ctx);
     assert('V13-N · BRAMU Intelligence (Por Games) no está vacío y no arroja error', typeof r === 'string' && r.length > 0, r);
   })();
 
@@ -1110,6 +1116,78 @@
     const stats = gamesStatsFor(ctx);
     assert('V13-regresión · arrancar un set nuevo en 0-0 no es una "remontada" falsa', stats.maxComebackA === 0 && stats.maxComebackB === 0, JSON.stringify(stats));
     assert('V13-regresión · la ventaja máxima de 6 games (0-6) sí se registra', stats.maxAdvantageB === 6, JSON.stringify(stats));
+  })();
+
+  // ==================================================================
+  // V13.1 — BRAMU INTELLIGENCE POR GAMES, más rica y cronológica
+  // ==================================================================
+
+  // Caso A — 3 sets parejos: 6-4 · 4-6 · 7-5. Cronología Set1 → Set2 → Set3 decisivo,
+  // reconocimiento de partido parejo, gramática plural, sin redundancias.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-4 A
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // Set2 4-6 (B)
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set3 llega 5-5-ish, A cierra 7-5
+    assert('V13.1-A · llega a 6-4 · 4-6 · 7-5, A gana el partido', ctx.state.sets.length === 3 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
+    const text = gamesIntelFor(ctx);
+    assert('V13.1-A · 3 párrafos por set + lectura global (4 párrafos)', text.split('\n\n').length === 4, text);
+    assert('V13.1-A · menciona "primer set"', /primer set/i.test(text), text);
+    assert('V13.1-A · menciona "segundo set"', /segundo set/i.test(text), text);
+    assert('V13.1-A · menciona "tercer set"', /tercer set/i.test(text), text);
+    assert('V13.1-A · reconoce partido parejo', /parejo/i.test(text), text);
+    assert('V13.1-A · gramática plural de pareja ("Ana y Bea", nunca "Ana / Bea se impuso")', !/\bse impuso\b/i.test(text) && !/ \/ /.test(text), text);
+    assert('V13.1-A · el set decisivo aparece antes que la lectura global de paridad', text.indexOf('tercer set') < text.toLowerCase().indexOf('parejo'), text);
+  })();
+
+  // Caso B — TB sin score interno: primer set llega 6-6, Equipo B gana el TB, se omite el
+  // resultado interno. Intelligence debe narrar el hecho sin inventar el score del TB.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 6-6
+    winTbEv(ctx, 'B', null);
+    const text = gamesIntelFor(ctx);
+    assert('V13.1-B · menciona que llegó al 6-6', /6-6/.test(text), text);
+    assert('V13.1-B · menciona el Tie break', /Tie break/i.test(text), text);
+    assert('V13.1-B · el score narrado está orientado al ganador (7-6, no 6-7)', /7-6/.test(text) && !/\b6-7\b/.test(text), text);
+    assert('V13.1-B · nunca inventa un score interno de TB entre paréntesis', !/\(TB/.test(text), text);
+  })();
+
+  // Caso B (variante) — mismo TB pero CON score interno cargado: si se conoce, se puede usar.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGameEv(ctx, t)); // 6-6
+    winTbEv(ctx, 'A', { a: 10, b: 8 });
+    const text = gamesIntelFor(ctx);
+    assert('V13.1-B2 · con score interno conocido, lo incluye (TB 10-8)', /\(TB 10-8\)/.test(text), text);
+  })();
+
+  // Caso C — corrección manual (3-2 → 4-3, después cierra 6-3): no debe inventar racha,
+  // remontada, break+hold ni cambio de dominio en el tramo corregido; mantiene la advertencia.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A'].forEach((t) => winGameEv(ctx, t)); // 3-2
+    const newState = { sets: [], gamesA: 4, gamesB: 3, gameIndex: 7, setsWonA: 0, setsWonB: 0, matchWinner: null, extraordinaryTiebreak: null };
+    ctx.events.push({ type: 'adjustment', newState, matchTimeMs: ctx.ms + 1000, scoreBeforeLabel: '3-2', scoreAfterLabel: '4-3' });
+    ctx.state = E.computeGameStateFromEvents(ctx.events, ctx.format, null);
+    ['A', 'A'].forEach((t) => winGameEv(ctx, t)); // cierra 6-3
+    const text = gamesIntelFor(ctx);
+    const setParagraph = text.split('\n\n')[0]; // el párrafo del set en sí, sin la advertencia final de datos parciales
+    assert('V13.1-C · narra el score final sin inventar desarrollo (6-3)', /6-3/.test(setParagraph), text);
+    assert('V13.1-C · el párrafo del set NO afirma remontada/cambio de mando (esas sí dependen del orden)', !/remontad/i.test(setParagraph) && !/cambios? de mando/i.test(setParagraph), text);
+    assert('V13.1-C · mantiene la advertencia de datos parciales', /corrección manual/i.test(text), text);
+  })();
+
+  // Tie break extraordinario: se sigue narrando aparte, con el score real previo (nunca
+  // fabricado) — no debe romperse con la reescritura de generateGamesIntelligence.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-0 A
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2 4-4
+    winEtbEv(ctx, 'B', { a: 10, b: 8 }, 7, true);
+    const text = gamesIntelFor(ctx);
+    assert('V13.1-ETB · menciona el score real previo del set extraordinario (4-4, nunca 6-6/7-6)', /4-4/.test(text) && !/6-6|7-6/.test(text), text);
+    assert('V13.1-ETB · el resultado del TB extraordinario aparece (8-10 orientado a B)', /8-10/.test(text), text);
   })();
 
   // ------------------------------------------------------------------

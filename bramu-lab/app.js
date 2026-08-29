@@ -2598,7 +2598,7 @@
   function finishMatchGames(state, manual) {
     stopTimerLoop();
     const format = currentFormat();
-    const matchCtx = { players: match.players, format, serverKnowledge, durationMs: getElapsedMs() };
+    const matchCtx = { players: match.players, format, serverKnowledge, durationMs: getElapsedMs(), events: gameEvents };
     const gamesStats = S.computeGamesStats(gameEvents, matchCtx);
     const winnerTeam = manual ? manual.declaredWinner : state.matchWinner;
     const finishInfo = manual ? { manual: true, reason: manual.reason, declaredWinner: manual.declaredWinner } : { manual: false };
@@ -4314,6 +4314,7 @@
     initAnalysisScreen();
     initTimelineScreen();
     initHistoryScreen();
+    initDevTools();
     registerServiceWorker();
   });
 
@@ -4324,5 +4325,53 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => { /* offline / file:// -> ignorar */ });
     }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13.1 (§9) — HERRAMIENTAS DE DESARROLLO (discretas, fuera del flujo normal).
+   *  Mantener presionado el logo de Home ~2s abre un modal chico con "Forzar
+   *  actualización" — pensado para probar rápido en iPhone/PWA sin depender de un hard
+   *  refresh de escritorio. Solo toca el service worker y la Cache Storage (los assets de
+   *  la app); NUNCA localStorage — el partido en curso, el Historial y los nombres
+   *  guardados quedan intactos. */
+  /* ------------------------------------------------------------------ */
+  const LONG_PRESS_MS = 1800;
+  let longPressTimeoutId = null;
+
+  function initDevTools() {
+    const logo = $('#home-logo');
+    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
+    const cancel = () => clearTimeout(longPressTimeoutId);
+    logo.addEventListener('pointerdown', start);
+    logo.addEventListener('pointerup', cancel);
+    logo.addEventListener('pointerleave', cancel);
+    logo.addEventListener('pointercancel', cancel);
+    logo.addEventListener('contextmenu', (e) => e.preventDefault()); // evita el menú de "guardar imagen" al mantener presionado
+
+    $('#dev-tools-cancel').addEventListener('click', () => { $('#dev-tools-modal').hidden = true; });
+    $('#dev-tools-modal').addEventListener('click', (e) => { if (e.target === $('#dev-tools-modal')) $('#dev-tools-modal').hidden = true; });
+    $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
+  }
+
+  /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca
+   *  localStorage) y recarga con un query param propio para saltar también el caché HTTP
+   *  normal del navegador — sin esto, en iPhone/Safari a veces `location.reload()` no
+   *  alcanza para traer los archivos nuevos. */
+  async function forceUpdateApp() {
+    $('#dev-tools-force-update').disabled = true;
+    $('#dev-tools-force-update').textContent = 'Actualizando…';
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) { try { await r.update(); } catch (e) { /* noop */ } await r.unregister(); }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch (e) {
+      console.warn('[BRAMU LAB] Forzar actualización: algo falló al limpiar caché/SW, se recarga igual.', e);
+    }
+    window.location.href = window.location.pathname + '?_fu=' + Date.now();
   }
 })();
