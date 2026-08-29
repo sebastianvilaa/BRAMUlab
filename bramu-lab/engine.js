@@ -300,7 +300,15 @@
         s.inTiebreak = false; s.tbA = 0; s.tbB = 0;
         s.extraordinaryTiebreak = null;
         s.gameIndex += 1;
-        if (s.setsWonA >= Math.ceil(format.bestOfSets / 2) || s.setsWonB >= Math.ceil(format.bestOfSets / 2)) {
+        if (isExtraordinary) {
+          // V12.1 (§1) — CAMBIO DE SEMÁNTICA respecto a V12: "Resolver con Tie break" no
+          // decide un set dentro de un partido que sigue — decide el PARTIDO ENTERO, sin
+          // importar cuántos sets ganó cada uno hasta acá. Elegir esta acción es decirle a
+          // la app "no vamos a seguir jugando el formato normal, este TB define el
+          // encuentro": el ganador del TB gana el partido, de una, nunca "sigue empatado" ni
+          // arranca un set nuevo después.
+          s.matchWinner = team;
+        } else if (s.setsWonA >= Math.ceil(format.bestOfSets / 2) || s.setsWonB >= Math.ceil(format.bestOfSets / 2)) {
           s.matchWinner = s.setsWonA > s.setsWonB ? 'A' : 'B';
         }
       }

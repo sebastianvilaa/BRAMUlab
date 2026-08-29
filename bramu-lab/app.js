@@ -1822,15 +1822,24 @@
    * Recorre TODOS los eventos desde el arranque del partido (no reusa
    * findCurrentGameEventRange: esa función descarta el propio evento de ajuste, pensada
    * para reconstruir puntos reales — acá el ajuste SÍ tiene que aparecer, como hueco) y
-   * arma la fila de puntitos del game actual:
+   * arma la fila de puntitos del SEGMENTO actual (game normal, o Tie break — reglamentario
+   * o extraordinario, V12.1 §2):
    *   - punto real → color de equipo;
-   *   - ajuste manual que NO cambia de game/set/tie break (el caso típico de AJUSTAR:
-   *     mismo game, solo se pisan los puntos) → círculo vacío, el tramo de orden
-   *     desconocido (§4.4);
-   *   - ajuste que arranca un Tie break extraordinario (V12 §9+) → se omite: es una
-   *     transición conocida, no un vacío de información;
-   *   - cualquier evento que efectivamente cierra el game/set o cruza a/desde un tie
-   *     break reinicia la fila: la progresión es siempre la del game EN CURSO.
+   *   - ajuste manual DENTRO del mismo segmento (mismo game, o mismo Tie break — p.ej.
+   *     "Editar definición" del TB extraordinario) → círculo vacío, tramo de orden
+   *     desconocido (V12 §4.4);
+   *   - ajuste que ARRANCA un Tie break extraordinario → no llega a la rama de arriba (ya
+   *     cambia de segmento, ver abajo) — nunca se dibuja como hueco: es una transición
+   *     conocida, no un vacío de información;
+   *   - cualquier punto/ajuste que efectivamente cierra el game o entra/sale de un Tie
+   *     break arranca un segmento NUEVO (fila vacía) — la progresión es siempre la del
+   *     segmento EN CURSO, incluido el desarrollo del Tie break actual.
+   *
+   * V12.1 (fix real de V12): la condición de "arrancó un Tie break" comparaba solo
+   * `state.inTiebreak` sin mirar el `before` — eso reseteaba la fila después de CADA punto
+   * mientras se estuviera en un TB (nunca se acumulaban más de 1 punto), no solo al entrar.
+   * Invisible en V12 porque la fila se ocultaba entero durante cualquier TB; V12.1 la
+   * muestra también ahí, así que hacía falta corregirlo para que se vea bien.
    */
   function computeGameProgressionDots() {
     let state = match.baseline
@@ -1842,29 +1851,37 @@
       const before = state;
       if (ev.type === 'adjustment') {
         state = E.applyAdjustment(ev.newState);
-        if (state.gameIndex !== before.gameIndex || state.inTiebreak || before.inTiebreak) {
+        const enteredOrLeftTiebreak = state.inTiebreak !== before.inTiebreak;
+        if (state.gameIndex !== before.gameIndex || enteredOrLeftTiebreak) {
           dots = [];
         } else {
-          const isExtraordinaryTbStart = !!(ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active);
-          if (!isExtraordinaryTbStart) dots.push({ gap: true });
+          // Ajuste dentro del MISMO segmento: AJUSTAR en un game normal → hueco (orden
+          // desconocido). "Editar definición" del TB extraordinario (mismo segmento, mismo
+          // `extraordinaryTiebreak.active`) NO es una ambigüedad — nada de lo jugado se
+          // vuelve desconocido por cambiar el objetivo — así que no se dibuja como hueco.
+          const isEtbTargetChange = !!(ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active && before.inTiebreak);
+          if (!isEtbTargetChange) dots.push({ gap: true });
         }
         continue;
       }
       const modeForThisPoint = ev.tbMode || match.tiebreakMode;
       state = E.applyPoint(before, ev.team, match.scoringSystem, currentFormat(), modeForThisPoint);
       dots.push({ team: ev.team });
-      if (state.gameIndex !== before.gameIndex || state.inTiebreak) dots = [];
+      const enteredTiebreak = state.inTiebreak && !before.inTiebreak;
+      if (state.gameIndex !== before.gameIndex || enteredTiebreak) dots = [];
     }
     return dots.slice(-GAME_PROGRESSION_MAX_DOTS);
   }
 
-  /** Solo se muestra para el game normal en curso (mismo alcance que AJUSTAR): durante un
-   *  Tie break o con el partido ya decidido no hay "game actual" al que aplicarle esto. */
+  /** V12.1 (§2): visible en games normales, Tie breaks reglamentarios y Tie break
+   *  extraordinario por igual — solo se oculta con el partido ya decidido (no hay "segmento
+   *  en curso" al que aplicarle esto). Ya NO depende de `canUseAdjust`: que Ajustar esté
+   *  deshabilitado dentro de un TB no implica ocultar la progresión. */
   function renderGameProgression(state) {
     const wrap = $('#game-progression');
-    if (!canUseAdjust(state)) { wrap.hidden = true; return; }
+    if (state.matchWinner) { wrap.hidden = true; wrap.innerHTML = ''; return; }
     const dots = computeGameProgressionDots();
-    if (!dots.length) { wrap.hidden = true; return; }
+    if (!dots.length) { wrap.hidden = true; wrap.innerHTML = ''; return; }
     wrap.innerHTML = '';
     dots.forEach((d) => {
       const dot = document.createElement('span');
@@ -2225,7 +2242,7 @@
       ${secondaryHTML}
     </div>`;
   }
-  function mirrorBarRowHTML(label, aText, bText, aPct, bPct, dash, secondaryA, secondaryB, note) {
+  function mirrorBarRowHTML(label, aText, bText, aPct, bPct, dash, secondaryA, secondaryB) {
     if (dash) return dashRowHTML(label);
     const a = Math.max(0, Math.min(100, aPct)), b = Math.max(0, Math.min(100, bPct));
     // V8 (16-18): soporte opcional para una fila secundaria chica debajo de la barra —
@@ -2235,9 +2252,6 @@
     const secondaryHTML = (secondaryA != null && secondaryB != null)
       ? `<div class="bar-stat-row__pcts"><span class="bar-stat-row__pcts-a">${secondaryA}</span><span class="bar-stat-row__pcts-b">${secondaryB}</span></div>`
       : '';
-    // V12 (§3.3): nota puntual ("Datos parciales por ajuste manual") en la fila específica
-    // afectada por un ajuste — no un banner de página completa, ver buildStatsGridRowsHTML.
-    const noteHTML = note ? `<div class="bar-stat-row__note">${note}</div>` : '';
     return `<div class="bar-stat-row bar-stat-row--mirror">
       ${statRowValuesHTML(label, aText, bText)}
       <div class="bar-stat-row__mirror">
@@ -2246,7 +2260,6 @@
         <div class="bar-stat-row__mirror-half bar-stat-row__mirror-half--b"><span class="bar-stat-row__mirror-fill bar-stat-row__mirror-fill--b" style="width:${b.toFixed(1)}%"></span></div>
       </div>
       ${secondaryHTML}
-      ${noteHTML}
     </div>`;
   }
   /** V8.2 (10): Puntos al saque/resto y Games de saque ganados pasan de "espejo desde el
@@ -2271,9 +2284,15 @@
     </div>`;
   }
   /** 53: Racha máxima — sin barra, es un dato comparativo sin porcentaje natural. */
-  function noBarRowHTML(label, aText, bText, note) {
-    const noteHTML = note ? `<div class="bar-stat-row__note">${note}</div>` : '';
-    return `<div class="bar-stat-row bar-stat-row--nobar">${statRowValuesHTML(label, aText, bText)}${noteHTML}</div>`;
+  function noBarRowHTML(label, aText, bText) {
+    return `<div class="bar-stat-row bar-stat-row--nobar">${statRowValuesHTML(label, aText, bText)}</div>`;
+  }
+
+  /** V12.1 (§4): reemplaza la nota-oración por fila (rompía la altura de la grilla) por un
+   *  asterisco pegado a la etiqueta — la aclaración única va aparte, debajo de todo el
+   *  bloque de estadísticas (ver `buildStatsPartialNoteText`/`renderStatsGrid`). */
+  function withPartialAsterisk(label, isPartial) {
+    return isPartial ? `${label} *` : label;
   }
 
   /** V7 (97-108): lógica pura de las filas de Estadísticas, extraída para que la pantalla de
@@ -2308,17 +2327,18 @@
       rowsHTML.push(dashRowHTML('Games de saque ganados'));
     }
 
-    // V12 (§3.3): nota puntual en Break points y Racha máxima — son justo las métricas que
-    // un ajuste manual podría fabricar si no se conociera el tramo salteado (§3.1) — en vez
-    // de un banner de página completa que cubra estadísticas no afectadas.
-    const adjustmentNote = stats.hasAdjustments ? 'Datos parciales por ajuste manual' : null;
+    // V12.1 (§4): asterisco pegado a la etiqueta en Break points y Racha máxima — son justo
+    // las métricas que un ajuste manual podría fabricar si no se conociera el tramo
+    // salteado (V12 §3.1) — la aclaración única va debajo de todo el bloque (§4: "no repetir
+    // el texto dentro de cada tarjeta"), ver `renderStatsGrid`.
+    const isPartial = stats.hasAdjustments;
     const bpA = stats.breakPoints.A, bpB = stats.breakPoints.B;
     if (serverGap) {
       rowsHTML.push(dashRowHTML('Break points'));
     } else {
       const bpPctA = bpA.opportunities ? (bpA.converted / bpA.opportunities) * 100 : 0;
       const bpPctB = bpB.opportunities ? (bpB.converted / bpB.opportunities) * 100 : 0;
-      rowsHTML.push(mirrorBarRowHTML('Break points', S.fmtOpp(stats.breakPoints, 'A'), S.fmtOpp(stats.breakPoints, 'B'), bpPctA, bpPctB, false, null, null, adjustmentNote));
+      rowsHTML.push(mirrorBarRowHTML(withPartialAsterisk('Break points', isPartial), S.fmtOpp(stats.breakPoints, 'A'), S.fmtOpp(stats.breakPoints, 'B'), bpPctA, bpPctB, false));
     }
     const spA = stats.setPoints.A, spB = stats.setPoints.B;
     const spPctA = spA.opportunities ? (spA.converted / spA.opportunities) * 100 : 0;
@@ -2337,7 +2357,7 @@
       const p = stats.starPoints.played;
       rowsHTML.push(sharedBarRowHTML('Star points', `${stats.starPoints.wonA}/${p}`, `${stats.starPoints.wonB}/${p}`, stats.starPoints.wonA, stats.starPoints.wonB, false));
     }
-    rowsHTML.push(noBarRowHTML('Racha máxima de puntos', stats.maxStreak.A, stats.maxStreak.B, adjustmentNote));
+    rowsHTML.push(noBarRowHTML(withPartialAsterisk('Racha máxima de puntos', isPartial), stats.maxStreak.A, stats.maxStreak.B));
     return rowsHTML.join('');
   }
 
@@ -2346,6 +2366,13 @@
     if (serverGap) return 'No se pudo determinar el saque en este tramo: las métricas que dependen de él no están disponibles (—).';
     if (!stats.serverFullyKnown) return 'El saque no se conoce en todos los puntos de este tramo: estas métricas son parciales.';
     return '';
+  }
+
+  /** V12.1 (§4): aclaración ÚNICA para el asterisco de Break Points/Racha máxima — nunca
+   *  repetida por fila. Independiente de `buildStatsLegalText` (esa habla de saque
+   *  desconocido; esta, de ajustes manuales) — pueden coexistir. */
+  function buildStatsPartialNoteText(stats) {
+    return stats.hasAdjustments ? '* Datos parciales por ajuste manual' : '';
   }
 
   /** V8 (21): el % de games de saque sostenidos pasa a leerse PRIMERO y más grande; games y
@@ -2371,6 +2398,11 @@
     const legalText = buildStatsLegalText(stats);
     legalEl.hidden = !legalText;
     legalEl.textContent = legalText;
+
+    const partialNoteEl = $('#analysis-stats-partial-note');
+    const partialNoteText = buildStatsPartialNoteText(stats);
+    partialNoteEl.hidden = !partialNoteText;
+    partialNoteEl.textContent = partialNoteText;
 
     const perPlayerWrap = $('#analysis-per-player-serve');
     const perPlayerHTML = buildPerPlayerServeRowsHTML(f, stats);
@@ -3162,7 +3194,8 @@
       body += `<div class="share-capture__section">${buildResultBlockHTML(f)}${buildCoverageLegalHTML(f)}</div>`;
       body += `<div class="share-capture__section"><h3 class="analysis-section__title">BRAMU INTELLIGENCE</h3><div class="intelligence-text">${(f.intelligence || '').split('\n\n').map((p) => `<p>${p}</p>`).join('')}</div></div>`;
       const legalText = buildStatsLegalText(stats);
-      body += `<div class="share-capture__section"><h3 class="analysis-section__title">ESTADÍSTICAS</h3><div class="stats-grid">${buildStatsGridRowsHTML(f, stats)}</div>${legalText ? `<p class="coverage-note">${legalText}</p>` : ''}</div>`;
+      const partialNoteText = buildStatsPartialNoteText(stats);
+      body += `<div class="share-capture__section"><h3 class="analysis-section__title">ESTADÍSTICAS</h3><div class="stats-grid">${buildStatsGridRowsHTML(f, stats)}</div>${legalText ? `<p class="coverage-note">${legalText}</p>` : ''}${partialNoteText ? `<p class="coverage-note">${partialNoteText}</p>` : ''}</div>`;
       const perPlayerHTML = buildPerPlayerServeRowsHTML(f, stats);
       if (perPlayerHTML) {
         body += `<div class="share-capture__section"><h4 class="analysis-subsection__title">SAQUE POR JUGADOR</h4><div>${perPlayerHTML}</div></div>`;

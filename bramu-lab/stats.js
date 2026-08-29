@@ -1148,12 +1148,15 @@
     const idx = sets.findIndex((s) => s.extraordinary);
     if (idx === -1) return text;
     const s = sets[idx];
-    const setLabel = sets.length === 1 ? 'el set' : (idx === sets.length - 1 ? 'el set decisivo' : (idx === 0 ? 'el primer set' : 'el segundo set'));
+    // V12.1 (§1): el segmento extraordinario SIEMPRE es el último — elegir "Resolver con
+    // Tie break" termina el partido en el acto, nunca deja continuar a otro set después.
+    const setLabel = sets.length === 1 ? 'el set' : (idx === 0 ? 'el primer set' : idx === 1 ? 'el segundo set' : 'el tercer set');
     const cfg = s.tiebreak && s.tiebreak.mode;
     const targetLabel = cfg && typeof cfg === 'object' && cfg.winTarget ? ` a ${cfg.winTarget}` : '';
     // V9.2 (11, reusado acá): marcador orientado hacia quien ganó — mismo criterio que el
-    // resto de la prosa (orientScore/orientTiebreak), nunca el orden fijo A-B.
-    const note = `Con ${setLabel} ${orientScore(s.gamesA, s.gamesB, s.winner)}, decidieron resolverlo mediante un Tie break${targetLabel} — lo ganaron ${nameOf(s.winner)} ${orientTiebreak(s.tiebreak, s.winner)}.`;
+    // resto de la prosa (orientScore/orientTiebreak), nunca el orden fijo A-B. V12.1: ya no
+    // dice "resolverlo" (el set) — el TB extraordinario resuelve el PARTIDO ENTERO.
+    const note = `Con ${setLabel} ${orientScore(s.gamesA, s.gamesB, s.winner)}, decidieron resolver el partido mediante un Tie break${targetLabel}. ${nameOf(s.winner)} se impusieron ${orientTiebreak(s.tiebreak, s.winner)} y se quedaron con el encuentro.`;
     return text + '\n\n' + note;
   }
 
