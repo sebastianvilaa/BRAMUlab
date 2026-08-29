@@ -17,6 +17,7 @@
   --gold: #FFC93D;
   --star: #FFA93D;
   --danger: #FF5B54;
+  --confirm-green: #2ECC71;
   --line: rgba(244,247,242,0.10);
 
   --font-display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
@@ -174,14 +175,44 @@ input, select{ font-family: inherit; }
   padding: calc(8px + var(--safe-top)) 14px 4px;
   background: var(--ink);
 }
-.match-header__timer{ font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--paper-dim); }
+.match-header__info{ display:flex; align-items:center; gap:6px; min-width:0; overflow:hidden; }
+.match-header__brand{ font-family: var(--font-display); font-weight:700; font-size: 13px; letter-spacing:0.06em; color: var(--paper); flex:none; }
+.match-header__sep{ color: var(--paper-faint); font-size: 12px; flex:none; }
+.match-header__format,
+.match-header__system{
+  font-family: var(--font-display); font-weight:700; font-size: 12px; letter-spacing:0.02em;
+  text-transform: uppercase; color: var(--paper-dim);
+  overflow:hidden; text-overflow: ellipsis; white-space:nowrap; min-width:0;
+}
+.match-header__timer{ font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--paper-dim); flex:none; }
 .icon-btn{ background:none; border:none; color: var(--paper-dim); font-size: 20px; padding: 4px 8px; cursor:pointer; line-height:1; }
+
+/* V12 (§4) — progresión reciente del game: puntos reales en color de equipo, tramos
+   ajustados manualmente (orden desconocido) como círculo vacío. */
+.game-progression{ display:flex; align-items:center; justify-content:center; gap: 5px; padding: 5px 10px; background: var(--ink); }
+.game-progression__dot{ width:8px; height:8px; border-radius:50%; flex:none; background: var(--paper-faint); }
+.game-progression__dot[data-team="A"]{ background: var(--team-a); }
+.game-progression__dot[data-team="B"]{ background: var(--team-b); }
+.game-progression__dot--gap{ background: transparent; border: 1.5px solid var(--paper-dim); width:7px; height:7px; }
+
+@media (max-width: 380px){
+  .match-header__info{ gap:4px; }
+  .match-header__brand{ font-size: 11px; }
+  .match-header__sep{ font-size: 10px; }
+  .match-header__format,
+  .match-header__system,
+  .match-header__timer{ font-size: 10px; }
+  .match-header__system{ max-width: 74px; }
+}
 
 .scoreboard{ background: #050C0A; padding: 6px 12px 8px; border-bottom: 1px solid var(--line); display:flex; flex-direction:column; }
 .scoreboard__row{ display:flex; align-items:center; gap: 10px; padding: 6px 2px; }
 .scoreboard__row[data-team="A"]{ border-bottom: 1px solid var(--line); }
 .scoreboard__names{ flex: 1 1 auto; min-width:0; font-weight: 800; font-size: 13px; letter-spacing:0.01em; text-transform:uppercase; color: var(--paper-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:4px; }
-.scoreboard__player{ opacity: 0.75; }
+/* V12 (§5.2): el nombre/indicador de saque ya es el punto de corrección — cursor pointer
+   y un feedback táctil sutil para comunicar que es tocable sin agregar otro botón. */
+.scoreboard__player{ opacity: 0.75; cursor:pointer; padding: 2px 1px; border-radius: 4px; transition: background .15s ease; }
+.scoreboard__player:active{ background: rgba(244,247,242,0.10); }
 .scoreboard__player.is-serving{ opacity:1; color: var(--paper); }
 .scoreboard__player.is-serving::before{ content:'🎾 '; }
 .scoreboard__sep{ opacity: 0.3; font-size: 11px; }
@@ -303,6 +334,10 @@ input, select{ font-family: inherit; }
 .tb-select{ background: var(--ink-softer); color: var(--paper); border: 1px solid rgba(255,201,61,0.4); border-radius: 6px; font-size: 11px; padding: 4px 6px; font-weight:700; flex: none; }
 .tb-select:disabled{ opacity: 0.5; }
 .tb-mode-text{ font-size: 11px; font-weight: 700; letter-spacing: 0.08em; opacity: 0.75; flex: none; }
+/* V12 (§12.2) — "EDITAR DEFINICIÓN" del Tie break extraordinario: mismo look que
+   tb-mode-text, pero es un <button> real (tappable) — se resetea el estilo nativo. */
+.tb-mode-text--tappable{ background:none; border: 1px dashed var(--paper-faint); border-radius: 6px; padding: 2px 6px; color: var(--paper); cursor:pointer; opacity: 0.9; }
+.tb-mode-text--tappable:active{ opacity: 1; border-color: var(--paper); }
 
 .server-prompt{
   display:flex; align-items:center; gap:8px; padding: 8px 12px; background: rgba(244,247,242,0.05);
@@ -348,6 +383,7 @@ input, select{ font-family: inherit; }
 }
 .control-btn{ background:none; border:none; display:flex; flex-direction:column; align-items:center; gap: 3px; padding: 6px 10px; color: var(--paper-dim); cursor:pointer; min-width: 64px; transition: color .15s ease; }
 .control-btn:active{ transform: scale(0.94); }
+.control-btn:disabled{ opacity: 0.3; cursor: not-allowed; }
 .control-btn__icon{ width:22px; height:22px; fill: currentColor; }
 .control-btn__label{ font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
 .control-btn--flash{ color: var(--gold); animation: highlightFlash .5s ease; }
@@ -419,8 +455,9 @@ input, select{ font-family: inherit; }
 .highlight-popup__ring-progress.is-draining{ stroke-dashoffset: 100.53; transition: stroke-dashoffset linear; }
 .highlight-popup__ring-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size: 13px; }
 .highlight-popup__grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.highlight-popup__btn{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 12px; color: var(--paper); font-family: var(--font-body); font-weight: 800; font-size: 13px; padding: 14px 8px; cursor:pointer; }
+.highlight-popup__btn{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 12px; color: var(--paper); font-family: var(--font-body); font-weight: 800; font-size: 13px; padding: 14px 8px; cursor:pointer; transition: background .2s ease, border-color .2s ease, color .2s ease; }
 .highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--gold); color: var(--gold); }
+.highlight-popup__btn.is-confirmed{ background: var(--confirm-green); border-color: var(--confirm-green); color: #06210F; }
 
 /* Edición basada en estados válidos */
 .edit-field{ margin-bottom: 16px; }
@@ -451,6 +488,18 @@ input, select{ font-family: inherit; }
 }
 .point-track__stop.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.12); color: var(--gold); }
 #edit-points-special{ margin-top: 4px; }
+
+/* V12 (§2.3) — Ajustar: la selección usa el color de CADA equipo, nunca el dorado de
+   Editar/Corrección Rápida (para no confundirla con esas ni con el verde de confirmación
+   de Highlight). Se sobreescribe solo dentro de #adjust-body, sin tocar el resto de la app. */
+#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.14); color: var(--team-a); }
+#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.14); color: var(--team-b); }
+#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="A"] .option-pill__title{ color: var(--team-a); }
+#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="B"] .option-pill__title{ color: var(--team-b); }
+#adjust-body .option-pill.is-selected[data-lead="none"]{ border-color: var(--paper); background: rgba(244,247,242,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="none"] .option-pill__title{ color: var(--paper); }
 #edit-points-special-back{ display:block; margin-top: 10px; }
 
 /* V6 — Corrección rápida */
@@ -632,6 +681,8 @@ input, select{ font-family: inherit; }
 .bar-stat-row__pcts{ display:flex; justify-content:space-between; margin-top: 4px; font-size: 13px; font-weight: 700; color: var(--paper-dim); }
 .bar-stat-row__pcts-a{ color: var(--team-a); }
 .bar-stat-row__pcts-b{ color: var(--team-b); }
+/* V12 (§3.3) — nota puntual en la fila específica afectada por un ajuste manual. */
+.bar-stat-row__note{ text-align:center; margin-top: 5px; font-size: 10px; letter-spacing: 0.02em; color: var(--paper-faint); }
 
 /* V6 (45-53) — barra ESPEJO (Tipo B): cada mitad es su propia escala 0-100%, crece desde el
    centro hacia afuera. Nunca se suman los dos porcentajes entre sí (no son partes de un total). */

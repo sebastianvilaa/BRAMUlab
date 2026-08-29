@@ -138,6 +138,9 @@
     classic: 'Deuce + ventaja',
   };
 
+  // V12 (§7): etiquetas del sistema de puntuación para el header de partido en vivo.
+  const SCORING_SYSTEM_LABELS = { starpoint: 'STAR POINT', golden: 'PUNTO DE ORO', classic: 'CON VENTAJA' };
+
   function initSetupScreen() {
     // V10 (44/97): el número de versión sale de PLStore.VERSION (único punto central) —
     // cambiarlo ahí alcanza para actualizar el footer sin tocar más archivos.
@@ -255,6 +258,10 @@
   function enterMatchScreen() {
     showView('match');
     $('#setup-form').reset();
+    // V12 (§7): header en una línea (marca · formato · sistema · tiempo) — formato y
+    // sistema son fijos para todo el partido, se pintan una sola vez acá.
+    $('#match-header-format').textContent = E.FORMATS[match.formatId].label;
+    $('#match-header-system').textContent = SCORING_SYSTEM_LABELS[match.scoringSystem] || '';
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     render();
     autosave();
@@ -288,11 +295,17 @@
     }
 
     const serverInfo = resolveCurrentServer(state);
-    const servingTeam = serverInfo.resolved ? serverInfo.team : null;
+    // V12 (§6, bonus): mismo fix que stats.js — el equipo al saque puede conocerse aunque
+    // el jugador individual no, y el banner de Break Point en vivo no debería apagarse por
+    // eso (síntoma en vivo de la misma causa raíz que la auditoría de stats).
+    const servingTeam = serverInfo.resolved ? serverInfo.team : (serverInfo.candidateTeam || null);
 
-    // Modalidades de TB todavía compatibles con lo realmente jugado (V5 — G3/G4).
+    // Modalidades de TB todavía compatibles con lo realmente jugado (V5 — G3/G4). V12: un
+    // Tie break extraordinario tiene su propio objetivo fijado en `state.extraordinaryTiebreak`
+    // (editable vía "EDITAR DEFINICIÓN", no vía este selector) — se salta este cálculo, que
+    // de todos modos queda oculto por `renderEtbDefinitionLabel` en ese caso.
     let availableTbModes = null;
-    if (state.inTiebreak) {
+    if (state.inTiebreak && !(state.extraordinaryTiebreak && state.extraordinaryTiebreak.active)) {
       const tbInfo = E.extractCurrentTiebreakSequence(pointEvents, match.scoringSystem, currentFormat(), match.tiebreakMode, match.baseline);
       availableTbModes = E.availableTiebreakModes(tbInfo, state.tbA, state.tbB);
       // Si el modo vigente dejó de ser válido (no debería pasar, pero por las dudas
@@ -311,9 +324,12 @@
     if (ctx.isStarPoint) matchScreen.classList.add('is-star-point');
 
     renderStatusBanner(ctx);
+    renderEtbDefinitionLabel(state);
     renderScoreboard(state, ctx.disp);
+    renderGameProgression(state);
     renderServerPrompt(state, serverInfo);
     renderZonePlayers(state, serverInfo);
+    $('#adjust-btn').disabled = !canUseAdjust(state);
 
     if (!manualFinish && state.matchWinner && !finishedSnapshot) {
       finishMatch(state, null);
@@ -401,6 +417,9 @@
       span.className = 'scoreboard__player';
       if (serverInfo && serverInfo.resolved && serverInfo.playerId === p.id) span.classList.add('is-serving');
       span.textContent = p.name;
+      // V12 (§5.2): "tocar la pelota / indicador del sacador actual" — hace interactivo el
+      // indicador YA existente en vez de agregar otro botón grande a la fila de herramientas.
+      span.addEventListener('click', openServerCorrectionModal);
       wrap.appendChild(span);
     });
   }
@@ -467,6 +486,237 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* CORREGIR SACADOR (V12 §5) — a diferencia de `renderServerPrompt` (arriba, para cuando
+     el saque es DESCONOCIDO), esto corrige un saque YA resuelto que se marcó mal. Usa
+     `E.recordServerCorrection` (snapshot congelado, engine.js) en vez de
+     `recordServerAnswer` a secas, para no tocar retroactivamente la rotación de games
+     anteriores del mismo set (§5.3). Alcance: solo en el game normal en curso — durante un
+     Tie break la rotación se resuelve por punto individual dentro del propio TB, un caso
+     más ambiguo que sigue cubierto por EDITAR. */
+  /* ------------------------------------------------------------------ */
+  function openServerCorrectionModal() {
+    const state = computeState();
+    if (state.inTiebreak) { showToast('Durante el Tie break, corregí el sacador desde Editar.'); return; }
+    if (state.matchWinner) return;
+    $('#server-correction-title').textContent = '¿QUIÉN ESTÁ SACANDO?';
+    const setNumber = state.sets.length + 1;
+    const matchGameNumber = E.currentMatchGameNumber(state);
+    const withinSetGameNumber = E.currentWithinSetGameNumber(state);
+    const hasPointsInGame = (state.pointsA + state.pointsB) > 0;
+
+    const optionsWrap = $('#server-correction-options');
+    optionsWrap.innerHTML = '';
+    match.players.forEach((p) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'server-radio';
+      btn.textContent = p.name;
+      btn.addEventListener('click', () => {
+        $('#server-correction-modal').hidden = true;
+        const applyCorrection = () => {
+          serverKnowledge = E.recordServerCorrection(serverKnowledge, match.players, setNumber, matchGameNumber, withinSetGameNumber, p.id);
+          render();
+          showToast('Sacador corregido');
+        };
+        if (hasPointsInGame) {
+          confirmAction('Cambiar sacador de este game', 'Los puntos registrados se reasignarán al sacador correcto.', applyCorrection);
+        } else {
+          applyCorrection();
+        }
+      });
+      optionsWrap.appendChild(btn);
+    });
+    $('#server-correction-modal').hidden = false;
+  }
+
+  function initServerCorrectionModal() {
+    $('#server-correction-close-x').addEventListener('click', () => { $('#server-correction-modal').hidden = true; pendingEtbStart = null; });
+    $('#server-correction-cancel').addEventListener('click', () => { $('#server-correction-modal').hidden = true; pendingEtbStart = null; });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* RESOLVER CON TIE BREAK EXTRAORDINARIO (V12 §9-14) — "los jugadores acordaron resolver
+     el set/partido con un Tie break sin llegar reglamentariamente a N-N". Reusa
+     `E.startExtraordinaryTiebreak`/`E.isValidExtraordinaryTargetChange` (engine.js) y el
+     mecanismo de `adjustment` de siempre — nunca fabrica games (§13). El modal de selección
+     de modalidad (`#etb-modal`) se reusa tal cual para arrancar el TB (§10) y para
+     "Editar definición" en vivo (§12) — misma UI, distinto título/acción al confirmar. */
+  /* ------------------------------------------------------------------ */
+  let etbDraft = null; // { presetId: 'classic'|'death7'|'to15'|'custom', target, requireDiff2 }
+  let etbEditing = false;
+  let pendingEtbStart = null; // { winTarget, requireDiff2 } — entre elegir modalidad y elegir sacador
+
+  function etbTargetLabel(target, requireDiff2) {
+    return requireDiff2 ? `TB A ${target} · +2` : `TB A ${target} · MUERE`;
+  }
+
+  /** V12 (§19, excepción explícita) — Timeline/Historial: un ajuste que resuelve un Tie
+   *  break extraordinario no es "un ajuste de marcador" genérico — se distingue con su
+   *  propia etiqueta, arrancar vs. cambiar el objetivo en vivo (§9-12). */
+  function etbAdjustmentLabel(ev, beforeState, genericPrefix) {
+    const etb = ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active ? ev.newState.extraordinaryTiebreak : null;
+    if (!etb) return `${genericPrefix} · ${ev.scoreBeforeLabel} → ${ev.scoreAfterLabel}`;
+    if (!beforeState.inTiebreak) return `🏆 RESOLVER CON TIE BREAK · ${ev.scoreBeforeLabel} → ${ev.scoreAfterLabel}`;
+    return `🏆 EDITAR DEFINICIÓN DE TIE BREAK · ${ev.scoreBeforeLabel} → ${ev.scoreAfterLabel}`;
+  }
+
+  function openExtraordinaryTbSelector() {
+    const state = computeState();
+    if (!E.canStartExtraordinaryTiebreak(state)) { showToast('Solo se puede resolver con Tie break al empezar un game nuevo (0-0).'); return; }
+    etbEditing = false;
+    etbDraft = { presetId: 'classic', target: 7, requireDiff2: true };
+    $('#etb-modal-title').textContent = 'RESOLVER CON TIE BREAK';
+    $('#etb-confirm').textContent = 'INICIAR TIE BREAK';
+    renderEtbModal();
+    $('#etb-modal').hidden = false;
+  }
+
+  /** Identifica si la definición ACTUAL de un TB extraordinario coincide con uno de los 3
+   *  presets (§10.1) — si no, es porque se eligió "Otro" con un objetivo personalizado. */
+  function etbPresetIdFor(cfg) {
+    return Object.keys(E.TIEBREAK_MODES).find((id) => E.TIEBREAK_MODES[id].winTarget === cfg.winTarget && E.TIEBREAK_MODES[id].requireDiff2 === cfg.requireDiff2) || 'custom';
+  }
+
+  function openEtbEditor() {
+    const state = computeState();
+    if (!(state.inTiebreak && state.extraordinaryTiebreak && state.extraordinaryTiebreak.active)) return;
+    etbEditing = true;
+    const cur = state.extraordinaryTiebreak;
+    etbDraft = { presetId: etbPresetIdFor(cur), target: cur.winTarget, requireDiff2: cur.requireDiff2 };
+    $('#etb-modal-title').textContent = 'EDITAR DEFINICIÓN';
+    $('#etb-confirm').textContent = 'GUARDAR DEFINICIÓN';
+    renderEtbModal();
+    $('#etb-modal').hidden = false;
+  }
+
+  function renderEtbModal() {
+    $all('#etb-preset-options .option-pill').forEach((btn) => {
+      btn.classList.toggle('is-selected', btn.dataset.preset === etbDraft.presetId);
+    });
+    const isCustom = etbDraft.presetId === 'custom';
+    $('#etb-custom-section').hidden = !isCustom;
+    if (isCustom) {
+      $('#etb-target-value').textContent = etbDraft.target;
+      $('#etb-death-label').textContent = `Muere en ${etbDraft.target}`;
+      $all('#etb-rule-options .option-pill').forEach((btn) => {
+        btn.classList.toggle('is-selected', (btn.dataset.rule === 'diff2') === etbDraft.requireDiff2);
+      });
+    }
+    $('#etb-error').hidden = true;
+  }
+
+  function confirmEtbModal() {
+    const target = etbDraft.target;
+    const requireDiff2 = etbDraft.requireDiff2;
+    if (etbEditing) {
+      const state = computeState();
+      if (!E.isValidExtraordinaryTargetChange(state.tbA, state.tbB, target)) {
+        $('#etb-error').textContent = `No se puede bajar el objetivo por debajo de lo ya jugado (${Math.max(state.tbA, state.tbB)}-${Math.min(state.tbA, state.tbB)}).`;
+        $('#etb-error').hidden = false;
+        return;
+      }
+      // V12 (§12.3): solo se pisa el objetivo — puntos, servicio y timeline quedan
+      // intactos, el próximo punto ya evalúa el nuevo objetivo (engine.js lo lee de
+      // `state.extraordinaryTiebreak` en cada `applyPoint`).
+      const newState = Object.assign({}, state, { extraordinaryTiebreak: Object.assign({}, state.extraordinaryTiebreak, { winTarget: target, requireDiff2 }) });
+      pointEvents.push({
+        type: 'adjustment', timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs(), newState,
+        scoreBeforeLabel: `TB ${state.tbA}-${state.tbB}`,
+        scoreAfterLabel: etbTargetLabel(target, requireDiff2),
+      });
+      $('#etb-modal').hidden = true;
+      etbEditing = false;
+      finishedSnapshot = null; manualFinish = null;
+      render();
+      showToast('Definición del Tie break actualizada');
+      return;
+    }
+    pendingEtbStart = { winTarget: target, requireDiff2 };
+    $('#etb-modal').hidden = true;
+    openExtraordinaryServerPrompt();
+  }
+
+  /** §11 — "¿Quién comienza sacando?": nunca continúa la rotación previa. Reusa el modal de
+   *  Corregir Sacador (mismo título dinámico) y `recordServerCorrection` para congelar todo
+   *  lo anterior y reanclar la rotación desde el arranque del TB extraordinario. */
+  function openExtraordinaryServerPrompt() {
+    const state = computeState();
+    const newState = E.startExtraordinaryTiebreak(state, pendingEtbStart.winTarget, pendingEtbStart.requireDiff2);
+    if (!newState) { showToast('No se puede resolver con Tie break en este momento.'); pendingEtbStart = null; return; }
+    $('#server-correction-title').textContent = '¿QUIÉN COMIENZA SACANDO?';
+    const setNumber = state.sets.length + 1;
+    const optionsWrap = $('#server-correction-options');
+    optionsWrap.innerHTML = '';
+    match.players.forEach((p) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'server-radio';
+      btn.textContent = p.name;
+      btn.addEventListener('click', () => {
+        $('#server-correction-modal').hidden = true;
+        serverKnowledge = E.recordServerCorrection(serverKnowledge, match.players, setNumber, newState.tbBaseGameNumber, newState.tbBaseWithinSet, p.id);
+        pointEvents.push({
+          type: 'adjustment', timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs(), newState,
+          scoreBeforeLabel: `${state.gamesA}-${state.gamesB}`,
+          scoreAfterLabel: `${state.gamesA}-${state.gamesB} · ${etbTargetLabel(newState.extraordinaryTiebreak.winTarget, newState.extraordinaryTiebreak.requireDiff2)} iniciado`,
+        });
+        pendingEtbStart = null;
+        finishedSnapshot = null; manualFinish = null;
+        render();
+        showToast('Tie break extraordinario iniciado');
+      });
+      optionsWrap.appendChild(btn);
+    });
+    $('#server-correction-modal').hidden = false;
+  }
+
+  function initEtbModal() {
+    $('#menu-extraordinary-tb').addEventListener('click', () => { $('#menu-overlay').hidden = true; openExtraordinaryTbSelector(); });
+    $('#etb-definition-label').addEventListener('click', openEtbEditor);
+    $all('#etb-preset-options .option-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const presetId = btn.dataset.preset;
+        const wasCustom = etbDraft.presetId === 'custom';
+        etbDraft.presetId = presetId;
+        if (presetId !== 'custom') {
+          const cfg = E.TIEBREAK_MODES[presetId];
+          etbDraft.target = cfg.winTarget;
+          etbDraft.requireDiff2 = cfg.requireDiff2;
+        } else if (!wasCustom) {
+          // V12 (§10.2): default de "Otro" es Diferencia de 2, con un target de partida
+          // razonable (12) — pero solo al ENTRAR a "Otro" desde otro preset; si ya estaba
+          // en "Otro", se conserva lo que el usuario ya venía ajustando con los steppers.
+          etbDraft.target = 12;
+          etbDraft.requireDiff2 = true;
+        }
+        renderEtbModal();
+      });
+    });
+    $('#etb-target-minus').addEventListener('click', () => { etbDraft.target = Math.max(1, etbDraft.target - 1); renderEtbModal(); });
+    $('#etb-target-plus').addEventListener('click', () => { etbDraft.target = etbDraft.target + 1; renderEtbModal(); });
+    $all('#etb-rule-options .option-pill').forEach((btn) => {
+      btn.addEventListener('click', () => { etbDraft.requireDiff2 = btn.dataset.rule === 'diff2'; renderEtbModal(); });
+    });
+    $('#etb-cancel').addEventListener('click', () => { $('#etb-modal').hidden = true; etbEditing = false; });
+    $('#etb-close-x').addEventListener('click', () => { $('#etb-modal').hidden = true; etbEditing = false; });
+    $('#etb-confirm').addEventListener('click', confirmEtbModal);
+  }
+
+  /** Solo se muestra mientras hay un Tie break extraordinario activo; oculta de paso el
+   *  selector de modalidad NORMAL (§10 ya fijó su propio objetivo — mostrar los dos
+   *  controles juntos sería confuso, viola el principio de un solo estado por franja). */
+  function renderEtbDefinitionLabel(state) {
+    const label = $('#etb-definition-label');
+    const active = !!(state.inTiebreak && state.extraordinaryTiebreak && state.extraordinaryTiebreak.active);
+    label.hidden = !active;
+    if (active) {
+      label.textContent = etbTargetLabel(state.extraordinaryTiebreak.winTarget, state.extraordinaryTiebreak.requireDiff2);
+      $('#tiebreak-mode-text').hidden = true;
+      $('#tiebreak-mode-select').hidden = true;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* INTERACCIÓN — puntos, deshacer, highlight                           */
   /* ------------------------------------------------------------------ */
   function registerPoint(team) {
@@ -506,7 +756,10 @@
   }
 
   // V10 (42) — etiquetas visibles de las categorías opcionales de Highlight.
-  const HIGHLIGHT_CATEGORY_LABELS = { smash: 'Smash / X3', dejada: 'Dejada', recuperacion: 'Recuperación', puntazo: 'Puntazo' };
+  // V12 (§8.2): "Dejada" se reemplaza por "Blooper" como categoría seleccionable; se
+  // conserva `dejada` acá solo para poder seguir mostrando el label de highlights viejos
+  // que ya se guardaron con esa categoría antes de este cambio.
+  const HIGHLIGHT_CATEGORY_LABELS = { smash: 'Smash / X3', dejada: 'Dejada', blooper: 'Blooper', recuperacion: 'Recuperación', puntazo: 'Puntazo' };
   const HIGHLIGHT_POPUP_TIMEOUT_MS = 3500;
   let highlightPopupTimeoutId = null;
   let highlightPopupTarget = null; // referencia directa al objeto en `highlights` que está esperando categoría
@@ -567,7 +820,12 @@
     $all('#highlight-popup-grid .highlight-popup__btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (highlightPopupTarget) { highlightPopupTarget.category = btn.dataset.category; autosave(); }
-        closeHighlightPopup();
+        // V12 (§8.1): feedback verde de confirmación al elegir categoría, distinto del
+        // dorado de "Highlight guardado" y del lima de Team A — breve delay antes de
+        // cerrar para que el usuario alcance a verlo.
+        clearTimeout(highlightPopupTimeoutId);
+        btn.classList.add('is-confirmed');
+        setTimeout(() => { btn.classList.remove('is-confirmed'); closeHighlightPopup(); }, 320);
       });
     });
     // Tocar fuera de la tarjeta cierra el popup sin cancelar el Highlight (§40, paso 3C).
@@ -609,7 +867,12 @@
   /* MENÚ                                                                 */
   /* ------------------------------------------------------------------ */
   function initMenu() {
-    $('#menu-btn').addEventListener('click', () => { updateMenuPauseLabel(); $('#menu-overlay').hidden = false; });
+    $('#menu-btn').addEventListener('click', () => {
+      updateMenuPauseLabel();
+      // V12 (§9.3): "Resolver con Tie break" solo tiene sentido con el game actual en 0-0.
+      $('#menu-extraordinary-tb').hidden = !E.canStartExtraordinaryTiebreak(computeState());
+      $('#menu-overlay').hidden = false;
+    });
     $('#menu-close').addEventListener('click', () => { $('#menu-overlay').hidden = true; });
     $('#menu-overlay').addEventListener('click', (e) => { if (e.target === $('#menu-overlay')) $('#menu-overlay').hidden = true; });
     $('#menu-pause').addEventListener('click', () => { togglePause(); $('#menu-overlay').hidden = true; });
@@ -1118,6 +1381,7 @@
      mismo game (11): el partido sigue siendo Registro completo. */
   /* ------------------------------------------------------------------ */
   let quickDraft = null;
+  let adjustDraft = null;
 
   function openQuickCorrectionModal() {
     const state = computeState();
@@ -1429,6 +1693,186 @@
     $('#quick-correction-close-x').addEventListener('click', () => { $('#quick-correction-modal').hidden = true; });
     $('#quick-correction-save').addEventListener('click', saveQuickCorrection);
     $('#quick-correction-full-editor').addEventListener('click', () => { $('#quick-correction-modal').hidden = true; openFullEditor('corregir'); });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* AJUSTAR (V12 §2-4) — "me perdí parte del game; conozco el tanteador
+     actual pero no necesariamente la secuencia que llevó hasta ahí". A
+     diferencia de Corrección Rápida, NUNCA reconstruye una secuencia de
+     puntos plausible: siempre queda como un `adjustment` explícito, para
+     no fabricar Break Points/rachas/secuencias sobre un tramo que en
+     realidad no se conoce (§3). Solo toca el game actual (puntos), nunca
+     games/sets/tie break — para eso sigue existiendo EDITAR. */
+  /* ------------------------------------------------------------------ */
+  function canUseAdjust(state) { return !state.inTiebreak && !state.matchWinner; }
+
+  function openAdjustModal() {
+    const state = computeState();
+    if (!canUseAdjust(state)) return; // el botón ya viene deshabilitado en este caso
+    adjustDraft = { pointsA: state.pointsA, pointsB: state.pointsB };
+    renderAdjustModal();
+    $('#adjust-modal').hidden = false;
+  }
+
+  /** Igual que renderPointTrack, pero marca cada parada con `data-team` para pintar la
+   *  selección con el color de CADA equipo (§2.3) en vez del dorado que usa Editar. */
+  function renderAdjustPointTrack(sel, team, currentVal, onSelect) {
+    const wrap = $(sel);
+    wrap.innerHTML = '';
+    ['0', '15', '30', '40'].forEach((label, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.team = team;
+      btn.className = 'point-track__stop' + (Math.min(currentVal, 3) === i ? ' is-selected' : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => onSelect(i));
+      wrap.appendChild(btn);
+    });
+  }
+
+  function renderAdjustModal() {
+    const wrap = $('#adjust-body');
+    wrap.innerHTML = '';
+    const bothDeuceZone = adjustDraft.pointsA >= 3 && adjustDraft.pointsB >= 3;
+    if (!bothDeuceZone) {
+      ['A', 'B'].forEach((team) => {
+        const label = document.createElement('div');
+        label.className = `point-track-label point-track-label--${team.toLowerCase()}`;
+        label.textContent = teamPlayers(match.players, team).map((p) => p.name).join(' / ');
+        const track = document.createElement('div');
+        track.className = 'point-track';
+        track.id = `adjust-track-${team}`;
+        wrap.appendChild(label);
+        wrap.appendChild(track);
+        renderAdjustPointTrack(`#adjust-track-${team}`, team, adjustDraft[`points${team}`], (val) => { adjustDraft[`points${team}`] = val; renderAdjustModal(); });
+      });
+    } else {
+      // Zona de deuce: estados especiales según la modalidad vigente (§2.4-2.6) — Punto de
+      // Oro, Deuce/Ventaja, o los niveles de Star Point — nunca combinaciones 40-40+N, y
+      // exactamente la misma fuente (`enumerateValidGameStates`) que ya usa Editar/
+      // Corrección Rápida: no se crean estados paralelos.
+      const label = document.createElement('div');
+      label.className = 'point-track-label';
+      label.textContent = 'Estado del game';
+      wrap.appendChild(label);
+      const grid = document.createElement('div');
+      grid.className = 'option-grid';
+      E.enumerateValidGameStates(match.scoringSystem).filter((st) => st.pointsA >= 3 && st.pointsB >= 3).forEach((st) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.lead = st.pointsA === st.pointsB ? 'none' : (st.pointsA > st.pointsB ? 'A' : 'B');
+        btn.className = 'option-pill' + (st.pointsA === adjustDraft.pointsA && st.pointsB === adjustDraft.pointsB ? ' is-selected' : '');
+        btn.innerHTML = `<span class="option-pill__title">${st.label}</span>`;
+        btn.addEventListener('click', () => { adjustDraft.pointsA = st.pointsA; adjustDraft.pointsB = st.pointsB; renderAdjustModal(); });
+        grid.appendChild(btn);
+      });
+      wrap.appendChild(grid);
+      const back = document.createElement('button');
+      back.type = 'button'; back.className = 'link-btn'; back.style.marginTop = '10px';
+      back.textContent = '← Volver a puntos normales';
+      back.addEventListener('click', () => { adjustDraft.pointsA = 3; adjustDraft.pointsB = 2; renderAdjustModal(); });
+      wrap.appendChild(back);
+    }
+  }
+
+  function saveAdjustment() {
+    const state = computeState();
+    if (adjustDraft.pointsA === state.pointsA && adjustDraft.pointsB === state.pointsB) {
+      $('#adjust-modal').hidden = true;
+      return; // sin cambio real: no genera un ajuste vacío
+    }
+
+    // El alcance de AJUSTAR es el game actual (§2.3): games/sets/tie break quedan
+    // intactos, solo se pisan los puntos. A diferencia de Corrección Rápida, nunca se
+    // intenta reconstruir la secuencia real — siempre es un `adjustment` explícito, con
+    // el mismo formato que ya usa Editar (stats.js lo trata igual sin importar el origen).
+    const newState = Object.assign({}, state, { pointsA: adjustDraft.pointsA, pointsB: adjustDraft.pointsB });
+    const scoreBeforeLabel = gameScoreLabel(state.pointsA, state.pointsB, match.scoringSystem);
+    const scoreAfterLabel = gameScoreLabel(newState.pointsA, newState.pointsB, match.scoringSystem);
+
+    pointEvents.push({
+      type: 'adjustment',
+      timestamp: new Date().toISOString(),
+      matchTimeMs: getElapsedMs(),
+      newState,
+      scoreBeforeLabel,
+      scoreAfterLabel,
+    });
+
+    finishedSnapshot = null;
+    manualFinish = null;
+    $('#adjust-modal').hidden = true;
+    render();
+    showToast('Marcador ajustado');
+  }
+
+  function initAdjustModal() {
+    $('#adjust-btn').addEventListener('click', openAdjustModal);
+    $('#adjust-cancel').addEventListener('click', () => { $('#adjust-modal').hidden = true; });
+    $('#adjust-close-x').addEventListener('click', () => { $('#adjust-modal').hidden = true; });
+    $('#adjust-save').addEventListener('click', saveAdjustment);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* PROGRESIÓN DEL GAME (V12 §4)                                        */
+  /* ------------------------------------------------------------------ */
+  const GAME_PROGRESSION_MAX_DOTS = 12;
+
+  /**
+   * Recorre TODOS los eventos desde el arranque del partido (no reusa
+   * findCurrentGameEventRange: esa función descarta el propio evento de ajuste, pensada
+   * para reconstruir puntos reales — acá el ajuste SÍ tiene que aparecer, como hueco) y
+   * arma la fila de puntitos del game actual:
+   *   - punto real → color de equipo;
+   *   - ajuste manual que NO cambia de game/set/tie break (el caso típico de AJUSTAR:
+   *     mismo game, solo se pisan los puntos) → círculo vacío, el tramo de orden
+   *     desconocido (§4.4);
+   *   - ajuste que arranca un Tie break extraordinario (V12 §9+) → se omite: es una
+   *     transición conocida, no un vacío de información;
+   *   - cualquier evento que efectivamente cierra el game/set o cruza a/desde un tie
+   *     break reinicia la fila: la progresión es siempre la del game EN CURSO.
+   */
+  function computeGameProgressionDots() {
+    let state = match.baseline
+      ? E.computeStateFromEvents([], match.scoringSystem, currentFormat(), match.tiebreakMode, match.baseline)
+      : E.createInitialEngineState();
+    let dots = [];
+    for (let i = 0; i < pointEvents.length; i++) {
+      const ev = pointEvents[i];
+      const before = state;
+      if (ev.type === 'adjustment') {
+        state = E.applyAdjustment(ev.newState);
+        if (state.gameIndex !== before.gameIndex || state.inTiebreak || before.inTiebreak) {
+          dots = [];
+        } else {
+          const isExtraordinaryTbStart = !!(ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active);
+          if (!isExtraordinaryTbStart) dots.push({ gap: true });
+        }
+        continue;
+      }
+      const modeForThisPoint = ev.tbMode || match.tiebreakMode;
+      state = E.applyPoint(before, ev.team, match.scoringSystem, currentFormat(), modeForThisPoint);
+      dots.push({ team: ev.team });
+      if (state.gameIndex !== before.gameIndex || state.inTiebreak) dots = [];
+    }
+    return dots.slice(-GAME_PROGRESSION_MAX_DOTS);
+  }
+
+  /** Solo se muestra para el game normal en curso (mismo alcance que AJUSTAR): durante un
+   *  Tie break o con el partido ya decidido no hay "game actual" al que aplicarle esto. */
+  function renderGameProgression(state) {
+    const wrap = $('#game-progression');
+    if (!canUseAdjust(state)) { wrap.hidden = true; return; }
+    const dots = computeGameProgressionDots();
+    if (!dots.length) { wrap.hidden = true; return; }
+    wrap.innerHTML = '';
+    dots.forEach((d) => {
+      const dot = document.createElement('span');
+      dot.className = 'game-progression__dot' + (d.gap ? ' game-progression__dot--gap' : '');
+      if (!d.gap) dot.dataset.team = d.team;
+      wrap.appendChild(dot);
+    });
+    wrap.hidden = false;
   }
 
   /* ------------------------------------------------------------------ */
@@ -1781,7 +2225,7 @@
       ${secondaryHTML}
     </div>`;
   }
-  function mirrorBarRowHTML(label, aText, bText, aPct, bPct, dash, secondaryA, secondaryB) {
+  function mirrorBarRowHTML(label, aText, bText, aPct, bPct, dash, secondaryA, secondaryB, note) {
     if (dash) return dashRowHTML(label);
     const a = Math.max(0, Math.min(100, aPct)), b = Math.max(0, Math.min(100, bPct));
     // V8 (16-18): soporte opcional para una fila secundaria chica debajo de la barra —
@@ -1791,6 +2235,9 @@
     const secondaryHTML = (secondaryA != null && secondaryB != null)
       ? `<div class="bar-stat-row__pcts"><span class="bar-stat-row__pcts-a">${secondaryA}</span><span class="bar-stat-row__pcts-b">${secondaryB}</span></div>`
       : '';
+    // V12 (§3.3): nota puntual ("Datos parciales por ajuste manual") en la fila específica
+    // afectada por un ajuste — no un banner de página completa, ver buildStatsGridRowsHTML.
+    const noteHTML = note ? `<div class="bar-stat-row__note">${note}</div>` : '';
     return `<div class="bar-stat-row bar-stat-row--mirror">
       ${statRowValuesHTML(label, aText, bText)}
       <div class="bar-stat-row__mirror">
@@ -1799,6 +2246,7 @@
         <div class="bar-stat-row__mirror-half bar-stat-row__mirror-half--b"><span class="bar-stat-row__mirror-fill bar-stat-row__mirror-fill--b" style="width:${b.toFixed(1)}%"></span></div>
       </div>
       ${secondaryHTML}
+      ${noteHTML}
     </div>`;
   }
   /** V8.2 (10): Puntos al saque/resto y Games de saque ganados pasan de "espejo desde el
@@ -1823,8 +2271,9 @@
     </div>`;
   }
   /** 53: Racha máxima — sin barra, es un dato comparativo sin porcentaje natural. */
-  function noBarRowHTML(label, aText, bText) {
-    return `<div class="bar-stat-row bar-stat-row--nobar">${statRowValuesHTML(label, aText, bText)}</div>`;
+  function noBarRowHTML(label, aText, bText, note) {
+    const noteHTML = note ? `<div class="bar-stat-row__note">${note}</div>` : '';
+    return `<div class="bar-stat-row bar-stat-row--nobar">${statRowValuesHTML(label, aText, bText)}${noteHTML}</div>`;
   }
 
   /** V7 (97-108): lógica pura de las filas de Estadísticas, extraída para que la pantalla de
@@ -1859,13 +2308,17 @@
       rowsHTML.push(dashRowHTML('Games de saque ganados'));
     }
 
+    // V12 (§3.3): nota puntual en Break points y Racha máxima — son justo las métricas que
+    // un ajuste manual podría fabricar si no se conociera el tramo salteado (§3.1) — en vez
+    // de un banner de página completa que cubra estadísticas no afectadas.
+    const adjustmentNote = stats.hasAdjustments ? 'Datos parciales por ajuste manual' : null;
     const bpA = stats.breakPoints.A, bpB = stats.breakPoints.B;
     if (serverGap) {
       rowsHTML.push(dashRowHTML('Break points'));
     } else {
       const bpPctA = bpA.opportunities ? (bpA.converted / bpA.opportunities) * 100 : 0;
       const bpPctB = bpB.opportunities ? (bpB.converted / bpB.opportunities) * 100 : 0;
-      rowsHTML.push(mirrorBarRowHTML('Break points', S.fmtOpp(stats.breakPoints, 'A'), S.fmtOpp(stats.breakPoints, 'B'), bpPctA, bpPctB, false));
+      rowsHTML.push(mirrorBarRowHTML('Break points', S.fmtOpp(stats.breakPoints, 'A'), S.fmtOpp(stats.breakPoints, 'B'), bpPctA, bpPctB, false, null, null, adjustmentNote));
     }
     const spA = stats.setPoints.A, spB = stats.setPoints.B;
     const spPctA = spA.opportunities ? (spA.converted / spA.opportunities) * 100 : 0;
@@ -1884,7 +2337,7 @@
       const p = stats.starPoints.played;
       rowsHTML.push(sharedBarRowHTML('Star points', `${stats.starPoints.wonA}/${p}`, `${stats.starPoints.wonB}/${p}`, stats.starPoints.wonA, stats.starPoints.wonB, false));
     }
-    rowsHTML.push(noBarRowHTML('Racha máxima de puntos', stats.maxStreak.A, stats.maxStreak.B));
+    rowsHTML.push(noBarRowHTML('Racha máxima de puntos', stats.maxStreak.A, stats.maxStreak.B, adjustmentNote));
     return rowsHTML.join('');
   }
 
@@ -2309,8 +2762,9 @@
     const tsByMs = {};
     f.events.forEach((ev) => {
       if (ev.type === 'adjustment') {
+        const beforeAdj = state;
         state = E.applyAdjustment(ev.newState);
-        facts.push({ ms: ev.matchTimeMs, real: ev.timestamp, label: `✎ AJUSTE DE MARCADOR · ${ev.scoreBeforeLabel} → ${ev.scoreAfterLabel}` });
+        facts.push({ ms: ev.matchTimeMs, real: ev.timestamp, label: etbAdjustmentLabel(ev, beforeAdj, '✎ AJUSTE DE MARCADOR') });
         return;
       }
       tsByMs[ev.matchTimeMs] = ev.timestamp;
@@ -2491,9 +2945,10 @@
     f.events.forEach((ev) => {
       if (ev.type === 'adjustment') {
         flushGame(null);
+        const beforeAdj = state;
         state = E.applyAdjustment(ev.newState);
         const setGroup = ensureSet(state.sets.length + 1);
-        setGroup.items.push({ type: 'adjustment', label: `✎ Ajuste de marcador · ${ev.scoreBeforeLabel} → ${ev.scoreAfterLabel}` });
+        setGroup.items.push({ type: 'adjustment', label: etbAdjustmentLabel(ev, beforeAdj, '✎ Ajuste de marcador') });
         return;
       }
       const before = state;
@@ -2938,6 +3393,9 @@
     initFinishModal();
     initEditModal();
     initQuickCorrectionModal();
+    initAdjustModal();
+    initServerCorrectionModal();
+    initEtbModal();
     initSummaryScreen();
     initAnalysisScreen();
     initTimelineScreen();

@@ -44,7 +44,14 @@
     to15: { id: 'to15', label: 'Tie break a 15', winTarget: 15, requireDiff2: true },
   };
 
-  function tiebreakModeConfig(modeId) { return TIEBREAK_MODES[modeId] || TIEBREAK_MODES.classic; }
+  /** V12 (§10.2): además de los 3 presets por id de string, acepta un config directo
+   *  `{winTarget, requireDiff2}` — usado por el Tie break extraordinario cuando el usuario
+   *  elige "Otro" con un objetivo personalizado. No se registra como preset nuevo en
+   *  TIEBREAK_MODES: es un config ad-hoc, válido solo mientras dure ese Tie break. */
+  function tiebreakModeConfig(modeId) {
+    if (modeId && typeof modeId === 'object') return modeId;
+    return TIEBREAK_MODES[modeId] || TIEBREAK_MODES.classic;
+  }
 
   function tiebreakIsWon(w, l, modeId) {
     const cfg = tiebreakModeConfig(modeId);
@@ -214,7 +221,46 @@
       gameIndex: 0,
       setsWonA: 0, setsWonB: 0,
       matchWinner: null,
+      // V12 (§9-14): Tie break extraordinario en curso, o null si no hay ninguno.
+      // { active, startedAtGames:{a,b}, winTarget, requireDiff2 } — `startedAtGames` es el
+      // score REAL de games con el que se resuelve el set/partido al cerrar (§13): nunca se
+      // fabrican games para llegar a un 6-6/7-6 que no ocurrió.
+      extraordinaryTiebreak: null,
     };
+  }
+
+  /** ¿Puede arrancar un Tie break extraordinario ahora? Solo con el game actual en 0-0
+   *  (§9.3/9.4: nunca a mitad de un game en curso) y el partido todavía sin definir. */
+  function canStartExtraordinaryTiebreak(state) {
+    return !state.inTiebreak && !state.matchWinner && state.pointsA === 0 && state.pointsB === 0;
+  }
+
+  /**
+   * V12 (§9-11) — arranca un Tie break extraordinario EN EL LUGAR del game pendiente,
+   * preservando el score real de games (nunca lo fabrica hacia 6-6/7-6, §13). No toca
+   * `gamesA/gamesB/sets`: el game "vacío" que la UI venía mostrando en 0-0 simplemente
+   * nunca llegó a jugarse (§9.4) — no hace falta "cancelarlo" en el estado, porque nunca
+   * dejó rastro en él.
+   */
+  function startExtraordinaryTiebreak(state, winTarget, requireDiff2) {
+    if (!canStartExtraordinaryTiebreak(state)) return null;
+    const s = JSON.parse(JSON.stringify(state));
+    s.inTiebreak = true;
+    s.tbA = 0; s.tbB = 0;
+    s.tbBaseGameNumber = s.gameIndex + 1;
+    s.tbBaseWithinSet = s.gamesA + s.gamesB + 1;
+    s.extraordinaryTiebreak = { active: true, startedAtGames: { a: s.gamesA, b: s.gamesB }, winTarget, requireDiff2: !!requireDiff2 };
+    return s;
+  }
+
+  /**
+   * V12 (§12.3) — el objetivo de un Tie break extraordinario puede AUMENTARSE en vivo,
+   * nunca bajarse a un valor que implique que el TB ya debería haber terminado
+   * retroactivamente. Esta única desigualdad cubre todos los casos del Consolidado (p.ej.
+   * 8-4: rechaza bajar a 7) sin necesitar replay del historial — subir siempre es seguro.
+   */
+  function isValidExtraordinaryTargetChange(currentTbA, currentTbB, newWinTarget) {
+    return newWinTarget > Math.max(currentTbA, currentTbB);
   }
 
   /**
@@ -229,15 +275,30 @@
     if (s.matchWinner) return s;
 
     if (s.inTiebreak) {
+      // V12 (§9-14): un Tie break extraordinario trae su propio objetivo/regla (guardado en
+      // el propio estado, no en el `tiebreakMode` externo) — así un cambio de objetivo en
+      // vivo (§12) solo necesita mutar `s.extraordinaryTiebreak` vía un `adjustment`, sin
+      // tocar nada más: el próximo punto ya lo levanta acá.
+      const isExtraordinary = !!(s.extraordinaryTiebreak && s.extraordinaryTiebreak.active);
+      const effectiveMode = isExtraordinary
+        ? { winTarget: s.extraordinaryTiebreak.winTarget, requireDiff2: s.extraordinaryTiebreak.requireDiff2 }
+        : mode;
       if (team === 'A') s.tbA += 1; else s.tbB += 1;
       const w = team === 'A' ? s.tbA : s.tbB;
       const l = team === 'A' ? s.tbB : s.tbA;
-      if (tiebreakIsWon(w, l, mode)) {
-        if (team === 'A') s.gamesA += 1; else s.gamesB += 1;
-        s.sets.push({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: { a: s.tbA, b: s.tbB, mode }, winner: team });
+      if (tiebreakIsWon(w, l, effectiveMode)) {
+        if (isExtraordinary) {
+          // V12 (§13): NUNCA fabricar games — el set/partido se cierra con el score real de
+          // games que había ANTES del TB extraordinario (ej. 5-5, 4-3), nunca 6-6/7-6.
+          s.sets.push({ gamesA: s.extraordinaryTiebreak.startedAtGames.a, gamesB: s.extraordinaryTiebreak.startedAtGames.b, tiebreak: { a: s.tbA, b: s.tbB, mode: effectiveMode }, winner: team, extraordinary: true });
+        } else {
+          if (team === 'A') s.gamesA += 1; else s.gamesB += 1;
+          s.sets.push({ gamesA: s.gamesA, gamesB: s.gamesB, tiebreak: { a: s.tbA, b: s.tbB, mode }, winner: team });
+        }
         if (team === 'A') s.setsWonA += 1; else s.setsWonB += 1;
         s.gamesA = 0; s.gamesB = 0;
         s.inTiebreak = false; s.tbA = 0; s.tbB = 0;
+        s.extraordinaryTiebreak = null;
         s.gameIndex += 1;
         if (s.setsWonA >= Math.ceil(format.bestOfSets / 2) || s.setsWonB >= Math.ceil(format.bestOfSets / 2)) {
           s.matchWinner = s.setsWonA > s.setsWonB ? 'A' : 'B';
@@ -578,7 +639,7 @@
     return k;
   }
 
-  function resolveServer(knowledge, players, setNumber, matchGameNumber, withinSetGameNumber) {
+  function resolveServerCore(knowledge, players, setNumber, matchGameNumber, withinSetGameNumber) {
     if (!knowledge.parity) return { resolved: false, candidateTeam: null, candidatePlayers: players };
     const isOddGlobal = matchGameNumber % 2 === 1;
     const team = isOddGlobal ? knowledge.parity.oddTeam : otherTeam(knowledge.parity.oddTeam);
@@ -588,6 +649,69 @@
     const turn = Math.ceil(withinSetGameNumber / 2);
     const idx = (turn % 2 === 1) ? 0 : 1;
     return { resolved: true, team, playerId: order[idx] };
+  }
+
+  /**
+   * V12 (§5.3) — corrige el sacador de un game YA EN CURSO ("se seleccionó por error al
+   * jugador que estaba sacando") sin tocar la resolución de games anteriores. Reusar
+   * `recordServerAnswer` a secas no alcanza: esa función recalcula `orderA/orderB` con una
+   * fórmula pareja para TODO el set (pasado y futuro), así que corregir el game actual
+   * contaminaría también los games anteriores del mismo set.
+   *
+   * Estrategia — snapshot congelado: la PRIMERA vez que se corrige dentro de un set, se
+   * guarda una foto de cómo se resolvía todo ANTES de esta corrección
+   * (`perSet[setNumber].frozenBefore`). A partir de ahí, `resolveServer` (el dispatcher de
+   * abajo) resuelve cualquier game ANTERIOR al de la corrección contra esa foto congelada —
+   * nunca contra la fórmula recién actualizada — mientras que el game corregido en adelante
+   * usa el order nuevo. Alcance deliberado: cubre "jugador equivocado, mismo equipo" (el caso
+   * real de 5.1); una corrección de equipo más profunda sigue derivándose a EDITAR (5.3).
+   */
+  function recordServerCorrection(knowledge, players, setNumber, matchGameNumber, withinSetGameNumber, playerId) {
+    const k = JSON.parse(JSON.stringify(knowledge));
+    const setEntry = k.perSet[setNumber] || { orderA: null, orderB: null };
+    if (!setEntry.frozenBefore) {
+      setEntry.frozenBefore = {
+        matchGameNumber,
+        orderA: setEntry.orderA,
+        orderB: setEntry.orderB,
+        parityOddTeam: k.parity ? k.parity.oddTeam : null,
+      };
+      k.perSet[setNumber] = setEntry;
+    }
+    // Sobreescribe la paridad global, anclada a ESTA corrección: el jugador elegido pasa a
+    // determinar qué equipo saca en `matchGameNumber` (y, por la fórmula de paridad, en
+    // todos los games futuros a partir de acá). Hace falta para el caso más exigente — "¿Quién
+    // comienza sacando?" al arrancar un Tie break extraordinario (V12 §11) — donde el
+    // jugador elegido puede ser de CUALQUIER equipo, sin relación con la rotación previa; sin
+    // este paso, `recordServerAnswer` (que solo fija la paridad la primera vez) escribiría en
+    // el "casillero" de equipo equivocado y la corrección nunca se resolvería. Es seguro
+    // sobreescribir la paridad global acá porque los games ANTERIORES ya quedaron protegidos
+    // por el snapshot congelado de arriba (`resolveServer` los resuelve contra esa foto, no
+    // contra esta paridad nueva).
+    const player = players.find((p) => p.id === playerId);
+    if (player) {
+      const isOddGlobal = matchGameNumber % 2 === 1;
+      k.parity = { oddTeam: isOddGlobal ? player.team : otherTeam(player.team) };
+    }
+    return recordServerAnswer(k, players, setNumber, matchGameNumber, withinSetGameNumber, playerId);
+  }
+
+  /** Dispatcher: si este set tiene una corrección congelada Y el game consultado es
+   *  ANTERIOR al game donde se hizo la corrección, resuelve contra la foto congelada
+   *  (nunca contra la fórmula ya corregida). Si no, cae en el comportamiento de siempre —
+   *  así que un partido sin ninguna corrección de sacador se comporta EXACTAMENTE igual
+   *  que antes de V12 (cero riesgo de regresión para el caso común). */
+  function resolveServer(knowledge, players, setNumber, matchGameNumber, withinSetGameNumber) {
+    const setEntry = knowledge.perSet ? knowledge.perSet[setNumber] : null;
+    const frozen = setEntry && setEntry.frozenBefore;
+    if (frozen && matchGameNumber < frozen.matchGameNumber) {
+      const frozenKnowledge = {
+        parity: frozen.parityOddTeam ? { oddTeam: frozen.parityOddTeam } : null,
+        perSet: { [setNumber]: { orderA: frozen.orderA, orderB: frozen.orderB } },
+      };
+      return resolveServerCore(frozenKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber);
+    }
+    return resolveServerCore(knowledge, players, setNumber, matchGameNumber, withinSetGameNumber);
   }
 
   function resolveTiebreakServer(knowledge, players, setNumber, tbBaseGameNumber, tbBaseWithinSet, pointIndexInBreak) {
@@ -612,6 +736,9 @@
     isGameWon,
     formatPointsDisplay,
     createInitialEngineState,
+    canStartExtraordinaryTiebreak,
+    startExtraordinaryTiebreak,
+    isValidExtraordinaryTargetChange,
     applyPoint,
     computeStateFromEvents,
     applyAdjustment,
@@ -629,6 +756,7 @@
     enumerateValidGameStates,
     createServerKnowledge,
     recordServerAnswer,
+    recordServerCorrection,
     resolveServer,
     resolveTiebreakServer,
     otherTeam,

@@ -91,7 +91,15 @@
   <section id="view-match" class="view view--match" hidden>
 
     <div class="match-header">
-      <span class="match-header__timer" id="match-timer">00:00</span>
+      <div class="match-header__info" id="match-header-info">
+        <span class="match-header__brand">BRAMU</span>
+        <span class="match-header__sep" aria-hidden="true">·</span>
+        <span class="match-header__format" id="match-header-format"></span>
+        <span class="match-header__sep" aria-hidden="true">·</span>
+        <span class="match-header__system" id="match-header-system"></span>
+        <span class="match-header__sep" aria-hidden="true">·</span>
+        <span class="match-header__timer" id="match-timer">00:00</span>
+      </div>
       <button id="menu-btn" class="icon-btn" type="button" aria-label="Menú">☰</button>
     </div>
 
@@ -110,7 +118,12 @@
       <span id="status-banner-primary" class="status-banner__primary"></span>
       <span id="tiebreak-mode-text" class="tb-mode-text" hidden></span>
       <select id="tiebreak-mode-select" class="tb-select" hidden></select>
+      <!-- V12 (§12.2) — definición vigente del Tie break extraordinario, tappable para
+           "EDITAR DEFINICIÓN"; solo se muestra mientras ese TB está activo. -->
+      <button type="button" id="etb-definition-label" class="tb-mode-text tb-mode-text--tappable" hidden></button>
     </div>
+
+    <div id="game-progression" class="game-progression" hidden></div>
 
     <div id="server-prompt" class="server-prompt" hidden>
       <span class="server-prompt__label">🎾 ¿Quién saca?</span>
@@ -126,6 +139,10 @@
       <button id="undo-btn" class="control-btn" type="button" aria-label="Deshacer último punto">
         <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 5v3L7 4l5-4v3a8 8 0 108 8h2a10 10 0 11-10-10z"/></svg>
         <span class="control-btn__label">Deshacer</span>
+      </button>
+      <button id="adjust-btn" class="control-btn" type="button" aria-label="Ajustar marcador">
+        <svg viewBox="0 0 24 24" class="control-btn__icon"><rect x="3" y="5" width="18" height="2" rx="1"/><circle cx="15" cy="6" r="2.5"/><rect x="3" y="11" width="18" height="2" rx="1"/><circle cx="9" cy="12" r="2.5"/><rect x="3" y="17" width="18" height="2" rx="1"/><circle cx="17" cy="18" r="2.5"/></svg>
+        <span class="control-btn__label">Ajustar</span>
       </button>
       <button id="highlight-btn" class="control-btn" type="button" aria-label="Guardar highlight">
         <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 2l2.9 6.6L22 9.6l-5 4.9 1.2 7-6.2-3.4L5.8 21.5 7 14.5l-5-4.9 7.1-1z"/></svg>
@@ -152,7 +169,7 @@
         </div>
         <div id="highlight-popup-grid" class="highlight-popup__grid">
           <button type="button" class="highlight-popup__btn" data-category="smash">Smash / X3</button>
-          <button type="button" class="highlight-popup__btn" data-category="dejada">Dejada</button>
+          <button type="button" class="highlight-popup__btn" data-category="blooper">Blooper</button>
           <button type="button" class="highlight-popup__btn" data-category="recuperacion">Recuperación</button>
           <button type="button" class="highlight-popup__btn" data-category="puntazo">Puntazo</button>
         </div>
@@ -168,6 +185,7 @@
     <div id="menu-overlay" class="overlay overlay--menu" hidden>
       <div class="menu-sheet">
         <button id="menu-finish" class="menu-item" type="button">Finalizar partido</button>
+        <button id="menu-extraordinary-tb" class="menu-item" type="button" hidden>Resolver con Tie break</button>
         <button id="menu-pause" class="menu-item" type="button">Pausar cronómetro</button>
         <div class="menu-sep"></div>
         <button id="menu-reset" class="menu-item menu-item--danger" type="button">Reiniciar partido</button>
@@ -332,6 +350,77 @@
           <button id="quick-correction-save" class="btn-start btn-start--overlay" type="button">GUARDAR CORRECCIÓN</button>
         </div>
         <button type="button" id="quick-correction-full-editor" class="link-btn quick-correction-full-link">EDITAR MARCADOR COMPLETO</button>
+      </div>
+    </div>
+
+    <!-- V12 (§2) — Ajustar: "me perdí parte del game; conozco el tanteador actual pero no
+         necesariamente la secuencia que llevó hasta ahí". A diferencia de Corrección Rápida,
+         NUNCA reconstruye una secuencia de puntos plausible: siempre marca el tramo salteado
+         como un ajuste manual, para no fabricar datos que no ocurrieron. -->
+    <div id="adjust-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide">
+        <div class="overlay__title-row">
+          <div class="overlay__title">AJUSTAR MARCADOR</div>
+          <button type="button" id="adjust-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <p class="overlay__text">Elegí el tanteador actual del game. No hace falta reconstruir cómo se llegó — lo que no se conoce queda marcado como ajuste manual.</p>
+        <div id="adjust-body"></div>
+        <div class="overlay__actions">
+          <button id="adjust-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="adjust-save" class="btn-start btn-start--overlay" type="button">CONFIRMAR AJUSTE</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- V12 (§5) — Corregir sacador: se abre al tocar el indicador de saque en el
+         marcador compacto. Reasigna el saque del game actual sin tocar games anteriores.
+         También se reusa para "¿Quién comienza sacando?" al arrancar un Tie break
+         extraordinario (§11) — mismo mecanismo, título dinámico. -->
+    <div id="server-correction-modal" class="overlay" hidden>
+      <div class="overlay__card">
+        <div class="overlay__title-row">
+          <div class="overlay__title" id="server-correction-title">¿QUIÉN ESTÁ SACANDO?</div>
+          <button type="button" id="server-correction-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <div id="server-correction-options" class="server-grid"></div>
+        <div class="overlay__actions">
+          <button id="server-correction-cancel" class="btn-secondary" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- V12 (§9-12) — Resolver con Tie break / Editar definición: mismo modal para arrancar
+         un Tie break extraordinario (títulos/acción dinámicos) y para cambiar su objetivo en
+         vivo — la elección de modalidad/objetivo es idéntica en ambos casos (§10, §12). -->
+    <div id="etb-modal" class="overlay" hidden>
+      <div class="overlay__card overlay__card--wide">
+        <div class="overlay__title-row">
+          <div class="overlay__title" id="etb-modal-title">RESOLVER CON TIE BREAK</div>
+          <button type="button" id="etb-close-x" class="overlay__close-x" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="option-grid" id="etb-preset-options">
+          <button type="button" class="option-pill" data-preset="classic"><span class="option-pill__title">Tie break clásico</span><span class="option-pill__hint">a 7</span></button>
+          <button type="button" class="option-pill" data-preset="death7"><span class="option-pill__title">Muere en 7</span></button>
+          <button type="button" class="option-pill" data-preset="to15"><span class="option-pill__title">Tie break a 15</span></button>
+          <button type="button" class="option-pill" data-preset="custom"><span class="option-pill__title">Otro</span></button>
+        </div>
+        <div id="etb-custom-section" hidden>
+          <div class="edit-row">
+            <span class="edit-row__label">Jugar a:</span>
+            <button type="button" id="etb-target-minus" class="stepper-btn">–</button>
+            <span id="etb-target-value" class="stepper-value">12</span>
+            <button type="button" id="etb-target-plus" class="stepper-btn">+</button>
+          </div>
+          <div class="option-grid" id="etb-rule-options">
+            <button type="button" class="option-pill" data-rule="diff2"><span class="option-pill__title">Diferencia de 2</span></button>
+            <button type="button" class="option-pill" data-rule="death"><span class="option-pill__title" id="etb-death-label">Muere en 12</span></button>
+          </div>
+        </div>
+        <p class="edit-error" id="etb-error" hidden></p>
+        <div class="overlay__actions">
+          <button id="etb-cancel" class="btn-secondary" type="button">Cancelar</button>
+          <button id="etb-confirm" class="btn-start btn-start--overlay" type="button">INICIAR TIE BREAK</button>
+        </div>
       </div>
     </div>
 

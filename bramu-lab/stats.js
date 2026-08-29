@@ -60,6 +60,10 @@
     let lastSetBoundaryMs = 0;
     let matchEndMs = 0;
     let hasAdjustments = false;
+    // V12 (§6): games donde se conoce el EQUIPO al saque pero no el jugador individual —
+    // ya no caen en `serviceGames.unknown` (el equipo sí se sabe), así que se cuentan aparte
+    // para que `serverFullyKnown` conserve su significado real ("el jugador se conoce SIEMPRE").
+    let gamesWithUnknownPlayer = 0;
 
     events.forEach((ev) => {
       matchEndMs = ev.matchTimeMs;
@@ -68,9 +72,26 @@
       // deportivo, corta cualquier racha en curso (nunca puede "atravesar"
       // un ajuste) y marca que las estadísticas son parciales/discontinuas.
       if (ev.type === 'adjustment') {
+        const beforeAdj = state;
         state = E.applyAdjustment(ev.newState);
         currentStreak = { team: null, count: 0 };
-        hasAdjustments = true;
+        // V12 (§3.1-3.2): un ajuste nunca fabrica lo que no se sabe (orden real, sacador,
+        // rachas, BP/SP/MP del tramo salteado) — pero si el tramo queda DENTRO del mismo
+        // game y avanza (nunca hacia atrás), el delta de puntos ganados por cada equipo SÍ
+        // es un dato seguro: no depende de conocer el orden real de esos puntos, solo de
+        // cuántos ganó cada uno. Fuera de ese caso (cruza un game, toca el tie break, o es
+        // una corrección hacia atrás) no se conserva nada — mejor sub-reportar que inventar.
+        const sameGameForward = beforeAdj.gameIndex === state.gameIndex && !beforeAdj.inTiebreak && !state.inTiebreak
+          && state.pointsA >= beforeAdj.pointsA && state.pointsB >= beforeAdj.pointsB;
+        if (sameGameForward) {
+          totals.A += state.pointsA - beforeAdj.pointsA;
+          totals.B += state.pointsB - beforeAdj.pointsB;
+        }
+        // V12 (§9-14): resolver con Tie break extraordinario (arrancarlo o cambiarle el
+        // objetivo en vivo) es una transición DELIBERADA y totalmente conocida — nunca una
+        // ambigüedad como AJUSTAR — así que no debe marcar el partido como "datos parciales".
+        const isExtraordinaryTbEvent = !!(ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active);
+        if (!isExtraordinaryTbEvent) hasAdjustments = true;
         return;
       }
 
@@ -94,7 +115,12 @@
           ? E.resolveTiebreakServer(serverKnowledge, players, setNumber, before.tbBaseGameNumber, before.tbBaseWithinSet, before.tbA + before.tbB)
           : E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber))
         : { resolved: false };
-      const servingTeam = resolved.resolved ? resolved.team : null;
+      // V12 (§6): separar "sabemos qué EQUIPO saca" de "sabemos qué JUGADOR saca" —
+      // `resolved.candidateTeam` puede ser conocido aunque `resolved.resolved` (el jugador
+      // individual) no lo sea. Antes esta línea descartaba el dato de equipo entero cada vez
+      // que el jugador no se conocía, apagando de paso `serveStats`/`serviceGames`/`breaks`
+      // de PAREJA (que no dependen del jugador) — bug real de la auditoría del Consolidado.
+      const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
       const servingPlayerId = resolved.resolved ? resolved.playerId : null;
 
       // Punto de Oro / Star Point disputados y ganados
@@ -108,7 +134,7 @@
       }
 
       // Break / Set / Match point: detectados ANTES de jugar este punto
-      const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeam);
+      const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeamKnown);
       recordOpportunity(breakPoints, importance.break, ev.team);
       recordOpportunity(setPoints, importance.set, ev.team);
       recordOpportunity(matchPoints, importance.match, ev.team);
@@ -117,12 +143,12 @@
       // sacador conocido (rotación dentro del propio TB, ya resuelto arriba vía
       // resolveTiebreakServer); lo único que el TB nunca alimenta es un game de saque
       // completo (más abajo, wasNormalGameEnd sigue excluyéndolo) ni breaks/Break Points.
-      if (servingTeam) {
-        serveStats[servingTeam].served += 1;
-        if (ev.team === servingTeam) serveStats[servingTeam].wonServing += 1;
+      if (servingTeamKnown) {
+        serveStats[servingTeamKnown].served += 1;
+        if (ev.team === servingTeamKnown) serveStats[servingTeamKnown].wonServing += 1;
         if (servingPlayerId != null && perPlayerServe[servingPlayerId]) {
           perPlayerServe[servingPlayerId].pointsTotal += 1;
-          if (ev.team === servingTeam) perPlayerServe[servingPlayerId].pointsWon += 1;
+          if (ev.team === servingTeamKnown) perPlayerServe[servingPlayerId].pointsWon += 1;
         }
       }
 
@@ -131,21 +157,26 @@
       const wasTiebreakConcluding = before.inTiebreak && !state.inTiebreak;
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
 
-      // Games de saque / breaks — SOLO games normales, nunca tie break.
+      // Games de saque / breaks — SOLO games normales, nunca tie break. V12 (§6): solo
+      // necesitan el EQUIPO al saque, así que sobreviven aunque el jugador individual no se
+      // conozca — eso se rastrea aparte en `gamesWithUnknownPlayer`, para no aflojar
+      // `serverFullyKnown` (que sigue significando "el jugador se conoce en todos los games").
       if (wasNormalGameEnd) {
         const winnerOfGame = state.sets.length > before.sets.length
           ? state.sets[state.sets.length - 1].winner
           : (state.gamesA > before.gamesA ? 'A' : 'B');
-        if (servingTeam) {
-          if (winnerOfGame === servingTeam) {
-            if (servingTeam === 'A') serviceGames.wonA += 1; else serviceGames.wonB += 1;
+        if (servingTeamKnown) {
+          if (winnerOfGame === servingTeamKnown) {
+            if (servingTeamKnown === 'A') serviceGames.wonA += 1; else serviceGames.wonB += 1;
           } else {
-            if (servingTeam === 'A') serviceGames.lostA += 1; else serviceGames.lostB += 1;
+            if (servingTeamKnown === 'A') serviceGames.lostA += 1; else serviceGames.lostB += 1;
             if (winnerOfGame === 'A') breaks.A += 1; else breaks.B += 1;
           }
           if (servingPlayerId != null && perPlayerServe[servingPlayerId]) {
             perPlayerServe[servingPlayerId].games += 1;
-            if (winnerOfGame === servingTeam) perPlayerServe[servingPlayerId].held += 1;
+            if (winnerOfGame === servingTeamKnown) perPlayerServe[servingPlayerId].held += 1;
+          } else {
+            gamesWithUnknownPlayer += 1;
           }
         } else {
           serviceGames.unknown += 1;
@@ -163,7 +194,7 @@
     const totalPoints = totals.A + totals.B;
     const serverKnown = serviceGames.wonA + serviceGames.wonB + serviceGames.lostA + serviceGames.lostB;
     const hasServerInfo = serverKnown > 0;
-    const serverFullyKnown = hasServerInfo && serviceGames.unknown === 0;
+    const serverFullyKnown = hasServerInfo && serviceGames.unknown === 0 && gamesWithUnknownPlayer === 0;
 
     return {
       totalPoints, pointsA: totals.A, pointsB: totals.B,
@@ -372,16 +403,18 @@
           ? E.resolveTiebreakServer(serverKnowledge, players, setNumber, before.tbBaseGameNumber, before.tbBaseWithinSet, before.tbA + before.tbB)
           : E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber))
         : { resolved: false };
-      const servingTeam = resolved.resolved ? resolved.team : null;
+      // V12 (§6): equipo conocido sin jugador individual sigue siendo un quiebre de PAREJA
+      // válido — solo se pierde `serverPlayerId` (queda null, la narrativa ya lo maneja).
+      const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
       const servingPlayerId = resolved.resolved ? resolved.playerId : null;
       state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
-      if (wasNormalGameEnd && servingTeam) {
+      if (wasNormalGameEnd && servingTeamKnown) {
         const closedSet = state.sets.length > before.sets.length;
         const winnerOfGame = closedSet ? state.sets[state.sets.length - 1].winner : (state.gamesA > before.gamesA ? 'A' : 'B');
-        if (winnerOfGame !== servingTeam) {
+        if (winnerOfGame !== servingTeamKnown) {
           found = {
-            setNumber, breakerTeam: winnerOfGame, servedByTeam: servingTeam, serverPlayerId: servingPlayerId,
+            setNumber, breakerTeam: winnerOfGame, servedByTeam: servingTeamKnown, serverPlayerId: servingPlayerId,
             scoreBefore: { gamesA: before.gamesA, gamesB: before.gamesB },
             scoreAfter: closedSet
               ? { gamesA: state.sets[state.sets.length - 1].gamesA, gamesB: state.sets[state.sets.length - 1].gamesB }
@@ -427,10 +460,12 @@
           ? E.resolveTiebreakServer(serverKnowledge, players, setNumber, before.tbBaseGameNumber, before.tbBaseWithinSet, before.tbA + before.tbB)
           : E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber))
         : { resolved: false };
-      const servingTeam = resolved.resolved ? resolved.team : null;
-      if (!before.inTiebreak && servingTeam) {
-        const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeam);
-        const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
+      // V12 (§6): equipo conocido alcanza para detectar presión de Break Point — nunca
+      // dependió del jugador individual, solo se descartaba de más por la misma línea.
+      const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
+      if (!before.inTiebreak && servingTeamKnown) {
+        const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeamKnown);
+        const receivingTeam = servingTeamKnown === 'A' ? 'B' : 'A';
         // V11.1 (§2.5, aplicado acá): un Break Point que ADEMÁS es Match Point o Set Point ya
         // queda cubierto por la historia de remontada/Match Points salvados (son literalmente
         // los mismos puntos) — contarlo taquí también sería narrar la misma secuencia dos
@@ -438,7 +473,7 @@
         // sin protagonismo de set/partido en juego todavía.
         if ((importance.break === receivingTeam || importance.break === 'both') && !importance.match && !importance.set) {
           // El resto tiene Break Point: si el punto lo termina ganando el que saca, lo salvó.
-          if (ev.team === servingTeam) bpSavedThisGame += 1;
+          if (ev.team === servingTeamKnown) bpSavedThisGame += 1;
         }
       }
       state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
@@ -446,12 +481,12 @@
       if (wasNormalGameEnd) {
         const closedSet = state.sets.length > before.sets.length;
         const winnerOfGame = closedSet ? state.sets[state.sets.length - 1].winner : (state.gamesA > before.gamesA ? 'A' : 'B');
-        if (servingTeam && winnerOfGame === servingTeam && bpSavedThisGame >= 2 && (!best || bpSavedThisGame > best.bpSaved)) {
+        if (servingTeamKnown && winnerOfGame === servingTeamKnown && bpSavedThisGame >= 2 && (!best || bpSavedThisGame > best.bpSaved)) {
           // V11.16 (feedback real): `withinSetGameNumber` viaja acá SOLO para poder describir
           // el hold sin decir "en el Set 1" en partidos de un único set (Americano) — no
           // cambia en nada CUÁL hold se elige (esa decisión sigue siendo bpSavedThisGame >= 2
           // y el máximo entre los candidatos, sin tocar).
-          best = { team: servingTeam, setNumber, withinSetGameNumber, bpSaved: bpSavedThisGame, closedSet, closedMatch: !!state.matchWinner };
+          best = { team: servingTeamKnown, setNumber, withinSetGameNumber, bpSaved: bpSavedThisGame, closedSet, closedMatch: !!state.matchWinner };
         }
         bpSavedThisGame = 0;
       }
@@ -1092,7 +1127,37 @@
    * el porqué. El resto de este cuerpo sigue vigente para todos los demás casos (Americano,
    * partidos a un set, dos sets, cobertura parcial, finalización manual).
    */
+  /**
+   * V12 (§14.1) — envoltorio delgado: el motor narrativo interno (`generateBramuIntelligenceCore`,
+   * la función completa de abajo, con toda su lógica ya afinada por múltiples rondas) no se
+   * toca. Acá solo se AGREGA, al final de cualquier camino que haya tomado, un párrafo
+   * explícito cuando algún set se resolvió con un Tie break extraordinario (§9-13) — nunca
+   * se reescribe como si hubiera sido un Tie break reglamentario a 6-6/7-6 (§14.1, última
+   * línea: "no presentarlo como un Tie break reglamentario si eso no ocurrió").
+   */
   function generateBramuIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
+    const text = generateBramuIntelligenceCore(stats, matchCtx, sets, winnerTeam, finishInfo);
+    const narrativeTeamLabel = (team) => matchCtx.players.filter((p) => p.team === team).map((p) => p.name).join(' y ');
+    const nameOf = (team) => (team === 'A' ? narrativeTeamLabel('A') : narrativeTeamLabel('B'));
+    return appendExtraordinaryTiebreakNote(text, sets, nameOf);
+  }
+
+  /** §9-13: nunca hay más de un set extraordinario real en un partido — identifica ese set
+   *  (si existe) y describe la resolución con su score REAL previo (nunca 6-6/7-6). */
+  function appendExtraordinaryTiebreakNote(text, sets, nameOf) {
+    const idx = sets.findIndex((s) => s.extraordinary);
+    if (idx === -1) return text;
+    const s = sets[idx];
+    const setLabel = sets.length === 1 ? 'el set' : (idx === sets.length - 1 ? 'el set decisivo' : (idx === 0 ? 'el primer set' : 'el segundo set'));
+    const cfg = s.tiebreak && s.tiebreak.mode;
+    const targetLabel = cfg && typeof cfg === 'object' && cfg.winTarget ? ` a ${cfg.winTarget}` : '';
+    // V9.2 (11, reusado acá): marcador orientado hacia quien ganó — mismo criterio que el
+    // resto de la prosa (orientScore/orientTiebreak), nunca el orden fijo A-B.
+    const note = `Con ${setLabel} ${orientScore(s.gamesA, s.gamesB, s.winner)}, decidieron resolverlo mediante un Tie break${targetLabel} — lo ganaron ${nameOf(s.winner)} ${orientTiebreak(s.tiebreak, s.winner)}.`;
+    return text + '\n\n' + note;
+  }
+
+  function generateBramuIntelligenceCore(stats, matchCtx, sets, winnerTeam, finishInfo) {
     // R1: en texto narrativo, "Seba y Matu" — nunca "Seba / Matu" (esa barra es para UI, no para prosa).
     const narrativeTeamLabel = (team) => matchCtx.players.filter((p) => p.team === team).map((p) => p.name).join(' y ');
     const nameA = narrativeTeamLabel('A');
@@ -1114,7 +1179,12 @@
     // confiable de CADA set para narrar capítulo por capítulo, así que siguen por el motor
     // original de abajo. Solo es alcanzable en el formato Clásico (bestOfSets:3); Americano
     // es bestOfSets:1 y nunca llega a sets.length === 3.
-    if (winnerTeam && sets.length === 3 && !partial && !(finishInfo && finishInfo.manual)) {
+    // V12 (§14.1): un set resuelto por Tie break extraordinario tampoco toma este camino —
+    // su score real (p.ej. 5-5) no encaja en los supuestos de "set reglamentario cerrado"
+    // que este composer asume por diseño; sigue por el motor original, y la nota de §14.1
+    // se agrega aparte en `appendExtraordinaryTiebreakNote`.
+    const hasExtraordinarySet = sets.some((s) => s.extraordinary);
+    if (winnerTeam && sets.length === 3 && !partial && !hasExtraordinarySet && !(finishInfo && finishInfo.manual)) {
       return buildThreeSetChronologicalStory(stats, matchCtx, sets, winnerTeam, evoData, varietySeed, nameOf);
     }
 
@@ -1901,13 +1971,23 @@
 
     events.forEach((ev) => {
       if (ev.type === 'adjustment') {
+        const beforeAdj = state;
         state = E.applyAdjustment(ev.newState);
         completedSets = state.sets.slice();
         breaksFor = { A: 0, B: 0 }; breaksAgainst = { A: 0, B: 0 }; consolidations = { A: 0, B: 0 };
         lastBreakBy = null; consolidatedThisBreak = true;
         tbMiniFor = { A: 0, B: 0 }; tbMiniAgainst = { A: 0, B: 0 };
         worstDiffA = 0; bestDiffA = 0; comebackFlagA = false; comebackFlagB = false;
-        pendingGap = true;
+        // V12 (§14.2): resolver con Tie break extraordinario es una transición CONOCIDA —
+        // nunca dibujar el hueco de "orden desconocido" (§4.4) que sí corresponde a un
+        // AJUSTAR genérico. En cambio, se registra como un momento explícito que BRAMU
+        // Intelligence pueda narrar (§14.1: "decidieron resolverlo mediante un Tie break").
+        const etb = ev.newState && ev.newState.extraordinaryTiebreak && ev.newState.extraordinaryTiebreak.active ? ev.newState.extraordinaryTiebreak : null;
+        if (etb && !beforeAdj.inTiebreak) {
+          moments.push({ kind: 'tiebreak-extraordinary-start', gamesBefore: { a: etb.startedAtGames.a, b: etb.startedAtGames.b }, winTarget: etb.winTarget, requireDiff2: etb.requireDiff2, matchTimeMs: ev.matchTimeMs });
+        } else if (!etb) {
+          pendingGap = true;
+        }
         return;
       }
       const before = state;
@@ -1920,9 +2000,11 @@
           ? E.resolveTiebreakServer(serverKnowledge, players, setNumber, before.tbBaseGameNumber, before.tbBaseWithinSet, before.tbA + before.tbB)
           : E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber))
         : { resolved: false };
-      const servingTeam = resolved.resolved ? resolved.team : null;
+      // V12 (§6): equipo conocido alcanza para marcar breaks/momentos en Evolución, sin
+      // depender del jugador individual (que acá ni siquiera se usa más abajo).
+      const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
 
-      const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeam);
+      const importance = E.detectPointImportance(before, scoringSystem, format, modeForThisPoint, servingTeamKnown);
       const disp = before.inTiebreak ? null : E.formatPointsDisplay(before.pointsA, before.pointsB, scoringSystem);
       const isGoldOrStarPoint = !!(disp && (disp.isGoldenPoint || disp.isStarPoint));
       const scoreLabelBefore = before.inTiebreak ? `${before.tbA}-${before.tbB}` : `${before.gamesA}-${before.gamesB}`;
@@ -2004,14 +2086,14 @@
         const closedSet = after.sets.length > before.sets.length;
         const winnerOfGame = closedSet ? after.sets[after.sets.length - 1].winner : (after.gamesA > before.gamesA ? 'A' : 'B');
         const wasInTiebreak = before.inTiebreak;
-        const isBreak = !wasInTiebreak && !!servingTeam && winnerOfGame !== servingTeam;
+        const isBreak = !wasInTiebreak && !!servingTeamKnown && winnerOfGame !== servingTeamKnown;
 
         if (isBreak) {
           const wasCounterbreak = lastBreakBy === E.otherTeam(winnerOfGame);
           breaksFor[winnerOfGame] += 1; breaksAgainst[E.otherTeam(winnerOfGame)] += 1;
-          moments.push({ kind: 'break', team: winnerOfGame, setNumber, server: servingTeam, isGoldOrStar: isGoldOrStarPoint, isCounterbreak: wasCounterbreak, scoreBefore: `${before.gamesA}-${before.gamesB}`, scoreAfter: `${after.gamesA}-${after.gamesB}`, matchTimeMs: ev.matchTimeMs });
+          moments.push({ kind: 'break', team: winnerOfGame, setNumber, server: servingTeamKnown, isGoldOrStar: isGoldOrStarPoint, isCounterbreak: wasCounterbreak, scoreBefore: `${before.gamesA}-${before.gamesB}`, scoreAfter: `${after.gamesA}-${after.gamesB}`, matchTimeMs: ev.matchTimeMs });
           lastBreakBy = winnerOfGame; consolidatedThisBreak = false;
-        } else if (!wasInTiebreak && servingTeam && winnerOfGame === servingTeam) {
+        } else if (!wasInTiebreak && servingTeamKnown && winnerOfGame === servingTeamKnown) {
           if (lastBreakBy === winnerOfGame && !consolidatedThisBreak) {
             consolidations[winnerOfGame] = (consolidations[winnerOfGame] || 0) + 1;
             consolidatedThisBreak = true;
@@ -2041,7 +2123,7 @@
           setNumber: closedSet ? after.sets.length : setNumber,
           gamesA: closedSet ? after.sets[after.sets.length - 1].gamesA : after.gamesA,
           gamesB: closedSet ? after.sets[after.sets.length - 1].gamesB : after.gamesB,
-          winner: winnerOfGame, isBreak, server: servingTeam, isTiebreakClose: wasInTiebreak,
+          winner: winnerOfGame, isBreak, server: servingTeamKnown, isTiebreakClose: wasInTiebreak,
           tiebreak: closedSet ? after.sets[after.sets.length - 1].tiebreak : null,
           closedSet, setResult: closedSet ? after.sets[after.sets.length - 1] : null,
           matchWinner: after.matchWinner, matchTimeMs: ev.matchTimeMs,
@@ -2065,7 +2147,7 @@
           if (after.matchWinner === 'A') last.indexA = 100; else last.indexB = 100;
         }
       } else if (before.inTiebreak && after.inTiebreak) {
-        if (servingTeam && ev.team !== servingTeam) {
+        if (servingTeamKnown && ev.team !== servingTeamKnown) {
           tbMiniFor[ev.team] += 1; tbMiniAgainst[E.otherTeam(ev.team)] += 1;
           moments.push({ kind: 'tiebreak-minibreak', team: ev.team, setNumber, scoreAfter: `${after.tbA}-${after.tbB}`, matchTimeMs: ev.matchTimeMs });
           const snap = snapshotFor(after);

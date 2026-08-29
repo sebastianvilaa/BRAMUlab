@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>BRAMU Lab · Tests de Intelligence (V11)</title>
+<title>BRAMU Lab · Tests (V12)</title>
 <style>
   body{ font-family: -apple-system, system-ui, sans-serif; background:#0B1211; color:#F4F7F2; padding:20px; max-width:820px; margin:0 auto; }
   h1{ font-size:18px; } h2{ font-size:13px; color:#FFC93D; margin-top:28px; text-transform:uppercase; letter-spacing:.05em; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div id="summary">Corriendo tests…</div>
-<h1>BRAMU Lab V11 — batería sintética de BRAMU Intelligence</h1>
+<h1>BRAMU Lab V12 — batería sintética de BRAMU Intelligence + Ajustar/Sacador/Tie break extraordinario</h1>
 <div id="results"></div>
 
 <script src="engine.js"></script>
@@ -635,6 +635,234 @@
     assert('TESTB.4 · no repite "cerrar/cerrarlo" en exceso (máximo 2 menciones)', cerrarCount <= 2, rB.text);
     // 5) sujeto correcto: el hold del 5-5 lo protagonizan Gusti y Esteban, el TB también
     assert('TESTB.5 · sujeto explícito al narrar quién salvó los Match Points (Gusti y Esteban)', rB.text.includes('Gusti y Esteban salvaron'), rB.text);
+  })();
+
+  // ------------------------------------------------------------------
+  // V12 (§15) — CASOS A-E: AJUSTAR nunca fabrica lo que no se sabe (BP/rachas/secuencias
+  // sobre el tramo salteado), pero conserva el delta de puntos ganados cuando el ajuste
+  // queda dentro del mismo game y avanza. Todos usan el mecanismo real (`E.applyAdjustment`
+  // + `S.computeStats`), igual que lo hace `saveAdjustment` en app.js.
+  // ------------------------------------------------------------------
+  (function () {
+    // ---- CASO A · Punto de Oro: 15-0 → AJUSTAR → 40-30 -----------------------------------
+    const ctxA = newCtx('golden', 'classic');
+    playPoint(ctxA, 'A'); // 15-0 (1 punto real de A)
+    const newStateA = Object.assign({}, ctxA.state, { pointsA: 3, pointsB: 2 }); // 40-30
+    ctxA.events.push({ type: 'adjustment', newState: newStateA, timestamp: new Date().toISOString(), matchTimeMs: ctxA.ms + 1000, scoreBeforeLabel: '15-0', scoreAfterLabel: '40-30' });
+    const statsA = S.computeStats(ctxA.events, ctxAsMatchCtx(ctxA));
+    const stateA = E.computeStateFromEvents(ctxA.events, 'golden', E.FORMATS.classic, 'classic', null);
+    assert('CASO A · score correcto tras AJUSTAR (40-30)', stateA.pointsA === 3 && stateA.pointsB === 2, JSON.stringify({ pointsA: stateA.pointsA, pointsB: stateA.pointsB }));
+    assert('CASO A · conserva el delta de puntos ganados (dato seguro, §3.2)', statsA.pointsA === 3 && statsA.pointsB === 2, JSON.stringify({ pointsA: statsA.pointsA, pointsB: statsA.pointsB }));
+    assert('CASO A · no fabrica Break Points en el tramo salteado', statsA.breakPoints.A.opportunities === 0 && statsA.breakPoints.B.opportunities === 0, JSON.stringify(statsA.breakPoints));
+    assert('CASO A · no fabrica racha más allá de lo realmente jugado (solo 1 punto real de A)', statsA.maxStreak.A === 1 && statsA.maxStreak.B === 0, JSON.stringify(statsA.maxStreak));
+    assert('CASO A · marca hasAdjustments (datos parciales, §3.3)', statsA.hasAdjustments === true, statsA.hasAdjustments);
+
+    // ---- CASO B · Punto de Oro: AJUSTAR directo a 40-40 → debe entrar en PUNTO DE ORO ----
+    const ctxB = newCtx('golden', 'classic');
+    const newStateB = Object.assign({}, ctxB.state, { pointsA: 3, pointsB: 3 });
+    const stateB = E.applyAdjustment(newStateB);
+    const dispB = E.formatPointsDisplay(stateB.pointsA, stateB.pointsB, 'golden');
+    assert('CASO B · AJUSTAR directo a 40-40 activa Punto de Oro sin acción adicional', dispB.isGoldenPoint === true && /PUNTO DE ORO/.test(dispB.centralLabel), JSON.stringify(dispB));
+
+    // ---- CASO C · Con Ventaja: ajustar a DEUCE / VENTAJA A / VENTAJA B ------------------
+    const baseC = newCtx('classic', 'classic').state;
+    const dispDeuce = E.formatPointsDisplay(E.applyAdjustment(Object.assign({}, baseC, { pointsA: 3, pointsB: 3 })).pointsA, 3, 'classic');
+    assert('CASO C · ajustar a DEUCE', dispDeuce.centralLabel === 'DEUCE', JSON.stringify(dispDeuce));
+    const stateVentajaA = E.applyAdjustment(Object.assign({}, baseC, { pointsA: 4, pointsB: 3 }));
+    const dispVentajaA = E.formatPointsDisplay(stateVentajaA.pointsA, stateVentajaA.pointsB, 'classic');
+    assert('CASO C · ajustar a VENTAJA Equipo A', dispVentajaA.aText === 'VENTAJA' && dispVentajaA.bText === '40', JSON.stringify(dispVentajaA));
+    const stateVentajaB = E.applyAdjustment(Object.assign({}, baseC, { pointsA: 3, pointsB: 4 }));
+    const dispVentajaB = E.formatPointsDisplay(stateVentajaB.pointsA, stateVentajaB.pointsB, 'classic');
+    assert('CASO C · ajustar a VENTAJA Equipo B', dispVentajaB.bText === 'VENTAJA' && dispVentajaB.aText === '40', JSON.stringify(dispVentajaB));
+
+    // ---- CASO D · Star Point: ajustar a los 7 estados especiales (DEUCE 1/1ª VENTAJA/
+    //      DEUCE 2/2ª VENTAJA/STAR POINT) — misma lógica real del motor, sin estados
+    //      paralelos (usa exactamente enumerateValidGameStates, igual que la UI). --------
+    const starStates = E.enumerateValidGameStates('starpoint').filter((st) => st.pointsA >= 3 && st.pointsB >= 3);
+    assert('CASO D · Star Point expone los 7 estados especiales', starStates.length === 7, JSON.stringify(starStates));
+    const starLabels = starStates.map((st) => st.label);
+    ['Deuce 1', '1ª ventaja Equipo A', '1ª ventaja Equipo B', 'Deuce 2', '2ª ventaja Equipo A', '2ª ventaja Equipo B', 'Star Point'].forEach((label) => {
+      assert(`CASO D · incluye el estado "${label}"`, starLabels.includes(label), starLabels.join(', '));
+    });
+    const starPointState = starStates.find((st) => st.label === 'Star Point');
+    const dispStar = E.formatPointsDisplay(starPointState.pointsA, starPointState.pointsB, 'starpoint');
+    assert('CASO D · el estado "Star Point" activa isStarPoint', dispStar.isStarPoint === true, JSON.stringify(dispStar));
+    const deuce2State = starStates.find((st) => st.label === 'Deuce 2');
+    const dispDeuce2 = E.formatPointsDisplay(deuce2State.pointsA, deuce2State.pointsB, 'starpoint');
+    assert('CASO D · el estado "Deuce 2" se distingue de Deuce 1 (nunca combinaciones 40-40+N)', dispDeuce2.centralLabel === 'DEUCE 2', JSON.stringify(dispDeuce2));
+
+    // ---- CASO E · Dos ajustes manuales dentro del mismo game: no fabrica secuencias -----
+    const ctxE = newCtx('golden', 'classic');
+    playPoint(ctxE, 'A'); // 15-0 (1 punto real)
+    const newState1 = Object.assign({}, ctxE.state, { pointsA: 2, pointsB: 1 }); // 30-15
+    ctxE.events.push({ type: 'adjustment', newState: newState1, matchTimeMs: ctxE.ms + 1000 });
+    const stateAfter1 = E.applyAdjustment(newState1);
+    const newState2 = Object.assign({}, stateAfter1, { pointsA: 3, pointsB: 2 }); // 40-30
+    ctxE.events.push({ type: 'adjustment', newState: newState2, matchTimeMs: ctxE.ms + 2000 });
+    const statsE = S.computeStats(ctxE.events, ctxAsMatchCtx(ctxE));
+    assert('CASO E · dos ajustes seguidos conservan el delta total de puntos', statsE.pointsA === 3 && statsE.pointsB === 2, JSON.stringify({ pointsA: statsE.pointsA, pointsB: statsE.pointsB }));
+    assert('CASO E · ningún ajuste fabrica racha entre ellos (solo el punto real cuenta)', statsE.maxStreak.A === 1 && statsE.maxStreak.B === 0, JSON.stringify(statsE.maxStreak));
+    assert('CASO E · ningún ajuste fabrica Break Points entre ellos', statsE.breakPoints.A.opportunities === 0 && statsE.breakPoints.B.opportunities === 0, JSON.stringify(statsE.breakPoints));
+  })();
+
+  // ------------------------------------------------------------------
+  // V12 (§16) — CASOS F-H: corrección de sacador (snapshot congelado) y auditoría
+  // equipo/individual. `recordServerCorrection`/dispatcher de `resolveServer` viven en
+  // engine.js; el fix de conflación equipo/individual vive en 4 sitios de stats.js.
+  // ------------------------------------------------------------------
+  (function () {
+    // ---- CASO F · corregir sacador ANTES del primer punto del game --------------------
+    const ctxF = newCtx('golden', 'americano');
+    ctxF.knowledge = E.recordServerAnswer(ctxF.knowledge, ctxF.players, 1, 1, 1, 0); // game1: Ana (id0, A)
+    ctxF.knowledge = E.recordServerAnswer(ctxF.knowledge, ctxF.players, 1, 2, 2, 2); // game2: Cruz (id2, B)
+    ctxF.seenSet = 1;
+    winGame(ctxF, 'A'); // game 1 completo, sin ambigüedad
+    const mgnF2 = E.currentMatchGameNumber(ctxF.state);
+    const wsgnF2 = E.currentWithinSetGameNumber(ctxF.state);
+    // Se corrige ANTES de jugar ningún punto del game 2: en realidad saca Dan (id3), no Cruz.
+    ctxF.knowledge = E.recordServerCorrection(ctxF.knowledge, ctxF.players, 1, mgnF2, wsgnF2, 3);
+    const resolvedF1 = E.resolveServer(ctxF.knowledge, ctxF.players, 1, 1, 1);
+    const resolvedF2 = E.resolveServer(ctxF.knowledge, ctxF.players, 1, mgnF2, wsgnF2);
+    assert('CASO F · corrección antes del 1er punto: el game corregido resuelve al jugador correcto (Dan)', resolvedF2.resolved && resolvedF2.playerId === 3, JSON.stringify(resolvedF2));
+    assert('CASO F · corrección antes del 1er punto: el game anterior (game 1) queda intacto (Ana)', resolvedF1.resolved && resolvedF1.playerId === 0, JSON.stringify(resolvedF1));
+
+    // ---- CASO G · corregir sacador DESPUÉS de varios puntos ya jugados ------------------
+    // Reasignación correcta, estadísticas individuales/de equipo, y rotación futura.
+    const ctxG = newCtx('golden', 'americano');
+    ctxG.knowledge = E.recordServerAnswer(ctxG.knowledge, ctxG.players, 1, 1, 1, 0); // game1: se anotó Ana (id0) — ERROR real
+    ctxG.knowledge = E.recordServerAnswer(ctxG.knowledge, ctxG.players, 1, 2, 2, 2); // game2: Cruz (id2, B)
+    ctxG.seenSet = 1;
+    playPoint(ctxG, 'B'); playPoint(ctxG, 'B'); // 0-30, ya con 2 puntos registrados (atribuidos a Ana, mal)
+    const mgnG1 = E.currentMatchGameNumber(ctxG.state); // 1 (mismo game)
+    const wsgnG1 = E.currentWithinSetGameNumber(ctxG.state); // 1
+    // En realidad estaba sacando Bea (id1), no Ana — se corrige a mitad de game.
+    ctxG.knowledge = E.recordServerCorrection(ctxG.knowledge, ctxG.players, 1, mgnG1, wsgnG1, 1);
+    playPoint(ctxG, 'B'); playPoint(ctxG, 'B'); // B cierra el game (0-40): quiebre sobre el saque corregido (Bea/A)
+    const statsG = S.computeStats(ctxG.events, ctxAsMatchCtx(ctxG));
+    assert('CASO G · reasignación correcta: el quiebre se atribuye al equipo A (Bea), no queda huérfano', statsG.breaks.A === 0 && statsG.breaks.B === 1, JSON.stringify(statsG.breaks));
+    assert('CASO G · estadísticas individuales: Bea (corregida) carga el game completo, incluidos los puntos previos a la corrección', statsG.perPlayerServe[1].games === 1 && statsG.perPlayerServe[1].held === 0, JSON.stringify(statsG.perPlayerServe[1]));
+    assert('CASO G · estadísticas individuales: Ana (la corrección la reemplaza) no carga ningún game', statsG.perPlayerServe[0].games === 0, JSON.stringify(statsG.perPlayerServe[0]));
+    const resolvedG3 = E.resolveServer(ctxG.knowledge, ctxG.players, 1, 3, 3); // próximo game de A tras la corrección
+    assert('CASO G · rotación futura recalculada a partir del sacador corregido (Ana rota al lugar de Bea)', resolvedG3.resolved && resolvedG3.playerId === 0, JSON.stringify(resolvedG3));
+
+    // ---- CASO H · sacador individual desconocido, EQUIPO al servicio conocido ----------
+    // No deben descartarse las métricas de equipo (§6) aunque el jugador nunca se resuelva.
+    const playersH = makePlayers();
+    const formatH = E.FORMATS.americano;
+    let stateH = E.createInitialEngineState();
+    const eventsH = [];
+    let msH = 0;
+    function playH(team) { msH += 3000; eventsH.push({ team, matchTimeMs: msH }); stateH = E.applyPoint(stateH, team, 'golden', formatH, 'classic'); }
+    for (let i = 0; i < 4; i++) playH('A'); // game1: A sirve (paridad) y sostiene — sin quiebre
+    for (let i = 0; i < 4; i++) playH('A'); // game2: B sirve (paridad) y A gana igual — quiebre a favor de A
+    const knowledgeH = { parity: { oddTeam: 'A' }, perSet: {} }; // paridad conocida, orden por set NUNCA registrado
+    const matchCtxH = { players: playersH, scoringSystem: 'golden', format: formatH, tiebreakMode: 'classic', serverKnowledge: knowledgeH, baseline: null, events: eventsH };
+    const statsH = S.computeStats(eventsH, matchCtxH);
+    assert('CASO H · breaks de equipo se conservan aunque el jugador individual nunca se resuelva', statsH.breaks.A === 1 && statsH.breaks.B === 0, JSON.stringify(statsH.breaks));
+    assert('CASO H · serviceGames de equipo se conservan (no caen en "unknown")', (statsH.serviceGames.wonA + statsH.serviceGames.lostA + statsH.serviceGames.wonB + statsH.serviceGames.lostB) === 2 && statsH.serviceGames.unknown === 0, JSON.stringify(statsH.serviceGames));
+    assert('CASO H · serveStats de equipo se conservan', statsH.serveStats.A.served > 0 && statsH.serveStats.B.served > 0, JSON.stringify(statsH.serveStats));
+    assert('CASO H · no se fabrican métricas de jugador individual (quedan en su default)', Object.values(statsH.perPlayerServe).every((p) => p.games === 0), JSON.stringify(statsH.perPlayerServe));
+    assert('CASO H · serverFullyKnown queda false (el jugador individual nunca se conoció)', statsH.serverFullyKnown === false, statsH.serverFullyKnown);
+  })();
+
+  // ------------------------------------------------------------------
+  // V12 (§17) — CASOS I-M: Tie break extraordinario, motor puro (engine.js). Reusa
+  // `startExtraordinaryTiebreak`/`isValidExtraordinaryTargetChange` + el mecanismo de
+  // ajuste (`applyAdjustment`) exactamente como lo hará app.js — nunca fabrica games.
+  // ------------------------------------------------------------------
+  (function () {
+    // ---- CASO I · 5-5, game nuevo 0-0, RESOLVER CON TIE BREAK -----------------------
+    const ctxI = newCtx('golden', 'classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGame(ctxI, t)); // 5-5, sin breaks
+    assert('CASO I-setup · llega a 5-5 real, sin quiebres', ctxI.state.gamesA === 5 && ctxI.state.gamesB === 5, JSON.stringify({ a: ctxI.state.gamesA, b: ctxI.state.gamesB }));
+    const canStartI = E.canStartExtraordinaryTiebreak(ctxI.state);
+    assert('CASO I · puede arrancar el TB extraordinario (game nuevo en 0-0)', canStartI === true, canStartI);
+    const newStateI = E.startExtraordinaryTiebreak(ctxI.state, 10, true);
+    assert('CASO I · el score real (5-5) NO se fabrica hacia 6-6 al arrancar', newStateI.gamesA === 5 && newStateI.gamesB === 5, JSON.stringify(newStateI));
+    assert('CASO I · no se suma hold ni break al arrancar (setsWonA/B intactos)', newStateI.setsWonA === 0 && newStateI.setsWonB === 0 && newStateI.sets.length === 0, JSON.stringify(newStateI));
+    assert('CASO I · arranca el TB correctamente (0-0, activo, objetivo 10 · diferencia de 2)', newStateI.inTiebreak === true && newStateI.tbA === 0 && newStateI.tbB === 0 && newStateI.extraordinaryTiebreak.active === true && newStateI.extraordinaryTiebreak.winTarget === 10 && newStateI.extraordinaryTiebreak.requireDiff2 === true, JSON.stringify(newStateI.extraordinaryTiebreak));
+    ctxI.events.push({ type: 'adjustment', newState: newStateI, matchTimeMs: ctxI.ms + 1000 });
+    ctxI.state = newStateI;
+    for (let i = 0; i < 8; i++) playPoint(ctxI, 'A'); // A gana el TB extraordinario 10-0 (>=10, diff2 OK)
+    // (nota: los primeros 8 puntos no cierran nada — solo el 10° si acumula 10; ver abajo)
+    for (let i = 0; i < 2; i++) playPoint(ctxI, 'A');
+    assert('CASO I · el TB extraordinario cierra el set con el score REAL 5-5 (nunca 6-6/7-6)', ctxI.state.sets.length === 1 && ctxI.state.sets[0].gamesA === 5 && ctxI.state.sets[0].gamesB === 5 && ctxI.state.sets[0].extraordinary === true, JSON.stringify(ctxI.state.sets));
+    assert('CASO I · el resultado del TB queda guardado (10-0)', ctxI.state.sets[0].tiebreak.a === 10 && ctxI.state.sets[0].tiebreak.b === 0, JSON.stringify(ctxI.state.sets[0].tiebreak));
+
+    // ---- CASO J · 4-3, Otro → a 10 → diferencia de 2 --------------------------------
+    const ctxJ = newCtx('golden', 'americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A'].forEach((t) => winGame(ctxJ, t)); // 4-3 A
+    const newStateJ = E.startExtraordinaryTiebreak(ctxJ.state, 10, true);
+    ctxJ.events.push({ type: 'adjustment', newState: newStateJ, matchTimeMs: ctxJ.ms + 1000 });
+    ctxJ.state = newStateJ;
+    for (let i = 0; i < 8; i++) playPoint(ctxJ, 'B');
+    for (let i = 0; i < 2; i++) playPoint(ctxJ, 'B'); // B gana el TB 10-0
+    assert('CASO J · resultado final "4-3 · TB" sin fabricar games (el ganador del TB define el set)', ctxJ.state.sets[0].gamesA === 4 && ctxJ.state.sets[0].gamesB === 3 && ctxJ.state.sets[0].winner === 'B', JSON.stringify(ctxJ.state.sets[0]));
+
+    // ---- CASO K · TB a 10, cambiar en vivo a 15: preserva puntos/servicio/timeline ---
+    const ctxK = newCtx('golden', 'americano');
+    ['A', 'A', 'A', 'A', 'A'].forEach((t) => winGame(ctxK, t)); // 5-0
+    const newStateK = E.startExtraordinaryTiebreak(ctxK.state, 10, true);
+    ctxK.events.push({ type: 'adjustment', newState: newStateK, matchTimeMs: ctxK.ms + 1000 });
+    ctxK.state = newStateK;
+    for (let i = 0; i < 8; i++) playPoint(ctxK, 'A'); // 8-0, todavía no llegó a 10
+    const eventsCountBeforeChange = ctxK.events.length;
+    assert('CASO K · permite subir el objetivo (8 < 15)', E.isValidExtraordinaryTargetChange(ctxK.state.tbA, ctxK.state.tbB, 15) === true, JSON.stringify({ tbA: ctxK.state.tbA, tbB: ctxK.state.tbB }));
+    const newStateK2 = Object.assign({}, ctxK.state, { extraordinaryTiebreak: Object.assign({}, ctxK.state.extraordinaryTiebreak, { winTarget: 15 }) });
+    ctxK.events.push({ type: 'adjustment', newState: newStateK2, matchTimeMs: ctxK.ms + 2000 });
+    ctxK.state = E.applyAdjustment(newStateK2);
+    for (let i = 0; i < 2; i++) playPoint(ctxK, 'A'); // 10-0: con el viejo objetivo (10) ya habría cerrado
+    assert('CASO K · el TB NO cierra en 10-0 tras subir el objetivo a 15 (preserva lo jugado, no lo repite)', ctxK.state.inTiebreak === true && ctxK.state.tbA === 10, JSON.stringify(ctxK.state));
+    assert('CASO K · conserva todos los eventos reales (puntos + los 2 ajustes, sin reescribir nada)', ctxK.events.length === eventsCountBeforeChange + 1 + 2, ctxK.events.length);
+    for (let i = 0; i < 5; i++) playPoint(ctxK, 'A'); // 15-0: ahora sí cierra con el nuevo objetivo
+    assert('CASO K · cierra correctamente con el nuevo objetivo (15)', ctxK.state.sets.length === 1 && ctxK.state.sets[0].tiebreak.a === 15, JSON.stringify(ctxK.state.sets));
+
+    // ---- CASO L · van 8-4, intentar bajar el objetivo a 7: debe impedirse -----------
+    assert('CASO L · bajar el objetivo a un valor ya superado (7, con 8-4) se rechaza', E.isValidExtraordinaryTargetChange(8, 4, 7) === false, '');
+    assert('CASO L · bajar exactamente al score actual (8, con 8-4) también se rechaza', E.isValidExtraordinaryTargetChange(8, 4, 8) === false, '');
+    assert('CASO L · subir a cualquier valor por encima del score actual (12, con 8-4) se permite', E.isValidExtraordinaryTargetChange(8, 4, 12) === true, '');
+
+    // ---- CASO M · elegir sacador al comenzar el TB extraordinario: rotación posterior ----
+    // Formato 'classic' (TB normal recién a 6-6): así 5-5 queda como game nuevo en 0-0, sin
+    // disparar de paso un Tie break REGLAMENTARIO (que sí pasaría con 'americano', tbAt=5).
+    const ctxM = newCtx('golden', 'classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGame(ctxM, t)); // 5-5
+    const newStateM = E.startExtraordinaryTiebreak(ctxM.state, 10, true);
+    // Se pregunta "¿quién comienza sacando?" — se elige a Cruz (id2, equipo B), reusando el
+    // mismo mecanismo de Casos F-H (congela lo anterior, reancla la rotación desde acá).
+    ctxM.knowledge = E.recordServerCorrection(ctxM.knowledge, ctxM.players, 1, newStateM.tbBaseGameNumber, newStateM.tbBaseWithinSet, 2);
+    const firstServerM = E.resolveTiebreakServer(ctxM.knowledge, ctxM.players, 1, newStateM.tbBaseGameNumber, newStateM.tbBaseWithinSet, 0);
+    assert('CASO M · el TB extraordinario arranca sacando el jugador elegido (Cruz)', firstServerM.resolved && firstServerM.playerId === 2, JSON.stringify(firstServerM));
+    // Puntos 2-3 del TB le tocan al otro equipo (rotación real de dobles); el equipo de
+    // Cruz vuelve a sacar recién en el punto 5 (índice 4) — ahí le toca a su compañero Dan.
+    const fifthServerM = E.resolveTiebreakServer(ctxM.knowledge, ctxM.players, 1, newStateM.tbBaseGameNumber, newStateM.tbBaseWithinSet, 4);
+    assert('CASO M · la rotación del TB continúa correctamente desde el sacador elegido (compañero, 2do turno del equipo)', fifthServerM.resolved && fifthServerM.playerId === 3, JSON.stringify(fifthServerM));
+  })();
+
+  // ------------------------------------------------------------------
+  // V12 (§17) — CASO N: Tie break extraordinario que define el PARTIDO. BRAMU Intelligence
+  // debe narrar el contexto real (5-5 previo) sin inventar 6-6/7-6, y no marcar el partido
+  // como "datos parciales" (§14.2: es una transición conocida, no una ambigüedad).
+  // ------------------------------------------------------------------
+  (function () {
+    const ctxN = newCtx('golden', 'classic');
+    for (let i = 0; i < 6; i++) winGame(ctxN, 'A'); // Set 1: 6-0 A
+    for (let i = 0; i < 6; i++) winGame(ctxN, 'B'); // Set 2: 6-0 B
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B'].forEach((t) => winGame(ctxN, t)); // Set 3: 5-5
+    const newStateN = E.startExtraordinaryTiebreak(ctxN.state, 10, true);
+    ctxN.events.push({ type: 'adjustment', newState: newStateN, matchTimeMs: ctxN.ms + 1000 });
+    ctxN.state = newStateN;
+    for (let i = 0; i < 6; i++) { playPoint(ctxN, 'B'); playPoint(ctxN, 'A'); } // 6-6
+    for (let i = 0; i < 4; i++) playPoint(ctxN, 'B'); // 10-6: B gana el TB y el partido
+
+    assert('CASO N-setup · B gana el partido en 3 sets, el 3° resuelto por TB extraordinario', ctxN.state.matchWinner === 'B' && ctxN.state.sets.length === 3 && ctxN.state.sets[2].extraordinary === true, JSON.stringify(ctxN.state.sets));
+    assert('CASO N-setup · el set 3 guarda el score real 5-5 (nunca fabricado a 6-6/7-6)', ctxN.state.sets[2].gamesA === 5 && ctxN.state.sets[2].gamesB === 5, JSON.stringify(ctxN.state.sets[2]));
+
+    const rN = intelFromSim(ctxN);
+    assert('CASO N · BRAMU Intelligence menciona el Tie break de la resolución extraordinaria', /Tie break/i.test(rN.text), rN.text);
+    assert('CASO N · describe el contexto real (5-5) antes del TB, sin inventar 6-6/7-6', rN.text.includes('5-5') && !/\b6-6\b/.test(rN.text) && !/\b7-6\b/.test(rN.text), rN.text);
+    assert('CASO N · menciona el resultado real del Tie break (10-6)', rN.text.includes('10-6'), rN.text);
+    assert('CASO N · no marca el partido como "datos parciales" por resolver con TB extraordinario', rN.stats.hasAdjustments === false, rN.stats.hasAdjustments);
   })();
 
   // ------------------------------------------------------------------
