@@ -325,6 +325,10 @@
     // V13 (§7): en Por Games no se muestra Ajustar (Editar cubre corrección rápida y
     // profunda) — se fija una sola vez acá porque el modo queda bloqueado todo el partido.
     $('#adjust-btn').hidden = isGamesMode();
+    // V13.3 (§16/§18): en Por Games "CAMBIAR SISTEMA" no existe (el sistema es metadata,
+    // se cambia solo desde ☰) — se resetea acá por si quedó visible de un partido Completo
+    // anterior en la misma sesión; `render()` de Completo lo vuelve a evaluar cada frame.
+    if (isGamesMode()) $('#scoring-system-change-row').hidden = true;
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     if (isGamesMode()) renderGamesMode(); else render();
     matchIsActive = true; requestWakeLock(); // V13.2 (§1)
@@ -388,6 +392,11 @@
     if (ctx.isStarPoint) matchScreen.classList.add('is-star-point');
 
     renderStatusBanner(ctx);
+    // V13.3 (§18): "CAMBIAR" solo en la zona de Deuce/Punto de Oro/Star Point — donde el
+    // sistema de puntuación realmente cambia lo que pasa a continuación. Nunca durante un
+    // Tie break (el sistema no aplica ahí) ni con el partido ya decidido.
+    const inDeuceZone = !state.inTiebreak && !state.matchWinner && state.pointsA >= 3 && state.pointsB >= 3;
+    $('#scoring-system-change-row').hidden = !inDeuceZone;
     renderEtbDefinitionLabel(state);
     renderScoreboard(state, ctx.disp);
     renderGameProgression(state);
@@ -1308,6 +1317,10 @@
     // ese instante — así un cambio de modalidad posterior nunca reinterpreta
     // puntos ya jugados (bug #49/#50 de la revisión anterior).
     if (state.inTiebreak) ev.tbMode = match.tiebreakMode;
+    // V13.3 (§14-19): mismo criterio para el sistema de puntuación — cada punto graba el
+    // sistema VIGENTE al registrarse, así "Sistema de puntuación"/"CAMBIAR" nunca
+    // reinterpreta retroactivamente un punto (o un game) ya jugado.
+    ev.scoringSystem = match.scoringSystem;
     pointEvents.push(ev);
     render();
   }
@@ -1500,6 +1513,51 @@
     $('#edit-players-close-x').addEventListener('click', () => { $('#edit-players-modal').hidden = true; });
     $('#edit-players-cancel').addEventListener('click', () => { $('#edit-players-modal').hidden = true; });
     $('#edit-players-save').addEventListener('click', saveEditPlayers);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13.3 (§14-19) — SISTEMA DE PUNTUACIÓN EN VIVO. En Por Games es puro metadata (el motor
+   *  de games no lo usa para nada — §16). En Completo, cambiar `match.scoringSystem` es
+   *  SIEMPRE seguro sin importar el estado: cada punto ya jugado quedó anclado a su propio
+   *  `ev.scoringSystem` (ver `registerPoint`/`engine.js`), así que un cambio nunca
+   *  reinterpreta retroactivamente un game ya cerrado — no hace falta "bloquear" nada (§19).
+   *  Mismo modal para dos entradas: el menú ☰ (disponible siempre, §17) y el botón "CAMBIAR
+   *  SISTEMA" contextual que solo aparece en la zona de Deuce/Punto de Oro/Star Point (§18). */
+  /* ------------------------------------------------------------------ */
+  let pendingScoringSystem = null;
+
+  function openScoringSystemModal() {
+    pendingScoringSystem = match.scoringSystem;
+    $all('#scoring-system-options .option-col').forEach((btn) => {
+      const selected = btn.dataset.value === pendingScoringSystem;
+      btn.classList.toggle('is-selected', selected);
+      btn.setAttribute('aria-checked', selected ? 'true' : 'false');
+    });
+    $('#scoring-system-hint').textContent = SCORING_HINTS[pendingScoringSystem];
+    $('#scoring-system-modal').hidden = false;
+  }
+
+  function initScoringSystemModal() {
+    $all('#scoring-system-options .option-col').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $all('#scoring-system-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
+        btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
+        pendingScoringSystem = btn.dataset.value;
+        $('#scoring-system-hint').textContent = SCORING_HINTS[pendingScoringSystem];
+      });
+    });
+    $('#scoring-system-cancel').addEventListener('click', () => { $('#scoring-system-modal').hidden = true; });
+    $('#scoring-system-modal').addEventListener('click', (e) => { if (e.target === $('#scoring-system-modal')) $('#scoring-system-modal').hidden = true; });
+    $('#scoring-system-confirm').addEventListener('click', () => {
+      match.scoringSystem = pendingScoringSystem;
+      $('#scoring-system-modal').hidden = true;
+      $('#match-header-system').textContent = SCORING_SYSTEM_LABELS[match.scoringSystem] || '';
+      if (isGamesMode()) renderGamesMode(); else render();
+      autosave();
+      showToast('Sistema de puntuación actualizado');
+    });
+    $('#menu-scoring-system').addEventListener('click', () => { $('#menu-overlay').hidden = true; openScoringSystemModal(); });
+    $('#scoring-system-change-btn').addEventListener('click', openScoringSystemModal);
   }
 
   /* ------------------------------------------------------------------ */
@@ -2622,7 +2680,7 @@
     const finishInfo = manual ? { manual: true, reason: manual.reason, declaredWinner: manual.declaredWinner } : { manual: false };
     const intelligence = S.generateGamesIntelligence(gamesStats, matchCtx, state.sets, winnerTeam, finishInfo);
     const gameSetSegments = S.computeGameSetSegments(gameEvents, format);
-    const perSetStats = gameSetSegments.map((seg) => ({ setNumber: seg.setNumber, stats: S.computeGamesStats(seg.events, matchCtx) }));
+    const perSetStats = gameSetSegments.map((seg) => ({ setNumber: seg.setNumber, stats: S.computeGamesStats(seg.events, matchCtx, seg.setNumber, seg.startingGameIndex) })); // V13.3 (§12): fix bug de sacador inicial por set
     const evolution = S.computeGamesEvolutionData(gameEvents, matchCtx);
 
     const hasPartialCurrent = !state.matchWinner && (state.gamesA > 0 || state.gamesB > 0);
@@ -2930,7 +2988,7 @@
     renderHighlightsSection(f);
     renderKeyMoments(f);
 
-    $('#analysis-full-timeline-btn').onclick = () => { renderFullTimeline(f); showView('timeline'); };
+    $('#analysis-full-timeline-btn').onclick = () => { if (f.mode === 'games') renderGamesFullTimeline(f); else renderFullTimeline(f); showView('timeline'); };
     $('#analysis-share-btn').onclick = () => shareResult(f, 'analisis');
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
@@ -3960,6 +4018,90 @@
     });
   }
 
+  /** V13.3 (§13) — Timeline PROPIO para Por Games: antes reutilizaba `renderFullTimeline`
+   *  (motor de puntos), que mostraba una progresión de puntos 0-15-30-40 FICTICIA — esos
+   *  puntos nunca se registraron en este modo. Acá cada fila es un GAME real: número,
+   *  marcador después de ese game, quién lo ganó, sacador y HOLD/BREAK si se conocen (nunca
+   *  inventados), y los Highlights ubicados cronológicamente. Tramos de una corrección
+   *  manual se marcan PARCIAL, nunca se rellenan con games inventados. */
+  function renderGamesFullTimeline(f) {
+    const wrap = $('#timeline-full-list');
+    wrap.innerHTML = '';
+    const evoGames = (f.evolution && f.evolution.games) || [];
+    if (!evoGames.length) { wrap.innerHTML = '<p class="coverage-note">Sin games registrados.</p>'; return; }
+
+    const setsGrouped = [];
+    function ensureSet(n) {
+      let s = setsGrouped.find((x) => x.setNumber === n);
+      if (!s) { s = { setNumber: n, rows: [] }; setsGrouped.push(s); }
+      return s;
+    }
+    evoGames.forEach((g) => { ensureSet(g.setNumber).rows.push({ type: g.adjustment ? 'adjustment' : 'game', matchTimeMs: g.matchTimeMs, g }); });
+    // Highlights intercalados en su set, ordenados junto a los games por hora real — nunca
+    // se les inventa un score de puntos (§9 del V13), solo se ubican en el momento correcto.
+    (f.highlights || []).forEach((h) => {
+      const categoryLabel = h.category ? HIGHLIGHT_CATEGORY_LABELS[h.category] : null;
+      ensureSet(h.set).rows.push({ type: 'highlight', matchTimeMs: h.matchTimeMs, h, categoryLabel });
+    });
+    setsGrouped.forEach((sg) => sg.rows.sort((a, b) => a.matchTimeMs - b.matchTimeMs));
+
+    if (!setsGrouped.length) { wrap.innerHTML = '<p class="coverage-note">Sin games registrados.</p>'; return; }
+
+    setsGrouped.forEach((setGroup) => {
+      const finishedSet = f.sets[setGroup.setNumber - 1];
+      const setDiv = document.createElement('div');
+      setDiv.className = 'timeline-set is-expanded'; // sin sub-nivel para expandir: cada game ya es la unidad mínima
+      const setHeader = document.createElement('div');
+      setHeader.className = 'timeline-set__header';
+      const setScoreLabel = finishedSet ? formatSetSegmentLabel(finishedSet) : 'en curso';
+      setHeader.innerHTML = `<span>SET ${setGroup.setNumber} · ${setScoreLabel}</span><span class="timeline-set__toggle">▾</span>`;
+      setHeader.addEventListener('click', () => setDiv.classList.toggle('is-expanded'));
+      const setBody = document.createElement('div');
+      setBody.className = 'timeline-set__body';
+
+      setGroup.rows.forEach((row) => {
+        if (row.type === 'adjustment') {
+          const marker = document.createElement('div');
+          marker.className = 'timeline-adjustment-marker';
+          marker.textContent = `✎ Ajuste de marcador · ${row.g.gamesA}-${row.g.gamesB}`;
+          setBody.appendChild(marker);
+          return;
+        }
+        if (row.type === 'highlight') {
+          const h = row.h;
+          const marker = document.createElement('div');
+          marker.className = 'timeline-point-row';
+          marker.innerHTML = `<span class="timeline-point-row__time">${formatClock(h.matchTimeMs)} · ${formatRealTime(h.timestamp, f.timeZone)}</span><span class="timeline-point-row__score">⭐ Highlight${row.categoryLabel ? ' · ' + row.categoryLabel : ''}</span>`;
+          setBody.appendChild(marker);
+          return;
+        }
+        const g = row.g;
+        const div = document.createElement('div');
+        div.className = 'timeline-game timeline-game--compact';
+        const winnerName = g.winner ? S.teamLabel(f.players, g.winner) : null;
+        const serverName = g.server ? playerName(f.players, g.server.id) : null;
+        const tagsHTML = [];
+        if (g.holdOrBreak === 'hold') tagsHTML.push('<span class="timeline-tag timeline-tag--HOLD">HOLD</span>');
+        if (g.holdOrBreak === 'break') tagsHTML.push('<span class="timeline-tag timeline-tag--BREAK">BREAK</span>');
+        if (g.partial) tagsHTML.push('<span class="timeline-tag timeline-tag--PARCIAL">PARCIAL</span>');
+        const detailParts = [];
+        if (winnerName) detailParts.push(`Ganó ${winnerName}`);
+        if (serverName) detailParts.push(`Saque: ${serverName}`);
+        const header = document.createElement('div');
+        header.className = 'timeline-game__header';
+        header.innerHTML = `<span class="timeline-game__label">Game ${g.index} · ${g.gamesA}-${g.gamesB}</span><span class="timeline-game__tags">${tagsHTML.join('')}</span>`;
+        const detail = document.createElement('div');
+        detail.className = 'timeline-point-row';
+        detail.innerHTML = `<span class="timeline-point-row__time">${formatClock(g.matchTimeMs)} · ${formatRealTime(g.timestamp, f.timeZone)}</span><span class="timeline-point-row__score">${detailParts.join(' · ')}</span>`;
+        div.appendChild(header); div.appendChild(detail);
+        setBody.appendChild(div);
+      });
+
+      setDiv.appendChild(setHeader); setDiv.appendChild(setBody);
+      wrap.appendChild(setDiv);
+    });
+  }
+
   function initTimelineScreen() { $('#timeline-back-btn').addEventListener('click', () => showView('analysis')); }
 
   function initAnalysisScreen() {
@@ -4319,6 +4461,7 @@
     initHighlightPopup();
     initMenu();
     initEditPlayersModal();
+    initScoringSystemModal();
     initConfirmModal();
     initFinishModal();
     initEditModal();

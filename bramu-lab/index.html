@@ -43,23 +43,6 @@
       </div>
     </header>
 
-    <!-- V13.2 (§2) — chequeo automático de versión: reemplaza la pulsación larga como
-         mecanismo PRINCIPAL de actualización (esa queda de fallback manual). Se abre solo
-         cuando `version.json` (siempre pedido fresco, ver sw.js) indica una versión distinta
-         a la que está corriendo. "Actualizar ahora" reusa exactamente el mismo mecanismo que
-         "Forzar actualización" (service worker + Cache Storage + recarga) — nunca toca
-         localStorage/Historial/partido en curso. -->
-    <div id="update-available-modal" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title">HAY UNA NUEVA VERSIÓN DE BRAMU</div>
-        <p class="overlay__text" id="update-available-text">Hay una versión nueva disponible.</p>
-        <div class="overlay__actions">
-          <button id="update-later-btn" class="btn-secondary" type="button">Más tarde</button>
-          <button id="update-now-btn" class="btn-start btn-start--overlay" type="button">ACTUALIZAR AHORA</button>
-        </div>
-      </div>
-    </div>
-
     <!-- V13.1 (§9) — herramienta discreta de desarrollo: mantener presionado el logo ~2s
          abre este modal. Pensada para forzar la actualización de la PWA en iPhone sin
          depender de un hard refresh de escritorio, sin borrar ningún dato del usuario
@@ -172,6 +155,16 @@
       <button type="button" id="etb-definition-label" class="tb-mode-text tb-mode-text--tappable" hidden></button>
     </div>
 
+    <!-- V13.3 (§18) — "CAMBIAR" contextual: solo visible en Deuce/Punto de Oro/Star Point/
+         Ventaja (donde el sistema de puntuación realmente importa). Vive FUERA de
+         `#status-banner` a propósito: ese banner queda oculto durante una Ventaja simple
+         (sin Set/Match Point simultáneo) — ver `getLiveContext`, no se toca esa lógica ya
+         validada — así que CAMBIAR necesita su propia visibilidad, independiente del banner.
+         Fuera de esta zona, el cambio se hace desde ☰ → Sistema de puntuación (§17). -->
+    <div id="scoring-system-change-row" class="scoring-system-change-row" hidden>
+      <button type="button" id="scoring-system-change-btn" class="tb-mode-text tb-mode-text--tappable">CAMBIAR SISTEMA</button>
+    </div>
+
     <div id="server-prompt" class="server-prompt" hidden>
       <span class="server-prompt__label">🎾 ¿Quién saca?</span>
       <div class="server-prompt__options" id="server-prompt-options"></div>
@@ -239,6 +232,7 @@
         <button id="menu-extraordinary-tb" class="menu-item" type="button" hidden>Resolver con Tie break</button>
         <button id="menu-pause" class="menu-item" type="button">Pausar cronómetro</button>
         <button id="menu-edit-players" class="menu-item" type="button">Editar jugadores</button>
+        <button id="menu-scoring-system" class="menu-item" type="button">Sistema de puntuación</button>
         <div class="menu-sep"></div>
         <button id="menu-reset" class="menu-item menu-item--danger" type="button">Reiniciar partido</button>
         <button id="menu-home" class="menu-item menu-item--danger" type="button">Volver al inicio</button>
@@ -685,6 +679,47 @@
       <p id="history-empty" class="coverage-note" hidden>Todavía no jugaste ningún partido.</p>
     </div>
   </section>
+
+  <!-- V13.2 (§2) / V13.3 — BUG REAL corregido: estos dos modales vivían adentro de
+       `#view-setup`, que queda `hidden` en cuanto arranca un partido (`showView('match')`) —
+       un elemento `position:fixed` no se pinta igual si un ANCESTRO tiene `display:none`,
+       así que "Hay una nueva versión" (si el chequeo dispara a mitad de partido, al volver
+       de background) y "Sistema de puntuación" (que se abre desde el partido en vivo) nunca
+       llegaban a verse. Van acá afuera, junto al toast global, para estar disponibles sin
+       importar qué vista esté activa — mismo criterio que el toast. -->
+  <div id="update-available-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">HAY UNA NUEVA VERSIÓN DE BRAMU</div>
+      <p class="overlay__text" id="update-available-text">Hay una versión nueva disponible.</p>
+      <div class="overlay__actions">
+        <button id="update-later-btn" class="btn-secondary" type="button">Más tarde</button>
+        <button id="update-now-btn" class="btn-start btn-start--overlay" type="button">ACTUALIZAR AHORA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- V13.3 (§14-19) — cambiar el sistema de puntuación durante el partido, sin reescribir
+       el pasado. En Por Games es puro metadata (no altera el marcador). En Completo, cada
+       punto guarda su propio sistema vigente al registrarse (mismo criterio que ya existía
+       para `tbMode` en el Tie break) — así un cambio nunca reinterpreta retroactivamente un
+       game que ya se cerró bajo otra regla. Mismo selector visual que en la configuración
+       inicial, reutilizado tanto desde el menú ☰ como desde "CAMBIAR" en la franja de
+       Deuce/Punto de Oro/Star Point. -->
+  <div id="scoring-system-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">SISTEMA DE PUNTUACIÓN</div>
+      <div id="scoring-system-options" class="option-row" role="radiogroup">
+        <button type="button" class="option-col" data-value="starpoint">STAR POINT</button>
+        <button type="button" class="option-col" data-value="golden">PUNTO DE ORO</button>
+        <button type="button" class="option-col" data-value="classic">CON VENTAJA</button>
+      </div>
+      <div id="scoring-system-hint" class="setup-hint">Punto decisivo en 40–40</div>
+      <div class="overlay__actions">
+        <button id="scoring-system-cancel" class="btn-secondary" type="button">Cancelar</button>
+        <button id="scoring-system-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast global (fuera de cualquier vista para que se vea desde Historial, Análisis, etc.) -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

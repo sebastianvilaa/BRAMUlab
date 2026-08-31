@@ -355,6 +355,9 @@ input, select{ font-family: inherit; }
    tb-mode-text, pero es un <button> real (tappable) — se resetea el estilo nativo. */
 .tb-mode-text--tappable{ background:none; border: 1px dashed var(--paper-faint); border-radius: 6px; padding: 2px 6px; color: var(--paper); cursor:pointer; opacity: 0.9; }
 .tb-mode-text--tappable:active{ opacity: 1; border-color: var(--paper); }
+/* V13.3 (§18) — fila propia para "CAMBIAR SISTEMA", independiente de `#status-banner`
+   (ese banner queda oculto en una Ventaja simple, pero acá igual hace falta el botón). */
+.scoring-system-change-row{ display:flex; justify-content:center; padding: 4px 10px; background: var(--ink); }
 
 .server-prompt{
   display:flex; align-items:center; gap:8px; padding: 8px 12px; background: rgba(244,247,242,0.05);
@@ -794,6 +797,11 @@ input, select{ font-family: inherit; }
 .timeline-tag--SET-POINT{ background: rgba(244,247,242,0.12); color: var(--paper); }
 .timeline-tag--MATCH-POINT{ background: rgba(244,247,242,0.18); color: var(--paper); font-weight: 800; }
 .timeline-tag--PARCIAL{ background: rgba(255,201,61,0.16); color: var(--gold); }
+/* V13.3 (§13) — Timeline Por Games: HOLD en verde sutil (opuesto visual de BREAK), y el
+   detalle de cada game (ganador/sacador) es más largo que un score de puntos — se le da
+   espacio propio en vez de flex:none para que no se corte. */
+.timeline-tag--HOLD{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.timeline-game--compact .timeline-point-row__score{ flex: 1 1 auto; text-align: right; }
 
 /* V6 — resumen de sets cargados a mano (Partido ya empezado): sin games, no interactivo. */
 .timeline-set--manual{ opacity: 0.85; }

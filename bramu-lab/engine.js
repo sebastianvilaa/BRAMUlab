@@ -85,7 +85,8 @@
       }
       const before = state;
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      const systemForThisPoint = ev.scoringSystem || scoringSystem; // V13.3 (§14-19): mismo criterio que computeStateFromEvents
+      state = applyPoint(state, ev.team, systemForThisPoint, format, modeForThisPoint);
       if (before.inTiebreak) {
         if (state.inTiebreak) {
           seq.push(ev.team);
@@ -346,13 +347,23 @@
   /**
    * Reconstruye el estado a partir de una secuencia de eventos que puede
    * contener DOS tipos:
-   *   - punto normal: { team, matchTimeMs, tbMode? }
+   *   - punto normal: { team, matchTimeMs, tbMode?, scoringSystem? }
    *   - ajuste de marcador: { type:'adjustment', newState:{...} }
    *     (ver applyAdjustment). Un ajuste NUNCA se interpreta como puntos
    *     jugados: simplemente reemplaza el estado deportivo por el nuevo,
    *     preservando en el array de eventos todo lo que pasó ANTES del
    *     ajuste (para estadísticas honestas — nunca se borra el historial
    *     real por corregir el marcador).
+   *
+   * V13.3 (§14-19) — cada punto puede llevar grabado su propio `ev.scoringSystem` (el
+   * sistema VIGENTE al momento de registrarse), mismo patrón exacto que `ev.tbMode` de
+   * arriba. Esto es lo que hace SEGURO cambiar el sistema a mitad de partido: un cambio
+   * futuro nunca reinterpreta un punto ya jugado, porque cada punto se re-evalúa siempre
+   * con el sistema que tenía asignado en el momento, no con `scoringSystem` (el parámetro
+   * de esta función, usado solo como default para eventos viejos que no tienen el campo —
+   * partidos guardados antes de que existiera esta función). Nunca hace falta "bloquear" el
+   * cambio después de cerrar un game: como cada punto ya está anclado a su propio sistema,
+   * no hay nada que proteger retroactivamente.
    */
   function computeStateFromEvents(events, scoringSystem, format, defaultTiebreakMode, baseline) {
     let state = baseline ? cloneBaselineState(baseline) : createInitialEngineState();
@@ -365,7 +376,8 @@
       // (ev.tbMode). Nunca se reinterpreta un tie break pasado con el modo
       // actual: eso fue el bug de la revisión anterior.
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      const systemForThisPoint = ev.scoringSystem || scoringSystem;
+      state = applyPoint(state, ev.team, systemForThisPoint, format, modeForThisPoint);
     }
     return state;
   }

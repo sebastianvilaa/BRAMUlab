@@ -152,7 +152,7 @@
         }
       }
 
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
 
       const wasTiebreakConcluding = before.inTiebreak && !state.inTiebreak;
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
@@ -362,7 +362,7 @@
       if (ev.type === 'adjustment') { state = E.applyAdjustment(ev.newState); minDiffA = 0; maxDiffA = 0; scoreAtMinDiffA = null; scoreAtMaxDiffA = null; return; }
       const before = state;
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
       if (state.sets.length > before.sets.length) {
         const s = state.sets[state.sets.length - 1];
         results.push({
@@ -407,7 +407,7 @@
       // válido — solo se pierde `serverPlayerId` (queda null, la narrativa ya lo maneja).
       const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
       const servingPlayerId = resolved.resolved ? resolved.playerId : null;
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
       if (wasNormalGameEnd && servingTeamKnown) {
         const closedSet = state.sets.length > before.sets.length;
@@ -476,7 +476,7 @@
           if (ev.team === servingTeamKnown) bpSavedThisGame += 1;
         }
       }
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
       if (wasNormalGameEnd) {
         const closedSet = state.sets.length > before.sets.length;
@@ -551,7 +551,7 @@
       const modeForThisPoint = ev.tbMode || tiebreakMode;
       const curSetNumber = before.sets.length + 1;
       const wasInThisTb = before.inTiebreak && curSetNumber === setNumber;
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
       if (!wasInThisTb) return;
       if (ev.team === winnerTeam) winnerPts += 1; else loserPts += 1;
       const diff = winnerPts - loserPts;
@@ -2204,7 +2204,7 @@
       }
       const before = state;
       const modeForThisPoint = ev.tbMode || tiebreakMode;
-      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
       if (state.sets.length > before.sets.length) {
         segments.push({ setNumber: curSetNumber, baseline: curBaseline, events: events.slice(startIdx, i + 1) });
         startIdx = i + 1;
@@ -2258,13 +2258,27 @@
 
   /** V13 (§20/§22) — estadísticas Por Games para un tramo de eventos (partido completo o
    *  un set, según qué lista de eventos se pase). `matchCtx = { players, format,
-   *  serverKnowledge }`. */
-  function computeGamesStats(events, matchCtx) {
+   *  serverKnowledge }`.
+   *  V13.3 (§12) — BUG REAL corregido: cuando `events` es el tramo de UN SET aislado (ej.
+   *  Set 3), el replay interno siempre arranca desde `createInitialGameEngineState()`, así
+   *  que `before.sets.length` es 0 durante TODO el tramo — sin `startingSetNumber`, el
+   *  cálculo de a qué número de set pertenece cada game caía siempre en "Set 1", y
+   *  `E.resolveServer` terminaba consultando la rotación de saque guardada para el Set 1 en
+   *  vez de la del Set 3 real. `startingSetNumber` (default 1, para el partido completo)
+   *  es el número de set REAL con el que arranca `events[0]` — ver `computeGameSetSegments`,
+   *  que ya lo conocía pero no se lo pasaba a esta función. `startingGameIndex` es el
+   *  SEGUNDO offset que hacía falta: `resolveServer` decide el equipo al saque por la
+   *  PARIDAD del número de game global, y un replay aislado de un set reinicia su propio
+   *  conteo de games desde 0 — sin este offset, la paridad calculada para el Set 2 en
+   *  adelante podía salir invertida (games globales 10,11,12... vs locales 1,2,3...). */
+  function computeGamesStats(events, matchCtx, startingSetNumber, startingGameIndex) {
     const format = matchCtx.format;
     const serverKnowledge = matchCtx.serverKnowledge;
     const players = matchCtx.players;
+    const baseSetNumber = startingSetNumber || 1;
 
     let state = E.createInitialGameEngineState();
+    state.gameIndex = startingGameIndex || 0;
     let gamesA = 0, gamesB = 0; // se derivan del estado final después del loop, ver más abajo (§11: total seguro)
     const serviceGames = { wonA: 0, wonB: 0, lostA: 0, lostB: 0 };
     let breaksA = 0, breaksB = 0, holdsA = 0, holdsB = 0;
@@ -2324,7 +2338,7 @@
       // Holds/breaks/games de saque: NUNCA en un TB (§14/regla dura de arriba) — el
       // servicio se resuelve por punto dentro del TB, algo que este modo no observa.
       if (!isTbResolution) {
-        const setNumber = before.sets.length + 1;
+        const setNumber = baseSetNumber + before.sets.length;
         const matchGameNumber = E.currentMatchGameNumberGames(before);
         const withinSetGameNumber = E.currentWithinSetGameNumberGames(before);
         const info = E.resolveServer(serverKnowledge, players, setNumber, matchGameNumber, withinSetGameNumber);
@@ -2386,12 +2400,18 @@
     const segments = [];
     let startIdx = 0;
     let curSetNumber = 1;
+    // V13.3 (§12): cada segmento necesita saber en qué GAME GLOBAL arranca, no solo en qué
+    // set — `resolveServer` decide qué equipo saca según la PARIDAD del número de game
+    // global (matchGameNumber), así que un replay aislado del segmento (que reinicia su
+    // propio conteo de games desde 0) necesita este offset para no calcular la paridad mal.
+    let curStartGameIndex = 0;
     events.forEach((ev, i) => {
       if (ev.type === 'adjustment') {
-        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i) });
+        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i), startingGameIndex: curStartGameIndex });
         state = E.computeGameStateFromEvents([ev], format, null);
         startIdx = i;
         curSetNumber = state.sets.length + 1;
+        curStartGameIndex = state.gameIndex;
         return;
       }
       const before = state;
@@ -2399,18 +2419,19 @@
       else if (ev.type === 'extraordinary-tiebreak') state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2);
       else state = E.applyGameWin(state, ev.team, format);
       if (state.sets.length > before.sets.length) {
-        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i + 1) });
+        segments.push({ setNumber: curSetNumber, events: events.slice(startIdx, i + 1), startingGameIndex: curStartGameIndex });
         startIdx = i + 1;
         curSetNumber = state.sets.length + 1;
+        curStartGameIndex = state.gameIndex;
       }
     });
     const tail = events.slice(startIdx);
-    if (tail.length || !state.matchWinner) segments.push({ setNumber: curSetNumber, events: tail });
+    if (tail.length || !state.matchWinner) segments.push({ setNumber: curSetNumber, events: tail, startingGameIndex: curStartGameIndex });
     const merged = [];
     segments.forEach((seg) => {
       const last = merged[merged.length - 1];
       if (last && last.setNumber === seg.setNumber) last.events = last.events.concat(seg.events);
-      else merged.push({ setNumber: seg.setNumber, events: seg.events.slice() });
+      else merged.push({ setNumber: seg.setNumber, events: seg.events.slice(), startingGameIndex: seg.startingGameIndex });
     });
     return merged;
   }
@@ -2439,6 +2460,7 @@
         // no hubo un game individual que alguien "ganara": es un salto de marcador, no un game.
         games.push({
           index: idx, setNumber: state.sets.length + 1, winner: null, diff: state.gamesA - state.gamesB,
+          gamesA: state.gamesA, gamesB: state.gamesB, server: null, holdOrBreak: null,
           setJustClosed: false, matchWinnerAfter: state.matchWinner, partial: true, adjustment: true,
           matchTimeMs: ev.matchTimeMs, timestamp: ev.timestamp,
         });
@@ -2458,11 +2480,29 @@
       const closedSet = setJustClosed ? state.sets[state.sets.length - 1] : null;
       const diff = setJustClosed ? (closedSet.gamesA - closedSet.gamesB) : (state.gamesA - state.gamesB);
       const setNumberForThisGame = before.sets.length + 1;
+      // V13.3 (§13) — Timeline Por Games necesita el score ABSOLUTO después del game (no solo
+      // la diferencia) y quién sacaba/HOLD-BREAK, igual criterio de "no inventar" que en
+      // `computeGamesStats`: nunca se atribuye TB (no sabemos servicio dentro de uno), y si
+      // el sacador no se conoce, el campo queda `null` en vez de adivinarlo.
+      let server = null, holdOrBreak = null;
+      if (!isTbResolution && matchCtx.serverKnowledge && matchCtx.players) {
+        const matchGameNumber = E.currentMatchGameNumberGames(before);
+        const withinSetGameNumber = E.currentWithinSetGameNumberGames(before);
+        const info = E.resolveServer(matchCtx.serverKnowledge, matchCtx.players, setNumberForThisGame, matchGameNumber, withinSetGameNumber);
+        if (info.resolved) {
+          server = { id: info.playerId, team: info.team };
+          holdOrBreak = info.team === winnerTeam ? 'hold' : 'break';
+        }
+      }
       games.push({
         index: idx,
         setNumber: setNumberForThisGame,
         winner: winnerTeam,
         diff,
+        gamesA: closedSet ? closedSet.gamesA : state.gamesA,
+        gamesB: closedSet ? closedSet.gamesB : state.gamesB,
+        server,
+        holdOrBreak,
         setJustClosed,
         matchWinnerAfter: state.matchWinner,
         partial,
@@ -2526,27 +2566,43 @@
     return seq;
   }
 
-  /** V13.1 (§4) — de la secuencia real de un set, extrae: el último empate ANTES del cierre
-   *  (para narrar "llegó a estar X-X"), cuántos games seguidos ganó el ganador para cerrar
-   *  (la "racha de cierre"), y cuántas veces cambió el mando (cruces de 0, ida y vuelta). */
+  /** V13.3 (§3) — de la secuencia real de un set, extrae la RACHA DE CIERRE: la corrida más
+   *  larga de games consecutivos ganados por `winner`, terminando en el último game del set,
+   *  y el score REAL desde el que arrancó esa racha (`runStartScore`) — que puede ser un
+   *  empate O un déficit. Antes esto asumía que la racha siempre arrancaba en un empate
+   *  ("último empate"); eso es una contradicción real cuando la racha empieza estando abajo
+   *  (Consolidado V13.3 §3, ejemplo explícito: "si una racha fue 1-4 → 6-4, el origen de la
+   *  racha es 1-4", nunca un empate intermedio que puede no haber existido).
+   *  También detecta si el EQUIPO QUE PIERDE cortó una racha de apertura del ganador antes
+   *  de que este la retomara (§6 — "contar también al equipo que pierde cuando aporta
+   *  historia"), y cuántas veces cambió el mando del set. */
   function analyzeGamesSetProgression(seq, winner) {
-    let lastTie = null;
+    let closingStreak = 0;
+    let runStartIdx = seq.length - 1;
+    for (let i = seq.length - 1; i >= 1; i--) {
+      if (seq[i].adjustment) break;
+      if (seq[i].winner === winner) { closingStreak += 1; runStartIdx = i - 1; } else break;
+    }
+    const runStartScore = seq[runStartIdx];
+
+    let openingStreak = 0;
+    for (let i = 1; i < seq.length; i++) {
+      if (seq[i].adjustment) break;
+      if (seq[i].winner === winner) openingStreak += 1; else break;
+    }
+    const loserInterruptedOpening = openingStreak >= 2 && closingStreak >= 2 && runStartIdx > openingStreak;
+    const openingEndScore = loserInterruptedOpening ? seq[openingStreak] : null;
+
     let domainChanges = 0;
     let lastSign = 0;
     seq.forEach((p, i) => {
       if (i === 0 || p.adjustment) return;
       const diff = p.a - p.b;
-      if (diff === 0) lastTie = p;
       const sign = diff > 0 ? 1 : diff < 0 ? -1 : 0;
       if (sign !== 0 && lastSign !== 0 && sign !== lastSign) domainChanges += 1;
       if (sign !== 0) lastSign = sign;
     });
-    let closingStreak = 0;
-    for (let i = seq.length - 1; i >= 1; i--) {
-      if (seq[i].adjustment) break;
-      if (seq[i].winner === winner) closingStreak += 1; else break;
-    }
-    return { lastTie, domainChanges, closingStreak };
+    return { closingStreak, runStartScore, openingStreak, loserInterruptedOpening, openingEndScore, domainChanges };
   }
 
   /** V13.1 (§1/§2/§4/§6/§7) — párrafo de UN set reglamentario (nunca uno extraordinario, ese
@@ -2566,10 +2622,19 @@
   function classifyGamesSetShape(s, progAnalysis, hadAdjustment, setStats, format) {
     if (E.completedSetHasTiebreak(s.gamesA, s.gamesB, format)) return 'tiebreak';
     if (hadAdjustment || !progAnalysis) return 'plain';
-    if (progAnalysis.lastTie && progAnalysis.closingStreak >= 2) return 'tight';
+    const winner = s.winner;
+    const rs = progAnalysis.runStartScore;
+    // V13.3 (§3/§7): distingue una REMONTADA real (la racha de cierre arrancó con el
+    // ganador ABAJO en el marcador) de un set simplemente parejo (arrancó empatado) — son
+    // historias distintas aunque el resultado final se parezca (§7, "los resultados pueden
+    // ser parecidos, las historias no").
+    const winnerWasBehindAtRunStart = winner === 'A' ? rs.a < rs.b : rs.b < rs.a;
+    const winnerWasTiedAtRunStart = rs.a === rs.b;
+    if (winnerWasBehindAtRunStart && progAnalysis.closingStreak >= 2) return 'comeback';
+    if (winnerWasTiedAtRunStart && progAnalysis.closingStreak >= 2) return 'tight';
     if (progAnalysis.domainChanges >= 2) return 'volatile';
-    const wB = s.winner === 'A' ? setStats.breaksA : setStats.breaksB;
-    const lB = s.winner === 'A' ? setStats.breaksB : setStats.breaksA;
+    const wB = winner === 'A' ? setStats.breaksA : setStats.breaksB;
+    const lB = winner === 'A' ? setStats.breaksB : setStats.breaksA;
     if ((wB > 0 && lB === 0) || Math.abs(s.gamesA - s.gamesB) >= 3) return 'comfortable';
     return 'plain';
   }
@@ -2581,6 +2646,7 @@
    *  El marcador siempre se narra orientado hacia quien ganó ESE set. */
   function buildGamesSetParagraph(setNumber, totalRegularSets, s, progAnalysis, setStats, nameOf, format, seed, shape) {
     const winner = s.winner;
+    const loser = winner === 'A' ? 'B' : 'A';
     const setLabel = totalRegularSets === 1 ? 'set' : setNumber === 1 ? 'primer set' : (setNumber === totalRegularSets ? (totalRegularSets === 3 ? 'tercer set' : 'segundo set') : 'segundo set');
     const scoreClause = orientScore(s.gamesA, s.gamesB, winner);
     const pick = (variants) => variants[Math.abs(seed + setNumber) % variants.length];
@@ -2593,8 +2659,20 @@
       ]);
       return opener + (s.tiebreak ? ` (TB ${orientTiebreak(s.tiebreak, winner)}).` : '.'); // §7: nunca inventa el score interno si se omitió
     }
+    // V13.3 (§3/§5) — REMONTADA real: la racha de cierre arrancó con el ganador ABAJO. El
+    // origen exacto de la racha (`runStartScore`) puede ser cualquier score, no solo un
+    // empate — nunca se afirma "llegaron a X-X" si eso no ocurrió.
+    if (shape === 'comeback') {
+      const deficitClause = orientScore(progAnalysis.runStartScore.a, progAnalysis.runStartScore.b, winner);
+      const streak = progAnalysis.closingStreak;
+      return pick([
+        `${nameOf(winner)} estuvieron ${deficitClause} abajo en el ${setLabel}, pero ganaron los últimos ${streak === 1 ? 'game' : `${streak} games`} seguidos para dar vuelta el parcial y quedárselo ${scoreClause}.`,
+        `Abajo ${deficitClause} en el ${setLabel}, ${nameOf(winner)} reaccionaron con ${streak} games consecutivos y se lo llevaron ${scoreClause}.`,
+        `El ${setLabel} parecía de ${nameOf(loser)}, pero desde el ${deficitClause} ${nameOf(winner)} ganaron ${streak === 1 ? 'el último game' : `los últimos ${streak} games`} y dieron vuelta el marcador para cerrarlo ${scoreClause}.`,
+      ]);
+    }
     if (shape === 'tight') {
-      const tieClause = orientScore(progAnalysis.lastTie.a, progAnalysis.lastTie.b, winner);
+      const tieClause = orientScore(progAnalysis.runStartScore.a, progAnalysis.runStartScore.b, winner);
       const streak = progAnalysis.closingStreak;
       return pick([
         `El ${setLabel} llegó ${tieClause} antes de que ${nameOf(winner)} ganaran los últimos ${streak} games seguidos para cerrarlo ${scoreClause}.`,
@@ -2609,6 +2687,16 @@
       ]);
     }
     if (shape === 'comfortable') {
+      // V13.3 (§6) — "contar también al equipo que pierde cuando aporta historia": si el
+      // ganador tuvo una racha de apertura que el rival llegó a cortar (aunque sea un solo
+      // game) antes de que el ganador retomara el control, ese hecho entra en la narración
+      // en vez de mostrar el set como una sola línea recta.
+      if (progAnalysis && progAnalysis.loserInterruptedOpening) {
+        const openClause = orientScore(progAnalysis.openingEndScore.a, progAnalysis.openingEndScore.b, winner);
+        const cutClause = orientScore(progAnalysis.runStartScore.a, progAnalysis.runStartScore.b, winner);
+        const streak = progAnalysis.closingStreak;
+        return `${nameOf(winner)} se pusieron ${openClause} en el ${setLabel}. ${nameOf(loser)} cortaron la racha para el ${cutClause}, pero no alcanzó: ${nameOf(winner)} ganaron ${streak === 1 ? 'el siguiente game' : `los ${streak} siguientes`} y cerraron ${scoreClause}.`;
+      }
       const wB = winner === 'A' ? setStats.breaksA : setStats.breaksB;
       const breakClause = wB > 0 ? `, con ${wB === 1 ? 'un quiebre' : `${wB} quiebres`} a favor,` : '';
       const bank = setNumber === 1 ? 'inicio' : 'reaccion';
@@ -2636,7 +2724,7 @@
   function buildGamesRelatedSetsParagraphs(a1, a2, nameOf) {
     if (a1.s.winner !== a2.s.winner) return null;
     if (a1.shape !== a2.shape) return null;
-    if (a1.shape !== 'tight' && a1.shape !== 'comfortable') return null;
+    if (a1.shape !== 'tight' && a1.shape !== 'comfortable' && a1.shape !== 'comeback') return null;
     const winner = a1.s.winner;
     const scoreClause1 = orientScore(a1.s.gamesA, a1.s.gamesB, winner);
     const scoreClause2 = orientScore(a2.s.gamesA, a2.s.gamesB, winner);
@@ -2644,12 +2732,18 @@
     const margin2 = Math.abs(a2.s.gamesA - a2.s.gamesB);
     const marginLabel = margin2 > margin1 ? 'con mayor margen' : margin2 < margin1 ? 'aunque esta vez más ajustado' : 'con un margen parecido';
 
-    if (a1.shape === 'tight') {
-      const tie1 = a1.progAnalysis.lastTie, tie2 = a2.progAnalysis.lastTie;
-      const tie1Total = tie1.a + tie1.b, tie2Total = tie2.a + tie2.b;
-      const whenLabel = tie2Total < tie1Total ? 'apareció antes' : tie2Total > tie1Total ? 'apareció más tarde' : 'apareció en un momento parecido';
-      const p1 = `El primero se mantuvo abierto hasta el ${orientScore(tie1.a, tie1.b, winner)}, cuando ${nameOf(winner)} encadenaron ${a1.progAnalysis.closingStreak === 1 ? 'un game' : `${a1.progAnalysis.closingStreak} games`} para llevárselo ${scoreClause1}.`;
-      const p2 = `El segundo siguió un patrón parecido, aunque la diferencia ${whenLabel}: desde el ${orientScore(tie2.a, tie2.b, winner)} volvieron a despegarse y cerraron ${marginLabel} ${scoreClause2}.`;
+    if (a1.shape === 'tight' || a1.shape === 'comeback') {
+      // V13.3 (§3): `runStartScore` es el origen REAL de la racha de cierre (empate o
+      // déficit) — nunca se asume que fue un empate si en realidad fue una remontada.
+      const rs1 = a1.progAnalysis.runStartScore, rs2 = a2.progAnalysis.runStartScore;
+      const rs1Total = rs1.a + rs1.b, rs2Total = rs2.a + rs2.b;
+      const whenLabel = rs2Total < rs1Total ? 'apareció antes' : rs2Total > rs1Total ? 'apareció más tarde' : 'apareció en un momento parecido';
+      const p1 = a1.shape === 'comeback'
+        ? `El primero estuvo ${orientScore(rs1.a, rs1.b, winner)} en contra, hasta que ${nameOf(winner)} encadenaron ${a1.progAnalysis.closingStreak === 1 ? 'un game' : `${a1.progAnalysis.closingStreak} games`} para darlo vuelta y llevárselo ${scoreClause1}.`
+        : `El primero se mantuvo abierto hasta el ${orientScore(rs1.a, rs1.b, winner)}, cuando ${nameOf(winner)} encadenaron ${a1.progAnalysis.closingStreak === 1 ? 'un game' : `${a1.progAnalysis.closingStreak} games`} para llevárselo ${scoreClause1}.`;
+      const p2 = a1.shape === 'comeback'
+        ? `El segundo tuvo una historia parecida — otra vez ${nameOf(winner)} remontaron, aunque la reacción ${whenLabel}: desde el ${orientScore(rs2.a, rs2.b, winner)} en contra dieron vuelta el marcador y cerraron ${marginLabel} ${scoreClause2}.`
+        : `El segundo siguió un patrón parecido, aunque la diferencia ${whenLabel}: desde el ${orientScore(rs2.a, rs2.b, winner)} volvieron a despegarse y cerraron ${marginLabel} ${scoreClause2}.`;
       return [p1, p2];
     }
     // 'comfortable'
@@ -2722,7 +2816,7 @@
       const segEvents = seg ? seg.events : [];
       const hadAdjustment = segEvents.some((ev) => ev.type === 'adjustment');
       const seq = hadAdjustment ? null : walkGamesProgression(segEvents, format);
-      const setStats = computeGamesStats(segEvents, matchCtx);
+      const setStats = computeGamesStats(segEvents, matchCtx, setNumber, seg ? seg.startingGameIndex : 0); // V13.3 (§12): setNumber y game global reales, no los locales del tramo
       const progAnalysis = seq ? analyzeGamesSetProgression(seq, s.winner) : null;
       const shape = classifyGamesSetShape(s, progAnalysis, hadAdjustment, setStats, format);
       return { setNumber, s, setStats, progAnalysis, shape };

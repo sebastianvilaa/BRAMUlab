@@ -1205,7 +1205,12 @@
     const text = gamesIntelFor(ctx);
     const paras = text.split('\n\n');
     assert('V13.2-D · los dos párrafos de set NO son idénticos entre sí', paras[0] !== paras[1], text);
-    assert('V13.2-D · relaciona los sets ("patrón parecido" o equivalente)', /patrón/i.test(text), text);
+    // V13.3: la racha de cierre real de esta secuencia resulta más larga que un simple
+    // "empate y despegue" (arranca con el ganador abajo en el marcador) — el algoritmo
+    // nuevo la detecta correctamente como remontada ("historia parecida"), no como "patrón
+    // parecido" (esa frase es la de sets simplemente parejos) — cualquiera de las dos
+    // familias de redacción demuestra que los sets se relacionaron, que es lo que importa acá.
+    assert('V13.2-D · relaciona los sets (misma familia narrativa para ambos)', /patrón parecido|historia parecida/i.test(text), text);
     assert('V13.2-D · señala que la diferencia apareció antes en el segundo set', /apareció antes/i.test(text), text);
     assert('V13.2-D · nunca usa lenguaje psicológico prohibido', !/confianza|se soltaron/i.test(text), text);
     assert('V13.2-D · gramática plural correcta', !/\bse impuso\b/i.test(text) && !/ \/ /.test(text), text);
@@ -1234,6 +1239,136 @@
     const setParas = text.split('\n\n').slice(0, 3);
     const unique = new Set(setParas.map((p) => p.replace(/^(El primer set|El segundo set|El tercer set|Ana y Bea|Cruz y Dan)/, '').replace(/\d/g, '')));
     assert('V13.2-3sets · los 3 párrafos de set no repiten mecánicamente la misma estructura', unique.size >= 2, text);
+  })();
+
+  // ==================================================================
+  // ==================================================================
+  // ==================================================================
+  // V13.3 (§14-19/§21 G-I) — CAMBIAR SISTEMA DE PUNTUACIÓN EN VIVO (motor de puntos,
+  // Completo). Cada punto graba su propio `scoringSystem` vigente (`ev.scoringSystem`,
+  // igual patrón que `ev.tbMode`) — un cambio nunca reinterpreta un punto ya jugado.
+  // ==================================================================
+
+  // Caso G — 40-40 bajo Punto de Oro, sin jugar el punto decisivo: cambiar a Con Ventaja
+  // debe funcionar sin problemas (no hay ningún punto de deuce ya jugado que proteger).
+  (function () {
+    const fmt = E.FORMATS.classic;
+    const events = [];
+    ['A', 'A', 'A', 'B', 'B', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 3-3 (40-40), sin punto decisivo aún
+    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
+    assert('V13.3-G · llega a 40-40 bajo Punto de Oro sin decidir el game', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+    // Cambia el sistema: el próximo punto ya se graba con 'classic'.
+    events.push({ team: 'A', scoringSystem: 'classic', matchTimeMs: 1000 });
+    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
+    assert('V13.3-G · tras cambiar a Con Ventaja, el mismo punto que hubiera cerrado el game con Punto de Oro ahora deja Ventaja (Con Ventaja pide diferencia de 2)', state.pointsA === 4 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+    const disp = E.formatPointsDisplay(state.pointsA, state.pointsB, 'classic');
+    assert('V13.3-G · el marcador muestra VENTAJA (nunca inventa que el game ya cerró)', disp.aText === 'VENTAJA', JSON.stringify(disp));
+  })();
+
+  // Caso H — cambiar el sistema durante un estado normal (30-15, fuera de la zona de deuce):
+  // el score no se toca, y el motor usa la regla nueva recién cuando haga falta (más adelante).
+  (function () {
+    const fmt = E.FORMATS.classic;
+    const events = [];
+    ['A', 'A', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 30-15
+    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
+    assert('V13.3-H · 30-15 antes de cambiar', state.pointsA === 2 && state.pointsB === 1, JSON.stringify(state));
+    // "Cambiar" acá simplemente implica que los PRÓXIMOS puntos se graban con el sistema nuevo.
+    ['A', 'B', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'classic', matchTimeMs: 1000 })); // 30-15 -> 40-40, sin cerrar el game antes
+    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
+    assert('V13.3-H · el score sigue intacto y llega a deuce (40-40) usando la regla nueva', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+  })();
+
+  // Caso I — bloqueo real después de una consecuencia irreversible: cerrar un game bajo
+  // Punto de Oro y verificar que un cambio de sistema posterior NUNCA reinterpreta ese game
+  // ya cerrado (nunca lo "convierte" en Star Point/Con Ventaja retroactivamente).
+  (function () {
+    const fmt = E.FORMATS.classic;
+    const events = [];
+    ['A', 'A', 'A', 'B', 'B', 'B', 'A'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 3-3 y el punto de oro decisivo -> game cerrado 1-0
+    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
+    assert('V13.3-I · el game cerró 1-0 bajo Punto de Oro', state.gamesA === 1 && state.pointsA === 0 && state.pointsB === 0, JSON.stringify(state));
+    // Ahora "cambia" el sistema para el resto del partido (los eventos VIEJOS conservan su
+    // propio scoringSystem='golden', nunca se reescriben) y juega el próximo game bajo
+    // Con Ventaja, llegando otra vez a deuce sin que nadie lo cierre en un solo punto.
+    ['B', 'B', 'B', 'A', 'A', 'A'].forEach((t) => events.push({ team: t, scoringSystem: 'classic', matchTimeMs: 2000 })); // 3-3 del segundo game, bajo Con Ventaja
+    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
+    assert('V13.3-I · el primer game sigue en 1-0 (nunca se reinterpreta retroactivamente)', state.gamesA === 1 && state.gamesB === 0, JSON.stringify(state));
+    assert('V13.3-I · el segundo game (ya bajo Con Ventaja) llega a deuce sin decidirse en un punto', state.pointsA === 3 && state.pointsB === 3, JSON.stringify(state));
+  })();
+
+  // V13.3 (§10/§21-A) — BENCHMARK NARRATIVO A: 6-4 · 6-3
+  // Set 1: igualdad hasta 4-4, dos games finales (racha de cierre = empate, forma "tight").
+  // Set 2: 1-3 abajo, 5 seguidos para remontar (forma "comeback") — NO debe decirse que
+  // ambos sets tuvieron un patrón parecido (formas distintas, §10 explícito).
+  // ==================================================================
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1: alterna hasta 4-4 (B empata), A gana 2 seguidos -> 6-4
+    ['B', 'A', 'B', 'B', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: A llega 1-3 abajo, gana 5 seguidos -> 6-3
+    assert('V13.3-A · llega a 6-4 · 6-3, A gana el partido', ctx.state.sets.length === 2 && ctx.state.sets[0].gamesA === 6 && ctx.state.sets[0].gamesB === 4 && ctx.state.sets[1].gamesA === 6 && ctx.state.sets[1].gamesB === 3 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
+    const text = gamesIntelFor(ctx);
+    const paras = text.split('\n\n');
+    assert('V13.3-A · Set 1 detecta la racha de cierre desde el empate 4-4 (no un empate falso)', /4-4/.test(paras[0]) && /2 games/i.test(paras[0]), paras[0]);
+    assert('V13.3-A · Set 2 detecta la remontada real desde 1-3 abajo (no "3-3")', /1-3/.test(paras[1]) && !/3-3/.test(paras[1]), paras[1]);
+    assert('V13.3-A · Set 2 reconoce la racha completa de 5 games (no solo 3, el viejo bug de "último empate")', /5 games/i.test(paras[1]), paras[1]);
+    assert('V13.3-A · NO dice que ambos sets tuvieron un patrón parecido (formas distintas: tight vs comeback)', !/patrón parecido|historia parecida/i.test(text), text);
+    assert('V13.3-A · nunca inventa lenguaje psicológico', !/confianza|se soltaron|nervios/i.test(text), text);
+  })();
+
+  // ==================================================================
+  // V13.3 (§11/§21-B) — BENCHMARK NARRATIVO B: 4-6 · 6-1 · 6-3
+  // Set 1: A llega a estar 4-1 arriba, B remonta con 5 seguidos y cierra 4-6 (comeback de B).
+  // Set 2: A se pone 3-0, B corta la racha para el 3-1 pero A gana los 3 siguientes (6-1) —
+  // caso central de "contar también al equipo que pierde" (§6).
+  // Set 3: parejo, A cierra 6-3 con margen (comfortable genérico, sin racha de apertura
+  // interrumpida lo bastante larga como para narrarla aparte).
+  // ==================================================================
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['A', 'A', 'A', 'B', 'A', 'B', 'B', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // Set1: A llega 4-1, B gana 5 seguidos -> 4-6
+    ['A', 'A', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: A 3-0, B corta a 3-1, A gana 3 seguidos -> 6-1
+    ['A', 'B', 'A', 'B', 'A', 'A', 'B', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set3: parejo hasta 2-2, A cierra 6-3
+    assert('V13.3-B · llega a 4-6 · 6-1 · 6-3, B gana Set1, A gana el partido', ctx.state.sets.length === 3 && ctx.state.sets[0].gamesA === 4 && ctx.state.sets[0].gamesB === 6 && ctx.state.sets[1].gamesA === 6 && ctx.state.sets[1].gamesB === 1 && ctx.state.sets[2].gamesA === 6 && ctx.state.sets[2].gamesB === 3 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
+    const text = gamesIntelFor(ctx);
+    const paras = text.split('\n\n');
+    assert('V13.3-B · Set 1 detecta la remontada de B desde 1-4 abajo (orientado a B)', /1-4/.test(paras[0]), paras[0]);
+    assert('V13.3-B · Set 2 acredita a quien pierde cortando la racha ("cortaron la racha")', /cortaron la racha/i.test(paras[1]), paras[1]);
+    assert('V13.3-B · Set 2 menciona el 3-0 de apertura y el 3-1 del corte', /3-0/.test(paras[1]) && /3-1/.test(paras[1]), paras[1]);
+    assert('V13.3-B · Set 2 cierra correctamente en 6-1 sin inventar de más', /6-1/.test(paras[1]), paras[1]);
+    assert('V13.3-B · Set 3 se narra sin inventar remontada/racha que no existió', !/remontad/i.test(paras[2]), paras[2]);
+    assert('V13.3-B · párrafos de peso distinto según la riqueza de cada set (Set 2 es más largo, tiene más que contar)', paras[1].length > paras[2].length, JSON.stringify({ p2: paras[1], p3: paras[2] }));
+  })();
+
+  // V13.3 (§12) — BUG REAL: estadísticas por set usaban siempre la rotación de saque del
+  // Set 1 (el replay de un tramo aislado nunca sabía su número de set real). Invariantes
+  // obligatorios: la suma de breaks/holds/games de cada set tiene que dar el total del
+  // partido — en un partido de 3 sets donde el saque inicial alterna de forma distinta en
+  // cada set (natural: la paridad de saque depende de cuántos games ya se jugaron).
+  // ==================================================================
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-3 A
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // Set2 4-6 (B)
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set3 7-5 A
+    const matchStats = gamesStatsFor(ctx);
+    const segs = S.computeGameSetSegments(ctx.events, ctx.format);
+    assert('V13.3-stats · el partido tiene 3 segmentos de set', segs.length === 3, JSON.stringify(segs.map((s) => s.setNumber)));
+    const perSet = segs.map((seg) => S.computeGamesStats(seg.events, gamesMatchCtxFor(ctx), seg.setNumber, seg.startingGameIndex));
+    const sum = (field) => perSet.reduce((acc, s) => acc + s[field], 0);
+    assert('V13.3-stats · Breaks A: suma de sets = partido', sum('breaksA') === matchStats.breaksA, JSON.stringify({ perSet: perSet.map((s) => s.breaksA), total: matchStats.breaksA }));
+    assert('V13.3-stats · Breaks B: suma de sets = partido', sum('breaksB') === matchStats.breaksB, JSON.stringify({ perSet: perSet.map((s) => s.breaksB), total: matchStats.breaksB }));
+    assert('V13.3-stats · Holds A: suma de sets = partido', sum('holdsA') === matchStats.holdsA, JSON.stringify({ perSet: perSet.map((s) => s.holdsA), total: matchStats.holdsA }));
+    assert('V13.3-stats · Holds B: suma de sets = partido', sum('holdsB') === matchStats.holdsB, JSON.stringify({ perSet: perSet.map((s) => s.holdsB), total: matchStats.holdsB }));
+    assert('V13.3-stats · Games A: suma de sets = partido', sum('gamesA') === matchStats.gamesA, JSON.stringify({ perSet: perSet.map((s) => s.gamesA), total: matchStats.gamesA }));
+    assert('V13.3-stats · Games B: suma de sets = partido', sum('gamesB') === matchStats.gamesB, JSON.stringify({ perSet: perSet.map((s) => s.gamesB), total: matchStats.gamesB }));
+    const sgWonA = (s) => s.serviceGames.wonA + s.serviceGames.lostA;
+    const sgWonB = (s) => s.serviceGames.wonB + s.serviceGames.lostB;
+    assert('V13.3-stats · denominador de games de saque A: suma de sets = partido', perSet.reduce((acc, s) => acc + sgWonA(s), 0) === sgWonA(matchStats), '');
+    assert('V13.3-stats · denominador de games de saque B: suma de sets = partido', perSet.reduce((acc, s) => acc + sgWonB(s), 0) === sgWonB(matchStats), '');
+    // Sin el fix, el Set 3 (donde el saque inicial es distinto al del Set 1) hubiera
+    // resuelto el sacador con la rotación equivocada — chequeo directo, no solo la suma.
+    assert('V13.3-stats · el Set 3 no queda con todo el saque "unknown" (rotación resuelta con su propio número de set)', (perSet[2].serviceGames.wonA + perSet[2].serviceGames.wonB + perSet[2].serviceGames.lostA + perSet[2].serviceGames.lostB) === (perSet[2].gamesA + perSet[2].gamesB), JSON.stringify(perSet[2]));
   })();
 
   // ------------------------------------------------------------------
