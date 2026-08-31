@@ -2557,42 +2557,105 @@
    *  empate tardío sin racha > varios cambios de mando > quiebres de los dos lados > un solo
    *  lado quebró > genérico. El marcador SIEMPRE se narra orientado hacia quien ganó ESE
    *  set (§6, `orientScore`/`orientTiebreak`, igual criterio que el motor de puntos). */
-  function buildGamesSetParagraph(setNumber, totalRegularSets, s, seq, hadAdjustment, setStats, nameOf, format, seed, bank) {
+  /** V13.2 (§3) — "forma" de un set reglamentario, usada tanto para elegir plantilla de
+   *  redacción como para decidir si dos sets son lo bastante parecidos como para
+   *  relacionarlos en vez de narrarlos por separado (`buildGamesRelatedSetsParagraphs`).
+   *  `progAnalysis` es el resultado de `analyzeGamesSetProgression` (o null si el tramo
+   *  tuvo una corrección manual — Caso C, nunca se clasifica como "parejo"/"dominante" sin
+   *  conocer el orden real). */
+  function classifyGamesSetShape(s, progAnalysis, hadAdjustment, setStats, format) {
+    if (E.completedSetHasTiebreak(s.gamesA, s.gamesB, format)) return 'tiebreak';
+    if (hadAdjustment || !progAnalysis) return 'plain';
+    if (progAnalysis.lastTie && progAnalysis.closingStreak >= 2) return 'tight';
+    if (progAnalysis.domainChanges >= 2) return 'volatile';
+    const wB = s.winner === 'A' ? setStats.breaksA : setStats.breaksB;
+    const lB = s.winner === 'A' ? setStats.breaksB : setStats.breaksA;
+    if ((wB > 0 && lB === 0) || Math.abs(s.gamesA - s.gamesB) >= 3) return 'comfortable';
+    return 'plain';
+  }
+
+  /** V13.2 (§3) — párrafo de UN set, con 2-3 REDACCIONES ALTERNATIVAS por forma (nunca una
+   *  sola plantilla fija) elegidas de forma determinística por `(seed + setNumber)`: con
+   *  sets consecutivos, ese cálculo cae en restos distintos mod 2/3, así que dos sets
+   *  seguidos del mismo partido nunca terminan sonando idénticos aunque compartan forma.
+   *  El marcador siempre se narra orientado hacia quien ganó ESE set. */
+  function buildGamesSetParagraph(setNumber, totalRegularSets, s, progAnalysis, setStats, nameOf, format, seed, shape) {
     const winner = s.winner;
     const setLabel = totalRegularSets === 1 ? 'set' : setNumber === 1 ? 'primer set' : (setNumber === totalRegularSets ? (totalRegularSets === 3 ? 'tercer set' : 'segundo set') : 'segundo set');
-    const wasTb = E.completedSetHasTiebreak(s.gamesA, s.gamesB, format);
-
-    if (wasTb) {
-      const trigger = format.tiebreakTriggerAt;
-      let sentence = `El ${setLabel} llegó al ${trigger}-${trigger} y ${nameOf(winner)} se lo llevaron en el Tie break, ${orientScore(s.gamesA, s.gamesB, winner)}`;
-      return sentence + (s.tiebreak ? ` (TB ${orientTiebreak(s.tiebreak, winner)}).` : '.'); // §7: nunca inventa el score interno si se omitió
-    }
-
     const scoreClause = orientScore(s.gamesA, s.gamesB, winner);
-    if (hadAdjustment || !seq) {
-      // Caso C: tramo con orden desconocido — solo el score final es seguro (§11 del V13).
-      return `${nameOf(winner)} se quedaron con el ${setLabel} ${scoreClause}.`;
-    }
+    const pick = (variants) => variants[Math.abs(seed + setNumber) % variants.length];
 
-    const analysis = analyzeGamesSetProgression(seq, winner);
-    if (analysis.lastTie && analysis.closingStreak >= 2) {
-      return `El ${setLabel} llegó ${orientScore(analysis.lastTie.a, analysis.lastTie.b, winner)} antes de que ${nameOf(winner)} ganaran los últimos ${analysis.closingStreak} games seguidos para cerrarlo ${scoreClause}.`;
+    if (shape === 'tiebreak') {
+      const trigger = format.tiebreakTriggerAt;
+      const opener = pick([
+        `El ${setLabel} llegó al ${trigger}-${trigger} y ${nameOf(winner)} se lo llevaron en el Tie break, ${scoreClause}`,
+        `${nameOf(winner)} se impusieron en el Tie break del ${setLabel}, tras llegar al ${trigger}-${trigger}, ${scoreClause}`,
+      ]);
+      return opener + (s.tiebreak ? ` (TB ${orientTiebreak(s.tiebreak, winner)}).` : '.'); // §7: nunca inventa el score interno si se omitió
     }
-    if (analysis.lastTie) {
-      return `El ${setLabel} llegó ${orientScore(analysis.lastTie.a, analysis.lastTie.b, winner)} antes de que ${nameOf(winner)} se lo llevaran ${scoreClause}.`;
+    if (shape === 'tight') {
+      const tieClause = orientScore(progAnalysis.lastTie.a, progAnalysis.lastTie.b, winner);
+      const streak = progAnalysis.closingStreak;
+      return pick([
+        `El ${setLabel} llegó ${tieClause} antes de que ${nameOf(winner)} ganaran los últimos ${streak} games seguidos para cerrarlo ${scoreClause}.`,
+        `${nameOf(winner)} se mantuvieron firmes hasta el ${tieClause} en el ${setLabel}, y desde ahí encadenaron ${streak} games para quedárselo ${scoreClause}.`,
+        `El ${setLabel} estuvo parejo hasta el ${tieClause}; a partir de ahí, ${nameOf(winner)} dieron el salto y lo cerraron ${scoreClause}.`,
+      ]);
     }
-    if (analysis.domainChanges >= 2) {
-      return `El ${setLabel} tuvo varios cambios de mando antes de que ${nameOf(winner)} se lo quedaran ${scoreClause}.`;
+    if (shape === 'volatile') {
+      return pick([
+        `El ${setLabel} tuvo varios cambios de mando antes de que ${nameOf(winner)} se lo quedaran ${scoreClause}.`,
+        `El mando del ${setLabel} cambió de manos más de una vez, hasta que ${nameOf(winner)} se lo terminaron llevando ${scoreClause}.`,
+      ]);
     }
-    const wB = winner === 'A' ? setStats.breaksA : setStats.breaksB;
-    const lB = winner === 'A' ? setStats.breaksB : setStats.breaksA;
-    if (wB > 0 && lB === 0) {
-      return `${nameOf(winner)} ${gamesPickPhrase(bank, seed)} y, con ${wB === 1 ? 'un quiebre' : `${wB} quiebres`} a favor, se quedaron con el ${setLabel} ${scoreClause}.`;
+    if (shape === 'comfortable') {
+      const wB = winner === 'A' ? setStats.breaksA : setStats.breaksB;
+      const breakClause = wB > 0 ? `, con ${wB === 1 ? 'un quiebre' : `${wB} quiebres`} a favor,` : '';
+      const bank = setNumber === 1 ? 'inicio' : 'reaccion';
+      return pick([
+        `${nameOf(winner)} ${gamesPickPhrase(bank, seed)}${breakClause} y se quedaron con el ${setLabel} ${scoreClause}.`,
+        `${nameOf(winner)} tomaron el control del ${setLabel} desde temprano y lo cerraron ${scoreClause}.`,
+        `Sin demasiados sobresaltos, ${nameOf(winner)} se quedaron con el ${setLabel} ${scoreClause}.`,
+      ]);
     }
-    if (wB > 0 && lB > 0) {
-      return `El ${setLabel} tuvo quiebres de los dos lados antes de que ${nameOf(winner)} se lo llevaran ${scoreClause}.`;
+    // 'plain' — Caso C (corrección manual) u otro tramo sin desarrollo confiable: solo el
+    // score final es seguro (§11 del V13), nunca se afirma remontada/cambio de mando.
+    return pick([
+      `${nameOf(winner)} se quedaron con el ${setLabel} ${scoreClause}.`,
+      `${nameOf(winner)} ganaron el ${setLabel} ${scoreClause}.`,
+    ]);
+  }
+
+  /** V13.2 (§3) — cuando un partido termina en sets corridos (2 sets reglamentarios, mismo
+   *  ganador) y AMBOS sets comparten forma "tight" o "comfortable", los relaciona en vez de
+   *  narrarlos como dos párrafos casi idénticos (el problema real reportado: "6-3 · 6-2"
+   *  sonaba a plantilla repetida). Compara CUÁNDO apareció la diferencia (antes/después) y
+   *  CUÁNTO margen dejó cada uno — nunca introduce psicología, solo hechos comparables.
+   *  Devuelve `null` si no aplica (formas distintas, ganadores distintos, u otra forma) —
+   *  el llamador cae entonces al párrafo-por-set de siempre. */
+  function buildGamesRelatedSetsParagraphs(a1, a2, nameOf) {
+    if (a1.s.winner !== a2.s.winner) return null;
+    if (a1.shape !== a2.shape) return null;
+    if (a1.shape !== 'tight' && a1.shape !== 'comfortable') return null;
+    const winner = a1.s.winner;
+    const scoreClause1 = orientScore(a1.s.gamesA, a1.s.gamesB, winner);
+    const scoreClause2 = orientScore(a2.s.gamesA, a2.s.gamesB, winner);
+    const margin1 = Math.abs(a1.s.gamesA - a1.s.gamesB);
+    const margin2 = Math.abs(a2.s.gamesA - a2.s.gamesB);
+    const marginLabel = margin2 > margin1 ? 'con mayor margen' : margin2 < margin1 ? 'aunque esta vez más ajustado' : 'con un margen parecido';
+
+    if (a1.shape === 'tight') {
+      const tie1 = a1.progAnalysis.lastTie, tie2 = a2.progAnalysis.lastTie;
+      const tie1Total = tie1.a + tie1.b, tie2Total = tie2.a + tie2.b;
+      const whenLabel = tie2Total < tie1Total ? 'apareció antes' : tie2Total > tie1Total ? 'apareció más tarde' : 'apareció en un momento parecido';
+      const p1 = `El primero se mantuvo abierto hasta el ${orientScore(tie1.a, tie1.b, winner)}, cuando ${nameOf(winner)} encadenaron ${a1.progAnalysis.closingStreak === 1 ? 'un game' : `${a1.progAnalysis.closingStreak} games`} para llevárselo ${scoreClause1}.`;
+      const p2 = `El segundo siguió un patrón parecido, aunque la diferencia ${whenLabel}: desde el ${orientScore(tie2.a, tie2.b, winner)} volvieron a despegarse y cerraron ${marginLabel} ${scoreClause2}.`;
+      return [p1, p2];
     }
-    return `${nameOf(winner)} ${gamesPickPhrase(bank, seed)} y se quedaron con el ${setLabel} ${scoreClause}.`;
+    // 'comfortable'
+    const p1 = `${nameOf(winner)} tomaron el control del primer set y lo cerraron ${scoreClause1}.`;
+    const p2 = `Repitieron el patrón en el segundo, ${marginLabel}, ${scoreClause2}.`;
+    return [p1, p2];
   }
 
   /** V13.1 (§3) — paridad real por combinación de señales (nunca por una sola métrica
@@ -2631,12 +2694,14 @@
     return text ? text + '\n\n' + note : note;
   }
 
-  /** V13.1 (§1/§2) — BRAMU Intelligence para Por Games, reescrita para aprovechar mucho más
-   *  la información real disponible: un párrafo por set reglamentario (cronológico — Set 1,
-   *  Set 2, set decisivo, en ese orden, misma filosofía que `buildThreeSetChronologicalStory`
-   *  del motor de puntos) más una lectura global de paridad si corresponde, más una nota
-   *  aparte si algún set se resolvió con Tie break extraordinario. Nunca afirma nada de
-   *  puntos (§24 del V13) ni inventa el orden de un tramo corregido a mano (Caso C). */
+  /** V13.2 (§1/§2/§3) — BRAMU Intelligence para Por Games: un párrafo por set reglamentario
+   *  (cronológico — Set 1, Set 2, set decisivo, misma filosofía que
+   *  `buildThreeSetChronologicalStory` del motor de puntos) — o, en sets corridos con el
+   *  mismo patrón en ambos, un párrafo RELACIONADO en vez de dos casi idénticos (§3) — más
+   *  una lectura global de paridad si corresponde, más una nota aparte si algún set se
+   *  resolvió con Tie break extraordinario. Nunca afirma nada de puntos (§24 del V13) ni
+   *  inventa el orden de un tramo corregido a mano (Caso C). Las redacciones varían de forma
+   *  determinística por forma de set (§3) — nunca la misma plantilla mecánica para todos. */
   function generateGamesIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
     const format = matchCtx.format;
     const nameOf = (team) => gamesNarrativeTeamLabel(matchCtx.players, team);
@@ -2651,18 +2716,25 @@
     const events = matchCtx.events || [];
     const segs = computeGameSetSegments(events, format);
 
-    const paras = regularSets.map((s, i) => {
+    const analyses = regularSets.map((s, i) => {
       const setNumber = i + 1;
       const seg = segs.find((sg) => sg.setNumber === setNumber);
       const segEvents = seg ? seg.events : [];
       const hadAdjustment = segEvents.some((ev) => ev.type === 'adjustment');
       const seq = hadAdjustment ? null : walkGamesProgression(segEvents, format);
       const setStats = computeGamesStats(segEvents, matchCtx);
-      const bank = regularSets.length === 3
-        ? (setNumber === 1 ? 'inicio' : setNumber === 2 ? 'reaccion' : 'cierre')
-        : (setNumber === regularSets.length ? 'cierre' : 'inicio');
-      return buildGamesSetParagraph(setNumber, regularSets.length, s, seq, hadAdjustment, setStats, nameOf, format, seed, bank);
+      const progAnalysis = seq ? analyzeGamesSetProgression(seq, s.winner) : null;
+      const shape = classifyGamesSetShape(s, progAnalysis, hadAdjustment, setStats, format);
+      return { setNumber, s, setStats, progAnalysis, shape };
     });
+
+    let paras = null;
+    if (regularSets.length === 2) {
+      paras = buildGamesRelatedSetsParagraphs(analyses[0], analyses[1], nameOf);
+    }
+    if (!paras) {
+      paras = analyses.map((a) => buildGamesSetParagraph(a.setNumber, regularSets.length, a.s, a.progAnalysis, a.setStats, nameOf, format, seed, a.shape));
+    }
 
     const globalRead = buildGamesGlobalReadParagraph(stats, regularSets, format);
     if (globalRead) paras.push(globalRead);

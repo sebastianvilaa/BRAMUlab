@@ -22,6 +22,13 @@
 
   const timer = { startedAt: null, pausedAt: null, totalPausedMs: 0, intervalId: null };
 
+  // V13.2 (§1) — Wake Lock: ver sección dedicada más abajo (`requestWakeLock`/`releaseWakeLock`).
+  let wakeLockSentinel = null;
+  let matchIsActive = false;
+
+  // V13.2 (§2) — chequeo de versión: ver `checkForNewVersion`/`forceUpdateApp` más abajo.
+  let dismissedUpdateVersion = null;
+
   let lastServerPromptCtx = null;
   let pendingConfirmAccept = null;
   let selectedFinishReason = 'tiempo';
@@ -320,6 +327,7 @@
     $('#adjust-btn').hidden = isGamesMode();
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     if (isGamesMode()) renderGamesMode(); else render();
+    matchIsActive = true; requestWakeLock(); // V13.2 (§1)
     autosave();
   }
 
@@ -581,6 +589,7 @@
     manualFinish = null;
     $('#view-summary').hidden = true;
     if (!timer.pausedAt) startTimerLoop();
+    if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     renderGamesMode();
     showToast('Último game deshecho');
   }
@@ -1312,6 +1321,7 @@
     manualFinish = null;
     $('#view-summary').hidden = true;
     if (!timer.pausedAt) startTimerLoop();
+    if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     render();
     showToast('Último punto deshecho');
   }
@@ -1323,6 +1333,7 @@
     finishedSnapshot = null;
     $('#view-summary').hidden = true;
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
+    matchIsActive = true; requestWakeLock(); // V13.2 (§1): el partido vuelve a estar activo
     if (isGamesMode()) renderGamesMode(); else render();
     showToast('Partido reanudado');
   }
@@ -1476,7 +1487,11 @@
     });
     Store.rememberPlayerNames(newNames);
     $('#edit-players-modal').hidden = true;
-    render();
+    // V13.2 (§4) — BUG REAL: esto llamaba siempre a `render()` (el del motor de puntos),
+    // que en Por Games recalcula el estado desde `pointEvents` — vacío en ese modo, así
+    // que el marcador mostraba 0-0 hasta el próximo toque (que sí usa el render correcto).
+    // El estado real nunca se perdía; era pura desincronización de qué función redibujaba.
+    if (isGamesMode()) renderGamesMode(); else render();
     showToast('Jugadores actualizados');
   }
 
@@ -1537,6 +1552,7 @@
 
   function goHome() {
     stopTimerLoop();
+    releaseWakeLock(); // V13.2 (§1)
     Store.clearActiveMatch();
     match = null;
     $('#pause-overlay').hidden = true;
@@ -2527,6 +2543,7 @@
   /* ------------------------------------------------------------------ */
   function finishMatch(state, manual) {
     stopTimerLoop();
+    releaseWakeLock(); // V13.2 (§1)
     const matchCtx = { players: match.players, scoringSystem: match.scoringSystem, format: currentFormat(), tiebreakMode: match.tiebreakMode, serverKnowledge, baseline: match.baseline, events: pointEvents, coverageStartLabel: match.coverageStartLabel };
     const stats = S.computeStats(pointEvents, matchCtx);
     const winnerTeam = manual ? manual.declaredWinner : state.matchWinner;
@@ -2597,6 +2614,7 @@
    *  `finishedSnapshot` con la MISMA forma general (mismo Resumen/Análisis/Historial). */
   function finishMatchGames(state, manual) {
     stopTimerLoop();
+    releaseWakeLock(); // V13.2 (§1)
     const format = currentFormat();
     const matchCtx = { players: match.players, format, serverKnowledge, durationMs: getElapsedMs(), events: gameEvents };
     const gamesStats = S.computeGamesStats(gameEvents, matchCtx);
@@ -4315,6 +4333,7 @@
     initTimelineScreen();
     initHistoryScreen();
     initDevTools();
+    initUpdateCheck();
     registerServiceWorker();
   });
 
@@ -4325,6 +4344,84 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => { /* offline / file:// -> ignorar */ });
     }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13.2 (§1) — WAKE LOCK: mantener la pantalla activa durante un partido en curso
+   *  (Completo y Por Games por igual). Diagnóstico previo (V13.1 no tenía NINGÚN código de
+   *  Wake Lock pese a lo que el reporte anterior daba a entender — el problema no era "el
+   *  código no funciona", era que nunca se había implementado). Reglas:
+   *  - se pide al entrar a la pantalla de partido (`enterMatchScreen`) y al reanudar uno
+   *    finalizado manualmente o deshacer su cierre;
+   *  - el sistema operativo libera el lock solo con pasar a background — eso es normal y
+   *    esperado, no un error: al volver a foreground (`visibilitychange`), se vuelve a pedir
+   *    automáticamente si el partido sigue activo;
+   *  - se libera explícitamente al finalizar el partido o volver a Home;
+   *  - si el navegador no soporta la API o el pedido falla, la app sigue funcionando igual —
+   *    se registra en consola para debugging, nunca se le muestra un error al usuario. */
+  /* ------------------------------------------------------------------ */
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    if (wakeLockSentinel) return; // ya activo, no pedir dos veces
+    try {
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+      wakeLockSentinel.addEventListener('release', () => {
+        // Disparado tanto por `releaseWakeLock()` (abajo) como por el sistema operativo al
+        // pasar a background — en ambos casos, solo hay que soltar la referencia; el
+        // reintento (si corresponde) lo maneja el listener de `visibilitychange`.
+        wakeLockSentinel = null;
+      });
+    } catch (e) {
+      console.warn('[BRAMU LAB] No se pudo mantener la pantalla activa (Wake Lock no disponible o rechazado).', e);
+      wakeLockSentinel = null;
+    }
+  }
+
+  async function releaseWakeLock() {
+    matchIsActive = false;
+    if (!wakeLockSentinel) return;
+    try { await wakeLockSentinel.release(); } catch (e) { /* noop — ya puede estar liberado */ }
+    wakeLockSentinel = null;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V13.2 (§2) — CHEQUEO AUTOMÁTICO DE VERSIÓN: reemplaza la pulsación larga como mecanismo
+   *  PRINCIPAL (esa queda como fallback manual, sin tocarla más — ver HERRAMIENTAS DE
+   *  DESARROLLO más abajo). Se consulta `version.json` con `cache:'no-store'` — el service
+   *  worker lo excluye explícitamente de su estrategia cache-first (ver sw.js) para que este
+   *  chequeo nunca vea una copia vieja del propio archivo que existe para detectar eso. */
+  /* ------------------------------------------------------------------ */
+  async function checkForNewVersion() {
+    try {
+      const res = await fetch('version.json?_v=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const remoteVersion = data && data.version;
+      if (remoteVersion && remoteVersion !== Store.VERSION && remoteVersion !== dismissedUpdateVersion) {
+        $('#update-available-text').textContent = `${remoteVersion} está disponible.`;
+        $('#update-available-modal').dataset.version = remoteVersion;
+        $('#update-available-modal').hidden = false;
+      }
+    } catch (e) {
+      // offline, version.json no existe todavía en este deploy, o falló la red — nunca
+      // molestar al usuario por esto, simplemente no se detectó actualización esta vez.
+    }
+  }
+
+  function initUpdateCheck() {
+    checkForNewVersion(); // §2: "al abrir BRAMU"
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      // §1: readquirir Wake Lock si el partido sigue activo (el SO lo libera en background).
+      if (matchIsActive) requestWakeLock();
+      // §2: "al volver a foreground" — nunca en cada render/click, ver arriba.
+      checkForNewVersion();
+    });
+    $('#update-later-btn').addEventListener('click', () => {
+      dismissedUpdateVersion = $('#update-available-modal').dataset.version || null;
+      $('#update-available-modal').hidden = true;
+    });
+    $('#update-now-btn').addEventListener('click', forceUpdateApp);
   }
 
   /* ------------------------------------------------------------------ */

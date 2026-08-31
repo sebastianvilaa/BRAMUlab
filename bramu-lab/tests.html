@@ -1137,7 +1137,7 @@
     assert('V13.1-A · menciona "tercer set"', /tercer set/i.test(text), text);
     assert('V13.1-A · reconoce partido parejo', /parejo/i.test(text), text);
     assert('V13.1-A · gramática plural de pareja ("Ana y Bea", nunca "Ana / Bea se impuso")', !/\bse impuso\b/i.test(text) && !/ \/ /.test(text), text);
-    assert('V13.1-A · el set decisivo aparece antes que la lectura global de paridad', text.indexOf('tercer set') < text.toLowerCase().indexOf('parejo'), text);
+    assert('V13.1-A · el set decisivo aparece antes que la lectura global de paridad', text.indexOf('tercer set') < text.indexOf('Fue un partido muy parejo'), text);
   })();
 
   // Caso B — TB sin score interno: primer set llega 6-6, Equipo B gana el TB, se omite el
@@ -1188,6 +1188,52 @@
     const text = gamesIntelFor(ctx);
     assert('V13.1-ETB · menciona el score real previo del set extraordinario (4-4, nunca 6-6/7-6)', /4-4/.test(text) && !/6-6|7-6/.test(text), text);
     assert('V13.1-ETB · el resultado del TB extraordinario aparece (8-10 orientado a B)', /8-10/.test(text), text);
+  })();
+
+  // ==================================================================
+  // V13.2 — BRAMU INTELLIGENCE POR GAMES: relación entre sets, sin sonar a plantilla
+  // ==================================================================
+
+  // Caso D — 6-3 · 6-2 (Consolidado V13.2 §3): dos sets con el mismo patrón (empate + racha
+  // de cierre) y el mismo ganador deben RELACIONARSE, no narrarse como dos párrafos casi
+  // idénticos. Debe evitar dos frases idénticas y no inventar psicología.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1: tied 3-3, A cierra 6-3
+    ['B', 'A', 'B', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: tied 2-2, A cierra 6-2
+    assert('V13.2-D · llega a 6-3 · 6-2, A gana el partido', ctx.state.sets.length === 2 && ctx.state.sets[0].gamesA === 6 && ctx.state.sets[0].gamesB === 3 && ctx.state.sets[1].gamesA === 6 && ctx.state.sets[1].gamesB === 2 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
+    const text = gamesIntelFor(ctx);
+    const paras = text.split('\n\n');
+    assert('V13.2-D · los dos párrafos de set NO son idénticos entre sí', paras[0] !== paras[1], text);
+    assert('V13.2-D · relaciona los sets ("patrón parecido" o equivalente)', /patrón/i.test(text), text);
+    assert('V13.2-D · señala que la diferencia apareció antes en el segundo set', /apareció antes/i.test(text), text);
+    assert('V13.2-D · nunca usa lenguaje psicológico prohibido', !/confianza|se soltaron/i.test(text), text);
+    assert('V13.2-D · gramática plural correcta', !/\bse impuso\b/i.test(text) && !/ \/ /.test(text), text);
+  })();
+
+  // V13.2 (§3) — cuando los dos sets de un 2-0 tienen formas DISTINTAS (uno ajustado, el otro
+  // cómodo), NO deben relacionarse — cada uno conserva su propio párrafo.
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1: tight, 6-3
+    ['A', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: comfortable, 6-0
+    const text = gamesIntelFor(ctx);
+    assert('V13.2-D2 · formas distintas no se relacionan (sin "patrón parecido")', !/patrón parecido/i.test(text), text);
+    assert('V13.2-D2 · igual describe ambos sets (6-3 y 6-0)', /6-3/.test(text) && /6-0/.test(text), text);
+  })();
+
+  // V13.2 (§3) — un 3-set (V13.1-A, 6-4 · 4-6 · 7-5) debe seguir mencionando cronología y
+  // paridad, y ADEMÁS ahora los 3 párrafos de set deben usar redacciones distintas entre sí
+  // (antes de esta ronda, los 3 usaban literalmente la misma estructura de frase).
+  (function () {
+    const ctx = newGamesCtx('classic');
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1 6-4 A
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // Set2 4-6 (B)
+    ['B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set3 7-5 A
+    const text = gamesIntelFor(ctx);
+    const setParas = text.split('\n\n').slice(0, 3);
+    const unique = new Set(setParas.map((p) => p.replace(/^(El primer set|El segundo set|El tercer set|Ana y Bea|Cruz y Dan)/, '').replace(/\d/g, '')));
+    assert('V13.2-3sets · los 3 párrafos de set no repiten mecánicamente la misma estructura', unique.size >= 2, text);
   })();
 
   // ------------------------------------------------------------------
