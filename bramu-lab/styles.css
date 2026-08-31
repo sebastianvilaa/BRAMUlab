@@ -183,6 +183,22 @@ input, select{ font-family: inherit; }
   border-radius: 14px; padding: 13px 16px; font-weight: 800; font-size: 13px; cursor:pointer;
   flex: 1;
 }
+.load-played-btn{ display:block; margin: 10px auto 0; text-align:center; }
+
+/* V14 (§3-4) — CARGAR PARTIDO JUGADO: layout de "Resultado" (un <select> reglamentario por
+   set, el MISMO componente que ya usa el editor de Por Games para agregar un set histórico
+   — nunca texto libre) y "Detalles del partido" (fecha/hora/lugar). Reutiliza
+   .setup-section/.field/.edit-select/.btn-mini/.coverage-note ya existentes — acá solo se
+   agregan los wrappers de layout que no existían todavía. */
+.manual-set-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
+.manual-set-row__label{ font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); flex: none; width: 52px; }
+.manual-set-row .edit-select{ flex: 1; }
+.manual-field-label{ display:block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
+.manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
+.manual-datetime-row .field{ flex: 1; min-width: 130px; }
+.manual-time-clear{ display:block; margin-top: 4px; font-size: 11px; }
+.manual-location-btn{ margin-top: 10px; }
+.manual-cancel-link{ display:block; margin: 10px auto 0; text-align:center; }
 
 /* ==========================================================================
    PARTIDO — encabezado + scoreboard
@@ -363,8 +379,14 @@ input, select{ font-family: inherit; }
    `color:inherit`/`border-color:currentColor` a propósito: la banda cambia de color de
    fondo/texto según el estado (DEUCE claro, PUNTO DE ORO dorado, Break/Set/Match del color
    del equipo...) y así el botón siempre queda legible sin necesitar una regla por variante. */
+/* V14 (§17) — micro-polish: CAMBIAR se saca del flujo flex (position:absolute, anclado a la
+   derecha de #status-banner) para que .status-banner__primary quede como único ítem flex y se
+   centre respecto del ancho TOTAL de la banda, no del ancho restante tras descontar CAMBIAR
+   (bug: el título central se veía corrido a la izquierda cuando CAMBIAR estaba visible). */
+#status-banner{ position: relative; }
 .scoring-cambiar-btn{
-  flex: none; background: rgba(0,0,0,0.14); color: inherit; border: 1px solid currentColor;
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  background: rgba(0,0,0,0.14); color: inherit; border: 1px solid currentColor;
   border-radius: 6px; padding: 3px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
   font-family: var(--font-display); cursor: pointer; opacity: 0.88;
 }
@@ -907,7 +929,7 @@ input, select{ font-family: inherit; }
   }
   .vs-divider__text{ padding: 0; border: none; background: none; }
   .team-block--b{ grid-column: 3; }
-  .setup-section, #start-match-btn{ grid-column: 1 / -1; }
+  .setup-section, #start-match-btn, .load-played-btn{ grid-column: 1 / -1; }
 }
 
 /* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se

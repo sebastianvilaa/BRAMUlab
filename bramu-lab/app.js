@@ -129,7 +129,7 @@
   }
 
   function showView(name) {
-    ['setup', 'match', 'analysis', 'history', 'timeline'].forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
+    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load'].forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     if (name !== 'match') $('#view-summary').hidden = true;
   }
 
@@ -333,6 +333,244 @@
     if (isGamesMode()) renderGamesMode(); else render();
     matchIsActive = true; requestWakeLock(); // V13.2 (§1)
     autosave();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V14 (§1-21) — CARGAR PARTIDO JUGADO: carga manual de un partido ya jugado, sin motor en
+   * vivo (nunca toca `match`/`pointEvents`/`gameEvents`/timer/Wake Lock — no hay partido
+   * activo involucrado). Reutiliza el mismo lenguaje visual del setup (team-block/
+   * option-pill/option-col) y el MISMO validador reglamentario que ya usa el editor de Por
+   * Games (`E.isValidCompletedSetScore`, vía `gamesEnumerateValidCompletedPairs` — hoisted,
+   * definida más abajo en el archivo). Guarda con `mode:'manual'` en el MISMO Historial. */
+  /* ------------------------------------------------------------------ */
+  let manualSelectedScoring = 'golden';
+  let manualSelectedFormatId = 'classic';
+  let manualCoords = null; // { lat, lng } | null — el NOMBRE del lugar lo escribe el usuario aparte
+
+  function manualSetOptionsHTML(format) {
+    return gamesEnumerateValidCompletedPairs(format).map((p) => `<option value="${p.a}-${p.b}">${p.a}–${p.b}</option>`).join('');
+  }
+
+  /** Lee los <select> de Resultado, pero SOLO los realmente visibles — nunca inventa un Set 3
+   *  si su fila está oculta (§7: el tercer set aparece solo cuando corresponde). */
+  function manualDraftSets() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const ids = format.bestOfSets === 1 ? [1] : [1, 2, 3];
+    const sets = [];
+    for (const n of ids) {
+      const row = $(`#manual-set-row-${n}`);
+      if (row.hidden) break;
+      const [a, b] = $(`#manual-set-${n}`).value.split('-').map(Number);
+      sets.push({ a, b });
+    }
+    return sets;
+  }
+  function manualDraftMatchDecided(draftSets, format) {
+    const need = Math.ceil(format.bestOfSets / 2);
+    const wonA = draftSets.filter((s) => s.a > s.b).length;
+    const wonB = draftSets.filter((s) => s.b > s.a).length;
+    return wonA >= need || wonB >= need;
+  }
+  function manualDraftWinner(draftSets, format) {
+    const need = Math.ceil(format.bestOfSets / 2);
+    const wonA = draftSets.filter((s) => s.a > s.b).length;
+    const wonB = draftSets.filter((s) => s.b > s.a).length;
+    if (wonA >= need) return 'A';
+    if (wonB >= need) return 'B';
+    return null;
+  }
+
+  function renderManualResultSection() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const optionsHTML = manualSetOptionsHTML(format);
+    $('#manual-set-1').innerHTML = optionsHTML;
+    $('#manual-set-2').innerHTML = optionsHTML;
+    $('#manual-set-3').innerHTML = optionsHTML;
+    const singleSet = format.bestOfSets === 1;
+    $('#manual-set-row-2').hidden = singleSet;
+    $('#manual-set-row-3').hidden = true; // se revela solo si corresponde (ver abajo)
+    if (!singleSet) updateManualThirdSetVisibility();
+    $('#manual-result-error').hidden = true;
+  }
+
+  /** §7: el Set 3 solo puede aparecer/agregarse si el partido no quedó decidido en 2 sets. */
+  function updateManualThirdSetVisibility() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    if (format.bestOfSets === 1) { $('#manual-set-row-3').hidden = true; return; }
+    const draft = [
+      { a: Number($('#manual-set-1').value.split('-')[0]), b: Number($('#manual-set-1').value.split('-')[1]) },
+      { a: Number($('#manual-set-2').value.split('-')[0]), b: Number($('#manual-set-2').value.split('-')[1]) },
+    ];
+    $('#manual-set-row-3').hidden = manualDraftMatchDecided(draft, format);
+  }
+
+  /** §7: valida que el resultado cargado represente un partido posible con ganador — nunca
+   *  permite guardar un score imposible o sin definición. Construye `sets[]` con la MISMA
+   *  forma que usa el motor (`engine.js`): `{gamesA, gamesB, tiebreak, winner}` — sin
+   *  `setNumber` (la posición en el array ya es esa información en todo el resto de la app). */
+  function manualValidateAndCollectResult() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const draftSets = manualDraftSets();
+    if (!draftSets.length) return null;
+    const winnerTeam = manualDraftWinner(draftSets, format);
+    if (!winnerTeam) return null;
+    const sets = draftSets.map((s) => {
+      const winner = s.a > s.b ? 'A' : 'B';
+      let tiebreak = null;
+      if (E.completedSetHasTiebreak(s.a, s.b, format)) {
+        // Mismo criterio que "agregar set" en el editor de Por Games: el score INTERNO del
+        // Tie break nunca se pregunta acá (§7 del V14) — se guarda un valor plausible del
+        // modo Clásico solo para que la celda "TB" de la tarjeta de resultado tenga algo
+        // consistente que mostrar; nunca se narra en BRAMU Intelligence (§13).
+        const cfg = E.tiebreakModeConfig('classic');
+        tiebreak = winner === 'A' ? { a: cfg.winTarget, b: cfg.winTarget - 2, mode: 'classic' } : { a: cfg.winTarget - 2, b: cfg.winTarget, mode: 'classic' };
+      }
+      return { gamesA: s.a, gamesB: s.b, tiebreak, winner };
+    });
+    return { sets, winnerTeam };
+  }
+
+  /** Geolocalización opcional — mismo criterio que Wake Lock (§1 V13.2): feature-detect,
+   *  fallo/rechazo silencioso (solo consola), nunca bloquea Guardar ni muestra un error
+   *  técnico al usuario. Sin reverse-geocoding: no hay backend para eso ni se agrega uno
+   *  solo para V14 (§8) — se guardan coordenadas crudas, el nombre lo escribe el usuario. */
+  async function requestManualLocation() {
+    if (!('geolocation' in navigator)) { showToast('Geolocalización no disponible en este dispositivo.'); return; }
+    $('#manual-location-status').hidden = false;
+    $('#manual-location-status').textContent = 'Buscando ubicación…';
+    try {
+      const pos = await new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 }));
+      manualCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('#manual-location-status').textContent = 'Ubicación guardada.';
+    } catch (e) {
+      console.warn('[BRAMU LAB] No se pudo obtener la ubicación (rechazada o no disponible).', e);
+      manualCoords = null;
+      $('#manual-location-status').textContent = 'No se pudo obtener la ubicación. Podés escribir el lugar a mano.';
+    }
+  }
+
+  function initManualLoadScreen() {
+    $('#load-played-match-btn').addEventListener('click', openManualLoadScreen);
+    $('#manual-load-back-btn').addEventListener('click', () => showView('setup'));
+    $('#manual-cancel-btn').addEventListener('click', () => showView('setup'));
+
+    $all('#manual-format-options .option-pill').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $all('#manual-format-options .option-pill').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
+        btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
+        manualSelectedFormatId = btn.dataset.value;
+        renderManualResultSection();
+      });
+    });
+    $all('#manual-scoring-options .option-col').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $all('#manual-scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
+        btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
+        manualSelectedScoring = btn.dataset.value;
+      });
+    });
+    $('#manual-set-1').addEventListener('change', updateManualThirdSetVisibility);
+    $('#manual-set-2').addEventListener('change', updateManualThirdSetVisibility);
+    $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; });
+    $('#manual-location-btn').addEventListener('click', requestManualLocation);
+    $('#manual-load-form').addEventListener('submit', (e) => { e.preventDefault(); saveManualMatch(); });
+  }
+
+  function openManualLoadScreen() {
+    $('#manual-load-form').reset();
+    manualSelectedScoring = 'golden';
+    manualSelectedFormatId = 'classic';
+    manualCoords = null;
+    $('#manual-location-status').hidden = true;
+    $all('#manual-format-options .option-pill').forEach((b) => {
+      const sel = b.dataset.value === 'classic';
+      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
+    });
+    $all('#manual-scoring-options .option-col').forEach((b) => {
+      const sel = b.dataset.value === 'golden';
+      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
+    });
+    renderManualResultSection();
+    // Fecha: hoy (obligatoria, editable). Hora: ahora (opcional, borrable — §8).
+    const now = new Date();
+    $('#manual-date-input').value = now.toISOString().slice(0, 10);
+    $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    showView('manual-load');
+  }
+
+  function saveManualMatch() {
+    const nameOrDefault = (id, fallback) => { const v = normalizePlayerName($(`#${id}`).value); return v || fallback; };
+    const players = [
+      { id: 0, team: 'A', name: nameOrDefault('manual-player-1', 'Jugador 1') },
+      { id: 1, team: 'A', name: nameOrDefault('manual-player-2', 'Jugador 2') },
+      { id: 2, team: 'B', name: nameOrDefault('manual-player-3', 'Jugador 3') },
+      { id: 3, team: 'B', name: nameOrDefault('manual-player-4', 'Jugador 4') },
+    ];
+
+    const result = manualValidateAndCollectResult();
+    if (!result) { $('#manual-result-error').hidden = false; return; }
+    $('#manual-result-error').hidden = true;
+
+    const dateVal = $('#manual-date-input').value;
+    if (!dateVal) { showToast('La fecha es obligatoria.'); return; }
+    const timeVal = $('#manual-time-input').value; // '' si el usuario la borró — nunca se completa sola
+    const timeKnown = !!timeVal;
+    const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+    let timeZone = 'UTC';
+    try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { /* offline-safe fallback */ }
+
+    const placeName = $('#manual-place-input').value.trim();
+    const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
+
+    Store.rememberPlayerNames(players.map((p) => p.name));
+    finishMatchManual(players, result.sets, result.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location);
+  }
+
+  /** Equivalente de `finishMatch`/`finishMatchGames` para un partido CARGADO (no vivido acá):
+   *  nunca toca timer/Wake Lock/Store.clearActiveMatch (no hay partido activo real), y usa
+   *  los generadores de stats/Intelligence de §10-13 (solo hechos derivables del resultado
+   *  final por set), pero produce un `finishedSnapshot` con la MISMA forma general que
+   *  Completo/Por Games — mismo Resumen/Análisis/Historial. */
+  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location) {
+    const format = E.FORMATS[formatId];
+    const matchCtx = { players, format };
+    const stats = S.computeManualStats(sets, matchCtx);
+    const intelligence = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
+
+    finishedSnapshot = {
+      matchId: makeMatchId(),
+      createdAt: new Date().toISOString(),
+      startedAt: startedAtDate.toISOString(),
+      timeZone,
+      finishedAt: new Date().toISOString(),
+      players,
+      mode: 'manual',
+      scoringSystem,
+      formatId,
+      tiebreakMode: null,
+      baseline: null,
+      sets,
+      currentPartial: null,
+      winnerTeam,
+      terminationType: 'automatic', // §16: nunca 'manual' — ese valor ya significa "cortado antes de tiempo desde ☰", algo ortogonal a un partido cargado con resultado ya conocido
+      terminationReason: null,
+      terminationReasonLabel: null,
+      regulationCompleted: true,
+      durationMs: 0, // nunca se muestra: buildScoreCardHTML/renderHistory lo gatean por mode==='manual'
+      stats,
+      perSetStats: [],
+      evolution: null, // Evolución se OCULTA por completo para partidos manuales (§15) — no hay eventos game a game que graficar
+      intelligence,
+      highlights: [],
+      events: [],
+      coverageStartLabel: null,
+      timeKnown,
+      location: location || null,
+    };
+
+    Store.upsertHistory(finishedSnapshot);
+    renderSummary();
+    $('#view-summary').hidden = false;
   }
 
   /* ------------------------------------------------------------------ */
@@ -2754,11 +2992,14 @@
    *  y también a Completo (no solo a Por Games) — mejora pedida por igual para los dos. */
   function buildMatchMetaLine(f) {
     const dateStr = formatRealDate(f.startedAt || f.createdAt, f.timeZone);
-    const timeStr = formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
+    // V14 (§8): la Hora es opcional en un partido cargado — si el usuario la dejó vacía,
+    // nunca se muestra una hora inventada (nunca "00:00" a secas).
+    const timeStr = (f.mode === 'manual' && f.timeKnown === false) ? null : formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
     const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label || '').toUpperCase();
     const scoringLabel = HISTORY_SCORING_LABELS[f.scoringSystem] || '';
-    const modeLabel = f.mode === 'games' ? 'POR GAMES' : null;
-    return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel].filter(Boolean).join(' · ');
+    const modeLabel = f.mode === 'games' ? 'POR GAMES' : f.mode === 'manual' ? 'PARTIDO CARGADO' : null;
+    const placeLabel = (f.location && f.location.name) ? f.location.name : null;
+    return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
   }
 
   /** ¿Las ESTADÍSTICAS de este partido son parciales? (empezó tarde y/o tuvo ajustes manuales). Bloque N. */
@@ -2852,7 +3093,9 @@
       footerHTML += `<div class="result-card__incomplete-note">* Set incompleto al momento de finalizar</div>`;
     }
 
-    const durLabel = (isDurationUnknownStart(f) ? 'Tiempo registrado' : 'Duración total') + ' · ' + formatDuration(f.durationMs);
+    // V14 (§14): un partido cargado manualmente no tiene duración conocida — `durationMs` es
+    // siempre 0, y mostrar "0 s" daría a entender un dato real que en verdad es desconocido.
+    const durLabel = f.mode === 'manual' ? '' : (isDurationUnknownStart(f) ? 'Tiempo registrado' : 'Duración total') + ' · ' + formatDuration(f.durationMs);
     const statsBlockHTML = opts.statsHTML ? `<div class="result-card__divider"></div><div class="result-card__stats">${opts.statsHTML}</div>` : '';
 
     return `<div class="result-card">
@@ -2861,7 +3104,7 @@
       ${cellsForTeam('B')}
       ${footerHTML}
       ${statsBlockHTML}
-      <p class="result-card__duration-total">${durLabel}</p>
+      ${durLabel ? `<p class="result-card__duration-total">${durLabel}</p>` : ''}
     </div>`;
   }
 
@@ -2872,8 +3115,20 @@
   /** V6 (21-27): tarjeta única del Resumen del partido — fusiona resultado + duración por set +
    *  estadísticas rápidas + duración total en UN solo componente visual grande. */
   function buildSummaryCardHTML(f) {
-    const statsHTML = f.mode === 'games' ? buildGamesSummaryStatsHTML(f) : buildSummaryStatsHTML(f);
+    const statsHTML = f.mode === 'games' ? buildGamesSummaryStatsHTML(f) : f.mode === 'manual' ? buildManualSummaryStatsHTML(f) : buildSummaryStatsHTML(f);
     return buildWinnersBannerHTML(f) + buildScoreCardHTML(f, { statsHTML });
+  }
+
+  /** V14 (§14) — métricas del Resumen para un partido cargado manualmente: SOLO sets/games
+   *  ganados — ni siquiera games de saque/breaks (eso ya requiere saber quién sacaba en cada
+   *  game, algo que la carga manual nunca pregunta). Más reducido todavía que Por Games. */
+  function buildManualSummaryStatsHTML(f) {
+    const st = f.stats;
+    const rows = [
+      { a: st.setsWonA, label: 'SETS GANADOS', b: st.setsWonB },
+      { a: st.gamesA, label: 'GAMES GANADOS', b: st.gamesB },
+    ];
+    return rows.map((r) => `<div class="summary-stat-row"><span class="summary-stat-row__a">${r.a}</span><span class="summary-stat-row__label">${r.label}</span><span class="summary-stat-row__b">${r.b}</span></div>`).join('');
   }
 
   /** V13 (§20-21) — métricas del Resumen en Por Games: games ganados, games de saque
@@ -2956,7 +3211,10 @@
     $('#summary-meta').textContent = buildMatchMetaLine(f);
     $('#summary-result-slot').innerHTML = buildSummaryCardHTML(f);
     $('#summary-legal').innerHTML = buildCoverageLegalHTML(f);
-    $('#summary-undo-btn').hidden = !isLiveMatch || f.terminationType !== 'automatic';
+    // V14: un partido cargado nunca tuvo puntos/games EN VIVO que deshacer — sin este guard,
+    // "Deshacer último punto" quedaría visible y tocable sobre un `match`/`pointEvents` que
+    // nunca existieron para este partido (crashearía o no haría nada coherente).
+    $('#summary-undo-btn').hidden = !isLiveMatch || f.terminationType !== 'automatic' || f.mode === 'manual';
     $('#summary-resume-btn').hidden = !isLiveMatch || f.terminationType !== 'manual';
     $('#summary-back-btn').hidden = isLiveMatch;
     $('#summary-new-btn').hidden = !isLiveMatch;
@@ -3011,6 +3269,8 @@
     renderHighlightsSection(f);
     renderKeyMoments(f);
 
+    // V14: un partido cargado no tiene `events` (game a game/punto a punto) que timelinear.
+    $('#analysis-full-timeline-btn').hidden = f.mode === 'manual';
     $('#analysis-full-timeline-btn').onclick = () => { if (f.mode === 'games') renderGamesFullTimeline(f); else renderFullTimeline(f); showView('timeline'); };
     $('#analysis-share-btn').onclick = () => shareResult(f, 'analisis');
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
@@ -3322,6 +3582,7 @@
   }
 
   function renderGamesEvolutionChart(f) {
+    $('#analysis-momentum').hidden = false; // V14: por si quedó oculto de ver un partido manual antes en la misma sesión
     renderSetFilterTabs('#momentum-set-filter', f, () => { renderGamesStatsGrid(f); renderGamesEvolutionChart(f); });
     $('#analysis-momentum-copy').textContent = 'Cada punto es un game ganado. La línea sube o baja según la diferencia de games dentro del set.';
     const partialNote = $('#analysis-momentum-partial-note');
@@ -3359,8 +3620,25 @@
     }).join('');
   }
 
+  /** V14 (§14) — grilla de Análisis para un partido cargado: SOLO sets/games ganados, sin
+   *  selector por set (no hay desglose punto/game a game que filtrar, solo el resultado
+   *  final ya visible arriba en la tarjeta de resultado). */
+  function renderManualStatsGrid(f) {
+    $('#stats-set-filter').innerHTML = '';
+    const st = f.stats;
+    $('#analysis-stats-grid').innerHTML = `
+      <div class="summary-stat-row"><span class="summary-stat-row__a">${st.setsWonA}</span><span class="summary-stat-row__label">SETS GANADOS</span><span class="summary-stat-row__b">${st.setsWonB}</span></div>
+      <div class="summary-stat-row"><span class="summary-stat-row__a">${st.gamesA}</span><span class="summary-stat-row__label">GAMES GANADOS</span><span class="summary-stat-row__b">${st.gamesB}</span></div>
+    `;
+    $('#analysis-stats-legal').hidden = false;
+    $('#analysis-stats-legal').textContent = 'Partido cargado manualmente: solo se conoce el resultado final por set, sin desarrollo punto a punto.';
+    $('#analysis-stats-partial-note').hidden = true;
+    $('#analysis-per-player-serve').hidden = true;
+  }
+
   function renderStatsGrid(f) {
     if (f.mode === 'games') { renderGamesStatsGrid(f); return; }
+    if (f.mode === 'manual') { renderManualStatsGrid(f); return; }
     renderSetFilterTabs('#stats-set-filter', f, () => { renderStatsGrid(f); renderEvolutionChart(f); });
     const stats = statsForCurrentFilter(f);
     $('#analysis-stats-grid').innerHTML = buildStatsGridRowsHTML(f, stats);
@@ -3689,6 +3967,11 @@
 
   function renderEvolutionChart(f) {
     if (f.mode === 'games') { renderGamesEvolutionChart(f); return; }
+    // V14 (§15): un partido cargado no tiene NINGÚN evento game a game que graficar (a
+    // diferencia de Por Games, que sí aproxima Evolución porque esos eventos existen) — se
+    // oculta el módulo COMPLETO (título+gráfico+leyenda), nunca un mensaje de "no disponible".
+    if (f.mode === 'manual') { $('#analysis-momentum').hidden = true; return; }
+    $('#analysis-momentum').hidden = false; // por si quedó oculto de ver un partido manual antes en la misma sesión
     renderSetFilterTabs('#momentum-set-filter', f, () => { renderStatsGrid(f); renderEvolutionChart(f); });
     const wrap = $('#analysis-momentum-chart');
     const legendWrap = $('#analysis-momentum-legend');
@@ -3857,6 +4140,11 @@
   }
 
   function renderKeyMoments(f) {
+    // V14: sin eventos, Momentos Clave degeneraría a una sola línea trivial ("Inicio del
+    // partido") — los pocos hechos disponibles ya están en el texto de BRAMU Intelligence,
+    // así que se oculta el módulo entero en vez de mostrar una lista casi vacía (§14).
+    if (f.mode === 'manual') { $('#analysis-keymoments').hidden = true; return; }
+    $('#analysis-keymoments').hidden = false; // por si quedó oculto de ver un partido manual antes en la misma sesión
     $('#analysis-keymoments-list').innerHTML = f.mode === 'games' ? buildGamesKeyMomentsListHTML(f) : buildKeyMomentsListHTML(f);
   }
 
@@ -4167,8 +4455,8 @@
       const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
       const formatLabel = (E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label || '').toUpperCase();
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
-      // V13 (§26): distingue partidos Por Games de Completo en el Historial, discreto.
-      const modeLabel = m.mode === 'games' ? 'POR GAMES' : null;
+      // V13 (§26) / V14: distingue Por Games y partidos cargados manualmente de Completo.
+      const modeLabel = m.mode === 'games' ? 'POR GAMES' : m.mode === 'manual' ? 'PARTIDO CARGADO' : null;
       const subtitleStr = [formatLabel, scoringLabel, modeLabel].filter(Boolean).join(' · ');
       const item = document.createElement('div');
       item.className = 'history-item';
@@ -4184,7 +4472,7 @@
             ${subtitleStr ? `<div class="history-item__subtitle">${subtitleStr}</div>` : ''}
             <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span><span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span></div>
             <div class="history-item__score">${scoreStr}</div>
-            <div class="history-item__meta"><span>${formatDuration(m.durationMs)}</span></div>
+            <div class="history-item__meta">${m.mode === 'manual' ? '' : `<span>${formatDuration(m.durationMs)}</span>`}</div>
             ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
           </div>
           <button type="button" class="history-item__delete" aria-label="Eliminar partido">✕</button>
@@ -4498,6 +4786,7 @@
     initAnalysisScreen();
     initTimelineScreen();
     initHistoryScreen();
+    initManualLoadScreen();
     initDevTools();
     initUpdateCheck();
     registerServiceWorker();

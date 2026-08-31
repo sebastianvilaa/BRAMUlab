@@ -110,6 +110,10 @@
       </div>
 
       <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
+      <!-- V14 (§2) — acción distinta de EMPEZAR PARTIDO: carga un partido ya jugado (histórico),
+           nunca un tercer modo de registro en vivo. Mismo lenguaje visual (link-btn) que
+           "Historial"/"MODO COMPLETO ▾" del header. -->
+      <button type="button" id="load-played-match-btn" class="link-btn load-played-btn">Cargar partido jugado</button>
     </form>
     <div id="setup-footer" class="setup-footer">BRAMU Lab · Concepto y diseño por Sebastián Vila</div>
   </section>
@@ -673,6 +677,104 @@
     <div class="analysis-scroll">
       <div id="history-list" class="history-list"></div>
       <p id="history-empty" class="coverage-note" hidden>Todavía no jugaste ningún partido.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · CARGAR PARTIDO JUGADO (V14)
+       Acción distinta de EMPEZAR PARTIDO — carga un partido ya jugado, sin motor en vivo.
+       Reutiliza el lenguaje visual del setup (team-block/option-pill/option-col) tal cual;
+       "Resultado" y "Detalles del partido" son las únicas secciones nuevas.
+       ============================================================ -->
+  <section id="view-manual-load" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="manual-load-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">CARGAR PARTIDO JUGADO</span>
+    </div>
+    <div class="analysis-scroll">
+      <form id="manual-load-form" class="setup-form" autocomplete="off">
+
+        <div class="team-block team-block--a">
+          <div class="team-block__label"><span class="team-dot team-dot--a"></span> Equipo A</div>
+          <div class="field"><input id="manual-player-1" class="field__input" list="known-players" type="text" placeholder="Jugador 1" maxlength="18" /></div>
+          <div class="field"><input id="manual-player-2" class="field__input" list="known-players" type="text" placeholder="Jugador 2" maxlength="18" /></div>
+        </div>
+
+        <div class="vs-divider" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
+
+        <div class="team-block team-block--b">
+          <div class="team-block__label"><span class="team-dot team-dot--b"></span> Equipo B</div>
+          <div class="field"><input id="manual-player-3" class="field__input" list="known-players" type="text" placeholder="Jugador 3" maxlength="18" /></div>
+          <div class="field"><input id="manual-player-4" class="field__input" list="known-players" type="text" placeholder="Jugador 4" maxlength="18" /></div>
+        </div>
+
+        <div class="setup-section">
+          <div class="setup-section__title">Formato de partido</div>
+          <div id="manual-format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
+            <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
+              <span class="option-pill__title">Clásico</span>
+              <span class="option-pill__hint">Al mejor de 3 sets</span>
+            </button>
+            <button type="button" class="option-pill" data-value="americano" role="radio" aria-checked="false">
+              <span class="option-pill__title">Americano</span>
+              <span class="option-pill__hint">1 set · Tie break en 5–5</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="setup-section">
+          <div class="setup-section__title">Sistema de puntuación</div>
+          <div id="manual-scoring-options" class="option-row" role="radiogroup" aria-label="Sistema de puntuación">
+            <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
+            <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
+            <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
+          </div>
+        </div>
+
+        <div class="setup-section">
+          <div class="setup-section__title">Resultado</div>
+          <p class="setup-hint">Primer número: Equipo A · Segundo: Equipo B</p>
+          <div class="manual-set-row" id="manual-set-row-1">
+            <span class="manual-set-row__label">SET 1</span>
+            <select id="manual-set-1" class="edit-select"></select>
+          </div>
+          <div class="manual-set-row" id="manual-set-row-2">
+            <span class="manual-set-row__label">SET 2</span>
+            <select id="manual-set-2" class="edit-select"></select>
+          </div>
+          <div class="manual-set-row" id="manual-set-row-3" hidden>
+            <span class="manual-set-row__label">SET 3</span>
+            <select id="manual-set-3" class="edit-select"></select>
+          </div>
+          <p class="coverage-note" id="manual-result-error" hidden>Ese resultado no corresponde a un partido válido.</p>
+        </div>
+
+        <div class="setup-section">
+          <div class="setup-section__title">Detalles del partido</div>
+          <div class="manual-datetime-row">
+            <div class="field">
+              <label class="manual-field-label" for="manual-date-input">Fecha</label>
+              <input id="manual-date-input" class="field__input" type="date" required />
+            </div>
+            <div class="field">
+              <label class="manual-field-label" for="manual-time-input">Hora</label>
+              <input id="manual-time-input" class="field__input" type="time" />
+              <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="manual-field-label" for="manual-place-input">Lugar</label>
+            <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
+          </div>
+          <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
+          <p class="coverage-note" id="manual-location-status" hidden></p>
+        </div>
+
+        <div class="setup-section">
+          <button type="submit" id="manual-save-btn" class="btn-start">GUARDAR PARTIDO</button>
+          <button type="button" id="manual-cancel-btn" class="link-btn manual-cancel-link">Cancelar</button>
+        </div>
+      </form>
     </div>
   </section>
 

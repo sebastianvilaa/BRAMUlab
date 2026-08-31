@@ -1452,6 +1452,110 @@
     assert('V13.3-stats · el Set 3 no queda con todo el saque "unknown" (rotación resuelta con su propio número de set)', (perSet[2].serviceGames.wonA + perSet[2].serviceGames.wonB + perSet[2].serviceGames.lostA + perSet[2].serviceGames.lostB) === (perSet[2].gamesA + perSet[2].gamesB), JSON.stringify(perSet[2]));
   })();
 
+  // ==================================================================
+  // V14 (§10-13, §19 A-D) — CARGA MANUAL DE PARTIDOS: `computeManualStats` +
+  // `generateManualIntelligence` solo pueden afirmar hechos derivables del resultado FINAL
+  // por set (ganador, sets/games ganados, sets corridos, remontada A NIVEL DE SETS, set más
+  // ajustado/de mayor margen, cierre del decisivo) — NUNCA breaks/holds/puntos/rachas de
+  // game (§13: "si el dato no fue registrado, no existe"). Los casos E/F/G del consolidado
+  // (hora vacía, geolocalización rechazada, Historial mixto) son DOM/app.js — fuera del
+  // alcance de este arnés puro engine.js+stats.js, verificados a mano en el navegador
+  // durante el desarrollo de V14.
+  // ==================================================================
+  function enumerateValidPairs(format) {
+    const pairs = [];
+    for (let a = 0; a <= format.setWinTarget + 1; a++) {
+      for (let b = 0; b <= format.setWinTarget + 1; b++) {
+        if (E.isValidCompletedSetScore(a, b, format)) pairs.push({ a, b });
+      }
+    }
+    return pairs;
+  }
+  function manualSet(a, b, format) {
+    const winner = a > b ? 'A' : 'B';
+    let tiebreak = null;
+    if (E.completedSetHasTiebreak(a, b, format)) {
+      const cfg = E.tiebreakModeConfig('classic');
+      tiebreak = winner === 'A' ? { a: cfg.winTarget, b: cfg.winTarget - 2, mode: 'classic' } : { a: cfg.winTarget - 2, b: cfg.winTarget, mode: 'classic' };
+    }
+    return { gamesA: a, gamesB: b, tiebreak, winner };
+  }
+  function manualCtxFor(pairs, formatId) {
+    const format = E.FORMATS[formatId || 'classic'];
+    const sets = pairs.map(([a, b]) => manualSet(a, b, format));
+    const matchCtx = { players: makePlayers(), format };
+    const need = Math.ceil(format.bestOfSets / 2);
+    const setsWonA = sets.filter((s) => s.winner === 'A').length;
+    const setsWonB = sets.filter((s) => s.winner === 'B').length;
+    const winnerTeam = setsWonA >= need ? 'A' : (setsWonB >= need ? 'B' : null);
+    const stats = S.computeManualStats(sets, matchCtx);
+    const intelligence = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
+    return { sets, matchCtx, stats, winnerTeam, intelligence };
+  }
+  const FORBIDDEN_MANUAL_WORDS = ['quiebre', 'break', 'hold', 'punto de oro', 'star point', 'racha', 'ventaja', 'deuce', 'saque'];
+  function assertNoForbiddenWords(name, text) {
+    const lower = text.toLowerCase();
+    const found = FORBIDDEN_MANUAL_WORDS.filter((w) => lower.indexOf(w) !== -1);
+    assert(name, found.length === 0, JSON.stringify({ found, text }));
+  }
+
+  // Caso A (§19-A) — Clásico 2 sets: 6-3 · 6-4, sin remontada.
+  (function () {
+    const r = manualCtxFor([[6, 3], [6, 4]], 'classic');
+    assert('V14-A · ganador correcto (A)', r.winnerTeam === 'A');
+    assert('V14-A · sets ganados 2-0', r.stats.setsWonA === 2 && r.stats.setsWonB === 0);
+    assert('V14-A · games totales', r.stats.gamesA === 12 && r.stats.gamesB === 7);
+    assert('V14-A · sets corridos', r.stats.straightSets === true);
+    assert('V14-A · sin remontada', r.stats.comebackTeam === null);
+    assertNoForbiddenWords('V14-A · Intelligence no inventa breaks/puntos/rachas', r.intelligence);
+  })();
+
+  // Caso B (§19-B) — Clásico 3 sets con remontada: perdió 4-6, ganó 6-3 y 7-5.
+  (function () {
+    const r = manualCtxFor([[4, 6], [6, 3], [7, 5]], 'classic');
+    assert('V14-B · ganador correcto (A)', r.winnerTeam === 'A');
+    assert('V14-B · sets ganados 2-1', r.stats.setsWonA === 2 && r.stats.setsWonB === 1);
+    assert('V14-B · remontada detectada a nivel de sets (A)', r.stats.comebackTeam === 'A');
+    assert('V14-B · no son sets corridos', r.stats.straightSets === false);
+    assert('V14-B · set más parejo es el 1 (margen 2)', r.stats.closestSetIndex === 0);
+    assert('V14-B · set de mayor margen es el 2 (margen 3)', r.stats.biggestMarginSetIndex === 1);
+    assert('V14-B · el set decisivo (3ro) queda identificado', r.stats.deciderSetIndex === 2);
+    assert('V14-B · el set decisivo se considera cerrado (margen 2)', r.stats.deciderWasClose === true);
+    assert('V14-B · Intelligence menciona la remontada', /dar vuelta|reaccionaron/i.test(r.intelligence));
+    assertNoForbiddenWords('V14-B · Intelligence no inventa remontada interna de un set', r.intelligence);
+  })();
+
+  // Caso C (§19-C) — Tie break reglamentario: 7-6 · 6-4 — nunca se pregunta ni inventa el
+  // score interno del TB en la narración.
+  (function () {
+    const r = manualCtxFor([[7, 6], [6, 4]], 'classic');
+    assert('V14-C · ganador correcto (A)', r.winnerTeam === 'A');
+    assert('V14-C · sets corridos', r.stats.straightSets === true);
+    assert('V14-C · el set con Tie break queda marcado (tiebreak no nulo)', !!r.sets[0].tiebreak);
+    assert('V14-C · Intelligence no menciona detalle interno de Tie break', r.intelligence.indexOf('(TB') === -1);
+    assertNoForbiddenWords('V14-C · Intelligence no inventa breaks/puntos/rachas', r.intelligence);
+  })();
+
+  // Caso D (§19-D) — Americano: 1 solo set, reglas YA existentes (TB en 5-5 → nunca ofrece 7-5).
+  (function () {
+    const format = E.FORMATS.americano;
+    assert('V14-D · el enumerador de sets nunca ofrece 7-5 en Americano (respeta reglas existentes)', enumerateValidPairs(format).every((p) => Math.max(p.a, p.b) !== 7));
+    const r = manualCtxFor([[6, 4]], 'americano');
+    assert('V14-D · un solo set', r.sets.length === 1);
+    assert('V14-D · ganador correcto (A)', r.winnerTeam === 'A');
+    assert('V14-D · sin concepto de remontada a un set (nunca aplica)', r.stats.comebackTeam === null);
+    assert('V14-D · sin set decisivo (formato a un set)', r.stats.deciderSetIndex === null);
+    assertNoForbiddenWords('V14-D · Intelligence no inventa breaks/puntos/rachas', r.intelligence);
+  })();
+
+  // Defensivo — mismo criterio que generateGamesIntelligence: sin sets, nunca crashea.
+  (function () {
+    const format = E.FORMATS.classic;
+    const matchCtx = { players: makePlayers(), format };
+    const text = S.generateManualIntelligence(S.computeManualStats([], matchCtx), matchCtx, [], null, { manual: false });
+    assert('V14-defensivo · sin sets no crashea y devuelve texto', typeof text === 'string' && text.length > 0);
+  })();
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------

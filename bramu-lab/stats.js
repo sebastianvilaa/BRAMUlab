@@ -2896,6 +2896,107 @@
     return text;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V14 (§10-13) — ESTADÍSTICAS Y BRAMU INTELLIGENCE PARA CARGA MANUAL DE PARTIDOS
+   * Un partido cargado manualmente solo tiene el resultado final por set — nunca eventos
+   * punto a punto ni game a game. `computeManualStats` es, a propósito, un agregador PURO
+   * de `sets[]` (nunca un replay de eventos como `computeStats`/`computeGamesStats`) y
+   * `generateManualIntelligence` solo puede afirmar hechos derivables de esos scores
+   * finales (ganador, sets/games ganados, sets corridos, remontada A NIVEL DE SETS, set
+   * más ajustado/de mayor margen, cierre del set decisivo) — nunca breaks, holds, rachas
+   * de game ni nada punto a punto (§13 del consolidado V14: "si el dato no fue registrado,
+   * no existe"). */
+  /* ------------------------------------------------------------------ */
+
+  /** Agregador puro de `sets[]` — ninguna de estas métricas requiere conocer el desarrollo
+   *  interno de un set, solo su resultado final. `sets` sigue la misma forma que usa el
+   *  resto de la app: `{gamesA, gamesB, tiebreak:{a,b,mode}|null, winner, extraordinary?}`. */
+  function computeManualStats(sets, matchCtx) {
+    const format = matchCtx.format;
+    const need = Math.ceil(format.bestOfSets / 2);
+    const gamesA = sets.reduce((sum, s) => sum + s.gamesA, 0);
+    const gamesB = sets.reduce((sum, s) => sum + s.gamesB, 0);
+    const setsWonA = sets.filter((s) => s.winner === 'A').length;
+    const setsWonB = sets.filter((s) => s.winner === 'B').length;
+    const winner = setsWonA >= need ? 'A' : (setsWonB >= need ? 'B' : null);
+    const straightSets = !!winner && sets.every((s) => s.winner === winner);
+    // V14 (§12) — remontada A NIVEL DE SETS: perdió el primero y ganó TODOS los siguientes.
+    // Solo aplica con 2+ sets — un partido a un set (Americano) nunca puede tener esta forma.
+    const comebackTeam = (winner && sets.length >= 2 && sets[0].winner && sets[0].winner !== winner
+      && sets.slice(1).every((s) => s.winner === winner)) ? winner : null;
+    let closestSetIndex = null, biggestMarginSetIndex = null;
+    if (sets.length > 1) {
+      closestSetIndex = 0; biggestMarginSetIndex = 0;
+      sets.forEach((s, i) => {
+        const diff = Math.abs(s.gamesA - s.gamesB);
+        if (diff < Math.abs(sets[closestSetIndex].gamesA - sets[closestSetIndex].gamesB)) closestSetIndex = i;
+        if (diff > Math.abs(sets[biggestMarginSetIndex].gamesA - sets[biggestMarginSetIndex].gamesB)) biggestMarginSetIndex = i;
+      });
+    }
+    // V14 (§12) — "si el decisivo fue cerrado": solo tiene sentido cuando el formato juega
+    // más de un set Y se llegó a disputar el último posible (p.ej. Clásico 2-1 en sets).
+    const deciderSetIndex = (format.bestOfSets > 1 && sets.length === format.bestOfSets) ? sets.length - 1 : null;
+    const deciderWasClose = deciderSetIndex !== null && Math.abs(sets[deciderSetIndex].gamesA - sets[deciderSetIndex].gamesB) <= 2;
+    return {
+      gamesA, gamesB, setsWonA, setsWonB, winner, straightSets, comebackTeam,
+      closestSetIndex, biggestMarginSetIndex, deciderSetIndex, deciderWasClose,
+      bestOfSets: format.bestOfSets, setsCount: sets.length,
+    };
+  }
+
+  function manualVarietySeedFor(stats, sets) {
+    return (stats.gamesA || 0) * 3 + (stats.gamesB || 0) * 7 + (sets ? sets.length : 0) * 97;
+  }
+
+  /** V14 (§12) — BRAMU Intelligence de un partido cargado manualmente: 1-2 párrafos cortos
+   *  compuestos SOLO a partir de `computeManualStats` (nunca de eventos, porque no existen).
+   *  Con 2+ variantes por forma (elegidas de forma determinística por semilla, mismo criterio
+   *  que `generateGamesIntelligence`) para no sonar siempre igual. */
+  function generateManualIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
+    const nameOf = (team) => gamesNarrativeTeamLabel(matchCtx.players, team);
+    if (!sets || !sets.length) {
+      return 'El partido no tiene sets cargados suficientes para un resumen.';
+    }
+    if (!winnerTeam) {
+      return 'El resultado cargado no tiene un ganador definido.';
+    }
+    const seed = manualVarietySeedFor(stats, sets);
+    const pick = (variants) => variants[Math.abs(seed) % variants.length];
+    const setScores = sets.map((s) => orientScore(s.gamesA, s.gamesB, winnerTeam));
+
+    let opening;
+    if (stats.straightSets) {
+      opening = pick([
+        `${nameOf(winnerTeam)} ganaron el partido en sets corridos, ${setScores.join(' y ')}.`,
+        `${nameOf(winnerTeam)} se quedaron con el partido sin ceder un set, ${setScores.join(' y ')}.`,
+      ]);
+    } else if (stats.comebackTeam === winnerTeam) {
+      const rest = setScores.slice(1).join(' y ');
+      opening = pick([
+        `${nameOf(winnerTeam)} tuvieron que dar vuelta el partido después de perder el primer set ${setScores[0]}. Se repusieron con ${rest}.`,
+        `Abajo tras perder el primer set ${setScores[0]}, ${nameOf(winnerTeam)} reaccionaron y se quedaron con el partido, ${rest}.`,
+      ]);
+    } else {
+      opening = pick([
+        `${nameOf(winnerTeam)} se quedaron con un partido parejo, ${setScores.join(', ')}.`,
+        `${nameOf(winnerTeam)} se llevaron el partido tras un desarrollo parejo, ${setScores.join(', ')}.`,
+      ]);
+    }
+
+    let closer = '';
+    if (stats.deciderSetIndex !== null && stats.deciderWasClose && !stats.straightSets) {
+      closer = ' El set decisivo se definió por un margen ajustado.';
+    }
+
+    let marginNote = '';
+    if (sets.length > 1 && stats.closestSetIndex !== stats.biggestMarginSetIndex) {
+      const closest = sets[stats.closestSetIndex], biggest = sets[stats.biggestMarginSetIndex];
+      marginNote = `\n\nEl set más parejo fue el ${stats.closestSetIndex + 1} (${orientScore(closest.gamesA, closest.gamesB, winnerTeam)}); el de mayor diferencia fue el ${stats.biggestMarginSetIndex + 1} (${orientScore(biggest.gamesA, biggest.gamesB, winnerTeam)}).`;
+    }
+
+    return (opening + closer + marginNote).trim();
+  }
+
   global.PLStats = {
     computeStats, generatePlayerIntelligence: generateBramuIntelligence, generateBramuIntelligence,
     computeEvolutionData, computeSetGameDeficits, computeSetSegments, teamLabel, fmtOpp, EVOLUTION_WEIGHTS,
@@ -2921,5 +3022,7 @@
     // V13.4 (§15) — expuestas para poder testear aisladamente la detección de racha real vs.
     // artefacto de orden de saque, mismo criterio que las demás funciones puras de este bloque.
     walkGamesProgression, analyzeGamesSetProgression, classifyGamesSetShape,
+    // V14 (§10-13) — estadísticas y BRAMU Intelligence para carga manual de partidos jugados.
+    computeManualStats, generateManualIntelligence,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
