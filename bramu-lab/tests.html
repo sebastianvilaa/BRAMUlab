@@ -171,6 +171,24 @@
 
     // Orientación de marcador (§27): B ganó el set real A-B 4-6 → en prosa debe leerse "6-4".
     assert('U12 · orientScore hacia el protagonista', S.orientScore(4, 6, 'B') === '6-4', S.orientScore(4, 6, 'B'));
+
+    // V13.4 (§17/§21) — escala de lenguaje del "dominio con el saque", coherente con el % real.
+    // Caso real reportado en pruebas manuales: 5 de 10 = 50%, NUNCA "casi todos".
+    const c5de10 = S.serveDominanceClause(5, 10);
+    assert('U13 · 5 de 10 (50%) NUNCA se describe como "casi todos" ni equivalente', c5de10 === null, JSON.stringify(c5de10));
+    const c8de10 = S.serveDominanceClause(8, 10);
+    assert('U14 · 8 de 10 (80%) es "la gran mayoría", no "casi todos"', /gran mayoría/.test(c8de10) && !/casi todos/.test(c8de10), c8de10);
+    const c9de10 = S.serveDominanceClause(9, 10);
+    assert('U15 · 9 de 10 (90%) sí puede describirse como "casi todos"', /casi todos/.test(c9de10), c9de10);
+    const c6de10 = S.serveDominanceClause(6, 10);
+    assert('U16 · 6 de 10 (60%) es "la mayoría" (escala intermedia), no "casi todos" ni omitido', /la mayoría/.test(c6de10) && !/gran mayoría|casi todos/.test(c6de10), c6de10);
+
+    // V13.4 (§16/§21) — cierre del Set 2 cuando fuerza un tercero: 3 variantes reales, no
+    // siempre la misma frase fija ("para forzar un tercero" en las tres rondas anteriores).
+    const forzarVariants = new Set();
+    for (let seed = 0; seed < 12; seed++) forzarVariants.add(S.pickPhrase('forzarTercero', seed));
+    assert('U17 · "forzar un tercero" tiene al menos 2 variantes reales según la semilla', forzarVariants.size >= 2, JSON.stringify([...forzarVariants]));
+    assert('U18 · las 3 variantes están definidas en el banco de frases', S.PHRASE_BANKS.forzarTercero.length === 3, JSON.stringify(S.PHRASE_BANKS.forzarTercero));
   })();
 
   // ------------------------------------------------------------------
@@ -1199,17 +1217,21 @@
   // idénticos. Debe evitar dos frases idénticas y no inventar psicología.
   (function () {
     const ctx = newGamesCtx('classic');
-    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1: tied 3-3, A cierra 6-3
-    ['B', 'A', 'B', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: tied 2-2, A cierra 6-2
+    ['B', 'A', 'B', 'A', 'B', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set1: 2-3 abajo (quiebre real), A gana los últimos 4 -> 6-3
+    // V13.4 (§15): reescrito — la versión anterior (B,A,B,A,A,A,A,A) tenía su propio caso del
+    // bug de "orden de saque" (el 4° game era un HOLD de A que solo empataba 2-2, no un
+    // quiebre real): con la corrección del §15, ese tramo pasa a clasificarse como "tight"
+    // (racha real desde el empate 2-2), formas distintas a la del Set 1 y por lo tanto ya NO
+    // se relacionan — exactamente el comportamiento correcto que esta ronda vino a arreglar.
+    // Esta versión nueva arranca 0-2 abajo (déficit real de 2, nunca artefacto de saque) para
+    // seguir probando el caso que este test SÍ quiere cubrir: dos sets "comeback" relacionados.
+    ['B', 'B', 'A', 'A', 'A', 'A', 'A', 'A'].forEach((t) => winGameEv(ctx, t)); // Set2: 0-2 abajo, A gana los últimos 6 -> 6-2
     assert('V13.2-D · llega a 6-3 · 6-2, A gana el partido', ctx.state.sets.length === 2 && ctx.state.sets[0].gamesA === 6 && ctx.state.sets[0].gamesB === 3 && ctx.state.sets[1].gamesA === 6 && ctx.state.sets[1].gamesB === 2 && ctx.state.matchWinner === 'A', JSON.stringify(ctx.state.sets));
     const text = gamesIntelFor(ctx);
     const paras = text.split('\n\n');
     assert('V13.2-D · los dos párrafos de set NO son idénticos entre sí', paras[0] !== paras[1], text);
-    // V13.3: la racha de cierre real de esta secuencia resulta más larga que un simple
-    // "empate y despegue" (arranca con el ganador abajo en el marcador) — el algoritmo
-    // nuevo la detecta correctamente como remontada ("historia parecida"), no como "patrón
-    // parecido" (esa frase es la de sets simplemente parejos) — cualquiera de las dos
-    // familias de redacción demuestra que los sets se relacionaron, que es lo que importa acá.
+    // Ambos sets son remontadas reales (déficit de 2+ games, nunca artefacto de saque — §15):
+    // misma forma ("comeback"), se relacionan con la familia "historia parecida".
     assert('V13.2-D · relaciona los sets (misma familia narrativa para ambos)', /patrón parecido|historia parecida/i.test(text), text);
     assert('V13.2-D · señala que la diferencia apareció antes en el segundo set', /apareció antes/i.test(text), text);
     assert('V13.2-D · nunca usa lenguaje psicológico prohibido', !/confianza|se soltaron/i.test(text), text);
@@ -1244,57 +1266,86 @@
   // ==================================================================
   // ==================================================================
   // ==================================================================
-  // V13.3 (§14-19/§21 G-I) — CAMBIAR SISTEMA DE PUNTUACIÓN EN VIVO (motor de puntos,
-  // Completo). Cada punto graba su propio `scoringSystem` vigente (`ev.scoringSystem`,
-  // igual patrón que `ev.tbMode`) — un cambio nunca reinterpreta un punto ya jugado.
+  // V13.4 (§1-13/§19/§21) — SISTEMA DE PUNTUACIÓN EN VIVO, REEMPLAZA el modelo V13.3 de
+  // "regla por punto" (`ev.scoringSystem`). Ahora `match.scoringSystem` es una propiedad
+  // ÚNICA del partido: la corrección solo es segura mientras siga siendo compatible con el
+  // game en curso, y se bloquea para siempre en cuanto cierra el primer game sensible.
   // ==================================================================
 
-  // Caso G — 40-40 bajo Punto de Oro, sin jugar el punto decisivo: cambiar a Con Ventaja
-  // debe funcionar sin problemas (no hay ningún punto de deuce ya jugado que proteger).
+  // V13.4-A (§11, test crítico del Consolidado) — imposible crear un partido híbrido: una
+  // vez que un game de deuce cerró bajo Star Point, no hay vuelta atrás a Punto de Oro/Ventaja.
   (function () {
     const fmt = E.FORMATS.classic;
     const events = [];
-    ['A', 'A', 'A', 'B', 'B', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 3-3 (40-40), sin punto decisivo aún
+    // Arranca con Punto de Oro, juega games normales SIN llegar a 40-40 (no hay divergencia
+    // posible antes de la zona de deuce — §4): 4-0 para A.
+    ['A', 'A', 'A', 'A'].forEach((t, i) => events.push({ team: t, matchTimeMs: i * 100 }));
     let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
-    assert('V13.3-G · llega a 40-40 bajo Punto de Oro sin decidir el game', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
-    // Cambia el sistema: el próximo punto ya se graba con 'classic'.
-    events.push({ team: 'A', scoringSystem: 'classic', matchTimeMs: 1000 });
+    assert('V13.4-A · game normal cerrado sin pasar por deuce (4-0)', state.gamesA === 1, JSON.stringify(state));
+    assert('V13.4-A · todavía no hay ningún game sensible cerrado: no bloqueado', !E.isScoringSystemLocked(events, 'golden', fmt, 'classic', null), '');
+    // "Cambia" a Star Point (nada que reescribir: ningún game pasó por deuce todavía) y llega
+    // a un game con Deuce que SÍ cierra bajo Star Point: 3-3, luego 4-3/4-4/5-4/5-5 (el Star
+    // Point real) y por último 6-5 (regla especial de Star Point en la ventaja decisiva).
+    ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'B', 'A', 'B', 'A'].forEach((t, i) => events.push({ team: t, matchTimeMs: 1000 + i * 100 }));
+    state = E.computeStateFromEvents(events, 'starpoint', fmt, 'classic', null);
+    assert('V13.4-A · el segundo game cerró bajo Star Point (6-5)', state.gamesA === 2 && state.pointsA === 0 && state.pointsB === 0, JSON.stringify(state));
+    assert('V13.4-A · ese game pasó por deuce: el sistema queda BLOQUEADO para el resto del partido', E.isScoringSystemLocked(events, 'starpoint', fmt, 'classic', null), '');
+    // Evidencia de POR QUÉ hace falta el bloqueo: reinterpretar los mismos eventos bajo
+    // Punto de Oro da un resultado DISTINTO (el punto decisivo llega antes) — un cambio a
+    // esta altura sí reescribiría el partido, exactamente lo que V13.4 debe impedir.
+    const hypoUnderGolden = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
+    assert('V13.4-A · reinterpretar bajo Punto de Oro da otro resultado (por eso no se puede permitir)', hypoUnderGolden.gamesA !== state.gamesA || hypoUnderGolden.pointsA !== state.pointsA || hypoUnderGolden.pointsB !== state.pointsB, JSON.stringify({ hypoUnderGolden, state }));
+    // Metadata/stats consistentes con Star Point como único sistema del partido (§10).
+    const statsA = S.computeStats(events, { players: makePlayers(), scoringSystem: 'starpoint', format: fmt, tiebreakMode: 'classic', serverKnowledge: null, baseline: null });
+    assert('V13.4-A · Golden Points = 0 (nunca mezcla de reglas)', statsA.goldenPoints.played === 0, JSON.stringify(statsA.goldenPoints));
+    assert('V13.4-A · Star Points según los hechos reales (> 0)', statsA.starPoints.played > 0, JSON.stringify(statsA.starPoints));
+  })();
+
+  // V13.4-B (§12) — corrección en 40-40: cambiar de Punto de Oro a Con Ventaja justo en el
+  // primer 40-40 (antes de jugar el punto decisivo) es siempre seguro, y bloquea recién
+  // cuando el game que pasó por esa zona termina cerrándose.
+  (function () {
+    const fmt = E.FORMATS.classic;
+    const events = [];
+    ['A', 'A', 'A', 'B', 'B', 'B'].forEach((t, i) => events.push({ team: t, matchTimeMs: i * 100 })); // 3-3, sin decidir
+    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
+    assert('V13.4-B · llega a 40-40 bajo Punto de Oro sin decidir el game', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+    let gameSeq = E.extractCurrentGamePointSequence(events, 'golden', fmt, 'classic', null);
+    let available = E.availableScoringSystems(gameSeq);
+    assert('V13.4-B · en 40-40 los 3 sistemas siguen siendo compatibles', available.length === 3, JSON.stringify(available));
+    // CAMBIAR → CON VENTAJA: el score sigue 40-40/Deuce, no se reescribe nada.
     state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
-    assert('V13.3-G · tras cambiar a Con Ventaja, el mismo punto que hubiera cerrado el game con Punto de Oro ahora deja Ventaja (Con Ventaja pide diferencia de 2)', state.pointsA === 4 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+    assert('V13.4-B · tras cambiar, el score sigue 40-40 (Deuce), nada se reescribió', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
+    // Juega el punto que bajo Punto de Oro hubiera cerrado el game: bajo Con Ventaja debe
+    // quedar VENTAJA, nunca cerrar el game solo.
+    events.push({ team: 'A', matchTimeMs: 1000 });
+    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
+    assert('V13.4-B · queda VENTAJA, no cierra el game (Con Ventaja pide diferencia de 2)', state.pointsA === 4 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
     const disp = E.formatPointsDisplay(state.pointsA, state.pointsB, 'classic');
-    assert('V13.3-G · el marcador muestra VENTAJA (nunca inventa que el game ya cerró)', disp.aText === 'VENTAJA', JSON.stringify(disp));
+    assert('V13.4-B · el marcador muestra VENTAJA', disp.aText === 'VENTAJA', JSON.stringify(disp));
+    assert('V13.4-B · todavía no bloqueado (el game sigue abierto)', !E.isScoringSystemLocked(events, 'classic', fmt, 'classic', null), '');
+    // Finaliza el game (segunda ventaja consecutiva cierra bajo Con Ventaja).
+    events.push({ team: 'A', matchTimeMs: 1500 });
+    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
+    assert('V13.4-B · el game cierra 1-0', state.gamesA === 1, JSON.stringify(state));
+    assert('V13.4-B · el sistema queda bloqueado en Con Ventaja para el resto del partido', E.isScoringSystemLocked(events, 'classic', fmt, 'classic', null), '');
   })();
 
-  // Caso H — cambiar el sistema durante un estado normal (30-15, fuera de la zona de deuce):
-  // el score no se toca, y el motor usa la regla nueva recién cuando haga falta (más adelante).
+  // V13.4-C (§13) — Star Point ↔ Con Ventaja mientras la secuencia real siga siendo
+  // compatible con ambos (Deuce → Ventaja → vuelta a Deuce, nunca cierra el game): score
+  // intacto, sin inventar eventos, y Punto de Oro queda excluido apenas se juega un punto
+  // más allá del primer 40-40 (ese punto SÍ hubiera cerrado el game bajo Punto de Oro).
   (function () {
     const fmt = E.FORMATS.classic;
     const events = [];
-    ['A', 'A', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 30-15
-    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
-    assert('V13.3-H · 30-15 antes de cambiar', state.pointsA === 2 && state.pointsB === 1, JSON.stringify(state));
-    // "Cambiar" acá simplemente implica que los PRÓXIMOS puntos se graban con el sistema nuevo.
-    ['A', 'B', 'B'].forEach((t) => events.push({ team: t, scoringSystem: 'classic', matchTimeMs: 1000 })); // 30-15 -> 40-40, sin cerrar el game antes
-    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
-    assert('V13.3-H · el score sigue intacto y llega a deuce (40-40) usando la regla nueva', state.pointsA === 3 && state.pointsB === 3 && state.gamesA === 0, JSON.stringify(state));
-  })();
-
-  // Caso I — bloqueo real después de una consecuencia irreversible: cerrar un game bajo
-  // Punto de Oro y verificar que un cambio de sistema posterior NUNCA reinterpreta ese game
-  // ya cerrado (nunca lo "convierte" en Star Point/Con Ventaja retroactivamente).
-  (function () {
-    const fmt = E.FORMATS.classic;
-    const events = [];
-    ['A', 'A', 'A', 'B', 'B', 'B', 'A'].forEach((t) => events.push({ team: t, scoringSystem: 'golden', matchTimeMs: 0 })); // 3-3 y el punto de oro decisivo -> game cerrado 1-0
-    let state = E.computeStateFromEvents(events, 'golden', fmt, 'classic', null);
-    assert('V13.3-I · el game cerró 1-0 bajo Punto de Oro', state.gamesA === 1 && state.pointsA === 0 && state.pointsB === 0, JSON.stringify(state));
-    // Ahora "cambia" el sistema para el resto del partido (los eventos VIEJOS conservan su
-    // propio scoringSystem='golden', nunca se reescriben) y juega el próximo game bajo
-    // Con Ventaja, llegando otra vez a deuce sin que nadie lo cierre en un solo punto.
-    ['B', 'B', 'B', 'A', 'A', 'A'].forEach((t) => events.push({ team: t, scoringSystem: 'classic', matchTimeMs: 2000 })); // 3-3 del segundo game, bajo Con Ventaja
-    state = E.computeStateFromEvents(events, 'classic', fmt, 'classic', null);
-    assert('V13.3-I · el primer game sigue en 1-0 (nunca se reinterpreta retroactivamente)', state.gamesA === 1 && state.gamesB === 0, JSON.stringify(state));
-    assert('V13.3-I · el segundo game (ya bajo Con Ventaja) llega a deuce sin decidirse en un punto', state.pointsA === 3 && state.pointsB === 3, JSON.stringify(state));
+    ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'B'].forEach((t, i) => events.push({ team: t, matchTimeMs: i * 100 })); // 3-3 → 4-3 (ventaja A) → 4-4 (deuce de nuevo)
+    const state = E.computeStateFromEvents(events, 'starpoint', fmt, 'classic', null);
+    assert('V13.4-C · score real: 4-4, game sigue abierto (Deuce → Ventaja → Deuce)', state.pointsA === 4 && state.pointsB === 4 && state.gamesA === 0, JSON.stringify(state));
+    const gameSeq = E.extractCurrentGamePointSequence(events, 'starpoint', fmt, 'classic', null);
+    const available = E.availableScoringSystems(gameSeq);
+    assert('V13.4-C · Star Point y Con Ventaja siguen siendo compatibles', available.indexOf('starpoint') !== -1 && available.indexOf('classic') !== -1, JSON.stringify(available));
+    assert('V13.4-C · Punto de Oro queda excluido (hubiera cerrado el game en el primer 40-40)', available.indexOf('golden') === -1, JSON.stringify(available));
+    assert('V13.4-C · todavía no bloqueado', !E.isScoringSystemLocked(events, 'starpoint', fmt, 'classic', null), '');
   })();
 
   // V13.3 (§10/§21-A) — BENCHMARK NARRATIVO A: 6-4 · 6-3
@@ -1338,6 +1389,36 @@
     assert('V13.3-B · Set 2 cierra correctamente en 6-1 sin inventar de más', /6-1/.test(paras[1]), paras[1]);
     assert('V13.3-B · Set 3 se narra sin inventar remontada/racha que no existió', !/remontad/i.test(paras[2]), paras[2]);
     assert('V13.3-B · párrafos de peso distinto según la riqueza de cada set (Set 2 es más largo, tiene más que contar)', paras[1].length > paras[2].length, JSON.stringify({ p2: paras[1], p3: paras[2] }));
+  })();
+
+  // ==================================================================
+  // V13.4 (§15/§21) — CASO REAL: una desventaja de 1 game explicada por el orden de saque
+  // (nunca un quiebre) no debe narrarse como remontada/reacción. Gusti/Esteban (A) sacan
+  // primero; ambos sostienen su saque hasta 4-4; recién ahí Seba/Matu (B) quiebran para 5-4
+  // y sostienen para cerrar 6-4. El "3-4" que existió un instante (A arriba, antes de que B
+  // sostenga su propio saque) es puro artefacto de rotación, no una racha real.
+  // ==================================================================
+  (function () {
+    const ctx = newGamesCtx('americano');
+    ['A', 'B', 'A', 'B', 'A', 'B', 'A', 'B', 'B', 'B'].forEach((t) => winGameEv(ctx, t)); // 1-0,1-1,2-1,2-2,3-2,3-3,4-3,4-4,4-5(quiebre),4-6(hold)
+    assert('V13.4-15 · el set cierra 6-4 para B', ctx.state.sets.length === 1 && ctx.state.sets[0].gamesA === 4 && ctx.state.sets[0].gamesB === 6, JSON.stringify(ctx.state.sets));
+
+    // Verificación de bajo nivel: la racha de cierre efectiva arranca en el EMPATE real 4-4
+    // (2 games: el quiebre + el hold), nunca en el "3-4" que precede al hold de B.
+    const seq = S.walkGamesProgression(ctx.events, ctx.format, gamesMatchCtxFor(ctx), 1, 0);
+    const holdOrBreaks = seq.slice(1).map((p) => p.holdOrBreak);
+    assert('V13.4-15 · el sacador se resolvió para los 10 games (server info completa)', holdOrBreaks.every((x) => x === 'hold' || x === 'break'), JSON.stringify(holdOrBreaks));
+    assert('V13.4-15 · el game que até 4-4 fue un HOLD de B (nunca un quiebre)', holdOrBreaks[7] === 'hold', JSON.stringify(holdOrBreaks));
+    const progAnalysis = S.analyzeGamesSetProgression(seq, 'B');
+    assert('V13.4-15 · la racha de cierre efectiva arranca en el empate real 4-4 (no en "3-4")', progAnalysis.runStartScore.a === 4 && progAnalysis.runStartScore.b === 4 && progAnalysis.closingStreak === 2, JSON.stringify(progAnalysis));
+    const shape = S.classifyGamesSetShape(ctx.state.sets[0], progAnalysis, false, gamesStatsFor(ctx), ctx.format);
+    assert('V13.4-15 · la forma es "tight" (parejo hasta el empate), nunca "comeback"', shape === 'tight', shape);
+
+    // Verificación de extremo a extremo: el texto final no dice "abajo 3-4" ni "reaccionaron".
+    const text = gamesIntelFor(ctx);
+    assert('V13.4-15 · el texto describe el tramo como parejo hasta 4-4', /4-4/.test(text), text);
+    assert('V13.4-15 · el texto NUNCA dice que B estuvo abajo (esa desventaja era artefacto de saque)', !/abajo/i.test(text), text);
+    assert('V13.4-15 · el texto NUNCA narra esto como reacción/remontada', !/reaccion|remontad/i.test(text), text);
   })();
 
   // V13.3 (§12) — BUG REAL: estadísticas por set usaban siempre la rotación de saque del

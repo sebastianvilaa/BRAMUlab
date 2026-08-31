@@ -325,10 +325,10 @@
     // V13 (§7): en Por Games no se muestra Ajustar (Editar cubre corrección rápida y
     // profunda) — se fija una sola vez acá porque el modo queda bloqueado todo el partido.
     $('#adjust-btn').hidden = isGamesMode();
-    // V13.3 (§16/§18): en Por Games "CAMBIAR SISTEMA" no existe (el sistema es metadata,
-    // se cambia solo desde ☰) — se resetea acá por si quedó visible de un partido Completo
-    // anterior en la misma sesión; `render()` de Completo lo vuelve a evaluar cada frame.
-    if (isGamesMode()) $('#scoring-system-change-row').hidden = true;
+    // V13.4 (§7/§8): en Por Games "CAMBIAR" no existe (el sistema es metadata, se cambia
+    // solo desde ☰) — se resetea acá por si quedó visible de un partido Completo anterior en
+    // la misma sesión; `render()` de Completo lo vuelve a evaluar cada frame.
+    if (isGamesMode()) $('#scoring-system-change-btn').hidden = true;
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     if (isGamesMode()) renderGamesMode(); else render();
     matchIsActive = true; requestWakeLock(); // V13.2 (§1)
@@ -392,11 +392,11 @@
     if (ctx.isStarPoint) matchScreen.classList.add('is-star-point');
 
     renderStatusBanner(ctx);
-    // V13.3 (§18): "CAMBIAR" solo en la zona de Deuce/Punto de Oro/Star Point — donde el
-    // sistema de puntuación realmente cambia lo que pasa a continuación. Nunca durante un
-    // Tie break (el sistema no aplica ahí) ni con el partido ya decidido.
+    // V13.4 (§6, §8, §11): "CAMBIAR" solo en la zona de Deuce/Punto de Oro/Star Point/Ventaja
+    // — donde el sistema de puntuación realmente importa — Y solo mientras no esté bloqueado
+    // (ya cerró un game sensible). Nunca durante un Tie break ni con el partido decidido.
     const inDeuceZone = !state.inTiebreak && !state.matchWinner && state.pointsA >= 3 && state.pointsB >= 3;
-    $('#scoring-system-change-row').hidden = !inDeuceZone;
+    $('#scoring-system-change-btn').hidden = !(inDeuceZone && !completoScoringLocked());
     renderEtbDefinitionLabel(state);
     renderScoreboard(state, ctx.disp);
     renderGameProgression(state);
@@ -652,6 +652,7 @@
     $('#tiebreak-mode-select').hidden = true;
     $('#tiebreak-mode-text').hidden = true;
     $('#etb-definition-label').hidden = true;
+    $('#scoring-system-change-btn').hidden = true; // V13.4 (§7): en Por Games "CAMBIAR" no existe acá, se cambia solo desde ☰
 
     let bandKind = 'none', bandLabel = '', bandTeam = null;
     if (!state.matchWinner) {
@@ -1317,10 +1318,6 @@
     // ese instante — así un cambio de modalidad posterior nunca reinterpreta
     // puntos ya jugados (bug #49/#50 de la revisión anterior).
     if (state.inTiebreak) ev.tbMode = match.tiebreakMode;
-    // V13.3 (§14-19): mismo criterio para el sistema de puntuación — cada punto graba el
-    // sistema VIGENTE al registrarse, así "Sistema de puntuación"/"CAMBIAR" nunca
-    // reinterpreta retroactivamente un punto (o un game) ya jugado.
-    ev.scoringSystem = match.scoringSystem;
     pointEvents.push(ev);
     render();
   }
@@ -1516,22 +1513,41 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* V13.3 (§14-19) — SISTEMA DE PUNTUACIÓN EN VIVO. En Por Games es puro metadata (el motor
-   *  de games no lo usa para nada — §16). En Completo, cambiar `match.scoringSystem` es
-   *  SIEMPRE seguro sin importar el estado: cada punto ya jugado quedó anclado a su propio
-   *  `ev.scoringSystem` (ver `registerPoint`/`engine.js`), así que un cambio nunca
-   *  reinterpreta retroactivamente un game ya cerrado — no hace falta "bloquear" nada (§19).
-   *  Mismo modal para dos entradas: el menú ☰ (disponible siempre, §17) y el botón "CAMBIAR
-   *  SISTEMA" contextual que solo aparece en la zona de Deuce/Punto de Oro/Star Point (§18). */
+  /* V13.4 (§1-13) — SISTEMA DE PUNTUACIÓN EN VIVO, REEMPLAZA el modelo V13.3 de "regla por
+   *  punto". En Modo Completo el sistema es una propiedad DEL PARTIDO (`match.scoringSystem`,
+   *  un único valor): la corrección solo existe para arreglar un dato de configuración
+   *  equivocado, nunca para cambiar las reglas hacia adelante. Por eso:
+   *    - mientras ningún game "sensible" (uno que llegó a 40-40) haya cerrado, se puede
+   *      corregir libremente entre los sistemas que sigan siendo compatibles con el game en
+   *      curso (`E.availableScoringSystems` — los incompatibles quedan deshabilitados, §9);
+   *    - en cuanto cierra el primer game sensible, `E.isScoringSystemLocked` da true para
+   *      siempre y ni el menú ☰ ni "CAMBIAR" vuelven a ofrecer el cambio (§3, §6, §11).
+   *  En Por Games el sistema sigue siendo puro metadata (§7, sin tocar): siempre disponible,
+   *  nunca bloqueado, nunca deshabilita opciones. Mismo modal para dos entradas: el menú ☰ y
+   *  el botón "CAMBIAR" contextual (dentro de la franja, junto al texto central — §8). */
   /* ------------------------------------------------------------------ */
   let pendingScoringSystem = null;
 
+  function completoScoringLocked() {
+    return !isGamesMode() && E.isScoringSystemLocked(pointEvents, match.scoringSystem, currentFormat(), match.tiebreakMode, match.baseline);
+  }
+
   function openScoringSystemModal() {
+    if (completoScoringLocked()) return; // defensivo: el botón/menú ya deberían estar ocultos
     pendingScoringSystem = match.scoringSystem;
+    let allowed = E.SCORING_SYSTEMS;
+    if (!isGamesMode()) {
+      const gameSeq = E.extractCurrentGamePointSequence(pointEvents, match.scoringSystem, currentFormat(), match.tiebreakMode, match.baseline);
+      allowed = E.availableScoringSystems(gameSeq);
+    }
     $all('#scoring-system-options .option-col').forEach((btn) => {
-      const selected = btn.dataset.value === pendingScoringSystem;
+      const value = btn.dataset.value;
+      const isAllowed = allowed.indexOf(value) !== -1;
+      const selected = value === pendingScoringSystem;
       btn.classList.toggle('is-selected', selected);
       btn.setAttribute('aria-checked', selected ? 'true' : 'false');
+      btn.disabled = !isAllowed;
+      btn.classList.toggle('is-disabled', !isAllowed);
     });
     $('#scoring-system-hint').textContent = SCORING_HINTS[pendingScoringSystem];
     $('#scoring-system-modal').hidden = false;
@@ -1540,6 +1556,7 @@
   function initScoringSystemModal() {
     $all('#scoring-system-options .option-col').forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (btn.disabled) return;
         $all('#scoring-system-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
         btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
         pendingScoringSystem = btn.dataset.value;
@@ -1556,7 +1573,10 @@
       autosave();
       showToast('Sistema de puntuación actualizado');
     });
-    $('#menu-scoring-system').addEventListener('click', () => { $('#menu-overlay').hidden = true; openScoringSystemModal(); });
+    $('#menu-scoring-system').addEventListener('click', () => {
+      $('#menu-overlay').hidden = true;
+      if (!completoScoringLocked()) openScoringSystemModal();
+    });
     $('#scoring-system-change-btn').addEventListener('click', openScoringSystemModal);
   }
 
@@ -1571,6 +1591,9 @@
       $('#menu-extraordinary-tb').hidden = isGamesMode()
         ? !E.canStartExtraordinaryGameTiebreak(computeGameState())
         : !E.canStartExtraordinaryTiebreak(computeState());
+      // V13.4 (§7): en Completo, una vez bloqueado el sistema de puntuación (ya cerró un
+      // game sensible) la opción del menú deja de ofrecerse. En Por Games nunca se bloquea.
+      $('#menu-scoring-system').hidden = completoScoringLocked();
       $('#menu-overlay').hidden = false;
     });
     $('#menu-close').addEventListener('click', () => { $('#menu-overlay').hidden = true; });

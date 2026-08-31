@@ -148,21 +148,17 @@
 
     <div id="status-banner" class="status-banner" hidden>
       <span id="status-banner-primary" class="status-banner__primary"></span>
+      <!-- V13.4 (§8) — "CAMBIAR" DENTRO de la franja contextual, junto al texto central
+           (ej. "PUNTO DE ORO   CAMBIAR" / "DEUCE   CAMBIAR"). Visible en Deuce/Punto de
+           Oro/Star Point/Ventaja (donde el sistema de puntuación realmente importa) y solo
+           mientras no esté bloqueado (§3, §6, §11). Fuera de esa zona, el cambio se hace
+           desde ☰ → Sistema de puntuación. -->
+      <button type="button" id="scoring-system-change-btn" class="scoring-cambiar-btn" hidden>CAMBIAR</button>
       <span id="tiebreak-mode-text" class="tb-mode-text" hidden></span>
       <select id="tiebreak-mode-select" class="tb-select" hidden></select>
       <!-- V12 (§12.2) — definición vigente del Tie break extraordinario, tappable para
            "EDITAR DEFINICIÓN"; solo se muestra mientras ese TB está activo. -->
       <button type="button" id="etb-definition-label" class="tb-mode-text tb-mode-text--tappable" hidden></button>
-    </div>
-
-    <!-- V13.3 (§18) — "CAMBIAR" contextual: solo visible en Deuce/Punto de Oro/Star Point/
-         Ventaja (donde el sistema de puntuación realmente importa). Vive FUERA de
-         `#status-banner` a propósito: ese banner queda oculto durante una Ventaja simple
-         (sin Set/Match Point simultáneo) — ver `getLiveContext`, no se toca esa lógica ya
-         validada — así que CAMBIAR necesita su propia visibilidad, independiente del banner.
-         Fuera de esta zona, el cambio se hace desde ☰ → Sistema de puntuación (§17). -->
-    <div id="scoring-system-change-row" class="scoring-system-change-row" hidden>
-      <button type="button" id="scoring-system-change-btn" class="tb-mode-text tb-mode-text--tappable">CAMBIAR SISTEMA</button>
     </div>
 
     <div id="server-prompt" class="server-prompt" hidden>
@@ -691,20 +687,24 @@
     <div class="overlay__card">
       <div class="overlay__title">HAY UNA NUEVA VERSIÓN DE BRAMU</div>
       <p class="overlay__text" id="update-available-text">Hay una versión nueva disponible.</p>
-      <div class="overlay__actions">
-        <button id="update-later-btn" class="btn-secondary" type="button">Más tarde</button>
-        <button id="update-now-btn" class="btn-start btn-start--overlay" type="button">ACTUALIZAR AHORA</button>
+      <!-- V13.4 (§14) — layout corregido: acción principal arriba, secundaria abajo, una
+           debajo de la otra (antes iban lado a lado). Solo visual: la detección automática
+           no se toca. -->
+      <div class="overlay__actions overlay__actions--stacked">
+        <button id="update-now-btn" class="btn-start btn-start--overlay" type="button">ACTUALIZAR</button>
+        <button id="update-later-btn" class="btn-secondary" type="button">MÁS TARDE</button>
       </div>
     </div>
   </div>
 
-  <!-- V13.3 (§14-19) — cambiar el sistema de puntuación durante el partido, sin reescribir
-       el pasado. En Por Games es puro metadata (no altera el marcador). En Completo, cada
-       punto guarda su propio sistema vigente al registrarse (mismo criterio que ya existía
-       para `tbMode` en el Tie break) — así un cambio nunca reinterpreta retroactivamente un
-       game que ya se cerró bajo otra regla. Mismo selector visual que en la configuración
-       inicial, reutilizado tanto desde el menú ☰ como desde "CAMBIAR" en la franja de
-       Deuce/Punto de Oro/Star Point. -->
+  <!-- V13.4 (§1-13) — cambiar el sistema de puntuación durante el partido, REEMPLAZA el
+       modelo "regla por punto" de V13.3. En Modo Completo el sistema es una propiedad DEL
+       PARTIDO: la corrección solo es posible mientras siga siendo compatible con el game en
+       curso (opciones incompatibles quedan deshabilitadas acá abajo) y se bloquea para
+       siempre en cuanto cierra el primer game que realmente dependió de la regla (40-40). En
+       Por Games sigue siendo puro metadata, sin restricciones. Mismo selector visual que en
+       la configuración inicial, reutilizado tanto desde el menú ☰ como desde "CAMBIAR" en la
+       franja contextual. -->
   <div id="scoring-system-modal" class="overlay" hidden>
     <div class="overlay__card">
       <div class="overlay__title">SISTEMA DE PUNTUACIÓN</div>

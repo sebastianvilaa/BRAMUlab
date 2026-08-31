@@ -140,6 +140,10 @@ input, select{ font-family: inherit; }
   cursor:pointer; transition: border-color .15s ease, background .15s ease;
 }
 .option-col.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.10); color: var(--gold); }
+/* V13.4 (§9) — opciones incompatibles con la secuencia real del game en curso: no
+   seleccionables (nunca permiten crear un partido híbrido). */
+.option-col.is-disabled{ opacity: 0.35; cursor: not-allowed; }
+.option-col.is-disabled.is-selected{ border-color: var(--line); background: var(--ink-soft); color: inherit; }
 
 .option-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .option-pill{
@@ -355,9 +359,16 @@ input, select{ font-family: inherit; }
    tb-mode-text, pero es un <button> real (tappable) — se resetea el estilo nativo. */
 .tb-mode-text--tappable{ background:none; border: 1px dashed var(--paper-faint); border-radius: 6px; padding: 2px 6px; color: var(--paper); cursor:pointer; opacity: 0.9; }
 .tb-mode-text--tappable:active{ opacity: 1; border-color: var(--paper); }
-/* V13.3 (§18) — fila propia para "CAMBIAR SISTEMA", independiente de `#status-banner`
-   (ese banner queda oculto en una Ventaja simple, pero acá igual hace falta el botón). */
-.scoring-system-change-row{ display:flex; justify-content:center; padding: 4px 10px; background: var(--ink); }
+/* V13.4 (§8) — "CAMBIAR" vive DENTRO de `#status-banner`, junto al texto central. Usa
+   `color:inherit`/`border-color:currentColor` a propósito: la banda cambia de color de
+   fondo/texto según el estado (DEUCE claro, PUNTO DE ORO dorado, Break/Set/Match del color
+   del equipo...) y así el botón siempre queda legible sin necesitar una regla por variante. */
+.scoring-cambiar-btn{
+  flex: none; background: rgba(0,0,0,0.14); color: inherit; border: 1px solid currentColor;
+  border-radius: 6px; padding: 3px 8px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  font-family: var(--font-display); cursor: pointer; opacity: 0.88;
+}
+.scoring-cambiar-btn:active{ opacity: 1; }
 
 .server-prompt{
   display:flex; align-items:center; gap:8px; padding: 8px 12px; background: rgba(244,247,242,0.05);
@@ -443,6 +454,9 @@ input, select{ font-family: inherit; }
 .overlay__title{ font-family: var(--font-display); font-size: 20px; letter-spacing: 0.1em; color: var(--gold); margin-bottom: 10px; text-align:center; }
 .overlay__text{ color: var(--paper-dim); font-size: 13px; margin: 0 0 16px; }
 .overlay__actions{ display:flex; gap: 10px; margin-top: 6px; }
+/* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
+   lado a lado). Modificador propio para no tocar el layout de los demás overlays. */
+.overlay__actions--stacked{ flex-direction: column; }
 /* V6 — fila de título con X de cierre siempre visible (salir rápido si tocaste Editar por error). */
 .overlay__title-row{ display:flex; align-items:center; justify-content:center; position:relative; margin-bottom: 10px; }
 .overlay__title-row .overlay__title{ margin-bottom: 0; }

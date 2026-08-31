@@ -152,7 +152,7 @@
         }
       }
 
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
 
       const wasTiebreakConcluding = before.inTiebreak && !state.inTiebreak;
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
@@ -362,7 +362,7 @@
       if (ev.type === 'adjustment') { state = E.applyAdjustment(ev.newState); minDiffA = 0; maxDiffA = 0; scoreAtMinDiffA = null; scoreAtMaxDiffA = null; return; }
       const before = state;
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
       if (state.sets.length > before.sets.length) {
         const s = state.sets[state.sets.length - 1];
         results.push({
@@ -407,7 +407,7 @@
       // válido — solo se pierde `serverPlayerId` (queda null, la narrativa ya lo maneja).
       const servingTeamKnown = resolved.resolved ? resolved.team : (resolved.candidateTeam || null);
       const servingPlayerId = resolved.resolved ? resolved.playerId : null;
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
       if (wasNormalGameEnd && servingTeamKnown) {
         const closedSet = state.sets.length > before.sets.length;
@@ -476,7 +476,7 @@
           if (ev.team === servingTeamKnown) bpSavedThisGame += 1;
         }
       }
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
       const wasNormalGameEnd = !before.inTiebreak && state.gameIndex > before.gameIndex;
       if (wasNormalGameEnd) {
         const closedSet = state.sets.length > before.sets.length;
@@ -551,7 +551,7 @@
       const modeForThisPoint = ev.tbMode || tiebreakMode;
       const curSetNumber = before.sets.length + 1;
       const wasInThisTb = before.inTiebreak && curSetNumber === setNumber;
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
       if (!wasInThisTb) return;
       if (ev.team === winnerTeam) winnerPts += 1; else loserPts += 1;
       const diff = winnerPts - loserPts;
@@ -682,6 +682,22 @@
   }
 
   /**
+   * V13.4 (§17) — CORRECCIÓN: escala de lenguaje para "dominio con el saque" coherente con
+   * el % real de games de saque sostenidos, nunca una frase fija. Antes esta historia decía
+   * siempre "casi todos", incluso para un 5 de 10 (50%) real detectado en pruebas manuales —
+   * regla obligatoria del Consolidado: 5/10 nunca puede narrarse como "casi todos" ni
+   * equivalente. Devuelve `null` (comentario omitido, nunca forzado) cuando el % propio no
+   * alcanza para hablar de dominio real, aunque la brecha con el rival sea grande.
+   */
+  function serveDominanceClause(leaderWon, leaderTotal) {
+    const pct = leaderTotal > 0 ? leaderWon / leaderTotal : 0;
+    if (pct >= 0.85) return `se hicieron fuertes con el saque y sostuvieron casi todos sus games, ${leaderWon} de ${leaderTotal}.`;
+    if (pct >= 0.70) return `sostuvieron la gran mayoría de sus games de saque, ${leaderWon} de ${leaderTotal}.`;
+    if (pct >= 0.60) return `sostuvieron la mayoría de sus games de saque, ${leaderWon} de ${leaderTotal}.`;
+    return null;
+  }
+
+  /**
    * V11.1 (§11.3) — VARIEDAD DE LENGUAJE. Bancos de sinónimos agrupados por función
    * narrativa exacta (nunca mezclados entre sí, para no cambiar el significado). La
    * elección es DETERMINÍSTICA a partir de datos reales del propio partido (nunca
@@ -706,6 +722,9 @@
     // de llamarla) y nunca infiere actitud/carácter — describe solo el hecho observable de
     // haber sostenido el servicio. Siempre en infinitivo, para usarse detrás de "para".
     holdPresion: ['sostener el servicio', 'sacar adelante su servicio'],
+    // V13.4 (§16) — cierre del párrafo del Set 2 cuando fuerza un tercer set: antes era
+    // siempre la misma frase fija ("para forzar un tercero"). Antepuesto a `${closeClause}`.
+    forzarTercero: [' para forzar un tercero', ', igualaron el partido y se fueron al tercer set', ' y llevaron el encuentro al set decisivo'],
   };
   function pickPhrase(bankKey, seed) {
     const bank = PHRASE_BANKS[bankKey];
@@ -1056,7 +1075,8 @@
       const mpSaved = (evoData.moments || []).filter((m) => m.kind === 'match-point-saved' && m.team === opp && m.setNumber === setNumber).length;
       const closeClause = s.tiebreak ? `en el Tie break, ${orientTiebreak(s.tiebreak, winner)}` : orientScore(s.gamesA, s.gamesB, winner);
       // Solo el Set 2 "fuerza un tercero" — ganar el Set 1 nunca fuerza nada por sí solo.
-      const forcingSuffix = setNumber === 2 ? ' para forzar un tercero' : '';
+      // V13.4 (§16): 3 variantes elegidas por semilla, nunca la misma frase fija siempre.
+      const forcingSuffix = setNumber === 2 ? pickPhrase('forzarTercero', varietySeed) : '';
       const setWord = setNumber === 1 ? 'primer set' : 'segundo set';
       let text;
       if (hasBigDeficit) {
@@ -1528,9 +1548,10 @@
           const leaderWon = leader === 'A' ? stats.serviceGames.wonA : stats.serviceGames.wonB;
           const leaderTotal = leader === 'A' ? sgA : sgB;
           // V8.2 (27): sin paréntesis pegado al final — la cifra entra como cláusula natural.
-          text = `${nameOf(leader)} se hicieron fuertes con el saque y sostuvieron casi todos sus games, ${leaderWon} de ${leaderTotal}.`;
+          const clause = serveDominanceClause(leaderWon, leaderTotal);
+          text = clause ? `${nameOf(leader)} ${clause}` : null;
         }
-        stories.push({ kind: 'saque', weight: neverBroken ? 55 : 35, text, partialSensitive: false });
+        if (text) stories.push({ kind: 'saque', weight: neverBroken ? 55 : 35, text, partialSensitive: false });
       }
     }
 
@@ -2204,7 +2225,7 @@
       }
       const before = state;
       const modeForThisPoint = ev.tbMode || tiebreakMode;
-      state = E.applyPoint(state, ev.team, ev.scoringSystem || scoringSystem, format, modeForThisPoint); // V13.3 (§14-19): mismo criterio que engine.js, nunca reinterpreta un punto ya jugado
+      state = E.applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint); // V13.4 (§1-3): sistema único de partido, ver engine.js
       if (state.sets.length > before.sets.length) {
         segments.push({ setNumber: curSetNumber, baseline: curBaseline, events: events.slice(startIdx, i + 1) });
         startIdx = i + 1;
@@ -2546,22 +2567,37 @@
    *  agrega la secuencia completa (esa función solo guarda máximos). Mismo cuidado con el
    *  reset de fin de set que en el resto del módulo: si el evento cierra el set, se lee el
    *  score del set recién cerrado, nunca `state.gamesA/gamesB` ya reseteado a 0-0. */
-  function walkGamesProgression(events, format) {
+  /** V13.4 (§15) — además de `{a,b,winner}`, ahora también `holdOrBreak` para cada game
+   *  ('hold'|'break'|null si no se conoce el sacador) — hace falta para distinguir una
+   *  desventaja REAL de una que es puro artefacto del orden de saque (ver
+   *  `analyzeGamesSetProgression`). `setNumber`/`startingGameIndex` son necesarios para
+   *  resolver el sacador con la paridad GLOBAL correcta (mismo offset que ya usa
+   *  `computeGamesStats` — un replay aislado de un set reinicia su propio conteo de games). */
+  function walkGamesProgression(events, format, matchCtx, setNumber, startingGameIndex) {
     let state = E.createInitialGameEngineState();
-    const seq = [{ a: 0, b: 0, winner: null }];
+    state.gameIndex = startingGameIndex || 0;
+    const seq = [{ a: 0, b: 0, winner: null, holdOrBreak: null }];
     events.forEach((ev) => {
       if (ev.type === 'adjustment') {
         state = E.computeGameStateFromEvents([ev], format, null);
-        seq.push({ a: state.gamesA, b: state.gamesB, winner: null, adjustment: true });
+        seq.push({ a: state.gamesA, b: state.gamesB, winner: null, adjustment: true, holdOrBreak: null });
         return;
       }
       const before = state;
+      const isTbResolution = ev.type === 'tiebreak' || ev.type === 'extraordinary-tiebreak';
       let winnerTeam;
       if (ev.type === 'tiebreak') { state = E.applyGameTiebreak(state, ev.team, ev.score || null, format); winnerTeam = ev.team; }
       else if (ev.type === 'extraordinary-tiebreak') { state = E.applyExtraordinaryGameTiebreak(state, ev.team, ev.score || null, ev.winTarget, ev.requireDiff2); winnerTeam = ev.team; }
       else { state = E.applyGameWin(state, ev.team, format); winnerTeam = ev.team; }
       const closedSet = state.sets.length > before.sets.length ? state.sets[state.sets.length - 1] : null;
-      seq.push({ a: closedSet ? closedSet.gamesA : state.gamesA, b: closedSet ? closedSet.gamesB : state.gamesB, winner: winnerTeam });
+      let holdOrBreak = null;
+      if (!isTbResolution && matchCtx && matchCtx.serverKnowledge && matchCtx.players) {
+        const matchGameNumber = E.currentMatchGameNumberGames(before);
+        const withinSetGameNumber = E.currentWithinSetGameNumberGames(before);
+        const info = E.resolveServer(matchCtx.serverKnowledge, matchCtx.players, setNumber, matchGameNumber, withinSetGameNumber);
+        if (info.resolved) holdOrBreak = info.team === winnerTeam ? 'hold' : 'break';
+      }
+      seq.push({ a: closedSet ? closedSet.gamesA : state.gamesA, b: closedSet ? closedSet.gamesB : state.gamesB, winner: winnerTeam, holdOrBreak });
     });
     return seq;
   }
@@ -2582,6 +2618,21 @@
     for (let i = seq.length - 1; i >= 1; i--) {
       if (seq[i].adjustment) break;
       if (seq[i].winner === winner) { closingStreak += 1; runStartIdx = i - 1; } else break;
+    }
+    // V13.4 (§15) — CORRECCIÓN: una desventaja de EXACTAMENTE 1 game que se resuelve con un
+    // HOLD del propio ganador (nunca con un quiebre) es un artefacto del orden de saque, no
+    // una reacción real — iba a pasar igual sin importar el desarrollo del set (con solo
+    // holds, el marcador oscila entre 0 y 1 de diferencia todo el tiempo). Un déficit de 2+
+    // games, en cambio, es siempre real: no puede existir sin que haya habido un quiebre en
+    // algún momento. Se recorta ese primer game "artificial" del frente de la racha.
+    if (runStartIdx >= 0 && runStartIdx < seq.length - 1) {
+      const rs0 = seq[runStartIdx];
+      const deficit0 = winner === 'A' ? rs0.b - rs0.a : rs0.a - rs0.b;
+      const firstRunGame = seq[runStartIdx + 1];
+      if (deficit0 === 1 && firstRunGame && firstRunGame.holdOrBreak === 'hold') {
+        runStartIdx += 1;
+        closingStreak -= 1;
+      }
     }
     const runStartScore = seq[runStartIdx];
 
@@ -2815,7 +2866,7 @@
       const seg = segs.find((sg) => sg.setNumber === setNumber);
       const segEvents = seg ? seg.events : [];
       const hadAdjustment = segEvents.some((ev) => ev.type === 'adjustment');
-      const seq = hadAdjustment ? null : walkGamesProgression(segEvents, format);
+      const seq = hadAdjustment ? null : walkGamesProgression(segEvents, format, matchCtx, setNumber, seg ? seg.startingGameIndex : 0);
       const setStats = computeGamesStats(segEvents, matchCtx, setNumber, seg ? seg.startingGameIndex : 0); // V13.3 (§12): setNumber y game global reales, no los locales del tramo
       const progAnalysis = seq ? analyzeGamesSetProgression(seq, s.winner) : null;
       const shape = classifyGamesSetShape(s, progAnalysis, hadAdjustment, setStats, format);
@@ -2851,6 +2902,8 @@
     // V10 (46/89) — expuestas para el arnés de tests sintéticos (tests.html): son funciones
     // puras, sin estado, así que exponerlas no cambia ningún comportamiento de la app.
     describeMagnitude, magnitudeOpportunitiesPhrase, interpretBreakPointsNarrative, orientScore, orientTiebreak,
+    // V13.4 (§17) — ídem, para testear aisladamente la escala de lenguaje de dominio con el saque.
+    serveDominanceClause,
     // V11.1 (§4.3) — ídem, para poder testear la detección de hold bajo presión aislada.
     findDramaticHold,
     // V11.1 (§11.3) — ídem, para poder testear que la elección de variantes es determinística.
@@ -2865,5 +2918,8 @@
     countMatchPointsSavedInSet, findPreTiebreakMatchPointsSaved, ordinalGameWord,
     // V13 — estadísticas y BRAMU Intelligence de Por Games (§20-25)
     computeGamesStats, computeGameSetSegments, computeGamesEvolutionData, generateGamesIntelligence,
+    // V13.4 (§15) — expuestas para poder testear aisladamente la detección de racha real vs.
+    // artefacto de orden de saque, mismo criterio que las demás funciones puras de este bloque.
+    walkGamesProgression, analyzeGamesSetProgression, classifyGamesSetShape,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

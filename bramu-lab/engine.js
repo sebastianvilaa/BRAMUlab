@@ -85,8 +85,7 @@
       }
       const before = state;
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      const systemForThisPoint = ev.scoringSystem || scoringSystem; // V13.3 (§14-19): mismo criterio que computeStateFromEvents
-      state = applyPoint(state, ev.team, systemForThisPoint, format, modeForThisPoint);
+      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
       if (before.inTiebreak) {
         if (state.inTiebreak) {
           seq.push(ev.team);
@@ -186,7 +185,9 @@
         bText: leaderIsA ? '40' : `${ordinal} VENTAJA`,
         compactAText: leaderIsA ? 'AD' : '40',
         compactBText: leaderIsA ? '40' : 'AD',
-        centralLabel: '', centralTone: 'neutral', isGoldenPoint: false, isStarPoint: false,
+        // V13.4 (§8): mismo criterio que DEUCE/DEUCE 2 — la franja contextual necesita un
+        // texto central también durante la Ventaja para poder alojar ahí el botón "CAMBIAR".
+        centralLabel: `${ordinal} VENTAJA`, centralTone: 'neutral', isGoldenPoint: false, isStarPoint: false,
       };
     }
     // classic (con ventaja) — SOLO existen DEUCE y VENTAJA. Nunca "1ª/2ª".
@@ -202,7 +203,8 @@
       bText: leaderIsA ? '40' : 'VENTAJA',
       compactAText: leaderIsA ? 'AD' : '40',
       compactBText: leaderIsA ? '40' : 'AD',
-      centralLabel: '', centralTone: 'neutral', isGoldenPoint: false, isStarPoint: false,
+      // V13.4 (§8): idem — la franja necesita texto central también en Ventaja para "CAMBIAR".
+      centralLabel: 'VENTAJA', centralTone: 'neutral', isGoldenPoint: false, isStarPoint: false,
     };
   }
 
@@ -355,15 +357,15 @@
    *     ajuste (para estadísticas honestas — nunca se borra el historial
    *     real por corregir el marcador).
    *
-   * V13.3 (§14-19) — cada punto puede llevar grabado su propio `ev.scoringSystem` (el
-   * sistema VIGENTE al momento de registrarse), mismo patrón exacto que `ev.tbMode` de
-   * arriba. Esto es lo que hace SEGURO cambiar el sistema a mitad de partido: un cambio
-   * futuro nunca reinterpreta un punto ya jugado, porque cada punto se re-evalúa siempre
-   * con el sistema que tenía asignado en el momento, no con `scoringSystem` (el parámetro
-   * de esta función, usado solo como default para eventos viejos que no tienen el campo —
-   * partidos guardados antes de que existiera esta función). Nunca hace falta "bloquear" el
-   * cambio después de cerrar un game: como cada punto ya está anclado a su propio sistema,
-   * no hay nada que proteger retroactivamente.
+   * V13.4 (§1-3) — REEMPLAZA el modelo V13.3 de "regla por punto" (`ev.scoringSystem`).
+   * El sistema de puntuación es una propiedad DEL PARTIDO (`scoringSystem`, el parámetro de
+   * esta función): TODOS los puntos, pasados y futuros, se reinterpretan siempre con el
+   * mismo valor. Un partido nunca puede terminar mezclando Punto de Oro / Star Point / Con
+   * Ventaja — eso es justamente lo que V13.3 permitía y que este reemplazo elimina. La
+   * seguridad de un cambio en vivo ya no viene de "anclar" cada punto a su propia regla,
+   * sino de decidir ANTES de aplicarlo si ese cambio es compatible con lo ya jugado (ver
+   * `isScoringSystemLocked` / `availableScoringSystems` más abajo) y bloquearlo para
+   * siempre en cuanto deja de serlo.
    */
   function computeStateFromEvents(events, scoringSystem, format, defaultTiebreakMode, baseline) {
     let state = baseline ? cloneBaselineState(baseline) : createInitialEngineState();
@@ -376,10 +378,95 @@
       // (ev.tbMode). Nunca se reinterpreta un tie break pasado con el modo
       // actual: eso fue el bug de la revisión anterior.
       const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
-      const systemForThisPoint = ev.scoringSystem || scoringSystem;
-      state = applyPoint(state, ev.team, systemForThisPoint, format, modeForThisPoint);
+      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
     }
     return state;
+  }
+
+  /** V13.4 (§3-6) — todos los sistemas de puntuación posibles, en el orden que usa el selector. */
+  const SCORING_SYSTEMS = ['golden', 'starpoint', 'classic'];
+
+  /**
+   * V13.4 (§5-6) — reconstruye la secuencia de puntos del GAME EN CURSO (el que todavía no
+   * cerró), para poder evaluar qué sistemas de puntuación siguen siendo compatibles con lo
+   * que realmente se jugó. Mismo patrón que `extractCurrentTiebreakSequence`: se reinicia en
+   * cada límite de game (cerrado o disparo de tie break) y en cada ajuste manual.
+   * `sequenceKnown=false` cuando el game en curso arrancó de un ajuste que lo dejó a mitad
+   * (marcador puesto a mano, sin puntos reales detrás) — ahí solo se puede validar contra el
+   * marcador actual, no contra el orden real.
+   */
+  function extractCurrentGamePointSequence(events, scoringSystem, format, defaultTiebreakMode, baseline) {
+    let state = baseline ? cloneBaselineState(baseline) : createInitialEngineState();
+    let seq = [];
+    let sequenceKnown = !(!state.inTiebreak && !state.matchWinner && (state.pointsA > 0 || state.pointsB > 0));
+    for (const ev of events) {
+      if (ev.type === 'adjustment') {
+        state = applyAdjustment(ev.newState);
+        seq = [];
+        sequenceKnown = !(!state.inTiebreak && !state.matchWinner && (state.pointsA > 0 || state.pointsB > 0));
+        continue;
+      }
+      if (state.inTiebreak || state.matchWinner) continue; // el sistema de puntuación no aplica en tie break
+      const before = state;
+      const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
+      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      if (state.inTiebreak || state.gameIndex > before.gameIndex) {
+        // Este punto cerró el game (o disparó el tie break): pertenece al game anterior, no
+        // al que está en curso ahora. Arranca secuencia nueva y vacía.
+        seq = [];
+        sequenceKnown = true;
+      } else {
+        seq.push(ev.team);
+      }
+    }
+    if (state.inTiebreak || state.matchWinner) return { active: false, sequence: [], sequenceKnown: true, pointsA: 0, pointsB: 0 };
+    return { active: true, sequence: seq, sequenceKnown, pointsA: state.pointsA, pointsB: state.pointsB };
+  }
+
+  /**
+   * V13.4 (§5-6, §9, §13) — de los 3 sistemas posibles, cuáles siguen siendo compatibles con
+   * el game en curso (`gameSeq`, resultado de `extractCurrentGamePointSequence`). Un sistema
+   * es incompatible si, reproduciendo la secuencia real de puntos bajo esa regla, el game ya
+   * se habría dado por terminado en algún punto ANTERIOR al actual — eso significaría
+   * reinterpretar como "en curso" un game que esa regla ya había cerrado. Si el game todavía
+   * no llegó a la zona de deuce (40-40), los 3 sistemas son siempre compatibles: 0/15/30/40
+   * evoluciona igual en los tres (§4).
+   */
+  function availableScoringSystems(gameSeq) {
+    if (!gameSeq || !gameSeq.active) return SCORING_SYSTEMS.slice();
+    if (!gameSeq.sequenceKnown) {
+      return SCORING_SYSTEMS.filter((sysId) => !isGameWon(gameSeq.pointsA, gameSeq.pointsB, sysId) && !isGameWon(gameSeq.pointsB, gameSeq.pointsA, sysId));
+    }
+    return SCORING_SYSTEMS.filter((sysId) => {
+      let a = 0, b = 0;
+      for (const team of gameSeq.sequence) {
+        if (team === 'A') a++; else b++;
+        if (isGameWon(a, b, sysId) || isGameWon(b, a, sysId)) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * V13.4 (§3, §6, §11) — ¿ya se cerró, en este partido, el primer game "sensible" (uno que
+   * llegó a la zona de deuce, 40-40, donde el sistema de puntuación realmente decide cómo
+   * termina)? Si sí, el sistema queda BLOQUEADO para el resto del partido: ya no importa cuál
+   * sea compatible con el game en curso, porque no hay vuelta atrás una vez que un cierre real
+   * dependió de la regla vigente. Un game que nunca llegó a 40-40 (ganado 4-0/4-1/4-2 en
+   * puntos) no depende del sistema — no cuenta como sensible.
+   */
+  function isScoringSystemLocked(events, scoringSystem, format, defaultTiebreakMode, baseline) {
+    let state = baseline ? cloneBaselineState(baseline) : createInitialEngineState();
+    let locked = false;
+    for (const ev of events) {
+      if (ev.type === 'adjustment') { state = applyAdjustment(ev.newState); continue; }
+      const before = state;
+      const modeForThisPoint = ev.tbMode || defaultTiebreakMode;
+      state = applyPoint(state, ev.team, scoringSystem, format, modeForThisPoint);
+      const closedRegularGame = !before.inTiebreak && !state.inTiebreak && state.gameIndex > before.gameIndex;
+      if (closedRegularGame && before.pointsA >= 3 && before.pointsB >= 3) locked = true;
+    }
+    return locked;
   }
 
   function cloneBaselineState(baseline) {
@@ -886,6 +973,10 @@
     isValidExtraordinaryTargetChange,
     applyPoint,
     computeStateFromEvents,
+    SCORING_SYSTEMS,
+    extractCurrentGamePointSequence,
+    availableScoringSystems,
+    isScoringSystemLocked,
     applyAdjustment,
     computeGameIndexFromParts,
     currentWithinSetGameNumber,
