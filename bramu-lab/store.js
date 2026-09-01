@@ -12,7 +12,7 @@
   const SCHEMA_VERSION = 3;
   // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
   // acá alcanza para toda la app — nunca duplicar el string de versión en otro archivo JS.
-  const APP_VERSION = 'v14';
+  const APP_VERSION = 'v14.1';
   const KEYS = {
     ACTIVE_MATCH: 'padellab.activeMatch.v1',
     HISTORY: 'padellab.history.v1',
@@ -21,6 +21,10 @@
     // para la próxima vez que se abre Home. No forma parte del schemaVersion del partido
     // en curso: es una preferencia de Home, no datos de un partido.
     RECORDING_MODE: 'padellab.recordingMode.v1',
+    // Etapa 2 (Rama Jugador §3.2): jugador actual del dispositivo, elegido una sola vez.
+    // Identidad por coincidencia de nombre normalizado — deuda deliberada de la beta (ver
+    // Etapa 1 Análisis §F), no un sistema de cuentas.
+    CURRENT_PLAYER: 'padellab.currentPlayerName.v1',
   };
 
   function safeGet(key) {
@@ -76,6 +80,26 @@
   function loadRecordingMode() { const m = safeGet(KEYS.RECORDING_MODE); return m === 'games' ? 'games' : 'complete'; }
   function saveRecordingMode(mode) { safeSet(KEYS.RECORDING_MODE, mode === 'games' ? 'games' : 'complete'); }
 
+  /** Etapa 2 (Rama Jugador §3.2/9/10): normaliza un nombre de jugador (espacios colapsados,
+   *  Title Case en español). Único punto de verdad — app.js (setup/carga manual/Home del
+   *  jugador) y player-home.js (filtrado del historial) lo usan por igual, para que el
+   *  mismo nombre escrito en distintas pantallas siempre coincida como el mismo string. */
+  function normalizePlayerName(raw) {
+    const trimmed = (raw || '').replace(/\s+/g, ' ').trim();
+    if (!trimmed) return trimmed;
+    return trimmed.split(' ').map((word) => {
+      if (!word) return word;
+      return word.charAt(0).toLocaleUpperCase('es') + word.slice(1).toLocaleLowerCase('es');
+    }).join(' ');
+  }
+
+  function loadCurrentPlayerName() { return safeGet(KEYS.CURRENT_PLAYER) || null; }
+  function saveCurrentPlayerName(name) {
+    const n = normalizePlayerName(name);
+    if (!n) return false;
+    return safeSet(KEYS.CURRENT_PLAYER, n);
+  }
+
   function loadPlayerNames() { return safeGet(KEYS.PLAYER_NAMES) || []; }
   function rememberPlayerNames(names) {
     const known = loadPlayerNames();
@@ -90,5 +114,6 @@
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
     loadRecordingMode, saveRecordingMode,
+    normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
