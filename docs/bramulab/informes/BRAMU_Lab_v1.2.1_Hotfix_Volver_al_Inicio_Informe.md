@@ -117,8 +117,14 @@ En cada uno de los 5 flujos de cierre probados (natural×2, manual, descarte por
 
 ## 9. Commit, push y despliegue
 
-- **Commit:** `__PENDING_COMMIT_HASH__` — `BRAMU Lab v1.2.1 · hotfix navegación Volver al inicio` (nomenclatura nueva, sin "V17" ni numeración paralela, según lo pedido).
-- **Push / GitHub Pages / verificación en producción:** `__PENDING_DEPLOY_STATUS__` — se completan tras confirmar el commit (no puede conocerse el hash antes de crearlo).
+- **Commit:** `2ec46aa2173d2fd5e8b70a9fdab72b2fc84263be` — `BRAMU Lab v1.2.1 · hotfix navegación Volver al inicio` (nomenclatura nueva, sin "V17" ni numeración paralela, según lo pedido).
+- **Push:** confirmado a `main` (`d410f20..2ec46aa`).
+- **GitHub Pages:** build del commit `2ec46aa` con estado `built` (verificado vía `gh api repos/sebastianvilaa/BRAMUlab/pages/builds/latest`), sin errores.
+- **Verificación en producción:**
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab/tests.html` — 382/382 en verde (tras limpiar Service Worker/caché de una pestaña con la versión anterior — mismo mecanismo ya documentado en rondas previas).
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab/` — `PLStore.VERSION === 'v1.2.1'`; se jugó y finalizó un partido Completo real y se confirmó que "VOLVER AL INICIO" abre el Home con el partido recién terminado visible en "Último partido" (no "Configurar partido").
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab-partidos/` — intacta, `v14`.
+  - Se limpió el `localStorage` de prueba usado para esta verificación antes de terminar.
 
 ---
 
