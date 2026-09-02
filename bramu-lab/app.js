@@ -515,6 +515,14 @@
 
   function openManualLoadScreen(origin) {
     manualLoadOrigin = origin === 'player-home' ? 'player-home' : 'setup';
+    // Auditoría funcional (§3) — si se abre desde el Home del jugador sin nadie identificado
+    // todavía (no debería pasar en el uso normal, pero el "+" y "Cargar primer partido" son
+    // puntos de entrada independientes), pedimos "¿Quién sos?" primero y recién después
+    // retomamos esta misma pantalla — nunca se llega a guardar un partido con "Jugador 1".
+    if (manualLoadOrigin === 'player-home') {
+      currentPlayerName = Store.loadCurrentPlayerName();
+      if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen('player-home')); return; }
+    }
     $('#manual-load-form').reset();
     manualSelectedScoring = 'golden';
     manualSelectedFormatId = 'classic';
@@ -533,13 +541,20 @@
     const now = new Date();
     $('#manual-date-input').value = now.toISOString().slice(0, 10);
     $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    // Auditoría funcional (§1/§4) — entrando desde el Home, Jugador 1 pasa a ser "Vos": de
+    // solo lectura, y el nombre real que se guarda es SIEMPRE currentPlayerName (nunca lo que
+    // este campo muestre, ver saveManualMatch/PH.resolvePlayerOneName). Entrando desde el
+    // flujo tradicional el campo sigue exactamente igual que siempre — texto libre editable.
+    const p1 = $('#manual-player-1');
+    if (manualLoadOrigin === 'player-home') { p1.value = 'Vos'; p1.readOnly = true; }
+    else { p1.readOnly = false; }
     showView('manual-load');
   }
 
   function saveManualMatch() {
     const nameOrDefault = (id, fallback) => { const v = normalizePlayerName($(`#${id}`).value); return v || fallback; };
     const players = [
-      { id: 0, team: 'A', name: nameOrDefault('manual-player-1', 'Jugador 1') },
+      { id: 0, team: 'A', name: PH.resolvePlayerOneName(manualLoadOrigin, currentPlayerName, $('#manual-player-1').value, 'Jugador 1') },
       { id: 1, team: 'A', name: nameOrDefault('manual-player-2', 'Jugador 2') },
       { id: 2, team: 'B', name: nameOrDefault('manual-player-3', 'Jugador 3') },
       { id: 3, team: 'B', name: nameOrDefault('manual-player-4', 'Jugador 4') },
@@ -4568,7 +4583,12 @@
    *  engine.js/stats.js (E/S) para el resto de la app. */
   /* ------------------------------------------------------------------ */
   let currentPlayerName = null;
-  let playerHomeChangeMode = false; // true = el modal "¿Quién sos?" se abrió para CAMBIAR jugador, no para la primera vez
+  // Auditoría funcional (§5): "Cambiar jugador" no existe más — el modal "¿Quién sos?" solo se
+  // abre para la PRIMERA identificación (nunca hay más de un call-site vivo con un jugador ya
+  // identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a dónde seguir
+  // después de guardar el nombre (por default, al Home) — lo usa, por ejemplo, "Cargar partido
+  // jugado" para retomar la carga apenas el jugador se identifica (§3).
+  let afterIdentifyAction = null;
 
   // Etapa 2 (§6.1): ranking/categoría/tendencia todavía no existen en el modelo de datos.
   // Valores de demostración centralizados acá a propósito, marcados BETA en la UI — el día
@@ -4577,13 +4597,13 @@
 
   function openPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
-    if (!currentPlayerName) { openPlayerIdentifyModal(false); return; }
+    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
     renderPlayerHome();
     showView('player-home');
   }
 
-  function openPlayerIdentifyModal(isChange) {
-    playerHomeChangeMode = !!isChange;
+  function openPlayerIdentifyModal(afterAction) {
+    afterIdentifyAction = afterAction || null;
     $('#player-identify-input').value = '';
     $('#player-identify-error').hidden = true;
     $('#player-identify-modal').hidden = false;
@@ -4598,15 +4618,28 @@
       Store.rememberPlayerNames([name]);
       currentPlayerName = name;
       $('#player-identify-modal').hidden = true;
-      renderPlayerHome();
-      showView('player-home');
+      const action = afterIdentifyAction;
+      afterIdentifyAction = null;
+      if (action) action(); else { renderPlayerHome(); showView('player-home'); }
     });
     $('#player-identify-cancel').addEventListener('click', () => {
       $('#player-identify-modal').hidden = true;
-      // Primera vez sin nombre todavía: sin jugador no hay Home que mostrar, así que no lo
-      // dejamos varado con el modal cerrado y nada detrás — vuelve a la pantalla actual.
-      if (!playerHomeChangeMode && !currentPlayerName) showView('setup');
+      afterIdentifyAction = null;
+      // Sin jugador identificado todavía no hay Home (ni carga de partido) que mostrar, así
+      // que no lo dejamos varado con el modal cerrado y nada detrás — vuelve a la pantalla
+      // actual. Este modal solo se abre sin jugador identificado (ver comentario arriba).
+      if (!currentPlayerName) showView('setup');
     });
+  }
+
+  // Auditoría funcional (§5) — "Cerrar sesión": borra ÚNICAMENTE el jugador actual, nunca el
+  // Historial ni los partidos guardados (son datos globales del dispositivo, no del jugador).
+  // Vuelve a la pantalla tradicional; la próxima vez que se entre a "Mi pádel" va a pedir
+  // "¿Quién sos?" de nuevo, porque currentPlayerName ya no existe.
+  function logoutCurrentPlayer() {
+    Store.clearCurrentPlayerName();
+    currentPlayerName = null;
+    showView('setup');
   }
 
   function playerInitials(name) {
@@ -4617,7 +4650,7 @@
 
   function renderPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
-    if (!currentPlayerName) { openPlayerIdentifyModal(false); return; }
+    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
 
     $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
@@ -4723,7 +4756,6 @@
   function initPlayerHomeScreen() {
     $('#player-home-logo').addEventListener('click', () => showView('setup'));
     $('#player-home-setup-link').addEventListener('click', () => showView('setup'));
-    $('#player-home-change-player-btn').addEventListener('click', () => openPlayerIdentifyModal(true));
     initPlayerIdentifyModal();
     initNotificationsModal();
   }
@@ -4747,7 +4779,7 @@
 
   function initProfileScreen() {
     $('#profile-back-btn').addEventListener('click', () => showView('player-home'));
-    $('#profile-change-player-btn').addEventListener('click', () => openPlayerIdentifyModal(true));
+    $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
   }
 
   /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil. El "+" reutiliza

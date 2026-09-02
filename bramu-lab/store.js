@@ -99,6 +99,9 @@
     if (!n) return false;
     return safeSet(KEYS.CURRENT_PLAYER, n);
   }
+  /** Auditoría funcional §5 — "Cerrar sesión": borra SOLO el jugador actual. Nunca toca
+   *  Historial ni partido en curso (otras claves, otra capa de datos por completo). */
+  function clearCurrentPlayerName() { safeRemove(KEYS.CURRENT_PLAYER); }
 
   function loadPlayerNames() { return safeGet(KEYS.PLAYER_NAMES) || []; }
   function rememberPlayerNames(names) {
@@ -114,6 +117,6 @@
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
     loadRecordingMode, saveRecordingMode,
-    normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName,
+    normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

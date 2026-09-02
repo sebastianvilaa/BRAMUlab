@@ -1660,6 +1660,23 @@
       PH.filterMatchesForPlayer([mkHistoryMatch('z1', '2026-01-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A')], '  sebastián ').length === 1);
   })();
 
+  // Auditoría funcional §1/§3/§4/§8 — PH.resolvePlayerOneName: el nombre que se guarda para
+  // Jugador 1 al cargar un partido, según el origen del formulario. Ambos orígenes cubiertos.
+  (function () {
+    assert('RJ · resolvePlayerOneName (origen player-home) usa SIEMPRE currentPlayerName, nunca el campo',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', 'lo que sea que diga el campo', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen player-home) ignora un campo vacío igual — nunca cae en el fallback genérico',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', '', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen player-home) ignora currentPlayerName con espacios/tildes distintos del campo — el campo directamente no importa',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', 'Otro Nombre Cualquiera', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen setup) mantiene el comportamiento de siempre: normaliza el texto del campo',
+      PH.resolvePlayerOneName('setup', 'Sebastián', '  martín  ', 'Jugador 1') === 'Martín');
+    assert('RJ · resolvePlayerOneName (origen setup) cae en el fallback genérico si el campo queda vacío, sin importar currentPlayerName',
+      PH.resolvePlayerOneName('setup', 'Sebastián', '', 'Jugador 1') === 'Jugador 1');
+    assert('RJ · resolvePlayerOneName (origen setup) funciona igual sin ningún jugador identificado (currentPlayerName null) — flujo tradicional intacto',
+      PH.resolvePlayerOneName('setup', null, 'Martín', 'Jugador 1') === 'Martín');
+  })();
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------

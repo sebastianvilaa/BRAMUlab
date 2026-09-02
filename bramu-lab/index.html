@@ -820,7 +820,6 @@
           </div>
           <span class="pastilla-identity__demo-tag">DATOS DEMO · BETA</span>
         </div>
-        <button type="button" id="player-home-change-player-btn" class="link-btn pastilla-identity__change">Cambiar jugador</button>
       </div>
 
       <div class="pastilla pastilla--momento">
@@ -905,7 +904,9 @@
           <p class="coverage-note" id="profile-match-count"></p>
         </div>
       </div>
-      <button type="button" id="profile-change-player-btn" class="link-btn">Cambiar jugador</button>
+      <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a una
+           sesión, no a una preferencia libremente reemplazable; ver BRAMU_Rama_Jugador_Auditoria_Funcional.md. -->
+      <button type="button" id="profile-logout-btn" class="link-btn">Cerrar sesión</button>
     </div>
   </section>
 
