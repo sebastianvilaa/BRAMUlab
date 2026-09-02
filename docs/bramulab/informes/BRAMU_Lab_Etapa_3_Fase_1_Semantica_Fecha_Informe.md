@@ -118,15 +118,21 @@ Todas en navegador, sirviendo `bramulab/` localmente:
 
 ## 11. Hash y mensaje del commit
 
-Ver §12 — el commit se hizo después de confirmar que todo lo anterior quedó en verde, según lo autorizado.
+**`39cb821`** — *"BRAMU Lab — Etapa 3, Fase 1: semántica de fecha del partido"* (incluye los 3 archivos de código + el consolidado + este informe).
 
 ## 12. Estado del push y despliegue
 
-Ver §12 — completado. *(Esta sección se completa después de comitear/pushear/verificar; ver el bloque final más abajo con los datos reales.)*
+Pusheado a `main` (`e7d0a26..39cb821`). GitHub Pages completó el build para ese commit exacto (`status: built`, confirmado vía API antes de dar la verificación por cerrada).
+
+**Hallazgo de verificación, documentado con transparencia:** al probar `bramulab/tests.html` en producción por primera vez después del deploy, el navegador de verificación mostró **349/349** en lugar de 364 — no por un problema del código desplegado, sino porque ese mismo navegador ya tenía registrado el Service Worker de `bramulab/` de una visita anterior (de la verificación de la Fase 0), con `app.js`/`player-home.js`/`tests.html` cacheados bajo `bramulab-v1` desde *antes* de este commit. Como esta fase tiene prohibido explícitamente tocar el service worker (§3 del consolidado), no se bumpeó `CACHE_NAME` — así que el Service Worker siguió sirviendo esos tres archivos desde caché (estrategia cache-first) en vez de pedirlos de nuevo a la red.
+
+Desregistré ese Service Worker y borré esa caché puntual en el navegador de verificación (una acción de diagnóstico, no un cambio de código) y confirmé **364/364** en la recarga siguiente — el código desplegado es correcto.
+
+**Implicancia real a tener en cuenta, no una falla de esta fase:** cualquier dispositivo que ya tuviera `bramulab/` instalado/visitado *antes* de este commit (en la práctica, hoy eso probablemente solo aplica al propio dispositivo de verificación de Claude, ya que `bramulab/` recién se creó en la Fase 0 de esta misma sesión) no va a ver el fix hasta que su Service Worker se actualice por otra vía — la app ya tiene una herramienta para eso (mantener presionado el logo ~2s → "Forzar actualización", existente desde antes, sin cambios). Si Sebastián prueba desde un dispositivo que nunca visitó `bramulab/`, no hay ningún problema: recibe la versión nueva directo de la red en la primera visita.
 
 ## 13. URL verificada
 
-`https://sebastianvilaa.github.io/BRAMUlab/bramulab/` — ver confirmación final más abajo.
+`https://sebastianvilaa.github.io/BRAMUlab/bramulab/` — confirmado con el Service Worker actualizado: 364/364 tests, caso hoy-y-ayer probado de punta a punta con la app real (cargar un partido de hoy y después uno de ayer vía el flujo real de "+" → Cargar partido jugado), Historial ordenado correctamente, Forma reciente en el orden deportivo correcto. `https://sebastianvilaa.github.io/BRAMUlab/bramulab-partidos/` verificado sin cambios (título, `PLStore.VERSION === 'v14'`).
 
 ## 14. Desviaciones, supuestos, deuda o decisiones técnicas tomadas
 
