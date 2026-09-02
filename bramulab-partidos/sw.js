@@ -4,20 +4,20 @@
    file://, donde los service workers no corren), la app sigue funcionando
    normalmente: este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// Etapa 3 (separación de rutas) — bump de versión de cache (bramulab-v14, corrige el
-// desfasaje que traía desde V13.4). Debe coincidir con PLStore.VERSION (store.js) Y con
-// `version.json` (bramu-lab/version.json) — ese archivo es lo que el cliente consulta para
-// detectar que hay una versión nueva, así que los TRES deben actualizarse juntos si esta
-// versión congelada volviera a tocarse (no debería). Esto NUNCA toca localStorage — el
-// historial y el partido en curso viven en otra capa de almacenamiento y no se pierden por
-// este cambio de versión.
+// Reorganización de aplicaciones — esta es BRAMU Lab Partidos, el marcador congelado en
+// v14 (bramulab-partidos/, antes bramu-lab/). Cache con nombre propio, separado del de
+// BRAMU Lab (la app principal en bramulab/). Debe coincidir con PLStore.VERSION (store.js)
+// Y con `version.json` — ese archivo es lo que el cliente consulta para detectar que hay
+// una versión nueva, así que los TRES deben actualizarse juntos si esta versión congelada
+// volviera a tocarse (no debería). Esto NUNCA toca localStorage — el historial y el
+// partido en curso viven en otra capa de almacenamiento y no se pierden por este cambio.
 //
-// A partir de esta versión, BRAMU Lab (marcador) y BRAMU Jugador (bramu-player/) conviven
-// en el mismo origen (sebastianvilaa.github.io) — y Cache Storage es por origen, no por
-// ruta. El filtro de limpieza de abajo solo borra cachés de la propia familia
-// ('bramulab-...'), nunca las de la otra app: sin este prefijo, cualquiera de los dos
-// service workers borraría la caché del otro en cuanto se activara.
-const CACHE_NAME = 'bramulab-v14';
+// BRAMU Lab Partidos y BRAMU Lab conviven en el mismo origen (sebastianvilaa.github.io) —
+// y Cache Storage es por origen, no por ruta. El filtro de limpieza de abajo solo borra
+// cachés de la propia familia ('bramulab-partidos-...'), nunca las de la otra app: sin
+// este prefijo específico, cualquiera de los dos service workers borraría la caché del
+// otro en cuanto se activara.
+const CACHE_NAME = 'bramulab-partidos-v14';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -48,7 +48,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((k) => k.startsWith('bramulab-') && k !== CACHE_NAME).map((k) => caches.delete(k))
+      keys.filter((k) => k.startsWith('bramulab-partidos-') && k !== CACHE_NAME).map((k) => caches.delete(k))
     ))
   );
   self.clients.claim();

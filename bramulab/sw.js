@@ -1,21 +1,22 @@
-/* BRAMU Jugador — service worker mínimo, offline-first para los archivos propios.
+/* BRAMU Lab — service worker mínimo, offline-first para los archivos propios.
    Usa rutas relativas para funcionar tanto en file:// / local como en
    GitHub Pages (subcarpetas). Si falla el registro (p.ej. abierto con
    file://, donde los service workers no corren), la app sigue funcionando
    normalmente: este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// Etapa 3 (separación de rutas) — cache propia de BRAMU Jugador, con nombre y esquema de
-// versión completamente separados del marcador (bramulab-*). Debe coincidir con
-// PLStore.VERSION (store.js) Y con `version.json` — ese archivo es lo que el cliente
-// consulta para detectar que hay una versión nueva, así que los TRES deben actualizarse
-// juntos en cada release. Esto NUNCA toca localStorage.
+// Reorganización de aplicaciones — cache propia de BRAMU Lab, con nombre y esquema de
+// versión completamente separados del marcador congelado BRAMU Lab Partidos
+// (bramulab-partidos-*). Debe coincidir con PLStore.VERSION (store.js) Y con
+// `version.json` — ese archivo es lo que el cliente consulta para detectar que hay una
+// versión nueva, así que los TRES deben actualizarse juntos en cada release. Esto NUNCA
+// toca localStorage.
 //
-// BRAMU Lab (marcador) y BRAMU Jugador conviven en el mismo origen
-// (sebastianvilaa.github.io) — y Cache Storage es por origen, no por ruta. El filtro de
-// limpieza de abajo solo borra cachés de la propia familia ('bramuplayer-...'), nunca las
-// del marcador: sin este prefijo, cualquiera de los dos service workers borraría la caché
-// del otro en cuanto se activara.
-const CACHE_NAME = 'bramuplayer-v1';
+// BRAMU Lab y BRAMU Lab Partidos conviven en el mismo origen (sebastianvilaa.github.io) —
+// y Cache Storage es por origen, no por ruta. El filtro de limpieza de abajo solo borra
+// cachés de la propia familia ('bramulab-vN'), nunca las del marcador congelado
+// ('bramulab-partidos-...') — OJO: el prefijo no puede ser el genérico 'bramulab-', porque
+// 'bramulab-partidos-v14' también empieza con esas letras y terminaría borrado por error.
+const CACHE_NAME = 'bramulab-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -47,7 +48,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((k) => k.startsWith('bramuplayer-') && k !== CACHE_NAME).map((k) => caches.delete(k))
+      keys.filter((k) => k.startsWith('bramulab-v') && k !== CACHE_NAME).map((k) => caches.delete(k))
     ))
   );
   self.clients.claim();

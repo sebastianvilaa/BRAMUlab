@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>BRAMU Lab · Marcador</title>
+<title>BRAMU Lab</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#0B1211" />
 <link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
@@ -37,11 +37,25 @@
     <header class="setup-header">
       <img id="home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="setup-header__nav">
-        <button id="open-history-btn" class="link-btn" type="button">Historial</button>
-        <span class="setup-header__sep" aria-hidden="true">·</span>
-        <button id="mode-select-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
+        <!-- Etapa 2 (Rama Jugador §3.1) — un solo trigger compacto reemplaza los dos links
+             sueltos (Historial / Modo de registro ▾) de antes; sigue mostrando el modo de
+             registro activo, ahora abre el menú de abajo en vez del selector directo. -->
+        <button id="header-menu-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
       </div>
     </header>
+
+    <!-- Etapa 2 (Rama Jugador §3.1) — menú compacto del header: reúne Mi pádel / Historial /
+         Modo de registro en un solo lugar. Reutiliza el overlay/menu-sheet ya existente; el
+         selector de Completo/Por Games (#mode-select-menu) no se toca, solo cambia desde
+         dónde se abre. -->
+    <div id="header-menu" class="overlay overlay--menu" hidden>
+      <div class="menu-sheet">
+        <button id="header-menu-player-home" class="menu-item" type="button">Mi pádel</button>
+        <button id="header-menu-history" class="menu-item" type="button">Historial</button>
+        <button id="header-menu-mode" class="menu-item" type="button">Modo de registro: <span id="header-menu-mode-value"></span></button>
+        <button id="header-menu-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
+      </div>
+    </div>
 
     <!-- V13.1 (§9) — herramienta discreta de desarrollo: mantener presionado el logo ~2s
          abre este modal. Pensada para forzar la actualización de la PWA en iPhone sin
@@ -778,6 +792,124 @@
     </div>
   </section>
 
+  <!-- ============================================================
+       VISTA · HOME DEL JUGADOR — RAMA JUGADOR (Etapa 2)
+       "Mi pádel" / "Inicio" de la nueva navegación inferior. Lee Store.loadHistory()
+       filtrado por el jugador actual (player-home.js) — nunca un historial paralelo.
+       No implementa todavía ranking real, evolución histórica ni personalización de
+       widgets (fuera de alcance §10 del documento de Etapa 2).
+       ============================================================ -->
+  <section id="view-player-home" class="view view--history" hidden>
+    <div class="player-home-header">
+      <img id="player-home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
+      <div class="player-home-header__actions">
+        <button id="player-home-setup-link" class="link-btn" type="button">Configurar partido</button>
+        <button id="player-home-bell-btn" class="icon-btn player-home-bell" type="button" aria-label="Notificaciones">🔔</button>
+      </div>
+    </div>
+    <div class="analysis-scroll player-home-scroll">
+
+      <div class="pastilla pastilla--identity">
+        <div class="pastilla-identity__avatar" id="player-home-avatar">—</div>
+        <div class="pastilla-identity__info">
+          <div class="pastilla-identity__name" id="player-home-name">—</div>
+          <div class="pastilla-identity__stats">
+            <span class="pastilla-identity__stat"><span class="pastilla-identity__stat-label">Categoría</span><span class="pastilla-identity__stat-value" id="player-home-category">—</span></span>
+            <span class="pastilla-identity__stat"><span class="pastilla-identity__stat-label">Ranking</span><span class="pastilla-identity__stat-value" id="player-home-ranking">—</span></span>
+            <span class="pastilla-identity__stat"><span class="pastilla-identity__stat-label">Tendencia</span><span class="pastilla-identity__stat-value" id="player-home-trend">—</span></span>
+          </div>
+          <span class="pastilla-identity__demo-tag">DATOS DEMO · BETA</span>
+        </div>
+      </div>
+
+      <div class="pastilla pastilla--momento">
+        <div class="pastilla__title-row">
+          <span class="pastilla__icon" aria-hidden="true">✨</span>
+          <div>
+            <div class="pastilla__title">TU MOMENTO</div>
+            <div class="pastilla__microlabel">BRAMU LEE TU HISTORIA</div>
+          </div>
+        </div>
+        <p class="pastilla-momento__text" id="player-home-momento-text"></p>
+      </div>
+
+      <div class="pastilla">
+        <div class="pastilla__title">FORMA RECIENTE</div>
+        <div class="player-home-form-dots" id="player-home-form-dots"></div>
+        <p class="coverage-note" id="player-home-form-empty" hidden>Todavía no hay resultados para mostrar.</p>
+        <p class="pastilla-form__summary" id="player-home-form-summary" hidden></p>
+      </div>
+
+      <div class="pastilla pastilla--lastmatch">
+        <div class="pastilla__title">ÚLTIMO PARTIDO</div>
+        <div id="player-home-last-match-body"></div>
+      </div>
+
+      <div class="player-home-widgets-grid">
+        <div class="pastilla pastilla--widget">
+          <div class="pastilla__microlabel">Partidos este mes</div>
+          <div class="pastilla-widget__value" id="widget-month-value">—</div>
+          <div class="pastilla-widget__caption" id="widget-month-caption"></div>
+        </div>
+        <div class="pastilla pastilla--widget">
+          <div class="pastilla__microlabel">Mejor racha</div>
+          <div class="pastilla-widget__value" id="widget-streak-value">—</div>
+          <div class="pastilla-widget__caption" id="widget-streak-caption"></div>
+        </div>
+        <div class="pastilla pastilla--widget">
+          <div class="pastilla__microlabel">Compañero frecuente</div>
+          <div class="pastilla-widget__value pastilla-widget__value--text" id="widget-partner-value">—</div>
+          <div class="pastilla-widget__caption" id="widget-partner-caption"></div>
+        </div>
+        <div class="pastilla pastilla--widget">
+          <div class="pastilla__microlabel">Rival más enfrentado</div>
+          <div class="pastilla-widget__value pastilla-widget__value--text" id="widget-rival-value">—</div>
+          <div class="pastilla-widget__caption" id="widget-rival-caption"></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · RANKING (placeholder explícito — Etapa 2 §10: el ranking real
+       no se implementa todavía, pero el destino no puede ser un botón muerto)
+       ============================================================ -->
+  <section id="view-ranking" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="ranking-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">RANKING</span>
+    </div>
+    <div class="analysis-scroll">
+      <div class="pastilla pastilla--placeholder">
+        <div class="pastilla__icon" aria-hidden="true">🏆</div>
+        <div class="pastilla__title">EL RANKING TODAVÍA NO ESTÁ LISTO</div>
+        <p class="coverage-note">Estamos construyendo el sistema de ranking real. Cuando esté disponible, vas a ver acá tu posición y tu categoría.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · PERFIL (mínima — Etapa 2 §4: solo nombre actual + cambiarlo)
+       ============================================================ -->
+  <section id="view-profile" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="profile-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">PERFIL</span>
+    </div>
+    <div class="analysis-scroll">
+      <div class="pastilla pastilla--identity pastilla--identity-compact">
+        <div class="pastilla-identity__info">
+          <div class="pastilla-identity__name" id="profile-name">—</div>
+          <p class="coverage-note" id="profile-match-count"></p>
+        </div>
+      </div>
+      <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a una
+           sesión, no a una preferencia libremente reemplazable; ver BRAMU_Rama_Jugador_Auditoria_Funcional.md. -->
+      <button type="button" id="profile-logout-btn" class="link-btn">Cerrar sesión</button>
+    </div>
+  </section>
+
   <!-- V13.2 (§2) / V13.3 — BUG REAL corregido: estos dos modales vivían adentro de
        `#view-setup`, que queda `hidden` en cuanto arranca un partido (`showView('match')`) —
        un elemento `position:fixed` no se pinta igual si un ANCESTRO tiene `display:none`,
@@ -823,12 +955,72 @@
     </div>
   </div>
 
+  <!-- Etapa 2 (Rama Jugador §3.2) — "¿Quién sos?": primera identificación del jugador
+       actual, reutilizado también para "Cambiar jugador" desde la tarjeta de identidad o
+       Perfil. Nunca crea cuenta/contraseña/email — solo un nombre normalizado y persistido
+       localmente (deuda deliberada, ver Etapa 1 Análisis §F). -->
+  <div id="player-identify-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">¿QUIÉN SOS?</div>
+      <p class="overlay__text">Elegí tu nombre para encontrar tus partidos y empezar a construir tu historia.</p>
+      <form id="player-identify-form">
+        <div class="field"><input id="player-identify-input" class="field__input" list="known-players" type="text" placeholder="Tu nombre" maxlength="18" /></div>
+        <p class="edit-error" id="player-identify-error" hidden>Escribí un nombre para continuar.</p>
+        <div class="overlay__actions overlay__actions--stacked">
+          <button type="submit" class="btn-start btn-start--overlay">CONTINUAR</button>
+          <button type="button" id="player-identify-cancel" class="btn-secondary">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Etapa 2 (Rama Jugador §5) — campana del header del Home: no hay notificaciones reales
+       todavía, pero ningún control queda sin respuesta al tocarlo. -->
+  <div id="notifications-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">NOTIFICACIONES</div>
+      <p class="overlay__text">Todavía no tenés notificaciones.</p>
+      <div class="overlay__actions">
+        <button type="button" id="notifications-close" class="btn-secondary" style="width:100%">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast global (fuera de cualquier vista para que se vea desde Historial, Análisis, etc.) -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- ============================================================
+       NAVEGACIÓN INFERIOR · RAMA JUGADOR (Etapa 2 §4)
+       Vive fuera de cualquier <section class="view">, igual que el toast global — showView()
+       la muestra/oculta según la vista activa. Nunca aparece durante el partido en vivo
+       (view-match), para no competir con el control-bar del marcador.
+       ============================================================ -->
+  <nav id="bottom-nav" class="bottom-nav" hidden>
+    <button type="button" class="bottom-nav__item" data-nav="player-home" aria-label="Inicio">
+      <svg viewBox="0 0 24 24" class="bottom-nav__icon"><path d="M12 3.2 2.5 11h2.6v9h5.4v-6h3v6h5.4v-9h2.6z"/></svg>
+      <span>Inicio</span>
+    </button>
+    <button type="button" class="bottom-nav__item" data-nav="history" aria-label="Historial">
+      <svg viewBox="0 0 24 24" class="bottom-nav__icon"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm1 9V6h-2v8h7v-2z"/></svg>
+      <span>Historial</span>
+    </button>
+    <button type="button" class="bottom-nav__item bottom-nav__item--fab" data-nav="manual-load" aria-label="Cargar partido">
+      <span aria-hidden="true">+</span>
+    </button>
+    <button type="button" class="bottom-nav__item" data-nav="ranking" aria-label="Ranking">
+      <svg viewBox="0 0 24 24" class="bottom-nav__icon"><rect x="4" y="12" width="4" height="8"/><rect x="10" y="7" width="4" height="13"/><rect x="16" y="3" width="4" height="17"/></svg>
+      <span>Ranking</span>
+    </button>
+    <button type="button" class="bottom-nav__item" data-nav="profile" aria-label="Perfil">
+      <svg viewBox="0 0 24 24" class="bottom-nav__icon"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7z"/></svg>
+      <span>Perfil</span>
+    </button>
+  </nav>
 
   <script src="engine.js"></script>
   <script src="stats.js"></script>
   <script src="store.js"></script>
+  <script src="player-home.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

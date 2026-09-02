@@ -1,6 +1,6 @@
 {
   "name": "BRAMU Lab",
-  "short_name": "BRAMU",
+  "short_name": "BRAMU Lab",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -1,6 +1,6 @@
 {
-  "name": "BRAMU Jugador",
-  "short_name": "Mi pádel",
+  "name": "BRAMU Lab Partidos",
+  "short_name": "BRAMU Partidos",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

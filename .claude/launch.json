@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "bramu-lab",
+      "name": "bramulab",
       "url": "http://localhost:4173",
       "port": 4173
     }

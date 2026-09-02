@@ -4,7 +4,7 @@ import functools
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVE_DIR = os.path.join(BASE_DIR, '..', 'bramu-lab')
+SERVE_DIR = os.path.join(BASE_DIR, '..', 'bramulab')
 
 Handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=SERVE_DIR)
 socketserver.TCPServer.allow_reuse_address = True

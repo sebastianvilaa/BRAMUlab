@@ -1,38 +1,39 @@
 /* ==========================================================================
-   BRAMU Jugador — store.js
+   BRAMU Lab — store.js
    Persistencia local (localStorage). Sin servidor, sin cuentas.
    Incluye schemaVersion simple: si encuentra datos de una versión anterior
    o incompleta, los ignora de forma segura en vez de romper la app.
 
-   Etapa 3 (separación de rutas) — esta app vive en su propio origen/ruta
-   (bramu-player/) pero comparte origen real (sebastianvilaa.github.io) con el
-   marcador congelado (bramu-lab/), y localStorage es por origen, no por ruta.
-   Por decisión explícita, el almacenamiento queda COMPLETAMENTE separado: el
-   namespace de claves pasa de `padellab.*` a `bramuplayer.*`, así que esta app
-   arranca limpia, sin ver ni tocar nunca los datos de bramu-lab/. No hay
-   sincronización ni migración automática desde `padellab.*` — si en algún
-   momento se decide importar historial viejo, es un paso manual y explícito,
-   no algo que este archivo haga solo. */
+   Reorganización de aplicaciones — esta app vive en su propia ruta (bramulab/)
+   pero comparte origen real (sebastianvilaa.github.io) con el marcador
+   congelado BRAMU Lab Partidos (bramulab-partidos/), y localStorage es por
+   origen, no por ruta. Por decisión explícita, el almacenamiento queda
+   COMPLETAMENTE separado: namespace de claves `bramulab.*`, distinto del
+   `padellab.*` que usa el marcador congelado — esta app arranca limpia, sin
+   ver ni tocar nunca los datos de bramulab-partidos/. No hay sincronización
+   ni migración automática entre ambas — si en algún momento se decide
+   importar historial viejo, es un paso manual y explícito, no algo que este
+   archivo haga solo. */
 (function (global) {
   'use strict';
 
   const SCHEMA_VERSION = 3;
   // Único punto central del número de versión visible (footer). Cambiar acá alcanza para
   // toda la app — nunca duplicar el string de versión en otro archivo JS. Esquema propio de
-  // BRAMU Jugador (player-vN), separado del versionado vN/vN.M del marcador congelado.
-  const APP_VERSION = 'player-v1';
+  // BRAMU Lab (vN), separado del versionado del marcador congelado (BRAMU Lab Partidos).
+  const APP_VERSION = 'v1';
   const KEYS = {
-    ACTIVE_MATCH: 'bramuplayer.activeMatch.v1',
-    HISTORY: 'bramuplayer.history.v1',
-    PLAYER_NAMES: 'bramuplayer.playerNames.v1',
+    ACTIVE_MATCH: 'bramulab.activeMatch.v1',
+    HISTORY: 'bramulab.history.v1',
+    PLAYER_NAMES: 'bramulab.playerNames.v1',
     // Última selección de modo de registro (Completo / Por games), recordada para la
     // próxima vez que se abre Home. No forma parte del schemaVersion del partido en curso:
     // es una preferencia de Home, no datos de un partido.
-    RECORDING_MODE: 'bramuplayer.recordingMode.v1',
+    RECORDING_MODE: 'bramulab.recordingMode.v1',
     // Jugador actual del dispositivo, elegido una sola vez. Identidad por coincidencia de
     // nombre normalizado — deuda deliberada de la beta (ver Etapa 1 Análisis §F), no un
     // sistema de cuentas.
-    CURRENT_PLAYER: 'bramuplayer.currentPlayerName.v1',
+    CURRENT_PLAYER: 'bramulab.currentPlayerName.v1',
   };
 
   function safeGet(key) {
