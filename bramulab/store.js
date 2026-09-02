@@ -21,7 +21,7 @@
   // Único punto central del número de versión visible (footer). Cambiar acá alcanza para
   // toda la app — nunca duplicar el string de versión en otro archivo JS. Esquema propio de
   // BRAMU Lab (vN), separado del versionado del marcador congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'v1.1';
+  const APP_VERSION = 'v1.2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

@@ -1811,11 +1811,74 @@
     const summaryComplete = PH.summarizeActiveMatchSnapshot(complete0);
     assert('Fase2 · summarizeActiveMatchSnapshot (Completo) arma las parejas correctamente', summaryComplete.teamAName === 'Sebastián / Martín' && summaryComplete.teamBName === 'Cruz / Dan', JSON.stringify(summaryComplete));
     assert('Fase2 · summarizeActiveMatchSnapshot (Completo) usa el modo correcto', summaryComplete.modeLabel === 'Punto por punto');
-    assert('Fase2 · summarizeActiveMatchSnapshot (Completo) arranca en Set 1 · 0-0 sin eventos', summaryComplete.scoreLabel === 'Set 1 · 0-0', summaryComplete.scoreLabel);
+    assert('Fase2 · summarizeActiveMatchSnapshot (Completo) arranca en 0-0 sin eventos', summaryComplete.scoreLabel === '0-0', summaryComplete.scoreLabel);
 
     const games0 = mkActiveMatchSnapshot('games', [], ['Ana', 'Bea', 'Cruz', 'Dan']);
     const summaryGames = PH.summarizeActiveMatchSnapshot(games0);
-    assert('Fase2 · summarizeActiveMatchSnapshot (Por Games) usa el motor de games y el modo correcto', summaryGames.modeLabel === 'Game por game' && summaryGames.scoreLabel === 'Set 1 · 0-0', JSON.stringify(summaryGames));
+    assert('Fase2 · summarizeActiveMatchSnapshot (Por Games) usa el motor de games y el modo correcto', summaryGames.modeLabel === 'Game por game' && summaryGames.scoreLabel === '0-0', JSON.stringify(summaryGames));
+  })();
+
+  // ------------------------------------------------------------------
+  // Correcciones postprueba de Fase 2 (§3.3) — resultado parcial COMPLETO: todos los sets
+  // terminados + el set actual, nunca solo este último. `formatLiveScoreLabel` es pura y
+  // opera directamente sobre `state` (mismo objeto que ya produce el motor real) — se prueba
+  // tanto con estados construidos a mano (caso de tie break extraordinario, para no
+  // reconstruir la mecánica completa de un TB solo para este test) como con progresión REAL
+  // vía event-replay del motor en ambos modos (Completo y Por Games), sin ninguna lógica de
+  // puntuación propia: son los mismos `computeStateFromEvents`/`computeGameStateFromEvents`
+  // que ya usa el marcador en vivo.
+  // ------------------------------------------------------------------
+  function winCleanPointGames(team, numGames) {
+    const events = [];
+    for (let g = 0; g < numGames; g++) { for (let p = 0; p < 4; p++) events.push({ team }); } // 4 puntos limpios (Punto de Oro) cierran un game sin deuce
+    return events;
+  }
+  function winCleanGameEvents(team, numGames) {
+    const events = [];
+    for (let g = 0; g < numGames; g++) events.push({ team });
+    return events;
+  }
+
+  (function () {
+    const fmt = E.FORMATS.classic;
+
+    // Set 1 en curso (sin sets terminados todavía) — Punto por punto.
+    const s1 = E.computeStateFromEvents(winCleanPointGames('A', 2), 'golden', fmt, 'classic', null);
+    assert('Fase2-PP §3.3 · Completo, set 1 en curso (sin sets terminados)', PH.formatLiveScoreLabel(s1) === '2-0', PH.formatLiveScoreLabel(s1));
+
+    // Set 2 con el primero terminado (6-0) — Punto por punto.
+    const s2Events = winCleanPointGames('A', 6).concat(winCleanPointGames('B', 3));
+    const s2 = E.computeStateFromEvents(s2Events, 'golden', fmt, 'classic', null);
+    assert('Fase2-PP §3.3 · Completo, set 2 con el primero terminado', PH.formatLiveScoreLabel(s2) === '6-0 · 0-3', PH.formatLiveScoreLabel(s2));
+
+    // Set 3 con dos sets terminados (6-0, 0-6) — Punto por punto.
+    const s3Events = winCleanPointGames('A', 6).concat(winCleanPointGames('B', 6), winCleanPointGames('A', 2));
+    const s3 = E.computeStateFromEvents(s3Events, 'golden', fmt, 'classic', null);
+    assert('Fase2-PP §3.3 · Completo, set 3 con dos sets terminados', PH.formatLiveScoreLabel(s3) === '6-0 · 0-6 · 2-0', PH.formatLiveScoreLabel(s3));
+
+    // Mismos tres casos en Por Games — mismo helper, mismo resultado esperado, motor distinto.
+    const g1 = E.computeGameStateFromEvents(winCleanGameEvents('B', 3), fmt, null);
+    assert('Fase2-PP §3.3 · Por Games, set 1 en curso (sin sets terminados)', PH.formatLiveScoreLabel(g1) === '0-3', PH.formatLiveScoreLabel(g1));
+
+    const g2Events = winCleanGameEvents('A', 6).concat(winCleanGameEvents('B', 4));
+    const g2 = E.computeGameStateFromEvents(g2Events, fmt, null);
+    assert('Fase2-PP §3.3 · Por Games, set 2 con el primero terminado', PH.formatLiveScoreLabel(g2) === '6-0 · 0-4', PH.formatLiveScoreLabel(g2));
+
+    const g3Events = winCleanGameEvents('A', 6).concat(winCleanGameEvents('B', 6), winCleanGameEvents('A', 1));
+    const g3 = E.computeGameStateFromEvents(g3Events, fmt, null);
+    assert('Fase2-PP §3.3 · Por Games, set 3 con dos sets terminados', PH.formatLiveScoreLabel(g3) === '6-0 · 0-6 · 1-0', PH.formatLiveScoreLabel(g3));
+
+    // Tie break extraordinario ya decidido — MISMA regla que formatSetSegmentLabel (app.js):
+    // un set extraordinario muestra su propio resultado de TB aparte; uno reglamentario (aunque
+    // haya tenido tie break) muestra solo gamesA-gamesB. Estado construido a mano (misma forma
+    // que ya produce el motor) para no reconstruir toda la mecánica de un TB extraordinario acá.
+    const etbState = { sets: [{ gamesA: 4, gamesB: 4, tiebreak: { a: 10, b: 5, mode: 'classic' }, winner: 'A', extraordinary: true }], gamesA: 0, gamesB: 0 };
+    assert('Fase2-PP §3.3 · set extraordinario muestra su propio resultado de TB', PH.formatLiveScoreLabel(etbState) === '4-4 · TB 10-5 · 0-0', PH.formatLiveScoreLabel(etbState));
+
+    const regularTbState = { sets: [{ gamesA: 7, gamesB: 6, tiebreak: { a: 7, b: 5, mode: 'classic' }, winner: 'A' }], gamesA: 1, gamesB: 0 };
+    assert('Fase2-PP §3.3 · set reglamentario con TB no repite el desglose (7-6 solo)', PH.formatLiveScoreLabel(regularTbState) === '7-6 · 1-0', PH.formatLiveScoreLabel(regularTbState));
+
+    assert('Fase2-PP §3.3 · formatLiveScoreLabel es defensivo ante state null', PH.formatLiveScoreLabel(null) === '0-0');
   })();
 
   // ------------------------------------------------------------------

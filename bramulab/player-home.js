@@ -228,12 +228,37 @@
     return LIVE_MODE_LABELS[mode] || LIVE_MODE_LABELS.complete;
   }
 
+  /** Texto de UN set ya terminado — MISMO criterio que `formatSetSegmentLabel` de app.js
+   *  (Historial/Último partido/Compartir): un set extraordinario (Resolver con Tie break)
+   *  agrega su propio resultado de TB aparte ("4-4 · TB 5-10"); un set reglamentario (incluso
+   *  si terminó en tie break, ej. "7-6") muestra solo `gamesA-gamesB` — mostrar el desglose
+   *  del TB ahí sería redundante. No se reimporta esa función desde app.js (vive en el otro
+   *  módulo) para no crear una dependencia cruzada nueva; es la misma lógica, no una segunda. */
+  function formatFinishedSetSegment(s) {
+    if (!s) return '';
+    return s.extraordinary && s.tiebreak
+      ? `${s.gamesA}-${s.gamesB} · TB ${s.tiebreak.a}-${s.tiebreak.b}`
+      : `${s.gamesA}-${s.gamesB}`;
+  }
+
+  /** Correcciones postprueba de Fase 2 (§3.3) — resultado parcial COMPLETO de un partido en
+   *  vivo: todos los sets ya terminados más el set actual, nunca solo este último. Recibe el
+   *  `state` real del motor (`Engine.computeStateFromEvents`/`computeGameStateFromEvents`) —
+   *  única fuente de verdad, sin reinterpretar ni inventar reglas de puntuación. Helper único
+   *  y central: lo usan por igual la franja del Home y la tarjeta contextual de la hoja. */
+  function formatLiveScoreLabel(state) {
+    if (!state) return '0-0';
+    const finished = (state.sets || []).map(formatFinishedSetSegment);
+    const current = `${state.gamesA || 0}-${state.gamesB || 0}`;
+    return finished.concat(current).join(' · ');
+  }
+
   /** Resume un snapshot de partido en curso (la misma forma que guarda
    *  Store.saveActiveMatch/lee Store.loadActiveMatch) a lo que necesitan mostrar la franja
-   *  del Home y la hoja "Registrar partido": parejas, resultado parcial y modo. `null` si
-   *  el snapshot no representa un partido en vivo utilizable. Pura — reutiliza engine.js
-   *  para el estado (misma fuente de verdad que el propio marcador), nunca reinterpreta
-   *  puntos/games por su cuenta. */
+   *  del Home y la hoja "Registrar partido": parejas, resultado parcial completo y modo.
+   *  `null` si el snapshot no representa un partido en vivo utilizable. Pura — reutiliza
+   *  engine.js para el estado (misma fuente de verdad que el propio marcador), nunca
+   *  reinterpreta puntos/games por su cuenta. */
   function summarizeActiveMatchSnapshot(snap) {
     if (!snap || !snap.match) return null;
     const m = snap.match;
@@ -247,7 +272,7 @@
       teamAName: teamName('A'),
       teamBName: teamName('B'),
       modeLabel: registerModeLabel(m.mode),
-      scoreLabel: `Set ${state.sets.length + 1} · ${state.gamesA}-${state.gamesB}`,
+      scoreLabel: formatLiveScoreLabel(state),
     };
   }
 
@@ -258,6 +283,6 @@
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
-    registerModeLabel, summarizeActiveMatchSnapshot,
+    registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

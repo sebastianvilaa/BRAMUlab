@@ -800,14 +800,19 @@
     </div>
     <div class="analysis-scroll player-home-scroll">
 
-      <!-- Etapa 3 (Fase 2, §7) — franja de partido en curso: prioridad sobre Hitos/tarjeta de
-           identidad, solo visible cuando hay un partido en vivo activo. Ver
+      <!-- Etapa 3 (Fase 2, §7; Correcciones postprueba §3.2) — franja COMPACTA de partido en
+           curso: prioridad sobre Hitos/tarjeta de identidad, solo visible con un partido en
+           vivo activo. Layout horizontal (latido + texto a la izquierda, "Continuar ›"
+           compacto a la derecha) — ya no un botón lima grande de ancho completo. Ver
            renderActiveMatchBanner() en app.js. -->
       <button type="button" id="active-match-banner" class="active-match-banner" hidden>
-        <div class="active-match-banner__label">PARTIDO EN CURSO</div>
-        <div class="active-match-banner__teams" id="active-match-banner-teams"></div>
-        <div class="active-match-banner__meta" id="active-match-banner-meta"></div>
-        <span class="active-match-banner__cta">CONTINUAR</span>
+        <span class="active-match-banner__pulse" aria-hidden="true"></span>
+        <span class="active-match-banner__info">
+          <span class="active-match-banner__label">PARTIDO EN CURSO</span>
+          <span class="active-match-banner__teams" id="active-match-banner-teams"></span>
+          <span class="active-match-banner__meta" id="active-match-banner-meta"></span>
+        </span>
+        <span class="active-match-banner__cta">Continuar ›</span>
       </button>
 
       <div class="pastilla pastilla--identity">
@@ -1034,10 +1039,12 @@
     <div id="register-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Registrar partido">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
 
-      <!-- Con partido en curso (§8) -->
+      <!-- Con partido en curso (§8). Fase 2 · Correcciones postprueba (§3.4) — el título de
+           la hoja es "REGISTRAR PARTIDO" en los tres niveles; "PARTIDO EN CURSO" aparece una
+           sola vez, dentro de la tarjeta contextual de abajo (antes se repetía acá también). -->
       <div id="register-sheet-active" class="bottom-sheet__level" hidden>
         <div class="bottom-sheet__header">
-          <span class="bottom-sheet__title">PARTIDO EN CURSO</span>
+          <span class="bottom-sheet__title">REGISTRAR PARTIDO</span>
           <button type="button" id="register-sheet-close-active" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
         </div>
         <button type="button" id="register-sheet-active-card" class="sheet-active-card">

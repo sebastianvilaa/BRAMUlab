@@ -5296,14 +5296,20 @@
     });
   }
 
-  /** Etapa 3 (Fase 2, §6) — "si la aplicación se cierra o recarga mientras se registra, al
-   *  abrir nuevamente debe volver directamente a la misma pantalla" (sin pantalla intermedia
-   *  de recuperación). Antes no existía ningún llamado equivalente: la app siempre arrancaba
-   *  en Setup y hacía falta tocar "CONTINUAR" a mano. Reutiliza `continueActiveMatch()` tal
-   *  cual — mismo camino que ya usan la franja/hoja/banner de Setup, cero estado nuevo. */
-  function tryAutoResumeActiveMatch() {
+  /** Correcciones postprueba de Fase 2 (§3.1) — pantalla predeterminada de arranque:
+   *  - con un partido en vivo activo, reanuda directo (§6 de la fase original: "si la
+   *    aplicación se cierra o recarga mientras se registra, al abrir nuevamente debe volver
+   *    directamente a la misma pantalla" — reutiliza `continueActiveMatch()` tal cual, mismo
+   *    camino que ya usan la franja/hoja/banner de Setup, cero estado nuevo);
+   *  - sin partido activo, entra al Home del jugador — `openPlayerHome()` ya resuelve el
+   *    caso "sin identidad todavía" (abre "¿Quién sos?" y, al completarlo, entra al Home).
+   *  Antes de esta corrección la app siempre arrancaba en "Configurar partido" (`view-setup`),
+   *  que ahora es una pantalla de acceso secundario (ver §3.1: solo se llega ahí desde
+   *  "Registrar partido en vivo" en la hoja, o desde el link "Configurar partido" del Home). */
+  function bootDefaultScreen() {
     const snap = Store.loadActiveMatch();
-    if (snap && snap.match && !snap.finished) continueActiveMatch();
+    if (snap && snap.match && !snap.finished) { continueActiveMatch(); return; }
+    openPlayerHome();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -5336,7 +5342,7 @@
     initMatchHeaderHomeLink();
     initDevTools();
     initUpdateCheck();
-    tryAutoResumeActiveMatch();
+    bootDefaultScreen();
     registerServiceWorker();
   });
 

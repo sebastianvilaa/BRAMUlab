@@ -1177,25 +1177,43 @@ input, select{ font-family: inherit; }
 .sheet-active-card__meta{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
 .sheet-active-card__cta{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.04em; color: var(--team-a); text-transform:uppercase; font-weight:700; }
 
-/* Franja de partido en curso — Home del jugador (§7). Clases reutilizables pensando en el
-   futuro rediseño del Home: nada acá depende de la paleta/tipografía definitivas. */
+/* Franja de partido en curso — Home del jugador (§7; Correcciones postprueba §3.2).
+   Compacta y horizontal a propósito: comunica "hay algo activo, podés retomarlo" sin
+   competir con el resto del Home. Clases reutilizables pensando en el futuro rediseño del
+   Home: nada acá depende de la paleta/tipografía definitivas. */
 .active-match-banner{
-  display:block; width:100%; text-align:left; background: rgba(200,255,61,0.08);
-  border: 1.5px solid var(--team-a); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;
-  cursor:pointer; animation: activeMatchPulse 2.4s ease-in-out infinite;
+  display:flex; align-items:center; gap: 10px; width:100%; text-align:left;
+  background: rgba(200,255,61,0.08); border: 1px solid var(--team-a); border-radius: 12px;
+  padding: 9px 12px; margin-bottom: 12px; cursor:pointer;
 }
-@media (prefers-reduced-motion: reduce){ .active-match-banner{ animation: none; } }
-@keyframes activeMatchPulse{
-  0%,100%{ box-shadow: 0 0 0 rgba(200,255,61,0); }
-  50%{ box-shadow: 0 0 16px rgba(200,255,61,0.28); }
+.active-match-banner__pulse{
+  flex:none; width:8px; height:8px; border-radius:50%; background: var(--team-a); position:relative;
 }
-.active-match-banner__label{ font-size: 10px; letter-spacing:0.08em; color: var(--team-a); font-weight:800; text-transform:uppercase; margin-bottom:6px; }
-.active-match-banner__teams{ font-family: var(--font-display); font-size: 15px; color: var(--paper); margin-bottom:2px; }
-.active-match-banner__meta{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
+/* §3.2: "hacer el latido un poco más perceptible... sin acelerarlo ni volverlo invasivo" —
+   un anillo que se expande y se desvanece alrededor del punto lee más claro que el glow muy
+   sutil de la versión anterior, a la misma velocidad (2.4s), sin ser una animación llamativa. */
+.active-match-banner__pulse::after{
+  content:''; position:absolute; inset:-6px; border-radius:50%; background: var(--team-a);
+  opacity:0.6; animation: activeMatchPulseRing 2.4s ease-in-out infinite;
+}
+@keyframes activeMatchPulseRing{
+  0%{ transform:scale(0.5); opacity:0.6; }
+  70%,100%{ transform:scale(2.1); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce){ .active-match-banner__pulse::after{ animation:none; opacity:0; } }
+.active-match-banner__info{ display:flex; flex-direction:column; flex:1; min-width:0; }
+.active-match-banner__label{ font-size: 9px; letter-spacing:0.07em; color: var(--team-a); font-weight:800; text-transform:uppercase; }
+.active-match-banner__teams{
+  font-family: var(--font-display); font-size: 13px; color: var(--paper);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.active-match-banner__meta{
+  font-size: 11px; color: var(--paper-dim);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
 .active-match-banner__cta{
-  display:inline-block; font-family: var(--font-display); font-size: 12px; letter-spacing:0.06em;
-  color: #0C1400; background: var(--team-a); text-transform:uppercase; font-weight:800;
-  padding: 7px 14px; border-radius: 999px;
+  flex:none; font-family: var(--font-display); font-size: 12px; letter-spacing:0.03em;
+  color: var(--team-a); font-weight:800;
 }
 
 /* Botón destructivo — variante mínima de .btn-secondary, reservada para la confirmación de
