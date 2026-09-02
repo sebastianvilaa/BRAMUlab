@@ -593,6 +593,11 @@
     finishedSnapshot = {
       matchId: makeMatchId(),
       createdAt: new Date().toISOString(),
+      // Etapa 3 (Fase 1, §5.1) — playedAt es la fecha/hora que el usuario eligió a mano en
+      // el formulario (startedAtDate), no el momento en que se toca "Guardar". Nunca se
+      // repite esta lógica en otro lugar: PH.getPlayedAt() es la única fuente de verdad
+      // para leer "cuándo se jugó" en el resto de la app.
+      playedAt: startedAtDate.toISOString(),
       startedAt: startedAtDate.toISOString(),
       timeZone,
       finishedAt: new Date().toISOString(),
@@ -2943,7 +2948,16 @@
 
     finishedSnapshot = {
       matchId: match.id,
-      createdAt: match.createdAt,
+      // Etapa 3 (Fase 1, §5.2) — createdAt pasa a representar el momento en que este
+      // REGISTRO (la entrada de Historial) se crea/guarda, no el momento en que arrancó el
+      // partido en vivo (eso ya lo captura startedAt/playedAt). Nada en la app leía
+      // match.createdAt hasta ahora, así que este cambio no altera ningún comportamiento
+      // existente — solo alinea el campo con su definición nueva (§2 del consolidado).
+      createdAt: new Date().toISOString(),
+      // playedAt = startedAt: el marcador arrancó cuando se jugó de verdad el partido.
+      // PH.getPlayedAt() es la única fuente de verdad para leer "cuándo se jugó" —
+      // nunca repetir esta lógica en otro lugar.
+      playedAt: match.startedAt,
       startedAt: match.startedAt,
       timeZone: match.timeZone,
       finishedAt: new Date().toISOString(),
@@ -3002,7 +3016,10 @@
 
     finishedSnapshot = {
       matchId: match.id,
-      createdAt: match.createdAt,
+      // Etapa 3 (Fase 1, §5.3) — mismo criterio que finishMatch: createdAt = momento en que
+      // se crea/guarda este registro, no el arranque del partido. playedAt = startedAt.
+      createdAt: new Date().toISOString(),
+      playedAt: match.startedAt,
       startedAt: match.startedAt,
       timeZone: match.timeZone,
       finishedAt: new Date().toISOString(),
@@ -4506,7 +4523,10 @@
   const HISTORY_SCORING_LABELS = { golden: 'PUNTO DE ORO', starpoint: 'STAR POINT', classic: 'CON VENTAJA' };
 
   function renderHistory() {
-    const list = Store.loadHistory();
+    // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
+    // orden de guardado (Store.loadHistory() ya viene con el más recientemente GUARDADO
+    // primero, que no es lo mismo si se carga hoy un partido jugado ayer).
+    const list = Store.loadHistory().sort(PH.comparePlayedAtDesc);
     const wrap = $('#history-list');
     wrap.innerHTML = '';
     $('#history-empty').hidden = list.length > 0;
@@ -4531,11 +4551,14 @@
       // destaca con el color de SU equipo (LIMA/AZUL), nunca dorado (reservado para Oro/Star).
       const winnerBadgeA = m.winnerTeam === 'A' ? ' history-item__winner history-item__winner--a' : '';
       const winnerBadgeB = m.winnerTeam === 'B' ? ' history-item__winner history-item__winner--b' : '';
+      // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
+      // → startedAt → finishedAt). Nunca leer m.finishedAt directo para esto.
+      const playedAt = PH.getPlayedAt(m);
       // V7 (109-111): nuevo orden — fecha → formato/método → jugadores → resultado → duración.
       item.innerHTML = `
         <div class="history-item__row">
           <div class="history-item__main">
-            <div class="history-item__date">${formatRealDate(m.finishedAt, m.timeZone)} · ${formatRealTime(m.finishedAt, m.timeZone).slice(0, 5)}</div>
+            <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
             ${subtitleStr ? `<div class="history-item__subtitle">${subtitleStr}</div>` : ''}
             <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span><span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span></div>
             <div class="history-item__score">${scoreStr}</div>
@@ -4717,10 +4740,12 @@
     const resultClass = !m.winnerTeam ? 'is-neutral' : (m.winnerTeam === myTeam ? 'is-win' : 'is-loss');
     const resultLabel = !m.winnerTeam ? 'SIN DEFINICIÓN' : (m.winnerTeam === myTeam ? 'VICTORIA' : 'DERROTA');
     const modeLabel = m.mode === 'games' ? 'POR GAMES' : m.mode === 'manual' ? 'PARTIDO CARGADO' : 'COMPLETO';
+    // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó.
+    const playedAt = PH.getPlayedAt(m);
     body.innerHTML = `
       <div class="player-home-lastmatch__result player-home-lastmatch__result--${resultClass}">${resultLabel}</div>
       <div class="player-home-lastmatch__score">${scoreStr}</div>
-      <div class="player-home-lastmatch__meta">${formatRealDate(m.finishedAt, m.timeZone)} · ${modeLabel}</div>
+      <div class="player-home-lastmatch__meta">${formatRealDate(playedAt, m.timeZone)} · ${modeLabel}</div>
       <div class="player-home-lastmatch__people">
         <div>Compañero: <strong>${partner || '—'}</strong></div>
         <div>Rivales: <strong>${rivals.join(' / ') || '—'}</strong></div>
@@ -4823,7 +4848,9 @@
     wrap.className = 'share-capture';
 
     const header = `<div class="share-capture__header"><span class="share-capture__brand"><span class="share-capture__brand-accent">BRAMU</span> <span class="share-capture__brand-sub">lab</span></span><span class="share-capture__kind">${kind === 'analisis' ? 'ANÁLISIS DEL PARTIDO' : 'RESUMEN DEL PARTIDO'}</span></div>`;
-    const footer = `<div class="share-capture__footer"><span>${formatRealDate(f.finishedAt, f.timeZone)} · ${formatRealTime(f.finishedAt, f.timeZone)}</span><span class="share-capture__brand-mini"><span class="share-capture__brand-mini-accent">BRAMU</span> lab</span></div>`;
+    // Etapa 3 (Fase 1) — fecha REAL jugada en la pieza compartida, no cuándo se guardó.
+    const sharePlayedAt = PH.getPlayedAt(f);
+    const footer = `<div class="share-capture__footer"><span>${formatRealDate(sharePlayedAt, f.timeZone)} · ${formatRealTime(sharePlayedAt, f.timeZone)}</span><span class="share-capture__brand-mini"><span class="share-capture__brand-mini-accent">BRAMU</span> lab</span></div>`;
 
     let body = '';
     if (kind === 'resumen') {

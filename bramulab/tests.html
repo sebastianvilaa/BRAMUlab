@@ -1577,6 +1577,26 @@
     };
   }
 
+  // Etapa 3 (Fase 1) — igual que mkHistoryMatch, pero con control total e independiente
+  // sobre los 4 campos de fecha (playedAt/startedAt/finishedAt/createdAt), todos opcionales,
+  // para poder simular registros históricos incompletos sin tocar el fixture existente.
+  function mkDatedMatch(matchId, dates, names, winnerTeam) {
+    return {
+      matchId,
+      playedAt: dates.playedAt || null,
+      startedAt: dates.startedAt || null,
+      finishedAt: dates.finishedAt || null,
+      createdAt: dates.createdAt || null,
+      winnerTeam,
+      players: [
+        { id: 0, team: 'A', name: names[0] }, { id: 1, team: 'A', name: names[1] },
+        { id: 2, team: 'B', name: names[2] }, { id: 3, team: 'B', name: names[3] },
+      ],
+      sets: [{ gamesA: 6, gamesB: 3, tiebreak: null, extraordinary: false }],
+      currentPartial: null, mode: 'manual', timeZone: 'UTC',
+    };
+  }
+
   (function () {
     const player = 'Sebastián';
     const history = [
@@ -1675,6 +1695,88 @@
       PH.resolvePlayerOneName('setup', 'Sebastián', '', 'Jugador 1') === 'Jugador 1');
     assert('RJ · resolvePlayerOneName (origen setup) funciona igual sin ningún jugador identificado (currentPlayerName null) — flujo tradicional intacto',
       PH.resolvePlayerOneName('setup', null, 'Martín', 'Jugador 1') === 'Martín');
+  })();
+
+  // ==================================================================
+  // ETAPA 3 — FASE 1: semántica de fecha del partido (§9 del consolidado)
+  // ==================================================================
+
+  // §9.1 — Precedencia de fechas: playedAt > startedAt > finishedAt > defensivo.
+  (function () {
+    const full = mkDatedMatch('t1', { playedAt: '2026-06-01T00:00:00.000Z', startedAt: '2026-05-01T00:00:00.000Z', finishedAt: '2026-05-01T01:00:00.000Z' }, ['A', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · getPlayedAt usa playedAt cuando existe', PH.getPlayedAt(full) === '2026-06-01T00:00:00.000Z');
+
+    const sinPlayedAt = mkDatedMatch('t2', { startedAt: '2026-05-01T00:00:00.000Z', finishedAt: '2026-05-01T01:00:00.000Z' }, ['A', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · getPlayedAt cae a startedAt cuando no hay playedAt', PH.getPlayedAt(sinPlayedAt) === '2026-05-01T00:00:00.000Z');
+
+    const soloFinished = mkDatedMatch('t3', { finishedAt: '2026-05-01T01:00:00.000Z' }, ['A', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · getPlayedAt cae a finishedAt cuando no hay playedAt ni startedAt (compatibilidad histórica)', PH.getPlayedAt(soloFinished) === '2026-05-01T01:00:00.000Z');
+
+    const ninguna = mkDatedMatch('t4', {}, ['A', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · getPlayedAt devuelve null cuando ninguna fecha es válida — nunca inventa una fecha', PH.getPlayedAt(ninguna) === null);
+
+    const playedAtInvalido = mkDatedMatch('t5', { playedAt: 'no-es-una-fecha', startedAt: '2026-05-01T00:00:00.000Z' }, ['A', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · getPlayedAt ignora un playedAt inválido y sigue la cadena de fallback', PH.getPlayedAt(playedAtInvalido) === '2026-05-01T00:00:00.000Z');
+
+    assert('RJ Fase1 · getPlayedAt es defensivo ante un partido null/undefined', PH.getPlayedAt(null) === null && PH.getPlayedAt(undefined) === null);
+  })();
+
+  // §9.2 — Caso central: cargar hoy y después cargar uno de ayer.
+  (function () {
+    const now = new Date();
+    const todayISO = now.toISOString();
+    const yesterdayISO = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    // Orden real de carga: primero HOY (createdAt más viejo), DESPUÉS AYER (createdAt más
+    // nuevo, porque se cargó más tarde) — exactamente el escenario del §9.2.
+    const matchToday = mkDatedMatch('today', { playedAt: todayISO, createdAt: new Date(now.getTime() + 1000).toISOString() }, ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A');
+    const matchYesterday = mkDatedMatch('yesterday', { playedAt: yesterdayISO, createdAt: new Date(now.getTime() + 2000).toISOString() }, ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A');
+    const matches = PH.filterMatchesForPlayer([matchToday, matchYesterday], 'Sebastián');
+    assert('RJ Fase1 · caso hoy-y-ayer: el partido de HOY sigue siendo el primero (Último partido)', matches[0].matchId === 'today');
+    assert('RJ Fase1 · caso hoy-y-ayer: el de ayer queda segundo, pese a haberse cargado después', matches[1].matchId === 'yesterday');
+  })();
+
+  // §9.3 — createdAt nunca puede imponerse sobre una fecha jugada distinta.
+  (function () {
+    const older = mkDatedMatch('older', { playedAt: '2026-01-01T00:00:00.000Z', createdAt: '2026-08-01T00:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A'); // jugado antes, pero CREADO mucho después
+    const newer = mkDatedMatch('newer', { playedAt: '2026-07-01T00:00:00.000Z', createdAt: '2026-01-05T00:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A'); // jugado después, pero CREADO mucho antes
+    const sorted = [older, newer].slice().sort(PH.comparePlayedAtDesc);
+    assert('RJ Fase1 · createdAt no altera el orden cuando playedAt difiere (el jugado más tarde va primero)', sorted[0].matchId === 'newer' && sorted[1].matchId === 'older');
+  })();
+
+  // §9.4 — Compatibilidad histórica: registros viejos sin playedAt ni startedAt.
+  (function () {
+    const legacy = mkDatedMatch('legacy', { finishedAt: '2026-05-01T12:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · compatibilidad: un registro solo con finishedAt resuelve su fecha jugada igual', PH.getPlayedAt(legacy) === '2026-05-01T12:00:00.000Z');
+    const matches = PH.filterMatchesForPlayer([legacy], 'P');
+    assert('RJ Fase1 · compatibilidad: sigue visible en filterMatchesForPlayer, sin errores', matches.length === 1 && matches[0].matchId === 'legacy');
+  })();
+
+  // §9.6 — Desempate ante playedAt idéntico.
+  (function () {
+    const samePlayedAt = '2026-06-01T10:00:00.000Z';
+    const a = mkDatedMatch('a', { playedAt: samePlayedAt, createdAt: '2026-06-01T11:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A');
+    const b = mkDatedMatch('b', { playedAt: samePlayedAt, createdAt: '2026-06-01T12:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A');
+    const sorted = [a, b].slice().sort(PH.comparePlayedAtDesc);
+    assert('RJ Fase1 · desempate 1er nivel: mismo playedAt, gana createdAt más reciente', sorted[0].matchId === 'b');
+
+    const c = mkDatedMatch('c', { playedAt: samePlayedAt, createdAt: samePlayedAt, finishedAt: '2026-06-01T13:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A');
+    const d = mkDatedMatch('d', { playedAt: samePlayedAt, createdAt: samePlayedAt, finishedAt: '2026-06-01T14:00:00.000Z' }, ['P', 'B', 'C', 'D'], 'A');
+    const sorted2 = [c, d].slice().sort(PH.comparePlayedAtDesc);
+    assert('RJ Fase1 · desempate 2do nivel: mismo playedAt y createdAt, gana finishedAt más reciente', sorted2[0].matchId === 'd');
+
+    const sortedAgain = [a, b].slice().sort(PH.comparePlayedAtDesc);
+    assert('RJ Fase1 · el desempate es determinístico (mismo resultado en corridas repetidas)', sortedAgain[0].matchId === sorted[0].matchId);
+  })();
+
+  // Corrección directa del bug reportado: computeMatchesThisMonth debe usar la fecha
+  // JUGADA, no la fecha de GUARDADO — un partido jugado este mes pero cargado/guardado en
+  // otro mes distinto debe seguir contando para el mes en que se jugó.
+  (function () {
+    const now = new Date();
+    const thisMonthPlayed = new Date(now.getFullYear(), now.getMonth(), 5).toISOString();
+    const differentMonthFinished = new Date(now.getFullYear(), now.getMonth() - 2, 5).toISOString();
+    const m = mkDatedMatch('x', { playedAt: thisMonthPlayed, finishedAt: differentMonthFinished }, ['P', 'B', 'C', 'D'], 'A');
+    assert('RJ Fase1 · computeMatchesThisMonth cuenta por playedAt, no por finishedAt', PH.computeMatchesThisMonth([m]) === 1);
   })();
 
   // ------------------------------------------------------------------

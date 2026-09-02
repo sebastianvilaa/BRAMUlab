@@ -55,16 +55,67 @@
     return m.winnerTeam === team ? 'win' : 'loss';
   }
 
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 3 (FASE 1) — SEMÁNTICA DE FECHA DEL PARTIDO                    */
+  /* Única fuente de verdad para "cuándo se jugó" un partido y para el orden
+   *  cronológico de la historia. Nunca repetir esta cadena de fallback ni el
+   *  criterio de desempate en otro archivo — todo lo que necesita ordenar o
+   *  mostrar la fecha real jugada pasa por acá. */
+  /* ------------------------------------------------------------------ */
+
+  /** Convierte un ISO string a timestamp numérico, o `null` si está ausente o es
+   *  inválido — nunca deja pasar un NaN silencioso que rompa una comparación. */
+  function parseTimeOrNull(iso) {
+    if (!iso) return null;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+
+  /** Fecha real en que se jugó el partido — §4 del consolidado de Fase 1:
+   *  `playedAt` (elegida por el usuario o igual a `startedAt` en partidos en vivo) →
+   *  `startedAt` (partidos históricos sin `playedAt` todavía) → `finishedAt` (colchón
+   *  defensivo final). Devuelve el ISO string tal cual está guardado, o `null` si
+   *  ninguno de los tres campos es una fecha válida (nunca inventa una fecha). */
+  function getPlayedAt(match) {
+    if (!match) return null;
+    if (parseTimeOrNull(match.playedAt) !== null) return match.playedAt;
+    if (parseTimeOrNull(match.startedAt) !== null) return match.startedAt;
+    if (parseTimeOrNull(match.finishedAt) !== null) return match.finishedAt;
+    return null;
+  }
+
+  function timeOrNegInfinity(iso) {
+    const t = parseTimeOrNull(iso);
+    return t === null ? -Infinity : t;
+  }
+
+  /** Comparador para `Array.prototype.sort`: más reciente primero, por fecha REAL
+   *  jugada (vía `getPlayedAt`). Desempate documentado (§7): ante `playedAt` idéntico,
+   *  `createdAt` descendente; si tampoco alcanza, `finishedAt` descendente; si aún hay
+   *  empate exacto, `matchId` como último criterio estable y determinístico (nunca
+   *  cambia entre corridas, aunque no tenga significado cronológico propio). */
+  function comparePlayedAtDesc(a, b) {
+    const byPlayed = timeOrNegInfinity(getPlayedAt(b)) - timeOrNegInfinity(getPlayedAt(a));
+    if (byPlayed !== 0) return byPlayed;
+    const byCreated = timeOrNegInfinity(b.createdAt) - timeOrNegInfinity(a.createdAt);
+    if (byCreated !== 0) return byCreated;
+    const byFinished = timeOrNegInfinity(b.finishedAt) - timeOrNegInfinity(a.finishedAt);
+    if (byFinished !== 0) return byFinished;
+    if (a.matchId === b.matchId) return 0;
+    return a.matchId < b.matchId ? 1 : -1;
+  }
+
   /** Fuente única para el Home: partidos de `history` donde jugó `playerName`, ordenados
-   *  del más reciente al más antiguo por `finishedAt` (Etapa 2 §3.3). No crea ni duplica
-   *  ningún almacenamiento — filtra el mismo array de siempre. */
+   *  del más reciente al más antiguo por fecha REAL jugada (Etapa 3, Fase 1) — nunca por
+   *  cuándo se guardó. No crea ni duplica ningún almacenamiento — filtra el mismo array
+   *  de siempre. */
   function filterMatchesForPlayer(history, playerName) {
     const target = Store.normalizePlayerName(playerName);
     if (!target) return [];
     return (history || [])
       .filter((m) => m && Array.isArray(m.players) && m.players.some((p) => p && p.name === target))
       .slice()
-      .sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt));
+      .sort(comparePlayedAtDesc);
   }
 
   /** `matches` ya viene ordenado del más reciente al más antiguo (ver arriba). */
@@ -78,7 +129,9 @@
   function computeMatchesThisMonth(matches) {
     const now = new Date();
     return (matches || []).filter((m) => {
-      const d = new Date(m.finishedAt);
+      const playedAt = getPlayedAt(m);
+      if (!playedAt) return false; // sin fecha real válida: no se puede ubicar en ningún mes, se excluye en vez de adivinar
+      const d = new Date(playedAt);
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     }).length;
   }
@@ -159,6 +212,7 @@
 
   global.PLPlayerHome = {
     resolvePlayerOneName,
+    getPlayedAt, comparePlayedAtDesc,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
