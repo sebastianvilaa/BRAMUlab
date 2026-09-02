@@ -520,10 +520,12 @@
     $('#manual-load-form').addEventListener('submit', (e) => { e.preventDefault(); saveManualMatch(); });
   }
 
-  // Etapa 2 (Rama Jugador) — dónde volver al cancelar y, si el partido termina guardándose,
-  // a dónde vuelve "VOLVER AL INICIO" desde Resumen/Análisis (ver shouldReturnToPlayerHome...
-  // más abajo). 'setup' = comportamiento de siempre (entrada tradicional desde Home); nunca
-  // se toca el regreso de un partido Completo/Por Games, que no pasa por esta pantalla.
+  // Etapa 2 (Rama Jugador) — dónde volver al cancelar esta pantalla sin guardar
+  // (exitManualLoadScreen, más abajo). 'setup' = comportamiento de siempre (entrada
+  // tradicional desde "Configurar partido"). Hotfix v1.2.1 — "VOLVER AL INICIO" desde
+  // Resumen/Análisis ya NO depende de este origen: siempre abre el Home (ver
+  // initSummaryScreen/renderAnalysis más abajo), así que esta variable dejó de tener ese
+  // segundo uso.
   let manualLoadOrigin = 'setup';
 
   // Etapa 3 (Fase 2, §10) — "¿Salir sin guardar?": se marca dirty ante CUALQUIER interacción
@@ -1956,7 +1958,7 @@
 
   /** Etapa 3 (Fase 2, §9) — núcleo de "descartar el partido activo", extraído de `goHome()`
    *  para reutilizarlo también desde la confirmación de descarte de la hoja "Registrar
-   *  partido" (que NO vuelve a Setup como goHome — se queda donde estaba y reabre la hoja). */
+   *  partido" (que NO abre el Home como goHome — se queda donde estaba y reabre la hoja). */
   function discardActiveMatchState() {
     stopTimerLoop();
     releaseWakeLock(); // V13.2 (§1)
@@ -1966,10 +1968,15 @@
     $('#view-summary').hidden = true;
   }
 
+  /** Hotfix v1.2.1 (§2-3.1) — "Volver al inicio" significa el Home del jugador, nunca
+   *  "Configurar partido": antes esta función (☰ → "Volver al inicio", descarta el partido
+   *  en curso) terminaba en `showView('setup')`. Se llega acá siempre con identidad ya
+   *  resuelta (Setup solo es alcanzable desde el Home), así que `openPlayerHome()` nunca
+   *  cae en el caso "sin identidad" en este camino. */
   function goHome() {
     discardActiveMatchState();
     checkForActiveMatch();
-    showView('setup');
+    openPlayerHome();
   }
 
   /* ------------------------------------------------------------------ */
@@ -3484,12 +3491,11 @@
       Store.clearActiveMatch();
       match = null;
       checkForActiveMatch();
-      // Etapa 2 (Rama Jugador) — si este es el partido que se acaba de cargar por "+"/"Cargar
-      // primer partido" desde el Home del jugador, "VOLVER AL INICIO" vuelve ahí (renderizado
-      // de nuevo, con el partido ya visible) en vez de a la pantalla de configurar partido.
-      // No aplica a Completo/Por Games (finishedSnapshot.mode nunca es 'manual' en esos casos).
-      if (manualLoadOrigin === 'player-home' && finishedSnapshot && finishedSnapshot.mode === 'manual') openPlayerHome();
-      else showView('setup');
+      // Hotfix v1.2.1 (§2-3.1) — "VOLVER AL INICIO" es siempre el Home del jugador, sin
+      // importar el modo (Completo/Por Games/manual) ni desde dónde se abrió esta pantalla.
+      // Antes solo pasaba por acá un partido manual cargado desde el Home; cualquier otro
+      // caso caía en `showView('setup')` — la causa del hotfix.
+      openPlayerHome();
     });
     $('#summary-analysis-btn').addEventListener('click', () => {
       // V6 — bug crítico corregido: antes se priorizaba `analysisCurrent` (que puede
@@ -3543,11 +3549,13 @@
     // caso podría haber un partido EN VIVO distinto todavía activo que no hay que borrar.
     $('#analysis-home-btn').onclick = () => {
       checkForActiveMatch();
-      // Etapa 2 (Rama Jugador) — mismo criterio que #summary-new-btn: solo redirige al Home
-      // del jugador si ESTE análisis es el del partido recién cargado por esa vía (`f` es el
-      // snapshot que se está mostrando, no cualquier partido manual visto desde Historial).
-      if (manualLoadOrigin === 'player-home' && f === finishedSnapshot && f.mode === 'manual') openPlayerHome();
-      else showView('setup');
+      // Hotfix v1.2.1 (§2-3.1) — "VOLVER AL INICIO" es siempre el Home del jugador (mismo
+      // criterio que #summary-new-btn), sin importar si este Análisis es el del partido
+      // recién terminado o uno viejo visto desde Historial — en ambos casos el destino es
+      // el Home, nunca "Configurar partido". No se toca Store.clearActiveMatch() acá (ver
+      // comentario de arriba): Análisis puede abrirse con un partido EN VIVO distinto
+      // todavía activo detrás, que no hay que borrar.
+      openPlayerHome();
     };
   }
 
