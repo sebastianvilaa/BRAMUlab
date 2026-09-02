@@ -1,26 +1,38 @@
 /* ==========================================================================
-   BRAMU Lab — store.js (v9)
+   BRAMU Jugador — store.js
    Persistencia local (localStorage). Sin servidor, sin cuentas.
    Incluye schemaVersion simple: si encuentra datos de una versión anterior
    o incompleta, los ignora de forma segura en vez de romper la app.
-   V9: las claves internas de localStorage se MANTIENEN tal cual (padellab.*)
-   a propósito — cambiarlas perdería el historial y el partido en curso de
-   quien actualice desde una versión anterior (consolidado V9, branding). */
+
+   Etapa 3 (separación de rutas) — esta app vive en su propio origen/ruta
+   (bramu-player/) pero comparte origen real (sebastianvilaa.github.io) con el
+   marcador congelado (bramu-lab/), y localStorage es por origen, no por ruta.
+   Por decisión explícita, el almacenamiento queda COMPLETAMENTE separado: el
+   namespace de claves pasa de `padellab.*` a `bramuplayer.*`, así que esta app
+   arranca limpia, sin ver ni tocar nunca los datos de bramu-lab/. No hay
+   sincronización ni migración automática desde `padellab.*` — si en algún
+   momento se decide importar historial viejo, es un paso manual y explícito,
+   no algo que este archivo haga solo. */
 (function (global) {
   'use strict';
 
   const SCHEMA_VERSION = 3;
-  // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
-  // acá alcanza para toda la app — nunca duplicar el string de versión en otro archivo JS.
-  const APP_VERSION = 'v14';
+  // Único punto central del número de versión visible (footer). Cambiar acá alcanza para
+  // toda la app — nunca duplicar el string de versión en otro archivo JS. Esquema propio de
+  // BRAMU Jugador (player-vN), separado del versionado vN/vN.M del marcador congelado.
+  const APP_VERSION = 'player-v1';
   const KEYS = {
-    ACTIVE_MATCH: 'padellab.activeMatch.v1',
-    HISTORY: 'padellab.history.v1',
-    PLAYER_NAMES: 'padellab.playerNames.v1',
-    // V13 (§2): última selección de modo de registro (Completo / Por games), recordada
-    // para la próxima vez que se abre Home. No forma parte del schemaVersion del partido
-    // en curso: es una preferencia de Home, no datos de un partido.
-    RECORDING_MODE: 'padellab.recordingMode.v1',
+    ACTIVE_MATCH: 'bramuplayer.activeMatch.v1',
+    HISTORY: 'bramuplayer.history.v1',
+    PLAYER_NAMES: 'bramuplayer.playerNames.v1',
+    // Última selección de modo de registro (Completo / Por games), recordada para la
+    // próxima vez que se abre Home. No forma parte del schemaVersion del partido en curso:
+    // es una preferencia de Home, no datos de un partido.
+    RECORDING_MODE: 'bramuplayer.recordingMode.v1',
+    // Jugador actual del dispositivo, elegido una sola vez. Identidad por coincidencia de
+    // nombre normalizado — deuda deliberada de la beta (ver Etapa 1 Análisis §F), no un
+    // sistema de cuentas.
+    CURRENT_PLAYER: 'bramuplayer.currentPlayerName.v1',
   };
 
   function safeGet(key) {
@@ -76,6 +88,29 @@
   function loadRecordingMode() { const m = safeGet(KEYS.RECORDING_MODE); return m === 'games' ? 'games' : 'complete'; }
   function saveRecordingMode(mode) { safeSet(KEYS.RECORDING_MODE, mode === 'games' ? 'games' : 'complete'); }
 
+  /** Etapa 2 (Rama Jugador §3.2/9/10): normaliza un nombre de jugador (espacios colapsados,
+   *  Title Case en español). Único punto de verdad — app.js (setup/carga manual/Home del
+   *  jugador) y player-home.js (filtrado del historial) lo usan por igual, para que el
+   *  mismo nombre escrito en distintas pantallas siempre coincida como el mismo string. */
+  function normalizePlayerName(raw) {
+    const trimmed = (raw || '').replace(/\s+/g, ' ').trim();
+    if (!trimmed) return trimmed;
+    return trimmed.split(' ').map((word) => {
+      if (!word) return word;
+      return word.charAt(0).toLocaleUpperCase('es') + word.slice(1).toLocaleLowerCase('es');
+    }).join(' ');
+  }
+
+  function loadCurrentPlayerName() { return safeGet(KEYS.CURRENT_PLAYER) || null; }
+  function saveCurrentPlayerName(name) {
+    const n = normalizePlayerName(name);
+    if (!n) return false;
+    return safeSet(KEYS.CURRENT_PLAYER, n);
+  }
+  /** Auditoría funcional §5 — "Cerrar sesión": borra SOLO el jugador actual. Nunca toca
+   *  Historial ni partido en curso (otras claves, otra capa de datos por completo). */
+  function clearCurrentPlayerName() { safeRemove(KEYS.CURRENT_PLAYER); }
+
   function loadPlayerNames() { return safeGet(KEYS.PLAYER_NAMES) || []; }
   function rememberPlayerNames(names) {
     const known = loadPlayerNames();
@@ -90,5 +125,6 @@
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
     loadRecordingMode, saveRecordingMode,
+    normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

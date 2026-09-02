@@ -999,3 +999,116 @@ input, select{ font-family: inherit; }
 .share-capture__footer span:first-child{ font-size: 12px; color: var(--paper-dim); }
 .share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255,201,61,0.6); text-transform: lowercase; }
 .share-capture__brand-mini-accent{ font-weight: 900; color: var(--team-a); text-transform: uppercase; }
+
+/* ==========================================================================
+   RAMA JUGADOR (Etapa 2) — Home del jugador, navegación inferior, tarjeta
+   pastilla. Sección propia y delimitada: reutiliza variables, tipografía y
+   patrones (overlay/menu-sheet/history-item/stat-row) ya definidos arriba,
+   no redefine nada del resto de la app.
+   ========================================================================== */
+
+.player-home-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line);
+}
+.player-home-header__actions{ display:flex; align-items:center; gap: 10px; }
+.player-home-bell{ font-size: 18px; }
+.player-home-scroll{ padding-bottom: calc(96px + var(--safe-bottom)); }
+
+/* Vistas nuevas de la Rama Jugador que comparten la barra inferior fija (§4): el scroll
+   necesita el mismo despeje inferior que .player-home-scroll para no tapar contenido. */
+#view-history .analysis-scroll,
+#view-manual-load .analysis-scroll,
+#view-ranking .analysis-scroll,
+#view-profile .analysis-scroll{
+  padding-bottom: calc(96px + var(--safe-bottom));
+}
+
+.pastilla{
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
+  padding: 16px; margin-bottom: 12px;
+}
+.pastilla__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
+.pastilla__microlabel{ font-size: 10px; letter-spacing: 0.06em; color: var(--paper-faint); text-transform: uppercase; font-weight: 700; }
+.pastilla__title-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
+.pastilla__icon{ font-size: 20px; line-height:1; }
+
+/* Identidad */
+.pastilla--identity{ display:flex; align-items:center; gap: 14px; flex-wrap: wrap; }
+.pastilla-identity__avatar{
+  width: 52px; height:52px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display);
+  font-size: 18px; font-weight:700; color: var(--team-a); flex: none;
+}
+.pastilla-identity__info{ flex:1; min-width: 140px; }
+.pastilla-identity__name{ font-family: var(--font-display); font-size: 18px; color: var(--paper); margin-bottom: 6px; }
+.pastilla-identity__stats{ display:flex; gap: 16px; flex-wrap:wrap; margin-bottom: 6px; }
+.pastilla-identity__stat{ display:flex; flex-direction:column; gap:2px; }
+.pastilla-identity__stat-label{ font-size: 9px; letter-spacing:0.06em; color: var(--paper-faint); text-transform:uppercase; }
+.pastilla-identity__stat-value{ font-family: var(--font-display); font-size: 15px; color: var(--paper); }
+.pastilla-identity__demo-tag{ display:inline-block; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--gold); background: rgba(255,201,61,0.1); border: 1px solid rgba(255,201,61,0.3); border-radius: 999px; padding: 2px 8px; }
+.pastilla-identity__change{ flex: none; }
+.pastilla--identity-compact{ align-items:flex-start; }
+
+/* Tu momento */
+.pastilla-momento__text{ font-size: 13px; color: var(--paper-dim); line-height:1.5; margin:0; }
+
+/* Forma reciente */
+.player-home-form-dots{ display:flex; gap: 8px; margin: 10px 0 8px; flex-wrap:wrap; }
+.form-dot{
+  width: 30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-display); font-size: 12px; font-weight:800; color: var(--ink);
+}
+.form-dot--win{ background: var(--team-a); }
+.form-dot--loss{ background: var(--danger); color: var(--paper); }
+.form-dot--neutral{ background: var(--ink-softer); color: var(--paper-faint); border: 1px solid var(--line); }
+.pastilla-form__summary{ font-size: 12px; color: var(--paper-dim); margin:0; }
+
+/* Último partido */
+.player-home-lastmatch__result{ font-family: var(--font-display); font-size: 13px; letter-spacing:0.06em; margin-bottom:6px; }
+.player-home-lastmatch__result--is-win{ color: var(--team-a); }
+.player-home-lastmatch__result--is-loss{ color: var(--danger); }
+.player-home-lastmatch__result--is-neutral{ color: var(--paper-faint); }
+.player-home-lastmatch__score{ font-family: var(--font-display); font-size: 20px; color: var(--paper); margin-bottom:4px; }
+.player-home-lastmatch__meta{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
+.player-home-lastmatch__people{ font-size: 12px; color: var(--paper-dim); display:flex; flex-direction:column; gap:2px; margin-bottom: 10px; }
+.player-home-lastmatch__people strong{ color: var(--paper); }
+
+/* Widgets */
+.player-home-widgets-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pastilla--widget{ margin-bottom:0; }
+.pastilla-widget__value{ font-family: var(--font-display); font-size: 22px; color: var(--paper); margin: 6px 0 2px; }
+.pastilla-widget__value--text{ font-size: 15px; }
+.pastilla-widget__caption{ font-size: 11px; color: var(--paper-dim); }
+
+/* Placeholder (Ranking) */
+.pastilla--placeholder{ text-align:center; padding: 32px 20px; }
+.pastilla--placeholder .pastilla__icon{ font-size: 32px; margin-bottom: 10px; }
+.pastilla--placeholder .pastilla__title{ margin-bottom: 8px; }
+
+/* Barra inferior */
+.bottom-nav{
+  position: fixed; left:0; right:0; bottom:0; z-index: 35;
+  display:flex; align-items:flex-end; justify-content:space-between;
+  background: var(--ink-soft); border-top: 1px solid var(--line);
+  padding: 6px 4px calc(6px + var(--safe-bottom));
+}
+.bottom-nav__item{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  background:none; border:none; color: var(--paper-faint); font-family: var(--font-body);
+  font-size: 10px; font-weight:700; padding:6px 2px; cursor:pointer;
+}
+.bottom-nav__icon{ width:21px; height:21px; fill: currentColor; }
+.bottom-nav__item.is-active{ color: var(--team-a); }
+.bottom-nav__item--fab{
+  flex: 0 0 auto; width:52px; height:52px; border-radius:50%; background: var(--gold);
+  color:#1A1400; font-size:26px; font-weight:800; line-height:1; margin: 0 4px;
+  margin-top:-22px; box-shadow: 0 6px 16px rgba(255,201,61,0.4); border: 4px solid var(--ink);
+  display:flex; align-items:center; justify-content:center;
+}
+.bottom-nav__item--fab:active{ transform: scale(0.95); }
+
+@media (min-width: 720px){
+  .player-home-widgets-grid{ grid-template-columns: repeat(4, 1fr); }
+  .bottom-nav{ max-width: 480px; left:50%; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
+}

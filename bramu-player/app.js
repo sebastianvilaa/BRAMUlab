@@ -6,6 +6,7 @@
   const E = window.PLEngine;
   const S = window.PLStats;
   const Store = window.PLStore;
+  const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador) — agregación pura del Home del jugador
   const $ = (sel) => document.querySelector(sel);
   const $all = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -128,9 +129,21 @@
       : `${s.gamesA}-${s.gamesB}`;
   }
 
+  // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
+  // esta lista (partido en vivo, setup, resumen, análisis, timeline) la barra se oculta para
+  // no competir con el control-bar del marcador ni con las cabeceras propias ya existentes.
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'manual-load', 'ranking', 'profile'];
+
   function showView(name) {
-    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load'].forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
+    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'player-home', 'ranking', 'profile']
+      .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     if (name !== 'match') $('#view-summary').hidden = true;
+    const nav = $('#bottom-nav');
+    if (nav) {
+      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1;
+      nav.hidden = !showNav;
+      if (showNav) updateBottomNavActive(name);
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -191,21 +204,21 @@
       });
     });
     $('#setup-form').addEventListener('submit', (e) => { e.preventDefault(); startNewMatch(); });
-    $('#open-history-btn').addEventListener('click', () => { renderHistory(); showView('history'); });
     $('#continue-match-btn').addEventListener('click', continueActiveMatch);
 
     initModeSelector();
+    initHeaderMenu();
     refreshKnownPlayersDatalist();
     checkForActiveMatch();
   }
 
-  /* V13 (§2): selector de modo de registro en la navegación superior de Home, con lógica
-   *  tipo web (botón "MODO COMPLETO ▾" que abre un menú de 2 opciones). Se recuerda la
-   *  última elección (Store.loadRecordingMode) para la próxima vez que se abre Home. */
+  /* V13 (§2): selector de modo de registro (Completo / Por games) con lógica tipo web —
+   *  se recuerda la última elección (Store.loadRecordingMode) para la próxima vez que se
+   *  abre Home. Etapa 2 (Rama Jugador §3.1): el trigger visible ahora es #header-menu-btn
+   *  (abre el menú compacto), no un botón propio — #mode-select-menu en sí no cambia. */
   function initModeSelector() {
     selectedRecordingMode = Store.loadRecordingMode();
     updateModeSelectButtonLabel();
-    $('#mode-select-btn').addEventListener('click', () => { $('#mode-select-menu').hidden = false; });
     $('#mode-select-cancel').addEventListener('click', () => { $('#mode-select-menu').hidden = true; });
     $('#mode-select-menu').addEventListener('click', (e) => { if (e.target === $('#mode-select-menu')) $('#mode-select-menu').hidden = true; });
     $all('#mode-select-menu [data-mode]').forEach((btn) => {
@@ -218,8 +231,23 @@
     });
   }
   function updateModeSelectButtonLabel() {
-    $('#mode-select-btn').textContent = (RECORDING_MODE_LABELS[selectedRecordingMode] || RECORDING_MODE_LABELS.complete) + ' ▾';
+    const label = RECORDING_MODE_LABELS[selectedRecordingMode] || RECORDING_MODE_LABELS.complete;
+    $('#header-menu-btn').textContent = label + ' ▾';
+    $('#header-menu-mode-value').textContent = label;
   }
+
+  /* Etapa 2 (Rama Jugador §3.1) — menú compacto del header de Home: reúne Mi pádel /
+   *  Historial / Modo de registro en un solo lugar, reutilizando overlay/menu-sheet. */
+  function initHeaderMenu() {
+    $('#header-menu-btn').addEventListener('click', () => { $('#header-menu').hidden = false; });
+    $('#header-menu-cancel').addEventListener('click', () => { $('#header-menu').hidden = true; });
+    $('#header-menu').addEventListener('click', (e) => { if (e.target === $('#header-menu')) $('#header-menu').hidden = true; });
+    $('#header-menu-player-home').addEventListener('click', () => { $('#header-menu').hidden = true; openPlayerHome(); });
+    $('#header-menu-history').addEventListener('click', () => { $('#header-menu').hidden = true; openHistoryScreen(); });
+    $('#header-menu-mode').addEventListener('click', () => { $('#header-menu').hidden = true; $('#mode-select-menu').hidden = false; });
+  }
+
+  function openHistoryScreen() { renderHistory(); showView('history'); }
 
   function refreshKnownPlayersDatalist() {
     const dl = $('#known-players');
@@ -244,14 +272,11 @@
 
   /** Bloque B5: normaliza nombres al guardar — capitalización de palabras, sin pisar
    *  mayúsculas/minúsculas internas arbitrarias del usuario (nunca todo mayúsculas). */
-  function normalizePlayerName(raw) {
-    const trimmed = (raw || '').replace(/\s+/g, ' ').trim();
-    if (!trimmed) return trimmed;
-    return trimmed.split(' ').map((word) => {
-      if (!word) return word;
-      return word.charAt(0).toLocaleUpperCase('es') + word.slice(1).toLocaleLowerCase('es');
-    }).join(' ');
-  }
+  // Etapa 2 (Rama Jugador): movida a store.js (Store.normalizePlayerName) para que
+  // player-home.js use exactamente el mismo criterio de normalización al filtrar el
+  // historial por jugador. Se mantiene este wrapper para no tocar los ~10 call-sites
+  // existentes en este archivo.
+  function normalizePlayerName(raw) { return Store.normalizePlayerName(raw); }
 
   function startNewMatch() {
     const nameOrDefault = (id, fallback) => { const v = normalizePlayerName($(`#${id}`).value); return v || fallback; };
@@ -450,9 +475,15 @@
   }
 
   function initManualLoadScreen() {
-    $('#load-played-match-btn').addEventListener('click', openManualLoadScreen);
-    $('#manual-load-back-btn').addEventListener('click', () => showView('setup'));
-    $('#manual-cancel-btn').addEventListener('click', () => showView('setup'));
+    $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
+    // Etapa 2 (Rama Jugador) — el destino de Cancelar/volver depende de desde dónde se abrió
+    // esta pantalla (setup tradicional vs. "+"/"Cargar primer partido" del Home del jugador).
+    $('#manual-load-back-btn').addEventListener('click', () => {
+      if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup');
+    });
+    $('#manual-cancel-btn').addEventListener('click', () => {
+      if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup');
+    });
 
     $all('#manual-format-options .option-pill').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -476,7 +507,22 @@
     $('#manual-load-form').addEventListener('submit', (e) => { e.preventDefault(); saveManualMatch(); });
   }
 
-  function openManualLoadScreen() {
+  // Etapa 2 (Rama Jugador) — dónde volver al cancelar y, si el partido termina guardándose,
+  // a dónde vuelve "VOLVER AL INICIO" desde Resumen/Análisis (ver shouldReturnToPlayerHome...
+  // más abajo). 'setup' = comportamiento de siempre (entrada tradicional desde Home); nunca
+  // se toca el regreso de un partido Completo/Por Games, que no pasa por esta pantalla.
+  let manualLoadOrigin = 'setup';
+
+  function openManualLoadScreen(origin) {
+    manualLoadOrigin = origin === 'player-home' ? 'player-home' : 'setup';
+    // Auditoría funcional (§3) — si se abre desde el Home del jugador sin nadie identificado
+    // todavía (no debería pasar en el uso normal, pero el "+" y "Cargar primer partido" son
+    // puntos de entrada independientes), pedimos "¿Quién sos?" primero y recién después
+    // retomamos esta misma pantalla — nunca se llega a guardar un partido con "Jugador 1".
+    if (manualLoadOrigin === 'player-home') {
+      currentPlayerName = Store.loadCurrentPlayerName();
+      if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen('player-home')); return; }
+    }
     $('#manual-load-form').reset();
     manualSelectedScoring = 'golden';
     manualSelectedFormatId = 'classic';
@@ -495,13 +541,20 @@
     const now = new Date();
     $('#manual-date-input').value = now.toISOString().slice(0, 10);
     $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    // Auditoría funcional (§1/§4) — entrando desde el Home, Jugador 1 pasa a ser "Vos": de
+    // solo lectura, y el nombre real que se guarda es SIEMPRE currentPlayerName (nunca lo que
+    // este campo muestre, ver saveManualMatch/PH.resolvePlayerOneName). Entrando desde el
+    // flujo tradicional el campo sigue exactamente igual que siempre — texto libre editable.
+    const p1 = $('#manual-player-1');
+    if (manualLoadOrigin === 'player-home') { p1.value = 'Vos'; p1.readOnly = true; }
+    else { p1.readOnly = false; }
     showView('manual-load');
   }
 
   function saveManualMatch() {
     const nameOrDefault = (id, fallback) => { const v = normalizePlayerName($(`#${id}`).value); return v || fallback; };
     const players = [
-      { id: 0, team: 'A', name: nameOrDefault('manual-player-1', 'Jugador 1') },
+      { id: 0, team: 'A', name: PH.resolvePlayerOneName(manualLoadOrigin, currentPlayerName, $('#manual-player-1').value, 'Jugador 1') },
       { id: 1, team: 'A', name: nameOrDefault('manual-player-2', 'Jugador 2') },
       { id: 2, team: 'B', name: nameOrDefault('manual-player-3', 'Jugador 3') },
       { id: 3, team: 'B', name: nameOrDefault('manual-player-4', 'Jugador 4') },
@@ -3225,7 +3278,12 @@
       Store.clearActiveMatch();
       match = null;
       checkForActiveMatch();
-      showView('setup');
+      // Etapa 2 (Rama Jugador) — si este es el partido que se acaba de cargar por "+"/"Cargar
+      // primer partido" desde el Home del jugador, "VOLVER AL INICIO" vuelve ahí (renderizado
+      // de nuevo, con el partido ya visible) en vez de a la pantalla de configurar partido.
+      // No aplica a Completo/Por Games (finishedSnapshot.mode nunca es 'manual' en esos casos).
+      if (manualLoadOrigin === 'player-home' && finishedSnapshot && finishedSnapshot.mode === 'manual') openPlayerHome();
+      else showView('setup');
     });
     $('#summary-analysis-btn').addEventListener('click', () => {
       // V6 — bug crítico corregido: antes se priorizaba `analysisCurrent` (que puede
@@ -3277,7 +3335,14 @@
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
     // partido recién terminado como desde el Historial de un partido viejo, y en ese segundo
     // caso podría haber un partido EN VIVO distinto todavía activo que no hay que borrar.
-    $('#analysis-home-btn').onclick = () => { checkForActiveMatch(); showView('setup'); };
+    $('#analysis-home-btn').onclick = () => {
+      checkForActiveMatch();
+      // Etapa 2 (Rama Jugador) — mismo criterio que #summary-new-btn: solo redirige al Home
+      // del jugador si ESTE análisis es el del partido recién cargado por esa vía (`f` es el
+      // snapshot que se está mostrando, no cualquier partido manual visto desde Historial).
+      if (manualLoadOrigin === 'player-home' && f === finishedSnapshot && f.mode === 'manual') openPlayerHome();
+      else showView('setup');
+    };
   }
 
   /** Bloque S2/V5: pestañas PARTIDO/SET1/SET2/SET3, compartidas entre Estadísticas y Evolución.
@@ -4419,6 +4484,8 @@
     $('#analysis-back-btn').addEventListener('click', () => {
       if (analysisOpenedFrom === 'live' && finishedSnapshot) { $('#view-summary').hidden = false; showView('match'); }
       else if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
+      // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home.
+      else if (analysisOpenedFrom === 'player-home') { renderPlayerHome(); showView('player-home'); }
       else showView('setup');
     });
     // Bloque P: VER RESUMEN — especialmente importante entrando desde Historial, donde tocar
@@ -4507,6 +4574,234 @@
     undoToastTimeoutId = setTimeout(() => toast.classList.remove('is-visible'), 4500);
   }
   function initHistoryScreen() { $('#history-back-btn').addEventListener('click', () => showView('setup')); }
+
+  /* ------------------------------------------------------------------ */
+  /* RAMA JUGADOR — HOME DEL JUGADOR (Etapa 2)                            */
+  /* Orquestación de DOM/navegación únicamente — el filtrado del historial, forma
+   *  reciente, rachas, compañero/rival frecuente y el texto de "Tu momento" viven en
+   *  player-home.js (PH), funciones puras sin DOM, mismo criterio de reparto que
+   *  engine.js/stats.js (E/S) para el resto de la app. */
+  /* ------------------------------------------------------------------ */
+  let currentPlayerName = null;
+  // Auditoría funcional (§5): "Cambiar jugador" no existe más — el modal "¿Quién sos?" solo se
+  // abre para la PRIMERA identificación (nunca hay más de un call-site vivo con un jugador ya
+  // identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a dónde seguir
+  // después de guardar el nombre (por default, al Home) — lo usa, por ejemplo, "Cargar partido
+  // jugado" para retomar la carga apenas el jugador se identifica (§3).
+  let afterIdentifyAction = null;
+
+  // Etapa 2 (§6.1): ranking/categoría/tendencia todavía no existen en el modelo de datos.
+  // Valores de demostración centralizados acá a propósito, marcados BETA en la UI — el día
+  // que el ranking real exista, reemplazar este objeto entero alcanza para todo el Home.
+  const PLAYER_PROFILE_DEMO = { category: '5ª', ranking: '#12', trend: '↑ 3' };
+
+  function openPlayerHome() {
+    currentPlayerName = Store.loadCurrentPlayerName();
+    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
+    renderPlayerHome();
+    showView('player-home');
+  }
+
+  function openPlayerIdentifyModal(afterAction) {
+    afterIdentifyAction = afterAction || null;
+    $('#player-identify-input').value = '';
+    $('#player-identify-error').hidden = true;
+    $('#player-identify-modal').hidden = false;
+  }
+
+  function initPlayerIdentifyModal() {
+    $('#player-identify-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = normalizePlayerName($('#player-identify-input').value);
+      if (!name) { $('#player-identify-error').hidden = false; return; }
+      Store.saveCurrentPlayerName(name);
+      Store.rememberPlayerNames([name]);
+      currentPlayerName = name;
+      $('#player-identify-modal').hidden = true;
+      const action = afterIdentifyAction;
+      afterIdentifyAction = null;
+      if (action) action(); else { renderPlayerHome(); showView('player-home'); }
+    });
+    $('#player-identify-cancel').addEventListener('click', () => {
+      $('#player-identify-modal').hidden = true;
+      afterIdentifyAction = null;
+      // Sin jugador identificado todavía no hay Home (ni carga de partido) que mostrar, así
+      // que no lo dejamos varado con el modal cerrado y nada detrás — vuelve a la pantalla
+      // actual. Este modal solo se abre sin jugador identificado (ver comentario arriba).
+      if (!currentPlayerName) showView('setup');
+    });
+  }
+
+  // Auditoría funcional (§5) — "Cerrar sesión": borra ÚNICAMENTE el jugador actual, nunca el
+  // Historial ni los partidos guardados (son datos globales del dispositivo, no del jugador).
+  // Vuelve a la pantalla tradicional; la próxima vez que se entre a "Mi pádel" va a pedir
+  // "¿Quién sos?" de nuevo, porque currentPlayerName ya no existe.
+  function logoutCurrentPlayer() {
+    Store.clearCurrentPlayerName();
+    currentPlayerName = null;
+    showView('setup');
+  }
+
+  function playerInitials(name) {
+    const parts = (name || '').trim().split(' ').filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  function renderPlayerHome() {
+    currentPlayerName = Store.loadCurrentPlayerName();
+    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
+    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+
+    $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
+    $('#player-home-name').textContent = currentPlayerName;
+    $('#player-home-category').textContent = PLAYER_PROFILE_DEMO.category;
+    $('#player-home-ranking').textContent = PLAYER_PROFILE_DEMO.ranking;
+    $('#player-home-trend').textContent = PLAYER_PROFILE_DEMO.trend;
+
+    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentPlayerName);
+
+    renderPlayerFormCard(matches);
+    renderPlayerLastMatchCard(matches);
+    renderPlayerWidgets(matches);
+  }
+
+  function renderPlayerFormCard(matches) {
+    const form = PH.computeRecentForm(matches, currentPlayerName, 5);
+    const wrap = $('#player-home-form-dots');
+    wrap.innerHTML = '';
+    $('#player-home-form-empty').hidden = !!form.length;
+    if (!form.length) { $('#player-home-form-summary').hidden = true; return; }
+    const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', neutral: 'Sin definición' };
+    const RESULT_CHAR = { win: 'V', loss: 'D', neutral: '—' };
+    form.forEach((f) => {
+      const dot = document.createElement('span');
+      dot.className = 'form-dot form-dot--' + f.result;
+      dot.textContent = RESULT_CHAR[f.result];
+      dot.setAttribute('aria-label', RESULT_LABEL[f.result]);
+      wrap.appendChild(dot);
+    });
+    // Corrección de texto: con un solo partido, "1 victoria en los últimos 1" es redundante
+    // — el círculo V/D de arriba ya comunica el resultado. Alcanza con confirmar que hay
+    // historia registrada. Desde 2 partidos sí vale la pena resumir cuántas victorias.
+    if (form.length === 1) {
+      $('#player-home-form-summary').hidden = false;
+      $('#player-home-form-summary').textContent = '1 partido registrado';
+      return;
+    }
+    const wins = form.filter((f) => f.result === 'win').length;
+    const withResult = form.filter((f) => f.result !== 'neutral').length;
+    $('#player-home-form-summary').hidden = withResult === 0;
+    if (withResult > 0) {
+      $('#player-home-form-summary').textContent = `${wins} ${wins === 1 ? 'victoria' : 'victorias'} en los últimos ${form.length}`;
+    }
+  }
+
+  function renderPlayerLastMatchCard(matches) {
+    const body = $('#player-home-last-match-body');
+    if (!matches.length) {
+      body.innerHTML = `
+        <p class="coverage-note">Todavía no cargaste ningún partido.</p>
+        <button type="button" id="player-home-first-match-btn" class="btn-mini">CARGAR PRIMER PARTIDO</button>
+      `;
+      $('#player-home-first-match-btn').addEventListener('click', () => openManualLoadScreen('player-home'));
+      return;
+    }
+    const m = matches[0];
+    const myTeam = PH.getPlayerTeam(m, currentPlayerName);
+    const partner = PH.getPartnerName(m, currentPlayerName);
+    const rivals = PH.getOpponentNames(m, currentPlayerName);
+    const finishedSetsStr = m.sets.map(formatSetSegmentLabel).join(' · ');
+    const partialSetStr = m.currentPartial ? `${m.currentPartial.gamesA}-${m.currentPartial.gamesB}*` : '';
+    const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
+    const resultClass = !m.winnerTeam ? 'is-neutral' : (m.winnerTeam === myTeam ? 'is-win' : 'is-loss');
+    const resultLabel = !m.winnerTeam ? 'SIN DEFINICIÓN' : (m.winnerTeam === myTeam ? 'VICTORIA' : 'DERROTA');
+    const modeLabel = m.mode === 'games' ? 'POR GAMES' : m.mode === 'manual' ? 'PARTIDO CARGADO' : 'COMPLETO';
+    body.innerHTML = `
+      <div class="player-home-lastmatch__result player-home-lastmatch__result--${resultClass}">${resultLabel}</div>
+      <div class="player-home-lastmatch__score">${scoreStr}</div>
+      <div class="player-home-lastmatch__meta">${formatRealDate(m.finishedAt, m.timeZone)} · ${modeLabel}</div>
+      <div class="player-home-lastmatch__people">
+        <div>Compañero: <strong>${partner || '—'}</strong></div>
+        <div>Rivales: <strong>${rivals.join(' / ') || '—'}</strong></div>
+      </div>
+      <button type="button" id="player-home-lastmatch-detail-btn" class="link-btn">VER DETALLE</button>
+    `;
+    $('#player-home-lastmatch-detail-btn').addEventListener('click', () => {
+      analysisOpenedFrom = 'player-home';
+      renderAnalysis(m);
+      showView('analysis');
+    });
+  }
+
+  function renderPlayerWidgets(matches) {
+    const month = PH.computeMatchesThisMonth(matches);
+    const streak = PH.computeBestWinStreak(matches, currentPlayerName);
+    const partner = PH.computeMostFrequentPartner(matches, currentPlayerName);
+    const rival = PH.computeMostFrequentRival(matches, currentPlayerName);
+
+    $('#widget-month-value').textContent = month > 0 ? String(month) : '—';
+    $('#widget-month-caption').textContent = month > 0 ? (month === 1 ? 'partido este mes' : 'partidos este mes') : 'Sin partidos este mes';
+
+    $('#widget-streak-value').textContent = streak > 0 ? String(streak) : '—';
+    $('#widget-streak-caption').textContent = streak > 0 ? (streak === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Todavía sin racha';
+
+    $('#widget-partner-value').textContent = partner ? partner.name : '—';
+    $('#widget-partner-caption').textContent = partner ? `${partner.count} ${partner.count === 1 ? 'partido junto' : 'partidos juntos'}` : 'Sin datos suficientes';
+
+    $('#widget-rival-value').textContent = rival ? rival.name : '—';
+    $('#widget-rival-caption').textContent = rival ? `${rival.count} ${rival.count === 1 ? 'enfrentamiento' : 'enfrentamientos'}` : 'Sin datos suficientes';
+  }
+
+  function initPlayerHomeScreen() {
+    $('#player-home-logo').addEventListener('click', () => showView('setup'));
+    $('#player-home-setup-link').addEventListener('click', () => showView('setup'));
+    initPlayerIdentifyModal();
+    initNotificationsModal();
+  }
+
+  function initNotificationsModal() {
+    $('#player-home-bell-btn').addEventListener('click', () => { $('#notifications-modal').hidden = false; });
+    $('#notifications-close').addEventListener('click', () => { $('#notifications-modal').hidden = true; });
+    $('#notifications-modal').addEventListener('click', (e) => { if (e.target === $('#notifications-modal')) $('#notifications-modal').hidden = true; });
+  }
+
+  function initRankingScreen() {
+    $('#ranking-back-btn').addEventListener('click', () => showView('player-home'));
+  }
+
+  function renderProfileView() {
+    const name = Store.loadCurrentPlayerName();
+    $('#profile-name').textContent = name || '—';
+    const count = name ? PH.filterMatchesForPlayer(Store.loadHistory(), name).length : 0;
+    $('#profile-match-count').textContent = count === 1 ? '1 partido cargado' : `${count} partidos cargados`;
+  }
+
+  function initProfileScreen() {
+    $('#profile-back-btn').addEventListener('click', () => showView('player-home'));
+    $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
+  }
+
+  /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil. El "+" reutiliza
+   *  el flujo existente de Cargar partido jugado (openManualLoadScreen) sin modificarlo. */
+  function initBottomNav() {
+    $all('.bottom-nav__item[data-nav]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.nav;
+        if (target === 'player-home') openPlayerHome();
+        else if (target === 'history') openHistoryScreen();
+        else if (target === 'manual-load') openManualLoadScreen('player-home');
+        else if (target === 'ranking') showView('ranking');
+        else if (target === 'profile') { renderProfileView(); showView('profile'); }
+      });
+    });
+  }
+
+  function updateBottomNavActive(viewName) {
+    $all('.bottom-nav__item[data-nav]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.nav === viewName);
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* COMPARTIR — V7 (Bloques 97-108 del consolidado).
@@ -4787,6 +5082,10 @@
     initTimelineScreen();
     initHistoryScreen();
     initManualLoadScreen();
+    initPlayerHomeScreen();
+    initRankingScreen();
+    initProfileScreen();
+    initBottomNav();
     initDevTools();
     initUpdateCheck();
     registerServiceWorker();

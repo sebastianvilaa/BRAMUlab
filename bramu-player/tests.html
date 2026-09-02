@@ -22,11 +22,15 @@
 
 <script src="engine.js"></script>
 <script src="stats.js"></script>
+<script src="store.js"></script>
+<script src="player-home.js"></script>
 <script>
 (function () {
   'use strict';
   const E = window.PLEngine;
   const S = window.PLStats;
+  const Store = window.PLStore;
+  const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador)
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -1554,6 +1558,123 @@
     const matchCtx = { players: makePlayers(), format };
     const text = S.generateManualIntelligence(S.computeManualStats([], matchCtx), matchCtx, [], null, { manual: false });
     assert('V14-defensivo · sin sets no crashea y devuelve texto', typeof text === 'string' && text.length > 0);
+  })();
+
+  // ==================================================================
+  // RAMA JUGADOR (Etapa 2) — player-home.js: filtrado por jugador, forma
+  // reciente, mejor racha, compañero/rival frecuente, "Tu momento".
+  // Funciones puras sin DOM — mismo criterio que el resto de este arnés.
+  // ==================================================================
+  function mkHistoryMatch(matchId, finishedAt, names, winnerTeam) {
+    return {
+      matchId, finishedAt, winnerTeam,
+      players: [
+        { id: 0, team: 'A', name: names[0] }, { id: 1, team: 'A', name: names[1] },
+        { id: 2, team: 'B', name: names[2] }, { id: 3, team: 'B', name: names[3] },
+      ],
+      sets: [{ gamesA: 6, gamesB: 3, tiebreak: null, extraordinary: false }],
+      currentPartial: null, mode: 'manual', timeZone: 'UTC',
+    };
+  }
+
+  (function () {
+    const player = 'Sebastián';
+    const history = [
+      mkHistoryMatch('m1', '2026-06-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'), // win
+      mkHistoryMatch('m2', '2026-06-10T00:00:00.000Z', ['Sebastián', 'Martín', 'Ana', 'Bea'], 'B'), // loss
+      mkHistoryMatch('m3', '2026-06-15T00:00:00.000Z', ['Sebastián', 'Lucas', 'Cruz', 'Dan'], 'A'), // win
+      mkHistoryMatch('m4', '2026-07-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'), // win
+      mkHistoryMatch('m5', '2026-07-02T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'), // win
+      mkHistoryMatch('m6', '2026-07-03T00:00:00.000Z', ['Ana', 'Bea', 'Cruz', 'Dan'], 'A'), // NO participa Sebastián — debe quedar afuera
+      mkHistoryMatch('m7', '2026-07-05T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], null), // sin definición
+    ];
+    const matches = PH.filterMatchesForPlayer(history, player);
+
+    assert('RJ · filtra solo los partidos del jugador (6 de 7)', matches.length === 6);
+    assert('RJ · nunca incluye un partido donde no jugó (m6)', matches.every((m) => m.matchId !== 'm6'));
+    assert('RJ · ordena del más reciente al más antiguo', matches.map((m) => m.matchId).join(',') === 'm7,m5,m4,m3,m2,m1');
+
+    assert('RJ · getPlayerTeam identifica el equipo correcto', PH.getPlayerTeam(matches[matches.length - 1], player) === 'A');
+    assert('RJ · getPartnerName devuelve el compañero, no a sí mismo', PH.getPartnerName(matches[matches.length - 1], player) === 'Martín');
+    assert('RJ · getOpponentNames devuelve los dos rivales', PH.getOpponentNames(matches[matches.length - 1], player).join('/') === 'Cruz/Dan');
+    assert('RJ · matchResultForPlayer: victoria', PH.matchResultForPlayer(matches[matches.length - 1], player) === 'win');
+    assert('RJ · matchResultForPlayer: derrota (ganó el equipo rival)', PH.matchResultForPlayer(matches[4], player) === 'loss');
+    assert('RJ · matchResultForPlayer: neutral cuando no hay winnerTeam (nunca inventa un resultado)', PH.matchResultForPlayer(matches[0], player) === 'neutral');
+
+    const form = PH.computeRecentForm(matches, player, 5);
+    assert('RJ · computeRecentForm respeta el orden más reciente primero', form.map((f) => f.result).join(',') === 'neutral,win,win,win,loss');
+
+    assert('RJ · computeBestWinStreak encuentra la racha más larga de TODO el historial, no solo los últimos 5',
+      PH.computeBestWinStreak(matches, player) === 3);
+
+    const partner = PH.computeMostFrequentPartner(matches, player);
+    assert('RJ · computeMostFrequentPartner cuenta bien (Martín en 5 de 6)', partner && partner.name === 'Martín' && partner.count === 5);
+
+    const rival = PH.computeMostFrequentRival(matches, player);
+    assert('RJ · computeMostFrequentRival cuenta cada rival individualmente', rival && rival.name === 'Cruz' && rival.count === 5);
+
+    const momento = PH.buildTuMomentoText(matches, player);
+    assert('RJ · "Tu momento" combina como máximo 2 datos, nunca los 3 widgets juntos',
+      momento === 'Venís de ganar 3 de tus últimos 5 partidos. Martín es tu compañero más frecuente.', momento);
+  })();
+
+  (function () {
+    assert('RJ · "Tu momento" sin partidos no inventa nada', PH.buildTuMomentoText([], 'Sebastián') ===
+      'Tu historia empieza acá. Cargá tu primer partido para empezar a descubrir tu pádel.');
+    const one = [mkHistoryMatch('u1', '2026-06-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A')];
+    assert('RJ · "Tu momento" con 1 partido reconoce el inicio sin sacar conclusiones fuertes',
+      /primer partido/i.test(PH.buildTuMomentoText(one, 'Sebastián')));
+  })();
+
+  // Sin señal fuerte (compañero siempre distinto, sin resultados, fuera del mes actual):
+  // debe caer en el mensaje de actividad/constancia, nunca fabricar un patrón.
+  (function () {
+    const now = new Date();
+    const pastMonth = new Date(now.getFullYear(), now.getMonth() - 2, 5).toISOString();
+    const noSignal = [
+      mkHistoryMatch('n1', pastMonth, ['Sebastián', 'X1', 'Cruz', 'Dan'], null),
+      mkHistoryMatch('n2', pastMonth, ['Sebastián', 'X2', 'Cruz', 'Dan'], null),
+      mkHistoryMatch('n3', pastMonth, ['Sebastián', 'X3', 'Cruz', 'Dan'], null),
+    ];
+    assert('RJ · "Tu momento" sin patrón valioso prioriza actividad/constancia, no inventa',
+      PH.buildTuMomentoText(noSignal, 'Sebastián') === 'Ya cargaste 3 partidos. Tu historia se sigue construyendo, partido a partido.');
+  })();
+
+  // computeMatchesThisMonth — fechas relativas a "ahora" para no depender de cuándo corre el test.
+  (function () {
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 5).toISOString();
+    const otherMonth = new Date(now.getFullYear(), now.getMonth() - 3, 5).toISOString();
+    const matches = [
+      mkHistoryMatch('t1', thisMonth, ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'),
+      mkHistoryMatch('t2', otherMonth, ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'),
+    ];
+    assert('RJ · computeMatchesThisMonth solo cuenta el mes calendario actual', PH.computeMatchesThisMonth(matches) === 1);
+  })();
+
+  // Store.normalizePlayerName — único criterio compartido entre app.js y player-home.js.
+  (function () {
+    assert('RJ · normalizePlayerName colapsa espacios y aplica Title Case en español',
+      Store.normalizePlayerName('  sebastián   VILA ') === 'Sebastián Vila');
+    assert('RJ · filterMatchesForPlayer encuentra al jugador aunque se lo escriba distinto (mismo criterio de normalización)',
+      PH.filterMatchesForPlayer([mkHistoryMatch('z1', '2026-01-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A')], '  sebastián ').length === 1);
+  })();
+
+  // Auditoría funcional §1/§3/§4/§8 — PH.resolvePlayerOneName: el nombre que se guarda para
+  // Jugador 1 al cargar un partido, según el origen del formulario. Ambos orígenes cubiertos.
+  (function () {
+    assert('RJ · resolvePlayerOneName (origen player-home) usa SIEMPRE currentPlayerName, nunca el campo',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', 'lo que sea que diga el campo', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen player-home) ignora un campo vacío igual — nunca cae en el fallback genérico',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', '', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen player-home) ignora currentPlayerName con espacios/tildes distintos del campo — el campo directamente no importa',
+      PH.resolvePlayerOneName('player-home', 'Sebastián', 'Otro Nombre Cualquiera', 'Jugador 1') === 'Sebastián');
+    assert('RJ · resolvePlayerOneName (origen setup) mantiene el comportamiento de siempre: normaliza el texto del campo',
+      PH.resolvePlayerOneName('setup', 'Sebastián', '  martín  ', 'Jugador 1') === 'Martín');
+    assert('RJ · resolvePlayerOneName (origen setup) cae en el fallback genérico si el campo queda vacío, sin importar currentPlayerName',
+      PH.resolvePlayerOneName('setup', 'Sebastián', '', 'Jugador 1') === 'Jugador 1');
+    assert('RJ · resolvePlayerOneName (origen setup) funciona igual sin ningún jugador identificado (currentPlayerName null) — flujo tradicional intacto',
+      PH.resolvePlayerOneName('setup', null, 'Martín', 'Jugador 1') === 'Martín');
   })();
 
   // ------------------------------------------------------------------
