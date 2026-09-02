@@ -139,8 +139,11 @@
 
     <div class="match-header">
       <div class="match-header__info" id="match-header-info">
-        <!-- V12.1 (§3) — usar el logo real ya existente en vez de texto CSS. -->
-        <img class="brand-logo brand-logo--match-header" src="icons/logo.png" alt="BRAMU Lab" />
+        <!-- V12.1 (§3) — usar el logo real ya existente en vez de texto CSS.
+             Etapa 3 (Fase 2, §6) — ahora también es el tap target para volver al Home SIN
+             descartar el partido en curso (antes no existía ninguna salida no destructiva
+             desde acá, solo ☰ → "Volver al inicio", que sí descarta). -->
+        <img id="match-header-logo-btn" class="brand-logo brand-logo--match-header" src="icons/logo.png" alt="Volver al inicio sin descartar el partido" />
         <span class="match-header__sep" aria-hidden="true">·</span>
         <span class="match-header__format" id="match-header-format"></span>
         <span class="match-header__sep" aria-hidden="true">·</span>
@@ -260,18 +263,6 @@
         <div class="overlay__title">PAUSA</div>
         <p class="overlay__text">El cronómetro está detenido.</p>
         <button id="resume-btn" class="btn-start btn-start--overlay" type="button">REANUDAR</button>
-      </div>
-    </div>
-
-    <!-- Confirmación genérica -->
-    <div id="confirm-overlay" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
-        <p class="overlay__text" id="confirm-text"></p>
-        <div class="overlay__actions">
-          <button id="confirm-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="confirm-accept" class="btn-start btn-start--overlay" type="button">Confirmar</button>
-        </div>
       </div>
     </div>
 
@@ -809,6 +800,16 @@
     </div>
     <div class="analysis-scroll player-home-scroll">
 
+      <!-- Etapa 3 (Fase 2, §7) — franja de partido en curso: prioridad sobre Hitos/tarjeta de
+           identidad, solo visible cuando hay un partido en vivo activo. Ver
+           renderActiveMatchBanner() en app.js. -->
+      <button type="button" id="active-match-banner" class="active-match-banner" hidden>
+        <div class="active-match-banner__label">PARTIDO EN CURSO</div>
+        <div class="active-match-banner__teams" id="active-match-banner-teams"></div>
+        <div class="active-match-banner__meta" id="active-match-banner-meta"></div>
+        <span class="active-match-banner__cta">CONTINUAR</span>
+      </button>
+
       <div class="pastilla pastilla--identity">
         <div class="pastilla-identity__avatar" id="player-home-avatar">—</div>
         <div class="pastilla-identity__info">
@@ -982,6 +983,91 @@
       <p class="overlay__text">Todavía no tenés notificaciones.</p>
       <div class="overlay__actions">
         <button type="button" id="notifications-close" class="btn-secondary" style="width:100%">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmación genérica. Etapa 3 (Fase 2) — reubicada acá desde dentro de #view-match: vivía
+       anidada ahí y, como #view-match queda `hidden` en cualquier otra vista, un ancestro con
+       `display:none` le impedía pintarse igual que ya le pasó a "Hay una nueva versión"/"Sistema
+       de puntuación" (ver comentario de esos dos modales, V13.2/V13.3) — el mismo defecto, nunca
+       antes notado porque sus dos únicos usos (Reiniciar partido / Volver al inicio desde ☰) solo
+       se disparan estando ya adentro del partido. Fase 2 la reutiliza para "¿Salir sin guardar?"
+       en Cargar partido jugado, alcanzable también fuera de #view-match, así que hacía falta
+       corregirlo. Comportamiento y call sites existentes: sin cambios. -->
+  <div id="confirm-overlay" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
+      <p class="overlay__text" id="confirm-text"></p>
+      <div class="overlay__actions">
+        <button id="confirm-cancel" class="btn-secondary" type="button">Cancelar</button>
+        <button id="confirm-accept" class="btn-start btn-start--overlay" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Etapa 3 (Fase 2, §9) — confirmación de descarte del partido en curso al elegir "Registrar
+       partido nuevo" desde la hoja. Modal dedicado (no reutiliza #confirm-overlay): acá los roles
+       de los botones están invertidos respecto a la convención genérica — la acción seleccionada
+       por defecto/segura es "Volver al partido" (principal, lima/gold) y la destructiva
+       "Descartar" usa rojo, algo que #confirm-overlay no modela (ahí "Confirmar" siempre es la
+       acción principal, nunca la de seguridad). -->
+  <div id="discard-match-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">HAY UN PARTIDO EN CURSO</div>
+      <p class="overlay__text">Si registrás un partido nuevo, el partido actual se cerrará y su progreso no quedará guardado en el historial.</p>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button type="button" id="discard-match-keep" class="btn-start btn-start--overlay">VOLVER AL PARTIDO</button>
+        <button type="button" id="discard-match-confirm" class="btn-secondary btn-secondary--danger">DESCARTAR Y REGISTRAR UNO NUEVO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       HOJA "REGISTRAR PARTIDO" — Etapa 3 (Fase 2, §4-§9)
+       Vive fuera de cualquier vista, como el toast: el "+" de la barra inferior la abre
+       igual desde Inicio/Historial/Ranking/Perfil. Contenido según haya o no un partido
+       en vivo activo (#register-sheet-active vs. #register-sheet-level1/2) — ver
+       getActiveMatchSummary()/openRegisterSheet() en app.js.
+       ============================================================ -->
+  <div id="register-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="register-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Registrar partido">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+
+      <!-- Con partido en curso (§8) -->
+      <div id="register-sheet-active" class="bottom-sheet__level" hidden>
+        <div class="bottom-sheet__header">
+          <span class="bottom-sheet__title">PARTIDO EN CURSO</span>
+          <button type="button" id="register-sheet-close-active" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+        </div>
+        <button type="button" id="register-sheet-active-card" class="sheet-active-card">
+          <div class="sheet-active-card__label">PARTIDO EN CURSO</div>
+          <div class="sheet-active-card__teams" id="register-sheet-active-teams"></div>
+          <div class="sheet-active-card__meta" id="register-sheet-active-meta"></div>
+          <div class="sheet-active-card__cta">CONTINUAR PARTIDO</div>
+        </button>
+        <button type="button" id="register-sheet-new-match" class="sheet-option">Registrar partido nuevo</button>
+      </div>
+
+      <!-- Sin partido en curso, nivel 1 (§4) -->
+      <div id="register-sheet-level1" class="bottom-sheet__level" hidden>
+        <div class="bottom-sheet__header">
+          <span class="bottom-sheet__title">REGISTRAR PARTIDO</span>
+          <button type="button" id="register-sheet-close-1" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+        </div>
+        <button type="button" id="register-sheet-load-played" class="sheet-option sheet-option--primary">Cargar mi partido jugado</button>
+        <button type="button" id="register-sheet-live" class="sheet-option">Registrar partido en vivo</button>
+      </div>
+
+      <!-- Nivel 2: elegir modo en vivo (§4) — ninguna opción preseleccionada ni destacada. -->
+      <div id="register-sheet-level2" class="bottom-sheet__level" hidden>
+        <div class="bottom-sheet__header">
+          <button type="button" id="register-sheet-back-2" class="bottom-sheet__back" aria-label="Volver">←</button>
+          <span class="bottom-sheet__title">REGISTRAR EN VIVO</span>
+          <button type="button" id="register-sheet-close-2" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+        </div>
+        <button type="button" id="register-sheet-mode-games" class="sheet-option">Game por game</button>
+        <button type="button" id="register-sheet-mode-complete" class="sheet-option">Punto por punto</button>
       </div>
     </div>
   </div>

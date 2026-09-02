@@ -268,6 +268,17 @@
     }
   }
 
+  /** Etapa 3 (Fase 2, §6-§8) — snapshot de solo lectura del partido en vivo activo (si existe),
+   *  para la franja del Home y la hoja "Registrar partido". Lee siempre del Store (nunca del
+   *  `match` en memoria) para reflejar exactamente lo que se reanudaría, incluso llamada desde
+   *  una pantalla sin ningún partido cargado en memoria (Home, Historial, etc.). El cómputo en
+   *  sí (nombres/score/modo) es PH.summarizeActiveMatchSnapshot — pura, testeada en tests.html. */
+  function getActiveMatchSummary() {
+    const snap = Store.loadActiveMatch();
+    if (!snap || !snap.match || snap.finished) return null;
+    return PH.summarizeActiveMatchSnapshot(snap);
+  }
+
   function makeMatchId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   /** Bloque B5: normaliza nombres al guardar — capitalización de palabras, sin pisar
@@ -476,20 +487,21 @@
 
   function initManualLoadScreen() {
     $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
-    // Etapa 2 (Rama Jugador) — el destino de Cancelar/volver depende de desde dónde se abrió
-    // esta pantalla (setup tradicional vs. "+"/"Cargar primer partido" del Home del jugador).
-    $('#manual-load-back-btn').addEventListener('click', () => {
-      if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup');
-    });
-    $('#manual-cancel-btn').addEventListener('click', () => {
-      if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup');
-    });
+    // Etapa 3 (Fase 2, §10) — Cancelar/volver ahora pasan por exitManualLoadScreen, que
+    // pregunta "¿Salir sin guardar?" solo si hubo interacción con el formulario; el destino
+    // (Setup tradicional vs. Home del jugador) sigue resolviéndose igual que antes (Etapa 2).
+    $('#manual-load-back-btn').addEventListener('click', exitManualLoadScreen);
+    $('#manual-cancel-btn').addEventListener('click', exitManualLoadScreen);
+    // §10 — cualquier interacción con el formulario cuenta como "datos ingresados".
+    $('#manual-load-form').addEventListener('input', markManualLoadDirty);
+    $('#manual-load-form').addEventListener('change', markManualLoadDirty);
 
     $all('#manual-format-options .option-pill').forEach((btn) => {
       btn.addEventListener('click', () => {
         $all('#manual-format-options .option-pill').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
         btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
         manualSelectedFormatId = btn.dataset.value;
+        markManualLoadDirty();
         renderManualResultSection();
       });
     });
@@ -498,11 +510,12 @@
         $all('#manual-scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
         btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
         manualSelectedScoring = btn.dataset.value;
+        markManualLoadDirty();
       });
     });
     $('#manual-set-1').addEventListener('change', updateManualThirdSetVisibility);
     $('#manual-set-2').addEventListener('change', updateManualThirdSetVisibility);
-    $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; });
+    $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); });
     $('#manual-location-btn').addEventListener('click', requestManualLocation);
     $('#manual-load-form').addEventListener('submit', (e) => { e.preventDefault(); saveManualMatch(); });
   }
@@ -512,6 +525,19 @@
   // más abajo). 'setup' = comportamiento de siempre (entrada tradicional desde Home); nunca
   // se toca el regreso de un partido Completo/Por Games, que no pasa por esta pantalla.
   let manualLoadOrigin = 'setup';
+
+  // Etapa 3 (Fase 2, §10) — "¿Salir sin guardar?": se marca dirty ante CUALQUIER interacción
+  // con el formulario (aunque el valor final termine igual al default) — a propósito, para
+  // nunca descartar en silencio algo que el usuario sí tocó; se resetea solo al abrir la
+  // pantalla de nuevo. Esta pantalla nunca genera "partido en curso" (Adenda §3/§4).
+  let manualLoadDirty = false;
+  function markManualLoadDirty() { manualLoadDirty = true; }
+
+  function exitManualLoadScreen() {
+    const goBack = () => { if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup'); };
+    if (!manualLoadDirty) { goBack(); return; }
+    confirmAction('¿Salir sin guardar?', 'Los datos que ingresaste todavía no se guardaron.', () => { manualLoadDirty = false; goBack(); });
+  }
 
   function openManualLoadScreen(origin) {
     manualLoadOrigin = origin === 'player-home' ? 'player-home' : 'setup';
@@ -527,6 +553,7 @@
     manualSelectedScoring = 'golden';
     manualSelectedFormatId = 'classic';
     manualCoords = null;
+    manualLoadDirty = false; // §10 — recién se marca dirty con interacción real del usuario
     $('#manual-location-status').hidden = true;
     $all('#manual-format-options .option-pill').forEach((b) => {
       const sel = b.dataset.value === 'classic';
@@ -1927,13 +1954,20 @@
     showToast('Partido reiniciado');
   }
 
-  function goHome() {
+  /** Etapa 3 (Fase 2, §9) — núcleo de "descartar el partido activo", extraído de `goHome()`
+   *  para reutilizarlo también desde la confirmación de descarte de la hoja "Registrar
+   *  partido" (que NO vuelve a Setup como goHome — se queda donde estaba y reabre la hoja). */
+  function discardActiveMatchState() {
     stopTimerLoop();
     releaseWakeLock(); // V13.2 (§1)
     Store.clearActiveMatch();
     match = null;
     $('#pause-overlay').hidden = true;
     $('#view-summary').hidden = true;
+  }
+
+  function goHome() {
+    discardActiveMatchState();
     checkForActiveMatch();
     showView('setup');
   }
@@ -1954,6 +1988,161 @@
       const fn = pendingConfirmAccept; pendingConfirmAccept = null;
       if (fn) fn();
     });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 3 (FASE 2, §4-§9) — HOJA "REGISTRAR PARTIDO"                    */
+  /* Único punto de entrada del "+" de la barra inferior. Sin partido en vivo activo
+   *  muestra dos niveles (Cargar mi partido jugado / Registrar partido en vivo → Game por
+   *  game / Punto por punto); con uno activo, la tarjeta contextual para continuarlo más
+   *  "Registrar partido nuevo" (que pide confirmación antes de descartar, ver
+   *  #discard-match-modal más abajo). Vive fuera de cualquier vista — igual que el toast —
+   *  así que abre desde Inicio/Historial/Ranking/Perfil por igual. */
+  /* ------------------------------------------------------------------ */
+  let registerSheetLevel = null; // 'active' | 'level1' | 'level2' | null (cerrada)
+  let registerSheetFocusReturn = null; // §5: restaurar foco al "+" al cerrar
+
+  function showRegisterSheetLevel(level, opts) {
+    const animate = !!(opts && opts.animate);
+    registerSheetLevel = level;
+    ['active', 'level1', 'level2'].forEach((key) => {
+      const el = $(`#register-sheet-${key}`);
+      const show = key === level;
+      el.classList.remove('is-entering');
+      el.hidden = !show;
+      if (show && animate) {
+        void el.offsetWidth; // fuerza reflow — permite re-disparar la animación si se repite el nivel
+        el.classList.add('is-entering');
+      }
+    });
+  }
+
+  function openRegisterSheet() {
+    registerSheetFocusReturn = document.activeElement;
+    const summary = getActiveMatchSummary();
+    if (summary) {
+      $('#register-sheet-active-teams').textContent = `${summary.teamAName} vs ${summary.teamBName}`;
+      $('#register-sheet-active-meta').textContent = `${summary.scoreLabel} · ${summary.modeLabel}`;
+      showRegisterSheetLevel('active');
+    } else {
+      showRegisterSheetLevel('level1');
+    }
+    $('#register-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#register-sheet-scrim').classList.add('is-open'); });
+  }
+
+  /** Cierre animado normal: usado cuando detrás va a quedar una pantalla completa (marcador,
+   *  Setup, Cargar partido jugado) — ver la salvedad de `closeRegisterSheetInstant` abajo. */
+  function closeRegisterSheet() {
+    const scrim = $('#register-sheet-scrim');
+    if (scrim.hidden) return;
+    scrim.classList.remove('is-open');
+    const restoreFocus = registerSheetFocusReturn;
+    registerSheetFocusReturn = null;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      scrim.removeEventListener('transitionend', onEnd);
+      scrim.hidden = true;
+      if (restoreFocus && typeof restoreFocus.focus === 'function') restoreFocus.focus();
+    };
+    const onEnd = (e) => { if (e.target === scrim) finish(); };
+    scrim.addEventListener('transitionend', onEnd);
+    setTimeout(finish, 400); // red de seguridad: nunca deja el scrim invisible pero bloqueando toques
+  }
+
+  /** Cierre sin animación — únicamente para la transición hoja → confirmación de descarte
+   *  (§9): ambas son overlays de igual jerarquía visual, así que dejar que la hoja se
+   *  desvanezca detrás del modal de confirmación se veía como dos capas compitiendo. */
+  function closeRegisterSheetInstant() {
+    $('#register-sheet-scrim').classList.remove('is-open');
+    $('#register-sheet-scrim').hidden = true;
+    registerSheetFocusReturn = null;
+  }
+
+  function selectRegisterMode(mode) {
+    selectedRecordingMode = mode;
+    Store.saveRecordingMode(mode);
+    updateModeSelectButtonLabel();
+    closeRegisterSheet();
+    showView('setup');
+  }
+
+  function openDiscardMatchModal() { $('#discard-match-modal').hidden = false; }
+
+  function initDiscardMatchModal() {
+    $('#discard-match-keep').addEventListener('click', () => {
+      $('#discard-match-modal').hidden = true;
+      continueActiveMatch();
+    });
+    $('#discard-match-confirm').addEventListener('click', () => {
+      $('#discard-match-modal').hidden = true;
+      discardActiveMatchState();
+      checkForActiveMatch(); // mantiene sincronizada la franja vieja de view-setup, aunque no esté visible
+      if (currentPlayerName) renderActiveMatchBanner(); // refresca la franja del Home si sigue detrás
+      openRegisterSheet(); // §9: "luego mostrar las opciones habituales" — ya no hay partido activo, abre en nivel 1
+    });
+  }
+
+  /** §5: "Puede cerrarse deslizando hacia abajo." Arrastre vertical simple sobre la hoja
+   *  (nunca si el toque arranca en un botón/control, para no interferir con los taps de las
+   *  opciones) — pasado el umbral, cierra; si no, vuelve a su lugar. */
+  function initRegisterSheetSwipe() {
+    const sheet = $('#register-sheet');
+    let startY = null;
+    let dy = 0;
+    let dragging = false;
+
+    sheet.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button, select, input, a')) return;
+      startY = e.clientY;
+      dy = 0;
+      dragging = true;
+      sheet.setPointerCapture(e.pointerId);
+      sheet.style.transition = 'none';
+    });
+    sheet.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      dy = Math.max(0, e.clientY - startY);
+      sheet.style.transform = `translateY(${dy}px)`;
+    });
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+      if (dy > 80) closeRegisterSheet();
+      dy = 0; startY = null;
+    };
+    sheet.addEventListener('pointerup', endDrag);
+    sheet.addEventListener('pointercancel', endDrag);
+  }
+
+  function initRegisterSheet() {
+    $('#register-sheet-close-1').addEventListener('click', closeRegisterSheet);
+    $('#register-sheet-close-2').addEventListener('click', closeRegisterSheet);
+    $('#register-sheet-close-active').addEventListener('click', closeRegisterSheet);
+    $('#register-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#register-sheet-scrim')) closeRegisterSheet(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('#register-sheet-scrim').hidden) closeRegisterSheet();
+    });
+    $('#register-sheet-live').addEventListener('click', () => showRegisterSheetLevel('level2', { animate: true }));
+    $('#register-sheet-back-2').addEventListener('click', () => showRegisterSheetLevel('level1', { animate: true }));
+    $('#register-sheet-load-played').addEventListener('click', () => { closeRegisterSheet(); openManualLoadScreen('player-home'); });
+    $('#register-sheet-mode-games').addEventListener('click', () => selectRegisterMode('games'));
+    $('#register-sheet-mode-complete').addEventListener('click', () => selectRegisterMode('complete'));
+    $('#register-sheet-active-card').addEventListener('click', () => { closeRegisterSheet(); continueActiveMatch(); });
+    $('#register-sheet-new-match').addEventListener('click', () => { closeRegisterSheetInstant(); openDiscardMatchModal(); });
+    initRegisterSheetSwipe();
+  }
+
+  /** Etapa 3 (Fase 2, §6) — tap en el logo del header del partido en vivo: navega al Home
+   *  SIN descartar el partido (a diferencia de ☰ → "Volver al inicio", que sí descarta).
+   *  `openPlayerHome()` ya resuelve tanto el caso identificado como el de "¿Quién sos?"
+   *  primero — se reutiliza tal cual, mismo criterio que #home-logo/#player-home-logo. */
+  function initMatchHeaderHomeLink() {
+    $('#match-header-logo-btn').addEventListener('click', () => { openPlayerHome(); });
   }
 
   /* ------------------------------------------------------------------ */
@@ -4671,9 +4860,23 @@
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
 
+  /** Etapa 3 (Fase 2, §7) — franja de partido en curso: prioridad sobre Hitos/identidad,
+   *  solo visible con un partido en vivo activo. No depende de qué jugador esté
+   *  identificado (a diferencia del resto del Home) — un partido en curso es del
+   *  dispositivo, igual que ya lo trata "partido en curso" en el resto de la app. */
+  function renderActiveMatchBanner() {
+    const summary = getActiveMatchSummary();
+    const banner = $('#active-match-banner');
+    if (!summary) { banner.hidden = true; return; }
+    $('#active-match-banner-teams').textContent = `${summary.teamAName} vs ${summary.teamBName}`;
+    $('#active-match-banner-meta').textContent = `${summary.scoreLabel} · ${summary.modeLabel}`;
+    banner.hidden = false;
+  }
+
   function renderPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
     if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
+    renderActiveMatchBanner();
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
 
     $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
@@ -4781,6 +4984,7 @@
   function initPlayerHomeScreen() {
     $('#player-home-logo').addEventListener('click', () => showView('setup'));
     $('#player-home-setup-link').addEventListener('click', () => showView('setup'));
+    $('#active-match-banner').addEventListener('click', continueActiveMatch);
     initPlayerIdentifyModal();
     initNotificationsModal();
   }
@@ -4807,15 +5011,19 @@
     $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
   }
 
-  /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil. El "+" reutiliza
-   *  el flujo existente de Cargar partido jugado (openManualLoadScreen) sin modificarlo. */
+  /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil. Etapa 3 (Fase 2,
+   *  §4/§8) — el "+" ahora abre la hoja "Registrar partido" (openRegisterSheet), que decide
+   *  internamente su contenido según haya o no un partido en vivo activo; ya no abre
+   *  Cargar partido jugado en forma directa (ese flujo sigue intacto, ahora un nivel adentro
+   *  de la hoja). El atributo `data-nav="manual-load"` se deja igual a propósito — es solo
+   *  un identificador interno, no cambia nada visible. */
   function initBottomNav() {
     $all('.bottom-nav__item[data-nav]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const target = btn.dataset.nav;
         if (target === 'player-home') openPlayerHome();
         else if (target === 'history') openHistoryScreen();
-        else if (target === 'manual-load') openManualLoadScreen('player-home');
+        else if (target === 'manual-load') openRegisterSheet();
         else if (target === 'ranking') showView('ranking');
         else if (target === 'profile') { renderProfileView(); showView('profile'); }
       });
@@ -5088,6 +5296,16 @@
     });
   }
 
+  /** Etapa 3 (Fase 2, §6) — "si la aplicación se cierra o recarga mientras se registra, al
+   *  abrir nuevamente debe volver directamente a la misma pantalla" (sin pantalla intermedia
+   *  de recuperación). Antes no existía ningún llamado equivalente: la app siempre arrancaba
+   *  en Setup y hacía falta tocar "CONTINUAR" a mano. Reutiliza `continueActiveMatch()` tal
+   *  cual — mismo camino que ya usan la franja/hoja/banner de Setup, cero estado nuevo. */
+  function tryAutoResumeActiveMatch() {
+    const snap = Store.loadActiveMatch();
+    if (snap && snap.match && !snap.finished) continueActiveMatch();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initSetupScreen();
     initMatchInteractions();
@@ -5113,8 +5331,12 @@
     initRankingScreen();
     initProfileScreen();
     initBottomNav();
+    initRegisterSheet();
+    initDiscardMatchModal();
+    initMatchHeaderHomeLink();
     initDevTools();
     initUpdateCheck();
+    tryAutoResumeActiveMatch();
     registerServiceWorker();
   });
 

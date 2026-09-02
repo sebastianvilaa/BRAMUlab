@@ -11,6 +11,7 @@
   'use strict';
 
   const Store = global.PLStore;
+  const Engine = global.PLEngine;
 
   /** Auditoría funcional (BRAMU_Rama_Jugador_Auditoria_Funcional.md, §8) — resuelve el nombre
    *  que se guarda para Jugador 1 al cargar un partido, según desde dónde se abrió la pantalla:
@@ -210,6 +211,46 @@
     return capitalizeFirst(clauses.join('. ')) + '.';
   }
 
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 3 (FASE 2) — ACCESO Y PARTIDO EN CURSO                         */
+  /* Única pieza de lógica de la Fase 2 que es genuinamente pura (sin DOM ni
+   *  localStorage): el resto (hoja, franja, descarte, reanudación automática)
+   *  es orquestación de vistas y vive en app.js, verificada manualmente
+   *  (ver informe de la fase — no hay arnés de pruebas para DOM/interacción). */
+  /* ------------------------------------------------------------------ */
+
+  const LIVE_MODE_LABELS = { games: 'Game por game', complete: 'Punto por punto' };
+
+  /** Etiqueta visible del modo de registro en vivo (Adenda §2 / Fase 2 §4) — única fuente
+   *  de la correspondencia games→"Game por game", complete→"Punto por punto", para no
+   *  repetir el mapeo suelto en la franja y en la tarjeta contextual de la hoja. */
+  function registerModeLabel(mode) {
+    return LIVE_MODE_LABELS[mode] || LIVE_MODE_LABELS.complete;
+  }
+
+  /** Resume un snapshot de partido en curso (la misma forma que guarda
+   *  Store.saveActiveMatch/lee Store.loadActiveMatch) a lo que necesitan mostrar la franja
+   *  del Home y la hoja "Registrar partido": parejas, resultado parcial y modo. `null` si
+   *  el snapshot no representa un partido en vivo utilizable. Pura — reutiliza engine.js
+   *  para el estado (misma fuente de verdad que el propio marcador), nunca reinterpreta
+   *  puntos/games por su cuenta. */
+  function summarizeActiveMatchSnapshot(snap) {
+    if (!snap || !snap.match) return null;
+    const m = snap.match;
+    const format = Engine.FORMATS[m.formatId];
+    if (!format) return null;
+    const state = m.mode === 'games'
+      ? Engine.computeGameStateFromEvents(snap.gameEvents || [], format, null)
+      : Engine.computeStateFromEvents(snap.pointEvents || [], m.scoringSystem, format, m.tiebreakMode, m.baseline);
+    const teamName = (team) => (m.players || []).filter((p) => p && p.team === team).map((p) => p.name).join(' / ');
+    return {
+      teamAName: teamName('A'),
+      teamBName: teamName('B'),
+      modeLabel: registerModeLabel(m.mode),
+      scoreLabel: `Set ${state.sets.length + 1} · ${state.gamesA}-${state.gamesB}`,
+    };
+  }
+
   global.PLPlayerHome = {
     resolvePlayerOneName,
     getPlayedAt, comparePlayedAtDesc,
@@ -217,5 +258,6 @@
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
+    registerModeLabel, summarizeActiveMatchSnapshot,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

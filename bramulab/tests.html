@@ -1780,6 +1780,45 @@
   })();
 
   // ------------------------------------------------------------------
+  // Etapa 3 (Fase 2) — acceso y registro: única lógica genuinamente pura de la fase
+  // (registerModeLabel / summarizeActiveMatchSnapshot). El resto (hoja, franja, descarte,
+  // reanudación automática) es orquestación de DOM/navegación en app.js, sin arnés — se
+  // verificó manualmente (ver informe de la fase).
+  // ------------------------------------------------------------------
+  function mkActiveMatchSnapshot(mode, events, names) {
+    const match = {
+      id: 'm_test',
+      players: [
+        { id: 0, team: 'A', name: names[0] }, { id: 1, team: 'A', name: names[1] },
+        { id: 2, team: 'B', name: names[2] }, { id: 3, team: 'B', name: names[3] },
+      ],
+      mode, scoringSystem: 'golden', formatId: 'classic', tiebreakMode: 'classic', baseline: null,
+    };
+    const snap = { match, finished: false };
+    if (mode === 'games') snap.gameEvents = events || []; else snap.pointEvents = events || [];
+    return snap;
+  }
+
+  (function () {
+    assert('Fase2 · registerModeLabel("games") = "Game por game"', PH.registerModeLabel('games') === 'Game por game');
+    assert('Fase2 · registerModeLabel("complete") = "Punto por punto"', PH.registerModeLabel('complete') === 'Punto por punto');
+    assert('Fase2 · registerModeLabel es defensivo ante un modo desconocido/ausente (nunca undefined)', PH.registerModeLabel(undefined) === 'Punto por punto' && PH.registerModeLabel('otro') === 'Punto por punto');
+
+    assert('Fase2 · summarizeActiveMatchSnapshot(null) = null', PH.summarizeActiveMatchSnapshot(null) === null);
+    assert('Fase2 · summarizeActiveMatchSnapshot sin match = null', PH.summarizeActiveMatchSnapshot({ finished: false }) === null);
+
+    const complete0 = mkActiveMatchSnapshot('complete', [], ['Sebastián', 'Martín', 'Cruz', 'Dan']);
+    const summaryComplete = PH.summarizeActiveMatchSnapshot(complete0);
+    assert('Fase2 · summarizeActiveMatchSnapshot (Completo) arma las parejas correctamente', summaryComplete.teamAName === 'Sebastián / Martín' && summaryComplete.teamBName === 'Cruz / Dan', JSON.stringify(summaryComplete));
+    assert('Fase2 · summarizeActiveMatchSnapshot (Completo) usa el modo correcto', summaryComplete.modeLabel === 'Punto por punto');
+    assert('Fase2 · summarizeActiveMatchSnapshot (Completo) arranca en Set 1 · 0-0 sin eventos', summaryComplete.scoreLabel === 'Set 1 · 0-0', summaryComplete.scoreLabel);
+
+    const games0 = mkActiveMatchSnapshot('games', [], ['Ana', 'Bea', 'Cruz', 'Dan']);
+    const summaryGames = PH.summarizeActiveMatchSnapshot(games0);
+    assert('Fase2 · summarizeActiveMatchSnapshot (Por Games) usa el motor de games y el modo correcto', summaryGames.modeLabel === 'Game por game' && summaryGames.scoreLabel === 'Set 1 · 0-0', JSON.stringify(summaryGames));
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;
