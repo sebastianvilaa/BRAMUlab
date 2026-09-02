@@ -186,21 +186,24 @@ Esto es una verificación real pero **parcial** respecto a lo pedido en §16 (co
 
 ## 14. Hash y mensaje del commit
 
-`__PENDING_COMMIT_HASH__` — se completa después de confirmar el commit (ver política de este proyecto: el hash no puede conocerse antes de crear el commit).
+`087634e041b851e8a7e728b9cc53d2bd8690057c`
 
-Mensaje: `V15 · Etapa 3, Fase 2 (BRAMU Lab): acceso central de registro y partido en curso`.
+Mensaje: `V15 · Etapa 3, Fase 2 (BRAMU Lab): acceso central de registro y partido en curso` (con cuerpo describiendo el alcance — ver `git log -1` para el texto completo).
 
 ---
 
 ## 15. Push y despliegue
 
-`__PENDING_DEPLOY_STATUS__` — se completa tras el push y la verificación de GitHub Pages.
+Push a `main` confirmado (`eb777e9..087634e`). GitHub Pages construyó el commit `087634e` con estado `built` (verificado vía `gh api repos/sebastianvilaa/BRAMUlab/pages/builds/latest`), sin errores.
 
 ---
 
 ## 16. URL y versión verificadas
 
-`__PENDING_PRODUCTION_VERIFICATION__` — se completa tras el despliegue: URL de BRAMU Lab, versión `v1.1` visible en producción, confirmación de que BRAMU Lab Partidos sigue intacto en su propia URL, y (si es posible reproducir) verificación de detección de actualización en un navegador con `v1` cacheado.
+- BRAMU Lab: `https://sebastianvilaa.github.io/BRAMUlab/bramulab/` — footer y `PLStore.VERSION` muestran `v1.1`; `#register-sheet-scrim`/`#active-match-banner` presentes en el DOM.
+- `https://sebastianvilaa.github.io/BRAMUlab/bramulab/tests.html` — **373/373 tests en verde** en producción.
+- BRAMU Lab Partidos: `https://sebastianvilaa.github.io/BRAMUlab/bramulab-partidos/` — sigue mostrando `v14`, contenido y estructura intactos, sin ningún rastro de la Fase 2.
+- **Verificación real de detección de actualización (no solo teórica):** la primera carga de `tests.html` en producción, en una pestaña que ya había visitado BRAMU Lab antes de este despliegue, sirvió código viejo (`PH.registerModeLabel is not a function` — el Service Worker/caché `bramulab-v1.1` de esa pestaña no reflejaba todavía los archivos nuevos). Se reprodujo así, en producción real, el mismo escenario que motivó este punto del consolidado (§13/§16, test §15-20). Al desregistrar el Service Worker y limpiar la Cache Storage de esa pestaña (mismo efecto que "Forzar actualización" dentro de la app) y recargar, pasó a servir los 373 tests correctamente. Confirma que el mecanismo de actualización sigue funcionando: una instalación con caché anterior no queda rota, y "Forzar actualización" (o desinstalar/reinstalar la PWA) la recupera.
 
 ---
 
