@@ -26,10 +26,10 @@ La fuente de verdad de qué hace la app hoy es siempre el código, no un documen
 
 | Subcarpeta | Contenido |
 |---|---|
-| [`consolidados/`](docs/bramulab-partidos/consolidados/) | Especificaciones de cada versión del marcador (V12 a V14). |
-| [`reportes/`](docs/bramulab-partidos/reportes/) | Reportes técnicos+producto de traspaso a ChatGPT (V13 a V14). |
+| [`consolidados/`](docs/bramulab-partidos/consolidados/) | Especificaciones de cada versión del marcador (V10 a V14). |
+| [`reportes/`](docs/bramulab-partidos/reportes/) | Reportes técnicos+producto de traspaso a ChatGPT (V10 a V14). |
 
-**Pendiente sin resolver:** `Consolidado V10.md`, `Consolidado V11.md`, `Reporte V10/V11/V12 - para ChatGPT.md` de esta app **no están acá todavía** — quedaron en conflicto de nombres con archivos que ya existían en `Reportes y consolidados/BRAMUlab/` (que tampoco se movió) y con un estado de git heredado (archivos borrados del disco pero seguían trackeados en la raíz del repo). No se decidió por cuenta propia cuál versión es la buena — ver el informe de esta reorganización para el detalle y decidir antes de resolverlo.
+**Conflicto resuelto:** `Consolidado V10.md`, `Consolidado V11.md` y `Reporte V10/V11/V12 - para ChatGPT.md` existían duplicados en dos lugares (la raíz del repo, donde git los tenía trackeados pero borrados del disco desde antes de esta reorganización; y `Reportes y consolidados/BRAMUlab/`, sin trackear). Se compararon byte a byte — **las dos versiones eran idénticas en los 5 casos** — así que se conservó una sola copia en `docs/bramulab-partidos/{consolidados,reportes}/` y se confirmó el borrado de la ruta antigua de la raíz. No hizo falta la carpeta `archivo-conflictos/` (esa solo aplicaba si hubiera habido diferencias de contenido).
 
 ### `docs/identidad-visual/`
 
