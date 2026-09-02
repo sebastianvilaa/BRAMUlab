@@ -167,7 +167,14 @@ Todo lo siguiente se verificó en el navegador contra el servidor de desarrollo 
 
 ## 11. Commit, push y despliegue
 
-`__PENDING_COMMIT_HASH__` / `__PENDING_DEPLOY_STATUS__` / `__PENDING_PRODUCTION_VERIFICATION__` — se completan después de confirmar el commit y verificar GitHub Pages (ver política de este proyecto: no puede conocerse el hash antes de crear el commit).
+- **Commit:** `e59d363410d4103f8551053a24c29df56d202c46` — `V16 · Etapa 3, Fase 2 (BRAMU Lab): correcciones postprueba, v1.2`.
+- **Push:** confirmado a `main` (`ef7418b..e59d363`).
+- **GitHub Pages:** build del commit `e59d363` con estado `built` (verificado vía `gh api repos/sebastianvilaa/BRAMUlab/pages/builds/latest`), sin errores.
+- **Verificación en producción:**
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab/tests.html` — 382/382 tests en verde (tras limpiar el Service Worker/caché de una pestaña que ya había visitado la versión anterior, mismo mecanismo de detección de actualización ya documentado en la fase anterior).
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab/` — `PLStore.VERSION === 'v1.2'`; primer arranque sin identidad muestra "¿Quién sos?"; tras identificarse entra al Home; una segunda visita (identidad ya guardada, sin partido activo) entra directo al Home sin pasar por "Configurar partido".
+  - `https://sebastianvilaa.github.io/BRAMUlab/bramulab-partidos/` — intacta, `v14`, sin ningún rastro de esta corrección.
+  - Se limpió el `localStorage` de prueba usado para esta verificación (nombre de jugador de prueba) antes de terminar, sin dejar datos residuales.
 
 ---
 
