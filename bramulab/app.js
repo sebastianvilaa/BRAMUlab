@@ -263,11 +263,26 @@
     $('#header-menu-cancel').addEventListener('click', () => { $('#header-menu').hidden = true; });
     $('#header-menu').addEventListener('click', (e) => { if (e.target === $('#header-menu')) $('#header-menu').hidden = true; });
     $('#header-menu-player-home').addEventListener('click', () => { $('#header-menu').hidden = true; openPlayerHome(); });
-    $('#header-menu-history').addEventListener('click', () => { $('#header-menu').hidden = true; openHistoryScreen(); });
+    // Etapa 4.1 (§2.1) — este es el único punto de entrada heredado que todavía necesita
+    // volver a Configurar partido (view-setup), no al Home: se abre DESDE ese mismo menú de
+    // Setup. Se conserva el origen explícitamente (historyOpenedFrom), nunca se adivina por
+    // el estado visual — ver openHistoryScreen()/initHistoryScreen() más abajo.
+    $('#header-menu-history').addEventListener('click', () => { $('#header-menu').hidden = true; openHistoryScreen('setup'); });
     $('#header-menu-mode').addEventListener('click', () => { $('#header-menu').hidden = true; $('#mode-select-menu').hidden = false; });
   }
 
-  function openHistoryScreen() { renderHistory(); showView('history'); }
+  // Etapa 4.1 (§2.1) — a diferencia del resto de la navegación del jugador (donde "volver"
+  // siempre es el Home), Historial tiene DOS puntos de entrada reales: la barra inferior/Home
+  // (mayoría de los casos) y el menú de la pantalla tradicional Configurar partido (heredado,
+  // §4.4 de la Etapa 2). `historyOpenedFrom` guarda cuál fue, para que Volver regrese
+  // exactamente a donde corresponde — nunca se infiere por `match`/`currentPlayerName` u otro
+  // estado visual, que podría dar el mismo resultado en ambos casos.
+  let historyOpenedFrom = 'player-home';
+  function openHistoryScreen(origin) {
+    historyOpenedFrom = origin === 'setup' ? 'setup' : 'player-home';
+    renderHistory();
+    showView('history');
+  }
 
   function refreshKnownPlayersDatalist() {
     const dl = $('#known-players');
@@ -5109,18 +5124,95 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* HISTORIAL                                                            */
+  /* HISTORIAL — Etapa 4.1 (§3): pestañas de pertenencia (Todos/Mis partidos/
+   * Observados) + chips de modo (Todos los modos/Cargados/Game por game/Punto
+   * por punto), intersección de ambos. La clasificación y el filtrado en sí
+   * son PH.filterHistoryByOwnership/filterHistoryByMode/filterHistoryCombined
+   * (player-home.js, puras y testeadas) — acá solo se orquesta DOM/estado.  */
   /* ------------------------------------------------------------------ */
   const HISTORY_SCORING_LABELS = { golden: 'PUNTO DE ORO', starpoint: 'STAR POINT', classic: 'CON VENTAJA' };
 
+  // Estado de los filtros — vive en memoria durante la sesión (§3.3: "conservar el filtro" al
+  // editar/eliminar ya sale gratis de no resetear esto en cada render), nunca en localStorage:
+  // no hay pedido de persistirlo entre reaperturas de la app.
+  let historyOwnershipFilter = 'all'; // 'all' | 'mine' | 'observed'
+  let historyModeFilter = 'all'; // 'all' | 'manual' | 'games' | 'complete'
+
+  const HISTORY_TABS = [
+    { key: 'all', label: 'Todos' },
+    { key: 'mine', label: 'Mis partidos' },
+    { key: 'observed', label: 'Observados' },
+  ];
+  const HISTORY_MODE_CHIPS = [
+    { key: 'all', label: 'Todos los modos' },
+    { key: 'manual', label: 'Cargados' },
+    { key: 'games', label: 'Game por game' },
+    { key: 'complete', label: 'Punto por punto' },
+  ];
+  // Mismas etiquetas que arriba, en minúscula, para componer el texto del estado vacío
+  // ("No hay partidos en observados · game por game todavía") sin repetir el mapeo.
+  const HISTORY_TAB_LABELS_LOWER = { mine: 'mis partidos', observed: 'observados' };
+  const HISTORY_MODE_LABELS_LOWER = { manual: 'cargados', games: 'game por game', complete: 'punto por punto' };
+
+  /** §3.1/§3.2 — pinta ambas filas de filtro con los conteos reales (los conteos de
+   *  pertenencia SIEMPRE sobre el historial completo, sin aplicar el filtro de modo — cada
+   *  fila informa su propia dimensión, no una intersección en vivo que confundiría cuando
+   *  ambos filtros combinados dan 0 sin que ninguno de los dos, por separado, esté vacío). */
+  function renderHistoryFilters(fullHistory) {
+    const counts = PH.computeHistoryTabCounts(fullHistory, currentPlayerName);
+    const tabsWrap = $('#history-tabs');
+    tabsWrap.innerHTML = HISTORY_TABS.map((t) => {
+      const active = historyOwnershipFilter === t.key;
+      return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-key="${t.key}" role="tab" aria-selected="${active}">${t.label} <span class="history-tab__count">${counts[t.key]}</span></button>`;
+    }).join('');
+    $all('#history-tabs .history-tab').forEach((btn) => {
+      btn.addEventListener('click', () => { historyOwnershipFilter = btn.dataset.key; renderHistory(); });
+    });
+
+    const chipsWrap = $('#history-mode-chips');
+    chipsWrap.innerHTML = HISTORY_MODE_CHIPS.map((c) => {
+      const active = historyModeFilter === c.key;
+      return `<button type="button" class="history-mode-chip${active ? ' is-active' : ''}" data-key="${c.key}" role="tab" aria-selected="${active}">${c.label}</button>`;
+    }).join('');
+    $all('#history-mode-chips .history-mode-chip').forEach((btn) => {
+      btn.addEventListener('click', () => { historyModeFilter = btn.dataset.key; renderHistory(); });
+    });
+  }
+
+  /** §3.3 — una lista vacía siempre explica el filtro activo y ofrece una salida: "Ver
+   *  todos" si hay partidos en otro filtro, o "Registrar partido" si el historial entero
+   *  está vacío (mismo destino que el "+" central — abre la hoja Registrar partido). */
+  function renderHistoryEmptyState(totalCount) {
+    const textEl = $('#history-empty-text');
+    const actionEl = $('#history-empty-action');
+    if (totalCount === 0) {
+      textEl.textContent = 'Todavía no jugaste ningún partido.';
+      actionEl.textContent = 'REGISTRAR PARTIDO';
+      actionEl.onclick = () => openRegisterSheet();
+      return;
+    }
+    const parts = [];
+    if (historyOwnershipFilter !== 'all') parts.push(HISTORY_TAB_LABELS_LOWER[historyOwnershipFilter]);
+    if (historyModeFilter !== 'all') parts.push(HISTORY_MODE_LABELS_LOWER[historyModeFilter]);
+    textEl.textContent = parts.length
+      ? `No hay partidos en ${parts.join(' · ')} todavía.`
+      : 'No hay partidos para mostrar.';
+    actionEl.textContent = 'VER TODOS';
+    actionEl.onclick = () => { historyOwnershipFilter = 'all'; historyModeFilter = 'all'; renderHistory(); };
+  }
+
   function renderHistory() {
+    const fullHistory = Store.loadHistory();
+    renderHistoryFilters(fullHistory);
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
-    // orden de guardado (Store.loadHistory() ya viene con el más recientemente GUARDADO
-    // primero, que no es lo mismo si se carga hoy un partido jugado ayer).
-    const list = Store.loadHistory().sort(PH.comparePlayedAtDesc);
+    // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
+    // así que el orden se conserva sin importar qué combinación de pestaña/modo esté activa.
+    const list = PH.filterHistoryCombined(fullHistory, currentPlayerName, historyOwnershipFilter, historyModeFilter);
     const wrap = $('#history-list');
     wrap.innerHTML = '';
-    $('#history-empty').hidden = list.length > 0;
+    const isEmpty = list.length === 0;
+    $('#history-empty').hidden = !isEmpty;
+    if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
     list.forEach((m) => {
       const nameA = S.teamLabel(m.players, 'A'), nameB = S.teamLabel(m.players, 'B');
       // V8.2 (32): BUG de auditoría — antes usaba `sets.map(...).join(' · ') || currentPartial`,
@@ -5187,7 +5279,12 @@
     clearTimeout(toastTimeoutId);
     undoToastTimeoutId = setTimeout(() => toast.classList.remove('is-visible'), 4500);
   }
-  function initHistoryScreen() { $('#history-back-btn').addEventListener('click', () => showView('setup')); }
+  function initHistoryScreen() {
+    $('#history-back-btn').addEventListener('click', () => {
+      if (historyOpenedFrom === 'setup') showView('setup');
+      else openPlayerHome();
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* RAMA JUGADOR — HOME DEL JUGADOR (Etapa 2)                            */
@@ -5204,12 +5301,24 @@
   // jugado" para retomar la carga apenas el jugador se identifica (§3).
   let afterIdentifyAction = null;
 
-  // Etapa 4 (§6): todavía no existe un algoritmo real de Nivel BRAMU (§10 del documento de
-  // Rama Jugador — pendiente de etapa futura). Valor y variación de demostración
-  // centralizados acá a propósito — el día que el cálculo real exista, reemplazar este
-  // objeto entero alcanza para toda la Tarjeta de jugador. `progressPct` es puramente
-  // decorativo (barra de progreso a todo el ancho), sin significado numérico todavía.
-  const LEVEL_DEMO = { value: '5.3', deltaLabel: '↑ 0.2', deltaDirection: 'up', progressPct: 62 };
+  // Etapa 4.1 (§4): el Nivel BRAMU dejó de ser un valor fijo — ahora se DERIVA de
+  // PH.computeLevelEvolution (player-home.js), la ÚNICA fuente de verdad que consumen por
+  // igual la Tarjeta de jugador (Home) y la tarjeta "Evolución del Nivel BRAMU" (Perfil).
+  // Sigue siendo una regla SIMULADA (§4.3 del consolidado), nunca el algoritmo oficial.
+
+  /** `{ label, direction }` para pintar una variación con flecha semántica — mismo criterio
+   *  en cualquier lugar que muestre un delta de nivel (Tarjeta de jugador, Perfil). */
+  function formatLevelDelta(delta) {
+    if (!delta) return { label: '—', direction: 'flat' };
+    const sign = delta > 0 ? '↑' : '↓';
+    return { label: `${sign} ${Math.abs(delta).toFixed(1)}`, direction: delta > 0 ? 'up' : 'down' };
+  }
+
+  /** Progreso visual de la barra: posición de `level` dentro del rango completo [1.0, 10.0]
+   *  (PH.LEVEL_MIN/LEVEL_MAX) — nunca un porcentaje decorativo suelto. */
+  function levelProgressPct(level) {
+    return Math.round(((level - PH.LEVEL_MIN) / (PH.LEVEL_MAX - PH.LEVEL_MIN)) * 100);
+  }
 
   function openPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
@@ -5302,19 +5411,25 @@
     wrap.innerHTML = hitos.map((h) => `<span class="player-home-hitos__chip">${escapeHtml(h)}</span>`).join('');
   }
 
-  /** §6 — Tarjeta de jugador: avatar/nombre/cantidad REAL de partidos + bloque Nivel BRAMU
-   *  (demo centralizado, ver LEVEL_DEMO). Sin categoría/ranking/tendencia/badge BETA — esos
-   *  quedaron eliminados en Etapa 4. */
+  /** §6 (Etapa 4) / §4.1 (Etapa 4.1) — Tarjeta de jugador: avatar/nombre/cantidad REAL de
+   *  partidos + bloque Nivel BRAMU, ahora derivado de PH.computeLevelEvolution (nunca un
+   *  valor fijo). La variación mostrada es la del ÚLTIMO PARTIDO (`lastDelta`), no el cambio
+   *  acumulado — así lo pide el consolidado de Etapa 4.1 para esta tarjeta específicamente
+   *  (Perfil, en cambio, muestra el cambio acumulado desde la base — ver renderProfileEvolution). */
   function renderPlayerCard(matches) {
     $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
     $('#player-home-name').textContent = currentPlayerName;
     const n = matches.length;
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
-    $('#player-home-level-value').textContent = LEVEL_DEMO.value;
+    // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
+    // exactamente la misma noción de "mine" que usa la evolución (§4.2: nunca un Observado).
+    const evolution = PH.computeLevelEvolution(matches, currentPlayerName);
+    $('#player-home-level-value').textContent = evolution.current.toFixed(1);
+    const delta = formatLevelDelta(evolution.lastDelta);
     const deltaEl = $('#player-home-level-delta');
-    deltaEl.textContent = LEVEL_DEMO.deltaLabel;
-    deltaEl.className = 'player-card__level-delta player-card__level-delta--' + LEVEL_DEMO.deltaDirection;
-    $('#player-home-level-bar').style.width = LEVEL_DEMO.progressPct + '%';
+    deltaEl.textContent = delta.label;
+    deltaEl.className = 'player-card__level-delta player-card__level-delta--' + delta.direction;
+    $('#player-home-level-bar').style.width = levelProgressPct(evolution.current) + '%';
   }
 
   /** §7 — Último partido: volanta de forma reciente (último indicador = este partido, con
@@ -5486,11 +5601,120 @@
     $('#profile-name').textContent = name || '—';
     const count = name ? PH.filterMatchesForPlayer(Store.loadHistory(), name).length : 0;
     $('#profile-match-count').textContent = count === 1 ? '1 partido cargado' : `${count} partidos cargados`;
+    renderProfileEvolution();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 4.1 (§4) — GRÁFICO DE EVOLUCIÓN DEL NIVEL BRAMU (Perfil)
+   *  Consume PH.computeLevelEvolution (pura). El SVG se reconstruye entero en cada render
+   *  (mismo patrón que el resto de los gráficos de la app — buildEvolutionSvgHTML/
+   *  buildGamesEvolutionSvgHTML más arriba), con delegación de click/teclado en un único
+   *  listener sobre el contenedor (ver initProfileScreen) en vez de uno por punto. */
+  /* ------------------------------------------------------------------ */
+  let profileEvolutionData = null; // último PH.computeLevelEvolution renderizado — lo usa el detalle de punto
+
+  const LEVEL_CHART_HEIGHT = 160;
+  const LEVEL_CHART_PAD_X = 26;
+  const LEVEL_CHART_PAD_TOP = 16;
+  const LEVEL_CHART_PAD_BOTTOM = 26;
+  const LEVEL_CHART_POINT_SPACING = 56;
+  const LEVEL_CHART_MIN_WIDTH = 300;
+
+  /** §4.4 — línea temporal izquierda→derecha, un nivel mayor se dibuja más arriba. El rango
+   *  vertical se adapta a los datos reales (con margen visual) en vez de fijarse siempre a
+   *  [1,10] — a la escala de esta regla simulada (movimientos de 0.1/0.2), un rango fijo de
+   *  9 puntos aplastaría cualquier variación real a una línea casi recta. Con más partidos de
+   *  los que entran cómodos en el ancho visible, el SVG crece de ancho intrínseco (spacing
+   *  fijo por punto) dentro de un contenedor con scroll horizontal — nunca aprieta los puntos
+   *  hasta volver las fechas ilegibles (§4.4). Con 1 solo punto no se dibuja ninguna línea
+   *  (`coords.length > 1` — nunca "inventar una línea" con un solo dato real). */
+  function buildLevelEvolutionSvgHTML(evolution) {
+    const points = evolution.points;
+    if (!points.length) return '';
+    const levels = points.map((p) => p.level);
+    const rawMin = Math.min(evolution.base, ...levels);
+    const rawMax = Math.max(evolution.base, ...levels);
+    const span = Math.max(0.4, rawMax - rawMin);
+    const pad = Math.max(0.2, span * 0.25);
+    const yMin = rawMin - pad, yMax = rawMax + pad;
+    const width = Math.max(LEVEL_CHART_MIN_WIDTH, LEVEL_CHART_PAD_X * 2 + (points.length - 1) * LEVEL_CHART_POINT_SPACING);
+    const plotW = width - LEVEL_CHART_PAD_X * 2;
+    const plotH = LEVEL_CHART_HEIGHT - LEVEL_CHART_PAD_TOP - LEVEL_CHART_PAD_BOTTOM;
+    const xAt = (i) => (points.length === 1 ? width / 2 : LEVEL_CHART_PAD_X + (i / (points.length - 1)) * plotW);
+    const yAt = (level) => LEVEL_CHART_PAD_TOP + (1 - (level - yMin) / (yMax - yMin)) * plotH;
+
+    const gridHTML = [0, 0.5, 1].map((t) => {
+      const y = (LEVEL_CHART_PAD_TOP + t * plotH).toFixed(1);
+      return `<line x1="0" y1="${y}" x2="${width}" y2="${y}" class="evolution-chart__grid" />`;
+    }).join('');
+
+    const coords = points.map((p, i) => [xAt(i), yAt(p.level)]);
+    const pathD = coords.length > 1 ? 'M ' + coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ') : '';
+    const lineHTML = pathD ? `<path d="${pathD}" class="evolution-chart__line" fill="none" />` : '';
+
+    const lastIdx = points.length - 1;
+    const dotsHTML = coords.map(([x, y], i) => {
+      const isLast = i === lastIdx;
+      const cls = 'evolution-chart__dot' + (isLast ? ' evolution-chart__dot--current' : '');
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isLast ? 5 : 3.5}" class="${cls}" data-index="${i}" tabindex="0" role="button" aria-label="Partido ${i + 1} de ${points.length}, nivel ${points[i].level.toFixed(1)}"></circle>`;
+    }).join('');
+
+    return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" width="${width}" height="${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg">${gridHTML}${lineHTML}${dotsHTML}</svg>`;
+  }
+
+  /** §4.4 — "Al tocar un punto: fecha, resultado, victoria o derrota, rivales y nivel
+   *  resultante." Texto plano dentro de la misma tarjeta, sin abrir nada nuevo. */
+  function showLevelPointDetail(evolution, index) {
+    const p = evolution.points[index];
+    const el = $('#evolution-point-detail');
+    if (!p) { el.hidden = true; return; }
+    const resultLabel = p.result === 'win' ? 'Victoria' : 'Derrota';
+    const rivalsStr = p.rivals.join(' / ') || '—';
+    el.hidden = false;
+    el.textContent = `${formatRealDate(p.playedAt)} · ${resultLabel} vs ${rivalsStr} · Nivel ${p.level.toFixed(1)}`;
+  }
+
+  /** §4.1/§4.5 — resumen numérico + gráfico. Nivel actual y "variación del último partido"
+   *  van en la Tarjeta de jugador del Home (renderPlayerCard); acá van los 3 datos propios de
+   *  esta tarjeta: nivel actual, CAMBIO ACUMULADO desde la base (no el último movimiento) y
+   *  cantidad de partidos considerados — nunca predicciones ni percentiles (§4.5). */
+  function renderProfileEvolution() {
+    const history = Store.loadHistory();
+    const evolution = PH.computeLevelEvolution(history, currentPlayerName);
+    profileEvolutionData = evolution;
+
+    $('#evolution-current-value').textContent = evolution.current.toFixed(1);
+    const change = formatLevelDelta(evolution.changeFromBase);
+    $('#evolution-change-value').textContent = evolution.consideredCount ? change.label : '—';
+    $('#evolution-count-value').textContent = String(evolution.consideredCount);
+    $('#evolution-point-detail').hidden = true;
+
+    const wrap = $('#evolution-chart-wrap');
+    if (!evolution.points.length) {
+      wrap.innerHTML = '';
+      $('#evolution-empty').hidden = false;
+    } else {
+      $('#evolution-empty').hidden = true;
+      wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution);
+    }
   }
 
   function initProfileScreen() {
     $('#profile-back-btn').addEventListener('click', () => showView('player-home'));
     $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
+    const chartWrap = $('#evolution-chart-wrap');
+    chartWrap.addEventListener('click', (e) => {
+      const dot = e.target.closest('[data-index]');
+      if (!dot || !profileEvolutionData) return;
+      showLevelPointDetail(profileEvolutionData, Number(dot.dataset.index));
+    });
+    chartWrap.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const dot = e.target.closest('[data-index]');
+      if (!dot || !profileEvolutionData) return;
+      e.preventDefault();
+      showLevelPointDetail(profileEvolutionData, Number(dot.dataset.index));
+    });
   }
 
   /* Etapa 2 (§4) — barra inferior fija: Inicio/Historial/+/Ranking/Perfil. Etapa 3 (Fase 2,
@@ -5504,7 +5728,7 @@
       btn.addEventListener('click', () => {
         const target = btn.dataset.nav;
         if (target === 'player-home') openPlayerHome();
-        else if (target === 'history') openHistoryScreen();
+        else if (target === 'history') openHistoryScreen('player-home');
         else if (target === 'manual-load') openRegisterSheet();
         else if (target === 'ranking') showView('ranking');
         else if (target === 'profile') { renderProfileView(); showView('profile'); }

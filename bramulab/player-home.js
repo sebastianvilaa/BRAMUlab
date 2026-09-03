@@ -419,6 +419,136 @@
     return hitos.slice(0, 2);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 4.1 (v2.1) — HISTORIAL: pestañas de pertenencia (Todos/Mis
+   *  partidos/Observados) + chips de modo. Puras — sin ordenar por sí solas
+   *  salvo filterHistoryCombined (única que expone la lista final para pintar). */
+  /* ------------------------------------------------------------------ */
+
+  /** §3.1 — "Mis partidos": el jugador actual aparece entre los 4 participantes.
+   *  "Observados": registrado en este dispositivo, pero el jugador actual no participa. */
+  function classifyMatchOwnership(match, playerName) {
+    return getPlayerTeam(match, playerName) ? 'mine' : 'observed';
+  }
+
+  function filterHistoryByOwnership(history, playerName, ownership) {
+    if (!ownership || ownership === 'all') return (history || []).slice();
+    return (history || []).filter((m) => classifyMatchOwnership(m, playerName) === ownership);
+  }
+
+  /** Modo canónico ya guardado en el partido — 'manual' | 'games' | 'complete'. Los partidos
+   *  guardados antes de que existiera el campo (pre-V13) no lo tienen: se tratan como
+   *  'complete', mismo criterio de compatibilidad que ya usa isGamesMode() en app.js. */
+  function matchModeCanonical(match) {
+    return (match && match.mode) || 'complete';
+  }
+
+  function filterHistoryByMode(history, mode) {
+    if (!mode || mode === 'all') return (history || []).slice();
+    return (history || []).filter((m) => matchModeCanonical(m) === mode);
+  }
+
+  /** Intersección de ambos filtros + orden por fecha real jugada (desc) — única función que
+   *  necesita pintar la lista del Historial; las dos de arriba quedan expuestas aparte
+   *  porque los CONTEOS de las pestañas (§3.1) se calculan sobre el historial completo, sin
+   *  aplicar el filtro de modo (ver computeHistoryTabCounts). */
+  function filterHistoryCombined(history, playerName, ownership, mode) {
+    return filterHistoryByMode(filterHistoryByOwnership(history, playerName, ownership), mode)
+      .slice()
+      .sort(comparePlayedAtDesc);
+  }
+
+  /** §3.1 — conteos reales para las 3 pestañas de pertenencia, sobre el historial COMPLETO
+   *  (nunca afectados por el chip de modo activo — cada fila de filtro informa su propia
+   *  dimensión, ver comentario de renderHistoryFilters en app.js). */
+  function computeHistoryTabCounts(history, playerName) {
+    const list = history || [];
+    return {
+      all: list.length,
+      mine: filterHistoryByOwnership(list, playerName, 'mine').length,
+      observed: filterHistoryByOwnership(list, playerName, 'observed').length,
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 4.1 (v2.1) — EVOLUCIÓN DEL NIVEL BRAMU (simulada, §4)
+   *  Reemplaza el valor fijo `LEVEL_DEMO` de v2.0: el nivel ahora se DERIVA del
+   *  historial real, nunca se guarda como puntaje acumulado aparte (§4.2 — "no
+   *  guardar puntos acumulados independientes que puedan desincronizarse").
+   *  Regla provisional documentada en el consolidado de Etapa 4.1 §4.3, aislada
+   *  acá para poder reemplazarla después sin tocar la interfaz. */
+  /* ------------------------------------------------------------------ */
+
+  const LEVEL_BASE = 5.0;
+  const LEVEL_MIN = 1.0;
+  const LEVEL_MAX = 10.0;
+
+  function roundToOneDecimal(n) { return Math.round(n * 10) / 10; }
+  function clampLevel(n) { return Math.min(LEVEL_MAX, Math.max(LEVEL_MIN, n)); }
+
+  /** §4.2 — solo partidos TERMINADOS (con ganador definido y regulación completa — nunca uno
+   *  cortado manualmente por tiempo/lesión/suspendido, `regulationCompleted === false`) donde
+   *  el jugador actual participa (nunca uno Observado). Los partidos manuales cargados por el
+   *  propio usuario SÍ cuentan en esta beta, aunque todavía no exista validación rival. */
+  function isMatchConsideredForLevel(match, playerName) {
+    if (!match || !match.winnerTeam) return false;
+    if (match.regulationCompleted === false) return false;
+    return !!getPlayerTeam(match, playerName);
+  }
+
+  /** §4.3 — movimiento de un partido ya considerado (ver isMatchConsideredForLevel). Un
+   *  Americano se identifica por el FORMATO (bestOfSets === 1), nunca por la cantidad de sets
+   *  jugados — así un Clásico cortado en 1 set (si alguna vez existiera) nunca se confunde
+   *  con un Americano real. */
+  function computeLevelDeltaForMatch(match, playerName) {
+    const team = getPlayerTeam(match, playerName);
+    const won = match.winnerTeam === team;
+    const format = Engine.FORMATS[match.formatId] || Engine.FORMATS.classic;
+    if (format.bestOfSets === 1) return won ? 0.1 : -0.1;
+    const neededThirdSet = (match.sets || []).length >= 3;
+    if (neededThirdSet) return won ? 0.1 : -0.1;
+    return won ? 0.2 : -0.2;
+  }
+
+  /** §4.2/§4.4 — serie completa, siempre recalculada desde cero a partir del historial (nunca
+   *  incremental): ordena cronológicamente ascendente por fecha real jugada y aplica cada
+   *  movimiento en cadena, redondeando y acotando a [1.0, 10.0] EN CADA PASO (nunca solo al
+   *  final — evita que un límite se cruce de forma invisible a mitad de la serie). Devuelve
+   *  `points` en el mismo orden ascendente (para dibujar el gráfico de izquierda a derecha) —
+   *  el punto base (5.0, sin partido) NO se incluye ahí a propósito: con un solo partido
+   *  considerado, `points.length === 1` y el llamador sabe que debe pintar un único punto,
+   *  nunca una línea inventada (§4.4). */
+  function computeLevelEvolution(history, playerName) {
+    const chronological = (history || [])
+      .filter((m) => isMatchConsideredForLevel(m, playerName))
+      .slice()
+      .sort(comparePlayedAtDesc)
+      .reverse();
+    let level = LEVEL_BASE;
+    const points = chronological.map((m) => {
+      const delta = computeLevelDeltaForMatch(m, playerName);
+      level = clampLevel(roundToOneDecimal(level + delta));
+      return {
+        matchId: m.matchId,
+        playedAt: getPlayedAt(m),
+        result: matchResultForPlayer(m, playerName),
+        partner: getPartnerName(m, playerName),
+        rivals: getOpponentNames(m, playerName),
+        delta,
+        level,
+      };
+    });
+    const current = points.length ? points[points.length - 1].level : LEVEL_BASE;
+    return {
+      base: LEVEL_BASE,
+      points,
+      current,
+      changeFromBase: roundToOneDecimal(current - LEVEL_BASE),
+      consideredCount: points.length,
+      lastDelta: points.length ? points[points.length - 1].delta : null,
+    };
+  }
+
   global.PLPlayerHome = {
     getPlayedAt, comparePlayedAtDesc,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
@@ -428,5 +558,9 @@
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
     computeCurrentStreak, computeBestPartner, computeActivity30d, computeEffectiveness30d,
     computeThirtyDayPeriodCounts, computeHitos,
+    classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
+    filterHistoryCombined, computeHistoryTabCounts,
+    isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
+    LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

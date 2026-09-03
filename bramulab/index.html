@@ -690,9 +690,20 @@
       <button id="history-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">HISTORIAL</span>
     </div>
+    <!-- Etapa 4.1 (§3) — pestañas de pertenencia (Todos/Mis partidos/Observados) + chips de
+         modo (Todos los modos/Cargados/Game por game/Punto por punto), pintadas por
+         renderHistoryFilters() en app.js con los conteos reales del historial. Sin
+         "Pendientes" todavía (§3.1: no existe el modelo real de validación). -->
+    <div class="history-filters">
+      <div id="history-tabs" class="history-tabs" role="tablist" aria-label="Filtrar por pertenencia"></div>
+      <div id="history-mode-chips" class="history-mode-chips" role="tablist" aria-label="Filtrar por modo de registro"></div>
+    </div>
     <div class="analysis-scroll">
       <div id="history-list" class="history-list"></div>
-      <p id="history-empty" class="coverage-note" hidden>Todavía no jugaste ningún partido.</p>
+      <div id="history-empty" class="history-empty" hidden>
+        <p class="coverage-note" id="history-empty-text"></p>
+        <button type="button" id="history-empty-action" class="btn-mini"></button>
+      </div>
     </div>
   </section>
 
@@ -990,7 +1001,8 @@
   </section>
 
   <!-- ============================================================
-       VISTA · PERFIL (mínima — Etapa 2 §4: solo nombre actual + cambiarlo)
+       VISTA · PERFIL (Etapa 2 §4: nombre actual + cambiarlo — Etapa 4.1 §4: agrega
+       Evolución del Nivel BRAMU simulada, debajo de la identidad principal)
        ============================================================ -->
   <section id="view-profile" class="view view--history" hidden>
     <div class="analysis-header">
@@ -1004,6 +1016,36 @@
           <p class="coverage-note" id="profile-match-count"></p>
         </div>
       </div>
+
+      <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
+           oficial ni nivel validado (badge SIMULADO · BETA siempre visible). Consume
+           PH.computeLevelEvolution — la MISMA fuente que la Tarjeta de jugador del Home,
+           nunca una segunda serie paralela. -->
+      <div class="pastilla evolution-card">
+        <div class="pastilla__title-row">
+          <div class="pastilla__title">EVOLUCIÓN DEL NIVEL BRAMU</div>
+          <span class="evolution-card__badge">SIMULADO · BETA</span>
+        </div>
+        <div class="evolution-summary">
+          <div class="evolution-summary__item">
+            <span class="evolution-summary__value" id="evolution-current-value">—</span>
+            <span class="evolution-summary__label">Nivel actual</span>
+          </div>
+          <div class="evolution-summary__item">
+            <span class="evolution-summary__value" id="evolution-change-value">—</span>
+            <span class="evolution-summary__label">Cambio acumulado</span>
+          </div>
+          <div class="evolution-summary__item">
+            <span class="evolution-summary__value" id="evolution-count-value">—</span>
+            <span class="evolution-summary__label">Partidos considerados</span>
+          </div>
+        </div>
+        <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
+        <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
+        <p class="evolution-detail" id="evolution-point-detail" hidden></p>
+        <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
+      </div>
+
       <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a una
            sesión, no a una preferencia libremente reemplazable; ver BRAMU_Rama_Jugador_Auditoria_Funcional.md. -->
       <button type="button" id="profile-logout-btn" class="link-btn">Cerrar sesión</button>
