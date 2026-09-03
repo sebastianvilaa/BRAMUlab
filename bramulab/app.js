@@ -815,6 +815,20 @@
     return false;
   }
 
+  /** Hotfix v1.3.1 — a diferencia de `closeAnyManualOverlay` (cierra UNA capa por toque de
+   *  Volver, §16), esto cierra TODAS las capas propias de la pantalla de una sola vez. Hace
+   *  falta antes de guardar: el teclado numérico es, a propósito, el único overlay de esta
+   *  pantalla SIN scrim (§8 — el marcador debe seguir visible mientras está abierto), así que
+   *  reabrir una celda ya cargada para revisarla no invalida el borrador ni lo cierra solo —
+   *  Guardar puede tocarse con el teclado todavía abierto. Sin este cierre explícito, el
+   *  panel del teclado (`z-index:32`) quedaba visible por encima del Resumen (`z-index:25`)
+   *  después de guardar. */
+  function closeAllManualOverlays() {
+    if (!$('#load-keypad').hidden) closeManualKeypad();
+    if (!$('#load-player-sheet-scrim').hidden) closeManualPlayerSheet();
+    if (!$('#load-format-sheet-scrim').hidden) closeManualFormatSheet();
+  }
+
   function exitManualLoadScreen() {
     if (closeAnyManualOverlay()) return;
     const goBack = () => { if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup'); };
@@ -898,6 +912,18 @@
     if (!draft.ok) return;
     manualSaveInFlight = true;
     $('#manual-save-btn').disabled = true;
+    // Hotfix v1.3.1 — cierra cualquier capa propia de esta pantalla (ver closeAllManualOverlays)
+    // y deja el Home como única pantalla de fondo ANTES de guardar/mostrar el Resumen — nunca
+    // dos vistas "de fondo" compitiendo por z-index. `showView` ya oculta `view-manual-load`
+    // (y cualquier otra vista trackeada) y esconde `view-summary` de paso; el Resumen se
+    // vuelve a mostrar recién al final de finishMatchManual, ya con el fondo limpio.
+    closeAllManualOverlays();
+    showView('player-home');
+    // `showView('player-home')` deja la barra inferior visible (Home la usa) — pero acá el
+    // Resumen (`z-index:25`) está por cubrir toda la pantalla y la barra tiene `z-index:35`
+    // (mayor), así que asomaría por debajo. Se oculta explícitamente; vuelve a aparecer sola
+    // cuando "VOLVER AL INICIO" llame a openPlayerHome() → showView('player-home') de nuevo.
+    $('#bottom-nav').hidden = true;
     try { saveManualMatch(draft); }
     finally { manualSaveInFlight = false; }
   }

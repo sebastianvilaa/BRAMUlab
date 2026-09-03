@@ -889,6 +889,14 @@ input, select{ font-family: inherit; }
      acá; Análisis/Historial/Match la conservan porque son pantallas de lectura/control más
      largas, donde sí ayuda a separarse del margen. */
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+  /* Hotfix v1.3.1 — el teclado numérico (`position:fixed`) escapa del contenedor con ancho
+     máximo de su vista (un `position:fixed` no hereda el `max-width` de ningún ancestro,
+     aunque tenga `left:0;right:0`) y quedaba estirado de punta a punta del viewport en
+     tablet/escritorio, con teclas gigantes. Mismo ancho máximo que `.view--history` acá
+     arriba, centrado igual (`margin:0 auto` funciona también sobre un elemento fijo con
+     left/right ya fijados). En celular (`<720px`, fuera de este media query) sigue ocupando
+     todo el ancho disponible, sin cambios. */
+  .load-keypad{ max-width: 768px; margin: 0 auto; }
   /* V11.10 (feedback real) — un poco más de aire en tablet, sigue sin llegar de punta a
      punta (a 768px de vista, deja ~80px de margen por lado en un iPad portrait de 768-834px
      — el "aire a los costados" que se pidió). */
