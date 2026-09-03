@@ -92,26 +92,54 @@
   /* RESULTADO / TECLADO NUMÉRICO                                         */
   /* ------------------------------------------------------------------ */
 
-  /** ¿Tecleando un dígito más después de `digitsStr` todavía podría llegar a formar un score
-   *  de set COMPLETO válido para `format`? Recorre los pares reglamentarios reales (misma
-   *  fuente de verdad que ya usa el editor de Por Games vía E.isValidCompletedSetScore) en vez
-   *  de asumir un tope fijo — así, si algún formato futuro llegase a aceptar un set de 2
-   *  dígitos (p.ej. un súper tie-break a 10), esta función seguiría siendo correcta sin
-   *  tocarla. Con los formatos actuales (máximo 7 games) el resultado es siempre `false`
-   *  después del primer dígito — el teclado avanza solo, como pide §8. */
-  function canExtendSetDigits(digitsStr, format) {
-    if (!digitsStr) return true;
-    if (digitsStr.charAt(0) === '0') return false; // un valor real de 2+ dígitos nunca empieza con 0 — "0" ya está completo
-    const base = Number(digitsStr);
-    if (!Number.isFinite(base)) return false;
+  /** Hotfix v2.2.1 (§7.2) — dado lo ya tecleado para el lado activo (`digitsStr`) y, si ya se
+   *  conoce, el valor YA CONFIRMADO del lado opuesto (`otherValue`, `undefined`/`NaN` si ese
+   *  lado todavía no tiene un valor), ¿qué dígitos 0-9 son legítimos para continuar? Un dígito
+   *  es legítimo si, agregado a `digitsStr` (con o sin más dígitos después), el número
+   *  resultante todavía podría cerrar un set COMPLETO y válido para `format` — emparejado con
+   *  `otherValue` si ya existe, o con cualquier valor plausible del otro lado si todavía no.
+   *  Única fuente de verdad: Engine.isValidCompletedSetScore, la misma que ya usa el resto de
+   *  la carga manual — nunca una lista de pares hardcodeada. Recursiva pero acotada: cada
+   *  candidato que ya supera `maxPossible` corta esa rama sin seguir explorando (con los
+   *  formatos actuales, de un solo dígito, nunca profundiza más de un nivel; si algún formato
+   *  futuro aceptara un set de 2+ dígitos, sigue siendo correcta sin tocarla). */
+  function computeValidNextDigits(digitsStr, format, otherValue) {
     const target = format.setWinTarget;
     const tbAt = format.tiebreakTriggerAt;
     const maxPossible = Math.max(target + 1, tbAt + 1);
-    for (let extra = 0; extra <= 9; extra++) {
-      const candidate = Number(digitsStr + String(extra));
-      if (candidate <= maxPossible) return true;
+    const hasOther = Number.isFinite(otherValue);
+    const isPlausibleCandidate = (candidate) => {
+      if (hasOther) return Engine.isValidCompletedSetScore(candidate, otherValue, format);
+      for (let opp = 0; opp <= maxPossible; opp++) {
+        if (Engine.isValidCompletedSetScore(candidate, opp, format)) return true;
+      }
+      return false;
+    };
+    const prefixHasReachableCandidate = (prefixStr) => {
+      if (prefixStr.length > 1 && prefixStr.charAt(0) === '0') return false; // sin ceros a la izquierda
+      const base = Number(prefixStr);
+      if (!Number.isFinite(base) || base > maxPossible) return false;
+      if (isPlausibleCandidate(base)) return true;
+      for (let d = 0; d <= 9; d++) {
+        if (prefixHasReachableCandidate(prefixStr + String(d))) return true;
+      }
+      return false;
+    };
+    const digits = [];
+    for (let d = 0; d <= 9; d++) {
+      if (prefixHasReachableCandidate(digitsStr + String(d))) digits.push(String(d));
     }
-    return false;
+    return digits;
+  }
+
+  /** ¿Tecleando un dígito más después de `digitsStr` todavía podría llegar a formar un score
+   *  de set COMPLETO válido para `format`, emparejado con `otherValue` si ya se conoce el lado
+   *  opuesto? Envoltorio booleano de `computeValidNextDigits` — con los formatos actuales
+   *  (máximo 7 games) el resultado es siempre `false` después del primer dígito, el teclado
+   *  avanza solo, como pide §8. */
+  function canExtendSetDigits(digitsStr, format, otherValue) {
+    if (!digitsStr) return true;
+    return computeValidNextDigits(digitsStr, format, otherValue).length > 0;
   }
 
   /** ¿El partido ya quedó decidido con estos sets ({a,b}, en orden, `null` = todavía sin
@@ -246,7 +274,7 @@
 
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
-    canExtendSetDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
+    canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchDraft, computeFormatChangeImpact,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1907,6 +1907,17 @@
     assert('ML · canExtendSetDigits(Clásico) nunca deja seguir después de un dígito (máximo real es 7, un solo dígito)', ML.canExtendSetDigits('6', classic) === false && ML.canExtendSetDigits('0', classic) === false);
     assert('ML · canExtendSetDigits(Americano) tampoco deja seguir después de un dígito', ML.canExtendSetDigits('5', americano) === false);
 
+    // ---- Hotfix v2.2.1 (§7.2) — validación preventiva del teclado consciente del lado opuesto ----
+    assert('ML · computeValidNextDigits(Clásico) con el lado opuesto en 2: SOLO el 6 puede cerrar un set válido (impide 2-3)', JSON.stringify(ML.computeValidNextDigits('', classic, 2)) === JSON.stringify(['6']));
+    assert('ML · computeValidNextDigits(Clásico, otro lado en 2) nunca incluye el 3 (2-3 no es un set terminado)', ML.computeValidNextDigits('', classic, 2).indexOf('3') === -1);
+    assert('ML · Engine.isValidCompletedSetScore confirma que 2-3 no es un resultado válido de set', E.isValidCompletedSetScore(2, 3, classic) === false);
+    assert('ML · computeValidNextDigits(Clásico) con el lado opuesto en 6: 0,1,2,3,4,7 (nunca 5 ni 6, 6-5 y 6-6 no cierran el set)', JSON.stringify(ML.computeValidNextDigits('', classic, 6)) === JSON.stringify(['0', '1', '2', '3', '4', '7']));
+    assert('ML · computeValidNextDigits(Clásico) con el lado opuesto en 5: solo el 7 (7-5)', JSON.stringify(ML.computeValidNextDigits('', classic, 5)) === JSON.stringify(['7']));
+    assert('ML · computeValidNextDigits(Americano) con el lado opuesto en 6: 0,1,2,3,4,5 (nunca 7, Americano no llega a 7)', JSON.stringify(ML.computeValidNextDigits('', americano, 6)) === JSON.stringify(['0', '1', '2', '3', '4', '5']));
+    assert('ML · computeValidNextDigits sin lado opuesto conocido (primer lado del set) se comporta como antes: 0-7 habilitados en Clásico', JSON.stringify(ML.computeValidNextDigits('', classic, undefined)) === JSON.stringify(['0', '1', '2', '3', '4', '5', '6', '7']));
+    assert('ML · canExtendSetDigits(Clásico) con lado opuesto en 2 nunca deja seguir tecleando un 3 ya escrito', ML.canExtendSetDigits('3', classic, 2) === false);
+    assert('ML · canExtendSetDigits(Clásico) con lado opuesto en 2 sí reconoce el 6 como cierre válido (no sigue pidiendo más dígitos)', ML.canExtendSetDigits('6', classic, 2) === false);
+
     assert('ML · isMatchDecided(Clásico) con 2 sets para el mismo equipo', ML.isMatchDecided([{ a: 6, b: 4 }, { a: 6, b: 2 }], classic) === true);
     assert('ML · isMatchDecided(Clásico) con 1-1 todavía no está decidido', ML.isMatchDecided([{ a: 6, b: 4 }, { a: 4, b: 6 }], classic) === false);
     assert('ML · isMatchDecided ignora sets todavía incompletos', ML.isMatchDecided([{ a: 6, b: 4 }, null], classic) === false);

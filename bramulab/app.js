@@ -693,13 +693,18 @@
     renderManualScoreboard();
   }
 
+  /** Hotfix v2.2.1 (§7.2) — qué teclas del lado activo son pulsables ANTES de que el usuario
+   *  escriba nada, ya considerando el valor del lado opuesto si ya está confirmado (p.ej. con
+   *  Equipo A ya en 2, del lado B solo debe quedar habilitado el 6 — único valor capaz de
+   *  cerrar un 2-6 válido). Reutiliza ML.computeValidNextDigits, nunca una lista propia. */
   function updateManualKeypadKeysState() {
     const format = E.FORMATS[manualSelectedFormatId];
-    const max = Math.max(format.setWinTarget + 1, format.tiebreakTriggerAt + 1);
+    const otherValue = manualDraftActiveTeam === 'A' ? manualDraftSet.b : manualDraftSet.a;
+    const allowed = new Set(ML.computeValidNextDigits('', format, otherValue));
     $all('#load-keypad [data-key]').forEach((btn) => {
       const key = btn.dataset.key;
       if (key === 'del' || key === 'done') { btn.disabled = false; return; }
-      btn.disabled = Number(key) > max;
+      btn.disabled = !allowed.has(key);
     });
   }
 
@@ -762,9 +767,10 @@
       return;
     }
     const format = E.FORMATS[manualSelectedFormatId];
+    const otherValue = manualDraftActiveTeam === 'A' ? manualDraftSet.b : manualDraftSet.a;
     manualKeypadDigits += key;
     markManualLoadDirty();
-    if (!ML.canExtendSetDigits(manualKeypadDigits, format)) {
+    if (!ML.canExtendSetDigits(manualKeypadDigits, format, otherValue)) {
       commitDraftDigits();
       advanceDraftSide();
       return;

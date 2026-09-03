@@ -668,7 +668,10 @@
         <p class="coverage-note">Los datos viven en este dispositivo.</p>
       </section>
       <section class="analysis-section" id="analysis-share-section">
-        <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
+        <!-- Hotfix v2.2.1 — COMPARTIR retirado también de Análisis (§16 de Etapa 4 ya lo pedía
+             para Resumen y en vivo por igual; acá había quedado sin el `hidden`). Capacidad
+             técnica (shareResult) conservada sin exponerse, mismo criterio que #summary-share-btn. -->
+        <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%" hidden>COMPARTIR</button>
         <button id="analysis-edit-btn" class="btn-secondary" type="button" style="width:100%" hidden>EDITAR PARTIDO</button>
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
       </section>
