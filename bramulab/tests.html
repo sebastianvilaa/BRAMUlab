@@ -1976,6 +1976,23 @@
   })();
 
   // ==================================================================
+  // ETAPA 4.2 (v2.2) — resolveActiveSetIndex: cuál set mostrar grande (en
+  // edición) y cuáles pasan al marcador acumulado (confirmados).
+  // ==================================================================
+  (function () {
+    const classic = E.FORMATS.classic, americano = E.FORMATS.americano;
+    assert('E42 · resolveActiveSetIndex con partido vacío: Set 1 es el activo', ML.resolveActiveSetIndex([null, null, null], classic) === 0);
+    assert('E42 · resolveActiveSetIndex con Set 1 completo y válido: Set 2 pasa a ser el activo', ML.resolveActiveSetIndex([{ a: 6, b: 4 }, null, null], classic) === 1);
+    assert('E42 · resolveActiveSetIndex con Set 1 inválido (no cierra ningún score real): sigue siendo el activo', ML.resolveActiveSetIndex([{ a: 6, b: 5 }, null, null], classic) === 0);
+    assert('E42 · resolveActiveSetIndex decidido 2-0: null (no pide un Set 3 que no corresponde)', ML.resolveActiveSetIndex([{ a: 6, b: 4 }, { a: 6, b: 2 }, null], classic) === null);
+    assert('E42 · resolveActiveSetIndex con 1-1: el Set 3 pasa a ser el activo', ML.resolveActiveSetIndex([{ a: 6, b: 4 }, { a: 4, b: 6 }, null], classic) === 2);
+    assert('E42 · resolveActiveSetIndex con 2-1 ya cerrado: null', ML.resolveActiveSetIndex([{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 3 }], classic) === null);
+    assert('E42 · resolveActiveSetIndex Americano: un solo set, Set 1 activo hasta cerrarlo', ML.resolveActiveSetIndex([null, null, null], americano) === 0);
+    assert('E42 · resolveActiveSetIndex Americano ya cerrado: null (nunca pide un Set 2)', ML.resolveActiveSetIndex([{ a: 6, b: 3 }, null, null], americano) === null);
+    assert('E42 · resolveActiveSetIndex es defensivo ante `sets` vacío/undefined', ML.resolveActiveSetIndex([], classic) === 0 && ML.resolveActiveSetIndex(undefined, classic) === 0);
+  })();
+
+  // ==================================================================
   // ETAPA 4 (v2.0) — HOME INTEGRAL: player-home.js — Racha actual, Mejor
   // compañero, Actividad 30 días, Efectividad 30 días, Hitos.
   // ==================================================================

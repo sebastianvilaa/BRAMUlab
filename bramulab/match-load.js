@@ -138,6 +138,23 @@
     return !isMatchDecided([set1, set2], format);
   }
 
+  /** Etapa 4.2 (§6.2/§6.3) — cuál es el set "actual" a editar: el primero, en orden, que
+   *  todavía no sea un resultado completo y válido para `format`. `null` cuando los sets
+   *  necesarios ya están todos cargados y son válidos — es decir, el partido quedó decidido y
+   *  no hay ningún set más que pedir. Recorre solo los slots que corresponden según
+   *  `isThirdSetVisible` (nunca pide un Set 3 que no corresponde). Única fuente para decidir
+   *  qué se muestra grande (el set en edición) y qué pasa al marcador acumulado (los
+   *  anteriores) — app.js no debe recalcular este criterio por su cuenta. */
+  function resolveActiveSetIndex(sets, format) {
+    const thirdVisible = isThirdSetVisible(sets && sets[0], sets && sets[1], format);
+    const neededSlots = format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
+    for (let i = 0; i < neededSlots; i++) {
+      const s = sets && sets[i];
+      if (!s || !Number.isFinite(s.a) || !Number.isFinite(s.b) || !Engine.isValidCompletedSetScore(s.a, s.b, format)) return i;
+    }
+    return null;
+  }
+
   /* ------------------------------------------------------------------ */
   /* VALIDACIÓN CENTRAL                                                   */
   /* ------------------------------------------------------------------ */
@@ -229,7 +246,7 @@
 
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
-    canExtendSetDigits, isMatchDecided, isThirdSetVisible,
+    canExtendSetDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchDraft, computeFormatChangeImpact,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

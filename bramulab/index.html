@@ -660,6 +660,13 @@
         <div id="analysis-keymoments-list" class="keymoments-list"></div>
         <button id="analysis-full-timeline-btn" class="link-btn" type="button">VER TIMELINE COMPLETO</button>
       </section>
+      <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
+           tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle. -->
+      <section class="analysis-section court-note" id="analysis-note-section" hidden>
+        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> SENSACIONES DEL PARTIDO · SOLO VOS</div>
+        <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Ej.: Me sentí bien con el globo, pero llegué tarde a varias voleas."></textarea>
+        <p class="coverage-note">Los datos viven en este dispositivo.</p>
+      </section>
       <section class="analysis-section" id="analysis-share-section">
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
         <button id="analysis-edit-btn" class="btn-secondary" type="button" style="width:100%" hidden>EDITAR PARTIDO</button>
@@ -708,21 +715,27 @@
   </section>
 
   <!-- ============================================================
-       VISTA · CARGAR PARTIDO JUGADO (V14)
-       Acción distinta de EMPEZAR PARTIDO — carga un partido ya jugado, sin motor en vivo.
-       Reutiliza el lenguaje visual del setup (team-block/option-pill/option-col) tal cual;
-       "Resultado" y "Detalles del partido" son las únicas secciones nuevas.
+       VISTA · CARGAR PARTIDO JUGADO — Etapa 4.2 (v2.2)
+       Rediseño completo sobre la lógica pura existente (match-load.js, sin cambios de
+       validación): marcador acumulado (sets confirmados) + editor del set actual con
+       números grandes tocables + CONTINUAR explícito. Jerarquía "cancha nocturna" — ver
+       §3 del consolidado y las clases .court-* nuevas en styles.css, acotadas a esta
+       pantalla y a la Tarjeta de jugador/Último partido del Home.
        ============================================================ -->
-  <section id="view-manual-load" class="view view--history view--load-match" hidden>
-    <div class="analysis-header">
-      <button id="manual-load-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title" id="manual-load-title">CARGAR PARTIDO JUGADO</span>
+  <section id="view-manual-load" class="view view--court view--load-match" hidden>
+    <div class="court-header">
+      <button id="manual-load-back-btn" class="icon-btn court-header__back" type="button" aria-label="Volver">←</button>
+      <div class="court-header__state">
+        <div class="court-header__status" id="manual-load-status">SET 1</div>
+        <div class="court-header__format" id="manual-load-format-mini">Clásico · Punto de Oro</div>
+      </div>
     </div>
-    <div class="analysis-scroll load-match-scroll">
+    <div class="court-scroll load-match-scroll" id="manual-load-scroll">
 
-      <div class="load-scoreboard" role="group" aria-label="Marcador">
-        <div class="load-scoreboard__row load-scoreboard__row--a">
-          <div class="load-scoreboard__players">
+      <div class="court-players" role="group" aria-label="Jugadores">
+        <div class="court-players__team court-players__team--a">
+          <span class="court-players__label">TU EQUIPO</span>
+          <div class="court-players__chips">
             <button type="button" class="load-player-chip load-player-chip--fixed" id="load-player-a1" aria-label="Jugador 1 del Equipo A (vos)" disabled>
               <span class="load-player-chip__name" id="load-player-a1-name">—</span>
             </button>
@@ -730,11 +743,10 @@
               <span class="load-player-chip__name">+ Compañero</span>
             </button>
           </div>
-          <div class="load-scoreboard__sets" id="load-sets-a"></div>
         </div>
-        <div class="load-scoreboard__divider" aria-hidden="true"></div>
-        <div class="load-scoreboard__row load-scoreboard__row--b">
-          <div class="load-scoreboard__players">
+        <div class="court-players__team court-players__team--b">
+          <span class="court-players__label">RIVALES</span>
+          <div class="court-players__chips">
             <button type="button" class="load-player-chip" id="load-player-b1" data-slot="b1" aria-label="Elegir rival 1">
               <span class="load-player-chip__name">+ Rival 1</span>
             </button>
@@ -742,9 +754,31 @@
               <span class="load-player-chip__name">+ Rival 2</span>
             </button>
           </div>
-          <div class="load-scoreboard__sets" id="load-sets-b"></div>
         </div>
       </div>
+
+      <!-- §6.2 — marcador acumulado: solo sets ya CONFIRMADOS (con CONTINUAR). Vacío al
+           empezar un partido nuevo. Tocar un set ya confirmado lo reabre para editarlo
+           (reopenManualSet en app.js) sin borrar los posteriores en silencio. -->
+      <div class="court-accumulated" id="court-accumulated" role="group" aria-label="Sets confirmados" hidden></div>
+
+      <!-- §6.3 — set actual: números grandes, ambos tocables, lado activo marcado. -->
+      <div class="court-current-set">
+        <div class="court-current-set__label" id="court-current-set-label">RESULTADO DEL SET 1</div>
+        <div class="court-current-set__row">
+          <button type="button" class="court-score court-score--a" id="court-score-a" aria-label="Resultado, tu equipo, set actual">
+            <span class="court-score__value" id="court-score-a-value">–</span>
+            <span class="court-score__name" id="court-score-a-name">Vos</span>
+          </button>
+          <span class="court-score__sep" aria-hidden="true">–</span>
+          <button type="button" class="court-score court-score--b" id="court-score-b" aria-label="Resultado, rivales, set actual">
+            <span class="court-score__value" id="court-score-b-value">–</span>
+            <span class="court-score__name" id="court-score-b-name">Rival</span>
+          </button>
+        </div>
+        <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
+      </div>
+
       <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
 
       <button type="button" id="load-format-line" class="load-format-line">
@@ -752,36 +786,24 @@
         <span class="load-format-line__chevron" aria-hidden="true">›</span>
       </button>
 
-      <div class="setup-section load-datetime-section">
-        <div class="manual-datetime-row">
-          <div class="field">
-            <label class="manual-field-label" for="manual-date-input">Fecha</label>
-            <input id="manual-date-input" class="field__input" type="date" required />
-          </div>
-          <div class="field">
-            <label class="manual-field-label" for="manual-time-input">Hora</label>
-            <input id="manual-time-input" class="field__input" type="time" />
-            <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
-          </div>
-        </div>
-        <div class="field">
-          <label class="manual-field-label" for="manual-place-input">Lugar</label>
-          <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
-        </div>
-        <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
-        <p class="coverage-note" id="manual-location-status" hidden></p>
-      </div>
+      <!-- §9 — fecha/hora/lugar como metadato secundario; "Modificar" abre la hoja compacta
+           (fuera de esta pantalla, ver #manual-meta-sheet-scrim). -->
+      <button type="button" id="manual-meta-line" class="court-meta-line">
+        <span class="court-meta-line__text" id="manual-meta-line-text">Ahora · Hoy</span>
+        <span class="court-meta-line__action">Modificar</span>
+      </button>
 
-      <div class="setup-section load-save-section">
-        <button type="button" id="manual-save-btn" class="btn-start" disabled>GUARDAR PARTIDO</button>
-      </div>
     </div>
 
-    <!-- §8 — teclado numérico propio del resultado: panel fijo, NO modal (el marcador sigue
-         visible arriba mientras está abierto). Volver (header) lo cierra primero antes de
-         intentar salir de toda la pantalla — ver exitManualLoadScreen(). -->
+    <!-- CONTINUAR (§6.3/§7.1): confirma el set actual y avanza, o guarda el partido cuando ya
+         quedó decidido. Fijo inmediatamente arriba del teclado cuando está abierto. -->
+    <div class="court-continue-wrap" id="court-continue-wrap">
+      <button type="button" id="manual-continue-btn" class="court-continue-btn" disabled>CONTINUAR</button>
+    </div>
+
+    <!-- §7 — teclado numérico propio BRAMU: panel fijo, sin scrim (el marcador sigue visible
+         arriba). Volver (header) lo cierra primero antes de salir de toda la pantalla. -->
     <div id="load-keypad" class="load-keypad" hidden>
-      <div class="load-keypad__label" id="load-keypad-label"></div>
       <div class="load-keypad__grid">
         <button type="button" class="load-keypad__key" data-key="1">1</button>
         <button type="button" class="load-keypad__key" data-key="2">2</button>
@@ -792,12 +814,79 @@
         <button type="button" class="load-keypad__key" data-key="7">7</button>
         <button type="button" class="load-keypad__key" data-key="8">8</button>
         <button type="button" class="load-keypad__key" data-key="9">9</button>
-        <button type="button" class="load-keypad__key load-keypad__key--action" data-key="del">Borrar</button>
+        <button type="button" class="load-keypad__key load-keypad__key--ghost" data-key="del">Borrar</button>
         <button type="button" class="load-keypad__key" data-key="0">0</button>
-        <button type="button" class="load-keypad__key load-keypad__key--action" data-key="next">Siguiente</button>
+        <button type="button" class="load-keypad__key load-keypad__key--ghost" data-key="done">Listo</button>
       </div>
     </div>
   </section>
+
+  <!-- ============================================================
+       VISTA · PARTIDO GUARDADO — Etapa 4.2 (§8.2)
+       Pantalla liviana de "Momento 2": el partido YA está guardado (Momento 1 ocurrió al
+       confirmar el último set en view-manual-load) — acá solo se enriquece opcionalmente.
+       Nunca un segundo "Guardar partido".
+       ============================================================ -->
+  <section id="view-match-saved" class="view view--court" hidden>
+    <div class="court-header court-header--saved">
+      <span class="court-header__status court-header__status--saved" id="match-saved-status">PARTIDO GUARDADO</span>
+    </div>
+    <div class="court-scroll" id="match-saved-scroll">
+      <div class="court-saved-result">
+        <div class="court-saved-result__badge" id="match-saved-badge">VICTORIA</div>
+        <div class="court-saved-result__score" id="match-saved-score">6-4 · 6-3</div>
+        <div class="court-saved-result__teams" id="match-saved-teams">Vos / Matu vs Cruz / Dan</div>
+      </div>
+
+      <button type="button" id="match-saved-meta-line" class="court-meta-line">
+        <span class="court-meta-line__text" id="match-saved-meta-text">Ahora · Hoy</span>
+        <span class="court-meta-line__action">Modificar</span>
+      </button>
+
+      <div class="court-note">
+        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> SENSACIONES DEL PARTIDO · SOLO VOS</div>
+        <textarea id="match-saved-note" class="court-note__textarea" maxlength="500" placeholder="Ej.: Me sentí bien con el globo, pero llegué tarde a varias voleas."></textarea>
+        <p class="coverage-note">Los datos viven en este dispositivo.</p>
+      </div>
+
+      <button type="button" id="match-saved-view-summary" class="court-continue-btn">VER RESUMEN</button>
+      <button type="button" id="match-saved-home-btn" class="link-btn court-saved-home-link">Volver al inicio</button>
+    </div>
+  </section>
+
+  <!-- Etapa 4.2 (§9) — hoja "Modificar": fecha, hora y lugar, reutilizada desde la pantalla
+       principal de carga (antes de guardar) y desde Partido guardado (después). Antes de
+       guardar solo actualiza las variables de trabajo; después de guardar, además aplica el
+       cambio de inmediato con Store.patchHistoryEntry (§9: recalcular Actividad/Efectividad/
+       Historial/Evolución). Mismos campos que ya existían, ahora en una hoja en vez de la
+       pantalla principal. -->
+  <div id="manual-meta-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="manual-meta-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Fecha, hora y lugar">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">FECHA, HORA Y LUGAR</span>
+        <button type="button" id="manual-meta-sheet-close" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="manual-datetime-row">
+        <div class="field">
+          <label class="manual-field-label" for="manual-date-input">Fecha</label>
+          <input id="manual-date-input" class="field__input" type="date" required />
+        </div>
+        <div class="field">
+          <label class="manual-field-label" for="manual-time-input">Hora</label>
+          <input id="manual-time-input" class="field__input" type="time" />
+          <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="manual-field-label" for="manual-place-input">Lugar</label>
+        <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
+      </div>
+      <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
+      <p class="coverage-note" id="manual-location-status" hidden></p>
+      <button type="button" id="manual-meta-sheet-done" class="court-continue-btn manual-meta-sheet-done">LISTO</button>
+    </div>
+  </div>
 
   <!-- Etapa 3 (Fase 3, §7) — hoja "elegir jugador": recientes + búsqueda + alta sin cuenta.
        Referencia funcional: selector de destinatario de Mercado Pago (recientes + búsqueda +

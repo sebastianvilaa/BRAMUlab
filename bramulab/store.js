@@ -21,7 +21,7 @@
   // Único punto central del número de versión visible (footer). Cambiar acá alcanza para
   // toda la app — nunca duplicar el string de versión en otro archivo JS. Esquema propio de
   // BRAMU Lab (vN), separado del versionado del marcador congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'v2.1';
+  const APP_VERSION = 'v2.2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -86,6 +86,18 @@
 
   function getHistoryEntry(matchId) { return loadHistory().find((m) => m.matchId === matchId) || null; }
 
+  /** Etapa 4.2 (§9/§10) — actualiza SOLO los campos de `patch` en un partido ya guardado
+   *  (fecha/hora/lugar desde "Modificar", o la nota privada), preservando todo lo demás tal
+   *  cual estaba. No-op si el matchId no existe todavía — nunca crea un registro nuevo por
+   *  accidente (eso sigue siendo trabajo exclusivo de upsertHistory con un finishedSnapshot
+   *  completo). */
+  function patchHistoryEntry(matchId, patch) {
+    const entry = getHistoryEntry(matchId);
+    if (!entry) return false;
+    upsertHistory(Object.assign({}, entry, patch));
+    return true;
+  }
+
   function loadRecordingMode() { const m = safeGet(KEYS.RECORDING_MODE); return m === 'games' ? 'games' : 'complete'; }
   function saveRecordingMode(mode) { safeSet(KEYS.RECORDING_MODE, mode === 'games' ? 'games' : 'complete'); }
 
@@ -123,7 +135,7 @@
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
     saveActiveMatch, loadActiveMatch, clearActiveMatch,
-    loadHistory, upsertHistory, removeFromHistory, getHistoryEntry,
+    loadHistory, upsertHistory, removeFromHistory, getHistoryEntry, patchHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
     loadRecordingMode, saveRecordingMode,
     normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,

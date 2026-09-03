@@ -921,14 +921,17 @@ input, select{ font-family: inherit; }
      acá; Análisis/Historial/Match la conservan porque son pantallas de lectura/control más
      largas, donde sí ayuda a separarse del margen. */
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  /* Hotfix v1.3.1 — el teclado numérico (`position:fixed`) escapa del contenedor con ancho
-     máximo de su vista (un `position:fixed` no hereda el `max-width` de ningún ancestro,
-     aunque tenga `left:0;right:0`) y quedaba estirado de punta a punta del viewport en
-     tablet/escritorio, con teclas gigantes. Mismo ancho máximo que `.view--history` acá
-     arriba, centrado igual (`margin:0 auto` funciona también sobre un elemento fijo con
-     left/right ya fijados). En celular (`<720px`, fuera de este media query) sigue ocupando
-     todo el ancho disponible, sin cambios. */
-  .load-keypad{ max-width: 768px; margin: 0 auto; }
+  /* Etapa 4.2 — Cargar mi partido jugado y Partido guardado usan el mismo ancho "de
+     contenido" que Análisis/Historial (768px), con el fondo `--court-bg` propio en vez del
+     margen `--ink` general (§3: atmósfera de cancha nocturna, no el negro genérico de afuera). */
+  .view--court{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
+  /* Hotfix v1.3.1 (vigente en Etapa 4.2) — el teclado numérico y CONTINUAR (`position:fixed`)
+     escapan del contenedor con ancho máximo de su vista (un `position:fixed` no hereda el
+     `max-width` de ningún ancestro, aunque tenga `left:0;right:0`) y quedarían estirados de
+     punta a punta del viewport en tablet/escritorio. Mismo ancho máximo que `.view--court`
+     acá arriba, centrados igual. En celular (`<720px`, fuera de este media query) siguen
+     ocupando todo el ancho disponible, sin cambios. */
+  .load-keypad, .court-continue-wrap{ max-width: 768px; margin: 0 auto; }
   /* V11.10 (feedback real) — un poco más de aire en tablet, sigue sin llegar de punta a
      punta (a 768px de vista, deja ~80px de margen por lado en un iPad portrait de 768-834px
      — el "aire a los costados" que se pidió). */
@@ -1125,36 +1128,43 @@ input, select{ font-family: inherit; }
    forma reciente (antes tarjeta independiente, ahora integrada acá) y usa el
    formato exacto de fecha `02SEP · 22:30`.
    ========================================================================== */
-.player-home-lastmatch{ cursor:pointer; text-align:left; }
-.player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
-.player-home-lastmatch__form{ display:flex; gap: 4px; flex-wrap:wrap; }
-.lastmatch-form-dot{
-  width: 20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  font-family: var(--font-display); font-size: 9px; font-weight:800; color: var(--ink); flex:none;
+/* Etapa 4.2 (§11) — misma superficie "cancha nocturna" que el resto de esta ronda, aplicada
+   SOLO a esta tarjeta (el resto del Home sigue con --ink-soft, sin cambios). */
+.player-home-lastmatch{
+  cursor:pointer; text-align:left;
+  background: var(--court-surface); border-color: var(--court-line);
 }
+.player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
+.player-home-lastmatch__form{ display:flex; gap: 5px; flex-wrap:wrap; }
+/* §11 — "indicadores más pequeños; no necesitan llevar letras adentro si la forma y el color
+   ya son comprensibles con alternativa accesible" (aria-label en el propio elemento). */
+.lastmatch-form-dot{ width: 7px; height:7px; border-radius:50%; flex:none; }
 .lastmatch-form-dot--win{ background: var(--team-a); }
-.lastmatch-form-dot--loss{ background: var(--danger); color: var(--paper); }
-.lastmatch-form-dot--neutral{ background: var(--ink-softer); color: var(--paper-faint); border: 1px solid var(--line); }
-/* §7 — glow/latido MUY sutil reservado para el último indicador (el partido mostrado),
-   inspirado en la animación existente de Punto de Oro/Star Point: brillo que respira, sin
-   parpadeo ni cambio de color (el color no es la única señal — la letra V/D ya lo es). */
-.lastmatch-form-dot--current{ box-shadow: 0 0 0 2px rgba(11,18,17,0.4); animation: lastMatchDotPulse 2.2s ease-in-out infinite; }
-.lastmatch-form-dot--current.lastmatch-form-dot--win{ box-shadow: 0 0 8px rgba(200,255,61,0.7); }
-.lastmatch-form-dot--current.lastmatch-form-dot--loss{ box-shadow: 0 0 8px rgba(255,91,84,0.6); }
-@keyframes lastMatchDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.3); } }
+.lastmatch-form-dot--loss{ background: var(--danger); }
+.lastmatch-form-dot--neutral{ background: var(--court-surface-2); border: 1px solid var(--court-line); }
+/* §7 (Etapa 4) — glow/latido MUY sutil reservado para el último indicador: brillo que
+   respira, nunca parpadeo ni cambio de color. */
+.lastmatch-form-dot--current{ animation: lastMatchDotPulse 2.2s ease-in-out infinite; }
+.lastmatch-form-dot--current.lastmatch-form-dot--win{ box-shadow: 0 0 6px rgba(200,255,61,0.8); }
+.lastmatch-form-dot--current.lastmatch-form-dot--loss{ box-shadow: 0 0 6px rgba(255,91,84,0.7); }
+@keyframes lastMatchDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.4); } }
 @media (prefers-reduced-motion: reduce){ .lastmatch-form-dot--current{ animation:none; } }
 .player-home-lastmatch__datetime{ text-align:right; flex:none; }
-.player-home-lastmatch__date{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.03em; color: var(--paper-dim); }
-.player-home-lastmatch__place{ font-size: 11px; color: var(--paper-faint); margin-top: 2px; }
-.player-home-lastmatch__titlerow{ display:flex; align-items:center; gap: 8px; margin-bottom: 6px; }
-.player-home-lastmatch__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
+.player-home-lastmatch__date{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.03em; color: var(--court-text-dim); }
+.player-home-lastmatch__place{ font-size: 11px; color: var(--court-text-faint); margin-top: 2px; }
+.player-home-lastmatch__titlerow{ display:flex; align-items:center; gap: 8px; margin-bottom: 8px; }
+/* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
+   todos los títulos con el mismo tamaño/peso"). */
+.player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--court-text-dim); text-transform: uppercase; }
 .player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; }
 .player-home-lastmatch__badge--win{ background: rgba(200,255,61,0.14); color: var(--team-a); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
-.player-home-lastmatch__badge--neutral{ background: rgba(244,247,242,0.08); color: var(--paper-faint); }
-.player-home-lastmatch__chevron{ margin-left:auto; color: var(--paper-dim); font-size: 18px; flex:none; }
-.player-home-lastmatch__score{ font-family: var(--font-display); font-size: 24px; color: var(--paper); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.player-home-lastmatch__teams{ font-size: 13px; color: var(--paper-dim); }
+.player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
+.player-home-lastmatch__chevron{ margin-left:auto; color: var(--court-text-faint); font-size: 18px; flex:none; }
+/* §11 — "resultado claramente protagonista y de mayor tamaño": el salto real de jerarquía
+   de esta tarjeta respecto a v2.1 (era 24px, al mismo nivel que un microtítulo cualquiera). */
+.player-home-lastmatch__score{ font-family: var(--font-display); font-size: 34px; color: var(--paper); margin-bottom: 8px; font-variant-numeric: tabular-nums; line-height:1.1; }
+.player-home-lastmatch__teams{ font-size: 13px; color: var(--court-text-dim); }
 .player-home-lastmatch__teams .vs-sep{ margin: 0 6px; opacity: 0.6; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--team-a); }
 
@@ -1235,21 +1245,39 @@ input, select{ font-family: inherit; }
   --sheet-duration-enter: 260ms;
   --sheet-duration-level: 160ms;
   --sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Etapa 4.2 — paleta "cancha nocturna" (oscuridad AZULADA, no el negro verdoso genérico de
+     --ink/--ink-soft). Acotada a propósito a los 5 componentes de esta ronda: acceso
+     Registrar partido, Cargar mi partido jugado, marcador + teclado, Partido guardado y la
+     Tarjeta Último partido del Home — NUNCA se reemplazan --ink/--ink-soft globales, así que
+     ninguna otra pantalla cambia. Superficies separadas por un paso de LUZ (cada nivel un
+     poco más claro que el anterior), no por sombra dura. El lima (--team-a, ya existente) es
+     acá el único foco de acción/selección — reemplaza al dorado solo dentro de estas
+     superficies; el dorado sigue significando Punto de Oro en el resto de la app, sin tocar. */
+  --court-bg: #060B14;
+  --court-surface: #0D1626;
+  --court-surface-2: #142238;
+  --court-line: rgba(148, 178, 226, 0.16);
+  --court-text-dim: rgba(223, 231, 245, 0.62);
+  --court-text-faint: rgba(223, 231, 245, 0.38);
+  --court-glow: rgba(59, 130, 246, 0.28);
 }
 @media (prefers-reduced-motion: reduce){
   :root{ --sheet-duration-enter: 1ms; --sheet-duration-level: 1ms; }
 }
 
-/* Hoja inferior "Registrar partido" */
+/* Hoja inferior "Registrar partido" — Etapa 4.2 (§4): superficie "cancha nocturna", lima
+   como único acento de acción. Comparten esta clase Registrar partido, Elegir jugador y
+   Formato y puntuación — las 3 hojas en alcance de esta ronda. */
 .sheet-scrim{
-  position: fixed; inset: 0; z-index: 36; background: rgba(5,9,7,0.72);
+  position: fixed; inset: 0; z-index: 36; background: rgba(3,6,12,0.78);
   opacity: 0; transition: opacity var(--sheet-duration-enter) var(--sheet-ease);
   display:flex; align-items:flex-end; justify-content:center;
 }
 .sheet-scrim.is-open{ opacity: 1; }
 .bottom-sheet{
-  width:100%; max-width: 480px; background: var(--ink-soft); border: 1px solid var(--line);
-  border-radius: 20px 20px 0 0; padding: 10px 18px calc(20px + var(--safe-bottom));
+  width:100%; max-width: 480px; background: var(--court-surface); border: 1px solid var(--court-line);
+  border-radius: 20px 20px 0 0; padding: 10px 18px calc(22px + var(--safe-bottom));
   transform: translateY(100%); transition: transform var(--sheet-duration-enter) var(--sheet-ease);
   touch-action: none;
 }
@@ -1266,11 +1294,11 @@ input, select{ font-family: inherit; }
   .bottom-sheet{ max-width: 768px; }
 }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
-.bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--line); margin: 0 auto 14px; }
-.bottom-sheet__header{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px; gap: 10px; }
+.bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--court-line); margin: 0 auto 14px; }
+.bottom-sheet__header{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; gap: 10px; }
 .bottom-sheet__title{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; flex:1; text-align:center; }
-.bottom-sheet__back{ background:none; border:none; color: var(--paper-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; }
-.bottom-sheet__close{ background: var(--ink-softer); border:none; color: var(--paper-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; }
+.bottom-sheet__back{ background:none; border:none; color: var(--court-text-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; }
+.bottom-sheet__close{ background: var(--court-surface-2); border:none; color: var(--court-text-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; }
 .bottom-sheet__level{ display:flex; flex-direction:column; gap: 10px; padding-bottom: 4px; }
 
 /* Nivel entrante: fade + leve desplazamiento lateral; con movimiento reducido, solo fade. */
@@ -1281,13 +1309,16 @@ input, select{ font-family: inherit; }
 }
 @keyframes sheetLevelFadeIn{ from{ opacity:0; } to{ opacity:1; } }
 
+/* §4 — "ambas deben leerse inequívocamente como botones" + "textos centrados si se usan
+   botones de ancho completo": centrado (antes a la izquierda), borde siempre visible incluso
+   en la opción secundaria (antes lucía plana, sin borde). */
 .sheet-option{
-  display:block; width:100%; text-align:left; background: var(--ink-softer); border: 1px solid var(--line);
-  border-radius: 14px; padding: 16px 18px; font-family: var(--font-body); font-weight: 800; font-size: 15px;
+  display:block; width:100%; text-align:center; background: var(--court-surface-2); border: 1.5px solid var(--court-line);
+  border-radius: 14px; padding: 17px 18px; font-family: var(--font-body); font-weight: 800; font-size: 15px;
   color: var(--paper); cursor:pointer;
 }
 .sheet-option:active{ transform: scale(0.98); }
-.sheet-option--primary{ background: rgba(200,255,61,0.10); border-color: var(--team-a); color: var(--team-a); }
+.sheet-option--primary{ background: rgba(200,255,61,0.12); border-color: var(--team-a); color: var(--team-a); }
 
 .sheet-active-card{
   display:block; width:100%; text-align:left; background: rgba(200,255,61,0.08); border: 1.5px solid var(--team-a);
@@ -1342,113 +1373,193 @@ input, select{ font-family: inherit; }
 .btn-secondary--danger{ background: rgba(255,91,84,0.10); border-color: rgba(255,91,84,0.45); color: var(--danger); }
 
 /* ==========================================================================
-   Etapa 3 (Fase 3) — CARGAR PARTIDO JUGADO: rediseño funcional.
-   Clases nuevas, reutilizables y con roles semánticos (§5 del consolidado) —
-   ninguna paleta nueva: mismos tokens (--team-a/--team-b/--gold/--line/--ink-*)
-   que ya usa el resto de la app. Preparadas para el futuro rediseño visual,
-   sin aplicarlo todavía (Oswald/Manrope, sin Arena/Túnel + Cancha nocturna).
+   Etapa 4.2 — CARGAR MI PARTIDO JUGADO: marcador + teclado numérico BRAMU.
+   Jerarquía "cancha nocturna" (§3 del consolidado): resultado protagonista,
+   superficies separadas por luz, lima como único foco de acción/selección,
+   glow solo funcional. Reemplaza el diseño de formulario de Etapa 3 (misma
+   lógica pura de match-load.js, sin cambios de validación).
    ========================================================================== */
 
-/* ---- Marcador (§5, §6) ---- */
+.view--court{ background: var(--court-bg); display:flex; flex-direction:column; height:100vh; height:100dvh; }
+.court-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
 .load-match-scroll{ padding-bottom: 24px; transition: padding-bottom var(--sheet-duration-enter, 260ms) var(--sheet-ease, ease); }
-.load-match-scroll.has-keypad{ padding-bottom: 232px; }
+.load-match-scroll.has-keypad{ padding-bottom: 220px; }
 
-.load-scoreboard{
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
-  padding: 14px 14px 16px; margin-bottom: 10px;
+/* §6.1 — cabecera compacta: menor jerarquía que el resultado, nunca una tarjeta grande. */
+.court-header{
+  display:flex; align-items:center; gap: 12px;
+  padding: calc(12px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--court-line);
 }
-.load-scoreboard__row{ display:flex; align-items:center; gap: 10px; padding: 6px 0; }
-.load-scoreboard__divider{ height:1px; background: var(--line); margin: 6px 0; }
-.load-scoreboard__players{ display:flex; flex-direction:column; gap: 6px; flex: 1 1 auto; min-width: 0; }
-.load-scoreboard__sets{ display:flex; gap: 6px; flex: none; }
+.court-header__back{ color: var(--court-text-dim); flex:none; }
+.court-header__state{ min-width:0; }
+.court-header__status{ font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; color: var(--paper); text-transform: uppercase; }
+.court-header__format{ font-size: 11px; color: var(--court-text-dim); margin-top: 1px; }
+.court-header--saved{ justify-content:center; }
+.court-header__status--saved{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.1em; color: var(--team-a); text-transform: uppercase; }
 
+/* §5 — jugadores: "Tu equipo" (lima) / "Rivales" (azul), nombres elegidos como contenido
+   confirmado (no como campo de formulario todavía activo). */
+.court-players{ display:flex; flex-direction:column; gap: 12px; margin-bottom: 18px; }
+.court-players__label{ display:block; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.court-players__team--a .court-players__label{ color: var(--team-a); }
+.court-players__team--b .court-players__label{ color: var(--team-b); }
+.court-players__chips{ display:flex; gap: 8px; }
 .load-player-chip{
-  display:block; width:100%; text-align:left; background: rgba(244,247,242,0.06);
-  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
-  font-family: var(--font-body); font-weight: 700; font-size: 13px; color: var(--paper);
+  flex:1; min-width:0; display:flex; align-items:center; justify-content:center; text-align:center;
+  background: var(--court-surface); border: 1.5px solid var(--court-line); border-radius: 12px; padding: 11px 10px;
+  font-family: var(--font-body); font-weight: 800; font-size: 13px; color: var(--paper);
   cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.load-scoreboard__row--a .load-player-chip{ border-left: 3px solid var(--team-a); }
-.load-scoreboard__row--b .load-player-chip{ border-left: 3px solid var(--team-b); }
+.court-players__team--a .load-player-chip{ border-bottom: 2.5px solid var(--team-a); }
+.court-players__team--b .load-player-chip{ border-bottom: 2.5px solid var(--team-b); }
 .load-player-chip:active{ transform: scale(0.98); }
-.load-player-chip--fixed{
-  background: rgba(200,255,61,0.08); color: var(--team-a); cursor: default;
-}
+.load-player-chip--fixed{ background: rgba(200,255,61,0.10); color: var(--team-a); cursor: default; }
 .load-player-chip--fixed:active{ transform:none; }
-.load-player-chip.is-empty .load-player-chip__name{ color: var(--paper-dim); font-weight: 600; }
+.load-player-chip.is-empty{ background: transparent; }
+.load-player-chip.is-empty .load-player-chip__name{ color: var(--court-text-dim); font-weight: 600; }
 
-.load-set-cell{
-  min-width: 40px; min-height: 40px; display:flex; align-items:center; justify-content:center;
-  font-family: var(--font-display); font-size: 19px; color: var(--paper);
-  background: rgba(244,247,242,0.08); border: 2px solid transparent; border-radius: 9px; cursor:pointer;
+/* §6.2 — marcador acumulado: solo sets ya CONFIRMADOS, compacto, tocable para reabrir. */
+.court-accumulated{ display:flex; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
+.court-accumulated__set{
+  display:flex; flex-direction:column; align-items:center; gap:2px; background: var(--court-surface);
+  border: 1px solid var(--court-line); border-radius: 10px; padding: 7px 14px; cursor:pointer;
 }
-.load-set-cell.is-empty{ color: var(--paper-dim); opacity: 0.6; }
-.load-set-cell.is-active{ border-color: var(--gold); background: rgba(255,201,61,0.12); color: var(--gold); }
+.court-accumulated__set-label{ font-size: 9px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
+.court-accumulated__set-score{ font-family: var(--font-display); font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-accumulated__set:active{ border-color: var(--team-a); }
 
-.load-match-error{ color: var(--danger); }
+/* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla. */
+.court-current-set{
+  background: var(--court-surface); border: 1px solid var(--court-line); border-radius: 18px;
+  padding: 18px 16px 16px; margin-bottom: 16px; text-align:center;
+}
+.court-current-set__label{ font-size: 11px; font-weight:800; letter-spacing:0.08em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 10px; }
+.court-current-set__row{ display:flex; align-items:center; justify-content:center; gap: 14px; }
+.court-score{
+  flex: 1; max-width: 130px; background: var(--court-surface-2); border: 2px solid transparent; border-radius: 16px;
+  padding: 14px 6px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap: 4px;
+}
+.court-score__value{ font-family: var(--font-display); font-size: 52px; line-height:1; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-score.is-empty .court-score__value{ color: var(--court-text-faint); }
+.court-score__name{ font-size: 11px; font-weight:700; color: var(--court-text-dim); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* §6.3 — "el lado activo debe quedar inequívocamente marcado": borde + fondo lima, nunca
+   solo un cambio de color de texto. */
+.court-score.is-active{ border-color: var(--team-a); background: rgba(200,255,61,0.10); }
+.court-score.is-active .court-score__value{ color: var(--team-a); }
+.court-score__sep{ font-family: var(--font-display); font-size: 28px; color: var(--court-text-faint); flex:none; }
+.court-current-set__hint{ margin: 10px 0 0; font-size: 12px; font-weight:700; color: var(--team-a); }
 
-/* ---- Línea compacta de formato/sistema (§11) ---- */
+.load-match-error{ color: var(--danger); margin: -6px 0 14px; }
+
+/* §9 — línea de metadato secundario (fecha/hora/lugar) + "Modificar". */
+.court-meta-line{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  background: transparent; border: 1px solid var(--court-line); border-radius: 12px;
+  padding: 11px 14px; margin: 4px 0 8px; font-family: var(--font-body);
+  font-size: 12px; color: var(--court-text-dim); cursor:pointer;
+}
+.court-meta-line__text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.court-meta-line__action{ flex:none; margin-left: 10px; font-weight:800; letter-spacing:0.03em; color: var(--team-a); }
+
+/* ---- Línea compacta de formato/sistema (§11 Etapa 3, restilo Etapa 4.2) ---- */
 .load-format-line{
   display:flex; align-items:center; justify-content:space-between; width:100%;
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 12px;
-  padding: 12px 14px; margin: 4px 0 14px; font-family: var(--font-body); font-weight:700;
+  background: var(--court-surface); border: 1px solid var(--court-line); border-radius: 12px;
+  padding: 12px 14px; margin: 4px 0 10px; font-family: var(--font-body); font-weight:700;
   font-size: 13px; color: var(--paper); cursor:pointer;
 }
-.load-format-line__chevron{ color: var(--paper-dim); font-size: 16px; }
+.load-format-line__chevron{ color: var(--court-text-dim); font-size: 16px; }
 
-/* ---- Teclado numérico propio (§8) ----
-   Panel FIJO, no modal: el marcador sigue visible/scrolleable arriba mientras está abierto
-   (se compensa con .load-match-scroll.has-keypad más arriba). z-index 32: por debajo de
-   .sheet-scrim (36) — nunca coexisten, pero si algo los superpusiera, la hoja debe ganar. */
-/* Etapa 4 (§15) — refinamiento visual: menor peso vertical (padding/gaps más ajustados) y
-   jerarquía clara entre las celdas numéricas (protagonistas) y Borrar/Siguiente
-   (secundarias, sin fondo/borde propio). La lógica de validación (0-9 activos/deshabilitados,
-   avance de celda, más de un dígito en tie-break) no se toca — ver pressManualKeypadKey en
-   app.js, nada de esto es nuevo acá. */
+/* CONTINUAR — fijo, se ubica arriba del teclado cuando está abierto (positionManualContinueBar
+   en app.js mide el panel real en vez de asumir un alto fijo). */
+.court-continue-wrap{
+  position: fixed; left:0; right:0; bottom:0; z-index: 33;
+  background: var(--court-bg); padding: 10px 18px calc(10px + var(--safe-bottom));
+  transition: bottom var(--sheet-duration-enter) var(--sheet-ease);
+}
+.court-continue-btn{
+  width:100%; padding: 16px; border:none; border-radius: 14px; background: var(--team-a);
+  color: #0C1400; font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  letter-spacing: 0.06em; cursor:pointer; box-shadow: 0 8px 20px rgba(200,255,61,0.22);
+  transition: transform .1s ease;
+}
+.court-continue-btn:active{ transform: scale(0.98); }
+.court-continue-btn:disabled{ opacity:0.35; cursor:not-allowed; box-shadow:none; background: var(--court-surface-2); color: var(--court-text-dim); }
+
+/* ---- Teclado numérico propio BRAMU (§7) ----
+   Panel FIJO, sin scrim: el marcador sigue visible arriba mientras está abierto. z-index 32,
+   por debajo de CONTINUAR (33) y de .sheet-scrim (36) — nunca coexisten con una hoja, pero si
+   algo los superpusiera, la hoja debe ganar. */
 .load-keypad{
   position: fixed; left:0; right:0; bottom:0; z-index: 32;
-  background: var(--ink-softer); border-top: 1px solid var(--line);
-  padding: 8px 14px calc(10px + var(--safe-bottom));
+  background: var(--court-surface); border-top: 1px solid var(--court-line);
+  padding: 10px 14px calc(12px + var(--safe-bottom));
   transform: translateY(0); transition: transform var(--sheet-duration-enter) var(--sheet-ease);
 }
-.load-keypad__label{ font-size: 11px; letter-spacing:0.06em; color: var(--paper-dim); text-transform:uppercase; text-align:center; margin-bottom: 6px; font-weight:700; }
-.load-keypad__grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 360px; margin: 0 auto; }
+.load-keypad__grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 7px; max-width: 360px; margin: 0 auto; }
 .load-keypad__key{
-  padding: 10px 0; border-radius: 9px; border: 1px solid var(--line); background: rgba(244,247,242,0.06);
-  color: var(--paper); font-family: var(--font-display); font-size: 17px; cursor:pointer;
+  padding: 13px 0; border-radius: 10px; border: 1px solid var(--court-line); background: var(--court-surface-2);
+  color: var(--paper); font-family: var(--font-display); font-size: 19px; cursor:pointer;
 }
 .load-keypad__key:active{ transform: scale(0.96); }
 .load-keypad__key:disabled{ opacity: 0.3; cursor:not-allowed; }
-/* Borrar/Siguiente leen como acciones secundarias: sin fondo ni borde propio, más chicas y
-   apagadas que las celdas numéricas (§15: "deben leerse como acciones secundarias"). */
-.load-keypad__key--action{ padding: 10px 0; border: none; background: none; font-family: var(--font-body); font-size: 11px; font-weight:800; letter-spacing:0.03em; color: var(--paper-dim); }
-.load-keypad__key--action:active{ color: var(--paper); }
+/* Borrar/Listo leen como acciones secundarias: sin fondo ni borde propio (§7.1). */
+.load-keypad__key--ghost{ padding: 13px 0; border: none; background: none; font-family: var(--font-body); font-size: 11px; font-weight:800; letter-spacing:0.03em; color: var(--court-text-dim); }
+.load-keypad__key--ghost:active{ color: var(--paper); }
 /* Foco propio de BRAMU en vez del aro azul genérico del navegador — visible solo con
    teclado (`:focus-visible`), nunca al tocar con el dedo/mouse. */
-.load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--gold); }
-@media (prefers-reduced-motion: reduce){ .load-keypad{ transition: none; } }
+.load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--team-a); }
+@media (prefers-reduced-motion: reduce){ .load-keypad, .court-continue-wrap{ transition: none; } }
 
-/* ---- Hoja "elegir jugador" (§7 / §12 Etapa 4: refinamiento visual, misma lógica) ---- */
+/* ---- Hoja "elegir jugador" (§5 Etapa 4.2: mismo componente, superficies "cancha nocturna") ---- */
 .load-player-sheet__recents{ display:flex; gap: 10px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
 .load-player-sheet__recent{
   flex: none; display:flex; flex-direction:column; align-items:center; gap:5px; width: 64px;
   background:none; border:none; color: var(--paper); cursor:pointer;
 }
 .load-player-sheet__recent-avatar{
-  width: 46px; height:46px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
-  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:16px; color: var(--paper-dim);
+  width: 46px; height:46px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:16px; color: var(--court-text-dim);
 }
 .load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-a); }
 .load-player-sheet__recent-name{ font-size: 10px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 64px; }
 .load-player-sheet__list{ max-height: 38vh; overflow-y:auto; margin: 12px 0; }
 .load-player-sheet__item{
-  display:block; width:100%; text-align:left; background:none; border:none; border-top: 1px solid var(--line);
+  display:block; width:100%; text-align:left; background:none; border:none; border-top: 1px solid var(--court-line);
   padding: 14px 6px; border-radius: 8px; font-family: var(--font-body); font-weight:700; font-size: 14px; color: var(--paper); cursor:pointer;
   transition: background .12s ease;
 }
 .load-player-sheet__item:first-child{ border-top:none; }
-.load-player-sheet__item:active{ background: rgba(244,247,242,0.06); }
-.load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--paper-dim); }
+.load-player-sheet__item:active{ background: rgba(200,255,61,0.06); }
+.load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
+
+/* ==========================================================================
+   Etapa 4.2 (§8.2) — PARTIDO GUARDADO
+   ========================================================================== */
+.court-saved-result{ text-align:center; padding: 10px 0 20px; }
+.court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; margin-bottom: 10px; }
+.court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
+.court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
+.court-saved-result__score{ font-family: var(--font-display); font-size: 40px; color: var(--paper); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.court-saved-result__teams{ font-size: 13px; color: var(--court-text-dim); }
+.court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
+
+/* Etapa 4.2 (§10) — nota privada: "Solo vos", nunca en superficies públicas. Reutilizada por
+   Partido guardado y por el detalle en Análisis. */
+.court-note{ margin: 4px 0 18px; }
+.court-note__label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight:800; letter-spacing:0.05em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 8px; }
+.court-note__lock{ width:13px; height:13px; fill: var(--court-text-dim); flex:none; }
+.court-note__textarea{
+  width:100%; min-height: 84px; background: var(--court-surface); border: 1px solid var(--court-line); border-radius: 12px;
+  padding: 12px; font-family: var(--font-body); font-size: 13px; color: var(--paper); resize: vertical;
+  outline:none; transition: border-color .15s ease;
+}
+.court-note__textarea:focus{ border-color: var(--team-a); }
+.court-note__textarea::placeholder{ color: var(--court-text-faint); }
+
+/* Hoja "Modificar" (fecha/hora/lugar) — mismos campos de Etapa 3, ahora en la hoja. */
+.manual-meta-sheet-done{ margin-top: 16px; }
 
 /* ==========================================================================
    Etapa 4.1 (§4) — Evolución del Nivel BRAMU (Perfil). Simulada: badge

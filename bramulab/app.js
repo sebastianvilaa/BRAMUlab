@@ -32,6 +32,7 @@
 
   let lastServerPromptCtx = null;
   let pendingConfirmAccept = null;
+  let pendingConfirmCancel = null; // Etapa 4.2 (§6.2) — ver confirmAction() más abajo
   let selectedFinishReason = 'tiempo';
   let selectedFinishWinner = 'none';
   let analysisOpenedFrom = 'setup'; // 'live' | 'history' | 'setup'
@@ -155,7 +156,7 @@
   const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'ranking', 'profile'];
 
   function showView(name) {
-    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'player-home', 'ranking', 'profile']
+    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     if (name !== 'match') $('#view-summary').hidden = true;
     const nav = $('#bottom-nav');
@@ -423,13 +424,27 @@
   let manualLoadDirty = false;
   let manualSaveAttempted = false;
   let manualSaveInFlight = false;
-  let manualEditingMatchId = null; // matchId del partido en edición, o null si es alta nueva
+  let manualIsNewLoad = true; // Etapa 4.2 — false SOLO al editar un partido ya existente
+  let manualEditingMatchId = null; // matchId del partido en edición/ya guardado, o null si es alta nueva sin guardar todavía
   let manualEditingCreatedAt = null; // createdAt original a conservar en una edición (§15)
+  let manualExistingPrivateNote = null; // nota privada YA guardada, a conservar si se reedita el resultado (§10)
   let manualPlayers = { a1: null, a2: null, b1: null, b2: null };
-  let manualSets = [null, null, null]; // [{a,b}|null, ...] — a=games Equipo A, b=games Equipo B
+  let manualSets = [null, null, null]; // sets ya CONFIRMADOS — [{a,b}|null, ...], a=games Equipo A, b=games Equipo B
   let manualActiveSheetSlot = null; // 'a2' | 'b1' | 'b2' — slot que la hoja de jugador edita
-  let manualActiveKeypadCell = null; // { setIndex, team } | null
-  let manualKeypadDigits = ''; // dígitos tecleados para la celda activa, todavía sin confirmar
+  let manualDefaultDateVal = ''; // snapshot al abrir la pantalla — para saber si "Ahora · Hoy" sigue vigente
+  let manualDefaultTimeVal = '';
+
+  // Etapa 4.2 (§6.2-§6.3) — el set EN EDICIÓN vive aparte de `manualSets` (que solo guarda
+  // sets ya CONFIRMADOS con CONTINUAR) — así los números grandes pueden mostrar un borrador
+  // sin comprometer el marcador acumulado hasta que el usuario confirme. `manualDecided` es
+  // true una vez que todos los sets necesarios están confirmados y válidos (armado por
+  // ML.resolveActiveSetIndex) — en ese momento ya no hay "set actual" que editar.
+  let manualActiveSetIndex = 0;
+  let manualDraftSet = { a: undefined, b: undefined };
+  let manualDraftActiveTeam = 'A';
+  let manualDecided = false;
+  let manualKeypadOpen = false;
+  let manualKeypadDigits = ''; // dígitos tecleados para el lado activo del borrador, todavía sin confirmar
   let manualPendingFormatId = 'classic'; // selección DENTRO de la hoja de formato, sin aplicar (§11)
 
   function escapeHtml(s) {
@@ -571,55 +586,111 @@
     $('#load-player-b2').addEventListener('click', () => openManualPlayerSheet('b2'));
   }
 
-  /* ---- Marcador / resultado / teclado numérico (§8-§10) ---- */
+  /* ---- Marcador / resultado / teclado numérico (§6-§7 Etapa 4.2) ----
+   *  Rediseño completo de la interacción sobre la MISMA lógica pura (match-load.js): marcador
+   *  acumulado (`manualSets`, solo sets confirmados) + un set "en borrador"
+   *  (`manualDraftSet`/`manualActiveSetIndex`) que se confirma explícitamente con CONTINUAR.
+   *  Ningún cambio en canExtendSetDigits/isThirdSetVisible/isMatchDecided/validateMatchDraft. */
 
-  function manualSetCellHTML(team, setIndex, committedValue) {
-    const isActive = manualActiveKeypadCell && manualActiveKeypadCell.setIndex === setIndex && manualActiveKeypadCell.team === team;
-    let display, isEmpty;
-    if (isActive && manualKeypadDigits) { display = manualKeypadDigits; isEmpty = false; }
-    else if (Number.isFinite(committedValue)) { display = String(committedValue); isEmpty = false; }
-    else { display = '–'; isEmpty = true; }
-    const cls = ['load-set-cell'];
-    if (isEmpty) cls.push('is-empty');
-    if (isActive) cls.push('is-active');
-    return `<button type="button" class="${cls.join(' ')}" data-team="${team}" data-set-index="${setIndex}" aria-label="Set ${setIndex + 1}, equipo ${team}">${display}</button>`;
+  function manualNeededSlots(format) {
+    const thirdVisible = ML.isThirdSetVisible(manualSets[0], manualSets[1], format);
+    return format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
+  }
+
+  function manualTeamShortLabel(names) {
+    return names.filter(Boolean).join(' / ') || '—';
+  }
+
+  /** §6.1 — estado contextual del header: qué set se está cargando, o que el partido ya
+   *  quedó completo (justo antes de guardar). */
+  function manualStateLabel(format) {
+    if (manualDecided) return 'PARTIDO COMPLETO';
+    if (format.bestOfSets === 1) return 'RESULTADO';
+    return manualActiveSetIndex === 2 ? 'SET DECISIVO' : `SET ${manualActiveSetIndex + 1}`;
+  }
+
+  /** §6.2 — marcador acumulado: solo sets ya CONFIRMADOS. Tocar uno lo reabre para editarlo
+   *  (reopenManualSet) sin tocar los que quedan más adelante hasta que el usuario confirme
+   *  de nuevo (§6.2 del consolidado: "no borra los posteriores en silencio"). */
+  function renderManualAccumulated(format) {
+    const wrap = $('#court-accumulated');
+    const upTo = manualDecided ? manualNeededSlots(format) : manualActiveSetIndex;
+    const items = [];
+    for (let i = 0; i < upTo; i++) {
+      const s = manualSets[i];
+      if (!s || !Number.isFinite(s.a) || !Number.isFinite(s.b)) continue;
+      items.push(`<button type="button" class="court-accumulated__set" data-set-index="${i}" aria-label="Editar Set ${i + 1}, ${s.a} a ${s.b}"><span class="court-accumulated__set-label">SET ${i + 1}</span><span class="court-accumulated__set-score">${s.a}–${s.b}</span></button>`);
+    }
+    wrap.innerHTML = items.join('');
+    wrap.hidden = items.length === 0;
+    $all('#court-accumulated .court-accumulated__set').forEach((btn) => {
+      btn.addEventListener('click', () => reopenManualSet(Number(btn.dataset.setIndex)));
+    });
+  }
+
+  /** §6.3 — números grandes del set en edición; oculto una vez que el partido quedó decidido
+   *  (nada más que confirmar ahí, ver updateManualContinueState). */
+  function renderManualCurrentSetEditor(format) {
+    const section = $('#view-manual-load .court-current-set');
+    if (manualDecided) { section.hidden = true; return; }
+    section.hidden = false;
+    $('#court-current-set-label').textContent = format.bestOfSets === 1 ? 'RESULTADO' : `RESULTADO DEL SET ${manualActiveSetIndex + 1}`;
+    $('#court-score-a-name').textContent = manualTeamShortLabel([manualPlayers.a1, manualPlayers.a2]);
+    $('#court-score-b-name').textContent = manualTeamShortLabel([manualPlayers.b1, manualPlayers.b2]);
+    const liveDigits = (side) => manualKeypadOpen && manualDraftActiveTeam === side && manualKeypadDigits;
+    const aVal = liveDigits('A') ? manualKeypadDigits : (Number.isFinite(manualDraftSet.a) ? String(manualDraftSet.a) : '–');
+    const bVal = liveDigits('B') ? manualKeypadDigits : (Number.isFinite(manualDraftSet.b) ? String(manualDraftSet.b) : '–');
+    $('#court-score-a-value').textContent = aVal;
+    $('#court-score-b-value').textContent = bVal;
+    $('#court-score-a').classList.toggle('is-active', manualKeypadOpen && manualDraftActiveTeam === 'A');
+    $('#court-score-b').classList.toggle('is-active', manualKeypadOpen && manualDraftActiveTeam === 'B');
+    $('#court-score-a').classList.toggle('is-empty', aVal === '–');
+    $('#court-score-b').classList.toggle('is-empty', bVal === '–');
+  }
+
+  /** §6.3/§7.2 — CONTINUAR: deshabilitado mientras el par no cierre un set válido; una vez
+   *  que el partido está decidido, pasa a leerse "GUARDAR PARTIDO" (misma acción, ver
+   *  attemptManualContinue). */
+  function updateManualContinueState(format) {
+    const btn = $('#manual-continue-btn');
+    if (manualDecided) {
+      btn.disabled = false;
+      btn.textContent = 'GUARDAR PARTIDO';
+      $('#court-current-set-hint').hidden = true;
+      return;
+    }
+    const s = manualDraftSet;
+    const valid = Number.isFinite(s.a) && Number.isFinite(s.b) && E.isValidCompletedSetScore(s.a, s.b, format);
+    btn.disabled = !valid;
+    btn.textContent = 'CONTINUAR';
+    $('#court-current-set-hint').hidden = !valid;
   }
 
   function renderManualScoreboard() {
     const format = E.FORMATS[manualSelectedFormatId];
-    const thirdVisible = ML.isThirdSetVisible(manualSets[0], manualSets[1], format);
-    const slots = format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
-
-    const rowA = [], rowB = [];
-    for (let i = 0; i < slots; i++) {
-      const s = manualSets[i];
-      rowA.push(manualSetCellHTML('A', i, s ? s.a : undefined));
-      rowB.push(manualSetCellHTML('B', i, s ? s.b : undefined));
-    }
-    $('#load-sets-a').innerHTML = rowA.join('');
-    $('#load-sets-b').innerHTML = rowB.join('');
-    $all('#load-sets-a .load-set-cell, #load-sets-b .load-set-cell').forEach((btn) => {
-      btn.addEventListener('click', () => openManualKeypad(Number(btn.dataset.setIndex), btn.dataset.team));
-    });
-
+    $('#manual-load-status').textContent = manualStateLabel(format);
     const bestOfLabel = format.bestOfSets === 1 ? '1 set' : `Mejor de ${format.bestOfSets}`;
     const scoringLabel = MANUAL_SCORING_LINE_LABELS[manualSelectedScoring] || '';
+    $('#manual-load-format-mini').textContent = `${format.label} · ${scoringLabel}`;
     $('#load-format-line-text').textContent = `${format.label} · ${bestOfLabel} · ${scoringLabel}`;
 
+    renderManualAccumulated(format);
+    renderManualCurrentSetEditor(format);
+    updateManualContinueState(format);
+    positionManualContinueBar();
     recomputeManualValidation();
   }
 
-  /** §9: si Set 1 y Set 2 ya están completos y dejaron de sumar 1-1, cualquier valor que
-   *  hubiera quedado en el Set 3 pasó a ser huérfano — se limpia acá, en el único punto
-   *  donde se decide (al confirmar un dígito de Set 1/2), nunca en cada render. Mientras
-   *  cualquiera de los dos siga incompleto, no se toca nada — todavía no hay nada que decidir. */
-  function pruneOrphanThirdSet() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    if (format.bestOfSets === 1) { manualSets[2] = null; return; }
-    const set1 = manualSets[0], set2 = manualSets[1];
-    const bothComplete = set1 && set2 && Number.isFinite(set1.a) && Number.isFinite(set1.b) && Number.isFinite(set2.a) && Number.isFinite(set2.b);
-    if (!bothComplete) return;
-    if (manualSets[2] && !ML.isThirdSetVisible(set1, set2, format)) manualSets[2] = null;
+  /** Tocar un set ya confirmado en el marcador acumulado lo reabre como borrador editable. */
+  function reopenManualSet(i) {
+    if (manualKeypadOpen) closeManualKeypadPanel();
+    manualDecided = false;
+    const s = manualSets[i];
+    manualDraftSet = s ? { a: s.a, b: s.b } : { a: undefined, b: undefined };
+    manualActiveSetIndex = i;
+    manualDraftActiveTeam = 'A';
+    markManualLoadDirty();
+    renderManualScoreboard();
   }
 
   function updateManualKeypadKeysState() {
@@ -627,83 +698,75 @@
     const max = Math.max(format.setWinTarget + 1, format.tiebreakTriggerAt + 1);
     $all('#load-keypad [data-key]').forEach((btn) => {
       const key = btn.dataset.key;
-      if (key === 'del' || key === 'next') { btn.disabled = false; return; }
+      if (key === 'del' || key === 'done') { btn.disabled = false; return; }
       btn.disabled = Number(key) > max;
     });
   }
 
-  function openManualKeypad(setIndex, team) {
-    if (manualActiveKeypadCell) commitManualKeypadDigits();
-    manualActiveKeypadCell = { setIndex, team };
+  /** Ubica CONTINUAR justo arriba del teclado cuando está abierto (§7.1), o al pie de la
+   *  pantalla cuando está cerrado — medido en vivo, no un alto fijo adivinado. */
+  function positionManualContinueBar() {
+    const wrap = $('#court-continue-wrap');
+    const keypad = $('#load-keypad');
+    if (!wrap || !keypad) return;
+    wrap.style.bottom = keypad.hidden ? '0px' : `${keypad.offsetHeight}px`;
+  }
+
+  function openManualKeypad(team) {
+    if (manualKeypadOpen) commitDraftDigits();
+    manualDraftActiveTeam = team;
+    manualKeypadOpen = true;
     manualKeypadDigits = '';
-    $('#load-keypad-label').textContent = `SET ${setIndex + 1} · EQUIPO ${team}`;
     $('#load-keypad').hidden = false;
-    $('.load-match-scroll').classList.add('has-keypad');
+    $('#manual-load-scroll').classList.add('has-keypad');
     updateManualKeypadKeysState();
     renderManualScoreboard();
-    const rowSel = team === 'A' ? '#load-sets-a' : '#load-sets-b';
-    const activeBtn = $(`${rowSel} .load-set-cell.is-active`);
-    if (activeBtn && activeBtn.scrollIntoView) activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
-  function closeManualKeypad() {
-    commitManualKeypadDigits();
-    manualActiveKeypadCell = null;
+  function closeManualKeypadPanel() {
+    commitDraftDigits();
+    manualKeypadOpen = false;
     manualKeypadDigits = '';
     $('#load-keypad').hidden = true;
-    $('.load-match-scroll').classList.remove('has-keypad');
-    renderManualScoreboard();
+    $('#manual-load-scroll').classList.remove('has-keypad');
   }
 
-  function commitManualKeypadDigits() {
-    if (!manualActiveKeypadCell || !manualKeypadDigits) return;
-    const { setIndex, team } = manualActiveKeypadCell;
-    const value = Number(manualKeypadDigits);
+  function commitDraftDigits() {
+    if (!manualKeypadOpen || !manualKeypadDigits) return;
+    manualDraftSet[manualDraftActiveTeam === 'A' ? 'a' : 'b'] = Number(manualKeypadDigits);
     manualKeypadDigits = '';
-    if (!manualSets[setIndex]) manualSets[setIndex] = { a: undefined, b: undefined };
-    manualSets[setIndex][team === 'A' ? 'a' : 'b'] = value;
-    if (setIndex === 0 || setIndex === 1) pruneOrphanThirdSet();
   }
 
-  /** §8: en un set normal, avanza a la celda contigua (A→B del mismo set, o al set
-   *  siguiente); cierra el teclado si no queda ninguna celda más. */
-  function advanceManualKeypadCell() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    const { setIndex, team } = manualActiveKeypadCell;
-    if (team === 'A') { openManualKeypad(setIndex, 'B'); return; }
-    const thirdVisible = ML.isThirdSetVisible(manualSets[0], manualSets[1], format);
-    const totalSlots = format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
-    if (setIndex + 1 < totalSlots) { openManualKeypad(setIndex + 1, 'A'); return; }
-    closeManualKeypad();
+  /** El foco pasa solo de Equipo A a Equipo B del MISMO set (§6.3); al completar ambos lados,
+   *  el teclado se cierra y espera el toque explícito en CONTINUAR — ya no abre el set
+   *  siguiente por sí solo (eso ahora es trabajo exclusivo de CONTINUAR). */
+  function advanceDraftSide() {
+    if (manualDraftActiveTeam === 'A') { openManualKeypad('B'); return; }
+    closeManualKeypadPanel();
+    renderManualScoreboard();
   }
 
   function pressManualKeypadKey(key) {
-    if (!manualActiveKeypadCell) return;
+    if (!manualKeypadOpen) return;
     if (key === 'del') {
       if (manualKeypadDigits) { manualKeypadDigits = manualKeypadDigits.slice(0, -1); }
-      else {
-        const { setIndex, team } = manualActiveKeypadCell;
-        if (manualSets[setIndex]) {
-          manualSets[setIndex][team === 'A' ? 'a' : 'b'] = undefined;
-          if (!Number.isFinite(manualSets[setIndex].a) && !Number.isFinite(manualSets[setIndex].b)) manualSets[setIndex] = null;
-        }
-      }
+      else { manualDraftSet[manualDraftActiveTeam === 'A' ? 'a' : 'b'] = undefined; }
       markManualLoadDirty();
       renderManualScoreboard();
       return;
     }
-    if (key === 'next') {
-      commitManualKeypadDigits();
+    if (key === 'done') {
+      closeManualKeypadPanel();
       markManualLoadDirty();
-      advanceManualKeypadCell();
+      renderManualScoreboard();
       return;
     }
     const format = E.FORMATS[manualSelectedFormatId];
     manualKeypadDigits += key;
     markManualLoadDirty();
     if (!ML.canExtendSetDigits(manualKeypadDigits, format)) {
-      commitManualKeypadDigits();
-      advanceManualKeypadCell();
+      commitDraftDigits();
+      advanceDraftSide();
       return;
     }
     renderManualScoreboard();
@@ -713,6 +776,72 @@
     $all('#load-keypad [data-key]').forEach((btn) => {
       btn.addEventListener('click', () => pressManualKeypadKey(btn.dataset.key));
     });
+    $('#court-score-a').addEventListener('click', () => openManualKeypad('A'));
+    $('#court-score-b').addEventListener('click', () => openManualKeypad('B'));
+    $('#manual-continue-btn').addEventListener('click', attemptManualContinue);
+  }
+
+  /** §6.3/§8.1 — CONTINUAR: confirma el set en edición (con confirmación previa si eso deja
+   *  huérfano un Set 3 ya cargado — §6.2) y avanza al siguiente, o guarda el partido cuando ya
+   *  no queda ningún set más que pedir (ML.resolveActiveSetIndex === null). Misma acción,
+   *  cualquiera sea el rótulo visible del botón en ese momento. */
+  function attemptManualContinue() {
+    if (manualDecided) { finalizeManualContinue(); return; }
+    if (manualKeypadOpen) commitDraftDigits();
+    const format = E.FORMATS[manualSelectedFormatId];
+    if (!Number.isFinite(manualDraftSet.a) || !Number.isFinite(manualDraftSet.b)) return;
+    if (!E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format)) return;
+
+    const applyConfirm = () => {
+      manualSets[manualActiveSetIndex] = { a: manualDraftSet.a, b: manualDraftSet.b };
+      if (manualActiveSetIndex === 0 || manualActiveSetIndex === 1) pruneOrphanThirdSet();
+      markManualLoadDirty();
+      const next = ML.resolveActiveSetIndex(manualSets, format);
+      if (next === null) {
+        manualDecided = true;
+        closeManualKeypadPanel();
+        renderManualScoreboard();
+        finalizeManualContinue();
+      } else {
+        manualActiveSetIndex = next;
+        const existing = manualSets[next];
+        manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+        manualDraftActiveTeam = 'A';
+        closeManualKeypadPanel();
+        renderManualScoreboard();
+      }
+    };
+
+    // §6.2 — si esta confirmación deja huérfano un Set 3 que ya tenía un resultado cargado,
+    // pedir confirmación antes de descartarlo en vez de borrarlo en silencio.
+    const thirdWasConfirmed = manualActiveSetIndex !== 2 && manualSets[2] && Number.isFinite(manualSets[2].a) && Number.isFinite(manualSets[2].b);
+    if (thirdWasConfirmed) {
+      const projectedSet1 = manualActiveSetIndex === 0 ? manualDraftSet : manualSets[0];
+      const projectedSet2 = manualActiveSetIndex === 1 ? manualDraftSet : manualSets[1];
+      if (!ML.isThirdSetVisible(projectedSet1, projectedSet2, format)) {
+        confirmAction(
+          'Este cambio ya no necesita un tercer set',
+          'El resultado que ya cargaste en el Set 3 se va a descartar.',
+          applyConfirm,
+          () => { closeManualKeypadPanel(); renderManualScoreboard(); }
+        );
+        return;
+      }
+    }
+    applyConfirm();
+  }
+
+  /** §9: si Set 1 y Set 2 ya están completos y dejaron de sumar 1-1, cualquier valor que
+   *  hubiera quedado en el Set 3 pasó a ser huérfano — se limpia acá. La confirmación previa
+   *  (cuando ese Set 3 ya tenía un resultado CARGADO) vive en attemptManualContinue; acá se
+   *  cubre además el caso silencioso de siempre (Set 3 todavía vacío, nada que perder). */
+  function pruneOrphanThirdSet() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    if (format.bestOfSets === 1) { manualSets[2] = null; return; }
+    const set1 = manualSets[0], set2 = manualSets[1];
+    const bothComplete = set1 && set2 && Number.isFinite(set1.a) && Number.isFinite(set1.b) && Number.isFinite(set2.a) && Number.isFinite(set2.b);
+    if (!bothComplete) return;
+    if (manualSets[2] && !ML.isThirdSetVisible(set1, set2, format)) manualSets[2] = null;
   }
 
   function manualCurrentDraft() {
@@ -721,7 +850,6 @@
 
   function recomputeManualValidation() {
     const draft = manualCurrentDraft();
-    $('#manual-save-btn').disabled = !draft.ok;
     const errEl = $('#load-match-error');
     if (draft.ok) { errEl.hidden = true; errEl.textContent = ''; return draft; }
     const showInline = MANUAL_INLINE_REASONS.has(draft.reason) || manualSaveAttempted;
@@ -765,7 +893,20 @@
   function applyManualFormatChange(newFormatId, impact) {
     manualSelectedFormatId = newFormatId;
     manualSets = impact.keptSets;
-    if (manualActiveKeypadCell) closeManualKeypad();
+    if (manualKeypadOpen) closeManualKeypadPanel();
+    const format = E.FORMATS[newFormatId];
+    const next = ML.resolveActiveSetIndex(manualSets, format);
+    if (next === null) {
+      manualDecided = true;
+      manualActiveSetIndex = manualNeededSlots(format) - 1;
+      manualDraftSet = { a: undefined, b: undefined };
+    } else {
+      manualDecided = false;
+      manualActiveSetIndex = next;
+      const existing = manualSets[next];
+      manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+    }
+    manualDraftActiveTeam = 'A';
     markManualLoadDirty();
     renderManualScoreboard();
   }
@@ -826,39 +967,106 @@
     }
   }
 
+  /** Etapa 4.2 (§9) — texto compacto de la línea de metadato, compartido entre la pantalla
+   *  principal y Partido guardado. "Ahora · Hoy" se mantiene mientras la fecha/hora sigan
+   *  siendo EXACTAMENTE el default con el que se abrió esta carga (nunca en una edición de un
+   *  partido ya existente, donde mostrar "Ahora" sería directamente falso). */
+  function computeManualMetaLineText() {
+    const dateVal = $('#manual-date-input').value;
+    const timeVal = $('#manual-time-input').value;
+    const placeVal = $('#manual-place-input').value.trim();
+    const isDefault = manualIsNewLoad && dateVal === manualDefaultDateVal && timeVal === manualDefaultTimeVal;
+    const dateTimePart = isDefault
+      ? (timeVal ? `Ahora · Hoy · ${timeVal}` : 'Ahora · Hoy')
+      : [formatCompactPlayedDate(`${dateVal}T${timeVal || '00:00'}`, undefined), timeVal].filter(Boolean).join(' · ');
+    return placeVal ? `${dateTimePart} · ${placeVal}` : dateTimePart;
+  }
+  function renderManualMetaLine() {
+    const text = computeManualMetaLineText();
+    const a = $('#manual-meta-line-text'); if (a) a.textContent = text;
+    const b = $('#match-saved-meta-text'); if (b) b.textContent = text;
+  }
+
+  function openManualMetaSheet() {
+    $('#manual-meta-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => $('#manual-meta-sheet-scrim').classList.add('is-open'));
+  }
+  function closeManualMetaSheet() {
+    const scrim = $('#manual-meta-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+  function closeManualMetaSheetInstant() {
+    $('#manual-meta-sheet-scrim').classList.remove('is-open');
+    $('#manual-meta-sheet-scrim').hidden = true;
+  }
+
+  /** §9 — al confirmar "Modificar" sobre un partido que YA existe en el historial (una
+   *  edición real, o el que se acaba de guardar en Momento 1), el cambio se aplica de
+   *  inmediato: nada queda cacheado (Home/Historial/Perfil/Evolución se recalculan solos la
+   *  próxima vez que se rendericen), así que un patch al registro alcanza. */
+  function persistManualMetaChange() {
+    if (!manualEditingMatchId) return;
+    const dateVal = $('#manual-date-input').value;
+    const timeVal = $('#manual-time-input').value;
+    const timeKnown = !!timeVal;
+    const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+    const placeName = $('#manual-place-input').value.trim();
+    const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
+    Store.patchHistoryEntry(manualEditingMatchId, {
+      playedAt: startedAtDate.toISOString(),
+      startedAt: startedAtDate.toISOString(),
+      timeKnown,
+      location: location || null,
+    });
+  }
+
+  function initManualMetaSheet() {
+    $('#manual-meta-line').addEventListener('click', openManualMetaSheet);
+    $('#match-saved-meta-line').addEventListener('click', openManualMetaSheet);
+    $('#manual-meta-sheet-close').addEventListener('click', closeManualMetaSheet);
+    $('#manual-meta-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#manual-meta-sheet-scrim')) closeManualMetaSheet(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#manual-meta-sheet-scrim').hidden) closeManualMetaSheet(); });
+    $('#manual-meta-sheet-done').addEventListener('click', () => {
+      closeManualMetaSheet();
+      renderManualMetaLine();
+      markManualLoadDirty();
+      persistManualMetaChange();
+    });
+  }
+
   function initManualDateTimeFields() {
-    $('#manual-date-input').addEventListener('input', () => { markManualLoadDirty(); recomputeManualValidation(); });
-    $('#manual-time-input').addEventListener('input', markManualLoadDirty);
-    $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); });
-    $('#manual-place-input').addEventListener('input', markManualLoadDirty);
+    $('#manual-date-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); recomputeManualValidation(); });
+    $('#manual-time-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
+    $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); renderManualMetaLine(); });
+    $('#manual-place-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-location-btn').addEventListener('click', requestManualLocation);
   }
 
-  /* ---- Apertura / salida / guardado (§13-§16) ---- */
+  /* ---- Apertura / salida / guardado (§8/§13-§16) ---- */
 
   function markManualLoadDirty() { manualLoadDirty = true; }
 
   /** §16: Volver cierra primero cualquier capa abierta (teclado, hoja de jugador, hoja de
-   *  formato) antes de intentar salir de toda la pantalla. Devuelve `true` si cerró algo. */
+   *  formato, hoja de fecha/hora/lugar) antes de intentar salir de toda la pantalla. Devuelve
+   *  `true` si cerró algo. */
   function closeAnyManualOverlay() {
-    if (!$('#load-keypad').hidden) { closeManualKeypad(); return true; }
+    if (!$('#load-keypad').hidden) { closeManualKeypadPanel(); renderManualScoreboard(); return true; }
     if (!$('#load-player-sheet-scrim').hidden) { closeManualPlayerSheet(); return true; }
     if (!$('#load-format-sheet-scrim').hidden) { closeManualFormatSheet(); return true; }
+    if (!$('#manual-meta-sheet-scrim').hidden) { closeManualMetaSheet(); return true; }
     return false;
   }
 
-  /** Hotfix v1.3.1 — a diferencia de `closeAnyManualOverlay` (cierra UNA capa por toque de
-   *  Volver, §16), esto cierra TODAS las capas propias de la pantalla de una sola vez. Hace
-   *  falta antes de guardar: el teclado numérico es, a propósito, el único overlay de esta
-   *  pantalla SIN scrim (§8 — el marcador debe seguir visible mientras está abierto), así que
-   *  reabrir una celda ya cargada para revisarla no invalida el borrador ni lo cierra solo —
-   *  Guardar puede tocarse con el teclado todavía abierto. Sin este cierre explícito, el
-   *  panel del teclado (`z-index:32`) quedaba visible por encima del Resumen (`z-index:25`)
-   *  después de guardar. */
+  /** Hotfix v1.3.1 (vigente en Etapa 4.2) — a diferencia de `closeAnyManualOverlay` (cierra
+   *  UNA capa por toque de Volver), esto cierra TODAS las capas propias de la pantalla de una
+   *  sola vez, necesario antes de guardar/navegar para que ningún panel quede flotando por
+   *  encima de la pantalla siguiente. */
   function closeAllManualOverlays() {
-    if (!$('#load-keypad').hidden) closeManualKeypad();
+    if (!$('#load-keypad').hidden) closeManualKeypadPanel();
     if (!$('#load-player-sheet-scrim').hidden) closeManualPlayerSheet();
     if (!$('#load-format-sheet-scrim').hidden) closeManualFormatSheet();
+    if (!$('#manual-meta-sheet-scrim').hidden) closeManualMetaSheetInstant();
   }
 
   function exitManualLoadScreen() {
@@ -871,23 +1079,26 @@
   /** Abre la pantalla para cargar un partido nuevo (`editMatch` ausente) o para editar uno ya
    *  guardado (`editMatch` = la entrada completa del Historial — §15). §6: TODA entrada a esta
    *  pantalla requiere identidad — Jugador 1 del Equipo A siempre es `currentPlayerName`, fijo,
-   *  sin importar desde dónde se abrió (antes esto solo aplicaba entrando desde el Home; se
-   *  unifica acá porque la pantalla ya no tiene un campo de texto libre para "Jugador 1"). Si
-   *  falta identidad, se resuelve primero y se retoma el flujo sin perder contexto (§6). */
+   *  sin importar desde dónde se abrió. Si falta identidad, se resuelve primero y se retoma el
+   *  flujo sin perder contexto. */
   function openManualLoadScreen(origin, editMatch) {
     manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
     currentPlayerName = Store.loadCurrentPlayerName();
     if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen(origin, editMatch)); return; }
 
+    manualIsNewLoad = !editMatch;
     manualEditingMatchId = editMatch ? editMatch.matchId : null;
     manualEditingCreatedAt = editMatch ? editMatch.createdAt : null;
+    manualExistingPrivateNote = editMatch ? (editMatch.privateNote || null) : null;
     manualSelectedScoring = editMatch ? editMatch.scoringSystem : 'golden';
     manualSelectedFormatId = editMatch ? editMatch.formatId : 'classic';
     manualCoords = (editMatch && editMatch.location && Number.isFinite(editMatch.location.lat)) ? { lat: editMatch.location.lat, lng: editMatch.location.lng } : null;
     manualLoadDirty = false; // §10 — recién se marca dirty con interacción real del usuario
     manualSaveAttempted = false;
-    manualActiveKeypadCell = null;
+    manualKeypadOpen = false;
     manualKeypadDigits = '';
+    manualDecided = false;
+    manualDraftActiveTeam = 'A';
 
     if (editMatch) {
       const teamPlayers = (team) => (editMatch.players || []).filter((p) => p && p.team === team);
@@ -902,9 +1113,23 @@
       manualSets = [null, null, null];
     }
 
-    $('#manual-load-title').textContent = editMatch ? 'EDITAR PARTIDO' : 'CARGAR PARTIDO JUGADO';
+    // §6.2/§6.3 — a qué set entrar apenas se abre la pantalla: el primero que todavía no sea
+    // válido (alta nueva: siempre el Set 1), o "decidido" si se edita un partido que ya
+    // estaba completo y todavía no se tocó nada.
+    const openFormat = E.FORMATS[manualSelectedFormatId];
+    const initialActive = ML.resolveActiveSetIndex(manualSets, openFormat);
+    if (initialActive === null) {
+      manualDecided = true;
+      manualActiveSetIndex = manualNeededSlots(openFormat) - 1;
+      manualDraftSet = { a: undefined, b: undefined };
+    } else {
+      manualActiveSetIndex = initialActive;
+      const existing = manualSets[initialActive];
+      manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+    }
+
     $('#load-keypad').hidden = true;
-    $('.load-match-scroll').classList.remove('has-keypad');
+    $('#manual-load-scroll').classList.remove('has-keypad');
     $('#manual-location-status').hidden = true;
 
     if (editMatch) {
@@ -931,31 +1156,30 @@
       $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       $('#manual-place-input').value = '';
     }
+    manualDefaultDateVal = $('#manual-date-input').value;
+    manualDefaultTimeVal = $('#manual-time-input').value;
 
     renderManualPlayers();
     renderManualScoreboard();
+    renderManualMetaLine();
     showView('manual-load');
   }
 
-  function attemptSaveManualMatch() {
-    if (manualSaveInFlight) return;
+  /** §8.1 — última validación (sobre todo jugadores: el resultado ya está confirmado por
+   *  CONTINUAR) antes de guardar. Si falta algo, el error queda visible inline y la pantalla
+   *  no navega a ningún lado — nunca se pierde el resultado ya cargado. */
+  function finalizeManualContinue() {
     manualSaveAttempted = true;
     const draft = recomputeManualValidation();
     if (!draft.ok) return;
+    attemptSaveManualMatch(draft);
+  }
+
+  function attemptSaveManualMatch(draft) {
+    if (manualSaveInFlight) return;
     manualSaveInFlight = true;
-    $('#manual-save-btn').disabled = true;
-    // Hotfix v1.3.1 — cierra cualquier capa propia de esta pantalla (ver closeAllManualOverlays)
-    // y deja el Home como única pantalla de fondo ANTES de guardar/mostrar el Resumen — nunca
-    // dos vistas "de fondo" compitiendo por z-index. `showView` ya oculta `view-manual-load`
-    // (y cualquier otra vista trackeada) y esconde `view-summary` de paso; el Resumen se
-    // vuelve a mostrar recién al final de finishMatchManual, ya con el fondo limpio.
+    $('#manual-continue-btn').disabled = true;
     closeAllManualOverlays();
-    showView('player-home');
-    // `showView('player-home')` deja la barra inferior visible (Home la usa) — pero acá el
-    // Resumen (`z-index:25`) está por cubrir toda la pantalla y la barra tiene `z-index:35`
-    // (mayor), así que asomaría por debajo. Se oculta explícitamente; vuelve a aparecer sola
-    // cuando "VOLVER AL INICIO" llame a openPlayerHome() → showView('player-home') de nuevo.
-    $('#bottom-nav').hidden = true;
     try { saveManualMatch(draft); }
     finally { manualSaveInFlight = false; }
   }
@@ -977,15 +1201,19 @@
     const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
 
     Store.rememberPlayerNames(players.map((p) => p.name));
-    finishMatchManual(players, draft.sets, draft.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location, manualEditingMatchId, manualEditingCreatedAt);
+    finishMatchManual(players, draft.sets, draft.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location, manualEditingMatchId, manualEditingCreatedAt, manualExistingPrivateNote);
   }
 
   /** Crea o ACTUALIZA (si `editingMatchId` viene informado — §15) un partido cargado. Nunca
    *  toca timer/Wake Lock/Store.clearActiveMatch (no hay partido activo real involucrado), y
    *  usa los generadores de stats/Intelligence dedicados a carga manual (solo hechos
    *  derivables del resultado final por set). `Store.upsertHistory` ya dedupe por matchId, así
-   *  que reusar el mismo id en una edición actualiza el registro existente sin duplicarlo. */
-  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location, editingMatchId, editingCreatedAt) {
+   *  que reusar el mismo id en una edición actualiza el registro existente sin duplicarlo.
+   *  Etapa 4.2 (§8): una carga NUEVA sigue a Partido guardado (Momento 2, enriquecimiento
+   *  opcional); reeditar un partido que ya existía va directo al Resumen, como ya hacía —
+   *  la pantalla de "recién guardado" es específicamente la primera confirmación (§8.2), no
+   *  tiene sentido repetirla en cada reedición posterior. */
+  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location, editingMatchId, editingCreatedAt, existingPrivateNote) {
     const format = E.FORMATS[formatId];
     const matchCtx = { players, format };
     const stats = S.computeManualStats(sets, matchCtx);
@@ -1026,24 +1254,78 @@
       coverageStartLabel: null,
       timeKnown,
       location: location || null,
+      // Etapa 4.2 (§10) — nota privada opcional; una edición conserva la que ya existía si el
+      // usuario no la tocó en esta sesión (nunca se pisa con vacío por accidente).
+      privateNote: existingPrivateNote || null,
     };
 
     Store.upsertHistory(finishedSnapshot);
     manualLoadDirty = false;
-    manualEditingMatchId = null;
-    manualEditingCreatedAt = null;
-    renderSummary();
-    $('#view-summary').hidden = false;
+    const wasNewLoad = manualIsNewLoad;
+    // A partir de acá "Modificar" y la nota privada patchean ESTE registro, exista o no ya
+    // desde antes de este guardado.
+    manualEditingMatchId = finishedSnapshot.matchId;
+    manualEditingCreatedAt = finishedSnapshot.createdAt;
+
+    if (wasNewLoad) {
+      openMatchSavedScreen(finishedSnapshot);
+    } else {
+      renderSummary();
+      showView('player-home');
+      $('#bottom-nav').hidden = true;
+      $('#view-summary').hidden = false;
+    }
+  }
+
+  /* ---- Partido guardado — Etapa 4.2 (§8.2) ---- */
+
+  function openMatchSavedScreen(f) {
+    const myTeam = 'A'; // en la carga manual, el jugador actual siempre es Equipo A
+    const resultKind = !f.winnerTeam ? 'neutral' : (f.winnerTeam === myTeam ? 'win' : 'loss');
+    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
+    const badge = $('#match-saved-badge');
+    badge.textContent = resultLabel;
+    badge.className = 'court-saved-result__badge court-saved-result__badge--' + resultKind;
+    $('#match-saved-score').textContent = f.sets.map(formatSetSegmentLabel).join(' · ');
+    const teamAName = f.players.filter((p) => p.team === 'A').map((p) => p.name).join(' / ');
+    const teamBName = f.players.filter((p) => p.team === 'B').map((p) => p.name).join(' / ');
+    $('#match-saved-teams').textContent = `${teamAName} vs ${teamBName}`;
+    $('#match-saved-note').value = f.privateNote || '';
+    renderManualMetaLine();
+    showView('match-saved');
+  }
+
+  function initMatchSavedScreen() {
+    $('#match-saved-note').addEventListener('blur', () => {
+      if (!manualEditingMatchId) return;
+      Store.patchHistoryEntry(manualEditingMatchId, { privateNote: $('#match-saved-note').value.trim() || null });
+    });
+    $('#match-saved-view-summary').addEventListener('click', () => {
+      const f = (manualEditingMatchId && Store.getHistoryEntry(manualEditingMatchId)) || finishedSnapshot;
+      // f nunca es === finishedSnapshot (se relee de Store para reflejar nota/lugar recién
+      // editados acá), así que renderSummary lo trataría como 'analysis' de todos modos; lo
+      // marcamos explícito y dejamos analysisCurrent/analysisOpenedFrom listos para que "←"
+      // en Resumen pueda abrir Análisis de este mismo partido en vez de crashear con
+      // analysisCurrent todavía null (nunca se pasó por Análisis antes de llegar acá).
+      analysisCurrent = f;
+      analysisOpenedFrom = 'player-home';
+      renderSummary(f, 'analysis');
+      showView('player-home');
+      $('#bottom-nav').hidden = true;
+      $('#view-summary').hidden = false;
+    });
+    $('#match-saved-home-btn').addEventListener('click', () => openPlayerHome());
   }
 
   function initManualLoadScreen() {
     $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
     $('#manual-load-back-btn').addEventListener('click', exitManualLoadScreen);
-    $('#manual-save-btn').addEventListener('click', attemptSaveManualMatch);
     initManualDateTimeFields();
+    initManualMetaSheet();
     initManualPlayerSheet();
     initManualFormatSheet();
     initManualKeypad();
+    initMatchSavedScreen();
   }
 
   /* ------------------------------------------------------------------ */
@@ -2368,17 +2650,25 @@
   /* ------------------------------------------------------------------ */
   /* CONFIRMACIÓN GENÉRICA                                                */
   /* ------------------------------------------------------------------ */
-  function confirmAction(title, text, onAccept) {
+  function confirmAction(title, text, onAccept, onCancel) {
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
     pendingConfirmAccept = onAccept;
+    // Etapa 4.2 (§6.2) — cancel opcional: hasta ahora ningún llamador lo necesitaba (cancelar
+    // solo cerraba el modal); editar un set anterior que descartaría un Set 3 ya cargado sí
+    // necesita deshacer el cambio si el usuario cancela, no solo cerrar el aviso.
+    pendingConfirmCancel = onCancel || null;
     $('#confirm-overlay').hidden = false;
   }
   function initConfirmModal() {
-    $('#confirm-cancel').addEventListener('click', () => { $('#confirm-overlay').hidden = true; pendingConfirmAccept = null; });
+    $('#confirm-cancel').addEventListener('click', () => {
+      $('#confirm-overlay').hidden = true;
+      const fn = pendingConfirmCancel; pendingConfirmAccept = null; pendingConfirmCancel = null;
+      if (fn) fn();
+    });
     $('#confirm-accept').addEventListener('click', () => {
       $('#confirm-overlay').hidden = true;
-      const fn = pendingConfirmAccept; pendingConfirmAccept = null;
+      const fn = pendingConfirmAccept; pendingConfirmAccept = null; pendingConfirmCancel = null;
       if (fn) fn();
     });
   }
@@ -3952,6 +4242,11 @@
     // para cualquier modo). Solo para partidos cargados manualmente.
     $('#analysis-edit-btn').hidden = f.mode !== 'manual';
     $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
+    // Etapa 4.2 (§10) — sensaciones privadas: solo partidos CARGADOS, accesibles únicamente
+    // desde este detalle (nunca en Home/Historial/Resumen/exportaciones).
+    const noteSection = $('#analysis-note-section');
+    noteSection.hidden = f.mode !== 'manual';
+    if (f.mode === 'manual') $('#analysis-note-textarea').value = f.privateNote || '';
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
     // partido recién terminado como desde el Historial de un partido viejo, y en ese segundo
@@ -5104,6 +5399,15 @@
   function initTimelineScreen() { $('#timeline-back-btn').addEventListener('click', () => showView('analysis')); }
 
   function initAnalysisScreen() {
+    // Etapa 4.2 (§10) — autoguardado al salir del campo, sobre el partido actualmente
+    // mostrado en Análisis (analysisCurrent). Nunca crea un registro nuevo: si por algún
+    // motivo ese partido ya no existe en el historial, Store.patchHistoryEntry no hace nada.
+    $('#analysis-note-textarea').addEventListener('blur', () => {
+      if (!analysisCurrent || analysisCurrent.mode !== 'manual') return;
+      const value = $('#analysis-note-textarea').value.trim() || null;
+      Store.patchHistoryEntry(analysisCurrent.matchId, { privateNote: value });
+      analysisCurrent.privateNote = value; // refleja el cambio si se vuelve a abrir esta misma sesión
+    });
     $('#analysis-back-btn').addEventListener('click', () => {
       if (analysisOpenedFrom === 'live' && finishedSnapshot) { $('#view-summary').hidden = false; showView('match'); }
       else if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
@@ -5468,14 +5772,15 @@
     const placeStr = (m.location && m.location.name) || '';
 
     const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', neutral: 'Sin definición' };
-    const RESULT_CHAR = { win: 'V', loss: 'D', neutral: '—' };
     // computeRecentForm viene del más reciente al más antiguo; se invierte para dibujar la
     // volanta en orden cronológico (izquierda=más antiguo → derecha=este partido, §7).
+    // Etapa 4.2 (§11) — sin letra adentro: la forma y el color ya se entienden solos, con el
+    // aria-label como alternativa accesible (nunca el color como única señal).
     const formOldestFirst = PH.computeRecentForm(matches, currentPlayerName, 5).slice().reverse();
     const formDotsHtml = formOldestFirst.map((f, i) => {
       const isCurrent = i === formOldestFirst.length - 1;
       const cls = `lastmatch-form-dot lastmatch-form-dot--${f.result}${isCurrent ? ' lastmatch-form-dot--current' : ''}`;
-      return `<span class="${cls}" aria-label="${RESULT_LABEL[f.result]}">${RESULT_CHAR[f.result]}</span>`;
+      return `<span class="${cls}" aria-label="${RESULT_LABEL[f.result]}"></span>`;
     }).join('');
 
     const teamAName = [currentPlayerName, partner].filter(Boolean).join(' / ') || '—';
