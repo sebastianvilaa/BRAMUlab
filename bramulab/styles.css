@@ -1,30 +1,78 @@
 /* ==========================================================================
-   BRAMU Lab — Tokens
+   BRAMUlab_V02 — Tokens del sistema visual integral
+   Ver docs/BRAMUlab/Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md (§2).
+   Paleta y tipografía centralizadas acá; el resto del archivo consume estas
+   variables — nunca colores/fuentes sueltos por componente.
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Manrope:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root{
-  --ink: #0B1211;
-  --ink-soft: #10201D;
-  --ink-softer: #16281F;
-  --paper: #F4F7F2;
-  --paper-dim: rgba(244,247,242,0.56);
-  --paper-faint: rgba(244,247,242,0.30);
-  --team-a: #C8FF3D;
-  --team-a-deep: #7FBF14;
-  --team-b: #33A6FF;
-  --team-b-deep: #1E6FBF;
+  /* Profundidad — universo azul noche, único para toda la app (incluida la
+     cancha en vivo: --court-* más abajo se alinea a estos mismos valores). */
+  --bg-deep: #03070D;
+  --bg: #050A12;
+  --surface-1: #09131F;
+  --surface-2: #0D1A2A;
+  --surface-3: #112238;
+  --surface-active: #152B43;
+
+  --text: #F5F7FA;
+  --text-dim: #9AA7B5;
+  --text-faint: #687482;
+
+  /* Identidad/acción BRAMU — nunca color de equipo. */
+  --brand-lime: #C8FF3D;
+  --brand-lime-deep: #87C91C;
+  --accent-cyan: #32D7FF;
+
+  /* Equipos — semántica fija: A azul, B magenta. */
+  --team-a: #2D9CFF;
+  --team-a-deep: #1267BD;
+  --team-b: #FF3EA5;
+  --team-b-deep: #B91F73;
+
+  /* Excepción semántica: dorado es únicamente Punto de Oro (y, por extensión,
+     los estados de la misma familia de punto decisivo: Star Point/Tie break).
+     Ya no es color de marca ni CTA — ver §2.2/§3.5 del consolidado. */
   --gold: #FFC93D;
   --star: #FFA93D;
-  --danger: #FF5B54;
+  --danger: #FF5B61;
+  --success: #C8FF3D;
   --confirm-green: #2ECC71;
-  --line: rgba(244,247,242,0.10);
 
-  --font-display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
-  --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --line: rgba(183,211,235,0.14);
+  --line-strong: rgba(183,211,235,0.24);
+  --scrim: rgba(1,5,10,0.78);
+
+  /* Alias retrocompatibles — mismo nombre de variable que ya usaba todo el
+     archivo, apuntando al nuevo valor. Así el 90% de las reglas existentes
+     cambia de paleta automáticamente sin tocarlas una por una; las reglas que
+     de verdad necesitaban un rol distinto (acento lima vs. color de equipo,
+     dorado vs. CTA) se reclasificaron explícitamente donde correspondía. */
+  --ink: var(--bg);
+  --ink-soft: var(--surface-1);
+  --ink-softer: var(--surface-2);
+  --paper: var(--text);
+  --paper-dim: var(--text-dim);
+  --paper-faint: var(--text-faint);
+
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --radius-card: 16px;
+  --radius-hero: 18px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --motion-ease: cubic-bezier(0.32, 0.72, 0, 1);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-reduced-motion: reduce){
+  :root{ --motion-fast: 1ms; --motion-base: 1ms; }
 }
 
 *{ box-sizing: border-box; }
@@ -88,14 +136,14 @@ input, select{ font-family: inherit; }
 }
 .continue-banner{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  background: rgba(255,201,61,0.10); border: 1px solid rgba(255,201,61,0.35);
+  background: rgba(200,255,61,0.10); border: 1px solid rgba(200,255,61,0.35);
   border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
 }
 .continue-banner__text{ display:flex; flex-direction:column; font-size: 13px; }
-.continue-banner__text strong{ color: var(--gold); font-size: 13px; }
+.continue-banner__text strong{ color: var(--brand-lime); font-size: 13px; }
 .continue-banner__text span{ color: var(--paper-dim); font-size: 12px; }
 .btn-mini{
-  background: var(--gold); color:#1A1400; border:none; border-radius: 999px;
+  background: var(--brand-lime); color:#1A1400; border:none; border-radius: 999px;
   padding: 8px 14px; font-weight:800; font-size: 12px; letter-spacing:0.06em; cursor:pointer; white-space:nowrap;
 }
 
@@ -141,7 +189,7 @@ input, select{ font-family: inherit; }
   padding: 12px 4px; font-weight: 800; font-size: 12px; letter-spacing: 0.03em; text-align:center;
   cursor:pointer; transition: border-color .15s ease, background .15s ease;
 }
-.option-col.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.10); color: var(--gold); }
+.option-col.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); color: var(--brand-lime); }
 /* V13.4 (§9) — opciones incompatibles con la secuencia real del game en curso: no
    seleccionables (nunca permiten crear un partido híbrido). */
 .option-col.is-disabled{ opacity: 0.35; cursor: not-allowed; }
@@ -156,8 +204,8 @@ input, select{ font-family: inherit; }
 .option-pill:active{ transform: scale(0.98); }
 .option-pill__title{ font-weight: 800; font-size: 14px; }
 .option-pill__hint{ font-size: 11px; color: var(--paper-dim); }
-.option-pill.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.09); }
-.option-pill.is-selected .option-pill__title{ color: var(--gold); }
+.option-pill.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.09); }
+.option-pill.is-selected .option-pill__title{ color: var(--brand-lime); }
 
 /* V12.1 (§5) — las 4 tarjetas de modalidad del Tie break extraordinario deben verse
    uniformes: misma altura, mismo padding, mismo peso visual (antes "Tie break clásico"
@@ -171,9 +219,9 @@ input, select{ font-family: inherit; }
 #etb-custom-section .edit-row{ margin-bottom: 12px; }
 
 .btn-start{
-  margin-top: 10px; padding: 17px; border: none; border-radius: 16px; background: var(--gold);
+  margin-top: 10px; padding: 17px; border: none; border-radius: 16px; background: var(--brand-lime);
   color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(255,201,61,0.22);
+  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(200,255,61,0.22);
   transition: transform .1s ease, box-shadow .1s ease;
 }
 .btn-start:active{ transform: scale(0.98); }
@@ -217,7 +265,7 @@ input, select{ font-family: inherit; }
   overflow:hidden; text-overflow: ellipsis; white-space:nowrap; min-width:0;
 }
 .match-header__timer{ font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--paper-dim); flex:none; }
-.match-header__mode{ font-family: var(--font-display); font-weight:700; font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--gold); flex:none; }
+.match-header__mode{ font-family: var(--font-display); font-weight:700; font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--brand-lime); flex:none; }
 .icon-btn{ background:none; border:none; color: var(--paper-dim); font-size: 20px; padding: 4px 8px; cursor:pointer; line-height:1; }
 
 /* V12 (§4) — progresión reciente del game: puntos reales en color de equipo, tramos
@@ -226,8 +274,8 @@ input, select{ font-family: inherit; }
    para separarla claramente del marcador y de la fila de herramientas). */
 .game-progression{ display:flex; align-items:center; justify-content:center; gap: 6px; padding: 7px 10px; background: var(--ink); border-top: 1px solid var(--line); }
 .game-progression__dot{ width:9px; height:9px; border-radius:50%; flex:none; background: var(--paper-faint); }
-.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(200,255,61,0.5); }
-.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(51,166,255,0.5); }
+.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(45,156,255,0.5); }
+.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(255,62,165,0.5); }
 .game-progression__dot--gap{ background: transparent; border: 1.5px solid var(--paper-dim); width:8px; height:8px; box-shadow:none; }
 
 @media (max-width: 380px){
@@ -249,7 +297,10 @@ input, select{ font-family: inherit; }
 .scoreboard__player{ opacity: 0.75; cursor:pointer; padding: 2px 1px; border-radius: 4px; transition: background .15s ease; }
 .scoreboard__player:active{ background: rgba(244,247,242,0.10); }
 .scoreboard__player.is-serving{ opacity:1; color: var(--paper); }
-.scoreboard__player.is-serving::before{ content:'🎾 '; }
+.scoreboard__player.is-serving::before{
+  content:''; display:inline-block; width:5px; height:5px; border-radius:50%;
+  background: var(--brand-lime); margin-right: 5px; vertical-align: middle;
+}
 .scoreboard__sep{ opacity: 0.3; font-size: 11px; }
 .scoreboard__cells{ display:flex; gap: 5px; flex: none; align-items:center; }
 .scoreboard__cell{
@@ -337,8 +388,8 @@ input, select{ font-family: inherit; }
    "Equipo A/B": el color ya comunica quién tiene la oportunidad. Pulso reutilizando la MISMA
    lógica que Punto de Oro (13): ida/vuelta de brillo entre dos tonos, intensidad creciente
    Break < Set < Match (14-15). Nunca rojo. */
-.status-banner--team-a{ background: var(--team-a); color: #0C1400; animation: teamBannerPulseA 1.05s ease-in-out infinite; }
-.status-banner--team-b{ background: var(--team-b); color: #041420; animation: teamBannerPulseB 1.05s ease-in-out infinite; }
+.status-banner--team-a{ background: var(--team-a); color: var(--text); animation: teamBannerPulseA 1.05s ease-in-out infinite; }
+.status-banner--team-b{ background: var(--team-b); color: var(--text); animation: teamBannerPulseB 1.05s ease-in-out infinite; }
 .status-banner--team-both{ background: var(--paper); color: var(--ink); animation: teamBannerPulseBoth 1.05s ease-in-out infinite; }
 @keyframes teamBannerPulseA{ 0%,100%{ filter:brightness(1);} 50%{ filter:brightness(1.14);} }
 @keyframes teamBannerPulseB{ 0%,100%{ filter:brightness(1);} 50%{ filter:brightness(1.22);} }
@@ -349,8 +400,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-set.status-banner--team-a{ animation-name: teamBannerPulseSetA; }
 .status-banner--escalate-set.status-banner--team-b{ animation-name: teamBannerPulseSetB; }
 .status-banner--escalate-set.status-banner--team-both{ animation-name: teamBannerPulseSetBoth; }
-@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(200,255,61,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(200,255,61,0.65);} }
-@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(51,166,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(51,166,255,0.7);} }
+@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(45,156,255,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(45,156,255,0.65);} }
+@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(255,62,165,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(255,62,165,0.7);} }
 @keyframes teamBannerPulseSetBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(244,247,242,0.2);} 50%{ filter:brightness(1.14); box-shadow:0 4px 28px rgba(244,247,242,0.4);} }
 
 /* Match Point — la jerarquía contextual de mayor peso (14): mayor amplitud/glow todavía. */
@@ -358,8 +409,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-match.status-banner--team-a{ animation-name: teamBannerPulseMatchA; }
 .status-banner--escalate-match.status-banner--team-b{ animation-name: teamBannerPulseMatchB; }
 .status-banner--escalate-match.status-banner--team-both{ animation-name: teamBannerPulseMatchBoth; }
-@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(200,255,61,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(200,255,61,0.85);} }
-@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(51,166,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(51,166,255,0.9);} }
+@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(45,156,255,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(45,156,255,0.85);} }
+@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(255,62,165,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(255,62,165,0.9);} }
 @keyframes teamBannerPulseMatchBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(244,247,242,0.3);} 50%{ filter:brightness(1.18); box-shadow:0 4px 34px rgba(244,247,242,0.55);} }
 @media (prefers-reduced-motion: reduce){
   .status-banner--gold, .status-banner--star,
@@ -400,7 +451,7 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 13px; font-size: 12px; font-weight: 700; color: var(--paper); cursor:pointer; white-space:nowrap;
 }
-.server-chip-btn:active{ background: rgba(255,201,61,0.15); border-color: var(--gold); }
+.server-chip-btn:active{ background: rgba(200,255,61,0.15); border-color: var(--brand-lime); }
 
 /* Zonas táctiles */
 .team-zone{
@@ -409,9 +460,9 @@ input, select{ font-family: inherit; }
   -webkit-user-select: none; user-select: none; touch-action: manipulation; transition: filter .08s ease;
 }
 .team-zone:active{ filter: brightness(1.18); }
-.team-zone--a{ background: linear-gradient(180deg, rgba(200,255,61,0.16), rgba(200,255,61,0.04)); border-bottom: 1px solid var(--line); }
+.team-zone--a{ background: linear-gradient(180deg, rgba(45,156,255,0.16), rgba(45,156,255,0.04)); border-bottom: 1px solid var(--line); }
 .team-zone--b{
-  background: linear-gradient(0deg, rgba(51,166,255,0.18), rgba(51,166,255,0.04));
+  background: linear-gradient(0deg, rgba(255,62,165,0.18), rgba(255,62,165,0.04));
   border-top: 1px solid var(--line);
   border-bottom: 4px solid var(--team-b-deep);
   padding-bottom: calc(10px + var(--safe-bottom));
@@ -419,13 +470,16 @@ input, select{ font-family: inherit; }
 .team-zone__players{ display:flex; gap: 14px; font-size: 13px; font-weight: 700; color: var(--paper-dim); letter-spacing: 0.02em; text-transform: uppercase; }
 .team-zone__player{ opacity: 0.8; }
 .team-zone__player.is-serving{ opacity: 1; color: var(--paper); }
-.team-zone__player.is-serving::before{ content:'🎾 '; }
+.team-zone__player.is-serving::before{
+  content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
+  background: var(--brand-lime); margin-right: 6px; vertical-align: middle;
+}
 .team-zone__score{
   font-family: var(--font-display); font-weight: 700; line-height: 1; letter-spacing: 0.01em;
   font-size: clamp(56px, 24vh, 124px);
 }
-.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(200,255,61,0.25); }
-.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(51,166,255,0.25); }
+.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(45,156,255,0.25); }
+.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(255,62,165,0.25); }
 .team-zone__score--word{ font-size: clamp(30px, 9vh, 52px); }
 
 .control-bar{
@@ -437,7 +491,7 @@ input, select{ font-family: inherit; }
 .control-btn:disabled{ opacity: 0.3; cursor: not-allowed; }
 .control-btn__icon{ width:22px; height:22px; fill: currentColor; }
 .control-btn__label{ font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
-.control-btn--flash{ color: var(--gold); animation: highlightFlash .5s ease; }
+.control-btn--flash{ color: var(--brand-lime); animation: highlightFlash .5s ease; }
 @keyframes highlightFlash{ 0%{ transform: scale(1);} 40%{ transform: scale(1.3);} 100%{ transform: scale(1);} }
 
 /* Punto de oro / star point — tratamiento pleno de pantalla */
@@ -464,14 +518,14 @@ input, select{ font-family: inherit; }
   display:flex; align-items:center; gap: 12px;
 }
 .toast.is-visible{ opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-.toast__undo-btn{ background:none; border:none; color: var(--team-b-deep); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; cursor:pointer; padding:0; }
+.toast__undo-btn{ background:none; border:none; color: var(--brand-lime-deep); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; cursor:pointer; padding:0; }
 
 /* Overlays genéricos */
 .overlay{ position: fixed; inset: 0; background: rgba(11,18,17,0.92); display:flex; align-items:center; justify-content:center; z-index: 30; padding: 20px; }
 .overlay__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 20px; padding: 24px 22px; text-align:center; max-width: 380px; width: 100%; }
 .overlay__card--wide{ max-width: 460px; text-align:left; }
 .overlay__card--scroll{ max-height: 85vh; overflow-y: auto; }
-.overlay__title{ font-family: var(--font-display); font-size: 20px; letter-spacing: 0.1em; color: var(--gold); margin-bottom: 10px; text-align:center; }
+.overlay__title{ font-family: var(--font-display); font-size: 20px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 10px; text-align:center; }
 .overlay__text{ color: var(--paper-dim); font-size: 13px; margin: 0 0 16px; }
 .overlay__actions{ display:flex; gap: 10px; margin-top: 6px; }
 /* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
@@ -507,13 +561,13 @@ input, select{ font-family: inherit; }
 .highlight-popup__ring{ position: relative; width: 30px; height: 30px; margin: 0 auto 10px; }
 .highlight-popup__ring-svg{ width: 30px; height: 30px; transform: rotate(-90deg); }
 .highlight-popup__ring-track{ fill:none; stroke: var(--line); stroke-width: 3; }
-.highlight-popup__ring-progress{ fill:none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: 0; }
+.highlight-popup__ring-progress{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: 0; }
 .highlight-popup__ring-progress.is-draining{ stroke-dashoffset: 100.53; transition: stroke-dashoffset linear; }
 .highlight-popup__ring-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size: 13px; }
 .highlight-popup__grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .highlight-popup__btn{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 12px; color: var(--paper); font-family: var(--font-body); font-weight: 800; font-size: 13px; padding: 14px 8px; cursor:pointer; transition: background .2s ease, border-color .2s ease, color .2s ease; }
-.highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--gold); color: var(--gold); }
-.highlight-popup__btn.is-confirmed{ background: var(--confirm-green); border-color: var(--confirm-green); color: #06210F; }
+.highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--brand-lime); color: var(--brand-lime); }
+.highlight-popup__btn.is-confirmed{ background: var(--brand-lime); border-color: var(--brand-lime); color: #1A1400; }
 
 /* Edición basada en estados válidos */
 .edit-field{ margin-bottom: 16px; }
@@ -530,7 +584,7 @@ input, select{ font-family: inherit; }
 .stepper-btn:disabled{ opacity: 0.3; cursor:not-allowed; }
 .stepper-value{ min-width: 30px; text-align:center; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
 .edit-error{ color: var(--danger); font-size: 12px; font-weight: 700; margin: -6px 0 12px; }
-.overlay__text--note{ color: var(--gold); background: rgba(255,201,61,0.08); border: 1px solid rgba(255,201,61,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
+.overlay__text--note{ color: var(--brand-lime); background: rgba(200,255,61,0.08); border: 1px solid rgba(200,255,61,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
 
 /* V5 (Bloque I) — selectores horizontales de puntos: 4 posiciones discretas, no un slider continuo. */
 .point-track-label{ font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin: 10px 0 6px; }
@@ -542,22 +596,22 @@ input, select{ font-family: inherit; }
   padding: 12px 4px; font-family: var(--font-display); font-size: 16px; font-weight: 700;
   color: var(--paper-dim); cursor:pointer; transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
-.point-track__stop.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.12); color: var(--gold); }
+.point-track__stop.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.12); color: var(--brand-lime); }
 #edit-points-special{ margin-top: 4px; }
 
 /* V12 (§2.3) — Ajustar: la selección usa el color de CADA equipo, nunca el dorado de
    Editar/Corrección Rápida (para no confundirla con esas ni con el verde de confirmación
    de Highlight). Se sobreescribe solo dentro de #adjust-body, sin tocar el resto de la app. */
-#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.14); color: var(--team-a); }
-#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.14); color: var(--team-b); }
+#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(45,156,255,0.14); color: var(--team-a); }
+#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(255,62,165,0.14); color: var(--team-b); }
 
 /* V13 (§10) — Ajustar Games: mismo componente de "paradas" que Ajustar, pero 0-6 (7
    columnas) en vez de 0-15-30-40, y coloreado por equipo (no dorado, mismo criterio que
    Ajustar de arriba). */
 .point-track--games{ grid-template-columns: repeat(7, 1fr); }
-#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(200,255,61,0.14); color: var(--team-a); }
-#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(51,166,255,0.14); color: var(--team-b); }
-#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.10); }
+#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(45,156,255,0.14); color: var(--team-a); }
+#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(255,62,165,0.14); color: var(--team-b); }
+#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(45,156,255,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="A"] .option-pill__title{ color: var(--team-a); }
 #adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="B"] .option-pill__title{ color: var(--team-b); }
@@ -574,7 +628,7 @@ input, select{ font-family: inherit; }
 
 .server-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .server-radio{ background: var(--ink-softer); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; font-size: 13px; font-weight:700; text-align:center; cursor:pointer; }
-.server-radio.is-selected{ border-color: var(--gold); color: var(--gold); background: rgba(255,201,61,0.08); }
+.server-radio.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(200,255,61,0.08); }
 .server-radio__hint{ font-size: 10px; opacity: 0.6; display:block; }
 
 /* ==========================================================================
@@ -597,7 +651,7 @@ input, select{ font-family: inherit; }
   font-size: 12px; text-decoration: underline; cursor:pointer;
 }
 .summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
-.summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--gold); margin-bottom: 6px; }
+.summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--text); margin-bottom: 6px; }
 .summary-card__meta{ font-size: 11px; color: var(--paper-faint); margin-bottom: 10px; letter-spacing:0.02em; }
 /* V13.1 (§8): centrada, igual que en Resumen (`.summary-card` es `text-align:center` — acá
    se replica solo en esta línea, sin volver centrado todo Análisis). */
@@ -630,7 +684,7 @@ input, select{ font-family: inherit; }
 .result-card__set{ min-width: 28px; text-align:center; font-family: var(--font-display); font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
 .result-card__set--win{ opacity: 1; background: rgba(244,247,242,0.14); }
 .result-card__set--lose{ opacity: 0.6; }
-.result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--gold); }
+.result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--brand-lime); }
 /* V12.2 (§2) — celda del segmento de Tie break extraordinario: mismo tamaño que un set
    normal, con una etiqueta "TB" chica arriba para identificarlo como el segmento decisivo
    aparte (nunca se confunde con un set reglamentario). */
@@ -641,7 +695,7 @@ input, select{ font-family: inherit; }
 .result-card__durations{ display:flex; justify-content:flex-end; gap: 6px; font-size: 10px; color: var(--paper-faint); margin-bottom: 6px; }
 .result-card__duration-cell{ min-width: 28px; text-align:center; }
 .result-card__footer{ display:flex; justify-content: space-between; align-items:center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--paper-dim); }
-.result-card__incomplete-note{ font-size: 11px; color: var(--gold); margin-top: 8px; }
+.result-card__incomplete-note{ font-size: 11px; color: var(--brand-lime); margin-top: 8px; }
 /* M5: duración total/registrada, debajo del score, dentro del mismo componente. */
 .result-card__duration-total{ margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); text-align:center; font-size: 12px; color: var(--paper-dim); font-weight: 700; }
 
@@ -666,6 +720,26 @@ input, select{ font-family: inherit; }
 .analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
 .analysis-section{ margin-bottom: 26px; }
 .analysis-section__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
+/* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
+   título, frase de encuadre y una superficie editorial que los agrupa a los tres. */
+.intelligence-title{ display:flex; align-items:center; gap: 8px; color: var(--brand-lime); margin-bottom: 4px; }
+.intelligence-title svg{ flex:none; }
+.intelligence-frame{ font-size: 12px; color: var(--paper-faint); font-style: italic; margin: 0 0 12px; }
+#analysis-intelligence-text{
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 14px 16px;
+}
+#analysis-intelligence-text p:last-child{ margin-bottom: 0; }
+/* Resumen (partido cargado manualmente): mismo lenguaje editorial, resuelto solo con CSS
+   (::before) para no tocar el JS que ya hace .hidden = true/false sobre este párrafo. */
+#summary-manual-intelligence{
+  background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 14px 16px; text-align:left;
+}
+#summary-manual-intelligence::before{
+  content: 'BRAMU INTELLIGENCE'; display:block; font-family: var(--font-display); font-weight:700;
+  font-size: 10px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 8px;
+}
 .analysis-subsection__title{ font-family: var(--font-display); font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
 .intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
@@ -732,7 +806,7 @@ input, select{ font-family: inherit; }
   padding: 6px 14px; font-family: var(--font-display); font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; color: var(--paper-dim); cursor:pointer;
 }
-.set-filter-tabs__btn.is-selected{ border-color: var(--gold); color: var(--gold); background: rgba(255,201,61,0.1); }
+.set-filter-tabs__btn.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(200,255,61,0.1); }
 
 /* Bloque S1/S14 — filas con barra comparativa */
 .bar-stat-row{ background: var(--ink-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
@@ -791,13 +865,13 @@ input, select{ font-family: inherit; }
 .player-serve-row__detail{ color: var(--paper-dim); font-size: 13px; margin-top: 2px; }
 
 .highlight-row{ display:flex; flex-direction:column; gap:2px; background: var(--ink-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; }
-.highlight-row__time{ color: var(--gold); font-weight: 800; font-size: 12px; }
+.highlight-row__time{ color: var(--brand-lime); font-weight: 800; font-size: 12px; }
 .highlight-row__meta{ color: var(--paper-dim); font-size: 12px; }
 
 .keymoments-list{ position:relative; padding-left: 18px; }
 .keymoments-list::before{ content:''; position:absolute; left:5px; top:4px; bottom:4px; width:2px; background: var(--line); }
 .keymoment-row{ position:relative; padding: 0 0 16px 14px; }
-.keymoment-row::before{ content:''; position:absolute; left:-13px; top:4px; width:8px; height:8px; border-radius:50%; background: var(--gold); }
+.keymoment-row::before{ content:''; position:absolute; left:-13px; top:4px; width:8px; height:8px; border-radius:50%; background: var(--brand-lime); }
 .keymoment-row__time{ font-family: var(--font-display); font-size: 11px; color: var(--paper-dim); }
 .keymoment-row__label{ font-size: 13px; font-weight: 700; margin-top: 2px; }
 
@@ -834,14 +908,14 @@ input, select{ font-family: inherit; }
 /* V13.3 (§13) — Timeline Por Games: HOLD en verde sutil (opuesto visual de BREAK), y el
    detalle de cada game (ganador/sacador) es más largo que un score de puntos — se le da
    espacio propio en vez de flex:none para que no se corte. */
-.timeline-tag--HOLD{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.timeline-tag--HOLD{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .timeline-game--compact .timeline-point-row__score{ flex: 1 1 auto; text-align: right; }
 
 /* V6 — resumen de sets cargados a mano (Partido ya empezado): sin games, no interactivo. */
 .timeline-set--manual{ opacity: 0.85; }
 .timeline-set__header--static{ background: var(--ink-softer); padding: 12px 14px; font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: 0.03em; cursor:default; }
 
-.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--gold); background: rgba(255,201,61,0.08); border: 1px dashed rgba(255,201,61,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
+.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--brand-lime); background: rgba(200,255,61,0.08); border: 1px dashed rgba(200,255,61,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
 .timeline-game__points{ display:none; padding: 6px 4px 4px; }
 .timeline-game.is-expanded .timeline-game__points{ display:block; }
 .timeline-point-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; font-size: 11px; color: var(--paper-dim); padding: 5px 8px; border-bottom: 1px solid var(--line); flex-wrap:wrap; }
@@ -866,7 +940,7 @@ input, select{ font-family: inherit; }
 .history-item__winner--b{ color: var(--team-b); }
 .history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .history-item__meta{ display:flex; justify-content:flex-start; font-size: 12px; color: var(--paper-dim); }
-.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--gold); background: rgba(255,201,61,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(200,255,61,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
 
 /* ==========================================================================
    Etapa 4.1 (§3) — Historial: pestañas de pertenencia + chips de modo.
@@ -887,14 +961,14 @@ input, select{ font-family: inherit; }
 }
 .history-tab + .history-tab{ margin-left: 14px; }
 .history-tab__count{ font-size: 11px; color: var(--paper-faint); font-weight: 600; }
-.history-tab.is-active{ color: var(--paper); font-weight: 700; border-bottom-color: var(--team-a); }
-.history-tab.is-active .history-tab__count{ color: var(--team-a); }
+.history-tab.is-active{ color: var(--paper); font-weight: 700; border-bottom-color: var(--brand-lime); }
+.history-tab.is-active .history-tab__count{ color: var(--brand-lime); }
 .history-mode-chip{
   flex:none; background: var(--ink-soft); border: 1.5px solid var(--line); border-radius: 999px;
   padding: 6px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--paper-dim);
   cursor:pointer; white-space:nowrap;
 }
-.history-mode-chip.is-active{ border-color: var(--team-a); background: rgba(200,255,61,0.10); color: var(--team-a); }
+.history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); color: var(--brand-lime); }
 @media (min-width: 720px){ .history-filters{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
 .history-empty{ padding: 8px 4px; }
@@ -1030,16 +1104,16 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .share-capture{ padding: 32px 28px 26px; font-family: var(--font-body); }
 .share-capture__header{ display:flex; flex-direction:column; align-items:center; gap: 4px; margin-bottom: 22px; text-align:center; }
-.share-capture__brand{ font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: var(--gold); }
-.share-capture__brand-accent{ font-weight: 900; color: var(--team-a); text-transform: uppercase; }
-.share-capture__brand-sub{ font-weight: 400; text-transform: lowercase; color: var(--gold); }
+.share-capture__brand{ font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: var(--brand-lime); }
+.share-capture__brand-accent{ font-weight: 900; color: var(--brand-lime); text-transform: uppercase; }
+.share-capture__brand-sub{ font-weight: 400; text-transform: lowercase; color: var(--brand-lime); }
 .share-capture__kind{ font-family: var(--font-body); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--paper-dim); text-transform: uppercase; }
 .share-capture__section{ margin-bottom: 22px; }
 .share-capture__section:last-of-type{ margin-bottom: 0; }
 .share-capture__footer{ display:flex; flex-direction:column; align-items:center; gap: 4px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); text-align:center; }
 .share-capture__footer span:first-child{ font-size: 12px; color: var(--paper-dim); }
-.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255,201,61,0.6); text-transform: lowercase; }
-.share-capture__brand-mini-accent{ font-weight: 900; color: var(--team-a); text-transform: uppercase; }
+.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(200,255,61,0.6); text-transform: lowercase; }
+.share-capture__brand-mini-accent{ font-weight: 900; color: var(--brand-lime); text-transform: uppercase; }
 
 /* ==========================================================================
    RAMA JUGADOR (Etapa 2) — Home del jugador, navegación inferior, tarjeta
@@ -1075,7 +1149,7 @@ input, select{ font-family: inherit; }
 .pastilla__microlabel{ font-size: 10px; letter-spacing: 0.06em; color: var(--paper-faint); text-transform: uppercase; font-weight: 700; }
 .pastilla__title-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
 .pastilla__icon{ font-size: 20px; line-height:1; }
-.pastilla__icon-svg{ width:18px; height:18px; fill: var(--gold); display:block; }
+.pastilla__icon-svg{ width:18px; height:18px; fill: var(--brand-lime); display:block; }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Hitos personales (§5)
@@ -1094,7 +1168,7 @@ input, select{ font-family: inherit; }
 .player-card__avatar{
   width: 64px; height:64px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display);
-  font-size: 22px; font-weight:700; color: var(--team-a); flex: none;
+  font-size: 22px; font-weight:700; color: var(--brand-lime); flex: none;
 }
 .player-card__info{ flex: 1 1 auto; min-width: 120px; }
 .player-card__name{ font-family: var(--font-display); font-size: 19px; color: var(--paper); margin-bottom: 4px; }
@@ -1104,12 +1178,12 @@ input, select{ font-family: inherit; }
 .player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; }
 .player-card__level-value{ font-family: var(--font-display); font-size: 26px; color: var(--paper); }
 .player-card__level-delta{ font-size: 12px; font-weight: 800; }
-.player-card__level-delta--up{ color: var(--team-a); }
+.player-card__level-delta--up{ color: var(--brand-lime); }
 .player-card__level-delta--down{ color: var(--danger); }
 /* `flex-basis:100%` fuerza el salto de línea dentro del propio flex-wrap del contenedor —
    así la barra ocupa todo el ancho útil sin necesitar un wrapper extra. */
 .player-card__bar{ flex-basis: 100%; height: 6px; border-radius: 999px; overflow:hidden; background: rgba(244,247,242,0.08); margin-top: 2px; }
-.player-card__bar-fill{ display:block; height:100%; background: var(--team-a); border-radius: 999px; }
+.player-card__bar-fill{ display:block; height:100%; background: var(--brand-lime); border-radius: 999px; }
 
 /* Identidad compacta — usada hoy solo por Perfil (§11: Perfil conserva su alcance actual, sin
    rediseñar en Etapa 4). La Tarjeta de jugador del Home ahora es `.player-card` (arriba), un
@@ -1128,18 +1202,20 @@ input, select{ font-family: inherit; }
    forma reciente (antes tarjeta independiente, ahora integrada acá) y usa el
    formato exacto de fecha `02SEP · 22:30`.
    ========================================================================== */
-/* Etapa 4.2 (§11) — misma superficie "cancha nocturna" que el resto de esta ronda, aplicada
-   SOLO a esta tarjeta (el resto del Home sigue con --ink-soft, sin cambios). */
+/* BRAMUlab_V02 (§4.3) — tarjeta hero: única superficie del Home con degradado propio (más
+   oscura que el resto de las .pastilla, que quedan en --surface-1 plano) y radio de 18px en
+   vez de los 16px estándar — es la pieza principal de la pantalla, tiene que leerse aparte. */
 .player-home-lastmatch{
-  cursor:pointer; text-align:left;
-  background: var(--court-surface); border-color: var(--court-line);
+  cursor:pointer; text-align:left; border-radius: var(--radius-hero);
+  background: linear-gradient(165deg, var(--surface-2) 0%, var(--bg-deep) 130%);
+  border-color: var(--line-strong);
 }
 .player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
 .player-home-lastmatch__form{ display:flex; gap: 5px; flex-wrap:wrap; }
 /* §11 — "indicadores más pequeños; no necesitan llevar letras adentro si la forma y el color
    ya son comprensibles con alternativa accesible" (aria-label en el propio elemento). */
 .lastmatch-form-dot{ width: 7px; height:7px; border-radius:50%; flex:none; }
-.lastmatch-form-dot--win{ background: var(--team-a); }
+.lastmatch-form-dot--win{ background: var(--brand-lime); }
 .lastmatch-form-dot--loss{ background: var(--danger); }
 .lastmatch-form-dot--neutral{ background: var(--court-surface-2); border: 1px solid var(--court-line); }
 /* §7 (Etapa 4) — glow/latido MUY sutil reservado para el último indicador: brillo que
@@ -1157,7 +1233,7 @@ input, select{ font-family: inherit; }
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--court-text-dim); text-transform: uppercase; }
 .player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; }
-.player-home-lastmatch__badge--win{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.player-home-lastmatch__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 .player-home-lastmatch__chevron{ margin-left:auto; color: var(--court-text-faint); font-size: 18px; flex:none; }
@@ -1166,7 +1242,7 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__score{ font-family: var(--font-display); font-size: 34px; color: var(--paper); margin-bottom: 8px; font-variant-numeric: tabular-nums; line-height:1.1; }
 .player-home-lastmatch__teams{ font-size: 13px; color: var(--court-text-dim); }
 .player-home-lastmatch__teams .vs-sep{ margin: 0 6px; opacity: 0.6; }
-.player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--team-a); }
+.player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Actividad + Efectividad (§9): mayor jerarquía visual que las
@@ -1177,13 +1253,13 @@ input, select{ font-family: inherit; }
 
 .activity-bars{ display:flex; align-items:flex-end; gap: 8px; height: 60px; margin: 12px 0 8px; }
 .activity-bar{ flex:1; display:flex; align-items:flex-end; background: rgba(244,247,242,0.08); border-radius: 5px; overflow:hidden; min-height: 5px; }
-.activity-bar__win{ display:block; width:100%; background: var(--team-a); }
+.activity-bar__win{ display:block; width:100%; background: var(--brand-lime); }
 .activity-total{ font-size: 11px; color: var(--paper-dim); margin: 0; }
 
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
 .effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
-.effectiveness-donut__fill{ fill:none; stroke: var(--team-a); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size: 16px; color: var(--paper); }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
@@ -1214,11 +1290,11 @@ input, select{ font-family: inherit; }
   font-size: 10px; font-weight:700; padding:6px 2px; cursor:pointer;
 }
 .bottom-nav__icon{ width:21px; height:21px; fill: currentColor; }
-.bottom-nav__item.is-active{ color: var(--team-a); }
+.bottom-nav__item.is-active{ color: var(--brand-lime); }
 .bottom-nav__item--fab{
-  flex: 0 0 auto; width:52px; height:52px; border-radius:50%; background: var(--gold);
+  flex: 0 0 auto; width:52px; height:52px; border-radius:50%; background: var(--brand-lime);
   color:#1A1400; font-size:26px; font-weight:800; line-height:1; margin: 0 4px;
-  margin-top:-22px; box-shadow: 0 6px 16px rgba(255,201,61,0.4); border: 4px solid var(--ink);
+  margin-top:-22px; box-shadow: 0 6px 16px rgba(200,255,61,0.4); border: 4px solid var(--ink);
   display:flex; align-items:center; justify-content:center;
 }
 .bottom-nav__item--fab:active{ transform: scale(0.95); }
@@ -1240,27 +1316,27 @@ input, select{ font-family: inherit; }
    btn-secondary, pastilla): no introduce paleta nueva (§12).
    ========================================================================== */
 
-/* Movimiento (§11 / Adenda §5) — tokens centralizados, nunca duraciones sueltas. */
+/* Movimiento (§11 / Adenda §5) — tokens centralizados, nunca duraciones sueltas. Alias de
+   los tokens --motion-*/--motion-ease definidos en :root (BRAMUlab_V02 §3.6) para no tener
+   dos sistemas de timing paralelos; los nombres --sheet-* se mantienen porque los siguen
+   usando todas las hojas inferiores. */
 :root{
-  --sheet-duration-enter: 260ms;
-  --sheet-duration-level: 160ms;
-  --sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --sheet-duration-enter: var(--motion-base);
+  --sheet-duration-level: var(--motion-fast);
+  --sheet-ease: var(--motion-ease);
 
-  /* Etapa 4.2 — paleta "cancha nocturna" (oscuridad AZULADA, no el negro verdoso genérico de
-     --ink/--ink-soft). Acotada a propósito a los 5 componentes de esta ronda: acceso
-     Registrar partido, Cargar mi partido jugado, marcador + teclado, Partido guardado y la
-     Tarjeta Último partido del Home — NUNCA se reemplazan --ink/--ink-soft globales, así que
-     ninguna otra pantalla cambia. Superficies separadas por un paso de LUZ (cada nivel un
-     poco más claro que el anterior), no por sombra dura. El lima (--team-a, ya existente) es
-     acá el único foco de acción/selección — reemplaza al dorado solo dentro de estas
-     superficies; el dorado sigue significando Punto de Oro en el resto de la app, sin tocar. */
-  --court-bg: #060B14;
-  --court-surface: #0D1626;
-  --court-surface-2: #142238;
-  --court-line: rgba(148, 178, 226, 0.16);
-  --court-text-dim: rgba(223, 231, 245, 0.62);
-  --court-text-faint: rgba(223, 231, 245, 0.38);
-  --court-glow: rgba(59, 130, 246, 0.28);
+  /* BRAMUlab_V02 (§6, FUSIONAR) — la paleta "cancha nocturna" de Etapa 4.2 ya era casi
+     idéntica al nuevo universo azul noche global (ver :root arriba): se funden en los
+     mismos tokens para que el marcador/carga manual dejen de sentirse "otra app". Se
+     mantienen los nombres --court-* porque siguen usados en toda esta sección — solo dejan
+     de tener valores propios y pasan a ser alias del sistema global. */
+  --court-bg: var(--bg);
+  --court-surface: var(--surface-1);
+  --court-surface-2: var(--surface-2);
+  --court-line: var(--line);
+  --court-text-dim: var(--text-dim);
+  --court-text-faint: var(--text-faint);
+  --court-glow: rgba(45,156,255,0.28);
 }
 @media (prefers-reduced-motion: reduce){
   :root{ --sheet-duration-enter: 1ms; --sheet-duration-level: 1ms; }
@@ -1318,16 +1394,16 @@ input, select{ font-family: inherit; }
   color: var(--paper); cursor:pointer;
 }
 .sheet-option:active{ transform: scale(0.98); }
-.sheet-option--primary{ background: rgba(200,255,61,0.12); border-color: var(--team-a); color: var(--team-a); }
+.sheet-option--primary{ background: rgba(200,255,61,0.12); border-color: var(--brand-lime); color: var(--brand-lime); }
 
 .sheet-active-card{
-  display:block; width:100%; text-align:left; background: rgba(200,255,61,0.08); border: 1.5px solid var(--team-a);
+  display:block; width:100%; text-align:left; background: rgba(200,255,61,0.08); border: 1.5px solid var(--brand-lime);
   border-radius: 16px; padding: 16px 18px; cursor:pointer; margin-bottom: 10px;
 }
-.sheet-active-card__label{ font-size: 10px; letter-spacing:0.08em; color: var(--team-a); font-weight:800; text-transform:uppercase; margin-bottom:6px; }
+.sheet-active-card__label{ font-size: 10px; letter-spacing:0.08em; color: var(--brand-lime); font-weight:800; text-transform:uppercase; margin-bottom:6px; }
 .sheet-active-card__teams{ font-family: var(--font-display); font-size: 15px; color: var(--paper); margin-bottom: 2px; }
 .sheet-active-card__meta{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
-.sheet-active-card__cta{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.04em; color: var(--team-a); text-transform:uppercase; font-weight:700; }
+.sheet-active-card__cta{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.04em; color: var(--brand-lime); text-transform:uppercase; font-weight:700; }
 
 /* Franja de partido en curso — Home del jugador (§7; Correcciones postprueba §3.2).
    Compacta y horizontal a propósito: comunica "hay algo activo, podés retomarlo" sin
@@ -1335,17 +1411,17 @@ input, select{ font-family: inherit; }
    Home: nada acá depende de la paleta/tipografía definitivas. */
 .active-match-banner{
   display:flex; align-items:center; gap: 10px; width:100%; text-align:left;
-  background: rgba(200,255,61,0.08); border: 1px solid var(--team-a); border-radius: 12px;
+  background: rgba(200,255,61,0.08); border: 1px solid var(--brand-lime); border-radius: 12px;
   padding: 9px 12px; margin-bottom: 12px; cursor:pointer;
 }
 .active-match-banner__pulse{
-  flex:none; width:8px; height:8px; border-radius:50%; background: var(--team-a); position:relative;
+  flex:none; width:8px; height:8px; border-radius:50%; background: var(--brand-lime); position:relative;
 }
 /* §3.2: "hacer el latido un poco más perceptible... sin acelerarlo ni volverlo invasivo" —
    un anillo que se expande y se desvanece alrededor del punto lee más claro que el glow muy
    sutil de la versión anterior, a la misma velocidad (2.4s), sin ser una animación llamativa. */
 .active-match-banner__pulse::after{
-  content:''; position:absolute; inset:-6px; border-radius:50%; background: var(--team-a);
+  content:''; position:absolute; inset:-6px; border-radius:50%; background: var(--brand-lime);
   opacity:0.6; animation: activeMatchPulseRing 2.4s ease-in-out infinite;
 }
 @keyframes activeMatchPulseRing{
@@ -1354,7 +1430,7 @@ input, select{ font-family: inherit; }
 }
 @media (prefers-reduced-motion: reduce){ .active-match-banner__pulse::after{ animation:none; opacity:0; } }
 .active-match-banner__info{ display:flex; flex-direction:column; flex:1; min-width:0; }
-.active-match-banner__label{ font-size: 9px; letter-spacing:0.07em; color: var(--team-a); font-weight:800; text-transform:uppercase; }
+.active-match-banner__label{ font-size: 9px; letter-spacing:0.07em; color: var(--brand-lime); font-weight:800; text-transform:uppercase; }
 .active-match-banner__teams{
   font-family: var(--font-display); font-size: 13px; color: var(--paper);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
@@ -1365,7 +1441,7 @@ input, select{ font-family: inherit; }
 }
 .active-match-banner__cta{
   flex:none; font-family: var(--font-display); font-size: 12px; letter-spacing:0.03em;
-  color: var(--team-a); font-weight:800;
+  color: var(--brand-lime); font-weight:800;
 }
 
 /* Botón destructivo — variante mínima de .btn-secondary, reservada para la confirmación de
@@ -1395,7 +1471,7 @@ input, select{ font-family: inherit; }
 .court-header__status{ font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; color: var(--paper); text-transform: uppercase; }
 .court-header__format{ font-size: 11px; color: var(--court-text-dim); margin-top: 1px; }
 .court-header--saved{ justify-content:center; }
-.court-header__status--saved{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.1em; color: var(--team-a); text-transform: uppercase; }
+.court-header__status--saved{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.1em; color: var(--brand-lime); text-transform: uppercase; }
 
 /* §5 — jugadores: "Tu equipo" (lima) / "Rivales" (azul), nombres elegidos como contenido
    confirmado (no como campo de formulario todavía activo). */
@@ -1413,7 +1489,7 @@ input, select{ font-family: inherit; }
 .court-players__team--a .load-player-chip{ border-bottom: 2.5px solid var(--team-a); }
 .court-players__team--b .load-player-chip{ border-bottom: 2.5px solid var(--team-b); }
 .load-player-chip:active{ transform: scale(0.98); }
-.load-player-chip--fixed{ background: rgba(200,255,61,0.10); color: var(--team-a); cursor: default; }
+.load-player-chip--fixed{ background: rgba(45,156,255,0.10); color: var(--team-a); cursor: default; }
 .load-player-chip--fixed:active{ transform:none; }
 .load-player-chip.is-empty{ background: transparent; }
 .load-player-chip.is-empty .load-player-chip__name{ color: var(--court-text-dim); font-weight: 600; }
@@ -1426,7 +1502,7 @@ input, select{ font-family: inherit; }
 }
 .court-accumulated__set-label{ font-size: 9px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
 .court-accumulated__set-score{ font-family: var(--font-display); font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
-.court-accumulated__set:active{ border-color: var(--team-a); }
+.court-accumulated__set:active{ border-color: var(--brand-lime); }
 
 /* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla. */
 .court-current-set{
@@ -1444,10 +1520,10 @@ input, select{ font-family: inherit; }
 .court-score__name{ font-size: 11px; font-weight:700; color: var(--court-text-dim); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* §6.3 — "el lado activo debe quedar inequívocamente marcado": borde + fondo lima, nunca
    solo un cambio de color de texto. */
-.court-score.is-active{ border-color: var(--team-a); background: rgba(200,255,61,0.10); }
-.court-score.is-active .court-score__value{ color: var(--team-a); }
+.court-score.is-active{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); }
+.court-score.is-active .court-score__value{ color: var(--brand-lime); }
 .court-score__sep{ font-family: var(--font-display); font-size: 28px; color: var(--court-text-faint); flex:none; }
-.court-current-set__hint{ margin: 10px 0 0; font-size: 12px; font-weight:700; color: var(--team-a); }
+.court-current-set__hint{ margin: 10px 0 0; font-size: 12px; font-weight:700; color: var(--brand-lime); }
 
 .load-match-error{ color: var(--danger); margin: -6px 0 14px; }
 
@@ -1459,7 +1535,7 @@ input, select{ font-family: inherit; }
   font-size: 12px; color: var(--court-text-dim); cursor:pointer;
 }
 .court-meta-line__text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.court-meta-line__action{ flex:none; margin-left: 10px; font-weight:800; letter-spacing:0.03em; color: var(--team-a); }
+.court-meta-line__action{ flex:none; margin-left: 10px; font-weight:800; letter-spacing:0.03em; color: var(--brand-lime); }
 
 /* ---- Línea compacta de formato/sistema (§11 Etapa 3, restilo Etapa 4.2) ---- */
 .load-format-line{
@@ -1478,7 +1554,7 @@ input, select{ font-family: inherit; }
   transition: bottom var(--sheet-duration-enter) var(--sheet-ease);
 }
 .court-continue-btn{
-  width:100%; padding: 16px; border:none; border-radius: 14px; background: var(--team-a);
+  width:100%; padding: 16px; border:none; border-radius: 14px; background: var(--brand-lime);
   color: #0C1400; font-family: var(--font-display); font-weight: 700; font-size: 15px;
   letter-spacing: 0.06em; cursor:pointer; box-shadow: 0 8px 20px rgba(200,255,61,0.22);
   transition: transform .1s ease;
@@ -1508,7 +1584,7 @@ input, select{ font-family: inherit; }
 .load-keypad__key--ghost:active{ color: var(--paper); }
 /* Foco propio de BRAMU en vez del aro azul genérico del navegador — visible solo con
    teclado (`:focus-visible`), nunca al tocar con el dedo/mouse. */
-.load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--team-a); }
+.load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--brand-lime); }
 @media (prefers-reduced-motion: reduce){ .load-keypad, .court-continue-wrap{ transition: none; } }
 
 /* ---- Hoja "elegir jugador" (§5 Etapa 4.2: mismo componente, superficies "cancha nocturna") ---- */
@@ -1521,7 +1597,7 @@ input, select{ font-family: inherit; }
   width: 46px; height:46px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:16px; color: var(--court-text-dim);
 }
-.load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-a); }
+.load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--brand-lime); }
 .load-player-sheet__recent-name{ font-size: 10px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 64px; }
 .load-player-sheet__list{ max-height: 38vh; overflow-y:auto; margin: 12px 0; }
 .load-player-sheet__item{
@@ -1538,7 +1614,7 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .court-saved-result{ text-align:center; padding: 10px 0 20px; }
 .court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; margin-bottom: 10px; }
-.court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 .court-saved-result__score{ font-family: var(--font-display); font-size: 40px; color: var(--paper); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
@@ -1555,7 +1631,7 @@ input, select{ font-family: inherit; }
   padding: 12px; font-family: var(--font-body); font-size: 13px; color: var(--paper); resize: vertical;
   outline:none; transition: border-color .15s ease;
 }
-.court-note__textarea:focus{ border-color: var(--team-a); }
+.court-note__textarea:focus{ border-color: var(--brand-lime); }
 .court-note__textarea::placeholder{ color: var(--court-text-faint); }
 
 /* Hoja "Modificar" (fecha/hora/lugar) — mismos campos de Etapa 3, ahora en la hoja. */
@@ -1566,8 +1642,8 @@ input, select{ font-family: inherit; }
    SIMULADO · BETA siempre visible, nunca se presenta como ranking/nivel real.
    ========================================================================== */
 .evolution-card__badge{
-  flex:none; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--gold);
-  background: rgba(255,201,61,0.1); border: 1px solid rgba(255,201,61,0.3); border-radius: 999px;
+  flex:none; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--accent-cyan);
+  background: rgba(50,215,255,0.1); border: 1px solid rgba(50,215,255,0.3); border-radius: 999px;
   padding: 3px 9px; text-transform:uppercase; margin-left: auto;
 }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
@@ -1579,12 +1655,12 @@ input, select{ font-family: inherit; }
 .evolution-chart-wrap{ overflow-x:auto; margin: 0 -4px 6px; padding: 0 4px; -webkit-overflow-scrolling: touch; }
 .evolution-chart__svg{ display:block; }
 .evolution-chart__grid{ stroke: rgba(244,247,242,0.08); stroke-width: 1; }
-.evolution-chart__line{ stroke: var(--team-a); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.evolution-chart__dot{ fill: var(--ink); stroke: var(--team-a); stroke-width: 2; cursor:pointer; }
+.evolution-chart__line{ stroke: var(--brand-lime); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.evolution-chart__dot{ fill: var(--ink); stroke: var(--brand-lime); stroke-width: 2; cursor:pointer; }
 .evolution-chart__dot:focus-visible{ outline: none; stroke-width: 3; }
 /* §4.4 — pulso sutil reservado para el último punto, mismo lenguaje que el resto del sistema
    de movimiento (brillo que respira, nunca parpadeo ni cambio de color). */
-.evolution-chart__dot--current{ fill: var(--team-a); animation: evolutionDotPulse 2.2s ease-in-out infinite; }
+.evolution-chart__dot--current{ fill: var(--brand-lime); animation: evolutionDotPulse 2.2s ease-in-out infinite; }
 @keyframes evolutionDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.35); } }
 @media (prefers-reduced-motion: reduce){ .evolution-chart__dot--current{ animation:none; } }
 

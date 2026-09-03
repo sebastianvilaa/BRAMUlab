@@ -18,10 +18,13 @@
   'use strict';
 
   const SCHEMA_VERSION = 3;
-  // Único punto central del número de versión visible (footer). Cambiar acá alcanza para
-  // toda la app — nunca duplicar el string de versión en otro archivo JS. Esquema propio de
-  // BRAMU Lab (vN), separado del versionado del marcador congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'v2.2.1';
+  // Único punto central del número de versión visible (footer + chequeo de actualización).
+  // Cambiar acá alcanza para toda la app — nunca duplicar el string de versión en otro
+  // archivo JS. BRAMUlab_V02 (docs/BRAMUlab/Versiones/BRAMUlab_V02/): la versión visible de
+  // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
+  // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
+  // congelado (BRAMUlab Partidos).
+  const APP_VERSION = 'BRAMUlab V02';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
