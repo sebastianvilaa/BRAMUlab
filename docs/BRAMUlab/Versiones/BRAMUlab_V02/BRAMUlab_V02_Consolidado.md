@@ -400,12 +400,15 @@ Las sensaciones son privadas para quien cargó el partido y deben persistir asoc
 - Paleta `court-*` con la paleta global para que el marcador no parezca otra aplicación.
 - Estados existentes de victoria, derrota, forma, selección y disabled con sus nuevos roles cromáticos.
 
+### CONSERVAR Y FUSIONAR
+
+- **`privateNote`:** el campo persistente de notas/sensaciones privadas ya está implementado y funcionando en BRAMUlab_V01 (Etapa 4.2/v2.2). Mantener el campo tal cual — no duplicarlo ni cambiar su modelo de datos salvo que exista una necesidad técnica comprobada — y rediseñar únicamente su presentación dentro del nuevo sistema visual.
+
 ### AGREGAR
 
 - Archivo/fuente Inter Variable local si todavía no existe.
 - Tokens de tipografía, espaciado, radios, bordes, motion y glow.
 - SVG consistentes para iconografía faltante.
-- Campo persistente opcional de notas/sensaciones privadas, solo si puede añadirse sin romper datos existentes.
 - Pruebas de migración/retrocompatibilidad si cambia el esquema local del partido.
 
 No duplicar hojas de estilo completas ni crear un “theme v2” paralelo permanente. El resultado final debe tener una sola fuente de verdad visual.
@@ -444,7 +447,7 @@ La implementación no se considera terminada hasta verificar:
 - Probar persistencia al cerrar/reabrir la PWA.
 - Probar “Volver al inicio”.
 - Probar orden cronológico de Último partido.
-- Probar notas privadas si se incorporan.
+- Probar que `privateNote` (sensaciones privadas, ya existente desde BRAMUlab_V01) sigue persistiendo y funcionando igual, solo con presentación nueva.
 - Probar que la actualización PWA se ofrece y aplica correctamente.
 
 ### Visual
@@ -466,10 +469,10 @@ Revisar las diez capturas como conjunto antes de publicar. Si una parece pertene
 
 ### Publicación
 
-- Actualizar la versión visible correspondiente a **BRAMUlab_V02**.
+- Actualizar la versión visible de la aplicación (badge/texto de producto) para que se identifique como **BRAMUlab V02** — con espacio, como texto de producto, no `BRAMUlab_V02` (esa es la convención de nombrado de archivos/documentos). Los tags técnicos internos anteriores como `v2.2.1` quedan como historial técnico de BRAMUlab_V01 y no deben seguir apareciendo como naming visible de producto.
 - Commit único o secuencia clara de commits para esta etapa.
 - Publicar en GitHub Pages solo después de tests y revisión visual.
-- Entregar informe con archivos modificados, decisiones técnicas, pruebas realizadas, capturas y cualquier desvío justificado.
+- Crear `docs/BRAMUlab/Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md` con archivos modificados, decisiones técnicas, pruebas realizadas, capturas y cualquier desvío justificado.
 
 ---
 
@@ -496,7 +499,7 @@ Estos temas no deben usarse como excusa para dejar incompleto el sistema visual 
 Antes de implementar:
 
 1. Leer este documento completo.
-2. Revisar el estado real del repositorio y los últimos informes de v2.2/v2.2.1.
+2. Leer `docs/BRAMUlab/Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md` como fuente de verdad del estado funcional actual. Consultar documentos archivados solamente si hace falta resolver una duda técnica concreta.
 3. Presentar un plan breve por archivos/componentes.
 4. Señalar conflictos concretos entre el documento y el código actual, sin reabrir decisiones ya cerradas.
 
@@ -505,6 +508,6 @@ Después:
 1. Implementar la ronda completa.
 2. Ejecutar tests y verificación visual.
 3. Corregir inconsistencias encontradas.
-4. Actualizar versión, publicar y emitir el informe.
+4. Actualizar la versión visible, publicar y crear `docs/BRAMUlab/Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md`.
 
 No pedir a Sebastián valores CSS pantalla por pantalla. La implementación debe resolver el sistema con criterio; el ajuste fino vendrá después de ver una versión coherente funcionando.
