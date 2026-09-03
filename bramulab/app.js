@@ -84,6 +84,23 @@
       return new Date(isoString).toISOString().slice(0, 10);
     }
   }
+  // Etapa 4 (§7) — formato exacto pedido para "Último partido": día SIEMPRE de 2 dígitos +
+  // mes de 3 letras mayúsculas SIN separador (`02SEP`). Se arma con una tabla propia (no con
+  // el mes corto de Intl: según locale/navegador puede devolver "sept"/"sep." con largo
+  // variable) leyendo día/mes en formatToParts para respetar la ZONA HORARIA DEL PARTIDO,
+  // igual criterio que formatRealDate/formatRealTime de arriba.
+  const COMPACT_MONTH_LABELS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  function formatCompactPlayedDate(isoString, timeZone) {
+    if (!isoString) return '';
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'numeric', timeZone: timeZone || undefined }).formatToParts(new Date(isoString));
+      const day = parts.find((p) => p.type === 'day').value;
+      const month = Number(parts.find((p) => p.type === 'month').value);
+      return `${day}${COMPACT_MONTH_LABELS[month - 1]}`;
+    } catch (e) {
+      return '';
+    }
+  }
   let toastTimeoutId = null;
   let undoToastTimeoutId = null;
   function showToast(message, durationMs) {
@@ -5187,10 +5204,12 @@
   // jugado" para retomar la carga apenas el jugador se identifica (§3).
   let afterIdentifyAction = null;
 
-  // Etapa 2 (§6.1): ranking/categoría/tendencia todavía no existen en el modelo de datos.
-  // Valores de demostración centralizados acá a propósito, marcados BETA en la UI — el día
-  // que el ranking real exista, reemplazar este objeto entero alcanza para todo el Home.
-  const PLAYER_PROFILE_DEMO = { category: '5ª', ranking: '#12', trend: '↑ 3' };
+  // Etapa 4 (§6): todavía no existe un algoritmo real de Nivel BRAMU (§10 del documento de
+  // Rama Jugador — pendiente de etapa futura). Valor y variación de demostración
+  // centralizados acá a propósito — el día que el cálculo real exista, reemplazar este
+  // objeto entero alcanza para toda la Tarjeta de jugador. `progressPct` es puramente
+  // decorativo (barra de progreso a todo el ancho), sin significado numérico todavía.
+  const LEVEL_DEMO = { value: '5.3', deltaLabel: '↑ 0.2', deltaDirection: 'up', progressPct: 62 };
 
   function openPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
@@ -5264,60 +5283,58 @@
     renderActiveMatchBanner();
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
 
-    $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
-    $('#player-home-name').textContent = currentPlayerName;
-    $('#player-home-category').textContent = PLAYER_PROFILE_DEMO.category;
-    $('#player-home-ranking').textContent = PLAYER_PROFILE_DEMO.ranking;
-    $('#player-home-trend').textContent = PLAYER_PROFILE_DEMO.trend;
-
-    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentPlayerName);
-
-    renderPlayerFormCard(matches);
+    renderPlayerHitos(matches);
+    renderPlayerCard(matches);
     renderPlayerLastMatchCard(matches);
+    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentPlayerName);
+    renderPlayerActivity(matches);
+    renderPlayerEffectiveness(matches);
     renderPlayerWidgets(matches);
   }
 
-  function renderPlayerFormCard(matches) {
-    const form = PH.computeRecentForm(matches, currentPlayerName, 5);
-    const wrap = $('#player-home-form-dots');
-    wrap.innerHTML = '';
-    $('#player-home-form-empty').hidden = !!form.length;
-    if (!form.length) { $('#player-home-form-summary').hidden = true; return; }
-    const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', neutral: 'Sin definición' };
-    const RESULT_CHAR = { win: 'V', loss: 'D', neutral: '—' };
-    form.forEach((f) => {
-      const dot = document.createElement('span');
-      dot.className = 'form-dot form-dot--' + f.result;
-      dot.textContent = RESULT_CHAR[f.result];
-      dot.setAttribute('aria-label', RESULT_LABEL[f.result]);
-      wrap.appendChild(dot);
-    });
-    // Corrección de texto: con un solo partido, "1 victoria en los últimos 1" es redundante
-    // — el círculo V/D de arriba ya comunica el resultado. Alcanza con confirmar que hay
-    // historia registrada. Desde 2 partidos sí vale la pena resumir cuántas victorias.
-    if (form.length === 1) {
-      $('#player-home-form-summary').hidden = false;
-      $('#player-home-form-summary').textContent = '1 partido registrado';
-      return;
-    }
-    const wins = form.filter((f) => f.result === 'win').length;
-    const withResult = form.filter((f) => f.result !== 'neutral').length;
-    $('#player-home-form-summary').hidden = withResult === 0;
-    if (withResult > 0) {
-      $('#player-home-form-summary').textContent = `${wins} ${wins === 1 ? 'victoria' : 'victorias'} en los últimos ${form.length}`;
-    }
+  /** §5 — Hitos personales: como máximo 2, ocultos por completo si no hay ninguno
+   *  justificado (PH.computeHitos ya decide eso; acá solo se pinta lo que devuelve). */
+  function renderPlayerHitos(matches) {
+    const hitos = PH.computeHitos(matches, currentPlayerName);
+    const wrap = $('#player-home-hitos');
+    if (!hitos.length) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+    wrap.hidden = false;
+    wrap.innerHTML = hitos.map((h) => `<span class="player-home-hitos__chip">${escapeHtml(h)}</span>`).join('');
   }
 
+  /** §6 — Tarjeta de jugador: avatar/nombre/cantidad REAL de partidos + bloque Nivel BRAMU
+   *  (demo centralizado, ver LEVEL_DEMO). Sin categoría/ranking/tendencia/badge BETA — esos
+   *  quedaron eliminados en Etapa 4. */
+  function renderPlayerCard(matches) {
+    $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
+    $('#player-home-name').textContent = currentPlayerName;
+    const n = matches.length;
+    $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
+    $('#player-home-level-value').textContent = LEVEL_DEMO.value;
+    const deltaEl = $('#player-home-level-delta');
+    deltaEl.textContent = LEVEL_DEMO.deltaLabel;
+    deltaEl.className = 'player-card__level-delta player-card__level-delta--' + LEVEL_DEMO.deltaDirection;
+    $('#player-home-level-bar').style.width = LEVEL_DEMO.progressPct + '%';
+  }
+
+  /** §7 — Último partido: volanta de forma reciente (último indicador = este partido, con
+   *  glow sutil de victoria/derrota) + fecha/hora/lugar arriba; resultado protagonista;
+   *  parejas en secundario. Estado vacío: mismo flujo del botón central "+". El click de
+   *  toda la tarjeta se resuelve en initPlayerHomeScreen() (ver más abajo), no acá — así no
+   *  hace falta reasignar un listener nuevo en cada render. */
   function renderPlayerLastMatchCard(matches) {
+    const card = $('#player-home-last-match-card');
     const body = $('#player-home-last-match-body');
     if (!matches.length) {
+      card.classList.add('is-empty');
       body.innerHTML = `
-        <p class="coverage-note">Todavía no cargaste ningún partido.</p>
-        <button type="button" id="player-home-first-match-btn" class="btn-mini">CARGAR PRIMER PARTIDO</button>
+        <div class="player-home-lastmatch__title">ÚLTIMO PARTIDO</div>
+        <p class="coverage-note">Tu historia empieza con tu primer partido</p>
+        <span class="player-home-lastmatch__cta">+ CARGAR PRIMER PARTIDO</span>
       `;
-      $('#player-home-first-match-btn').addEventListener('click', () => openManualLoadScreen('player-home'));
       return;
     }
+    card.classList.remove('is-empty');
     const m = matches[0];
     const myTeam = PH.getPlayerTeam(m, currentPlayerName);
     const partner = PH.getPartnerName(m, currentPlayerName);
@@ -5325,51 +5342,131 @@
     const finishedSetsStr = m.sets.map(formatSetSegmentLabel).join(' · ');
     const partialSetStr = m.currentPartial ? `${m.currentPartial.gamesA}-${m.currentPartial.gamesB}*` : '';
     const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
-    const resultClass = !m.winnerTeam ? 'is-neutral' : (m.winnerTeam === myTeam ? 'is-win' : 'is-loss');
-    const resultLabel = !m.winnerTeam ? 'SIN DEFINICIÓN' : (m.winnerTeam === myTeam ? 'VICTORIA' : 'DERROTA');
-    const modeLabel = m.mode === 'games' ? 'POR GAMES' : m.mode === 'manual' ? 'PARTIDO CARGADO' : 'COMPLETO';
-    // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó.
+    const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
+    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
+    // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó. §7 (Etapa 4) — formato exacto
+    // "02SEP · 22:30"; sin hora cargada (timeKnown === false) no se inventa "00:00".
     const playedAt = PH.getPlayedAt(m);
+    const dateStr = formatCompactPlayedDate(playedAt, m.timeZone);
+    const timeStr = m.timeKnown === false ? '' : formatRealTime(playedAt, m.timeZone).slice(0, 5);
+    const dateTimeStr = [dateStr, timeStr].filter(Boolean).join(' · ');
+    const placeStr = (m.location && m.location.name) || '';
+
+    const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', neutral: 'Sin definición' };
+    const RESULT_CHAR = { win: 'V', loss: 'D', neutral: '—' };
+    // computeRecentForm viene del más reciente al más antiguo; se invierte para dibujar la
+    // volanta en orden cronológico (izquierda=más antiguo → derecha=este partido, §7).
+    const formOldestFirst = PH.computeRecentForm(matches, currentPlayerName, 5).slice().reverse();
+    const formDotsHtml = formOldestFirst.map((f, i) => {
+      const isCurrent = i === formOldestFirst.length - 1;
+      const cls = `lastmatch-form-dot lastmatch-form-dot--${f.result}${isCurrent ? ' lastmatch-form-dot--current' : ''}`;
+      return `<span class="${cls}" aria-label="${RESULT_LABEL[f.result]}">${RESULT_CHAR[f.result]}</span>`;
+    }).join('');
+
+    const teamAName = [currentPlayerName, partner].filter(Boolean).join(' / ') || '—';
+    const teamBName = rivals.join(' / ') || '—';
+
     body.innerHTML = `
-      <div class="player-home-lastmatch__result player-home-lastmatch__result--${resultClass}">${resultLabel}</div>
-      <div class="player-home-lastmatch__score">${scoreStr}</div>
-      <div class="player-home-lastmatch__meta">${formatRealDate(playedAt, m.timeZone)} · ${modeLabel}</div>
-      <div class="player-home-lastmatch__people">
-        <div>Compañero: <strong>${partner || '—'}</strong></div>
-        <div>Rivales: <strong>${rivals.join(' / ') || '—'}</strong></div>
+      <div class="player-home-lastmatch__top">
+        <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+        <div class="player-home-lastmatch__datetime">
+          ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
+          ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
+        </div>
       </div>
-      <button type="button" id="player-home-lastmatch-detail-btn" class="link-btn">VER DETALLE</button>
+      <div class="player-home-lastmatch__titlerow">
+        <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
+        <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+        <span class="player-home-lastmatch__chevron" aria-hidden="true">›</span>
+      </div>
+      <div class="player-home-lastmatch__score">${scoreStr}</div>
+      <div class="player-home-lastmatch__teams">${escapeHtml(teamAName)}<span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
     `;
-    $('#player-home-lastmatch-detail-btn').addEventListener('click', () => {
-      analysisOpenedFrom = 'player-home';
-      renderAnalysis(m);
-      showView('analysis');
-    });
   }
 
+  /** §9 — Actividad: 4 bloques cronológicos (más antiguo→más reciente, izquierda→derecha);
+   *  la altura de cada bloque representa cantidad de partidos y, dentro de cada uno, la
+   *  porción lima (abajo) son las victorias — el resto de la altura queda con el fondo
+   *  apagado del propio bloque, sin dibujar la derrota como una capa aparte. */
+  function renderPlayerActivity(matches) {
+    const activity = PH.computeActivity30d(matches, currentPlayerName);
+    const wrap = $('#player-home-activity-bars');
+    const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
+    wrap.innerHTML = activity.buckets.map((b) => {
+      const heightPct = b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6;
+      const winPct = b.count ? Math.round((b.wins / b.count) * 100) : 0;
+      return `<div class="activity-bar" style="height:${heightPct}%"><span class="activity-bar__win" style="height:${winPct}%"></span></div>`;
+    }).join('');
+    $('#player-home-activity-total').textContent = activity.total
+      ? `${activity.total} ${activity.total === 1 ? 'partido' : 'partidos'} en los últimos 30 días`
+      : 'Sin partidos en los últimos 30 días';
+  }
+
+  /** §9 — Efectividad: donut con % de victorias sobre partidos CONSIDERADOS (con resultado
+   *  definido) en los últimos 30 días. Mismo mecanismo de anillo que el popup de Highlight
+   *  (stroke-dasharray sobre la circunferencia real del círculo, r=15.5). */
+  function renderPlayerEffectiveness(matches) {
+    const eff = PH.computeEffectiveness30d(matches, currentPlayerName);
+    const ring = $('#player-home-effectiveness-ring');
+    const circumference = 2 * Math.PI * 15.5;
+    if (eff.pct === null) {
+      // Sin muestra: ni un punto residual del linecap redondeado con dasharray "0" — se oculta
+      // el trazo entero (opacity, no display:none, para no desalinear el <svg>).
+      ring.style.opacity = '0';
+      $('#player-home-effectiveness-value').textContent = '—';
+      $('#player-home-effectiveness-caption').textContent = 'Sin partidos considerados';
+      return;
+    }
+    ring.style.opacity = '1';
+    const filled = (eff.pct / 100) * circumference;
+    ring.style.strokeDasharray = `${filled} ${circumference}`;
+    $('#player-home-effectiveness-value').textContent = `${eff.pct}%`;
+    $('#player-home-effectiveness-caption').textContent = `${eff.wins} de ${eff.considered}`;
+  }
+
+  /** §10 — Cuatro métricas pequeñas: Racha actual (consecutiva desde el partido más reciente,
+   *  no la mejor histórica), Partidos totales (real, sin importar la muestra), Mejor
+   *  compañero (mayor efectividad con muestra mínima de 3, no el más repetido) y Rival más
+   *  enfrentado (sin cambios respecto a Etapa 2/3). */
   function renderPlayerWidgets(matches) {
-    const month = PH.computeMatchesThisMonth(matches);
-    const streak = PH.computeBestWinStreak(matches, currentPlayerName);
-    const partner = PH.computeMostFrequentPartner(matches, currentPlayerName);
+    const streak = PH.computeCurrentStreak(matches, currentPlayerName);
+    const total = matches.length;
+    const partner = PH.computeBestPartner(matches, currentPlayerName);
     const rival = PH.computeMostFrequentRival(matches, currentPlayerName);
 
-    $('#widget-month-value').textContent = month > 0 ? String(month) : '—';
-    $('#widget-month-caption').textContent = month > 0 ? (month === 1 ? 'partido este mes' : 'partidos este mes') : 'Sin partidos este mes';
+    $('#widget-streak-value').textContent = streak.count > 0 ? String(streak.count) : '—';
+    $('#widget-streak-caption').textContent = streak.count > 0 ? (streak.count === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Sin racha en curso';
 
-    $('#widget-streak-value').textContent = streak > 0 ? String(streak) : '—';
-    $('#widget-streak-caption').textContent = streak > 0 ? (streak === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Todavía sin racha';
+    $('#widget-total-value').textContent = String(total);
+    $('#widget-total-caption').textContent = total === 1 ? 'partido registrado' : 'partidos registrados';
 
     $('#widget-partner-value').textContent = partner ? partner.name : '—';
-    $('#widget-partner-caption').textContent = partner ? `${partner.count} ${partner.count === 1 ? 'partido junto' : 'partidos juntos'}` : 'Sin datos suficientes';
+    $('#widget-partner-caption').textContent = partner ? `${partner.pct}% · ${partner.count} ${partner.count === 1 ? 'partido' : 'partidos'}` : 'Sin datos suficientes';
 
     $('#widget-rival-value').textContent = rival ? rival.name : '—';
     $('#widget-rival-caption').textContent = rival ? `${rival.count} ${rival.count === 1 ? 'enfrentamiento' : 'enfrentamientos'}` : 'Sin datos suficientes';
   }
 
+  /** §7 — toda la tarjeta de "Último partido" es tocable: un solo listener delegado (no uno
+   *  nuevo por render) que decide el destino según haya o no partidos — abre Resumen/Detalle
+   *  (Análisis) con el partido más reciente, o el mismo flujo del botón central "+" en el
+   *  estado vacío. Relee el historial en el momento del click (no un `m` capturado en el
+   *  render) para no quedar con una referencia vieja si el Home no se re-renderizó desde el
+   *  último cambio. */
+  function initPlayerHomeLastMatchCard() {
+    $('#player-home-last-match-card').addEventListener('click', () => {
+      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+      if (!matches.length) { openManualLoadScreen('player-home'); return; }
+      analysisOpenedFrom = 'player-home';
+      renderAnalysis(matches[0]);
+      showView('analysis');
+    });
+  }
+
   function initPlayerHomeScreen() {
     $('#player-home-logo').addEventListener('click', () => showView('setup'));
-    $('#player-home-setup-link').addEventListener('click', () => showView('setup'));
     $('#active-match-banner').addEventListener('click', continueActiveMatch);
+    initPlayerHomeLastMatchCard();
     initPlayerIdentifyModal();
     initNotificationsModal();
   }

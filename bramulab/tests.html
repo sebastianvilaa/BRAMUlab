@@ -1975,6 +1975,156 @@
     assert('ML · computeFormatChangeImpact limpia un Set 3 huérfano (partido ya 2-0)', impactOrphan.keptSets[2] === null, JSON.stringify(impactOrphan));
   })();
 
+  // ==================================================================
+  // ETAPA 4 (v2.0) — HOME INTEGRAL: player-home.js — Racha actual, Mejor
+  // compañero, Actividad 30 días, Efectividad 30 días, Hitos.
+  // ==================================================================
+  function daysAgoIso(nowMs, days) { return new Date(nowMs - days * 24 * 60 * 60 * 1000).toISOString(); }
+
+  // ---- computeCurrentStreak ----
+  (function () {
+    const player = 'Sebastián';
+    const noStreak = [mkHistoryMatch('c1', '2026-06-01T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'B')]; // pierde
+    assert('E4 · computeCurrentStreak es 0 cuando el partido más reciente no fue victoria', PH.computeCurrentStreak(noStreak, player).count === 0);
+
+    const twoWins = [
+      mkHistoryMatch('c2', '2026-06-05T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'A'),
+      mkHistoryMatch('c3', '2026-06-04T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'A'),
+      mkHistoryMatch('c4', '2026-06-03T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'B'),
+      mkHistoryMatch('c5', '2026-06-02T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'A'),
+    ]; // ya viene ordenado más-reciente-primero: c2, c3 ganados, c4 corta la racha
+    assert('E4 · computeCurrentStreak cuenta desde el más reciente y se detiene en la primera no-victoria', PH.computeCurrentStreak(twoWins, player).count === 2, JSON.stringify(twoWins.map((m) => m.matchId)));
+
+    assert('E4 · computeCurrentStreak es defensivo con historial vacío', PH.computeCurrentStreak([], player).count === 0);
+  })();
+
+  // ---- computeBestPartner ----
+  (function () {
+    const player = 'Sebastián';
+    const matches = [
+      // Compa1: 3 juntos, 2 victorias (67%)
+      mkHistoryMatch('p1', '2026-06-01T00:00:00.000Z', [player, 'Compa1', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p2', '2026-06-02T00:00:00.000Z', [player, 'Compa1', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p3', '2026-06-03T00:00:00.000Z', [player, 'Compa1', 'X', 'Y'], 'B'),
+      // Compa2: solo 2 juntos, 100% — no alcanza la muestra mínima (3), debe quedar afuera
+      mkHistoryMatch('p4', '2026-06-04T00:00:00.000Z', [player, 'Compa2', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p5', '2026-06-05T00:00:00.000Z', [player, 'Compa2', 'X', 'Y'], 'A'),
+    ];
+    const best1 = PH.computeBestPartner(matches, player);
+    assert('E4 · computeBestPartner ignora a quien no llega a la muestra mínima (Compa2, solo 2)', best1 && best1.name === 'Compa1' && best1.count === 3 && best1.wins === 2 && best1.pct === 67, JSON.stringify(best1));
+
+    // Compa3 se suma con 4 juntos y 75% — mejor efectividad que Compa1 (67%), debe ganar.
+    const withCompa3 = matches.concat([
+      mkHistoryMatch('p6', '2026-06-06T00:00:00.000Z', [player, 'Compa3', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p7', '2026-06-07T00:00:00.000Z', [player, 'Compa3', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p8', '2026-06-08T00:00:00.000Z', [player, 'Compa3', 'X', 'Y'], 'A'),
+      mkHistoryMatch('p9', '2026-06-09T00:00:00.000Z', [player, 'Compa3', 'X', 'Y'], 'B'),
+    ]);
+    const best2 = PH.computeBestPartner(withCompa3, player);
+    assert('E4 · computeBestPartner elige la mayor efectividad, no la mayor cantidad', best2 && best2.name === 'Compa3' && best2.pct === 75, JSON.stringify(best2));
+
+    // Empate de efectividad (ambos 100%, 3 juntos): gana quien tenga más partidos juntos.
+    const tieByCount = [
+      mkHistoryMatch('q1', '2026-06-01T00:00:00.000Z', [player, 'Uno', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q2', '2026-06-02T00:00:00.000Z', [player, 'Uno', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q3', '2026-06-03T00:00:00.000Z', [player, 'Uno', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q4', '2026-06-04T00:00:00.000Z', [player, 'Dos', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q5', '2026-06-05T00:00:00.000Z', [player, 'Dos', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q6', '2026-06-06T00:00:00.000Z', [player, 'Dos', 'X', 'Y'], 'A'),
+      mkHistoryMatch('q7', '2026-06-07T00:00:00.000Z', [player, 'Dos', 'X', 'Y'], 'A'),
+    ];
+    const best3 = PH.computeBestPartner(tieByCount, player);
+    assert('E4 · computeBestPartner desempata efectividad igual por más partidos juntos', best3 && best3.name === 'Dos' && best3.count === 4, JSON.stringify(best3));
+
+    assert('E4 · computeBestPartner es null si nadie llega a la muestra mínima', PH.computeBestPartner([mkHistoryMatch('s1', '2026-06-01T00:00:00.000Z', [player, 'Solo', 'X', 'Y'], 'A')], player) === null);
+  })();
+
+  // ---- computeActivity30d / computeEffectiveness30d (ventana fija, sin depender de "ahora") ----
+  (function () {
+    const player = 'Sebastián';
+    const now = new Date('2026-09-03T00:00:00.000Z');
+    const nowMs = now.getTime();
+    const matches = [
+      mkDatedMatch('a1', { playedAt: daysAgoIso(nowMs, 1) }, [player, 'A', 'X', 'Y'], 'A'),  // muy reciente, victoria
+      mkDatedMatch('a2', { playedAt: daysAgoIso(nowMs, 9) }, [player, 'A', 'X', 'Y'], 'B'),  // derrota
+      mkDatedMatch('a3', { playedAt: daysAgoIso(nowMs, 16) }, [player, 'A', 'X', 'Y'], 'A'), // victoria
+      mkDatedMatch('a4', { playedAt: daysAgoIso(nowMs, 25) }, [player, 'A', 'X', 'Y'], 'B'), // derrota, tramo más antiguo de la ventana
+      mkDatedMatch('a5', { playedAt: daysAgoIso(nowMs, 31) }, [player, 'A', 'X', 'Y'], 'A'), // fuera de la ventana (>30 días) — no cuenta
+      mkDatedMatch('a6', {}, [player, 'A', 'X', 'Y'], 'A'), // sin fecha real válida — no cuenta
+    ];
+    const activity = PH.computeActivity30d(matches, player, now);
+    assert('E4 · computeActivity30d cuenta solo los partidos dentro de la ventana de 30 días con fecha válida', activity.total === 4, JSON.stringify(activity));
+    assert('E4 · computeActivity30d ordena los 4 bloques del más antiguo al más reciente', activity.buckets.map((b) => b.count).join(',') === '1,1,1,1', JSON.stringify(activity.buckets));
+    assert('E4 · computeActivity30d separa victorias/derrotas por bloque', activity.buckets[0].losses === 1 && activity.buckets[3].wins === 1, JSON.stringify(activity.buckets));
+
+    const eff = PH.computeEffectiveness30d(matches, player, now);
+    assert('E4 · computeEffectiveness30d considera solo partidos con resultado definido dentro de la ventana', eff.considered === 4 && eff.wins === 2 && eff.losses === 2 && eff.pct === 50, JSON.stringify(eff));
+
+    const effEmpty = PH.computeEffectiveness30d([], player, now);
+    assert('E4 · computeEffectiveness30d con historial vacío nunca inventa un porcentaje', effEmpty.considered === 0 && effEmpty.pct === null);
+  })();
+
+  // ---- computeThirtyDayPeriodCounts ----
+  (function () {
+    const player = 'Sebastián';
+    const now = new Date('2026-09-03T00:00:00.000Z');
+    const nowMs = now.getTime();
+    const matches = [
+      mkDatedMatch('per1', { playedAt: daysAgoIso(nowMs, 2) }, [player, 'A', 'X', 'Y'], 'A'),
+      mkDatedMatch('per2', { playedAt: daysAgoIso(nowMs, 10) }, [player, 'A', 'X', 'Y'], 'A'),
+      mkDatedMatch('per3', { playedAt: daysAgoIso(nowMs, 45) }, [player, 'A', 'X', 'Y'], 'A'),
+      mkDatedMatch('per4', { playedAt: daysAgoIso(nowMs, -5) }, [player, 'A', 'X', 'Y'], 'A'), // fecha futura — nunca cuenta
+    ];
+    const periods = PH.computeThirtyDayPeriodCounts(matches, now);
+    assert('E4 · computeThirtyDayPeriodCounts agrupa en períodos de 30 días sin solapar, ignora fechas futuras', periods.join(',') === '2,1', JSON.stringify(periods));
+  })();
+
+  // ---- computeHitos ----
+  (function () {
+    const player = 'Sebastián';
+    assert('E4 · computeHitos no muestra nada con menos de 3 partidos', PH.computeHitos([mkHistoryMatch('h0', '2026-06-01T00:00:00.000Z', [player, 'A', 'X', 'Y'], 'A')], player).length === 0);
+
+    // (a) a una victoria de igualar la mejor racha — cada partido con compañero distinto (no
+    // dispara el hito de compañero) y sin fecha real (no dispara el de período más activo).
+    const streakMatches = [
+      mkHistoryMatch('ha1', '', [player, 'P1', 'X', 'Y'], 'A'),
+      mkHistoryMatch('ha2', '', [player, 'P2', 'X', 'Y'], 'A'),
+      mkHistoryMatch('ha3', '', [player, 'P3', 'X', 'Y'], 'B'),
+      mkHistoryMatch('ha4', '', [player, 'P4', 'X', 'Y'], 'A'),
+      mkHistoryMatch('ha5', '', [player, 'P5', 'X', 'Y'], 'A'),
+      mkHistoryMatch('ha6', '', [player, 'P6', 'X', 'Y'], 'A'),
+    ];
+    const hitosA = PH.computeHitos(streakMatches, player);
+    assert('E4 · computeHitos(a) reconoce estar a una victoria de igualar el récord', hitosA.indexOf('Una victoria más para igualar tu racha de 3.') !== -1, JSON.stringify(hitosA));
+
+    // (b) buen momento con el compañero más frecuente — racha actual y mejor racha coinciden
+    // (3 = 3), así que (a) NO dispara acá.
+    const partnerMatches = [
+      mkHistoryMatch('hb1', '', [player, 'Compa', 'X', 'Y'], 'A'),
+      mkHistoryMatch('hb2', '', [player, 'Compa', 'X', 'Y'], 'A'),
+      mkHistoryMatch('hb3', '', [player, 'Compa', 'X', 'Y'], 'A'),
+      mkHistoryMatch('hb4', '', [player, 'Otro', 'X', 'Y'], 'B'),
+    ];
+    const hitosB = PH.computeHitos(partnerMatches, player);
+    assert('E4 · computeHitos(b) reconoce buena forma reciente con el compañero más frecuente', hitosB.indexOf('Ganaste 3 de tus últimos 3 con Compa.') !== -1, JSON.stringify(hitosB));
+
+    // (c) período más activo — sin victorias (racha actual y mejor racha en 0, nunca dispara
+    // (a)) y con un compañero distinto por partido (nunca dispara (b)).
+    const now = new Date();
+    const nowMs = now.getTime();
+    const activePeriodMatches = [
+      mkDatedMatch('hc1', { playedAt: daysAgoIso(nowMs, 1) }, [player, 'Q1', 'X', 'Y'], 'B'),
+      mkDatedMatch('hc2', { playedAt: daysAgoIso(nowMs, 5) }, [player, 'Q2', 'X', 'Y'], 'B'),
+      mkDatedMatch('hc3', { playedAt: daysAgoIso(nowMs, 10) }, [player, 'Q3', 'X', 'Y'], 'B'),
+      mkDatedMatch('hc4', { playedAt: daysAgoIso(nowMs, 45) }, [player, 'Q4', 'X', 'Y'], 'B'),
+    ];
+    const hitosC = PH.computeHitos(activePeriodMatches, player);
+    assert('E4 · computeHitos(c) reconoce el período más activo cuando supera a todos los anteriores', hitosC.indexOf('Este es tu período más activo.') !== -1, JSON.stringify(hitosC));
+
+    // Nunca más de 2 hitos a la vez.
+    assert('E4 · computeHitos nunca devuelve más de 2', PH.computeHitos(streakMatches, player).length <= 2 && PH.computeHitos(partnerMatches, player).length <= 2 && hitosC.length <= 2);
+  })();
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------

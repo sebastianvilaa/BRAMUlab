@@ -263,6 +263,162 @@
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* ETAPA 4 (v2.0) — HOME INTEGRAL: Racha actual, Mejor compañero, Actividad
+   *  30 días, Efectividad 30 días e Hitos. Todo puro y sin DOM, igual criterio
+   *  que el resto de este archivo — `matches` siempre llega ya filtrado y
+   *  ordenado por PH.filterMatchesForPlayer (más reciente primero). */
+  /* ------------------------------------------------------------------ */
+
+  /** Racha de victorias consecutivas contando desde el partido MÁS RECIENTE hacia atrás
+   *  (a diferencia de computeBestWinStreak, que busca la mejor racha de todo el historial).
+   *  Una derrota o un partido sin definición corta la racha en 0 — nunca se asume que
+   *  sigue activa. Solo cuenta victorias (mismo criterio que "Mejor racha"): una racha de
+   *  derrotas no se modela todavía. */
+  function computeCurrentStreak(matches, playerName) {
+    let count = 0;
+    for (let i = 0; i < (matches || []).length; i++) {
+      if (matchResultForPlayer(matches[i], playerName) !== 'win') break;
+      count += 1;
+    }
+    return { count };
+  }
+
+  /** §10 — "Mejor compañero histórico": a diferencia de computeMostFrequentPartner (el más
+   *  repetido), este es el de MAYOR efectividad jugando juntos, exigiendo una muestra mínima
+   *  (default 3 partidos juntos) para no premiar un 1/1 casual. Empate de efectividad se
+   *  resuelve por más partidos jugados juntos y, si sigue empatado, alfabético — siempre
+   *  determinístico. `null` si nadie alcanza la muestra mínima. */
+  function computeBestPartner(matches, playerName, minSample) {
+    const min = minSample || 3;
+    const counts = {};
+    (matches || []).forEach((m) => {
+      const partner = getPartnerName(m, playerName);
+      if (!partner) return;
+      if (!counts[partner]) counts[partner] = { count: 0, wins: 0 };
+      counts[partner].count += 1;
+      if (matchResultForPlayer(m, playerName) === 'win') counts[partner].wins += 1;
+    });
+    const names = Object.keys(counts).filter((n) => counts[n].count >= min);
+    if (!names.length) return null;
+    let best = names[0];
+    names.forEach((n) => {
+      const a = counts[n], b = counts[best];
+      const pctA = a.wins / a.count, pctB = b.wins / b.count;
+      if (pctA > pctB) best = n;
+      else if (pctA === pctB && a.count > b.count) best = n;
+      else if (pctA === pctB && a.count === b.count && n < best) best = n;
+    });
+    const c = counts[best];
+    return { name: best, count: c.count, wins: c.wins, pct: Math.round((c.wins / c.count) * 100) };
+  }
+
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+  /** §9/§15 — Actividad: partidos jugados en la ventana MÓVIL de los últimos 30 días (no mes
+   *  calendario), repartidos en 4 bloques cronológicos de igual duración (~7.5 días cada uno)
+   *  para que la franja se lea como una línea de tiempo. `buckets[0]` es el tramo MÁS ANTIGUO
+   *  de la ventana y `buckets[3]` el más reciente (incluye hoy) — así se dibuja de izquierda a
+   *  derecha en el orden natural del tiempo. Un partido sin fecha real válida (getPlayedAt
+   *  null) o fuera de la ventana no se cuenta — nunca se ubica a ciegas. */
+  function computeActivity30d(matches, playerName, nowDate) {
+    const nowMs = (nowDate || new Date()).getTime();
+    const bucketMs = THIRTY_DAYS_MS / 4;
+    const raw = [0, 1, 2, 3].map(() => ({ count: 0, wins: 0, losses: 0 }));
+    let total = 0;
+    (matches || []).forEach((m) => {
+      const t = parseTimeOrNull(getPlayedAt(m));
+      if (t === null) return;
+      const age = nowMs - t;
+      if (age < 0 || age > THIRTY_DAYS_MS) return;
+      const idxFromNow = Math.min(3, Math.floor(age / bucketMs)); // 0 = más reciente
+      total += 1;
+      raw[idxFromNow].count += 1;
+      const res = matchResultForPlayer(m, playerName);
+      if (res === 'win') raw[idxFromNow].wins += 1;
+      else if (res === 'loss') raw[idxFromNow].losses += 1;
+    });
+    return { total, buckets: raw.slice().reverse() };
+  }
+
+  /** §9 — Efectividad: % de victorias sobre partidos CONSIDERADOS (con resultado definido,
+   *  ganado o perdido — un partido sin ganador nunca infla ni desinfla el porcentaje) en los
+   *  últimos 30 días. `pct` es `null` sin ninguna muestra — nunca "0%" engañoso. */
+  function computeEffectiveness30d(matches, playerName, nowDate) {
+    const nowMs = (nowDate || new Date()).getTime();
+    let wins = 0, losses = 0;
+    (matches || []).forEach((m) => {
+      const t = parseTimeOrNull(getPlayedAt(m));
+      if (t === null) return;
+      const age = nowMs - t;
+      if (age < 0 || age > THIRTY_DAYS_MS) return;
+      const res = matchResultForPlayer(m, playerName);
+      if (res === 'win') wins += 1;
+      else if (res === 'loss') losses += 1;
+    });
+    const considered = wins + losses;
+    return { wins, losses, considered, pct: considered ? Math.round((wins / considered) * 100) : null };
+  }
+
+  /** Cuenta partidos por período de 30 días SIN solapar, anclado a "ahora": índice 0 son los
+   *  últimos 30 días, índice 1 los 30 días anteriores a esos, etc. Partidos futuros (fecha
+   *  posterior a `nowDate`) o sin fecha real válida quedan afuera. Único uso: detectar el
+   *  hito "período más activo" (§5 del consolidado de Etapa 4) sin repetir esta cuenta ahí. */
+  function computeThirtyDayPeriodCounts(matches, nowDate) {
+    const nowMs = (nowDate || new Date()).getTime();
+    const periods = [];
+    (matches || []).forEach((m) => {
+      const t = parseTimeOrNull(getPlayedAt(m));
+      if (t === null || t > nowMs) return;
+      const idx = Math.floor((nowMs - t) / THIRTY_DAYS_MS);
+      periods[idx] = (periods[idx] || 0) + 1;
+    });
+    const out = [];
+    for (let i = 0; i < periods.length; i++) out[i] = periods[i] || 0;
+    return out;
+  }
+
+  /** §5 — Hitos personales: observaciones puntuales y justificadas por la historia real,
+   *  nunca misiones genéricas. Como máximo 2, evaluadas en este orden de prioridad; cualquiera
+   *  que no tenga muestra suficiente simplemente no aparece (nunca se rellena con relleno
+   *  genérico). Con menos de 3 partidos en total, ninguno se muestra — es exactamente el
+   *  mismo umbral que ya usa buildTuMomentoText para "no inventar con muestra chica". */
+  function computeHitos(matches, playerName) {
+    const hitos = [];
+    if ((matches || []).length < 3) return hitos;
+
+    // (a) a una victoria de igualar la mejor racha histórica.
+    const current = computeCurrentStreak(matches, playerName);
+    const best = computeBestWinStreak(matches, playerName);
+    if (current.count > 0 && best > 0 && current.count === best - 1) {
+      hitos.push(`Una victoria más para igualar tu racha de ${best}.`);
+    }
+
+    // (b) buen momento reciente con el compañero más frecuente (ventana de hasta 5 juntos,
+    // mínimo 3, al menos dos de cada tres ganados).
+    if (hitos.length < 2) {
+      const partner = computeMostFrequentPartner(matches, playerName);
+      if (partner && partner.count >= 3) {
+        const withPartner = matches.filter((m) => getPartnerName(m, playerName) === partner.name).slice(0, 5);
+        const winsRecent = withPartner.filter((m) => matchResultForPlayer(m, playerName) === 'win').length;
+        if (withPartner.length >= 3 && (winsRecent / withPartner.length) >= 0.66) {
+          hitos.push(`Ganaste ${winsRecent} de tus últimos ${withPartner.length} con ${partner.name}.`);
+        }
+      }
+    }
+
+    // (c) período más activo: los últimos 30 días superan a TODOS los períodos de 30 días
+    // anteriores (nunca en empate) y ya hay al menos un período previo con el que comparar.
+    if (hitos.length < 2) {
+      const periods = computeThirtyDayPeriodCounts(matches);
+      if (periods.length >= 2 && periods[0] >= 3 && periods[0] > Math.max(...periods.slice(1))) {
+        hitos.push('Este es tu período más activo.');
+      }
+    }
+
+    return hitos.slice(0, 2);
+  }
+
   global.PLPlayerHome = {
     getPlayedAt, comparePlayedAtDesc,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
@@ -270,5 +426,7 @@
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
+    computeCurrentStreak, computeBestPartner, computeActivity30d, computeEffectiveness30d,
+    computeThirtyDayPeriodCounts, computeHitos,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
