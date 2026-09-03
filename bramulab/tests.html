@@ -24,6 +24,7 @@
 <script src="stats.js"></script>
 <script src="store.js"></script>
 <script src="player-home.js"></script>
+<script src="match-load.js"></script>
 <script>
 (function () {
   'use strict';
@@ -31,6 +32,7 @@
   const S = window.PLStats;
   const Store = window.PLStore;
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador)
+  const ML = window.PLMatchLoad; // Etapa 3 (Fase 3) — Cargar partido jugado
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -1680,23 +1682,6 @@
       PH.filterMatchesForPlayer([mkHistoryMatch('z1', '2026-01-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A')], '  sebastián ').length === 1);
   })();
 
-  // Auditoría funcional §1/§3/§4/§8 — PH.resolvePlayerOneName: el nombre que se guarda para
-  // Jugador 1 al cargar un partido, según el origen del formulario. Ambos orígenes cubiertos.
-  (function () {
-    assert('RJ · resolvePlayerOneName (origen player-home) usa SIEMPRE currentPlayerName, nunca el campo',
-      PH.resolvePlayerOneName('player-home', 'Sebastián', 'lo que sea que diga el campo', 'Jugador 1') === 'Sebastián');
-    assert('RJ · resolvePlayerOneName (origen player-home) ignora un campo vacío igual — nunca cae en el fallback genérico',
-      PH.resolvePlayerOneName('player-home', 'Sebastián', '', 'Jugador 1') === 'Sebastián');
-    assert('RJ · resolvePlayerOneName (origen player-home) ignora currentPlayerName con espacios/tildes distintos del campo — el campo directamente no importa',
-      PH.resolvePlayerOneName('player-home', 'Sebastián', 'Otro Nombre Cualquiera', 'Jugador 1') === 'Sebastián');
-    assert('RJ · resolvePlayerOneName (origen setup) mantiene el comportamiento de siempre: normaliza el texto del campo',
-      PH.resolvePlayerOneName('setup', 'Sebastián', '  martín  ', 'Jugador 1') === 'Martín');
-    assert('RJ · resolvePlayerOneName (origen setup) cae en el fallback genérico si el campo queda vacío, sin importar currentPlayerName',
-      PH.resolvePlayerOneName('setup', 'Sebastián', '', 'Jugador 1') === 'Jugador 1');
-    assert('RJ · resolvePlayerOneName (origen setup) funciona igual sin ningún jugador identificado (currentPlayerName null) — flujo tradicional intacto',
-      PH.resolvePlayerOneName('setup', null, 'Martín', 'Jugador 1') === 'Martín');
-  })();
-
   // ==================================================================
   // ETAPA 3 — FASE 1: semántica de fecha del partido (§9 del consolidado)
   // ==================================================================
@@ -1879,6 +1864,115 @@
     assert('Fase2-PP §3.3 · set reglamentario con TB no repite el desglose (7-6 solo)', PH.formatLiveScoreLabel(regularTbState) === '7-6 · 1-0', PH.formatLiveScoreLabel(regularTbState));
 
     assert('Fase2-PP §3.3 · formatLiveScoreLabel es defensivo ante state null', PH.formatLiveScoreLabel(null) === '0-0');
+  })();
+
+  // ==================================================================
+  // ETAPA 3 (FASE 3) — CARGAR PARTIDO JUGADO: match-load.js (PLMatchLoad).
+  // Funciones puras sin DOM — selector de jugadores, teclado numérico,
+  // visibilidad del Set 3, validación central y cambio de formato.
+  // ==================================================================
+
+  // ---- Jugadores ----
+  (function () {
+    const history = [
+      mkHistoryMatch('r1', '2026-06-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'),
+      mkHistoryMatch('r2', '2026-06-20T00:00:00.000Z', ['Sebastián', 'Lucas', 'Ana', 'Bea'], 'B'), // el más reciente de todos
+      mkHistoryMatch('r3', '2026-06-15T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A'), // repite Martín/Cruz/Dan — no debe duplicarlos
+      mkHistoryMatch('r4', '2026-07-01T00:00:00.000Z', ['Nico', 'Bea', 'Cruz', 'Dan'], 'A'), // Sebastián NO participa (aunque sea el más reciente en fecha) — Nico no debe aparecer
+    ];
+    const recents = ML.computeRecentPlayers(history, 'Sebastián', []);
+    assert('ML · computeRecentPlayers ordena por partido más reciente primero', recents[0] === 'Lucas', JSON.stringify(recents));
+    assert('ML · computeRecentPlayers no duplica un nombre ya visto en un partido más reciente', recents.filter((n) => n === 'Martín').length === 1, JSON.stringify(recents));
+    assert('ML · computeRecentPlayers nunca incluye al propio jugador', recents.indexOf('Sebastián') === -1, JSON.stringify(recents));
+    assert('ML · computeRecentPlayers respeta excludeNames', ML.computeRecentPlayers(history, 'Sebastián', ['Martín']).indexOf('Martín') === -1);
+    assert('ML · computeRecentPlayers ignora partidos donde el jugador no participó (aunque sean los más recientes)', recents.indexOf('Nico') === -1, JSON.stringify(recents));
+
+    const known = ML.computeAllKnownPlayers(history, ['Zoe', 'Martín']);
+    assert('ML · computeAllKnownPlayers une recordados + historial sin duplicar', known.filter((n) => n === 'Martín').length === 1 && known.indexOf('Zoe') !== -1, JSON.stringify(known));
+
+    const filtered = ML.filterPlayerCandidates(['Martín', 'Marta', 'Cruz'], 'mar', []);
+    assert('ML · filterPlayerCandidates filtra por substring normalizado', filtered.length === 2 && filtered.indexOf('Cruz') === -1, JSON.stringify(filtered));
+    assert('ML · filterPlayerCandidates es insensible a mayúsculas (mismos acentos)', ML.filterPlayerCandidates(['Sebastián'], 'SEBASTIÁN', []).length === 1);
+    assert('ML · filterPlayerCandidates excluye excludeNames', ML.filterPlayerCandidates(['Martín', 'Cruz'], '', ['Martín']).indexOf('Martín') === -1);
+
+    assert('ML · isDuplicatePlayerName detecta mismo nombre con mayúsculas/espacios distintos', ML.isDuplicatePlayerName('  MARTÍN  ', ['Martín']) === true);
+    assert('ML · isDuplicatePlayerName es false si no hay coincidencia', ML.isDuplicatePlayerName('Lucas', ['Martín', 'Cruz']) === false);
+    assert('ML · isDuplicatePlayerName es defensivo ante nombre vacío', ML.isDuplicatePlayerName('', ['Martín']) === false);
+  })();
+
+  // ---- Teclado numérico / Set 3 ----
+  (function () {
+    const classic = E.FORMATS.classic, americano = E.FORMATS.americano;
+    assert('ML · canExtendSetDigits acepta el primer dígito siempre', ML.canExtendSetDigits('', classic) === true);
+    assert('ML · canExtendSetDigits(Clásico) nunca deja seguir después de un dígito (máximo real es 7, un solo dígito)', ML.canExtendSetDigits('6', classic) === false && ML.canExtendSetDigits('0', classic) === false);
+    assert('ML · canExtendSetDigits(Americano) tampoco deja seguir después de un dígito', ML.canExtendSetDigits('5', americano) === false);
+
+    assert('ML · isMatchDecided(Clásico) con 2 sets para el mismo equipo', ML.isMatchDecided([{ a: 6, b: 4 }, { a: 6, b: 2 }], classic) === true);
+    assert('ML · isMatchDecided(Clásico) con 1-1 todavía no está decidido', ML.isMatchDecided([{ a: 6, b: 4 }, { a: 4, b: 6 }], classic) === false);
+    assert('ML · isMatchDecided ignora sets todavía incompletos', ML.isMatchDecided([{ a: 6, b: 4 }, null], classic) === false);
+
+    assert('ML · isThirdSetVisible con 1-1 real (6-4, 4-6) → true', ML.isThirdSetVisible({ a: 6, b: 4 }, { a: 4, b: 6 }, classic) === true);
+    assert('ML · isThirdSetVisible con partido ya decidido 2-0 → false', ML.isThirdSetVisible({ a: 6, b: 4 }, { a: 6, b: 2 }, classic) === false);
+    assert('ML · isThirdSetVisible con el Set 2 todavía sin cargar → false', ML.isThirdSetVisible({ a: 6, b: 4 }, null, classic) === false);
+    assert('ML · isThirdSetVisible con un set incompleto (no numérico) → false', ML.isThirdSetVisible({ a: 6, b: 4 }, { a: 4, b: undefined }, classic) === false);
+    assert('ML · isThirdSetVisible nunca en Americano (1 solo set)', ML.isThirdSetVisible({ a: 6, b: 4 }, { a: 4, b: 6 }, americano) === false);
+  })();
+
+  // ---- Validación central (validateMatchDraft) ----
+  (function () {
+    const names = ['Sebastián', 'Martín', 'Cruz', 'Dan'];
+    const today = '2026-09-02';
+
+    const win20 = ML.validateMatchDraft(names, [{ a: 6, b: 4 }, { a: 6, b: 2 }, null], 'classic', today);
+    assert('ML · validateMatchDraft 2-0 válido', win20.ok === true && win20.winnerTeam === 'A' && win20.sets.length === 2, JSON.stringify(win20));
+
+    const win21 = ML.validateMatchDraft(names, [{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 3 }], 'classic', today);
+    assert('ML · validateMatchDraft 2-1 (con Set 3) válido', win21.ok === true && win21.winnerTeam === 'A' && win21.sets.length === 3, JSON.stringify(win21));
+
+    const loss02 = ML.validateMatchDraft(names, [{ a: 3, b: 6 }, { a: 4, b: 6 }, null], 'classic', today);
+    assert('ML · validateMatchDraft 0-2 (derrota) válido, ganador Equipo B', loss02.ok === true && loss02.winnerTeam === 'B', JSON.stringify(loss02));
+
+    const missingPlayers = ML.validateMatchDraft(['Sebastián', '', 'Cruz', 'Dan'], [{ a: 6, b: 4 }, { a: 6, b: 2 }, null], 'classic', today);
+    assert('ML · validateMatchDraft detecta jugadores faltantes', missingPlayers.ok === false && missingPlayers.reason === 'players-missing');
+
+    const dup = ML.validateMatchDraft(['Sebastián', 'Martín', 'martín', 'Dan'], [{ a: 6, b: 4 }, { a: 6, b: 2 }, null], 'classic', today);
+    assert('ML · validateMatchDraft detecta jugador duplicado (normalizado)', dup.ok === false && dup.reason === 'players-duplicate');
+
+    const noDate = ML.validateMatchDraft(names, [{ a: 6, b: 4 }, { a: 6, b: 2 }, null], 'classic', '');
+    assert('ML · validateMatchDraft exige fecha', noDate.ok === false && noDate.reason === 'date-missing');
+
+    const incomplete = ML.validateMatchDraft(names, [{ a: 6, b: 4 }, null, null], 'classic', today);
+    assert('ML · validateMatchDraft con Set 2 sin cargar → set-incomplete', incomplete.ok === false && incomplete.reason === 'set-incomplete', JSON.stringify(incomplete));
+
+    const invalid = ML.validateMatchDraft(names, [{ a: 6, b: 5 }, { a: 6, b: 2 }, null], 'classic', today);
+    assert('ML · validateMatchDraft con 6-5 (imposible en Clásico) → set-invalid', invalid.ok === false && invalid.reason === 'set-invalid', JSON.stringify(invalid));
+
+    const needsThird = ML.validateMatchDraft(names, [{ a: 6, b: 4 }, { a: 4, b: 6 }, null], 'classic', today);
+    assert('ML · validateMatchDraft con 1-1 y Set 3 vacío → third-set-missing', needsThird.ok === false && needsThird.reason === 'third-set-missing', JSON.stringify(needsThird));
+
+    const americanoOk = ML.validateMatchDraft(names, [{ a: 6, b: 3 }, null, null], 'americano', today);
+    assert('ML · validateMatchDraft Americano solo necesita el Set 1', americanoOk.ok === true && americanoOk.sets.length === 1, JSON.stringify(americanoOk));
+
+    const withTb = ML.validateMatchDraft(names, [{ a: 7, b: 6 }, { a: 6, b: 3 }, null], 'classic', today);
+    assert('ML · validateMatchDraft arma tiebreak plausible para un set 7-6', withTb.ok === true && !!withTb.sets[0].tiebreak && withTb.sets[0].tiebreak.a === 7, JSON.stringify(withTb));
+  })();
+
+  // ---- Cambio de formato (computeFormatChangeImpact) ----
+  (function () {
+    const threeSets = [{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 3 }];
+    const toAmericano = ML.computeFormatChangeImpact(threeSets, 'americano');
+    assert('ML · computeFormatChangeImpact a Americano conserva solo el Set 1', toAmericano.hasImpact === true && toAmericano.keptSets[0] !== null && toAmericano.keptSets[1] === null && toAmericano.keptSets[2] === null, JSON.stringify(toAmericano));
+
+    const withInvalidForAmericano = [{ a: 7, b: 5 }, null, null]; // 7-5 no es válido en Americano (tbAt=5, target=6)
+    const impact75 = ML.computeFormatChangeImpact(withInvalidForAmericano, 'americano');
+    assert('ML · computeFormatChangeImpact limpia un score que deja de ser válido en el nuevo formato (7-5 → Americano)', impact75.hasImpact === true && impact75.keptSets[0] === null, JSON.stringify(impact75));
+
+    const noImpact = ML.computeFormatChangeImpact([{ a: 6, b: 4 }, null, null], 'classic');
+    assert('ML · computeFormatChangeImpact sin cambios reales → hasImpact false', noImpact.hasImpact === false && noImpact.keptSets[0].a === 6);
+
+    const orphanThird = [{ a: 6, b: 2 }, { a: 6, b: 3 }, { a: 6, b: 4 }]; // 2-0 ya decidido con algo (inválido) cargado en el Set 3
+    const impactOrphan = ML.computeFormatChangeImpact(orphanThird, 'classic');
+    assert('ML · computeFormatChangeImpact limpia un Set 3 huérfano (partido ya 2-0)', impactOrphan.keptSets[2] === null, JSON.stringify(impactOrphan));
   })();
 
   // ------------------------------------------------------------------

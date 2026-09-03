@@ -132,7 +132,10 @@
   // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
   // esta lista (partido en vivo, setup, resumen, análisis, timeline) la barra se oculta para
   // no competir con el control-bar del marcador ni con las cabeceras propias ya existentes.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'manual-load', 'ranking', 'profile'];
+  // Etapa 3 (Fase 3, §5) — "Cargar partido jugado" ya no muestra la barra inferior: es un
+  // flujo corto y enfocado, no una pantalla principal de navegación (antes sí la mostraba,
+  // remanente de cuando ese formulario era más largo).
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'ranking', 'profile'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'player-home', 'ranking', 'profile']
@@ -372,104 +375,410 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* V14 (§1-21) — CARGAR PARTIDO JUGADO: carga manual de un partido ya jugado, sin motor en
-   * vivo (nunca toca `match`/`pointEvents`/`gameEvents`/timer/Wake Lock — no hay partido
-   * activo involucrado). Reutiliza el mismo lenguaje visual del setup (team-block/
-   * option-pill/option-col) y el MISMO validador reglamentario que ya usa el editor de Por
-   * Games (`E.isValidCompletedSetScore`, vía `gamesEnumerateValidCompletedPairs` — hoisted,
-   * definida más abajo en el archivo). Guarda con `mode:'manual'` en el MISMO Historial. */
+  /* ETAPA 3 (FASE 3) — CARGAR PARTIDO JUGADO: rediseño funcional completo. Pantalla tipo
+   * "marcador" (no formulario largo), sin motor en vivo (nunca toca `match`/`pointEvents`/
+   * `gameEvents`/timer/Wake Lock — no hay partido activo involucrado). La validación pura
+   * vive en match-load.js (window.PLMatchLoad, "ML" acá) — esto es solo orquestación de DOM.
+   * Guarda/actualiza con `mode:'manual'` en el MISMO Historial (Store.upsertHistory, que ya
+   * dedupe por matchId — la edición reutiliza esa misma vía). */
   /* ------------------------------------------------------------------ */
+  const ML = window.PLMatchLoad;
+
   let manualSelectedScoring = 'golden';
   let manualSelectedFormatId = 'classic';
   let manualCoords = null; // { lat, lng } | null — el NOMBRE del lugar lo escribe el usuario aparte
+  let manualLoadOrigin = 'setup'; // 'setup' | 'player-home' — dónde volver al cancelar sin guardar
+  let manualLoadDirty = false;
+  let manualSaveAttempted = false;
+  let manualSaveInFlight = false;
+  let manualEditingMatchId = null; // matchId del partido en edición, o null si es alta nueva
+  let manualEditingCreatedAt = null; // createdAt original a conservar en una edición (§15)
+  let manualPlayers = { a1: null, a2: null, b1: null, b2: null };
+  let manualSets = [null, null, null]; // [{a,b}|null, ...] — a=games Equipo A, b=games Equipo B
+  let manualActiveSheetSlot = null; // 'a2' | 'b1' | 'b2' — slot que la hoja de jugador edita
+  let manualActiveKeypadCell = null; // { setIndex, team } | null
+  let manualKeypadDigits = ''; // dígitos tecleados para la celda activa, todavía sin confirmar
+  let manualPendingFormatId = 'classic'; // selección DENTRO de la hoja de formato, sin aplicar (§11)
 
-  function manualSetOptionsHTML(format) {
-    return gamesEnumerateValidCompletedPairs(format).map((p) => `<option value="${p.a}-${p.b}">${p.a}–${p.b}</option>`).join('');
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  /** Lee los <select> de Resultado, pero SOLO los realmente visibles — nunca inventa un Set 3
-   *  si su fila está oculta (§7: el tercer set aparece solo cuando corresponde). */
-  function manualDraftSets() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    const ids = format.bestOfSets === 1 ? [1] : [1, 2, 3];
-    const sets = [];
-    for (const n of ids) {
-      const row = $(`#manual-set-row-${n}`);
-      if (row.hidden) break;
-      const [a, b] = $(`#manual-set-${n}`).value.split('-').map(Number);
-      sets.push({ a, b });
+  const MANUAL_SCORING_LINE_LABELS = { golden: 'Punto de Oro', starpoint: 'Star Point', classic: 'Con ventaja' };
+  const MANUAL_ERROR_MESSAGES = {
+    'players-missing': 'Faltan jugadores para completar los dos equipos.',
+    'players-duplicate': 'Hay un jugador repetido en el partido.',
+    'date-missing': 'Falta la fecha del partido.',
+    'set-incomplete': 'Falta completar un set.',
+    'set-invalid': 'Ese resultado no corresponde a un set válido.',
+    'third-set-missing': 'Con 1 set para cada equipo, falta definir el tercer set.',
+    'no-winner': 'El resultado cargado no tiene un ganador definido.',
+  };
+  // Razones que se muestran apenas aparecen (se descubren "en vivo" mientras se carga el
+  // resultado); el resto (todavía falta completar algo) solo se explica si ya se intentó
+  // guardar — para no llenar de texto rojo una pantalla recién abierta.
+  const MANUAL_INLINE_REASONS = new Set(['players-duplicate', 'set-invalid', 'third-set-missing']);
+
+  /* ---- Jugadores ---- */
+
+  function manualPlayerNamesArray() { return [manualPlayers.a1, manualPlayers.a2, manualPlayers.b1, manualPlayers.b2]; }
+
+  function manualSlotLabel(slot) {
+    return { a2: 'Elegir compañero', b1: 'Elegir rival 1', b2: 'Elegir rival 2' }[slot] || 'Elegir jugador';
+  }
+  const MANUAL_SLOT_PLACEHOLDER = { a2: '+ Compañero', b1: '+ Rival 1', b2: '+ Rival 2' };
+
+  function renderManualPlayerChip(slot) {
+    const el = $(`#load-player-${slot}`);
+    const nameEl = el.querySelector('.load-player-chip__name');
+    const name = manualPlayers[slot];
+    if (name) { nameEl.textContent = name; el.classList.remove('is-empty'); }
+    else { nameEl.textContent = MANUAL_SLOT_PLACEHOLDER[slot]; el.classList.add('is-empty'); }
+  }
+
+  function renderManualPlayers() {
+    $('#load-player-a1-name').textContent = manualPlayers.a1 || '—';
+    renderManualPlayerChip('a2');
+    renderManualPlayerChip('b1');
+    renderManualPlayerChip('b2');
+  }
+
+  /** Jugadores ya elegidos en cualquier OTRO lugar (nunca el propio slot que se está editando)
+   *  — §7: "excluir a los jugadores ya elegidos en cualquiera de los otros lugares". */
+  function manualExcludedNamesForSlot(slot) {
+    return manualPlayerNamesArray().filter(Boolean).filter((n) => n !== manualPlayers[slot]);
+  }
+
+  function openManualPlayerSheet(slot) {
+    manualActiveSheetSlot = slot;
+    $('#load-player-sheet-title').textContent = manualSlotLabel(slot).toUpperCase();
+    $('#load-player-sheet-search').value = '';
+    $('#load-player-sheet-remove').hidden = !manualPlayers[slot];
+    renderManualPlayerSheetContent('');
+    $('#load-player-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#load-player-sheet-scrim').classList.add('is-open'); });
+    setTimeout(() => $('#load-player-sheet-search').focus(), 60);
+  }
+
+  function closeManualPlayerSheet() {
+    const scrim = $('#load-player-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+    manualActiveSheetSlot = null;
+  }
+
+  function renderManualPlayerSheetContent(query) {
+    const slot = manualActiveSheetSlot;
+    if (!slot) return;
+    const excluded = manualExcludedNamesForSlot(slot);
+    const history = Store.loadHistory();
+    const recentsWrap = $('#load-player-sheet-recents');
+    if (!query) {
+      const recents = ML.computeRecentPlayers(history, currentPlayerName, excluded).slice(0, 12);
+      if (recents.length) {
+        recentsWrap.hidden = false;
+        recentsWrap.innerHTML = recents.map((n) => `
+          <button type="button" class="load-player-sheet__recent" data-name="${escapeHtml(n)}">
+            <span class="load-player-sheet__recent-avatar">${escapeHtml(playerInitials(n))}</span>
+            <span class="load-player-sheet__recent-name">${escapeHtml(n)}</span>
+          </button>`).join('');
+        $all('#load-player-sheet-recents .load-player-sheet__recent').forEach((btn) => {
+          btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
+        });
+      } else { recentsWrap.hidden = true; recentsWrap.innerHTML = ''; }
+    } else {
+      recentsWrap.hidden = true; recentsWrap.innerHTML = '';
     }
-    return sets;
-  }
-  function manualDraftMatchDecided(draftSets, format) {
-    const need = Math.ceil(format.bestOfSets / 2);
-    const wonA = draftSets.filter((s) => s.a > s.b).length;
-    const wonB = draftSets.filter((s) => s.b > s.a).length;
-    return wonA >= need || wonB >= need;
-  }
-  function manualDraftWinner(draftSets, format) {
-    const need = Math.ceil(format.bestOfSets / 2);
-    const wonA = draftSets.filter((s) => s.a > s.b).length;
-    const wonB = draftSets.filter((s) => s.b > s.a).length;
-    if (wonA >= need) return 'A';
-    if (wonB >= need) return 'B';
-    return null;
-  }
 
-  function renderManualResultSection() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    const optionsHTML = manualSetOptionsHTML(format);
-    $('#manual-set-1').innerHTML = optionsHTML;
-    $('#manual-set-2').innerHTML = optionsHTML;
-    $('#manual-set-3').innerHTML = optionsHTML;
-    const singleSet = format.bestOfSets === 1;
-    $('#manual-set-row-2').hidden = singleSet;
-    $('#manual-set-row-3').hidden = true; // se revela solo si corresponde (ver abajo)
-    if (!singleSet) updateManualThirdSetVisibility();
-    $('#manual-result-error').hidden = true;
-  }
-
-  /** §7: el Set 3 solo puede aparecer/agregarse si el partido no quedó decidido en 2 sets. */
-  function updateManualThirdSetVisibility() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    if (format.bestOfSets === 1) { $('#manual-set-row-3').hidden = true; return; }
-    const draft = [
-      { a: Number($('#manual-set-1').value.split('-')[0]), b: Number($('#manual-set-1').value.split('-')[1]) },
-      { a: Number($('#manual-set-2').value.split('-')[0]), b: Number($('#manual-set-2').value.split('-')[1]) },
-    ];
-    $('#manual-set-row-3').hidden = manualDraftMatchDecided(draft, format);
-  }
-
-  /** §7: valida que el resultado cargado represente un partido posible con ganador — nunca
-   *  permite guardar un score imposible o sin definición. Construye `sets[]` con la MISMA
-   *  forma que usa el motor (`engine.js`): `{gamesA, gamesB, tiebreak, winner}` — sin
-   *  `setNumber` (la posición en el array ya es esa información en todo el resto de la app). */
-  function manualValidateAndCollectResult() {
-    const format = E.FORMATS[manualSelectedFormatId];
-    const draftSets = manualDraftSets();
-    if (!draftSets.length) return null;
-    const winnerTeam = manualDraftWinner(draftSets, format);
-    if (!winnerTeam) return null;
-    const sets = draftSets.map((s) => {
-      const winner = s.a > s.b ? 'A' : 'B';
-      let tiebreak = null;
-      if (E.completedSetHasTiebreak(s.a, s.b, format)) {
-        // Mismo criterio que "agregar set" en el editor de Por Games: el score INTERNO del
-        // Tie break nunca se pregunta acá (§7 del V14) — se guarda un valor plausible del
-        // modo Clásico solo para que la celda "TB" de la tarjeta de resultado tenga algo
-        // consistente que mostrar; nunca se narra en BRAMU Intelligence (§13).
-        const cfg = E.tiebreakModeConfig('classic');
-        tiebreak = winner === 'A' ? { a: cfg.winTarget, b: cfg.winTarget - 2, mode: 'classic' } : { a: cfg.winTarget - 2, b: cfg.winTarget, mode: 'classic' };
-      }
-      return { gamesA: s.a, gamesB: s.b, tiebreak, winner };
+    const pool = ML.computeAllKnownPlayers(history, Store.loadPlayerNames());
+    const matches = ML.filterPlayerCandidates(pool, query, excluded.concat([currentPlayerName]));
+    const listWrap = $('#load-player-sheet-list');
+    listWrap.innerHTML = matches.length
+      ? matches.map((n) => `<button type="button" class="load-player-sheet__item" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('')
+      : '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
+    $all('#load-player-sheet-list .load-player-sheet__item').forEach((btn) => {
+      btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
     });
-    return { sets, winnerTeam };
+
+    const addBtn = $('#load-player-sheet-add');
+    const trimmed = normalizePlayerName(query);
+    const canAdd = !!trimmed && !ML.isDuplicatePlayerName(trimmed, excluded.concat([currentPlayerName]));
+    if (canAdd) { addBtn.hidden = false; addBtn.textContent = `Agregar "${trimmed}" como jugador sin cuenta`; }
+    else { addBtn.hidden = true; addBtn.textContent = ''; }
   }
+
+  function selectManualPlayer(name) {
+    const slot = manualActiveSheetSlot;
+    const norm = normalizePlayerName(name);
+    if (!slot || !norm) return;
+    manualPlayers[slot] = norm;
+    Store.rememberPlayerNames([norm]);
+    markManualLoadDirty();
+    renderManualPlayers();
+    renderManualScoreboard();
+    closeManualPlayerSheet();
+  }
+
+  function initManualPlayerSheet() {
+    $('#load-player-sheet-close').addEventListener('click', closeManualPlayerSheet);
+    $('#load-player-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#load-player-sheet-scrim')) closeManualPlayerSheet(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#load-player-sheet-scrim').hidden) closeManualPlayerSheet(); });
+    $('#load-player-sheet-search').addEventListener('input', (e) => renderManualPlayerSheetContent(e.target.value));
+    $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer($('#load-player-sheet-search').value));
+    $('#load-player-sheet-remove').addEventListener('click', () => {
+      const slot = manualActiveSheetSlot;
+      if (!slot) return;
+      manualPlayers[slot] = null;
+      markManualLoadDirty();
+      renderManualPlayers();
+      renderManualScoreboard();
+      closeManualPlayerSheet();
+    });
+    $('#load-player-a2').addEventListener('click', () => openManualPlayerSheet('a2'));
+    $('#load-player-b1').addEventListener('click', () => openManualPlayerSheet('b1'));
+    $('#load-player-b2').addEventListener('click', () => openManualPlayerSheet('b2'));
+  }
+
+  /* ---- Marcador / resultado / teclado numérico (§8-§10) ---- */
+
+  function manualSetCellHTML(team, setIndex, committedValue) {
+    const isActive = manualActiveKeypadCell && manualActiveKeypadCell.setIndex === setIndex && manualActiveKeypadCell.team === team;
+    let display, isEmpty;
+    if (isActive && manualKeypadDigits) { display = manualKeypadDigits; isEmpty = false; }
+    else if (Number.isFinite(committedValue)) { display = String(committedValue); isEmpty = false; }
+    else { display = '–'; isEmpty = true; }
+    const cls = ['load-set-cell'];
+    if (isEmpty) cls.push('is-empty');
+    if (isActive) cls.push('is-active');
+    return `<button type="button" class="${cls.join(' ')}" data-team="${team}" data-set-index="${setIndex}" aria-label="Set ${setIndex + 1}, equipo ${team}">${display}</button>`;
+  }
+
+  function renderManualScoreboard() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const thirdVisible = ML.isThirdSetVisible(manualSets[0], manualSets[1], format);
+    const slots = format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
+
+    const rowA = [], rowB = [];
+    for (let i = 0; i < slots; i++) {
+      const s = manualSets[i];
+      rowA.push(manualSetCellHTML('A', i, s ? s.a : undefined));
+      rowB.push(manualSetCellHTML('B', i, s ? s.b : undefined));
+    }
+    $('#load-sets-a').innerHTML = rowA.join('');
+    $('#load-sets-b').innerHTML = rowB.join('');
+    $all('#load-sets-a .load-set-cell, #load-sets-b .load-set-cell').forEach((btn) => {
+      btn.addEventListener('click', () => openManualKeypad(Number(btn.dataset.setIndex), btn.dataset.team));
+    });
+
+    const bestOfLabel = format.bestOfSets === 1 ? '1 set' : `Mejor de ${format.bestOfSets}`;
+    const scoringLabel = MANUAL_SCORING_LINE_LABELS[manualSelectedScoring] || '';
+    $('#load-format-line-text').textContent = `${format.label} · ${bestOfLabel} · ${scoringLabel}`;
+
+    recomputeManualValidation();
+  }
+
+  /** §9: si Set 1 y Set 2 ya están completos y dejaron de sumar 1-1, cualquier valor que
+   *  hubiera quedado en el Set 3 pasó a ser huérfano — se limpia acá, en el único punto
+   *  donde se decide (al confirmar un dígito de Set 1/2), nunca en cada render. Mientras
+   *  cualquiera de los dos siga incompleto, no se toca nada — todavía no hay nada que decidir. */
+  function pruneOrphanThirdSet() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    if (format.bestOfSets === 1) { manualSets[2] = null; return; }
+    const set1 = manualSets[0], set2 = manualSets[1];
+    const bothComplete = set1 && set2 && Number.isFinite(set1.a) && Number.isFinite(set1.b) && Number.isFinite(set2.a) && Number.isFinite(set2.b);
+    if (!bothComplete) return;
+    if (manualSets[2] && !ML.isThirdSetVisible(set1, set2, format)) manualSets[2] = null;
+  }
+
+  function updateManualKeypadKeysState() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const max = Math.max(format.setWinTarget + 1, format.tiebreakTriggerAt + 1);
+    $all('#load-keypad [data-key]').forEach((btn) => {
+      const key = btn.dataset.key;
+      if (key === 'del' || key === 'next') { btn.disabled = false; return; }
+      btn.disabled = Number(key) > max;
+    });
+  }
+
+  function openManualKeypad(setIndex, team) {
+    if (manualActiveKeypadCell) commitManualKeypadDigits();
+    manualActiveKeypadCell = { setIndex, team };
+    manualKeypadDigits = '';
+    $('#load-keypad-label').textContent = `SET ${setIndex + 1} · EQUIPO ${team}`;
+    $('#load-keypad').hidden = false;
+    $('.load-match-scroll').classList.add('has-keypad');
+    updateManualKeypadKeysState();
+    renderManualScoreboard();
+    const rowSel = team === 'A' ? '#load-sets-a' : '#load-sets-b';
+    const activeBtn = $(`${rowSel} .load-set-cell.is-active`);
+    if (activeBtn && activeBtn.scrollIntoView) activeBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function closeManualKeypad() {
+    commitManualKeypadDigits();
+    manualActiveKeypadCell = null;
+    manualKeypadDigits = '';
+    $('#load-keypad').hidden = true;
+    $('.load-match-scroll').classList.remove('has-keypad');
+    renderManualScoreboard();
+  }
+
+  function commitManualKeypadDigits() {
+    if (!manualActiveKeypadCell || !manualKeypadDigits) return;
+    const { setIndex, team } = manualActiveKeypadCell;
+    const value = Number(manualKeypadDigits);
+    manualKeypadDigits = '';
+    if (!manualSets[setIndex]) manualSets[setIndex] = { a: undefined, b: undefined };
+    manualSets[setIndex][team === 'A' ? 'a' : 'b'] = value;
+    if (setIndex === 0 || setIndex === 1) pruneOrphanThirdSet();
+  }
+
+  /** §8: en un set normal, avanza a la celda contigua (A→B del mismo set, o al set
+   *  siguiente); cierra el teclado si no queda ninguna celda más. */
+  function advanceManualKeypadCell() {
+    const format = E.FORMATS[manualSelectedFormatId];
+    const { setIndex, team } = manualActiveKeypadCell;
+    if (team === 'A') { openManualKeypad(setIndex, 'B'); return; }
+    const thirdVisible = ML.isThirdSetVisible(manualSets[0], manualSets[1], format);
+    const totalSlots = format.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
+    if (setIndex + 1 < totalSlots) { openManualKeypad(setIndex + 1, 'A'); return; }
+    closeManualKeypad();
+  }
+
+  function pressManualKeypadKey(key) {
+    if (!manualActiveKeypadCell) return;
+    if (key === 'del') {
+      if (manualKeypadDigits) { manualKeypadDigits = manualKeypadDigits.slice(0, -1); }
+      else {
+        const { setIndex, team } = manualActiveKeypadCell;
+        if (manualSets[setIndex]) {
+          manualSets[setIndex][team === 'A' ? 'a' : 'b'] = undefined;
+          if (!Number.isFinite(manualSets[setIndex].a) && !Number.isFinite(manualSets[setIndex].b)) manualSets[setIndex] = null;
+        }
+      }
+      markManualLoadDirty();
+      renderManualScoreboard();
+      return;
+    }
+    if (key === 'next') {
+      commitManualKeypadDigits();
+      markManualLoadDirty();
+      advanceManualKeypadCell();
+      return;
+    }
+    const format = E.FORMATS[manualSelectedFormatId];
+    manualKeypadDigits += key;
+    markManualLoadDirty();
+    if (!ML.canExtendSetDigits(manualKeypadDigits, format)) {
+      commitManualKeypadDigits();
+      advanceManualKeypadCell();
+      return;
+    }
+    renderManualScoreboard();
+  }
+
+  function initManualKeypad() {
+    $all('#load-keypad [data-key]').forEach((btn) => {
+      btn.addEventListener('click', () => pressManualKeypadKey(btn.dataset.key));
+    });
+  }
+
+  function manualCurrentDraft() {
+    return ML.validateMatchDraft(manualPlayerNamesArray(), manualSets, manualSelectedFormatId, $('#manual-date-input').value);
+  }
+
+  function recomputeManualValidation() {
+    const draft = manualCurrentDraft();
+    $('#manual-save-btn').disabled = !draft.ok;
+    const errEl = $('#load-match-error');
+    if (draft.ok) { errEl.hidden = true; errEl.textContent = ''; return draft; }
+    const showInline = MANUAL_INLINE_REASONS.has(draft.reason) || manualSaveAttempted;
+    if (showInline) { errEl.hidden = false; errEl.textContent = MANUAL_ERROR_MESSAGES[draft.reason] || 'Revisá el resultado cargado.'; }
+    else { errEl.hidden = true; errEl.textContent = ''; }
+    return draft;
+  }
+
+  /* ---- Formato y sistema de puntuación (§11) ---- */
+
+  function applyManualFormatSelection(formatId) {
+    $all('#manual-format-options .option-pill').forEach((b) => {
+      const sel = b.dataset.value === formatId;
+      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
+    });
+  }
+  function applyManualScoringSelection(scoringId) {
+    $all('#manual-scoring-options .option-col').forEach((b) => {
+      const sel = b.dataset.value === scoringId;
+      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
+    });
+  }
+
+  function openManualFormatSheet() {
+    manualPendingFormatId = manualSelectedFormatId;
+    applyManualFormatSelection(manualPendingFormatId);
+    applyManualScoringSelection(manualSelectedScoring);
+    $('#load-format-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => $('#load-format-sheet-scrim').classList.add('is-open'));
+  }
+  function closeManualFormatSheet() {
+    const scrim = $('#load-format-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+  function closeManualFormatSheetInstant() {
+    $('#load-format-sheet-scrim').classList.remove('is-open');
+    $('#load-format-sheet-scrim').hidden = true;
+  }
+
+  function applyManualFormatChange(newFormatId, impact) {
+    manualSelectedFormatId = newFormatId;
+    manualSets = impact.keptSets;
+    if (manualActiveKeypadCell) closeManualKeypad();
+    markManualLoadDirty();
+    renderManualScoreboard();
+  }
+
+  function initManualFormatSheet() {
+    $('#load-format-line').addEventListener('click', openManualFormatSheet);
+    $('#load-format-sheet-close').addEventListener('click', closeManualFormatSheet);
+    $('#load-format-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#load-format-sheet-scrim')) closeManualFormatSheet(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#load-format-sheet-scrim').hidden) closeManualFormatSheet(); });
+    $all('#manual-format-options .option-pill').forEach((btn) => {
+      btn.addEventListener('click', () => { manualPendingFormatId = btn.dataset.value; applyManualFormatSelection(manualPendingFormatId); });
+    });
+    $all('#manual-scoring-options .option-col').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        // El sistema de puntuación nunca invalida un resultado ya cargado (no cambia la forma
+        // de los sets) — se aplica directo, sin necesidad de confirmar nada.
+        applyManualScoringSelection(btn.dataset.value);
+        manualSelectedScoring = btn.dataset.value;
+        markManualLoadDirty();
+        renderManualScoreboard();
+      });
+    });
+    $('#load-format-sheet-done').addEventListener('click', () => {
+      if (manualPendingFormatId === manualSelectedFormatId) { closeManualFormatSheet(); return; }
+      const impact = ML.computeFormatChangeImpact(manualSets, manualPendingFormatId);
+      if (impact.hasImpact) {
+        closeManualFormatSheetInstant();
+        confirmAction(
+          'El resultado cargado no coincide con el nuevo formato',
+          'Cambiar el formato va a borrar los sets que ya no correspondan.',
+          () => applyManualFormatChange(manualPendingFormatId, impact)
+        );
+      } else {
+        applyManualFormatChange(manualPendingFormatId, impact);
+        closeManualFormatSheet();
+      }
+    });
+  }
+
+  /* ---- Fecha, hora, lugar (§12) ---- */
 
   /** Geolocalización opcional — mismo criterio que Wake Lock (§1 V13.2): feature-detect,
    *  fallo/rechazo silencioso (solo consola), nunca bloquea Guardar ni muestra un error
-   *  técnico al usuario. Sin reverse-geocoding: no hay backend para eso ni se agrega uno
-   *  solo para V14 (§8) — se guardan coordenadas crudas, el nombre lo escribe el usuario. */
+   *  técnico al usuario. Sin reverse-geocoding: se guardan coordenadas crudas, el nombre lo
+   *  escribe el usuario. */
   async function requestManualLocation() {
     if (!('geolocation' in navigator)) { showToast('Geolocalización no disponible en este dispositivo.'); return; }
     $('#manual-location-status').hidden = false;
@@ -485,143 +794,149 @@
     }
   }
 
-  function initManualLoadScreen() {
-    $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
-    // Etapa 3 (Fase 2, §10) — Cancelar/volver ahora pasan por exitManualLoadScreen, que
-    // pregunta "¿Salir sin guardar?" solo si hubo interacción con el formulario; el destino
-    // (Setup tradicional vs. Home del jugador) sigue resolviéndose igual que antes (Etapa 2).
-    $('#manual-load-back-btn').addEventListener('click', exitManualLoadScreen);
-    $('#manual-cancel-btn').addEventListener('click', exitManualLoadScreen);
-    // §10 — cualquier interacción con el formulario cuenta como "datos ingresados".
-    $('#manual-load-form').addEventListener('input', markManualLoadDirty);
-    $('#manual-load-form').addEventListener('change', markManualLoadDirty);
-
-    $all('#manual-format-options .option-pill').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        $all('#manual-format-options .option-pill').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
-        btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
-        manualSelectedFormatId = btn.dataset.value;
-        markManualLoadDirty();
-        renderManualResultSection();
-      });
-    });
-    $all('#manual-scoring-options .option-col').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        $all('#manual-scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
-        btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true');
-        manualSelectedScoring = btn.dataset.value;
-        markManualLoadDirty();
-      });
-    });
-    $('#manual-set-1').addEventListener('change', updateManualThirdSetVisibility);
-    $('#manual-set-2').addEventListener('change', updateManualThirdSetVisibility);
+  function initManualDateTimeFields() {
+    $('#manual-date-input').addEventListener('input', () => { markManualLoadDirty(); recomputeManualValidation(); });
+    $('#manual-time-input').addEventListener('input', markManualLoadDirty);
     $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); });
+    $('#manual-place-input').addEventListener('input', markManualLoadDirty);
     $('#manual-location-btn').addEventListener('click', requestManualLocation);
-    $('#manual-load-form').addEventListener('submit', (e) => { e.preventDefault(); saveManualMatch(); });
   }
 
-  // Etapa 2 (Rama Jugador) — dónde volver al cancelar esta pantalla sin guardar
-  // (exitManualLoadScreen, más abajo). 'setup' = comportamiento de siempre (entrada
-  // tradicional desde "Configurar partido"). Hotfix v1.2.1 — "VOLVER AL INICIO" desde
-  // Resumen/Análisis ya NO depende de este origen: siempre abre el Home (ver
-  // initSummaryScreen/renderAnalysis más abajo), así que esta variable dejó de tener ese
-  // segundo uso.
-  let manualLoadOrigin = 'setup';
+  /* ---- Apertura / salida / guardado (§13-§16) ---- */
 
-  // Etapa 3 (Fase 2, §10) — "¿Salir sin guardar?": se marca dirty ante CUALQUIER interacción
-  // con el formulario (aunque el valor final termine igual al default) — a propósito, para
-  // nunca descartar en silencio algo que el usuario sí tocó; se resetea solo al abrir la
-  // pantalla de nuevo. Esta pantalla nunca genera "partido en curso" (Adenda §3/§4).
-  let manualLoadDirty = false;
   function markManualLoadDirty() { manualLoadDirty = true; }
 
+  /** §16: Volver cierra primero cualquier capa abierta (teclado, hoja de jugador, hoja de
+   *  formato) antes de intentar salir de toda la pantalla. Devuelve `true` si cerró algo. */
+  function closeAnyManualOverlay() {
+    if (!$('#load-keypad').hidden) { closeManualKeypad(); return true; }
+    if (!$('#load-player-sheet-scrim').hidden) { closeManualPlayerSheet(); return true; }
+    if (!$('#load-format-sheet-scrim').hidden) { closeManualFormatSheet(); return true; }
+    return false;
+  }
+
   function exitManualLoadScreen() {
+    if (closeAnyManualOverlay()) return;
     const goBack = () => { if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup'); };
     if (!manualLoadDirty) { goBack(); return; }
     confirmAction('¿Salir sin guardar?', 'Los datos que ingresaste todavía no se guardaron.', () => { manualLoadDirty = false; goBack(); });
   }
 
-  function openManualLoadScreen(origin) {
-    manualLoadOrigin = origin === 'player-home' ? 'player-home' : 'setup';
-    // Auditoría funcional (§3) — si se abre desde el Home del jugador sin nadie identificado
-    // todavía (no debería pasar en el uso normal, pero el "+" y "Cargar primer partido" son
-    // puntos de entrada independientes), pedimos "¿Quién sos?" primero y recién después
-    // retomamos esta misma pantalla — nunca se llega a guardar un partido con "Jugador 1".
-    if (manualLoadOrigin === 'player-home') {
-      currentPlayerName = Store.loadCurrentPlayerName();
-      if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen('player-home')); return; }
-    }
-    $('#manual-load-form').reset();
-    manualSelectedScoring = 'golden';
-    manualSelectedFormatId = 'classic';
-    manualCoords = null;
+  /** Abre la pantalla para cargar un partido nuevo (`editMatch` ausente) o para editar uno ya
+   *  guardado (`editMatch` = la entrada completa del Historial — §15). §6: TODA entrada a esta
+   *  pantalla requiere identidad — Jugador 1 del Equipo A siempre es `currentPlayerName`, fijo,
+   *  sin importar desde dónde se abrió (antes esto solo aplicaba entrando desde el Home; se
+   *  unifica acá porque la pantalla ya no tiene un campo de texto libre para "Jugador 1"). Si
+   *  falta identidad, se resuelve primero y se retoma el flujo sin perder contexto (§6). */
+  function openManualLoadScreen(origin, editMatch) {
+    manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
+    currentPlayerName = Store.loadCurrentPlayerName();
+    if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen(origin, editMatch)); return; }
+
+    manualEditingMatchId = editMatch ? editMatch.matchId : null;
+    manualEditingCreatedAt = editMatch ? editMatch.createdAt : null;
+    manualSelectedScoring = editMatch ? editMatch.scoringSystem : 'golden';
+    manualSelectedFormatId = editMatch ? editMatch.formatId : 'classic';
+    manualCoords = (editMatch && editMatch.location && Number.isFinite(editMatch.location.lat)) ? { lat: editMatch.location.lat, lng: editMatch.location.lng } : null;
     manualLoadDirty = false; // §10 — recién se marca dirty con interacción real del usuario
+    manualSaveAttempted = false;
+    manualActiveKeypadCell = null;
+    manualKeypadDigits = '';
+
+    if (editMatch) {
+      const teamPlayers = (team) => (editMatch.players || []).filter((p) => p && p.team === team);
+      const teamA = teamPlayers('A'), teamB = teamPlayers('B');
+      const partner = teamA.find((p) => p.name !== currentPlayerName) || teamA[1] || null;
+      manualPlayers = { a1: currentPlayerName, a2: partner ? partner.name : null, b1: teamB[0] ? teamB[0].name : null, b2: teamB[1] ? teamB[1].name : null };
+      manualSets = (editMatch.sets || []).map((s) => ({ a: s.gamesA, b: s.gamesB }));
+      while (manualSets.length < 3) manualSets.push(null);
+      manualSets = manualSets.slice(0, 3);
+    } else {
+      manualPlayers = { a1: currentPlayerName, a2: null, b1: null, b2: null };
+      manualSets = [null, null, null];
+    }
+
+    $('#manual-load-title').textContent = editMatch ? 'EDITAR PARTIDO' : 'CARGAR PARTIDO JUGADO';
+    $('#load-keypad').hidden = true;
+    $('.load-match-scroll').classList.remove('has-keypad');
     $('#manual-location-status').hidden = true;
-    $all('#manual-format-options .option-pill').forEach((b) => {
-      const sel = b.dataset.value === 'classic';
-      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
-    });
-    $all('#manual-scoring-options .option-col').forEach((b) => {
-      const sel = b.dataset.value === 'golden';
-      b.classList.toggle('is-selected', sel); b.setAttribute('aria-checked', sel ? 'true' : 'false');
-    });
-    renderManualResultSection();
-    // Fecha: hoy (obligatoria, editable). Hora: ahora (opcional, borrable — §8).
-    const now = new Date();
-    $('#manual-date-input').value = now.toISOString().slice(0, 10);
-    $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    // Auditoría funcional (§1/§4) — entrando desde el Home, Jugador 1 pasa a ser "Vos": de
-    // solo lectura, y el nombre real que se guarda es SIEMPRE currentPlayerName (nunca lo que
-    // este campo muestre, ver saveManualMatch/PH.resolvePlayerOneName). Entrando desde el
-    // flujo tradicional el campo sigue exactamente igual que siempre — texto libre editable.
-    const p1 = $('#manual-player-1');
-    if (manualLoadOrigin === 'player-home') { p1.value = 'Vos'; p1.readOnly = true; }
-    else { p1.readOnly = false; }
+
+    if (editMatch) {
+      // Formatea en la zona ORIGINAL del partido (no la del dispositivo actual) para no
+      // correr la fecha/hora al editar desde un huso distinto — mismo criterio que
+      // formatRealTime/formatRealDate, que ya usan el resto de la app para mostrar (no
+      // editar) esta misma fecha.
+      const zone = editMatch.timeZone || undefined;
+      const baseDateObj = new Date(editMatch.playedAt || editMatch.startedAt);
+      try {
+        $('#manual-date-input').value = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: zone }).format(baseDateObj);
+      } catch (e) { $('#manual-date-input').value = baseDateObj.toISOString().slice(0, 10); }
+      const timeKnown = editMatch.timeKnown !== false;
+      if (timeKnown) {
+        try { $('#manual-time-input').value = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(baseDateObj); }
+        catch (e) { $('#manual-time-input').value = baseDateObj.toISOString().slice(11, 16); }
+      } else {
+        $('#manual-time-input').value = '';
+      }
+      $('#manual-place-input').value = (editMatch.location && editMatch.location.name) || '';
+    } else {
+      const now = new Date();
+      $('#manual-date-input').value = now.toISOString().slice(0, 10);
+      $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      $('#manual-place-input').value = '';
+    }
+
+    renderManualPlayers();
+    renderManualScoreboard();
     showView('manual-load');
   }
 
-  function saveManualMatch() {
-    const nameOrDefault = (id, fallback) => { const v = normalizePlayerName($(`#${id}`).value); return v || fallback; };
+  function attemptSaveManualMatch() {
+    if (manualSaveInFlight) return;
+    manualSaveAttempted = true;
+    const draft = recomputeManualValidation();
+    if (!draft.ok) return;
+    manualSaveInFlight = true;
+    $('#manual-save-btn').disabled = true;
+    try { saveManualMatch(draft); }
+    finally { manualSaveInFlight = false; }
+  }
+
+  function saveManualMatch(draft) {
     const players = [
-      { id: 0, team: 'A', name: PH.resolvePlayerOneName(manualLoadOrigin, currentPlayerName, $('#manual-player-1').value, 'Jugador 1') },
-      { id: 1, team: 'A', name: nameOrDefault('manual-player-2', 'Jugador 2') },
-      { id: 2, team: 'B', name: nameOrDefault('manual-player-3', 'Jugador 3') },
-      { id: 3, team: 'B', name: nameOrDefault('manual-player-4', 'Jugador 4') },
+      { id: 0, team: 'A', name: manualPlayers.a1 },
+      { id: 1, team: 'A', name: manualPlayers.a2 },
+      { id: 2, team: 'B', name: manualPlayers.b1 },
+      { id: 3, team: 'B', name: manualPlayers.b2 },
     ];
-
-    const result = manualValidateAndCollectResult();
-    if (!result) { $('#manual-result-error').hidden = false; return; }
-    $('#manual-result-error').hidden = true;
-
     const dateVal = $('#manual-date-input').value;
-    if (!dateVal) { showToast('La fecha es obligatoria.'); return; }
     const timeVal = $('#manual-time-input').value; // '' si el usuario la borró — nunca se completa sola
     const timeKnown = !!timeVal;
     const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
     let timeZone = 'UTC';
     try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { /* offline-safe fallback */ }
-
     const placeName = $('#manual-place-input').value.trim();
     const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
 
     Store.rememberPlayerNames(players.map((p) => p.name));
-    finishMatchManual(players, result.sets, result.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location);
+    finishMatchManual(players, draft.sets, draft.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location, manualEditingMatchId, manualEditingCreatedAt);
   }
 
-  /** Equivalente de `finishMatch`/`finishMatchGames` para un partido CARGADO (no vivido acá):
-   *  nunca toca timer/Wake Lock/Store.clearActiveMatch (no hay partido activo real), y usa
-   *  los generadores de stats/Intelligence de §10-13 (solo hechos derivables del resultado
-   *  final por set), pero produce un `finishedSnapshot` con la MISMA forma general que
-   *  Completo/Por Games — mismo Resumen/Análisis/Historial. */
-  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location) {
+  /** Crea o ACTUALIZA (si `editingMatchId` viene informado — §15) un partido cargado. Nunca
+   *  toca timer/Wake Lock/Store.clearActiveMatch (no hay partido activo real involucrado), y
+   *  usa los generadores de stats/Intelligence dedicados a carga manual (solo hechos
+   *  derivables del resultado final por set). `Store.upsertHistory` ya dedupe por matchId, así
+   *  que reusar el mismo id en una edición actualiza el registro existente sin duplicarlo. */
+  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location, editingMatchId, editingCreatedAt) {
     const format = E.FORMATS[formatId];
     const matchCtx = { players, format };
     const stats = S.computeManualStats(sets, matchCtx);
     const intelligence = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
 
     finishedSnapshot = {
-      matchId: makeMatchId(),
-      createdAt: new Date().toISOString(),
+      matchId: editingMatchId || makeMatchId(),
+      // §15: una edición conserva el `createdAt` original — solo un alta nueva usa "ahora".
+      createdAt: editingCreatedAt || new Date().toISOString(),
       // Etapa 3 (Fase 1, §5.1) — playedAt es la fecha/hora que el usuario eligió a mano en
       // el formulario (startedAtDate), no el momento en que se toca "Guardar". Nunca se
       // repite esta lógica en otro lugar: PH.getPlayedAt() es la única fuente de verdad
@@ -639,14 +954,14 @@
       sets,
       currentPartial: null,
       winnerTeam,
-      terminationType: 'automatic', // §16: nunca 'manual' — ese valor ya significa "cortado antes de tiempo desde ☰", algo ortogonal a un partido cargado con resultado ya conocido
+      terminationType: 'automatic', // nunca 'manual' — ese valor significa "cortado antes de tiempo desde ☰", ortogonal a un partido cargado con resultado ya conocido
       terminationReason: null,
       terminationReasonLabel: null,
       regulationCompleted: true,
       durationMs: 0, // nunca se muestra: buildScoreCardHTML/renderHistory lo gatean por mode==='manual'
       stats,
       perSetStats: [],
-      evolution: null, // Evolución se OCULTA por completo para partidos manuales (§15) — no hay eventos game a game que graficar
+      evolution: null, // Evolución se OCULTA por completo para partidos manuales — no hay eventos game a game que graficar
       intelligence,
       highlights: [],
       events: [],
@@ -656,8 +971,21 @@
     };
 
     Store.upsertHistory(finishedSnapshot);
+    manualLoadDirty = false;
+    manualEditingMatchId = null;
+    manualEditingCreatedAt = null;
     renderSummary();
     $('#view-summary').hidden = false;
+  }
+
+  function initManualLoadScreen() {
+    $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
+    $('#manual-load-back-btn').addEventListener('click', exitManualLoadScreen);
+    $('#manual-save-btn').addEventListener('click', attemptSaveManualMatch);
+    initManualDateTimeFields();
+    initManualPlayerSheet();
+    initManualFormatSheet();
+    initManualKeypad();
   }
 
   /* ------------------------------------------------------------------ */
@@ -3484,6 +3812,16 @@
     $('#summary-resume-btn').hidden = !isLiveMatch || f.terminationType !== 'manual';
     $('#summary-back-btn').hidden = isLiveMatch;
     $('#summary-new-btn').hidden = !isLiveMatch;
+
+    // Etapa 3 (Fase 3, §14) — un partido CARGADO manualmente no abre Análisis desde acá (solo
+    // repetiría, más pobre, lo que ya muestra esta misma tarjeta): en su lugar, una devolución
+    // breve de BRAMU Intelligence (la de stats.js YA es corta/factual por diseño, se reutiliza
+    // tal cual) y el acceso directo a "Editar partido" — nunca los dos botones a la vez.
+    const isManual = f.mode === 'manual';
+    $('#summary-analysis-btn').hidden = isManual;
+    $('#summary-edit-btn').hidden = !isManual;
+    $('#summary-manual-intelligence').hidden = !isManual;
+    if (isManual) $('#summary-manual-intelligence').textContent = f.intelligence;
   }
 
   function initSummaryScreen() {
@@ -3519,6 +3857,14 @@
     $('#summary-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
     $('#summary-resume-btn').addEventListener('click', resumeMatch);
     $('#summary-back-btn').addEventListener('click', () => { renderAnalysis(analysisCurrent); showView('analysis'); });
+    // Etapa 3 (Fase 3, §15) — "Editar partido" reabre la MISMA pantalla de carga, con todos
+    // los datos precargados (mismo criterio de fuente que "Ver análisis"/"Compartir" un poco
+    // más arriba: finishedSnapshot si este Resumen es el del partido recién guardado, o el
+    // snapshot que ya se estaba viendo si se llegó acá desde Análisis/Historial).
+    $('#summary-edit-btn').addEventListener('click', () => {
+      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
+      openManualLoadScreen('player-home', f);
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -3543,6 +3889,11 @@
     $('#analysis-full-timeline-btn').hidden = f.mode === 'manual';
     $('#analysis-full-timeline-btn').onclick = () => { if (f.mode === 'games') renderGamesFullTimeline(f); else renderFullTimeline(f); showView('timeline'); };
     $('#analysis-share-btn').onclick = () => shareResult(f, 'analisis');
+    // Etapa 3 (Fase 3, §15) — segundo acceso a "Editar partido": desde el detalle del partido
+    // (acá, Análisis — es el mismo destino al que ya lleva "VER DETALLE" del Último Partido
+    // para cualquier modo). Solo para partidos cargados manualmente.
+    $('#analysis-edit-btn').hidden = f.mode !== 'manual';
+    $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
     // partido recién terminado como desde el Historial de un partido viejo, y en ese segundo

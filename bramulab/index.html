@@ -595,9 +595,15 @@
       <div class="summary-card__meta" id="summary-meta"></div>
       <div class="summary-card__reason" id="summary-reason" hidden></div>
       <div id="summary-result-slot"></div>
+      <!-- Etapa 3 (Fase 3, §14) — devolución breve y factual de BRAMU Intelligence, SOLO para
+           un partido cargado manualmente: reutiliza f.intelligence tal cual (ya es corto y
+           factual por diseño, ver generateManualIntelligence en stats.js) — nunca se abre
+           Análisis para repetir esto mismo. -->
+      <p id="summary-manual-intelligence" class="intelligence-text" hidden></p>
       <div id="summary-legal"></div>
       <div class="summary-actions">
         <button id="summary-analysis-btn" class="btn-secondary" type="button">VER ANÁLISIS</button>
+        <button id="summary-edit-btn" class="btn-secondary" type="button" hidden>EDITAR PARTIDO</button>
         <button id="summary-share-btn" class="btn-secondary" type="button">COMPARTIR</button>
         <button id="summary-new-btn" class="btn-start" type="button">VOLVER AL INICIO</button>
       </div>
@@ -652,6 +658,7 @@
       </section>
       <section class="analysis-section" id="analysis-share-section">
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
+        <button id="analysis-edit-btn" class="btn-secondary" type="button" style="width:100%" hidden>EDITAR PARTIDO</button>
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
@@ -691,97 +698,144 @@
        Reutiliza el lenguaje visual del setup (team-block/option-pill/option-col) tal cual;
        "Resultado" y "Detalles del partido" son las únicas secciones nuevas.
        ============================================================ -->
-  <section id="view-manual-load" class="view view--history" hidden>
+  <section id="view-manual-load" class="view view--history view--load-match" hidden>
     <div class="analysis-header">
       <button id="manual-load-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title">CARGAR PARTIDO JUGADO</span>
+      <span class="analysis-header__title" id="manual-load-title">CARGAR PARTIDO JUGADO</span>
     </div>
-    <div class="analysis-scroll">
-      <form id="manual-load-form" class="setup-form" autocomplete="off">
+    <div class="analysis-scroll load-match-scroll">
 
-        <div class="team-block team-block--a">
-          <div class="team-block__label"><span class="team-dot team-dot--a"></span> Equipo A</div>
-          <div class="field"><input id="manual-player-1" class="field__input" list="known-players" type="text" placeholder="Jugador 1" maxlength="18" /></div>
-          <div class="field"><input id="manual-player-2" class="field__input" list="known-players" type="text" placeholder="Jugador 2" maxlength="18" /></div>
-        </div>
-
-        <div class="vs-divider" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
-
-        <div class="team-block team-block--b">
-          <div class="team-block__label"><span class="team-dot team-dot--b"></span> Equipo B</div>
-          <div class="field"><input id="manual-player-3" class="field__input" list="known-players" type="text" placeholder="Jugador 3" maxlength="18" /></div>
-          <div class="field"><input id="manual-player-4" class="field__input" list="known-players" type="text" placeholder="Jugador 4" maxlength="18" /></div>
-        </div>
-
-        <div class="setup-section">
-          <div class="setup-section__title">Formato de partido</div>
-          <div id="manual-format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
-            <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
-              <span class="option-pill__title">Clásico</span>
-              <span class="option-pill__hint">Al mejor de 3 sets</span>
+      <div class="load-scoreboard" role="group" aria-label="Marcador">
+        <div class="load-scoreboard__row load-scoreboard__row--a">
+          <div class="load-scoreboard__players">
+            <button type="button" class="load-player-chip load-player-chip--fixed" id="load-player-a1" aria-label="Jugador 1 del Equipo A (vos)" disabled>
+              <span class="load-player-chip__name" id="load-player-a1-name">—</span>
             </button>
-            <button type="button" class="option-pill" data-value="americano" role="radio" aria-checked="false">
-              <span class="option-pill__title">Americano</span>
-              <span class="option-pill__hint">1 set · Tie break en 5–5</span>
+            <button type="button" class="load-player-chip" id="load-player-a2" data-slot="a2" aria-label="Elegir compañero">
+              <span class="load-player-chip__name">+ Compañero</span>
             </button>
           </div>
+          <div class="load-scoreboard__sets" id="load-sets-a"></div>
         </div>
-
-        <div class="setup-section">
-          <div class="setup-section__title">Sistema de puntuación</div>
-          <div id="manual-scoring-options" class="option-row" role="radiogroup" aria-label="Sistema de puntuación">
-            <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
-            <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
-            <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
+        <div class="load-scoreboard__divider" aria-hidden="true"></div>
+        <div class="load-scoreboard__row load-scoreboard__row--b">
+          <div class="load-scoreboard__players">
+            <button type="button" class="load-player-chip" id="load-player-b1" data-slot="b1" aria-label="Elegir rival 1">
+              <span class="load-player-chip__name">+ Rival 1</span>
+            </button>
+            <button type="button" class="load-player-chip" id="load-player-b2" data-slot="b2" aria-label="Elegir rival 2">
+              <span class="load-player-chip__name">+ Rival 2</span>
+            </button>
           </div>
+          <div class="load-scoreboard__sets" id="load-sets-b"></div>
         </div>
+      </div>
+      <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
 
-        <div class="setup-section">
-          <div class="setup-section__title">Resultado</div>
-          <p class="setup-hint">Primer número: Equipo A · Segundo: Equipo B</p>
-          <div class="manual-set-row" id="manual-set-row-1">
-            <span class="manual-set-row__label">SET 1</span>
-            <select id="manual-set-1" class="edit-select"></select>
-          </div>
-          <div class="manual-set-row" id="manual-set-row-2">
-            <span class="manual-set-row__label">SET 2</span>
-            <select id="manual-set-2" class="edit-select"></select>
-          </div>
-          <div class="manual-set-row" id="manual-set-row-3" hidden>
-            <span class="manual-set-row__label">SET 3</span>
-            <select id="manual-set-3" class="edit-select"></select>
-          </div>
-          <p class="coverage-note" id="manual-result-error" hidden>Ese resultado no corresponde a un partido válido.</p>
-        </div>
+      <button type="button" id="load-format-line" class="load-format-line">
+        <span id="load-format-line-text">Clásico · Mejor de 3 · Punto de Oro</span>
+        <span class="load-format-line__chevron" aria-hidden="true">›</span>
+      </button>
 
-        <div class="setup-section">
-          <div class="setup-section__title">Detalles del partido</div>
-          <div class="manual-datetime-row">
-            <div class="field">
-              <label class="manual-field-label" for="manual-date-input">Fecha</label>
-              <input id="manual-date-input" class="field__input" type="date" required />
-            </div>
-            <div class="field">
-              <label class="manual-field-label" for="manual-time-input">Hora</label>
-              <input id="manual-time-input" class="field__input" type="time" />
-              <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
-            </div>
+      <div class="setup-section load-datetime-section">
+        <div class="manual-datetime-row">
+          <div class="field">
+            <label class="manual-field-label" for="manual-date-input">Fecha</label>
+            <input id="manual-date-input" class="field__input" type="date" required />
           </div>
           <div class="field">
-            <label class="manual-field-label" for="manual-place-input">Lugar</label>
-            <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
+            <label class="manual-field-label" for="manual-time-input">Hora</label>
+            <input id="manual-time-input" class="field__input" type="time" />
+            <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
           </div>
-          <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
-          <p class="coverage-note" id="manual-location-status" hidden></p>
         </div>
+        <div class="field">
+          <label class="manual-field-label" for="manual-place-input">Lugar</label>
+          <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
+        </div>
+        <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
+        <p class="coverage-note" id="manual-location-status" hidden></p>
+      </div>
 
-        <div class="setup-section">
-          <button type="submit" id="manual-save-btn" class="btn-start">GUARDAR PARTIDO</button>
-          <button type="button" id="manual-cancel-btn" class="link-btn manual-cancel-link">Cancelar</button>
-        </div>
-      </form>
+      <div class="setup-section load-save-section">
+        <button type="button" id="manual-save-btn" class="btn-start" disabled>GUARDAR PARTIDO</button>
+      </div>
+    </div>
+
+    <!-- §8 — teclado numérico propio del resultado: panel fijo, NO modal (el marcador sigue
+         visible arriba mientras está abierto). Volver (header) lo cierra primero antes de
+         intentar salir de toda la pantalla — ver exitManualLoadScreen(). -->
+    <div id="load-keypad" class="load-keypad" hidden>
+      <div class="load-keypad__label" id="load-keypad-label"></div>
+      <div class="load-keypad__grid">
+        <button type="button" class="load-keypad__key" data-key="1">1</button>
+        <button type="button" class="load-keypad__key" data-key="2">2</button>
+        <button type="button" class="load-keypad__key" data-key="3">3</button>
+        <button type="button" class="load-keypad__key" data-key="4">4</button>
+        <button type="button" class="load-keypad__key" data-key="5">5</button>
+        <button type="button" class="load-keypad__key" data-key="6">6</button>
+        <button type="button" class="load-keypad__key" data-key="7">7</button>
+        <button type="button" class="load-keypad__key" data-key="8">8</button>
+        <button type="button" class="load-keypad__key" data-key="9">9</button>
+        <button type="button" class="load-keypad__key load-keypad__key--action" data-key="del">Borrar</button>
+        <button type="button" class="load-keypad__key" data-key="0">0</button>
+        <button type="button" class="load-keypad__key load-keypad__key--action" data-key="next">Siguiente</button>
+      </div>
     </div>
   </section>
+
+  <!-- Etapa 3 (Fase 3, §7) — hoja "elegir jugador": recientes + búsqueda + alta sin cuenta.
+       Referencia funcional: selector de destinatario de Mercado Pago (recientes + búsqueda +
+       alta simple), sin copiar su estética. -->
+  <div id="load-player-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="load-player-sheet" class="bottom-sheet load-player-sheet" role="dialog" aria-modal="true" aria-label="Elegir jugador">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title" id="load-player-sheet-title">ELEGIR JUGADOR</span>
+        <button type="button" id="load-player-sheet-close" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="load-player-sheet__recents" id="load-player-sheet-recents" hidden></div>
+      <div class="field"><input id="load-player-sheet-search" class="field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" /></div>
+      <div class="load-player-sheet__list" id="load-player-sheet-list"></div>
+      <button type="button" id="load-player-sheet-add" class="sheet-option sheet-option--primary" hidden></button>
+      <button type="button" id="load-player-sheet-remove" class="link-btn" hidden>Quitar jugador</button>
+    </div>
+  </div>
+
+  <!-- Etapa 3 (Fase 3, §11) — hoja "formato y sistema": reutiliza las MISMAS opciones/lógica
+       de formato (Clásico/Americano) y sistema de puntuación (Star Point/Punto de Oro/Con
+       Ventaja) que ya usa Configurar partido — nunca un segundo motor de reglas. -->
+  <div id="load-format-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="load-format-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Formato y sistema de puntuación">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">FORMATO Y PUNTUACIÓN</span>
+        <button type="button" id="load-format-sheet-close" class="bottom-sheet__close" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="setup-section">
+        <div class="setup-section__title">Formato de partido</div>
+        <div id="manual-format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
+          <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
+            <span class="option-pill__title">Clásico</span>
+            <span class="option-pill__hint">Al mejor de 3 sets</span>
+          </button>
+          <button type="button" class="option-pill" data-value="americano" role="radio" aria-checked="false">
+            <span class="option-pill__title">Americano</span>
+            <span class="option-pill__hint">1 set · Tie break en 5–5</span>
+          </button>
+        </div>
+      </div>
+      <div class="setup-section">
+        <div class="setup-section__title">Sistema de puntuación</div>
+        <div id="manual-scoring-options" class="option-row" role="radiogroup" aria-label="Sistema de puntuación">
+          <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
+          <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
+          <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
+        </div>
+      </div>
+      <button type="button" id="load-format-sheet-done" class="btn-start">LISTO</button>
+    </div>
+  </div>
 
   <!-- ============================================================
        VISTA · HOME DEL JUGADOR — RAMA JUGADOR (Etapa 2)
@@ -1114,6 +1168,7 @@
   <script src="stats.js"></script>
   <script src="store.js"></script>
   <script src="player-home.js"></script>
+  <script src="match-load.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

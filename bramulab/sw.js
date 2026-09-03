@@ -16,7 +16,7 @@
 // cachés de la propia familia ('bramulab-vN'), nunca las del marcador congelado
 // ('bramulab-partidos-...') — OJO: el prefijo no puede ser el genérico 'bramulab-', porque
 // 'bramulab-partidos-v14' también empieza con esas letras y terminaría borrado por error.
-const CACHE_NAME = 'bramulab-v1.2.1';
+const CACHE_NAME = 'bramulab-v1.3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -25,6 +25,7 @@ const CORE_ASSETS = [
   './stats.js',
   './store.js',
   './player-home.js',
+  './match-load.js',
   './app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',

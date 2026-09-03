@@ -187,20 +187,16 @@ input, select{ font-family: inherit; }
 }
 .load-played-btn{ display:block; margin: 10px auto 0; text-align:center; }
 
-/* V14 (§3-4) — CARGAR PARTIDO JUGADO: layout de "Resultado" (un <select> reglamentario por
-   set, el MISMO componente que ya usa el editor de Por Games para agregar un set histórico
-   — nunca texto libre) y "Detalles del partido" (fecha/hora/lugar). Reutiliza
-   .setup-section/.field/.edit-select/.btn-mini/.coverage-note ya existentes — acá solo se
-   agregan los wrappers de layout que no existían todavía. */
-.manual-set-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
-.manual-set-row__label{ font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); flex: none; width: 52px; }
-.manual-set-row .edit-select{ flex: 1; }
+/* Etapa 3 (Fase 3) — CARGAR PARTIDO JUGADO: layout de "Detalles del partido" (fecha/hora/
+   lugar). Reutiliza .setup-section/.field/.btn-mini/.coverage-note ya existentes — acá solo
+   se agregan los wrappers de layout que no existían todavía. El resultado en sí (antes un
+   <select> por set) ahora vive en el marcador nuevo — ver .load-scoreboard/.load-set-cell
+   más abajo. */
 .manual-field-label{ display:block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
 .manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
 .manual-datetime-row .field{ flex: 1; min-width: 130px; }
 .manual-time-clear{ display:block; margin-top: 4px; font-size: 11px; }
 .manual-location-btn{ margin-top: 10px; }
-.manual-cancel-link{ display:block; margin: 10px auto 0; text-align:center; }
 
 /* ==========================================================================
    PARTIDO — encabezado + scoreboard
@@ -1219,3 +1215,99 @@ input, select{ font-family: inherit; }
 /* Botón destructivo — variante mínima de .btn-secondary, reservada para la confirmación de
    descarte (§9): el rojo se usa únicamente acá. */
 .btn-secondary--danger{ background: rgba(255,91,84,0.10); border-color: rgba(255,91,84,0.45); color: var(--danger); }
+
+/* ==========================================================================
+   Etapa 3 (Fase 3) — CARGAR PARTIDO JUGADO: rediseño funcional.
+   Clases nuevas, reutilizables y con roles semánticos (§5 del consolidado) —
+   ninguna paleta nueva: mismos tokens (--team-a/--team-b/--gold/--line/--ink-*)
+   que ya usa el resto de la app. Preparadas para el futuro rediseño visual,
+   sin aplicarlo todavía (Oswald/Manrope, sin Arena/Túnel + Cancha nocturna).
+   ========================================================================== */
+
+/* ---- Marcador (§5, §6) ---- */
+.load-match-scroll{ padding-bottom: 24px; transition: padding-bottom var(--sheet-duration-enter, 260ms) var(--sheet-ease, ease); }
+.load-match-scroll.has-keypad{ padding-bottom: 232px; }
+
+.load-scoreboard{
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
+  padding: 14px 14px 16px; margin-bottom: 10px;
+}
+.load-scoreboard__row{ display:flex; align-items:center; gap: 10px; padding: 6px 0; }
+.load-scoreboard__divider{ height:1px; background: var(--line); margin: 6px 0; }
+.load-scoreboard__players{ display:flex; flex-direction:column; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.load-scoreboard__sets{ display:flex; gap: 6px; flex: none; }
+
+.load-player-chip{
+  display:block; width:100%; text-align:left; background: rgba(244,247,242,0.06);
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  font-family: var(--font-body); font-weight: 700; font-size: 13px; color: var(--paper);
+  cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.load-scoreboard__row--a .load-player-chip{ border-left: 3px solid var(--team-a); }
+.load-scoreboard__row--b .load-player-chip{ border-left: 3px solid var(--team-b); }
+.load-player-chip:active{ transform: scale(0.98); }
+.load-player-chip--fixed{
+  background: rgba(200,255,61,0.08); color: var(--team-a); cursor: default;
+}
+.load-player-chip--fixed:active{ transform:none; }
+.load-player-chip.is-empty .load-player-chip__name{ color: var(--paper-dim); font-weight: 600; }
+
+.load-set-cell{
+  min-width: 40px; min-height: 40px; display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-display); font-size: 19px; color: var(--paper);
+  background: rgba(244,247,242,0.08); border: 2px solid transparent; border-radius: 9px; cursor:pointer;
+}
+.load-set-cell.is-empty{ color: var(--paper-dim); opacity: 0.6; }
+.load-set-cell.is-active{ border-color: var(--gold); background: rgba(255,201,61,0.12); color: var(--gold); }
+
+.load-match-error{ color: var(--danger); }
+
+/* ---- Línea compacta de formato/sistema (§11) ---- */
+.load-format-line{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin: 4px 0 14px; font-family: var(--font-body); font-weight:700;
+  font-size: 13px; color: var(--paper); cursor:pointer;
+}
+.load-format-line__chevron{ color: var(--paper-dim); font-size: 16px; }
+
+/* ---- Teclado numérico propio (§8) ----
+   Panel FIJO, no modal: el marcador sigue visible/scrolleable arriba mientras está abierto
+   (se compensa con .load-match-scroll.has-keypad más arriba). z-index 32: por debajo de
+   .sheet-scrim (36) — nunca coexisten, pero si algo los superpusiera, la hoja debe ganar. */
+.load-keypad{
+  position: fixed; left:0; right:0; bottom:0; z-index: 32;
+  background: var(--ink-softer); border-top: 1px solid var(--line);
+  padding: 10px 14px calc(12px + var(--safe-bottom));
+  transform: translateY(0); transition: transform var(--sheet-duration-enter) var(--sheet-ease);
+}
+.load-keypad__label{ font-size: 11px; letter-spacing:0.06em; color: var(--paper-dim); text-transform:uppercase; text-align:center; margin-bottom: 8px; font-weight:700; }
+.load-keypad__grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.load-keypad__key{
+  padding: 14px 0; border-radius: 10px; border: 1px solid var(--line); background: rgba(244,247,242,0.06);
+  color: var(--paper); font-family: var(--font-display); font-size: 18px; cursor:pointer;
+}
+.load-keypad__key:active{ transform: scale(0.96); }
+.load-keypad__key:disabled{ opacity: 0.3; cursor:not-allowed; }
+.load-keypad__key--action{ font-family: var(--font-body); font-size: 12px; font-weight:800; letter-spacing:0.03em; background: rgba(244,247,242,0.04); color: var(--paper-dim); }
+@media (prefers-reduced-motion: reduce){ .load-keypad{ transition: none; } }
+
+/* ---- Hoja "elegir jugador" (§7) ---- */
+.load-player-sheet__recents{ display:flex; gap: 8px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.load-player-sheet__recent{
+  flex: none; display:flex; flex-direction:column; align-items:center; gap:4px; width: 60px;
+  background:none; border:none; color: var(--paper); cursor:pointer;
+}
+.load-player-sheet__recent-avatar{
+  width: 40px; height:40px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:15px; color: var(--paper-dim);
+}
+.load-player-sheet__recent-name{ font-size: 10px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 60px; }
+.load-player-sheet__list{ max-height: 34vh; overflow-y:auto; margin: 10px 0; }
+.load-player-sheet__item{
+  display:block; width:100%; text-align:left; background:none; border:none; border-top: 1px solid var(--line);
+  padding: 12px 4px; font-family: var(--font-body); font-weight:700; font-size: 14px; color: var(--paper); cursor:pointer;
+}
+.load-player-sheet__item:first-child{ border-top:none; }
+.load-player-sheet__item:active{ background: rgba(244,247,242,0.05); }
+.load-player-sheet__empty{ padding: 10px 4px; font-size: 12px; color: var(--paper-dim); }

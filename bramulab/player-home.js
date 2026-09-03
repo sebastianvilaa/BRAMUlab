@@ -13,19 +13,6 @@
   const Store = global.PLStore;
   const Engine = global.PLEngine;
 
-  /** Auditoría funcional (BRAMU_Rama_Jugador_Auditoria_Funcional.md, §8) — resuelve el nombre
-   *  que se guarda para Jugador 1 al cargar un partido, según desde dónde se abrió la pantalla:
-   *  - `origin === 'player-home'` (el "+"/"Cargar primer partido" del Home del jugador): SIEMPRE
-   *    `currentPlayerName`, sin importar qué haya en el campo de texto — ahí es de solo lectura
-   *    y muestra "Vos", nunca el nombre real, así que su valor nunca debe leerse para esto.
-   *  - cualquier otro origen (flujo tradicional desde `view-setup`): comportamiento de siempre,
-   *    texto libre normalizado con el mismo fallback genérico que Jugador 2/3/4. */
-  function resolvePlayerOneName(origin, currentPlayerName, fieldValue, fallback) {
-    if (origin === 'player-home') return currentPlayerName;
-    const normalized = Store.normalizePlayerName(fieldValue);
-    return normalized || fallback;
-  }
-
   /** Partido en el que aparece `playerName` (nombre ya normalizado o no — se normaliza acá). */
   function getPlayerTeam(m, playerName) {
     const target = Store.normalizePlayerName(playerName);
@@ -277,7 +264,6 @@
   }
 
   global.PLPlayerHome = {
-    resolvePlayerOneName,
     getPlayedAt, comparePlayedAtDesc,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
