@@ -101,7 +101,7 @@ Las diez se revisaron como conjunto: ninguna quedó con lenguaje verde-negro/dor
 - Commit de implementación: `91a79f8` — *"BRAMUlab V02 · sistema visual integral"*.
 - Tag: `v3.0`.
 - Push a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages.
-- Verificación post-deploy contra `https://sebastianvilaa.github.io/BRAMUlab/bramulab/`: [completar tras confirmar propagación — ver mensaje de cierre].
+- Verificación post-deploy contra `https://sebastianvilaa.github.io/BRAMUlab/bramulab/`: confirmado GitHub Actions "pages build and deployment" verde. Un cliente con el bundle viejo (`v2.2.1`, service worker de producción ya registrado de antes) mostró correctamente el modal "Hay una nueva versión de BRAMU / BRAMUlab V02 está disponible.", y tocar ACTUALIZAR recargó con el sistema visual nuevo aplicado (footer pasó a "BRAMUlab V02", fondo/paleta actualizados) — el flujo de actualización PWA funciona de punta a punta en producción real, cerrando la limitación de sandbox de §8.
 
 ---
 
