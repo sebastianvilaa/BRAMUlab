@@ -88,8 +88,8 @@ Ejecutada en vivo contra `.claude/dev-server.py` (`http://localhost:4173`), view
 ## 7. Hash exacto y tag (registro final)
 
 - Commit de implementación (código): `86e9a945a820b3ca4a2ac662eb6aa926a3853186`.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: ver el commit inmediatamente posterior a este archivo en el historial de `main`.
-- Tag `BRAMUlab_V02.4` apunta al commit que deja registrados ambos hashes (un commit no puede citar su propio hash) — el código funcional completo de V02.4 es íntegramente el de `86e9a94`; ese commit posterior no modifica ningún archivo de `bramulab/`.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `464ae8d7e8f45d0d01e1cc7fbf74e359698f7320`.
+- Tag `BRAMUlab_V02.4` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba (un commit no puede citar su propio hash) — el código funcional completo de V02.4 es íntegramente el de `86e9a94`; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
 
