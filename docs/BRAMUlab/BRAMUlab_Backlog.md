@@ -31,7 +31,7 @@ Hoy el jugador actual es un nombre de texto libre, tratado como preferencia livi
 - "Cambiar jugador" (ya renombrado a **"Cerrar sesión"** en la corrección funcional de la Etapa 2, ver [`Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md`](Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md) §1.1) debería separarse conceptualmente de "elegir quién sos la primera vez" — hoy ambos casos reutilizan el mismo modal "¿Quién sos?", razonable en la beta pero no con cuentas reales.
 - A más largo plazo, evaluar si vale la pena normalizar diacríticos en `Store.normalizePlayerName` como red de seguridad adicional — de valor menor una vez exista identidad real, porque deja de depender de que alguien retipee el nombre igual cada vez.
 
-Esta nota está ligada al pivote de comunidad/cuentas de más largo plazo (ranking, ver §3).
+Esta nota está ligada al pivote de comunidad/cuentas de más largo plazo (ranking, ver §3). Cuando exista identidad real, además queda pendiente: separar el **nombre visible** de un futuro `@username` único (no fabricar un usuario falso mientras tanto), y un **QR** para asociar retroactivamente a un invitado que ya jugó varios partidos "sin cuenta" cuando finalmente se crea una cuenta real — la Tarjeta de jugador debe poder incorporar ambos sin rehacerse (idea original en el consolidado maestro de Rama Jugador Etapa 3, §11).
 
 ---
 
@@ -54,13 +54,36 @@ No viene de un documento de backlog específico — es la dirección de más lar
 
 ---
 
-## 5. Otros ítems fuera de alcance repetidos en cada consolidado de BRAMUlab_V01 y BRAMUlab_V02
+## 5. Ideas estacionadas — sin autorización ni fecha, no descartadas
 
-Listados de forma consistente como "no implementar todavía" en múltiples rondas — no son un plan, solo lo que queda explícitamente afuera hasta nuevo aviso:
+"Futuro" acá significa repositorio de ideas, no ideas descartadas — cita textual de la fuente original. Reunidas de los tres documentos donde Sebastián y ChatGPT las fueron dejando (el consolidado maestro de Rama Jugador Etapa 3 §11, su Adenda §9, y el documento de contexto de Etapa 1 §6) más lo repetido en cada consolidado de BRAMUlab_V01/V02 como "no implementar todavía":
 
-- Base de datos y autenticación real.
-- Usuarios, amigos y grupos.
-- Nivel/ranking competitivo real (más allá de la simulación actual).
-- Rediseño estructural definitivo del marcador en vivo.
+- Base de datos, autenticación y cuentas reales.
+- Usuarios, amigos, jugadores recientes y perfiles públicos.
+- Grupos privados y rankings por grupo/zona/país (no solo un ranking global único).
+- Nivel/ranking competitivo real (más allá de la simulación actual) — ver también §6 sobre una divergencia de criterio a tener en cuenta.
+- Rankings con premios (necesitan una capa adicional de validación por club/torneo/organizador — ver §1).
+- Validación de resultados entre usuarios (modelo completo en §1).
+- **Notificaciones reales** — hoy la campana del header es solo un ícono sin función; estados futuros podrían usar un punto lima pequeño como aviso.
+- **Integración definitiva entre todos los modos de registro** (Completo / Por Games / cargado a mano) — hoy conviven pero no está resuelto un modelo único que los una del todo.
+- **Partido Libre y resultados/formatos excepcionales** (partidos interrumpidos, amistosos con formato arbitrario).
+- **Monetización** — el ángulo más concreto conversado es ofrecer la app a organizadores de torneos para registrar una final y entregar un informe pulido (ver también §3).
+- Personalización y reordenamiento del Home; widgets configurables.
+- **Fotos y recuerdos asociados a partidos** — mencionado varias veces como una de las notas más "cálidas/humanas" del producto, todavía sin ninguna exploración concreta.
+- **Integración con smartwatch**: distancia recorrida, calorías, pulsaciones.
+- **Isla Dinámica y Live Activities en pantalla bloqueada** — requieren una futura aplicación nativa iOS con ActivityKit; **no son posibles desde la PWA actual**, así que no alcanza con "agregarlas" a esta app, es un producto/plataforma distinto.
 - Procesamiento inteligente de notas privadas; compartir notas con coach/profesor.
-- Personalización de tarjetas, Dynamic Island, rebranding final del logo.
+- Rediseño estructural definitivo del marcador en vivo.
+- Personalización de tarjetas, rebranding final del logo.
+
+---
+
+## 6. Nota de diseño — dirección del Nivel BRAMU
+
+El documento original que pensó el Nivel BRAMU (consolidado maestro de Rama Jugador Etapa 3, §10) planteaba que **un número MENOR es mejor** ("6.9 → 6.8 → … → 6.0 → 5.9 → …", como una categoría de club). Lo que efectivamente se implementó y ya está en producción desde v2.1 ([`Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md`](Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md) §7) es lo **opuesto**: base 5.0, el nivel **sube** con victorias (`5.2 ↑0.2` se lee como progreso positivo). Es una decisión ya tomada y validada con Sebastián, no un error — pero si en algún momento se retoma el documento original para diseñar el algoritmo real, hay que partir del criterio ya implementado (mayor = mejor), no del texto original, para no invertir la experiencia que los usuarios ya conocen.
+
+---
+
+## 7. Cómo priorizar este backlog cuando llegue el momento
+
+Nota metodológica dejada en la Adenda de Etapa 3 (§11), todavía sin aplicar: cuando el núcleo funcional esté probado, ordenar estas ideas mediante una **Matriz de Impacto vs. Esfuerzo**, y para cada una registrar: problema que resuelve, dependencias, alcance de usuarios afectados, validación previa necesaria, y estado (estacionada / evaluando / próxima / implementada / descartada). Ninguna idea de este documento tiene ese análisis hecho todavía.
