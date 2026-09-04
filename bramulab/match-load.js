@@ -33,6 +33,7 @@
     matches.forEach((m) => {
       (m.players || []).forEach((p) => {
         if (!p || !p.name) return;
+        if (Store.isPlaceholderPlayerName(p.name)) return;
         const norm = Store.normalizePlayerName(p.name);
         if (!norm || excluded.has(norm) || seen.has(norm)) return;
         seen.add(norm);
@@ -53,6 +54,10 @@
     const result = [];
     (playerNames || []).concat(fromHistory).forEach((n) => {
       if (!n) return;
+      // V02.1 (§9) — "Jugador 1"/"Vos"/etc. son placeholders del sistema (defaults de
+      // Configurar partido cuando el campo queda vacío): nunca deben ofrecerse como
+      // sugerencia reutilizable, aunque el partido histórico que los usó siga intacto.
+      if (Store.isPlaceholderPlayerName(n)) return;
       const norm = Store.normalizePlayerName(n);
       if (!norm || seen.has(norm)) return;
       seen.add(norm);

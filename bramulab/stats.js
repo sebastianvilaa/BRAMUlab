@@ -2952,6 +2952,32 @@
    *  compuestos SOLO a partir de `computeManualStats` (nunca de eventos, porque no existen).
    *  Con 2+ variantes por forma (elegidas de forma determinística por semilla, mismo criterio
    *  que `generateGamesIntelligence`) para no sonar siempre igual. */
+  /** V02.1 (§17) — ¿un set determinado fue "ajustado" o "amplio"? Únicamente a partir del
+   *  margen real de games (nunca inventa desarrollo punto a punto, que la carga manual no
+   *  conoce) — margen <= 2 se lee como ajustado en cualquier formato (6-4, 7-5, 7-6); margen
+   *  >= 3 como amplio (6-3 en adelante). Umbral fijo y simple a propósito: con solo el
+   *  resultado final por set disponible, no hay forma más precisa de estimarlo. */
+  function isSetMarginClose(s) { return Math.abs(s.gamesA - s.gamesB) <= 2; }
+
+  /** V02.1 (§17) — corrige un caso real detectado: un partido a 3 sets que NO es remontada
+   *  (el ganador se llevó el set 1) caía siempre en la rama "parejo" sin importar cuán
+   *  lopsided hubiera sido cada set — `6-1 · 1-6 · 6-0` (dominio alternado con cierre
+   *  contundente) se narraba como "desarrollo parejo", que el resultado disponible contradice
+   *  directamente. Ahora se clasifica según el margen REAL de los sets 1 y 2 (nunca del
+   *  resultado final "ganó/perdió" solo): ambos amplios → dominio alternado; ambos ajustados →
+   *  parejo (con énfasis extra si los 3 sets fueron ajustados); mixto → competitivo, sin
+   *  forzar ninguna de las dos etiquetas — el cierre del set decisivo (ver más abajo) ya
+   *  aporta esa precisión. */
+  function classifyWonLostWonPattern(sets) {
+    const set1Close = isSetMarginClose(sets[0]);
+    const set2Close = isSetMarginClose(sets[1]);
+    const deciderClose = sets[2] ? isSetMarginClose(sets[2]) : true;
+    if (!set1Close && !set2Close) return 'alternating';
+    if (set1Close && set2Close && deciderClose) return 'veryClose';
+    if (set1Close && set2Close) return 'close';
+    return 'mixed';
+  }
+
   function generateManualIntelligence(stats, matchCtx, sets, winnerTeam, finishInfo) {
     const nameOf = (team) => gamesNarrativeTeamLabel(matchCtx.players, team);
     if (!sets || !sets.length) {
@@ -2966,10 +2992,18 @@
 
     let opening;
     if (stats.straightSets) {
-      opening = pick([
-        `${nameOf(winnerTeam)} ganaron el partido en sets corridos, ${setScores.join(' y ')}.`,
-        `${nameOf(winnerTeam)} se quedaron con el partido sin ceder un set, ${setScores.join(' y ')}.`,
-      ]);
+      // V02.1 (§17) — "sets corridos" no implica por sí solo dominio: un 7-6 · 6-4 es tan
+      // "en sets corridos" como un 6-0 · 6-0, pero solo el segundo es una victoria dominante.
+      const allSetsWide = sets.every((s) => !isSetMarginClose(s));
+      opening = allSetsWide
+        ? pick([
+            `${nameOf(winnerTeam)} dominaron de punta a punta, ${setScores.join(' y ')}.`,
+            `Victoria dominante de ${nameOf(winnerTeam)}, ${setScores.join(' y ')}, sin darle chances al rival.`,
+          ])
+        : pick([
+            `${nameOf(winnerTeam)} ganaron el partido en sets corridos, ${setScores.join(' y ')}.`,
+            `${nameOf(winnerTeam)} se quedaron con el partido sin ceder un set, ${setScores.join(' y ')}.`,
+          ]);
     } else if (stats.comebackTeam === winnerTeam) {
       const rest = setScores.slice(1).join(' y ');
       opening = pick([
@@ -2977,15 +3011,38 @@
         `Abajo tras perder el primer set ${setScores[0]}, ${nameOf(winnerTeam)} reaccionaron y se quedaron con el partido, ${rest}.`,
       ]);
     } else {
-      opening = pick([
-        `${nameOf(winnerTeam)} se quedaron con un partido parejo, ${setScores.join(', ')}.`,
-        `${nameOf(winnerTeam)} se llevaron el partido tras un desarrollo parejo, ${setScores.join(', ')}.`,
-      ]);
+      const pattern = classifyWonLostWonPattern(sets);
+      if (pattern === 'alternating') {
+        opening = pick([
+          `${nameOf(winnerTeam)} se llevaron un partido de dominio alternado, ${setScores.join(', ')}: cada set tuvo una diferencia clara, pero para lados distintos.`,
+          `Partido cambiante: ${nameOf(winnerTeam)} se quedaron con él, ${setScores.join(', ')}, tras sets con diferencias marcadas de ambos lados.`,
+        ]);
+      } else if (pattern === 'veryClose') {
+        opening = pick([
+          `${nameOf(winnerTeam)} se quedaron con un partido extremadamente parejo, ${setScores.join(', ')}.`,
+          `${nameOf(winnerTeam)} se llevaron un partido muy ajustado de punta a punta, ${setScores.join(', ')}.`,
+        ]);
+      } else if (pattern === 'close') {
+        opening = pick([
+          `${nameOf(winnerTeam)} se quedaron con un partido parejo, ${setScores.join(', ')}.`,
+          `${nameOf(winnerTeam)} se llevaron el partido tras un desarrollo parejo, ${setScores.join(', ')}.`,
+        ]);
+      } else {
+        opening = pick([
+          `${nameOf(winnerTeam)} se quedaron con un partido competitivo, ${setScores.join(', ')}.`,
+          `${nameOf(winnerTeam)} se llevaron un partido parejo en tramos, ${setScores.join(', ')}.`,
+        ]);
+      }
     }
 
     let closer = '';
-    if (stats.deciderSetIndex !== null && stats.deciderWasClose && !stats.straightSets) {
-      closer = ' El set decisivo se definió por un margen ajustado.';
+    if (stats.deciderSetIndex !== null && !stats.straightSets) {
+      const decider = sets[stats.deciderSetIndex];
+      // V02.1 (§17) — mismo criterio de margen que arriba; antes solo se narraba el caso
+      // ajustado, nunca el opuesto (set decisivo amplio).
+      closer = isSetMarginClose(decider)
+        ? ' El set decisivo se definió por un margen ajustado.'
+        : ' El set decisivo se resolvió con margen amplio.';
     }
 
     let marginNote = '';

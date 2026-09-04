@@ -284,6 +284,15 @@
     return { count };
   }
 
+  /** V02.1 (§22) — los partidos que componen la racha actual, del más reciente hacia atrás
+   *  hasta la primera derrota (o hasta donde llegue la muestra). `matches` ya viene ordenado
+   *  más reciente primero (PH.filterMatchesForPlayer), así que la racha es simplemente el
+   *  prefijo — mismo criterio de conteo que computeCurrentStreak, sin recalcularlo aparte. */
+  function computeCurrentStreakMatches(matches, playerName) {
+    const { count } = computeCurrentStreak(matches, playerName);
+    return (matches || []).slice(0, count);
+  }
+
   /** §10 — "Mejor compañero histórico": a diferencia de computeMostFrequentPartner (el más
    *  repetido), este es el de MAYOR efectividad jugando juntos, exigiendo una muestra mínima
    *  (default 3 partidos juntos) para no premiar un 1/1 casual. Empate de efectividad se
@@ -311,6 +320,41 @@
     });
     const c = counts[best];
     return { name: best, count: c.count, wins: c.wins, pct: Math.round((c.wins / c.count) * 100) };
+  }
+
+  /** V02.1 (§22) — agregación completa por compañero/rival para las vistas nuevas
+   *  "Compañeros"/"Rivales": récord conjunto con CADA persona real con la que `playerName`
+   *  compartió cancha (como compañero o como rival respectivamente). `matches` ya viene de
+   *  PH.filterMatchesForPlayer, que por definición excluye los partidos Observados (el
+   *  jugador actual no participa en ellos) — nunca hace falta filtrar eso de nuevo acá.
+   *  Placeholders del sistema ("Jugador 1"...) se excluyen igual que en el selector de carga
+   *  manual (§9) — nunca listados como si fueran personas reales. Orden: más partidos juntos/
+   *  enfrentados primero; empate por victorias; empate final alfabético (determinístico). */
+  function buildPersonBreakdown(matches, playerName, nameExtractor) {
+    const byName = {};
+    (matches || []).forEach((m) => {
+      const result = matchResultForPlayer(m, playerName);
+      nameExtractor(m).forEach((name) => {
+        if (!name || Store.isPlaceholderPlayerName(name)) return;
+        if (!byName[name]) byName[name] = { name, count: 0, wins: 0, losses: 0 };
+        const entry = byName[name];
+        entry.count += 1;
+        if (result === 'win') entry.wins += 1;
+        else if (result === 'loss') entry.losses += 1;
+      });
+    });
+    return Object.keys(byName).map((n) => byName[n])
+      .map((e) => Object.assign(e, { pct: (e.wins + e.losses) ? Math.round((e.wins / (e.wins + e.losses)) * 100) : null }))
+      .sort((a, b) => b.count - a.count || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
+  }
+  function computeTeammateBreakdown(matches, playerName) {
+    return buildPersonBreakdown(matches, playerName, (m) => {
+      const p = getPartnerName(m, playerName);
+      return p ? [p] : [];
+    });
+  }
+  function computeRivalBreakdown(matches, playerName) {
+    return buildPersonBreakdown(matches, playerName, (m) => getOpponentNames(m, playerName));
   }
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -358,6 +402,21 @@
     });
     const considered = wins + losses;
     return { wins, losses, considered, pct: considered ? Math.round((wins / considered) * 100) : null };
+  }
+
+  /** V02.1 (§22/§27) — el mismo conjunto de partidos de la ventana móvil de 30 días que ya usan
+   *  computeActivity30d/computeEffectiveness30d, expuesto como lista (no solo el conteo) para
+   *  que el filtro "Últimos 30 días" del Historial muestre EXACTAMENTE lo mismo que el
+   *  porcentaje de Efectividad — nunca un criterio de fecha recalculado aparte que pueda
+   *  divergir. */
+  function filterMatchesWithin30d(matches, nowDate) {
+    const nowMs = (nowDate || new Date()).getTime();
+    return (matches || []).filter((m) => {
+      const t = parseTimeOrNull(getPlayedAt(m));
+      if (t === null) return false;
+      const age = nowMs - t;
+      return age >= 0 && age <= THIRTY_DAYS_MS;
+    });
   }
 
   /** Cuenta partidos por período de 30 días SIN solapar, anclado a "ahora": índice 0 son los
@@ -556,8 +615,9 @@
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
-    computeCurrentStreak, computeBestPartner, computeActivity30d, computeEffectiveness30d,
-    computeThirtyDayPeriodCounts, computeHitos,
+    computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivity30d, computeEffectiveness30d,
+    computeTeammateBreakdown, computeRivalBreakdown,
+    computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithin30d,
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
     filterHistoryCombined, computeHistoryTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,

@@ -39,7 +39,6 @@
   let currentHistoryContext = null; // matchId visto en Análisis cuando viene del Historial
   let analysisCurrent = null; // snapshot mostrado actualmente en Análisis (Bloque P: VER RESUMEN)
   let analysisSetFilter = 'match'; // 'match' | 1 | 2 | 3 — selector compartido Estadísticas/Evolución (S2/V5)
-  let summaryViewSource = 'live'; // 'live' | 'analysis' — de dónde se abrió el Resumen (Bloque P/AA1)
 
   function currentFormat() { return E.FORMATS[match.formatId]; }
   /** V13 (§1-2): `match.mode` es 'complete' (motor punto por punto, de siempre) o 'games'
@@ -61,6 +60,30 @@
     if (!timer.startedAt) return 0;
     const end = timer.pausedAt || Date.now();
     return end - timer.startedAt - timer.totalPausedMs;
+  }
+
+  /** V02.1 (§4/§5) — fix de corrimiento de día: `Date.prototype.toISOString()` siempre
+   *  devuelve la fecha en UTC, nunca la fecha LOCAL. El bug real reportado ("11 partidos
+   *  cargados hoy, Actividad solo contaba 3") no era un problema de PH.computeActivity30d
+   *  (ese cálculo ya opera sobre timestamps absolutos, correctos en cualquier huso) — estaba
+   *  en el prefill de la carga manual (más abajo, `openManualLoadScreen`), que combinaba la
+   *  fecha en UTC (`now.toISOString().slice(0,10)`) con la hora en LOCAL (`now.getHours()`).
+   *  Durante la ventana diaria en la que el calendario UTC ya rotó pero el local todavía no
+   *  (en Argentina, UTC-3: aprox. 21:00–23:59 hora local), esa combinación producía una
+   *  fecha/hora un día ADELANTADA respecto del momento real — no un detalle cosmético del
+   *  string ISO, sino un instante genuinamente futuro, que el guard `age < 0` de
+   *  computeActivity30d/computeEffectiveness30d excluye por diseño. Estas dos funciones
+   *  arman el string `YYYY-MM-DD`/`HH:MM` que después escriben los `<input type="date">` /
+   *  `<input type="time">` — SIEMPRE en hora local, nunca `toISOString()`, para que
+   *  `new Date(`${dateVal}T${timeVal}`)` (que interpreta esa combinación como hora LOCAL, sin
+   *  designador de zona) reconstruya el instante real que el usuario ve en pantalla. */
+  function localDateInputValue(d) {
+    const dt = d || new Date();
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  }
+  function localTimeInputValue(d) {
+    const dt = d || new Date();
+    return `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
   }
 
   /**
@@ -156,9 +179,8 @@
   const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'ranking', 'profile'];
 
   function showView(name) {
-    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile']
+    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
-    if (name !== 'match') $('#view-summary').hidden = true;
     const nav = $('#bottom-nav');
     if (nav) {
       const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1;
@@ -205,10 +227,6 @@
   const SCORING_SYSTEM_LABELS = { starpoint: 'STAR POINT', golden: 'PUNTO DE ORO', classic: 'CON VENTAJA' };
 
   function initSetupScreen() {
-    // V10 (44/97): el número de versión sale de PLStore.VERSION (único punto central) —
-    // cambiarlo ahí alcanza para actualizar el footer sin tocar más archivos.
-    const footerEl = $('#setup-footer');
-    if (footerEl) footerEl.textContent = `BRAMU Lab · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
     $all('#scoring-options .option-col').forEach((btn) => {
       btn.addEventListener('click', () => {
         $all('#scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
@@ -279,8 +297,17 @@
   // exactamente a donde corresponde — nunca se infiere por `match`/`currentPlayerName` u otro
   // estado visual, que podría dar el mismo resultado en ambos casos.
   let historyOpenedFrom = 'player-home';
-  function openHistoryScreen(origin) {
+  // V02.1 (§27) — filtro contextual con el que se abrió Historial: null (normal) |
+  // { type:'streak', matchIds:Set, label } | { type:'last30', label }. Vive en memoria de
+  // sesión, igual criterio que el resto de los filtros de Historial (§3.3 de Etapa 4.1).
+  let historyContextFilter = null;
+  function openHistoryScreen(origin, contextFilter) {
     historyOpenedFrom = origin === 'setup' ? 'setup' : 'player-home';
+    historyContextFilter = contextFilter || null;
+    // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
+    // pestaña "Mis partidos" para que la lista mostrada sea inequívoca (nunca mezclado con
+    // Observados, que ninguna de las dos métricas de origen considera).
+    if (historyContextFilter) historyOwnershipFilter = 'mine';
     renderHistory();
     showView('history');
   }
@@ -288,7 +315,9 @@
   function refreshKnownPlayersDatalist() {
     const dl = $('#known-players');
     dl.innerHTML = '';
-    Store.loadPlayerNames().forEach((n) => { const opt = document.createElement('option'); opt.value = n; dl.appendChild(opt); });
+    // V02.1 (§9) — mismo criterio que el selector de carga manual: nunca sugerir los
+    // placeholders del sistema ("Jugador 1"...) como si fueran contactos reales.
+    Store.loadPlayerNames().filter((n) => !Store.isPlaceholderPlayerName(n)).forEach((n) => { const opt = document.createElement('option'); opt.value = n; dl.appendChild(opt); });
   }
 
   function checkForActiveMatch() {
@@ -651,19 +680,22 @@
   /** §6.3/§7.2 — CONTINUAR: deshabilitado mientras el par no cierre un set válido; una vez
    *  que el partido está decidido, pasa a leerse "GUARDAR PARTIDO" (misma acción, ver
    *  attemptManualContinue). */
-  function updateManualContinueState(format) {
+  /** V02.1 (§10) — el avance entre sets ahora es automático (commitCurrentManualSetIfValid):
+   *  esta barra ya no tiene nada que hacer mientras se está cargando un set, así que
+   *  permanece oculta hasta que el partido queda decidido — ahí pasa a ser el único paso
+   *  explícito que falta: abrir CONFIRMAR PARTIDO (nunca guarda directo, ver §13/§14). */
+  function updateManualContinueState() {
+    const wrap = $('#court-continue-wrap');
     const btn = $('#manual-continue-btn');
     if (manualDecided) {
+      wrap.hidden = false;
       btn.disabled = false;
-      btn.textContent = 'GUARDAR PARTIDO';
+      btn.textContent = 'CONTINUAR';
       $('#court-current-set-hint').hidden = true;
       return;
     }
-    const s = manualDraftSet;
-    const valid = Number.isFinite(s.a) && Number.isFinite(s.b) && E.isValidCompletedSetScore(s.a, s.b, format);
-    btn.disabled = !valid;
-    btn.textContent = 'CONTINUAR';
-    $('#court-current-set-hint').hidden = !valid;
+    wrap.hidden = true;
+    $('#court-current-set-hint').hidden = true;
   }
 
   function renderManualScoreboard() {
@@ -745,10 +777,61 @@
   /** El foco pasa solo de Equipo A a Equipo B del MISMO set (§6.3); al completar ambos lados,
    *  el teclado se cierra y espera el toque explícito en CONTINUAR — ya no abre el set
    *  siguiente por sí solo (eso ahora es trabajo exclusivo de CONTINUAR). */
+  /** V02.1 (§10) — al completar el lado B, ya no espera un toque explícito en CONTINUAR: si
+   *  el par cierra un set válido, lo confirma y avanza solo. Si por algún motivo no cierra un
+   *  set válido todavía (p.ej. quedó en un estado intermedio tras editar), simplemente
+   *  muestra el marcador tal cual — nunca fuerza un avance con datos incompletos. */
   function advanceDraftSide() {
     if (manualDraftActiveTeam === 'A') { openManualKeypad('B'); return; }
     closeManualKeypadPanel();
-    renderManualScoreboard();
+    commitCurrentManualSetIfValid();
+  }
+
+  /** §6.3/§10 — confirma el set en edición (con confirmación previa si eso deja huérfano un
+   *  Set 3 ya cargado — §6.2) y avanza automáticamente al siguiente, o deja el partido
+   *  "decidido" (listo para CONFIRMAR PARTIDO) cuando ya no queda ningún set más que pedir. No
+   *  hace nada si el borrador todavía no cierra un set completo y válido — nunca avanza con
+   *  datos incompletos. */
+  function commitCurrentManualSetIfValid() {
+    if (manualDecided) return;
+    const format = E.FORMATS[manualSelectedFormatId];
+    if (!Number.isFinite(manualDraftSet.a) || !Number.isFinite(manualDraftSet.b)) { renderManualScoreboard(); return; }
+    if (!E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format)) { renderManualScoreboard(); return; }
+
+    const applyConfirm = () => {
+      manualSets[manualActiveSetIndex] = { a: manualDraftSet.a, b: manualDraftSet.b };
+      if (manualActiveSetIndex === 0 || manualActiveSetIndex === 1) pruneOrphanThirdSet();
+      markManualLoadDirty();
+      const next = ML.resolveActiveSetIndex(manualSets, format);
+      if (next === null) {
+        manualDecided = true;
+        renderManualScoreboard();
+      } else {
+        manualActiveSetIndex = next;
+        const existing = manualSets[next];
+        manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+        manualDraftActiveTeam = 'A';
+        renderManualScoreboard();
+      }
+    };
+
+    // §6.2 — si esta confirmación deja huérfano un Set 3 que ya tenía un resultado cargado,
+    // pedir confirmación antes de descartarlo en vez de borrarlo en silencio.
+    const thirdWasConfirmed = manualActiveSetIndex !== 2 && manualSets[2] && Number.isFinite(manualSets[2].a) && Number.isFinite(manualSets[2].b);
+    if (thirdWasConfirmed) {
+      const projectedSet1 = manualActiveSetIndex === 0 ? manualDraftSet : manualSets[0];
+      const projectedSet2 = manualActiveSetIndex === 1 ? manualDraftSet : manualSets[1];
+      if (!ML.isThirdSetVisible(projectedSet1, projectedSet2, format)) {
+        confirmAction(
+          'Este cambio ya no necesita un tercer set',
+          'El resultado que ya cargaste en el Set 3 se va a descartar.',
+          applyConfirm,
+          () => { renderManualScoreboard(); }
+        );
+        return;
+      }
+    }
+    applyConfirm();
   }
 
   function pressManualKeypadKey(key) {
@@ -763,7 +846,9 @@
     if (key === 'done') {
       closeManualKeypadPanel();
       markManualLoadDirty();
-      renderManualScoreboard();
+      // V02.1 (§10) — "Listo" explícito en el lado B también dispara el auto-advance si el
+      // set ya cerró un resultado válido (mismo criterio que el cierre automático por dígito).
+      commitCurrentManualSetIfValid();
       return;
     }
     const format = E.FORMATS[manualSelectedFormatId];
@@ -784,63 +869,17 @@
     });
     $('#court-score-a').addEventListener('click', () => openManualKeypad('A'));
     $('#court-score-b').addEventListener('click', () => openManualKeypad('B'));
-    $('#manual-continue-btn').addEventListener('click', attemptManualContinue);
-  }
-
-  /** §6.3/§8.1 — CONTINUAR: confirma el set en edición (con confirmación previa si eso deja
-   *  huérfano un Set 3 ya cargado — §6.2) y avanza al siguiente, o guarda el partido cuando ya
-   *  no queda ningún set más que pedir (ML.resolveActiveSetIndex === null). Misma acción,
-   *  cualquiera sea el rótulo visible del botón en ese momento. */
-  function attemptManualContinue() {
-    if (manualDecided) { finalizeManualContinue(); return; }
-    if (manualKeypadOpen) commitDraftDigits();
-    const format = E.FORMATS[manualSelectedFormatId];
-    if (!Number.isFinite(manualDraftSet.a) || !Number.isFinite(manualDraftSet.b)) return;
-    if (!E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format)) return;
-
-    const applyConfirm = () => {
-      manualSets[manualActiveSetIndex] = { a: manualDraftSet.a, b: manualDraftSet.b };
-      if (manualActiveSetIndex === 0 || manualActiveSetIndex === 1) pruneOrphanThirdSet();
-      markManualLoadDirty();
-      const next = ML.resolveActiveSetIndex(manualSets, format);
-      if (next === null) {
-        manualDecided = true;
-        closeManualKeypadPanel();
-        renderManualScoreboard();
-        finalizeManualContinue();
-      } else {
-        manualActiveSetIndex = next;
-        const existing = manualSets[next];
-        manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
-        manualDraftActiveTeam = 'A';
-        closeManualKeypadPanel();
-        renderManualScoreboard();
-      }
-    };
-
-    // §6.2 — si esta confirmación deja huérfano un Set 3 que ya tenía un resultado cargado,
-    // pedir confirmación antes de descartarlo en vez de borrarlo en silencio.
-    const thirdWasConfirmed = manualActiveSetIndex !== 2 && manualSets[2] && Number.isFinite(manualSets[2].a) && Number.isFinite(manualSets[2].b);
-    if (thirdWasConfirmed) {
-      const projectedSet1 = manualActiveSetIndex === 0 ? manualDraftSet : manualSets[0];
-      const projectedSet2 = manualActiveSetIndex === 1 ? manualDraftSet : manualSets[1];
-      if (!ML.isThirdSetVisible(projectedSet1, projectedSet2, format)) {
-        confirmAction(
-          'Este cambio ya no necesita un tercer set',
-          'El resultado que ya cargaste en el Set 3 se va a descartar.',
-          applyConfirm,
-          () => { closeManualKeypadPanel(); renderManualScoreboard(); }
-        );
-        return;
-      }
-    }
-    applyConfirm();
+    // V02.1 (§10) — el avance entre sets ya no depende de este botón (auto-advance, ver
+    // commitCurrentManualSetIfValid): CONTINUAR solo queda visible una vez que el partido está
+    // decidido (updateManualContinueState), y su única función pasa a ser abrir Confirmar
+    // partido — nunca guarda directamente (§13/§14).
+    $('#manual-continue-btn').addEventListener('click', () => { if (manualDecided) finalizeManualContinue(); });
   }
 
   /** §9: si Set 1 y Set 2 ya están completos y dejaron de sumar 1-1, cualquier valor que
    *  hubiera quedado en el Set 3 pasó a ser huérfano — se limpia acá. La confirmación previa
-   *  (cuando ese Set 3 ya tenía un resultado CARGADO) vive en attemptManualContinue; acá se
-   *  cubre además el caso silencioso de siempre (Set 3 todavía vacío, nada que perder). */
+   *  (cuando ese Set 3 ya tenía un resultado CARGADO) vive en commitCurrentManualSetIfValid;
+   *  acá se cubre además el caso silencioso de siempre (Set 3 todavía vacío, nada que perder). */
   function pruneOrphanThirdSet() {
     const format = E.FORMATS[manualSelectedFormatId];
     if (format.bestOfSets === 1) { manualSets[2] = null; return; }
@@ -982,8 +1021,11 @@
     const timeVal = $('#manual-time-input').value;
     const placeVal = $('#manual-place-input').value.trim();
     const isDefault = manualIsNewLoad && dateVal === manualDefaultDateVal && timeVal === manualDefaultTimeVal;
+    // V02.1 (§5) — "Ahora ·" era redundante con "Hoy": ambos dicen lo mismo. Durante la
+    // carga (todavía sin guardar) alcanza con "Hoy · HH:MM"; una vez que el partido existe
+    // como registro real, esta misma línea ya muestra la fecha/hora reales (rama `else`).
     const dateTimePart = isDefault
-      ? (timeVal ? `Ahora · Hoy · ${timeVal}` : 'Ahora · Hoy')
+      ? (timeVal ? `Hoy · ${timeVal}` : 'Hoy')
       : [formatCompactPlayedDate(`${dateVal}T${timeVal || '00:00'}`, undefined), timeVal].filter(Boolean).join(' · ');
     return placeVal ? `${dateTimePart} · ${placeVal}` : dateTimePart;
   }
@@ -1147,19 +1189,19 @@
       const baseDateObj = new Date(editMatch.playedAt || editMatch.startedAt);
       try {
         $('#manual-date-input').value = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: zone }).format(baseDateObj);
-      } catch (e) { $('#manual-date-input').value = baseDateObj.toISOString().slice(0, 10); }
+      } catch (e) { $('#manual-date-input').value = localDateInputValue(baseDateObj); }
       const timeKnown = editMatch.timeKnown !== false;
       if (timeKnown) {
         try { $('#manual-time-input').value = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(baseDateObj); }
-        catch (e) { $('#manual-time-input').value = baseDateObj.toISOString().slice(11, 16); }
+        catch (e) { $('#manual-time-input').value = localTimeInputValue(baseDateObj); }
       } else {
         $('#manual-time-input').value = '';
       }
       $('#manual-place-input').value = (editMatch.location && editMatch.location.name) || '';
     } else {
       const now = new Date();
-      $('#manual-date-input').value = now.toISOString().slice(0, 10);
-      $('#manual-time-input').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      $('#manual-date-input').value = localDateInputValue(now);
+      $('#manual-time-input').value = localTimeInputValue(now);
       $('#manual-place-input').value = '';
     }
     manualDefaultDateVal = $('#manual-date-input').value;
@@ -1174,23 +1216,34 @@
   /** §8.1 — última validación (sobre todo jugadores: el resultado ya está confirmado por
    *  CONTINUAR) antes de guardar. Si falta algo, el error queda visible inline y la pantalla
    *  no navega a ningún lado — nunca se pierde el resultado ya cargado. */
+  /** V02.1 (§13/§14) — un partido cargado NUEVO ya no persiste apenas se completa el último
+   *  set: arma el borrador y abre CONFIRMAR PARTIDO. Solo una edición de un partido YA
+   *  existente sigue guardando directo (no tiene sentido re-confirmar algo que ya estaba
+   *  guardado — mismo criterio que ya usaba esta pantalla antes de esta ronda). */
   function finalizeManualContinue() {
     manualSaveAttempted = true;
     const draft = recomputeManualValidation();
     if (!draft.ok) return;
-    attemptSaveManualMatch(draft);
-  }
-
-  function attemptSaveManualMatch(draft) {
     if (manualSaveInFlight) return;
     manualSaveInFlight = true;
-    $('#manual-continue-btn').disabled = true;
     closeAllManualOverlays();
-    try { saveManualMatch(draft); }
-    finally { manualSaveInFlight = false; }
+    try {
+      const snapshot = buildManualMatchSnapshot(draft);
+      if (manualIsNewLoad) {
+        openConfirmMatchScreen(snapshot);
+      } else {
+        persistManualSnapshot(snapshot);
+        openCanonicalResumen(snapshot, 'player-home');
+      }
+    } finally {
+      manualSaveInFlight = false;
+    }
   }
 
-  function saveManualMatch(draft) {
+  /** Arma el snapshot completo del partido cargado (misma forma que cualquier otra entrada de
+   *  Historial) a partir del estado actual del formulario — SIN persistir todavía. Reusado
+   *  tanto por la carga nueva (draft para Confirmar) como por una edición (persiste directo). */
+  function buildManualMatchSnapshot(draft) {
     const players = [
       { id: 0, team: 'A', name: manualPlayers.a1 },
       { id: 1, team: 'A', name: manualPlayers.a2 },
@@ -1207,28 +1260,17 @@
     const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
 
     Store.rememberPlayerNames(players.map((p) => p.name));
-    finishMatchManual(players, draft.sets, draft.winnerTeam, manualSelectedFormatId, manualSelectedScoring, startedAtDate, timeZone, timeKnown, location, manualEditingMatchId, manualEditingCreatedAt, manualExistingPrivateNote);
-  }
 
-  /** Crea o ACTUALIZA (si `editingMatchId` viene informado — §15) un partido cargado. Nunca
-   *  toca timer/Wake Lock/Store.clearActiveMatch (no hay partido activo real involucrado), y
-   *  usa los generadores de stats/Intelligence dedicados a carga manual (solo hechos
-   *  derivables del resultado final por set). `Store.upsertHistory` ya dedupe por matchId, así
-   *  que reusar el mismo id en una edición actualiza el registro existente sin duplicarlo.
-   *  Etapa 4.2 (§8): una carga NUEVA sigue a Partido guardado (Momento 2, enriquecimiento
-   *  opcional); reeditar un partido que ya existía va directo al Resumen, como ya hacía —
-   *  la pantalla de "recién guardado" es específicamente la primera confirmación (§8.2), no
-   *  tiene sentido repetirla en cada reedición posterior. */
-  function finishMatchManual(players, sets, winnerTeam, formatId, scoringSystem, startedAtDate, timeZone, timeKnown, location, editingMatchId, editingCreatedAt, existingPrivateNote) {
-    const format = E.FORMATS[formatId];
+    const format = E.FORMATS[manualSelectedFormatId];
     const matchCtx = { players, format };
-    const stats = S.computeManualStats(sets, matchCtx);
-    const intelligence = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
+    const stats = S.computeManualStats(draft.sets, matchCtx);
+    const intelligence = S.generateManualIntelligence(stats, matchCtx, draft.sets, draft.winnerTeam, { manual: false });
 
-    finishedSnapshot = {
-      matchId: editingMatchId || makeMatchId(),
-      // §15: una edición conserva el `createdAt` original — solo un alta nueva usa "ahora".
-      createdAt: editingCreatedAt || new Date().toISOString(),
+    return {
+      matchId: manualEditingMatchId || makeMatchId(),
+      // §15 (heredado de Etapa 3): una edición conserva el `createdAt` original — solo un
+      // alta nueva usa "ahora".
+      createdAt: manualEditingCreatedAt || new Date().toISOString(),
       // Etapa 3 (Fase 1, §5.1) — playedAt es la fecha/hora que el usuario eligió a mano en
       // el formulario (startedAtDate), no el momento en que se toca "Guardar". Nunca se
       // repite esta lógica en otro lugar: PH.getPlayedAt() es la única fuente de verdad
@@ -1239,13 +1281,13 @@
       finishedAt: new Date().toISOString(),
       players,
       mode: 'manual',
-      scoringSystem,
-      formatId,
+      scoringSystem: manualSelectedScoring,
+      formatId: manualSelectedFormatId,
       tiebreakMode: null,
       baseline: null,
-      sets,
+      sets: draft.sets,
       currentPartial: null,
-      winnerTeam,
+      winnerTeam: draft.winnerTeam,
       terminationType: 'automatic', // nunca 'manual' — ese valor significa "cortado antes de tiempo desde ☰", ortogonal a un partido cargado con resultado ya conocido
       terminationReason: null,
       terminationReasonLabel: null,
@@ -1262,65 +1304,72 @@
       location: location || null,
       // Etapa 4.2 (§10) — nota privada opcional; una edición conserva la que ya existía si el
       // usuario no la tocó en esta sesión (nunca se pisa con vacío por accidente).
-      privateNote: existingPrivateNote || null,
+      privateNote: manualExistingPrivateNote || null,
     };
-
-    Store.upsertHistory(finishedSnapshot);
-    manualLoadDirty = false;
-    const wasNewLoad = manualIsNewLoad;
-    // A partir de acá "Modificar" y la nota privada patchean ESTE registro, exista o no ya
-    // desde antes de este guardado.
-    manualEditingMatchId = finishedSnapshot.matchId;
-    manualEditingCreatedAt = finishedSnapshot.createdAt;
-
-    if (wasNewLoad) {
-      openMatchSavedScreen(finishedSnapshot);
-    } else {
-      renderSummary();
-      showView('player-home');
-      $('#bottom-nav').hidden = true;
-      $('#view-summary').hidden = false;
-    }
   }
 
-  /* ---- Partido guardado — Etapa 4.2 (§8.2) ---- */
+  /** Persiste el snapshot (alta o actualización, `Store.upsertHistory` dedupe por matchId) y
+   *  deja el estado de la pantalla listo para que "Modificar"/la nota privada patcheen ESTE
+   *  registro de acá en más. Nunca toca timer/Wake Lock/Store.clearActiveMatch — la carga
+   *  manual no tiene partido en vivo involucrado. */
+  function persistManualSnapshot(snapshot) {
+    Store.upsertHistory(snapshot);
+    finishedSnapshot = snapshot;
+    manualLoadDirty = false;
+    manualIsNewLoad = false;
+    manualEditingMatchId = snapshot.matchId;
+    manualEditingCreatedAt = snapshot.createdAt;
+  }
 
-  function openMatchSavedScreen(f) {
-    const myTeam = 'A'; // en la carga manual, el jugador actual siempre es Equipo A
-    const resultKind = !f.winnerTeam ? 'neutral' : (f.winnerTeam === myTeam ? 'win' : 'loss');
-    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
+  /* ---- Confirmar partido (pre-guardado) — V02.1 (§13/§14) ---- */
+
+  let manualConfirmDraft = null; // snapshot armado, todavía SIN persistir — ver openConfirmMatchScreen
+
+  function openConfirmMatchScreen(snapshot) {
+    manualConfirmDraft = snapshot;
+    const myTeam = 'A'; // en la carga manual, el jugador actual siempre es Equipo A (§14: nunca "observado" acá)
+    const resultKind = !snapshot.winnerTeam ? 'neutral' : (snapshot.winnerTeam === myTeam ? 'win' : 'loss');
+    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'RESULTADO FINAL' }[resultKind];
     const badge = $('#match-saved-badge');
     badge.textContent = resultLabel;
     badge.className = 'court-saved-result__badge court-saved-result__badge--' + resultKind;
-    $('#match-saved-score').textContent = f.sets.map(formatSetSegmentLabel).join(' · ');
-    const teamAName = f.players.filter((p) => p.team === 'A').map((p) => p.name).join(' / ');
-    const teamBName = f.players.filter((p) => p.team === 'B').map((p) => p.name).join(' / ');
+    $('#match-saved-score').textContent = snapshot.sets.map(formatSetSegmentLabel).join(' · ');
+    const teamAName = snapshot.players.filter((p) => p.team === 'A').map((p) => p.name).join(' / ');
+    const teamBName = snapshot.players.filter((p) => p.team === 'B').map((p) => p.name).join(' / ');
     $('#match-saved-teams').textContent = `${teamAName} vs ${teamBName}`;
-    $('#match-saved-note').value = f.privateNote || '';
+    $('#match-saved-note').value = '';
     renderManualMetaLine();
     showView('match-saved');
   }
 
   function initMatchSavedScreen() {
-    $('#match-saved-note').addEventListener('blur', () => {
-      if (!manualEditingMatchId) return;
-      Store.patchHistoryEntry(manualEditingMatchId, { privateNote: $('#match-saved-note').value.trim() || null });
-    });
+    // §10 — desde Confirmar se puede volver a corregir el resultado sin perder nada: los sets
+    // y jugadores siguen intactos en memoria, la pantalla de carga los vuelve a mostrar tal
+    // cual quedaron.
+    $('#match-saved-back-btn').addEventListener('click', () => showView('manual-load'));
     $('#match-saved-view-summary').addEventListener('click', () => {
-      const f = (manualEditingMatchId && Store.getHistoryEntry(manualEditingMatchId)) || finishedSnapshot;
-      // f nunca es === finishedSnapshot (se relee de Store para reflejar nota/lugar recién
-      // editados acá), así que renderSummary lo trataría como 'analysis' de todos modos; lo
-      // marcamos explícito y dejamos analysisCurrent/analysisOpenedFrom listos para que "←"
-      // en Resumen pueda abrir Análisis de este mismo partido en vez de crashear con
-      // analysisCurrent todavía null (nunca se pasó por Análisis antes de llegar acá).
-      analysisCurrent = f;
-      analysisOpenedFrom = 'player-home';
-      renderSummary(f, 'analysis');
-      showView('player-home');
-      $('#bottom-nav').hidden = true;
-      $('#view-summary').hidden = false;
+      if (!manualConfirmDraft) return;
+      // Vuelve a leer fecha/hora/lugar/nota por si el usuario usó "Modificar" o escribió algo
+      // en NOTAS mientras estaba en esta pantalla — nunca persiste el draft original a ciegas.
+      const dateVal = $('#manual-date-input').value;
+      const timeVal = $('#manual-time-input').value;
+      const timeKnown = !!timeVal;
+      const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+      const placeName = $('#manual-place-input').value.trim();
+      const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
+      const noteVal = $('#match-saved-note').value.trim();
+      const snapshot = Object.assign({}, manualConfirmDraft, {
+        playedAt: startedAtDate.toISOString(),
+        startedAt: startedAtDate.toISOString(),
+        timeKnown,
+        location: location || null,
+        privateNote: noteVal || null,
+      });
+      persistManualSnapshot(snapshot);
+      manualConfirmDraft = null;
+      showToast('Partido guardado');
+      openCanonicalResumen(snapshot, 'player-home');
     });
-    $('#match-saved-home-btn').addEventListener('click', () => openPlayerHome());
   }
 
   function initManualLoadScreen() {
@@ -1595,7 +1644,9 @@
     if (wasFinished) Store.removeFromHistory(match.id);
     finishedSnapshot = null;
     manualFinish = null;
-    $('#view-summary').hidden = true;
+    // V02.1 (§13) — el Resumen (antes overlay sobre #view-match, ahora #view-analysis con
+    // vista propia) ya no queda "detrás" del marcador: hay que volver explícitamente.
+    if (wasFinished) showView('match');
     if (!timer.pausedAt) startTimerLoop();
     if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     renderGamesMode();
@@ -1803,32 +1854,41 @@
     $('#game-tb-error').hidden = true;
   }
 
-  /** ¿(a,b) es un resultado FINAL válido de Tie break (alguien acaba de ganar, exacto) para
-   *  este objetivo? A diferencia de `E.isValidTiebreakScore` (que también acepta scores "en
-   *  curso"), acá solo interesa un resultado ya cerrado — no se registra un TB a medio jugar. */
-  function isValidFinalTbScore(a, b, cfg) {
-    const aWins = E.tiebreakIsWon(a, b, cfg) && !E.tiebreakIsWon(a - 1, b, cfg);
-    const bWins = E.tiebreakIsWon(b, a, cfg) && !E.tiebreakIsWon(b - 1, a, cfg);
-    return aWins || bWins;
-  }
-
+  /** V02.1 (§6) — fix real del bug "no deja poner más de 7": la versión anterior exigía que
+   *  CADA toque del stepper produjera, por sí solo, un resultado FINAL válido (alguien recién
+   *  ganado) — así que subir el ganador (7→8) o subir el perdedor (5→6) por separado siempre
+   *  caía en un estado "todavía no es un final válido" y quedaba rechazado en silencio. El
+   *  stepper ahora solo suma/resta libremente (sin techo artificial — §6 del consolidado), y
+   *  la validación real (¿es un resultado final legítimo, con el ganador correcto?) se hace
+   *  UNA vez, recién al confirmar — igual criterio que la carga manual, que tampoco valida
+   *  cada dígito tecleado como si ya fuera el resultado completo. */
   function applyGameTbStepper(field, delta) {
-    const cfg = { winTarget: gameTbDraft.winTarget, requireDiff2: gameTbDraft.requireDiff2 };
     let a = gameTbDraft.scoreA, b = gameTbDraft.scoreB;
     if (!gameTbDraft.scoreKnown) {
-      a = gameTbDraft.team === 'A' ? cfg.winTarget : Math.max(0, cfg.winTarget - 2);
-      b = gameTbDraft.team === 'B' ? cfg.winTarget : Math.max(0, cfg.winTarget - 2);
+      a = gameTbDraft.team === 'A' ? gameTbDraft.winTarget : Math.max(0, gameTbDraft.winTarget - 2);
+      b = gameTbDraft.team === 'B' ? gameTbDraft.winTarget : Math.max(0, gameTbDraft.winTarget - 2);
     } else if (field === 'gtb-a') { a += delta; } else { b += delta; }
     if (a < 0 || b < 0) return;
-    if (!isValidFinalTbScore(a, b, cfg)) return;
-    const winnerWon = gameTbDraft.team === 'A' ? (a > b) : (b > a);
-    if (!winnerWon) return; // el ganador elegido en el paso 1 tiene que seguir siendo quien ganó
     gameTbDraft.scoreA = a; gameTbDraft.scoreB = b; gameTbDraft.scoreKnown = true;
     renderGameTbModal();
   }
 
   function confirmGameTbModal(omit) {
     if (!gameTbDraft || !gameTbDraft.team) return;
+    if (!omit && gameTbDraft.scoreKnown) {
+      const cfg = { winTarget: gameTbDraft.winTarget, requireDiff2: gameTbDraft.requireDiff2 };
+      if (!E.isValidFinalTiebreakScore(gameTbDraft.scoreA, gameTbDraft.scoreB, cfg)) {
+        $('#game-tb-error').hidden = false;
+        $('#game-tb-error').textContent = 'Ese resultado no es válido para este tie break (mínimo ' + cfg.winTarget + ' puntos y 2 de diferencia).';
+        return;
+      }
+      const winnerWon = gameTbDraft.team === 'A' ? gameTbDraft.scoreA > gameTbDraft.scoreB : gameTbDraft.scoreB > gameTbDraft.scoreA;
+      if (!winnerWon) {
+        $('#game-tb-error').hidden = false;
+        $('#game-tb-error').textContent = `El resultado tiene que reflejar la victoria de ${S.teamLabel(match.players, gameTbDraft.team)}.`;
+        return;
+      }
+    }
     const score = (!omit && gameTbDraft.scoreKnown) ? { a: gameTbDraft.scoreA, b: gameTbDraft.scoreB } : null;
     if (gameTbDraft.extraordinary) {
       gameEvents.push({ type: 'extraordinary-tiebreak', team: gameTbDraft.team, score, winTarget: gameTbDraft.winTarget, requireDiff2: gameTbDraft.requireDiff2, timestamp: new Date().toISOString(), matchTimeMs: getElapsedMs() });
@@ -2328,7 +2388,9 @@
     if (wasFinished) Store.removeFromHistory(match.id); // evita que quede una copia "fantasma" finalizada
     finishedSnapshot = null;
     manualFinish = null;
-    $('#view-summary').hidden = true;
+    // V02.1 (§13) — mismo criterio que undoLastGame: el Resumen ya no es un overlay sobre el
+    // marcador, hay que volver explícitamente a #view-match.
+    if (wasFinished) showView('match');
     if (!timer.pausedAt) startTimerLoop();
     if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     render();
@@ -2340,7 +2402,7 @@
     Store.removeFromHistory(match.id);
     manualFinish = null;
     finishedSnapshot = null;
-    $('#view-summary').hidden = true;
+    showView('match'); // V02.1 (§13) — mismo criterio que undoLastPoint/undoLastGame
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     matchIsActive = true; requestWakeLock(); // V13.2 (§1): el partido vuelve a estar activo
     if (isGamesMode()) renderGamesMode(); else render();
@@ -2624,7 +2686,6 @@
     timer.pausedAt = null;
     timer.totalPausedMs = 0;
     $('#pause-overlay').hidden = true;
-    $('#view-summary').hidden = true;
     startTimerLoop();
     render();
     showToast('Partido reiniciado');
@@ -2639,7 +2700,6 @@
     Store.clearActiveMatch();
     match = null;
     $('#pause-overlay').hidden = true;
-    $('#view-summary').hidden = true;
   }
 
   /** Hotfix v1.2.1 (§2-3.1) — "Volver al inicio" significa el Home del jugador, nunca
@@ -3869,8 +3929,7 @@
 
     Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
-    renderSummary();
-    $('#view-summary').hidden = false;
+    openCanonicalResumen(finishedSnapshot, 'live');
   }
 
   /** V13 (§20-27) — equivalente de `finishMatch` para Por Games: usa los generadores de
@@ -3926,8 +3985,7 @@
 
     Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
-    renderSummary();
-    $('#view-summary').hidden = false;
+    openCanonicalResumen(finishedSnapshot, 'live');
   }
 
   /* ------------------------------------------------------------------ */
@@ -4060,46 +4118,6 @@
    *  viven en su propia sección más abajo, así que acá NO se fusionan). */
   function buildResultBlockHTML(f) { return buildWinnersBannerHTML(f) + buildScoreCardHTML(f); }
 
-  /** V6 (21-27): tarjeta única del Resumen del partido — fusiona resultado + duración por set +
-   *  estadísticas rápidas + duración total en UN solo componente visual grande. */
-  function buildSummaryCardHTML(f) {
-    const statsHTML = f.mode === 'games' ? buildGamesSummaryStatsHTML(f) : f.mode === 'manual' ? buildManualSummaryStatsHTML(f) : buildSummaryStatsHTML(f);
-    return buildWinnersBannerHTML(f) + buildScoreCardHTML(f, { statsHTML });
-  }
-
-  /** V14 (§14) — métricas del Resumen para un partido cargado manualmente: SOLO sets/games
-   *  ganados — ni siquiera games de saque/breaks (eso ya requiere saber quién sacaba en cada
-   *  game, algo que la carga manual nunca pregunta). Más reducido todavía que Por Games. */
-  function buildManualSummaryStatsHTML(f) {
-    const st = f.stats;
-    const rows = [
-      { a: st.setsWonA, label: 'SETS GANADOS', b: st.setsWonB },
-      { a: st.gamesA, label: 'GAMES GANADOS', b: st.gamesB },
-    ];
-    return rows.map((r) => `<div class="summary-stat-row"><span class="summary-stat-row__a">${r.a}</span><span class="summary-stat-row__label">${r.label}</span><span class="summary-stat-row__b">${r.b}</span></div>`).join('');
-  }
-
-  /** V13 (§20-21) — métricas del Resumen en Por Games: games ganados, games de saque
-   *  ganados, breaks, racha máxima de games. Nunca puntos/Oro/BP/SP/MP (no existen en este
-   *  modo) — a diferencia de `buildHeadlineRows`, no hay que filtrar nada condicionalmente
-   *  porque el set de métricas ya es, por diseño, el único compatible. */
-  function buildGamesSummaryStatsHTML(f) {
-    const st = f.stats;
-    const rows = [
-      { a: st.gamesA, label: 'GAMES GANADOS', b: st.gamesB },
-      { a: `${st.serviceGames.wonA}/${st.serviceGames.wonA + st.serviceGames.lostA}`, label: 'GAMES DE SAQUE GANADOS', b: `${st.serviceGames.wonB}/${st.serviceGames.wonB + st.serviceGames.lostB}` },
-      { a: st.breaksA, label: 'BREAKS', b: st.breaksB },
-      { a: st.maxGameStreakA, label: 'RACHA MÁXIMA DE GAMES', b: st.maxGameStreakB },
-    ];
-    return rows.map((r, i) => {
-      // V13: a diferencia de "Puntos ganados" (Completo), acá no tiene sentido mostrar un
-      // desglose "% + pts" — son games, no puntos — así que la barra muestra la cantidad
-      // directamente como dato principal (pctPrimary=false).
-      if (i === 0) return sharedBarRowHTML(r.label, r.a, r.b, Number(r.a) || 0, Number(r.b) || 0, false, false);
-      return `<div class="summary-stat-row"><span class="summary-stat-row__a">${r.a}</span><span class="summary-stat-row__label">${r.label}</span><span class="summary-stat-row__b">${r.b}</span></div>`;
-    }).join('');
-  }
-
   /** Bloque N: legal de datos parciales — se muestra solo cuando corresponde (nunca en partido completo sin ajustes). */
   function buildCoverageLegalHTML(f) {
     if (f.stats && f.stats.hasAdjustments) {
@@ -4145,88 +4163,32 @@
     }).join('');
   }
 
-  /** Bloque P/AA1: el Resumen ahora puede abrirse tanto para el partido recién finalizado
-   *  (live) como para cualquier partido histórico visto desde Análisis. `f` es el snapshot a
-   *  mostrar; `source` determina si tiene sentido ofrecer Deshacer/Reanudar/Nuevo partido
-   *  (solo si es el partido activo real) o solo un botón para volver a Análisis.
-   *  V6 (21-23): título "RESUMEN DEL PARTIDO" y tarjeta única fusionada (buildSummaryCardHTML). */
-  function renderSummary(f, source) {
-    f = f || finishedSnapshot;
-    summaryViewSource = source || 'live';
-    const isLiveMatch = summaryViewSource === 'live' && f === finishedSnapshot;
-
-    $('#summary-reason').hidden = true; // la razón ahora vive dentro del result-card
-    $('#summary-meta').textContent = buildMatchMetaLine(f);
-    $('#summary-result-slot').innerHTML = buildSummaryCardHTML(f);
-    $('#summary-legal').innerHTML = buildCoverageLegalHTML(f);
-    // V14: un partido cargado nunca tuvo puntos/games EN VIVO que deshacer — sin este guard,
-    // "Deshacer último punto" quedaría visible y tocable sobre un `match`/`pointEvents` que
-    // nunca existieron para este partido (crashearía o no haría nada coherente).
-    $('#summary-undo-btn').hidden = !isLiveMatch || f.terminationType !== 'automatic' || f.mode === 'manual';
-    $('#summary-resume-btn').hidden = !isLiveMatch || f.terminationType !== 'manual';
-    $('#summary-back-btn').hidden = isLiveMatch;
-    $('#summary-new-btn').hidden = !isLiveMatch;
-
-    // Etapa 3 (Fase 3, §14) — un partido CARGADO manualmente no abre Análisis desde acá (solo
-    // repetiría, más pobre, lo que ya muestra esta misma tarjeta): en su lugar, una devolución
-    // breve de BRAMU Intelligence (la de stats.js YA es corta/factual por diseño, se reutiliza
-    // tal cual) y el acceso directo a "Editar partido" — nunca los dos botones a la vez.
-    const isManual = f.mode === 'manual';
-    $('#summary-analysis-btn').hidden = isManual;
-    $('#summary-edit-btn').hidden = !isManual;
-    $('#summary-manual-intelligence').hidden = !isManual;
-    if (isManual) $('#summary-manual-intelligence').textContent = f.intelligence;
-  }
-
-  function initSummaryScreen() {
-    $('#summary-new-btn').addEventListener('click', () => {
-      Store.clearActiveMatch();
-      match = null;
-      checkForActiveMatch();
-      // Hotfix v1.2.1 (§2-3.1) — "VOLVER AL INICIO" es siempre el Home del jugador, sin
-      // importar el modo (Completo/Por Games/manual) ni desde dónde se abrió esta pantalla.
-      // Antes solo pasaba por acá un partido manual cargado desde el Home; cualquier otro
-      // caso caía en `showView('setup')` — la causa del hotfix.
-      openPlayerHome();
-    });
-    $('#summary-analysis-btn').addEventListener('click', () => {
-      // V6 — bug crítico corregido: antes se priorizaba `analysisCurrent` (que puede
-      // haber quedado en memoria de un partido anterior visto en Análisis) por sobre
-      // el partido recién finalizado. Si este Resumen es el del partido EN VIVO que
-      // acaba de terminar, el snapshot recién finalizado (`finishedSnapshot`) es
-      // SIEMPRE la fuente de verdad, nunca un análisis viejo en memoria.
-      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
-      analysisOpenedFrom = summaryViewSource === 'analysis' ? analysisOpenedFrom : 'live';
-      renderAnalysis(f);
-      showView('analysis');
-    });
-    // V7 (103-104): el Resumen recién finalizado SIEMPRE comparte `finishedSnapshot` — nunca
-    // un análisis viejo que pueda haber quedado en memoria de otro partido visto antes. El
-    // Resumen histórico (abierto desde Análisis/Historial) comparte el snapshot que se le
-    // pasó a este Resumen. Mismo criterio que ya usa "Ver análisis" un poco más arriba.
-    $('#summary-share-btn').addEventListener('click', () => {
-      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
-      shareResult(f, 'resumen');
-    });
-    $('#summary-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
-    $('#summary-resume-btn').addEventListener('click', resumeMatch);
-    $('#summary-back-btn').addEventListener('click', () => { renderAnalysis(analysisCurrent); showView('analysis'); });
-    // Etapa 3 (Fase 3, §15) — "Editar partido" reabre la MISMA pantalla de carga, con todos
-    // los datos precargados (mismo criterio de fuente que "Ver análisis"/"Compartir" un poco
-    // más arriba: finishedSnapshot si este Resumen es el del partido recién guardado, o el
-    // snapshot que ya se estaba viendo si se llegó acá desde Análisis/Historial).
-    $('#summary-edit-btn').addEventListener('click', () => {
-      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
-      openManualLoadScreen('player-home', f);
-    });
+  /** V02.1 (§13/§15) — único punto de entrada al Resumen del partido, para las tres
+   *  procedencias posibles: partido en vivo recién terminado ('live'), partido cargado
+   *  manualmente recién guardado ('player-home'), o cualquier partido abierto desde Historial
+   *  ('history'). Reemplaza al viejo par Resumen inmediato/Análisis + su navegación circular. */
+  function openCanonicalResumen(f, openedFrom) {
+    analysisOpenedFrom = openedFrom;
+    renderAnalysis(f);
+    showView('analysis');
   }
 
   /* ------------------------------------------------------------------ */
-  /* ANÁLISIS COMPLETO                                                    */
+  /* ANÁLISIS COMPLETO — también la pantalla "Resumen del partido" (§13/§15)               */
   /* ------------------------------------------------------------------ */
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
+    // V02.1 (§13/§15) — Deshacer/Reanudar solo tienen sentido para el partido EN VIVO recién
+    // terminado (mismas condiciones que antes tenía el Resumen inmediato retirado): un
+    // partido cargado manualmente o uno viejo visto desde Historial nunca tuvo puntos/games
+    // en curso que deshacer sobre el `match`/`pointEvents` actuales.
+    const isLiveMatch = analysisOpenedFrom === 'live' && f === finishedSnapshot;
+    const showUndo = isLiveMatch && f.terminationType === 'automatic' && f.mode !== 'manual';
+    const showResume = isLiveMatch && f.terminationType === 'manual';
+    $('#analysis-live-actions').hidden = !showUndo && !showResume;
+    $('#analysis-undo-btn').hidden = !showUndo;
+    $('#analysis-resume-btn').hidden = !showResume;
     $('#analysis-meta').textContent = buildMatchMetaLine(f);
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
     $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
@@ -5414,23 +5376,21 @@
       Store.patchHistoryEntry(analysisCurrent.matchId, { privateNote: value });
       analysisCurrent.privateNote = value; // refleja el cambio si se vuelve a abrir esta misma sesión
     });
+    // V02.1 (§13/§15) — ya no existe una "Análisis" separada a la que volver: el Resumen es
+    // la pantalla canónica única, así que "←" siempre sale hacia la procedencia real (nunca
+    // hacia el marcador — un partido recién terminado no tiene a dónde volver ahí).
     $('#analysis-back-btn').addEventListener('click', () => {
-      if (analysisOpenedFrom === 'live' && finishedSnapshot) { $('#view-summary').hidden = false; showView('match'); }
-      else if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
-      // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home.
+      if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
+      // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home, o
+      // un partido cargado manualmente recién guardado.
       else if (analysisOpenedFrom === 'player-home') { renderPlayerHome(); showView('player-home'); }
-      else showView('setup');
+      else openPlayerHome(); // 'live' o cualquier otro caso: siempre es seguro ir al Home
     });
-    // Bloque P: VER RESUMEN — especialmente importante entrando desde Historial, donde tocar
-    // un partido abre Análisis directo (AA1) y hasta ahora no había forma de ver su Resumen.
-    $('#analysis-summary-btn').addEventListener('click', () => {
-      const f = analysisCurrent;
-      if (!f) return;
-      const source = (f === finishedSnapshot && analysisOpenedFrom === 'live') ? 'live' : 'analysis';
-      renderSummary(f, source);
-      // El Resumen es un overlay de posición fija: no hace falta cambiar de vista de fondo.
-      $('#view-summary').hidden = false;
-    });
+    // V02.1 (§13/§15) — Deshacer/Reanudar, relocalizados acá desde el viejo Resumen inmediato
+    // (#view-summary, retirado): mismas acciones de siempre, mismas condiciones de visibilidad
+    // (ver renderAnalysis).
+    $('#analysis-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
+    $('#analysis-resume-btn').addEventListener('click', resumeMatch);
   }
 
   /* ------------------------------------------------------------------ */
@@ -5476,17 +5436,26 @@
       return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-key="${t.key}" role="tab" aria-selected="${active}">${t.label} <span class="history-tab__count">${counts[t.key]}</span></button>`;
     }).join('');
     $all('#history-tabs .history-tab').forEach((btn) => {
-      btn.addEventListener('click', () => { historyOwnershipFilter = btn.dataset.key; renderHistory(); });
+      // V02.1 (§27) — tocar cualquiera de las 3 pestañas normales sale del filtro contextual
+      // (mismo destino que "Quitar filtro" en la banda, ver más abajo).
+      btn.addEventListener('click', () => { historyOwnershipFilter = btn.dataset.key; historyContextFilter = null; renderHistory(); });
     });
 
-    const chipsWrap = $('#history-mode-chips');
-    chipsWrap.innerHTML = HISTORY_MODE_CHIPS.map((c) => {
-      const active = historyModeFilter === c.key;
-      return `<button type="button" class="history-mode-chip${active ? ' is-active' : ''}" data-key="${c.key}" role="tab" aria-selected="${active}">${c.label}</button>`;
-    }).join('');
-    $all('#history-mode-chips .history-mode-chip').forEach((btn) => {
-      btn.addEventListener('click', () => { historyModeFilter = btn.dataset.key; renderHistory(); });
-    });
+    // V02.1 (§25) — la fila de chips de modo se retira de la vista principal (competía con la
+    // navegación por pestañas). La lógica de filtrado por modo se conserva intacta por si
+    // sirve a futuro (PH.filterHistoryByMode/filterHistoryCombined), simplemente no se pinta
+    // ni se ofrece ningún control para cambiarla — historyModeFilter queda fijo en 'all'.
+    $('#history-mode-chips').hidden = true;
+
+    // V02.1 (§27) — banda de filtro contextual, cuando Historial se abre desde una métrica del
+    // Home (Racha actual/Efectividad). Vive por encima de las pestañas, siempre removible.
+    const ctxWrap = $('#history-context-filter');
+    if (historyContextFilter) {
+      ctxWrap.hidden = false;
+      $('#history-context-filter-label').textContent = `Filtrando: ${historyContextFilter.label}`;
+    } else {
+      ctxWrap.hidden = true;
+    }
   }
 
   /** §3.3 — una lista vacía siempre explica el filtro activo y ofrece una salida: "Ver
@@ -5517,7 +5486,17 @@
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
     // así que el orden se conserva sin importar qué combinación de pestaña/modo esté activa.
-    const list = PH.filterHistoryCombined(fullHistory, currentPlayerName, historyOwnershipFilter, historyModeFilter);
+    let list = PH.filterHistoryCombined(fullHistory, currentPlayerName, historyOwnershipFilter, historyModeFilter);
+    // V02.1 (§27) — filtro contextual (Racha actual/Últimos 30 días), aplicado DESPUÉS de las
+    // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio de fecha
+    // recalculado aparte que pudiera divergir del que ya muestran Home/Efectividad.
+    if (historyContextFilter && historyContextFilter.type === 'streak') {
+      const ids = historyContextFilter.matchIds;
+      list = list.filter((m) => ids.has(m.matchId));
+    } else if (historyContextFilter && historyContextFilter.type === 'last30') {
+      const allowed = new Set(PH.filterMatchesWithin30d(PH.filterMatchesForPlayer(fullHistory, currentPlayerName)).map((m) => m.matchId));
+      list = list.filter((m) => allowed.has(m.matchId));
+    }
     const wrap = $('#history-list');
     wrap.innerHTML = '';
     const isEmpty = list.length === 0;
@@ -5544,6 +5523,21 @@
       // destaca con el color de SU equipo (LIMA/AZUL), nunca dorado (reservado para Oro/Star).
       const winnerBadgeA = m.winnerTeam === 'A' ? ' history-item__winner history-item__winner--a' : '';
       const winnerBadgeB = m.winnerTeam === 'B' ? ' history-item__winner history-item__winner--b' : '';
+      // V02.1 (§26) — badge de resultado: VIC/DER desde la perspectiva del jugador actual en
+      // partidos propios; GANÓ junto al nombre de la pareja ganadora en Observados (nunca
+      // VIC/DER ahí — el jugador actual no participa, "victoria/derrota" no le corresponde).
+      const ownership = PH.classifyMatchOwnership(m, currentPlayerName);
+      let resultBadgeHTML = '';
+      let wonTagA = '', wonTagB = '';
+      if (ownership === 'mine') {
+        const resultKind = PH.matchResultForPlayer(m, currentPlayerName);
+        if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VIC</span>';
+        else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DER</span>';
+      } else if (m.winnerTeam === 'A') {
+        wonTagA = '<span class="history-item__won-tag">GANÓ</span>';
+      } else if (m.winnerTeam === 'B') {
+        wonTagB = '<span class="history-item__won-tag">GANÓ</span>';
+      }
       // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
       // → startedAt → finishedAt). Nunca leer m.finishedAt directo para esto.
       const playedAt = PH.getPlayedAt(m);
@@ -5551,9 +5545,12 @@
       item.innerHTML = `
         <div class="history-item__row">
           <div class="history-item__main">
-            <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
+            <div class="history-item__top-row">
+              <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
+              ${resultBadgeHTML}
+            </div>
             ${subtitleStr ? `<div class="history-item__subtitle">${subtitleStr}</div>` : ''}
-            <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span><span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span></div>
+            <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span>${wonTagA}<span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span>${wonTagB}</div>
             <div class="history-item__score">${scoreStr}</div>
             <div class="history-item__meta">${m.mode === 'manual' ? '' : `<span>${formatDuration(m.durationMs)}</span>`}</div>
             ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
@@ -5561,7 +5558,7 @@
           <button type="button" class="history-item__delete" aria-label="Eliminar partido">✕</button>
         </div>
       `;
-      item.querySelector('.history-item__main').addEventListener('click', () => { analysisOpenedFrom = 'history'; renderAnalysis(m); showView('analysis'); });
+      item.querySelector('.history-item__main').addEventListener('click', () => openCanonicalResumen(m, 'history'));
       item.querySelector('.history-item__delete').addEventListener('click', (e) => { e.stopPropagation(); deleteHistoryEntry(m); });
       wrap.appendChild(item);
     });
@@ -5594,6 +5591,9 @@
       if (historyOpenedFrom === 'setup') showView('setup');
       else openPlayerHome();
     });
+    // V02.1 (§27) — "Quitar filtro": vuelve a las pestañas normales sin perder navegación
+    // (se queda en Historial, solo se retira el recorte contextual).
+    $('#history-context-filter-clear').addEventListener('click', () => { historyContextFilter = null; renderHistory(); });
   }
 
   /* ------------------------------------------------------------------ */
@@ -5709,6 +5709,9 @@
     renderPlayerActivity(matches);
     renderPlayerEffectiveness(matches);
     renderPlayerWidgets(matches);
+    // V02.1 (§23) — pie de autoría, mudado acá desde Configurar partido (naming oficial
+    // "BRAMUlab", sin espacio — antes decía "BRAMU Lab" en el único lugar que faltaba).
+    $('#player-home-footer').textContent = `BRAMUlab · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
   }
 
   /** §5 — Hitos personales: como máximo 2, ocultos por completo si no hay ninguno
@@ -5726,9 +5729,19 @@
    *  valor fijo). La variación mostrada es la del ÚLTIMO PARTIDO (`lastDelta`), no el cambio
    *  acumulado — así lo pide el consolidado de Etapa 4.1 para esta tarjeta específicamente
    *  (Perfil, en cambio, muestra el cambio acumulado desde la base — ver renderProfileEvolution). */
+  /** V02.1 (§19) — "@handle" provisional de interfaz: derivado del primer nombre del jugador
+   *  actual, nunca hardcodeado ni parte de un sistema de cuentas real (§32 del consolidado —
+   *  "@seba es solamente una representación provisional"). Sin diacríticos, minúscula, sin
+   *  espacios: el mismo criterio informal de cualquier handle de usuario. */
+  function buildPlayerHandle(name) {
+    const first = (name || '').trim().split(' ')[0] || '';
+    const stripped = first.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return '@' + stripped.toLowerCase();
+  }
+
   function renderPlayerCard(matches) {
-    $('#player-home-avatar').textContent = playerInitials(currentPlayerName);
     $('#player-home-name').textContent = currentPlayerName;
+    $('#player-home-handle').textContent = buildPlayerHandle(currentPlayerName);
     const n = matches.length;
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
@@ -5768,11 +5781,17 @@
     const myTeam = PH.getPlayerTeam(m, currentPlayerName);
     const partner = PH.getPartnerName(m, currentPlayerName);
     const rivals = PH.getOpponentNames(m, currentPlayerName);
-    const finishedSetsStr = m.sets.map(formatSetSegmentLabel).join(' · ');
-    const partialSetStr = m.currentPartial ? `${m.currentPartial.gamesA}-${m.currentPartial.gamesB}*` : '';
-    const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
+    // V02.1 (§20) — formato deportivo con en dash ("–", no un guion común) y los separadores
+    // (tanto el guion entre games como el punto entre sets) en gris secundario, chicos: nunca
+    // el mismo peso/color que los números, que siguen siendo el primer nivel de lectura.
+    const dash = '<span class="player-home-lastmatch__sep">–</span>';
+    const dot = '<span class="player-home-lastmatch__sep player-home-lastmatch__sep--dot"> · </span>';
+    const finishedSetsHTML = m.sets.map((s) => `${s.gamesA}${dash}${s.gamesB}`).join(dot);
+    const partialSetHTML = m.currentPartial ? `${m.currentPartial.gamesA}${dash}${m.currentPartial.gamesB}*` : '';
+    const scoreStr = [finishedSetsHTML, partialSetHTML].filter(Boolean).join(dot) || 'sin sets';
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
-    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
+    // §20 — badge compacto: VIC/DER en vez de VICTORIA/DERROTA (mismo criterio que Historial, §26).
+    const resultLabel = { win: 'VIC', loss: 'DER', neutral: 'SIN DEFINICIÓN' }[resultKind];
     if (resultKind === 'win' || resultKind === 'loss') card.classList.add('player-home-lastmatch--' + resultKind);
     // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó. §7 (Etapa 4) — formato exacto
     // "02SEP · 22:30"; sin hora cargada (timeKnown === false) no se inventa "00:00".
@@ -5890,16 +5909,35 @@
     $('#player-home-last-match-card').addEventListener('click', () => {
       const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
       if (!matches.length) { openManualLoadScreen('player-home'); return; }
-      analysisOpenedFrom = 'player-home';
-      renderAnalysis(matches[0]);
-      showView('analysis');
+      openCanonicalResumen(matches[0], 'player-home');
     });
   }
 
+  /** V02.1 (§22) — navegación desde las métricas del Home. Racha/Efectividad abren Historial
+   *  ya recortado al conjunto exacto que originó el número tocado; Compañero/Rival abren la
+   *  vista de personas correspondiente. Actividad y Partidos totales deliberadamente NO
+   *  tienen handler acá (§22: "mantener sin acción hasta definir qué detalle aporta valor"). */
+  function initPlayerHomeMetricsNav() {
+    $('#widget-streak-card').addEventListener('click', () => {
+      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+      const streakMatches = PH.computeCurrentStreakMatches(matches, currentPlayerName);
+      if (!streakMatches.length) return; // sin racha activa, no hay nada que filtrar
+      const matchIds = new Set(streakMatches.map((m) => m.matchId));
+      openHistoryScreen('player-home', { type: 'streak', matchIds, label: 'Racha actual' });
+    });
+    $('#player-home-effectiveness-card').addEventListener('click', () => {
+      openHistoryScreen('player-home', { type: 'last30', label: 'Últimos 30 días' });
+    });
+    $('#widget-partner-card').addEventListener('click', () => openPersonListScreen('partners'));
+    $('#widget-rival-card').addEventListener('click', () => openPersonListScreen('rivals'));
+  }
+
   function initPlayerHomeScreen() {
-    $('#player-home-logo').addEventListener('click', () => showView('setup'));
+    // V02.1 (§8) — el logo del Home es puramente identificatorio: antes navegaba a
+    // Configurar partido, un acceso oculto y redundante con el "+" central.
     $('#active-match-banner').addEventListener('click', continueActiveMatch);
     initPlayerHomeLastMatchCard();
+    initPlayerHomeMetricsNav();
     initPlayerIdentifyModal();
     initNotificationsModal();
   }
@@ -5912,6 +5950,41 @@
 
   function initRankingScreen() {
     $('#ranking-back-btn').addEventListener('click', () => showView('player-home'));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V02.1 (§22) — VISTAS "COMPAÑEROS" / "RIVALES"                        */
+  /* Comparten estructura (person-list): avatar/inicial, nombre, partidos
+   * juntos/enfrentados, victorias, derrotas, efectividad conjunta. Datos de
+   * PH.computeTeammateBreakdown/computeRivalBreakdown (puras, player-home.js). */
+  /* ------------------------------------------------------------------ */
+  const PERSON_LIST_CONFIG = {
+    partners: { title: 'COMPAÑEROS', countLabel: (n) => n === 1 ? '1 partido juntos' : `${n} partidos juntos` },
+    rivals: { title: 'RIVALES', countLabel: (n) => n === 1 ? '1 enfrentamiento' : `${n} enfrentamientos` },
+  };
+  function openPersonListScreen(kind) {
+    const cfg = PERSON_LIST_CONFIG[kind];
+    $('#companions-title').textContent = cfg.title;
+    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+    const people = kind === 'partners' ? PH.computeTeammateBreakdown(matches, currentPlayerName) : PH.computeRivalBreakdown(matches, currentPlayerName);
+    const wrap = $('#companions-list');
+    const isEmpty = people.length === 0;
+    $('#companions-empty').hidden = !isEmpty;
+    wrap.hidden = isEmpty;
+    wrap.innerHTML = people.map((p) => `
+      <div class="person-list__item">
+        <div class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</div>
+        <div class="person-list__info">
+          <div class="person-list__name">${escapeHtml(p.name)}</div>
+          <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins}V ${p.losses}D</div>
+        </div>
+        <div class="person-list__pct">${p.pct === null ? '—' : p.pct + '%'}</div>
+      </div>
+    `).join('');
+    showView('companions');
+  }
+  function initCompanionsScreen() {
+    $('#companions-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
   function renderProfileView() {
@@ -6352,13 +6425,13 @@
     initEtbModal();
     initGameTbModal();
     initGamesEditModal();
-    initSummaryScreen();
     initAnalysisScreen();
     initTimelineScreen();
     initHistoryScreen();
     initManualLoadScreen();
     initPlayerHomeScreen();
     initRankingScreen();
+    initCompanionsScreen();
     initProfileScreen();
     initBottomNav();
     initRegisterSheet();

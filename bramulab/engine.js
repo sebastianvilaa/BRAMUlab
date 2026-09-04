@@ -675,6 +675,18 @@
     return gamesA === format.tiebreakTriggerAt && gamesB === format.tiebreakTriggerAt;
   }
 
+  /** V02.1 (§6) — ¿(a,b) es un resultado FINAL válido de tie break (alguien acaba de ganar,
+   *  exacto) para este objetivo? A diferencia de `isValidTiebreakScore` (que también acepta
+   *  scores "en curso"), acá solo interesa un resultado ya cerrado — nunca un TB a medio
+   *  jugar. Sin techo artificial: un tie break extendido (10-8, 16-14…) es tan válido como uno
+   *  corto (7-0), siempre que se respete el objetivo mínimo y la diferencia de 2. */
+  function isValidFinalTiebreakScore(a, b, modeId) {
+    const cfg = tiebreakModeConfig(modeId);
+    const aWins = tiebreakIsWon(a, b, cfg) && !tiebreakIsWon(a - 1, b, cfg);
+    const bWins = tiebreakIsWon(b, a, cfg) && !tiebreakIsWon(b - 1, a, cfg);
+    return aWins || bWins;
+  }
+
   /** ¿Es un score de tie break válido (en curso o recién terminado) para el modo elegido? */
   function isValidTiebreakScore(tbA, tbB, modeId) {
     if (tbA < 0 || tbB < 0) return false;
@@ -989,6 +1001,7 @@
     isValidInProgressSetScore,
     isCurrentlyTiebreakScore,
     isValidTiebreakScore,
+    isValidFinalTiebreakScore,
     enumerateValidGameStates,
     createServerKnowledge,
     recordServerAnswer,

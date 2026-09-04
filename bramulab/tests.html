@@ -2312,6 +2312,107 @@
   })();
 
   // ------------------------------------------------------------------
+  // V02.1 — Bloque A: tie-break superior a 7 (§6)
+  // ------------------------------------------------------------------
+  (function () {
+    const cfg = { winTarget: 7, requireDiff2: true };
+    // Válidos (§6 del consolidado, textual)
+    [[7, 0], [7, 5], [8, 6], [10, 8], [16, 14]].forEach(([a, b]) => {
+      assert(`V02.1-TB · ${a}-${b} es un tie break final válido`, E.isValidFinalTiebreakScore(a, b, cfg));
+      assert(`V02.1-TB · ${b}-${a} (mismo par, invertido) también válido`, E.isValidFinalTiebreakScore(b, a, cfg));
+    });
+    // Inválidos
+    [[7, 6], [8, 7]].forEach(([a, b]) => {
+      assert(`V02.1-TB · ${a}-${b} NO es un tie break final válido (falta diferencia de 2)`, !E.isValidFinalTiebreakScore(a, b, cfg));
+    });
+    assert('V02.1-TB · 7-7 no es válido (nadie ganó)', !E.isValidFinalTiebreakScore(7, 7, cfg));
+    // Super tie break con objetivo distinto (10) — conserva su propia regla, nunca la de 7.
+    const cfg10 = { winTarget: 10, requireDiff2: true };
+    assert('V02.1-TB · super tie break a 10: 10-8 válido con winTarget 10', E.isValidFinalTiebreakScore(10, 8, cfg10));
+    assert('V02.1-TB · super tie break a 10: 9-7 (no llega a 10) NO es válido con winTarget 10', !E.isValidFinalTiebreakScore(9, 7, cfg10));
+    assert('V02.1-TB · el mismo 9-7 SÍ es válido con winTarget 7 (formatos nunca se mezclan)', E.isValidFinalTiebreakScore(9, 7, cfg));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.1 — Bloque A: placeholders excluidos del selector (§9)
+  // ------------------------------------------------------------------
+  (function () {
+    ['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4', 'Vos', '  jugador   1  '].forEach((n) => {
+      assert(`V02.1-PH · "${n}" se reconoce como placeholder`, Store.isPlaceholderPlayerName(n));
+    });
+    ['Matías', 'Facundo', 'Nico', 'Sebastián'].forEach((n) => {
+      assert(`V02.1-PH · "${n}" NO se reconoce como placeholder`, !Store.isPlaceholderPlayerName(n));
+    });
+    const history = [
+      { matchId: 'm1', players: [{ name: 'Sebastián', team: 'A' }, { name: 'Jugador 2', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }], finishedAt: '2026-09-01T00:00:00.000Z' },
+    ];
+    const pool = ML.computeAllKnownPlayers(history, ['Jugador 1', 'Matías']);
+    assert('V02.1-PH · computeAllKnownPlayers nunca incluye "Jugador N"', !pool.some((n) => Store.isPlaceholderPlayerName(n)), JSON.stringify(pool));
+    assert('V02.1-PH · computeAllKnownPlayers sigue incluyendo nombres reales', pool.includes('Matías') && pool.includes('Facundo') && pool.includes('Nico'), JSON.stringify(pool));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.1 — Bloque E/D: racha, Compañeros, Rivales, últimos 30 días (§21/§22/§27)
+  // ------------------------------------------------------------------
+  (function () {
+    const player = 'Seba';
+    function m(id, playedAt, names, winner) { return mkLevelMatch(id, playedAt, names, winner, 2); }
+    // 3 victorias seguidas con Matu, luego una derrota más vieja — la racha actual es 3.
+    const streak = [
+      m('s3', '2026-09-03T20:00:00.000Z', [player, 'Matu', 'Rival1', 'Rival2'], 'A'),
+      m('s2', '2026-09-02T20:00:00.000Z', [player, 'Matu', 'Rival1', 'Rival2'], 'A'),
+      m('s1', '2026-09-01T20:00:00.000Z', [player, 'Matu', 'Rival1', 'Rival2'], 'A'),
+      m('s0', '2026-07-31T00:00:00.000Z', [player, 'Matu', 'Rival1', 'Rival2'], 'B'), // ~35 días antes del ancla "ahora" de abajo
+    ];
+    const streakMatches = PH.computeCurrentStreakMatches(streak, player);
+    assert('V02.1-M · computeCurrentStreakMatches devuelve exactamente los 3 partidos de la racha', streakMatches.length === 3 && streakMatches.every((mm) => mm.matchId !== 's0'), JSON.stringify(streakMatches.map((mm) => mm.matchId)));
+
+    const partners = PH.computeTeammateBreakdown(streak, player);
+    assert('V02.1-M · computeTeammateBreakdown: Matu, 4 partidos juntos, 3V 1D, 75%', partners.length === 1 && partners[0].name === 'Matu' && partners[0].count === 4 && partners[0].wins === 3 && partners[0].losses === 1 && partners[0].pct === 75, JSON.stringify(partners));
+
+    const rivals = PH.computeRivalBreakdown(streak, player);
+    assert('V02.1-M · computeRivalBreakdown: dos rivales distintos, cada uno 4 enfrentamientos', rivals.length === 2 && rivals.every((r) => r.count === 4), JSON.stringify(rivals));
+    assert('V02.1-M · computeRivalBreakdown ordena por enfrentamientos desc, empate alfabético', rivals[0].name === 'Rival1' && rivals[1].name === 'Rival2', JSON.stringify(rivals.map((r) => r.name)));
+
+    // Últimos 30 días: ancla "ahora" 2026-09-04T12:00Z — s0 (35 días antes) queda afuera.
+    const now = new Date('2026-09-04T12:00:00.000Z');
+    const within30 = PH.filterMatchesWithin30d(streak, now);
+    assert('V02.1-M · filterMatchesWithin30d excluye el partido de hace 35 días', within30.length === 3 && !within30.some((mm) => mm.matchId === 's0'), JSON.stringify(within30.map((mm) => mm.matchId)));
+    const eff30 = PH.computeEffectiveness30d(streak, player, now);
+    assert('V02.1-M · el mismo conjunto de filterMatchesWithin30d es el que usa Efectividad (considered=3)', eff30.considered === 3, JSON.stringify(eff30));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.1 — Bloque C: BRAMU Intelligence de carga manual no llama "parejo" a un partido de
+  // dominio alternado (§17) — casos textuales del consolidado.
+  // ------------------------------------------------------------------
+  (function () {
+    function manualCase(setsRaw, winnerTeam) {
+      const players = makePlayers();
+      const sets = setsRaw.map(([a, b]) => ({ gamesA: a, gamesB: b, tiebreak: null, winner: a > b ? 'A' : 'B' }));
+      const matchCtx = { players, format: E.FORMATS.classic };
+      const stats = S.computeManualStats(sets, matchCtx);
+      const text = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
+      return { text, stats };
+    }
+    const alternating = manualCase([[6, 1], [1, 6], [6, 0]], 'A');
+    assert('V02.1-BI · 6-1 · 1-6 · 6-0 NUNCA se describe como "parejo"/"desarrollo parejo"', !/\bparejo\b/i.test(alternating.text.split('\n\n')[0]), alternating.text);
+    assert('V02.1-BI · 6-1 · 1-6 · 6-0 se lee como dominio alternado/cambiante', /alternad|cambiante/i.test(alternating.text), alternating.text);
+
+    const veryClose = manualCase([[7, 6], [6, 7], [7, 6]], 'A');
+    assert('V02.1-BI · 7-6 · 6-7 · 7-6 se describe como extremadamente parejo', /extremadamente parejo|muy ajustado/i.test(veryClose.text), veryClose.text);
+
+    const dominant = manualCase([[6, 0], [6, 0]], 'A');
+    assert('V02.1-BI · 6-0 · 6-0 se describe como victoria dominante (no "sin ceder un set" genérico)', /dominante|dominaron/i.test(dominant.text), dominant.text);
+
+    const comeback = manualCase([[2, 6], [6, 4], [6, 3]], 'A');
+    assert('V02.1-BI · 2-6 · 6-4 · 6-3 (ganador A perdió el set 1) se narra como remontada', /dar vuelta|reaccionaron/i.test(comeback.text), comeback.text);
+
+    const competitive = manualCase([[6, 2], [5, 7], [6, 4]], 'A');
+    assert('V02.1-BI · 6-2 · 5-7 · 6-4: set decisivo (6-4, margen 2) se marca como ajustado', /margen ajustado/i.test(competitive.text), competitive.text);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

@@ -24,7 +24,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMUlab Partidos).
-  const APP_VERSION = 'BRAMUlab V02';
+  const APP_VERSION = 'BRAMUlab V02.1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -117,6 +117,17 @@
     }).join(' ');
   }
 
+  /** V02.1 (§9) — placeholders del sistema (los defaults de Configurar partido cuando el
+   *  usuario deja un campo vacío, más "Vos") que NUNCA deben ofrecerse como sugerencia
+   *  reutilizable en el selector de compañero/rivales de la carga manual. No borra nada del
+   *  historial ni de los nombres recordados — el partido histórico que use uno de estos
+   *  nombres sigue intacto, solo deja de aparecer como candidato para un partido NUEVO. */
+  const GENERIC_PLACEHOLDER_NAMES = new Set(['Jugador 1', 'Jugador 2', 'Jugador 3', 'Jugador 4', 'Vos']);
+  function isPlaceholderPlayerName(name) {
+    const norm = normalizePlayerName(name);
+    return !norm || GENERIC_PLACEHOLDER_NAMES.has(norm);
+  }
+
   function loadCurrentPlayerName() { return safeGet(KEYS.CURRENT_PLAYER) || null; }
   function saveCurrentPlayerName(name) {
     const n = normalizePlayerName(name);
@@ -141,6 +152,6 @@
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry, patchHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
     loadRecordingMode, saveRecordingMode,
-    normalizePlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,
+    normalizePlayerName, isPlaceholderPlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

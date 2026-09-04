@@ -129,7 +129,8 @@
            "Historial"/"MODO COMPLETO ▾" del header. -->
       <button type="button" id="load-played-match-btn" class="link-btn load-played-btn">Cargar partido jugado</button>
     </form>
-    <div id="setup-footer" class="setup-footer">BRAMU Lab · Concepto y diseño por Sebastián Vila</div>
+    <!-- V02.1 (§23) — el pie de autoría se mudó al Home (debajo de las métricas); acá quedaba
+         duplicado y era el único lugar que todavía decía "BRAMU Lab" con espacio. -->
   </section>
 
   <!-- ============================================================
@@ -584,47 +585,24 @@
   </section>
 
   <!-- ============================================================
-       VISTA 3 · RESUMEN INMEDIATO
-       ============================================================ -->
-  <section id="view-summary" class="view view--summary" hidden>
-    <div class="summary-card">
-      <button id="summary-back-btn" class="summary-undo-btn" type="button" hidden>← Volver a Análisis</button>
-      <button id="summary-undo-btn" class="summary-undo-btn" type="button">↩ Deshacer último punto</button>
-      <button id="summary-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
-      <div class="summary-card__title">RESUMEN DEL PARTIDO</div>
-      <div class="summary-card__meta" id="summary-meta"></div>
-      <div class="summary-card__reason" id="summary-reason" hidden></div>
-      <div id="summary-result-slot"></div>
-      <!-- Etapa 3 (Fase 3, §14) — devolución breve y factual de BRAMU Intelligence, SOLO para
-           un partido cargado manualmente: reutiliza f.intelligence tal cual (ya es corto y
-           factual por diseño, ver generateManualIntelligence en stats.js) — nunca se abre
-           Análisis para repetir esto mismo. -->
-      <p id="summary-manual-intelligence" class="intelligence-text" hidden></p>
-      <div id="summary-legal"></div>
-      <div class="summary-actions">
-        <button id="summary-analysis-btn" class="btn-secondary" type="button">VER ANÁLISIS</button>
-        <button id="summary-edit-btn" class="btn-secondary" type="button" hidden>EDITAR PARTIDO</button>
-        <!-- §16 (Etapa 4) — COMPARTIR se retira de esta pantalla (para partidos manuales Y en
-             vivo por igual). La capacidad técnica (shareResult) se conserva sin exponerse acá
-             hasta definir un contexto de compartir más claro; ver #summary-share-btn, que
-             queda solo en el markup detrás de `hidden` fijo — nunca se muestra desde app.js. -->
-        <button id="summary-share-btn" class="btn-secondary" type="button" hidden>COMPARTIR</button>
-        <button id="summary-new-btn" class="btn-start" type="button">VOLVER AL INICIO</button>
-      </div>
-      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
-    </div>
-  </section>
-
-  <!-- ============================================================
-       VISTA 4 · ANÁLISIS COMPLETO
+       VISTA 3/4 · RESUMEN / ANÁLISIS COMPLETO — pantalla canónica única (V02.1 §13/§15).
+       Reemplaza a la vieja pareja "Resumen inmediato" (#view-summary) + "Análisis" y su
+       navegación circular ("Ver resumen"/"Volver a análisis" ya no existen).
        ============================================================ -->
   <section id="view-analysis" class="view view--analysis" hidden>
     <div class="analysis-header">
       <button id="analysis-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title">ANÁLISIS DEL PARTIDO</span>
-      <button id="analysis-summary-btn" class="link-btn analysis-header__summary-btn" type="button">Ver resumen</button>
+      <span class="analysis-header__title">RESUMEN DEL PARTIDO</span>
     </div>
     <div class="analysis-scroll">
+      <!-- V02.1 (§13/§15) — único Resumen del partido: reemplaza a la vieja pareja
+           Resumen inmediato ↔ Análisis y su navegación circular ("Ver resumen"/"Volver a
+           análisis"). Deshacer/Reanudar solo aparecen para el partido EN VIVO recién
+           terminado (mismas condiciones que antes tenía #view-summary). -->
+      <div class="analysis-live-actions" id="analysis-live-actions" hidden>
+        <button id="analysis-undo-btn" class="summary-undo-btn" type="button" hidden>↩ Deshacer último punto</button>
+        <button id="analysis-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
+      </div>
       <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
       <section class="analysis-section" id="analysis-intelligence">
@@ -667,8 +645,8 @@
       <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
            tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle. -->
       <section class="analysis-section court-note" id="analysis-note-section" hidden>
-        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> SENSACIONES DEL PARTIDO · SOLO VOS</div>
-        <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Ej.: Me sentí bien con el globo, pero llegué tarde a varias voleas."></textarea>
+        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
+        <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
         <p class="coverage-note">Los datos viven en este dispositivo.</p>
       </section>
       <section class="analysis-section" id="analysis-share-section">
@@ -677,6 +655,10 @@
              técnica (shareResult) conservada sin exponerse, mismo criterio que #summary-share-btn. -->
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%" hidden>COMPARTIR</button>
         <button id="analysis-edit-btn" class="btn-secondary" type="button" style="width:100%" hidden>EDITAR PARTIDO</button>
+        <!-- V02.1 (§15 item 10) — "Volver al inicio" ahora vive siempre acá (antes solo
+             existía en el Resumen inmediato retirado, #view-summary), visible en las tres
+             procedencias: partido en vivo recién terminado, carga manual recién guardada,
+             y cualquier partido abierto desde Historial. -->
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
@@ -710,7 +692,15 @@
          "Pendientes" todavía (§3.1: no existe el modelo real de validación). -->
     <div class="history-filters">
       <div id="history-tabs" class="history-tabs" role="tablist" aria-label="Filtrar por pertenencia"></div>
-      <div id="history-mode-chips" class="history-mode-chips" role="tablist" aria-label="Filtrar por modo de registro"></div>
+      <!-- V02.1 (§25) — la fila de chips de modo se retira de la navegación principal (quedó
+           compitiendo con las pestañas). Lógica de filtrado conservada, ver renderHistoryFilters. -->
+      <div id="history-mode-chips" class="history-mode-chips" role="tablist" aria-label="Filtrar por modo de registro" hidden></div>
+    </div>
+    <!-- V02.1 (§27) — banda de filtro contextual: Historial puede abrirse desde una métrica del
+         Home (Racha actual/Efectividad) ya recortado a ese conjunto exacto de partidos. -->
+    <div id="history-context-filter" class="history-context-filter" hidden>
+      <span id="history-context-filter-label"></span>
+      <button type="button" id="history-context-filter-clear" class="link-btn">Quitar filtro</button>
     </div>
     <div class="analysis-scroll">
       <div id="history-list" class="history-list"></div>
@@ -829,14 +819,16 @@
   </section>
 
   <!-- ============================================================
-       VISTA · PARTIDO GUARDADO — Etapa 4.2 (§8.2)
-       Pantalla liviana de "Momento 2": el partido YA está guardado (Momento 1 ocurrió al
-       confirmar el último set en view-manual-load) — acá solo se enriquece opcionalmente.
-       Nunca un segundo "Guardar partido".
+       VISTA · CONFIRMAR PARTIDO — V02.1 (§13/§14)
+       Reemplaza a la vieja "Partido guardado": esta pantalla aparece ANTES de persistir el
+       partido (Set final ya cargado, todavía en borrador). "GUARDAR PARTIDO" es la única
+       persistencia real — de acá en más el flujo es directo a Resumen, sin pantallas
+       intermedias ni recorridos circulares (§13).
        ============================================================ -->
   <section id="view-match-saved" class="view view--court" hidden>
     <div class="court-header court-header--saved">
-      <span class="court-header__status court-header__status--saved" id="match-saved-status">PARTIDO GUARDADO</span>
+      <button id="match-saved-back-btn" class="icon-btn court-header__back" type="button" aria-label="Volver a corregir el resultado">←</button>
+      <span class="court-header__status court-header__status--saved" id="match-saved-status">CONFIRMAR PARTIDO</span>
     </div>
     <div class="court-scroll" id="match-saved-scroll">
       <div class="court-saved-result">
@@ -846,18 +838,17 @@
       </div>
 
       <button type="button" id="match-saved-meta-line" class="court-meta-line">
-        <span class="court-meta-line__text" id="match-saved-meta-text">Ahora · Hoy</span>
+        <span class="court-meta-line__text" id="match-saved-meta-text">Hoy</span>
         <span class="court-meta-line__action">Modificar</span>
       </button>
 
       <div class="court-note">
-        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> SENSACIONES DEL PARTIDO · SOLO VOS</div>
-        <textarea id="match-saved-note" class="court-note__textarea" maxlength="500" placeholder="Ej.: Me sentí bien con el globo, pero llegué tarde a varias voleas."></textarea>
+        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
+        <textarea id="match-saved-note" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
         <p class="coverage-note">Los datos viven en este dispositivo.</p>
       </div>
 
-      <button type="button" id="match-saved-view-summary" class="court-continue-btn">VER RESUMEN</button>
-      <button type="button" id="match-saved-home-btn" class="link-btn court-saved-home-link">Volver al inicio</button>
+      <button type="button" id="match-saved-view-summary" class="court-continue-btn">GUARDAR PARTIDO</button>
     </div>
   </section>
 
@@ -944,7 +935,7 @@
           <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
         </div>
       </div>
-      <button type="button" id="load-format-sheet-done" class="btn-start">LISTO</button>
+      <button type="button" id="load-format-sheet-done" class="btn-start" style="width:100%">LISTO</button>
     </div>
   </div>
 
@@ -993,19 +984,27 @@
            (LEVEL_DEMO en app.js, nunca un algoritmo real); la cantidad de partidos SÍ es
            real, derivada del historial. -->
       <div class="pastilla player-card">
-        <div class="player-card__avatar" id="player-home-avatar">—</div>
+        <!-- V02.1 (§19) — avatar genérico local (nunca foto real ni servicio externo): mismo
+             lenguaje lineal que el resto de la iconografía SVG de la app. -->
+        <div class="player-card__avatar" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
+        </div>
         <div class="player-card__info">
           <div class="player-card__name" id="player-home-name">—</div>
-          <div class="player-card__count" id="player-home-match-count">—</div>
+          <div class="player-card__handle" id="player-home-handle">—</div>
         </div>
         <div class="player-card__level">
           <div class="player-card__level-label">NIVEL BRAMU</div>
           <div class="player-card__level-row">
             <span class="player-card__level-value" id="player-home-level-value">—</span>
-            <span class="player-card__level-delta" id="player-home-level-delta"></span>
           </div>
         </div>
-        <div class="player-card__bar"><div class="player-card__bar-fill" id="player-home-level-bar"></div></div>
+        <!-- §19 — la variación se relaciona visualmente con la barra (marcador en el extremo
+             del relleno), en vez de vivir aparte junto al número. -->
+        <div class="player-card__bar"><div class="player-card__bar-fill" id="player-home-level-bar"><span class="player-card__level-delta" id="player-home-level-delta"></span></div></div>
+        <!-- §19 — "N partidos en tu historia" se mueve debajo de la barra (antes vivía pegado
+             al nombre, compitiendo con él). -->
+        <div class="player-card__count" id="player-home-match-count">—</div>
       </div>
 
       <!-- §7 — Último partido: jerarquía tipo VIBERO (claridad, no diseño). Volanta de forma
@@ -1031,18 +1030,23 @@
         <p class="pastilla-momento__text" id="player-home-momento-text"></p>
       </div>
 
-      <!-- §9 — Actividad (30 días móviles, 4 bloques) + Efectividad (donut) — mayor jerarquía
-           visual que las 4 métricas chicas de abajo. -->
+      <!-- V02.1 (§21) — dos grupos visuales explícitos, cada uno con su propio encabezado:
+           "Últimos 30 días" (Actividad+Efectividad, ya con mayor jerarquía que las chicas) y
+           "Tu historial" (las 4 métricas compactas). §22 — solo Racha/Efectividad/Compañero/
+           Rival navegan (chevron + `pastilla--link`); Actividad y Partidos totales quedan sin
+           acción ni apariencia de botón. -->
+      <div class="player-home-group-label">ÚLTIMOS 30 DÍAS</div>
       <div class="player-home-metrics-row">
         <div class="pastilla pastilla--activity">
           <div class="pastilla__title">ACTIVIDAD</div>
-          <div class="pastilla__microlabel">ÚLTIMOS 30 DÍAS</div>
           <div class="activity-bars" id="player-home-activity-bars"></div>
           <p class="activity-total" id="player-home-activity-total"></p>
         </div>
-        <div class="pastilla pastilla--effectiveness">
-          <div class="pastilla__title">EFECTIVIDAD</div>
-          <div class="pastilla__microlabel">ÚLTIMOS 30 DÍAS</div>
+        <div class="pastilla pastilla--effectiveness pastilla--link" id="player-home-effectiveness-card" role="button" tabindex="0">
+          <div class="pastilla__title-row">
+            <div class="pastilla__title">EFECTIVIDAD</div>
+            <span class="pastilla__chevron" aria-hidden="true">›</span>
+          </div>
           <div class="effectiveness-donut">
             <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
               <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
@@ -1054,9 +1058,10 @@
         </div>
       </div>
 
+      <div class="player-home-group-label">TU HISTORIAL</div>
       <div class="player-home-widgets-grid">
-        <div class="pastilla pastilla--widget">
-          <div class="pastilla__microlabel">Racha actual</div>
+        <div class="pastilla pastilla--widget pastilla--link" id="widget-streak-card" role="button" tabindex="0">
+          <div class="pastilla__title-row"><div class="pastilla__microlabel">Racha actual</div><span class="pastilla__chevron" aria-hidden="true">›</span></div>
           <div class="pastilla-widget__value" id="widget-streak-value">—</div>
           <div class="pastilla-widget__caption" id="widget-streak-caption"></div>
         </div>
@@ -1065,17 +1070,20 @@
           <div class="pastilla-widget__value" id="widget-total-value">—</div>
           <div class="pastilla-widget__caption" id="widget-total-caption"></div>
         </div>
-        <div class="pastilla pastilla--widget">
-          <div class="pastilla__microlabel">Mejor compañero</div>
+        <div class="pastilla pastilla--widget pastilla--link" id="widget-partner-card" role="button" tabindex="0">
+          <div class="pastilla__title-row"><div class="pastilla__microlabel">Mejor compañero</div><span class="pastilla__chevron" aria-hidden="true">›</span></div>
           <div class="pastilla-widget__value pastilla-widget__value--text" id="widget-partner-value">—</div>
           <div class="pastilla-widget__caption" id="widget-partner-caption"></div>
         </div>
-        <div class="pastilla pastilla--widget">
-          <div class="pastilla__microlabel">Rival más enfrentado</div>
+        <div class="pastilla pastilla--widget pastilla--link" id="widget-rival-card" role="button" tabindex="0">
+          <div class="pastilla__title-row"><div class="pastilla__microlabel">Rival más enfrentado</div><span class="pastilla__chevron" aria-hidden="true">›</span></div>
           <div class="pastilla-widget__value pastilla-widget__value--text" id="widget-rival-value">—</div>
           <div class="pastilla-widget__caption" id="widget-rival-caption"></div>
         </div>
       </div>
+
+      <!-- V02.1 (§23) — pie de autoría, movido acá desde la configuración del marcador. -->
+      <p class="player-home-footer" id="player-home-footer"></p>
 
     </div>
   </section>
@@ -1094,6 +1102,24 @@
         <div class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 5H4v1a4 4 0 0 0 4 4M17 5h3v1a4 4 0 0 1-4 4"/><path d="M12 13v3M9 20h6M10 17h4v3h-4z"/></svg></div>
         <div class="pastilla__title">EL RANKING TODAVÍA NO ESTÁ LISTO</div>
         <p class="coverage-note">Estamos construyendo el sistema de ranking real. Cuando esté disponible, vas a ver acá tu posición y tu categoría.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · COMPAÑEROS / RIVALES — V02.1 (§22)
+       Comparten la misma estructura y clases (person-list): un renderPersonListScreen()
+       genérico en app.js alimentado por PH.computeTeammateBreakdown/computeRivalBreakdown.
+       ============================================================ -->
+  <section id="view-companions" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="companions-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title" id="companions-title">COMPAÑEROS</span>
+    </div>
+    <div class="analysis-scroll">
+      <div id="companions-list" class="person-list"></div>
+      <div id="companions-empty" class="history-empty" hidden>
+        <p class="coverage-note">Todavía no hay datos suficientes.</p>
       </div>
     </div>
   </section>

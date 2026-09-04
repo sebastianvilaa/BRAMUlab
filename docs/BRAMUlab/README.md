@@ -4,20 +4,22 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 - `BRAMUlab_Partidos_V##` — el producto anterior (marcador congelado, `bramulab-partidos/` en el código). Documentación en [`../BRAMUlab_Partidos/`](../BRAMUlab_Partidos/).
 - `BRAMUlab_V01` — la primera aplicación integral (`bramulab/` en el código). Todo lo desarrollado hasta el hotfix v2.2.1.
-- `BRAMUlab_V02` — versión funcional actual, con el nuevo sistema visual integral, publicada sobre la misma base de código y datos de V01.
+- `BRAMUlab_V02` — sistema visual integral (base) más sus subversiones de corrección `BRAMUlab_V02.1`, `V02.2`... — todas viven en la MISMA carpeta `Versiones/BRAMUlab_V02/`, nunca una carpeta nueva por subversión. Solo un cambio de versión MAYOR (`BRAMUlab_V03`) crea una carpeta nueva.
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V02
+## Versión funcional actual: BRAMUlab_V02.1
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V02"** (footer/badge de versión) — tag técnico de git `v3.0`, dentro de `BRAMUlab_V02`.
+La app publicada hoy se identifica en producto como **"BRAMUlab V02.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V02.1`.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó (sistema visual integral) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md) |
-| Qué se implementó, verificó y corrigió realmente | [`Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md) |
+| Qué se especificó en V02 (sistema visual integral, base) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V02 | [`Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02_Informe.md) (incluye al final la sección "Ajuste visual de cierre 01") |
+| Qué se especificó en V02.1 (corrección funcional, UX y terminación visual) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.1_Consolidado.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V02.1 — **el estado real de la app hoy** | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.1_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.1_Informe.md) |
 
-**Si vas a seguir desarrollando BRAMUlab_V02, leé el Informe primero** (es el estado real de la app), y el Consolidado para el porqué de cada decisión visual.
+**Si vas a seguir desarrollando BRAMUlab_V02.1, leé el Informe de V02.1 primero** (es el estado real de la app hoy), después el de V02 si hace falta contexto de una decisión visual más vieja que V02.1 no tocó.
 
 ## Versión anterior: BRAMUlab_V01
 
@@ -40,7 +42,7 @@ Documentación visual y auditorías todavía útiles como contexto, pero que no 
 
 ## Qué leer, según lo que te pidan
 
-- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02` (es la versión publicada hoy). Leé su Informe arriba para el estado visual actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence), que V02 no tocó.
-- **Cualquier pedido de ajuste visual puntual** (paleta, tipografía, tarjetas, iconografía) → es sobre `BRAMUlab_V02`, no sobre V01.
+- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02.1` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence) que ninguna ronda de V02 tocó en su modelo de datos.
+- **Cualquier pedido de ajuste visual, funcional o de UX puntual** → es sobre `BRAMUlab_V02` (probablemente su subversión más nueva, `V02.1`), no sobre V01. Una futura ronda de corrección se documenta como `BRAMUlab_V02.2` dentro de la misma carpeta `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva.
 - **"¿Qué falta / qué es lo próximo?"** → `BRAMUlab_Backlog.md`.
 - **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — ya no existe en el repositorio (se borró una vez resumido en el Consolidado/Informe/Backlog correspondiente), pero es recuperable del historial de git si hiciera falta.
