@@ -140,16 +140,16 @@ Ejecutado en vivo contra `.claude/dev-server.py` (`http://localhost:4173`), view
 ## 8. Publicación
 
 - **Commit de implementación (código):** `ab98131d27372bf994ae4b8f81357cf10b050733` — mensaje `"BRAMUlab V02.2 · corrección UX y terminación visual sobre V02.1"`.
-- **Commit de este informe:** ver hash exacto abajo (§9, actualizado tras el commit).
-- **Tag:** `BRAMUlab_V02.2`, apuntando al commit del informe (incluye código + documentación del cierre).
+- **Commit de este informe:** `2c98522f8bf801fc86c9d38487d19b171bdaa677`.
+- **Tag:** `BRAMUlab_V02.2`, apuntando al commit que deja registrados estos hashes (ver §9 — un tercer commit puramente documental, posterior a este, ya que un commit no puede citar su propio hash).
 - **Push:** a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages.
 - **URL publicada:** https://sebastianvilaa.github.io/BRAMUlab/bramu-lab/
 
 ## 9. Hash exacto y tag (registro final)
 
-- Commit de implementación: `ab98131d27372bf994ae4b8f81357cf10b050733`.
-- Commit de este informe: **`__PENDING__`** (se completa y publica en el mismo paso que crea el tag).
-- Tag `BRAMUlab_V02.2` → commit `__PENDING__`.
+- Commit de implementación (código): `ab98131d27372bf994ae4b8f81357cf10b050733`.
+- Commit de este informe (matriz, tests, recorrido): `2c98522f8bf801fc86c9d38487d19b171bdaa677`.
+- Tag `BRAMUlab_V02.2` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba (un commit no puede citar su propio hash) — el código funcional completo de V02.2 es íntegramente el de `ab98131`; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
 
