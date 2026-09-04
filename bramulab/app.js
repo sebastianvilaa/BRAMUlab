@@ -188,6 +188,23 @@
     return segs.join(dotHTML) || 'sin sets';
   }
 
+  /** V02.4 (Bloque B, §5) — marcador GRANDE, EXCLUSIVO de la tarjeta Último partido del Home
+   *  (nunca usado por Historial/Confirmar partido, fuera de alcance en esta ronda — ver §9 del
+   *  consolidado): mismos sets/mismo guion en dash que buildCanonicalScoreLineHTML, pero acá
+   *  el guion interior de cada set es un <span> propio, más liviano (§5.3, nunca hereda el
+   *  peso 900 de los números), y el punto separador entre sets es blanco y bien marcado
+   *  (§5.2) — objetivos de peso/tamaño que el componente canónico compartido no tiene
+   *  (Historial/Confirmar partido siguen usando su guion plano de siempre, sin tocar). */
+  function buildLastMatchScoreHTML(sets, currentPartial) {
+    const dotHTML = `<span class="lastmatch-score__dot"> · </span>`;
+    const segs = (sets || []).map((s) => {
+      const setHTML = `<span class="lastmatch-score__set">${s.gamesA}<span class="lastmatch-score__dash">–</span>${s.gamesB}</span>`;
+      return (s.extraordinary && s.tiebreak) ? `${setHTML} <span class="lastmatch-score__tb">TB ${s.tiebreak.a}–${s.tiebreak.b}</span>` : setHTML;
+    });
+    if (currentPartial) segs.push(`<span class="lastmatch-score__set">${currentPartial.gamesA}<span class="lastmatch-score__dash">–</span>${currentPartial.gamesB}</span>*`);
+    return segs.join(dotHTML) || 'sin sets';
+  }
+
   // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
   // esta lista la barra se oculta para no competir con una tarea inmersiva en curso (carga de
   // resultados de sets, partido en vivo, edición activa, sheets/modales).
@@ -5860,11 +5877,9 @@
     return { label: `${sign} ${Math.abs(delta).toFixed(1)}`, direction: delta > 0 ? 'up' : 'down' };
   }
 
-  /** Progreso visual de la barra: posición de `level` dentro del rango completo [1.0, 10.0]
-   *  (PH.LEVEL_MIN/LEVEL_MAX) — nunca un porcentaje decorativo suelto. */
-  function levelProgressPct(level) {
-    return Math.round(((level - PH.LEVEL_MIN) / (PH.LEVEL_MAX - PH.LEVEL_MIN)) * 100);
-  }
+  // V02.4 (Bloque A, §3.2) — el cálculo de progreso de la barra (decimal DENTRO del nivel
+  // entero actual, nunca la posición global en [LEVEL_MIN, LEVEL_MAX]) se movió a
+  // PH.levelProgressPct (player-home.js): función pura, testeable en tests.html sin DOM.
 
   function openPlayerHome() {
     currentPlayerName = Store.loadCurrentPlayerName();
@@ -5988,7 +6003,12 @@
     const deltaEl = $('#player-home-level-delta');
     deltaEl.textContent = delta.label;
     deltaEl.className = 'player-card__level-delta player-card__level-delta--' + delta.direction;
-    $('#player-home-level-bar').style.width = levelProgressPct(evolution.current) + '%';
+    const progressPct = PH.levelProgressPct(evolution.current);
+    $('#player-home-level-bar').style.width = progressPct + '%';
+    // V02.4 (Bloque A, §3.3) — la pastilla ↑/↓ vive SOBRE el punto alcanzado (ya no es hija del
+    // relleno: es hermana dentro de .player-card__bar, con su propio `left`), recortada entre
+    // 6% y 94% para que nunca choque contra ningún borde de la barra en los extremos (0%/100%).
+    $('#player-home-level-delta').style.left = Math.min(94, Math.max(6, progressPct)) + '%';
   }
 
   /** §7 — Último partido: volanta de forma reciente (último indicador = este partido, con
@@ -5999,10 +6019,6 @@
   function renderPlayerLastMatchCard(matches) {
     const card = $('#player-home-last-match-card');
     const body = $('#player-home-last-match-body');
-    // Ajuste visual de cierre 01 (§3) — línea de acento fina (lima/coral) según resultado:
-    // se resetea siempre primero, se vuelve a aplicar más abajo solo si hay partido con
-    // ganador definido.
-    card.classList.remove('player-home-lastmatch--win', 'player-home-lastmatch--loss');
     if (!matches.length) {
       card.classList.add('is-empty');
       body.innerHTML = `
@@ -6017,15 +6033,13 @@
     const myTeam = PH.getPlayerTeam(m, currentPlayerName);
     const partner = PH.getPartnerName(m, currentPlayerName);
     const rivals = PH.getOpponentNames(m, currentPlayerName);
-    // V02.1 (§20) / V02.2 (Bloque D, §12) — componente tipográfico CANÓNICO (mismo que
-    // Historial/Confirmar partido): guion en dash igual peso/blanco que los números, punto
-    // separador entre sets chico y secundario — acá con tamaño reducido (propio de esta
-    // tarjeta), sin cambiar la construcción.
-    const scoreStr = buildCanonicalScoreLineHTML(m.sets, m.currentPartial, 'player-home-lastmatch__sep--dot');
+    // V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML,
+    // no el componente canónico compartido con Historial/Confirmar partido — ver comentario
+    // en su definición).
+    const scoreStr = buildLastMatchScoreHTML(m.sets, m.currentPartial);
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
     // §20 — badge compacto: VIC/DER en vez de VICTORIA/DERROTA (mismo criterio que Historial, §26).
     const resultLabel = { win: 'VIC', loss: 'DER', neutral: 'SIN DEFINICIÓN' }[resultKind];
-    if (resultKind === 'win' || resultKind === 'loss') card.classList.add('player-home-lastmatch--' + resultKind);
     // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó. §7 (Etapa 4) — formato exacto
     // "02SEP · 22:30"; sin hora cargada (timeKnown === false) no se inventa "00:00".
     const playedAt = PH.getPlayedAt(m);
@@ -6061,32 +6075,39 @@
           ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
         </div>
       </div>
-      <div class="player-home-lastmatch__score">${scoreStr}</div>
+      <div class="player-home-lastmatch__score lastmatch-score">${scoreStr}</div>
+      <!-- V02.4 (Bloque B, §6) — equipos en DOS líneas (propio, después rival con "vs" discreto)
+           en vez de una sola línea comprimida — nunca compiten en tamaño/peso con el marcador
+           de arriba. -->
       <div class="player-home-lastmatch__teamsrow">
-        <div class="player-home-lastmatch__teams">${escapeHtml(teamAName)}<span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
+        <div class="player-home-lastmatch__teams">
+          <div class="player-home-lastmatch__teams-line">${escapeHtml(teamAName)}</div>
+          <div class="player-home-lastmatch__teams-line"><span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
+        </div>
         <span class="player-home-lastmatch__chevron" aria-hidden="true">›</span>
       </div>
     `;
   }
 
-  /** §9 — Actividad: 4 bloques cronológicos (más antiguo→más reciente, izquierda→derecha);
-   *  la altura de cada bloque representa la cantidad TOTAL de partidos del período, ganados o
-   *  perdidos por igual — la Efectividad ya es la métrica que codifica victorias/derrotas
-   *  (ver renderPlayerEffectiveness), Actividad nunca vuelve a hacerlo.
-   *  V02.3 (Bloque D, §8) — antes el volumen se pintaba SOLO con la porción de victorias
-   *  (`.activity-bar__win`, lima, height:winPct%): un bloque con una sola derrota (0 victorias)
-   *  quedaba con esa porción en 0% de alto, dejando visible nada más que el fondo casi
-   *  transparente del contenedor (`rgba(244,247,242,0.08)`) — indistinguible de un período
-   *  realmente vacío. Ahora TODO bloque con `count > 0` recibe un relleno celeste sólido
-   *  (`.is-active`, --team-a) proporcional a la cantidad de partidos; el fondo tenue queda
-   *  reservado exclusivamente para el baseline de un período sin partidos. */
+  /** §9 — Actividad: 4 bloques cronológicos (más antiguo→más reciente, izquierda→derecha).
+   *  V02.4 (Bloque A, §2) — V02.3 había ido demasiado lejos corrigiendo el bug real (una
+   *  derrota invisible, indistinguible de un período vacío): sacó el resultado por completo de
+   *  Actividad y pintó TODO el volumen en celeste — pero Actividad debe comunicar dos cosas a
+   *  la vez (cuánto se jugó Y cuánto se ganó/perdió), no una sola. Vuelve a ser una barra
+   *  APILADA: la ALTURA total sigue representando el volumen del período relativo al máximo de
+   *  los 4 (sin cambios respecto de V02.3, `heightPct` abajo), pero ahora se compone de dos
+   *  segmentos — lima (victorias) y un tono oscuro/neutro con más presencia que el baseline
+   *  vacío (derrotas, `--line-strong`, nunca celeste ni rojo) — vía PH.computeActivityBarSegments
+   *  (función pura, testeada con los 4 casos del §10.1.5: incluye 1 derrota/0 victorias, que
+   *  sigue dando `lossPct: 100`, nunca 0% de alto). */
   function renderPlayerActivity(matches) {
     const activity = PH.computeActivity30d(matches, currentPlayerName);
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
     wrap.innerHTML = activity.buckets.map((b) => {
       const heightPct = b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6;
-      return `<div class="activity-bar${b.count ? ' is-active' : ''}" style="height:${heightPct}%"></div>`;
+      const seg = PH.computeActivityBarSegments(b.count, b.wins, b.losses);
+      return `<div class="activity-bar" style="height:${heightPct}%"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
     }).join('');
     $('#player-home-activity-total').textContent = activity.total
       ? `${activity.total} ${activity.total === 1 ? 'partido' : 'partidos'} en los últimos 30 días`

@@ -385,6 +385,31 @@
     return { total, buckets: raw.slice().reverse() };
   }
 
+  /** V02.4 (Bloque A, §2.3) — segmentos APILADOS (victorias/derrotas) de UN período de
+   *  Actividad, como proporción del propio total de ese período — nunca relativo al máximo
+   *  entre los 4 períodos (eso decide la ALTURA de la barra completa, calculada aparte en
+   *  app.js/renderPlayerActivity). Puro: sin partidos, ambos segmentos en 0 (nada que apilar,
+   *  la barra queda en su baseline vacío). Un período con 0 victorias sigue devolviendo
+   *  `lossPct: 100` cuando tiene partidos — la derrota nunca queda en 0% de alto. */
+  function computeActivityBarSegments(count, wins, losses) {
+    if (!count) return { winPct: 0, lossPct: 0 };
+    return {
+      winPct: Math.round((wins / count) * 100),
+      lossPct: Math.round((losses / count) * 100),
+    };
+  }
+
+  /** V02.4 (Bloque A, §3.2) — progreso decimal DENTRO del nivel entero actual (nunca la
+   *  posición global en el rango LEVEL_MIN–LEVEL_MAX, que era el bug real: un nivel 6.2 se
+   *  mostraba a más de la mitad de la barra). 6.0→0%, 6.2→20%, 6.9→90%, 7.0→0% (arranca un
+   *  nivel nuevo). Evita precisión flotante (6.3 - 6 = 0.29999999999999982 en JS): en vez de
+   *  restar decimales, redondea el nivel a décimos como ENTERO y toma el resto módulo 10 —
+   *  aritmética entera, sin resta de floats de por medio. */
+  function levelProgressPct(level) {
+    const tenths = Math.round((level || 0) * 10) % 10;
+    return tenths * 10;
+  }
+
   /** §9 — Efectividad: % de victorias sobre partidos CONSIDERADOS (con resultado definido,
    *  ganado o perdido — un partido sin ganador nunca infla ni desinfla el porcentaje) en los
    *  últimos 30 días. `pct` es `null` sin ninguna muestra — nunca "0%" engañoso. */
@@ -616,6 +641,7 @@
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
     computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivity30d, computeEffectiveness30d,
+    computeActivityBarSegments, levelProgressPct,
     computeTeammateBreakdown, computeRivalBreakdown,
     computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithin30d,
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,

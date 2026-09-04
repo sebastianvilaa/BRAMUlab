@@ -1037,9 +1037,12 @@
             <span class="player-card__level-value" id="player-home-level-value">—</span>
           </div>
         </div>
-        <!-- §19 — la variación se relaciona visualmente con la barra (marcador en el extremo
-             del relleno), en vez de vivir aparte junto al número. -->
-        <div class="player-card__bar"><div class="player-card__bar-fill" id="player-home-level-bar"><span class="player-card__level-delta" id="player-home-level-delta"></span></div></div>
+        <!-- §19 — la variación se relaciona visualmente con la barra (marcador sobre el punto
+             de progreso alcanzado), en vez de vivir aparte junto al número.
+             V02.4 (Bloque A, §3.3) — la pastilla pasa a ser HERMANA del relleno, no su hija: su
+             posición (`left`, seteado en app.js:renderPlayerCard) ahora sigue al PROGRESO real
+             dentro del nivel entero, recortada 6-94% para nunca chocar contra los bordes. -->
+        <div class="player-card__bar"><div class="player-card__bar-fill" id="player-home-level-bar"></div><span class="player-card__level-delta" id="player-home-level-delta"></span></div>
         <!-- §19 — "N partidos en tu historia" se mueve debajo de la barra (antes vivía pegado
              al nombre, compitiendo con él). -->
         <div class="player-card__count" id="player-home-match-count">—</div>
@@ -1078,6 +1081,12 @@
         <div class="pastilla pastilla--activity">
           <div class="pastilla__title">ACTIVIDAD</div>
           <div class="activity-bars" id="player-home-activity-bars"></div>
+          <!-- V02.4 (Bloque A, §2.5) — leyenda chica y discreta: nunca compite con el total de
+               abajo (mismo motivo por el que va ARRIBA de esa línea, no mezclada con ella). -->
+          <div class="activity-legend">
+            <span class="activity-legend__item"><span class="activity-legend__dot activity-legend__dot--win"></span>Ganados</span>
+            <span class="activity-legend__item"><span class="activity-legend__dot activity-legend__dot--loss"></span>Derrotas</span>
+          </div>
           <p class="activity-total" id="player-home-activity-total"></p>
         </div>
         <div class="pastilla pastilla--effectiveness pastilla--link" id="player-home-effectiveness-card" role="button" tabindex="0">
@@ -1334,7 +1343,11 @@
        getActiveMatchSummary()/openRegisterSheet() en app.js.
        ============================================================ -->
   <div id="register-sheet-scrim" class="sheet-scrim" hidden>
-    <div id="register-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Registrar partido">
+    <!-- V02.4 (Bloque C, §7) — .bottom-sheet--compact: categoría reutilizable de sheet de
+         altura mínima garantizada (~35% de la altura útil), para sheets de contenido corto
+         que quedaban demasiado bajos/pegados al borde con la sola altura auto por contenido
+         del .bottom-sheet base (ver styles.css). -->
+    <div id="register-sheet" class="bottom-sheet bottom-sheet--compact" role="dialog" aria-modal="true" aria-label="Registrar partido">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
 
       <!-- Con partido en curso (§8). Fase 2 · Correcciones postprueba (§3.4) — el título de

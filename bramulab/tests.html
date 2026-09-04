@@ -2607,6 +2607,40 @@
   // ------------------------------------------------------------------
 
   // ------------------------------------------------------------------
+  // V02.4 — Bloque A §3.2: progreso de la barra de Nivel BRAMU (PH.levelProgressPct). El bug
+  // real de V02.3 (levelProgressPct vivía en app.js) era usar la posición GLOBAL del nivel en
+  // [LEVEL_MIN, LEVEL_MAX] en vez del progreso decimal DENTRO del nivel entero actual — un
+  // 6.2 se mostraba a >50% de la barra. Casos exactos pedidos por el consolidado.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('V02.4-NIVEL · 6.0 → 0%', PH.levelProgressPct(6.0) === 0, PH.levelProgressPct(6.0));
+    assert('V02.4-NIVEL · 6.2 → 20%', PH.levelProgressPct(6.2) === 20, PH.levelProgressPct(6.2));
+    assert('V02.4-NIVEL · 6.3 → 30%', PH.levelProgressPct(6.3) === 30, PH.levelProgressPct(6.3));
+    assert('V02.4-NIVEL · 6.9 → 90%', PH.levelProgressPct(6.9) === 90, PH.levelProgressPct(6.9));
+    assert('V02.4-NIVEL · 7.0 → 0% (arranca un nivel nuevo)', PH.levelProgressPct(7.0) === 0, PH.levelProgressPct(7.0));
+    // El resultado nunca sale de [0,100] y nunca queda afectado por el error clásico de
+    // precisión flotante de JS (6.3 - 6 === 0.29999999999999982).
+    assert('V02.4-NIVEL · resultado siempre entre 0 y 100', [1.0, 3.7, 6.3, 9.9, 10.0].every((n) => { const p = PH.levelProgressPct(n); return p >= 0 && p <= 100; }));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.4 — Bloque A §2.3: segmentos apilados de Actividad (PH.computeActivityBarSegments).
+  // Casos exactos pedidos por el consolidado (§10.1.5), incluido el caso clave que motivó esta
+  // ronda: 1 partido, 0 victorias, 1 derrota → la derrota debe ocupar el 100% del segmento
+  // apilado, nunca 0%.
+  // ------------------------------------------------------------------
+  (function () {
+    const a = PH.computeActivityBarSegments(4, 3, 1);
+    assert('V02.4-ACT-SEG · 4 partidos, 3V/1D → 75% victorias, 25% derrotas', a.winPct === 75 && a.lossPct === 25, JSON.stringify(a));
+    const b = PH.computeActivityBarSegments(2, 1, 1);
+    assert('V02.4-ACT-SEG · 2 partidos, 1V/1D → 50%/50%', b.winPct === 50 && b.lossPct === 50, JSON.stringify(b));
+    const c = PH.computeActivityBarSegments(1, 0, 1);
+    assert('V02.4-ACT-SEG · 1 partido, 0V/1D → 0% victorias, 100% derrotas (nunca 0% de alto)', c.winPct === 0 && c.lossPct === 100, JSON.stringify(c));
+    const d = PH.computeActivityBarSegments(0, 0, 0);
+    assert('V02.4-ACT-SEG · 0 partidos → ambos segmentos en 0 (nada que apilar)', d.winPct === 0 && d.lossPct === 0, JSON.stringify(d));
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

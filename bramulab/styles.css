@@ -788,9 +788,11 @@ input, select{ font-family: inherit; }
 /* V02.2 (Bloque D, §12) — componente tipográfico CANÓNICO de un resultado por sets:
    "6–2 · 5–7 · 6–4". Números y guion en el mismo blanco/peso que el texto que los rodea
    (heredan, sin clase propia); el punto separador entre sets es la única pieza que se
-   distingue: más chico y gris secundario. Reutilizado por Historial y Confirmar partido
-   (ver buildCanonicalScoreLineHTML en app.js); Último partido (Home) usa la misma
-   construcción con su propia clase de tamaño reducido, .player-home-lastmatch__sep--dot. */
+   distingue: más chico y gris secundario. Reutilizado por Historial y Confirmar partido (ver
+   buildCanonicalScoreLineHTML en app.js) — fuera de alcance en V02.4.
+   V02.4 (Bloque B, §5) — Último partido (Home) dejó de reutilizar esta construcción: tiene su
+   propio marcador grande con guion propio más liviano (ver buildLastMatchScoreHTML/
+   .lastmatch-score más abajo en este archivo), que este componente compartido no ofrecía. */
 .score-line__dot{ font-size: 0.6em; font-weight: 500; color: var(--paper-dim); vertical-align: middle; }
 
 /* V6 — leyenda de colores del gráfico de Evolución (Momentum) */
@@ -1299,11 +1301,14 @@ input, select{ font-family: inherit; }
    extremo del relleno sin recortarse. */
 .player-card__bar{ position:relative; flex-basis: 100%; height: 6px; border-radius: 999px; overflow:visible; background: rgba(244,247,242,0.08); margin-top: 8px; }
 .player-card__bar-fill{ position:relative; display:block; height:100%; background: var(--brand-lime); border-radius: 999px; }
-/* §19 — variación (+0.1/-0.2) como último segmento diferenciado, en el extremo real del
-   relleno: relaciona visualmente el número con la barra sin simular una proporción falsa
-   (es un marcador de posición, no una segunda barra de progreso). */
+/* §19 — variación (+0.1/-0.2) como marcador de posición sobre el punto de progreso real, no
+   una segunda barra de progreso.
+   V02.4 (Bloque A, §3.3) — pasa a ser hermana de .player-card__bar-fill (antes su hija,
+   posicionada solo con `right:0` respecto de un relleno de ancho variable): ahora usa `left`
+   en % sobre la pista COMPLETA (seteado en app.js:renderPlayerCard, siempre recortado 6-94%),
+   así nunca queda centrada exactamente en el borde 0%/100% de la pista y "sale" de ella. */
 .player-card__level-delta{
-  position:absolute; top:50%; right:0; transform: translate(50%, -50%);
+  position:absolute; top:50%; left:0; transform: translate(-50%, -50%);
   font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 999px; white-space:nowrap;
   border: 2px solid var(--ink-soft);
 }
@@ -1328,26 +1333,19 @@ input, select{ font-family: inherit; }
    forma reciente (antes tarjeta independiente, ahora integrada acá) y usa el
    formato exacto de fecha `02SEP · 22:30`.
    ========================================================================== */
-/* Ajuste visual de cierre 01 — tarjeta hero: única superficie del Home con degradado propio
-   (más oscura que el resto de las .pastilla, que quedan en --surface-1 plano) y radio de 18px
-   en vez de los 16px estándar — es la pieza principal de la pantalla, tiene que leerse aparte.
-   §3 pide más padding/altura, degradado más oscuro y una línea de acento fina según resultado
-   (clase de resultado la aplica JS — ver renderPlayerLastMatchCard en app.js). */
-/* V02.1 (§20) — superficie plana (sin degradado: el gradiente anterior no sumaba legibilidad)
-   y línea de acento movida de arriba a la izquierda. */
+/* Ajuste visual de cierre 01 — tarjeta hero: única superficie del Home que se destaca del resto
+   de las .pastilla — es la pieza principal de la pantalla, tiene que leerse aparte.
+   V02.4 (Bloque B, §4.1) — Surface 3 (más clara que el --surface-1 plano de las demás
+   tarjetas) + borde COMPLETO de 1px lima (nunca condicionado al resultado — el badge VIC/DER
+   ya es quien comunica eso); se retira la línea de acento vertical izquierda (antes un
+   ::before de 2px lima/coral según resultado, un segundo acento redundante con el badge). */
 .player-home-lastmatch{
   position: relative; overflow: hidden;
   cursor:pointer; text-align:left; border-radius: var(--radius-hero);
-  background: var(--surface-1);
-  border-color: var(--line-strong);
-  padding: 20px 18px 20px 22px;
+  background: var(--surface-3);
+  border-color: var(--brand-lime);
+  padding: 22px 20px;
 }
-.player-home-lastmatch::before{
-  content:''; position:absolute; top:0; left:0; bottom:0; width:2px;
-  background: transparent;
-}
-.player-home-lastmatch--win::before{ background: var(--brand-lime); }
-.player-home-lastmatch--loss::before{ background: var(--danger); }
 .player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 16px; }
 /* §3 — primera línea: forma reciente + "ÚLTIMO PARTIDO" + badge, como un único grupo a la
    izquierda (antes la volanta de forma y el título/badge vivían en filas separadas). */
@@ -1377,23 +1375,29 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 /* §11 — "resultado claramente protagonista y de mayor tamaño": el primer nivel de lectura de
-   la tarjeta, ~36–38px en móvil, más chico solo en pantallas angostas (§3). */
-.player-home-lastmatch__score{
-  font-family: var(--font-display); font-weight: 800; font-size: 36px; letter-spacing: -0.01em;
-  color: var(--paper); margin-bottom: 12px; font-variant-numeric: tabular-nums; line-height:1.05;
-}
-@media (max-width: 359px){ .player-home-lastmatch__score{ font-size: 32px; } }
-/* V02.1 (§20) / V02.2 (Bloque D §12) — el PUNTO separador entre sets siempre más chico y en
-   gris secundario; el GUION entre games queda como texto plano (hereda blanco/peso/tamaño
-   del resultado que lo rodea) — mismo criterio de "número y guion en el mismo blanco, peso y
-   alineación" del componente canónico (nunca el guion tratado como si fuera el separador de
-   sets). */
-.player-home-lastmatch__sep--dot{ font-size: 0.55em; font-weight: 500; color: var(--court-text-faint); vertical-align: middle; }
+   la tarjeta.
+   V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML en
+   app.js, nunca el componente canónico compartido con Historial/Confirmar partido). Token
+   `.lastmatch-score`: números a 44px en el ancho móvil de referencia (clamp preserva 44px
+   entre ~390-402px y reduce solo por debajo, con techo de 44px también en pantallas anchas),
+   punto separador entre sets blanco y marcado (§5.2), guion interior de cada set como span
+   propio más liviano — nunca hereda el peso 900 de los números (§5.3). */
+.player-home-lastmatch__score{ margin-bottom: 12px; }
+.lastmatch-score{ font-family: var(--font-display); font-weight: 800; color: var(--paper); font-variant-numeric: tabular-nums; }
+.lastmatch-score__set{ font-size: clamp(36px, 11.3vw, 44px); line-height: 1; letter-spacing: 0.02em; }
+.lastmatch-score__dash{ font-size: 0.65em; font-weight: 500; margin: 0 1px; }
+.lastmatch-score__dot{ font-size: 0.75em; font-weight: 900; color: var(--paper); margin: 0 6px; }
+.lastmatch-score__tb{ font-size: 13px; font-weight: 600; color: var(--court-text-dim); vertical-align: middle; }
 /* §3 — parejas + chevron comparten fila: el chevron va alineado con esta fila, no flotando
-   arriba (antes vivía en la fila del título). */
+   arriba (antes vivía en la fila del título).
+   V02.4 (Bloque B, §6) — equipos en DOS líneas (propio, después "vs" + rival) en vez de una
+   sola línea comprimida; mismo tamaño/peso/color secundario en ambas, sin aumentar el
+   line-height general — el aire entre líneas es un margen chico y controlado. */
 .player-home-lastmatch__teamsrow{ display:flex; align-items:center; gap: 8px; }
-.player-home-lastmatch__teams{ flex: 1 1 auto; min-width:0; font-size: 13px; font-weight: 500; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.player-home-lastmatch__teams .vs-sep{ margin: 0 8px; opacity: 0.6; }
+.player-home-lastmatch__teams{ flex: 1 1 auto; min-width:0; }
+.player-home-lastmatch__teams-line{ font-size: 13px; font-weight: 500; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.player-home-lastmatch__teams-line + .player-home-lastmatch__teams-line{ margin-top: 3px; }
+.player-home-lastmatch__teams .vs-sep{ margin-right: 6px; opacity: 0.6; }
 .player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
@@ -1418,12 +1422,23 @@ input, select{ font-family: inherit; }
 .pastilla__chevron{ color: var(--paper-faint); font-size: 16px; flex:none; }
 
 .activity-bars{ display:flex; align-items:flex-end; gap: 8px; height: 60px; margin: 12px 0 8px; }
-/* V02.3 (Bloque D, §8) — el relleno celeste (--team-a) representa el VOLUMEN total del
-   período (todo bloque con `count > 0`, ganado o perdido); el fondo tenue queda solo para el
-   baseline de un período realmente vacío. Ya no hay una capa interna de "victorias" — esa
-   codificación vive exclusivamente en Efectividad (donut lima aparte). */
-.activity-bar{ flex:1; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; transition: background .15s ease; }
-.activity-bar.is-active{ background: var(--team-a); }
+/* V02.4 (Bloque A, §2.3) — barra APILADA: la altura del contenedor (`.activity-bar`, seteada
+   inline por período) es el volumen relativo al máximo de los 4 períodos; adentro, dos
+   segmentos flex en columna reparten esa altura entre victorias (arriba, lima) y derrotas
+   (abajo, tono oscuro/neutro `--line-strong` — nunca celeste, nunca rojo). Un período vacío no
+   pinta ningún segmento: solo queda visible el fondo tenue de abajo, el mismo baseline de
+   siempre — nunca se confunde con una derrota, que SIEMPRE pinta `--line-strong` (3× más
+   opaco que ese baseline) aunque tenga 0 victorias. */
+.activity-bar{ flex:1; display:flex; flex-direction:column; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; }
+.activity-bar__win{ display:block; width:100%; background: var(--brand-lime); }
+.activity-bar__loss{ display:block; width:100%; background: var(--line-strong); }
+/* §2.5 — leyenda chica y discreta, entre el gráfico y el total (nunca compite con "X partidos
+   en los últimos 30 días": tipografía más chica y color más apagado que .activity-total). */
+.activity-legend{ display:flex; gap: 12px; margin: 0 0 6px; }
+.activity-legend__item{ display:flex; align-items:center; gap: 5px; font-size: 10px; font-weight:600; color: var(--paper-faint); }
+.activity-legend__dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+.activity-legend__dot--win{ background: var(--brand-lime); }
+.activity-legend__dot--loss{ background: var(--line-strong); }
 .activity-total{ font-size: 11px; color: var(--paper-dim); margin: 0; }
 
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
@@ -1544,6 +1559,16 @@ input, select{ font-family: inherit; }
   .bottom-sheet{ max-width: 768px; }
 }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
+/* V02.4 (Bloque C, §7) — categoría reutilizable de sheet COMPACTO: altura mínima garantizada
+   (nunca una altura arbitraria de un único sheet) para sheets de contenido corto que, con solo
+   la altura auto por contenido del `.bottom-sheet` base, quedaban demasiado bajos y pegados al
+   borde inferior (~26% de la altura útil en Registrar partido). `clamp()` evita que ese mínimo
+   se vuelva excesivo en pantallas muy bajas o demasiado corto en pantallas muy altas. El nivel
+   actualmente visible (`.bottom-sheet__level`, nunca más de uno a la vez — los demás quedan
+   con `hidden`) se estira a ocupar ese alto y centra su contenido: el aire extra se reparte
+   arriba/abajo del grupo título+opciones, en vez de acumularse todo contra el borde inferior. */
+.bottom-sheet--compact{ min-height: clamp(280px, 35dvh, 340px); display:flex; flex-direction:column; }
+.bottom-sheet--compact .bottom-sheet__level{ flex:1; justify-content:center; }
 .bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--court-line); margin: 0 auto 16px; }
 /* V02.2 (Bloque B, §6) — título CENTRADO respecto del sheet COMPLETO, no del espacio libre
    entre back/close: con `justify-content:space-between` + título `flex:1`, un cierre a la
@@ -1702,12 +1727,16 @@ input, select{ font-family: inherit; }
    y legible: sigue siendo referencia secundaria (nunca compite con el set activo), pero deja
    de leerse como un chip perdido. */
 .court-accumulated{ display:flex; justify-content:center; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
+/* V02.4 (Bloque D, §8) — pastillas ~15-20% más grandes (min-width/min-height explícitos en
+   vez de dejarlas depender solo del padding+contenido, que las achicaba de más en sets de un
+   solo dígito); el resultado numérico crece más que el label SET X, dándole prioridad. */
 .court-accumulated__set{
-  display:flex; flex-direction:column; align-items:center; gap:2px; background: var(--court-surface);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background: var(--court-surface);
   border: 1px solid var(--court-line); border-radius: 10px; padding: 7px 14px; cursor:pointer;
+  min-width: 60px; min-height: 48px;
 }
-.court-accumulated__set-label{ font-size: 9px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
-.court-accumulated__set-score{ font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-accumulated__set-label{ font-size: 10px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
+.court-accumulated__set-score{ font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-accumulated__set:active{ border-color: var(--brand-lime); }
 
 /* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla. */
