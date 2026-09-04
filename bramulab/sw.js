@@ -16,7 +16,12 @@
 // cachés de la propia familia ('bramulab-vN'), nunca las del marcador congelado
 // ('bramulab-partidos-...') — OJO: el prefijo no puede ser el genérico 'bramulab-', porque
 // 'bramulab-partidos-v14' también empieza con esas letras y terminaría borrado por error.
-const CACHE_NAME = 'bramulab-v02';
+// Ajuste visual de cierre 01 — bump puramente técnico de la clave de caché (no del string de
+// versión humano, que sigue siendo "BRAMUlab V02" — ver checkForNewVersion en app.js, que no
+// depende de este valor). Necesario porque sw.js no cambia de bytes en la mayoría de las
+// rondas de ajuste, así que sin este bump un cliente con el bundle viejo ya instalado nunca
+// dispara un reinstall del service worker y se queda para siempre con la caché desactualizada.
+const CACHE_NAME = 'bramulab-v02-1';
 const CORE_ASSETS = [
   './',
   './index.html',

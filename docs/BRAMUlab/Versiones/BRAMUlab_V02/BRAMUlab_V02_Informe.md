@@ -155,6 +155,8 @@ Fix de una línea: agregar un espacio (`--motion-* y --motion-ease` en vez de `-
 
 **Nota sobre verificación con el service worker activo:** durante esta ronda se confirmó (otra vez) que `sw.js` cachea agresivamente (`cache.addAll` + cache-first) y que un simple recargo no alcanza para ver un cambio de CSS — hace falta `unregister()` + `caches.delete()` antes de recargar, en cada iteración. Ya estaba documentado en memoria de rondas anteriores; se repite acá porque este hallazgo específico habría sido imposible de detectar sin descartar primero la caché como explicación alternativa.
 
+**Consecuencia para la publicación — bump técnico de `CACHE_NAME`:** este mismo comportamiento agresivo de caché aplica a cualquier usuario que ya tenga BRAMU abierto o instalado como PWA. `sw.js` no cambió de bytes en esta ronda (ninguna ronda de ajuste puntual lo toca normalmente), así que el navegador nunca detecta por sí solo que hay un service worker nuevo para reinstalar — un cliente que ya tenía `bramulab-v02` cacheado se habría quedado para siempre con el sheet transparente, sin ningún mecanismo que lo sacara de ahí. El chequeo de versión de la app (`checkForNewVersion()`) tampoco lo habría disparado, porque compara el string humano `Store.VERSION` contra `version.json` y ninguno de los dos cambia en esta ronda (§1: la versión visible sigue siendo "BRAMUlab V02", sin cambios). Se optó por subir únicamente la clave interna de caché en `sw.js` (`CACHE_NAME`: `bramulab-v02` → `bramulab-v02-1`, comentario agregado explicando el motivo) — no es un cambio de versión visible, es equivalente a lo que ya documentó el informe original de BRAMUlab_V02 (§5) cuando el propio nombre cambió como efecto colateral. Verificado localmente: con un cliente que ya tenía `bramulab-v02` activo (mismo estado que un usuario real con la app abierta), un simple recargo — sin `unregister()` manual — dispara el reinstall del service worker, repuebla la caché con los archivos corregidos y borra la caché vieja automáticamente (confirmado con `caches.keys()` antes/después).
+
 ### 6. Verificación
 
 **Tests automatizados:** 483/483 verdes, sin cambios (`tests.html`) — ninguna función pura fue tocada, solo CSS, el markup de `renderPlayerLastMatchCard()` y el ícono SVG estático de "Tu momento".
@@ -183,6 +185,7 @@ Durante la verificación se notó que un partido cargado manualmente con "Ahora"
 ### 8. Publicación
 
 - Commit de implementación: `320d2c2` — *"BRAMUlab V02 · ajuste visual de cierre 01"*.
+- Commit de documentación (primer cierre): `f323973`.
+- Commit de bump técnico de caché (`sw.js`, §5): agregado tras verificar en producción que el fix no llegaba a un cliente con `bramulab-v02` ya cacheado — ver hash y mensaje en el historial de `main` junto a este mismo informe.
 - Tag técnico corregido: `BRAMUlab_V02` (reemplaza a `v3.0`, eliminado de local y remoto), mismo commit `91a79f8`.
 - Push a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages (confirmado que el deploy depende solo de `main`, no de tags — ver §1).
-- Este mismo commit de documentación cierra la ronda.
