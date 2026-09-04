@@ -143,7 +143,7 @@ Ejecutado en vivo contra `.claude/dev-server.py` (`http://localhost:4173`), view
 - **Commit de este informe:** `2c98522f8bf801fc86c9d38487d19b171bdaa677`.
 - **Tag:** `BRAMUlab_V02.2`, apuntando al commit que deja registrados estos hashes (ver §9 — un tercer commit puramente documental, posterior a este, ya que un commit no puede citar su propio hash).
 - **Push:** a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages.
-- **URL publicada:** https://sebastianvilaa.github.io/BRAMUlab/bramu-lab/
+- **URL publicada:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 
 ## 9. Hash exacto y tag (registro final)
 
