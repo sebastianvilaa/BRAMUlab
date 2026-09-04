@@ -3,6 +3,8 @@
   "configurations": [
     {
       "name": "bramulab",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/sebas/Library/CloudStorage/Dropbox/Otros Trabajos/BRAMUlab/BRAMUlab/.claude/dev-server.py"],
       "url": "http://localhost:4173",
       "port": 4173
     }

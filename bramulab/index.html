@@ -76,8 +76,8 @@
          se abre Home; una vez arrancado el partido, el modo queda bloqueado. -->
     <div id="mode-select-menu" class="overlay overlay--menu" hidden>
       <div class="menu-sheet">
-        <button type="button" class="menu-item" data-mode="complete">Completo</button>
-        <button type="button" class="menu-item" data-mode="games">Por games · BETA</button>
+        <button type="button" class="menu-item" data-mode="complete">Punto a punto</button>
+        <button type="button" class="menu-item" data-mode="games">Por games</button>
         <button id="mode-select-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
       </div>
     </div>
@@ -124,10 +124,6 @@
       </div>
 
       <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
-      <!-- V14 (§2) — acción distinta de EMPEZAR PARTIDO: carga un partido ya jugado (histórico),
-           nunca un tercer modo de registro en vivo. Mismo lenguaje visual (link-btn) que
-           "Historial"/"MODO COMPLETO ▾" del header. -->
-      <button type="button" id="load-played-match-btn" class="link-btn load-played-btn">Cargar partido jugado</button>
     </form>
     <!-- V02.1 (§23) — el pie de autoría se mudó al Home (debajo de las métricas); acá quedaba
          duplicado y era el único lugar que todavía decía "BRAMU Lab" con espacio. -->
@@ -150,7 +146,7 @@
         <span class="match-header__sep" aria-hidden="true">·</span>
         <span class="match-header__system" id="match-header-system"></span>
         <span class="match-header__sep" id="match-header-mode-sep" aria-hidden="true" hidden>·</span>
-        <span class="match-header__mode" id="match-header-mode" hidden>POR GAMES · BETA</span>
+        <span class="match-header__mode" id="match-header-mode" hidden>POR GAMES</span>
         <span class="match-header__sep" aria-hidden="true">·</span>
         <span class="match-header__timer" id="match-timer">00:00</span>
       </div>
@@ -605,14 +601,21 @@
       </div>
       <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
+      <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
+           manuales) pegada al resultado, nunca colgando lejos bajo Intelligence. -->
+      <p id="analysis-coverage-note" class="coverage-note coverage-note--center" hidden></p>
+      <!-- V02.2 (Bloque F, §16) — label, bajada y texto analítico VIVEN dentro de la MISMA
+           tarjeta (antes título/bajada quedaban flotando por fuera y el contenido en otra
+           pastilla aparte). -->
       <section class="analysis-section" id="analysis-intelligence">
-        <h3 class="analysis-section__title intelligence-title">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>
-          BRAMU INTELLIGENCE
-        </h3>
-        <p class="intelligence-frame">Una lectura objetiva de lo que pasó en la cancha, no una planilla de estadísticas.</p>
-        <div id="analysis-intelligence-text" class="intelligence-text"></div>
-        <p id="analysis-coverage-note" class="coverage-note" hidden></p>
+        <div class="intelligence-card">
+          <h3 class="analysis-section__title intelligence-title">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>
+            BRAMU INTELLIGENCE
+          </h3>
+          <p class="intelligence-frame">Una lectura objetiva de lo que pasó en la cancha, no una planilla de estadísticas.</p>
+          <div id="analysis-intelligence-text" class="intelligence-text"></div>
+        </div>
       </section>
       <section class="analysis-section" id="analysis-stats">
         <h3 class="analysis-section__title">ESTADÍSTICAS</h3>
@@ -643,11 +646,17 @@
         <button id="analysis-full-timeline-btn" class="link-btn" type="button">VER TIMELINE COMPLETO</button>
       </section>
       <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
-           tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle. -->
-      <section class="analysis-section court-note" id="analysis-note-section" hidden>
-        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
-        <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
-        <p class="coverage-note">Los datos viven en este dispositivo.</p>
+           tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle.
+           V02.2 (Bloque F, §16) — la tarjeta se muestra solo si ya existe una nota guardada
+           (nunca un textarea vacío en modo lectura); si no hay nota, un link discreto
+           "+ Agregar nota" transforma el estado a edición explícita al tocarlo. -->
+      <section class="analysis-section" id="analysis-note-section" hidden>
+        <div class="court-note" id="analysis-note-card" hidden>
+          <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
+          <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
+          <p class="coverage-note">Los datos viven en este dispositivo.</p>
+        </div>
+        <button type="button" id="analysis-note-add-btn" class="link-btn" hidden>+ Agregar nota privada</button>
       </section>
       <section class="analysis-section" id="analysis-share-section">
         <!-- Hotfix v2.2.1 — COMPARTIR retirado también de Análisis (§16 de Etapa 4 ya lo pedía
@@ -729,26 +738,31 @@
     </div>
     <div class="court-scroll load-match-scroll" id="manual-load-scroll">
 
-      <div class="court-players" role="group" aria-label="Jugadores">
-        <div class="court-players__team court-players__team--a">
-          <span class="court-players__label">TU EQUIPO</span>
-          <div class="court-players__chips">
-            <button type="button" class="load-player-chip load-player-chip--fixed" id="load-player-a1" aria-label="Jugador 1 del Equipo A (vos)" disabled>
-              <span class="load-player-chip__name" id="load-player-a1-name">—</span>
+      <!-- V02.2 (Bloque C, §7) — tarjetas de equipo compactas, mismo lenguaje visual que la
+           composición de equipos ya validada en la configuración en vivo (.team-block): borde
+           general neutro + acento LATERAL de color (nunca solo una línea inferior), separador
+           VS entre ambas. Reemplaza los cuatro pills sueltos anteriores. -->
+      <div class="court-team-cards" role="group" aria-label="Jugadores">
+        <div class="court-team-card court-team-card--a">
+          <div class="court-team-card__label"><span class="team-dot team-dot--a"></span>EQUIPO A</div>
+          <div class="court-team-card__row">
+            <button type="button" class="court-team-card__player court-team-card__player--fixed" id="load-player-a1" aria-label="Jugador 1 del Equipo A (vos)" disabled>
+              <span class="court-team-card__player-name" id="load-player-a1-name">—</span>
             </button>
-            <button type="button" class="load-player-chip" id="load-player-a2" data-slot="a2" aria-label="Elegir compañero">
-              <span class="load-player-chip__name">+ Compañero</span>
+            <button type="button" class="court-team-card__player" id="load-player-a2" data-slot="a2" aria-label="Elegir compañero">
+              <span class="court-team-card__player-name">+ Compañero</span>
             </button>
           </div>
         </div>
-        <div class="court-players__team court-players__team--b">
-          <span class="court-players__label">RIVALES</span>
-          <div class="court-players__chips">
-            <button type="button" class="load-player-chip" id="load-player-b1" data-slot="b1" aria-label="Elegir rival 1">
-              <span class="load-player-chip__name">+ Rival 1</span>
+        <div class="vs-divider vs-divider--compact" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
+        <div class="court-team-card court-team-card--b">
+          <div class="court-team-card__label"><span class="team-dot team-dot--b"></span>EQUIPO B</div>
+          <div class="court-team-card__row">
+            <button type="button" class="court-team-card__player" id="load-player-b1" data-slot="b1" aria-label="Elegir rival 1">
+              <span class="court-team-card__player-name">+ Rival 1</span>
             </button>
-            <button type="button" class="load-player-chip" id="load-player-b2" data-slot="b2" aria-label="Elegir rival 2">
-              <span class="load-player-chip__name">+ Rival 2</span>
+            <button type="button" class="court-team-card__player" id="load-player-b2" data-slot="b2" aria-label="Elegir rival 2">
+              <span class="court-team-card__player-name">+ Rival 2</span>
             </button>
           </div>
         </div>
@@ -1322,8 +1336,17 @@
           <span class="bottom-sheet__title">REGISTRAR PARTIDO</span>
           <button type="button" id="register-sheet-close-1" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
-        <button type="button" id="register-sheet-load-played" class="sheet-option sheet-option--primary">Cargar mi partido jugado</button>
-        <button type="button" id="register-sheet-live" class="sheet-option">Registrar partido en vivo</button>
+        <!-- V02.2 (Bloque B, §6) — misma jerarquía exacta para ambas opciones: ninguna usa
+             lima sólida ni borde lima (eso quedaba reservado a una sola, dándole falso
+             protagonismo). Mismo icono secundario (chevron) en las dos. -->
+        <button type="button" id="register-sheet-load-played" class="sheet-option">
+          <span class="sheet-option__label">Cargar mi partido jugado</span>
+          <span class="sheet-option__icon" aria-hidden="true">›</span>
+        </button>
+        <button type="button" id="register-sheet-live" class="sheet-option">
+          <span class="sheet-option__label">Registrar partido en vivo</span>
+          <span class="sheet-option__icon" aria-hidden="true">›</span>
+        </button>
       </div>
 
       <!-- Nivel 2: elegir modo en vivo (§4) — ninguna opción preseleccionada ni destacada. -->

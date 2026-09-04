@@ -2413,6 +2413,62 @@
   })();
 
   // ------------------------------------------------------------------
+  // V02.2 — Bloque C: selector de jugador sin duplicados entre RECIENTES y TODOS (§8),
+  // exclusión de jugadores ya asignados al partido (§9).
+  // ------------------------------------------------------------------
+  (function () {
+    // Reproduce la MISMA construcción de exclusión que app.js usa para pintar el selector
+    // (ver renderManualPlayerSheetContent): TODOS excluye tanto a quien ya está asignado en
+    // otro rol como a quien ya apareció en RECIENTES — nunca la misma persona dos veces.
+    const history = [
+      { matchId: 'm1', players: [{ name: 'Sebastián', team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }], finishedAt: '2026-09-01T00:00:00.000Z' },
+      { matchId: 'm2', players: [{ name: 'Sebastián', team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], finishedAt: '2026-09-02T00:00:00.000Z' },
+    ];
+    const currentPlayerName = 'Sebastián';
+    const alreadyAssigned = ['Matías']; // ya elegido como compañero, eligiendo Rival 1 ahora
+    const excluded = alreadyAssigned; // manualExcludedNamesForSlot: todo lo asignado menos el propio slot
+    const recents = ML.computeRecentPlayers(history, currentPlayerName, excluded).slice(0, 12);
+    const pool = ML.computeAllKnownPlayers(history, [currentPlayerName, 'Matías', 'Facundo', 'Nico', 'Gastón', 'Lucho']);
+    const excludeForAll = excluded.concat([currentPlayerName]).concat(recents);
+    const allMatches = ML.filterPlayerCandidates(pool, '', excludeForAll);
+    const overlap = recents.filter((n) => allMatches.includes(n));
+    assert('V02.2-SEL · RECIENTES no queda vacío (Facundo/Nico/Gastón/Lucho jugaron con el actual)', recents.length > 0, JSON.stringify(recents));
+    assert('V02.2-SEL · ninguna persona de RECIENTES se repite en TODOS', overlap.length === 0, JSON.stringify({ recents, allMatches, overlap }));
+    assert('V02.2-SEL · el jugador ya asignado (Matías) no aparece en ninguna de las dos listas', !recents.includes('Matías') && !allMatches.includes('Matías'), JSON.stringify({ recents, allMatches }));
+    assert('V02.2-SEL · el jugador actual (Sebastián) no aparece en ninguna de las dos listas', !recents.includes('Sebastián') && !allMatches.includes('Sebastián'), JSON.stringify({ recents, allMatches }));
+
+    // §9 — duplicados: elegir a alguien ya asignado a otro rol del mismo partido debe
+    // detectarse (case/espacios-insensible), tanto al jugador actual como a un compañero/rival
+    // ya elegido.
+    const assignedNow = ['Sebastián', 'Matías', 'Facundo'];
+    assert('V02.2-SEL · "facundo" (minúscula) ya asignado se detecta como duplicado', ML.isDuplicatePlayerName('facundo', assignedNow));
+    assert('V02.2-SEL · "  Matías  " (espacios) ya asignado se detecta como duplicado', ML.isDuplicatePlayerName('  Matías  ', assignedNow));
+    assert('V02.2-SEL · "Nico" (todavía sin asignar) NO se detecta como duplicado', !ML.isDuplicatePlayerName('Nico', assignedNow));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.2 — Bloque D: el avance automático Set 1 → Set 2 → decisivo (§10, commitCurrent
+  // ManualSetIfValid en app.js) se apoya por completo en ML.resolveActiveSetIndex/
+  // isThirdSetVisible — se confirma acá la secuencia completa que la UI recorre sola, y que
+  // un resultado inválido/incompleto nunca fuerza un avance (excepción explícita del §10).
+  // ------------------------------------------------------------------
+  (function () {
+    const format = E.FORMATS.classic;
+    const sets = [null, null, null];
+    assert('V02.2-SET · sin ningún set cargado, el set activo es el Set 1 (índice 0)', ML.resolveActiveSetIndex(sets, format) === 0);
+    sets[0] = { a: 6, b: 2 };
+    assert('V02.2-SET · con el Set 1 confirmado (6-2), el activo avanza solo al Set 2 (índice 1)', ML.resolveActiveSetIndex(sets, format) === 1);
+    sets[1] = { a: 5, b: 7 };
+    assert('V02.2-SET · Set 1 y Set 2 en 1-1: el set decisivo queda visible y activo (índice 2)', ML.isThirdSetVisible(sets[0], sets[1], format) === true && ML.resolveActiveSetIndex(sets, format) === 2);
+    sets[2] = { a: 6, b: 4 };
+    assert('V02.2-SET · con los tres sets confirmados, el partido queda decidido (sin set activo)', ML.resolveActiveSetIndex(sets, format) === null);
+    // Excepción del §10: un resultado inválido/incompleto (8-6 no existe como set clásico,
+    // el máximo es 7-6) nunca avanza — el Set 1 sigue siendo el activo.
+    const invalidSets = [{ a: 8, b: 6 }, null, null];
+    assert('V02.2-SET · un resultado inválido (8-6) no avanza: el Set 1 sigue activo', ML.resolveActiveSetIndex(invalidSets, format) === 0);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

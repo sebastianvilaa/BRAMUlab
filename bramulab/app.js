@@ -165,18 +165,39 @@
    *  versión en `buildScoreCardHTML`, porque necesita orientación por equipo.
    */
   function formatSetSegmentLabel(s) {
+    // V02.2 (Bloque D, §12) — guion EN DASH ("–"), nunca un hyphen-minus ("-"): es el mismo
+    // carácter que ya usa el resto de la app (chips de edición, Timeline, Momentos Clave...)
+    // — antes esta función era la única excepción, así que Historial y Confirmar partido (sus
+    // dos consumidores del marcador en texto plano) quedaban con un guion distinto al resto.
     return s.extraordinary && s.tiebreak
-      ? `${s.gamesA}-${s.gamesB} · TB ${s.tiebreak.a}-${s.tiebreak.b}`
-      : `${s.gamesA}-${s.gamesB}`;
+      ? `${s.gamesA}–${s.gamesB} · TB ${s.tiebreak.a}–${s.tiebreak.b}`
+      : `${s.gamesA}–${s.gamesB}`;
+  }
+
+  /** V02.2 (Bloque D, §12) — componente tipográfico CANÓNICO para un resultado por sets:
+   *  "6–2 · 5–7 · 6–4". Reutiliza formatSetSegmentLabel para cada segmento (mismo guion, nunca
+   *  un cálculo paralelo que pudiera divergir) y envuelve el punto separador en una clase
+   *  chica/secundaria — nunca el mismo blanco/peso que los números. `dotClass`, opcional,
+   *  permite que un llamador reduzca el tamaño manteniendo la misma construcción (§12: "en
+   *  Home puede reducirse el tamaño, pero no cambiar la construcción"). Devuelve HTML — quien
+   *  lo use debe asignarlo con `innerHTML`, nunca `textContent`. */
+  function buildCanonicalScoreLineHTML(sets, currentPartial, dotClass) {
+    const dotHTML = `<span class="${dotClass || 'score-line__dot'}"> · </span>`;
+    const segs = (sets || []).map(formatSetSegmentLabel);
+    if (currentPartial) segs.push(`${currentPartial.gamesA}–${currentPartial.gamesB}*`);
+    return segs.join(dotHTML) || 'sin sets';
   }
 
   // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
-  // esta lista (partido en vivo, setup, resumen, análisis, timeline) la barra se oculta para
-  // no competir con el control-bar del marcador ni con las cabeceras propias ya existentes.
-  // Etapa 3 (Fase 3, §5) — "Cargar partido jugado" ya no muestra la barra inferior: es un
-  // flujo corto y enfocado, no una pantalla principal de navegación (antes sí la mostraba,
-  // remanente de cuando ese formulario era más largo).
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'ranking', 'profile'];
+  // esta lista la barra se oculta para no competir con una tarea inmersiva en curso (carga de
+  // resultados de sets, partido en vivo, edición activa, sheets/modales).
+  // Etapa 3 (Fase 3, §5) — "Cargar partido jugado" (view-manual-load) no muestra la barra
+  // inferior: es la tarea inmersiva de carga de resultados en sí (§4 del consolidado V02.2).
+  // V02.2 (Bloque A, §4) — se agregan Resumen del partido (analysis), Compañeros/Rivales
+  // (companions) y la configuración inicial de registro por games/punto a punto (setup):
+  // ninguna de las tres es una tarea inmersiva, así que la navegación global no debía
+  // perderse ahí — antes dejaban al usuario "encerrado" en recorridos de volver.
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions']
@@ -215,7 +236,10 @@
   let selectedFormatId = 'classic';
   let selectedRecordingMode = 'complete'; // 'complete' | 'games' — V13 (§2)
 
-  const RECORDING_MODE_LABELS = { complete: 'MODO COMPLETO', games: 'MODO POR GAMES · BETA' };
+  // V02.2 (Bloque I, §23) — naming ESTABLE, sin "BETA": el modo Por Games ya no es una
+  // función experimental de cara al usuario. Mismas dos etiquetas en el trigger del header,
+  // el ítem del menú compacto y (recortado) el header de partido en vivo (ver index.html).
+  const RECORDING_MODE_LABELS = { complete: 'REGISTRO PUNTO A PUNTO', games: 'REGISTRO POR GAMES' };
 
   const SCORING_HINTS = {
     starpoint: 'Dos ventajas y luego punto decisivo',
@@ -506,7 +530,7 @@
 
   function renderManualPlayerChip(slot) {
     const el = $(`#load-player-${slot}`);
-    const nameEl = el.querySelector('.load-player-chip__name');
+    const nameEl = el.querySelector('.court-team-card__player-name');
     const name = manualPlayers[slot];
     if (name) { nameEl.textContent = name; el.classList.remove('is-empty'); }
     else { nameEl.textContent = MANUAL_SLOT_PLACEHOLDER[slot]; el.classList.add('is-empty'); }
@@ -549,8 +573,13 @@
     const excluded = manualExcludedNamesForSlot(slot);
     const history = Store.loadHistory();
     const recentsWrap = $('#load-player-sheet-recents');
+    // V02.2 (Bloque C, §8) — BUG real: la sección TODOS no excluía a quienes ya aparecían en
+    // RECIENTES, así que la misma persona podía listarse dos veces en la misma pantalla. Se
+    // guarda qué nombres quedaron en RECIENTES para restarlos también de TODOS más abajo.
+    let recentNames = [];
     if (!query) {
       const recents = ML.computeRecentPlayers(history, currentPlayerName, excluded).slice(0, 12);
+      recentNames = recents;
       if (recents.length) {
         recentsWrap.hidden = false;
         recentsWrap.innerHTML = recents.map((n) => `
@@ -567,7 +596,7 @@
     }
 
     const pool = ML.computeAllKnownPlayers(history, Store.loadPlayerNames());
-    const matches = ML.filterPlayerCandidates(pool, query, excluded.concat([currentPlayerName]));
+    const matches = ML.filterPlayerCandidates(pool, query, excluded.concat([currentPlayerName]).concat(recentNames));
     const listWrap = $('#load-player-sheet-list');
     listWrap.innerHTML = matches.length
       ? matches.map((n) => `<button type="button" class="load-player-sheet__item" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('')
@@ -583,16 +612,47 @@
     else { addBtn.hidden = true; addBtn.textContent = ''; }
   }
 
+  /** V02.2 (Bloque C, §9) — una persona no puede ocupar dos lugares en el mismo partido. La UI
+   *  normal ya lo evita (RECIENTES/TODOS excluyen a quien ya está asignado, §8), pero esto es
+   *  la fuente de verdad explícita: si de todos modos llega un nombre ya asignado, NO se cierra
+   *  el sheet — se explica brevemente que ya participa y se deja elegir de nuevo. */
   function selectManualPlayer(name) {
     const slot = manualActiveSheetSlot;
     const norm = normalizePlayerName(name);
     if (!slot || !norm) return;
+    const excludedForDup = manualExcludedNamesForSlot(slot).concat([currentPlayerName]);
+    if (ML.isDuplicatePlayerName(norm, excludedForDup)) {
+      showToast(`${norm} ya participa en este partido.`);
+      return;
+    }
     manualPlayers[slot] = norm;
     Store.rememberPlayerNames([norm]);
     markManualLoadDirty();
     renderManualPlayers();
     renderManualScoreboard();
     closeManualPlayerSheet();
+    advanceManualSelectionSequence(slot);
+  }
+
+  /** V02.2 (Bloque C, §8 / Bloque D, §10.1) — secuencia automática completa: elegir un rol
+   *  abre solo el SIGUIENTE rol vacío (Compañero → Rival 1 → Rival 2), y al completar Rival 2
+   *  abre directamente el teclado numérico del Set 1, Equipo A — sin ningún toque de regreso a
+   *  la pantalla entre medio. Nunca reabre un rol que ya está completo (permite tocar
+   *  cualquier jugador ya elegido para modificarlo sin reactivar la cadena) ni pisa un
+   *  resultado que ya se empezó a cargar. El pequeño delay deja terminar la animación de
+   *  cierre del sheet anterior (220ms) antes de abrir el siguiente paso. */
+  const MANUAL_SELECTION_NEXT_SLOT = { a2: 'b1', b1: 'b2' };
+  function advanceManualSelectionSequence(justFilledSlot) {
+    const nextSlot = MANUAL_SELECTION_NEXT_SLOT[justFilledSlot];
+    if (nextSlot) {
+      if (!manualPlayers[nextSlot]) setTimeout(() => openManualPlayerSheet(nextSlot), 260);
+      return;
+    }
+    if (justFilledSlot !== 'b2') return;
+    const rosterComplete = manualPlayers.a2 && manualPlayers.b1 && manualPlayers.b2;
+    const set1Untouched = manualActiveSetIndex === 0 && !manualKeypadOpen
+      && !Number.isFinite(manualDraftSet.a) && !Number.isFinite(manualDraftSet.b);
+    if (rosterComplete && set1Untouched) setTimeout(() => openManualKeypad('A'), 260);
   }
 
   function initManualPlayerSheet() {
@@ -806,12 +866,26 @@
       if (next === null) {
         manualDecided = true;
         renderManualScoreboard();
+        // V02.2 (Bloque D, §10.4) — el set que define el partido abre CONFIRMAR PARTIDO solo,
+        // sin exigir un toque extra en CONTINUAR (ese botón sigue existiendo como red de
+        // seguridad para los casos NO interactivos que también pueden dejar el partido
+        // "decidido" — reabrir un partido ya completo para editarlo, o un cambio de formato —
+        // ver updateManualContinueState/finalizeManualContinue).
+        setTimeout(() => finalizeManualContinue(), 320);
       } else {
         manualActiveSetIndex = next;
         const existing = manualSets[next];
         manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
-        manualDraftActiveTeam = 'A';
-        renderManualScoreboard();
+        if (existing) {
+          // Ya había un valor cargado en este set (reapertura tras editar un set previo) —
+          // no forzar el teclado, se muestra tal cual quedó.
+          manualDraftActiveTeam = 'A';
+          renderManualScoreboard();
+        } else {
+          // V02.2 (Bloque D, §10.3) — deja el primer campo del set siguiente activo y el
+          // teclado abierto: nunca hace falta un toque extra para "despertar" el set nuevo.
+          openManualKeypad('A');
+        }
       }
     };
 
@@ -1333,7 +1407,7 @@
     const badge = $('#match-saved-badge');
     badge.textContent = resultLabel;
     badge.className = 'court-saved-result__badge court-saved-result__badge--' + resultKind;
-    $('#match-saved-score').textContent = snapshot.sets.map(formatSetSegmentLabel).join(' · ');
+    $('#match-saved-score').innerHTML = buildCanonicalScoreLineHTML(snapshot.sets, null);
     const teamAName = snapshot.players.filter((p) => p.team === 'A').map((p) => p.name).join(' / ');
     const teamBName = snapshot.players.filter((p) => p.team === 'B').map((p) => p.name).join(' / ');
     $('#match-saved-teams').textContent = `${teamAName} vs ${teamBName}`;
@@ -1373,7 +1447,10 @@
   }
 
   function initManualLoadScreen() {
-    $('#load-played-match-btn').addEventListener('click', () => openManualLoadScreen('setup'));
+    // V02.2 (Bloque A, §5) — "Cargar partido jugado" ya no tiene acceso propio desde la
+    // configuración por games/punto a punto: el "+" central es el único punto global para
+    // elegir entre carga manual y registro en vivo (antes duplicaba el mismo destino que
+    // "Cargar mi partido jugado" del sheet Registrar partido).
     $('#manual-load-back-btn').addEventListener('click', exitManualLoadScreen);
     initManualDateTimeFields();
     initManualMetaSheet();
@@ -4103,8 +4180,13 @@
     // siempre 0, y mostrar "0 s" daría a entender un dato real que en verdad es desconocido.
     const durLabel = f.mode === 'manual' ? '' : (isDurationUnknownStart(f) ? 'Tiempo registrado' : 'Duración total') + ' · ' + formatDuration(f.durationMs);
     const statsBlockHTML = opts.statsHTML ? `<div class="result-card__divider"></div><div class="result-card__stats">${opts.statsHTML}</div>` : '';
+    // V02.2 (Bloque F, §15) — "Ganadores" pasa a vivir DENTRO de la misma tarjeta (antes vivía
+    // afuera, en su propio bloque — ver buildWinnersBannerHTML/buildResultBlockHTML). Reutiliza
+    // exactamente el mismo HTML/clases, solo cambia dónde se inserta.
+    const winnersHTML = opts.winnersHTML || '';
 
     return `<div class="result-card">
+      ${winnersHTML}
       ${durationsHTML}
       ${cellsForTeam('A')}
       ${cellsForTeam('B')}
@@ -4114,12 +4196,40 @@
     </div>`;
   }
 
-  /** Componente de resultado usado en Análisis (score + duración; las estadísticas completas
-   *  viven en su propia sección más abajo, así que acá NO se fusionan). */
-  function buildResultBlockHTML(f) { return buildWinnersBannerHTML(f) + buildScoreCardHTML(f); }
+  /** V02.2 (Bloque F, §15) — "Sets ganados"/"Games ganados", derivados directo de `f.sets`
+   *  (todo set, en cualquier modo, siempre trae `.winner`/`.gamesA`/`.gamesB` — ver engine.js/
+   *  match-load.js): nunca una estadística nueva, solo un total ya calculable que antes vivía
+   *  separado del marcador (en el caso de partidos cargados, era la ÚNICA fila de la sección
+   *  ESTADÍSTICAS — ver renderManualStatsGrid). */
+  function buildSetsGamesSummaryHTML(f) {
+    const sets = f.sets || [];
+    const setsWonA = sets.filter((s) => s.winner === 'A').length;
+    const setsWonB = sets.filter((s) => s.winner === 'B').length;
+    const gamesA = sets.reduce((acc, s) => acc + (s.gamesA || 0), 0);
+    const gamesB = sets.reduce((acc, s) => acc + (s.gamesB || 0), 0);
+    return `
+      <div class="summary-stat-row"><span class="summary-stat-row__a">${setsWonA}</span><span class="summary-stat-row__label">SETS GANADOS</span><span class="summary-stat-row__b">${setsWonB}</span></div>
+      <div class="summary-stat-row"><span class="summary-stat-row__a">${gamesA}</span><span class="summary-stat-row__label">GAMES GANADOS</span><span class="summary-stat-row__b">${gamesB}</span></div>
+    `;
+  }
+
+  /** V02.2 (Bloque F, §15) — tarjeta ÚNICA de resultado: Ganadores, marcador por equipo,
+   *  divisor y Sets/Games ganados, todo en el mismo componente — "las estadísticas deben
+   *  quedar inmediatamente relacionadas con el resultado" (antes Ganadores vivía en un bloque
+   *  aparte arriba, y Sets/Games ganados en la sección ESTADÍSTICAS, lejos del marcador). */
+  function buildResultBlockHTML(f) {
+    return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f) });
+  }
 
   /** Bloque N: legal de datos parciales — se muestra solo cuando corresponde (nunca en partido completo sin ajustes). */
   function buildCoverageLegalHTML(f) {
+    // V02.2 (Bloque F, §15) — la aclaración de un partido cargado a mano ahora vive pegada al
+    // resultado (antes vivía dentro de la sección ESTADÍSTICAS, que antes era la única fila
+    // que tenía — Sets/Games ganados, relocalizados dentro de la tarjeta de resultado, ver
+    // buildResultBlockHTML/renderManualStatsGrid).
+    if (f.mode === 'manual') {
+      return '<p class="coverage-note coverage-note--center">Partido cargado manualmente: solo se conoce el resultado final por set, sin desarrollo punto a punto.</p>';
+    }
     if (f.stats && f.stats.hasAdjustments) {
       return f.mode === 'games'
         ? '<p class="coverage-note">Marcador corregido manualmente · Datos parciales por corrección manual</p>'
@@ -4212,9 +4322,17 @@
     $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
     // Etapa 4.2 (§10) — sensaciones privadas: solo partidos CARGADOS, accesibles únicamente
     // desde este detalle (nunca en Home/Historial/Resumen/exportaciones).
+    // V02.2 (Bloque F, §16) — la tarjeta con label+textarea se muestra solo si YA existe una
+    // nota guardada (nunca un textarea vacío en modo lectura); sin nota, un link discreto
+    // "+ Agregar nota" explicita el paso a edición al tocarlo (ver #analysis-note-add-btn).
     const noteSection = $('#analysis-note-section');
     noteSection.hidden = f.mode !== 'manual';
-    if (f.mode === 'manual') $('#analysis-note-textarea').value = f.privateNote || '';
+    if (f.mode === 'manual') {
+      const hasNote = !!(f.privateNote && f.privateNote.trim());
+      $('#analysis-note-textarea').value = f.privateNote || '';
+      $('#analysis-note-card').hidden = !hasNote;
+      $('#analysis-note-add-btn').hidden = hasNote;
+    }
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
     // partido recién terminado como desde el Historial de un partido viejo, y en ese segundo
@@ -4450,7 +4568,9 @@
   function buildGamesStatsGridRowsHTML(f, stats) {
     const isPartial = stats.hasAdjustments;
     const rowsHTML = [];
-    rowsHTML.push(sharedBarRowHTML('Games ganados', stats.gamesA, stats.gamesB, stats.gamesA, stats.gamesB, false, false));
+    // V02.2 (Bloque F, §15) — "Games ganados" ya vive en la tarjeta de resultado
+    // (buildResultBlockHTML/buildSetsGamesSummaryHTML); repetirlo acá sería la misma
+    // estadística dos veces en la misma pantalla.
     const sgA = stats.serviceGames.wonA + stats.serviceGames.lostA, sgB = stats.serviceGames.wonB + stats.serviceGames.lostB;
     if (sgA + sgB > 0) {
       const holdPctA = sgA ? (stats.serviceGames.wonA / sgA) * 100 : 0, holdPctB = sgB ? (stats.serviceGames.wonB / sgB) * 100 : 0;
@@ -4466,6 +4586,7 @@
   }
 
   function renderGamesStatsGrid(f) {
+    $('#analysis-stats').hidden = false; // por si quedó oculto de ver un partido manual antes en la misma sesión
     renderSetFilterTabs('#stats-set-filter', f, () => { renderGamesStatsGrid(f); renderGamesEvolutionChart(f); });
     const stats = statsForCurrentFilter(f);
     $('#analysis-stats-grid').innerHTML = buildGamesStatsGridRowsHTML(f, stats);
@@ -4571,25 +4692,19 @@
     }).join('');
   }
 
-  /** V14 (§14) — grilla de Análisis para un partido cargado: SOLO sets/games ganados, sin
-   *  selector por set (no hay desglose punto/game a game que filtrar, solo el resultado
-   *  final ya visible arriba en la tarjeta de resultado). */
+  /** V02.2 (Bloque F, §15) — un partido cargado a mano ya no tiene una sección ESTADÍSTICAS
+   *  propia: su único contenido (Sets/Games ganados) se mudó dentro de la tarjeta de
+   *  resultado (buildResultBlockHTML) y su aclaración a la nota de cobertura pegada ahí mismo
+   *  (buildCoverageLegalHTML) — mantener esta sección vacía y visible sería justo la
+   *  "sección ESTADÍSTICAS flotando lejos del marcador" que el consolidado pide eliminar. */
   function renderManualStatsGrid(f) {
-    $('#stats-set-filter').innerHTML = '';
-    const st = f.stats;
-    $('#analysis-stats-grid').innerHTML = `
-      <div class="summary-stat-row"><span class="summary-stat-row__a">${st.setsWonA}</span><span class="summary-stat-row__label">SETS GANADOS</span><span class="summary-stat-row__b">${st.setsWonB}</span></div>
-      <div class="summary-stat-row"><span class="summary-stat-row__a">${st.gamesA}</span><span class="summary-stat-row__label">GAMES GANADOS</span><span class="summary-stat-row__b">${st.gamesB}</span></div>
-    `;
-    $('#analysis-stats-legal').hidden = false;
-    $('#analysis-stats-legal').textContent = 'Partido cargado manualmente: solo se conoce el resultado final por set, sin desarrollo punto a punto.';
-    $('#analysis-stats-partial-note').hidden = true;
-    $('#analysis-per-player-serve').hidden = true;
+    $('#analysis-stats').hidden = true;
   }
 
   function renderStatsGrid(f) {
     if (f.mode === 'games') { renderGamesStatsGrid(f); return; }
     if (f.mode === 'manual') { renderManualStatsGrid(f); return; }
+    $('#analysis-stats').hidden = false; // por si quedó oculto de ver un partido manual antes en la misma sesión
     renderSetFilterTabs('#stats-set-filter', f, () => { renderStatsGrid(f); renderEvolutionChart(f); });
     const stats = statsForCurrentFilter(f);
     $('#analysis-stats-grid').innerHTML = buildStatsGridRowsHTML(f, stats);
@@ -5375,6 +5490,16 @@
       const value = $('#analysis-note-textarea').value.trim() || null;
       Store.patchHistoryEntry(analysisCurrent.matchId, { privateNote: value });
       analysisCurrent.privateNote = value; // refleja el cambio si se vuelve a abrir esta misma sesión
+      // V02.2 (Bloque F, §16) — si quedó vacía, vuelve a colapsar al link "+ Agregar nota"
+      // (nunca deja un textarea vacío en modo lectura).
+      if (!value) { $('#analysis-note-card').hidden = true; $('#analysis-note-add-btn').hidden = false; }
+    });
+    // V02.2 (Bloque F, §16) — "explicitar el estado de edición": tocar el link transforma la
+    // fila en la tarjeta editable real (nunca un textarea fantasma ya visible de entrada).
+    $('#analysis-note-add-btn').addEventListener('click', () => {
+      $('#analysis-note-card').hidden = false;
+      $('#analysis-note-add-btn').hidden = true;
+      $('#analysis-note-textarea').focus();
     });
     // V02.1 (§13/§15) — ya no existe una "Análisis" separada a la que volver: el Resumen es
     // la pantalla canónica única, así que "←" siempre sale hacia la procedencia real (nunca
@@ -5501,6 +5626,9 @@
     wrap.innerHTML = '';
     const isEmpty = list.length === 0;
     $('#history-empty').hidden = !isEmpty;
+    // V02.2 (Bloque G, §18) — transición corta/fluida al cambiar de pestaña (~200ms,
+    // slide+fade), tanto para la lista como para el estado vacío.
+    triggerHistoryContentAnim();
     if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
     list.forEach((m) => {
       const nameA = S.teamLabel(m.players, 'A'), nameB = S.teamLabel(m.players, 'B');
@@ -5509,9 +5637,8 @@
       // `currentPartial` y el último set incompleto (partido finalizado manualmente a mitad
       // de un set) desaparecía del Historial. Ahora ambos se concatenan cuando corresponde:
       // sets terminados primero, y el set parcial al final marcado con "*".
-      const finishedSetsStr = m.sets.map(formatSetSegmentLabel).join(' · ');
-      const partialSetStr = m.currentPartial ? `${m.currentPartial.gamesA}-${m.currentPartial.gamesB}*` : '';
-      const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
+      // V02.2 (Bloque D, §12) — mismo componente canónico que Confirmar partido/Último partido.
+      const scoreStr = buildCanonicalScoreLineHTML(m.sets, m.currentPartial);
       const formatLabel = (E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label || '').toUpperCase();
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
       // V13 (§26) / V14: distingue Por Games y partidos cargados manualmente de Completo.
@@ -5586,6 +5713,51 @@
     clearTimeout(toastTimeoutId);
     undoToastTimeoutId = setTimeout(() => toast.classList.remove('is-visible'), 4500);
   }
+  /** V02.2 (Bloque G, §18) — retriggerea la animación de entrada (`requestAnimationFrame` +
+   *  quitar/agregar la clase, para forzar un reflow real — si solo se agregara la clase de
+   *  nuevo sin quitarla primero, un segundo cambio de pestaña seguido no volvería a animar). */
+  function triggerHistoryContentAnim() {
+    [$('#history-list'), $('#history-empty')].forEach((el) => {
+      el.classList.remove('history-anim');
+      void el.offsetWidth;
+      el.classList.add('history-anim');
+    });
+  }
+
+  /** V02.2 (Bloque G, §18) — swipe horizontal entre las tres pestañas (Todos/Mis partidos/
+   *  Observados), sin interferir con el scroll vertical de la lista: se decide UNA sola vez
+   *  por gesto (el primer desplazamiento claro) si es horizontal o vertical, y solo se actúa
+   *  sobre los horizontales. Listeners pasivos (nunca preventDefault) — el scroll vertical
+   *  nativo sigue funcionando igual que siempre. */
+  function initHistorySwipe() {
+    const scrollEl = document.querySelector('#view-history .analysis-scroll');
+    if (!scrollEl) return;
+    let startX = 0, startY = 0, tracking = false, axis = null; // axis: null | 'h' | 'v'
+    scrollEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      tracking = true; axis = null;
+    }, { passive: true });
+    scrollEl.addEventListener('touchmove', (e) => {
+      if (!tracking || axis) return;
+      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) axis = Math.abs(dx) > Math.abs(dy) * 1.3 ? 'h' : 'v';
+    }, { passive: true });
+    scrollEl.addEventListener('touchend', (e) => {
+      if (!tracking) return;
+      tracking = false;
+      if (axis !== 'h') return;
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) < 60) return;
+      const idx = HISTORY_TABS.findIndex((t) => t.key === historyOwnershipFilter);
+      const nextIdx = idx + (dx < 0 ? 1 : -1); // swipe a la izquierda -> pestaña siguiente
+      if (nextIdx < 0 || nextIdx >= HISTORY_TABS.length) return;
+      historyOwnershipFilter = HISTORY_TABS[nextIdx].key;
+      historyContextFilter = null;
+      renderHistory();
+    }, { passive: true });
+  }
+
   function initHistoryScreen() {
     $('#history-back-btn').addEventListener('click', () => {
       if (historyOpenedFrom === 'setup') showView('setup');
@@ -5594,6 +5766,7 @@
     // V02.1 (§27) — "Quitar filtro": vuelve a las pestañas normales sin perder navegación
     // (se queda en Historial, solo se retira el recorte contextual).
     $('#history-context-filter-clear').addEventListener('click', () => { historyContextFilter = null; renderHistory(); });
+    initHistorySwipe();
   }
 
   /* ------------------------------------------------------------------ */
@@ -5781,14 +5954,11 @@
     const myTeam = PH.getPlayerTeam(m, currentPlayerName);
     const partner = PH.getPartnerName(m, currentPlayerName);
     const rivals = PH.getOpponentNames(m, currentPlayerName);
-    // V02.1 (§20) — formato deportivo con en dash ("–", no un guion común) y los separadores
-    // (tanto el guion entre games como el punto entre sets) en gris secundario, chicos: nunca
-    // el mismo peso/color que los números, que siguen siendo el primer nivel de lectura.
-    const dash = '<span class="player-home-lastmatch__sep">–</span>';
-    const dot = '<span class="player-home-lastmatch__sep player-home-lastmatch__sep--dot"> · </span>';
-    const finishedSetsHTML = m.sets.map((s) => `${s.gamesA}${dash}${s.gamesB}`).join(dot);
-    const partialSetHTML = m.currentPartial ? `${m.currentPartial.gamesA}${dash}${m.currentPartial.gamesB}*` : '';
-    const scoreStr = [finishedSetsHTML, partialSetHTML].filter(Boolean).join(dot) || 'sin sets';
+    // V02.1 (§20) / V02.2 (Bloque D, §12) — componente tipográfico CANÓNICO (mismo que
+    // Historial/Confirmar partido): guion en dash igual peso/blanco que los números, punto
+    // separador entre sets chico y secundario — acá con tamaño reducido (propio de esta
+    // tarjeta), sin cambiar la construcción.
+    const scoreStr = buildCanonicalScoreLineHTML(m.sets, m.currentPartial, 'player-home-lastmatch__sep--dot');
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
     // §20 — badge compacto: VIC/DER en vez de VICTORIA/DERROTA (mismo criterio que Historial, §26).
     const resultLabel = { win: 'VIC', loss: 'DER', neutral: 'SIN DEFINICIÓN' }[resultKind];
@@ -5971,16 +6141,25 @@
     const isEmpty = people.length === 0;
     $('#companions-empty').hidden = !isEmpty;
     wrap.hidden = isEmpty;
-    wrap.innerHTML = people.map((p) => `
+    // V02.2 (Bloque H, §21) — resumen explícito en palabras completas (nunca "9V 2D") y la
+    // efectividad SIEMPRE con su label debajo: nunca un "78%" suelto sin decir qué mide.
+    wrap.innerHTML = people.map((p) => {
+      const winsLabel = p.wins === 1 ? 'victoria' : 'victorias';
+      const lossesLabel = p.losses === 1 ? 'derrota' : 'derrotas';
+      return `
       <div class="person-list__item">
         <div class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</div>
         <div class="person-list__info">
           <div class="person-list__name">${escapeHtml(p.name)}</div>
-          <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins}V ${p.losses}D</div>
+          <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins} ${winsLabel} · ${p.losses} ${lossesLabel}</div>
         </div>
-        <div class="person-list__pct">${p.pct === null ? '—' : p.pct + '%'}</div>
+        <div class="person-list__pct-wrap">
+          <span class="person-list__pct">${p.pct === null ? '—' : p.pct + '%'}</span>
+          <span class="person-list__pct-label">Efectividad</span>
+        </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
     showView('companions');
   }
   function initCompanionsScreen() {

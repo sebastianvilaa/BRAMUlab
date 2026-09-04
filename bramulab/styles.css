@@ -129,9 +129,12 @@ input, select{ font-family: inherit; }
 /* ==========================================================================
    SETUP
    ========================================================================== */
+/* V02.2 (Bloque A, §4/§25) — configuración inicial de registro (por games / punto a punto)
+   suma la barra inferior global: el padding inferior pasa a reservar su altura, igual
+   criterio que el resto de las vistas con nav fija. */
 .view--setup{
   display:flex; flex-direction:column;
-  padding: calc(20px + var(--safe-top)) 22px calc(28px + var(--safe-bottom));
+  padding: calc(20px + var(--safe-top)) 22px calc(96px + var(--safe-bottom));
   max-width: 560px; margin: 0 auto;
 }
 .continue-banner{
@@ -237,8 +240,6 @@ input, select{ font-family: inherit; }
   border-radius: 14px; padding: 13px 16px; font-weight: 800; font-size: 13px; cursor:pointer;
   flex: 1;
 }
-.load-played-btn{ display:block; margin: 10px auto 0; text-align:center; }
-
 /* Etapa 3 (Fase 3) — CARGAR PARTIDO JUGADO: layout de "Detalles del partido" (fecha/hora/
    lugar). Reutiliza .setup-section/.field/.btn-mini/.coverage-note ya existentes — acá solo
    se agregan los wrappers de layout que no existían todavía. El resultado en sí (antes un
@@ -734,14 +735,17 @@ input, select{ font-family: inherit; }
 .analysis-section{ margin-bottom: 26px; }
 .analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
-   título, frase de encuadre y una superficie editorial que los agrupa a los tres. */
-.intelligence-title{ display:flex; align-items:center; gap: 8px; color: var(--brand-lime); margin-bottom: 4px; }
-.intelligence-title svg{ flex:none; }
-.intelligence-frame{ font-size: 12px; color: var(--paper-faint); font-style: italic; margin: 0 0 12px; }
-#analysis-intelligence-text{
+   título, frase de encuadre y una superficie editorial que los agrupa a los tres.
+   V02.2 (Bloque F, §16) — `.intelligence-card` es AHORA la única superficie: título y bajada
+   quedan DENTRO de la misma tarjeta que el texto analítico (antes vivían afuera, flotando,
+   con el contenido en una pastilla aparte). */
+.intelligence-card{
   background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-card);
   padding: 14px 16px;
 }
+.intelligence-title{ display:flex; align-items:center; gap: 8px; color: var(--brand-lime); margin-bottom: 4px; }
+.intelligence-title svg{ flex:none; }
+.intelligence-frame{ font-size: 12px; color: var(--paper-faint); font-style: italic; margin: 0 0 12px; }
 #analysis-intelligence-text p:last-child{ margin-bottom: 0; }
 /* Resumen (partido cargado manualmente): mismo lenguaje editorial, resuelto solo con CSS
    (::before) para no tocar el JS que ya hace .hidden = true/false sobre este párrafo. */
@@ -756,6 +760,15 @@ input, select{ font-family: inherit; }
 .analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
 .intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
+.coverage-note--center{ text-align:center; }
+
+/* V02.2 (Bloque D, §12) — componente tipográfico CANÓNICO de un resultado por sets:
+   "6–2 · 5–7 · 6–4". Números y guion en el mismo blanco/peso que el texto que los rodea
+   (heredan, sin clase propia); el punto separador entre sets es la única pieza que se
+   distingue: más chico y gris secundario. Reutilizado por Historial y Confirmar partido
+   (ver buildCanonicalScoreLineHTML en app.js); Último partido (Home) usa la misma
+   construcción con su propia clase de tamaño reducido, .player-home-lastmatch__sep--dot. */
+.score-line__dot{ font-size: 0.6em; font-weight: 500; color: var(--paper-dim); vertical-align: middle; }
 
 /* V6 — leyenda de colores del gráfico de Evolución (Momentum) */
 /* V9.2 (17): flex-wrap para que la leyenda de símbolos (agregada al lado de los nombres de
@@ -956,7 +969,11 @@ input, select{ font-family: inherit; }
 .person-list__info{ flex:1; min-width:0; }
 .person-list__name{ font-size: 14px; font-weight: 700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .person-list__caption{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
-.person-list__pct{ flex:none; font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
+/* V02.2 (Bloque H, §21) — la efectividad conjunta nunca es un número suelto: siempre con
+   label explícito debajo, mismo criterio que el resto de los porcentajes de la app. */
+.person-list__pct-wrap{ flex:none; text-align:right; }
+.person-list__pct{ display:block; font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.person-list__pct-label{ display:block; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; color: var(--paper-faint); text-transform: uppercase; margin-top: 1px; }
 /* V02.1 (§26) — badge de resultado VIC/DER (partidos propios) junto a la fecha; GANÓ
    (Observados) como micro-tag pegado al nombre de la pareja ganadora. */
 .history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 4px; }
@@ -980,22 +997,33 @@ input, select{ font-family: inherit; }
    Ambas filas se desplazan horizontalmente (nunca saltan de línea, §3.3);
    el estado activo se distingue por forma+peso+color, no solo por color.
    ========================================================================== */
-.history-filters{ padding: 4px 18px 12px; border-bottom: 1px solid var(--line); }
+/* V02.2 (Bloque G, §18) — pestañas REALES (solapa unida a la superficie del listado), no un
+   subrayado. La pestaña activa gana superficie propia, esquinas superiores y una sombra sutil
+   que la separa del resto del header; las inactivas quedan integradas, sin fondo. */
+.history-filters{ padding: 8px 18px 0; border-bottom: 1px solid var(--line); }
 .history-tabs, .history-mode-chips{
-  display:flex; gap: 8px; overflow-x:auto; -webkit-overflow-scrolling: touch;
+  display:flex; gap: 4px; overflow-x:auto; -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 .history-tabs::-webkit-scrollbar, .history-mode-chips::-webkit-scrollbar{ display:none; }
-.history-tabs{ margin-bottom: 8px; }
+.history-tabs{ margin-bottom: 0; }
 .history-tab{
-  flex:none; background:none; border: none; border-bottom: 2.5px solid transparent;
+  flex:none; position:relative; background:none; border: none; border-radius: 12px 12px 0 0;
   color: var(--paper-dim); font-family: var(--font-display); font-size: 13px; font-weight: 600;
-  letter-spacing: 0.02em; padding: 6px 2px; cursor:pointer; white-space:nowrap;
+  letter-spacing: 0.02em; padding: 9px 14px 10px; cursor:pointer; white-space:nowrap;
+  transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
-.history-tab + .history-tab{ margin-left: 14px; }
 .history-tab__count{ font-size: 11px; color: var(--paper-faint); font-weight: 600; }
-.history-tab.is-active{ color: var(--paper); font-weight: 700; border-bottom-color: var(--brand-lime); }
+.history-tab.is-active{
+  color: var(--paper); font-weight: 700; background: var(--ink-soft);
+  box-shadow: 0 -3px 10px rgba(0,0,0,0.16);
+}
 .history-tab.is-active .history-tab__count{ color: var(--brand-lime); }
+
+/* Transición corta al cambiar de pestaña (§18: ~180-220ms, slide+fade). */
+@keyframes historyContentIn{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform: translateY(0); } }
+.history-anim{ animation: historyContentIn 200ms var(--motion-ease); }
+@media (prefers-reduced-motion: reduce){ .history-anim{ animation: none; } }
 .history-mode-chip{
   flex:none; background: var(--ink-soft); border: 1.5px solid var(--line); border-radius: 999px;
   padding: 6px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--paper-dim);
@@ -1086,7 +1114,7 @@ input, select{ font-family: inherit; }
   }
   .vs-divider__text{ padding: 0; border: none; background: none; }
   .team-block--b{ grid-column: 3; }
-  .setup-section, #start-match-btn, .load-played-btn{ grid-column: 1 / -1; }
+  .setup-section, #start-match-btn{ grid-column: 1 / -1; }
 }
 
 /* V11.5 — TABLET/CELULAR APAISADO: en vertical, las dos zonas de saque (Equipo A/B) se
@@ -1175,11 +1203,15 @@ input, select{ font-family: inherit; }
 .player-home-scroll{ padding-bottom: calc(96px + var(--safe-bottom)); }
 
 /* Vistas nuevas de la Rama Jugador que comparten la barra inferior fija (§4): el scroll
-   necesita el mismo despeje inferior que .player-home-scroll para no tapar contenido. */
+   necesita el mismo despeje inferior que .player-home-scroll para no tapar contenido.
+   V02.2 (Bloque A, §4) — Resumen del partido y Compañeros/Rivales se suman a la lista: la
+   barra inferior global ahora también está presente en esas vistas. */
 #view-history .analysis-scroll,
 #view-manual-load .analysis-scroll,
 #view-ranking .analysis-scroll,
-#view-profile .analysis-scroll{
+#view-profile .analysis-scroll,
+#view-analysis .analysis-scroll,
+#view-companions .analysis-scroll{
   padding-bottom: calc(96px + var(--safe-bottom));
 }
 
@@ -1328,10 +1360,12 @@ input, select{ font-family: inherit; }
   color: var(--paper); margin-bottom: 12px; font-variant-numeric: tabular-nums; line-height:1.05;
 }
 @media (max-width: 359px){ .player-home-lastmatch__score{ font-size: 32px; } }
-/* V02.1 (§20) — separadores (guion entre games, punto entre sets) SIEMPRE más chicos y en
-   gris secundario: nunca el mismo peso/color que los números protagonistas. */
-.player-home-lastmatch__sep{ font-size: 0.55em; font-weight: 500; color: var(--court-text-faint); vertical-align: 0.12em; }
-.player-home-lastmatch__sep--dot{ vertical-align: middle; }
+/* V02.1 (§20) / V02.2 (Bloque D §12) — el PUNTO separador entre sets siempre más chico y en
+   gris secundario; el GUION entre games queda como texto plano (hereda blanco/peso/tamaño
+   del resultado que lo rodea) — mismo criterio de "número y guion en el mismo blanco, peso y
+   alineación" del componente canónico (nunca el guion tratado como si fuera el separador de
+   sets). */
+.player-home-lastmatch__sep--dot{ font-size: 0.55em; font-weight: 500; color: var(--court-text-faint); vertical-align: middle; }
 /* §3 — parejas + chevron comparten fila: el chevron va alineado con esta fila, no flotando
    arriba (antes vivía en la fila del título). */
 .player-home-lastmatch__teamsrow{ display:flex; align-items:center; gap: 8px; }
@@ -1466,7 +1500,7 @@ input, select{ font-family: inherit; }
 .sheet-scrim.is-open{ opacity: 1; }
 .bottom-sheet{
   width:100%; max-width: 480px; background: var(--court-surface); border: 1px solid var(--court-line);
-  border-radius: 20px 20px 0 0; padding: 10px 18px calc(22px + var(--safe-bottom));
+  border-radius: 20px 20px 0 0; padding: 16px 18px calc(26px + var(--safe-bottom));
   transform: translateY(100%); transition: transform var(--sheet-duration-enter) var(--sheet-ease);
   touch-action: none;
 }
@@ -1483,12 +1517,17 @@ input, select{ font-family: inherit; }
   .bottom-sheet{ max-width: 768px; }
 }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
-.bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--court-line); margin: 0 auto 14px; }
-.bottom-sheet__header{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; gap: 10px; }
-.bottom-sheet__title{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; flex:1; text-align:center; }
-.bottom-sheet__back{ background:none; border:none; color: var(--court-text-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; }
-.bottom-sheet__close{ background: var(--court-surface-2); border:none; color: var(--court-text-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; }
-.bottom-sheet__level{ display:flex; flex-direction:column; gap: 10px; padding-bottom: 4px; }
+.bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--court-line); margin: 0 auto 16px; }
+/* V02.2 (Bloque B, §6) — título CENTRADO respecto del sheet COMPLETO, no del espacio libre
+   entre back/close: con `justify-content:space-between` + título `flex:1`, un cierre a la
+   derecha sin contrapeso a la izquierda corría el título ópticamente. El título ahora se
+   posiciona absoluto, centrado sobre el ancho total del header; back/close quedan en el
+   flujo flex normal en sus extremos, sin superponerse (el título no captura toques). */
+.bottom-sheet__header{ position:relative; display:flex; align-items:center; justify-content:space-between; min-height: 30px; margin-bottom: 18px; gap: 10px; }
+.bottom-sheet__title{ position:absolute; left:36px; right:36px; text-align:center; pointer-events:none; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
+.bottom-sheet__back{ background:none; border:none; color: var(--court-text-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; z-index:1; }
+.bottom-sheet__close{ background: var(--court-surface-2); border:none; color: var(--court-text-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; z-index:1; margin-left:auto; }
+.bottom-sheet__level{ display:flex; flex-direction:column; gap: 12px; padding-bottom: 4px; }
 
 /* V02.1 (§11) — recompone "Formato y puntuación": la hoja se sentía baja/apretada porque sus
    dos secciones (Formato de partido / Sistema de puntuación) no tenían NINGÚN aire entre sí
@@ -1508,12 +1547,19 @@ input, select{ font-family: inherit; }
 /* §4 — "ambas deben leerse inequívocamente como botones" + "textos centrados si se usan
    botones de ancho completo": centrado (antes a la izquierda), borde siempre visible incluso
    en la opción secundaria (antes lucía plana, sin borde). */
+/* V02.2 (Bloque B, §6) — misma altura/ancho/fondo/borde/peso/área táctil para las dos
+   opciones del sheet Registrar partido (nunca una en lima sólida "principal" y otra
+   secundaria): superficie azul noche neutra, borde neutro visible, texto blanco, chevron
+   coherente en ambas. El acento lima queda reservado al feedback de PRESIONADO (breve),
+   nunca a un estado permanente de una sola opción. Altura mínima 56px. */
 .sheet-option{
-  display:block; width:100%; text-align:center; background: var(--court-surface-2); border: 1.5px solid var(--court-line);
-  border-radius: 14px; padding: 17px 18px; font-family: var(--font-body); font-weight: 800; font-size: 15px;
-  color: var(--paper); cursor:pointer;
+  position:relative; display:flex; align-items:center; justify-content:center; min-height: 56px;
+  width:100%; text-align:center; background: var(--court-surface-2); border: 1.5px solid var(--court-line);
+  border-radius: 14px; padding: 17px 40px; font-family: var(--font-body); font-weight: 800; font-size: 15px;
+  color: var(--paper); cursor:pointer; transition: border-color .12s ease;
 }
-.sheet-option:active{ transform: scale(0.98); }
+.sheet-option:active{ transform: scale(0.98); border-color: var(--brand-lime); }
+.sheet-option__icon{ position:absolute; right:16px; top:50%; transform:translateY(-50%); color: var(--court-text-dim); font-size:17px; }
 .sheet-option--primary{ background: rgba(200,255,61,0.12); border-color: var(--brand-lime); color: var(--brand-lime); }
 
 .sheet-active-card{
@@ -1593,26 +1639,36 @@ input, select{ font-family: inherit; }
 .court-header--saved{ justify-content:center; }
 .court-header__status--saved{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: var(--brand-lime); text-transform: uppercase; }
 
-/* §5 — jugadores: "Tu equipo" (lima) / "Rivales" (azul), nombres elegidos como contenido
-   confirmado (no como campo de formulario todavía activo). */
-.court-players{ display:flex; flex-direction:column; gap: 12px; margin-bottom: 18px; }
-.court-players__label{ display:block; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
-.court-players__team--a .court-players__label{ color: var(--team-a); }
-.court-players__team--b .court-players__label{ color: var(--team-b); }
-.court-players__chips{ display:flex; gap: 8px; }
-.load-player-chip{
-  flex:1; min-width:0; display:flex; align-items:center; justify-content:center; text-align:center;
-  background: var(--court-surface); border: 1.5px solid var(--court-line); border-radius: 12px; padding: 11px 10px;
-  font-family: var(--font-body); font-weight: 800; font-size: 13px; color: var(--paper);
+/* V02.2 (Bloque C, §7) — composición de equipos: mismo lenguaje visual que la configuración
+   en vivo (.team-block: superficie + acento LATERAL de color), variante COMPACTA para no
+   ocupar toda la pantalla. Reemplaza los cuatro pills sueltos (borde solo abajo) anteriores.
+   Cada jugador conserva un área táctil mínima de 52px; el color identifica equipo, nunca
+   reemplaza el contraste del nombre (blanco/alto contraste, placeholder gris secundario). */
+.court-team-cards{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 18px; }
+.court-team-card{
+  background: var(--court-surface); border: 1px solid var(--court-line); border-left: 3px solid var(--team-a);
+  border-radius: 14px; padding: 12px 12px 11px;
+}
+.court-team-card--b{ border-left-color: var(--team-b); }
+.court-team-card__label{
+  display:flex; align-items:center; gap:7px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--paper-dim); margin-bottom: 9px;
+}
+.court-team-card__row{ display:flex; gap: 8px; }
+.court-team-card__player{
+  flex:1; min-width:0; min-height: 52px; display:flex; align-items:center; justify-content:center; text-align:center;
+  background: var(--court-surface-2); border: 1px solid var(--court-line); border-radius: 11px; padding: 8px 10px;
+  font-family: var(--font-body); font-weight: 700; font-size: 13px; color: var(--paper);
   cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.court-players__team--a .load-player-chip{ border-bottom: 2.5px solid var(--team-a); }
-.court-players__team--b .load-player-chip{ border-bottom: 2.5px solid var(--team-b); }
-.load-player-chip:active{ transform: scale(0.98); }
-.load-player-chip--fixed{ background: rgba(45,156,255,0.10); color: var(--team-a); cursor: default; }
-.load-player-chip--fixed:active{ transform:none; }
-.load-player-chip.is-empty{ background: transparent; }
-.load-player-chip.is-empty .load-player-chip__name{ color: var(--court-text-dim); font-weight: 600; }
+.court-team-card__player:active{ transform: scale(0.98); border-color: var(--brand-lime); }
+.court-team-card__player--fixed{ background: rgba(45,156,255,0.12); border-color: rgba(45,156,255,0.3); color: var(--team-a); cursor: default; }
+.court-team-card__player--fixed:active{ transform:none; border-color: rgba(45,156,255,0.3); }
+.court-team-card__player.is-empty{ background: transparent; }
+.court-team-card__player.is-empty .court-team-card__player-name{ color: var(--court-text-dim); font-weight: 600; }
+/* Separador VS compacto entre las dos tarjetas apiladas (mismo componente que Configurar
+   partido, .vs-divider, con menos margen vertical propio de esta variante). */
+.vs-divider--compact{ margin: -4px 0; }
 
 /* §6.2 — marcador acumulado: solo sets ya CONFIRMADOS, compacto, tocable para reabrir. */
 /* V02.1 (§10) — "resultado del set anterior" centrado sobre el set nuevo, un poco más grande
@@ -1660,6 +1716,10 @@ input, select{ font-family: inherit; }
 .court-meta-line__text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* V02.1 (§5) — "Modificar" pierde protagonismo: acción terciaria compacta, no un CTA lima. */
 .court-meta-line__action{ flex:none; margin-left: 10px; font-size: 12px; font-weight:600; letter-spacing:0.02em; color: var(--court-text-dim); text-decoration: underline; text-underline-offset: 2px; }
+/* V02.2 (Bloque E, §14) — en Confirmar partido la fecha/hora es metadata protagonista (ya
+   quedó definida, se está por guardar): blanco de alto contraste en vez del gris genérico,
+   que perdía legibilidad. "Modificar" se lee, por contraste, aún más terciario que antes. */
+#match-saved-meta-line .court-meta-line__text{ color: var(--text); font-weight: 600; }
 
 /* ---- Línea compacta de formato/sistema (§11 Etapa 3, restilo Etapa 4.2) ---- */
 .load-format-line{
@@ -1746,16 +1806,24 @@ input, select{ font-family: inherit; }
 .court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
 
 /* Etapa 4.2 (§10) — nota privada: "Solo vos", nunca en superficies públicas. Reutilizada por
-   Partido guardado y por el detalle en Análisis. */
-.court-note{ margin: 4px 0 18px; }
-.court-note__label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight:800; letter-spacing:0.05em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 8px; }
+   Partido guardado y por el detalle en Análisis.
+   V02.2 (Bloque E §14 / Bloque F §16) — el label vive DENTRO del mismo contenedor visual que
+   el campo de notas, como encabezado interno (antes el label quedaba flotando por fuera y la
+   caja del textarea era una superficie desconectada por debajo). Ahora `.court-note` ES la
+   tarjeta (borde + superficie); el textarea queda transparente por dentro, sin su propio
+   borde — el foco se comunica en el contenedor completo (`:focus-within`). */
+.court-note{
+  margin: 4px 0 18px; background: var(--court-surface); border: 1px solid var(--court-line);
+  border-radius: 14px; padding: 14px 14px 12px; transition: border-color .15s ease;
+}
+.court-note:focus-within{ border-color: var(--brand-lime); }
+.court-note__label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight:800; letter-spacing:0.05em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 10px; }
 .court-note__lock{ width:13px; height:13px; fill: var(--court-text-dim); flex:none; }
 .court-note__textarea{
-  width:100%; min-height: 84px; background: var(--court-surface); border: 1px solid var(--court-line); border-radius: 12px;
-  padding: 12px; font-family: var(--font-body); font-size: 13px; color: var(--paper); resize: vertical;
-  outline:none; transition: border-color .15s ease;
+  width:100%; min-height: 72px; background: transparent; border: none; border-radius: 0;
+  padding: 0; font-family: var(--font-body); font-size: 13px; color: var(--paper); resize: vertical;
+  outline:none;
 }
-.court-note__textarea:focus{ border-color: var(--brand-lime); }
 .court-note__textarea::placeholder{ color: var(--court-text-faint); }
 
 /* Hoja "Modificar" (fecha/hora/lugar) — mismos campos de Etapa 3, ahora en la hoja. */

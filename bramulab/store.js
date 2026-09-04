@@ -24,7 +24,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMUlab Partidos).
-  const APP_VERSION = 'BRAMUlab V02.1';
+  const APP_VERSION = 'BRAMUlab V02.2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
