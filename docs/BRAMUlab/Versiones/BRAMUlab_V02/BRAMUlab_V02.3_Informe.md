@@ -121,8 +121,8 @@ Se guardaron 6 capturas reales durante los tramos en que el panel del navegador 
 ## 9. Hash exacto y tag (registro final)
 
 - Commit de implementación (código): `28e994454aded5278976c5cc6dcc02240bcb9321`.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: ver el commit inmediatamente posterior a este archivo en el historial de `main`.
-- Tag `BRAMUlab_V02.3` apunta al commit que deja registrados ambos hashes de arriba (un commit no puede citar su propio hash) — el código funcional completo de V02.3 es íntegramente el de `28e9944`; el commit que sostiene el tag no modifica ningún archivo de `bramulab/`.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `e132e6d7b96e7673f7445e90db12107144f9c247`.
+- Tag `BRAMUlab_V02.3` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba (un commit no puede citar su propio hash) — el código funcional completo de V02.3 es íntegramente el de `28e9944`; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
 
