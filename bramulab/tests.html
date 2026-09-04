@@ -2469,6 +2469,144 @@
   })();
 
   // ------------------------------------------------------------------
+  // V02.3 — Bloque D §9: cálculo temporal de Actividad (ventana móvil de 30 días, 4 bloques
+  // cronológicos). No se reescribe PH.computeActivity30d (la lógica pura ya era correcta —
+  // el bug real de esta ronda era solo visual, ver renderPlayerActivity en app.js/§8): estos
+  // tests BLINDAN el comportamiento existente con los casos exactos pedidos por el consolidado
+  // (2/10/18/26/31 días) para que una futura ronda no lo rompa sin darse cuenta.
+  // ------------------------------------------------------------------
+  (function () {
+    const now = new Date('2026-09-04T12:00:00.000Z'); // ancla fija — nunca depende de "hoy" real
+    const currentPlayerName = 'Sebastián';
+    function ownMatch(id, daysAgo, winnerTeam) {
+      const playedAt = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+      return {
+        matchId: id, playedAt,
+        players: [
+          { name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' },
+          { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' },
+        ],
+        winnerTeam,
+      };
+    }
+    const matches = [
+      ownMatch('d2', 2, 'A'), ownMatch('d10', 10, 'B'), ownMatch('d18', 18, 'A'),
+      ownMatch('d26', 26, 'B'), ownMatch('d31', 31, 'A'),
+    ];
+    const activity = PH.computeActivity30d(matches, currentPlayerName, now);
+    assert('V02.3-ACT · 2/10/18/26 días quedan dentro de la ventana, el de 31 días excluido (total=4)', activity.total === 4, JSON.stringify(activity));
+    assert('V02.3-ACT · los 4 partidos dentro de la ventana caen en 4 períodos DISTINTOS (1 partido cada uno)', activity.buckets.every((b) => b.count === 1), JSON.stringify(activity.buckets));
+    assert('V02.3-ACT · no depende del orden de carga: reordenar la lista de entrada no cambia el resultado', PH.computeActivity30d(matches.slice().reverse(), currentPlayerName, now).total === 4);
+
+    // §9 — usa playedAt, nunca createdAt: un createdAt "viejo" (fuera de ventana) no debe
+    // excluir un partido cuyo playedAt real sí está dentro de los últimos 30 días.
+    const trickyMatch = {
+      matchId: 'tricky', playedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+      players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }],
+      winnerTeam: 'A',
+    };
+    const activityTricky = PH.computeActivity30d([trickyMatch], currentPlayerName, now);
+    assert('V02.3-ACT · usa playedAt, nunca createdAt (un createdAt de 40 días no excluye un playedAt de 2 días)', activityTricky.total === 1, JSON.stringify(activityTricky));
+
+    // §9 — un timestamp futuro (playedAt posterior a "ahora") nunca se cuenta.
+    const futureMatch = ownMatch('future', -5, 'A'); // -5 días = 5 días en el futuro
+    const withFuture = PH.computeActivity30d(matches.concat([futureMatch]), currentPlayerName, now);
+    assert('V02.3-ACT · un partido con playedAt futuro no se cuenta', withFuture.total === 4, JSON.stringify(withFuture));
+
+    // §9 — observados (el jugador actual no participa) nunca suman actividad propia, aunque
+    // estén bien fechados dentro de la ventana. Mismo contrato que el resto de las funciones
+    // de este archivo (computeRecentForm, computeBestWinStreak, etc.): reciben `matches` ya
+    // filtrado por PH.filterMatchesForPlayer — el único punto de la app que decide "propio vs
+    // observado" (ver renderPlayerHome en app.js) — así que el filtro se ejercita ACÁ, igual
+    // que en el camino real, en vez de pasarle un observado directo a computeActivity30d (que
+    // nunca prometió filtrar participación por su cuenta).
+    const observed = { matchId: 'obs', playedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(), players: [{ name: 'Facundo', team: 'A' }, { name: 'Nico', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], winnerTeam: 'A' };
+    const filteredWithObserved = PH.filterMatchesForPlayer(matches.concat([observed]), currentPlayerName);
+    const withObserved = PH.computeActivity30d(filteredWithObserved, currentPlayerName, now);
+    assert('V02.3-ACT · un partido observado (el jugador actual no figura) no suma actividad propia', withObserved.total === 4, JSON.stringify(withObserved));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.3 — Bloque D §8: Actividad debe representar el VOLUMEN total del período (ganados o
+  // perdidos), nunca solo victorias — el bug real era de renderPlayerActivity en app.js (no
+  // testeable en este arnés sin DOM, ver nota de alcance más abajo), pero acá se blinda el
+  // dato PURO del que depende esa vista corregida: un bloque con partidos, aunque sean todos
+  // derrota, siempre debe tener count > 0 (lo único que ahora decide el relleno visible).
+  // ------------------------------------------------------------------
+  (function () {
+    const now = new Date('2026-09-04T12:00:00.000Z');
+    const currentPlayerName = 'Sebastián';
+    const lossOnly = [{
+      matchId: 'loss1', playedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }],
+      winnerTeam: 'B', // el jugador actual (Equipo A) pierde
+    }];
+    const activity = PH.computeActivity30d(lossOnly, currentPlayerName, now);
+    const bucketWithMatch = activity.buckets.find((b) => b.count > 0);
+    assert('V02.3-ACT · un período con una sola derrota sigue teniendo count > 0 (relleno visible, no invisible)', !!bucketWithMatch && bucketWithMatch.count === 1, JSON.stringify(activity.buckets));
+    assert('V02.3-ACT · esa derrota no suma victorias (Efectividad, no Actividad, es la que codifica resultado)', bucketWithMatch.wins === 0 && bucketWithMatch.losses === 1, JSON.stringify(bucketWithMatch));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.3 — Bloque D §10: Efectividad de los últimos 30 días — victorias propias / partidos
+  // propios con resultado definido. La lógica pura (PH.computeEffectiveness30d) ya era
+  // correcta (no se reescribe, ver §10 del consolidado); estos tests blindan los casos
+  // mínimos exactos pedidos, incluida la perspectiva desde Equipo B y la exclusión de
+  // observados/fuera de ventana.
+  // ------------------------------------------------------------------
+  (function () {
+    const now = new Date('2026-09-04T12:00:00.000Z');
+    const currentPlayerName = 'Sebastián';
+    function ownMatch(id, daysAgo, team, winnerTeam) {
+      const playedAt = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+      const rivalTeam = team === 'A' ? 'B' : 'A';
+      const players = [{ name: currentPlayerName, team }, { name: 'Matías', team }];
+      players.push({ name: 'Facundo', team: rivalTeam }, { name: 'Nico', team: rivalTeam });
+      return { matchId: id, playedAt, players, winnerTeam };
+    }
+
+    // Caso 1 — 2 victorias + 1 derrota = 67% y 2 de 3.
+    const case1 = [ownMatch('c1a', 1, 'A', 'A'), ownMatch('c1b', 2, 'A', 'A'), ownMatch('c1c', 3, 'A', 'B')];
+    const eff1 = PH.computeEffectiveness30d(case1, currentPlayerName, now);
+    assert('V02.3-EFE · 2 victorias + 1 derrota → 67% y 2 de 3', eff1.pct === 67 && eff1.wins === 2 && eff1.considered === 3, JSON.stringify(eff1));
+
+    // Caso 2 — 1 victoria + 3 derrotas = 25% y 1 de 4.
+    const case2 = [ownMatch('c2a', 1, 'A', 'A'), ownMatch('c2b', 2, 'A', 'B'), ownMatch('c2c', 3, 'A', 'B'), ownMatch('c2d', 4, 'A', 'B')];
+    const eff2 = PH.computeEffectiveness30d(case2, currentPlayerName, now);
+    assert('V02.3-EFE · 1 victoria + 3 derrotas → 25% y 1 de 4', eff2.pct === 25 && eff2.wins === 1 && eff2.considered === 4, JSON.stringify(eff2));
+
+    // §10 — el jugador en Equipo B se calcula correctamente (perspectiva propia, no fija a "A").
+    const caseB = [ownMatch('cb1', 1, 'B', 'B'), ownMatch('cb2', 2, 'B', 'A')]; // gana la 1ra (su equipo B gana), pierde la 2da
+    const effB = PH.computeEffectiveness30d(caseB, currentPlayerName, now);
+    assert('V02.3-EFE · jugador en Equipo B: 1 victoria + 1 derrota → 50% (perspectiva correcta, no invertida)', effB.pct === 50 && effB.wins === 1 && effB.losses === 1, JSON.stringify(effB));
+
+    // §10 — un observado (el jugador actual no figura en players) no modifica el porcentaje.
+    const observed = { matchId: 'obsEff', playedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), players: [{ name: 'Facundo', team: 'A' }, { name: 'Nico', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], winnerTeam: 'A' };
+    const eff1WithObserved = PH.computeEffectiveness30d(case1.concat([observed]), currentPlayerName, now);
+    assert('V02.3-EFE · un observado no modifica el porcentaje', eff1WithObserved.pct === eff1.pct && eff1WithObserved.considered === eff1.considered, JSON.stringify(eff1WithObserved));
+
+    // §10 — un partido de 31 días no modifica el porcentaje.
+    const oldMatch = ownMatch('old31', 31, 'A', 'A'); // sería una victoria más, pero está fuera de ventana
+    const eff1With31 = PH.computeEffectiveness30d(case1.concat([oldMatch]), currentPlayerName, now);
+    assert('V02.3-EFE · un partido de 31 días no modifica el porcentaje', eff1With31.pct === eff1.pct && eff1With31.considered === eff1.considered, JSON.stringify(eff1With31));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.3 — Bloque B §4: detención después del set final hasta tocar CONTINUAR.
+  // Nota de alcance (mismo criterio ya documentado en V02.2 §4 del informe): tests.html carga
+  // únicamente engine.js/stats.js/store.js/player-home.js/match-load.js — nunca app.js (que no
+  // expone funciones al `window`). El cambio de esta ronda es la AUSENCIA de un efecto de UI
+  // (se quita el setTimeout que abría CONFIRMAR PARTIDO solo — ver commitCurrentManualSetIfValid
+  // en app.js) y no toca ninguna función pura nueva de match-load.js: no hay nada nuevo que
+  // unit-testear en este arnés sin DOM. Se verifica en vivo contra el dev server (recorrido
+  // manual, ver §13 del consolidado / §5 del informe): al completar el set que define el
+  // partido, el teclado se cierra, el último set queda visible en el marcador acumulado,
+  // aparece "Resultado válido" + el único botón CONTINUAR, y CONFIRMAR PARTIDO solo abre al
+  // tocarlo — nunca solo.
+  // ------------------------------------------------------------------
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

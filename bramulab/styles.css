@@ -245,11 +245,34 @@ input, select{ font-family: inherit; }
    se agregan los wrappers de layout que no existían todavía. El resultado en sí (antes un
    <select> por set) ahora vive en el marcador nuevo — ver .load-scoreboard/.load-set-cell
    más abajo. */
-.manual-field-label{ display:block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
+/* V02.3 (Bloque B, §6) — label con ícono (calendario/reloj), mismo tamaño y alineación en
+   Fecha y Hora: mismo componente para las dos, nunca un ícono ad hoc por campo. */
+.manual-field-label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
+.manual-field-icon{ flex:none; color: var(--paper-dim); }
 .manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
 .manual-datetime-row .field{ flex: 1; min-width: 130px; }
-.manual-time-clear{ display:block; margin-top: 4px; font-size: 11px; }
-.manual-location-btn{ margin-top: 10px; }
+/* Fecha (nativo) y Hora (texto enmascarado) comparten .field__input — misma tipografía/peso
+   ya heredados — pero se fuerza una altura explícita idéntica para neutralizar cualquier
+   diferencia de caja que el navegador agregue por su cuenta al <input type="date"> nativo. */
+.manual-datetime-row .field__input{ box-sizing: border-box; height: 38px; }
+.manual-field--time{ position: relative; }
+/* "Borrar hora" pasa de link de bloque (estiraba la columna Hora más que la de Fecha, rompiendo
+   la altura pareja de la fila) a un ícono terciario discreto, superpuesto DENTRO del propio
+   campo — nunca agrega una línea nueva. Solo visible con hora cargada, ver
+   updateManualTimeClearVisibility en app.js. */
+.manual-time-clear-icon{
+  position:absolute; right: 2px; bottom: 6px; background:none; border:none; color: var(--paper-dim);
+  font-size: 16px; line-height:1; padding: 4px 6px; cursor:pointer;
+}
+.manual-time-clear-icon:active{ color: var(--paper); }
+/* "Usar mi ubicación": de acción lima protagonista a secundaria compacta con ícono, alineada
+   con el resto de acciones terciarias del sheet (mismo tono que "Modificar"/"Borrar hora"). */
+.manual-location-btn{
+  display:inline-flex; align-items:center; gap: 6px; margin-top: 10px; padding: 8px 12px;
+  background: var(--court-surface-2); color: var(--court-text-dim); border: 1px solid var(--court-line);
+  border-radius: 999px; font-weight:700; font-size: 12px; cursor:pointer;
+}
+.manual-location-btn:active{ border-color: var(--paper-dim); }
 
 /* ==========================================================================
    PARTIDO — encabezado + scoreboard
@@ -1395,8 +1418,12 @@ input, select{ font-family: inherit; }
 .pastilla__chevron{ color: var(--paper-faint); font-size: 16px; flex:none; }
 
 .activity-bars{ display:flex; align-items:flex-end; gap: 8px; height: 60px; margin: 12px 0 8px; }
-.activity-bar{ flex:1; display:flex; align-items:flex-end; background: rgba(244,247,242,0.08); border-radius: 5px; overflow:hidden; min-height: 5px; }
-.activity-bar__win{ display:block; width:100%; background: var(--brand-lime); }
+/* V02.3 (Bloque D, §8) — el relleno celeste (--team-a) representa el VOLUMEN total del
+   período (todo bloque con `count > 0`, ganado o perdido); el fondo tenue queda solo para el
+   baseline de un período realmente vacío. Ya no hay una capa interna de "victorias" — esa
+   codificación vive exclusivamente en Efectividad (donut lima aparte). */
+.activity-bar{ flex:1; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; transition: background .15s ease; }
+.activity-bar.is-active{ background: var(--team-a); }
 .activity-total{ font-size: 11px; color: var(--paper-dim); margin: 0; }
 
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
@@ -1702,7 +1729,11 @@ input, select{ font-family: inherit; }
 .court-score.is-active{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); }
 .court-score.is-active .court-score__value{ color: var(--brand-lime); }
 .court-score__sep{ font-family: var(--font-display); font-size: 28px; color: var(--court-text-faint); flex:none; }
-.court-current-set__hint{ margin: 10px 0 0; font-size: 12px; font-weight:700; color: var(--brand-lime); }
+/* V02.3 (Bloque B, §4) — reubicado dentro de #court-continue-wrap (antes vivía dentro de
+   .court-current-set, que se oculta por completo una vez que el partido queda decidido — el
+   hint nunca llegaba a mostrarse). Centrado explícito: ya no hereda el text-align:center de
+   ese contenedor. */
+.court-current-set__hint{ margin: 0 0 8px; font-size: 12px; font-weight:700; color: var(--brand-lime); text-align:center; }
 
 .load-match-error{ color: var(--danger); margin: -6px 0 14px; }
 
@@ -1771,7 +1802,12 @@ input, select{ font-family: inherit; }
 .load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--brand-lime); }
 @media (prefers-reduced-motion: reduce){ .load-keypad, .court-continue-wrap{ transition: none; } }
 
-/* ---- Hoja "elegir jugador" (§5 Etapa 4.2: mismo componente, superficies "cancha nocturna") ---- */
+/* ---- Hoja "elegir jugador" (§5 Etapa 4.2: mismo componente, superficies "cancha nocturna") ----
+   V02.3 (Bloque A, §3) — acento contextual por rol: Compañero/Equipo A usa celeste (--team-a,
+   el color BASE de abajo), Rival 1/Rival 2/Equipo B lo sobrescribe a magenta (--team-b) vía
+   .is-context-rival (toggle en openManualPlayerSheet, app.js). Nunca colores nuevos, ni texto
+   ni nombres completos en magenta — solo foco del buscador, borde del avatar reciente al
+   presionar, tinte de selección de la lista y acento del alta sin cuenta. */
 .load-player-sheet__recents{ display:flex; gap: 10px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
 .load-player-sheet__recent{
   flex: none; display:flex; flex-direction:column; align-items:center; gap:5px; width: 64px;
@@ -1781,7 +1817,8 @@ input, select{ font-family: inherit; }
   width: 46px; height:46px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:16px; color: var(--court-text-dim);
 }
-.load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--brand-lime); }
+.load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-a); }
+.load-player-sheet.is-context-rival .load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-b); }
 .load-player-sheet__recent-name{ font-size: 10px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 64px; }
 .load-player-sheet__list{ max-height: 38vh; overflow-y:auto; margin: 12px 0; }
 .load-player-sheet__item{
@@ -1790,20 +1827,26 @@ input, select{ font-family: inherit; }
   transition: background .12s ease;
 }
 .load-player-sheet__item:first-child{ border-top:none; }
-.load-player-sheet__item:active{ background: rgba(200,255,61,0.06); }
+.load-player-sheet__item:active{ background: rgba(45,156,255,0.08); }
+.load-player-sheet.is-context-rival .load-player-sheet__item:active{ background: rgba(255,62,165,0.08); }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
+.load-player-sheet.is-context-rival .field__input:focus{ border-bottom-color: var(--team-b); }
+#load-player-sheet-add.sheet-option--primary{ background: rgba(45,156,255,0.12); border-color: var(--team-a); color: var(--team-a); }
+.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: rgba(255,62,165,0.12); border-color: var(--team-b); color: var(--team-b); }
 
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
    ========================================================================== */
-.court-saved-result{ text-align:center; padding: 10px 0 20px; }
-.court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; margin-bottom: 10px; }
+.court-saved-result{ text-align:center; padding: 10px 0 4px; }
+.court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; }
 .court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
-.court-saved-result__score{ font-family: var(--font-display); font-weight: 800; font-size: 40px; color: var(--paper); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
-.court-saved-result__teams{ font-size: 13px; color: var(--court-text-dim); }
 .court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
+/* V02.3 (Bloque B, §5) — misma .result-card del Resumen (ver buildScoreCardHTML), con el
+   marcador con un poco más de protagonismo acá: números de set levemente más grandes. */
+.court-saved-result-card{ margin-bottom: 14px; }
+.court-saved-result-card .result-card__set{ font-size: 21px; min-width: 32px; }
 
 /* Etapa 4.2 (§10) — nota privada: "Solo vos", nunca en superficies públicas. Reutilizada por
    Partido guardado y por el detalle en Análisis.
@@ -1825,6 +1868,15 @@ input, select{ font-family: inherit; }
   outline:none;
 }
 .court-note__textarea::placeholder{ color: var(--court-text-faint); }
+/* V02.3 (Bloque C, §7) — estado de LECTURA de la tarjeta de notas del Resumen: texto guardado,
+   o el placeholder "Tocá para agregar una nota" si todavía no hay ninguna. Toda la tarjeta es
+   tocable (este <button> ocupa el ancho/alto completo del área de texto) y revela el textarea
+   real para editar — ver initAnalysisScreen en app.js. */
+.court-note__display{
+  display:block; width:100%; min-height: 72px; background:none; border:none; margin:0; padding:0;
+  text-align:left; font-family: var(--font-body); font-size: 13px; color: var(--paper); cursor:pointer;
+}
+.court-note__display.is-empty{ color: var(--court-text-faint); }
 
 /* Hoja "Modificar" (fecha/hora/lugar) — mismos campos de Etapa 3, ahora en la hoja. */
 .manual-meta-sheet-done{ margin-top: 16px; }

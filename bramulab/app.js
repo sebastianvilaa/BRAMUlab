@@ -554,6 +554,10 @@
     $('#load-player-sheet-title').textContent = manualSlotLabel(slot).toUpperCase();
     $('#load-player-sheet-search').value = '';
     $('#load-player-sheet-remove').hidden = !manualPlayers[slot];
+    // V02.3 (Bloque A, §3) — Rival 1/Rival 2 acentúan en magenta (Equipo B), Compañero en
+    // celeste (Equipo A, ya el color base de .field__input/estados activos) — reutiliza
+    // exactamente las mismas variables --team-a/--team-b que el resto de la app.
+    $('#load-player-sheet').classList.toggle('is-context-rival', slot === 'b1' || slot === 'b2');
     renderManualPlayerSheetContent('');
     $('#load-player-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#load-player-sheet-scrim').classList.add('is-open'); });
@@ -747,11 +751,15 @@
   function updateManualContinueState() {
     const wrap = $('#court-continue-wrap');
     const btn = $('#manual-continue-btn');
+    // V02.3 (Bloque B, §4) — con el resultado final ya válido, la pausa deliberada muestra
+    // "Resultado válido" arriba de CONTINUAR (el hint vive ahora dentro de #court-continue-wrap,
+    // no dentro de .court-current-set — esa sección queda oculta una vez decidido, ver
+    // renderManualCurrentSetEditor).
     if (manualDecided) {
       wrap.hidden = false;
       btn.disabled = false;
       btn.textContent = 'CONTINUAR';
-      $('#court-current-set-hint').hidden = true;
+      $('#court-current-set-hint').hidden = false;
       return;
     }
     wrap.hidden = true;
@@ -866,12 +874,13 @@
       if (next === null) {
         manualDecided = true;
         renderManualScoreboard();
-        // V02.2 (Bloque D, §10.4) — el set que define el partido abre CONFIRMAR PARTIDO solo,
-        // sin exigir un toque extra en CONTINUAR (ese botón sigue existiendo como red de
-        // seguridad para los casos NO interactivos que también pueden dejar el partido
-        // "decidido" — reabrir un partido ya completo para editarlo, o un cambio de formato —
-        // ver updateManualContinueState/finalizeManualContinue).
-        setTimeout(() => finalizeManualContinue(), 320);
+        // V02.3 (Bloque B, §4) — revierte el auto-avance de V02.2: el set que define el
+        // partido YA NO abre CONFIRMAR PARTIDO solo. Se detiene acá (teclado cerrado, último
+        // set visible en el marcador acumulado, "Resultado válido" + CONTINUAR visibles vía
+        // updateManualContinueState) para dejar una pausa deliberada que permita revisar o
+        // corregir el resultado antes de continuar. CONTINUAR pasa a ser el único disparador
+        // de finalizeManualContinue, tanto acá como en los casos NO interactivos que también
+        // pueden dejar el partido "decidido" (reabrir uno ya completo, o un cambio de formato).
       } else {
         manualActiveSetIndex = next;
         const existing = manualSets[next];
@@ -1107,6 +1116,39 @@
     const text = computeManualMetaLineText();
     const a = $('#manual-meta-line-text'); if (a) a.textContent = text;
     const b = $('#match-saved-meta-text'); if (b) b.textContent = text;
+    updateManualTimeClearVisibility();
+  }
+
+  /** V02.3 (Bloque B, §6) — "Borrar hora" queda oculto mientras Hora está vacía: acción
+   *  terciaria discreta, nunca un ícono muerto sin nada que borrar. Se reevalúa desde
+   *  renderManualMetaLine (único punto que ya se llama en cada cambio/apertura de estos
+   *  campos) para no tener que acordarse de invocarlo en cada sitio que setea `.value` a mano. */
+  function updateManualTimeClearVisibility() {
+    const btn = $('#manual-time-clear-btn');
+    if (btn) btn.hidden = !$('#manual-time-input').value;
+  }
+
+  /** V02.3 (Bloque B, §6) — Hora deja de ser un <input type="time"> nativo: su presentación
+   *  depende del idioma/región del dispositivo (puede mostrar "2:50 p. m." aunque el valor
+   *  interno ya fuera 24h) — la causa real detrás de "formato de 24 horas en toda la app".
+   *  Enmascara mientras se tipea (inserta ':' después de 2 dígitos), sin validar todavía —
+   *  el clamp final ocurre en blur (normalizeManualTimeOnBlur). */
+  function maskManualTimeInput(raw) {
+    const digits = raw.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+  }
+
+  /** Al perder foco: HH:MM completo (3-4 dígitos) se recorta a rangos válidos (00-23/00-59) y
+   *  se rellena con ceros; incompleto (0-2 dígitos) se limpia — nunca deja a medio escribir.
+   *  Vacío ya es un estado soportado (equivalente a "Borrar hora": hora desconocida). */
+  function normalizeManualTimeOnBlur() {
+    const input = $('#manual-time-input');
+    const digits = input.value.replace(/\D/g, '').slice(0, 4);
+    if (digits.length < 3) { input.value = ''; return; }
+    const h = Math.min(23, Number(digits.slice(0, digits.length - 2)));
+    const m = Math.min(59, Number(digits.slice(-2)));
+    input.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
 
   function openManualMetaSheet() {
@@ -1159,7 +1201,12 @@
 
   function initManualDateTimeFields() {
     $('#manual-date-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); recomputeManualValidation(); });
-    $('#manual-time-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
+    $('#manual-time-input').addEventListener('input', (e) => {
+      e.target.value = maskManualTimeInput(e.target.value);
+      markManualLoadDirty();
+      renderManualMetaLine();
+    });
+    $('#manual-time-input').addEventListener('blur', () => { normalizeManualTimeOnBlur(); renderManualMetaLine(); });
     $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-place-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-location-btn').addEventListener('click', requestManualLocation);
@@ -1407,10 +1454,13 @@
     const badge = $('#match-saved-badge');
     badge.textContent = resultLabel;
     badge.className = 'court-saved-result__badge court-saved-result__badge--' + resultKind;
-    $('#match-saved-score').innerHTML = buildCanonicalScoreLineHTML(snapshot.sets, null);
-    const teamAName = snapshot.players.filter((p) => p.team === 'A').map((p) => p.name).join(' / ');
-    const teamBName = snapshot.players.filter((p) => p.team === 'B').map((p) => p.name).join(' / ');
-    $('#match-saved-teams').textContent = `${teamAName} vs ${teamBName}`;
+    // V02.3 (Bloque B, §5) — misma tarjeta deportiva que el Resumen (buildScoreCardHTML), con
+    // GANADORES incluido (buildWinnersBannerHTML) y SIN statsHTML: acá nunca se agregan
+    // Sets/Games ganados (eso es exclusivo de buildResultBlockHTML, usado en Resumen/Análisis).
+    // `snapshot` ya trae `.sets`/`.stats`/`.players`/`.winnerTeam` con la misma forma que
+    // cualquier partido del Historial (ver buildManualMatchSnapshot), lista para reusar sin
+    // transformación.
+    $('#match-saved-result-card').innerHTML = buildScoreCardHTML(snapshot, { winnersHTML: buildWinnersBannerHTML(snapshot) });
     $('#match-saved-note').value = '';
     renderManualMetaLine();
     showView('match-saved');
@@ -4283,6 +4333,16 @@
     showView('analysis');
   }
 
+  /** V02.3 (Bloque C, §7) — estado de LECTURA de la tarjeta permanente de notas: el texto
+   *  guardado, o "Tocá para agregar una nota" si todavía no hay ninguna (nunca un textarea
+   *  vacío suelto — ver .court-note__display en styles.css). */
+  function renderAnalysisNoteDisplay(note) {
+    const el = $('#analysis-note-display');
+    const trimmed = (note || '').trim();
+    el.textContent = trimmed || 'Tocá para agregar una nota';
+    el.classList.toggle('is-empty', !trimmed);
+  }
+
   /* ------------------------------------------------------------------ */
   /* ANÁLISIS COMPLETO — también la pantalla "Resumen del partido" (§13/§15)               */
   /* ------------------------------------------------------------------ */
@@ -4322,16 +4382,17 @@
     $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
     // Etapa 4.2 (§10) — sensaciones privadas: solo partidos CARGADOS, accesibles únicamente
     // desde este detalle (nunca en Home/Historial/Resumen/exportaciones).
-    // V02.2 (Bloque F, §16) — la tarjeta con label+textarea se muestra solo si YA existe una
-    // nota guardada (nunca un textarea vacío en modo lectura); sin nota, un link discreto
-    // "+ Agregar nota" explicita el paso a edición al tocarlo (ver #analysis-note-add-btn).
+    // V02.3 (Bloque C, §7) — tarjeta PERMANENTE: ya no se oculta según haya o no nota
+    // guardada (eso reemplazaba la tarjeta entera por un link "+ Agregar nota" — ver
+    // renderAnalysisNoteDisplay). Arranca siempre en modo LECTURA (textarea oculto) —
+    // cambiar de partido nunca debe dejar el editor abierto del partido anterior.
     const noteSection = $('#analysis-note-section');
     noteSection.hidden = f.mode !== 'manual';
     if (f.mode === 'manual') {
-      const hasNote = !!(f.privateNote && f.privateNote.trim());
       $('#analysis-note-textarea').value = f.privateNote || '';
-      $('#analysis-note-card').hidden = !hasNote;
-      $('#analysis-note-add-btn').hidden = hasNote;
+      $('#analysis-note-textarea').hidden = true;
+      $('#analysis-note-display').hidden = false;
+      renderAnalysisNoteDisplay(f.privateNote || '');
     }
     // V11 (§16.2): cierra el recorrido sin obligar al usuario a volver con la flecha. Solo
     // navega — nunca Store.clearActiveMatch(), porque Análisis puede abrirse tanto desde el
@@ -5490,15 +5551,17 @@
       const value = $('#analysis-note-textarea').value.trim() || null;
       Store.patchHistoryEntry(analysisCurrent.matchId, { privateNote: value });
       analysisCurrent.privateNote = value; // refleja el cambio si se vuelve a abrir esta misma sesión
-      // V02.2 (Bloque F, §16) — si quedó vacía, vuelve a colapsar al link "+ Agregar nota"
-      // (nunca deja un textarea vacío en modo lectura).
-      if (!value) { $('#analysis-note-card').hidden = true; $('#analysis-note-add-btn').hidden = false; }
+      // V02.3 (Bloque C, §7) — vuelve al estado de LECTURA dentro de la MISMA tarjeta
+      // permanente (nunca oculta la tarjeta ni la reemplaza por un link aparte).
+      renderAnalysisNoteDisplay(value || '');
+      $('#analysis-note-textarea').hidden = true;
+      $('#analysis-note-display').hidden = false;
     });
-    // V02.2 (Bloque F, §16) — "explicitar el estado de edición": tocar el link transforma la
-    // fila en la tarjeta editable real (nunca un textarea fantasma ya visible de entrada).
-    $('#analysis-note-add-btn').addEventListener('click', () => {
-      $('#analysis-note-card').hidden = false;
-      $('#analysis-note-add-btn').hidden = true;
+    // V02.3 (Bloque C, §7) — "la tarjeta completa es tocable": tocar el estado de lectura
+    // revela el textarea real para editar (con o sin nota existente).
+    $('#analysis-note-display').addEventListener('click', () => {
+      $('#analysis-note-display').hidden = true;
+      $('#analysis-note-textarea').hidden = false;
       $('#analysis-note-textarea').focus();
     });
     // V02.1 (§13/§15) — ya no existe una "Análisis" separada a la que volver: el Resumen es
@@ -6007,17 +6070,23 @@
   }
 
   /** §9 — Actividad: 4 bloques cronológicos (más antiguo→más reciente, izquierda→derecha);
-   *  la altura de cada bloque representa cantidad de partidos y, dentro de cada uno, la
-   *  porción lima (abajo) son las victorias — el resto de la altura queda con el fondo
-   *  apagado del propio bloque, sin dibujar la derrota como una capa aparte. */
+   *  la altura de cada bloque representa la cantidad TOTAL de partidos del período, ganados o
+   *  perdidos por igual — la Efectividad ya es la métrica que codifica victorias/derrotas
+   *  (ver renderPlayerEffectiveness), Actividad nunca vuelve a hacerlo.
+   *  V02.3 (Bloque D, §8) — antes el volumen se pintaba SOLO con la porción de victorias
+   *  (`.activity-bar__win`, lima, height:winPct%): un bloque con una sola derrota (0 victorias)
+   *  quedaba con esa porción en 0% de alto, dejando visible nada más que el fondo casi
+   *  transparente del contenedor (`rgba(244,247,242,0.08)`) — indistinguible de un período
+   *  realmente vacío. Ahora TODO bloque con `count > 0` recibe un relleno celeste sólido
+   *  (`.is-active`, --team-a) proporcional a la cantidad de partidos; el fondo tenue queda
+   *  reservado exclusivamente para el baseline de un período sin partidos. */
   function renderPlayerActivity(matches) {
     const activity = PH.computeActivity30d(matches, currentPlayerName);
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
     wrap.innerHTML = activity.buckets.map((b) => {
       const heightPct = b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6;
-      const winPct = b.count ? Math.round((b.wins / b.count) * 100) : 0;
-      return `<div class="activity-bar" style="height:${heightPct}%"><span class="activity-bar__win" style="height:${winPct}%"></span></div>`;
+      return `<div class="activity-bar${b.count ? ' is-active' : ''}" style="height:${heightPct}%"></div>`;
     }).join('');
     $('#player-home-activity-total').textContent = activity.total
       ? `${activity.total} ${activity.total === 1 ? 'partido' : 'partidos'} en los últimos 30 días`

@@ -647,16 +647,20 @@
       </section>
       <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
            tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle.
-           V02.2 (Bloque F, §16) — la tarjeta se muestra solo si ya existe una nota guardada
-           (nunca un textarea vacío en modo lectura); si no hay nota, un link discreto
-           "+ Agregar nota" transforma el estado a edición explícita al tocarlo. -->
+           V02.3 (Bloque C, §7) — tarjeta PERMANENTE (reemplaza el link "+ Agregar nota
+           privada" de V02.2, perdido entre BRAMU Intelligence y los botones finales): la
+           tarjeta vive siempre visible, sin nota o con nota. #analysis-note-display es el
+           estado de LECTURA (texto guardado, o "Tocá para agregar una nota" si está vacía) —
+           toda la tarjeta es tocable (es un <button> a ancho completo) y revela el textarea
+           real para editar; el textarea vuelve a colapsar al estado de lectura en blur (mismo
+           autoguardado privado de siempre, ver initAnalysisScreen en app.js). -->
       <section class="analysis-section" id="analysis-note-section" hidden>
-        <div class="court-note" id="analysis-note-card" hidden>
-          <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
-          <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
+        <div class="court-note" id="analysis-note-card">
+          <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS DEL PARTIDO · SOLO VOS</div>
+          <button type="button" id="analysis-note-display" class="court-note__display"></button>
+          <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)" hidden></textarea>
           <p class="coverage-note">Los datos viven en este dispositivo.</p>
         </div>
-        <button type="button" id="analysis-note-add-btn" class="link-btn" hidden>+ Agregar nota privada</button>
       </section>
       <section class="analysis-section" id="analysis-share-section">
         <!-- Hotfix v2.2.1 — COMPARTIR retirado también de Análisis (§16 de Etapa 4 ya lo pedía
@@ -787,7 +791,6 @@
             <span class="court-score__name" id="court-score-b-name">Rival</span>
           </button>
         </div>
-        <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
       </div>
 
       <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
@@ -807,8 +810,12 @@
     </div>
 
     <!-- CONTINUAR (§6.3/§7.1): confirma el set actual y avanza, o guarda el partido cuando ya
-         quedó decidido. Fijo inmediatamente arriba del teclado cuando está abierto. -->
+         quedó decidido. Fijo inmediatamente arriba del teclado cuando está abierto.
+         V02.3 (Bloque B, §4) — "Resultado válido" vive acá (no dentro de .court-current-set,
+         que queda oculta una vez decidido el partido): la pausa deliberada final muestra este
+         estado justo arriba del único botón CONTINUAR. -->
     <div class="court-continue-wrap" id="court-continue-wrap">
+      <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
       <button type="button" id="manual-continue-btn" class="court-continue-btn" disabled>CONTINUAR</button>
     </div>
 
@@ -847,9 +854,15 @@
     <div class="court-scroll" id="match-saved-scroll">
       <div class="court-saved-result">
         <div class="court-saved-result__badge" id="match-saved-badge">VICTORIA</div>
-        <div class="court-saved-result__score" id="match-saved-score">6-4 · 6-3</div>
-        <div class="court-saved-result__teams" id="match-saved-teams">Vos / Matu vs Cruz / Dan</div>
       </div>
+
+      <!-- V02.3 (Bloque B, §5) — reemplaza el resultado grande suelto (badge + marcador + línea
+           de equipos) por la misma tarjeta deportiva del Resumen (buildScoreCardHTML +
+           buildWinnersBannerHTML, ver openConfirmMatchScreen en app.js): GANADORES + fila por
+           equipo en celeste/magenta, SIN Sets/Games ganados (eso es propio del Resumen, nunca
+           de esta confirmación). Números de set levemente más grandes vía .court-saved-result-card
+           para que el marcador conserve protagonismo. -->
+      <div class="court-saved-result-card" id="match-saved-result-card"></div>
 
       <button type="button" id="match-saved-meta-line" class="court-meta-line">
         <span class="court-meta-line__text" id="match-saved-meta-text">Hoy</span>
@@ -857,7 +870,7 @@
       </button>
 
       <div class="court-note">
-        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS · SOLO VOS</div>
+        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS DEL PARTIDO · SOLO VOS</div>
         <textarea id="match-saved-note" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
         <p class="coverage-note">Los datos viven en este dispositivo.</p>
       </div>
@@ -879,22 +892,33 @@
         <span class="bottom-sheet__title">FECHA, HORA Y LUGAR</span>
         <button type="button" id="manual-meta-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <!-- V02.3 (Bloque B, §6) — Fecha y Hora con el mismo cuerpo visual: mismo label
+           (icono+texto), misma clase .field__input, misma altura explícita (ver
+           .manual-datetime-row .field__input en styles.css). Hora deja de ser un <input
+           type="time"> nativo: su formato de visualización depende del idioma/región del
+           dispositivo (puede mostrar "2:50 p. m." aunque el VALOR interno ya fuera 24h), la
+           causa real detrás de "Fecha y Hora se ven distintas" — pasa a ser un campo de texto
+           enmascarado (HH:MM, 24h siempre, ver initManualDateTimeFields/normalizeManualTimeText
+           en app.js) que además iguala pixel a pixel el cuerpo visual del campo Fecha. -->
       <div class="manual-datetime-row">
         <div class="field">
-          <label class="manual-field-label" for="manual-date-input">Fecha</label>
+          <label class="manual-field-label" for="manual-date-input"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Fecha</label>
           <input id="manual-date-input" class="field__input" type="date" required />
         </div>
-        <div class="field">
-          <label class="manual-field-label" for="manual-time-input">Hora</label>
-          <input id="manual-time-input" class="field__input" type="time" />
-          <button type="button" id="manual-time-clear-btn" class="link-btn manual-time-clear">Borrar hora</button>
+        <div class="field manual-field--time">
+          <label class="manual-field-label" for="manual-time-input"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Hora</label>
+          <input id="manual-time-input" class="field__input" type="text" inputmode="numeric" placeholder="14:50" maxlength="5" autocomplete="off" />
+          <button type="button" id="manual-time-clear-btn" class="manual-time-clear-icon" aria-label="Borrar hora" hidden>×</button>
         </div>
       </div>
       <div class="field">
         <label class="manual-field-label" for="manual-place-input">Lugar</label>
-        <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar/club (opcional)" maxlength="60" />
+        <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar o club (opcional)" maxlength="60" />
       </div>
-      <button type="button" id="manual-location-btn" class="btn-mini manual-location-btn">USAR MI UBICACIÓN</button>
+      <!-- V02.3 (Bloque B, §6) — "Usar mi ubicación" pasa de acción lima protagonista a
+           acción secundaria compacta con ícono (ya no compite con LISTO por el mismo peso
+           visual). -->
+      <button type="button" id="manual-location-btn" class="manual-location-btn"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.5-7-11a7 7 0 1 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Usar mi ubicación</button>
       <p class="coverage-note" id="manual-location-status" hidden></p>
       <button type="button" id="manual-meta-sheet-done" class="court-continue-btn manual-meta-sheet-done">LISTO</button>
     </div>
