@@ -525,7 +525,7 @@ input, select{ font-family: inherit; }
 .overlay__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 20px; padding: 24px 22px; text-align:center; max-width: 380px; width: 100%; }
 .overlay__card--wide{ max-width: 460px; text-align:left; }
 .overlay__card--scroll{ max-height: 85vh; overflow-y: auto; }
-.overlay__title{ font-family: var(--font-display); font-size: 20px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 10px; text-align:center; }
+.overlay__title{ font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 10px; text-align:center; }
 .overlay__text{ color: var(--paper-dim); font-size: 13px; margin: 0 0 16px; }
 .overlay__actions{ display:flex; gap: 10px; margin-top: 6px; }
 /* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
@@ -651,7 +651,7 @@ input, select{ font-family: inherit; }
   font-size: 12px; text-decoration: underline; cursor:pointer;
 }
 .summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
-.summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--text); margin-bottom: 6px; }
+.summary-card__title{ font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; color: var(--text); margin-bottom: 6px; }
 .summary-card__meta{ font-size: 11px; color: var(--paper-faint); margin-bottom: 10px; letter-spacing:0.02em; }
 /* V13.1 (§8): centrada, igual que en Resumen (`.summary-card` es `text-align:center` — acá
    se replica solo en esta línea, sin volver centrado todo Análisis). */
@@ -681,7 +681,7 @@ input, select{ font-family: inherit; }
 .result-card__sets{ display:flex; gap: 6px; flex: none; }
 /* M3: mismo tamaño para ganador y perdedor de cada set; el ganador va a 100% de contraste,
    el perdedor se atenúa (55–65%) para que se entienda instantáneamente quién ganó cada set. */
-.result-card__set{ min-width: 28px; text-align:center; font-family: var(--font-display); font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
+.result-card__set{ min-width: 28px; text-align:center; font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
 .result-card__set--win{ opacity: 1; background: rgba(244,247,242,0.14); }
 .result-card__set--lose{ opacity: 0.6; }
 .result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--brand-lime); }
@@ -715,11 +715,11 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; }
 .analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(12px + var(--safe-top)) 14px 12px; border-bottom: 1px solid var(--line); }
-.analysis-header__title{ font-family: var(--font-display); font-size: 15px; letter-spacing: 0.1em; color: var(--paper-dim); flex: 1 1 auto; }
+.analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.1em; color: var(--paper-dim); flex: 1 1 auto; }
 .analysis-header__summary-btn{ flex: none; font-size: 11px; }
 .analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
 .analysis-section{ margin-bottom: 26px; }
-.analysis-section__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
+.analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
    título, frase de encuadre y una superficie editorial que los agrupa a los tres. */
 .intelligence-title{ display:flex; align-items:center; gap: 8px; color: var(--brand-lime); margin-bottom: 4px; }
@@ -740,7 +740,7 @@ input, select{ font-family: inherit; }
   content: 'BRAMU INTELLIGENCE'; display:block; font-family: var(--font-display); font-weight:700;
   font-size: 10px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 8px;
 }
-.analysis-subsection__title{ font-family: var(--font-display); font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
+.analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
 .intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
 
@@ -1145,11 +1145,14 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
   padding: 16px; margin-bottom: 12px;
 }
-.pastilla__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
+.pastilla__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
 .pastilla__microlabel{ font-size: 10px; letter-spacing: 0.06em; color: var(--paper-faint); text-transform: uppercase; font-weight: 700; }
 .pastilla__title-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
 .pastilla__icon{ font-size: 20px; line-height:1; }
 .pastilla__icon-svg{ width:18px; height:18px; fill: var(--brand-lime); display:block; }
+/* Ajuste visual de cierre 01 (§4) — "Tu momento": pelota de pádel lineal, no un path
+   relleno; mismo trazo (~1.8px) que el resto del sistema de iconografía SVG. */
+.pastilla__icon-svg--momento{ width:20px; height:20px; fill:none; stroke: var(--brand-lime); stroke-width: 1.8; stroke-linecap: round; }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Hitos personales (§5)
@@ -1171,12 +1174,12 @@ input, select{ font-family: inherit; }
   font-size: 22px; font-weight:700; color: var(--brand-lime); flex: none;
 }
 .player-card__info{ flex: 1 1 auto; min-width: 120px; }
-.player-card__name{ font-family: var(--font-display); font-size: 19px; color: var(--paper); margin-bottom: 4px; }
+.player-card__name{ font-family: var(--font-display); font-weight: 500; font-size: 19px; color: var(--paper); margin-bottom: 4px; }
 .player-card__count{ font-size: 12px; color: var(--paper-dim); }
 .player-card__level{ flex: none; text-align:right; }
 .player-card__level-label{ font-size: 9px; letter-spacing:0.08em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
 .player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; }
-.player-card__level-value{ font-family: var(--font-display); font-size: 26px; color: var(--paper); }
+.player-card__level-value{ font-family: var(--font-display); font-weight: 800; font-size: 26px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .player-card__level-delta{ font-size: 12px; font-weight: 800; }
 .player-card__level-delta--up{ color: var(--brand-lime); }
 .player-card__level-delta--down{ color: var(--danger); }
@@ -1191,7 +1194,7 @@ input, select{ font-family: inherit; }
 .pastilla--identity{ display:flex; align-items:center; gap: 14px; flex-wrap: wrap; }
 .pastilla--identity-compact{ align-items:flex-start; }
 .pastilla-identity__info{ flex:1; min-width: 140px; }
-.pastilla-identity__name{ font-family: var(--font-display); font-size: 18px; color: var(--paper); margin-bottom: 6px; }
+.pastilla-identity__name{ font-family: var(--font-display); font-weight: 500; font-size: 18px; color: var(--paper); margin-bottom: 6px; }
 
 /* Tu momento */
 .pastilla-momento__text{ font-size: 13px; color: var(--paper-dim); line-height:1.5; margin:0; }
@@ -1202,16 +1205,30 @@ input, select{ font-family: inherit; }
    forma reciente (antes tarjeta independiente, ahora integrada acá) y usa el
    formato exacto de fecha `02SEP · 22:30`.
    ========================================================================== */
-/* BRAMUlab_V02 (§4.3) — tarjeta hero: única superficie del Home con degradado propio (más
-   oscura que el resto de las .pastilla, que quedan en --surface-1 plano) y radio de 18px en
-   vez de los 16px estándar — es la pieza principal de la pantalla, tiene que leerse aparte. */
+/* Ajuste visual de cierre 01 — tarjeta hero: única superficie del Home con degradado propio
+   (más oscura que el resto de las .pastilla, que quedan en --surface-1 plano) y radio de 18px
+   en vez de los 16px estándar — es la pieza principal de la pantalla, tiene que leerse aparte.
+   §3 pide más padding/altura, degradado más oscuro y una línea de acento fina según resultado
+   (clase de resultado la aplica JS — ver renderPlayerLastMatchCard en app.js). */
 .player-home-lastmatch{
+  position: relative; overflow: hidden;
   cursor:pointer; text-align:left; border-radius: var(--radius-hero);
-  background: linear-gradient(165deg, var(--surface-2) 0%, var(--bg-deep) 130%);
+  background: linear-gradient(165deg, var(--surface-1) 0%, var(--bg-deep) 140%);
   border-color: var(--line-strong);
+  padding: 20px 18px;
 }
-.player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
-.player-home-lastmatch__form{ display:flex; gap: 5px; flex-wrap:wrap; }
+.player-home-lastmatch::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  border-radius: var(--radius-hero) var(--radius-hero) 0 0;
+  background: transparent;
+}
+.player-home-lastmatch--win::before{ background: var(--brand-lime); }
+.player-home-lastmatch--loss::before{ background: var(--danger); }
+.player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 16px; }
+/* §3 — primera línea: forma reciente + "ÚLTIMO PARTIDO" + badge, como un único grupo a la
+   izquierda (antes la volanta de forma y el título/badge vivían en filas separadas). */
+.player-home-lastmatch__heading{ display:flex; align-items:center; gap: 8px; flex-wrap:wrap; min-width:0; }
+.player-home-lastmatch__form{ display:flex; gap: 5px; flex:none; flex-wrap:wrap; }
 /* §11 — "indicadores más pequeños; no necesitan llevar letras adentro si la forma y el color
    ya son comprensibles con alternativa accesible" (aria-label en el propio elemento). */
 .lastmatch-form-dot{ width: 7px; height:7px; border-radius:50%; flex:none; }
@@ -1226,9 +1243,8 @@ input, select{ font-family: inherit; }
 @keyframes lastMatchDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.4); } }
 @media (prefers-reduced-motion: reduce){ .lastmatch-form-dot--current{ animation:none; } }
 .player-home-lastmatch__datetime{ text-align:right; flex:none; }
-.player-home-lastmatch__date{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.03em; color: var(--court-text-dim); }
-.player-home-lastmatch__place{ font-size: 11px; color: var(--court-text-faint); margin-top: 2px; }
-.player-home-lastmatch__titlerow{ display:flex; align-items:center; gap: 8px; margin-bottom: 8px; }
+.player-home-lastmatch__date{ font-family: var(--font-display); font-weight: 500; font-size: 12px; letter-spacing:0.03em; color: var(--court-text-dim); font-variant-numeric: tabular-nums; }
+.player-home-lastmatch__place{ font-size: 11px; font-weight: 500; color: var(--court-text-faint); margin-top: 2px; }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--court-text-dim); text-transform: uppercase; }
@@ -1236,12 +1252,19 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
-.player-home-lastmatch__chevron{ margin-left:auto; color: var(--court-text-faint); font-size: 18px; flex:none; }
-/* §11 — "resultado claramente protagonista y de mayor tamaño": el salto real de jerarquía
-   de esta tarjeta respecto a v2.1 (era 24px, al mismo nivel que un microtítulo cualquiera). */
-.player-home-lastmatch__score{ font-family: var(--font-display); font-size: 34px; color: var(--paper); margin-bottom: 8px; font-variant-numeric: tabular-nums; line-height:1.1; }
-.player-home-lastmatch__teams{ font-size: 13px; color: var(--court-text-dim); }
-.player-home-lastmatch__teams .vs-sep{ margin: 0 6px; opacity: 0.6; }
+/* §11 — "resultado claramente protagonista y de mayor tamaño": el primer nivel de lectura de
+   la tarjeta, ~36–38px en móvil, más chico solo en pantallas angostas (§3). */
+.player-home-lastmatch__score{
+  font-family: var(--font-display); font-weight: 800; font-size: 36px; letter-spacing: -0.01em;
+  color: var(--paper); margin-bottom: 12px; font-variant-numeric: tabular-nums; line-height:1.05;
+}
+@media (max-width: 359px){ .player-home-lastmatch__score{ font-size: 32px; } }
+/* §3 — parejas + chevron comparten fila: el chevron va alineado con esta fila, no flotando
+   arriba (antes vivía en la fila del título). */
+.player-home-lastmatch__teamsrow{ display:flex; align-items:center; gap: 8px; }
+.player-home-lastmatch__teams{ flex: 1 1 auto; min-width:0; font-size: 13px; font-weight: 500; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.player-home-lastmatch__teams .vs-sep{ margin: 0 8px; opacity: 0.6; }
+.player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
 /* ==========================================================================
@@ -1260,7 +1283,7 @@ input, select{ font-family: inherit; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
 .effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
 .effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
-.effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size: 16px; color: var(--paper); }
+.effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
 /* ==========================================================================
@@ -1268,8 +1291,8 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .player-home-widgets-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pastilla--widget{ margin-bottom:0; }
-.pastilla-widget__value{ font-family: var(--font-display); font-size: 22px; color: var(--paper); margin: 6px 0 2px; }
-.pastilla-widget__value--text{ font-size: 15px; }
+.pastilla-widget__value{ font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--paper); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.pastilla-widget__value--text{ font-size: 15px; font-weight: 500; }
 .pastilla-widget__caption{ font-size: 11px; color: var(--paper-dim); }
 
 /* Placeholder (Ranking) */
@@ -1317,7 +1340,7 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 
 /* Movimiento (§11 / Adenda §5) — tokens centralizados, nunca duraciones sueltas. Alias de
-   los tokens --motion-*/--motion-ease definidos en :root (BRAMUlab_V02 §3.6) para no tener
+   los tokens --motion-* y --motion-ease definidos en :root (BRAMUlab_V02 §3.6) para no tener
    dos sistemas de timing paralelos; los nombres --sheet-* se mantienen porque los siguen
    usando todas las hojas inferiores. */
 :root{
@@ -1372,7 +1395,7 @@ input, select{ font-family: inherit; }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
 .bottom-sheet__grabber{ width:36px; height:4px; border-radius:999px; background: var(--court-line); margin: 0 auto 14px; }
 .bottom-sheet__header{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px; gap: 10px; }
-.bottom-sheet__title{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; flex:1; text-align:center; }
+.bottom-sheet__title{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; flex:1; text-align:center; }
 .bottom-sheet__back{ background:none; border:none; color: var(--court-text-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; }
 .bottom-sheet__close{ background: var(--court-surface-2); border:none; color: var(--court-text-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; }
 .bottom-sheet__level{ display:flex; flex-direction:column; gap: 10px; padding-bottom: 4px; }
@@ -1401,7 +1424,7 @@ input, select{ font-family: inherit; }
   border-radius: 16px; padding: 16px 18px; cursor:pointer; margin-bottom: 10px;
 }
 .sheet-active-card__label{ font-size: 10px; letter-spacing:0.08em; color: var(--brand-lime); font-weight:800; text-transform:uppercase; margin-bottom:6px; }
-.sheet-active-card__teams{ font-family: var(--font-display); font-size: 15px; color: var(--paper); margin-bottom: 2px; }
+.sheet-active-card__teams{ font-family: var(--font-display); font-weight: 500; font-size: 15px; color: var(--paper); margin-bottom: 2px; }
 .sheet-active-card__meta{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; }
 .sheet-active-card__cta{ font-family: var(--font-display); font-size: 12px; letter-spacing:0.04em; color: var(--brand-lime); text-transform:uppercase; font-weight:700; }
 
@@ -1432,7 +1455,7 @@ input, select{ font-family: inherit; }
 .active-match-banner__info{ display:flex; flex-direction:column; flex:1; min-width:0; }
 .active-match-banner__label{ font-size: 9px; letter-spacing:0.07em; color: var(--brand-lime); font-weight:800; text-transform:uppercase; }
 .active-match-banner__teams{
-  font-family: var(--font-display); font-size: 13px; color: var(--paper);
+  font-family: var(--font-display); font-weight: 500; font-size: 13px; color: var(--paper);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .active-match-banner__meta{
@@ -1468,10 +1491,10 @@ input, select{ font-family: inherit; }
 }
 .court-header__back{ color: var(--court-text-dim); flex:none; }
 .court-header__state{ min-width:0; }
-.court-header__status{ font-family: var(--font-display); font-size: 15px; letter-spacing: 0.08em; color: var(--paper); text-transform: uppercase; }
+.court-header__status{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.08em; color: var(--paper); text-transform: uppercase; }
 .court-header__format{ font-size: 11px; color: var(--court-text-dim); margin-top: 1px; }
 .court-header--saved{ justify-content:center; }
-.court-header__status--saved{ font-family: var(--font-display); font-size: 14px; letter-spacing: 0.1em; color: var(--brand-lime); text-transform: uppercase; }
+.court-header__status--saved{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: var(--brand-lime); text-transform: uppercase; }
 
 /* §5 — jugadores: "Tu equipo" (lima) / "Rivales" (azul), nombres elegidos como contenido
    confirmado (no como campo de formulario todavía activo). */
@@ -1501,7 +1524,7 @@ input, select{ font-family: inherit; }
   border: 1px solid var(--court-line); border-radius: 10px; padding: 7px 14px; cursor:pointer;
 }
 .court-accumulated__set-label{ font-size: 9px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
-.court-accumulated__set-score{ font-family: var(--font-display); font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-accumulated__set-score{ font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-accumulated__set:active{ border-color: var(--brand-lime); }
 
 /* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla. */
@@ -1515,7 +1538,7 @@ input, select{ font-family: inherit; }
   flex: 1; max-width: 130px; background: var(--court-surface-2); border: 2px solid transparent; border-radius: 16px;
   padding: 14px 6px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap: 4px;
 }
-.court-score__value{ font-family: var(--font-display); font-size: 52px; line-height:1; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-score__value{ font-family: var(--font-display); font-weight: 800; font-size: 52px; line-height:1; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-score.is-empty .court-score__value{ color: var(--court-text-faint); }
 .court-score__name{ font-size: 11px; font-weight:700; color: var(--court-text-dim); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* §6.3 — "el lado activo debe quedar inequívocamente marcado": borde + fondo lima, nunca
@@ -1575,7 +1598,7 @@ input, select{ font-family: inherit; }
 .load-keypad__grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 7px; max-width: 360px; margin: 0 auto; }
 .load-keypad__key{
   padding: 13px 0; border-radius: 10px; border: 1px solid var(--court-line); background: var(--court-surface-2);
-  color: var(--paper); font-family: var(--font-display); font-size: 19px; cursor:pointer;
+  color: var(--paper); font-family: var(--font-display); font-weight: 700; font-size: 19px; cursor:pointer;
 }
 .load-keypad__key:active{ transform: scale(0.96); }
 .load-keypad__key:disabled{ opacity: 0.3; cursor:not-allowed; }
@@ -1617,7 +1640,7 @@ input, select{ font-family: inherit; }
 .court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
 .court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
-.court-saved-result__score{ font-family: var(--font-display); font-size: 40px; color: var(--paper); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.court-saved-result__score{ font-family: var(--font-display); font-weight: 800; font-size: 40px; color: var(--paper); font-variant-numeric: tabular-nums; margin-bottom: 8px; }
 .court-saved-result__teams{ font-size: 13px; color: var(--court-text-dim); }
 .court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
 
@@ -1649,7 +1672,7 @@ input, select{ font-family: inherit; }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
 .evolution-summary{ display:flex; gap: 18px; margin-bottom: 14px; }
 .evolution-summary__item{ display:flex; flex-direction:column; gap: 2px; }
-.evolution-summary__value{ font-family: var(--font-display); font-size: 18px; color: var(--paper); }
+.evolution-summary__value{ font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .evolution-summary__label{ font-size: 10px; letter-spacing:0.03em; color: var(--paper-dim); }
 
 .evolution-chart-wrap{ overflow-x:auto; margin: 0 -4px 6px; padding: 0 4px; -webkit-overflow-scrolling: touch; }

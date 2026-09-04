@@ -5750,6 +5750,10 @@
   function renderPlayerLastMatchCard(matches) {
     const card = $('#player-home-last-match-card');
     const body = $('#player-home-last-match-body');
+    // Ajuste visual de cierre 01 (§3) — línea de acento fina (lima/coral) según resultado:
+    // se resetea siempre primero, se vuelve a aplicar más abajo solo si hay partido con
+    // ganador definido.
+    card.classList.remove('player-home-lastmatch--win', 'player-home-lastmatch--loss');
     if (!matches.length) {
       card.classList.add('is-empty');
       body.innerHTML = `
@@ -5769,6 +5773,7 @@
     const scoreStr = [finishedSetsStr, partialSetStr].filter(Boolean).join(' · ') || 'sin sets';
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
     const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
+    if (resultKind === 'win' || resultKind === 'loss') card.classList.add('player-home-lastmatch--' + resultKind);
     // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó. §7 (Etapa 4) — formato exacto
     // "02SEP · 22:30"; sin hora cargada (timeKnown === false) no se inventa "00:00".
     const playedAt = PH.getPlayedAt(m);
@@ -5794,19 +5799,21 @@
 
     body.innerHTML = `
       <div class="player-home-lastmatch__top">
-        <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+        <div class="player-home-lastmatch__heading">
+          <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+          <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
+          <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+        </div>
         <div class="player-home-lastmatch__datetime">
           ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
           ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
         </div>
       </div>
-      <div class="player-home-lastmatch__titlerow">
-        <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
-        <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+      <div class="player-home-lastmatch__score">${scoreStr}</div>
+      <div class="player-home-lastmatch__teamsrow">
+        <div class="player-home-lastmatch__teams">${escapeHtml(teamAName)}<span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
         <span class="player-home-lastmatch__chevron" aria-hidden="true">›</span>
       </div>
-      <div class="player-home-lastmatch__score">${scoreStr}</div>
-      <div class="player-home-lastmatch__teams">${escapeHtml(teamAName)}<span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
     `;
   }
 
