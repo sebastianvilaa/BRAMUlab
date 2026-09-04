@@ -6,7 +6,7 @@ Naming activo del proyecto (usar siempre exactamente así):
 - `BRAMUlab_V01` — la primera aplicación integral (`bramulab/` en el código). Todo lo desarrollado hasta el hotfix v2.2.1.
 - `BRAMUlab_V02` — versión funcional actual, con el nuevo sistema visual integral, publicada sobre la misma base de código y datos de V01.
 
-No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo — esos nombres solo sobreviven dentro de las carpetas `Archivo/`, como identidad histórica de cada documento.
+No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
 ## Versión funcional actual: BRAMUlab_V02
 
@@ -27,23 +27,20 @@ Toda la lógica funcional (partidos, historial, Home, BRAMU Intelligence) sigue 
 |---|---|
 | Qué se especificó, en orden, desde el origen hasta v2.2.1 | [`Versiones/BRAMUlab_V01/BRAMUlab_V01_Consolidado.md`](Versiones/BRAMUlab_V01/BRAMUlab_V01_Consolidado.md) |
 | Qué se implementó, verificó y corrigió hasta v2.2.1 | [`Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md`](Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md) |
-| Los documentos originales de cada Etapa/Fase/hotfix (preservados, ya no son fuente activa) | [`Versiones/BRAMUlab_V01/Archivo/`](Versiones/BRAMUlab_V01/Archivo/) |
+
+Los documentos originales de cada Etapa/Fase/hotfix (citados por nombre dentro del Consolidado/Informe de arriba) ya no están en el repositorio — se borraron una vez confirmado que no quedaba nada sin resumir; recuperables del historial de git (commit `990df66`).
 
 ## Backlog
 
-Ideas y direcciones futuras no autorizadas todavía para implementar (validación de partidos, cuentas/ranking, motion): [`BRAMUlab_Backlog.md`](BRAMUlab_Backlog.md).
+**Documento vivo.** [`BRAMUlab_Backlog.md`](BRAMUlab_Backlog.md) es el único lugar donde viven las ideas futuras del proyecto (validación de partidos, cuentas/ranking, notificaciones, smartwatch, fotos/recuerdos, motion, etc.) — nada de esto está autorizado para implementar todavía. Cuando Sebastián piense una idea nueva con ChatGPT, el flujo es: revisar primero este archivo para no chocar con o duplicar algo ya pensado, y agregarla acá — nunca dejarla suelta en un documento de ronda que después se borra.
 
 ## Referencias
 
 Documentación visual y auditorías todavía útiles como contexto, pero que no son consolidados de implementación ni deben confundirse con uno: [`Referencias/`](Referencias/) (moodboard de dirección visual, brief para ChatGPT, auditoría visual pre-V02 del código).
-
-## Archivo
-
-Documentos superados o puramente históricos que no son parte de ninguna versión activa — reorganizaciones documentales anteriores, el índice de repositorio previo a esta reorganización: [`Archivo/`](Archivo/).
 
 ## Qué leer, según lo que te pidan
 
 - **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02` (es la versión publicada hoy). Leé su Informe arriba para el estado visual actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence), que V02 no tocó.
 - **Cualquier pedido de ajuste visual puntual** (paleta, tipografía, tarjetas, iconografía) → es sobre `BRAMUlab_V02`, no sobre V01.
 - **"¿Qué falta / qué es lo próximo?"** → `BRAMUlab_Backlog.md`.
-- **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — pertenece a una carpeta `Archivo/` y ya no es una fuente activa, aunque el contenido en sí sigue siendo válido como registro de lo que pasó.
+- **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — ya no existe en el repositorio (se borró una vez resumido en el Consolidado/Informe/Backlog correspondiente), pero es recuperable del historial de git si hiciera falta.

@@ -6,7 +6,7 @@ Ideas y direcciones futuras **no autorizadas todavía para implementar**. Nada d
 
 ## 1. Modelo de validación de partidos (Pendiente / Validado / Disputado / Observado)
 
-**Fuente original, preservada íntegra:** [`Archivo/BRAMU_Backlog_Futuro_Validacion_Partidos.md`](Archivo/BRAMU_Backlog_Futuro_Validacion_Partidos.md).
+**Fuente original, preservada íntegra:** `BRAMU_Backlog_Futuro_Validacion_Partidos.md`.
 
 **Principio rector:** quien registra un partido no necesariamente es quien lo juega — BRAMU debe separar siempre al autor del registro de los participantes. "Los de afuera son de palo": un espectador puede producir un registro valioso, pero no puede modificar el Nivel BRAMU, el ranking ni las estadísticas oficiales.
 
@@ -25,7 +25,7 @@ Ideas y direcciones futuras **no autorizadas todavía para implementar**. Nada d
 
 ## 2. Identidad real (cuentas / sesión) — reemplazo del modelo de nombre libre
 
-**Fuente:** nota de diseño en [`Versiones/BRAMUlab_V01/Archivo/BRAMU_Rama_Jugador_Auditoria_Funcional.md`](Versiones/BRAMUlab_V01/Archivo/BRAMU_Rama_Jugador_Auditoria_Funcional.md), §9.
+**Fuente:** nota de diseño en `BRAMU_Rama_Jugador_Auditoria_Funcional.md`, §9.
 
 Hoy el jugador actual es un nombre de texto libre, tratado como preferencia liviana y reemplazable — coherente con la beta, pero no con hacia dónde va el producto. Cuando exista una capa real de sesión/cuenta:
 - "Cambiar jugador" (ya renombrado a **"Cerrar sesión"** en la corrección funcional de la Etapa 2, ver [`Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md`](Versiones/BRAMUlab_V01/BRAMUlab_V01_Informe.md) §1.1) debería separarse conceptualmente de "elegir quién sos la primera vez" — hoy ambos casos reutilizan el mismo modal "¿Quién sos?", razonable en la beta pero no con cuentas reales.
@@ -48,7 +48,7 @@ No viene de un documento de backlog específico — es la dirección de más lar
 
 ## 4. Motion / sistema de movimiento de marca
 
-**Fuente original:** [`Versiones/BRAMUlab_V01/Archivo/BRAMU_Lab_Etapa_3_Adenda_Producto_UX_02SEP2026.md`](Versiones/BRAMUlab_V01/Archivo/BRAMU_Lab_Etapa_3_Adenda_Producto_UX_02SEP2026.md) proponía tres movimientos de marca: **Rebote** (pique de pelota, para confirmaciones/éxito, uso poco frecuente), **Latido** (glow/respiración sutil para estados activos: partido en curso, Punto de Oro) y **Desplazamiento** (transiciones de hojas, nativo y rápido). Regla transversal: respetar `prefers-reduced-motion`, reemplazando desplazamientos por fades simples.
+**Fuente original:** `BRAMU_Lab_Etapa_3_Adenda_Producto_UX_02SEP2026.md` proponía tres movimientos de marca: **Rebote** (pique de pelota, para confirmaciones/éxito, uso poco frecuente), **Latido** (glow/respiración sutil para estados activos: partido en curso, Punto de Oro) y **Desplazamiento** (transiciones de hojas, nativo y rápido). Regla transversal: respetar `prefers-reduced-motion`, reemplazando desplazamientos por fades simples.
 
 **Estado:** en gran parte ya recogido por [`Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md) §3.6 (Motion) — no hace falta una ronda separada para esto; verificar al implementar V02 que cubre lo mismo que proponía la Adenda.
 

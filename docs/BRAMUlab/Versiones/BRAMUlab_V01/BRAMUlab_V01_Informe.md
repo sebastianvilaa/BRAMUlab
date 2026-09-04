@@ -4,7 +4,7 @@
 **Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva).
 **Fecha de esta síntesis:** 03/09/2026.
 **Estado actual de la app:** commit `910975f`, tag `v2.2.1`. Última rama de trabajo cerrada: Etapa 4.2 (Carga manual y jerarquía).
-**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (archivos tocados, casos de test, capturas, verificación manual paso a paso) vive en el informe original de cada ronda, preservado en [`Archivo/`](Archivo/) y linkeado desde cada sección. Este documento es el resumen fiel, no el reemplazo.
+**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (archivos tocados, casos de test, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen y `BRAMUlab_Backlog.md` no perdían nada relevante; siguen recuperables del historial de git (commit `990df66` o anterior).
 
 ---
 
@@ -22,7 +22,7 @@ No existe arnés de test para DOM/`app.js` en ningún punto de esta línea — t
 
 ## 1. Home Beta (Etapa 2)
 
-**Fuente:** [`Archivo/BRAMU_Rama_Jugador_Etapa_2_Informe.md`](Archivo/BRAMU_Rama_Jugador_Etapa_2_Informe.md). Commit `0e3a132`, publicado a `main`.
+**Fuente:** `BRAMU_Rama_Jugador_Etapa_2_Informe.md`. Commit `0e3a132`, publicado a `main`.
 
 Implementado: `player-home.js` nuevo; pantallas `view-player-home`/`view-ranking`/`view-profile`; nav inferior de 5 ítems (oculto durante partido en vivo/setup); menú compacto en Setup; modal "¿Quién sos?"; navegación contextual de "Cargar partido jugado" según origen (`finishedSnapshot.mode === 'manual'`); texto de "Forma reciente" corregido para el caso de exactamente 1 partido. Cache `v14` → `v14.1`.
 
@@ -32,7 +32,7 @@ Implementado: `player-home.js` nuevo; pantallas `view-player-home`/`view-ranking
 
 ## 1.1. Corrección funcional post-Etapa 2
 
-**Fuente:** [`Archivo/BRAMU_Rama_Jugador_Correccion_Funcional.md`](Archivo/BRAMU_Rama_Jugador_Correccion_Funcional.md)
+**Fuente:** `BRAMU_Rama_Jugador_Correccion_Funcional.md`
 
 **Bug real corregido:** Jugador 1 no estaba vinculado a `currentPlayerName` — un partido autocargado podía no aparecer en el propio Home de quien lo cargó. Se agregó `resolvePlayerOneName()`, guardia de identificación obligatoria antes de abrir carga manual desde Home, y "Cambiar jugador" pasó a "Cerrar sesión". 349/349 tests (6 nuevos).
 
@@ -40,7 +40,7 @@ Implementado: `player-home.js` nuevo; pantallas `view-player-home`/`view-ranking
 
 ## 2. Semántica de fecha (Etapa 3 Fase 1)
 
-**Fuente:** [`Archivo/BRAMU_Lab_Etapa_3_Fase_1_Semantica_Fecha_Informe.md`](Archivo/BRAMU_Lab_Etapa_3_Fase_1_Semantica_Fecha_Informe.md). Commit `39cb821`.
+**Fuente:** `BRAMU_Lab_Etapa_3_Fase_1_Semantica_Fecha_Informe.md`. Commit `39cb821`.
 
 **Causa raíz real:** todas las lecturas de "cuándo se jugó" usaban `finishedAt` (hora de guardado) en vez de la fecha real jugada — cargar el partido de hoy después del de ayer promovía incorrectamente al recién guardado. Se agregaron `getPlayedAt()` y `comparePlayedAtDesc()` (puras, en `player-home.js`), se corrigieron los 3 flujos de guardado (`finishMatchManual`, `finishMatch`, `finishMatchGames`) para escribir `playedAt`, y se corrigieron 5 superficies de lectura. Desempate: `playedAt` → `createdAt` → `finishedAt` → `matchId`.
 
@@ -50,7 +50,7 @@ Implementado: `player-home.js` nuevo; pantallas `view-player-home`/`view-ranking
 
 ## 3. Acceso y registro (Etapa 3 Fase 2 + correcciones post-prueba)
 
-**Fuentes:** [`Archivo/BRAMU_Lab_Etapa_3_Fase_2_Acceso_Registro_Informe.md`](Archivo/BRAMU_Lab_Etapa_3_Fase_2_Acceso_Registro_Informe.md) (commit `087634e`) y [`Archivo/BRAMU_Lab_Etapa_3_Fase_2_Correcciones_Postprueba_Informe.md`](Archivo/BRAMU_Lab_Etapa_3_Fase_2_Correcciones_Postprueba_Informe.md) (commit `e59d363`).
+**Fuentes:** `BRAMU_Lab_Etapa_3_Fase_2_Acceso_Registro_Informe.md` (commit `087634e`) y `BRAMU_Lab_Etapa_3_Fase_2_Correcciones_Postprueba_Informe.md` (commit `e59d363`).
 
 Implementado: hoja `#register-sheet-scrim` con 3 niveles mutuamente excluyentes; banner de partido en curso; modal de confirmación de descarte; `tryAutoResumeActiveMatch()`; navegación no destructiva a Home desde el header del partido en vivo. **Bug latente corregido de paso:** `#confirm-overlay` estaba anidado dentro de `#view-match` (mismo defecto que V13.2/V13.3 ya habían corregido en el producto anterior) — reubicado a overlays globales. Versión subida a v1.1.
 
@@ -64,7 +64,7 @@ Correcciones post-prueba en iPhone real: `bootDefaultScreen()` reemplaza a `tryA
 
 ## 4. Hotfix v1.2.1 — Volver al inicio
 
-**Fuente:** [`Archivo/BRAMU_Lab_v1.2.1_Hotfix_Volver_al_Inicio_Informe.md`](Archivo/BRAMU_Lab_v1.2.1_Hotfix_Volver_al_Inicio_Informe.md). Commit `2ec46aa`.
+**Fuente:** `BRAMU_Lab_v1.2.1_Hotfix_Volver_al_Inicio_Informe.md`. Commit `2ec46aa`.
 
 **Causa raíz:** 3 controles (`#summary-new-btn`, `#analysis-home-btn`, `#menu-home`→`goHome()`) tenían lógica condicional heredada de antes de que existiera Home, cayendo por defecto a `showView('setup')`. Corregidos los 3 para llamar `openPlayerHome()` incondicionalmente. Sin tests nuevos (no había lógica pura nueva) — cubierto por 12 escenarios de verificación manual. Primer commit en seguir la nueva regla de nombrado por versión real.
 
@@ -72,13 +72,13 @@ Correcciones post-prueba en iPhone real: `bootDefaultScreen()` reemplaza a `tryA
 
 ## 5. Rediseño de carga manual — v1.3
 
-**Fuente:** [`Archivo/BRAMU_Lab_Etapa_3_Fase_3_Carga_Partido_Jugado_Informe.md`](Archivo/BRAMU_Lab_Etapa_3_Fase_3_Carga_Partido_Jugado_Informe.md). Commit `fdaa97c`.
+**Fuente:** `BRAMU_Lab_Etapa_3_Fase_3_Carga_Partido_Jugado_Informe.md`. Commit `fdaa97c`.
 
 Implementado: pantalla estilo marcador con Jugador 1 fijo, hoja de selección de rival (recientes + búsqueda + invitado), teclado numérico fijo no-modal, línea compacta de formato/puntuación, guardado/edición vía Resumen compartido. Módulo nuevo `match-load.js`. **Decisión de arquitectura:** Jugador 1 (equipo A) pasa a ser siempre `currentPlayerName`, sin importar el origen de entrada — esto volvió obsoleto `resolvePlayerOneName()`, que se borró junto con sus tests. Edición real desde cero: `openManualLoadScreen(origin, editMatch)` precarga un partido existente y reutiliza el mismo `matchId` vía `Store.upsertHistory` (nunca duplica). 414/414 tests (−6 por código muerto eliminado, +38 nuevos).
 
 ## 5.1. Hotfix v1.3.1
 
-**Fuente:** [`Archivo/BRAMU_Lab_v1.3.1_Hotfix_Transicion_Post_Guardado_Informe.md`](Archivo/BRAMU_Lab_v1.3.1_Hotfix_Transicion_Post_Guardado_Informe.md). Commit `0f04fd5`.
+**Fuente:** `BRAMU_Lab_v1.3.1_Hotfix_Transicion_Post_Guardado_Informe.md`. Commit `0f04fd5`.
 
 **Bug real, encontrado por revisión externa de ChatGPT en producción** (no detectado por los 414 tests ni la verificación manual propia): reabrir una celda de set ya cargada dejaba el teclado numérico abierto sin invalidar el borrador, permitiendo tocar Guardar mientras seguía abierto; el teclado (sin scrim, a propósito, para no tapar el marcador) terminaba sobre el Resumen tras guardar. Corregido haciendo que `attemptSaveManualMatch()` cierre explícitamente todos los overlays propios de la pantalla antes de delegar el guardado, más un fix de `max-width` para el mismo panel en desktop. **Nota de método:** el diagnóstico textual de la revisión externa era parcialmente impreciso (decía que toda la pantalla de carga "tapaba" el Resumen; en realidad era específicamente el panel del teclado, de z-index más alto) — se verificó con `getComputedStyle` antes de confiar en la causa reportada.
 
@@ -86,7 +86,7 @@ Implementado: pantalla estilo marcador con Jugador 1 fijo, hoja de selección de
 
 ## 6. Home integral — v2.0
 
-**Fuente:** [`Archivo/BRAMU_Lab_Etapa_4_v2_Experiencia_Integral_Informe.md`](Archivo/BRAMU_Lab_Etapa_4_v2_Experiencia_Integral_Informe.md). Commit de código `9fcad8c`, tag `v2.0`.
+**Fuente:** `BRAMU_Lab_Etapa_4_v2_Experiencia_Integral_Informe.md`. Commit de código `9fcad8c`, tag `v2.0`.
 
 Implementado en una sola pasada (sin publicaciones intermedias, por instrucción explícita del consolidado): orden fijo del Home descrito en el consolidado (§7 de [`BRAMUlab_V01_Consolidado.md`](BRAMUlab_V01_Consolidado.md)). Nuevas agregaciones puras en `player-home.js`: `computeCurrentStreak`, `computeBestPartner` (reemplaza "compañero más frecuente" por "mejor compañero" con umbral mínimo de muestra), `computeActivity30d`, `computeEffectiveness30d`, `computeHitos`. 432/432 tests (18 nuevos).
 
@@ -96,7 +96,7 @@ Implementado en una sola pasada (sin publicaciones intermedias, por instrucción
 
 ## 7. Historial y evolución del Nivel BRAMU — v2.1
 
-**Fuente:** [`Archivo/BRAMU_Lab_Etapa_4_1_v2_1_Historial_y_Evolucion_Informe.md`](Archivo/BRAMU_Lab_Etapa_4_1_v2_1_Historial_y_Evolucion_Informe.md). Commit `e5b2870`, tag `v2.1`.
+**Fuente:** `BRAMU_Lab_Etapa_4_1_v2_1_Historial_y_Evolucion_Informe.md`. Commit `e5b2870`, tag `v2.1`.
 
 **Ronda disparada por revisión externa (ChatGPT) de v2.0 en producción**, que encontró dos bugs que el informe de v2.0 había dado por corregidos/funcionando — ambos reales, con causa raíz instructiva:
 
@@ -111,7 +111,7 @@ Implementado además: filtros de Historial por propiedad (`classifyMatchOwnershi
 
 ## 8. Carga manual y jerarquía visual — v2.2 (Etapa 4.2)
 
-**Fuente:** [`Archivo/BRAMU_Lab_Etapa_4_2_v2_2_Carga_Manual_y_Jerarquia_Informe.md`](Archivo/BRAMU_Lab_Etapa_4_2_v2_2_Carga_Manual_y_Jerarquia_Informe.md). Commit `e45eb35`, tag `v2.2`.
+**Fuente:** `BRAMU_Lab_Etapa_4_2_v2_2_Carga_Manual_y_Jerarquia_Informe.md`. Commit `e45eb35`, tag `v2.2`.
 
 Implementado: nuevo namespace de tokens CSS `--court-*` (deliberadamente acotado a 5 superficies, no reemplaza los tokens globales); `ML.resolveActiveSetIndex()`, `Store.patchHistoryEntry()`; reuso de validación existente (`ML.canExtendSetDigits`, `E.isValidCompletedSetScore`) en vez de duplicar reglas. Decisión de diseño: el teclado muestra 0–9 siempre (no "0–7 en casos comunes" como sugería el consolidado), dejando que `canExtendSetDigits` deshabilite dinámicamente.
 
@@ -123,7 +123,7 @@ Implementado: nuevo namespace de tokens CSS `--court-*` (deliberadamente acotado
 
 ## 9. Hotfix v2.2.1 — validación preventiva del teclado y COMPARTIR en Análisis
 
-**Fuente:** [`Archivo/BRAMU_Lab_v2.2.1_Hotfix_Teclado_y_Compartir_Informe.md`](Archivo/BRAMU_Lab_v2.2.1_Hotfix_Teclado_y_Compartir_Informe.md). Commit `910975f`, tag `v2.2.1` — **estado actual de la app**.
+**Fuente:** `BRAMU_Lab_v2.2.1_Hotfix_Teclado_y_Compartir_Informe.md`. Commit `910975f`, tag `v2.2.1` — **estado actual de la app**.
 
 Reacción directa a revisión externa del v2.2 recién publicado. Dos hallazgos:
 
