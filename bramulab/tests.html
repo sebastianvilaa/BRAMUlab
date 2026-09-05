@@ -2005,9 +2005,17 @@
 
   // ==================================================================
   // ETAPA 4 (v2.0) — HOME INTEGRAL: player-home.js — Racha actual, Mejor
-  // compañero, Actividad 30 días, Efectividad 30 días, Hitos.
+  // compañero, Actividad (V02.7: 4 semanas calendario), Efectividad
+  // (V02.7: historial completo), Hitos.
   // ==================================================================
   function daysAgoIso(nowMs, days) { return new Date(nowMs - days * 24 * 60 * 60 * 1000).toISOString(); }
+  // V02.7 (§3.4) — construye un ISO a partir de componentes LOCALES (mismo criterio que
+  // `new Date(y,m,d,h,mi)`, ya usado en el resto de la app desde el fix de fechas de V02.1/
+  // V02.5): el test arma la fecha con getters locales y `computeActivityWeeks4`/
+  // `startOfWeekMonday` la vuelven a leer con getters locales — el mismo huso horario en ambos
+  // extremos hace que el resultado sea determinístico sin importar en qué zona corra el test.
+  function localIso(y, m, d, h, mi) { return new Date(y, m, d, h || 0, mi || 0, 0, 0).toISOString(); }
+  const WEEK_MS_TEST = 7 * 24 * 60 * 60 * 1000;
 
   // ---- computeCurrentStreak ----
   (function () {
@@ -2067,29 +2075,86 @@
     assert('E4 · computeBestPartner es null si nadie llega a la muestra mínima', PH.computeBestPartner([mkHistoryMatch('s1', '2026-06-01T00:00:00.000Z', [player, 'Solo', 'X', 'Y'], 'A')], player) === null);
   })();
 
-  // ---- computeActivity30d / computeEffectiveness30d (ventana fija, sin depender de "ahora") ----
+  // ---- V02.7 (§4) — computeEffectivenessTotal: balance ACUMULADO, sin ventana de tiempo ----
   (function () {
     const player = 'Sebastián';
     const now = new Date('2026-09-03T00:00:00.000Z');
     const nowMs = now.getTime();
     const matches = [
-      mkDatedMatch('a1', { playedAt: daysAgoIso(nowMs, 1) }, [player, 'A', 'X', 'Y'], 'A'),  // muy reciente, victoria
-      mkDatedMatch('a2', { playedAt: daysAgoIso(nowMs, 9) }, [player, 'A', 'X', 'Y'], 'B'),  // derrota
-      mkDatedMatch('a3', { playedAt: daysAgoIso(nowMs, 16) }, [player, 'A', 'X', 'Y'], 'A'), // victoria
-      mkDatedMatch('a4', { playedAt: daysAgoIso(nowMs, 25) }, [player, 'A', 'X', 'Y'], 'B'), // derrota, tramo más antiguo de la ventana
-      mkDatedMatch('a5', { playedAt: daysAgoIso(nowMs, 31) }, [player, 'A', 'X', 'Y'], 'A'), // fuera de la ventana (>30 días) — no cuenta
-      mkDatedMatch('a6', {}, [player, 'A', 'X', 'Y'], 'A'), // sin fecha real válida — no cuenta
+      mkDatedMatch('e1', { playedAt: daysAgoIso(nowMs, 1) }, [player, 'A', 'X', 'Y'], 'A'),   // victoria, reciente
+      mkDatedMatch('e2', { playedAt: daysAgoIso(nowMs, 9) }, [player, 'A', 'X', 'Y'], 'B'),   // derrota
+      mkDatedMatch('e3', { playedAt: daysAgoIso(nowMs, 400) }, [player, 'A', 'X', 'Y'], 'A'), // victoria MUY vieja (>30 días Y >1 año) — cuenta igual
+      mkDatedMatch('e4', { playedAt: daysAgoIso(nowMs, 900) }, [player, 'A', 'X', 'Y'], 'B'), // derrota, todavía más vieja — cuenta igual
+      mkDatedMatch('e5', {}, [player, 'A', 'X', 'Y'], null),                                  // sin ganador definido — nunca cuenta
     ];
-    const activity = PH.computeActivity30d(matches, player, now);
-    assert('E4 · computeActivity30d cuenta solo los partidos dentro de la ventana de 30 días con fecha válida', activity.total === 4, JSON.stringify(activity));
-    assert('E4 · computeActivity30d ordena los 4 bloques del más antiguo al más reciente', activity.buckets.map((b) => b.count).join(',') === '1,1,1,1', JSON.stringify(activity.buckets));
-    assert('E4 · computeActivity30d separa victorias/derrotas por bloque', activity.buckets[0].losses === 1 && activity.buckets[3].wins === 1, JSON.stringify(activity.buckets));
+    const eff = PH.computeEffectivenessTotal(matches, player);
+    assert('V02.7-EFE · computeEffectivenessTotal cuenta TODO el historial con resultado definido, sin importar la fecha', eff.considered === 4 && eff.wins === 2 && eff.losses === 2 && eff.pct === 50, JSON.stringify(eff));
+    assert('V02.7-EFE · un partido sin ganador definido nunca se cuenta', !PH.filterMatchesWithDefinedResult(matches, player).some((m) => m.matchId === 'e5'), JSON.stringify(PH.filterMatchesWithDefinedResult(matches, player).map((m) => m.matchId)));
 
-    const eff = PH.computeEffectiveness30d(matches, player, now);
-    assert('E4 · computeEffectiveness30d considera solo partidos con resultado definido dentro de la ventana', eff.considered === 4 && eff.wins === 2 && eff.losses === 2 && eff.pct === 50, JSON.stringify(eff));
+    const effEmpty = PH.computeEffectivenessTotal([], player);
+    assert('V02.7-EFE · con historial vacío nunca inventa un porcentaje', effEmpty.considered === 0 && effEmpty.pct === null);
 
-    const effEmpty = PH.computeEffectiveness30d([], player, now);
-    assert('E4 · computeEffectiveness30d con historial vacío nunca inventa un porcentaje', effEmpty.considered === 0 && effEmpty.pct === null);
+    const withDefinedResult = PH.filterMatchesWithDefinedResult(matches, player);
+    assert('V02.7-EFE · filterMatchesWithDefinedResult expone la MISMA lista que cuenta el porcentaje (drill-through del Home a Historial)', withDefinedResult.length === 4, JSON.stringify(withDefinedResult.map((m) => m.matchId)));
+  })();
+
+  // ---- V02.7 (§3) — computeActivityWeeks4 / startOfWeekMonday: 4 semanas calendario ----
+  (function () {
+    const player = 'Sebastián';
+
+    // (1) startOfWeekMonday: la semana empieza lunes y termina domingo (jueves 3-sep-2026 →
+    // lunes 31-ago-2026; domingo 6-sep-2026 pertenece a ESA MISMA semana, no a la próxima;
+    // lunes 7-sep-2026 ya es la semana siguiente y es el inicio de la suya propia).
+    const monday = PH.startOfWeekMonday(new Date(2026, 8, 3, 15, 30)); // jueves 3-sep-2026
+    assert('V02.7-ACT · startOfWeekMonday(jueves) devuelve el lunes de esa misma semana', monday.getFullYear() === 2026 && monday.getMonth() === 7 && monday.getDate() === 31, monday.toString());
+    const mondayFromSunday = PH.startOfWeekMonday(new Date(2026, 8, 6, 23, 0)); // domingo 6-sep-2026
+    assert('V02.7-ACT · el domingo pertenece a la semana que empezó el lunes anterior, nunca a la próxima', mondayFromSunday.getTime() === monday.getTime(), mondayFromSunday.toString());
+    const mondayNext = PH.startOfWeekMonday(new Date(2026, 8, 7, 0, 1)); // lunes 7-sep-2026, 00:01
+    assert('V02.7-ACT · el lunes siguiente ya es la semana próxima', mondayNext.getTime() === monday.getTime() + WEEK_MS_TEST, mondayNext.toString());
+    const mondayItself = PH.startOfWeekMonday(new Date(2026, 8, 7, 0, 0));
+    assert('V02.7-ACT · un lunes es el inicio de su propia semana (no retrocede a la anterior)', mondayItself.getTime() === mondayNext.getTime());
+
+    // (2) la semana actual siempre es el bucket de la derecha (índice 3); dos partidos de la
+    // MISMA semana caen en el mismo bucket aunque crucen de mes (31-ago/2-sep).
+    const nowSept = new Date(2026, 8, 3, 12, 0); // jueves 3-sep-2026 — semana actual: lun 31-ago a dom 6-sep
+    const crossMonth = PH.computeActivityWeeks4([
+      mkDatedMatch('w1', { playedAt: localIso(2026, 7, 31, 10, 0) }, [player, 'A', 'X', 'Y'], 'A'), // lunes 31-ago
+      mkDatedMatch('w2', { playedAt: localIso(2026, 8, 2, 18, 0) }, [player, 'A', 'X', 'Y'], 'B'),   // miércoles 2-sep
+    ], player, nowSept);
+    assert('V02.7-ACT · la semana actual siempre es el bucket más a la derecha (índice 3)', crossMonth.buckets[3].count === 2, JSON.stringify(crossMonth));
+    assert('V02.7-ACT · un cambio de MES dentro de la misma semana no rompe la agrupación (31-ago y 2-sep, mismo bucket)', crossMonth.total === 2 && crossMonth.buckets[3].wins === 1 && crossMonth.buckets[3].losses === 1, JSON.stringify(crossMonth));
+
+    // (3) cambio de AÑO dentro de la misma semana tampoco rompe la agrupación.
+    const nowJan = new Date(2027, 0, 1, 10, 0); // viernes 1-ene-2027 — semana actual: lun 28-dic-2026 a dom 3-ene-2027
+    const crossYear = PH.computeActivityWeeks4([
+      mkDatedMatch('y1', { playedAt: localIso(2026, 11, 31, 20, 0) }, [player, 'A', 'X', 'Y'], 'A'), // jueves 31-dic-2026
+      mkDatedMatch('y2', { playedAt: localIso(2027, 0, 1, 9, 0) }, [player, 'A', 'X', 'Y'], 'A'),     // viernes 1-ene-2027
+    ], player, nowJan);
+    assert('V02.7-ACT · un cambio de AÑO dentro de la misma semana no rompe la agrupación (31-dic y 1-ene, mismo bucket)', crossYear.buckets[3].count === 2, JSON.stringify(crossYear));
+
+    // (4) transición domingo→lunes: las 4 barras corren, entra la semana nueva a la derecha y
+    // sale la más antigua por la izquierda — sin lógica de "descarte" explícita, solo porque ya
+    // no encuentra lugar entre las 4 semanas conocidas.
+    const slideMatches = [
+      mkDatedMatch('m1', { playedAt: localIso(2026, 7, 10, 12, 0) }, [player, 'A', 'X', 'Y'], 'A'), // lunes 10-ago
+      mkDatedMatch('m2', { playedAt: localIso(2026, 7, 17, 12, 0) }, [player, 'A', 'X', 'Y'], 'A'), // lunes 17-ago
+      mkDatedMatch('m3', { playedAt: localIso(2026, 7, 24, 12, 0) }, [player, 'A', 'X', 'Y'], 'A'), // lunes 24-ago
+      mkDatedMatch('m4', { playedAt: localIso(2026, 7, 31, 12, 0) }, [player, 'A', 'X', 'Y'], 'A'), // lunes 31-ago
+      mkDatedMatch('m5', { playedAt: localIso(2026, 8, 7, 12, 0) }, [player, 'A', 'X', 'Y'], 'A'),  // lunes 7-sep (semana siguiente a m4)
+    ];
+    const beforeMidnight = PH.computeActivityWeeks4(slideMatches, player, new Date(2026, 8, 6, 23, 0)); // domingo 6-sep, 23:00
+    assert('V02.7-ACT · domingo a la noche: las 4 semanas conocidas son m1..m4, una por bucket', beforeMidnight.buckets.map((b) => b.count).join(',') === '1,1,1,1' && beforeMidnight.total === 4, JSON.stringify(beforeMidnight.buckets));
+    const afterMidnight = PH.computeActivityWeeks4(slideMatches, player, new Date(2026, 8, 7, 0, 5)); // lunes 7-sep, recién pasada la medianoche
+    assert('V02.7-ACT · al cruzar a lunes, la semana de m1 (la más vieja) sale sola de la ventana de 4', afterMidnight.total === 4, JSON.stringify(afterMidnight));
+    assert('V02.7-ACT · m2/m3/m4 corren una posición hacia la izquierda', afterMidnight.buckets[0].count === 1 && afterMidnight.buckets[1].count === 1 && afterMidnight.buckets[2].count === 1, JSON.stringify(afterMidnight.buckets));
+    assert('V02.7-ACT · la semana nueva (m5) entra completa por la derecha', afterMidnight.buckets[3].count === 1, JSON.stringify(afterMidnight.buckets));
+
+    // (5) sin fecha real válida, o fuera de la ventana de 4 semanas (pasado o futuro): no cuenta.
+    const outOfWindow = PH.computeActivityWeeks4([
+      mkDatedMatch('n1', {}, [player, 'A', 'X', 'Y'], 'A'), // sin fecha real válida
+      mkDatedMatch('n2', { playedAt: localIso(2026, 8, 10, 9, 0) }, [player, 'A', 'X', 'Y'], 'A'), // semana futura (jueves 10-sep, después de la actual)
+    ], player, nowSept);
+    assert('V02.7-ACT · sin fecha válida o fuera de la ventana de 4 semanas, un partido nunca se cuenta', outOfWindow.total === 0, JSON.stringify(outOfWindow));
   })();
 
   // ---- computeThirtyDayPeriodCounts ----
@@ -2374,12 +2439,15 @@
     assert('V02.1-M · computeRivalBreakdown: dos rivales distintos, cada uno 4 enfrentamientos', rivals.length === 2 && rivals.every((r) => r.count === 4), JSON.stringify(rivals));
     assert('V02.1-M · computeRivalBreakdown ordena por enfrentamientos desc, empate alfabético', rivals[0].name === 'Rival1' && rivals[1].name === 'Rival2', JSON.stringify(rivals.map((r) => r.name)));
 
-    // Últimos 30 días: ancla "ahora" 2026-09-04T12:00Z — s0 (35 días antes) queda afuera.
-    const now = new Date('2026-09-04T12:00:00.000Z');
-    const within30 = PH.filterMatchesWithin30d(streak, now);
-    assert('V02.1-M · filterMatchesWithin30d excluye el partido de hace 35 días', within30.length === 3 && !within30.some((mm) => mm.matchId === 's0'), JSON.stringify(within30.map((mm) => mm.matchId)));
-    const eff30 = PH.computeEffectiveness30d(streak, player, now);
-    assert('V02.1-M · el mismo conjunto de filterMatchesWithin30d es el que usa Efectividad (considered=3)', eff30.considered === 3, JSON.stringify(eff30));
+    // V02.7 (§4): Efectividad dejó de tener ventana de tiempo — s0 (35 días antes) ahora SÍ
+    // cuenta (tiene resultado definido), y filterMatchesWithDefinedResult (el reemplazo de
+    // filterMatchesWithin30d para este propósito) expone exactamente el mismo conjunto que usa
+    // Efectividad, sin importar la fecha — mismo principio de siempre: el drill-through del
+    // Home a Historial muestra EXACTAMENTE los partidos que originaron el número tocado.
+    const withDefinedResult = PH.filterMatchesWithDefinedResult(streak, player);
+    assert('V02.1-M · filterMatchesWithDefinedResult ya no excluye por fecha (s0, 35 días antes, sigue adentro)', withDefinedResult.length === 4 && withDefinedResult.some((mm) => mm.matchId === 's0'), JSON.stringify(withDefinedResult.map((mm) => mm.matchId)));
+    const effTotal = PH.computeEffectivenessTotal(streak, player);
+    assert('V02.1-M · el mismo conjunto de filterMatchesWithDefinedResult es el que usa Efectividad (considered=4)', effTotal.considered === 4, JSON.stringify(effTotal));
   })();
 
   // ------------------------------------------------------------------
@@ -2469,63 +2537,14 @@
   })();
 
   // ------------------------------------------------------------------
-  // V02.3 — Bloque D §9: cálculo temporal de Actividad (ventana móvil de 30 días, 4 bloques
-  // cronológicos). No se reescribe PH.computeActivity30d (la lógica pura ya era correcta —
-  // el bug real de esta ronda era solo visual, ver renderPlayerActivity en app.js/§8): estos
-  // tests BLINDAN el comportamiento existente con los casos exactos pedidos por el consolidado
-  // (2/10/18/26/31 días) para que una futura ronda no lo rompa sin darse cuenta.
+  // V02.3 — Bloque D §9 (SUPERSEDED por V02.7 §3): esta ronda protegía la ventana móvil de 30
+  // días de PH.computeActivity30d con los offsets exactos del consolidado de entonces
+  // (2/10/18/26/31 días). V02.7 reemplazó esa función por PH.computeActivityWeeks4 (semanas
+  // calendario, no ventana móvil) — los tests de "orden de carga no importa" y "observado no
+  // suma actividad propia" seguían siendo propiedades válidas de la nueva función, así que se
+  // reescriben más abajo (bloque "V02.7-ACT · orden y observados") en vez de quedar duplicados
+  // con offsets de días que ya no significan nada para una función basada en semanas.
   // ------------------------------------------------------------------
-  (function () {
-    const now = new Date('2026-09-04T12:00:00.000Z'); // ancla fija — nunca depende de "hoy" real
-    const currentPlayerName = 'Sebastián';
-    function ownMatch(id, daysAgo, winnerTeam) {
-      const playedAt = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
-      return {
-        matchId: id, playedAt,
-        players: [
-          { name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' },
-          { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' },
-        ],
-        winnerTeam,
-      };
-    }
-    const matches = [
-      ownMatch('d2', 2, 'A'), ownMatch('d10', 10, 'B'), ownMatch('d18', 18, 'A'),
-      ownMatch('d26', 26, 'B'), ownMatch('d31', 31, 'A'),
-    ];
-    const activity = PH.computeActivity30d(matches, currentPlayerName, now);
-    assert('V02.3-ACT · 2/10/18/26 días quedan dentro de la ventana, el de 31 días excluido (total=4)', activity.total === 4, JSON.stringify(activity));
-    assert('V02.3-ACT · los 4 partidos dentro de la ventana caen en 4 períodos DISTINTOS (1 partido cada uno)', activity.buckets.every((b) => b.count === 1), JSON.stringify(activity.buckets));
-    assert('V02.3-ACT · no depende del orden de carga: reordenar la lista de entrada no cambia el resultado', PH.computeActivity30d(matches.slice().reverse(), currentPlayerName, now).total === 4);
-
-    // §9 — usa playedAt, nunca createdAt: un createdAt "viejo" (fuera de ventana) no debe
-    // excluir un partido cuyo playedAt real sí está dentro de los últimos 30 días.
-    const trickyMatch = {
-      matchId: 'tricky', playedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-      players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }],
-      winnerTeam: 'A',
-    };
-    const activityTricky = PH.computeActivity30d([trickyMatch], currentPlayerName, now);
-    assert('V02.3-ACT · usa playedAt, nunca createdAt (un createdAt de 40 días no excluye un playedAt de 2 días)', activityTricky.total === 1, JSON.stringify(activityTricky));
-
-    // §9 — un timestamp futuro (playedAt posterior a "ahora") nunca se cuenta.
-    const futureMatch = ownMatch('future', -5, 'A'); // -5 días = 5 días en el futuro
-    const withFuture = PH.computeActivity30d(matches.concat([futureMatch]), currentPlayerName, now);
-    assert('V02.3-ACT · un partido con playedAt futuro no se cuenta', withFuture.total === 4, JSON.stringify(withFuture));
-
-    // §9 — observados (el jugador actual no participa) nunca suman actividad propia, aunque
-    // estén bien fechados dentro de la ventana. Mismo contrato que el resto de las funciones
-    // de este archivo (computeRecentForm, computeBestWinStreak, etc.): reciben `matches` ya
-    // filtrado por PH.filterMatchesForPlayer — el único punto de la app que decide "propio vs
-    // observado" (ver renderPlayerHome en app.js) — así que el filtro se ejercita ACÁ, igual
-    // que en el camino real, en vez de pasarle un observado directo a computeActivity30d (que
-    // nunca prometió filtrar participación por su cuenta).
-    const observed = { matchId: 'obs', playedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(), players: [{ name: 'Facundo', team: 'A' }, { name: 'Nico', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], winnerTeam: 'A' };
-    const filteredWithObserved = PH.filterMatchesForPlayer(matches.concat([observed]), currentPlayerName);
-    const withObserved = PH.computeActivity30d(filteredWithObserved, currentPlayerName, now);
-    assert('V02.3-ACT · un partido observado (el jugador actual no figura) no suma actividad propia', withObserved.total === 4, JSON.stringify(withObserved));
-  })();
 
   // ------------------------------------------------------------------
   // V02.3 — Bloque D §8: Actividad debe representar el VOLUMEN total del período (ganados o
@@ -2533,27 +2552,56 @@
   // testeable en este arnés sin DOM, ver nota de alcance más abajo), pero acá se blinda el
   // dato PURO del que depende esa vista corregida: un bloque con partidos, aunque sean todos
   // derrota, siempre debe tener count > 0 (lo único que ahora decide el relleno visible).
+  // V02.7: la fuente pasó de PH.computeActivity30d a PH.computeActivityWeeks4 — la propiedad
+  // que blinda este test (derrota sola sigue con count>0) no depende de la ventana de tiempo,
+  // solo cambia la fecha usada para que caiga dentro de la semana actual.
   // ------------------------------------------------------------------
   (function () {
-    const now = new Date('2026-09-04T12:00:00.000Z');
+    const now = new Date(2026, 8, 3, 12, 0); // jueves 3-sep-2026
     const currentPlayerName = 'Sebastián';
     const lossOnly = [{
-      matchId: 'loss1', playedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      matchId: 'loss1', playedAt: localIso(2026, 8, 1, 10, 0), // martes 1-sep-2026, misma semana que "now"
       players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }],
       winnerTeam: 'B', // el jugador actual (Equipo A) pierde
     }];
-    const activity = PH.computeActivity30d(lossOnly, currentPlayerName, now);
+    const activity = PH.computeActivityWeeks4(lossOnly, currentPlayerName, now);
     const bucketWithMatch = activity.buckets.find((b) => b.count > 0);
     assert('V02.3-ACT · un período con una sola derrota sigue teniendo count > 0 (relleno visible, no invisible)', !!bucketWithMatch && bucketWithMatch.count === 1, JSON.stringify(activity.buckets));
     assert('V02.3-ACT · esa derrota no suma victorias (Efectividad, no Actividad, es la que codifica resultado)', bucketWithMatch.wins === 0 && bucketWithMatch.losses === 1, JSON.stringify(bucketWithMatch));
   })();
 
   // ------------------------------------------------------------------
-  // V02.3 — Bloque D §10: Efectividad de los últimos 30 días — victorias propias / partidos
-  // propios con resultado definido. La lógica pura (PH.computeEffectiveness30d) ya era
-  // correcta (no se reescribe, ver §10 del consolidado); estos tests blindan los casos
-  // mínimos exactos pedidos, incluida la perspectiva desde Equipo B y la exclusión de
-  // observados/fuera de ventana.
+  // V02.7-ACT · orden y observados — mismas dos propiedades que blindaba V02.3-ACT para
+  // PH.computeActivity30d, re-verificadas sobre PH.computeActivityWeeks4: el resultado no debe
+  // depender del orden de carga, y un partido "observado" (el jugador actual no figura) nunca
+  // debe sumar a su propia Actividad — mismo contrato de siempre: esta función confía en recibir
+  // `matches` ya filtrado por PH.filterMatchesForPlayer (el único punto de la app que decide
+  // "propio vs observado", ver renderPlayerHome en app.js), así que el filtro se ejercita ACÁ,
+  // igual que en el camino real.
+  // ------------------------------------------------------------------
+  (function () {
+    const now = new Date(2026, 8, 3, 12, 0); // jueves 3-sep-2026 — semana actual: lun 31-ago a dom 6-sep
+    const currentPlayerName = 'Sebastián';
+    const matches = [
+      { matchId: 'ord1', playedAt: localIso(2026, 8, 1, 9, 0), players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }], winnerTeam: 'A' },
+      { matchId: 'ord2', playedAt: localIso(2026, 7, 24, 9, 0), players: [{ name: currentPlayerName, team: 'A' }, { name: 'Matías', team: 'A' }, { name: 'Facundo', team: 'B' }, { name: 'Nico', team: 'B' }], winnerTeam: 'B' },
+    ];
+    assert('V02.7-ACT · no depende del orden de carga: reordenar la lista de entrada no cambia el total', PH.computeActivityWeeks4(matches.slice().reverse(), currentPlayerName, now).total === PH.computeActivityWeeks4(matches, currentPlayerName, now).total, JSON.stringify(matches));
+
+    const observed = { matchId: 'obs', playedAt: localIso(2026, 8, 2, 9, 0), players: [{ name: 'Facundo', team: 'A' }, { name: 'Nico', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], winnerTeam: 'A' };
+    const filteredWithObserved = PH.filterMatchesForPlayer(matches.concat([observed]), currentPlayerName);
+    const withObserved = PH.computeActivityWeeks4(filteredWithObserved, currentPlayerName, now);
+    assert('V02.7-ACT · un partido observado (el jugador actual no figura) no suma actividad propia', withObserved.total === 2, JSON.stringify(withObserved));
+  })();
+
+  // ------------------------------------------------------------------
+  // V02.3 — Bloque D §10 (adaptado a V02.7 §4): Efectividad — victorias propias / partidos
+  // propios con resultado definido. Los casos de porcentaje/perspectiva de equipo/exclusión de
+  // observados siguen siendo válidos tal cual (son partidos recientes, cuentan igual con o sin
+  // ventana de tiempo); el caso "un partido de 31 días no modifica el porcentaje" SE ELIMINÓ —
+  // es exactamente lo opuesto de lo que pide V02.7 (Efectividad ya no tiene ventana de tiempo,
+  // así que un partido viejo SÍ debe modificar el porcentaje: ver el bloque V02.7-EFE de arriba,
+  // que blinda ese comportamiento nuevo con partidos de 400/900 días).
   // ------------------------------------------------------------------
   (function () {
     const now = new Date('2026-09-04T12:00:00.000Z');
@@ -2568,28 +2616,23 @@
 
     // Caso 1 — 2 victorias + 1 derrota = 67% y 2 de 3.
     const case1 = [ownMatch('c1a', 1, 'A', 'A'), ownMatch('c1b', 2, 'A', 'A'), ownMatch('c1c', 3, 'A', 'B')];
-    const eff1 = PH.computeEffectiveness30d(case1, currentPlayerName, now);
+    const eff1 = PH.computeEffectivenessTotal(case1, currentPlayerName);
     assert('V02.3-EFE · 2 victorias + 1 derrota → 67% y 2 de 3', eff1.pct === 67 && eff1.wins === 2 && eff1.considered === 3, JSON.stringify(eff1));
 
     // Caso 2 — 1 victoria + 3 derrotas = 25% y 1 de 4.
     const case2 = [ownMatch('c2a', 1, 'A', 'A'), ownMatch('c2b', 2, 'A', 'B'), ownMatch('c2c', 3, 'A', 'B'), ownMatch('c2d', 4, 'A', 'B')];
-    const eff2 = PH.computeEffectiveness30d(case2, currentPlayerName, now);
+    const eff2 = PH.computeEffectivenessTotal(case2, currentPlayerName);
     assert('V02.3-EFE · 1 victoria + 3 derrotas → 25% y 1 de 4', eff2.pct === 25 && eff2.wins === 1 && eff2.considered === 4, JSON.stringify(eff2));
 
     // §10 — el jugador en Equipo B se calcula correctamente (perspectiva propia, no fija a "A").
     const caseB = [ownMatch('cb1', 1, 'B', 'B'), ownMatch('cb2', 2, 'B', 'A')]; // gana la 1ra (su equipo B gana), pierde la 2da
-    const effB = PH.computeEffectiveness30d(caseB, currentPlayerName, now);
+    const effB = PH.computeEffectivenessTotal(caseB, currentPlayerName);
     assert('V02.3-EFE · jugador en Equipo B: 1 victoria + 1 derrota → 50% (perspectiva correcta, no invertida)', effB.pct === 50 && effB.wins === 1 && effB.losses === 1, JSON.stringify(effB));
 
     // §10 — un observado (el jugador actual no figura en players) no modifica el porcentaje.
     const observed = { matchId: 'obsEff', playedAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), players: [{ name: 'Facundo', team: 'A' }, { name: 'Nico', team: 'A' }, { name: 'Gastón', team: 'B' }, { name: 'Lucho', team: 'B' }], winnerTeam: 'A' };
-    const eff1WithObserved = PH.computeEffectiveness30d(case1.concat([observed]), currentPlayerName, now);
+    const eff1WithObserved = PH.computeEffectivenessTotal(case1.concat([observed]), currentPlayerName);
     assert('V02.3-EFE · un observado no modifica el porcentaje', eff1WithObserved.pct === eff1.pct && eff1WithObserved.considered === eff1.considered, JSON.stringify(eff1WithObserved));
-
-    // §10 — un partido de 31 días no modifica el porcentaje.
-    const oldMatch = ownMatch('old31', 31, 'A', 'A'); // sería una victoria más, pero está fuera de ventana
-    const eff1With31 = PH.computeEffectiveness30d(case1.concat([oldMatch]), currentPlayerName, now);
-    assert('V02.3-EFE · un partido de 31 días no modifica el porcentaje', eff1With31.pct === eff1.pct && eff1With31.considered === eff1.considered, JSON.stringify(eff1With31));
   })();
 
   // ------------------------------------------------------------------

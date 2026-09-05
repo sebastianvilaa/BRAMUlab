@@ -64,19 +64,21 @@
 
   /** V02.1 (§4/§5) — fix de corrimiento de día: `Date.prototype.toISOString()` siempre
    *  devuelve la fecha en UTC, nunca la fecha LOCAL. El bug real reportado ("11 partidos
-   *  cargados hoy, Actividad solo contaba 3") no era un problema de PH.computeActivity30d
-   *  (ese cálculo ya opera sobre timestamps absolutos, correctos en cualquier huso) — estaba
-   *  en el prefill de la carga manual (más abajo, `openManualLoadScreen`), que combinaba la
-   *  fecha en UTC (`now.toISOString().slice(0,10)`) con la hora en LOCAL (`now.getHours()`).
+   *  cargados hoy, Actividad solo contaba 3") no era un problema de la agregación temporal del
+   *  Home (esos cálculos ya operan sobre timestamps absolutos, correctos en cualquier huso) —
+   *  estaba en el prefill de la carga manual (más abajo, `openManualLoadScreen`), que combinaba
+   *  la fecha en UTC (`now.toISOString().slice(0,10)`) con la hora en LOCAL (`now.getHours()`).
    *  Durante la ventana diaria en la que el calendario UTC ya rotó pero el local todavía no
    *  (en Argentina, UTC-3: aprox. 21:00–23:59 hora local), esa combinación producía una
    *  fecha/hora un día ADELANTADA respecto del momento real — no un detalle cosmético del
-   *  string ISO, sino un instante genuinamente futuro, que el guard `age < 0` de
-   *  computeActivity30d/computeEffectiveness30d excluye por diseño. Estas dos funciones
-   *  arman el string `YYYY-MM-DD`/`HH:MM` que después escriben los `<input type="date">` /
-   *  `<input type="time">` — SIEMPRE en hora local, nunca `toISOString()`, para que
-   *  `new Date(`${dateVal}T${timeVal}`)` (que interpreta esa combinación como hora LOCAL, sin
-   *  designador de zona) reconstruya el instante real que el usuario ve en pantalla. */
+   *  string ISO, sino un instante genuinamente futuro, que PH.computeActivityWeeks4/
+   *  computeEffectivenessTotal (V02.1-V02.6: computeActivity30d/computeEffectiveness30d, con
+   *  ventana de 30 días — V02.7 las cambió de forma, no el criterio de fecha) excluyen por
+   *  diseño. Estas funciones arman el string `YYYY-MM-DD`/`HH:MM` que después escriben los
+   *  `<input type="date">` / `<input type="time">` — SIEMPRE en hora local, nunca
+   *  `toISOString()`, para que `new Date(`${dateVal}T${timeVal}`)` (que interpreta esa
+   *  combinación como hora LOCAL, sin designador de zona) reconstruya el instante real que el
+   *  usuario ve en pantalla. */
   function localDateInputValue(d) {
     const dt = d || new Date();
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
@@ -5736,14 +5738,15 @@
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
     // así que el orden se conserva sin importar qué combinación de pestaña/modo esté activa.
     let list = PH.filterHistoryCombined(fullHistory, currentPlayerName, historyOwnershipFilter, historyModeFilter);
-    // V02.1 (§27) — filtro contextual (Racha actual/Últimos 30 días), aplicado DESPUÉS de las
-    // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio de fecha
-    // recalculado aparte que pudiera divergir del que ya muestran Home/Efectividad.
+    // V02.1 (§27) — filtro contextual (Racha actual/Efectividad), aplicado DESPUÉS de las
+    // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio recalculado
+    // aparte que pudiera divergir del que ya muestran Home/Efectividad. V02.7 (§4): Efectividad
+    // dejó de tener ventana de tiempo, así que este filtro ya no recorta por fecha tampoco.
     if (historyContextFilter && historyContextFilter.type === 'streak') {
       const ids = historyContextFilter.matchIds;
       list = list.filter((m) => ids.has(m.matchId));
-    } else if (historyContextFilter && historyContextFilter.type === 'last30') {
-      const allowed = new Set(PH.filterMatchesWithin30d(PH.filterMatchesForPlayer(fullHistory, currentPlayerName)).map((m) => m.matchId));
+    } else if (historyContextFilter && historyContextFilter.type === 'effectiveness') {
+      const allowed = new Set(PH.filterMatchesWithDefinedResult(PH.filterMatchesForPlayer(fullHistory, currentPlayerName), currentPlayerName).map((m) => m.matchId));
       list = list.filter((m) => allowed.has(m.matchId));
     }
     const wrap = $('#history-list');
@@ -5901,6 +5904,14 @@
    *  engine.js/stats.js (E/S) para el resto de la app. */
   /* ------------------------------------------------------------------ */
   let currentPlayerName = null;
+  // V02.7 (§6.4) — las microanimaciones de entrada (barra de Nivel, Actividad, Efectividad)
+  // solo se reproducen la PRIMERA vez que se renderiza el Home en esta sesión de página; volver
+  // desde Resumen/Historial/etc. actualiza los valores directamente, sin repetir el "crecer
+  // desde 0" — "no repetir de manera agresiva cada micro-navegación" (preferencia de producto
+  // explícita del consolidado). Solución elegida entre las dos que ofrecía el consolidado
+  // (limitar a la primera entrada vs. duración muy corta al reingresar): un flag booleano es
+  // más simple de razonar y da un resultado más predecible que una animación corta repetida.
+  let homeEnteredThisSession = false;
   // Auditoría funcional (§5): "Cambiar jugador" no existe más — el modal "¿Quién sos?" solo se
   // abre para la PRIMERA identificación (nunca hay más de un call-site vivo con un jugador ya
   // identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a dónde seguir
@@ -5996,13 +6007,23 @@
     if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
     renderActiveMatchBanner();
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+    // V02.7 (§6.4/§6.5) — se decide UNA sola vez por render si corresponde animar (ver
+    // comentario en la declaración de `homeEnteredThisSession`), y se marca como ya vista antes
+    // de que cualquier sub-render pueda disparar una re-entrada (p.ej. un listener que reabra el
+    // Home). `prefers-reduced-motion` se chequea en JS (no solo vía el colapso de
+    // `--motion-base` a 1ms en CSS) porque el stagger de Actividad usa `transition-delay`
+    // inline por barra — un valor que no depende de `--motion-base` y igual introduciría un
+    // desfasaje perceptible entre barras si no se corta acá directamente.
+    const prefersReducedMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+    const shouldAnimate = !homeEnteredThisSession && !prefersReducedMotion;
+    homeEnteredThisSession = true;
 
     renderPlayerHitos(matches);
-    renderPlayerCard(matches);
+    renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(matches);
     $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentPlayerName);
-    renderPlayerActivity(matches);
-    renderPlayerEffectiveness(matches);
+    renderPlayerActivity(matches, shouldAnimate);
+    renderPlayerEffectiveness(matches, shouldAnimate);
     renderPlayerWidgets(matches);
     // V02.1 (§23) — pie de autoría, mudado acá desde Configurar partido (naming oficial
     // "BRAMUlab", sin espacio — antes decía "BRAMU Lab" en el único lugar que faltaba).
@@ -6034,7 +6055,7 @@
     return '@' + stripped.toLowerCase();
   }
 
-  function renderPlayerCard(matches) {
+  function renderPlayerCard(matches, shouldAnimate) {
     $('#player-home-name').textContent = currentPlayerName;
     $('#player-home-handle').textContent = buildPlayerHandle(currentPlayerName);
     const n = matches.length;
@@ -6048,7 +6069,15 @@
     deltaEl.textContent = delta.label;
     deltaEl.className = 'player-card__level-delta player-card__level-delta--' + delta.direction;
     const progressPct = PH.levelProgressPct(evolution.current);
-    $('#player-home-level-bar').style.width = progressPct + '%';
+    const barEl = $('#player-home-level-bar');
+    // V02.7 (§6.1) — en la primera entrada de la sesión, la barra arranca en 0% y una
+    // transición CSS (`.player-card__bar-fill`, ver styles.css) la lleva al % real; forzar un
+    // reflow (`offsetWidth`) entre poner 0% y el valor final es necesario para que el navegador
+    // registre el 0% como estado de partida antes de animar — si no, ambos cambios se
+    // funden en el mismo frame y no hay nada que animar. El valor final es siempre el mismo
+    // (`progressPct`), la animación no cambia cálculo ni dato.
+    if (shouldAnimate) { barEl.style.width = '0%'; void barEl.offsetWidth; }
+    barEl.style.width = progressPct + '%';
     // V02.4 (Bloque A, §3.3) — la pastilla ↑/↓ vive SOBRE el punto alcanzado (ya no es hija del
     // relleno: es hermana dentro de .player-card__bar, con su propio `left`), recortada entre
     // 6% y 94% para que nunca choque contra ningún borde de la barra en los extremos (0%/100%).
@@ -6145,25 +6174,38 @@
    *  vacío (derrotas, `--line-strong`, nunca celeste ni rojo) — vía PH.computeActivityBarSegments
    *  (función pura, testeada con los 4 casos del §10.1.5: incluye 1 derrota/0 victorias, que
    *  sigue dando `lossPct: 100`, nunca 0% de alto). */
-  function renderPlayerActivity(matches) {
-    const activity = PH.computeActivity30d(matches, currentPlayerName);
+  function renderPlayerActivity(matches, shouldAnimate) {
+    const activity = PH.computeActivityWeeks4(matches, currentPlayerName);
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
-    wrap.innerHTML = activity.buckets.map((b) => {
-      const heightPct = b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6;
+    const heights = activity.buckets.map((b) => b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6);
+    // V02.7 (§6.2) — en la primera entrada, cada barra arranca en 0% de alto (un pequeño
+    // `transition-delay` por índice da el stagger izquierda→derecha) y un segundo paso las lleva
+    // a su alto final — mismo patrón de "0% + reflow + valor final" que la barra de Nivel. Los
+    // segmentos ganados/derrotas internos van directo a su proporción final: lo que anima es
+    // el volumen de la semana (alto total), no la composición ganado/perdido dentro de ella.
+    wrap.innerHTML = activity.buckets.map((b, i) => {
       const seg = PH.computeActivityBarSegments(b.count, b.wins, b.losses);
-      return `<div class="activity-bar" style="height:${heightPct}%"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
+      const startHeight = shouldAnimate ? 0 : heights[i];
+      return `<div class="activity-bar" style="height:${startHeight}%; transition-delay:${i * 60}ms;"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
     }).join('');
+    if (shouldAnimate) {
+      void wrap.offsetWidth; // fuerza el reflow: registra el 0% antes de animar al alto real
+      wrap.querySelectorAll('.activity-bar').forEach((bar, i) => { bar.style.height = heights[i] + '%'; });
+    }
+    // V02.7 (§3.3) — Actividad pasa de "últimos 30 días" a "últimas 4 semanas" (ver
+    // PH.computeActivityWeeks4); el cálculo de ganados/perdidos dentro de cada semana no cambia.
     $('#player-home-activity-total').textContent = activity.total
-      ? `${activity.total} ${activity.total === 1 ? 'partido' : 'partidos'} en los últimos 30 días`
-      : 'Sin partidos en los últimos 30 días';
+      ? `${activity.total} ${activity.total === 1 ? 'partido' : 'partidos'} en las últimas 4 semanas`
+      : 'Sin partidos en las últimas 4 semanas';
   }
 
-  /** §9 — Efectividad: donut con % de victorias sobre partidos CONSIDERADOS (con resultado
-   *  definido) en los últimos 30 días. Mismo mecanismo de anillo que el popup de Highlight
+  /** V02.7 (§4) — Efectividad: donut con % de victorias sobre partidos CONSIDERADOS (con
+   *  resultado definido) del historial COMPLETO del jugador — ya no una ventana de 30 días (ver
+   *  PH.computeEffectivenessTotal). Mismo mecanismo de anillo que el popup de Highlight
    *  (stroke-dasharray sobre la circunferencia real del círculo, r=15.5). */
-  function renderPlayerEffectiveness(matches) {
-    const eff = PH.computeEffectiveness30d(matches, currentPlayerName);
+  function renderPlayerEffectiveness(matches, shouldAnimate) {
+    const eff = PH.computeEffectivenessTotal(matches, currentPlayerName);
     const ring = $('#player-home-effectiveness-ring');
     const circumference = 2 * Math.PI * 15.5;
     if (eff.pct === null) {
@@ -6176,6 +6218,11 @@
     }
     ring.style.opacity = '1';
     const filled = (eff.pct / 100) * circumference;
+    // V02.7 (§6.3) — en la primera entrada, el aro arranca vacío (dasharray "0") y la
+    // transición ya declarada en `.effectiveness-donut__fill` (styles.css) completa el arco
+    // hasta el % real; el número central no se anima (nunca "cuenta" hacia arriba, según pide
+    // el consolidado) y queda estable/visible desde el primer frame.
+    if (shouldAnimate) { ring.style.strokeDasharray = `0 ${circumference}`; void ring.getBoundingClientRect(); }
     ring.style.strokeDasharray = `${filled} ${circumference}`;
     $('#player-home-effectiveness-value').textContent = `${eff.pct}%`;
     // V02.6 (§7) — "22 de 32" no decía qué era cada número; el cálculo no cambia, solo el copy.
@@ -6232,7 +6279,7 @@
       openHistoryScreen('player-home', { type: 'streak', matchIds, label: 'Racha actual' });
     });
     $('#player-home-effectiveness-card').addEventListener('click', () => {
-      openHistoryScreen('player-home', { type: 'last30', label: 'Últimos 30 días' });
+      openHistoryScreen('player-home', { type: 'effectiveness', label: 'Efectividad' });
     });
     $('#widget-partner-card').addEventListener('click', () => openPersonListScreen('partners'));
     $('#widget-rival-card').addEventListener('click', () => openPersonListScreen('rivals'));

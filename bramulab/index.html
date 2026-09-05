@@ -1081,12 +1081,12 @@
         <p class="pastilla-momento__text" id="player-home-momento-text"></p>
       </div>
 
-      <!-- V02.1 (§21) — dos grupos visuales explícitos, cada uno con su propio encabezado:
-           "Últimos 30 días" (Actividad+Efectividad, ya con mayor jerarquía que las chicas) y
-           "Tu historial" (las 4 métricas compactas). §22 — solo Racha/Efectividad/Compañero/
-           Rival navegan (chevron + `pastilla--link`); Actividad y Partidos totales quedan sin
-           acción ni apariencia de botón. -->
-      <div class="player-home-group-label">ÚLTIMOS 30 DÍAS</div>
+      <!-- V02.1 (§21): dos grupos con encabezado propio ("Últimos 30 días"/"Tu historial").
+           V02.7 (§2): ambos encabezados se eliminan — "Tu momento", Actividad y Efectividad
+           leen mejor como un bloque continuo, y las tarjetas de abajo ya se explican solas.
+           §22 (vigente) — solo Racha/Efectividad/Compañero/Rival navegan (chevron +
+           `pastilla--link`); Actividad y Partidos totales quedan sin acción ni apariencia de
+           botón. -->
       <div class="player-home-metrics-row">
         <div class="pastilla pastilla--activity">
           <div class="pastilla__title">ACTIVIDAD</div>
@@ -1115,7 +1115,6 @@
         </div>
       </div>
 
-      <div class="player-home-group-label">TU HISTORIAL</div>
       <div class="player-home-widgets-grid">
         <div class="pastilla pastilla--widget pastilla--link" id="widget-streak-card" role="button" tabindex="0">
           <div class="pastilla__title-row"><div class="pastilla__microlabel">Racha actual</div><span class="pastilla__chevron" aria-hidden="true">›</span></div>

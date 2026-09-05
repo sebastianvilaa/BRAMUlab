@@ -16,6 +16,16 @@
   --surface-3: #112238;
   --surface-active: #152B43;
 
+  /* V02.7 (§1) — el degradé del Home (aprobado, sin retocar acá — sigue definido puntual en
+     `#view-player-home`) pasa a ser la referencia visual de toda la app: se extrae a un token
+     de fondo compartido para las pantallas funcionales (Historial/Ranking/Perfil/Carga manual/
+     Confirmar partido/Resumen), que hoy se ven planas/negras (`html,body{background:var(--ink)}`
+     liso). Un solo degradé reutilizado — nunca uno distinto por pantalla — con la parte de
+     arriba un escalón menos intensa que la del Home (`--surface-1`, ya parte de la misma escala
+     de superficies, en vez del tono a medida `#08121E` del Home) para preservar la lectura de
+     contenido funcional (listas, formularios). */
+  --bg-gradient-app: linear-gradient(180deg, var(--surface-1) 0%, var(--bg) 40%, var(--bg-deep) 100%);
+
   --text: #F8FAFC;
   --text-dim: #9AA7B5;
   --text-faint: #687482;
@@ -803,7 +813,11 @@ input, select{ font-family: inherit; }
 /* ==========================================================================
    ANÁLISIS / HISTORIAL / TIMELINE
    ========================================================================== */
-.view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; }
+/* V02.7 (§1): Resumen (`.view--analysis`) e Historial/Ranking/Compañeros-Rivales/Perfil
+   (`.view--history`, TAMBIÉN usada por `#view-player-home`) comparten el degradé de fondo de
+   la app — `#view-player-home` conserva el suyo propio de todos modos porque un selector de
+   ID siempre gana por especificidad sobre esta regla de clase, sin importar el orden. */
+.view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; background: var(--bg-gradient-app); }
 .analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(12px + var(--safe-top)) 14px 12px; border-bottom: 1px solid var(--line); }
 .analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper-dim); flex: 1 1 auto; }
 .analysis-header__summary-btn{ flex: none; font-size: 11px; }
@@ -1110,7 +1124,7 @@ input, select{ font-family: inherit; }
 .history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
 @media (min-width: 720px){ .history-filters{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
-/* V02.1 (§27) — banda de filtro contextual (Racha actual/Últimos 30 días desde el Home). */
+/* V02.1 (§27) — banda de filtro contextual (Racha actual/Efectividad desde el Home). */
 .history-context-filter{
   display:flex; align-items:center; justify-content:space-between; gap: 10px;
   padding: 10px 18px; background: rgba(149,255,25,0.08); border-bottom: 1px solid var(--line-strong);
@@ -1322,12 +1336,16 @@ input, select{ font-family: inherit; }
 /* V02.6 (§4): se sentía "una tarjeta normal más" — el acento de 3px solo en el borde
    izquierdo no alcanzaba para distinguirla como LA tarjeta destacada del Home. Pasa a borde
    COMPLETO azul BRAMU + glow leve; el texto ya podía ocupar varias líneas (`white-space:
-   normal`, sin cambios acá), solo gana un poco más de aire vertical. */
+   normal`, sin cambios acá), solo gana un poco más de aire vertical.
+   V02.7 (§8): el texto principal pasa de blanco (`--paper`) a azul BRAMU (`--accent-cyan`,
+   #199FFF) — con borde y glow ya azules, el texto en blanco quedaba desconectado del resto de
+   la tarjeta. Los textos secundarios (nunca hay en este chip hoy) quedarían fuera de este
+   cambio si se agregaran — el pedido es específicamente sobre el mensaje principal. */
 .player-home-hitos__chip{
   flex: 0 0 86%; scroll-snap-align: start; background: var(--ink-soft);
   border: 1px solid rgba(25,159,255,.70); border-radius: 14px;
   box-shadow: 0 0 14px rgba(25,159,255,.10);
-  padding: 16px 18px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--paper); white-space:normal;
+  padding: 16px 18px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--accent-cyan); white-space:normal;
 }
 @media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 60%; } }
 
@@ -1362,7 +1380,11 @@ input, select{ font-family: inherit; }
    overflow visible (antes hidden) para que el marcador de variación pueda asomar en el
    extremo del relleno sin recortarse. */
 .player-card__bar{ position:relative; flex-basis: 100%; height: 6px; border-radius: 999px; overflow:visible; background: rgba(244,247,242,0.08); margin-top: 8px; }
-.player-card__bar-fill{ position:relative; display:block; height:100%; background: var(--brand-lime); border-radius: 999px; }
+/* V02.7 (§6.1): transición de `width` — anima el crecimiento horizontal en la primera entrada
+   al Home (app.js:renderPlayerCard fuerza 0% → % real); bajo `prefers-reduced-motion`,
+   `--motion-base` colapsa a 1ms (regla ya existente en :root) y el "crecimiento" es
+   imperceptible, equivalente a mostrar el estado final directo. */
+.player-card__bar-fill{ position:relative; display:block; height:100%; background: var(--brand-lime); border-radius: 999px; transition: width var(--motion-base) var(--motion-ease); }
 /* §19 — variación (+0.1/-0.2) como marcador de posición sobre el punto de progreso real, no
    una segunda barra de progreso.
    V02.4 (Bloque A, §3.3) — pasa a ser hermana de .player-card__bar-fill (antes su hija,
@@ -1409,10 +1431,21 @@ input, select{ font-family: inherit; }
   background: var(--surface-3);
   border-color: var(--brand-lime);
   /* V02.6 (§3.3): gana presencia con un glow muy leve en vez de engrosar el borde a 2px —
-     "apenas encendido", nunca fosforescente. */
+     "apenas encendido", nunca fosforescente.
+     V02.7 (§7): suma un micro-pulso — solo la INTENSIDAD del glow respira entre los dos valores
+     de abajo (nunca el borde, nunca el tamaño de la tarjeta), en un ciclo lento (3.6s) para que
+     pueda pasar desapercibido si no se le presta atención. El extremo bajo del pulso es
+     EXACTAMENTE el glow estático de V02.6 (nunca queda "menos encendida" que antes en su punto
+     de reposo). */
   box-shadow: 0 0 16px rgba(149,255,25,.10);
+  animation: lastMatchGlowPulse 3.6s ease-in-out infinite;
   padding: 22px 20px;
 }
+@keyframes lastMatchGlowPulse{
+  0%, 100%{ box-shadow: 0 0 16px rgba(149,255,25,.10); }
+  50%{ box-shadow: 0 0 22px rgba(149,255,25,.20); }
+}
+@media (prefers-reduced-motion: reduce){ .player-home-lastmatch{ animation: none; } }
 .player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 16px; }
 /* §3 — primera línea: forma reciente + "ÚLTIMO PARTIDO" + badge, como un único grupo a la
    izquierda (antes la volanta de forma y el título/badge vivían en filas separadas). */
@@ -1476,11 +1509,6 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
-/* V02.1 (§21) — encabezado de grupo: reemplaza los microlabels "ÚLTIMOS 30 DÍAS" repetidos en
-   cada tarjeta (Actividad Y Efectividad decían lo mismo por separado) por UNO solo, compartido
-   por todo el grupo — mismo criterio para "TU HISTORIAL" sobre las 4 métricas chicas. */
-.player-home-group-label{ font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-faint); margin: 4px 2px 8px; }
-
 /* ==========================================================================
    Etapa 4 (v2.0) — Actividad + Efectividad (§9): mayor jerarquía visual que las
    4 métricas chicas de abajo.
@@ -1508,13 +1536,16 @@ input, select{ font-family: inherit; }
    ARRIBA. El marcado (`.activity-bar__win` primero en el HTML, `__loss` después, sin cambios
    en app.js) se mantiene igual — alcanza con `column-reverse` para que el primer hijo pinte
    el extremo INFERIOR en vez del superior. */
-.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; }
+/* V02.7 (§6.2): transición de `height` — anima el crecimiento vertical en la primera entrada
+   al Home (app.js:renderPlayerActivity fuerza 0% → alto real); en re-renders normales (el valor
+   ya es el final) no hay nada visible que transicionar, así que no hace falta condicionarla. */
+.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; transition: height var(--motion-base) var(--motion-ease); }
 /* V02.6 (§3.1): glow muy leve en el segmento activo/ganado — sumar vida sin competir con el
    botón "+" ni volverse neón. */
 .activity-bar__win{ display:block; width:100%; background: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,.16); }
 .activity-bar__loss{ display:block; width:100%; background: var(--line-strong); }
 /* §2.5 — leyenda chica y discreta, entre el gráfico y el total (nunca compite con "X partidos
-   en los últimos 30 días": tipografía más chica y color más apagado que .activity-total). */
+   en las últimas 4 semanas": tipografía más chica y color más apagado que .activity-total). */
 .activity-legend{ display:flex; gap: 12px; margin: 0 0 6px; }
 .activity-legend__item{ display:flex; align-items:center; gap: 5px; font-size: 10px; font-weight:600; color: var(--paper-faint); }
 .activity-legend__dot{ width:7px; height:7px; border-radius:50%; flex:none; }
@@ -1526,8 +1557,13 @@ input, select{ font-family: inherit; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
 .effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
 /* V02.6 (§3.2): drop-shadow leve sobre el trazo verde del aro — mismo objetivo que §3.1
-   (sumar vida sin volverse neón). */
-.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; filter: drop-shadow(0 0 4px rgba(149,255,25,.20)); }
+   (sumar vida sin volverse neón).
+   V02.7 (§5): en V02.6 el glow (4px/.20 de opacidad) prácticamente no se percibía sobre un
+   trazo tan fino (3px). Sube a 6px/.45 — claramente visible, pero todavía muy por debajo del
+   `+` central (`box-shadow: 0 6px 16px rgba(149,255,25,0.4)`, con relleno sólido de 52px de
+   diámetro detrás — un glow de intensidad similar sobre un trazo fino nunca compite en
+   presencia real con eso). */
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; filter: drop-shadow(0 0 6px rgba(149,255,25,.45)); }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
@@ -1774,8 +1810,12 @@ input, select{ font-family: inherit; }
    — acá, y SOLO acá (Carga manual y Confirmar partido, las dos pantallas `.view--court`; el
    partido en vivo usa `.view--match`, una clase distinta, sin tocar), se redefinen un escalón
    más arriba en la MISMA escala de superficies de siempre — nunca un color aislado nuevo. */
+/* V02.7 (§1): `--court-bg` (alias plano, `var(--bg)`) queda tal cual para quien más lo use
+   (bottom sheets) — acá se reemplaza directamente por el degradé compartido de la app, para
+   que Carga manual y Confirmar partido dejen de verse como una pantalla negra plana aislada
+   del resto. */
 .view--court{
-  background: var(--court-bg); display:flex; flex-direction:column; height:100vh; height:100dvh;
+  background: var(--bg-gradient-app); display:flex; flex-direction:column; height:100vh; height:100dvh;
   --court-surface: var(--surface-2);
   --court-surface-2: var(--surface-3);
 }

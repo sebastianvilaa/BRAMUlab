@@ -264,10 +264,13 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* ETAPA 4 (v2.0) — HOME INTEGRAL: Racha actual, Mejor compañero, Actividad
-   *  30 días, Efectividad 30 días e Hitos. Todo puro y sin DOM, igual criterio
-   *  que el resto de este archivo — `matches` siempre llega ya filtrado y
-   *  ordenado por PH.filterMatchesForPlayer (más reciente primero). */
+  /* ETAPA 4 (v2.0) — HOME INTEGRAL: Racha actual, Mejor compañero, Actividad,
+   *  Efectividad e Hitos. Todo puro y sin DOM, igual criterio que el resto de
+   *  este archivo — `matches` siempre llega ya filtrado y ordenado por
+   *  PH.filterMatchesForPlayer (más reciente primero). Originalmente Actividad
+   *  Y Efectividad eran ambas ventanas móviles de 30 días; V02.7 (§3/§4) las
+   *  separó a propósito — Actividad pasó a 4 semanas calendario (presente
+   *  reciente), Efectividad a historial completo (balance acumulado). */
   /* ------------------------------------------------------------------ */
 
   /** Racha de victorias consecutivas contando desde el partido MÁS RECIENTE hacia atrás
@@ -359,30 +362,54 @@
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-  /** §9/§15 — Actividad: partidos jugados en la ventana MÓVIL de los últimos 30 días (no mes
-   *  calendario), repartidos en 4 bloques cronológicos de igual duración (~7.5 días cada uno)
-   *  para que la franja se lea como una línea de tiempo. `buckets[0]` es el tramo MÁS ANTIGUO
-   *  de la ventana y `buckets[3]` el más reciente (incluye hoy) — así se dibuja de izquierda a
-   *  derecha en el orden natural del tiempo. Un partido sin fecha real válida (getPlayedAt
-   *  null) o fuera de la ventana no se cuenta — nunca se ubica a ciegas. */
-  function computeActivity30d(matches, playerName, nowDate) {
-    const nowMs = (nowDate || new Date()).getTime();
-    const bucketMs = THIRTY_DAYS_MS / 4;
-    const raw = [0, 1, 2, 3].map(() => ({ count: 0, wins: 0, losses: 0 }));
+  /** V02.7 (§3): unidad de "semana calendario" para Actividad — lunes a domingo, en hora LOCAL
+   *  del dispositivo (mismo criterio del resto de la app desde el fix de fechas de V02.1/
+   *  V02.5: nunca mezclar UTC con local). Devuelve la medianoche local del lunes de la semana
+   *  que contiene `date`. `getDay()` en JS es 0=domingo..6=sábado: un domingo pertenece a la
+   *  semana que arrancó el lunes anterior (6 días atrás); cualquier otro día retrocede hasta su
+   *  propio lunes (day-1 días atrás). */
+  function startOfWeekMonday(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    return d;
+  }
+
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+  /** §3 (V02.7) — Actividad pasa de "ventana móvil de 30 días" a 4 SEMANAS CALENDARIO (lunes a
+   *  domingo): cada bucket es una semana real, no un tramo arbitrario de ~7.5 días. `buckets[3]`
+   *  es SIEMPRE la semana actual (la que contiene `nowDate`, aunque no haya terminado) y queda a
+   *  la derecha; `buckets[0]` es la de hace 3 semanas. Un partido cae en el bucket cuya
+   *  semana-lunes coincide EXACTAMENTE con la suya — "mismo lunes" siempre implica "mismo
+   *  bucket" sin importar que la semana cruce de mes o de año. La ventana se desliza sola: al
+   *  pasar la medianoche de domingo a lunes, `nowDate` cae en una semana-lunes nueva y las 4
+   *  semanas conocidas se recalculan desde ahí — entra la nueva semana a la derecha, y la más
+   *  vieja de las 4 anteriores dejar de tener lugar (sale sola, sin lógica de "descarte"
+   *  explícita). Un partido sin fecha real válida, más viejo que las 4 semanas o con fecha
+   *  futura no se cuenta. */
+  function computeActivityWeeks4(matches, playerName, nowDate) {
+    const currentWeekStart = startOfWeekMonday(nowDate || new Date());
+    // [3,2,1,0].map(...) ya arma el array en orden más-antigua→más-reciente (índice 0 = hace 3
+    // semanas, índice 3 = la actual) porque `.map` conserva el orden del array de entrada — un
+    // `.reverse()` acá invertiría el resultado (semana actual en índice 0, la más vieja en el
+    // 3), exactamente al revés de lo que espera el resto de esta función/§3 del consolidado.
+    const weekStarts = [3, 2, 1, 0].map((n) => new Date(currentWeekStart.getTime() - n * WEEK_MS));
+    const raw = weekStarts.map(() => ({ count: 0, wins: 0, losses: 0 }));
     let total = 0;
     (matches || []).forEach((m) => {
       const t = parseTimeOrNull(getPlayedAt(m));
       if (t === null) return;
-      const age = nowMs - t;
-      if (age < 0 || age > THIRTY_DAYS_MS) return;
-      const idxFromNow = Math.min(3, Math.floor(age / bucketMs)); // 0 = más reciente
+      const matchWeekStartMs = startOfWeekMonday(new Date(t)).getTime();
+      const idx = weekStarts.findIndex((ws) => ws.getTime() === matchWeekStartMs);
+      if (idx === -1) return;
       total += 1;
-      raw[idxFromNow].count += 1;
+      raw[idx].count += 1;
       const res = matchResultForPlayer(m, playerName);
-      if (res === 'win') raw[idxFromNow].wins += 1;
-      else if (res === 'loss') raw[idxFromNow].losses += 1;
+      if (res === 'win') raw[idx].wins += 1;
+      else if (res === 'loss') raw[idx].losses += 1;
     });
-    return { total, buckets: raw.slice().reverse() };
+    return { total, buckets: raw };
   }
 
   /** V02.4 (Bloque A, §2.3) — segmentos APILADOS (victorias/derrotas) de UN período de
@@ -410,17 +437,17 @@
     return tenths * 10;
   }
 
-  /** §9 — Efectividad: % de victorias sobre partidos CONSIDERADOS (con resultado definido,
-   *  ganado o perdido — un partido sin ganador nunca infla ni desinfla el porcentaje) en los
-   *  últimos 30 días. `pct` es `null` sin ninguna muestra — nunca "0%" engañoso. */
-  function computeEffectiveness30d(matches, playerName, nowDate) {
-    const nowMs = (nowDate || new Date()).getTime();
+  /** V02.7 (§4) — Efectividad es un balance ACUMULADO de todo el historial del jugador, SIN
+   *  ventana de tiempo (a diferencia de Actividad, que ahora sí es una foto de las últimas 4
+   *  semanas — ver computeActivityWeeks4 arriba): % de victorias sobre partidos CONSIDERADOS
+   *  (con resultado definido, ganado o perdido — uno sin ganador nunca infla ni desinfla el
+   *  porcentaje). `pct` es `null` sin ninguna muestra — nunca "0%" engañoso. Reemplaza a
+   *  `computeEffectiveness30d` (V02.1-V02.6): esa versión SÍ recortaba a los últimos 30 días,
+   *  lo cual contradecía la intención ya explícita en el copy ("balance de tu historial") — acá
+   *  queda consistente con esa intención. */
+  function computeEffectivenessTotal(matches, playerName) {
     let wins = 0, losses = 0;
     (matches || []).forEach((m) => {
-      const t = parseTimeOrNull(getPlayedAt(m));
-      if (t === null) return;
-      const age = nowMs - t;
-      if (age < 0 || age > THIRTY_DAYS_MS) return;
       const res = matchResultForPlayer(m, playerName);
       if (res === 'win') wins += 1;
       else if (res === 'loss') losses += 1;
@@ -429,19 +456,14 @@
     return { wins, losses, considered, pct: considered ? Math.round((wins / considered) * 100) : null };
   }
 
-  /** V02.1 (§22/§27) — el mismo conjunto de partidos de la ventana móvil de 30 días que ya usan
-   *  computeActivity30d/computeEffectiveness30d, expuesto como lista (no solo el conteo) para
-   *  que el filtro "Últimos 30 días" del Historial muestre EXACTAMENTE lo mismo que el
-   *  porcentaje de Efectividad — nunca un criterio de fecha recalculado aparte que pueda
-   *  divergir. */
-  function filterMatchesWithin30d(matches, nowDate) {
-    const nowMs = (nowDate || new Date()).getTime();
-    return (matches || []).filter((m) => {
-      const t = parseTimeOrNull(getPlayedAt(m));
-      if (t === null) return false;
-      const age = nowMs - t;
-      return age >= 0 && age <= THIRTY_DAYS_MS;
-    });
+  /** V02.7 (§4) — mismo conjunto de partidos que cuenta computeEffectivenessTotal, expuesto
+   *  como lista (no solo el conteo): el drill-through de Efectividad en el Home abre Historial
+   *  recortado a EXACTAMENTE los partidos que originaron el porcentaje tocado (mismo principio
+   *  que ya usa el filtro de Racha actual — nunca un criterio recalculado aparte que pueda
+   *  divergir). Reemplaza a `filterMatchesWithin30d`, que ya no aplica ahora que Efectividad no
+   *  tiene ventana de tiempo. */
+  function filterMatchesWithDefinedResult(matches, playerName) {
+    return (matches || []).filter((m) => matchResultForPlayer(m, playerName) !== 'neutral');
   }
 
   /** Cuenta partidos por período de 30 días SIN solapar, anclado a "ahora": índice 0 son los
@@ -640,10 +662,10 @@
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
-    computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivity30d, computeEffectiveness30d,
-    computeActivityBarSegments, levelProgressPct,
+    computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivityWeeks4, computeEffectivenessTotal,
+    startOfWeekMonday, computeActivityBarSegments, levelProgressPct,
     computeTeammateBreakdown, computeRivalBreakdown,
-    computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithin30d,
+    computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithDefinedResult,
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
     filterHistoryCombined, computeHistoryTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
