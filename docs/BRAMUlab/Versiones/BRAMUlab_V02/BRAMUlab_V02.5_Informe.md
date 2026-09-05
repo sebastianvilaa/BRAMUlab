@@ -125,8 +125,8 @@ Sistema visual, Home, Carga manual, Guardado/Resumen y Regresión: **todos los �
 ## 8. Hash exacto y tag (registro final)
 
 - Commit de implementación (código): `e85de14f2177e699ba17eb3356c43a3664359f88`.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: ver el commit inmediatamente posterior a este archivo en el historial de `main`.
-- Tag `BRAMUlab_V02.5` apunta al commit que deja registrados ambos hashes (un commit no puede citar su propio hash) — el código funcional completo de V02.5 es íntegramente el de `e85de14`; ese commit posterior no modifica ningún archivo de `bramulab/`.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `a6022fef0e01aa6c3528fa646616deabb3cfe5b9`.
+- Tag `BRAMUlab_V02.5` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba (un commit no puede citar su propio hash) — el código funcional completo de V02.5 es íntegramente el de `e85de14`; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
 
