@@ -136,8 +136,8 @@ Fondo, Home, Actividad, Efectividad, Animaciones, Último partido e Hito: todos 
 
 ## 8. Hash exacto y tag (registro final)
 
-- Commit de implementación (código): PENDIENTE_HASH_CODIGO.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: PENDIENTE_HASH_INFORME.
+- Commit de implementación (código): `f7896315dc264118c4f35e9c24e893d2b579deb6`.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `9da724a3de1896d34060f1732d6df2dcdd3f5d0e`.
 - Tag `BRAMUlab_V02.7` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba — el código funcional completo de V02.7 es íntegramente el del primer commit; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
