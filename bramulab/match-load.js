@@ -192,6 +192,31 @@
   /* VALIDACIÓN CENTRAL                                                   */
   /* ------------------------------------------------------------------ */
 
+  /** V02.5 (Bloque B, §9) — investigación de "fechas incorrectas": la causa real ya se había
+   *  encontrado y corregido en V02.1 (prefill mezclaba `toISOString()` — fecha en UTC — con
+   *  `getHours()/getMinutes()` — hora LOCAL —, corriendo `playedAt` hasta 24h al futuro durante
+   *  la ventana ~21:00-23:59 hora Argentina en que el calendario UTC ya rotó). El fix de V02.1
+   *  (`localDateInputValue`/`localTimeInputValue`, ambos 100% locales) sigue vigente y correcto
+   *  hoy — los partidos con fecha rara que el usuario ve son datos VIEJOS cargados ANTES de ese
+   *  fix, nunca migrados con retroactividad (correcto: no hay forma de distinguir con certeza
+   *  cuáles fueron víctimas del bug de cuáles el usuario cargó a propósito con otra fecha).
+   *  Esta función consolida en UN solo lugar puro y testeable la construcción de `playedAt`
+   *  desde los campos YA locales de la pantalla (antes duplicada 3 veces en app.js como
+   *  `new Date(`${dateVal}T${timeVal}`)`  — funcionalmente correcta, pero nunca testeada ni
+   *  reutilizada). Usa el constructor de `Date` con componentes NUMÉRICOS separados
+   *  (`new Date(y, m, d, h, mi)`), nunca un string armado a mano: ese constructor siempre
+   *  interpreta sus argumentos como hora LOCAL sin ninguna ambigüedad de parsing — un poco más
+   *  a prueba de balas que concatenar un string ISO-like sin designador de zona (que YA
+   *  funciona bien en todos los motores modernos, pero depende de esa interpretación implícita). */
+  function buildPlayedAtFromLocalFields(dateVal, timeVal) {
+    if (!dateVal) return null;
+    const [y, mo, d] = dateVal.split('-').map(Number);
+    const timeKnown = !!timeVal;
+    const [h, mi] = (timeVal || '00:00').split(':').map(Number);
+    const dt = new Date(y, mo - 1, d, h, mi, 0, 0);
+    return { iso: dt.toISOString(), timeKnown };
+  }
+
   /** Validador puro central de "Cargar partido jugado" (§10 del consolidado: aislado en
    *  funciones puras y testeables, nunca distribuido por eventos DOM). Recibe los 4 nombres ya
    *  resueltos, hasta 3 sets en bruto (`{a,b}|null`, en el orden en que se muestran en
@@ -280,6 +305,6 @@
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
-    validateMatchDraft, computeFormatChangeImpact,
+    validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

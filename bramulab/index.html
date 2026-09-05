@@ -647,19 +647,21 @@
       </section>
       <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
            tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle.
-           V02.3 (Bloque C, §7) — tarjeta PERMANENTE (reemplaza el link "+ Agregar nota
-           privada" de V02.2, perdido entre BRAMU Intelligence y los botones finales): la
-           tarjeta vive siempre visible, sin nota o con nota. #analysis-note-display es el
-           estado de LECTURA (texto guardado, o "Tocá para agregar una nota" si está vacía) —
-           toda la tarjeta es tocable (es un <button> a ancho completo) y revela el textarea
-           real para editar; el textarea vuelve a colapsar al estado de lectura en blur (mismo
-           autoguardado privado de siempre, ver initAnalysisScreen en app.js). -->
+           V02.3 (Bloque C, §7) — tarjeta PERMANENTE: vive siempre visible, sin nota o con
+           nota. #analysis-note-display es el estado de LECTURA (texto guardado, o "Agregar una
+           nota" si está vacía) — toda la tarjeta es tocable (es un <button> a ancho completo) y
+           revela el textarea real para editar; el textarea vuelve a colapsar al estado de
+           lectura en blur (mismo autoguardado privado de siempre, ver initAnalysisScreen en
+           app.js).
+           V02.5 (Bloque C, §15) — el candado ya comunica privacidad por sí solo: se saca el
+           texto redundante "DEL PARTIDO · SOLO VOS" (queda "NOTAS PRIVADAS") y el mensaje
+           técnico "Los datos viven en este dispositivo" (describe cómo funciona BRAMU por
+           dentro, no algo sobre el partido del usuario). -->
       <section class="analysis-section" id="analysis-note-section" hidden>
         <div class="court-note" id="analysis-note-card">
-          <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS DEL PARTIDO · SOLO VOS</div>
+          <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS PRIVADAS</div>
           <button type="button" id="analysis-note-display" class="court-note__display"></button>
           <textarea id="analysis-note-textarea" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)" hidden></textarea>
-          <p class="coverage-note">Los datos viven en este dispositivo.</p>
         </div>
       </section>
       <section class="analysis-section" id="analysis-share-section">
@@ -869,12 +871,9 @@
         <span class="court-meta-line__action">Modificar</span>
       </button>
 
-      <div class="court-note">
-        <div class="court-note__label"><svg class="court-note__lock" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a4 4 0 0 0-4 4v3H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-1V5a4 4 0 0 0-4-4zm-2 7V5a2 2 0 1 1 4 0v3zm2 4a2 2 0 0 1 1 3.73V17a1 1 0 1 1-2 0v-1.27A2 2 0 0 1 12 12z"/></svg> NOTAS DEL PARTIDO · SOLO VOS</div>
-        <textarea id="match-saved-note" class="court-note__textarea" maxlength="500" placeholder="Notas privadas sobre este partido (opcional)"></textarea>
-        <p class="coverage-note">Los datos viven en este dispositivo.</p>
-      </div>
-
+      <!-- V02.5 (Bloque C, §14) — Notas ya NO vive acá: guardar el resultado no debe obligar a
+           pasar por notas. Se escribe (opcional) desde el Resumen, después de guardar — ver
+           #analysis-note-display/renderAnalysisNoteDisplay. -->
       <button type="button" id="match-saved-view-summary" class="court-continue-btn">GUARDAR PARTIDO</button>
     </div>
   </section>
@@ -928,17 +927,28 @@
        Referencia funcional: selector de destinatario de Mercado Pago (recientes + búsqueda +
        alta simple), sin copiar su estética. -->
   <div id="load-player-sheet-scrim" class="sheet-scrim" hidden>
-    <div id="load-player-sheet" class="bottom-sheet load-player-sheet" role="dialog" aria-modal="true" aria-label="Elegir jugador">
+    <!-- V02.5 (Bloque B, §12) — sheet ALTA (~70-75%, .bottom-sheet--tall): campo de búsqueda
+         completo con ícono; recientes y resultados comparten el mismo componente de fila
+         (avatar + Nombre + @usuario) dentro de un cuerpo scrolleable propio. -->
+    <div id="load-player-sheet" class="bottom-sheet bottom-sheet--tall load-player-sheet" role="dialog" aria-modal="true" aria-label="Elegir jugador">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
       <div class="bottom-sheet__header">
         <span class="bottom-sheet__title" id="load-player-sheet-title">ELEGIR JUGADOR</span>
         <button type="button" id="load-player-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="load-player-sheet__recents" id="load-player-sheet-recents" hidden></div>
-      <div class="field"><input id="load-player-sheet-search" class="field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" /></div>
-      <div class="load-player-sheet__list" id="load-player-sheet-list"></div>
-      <button type="button" id="load-player-sheet-add" class="sheet-option sheet-option--primary" hidden></button>
-      <button type="button" id="load-player-sheet-remove" class="link-btn" hidden>Quitar jugador</button>
+      <div class="player-search-field">
+        <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="load-player-sheet-search" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" />
+      </div>
+      <div class="load-player-sheet__scroll" id="load-player-sheet-scroll">
+        <div id="load-player-sheet-recents-section" hidden>
+          <div class="load-player-sheet__section-label">Recientes</div>
+          <div id="load-player-sheet-recents"></div>
+        </div>
+        <div class="load-player-sheet__list" id="load-player-sheet-list"></div>
+        <button type="button" id="load-player-sheet-add" class="sheet-option sheet-option--primary" hidden></button>
+        <button type="button" id="load-player-sheet-remove" class="link-btn" hidden>Quitar jugador</button>
+      </div>
     </div>
   </div>
 
@@ -1113,7 +1123,7 @@
           <div class="pastilla-widget__caption" id="widget-streak-caption"></div>
         </div>
         <div class="pastilla pastilla--widget">
-          <div class="pastilla__microlabel">Partidos totales</div>
+          <div class="pastilla__title-row"><div class="pastilla__microlabel">Partidos totales</div></div>
           <div class="pastilla-widget__value" id="widget-total-value">—</div>
           <div class="pastilla-widget__caption" id="widget-total-caption"></div>
         </div>
@@ -1413,8 +1423,15 @@
       <svg viewBox="0 0 24 24" class="bottom-nav__icon"><path d="M12 3.2 2.5 11h2.6v9h5.4v-6h3v6h5.4v-9h2.6z"/></svg>
       <span>Inicio</span>
     </button>
+    <!-- V02.5 (Bloque A, §8) — reloj simple e inequívoco: el ícono anterior dibujaba la
+         "manecilla" como un sub-path unido al mismo círculo sólido relleno (mismo color, sin
+         contraste posible) — a 21px se veía lisa, sin ningún detalle interno visible, y se leía
+         como una pelota/mancha, nunca como reloj. Este usa trazo (círculo + manecillas), la
+         única excepción de estilo del set (los demás íconos de esta barra son siluetas
+         sólidas) — necesaria acá porque un reloj CON manecillas visibles a este tamaño requiere
+         contraste interno que un relleno sólido no puede dar. -->
     <button type="button" class="bottom-nav__item" data-nav="history" aria-label="Historial">
-      <svg viewBox="0 0 24 24" class="bottom-nav__icon"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm1 9V6h-2v8h7v-2z"/></svg>
+      <svg viewBox="0 0 24 24" class="bottom-nav__icon bottom-nav__icon--history"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.2 1.9"/></svg>
       <span>Historial</span>
     </button>
     <button type="button" class="bottom-nav__item bottom-nav__item--fab" data-nav="manual-load" aria-label="Cargar partido">

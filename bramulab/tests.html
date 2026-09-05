@@ -2641,6 +2641,38 @@
   })();
 
   // ------------------------------------------------------------------
+  // V02.5 — Bloque B §9: investigación de "fechas incorrectas" en carga manual.
+  // Causa real: ya se había encontrado y corregido en V02.1 (prefill mezclaba fecha en UTC con
+  // hora local — ver localDateInputValue/localTimeInputValue en app.js, sin cambios en esta
+  // ronda). Los partidos "con fecha rara" que el usuario ve hoy son datos VIEJOS de antes de
+  // ese fix, nunca migrados con retroactividad — correcto, no reproducible en el código actual.
+  // ML.buildPlayedAtFromLocalFields consolida en un solo lugar puro la construcción de
+  // `playedAt` (antes duplicada 3 veces en app.js sin test) — estos tests blindan que, sin
+  // importar el huso horario real del dispositivo que corre este test, el instante que arma
+  // SIEMPRE se lee de vuelta como el mismo día/hora LOCAL que se le pidió — la garantía
+  // exacta que el bug de V02.1 rompía (mezclar un día en UTC con una hora local).
+  // ------------------------------------------------------------------
+  (function () {
+    function roundTrips(dateVal, timeVal, y, mo, d, h, mi) {
+      const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
+      const back = new Date(built.iso);
+      return back.getFullYear() === y && back.getMonth() === mo && back.getDate() === d
+        && back.getHours() === h && back.getMinutes() === mi;
+    }
+    // El caso exacto que disparaba el bug de V02.1: 23:30 hora local, ventana en la que un
+    // prefill mezclado (fecha UTC + hora local) ya había rotado al día siguiente.
+    assert('V02.5-FECHA · 2026-08-15 23:30 vuelve exactamente al mismo día/hora local (nunca +1 día)', roundTrips('2026-08-15', '23:30', 2026, 7, 15, 23, 30));
+    assert('V02.5-FECHA · 2026-01-01 00:05 (año nuevo, borde de mes/año) round-trip exacto', roundTrips('2026-01-01', '00:05', 2026, 0, 1, 0, 5));
+    assert('V02.5-FECHA · 2026-12-31 23:59 (fin de año) round-trip exacto', roundTrips('2026-12-31', '23:59', 2026, 11, 31, 23, 59));
+    // Sin hora: timeKnown=false y se asume 00:00 local (nunca inventa una hora distinta).
+    const sinHora = ML.buildPlayedAtFromLocalFields('2026-08-15', '');
+    assert('V02.5-FECHA · sin hora → timeKnown=false', sinHora.timeKnown === false);
+    assert('V02.5-FECHA · sin hora → asume 00:00 LOCAL (mismo día, nunca corrido a UTC)', roundTrips('2026-08-15', '', 2026, 7, 15, 0, 0));
+    assert('V02.5-FECHA · con hora → timeKnown=true', ML.buildPlayedAtFromLocalFields('2026-08-15', '23:30').timeKnown === true);
+    assert('V02.5-FECHA · sin fecha → null (nunca inventa un instante)', ML.buildPlayedAtFromLocalFields('', '20:20') === null);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

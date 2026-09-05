@@ -571,11 +571,14 @@
     $('#load-player-sheet-title').textContent = manualSlotLabel(slot).toUpperCase();
     $('#load-player-sheet-search').value = '';
     $('#load-player-sheet-remove').hidden = !manualPlayers[slot];
-    // V02.3 (Bloque A, §3) — Rival 1/Rival 2 acentúan en magenta (Equipo B), Compañero en
-    // celeste (Equipo A, ya el color base de .field__input/estados activos) — reutiliza
-    // exactamente las mismas variables --team-a/--team-b que el resto de la app.
+    // V02.3 (Bloque A, §3) / V02.5 (paleta): Rival 1/Rival 2 acentúan en azul BRAMU (Equipo B),
+    // Compañero en verde BRAMU (Equipo A) — reutiliza exactamente las mismas variables
+    // --team-a/--team-b que el resto de la app.
     $('#load-player-sheet').classList.toggle('is-context-rival', slot === 'b1' || slot === 'b2');
     renderManualPlayerSheetContent('');
+    // V02.5 (Bloque B, §12.1) — el sheet ahora es alto y scrolleable (.bottom-sheet--tall):
+    // vuelve siempre al tope, nunca reabre donde quedó scrolleado la vez anterior.
+    $('#load-player-sheet-scroll').scrollTop = 0;
     $('#load-player-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#load-player-sheet-scrim').classList.add('is-open'); });
     setTimeout(() => $('#load-player-sheet-search').focus(), 60);
@@ -588,11 +591,26 @@
     manualActiveSheetSlot = null;
   }
 
+  /** V02.5 (Bloque B, §12.3) — fila compartida por RECIENTES y TODOS: avatar + Nombre (peso
+   *  fuerte) + @usuario (secundario, derivado del nombre igual que buildPlayerHandle ya hace
+   *  para el jugador actual — no es un campo de cuenta real, solo deja la interfaz lista para
+   *  cuando pueda haber más de un "Matu"). */
+  function buildPlayerRowHTML(name) {
+    return `<button type="button" class="player-row" data-name="${escapeHtml(name)}">
+      <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(name)}</span>
+        <span class="player-row__handle">${escapeHtml(buildPlayerHandle(name))}</span>
+      </span>
+    </button>`;
+  }
+
   function renderManualPlayerSheetContent(query) {
     const slot = manualActiveSheetSlot;
     if (!slot) return;
     const excluded = manualExcludedNamesForSlot(slot);
     const history = Store.loadHistory();
+    const recentsSection = $('#load-player-sheet-recents-section');
     const recentsWrap = $('#load-player-sheet-recents');
     // V02.2 (Bloque C, §8) — BUG real: la sección TODOS no excluía a quienes ya aparecían en
     // RECIENTES, así que la misma persona podía listarse dos veces en la misma pantalla. Se
@@ -602,27 +620,23 @@
       const recents = ML.computeRecentPlayers(history, currentPlayerName, excluded).slice(0, 12);
       recentNames = recents;
       if (recents.length) {
-        recentsWrap.hidden = false;
-        recentsWrap.innerHTML = recents.map((n) => `
-          <button type="button" class="load-player-sheet__recent" data-name="${escapeHtml(n)}">
-            <span class="load-player-sheet__recent-avatar">${escapeHtml(playerInitials(n))}</span>
-            <span class="load-player-sheet__recent-name">${escapeHtml(n)}</span>
-          </button>`).join('');
-        $all('#load-player-sheet-recents .load-player-sheet__recent').forEach((btn) => {
+        recentsSection.hidden = false;
+        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n)).join('');
+        $all('#load-player-sheet-recents .player-row').forEach((btn) => {
           btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
         });
-      } else { recentsWrap.hidden = true; recentsWrap.innerHTML = ''; }
+      } else { recentsSection.hidden = true; recentsWrap.innerHTML = ''; }
     } else {
-      recentsWrap.hidden = true; recentsWrap.innerHTML = '';
+      recentsSection.hidden = true; recentsWrap.innerHTML = '';
     }
 
     const pool = ML.computeAllKnownPlayers(history, Store.loadPlayerNames());
     const matches = ML.filterPlayerCandidates(pool, query, excluded.concat([currentPlayerName]).concat(recentNames));
     const listWrap = $('#load-player-sheet-list');
     listWrap.innerHTML = matches.length
-      ? matches.map((n) => `<button type="button" class="load-player-sheet__item" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join('')
+      ? matches.map((n) => buildPlayerRowHTML(n)).join('')
       : '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
-    $all('#load-player-sheet-list .load-player-sheet__item').forEach((btn) => {
+    $all('#load-player-sheet-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
     });
 
@@ -1190,16 +1204,19 @@
     if (!manualEditingMatchId) return;
     const dateVal = $('#manual-date-input').value;
     const timeVal = $('#manual-time-input').value;
-    const timeKnown = !!timeVal;
-    const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+    const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
     const placeName = $('#manual-place-input').value.trim();
     const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
-    Store.patchHistoryEntry(manualEditingMatchId, {
-      playedAt: startedAtDate.toISOString(),
-      startedAt: startedAtDate.toISOString(),
-      timeKnown,
-      location: location || null,
-    });
+    // V02.5 (Bloque B, §9) — se refresca `timeZone` acá también (antes solo se fijaba al crear
+    // el partido, nunca al editar fecha/hora de uno ya guardado): sin esto, un registro editado
+    // desde un huso distinto del que tenía guardado quedaría con un `timeZone` desactualizado
+    // que ya no coincide con cómo se interpretó el `playedAt` recién calculado.
+    let timeZone;
+    try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { /* deja el timeZone existente sin tocar */ }
+    Store.patchHistoryEntry(manualEditingMatchId, Object.assign(
+      { playedAt: built.iso, startedAt: built.iso, timeKnown: built.timeKnown, location: location || null },
+      timeZone ? { timeZone } : {}
+    ));
   }
 
   function initManualMetaSheet() {
@@ -1390,8 +1407,8 @@
     ];
     const dateVal = $('#manual-date-input').value;
     const timeVal = $('#manual-time-input').value; // '' si el usuario la borró — nunca se completa sola
-    const timeKnown = !!timeVal;
-    const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+    const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
+    const timeKnown = built.timeKnown;
     let timeZone = 'UTC';
     try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { /* offline-safe fallback */ }
     const placeName = $('#manual-place-input').value.trim();
@@ -1410,11 +1427,11 @@
       // alta nueva usa "ahora".
       createdAt: manualEditingCreatedAt || new Date().toISOString(),
       // Etapa 3 (Fase 1, §5.1) — playedAt es la fecha/hora que el usuario eligió a mano en
-      // el formulario (startedAtDate), no el momento en que se toca "Guardar". Nunca se
-      // repite esta lógica en otro lugar: PH.getPlayedAt() es la única fuente de verdad
-      // para leer "cuándo se jugó" en el resto de la app.
-      playedAt: startedAtDate.toISOString(),
-      startedAt: startedAtDate.toISOString(),
+      // el formulario (built.iso, vía ML.buildPlayedAtFromLocalFields), no el momento en que
+      // se toca "Guardar". Nunca se repite esta lógica en otro lugar: PH.getPlayedAt() es la
+      // única fuente de verdad para leer "cuándo se jugó" en el resto de la app.
+      playedAt: built.iso,
+      startedAt: built.iso,
       timeZone,
       finishedAt: new Date().toISOString(),
       players,
@@ -1478,7 +1495,6 @@
     // cualquier partido del Historial (ver buildManualMatchSnapshot), lista para reusar sin
     // transformación.
     $('#match-saved-result-card').innerHTML = buildScoreCardHTML(snapshot, { winnersHTML: buildWinnersBannerHTML(snapshot) });
-    $('#match-saved-note').value = '';
     renderManualMetaLine();
     showView('match-saved');
   }
@@ -1490,21 +1506,22 @@
     $('#match-saved-back-btn').addEventListener('click', () => showView('manual-load'));
     $('#match-saved-view-summary').addEventListener('click', () => {
       if (!manualConfirmDraft) return;
-      // Vuelve a leer fecha/hora/lugar/nota por si el usuario usó "Modificar" o escribió algo
-      // en NOTAS mientras estaba en esta pantalla — nunca persiste el draft original a ciegas.
+      // Vuelve a leer fecha/hora/lugar por si el usuario usó "Modificar" mientras estaba en
+      // esta pantalla — nunca persiste el draft original a ciegas.
       const dateVal = $('#manual-date-input').value;
       const timeVal = $('#manual-time-input').value;
-      const timeKnown = !!timeVal;
-      const startedAtDate = new Date(`${dateVal}T${timeVal || '00:00'}`);
+      const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
       const placeName = $('#manual-place-input').value.trim();
       const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
-      const noteVal = $('#match-saved-note').value.trim();
+      // V02.5 (Bloque C, §14) — Notas ya no vive en esta pantalla: se guarda sin nota (opcional,
+      // se agrega después desde el Resumen, ver #analysis-note-display/renderAnalysisNoteDisplay).
+      // Una edición SÍ preserva la nota que ya tuviera (manualConfirmDraft.privateNote), nunca la
+      // pisa con null — solo un alta nueva arranca sin nota.
       const snapshot = Object.assign({}, manualConfirmDraft, {
-        playedAt: startedAtDate.toISOString(),
-        startedAt: startedAtDate.toISOString(),
-        timeKnown,
+        playedAt: built.iso,
+        startedAt: built.iso,
+        timeKnown: built.timeKnown,
         location: location || null,
-        privateNote: noteVal || null,
       });
       persistManualSnapshot(snapshot);
       manualConfirmDraft = null;
@@ -4136,10 +4153,14 @@
   /* COMPONENTE DE RESULTADO TIPO TV (V5 — reutilizado en Resumen/Análisis, Bloque Q) */
   /* ------------------------------------------------------------------ */
 
-  /** V13 (§20/§26/§27) — línea de metadata discreta para Resumen/Análisis/Historial:
-   *  fecha · hora · formato · sistema · modo. Se aplica a partidos vivos recién terminados
-   *  y a partidos reabiertos desde Historial (ambos comparten la misma forma de snapshot),
-   *  y también a Completo (no solo a Por Games) — mejora pedida por igual para los dos. */
+  /** V13 (§20/§26/§27) — línea de metadata discreta para Resumen/Análisis (único consumidor
+   *  real: `#analysis-meta` — Historial arma la suya propia por separado, ver renderHistory):
+   *  fecha · hora · formato · sistema · modo.
+   *  V02.5 (Bloque C, §16) — "PARTIDO CARGADO" sale de acá: describe cómo BRAMU registró el
+   *  dato puertas adentro, no algo sobre el partido del usuario (Historial SÍ lo conserva, en
+   *  su propio cálculo — ahí sigue cumpliendo una función real: distinguir de un vistazo qué
+   *  modo fue cada fila de una lista mixta). "POR GAMES" se mantiene: identifica una modalidad
+   *  de REGISTRO EN VIVO real, no una descripción de "cómo se guardó". */
   function buildMatchMetaLine(f) {
     const dateStr = formatRealDate(f.startedAt || f.createdAt, f.timeZone);
     // V14 (§8): la Hora es opcional en un partido cargado — si el usuario la dejó vacía,
@@ -4147,7 +4168,7 @@
     const timeStr = (f.mode === 'manual' && f.timeKnown === false) ? null : formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
     const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label || '').toUpperCase();
     const scoringLabel = HISTORY_SCORING_LABELS[f.scoringSystem] || '';
-    const modeLabel = f.mode === 'games' ? 'POR GAMES' : f.mode === 'manual' ? 'PARTIDO CARGADO' : null;
+    const modeLabel = f.mode === 'games' ? 'POR GAMES' : null;
     const placeLabel = (f.location && f.location.name) ? f.location.name : null;
     return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
   }
@@ -4290,12 +4311,13 @@
 
   /** Bloque N: legal de datos parciales — se muestra solo cuando corresponde (nunca en partido completo sin ajustes). */
   function buildCoverageLegalHTML(f) {
-    // V02.2 (Bloque F, §15) — la aclaración de un partido cargado a mano ahora vive pegada al
-    // resultado (antes vivía dentro de la sección ESTADÍSTICAS, que antes era la única fila
-    // que tenía — Sets/Games ganados, relocalizados dentro de la tarjeta de resultado, ver
-    // buildResultBlockHTML/renderManualStatsGrid).
+    // V02.5 (Bloque C, §16) — "Partido cargado manualmente: solo se conoce el resultado final
+    // por set..." describía cómo funciona BRAMU por dentro, no algo sobre el partido del
+    // usuario — se saca del Resumen. Los otros casos de abajo (ajuste manual sobre un partido
+    // EN VIVO, corrección de marcador) sí describen algo real que pasó en ESE partido puntual,
+    // y siguen sin cambios.
     if (f.mode === 'manual') {
-      return '<p class="coverage-note coverage-note--center">Partido cargado manualmente: solo se conoce el resultado final por set, sin desarrollo punto a punto.</p>';
+      return '';
     }
     if (f.stats && f.stats.hasAdjustments) {
       return f.mode === 'games'
@@ -4351,12 +4373,12 @@
   }
 
   /** V02.3 (Bloque C, §7) — estado de LECTURA de la tarjeta permanente de notas: el texto
-   *  guardado, o "Tocá para agregar una nota" si todavía no hay ninguna (nunca un textarea
-   *  vacío suelto — ver .court-note__display en styles.css). */
+   *  guardado, o (V02.5, Bloque C, §15) "Agregar una nota" si todavía no hay ninguna (nunca un
+   *  textarea vacío suelto — ver .court-note__display en styles.css). */
   function renderAnalysisNoteDisplay(note) {
     const el = $('#analysis-note-display');
     const trimmed = (note || '').trim();
-    el.textContent = trimmed || 'Tocá para agregar una nota';
+    el.textContent = trimmed || 'Agregar una nota';
     el.classList.toggle('is-empty', !trimmed);
   }
 

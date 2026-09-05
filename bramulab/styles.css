@@ -20,16 +20,22 @@
   --text-dim: #9AA7B5;
   --text-faint: #687482;
 
-  /* Identidad/acción BRAMU — nunca color de equipo. */
-  --brand-lime: #C8FF3D;
-  --brand-lime-deep: #87C91C;
-  --accent-cyan: #32D7FF;
+  /* V02.5 (Bloque A, §3) — nueva dupla cromática BRAMU: navy oscuro + verde deportivo + azul
+     eléctrico, reemplaza "oscuro + lima amarillento + celeste/magenta". El magenta sale del
+     sistema de equipos: Equipo A pasa a verde BRAMU, Equipo B a azul BRAMU. `--accent-cyan`
+     conserva su nombre de variable (renombrarlo rompería referencias sin necesidad — la
+     compatibilidad prioriza sobre el nombre) pero conceptualmente ahora ES el azul eléctrico
+     BRAMU, doble rol con --team-b. Identidad/acción BRAMU — nunca color de equipo por sí solo. */
+  --brand-lime: #95FF19;
+  --brand-lime-deep: #66B30F;
+  --accent-cyan: #19BAFF;
 
-  /* Equipos — semántica fija: A azul, B magenta. */
-  --team-a: #2D9CFF;
-  --team-a-deep: #1267BD;
-  --team-b: #FF3EA5;
-  --team-b-deep: #B91F73;
+  /* Equipos — semántica V02.5: A verde BRAMU, B azul BRAMU (alias directos de arriba, nunca
+     valores propios — así un solo cambio de paleta alcanza para toda la app). */
+  --team-a: var(--brand-lime);
+  --team-a-deep: var(--brand-lime-deep);
+  --team-b: var(--accent-cyan);
+  --team-b-deep: #0A87BD;
 
   /* Excepción semántica: dorado es únicamente Punto de Oro (y, por extensión,
      los estados de la misma familia de punto decisivo: Star Point/Tie break).
@@ -37,7 +43,7 @@
   --gold: #FFC93D;
   --star: #FFA93D;
   --danger: #FF5B61;
-  --success: #C8FF3D;
+  --success: var(--brand-lime);
   --confirm-green: #2ECC71;
 
   --line: rgba(183,211,235,0.14);
@@ -96,7 +102,7 @@
   pointer-events: none;
   animation: app-splash-out 1.5s ease forwards;
 }
-.app-splash__b{ width: 116px; height: auto; filter: drop-shadow(0 0 34px rgba(200,255,61,0.35)); }
+.app-splash__b{ width: 116px; height: auto; filter: drop-shadow(0 0 34px rgba(149,255,25,0.35)); }
 .app-splash__logo{ width: 168px; height: auto; opacity: 0.92; }
 @keyframes app-splash-out{
   0%, 58% { opacity: 1; }
@@ -125,6 +131,11 @@ h1,h2,h3,h4{ margin:0; }
 input, select{ font-family: inherit; }
 
 .view{ min-height: 100vh; min-height: 100dvh; width: 100%; }
+/* V02.5 (Bloque A, §4) — degradé MUY sutil, exclusivo del Home: navy algo más azul/presente
+   arriba, progresando a navy más profundo/oscuro abajo. Sobre los mismos tokens de superficie
+   de siempre (nunca una escala --surface-* nueva ni un color aislado) — nada de glow fuerte
+   ni aspecto "galaxia", solo una atmósfera apenas perceptible detrás del contenido. */
+#view-player-home{ background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg) 55%, var(--bg-deep) 100%); }
 
 /* ==========================================================================
    SETUP
@@ -139,7 +150,7 @@ input, select{ font-family: inherit; }
 }
 .continue-banner{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  background: rgba(200,255,61,0.10); border: 1px solid rgba(200,255,61,0.35);
+  background: rgba(149,255,25,0.10); border: 1px solid rgba(149,255,25,0.35);
   border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
 }
 .continue-banner__text{ display:flex; flex-direction:column; font-size: 13px; }
@@ -163,7 +174,7 @@ input, select{ font-family: inherit; }
 }
 .team-block--b{ border-left-color: var(--team-b); }
 .team-block__label{
-  display:flex; align-items:center; gap:8px; font-size: 12px; letter-spacing: 0.12em;
+  display:flex; align-items:center; gap:8px; font-size: 12px; letter-spacing: 0.03em;
   text-transform: uppercase; color: var(--paper-dim); margin-bottom: 10px; font-weight: 700;
 }
 .team-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
@@ -196,7 +207,7 @@ input, select{ font-family: inherit; }
   padding: 12px 4px; font-weight: 800; font-size: 12px; letter-spacing: 0.03em; text-align:center;
   cursor:pointer; transition: border-color .15s ease, background .15s ease;
 }
-.option-col.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); color: var(--brand-lime); }
+.option-col.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
 /* V13.4 (§9) — opciones incompatibles con la secuencia real del game en curso: no
    seleccionables (nunca permiten crear un partido híbrido). */
 .option-col.is-disabled{ opacity: 0.35; cursor: not-allowed; }
@@ -211,7 +222,7 @@ input, select{ font-family: inherit; }
 .option-pill:active{ transform: scale(0.98); }
 .option-pill__title{ font-weight: 800; font-size: 14px; }
 .option-pill__hint{ font-size: 11px; color: var(--paper-dim); }
-.option-pill.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.09); }
+.option-pill.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.09); }
 .option-pill.is-selected .option-pill__title{ color: var(--brand-lime); }
 
 /* V12.1 (§5) — las 4 tarjetas de modalidad del Tie break extraordinario deben verse
@@ -228,7 +239,7 @@ input, select{ font-family: inherit; }
 .btn-start{
   margin-top: 10px; padding: 17px; border: none; border-radius: 16px; background: var(--brand-lime);
   color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(200,255,61,0.22);
+  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(149,255,25,0.22);
   transition: transform .1s ease, box-shadow .1s ease;
 }
 .btn-start:active{ transform: scale(0.98); }
@@ -247,10 +258,17 @@ input, select{ font-family: inherit; }
    más abajo. */
 /* V02.3 (Bloque B, §6) — label con ícono (calendario/reloj), mismo tamaño y alineación en
    Fecha y Hora: mismo componente para las dos, nunca un ícono ad hoc por campo. */
-.manual-field-label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
+.manual-field-label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
 .manual-field-icon{ flex:none; color: var(--paper-dim); }
 .manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
 .manual-datetime-row .field{ flex: 1; min-width: 130px; }
+/* V02.5 (Bloque B, §11) — bug real encontrado: `.field + .field{ margin-top: 8px }` (pensada
+   para campos apilados VERTICALMENTE, ver más abajo en este archivo) también alcanzaba a este
+   par por el selector de hermano adyacente — aunque visualmente están lado a lado en una fila
+   flex, en el DOM Hora sigue siendo el hermano siguiente de Fecha, así que heredaba ese margen
+   y quedaba 8px más abajo que Fecha en TODO momento. Se anula acá, donde los campos son
+   columnas de una misma fila, no un formulario apilado. */
+.manual-datetime-row .field + .field{ margin-top: 0; }
 /* Fecha (nativo) y Hora (texto enmascarado) comparten .field__input — misma tipografía/peso
    ya heredados — pero se fuerza una altura explícita idéntica para neutralizar cualquier
    diferencia de caja que el navegador agregue por su cuenta al <input type="date"> nativo. */
@@ -302,8 +320,8 @@ input, select{ font-family: inherit; }
    para separarla claramente del marcador y de la fila de herramientas). */
 .game-progression{ display:flex; align-items:center; justify-content:center; gap: 6px; padding: 7px 10px; background: var(--ink); border-top: 1px solid var(--line); }
 .game-progression__dot{ width:9px; height:9px; border-radius:50%; flex:none; background: var(--paper-faint); }
-.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(45,156,255,0.5); }
-.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(255,62,165,0.5); }
+.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(149,255,25,0.5); }
+.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(25,186,255,0.5); }
 .game-progression__dot--gap{ background: transparent; border: 1.5px solid var(--paper-dim); width:8px; height:8px; box-shadow:none; }
 
 @media (max-width: 380px){
@@ -428,8 +446,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-set.status-banner--team-a{ animation-name: teamBannerPulseSetA; }
 .status-banner--escalate-set.status-banner--team-b{ animation-name: teamBannerPulseSetB; }
 .status-banner--escalate-set.status-banner--team-both{ animation-name: teamBannerPulseSetBoth; }
-@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(45,156,255,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(45,156,255,0.65);} }
-@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(255,62,165,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(255,62,165,0.7);} }
+@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(149,255,25,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(149,255,25,0.65);} }
+@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(25,186,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(25,186,255,0.7);} }
 @keyframes teamBannerPulseSetBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(244,247,242,0.2);} 50%{ filter:brightness(1.14); box-shadow:0 4px 28px rgba(244,247,242,0.4);} }
 
 /* Match Point — la jerarquía contextual de mayor peso (14): mayor amplitud/glow todavía. */
@@ -437,8 +455,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-match.status-banner--team-a{ animation-name: teamBannerPulseMatchA; }
 .status-banner--escalate-match.status-banner--team-b{ animation-name: teamBannerPulseMatchB; }
 .status-banner--escalate-match.status-banner--team-both{ animation-name: teamBannerPulseMatchBoth; }
-@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(45,156,255,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(45,156,255,0.85);} }
-@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(255,62,165,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(255,62,165,0.9);} }
+@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(149,255,25,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(149,255,25,0.85);} }
+@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(25,186,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(25,186,255,0.9);} }
 @keyframes teamBannerPulseMatchBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(244,247,242,0.3);} 50%{ filter:brightness(1.18); box-shadow:0 4px 34px rgba(244,247,242,0.55);} }
 @media (prefers-reduced-motion: reduce){
   .status-banner--gold, .status-banner--star,
@@ -479,7 +497,7 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 13px; font-size: 12px; font-weight: 700; color: var(--paper); cursor:pointer; white-space:nowrap;
 }
-.server-chip-btn:active{ background: rgba(200,255,61,0.15); border-color: var(--brand-lime); }
+.server-chip-btn:active{ background: rgba(149,255,25,0.15); border-color: var(--brand-lime); }
 
 /* Zonas táctiles */
 .team-zone{
@@ -488,9 +506,9 @@ input, select{ font-family: inherit; }
   -webkit-user-select: none; user-select: none; touch-action: manipulation; transition: filter .08s ease;
 }
 .team-zone:active{ filter: brightness(1.18); }
-.team-zone--a{ background: linear-gradient(180deg, rgba(45,156,255,0.16), rgba(45,156,255,0.04)); border-bottom: 1px solid var(--line); }
+.team-zone--a{ background: linear-gradient(180deg, rgba(149,255,25,0.16), rgba(149,255,25,0.04)); border-bottom: 1px solid var(--line); }
 .team-zone--b{
-  background: linear-gradient(0deg, rgba(255,62,165,0.18), rgba(255,62,165,0.04));
+  background: linear-gradient(0deg, rgba(25,186,255,0.18), rgba(25,186,255,0.04));
   border-top: 1px solid var(--line);
   border-bottom: 4px solid var(--team-b-deep);
   padding-bottom: calc(10px + var(--safe-bottom));
@@ -506,8 +524,8 @@ input, select{ font-family: inherit; }
   font-family: var(--font-display); font-weight: 700; line-height: 1; letter-spacing: 0.01em;
   font-size: clamp(56px, 24vh, 124px);
 }
-.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(45,156,255,0.25); }
-.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(255,62,165,0.25); }
+.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(149,255,25,0.25); }
+.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(25,186,255,0.25); }
 .team-zone__score--word{ font-size: clamp(30px, 9vh, 52px); }
 
 .control-bar{
@@ -621,7 +639,7 @@ input, select{ font-family: inherit; }
 .stepper-btn:disabled{ opacity: 0.3; cursor:not-allowed; }
 .stepper-value{ min-width: 30px; text-align:center; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
 .edit-error{ color: var(--danger); font-size: 12px; font-weight: 700; margin: -6px 0 12px; }
-.overlay__text--note{ color: var(--brand-lime); background: rgba(200,255,61,0.08); border: 1px solid rgba(200,255,61,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
+.overlay__text--note{ color: var(--brand-lime); background: rgba(149,255,25,0.08); border: 1px solid rgba(149,255,25,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
 
 /* V5 (Bloque I) — selectores horizontales de puntos: 4 posiciones discretas, no un slider continuo. */
 .point-track-label{ font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin: 10px 0 6px; }
@@ -633,24 +651,24 @@ input, select{ font-family: inherit; }
   padding: 12px 4px; font-family: var(--font-display); font-size: 16px; font-weight: 700;
   color: var(--paper-dim); cursor:pointer; transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
-.point-track__stop.is-selected{ border-color: var(--brand-lime); background: rgba(200,255,61,0.12); color: var(--brand-lime); }
+.point-track__stop.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.12); color: var(--brand-lime); }
 #edit-points-special{ margin-top: 4px; }
 
 /* V12 (§2.3) — Ajustar: la selección usa el color de CADA equipo, nunca el dorado de
    Editar/Corrección Rápida (para no confundirla con esas ni con el verde de confirmación
    de Highlight). Se sobreescribe solo dentro de #adjust-body, sin tocar el resto de la app. */
-#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(45,156,255,0.14); color: var(--team-a); }
-#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(255,62,165,0.14); color: var(--team-b); }
+#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
+#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(25,186,255,0.14); color: var(--team-b); }
 
 /* V13 (§10) — Ajustar Games: mismo componente de "paradas" que Ajustar, pero 0-6 (7
    columnas) en vez de 0-15-30-40, y coloreado por equipo (no dorado, mismo criterio que
    Ajustar de arriba). */
 .point-track--games{ grid-template-columns: repeat(7, 1fr); }
-#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(45,156,255,0.14); color: var(--team-a); }
-#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(255,62,165,0.14); color: var(--team-b); }
-#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(45,156,255,0.10); }
+#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
+#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(25,186,255,0.14); color: var(--team-b); }
+#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="A"] .option-pill__title{ color: var(--team-a); }
-#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(25,186,255,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="B"] .option-pill__title{ color: var(--team-b); }
 #adjust-body .option-pill.is-selected[data-lead="none"]{ border-color: var(--paper); background: rgba(244,247,242,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="none"] .option-pill__title{ color: var(--paper); }
@@ -665,7 +683,7 @@ input, select{ font-family: inherit; }
 
 .server-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .server-radio{ background: var(--ink-softer); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; font-size: 13px; font-weight:700; text-align:center; cursor:pointer; }
-.server-radio.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(200,255,61,0.08); }
+.server-radio.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(149,255,25,0.08); }
 .server-radio__hint{ font-size: 10px; opacity: 0.6; display:block; }
 
 /* ==========================================================================
@@ -688,12 +706,12 @@ input, select{ font-family: inherit; }
   font-size: 12px; text-decoration: underline; cursor:pointer;
 }
 .summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
-.summary-card__title{ font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.06em; color: var(--text); margin-bottom: 6px; }
+.summary-card__title{ font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.03em; color: var(--text); margin-bottom: 6px; }
 .summary-card__meta{ font-size: 11px; color: var(--paper-faint); margin-bottom: 10px; letter-spacing:0.02em; }
 /* V13.1 (§8): centrada, igual que en Resumen (`.summary-card` es `text-align:center` — acá
    se replica solo en esta línea, sin volver centrado todo Análisis). */
 .analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 4px; padding: 0 2px; text-align: center; }
-.summary-card__reason{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-transform:uppercase; letter-spacing:0.08em; }
+.summary-card__reason{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-transform:uppercase; letter-spacing:0.03em; }
 .summary-stats{ display:flex; flex-direction:column; gap: 4px; margin: 16px 0 20px; }
 /* V7 (47): mismo aire entre tarjeta→VER ANÁLISIS que entre VER ANÁLISIS→COMPARTIR (10px,
    igual al gap interno de .summary-actions) — antes quedaba pegado al bloque de arriba. */
@@ -701,7 +719,7 @@ input, select{ font-family: inherit; }
 
 /* Bloque M1: el ganador vive FUERA de la tarjeta de score. */
 .winners-banner{ text-align:center; margin-bottom: 14px; }
-.result-card__winners{ font-size: 11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--paper-dim); font-weight:700; margin-bottom: 2px; }
+.result-card__winners{ font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--paper-dim); font-weight:700; margin-bottom: 2px; }
 /* V7 (45-46-107): color de PERTENENCIA del equipo ganador — el dorado queda reservado para
    Punto de Oro/Star Point (5), nunca para "quién ganó". */
 .result-card__winners-names{ font-size: 22px; font-weight: 800; }
@@ -710,9 +728,16 @@ input, select{ font-family: inherit; }
 
 /* Componente de resultado tipo TV — reutilizado en Resumen / Análisis (Bloque Q: mismo componente) */
 .result-card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; text-align:left; }
-.result-card__row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 8px 0; }
+/* V02.5 (Bloque C, §17) — antes el nombre usaba `flex:1` (ocupa TODO el ancho disponible) +
+   la fila en `justify-content:space-between`: empujaba el resultado al borde derecho de la
+   tarjeta, dejando un hueco enorme entre un nombre corto y el marcador. Ahora el nombre crece
+   solo lo que su propio texto necesita (recortado con elipsis pasado el 62% de la fila, nunca
+   empuja el resultado fuera de la tarjeta) y el resultado queda pegado justo después, con el
+   mismo `gap` chico que ya separaba los dos — lectura compacta, sin convertir esto en una
+   tabla con columnas fijas. */
+.result-card__row{ display:flex; align-items:center; justify-content:flex-start; gap: 10px; padding: 8px 0; }
 .result-card__row + .result-card__row{ border-top: 1px solid var(--line); }
-.result-card__name{ font-weight: 800; font-size: 14px; flex: 1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.result-card__name{ font-weight: 800; font-size: 14px; flex: 0 1 auto; max-width: 62%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
 .result-card__sets{ display:flex; gap: 6px; flex: none; }
@@ -742,21 +767,25 @@ input, select{ font-family: inherit; }
 .result-card__stats{ display:flex; flex-direction:column; gap: 6px; }
 .result-card__stats .bar-stat-row{ background: rgba(244,247,242,0.05); }
 
-.summary-stat-row{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap: 10px; background: var(--ink-soft); border-radius: 10px; padding: 10px 12px; }
-.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 16px; }
-.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 16px; }
-.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.04em; }
+/* V02.5 (Bloque C, §18) — se mantiene la estructura en filas (nunca mini-KPIs en paralelo,
+   decisión confirmada); grid de 3 columnas ya alineaba equipo propio/concepto/rival
+   correctamente, acá solo gana un poco más de aire y presencia en los números (legibilidad),
+   color semántico por equipo sin cambios de lógica (A verde/B azul ya vienen del token). */
+.summary-stat-row{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap: 10px; background: var(--ink-soft); border-radius: 10px; padding: 11px 14px; }
+.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 17px; }
+.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 17px; }
+.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.03em; }
 
 /* ==========================================================================
    ANÁLISIS / HISTORIAL / TIMELINE
    ========================================================================== */
 .view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; }
 .analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(12px + var(--safe-top)) 14px 12px; border-bottom: 1px solid var(--line); }
-.analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.1em; color: var(--paper-dim); flex: 1 1 auto; }
+.analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper-dim); flex: 1 1 auto; }
 .analysis-header__summary-btn{ flex: none; font-size: 11px; }
 .analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
 .analysis-section{ margin-bottom: 26px; }
-.analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
+.analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
    título, frase de encuadre y una superficie editorial que los agrupa a los tres.
    V02.2 (Bloque F, §16) — `.intelligence-card` es AHORA la única superficie: título y bajada
@@ -780,7 +809,7 @@ input, select{ font-family: inherit; }
   content: 'BRAMU INTELLIGENCE'; display:block; font-family: var(--font-display); font-weight:700;
   font-size: 10px; letter-spacing: 0.1em; color: var(--brand-lime); margin-bottom: 8px;
 }
-.analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
+.analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.03em; color: var(--paper-dim); margin: 14px 0 8px; }
 .intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
 .coverage-note--center{ text-align:center; }
@@ -857,7 +886,7 @@ input, select{ font-family: inherit; }
   padding: 6px 14px; font-family: var(--font-display); font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; color: var(--paper-dim); cursor:pointer;
 }
-.set-filter-tabs__btn.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(200,255,61,0.1); }
+.set-filter-tabs__btn.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(149,255,25,0.1); }
 
 /* Bloque S1/S14 — filas con barra comparativa */
 .bar-stat-row{ background: var(--ink-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
@@ -959,14 +988,14 @@ input, select{ font-family: inherit; }
 /* V13.3 (§13) — Timeline Por Games: HOLD en verde sutil (opuesto visual de BREAK), y el
    detalle de cada game (ganador/sacador) es más largo que un score de puntos — se le da
    espacio propio en vez de flex:none para que no se corte. */
-.timeline-tag--HOLD{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
+.timeline-tag--HOLD{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .timeline-game--compact .timeline-point-row__score{ flex: 1 1 auto; text-align: right; }
 
 /* V6 — resumen de sets cargados a mano (Partido ya empezado): sin games, no interactivo. */
 .timeline-set--manual{ opacity: 0.85; }
 .timeline-set__header--static{ background: var(--ink-softer); padding: 12px 14px; font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: 0.03em; cursor:default; }
 
-.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--brand-lime); background: rgba(200,255,61,0.08); border: 1px dashed rgba(200,255,61,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
+.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--brand-lime); background: rgba(149,255,25,0.08); border: 1px dashed rgba(149,255,25,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
 .timeline-game__points{ display:none; padding: 6px 4px 4px; }
 .timeline-game.is-expanded .timeline-game__points{ display:block; }
 .timeline-point-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; font-size: 11px; color: var(--paper-dim); padding: 5px 8px; border-bottom: 1px solid var(--line); flex-wrap:wrap; }
@@ -1003,7 +1032,7 @@ input, select{ font-family: inherit; }
    (Observados) como micro-tag pegado al nombre de la pareja ganadora. */
 .history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 4px; }
 .history-item__result-badge{ flex:none; font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 7px; border-radius: 999px; }
-.history-item__result-badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
+.history-item__result-badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .history-item__result-badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .history-item__won-tag{ font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime); margin: 0 6px 0 4px; vertical-align: middle; }
 .history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; margin-bottom: 4px; }
@@ -1015,7 +1044,7 @@ input, select{ font-family: inherit; }
 .history-item__winner--b{ color: var(--team-b); }
 .history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .history-item__meta{ display:flex; justify-content:flex-start; font-size: 12px; color: var(--paper-dim); }
-.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(200,255,61,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(149,255,25,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
 
 /* ==========================================================================
    Etapa 4.1 (§3) — Historial: pestañas de pertenencia + chips de modo.
@@ -1054,13 +1083,13 @@ input, select{ font-family: inherit; }
   padding: 6px 13px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--paper-dim);
   cursor:pointer; white-space:nowrap;
 }
-.history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); color: var(--brand-lime); }
+.history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
 @media (min-width: 720px){ .history-filters{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
 /* V02.1 (§27) — banda de filtro contextual (Racha actual/Últimos 30 días desde el Home). */
 .history-context-filter{
   display:flex; align-items:center; justify-content:space-between; gap: 10px;
-  padding: 10px 18px; background: rgba(200,255,61,0.08); border-bottom: 1px solid var(--line-strong);
+  padding: 10px 18px; background: rgba(149,255,25,0.08); border-bottom: 1px solid var(--line-strong);
   font-size: 12px; font-weight: 700; color: var(--brand-lime);
 }
 .history-context-filter .link-btn{ font-size: 12px; font-weight: 700; color: var(--paper-dim); flex:none; }
@@ -1207,7 +1236,7 @@ input, select{ font-family: inherit; }
 .share-capture__section:last-of-type{ margin-bottom: 0; }
 .share-capture__footer{ display:flex; flex-direction:column; align-items:center; gap: 4px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); text-align:center; }
 .share-capture__footer span:first-child{ font-size: 12px; color: var(--paper-dim); }
-.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(200,255,61,0.6); text-transform: lowercase; }
+.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(149,255,25,0.6); text-transform: lowercase; }
 .share-capture__brand-mini-accent{ font-weight: 900; color: var(--brand-lime); text-transform: uppercase; }
 
 /* ==========================================================================
@@ -1244,8 +1273,8 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
   padding: 16px; margin-bottom: 12px;
 }
-.pastilla__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
-.pastilla__microlabel{ font-size: 10px; letter-spacing: 0.06em; color: var(--paper-faint); text-transform: uppercase; font-weight: 700; }
+.pastilla__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper); text-transform: uppercase; }
+.pastilla__microlabel{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-faint); text-transform: uppercase; font-weight: 700; }
 .pastilla__title-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
 .pastilla__icon{ font-size: 20px; line-height:1; }
 .pastilla__icon-svg{ width:18px; height:18px; fill: var(--brand-lime); display:block; }
@@ -1292,7 +1321,7 @@ input, select{ font-family: inherit; }
 .player-card__handle{ font-size: 12px; color: var(--paper-faint); }
 .player-card__count{ flex-basis: 100%; font-size: 12px; color: var(--paper-dim); margin-top: 6px; }
 .player-card__level{ flex: none; text-align:right; }
-.player-card__level-label{ font-size: 9px; letter-spacing:0.08em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
+.player-card__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
 .player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; }
 .player-card__level-value{ font-family: var(--font-display); font-weight: 800; font-size: 30px; color: var(--paper); font-variant-numeric: tabular-nums; }
 /* `flex-basis:100%` fuerza el salto de línea dentro del propio flex-wrap del contenedor —
@@ -1360,7 +1389,7 @@ input, select{ font-family: inherit; }
 /* §7 (Etapa 4) — glow/latido MUY sutil reservado para el último indicador: brillo que
    respira, nunca parpadeo ni cambio de color. */
 .lastmatch-form-dot--current{ animation: lastMatchDotPulse 2.2s ease-in-out infinite; }
-.lastmatch-form-dot--current.lastmatch-form-dot--win{ box-shadow: 0 0 6px rgba(200,255,61,0.8); }
+.lastmatch-form-dot--current.lastmatch-form-dot--win{ box-shadow: 0 0 6px rgba(149,255,25,0.8); }
 .lastmatch-form-dot--current.lastmatch-form-dot--loss{ box-shadow: 0 0 6px rgba(255,91,84,0.7); }
 @keyframes lastMatchDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.4); } }
 @media (prefers-reduced-motion: reduce){ .lastmatch-form-dot--current{ animation:none; } }
@@ -1369,9 +1398,9 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__place{ font-size: 11px; font-weight: 500; color: var(--court-text-faint); margin-top: 2px; }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
-.player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: var(--court-text-dim); text-transform: uppercase; }
+.player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
 .player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; }
-.player-home-lastmatch__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
+.player-home-lastmatch__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 /* §11 — "resultado claramente protagonista y de mayor tamaño": el primer nivel de lectura de
@@ -1385,8 +1414,14 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__score{ margin-bottom: 12px; }
 .lastmatch-score{ font-family: var(--font-display); font-weight: 800; color: var(--paper); font-variant-numeric: tabular-nums; }
 .lastmatch-score__set{ font-size: clamp(36px, 11.3vw, 44px); line-height: 1; letter-spacing: 0.02em; }
-.lastmatch-score__dash{ font-size: 0.65em; font-weight: 500; margin: 0 1px; }
-.lastmatch-score__dot{ font-size: 0.75em; font-weight: 900; color: var(--paper); margin: 0 6px; }
+/* V02.5 (Bloque A, §6) — el guion y el punto son texto más chico que los números que los
+   rodean: por default (`vertical-align: baseline`) su propio glifo cae bajo, alineado al
+   baseline de la línea en vez de al centro óptico del número grande. `vertical-align: middle`
+   los sube al punto medio real de la línea (más cerca del centro óptico de los números que el
+   baseline), sin depender de ningún ajuste manual de posición. El punto además crece respecto
+   de V02.4 (0.75em → 0.9em) para leerse claramente como el separador principal entre sets. */
+.lastmatch-score__dash{ font-size: 0.65em; font-weight: 500; margin: 0 1px; vertical-align: middle; }
+.lastmatch-score__dot{ font-size: 0.9em; font-weight: 900; color: var(--paper); margin: 0 6px; vertical-align: middle; }
 .lastmatch-score__tb{ font-size: 13px; font-weight: 600; color: var(--court-text-dim); vertical-align: middle; }
 /* §3 — parejas + chevron comparten fila: el chevron va alineado con esta fila, no flotando
    arriba (antes vivía en la fila del título).
@@ -1404,7 +1439,7 @@ input, select{ font-family: inherit; }
 /* V02.1 (§21) — encabezado de grupo: reemplaza los microlabels "ÚLTIMOS 30 DÍAS" repetidos en
    cada tarjeta (Actividad Y Efectividad decían lo mismo por separado) por UNO solo, compartido
    por todo el grupo — mismo criterio para "TU HISTORIAL" sobre las 4 métricas chicas. */
-.player-home-group-label{ font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-faint); margin: 4px 2px 8px; }
+.player-home-group-label{ font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-faint); margin: 4px 2px 8px; }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Actividad + Efectividad (§9): mayor jerarquía visual que las
@@ -1424,12 +1459,16 @@ input, select{ font-family: inherit; }
 .activity-bars{ display:flex; align-items:flex-end; gap: 8px; height: 60px; margin: 12px 0 8px; }
 /* V02.4 (Bloque A, §2.3) — barra APILADA: la altura del contenedor (`.activity-bar`, seteada
    inline por período) es el volumen relativo al máximo de los 4 períodos; adentro, dos
-   segmentos flex en columna reparten esa altura entre victorias (arriba, lima) y derrotas
-   (abajo, tono oscuro/neutro `--line-strong` — nunca celeste, nunca rojo). Un período vacío no
-   pinta ningún segmento: solo queda visible el fondo tenue de abajo, el mismo baseline de
-   siempre — nunca se confunde con una derrota, que SIEMPRE pinta `--line-strong` (3× más
-   opaco que ese baseline) aunque tenga 0 victorias. */
-.activity-bar{ flex:1; display:flex; flex-direction:column; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; }
+   segmentos reparten esa altura entre victorias (lima) y derrotas (tono oscuro/neutro
+   `--line-strong` — nunca celeste, nunca rojo). Un período vacío no pinta ningún segmento:
+   solo queda visible el fondo tenue de abajo, el mismo baseline de siempre — nunca se confunde
+   con una derrota, que SIEMPRE pinta `--line-strong` (3× más opaco que ese baseline) aunque
+   tenga 0 victorias.
+   V02.5 (Bloque A, §5) — orden vertical invertido respecto de V02.4: victorias ABAJO, derrotas
+   ARRIBA. El marcado (`.activity-bar__win` primero en el HTML, `__loss` después, sin cambios
+   en app.js) se mantiene igual — alcanza con `column-reverse` para que el primer hijo pinte
+   el extremo INFERIOR en vez del superior. */
+.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; }
 .activity-bar__win{ display:block; width:100%; background: var(--brand-lime); }
 .activity-bar__loss{ display:block; width:100%; background: var(--line-strong); }
 /* §2.5 — leyenda chica y discreta, entre el gráfico y el total (nunca compite con "X partidos
@@ -1452,6 +1491,14 @@ input, select{ font-family: inherit; }
    Métricas pequeñas (§10)
    ========================================================================== */
 .player-home-widgets-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* V02.5 (Bloque A, §7) — geometría IDÉNTICA entre las 4 tarjetas KPI, tengan o no chevron
+   ("Partidos totales" es la única sin destino, sin `.pastilla--link`): `min-height` iguala el
+   alto de la fila del label aunque no haya chevron adentro (antes esa fila medía menos sin el
+   ícono, corriendo el inicio del dato principal un par de px más arriba que en las otras 3);
+   `margin-bottom:0` es el mismo valor que `.pastilla--link .pastilla__title-row` ya usaba —
+   acá se extiende a la 4ta tarjeta sin necesidad de volverla clickeable. Alcance acotado a esta
+   grilla — no toca el `.pastilla__title-row` compartido por el resto de la app. */
+.player-home-widgets-grid .pastilla__title-row{ min-height: 18px; margin-bottom: 0; }
 .pastilla--widget{ margin-bottom:0; }
 .pastilla-widget__value{ font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--paper); margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
 .pastilla-widget__value--text{ font-size: 15px; font-weight: 500; }
@@ -1479,11 +1526,14 @@ input, select{ font-family: inherit; }
   font-size: 10px; font-weight:700; padding:6px 2px; cursor:pointer;
 }
 .bottom-nav__icon{ width:21px; height:21px; fill: currentColor; }
+/* V02.5 (Bloque A, §8) — único ícono de esta barra con manecillas visibles (ver comentario en
+   index.html): trazo en vez de relleno sólido, mismo grosor que otros trazos del sistema. */
+.bottom-nav__icon--history{ fill:none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .bottom-nav__item.is-active{ color: var(--brand-lime); }
 .bottom-nav__item--fab{
   flex: 0 0 auto; width:52px; height:52px; border-radius:50%; background: var(--brand-lime);
   color:#1A1400; font-size:26px; font-weight:800; line-height:1; margin: 0 4px;
-  margin-top:-22px; box-shadow: 0 6px 16px rgba(200,255,61,0.4); border: 4px solid var(--ink);
+  margin-top:-22px; box-shadow: 0 6px 16px rgba(149,255,25,0.4); border: 4px solid var(--ink);
   display:flex; align-items:center; justify-content:center;
 }
 .bottom-nav__item--fab:active{ transform: scale(0.95); }
@@ -1525,7 +1575,7 @@ input, select{ font-family: inherit; }
   --court-line: var(--line);
   --court-text-dim: var(--text-dim);
   --court-text-faint: var(--text-faint);
-  --court-glow: rgba(45,156,255,0.28);
+  --court-glow: rgba(149,255,25,0.28);
 }
 @media (prefers-reduced-motion: reduce){
   :root{ --sheet-duration-enter: 1ms; --sheet-duration-level: 1ms; }
@@ -1576,7 +1626,7 @@ input, select{ font-family: inherit; }
    posiciona absoluto, centrado sobre el ancho total del header; back/close quedan en el
    flujo flex normal en sus extremos, sin superponerse (el título no captura toques). */
 .bottom-sheet__header{ position:relative; display:flex; align-items:center; justify-content:space-between; min-height: 30px; margin-bottom: 18px; gap: 10px; }
-.bottom-sheet__title{ position:absolute; left:36px; right:36px; text-align:center; pointer-events:none; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; color: var(--paper); text-transform: uppercase; }
+.bottom-sheet__title{ position:absolute; left:36px; right:36px; text-align:center; pointer-events:none; font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.03em; color: var(--paper); text-transform: uppercase; }
 .bottom-sheet__back{ background:none; border:none; color: var(--court-text-dim); font-size:18px; cursor:pointer; padding:4px 8px; flex:none; z-index:1; }
 .bottom-sheet__close{ background: var(--court-surface-2); border:none; color: var(--court-text-dim); width:28px; height:28px; border-radius:50%; font-size:13px; cursor:pointer; flex:none; z-index:1; margin-left:auto; }
 .bottom-sheet__level{ display:flex; flex-direction:column; gap: 12px; padding-bottom: 4px; }
@@ -1612,10 +1662,10 @@ input, select{ font-family: inherit; }
 }
 .sheet-option:active{ transform: scale(0.98); border-color: var(--brand-lime); }
 .sheet-option__icon{ position:absolute; right:16px; top:50%; transform:translateY(-50%); color: var(--court-text-dim); font-size:17px; }
-.sheet-option--primary{ background: rgba(200,255,61,0.12); border-color: var(--brand-lime); color: var(--brand-lime); }
+.sheet-option--primary{ background: rgba(149,255,25,0.12); border-color: var(--brand-lime); color: var(--brand-lime); }
 
 .sheet-active-card{
-  display:block; width:100%; text-align:left; background: rgba(200,255,61,0.08); border: 1.5px solid var(--brand-lime);
+  display:block; width:100%; text-align:left; background: rgba(149,255,25,0.08); border: 1.5px solid var(--brand-lime);
   border-radius: 16px; padding: 16px 18px; cursor:pointer; margin-bottom: 10px;
 }
 .sheet-active-card__label{ font-size: 10px; letter-spacing:0.08em; color: var(--brand-lime); font-weight:800; text-transform:uppercase; margin-bottom:6px; }
@@ -1629,7 +1679,7 @@ input, select{ font-family: inherit; }
    Home: nada acá depende de la paleta/tipografía definitivas. */
 .active-match-banner{
   display:flex; align-items:center; gap: 10px; width:100%; text-align:left;
-  background: rgba(200,255,61,0.08); border: 1px solid var(--brand-lime); border-radius: 12px;
+  background: rgba(149,255,25,0.08); border: 1px solid var(--brand-lime); border-radius: 12px;
   padding: 9px 12px; margin-bottom: 12px; cursor:pointer;
 }
 .active-match-banner__pulse{
@@ -1674,7 +1724,17 @@ input, select{ font-family: inherit; }
    lógica pura de match-load.js, sin cambios de validación).
    ========================================================================== */
 
-.view--court{ background: var(--court-bg); display:flex; flex-direction:column; height:100vh; height:100dvh; }
+/* V02.5 (Bloque B, §13.3) — más diferencia entre fondo, surface principal y surface
+   interactiva: `--court-surface`/`--court-surface-2` quedaban solo un escalón por encima de
+   `--court-bg` (mismo alias global que usan también los bottom sheets, fuera de esta pantalla)
+   — acá, y SOLO acá (Carga manual y Confirmar partido, las dos pantallas `.view--court`; el
+   partido en vivo usa `.view--match`, una clase distinta, sin tocar), se redefinen un escalón
+   más arriba en la MISMA escala de superficies de siempre — nunca un color aislado nuevo. */
+.view--court{
+  background: var(--court-bg); display:flex; flex-direction:column; height:100vh; height:100dvh;
+  --court-surface: var(--surface-2);
+  --court-surface-2: var(--surface-3);
+}
 .court-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
 .load-match-scroll{ padding-bottom: 24px; transition: padding-bottom var(--sheet-duration-enter, 260ms) var(--sheet-ease, ease); }
 .load-match-scroll.has-keypad{ padding-bottom: 220px; }
@@ -1686,10 +1746,10 @@ input, select{ font-family: inherit; }
 }
 .court-header__back{ color: var(--court-text-dim); flex:none; }
 .court-header__state{ min-width:0; }
-.court-header__status{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.08em; color: var(--paper); text-transform: uppercase; }
+.court-header__status{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper); text-transform: uppercase; }
 .court-header__format{ font-size: 11px; color: var(--court-text-dim); margin-top: 1px; }
 .court-header--saved{ justify-content:center; }
-.court-header__status--saved{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; color: var(--brand-lime); text-transform: uppercase; }
+.court-header__status--saved{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.03em; color: var(--brand-lime); text-transform: uppercase; }
 
 /* V02.2 (Bloque C, §7) — composición de equipos: mismo lenguaje visual que la configuración
    en vivo (.team-block: superficie + acento LATERAL de color), variante COMPACTA para no
@@ -1703,7 +1763,7 @@ input, select{ font-family: inherit; }
 }
 .court-team-card--b{ border-left-color: var(--team-b); }
 .court-team-card__label{
-  display:flex; align-items:center; gap:7px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+  display:flex; align-items:center; gap:7px; font-size: 10px; font-weight: 800; letter-spacing: 0.03em;
   text-transform: uppercase; color: var(--paper-dim); margin-bottom: 9px;
 }
 .court-team-card__row{ display:flex; gap: 8px; }
@@ -1714,8 +1774,8 @@ input, select{ font-family: inherit; }
   cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .court-team-card__player:active{ transform: scale(0.98); border-color: var(--brand-lime); }
-.court-team-card__player--fixed{ background: rgba(45,156,255,0.12); border-color: rgba(45,156,255,0.3); color: var(--team-a); cursor: default; }
-.court-team-card__player--fixed:active{ transform:none; border-color: rgba(45,156,255,0.3); }
+.court-team-card__player--fixed{ background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.3); color: var(--team-a); cursor: default; }
+.court-team-card__player--fixed:active{ transform:none; border-color: rgba(149,255,25,0.3); }
 .court-team-card__player.is-empty{ background: transparent; }
 .court-team-card__player.is-empty .court-team-card__player-name{ color: var(--court-text-dim); font-weight: 600; }
 /* Separador VS compacto entre las dos tarjetas apiladas (mismo componente que Configurar
@@ -1755,7 +1815,7 @@ input, select{ font-family: inherit; }
 .court-score__name{ font-size: 11px; font-weight:700; color: var(--court-text-dim); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* §6.3 — "el lado activo debe quedar inequívocamente marcado": borde + fondo lima, nunca
    solo un cambio de color de texto. */
-.court-score.is-active{ border-color: var(--brand-lime); background: rgba(200,255,61,0.10); }
+.court-score.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); }
 .court-score.is-active .court-score__value{ color: var(--brand-lime); }
 .court-score__sep{ font-family: var(--font-display); font-size: 28px; color: var(--court-text-faint); flex:none; }
 /* V02.3 (Bloque B, §4) — reubicado dentro de #court-continue-wrap (antes vivía dentro de
@@ -1766,12 +1826,17 @@ input, select{ font-family: inherit; }
 
 .load-match-error{ color: var(--danger); margin: -6px 0 14px; }
 
-/* §9 — línea de metadato secundario (fecha/hora/lugar) + "Modificar". */
+/* §9 — línea de metadato (fecha/hora/lugar) + "Modificar".
+   V02.5 (Bloque B, §10) — jerarquía EQUIVALENTE a `.load-format-line`: ambas son
+   configuraciones editables del partido, no una principal y otra tímida. Mismo fondo
+   (`--court-surface`, antes transparente acá), mismo peso/tamaño/color de texto — antes esta
+   línea usaba texto gris apagado (`--court-text-dim`) sobre fondo transparente, leyéndose como
+   metadata de solo lectura en vez de una fila tocable equivalente a Formato. */
 .court-meta-line{
   display:flex; align-items:center; justify-content:space-between; width:100%;
-  background: transparent; border: 1px solid var(--court-line); border-radius: 12px;
-  padding: 11px 14px; margin: 4px 0 8px; font-family: var(--font-body);
-  font-size: 12px; color: var(--court-text-dim); cursor:pointer;
+  background: var(--court-surface); border: 1px solid var(--court-line); border-radius: 12px;
+  padding: 12px 14px; margin: 4px 0 8px; font-family: var(--font-body); font-weight:700;
+  font-size: 13px; color: var(--paper); cursor:pointer;
 }
 .court-meta-line__text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* V02.1 (§5) — "Modificar" pierde protagonismo: acción terciaria compacta, no un CTA lima. */
@@ -1800,7 +1865,7 @@ input, select{ font-family: inherit; }
 .court-continue-btn{
   width:100%; padding: 16px; border:none; border-radius: 14px; background: var(--brand-lime);
   color: #0C1400; font-family: var(--font-display); font-weight: 700; font-size: 15px;
-  letter-spacing: 0.06em; cursor:pointer; box-shadow: 0 8px 20px rgba(200,255,61,0.22);
+  letter-spacing: 0.06em; cursor:pointer; box-shadow: 0 8px 20px rgba(149,255,25,0.22);
   transition: transform .1s ease;
 }
 .court-continue-btn:active{ transform: scale(0.98); }
@@ -1831,44 +1896,66 @@ input, select{ font-family: inherit; }
 .load-keypad__key:focus-visible{ outline: none; box-shadow: 0 0 0 2px var(--brand-lime); }
 @media (prefers-reduced-motion: reduce){ .load-keypad, .court-continue-wrap{ transition: none; } }
 
-/* ---- Hoja "elegir jugador" (§5 Etapa 4.2: mismo componente, superficies "cancha nocturna") ----
-   V02.3 (Bloque A, §3) — acento contextual por rol: Compañero/Equipo A usa celeste (--team-a,
-   el color BASE de abajo), Rival 1/Rival 2/Equipo B lo sobrescribe a magenta (--team-b) vía
-   .is-context-rival (toggle en openManualPlayerSheet, app.js). Nunca colores nuevos, ni texto
-   ni nombres completos en magenta — solo foco del buscador, borde del avatar reciente al
-   presionar, tinte de selección de la lista y acento del alta sin cuenta. */
-.load-player-sheet__recents{ display:flex; gap: 10px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
-.load-player-sheet__recent{
-  flex: none; display:flex; flex-direction:column; align-items:center; gap:5px; width: 64px;
-  background:none; border:none; color: var(--paper); cursor:pointer;
+/* ---- Hoja "elegir jugador" — V02.5 (Bloque B, §12): rediseño importante, referencia
+   conceptual "selección de destinatario" (recientes + búsqueda + alta simple), adaptado a
+   BRAMU. Sigue siendo bottom sheet (nunca pantalla completa), ahora en la categoría alta
+   reutilizable `.bottom-sheet--tall` (~70-75% de la altura útil — nunca confundir con
+   `.bottom-sheet--compact` de Registrar partido, que V02.5 no toca, ver §20).
+   Acento contextual por rol se mantiene de V02.3: Compañero/Equipo A en verde BRAMU (--team-a,
+   la base de abajo), Rival 1/Rival 2/Equipo B lo sobrescribe a azul BRAMU (--team-b) vía
+   .is-context-rival (toggle en openManualPlayerSheet, app.js) — nunca color nuevo, ni texto ni
+   nombres completos coloreados; solo foco del buscador, tinte de selección de fila y acento
+   del alta sin cuenta. */
+.bottom-sheet--tall{ height: clamp(480px, 72dvh, 640px); display:flex; flex-direction:column; }
+.bottom-sheet--tall .bottom-sheet__header{ flex:none; }
+.load-player-sheet__scroll{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* §12.2 — campo de búsqueda completo (antes una simple línea con `border-bottom`): contenedor
+   delimitado, ícono, placeholder, foco claro (verde/azul BRAMU según contexto). */
+.player-search-field{
+  display:flex; align-items:center; gap: 10px; background: var(--court-surface); border: 1px solid var(--court-line);
+  border-radius: 12px; padding: 12px 14px; margin: 4px 0 14px; flex:none; transition: border-color .15s ease;
 }
-.load-player-sheet__recent-avatar{
-  width: 46px; height:46px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
-  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-size:16px; color: var(--court-text-dim);
-}
-.load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-a); }
-.load-player-sheet.is-context-rival .load-player-sheet__recent:active .load-player-sheet__recent-avatar{ border-color: var(--team-b); }
-.load-player-sheet__recent-name{ font-size: 10px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 64px; }
-.load-player-sheet__list{ max-height: 38vh; overflow-y:auto; margin: 12px 0; }
-.load-player-sheet__item{
-  display:block; width:100%; text-align:left; background:none; border:none; border-top: 1px solid var(--court-line);
-  padding: 14px 6px; border-radius: 8px; font-family: var(--font-body); font-weight:700; font-size: 14px; color: var(--paper); cursor:pointer;
+.player-search-field:focus-within{ border-color: var(--team-a); }
+.load-player-sheet.is-context-rival .player-search-field:focus-within{ border-color: var(--team-b); }
+.player-search-field__icon{ flex:none; color: var(--court-text-dim); }
+.player-search-field__input{ flex:1; min-width:0; background:none; border:none; outline:none; color: var(--paper); font-family: var(--font-body); font-weight:600; font-size:15px; }
+.player-search-field__input::placeholder{ color: var(--court-text-faint); font-weight:500; }
+
+/* §12.3 — sugeridos/recientes Y resultados de búsqueda comparten el MISMO componente de fila
+   (antes recientes eran círculos apretados en fila horizontal y la búsqueda una lista de texto
+   plano — dos tratamientos distintos para la misma acción de "elegir persona"): avatar más
+   grande, Nombre en peso fuerte, @usuario debajo en secundario — deja lista la interfaz para
+   cuando pueda haber más de un "Matu"/"Gusti" (el @usuario es una derivación visual del nombre,
+   igual criterio que buildPlayerHandle ya usa para el jugador actual — no un campo de cuenta
+   real todavía). */
+.load-player-sheet__section-label{ font-size: 10px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; color: var(--court-text-faint); margin: 2px 0 6px; }
+#load-player-sheet-recents-section{ margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--court-line); }
+.load-player-sheet__list{ margin-top: 2px; }
+.player-row{
+  display:flex; align-items:center; gap: 12px; width:100%; text-align:left;
+  background:none; border:none; border-radius: 12px; padding: 9px 6px; cursor:pointer;
   transition: background .12s ease;
 }
-.load-player-sheet__item:first-child{ border-top:none; }
-.load-player-sheet__item:active{ background: rgba(45,156,255,0.08); }
-.load-player-sheet.is-context-rival .load-player-sheet__item:active{ background: rgba(255,62,165,0.08); }
+.player-row:active{ background: rgba(149,255,25,0.08); }
+.load-player-sheet.is-context-rival .player-row:active{ background: rgba(25,186,255,0.08); }
+.player-row__avatar{
+  flex:none; width:48px; height:48px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size:17px; color: var(--court-text-dim);
+}
+.player-row__info{ min-width:0; display:flex; flex-direction:column; gap:1px; }
+.player-row__name{ font-weight:700; font-size:15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.player-row__handle{ font-size:12px; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
-.load-player-sheet.is-context-rival .field__input:focus{ border-bottom-color: var(--team-b); }
-#load-player-sheet-add.sheet-option--primary{ background: rgba(45,156,255,0.12); border-color: var(--team-a); color: var(--team-a); }
-.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: rgba(255,62,165,0.12); border-color: var(--team-b); color: var(--team-b); }
+#load-player-sheet-add.sheet-option--primary{ background: rgba(149,255,25,0.12); border-color: var(--team-a); color: var(--team-a); }
+.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: rgba(25,186,255,0.12); border-color: var(--team-b); color: var(--team-b); }
 
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
    ========================================================================== */
 .court-saved-result{ text-align:center; padding: 10px 0 4px; }
 .court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; }
-.court-saved-result__badge--win{ background: rgba(200,255,61,0.14); color: var(--brand-lime); }
+.court-saved-result__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 .court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
@@ -1916,7 +2003,7 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .evolution-card__badge{
   flex:none; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--accent-cyan);
-  background: rgba(50,215,255,0.1); border: 1px solid rgba(50,215,255,0.3); border-radius: 999px;
+  background: rgba(25,186,255,0.1); border: 1px solid rgba(25,186,255,0.3); border-radius: 999px;
   padding: 3px 9px; text-transform:uppercase; margin-left: auto;
 }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
@@ -1937,5 +2024,5 @@ input, select{ font-family: inherit; }
 @keyframes evolutionDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.35); } }
 @media (prefers-reduced-motion: reduce){ .evolution-chart__dot--current{ animation:none; } }
 
-.evolution-detail{ font-size: 12px; color: var(--paper); background: rgba(200,255,61,0.06); border: 1px solid rgba(200,255,61,0.2); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; }
+.evolution-detail{ font-size: 12px; color: var(--paper); background: rgba(149,255,25,0.06); border: 1px solid rgba(149,255,25,0.2); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; }
 .evolution-footnote{ margin-top: 0; }
