@@ -110,8 +110,8 @@ Todos los ítems del checklist del consolidado (azul `#199FFF`, texto `#F8FAFC`,
 
 ## 8. Hash exacto y tag (registro final)
 
-- Commit de implementación (código): PENDIENTE_HASH_CODIGO.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: PENDIENTE_HASH_INFORME.
+- Commit de implementación (código): `59a978e4677f62e2741bda4ecb828475be9bfd22`.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `facadab1b5bde4cf62a1cf268df426c62f55778e`.
 - Tag `BRAMUlab_V02.6` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba — el código funcional completo de V02.6 es íntegramente el del primer commit; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
