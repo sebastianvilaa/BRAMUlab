@@ -195,14 +195,36 @@
    *  peso 900 de los números), y el punto separador entre sets es blanco y bien marcado
    *  (§5.2) — objetivos de peso/tamaño que el componente canónico compartido no tiene
    *  (Historial/Confirmar partido siguen usando su guion plano de siempre, sin tocar). */
+  // V02.6 (§10): el guion y el punto separadores dejan de ser glifos tipográficos ("–"/"·")
+  // sujetos a baseline/vertical-align — nunca terminaban de compartir el mismo eje óptico que
+  // los números. Ahora son barras/puntos geométricos propios (`currentColor`, sin texto), y
+  // el marcador entero pasa a `inline-flex` para centrarlos verticalmente por layout, no por
+  // tipografía. Como los separadores dejan de tener contenido de texto, el contenedor exterior
+  // (`.player-home-lastmatch__score`, ver renderPlayerLastMatchCard) lleva un `aria-label` con
+  // el score completo en texto plano — ver buildLastMatchScoreLabel.
   function buildLastMatchScoreHTML(sets, currentPartial) {
-    const dotHTML = `<span class="lastmatch-score__dot"> · </span>`;
+    const numHTML = (n) => `<span class="lastmatch-score__num">${n}</span>`;
+    const dashHTML = `<span class="lastmatch-score__dash" aria-hidden="true"></span>`;
+    const dotHTML = `<span class="lastmatch-score__dot" aria-hidden="true"></span>`;
     const segs = (sets || []).map((s) => {
-      const setHTML = `<span class="lastmatch-score__set">${s.gamesA}<span class="lastmatch-score__dash">–</span>${s.gamesB}</span>`;
+      const setHTML = `<span class="lastmatch-score__set">${numHTML(s.gamesA)}${dashHTML}${numHTML(s.gamesB)}</span>`;
       return (s.extraordinary && s.tiebreak) ? `${setHTML} <span class="lastmatch-score__tb">TB ${s.tiebreak.a}–${s.tiebreak.b}</span>` : setHTML;
     });
-    if (currentPartial) segs.push(`<span class="lastmatch-score__set">${currentPartial.gamesA}<span class="lastmatch-score__dash">–</span>${currentPartial.gamesB}</span>*`);
+    if (currentPartial) segs.push(`<span class="lastmatch-score__set">${numHTML(currentPartial.gamesA)}${dashHTML}${numHTML(currentPartial.gamesB)}</span>*`);
     return segs.join(dotHTML) || 'sin sets';
+  }
+
+  /** Texto plano equivalente al marcador geométrico de arriba, para el `aria-label` del
+   *  contenedor — los separadores ya no llevan glifo de texto que un lector de pantalla
+   *  pudiera anunciar. */
+  function buildLastMatchScoreLabel(sets, currentPartial) {
+    const parts = (sets || []).map((s) => {
+      let seg = `${s.gamesA} a ${s.gamesB}`;
+      if (s.extraordinary && s.tiebreak) seg += `, tie break ${s.tiebreak.a} a ${s.tiebreak.b}`;
+      return seg;
+    });
+    if (currentPartial) parts.push(`${currentPartial.gamesA} a ${currentPartial.gamesB}, en curso`);
+    return parts.join(' · ') || 'sin sets';
   }
 
   // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
@@ -6059,6 +6081,7 @@
     // no el componente canónico compartido con Historial/Confirmar partido — ver comentario
     // en su definición).
     const scoreStr = buildLastMatchScoreHTML(m.sets, m.currentPartial);
+    const scoreLabel = buildLastMatchScoreLabel(m.sets, m.currentPartial);
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
     // §20 — badge compacto: VIC/DER en vez de VICTORIA/DERROTA (mismo criterio que Historial, §26).
     const resultLabel = { win: 'VIC', loss: 'DER', neutral: 'SIN DEFINICIÓN' }[resultKind];
@@ -6097,7 +6120,7 @@
           ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
         </div>
       </div>
-      <div class="player-home-lastmatch__score lastmatch-score">${scoreStr}</div>
+      <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
       <!-- V02.4 (Bloque B, §6) — equipos en DOS líneas (propio, después rival con "vs" discreto)
            en vez de una sola línea comprimida — nunca compiten en tamaño/peso con el marcador
            de arriba. -->
@@ -6155,7 +6178,8 @@
     const filled = (eff.pct / 100) * circumference;
     ring.style.strokeDasharray = `${filled} ${circumference}`;
     $('#player-home-effectiveness-value').textContent = `${eff.pct}%`;
-    $('#player-home-effectiveness-caption').textContent = `${eff.wins} de ${eff.considered}`;
+    // V02.6 (§7) — "22 de 32" no decía qué era cada número; el cálculo no cambia, solo el copy.
+    $('#player-home-effectiveness-caption').textContent = `${eff.wins} ganados de ${eff.considered} jugados`;
   }
 
   /** §10 — Cuatro métricas pequeñas: Racha actual (consecutiva desde el partido más reciente,

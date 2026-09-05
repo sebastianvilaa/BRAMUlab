@@ -16,7 +16,7 @@
   --surface-3: #112238;
   --surface-active: #152B43;
 
-  --text: #F5F7FA;
+  --text: #F8FAFC;
   --text-dim: #9AA7B5;
   --text-faint: #687482;
 
@@ -28,14 +28,16 @@
      BRAMU, doble rol con --team-b. Identidad/acción BRAMU — nunca color de equipo por sí solo. */
   --brand-lime: #95FF19;
   --brand-lime-deep: #66B30F;
-  --accent-cyan: #19BAFF;
+  --accent-cyan: #199FFF;
 
   /* Equipos — semántica V02.5: A verde BRAMU, B azul BRAMU (alias directos de arriba, nunca
-     valores propios — así un solo cambio de paleta alcanza para toda la app). */
+     valores propios — así un solo cambio de paleta alcanza para toda la app). V02.6 (§1.1)
+     empujó el azul más eléctrico/saturado (#19BAFF → #199FFF) y su deep hermano para que la
+     familia se sienta "azul", no "celeste bebé". */
   --team-a: var(--brand-lime);
   --team-a-deep: var(--brand-lime-deep);
   --team-b: var(--accent-cyan);
-  --team-b-deep: #0A87BD;
+  --team-b-deep: #0D6FCC;
 
   /* Excepción semántica: dorado es únicamente Punto de Oro (y, por extensión,
      los estados de la misma familia de punto decisivo: Star Point/Tie break).
@@ -135,7 +137,12 @@ input, select{ font-family: inherit; }
    arriba, progresando a navy más profundo/oscuro abajo. Sobre los mismos tokens de superficie
    de siempre (nunca una escala --surface-* nueva ni un color aislado) — nada de glow fuerte
    ni aspecto "galaxia", solo una atmósfera apenas perceptible detrás del contenido. */
-#view-player-home{ background: linear-gradient(180deg, var(--surface-2) 0%, var(--bg) 55%, var(--bg-deep) 100%); }
+/* V02.6 (§2): la parte superior del degradé de V02.5 (`--surface-2`, #0D1A2A) quedaba
+   demasiado clara — le restaba contraste a las tarjetas que empiezan justo debajo del header.
+   Baja a un tono más oscuro (punto intermedio entre el Home plano de V02.4 y este degradé) y
+   el punto medio se adelanta (55%→45%) para que la zona oscura gane más terreno, sin volver a
+   un fondo completamente plano. */
+#view-player-home{ background: linear-gradient(180deg, #08121E 0%, var(--bg) 45%, var(--bg-deep) 100%); }
 
 /* ==========================================================================
    SETUP
@@ -291,6 +298,16 @@ input, select{ font-family: inherit; }
   border-radius: 999px; font-weight:700; font-size: 12px; cursor:pointer;
 }
 .manual-location-btn:active{ border-color: var(--paper-dim); }
+/* V02.6 (§9): la estructura de V02.5 se mantiene, pero el cuerpo del sheet leía tipografía por
+   encima de la escala del resto de BRAMU (16px/700 en los campos, labels a 11px) y quedaba
+   apretado entre la fila Fecha/Hora y Lugar. Reduce tamaños levemente (nunca el área táctil:
+   la altura explícita de 38px de los inputs no cambia) y suma aire vertical entre bloques —
+   más aire, no más tipografía. */
+#manual-meta-sheet{ padding-top: 20px; padding-bottom: calc(28px + var(--safe-bottom)); }
+#manual-meta-sheet .manual-field-label{ font-size: 10px; margin-bottom: 6px; }
+#manual-meta-sheet .field__input{ font-size: 14px; }
+#manual-meta-sheet .manual-datetime-row{ margin-bottom: 16px; }
+#manual-meta-sheet .manual-location-btn{ margin-top: 14px; }
 
 /* ==========================================================================
    PARTIDO — encabezado + scoreboard
@@ -321,7 +338,7 @@ input, select{ font-family: inherit; }
 .game-progression{ display:flex; align-items:center; justify-content:center; gap: 6px; padding: 7px 10px; background: var(--ink); border-top: 1px solid var(--line); }
 .game-progression__dot{ width:9px; height:9px; border-radius:50%; flex:none; background: var(--paper-faint); }
 .game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(149,255,25,0.5); }
-.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(25,186,255,0.5); }
+.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(25,159,255,0.5); }
 .game-progression__dot--gap{ background: transparent; border: 1.5px solid var(--paper-dim); width:8px; height:8px; box-shadow:none; }
 
 @media (max-width: 380px){
@@ -447,7 +464,7 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-set.status-banner--team-b{ animation-name: teamBannerPulseSetB; }
 .status-banner--escalate-set.status-banner--team-both{ animation-name: teamBannerPulseSetBoth; }
 @keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(149,255,25,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(149,255,25,0.65);} }
-@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(25,186,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(25,186,255,0.7);} }
+@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(25,159,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(25,159,255,0.7);} }
 @keyframes teamBannerPulseSetBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(244,247,242,0.2);} 50%{ filter:brightness(1.14); box-shadow:0 4px 28px rgba(244,247,242,0.4);} }
 
 /* Match Point — la jerarquía contextual de mayor peso (14): mayor amplitud/glow todavía. */
@@ -456,7 +473,7 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-match.status-banner--team-b{ animation-name: teamBannerPulseMatchB; }
 .status-banner--escalate-match.status-banner--team-both{ animation-name: teamBannerPulseMatchBoth; }
 @keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(149,255,25,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(149,255,25,0.85);} }
-@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(25,186,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(25,186,255,0.9);} }
+@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(25,159,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(25,159,255,0.9);} }
 @keyframes teamBannerPulseMatchBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(244,247,242,0.3);} 50%{ filter:brightness(1.18); box-shadow:0 4px 34px rgba(244,247,242,0.55);} }
 @media (prefers-reduced-motion: reduce){
   .status-banner--gold, .status-banner--star,
@@ -508,7 +525,7 @@ input, select{ font-family: inherit; }
 .team-zone:active{ filter: brightness(1.18); }
 .team-zone--a{ background: linear-gradient(180deg, rgba(149,255,25,0.16), rgba(149,255,25,0.04)); border-bottom: 1px solid var(--line); }
 .team-zone--b{
-  background: linear-gradient(0deg, rgba(25,186,255,0.18), rgba(25,186,255,0.04));
+  background: linear-gradient(0deg, rgba(25,159,255,0.18), rgba(25,159,255,0.04));
   border-top: 1px solid var(--line);
   border-bottom: 4px solid var(--team-b-deep);
   padding-bottom: calc(10px + var(--safe-bottom));
@@ -525,7 +542,7 @@ input, select{ font-family: inherit; }
   font-size: clamp(56px, 24vh, 124px);
 }
 .team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(149,255,25,0.25); }
-.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(25,186,255,0.25); }
+.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(25,159,255,0.25); }
 .team-zone__score--word{ font-size: clamp(30px, 9vh, 52px); }
 
 .control-bar{
@@ -658,17 +675,17 @@ input, select{ font-family: inherit; }
    Editar/Corrección Rápida (para no confundirla con esas ni con el verde de confirmación
    de Highlight). Se sobreescribe solo dentro de #adjust-body, sin tocar el resto de la app. */
 #adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
-#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(25,186,255,0.14); color: var(--team-b); }
+#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(25,159,255,0.14); color: var(--team-b); }
 
 /* V13 (§10) — Ajustar Games: mismo componente de "paradas" que Ajustar, pero 0-6 (7
    columnas) en vez de 0-15-30-40, y coloreado por equipo (no dorado, mismo criterio que
    Ajustar de arriba). */
 .point-track--games{ grid-template-columns: repeat(7, 1fr); }
 #games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
-#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(25,186,255,0.14); color: var(--team-b); }
+#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(25,159,255,0.14); color: var(--team-b); }
 #adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="A"] .option-pill__title{ color: var(--team-a); }
-#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(25,186,255,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(25,159,255,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="B"] .option-pill__title{ color: var(--team-b); }
 #adjust-body .option-pill.is-selected[data-lead="none"]{ border-color: var(--paper); background: rgba(244,247,242,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="none"] .option-pill__title{ color: var(--paper); }
@@ -728,22 +745,24 @@ input, select{ font-family: inherit; }
 
 /* Componente de resultado tipo TV — reutilizado en Resumen / Análisis (Bloque Q: mismo componente) */
 .result-card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; text-align:left; }
-/* V02.5 (Bloque C, §17) — antes el nombre usaba `flex:1` (ocupa TODO el ancho disponible) +
-   la fila en `justify-content:space-between`: empujaba el resultado al borde derecho de la
-   tarjeta, dejando un hueco enorme entre un nombre corto y el marcador. Ahora el nombre crece
-   solo lo que su propio texto necesita (recortado con elipsis pasado el 62% de la fila, nunca
-   empuja el resultado fuera de la tarjeta) y el resultado queda pegado justo después, con el
-   mismo `gap` chico que ya separaba los dos — lectura compacta, sin convertir esto en una
-   tabla con columnas fijas. */
-.result-card__row{ display:flex; align-items:center; justify-content:flex-start; gap: 10px; padding: 8px 0; }
+/* V02.6 (§11, PRIORIDAD CRÍTICA) — V02.5 armaba la fila con `flex` puro: el bloque de sets
+   arrancaba justo después del nombre, así que su posición horizontal dependía del largo del
+   nombre de CADA fila — con nombres de largo distinto entre Equipo A y Equipo B, las columnas
+   de set de una fila quedaban corridas respecto de la otra (la regresión reportada: "columnas
+   de sets no alineadas"). La fila pasa a grid de 2 columnas: nombre en `minmax(0,1fr)` (crece
+   hasta lo que sobra, se trunca con elipsis) y sets en `auto`, cuyo ancho es el mismo en las
+   dos filas porque `.result-card__sets` fija el tamaño de cada track en 28px (ver abajo) —
+   ya no depende del contenido ni del nombre, así que ambas filas alinean sus columnas de set
+   exactamente en el mismo eje vertical. */
+.result-card__row{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 12px; padding: 8px 0; }
 .result-card__row + .result-card__row{ border-top: 1px solid var(--line); }
-.result-card__name{ font-weight: 800; font-size: 14px; flex: 0 1 auto; max-width: 62%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.result-card__name{ font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
-.result-card__sets{ display:flex; gap: 6px; flex: none; }
+.result-card__sets{ display:grid; grid-auto-flow:column; grid-auto-columns: 28px; gap: 6px; justify-content:end; }
 /* M3: mismo tamaño para ganador y perdedor de cada set; el ganador va a 100% de contraste,
    el perdedor se atenúa (55–65%) para que se entienda instantáneamente quién ganó cada set. */
-.result-card__set{ min-width: 28px; text-align:center; font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
+.result-card__set{ width: 28px; text-align:center; font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
 .result-card__set--win{ opacity: 1; background: rgba(244,247,242,0.14); }
 .result-card__set--lose{ opacity: 0.6; }
 .result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--brand-lime); }
@@ -770,11 +789,16 @@ input, select{ font-family: inherit; }
 /* V02.5 (Bloque C, §18) — se mantiene la estructura en filas (nunca mini-KPIs en paralelo,
    decisión confirmada); grid de 3 columnas ya alineaba equipo propio/concepto/rival
    correctamente, acá solo gana un poco más de aire y presencia en los números (legibilidad),
-   color semántico por equipo sin cambios de lógica (A verde/B azul ya vienen del token). */
-.summary-stat-row{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap: 10px; background: var(--ink-soft); border-radius: 10px; padding: 11px 14px; }
-.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 17px; }
-.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 17px; }
-.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.03em; }
+   color semántico por equipo sin cambios de lógica (A verde/B azul ya vienen del token).
+   V02.6 (§12) — las columnas laterales pasan de `auto` (ancho según dígitos, 1 vs 2 dígitos
+   generaba filas de alto/posición ligeramente distinta) a un ancho fijo de 44px, y la fila
+   suma una altura mínima explícita — así "SETS GANADOS" y "GAMES GANADOS" quedan con la
+   misma altura y los números siempre centran en el mismo eje, sin depender de cuántos
+   dígitos tenga cada valor. */
+.summary-stat-row{ display:grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items:center; gap: 10px; min-height: 44px; background: var(--ink-soft); border-radius: 10px; padding: 11px 14px; }
+.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 17px; line-height:1; }
+.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 17px; line-height:1; }
+.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.03em; line-height:1.3; }
 
 /* ==========================================================================
    ANÁLISIS / HISTORIAL / TIMELINE
@@ -1295,10 +1319,15 @@ input, select{ font-family: inherit; }
   -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity; scrollbar-width: none;
 }
 .player-home-hitos::-webkit-scrollbar{ display:none; }
+/* V02.6 (§4): se sentía "una tarjeta normal más" — el acento de 3px solo en el borde
+   izquierdo no alcanzaba para distinguirla como LA tarjeta destacada del Home. Pasa a borde
+   COMPLETO azul BRAMU + glow leve; el texto ya podía ocupar varias líneas (`white-space:
+   normal`, sin cambios acá), solo gana un poco más de aire vertical. */
 .player-home-hitos__chip{
-  flex: 0 0 86%; scroll-snap-align: start; background: var(--ink-soft); border: 1px solid var(--line);
-  border-left: 3px solid var(--accent-cyan); border-radius: 14px;
-  padding: 14px 16px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--paper); white-space:normal;
+  flex: 0 0 86%; scroll-snap-align: start; background: var(--ink-soft);
+  border: 1px solid rgba(25,159,255,.70); border-radius: 14px;
+  box-shadow: 0 0 14px rgba(25,159,255,.10);
+  padding: 16px 18px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--paper); white-space:normal;
 }
 @media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 60%; } }
 
@@ -1319,7 +1348,11 @@ input, select{ font-family: inherit; }
 /* §19 — "@seba": representación provisional de interfaz, derivada del nombre actual (nunca
    un sistema de cuentas real — ver §32 del consolidado). */
 .player-card__handle{ font-size: 12px; color: var(--paper-faint); }
-.player-card__count{ flex-basis: 100%; font-size: 12px; color: var(--paper-dim); margin-top: 6px; }
+/* V02.6 (§5): `.player-card` es flex-wrap con `gap:14px` — ese gap YA separa esta fila de la
+   barra de arriba; el `margin-top` extra se sumaba al gap (14px+6px=20px de aire muerto).
+   Se retira el margin-top propio y se deja que el gap del contenedor sea la única fuente de
+   separación, sin tocar el tamaño de la barra. */
+.player-card__count{ flex-basis: 100%; font-size: 12px; color: var(--paper-dim); }
 .player-card__level{ flex: none; text-align:right; }
 .player-card__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
 .player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; }
@@ -1354,7 +1387,9 @@ input, select{ font-family: inherit; }
 .pastilla-identity__name{ font-family: var(--font-display); font-weight: 500; font-size: 18px; color: var(--paper); margin-bottom: 6px; }
 
 /* Tu momento */
-.pastilla-momento__text{ font-size: 13px; color: var(--paper-dim); line-height:1.5; margin:0; }
+/* V02.6 (§6): quedaba "lavado" con `--paper-dim` — sube un poco el peso y el contraste, sin
+   llegar a blanco pleno ni a bold fuerte (se mantiene por debajo de TU MOMENTO en jerarquía). */
+.pastilla-momento__text{ font-size: 13px; font-weight: 500; color: rgba(248,250,252,.78); line-height:1.5; margin:0; }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Último partido (§7): jerarquía inspirada en VIBERO (claridad,
@@ -1373,6 +1408,9 @@ input, select{ font-family: inherit; }
   cursor:pointer; text-align:left; border-radius: var(--radius-hero);
   background: var(--surface-3);
   border-color: var(--brand-lime);
+  /* V02.6 (§3.3): gana presencia con un glow muy leve en vez de engrosar el borde a 2px —
+     "apenas encendido", nunca fosforescente. */
+  box-shadow: 0 0 16px rgba(149,255,25,.10);
   padding: 22px 20px;
 }
 .player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 16px; }
@@ -1412,17 +1450,19 @@ input, select{ font-family: inherit; }
    punto separador entre sets blanco y marcado (§5.2), guion interior de cada set como span
    propio más liviano — nunca hereda el peso 900 de los números (§5.3). */
 .player-home-lastmatch__score{ margin-bottom: 12px; }
-.lastmatch-score{ font-family: var(--font-display); font-weight: 800; color: var(--paper); font-variant-numeric: tabular-nums; }
-.lastmatch-score__set{ font-size: clamp(36px, 11.3vw, 44px); line-height: 1; letter-spacing: 0.02em; }
-/* V02.5 (Bloque A, §6) — el guion y el punto son texto más chico que los números que los
-   rodean: por default (`vertical-align: baseline`) su propio glifo cae bajo, alineado al
-   baseline de la línea en vez de al centro óptico del número grande. `vertical-align: middle`
-   los sube al punto medio real de la línea (más cerca del centro óptico de los números que el
-   baseline), sin depender de ningún ajuste manual de posición. El punto además crece respecto
-   de V02.4 (0.75em → 0.9em) para leerse claramente como el separador principal entre sets. */
-.lastmatch-score__dash{ font-size: 0.65em; font-weight: 500; margin: 0 1px; vertical-align: middle; }
-.lastmatch-score__dot{ font-size: 0.9em; font-weight: 900; color: var(--paper); margin: 0 6px; vertical-align: middle; }
-.lastmatch-score__tb{ font-size: 13px; font-weight: 600; color: var(--court-text-dim); vertical-align: middle; }
+/* V02.6 (§10): dash y dot dejaban de compartir el eje óptico de los números porque dependían
+   de glifo tipográfico + `vertical-align` (nunca perfectamente centrado respecto de un número
+   mucho más grande). Pasan a ser barra/punto geométricos propios (`currentColor`, sin texto),
+   centrados por flex real en vez de baseline — ver §10 del consolidado V02.6. El tamaño vive
+   en el contenedor (`clamp`, igual que antes) para que dash/dot (medidos en `em`) escalen
+   exactamente junto con los números, sean hijos directos de `.lastmatch-score` (el dot, entre
+   sets) o de `.lastmatch-score__set` (el dash, entre los dos números de un mismo set). */
+.lastmatch-score{ display:inline-flex; flex-wrap:wrap; align-items:center; row-gap:4px; font-family: var(--font-display); font-weight: 800; font-size: clamp(36px, 11.3vw, 44px); line-height: 1; color: var(--paper); font-variant-numeric: tabular-nums; }
+.lastmatch-score__set{ display:inline-flex; align-items:center; letter-spacing: 0.02em; }
+.lastmatch-score__num{ display:inline-block; }
+.lastmatch-score__dash{ display:block; width:.34em; height:.07em; border-radius:999px; background:currentColor; margin:0 .12em; flex:none; }
+.lastmatch-score__dot{ display:block; width:.11em; height:.11em; border-radius:50%; background:currentColor; margin:0 .22em; flex:none; }
+.lastmatch-score__tb{ font-size: 13px; font-weight: 600; color: var(--court-text-dim); }
 /* §3 — parejas + chevron comparten fila: el chevron va alineado con esta fila, no flotando
    arriba (antes vivía en la fila del título).
    V02.4 (Bloque B, §6) — equipos en DOS líneas (propio, después "vs" + rival) en vez de una
@@ -1469,7 +1509,9 @@ input, select{ font-family: inherit; }
    en app.js) se mantiene igual — alcanza con `column-reverse` para que el primer hijo pinte
    el extremo INFERIOR en vez del superior. */
 .activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; }
-.activity-bar__win{ display:block; width:100%; background: var(--brand-lime); }
+/* V02.6 (§3.1): glow muy leve en el segmento activo/ganado — sumar vida sin competir con el
+   botón "+" ni volverse neón. */
+.activity-bar__win{ display:block; width:100%; background: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,.16); }
 .activity-bar__loss{ display:block; width:100%; background: var(--line-strong); }
 /* §2.5 — leyenda chica y discreta, entre el gráfico y el total (nunca compite con "X partidos
    en los últimos 30 días": tipografía más chica y color más apagado que .activity-total). */
@@ -1483,7 +1525,9 @@ input, select{ font-family: inherit; }
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
 .effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
-.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
+/* V02.6 (§3.2): drop-shadow leve sobre el trazo verde del aro — mismo objetivo que §3.1
+   (sumar vida sin volverse neón). */
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .3s ease; filter: drop-shadow(0 0 4px rgba(149,255,25,.20)); }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
@@ -1938,7 +1982,7 @@ input, select{ font-family: inherit; }
   transition: background .12s ease;
 }
 .player-row:active{ background: rgba(149,255,25,0.08); }
-.load-player-sheet.is-context-rival .player-row:active{ background: rgba(25,186,255,0.08); }
+.load-player-sheet.is-context-rival .player-row:active{ background: rgba(25,159,255,0.08); }
 .player-row__avatar{
   flex:none; width:48px; height:48px; border-radius:50%; background: var(--court-surface-2); border: 1px solid var(--court-line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size:17px; color: var(--court-text-dim);
@@ -1947,8 +1991,13 @@ input, select{ font-family: inherit; }
 .player-row__name{ font-weight:700; font-size:15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .player-row__handle{ font-size:12px; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
-#load-player-sheet-add.sheet-option--primary{ background: rgba(149,255,25,0.12); border-color: var(--team-a); color: var(--team-a); }
-.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: rgba(25,186,255,0.12); border-color: var(--team-b); color: var(--team-b); }
+/* V02.6 (§8): el relleno rgba(0.12) + borde + texto, los tres en el mismo color de equipo,
+   leía como una acción PRIMARIA (una CTA rellena) — demasiado peso para "agregar sin cuenta",
+   que es secundaria. Pasa a outlined: fondo neutro (el mismo `--court-surface-2` que ya usan
+   las demás `.sheet-option` no-primarias de este sheet), solo borde + texto en el color
+   contextual del equipo, sin relleno ni glow. */
+#load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--team-a); color: var(--team-a); }
+.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--team-b); color: var(--team-b); }
 
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
@@ -1960,9 +2009,14 @@ input, select{ font-family: inherit; }
 .court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 .court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
 /* V02.3 (Bloque B, §5) — misma .result-card del Resumen (ver buildScoreCardHTML), con el
-   marcador con un poco más de protagonismo acá: números de set levemente más grandes. */
+   marcador con un poco más de protagonismo acá: números de set levemente más grandes.
+   V02.6 (§11): el track de la grilla (`.result-card__sets`) tiene que agrandarse junto con
+   la celda — si solo se agranda `.result-card__set` con `min-width` mientras el track de
+   `grid-auto-columns` sigue en 28px, la celda desborda su propia columna y la grilla estable
+   deja de servir de nada acá mismo. */
 .court-saved-result-card{ margin-bottom: 14px; }
-.court-saved-result-card .result-card__set{ font-size: 21px; min-width: 32px; }
+.court-saved-result-card .result-card__sets{ grid-auto-columns: 32px; }
+.court-saved-result-card .result-card__set{ font-size: 21px; width: 32px; }
 
 /* Etapa 4.2 (§10) — nota privada: "Solo vos", nunca en superficies públicas. Reutilizada por
    Partido guardado y por el detalle en Análisis.
@@ -2003,7 +2057,7 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .evolution-card__badge{
   flex:none; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--accent-cyan);
-  background: rgba(25,186,255,0.1); border: 1px solid rgba(25,186,255,0.3); border-radius: 999px;
+  background: rgba(25,159,255,0.1); border: 1px solid rgba(25,159,255,0.3); border-radius: 999px;
   padding: 3px 9px; text-transform:uppercase; margin-left: auto;
 }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
