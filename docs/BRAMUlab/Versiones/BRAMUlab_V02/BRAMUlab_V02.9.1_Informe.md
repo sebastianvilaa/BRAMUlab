@@ -47,7 +47,7 @@ Tres correcciones puntuales, exclusivamente visuales: el aro de Efectividad recu
 ## 5. Hash exacto y tag
 
 - Commit de implementación (código): `0d2f6c82b0c3e58812495e49b6dcc00868e3656e`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `673377fcc00ac2ed129ee6a66acd40ee719aa9b3`.
 - Tag `BRAMUlab_V02.9.1` apuntará al commit inmediatamente posterior a este, que registra ambos hashes de arriba.
 
 ---
