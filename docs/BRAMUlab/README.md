@@ -8,9 +8,9 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V02.9.1
+## Versión funcional actual: BRAMUlab_V02.9.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V02.9.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V02.9.1`.
+La app publicada hoy se identifica en producto como **"BRAMUlab V02.9.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V02.9.2`.
 
 | Qué necesitás | Documento |
 |---|---|
@@ -38,9 +38,10 @@ La app publicada hoy se identifica en producto como **"BRAMUlab V02.9.1"** (foot
 | Qué se implementó, verificó y corrigió en V02.8.3 (corrección puntual del donut de Efectividad: bug real encontrado — `opacity:1` inline pisaba la opacidad de los halos definida en CSS desde V02.8.1 — más recalibración de trazo/halos ahora que la opacidad correcta se aplica de verdad) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.8.3_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.8.3_Informe.md) |
 | Qué se especificó en V02.9 (refinamiento corto: Efectividad vuelve a un aro nítido sin halos apilados, "agregar jugador sin cuenta" pasa de CTA grande a fila contextual de búsqueda, Último partido/Historial muestran formato+sistema real del partido, Historial se vuelve versión compacta de Último partido sin "PARTIDO CARGADO"/X, Resumen suma "Eliminar partido" con confirmación) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.9_Consolidado.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.9_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V02.9 | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.9_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.9_Informe.md) |
-| Qué se implementó, verificó y corrigió en V02.9.1 (micro-ronda: trazo de Efectividad más presente, encabezado de Último partido en 2 líneas, jerarquía de participantes en Historial bajada frente al resultado) — **el estado real de la app hoy**. Sin `Consolidado` propio: origen en feedback directo en el chat, documentado en este mismo Informe | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.9.1_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.9.1_Informe.md) |
+| Qué se implementó, verificó y corrigió en V02.9.1 (micro-ronda: trazo de Efectividad más presente, encabezado de Último partido en 2 líneas, jerarquía de participantes en Historial bajada frente al resultado) | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.9.1_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.9.1_Informe.md) |
+| Qué se implementó, verificó y corrigió en V02.9.2 (ajuste puntual de un solo valor: trazo de Efectividad 2px→3px, probado en vivo con el inspector de Chrome) — **el estado real de la app hoy**. Sin `Consolidado` propio: origen en feedback directo en el chat, documentado en este mismo Informe | [`Versiones/BRAMUlab_V02/BRAMUlab_V02.9.2_Informe.md`](Versiones/BRAMUlab_V02/BRAMUlab_V02.9.2_Informe.md) |
 
-**Si vas a seguir desarrollando BRAMUlab_V02.9.1, leé el Informe de V02.9.1 primero** (es el estado real de la app hoy), después el de V02.9/V02.8.3/V02.8.2/V02.8.1/V02.8/V02.7/V02.6/V02.5/V02.4/V02.3/V02.2/V02.1/V02 si hace falta contexto de una decisión visual más vieja que V02.9.1 no tocó.
+**Si vas a seguir desarrollando BRAMUlab_V02.9.2, leé el Informe de V02.9.2 primero** (es el estado real de la app hoy), después el de V02.9.1/V02.9/V02.8.3/V02.8.2/V02.8.1/V02.8/V02.7/V02.6/V02.5/V02.4/V02.3/V02.2/V02.1/V02 si hace falta contexto de una decisión visual más vieja que V02.9.2 no tocó.
 
 ## Versión anterior: BRAMUlab_V01
 
@@ -63,7 +64,7 @@ Documentación visual y auditorías todavía útiles como contexto, pero que no 
 
 ## Qué leer, según lo que te pidan
 
-- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02.9.1` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence) que ninguna ronda de V02 tocó en su modelo de datos.
-- **Cualquier pedido de ajuste visual, funcional o de UX puntual** → es sobre `BRAMUlab_V02` (probablemente su subversión más nueva, `V02.9.1`), no sobre V01. Una futura ronda de corrección se documenta como `BRAMUlab_V02.10` (o `V02.9.2` si es otra corrección corta) dentro de la misma carpeta `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva.
+- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02.9.2` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence) que ninguna ronda de V02 tocó en su modelo de datos.
+- **Cualquier pedido de ajuste visual, funcional o de UX puntual** → es sobre `BRAMUlab_V02` (probablemente su subversión más nueva, `V02.9.2`), no sobre V01. Una futura ronda de corrección se documenta como `BRAMUlab_V02.10` (o `V02.9.3` si es otra corrección corta) dentro de la misma carpeta `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva.
 - **"¿Qué falta / qué es lo próximo?"** → `BRAMUlab_Backlog.md`.
 - **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — ya no existe en el repositorio (se borró una vez resumido en el Consolidado/Informe/Backlog correspondiente), pero es recuperable del historial de git si hiciera falta.
