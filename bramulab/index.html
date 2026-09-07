@@ -675,6 +675,12 @@
              procedencias: partido en vivo recién terminado, carga manual recién guardada,
              y cualquier partido abierto desde Historial. -->
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
+        <!-- V02.9 (§5) — "Eliminar partido" al final del Resumen: acción deliberada y
+             secundaria (nunca un botón protagonista), alcanzable solo si se llega hasta acá.
+             Reutiliza el modal de confirmación genérico (#confirm-overlay/confirmAction en
+             app.js), mismo componente que "Reiniciar partido"/"Volver al inicio" desde el
+             partido en vivo. -->
+        <button id="analysis-delete-btn" class="link-btn analysis-delete-btn" type="button">Eliminar partido</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
     </div>
@@ -945,8 +951,10 @@
           <div class="load-player-sheet__section-label">Recientes</div>
           <div id="load-player-sheet-recents"></div>
         </div>
+        <!-- V02.9 (§2) — la fila "Agregar a…" (id="load-player-sheet-add") ya no vive acá como
+             CTA estático: se genera dentro de #load-player-sheet-list, ver
+             buildAddPlayerRowHTML/renderManualPlayerSheetContent en app.js. -->
         <div class="load-player-sheet__list" id="load-player-sheet-list"></div>
-        <button type="button" id="load-player-sheet-add" class="sheet-option sheet-option--primary" hidden></button>
         <button type="button" id="load-player-sheet-remove" class="link-btn" hidden>Quitar jugador</button>
       </div>
     </div>
@@ -1107,16 +1115,13 @@
           <div class="effectiveness-donut">
             <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
               <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
-              <!-- V02.8.1 (§2) — REEMPLAZA el círculo único con filter:blur de V02.8 (seguía
-                   viéndose como caja en desktop y como aro grueso en iPhone, dos síntomas
-                   distintos del mismo problema: un filtro CSS/SVG rasterizando el bounding box).
-                   Dos halos concéntricos SIN filtro, solo stroke-width/opacity — el halo, el
-                   trazo principal y el aro de fondo comparten radio/dasharray/dashoffset y se
-                   animan exactamente igual (ver app.js:renderPlayerEffectiveness), así el
-                   resultado siempre sigue la curva, nunca un rectángulo. Orden de pintado:
-                   halo externo → halo interno → trazo principal (nítido, encima de los dos). -->
-              <circle class="effectiveness-donut__glow-outer" id="player-home-effectiveness-glow-outer" cx="18" cy="18" r="15.5" />
-              <circle class="effectiveness-donut__glow-inner" id="player-home-effectiveness-glow-inner" cx="18" cy="18" r="15.5" />
+              <!-- V02.9 (§1) — REEMPLAZA los DOS halos de V02.8.x (apilados, leían como un aro
+                   difuso/borroso pese a no tener ningún filter): un único refuerzo, apenas más
+                   ancho que el trazo principal y de opacidad muy baja, sin filtros — comparte
+                   radio/dasharray/dashoffset con el trazo principal (ver
+                   app.js:renderPlayerEffectiveness), nunca puede desalinearse. Orden de pintado:
+                   refuerzo → trazo principal (nítido, encima). -->
+              <circle class="effectiveness-donut__glow" id="player-home-effectiveness-glow" cx="18" cy="18" r="15.5" />
               <circle class="effectiveness-donut__fill" id="player-home-effectiveness-ring" cx="18" cy="18" r="15.5" />
             </svg>
             <span class="effectiveness-donut__value" id="player-home-effectiveness-value">—</span>

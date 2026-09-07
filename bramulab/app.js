@@ -629,6 +629,24 @@
     </button>`;
   }
 
+  /** V02.9 (§2) — REEMPLAZA el CTA grande de "agregar sin cuenta" (`.sheet-option--primary`,
+   *  ancho completo, debajo de la lista): ahora es una fila más dentro del propio listado de
+   *  resultados, mismo componente `.player-row` que un jugador real (ver buildPlayerRowHTML) —
+   *  para leerse "distinta de un usuario ya existente" (diferenciación pedida en el
+   *  consolidado) el avatar deja de tener iniciales y pasa a un ícono circular de persona "+",
+   *  y no hay línea de @usuario debajo del texto. El acento de equipo (verde/azul, antes un
+   *  punto chico sobre el CTA — `.sheet-add-player-dot`) se conserva pero ahora tiñe el ícono. */
+  function buildAddPlayerRowHTML(trimmed) {
+    return `<button type="button" id="load-player-sheet-add" class="player-row player-row--add">
+      <span class="player-row__avatar player-row__avatar--add" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.4 19c0-3.3 2.7-5.6 5.6-5.6s5.6 2.3 5.6 5.6"/><path d="M18 7.5v5M15.5 10h5"/></svg>
+      </span>
+      <span class="player-row__info">
+        <span class="player-row__name">Agregar a “${escapeHtml(trimmed)}”</span>
+      </span>
+    </button>`;
+  }
+
   function renderManualPlayerSheetContent(query) {
     const slot = manualActiveSheetSlot;
     if (!slot) return;
@@ -656,26 +674,22 @@
 
     const pool = ML.computeAllKnownPlayers(history, Store.loadPlayerNames());
     const matches = ML.filterPlayerCandidates(pool, query, excluded.concat([currentPlayerName]).concat(recentNames));
-    const listWrap = $('#load-player-sheet-list');
-    listWrap.innerHTML = matches.length
-      ? matches.map((n) => buildPlayerRowHTML(n)).join('')
-      : '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
-    $all('#load-player-sheet-list .player-row').forEach((btn) => {
-      btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
-    });
-
-    const addBtn = $('#load-player-sheet-add');
+    // V02.9 (§2) — la fila "Agregar a…" ya NO es un CTA aparte debajo de la lista: se agrega
+    // como último elemento del propio listado de resultados (buildAddPlayerRowHTML), así que
+    // los jugadores reales que coincidan y la opción de alta sin cuenta conviven en una sola
+    // lista, en el orden natural de lectura. "Sin coincidencias" solo tiene sentido cuando NI
+    // hay jugadores reales NI se puede ofrecer el alta (nombre vacío o ya duplicado) — mostrarlo
+    // igual mientras la fila "Agregar a…" ya cubre ese hueco sería redundante.
     const trimmed = normalizePlayerName(query);
     const canAdd = !!trimmed && !ML.isDuplicatePlayerName(trimmed, excluded.concat([currentPlayerName]));
-    // V02.8.1 (§6) — el acento de equipo (verde/azul) baja de "borde completo" a un punto chico
-    // delante del texto (ver styles.css:.sheet-add-player-dot); acá pasamos de `textContent` a
-    // `innerHTML` para poder insertar ese `<span>`, así que el nombre tipeado por el usuario
-    // SIEMPRE se escapa con `escapeHtml` antes de interpolarlo — nunca insertar `trimmed` crudo
-    // en HTML.
-    if (canAdd) {
-      addBtn.hidden = false;
-      addBtn.innerHTML = `<span class="sheet-add-player-dot" aria-hidden="true"></span>Agregar "${escapeHtml(trimmed)}" como jugador sin cuenta`;
-    } else { addBtn.hidden = true; addBtn.innerHTML = ''; }
+    const listWrap = $('#load-player-sheet-list');
+    let listHTML = matches.map((n) => buildPlayerRowHTML(n)).join('');
+    if (canAdd) listHTML += buildAddPlayerRowHTML(trimmed);
+    listWrap.innerHTML = listHTML || '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
+    $all('#load-player-sheet-list .player-row:not(.player-row--add)').forEach((btn) => {
+      btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
+    });
+    if (canAdd) $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer(trimmed));
   }
 
   /** V02.2 (Bloque C, §9) — una persona no puede ocupar dos lugares en el mismo partido. La UI
@@ -726,7 +740,6 @@
     $('#load-player-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#load-player-sheet-scrim')) closeManualPlayerSheet(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#load-player-sheet-scrim').hidden) closeManualPlayerSheet(); });
     $('#load-player-sheet-search').addEventListener('input', (e) => renderManualPlayerSheetContent(e.target.value));
-    $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer($('#load-player-sheet-search').value));
     $('#load-player-sheet-remove').addEventListener('click', () => {
       const slot = manualActiveSheetSlot;
       if (!slot) return;
@@ -2908,9 +2921,14 @@
   /* ------------------------------------------------------------------ */
   /* CONFIRMACIÓN GENÉRICA                                                */
   /* ------------------------------------------------------------------ */
-  function confirmAction(title, text, onAccept, onCancel) {
+  function confirmAction(title, text, onAccept, onCancel, acceptLabel, cancelLabel) {
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
+    // V02.9 (§5) — "Eliminar partido" necesita que el botón de aceptar diga "Eliminar" (no el
+    // "Confirmar" genérico) — únicos parámetros nuevos, opcionales: los 5 llamadores previos no
+    // los pasan y siguen viendo "Confirmar"/"Cancelar" sin cambios.
+    $('#confirm-accept').textContent = acceptLabel || 'Confirmar';
+    $('#confirm-cancel').textContent = cancelLabel || 'Cancelar';
     pendingConfirmAccept = onAccept;
     // Etapa 4.2 (§6.2) — cancel opcional: hasta ahora ningún llamador lo necesitaba (cancelar
     // solo cerraba el modal); editar un set anterior que descartaría un Set 3 ya cargado sí
@@ -4478,6 +4496,25 @@
       // todavía activo detrás, que no hay que borrar.
       openPlayerHome();
     };
+    // V02.9 (§5) — "Eliminar partido": acción deliberada al final del Resumen, con
+    // confirmación. En esta etapa local (sin cuentas/backend) es una eliminación completa del
+    // registro, igual que ya hacía la X de Historial retirada en esta misma ronda (§4) — Home/
+    // Historial/estadísticas se recalculan solos en el próximo render porque leen siempre
+    // Store.loadHistory(), nunca un historial paralelo (ver openPlayerHome/renderHistory).
+    $('#analysis-delete-btn').onclick = () => {
+      confirmAction(
+        '¿Eliminar este partido?',
+        'Se actualizarán tu historial y tus estadísticas.',
+        () => {
+          Store.removeFromHistory(f.matchId);
+          showToast('Partido eliminado');
+          checkForActiveMatch();
+          openPlayerHome();
+        },
+        null,
+        'Eliminar'
+      );
+    };
   }
 
   /** Bloque S2/V5: pestañas PARTIDO/SET1/SET2/SET3, compartidas entre Estadísticas y Evolución.
@@ -5773,27 +5810,31 @@
       // sets terminados primero, y el set parcial al final marcado con "*".
       // V02.2 (Bloque D, §12) — mismo componente canónico que Confirmar partido/Último partido.
       const scoreStr = buildCanonicalScoreLineHTML(m.sets, m.currentPartial);
+      // V02.9 (§4) — formato/sistema dejan de ir en una línea de subtítulo arriba (junto con el
+      // modo de carga): se reubican como metadata inferior derecha, mismo criterio que Último
+      // Partido (ver renderPlayerLastMatchCard) — Historial es su versión compacta, mismo
+      // lenguaje visual.
       const formatLabel = (E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label || '').toUpperCase();
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
-      // V13 (§26) / V14: distingue Por Games y partidos cargados manualmente de Completo.
-      const modeLabel = m.mode === 'games' ? 'POR GAMES' : m.mode === 'manual' ? 'PARTIDO CARGADO' : null;
-      const subtitleStr = [formatLabel, scoringLabel, modeLabel].filter(Boolean).join(' · ');
       const item = document.createElement('div');
       item.className = 'history-item';
       // V7 (45-46-107-112): mismo criterio cromático que Resumen/Análisis — el ganador se
       // destaca con el color de SU equipo (LIMA/AZUL), nunca dorado (reservado para Oro/Star).
       const winnerBadgeA = m.winnerTeam === 'A' ? ' history-item__winner history-item__winner--a' : '';
       const winnerBadgeB = m.winnerTeam === 'B' ? ' history-item__winner history-item__winner--b' : '';
-      // V02.1 (§26) — badge de resultado: VIC/DER desde la perspectiva del jugador actual en
-      // partidos propios; GANÓ junto al nombre de la pareja ganadora en Observados (nunca
-      // VIC/DER ahí — el jugador actual no participa, "victoria/derrota" no le corresponde).
+      // V02.1 (§26) — badge de resultado desde la perspectiva del jugador actual en partidos
+      // propios; GANÓ junto al nombre de la pareja ganadora en Observados (nunca
+      // VICTORIA/DERROTA ahí — el jugador actual no participa, no le corresponde).
+      // V02.9 (§4) — vuelve a la palabra completa (era VIC/DER desde V02.1/§26): mismo criterio
+      // que Último Partido en esta misma ronda (§3) — "evitar abreviaturas si el espacio
+      // permite la palabra completa".
       const ownership = PH.classifyMatchOwnership(m, currentPlayerName);
       let resultBadgeHTML = '';
       let wonTagA = '', wonTagB = '';
       if (ownership === 'mine') {
         const resultKind = PH.matchResultForPlayer(m, currentPlayerName);
-        if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VIC</span>';
-        else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DER</span>';
+        if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VICTORIA</span>';
+        else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DERROTA</span>';
       } else if (m.winnerTeam === 'A') {
         wonTagA = '<span class="history-item__won-tag">GANÓ</span>';
       } else if (m.winnerTeam === 'B') {
@@ -5802,51 +5843,31 @@
       // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
       // → startedAt → finishedAt). Nunca leer m.finishedAt directo para esto.
       const playedAt = PH.getPlayedAt(m);
-      // V7 (109-111): nuevo orden — fecha → formato/método → jugadores → resultado → duración.
+      // V02.9 (§4) — tarjeta compacta de Último Partido: arriba fecha+resultado, resultado
+      // (score) protagonista, abajo participantes (izquierda) + formato/sistema (derecha).
+      // Sin "PARTIDO CARGADO"/"POR GAMES" (origen técnico del partido, sin jerarquía acá) ni X
+      // de borrado directo (la eliminación vive ahora en Resumen, §5) — toda la tarjeta es un
+      // único blanco de toque, como en Último Partido.
       item.innerHTML = `
-        <div class="history-item__row">
-          <div class="history-item__main">
-            <div class="history-item__top-row">
-              <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
-              ${resultBadgeHTML}
-            </div>
-            ${subtitleStr ? `<div class="history-item__subtitle">${subtitleStr}</div>` : ''}
-            <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span>${wonTagA}<span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span>${wonTagB}</div>
-            <div class="history-item__score">${scoreStr}</div>
-            <div class="history-item__meta">${m.mode === 'manual' ? '' : `<span>${formatDuration(m.durationMs)}</span>`}</div>
-            ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
-          </div>
-          <button type="button" class="history-item__delete" aria-label="Eliminar partido">✕</button>
+        <div class="history-item__top-row">
+          <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
+          ${resultBadgeHTML}
         </div>
+        <div class="history-item__score">${scoreStr}</div>
+        <div class="history-item__bottom-row">
+          <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span>${wonTagA}<span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span>${wonTagB}</div>
+          ${(formatLabel || scoringLabel) ? `<div class="history-item__meta">
+            ${formatLabel ? `<div class="history-item__meta-line">${formatLabel}</div>` : ''}
+            ${scoringLabel ? `<div class="history-item__meta-line">${scoringLabel}</div>` : ''}
+          </div>` : ''}
+        </div>
+        ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
       `;
-      item.querySelector('.history-item__main').addEventListener('click', () => openCanonicalResumen(m, 'history'));
-      item.querySelector('.history-item__delete').addEventListener('click', (e) => { e.stopPropagation(); deleteHistoryEntry(m); });
+      item.addEventListener('click', () => openCanonicalResumen(m, 'history'));
       wrap.appendChild(item);
     });
   }
 
-  /** Elimina un partido del historial con posibilidad de deshacer (toast temporal). */
-  function deleteHistoryEntry(entry) {
-    Store.removeFromHistory(entry.matchId);
-    renderHistory();
-    showUndoToast('Partido eliminado', () => { Store.upsertHistory(entry); renderHistory(); });
-  }
-
-  function showUndoToast(message, onUndo) {
-    const toast = $('#toast');
-    toast.innerHTML = '';
-    const msgSpan = document.createElement('span');
-    msgSpan.textContent = message;
-    toast.appendChild(msgSpan);
-    const undoBtn = document.createElement('button');
-    undoBtn.type = 'button'; undoBtn.className = 'toast__undo-btn'; undoBtn.textContent = 'DESHACER';
-    undoBtn.addEventListener('click', () => { onUndo(); toast.classList.remove('is-visible'); clearTimeout(undoToastTimeoutId); });
-    toast.appendChild(undoBtn);
-    toast.classList.add('is-visible');
-    clearTimeout(undoToastTimeoutId);
-    clearTimeout(toastTimeoutId);
-    undoToastTimeoutId = setTimeout(() => toast.classList.remove('is-visible'), 4500);
-  }
   /** V02.2 (Bloque G, §18) — retriggerea la animación de entrada (`requestAnimationFrame` +
    *  quitar/agregar la clase, para forzar un reflow real — si solo se agregara la clase de
    *  nuevo sin quitarla primero, un segundo cambio de pestaña seguido no volvería a animar). */
@@ -6123,8 +6144,10 @@
     const scoreStr = buildLastMatchScoreHTML(m.sets, m.currentPartial);
     const scoreLabel = buildLastMatchScoreLabel(m.sets, m.currentPartial);
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
-    // §20 — badge compacto: VIC/DER en vez de VICTORIA/DERROTA (mismo criterio que Historial, §26).
-    const resultLabel = { win: 'VIC', loss: 'DER', neutral: 'SIN DEFINICIÓN' }[resultKind];
+    // V02.9 (§3) — vuelve a la palabra completa VICTORIA/DERROTA (el consolidado la da por
+    // "mantenida" en esta tarjeta; §20/V02.5 la había abreviado a VIC/DER, mismo criterio que
+    // Historial — Historial vuelve también a la palabra completa en esta misma ronda, §4).
+    const resultLabel = { win: 'VICTORIA', loss: 'DERROTA', neutral: 'SIN DEFINICIÓN' }[resultKind];
     // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó. §7 (Etapa 4) — formato exacto
     // "02SEP · 22:30"; sin hora cargada (timeKnown === false) no se inventa "00:00".
     const playedAt = PH.getPlayedAt(m);
@@ -6147,6 +6170,13 @@
 
     const teamAName = [currentPlayerName, partner].filter(Boolean).join(' / ') || '—';
     const teamBName = rivals.join(' / ') || '—';
+    // V02.9 (§3) — metadata secundaria (formato + sistema de puntuación reales del partido),
+    // abajo a la derecha, alineada con los participantes — nunca protagonista (por eso vive acá,
+    // no en el título/badge de arriba). Mismos labels/fuente que usa Historial (E.FORMATS /
+    // SCORING_SYSTEM_LABELS), así que "CLÁSICO"/"PUNTO DE ORO" es siempre el valor real del
+    // partido, no un texto fijo.
+    const lastMatchFormatLabel = ((E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label) || '').toUpperCase();
+    const lastMatchScoringLabel = SCORING_SYSTEM_LABELS[m.scoringSystem] || '';
 
     body.innerHTML = `
       <div class="player-home-lastmatch__top">
@@ -6169,6 +6199,10 @@
           <div class="player-home-lastmatch__teams-line">${escapeHtml(teamAName)}</div>
           <div class="player-home-lastmatch__teams-line"><span class="vs-sep">vs</span>${escapeHtml(teamBName)}</div>
         </div>
+        ${(lastMatchFormatLabel || lastMatchScoringLabel) ? `<div class="player-home-lastmatch__meta">
+          ${lastMatchFormatLabel ? `<div class="player-home-lastmatch__meta-line">${escapeHtml(lastMatchFormatLabel)}</div>` : ''}
+          ${lastMatchScoringLabel ? `<div class="player-home-lastmatch__meta-line">${escapeHtml(lastMatchScoringLabel)}</div>` : ''}
+        </div>` : ''}
         <span class="player-home-lastmatch__chevron" aria-hidden="true">›</span>
       </div>
     `;
@@ -6247,16 +6281,16 @@
   /** V02.7 (§4) — Efectividad: donut con % de victorias sobre partidos CONSIDERADOS (con
    *  resultado definido) del historial COMPLETO del jugador — ya no una ventana de 30 días (ver
    *  PH.computeEffectivenessTotal).
-   *  V02.8.1 (§2) — ahora son TRES círculos concéntricos (trazo principal + 2 halos, ver
-   *  styles.css/index.html) que comparten radio/dasharray/dashoffset/animación exactos — nunca
-   *  pueden desalinearse entre sí porque reciben las mismas dos llamadas a
-   *  `animateEffectivenessCircle`. */
+   *  V02.8.1 (§2) — dos círculos concéntricos (trazo principal + halo, ver styles.css/index.html)
+   *  que comparten radio/dasharray/dashoffset/animación exactos — nunca pueden desalinearse
+   *  entre sí porque reciben las mismas llamadas a `animateEffectivenessCircle`.
+   *  V02.9 (§1) — vuelve a ser UN SOLO halo (V02.8.1-8.3 habían llegado a dos, que apilados
+   *  leían como un aro difuso — ver styles.css). */
   function renderPlayerEffectiveness(matches, shouldAnimate) {
     const eff = PH.computeEffectivenessTotal(matches, currentPlayerName);
     const ring = $('#player-home-effectiveness-ring');
-    const glowInner = $('#player-home-effectiveness-glow-inner');
-    const glowOuter = $('#player-home-effectiveness-glow-outer');
-    const circles = [ring, glowInner, glowOuter];
+    const glow = $('#player-home-effectiveness-glow');
+    const circles = [ring, glow];
     const circumference = 2 * Math.PI * 15.5;
     // `stroke-dasharray` es CONSTANTE (la circunferencia completa, un solo tramo "encendido"
     // tan largo como el círculo entero) — lo único que anima es `stroke-dashoffset`, nunca el
@@ -6272,17 +6306,14 @@
       return;
     }
     // V02.8.3 (feedback real) — bug encontrado acá: esta línea forzaba `opacity:1` inline en
-    // LOS TRES círculos por igual, incluidos los dos halos — que tienen su propia opacidad
-    // baja definida en CSS (`.effectiveness-donut__glow-inner/-outer`, ver styles.css). Un
-    // estilo inline gana siempre sobre la regla de clase, así que los halos venían
-    // renderizando a opacidad TOTAL desde que existen (V02.8.1), nunca a la opacidad sutil
-    // documentada — la causa real de que el aro se viera pesado pese a los ajustes de V02.8.2
-    // (que solo tocaban ancho/opacidad en CSS, sin efecto mientras esto los pisara). El trazo
-    // principal sigue forzado a `1` (siempre opaco por diseño); los halos se limpian a `''`
-    // para que su propia opacidad de CSS finalmente se aplique.
+    // TODOS los círculos por igual, incluido el/los halo(s) — que tienen su propia opacidad
+    // baja definida en CSS (`.effectiveness-donut__glow`, ver styles.css). Un estilo inline
+    // gana siempre sobre la regla de clase, así que el halo venía renderizando a opacidad
+    // TOTAL desde que existe (V02.8.1), nunca a la opacidad sutil documentada. El trazo
+    // principal sigue forzado a `1` (siempre opaco por diseño); el halo se limpia a `''` para
+    // que su propia opacidad de CSS finalmente se aplique.
     ring.style.opacity = '1';
-    glowInner.style.opacity = '';
-    glowOuter.style.opacity = '';
+    glow.style.opacity = '';
     const filled = (eff.pct / 100) * circumference;
     const toOffset = circumference - filled;
     // V02.8.1 (§1.4) — en cada entrada o vuelta al Home (nunca solo la primera de la sesión,

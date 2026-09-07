@@ -604,7 +604,6 @@ input, select{ font-family: inherit; }
   display:flex; align-items:center; gap: 12px;
 }
 .toast.is-visible{ opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
-.toast__undo-btn{ background:none; border:none; color: var(--brand-lime-deep); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; cursor:pointer; padding:0; }
 
 /* Overlays genéricos */
 /* V02.1 (§28) — bug real encontrado: este rgba() quedó hardcodeado al viejo --ink verde-negro
@@ -856,6 +855,12 @@ input, select{ font-family: inherit; }
   min-height: 46px; padding: 0 16px; font-size: 14px; border-radius: 14px;
   display:flex; align-items:center; justify-content:center;
 }
+/* V02.9 (§5) — "Eliminar partido": deliberadamente la acción de MENOR peso visual de todo
+   Resumen (nunca un botón con fondo/borde propio como EDITAR/VOLVER AL INICIO arriba) — un
+   link centrado, apagado por defecto, que solo insinúa el color de peligro al tocarlo (mismo
+   criterio que ya usaba la X de Historial retirada en esta ronda, §4). */
+.analysis-delete-btn{ display:block; width:100%; text-align:center; margin-top: 18px; color: var(--paper-faint); }
+.analysis-delete-btn:active{ color: var(--danger); }
 .analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
    título, frase de encuadre y una superficie editorial que los agrupa a los tres.
@@ -1077,11 +1082,11 @@ input, select{ font-family: inherit; }
 .timeline-point-row__score{ flex: none; font-family: var(--font-display); color: var(--paper); }
 
 .history-list{ display:flex; flex-direction:column; gap: 10px; }
-.history-item{ background: var(--ink-soft); border-radius: 12px; padding: 14px 8px 14px 16px; cursor:pointer; }
-.history-item__row{ display:flex; align-items:flex-start; gap: 4px; }
-.history-item__main{ flex:1; min-width:0; }
-.history-item__delete{ flex:none; background:none; border:none; color: var(--paper-faint); font-size: 15px; padding: 6px 10px; cursor:pointer; }
-.history-item__delete:active{ color: var(--danger); }
+/* V02.9 (§4) — la card deja de repartirse entre `.history-item__main` (contenido) y un botón
+   `.history-item__delete` aparte: sin X de borrado directo, toda la tarjeta vuelve a ser un
+   único bloque y un único blanco de toque (mismo padding a los 4 lados, ya no asimétrico para
+   dejarle lugar a la X a la derecha). */
+.history-item{ background: var(--ink-soft); border-radius: 12px; padding: 14px 16px; cursor:pointer; }
 
 /* V02.1 (§22) — vistas Compañeros/Rivales: mismo lenguaje visual que .history-item, sin
    acción de tocar (no navegan a ningún detalle en esta ronda). */
@@ -1099,23 +1104,32 @@ input, select{ font-family: inherit; }
 .person-list__pct-wrap{ flex:none; text-align:right; }
 .person-list__pct{ display:block; font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .person-list__pct-label{ display:block; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; color: var(--paper-faint); text-transform: uppercase; margin-top: 1px; }
-/* V02.1 (§26) — badge de resultado VIC/DER (partidos propios) junto a la fecha; GANÓ
-   (Observados) como micro-tag pegado al nombre de la pareja ganadora. */
-.history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 4px; }
-.history-item__result-badge{ flex:none; font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 7px; border-radius: 999px; }
+/* V02.9 (§4) — la tarjeta de Historial pasa a ser una versión COMPACTA de Último Partido
+   (renderPlayerLastMatchCard/.player-home-lastmatch): mismo orden de lectura — arriba
+   fecha+resultado, resultado (score) protagonista, abajo participantes a la izquierda y
+   formato/sistema a la derecha — pero sin la superficie "hero" (sin borde/glow lima, que en
+   Último Partido es exclusivo de esa única tarjeta) y con tipografía más chica, apta para una
+   lista larga. Badge de resultado: VICTORIA/DERROTA completo (era VIC/DER desde V02.1/§26,
+   revertido acá porque el espacio ya alcanza — mismo criterio que Último Partido, §3). GANÓ
+   (Observados) sigue como micro-tag pegado al nombre de la pareja ganadora. */
+.history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
+.history-item__result-badge{ flex:none; font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 7px; border-radius: 999px; text-transform:uppercase; }
 .history-item__result-badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .history-item__result-badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .history-item__won-tag{ font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime); margin: 0 6px 0 4px; vertical-align: middle; }
-.history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; margin-bottom: 4px; }
-.history-item__subtitle{ font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 4px; }
-.history-item__teams{ font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+.history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; }
+.history-item__teams{ font-size: 14px; font-weight: 800; }
 .history-item__teams .vs-sep{ color: var(--paper-dim); font-weight: 500; margin: 0 4px; }
 /* V7 (45-46-107-112): color de equipo en vez de dorado genérico para el ganador. */
 .history-item__winner--a{ color: var(--team-a); }
 .history-item__winner--b{ color: var(--team-b); }
-.history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
-.history-item__meta{ display:flex; justify-content:flex-start; font-size: 12px; color: var(--paper-dim); }
-.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(149,255,25,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+.history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+/* V02.9 (§4) — fila inferior: participantes (izquierda, ver .history-item__teams arriba) +
+   formato/sistema (derecha) — mismo par de zonas que .player-home-lastmatch__teamsrow. */
+.history-item__bottom-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; }
+.history-item__meta{ flex:none; text-align:right; }
+.history-item__meta-line{ font-size: 9px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color: var(--paper-faint); line-height:1.4; }
+.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(149,255,25,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 8px; }
 
 /* ==========================================================================
    Etapa 4.1 (§3) — Historial: pestañas de pertenencia + chips de modo.
@@ -1557,6 +1571,12 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__teams-line{ font-size: 13px; font-weight: 500; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .player-home-lastmatch__teams-line + .player-home-lastmatch__teams-line{ margin-top: 3px; }
 .player-home-lastmatch__teams .vs-sep{ margin-right: 6px; opacity: 0.6; }
+/* V02.9 (§3) — metadata secundaria (formato + sistema de puntuación), abajo a la derecha,
+   alineada con los participantes (misma fila, ver .player-home-lastmatch__teamsrow). Un tono
+   más apagado que los nombres de equipo (--court-text-faint, no --court-text-dim) a propósito:
+   es información de contexto, nunca debe competir con VICTORIA/DERROTA ni con el marcador. */
+.player-home-lastmatch__meta{ flex:none; text-align:right; }
+.player-home-lastmatch__meta-line{ font-size: 10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color: var(--court-text-faint); line-height:1.4; }
 .player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
@@ -1648,10 +1668,16 @@ input, select{ font-family: inherit; }
    4px→2.5px (opacidad .30→.38); halo externo 6px→3.5px (opacidad .18→.24). Subir la opacidad
    al angostar compensa que un halo más fino emite menos luz — el resultado es un aro fino y
    nítido con un brillo que se nota, sin volver a sentirse pesado. Mismo mecanismo sin filtros,
-   mismos tres círculos concéntricos, misma animación. */
+   mismos tres círculos concéntricos, misma animación.
+   V02.9 (§1, feedback real) — con los DOS halos corregidos (V02.8.3) ya renderizando a su
+   opacidad real, el conjunto (1.5px + 2.5px/.38 + 3.5px/.24, los tres centrados en el mismo
+   trazo) leía como un degradado escalonado de grosor/opacidad — el efecto que precisamente se
+   quería evitar sin usar `filter:blur()` terminó pareciendo un blur igual, solo que hecho a
+   mano con capas. Se retira un halo entero (queda uno solo, no dos): trazo principal 1.5px sin
+   cambios; único refuerzo 2.2px (apenas más ancho, no un salto grande) a opacidad 0.16 (bien
+   baja). Sin filtros, mismo mecanismo de círculos concéntricos y misma animación. */
 .effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 1.5; stroke-linecap: round; }
-.effectiveness-donut__glow-inner{ fill:none; stroke: var(--brand-lime); stroke-width: 2.5; stroke-linecap: round; opacity: 0.38; }
-.effectiveness-donut__glow-outer{ fill:none; stroke: var(--brand-lime); stroke-width: 3.5; stroke-linecap: round; opacity: 0.24; }
+.effectiveness-donut__glow{ fill:none; stroke: var(--brand-lime); stroke-width: 2.2; stroke-linecap: round; opacity: 0.16; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
@@ -2119,26 +2145,15 @@ input, select{ font-family: inherit; }
 .player-row__name{ font-weight:700; font-size:15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .player-row__handle{ font-size:12px; color: var(--court-text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
-/* V02.6 (§8): el relleno rgba(0.12) + borde + texto, los tres en el mismo color de equipo,
-   leía como una acción PRIMARIA (una CTA rellena) — demasiado peso para "agregar sin cuenta",
-   que es secundaria. Pasa a outlined: fondo neutro (el mismo `--court-surface-2` que ya usan
-   las demás `.sheet-option` no-primarias de este sheet), solo borde en el color contextual del
-   equipo, sin relleno ni glow.
-   V02.8 (§6): el TEXTO deja de heredar el color de equipo — quedaba "demasiado teñido" para
-   una acción secundaria. El color contextual (verde/azul) ahora se expresa únicamente por el
-   borde; el texto pasa a `var(--text)` (blanco), igual criterio que el resto de `.sheet-option`
-   no-primarias.
-   V02.8.1 (§6): el borde COMPLETO de color seguía compitiendo visualmente con el campo de
-   búsqueda activo (que también usa el color de equipo en su foco) — el buscador debe ser
-   claramente la acción principal del sheet. El borde pasa a neutro (`var(--court-line)`,
-   mismo que cualquier `.sheet-option` no-primaria) y el contexto de equipo se reduce a un
-   punto chico (`.sheet-add-player-dot`, ver app.js:renderManualPlayerSheetContent) delante del
-   texto — nunca se pierde la señal de equipo, pero deja de pelear con el buscador. Sigue
-   siendo un CTA cómodo de ancho completo (min-height 56px heredado de `.sheet-option`, sin
-   tocar). */
-#load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--court-line); color: var(--text); }
-.sheet-add-player-dot{ width:8px; height:8px; border-radius:50%; flex:none; margin-right:8px; background: var(--team-a); }
-.load-player-sheet.is-context-rival .sheet-add-player-dot{ background: var(--team-b); }
+/* V02.9 (§2) — REEMPLAZA el CTA de ancho completo de V02.6-V02.8.1 (fuera de la lista, compitiendo
+   visualmente con el buscador): la fila "Agregar a…" ahora es un `.player-row` más, último
+   elemento de #load-player-sheet-list (ver buildAddPlayerRowHTML en app.js) — mismo padding,
+   mismo estado `:active`, sin borde ni relleno propios. Lo único que la distingue de un
+   jugador real es el ícono (persona "+" en vez de iniciales, ver `--add` abajo) y que no tiene
+   una segunda línea de @usuario. El acento de equipo (verde/azul) que antes vivía en un punto
+   chico (`.sheet-add-player-dot`) ahora tiñe ese ícono. */
+.player-row__avatar--add{ color: var(--team-a); }
+.load-player-sheet.is-context-rival .player-row__avatar--add{ color: var(--team-b); }
 
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
