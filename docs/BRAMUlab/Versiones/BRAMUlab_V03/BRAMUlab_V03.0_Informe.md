@@ -303,7 +303,7 @@ correcto de V03.0, no un artefacto de la prueba).
 ## 11. Hash exacto y tag
 
 - Commit de implementación (código): `10aa507130c3e612a95ee690710eb25468ca96e6`.
-- Commit de este informe: *(se agrega en el próximo commit)*.
+- Commit de este informe: `ed1b214f59ed41b625c4699d02dc55f47aa86fa6`.
 - Tag `BRAMUlab_V03.0` apuntará al commit inmediatamente posterior a este.
 
 ---
