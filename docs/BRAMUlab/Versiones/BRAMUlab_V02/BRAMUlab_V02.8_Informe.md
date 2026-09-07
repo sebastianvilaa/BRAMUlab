@@ -180,7 +180,7 @@ BRAMU se siente visualmente consistente sin que todas las superficies sean igual
 ## 9. Hash exacto y tag (registro final)
 
 - Commit de implementación (código): `fe8c6be4443d44059b739fe2c74e625e33d52987`.
-- Commit de este informe (matriz, tests, recorrido) y del README actualizado: PENDIENTE_HASH_INFORME.
+- Commit de este informe (matriz, tests, recorrido) y del README actualizado: `95255f143652bc4bd74291f948e52b553627f5af`.
 - Tag `BRAMUlab_V02.8` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba — el código funcional completo de V02.8 es íntegramente el del primer commit; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
