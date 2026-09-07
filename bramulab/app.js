@@ -5904,14 +5904,14 @@
    *  engine.js/stats.js (E/S) para el resto de la app. */
   /* ------------------------------------------------------------------ */
   let currentPlayerName = null;
-  // V02.7 (§6.4) — las microanimaciones de entrada (barra de Nivel, Actividad, Efectividad)
-  // solo se reproducen la PRIMERA vez que se renderiza el Home en esta sesión de página; volver
-  // desde Resumen/Historial/etc. actualiza los valores directamente, sin repetir el "crecer
-  // desde 0" — "no repetir de manera agresiva cada micro-navegación" (preferencia de producto
-  // explícita del consolidado). Solución elegida entre las dos que ofrecía el consolidado
-  // (limitar a la primera entrada vs. duración muy corta al reingresar): un flag booleano es
-  // más simple de razonar y da un resultado más predecible que una animación corta repetida.
-  let homeEnteredThisSession = false;
+  // V02.8 (§1) — REEMPLAZA el criterio de V02.7: las microanimaciones de entrada (barra de
+  // Nivel, Actividad, Efectividad) ahora se reproducen CADA VEZ que se entra o se vuelve al
+  // Home, no solo la primera vez de la sesión (el flag booleano `homeEnteredThisSession` que
+  // limitaba esto a una sola vez se retira). `renderPlayerHome()` solo se invoca en los
+  // call-sites que efectivamente muestran la vista (`openPlayerHome()`, el tab "Inicio" de la
+  // barra inferior, el volver desde Resumen) — nunca como refresco de fondo estando ya parado
+  // en el Home — así que "cada render = una entrada real" ya es cierto sin necesitar ningún
+  // flag para distinguir casos.
   // Auditoría funcional (§5): "Cambiar jugador" no existe más — el modal "¿Quién sos?" solo se
   // abre para la PRIMERA identificación (nunca hay más de un call-site vivo con un jugador ya
   // identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a dónde seguir
@@ -6007,16 +6007,14 @@
     if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
     renderActiveMatchBanner();
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
-    // V02.7 (§6.4/§6.5) — se decide UNA sola vez por render si corresponde animar (ver
-    // comentario en la declaración de `homeEnteredThisSession`), y se marca como ya vista antes
-    // de que cualquier sub-render pueda disparar una re-entrada (p.ej. un listener que reabra el
-    // Home). `prefers-reduced-motion` se chequea en JS (no solo vía el colapso de
-    // `--motion-base` a 1ms en CSS) porque el stagger de Actividad usa `transition-delay`
-    // inline por barra — un valor que no depende de `--motion-base` y igual introduciría un
-    // desfasaje perceptible entre barras si no se corta acá directamente.
+    // V02.8 (§1) — se anima en CADA render (cada entrada/vuelta real al Home, ver comentario
+    // en la declaración de `currentPlayerName` de más arriba), salvo `prefers-reduced-motion`.
+    // Se sigue chequeando en JS (no solo vía el colapso de `--home-anim-*` a 1ms en CSS) porque
+    // el stagger de Actividad usa `transition-delay` inline por barra — un valor que no depende
+    // de ningún token CSS y igual introduciría un desfasaje perceptible entre barras si no se
+    // corta acá directamente.
     const prefersReducedMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
-    const shouldAnimate = !homeEnteredThisSession && !prefersReducedMotion;
-    homeEnteredThisSession = true;
+    const shouldAnimate = !prefersReducedMotion;
 
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
@@ -6070,7 +6068,7 @@
     deltaEl.className = 'player-card__level-delta player-card__level-delta--' + delta.direction;
     const progressPct = PH.levelProgressPct(evolution.current);
     const barEl = $('#player-home-level-bar');
-    // V02.7 (§6.1) — en la primera entrada de la sesión, la barra arranca en 0% y una
+    // V02.7 (§6.1) / V02.8 (§1) — en cada entrada o vuelta al Home, la barra arranca en 0% y una
     // transición CSS (`.player-card__bar-fill`, ver styles.css) la lleva al % real; forzar un
     // reflow (`offsetWidth`) entre poner 0% y el valor final es necesario para que el navegador
     // registre el 0% como estado de partida antes de animar — si no, ambos cambios se
@@ -6179,7 +6177,7 @@
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
     const heights = activity.buckets.map((b) => b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6);
-    // V02.7 (§6.2) — en la primera entrada, cada barra arranca en 0% de alto (un pequeño
+    // V02.7 (§6.2) / V02.8 (§1) — en cada entrada o vuelta, cada barra arranca en 0% de alto (un pequeño
     // `transition-delay` por índice da el stagger izquierda→derecha) y un segundo paso las lleva
     // a su alto final — mismo patrón de "0% + reflow + valor final" que la barra de Nivel. Los
     // segmentos ganados/derrotas internos van directo a su proporción final: lo que anima es
@@ -6207,23 +6205,37 @@
   function renderPlayerEffectiveness(matches, shouldAnimate) {
     const eff = PH.computeEffectivenessTotal(matches, currentPlayerName);
     const ring = $('#player-home-effectiveness-ring');
+    // V02.8 (§2) — arco de glow duplicado DETRÁS del trazo principal (mismo dasharray, ver
+    // styles.css .effectiveness-donut__glow): reemplaza el filter:drop-shadow anterior, que
+    // en iPhone se rasterizaba como un halo rectangular en vez de seguir la curva.
+    const glow = $('#player-home-effectiveness-glow');
     const circumference = 2 * Math.PI * 15.5;
     if (eff.pct === null) {
       // Sin muestra: ni un punto residual del linecap redondeado con dasharray "0" — se oculta
       // el trazo entero (opacity, no display:none, para no desalinear el <svg>).
       ring.style.opacity = '0';
+      glow.style.opacity = '0';
       $('#player-home-effectiveness-value').textContent = '—';
       $('#player-home-effectiveness-caption').textContent = 'Sin partidos considerados';
       return;
     }
     ring.style.opacity = '1';
+    glow.style.opacity = '1';
     const filled = (eff.pct / 100) * circumference;
-    // V02.7 (§6.3) — en la primera entrada, el aro arranca vacío (dasharray "0") y la
+    // V02.7 (§6.3) / V02.8 (§1) — en cada entrada o vuelta, el aro arranca vacío (dasharray "0") y la
     // transición ya declarada en `.effectiveness-donut__fill` (styles.css) completa el arco
     // hasta el % real; el número central no se anima (nunca "cuenta" hacia arriba, según pide
     // el consolidado) y queda estable/visible desde el primer frame.
-    if (shouldAnimate) { ring.style.strokeDasharray = `0 ${circumference}`; void ring.getBoundingClientRect(); }
+    // V02.8 (§1/§2) — el glow duplicado recibe EXACTAMENTE el mismo dasharray, en el mismo
+    // paso, para que crezca en sincronía perfecta con el trazo principal (nunca un arco
+    // "adelantado" o "atrasado" respecto del otro).
+    if (shouldAnimate) {
+      ring.style.strokeDasharray = `0 ${circumference}`;
+      glow.style.strokeDasharray = `0 ${circumference}`;
+      void ring.getBoundingClientRect();
+    }
     ring.style.strokeDasharray = `${filled} ${circumference}`;
+    glow.style.strokeDasharray = `${filled} ${circumference}`;
     $('#player-home-effectiveness-value').textContent = `${eff.pct}%`;
     // V02.6 (§7) — "22 de 32" no decía qué era cada número; el cálculo no cambia, solo el copy.
     $('#player-home-effectiveness-caption').textContent = `${eff.wins} ganados de ${eff.considered} jugados`;
@@ -6302,7 +6314,9 @@
   }
 
   function initRankingScreen() {
-    $('#ranking-back-btn').addEventListener('click', () => showView('player-home'));
+    // V02.8 (§1) — vuelve vía openPlayerHome() (no showView() directo) para que el Home
+    // re-renderice y sus microanimaciones de entrada corran también al volver desde Ranking.
+    $('#ranking-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
   /* ------------------------------------------------------------------ */
@@ -6453,7 +6467,9 @@
   }
 
   function initProfileScreen() {
-    $('#profile-back-btn').addEventListener('click', () => showView('player-home'));
+    // V02.8 (§1) — mismo criterio que el back de Ranking: openPlayerHome() re-renderiza el
+    // Home (y anima) al volver, en vez de solo des-ocultar la vista con el contenido viejo.
+    $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
     $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
     const chartWrap = $('#evolution-chart-wrap');
     chartWrap.addEventListener('click', (e) => {
