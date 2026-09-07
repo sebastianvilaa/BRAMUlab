@@ -105,7 +105,7 @@ Confirmado en 402px y 360px:
 ## 7. Hash exacto y tag (registro final)
 
 - Commit de implementación (código): `a71d2f5ee14daf73e2f662acf7286bd635936201`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `8731888f3053d42916f5fbd4943c5c1ab8ca9bda`.
 - Tag `BRAMUlab_V02.8.2` apunta al commit inmediatamente posterior a este, que registra ambos hashes de arriba — el código funcional completo de V02.8.2 es íntegramente el del primer commit; ese tercer commit no modifica ningún archivo de `bramulab/`.
 
 ---
