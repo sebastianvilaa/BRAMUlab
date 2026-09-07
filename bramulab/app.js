@@ -5818,26 +5818,36 @@
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
       const item = document.createElement('div');
       item.className = 'history-item';
-      // V7 (45-46-107-112): mismo criterio cromático que Resumen/Análisis — el ganador se
-      // destaca con el color de SU equipo (LIMA/AZUL), nunca dorado (reservado para Oro/Star).
-      const winnerBadgeA = m.winnerTeam === 'A' ? ' history-item__winner history-item__winner--a' : '';
-      const winnerBadgeB = m.winnerTeam === 'B' ? ' history-item__winner history-item__winner--b' : '';
       // V02.1 (§26) — badge de resultado desde la perspectiva del jugador actual en partidos
       // propios; GANÓ junto al nombre de la pareja ganadora en Observados (nunca
       // VICTORIA/DERROTA ahí — el jugador actual no participa, no le corresponde).
       // V02.9 (§4) — vuelve a la palabra completa (era VIC/DER desde V02.1/§26): mismo criterio
       // que Último Partido en esta misma ronda (§3) — "evitar abreviaturas si el espacio
       // permite la palabra completa".
+      // V02.9.1 (§3, feedback real) — la línea de jugadores coloreaba al equipo GANADOR
+      // (`m.winnerTeam`) en TODOS los casos, incluidos los partidos propios — ahí ya quedaba
+      // redundante con el badge VICTORIA/DERROTA de arriba (dos señales para el mismo dato) y
+      // era parte de por qué la línea se sentía demasiado protagonista. En partidos propios
+      // ahora se colorea la pareja PROPIA (`PH.getPlayerTeam`), no la ganadora — sutil, sin
+      // duplicar la señal del badge. En Observados (sin badge propio: el jugador actual no
+      // participa) se mantiene sin cambios: sigue coloreando al equipo ganador, junto con
+      // "GANÓ" — ahí es la única señal de cómo salió el partido.
       const ownership = PH.classifyMatchOwnership(m, currentPlayerName);
+      let winnerBadgeA = '', winnerBadgeB = '';
       let resultBadgeHTML = '';
       let wonTagA = '', wonTagB = '';
       if (ownership === 'mine') {
+        const myTeam = PH.getPlayerTeam(m, currentPlayerName);
+        if (myTeam === 'A') winnerBadgeA = ' history-item__mine history-item__mine--a';
+        else if (myTeam === 'B') winnerBadgeB = ' history-item__mine history-item__mine--b';
         const resultKind = PH.matchResultForPlayer(m, currentPlayerName);
         if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VICTORIA</span>';
         else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DERROTA</span>';
       } else if (m.winnerTeam === 'A') {
+        winnerBadgeA = ' history-item__winner history-item__winner--a';
         wonTagA = '<span class="history-item__won-tag">GANÓ</span>';
       } else if (m.winnerTeam === 'B') {
+        winnerBadgeB = ' history-item__winner history-item__winner--b';
         wonTagB = '<span class="history-item__won-tag">GANÓ</span>';
       }
       // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
@@ -6179,15 +6189,20 @@
     const lastMatchScoringLabel = SCORING_SYSTEM_LABELS[m.scoringSystem] || '';
 
     body.innerHTML = `
+      <!-- V02.9.1 (§2) — encabezado pasa de 2 columnas (izquierda: forma+título+badge / derecha:
+           fecha) a 2 líneas apiladas: línea 1 título+fecha, línea 2 forma+badge — la ubicación
+           anterior del badge (compitiendo con el título en la misma fila angosta) no funcionaba. -->
       <div class="player-home-lastmatch__top">
-        <div class="player-home-lastmatch__heading">
-          <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+        <div class="player-home-lastmatch__row1">
           <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
-          <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+          <div class="player-home-lastmatch__datetime">
+            ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
+            ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
+          </div>
         </div>
-        <div class="player-home-lastmatch__datetime">
-          ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
-          ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
+        <div class="player-home-lastmatch__row2">
+          <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+          <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
