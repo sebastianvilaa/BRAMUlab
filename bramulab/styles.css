@@ -1655,7 +1655,7 @@ input, select{ font-family: inherit; }
 
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
-.effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 2; }
+.effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
 /* V02.6 (§3.2): drop-shadow leve sobre el trazo verde del aro — mismo objetivo que §3.1
    (sumar vida sin volverse neón).
    V02.7 (§5): en V02.6 el glow (4px/.20 de opacidad) prácticamente no se percibía sobre un
@@ -1700,9 +1700,12 @@ input, select{ font-family: inherit; }
    que el lleno). El halo sube en la misma proporción (2.2px→2.7px, mismo margen de ~0.35px por
    lado que ya tenía sobre el trazo anterior) para seguir asomando lo mismo — si el halo se
    hubiera dejado en 2.2px, el trazo más grueso lo habría tapado casi por completo. Opacidad del
-   halo sin cambios (0.16): el pedido era engrosar el trazo principal, no tocar el halo. */
-.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 2; stroke-linecap: round; }
-.effectiveness-donut__glow{ fill:none; stroke: var(--brand-lime); stroke-width: 2.7; stroke-linecap: round; opacity: 0.16; }
+   halo sin cambios (0.16): el pedido era engrosar el trazo principal, no tocar el halo.
+   V02.9.2 (feedback real, probado en vivo con el inspector de Chrome) — un paso más: 2px→3px,
+   mismo criterio que V02.9.1 (aro de fondo igual que el trazo). Halo reescalado con el mismo
+   margen de siempre (~0.35px por lado): 2.7px→3.7px. Opacidad sin cambios (0.16). */
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; }
+.effectiveness-donut__glow{ fill:none; stroke: var(--brand-lime); stroke-width: 3.7; stroke-linecap: round; opacity: 0.16; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
