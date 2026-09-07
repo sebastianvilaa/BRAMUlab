@@ -53,7 +53,7 @@ Subir la opacidad al angostar los halos compensa que un halo más fino emite men
 ## 4. Hash exacto y tag
 
 - Commit de implementación (código): `db00447a4411339c232314a9aa2399275e839b0a`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `73e3e0ba9f9d7df4afac1230c864ec1799d25065`.
 - Tag `BRAMUlab_V02.8.3` apunta al commit inmediatamente posterior a este.
 
 ---
