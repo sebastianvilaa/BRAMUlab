@@ -7,6 +7,7 @@
   const S = window.PLStats;
   const Store = window.PLStore;
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador) — agregación pura del Home del jugador
+  const PLI = window.PLIdentity; // V03.0 — validación de cuenta (email/contraseña/@usuario/edad)
   const $ = (sel) => document.querySelector(sel);
   const $all = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -241,7 +242,8 @@
   const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup'];
 
   function showView(name) {
-    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions']
+    ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
+      'access', 'login', 'signup', 'player-card']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -1330,8 +1332,8 @@
    *  flujo sin perder contexto. */
   function openManualLoadScreen(origin, editMatch) {
     manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
-    currentPlayerName = Store.loadCurrentPlayerName();
-    if (!currentPlayerName) { openPlayerIdentifyModal(() => openManualLoadScreen(origin, editMatch)); return; }
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(() => openManualLoadScreen(origin, editMatch)); return; }
 
     manualIsNewLoad = !editMatch;
     manualEditingMatchId = editMatch ? editMatch.matchId : null;
@@ -1350,7 +1352,11 @@
     if (editMatch) {
       const teamPlayers = (team) => (editMatch.players || []).filter((p) => p && p.team === team);
       const teamA = teamPlayers('A'), teamB = teamPlayers('B');
-      const partner = teamA.find((p) => p.name !== currentPlayerName) || teamA[1] || null;
+      // V03.0 — misma regla de exclusividad de userId que PH.findPlayerRow: si la fila ya
+      // tiene userId, solo ese id (nunca el nombre) decide si es "mi" fila.
+      const identity = currentIdentity();
+      const selfInTeamA = teamA.find((p) => p && (p.userId ? p.userId === identity.userId : p.name === currentPlayerName));
+      const partner = teamA.find((p) => p !== selfInTeamA) || teamA[1] || null;
       manualPlayers = { a1: currentPlayerName, a2: partner ? partner.name : null, b1: teamB[0] ? teamB[0].name : null, b2: teamB[1] ? teamB[1].name : null };
       manualSets = (editMatch.sets || []).map((s) => ({ a: s.gamesA, b: s.gamesB }));
       while (manualSets.length < 3) manualSets.push(null);
@@ -1443,12 +1449,18 @@
    *  Historial) a partir del estado actual del formulario — SIN persistir todavía. Reusado
    *  tanto por la carga nueva (draft para Confirmar) como por una edición (persiste directo). */
   function buildManualMatchSnapshot(draft) {
-    const players = [
+    let players = [
       { id: 0, team: 'A', name: manualPlayers.a1 },
       { id: 1, team: 'A', name: manualPlayers.a2 },
       { id: 2, team: 'B', name: manualPlayers.b1 },
       { id: 3, team: 'B', name: manualPlayers.b2 },
     ];
+    // V03.0 (§1) — identidad FRESCA desde Store (no la variable de módulo, que puede estar
+    // desactualizada si todavía no se visitó Home en esta sesión). Estampa userId en la fila
+    // del jugador logueado — nunca reestampa una fila que ya tenía uno (ver stampPlayersWithUserId).
+    const freshName = Store.loadCurrentPlayerName();
+    const freshUser = Store.getCurrentUser();
+    if (freshUser) players = Store.stampPlayersWithUserId(players, freshName, freshUser.id);
     const dateVal = $('#manual-date-input').value;
     const timeVal = $('#manual-time-input').value; // '' si el usuario la borró — nunca se completa sola
     const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
@@ -4063,6 +4075,19 @@
     wrap.hidden = false;
   }
 
+  /** V03.0 (§1) — estampa `userId` en la fila del jugador logueado dentro de `players`, con
+   *  identidad FRESCA leída de Store (no la variable de módulo `currentPlayerName`/
+   *  `currentUserId`, que puede estar desactualizada si el jugador arrancó este partido en
+   *  vivo sin haber visitado Home todavía en esta sesión). No-op si no hay sesión activa —
+   *  view-setup nunca exigió login para jugar, así que un partido sin nadie logueado se
+   *  guarda igual que siempre, solo que sin ningún userId estampado (fallback legacy por
+   *  nombre, ver player-home.js). */
+  function identityStampedPlayers(players) {
+    const freshUser = Store.getCurrentUser();
+    if (!freshUser) return players;
+    return Store.stampPlayersWithUserId(players, Store.loadCurrentPlayerName(), freshUser.id);
+  }
+
   /* ------------------------------------------------------------------ */
   /* FIN DE PARTIDO — resumen inmediato                                   */
   /* ------------------------------------------------------------------ */
@@ -4109,7 +4134,6 @@
       startedAt: match.startedAt,
       timeZone: match.timeZone,
       finishedAt: new Date().toISOString(),
-      players: match.players,
       mode: match.mode || 'complete',
       scoringSystem: match.scoringSystem,
       formatId: match.formatId,
@@ -4119,6 +4143,7 @@
       // de un "Partido ya empezado" (bug: SET 1 inventado, games 1-0/2-0 falsos, score
       // relativo en vez del real). Guardarlo acá es lo que permite reconstruir el estado
       // correcto más adelante, incluso reabriendo el partido desde Historial otro día.
+      players: identityStampedPlayers(match.players),
       baseline: match.baseline ? JSON.parse(JSON.stringify(match.baseline)) : null,
       sets: state.sets,
       currentPartial,
@@ -4170,7 +4195,7 @@
       startedAt: match.startedAt,
       timeZone: match.timeZone,
       finishedAt: new Date().toISOString(),
-      players: match.players,
+      players: identityStampedPlayers(match.players),
       mode: 'games',
       scoringSystem: match.scoringSystem,
       formatId: match.formatId,
@@ -5724,7 +5749,7 @@
    *  fila informa su propia dimensión, no una intersección en vivo que confundiría cuando
    *  ambos filtros combinados dan 0 sin que ninguno de los dos, por separado, esté vacío). */
   function renderHistoryFilters(fullHistory) {
-    const counts = PH.computeHistoryTabCounts(fullHistory, currentPlayerName);
+    const counts = PH.computeHistoryTabCounts(fullHistory, currentIdentity());
     const tabsWrap = $('#history-tabs');
     tabsWrap.innerHTML = HISTORY_TABS.map((t) => {
       const active = historyOwnershipFilter === t.key;
@@ -5781,7 +5806,7 @@
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
     // así que el orden se conserva sin importar qué combinación de pestaña/modo esté activa.
-    let list = PH.filterHistoryCombined(fullHistory, currentPlayerName, historyOwnershipFilter, historyModeFilter);
+    let list = PH.filterHistoryCombined(fullHistory, currentIdentity(), historyOwnershipFilter, historyModeFilter);
     // V02.1 (§27) — filtro contextual (Racha actual/Efectividad), aplicado DESPUÉS de las
     // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio recalculado
     // aparte que pudiera divergir del que ya muestran Home/Efectividad. V02.7 (§4): Efectividad
@@ -5790,7 +5815,7 @@
       const ids = historyContextFilter.matchIds;
       list = list.filter((m) => ids.has(m.matchId));
     } else if (historyContextFilter && historyContextFilter.type === 'effectiveness') {
-      const allowed = new Set(PH.filterMatchesWithDefinedResult(PH.filterMatchesForPlayer(fullHistory, currentPlayerName), currentPlayerName).map((m) => m.matchId));
+      const allowed = new Set(PH.filterMatchesWithDefinedResult(PH.filterMatchesForPlayer(fullHistory, currentIdentity()), currentIdentity()).map((m) => m.matchId));
       list = list.filter((m) => allowed.has(m.matchId));
     }
     const wrap = $('#history-list');
@@ -5834,11 +5859,11 @@
       // existiendo como texto) ya comunica el resultado, una segunda señal de color era
       // redundante. Todos los participantes quedan con el mismo tratamiento neutro (ver
       // styles.css:.history-item__teams).
-      const ownership = PH.classifyMatchOwnership(m, currentPlayerName);
+      const ownership = PH.classifyMatchOwnership(m, currentIdentity());
       let resultBadgeHTML = '';
       let wonTagA = '', wonTagB = '';
       if (ownership === 'mine') {
-        const resultKind = PH.matchResultForPlayer(m, currentPlayerName);
+        const resultKind = PH.matchResultForPlayer(m, currentIdentity());
         if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VICTORIA</span>';
         else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DERROTA</span>';
       } else if (m.winnerTeam === 'A') {
@@ -5938,6 +5963,12 @@
    *  engine.js/stats.js (E/S) para el resto de la app. */
   /* ------------------------------------------------------------------ */
   let currentPlayerName = null;
+  // V03.0 (§1) — id del Usuario con sesión activa, sincronizado junto a `currentPlayerName`
+  // por `syncCurrentIdentityFromStore()`. Los call sites que resuelven "es mi partido" (Home,
+  // Historial, Nivel BRAMU, Hitos, Efectividad, Racha, compañero/rival) pasan
+  // `currentIdentity()` en vez del string suelto — ver regla de exclusividad de `userId` en
+  // player-home.js (un userId ya estampado en un partido nunca cae a fallback por nombre).
+  let currentUserId = null;
   // V02.8 (§1) — REEMPLAZA el criterio de V02.7: las microanimaciones de entrada (barra de
   // Nivel, Actividad, Efectividad) ahora se reproducen CADA VEZ que se entra o se vuelve al
   // Home, no solo la primera vez de la sesión (el flag booleano `homeEnteredThisSession` que
@@ -5946,12 +5977,27 @@
   // barra inferior, el volver desde Resumen) — nunca como refresco de fondo estando ya parado
   // en el Home — así que "cada render = una entrada real" ya es cierto sin necesitar ningún
   // flag para distinguir casos.
-  // Auditoría funcional (§5): "Cambiar jugador" no existe más — el modal "¿Quién sos?" solo se
-  // abre para la PRIMERA identificación (nunca hay más de un call-site vivo con un jugador ya
-  // identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a dónde seguir
-  // después de guardar el nombre (por default, al Home) — lo usa, por ejemplo, "Cargar partido
-  // jugado" para retomar la carga apenas el jugador se identifica (§3).
+  // Auditoría funcional (§5) / V03.0 (§1) — "Cambiar jugador" no existe más — el flujo de
+  // Acceso solo se abre para la PRIMERA identificación (nunca hay más de un call-site vivo con
+  // un jugador ya identificado detrás). `afterIdentifyAction` deja que quien lo abre decida a
+  // dónde seguir después de loguearse (por default, al Home) — lo usa, por ejemplo, "Cargar
+  // partido jugado" para retomar la carga apenas el jugador se identifica (§3).
   let afterIdentifyAction = null;
+
+  /** Relee `currentPlayerName`/`currentUserId` desde Store — único punto de sincronización
+   *  entre la sesión persistida y las variables de módulo que el resto de este archivo
+   *  consulta. Se llama en los mismos puntos que antes releían solo `currentPlayerName`
+   *  (`openPlayerHome`, `openManualLoadScreen`, `renderPlayerHome`) más al completar login/
+   *  signup. */
+  function syncCurrentIdentityFromStore() {
+    currentPlayerName = Store.loadCurrentPlayerName();
+    const user = Store.getCurrentUser();
+    currentUserId = user ? user.id : null;
+  }
+
+  /** `{name, userId}` — identidad de sesión lista para pasar a `PH.*` en vez del string suelto
+   *  (ver regla de exclusividad de `userId` en player-home.js). */
+  function currentIdentity() { return { name: currentPlayerName, userId: currentUserId }; }
 
   // Etapa 4.1 (§4): el Nivel BRAMU dejó de ser un valor fijo — ahora se DERIVA de
   // PH.computeLevelEvolution (player-home.js), la ÚNICA fuente de verdad que consumen por
@@ -5971,50 +6017,347 @@
   // PH.levelProgressPct (player-home.js): función pura, testeable en tests.html sin DOM.
 
   function openPlayerHome() {
-    currentPlayerName = Store.loadCurrentPlayerName();
-    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
     renderPlayerHome();
     showView('player-home');
   }
 
-  function openPlayerIdentifyModal(afterAction) {
+  /* ------------------------------------------------------------------ */
+  /* V03.0 — ACCESO / CREAR CUENTA / INICIAR SESIÓN / PLAYER CARD          */
+  /* Reemplaza al modal "¿Quién sos?". Mismos 3 puntos de entrada de antes */
+  /* (openManualLoadScreen, openPlayerHome, renderPlayerHome) abren        */
+  /* #view-access en vez del modal viejo — `afterIdentifyAction` se sigue  */
+  /* usando igual para retomar el flujo original tras loguearse.           */
+  /* ------------------------------------------------------------------ */
+
+  function openAccessFlow(afterAction) {
     afterIdentifyAction = afterAction || null;
-    $('#player-identify-input').value = '';
-    $('#player-identify-error').hidden = true;
-    $('#player-identify-modal').hidden = false;
+    showView('access');
   }
 
-  function initPlayerIdentifyModal() {
-    $('#player-identify-form').addEventListener('submit', (e) => {
+  function completeIdentifyAction() {
+    const action = afterIdentifyAction;
+    afterIdentifyAction = null;
+    if (action) action(); else { renderPlayerHome(); showView('player-home'); }
+  }
+
+  function initAccessScreen() {
+    $('#access-login-btn').addEventListener('click', () => {
+      $('#login-email').value = '';
+      $('#login-password').value = '';
+      $('#login-error').hidden = true;
+      showView('login');
+    });
+    $('#access-signup-btn').addEventListener('click', openSignupWizard);
+    $('#access-cancel-btn').addEventListener('click', () => {
+      afterIdentifyAction = null;
+      showView('setup');
+    });
+  }
+
+  function initLoginScreen() {
+    $('#login-back-btn').addEventListener('click', () => showView('access'));
+    $('#login-form').addEventListener('submit', (e) => {
       e.preventDefault();
-      const name = normalizePlayerName($('#player-identify-input').value);
-      if (!name) { $('#player-identify-error').hidden = false; return; }
-      Store.saveCurrentPlayerName(name);
-      Store.rememberPlayerNames([name]);
-      currentPlayerName = name;
-      $('#player-identify-modal').hidden = true;
-      const action = afterIdentifyAction;
-      afterIdentifyAction = null;
-      if (action) action(); else { renderPlayerHome(); showView('player-home'); }
-    });
-    $('#player-identify-cancel').addEventListener('click', () => {
-      $('#player-identify-modal').hidden = true;
-      afterIdentifyAction = null;
-      // Sin jugador identificado todavía no hay Home (ni carga de partido) que mostrar, así
-      // que no lo dejamos varado con el modal cerrado y nada detrás — vuelve a la pantalla
-      // actual. Este modal solo se abre sin jugador identificado (ver comentario arriba).
-      if (!currentPlayerName) showView('setup');
+      const result = Store.loginWithEmail($('#login-email').value, $('#login-password').value);
+      if (!result.ok) { $('#login-error').hidden = false; return; }
+      $('#login-error').hidden = true;
+      syncCurrentIdentityFromStore();
+      completeIdentifyAction();
     });
   }
 
-  // Auditoría funcional (§5) — "Cerrar sesión": borra ÚNICAMENTE el jugador actual, nunca el
-  // Historial ni los partidos guardados (son datos globales del dispositivo, no del jugador).
-  // Vuelve a la pantalla tradicional; la próxima vez que se entre a "Mi pádel" va a pedir
-  // "¿Quién sos?" de nuevo, porque currentPlayerName ya no existe.
-  function logoutCurrentPlayer() {
-    Store.clearCurrentPlayerName();
+  /** Toggle genérico de un `role="radiogroup"` de `.option-col`/`.option-pill` (mismo patrón
+   *  que ya usa #scoring-options/#format-options en initSetupScreen) — evita repetirlo a mano
+   *  en el wizard de signup y en la edición de Perfil, que necesitan el mismo control 2 veces
+   *  cada uno (mano hábil, lado habitual). */
+  function wireOptionGroup(containerId, onSelect) {
+    $all(`#${containerId} .option-col`).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $all(`#${containerId} .option-col`).forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
+        btn.classList.add('is-selected');
+        btn.setAttribute('aria-checked', 'true');
+        onSelect(btn.dataset.value);
+      });
+    });
+  }
+
+  function resetOptionGroup(containerId) {
+    $all(`#${containerId} .option-col`).forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
+  }
+
+  let signupStep = 1;
+  let signupDraft = {};
+  let signupPhotoDataUrl = null;
+
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR ACCESO', 2: 'TU IDENTIDAD', 3: 'TU PÁDEL' };
+
+  function resetSignupWizard() {
+    signupStep = 1;
+    signupDraft = {};
+    signupPhotoDataUrl = null;
+    $('#signup-form').reset();
+    $('#signup-avatar-img').hidden = true;
+    $('#signup-avatar-initials').hidden = false;
+    $('#signup-avatar-initials').textContent = '—';
+    $('#signup-username-feedback').textContent = '';
+    delete $('#signup-username').dataset.touched;
+    resetOptionGroup('signup-hand-options');
+    resetOptionGroup('signup-side-options');
+  }
+
+  function openSignupWizard() {
+    resetSignupWizard();
+    renderSignupStep();
+    showView('signup');
+  }
+
+  function renderSignupStep() {
+    $all('#signup-form .signup-step').forEach((el) => { el.hidden = Number(el.dataset.step) !== signupStep; });
+    $all('.signup-progress__dot').forEach((dot) => {
+      const n = Number(dot.dataset.stepDot);
+      dot.classList.toggle('is-active', n === signupStep);
+      dot.classList.toggle('is-done', n < signupStep);
+    });
+    $('#signup-step-title').textContent = SIGNUP_STEP_TITLES[signupStep];
+    $('#signup-continue-btn').textContent = signupStep === 3 ? 'CREAR MI JUGADOR' : 'CONTINUAR';
+    recomputeSignupStepValidity();
+  }
+
+  /** Pinta el checklist de reglas de contraseña en vivo (consolidado §2 Paso 1) — reusado por
+   *  el wizard de signup y por "Completar acceso" (misma exigencia de fuerza en los dos). */
+  function updatePasswordRulesUI(password, listId) {
+    const strength = PLI.checkPasswordStrength(password);
+    $all(`#${listId} li`).forEach((li) => { li.classList.toggle('is-met', !!strength[li.dataset.rule]); });
+    return strength;
+  }
+
+  function recomputeSignupStepValidity() {
+    let ok = false;
+    if (signupStep === 1) {
+      const email = $('#signup-email').value;
+      const password = $('#signup-password').value;
+      const repeat = $('#signup-password-repeat').value;
+      const strength = updatePasswordRulesUI(password, 'signup-password-rules');
+      ok = PLI.isValidEmail(email) && !PLI.isEmailTaken(email, Store.loadUsers()) && strength.ok && PLI.passwordsMatch(password, repeat);
+    } else if (signupStep === 2) {
+      const username = $('#signup-username').value;
+      const displayName = $('#signup-display-name').value.trim();
+      ok = !!$('#signup-first-name').value.trim() && !!displayName
+        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameTaken(username, Store.loadUsers());
+    } else if (signupStep === 3) {
+      ok = !!$('#signup-birthdate').value && !!$('#signup-gender').value
+        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!$('#signup-category').value;
+    }
+    $('#signup-continue-btn').disabled = !ok;
+    return ok;
+  }
+
+  function renderUsernameFeedback(inputId, feedbackId, excludeUserId) {
+    const username = $(`#${inputId}`).value.trim();
+    const el = $(`#${feedbackId}`);
+    if (!username) { el.textContent = ''; el.classList.remove('is-taken'); return; }
+    if (!PLI.isValidUsernameFormat(username)) { el.textContent = 'Entre 3 y 20 caracteres, sin espacios.'; el.classList.add('is-taken'); return; }
+    const taken = PLI.isUsernameTaken(username, Store.loadUsers(), excludeUserId);
+    el.textContent = taken ? 'Ya está en uso.' : 'Disponible.';
+    el.classList.toggle('is-taken', taken);
+  }
+
+  /** Consolidado §2 Paso 2 — mientras el usuario no haya tocado @usuario a mano, se le
+   *  sugiere una variante libre a partir de nombre/apellido cada vez que esos cambian. Deja de
+   *  sugerir apenas el usuario escribe algo ahí (se detecta con un flag simple en el propio
+   *  input, sin variable de módulo aparte). */
+  function maybeSuggestSignupUsername() {
+    const input = $('#signup-username');
+    if (input.dataset.touched === '1') return;
+    input.value = PLI.suggestUsername($('#signup-first-name').value, $('#signup-last-name').value, Store.loadUsers());
+    renderUsernameFeedback('signup-username', 'signup-username-feedback');
+  }
+
+  function setAvatarPreview(imgId, initialsId, dataUrl, fallbackName) {
+    const img = $(`#${imgId}`), initials = $(`#${initialsId}`);
+    if (dataUrl) { img.src = dataUrl; img.hidden = false; initials.hidden = true; }
+    else { img.hidden = true; initials.hidden = false; initials.textContent = playerInitials(fallbackName || ''); }
+  }
+
+  /** Redimensiona una imagen elegida por el usuario antes de guardarla (foto de perfil /
+   *  signup): nunca se guarda el archivo original completo en localStorage — un máximo de
+   *  ~256px de lado más compresión JPEG evita inflar el storage con fotos de varios MB.
+   *  Devuelve una Promise<string> (data URL) — se usa tanto en el signup como en Perfil. */
+  function downscaleImageFileToDataUrl(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = reject;
+        img.onload = () => {
+          let { width, height } = img;
+          if (width >= height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+          else if (height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function initSignupWizard() {
+    $('#signup-back-btn').addEventListener('click', () => {
+      if (signupStep > 1) { signupStep -= 1; renderSignupStep(); } else showView('access');
+    });
+    ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
+      $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
+    });
+    $('#signup-first-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
+    $('#signup-last-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
+    $('#signup-username').addEventListener('input', () => {
+      $('#signup-username').dataset.touched = '1';
+      renderUsernameFeedback('signup-username', 'signup-username-feedback');
+      recomputeSignupStepValidity();
+    });
+    $('#signup-display-name').addEventListener('input', recomputeSignupStepValidity);
+    ['signup-birthdate', 'signup-gender', 'signup-category'].forEach((id) => {
+      $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
+    });
+    wireOptionGroup('signup-hand-options', (v) => { signupDraft.dominantHand = v; recomputeSignupStepValidity(); });
+    wireOptionGroup('signup-side-options', (v) => { signupDraft.preferredSide = v; recomputeSignupStepValidity(); });
+
+    $('#signup-avatar-edit-btn').addEventListener('click', () => $('#signup-avatar-input').click());
+    $('#signup-avatar-input').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      signupPhotoDataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
+      setAvatarPreview('signup-avatar-img', 'signup-avatar-initials', signupPhotoDataUrl);
+    });
+
+    $('#signup-continue-btn').addEventListener('click', () => {
+      if (!recomputeSignupStepValidity()) return;
+      if (signupStep === 1) {
+        signupDraft.email = $('#signup-email').value.trim();
+        signupDraft.password = $('#signup-password').value;
+        signupStep = 2;
+        renderSignupStep();
+      } else if (signupStep === 2) {
+        signupDraft.firstName = $('#signup-first-name').value.trim();
+        signupDraft.lastName = $('#signup-last-name').value.trim();
+        signupDraft.username = $('#signup-username').value.trim();
+        signupDraft.displayName = normalizePlayerName($('#signup-display-name').value);
+        signupDraft.profilePhoto = signupPhotoDataUrl;
+        signupStep = 3;
+        renderSignupStep();
+      } else {
+        signupDraft.birthDate = $('#signup-birthdate').value;
+        signupDraft.gender = $('#signup-gender').value;
+        signupDraft.declaredCategory = $('#signup-category').value;
+        const user = Store.signUpAndLogin(signupDraft);
+        syncCurrentIdentityFromStore();
+        openPlayerCardScreen(user);
+      }
+    });
+  }
+
+  /** `birthDate` es un string "YYYY-MM-DD" plano (de `<input type="date">`), nunca un
+   *  instante UTC — `new Date('2000-05-15')` lo interpretaría como medianoche UTC y, con
+   *  `Intl.DateTimeFormat` en una zona horaria detrás de UTC (como Argentina), mostraría el
+   *  día ANTERIOR. Mismo tipo de bug que ya se corrigió en la carga manual (V02.1/V02.5,
+   *  ver ML.buildPlayedAtFromLocalFields) — acá se evita directamente construyendo la fecha
+   *  en LOCAL a partir de las 3 partes, sin pasar nunca por un parseo UTC. */
+  function formatBirthDate(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-').map(Number);
+    if (!y || !m || !d) return '';
+    const local = new Date(y, m - 1, d);
+    try { return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }).format(local); }
+    catch (e) { return dateStr; }
+  }
+
+  const HAND_LABELS = { derecha: 'Derecha', izquierda: 'Izquierda' };
+  const SIDE_LABELS = { drive: 'Drive', reves: 'Revés', indiferente: 'Indiferente' };
+  const CATEGORY_LABELS = { '1': '1ª', '2': '2ª', '3': '3ª', '4': '4ª', '5': '5ª', '6': '6ª', '7': '7ª', '8': '8ª', '9': '9ª', 'no-se': 'No sé mi categoría' };
+  const GENDER_LABELS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro', 'prefiero-no-decir': 'Prefiero no decir' };
+
+  /** Consolidado §3 — "TU JUGADOR ESTÁ LISTO": momento de recompensa post-signup, nunca un
+   *  alert genérico. Siempre muestra 0/5 CALIBRANDO (una cuenta recién creada nunca tiene
+   *  partidos todavía) — no reusa PH.buildCalibrationStatus con datos reales a propósito, acá
+   *  el estado es fijo por definición. */
+  function openPlayerCardScreen(user) {
+    setAvatarPreview('player-card-avatar-img', 'player-card-avatar-initials', user.profilePhoto, user.displayName);
+    $('#player-card-name').textContent = user.displayName || '—';
+    $('#player-card-handle').textContent = user.username ? `@${user.username}` : '—';
+    const age = PLI.calculateAge(user.birthDate);
+    $('#player-card-age').textContent = age === null ? '—' : String(age);
+    $('#player-card-hand').textContent = HAND_LABELS[user.dominantHand] || '—';
+    $('#player-card-side').textContent = SIDE_LABELS[user.preferredSide] || '—';
+    $('#player-card-category').textContent = CATEGORY_LABELS[user.declaredCategory] || '—';
+    showView('player-card');
+  }
+
+  function initPlayerCardScreen() {
+    $('#player-card-enter-btn').addEventListener('click', () => { completeIdentifyAction(); });
+  }
+
+  /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
+   *  una segunda). Reusado desde Perfil y desde la advertencia de "Cerrar sesión". */
+  function openCompleteAccessModal() {
+    $('#complete-access-email').value = '';
+    $('#complete-access-password').value = '';
+    $('#complete-access-password-repeat').value = '';
+    $('#complete-access-error').hidden = true;
+    updatePasswordRulesUI('', 'complete-access-password-rules');
+    $('#complete-access-modal').hidden = false;
+  }
+
+  function initCompleteAccessModal() {
+    $('#complete-access-password').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'complete-access-password-rules'));
+    $('#complete-access-cancel').addEventListener('click', () => { $('#complete-access-modal').hidden = true; });
+    $('#complete-access-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = Store.getCurrentUser();
+      if (!user) { $('#complete-access-modal').hidden = true; return; }
+      const email = $('#complete-access-email').value.trim();
+      const password = $('#complete-access-password').value;
+      const repeat = $('#complete-access-password-repeat').value;
+      const strength = PLI.checkPasswordStrength(password);
+      let error = null;
+      if (!PLI.isValidEmail(email)) error = 'Ingresá un email válido.';
+      else if (PLI.isEmailTaken(email, Store.loadUsers(), user.id)) error = 'Ese email ya está en uso.';
+      else if (!strength.ok) error = 'La contraseña todavía no cumple los requisitos.';
+      else if (!PLI.passwordsMatch(password, repeat)) error = 'Las contraseñas no coinciden.';
+      if (error) { $('#complete-access-error').textContent = error; $('#complete-access-error').hidden = false; return; }
+      Store.updateUserAccount(user.id, { email, password });
+      $('#complete-access-modal').hidden = true;
+      $('#logout-warning-modal').hidden = true;
+      renderProfileView();
+    });
+  }
+
+  /** V03.0 (§3) — "Cerrar sesión": borra ÚNICAMENTE la sesión activa (Store.logoutSession —
+   *  limpia SESSION + CURRENT_PLAYER), nunca el Historial, USERS ni los partidos guardados
+   *  (son datos globales del dispositivo, no de la sesión). Si la cuenta todavía no tiene
+   *  email, primero advierte — sin acceso completo no hay forma de volver a entrar a ESE
+   *  jugador (un userId ya estampado en el historial es exclusivo de esa cuenta, nunca se
+   *  "recupera" creando otra con el mismo nombre — ver player-home.js). */
+  function requestLogout() {
+    const user = Store.getCurrentUser();
+    if (user && !user.email) { $('#logout-warning-modal').hidden = false; return; }
+    doLogout();
+  }
+  function doLogout() {
+    Store.logoutSession();
     currentPlayerName = null;
+    currentUserId = null;
     showView('setup');
+  }
+  function initLogoutWarningModal() {
+    $('#logout-warning-cancel-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; });
+    $('#logout-warning-complete-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; openCompleteAccessModal(); });
+    $('#logout-warning-confirm-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; doLogout(); });
   }
 
   function playerInitials(name) {
@@ -6037,10 +6380,10 @@
   }
 
   function renderPlayerHome() {
-    currentPlayerName = Store.loadCurrentPlayerName();
-    if (!currentPlayerName) { openPlayerIdentifyModal(); return; }
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
     renderActiveMatchBanner();
-    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
     // V02.8 (§1) — se anima en CADA render (cada entrada/vuelta real al Home, ver comentario
     // en la declaración de `currentPlayerName` de más arriba), salvo `prefers-reduced-motion`.
     // Se sigue chequeando en JS (no solo vía el colapso de `--home-anim-*` a 1ms en CSS) porque
@@ -6053,7 +6396,7 @@
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(matches);
-    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentPlayerName);
+    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity());
     renderPlayerActivity(matches, shouldAnimate);
     renderPlayerEffectiveness(matches, shouldAnimate);
     renderPlayerWidgets(matches);
@@ -6065,7 +6408,7 @@
   /** §5 — Hitos personales: como máximo 2, ocultos por completo si no hay ninguno
    *  justificado (PH.computeHitos ya decide eso; acá solo se pinta lo que devuelve). */
   function renderPlayerHitos(matches) {
-    const hitos = PH.computeHitos(matches, currentPlayerName);
+    const hitos = PH.computeHitos(matches, currentIdentity());
     const wrap = $('#player-home-hitos');
     if (!hitos.length) { wrap.hidden = true; wrap.innerHTML = ''; return; }
     wrap.hidden = false;
@@ -6087,6 +6430,16 @@
     return '@' + stripped.toLowerCase();
   }
 
+  /** V03.0 (§2/§4) — cuentas legacy migradas siguen viendo el número simulado de siempre, sin
+   *  ningún cambio (consolidado §4: "no romper niveles ni datos existentes de usuarios de
+   *  prueba"). Cuentas nuevas V03.0 nunca ven un número — la fórmula real todavía no existe —
+   *  solo CALIBRANDO X/5 PARTIDOS o CALIBRACIÓN COMPLETA (PH.buildCalibrationStatus), de forma
+   *  permanente en esta versión. */
+  function isLegacyLevelAccount() {
+    const user = Store.getCurrentUser();
+    return !!(user && user.legacyMigrated);
+  }
+
   function renderPlayerCard(matches, shouldAnimate) {
     $('#player-home-name').textContent = currentPlayerName;
     $('#player-home-handle').textContent = buildPlayerHandle(currentPlayerName);
@@ -6094,7 +6447,19 @@
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
     // exactamente la misma noción de "mine" que usa la evolución (§4.2: nunca un Observado).
-    const evolution = PH.computeLevelEvolution(matches, currentPlayerName);
+    const evolution = PH.computeLevelEvolution(matches, currentIdentity());
+    const levelSubEl = $('#player-home-level-sub');
+    const barWrapEl = $('#player-home-level-bar-wrap');
+    if (!isLegacyLevelAccount()) {
+      const calib = PH.buildCalibrationStatus(evolution.consideredCount);
+      $('#player-home-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      levelSubEl.hidden = calib.complete;
+      levelSubEl.textContent = calib.complete ? '' : calib.progressText;
+      barWrapEl.hidden = true;
+      return;
+    }
+    barWrapEl.hidden = false;
+    levelSubEl.hidden = true;
     $('#player-home-level-value').textContent = evolution.current.toFixed(1);
     const delta = formatLevelDelta(evolution.lastDelta);
     const deltaEl = $('#player-home-level-delta');
@@ -6141,9 +6506,9 @@
     }
     card.classList.remove('is-empty');
     const m = matches[0];
-    const myTeam = PH.getPlayerTeam(m, currentPlayerName);
-    const partner = PH.getPartnerName(m, currentPlayerName);
-    const rivals = PH.getOpponentNames(m, currentPlayerName);
+    const myTeam = PH.getPlayerTeam(m, currentIdentity());
+    const partner = PH.getPartnerName(m, currentIdentity());
+    const rivals = PH.getOpponentNames(m, currentIdentity());
     // V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML,
     // no el componente canónico compartido con Historial/Confirmar partido — ver comentario
     // en su definición).
@@ -6167,7 +6532,7 @@
     // volanta en orden cronológico (izquierda=más antiguo → derecha=este partido, §7).
     // Etapa 4.2 (§11) — sin letra adentro: la forma y el color ya se entienden solos, con el
     // aria-label como alternativa accesible (nunca el color como única señal).
-    const formOldestFirst = PH.computeRecentForm(matches, currentPlayerName, 5).slice().reverse();
+    const formOldestFirst = PH.computeRecentForm(matches, currentIdentity(), 5).slice().reverse();
     const formDotsHtml = formOldestFirst.map((f, i) => {
       const isCurrent = i === formOldestFirst.length - 1;
       const cls = `lastmatch-form-dot lastmatch-form-dot--${f.result}${isCurrent ? ' lastmatch-form-dot--current' : ''}`;
@@ -6231,7 +6596,7 @@
    *  (función pura, testeada con los 4 casos del §10.1.5: incluye 1 derrota/0 victorias, que
    *  sigue dando `lossPct: 100`, nunca 0% de alto). */
   function renderPlayerActivity(matches, shouldAnimate) {
-    const activity = PH.computeActivityWeeks4(matches, currentPlayerName);
+    const activity = PH.computeActivityWeeks4(matches, currentIdentity());
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
     const heights = activity.buckets.map((b) => b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6);
@@ -6298,7 +6663,7 @@
    *  V02.9 (§1) — vuelve a ser UN SOLO halo (V02.8.1-8.3 habían llegado a dos, que apilados
    *  leían como un aro difuso — ver styles.css). */
   function renderPlayerEffectiveness(matches, shouldAnimate) {
-    const eff = PH.computeEffectivenessTotal(matches, currentPlayerName);
+    const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
     const ring = $('#player-home-effectiveness-ring');
     const glow = $('#player-home-effectiveness-glow');
     const circles = [ring, glow];
@@ -6352,10 +6717,10 @@
    *  compañero (mayor efectividad con muestra mínima de 3, no el más repetido) y Rival más
    *  enfrentado (sin cambios respecto a Etapa 2/3). */
   function renderPlayerWidgets(matches) {
-    const streak = PH.computeCurrentStreak(matches, currentPlayerName);
+    const streak = PH.computeCurrentStreak(matches, currentIdentity());
     const total = matches.length;
-    const partner = PH.computeBestPartner(matches, currentPlayerName);
-    const rival = PH.computeMostFrequentRival(matches, currentPlayerName);
+    const partner = PH.computeBestPartner(matches, currentIdentity());
+    const rival = PH.computeMostFrequentRival(matches, currentIdentity());
 
     $('#widget-streak-value').textContent = streak.count > 0 ? String(streak.count) : '—';
     $('#widget-streak-caption').textContent = streak.count > 0 ? (streak.count === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Sin racha en curso';
@@ -6378,7 +6743,7 @@
    *  último cambio. */
   function initPlayerHomeLastMatchCard() {
     $('#player-home-last-match-card').addEventListener('click', () => {
-      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
+      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
       if (!matches.length) { openManualLoadScreen('player-home'); return; }
       openCanonicalResumen(matches[0], 'player-home');
     });
@@ -6390,8 +6755,8 @@
    *  tienen handler acá (§22: "mantener sin acción hasta definir qué detalle aporta valor"). */
   function initPlayerHomeMetricsNav() {
     $('#widget-streak-card').addEventListener('click', () => {
-      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
-      const streakMatches = PH.computeCurrentStreakMatches(matches, currentPlayerName);
+      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+      const streakMatches = PH.computeCurrentStreakMatches(matches, currentIdentity());
       if (!streakMatches.length) return; // sin racha activa, no hay nada que filtrar
       const matchIds = new Set(streakMatches.map((m) => m.matchId));
       openHistoryScreen('player-home', { type: 'streak', matchIds, label: 'Racha actual' });
@@ -6409,7 +6774,6 @@
     $('#active-match-banner').addEventListener('click', continueActiveMatch);
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
-    initPlayerIdentifyModal();
     initNotificationsModal();
   }
 
@@ -6438,8 +6802,8 @@
   function openPersonListScreen(kind) {
     const cfg = PERSON_LIST_CONFIG[kind];
     $('#companions-title').textContent = cfg.title;
-    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentPlayerName);
-    const people = kind === 'partners' ? PH.computeTeammateBreakdown(matches, currentPlayerName) : PH.computeRivalBreakdown(matches, currentPlayerName);
+    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+    const people = kind === 'partners' ? PH.computeTeammateBreakdown(matches, currentIdentity()) : PH.computeRivalBreakdown(matches, currentIdentity());
     const wrap = $('#companions-list');
     const isEmpty = people.length === 0;
     $('#companions-empty').hidden = !isEmpty;
@@ -6469,12 +6833,34 @@
     $('#companions-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
+  /** V03.0 (§5) — Perfil pasa a mostrar la identidad completa del Usuario (no solo el nombre):
+   *  avatar, nombre visible, @usuario, nombre/apellido, fecha de nacimiento/edad, género, mano
+   *  hábil, lado habitual, categoría declarada. Todo de solo lectura acá — la edición vive en
+   *  #profile-edit-modal (nunca inline). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/
+   *  efectividad NO aparecen en esta sección: son computados, no editables (consolidado §5). */
   function renderProfileView() {
+    const user = Store.getCurrentUser();
     const name = Store.loadCurrentPlayerName();
-    $('#profile-name').textContent = name || '—';
-    const count = name ? PH.filterMatchesForPlayer(Store.loadHistory(), name).length : 0;
+    setAvatarPreview('profile-avatar-img', 'profile-avatar-initials', user && user.profilePhoto, name);
+    $('#profile-display-name').textContent = (user && user.displayName) || name || '—';
+    $('#profile-username').textContent = user && user.username ? `@${user.username}` : '—';
+    const count = name ? PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()).length : 0;
     $('#profile-match-count').textContent = count === 1 ? '1 partido cargado' : `${count} partidos cargados`;
-    renderProfileEvolution();
+
+    $('#profile-access-pending').hidden = !user || !!user.email;
+
+    const fullName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : '';
+    $('#profile-fullname').textContent = fullName || '—';
+    const age = user ? PLI.calculateAge(user.birthDate) : null;
+    $('#profile-birthdate').textContent = (user && user.birthDate)
+      ? `${formatBirthDate(user.birthDate)}${age !== null ? ` (${age} años)` : ''}`
+      : '—';
+    $('#profile-gender').textContent = (user && GENDER_LABELS[user.gender]) || '—';
+    $('#profile-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
+    $('#profile-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
+    $('#profile-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
+
+    renderProfileEvolution(user);
   }
 
   /* ------------------------------------------------------------------ */
@@ -6551,10 +6937,24 @@
    *  van en la Tarjeta de jugador del Home (renderPlayerCard); acá van los 3 datos propios de
    *  esta tarjeta: nivel actual, CAMBIO ACUMULADO desde la base (no el último movimiento) y
    *  cantidad de partidos considerados — nunca predicciones ni percentiles (§4.5). */
-  function renderProfileEvolution() {
+  function renderProfileEvolution(user) {
     const history = Store.loadHistory();
-    const evolution = PH.computeLevelEvolution(history, currentPlayerName);
+    const evolution = PH.computeLevelEvolution(history, currentIdentity());
     profileEvolutionData = evolution;
+
+    // V03.0 (§2) — mismo gate que la Tarjeta de jugador del Home: cuentas legacy ven el
+    // número simulado de siempre (sin cambios), cuentas nuevas V03.0 ven CALIBRANDO/
+    // CALIBRACIÓN COMPLETA en vez de un gráfico numérico — la fórmula real todavía no existe.
+    const isLegacy = !!(user && user.legacyMigrated);
+    $('#evolution-numeric').hidden = !isLegacy;
+    $('#evolution-calibration').hidden = isLegacy;
+    if (!isLegacy) {
+      const calib = PH.buildCalibrationStatus(evolution.consideredCount);
+      $('#evolution-calibration-state').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      $('#evolution-calibration-progress').textContent = calib.complete ? '' : calib.progressText;
+      $('#evolution-calibration-progress').hidden = calib.complete;
+      return;
+    }
 
     $('#evolution-current-value').textContent = evolution.current.toFixed(1);
     const change = formatLevelDelta(evolution.changeFromBase);
@@ -6576,7 +6976,9 @@
     // V02.8 (§1) — mismo criterio que el back de Ranking: openPlayerHome() re-renderiza el
     // Home (y anima) al volver, en vez de solo des-ocultar la vista con el contenido viejo.
     $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
-    $('#profile-logout-btn').addEventListener('click', logoutCurrentPlayer);
+    $('#profile-logout-btn').addEventListener('click', requestLogout);
+    $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
+    $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
     const chartWrap = $('#evolution-chart-wrap');
     chartWrap.addEventListener('click', (e) => {
       const dot = e.target.closest('[data-index]');
@@ -6589,6 +6991,111 @@
       if (!dot || !profileEvolutionData) return;
       e.preventDefault();
       showLevelPointDetail(profileEvolutionData, Number(dot.dataset.index));
+    });
+  }
+
+  let profileEditPhotoDataUrl = null; // null = sin cambio; '' = "quitar foto" explícito
+  let profileEditPhotoRemoved = false;
+  // V03.0 — a nivel de módulo (no local a initProfileEditModal) para que openProfileEditModal
+  // pueda RESETEARLAS en cada apertura: si quedaran como variables locales al inicializador,
+  // un cambio de mano/lado seleccionado y cancelado sin guardar quedaría "pegado" la próxima
+  // vez que se abre el modal, aunque la cuenta real no tenga ese campo cargado todavía.
+  let profileEditHand = null;
+  let profileEditSide = null;
+
+  /** V03.0 (§5) — abre la edición de Perfil precargada con los datos actuales del Usuario.
+   *  Nunca edita inline la vista de Perfil — mismo patrón overlay que el resto de la app. */
+  function openProfileEditModal() {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    profileEditPhotoDataUrl = null;
+    profileEditPhotoRemoved = false;
+    profileEditHand = user.dominantHand || null;
+    profileEditSide = user.preferredSide || null;
+    setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', user.profilePhoto, user.displayName);
+    $('#profile-edit-avatar-remove-btn').hidden = !user.profilePhoto;
+    $('#profile-edit-first-name').value = user.firstName || '';
+    $('#profile-edit-last-name').value = user.lastName || '';
+    $('#profile-edit-username').value = user.username || '';
+    $('#profile-edit-username-feedback').textContent = '';
+    $('#profile-edit-display-name').value = user.displayName || '';
+    $('#profile-edit-birthdate').value = user.birthDate || '';
+    $('#profile-edit-gender').value = user.gender || '';
+    $('#profile-edit-category').value = user.declaredCategory || '';
+    resetOptionGroup('profile-edit-hand-options');
+    resetOptionGroup('profile-edit-side-options');
+    if (user.dominantHand) $(`#profile-edit-hand-options [data-value="${user.dominantHand}"]`).click();
+    if (user.preferredSide) $(`#profile-edit-side-options [data-value="${user.preferredSide}"]`).click();
+    $('#profile-edit-error').hidden = true;
+    $('#profile-edit-modal').hidden = false;
+  }
+
+  function initProfileEditModal() {
+    wireOptionGroup('profile-edit-hand-options', (v) => { profileEditHand = v; });
+    wireOptionGroup('profile-edit-side-options', (v) => { profileEditSide = v; });
+
+    $('#profile-edit-username').addEventListener('input', () => {
+      const user = Store.getCurrentUser();
+      renderUsernameFeedback('profile-edit-username', 'profile-edit-username-feedback', user ? user.id : null);
+    });
+
+    $('#profile-edit-avatar-edit-btn').addEventListener('click', () => $('#profile-edit-avatar-input').click());
+    $('#profile-edit-avatar-input').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      profileEditPhotoDataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
+      profileEditPhotoRemoved = false;
+      setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', profileEditPhotoDataUrl);
+      $('#profile-edit-avatar-remove-btn').hidden = false;
+    });
+    $('#profile-edit-avatar-remove-btn').addEventListener('click', () => {
+      profileEditPhotoDataUrl = null;
+      profileEditPhotoRemoved = true;
+      setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', null, $('#profile-edit-display-name').value);
+      $('#profile-edit-avatar-remove-btn').hidden = true;
+    });
+
+    $('#profile-edit-cancel').addEventListener('click', () => { $('#profile-edit-modal').hidden = true; });
+    $('#profile-edit-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = Store.getCurrentUser();
+      if (!user) { $('#profile-edit-modal').hidden = true; return; }
+      const username = $('#profile-edit-username').value.trim();
+      const displayName = normalizePlayerName($('#profile-edit-display-name').value);
+      const firstName = $('#profile-edit-first-name').value.trim();
+      let error = null;
+      if (!firstName) error = 'Ingresá al menos tu nombre.';
+      else if (!displayName) error = 'El nombre visible no puede quedar vacío.';
+      else if (!PLI.isValidUsernameFormat(username)) error = '@usuario: entre 3 y 20 caracteres, sin espacios.';
+      else if (PLI.isUsernameTaken(username, Store.loadUsers(), user.id)) error = 'Ese @usuario ya está en uso.';
+      if (error) { $('#profile-edit-error').textContent = error; $('#profile-edit-error').hidden = false; return; }
+
+      const patch = {
+        firstName,
+        lastName: $('#profile-edit-last-name').value.trim(),
+        username,
+        displayName,
+        birthDate: $('#profile-edit-birthdate').value || null,
+        gender: $('#profile-edit-gender').value || null,
+        dominantHand: profileEditHand,
+        preferredSide: profileEditSide,
+        declaredCategory: $('#profile-edit-category').value || null,
+      };
+      if (profileEditPhotoRemoved) patch.profilePhoto = null;
+      else if (profileEditPhotoDataUrl) patch.profilePhoto = profileEditPhotoDataUrl;
+
+      Store.updateUserAccount(user.id, patch);
+      // V03.0 (§1) — cambiar el nombre visible YA NO desvincula el historial: los partidos que
+      // ya tienen userId estampado siguen resolviendo por id (ver player-home.js). Se mantiene
+      // CURRENT_PLAYER sincronizado solo por compatibilidad con los call sites que todavía
+      // muestran ese string plano — nunca es la fuente de "es mío" desde V03.0.
+      if (displayName) {
+        Store.saveCurrentPlayerName(displayName);
+        Store.rememberPlayerNames([displayName]);
+      }
+      syncCurrentIdentityFromStore();
+      $('#profile-edit-modal').hidden = true;
+      renderProfileView();
     });
   }
 
@@ -6894,6 +7401,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    // V03.0 (§8) — migración/bootstrap una sola vez, ANTES de cualquier init/render: si este
+    // dispositivo ya tenía un jugador identificado antes de V03.0, queda logueado de
+    // inmediato (nunca ve la pantalla de Acceso) con todo su historial ya vinculado por
+    // userId. Nunca toca HISTORY/PLAYER_NAMES/ACTIVE_MATCH salvo agregar `userId` donde
+    // corresponde (ver Store.migrateLegacyPlayerToUserIfNeeded).
+    Store.migrateLegacyPlayerToUserIfNeeded();
     initSetupScreen();
     initMatchInteractions();
     initHighlightPopup();
@@ -6917,6 +7430,13 @@
     initRankingScreen();
     initCompanionsScreen();
     initProfileScreen();
+    initProfileEditModal();
+    initAccessScreen();
+    initLoginScreen();
+    initSignupWizard();
+    initPlayerCardScreen();
+    initCompleteAccessModal();
+    initLogoutWarningModal();
     initBottomNav();
     initRegisterSheet();
     initDiscardMatchModal();

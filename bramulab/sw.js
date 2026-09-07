@@ -21,7 +21,7 @@
 // cualquier caso porque sw.js no cambia de bytes en una ronda de ajuste típica, así que sin
 // este bump un cliente con el bundle viejo ya instalado nunca dispara un reinstall del
 // service worker y se queda para siempre con la caché desactualizada.
-const CACHE_NAME = 'bramulab-v02-9-3';
+const CACHE_NAME = 'bramulab-v03-0';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -31,6 +31,7 @@ const CORE_ASSETS = [
   './store.js',
   './player-home.js',
   './match-load.js',
+  './player-identity.js',
   './app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',

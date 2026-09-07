@@ -13,18 +13,55 @@
   const Store = global.PLStore;
   const Engine = global.PLEngine;
 
-  /** Partido en el que aparece `playerName` (nombre ya normalizado o no — se normaliza acá). */
-  function getPlayerTeam(m, playerName) {
-    const target = Store.normalizePlayerName(playerName);
-    const p = (m.players || []).find((pl) => pl && pl.name === target);
-    return p ? p.team : null;
+  /* ------------------------------------------------------------------ */
+  /* V03.0 — RESOLUCIÓN DE PERTENENCIA POR IDENTIDAD (userId + fallback   */
+  /* por nombre). Único punto de entrada: `findPlayerRow`. Todas las      */
+  /* funciones de este archivo que preguntan "¿es mi partido?" reciben un */
+  /* `playerRef` que puede ser un string plano (comportamiento legacy,    */
+  /* sin cambios) o un objeto `{name, userId}` construido por app.js a    */
+  /* partir de la sesión activa (Store.getCurrentUser()). Regla de        */
+  /* integridad (consolidado V03.0 — revisión de Sebastián): un `userId`  */
+  /* ya guardado en una fila de `players[]` es AUTORITATIVO Y EXCLUSIVO   */
+  /* para esa fila — solo la misma búsqueda con ESE `userId` puede         */
+  /* encontrarla, nunca cae a comparar por nombre (así dos cuentas con el  */
+  /* mismo nombre visible no puedan "reclamarse" el historial una a la     */
+  /* otra). Una fila SIN `userId` todavía (partido legacy sin estampar)    */
+  /* sigue resolviendo por nombre normalizado, exactamente como antes de   */
+  /* V03.0. */
+  /* ------------------------------------------------------------------ */
+
+  /** Acepta un string plano (legacy) o un objeto `{name, userId}` y siempre devuelve la
+   *  segunda forma — único punto de normalización de la forma de entrada para no repetir este
+   *  `typeof` check en cada función. */
+  function resolveIdentityRef(ref) {
+    if (ref && typeof ref === 'object') return { name: ref.name || null, userId: ref.userId || null };
+    return { name: ref || null, userId: null };
   }
 
-  function getPartnerName(m, playerName) {
-    const team = getPlayerTeam(m, playerName);
+  /** Única fuente de verdad para "¿cuál fila de `players[]` es esta identidad?" — ver regla de
+   *  integridad de `userId` arriba. */
+  function findPlayerRow(m, playerRef) {
+    const identity = resolveIdentityRef(playerRef);
+    const players = (m && m.players) || [];
+    const target = Store.normalizePlayerName(identity.name);
+    return players.find((pl) => {
+      if (!pl) return false;
+      if (pl.userId) return !!identity.userId && pl.userId === identity.userId;
+      return !!target && pl.name === target;
+    }) || null;
+  }
+
+  /** Partido en el que aparece `playerRef` (string plano o `{name, userId}` — ver arriba). */
+  function getPlayerTeam(m, playerRef) {
+    const row = findPlayerRow(m, playerRef);
+    return row ? row.team : null;
+  }
+
+  function getPartnerName(m, playerRef) {
+    const team = getPlayerTeam(m, playerRef);
     if (!team) return null;
-    const target = Store.normalizePlayerName(playerName);
-    const partner = (m.players || []).find((pl) => pl.team === team && pl.name !== target);
+    const selfRow = findPlayerRow(m, playerRef);
+    const partner = (m.players || []).find((pl) => pl.team === team && pl !== selfRow);
     return partner ? partner.name : null;
   }
 
@@ -93,15 +130,16 @@
     return a.matchId < b.matchId ? 1 : -1;
   }
 
-  /** Fuente única para el Home: partidos de `history` donde jugó `playerName`, ordenados
-   *  del más reciente al más antiguo por fecha REAL jugada (Etapa 3, Fase 1) — nunca por
-   *  cuándo se guardó. No crea ni duplica ningún almacenamiento — filtra el mismo array
-   *  de siempre. */
-  function filterMatchesForPlayer(history, playerName) {
-    const target = Store.normalizePlayerName(playerName);
-    if (!target) return [];
+  /** Fuente única para el Home: partidos de `history` donde jugó `playerRef` (string plano o
+   *  `{name, userId}`), ordenados del más reciente al más antiguo por fecha REAL jugada
+   *  (Etapa 3, Fase 1) — nunca por cuándo se guardó. Pertenencia resuelta por
+   *  `findPlayerRow` (userId autoritativo, nombre como fallback legacy — ver arriba). No crea
+   *  ni duplica ningún almacenamiento — filtra el mismo array de siempre. */
+  function filterMatchesForPlayer(history, playerRef) {
+    const identity = resolveIdentityRef(playerRef);
+    if (!identity.userId && !Store.normalizePlayerName(identity.name)) return [];
     return (history || [])
-      .filter((m) => m && Array.isArray(m.players) && m.players.some((p) => p && p.name === target))
+      .filter((m) => m && Array.isArray(m.players) && !!findPlayerRow(m, identity))
       .slice()
       .sort(comparePlayedAtDesc);
   }
@@ -655,10 +693,34 @@
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V03.0 (§4) — CALIBRACIÓN DE NIVEL BRAMU PARA CUENTAS NUEVAS           */
+  /* Cero cambios a computeLevelEvolution/isMatchConsideredForLevel — se   */
+  /* siguen usando tal cual. `app.js` decide, según                       */
+  /* Store.getCurrentUser().legacyMigrated, si pinta el número simulado    */
+  /* de siempre (cuentas legacy, sin ningún cambio) o este estado de       */
+  /* calibración (cuentas nuevas V03.0, que nunca ven un número — la       */
+  /* fórmula real todavía no existe). Al llegar al umbral, "complete"      */
+  /* queda `true` de forma permanente en esta versión (nunca revierte a    */
+  /* un número simulado) — deliberado, no un límite a resolver después.    */
+  /* ------------------------------------------------------------------ */
+  const CALIBRATION_THRESHOLD = 5;
+  function buildCalibrationStatus(consideredCount) {
+    const n = consideredCount || 0;
+    if (n >= CALIBRATION_THRESHOLD) return { complete: true, consideredCount: n, threshold: CALIBRATION_THRESHOLD };
+    return {
+      complete: false, consideredCount: n, threshold: CALIBRATION_THRESHOLD,
+      remaining: CALIBRATION_THRESHOLD - n,
+      progressText: `${n} / ${CALIBRATION_THRESHOLD} PARTIDOS`,
+    };
+  }
+
   global.PLPlayerHome = {
     getPlayedAt, comparePlayedAtDesc,
+    resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
+    buildCalibrationStatus, CALIBRATION_THRESHOLD,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,

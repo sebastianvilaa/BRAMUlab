@@ -1054,13 +1054,16 @@
           <div class="player-card__level-row">
             <span class="player-card__level-value" id="player-home-level-value">—</span>
           </div>
+          <!-- V03.0 (§4) — sub-label de calibración ("X / 5 PARTIDOS"), solo visible para
+               cuentas nuevas con menos de 5 partidos considerados (ver renderPlayerCard). -->
+          <span class="player-card__level-sub" id="player-home-level-sub" hidden></span>
         </div>
         <!-- §19 — la variación se relaciona visualmente con la barra (marcador sobre el punto
              de progreso alcanzado), en vez de vivir aparte junto al número.
              V02.4 (Bloque A, §3.3) — la pastilla pasa a ser HERMANA del relleno, no su hija: su
              posición (`left`, seteado en app.js:renderPlayerCard) ahora sigue al PROGRESO real
              dentro del nivel entero, recortada 6-94% para nunca chocar contra los bordes. -->
-        <div class="player-card__bar"><div class="player-card__bar-fill" id="player-home-level-bar"></div><span class="player-card__level-delta" id="player-home-level-delta"></span></div>
+        <div class="player-card__bar" id="player-home-level-bar-wrap"><div class="player-card__bar-fill" id="player-home-level-bar"></div><span class="player-card__level-delta" id="player-home-level-delta"></span></div>
         <!-- §19 — "N partidos en tu historia" se mueve debajo de la barra (antes vivía pegado
              al nombre, compitiendo con él). -->
         <div class="player-card__count" id="player-home-match-count">—</div>
@@ -1205,45 +1208,230 @@
       <span class="analysis-header__title">PERFIL</span>
     </div>
     <div class="analysis-scroll">
-      <div class="pastilla pastilla--identity pastilla--identity-compact">
+      <!-- V03.0 (§5) — identidad del jugador: avatar + nombre visible + @usuario, editables
+           solo vía #profile-edit-modal (nunca inline). -->
+      <div class="pastilla pastilla--identity">
+        <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
+          <span id="profile-avatar-initials">—</span>
+          <img id="profile-avatar-img" alt="" hidden />
+        </div>
         <div class="pastilla-identity__info">
-          <div class="pastilla-identity__name" id="profile-name">—</div>
+          <div class="pastilla-identity__name" id="profile-display-name">—</div>
+          <div class="pastilla-identity__handle" id="profile-username">—</div>
           <p class="coverage-note" id="profile-match-count"></p>
         </div>
       </div>
 
+      <!-- V03.0 (§3) — visible solo mientras la cuenta no tiene email/contraseña todavía
+           (cuenta legacy migrada automáticamente, o cualquier acceso incompleto). -->
+      <div class="pastilla profile-access-pending" id="profile-access-pending" hidden>
+        <div class="pastilla__title">ACCESO PENDIENTE DE COMPLETAR</div>
+        <p class="coverage-note">Todavía no tenés email y contraseña. Completalos ahora — si cerrás sesión sin hacerlo, no vas a poder volver a entrar a este jugador.</p>
+        <button type="button" id="profile-complete-access-btn" class="btn-start btn-start--overlay">COMPLETAR ACCESO</button>
+      </div>
+
+      <div class="pastilla profile-fields">
+        <div class="profile-field"><span class="profile-field__label">Nombre y apellido</span><span class="profile-field__value" id="profile-fullname">—</span></div>
+        <div class="profile-field"><span class="profile-field__label">Fecha de nacimiento</span><span class="profile-field__value" id="profile-birthdate">—</span></div>
+        <div class="profile-field"><span class="profile-field__label">Género</span><span class="profile-field__value" id="profile-gender">—</span></div>
+        <div class="profile-field"><span class="profile-field__label">Mano hábil</span><span class="profile-field__value" id="profile-hand">—</span></div>
+        <div class="profile-field"><span class="profile-field__label">Lado habitual</span><span class="profile-field__value" id="profile-side">—</span></div>
+        <div class="profile-field"><span class="profile-field__label">Categoría declarada</span><span class="profile-field__value" id="profile-category">—</span></div>
+      </div>
+      <button type="button" id="profile-edit-btn" class="btn-secondary profile-edit-btn">EDITAR PERFIL</button>
+
       <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
            oficial ni nivel validado (badge SIMULADO · BETA siempre visible). Consume
            PH.computeLevelEvolution — la MISMA fuente que la Tarjeta de jugador del Home,
-           nunca una segunda serie paralela. -->
+           nunca una segunda serie paralela. V03.0 (§2/§4): cuentas legacy la ven sin ningún
+           cambio; cuentas nuevas ven el mismo estado CALIBRANDO/CALIBRACIÓN COMPLETA que el
+           Home en vez del gráfico numérico simulado — nunca un número, la fórmula real
+           todavía no existe (ver #evolution-numeric vs #evolution-calibration más abajo). -->
       <div class="pastilla evolution-card">
         <div class="pastilla__title-row">
           <div class="pastilla__title">EVOLUCIÓN DEL NIVEL BRAMU</div>
           <span class="evolution-card__badge">SIMULADO · BETA</span>
         </div>
-        <div class="evolution-summary">
-          <div class="evolution-summary__item">
-            <span class="evolution-summary__value" id="evolution-current-value">—</span>
-            <span class="evolution-summary__label">Nivel actual</span>
+        <div id="evolution-numeric">
+          <div class="evolution-summary">
+            <div class="evolution-summary__item">
+              <span class="evolution-summary__value" id="evolution-current-value">—</span>
+              <span class="evolution-summary__label">Nivel actual</span>
+            </div>
+            <div class="evolution-summary__item">
+              <span class="evolution-summary__value" id="evolution-change-value">—</span>
+              <span class="evolution-summary__label">Cambio acumulado</span>
+            </div>
+            <div class="evolution-summary__item">
+              <span class="evolution-summary__value" id="evolution-count-value">—</span>
+              <span class="evolution-summary__label">Partidos considerados</span>
+            </div>
           </div>
-          <div class="evolution-summary__item">
-            <span class="evolution-summary__value" id="evolution-change-value">—</span>
-            <span class="evolution-summary__label">Cambio acumulado</span>
-          </div>
-          <div class="evolution-summary__item">
-            <span class="evolution-summary__value" id="evolution-count-value">—</span>
-            <span class="evolution-summary__label">Partidos considerados</span>
-          </div>
+          <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
+          <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
+          <p class="evolution-detail" id="evolution-point-detail" hidden></p>
+          <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
         </div>
-        <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
-        <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
-        <p class="evolution-detail" id="evolution-point-detail" hidden></p>
-        <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
+        <div class="evolution-calibration" id="evolution-calibration" hidden>
+          <div class="evolution-calibration__state" id="evolution-calibration-state">CALIBRANDO</div>
+          <div class="evolution-calibration__progress" id="evolution-calibration-progress">0 / 5 PARTIDOS</div>
+          <p class="coverage-note">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
+        </div>
       </div>
 
       <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a una
            sesión, no a una preferencia libremente reemplazable; ver BRAMU_Rama_Jugador_Auditoria_Funcional.md. -->
       <button type="button" id="profile-logout-btn" class="link-btn">Cerrar sesión</button>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       V03.0 — ACCESO / CREAR CUENTA / PLAYER CARD / INICIAR SESIÓN
+       Reemplazan a #player-identify-modal ("¿Quién sos?"). Mismos 3 puntos de
+       entrada de antes (openManualLoadScreen, openPlayerHome, renderPlayerHome
+       cuando no hay currentPlayerName) ahora abren #view-access en vez del
+       modal viejo. Ninguna entra en BOTTOM_NAV_VIEWS — flujo sin barra
+       inferior, full-bleed.
+       ============================================================ -->
+  <section id="view-access" class="view view--access" hidden>
+    <div class="access-scroll">
+      <img class="access-logo" src="icons/logo.png" alt="BRAMU Lab" />
+      <div class="access-title">BIENVENIDO A BRAMU</div>
+      <p class="access-subtitle">Entrá con tu cuenta o creá tu jugador para empezar.</p>
+      <div class="access-actions">
+        <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
+        <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
+      </div>
+      <button type="button" id="access-cancel-btn" class="link-btn access-cancel">Cancelar</button>
+    </div>
+  </section>
+
+  <section id="view-login" class="view view--access" hidden>
+    <div class="access-scroll">
+      <button type="button" id="login-back-btn" class="icon-btn access-back" aria-label="Volver">←</button>
+      <div class="access-title">INICIAR SESIÓN</div>
+      <form id="login-form" class="access-form">
+        <div class="field"><input id="login-email" class="field__input" type="email" placeholder="Email" autocomplete="username" /></div>
+        <div class="field"><input id="login-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="current-password" /></div>
+        <p class="edit-error" id="login-error" hidden>Revisá tu email y contraseña.</p>
+        <button type="submit" class="btn-start btn-start--overlay">INICIAR SESIÓN</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Consolidado §2 — 3 pasos en UNA sola vista (mismo patrón que #view-manual-load: estado
+       interno manejado por JS, sin pasar por showView() entre pasos). -->
+  <section id="view-signup" class="view view--access" hidden>
+    <div class="access-scroll">
+      <button type="button" id="signup-back-btn" class="icon-btn access-back" aria-label="Volver">←</button>
+      <div class="signup-progress" aria-hidden="true">
+        <span class="signup-progress__dot" data-step-dot="1"></span>
+        <span class="signup-progress__dot" data-step-dot="2"></span>
+        <span class="signup-progress__dot" data-step-dot="3"></span>
+      </div>
+      <div class="access-title" id="signup-step-title">CREAR ACCESO</div>
+
+      <form id="signup-form" class="access-form">
+        <div class="signup-step" data-step="1">
+          <div class="field"><input id="signup-email" class="field__input" type="email" placeholder="Email" autocomplete="email" /></div>
+          <div class="field"><input id="signup-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="new-password" /></div>
+          <div class="field"><input id="signup-password-repeat" class="field__input" type="password" placeholder="Repetir contraseña" autocomplete="new-password" /></div>
+          <ul class="password-rules" id="signup-password-rules">
+            <li data-rule="hasMinLength">Al menos 8 caracteres</li>
+            <li data-rule="hasUpper">Una mayúscula</li>
+            <li data-rule="hasLower">Una minúscula</li>
+            <li data-rule="hasNumber">Un número</li>
+            <li data-rule="hasSymbol">Un símbolo</li>
+          </ul>
+          <p class="edit-error" id="signup-step1-error" hidden></p>
+        </div>
+
+        <div class="signup-step" data-step="2" hidden>
+          <div class="signup-avatar-upload">
+            <div class="signup-avatar" id="signup-avatar">
+              <span id="signup-avatar-initials">—</span>
+              <img id="signup-avatar-img" alt="" hidden />
+            </div>
+            <button type="button" id="signup-avatar-edit-btn" class="signup-avatar-edit" aria-label="Agregar foto">✎</button>
+            <input type="file" id="signup-avatar-input" accept="image/*" hidden />
+          </div>
+          <div class="field"><input id="signup-first-name" class="field__input" type="text" placeholder="Nombre" maxlength="18" /></div>
+          <div class="field"><input id="signup-last-name" class="field__input" type="text" placeholder="Apellido" maxlength="18" /></div>
+          <div class="field"><input id="signup-username" class="field__input" type="text" placeholder="@usuario" maxlength="20" /></div>
+          <p class="signup-username-feedback" id="signup-username-feedback"></p>
+          <div class="field"><input id="signup-display-name" class="field__input" type="text" placeholder="Nombre visible" maxlength="18" /></div>
+          <p class="edit-error" id="signup-step2-error" hidden></p>
+        </div>
+
+        <div class="signup-step" data-step="3" hidden>
+          <div class="field"><input id="signup-birthdate" class="field__input" type="date" /></div>
+          <select id="signup-gender" class="field__input">
+            <option value="">Género</option>
+            <option value="femenino">Femenino</option>
+            <option value="masculino">Masculino</option>
+            <option value="otro">Otro</option>
+            <option value="prefiero-no-decir">Prefiero no decir</option>
+          </select>
+          <div class="setup-section">
+            <div class="setup-section__title">Mano hábil</div>
+            <div class="option-row" role="radiogroup" aria-label="Mano hábil" id="signup-hand-options">
+              <button type="button" class="option-col" data-value="derecha" role="radio" aria-checked="false">Derecha</button>
+              <button type="button" class="option-col" data-value="izquierda" role="radio" aria-checked="false">Izquierda</button>
+            </div>
+          </div>
+          <div class="setup-section">
+            <div class="setup-section__title">Lado habitual</div>
+            <div class="option-row" role="radiogroup" aria-label="Lado habitual" id="signup-side-options">
+              <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
+              <button type="button" class="option-col" data-value="reves" role="radio" aria-checked="false">Revés</button>
+              <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
+            </div>
+          </div>
+          <select id="signup-category" class="field__input">
+            <option value="">Categoría actual</option>
+            <option value="1">1ª</option>
+            <option value="2">2ª</option>
+            <option value="3">3ª</option>
+            <option value="4">4ª</option>
+            <option value="5">5ª</option>
+            <option value="6">6ª</option>
+            <option value="7">7ª</option>
+            <option value="8">8ª</option>
+            <option value="9">9ª</option>
+            <option value="no-se">No sé mi categoría</option>
+          </select>
+          <p class="edit-error" id="signup-step3-error" hidden></p>
+        </div>
+
+        <button type="button" id="signup-continue-btn" class="btn-start btn-start--overlay" disabled>CONTINUAR</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="view-player-card" class="view view--access" hidden>
+    <div class="access-scroll">
+      <div class="access-title">TU JUGADOR ESTÁ LISTO</div>
+      <div class="ficha-deportiva">
+        <div class="ficha-deportiva__avatar" id="player-card-avatar">
+          <span id="player-card-avatar-initials">—</span>
+          <img id="player-card-avatar-img" alt="" hidden />
+        </div>
+        <div class="ficha-deportiva__name" id="player-card-name">—</div>
+        <div class="ficha-deportiva__handle" id="player-card-handle">—</div>
+        <div class="ficha-deportiva__stats">
+          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Edad</span><span class="ficha-deportiva__stat-value" id="player-card-age">—</span></div>
+          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Mano</span><span class="ficha-deportiva__stat-value" id="player-card-hand">—</span></div>
+          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Lado</span><span class="ficha-deportiva__stat-value" id="player-card-side">—</span></div>
+          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Categoría</span><span class="ficha-deportiva__stat-value" id="player-card-category">—</span></div>
+        </div>
+        <div class="ficha-deportiva__level">
+          <div class="ficha-deportiva__level-label">NIVEL BRAMU</div>
+          <div class="ficha-deportiva__level-state">CALIBRANDO</div>
+          <div class="ficha-deportiva__level-progress">0 / 5 PARTIDOS</div>
+        </div>
+      </div>
+      <p class="coverage-note access-subtitle">Completá 5 partidos para conocer tu Nivel BRAMU.</p>
+      <button type="button" id="player-card-enter-btn" class="btn-start">ENTRAR A BRAMU</button>
     </div>
   </section>
 
@@ -1292,22 +1480,108 @@
     </div>
   </div>
 
-  <!-- Etapa 2 (Rama Jugador §3.2) — "¿Quién sos?": primera identificación del jugador
-       actual, reutilizado también para "Cambiar jugador" desde la tarjeta de identidad o
-       Perfil. Nunca crea cuenta/contraseña/email — solo un nombre normalizado y persistido
-       localmente (deuda deliberada, ver Etapa 1 Análisis §F). -->
-  <div id="player-identify-modal" class="overlay" hidden>
-    <div class="overlay__card">
-      <div class="overlay__title">¿QUIÉN SOS?</div>
-      <p class="overlay__text">Elegí tu nombre para encontrar tus partidos y empezar a construir tu historia.</p>
-      <form id="player-identify-form">
-        <div class="field"><input id="player-identify-input" class="field__input" list="known-players" type="text" placeholder="Tu nombre" maxlength="18" /></div>
-        <p class="edit-error" id="player-identify-error" hidden>Escribí un nombre para continuar.</p>
-        <div class="overlay__actions overlay__actions--stacked">
-          <button type="submit" class="btn-start btn-start--overlay">CONTINUAR</button>
-          <button type="button" id="player-identify-cancel" class="btn-secondary">Cancelar</button>
+  <!-- V03.0 (§5) — edición de Perfil: mismo patrón overlay que el resto de la app (nunca
+       edición inline). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/efectividad NO
+       aparecen acá — son computados, no editables (consolidado §5). -->
+  <div id="profile-edit-modal" class="overlay" hidden>
+    <div class="overlay__card overlay__card--wide overlay__card--scroll">
+      <div class="overlay__title">EDITAR PERFIL</div>
+      <div class="signup-avatar-upload">
+        <div class="signup-avatar" id="profile-edit-avatar">
+          <span id="profile-edit-avatar-initials">—</span>
+          <img id="profile-edit-avatar-img" alt="" hidden />
+        </div>
+        <button type="button" id="profile-edit-avatar-edit-btn" class="signup-avatar-edit" aria-label="Cambiar foto">✎</button>
+        <input type="file" id="profile-edit-avatar-input" accept="image/*" hidden />
+      </div>
+      <div class="profile-avatar-row" id="profile-edit-avatar-actions">
+        <button type="button" id="profile-edit-avatar-remove-btn" class="link-btn" hidden>Quitar foto</button>
+      </div>
+      <form id="profile-edit-form">
+        <div class="field"><input id="profile-edit-first-name" class="field__input" type="text" placeholder="Nombre" maxlength="18" /></div>
+        <div class="field"><input id="profile-edit-last-name" class="field__input" type="text" placeholder="Apellido" maxlength="18" /></div>
+        <div class="field"><input id="profile-edit-username" class="field__input" type="text" placeholder="@usuario" maxlength="20" /></div>
+        <p class="signup-username-feedback" id="profile-edit-username-feedback"></p>
+        <div class="field"><input id="profile-edit-display-name" class="field__input" type="text" placeholder="Nombre visible" maxlength="18" /></div>
+        <div class="field"><input id="profile-edit-birthdate" class="field__input" type="date" /></div>
+        <select id="profile-edit-gender" class="field__input">
+          <option value="">Género</option>
+          <option value="femenino">Femenino</option>
+          <option value="masculino">Masculino</option>
+          <option value="otro">Otro</option>
+          <option value="prefiero-no-decir">Prefiero no decir</option>
+        </select>
+        <div class="option-row" role="radiogroup" aria-label="Mano hábil" id="profile-edit-hand-options">
+          <button type="button" class="option-col" data-value="derecha" role="radio" aria-checked="false">Derecha</button>
+          <button type="button" class="option-col" data-value="izquierda" role="radio" aria-checked="false">Izquierda</button>
+        </div>
+        <div class="option-row" role="radiogroup" aria-label="Lado habitual" id="profile-edit-side-options">
+          <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
+          <button type="button" class="option-col" data-value="reves" role="radio" aria-checked="false">Revés</button>
+          <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
+        </div>
+        <select id="profile-edit-category" class="field__input">
+          <option value="">Categoría actual</option>
+          <option value="1">1ª</option>
+          <option value="2">2ª</option>
+          <option value="3">3ª</option>
+          <option value="4">4ª</option>
+          <option value="5">5ª</option>
+          <option value="6">6ª</option>
+          <option value="7">7ª</option>
+          <option value="8">8ª</option>
+          <option value="9">9ª</option>
+          <option value="no-se">No sé mi categoría</option>
+        </select>
+        <p class="edit-error" id="profile-edit-error" hidden></p>
+        <div class="overlay__actions">
+          <button type="button" id="profile-edit-cancel" class="btn-secondary">Cancelar</button>
+          <button type="submit" class="btn-start btn-start--overlay">Guardar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- V03.0 (§3) — completar acceso de una cuenta legacy (o cualquier cuenta sin email
+       todavía): agrega email+password al MISMO registro, nunca crea una cuenta nueva. -->
+  <div id="complete-access-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">COMPLETAR ACCESO</div>
+      <p class="overlay__text">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
+      <form id="complete-access-form">
+        <div class="field"><input id="complete-access-email" class="field__input" type="email" placeholder="Email" autocomplete="email" /></div>
+        <div class="field"><input id="complete-access-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="new-password" /></div>
+        <div class="field"><input id="complete-access-password-repeat" class="field__input" type="password" placeholder="Repetir contraseña" autocomplete="new-password" /></div>
+        <ul class="password-rules" id="complete-access-password-rules">
+          <li data-rule="hasMinLength">Al menos 8 caracteres</li>
+          <li data-rule="hasUpper">Una mayúscula</li>
+          <li data-rule="hasLower">Una minúscula</li>
+          <li data-rule="hasNumber">Un número</li>
+          <li data-rule="hasSymbol">Un símbolo</li>
+        </ul>
+        <p class="edit-error" id="complete-access-error" hidden></p>
+        <div class="overlay__actions overlay__actions--stacked">
+          <button type="submit" class="btn-start btn-start--overlay">GUARDAR ACCESO</button>
+          <button type="button" id="complete-access-cancel" class="btn-secondary">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- V03.0 (§3) — advertencia antes de cerrar sesión sin acceso completo. No bloquea (son
+       datos locales del usuario), pero deja muy claro que sin email/contraseña no hay forma
+       de volver a entrar a ESTE jugador — nunca se ofrece "crear otra cuenta con el mismo
+       nombre" como si fuera una recuperación real (no lo es: un userId ya estampado en el
+       historial es exclusivo de esa cuenta, ver player-home.js). -->
+  <div id="logout-warning-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">TODAVÍA NO COMPLETASTE TU ACCESO</div>
+      <p class="overlay__text">Si cerrás sesión ahora, no vas a poder volver a entrar a este jugador — no tiene email ni contraseña todavía. Te recomendamos completarlo antes.</p>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button type="button" id="logout-warning-complete-btn" class="btn-start btn-start--overlay">COMPLETAR ACCESO AHORA</button>
+        <button type="button" id="logout-warning-confirm-btn" class="btn-secondary">Cerrar sesión igual</button>
+        <button type="button" id="logout-warning-cancel-btn" class="link-btn">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -1466,6 +1740,7 @@
   <script src="store.js"></script>
   <script src="player-home.js"></script>
   <script src="match-load.js"></script>
+  <script src="player-identity.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

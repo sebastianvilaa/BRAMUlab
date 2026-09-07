@@ -25,6 +25,7 @@
 <script src="store.js"></script>
 <script src="player-home.js"></script>
 <script src="match-load.js"></script>
+<script src="player-identity.js"></script>
 <script>
 (function () {
   'use strict';
@@ -33,6 +34,7 @@
   const Store = window.PLStore;
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador)
   const ML = window.PLMatchLoad; // Etapa 3 (Fase 3) — Cargar partido jugado
+  const PLI = window.PLIdentity; // V03.0 — validación de cuenta
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -2713,6 +2715,245 @@
     assert('V02.5-FECHA · sin hora → asume 00:00 LOCAL (mismo día, nunca corrido a UTC)', roundTrips('2026-08-15', '', 2026, 7, 15, 0, 0));
     assert('V02.5-FECHA · con hora → timeKnown=true', ML.buildPlayedAtFromLocalFields('2026-08-15', '23:30').timeKnown === true);
     assert('V02.5-FECHA · sin fecha → null (nunca inventa un instante)', ML.buildPlayedAtFromLocalFields('', '20:20') === null);
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0 — PLIdentity: validación de cuenta (pura, fixtures propios)
+  // ------------------------------------------------------------------
+  (function () {
+    assert('V03-EMAIL · dirección válida', PLI.isValidEmail('seba@bramu.com'));
+    assert('V03-EMAIL · sin @ es inválida', !PLI.isValidEmail('sebabramu.com'));
+    assert('V03-EMAIL · sin dominio es inválida', !PLI.isValidEmail('seba@'));
+    assert('V03-EMAIL · con espacios es inválida', !PLI.isValidEmail('seba @bramu.com'));
+    assert('V03-EMAIL · normalizeEmail recorta y pasa a minúscula', PLI.normalizeEmail('  Seba@Bramu.COM ') === 'seba@bramu.com');
+
+    const strong = PLI.checkPasswordStrength('Abc123!@');
+    assert('V03-PASS · con mayúscula+minúscula+número+símbolo+8+ es fuerte', strong.ok === true);
+    assert('V03-PASS · sin mayúscula falla', !PLI.checkPasswordStrength('abc123!@').hasUpper);
+    assert('V03-PASS · sin símbolo falla', !PLI.checkPasswordStrength('Abc12345').ok);
+    assert('V03-PASS · bajo el mínimo de longitud falla', !PLI.checkPasswordStrength('Ab1!').hasMinLength);
+    assert('V03-PASS · passwordsMatch true cuando coinciden', PLI.passwordsMatch('Abc123!@', 'Abc123!@'));
+    assert('V03-PASS · passwordsMatch false cuando difieren', !PLI.passwordsMatch('Abc123!@', 'Otra123!@'));
+
+    assert('V03-SLUG · quita acentos y espacios', PLI.slugifyUsername('Sebastián Vila') === 'sebastian-vila');
+    assert('V03-SLUG · nunca vacío (fallback jugador)', PLI.slugifyUsername('   ') === 'jugador');
+    assert('V03-USERFMT · formato válido (3-20, [a-z0-9-])', PLI.isValidUsernameFormat('seba-vila'));
+    assert('V03-USERFMT · muy corto es inválido', !PLI.isValidUsernameFormat('ab'));
+    assert('V03-USERFMT · con espacios es inválido', !PLI.isValidUsernameFormat('se ba'));
+
+    const users = [{ id: 'u1', email: 'ana@test.com', username: 'ana' }, { id: 'u2', email: 'bea@test.com', username: 'bea' }];
+    assert('V03-DUP-FIXTURE · isEmailTaken detecta duplicado', PLI.isEmailTaken('ANA@test.com', users));
+    assert('V03-DUP-FIXTURE · isEmailTaken respeta excludeUserId', !PLI.isEmailTaken('ana@test.com', users, 'u1'));
+    assert('V03-DUP-FIXTURE · isUsernameTaken detecta duplicado case-insensitive', PLI.isUsernameTaken('ANA', users));
+    assert('V03-DUP-FIXTURE · isUsernameTaken libre da false', !PLI.isUsernameTaken('cruz', users));
+    assert('V03-SUGGEST · usuario libre se usa tal cual', PLI.suggestUsername('Cruz', 'Dan', users) === 'cruz-dan');
+    assert('V03-SUGGEST · usuario ocupado agrega sufijo numérico', PLI.suggestUsername('Ana', '', users) === 'ana-1');
+
+    assert('V03-EDAD · caso simple (cumpleaños ya pasado este año)', PLI.calculateAge('2000-01-15', new Date(2026, 5, 1)) === 26);
+    assert('V03-EDAD · cumpleaños todavía no llega este año resta un año', PLI.calculateAge('2000-12-15', new Date(2026, 5, 1)) === 25);
+    assert('V03-EDAD · sin fecha de nacimiento → null', PLI.calculateAge(null) === null);
+    assert('V03-EDAD · exactamente el día del cumpleaños ya cuenta el año nuevo', PLI.calculateAge('2000-06-01', new Date(2026, 5, 1)) === 26);
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0 — Identidad estable por userId en player-home.js (pura, fixtures propios)
+  // Núcleo de la revisión de Sebastián: un userId ya estampado es autoritativo y exclusivo
+  // (nunca cae a fallback por nombre), y renombrar el jugador no debe desvincular su historial.
+  // ------------------------------------------------------------------
+  (function () {
+    function makeMatch(matchId, players, winnerTeam, playedAt) {
+      return { matchId, players, winnerTeam: winnerTeam || null, finishedAt: playedAt || '2026-01-01T00:00:00.000Z', playedAt: playedAt || '2026-01-01T00:00:00.000Z' };
+    }
+
+    // Regresión: identidad como string plano sigue funcionando exactamente igual que antes.
+    const legacyMatch = makeMatch('leg-1', [
+      { id: 0, team: 'A', name: 'Seba' }, { id: 1, team: 'A', name: 'Fernan' },
+      { id: 2, team: 'B', name: 'Gusti' }, { id: 3, team: 'B', name: 'Esteban' },
+    ], 'A');
+    assert('V03-USERID · getPlayerTeam con string plano (legacy) sigue funcionando', PH.getPlayerTeam(legacyMatch, 'Seba') === 'A');
+    assert('V03-USERID · getPartnerName con string plano (legacy) sigue funcionando', PH.getPartnerName(legacyMatch, 'Seba') === 'Fernan');
+    assert('V03-USERID · filterMatchesForPlayer con string plano (legacy) sigue funcionando', PH.filterMatchesForPlayer([legacyMatch], 'Seba').length === 1);
+
+    // Fila sin userId todavía (legacy no estampado) + identidad objeto → cae a fallback por nombre.
+    assert('V03-USERID · fila sin userId + identidad objeto cae a fallback por nombre', PH.getPlayerTeam(legacyMatch, { name: 'Seba', userId: 'u1' }) === 'A');
+
+    // Núcleo: userId ya estampado es AUTORITATIVO — encuentra por id aunque el nombre guardado
+    // ya no coincida con el displayName actual (prueba directa de "renombrar no desvincula").
+    const stampedMatch = makeMatch('st-1', [
+      { id: 0, team: 'A', name: 'Seba', userId: 'u1' }, { id: 1, team: 'A', name: 'Fernan' },
+      { id: 2, team: 'B', name: 'Gusti' }, { id: 3, team: 'B', name: 'Esteban' },
+    ], 'A');
+    assert('V03-USERID · encuentra por userId aunque el nombre ya no coincida (rename-safe)',
+      PH.getPlayerTeam(stampedMatch, { name: 'Sebastian', userId: 'u1' }) === 'A');
+    assert('V03-USERID · filterMatchesForPlayer encuentra el partido por userId tras un rename',
+      PH.filterMatchesForPlayer([stampedMatch], { name: 'Sebastian', userId: 'u1' }).length === 1);
+    assert('V03-USERID · getPartnerName sigue resolviendo bien la pareja tras un rename',
+      PH.getPartnerName(stampedMatch, { name: 'Sebastian', userId: 'u1' }) === 'Fernan');
+
+    // Regla de exclusividad: dos filas con el MISMO nombre visible pero distinto userId — una
+    // búsqueda con un userId nunca debe "cruzarse" a la fila de la otra cuenta.
+    const collisionMatch = makeMatch('col-1', [
+      { id: 0, team: 'A', name: 'Mismo Nombre', userId: 'u1' }, { id: 1, team: 'A', name: 'Compa' },
+      { id: 2, team: 'B', name: 'Mismo Nombre', userId: 'u2' }, { id: 3, team: 'B', name: 'Rival' },
+    ], 'A');
+    assert('V03-USERID · con userId u1 encuentra SOLO la fila de u1 (no la de u2 con mismo nombre)',
+      PH.getPlayerTeam(collisionMatch, { name: 'Mismo Nombre', userId: 'u1' }) === 'A');
+    assert('V03-USERID · con userId u2 encuentra SOLO la fila de u2 (no la de u1 con mismo nombre)',
+      PH.getPlayerTeam(collisionMatch, { name: 'Mismo Nombre', userId: 'u2' }) === 'B');
+    assert('V03-USERID · un userId que no existe en el partido nunca cae a fallback por nombre',
+      PH.getPlayerTeam(collisionMatch, { name: 'Mismo Nombre', userId: 'u3' }) === null);
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0 — Estampado de userId: nunca ambiguo (pura)
+  // ------------------------------------------------------------------
+  (function () {
+    const unique = [
+      { id: 0, team: 'A', name: 'Ana' }, { id: 1, team: 'A', name: 'Bea' },
+      { id: 2, team: 'B', name: 'Cruz' }, { id: 3, team: 'B', name: 'Dan' },
+    ];
+    const stampedUnique = Store.stampPlayersWithUserId(unique, 'Ana', 'u1');
+    assert('V03-STAMP · candidato único → tagea ese jugador', stampedUnique.find((p) => p.name === 'Ana').userId === 'u1');
+    assert('V03-STAMP · candidato único → no toca a los demás', stampedUnique.filter((p) => p.name !== 'Ana').every((p) => !p.userId));
+    assert('V03-STAMP · sin userId → no-op (mismo array)', Store.stampPlayersWithUserId(unique, 'Ana', null) === unique);
+    assert('V03-STAMP · nombre que no aparece en el partido → no-op', Store.stampPlayersWithUserId(unique, 'Nadie', 'u9').every((p) => !p.userId));
+
+    const ambiguous = [
+      { id: 0, team: 'A', name: 'Juan' }, { id: 1, team: 'A', name: 'Compa' },
+      { id: 2, team: 'B', name: 'Juan' }, { id: 3, team: 'B', name: 'Rival' },
+    ];
+    const stampedAmbiguous = Store.stampPlayersWithUserId(ambiguous, 'Juan', 'uX');
+    assert('V03-STAMP-AMBIGUO · nombre duplicado sin estampar → no tagea a NINGUNO',
+      stampedAmbiguous.every((p) => !p.userId), JSON.stringify(stampedAmbiguous));
+
+    // Ya no es ambiguo si uno de los dos "Juan" ya tiene dueño: el único candidato SIN userId
+    // sí se tagea, sin tocar al que ya pertenece a otra cuenta.
+    const oneAlreadyOwned = [
+      { id: 0, team: 'A', name: 'Juan', userId: 'uOtro' }, { id: 1, team: 'A', name: 'Compa' },
+      { id: 2, team: 'B', name: 'Juan' }, { id: 3, team: 'B', name: 'Rival' },
+    ];
+    const stampedControl = Store.stampPlayersWithUserId(oneAlreadyOwned, 'Juan', 'uX');
+    assert('V03-STAMP-CONTROL · con un candidato ya estampado, el otro SÍ se tagea',
+      stampedControl.find((p) => p.team === 'B' && p.name === 'Juan').userId === 'uX');
+    assert('V03-STAMP-CONTROL · el que ya tenía dueño no se toca', stampedControl.find((p) => p.team === 'A' && p.name === 'Juan').userId === 'uOtro');
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0 — Calibración de Nivel BRAMU para cuentas nuevas (pura)
+  // ------------------------------------------------------------------
+  (function () {
+    assert('V03-CALIB · 0 partidos → calibrando, "0 / 5 PARTIDOS"', PH.buildCalibrationStatus(0).complete === false && PH.buildCalibrationStatus(0).progressText === '0 / 5 PARTIDOS');
+    assert('V03-CALIB · 4 partidos → calibrando, falta 1', PH.buildCalibrationStatus(4).complete === false && PH.buildCalibrationStatus(4).remaining === 1);
+    assert('V03-CALIB · exactamente 5 → completa', PH.buildCalibrationStatus(5).complete === true);
+    assert('V03-CALIB · 12 (tester ya establecido) → completa', PH.buildCalibrationStatus(12).complete === true);
+    assert('V03-CALIB · completa no expone progressText', PH.buildCalibrationStatus(5).progressText === undefined);
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0 — Store: cuentas locales, login/logout, migración + backfill
+  // ÚNICO bloque de esta suite que toca Store (localStorage real) — el resto de tests.html es
+  // deliberadamente puro. Para no interferir con datos reales de la app en el mismo origen (ni
+  // que datos reales preexistentes hagan fallar estas pruebas), se guarda el valor real de cada
+  // clave afectada, se limpia a un estado conocido, se corren las pruebas, y se restaura el
+  // valor real exacto al final — pase lo que pase (try/finally).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = [
+      'bramulab.users.v1', 'bramulab.session.v1', 'bramulab.history.v1',
+      'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1',
+    ];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+
+      // --- Alta / CRUD ---
+      const u1 = Store.createUserAccount({ email: 'ana@test.com', password: 'Abc123!@', username: 'ana', firstName: 'Ana', displayName: 'Ana' });
+      assert('V03-STORE-CUENTA · createUserAccount genera id estable', !!u1.id);
+      assert('V03-STORE-CUENTA · createUserAccount setea createdAt/updatedAt', !!u1.createdAt && !!u1.updatedAt);
+      assert('V03-STORE-CUENTA · getUserById encuentra la cuenta recién creada', !!Store.getUserById(u1.id) && Store.getUserById(u1.id).id === u1.id);
+      assert('V03-STORE-CUENTA · getUserByEmail es case-insensitive', !!Store.getUserByEmail('ANA@TEST.COM'));
+      assert('V03-STORE-CUENTA · getUserByUsername ignora el @ inicial', !!Store.getUserByUsername('@ana'));
+      const updated = Store.updateUserAccount(u1.id, { lastName: 'Vila' });
+      assert('V03-STORE-CUENTA · updateUserAccount persiste el patch', updated.lastName === 'Vila');
+      assert('V03-STORE-CUENTA · updateUserAccount no crea un segundo registro', Store.loadUsers().length === 1);
+
+      // --- Login / logout ---
+      resetAffectedKeys();
+      const signedUp = Store.signUpAndLogin({ email: 'bea@test.com', password: 'Abc123!@', username: 'bea', firstName: 'Bea', displayName: 'Bea' });
+      assert('V03-STORE-LOGIN · signUpAndLogin deja una sesión activa', !!Store.getCurrentUser() && Store.getCurrentUser().id === signedUp.id);
+      assert('V03-STORE-LOGIN · signUpAndLogin sincroniza CURRENT_PLAYER con el displayName exacto', Store.loadCurrentPlayerName() === 'Bea');
+
+      Store.clearSession();
+      const badEmail = Store.loginWithEmail('nadie@test.com', 'Abc123!@');
+      assert('V03-STORE-LOGIN · email inexistente falla con reason not-found', badEmail.ok === false && badEmail.reason === 'not-found');
+      const badPass = Store.loginWithEmail('bea@test.com', 'incorrecta');
+      assert('V03-STORE-LOGIN · contraseña incorrecta falla con reason wrong-password', badPass.ok === false && badPass.reason === 'wrong-password');
+      const okLogin = Store.loginWithEmail('bea@test.com', 'Abc123!@');
+      assert('V03-STORE-LOGIN · login correcto devuelve ok:true', okLogin.ok === true);
+
+      Store.upsertHistory({
+        matchId: 'v03-logout-test', finishedAt: '2026-01-01T00:00:00.000Z', winnerTeam: 'A',
+        players: [{ id: 0, team: 'A', name: 'Bea' }, { id: 1, team: 'A', name: 'X' }, { id: 2, team: 'B', name: 'Y' }, { id: 3, team: 'B', name: 'Z' }],
+      });
+      Store.rememberPlayerNames(['Bea']);
+      const historyBefore = JSON.stringify(Store.loadHistory());
+      const namesBefore = JSON.stringify(Store.loadPlayerNames());
+      Store.logoutSession();
+      assert('V03-STORE-LOGOUT · logoutSession borra la sesión', !Store.getCurrentUser());
+      assert('V03-STORE-LOGOUT · logoutSession borra CURRENT_PLAYER', !Store.loadCurrentPlayerName());
+      assert('V03-STORE-LOGOUT · logoutSession NO toca HISTORY', JSON.stringify(Store.loadHistory()) === historyBefore);
+      assert('V03-STORE-LOGOUT · logoutSession NO toca PLAYER_NAMES', JSON.stringify(Store.loadPlayerNames()) === namesBefore);
+
+      // --- Migración legacy + backfill ---
+      resetAffectedKeys();
+      assert('V03-MIGRA · sin currentPlayerName no migra nada', Store.migrateLegacyPlayerToUserIfNeeded() === null);
+      Store.saveCurrentPlayerName('Fernando Legacy');
+      Store.upsertHistory({
+        matchId: 'legacy-1', finishedAt: '2026-01-01T00:00:00.000Z', winnerTeam: 'A',
+        players: [{ id: 0, team: 'A', name: 'Fernando Legacy' }, { id: 1, team: 'A', name: 'Compa' }, { id: 2, team: 'B', name: 'Rival1' }, { id: 3, team: 'B', name: 'Rival2' }],
+      });
+      const migrated = Store.migrateLegacyPlayerToUserIfNeeded();
+      assert('V03-MIGRA · crea exactamente 1 usuario', !!migrated && Store.loadUsers().length === 1);
+      assert('V03-MIGRA · displayName idéntico al string legacy (byte a byte)', migrated.displayName === 'Fernando Legacy');
+      assert('V03-MIGRA · queda marcado legacyMigrated:true', migrated.legacyMigrated === true);
+      assert('V03-MIGRA · genera un @usuario automático', !!migrated.username, migrated.username);
+      assert('V03-MIGRA · queda sin email (acceso pendiente de completar)', !migrated.email);
+      assert('V03-MIGRA · queda logueado automáticamente', !!Store.getCurrentUser() && Store.getCurrentUser().id === migrated.id);
+      const backfilledEntry = Store.getHistoryEntry('legacy-1');
+      const backfilledPlayer = backfilledEntry.players.find((p) => p.name === 'Fernando Legacy');
+      assert('V03-MIGRA · backfill estampa userId en el partido legacy existente', backfilledPlayer.userId === migrated.id);
+      const otherPlayers = backfilledEntry.players.filter((p) => p.name !== 'Fernando Legacy');
+      assert('V03-MIGRA · backfill NO toca a los demás jugadores del mismo partido', otherPlayers.every((p) => !p.userId));
+      const secondRun = Store.migrateLegacyPlayerToUserIfNeeded();
+      assert('V03-MIGRA · correrla dos veces es no-op (idempotente)', secondRun === null && Store.loadUsers().length === 1);
+
+      // --- backfillHistoryUserId: ambigüedad (nombres duplicados dentro de un mismo partido) ---
+      resetAffectedKeys();
+      Store.upsertHistory({
+        matchId: 'ambig-1', finishedAt: '2026-01-01T00:00:00.000Z', winnerTeam: 'A',
+        players: [{ id: 0, team: 'A', name: 'Juan' }, { id: 1, team: 'A', name: 'Compa' }, { id: 2, team: 'B', name: 'Juan' }, { id: 3, team: 'B', name: 'Rival' }],
+      });
+      const changedAmbig = Store.backfillHistoryUserId('Juan', 'uX');
+      assert('V03-BACKFILL-AMBIGUO · partido con nombre duplicado queda intacto (0 cambios)', changedAmbig === 0);
+      assert('V03-BACKFILL-AMBIGUO · ningún jugador queda estampado', Store.getHistoryEntry('ambig-1').players.every((p) => !p.userId));
+
+      // --- Completar acceso de una cuenta legacy (§3) ---
+      resetAffectedKeys();
+      Store.saveCurrentPlayerName('Legacy Sin Mail');
+      const legacyUser = Store.migrateLegacyPlayerToUserIfNeeded();
+      assert('V03-ACCESO · cuenta legacy nace sin email (acceso pendiente)', !legacyUser.email);
+      Store.updateUserAccount(legacyUser.id, { email: 'legacy@test.com', password: 'Abc123!@' });
+      Store.clearSession();
+      const legacyLogin = Store.loginWithEmail('legacy@test.com', 'Abc123!@');
+      assert('V03-ACCESO · tras completar acceso, login funciona con normalidad', legacyLogin.ok === true && legacyLogin.user.id === legacyUser.id);
+      assert('V03-ACCESO · completar acceso NO crea una segunda cuenta', Store.loadUsers().length === 1);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
   })();
 
   // ------------------------------------------------------------------

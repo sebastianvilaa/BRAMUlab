@@ -2261,3 +2261,123 @@ input, select{ font-family: inherit; }
 
 .evolution-detail{ font-size: 12px; color: var(--paper); background: rgba(149,255,25,0.06); border: 1px solid rgba(149,255,25,0.2); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; }
 .evolution-footnote{ margin-top: 0; }
+
+/* ==========================================================================
+   V03.0 — ACCESO / CREAR CUENTA / INICIAR SESIÓN / PLAYER CARD
+   Mismo lenguaje visual que el resto de la app (fondo degradé, lima/cian,
+   Inter, cards .pastilla/.overlay ya existentes) — sin tokens nuevos.
+   ========================================================================== */
+.view--access{
+  display:flex; flex-direction:column;
+  background: var(--bg-gradient-app);
+  padding: calc(20px + var(--safe-top)) 22px calc(28px + var(--safe-bottom));
+  max-width: 460px; margin: 0 auto;
+}
+.access-scroll{ display:flex; flex-direction:column; flex:1; min-height:0; }
+.access-logo{ width: 56px; height:56px; object-fit:contain; margin: 12px auto 18px; display:block; }
+.access-title{
+  font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em;
+  color: var(--paper); text-align:center; margin-bottom: 6px;
+}
+.access-subtitle{ color: var(--paper-dim); font-size: 13px; text-align:center; margin: 0 0 24px; }
+.access-actions{ display:flex; flex-direction:column; gap: 10px; margin-top: 8px; }
+.access-cancel{ margin: 18px auto 0; }
+.access-back{ align-self:flex-start; margin-bottom: 10px; }
+.access-form{ display:flex; flex-direction:column; gap: 4px; }
+.access-form .field{ margin-top: 0; }
+.access-form .field + .field{ margin-top: 8px; }
+
+/* Consolidado §2 — "pequeñas pelotas BRAMU" de progreso de los 3 pasos. */
+.signup-progress{ display:flex; justify-content:center; gap: 8px; margin: 4px 0 18px; }
+.signup-progress__dot{
+  width: 8px; height:8px; border-radius:50%; background: var(--ink-softer);
+  border: 1px solid var(--line); transition: background-color .15s ease, border-color .15s ease;
+}
+.signup-progress__dot.is-active{ background: var(--brand-lime); border-color: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,0.5); }
+.signup-progress__dot.is-done{ background: var(--brand-lime-deep); border-color: var(--brand-lime-deep); }
+.signup-step{ display:flex; flex-direction:column; gap: 8px; }
+.signup-step + .signup-step{ margin-top: 0; }
+
+/* Consolidado §2 Paso 1 — checklist de fuerza de contraseña en vivo, cada regla pasa a lima
+   apenas se cumple (mismo criterio de feedback inmediato que @usuario más abajo). */
+.password-rules{ list-style:none; margin: 2px 0 4px; padding:0; display:flex; flex-direction:column; gap: 3px; }
+.password-rules li{ font-size: 11.5px; color: var(--paper-faint); padding-left: 16px; position:relative; }
+.password-rules li::before{ content:'○'; position:absolute; left:0; top:0; font-size: 10px; }
+.password-rules li.is-met{ color: var(--brand-lime); }
+.password-rules li.is-met::before{ content:'●'; }
+
+.signup-username-feedback{ font-size: 11.5px; color: var(--paper-dim); margin: -4px 0 4px; min-height: 14px; }
+.signup-username-feedback.is-taken{ color: var(--danger); }
+
+/* Avatar circular con lapicito de edición — reusado por el signup (Paso 2) y por la edición
+   de Perfil (mismo componente, consolidado §2/§5: "sin foto: usar iniciales; lapicito/botón
+   de edición"). */
+.signup-avatar-upload{ position:relative; width: 84px; margin: 4px auto 14px; }
+.signup-avatar{
+  width: 84px; height:84px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+  font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--brand-lime);
+}
+.signup-avatar img{ width:100%; height:100%; object-fit:cover; }
+.signup-avatar-edit{
+  position:absolute; right:-2px; bottom:-2px; width: 30px; height:30px; border-radius:50%;
+  background: var(--brand-lime); color:#1A1400; border: 2px solid var(--bg); font-size: 13px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.profile-avatar-row{ display:flex; justify-content:center; margin: 0 0 14px; }
+
+/* Perfil — avatar de la identidad principal, mismo componente visual que .signup-avatar pero
+   integrado en la fila `.pastilla--identity` (junto a nombre/@usuario), no centrado solo. */
+.profile-avatar{
+  width: 64px; height:64px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; flex:none;
+  font-family: var(--font-display); font-weight: 700; font-size: 20px; color: var(--brand-lime);
+}
+.profile-avatar img{ width:100%; height:100%; object-fit:cover; }
+.pastilla-identity__handle{ font-size: 12px; color: var(--paper-faint); margin-bottom: 4px; }
+
+/* V03.0 (§3) — banner "acceso pendiente de completar" en Perfil. Mismo tono de advertencia que
+   ya usa el resto de la app para estados "todavía no" (--gold), sin inventar un color nuevo. */
+.profile-access-pending{ border: 1px solid rgba(255,201,61,0.35); background: rgba(255,201,61,0.08); }
+.profile-access-pending .pastilla__title{ color: var(--gold); }
+
+.profile-fields{ display:flex; flex-direction:column; gap: 10px; }
+.profile-field{ display:flex; align-items:baseline; justify-content:space-between; gap: 12px; }
+.profile-field__label{ font-size: 12px; color: var(--paper-dim); }
+.profile-field__value{ font-size: 13px; color: var(--paper); font-weight: 700; text-align:right; }
+.profile-edit-btn{ width:100%; margin: 10px 0 4px; }
+
+/* V03.0 (§4) — sub-label de calibración en la Tarjeta de jugador del Home, reemplaza el número
+   simulado para cuentas nuevas (nunca ambos a la vez — ver renderPlayerCard). */
+.player-card__level-sub{ display:block; font-size: 10px; color: var(--paper-faint); font-weight: 700; letter-spacing: 0.02em; margin-top: 2px; }
+
+/* Perfil — mismo estado de calibración que la Tarjeta de jugador del Home, dentro de la
+   tarjeta "Evolución del Nivel BRAMU" (reemplaza el gráfico numérico para cuentas nuevas). */
+.evolution-calibration{ text-align:center; padding: 10px 0 4px; }
+.evolution-calibration__state{ font-family: var(--font-display); font-weight: 800; font-size: 18px; color: var(--brand-lime); letter-spacing: 0.03em; }
+.evolution-calibration__progress{ font-size: 12px; color: var(--paper-dim); margin-top: 4px; font-weight: 700; }
+
+/* Consolidado §3 — "TU JUGADOR ESTÁ LISTO": ficha deportiva estilo tarjeta de presentación
+   (Premier Padel/FIP), deliberadamente más aspiracional que `.player-card` del Home (borde con
+   glow, fondo propio) para que se sienta un momento de recompensa, no una repetición visual. */
+.ficha-deportiva{
+  background: var(--ink-soft); border: 1px solid rgba(149,255,25,0.35); border-radius: var(--radius-hero);
+  padding: 26px 22px; text-align:center; box-shadow: 0 0 32px rgba(149,255,25,0.12);
+  margin-bottom: 18px;
+}
+.ficha-deportiva__avatar{
+  width: 84px; height:84px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; margin: 0 auto 12px;
+  font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--brand-lime);
+}
+.ficha-deportiva__avatar img{ width:100%; height:100%; object-fit:cover; }
+.ficha-deportiva__name{ font-family: var(--font-display); font-weight: 700; font-size: 21px; color: var(--paper); }
+.ficha-deportiva__handle{ font-size: 12px; color: var(--paper-faint); margin-bottom: 16px; }
+.ficha-deportiva__stats{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+.ficha-deportiva__stat{ display:flex; flex-direction:column; gap: 3px; }
+.ficha-deportiva__stat-label{ font-size: 9px; letter-spacing:0.04em; text-transform:uppercase; color: var(--paper-faint); font-weight:800; }
+.ficha-deportiva__stat-value{ font-size: 13px; color: var(--paper); font-weight: 700; }
+.ficha-deportiva__level{ border-top: 1px solid var(--line); padding-top: 14px; }
+.ficha-deportiva__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
+.ficha-deportiva__level-state{ font-family: var(--font-display); font-weight: 800; font-size: 16px; color: var(--brand-lime); }
+.ficha-deportiva__level-progress{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; font-weight: 700; }
