@@ -1118,27 +1118,22 @@ input, select{ font-family: inherit; }
 .history-item__result-badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .history-item__won-tag{ font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime); margin: 0 6px 0 4px; vertical-align: middle; }
 .history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; }
-/* V02.9.1 (§3, feedback real) — la línea de jugadores competía demasiado con el resultado:
-   peso 800 + color blanco pleno por defecto (heredado del body) para AMBOS equipos era
-   demasiado protagonismo para un dato secundario. Baja a 700 y a `--paper-dim` (en vez de
-   blanco) como base — esto YA suaviza al rival (que se queda en esta base, ver
-   `.history-item__winner--a/-b` abajo, sin cambios en Observados) sin necesitar una regla
-   aparte. */
-.history-item__teams{ font-size: 14px; font-weight: 700; color: var(--paper-dim); }
+/* V02.9.1 (§3, feedback real) — primer paso: bajar peso/contraste de la línea de jugadores
+   (competía con el resultado). Coloreaba al ganador (Observados) o a la pareja propia (partidos
+   propios) para mantener algo de énfasis.
+   V02.9.3 (feedback real, probado en vivo con el inspector de Chrome) — paso final: SIN ningún
+   color de énfasis, ni al ganador ni a la pareja propia — VICTORIA/DERROTA (o "GANÓ" en
+   Observados) ya comunica el resultado, una segunda señal de color en los nombres era
+   redundante. Todos los participantes usan el mismo tratamiento neutro (`--paper-dim`, 500).
+   Se retiran `.history-item__winner--a/-b` y `.history-item__mine--a/-b` (ver app.js:
+   renderHistory, ya no arma esas clases) por quedar sin ningún uso. */
+.history-item__teams{ font-size: 13px; font-weight: 500; color: var(--paper-dim); }
 .history-item__teams .vs-sep{ color: var(--paper-faint); font-weight: 500; margin: 0 4px; }
-/* V7 (45-46-107-112): color de equipo en vez de dorado genérico para el ganador — sigue
-   aplicando tal cual en Observados (el jugador actual no participa; el color del EQUIPO
-   GANADOR, junto con "GANÓ", es la única señal de cómo salió el partido). */
-.history-item__winner--a{ color: var(--team-a); }
-.history-item__winner--b{ color: var(--team-b); }
-/* V02.9.1 (§3) — en partidos PROPIOS, ya no se colorea al equipo ganador (redundante con el
-   badge VICTORIA/DERROTA de arriba: coloreado + badge era demasiada insistencia sobre el mismo
-   dato) sino a la pareja PROPIA — sigue "destacada" (color de equipo) pero ahora es la única
-   señal de énfasis en esta línea, nunca doble. Mismos tokens de color que el ganador (arriba),
-   reutilizados con otro sentido. */
-.history-item__mine--a{ color: var(--team-a); }
-.history-item__mine--b{ color: var(--team-b); }
-.history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+/* V02.9.3 (feedback real) — el resultado pasa a ser CLARAMENTE el dato más grande de la card
+   (antes 20px, ahora 30px — el mismo peso 800 de siempre) ahora que los jugadores ya no llevan
+   ningún color de énfasis: nada compite con el marcador. `margin-bottom` baja de 8px a 3px para
+   acercarlo a la fila de participantes de abajo. */
+.history-item__score{ font-size: 30px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
 /* V02.9 (§4) — fila inferior: participantes (izquierda, ver .history-item__teams arriba) +
    formato/sistema (derecha) — mismo par de zonas que .player-home-lastmatch__teamsrow. */
 .history-item__bottom-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; }
@@ -1532,7 +1527,9 @@ input, select{ font-family: inherit; }
    ahora es la fila entera). Línea 2: forma reciente + badge de resultado, agrupados a la
    izquierda — se leen juntos porque son las dos señales de "cómo salió este partido". */
 .player-home-lastmatch__top{ margin-bottom: 16px; }
-.player-home-lastmatch__row1{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 10px; }
+/* V02.9.3 (feedback real, probado en vivo) — acerca la línea 1 (título+fecha) a la línea 2
+   (forma+badge): 10px→3px. Se leen como un solo encabezado, no dos bloques separados. */
+.player-home-lastmatch__row1{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 3px; }
 .player-home-lastmatch__row2{ display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
 .player-home-lastmatch__form{ display:flex; gap: 5px; flex:none; flex-wrap:wrap; }
 /* §11 — "indicadores más pequeños; no necesitan llevar letras adentro si la forma y el color

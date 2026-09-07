@@ -5827,27 +5827,23 @@
       // V02.9.1 (§3, feedback real) — la línea de jugadores coloreaba al equipo GANADOR
       // (`m.winnerTeam`) en TODOS los casos, incluidos los partidos propios — ahí ya quedaba
       // redundante con el badge VICTORIA/DERROTA de arriba (dos señales para el mismo dato) y
-      // era parte de por qué la línea se sentía demasiado protagonista. En partidos propios
-      // ahora se colorea la pareja PROPIA (`PH.getPlayerTeam`), no la ganadora — sutil, sin
-      // duplicar la señal del badge. En Observados (sin badge propio: el jugador actual no
-      // participa) se mantiene sin cambios: sigue coloreando al equipo ganador, junto con
-      // "GANÓ" — ahí es la única señal de cómo salió el partido.
+      // era parte de por qué la línea se sentía demasiado protagonista. Un primer paso pasó a
+      // colorear la pareja PROPIA en vez de la ganadora.
+      // V02.9.3 (feedback real) — paso final: SIN ningún color de énfasis en los nombres, ni al
+      // ganador ni a la pareja propia — VICTORIA/DERROTA (o "GANÓ" en Observados, que sigue
+      // existiendo como texto) ya comunica el resultado, una segunda señal de color era
+      // redundante. Todos los participantes quedan con el mismo tratamiento neutro (ver
+      // styles.css:.history-item__teams).
       const ownership = PH.classifyMatchOwnership(m, currentPlayerName);
-      let winnerBadgeA = '', winnerBadgeB = '';
       let resultBadgeHTML = '';
       let wonTagA = '', wonTagB = '';
       if (ownership === 'mine') {
-        const myTeam = PH.getPlayerTeam(m, currentPlayerName);
-        if (myTeam === 'A') winnerBadgeA = ' history-item__mine history-item__mine--a';
-        else if (myTeam === 'B') winnerBadgeB = ' history-item__mine history-item__mine--b';
         const resultKind = PH.matchResultForPlayer(m, currentPlayerName);
         if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VICTORIA</span>';
         else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DERROTA</span>';
       } else if (m.winnerTeam === 'A') {
-        winnerBadgeA = ' history-item__winner history-item__winner--a';
         wonTagA = '<span class="history-item__won-tag">GANÓ</span>';
       } else if (m.winnerTeam === 'B') {
-        winnerBadgeB = ' history-item__winner history-item__winner--b';
         wonTagB = '<span class="history-item__won-tag">GANÓ</span>';
       }
       // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
@@ -5865,7 +5861,7 @@
         </div>
         <div class="history-item__score">${scoreStr}</div>
         <div class="history-item__bottom-row">
-          <div class="history-item__teams"><span class="${winnerBadgeA}">${nameA}</span>${wonTagA}<span class="vs-sep">vs</span><span class="${winnerBadgeB}">${nameB}</span>${wonTagB}</div>
+          <div class="history-item__teams">${nameA}${wonTagA}<span class="vs-sep">vs</span>${nameB}${wonTagB}</div>
           ${(formatLabel || scoringLabel) ? `<div class="history-item__meta">
             ${formatLabel ? `<div class="history-item__meta-line">${formatLabel}</div>` : ''}
             ${scoringLabel ? `<div class="history-item__meta-line">${scoringLabel}</div>` : ''}
