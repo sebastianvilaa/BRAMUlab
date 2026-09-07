@@ -42,7 +42,7 @@ El halo se reescala en la misma proporción que el trazo (mismo margen de ~0.35p
 ## 4. Hash exacto y tag
 
 - Commit de implementación (código): `c9bbbd0a10a871560dc1c8d863765e98a7eb540a`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `0bb3658bf443ffbfa3b054ea56835ec39cbd079d`.
 - Tag `BRAMUlab_V02.9.2` apuntará al commit inmediatamente posterior a este.
 
 ---
