@@ -6190,24 +6190,24 @@
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
     const heights = activity.buckets.map((b) => b.count ? Math.max(14, Math.round((b.count / maxCount) * 100)) : 6);
-    // V02.7 (§6.2) / V02.8 (§1) — en cada entrada o vuelta, cada barra arranca en 0% de alto (un pequeño
-    // `transition-delay` por índice da el stagger izquierda→derecha) y un segundo paso las lleva
-    // a su alto final — mismo patrón de "0% + reflow + valor final" que la barra de Nivel. Los
-    // segmentos ganados/derrotas internos van directo a su proporción final: lo que anima es
-    // el volumen de la semana (alto total), no la composición ganado/perdido dentro de ella.
-    // V02.8.1 (§1.1) — la prueba real confirmó que esta técnica SÍ se percibe (a diferencia de
-    // Nivel/Efectividad, ver más abajo) — se mantiene sin cambios de mecanismo. Solo sube el
-    // stagger (60ms → 100ms) para que la diferencia entre barras se note más; la duración total
-    // sube vía `--home-anim-activity` (750ms, ver styles.css:root).
+    // V02.8.2 (§1) — REEMPLAZA la técnica de V02.7/V02.8/V02.8.1: el patrón "0% + reflow + alto
+    // final" dejó de animar en uso real (misma clase de fragilidad ya corregida en la barra de
+    // Nivel en V02.8.1 — una transición no garantiza que el navegador pinte el 0% antes de
+    // aplicar el valor final). El alto de cada barra se asigna siempre directo, nunca en dos
+    // pasos; el crecimiento visible lo aporta `@keyframes activityBarGrow` (`transform:
+    // scaleY(0→1)`, ver styles.css) aplicado vía la clase `.is-animating`, incluida desde el
+    // HTML inicial de cada barra — no hace falta la danza de sacar/reflow/volver a poner la
+    // clase que sí necesita la barra de Nivel, porque acá CADA barra es un elemento nuevo en
+    // cada render (`wrap.innerHTML` las recrea siempre): un elemento que nace con la clase
+    // arranca su animación solo. El stagger (100ms/barra) pasa de `transition-delay` a
+    // `animation-delay`, mismo valor. Los segmentos ganados/derrotas internos van directo a su
+    // proporción final: lo que anima es el volumen de la semana (alto total), no la composición
+    // ganado/perdido dentro de ella.
     wrap.innerHTML = activity.buckets.map((b, i) => {
       const seg = PH.computeActivityBarSegments(b.count, b.wins, b.losses);
-      const startHeight = shouldAnimate ? 0 : heights[i];
-      return `<div class="activity-bar" style="height:${startHeight}%; transition-delay:${i * 100}ms;"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
+      const animClass = shouldAnimate ? ' is-animating' : '';
+      return `<div class="activity-bar${animClass}" style="height:${heights[i]}%; animation-delay:${i * 100}ms;"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
     }).join('');
-    if (shouldAnimate) {
-      void wrap.offsetWidth; // fuerza el reflow: registra el 0% antes de animar al alto real
-      wrap.querySelectorAll('.activity-bar').forEach((bar, i) => { bar.style.height = heights[i] + '%'; });
-    }
     // V02.7 (§3.3) — Actividad pasa de "últimos 30 días" a "últimas 4 semanas" (ver
     // PH.computeActivityWeeks4); el cálculo de ganados/perdidos dentro de cada semana no cambia.
     $('#player-home-activity-total').textContent = activity.total

@@ -633,6 +633,12 @@ input, select{ font-family: inherit; }
 /* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
    lado a lado). Modificador propio para no tocar el layout de los demás overlays. */
 .overlay__actions--stacked{ flex-direction: column; }
+/* V02.8.2 (§5) — "ACTUALIZAR" seguía con el tracking de `.btn-start` (0.08em, sin tocar desde
+   V02.8), 3x más abierto que el 0.03em ya normalizado en `.overlay__title` de este mismo
+   modal — el botón, no el título, era el texto que se leía "demasiado abierto". Override
+   acotado por ID (nunca la clase compartida `.btn-start`, que sigue con 0.08em en Setup/
+   Resumen/otros overlays — Resumen queda intacto por instrucción explícita de esta ronda). */
+#update-now-btn{ letter-spacing: 0.03em; }
 /* V6 — fila de título con X de cierre siempre visible (salir rápido si tocaste Editar por error). */
 .overlay__title-row{ display:flex; align-items:center; justify-content:center; position:relative; margin-bottom: 10px; }
 .overlay__title-row .overlay__title{ margin-bottom: 0; }
@@ -1364,20 +1370,22 @@ input, select{ font-family: inherit; }
    había pasado a azul y no se sostuvo); fondo pasa de `--ink-soft` a `--surface-2` (un
    escalón más presente); glow bajado de 14px/.10 a 5px/.5 (más ceñido al borde, no un halo
    difuso); estilo (color/fondo/borde/glow/radio/padding) validado y sin cambios en V02.8.1.
-   V02.8.1 (§4) — único ajuste de esta ronda: un hito típico entraba en una sola línea muy
-   horizontal (86% del ancho del Home alcanza de sobra). Sin tocar contenido ni insertar un
-   salto de línea manual, se angosta el ancho útil (86%→70% en celular, 60%→48% en pantallas
-   ≥480px) para favorecer el wrap natural a ~2 líneas; `min-height` (2 líneas de alto a este
-   tamaño/interlineado) + centrado vertical mantienen la misma altura aunque un hito puntual
-   sea corto y no llegue a partirse. */
+   V02.8.1 (§4): un hito típico entraba en una sola línea muy horizontal (86% del ancho del
+   Home alcanza de sobra). Sin tocar contenido ni insertar un salto de línea manual, se angosta
+   el ancho útil (86%→70% en celular, 60%→48% en pantallas ≥480px) para favorecer el wrap
+   natural a ~2 líneas; `min-height` (2 líneas de alto a este tamaño/interlineado) + centrado
+   vertical mantienen la misma altura aunque un hito puntual sea corto y no llegue a partirse.
+   V02.8.2 (§4): seguía sintiéndose demasiado dominante — se angosta ~15% más (70%→60% en
+   celular, 48%→40% en ≥480px), mismo criterio de wrap a 2 líneas (de hecho más angosto ayuda a
+   que se dé más seguido). Estilo (color/fondo/borde/glow/radio/padding) sin cambios. */
 .player-home-hitos__chip{
-  flex: 0 0 70%; scroll-snap-align: start; background: var(--surface-2);
+  flex: 0 0 60%; scroll-snap-align: start; background: var(--surface-2);
   border: 1px solid #199FFF; border-radius: 14px;
   box-shadow: 0 0 5px rgba(25, 159, 255, 0.5);
   padding: 16px 18px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text); white-space:normal;
   min-height: 2.8em; display:flex; align-items:center;
 }
-@media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 48%; } }
+@media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 40%; } }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Tarjeta de jugador (§6). Reemplaza la vieja pastilla--identity
@@ -1579,10 +1587,20 @@ input, select{ font-family: inherit; }
    ARRIBA. El marcado (`.activity-bar__win` primero en el HTML, `__loss` después, sin cambios
    en app.js) se mantiene igual — alcanza con `column-reverse` para que el primer hijo pinte
    el extremo INFERIOR en vez del superior. */
-/* V02.7 (§6.2): transición de `height` — anima el crecimiento vertical en la primera entrada
-   al Home (app.js:renderPlayerActivity fuerza 0% → alto real); en re-renders normales (el valor
-   ya es el final) no hay nada visible que transicionar, así que no hace falta condicionarla. */
-.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; transition: height var(--home-anim-activity) var(--home-anim-ease); }
+/* V02.7 (§6.2) — REEMPLAZADO en V02.8.2: la transición de `height` (disparada poniendo 0% +
+   forzando reflow + valor final) dejó de animar en uso real — el mismo tipo de fragilidad ya
+   detectada y corregida para Nivel BRAMU en V02.8.1 (una transición depende de que el navegador
+   registre el 0% como frame de partida antes del valor final; esa garantía es débil y puede
+   coalescerse sin aviso). Cada barra es un elemento NUEVO en cada render (`wrap.innerHTML`
+   las recrea siempre, ver app.js:renderPlayerActivity) — a diferencia de la barra de Nivel, acá
+   no hace falta la danza "sacar clase + reflow + volver a agregar": la clase `.is-animating`
+   viene incluida desde el HTML inicial del elemento recién creado, y una animación por
+   `@keyframes` sobre un elemento que nace con esa clase arranca sola, sin depender de ningún
+   registro de frame previo. */
+.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; transform-origin: bottom; }
+.activity-bar.is-animating{ animation: activityBarGrow var(--home-anim-activity) var(--home-anim-ease) both; }
+@keyframes activityBarGrow{ from{ transform: scaleY(0); } to{ transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce){ .activity-bar.is-animating{ animation: none; } }
 /* V02.6 (§3.1): glow muy leve en el segmento activo/ganado — sumar vida sin competir con el
    botón "+" ni volverse neón. */
 .activity-bar__win{ display:block; width:100%; background: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,.16); }
@@ -1598,7 +1616,7 @@ input, select{ font-family: inherit; }
 
 .effectiveness-donut{ position:relative; width: 84px; height:84px; margin: 8px auto 8px; }
 .effectiveness-donut__svg{ width:100%; height:100%; transform: rotate(-90deg); }
-.effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 3; }
+.effectiveness-donut__track{ fill:none; stroke: rgba(244,247,242,0.1); stroke-width: 2.5; }
 /* V02.6 (§3.2): drop-shadow leve sobre el trazo verde del aro — mismo objetivo que §3.1
    (sumar vida sin volverse neón).
    V02.7 (§5): en V02.6 el glow (4px/.20 de opacidad) prácticamente no se percibía sobre un
@@ -1620,10 +1638,16 @@ input, select{ font-family: inherit; }
    (animado, ver app.js:renderPlayerEffectiveness) — nunca pueden desalinearse entre sí. La
    animación deja de ser una `transition` (removida de estas reglas): pasa a Web Animations
    API sobre `stroke-dashoffset`, técnica más confiable para garantizar frames intermedios
-   visibles que "poner 0 + reflow + valor final" (ver comentario en esa función). */
-.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; }
-.effectiveness-donut__glow-inner{ fill:none; stroke: var(--brand-lime); stroke-width: 5; stroke-linecap: round; opacity: 0.22; }
-.effectiveness-donut__glow-outer{ fill:none; stroke: var(--brand-lime); stroke-width: 8; stroke-linecap: round; opacity: 0.10; }
+   visibles que "poner 0 + reflow + valor final" (ver comentario en esa función).
+   V02.8.2 (§2) — con la animación ya funcionando, el estado ESTÁTICO quedó pesado: los dos
+   halos (5px/8px) sumados al trazo (3px) leían como un solo aro grueso y borroso en vez de un
+   trazo fino con un brillo separado. Se afina el trazo principal (3px→2.5px, más nítido) y se
+   angostan los halos (5px→4px / 8px→6px, para que no se extiendan tanto más allá del trazo)
+   mientras sube su opacidad (.22→.30 / .10→.18, para que el brillo se note sin agrandar el
+   aro) — mismo mecanismo sin filtros, mismos tres círculos concéntricos, misma animación. */
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 2.5; stroke-linecap: round; }
+.effectiveness-donut__glow-inner{ fill:none; stroke: var(--brand-lime); stroke-width: 4; stroke-linecap: round; opacity: 0.30; }
+.effectiveness-donut__glow-outer{ fill:none; stroke: var(--brand-lime); stroke-width: 6; stroke-linecap: round; opacity: 0.18; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
