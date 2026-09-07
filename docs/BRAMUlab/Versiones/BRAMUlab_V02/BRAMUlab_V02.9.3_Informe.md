@@ -48,7 +48,7 @@ Se retira por completo el color de énfasis en los nombres — ni al equipo gana
 ## 4. Hash exacto y tag
 
 - Commit de implementación (código): `9653c748f2ce2e789de1eda9079c63dd9f8f60c4`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `044c64366614f1d013ecebdaf148846d6484d821`.
 - Tag `BRAMUlab_V02.9.3` apuntará al commit inmediatamente posterior a este.
 
 ---
