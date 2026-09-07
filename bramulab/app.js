@@ -6271,7 +6271,18 @@
       $('#player-home-effectiveness-caption').textContent = 'Sin partidos considerados';
       return;
     }
-    circles.forEach((c) => { c.style.opacity = '1'; });
+    // V02.8.3 (feedback real) — bug encontrado acá: esta línea forzaba `opacity:1` inline en
+    // LOS TRES círculos por igual, incluidos los dos halos — que tienen su propia opacidad
+    // baja definida en CSS (`.effectiveness-donut__glow-inner/-outer`, ver styles.css). Un
+    // estilo inline gana siempre sobre la regla de clase, así que los halos venían
+    // renderizando a opacidad TOTAL desde que existen (V02.8.1), nunca a la opacidad sutil
+    // documentada — la causa real de que el aro se viera pesado pese a los ajustes de V02.8.2
+    // (que solo tocaban ancho/opacidad en CSS, sin efecto mientras esto los pisara). El trazo
+    // principal sigue forzado a `1` (siempre opaco por diseño); los halos se limpian a `''`
+    // para que su propia opacidad de CSS finalmente se aplique.
+    ring.style.opacity = '1';
+    glowInner.style.opacity = '';
+    glowOuter.style.opacity = '';
     const filled = (eff.pct / 100) * circumference;
     const toOffset = circumference - filled;
     // V02.8.1 (§1.4) — en cada entrada o vuelta al Home (nunca solo la primera de la sesión,
