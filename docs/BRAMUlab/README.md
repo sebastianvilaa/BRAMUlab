@@ -5,12 +5,20 @@ Naming activo del proyecto (usar siempre exactamente así):
 - `BRAMUlab_Partidos_V##` — el producto anterior (marcador congelado, `bramulab-partidos/` en el código). Documentación en [`../BRAMUlab_Partidos/`](../BRAMUlab_Partidos/).
 - `BRAMUlab_V01` — la primera aplicación integral (`bramulab/` en el código). Todo lo desarrollado hasta el hotfix v2.2.1.
 - `BRAMUlab_V02` — sistema visual integral (base) más sus subversiones de corrección `BRAMUlab_V02.1`, `V02.2`... — todas viven en la MISMA carpeta `Versiones/BRAMUlab_V02/`, nunca una carpeta nueva por subversión. Solo un cambio de versión MAYOR (`BRAMUlab_V03`) crea una carpeta nueva.
+- `BRAMUlab_V03` — identidad real del jugador (cuenta local, Player Card, Perfil editable) sobre la misma base visual/funcional de V02.9.3. Vive en [`Versiones/BRAMUlab_V03/`](Versiones/BRAMUlab_V03/).
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V02.9.3
+## Versión funcional actual: BRAMUlab_V03.0
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V02.9.3"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V02.9.3`.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.0"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0`. Agrega identidad real del jugador (Acceso, Crear cuenta en 3 pasos, Player Card, Perfil editable, migración automática desde el jugador local que ya existía) sobre la misma base visual/funcional de V02.9.3 — Home/Historial/BRAMU Intelligence no se rediseñaron.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se especificó en V03.0 (identidad del jugador: cuenta local, Player Card, Perfil editable, calibración de Nivel BRAMU) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.0 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0_Informe.md) |
+
+**Base visual (V02.9.3), sin cambios en esta ronda:**
 
 | Qué necesitás | Documento |
 |---|---|
@@ -65,7 +73,7 @@ Documentación visual y auditorías todavía útiles como contexto, pero que no 
 
 ## Qué leer, según lo que te pidan
 
-- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V02.9.3` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence) que ninguna ronda de V02 tocó en su modelo de datos.
-- **Cualquier pedido de ajuste visual, funcional o de UX puntual** → es sobre `BRAMUlab_V02` (probablemente su subversión más nueva, `V02.9.3`), no sobre V01. Una futura ronda de corrección se documenta como `BRAMUlab_V02.10` (o `V02.9.4` si es otra corrección corta) dentro de la misma carpeta `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva.
+- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V03.0` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual (identidad/cuenta), el Informe de V02.9.3 para el sistema visual que no cambió, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence).
+- **Cualquier pedido de ajuste visual, funcional o de UX puntual sobre Home/Historial/partidos** → sigue siendo sobre `BRAMUlab_V02` (subversión `V02.9.3`), no sobre V01 ni V03. Una futura ronda de corrección sobre identidad/cuenta se documenta como `BRAMUlab_V03.1` (misma carpeta `Versiones/BRAMUlab_V03/`); sobre el resto de la app, sigue siendo `BRAMUlab_V02.10`/`V02.9.4` dentro de `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva salvo cambio de versión mayor.
 - **"¿Qué falta / qué es lo próximo?"** → `BRAMUlab_Backlog.md`.
 - **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — ya no existe en el repositorio (se borró una vez resumido en el Consolidado/Informe/Backlog correspondiente), pero es recuperable del historial de git si hiciera falta.
