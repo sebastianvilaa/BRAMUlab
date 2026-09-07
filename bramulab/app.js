@@ -667,8 +667,15 @@
     const addBtn = $('#load-player-sheet-add');
     const trimmed = normalizePlayerName(query);
     const canAdd = !!trimmed && !ML.isDuplicatePlayerName(trimmed, excluded.concat([currentPlayerName]));
-    if (canAdd) { addBtn.hidden = false; addBtn.textContent = `Agregar "${trimmed}" como jugador sin cuenta`; }
-    else { addBtn.hidden = true; addBtn.textContent = ''; }
+    // V02.8.1 (§6) — el acento de equipo (verde/azul) baja de "borde completo" a un punto chico
+    // delante del texto (ver styles.css:.sheet-add-player-dot); acá pasamos de `textContent` a
+    // `innerHTML` para poder insertar ese `<span>`, así que el nombre tipeado por el usuario
+    // SIEMPRE se escapa con `escapeHtml` antes de interpolarlo — nunca insertar `trimmed` crudo
+    // en HTML.
+    if (canAdd) {
+      addBtn.hidden = false;
+      addBtn.innerHTML = `<span class="sheet-add-player-dot" aria-hidden="true"></span>Agregar "${escapeHtml(trimmed)}" como jugador sin cuenta`;
+    } else { addBtn.hidden = true; addBtn.innerHTML = ''; }
   }
 
   /** V02.2 (Bloque C, §9) — una persona no puede ocupar dos lugares en el mismo partido. La UI
@@ -6068,14 +6075,20 @@
     deltaEl.className = 'player-card__level-delta player-card__level-delta--' + delta.direction;
     const progressPct = PH.levelProgressPct(evolution.current);
     const barEl = $('#player-home-level-bar');
-    // V02.7 (§6.1) / V02.8 (§1) — en cada entrada o vuelta al Home, la barra arranca en 0% y una
-    // transición CSS (`.player-card__bar-fill`, ver styles.css) la lleva al % real; forzar un
-    // reflow (`offsetWidth`) entre poner 0% y el valor final es necesario para que el navegador
-    // registre el 0% como estado de partida antes de animar — si no, ambos cambios se
-    // funden en el mismo frame y no hay nada que animar. El valor final es siempre el mismo
-    // (`progressPct`), la animación no cambia cálculo ni dato.
-    if (shouldAnimate) { barEl.style.width = '0%'; void barEl.offsetWidth; }
+    // V02.8.1 (§1.2) — REEMPLAZA la técnica de V02.7/V02.8 (transición de `width` disparada por
+    // "0% + reflow + valor final"): no se percibía con claridad en la prueba real. El ancho
+    // final se asigna siempre directo (nunca en dos pasos); el crecimiento visible lo aporta la
+    // animación `@keyframes` de `.player-card__bar-fill.is-animating` (`transform: scaleX(0→1)`,
+    // ver styles.css). Se quita la clase antes de un reflow forzado y se vuelve a agregar para
+    // que la animación se REINICIE en cada entrada al Home (agregar la misma clase sin sacarla
+    // antes no dispara `@keyframes` de nuevo — es el mismo patrón estándar que usa cualquier
+    // animación CSS retriggereable de esta app).
     barEl.style.width = progressPct + '%';
+    barEl.classList.remove('is-animating');
+    if (shouldAnimate) {
+      void barEl.offsetWidth;
+      barEl.classList.add('is-animating');
+    }
     // V02.4 (Bloque A, §3.3) — la pastilla ↑/↓ vive SOBRE el punto alcanzado (ya no es hija del
     // relleno: es hermana dentro de .player-card__bar, con su propio `left`), recortada entre
     // 6% y 94% para que nunca choque contra ningún borde de la barra en los extremos (0%/100%).
@@ -6182,10 +6195,14 @@
     // a su alto final — mismo patrón de "0% + reflow + valor final" que la barra de Nivel. Los
     // segmentos ganados/derrotas internos van directo a su proporción final: lo que anima es
     // el volumen de la semana (alto total), no la composición ganado/perdido dentro de ella.
+    // V02.8.1 (§1.1) — la prueba real confirmó que esta técnica SÍ se percibe (a diferencia de
+    // Nivel/Efectividad, ver más abajo) — se mantiene sin cambios de mecanismo. Solo sube el
+    // stagger (60ms → 100ms) para que la diferencia entre barras se note más; la duración total
+    // sube vía `--home-anim-activity` (750ms, ver styles.css:root).
     wrap.innerHTML = activity.buckets.map((b, i) => {
       const seg = PH.computeActivityBarSegments(b.count, b.wins, b.losses);
       const startHeight = shouldAnimate ? 0 : heights[i];
-      return `<div class="activity-bar" style="height:${startHeight}%; transition-delay:${i * 60}ms;"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
+      return `<div class="activity-bar" style="height:${startHeight}%; transition-delay:${i * 100}ms;"><span class="activity-bar__win" style="height:${seg.winPct}%"></span><span class="activity-bar__loss" style="height:${seg.lossPct}%"></span></div>`;
     }).join('');
     if (shouldAnimate) {
       void wrap.offsetWidth; // fuerza el reflow: registra el 0% antes de animar al alto real
@@ -6198,44 +6215,80 @@
       : 'Sin partidos en las últimas 4 semanas';
   }
 
+  // V02.8.1 (§1.3) — duración de la animación de Efectividad como constante JS: Web Animations
+  // API pide un número en ms, no una variable CSS (a diferencia de Nivel/Actividad, que siguen
+  // animándose por CSS y sí pueden leer un token). Dentro del rango 900-1000ms pedido.
+  const EFFECTIVENESS_ANIM_MS = 950;
+
+  /** V02.8.1 (§1.3) — anima `stroke-dashoffset` de un círculo del donut de Efectividad con Web
+   *  Animations API (`Element.animate`): técnica de "dibujado" estándar de un aro SVG (mismo
+   *  `stroke-dasharray` CONSTANTE = circunferencia completa en los tres círculos, y el offset
+   *  se anima desde "circunferencia completa" — nada visible — hasta "circunferencia menos el
+   *  arco lleno" — el % real revelado). Se prefiere sobre la técnica anterior ("poner
+   *  dasharray en 0 + forzar reflow + asignar el valor final", que dependía de una transición
+   *  CSS registrando ese 0 como frame de partida) porque una animación de Web Animations API
+   *  corre sobre su propia línea de tiempo explícita: no hay forma de que el navegador la
+   *  "salte" sin pintar frames intermedios, que era exactamente el problema real reportado
+   *  (ni Nivel ni Efectividad se percibían animando, ni en iPhone ni en desktop). El valor
+   *  final (`toOffset`) se asigna siempre por `style` ANTES de animar, así el estado
+   *  post-animación es idéntico tanto si `animate()` corre como si no (navegador sin soporte,
+   *  progressive enhancement). Solo se llama cuando `shouldAnimate` ya es `true` (el chequeo de
+   *  `prefers-reduced-motion` vive una sola vez en `renderPlayerHome`, no acá — mismo criterio
+   *  que Nivel/Actividad). */
+  function animateEffectivenessCircle(el, fromOffset, toOffset, ease) {
+    el.style.strokeDashoffset = toOffset;
+    if (typeof el.animate !== 'function') return;
+    el.animate(
+      [{ strokeDashoffset: fromOffset }, { strokeDashoffset: toOffset }],
+      { duration: EFFECTIVENESS_ANIM_MS, easing: ease, fill: 'forwards' }
+    );
+  }
+
   /** V02.7 (§4) — Efectividad: donut con % de victorias sobre partidos CONSIDERADOS (con
    *  resultado definido) del historial COMPLETO del jugador — ya no una ventana de 30 días (ver
-   *  PH.computeEffectivenessTotal). Mismo mecanismo de anillo que el popup de Highlight
-   *  (stroke-dasharray sobre la circunferencia real del círculo, r=15.5). */
+   *  PH.computeEffectivenessTotal).
+   *  V02.8.1 (§2) — ahora son TRES círculos concéntricos (trazo principal + 2 halos, ver
+   *  styles.css/index.html) que comparten radio/dasharray/dashoffset/animación exactos — nunca
+   *  pueden desalinearse entre sí porque reciben las mismas dos llamadas a
+   *  `animateEffectivenessCircle`. */
   function renderPlayerEffectiveness(matches, shouldAnimate) {
     const eff = PH.computeEffectivenessTotal(matches, currentPlayerName);
     const ring = $('#player-home-effectiveness-ring');
-    // V02.8 (§2) — arco de glow duplicado DETRÁS del trazo principal (mismo dasharray, ver
-    // styles.css .effectiveness-donut__glow): reemplaza el filter:drop-shadow anterior, que
-    // en iPhone se rasterizaba como un halo rectangular en vez de seguir la curva.
-    const glow = $('#player-home-effectiveness-glow');
+    const glowInner = $('#player-home-effectiveness-glow-inner');
+    const glowOuter = $('#player-home-effectiveness-glow-outer');
+    const circles = [ring, glowInner, glowOuter];
     const circumference = 2 * Math.PI * 15.5;
+    // `stroke-dasharray` es CONSTANTE (la circunferencia completa, un solo tramo "encendido"
+    // tan largo como el círculo entero) — lo único que anima es `stroke-dashoffset`, nunca el
+    // dasharray. Se fija siempre, incluso sin muestra, para que los tres círculos queden
+    // geométricamente listos antes de decidir si hay algo que mostrar.
+    circles.forEach((c) => { c.style.strokeDasharray = `${circumference}`; });
     if (eff.pct === null) {
-      // Sin muestra: ni un punto residual del linecap redondeado con dasharray "0" — se oculta
-      // el trazo entero (opacity, no display:none, para no desalinear el <svg>).
-      ring.style.opacity = '0';
-      glow.style.opacity = '0';
+      // Sin muestra: ni un punto residual del linecap redondeado — se oculta el trazo entero
+      // (opacity, no display:none, para no desalinear el <svg>).
+      circles.forEach((c) => { c.style.opacity = '0'; });
       $('#player-home-effectiveness-value').textContent = '—';
       $('#player-home-effectiveness-caption').textContent = 'Sin partidos considerados';
       return;
     }
-    ring.style.opacity = '1';
-    glow.style.opacity = '1';
+    circles.forEach((c) => { c.style.opacity = '1'; });
     const filled = (eff.pct / 100) * circumference;
-    // V02.7 (§6.3) / V02.8 (§1) — en cada entrada o vuelta, el aro arranca vacío (dasharray "0") y la
-    // transición ya declarada en `.effectiveness-donut__fill` (styles.css) completa el arco
-    // hasta el % real; el número central no se anima (nunca "cuenta" hacia arriba, según pide
-    // el consolidado) y queda estable/visible desde el primer frame.
-    // V02.8 (§1/§2) — el glow duplicado recibe EXACTAMENTE el mismo dasharray, en el mismo
-    // paso, para que crezca en sincronía perfecta con el trazo principal (nunca un arco
-    // "adelantado" o "atrasado" respecto del otro).
+    const toOffset = circumference - filled;
+    // V02.8.1 (§1.4) — en cada entrada o vuelta al Home (nunca solo la primera de la sesión,
+    // ver `shouldAnimate` en renderPlayerHome), el arco se dibuja desde 0% (`fromOffset` =
+    // circunferencia completa) hasta el % real; el número central se asigna directo, nunca
+    // "cuenta" hacia arriba. Fuera de esa condición (reingreso sin animar, o
+    // `prefers-reduced-motion`), el offset final se asigna directo sin pasar por `animate()`.
+    // V02.8.1 (§1.3) — `--home-anim-ease` (`ease-out`), nunca `--motion-ease`: ver comentario
+    // en styles.css:root — la curva compartida de la app resuelve casi todo el recorrido
+    // visual en el primer 20-25% del tiempo transcurrido, exactamente lo que hacía
+    // imperceptible el crecimiento real independientemente de la duración configurada.
+    const ease = getComputedStyle(document.documentElement).getPropertyValue('--home-anim-ease').trim() || 'ease-out';
     if (shouldAnimate) {
-      ring.style.strokeDasharray = `0 ${circumference}`;
-      glow.style.strokeDasharray = `0 ${circumference}`;
-      void ring.getBoundingClientRect();
+      circles.forEach((c) => animateEffectivenessCircle(c, circumference, toOffset, ease));
+    } else {
+      circles.forEach((c) => { c.style.strokeDashoffset = toOffset; });
     }
-    ring.style.strokeDasharray = `${filled} ${circumference}`;
-    glow.style.strokeDasharray = `${filled} ${circumference}`;
     $('#player-home-effectiveness-value').textContent = `${eff.pct}%`;
     // V02.6 (§7) — "22 de 32" no decía qué era cada número; el cálculo no cambia, solo el copy.
     $('#player-home-effectiveness-caption').textContent = `${eff.wins} ganados de ${eff.considered} jugados`;

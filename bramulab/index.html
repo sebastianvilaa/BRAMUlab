@@ -1107,10 +1107,16 @@
           <div class="effectiveness-donut">
             <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
               <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
-              <!-- V02.8 (§2) — arco duplicado DETRÁS del trazo principal, mismo radio/dasharray,
-                   pensado para difuminarse (filter:blur en CSS) sin volverse una caja: reemplaza
-                   el filter:drop-shadow anterior, que en iPhone se veía rectangular. -->
-              <circle class="effectiveness-donut__glow" id="player-home-effectiveness-glow" cx="18" cy="18" r="15.5" />
+              <!-- V02.8.1 (§2) — REEMPLAZA el círculo único con filter:blur de V02.8 (seguía
+                   viéndose como caja en desktop y como aro grueso en iPhone, dos síntomas
+                   distintos del mismo problema: un filtro CSS/SVG rasterizando el bounding box).
+                   Dos halos concéntricos SIN filtro, solo stroke-width/opacity — el halo, el
+                   trazo principal y el aro de fondo comparten radio/dasharray/dashoffset y se
+                   animan exactamente igual (ver app.js:renderPlayerEffectiveness), así el
+                   resultado siempre sigue la curva, nunca un rectángulo. Orden de pintado:
+                   halo externo → halo interno → trazo principal (nítido, encima de los dos). -->
+              <circle class="effectiveness-donut__glow-outer" id="player-home-effectiveness-glow-outer" cx="18" cy="18" r="15.5" />
+              <circle class="effectiveness-donut__glow-inner" id="player-home-effectiveness-glow-inner" cx="18" cy="18" r="15.5" />
               <circle class="effectiveness-donut__fill" id="player-home-effectiveness-ring" cx="18" cy="18" r="15.5" />
             </svg>
             <span class="effectiveness-donut__value" id="player-home-effectiveness-value">—</span>

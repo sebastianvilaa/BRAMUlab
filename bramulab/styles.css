@@ -87,13 +87,29 @@
   --motion-ease: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* V02.8 (§1) — duraciones propias de las microanimaciones de ENTRADA del Home (barra de
-     Nivel, barras de Actividad, arco de Efectividad): deliberadamente separadas de
-     --motion-base/--motion-fast (usadas por transiciones de UI general — sheets, tabs,
-     hover/active) para poder darles a estas tres el ritmo "perceptible pero breve" que pide
-     el consolidado sin alargar ninguna otra animación de la app. */
-  --home-anim-level: 550ms;
-  --home-anim-activity: 500ms;
-  --home-anim-effectiveness: 750ms;
+     Nivel, barras de Actividad): deliberadamente separadas de --motion-base/--motion-fast
+     (usadas por transiciones de UI general — sheets, tabs, hover/active) para poder darles a
+     estas dos el ritmo "perceptible pero breve" que pide el consolidado sin alargar ninguna
+     otra animación de la app.
+     V02.8.1 (§1.1/§1.2) — prueba real en iPhone/desktop: ninguna de las dos se percibía con
+     claridad. Sube la duración de ambas (Nivel además cambia de técnica, ver
+     `.player-card__bar-fill` más abajo). Efectividad deja de usar un token CSS acá: pasa a
+     animarse con Web Animations API (ver app.js:renderPlayerEffectiveness), que necesita la
+     duración como número JS, no como variable CSS — su valor vive ahora como constante
+     `EFFECTIVENESS_ANIM_MS` junto a esa función.
+     `--home-anim-ease` es DELIBERADAMENTE propio, nunca `--motion-ease`: verificado con
+     capturas reales a duración estirada (4s) que `--motion-ease` (`cubic-bezier(0.32,0.72,0,1)`)
+     resuelve ~95-100% del recorrido visual dentro del primer 20-25% del tiempo transcurrido —
+     una curva pensada para que sheets/tabs se sientan "responsivas" (arrancan rápido), pero que
+     sobre una animación de ENTRADA hace que el crecimiento real quede comprimido en los
+     primeros ~150-200ms de cualquier duración nominal (750/950ms incluidos) y el resto se
+     perciba como estático — la causa técnica real, más allá de la duración, de que Nivel y
+     Efectividad no se percibieran en la prueba de V02.8. `ease-out` (curva estándar del
+     navegador, mucho menos agresiva) reparte el movimiento visible a lo largo de todo el
+     recorrido. */
+  --home-anim-level: 750ms;
+  --home-anim-activity: 750ms;
+  --home-anim-ease: ease-out;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -101,7 +117,7 @@
 @media (prefers-reduced-motion: reduce){
   :root{
     --motion-fast: 1ms; --motion-base: 1ms;
-    --home-anim-level: 1ms; --home-anim-activity: 1ms; --home-anim-effectiveness: 1ms;
+    --home-anim-level: 1ms; --home-anim-activity: 1ms;
   }
 }
 
@@ -821,6 +837,19 @@ input, select{ font-family: inherit; }
    acciones) suben a 16px vía overrides puntuales más abajo, nunca tocando padding interno. */
 .analysis-section{ margin-bottom: 12px; }
 #analysis-keymoments, #analysis-note-section{ margin-bottom: 16px; }
+/* V02.8.1 (§5) — altura uniforme en el bloque de acciones de Resumen: "VOLVER AL INICIO"
+   (`.btn-start`, padding vertical 17px) quedaba notablemente más alto que "EDITAR PARTIDO"
+   (`.btn-secondary`, padding vertical 13px + 1px de borde) — la jerarquía entre ambos debe
+   venir del color (verde/primario vs. oscuro/secundario), no del tamaño. Alcance acotado a
+   `#analysis-share-section`: nunca una normalización global de `.btn-secondary`/`.btn-start`,
+   que se siguen usando con su altura propia en Setup/sheets/carga manual. `box-sizing:
+   border-box` (global de la app) hace que `min-height` incluya el borde de `.btn-secondary`,
+   así ambos botones terminan exactamente iguales pese al borde que uno tiene y el otro no. */
+#analysis-share-section .btn-secondary,
+#analysis-share-section .btn-start{
+  min-height: 46px; padding: 0 16px; font-size: 14px; border-radius: 14px;
+  display:flex; align-items:center; justify-content:center;
+}
 .analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
    título, frase de encuadre y una superficie editorial que los agrupa a los tres.
@@ -1334,14 +1363,21 @@ input, select{ font-family: inherit; }
    V02.8 (§4) — variante validada final: vuelve a texto BLANCO (`var(--text)`, V02.7 lo
    había pasado a azul y no se sostuvo); fondo pasa de `--ink-soft` a `--surface-2` (un
    escalón más presente); glow bajado de 14px/.10 a 5px/.5 (más ceñido al borde, no un halo
-   difuso); sin cambios en layout/scroll-snap/ancho. */
+   difuso); estilo (color/fondo/borde/glow/radio/padding) validado y sin cambios en V02.8.1.
+   V02.8.1 (§4) — único ajuste de esta ronda: un hito típico entraba en una sola línea muy
+   horizontal (86% del ancho del Home alcanza de sobra). Sin tocar contenido ni insertar un
+   salto de línea manual, se angosta el ancho útil (86%→70% en celular, 60%→48% en pantallas
+   ≥480px) para favorecer el wrap natural a ~2 líneas; `min-height` (2 líneas de alto a este
+   tamaño/interlineado) + centrado vertical mantienen la misma altura aunque un hito puntual
+   sea corto y no llegue a partirse. */
 .player-home-hitos__chip{
-  flex: 0 0 86%; scroll-snap-align: start; background: var(--surface-2);
+  flex: 0 0 70%; scroll-snap-align: start; background: var(--surface-2);
   border: 1px solid #199FFF; border-radius: 14px;
   box-shadow: 0 0 5px rgba(25, 159, 255, 0.5);
   padding: 16px 18px; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--text); white-space:normal;
+  min-height: 2.8em; display:flex; align-items:center;
 }
-@media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 60%; } }
+@media (min-width: 480px){ .player-home-hitos__chip{ flex-basis: 48%; } }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Tarjeta de jugador (§6). Reemplaza la vieja pastilla--identity
@@ -1374,12 +1410,20 @@ input, select{ font-family: inherit; }
    overflow visible (antes hidden) para que el marcador de variación pueda asomar en el
    extremo del relleno sin recortarse. */
 .player-card__bar{ position:relative; flex-basis: 100%; height: 6px; border-radius: 999px; overflow:visible; background: rgba(244,247,242,0.08); margin-top: 8px; }
-/* V02.7 (§6.1): transición de `width` — anima el crecimiento horizontal en la primera entrada
-   al Home cada vez que se entra o se vuelve (V02.8 §1 — ya no solo la primera vez de la
-   sesión, ver app.js:renderPlayerHome); bajo `prefers-reduced-motion`, `--home-anim-level`
-   colapsa a 1ms (regla en :root) y el "crecimiento" es imperceptible, equivalente a mostrar
-   el estado final directo. */
-.player-card__bar-fill{ position:relative; display:block; height:100%; background: var(--brand-lime); border-radius: 999px; transition: width var(--home-anim-level) var(--motion-ease); }
+/* V02.7 (§6.1) — REEMPLAZADO en V02.8.1 (§1.2): la técnica anterior (transición de `width`,
+   disparada poniendo 0% + forzando reflow + valor final) no se percibía con claridad ni en
+   iPhone ni en desktop durante la prueba real — una transición depende de que el navegador
+   registre el estado "0%" como un frame pintado antes de aplicar el valor final, y esa
+   garantía es débil (varía según motor/dispositivo/carga). Pasa a una animación CSS explícita
+   por `@keyframes` sobre `transform: scaleX()`, que interpola sobre una línea de tiempo propia
+   sin depender de ese registro previo — el mismo mecanismo, ya confiable, que usan los pulsos
+   de esta app (`lastMatchGlowPulse`, `evolutionDotPulse`...). El ANCHO (`width`) pasa a
+   asignarse siempre directo al valor final, nunca en dos pasos; lo que crece visualmente desde
+   0 es la escala horizontal del relleno ya dimensionado. */
+.player-card__bar-fill{ position:relative; display:block; height:100%; background: var(--brand-lime); border-radius: 999px; transform-origin: left center; }
+.player-card__bar-fill.is-animating{ animation: playerLevelBarGrow var(--home-anim-level) var(--home-anim-ease) both; }
+@keyframes playerLevelBarGrow{ from{ transform: scaleX(0); } to{ transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce){ .player-card__bar-fill.is-animating{ animation: none; } }
 /* §19 — variación (+0.1/-0.2) como marcador de posición sobre el punto de progreso real, no
    una segunda barra de progreso.
    V02.4 (Bloque A, §3.3) — pasa a ser hermana de .player-card__bar-fill (antes su hija,
@@ -1432,15 +1476,17 @@ input, select{ font-family: inherit; }
      pueda pasar desapercibido si no se le presta atención.
      V02.8 (§3): el pulso de V02.7 resultaba demasiado sutil — sube un escalón la intensidad en
      los dos extremos (16px/.10 → 20px/.16 en reposo; 22px/.20 → 30px/.32 en el pico), mismo
-     ciclo de 3.6s, sin tocar borde ni tamaño. El extremo bajo sigue siendo más intenso que el
-     glow estático original de V02.6, nunca "apagado" en su punto de reposo. */
-  box-shadow: 0 0 20px rgba(149,255,25,.16);
+     ciclo de 3.6s, sin tocar borde ni tamaño.
+     V02.8.1 (§3): la prueba real mostró que V02.8 se pasó de intensidad (V02.7 era muy sutil,
+     V02.8 quedó demasiado fuerte). Punto intermedio, mismo ciclo/easing/mecanismo — solo
+     bajan los valores de reposo (20px/.16 → 18px/.12) y pico (30px/.32 → 25px/.24). */
+  box-shadow: 0 0 18px rgba(149,255,25,.12);
   animation: lastMatchGlowPulse 3.6s ease-in-out infinite;
   padding: 22px 20px;
 }
 @keyframes lastMatchGlowPulse{
-  0%, 100%{ box-shadow: 0 0 20px rgba(149,255,25,.16); }
-  50%{ box-shadow: 0 0 30px rgba(149,255,25,.32); }
+  0%, 100%{ box-shadow: 0 0 18px rgba(149,255,25,.12); }
+  50%{ box-shadow: 0 0 25px rgba(149,255,25,.24); }
 }
 @media (prefers-reduced-motion: reduce){ .player-home-lastmatch{ animation: none; } }
 .player-home-lastmatch__top{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 16px; }
@@ -1536,7 +1582,7 @@ input, select{ font-family: inherit; }
 /* V02.7 (§6.2): transición de `height` — anima el crecimiento vertical en la primera entrada
    al Home (app.js:renderPlayerActivity fuerza 0% → alto real); en re-renders normales (el valor
    ya es el final) no hay nada visible que transicionar, así que no hace falta condicionarla. */
-.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; transition: height var(--home-anim-activity) var(--motion-ease); }
+.activity-bar{ flex:1; display:flex; flex-direction:column-reverse; background: rgba(244,247,242,0.08); border-radius: 5px; min-height: 5px; overflow:hidden; transition: height var(--home-anim-activity) var(--home-anim-ease); }
 /* V02.6 (§3.1): glow muy leve en el segmento activo/ganado — sumar vida sin competir con el
    botón "+" ni volverse neón. */
 .activity-bar__win{ display:block; width:100%; background: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,.16); }
@@ -1560,16 +1606,24 @@ input, select{ font-family: inherit; }
    `+` central (`box-shadow: 0 6px 16px rgba(149,255,25,0.4)`, con relleno sólido de 52px de
    diámetro detrás — un glow de intensidad similar sobre un trazo fino nunca compite en
    presencia real con eso).
-   V02.8 (§2) — REEMPLAZADO: `filter:drop-shadow()` sobre un trazo delgado con `stroke-dasharray`
-   (un arco, no una forma cerrada) rasteriza mal en iPhone/Safari — el navegador calcula la
-   sombra sobre el BOUNDING BOX del trazo en vez de seguir la curva, y el resultado se percibe
-   como un halo rectangular/cuadrado (además de casi invisible ahí mismo). Se retira el filter;
-   el glow ahora es un círculo real (`.effectiveness-donut__glow`, ver index.html) dibujado
-   DETRÁS de este trazo, con el mismo `stroke-dasharray` (así crece exactamente el mismo arco),
-   más grueso, opacidad baja y `filter:blur()` propio — un blur sobre una forma ya trazada sigue
-   la curva en vez de encuadrarla en un rectángulo. */
-.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray var(--home-anim-effectiveness) var(--motion-ease); }
-.effectiveness-donut__glow{ fill:none; stroke: var(--brand-lime); stroke-width: 7; stroke-linecap: round; opacity: 0.45; filter: blur(2.5px); transition: stroke-dasharray var(--home-anim-effectiveness) var(--motion-ease); }
+   V02.8 (§2) — `filter:drop-shadow()` sobre un trazo delgado con `stroke-dasharray` (un arco,
+   no una forma cerrada) rasteriza mal en iPhone/Safari — el navegador calcula la sombra sobre
+   el BOUNDING BOX del trazo en vez de seguir la curva. Se reemplazó por un único círculo de
+   glow con `filter:blur()`.
+   V02.8.1 (§2) — REEMPLAZADO DE NUEVO: la prueba real mostró que CUALQUIER `filter` (blur
+   incluido) sobre estos círculos sigue comportándose distinto según motor — caja visible en
+   desktop, aro "engordado" en iPhone. Nueva técnica sin ningún filtro: dos halos concéntricos
+   (`.effectiveness-donut__glow-inner/-outer`, ver index.html) dibujados DETRÁS del trazo
+   principal, cada uno más grueso que el anterior y con opacidad más baja — el degradado de
+   grosor+opacidad ya simula un halo sin necesitar blur. Los tres círculos comparten
+   exactamente radio, `stroke-dasharray` (constante, la circunferencia) y `stroke-dashoffset`
+   (animado, ver app.js:renderPlayerEffectiveness) — nunca pueden desalinearse entre sí. La
+   animación deja de ser una `transition` (removida de estas reglas): pasa a Web Animations
+   API sobre `stroke-dashoffset`, técnica más confiable para garantizar frames intermedios
+   visibles que "poner 0 + reflow + valor final" (ver comentario en esa función). */
+.effectiveness-donut__fill{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; }
+.effectiveness-donut__glow-inner{ fill:none; stroke: var(--brand-lime); stroke-width: 5; stroke-linecap: round; opacity: 0.22; }
+.effectiveness-donut__glow-outer{ fill:none; stroke: var(--brand-lime); stroke-width: 8; stroke-linecap: round; opacity: 0.10; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
@@ -2045,9 +2099,18 @@ input, select{ font-family: inherit; }
    V02.8 (§6): el TEXTO deja de heredar el color de equipo — quedaba "demasiado teñido" para
    una acción secundaria. El color contextual (verde/azul) ahora se expresa únicamente por el
    borde; el texto pasa a `var(--text)` (blanco), igual criterio que el resto de `.sheet-option`
-   no-primarias. */
-#load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--team-a); color: var(--text); }
-.load-player-sheet.is-context-rival #load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--team-b); color: var(--text); }
+   no-primarias.
+   V02.8.1 (§6): el borde COMPLETO de color seguía compitiendo visualmente con el campo de
+   búsqueda activo (que también usa el color de equipo en su foco) — el buscador debe ser
+   claramente la acción principal del sheet. El borde pasa a neutro (`var(--court-line)`,
+   mismo que cualquier `.sheet-option` no-primaria) y el contexto de equipo se reduce a un
+   punto chico (`.sheet-add-player-dot`, ver app.js:renderManualPlayerSheetContent) delante del
+   texto — nunca se pierde la señal de equipo, pero deja de pelear con el buscador. Sigue
+   siendo un CTA cómodo de ancho completo (min-height 56px heredado de `.sheet-option`, sin
+   tocar). */
+#load-player-sheet-add.sheet-option--primary{ background: var(--court-surface-2); border-color: var(--court-line); color: var(--text); }
+.sheet-add-player-dot{ width:8px; height:8px; border-radius:50%; flex:none; margin-right:8px; background: var(--team-a); }
+.load-player-sheet.is-context-rival .sheet-add-player-dot{ background: var(--team-b); }
 
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
