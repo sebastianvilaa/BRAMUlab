@@ -84,7 +84,7 @@ Esta ronda implementa completo `BRAMUlab_V02.9_Consolidado.md` — cinco ajustes
 ## 6. Hash exacto y tag
 
 - Commit de implementación (código): `f19c0207d2e5bef9ce74a70e2a19733f0a8a809b`.
-- Commit de este informe: PENDIENTE_HASH_INFORME.
+- Commit de este informe: `be20da01a4b92138b26fe8c75f8739562f7cdcf9`.
 - Tag `BRAMUlab_V02.9` apuntará al commit inmediatamente posterior a este, que registra ambos hashes de arriba — el código funcional completo de V02.9 es íntegramente el del primer commit; ese commit siguiente no modifica ningún archivo de `bramulab/`.
 
 ---
