@@ -175,7 +175,7 @@ mismo rival más enfrentado.
 ## 8. Hash exacto y tag
 
 - Commit de implementación (código): `7c10cc6217d1550309cc79efe7b140cbec493b4e`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `a3cbee4f0f3d25e8fb37afeb6d65012060d46895`.
 - Tag `BRAMUlab_V03.0.3.2` apuntará al commit inmediatamente posterior a este.
 
 ---
