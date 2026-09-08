@@ -9,16 +9,23 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.0.1
+## Versión funcional actual: BRAMUlab_V03.0.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.0.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0.1`. Ronda de UX/jerarquía/bugs sobre la identidad de V03.0 ya validada en uso real: Perfil en 2 pestañas (MI PERFIL/MIS DATOS), Editar Datos y Completar Acceso como pantalla completa, Cambiar contraseña nuevo, foto de perfil corregida en el Home, navegación personal oculta sin sesión activa, y "Registrar partido sin cuenta" (el partido de invitado no se persiste, para que nunca pueda quedar reclamado por otra cuenta por coincidencia de nombre). No reabre la arquitectura de identidad/`userId` de V03.0.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.0.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0.2`. Ronda de sistema visual transversal (el Home como referencia, sin rediseñarlo): header unificado en toda la app, pantallas raíz (Home/Historial/Ranking/Perfil) sin flecha "volver" redundante, bottom nav visible también en Editar Datos/Completar Acceso/Cambiar contraseña/Notificaciones con sesión, bug real de avatar del Home corregido, Mis Datos reordenado (lápiz de edición, campos label-arriba/valor-abajo), gráfico de Evolución del Nivel BRAMU con ejes X/Y legibles, Bienvenida sin sesión rediseñada, íconos de lápiz/ojo reemplazados por SVG reales, y primera pantalla real de Notificaciones (modelo local por `userId`). No reabre la arquitectura de identidad/`userId` de V03.0 ni el modelo de sesión de V03.0.1.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se especificó en V03.0.2 (sistema visual transversal, Perfil y Notificaciones) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.0.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Informe.md) |
+
+**Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
 | Qué se especificó en V03.0.1 (refinamiento UX de Perfil, Acceso y sesión) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.0.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Informe.md) |
 
-**Base (V03.0), sin cambios de arquitectura en esta ronda:**
+**Base (V03.0):**
 
 | Qué necesitás | Documento |
 |---|---|
