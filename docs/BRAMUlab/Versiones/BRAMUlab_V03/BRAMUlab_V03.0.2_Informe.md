@@ -312,10 +312,8 @@ validación y se restauraron a su estado exacto previo al cierre de la sesión d
 ## 18. Hash exacto y tag
 
 - Commit de implementación (código): `b5198858536cb94da37cf834e6bd1d5b0274783d`.
-- Commit de este informe: se registra en un commit de documentación inmediatamente
-  posterior a este (mismo patrón que V03.0/V03.0.1), agregado ahí una vez conocido su propio
-  hash.
-- Tag `BRAMUlab_V03.0.2` apuntará al commit inmediatamente posterior a este informe.
+- Commit de este informe: `eae193f970730a8b6e8bd46c493eea9be7571b22`.
+- Tag `BRAMUlab_V03.0.2` apuntará al commit inmediatamente posterior a este.
 
 ---
 
