@@ -211,6 +211,9 @@ input, select{ font-family: inherit; }
 }
 
 .setup-header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 22px; }
+/* V03.0.3 (§12) — tabs de modo de registro, debajo del header BRAMU y antes de Equipo A/B. */
+.setup-mode-tabs{ margin-bottom: 22px; }
+.setup-guest-home-link{ display:block; width:100%; text-align:center; margin-top: 18px; }
 .setup-header__nav{ display:flex; align-items:center; gap:6px; }
 .setup-header__sep{ color: var(--paper-faint); font-size: 12px; }
 .link-btn{ background:none; border:none; color: var(--paper-dim); font-size: 13px; font-weight:700; text-decoration: underline; cursor:pointer; }
@@ -1470,8 +1473,13 @@ input, select{ font-family: inherit; }
   width: 64px; height:64px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
   display:flex; align-items:center; justify-content:center; flex: none; overflow: hidden;
 }
+/* V03.0.3 (§1) — un solo interruptor (`data-has-photo` en `.player-card__avatar`) decide qué
+   capa se pinta: por default (sin foto) el `<img>` queda en `display:none` acá mismo, nunca
+   dependiendo de un `hidden` escrito en un render aparte que podría desincronizarse del SVG. */
 .player-card__avatar-icon{ width:30px; height:30px; fill:none; stroke: var(--brand-lime); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.player-card__avatar-img{ width:100%; height:100%; object-fit: cover; }
+.player-card__avatar-img{ display:none; width:100%; height:100%; object-fit: cover; }
+.player-card__avatar[data-has-photo="true"] .player-card__avatar-icon{ display:none; }
+.player-card__avatar[data-has-photo="true"] .player-card__avatar-img{ display:block; }
 .player-card__info{ flex: 1 1 auto; min-width: 120px; }
 .player-card__name{ font-family: var(--font-display); font-weight: 500; font-size: 19px; color: var(--paper); margin-bottom: 2px; }
 /* §19 — "@seba": representación provisional de interfaz, derivada del nombre actual (nunca
@@ -1519,6 +1527,11 @@ input, select{ font-family: inherit; }
 .player-card__level-delta--up{ background: var(--brand-lime); color: #0C1400; }
 .player-card__level-delta--down{ background: var(--danger); color: var(--paper); }
 .player-card__level-delta--flat{ display:none; }
+/* V03.0.3 (§2) — reuso en MI PERFIL: acá no hay barra de progreso debajo (a propósito, ver
+   nota en index.html), así que la pastilla de variación no puede quedar `position:absolute`
+   (asume la pista de la barra del Home como referencia) — pasa a un elemento inline más,
+   dentro de `.player-card__level-row`. */
+.player-card__level-delta--inline{ position:static; transform:none; border:none; }
 
 /* Identidad compacta — usada hoy solo por Perfil (§11: Perfil conserva su alcance actual, sin
    rediseñar en Etapa 4). La Tarjeta de jugador del Home ahora es `.player-card` (arriba), un
@@ -2295,7 +2308,10 @@ input, select{ font-family: inherit; }
   padding: 3px 9px; text-transform:uppercase; margin-left: auto;
 }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
-.evolution-summary{ display:flex; gap: 18px; margin-bottom: 14px; }
+/* V03.0.3 (§3) — pasa de 3 a 4 valores (se agrega "Mejor nivel"): flex-wrap para que en
+   mobile angosto pase a 2 filas de 2 en vez de comprimir/desbordar. */
+.evolution-summary{ display:flex; flex-wrap:wrap; row-gap: 10px; column-gap: 18px; margin-bottom: 14px; }
+.evolution-summary__item{ flex: 1 1 38%; }
 .evolution-summary__item{ display:flex; flex-direction:column; gap: 2px; }
 .evolution-summary__value{ font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .evolution-summary__label{ font-size: 10px; letter-spacing:0.03em; color: var(--paper-dim); }
@@ -2345,7 +2361,15 @@ input, select{ font-family: inherit; }
    antes nunca la mostraban, así que este padding extra no hacía falta. Sin esto, el botón
    GUARDAR quedaba pegado/tapado detrás de la barra al hacer scroll hasta el final. */
 .access-scroll--with-bottom-nav{ padding-bottom: calc(90px + var(--safe-bottom)); }
-.access-logo{ width: 56px; height:56px; object-fit:contain; margin: 12px auto 18px; display:block; }
+/* V03.0.3 (§9) — "dar más presencia y mejor ubicación al wordmark": Bienvenida es la única
+   pantalla sin sesión que lo usa como elemento principal (consolidado §1), así que gana
+   tamaño y aire propio en vez del tratamiento chico de header que comparte con Home/Setup. */
+.access-logo{ width: 92px; height:92px; object-fit:contain; margin: 15% auto 22px; display:block; }
+/* V03.0.3 (§9/§10) — "reducir botones sobredimensionados": el CTA principal de Bienvenida
+   (.btn-start, compartido con "EMPEZAR PARTIDO" en Setup) quedaba con el mismo padding
+   generoso pensado para esa pantalla de tarea; acá, seguido de CREAR CUENTA/REGISTRAR, se
+   sentía desproporcionado. Ajuste scoped, no toca el resto de los usos de .btn-start. */
+.access-actions .btn-start{ padding: 14px 17px; }
 .access-title{
   font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em;
   color: var(--paper); text-align:center; margin-bottom: 6px;
@@ -2412,6 +2436,27 @@ input, select{ font-family: inherit; }
 }
 .profile-avatar img{ width:100%; height:100%; object-fit:cover; }
 .pastilla-identity__handle{ font-size: 12px; color: var(--paper-faint); margin-bottom: 4px; }
+
+/* V03.0.3 (§2/§5) — foto editable desde MI PERFIL/MIS DATOS: affordance chico (cámara), nunca
+   un botón grande — mismo lenguaje que `.signup-avatar-edit` (badge circular lima), reusado
+   acá con su propio nombre porque el tamaño del avatar padre es distinto. */
+.profile-avatar-edit-wrap{ position:relative; flex:none; }
+.avatar-edit-badge{
+  position:absolute; right:-2px; bottom:-2px; width: 26px; height:26px; border-radius:50%;
+  background: var(--brand-lime); color:#1A1400; border: 2px solid var(--bg);
+  cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
+}
+.avatar-edit-badge svg{ width:13px; height:13px; }
+.profile-avatar-remove-link{ font-size: 11px; margin-top: 2px; }
+.profile-data-avatar-row{ display:flex; flex-direction:column; align-items:center; gap:4px; margin-bottom: 14px; }
+
+/* V03.0.3 (§3) — ficha deportiva compacta: filas/mini-KPIs en grilla de 2 columnas, en vez de
+   una sucesión de tarjetas grandes (una por dato). */
+.mini-stat-card{ padding: 14px 16px; }
+.mini-stat-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+.mini-stat{ display:flex; flex-direction:column; gap:2px; }
+.mini-stat__label{ font-size: 11px; color: var(--paper-dim); }
+.mini-stat__value{ font-size: 15px; font-weight:700; color: var(--paper); font-variant-numeric: tabular-nums; }
 
 /* V03.0 (§3) — banner "acceso pendiente de completar" en Perfil. Mismo tono de advertencia que
    ya usa el resto de la app para estados "todavía no" (--gold), sin inventar un color nuevo. */

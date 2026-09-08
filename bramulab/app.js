@@ -264,6 +264,11 @@
       nav.hidden = !showNav;
       if (showNav) updateBottomNavActive(name);
     }
+    // V03.0.3 (§12) — "Volver al inicio" en Configurar partido: SOLO sin sesión (guest en
+    // pleno flujo de "registrar partido sin cuenta"). Un único punto de verdad acá (en vez de
+    // calcularlo en cada call-site que hace `showView('setup')`) para que sea imposible que
+    // quede desincronizado del resto de la regla de sesión de esta función.
+    if (name === 'setup') { const link = $('#setup-guest-home-link'); if (link) link.hidden = !!Store.getCurrentUser(); }
   }
 
   /* ------------------------------------------------------------------ */
@@ -291,11 +296,6 @@
   let selectedScoring = 'golden';
   let selectedFormatId = 'classic';
   let selectedRecordingMode = 'complete'; // 'complete' | 'games' — V13 (§2)
-
-  // V02.2 (Bloque I, §23) — naming ESTABLE, sin "BETA": el modo Por Games ya no es una
-  // función experimental de cara al usuario. Mismas dos etiquetas en el trigger del header,
-  // el ítem del menú compacto y (recortado) el header de partido en vivo (ver index.html).
-  const RECORDING_MODE_LABELS = { complete: 'REGISTRO PUNTO A PUNTO', games: 'REGISTRO POR GAMES' };
 
   const SCORING_HINTS = {
     starpoint: 'Dos ventajas y luego punto decisivo',
@@ -331,32 +331,32 @@
     checkForActiveMatch();
   }
 
-  /* V13 (§2): selector de modo de registro (Completo / Por games) con lógica tipo web —
-   *  se recuerda la última elección (Store.loadRecordingMode) para la próxima vez que se
-   *  abre Home. Etapa 2 (Rama Jugador §3.1): el trigger visible ahora es #header-menu-btn
-   *  (abre el menú compacto), no un botón propio — #mode-select-menu en sí no cambia. */
+  /* V13 (§2): selector de modo de registro (Completo / Por games) — se recuerda la última
+   *  elección (Store.loadRecordingMode) para la próxima vez que se abre Home.
+   *  V03.0.3 (§12) — reemplaza el menú anidado (header-menu → mode-select-menu, 2 toques para
+   *  llegar) por 2 tabs siempre visibles debajo del header (#setup-mode-tabs), mismo patrón
+   *  .option-row/.option-col que el resto de setup — "evidente, táctil, mobile-first". */
   function initModeSelector() {
     selectedRecordingMode = Store.loadRecordingMode();
     updateModeSelectButtonLabel();
-    $('#mode-select-cancel').addEventListener('click', () => { $('#mode-select-menu').hidden = true; });
-    $('#mode-select-menu').addEventListener('click', (e) => { if (e.target === $('#mode-select-menu')) $('#mode-select-menu').hidden = true; });
-    $all('#mode-select-menu [data-mode]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        selectedRecordingMode = btn.dataset.mode;
-        Store.saveRecordingMode(selectedRecordingMode);
-        updateModeSelectButtonLabel();
-        $('#mode-select-menu').hidden = true;
-      });
+    wireOptionGroup('setup-mode-tabs', (mode) => {
+      selectedRecordingMode = mode;
+      Store.saveRecordingMode(selectedRecordingMode);
     });
   }
+  /** Sincroniza el estado visual de los tabs con `selectedRecordingMode` — se llama al iniciar
+   *  y no hace falta llamarla de nuevo salvo que algo externo cambie el modo (hoy no pasa:
+   *  el modo solo cambia por tap directo en los tabs, que ya se auto-actualizan). */
   function updateModeSelectButtonLabel() {
-    const label = RECORDING_MODE_LABELS[selectedRecordingMode] || RECORDING_MODE_LABELS.complete;
-    $('#header-menu-btn').textContent = label + ' ▾';
-    $('#header-menu-mode-value').textContent = label;
+    $all('#setup-mode-tabs .option-col').forEach((btn) => {
+      const isSelected = btn.dataset.value === selectedRecordingMode;
+      btn.classList.toggle('is-selected', isSelected);
+      btn.setAttribute('aria-checked', String(isSelected));
+    });
   }
 
-  /* Etapa 2 (Rama Jugador §3.1) — menú compacto del header de Home: reúne Mi pádel /
-   *  Historial / Modo de registro en un solo lugar, reutilizando overlay/menu-sheet. */
+  /* Etapa 2 (Rama Jugador §3.1) — menú compacto del header de Home: reúne Mi pádel / Historial
+   *  (el modo de registro ya no vive acá desde V03.0.3, ver initModeSelector). */
   function initHeaderMenu() {
     $('#header-menu-btn').addEventListener('click', () => { $('#header-menu').hidden = false; });
     $('#header-menu-cancel').addEventListener('click', () => { $('#header-menu').hidden = true; });
@@ -367,7 +367,8 @@
     // Setup. Se conserva el origen explícitamente (historyOpenedFrom), nunca se adivina por
     // el estado visual — ver openHistoryScreen()/initHistoryScreen() más abajo.
     $('#header-menu-history').addEventListener('click', () => { $('#header-menu').hidden = true; openHistoryScreen('setup'); });
-    $('#header-menu-mode').addEventListener('click', () => { $('#header-menu').hidden = true; $('#mode-select-menu').hidden = false; });
+    // V03.0.3 (§12) — invitado (sin sesión): "Volver al inicio" al fondo de la pantalla.
+    $('#setup-guest-home-link').addEventListener('click', () => openAccessFlow());
   }
 
   // Etapa 4.1 (§2.1) — a diferencia del resto de la navegación del jugador (donde "volver"
@@ -388,13 +389,12 @@
     // menú heredado). Mismo patrón que ya usan openPlayerHome/openManualLoadScreen.
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
+    // V03.0.3 (§7) — V03.0.2 había quitado la flecha "volver" de las pantallas raíz
+    // (bottom nav ya resolvía volver a Inicio) pero en uso real no quedó bien: se restaura,
+    // conviviendo con la bottom nav. La flecha siempre visible; el DESTINO sigue siendo
+    // contextual (ver el handler de #history-back-btn en initHistoryScreen): a Home si no hay
+    // origen especial, o de vuelta a Configurar partido si Historial se abrió desde ahí.
     historyOpenedFrom = origin === 'setup' ? 'setup' : 'player-home';
-    // V03.0.2 (§1) — Historial es una pantalla raíz (bottom nav) y, por regla del header,
-    // esas no llevan flecha "volver" — la barra inferior ya resuelve "volver a Inicio". Pero
-    // Historial tiene un segundo punto de entrada real (menú heredado de Configurar partido,
-    // fuera de la bottom nav): ahí SÍ hace falta volver a ese contexto, así que la flecha se
-    // muestra solo en ese caso puntual, nunca cuando se llega desde la barra inferior/Home.
-    $('#history-back-btn').hidden = historyOpenedFrom !== 'setup';
     historyContextFilter = contextFilter || null;
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca (nunca mezclado con
@@ -6611,14 +6611,16 @@
     // mostrando siempre el ícono genérico porque `renderPlayerCard` nunca leía `profilePhoto`.
     // Misma fuente que el resto de la app (Store.getCurrentUser()), sin segunda fuente ni
     // almacenamiento nuevo.
+    // V03.0.3 (§1) — fix definitivo: un solo atributo (`data-has-photo`) en el contenedor
+    // decide en CSS qué capa se pinta (ver styles.css) — nunca dos `hidden` independientes
+    // que puedan quedar desincronizados entre sí (la causa real del bug reportado tras
+    // V03.0.2: dos escrituras separadas, sin ninguna garantía de quedar siempre en sync).
     const homeUser = Store.getCurrentUser();
     const homeAvatarImg = $('#player-home-avatar-img');
-    const homeAvatarFallback = $('#player-home-avatar-fallback');
-    if (homeUser && homeUser.profilePhoto) {
-      homeAvatarImg.src = homeUser.profilePhoto; homeAvatarImg.hidden = false; homeAvatarFallback.hidden = true;
-    } else {
-      homeAvatarImg.hidden = true; homeAvatarImg.removeAttribute('src'); homeAvatarFallback.hidden = false;
-    }
+    const hasPhoto = !!(homeUser && homeUser.profilePhoto);
+    $('#player-home-avatar').dataset.hasPhoto = String(hasPhoto);
+    if (hasPhoto) homeAvatarImg.src = homeUser.profilePhoto;
+    else homeAvatarImg.removeAttribute('src');
     const n = matches.length;
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
@@ -7049,7 +7051,9 @@
   }
 
   function initRankingScreen() {
-    // V03.0.2 (§1) — pantalla raíz: ya no tiene flecha "volver" (se vuelve por la bottom nav).
+    // V03.0.3 (§7) — flecha restaurada, convive con la bottom nav; mismo criterio que el
+    // resto de pantallas raíz (vuelve siempre a Home, sin origen especial).
+    $('#ranking-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
   /* ------------------------------------------------------------------ */
@@ -7124,7 +7128,9 @@
     $('#profile-display-name').textContent = (user && user.displayName) || name || '—';
     $('#profile-username').textContent = user && user.username ? `@${user.username}` : '—';
     const matches = name ? PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()) : [];
-    $('#profile-match-count').textContent = matches.length === 1 ? '1 partido cargado' : `${matches.length} partidos cargados`;
+    // V03.0.3 (§2) — "la cantidad de partidos puede salir de la cabecera y pasar al bloque de
+    // estadísticas": #profile-match-count se retira de la cabecera, el conteo ahora vive en
+    // #mi-perfil-played (bloque RENDIMIENTO, más abajo).
 
     // MI PERFIL — KPIs ya disponibles (misma fuente que el Home, nunca una segunda fórmula).
     const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
@@ -7132,11 +7138,23 @@
     const streak = PH.computeCurrentStreak(matches, currentIdentity());
     $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : 'Sin racha en curso';
 
+    // V03.0.3 (§3) — "rendimiento ya calculable": jugados/ganados/mejor racha, misma fuente
+    // que el resto de la app (PH.computeEffectivenessTotal ya cuenta ganados; computeBestWinStreak
+    // ya existía —usado por Hitos— pero nunca se había expuesto en Perfil). Nunca una fórmula
+    // nueva.
+    $('#mi-perfil-played').textContent = String(matches.length);
+    $('#mi-perfil-won').textContent = String(eff.wins);
+    const bestStreak = PH.computeBestWinStreak(matches, currentIdentity());
+    $('#mi-perfil-best-streak').textContent = bestStreak > 0 ? `${bestStreak} ${bestStreak === 1 ? 'victoria' : 'victorias'}` : 'Sin datos';
+
     // MIS DATOS — Identidad.
     $('#profile-data-firstname').textContent = (user && user.firstName) || '—';
     $('#profile-data-lastname').textContent = (user && user.lastName) || '—';
     $('#profile-data-username').textContent = user && user.username ? `@${user.username}` : '—';
     $('#profile-data-displayname').textContent = (user && user.displayName) || name || '—';
+    setAvatarPreview('profile-data-avatar-img', 'profile-data-avatar-initials', user && user.profilePhoto, name);
+    $('#mis-datos-avatar-remove-btn').hidden = !(user && user.profilePhoto);
+    $('#mi-perfil-avatar-remove-btn').hidden = !(user && user.profilePhoto);
 
     // MIS DATOS — Datos personales/deportivos.
     const age = user ? PLI.calculateAge(user.birthDate) : null;
@@ -7147,6 +7165,13 @@
     $('#profile-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
     $('#profile-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
     $('#profile-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
+
+    // V03.0.3 (§3) — MI PERFIL: mismos 4 valores ya declarados, mostrados en la ficha
+    // deportiva (edad en vez de fecha completa — "Edad" es lo que pide el consolidado acá).
+    $('#mi-perfil-age').textContent = age !== null ? `${age} años` : '—';
+    $('#mi-perfil-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
+    $('#mi-perfil-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
+    $('#mi-perfil-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
 
     // MIS DATOS — Acceso y seguridad.
     $('#profile-data-email').textContent = (user && user.email) || '—';
@@ -7214,40 +7239,58 @@
     } catch (e) { return ''; }
   }
 
-  /** §4.4 — línea temporal izquierda→derecha, un nivel mayor se dibuja más arriba. El rango
-   *  vertical se adapta a los datos reales (con margen visual) en vez de fijarse siempre a
-   *  [1,10] — a la escala de esta regla simulada (movimientos de 0.1/0.2), un rango fijo de
-   *  9 puntos aplastaría cualquier variación real a una línea casi recta.
+  /** V03.0.3 (§4) — paso de grilla "legible": el candidato más chico de la lista que da como
+   *  máximo ~4 divisiones dentro de `range` — nunca decimales sueltos tipo 0.37. */
+  const LEVEL_AXIS_STEP_CANDIDATES = [0.1, 0.2, 0.5, 1, 2, 5];
+  function niceLevelAxisStep(range) {
+    const target = range / 4;
+    for (const step of LEVEL_AXIS_STEP_CANDIDATES) { if (step >= target) return step; }
+    return LEVEL_AXIS_STEP_CANDIDATES[LEVEL_AXIS_STEP_CANDIDATES.length - 1];
+  }
+
+  /** §4.4 — línea temporal izquierda→derecha, un nivel mayor se dibuja más arriba.
    *  V03.0.2 (§6) — antes el SVG crecía de ancho intrínseco (56px por punto) dentro de un
    *  contenedor con scroll horizontal; el consolidado pide explícitamente NO depender de
-   *  scroll horizontal como solución principal. Ahora el `viewBox` es un ancho virtual FIJO
+   *  scroll horizontal como solución principal. El `viewBox` es un ancho virtual FIJO
    *  (LEVEL_CHART_WIDTH) y el `<svg>` se renderiza a `width:100%` (ver .evolution-chart__svg) —
-   *  siempre entra en el ancho disponible, sin importar cuántos partidos haya. Se agregan
-   *  referencias numéricas reales en Y (3 líneas de grilla con su valor) y fechas reales en X
-   *  (máximo ~5 etiquetas, nunca inventadas). Con 1 solo punto no se dibuja ninguna línea
+   *  siempre entra en el ancho disponible, sin importar cuántos partidos haya.
+   *  V03.0.3 (§4) — la escala Y de V03.0.2 seguía "abriendo demasiado": incluía
+   *  `evolution.base` (el 5.0 fijo de arranque) en el mín/máx, así que una racha real de
+   *  5.9-6.6 igual mostraba una escala arrastrada hasta el 5.0 aunque el jugador nunca haya
+   *  estado ahí en la serie visible. Ahora el rango sale SOLO de los niveles reales de los
+   *  puntos mostrados (nunca del `base`), con un margen chico, redondeado a un paso legible
+   *  (niceLevelAxisStep) y máximo 5 marcas — igual que pide el consolidado con su propio
+   *  ejemplo (5.9-6.6 real, nunca 4.3-7.2). Con 1 solo punto no se dibuja ninguna línea
    *  (`coords.length > 1` — nunca "inventar una línea" con un solo dato real). */
   function buildLevelEvolutionSvgHTML(evolution) {
     const points = evolution.points;
     if (!points.length) return '';
     const levels = points.map((p) => p.level);
-    const rawMin = Math.min(evolution.base, ...levels);
-    const rawMax = Math.max(evolution.base, ...levels);
-    const span = Math.max(0.4, rawMax - rawMin);
-    const pad = Math.max(0.2, span * 0.25);
-    const yMin = rawMin - pad, yMax = rawMax + pad;
+    const rawMin = Math.min(...levels);
+    const rawMax = Math.max(...levels);
+    const rawSpan = Math.max(0.1, rawMax - rawMin);
+    const margin = Math.max(0.1, rawSpan * 0.2);
+    const step = niceLevelAxisStep(rawSpan + margin * 2);
+    const yMin = Math.floor((rawMin - margin) / step) * step;
+    const yMax = Math.ceil((rawMax + margin) / step) * step;
     const width = LEVEL_CHART_WIDTH;
     const plotW = width - LEVEL_CHART_PAD_LEFT - LEVEL_CHART_PAD_RIGHT;
     const plotH = LEVEL_CHART_HEIGHT - LEVEL_CHART_PAD_TOP - LEVEL_CHART_PAD_BOTTOM;
     const xAt = (i) => (points.length === 1 ? LEVEL_CHART_PAD_LEFT + plotW / 2 : LEVEL_CHART_PAD_LEFT + (i / (points.length - 1)) * plotW);
     const yAt = (level) => LEVEL_CHART_PAD_TOP + (1 - (level - yMin) / (yMax - yMin)) * plotH;
 
-    // Eje Y: 3 líneas de grilla con su valor real de Nivel BRAMU (nunca una escala inventada).
-    const yTicks = [1, 0.5, 0];
-    const gridHTML = yTicks.map((t) => {
+    // Eje Y: una línea de grilla por cada paso legible entre yMin y yMax (máximo 5, con el
+    // valor real al lado — nunca una escala inventada).
+    const tickCount = Math.min(5, Math.round((yMax - yMin) / step) + 1);
+    const yValues = Array.from({ length: tickCount }, (_, i) => yMax - i * step);
+    const gridHTML = yValues.map((value) => {
+      const t = (yMax - value) / (yMax - yMin);
       const y = (LEVEL_CHART_PAD_TOP + t * plotH);
-      const value = (yMin + (1 - t) * (yMax - yMin)).toFixed(1);
+      // Redondeo de PRESENTACIÓN por errores de punto flotante de `yMax - i*step` (nunca
+      // afecta el valor real de los puntos/la línea, solo el texto de la etiqueta).
+      const label = step < 1 ? value.toFixed(1) : String(Math.round(value));
       return `<line x1="${LEVEL_CHART_PAD_LEFT}" y1="${y.toFixed(1)}" x2="${width}" y2="${y.toFixed(1)}" class="evolution-chart__grid" />`
-        + `<text x="0" y="${y.toFixed(1)}" dy="3.5" class="evolution-chart__axis-label">${value}</text>`;
+        + `<text x="0" y="${y.toFixed(1)}" dy="3.5" class="evolution-chart__axis-label">${label}</text>`;
     }).join('');
 
     // Eje X: fechas reales, máximo LEVEL_CHART_MAX_X_LABELS etiquetas (siempre incluye la
@@ -7305,11 +7348,18 @@
     const isLegacy = !!(user && user.legacyMigrated);
     $('#evolution-numeric').hidden = !isLegacy;
     $('#evolution-calibration').hidden = isLegacy;
+    // V03.0.3 (§2) — cabecera de MI PERFIL (ficha deportiva): mismo gate y misma fuente que
+    // la tarjeta del Home (nunca un número para cuentas en calibración).
+    $('#mi-perfil-level-sub').hidden = isLegacy;
     if (!isLegacy) {
       const calib = PH.buildCalibrationStatus(evolution.consideredCount);
       $('#evolution-calibration-state').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
       $('#evolution-calibration-progress').textContent = calib.complete ? '' : calib.progressText;
       $('#evolution-calibration-progress').hidden = calib.complete;
+      $('#mi-perfil-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      $('#mi-perfil-level-sub').textContent = calib.complete ? '' : calib.progressText;
+      $('#mi-perfil-level-sub').hidden = calib.complete;
+      $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
       return;
     }
 
@@ -7317,7 +7367,16 @@
     const change = formatLevelDelta(evolution.changeFromBase);
     $('#evolution-change-value').textContent = evolution.consideredCount ? change.label : '—';
     $('#evolution-count-value').textContent = String(evolution.consideredCount);
+    // V03.0.3 (§3) — "mejor Nivel BRAMU histórico, solo si puede calcularse con la serie real
+    // existente": máximo de la misma serie que ya dibuja el gráfico, nunca una fórmula nueva.
+    $('#evolution-best-value').textContent = evolution.consideredCount
+      ? Math.max(evolution.base, ...evolution.points.map((p) => p.level)).toFixed(1) : '—';
     $('#evolution-point-detail').hidden = true;
+
+    $('#mi-perfil-level-value').textContent = evolution.current.toFixed(1);
+    $('#mi-perfil-level-delta').textContent = change.label;
+    $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--' + (evolution.consideredCount ? change.direction : 'flat');
+    $('#mi-perfil-level-sub').hidden = true;
 
     const wrap = $('#evolution-chart-wrap');
     if (!evolution.points.length) {
@@ -7349,16 +7408,57 @@
     showView('ranking');
   }
 
+  /** V03.0.3 (§2/§5) — foto editable directamente desde MI PERFIL y MIS DATOS (affordance
+   *  chico, sin abrir el formulario completo de Editar Datos): tocar el avatar o su badge
+   *  abre el selector de archivo, reusa exactamente `downscaleImageFileToDataUrl` (mismo
+   *  upload+compresión que ya usa Editar Datos) y guarda directo con
+   *  `Store.updateUserAccount` — un solo `profilePhoto` en toda la app, nunca una segunda
+   *  fuente. "Quitar foto" solo visible cuando ya hay una. Ambos puntos de entrada terminan
+   *  en el mismo `refreshAfterAvatarChange`, así que MI PERFIL y MIS DATOS quedan
+   *  sincronizados entre sí sin importar desde cuál se editó. */
+  function refreshAfterAvatarChange(toastMessage) {
+    renderProfileView();
+    showToast(toastMessage);
+  }
+  function wireInlineAvatarEdit(avatarId, fileInputId, editBtnId, removeLinkId) {
+    const avatar = $(`#${avatarId}`);
+    const fileInput = $(`#${fileInputId}`);
+    const editBtn = $(`#${editBtnId}`);
+    const openPicker = () => fileInput.click();
+    avatar.addEventListener('click', openPicker);
+    editBtn.addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      const dataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
+      Store.updateUserAccount(user.id, { profilePhoto: dataUrl });
+      fileInput.value = '';
+      refreshAfterAvatarChange('Foto actualizada');
+    });
+    $(`#${removeLinkId}`).addEventListener('click', (e) => {
+      e.stopPropagation();
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      Store.updateUserAccount(user.id, { profilePhoto: null });
+      refreshAfterAvatarChange('Foto quitada');
+    });
+  }
+
   function initProfileScreen() {
     $('#profile-tab-mi-perfil').textContent = PROFILE_TAB_LABELS['mi-perfil'];
     $('#profile-tab-mis-datos').textContent = PROFILE_TAB_LABELS['mis-datos'];
     $('#profile-tab-mi-perfil').addEventListener('click', () => setProfileTab('mi-perfil'));
     $('#profile-tab-mis-datos').addEventListener('click', () => setProfileTab('mis-datos'));
-    // V03.0.2 (§1) — pantalla raíz: ya no tiene flecha "volver" (se vuelve por la bottom nav).
+    // V03.0.3 (§7) — flecha restaurada, convive con la bottom nav.
+    $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
     $('#profile-logout-btn').addEventListener('click', requestLogout);
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
     $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
+    wireInlineAvatarEdit('profile-avatar', 'mi-perfil-avatar-input', 'mi-perfil-avatar-edit-btn', 'mi-perfil-avatar-remove-btn');
+    wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn', 'mis-datos-avatar-remove-btn');
     const chartWrap = $('#evolution-chart-wrap');
     chartWrap.addEventListener('click', (e) => {
       const dot = e.target.closest('[data-index]');

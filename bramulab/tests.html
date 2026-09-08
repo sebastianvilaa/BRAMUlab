@@ -3094,6 +3094,36 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.0.3 (§2/§5/§16) — foto editable desde MI PERFIL y MIS DATOS: los dos puntos de
+  // entrada llaman al MISMO Store.updateUserAccount con `profilePhoto` — este bloque confirma
+  // el round-trip set/clear a nivel de datos (la lectura en cada pantalla ya está cubierta por
+  // setAvatarPreview/renderPlayerCard, verificado manualmente, ver Informe). Mismo patrón
+  // snapshot/restore que los bloques V03.0/V03.0.1/V03.0.2 de arriba.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      const user = Store.signUpAndLogin({ email: 'foto@test.com', password: 'Abc123!@', username: 'fotouser', firstName: 'Foto', displayName: 'Foto' });
+      assert('V0303-AVATAR · cuenta nueva arranca sin profilePhoto', !Store.getCurrentUser().profilePhoto);
+      const fakeDataUrl = 'data:image/png;base64,AAAA';
+      const afterSet = Store.updateUserAccount(user.id, { profilePhoto: fakeDataUrl });
+      assert('V0303-AVATAR · updateUserAccount guarda profilePhoto', afterSet.profilePhoto === fakeDataUrl);
+      assert('V0303-AVATAR · se lee igual desde getCurrentUser (misma fuente para Home/MI PERFIL/MIS DATOS)', Store.getCurrentUser().profilePhoto === fakeDataUrl);
+      const afterClear = Store.updateUserAccount(user.id, { profilePhoto: null });
+      assert('V0303-AVATAR · "quitar foto" limpia profilePhoto a null (no string vacío, no queda el dato viejo)', afterClear.profilePhoto === null && !Store.getCurrentUser().profilePhoto);
+      assert('V0303-AVATAR · quitar/reemplazar conserva el mismo userId (nunca crea una cuenta nueva)', afterClear.id === user.id);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

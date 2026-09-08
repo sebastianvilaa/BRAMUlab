@@ -37,22 +37,28 @@
     <header class="setup-header">
       <img id="home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="setup-header__nav">
-        <!-- Etapa 2 (Rama Jugador §3.1) — un solo trigger compacto reemplaza los dos links
-             sueltos (Historial / Modo de registro ▾) de antes; sigue mostrando el modo de
-             registro activo, ahora abre el menú de abajo en vez del selector directo. -->
-        <button id="header-menu-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
+        <!-- V03.0.3 (§12) — el modo de registro sale de este menú/wordmark (pasa a tabs
+             visibles debajo, ver .setup-mode-tabs): el trigger ya no necesita mostrarlo. -->
+        <button id="header-menu-btn" class="link-btn" type="button" aria-haspopup="true">MENÚ ▾</button>
       </div>
     </header>
 
-    <!-- Etapa 2 (Rama Jugador §3.1) — menú compacto del header: reúne Mi pádel / Historial /
-         Modo de registro en un solo lugar. Reutiliza el overlay/menu-sheet ya existente; el
-         selector de Completo/Por Games (#mode-select-menu) no se toca, solo cambia desde
-         dónde se abre. -->
+    <!-- V03.0.3 (§12) — "quitar el selector de modo del encabezado; usar dos solapas claras,
+         debajo del header BRAMU, antes de equipos/configuración". Reemplaza al menú anidado
+         (header-menu → mode-select-menu) que lo tenía escondido 2 niveles adentro. Mismo
+         patrón visual .option-row/.option-col ya usado en el resto de setup (Sistema de
+         puntuación, más abajo) — evidente, táctil, mobile-first. -->
+    <div class="setup-mode-tabs option-row" id="setup-mode-tabs" role="radiogroup" aria-label="Modo de registro">
+      <button type="button" class="option-col" data-value="complete" role="radio" aria-checked="true">PUNTO A PUNTO</button>
+      <button type="button" class="option-col" data-value="games" role="radio" aria-checked="false">POR GAMES</button>
+    </div>
+
+    <!-- Etapa 2 (Rama Jugador §3.1) — menú compacto del header: Mi pádel / Historial (el modo
+         de registro ya no vive acá, ver .setup-mode-tabs arriba). -->
     <div id="header-menu" class="overlay overlay--menu" hidden>
       <div class="menu-sheet">
         <button id="header-menu-player-home" class="menu-item" type="button">Mi pádel</button>
         <button id="header-menu-history" class="menu-item" type="button">Historial</button>
-        <button id="header-menu-mode" class="menu-item" type="button">Modo de registro: <span id="header-menu-mode-value"></span></button>
         <button id="header-menu-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
       </div>
     </div>
@@ -71,16 +77,6 @@
       </div>
     </div>
 
-    <!-- V13 (§2) — selector de modo de registro: Completo (punto por punto) o Por Games ·
-         BETA (un toque por game). Se recuerda la última elección para la próxima vez que
-         se abre Home; una vez arrancado el partido, el modo queda bloqueado. -->
-    <div id="mode-select-menu" class="overlay overlay--menu" hidden>
-      <div class="menu-sheet">
-        <button type="button" class="menu-item" data-mode="complete">Punto a punto</button>
-        <button type="button" class="menu-item" data-mode="games">Por games</button>
-        <button id="mode-select-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
-      </div>
-    </div>
 
     <form id="setup-form" class="setup-form" autocomplete="off">
 
@@ -127,6 +123,11 @@
     </form>
     <!-- V02.1 (§23) — el pie de autoría se mudó al Home (debajo de las métricas); acá quedaba
          duplicado y era el único lugar que todavía decía "BRAMU Lab" con espacio. -->
+    <!-- V03.0.3 (§12) — invitado (sin sesión): sin Historial/Ranking/Perfil ni bottom nav
+         personal en esta pantalla, así que necesita una salida explícita propia. Oculto por
+         default; showView() decide su visibilidad cada vez que se entra a 'setup' (único
+         punto de verdad, no se infiere en cada call-site). -->
+    <button type="button" id="setup-guest-home-link" class="link-btn setup-guest-home-link" hidden>Volver al inicio</button>
   </section>
 
   <!-- ============================================================
@@ -1044,13 +1045,16 @@
         <!-- V02.1 (§19) — avatar genérico local, fallback cuando no hay foto de perfil.
              V03.0.1 (§3) — si `currentUser.profilePhoto` existe, se muestra esa foto acá
              (misma fuente que Perfil/Editar Datos, sin duplicar almacenamiento).
-             V03.0.2 (§3) — bug real en producción: el ícono genérico quedaba SIEMPRE en el DOM
-             sin `hidden`, así que se mezclaba con la foto (transparencias, recortes). Ahora se
-             ocultan mutuamente de forma explícita en renderPlayerCard — nunca las dos capas
-             visibles a la vez. -->
-        <div class="player-card__avatar" aria-hidden="true">
+             V03.0.2 (§3) — primer intento: ocultar cada capa por separado con `hidden`. Seguía
+             reportándose en producción (V03.0.3 §1) las dos capas visibles a la vez.
+             V03.0.3 (§1) — fix definitivo: UN solo interruptor (`data-has-photo` en el
+             contenedor) decide en CSS cuál de las dos capas se renderiza — nunca dos
+             escrituras de `hidden` independientes que puedan quedar desincronizadas. Ver
+             `.player-card__avatar[data-has-photo]` en styles.css y `renderPlayerCard` en
+             app.js (único punto que escribe este atributo). -->
+        <div class="player-card__avatar" id="player-home-avatar" data-has-photo="false" aria-hidden="true">
           <svg id="player-home-avatar-fallback" viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
-          <img id="player-home-avatar-img" class="player-card__avatar-img" alt="" hidden />
+          <img id="player-home-avatar-img" class="player-card__avatar-img" alt="" />
         </div>
         <div class="player-card__info">
           <div class="player-card__name" id="player-home-name">—</div>
@@ -1174,9 +1178,11 @@
        no se implementa todavía, pero el destino no puede ser un botón muerto)
        ============================================================ -->
   <section id="view-ranking" class="view view--history" hidden>
-    <!-- V03.0.2 (§1) — pantalla raíz (bottom nav): sin flecha "volver" por sistema, la barra
-         inferior ya resuelve volver a Inicio. -->
+    <!-- V03.0.3 (§7) — V03.0.2 había quitado esta flecha (pantalla raíz, bottom nav ya
+         resolvía volver a Inicio); en uso real no quedó bien y se restaura, conviviendo con
+         la bottom nav. -->
     <div class="analysis-header">
+      <button id="ranking-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">RANKING</span>
     </div>
     <div class="analysis-scroll">
@@ -1211,8 +1217,9 @@
        Evolución del Nivel BRAMU simulada, debajo de la identidad principal)
        ============================================================ -->
   <section id="view-profile" class="view view--history" hidden>
-    <!-- V03.0.2 (§1) — pantalla raíz (bottom nav): sin flecha "volver" por sistema. -->
+    <!-- V03.0.3 (§7) — restaurada (ver nota igual en Ranking). -->
     <div class="analysis-header">
+      <button id="profile-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">PERFIL</span>
     </div>
     <!-- V03.0.1 (§1) — Perfil pasa de una sola pantalla larga a 2 pestañas: MI PERFIL (ficha
@@ -1226,25 +1233,59 @@
     </div>
     <div class="analysis-scroll">
       <div id="profile-panel-mi-perfil" class="profile-panel">
-        <!-- MI PERFIL — ficha deportiva: avatar + nombre visible + @usuario, Nivel BRAMU/
-             evolución (movida tal cual desde la vieja pantalla única), KPIs ya disponibles
-             (partidos, efectividad, racha). Nada editable acá (consolidado §1: "no inventar
-             nuevas estadísticas", "no cambiar la fórmula legacy"). -->
+        <!-- MI PERFIL — ficha deportiva. V03.0.3 (§2) — la cabecera toma el lenguaje de la
+             tarjeta del Home (avatar + nombre/@usuario + Nivel BRAMU/calibración), sin
+             copiarla pixel a pixel: reusa las mismas clases `.player-card__level*` para que
+             se sienta la misma identidad, sin la barra de progreso (eso ya lo resuelve Home;
+             acá la "trayectoria" la muestra el gráfico de Evolución más abajo). "X partidos
+             cargados" se movió al bloque de Rendimiento (§3). La foto ahora es editable
+             tocándola (affordance de cámara, ver .avatar-edit-badge) — reemplazar/quitar
+             reusan el mismo upload+compresión de Editar Datos, sin duplicar lógica. -->
         <div class="pastilla pastilla--identity">
-          <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
-            <span id="profile-avatar-initials">—</span>
-            <img id="profile-avatar-img" alt="" hidden />
+          <div class="profile-avatar-edit-wrap">
+            <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
+              <span id="profile-avatar-initials">—</span>
+              <img id="profile-avatar-img" alt="" hidden />
+            </div>
+            <button type="button" id="mi-perfil-avatar-edit-btn" class="avatar-edit-badge" aria-label="Cambiar foto">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="14" r="3.3"/></svg>
+            </button>
+            <input type="file" id="mi-perfil-avatar-input" accept="image/*" hidden />
           </div>
           <div class="pastilla-identity__info">
             <div class="pastilla-identity__name" id="profile-display-name">—</div>
             <div class="pastilla-identity__handle" id="profile-username">—</div>
-            <p class="coverage-note" id="profile-match-count"></p>
+            <button type="button" id="mi-perfil-avatar-remove-btn" class="link-btn profile-avatar-remove-link" hidden>Quitar foto</button>
+          </div>
+          <div class="player-card__level">
+            <div class="player-card__level-label">NIVEL BRAMU</div>
+            <div class="player-card__level-row">
+              <span class="player-card__level-value" id="mi-perfil-level-value">—</span>
+              <span class="player-card__level-delta player-card__level-delta--inline" id="mi-perfil-level-delta"></span>
+            </div>
+            <span class="player-card__level-sub" id="mi-perfil-level-sub" hidden></span>
           </div>
         </div>
 
-        <div class="pastilla profile-fields" id="profile-kpis">
-          <div class="profile-field"><span class="profile-field__label">Efectividad</span><span class="profile-field__value" id="profile-kpi-effectiveness">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Racha actual</span><span class="profile-field__value" id="profile-kpi-streak">—</span></div>
+        <div class="profile-group__title">DATOS DECLARADOS</div>
+        <div class="pastilla mini-stat-card">
+          <div class="mini-stat-grid">
+            <div class="mini-stat"><span class="mini-stat__label">Edad</span><span class="mini-stat__value" id="mi-perfil-age">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Mano dominante</span><span class="mini-stat__value" id="mi-perfil-hand">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Lado habitual</span><span class="mini-stat__value" id="mi-perfil-side">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Categoría</span><span class="mini-stat__value" id="mi-perfil-category">—</span></div>
+          </div>
+        </div>
+
+        <div class="profile-group__title">RENDIMIENTO</div>
+        <div class="pastilla mini-stat-card" id="profile-kpis">
+          <div class="mini-stat-grid">
+            <div class="mini-stat"><span class="mini-stat__label">Partidos jugados</span><span class="mini-stat__value" id="mi-perfil-played">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Partidos ganados</span><span class="mini-stat__value" id="mi-perfil-won">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Efectividad</span><span class="mini-stat__value" id="profile-kpi-effectiveness">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Racha actual</span><span class="mini-stat__value" id="profile-kpi-streak">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Mejor racha</span><span class="mini-stat__value" id="mi-perfil-best-streak">—</span></div>
+          </div>
         </div>
 
         <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
@@ -1272,6 +1313,13 @@
               <div class="evolution-summary__item">
                 <span class="evolution-summary__value" id="evolution-count-value">—</span>
                 <span class="evolution-summary__label">Partidos considerados</span>
+              </div>
+              <!-- V03.0.3 (§3) — "mejor Nivel BRAMU histórico, solo si puede calcularse con la
+                   serie real existente": máximo de evolution.points, misma fuente que el resto
+                   de esta tarjeta, sin fórmula nueva. -->
+              <div class="evolution-summary__item">
+                <span class="evolution-summary__value" id="evolution-best-value">—</span>
+                <span class="evolution-summary__label">Mejor nivel</span>
               </div>
             </div>
             <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
@@ -1306,6 +1354,22 @@
         </div>
         <div class="pastilla profile-group">
           <div class="profile-group__title">IDENTIDAD</div>
+          <!-- V03.0.3 (§5) — "mostrar foto/avatar en la parte superior del bloque de
+               identidad", editable también desde acá (mismo helper que MI PERFIL, mismo
+               `profilePhoto`, sin segunda fuente). -->
+          <div class="profile-data-avatar-row">
+            <div class="profile-avatar-edit-wrap">
+              <div class="profile-avatar" id="profile-data-avatar" aria-hidden="true">
+                <span id="profile-data-avatar-initials">—</span>
+                <img id="profile-data-avatar-img" alt="" hidden />
+              </div>
+              <button type="button" id="mis-datos-avatar-edit-btn" class="avatar-edit-badge" aria-label="Cambiar foto">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="14" r="3.3"/></svg>
+              </button>
+              <input type="file" id="mis-datos-avatar-input" accept="image/*" hidden />
+            </div>
+            <button type="button" id="mis-datos-avatar-remove-btn" class="link-btn profile-avatar-remove-link" hidden>Quitar foto</button>
+          </div>
           <div class="profile-field"><span class="profile-field__label">Nombre</span><span class="profile-field__value" id="profile-data-firstname">—</span></div>
           <div class="profile-field"><span class="profile-field__label">Apellido</span><span class="profile-field__value" id="profile-data-lastname">—</span></div>
           <div class="profile-field"><span class="profile-field__label">@usuario</span><span class="profile-field__value" id="profile-data-username">—</span></div>
