@@ -48,7 +48,7 @@
          (header-menu → mode-select-menu) que lo tenía escondido 2 niveles adentro. Mismo
          patrón visual .option-row/.option-col ya usado en el resto de setup (Sistema de
          puntuación, más abajo) — evidente, táctil, mobile-first. -->
-    <div class="setup-mode-tabs option-row" id="setup-mode-tabs" role="radiogroup" aria-label="Modo de registro">
+    <div class="setup-mode-tabs" id="setup-mode-tabs" role="radiogroup" aria-label="Modo de registro">
       <button type="button" class="option-col" data-value="complete" role="radio" aria-checked="true">PUNTO A PUNTO</button>
       <button type="button" class="option-col" data-value="games" role="radio" aria-checked="false">POR GAMES</button>
     </div>
@@ -1800,6 +1800,10 @@
         <div class="field field--labeled">
           <label class="field-label" for="change-password-current">Contraseña actual</label>
           <div class="field-with-toggle"><input id="change-password-current" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="change-password-current-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
+          <!-- V03.0.3.2 (§1) — acción secundaria discreta, mismo .link-btn que "¿Olvidaste tu
+               contraseña?" en Login: reutiliza el flujo de recuperación (V03.0.3.1) arrancando
+               directo en el código, sin volver a pedir email (ya hay sesión activa). -->
+          <button type="button" id="change-password-forgot-btn" class="link-btn login-forgot-link">¿No recordás tu contraseña?</button>
         </div>
         <div class="field field--labeled">
           <label class="field-label" for="change-password-new">Nueva contraseña</label>

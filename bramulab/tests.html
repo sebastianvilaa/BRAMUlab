@@ -3182,6 +3182,67 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.0.3.2 (§1/§2/§3/§6) — "¿No recordás tu contraseña?" desde Cambiar Contraseña, con
+  // sesión ya activa. tests.html no carga app.js, así que el arranque directo en el paso del
+  // código (sin pedir email) y la validación de 123456/código incorrecto son lógica de UI
+  // (app.js), cubiertas por QA manual (ver Informe) — mismo límite documentado en rondas
+  // anteriores. Este bloque cubre lo que SÍ es Store puro: la cuenta objetivo es la de la
+  // SESIÓN activa (nunca un lookup por email — a propósito, NO se llama Store.getUserByEmail
+  // acá), el reemplazo de contraseña, y que la sesión siga apuntando a la misma cuenta después
+  // (userId/SESSION intactos — nunca se desloguea). También reconfirma que Punto a punto/Por
+  // games sigue persistiendo igual (§4: el cambio fue solo visual).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.history.v1', 'bramulab.notifications.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1', 'bramulab.recordingMode.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      const oldPassword = 'SesionVieja1!';
+      const newPassword = 'SesionNueva2@';
+      const user = Store.signUpAndLogin({ email: 'sesion@test.com', password: oldPassword, username: 'sesionuser', firstName: 'Sesi', displayName: 'Sesi', profilePhoto: 'data:image/png;base64,BBBB' });
+      Store.addNotification({ userId: user.id, type: 'x', category: 'info', title: 'Notif de sesión', body: 'x' });
+      Store.upsertHistory({ matchId: 'm_sesion_1', players: [{ name: 'Sesi', userId: user.id }], finishedAt: new Date().toISOString() });
+
+      // 2 — "usa la cuenta activa": la cuenta objetivo sale de Store.getCurrentUser(), nunca
+      // de un email tipeado (el flujo desde sesión no pide email — consolidado §2).
+      const sessionUser = Store.getCurrentUser();
+      assert('V0332-SESION · la cuenta objetivo es la de la sesión activa (nunca un lookup por email)', sessionUser && sessionUser.id === user.id);
+
+      // 5/6 — reemplazo de contraseña conservando userId (mismo Store.updateUserAccount que
+      // usa app.js, sin pasar por email en ningún punto de este bloque).
+      const updated = Store.updateUserAccount(sessionUser.id, { password: newPassword });
+      assert('V0332-SESION · nueva contraseña reemplaza la anterior', updated.password === newPassword);
+      assert('V0332-SESION · conserva el mismo userId', updated.id === user.id);
+      assert('V0332-SESION · la contraseña vieja deja de funcionar', Store.loginWithEmail('sesion@test.com', oldPassword).ok === false);
+      assert('V0332-SESION · la contraseña nueva permite login', Store.loginWithEmail('sesion@test.com', newPassword).ok === true);
+
+      // 8 — "sesión sigue válida si corresponde": SESSION nunca se tocó en este flujo, así que
+      // Store.getCurrentUser() sigue resolviendo la MISMA cuenta sin volver a loguear.
+      assert('V0332-SESION · la sesión sigue apuntando a la misma cuenta (nunca se desloguea)', Store.getCurrentUser() && Store.getCurrentUser().id === user.id);
+
+      // 7 — perfil/historial/foto/notificaciones intactos.
+      const afterUser = Store.getUserById(user.id);
+      assert('V0332-SESION · email/username/displayName sin cambios', afterUser.email === 'sesion@test.com' && afterUser.username === 'sesionuser' && afterUser.displayName === 'Sesi');
+      assert('V0332-SESION · foto de perfil sin cambios', afterUser.profilePhoto === 'data:image/png;base64,BBBB');
+      assert('V0332-SESION · historial de partidos sin cambios', Store.loadHistory().some((m) => m.matchId === 'm_sesion_1'));
+      assert('V0332-SESION · notificaciones sin cambios', Store.loadNotifications(user.id).length === 1 && Store.loadNotifications(user.id)[0].title === 'Notif de sesión');
+
+      // 9 — Punto a punto / Por games sigue persistiendo (lógica intacta, solo cambió la piel
+      // visual de las tabs en §4 — nada de esto pasa por Store distinto).
+      Store.saveRecordingMode('games');
+      assert('V0332-SESION · el modo "games" persiste tal cual antes', Store.loadRecordingMode() === 'games');
+      Store.saveRecordingMode('complete');
+      assert('V0332-SESION · el modo "complete" persiste tal cual antes', Store.loadRecordingMode() === 'complete');
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

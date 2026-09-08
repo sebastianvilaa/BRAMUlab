@@ -211,8 +211,24 @@ input, select{ font-family: inherit; }
 }
 
 .setup-header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 22px; }
-/* V03.0.3 (§12) — tabs de modo de registro, debajo del header BRAMU y antes de Equipo A/B. */
-.setup-mode-tabs{ margin-bottom: 22px; }
+/* V03.0.3 (§12) — tabs de modo de registro, debajo del header BRAMU y antes de Equipo A/B.
+   V03.0.3.2 (§4) — antes reusaba .option-row/.option-col (el mismo patrón de "botón grande"
+   de Sistema de puntuación/Formato, sin tocar esos otros usos): se leía como una acción, no
+   como "estoy eligiendo un modo". Reemplazado por el mismo patrón de pestaña con subrayado
+   que ya usan MI PERFIL/MIS DATOS (.profile-tab) e Historial — mismos wireOptionGroup/
+   resetOptionGroup/Store.saveRecordingMode de siempre (siguen leyendo `.option-col`/
+   `data-value`), la lógica no cambia, solo la piel visual. Sin padding horizontal propio:
+   .view--setup ya trae 22px de cada lado. */
+.setup-mode-tabs{ display:flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.setup-mode-tabs .option-col{
+  flex:1; display:block; min-height:0; background:none; border:none; border-radius:0;
+  border-bottom: 2px solid transparent; color: var(--paper-faint); font-family: var(--font-display);
+  font-size: 13px; font-weight: 600; letter-spacing: 0.02em; padding: 9px 4px 10px; text-align:center;
+  transition: color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+.setup-mode-tabs .option-col.is-selected{
+  background:none; color: var(--brand-lime); font-weight: 700; border-bottom-color: var(--brand-lime);
+}
 .setup-guest-home-link{ display:block; width:100%; text-align:center; margin-top: 18px; }
 .setup-header__nav{ display:flex; align-items:center; gap:6px; }
 .setup-header__sep{ color: var(--paper-faint); font-size: 12px; }

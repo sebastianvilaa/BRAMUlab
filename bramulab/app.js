@@ -334,8 +334,12 @@
   /* V13 (§2): selector de modo de registro (Completo / Por games) — se recuerda la última
    *  elección (Store.loadRecordingMode) para la próxima vez que se abre Home.
    *  V03.0.3 (§12) — reemplaza el menú anidado (header-menu → mode-select-menu, 2 toques para
-   *  llegar) por 2 tabs siempre visibles debajo del header (#setup-mode-tabs), mismo patrón
-   *  .option-row/.option-col que el resto de setup — "evidente, táctil, mobile-first". */
+   *  llegar) por 2 tabs siempre visibles debajo del header (#setup-mode-tabs) — "evidente,
+   *  táctil, mobile-first".
+   *  V03.0.3.2 (§4) — sigue siendo `wireOptionGroup`/`.option-col`/`data-value` por dentro
+   *  (misma persistencia, mismo cambio de modo); solo la piel visual pasa de "botón grande"
+   *  (.option-row, igual que Sistema de puntuación/Formato) a pestaña con subrayado (mismo
+   *  patrón que MI PERFIL/MIS DATOS e Historial) — ver `.setup-mode-tabs` en styles.css. */
   function initModeSelector() {
     selectedRecordingMode = Store.loadRecordingMode();
     updateModeSelectButtonLabel();
@@ -6182,9 +6186,16 @@
   let forgotPasswordStep = 1;
   let forgotPasswordUserId = null;
   let forgotPasswordEmail = '';
+  // V03.0.3.2 (§2/§3) — mismo wizard, dos puntos de entrada: 'login' (sin sesión, arranca en
+  // el email, como siempre) y 'session' (ya logueado, arranca directo en el código, nunca
+  // pide email — usa Store.getCurrentUser() como cuenta objetivo). El origen decide el piso
+  // del botón "atrás" (nunca vuelve a un paso 1 que para 'session' no existe) y el destino
+  // final: 'login' vuelve a Login (regla ya existente); 'session' vuelve a MIS DATOS SIN pedir
+  // login de nuevo — la sesión sigue siendo válida porque `userId` nunca cambia.
+  let forgotPasswordOrigin = 'login';
 
-  function resetForgotPasswordWizard() {
-    forgotPasswordStep = 1;
+  function resetForgotPasswordWizard(startStep) {
+    forgotPasswordStep = startStep || 1;
     forgotPasswordUserId = null;
     forgotPasswordEmail = '';
     $('#forgot-password-form').reset();
@@ -6200,14 +6211,31 @@
   }
 
   function openForgotPasswordFlow() {
-    resetForgotPasswordWizard();
+    forgotPasswordOrigin = 'login';
+    resetForgotPasswordWizard(1);
+    renderForgotPasswordStep();
+    showView('forgot-password');
+  }
+
+  /** V03.0.3.2 (§1/§2) — "¿No recordás tu contraseña?" desde Cambiar Contraseña: mismo wizard
+   *  de recuperación, pero arranca en el paso 2 (código) usando la cuenta ya logueada — nunca
+   *  pide email (consolidado §2). */
+  function openForgotPasswordFromSession() {
+    const user = Store.getCurrentUser();
+    if (!user) { openForgotPasswordFlow(); return; }
+    forgotPasswordOrigin = 'session';
+    resetForgotPasswordWizard(2);
+    forgotPasswordUserId = user.id;
+    forgotPasswordEmail = user.email || '';
     renderForgotPasswordStep();
     showView('forgot-password');
   }
 
   function initForgotPasswordScreen() {
     $('#forgot-password-back-btn').addEventListener('click', () => {
-      if (forgotPasswordStep > 1) { forgotPasswordStep -= 1; renderForgotPasswordStep(); }
+      const floorStep = forgotPasswordOrigin === 'session' ? 2 : 1;
+      if (forgotPasswordStep > floorStep) { forgotPasswordStep -= 1; renderForgotPasswordStep(); }
+      else if (forgotPasswordOrigin === 'session') showView('change-password');
       else showView('login');
     });
 
@@ -6238,7 +6266,7 @@
       e.preventDefault();
       if (forgotPasswordStep !== 3) return;
       const user = forgotPasswordUserId ? Store.getUserById(forgotPasswordUserId) : null;
-      if (!user) { showView('login'); return; }
+      if (!user) { showView(forgotPasswordOrigin === 'session' ? 'profile' : 'login'); return; }
       const next = $('#forgot-password-new').value;
       const repeat = $('#forgot-password-repeat').value;
       const strength = PLI.checkPasswordStrength(next);
@@ -6249,10 +6277,16 @@
       // Regla crítica (§3) — un único campo cambia: `password`. userId/email/username/
       // displayName/foto/historial/notificaciones quedan intactos porque nunca se tocan.
       Store.updateUserAccount(user.id, { password: next });
-      $('#login-email').value = forgotPasswordEmail;
-      $('#login-password').value = '';
-      $('#login-error').hidden = true;
-      showView('login');
+      if (forgotPasswordOrigin === 'session') {
+        // V03.0.3.2 (§3) — la sesión sigue siendo válida (mismo userId, nunca se toca
+        // SESSION/CURRENT_PLAYER): nunca se obliga a loguear de nuevo. Vuelve a MIS DATOS.
+        showView('profile');
+      } else {
+        $('#login-email').value = forgotPasswordEmail;
+        $('#login-password').value = '';
+        $('#login-error').hidden = true;
+        showView('login');
+      }
       showToast('Contraseña actualizada');
     });
   }
@@ -6563,6 +6597,9 @@
     wirePasswordToggle('change-password-repeat', 'change-password-repeat-toggle');
     $('#change-password-new').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'change-password-rules'));
     $('#change-password-cancel').addEventListener('click', () => showView('profile'));
+    // V03.0.3.2 (§1/§2) — camino B para quien no recuerda la actual: mismo wizard de
+    // recuperación, arrancando directo en el código (sin pedir email de nuevo).
+    $('#change-password-forgot-btn').addEventListener('click', openForgotPasswordFromSession);
     $('#change-password-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
