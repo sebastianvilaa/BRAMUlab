@@ -9,9 +9,16 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.0
+## Versión funcional actual: BRAMUlab_V03.0.1
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.0"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0`. Agrega identidad real del jugador (Acceso, Crear cuenta en 3 pasos, Player Card, Perfil editable, migración automática desde el jugador local que ya existía) sobre la misma base visual/funcional de V02.9.3 — Home/Historial/BRAMU Intelligence no se rediseñaron.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.0.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0.1`. Ronda de UX/jerarquía/bugs sobre la identidad de V03.0 ya validada en uso real: Perfil en 2 pestañas (MI PERFIL/MIS DATOS), Editar Datos y Completar Acceso como pantalla completa, Cambiar contraseña nuevo, foto de perfil corregida en el Home, navegación personal oculta sin sesión activa, y "Registrar partido sin cuenta" (el partido de invitado no se persiste, para que nunca pueda quedar reclamado por otra cuenta por coincidencia de nombre). No reabre la arquitectura de identidad/`userId` de V03.0.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se especificó en V03.0.1 (refinamiento UX de Perfil, Acceso y sesión) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.0.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.1_Informe.md) |
+
+**Base (V03.0), sin cambios de arquitectura en esta ronda:**
 
 | Qué necesitás | Documento |
 |---|---|
