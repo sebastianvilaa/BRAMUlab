@@ -246,7 +246,7 @@
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
-      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'notifications']
+      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -6145,6 +6145,9 @@
       syncCurrentIdentityFromStore();
       completeIdentifyAction();
     });
+    // V03.0.3.1 (§1) — "¿Olvidaste tu contraseña?": acción secundaria hacia el wizard de
+    // recuperación (#view-forgot-password), sin afectar la sesión ni el intento de login.
+    $('#login-forgot-btn').addEventListener('click', openForgotPasswordFlow);
   }
 
   /** V03.0.1 (§4/§5/§8) — ojo mostrar/ocultar contraseña, reusado en Login/Completar
@@ -6164,6 +6167,93 @@
       btn.classList.toggle('is-active', !showing);
       if (eyeOpen && eyeOff) { eyeOpen.hidden = !showing; eyeOff.hidden = showing; }
       btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
+    });
+  }
+
+  /** V03.0.3.1 (§2/§3) — recuperación simulada de contraseña: 3 pasos en UNA sola vista
+   *  (#view-forgot-password), mismo patrón que el wizard de signup (un `forgotPasswordStep`
+   *  de módulo, sin pasar por showView entre pasos). El código fijo `123456` y la ausencia de
+   *  envío real de email son la "simulación" — vive solo acá adentro, nunca en un texto de UI
+   *  (consolidado §2 IMPORTANTE). Al guardar, `Store.updateUserAccount(user.id, {password})`
+   *  es la ÚNICA escritura: mismo userId/email/username/displayName/foto/historial/Nivel
+   *  BRAMU/notificaciones de siempre, ninguna otra cuenta se toca (regla crítica §3). */
+  const FORGOT_PASSWORD_CODE = '123456';
+  const FORGOT_PASSWORD_STEP_TITLES = { 1: 'RECUPERAR CONTRASEÑA', 2: 'INGRESÁ EL CÓDIGO', 3: 'NUEVA CONTRASEÑA' };
+  let forgotPasswordStep = 1;
+  let forgotPasswordUserId = null;
+  let forgotPasswordEmail = '';
+
+  function resetForgotPasswordWizard() {
+    forgotPasswordStep = 1;
+    forgotPasswordUserId = null;
+    forgotPasswordEmail = '';
+    $('#forgot-password-form').reset();
+    $('#forgot-password-email-error').hidden = true;
+    $('#forgot-password-code-error').hidden = true;
+    $('#forgot-password-new-error').hidden = true;
+    updatePasswordRulesUI('', 'forgot-password-rules');
+  }
+
+  function renderForgotPasswordStep() {
+    $all('#view-forgot-password .forgot-password-step').forEach((el) => { el.hidden = Number(el.dataset.step) !== forgotPasswordStep; });
+    $('#forgot-password-step-title').textContent = FORGOT_PASSWORD_STEP_TITLES[forgotPasswordStep];
+  }
+
+  function openForgotPasswordFlow() {
+    resetForgotPasswordWizard();
+    renderForgotPasswordStep();
+    showView('forgot-password');
+  }
+
+  function initForgotPasswordScreen() {
+    $('#forgot-password-back-btn').addEventListener('click', () => {
+      if (forgotPasswordStep > 1) { forgotPasswordStep -= 1; renderForgotPasswordStep(); }
+      else showView('login');
+    });
+
+    $('#forgot-password-email-submit').addEventListener('click', () => {
+      const email = $('#forgot-password-email').value.trim();
+      const user = Store.getUserByEmail(email);
+      if (!user) { $('#forgot-password-email-error').hidden = false; return; }
+      $('#forgot-password-email-error').hidden = true;
+      forgotPasswordUserId = user.id;
+      forgotPasswordEmail = email;
+      forgotPasswordStep = 2;
+      renderForgotPasswordStep();
+    });
+
+    $('#forgot-password-code-submit').addEventListener('click', () => {
+      const code = $('#forgot-password-code').value.trim();
+      if (code !== FORGOT_PASSWORD_CODE) { $('#forgot-password-code-error').hidden = false; return; }
+      $('#forgot-password-code-error').hidden = true;
+      forgotPasswordStep = 3;
+      renderForgotPasswordStep();
+    });
+
+    wirePasswordToggle('forgot-password-new', 'forgot-password-new-toggle');
+    wirePasswordToggle('forgot-password-repeat', 'forgot-password-repeat-toggle');
+    $('#forgot-password-new').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'forgot-password-rules'));
+
+    $('#forgot-password-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (forgotPasswordStep !== 3) return;
+      const user = forgotPasswordUserId ? Store.getUserById(forgotPasswordUserId) : null;
+      if (!user) { showView('login'); return; }
+      const next = $('#forgot-password-new').value;
+      const repeat = $('#forgot-password-repeat').value;
+      const strength = PLI.checkPasswordStrength(next);
+      let error = null;
+      if (!strength.ok) error = 'La nueva contraseña todavía no cumple los requisitos.';
+      else if (!PLI.passwordsMatch(next, repeat)) error = 'Las contraseñas no coinciden.';
+      if (error) { $('#forgot-password-new-error').textContent = error; $('#forgot-password-new-error').hidden = false; return; }
+      // Regla crítica (§3) — un único campo cambia: `password`. userId/email/username/
+      // displayName/foto/historial/notificaciones quedan intactos porque nunca se tocan.
+      Store.updateUserAccount(user.id, { password: next });
+      $('#login-email').value = forgotPasswordEmail;
+      $('#login-password').value = '';
+      $('#login-error').hidden = true;
+      showView('login');
+      showToast('Contraseña actualizada');
     });
   }
 
@@ -7153,8 +7243,6 @@
     $('#profile-data-username').textContent = user && user.username ? `@${user.username}` : '—';
     $('#profile-data-displayname').textContent = (user && user.displayName) || name || '—';
     setAvatarPreview('profile-data-avatar-img', 'profile-data-avatar-initials', user && user.profilePhoto, name);
-    $('#mis-datos-avatar-remove-btn').hidden = !(user && user.profilePhoto);
-    $('#mi-perfil-avatar-remove-btn').hidden = !(user && user.profilePhoto);
 
     // MIS DATOS — Datos personales/deportivos.
     const age = user ? PLI.calculateAge(user.birthDate) : null;
@@ -7374,8 +7462,11 @@
     $('#evolution-point-detail').hidden = true;
 
     $('#mi-perfil-level-value').textContent = evolution.current.toFixed(1);
-    $('#mi-perfil-level-delta').textContent = change.label;
-    $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--' + (evolution.consideredCount ? change.direction : 'flat');
+    // V03.0.3.1 (§4) — cabecera de MI PERFIL muestra SOLO el Nivel BRAMU actual: se retira
+    // "+X"/última subida/variación reciente de acá (siguen existiendo, sin cambios, en la
+    // tarjeta del Home y en el detalle de Evolución más abajo — #evolution-change-value).
+    $('#mi-perfil-level-delta').textContent = '';
+    $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
     $('#mi-perfil-level-sub').hidden = true;
 
     const wrap = $('#evolution-chart-wrap');
@@ -7413,14 +7504,15 @@
    *  abre el selector de archivo, reusa exactamente `downscaleImageFileToDataUrl` (mismo
    *  upload+compresión que ya usa Editar Datos) y guarda directo con
    *  `Store.updateUserAccount` — un solo `profilePhoto` en toda la app, nunca una segunda
-   *  fuente. "Quitar foto" solo visible cuando ya hay una. Ambos puntos de entrada terminan
-   *  en el mismo `refreshAfterAvatarChange`, así que MI PERFIL y MIS DATOS quedan
-   *  sincronizados entre sí sin importar desde cuál se editó. */
+   *  fuente. Ambos puntos de entrada terminan en el mismo `refreshAfterAvatarChange`, así
+   *  que MI PERFIL y MIS DATOS quedan sincronizados entre sí sin importar desde cuál se editó.
+   *  V03.0.3.1 (§5) — "Quitar foto" se retira de estos dos puntos (control redundante); la
+   *  foto sigue siendo reemplazable tocándola o vía el ícono cámara/lápiz. */
   function refreshAfterAvatarChange(toastMessage) {
     renderProfileView();
     showToast(toastMessage);
   }
-  function wireInlineAvatarEdit(avatarId, fileInputId, editBtnId, removeLinkId) {
+  function wireInlineAvatarEdit(avatarId, fileInputId, editBtnId) {
     const avatar = $(`#${avatarId}`);
     const fileInput = $(`#${fileInputId}`);
     const editBtn = $(`#${editBtnId}`);
@@ -7437,13 +7529,6 @@
       fileInput.value = '';
       refreshAfterAvatarChange('Foto actualizada');
     });
-    $(`#${removeLinkId}`).addEventListener('click', (e) => {
-      e.stopPropagation();
-      const user = Store.getCurrentUser();
-      if (!user) return;
-      Store.updateUserAccount(user.id, { profilePhoto: null });
-      refreshAfterAvatarChange('Foto quitada');
-    });
   }
 
   function initProfileScreen() {
@@ -7457,8 +7542,8 @@
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
     $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
-    wireInlineAvatarEdit('profile-avatar', 'mi-perfil-avatar-input', 'mi-perfil-avatar-edit-btn', 'mi-perfil-avatar-remove-btn');
-    wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn', 'mis-datos-avatar-remove-btn');
+    wireInlineAvatarEdit('profile-avatar', 'mi-perfil-avatar-input', 'mi-perfil-avatar-edit-btn');
+    wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn');
     const chartWrap = $('#evolution-chart-wrap');
     chartWrap.addEventListener('click', (e) => {
       const dot = e.target.closest('[data-index]');
@@ -7925,6 +8010,7 @@
     initProfileEditModal();
     initAccessScreen();
     initLoginScreen();
+    initForgotPasswordScreen();
     initSignupWizard();
     initPlayerCardScreen();
     initCompleteAccessModal();

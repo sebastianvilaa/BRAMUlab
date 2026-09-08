@@ -3101,7 +3101,12 @@
   // snapshot/restore que los bloques V03.0/V03.0.1/V03.0.2 de arriba.
   // ------------------------------------------------------------------
   (function () {
-    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1'];
+    // V03.0.3.1 — signUpAndLogin también escribe currentPlayerName.v1/playerNames.v1
+    // (saveCurrentPlayerName/rememberPlayerNames en store.js): faltaban acá, así que corrían
+    // sin protección y dejaban "Foto" filtrado en el dispositivo real después de esta
+    // suite. Bug de higiene de tests detectado en esta ronda (no un bug de producto),
+    // corregido junto con el bloque nuevo de abajo que tenía el mismo faltante.
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
     const snapshot = {};
     AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
     function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
@@ -3117,6 +3122,59 @@
       const afterClear = Store.updateUserAccount(user.id, { profilePhoto: null });
       assert('V0303-AVATAR · "quitar foto" limpia profilePhoto a null (no string vacío, no queda el dato viejo)', afterClear.profilePhoto === null && !Store.getCurrentUser().profilePhoto);
       assert('V0303-AVATAR · quitar/reemplazar conserva el mismo userId (nunca crea una cuenta nueva)', afterClear.id === user.id);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // V03.0.3.1 (§2/§3/§9) — recuperación simulada de contraseña. tests.html no carga app.js
+  // (límite documentado en rondas anteriores), así que el código fijo 123456 y el avance de
+  // paso 1→2→3 son lógica de UI (app.js) verificada por QA manual (ver Informe, checklist
+  // §10). Este bloque cubre la parte que SÍ es Store puro y de la que depende ese flujo:
+  // lookup por email, reemplazo de contraseña, login viejo/nuevo, y la regla crítica §3
+  // (mismo userId, ningún otro dato ni ninguna otra cuenta se toca). Mismo patrón snapshot/
+  // restore que los bloques anteriores.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.history.v1', 'bramulab.notifications.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      const oldPassword = 'ViejaClave1!';
+      const newPassword = 'NuevaClave2@';
+      const user = Store.signUpAndLogin({ email: 'recupera@test.com', password: oldPassword, username: 'recupera', firstName: 'Recu', displayName: 'Recu', profilePhoto: 'data:image/png;base64,AAAA' });
+      Store.addNotification({ userId: user.id, type: 'x', category: 'info', title: 'Notif previa', body: 'x' });
+      Store.upsertHistory({ matchId: 'm_recupera_1', players: [{ name: 'Recu', userId: user.id }], finishedAt: new Date().toISOString() });
+
+      // otra cuenta local, para confirmar que la recuperación no la toca (ítem 10).
+      const other = Store.signUpAndLogin({ email: 'otra@test.com', password: 'OtraClave3#', username: 'otracuenta', firstName: 'Otra', displayName: 'Otra' });
+
+      // 1/2 — lookup por email (lo que usa el Paso 1 del wizard para decidir si avanza).
+      assert('V03031-RECUPERAR · email existente encuentra la cuenta (avanza)', Store.getUserByEmail('recupera@test.com') && Store.getUserByEmail('recupera@test.com').id === user.id);
+      assert('V03031-RECUPERAR · email inexistente no encuentra nada (bloquea)', Store.getUserByEmail('noexiste@test.com') === null);
+
+      // 5/6/7/8 — reemplazo de contraseña conservando userId.
+      const updated = Store.updateUserAccount(user.id, { password: newPassword });
+      assert('V03031-RECUPERAR · nueva contraseña reemplaza la anterior', updated.password === newPassword);
+      assert('V03031-RECUPERAR · conserva el mismo userId', updated.id === user.id);
+      assert('V03031-RECUPERAR · la contraseña vieja deja de funcionar', Store.loginWithEmail('recupera@test.com', oldPassword).ok === false);
+      assert('V03031-RECUPERAR · la contraseña nueva permite login', Store.loginWithEmail('recupera@test.com', newPassword).ok === true);
+
+      // 9 — resto de la cuenta (identidad/foto/historial/notificaciones) intacto.
+      const afterUser = Store.getUserById(user.id);
+      assert('V03031-RECUPERAR · email/username/displayName sin cambios', afterUser.email === 'recupera@test.com' && afterUser.username === 'recupera' && afterUser.displayName === 'Recu');
+      assert('V03031-RECUPERAR · foto de perfil sin cambios', afterUser.profilePhoto === 'data:image/png;base64,AAAA');
+      assert('V03031-RECUPERAR · historial de partidos sin cambios', Store.loadHistory().some((m) => m.matchId === 'm_recupera_1'));
+      assert('V03031-RECUPERAR · notificaciones sin cambios', Store.loadNotifications(user.id).length === 1 && Store.loadNotifications(user.id)[0].title === 'Notif previa');
+
+      // 10 — otra cuenta local del mismo dispositivo, sin modificar.
+      const otherAfter = Store.getUserById(other.id);
+      assert('V03031-RECUPERAR · otra cuenta local no se modifica', otherAfter.password === 'OtraClave3#' && otherAfter.email === 'otra@test.com');
     } finally {
       resetAffectedKeys();
       Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });

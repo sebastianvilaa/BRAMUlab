@@ -2396,6 +2396,12 @@ input, select{ font-family: inherit; }
 .signup-step{ display:flex; flex-direction:column; gap: 8px; }
 .signup-step + .signup-step{ margin-top: 0; }
 
+/* V03.0.3.1 (§1/§2) — link secundario "¿Olvidaste tu contraseña?" en Login (nunca compite
+   con el CTA principal: mismo .link-btn discreto que el resto de la app, solo centrado) y
+   pasos del wizard de recuperación (mismo patrón que .signup-step). */
+.login-forgot-link{ align-self:center; margin-top: 4px; }
+.forgot-password-step{ display:flex; flex-direction:column; gap: 8px; }
+
 /* Consolidado §2 Paso 1 — checklist de fuerza de contraseña en vivo, cada regla pasa a lima
    apenas se cumple (mismo criterio de feedback inmediato que @usuario más abajo). */
 .password-rules{ list-style:none; margin: 2px 0 4px; padding:0; display:flex; flex-direction:column; gap: 3px; }
@@ -2447,7 +2453,6 @@ input, select{ font-family: inherit; }
   cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
 }
 .avatar-edit-badge svg{ width:13px; height:13px; }
-.profile-avatar-remove-link{ font-size: 11px; margin-top: 2px; }
 .profile-data-avatar-row{ display:flex; flex-direction:column; align-items:center; gap:4px; margin-bottom: 14px; }
 
 /* V03.0.3 (§3) — ficha deportiva compacta: filas/mini-KPIs en grilla de 2 columnas, en vez de

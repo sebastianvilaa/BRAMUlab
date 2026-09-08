@@ -1255,7 +1255,6 @@
           <div class="pastilla-identity__info">
             <div class="pastilla-identity__name" id="profile-display-name">—</div>
             <div class="pastilla-identity__handle" id="profile-username">—</div>
-            <button type="button" id="mi-perfil-avatar-remove-btn" class="link-btn profile-avatar-remove-link" hidden>Quitar foto</button>
           </div>
           <div class="player-card__level">
             <div class="player-card__level-label">NIVEL BRAMU</div>
@@ -1298,7 +1297,9 @@
         <div class="pastilla evolution-card">
           <div class="pastilla__title-row">
             <div class="pastilla__title">EVOLUCIÓN DEL NIVEL BRAMU</div>
-            <span class="evolution-card__badge">SIMULADO · BETA</span>
+            <!-- V03.0.3.1 (§6) — se retira la palabra "SIMULADO" de la UI (queda solo en
+                 comentarios técnicos); la lógica subyacente no cambia. -->
+            <span class="evolution-card__badge">BETA</span>
           </div>
           <div id="evolution-numeric">
             <div class="evolution-summary">
@@ -1368,7 +1369,6 @@
               </button>
               <input type="file" id="mis-datos-avatar-input" accept="image/*" hidden />
             </div>
-            <button type="button" id="mis-datos-avatar-remove-btn" class="link-btn profile-avatar-remove-link" hidden>Quitar foto</button>
           </div>
           <div class="profile-field"><span class="profile-field__label">Nombre</span><span class="profile-field__value" id="profile-data-firstname">—</span></div>
           <div class="profile-field"><span class="profile-field__label">Apellido</span><span class="profile-field__value" id="profile-data-lastname">—</span></div>
@@ -1462,6 +1462,57 @@
         </div>
         <p class="edit-error" id="login-error" hidden>Revisá tu email y contraseña.</p>
         <button type="submit" class="btn-secondary btn-save">INICIAR SESIÓN</button>
+        <!-- V03.0.3.1 (§1) — acción secundaria, integrada (link-btn), nunca compite con el
+             CTA principal de arriba. -->
+        <button type="button" id="login-forgot-btn" class="link-btn login-forgot-link">¿Olvidaste tu contraseña?</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- V03.0.3.1 (§2) — recuperación simulada de contraseña: 3 pasos en UNA sola vista (mismo
+       patrón que #view-signup: un único showView, el paso interno lo maneja JS). La simulación
+       (código fijo 123456, sin envío real de email) queda en la lógica — nunca una etiqueta
+       "Simulado"/"Demo"/"Prueba" visible acá (consolidado §2, IMPORTANTE). -->
+  <section id="view-forgot-password" class="view view--access" hidden>
+    <div class="analysis-header">
+      <button type="button" id="forgot-password-back-btn" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title" id="forgot-password-step-title">RECUPERAR CONTRASEÑA</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header">
+      <form id="forgot-password-form" class="access-form">
+        <div class="forgot-password-step" data-step="1">
+          <p class="access-subtitle">Ingresá el email de tu cuenta para recuperar el acceso.</p>
+          <div class="field field--labeled"><label class="field-label" for="forgot-password-email">Email</label><input id="forgot-password-email" class="field__input" type="email" autocomplete="username" /></div>
+          <p class="edit-error" id="forgot-password-email-error" hidden>No encontramos una cuenta con ese email.</p>
+          <button type="button" id="forgot-password-email-submit" class="btn-secondary btn-save">ENVIAR CÓDIGO</button>
+        </div>
+
+        <div class="forgot-password-step" data-step="2" hidden>
+          <p class="access-subtitle">Ingresá el código de 6 dígitos que enviamos a tu email.</p>
+          <div class="field field--labeled"><label class="field-label" for="forgot-password-code">Código</label><input id="forgot-password-code" class="field__input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></div>
+          <p class="edit-error" id="forgot-password-code-error" hidden>Código incorrecto.</p>
+          <button type="button" id="forgot-password-code-submit" class="btn-secondary btn-save">VALIDAR CÓDIGO</button>
+        </div>
+
+        <div class="forgot-password-step" data-step="3" hidden>
+          <div class="field field--labeled">
+            <label class="field-label" for="forgot-password-new">Nueva contraseña</label>
+            <div class="field-with-toggle"><input id="forgot-password-new" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="forgot-password-new-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
+          </div>
+          <div class="field field--labeled">
+            <label class="field-label" for="forgot-password-repeat">Repetir contraseña</label>
+            <div class="field-with-toggle"><input id="forgot-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="forgot-password-repeat-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
+          </div>
+          <ul class="password-rules" id="forgot-password-rules">
+            <li data-rule="hasMinLength">Al menos 8 caracteres</li>
+            <li data-rule="hasUpper">Una mayúscula</li>
+            <li data-rule="hasLower">Una minúscula</li>
+            <li data-rule="hasNumber">Un número</li>
+            <li data-rule="hasSymbol">Un símbolo</li>
+          </ul>
+          <p class="edit-error" id="forgot-password-new-error" hidden></p>
+          <button type="submit" class="btn-secondary btn-save">GUARDAR CONTRASEÑA</button>
+        </div>
       </form>
     </div>
   </section>
