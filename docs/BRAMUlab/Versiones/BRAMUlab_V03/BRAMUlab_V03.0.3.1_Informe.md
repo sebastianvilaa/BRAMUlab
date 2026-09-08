@@ -202,7 +202,7 @@ enfrentamientos) — confirmado por comparación textual exacta antes/después d
 ## 11. Hash exacto y tag
 
 - Commit de implementación (código): `2e7852ff079aa5f661a594b2b19e821253e82ebb`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `70e15996d25c137785dd02c85cfe53230b8a9986`.
 - Tag `BRAMUlab_V03.0.3.1` apuntará al commit inmediatamente posterior a este.
 
 ---
