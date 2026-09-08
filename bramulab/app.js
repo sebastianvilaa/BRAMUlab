@@ -239,11 +239,14 @@
   // (companions) y la configuración inicial de registro por games/punto a punto (setup):
   // ninguna de las tres es una tarea inmersiva, así que la navegación global no debía
   // perderse ahí — antes dejaban al usuario "encerrado" en recorridos de volver.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup'];
+  // V03.0.2 (§2) — "Con sesión activa, mantener la bottom nav visible en... Editar datos,
+  // Cambiar contraseña, Notificaciones... otras pantallas internas donde navegar a Inicio/
+  // Historial/Ranking/Perfil sea una salida válida" — se agregan esas 4 acá.
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
-      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password']
+      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'notifications']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -386,6 +389,12 @@
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
     historyOpenedFrom = origin === 'setup' ? 'setup' : 'player-home';
+    // V03.0.2 (§1) — Historial es una pantalla raíz (bottom nav) y, por regla del header,
+    // esas no llevan flecha "volver" — la barra inferior ya resuelve "volver a Inicio". Pero
+    // Historial tiene un segundo punto de entrada real (menú heredado de Configurar partido,
+    // fuera de la bottom nav): ahí SÍ hace falta volver a ese contexto, así que la flecha se
+    // muestra solo en ese caso puntual, nunca cuando se llega desde la barra inferior/Home.
+    $('#history-back-btn').hidden = historyOpenedFrom !== 'setup';
     historyContextFilter = contextFilter || null;
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca (nunca mezclado con
@@ -4104,6 +4113,34 @@
     return Store.stampPlayersWithUserId(players, Store.loadCurrentPlayerName(), freshUser.id);
   }
 
+  /** V03.0.2 (§12) — comparte la lógica de persistencia+notificación entre finishMatch/
+   *  finishMatchGames (antes duplicada). Sin sesión (invitado), no persiste (V03.0.1 §7, sin
+   *  tocar) y no genera ninguna notificación (no hay `userId` a quien asociarla). Con sesión:
+   *  genera "partido guardado" siempre, y "Nivel BRAMU cambió" SOLO si `computeLevelEvolution`
+   *  efectivamente produce un valor distinto — nunca inventa un cambio, y nunca para cuentas en
+   *  calibración (esas no muestran número, ver isLegacyLevelAccount). */
+  function persistFinishedMatchAndNotify(finishedSnapshot) {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    const legacyLevel = isLegacyLevelAccount();
+    const beforeEvolution = legacyLevel ? PH.computeLevelEvolution(PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()), currentIdentity()) : null;
+    Store.upsertHistory(finishedSnapshot);
+    Store.addNotification({
+      userId: user.id, type: 'match_saved', category: 'positive',
+      title: 'Partido guardado', body: 'Se agregó un partido nuevo a tu historial.', action: 'history',
+    });
+    if (legacyLevel) {
+      const afterEvolution = PH.computeLevelEvolution(PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()), currentIdentity());
+      if (afterEvolution.current !== beforeEvolution.current) {
+        const up = afterEvolution.current > beforeEvolution.current;
+        Store.addNotification({
+          userId: user.id, type: 'level_changed', category: up ? 'positive' : 'info',
+          title: 'Tu Nivel BRAMU cambió', body: `Ahora es ${afterEvolution.current.toFixed(1)} (antes ${beforeEvolution.current.toFixed(1)}).`, action: 'profile',
+        });
+      }
+    }
+  }
+
   /* ------------------------------------------------------------------ */
   /* FIN DE PARTIDO — resumen inmediato                                   */
   /* ------------------------------------------------------------------ */
@@ -4187,7 +4224,7 @@
     // resumen de ESA sesión desde el snapshot en memoria (openCanonicalResumen ya lo recibe
     // como parámetro, no depende de que esté guardado), pero el partido no sobrevive a un
     // recierre de la app. identityStampedPlayers ya deja `players` sin userId en este caso.
-    if (Store.getCurrentUser()) Store.upsertHistory(finishedSnapshot);
+    persistFinishedMatchAndNotify(finishedSnapshot);
     Store.clearActiveMatch();
     openCanonicalResumen(finishedSnapshot, 'live');
   }
@@ -4252,7 +4289,7 @@
     // resumen de ESA sesión desde el snapshot en memoria (openCanonicalResumen ya lo recibe
     // como parámetro, no depende de que esté guardado), pero el partido no sobrevive a un
     // recierre de la app. identityStampedPlayers ya deja `players` sin userId en este caso.
-    if (Store.getCurrentUser()) Store.upsertHistory(finishedSnapshot);
+    persistFinishedMatchAndNotify(finishedSnapshot);
     Store.clearActiveMatch();
     openCanonicalResumen(finishedSnapshot, 'live');
   }
@@ -6112,15 +6149,20 @@
 
   /** V03.0.1 (§4/§5/§8) — ojo mostrar/ocultar contraseña, reusado en Login/Completar
    *  Acceso/Cambiar contraseña. Alterna type password↔text, nunca guarda el valor en otro
-   *  lado ni cambia la validación. */
+   *  lado ni cambia la validación.
+   *  V03.0.2 (§9/§13) — reemplaza el ícono circular (◎, sin significado reconocible) por un
+   *  ojo/ojo-tachado real: dos `<g>` dentro del mismo SVG, se alterna cuál queda `hidden`. */
   function wirePasswordToggle(inputId, btnId) {
     const input = $(`#${inputId}`);
     const btn = $(`#${btnId}`);
     if (!input || !btn) return;
+    const eyeOpen = btn.querySelector('.eye-icon__open');
+    const eyeOff = btn.querySelector('.eye-icon__off');
     btn.addEventListener('click', () => {
       const showing = input.type === 'text';
       input.type = showing ? 'password' : 'text';
       btn.classList.toggle('is-active', !showing);
+      if (eyeOpen && eyeOff) { eyeOpen.hidden = !showing; eyeOff.hidden = showing; }
       btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
     });
   }
@@ -6274,6 +6316,10 @@
     ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
     });
+    // V03.0.2 (§9/§11) — mismo componente de ojo mostrar/ocultar que Login/Completar
+    // Acceso/Cambiar contraseña ("Signup donde corresponda").
+    wirePasswordToggle('signup-password', 'signup-password-toggle');
+    wirePasswordToggle('signup-password-repeat', 'signup-password-repeat-toggle');
     $('#signup-first-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
     $('#signup-last-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
     $('#signup-username').addEventListener('input', () => {
@@ -6396,8 +6442,13 @@
       else if (!PLI.passwordsMatch(password, repeat)) error = 'Las contraseñas no coinciden.';
       if (error) { $('#complete-access-error').textContent = error; $('#complete-access-error').hidden = false; return; }
       Store.updateUserAccount(user.id, { email, password });
+      Store.addNotification({
+        userId: user.id, type: 'access_completed', category: 'positive',
+        title: 'Acceso completado', body: 'Ya podés volver a entrar a este jugador cuando quieras.',
+      });
       $('#logout-warning-modal').hidden = true;
       renderProfileView();
+      renderNotificationsBadge();
       showView('profile');
       showToast('Acceso guardado');
     });
@@ -6436,6 +6487,11 @@
       else if (!PLI.passwordsMatch(next, repeat)) error = 'Las contraseñas nuevas no coinciden.';
       if (error) { $('#change-password-error').textContent = error; $('#change-password-error').hidden = false; return; }
       Store.updateUserAccount(user.id, { password: next });
+      Store.addNotification({
+        userId: user.id, type: 'password_updated', category: 'info',
+        title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
+      });
+      renderNotificationsBadge();
       showView('profile');
       showToast('Contraseña actualizada');
     });
@@ -6490,6 +6546,7 @@
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
     renderActiveMatchBanner();
+    renderNotificationsBadge();
     const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
     // V02.8 (§1) — se anima en CADA render (cada entrada/vuelta real al Home, ver comentario
     // en la declaración de `currentPlayerName` de más arriba), salvo `prefers-reduced-motion`.
@@ -6556,8 +6613,12 @@
     // almacenamiento nuevo.
     const homeUser = Store.getCurrentUser();
     const homeAvatarImg = $('#player-home-avatar-img');
-    if (homeUser && homeUser.profilePhoto) { homeAvatarImg.src = homeUser.profilePhoto; homeAvatarImg.hidden = false; }
-    else { homeAvatarImg.hidden = true; homeAvatarImg.removeAttribute('src'); }
+    const homeAvatarFallback = $('#player-home-avatar-fallback');
+    if (homeUser && homeUser.profilePhoto) {
+      homeAvatarImg.src = homeUser.profilePhoto; homeAvatarImg.hidden = false; homeAvatarFallback.hidden = true;
+    } else {
+      homeAvatarImg.hidden = true; homeAvatarImg.removeAttribute('src'); homeAvatarFallback.hidden = false;
+    }
     const n = matches.length;
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
@@ -6889,23 +6950,106 @@
     $('#active-match-banner').addEventListener('click', continueActiveMatch);
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
-    initNotificationsModal();
+    $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // V03.0.1 (§3) — tarjeta/nombre/foto del Home tappable → Perfil › MI PERFIL.
     const goToProfile = () => openProfileScreen('mi-perfil');
     $('#player-home-card').addEventListener('click', goToProfile);
     $('#player-home-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToProfile(); } });
   }
 
-  function initNotificationsModal() {
-    $('#player-home-bell-btn').addEventListener('click', () => { $('#notifications-modal').hidden = false; });
-    $('#notifications-close').addEventListener('click', () => { $('#notifications-modal').hidden = true; });
-    $('#notifications-modal').addEventListener('click', (e) => { if (e.target === $('#notifications-modal')) $('#notifications-modal').hidden = true; });
+  /** V03.0.2 (§12) — Notificaciones: pantalla completa (reemplaza el popup "todavía no hay
+   *  notificaciones" de Etapa 2). Modelo local por `userId` (Store.loadNotifications), nunca
+   *  por nombre visible. Agrupación cronológica descendente: Hoy / Esta semana / Anteriores. */
+  const NOTIF_CATEGORY_LABEL = { positive: 'Positivo', info: 'Informativo', pending: 'Pendiente', error: 'Error' };
+
+  function renderNotificationsBadge() {
+    const user = Store.getCurrentUser();
+    const badge = $('#player-home-bell-badge');
+    const count = user ? Store.countUnreadNotifications(user.id) : 0;
+    badge.hidden = count === 0;
+    badge.textContent = count > 9 ? '9+' : String(count);
+  }
+
+  function notifGroupLabel(createdAt) {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfCreatedDay = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+    const daysAgo = Math.round((startOfToday - startOfCreatedDay) / 86400000);
+    if (daysAgo <= 0) return 'Hoy';
+    if (daysAgo <= 7) return 'Esta semana';
+    return 'Anteriores';
+  }
+
+  function renderNotificationsList() {
+    const user = Store.getCurrentUser();
+    const list = user ? Store.loadNotifications(user.id) : [];
+    $('#notifications-empty').hidden = list.length > 0;
+    if (!list.length) { $('#notifications-list').innerHTML = ''; return; }
+    const groups = [];
+    const groupIndex = {};
+    list.forEach((n) => {
+      const label = notifGroupLabel(n.createdAt);
+      if (!(label in groupIndex)) { groupIndex[label] = groups.length; groups.push({ label, items: [] }); }
+      groups[groupIndex[label]].items.push(n);
+    });
+    $('#notifications-list').innerHTML = groups.map((g) => `
+      <div class="notif-group">
+        <div class="notif-group__title">${g.label.toUpperCase()}</div>
+        ${g.items.map((n) => `
+          <button type="button" class="notif-item notif-item--${n.category} ${n.readAt ? '' : 'is-unread'}" data-id="${n.id}">
+            <span class="notif-item__dot" aria-hidden="true"></span>
+            <span class="notif-item__body">
+              <span class="notif-item__title">${n.title}</span>
+              <span class="notif-item__text">${n.body}</span>
+              <span class="notif-item__time">${formatNotifTime(n.createdAt)}</span>
+            </span>
+          </button>
+        `).join('')}
+      </div>
+    `).join('');
+  }
+
+  function formatNotifTime(iso) {
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      if (sameDay) return new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' }).format(d);
+      return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(d);
+    } catch (e) { return ''; }
+  }
+
+  function openNotificationsScreen() {
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    renderNotificationsList();
+    showView('notifications');
+  }
+
+  function initNotificationsScreen() {
+    $('#notifications-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#notifications-mark-all-btn').addEventListener('click', () => {
+      const user = Store.getCurrentUser();
+      if (!user) return;
+      Store.markAllNotificationsRead(user.id);
+      renderNotificationsList();
+      renderNotificationsBadge();
+    });
+    $('#notifications-list').addEventListener('click', (e) => {
+      const item = e.target.closest('.notif-item');
+      if (!item) return;
+      const id = item.dataset.id;
+      Store.markNotificationRead(id);
+      item.classList.remove('is-unread');
+      renderNotificationsBadge();
+      const notif = Store.getCurrentUser() ? Store.loadNotifications(Store.getCurrentUser().id).find((n) => n.id === id) : null;
+      if (notif && notif.action === 'profile') { openProfileScreen('mis-datos'); }
+      else if (notif && notif.action === 'history') { openHistoryScreen('player-home'); }
+    });
   }
 
   function initRankingScreen() {
-    // V02.8 (§1) — vuelve vía openPlayerHome() (no showView() directo) para que el Home
-    // re-renderice y sus microanimaciones de entrada corran también al volver desde Ranking.
-    $('#ranking-back-btn').addEventListener('click', () => openPlayerHome());
+    // V03.0.2 (§1) — pantalla raíz: ya no tiene flecha "volver" (se vuelve por la bottom nav).
   }
 
   /* ------------------------------------------------------------------ */
@@ -7023,7 +7167,17 @@
       if (!user.declaredCategory) missing.push('categoría');
     }
     $('#profile-incomplete-banner').hidden = missing.length === 0;
-    if (missing.length) $('#profile-incomplete-text').textContent = `Todavía falta: ${missing.join(', ')}.`;
+    if (missing.length) {
+      $('#profile-incomplete-text').textContent = `Todavía falta: ${missing.join(', ')}.`;
+      // V03.0.2 (§12) — mismo chequeo de arriba, reusado para la notificación "perfil
+      // incompleto" con deduplicación (addNotificationOnce: nunca una segunda mientras la
+      // anterior siga sin leerse).
+      Store.addNotificationOnce({
+        userId: user.id, type: 'profile_incomplete', category: 'pending', dedupeKey: 'profile-incomplete',
+        title: 'Tu perfil está incompleto', body: `Todavía falta: ${missing.join(', ')}.`, action: 'profile',
+      });
+      renderNotificationsBadge();
+    }
 
     renderProfileEvolution(user);
   }
@@ -7037,20 +7191,40 @@
   /* ------------------------------------------------------------------ */
   let profileEvolutionData = null; // último PH.computeLevelEvolution renderizado — lo usa el detalle de punto
 
-  const LEVEL_CHART_HEIGHT = 160;
-  const LEVEL_CHART_PAD_X = 26;
-  const LEVEL_CHART_PAD_TOP = 16;
-  const LEVEL_CHART_PAD_BOTTOM = 26;
-  const LEVEL_CHART_POINT_SPACING = 56;
-  const LEVEL_CHART_MIN_WIDTH = 300;
+  const LEVEL_CHART_WIDTH = 320;
+  const LEVEL_CHART_HEIGHT = 180;
+  const LEVEL_CHART_PAD_LEFT = 30;
+  const LEVEL_CHART_PAD_RIGHT = 10;
+  const LEVEL_CHART_PAD_TOP = 14;
+  const LEVEL_CHART_PAD_BOTTOM = 30;
+  // V03.0.2 (§6) — como máximo ~5-6 etiquetas de fecha en el eje X, sin importar cuántos
+  // puntos tenga la serie: "si hay muchos puntos, reducir etiquetas, no datos" (nunca se
+  // recortan dots/línea, solo el texto debajo).
+  const LEVEL_CHART_MAX_X_LABELS = 5;
+
+  /** V03.0.2 (§6) — granularidad adaptada al rango real entre el primer y último partido
+   *  considerado: corto → día/mes, intermedio → día + mes abreviado, largo → mes/año. Nunca
+   *  una escala de negocio inventada, solo el formato de fecha ya calculado por PH. */
+  function formatLevelAxisDate(iso, spanDays) {
+    try {
+      const d = new Date(iso);
+      if (spanDays <= 21) return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit' }).format(d);
+      if (spanDays <= 180) return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(d);
+      return new Intl.DateTimeFormat('es-AR', { month: 'short', year: '2-digit' }).format(d);
+    } catch (e) { return ''; }
+  }
 
   /** §4.4 — línea temporal izquierda→derecha, un nivel mayor se dibuja más arriba. El rango
    *  vertical se adapta a los datos reales (con margen visual) en vez de fijarse siempre a
    *  [1,10] — a la escala de esta regla simulada (movimientos de 0.1/0.2), un rango fijo de
-   *  9 puntos aplastaría cualquier variación real a una línea casi recta. Con más partidos de
-   *  los que entran cómodos en el ancho visible, el SVG crece de ancho intrínseco (spacing
-   *  fijo por punto) dentro de un contenedor con scroll horizontal — nunca aprieta los puntos
-   *  hasta volver las fechas ilegibles (§4.4). Con 1 solo punto no se dibuja ninguna línea
+   *  9 puntos aplastaría cualquier variación real a una línea casi recta.
+   *  V03.0.2 (§6) — antes el SVG crecía de ancho intrínseco (56px por punto) dentro de un
+   *  contenedor con scroll horizontal; el consolidado pide explícitamente NO depender de
+   *  scroll horizontal como solución principal. Ahora el `viewBox` es un ancho virtual FIJO
+   *  (LEVEL_CHART_WIDTH) y el `<svg>` se renderiza a `width:100%` (ver .evolution-chart__svg) —
+   *  siempre entra en el ancho disponible, sin importar cuántos partidos haya. Se agregan
+   *  referencias numéricas reales en Y (3 líneas de grilla con su valor) y fechas reales en X
+   *  (máximo ~5 etiquetas, nunca inventadas). Con 1 solo punto no se dibuja ninguna línea
    *  (`coords.length > 1` — nunca "inventar una línea" con un solo dato real). */
   function buildLevelEvolutionSvgHTML(evolution) {
     const points = evolution.points;
@@ -7061,15 +7235,33 @@
     const span = Math.max(0.4, rawMax - rawMin);
     const pad = Math.max(0.2, span * 0.25);
     const yMin = rawMin - pad, yMax = rawMax + pad;
-    const width = Math.max(LEVEL_CHART_MIN_WIDTH, LEVEL_CHART_PAD_X * 2 + (points.length - 1) * LEVEL_CHART_POINT_SPACING);
-    const plotW = width - LEVEL_CHART_PAD_X * 2;
+    const width = LEVEL_CHART_WIDTH;
+    const plotW = width - LEVEL_CHART_PAD_LEFT - LEVEL_CHART_PAD_RIGHT;
     const plotH = LEVEL_CHART_HEIGHT - LEVEL_CHART_PAD_TOP - LEVEL_CHART_PAD_BOTTOM;
-    const xAt = (i) => (points.length === 1 ? width / 2 : LEVEL_CHART_PAD_X + (i / (points.length - 1)) * plotW);
+    const xAt = (i) => (points.length === 1 ? LEVEL_CHART_PAD_LEFT + plotW / 2 : LEVEL_CHART_PAD_LEFT + (i / (points.length - 1)) * plotW);
     const yAt = (level) => LEVEL_CHART_PAD_TOP + (1 - (level - yMin) / (yMax - yMin)) * plotH;
 
-    const gridHTML = [0, 0.5, 1].map((t) => {
-      const y = (LEVEL_CHART_PAD_TOP + t * plotH).toFixed(1);
-      return `<line x1="0" y1="${y}" x2="${width}" y2="${y}" class="evolution-chart__grid" />`;
+    // Eje Y: 3 líneas de grilla con su valor real de Nivel BRAMU (nunca una escala inventada).
+    const yTicks = [1, 0.5, 0];
+    const gridHTML = yTicks.map((t) => {
+      const y = (LEVEL_CHART_PAD_TOP + t * plotH);
+      const value = (yMin + (1 - t) * (yMax - yMin)).toFixed(1);
+      return `<line x1="${LEVEL_CHART_PAD_LEFT}" y1="${y.toFixed(1)}" x2="${width}" y2="${y.toFixed(1)}" class="evolution-chart__grid" />`
+        + `<text x="0" y="${y.toFixed(1)}" dy="3.5" class="evolution-chart__axis-label">${value}</text>`;
+    }).join('');
+
+    // Eje X: fechas reales, máximo LEVEL_CHART_MAX_X_LABELS etiquetas (siempre incluye la
+    // primera y la última) — la densidad de puntos/línea nunca se reduce, solo el texto.
+    const firstDate = new Date(points[0].playedAt);
+    const lastDate = new Date(points[points.length - 1].playedAt);
+    const spanDays = Math.max(0, Math.round((lastDate - firstDate) / 86400000));
+    const labelStep = Math.max(1, Math.ceil((points.length - 1) / (LEVEL_CHART_MAX_X_LABELS - 1)) || 1);
+    const xLabelsHTML = points.map((p, i) => {
+      const isEdge = i === 0 || i === points.length - 1;
+      if (!isEdge && (i % labelStep !== 0)) return '';
+      const x = xAt(i);
+      const anchor = i === 0 ? 'start' : (i === points.length - 1 ? 'end' : 'middle');
+      return `<text x="${x.toFixed(1)}" y="${LEVEL_CHART_HEIGHT}" class="evolution-chart__axis-label" text-anchor="${anchor}">${formatLevelAxisDate(p.playedAt, spanDays)}</text>`;
     }).join('');
 
     const coords = points.map((p, i) => [xAt(i), yAt(p.level)]);
@@ -7083,7 +7275,7 @@
       return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isLast ? 5 : 3.5}" class="${cls}" data-index="${i}" tabindex="0" role="button" aria-label="Partido ${i + 1} de ${points.length}, nivel ${points[i].level.toFixed(1)}"></circle>`;
     }).join('');
 
-    return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" width="${width}" height="${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg">${gridHTML}${lineHTML}${dotsHTML}</svg>`;
+    return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg" preserveAspectRatio="xMidYMid meet">${gridHTML}${xLabelsHTML}${lineHTML}${dotsHTML}</svg>`;
   }
 
   /** §4.4 — "Al tocar un punto: fecha, resultado, victoria o derrota, rivales y nivel
@@ -7162,9 +7354,7 @@
     $('#profile-tab-mis-datos').textContent = PROFILE_TAB_LABELS['mis-datos'];
     $('#profile-tab-mi-perfil').addEventListener('click', () => setProfileTab('mi-perfil'));
     $('#profile-tab-mis-datos').addEventListener('click', () => setProfileTab('mis-datos'));
-    // V02.8 (§1) — mismo criterio que el back de Ranking: openPlayerHome() re-renderiza el
-    // Home (y anima) al volver, en vez de solo des-ocultar la vista con el contenido viejo.
-    $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
+    // V03.0.2 (§1) — pantalla raíz: ya no tiene flecha "volver" (se vuelve por la bottom nav).
     $('#profile-logout-btn').addEventListener('click', requestLogout);
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
     $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
@@ -7290,7 +7480,12 @@
         Store.rememberPlayerNames([displayName]);
       }
       syncCurrentIdentityFromStore();
+      Store.addNotification({
+        userId: user.id, type: 'profile_updated', category: 'info',
+        title: 'Perfil actualizado', body: 'Guardaste cambios en tus datos.', action: 'profile',
+      });
       renderProfileView();
+      renderNotificationsBadge();
       showView('profile');
       showToast('Datos guardados');
     });
@@ -7634,6 +7829,7 @@
     initPlayerCardScreen();
     initCompleteAccessModal();
     initChangePasswordScreen();
+    initNotificationsScreen();
     initLogoutWarningModal();
     initBottomNav();
     initRegisterSheet();

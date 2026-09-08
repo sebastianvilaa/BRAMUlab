@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.0.1';
+  const APP_VERSION = 'BRAMUlab V03.0.2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -48,6 +48,11 @@
     // createUserAccount/loginWithEmail/logoutSession más abajo.
     USERS: 'bramulab.users.v1',
     SESSION: 'bramulab.session.v1',
+    // V03.0.2 (§12) — notificaciones locales, por userId (nunca por nombre visible, para no
+    // mezclar cuentas locales distintas con el mismo nombre). Sin backend: es un historial de
+    // actividad reconstruido a partir de eventos que YA ocurren en la app (ver
+    // Store.addNotification*, llamado desde app.js).
+    NOTIFICATIONS: 'bramulab.notifications.v1',
   };
 
   function safeGet(key) {
@@ -350,6 +355,87 @@
     return user;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V03.0.2 (§12) — NOTIFICACIONES LOCALES                                */
+  /* Primer modelo, sin backend: cada registro pertenece a un userId       */
+  /* exacto. Solo se generan eventos respaldados por acciones/datos reales */
+  /* que ya existen (nunca notificaciones sociales/de otros usuarios).     */
+  /* ------------------------------------------------------------------ */
+
+  function loadAllNotifications() { return safeGet(KEYS.NOTIFICATIONS) || []; }
+
+  /** Notificaciones de UN usuario, más recientes primero. `userId` es obligatorio — sin él
+   *  devuelve `[]` en vez de listar todo (nunca mezclar entre cuentas locales por accidente). */
+  function loadNotifications(userId) {
+    if (!userId) return [];
+    return loadAllNotifications()
+      .filter((n) => n && n.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  function genNotificationId() { return 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  /** `category` ∈ 'positive' | 'info' | 'pending' | 'error' — decide el color (lima/azul/
+   *  ámbar/rojo), nunca el `type` textual libre. `dedupeKey` es opcional, lo usa
+   *  `addNotificationOnce` (perfil incompleto) para no repetir el mismo aviso mientras siga
+   *  sin leerse. */
+  function addNotification(fields) {
+    if (!fields || !fields.userId) return null;
+    const notif = {
+      id: genNotificationId(),
+      userId: fields.userId,
+      type: fields.type || 'info',
+      category: fields.category || 'info',
+      title: fields.title || '',
+      body: fields.body || '',
+      createdAt: fields.createdAt || new Date().toISOString(),
+      readAt: null,
+      action: fields.action || null,
+      dedupeKey: fields.dedupeKey || null,
+    };
+    const list = loadAllNotifications();
+    list.unshift(notif);
+    safeSet(KEYS.NOTIFICATIONS, list.slice(0, 300));
+    return notif;
+  }
+
+  /** Igual que `addNotification`, pero si ya existe una notificación NO LEÍDA del mismo
+   *  usuario con el mismo `dedupeKey`, no crea una segunda — devuelve la existente. Usado por
+   *  "perfil incompleto" (consolidado §12: "con deduplicación") para no repetir el mismo aviso
+   *  en cada guardado mientras el perfil siga incompleto. */
+  function addNotificationOnce(fields) {
+    if (!fields || !fields.userId || !fields.dedupeKey) return addNotification(fields);
+    const existing = loadAllNotifications().find((n) => n && n.userId === fields.userId && n.dedupeKey === fields.dedupeKey && !n.readAt);
+    if (existing) return existing;
+    return addNotification(fields);
+  }
+
+  function markNotificationRead(id) {
+    const list = loadAllNotifications();
+    const idx = list.findIndex((n) => n && n.id === id);
+    if (idx === -1) return false;
+    list[idx] = Object.assign({}, list[idx], { readAt: new Date().toISOString() });
+    safeSet(KEYS.NOTIFICATIONS, list);
+    return true;
+  }
+
+  /** Devuelve cuántas quedaron marcadas (0 si no había ninguna sin leer de ese usuario). */
+  function markAllNotificationsRead(userId) {
+    if (!userId) return 0;
+    let count = 0;
+    const now = new Date().toISOString();
+    const updated = loadAllNotifications().map((n) => {
+      if (n && n.userId === userId && !n.readAt) { count += 1; return Object.assign({}, n, { readAt: now }); }
+      return n;
+    });
+    if (count) safeSet(KEYS.NOTIFICATIONS, updated);
+    return count;
+  }
+
+  function countUnreadNotifications(userId) {
+    return loadNotifications(userId).filter((n) => !n.readAt).length;
+  }
+
   global.PLStore = {
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
@@ -364,5 +450,8 @@
     loadSession, saveSessionUserId, clearSession, getCurrentUser,
     signUpAndLogin, loginWithEmail, logoutSession,
     stampPlayersWithUserId, backfillHistoryUserId, migrateLegacyPlayerToUserIfNeeded,
+    // V03.0.2 — notificaciones locales
+    loadNotifications, addNotification, addNotificationOnce,
+    markNotificationRead, markAllNotificationsRead, countUnreadNotifications,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -3023,6 +3023,77 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.0.2 (§12/§16) — Notificaciones locales: separadas por userId, unread/read,
+  // deduplicación de "perfil incompleto". Mismo patrón snapshot/restore de localStorage que
+  // los bloques V03.0/V03.0.1 de arriba.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = [
+      'bramulab.users.v1', 'bramulab.session.v1', 'bramulab.history.v1',
+      'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1', 'bramulab.notifications.v1',
+    ];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+
+      const ana = Store.createUserAccount({ email: 'ana2@test.com', password: 'Abc123!@', username: 'ana2', firstName: 'Ana', displayName: 'Ana' });
+      const bea = Store.createUserAccount({ email: 'bea2@test.com', password: 'Abc123!@', username: 'bea2', firstName: 'Bea', displayName: 'Bea' });
+
+      // --- Separadas por userId (nunca por nombre visible) ---
+      Store.addNotification({ userId: ana.id, type: 'profile_updated', category: 'info', title: 'A1', body: 'x' });
+      Store.addNotification({ userId: bea.id, type: 'profile_updated', category: 'info', title: 'B1', body: 'x' });
+      Store.addNotification({ userId: bea.id, type: 'profile_updated', category: 'info', title: 'B2', body: 'x' });
+      assert('V0302-NOTIF · loadNotifications(ana) solo devuelve las de Ana', Store.loadNotifications(ana.id).length === 1);
+      assert('V0302-NOTIF · loadNotifications(bea) solo devuelve las de Bea', Store.loadNotifications(bea.id).length === 2);
+      assert('V0302-NOTIF · sin userId, loadNotifications devuelve [] (nunca todo)', Store.loadNotifications(null).length === 0);
+      assert('V0302-NOTIF · addNotification sin userId no crea nada', Store.addNotification({ type: 'x', title: 't', body: 'b' }) === null);
+
+      // --- Orden cronológico descendente (más reciente primero) ---
+      const anaList = Store.loadNotifications(bea.id);
+      assert('V0302-NOTIF · más reciente primero', anaList[0].title === 'B2' && anaList[1].title === 'B1');
+
+      // --- unread/read ---
+      assert('V0302-NOTIF · countUnreadNotifications cuenta las 2 de Bea', Store.countUnreadNotifications(bea.id) === 2);
+      const readOk = Store.markNotificationRead(anaList[1].id);
+      assert('V0302-NOTIF · markNotificationRead devuelve true y setea readAt', readOk && !!Store.loadNotifications(bea.id).find((n) => n.id === anaList[1].id).readAt);
+      assert('V0302-NOTIF · countUnread baja a 1 tras leer una', Store.countUnreadNotifications(bea.id) === 1);
+      const markedCount = Store.markAllNotificationsRead(bea.id);
+      assert('V0302-NOTIF · markAllNotificationsRead marca solo la que faltaba (1)', markedCount === 1);
+      assert('V0302-NOTIF · countUnread llega a 0', Store.countUnreadNotifications(bea.id) === 0);
+      assert('V0302-NOTIF · markAllNotificationsRead de Ana NO toca las de Bea (0 sin leer ya)', Store.markAllNotificationsRead(ana.id) === 1 && Store.countUnreadNotifications(ana.id) === 0);
+
+      // --- Deduplicación de "perfil incompleto" ---
+      resetAffectedKeys();
+      const carla = Store.createUserAccount({ email: 'carla2@test.com', password: 'Abc123!@', username: 'carla2', firstName: 'Carla', displayName: 'Carla' });
+      const first = Store.addNotificationOnce({ userId: carla.id, type: 'profile_incomplete', category: 'pending', dedupeKey: 'profile-incomplete', title: 'T1', body: 'falta X' });
+      const second = Store.addNotificationOnce({ userId: carla.id, type: 'profile_incomplete', category: 'pending', dedupeKey: 'profile-incomplete', title: 'T2', body: 'falta X e Y' });
+      assert('V0302-DEDUP · addNotificationOnce NO crea una segunda mientras la primera sigue sin leer', Store.loadNotifications(carla.id).length === 1 && second.id === first.id);
+      Store.markNotificationRead(first.id);
+      const third = Store.addNotificationOnce({ userId: carla.id, type: 'profile_incomplete', category: 'pending', dedupeKey: 'profile-incomplete', title: 'T3', body: 'falta Z' });
+      assert('V0302-DEDUP · una vez leída, SÍ genera una nueva (recordatorio fresco)', Store.loadNotifications(carla.id).length === 2 && third.id !== first.id);
+      assert('V0302-DEDUP · dedupeKey distinto nunca se agrupa con otro', (() => {
+        Store.addNotificationOnce({ userId: carla.id, type: 'other', category: 'info', dedupeKey: 'otro-key', title: 'T4', body: 'x' });
+        return Store.loadNotifications(carla.id).length === 3;
+      })());
+
+      // --- Logout/login no mezcla notificaciones entre cuentas (mismo dispositivo) ---
+      resetAffectedKeys();
+      const dario2 = Store.signUpAndLogin({ email: 'dario2@test.com', password: 'Abc123!@', username: 'dario2', firstName: 'Dario', displayName: 'Dario' });
+      Store.addNotification({ userId: dario2.id, type: 'x', category: 'info', title: 'De Dario', body: 'x' });
+      Store.logoutSession();
+      const elena = Store.signUpAndLogin({ email: 'elena2@test.com', password: 'Abc123!@', username: 'elena2', firstName: 'Elena', displayName: 'Elena' });
+      assert('V0302-NOTIF · cuenta nueva en el mismo dispositivo empieza sin notificaciones ajenas', Store.loadNotifications(elena.id).length === 0);
+      assert('V0302-NOTIF · las de la cuenta anterior siguen intactas (no se mezclan ni se borran)', Store.loadNotifications(dario2.id).length === 1 && Store.loadNotifications(dario2.id)[0].title === 'De Dario');
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

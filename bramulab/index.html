@@ -1012,6 +1012,7 @@
              campana ahora es un ícono SVG propio, mismo trazo que la barra inferior. -->
         <button id="player-home-bell-btn" class="icon-btn player-home-bell" type="button" aria-label="Notificaciones">
           <svg viewBox="0 0 24 24" class="player-home-bell__icon"><path d="M12 2a1.6 1.6 0 0 0-1.6 1.6v.66C7.6 4.9 5.6 7.5 5.6 10.6v4.1L4 17.4v.9h16v-.9l-1.6-2.7v-4.1c0-3.1-2-5.7-4.8-6.34v-.66A1.6 1.6 0 0 0 12 2zm0 19.4a2.4 2.4 0 0 0 2.38-2.1H9.62A2.4 2.4 0 0 0 12 21.4z"/></svg>
+          <span id="player-home-bell-badge" class="notif-badge" hidden></span>
         </button>
       </div>
     </div>
@@ -1042,9 +1043,13 @@
       <div class="pastilla player-card" id="player-home-card" role="button" tabindex="0">
         <!-- V02.1 (§19) — avatar genérico local, fallback cuando no hay foto de perfil.
              V03.0.1 (§3) — si `currentUser.profilePhoto` existe, se muestra esa foto acá
-             (misma fuente que Perfil/Editar Datos, sin duplicar almacenamiento). -->
+             (misma fuente que Perfil/Editar Datos, sin duplicar almacenamiento).
+             V03.0.2 (§3) — bug real en producción: el ícono genérico quedaba SIEMPRE en el DOM
+             sin `hidden`, así que se mezclaba con la foto (transparencias, recortes). Ahora se
+             ocultan mutuamente de forma explícita en renderPlayerCard — nunca las dos capas
+             visibles a la vez. -->
         <div class="player-card__avatar" aria-hidden="true">
-          <svg viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
+          <svg id="player-home-avatar-fallback" viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
           <img id="player-home-avatar-img" class="player-card__avatar-img" alt="" hidden />
         </div>
         <div class="player-card__info">
@@ -1169,8 +1174,9 @@
        no se implementa todavía, pero el destino no puede ser un botón muerto)
        ============================================================ -->
   <section id="view-ranking" class="view view--history" hidden>
+    <!-- V03.0.2 (§1) — pantalla raíz (bottom nav): sin flecha "volver" por sistema, la barra
+         inferior ya resuelve volver a Inicio. -->
     <div class="analysis-header">
-      <button id="ranking-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">RANKING</span>
     </div>
     <div class="analysis-scroll">
@@ -1205,8 +1211,8 @@
        Evolución del Nivel BRAMU simulada, debajo de la identidad principal)
        ============================================================ -->
   <section id="view-profile" class="view view--history" hidden>
+    <!-- V03.0.2 (§1) — pantalla raíz (bottom nav): sin flecha "volver" por sistema. -->
     <div class="analysis-header">
-      <button id="profile-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">PERFIL</span>
     </div>
     <!-- V03.0.1 (§1) — Perfil pasa de una sola pantalla larga a 2 pestañas: MI PERFIL (ficha
@@ -1289,6 +1295,15 @@
           <p class="coverage-note" id="profile-incomplete-text"></p>
         </div>
 
+        <!-- V03.0.2 (§7) — reemplaza el botón full-width "EDITAR DATOS" (interrumpía la
+             lectura) por una acción de icono lápiz arriba a la derecha de la sección de
+             datos, mismo ícono que el de la foto (pencil-icon). -->
+        <div class="profile-data-header">
+          <span class="profile-data-header__title">TUS DATOS</span>
+          <button type="button" id="profile-edit-btn" class="profile-edit-icon-btn" aria-label="Editar datos">
+            <svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg>
+          </button>
+        </div>
         <div class="pastilla profile-group">
           <div class="profile-group__title">IDENTIDAD</div>
           <div class="profile-field"><span class="profile-field__label">Nombre</span><span class="profile-field__value" id="profile-data-firstname">—</span></div>
@@ -1305,7 +1320,6 @@
           <div class="profile-field"><span class="profile-field__label">Lado habitual</span><span class="profile-field__value" id="profile-side">—</span></div>
           <div class="profile-field"><span class="profile-field__label">Categoría declarada</span><span class="profile-field__value" id="profile-category">—</span></div>
         </div>
-        <button type="button" id="profile-edit-btn" class="btn-secondary profile-edit-btn">EDITAR DATOS</button>
 
         <div class="pastilla profile-group">
           <div class="profile-group__title">ACCESO Y SEGURIDAD</div>
@@ -1316,10 +1330,16 @@
             <p class="coverage-note">Todavía no tenés email y contraseña. Completalos ahora — si cerrás sesión sin hacerlo, no vas a poder volver a entrar a este jugador.</p>
             <button type="button" id="profile-complete-access-btn" class="btn-secondary">COMPLETAR ACCESO</button>
           </div>
-          <button type="button" id="profile-change-password-btn" class="btn-secondary profile-security-btn" hidden>Cambiar contraseña</button>
+          <!-- V03.0.2 (§7) — "Cambiar contraseña" como fila con chevron, no un botón gigante
+               más compitiendo con Cerrar sesión. -->
+          <button type="button" id="profile-change-password-btn" class="profile-row-action" hidden>
+            <span>Cambiar contraseña</span>
+            <span class="profile-row-action__chevron" aria-hidden="true">›</span>
+          </button>
           <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a
                una sesión, no a una preferencia libremente reemplazable. V03.0.1 (§6): se
-               reubica acá (antes vivía suelto en Perfil como link perdido). -->
+               reubica acá (antes vivía suelto en Perfil como link perdido). V03.0.2 (§7):
+               "claramente secundario/destructivo, pero integrado al mismo bloque". -->
           <button type="button" id="profile-logout-btn" class="btn-secondary btn-secondary--danger profile-security-btn">CERRAR SESIÓN</button>
         </div>
       </div>
@@ -1344,19 +1364,29 @@
            personal a la que volver sin sesión). "REGISTRAR PARTIDO SIN CUENTA" permite jugar
            en vivo como invitado sin crear cuenta (ver openGuestRegisterFlow, app.js) — la
            barra inferior personal sigue oculta mientras ese partido esté en curso (mecanismo
-           de showView, no un caso especial acá). -->
+           de showView, no un caso especial acá).
+           V03.0.2 (§10) — jerarquía 1-2-3 explícita: la tercera acción deja de ser un
+           `.link-btn` (se leía como un link olvidado/"cancelar") y pasa a un botón ghost/
+           outline deliberado, con texto de apoyo. -->
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
         <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
-        <button type="button" id="access-guest-btn" class="link-btn">REGISTRAR PARTIDO SIN CUENTA</button>
+        <button type="button" id="access-guest-btn" class="btn-ghost">
+          <span class="btn-ghost__label">REGISTRAR PARTIDO SIN CUENTA</span>
+          <span class="btn-ghost__hint">Jugá sin crear perfil ni guardar historial.</span>
+        </button>
       </div>
     </div>
   </section>
 
   <section id="view-login" class="view view--access" hidden>
-    <div class="access-scroll">
-      <button type="button" id="login-back-btn" class="icon-btn access-back" aria-label="Volver">←</button>
-      <div class="access-title">INICIAR SESIÓN</div>
+    <!-- V03.0.2 (§1/§11) — header unificado (mismo .analysis-header que Home/Historial/
+         Perfil/Notificaciones): misma altura, misma posición de flecha. -->
+    <div class="analysis-header">
+      <button type="button" id="login-back-btn" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title">INICIAR SESIÓN</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header">
       <!-- V03.0.1 (§8) — pulido visual: labels persistentes + ojo mostrar/ocultar + CTA menos
           dominante + error pegado al formulario. Reglas de autenticación sin cambios
           (Store.loginWithEmail). -->
@@ -1364,7 +1394,7 @@
         <div class="field field--labeled"><label class="field-label" for="login-email">Email</label><input id="login-email" class="field__input" type="email" autocomplete="username" /></div>
         <div class="field field--labeled">
           <label class="field-label" for="login-password">Contraseña</label>
-          <div class="field-with-toggle"><input id="login-password" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="login-password-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="login-password" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="login-password-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <p class="edit-error" id="login-error" hidden>Revisá tu email y contraseña.</p>
         <button type="submit" class="btn-secondary btn-save">INICIAR SESIÓN</button>
@@ -1375,20 +1405,24 @@
   <!-- Consolidado §2 — 3 pasos en UNA sola vista (mismo patrón que #view-manual-load: estado
        interno manejado por JS, sin pasar por showView() entre pasos). -->
   <section id="view-signup" class="view view--access" hidden>
-    <div class="access-scroll">
-      <button type="button" id="signup-back-btn" class="icon-btn access-back" aria-label="Volver">←</button>
+    <!-- V03.0.2 (§1/§11) — header unificado, igual que Login (consolidado: "no rediseñar el
+         flujo de 3 pasos", solo aplicar la constante de header). -->
+    <div class="analysis-header">
+      <button type="button" id="signup-back-btn" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title" id="signup-step-title">CREAR ACCESO</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header">
       <div class="signup-progress" aria-hidden="true">
         <span class="signup-progress__dot" data-step-dot="1"></span>
         <span class="signup-progress__dot" data-step-dot="2"></span>
         <span class="signup-progress__dot" data-step-dot="3"></span>
       </div>
-      <div class="access-title" id="signup-step-title">CREAR ACCESO</div>
 
       <form id="signup-form" class="access-form">
         <div class="signup-step" data-step="1">
           <div class="field"><input id="signup-email" class="field__input" type="email" placeholder="Email" autocomplete="email" /></div>
-          <div class="field"><input id="signup-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="new-password" /></div>
-          <div class="field"><input id="signup-password-repeat" class="field__input" type="password" placeholder="Repetir contraseña" autocomplete="new-password" /></div>
+          <div class="field field-with-toggle"><input id="signup-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="signup-password-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
+          <div class="field field-with-toggle"><input id="signup-password-repeat" class="field__input" type="password" placeholder="Repetir contraseña" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="signup-password-repeat-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
           <ul class="password-rules" id="signup-password-rules">
             <li data-rule="hasMinLength">Al menos 8 caracteres</li>
             <li data-rule="hasUpper">Una mayúscula</li>
@@ -1405,7 +1439,7 @@
               <span id="signup-avatar-initials">—</span>
               <img id="signup-avatar-img" alt="" hidden />
             </div>
-            <button type="button" id="signup-avatar-edit-btn" class="signup-avatar-edit" aria-label="Agregar foto">✎</button>
+            <button type="button" id="signup-avatar-edit-btn" class="signup-avatar-edit" aria-label="Agregar foto"><svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg></button>
             <input type="file" id="signup-avatar-input" accept="image/*" hidden />
           </div>
           <div class="field"><input id="signup-first-name" class="field__input" type="text" placeholder="Nombre" maxlength="18" /></div>
@@ -1538,15 +1572,17 @@
        placeholder-only). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/efectividad NO
        aparecen acá — son computados, no editables (consolidado §5 de V03.0, sin cambios). -->
   <section id="view-edit-data" class="view view--access" hidden>
-    <div class="access-scroll">
-      <button type="button" id="profile-edit-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
-      <div class="access-title">EDITAR DATOS</div>
+    <div class="analysis-header">
+      <button type="button" id="profile-edit-cancel" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title">EDITAR DATOS</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <div class="signup-avatar-upload">
         <div class="signup-avatar" id="profile-edit-avatar">
           <span id="profile-edit-avatar-initials">—</span>
           <img id="profile-edit-avatar-img" alt="" hidden />
         </div>
-        <button type="button" id="profile-edit-avatar-edit-btn" class="signup-avatar-edit" aria-label="Cambiar foto">✎</button>
+        <button type="button" id="profile-edit-avatar-edit-btn" class="signup-avatar-edit" aria-label="Cambiar foto"><svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg></button>
         <input type="file" id="profile-edit-avatar-input" accept="image/*" hidden />
       </div>
       <div class="profile-avatar-row" id="profile-edit-avatar-actions">
@@ -1607,19 +1643,21 @@
   <!-- V03.0.1 (§4) — "Completar Acceso" pasa de modal a pantalla completa, mismo shell que
        Editar Datos. Agrega ojo mostrar/ocultar contraseña (wirePasswordToggle, app.js). -->
   <section id="view-complete-access" class="view view--access" hidden>
-    <div class="access-scroll">
-      <button type="button" id="complete-access-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
-      <div class="access-title">COMPLETAR ACCESO</div>
+    <div class="analysis-header">
+      <button type="button" id="complete-access-cancel" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title">COMPLETAR ACCESO</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <p class="access-subtitle">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
       <form id="complete-access-form" class="access-form">
         <div class="field field--labeled"><label class="field-label" for="complete-access-email">Email</label><input id="complete-access-email" class="field__input" type="email" autocomplete="email" /></div>
         <div class="field field--labeled">
           <label class="field-label" for="complete-access-password">Contraseña</label>
-          <div class="field-with-toggle"><input id="complete-access-password" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="complete-access-password" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <div class="field field--labeled">
           <label class="field-label" for="complete-access-password-repeat">Repetir contraseña</label>
-          <div class="field-with-toggle"><input id="complete-access-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-repeat-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="complete-access-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-repeat-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <ul class="password-rules" id="complete-access-password-rules">
           <li data-rule="hasMinLength">Al menos 8 caracteres</li>
@@ -1638,21 +1676,23 @@
        local: compara contraseña actual en texto plano (mismo criterio que Store.loginWithEmail,
        sin cripto — consolidado §5 lo pide explícitamente así). -->
   <section id="view-change-password" class="view view--access" hidden>
-    <div class="access-scroll">
-      <button type="button" id="change-password-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
-      <div class="access-title">CAMBIAR CONTRASEÑA</div>
+    <div class="analysis-header">
+      <button type="button" id="change-password-cancel" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title">CAMBIAR CONTRASEÑA</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <form id="change-password-form" class="access-form">
         <div class="field field--labeled">
           <label class="field-label" for="change-password-current">Contraseña actual</label>
-          <div class="field-with-toggle"><input id="change-password-current" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="change-password-current-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="change-password-current" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="change-password-current-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <div class="field field--labeled">
           <label class="field-label" for="change-password-new">Nueva contraseña</label>
-          <div class="field-with-toggle"><input id="change-password-new" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-new-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="change-password-new" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-new-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <div class="field field--labeled">
           <label class="field-label" for="change-password-repeat">Repetir nueva contraseña</label>
-          <div class="field-with-toggle"><input id="change-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-repeat-toggle" aria-label="Mostrar contraseña">◎</button></div>
+          <div class="field-with-toggle"><input id="change-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-repeat-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
         </div>
         <ul class="password-rules" id="change-password-rules">
           <li data-rule="hasMinLength">Al menos 8 caracteres</li>
@@ -1684,17 +1724,22 @@
     </div>
   </div>
 
-  <!-- Etapa 2 (Rama Jugador §5) — campana del header del Home: no hay notificaciones reales
-       todavía, pero ningún control queda sin respuesta al tocarlo. -->
-  <div id="notifications-modal" class="overlay" hidden>
-    <div class="overlay__card">
-      <div class="overlay__title">NOTIFICACIONES</div>
-      <p class="overlay__text">Todavía no tenés notificaciones.</p>
-      <div class="overlay__actions">
-        <button type="button" id="notifications-close" class="btn-secondary" style="width:100%">Cerrar</button>
+  <!-- V03.0.2 (§12) — Notificaciones deja de ser un popup chico: pantalla completa, mismo
+       header secundario (volver + título) que Editar Datos/Cambiar contraseña. Con bottom nav
+       si hay sesión (siempre la hay: la campana solo vive en el Home, que ya está gateado). -->
+  <section id="view-notifications" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="notifications-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">NOTIFICACIONES</span>
+      <button type="button" id="notifications-mark-all-btn" class="link-btn notifications-mark-all">Marcar todas como leídas</button>
+    </div>
+    <div class="analysis-scroll">
+      <div id="notifications-list" class="notifications-list"></div>
+      <div id="notifications-empty" class="notifications-empty" hidden>
+        <p class="coverage-note">Todavía no tenés notificaciones. Vas a ver acá novedades reales de tu cuenta — datos guardados, acceso completado, partidos nuevos.</p>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Confirmación genérica. Etapa 3 (Fase 2) — reubicada acá desde dentro de #view-match: vivía
        anidada ahí y, como #view-match queda `hidden` en cualquier otra vista, un ancestro con
