@@ -243,11 +243,21 @@
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
-      'access', 'login', 'signup', 'player-card']
+      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
-      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1;
+      // V03.0.1 (§7) — mecanismo PRINCIPAL de "no exponer navegación personal sin sesión":
+      // la barra inferior queda oculta en CUALQUIER vista (incluidas 'setup'/'analysis'
+      // durante un partido de invitado) mientras no haya sesión activa, no solo en vistas
+      // fuera de BOTTOM_NAV_VIEWS. Se usa Store.getCurrentUser() (lectura fresca) y NO la
+      // variable de módulo `currentPlayerName`: esa var solo se sincroniza en puntos
+      // puntuales (openPlayerHome/openManualLoadScreen/renderPlayerHome/post-login) y sigue
+      // en su valor inicial `null` tras un cold boot que resume un partido activo vía
+      // continueActiveMatch() (nunca sincroniza) — con la var cacheada, un usuario CON
+      // sesión que reabre la app con un partido en curso vería la barra incorrectamente
+      // oculta al llegar a Análisis.
+      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser();
       nav.hidden = !showNav;
       if (showNav) updateBottomNavActive(name);
     }
@@ -369,6 +379,12 @@
   // sesión, igual criterio que el resto de los filtros de Historial (§3.3 de Etapa 4.1).
   let historyContextFilter = null;
   function openHistoryScreen(origin, contextFilter) {
+    // V03.0.1 (§7) — gate interno (protección adicional, no sustituye el ocultamiento visual
+    // de la barra inferior en showView): Historial es una pantalla personal, nunca debe
+    // abrirse sin sesión (p.ej. durante un partido de invitado que llegó a 'setup' y usa el
+    // menú heredado). Mismo patrón que ya usan openPlayerHome/openManualLoadScreen.
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
     historyOpenedFrom = origin === 'setup' ? 'setup' : 'player-home';
     historyContextFilter = contextFilter || null;
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
@@ -4162,7 +4178,16 @@
       coverageStartLabel: match.coverageStartLabel,
     };
 
-    Store.upsertHistory(finishedSnapshot);
+    // V03.0.1 (§7) — partido de invitado (sin sesión activa): NO se persiste en el Historial
+    // compartido. Antes de esta ronda se guardaba igual, sin userId — por la regla de
+    // exclusividad de findPlayerRow (player-home.js, sin tocar), una fila sin userId cae a
+    // comparación por nombre, así que un partido de invitado con el mismo nombre que una
+    // cuenta real terminaba apareciendo en SU historial personal por coincidencia. Solución
+    // más simple y segura (permitida explícitamente por el consolidado §7): el invitado ve el
+    // resumen de ESA sesión desde el snapshot en memoria (openCanonicalResumen ya lo recibe
+    // como parámetro, no depende de que esté guardado), pero el partido no sobrevive a un
+    // recierre de la app. identityStampedPlayers ya deja `players` sin userId en este caso.
+    if (Store.getCurrentUser()) Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
     openCanonicalResumen(finishedSnapshot, 'live');
   }
@@ -4218,7 +4243,16 @@
       coverageStartLabel: null,
     };
 
-    Store.upsertHistory(finishedSnapshot);
+    // V03.0.1 (§7) — partido de invitado (sin sesión activa): NO se persiste en el Historial
+    // compartido. Antes de esta ronda se guardaba igual, sin userId — por la regla de
+    // exclusividad de findPlayerRow (player-home.js, sin tocar), una fila sin userId cae a
+    // comparación por nombre, así que un partido de invitado con el mismo nombre que una
+    // cuenta real terminaba apareciendo en SU historial personal por coincidencia. Solución
+    // más simple y segura (permitida explícitamente por el consolidado §7): el invitado ve el
+    // resumen de ESA sesión desde el snapshot en memoria (openCanonicalResumen ya lo recibe
+    // como parámetro, no depende de que esté guardado), pero el partido no sobrevive a un
+    // recierre de la app. identityStampedPlayers ya deja `players` sin userId en este caso.
+    if (Store.getCurrentUser()) Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
     openCanonicalResumen(finishedSnapshot, 'live');
   }
@@ -6050,7 +6084,14 @@
       showView('login');
     });
     $('#access-signup-btn').addEventListener('click', openSignupWizard);
-    $('#access-cancel-btn').addEventListener('click', () => {
+    // V03.0.1 (§7, corrección del usuario) — reemplaza al viejo "Cancelar": entra directo al
+    // registro en vivo SIN cuenta (mismo destino, 'setup', que ya usaba "Cancelar" — Setup no
+    // lee `currentPlayerName` en ningún punto, arma nombres desde los campos de texto propios,
+    // así que ya soportaba este caso). No queda vinculado a ningún userId
+    // (identityStampedPlayers, más abajo, ya lo maneja) y no se persiste en Historial
+    // compartido (ver finishMatch/finishMatchGames) para no arriesgar que se reclame por
+    // coincidencia de nombre (consolidado §7).
+    $('#access-guest-btn').addEventListener('click', () => {
       afterIdentifyAction = null;
       showView('setup');
     });
@@ -6058,6 +6099,7 @@
 
   function initLoginScreen() {
     $('#login-back-btn').addEventListener('click', () => showView('access'));
+    wirePasswordToggle('login-password', 'login-password-toggle');
     $('#login-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const result = Store.loginWithEmail($('#login-email').value, $('#login-password').value);
@@ -6065,6 +6107,21 @@
       $('#login-error').hidden = true;
       syncCurrentIdentityFromStore();
       completeIdentifyAction();
+    });
+  }
+
+  /** V03.0.1 (§4/§5/§8) — ojo mostrar/ocultar contraseña, reusado en Login/Completar
+   *  Acceso/Cambiar contraseña. Alterna type password↔text, nunca guarda el valor en otro
+   *  lado ni cambia la validación. */
+  function wirePasswordToggle(inputId, btnId) {
+    const input = $(`#${inputId}`);
+    const btn = $(`#${btnId}`);
+    if (!input || !btn) return;
+    btn.addEventListener('click', () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      btn.classList.toggle('is-active', !showing);
+      btn.setAttribute('aria-label', showing ? 'Mostrar contraseña' : 'Ocultar contraseña');
     });
   }
 
@@ -6160,7 +6217,10 @@
     if (!username) { el.textContent = ''; el.classList.remove('is-taken'); return; }
     if (!PLI.isValidUsernameFormat(username)) { el.textContent = 'Entre 3 y 20 caracteres, sin espacios.'; el.classList.add('is-taken'); return; }
     const taken = PLI.isUsernameTaken(username, Store.loadUsers(), excludeUserId);
-    el.textContent = taken ? 'Ya está en uso.' : 'Disponible.';
+    // V03.0.1 (§2) — feedback más claro (✓/!), pedido puntualmente para Editar Datos pero
+    // esta función es compartida con el signup (step 2) — misma mejora ahí también,
+    // consistencia justificada, sin lógica nueva.
+    el.textContent = taken ? '! Ya está en uso' : '✓ Disponible';
     el.classList.toggle('is-taken', taken);
   }
 
@@ -6303,23 +6363,28 @@
   }
 
   /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
-   *  una segunda). Reusado desde Perfil y desde la advertencia de "Cerrar sesión". */
+   *  una segunda). Reusado desde Perfil y desde la advertencia de "Cerrar sesión".
+   *  V03.0.1 (§4) — pasa de modal a pantalla completa (#view-complete-access), mismo shell
+   *  que Editar Datos/Login. Nombre de función sin cambios a propósito (menor superficie de
+   *  cambio) aunque ya no abre un modal. */
   function openCompleteAccessModal() {
     $('#complete-access-email').value = '';
     $('#complete-access-password').value = '';
     $('#complete-access-password-repeat').value = '';
     $('#complete-access-error').hidden = true;
     updatePasswordRulesUI('', 'complete-access-password-rules');
-    $('#complete-access-modal').hidden = false;
+    showView('complete-access');
   }
 
   function initCompleteAccessModal() {
     $('#complete-access-password').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'complete-access-password-rules'));
-    $('#complete-access-cancel').addEventListener('click', () => { $('#complete-access-modal').hidden = true; });
+    wirePasswordToggle('complete-access-password', 'complete-access-password-toggle');
+    wirePasswordToggle('complete-access-password-repeat', 'complete-access-password-repeat-toggle');
+    $('#complete-access-cancel').addEventListener('click', () => showView('profile'));
     $('#complete-access-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
-      if (!user) { $('#complete-access-modal').hidden = true; return; }
+      if (!user) { showView('profile'); return; }
       const email = $('#complete-access-email').value.trim();
       const password = $('#complete-access-password').value;
       const repeat = $('#complete-access-password-repeat').value;
@@ -6331,9 +6396,48 @@
       else if (!PLI.passwordsMatch(password, repeat)) error = 'Las contraseñas no coinciden.';
       if (error) { $('#complete-access-error').textContent = error; $('#complete-access-error').hidden = false; return; }
       Store.updateUserAccount(user.id, { email, password });
-      $('#complete-access-modal').hidden = true;
       $('#logout-warning-modal').hidden = true;
       renderProfileView();
+      showView('profile');
+      showToast('Acceso guardado');
+    });
+  }
+
+  /** V03.0.1 (§5) — "Cambiar contraseña": nuevo, pantalla completa (#view-change-password).
+   *  Prototipo local sin backend: compara la contraseña actual en texto plano, mismo criterio
+   *  que Store.loginWithEmail (store.js) — el consolidado pide explícitamente no agregar
+   *  cripto casera acá. Conserva mismo userId/sesión/historial: solo cambia `user.password`. */
+  function openChangePasswordScreen() {
+    $('#change-password-current').value = '';
+    $('#change-password-new').value = '';
+    $('#change-password-repeat').value = '';
+    $('#change-password-error').hidden = true;
+    updatePasswordRulesUI('', 'change-password-rules');
+    showView('change-password');
+  }
+
+  function initChangePasswordScreen() {
+    wirePasswordToggle('change-password-current', 'change-password-current-toggle');
+    wirePasswordToggle('change-password-new', 'change-password-new-toggle');
+    wirePasswordToggle('change-password-repeat', 'change-password-repeat-toggle');
+    $('#change-password-new').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'change-password-rules'));
+    $('#change-password-cancel').addEventListener('click', () => showView('profile'));
+    $('#change-password-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const user = Store.getCurrentUser();
+      if (!user) { showView('profile'); return; }
+      const current = $('#change-password-current').value;
+      const next = $('#change-password-new').value;
+      const repeat = $('#change-password-repeat').value;
+      const strength = PLI.checkPasswordStrength(next);
+      let error = null;
+      if ((user.password || '') !== current) error = 'La contraseña actual no es correcta.';
+      else if (!strength.ok) error = 'La nueva contraseña todavía no cumple los requisitos.';
+      else if (!PLI.passwordsMatch(next, repeat)) error = 'Las contraseñas nuevas no coinciden.';
+      if (error) { $('#change-password-error').textContent = error; $('#change-password-error').hidden = false; return; }
+      Store.updateUserAccount(user.id, { password: next });
+      showView('profile');
+      showToast('Contraseña actualizada');
     });
   }
 
@@ -6352,7 +6456,10 @@
     Store.logoutSession();
     currentPlayerName = null;
     currentUserId = null;
-    showView('setup');
+    // V03.0.1 (§7) — antes iba a showView('setup'): como 'setup' está en BOTTOM_NAV_VIEWS,
+    // la barra inferior reaparecía tras cerrar sesión y Historial/Ranking/Perfil quedaban
+    // alcanzables (bug reportado en uso real). Ahora vuelve directo a "BIENVENIDO A BRAMU".
+    openAccessFlow();
   }
   function initLogoutWarningModal() {
     $('#logout-warning-cancel-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; });
@@ -6443,6 +6550,14 @@
   function renderPlayerCard(matches, shouldAnimate) {
     $('#player-home-name').textContent = currentPlayerName;
     $('#player-home-handle').textContent = buildPlayerHandle(currentPlayerName);
+    // V03.0.1 (§3) — bug: la foto ya persistía en Perfil/Editar Datos pero el Home seguía
+    // mostrando siempre el ícono genérico porque `renderPlayerCard` nunca leía `profilePhoto`.
+    // Misma fuente que el resto de la app (Store.getCurrentUser()), sin segunda fuente ni
+    // almacenamiento nuevo.
+    const homeUser = Store.getCurrentUser();
+    const homeAvatarImg = $('#player-home-avatar-img');
+    if (homeUser && homeUser.profilePhoto) { homeAvatarImg.src = homeUser.profilePhoto; homeAvatarImg.hidden = false; }
+    else { homeAvatarImg.hidden = true; homeAvatarImg.removeAttribute('src'); }
     const n = matches.length;
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
@@ -6775,6 +6890,10 @@
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
     initNotificationsModal();
+    // V03.0.1 (§3) — tarjeta/nombre/foto del Home tappable → Perfil › MI PERFIL.
+    const goToProfile = () => openProfileScreen('mi-perfil');
+    $('#player-home-card').addEventListener('click', goToProfile);
+    $('#player-home-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToProfile(); } });
   }
 
   function initNotificationsModal() {
@@ -6833,24 +6952,49 @@
     $('#companions-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
-  /** V03.0 (§5) — Perfil pasa a mostrar la identidad completa del Usuario (no solo el nombre):
-   *  avatar, nombre visible, @usuario, nombre/apellido, fecha de nacimiento/edad, género, mano
-   *  hábil, lado habitual, categoría declarada. Todo de solo lectura acá — la edición vive en
-   *  #profile-edit-modal (nunca inline). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/
-   *  efectividad NO aparecen en esta sección: son computados, no editables (consolidado §5). */
+  // V03.0.1 (§1) — nombres de pestaña como constante única (consolidado: "deben quedar
+  // fáciles de cambiar posteriormente sin alterar lógica").
+  const PROFILE_TAB_LABELS = { 'mi-perfil': 'MI PERFIL', 'mis-datos': 'MIS DATOS' };
+  let profileActiveTab = 'mi-perfil';
+
+  function setProfileTab(tab) {
+    profileActiveTab = PROFILE_TAB_LABELS[tab] ? tab : 'mi-perfil';
+    $('#profile-panel-mi-perfil').hidden = profileActiveTab !== 'mi-perfil';
+    $('#profile-panel-mis-datos').hidden = profileActiveTab !== 'mis-datos';
+    $('#profile-tab-mi-perfil').classList.toggle('is-active', profileActiveTab === 'mi-perfil');
+    $('#profile-tab-mis-datos').classList.toggle('is-active', profileActiveTab === 'mis-datos');
+    $('#profile-tab-mi-perfil').setAttribute('aria-selected', String(profileActiveTab === 'mi-perfil'));
+    $('#profile-tab-mis-datos').setAttribute('aria-selected', String(profileActiveTab === 'mis-datos'));
+  }
+
+  /** V03.0.1 (§1) — Perfil pasa de una sola pantalla a 2 pestañas: MI PERFIL (ficha deportiva
+   *  de lectura: avatar, nombre visible, @usuario, Nivel BRAMU/evolución, partidos,
+   *  efectividad, racha) y MIS DATOS (identidad + datos personales/deportivos + acceso y
+   *  seguridad). Toda la edición sigue viviendo en Editar Datos (nunca inline) — acá todo es
+   *  de solo lectura. Nivel BRAMU/ranking/partidos/victorias/efectividad no son editables
+   *  (consolidado §5 de V03.0, sin cambios). */
   function renderProfileView() {
     const user = Store.getCurrentUser();
     const name = Store.loadCurrentPlayerName();
     setAvatarPreview('profile-avatar-img', 'profile-avatar-initials', user && user.profilePhoto, name);
     $('#profile-display-name').textContent = (user && user.displayName) || name || '—';
     $('#profile-username').textContent = user && user.username ? `@${user.username}` : '—';
-    const count = name ? PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()).length : 0;
-    $('#profile-match-count').textContent = count === 1 ? '1 partido cargado' : `${count} partidos cargados`;
+    const matches = name ? PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()) : [];
+    $('#profile-match-count').textContent = matches.length === 1 ? '1 partido cargado' : `${matches.length} partidos cargados`;
 
-    $('#profile-access-pending').hidden = !user || !!user.email;
+    // MI PERFIL — KPIs ya disponibles (misma fuente que el Home, nunca una segunda fórmula).
+    const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
+    $('#profile-kpi-effectiveness').textContent = eff.pct === null ? 'Sin datos' : `${eff.pct}% (${eff.wins}/${eff.considered})`;
+    const streak = PH.computeCurrentStreak(matches, currentIdentity());
+    $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : 'Sin racha en curso';
 
-    const fullName = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : '';
-    $('#profile-fullname').textContent = fullName || '—';
+    // MIS DATOS — Identidad.
+    $('#profile-data-firstname').textContent = (user && user.firstName) || '—';
+    $('#profile-data-lastname').textContent = (user && user.lastName) || '—';
+    $('#profile-data-username').textContent = user && user.username ? `@${user.username}` : '—';
+    $('#profile-data-displayname').textContent = (user && user.displayName) || name || '—';
+
+    // MIS DATOS — Datos personales/deportivos.
     const age = user ? PLI.calculateAge(user.birthDate) : null;
     $('#profile-birthdate').textContent = (user && user.birthDate)
       ? `${formatBirthDate(user.birthDate)}${age !== null ? ` (${age} años)` : ''}`
@@ -6859,6 +7003,27 @@
     $('#profile-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
     $('#profile-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
     $('#profile-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
+
+    // MIS DATOS — Acceso y seguridad.
+    $('#profile-data-email').textContent = (user && user.email) || '—';
+    const accessPending = !user || !user.email;
+    $('#profile-access-pending').hidden = !accessPending;
+    $('#profile-change-password-btn').hidden = accessPending;
+
+    // V03.0.1 (§1) — aviso discreto "Completá tus datos": chequeo de presencia simple, sin
+    // nueva lógica de negocio (nunca reemplaza al banner de acceso pendiente, que es sobre
+    // email/contraseña, no sobre estos campos).
+    const missing = [];
+    if (user) {
+      if (!user.firstName) missing.push('nombre');
+      if (!user.birthDate) missing.push('fecha de nacimiento');
+      if (!user.gender) missing.push('género');
+      if (!user.dominantHand) missing.push('mano dominante');
+      if (!user.preferredSide) missing.push('lado habitual');
+      if (!user.declaredCategory) missing.push('categoría');
+    }
+    $('#profile-incomplete-banner').hidden = missing.length === 0;
+    if (missing.length) $('#profile-incomplete-text').textContent = `Todavía falta: ${missing.join(', ')}.`;
 
     renderProfileEvolution(user);
   }
@@ -6972,12 +7137,37 @@
     }
   }
 
+  /** V03.0.1 (§1/§7) — único punto de entrada a Perfil (bottom nav + tap al avatar del Home):
+   *  gate interno igual a openPlayerHome/openManualLoadScreen (protección adicional, el
+   *  ocultamiento visual de la barra ya lo maneja showView). `tab` abre directo en esa
+   *  pestaña — MI PERFIL por defecto (consolidado §1: ícono Perfil y tap en el Home van
+   *  ambos a MI PERFIL). */
+  function openProfileScreen(tab) {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    setProfileTab(tab || 'mi-perfil');
+    renderProfileView();
+    showView('profile');
+  }
+
+  /** V03.0.1 (§7) — mismo gate, Ranking no tenía wrapper propio (solo showView('ranking')
+   *  inline en initBottomNav) ni gate. */
+  function openRankingScreen() {
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    showView('ranking');
+  }
+
   function initProfileScreen() {
+    $('#profile-tab-mi-perfil').textContent = PROFILE_TAB_LABELS['mi-perfil'];
+    $('#profile-tab-mis-datos').textContent = PROFILE_TAB_LABELS['mis-datos'];
+    $('#profile-tab-mi-perfil').addEventListener('click', () => setProfileTab('mi-perfil'));
+    $('#profile-tab-mis-datos').addEventListener('click', () => setProfileTab('mis-datos'));
     // V02.8 (§1) — mismo criterio que el back de Ranking: openPlayerHome() re-renderiza el
     // Home (y anima) al volver, en vez de solo des-ocultar la vista con el contenido viejo.
     $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
     $('#profile-logout-btn').addEventListener('click', requestLogout);
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
+    $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
     const chartWrap = $('#evolution-chart-wrap');
     chartWrap.addEventListener('click', (e) => {
@@ -7002,9 +7192,12 @@
   // vez que se abre el modal, aunque la cuenta real no tenga ese campo cargado todavía.
   let profileEditHand = null;
   let profileEditSide = null;
+  let profileEditGender = null; // V03.0.1 (§2) — mismo criterio que hand/side: género pasó de <select> a option-row.
 
   /** V03.0 (§5) — abre la edición de Perfil precargada con los datos actuales del Usuario.
-   *  Nunca edita inline la vista de Perfil — mismo patrón overlay que el resto de la app. */
+   *  Nunca edita inline la vista de Perfil — mismo patrón que el resto de la app.
+   *  V03.0.1 (§2) — pasa de modal a pantalla completa (#view-edit-data). Nombre de función
+   *  sin cambios a propósito (menor superficie de cambio) aunque ya no abre un modal. */
   function openProfileEditModal() {
     const user = Store.getCurrentUser();
     if (!user) return;
@@ -7012,6 +7205,7 @@
     profileEditPhotoRemoved = false;
     profileEditHand = user.dominantHand || null;
     profileEditSide = user.preferredSide || null;
+    profileEditGender = user.gender || null;
     setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', user.profilePhoto, user.displayName);
     $('#profile-edit-avatar-remove-btn').hidden = !user.profilePhoto;
     $('#profile-edit-first-name').value = user.firstName || '';
@@ -7020,17 +7214,19 @@
     $('#profile-edit-username-feedback').textContent = '';
     $('#profile-edit-display-name').value = user.displayName || '';
     $('#profile-edit-birthdate').value = user.birthDate || '';
-    $('#profile-edit-gender').value = user.gender || '';
     $('#profile-edit-category').value = user.declaredCategory || '';
+    resetOptionGroup('profile-edit-gender-options');
     resetOptionGroup('profile-edit-hand-options');
     resetOptionGroup('profile-edit-side-options');
+    if (user.gender) $(`#profile-edit-gender-options [data-value="${user.gender}"]`).click();
     if (user.dominantHand) $(`#profile-edit-hand-options [data-value="${user.dominantHand}"]`).click();
     if (user.preferredSide) $(`#profile-edit-side-options [data-value="${user.preferredSide}"]`).click();
     $('#profile-edit-error').hidden = true;
-    $('#profile-edit-modal').hidden = false;
+    showView('edit-data');
   }
 
   function initProfileEditModal() {
+    wireOptionGroup('profile-edit-gender-options', (v) => { profileEditGender = v; });
     wireOptionGroup('profile-edit-hand-options', (v) => { profileEditHand = v; });
     wireOptionGroup('profile-edit-side-options', (v) => { profileEditSide = v; });
 
@@ -7055,11 +7251,11 @@
       $('#profile-edit-avatar-remove-btn').hidden = true;
     });
 
-    $('#profile-edit-cancel').addEventListener('click', () => { $('#profile-edit-modal').hidden = true; });
+    $('#profile-edit-cancel').addEventListener('click', () => showView('profile'));
     $('#profile-edit-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
-      if (!user) { $('#profile-edit-modal').hidden = true; return; }
+      if (!user) { showView('profile'); return; }
       const username = $('#profile-edit-username').value.trim();
       const displayName = normalizePlayerName($('#profile-edit-display-name').value);
       const firstName = $('#profile-edit-first-name').value.trim();
@@ -7076,7 +7272,7 @@
         username,
         displayName,
         birthDate: $('#profile-edit-birthdate').value || null,
-        gender: $('#profile-edit-gender').value || null,
+        gender: profileEditGender,
         dominantHand: profileEditHand,
         preferredSide: profileEditSide,
         declaredCategory: $('#profile-edit-category').value || null,
@@ -7094,8 +7290,9 @@
         Store.rememberPlayerNames([displayName]);
       }
       syncCurrentIdentityFromStore();
-      $('#profile-edit-modal').hidden = true;
       renderProfileView();
+      showView('profile');
+      showToast('Datos guardados');
     });
   }
 
@@ -7112,8 +7309,8 @@
         if (target === 'player-home') openPlayerHome();
         else if (target === 'history') openHistoryScreen('player-home');
         else if (target === 'manual-load') openRegisterSheet();
-        else if (target === 'ranking') showView('ranking');
-        else if (target === 'profile') { renderProfileView(); showView('profile'); }
+        else if (target === 'ranking') openRankingScreen();
+        else if (target === 'profile') openProfileScreen('mi-perfil');
       });
     });
   }
@@ -7436,6 +7633,7 @@
     initSignupWizard();
     initPlayerCardScreen();
     initCompleteAccessModal();
+    initChangePasswordScreen();
     initLogoutWarningModal();
     initBottomNav();
     initRegisterSheet();

@@ -1039,11 +1039,13 @@
            tendencia/badge "DATOS DEMO · BETA"). Nivel BRAMU sigue siendo demo centralizado
            (LEVEL_DEMO en app.js, nunca un algoritmo real); la cantidad de partidos SÍ es
            real, derivada del historial. -->
-      <div class="pastilla player-card">
-        <!-- V02.1 (§19) — avatar genérico local (nunca foto real ni servicio externo): mismo
-             lenguaje lineal que el resto de la iconografía SVG de la app. -->
+      <div class="pastilla player-card" id="player-home-card" role="button" tabindex="0">
+        <!-- V02.1 (§19) — avatar genérico local, fallback cuando no hay foto de perfil.
+             V03.0.1 (§3) — si `currentUser.profilePhoto` existe, se muestra esa foto acá
+             (misma fuente que Perfil/Editar Datos, sin duplicar almacenamiento). -->
         <div class="player-card__avatar" aria-hidden="true">
           <svg viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
+          <img id="player-home-avatar-img" class="player-card__avatar-img" alt="" hidden />
         </div>
         <div class="player-card__info">
           <div class="player-card__name" id="player-home-name">—</div>
@@ -1207,81 +1209,120 @@
       <button id="profile-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
       <span class="analysis-header__title">PERFIL</span>
     </div>
+    <!-- V03.0.1 (§1) — Perfil pasa de una sola pantalla larga a 2 pestañas: MI PERFIL (ficha
+         deportiva de lectura) y MIS DATOS (identidad + datos personales + acceso/seguridad).
+         Mismo patrón visual que .history-tabs (Historial), solo 2 pestañas fijas sin conteos.
+         Los textos "MI PERFIL"/"MIS DATOS" son PROFILE_TAB_LABELS (app.js) — un único lugar
+         para poder renombrarlos sin tocar lógica (consolidado §1). -->
+    <div class="profile-tabs" id="profile-tabs" role="tablist" aria-label="Perfil">
+      <button type="button" class="profile-tab" id="profile-tab-mi-perfil" data-tab="mi-perfil" role="tab" aria-selected="true"></button>
+      <button type="button" class="profile-tab" id="profile-tab-mis-datos" data-tab="mis-datos" role="tab" aria-selected="false"></button>
+    </div>
     <div class="analysis-scroll">
-      <!-- V03.0 (§5) — identidad del jugador: avatar + nombre visible + @usuario, editables
-           solo vía #profile-edit-modal (nunca inline). -->
-      <div class="pastilla pastilla--identity">
-        <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
-          <span id="profile-avatar-initials">—</span>
-          <img id="profile-avatar-img" alt="" hidden />
-        </div>
-        <div class="pastilla-identity__info">
-          <div class="pastilla-identity__name" id="profile-display-name">—</div>
-          <div class="pastilla-identity__handle" id="profile-username">—</div>
-          <p class="coverage-note" id="profile-match-count"></p>
-        </div>
-      </div>
-
-      <!-- V03.0 (§3) — visible solo mientras la cuenta no tiene email/contraseña todavía
-           (cuenta legacy migrada automáticamente, o cualquier acceso incompleto). -->
-      <div class="pastilla profile-access-pending" id="profile-access-pending" hidden>
-        <div class="pastilla__title">ACCESO PENDIENTE DE COMPLETAR</div>
-        <p class="coverage-note">Todavía no tenés email y contraseña. Completalos ahora — si cerrás sesión sin hacerlo, no vas a poder volver a entrar a este jugador.</p>
-        <button type="button" id="profile-complete-access-btn" class="btn-start btn-start--overlay">COMPLETAR ACCESO</button>
-      </div>
-
-      <div class="pastilla profile-fields">
-        <div class="profile-field"><span class="profile-field__label">Nombre y apellido</span><span class="profile-field__value" id="profile-fullname">—</span></div>
-        <div class="profile-field"><span class="profile-field__label">Fecha de nacimiento</span><span class="profile-field__value" id="profile-birthdate">—</span></div>
-        <div class="profile-field"><span class="profile-field__label">Género</span><span class="profile-field__value" id="profile-gender">—</span></div>
-        <div class="profile-field"><span class="profile-field__label">Mano hábil</span><span class="profile-field__value" id="profile-hand">—</span></div>
-        <div class="profile-field"><span class="profile-field__label">Lado habitual</span><span class="profile-field__value" id="profile-side">—</span></div>
-        <div class="profile-field"><span class="profile-field__label">Categoría declarada</span><span class="profile-field__value" id="profile-category">—</span></div>
-      </div>
-      <button type="button" id="profile-edit-btn" class="btn-secondary profile-edit-btn">EDITAR PERFIL</button>
-
-      <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
-           oficial ni nivel validado (badge SIMULADO · BETA siempre visible). Consume
-           PH.computeLevelEvolution — la MISMA fuente que la Tarjeta de jugador del Home,
-           nunca una segunda serie paralela. V03.0 (§2/§4): cuentas legacy la ven sin ningún
-           cambio; cuentas nuevas ven el mismo estado CALIBRANDO/CALIBRACIÓN COMPLETA que el
-           Home en vez del gráfico numérico simulado — nunca un número, la fórmula real
-           todavía no existe (ver #evolution-numeric vs #evolution-calibration más abajo). -->
-      <div class="pastilla evolution-card">
-        <div class="pastilla__title-row">
-          <div class="pastilla__title">EVOLUCIÓN DEL NIVEL BRAMU</div>
-          <span class="evolution-card__badge">SIMULADO · BETA</span>
-        </div>
-        <div id="evolution-numeric">
-          <div class="evolution-summary">
-            <div class="evolution-summary__item">
-              <span class="evolution-summary__value" id="evolution-current-value">—</span>
-              <span class="evolution-summary__label">Nivel actual</span>
-            </div>
-            <div class="evolution-summary__item">
-              <span class="evolution-summary__value" id="evolution-change-value">—</span>
-              <span class="evolution-summary__label">Cambio acumulado</span>
-            </div>
-            <div class="evolution-summary__item">
-              <span class="evolution-summary__value" id="evolution-count-value">—</span>
-              <span class="evolution-summary__label">Partidos considerados</span>
-            </div>
+      <div id="profile-panel-mi-perfil" class="profile-panel">
+        <!-- MI PERFIL — ficha deportiva: avatar + nombre visible + @usuario, Nivel BRAMU/
+             evolución (movida tal cual desde la vieja pantalla única), KPIs ya disponibles
+             (partidos, efectividad, racha). Nada editable acá (consolidado §1: "no inventar
+             nuevas estadísticas", "no cambiar la fórmula legacy"). -->
+        <div class="pastilla pastilla--identity">
+          <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
+            <span id="profile-avatar-initials">—</span>
+            <img id="profile-avatar-img" alt="" hidden />
           </div>
-          <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
-          <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
-          <p class="evolution-detail" id="evolution-point-detail" hidden></p>
-          <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
+          <div class="pastilla-identity__info">
+            <div class="pastilla-identity__name" id="profile-display-name">—</div>
+            <div class="pastilla-identity__handle" id="profile-username">—</div>
+            <p class="coverage-note" id="profile-match-count"></p>
+          </div>
         </div>
-        <div class="evolution-calibration" id="evolution-calibration" hidden>
-          <div class="evolution-calibration__state" id="evolution-calibration-state">CALIBRANDO</div>
-          <div class="evolution-calibration__progress" id="evolution-calibration-progress">0 / 5 PARTIDOS</div>
-          <p class="coverage-note">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
+
+        <div class="pastilla profile-fields" id="profile-kpis">
+          <div class="profile-field"><span class="profile-field__label">Efectividad</span><span class="profile-field__value" id="profile-kpi-effectiveness">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Racha actual</span><span class="profile-field__value" id="profile-kpi-streak">—</span></div>
+        </div>
+
+        <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
+             oficial ni nivel validado (badge SIMULADO · BETA siempre visible). Consume
+             PH.computeLevelEvolution — la MISMA fuente que la Tarjeta de jugador del Home,
+             nunca una segunda serie paralela. V03.0 (§2/§4): cuentas legacy la ven sin ningún
+             cambio; cuentas nuevas ven el mismo estado CALIBRANDO/CALIBRACIÓN COMPLETA que el
+             Home en vez del gráfico numérico simulado — nunca un número, la fórmula real
+             todavía no existe (ver #evolution-numeric vs #evolution-calibration más abajo). -->
+        <div class="pastilla evolution-card">
+          <div class="pastilla__title-row">
+            <div class="pastilla__title">EVOLUCIÓN DEL NIVEL BRAMU</div>
+            <span class="evolution-card__badge">SIMULADO · BETA</span>
+          </div>
+          <div id="evolution-numeric">
+            <div class="evolution-summary">
+              <div class="evolution-summary__item">
+                <span class="evolution-summary__value" id="evolution-current-value">—</span>
+                <span class="evolution-summary__label">Nivel actual</span>
+              </div>
+              <div class="evolution-summary__item">
+                <span class="evolution-summary__value" id="evolution-change-value">—</span>
+                <span class="evolution-summary__label">Cambio acumulado</span>
+              </div>
+              <div class="evolution-summary__item">
+                <span class="evolution-summary__value" id="evolution-count-value">—</span>
+                <span class="evolution-summary__label">Partidos considerados</span>
+              </div>
+            </div>
+            <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
+            <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
+            <p class="evolution-detail" id="evolution-point-detail" hidden></p>
+            <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
+          </div>
+          <div class="evolution-calibration" id="evolution-calibration" hidden>
+            <div class="evolution-calibration__state" id="evolution-calibration-state">CALIBRANDO</div>
+            <div class="evolution-calibration__progress" id="evolution-calibration-progress">0 / 5 PARTIDOS</div>
+            <p class="coverage-note">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
+          </div>
         </div>
       </div>
 
-      <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a una
-           sesión, no a una preferencia libremente reemplazable; ver BRAMU_Rama_Jugador_Auditoria_Funcional.md. -->
-      <button type="button" id="profile-logout-btn" class="link-btn">Cerrar sesión</button>
+      <div id="profile-panel-mis-datos" class="profile-panel" hidden>
+        <!-- V03.0.1 (§1) — aviso discreto, no campana/notificación (eso queda para V03.0.2):
+             solo cuando falten datos clave del perfil. -->
+        <div class="pastilla profile-incomplete-banner" id="profile-incomplete-banner" hidden>
+          <div class="pastilla__title">Completá tus datos</div>
+          <p class="coverage-note" id="profile-incomplete-text"></p>
+        </div>
+
+        <div class="pastilla profile-group">
+          <div class="profile-group__title">IDENTIDAD</div>
+          <div class="profile-field"><span class="profile-field__label">Nombre</span><span class="profile-field__value" id="profile-data-firstname">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Apellido</span><span class="profile-field__value" id="profile-data-lastname">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">@usuario</span><span class="profile-field__value" id="profile-data-username">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Nombre visible</span><span class="profile-field__value" id="profile-data-displayname">—</span></div>
+        </div>
+
+        <div class="pastilla profile-group">
+          <div class="profile-group__title">DATOS PERSONALES / DEPORTIVOS</div>
+          <div class="profile-field"><span class="profile-field__label">Fecha de nacimiento</span><span class="profile-field__value" id="profile-birthdate">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Género</span><span class="profile-field__value" id="profile-gender">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Mano hábil</span><span class="profile-field__value" id="profile-hand">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Lado habitual</span><span class="profile-field__value" id="profile-side">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Categoría declarada</span><span class="profile-field__value" id="profile-category">—</span></div>
+        </div>
+        <button type="button" id="profile-edit-btn" class="btn-secondary profile-edit-btn">EDITAR DATOS</button>
+
+        <div class="pastilla profile-group">
+          <div class="profile-group__title">ACCESO Y SEGURIDAD</div>
+          <div class="profile-field"><span class="profile-field__label">Email</span><span class="profile-field__value" id="profile-data-email">—</span></div>
+          <!-- V03.0 (§3) — visible solo mientras la cuenta no tiene email/contraseña todavía
+               (cuenta legacy migrada automáticamente, o cualquier acceso incompleto). -->
+          <div class="profile-access-pending" id="profile-access-pending" hidden>
+            <p class="coverage-note">Todavía no tenés email y contraseña. Completalos ahora — si cerrás sesión sin hacerlo, no vas a poder volver a entrar a este jugador.</p>
+            <button type="button" id="profile-complete-access-btn" class="btn-secondary">COMPLETAR ACCESO</button>
+          </div>
+          <button type="button" id="profile-change-password-btn" class="btn-secondary profile-security-btn" hidden>Cambiar contraseña</button>
+          <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a
+               una sesión, no a una preferencia libremente reemplazable. V03.0.1 (§6): se
+               reubica acá (antes vivía suelto en Perfil como link perdido). -->
+          <button type="button" id="profile-logout-btn" class="btn-secondary btn-secondary--danger profile-security-btn">CERRAR SESIÓN</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1298,11 +1339,17 @@
       <img class="access-logo" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="access-title">BIENVENIDO A BRAMU</div>
       <p class="access-subtitle">Entrá con tu cuenta o creá tu jugador para empezar.</p>
+      <!-- V03.0.1 (§7, corrección del usuario) — EXACTAMENTE 3 acciones mientras no hay
+           sesión: sin "Cancelar" (esta pantalla es la raíz pública, no hay una pantalla
+           personal a la que volver sin sesión). "REGISTRAR PARTIDO SIN CUENTA" permite jugar
+           en vivo como invitado sin crear cuenta (ver openGuestRegisterFlow, app.js) — la
+           barra inferior personal sigue oculta mientras ese partido esté en curso (mecanismo
+           de showView, no un caso especial acá). -->
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
         <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
+        <button type="button" id="access-guest-btn" class="link-btn">REGISTRAR PARTIDO SIN CUENTA</button>
       </div>
-      <button type="button" id="access-cancel-btn" class="link-btn access-cancel">Cancelar</button>
     </div>
   </section>
 
@@ -1310,11 +1357,17 @@
     <div class="access-scroll">
       <button type="button" id="login-back-btn" class="icon-btn access-back" aria-label="Volver">←</button>
       <div class="access-title">INICIAR SESIÓN</div>
+      <!-- V03.0.1 (§8) — pulido visual: labels persistentes + ojo mostrar/ocultar + CTA menos
+          dominante + error pegado al formulario. Reglas de autenticación sin cambios
+          (Store.loginWithEmail). -->
       <form id="login-form" class="access-form">
-        <div class="field"><input id="login-email" class="field__input" type="email" placeholder="Email" autocomplete="username" /></div>
-        <div class="field"><input id="login-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="current-password" /></div>
+        <div class="field field--labeled"><label class="field-label" for="login-email">Email</label><input id="login-email" class="field__input" type="email" autocomplete="username" /></div>
+        <div class="field field--labeled">
+          <label class="field-label" for="login-password">Contraseña</label>
+          <div class="field-with-toggle"><input id="login-password" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="login-password-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
         <p class="edit-error" id="login-error" hidden>Revisá tu email y contraseña.</p>
-        <button type="submit" class="btn-start btn-start--overlay">INICIAR SESIÓN</button>
+        <button type="submit" class="btn-secondary btn-save">INICIAR SESIÓN</button>
       </form>
     </div>
   </section>
@@ -1480,12 +1533,14 @@
     </div>
   </div>
 
-  <!-- V03.0 (§5) — edición de Perfil: mismo patrón overlay que el resto de la app (nunca
-       edición inline). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/efectividad NO
-       aparecen acá — son computados, no editables (consolidado §5). -->
-  <div id="profile-edit-modal" class="overlay" hidden>
-    <div class="overlay__card overlay__card--wide overlay__card--scroll">
-      <div class="overlay__title">EDITAR PERFIL</div>
+  <!-- V03.0.1 (§2) — "Editar Datos" pasa de modal a pantalla completa: header con volver,
+       scroll natural, labels visibles y persistentes arriba de cada campo (antes
+       placeholder-only). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/efectividad NO
+       aparecen acá — son computados, no editables (consolidado §5 de V03.0, sin cambios). -->
+  <section id="view-edit-data" class="view view--access" hidden>
+    <div class="access-scroll">
+      <button type="button" id="profile-edit-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
+      <div class="access-title">EDITAR DATOS</div>
       <div class="signup-avatar-upload">
         <div class="signup-avatar" id="profile-edit-avatar">
           <span id="profile-edit-avatar-initials">—</span>
@@ -1497,29 +1552,39 @@
       <div class="profile-avatar-row" id="profile-edit-avatar-actions">
         <button type="button" id="profile-edit-avatar-remove-btn" class="link-btn" hidden>Quitar foto</button>
       </div>
-      <form id="profile-edit-form">
-        <div class="field"><input id="profile-edit-first-name" class="field__input" type="text" placeholder="Nombre" maxlength="18" /></div>
-        <div class="field"><input id="profile-edit-last-name" class="field__input" type="text" placeholder="Apellido" maxlength="18" /></div>
-        <div class="field"><input id="profile-edit-username" class="field__input" type="text" placeholder="@usuario" maxlength="20" /></div>
-        <p class="signup-username-feedback" id="profile-edit-username-feedback"></p>
-        <div class="field"><input id="profile-edit-display-name" class="field__input" type="text" placeholder="Nombre visible" maxlength="18" /></div>
-        <div class="field"><input id="profile-edit-birthdate" class="field__input" type="date" /></div>
-        <select id="profile-edit-gender" class="field__input">
-          <option value="">Género</option>
-          <option value="femenino">Femenino</option>
-          <option value="masculino">Masculino</option>
-          <option value="otro">Otro</option>
-          <option value="prefiero-no-decir">Prefiero no decir</option>
-        </select>
-        <div class="option-row" role="radiogroup" aria-label="Mano hábil" id="profile-edit-hand-options">
+      <form id="profile-edit-form" class="access-form">
+        <div class="field field--labeled"><label class="field-label" for="profile-edit-first-name">Nombre</label><input id="profile-edit-first-name" class="field__input" type="text" maxlength="18" /></div>
+        <div class="field field--labeled"><label class="field-label" for="profile-edit-last-name">Apellido</label><input id="profile-edit-last-name" class="field__input" type="text" maxlength="18" /></div>
+        <div class="field field--labeled">
+          <label class="field-label" for="profile-edit-username">@usuario</label>
+          <input id="profile-edit-username" class="field__input" type="text" maxlength="20" />
+          <p class="signup-username-feedback" id="profile-edit-username-feedback"></p>
+        </div>
+        <div class="field field--labeled">
+          <label class="field-label" for="profile-edit-display-name">Nombre visible</label>
+          <input id="profile-edit-display-name" class="field__input" type="text" maxlength="18" />
+          <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
+        </div>
+        <div class="field field--labeled"><label class="field-label" for="profile-edit-birthdate">Fecha de nacimiento</label><input id="profile-edit-birthdate" class="field__input" type="date" /></div>
+        <div class="field-label">Género</div>
+        <div class="option-row option-row--2col" role="radiogroup" aria-label="Género" id="profile-edit-gender-options">
+          <button type="button" class="option-col" data-value="femenino" role="radio" aria-checked="false">Femenino</button>
+          <button type="button" class="option-col" data-value="masculino" role="radio" aria-checked="false">Masculino</button>
+          <button type="button" class="option-col" data-value="otro" role="radio" aria-checked="false">Otro</button>
+          <button type="button" class="option-col" data-value="prefiero-no-decir" role="radio" aria-checked="false">Prefiero no decir</button>
+        </div>
+        <div class="field-label">Mano dominante</div>
+        <div class="option-row" role="radiogroup" aria-label="Mano dominante" id="profile-edit-hand-options">
           <button type="button" class="option-col" data-value="derecha" role="radio" aria-checked="false">Derecha</button>
           <button type="button" class="option-col" data-value="izquierda" role="radio" aria-checked="false">Izquierda</button>
         </div>
+        <div class="field-label">Lado habitual</div>
         <div class="option-row" role="radiogroup" aria-label="Lado habitual" id="profile-edit-side-options">
           <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
           <button type="button" class="option-col" data-value="reves" role="radio" aria-checked="false">Revés</button>
           <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
         </div>
+        <div class="field-label">Categoría actual</div>
         <select id="profile-edit-category" class="field__input">
           <option value="">Categoría actual</option>
           <option value="1">1ª</option>
@@ -1534,24 +1599,28 @@
           <option value="no-se">No sé mi categoría</option>
         </select>
         <p class="edit-error" id="profile-edit-error" hidden></p>
-        <div class="overlay__actions">
-          <button type="button" id="profile-edit-cancel" class="btn-secondary">Cancelar</button>
-          <button type="submit" class="btn-start btn-start--overlay">Guardar</button>
-        </div>
+        <button type="submit" class="btn-secondary btn-save">GUARDAR</button>
       </form>
     </div>
-  </div>
+  </section>
 
-  <!-- V03.0 (§3) — completar acceso de una cuenta legacy (o cualquier cuenta sin email
-       todavía): agrega email+password al MISMO registro, nunca crea una cuenta nueva. -->
-  <div id="complete-access-modal" class="overlay" hidden>
-    <div class="overlay__card">
-      <div class="overlay__title">COMPLETAR ACCESO</div>
-      <p class="overlay__text">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
-      <form id="complete-access-form">
-        <div class="field"><input id="complete-access-email" class="field__input" type="email" placeholder="Email" autocomplete="email" /></div>
-        <div class="field"><input id="complete-access-password" class="field__input" type="password" placeholder="Contraseña" autocomplete="new-password" /></div>
-        <div class="field"><input id="complete-access-password-repeat" class="field__input" type="password" placeholder="Repetir contraseña" autocomplete="new-password" /></div>
+  <!-- V03.0.1 (§4) — "Completar Acceso" pasa de modal a pantalla completa, mismo shell que
+       Editar Datos. Agrega ojo mostrar/ocultar contraseña (wirePasswordToggle, app.js). -->
+  <section id="view-complete-access" class="view view--access" hidden>
+    <div class="access-scroll">
+      <button type="button" id="complete-access-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
+      <div class="access-title">COMPLETAR ACCESO</div>
+      <p class="access-subtitle">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
+      <form id="complete-access-form" class="access-form">
+        <div class="field field--labeled"><label class="field-label" for="complete-access-email">Email</label><input id="complete-access-email" class="field__input" type="email" autocomplete="email" /></div>
+        <div class="field field--labeled">
+          <label class="field-label" for="complete-access-password">Contraseña</label>
+          <div class="field-with-toggle"><input id="complete-access-password" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
+        <div class="field field--labeled">
+          <label class="field-label" for="complete-access-password-repeat">Repetir contraseña</label>
+          <div class="field-with-toggle"><input id="complete-access-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="complete-access-password-repeat-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
         <ul class="password-rules" id="complete-access-password-rules">
           <li data-rule="hasMinLength">Al menos 8 caracteres</li>
           <li data-rule="hasUpper">Una mayúscula</li>
@@ -1560,13 +1629,43 @@
           <li data-rule="hasSymbol">Un símbolo</li>
         </ul>
         <p class="edit-error" id="complete-access-error" hidden></p>
-        <div class="overlay__actions overlay__actions--stacked">
-          <button type="submit" class="btn-start btn-start--overlay">GUARDAR ACCESO</button>
-          <button type="button" id="complete-access-cancel" class="btn-secondary">Cancelar</button>
-        </div>
+        <button type="submit" class="btn-secondary btn-save">GUARDAR ACCESO</button>
       </form>
     </div>
-  </div>
+  </section>
+
+  <!-- V03.0.1 (§5) — "Cambiar contraseña": nuevo, pantalla completa, mismo shell. Prototipo
+       local: compara contraseña actual en texto plano (mismo criterio que Store.loginWithEmail,
+       sin cripto — consolidado §5 lo pide explícitamente así). -->
+  <section id="view-change-password" class="view view--access" hidden>
+    <div class="access-scroll">
+      <button type="button" id="change-password-cancel" class="icon-btn access-back" aria-label="Volver">←</button>
+      <div class="access-title">CAMBIAR CONTRASEÑA</div>
+      <form id="change-password-form" class="access-form">
+        <div class="field field--labeled">
+          <label class="field-label" for="change-password-current">Contraseña actual</label>
+          <div class="field-with-toggle"><input id="change-password-current" class="field__input" type="password" autocomplete="current-password" /><button type="button" class="password-toggle-btn" id="change-password-current-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
+        <div class="field field--labeled">
+          <label class="field-label" for="change-password-new">Nueva contraseña</label>
+          <div class="field-with-toggle"><input id="change-password-new" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-new-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
+        <div class="field field--labeled">
+          <label class="field-label" for="change-password-repeat">Repetir nueva contraseña</label>
+          <div class="field-with-toggle"><input id="change-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="change-password-repeat-toggle" aria-label="Mostrar contraseña">◎</button></div>
+        </div>
+        <ul class="password-rules" id="change-password-rules">
+          <li data-rule="hasMinLength">Al menos 8 caracteres</li>
+          <li data-rule="hasUpper">Una mayúscula</li>
+          <li data-rule="hasLower">Una minúscula</li>
+          <li data-rule="hasNumber">Un número</li>
+          <li data-rule="hasSymbol">Un símbolo</li>
+        </ul>
+        <p class="edit-error" id="change-password-error" hidden></p>
+        <button type="submit" class="btn-secondary btn-save">GUARDAR</button>
+      </form>
+    </div>
+  </section>
 
   <!-- V03.0 (§3) — advertencia antes de cerrar sesión sin acceso completo. No bloquea (son
        datos locales del usuario), pero deja muy claro que sin email/contraseña no hay forma

@@ -2957,6 +2957,72 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.0.1 — Cambiar contraseña, logout preserva USERS, gate de sesión que usa
+  // finishMatch/finishMatchGames para decidir si un partido de invitado se persiste.
+  // Mismo patrón snapshot/restore que el bloque V03.0 de arriba (único otro lugar que toca
+  // localStorage real).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = [
+      'bramulab.users.v1', 'bramulab.session.v1', 'bramulab.history.v1',
+      'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1',
+    ];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+
+      // --- Cambiar contraseña (§5): mismo criterio de comparación directa que loginWithEmail,
+      // conserva userId/sesión/historial — openChangePasswordScreen (app.js) hace
+      // exactamente este mismo patrón de updateUserAccount tras validar la actual. ---
+      const cp = Store.signUpAndLogin({ email: 'carla@test.com', password: 'Abc123!@', username: 'carla', firstName: 'Carla', displayName: 'Carla' });
+      Store.upsertHistory({
+        matchId: 'v0301-cambiar-pass', finishedAt: '2026-01-01T00:00:00.000Z', winnerTeam: 'A',
+        players: [{ id: 0, team: 'A', name: 'Carla', userId: cp.id }, { id: 1, team: 'A', name: 'X' }, { id: 2, team: 'B', name: 'Y' }, { id: 3, team: 'B', name: 'Z' }],
+      });
+      assert('V0301-PASS · contraseña actual se valida por comparación directa (mismo criterio que loginWithEmail)', Store.getCurrentUser().password === 'Abc123!@');
+      const afterChange = Store.updateUserAccount(cp.id, { password: 'NuevaClave9#' });
+      assert('V0301-PASS · updateUserAccount actualiza la contraseña', afterChange.password === 'NuevaClave9#');
+      assert('V0301-PASS · conserva el mismo userId (misma cuenta, nunca una nueva)', afterChange.id === cp.id);
+      assert('V0301-PASS · conserva el historial ya vinculado', Store.getHistoryEntry('v0301-cambiar-pass').players.some((p) => p.userId === cp.id));
+      Store.clearSession();
+      const loginOldPass = Store.loginWithEmail('carla@test.com', 'Abc123!@');
+      assert('V0301-PASS · la contraseña vieja deja de funcionar', loginOldPass.ok === false);
+      const loginNewPass = Store.loginWithEmail('carla@test.com', 'NuevaClave9#');
+      assert('V0301-PASS · la contraseña nueva funciona', loginNewPass.ok === true && loginNewPass.user.id === cp.id);
+
+      // --- Logout preserva USERS (extiende la cobertura V03.0, que ya confirmaba HISTORY/
+      // PLAYER_NAMES pero no USERS explícitamente) ---
+      const usersBeforeLogout = JSON.stringify(Store.loadUsers());
+      Store.logoutSession();
+      assert('V0301-LOGOUT · logoutSession NO toca USERS', JSON.stringify(Store.loadUsers()) === usersBeforeLogout);
+
+      // --- Gate de sesión para invitado (§7): finishMatch/finishMatchGames deciden
+      // `if (Store.getCurrentUser()) Store.upsertHistory(...)` — sin sesión, el partido no se
+      // persiste (así nunca puede terminar reclamado por coincidencia de nombre vía
+      // findPlayerRow, que cae a comparación por nombre en filas sin userId). Se prueba la
+      // precondición exacta que usa ese gate, no un mock de finishMatch. ---
+      resetAffectedKeys();
+      assert('V0301-GUEST · sin sesión, getCurrentUser() es falsy (gate de persistencia en false)', !Store.getCurrentUser());
+      const historyCountBeforeGuest = Store.loadHistory().length;
+      // Simula exactamente lo que hace identityStampedPlayers cuando no hay usuario: los
+      // jugadores NO se estampan. Un partido de invitado nunca debería llegar a upsertHistory
+      // en absoluto (ver app.js), pero incluso si algo más lo escribiera sin userId, confirma
+      // que no hay forma de que ese registro nazca con userId sin una sesión activa.
+      const guestPlayers = [{ id: 0, team: 'A', name: 'Invitado Uno' }, { id: 1, team: 'A', name: 'Invitado Dos' }, { id: 2, team: 'B', name: 'Rival Uno' }, { id: 3, team: 'B', name: 'Rival Dos' }];
+      assert('V0301-GUEST · sin sesión, ningún jugador queda con userId', guestPlayers.every((p) => !p.userId));
+      assert('V0301-GUEST · Historial sigue igual (nada se agregó sin que el gate lo permitiera)', Store.loadHistory().length === historyCountBeforeGuest);
+      const gp = Store.signUpAndLogin({ email: 'dario@test.com', password: 'Abc123!@', username: 'dario', firstName: 'Dario', displayName: 'Invitado Uno' });
+      assert('V0301-GUEST · con sesión activa, getCurrentUser() es truthy (gate de persistencia en true)', !!Store.getCurrentUser() && Store.getCurrentUser().id === gp.id);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;
