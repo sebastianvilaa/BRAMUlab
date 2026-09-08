@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.0.3.1
+## Versión funcional actual: BRAMUlab_V03.0.3.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.0.3.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0.3.1`. Parche corto sobre V03.0.3: agrega el flujo simulado "¿Olvidaste tu contraseña?" en Login (email → código fijo `123456` → nueva contraseña, misma cuenta y `userId` de siempre — la simulación vive solo en la lógica, nunca en un texto de UI), y 3 ajustes menores de Perfil: la cabecera de MI PERFIL muestra solo el Nivel BRAMU actual (sin `+X`/última subida), se quita "Quitar foto" de MI PERFIL y MIS DATOS (la foto sigue siendo editable tocándola), y se retira la palabra "SIMULADO" del badge de Evolución (queda "BETA"). No reabre la arquitectura de identidad/`userId` de V03.0, los modelos de sesión/notificaciones de V03.0.1/V03.0.2, ni el gráfico de Evolución de V03.0.3.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.0.3.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.0.3.2`. Parche corto sobre V03.0.3.1: agrega "¿No recordás tu contraseña?" en Cambiar Contraseña — reutiliza el wizard de recuperación arrancando directo en el paso del código (nunca pide email, usa la cuenta de la sesión activa), y al guardar la sesión sigue siendo válida (no desloguea, vuelve a MIS DATOS) — conviviendo con el camino normal de contraseña actual. Reemplaza la apariencia de "PUNTO A PUNTO | POR GAMES" en Configurar partido: pasa del patrón de botón grande al de pestaña con subrayado (mismo que MI PERFIL/MIS DATOS e Historial), sin tocar la lógica ni la persistencia del modo. No reabre la arquitectura de identidad/`userId` de V03.0, los modelos de sesión/notificaciones de V03.0.1/V03.0.2, ni el resto de las pantallas de V03.0.3/V03.0.3.1.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.0.3.1 (recuperación simulada de contraseña + ajustes menores) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.0.3.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Informe.md) |
+| Qué se especificó en V03.0.3.2 (recuperación desde sesión + tabs de modo) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.0.3.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Informe.md) |
 
 **Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.0.3.1 (recuperación simulada de contraseña + ajustes menores) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.0.3.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Informe.md) |
 | Qué se especificó en V03.0.3 (Perfil deportivo, acceso público y correcciones visuales) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.0.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3_Informe.md) |
 | Qué se especificó en V03.0.2 (sistema visual transversal, Perfil y Notificaciones) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.2_Consolidado.md) |
