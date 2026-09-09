@@ -285,7 +285,12 @@
   // V03.0.2 (§2) — "Con sesión activa, mantener la bottom nav visible en... Editar datos,
   // Cambiar contraseña, Notificaciones... otras pantallas internas donde navegar a Inicio/
   // Historial/Ranking/Perfil sea una salida válida" — se agregan esas 4 acá.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications'];
+  // BRAMUlab_V03.2 (§11) — se agregan 'manual-load'/'match-saved' (Cargar partido jugado /
+  // Confirmar partido): eran las únicas pantallas de carga/configuración de partido que
+  // perdían la navegación inferior con sesión activa, inconsistencia expresa del consolidado.
+  // Ver positionManualContinueBar/showView para el ajuste de layout que esto requiere
+  // (.court-continue-wrap/.load-keypad ya no pueden asumir bottom:0 fijo).
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
@@ -306,6 +311,11 @@
       const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser();
       nav.hidden = !showNav;
       if (showNav) updateBottomNavActive(name);
+      // V03.2 (§11) — alto real de la barra, medido en vivo (nunca adivinado): lo consumen
+      // `.court-scroll`/`.load-keypad`/`.court-continue-wrap` (Carga manual/Confirmar
+      // partido) vía `--bottomnav-h` para no quedar tapados por la nav cuando hay sesión.
+      document.documentElement.style.setProperty('--bottomnav-h', showNav ? `${nav.offsetHeight}px` : '0px');
+      if (name === 'manual-load') positionManualContinueBar();
     }
     // V03.0.3 (§12) — "Volver al inicio" en Configurar partido: SOLO sin sesión (guest en
     // pleno flujo de "registrar partido sin cuenta"). Un único punto de verdad acá (en vez de
@@ -958,12 +968,18 @@
   }
 
   /** Ubica CONTINUAR justo arriba del teclado cuando está abierto (§7.1), o al pie de la
-   *  pantalla cuando está cerrado — medido en vivo, no un alto fijo adivinado. */
+   *  pantalla cuando está cerrado — medido en vivo, no un alto fijo adivinado.
+   *  V03.2 (§11) — suma el alto real de #bottom-nav cuando está visible (con sesión): el
+   *  `bottom` inline que fija acá pisa cualquier valor de CSS, así que ese offset tiene que
+   *  entrar en la cuenta acá también, no solo en `--bottomnav-h` (que sí alcanza para
+   *  #load-keypad, sin `style.bottom` propio). */
   function positionManualContinueBar() {
     const wrap = $('#court-continue-wrap');
     const keypad = $('#load-keypad');
     if (!wrap || !keypad) return;
-    wrap.style.bottom = keypad.hidden ? '0px' : `${keypad.offsetHeight}px`;
+    const nav = $('#bottom-nav');
+    const navH = (nav && !nav.hidden) ? nav.offsetHeight : 0;
+    wrap.style.bottom = keypad.hidden ? `${navH}px` : `${keypad.offsetHeight + navH}px`;
   }
 
   function openManualKeypad(team) {
@@ -1394,7 +1410,10 @@
     if (closeAnyManualOverlay()) return;
     const goBack = () => { if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup'); };
     if (!manualLoadDirty) { goBack(); return; }
-    confirmAction('¿Salir sin guardar?', 'Los datos que ingresaste todavía no se guardaron.', () => { manualLoadDirty = false; goBack(); });
+    // V03.2 (§9) — caso canónico "Salir sin guardar" del consolidado: botones exactos
+    // CANCELAR/SALIR SIN GUARDAR (nunca "Confirmar" genérico), acción de aceptar en rojo
+    // (pérdida real de lo cargado hasta ahora).
+    confirmAction('¿Salir sin guardar?', 'Los datos que ingresaste todavía no se guardaron.', () => { manualLoadDirty = false; goBack(); }, null, 'Salir sin guardar', 'Cancelar', true);
   }
 
   /** Abre la pantalla para cargar un partido nuevo (`editMatch` ausente) o para editar uno ya
@@ -3005,14 +3024,22 @@
   /* ------------------------------------------------------------------ */
   /* CONFIRMACIÓN GENÉRICA                                                */
   /* ------------------------------------------------------------------ */
-  function confirmAction(title, text, onAccept, onCancel, acceptLabel, cancelLabel) {
+  function confirmAction(title, text, onAccept, onCancel, acceptLabel, cancelLabel, danger) {
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
     // V02.9 (§5) — "Eliminar partido" necesita que el botón de aceptar diga "Eliminar" (no el
-    // "Confirmar" genérico) — únicos parámetros nuevos, opcionales: los 5 llamadores previos no
-    // los pasan y siguen viendo "Confirmar"/"Cancelar" sin cambios.
+    // "Confirmar" genérico) — parámetros opcionales: los llamadores que no los pasan siguen
+    // viendo "Confirmar"/"Cancelar" sin cambios.
     $('#confirm-accept').textContent = acceptLabel || 'Confirmar';
     $('#confirm-cancel').textContent = cancelLabel || 'Cancelar';
+    // V03.2 (§9) — 7º parámetro opcional: "Salir sin guardar"/"Eliminar partido" son acciones
+    // destructivas (pérdida de datos), así que el botón de aceptar pasa de lima (`.btn-start`,
+    // acción positiva) a rojo (mismo `.btn-secondary--danger` que Cerrar sesión/Descartar
+    // partido) — nunca un color nuevo. Los llamadores que no lo pasan (mayoría: correcciones
+    // de partido en vivo/carga manual, sin pérdida real) siguen viendo el lima de siempre.
+    $('#confirm-accept').classList.toggle('btn-start', !danger);
+    $('#confirm-accept').classList.toggle('btn-secondary', !!danger);
+    $('#confirm-accept').classList.toggle('btn-secondary--danger', !!danger);
     pendingConfirmAccept = onAccept;
     // Etapa 4.2 (§6.2) — cancel opcional: hasta ahora ningún llamador lo necesitaba (cancelar
     // solo cerraba el modal); editar un set anterior que descartaría un Set 3 ya cargado sí
@@ -4655,7 +4682,12 @@
           openPlayerHome();
         },
         null,
-        'Eliminar'
+        // V03.2 (§9/§10) — caso canónico "Eliminar partido" del consolidado: CANCELAR/
+        // ELIMINAR PARTIDO (no "Eliminar" genérico), rojo en la acción de aceptar (antes
+        // siempre lima vía `.btn-start`, aunque la acción sea destructiva).
+        'Eliminar partido',
+        'Cancelar',
+        true
       );
     };
   }
@@ -7925,11 +7957,16 @@
     // si algo más fallaba en el camino, una caída silenciosa al respaldo viejo). El
     // ocultamiento fuera de pantalla ahora vive en un contenedor PADRE separado
     // (`buildShareImageBlob`), nunca en este nodo. Acá solo van estilos de layout/color.
-    wrap.style.cssText = 'width:540px; background:#0B1211; display:block;'
-      + '--ink:#0B1211; --ink-soft:#10201D; --ink-softer:#16281F; --paper:#F4F7F2;'
-      + '--paper-dim:rgba(244,247,242,0.56); --paper-faint:rgba(244,247,242,0.30);'
-      + '--team-a:#C8FF3D; --team-a-deep:#7FBF14; --team-b:#33A6FF; --team-b-deep:#1E6FBF;'
-      + '--gold:#FFC93D; --star:#FFA93D; --danger:#FF5B54; --line:rgba(244,247,242,0.10);';
+    // BRAMUlab_V03.2 (§2) — BUG REAL: esta paleta quedó congelada desde antes de la migración
+    // de tokens de V02.5/V02.6 (verde-negro heredado + verdes/celestes de equipo viejos, ver
+    // comentario de arriba: "usar exactamente las mismas reglas visuales" — dejó de ser
+    // cierto). La imagen compartida mostraba una marca distinta a la app real. Se reemplaza
+    // por los valores ACTUALES de :root (styles.css) — azul noche + lima/azul BRAMU vigentes.
+    wrap.style.cssText = 'width:540px; background:#050A12; display:block;'
+      + '--ink:#050A12; --ink-soft:#09131F; --ink-softer:#0D1A2A; --paper:#F8FAFC;'
+      + '--paper-dim:#9AA7B5; --paper-faint:#687482;'
+      + '--team-a:#95FF19; --team-a-deep:#66B30F; --team-b:#199FFF; --team-b-deep:#0D6FCC;'
+      + '--gold:#FFC93D; --star:#FFA93D; --danger:#FF5B61; --line:rgba(183,211,235,0.14);';
     return wrap;
   }
 
