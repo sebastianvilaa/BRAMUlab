@@ -853,14 +853,6 @@
     return names.filter(Boolean).join(' / ') || '—';
   }
 
-  /** §6.1 — estado contextual del header: qué set se está cargando, o que el partido ya
-   *  quedó completo (justo antes de guardar). */
-  function manualStateLabel(format) {
-    if (manualDecided) return 'PARTIDO COMPLETO';
-    if (format.bestOfSets === 1) return 'RESULTADO';
-    return manualActiveSetIndex === 2 ? 'SET DECISIVO' : `SET ${manualActiveSetIndex + 1}`;
-  }
-
   /** §6.2 — marcador acumulado: solo sets ya CONFIRMADOS. Tocar uno lo reabre para editarlo
    *  (reopenManualSet) sin tocar los que quedan más adelante hasta que el usuario confirme
    *  de nuevo (§6.2 del consolidado: "no borra los posteriores en silencio"). */
@@ -927,7 +919,10 @@
 
   function renderManualScoreboard() {
     const format = E.FORMATS[manualSelectedFormatId];
-    $('#manual-load-status').textContent = manualStateLabel(format);
+    // V03.2.1 (§8) — el header ya no repite el estado del set ("SET 1"/"PARTIDO COMPLETO"):
+    // pasa a ser un título estático ("CARGAR PARTIDO", ver index.html) que explica la acción
+    // general de la pantalla; el estado específico del set vive en el contenido
+    // (#court-current-set-label ya lo muestra como "RESULTADO DEL SET N").
     const bestOfLabel = format.bestOfSets === 1 ? '1 set' : `Mejor de ${format.bestOfSets}`;
     const scoringLabel = MANUAL_SCORING_LINE_LABELS[manualSelectedScoring] || '';
     $('#manual-load-format-mini').textContent = `${format.label} · ${scoringLabel}`;
@@ -6389,7 +6384,9 @@
   let signupDraft = {};
   let signupPhotoDataUrl = null;
 
-  const SIGNUP_STEP_TITLES = { 1: 'CREAR ACCESO', 2: 'TU IDENTIDAD', 3: 'TU PÁDEL' };
+  // BRAMUlab_V03.2.1 (§5) — "CREAR ACCESO" → "CREAR CUENTA" en todo el flujo (nombre real de
+  // la acción que el usuario reconoce, ver botón CREAR CUENTA en Bienvenida).
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU IDENTIDAD', 3: 'TU PÁDEL' };
 
   function resetSignupWizard() {
     signupStep = 1;

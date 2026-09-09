@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.2" />
+<link rel="stylesheet" href="styles.css?v=03.2.1" />
 </head>
 <body>
 
@@ -699,10 +699,12 @@
              Reutiliza el modal de confirmación genérico (#confirm-overlay/confirmAction en
              app.js), mismo componente que "Reiniciar partido"/"Volver al inicio" desde el
              partido en vivo.
-             BRAMUlab_V03.2 (§10) — pasa de `.link-btn` suelto a botón real del sistema
-             (destructivo rojo, ver .analysis-delete-btn en styles.css para el tamaño reducido
-             que lo mantiene por debajo de EDITAR/VOLVER AL INICIO). -->
-        <button id="analysis-delete-btn" class="btn-secondary btn-secondary--danger analysis-delete-btn" type="button">Eliminar partido</button>
+             BRAMUlab_V03.2 (§10) — pasó de `.link-btn` suelto a un botón con relleno rojo.
+             BRAMUlab_V03.2.1 (§10) — vuelve a ser una acción TEXTUAL (sin fondo/pastilla — en
+             producción el botón con relleno seguía compitiendo visualmente con EDITAR/VOLVER
+             AL INICIO): rojo siempre visible, sin underline, notoriamente más chica que las
+             dos de arriba (ver .analysis-delete-btn en styles.css). -->
+        <button id="analysis-delete-btn" class="analysis-delete-btn" type="button">Eliminar partido</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
     </div>
@@ -765,8 +767,12 @@
   <section id="view-manual-load" class="view view--court view--load-match" hidden>
     <div class="court-header">
       <button id="manual-load-back-btn" class="icon-btn court-header__back" type="button" aria-label="Volver">←</button>
+      <!-- BRAMUlab_V03.2.1 (§8) — título estático: la pantalla explica la acción general
+           ("cargar un partido"), no el estado puntual del set (eso vive en el contenido, ver
+           #court-current-set-label). Antes decía "SET 1"/"PARTIDO COMPLETO" acá y se leía raro
+           como título de pantalla. -->
       <div class="court-header__state">
-        <div class="court-header__status" id="manual-load-status">SET 1</div>
+        <div class="court-header__status" id="manual-load-status">CARGAR PARTIDO</div>
         <div class="court-header__format" id="manual-load-format-mini">Clásico · Punto de Oro</div>
       </div>
     </div>
@@ -823,6 +829,15 @@
         </div>
       </div>
 
+      <!-- BRAMUlab_V03.2.1 (§9) — "Resultado válido" vuelve a vivir junto al bloque de
+           resultado (antes quedaba a cientos de píxeles, dentro de la barra fija de CONTINUAR,
+           varias secciones más abajo). Sigue SIN ir adentro de `.court-current-set` (V02.3
+           §4: esa tarjeta se oculta por completo una vez decidido el partido, y el hint
+           JUSTO entonces necesita mostrarse — por eso vive como hermano inmediato, en el flujo
+           normal del scroll: cuando la tarjeta se oculta, el hint queda pegado debajo del
+           marcador acumulado, que es "el resultado" visible en ese momento). -->
+      <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
+
       <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
 
       <button type="button" id="load-format-line" class="load-format-line">
@@ -841,11 +856,9 @@
 
     <!-- CONTINUAR (§6.3/§7.1): confirma el set actual y avanza, o guarda el partido cuando ya
          quedó decidido. Fijo inmediatamente arriba del teclado cuando está abierto.
-         V02.3 (Bloque B, §4) — "Resultado válido" vive acá (no dentro de .court-current-set,
-         que queda oculta una vez decidido el partido): la pausa deliberada final muestra este
-         estado justo arriba del único botón CONTINUAR. -->
+         BRAMUlab_V03.2.1 (§9) — "Resultado válido" se mudó junto al bloque de resultado (ver
+         arriba, dentro de .court-scroll) — acá solo queda el botón. -->
     <div class="court-continue-wrap" id="court-continue-wrap">
-      <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
       <button type="button" id="manual-continue-btn" class="court-continue-btn" disabled>CONTINUAR</button>
     </div>
 
@@ -1517,23 +1530,29 @@
   <section id="view-access" class="view view--access" hidden>
     <div class="access-scroll">
       <img class="access-logo" src="icons/logo.png" alt="BRAMU Lab" />
-      <div class="access-title">BIENVENIDO A BRAMU</div>
+      <!-- BRAMUlab_V03.2.1 (§3) — se retira el título "BIENVENIDO A BRAMU": el logo (ya
+           protagonista arriba, ver .access-logo) comunica la marca por sí solo, repetirla en
+           texto quedaba redundante. El subtítulo queda como única entrada, breve y sin volver
+           a nombrar la marca. -->
       <p class="access-subtitle">Entrá con tu cuenta o creá tu jugador para empezar.</p>
       <!-- V03.0.1 (§7, corrección del usuario) — EXACTAMENTE 3 acciones mientras no hay
            sesión: sin "Cancelar" (esta pantalla es la raíz pública, no hay una pantalla
-           personal a la que volver sin sesión). "REGISTRAR PARTIDO SIN CUENTA" permite jugar
-           en vivo como invitado sin crear cuenta (ver openGuestRegisterFlow, app.js) — la
-           barra inferior personal sigue oculta mientras ese partido esté en curso (mecanismo
+           personal a la que volver sin sesión). "REGISTRAR PARTIDO COMO INVITADO" permite
+           jugar en vivo como invitado sin crear cuenta (ver openGuestRegisterFlow, app.js) —
+           la barra inferior personal sigue oculta mientras ese partido esté en curso (mecanismo
            de showView, no un caso especial acá).
            V03.0.2 (§10) — jerarquía 1-2-3 explícita: la tercera acción deja de ser un
            `.link-btn` (se leía como un link olvidado/"cancelar") y pasa a un botón ghost/
-           outline deliberado, con texto de apoyo. -->
+           outline deliberado.
+           BRAMUlab_V03.2.1 (§3) — "REGISTRAR PARTIDO SIN CUENTA" → "REGISTRAR PARTIDO COMO
+           INVITADO" (nombra a quién juega, no la ausencia de cuenta) y se retira el texto de
+           apoyo ("Jugá sin crear perfil ni guardar historial.") — no hacía falta explicar de
+           más una acción ya autoexplicativa. -->
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
         <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
         <button type="button" id="access-guest-btn" class="btn-ghost">
-          <span class="btn-ghost__label">REGISTRAR PARTIDO SIN CUENTA</span>
-          <span class="btn-ghost__hint">Jugá sin crear perfil ni guardar historial.</span>
+          <span class="btn-ghost__label">REGISTRAR PARTIDO COMO INVITADO</span>
         </button>
       </div>
     </div>
@@ -1547,6 +1566,9 @@
       <span class="analysis-header__title">INICIAR SESIÓN</span>
     </div>
     <div class="access-scroll access-scroll--under-header">
+      <!-- BRAMUlab_V03.2.1 (§4) — logo estable de la familia de acceso, centrado debajo de la
+           barra de volver. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <!-- V03.0.1 (§8) — pulido visual: labels persistentes + ojo mostrar/ocultar + CTA menos
           dominante + error pegado al formulario. Reglas de autenticación sin cambios
           (Store.loginWithEmail). -->
@@ -1575,6 +1597,9 @@
       <span class="analysis-header__title" id="forgot-password-step-title">RECUPERAR CONTRASEÑA</span>
     </div>
     <div class="access-scroll access-scroll--under-header">
+      <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca que Login/Crear cuenta, sin
+           excepciones locales dentro de la familia de acceso. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <form id="forgot-password-form" class="access-form">
         <div class="forgot-password-step" data-step="1">
           <p class="access-subtitle">Ingresá el email de tu cuenta para recuperar el acceso.</p>
@@ -1620,9 +1645,11 @@
          flujo de 3 pasos", solo aplicar la constante de header). -->
     <div class="analysis-header">
       <button type="button" id="signup-back-btn" class="icon-btn" aria-label="Volver">←</button>
-      <span class="analysis-header__title" id="signup-step-title">CREAR ACCESO</span>
+      <span class="analysis-header__title" id="signup-step-title">CREAR CUENTA</span>
     </div>
     <div class="access-scroll access-scroll--under-header">
+      <!-- BRAMUlab_V03.2.1 (§5) — mismo logo de marca que Login, mismo patrón. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="signup-progress" aria-hidden="true">
         <span class="signup-progress__dot" data-step-dot="1"></span>
         <span class="signup-progress__dot" data-step-dot="2"></span>
@@ -1875,6 +1902,8 @@
       <span class="analysis-header__title">COMPLETAR ACCESO</span>
     </div>
     <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
+      <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca, sin excepciones locales. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <p class="access-subtitle">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
       <form id="complete-access-form" class="access-form">
         <div class="field field--labeled"><label class="field-label" for="complete-access-email">Email</label><input id="complete-access-email" class="field__input" type="email" autocomplete="email" /></div>
@@ -1908,6 +1937,8 @@
       <span class="analysis-header__title">CAMBIAR CONTRASEÑA</span>
     </div>
     <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
+      <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca, sin excepciones locales. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <form id="change-password-form" class="access-form">
         <div class="field field--labeled">
           <label class="field-label" for="change-password-current">Contraseña actual</label>
@@ -2053,14 +2084,14 @@
         </div>
         <!-- V02.2 (Bloque B, §6) — misma jerarquía exacta para ambas opciones: ninguna usa
              lima sólida ni borde lima (eso quedaba reservado a una sola, dándole falso
-             protagonismo). Mismo icono secundario (chevron) en las dos. -->
+             protagonismo).
+             BRAMUlab_V03.2.1 (§7) — se retira el chevron de las dos: no aportaba (no navegan a
+             un submenú, cada una dispara la acción directamente). -->
         <button type="button" id="register-sheet-load-played" class="sheet-option">
           <span class="sheet-option__label">Cargar mi partido jugado</span>
-          <span class="sheet-option__icon" aria-hidden="true">›</span>
         </button>
         <button type="button" id="register-sheet-live" class="sheet-option">
           <span class="sheet-option__label">Registrar partido en vivo</span>
-          <span class="sheet-option__icon" aria-hidden="true">›</span>
         </button>
       </div>
 
@@ -2117,12 +2148,12 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.2"></script>
-  <script src="stats.js?v=03.2"></script>
-  <script src="store.js?v=03.2"></script>
-  <script src="player-home.js?v=03.2"></script>
-  <script src="match-load.js?v=03.2"></script>
-  <script src="player-identity.js?v=03.2"></script>
-  <script src="app.js?v=03.2"></script>
+  <script src="engine.js?v=03.2.1"></script>
+  <script src="stats.js?v=03.2.1"></script>
+  <script src="store.js?v=03.2.1"></script>
+  <script src="player-home.js?v=03.2.1"></script>
+  <script src="match-load.js?v=03.2.1"></script>
+  <script src="player-identity.js?v=03.2.1"></script>
+  <script src="app.js?v=03.2.1"></script>
 </body>
 </html>

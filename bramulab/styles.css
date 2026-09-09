@@ -139,9 +139,15 @@
    parte del mismo sistema en vez de una pieza aislada con paleta propia. El halo del ícono
    "B" (ver .app-splash__b) ya trae su propio glow lima horneado en el PNG: el `drop-shadow`
    extra que había acá lo duplicaba (glow sobre glow) — se retira, no se controla doble. */
+/* BRAMUlab_V03.2.1 (§2) — QA en producción: con `justify-content:center` (centrado matemático)
+   el conjunto se leía "demasiado bajo" — el corrimiento óptico típico de un bloque compacto en
+   el medio exacto del alto real del dispositivo. Se sube con `padding-top` en `vh` (relativo al
+   alto del viewport; a diferencia del `%` de padding, que siempre se resuelve contra el ANCHO,
+   nunca serviría acá) en vez de mover el centrado matemático — nunca se toca el fondo/paleta. */
 #app-splash{
   position: fixed; inset: 0; z-index: 9999;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 18px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  padding-top: 26vh; gap: 20px;
   background:
     radial-gradient(
       circle at 50% 38%,
@@ -153,8 +159,8 @@
   pointer-events: none;
   animation: app-splash-out 1.5s ease forwards;
 }
-.app-splash__b{ width: 116px; height: auto; }
-.app-splash__logo{ width: 168px; height: auto; opacity: 0.92; }
+.app-splash__b{ width: 128px; height: auto; }
+.app-splash__logo{ width: 184px; height: auto; opacity: 0.92; }
 @keyframes app-splash-out{
   0%, 58% { opacity: 1; }
   92% { opacity: 0; }
@@ -164,6 +170,11 @@
 .brand-logo{ display:block; height: auto; }
 .brand-logo--header{ height: 24px; width: auto; }
 .brand-logo--footer{ height: 18px; width: auto; margin: 18px auto 0; opacity: 0.55; }
+/* BRAMUlab_V03.2.1 (§4/§5/§6) — Login/Crear cuenta (y por extensión el resto de la familia con
+   header, §6) suman el wordmark como elemento de marca estable, centrado, debajo de la barra
+   de volver — más presente que el del header (24px) pero lejos del protagonismo de Bienvenida
+   (240px de ancho). Mismo componente en ambas pantallas, nunca una versión distinta por caso. */
+.brand-logo--access{ height: 30px; width: auto; margin: 4px auto 22px; }
 /* V12.1 (§3): logo real en el header del partido en vivo, en vez de texto CSS "BRAMU". */
 /* Etapa 3 (Fase 2, §6) — ahora también es tap target (volver al Home sin descartar). */
 .brand-logo--match-header{ height: 15px; width: auto; flex: none; cursor:pointer; }
@@ -326,12 +337,23 @@ input, select{ font-family: inherit; }
    mayúscula las volvería agresivas) unifica de una sola vez el mayúsculas/minúsculas
    inconsistente en TODA la app (auditoría: "Cancelar"/"CANCELAR", "Confirmar"/"GUARDAR", etc.)
    sin tocar el texto real de cada pantalla — la mayoría del "no tocar" (partido en vivo,
-   ediciones de marcador) queda intacto en lógica/estructura y solo cambia visualmente. */
+   ediciones de marcador) queda intacto en lógica/estructura y solo cambia visualmente.
+   BRAMUlab_V03.2.1 (§1) — la V03.2 unificó color/mayúscula pero `.btn-start` (17px, padding
+   17px, weight 700, tracking .08em) y `.btn-secondary` (13px, padding 13px/16px, weight 800,
+   tracking .03em) seguían siendo dos tipografías/alturas DISTINTAS — la única diferencia entre
+   familias debe ser color/borde/fondo, nunca tipografía. Ambas pasan a una única especificación
+   base (mismo font-size/weight/tracking/altura/padding — el mismo patrón `min-height + padding
+   horizontal + flex centrado` ya probado en el bloque de acciones de Resumen desde V02.8.1, acá
+   generalizado); las variantes de color siguen definidas por separado, sin tocarse. Esto
+   redimensiona TODA la app de una sola vez (incluida "EMPEZAR PARTIDO"/"LISTO"/confirmaciones en
+   vivo) — deliberado: el consolidado pide "no debe existir un botón especial solo porque vive en
+   otra pantalla", así que ya no hay excepción de tamaño por contexto. */
 .btn-start{
-  margin-top: 10px; padding: 17px; border: none; border-radius: var(--radius-card); background: var(--brand-lime);
-  color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(149,255,25,0.22);
+  margin-top: 10px; min-height: 48px; padding: 0 18px; border: none; border-radius: 14px; background: var(--brand-lime);
+  color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.05em; cursor:pointer; box-shadow: 0 10px 24px rgba(149,255,25,0.22);
   transition: transform .1s ease, box-shadow .1s ease; text-transform: uppercase;
+  display:flex; align-items:center; justify-content:center;
 }
 .btn-start:active{ transform: scale(0.98); }
 .btn-start:disabled{ opacity:0.4; cursor:not-allowed; box-shadow:none; }
@@ -339,8 +361,9 @@ input, select{ font-family: inherit; }
 .setup-footer{ margin-top: 14px; text-align:center; font-size: 9px; color: var(--paper-dim); opacity: 0.55; letter-spacing: 0.03em; }
 .btn-secondary{
   background: var(--ink-softer); color: var(--paper); border: 1px solid var(--line);
-  border-radius: 14px; padding: 13px 16px; font-family: var(--font-display); font-weight: 800;
-  font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; cursor:pointer;
+  border-radius: 14px; min-height: 48px; padding: 0 18px; font-family: var(--font-display); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
   flex: 1;
 }
 /* Secundario FUNCIONAL (editar/modificar) — mismo tratamiento tenue que ya usa `--danger`
@@ -356,7 +379,8 @@ input, select{ font-family: inherit; }
   border-radius: 14px; padding: 11px 16px; cursor:pointer;
 }
 .btn-ghost__label{ font-weight: 800; font-size: 13px; letter-spacing: 0.02em; }
-.btn-ghost__hint{ font-weight: 500; font-size: 11px; color: var(--paper-dim); }
+/* BRAMUlab_V03.2.1 (§3) — `.btn-ghost__hint` queda huérfana: era el texto de apoyo bajo
+   "REGISTRAR PARTIDO COMO INVITADO", retirado por no hacer falta explicar de más. */
 /* Etapa 3 (Fase 3) — CARGAR PARTIDO JUGADO: layout de "Detalles del partido" (fecha/hora/
    lugar). Reutiliza .setup-section/.field/.btn-mini/.coverage-note ya existentes — acá solo
    se agregan los wrappers de layout que no existían todavía. El resultado en sí (antes un
@@ -903,28 +927,23 @@ input, select{ font-family: inherit; }
    acciones) suben a 16px vía overrides puntuales más abajo, nunca tocando padding interno. */
 .analysis-section{ margin-bottom: 12px; }
 #analysis-keymoments, #analysis-note-section{ margin-bottom: 16px; }
-/* V02.8.1 (§5) — altura uniforme en el bloque de acciones de Resumen: "VOLVER AL INICIO"
-   (`.btn-start`, padding vertical 17px) quedaba notablemente más alto que "EDITAR PARTIDO"
-   (`.btn-secondary`, padding vertical 13px + 1px de borde) — la jerarquía entre ambos debe
-   venir del color (verde/primario vs. oscuro/secundario), no del tamaño. Alcance acotado a
-   `#analysis-share-section`: nunca una normalización global de `.btn-secondary`/`.btn-start`,
-   que se siguen usando con su altura propia en Setup/sheets/carga manual. `box-sizing:
-   border-box` (global de la app) hace que `min-height` incluya el borde de `.btn-secondary`,
-   así ambos botones terminan exactamente iguales pese al borde que uno tiene y el otro no. */
-#analysis-share-section .btn-secondary,
-#analysis-share-section .btn-start{
-  min-height: 46px; padding: 0 16px; font-size: 14px; border-radius: 14px;
-  display:flex; align-items:center; justify-content:center;
-}
+/* V02.8.1 (§5) — altura uniforme en el bloque de acciones de Resumen: "VOLVER AL INICIO" y
+   "EDITAR PARTIDO" quedaban a alturas distintas.
+   BRAMUlab_V03.2.1 (§1/§10) — ya no hace falta este override: `.btn-start`/`.btn-secondary`
+   comparten una única especificación base (ver arriba), así que EDITAR PARTIDO/VOLVER AL
+   INICIO terminan EXACTAMENTE iguales (tipografía, tamaño, peso, tracking, altura, padding)
+   sin necesitar un scope propio. */
 /* V02.9 (§5) — "Eliminar partido": deliberadamente la acción de MENOR peso visual de todo
    Resumen.
-   BRAMUlab_V03.2 (§10) — el link apagado-hasta-tocar se leía "suelto/extraño" (consolidado):
-   pasa a ser un botón real del sistema (`.btn-secondary.btn-secondary--danger`, mismo
-   tratamiento que "Cerrar sesión"/"Descartar"), rojo siempre visible en vez de solo al
-   presionar — pero notablemente más chico que EDITAR PARTIDO/VOLVER AL INICIO arriba (altura
-   y tipografía reducidas acá, scoped a este botón) para que siga sin competir con ellos. */
-.analysis-delete-btn{ display:flex; width:100%; margin-top: 10px; }
-#analysis-share-section .analysis-delete-btn{ min-height: 38px; padding: 0 16px; font-size: 12px; border-radius: 14px; }
+   BRAMUlab_V03.2.1 (§10) — vuelve a ser una acción TEXTUAL (sin fondo/pastilla — la V03.2 la
+   había convertido en un botón con relleno, que en producción se seguía viendo con
+   protagonismo equivalente a un CTA): rojo siempre visible, centrada, sin subrayado, mucho más
+   chica que EDITAR PARTIDO/VOLVER AL INICIO. Reutiliza `--danger` (nunca un rojo nuevo). */
+.analysis-delete-btn{
+  display:block; width:100%; margin-top: 10px; background:none; border:none; padding: 10px 16px;
+  color: var(--danger); font-family: var(--font-display); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.05em; text-transform: uppercase; text-align:center; cursor:pointer;
+}
 .analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper-dim); margin-bottom: 10px; }
 /* BRAMUlab_V02 (§4.6) — BRAMU Intelligence deja de ser un párrafo colgado: icono propio,
    título, frase de encuadre y una superficie editorial que los agrupa a los tres.
@@ -2042,7 +2061,8 @@ input, select{ font-family: inherit; }
   color: var(--paper); cursor:pointer; transition: border-color .12s ease;
 }
 .sheet-option:active{ transform: scale(0.98); border-color: var(--brand-lime); }
-.sheet-option__icon{ position:absolute; right:16px; top:50%; transform:translateY(-50%); color: var(--court-text-dim); font-size:17px; }
+/* BRAMUlab_V03.2.1 (§7) — `.sheet-option__icon` (chevron) queda huérfana: era exclusiva de las
+   2 opciones de "Registrar partido" que acaban de perderlo, retirada por no aportar. */
 .sheet-option--primary{ background: rgba(149,255,25,0.12); border-color: var(--brand-lime); color: var(--brand-lime); }
 
 .sheet-active-card{
@@ -2191,18 +2211,22 @@ input, select{ font-family: inherit; }
 .court-accumulated__set-score{ font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-accumulated__set:active{ border-color: var(--brand-lime); }
 
-/* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla. */
+/* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla.
+   BRAMUlab_V03.2.1 (§9) — QA en producción: el bloque se percibía chico para el ancho
+   disponible. Más padding/alto en la tarjeta, tope de ancho de cada número subido (130→156px,
+   deja más aire para crecer en pantallas angostas sin llegar a tocarse) y números más grandes
+   (52→60px) — mismo esquema de colores/estados, nada de lógica tocada. */
 .court-current-set{
   background: var(--court-surface); border: 1px solid var(--court-line); border-radius: var(--radius-hero);
-  padding: 18px 16px 16px; margin-bottom: 16px; text-align:center;
+  padding: 22px 16px 20px; margin-bottom: 16px; text-align:center;
 }
-.court-current-set__label{ font-size: 11px; font-weight:800; letter-spacing:0.08em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 10px; }
+.court-current-set__label{ font-size: 11px; font-weight:800; letter-spacing:0.08em; color: var(--court-text-dim); text-transform:uppercase; margin-bottom: 12px; }
 .court-current-set__row{ display:flex; align-items:center; justify-content:center; gap: 14px; }
 .court-score{
-  flex: 1; max-width: 130px; background: var(--court-surface-2); border: 2px solid transparent; border-radius: 16px;
-  padding: 14px 6px 10px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap: 4px;
+  flex: 1; max-width: 156px; background: var(--court-surface-2); border: 2px solid transparent; border-radius: 16px;
+  padding: 18px 6px 13px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap: 5px;
 }
-.court-score__value{ font-family: var(--font-display); font-weight: 800; font-size: 52px; line-height:1; color: var(--paper); font-variant-numeric: tabular-nums; }
+.court-score__value{ font-family: var(--font-display); font-weight: 800; font-size: 60px; line-height:1; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-score.is-empty .court-score__value{ color: var(--court-text-faint); }
 .court-score__name{ font-size: 11px; font-weight:700; color: var(--court-text-dim); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* §6.3 — "el lado activo debe quedar inequívocamente marcado": borde + fondo lima, nunca
@@ -2210,11 +2234,14 @@ input, select{ font-family: inherit; }
 .court-score.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); }
 .court-score.is-active .court-score__value{ color: var(--brand-lime); }
 .court-score__sep{ font-family: var(--font-display); font-size: 28px; color: var(--court-text-faint); flex:none; }
-/* V02.3 (Bloque B, §4) — reubicado dentro de #court-continue-wrap (antes vivía dentro de
-   .court-current-set, que se oculta por completo una vez que el partido queda decidido — el
-   hint nunca llegaba a mostrarse). Centrado explícito: ya no hereda el text-align:center de
-   ese contenedor. */
-.court-current-set__hint{ margin: 0 0 8px; font-size: 12px; font-weight:700; color: var(--brand-lime); text-align:center; }
+/* V02.3 (Bloque B, §4) — vivía dentro de .court-current-set, que se oculta por completo una
+   vez que el partido queda decidido — el hint nunca llegaba a mostrarse, se mudó a
+   #court-continue-wrap.
+   BRAMUlab_V03.2.1 (§9) — vuelve a mudarse, ahora al flujo normal del scroll, inmediatamente
+   después de .court-current-set (nunca adentro, mismo motivo de V02.3): quedaba demasiado
+   lejos del bloque de resultado dentro de la barra fija. Margen ajustado al nuevo contexto
+   (bloque de scroll, no barra fija). */
+.court-current-set__hint{ margin: -6px 0 14px; font-size: 13px; font-weight:700; color: var(--brand-lime); text-align:center; }
 
 .load-match-error{ color: var(--danger); margin: -6px 0 14px; }
 
@@ -2489,17 +2516,10 @@ input, select{ font-family: inherit; }
    logo de ~14px de alto ya no tiene ese rol). Centrado vertical scoped a Bienvenida (nunca al
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
-/* V03.0.3 (§9/§10) — "reducir botones sobredimensionados": el CTA principal de Bienvenida
-   (.btn-start, compartido con "EMPEZAR PARTIDO" en Setup) quedaba con el mismo padding
-   generoso pensado para esa pantalla de tarea; acá, seguido de CREAR CUENTA/REGISTRAR, se
-   sentía desproporcionado. Ajuste scoped, no toca el resto de los usos de .btn-start.
-   BRAMUlab_V03.2 (§6) — CREAR CUENTA (`.btn-secondary`, 13px/13px padding) sumaba una
-   jerarquía tipográfica distinta a INICIAR SESIÓN (17px/14px): el consolidado pide que ambas
-   se diferencien SOLO por color/tratamiento, nunca por tamaño — se iguala acá, scoped a
-   Bienvenida (nunca una normalización global de `.btn-secondary`, que sigue usándose con su
-   tamaño propio de "cancelar" en el resto de la app). */
-.access-actions .btn-start,
-.access-actions .btn-secondary{ padding: 14px 17px; font-size: 17px; }
+/* V03.0.3 (§9/§10) / BRAMUlab_V03.2 (§6) — INICIAR SESIÓN/CREAR CUENTA necesitaban igualarse en
+   tamaño. BRAMUlab_V03.2.1 (§1) — ya no hace falta el scope: `.btn-start`/`.btn-secondary`
+   comparten una única especificación global (ver §7/§8 arriba), así que ambos botones terminan
+   iguales sin necesitar este override. */
 .access-title{
   font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em;
   color: var(--paper); text-align:center; margin-bottom: 6px;
