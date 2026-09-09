@@ -7541,6 +7541,42 @@
     return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg" preserveAspectRatio="xMidYMid meet">${gridHTML}${xLabelsHTML}${lineHTML}</svg>`;
   }
 
+  /** V03.1.3 (§3) — "la línea debe dibujarse/progresar visualmente... breve y limpia...
+   *  consistente con la animación de Efectividad": mismo truco de `stroke-dasharray`/
+   *  `stroke-dashoffset` que ya usa `animateEffectivenessCircle` (acá sobre un `<path>` en vez
+   *  de un `<circle>`, con `getTotalLength()` en vez de la circunferencia conocida), misma
+   *  duración/curva (`EFFECTIVENESS_ANIM_MS`/`--home-anim-ease`) — nunca una animación nueva
+   *  con su propio ritmo. Respeta `prefers-reduced-motion` (deja el trazo completo, sin
+   *  animar). Sin puntos ni tooltips: la única interacción sigue siendo cero (§3, "no agregar
+   *  puntos, tooltips ni interacción nueva"). */
+  function animateEvolutionLine(pathEl) {
+    if (!pathEl || typeof pathEl.getTotalLength !== 'function') return;
+    let length;
+    try { length = pathEl.getTotalLength(); } catch (e) { return; }
+    if (!length) return;
+    pathEl.style.strokeDasharray = `${length}`;
+    pathEl.style.strokeDashoffset = '0';
+    let prefersReducedMotion = false;
+    try { prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* noop */ }
+    if (prefersReducedMotion || typeof pathEl.animate !== 'function') return;
+    const ease = getComputedStyle(document.documentElement).getPropertyValue('--home-anim-ease').trim() || 'ease-out';
+    pathEl.animate(
+      [{ strokeDashoffset: length }, { strokeDashoffset: 0 }],
+      { duration: EFFECTIVENESS_ANIM_MS, easing: ease, fill: 'forwards' }
+    );
+  }
+
+  /** V03.1.3 (§1) — "Mejor nivel BRAMU": mes+año abreviado del partido que alcanzó el pico
+   *  (mismo criterio de fecha "contextual, no crítica" que formatDeclaredCategoryDate — Date
+   *  local directa, sin partes con timezone). */
+  function formatPeakLevelDate(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return `${COMPACT_MONTH_LABELS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
+    } catch (e) { return ''; }
+  }
+
   /** §4.1 — resumen numérico + gráfico, simplificado (V03.1 §11): Nivel actual y cambio en
    *  los ÚLTIMOS 30 DÍAS (ya no "cambio acumulado desde la base", ni partidos considerados/
    *  mejor nivel — esos 2 últimos se retiran de esta cabecera por el pedido explícito de
@@ -7555,6 +7591,10 @@
     const isLegacy = !!(user && user.legacyMigrated);
     $('#evolution-numeric').hidden = !isLegacy;
     $('#evolution-calibration').hidden = isLegacy;
+    // V03.1.3 (§1) — "Mejor nivel BRAMU" es otra lectura de la MISMA serie simulada: mismo
+    // gate que el resto de la Evolución numérica (nunca un número para cuentas en
+    // calibración, la fórmula real todavía no existe para esas cuentas).
+    $('#mi-perfil-peak-card').hidden = !isLegacy;
     // V03.0.3 (§2) — cabecera de MI PERFIL (ficha deportiva): mismo gate y misma fuente que
     // la tarjeta del Home (nunca un número para cuentas en calibración).
     $('#mi-perfil-level-sub').hidden = isLegacy;
@@ -7587,6 +7627,13 @@
     $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
     $('#mi-perfil-level-sub').hidden = true;
 
+    // V03.1.3 (§1/§5) — "Mejor nivel BRAMU": pico histórico de la MISMA serie, nunca un
+    // ranking contra otros usuarios. "ACT" cuando el pico coincide con el nivel actual;
+    // si no, mes+año abreviado del partido que lo alcanzó (PH.computePeakLevel, pura).
+    const peak = PH.computePeakLevel(evolution);
+    $('#mi-perfil-peak-level').textContent = peak.value.toFixed(1);
+    $('#mi-perfil-peak-level-context').textContent = peak.isCurrent ? 'ACT' : formatPeakLevelDate(peak.date);
+
     const wrap = $('#evolution-chart-wrap');
     if (!evolution.points.length) {
       wrap.innerHTML = '';
@@ -7594,6 +7641,11 @@
     } else {
       $('#evolution-empty').hidden = true;
       wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution);
+      // V03.1.3 (§3) — animación sutil de entrada: la línea se dibuja progresivamente, mismo
+      // mecanismo (Web Animations API sobre stroke-dashoffset) y misma duración/curva que la
+      // Efectividad (EFFECTIVENESS_ANIM_MS/--home-anim-ease) — "consistente con la animación
+      // de Efectividad" pedido por el consolidado. Sin puntos, sin tooltips: solo la curva.
+      animateEvolutionLine(wrap.querySelector('.evolution-chart__line'));
     }
   }
 

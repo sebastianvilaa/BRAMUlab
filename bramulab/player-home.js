@@ -709,6 +709,23 @@
     return roundToOneDecimal(evolution.current - levelAtCutoff);
   }
 
+  /** V03.1.3 (§1/§5) — "Mejor nivel BRAMU": el pico histórico de la MISMA serie simulada que ya
+   *  dibuja el gráfico de Evolución (`evolution.points`) — nunca un ranking contra otros
+   *  usuarios, solo el mejor valor dentro del propio historial del jugador (criterio de
+   *  producto explícito del consolidado). Si el pico coincide con el nivel actual, `isCurrent`
+   *  es true (la UI muestra "ACT", sin fecha) — incluye el caso sin partidos, donde el pico es
+   *  la base y `current === base`. Si no coincide, `date` es la fecha del ÚLTIMO partido que
+   *  alcanzó ese pico (el más reciente, ante empates de nivel) — determinístico. */
+  function computePeakLevel(evolution) {
+    let peak = evolution.current;
+    let peakDate = null;
+    (evolution.points || []).forEach((p) => {
+      if (p.level >= peak) { peak = p.level; peakDate = p.playedAt; }
+    });
+    const isCurrent = peak === evolution.current;
+    return { value: peak, isCurrent, date: isCurrent ? null : peakDate };
+  }
+
   /** V03.1 (§9) — igual que computeBestWinStreak, pero además devuelve el rango de fechas
    *  (primer/último partido) del tramo ganador que definió esa mejor racha histórica, para
    *  mostrar contexto temporal breve ("SEP 26" / "SEP–OCT 26"). `null` si nunca hubo racha
@@ -769,7 +786,7 @@
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
     filterHistoryCombined, computeHistoryTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
-    computeLevelChangeLast30Days, computeBestWinStreakRange,
+    computeLevelChangeLast30Days, computeBestWinStreakRange, computePeakLevel,
     LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

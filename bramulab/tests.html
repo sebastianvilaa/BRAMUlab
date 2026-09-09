@@ -3317,6 +3317,54 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.1.3 (§1/§5) — "Mejor nivel BRAMU": pico histórico de la serie de Evolución, NUNCA un
+  // ranking contra otros usuarios (criterio de producto explícito del consolidado). El resto
+  // de la ronda (composición de la tarjeta de Efectividad, animación de entrada del gráfico)
+  // es UI/DOM de app.js, fuera del alcance de tests.html — cubierto por QA manual.
+  // ------------------------------------------------------------------
+  (function () {
+    const player = 'Sebastián';
+
+    // Sin partidos: el pico es la base, coincide con el actual -> "ACT" (isCurrent=true).
+    const evoEmpty = PH.computeLevelEvolution([], player);
+    const peakEmpty = PH.computePeakLevel(evoEmpty);
+    assert('V0313-PICO · sin partidos, el pico es la base y coincide con el actual (ACT)', peakEmpty.value === 5.0 && peakEmpty.isCurrent === true && peakEmpty.date === null, JSON.stringify(peakEmpty));
+
+    // El último partido ES el pico (nivel siempre subiendo): coincide con el actual -> "ACT".
+    const risingMatches = [
+      mkLevelMatch('p1', '2026-08-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+      mkLevelMatch('p2', '2026-08-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+      mkLevelMatch('p3', '2026-08-20T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+    ];
+    const evoRising = PH.computeLevelEvolution(risingMatches, player);
+    const peakRising = PH.computePeakLevel(evoRising);
+    assert('V0313-PICO · nivel siempre en ascenso: el pico ES el actual (ACT)', peakRising.isCurrent === true && peakRising.value === evoRising.current, JSON.stringify(peakRising));
+
+    // Subió y después bajó: el pico queda en el partido intermedio, con SU fecha (no la actual).
+    const upDownMatches = [
+      mkLevelMatch('q1', '2026-08-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // sube
+      mkLevelMatch('q2', '2026-08-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // sube más: PICO
+      mkLevelMatch('q3', '2026-08-20T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'B', 2), // baja
+    ];
+    const evoUpDown = PH.computeLevelEvolution(upDownMatches, player);
+    const peakUpDown = PH.computePeakLevel(evoUpDown);
+    assert('V0313-PICO · subió y bajó: el pico NO coincide con el actual', peakUpDown.isCurrent === false, JSON.stringify(peakUpDown));
+    assert('V0313-PICO · fecha del pico es la del partido que lo alcanzó (q2), no la del último', peakUpDown.date === '2026-08-10T00:00:00.000Z', JSON.stringify(peakUpDown));
+    assert('V0313-PICO · valor del pico es mayor al actual', peakUpDown.value > evoUpDown.current);
+
+    // Empate de nivel en 2 partidos distintos: se queda con la fecha del ÚLTIMO (más reciente).
+    const tiePeakMatches = [
+      mkLevelMatch('w1', '2026-08-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // sube a nivel N: primer pico
+      mkLevelMatch('w2', '2026-08-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'B', 2), // baja
+      mkLevelMatch('w3', '2026-08-20T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // vuelve a subir al MISMO nivel N: empate
+      mkLevelMatch('w4', '2026-08-25T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'B', 2), // baja de nuevo (para que no sea "ACT")
+    ];
+    const evoTiePeak = PH.computeLevelEvolution(tiePeakMatches, player);
+    const peakTie = PH.computePeakLevel(evoTiePeak);
+    assert('V0313-PICO · empate de nivel: se queda con la fecha del más reciente (w3, no w1)', peakTie.date === '2026-08-20T00:00:00.000Z', JSON.stringify(peakTie));
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

@@ -1279,16 +1279,18 @@
           </div>
         </div>
 
-        <!-- V03.1.2 (§1) — Efectividad + Partidos jugados/ganados se fusionan en UNA sola
-             tarjeta (antes 3 tarjetas separadas, V03.1.1): donut+%+label a la izquierda,
-             Partidos jugados/ganados apilados a la derecha con números más grandes
-             (`.profile-performance-matches-value`, mismo tratamiento de "número protagonista"
-             que ya usan los widgets del Home) — aprovecha mejor el espacio que 3 bordes/
-             paddings independientes. Racha actual/Mejor racha siguen siendo 2 tarjetas
-             independientes (sin cambios). Mismos KPIs/fórmulas de siempre. -->
+        <!-- V03.1.2 (§1) — Efectividad + Partidos jugados/ganados fusionados en UNA tarjeta.
+             V03.1.3 (§2) — el label EFECTIVIDAD sube a un título de tarjeta real (mismo
+             `.pastilla__title-row`/`.pastilla__title` que el resto de la app, ej. la propia
+             Efectividad del Home), liberando toda la fila de abajo para el donut (agrandado) +
+             Partidos jugados/ganados con números más grandes. Racha actual/Mejor racha siguen
+             siendo 2 tarjetas independientes (sin cambios). Mismos KPIs/fórmulas de siempre. -->
         <div class="profile-performance" id="profile-kpis">
           <div class="pastilla profile-performance-card--merged">
-            <div class="profile-performance-hero__donut">
+            <div class="pastilla__title-row">
+              <div class="pastilla__title">EFECTIVIDAD</div>
+            </div>
+            <div class="profile-performance-card--merged__body">
               <div class="effectiveness-donut effectiveness-donut--lg">
                 <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
                   <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
@@ -1297,16 +1299,15 @@
                 </svg>
                 <span class="effectiveness-donut__value" id="mi-perfil-effectiveness-value">—</span>
               </div>
-              <span class="profile-performance-card__label">EFECTIVIDAD</span>
-            </div>
-            <div class="profile-performance-matches">
-              <div class="profile-performance-matches__item">
-                <span class="mini-stat__label">Partidos jugados</span>
-                <span class="profile-performance-matches__value" id="mi-perfil-played">—</span>
-              </div>
-              <div class="profile-performance-matches__item">
-                <span class="mini-stat__label">Partidos ganados</span>
-                <span class="profile-performance-matches__value" id="mi-perfil-won">—</span>
+              <div class="profile-performance-matches">
+                <div class="profile-performance-matches__item">
+                  <span class="mini-stat__label">Partidos jugados</span>
+                  <span class="profile-performance-matches__value" id="mi-perfil-played">—</span>
+                </div>
+                <div class="profile-performance-matches__item">
+                  <span class="mini-stat__label">Partidos ganados</span>
+                  <span class="profile-performance-matches__value" id="mi-perfil-won">—</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1320,6 +1321,17 @@
               <span class="mini-stat__value" id="mi-perfil-best-streak">—</span>
               <span class="mini-stat__sub" id="mi-perfil-best-streak-range" hidden></span>
             </div>
+          </div>
+          <!-- V03.1.3 (§1/§5) — "Mejor nivel BRAMU": pico histórico del PROPIO historial, nunca
+               un ranking contra otros usuarios (nombre elegido a propósito para no generar esa
+               confusión). Asociada al bloque de Rendimiento (no dentro de la tarjeta de
+               Efectividad, para no competir por el espacio recién ganado ahí — consolidado
+               §2). "ACT" cuando el pico es el nivel actual; si no, mes+año del partido que lo
+               alcanzó. -->
+          <div class="pastilla profile-performance-card--mini" id="mi-perfil-peak-card">
+            <span class="mini-stat__label">Mejor nivel BRAMU</span>
+            <span class="mini-stat__value" id="mi-perfil-peak-level">—</span>
+            <span class="mini-stat__sub" id="mi-perfil-peak-level-context"></span>
           </div>
         </div>
 

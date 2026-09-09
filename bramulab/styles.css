@@ -1795,31 +1795,32 @@ input, select{ font-family: inherit; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
-/* V03.1.2 (§1) — RENDIMIENTO de MI PERFIL: Efectividad + Partidos jugados/ganados se
-   fusionan en UNA tarjeta (antes 3 tarjetas separadas, V03.1.1) — donut+%+label a la
-   izquierda, Partidos jugados/ganados apilados a la derecha con números grandes (mismo
-   tratamiento que los widgets de KPI del Home, `.pastilla-widget__value`). Racha actual/
-   Mejor racha siguen en su propia fila de 2 tarjetas independientes (sin cambios). Reusa el
-   componente `.effectiveness-donut` tal cual (nunca un segundo donut paralelo) y las clases
-   de texto `.mini-stat__label`/`__value`/`__sub` ya existentes — solo cambia el contenedor. */
+/* V03.1.2 (§1) — RENDIMIENTO de MI PERFIL: Efectividad + Partidos jugados/ganados fusionados
+   en UNA tarjeta. V03.1.3 (§2) — el título EFECTIVIDAD sube a un `.pastilla__title-row` real
+   (mismo patrón que el resto de la app, ej. la tarjeta de Efectividad del Home) en vez de un
+   label chico junto al donut — libera toda la fila de abajo para agrandar el donut y los
+   números de Partidos jugados/ganados. Racha actual/Mejor racha y la nueva Mejor nivel BRAMU
+   (§1) van debajo, cada una en su propia tarjeta. Reusa `.effectiveness-donut` tal cual (nunca
+   un segundo donut paralelo) y las clases de texto `.mini-stat__label`/`__value`/`__sub`. */
 .profile-performance{ display:flex; flex-direction:column; gap: 10px; }
-/* Todas las `.pastilla` de este bloque (la tarjeta fusionada + las 2 de la fila de rachas)
-   pierden su margin-bottom propio — el espaciado entre ellas lo da SOLO el `gap` del flex
-   contenedor, nunca los dos sumados (mismo bug/fix que .profile-panel más abajo). */
+/* Todas las `.pastilla` de este bloque pierden su margin-bottom propio — el espaciado entre
+   ellas lo da SOLO el `gap` del flex contenedor, nunca los dos sumados (mismo bug/fix que
+   .profile-panel más abajo). */
 .profile-performance .pastilla{ margin-bottom: 0; }
-.profile-performance-card--merged{ display:flex; align-items:center; gap: 16px; }
-.profile-performance-hero__donut{
-  flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 6px;
-}
-.effectiveness-donut--lg{ width: 96px; height:96px; margin: 0; }
-.effectiveness-donut--lg .effectiveness-donut__value{ font-size: 22px; font-weight: 800; }
-.profile-performance-card__label{ font-size: 11px; letter-spacing: 0.05em; color: var(--paper-dim); font-weight: 700; text-transform: uppercase; }
-/* Partidos jugados/ganados: números protagonistas (24px, mismo peso que
-   .pastilla-widget__value del Home) en vez del valor chico (15px) de .mini-stat__value —
-   "agrandar visualmente los números" (consolidado §1). */
-.profile-performance-matches{ flex:1; display:flex; flex-direction:column; justify-content:center; gap: 12px; }
+.profile-performance-card--merged{ display:flex; flex-direction:column; }
+.profile-performance-card--merged__body{ display:flex; align-items:center; gap: 16px; }
+/* V03.1.3 (§2) — "agrandar el donut todo lo que razonablemente permita el layout": 96px→128px
+   (verificado que sigue entrando cómodo junto a la columna de Partidos incluso a 320px de
+   ancho). El valor central crece en la misma proporción (22px→28px). */
+.effectiveness-donut--lg{ width: 128px; height:128px; margin: 0; }
+.effectiveness-donut--lg .effectiveness-donut__value{ font-size: 28px; font-weight: 800; }
+/* Partidos jugados/ganados: números protagonistas (26px, mismo peso que .pastilla-widget__value
+   del Home) en vez del valor chico (15px) de .mini-stat__value — "agrandar visualmente los
+   números" (consolidado §2), un paso más grande que V03.1.2 (24px) gracias al espacio extra
+   que libera el título arriba. */
+.profile-performance-matches{ flex:1; display:flex; flex-direction:column; justify-content:center; gap: 14px; }
 .profile-performance-matches__item{ display:flex; flex-direction:column; gap: 2px; }
-.profile-performance-matches__value{ font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.profile-performance-matches__value{ font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .profile-performance-row{ display:flex; gap: 10px; align-items:stretch; }
 .profile-performance-card--mini{ display:flex; flex-direction:column; justify-content:center; gap: 2px; flex:1; }
 .profile-performance-card--half{ flex:1; }
