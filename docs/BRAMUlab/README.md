@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.1
+## Versión funcional actual: BRAMUlab_V03.1.1
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1`. Rediseña MI PERFIL como ficha deportiva: Edad/Mano dominante/Lado habitual se integran a la cabecera de identidad, `@usuario` gana presencia, la categoría deja de mostrarse ahí (queda solo en MIS DATOS con su fecha de declaración), y RENDIMIENTO pasa a tener a Efectividad como KPI protagonista (donut del Home agrandado) con Racha actual/Mejor racha debajo (esta última con contexto temporal, "SEP 26"/"SEP–OCT 26"; racha actual muestra "—" en vez de texto sobre la derrota). La Evolución del Nivel BRAMU se simplifica: cabecera a 2 datos (Nivel actual + cambio en los últimos 30 días), gráfico sin puntos/tooltips por partido, eje Y en pasos fijos de 0.25, eje X con densidad/formato adaptativos. MIS DATOS se compacta (Identidad de ~9 líneas a 3, datos personales/deportivos agrupados en filas), Cambiar contraseña gana touch target de 48px, y Cerrar sesión se separa a su propia tarjeta con confirmación previa. No reabre la arquitectura de identidad/`userId` de V03.0 salvo el campo nuevo `declaredCategoryAt`, ni los modelos de sesión/notificaciones/recuperación de contraseña de rondas anteriores.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.1`. Pulido visual de Perfil sobre V03.1: corrige la alineación de Edad/Mano dominante/Lado habitual en MI PERFIL (un label que envuelve a 2 líneas ya no corre su valor respecto a los demás), reemplaza el bloque único de RENDIMIENTO por 5 tarjetas independientes sin título de sección (Efectividad protagonista + Partidos jugados/ganados + Racha actual/Mejor racha), y retira las etiquetas "SEM X" del eje X de Evolución (fechas reales para rangos cortos/medios, solo mes para rangos largos). MIS DATOS pierde los títulos redundantes "TUS DATOS"/"IDENTIDAD" y el botón de edición se integra dentro de la propia tarjeta de identidad. Sin cambios de lógica ni de arquitectura — puramente visual/markup.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.1 (rediseño de MI PERFIL + compactación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md) |
+| Qué se especificó en V03.1.1 (pulido de MI PERFIL + simplificación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md) |
 
 **Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.1 (rediseño de MI PERFIL + compactación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md) |
 | Qué se especificó en V03.0.3.2 (recuperación desde sesión + tabs de modo) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.0.3.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Informe.md) |
 | Qué se especificó en V03.0.3.1 (recuperación simulada de contraseña + ajustes menores) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.1_Consolidado.md) |
