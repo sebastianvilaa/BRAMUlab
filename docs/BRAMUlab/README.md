@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.1.3
+## Versión funcional actual: BRAMUlab_V03.1.4
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.3"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.3`. Microparche final de MI PERFIL sobre V03.1.2: agrega "Mejor nivel BRAMU" (pico histórico del propio nivel del jugador — nunca un ranking contra otros usuarios, `ACT` si coincide con el actual o mes+año si no), renueva la composición de la tarjeta de Efectividad (título arriba, donut más grande, números de Partidos jugados/ganados más grandes) y agrega una animación sutil de entrada al gráfico de Evolución (la línea se dibuja progresivamente, mismo mecanismo que el donut de Efectividad). Sin cambios de lógica de negocio ni de arquitectura.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.4"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.4`. Ajuste corto sobre V03.1.3, a partir de feedback directo mirando la versión ya publicada: "Mejor nivel BRAMU" se muda de una tarjeta propia a la tarjeta de Evolución (Nivel actual/Cambio a la izquierda, Mejor nivel BRAMU anclado a la derecha), el espaciado vertical de MI PERFIL y MIS DATOS se unifica a 12px en toda la pantalla (igual que Home, antes 14px y 10px mezclados) y el donut de Efectividad se achica un poco (128px→112px). Sin cambios de lógica de negocio ni de arquitectura.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.1.3 (microparche final de MI PERFIL) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.1.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Informe.md) |
+| Qué se especificó en V03.1.4 (ajuste de composición en Evolución + ritmo vertical) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Informe.md) |
 
 **Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.1.3 (microparche final de MI PERFIL) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.3_Informe.md) |
 | Qué se especificó en V03.1.2 (microparche de composición en Perfil) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.1.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Informe.md) |
 | Qué se especificó en V03.1.1 (pulido de MI PERFIL + simplificación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md) |
