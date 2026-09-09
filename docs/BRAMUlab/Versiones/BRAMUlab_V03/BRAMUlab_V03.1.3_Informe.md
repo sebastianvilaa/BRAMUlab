@@ -133,7 +133,7 @@ compartidos que pudieran afectarlos — la única pieza compartida tocada,
 ## 8. Hash exacto y tag
 
 - Commit de implementación (código): `62359325ca29e18729b7bf09ba8843e0c8fba507`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `3a98ca77a11365019e8a603e4ab7ef8289d72308`.
 - Tag `BRAMUlab_V03.1.3` apuntará al commit inmediatamente posterior a este.
 
 ---
