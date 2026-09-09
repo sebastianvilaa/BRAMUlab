@@ -2367,9 +2367,13 @@ input, select{ font-family: inherit; }
   padding: 3px 9px; text-transform:uppercase; margin-left: auto;
 }
 .evolution-card .pastilla__title-row{ margin-bottom: 14px; }
-/* V03.0.3 (§3) — pasa de 3 a 4 valores (se agrega "Mejor nivel"): flex-wrap para que en
-   mobile angosto pase a 2 filas de 2 en vez de comprimir/desbordar. */
-.evolution-summary{ display:flex; flex-wrap:wrap; row-gap: 10px; column-gap: 18px; margin-bottom: 14px; }
+/* V03.1.5 — `flex-wrap:wrap` (heredado de un layout de 4 valores de V03.0.3, ya no vigente)
+   hacía que "Mejor nivel BRAMU" (flex:0 0 auto, sin lugar en la fila a 320-375px) saltara a su
+   propia línea en vez de quedar en la misma fila que Nivel actual/Cambio — bug real reportado
+   por el usuario mirando la V03.1.4 en vivo. `nowrap` fuerza los 3 ítems a una sola fila
+   siempre: si el espacio aprieta, son los labels de Nivel actual/Cambio (flex:1 1 38%, con
+   shrink) los que ceden envolviendo a 2 líneas — nunca la fila entera salta de renglón. */
+.evolution-summary{ display:flex; flex-wrap:nowrap; column-gap: 18px; margin-bottom: 14px; }
 .evolution-summary__item{ flex: 1 1 38%; }
 .evolution-summary__item{ display:flex; flex-direction:column; gap: 2px; }
 .evolution-summary__value{ font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
