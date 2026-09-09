@@ -1279,16 +1279,16 @@
           </div>
         </div>
 
-        <!-- V03.1 (§5/§6/§7) — RENDIMIENTO rediseñado: Efectividad pasa a ser el KPI
-             protagonista (mismo donut que la tarjeta de Efectividad del Home, ver
-             renderProfileEffectivenessDonut), con Partidos jugados/ganados apilados al lado
-             (nunca repiten el "X/Y" que ya lee el donut). Racha actual/Mejor racha quedan
-             debajo, separadas por una línea — mismos 5 KPIs de siempre, sin agregar
-             "derrotas" como dato protagonista (§10). -->
-        <div class="profile-group__title">RENDIMIENTO</div>
-        <div class="pastilla profile-performance-card" id="profile-kpis">
-          <div class="profile-performance-hero">
-            <div class="profile-performance-hero__donut">
+        <!-- V03.1.1 (§2/§3/§4) — RENDIMIENTO pasa de un único bloque con título a 5 tarjetas
+             independientes ("los KPIs deben leerse por sí mismos", sin título de sección).
+             Efectividad sigue siendo el mismo donut de la tarjeta de Efectividad del Home
+             (ver renderProfileEffectivenessDonut), en su propia tarjeta más grande, compartiendo
+             fila con Partidos jugados/ganados apilados (nunca repiten el "X/Y" que ya lee el
+             donut). Racha actual/Mejor racha van en una segunda fila, cada una en su propia
+             tarjeta. Mismos 5 KPIs/fórmulas de siempre, sin agregar "derrotas" (§10 de V03.1). -->
+        <div class="profile-performance" id="profile-kpis">
+          <div class="profile-performance-row">
+            <div class="pastilla profile-performance-card--effectiveness">
               <div class="effectiveness-donut effectiveness-donut--lg">
                 <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
                   <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
@@ -1297,16 +1297,25 @@
                 </svg>
                 <span class="effectiveness-donut__value" id="mi-perfil-effectiveness-value">—</span>
               </div>
-              <span class="profile-performance-hero__label">EFECTIVIDAD</span>
+              <span class="profile-performance-card__label">EFECTIVIDAD</span>
             </div>
             <div class="profile-performance-stack">
-              <div class="mini-stat"><span class="mini-stat__label">Partidos jugados</span><span class="mini-stat__value" id="mi-perfil-played">—</span></div>
-              <div class="mini-stat"><span class="mini-stat__label">Partidos ganados</span><span class="mini-stat__value" id="mi-perfil-won">—</span></div>
+              <div class="pastilla profile-performance-card--mini">
+                <span class="mini-stat__label">Partidos jugados</span>
+                <span class="mini-stat__value" id="mi-perfil-played">—</span>
+              </div>
+              <div class="pastilla profile-performance-card--mini">
+                <span class="mini-stat__label">Partidos ganados</span>
+                <span class="mini-stat__value" id="mi-perfil-won">—</span>
+              </div>
             </div>
           </div>
-          <div class="profile-performance-divider mini-stat-grid">
-            <div class="mini-stat"><span class="mini-stat__label">Racha actual</span><span class="mini-stat__value" id="profile-kpi-streak">—</span></div>
-            <div class="mini-stat">
+          <div class="profile-performance-row">
+            <div class="pastilla profile-performance-card--mini profile-performance-card--half">
+              <span class="mini-stat__label">Racha actual</span>
+              <span class="mini-stat__value" id="profile-kpi-streak">—</span>
+            </div>
+            <div class="pastilla profile-performance-card--mini profile-performance-card--half">
               <span class="mini-stat__label">Mejor racha</span>
               <span class="mini-stat__value" id="mi-perfil-best-streak">—</span>
               <span class="mini-stat__sub" id="mi-perfil-best-streak-range" hidden></span>
@@ -1364,23 +1373,20 @@
           <p class="coverage-note" id="profile-incomplete-text"></p>
         </div>
 
-        <!-- V03.0.2 (§7) — reemplaza el botón full-width "EDITAR DATOS" (interrumpía la
-             lectura) por una acción de icono lápiz arriba a la derecha de la sección de
-             datos, mismo ícono que el de la foto (pencil-icon). -->
-        <div class="profile-data-header">
-          <span class="profile-data-header__title">TUS DATOS</span>
-          <button type="button" id="profile-edit-btn" class="profile-edit-icon-btn" aria-label="Editar datos">
+        <!-- V03.1.1 (§9/§10) — "TUS DATOS"/"IDENTIDAD" se retiran (la pestaña ya se llama MIS
+             DATOS, y esta es la única tarjeta de identidad — el título era redundante). El
+             lápiz de edición (antes suelto arriba de la tarjeta, en su propio `.profile-data-
+             header`) se integra DENTRO de esta tarjeta, esquina superior derecha
+             (`.profile-identity-card`, position:relative + botón position:absolute) — mismo
+             ícono/acción de siempre (openProfileEditModal), nunca flotando afuera.
+             V03.1 (§15) — Identidad compacta: foto a la izquierda, nombre+apellido/@usuario/
+             nombre visible apilados a la derecha en 3 líneas. Nombre y apellido siguen siendo
+             2 campos reales/editables por separado (Editar Datos); acá se muestran juntos en
+             una sola línea solo para ahorrar espacio, nunca se fusionan en el dato guardado. -->
+        <div class="pastilla profile-group profile-identity-card">
+          <button type="button" id="profile-edit-btn" class="profile-edit-icon-btn profile-identity-card__edit" aria-label="Editar datos">
             <svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg>
           </button>
-        </div>
-        <!-- V03.1 (§15) — Identidad compacta: foto a la izquierda, nombre+apellido/@usuario/
-             nombre visible apilados a la derecha en 3 líneas (antes: foto centrada arriba +
-             4 filas label/valor por separado — mucho más alto). Nombre y apellido siguen
-             siendo 2 campos reales/editables por separado (Editar Datos); acá se muestran
-             juntos en una sola línea solo para ahorrar espacio, nunca se fusionan en el dato
-             guardado. -->
-        <div class="pastilla profile-group">
-          <div class="profile-group__title">IDENTIDAD</div>
           <div class="profile-identity-compact">
             <div class="profile-avatar-edit-wrap">
               <div class="profile-avatar" id="profile-data-avatar" aria-hidden="true">

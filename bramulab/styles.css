@@ -1795,21 +1795,29 @@ input, select{ font-family: inherit; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
 
-/* V03.1 (§5/§6/§7) — RENDIMIENTO de MI PERFIL: Efectividad protagonista (mismo donut del
-   Home, agrandado) + Partidos jugados/ganados apilados al lado, equilibrando su altura contra
-   el donut; debajo, Racha actual/Mejor racha separadas por una línea. Reusa el componente
-   `.effectiveness-donut` tal cual (nunca un segundo donut paralelo), solo con tamaño propio. */
-.profile-performance-card{ display:flex; flex-direction:column; gap: 14px; }
-/* Fila hero: donut (columna fija, izquierda) + Partidos jugados/ganados apilados (columna
-   flexible, derecha) — "la altura combinada de ambos equilibra la altura de Efectividad"
-   (consolidado §7) sale de `align-items:center` + `justify-content:center` en la pila. */
-.profile-performance-hero{ display:flex; align-items:center; gap: 16px; }
-.profile-performance-hero__donut{ display:flex; flex-direction:column; align-items:center; gap: 6px; flex:none; }
+/* V03.1.1 (§2/§3/§4) — RENDIMIENTO de MI PERFIL: sin título de sección ("los KPIs deben
+   leerse por sí mismos"), 5 tarjetas `.pastilla` independientes en vez de un único bloque.
+   Fila 1: Efectividad (donut del Home, agrandado, en su propia tarjeta) + Partidos jugados/
+   ganados apilados en 2 tarjetas más chicas — su altura combinada equilibra la de Efectividad.
+   Fila 2: Racha actual/Mejor racha, cada una en su propia tarjeta. Reusa el componente
+   `.effectiveness-donut` tal cual (nunca un segundo donut paralelo) y las clases de texto
+   `.mini-stat__label`/`__value`/`__sub` ya existentes — solo cambia el contenedor visual. */
+.profile-performance{ display:flex; flex-direction:column; gap: 10px; }
+.profile-performance-row{ display:flex; gap: 10px; align-items:stretch; }
+.profile-performance-row > .pastilla{ margin-bottom: 0; }
+.profile-performance-card--effectiveness{
+  flex:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 6px;
+}
 .effectiveness-donut--lg{ width: 96px; height:96px; margin: 0; }
 .effectiveness-donut--lg .effectiveness-donut__value{ font-size: 22px; font-weight: 800; }
-.profile-performance-hero__label{ font-size: 11px; letter-spacing: 0.05em; color: var(--paper-dim); font-weight: 700; text-transform: uppercase; }
-.profile-performance-stack{ flex:1; display:flex; flex-direction:column; justify-content:center; gap: 12px; }
-.profile-performance-divider{ padding-top: 14px; border-top: 1px solid var(--line); }
+.profile-performance-card__label{ font-size: 11px; letter-spacing: 0.05em; color: var(--paper-dim); font-weight: 700; text-transform: uppercase; }
+/* Columna de Partidos jugados/ganados: mismo ancho restante, 2 tarjetas apiladas con gap —
+   "ambas juntas equilibran la altura de Efectividad" (consolidado §5) sale de `flex:1` en cada
+   mini tarjeta dentro de una columna `align-items:stretch` (Efectividad fija su propia altura,
+   la columna vecina la reparte en 2). */
+.profile-performance-stack{ flex:1; display:flex; flex-direction:column; gap: 10px; }
+.profile-performance-card--mini{ display:flex; flex-direction:column; justify-content:center; gap: 2px; flex:1; }
+.profile-performance-card--half{ flex:1; }
 
 /* ==========================================================================
    Métricas pequeñas (§10)
@@ -2492,7 +2500,10 @@ input, select{ font-family: inherit; }
    líneas cortas — reemplaza el bloque anterior (foto centrada arriba + 4 filas label/valor
    sueltas debajo, mucho más alto). Mismo esqueleto que `.pastilla--identity` de MI PERFIL. */
 .profile-identity-compact{ display:flex; align-items:center; gap: 14px; }
-.profile-identity-compact__info{ flex:1; min-width:0; }
+/* V03.1.1 (§10) — reserva el ancho del lápiz (arriba a la derecha de la tarjeta, ver
+   .profile-identity-card__edit) para que un nombre/apellido largo no corra texto por debajo
+   del botón (bug real, confirmado con "Sebastián Villanueva Gutiérrez" en 320px). */
+.profile-identity-compact__info{ flex:1; min-width:0; padding-right: 40px; }
 .profile-identity-compact__name{ font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); }
 .profile-identity-compact__handle{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
 .profile-identity-compact__display{ font-size: 11px; color: var(--paper-faint); margin-top: 4px; }
@@ -2509,6 +2520,12 @@ input, select{ font-family: inherit; }
 /* V03.1 (§2/§16) — variante de 3 columnas (Edad/Mano dominante/Lado habitual, Género/Mano/
    Lado) — mismo componente, sin duplicar mini-stat/mini-stat__label/value. */
 .mini-stat-grid--3col{ grid-template-columns: 1fr 1fr 1fr; }
+/* V03.1.1 (§1) — a 320px de ancho, "Mano dominante" envuelve a 2 líneas mientras "Edad"/"Lado
+   habitual" quedan en 1: el label más corto no reservaba el mismo alto, así que sus valores
+   arrancaban en Y distintas (bug real, confirmado midiendo getBoundingClientRect). Reservar
+   siempre 2 líneas de alto en el label (envuelva o no) deja el valor de las 3 columnas
+   arrancando siempre en la misma Y, sin tocar el grid en sí. */
+.mini-stat-grid--3col .mini-stat__label{ min-height: 26px; }
 .mini-stat{ display:flex; flex-direction:column; gap:2px; }
 .mini-stat__label{ font-size: 11px; color: var(--paper-dim); }
 .mini-stat__value{ font-size: 15px; font-weight:700; color: var(--paper); font-variant-numeric: tabular-nums; }
@@ -2525,15 +2542,15 @@ input, select{ font-family: inherit; }
 .profile-field__label{ font-size: 12px; color: var(--paper-dim); }
 .profile-field__value{ font-size: 13px; color: var(--paper); font-weight: 700; text-align:right; }
 
-/* V03.0.2 (§7) — reemplaza el botón full-width "EDITAR DATOS": título + ícono lápiz arriba de
-   la sección de datos de MIS DATOS. */
-.profile-data-header{ display:flex; align-items:center; justify-content:space-between; padding: 0 2px; }
-.profile-data-header__title{ font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--paper-dim); font-weight: 700; }
 .profile-edit-icon-btn{
   background: var(--ink-softer); border: 1px solid var(--line); border-radius: 50%;
   width: 34px; height:34px; display:flex; align-items:center; justify-content:center;
   color: var(--paper); cursor:pointer;
 }
+/* V03.1.1 (§10) — el lápiz de edición vive DENTRO de la tarjeta de Identidad (antes en un
+   `.profile-data-header` suelto arriba, con el título "TUS DATOS" que también se retira). */
+.profile-identity-card{ position:relative; }
+.profile-identity-card__edit{ position:absolute; top: 14px; right: 14px; }
 
 /* V03.0.1 (§1) — pestañas MI PERFIL / MIS DATOS: mismo patrón visual que .history-tabs
    (Historial), sin scroll horizontal ni conteos (solo 2 pestañas fijas). */

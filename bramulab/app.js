@@ -7449,19 +7449,13 @@
   // labelStep/isEdge más abajo — este es el techo.
   const LEVEL_CHART_MAX_X_LABELS = 7;
 
-  /** V03.1 (§14) — formato de etiqueta del eje X según el rango real de fechas cubierto:
-   *  pocos días → día+mes ("08 SEP"); ~1 mes → semana relativa al primer punto mostrado
-   *  ("SEM 1"/"SEM 2"...); 2-6 meses → día+mes (misma resolución que "pocos días", ya reducida
-   *  en cantidad de etiquetas por `labelStep`); varios meses → solo mes ("SEP"). Nunca una
-   *  escala de negocio inventada, solo el formato — la densidad de puntos/línea no cambia. */
-  function formatLevelAxisLabel(iso, firstIso, spanDays) {
-    if (spanDays <= 45) {
-      if (spanDays > 14) {
-        const daysSinceFirst = Math.max(0, Math.round((new Date(iso) - new Date(firstIso)) / 86400000));
-        return `SEM ${Math.floor(daysSinceFirst / 7) + 1}`;
-      }
-      return formatAxisDayMonth(iso);
-    }
+  /** V03.1.1 (§8) — formato de etiqueta del eje X según el rango real de fechas cubierto:
+   *  rango corto/medio → fecha real día+mes ("08 SEP"); rango largo → solo mes ("SEP"). Nunca
+   *  más "SEM X" (V03.1 lo usaba para ~1 mes; en uso real leía como un número inventado, sin
+   *  relación directa con el calendario — se retira por completo, tal como pide el
+   *  consolidado). El umbral de 200 días entre ambos formatos es el mismo que ya traía V03.1
+   *  para el corte fecha/mes, reusado sin cambios. */
+  function formatLevelAxisLabel(iso, spanDays) {
     if (spanDays <= 200) return formatAxisDayMonth(iso);
     return formatAxisMonthOnly(iso);
   }
@@ -7524,12 +7518,20 @@
     const lastDate = new Date(points[points.length - 1].playedAt);
     const spanDays = Math.max(0, Math.round((lastDate - firstDate) / 86400000));
     const labelStep = Math.max(1, Math.ceil((points.length - 1) / (LEVEL_CHART_MAX_X_LABELS - 1)) || 1);
+    // V03.1.1 (§8) — "sin repetir innecesariamente el mismo mes": si dos etiquetas
+    // consecutivas mostradas caerían en el mismo texto (típico del rango "solo mes", donde
+    // varios partidos comparten mes), se omite la repetida — salvo en los extremos (primero/
+    // último), que siempre se muestran para anclar el rango visible aunque coincidan.
+    let lastAxisLabel = null;
     const xLabelsHTML = points.map((p, i) => {
       const isEdge = i === 0 || i === points.length - 1;
       if (!isEdge && (i % labelStep !== 0)) return '';
+      const text = formatLevelAxisLabel(p.playedAt, spanDays);
+      if (!isEdge && text === lastAxisLabel) return '';
+      lastAxisLabel = text;
       const x = xAt(i);
       const anchor = i === 0 ? 'start' : (i === points.length - 1 ? 'end' : 'middle');
-      return `<text x="${x.toFixed(1)}" y="${LEVEL_CHART_HEIGHT}" class="evolution-chart__axis-label" text-anchor="${anchor}">${formatLevelAxisLabel(p.playedAt, points[0].playedAt, spanDays)}</text>`;
+      return `<text x="${x.toFixed(1)}" y="${LEVEL_CHART_HEIGHT}" class="evolution-chart__axis-label" text-anchor="${anchor}">${text}</text>`;
     }).join('');
 
     const coords = points.map((p, i) => [xAt(i), yAt(p.level)]);
