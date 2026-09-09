@@ -110,7 +110,7 @@ afectarlos).
 ## 8. Hash exacto y tag
 
 - Commit de implementación (código): `8ec715063f8270f7248d157227b29544559e26a3`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `e417106a035dd80e278b7c669fb2dc0e21be3a6c`.
 - Tag `BRAMUlab_V03.1.4` apuntará al commit inmediatamente posterior a este.
 
 ---
