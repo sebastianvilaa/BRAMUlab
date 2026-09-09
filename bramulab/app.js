@@ -8308,10 +8308,21 @@
   /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca
    *  localStorage) y recarga con un query param propio para saltar también el caché HTTP
    *  normal del navegador — sin esto, en iPhone/Safari a veces `location.reload()` no
-   *  alcanza para traer los archivos nuevos. */
+   *  alcanza para traer los archivos nuevos.
+   *  V03.1.6 — esta misma función la disparan 2 botones (el de HERRAMIENTAS DE DESARROLLO y
+   *  el "ACTUALIZAR" del cartel público de nueva versión — ver initUpdateCheck), pero solo
+   *  deshabilitaba/renombraba el primero: quien tocaba el cartel público nunca veía ningún
+   *  feedback de que el toque se había registrado (bug encontrado auditando el reporte de
+   *  "el cartel vuelve a aparecer en loop" — no era la causa de ESE bug, pero es el mismo
+   *  código y vale corregirlo de una vez). Ahora deshabilita cualquiera de los dos que exista
+   *  en el DOM en este momento. */
   async function forceUpdateApp() {
-    $('#dev-tools-force-update').disabled = true;
-    $('#dev-tools-force-update').textContent = 'Actualizando…';
+    ['#dev-tools-force-update', '#update-now-btn'].forEach((sel) => {
+      const btn = $(sel);
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = 'Actualizando…';
+    });
     try {
       if ('serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();

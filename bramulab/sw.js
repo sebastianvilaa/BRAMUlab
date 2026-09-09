@@ -21,18 +21,25 @@
 // cualquier caso porque sw.js no cambia de bytes en una ronda de ajuste típica, así que sin
 // este bump un cliente con el bundle viejo ya instalado nunca dispara un reinstall del
 // service worker y se queda para siempre con la caché desactualizada.
-const CACHE_NAME = 'bramulab-v03-1-5';
+const CACHE_NAME = 'bramulab-v03-1-6';
+// V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
+// <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
+// reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
+// estas dos listas de URLs no coinciden AL BYTE, `caches.match(event.request)` del fetch
+// handler de abajo nunca encuentra el asset pre-cacheado (la query string es parte de la
+// clave) y cada carga real termina pidiéndolo de nuevo a la red — funciona igual, pero pierde
+// el offline-first. Bumpear siempre junto con CACHE_NAME/APP_VERSION/version.json.
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './engine.js',
-  './stats.js',
-  './store.js',
-  './player-home.js',
-  './match-load.js',
-  './player-identity.js',
-  './app.js',
+  './styles.css?v=03.1.6',
+  './engine.js?v=03.1.6',
+  './stats.js?v=03.1.6',
+  './store.js?v=03.1.6',
+  './player-home.js?v=03.1.6',
+  './match-load.js?v=03.1.6',
+  './player-identity.js?v=03.1.6',
+  './app.js?v=03.1.6',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

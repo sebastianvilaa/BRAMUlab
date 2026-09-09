@@ -8,7 +8,20 @@
 <meta name="theme-color" content="#0B1211" />
 <link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-<link rel="stylesheet" href="styles.css" />
+<!-- V03.1.6 — "?v=X" en styles.css y en cada <script src> de abajo: bug real reportado en
+     producción ("actualizo y me vuelve a pedir actualizar en loop"). Causa: `forceUpdateApp`
+     (app.js) borra el Cache Storage del Service Worker y recarga, pero la petición del propio
+     <script src="store.js"> (sin query string) puede seguir sirviéndose de la caché HTTP NATIVA
+     del navegador (una capa totalmente distinta a Cache Storage, que `caches.delete()` nunca
+     toca) si GitHub Pages la sirvió con algún Cache-Control cacheable — Store.VERSION queda
+     viejo, checkForNewVersion lo detecta como desactualizado otra vez, y el cartel vuelve a
+     aparecer sin fin. Nunca se reprodujo en el dev server local (dev-server.py manda
+     Cache-Control: no-store en TODO, ver .claude/dev-server.py) — por eso pasó desapercibido en
+     el QA de rondas anteriores. Esta query string DEBE bumpearse en cada release, junto con
+     APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
+     un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
+     servidor. -->
+<link rel="stylesheet" href="styles.css?v=03.1.6" />
 </head>
 <body>
 
@@ -2073,12 +2086,14 @@
     </button>
   </nav>
 
-  <script src="engine.js"></script>
-  <script src="stats.js"></script>
-  <script src="store.js"></script>
-  <script src="player-home.js"></script>
-  <script src="match-load.js"></script>
-  <script src="player-identity.js"></script>
-  <script src="app.js"></script>
+  <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
+       mismo motivo, bumpear siempre junto con esa. -->
+  <script src="engine.js?v=03.1.6"></script>
+  <script src="stats.js?v=03.1.6"></script>
+  <script src="store.js?v=03.1.6"></script>
+  <script src="player-home.js?v=03.1.6"></script>
+  <script src="match-load.js?v=03.1.6"></script>
+  <script src="player-identity.js?v=03.1.6"></script>
+  <script src="app.js?v=03.1.6"></script>
 </body>
 </html>
