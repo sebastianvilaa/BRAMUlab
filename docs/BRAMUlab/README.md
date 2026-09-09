@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.1.6
+## Versión funcional actual: BRAMUlab_V03.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.6"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.6`. Corrección de un bug real reportado en producción: tras actualizar a V03.1.5, el cartel de "hay una nueva versión" volvía a aparecer en loop infinito por más veces que se tocara ACTUALIZAR. Causa raíz: los `<script>`/`<link>` propios de `index.html` no llevaban cache-busting, así que la caché HTTP nativa del navegador (una capa distinta de la Cache Storage que `forceUpdateApp()` ya limpiaba) podía seguir sirviendo `store.js` viejo. Se agrega `?v=03.1.6` a todos los assets locales en `index.html` y `sw.js`, y se corrige además el botón "ACTUALIZAR" público para que también muestre feedback visual mientras corre. Sin cambios de lógica de negocio ni de pantallas.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.2`. Auditoría y normalización del sistema visual transversal (no un rediseño de pantallas): familia de acceso/autenticación unificada (labels persistentes en Crear cuenta, logo de Bienvenida corregido de un bug real que lo hacía renderizar más chico que el del header, jerarquía INICIAR SESIÓN/CREAR CUENTA igualada), Splash y app icon recoloreados de un verde heredado a azul noche (de paso se corrigió un `favicon-64.png` corrupto y la paleta vieja de la imagen de "Compartir resultado"), sistema global de 4 familias de botones (primario lima / secundario funcional azul — nueva — / secundario neutro / destructivo rojo, con mayúsculas normalizadas en toda la app vía CSS compartido), modales de confirmación unificados ("Salir sin guardar"/"Eliminar partido" ahora nombran la acción exacta y usan rojo cuando corresponde), Resumen con "Editar partido" azul y "Eliminar partido" como botón chico real (no un link suelto), y navegación inferior restaurada en Carga manual/Confirmar partido con sesión activa (bug de la barra fija que tapaba el teclado/CONTINUAR, corregido con un offset medido en vivo). Home, Historial, MI PERFIL, MIS DATOS, Ranking y toda la lógica de partido/Nivel BRAMU: sin cambios.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.1.6 (corrección del loop infinito de actualización) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.1.6 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Informe.md) |
+| Qué se especificó en V03.2 (auditoría y normalización del sistema visual transversal: acceso, splash, botones, modales, navegación inferior) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Informe.md) |
 
 **Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.1.6 (corrección del loop infinito de actualización) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.6 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.6_Informe.md) |
 | Qué se especificó en V03.1.5 (corrección de línea en la tarjeta de Evolución) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.5_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.5_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.1.5 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.5_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.5_Informe.md) |
 | Qué se especificó en V03.1.4 (ajuste de composición en Evolución + ritmo vertical) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.4_Consolidado.md) |
