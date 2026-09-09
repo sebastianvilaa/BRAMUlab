@@ -166,7 +166,7 @@ recibió una variante de tamaño ya existente desde V03.1, no un cambio a su reg
 ## 10. Hash exacto y tag
 
 - Commit de implementación (código): `bab6c3e4b9d54dc9a9cdeb16fd568e46c029a2ba`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `7d311b7afe104e1dfa54b4e300a412fb550e7feb`.
 - Tag `BRAMUlab_V03.1.1` apuntará al commit inmediatamente posterior a este.
 
 ---
