@@ -1322,17 +1322,6 @@
               <span class="mini-stat__sub" id="mi-perfil-best-streak-range" hidden></span>
             </div>
           </div>
-          <!-- V03.1.3 (§1/§5) — "Mejor nivel BRAMU": pico histórico del PROPIO historial, nunca
-               un ranking contra otros usuarios (nombre elegido a propósito para no generar esa
-               confusión). Asociada al bloque de Rendimiento (no dentro de la tarjeta de
-               Efectividad, para no competir por el espacio recién ganado ahí — consolidado
-               §2). "ACT" cuando el pico es el nivel actual; si no, mes+año del partido que lo
-               alcanzó. -->
-          <div class="pastilla profile-performance-card--mini" id="mi-perfil-peak-card">
-            <span class="mini-stat__label">Mejor nivel BRAMU</span>
-            <span class="mini-stat__value" id="mi-perfil-peak-level">—</span>
-            <span class="mini-stat__sub" id="mi-perfil-peak-level-context"></span>
-          </div>
         </div>
 
         <!-- Etapa 4.1 (§4) — Evolución del Nivel BRAMU: simulada, nunca ranking/categoría
@@ -1353,7 +1342,14 @@
                días (antes también mostraba "cambio acumulado desde la base"/"partidos
                considerados"/"mejor nivel" — se retiran de acá; sus cálculos siguen intactos,
                solo dejan de mostrarse en esta cabecera). Sin detalle por punto (§12: el
-               gráfico ya no tiene nada tocable). -->
+               gráfico ya no tiene nada tocable).
+               V03.1.4 — "Mejor nivel BRAMU" (pico histórico del propio historial, nunca un
+               ranking — ver PH.computePeakLevel) se muda acá desde su tarjeta propia en
+               Rendimiento (feedback directo: no quedaba bien como tarjeta suelta). Queda
+               anclado a la derecha (`evolution-summary__item--peak`, margin-left:auto) —
+               Nivel actual/Cambio quedan agrupados a la izquierda, sin cambios entre sí.
+               Mismo gate que el resto de esta cabecera (oculto para cuentas en calibración,
+               por vivir dentro de #evolution-numeric — no necesita su propio hidden). -->
           <div id="evolution-numeric">
             <div class="evolution-summary">
               <div class="evolution-summary__item">
@@ -1363,6 +1359,11 @@
               <div class="evolution-summary__item">
                 <span class="evolution-summary__value" id="evolution-change-value">—</span>
                 <span class="evolution-summary__label" id="evolution-change-label">Cambio últimos 30 días</span>
+              </div>
+              <div class="evolution-summary__item evolution-summary__item--peak">
+                <span class="evolution-summary__value" id="mi-perfil-peak-level">—</span>
+                <span class="evolution-summary__label">Mejor nivel BRAMU</span>
+                <span class="evolution-summary__sub" id="mi-perfil-peak-level-context"></span>
               </div>
             </div>
             <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>

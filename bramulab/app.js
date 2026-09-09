@@ -7591,10 +7591,9 @@
     const isLegacy = !!(user && user.legacyMigrated);
     $('#evolution-numeric').hidden = !isLegacy;
     $('#evolution-calibration').hidden = isLegacy;
-    // V03.1.3 (§1) — "Mejor nivel BRAMU" es otra lectura de la MISMA serie simulada: mismo
-    // gate que el resto de la Evolución numérica (nunca un número para cuentas en
-    // calibración, la fórmula real todavía no existe para esas cuentas).
-    $('#mi-perfil-peak-card').hidden = !isLegacy;
+    // V03.1.3 (§1) — "Mejor nivel BRAMU" es otra lectura de la MISMA serie simulada. V03.1.4 —
+    // se mudó DENTRO de #evolution-numeric (antes tarjeta propia en Rendimiento), así que
+    // queda gateado gratis por el toggle de arriba — nunca necesitó su propio hidden.
     // V03.0.3 (§2) — cabecera de MI PERFIL (ficha deportiva): mismo gate y misma fuente que
     // la tarjeta del Home (nunca un número para cuentas en calibración).
     $('#mi-perfil-level-sub').hidden = isLegacy;

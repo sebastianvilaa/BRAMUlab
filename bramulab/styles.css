@@ -1799,10 +1799,13 @@ input, select{ font-family: inherit; }
    en UNA tarjeta. V03.1.3 (§2) — el título EFECTIVIDAD sube a un `.pastilla__title-row` real
    (mismo patrón que el resto de la app, ej. la tarjeta de Efectividad del Home) en vez de un
    label chico junto al donut — libera toda la fila de abajo para agrandar el donut y los
-   números de Partidos jugados/ganados. Racha actual/Mejor racha y la nueva Mejor nivel BRAMU
-   (§1) van debajo, cada una en su propia tarjeta. Reusa `.effectiveness-donut` tal cual (nunca
-   un segundo donut paralelo) y las clases de texto `.mini-stat__label`/`__value`/`__sub`. */
-.profile-performance{ display:flex; flex-direction:column; gap: 10px; }
+   números de Partidos jugados/ganados. Racha actual/Mejor racha van debajo, cada una en su
+   propia tarjeta ("Mejor nivel BRAMU" se mudó a la tarjeta de Evolución en V03.1.4, ver
+   evolution-summary). Reusa `.effectiveness-donut` tal cual (nunca un segundo donut paralelo)
+   y las clases de texto `.mini-stat__label`/`__value`/`__sub`.
+   V03.1.4 — gap 10px→12px: mismo ritmo vertical que `.profile-panel` y que Home (ver nota ahí)
+   — antes eran 2 valores distintos en la misma pantalla. */
+.profile-performance{ display:flex; flex-direction:column; gap: 12px; }
 /* Todas las `.pastilla` de este bloque pierden su margin-bottom propio — el espaciado entre
    ellas lo da SOLO el `gap` del flex contenedor, nunca los dos sumados (mismo bug/fix que
    .profile-panel más abajo). */
@@ -1812,8 +1815,11 @@ input, select{ font-family: inherit; }
 /* V03.1.3 (§2) — "agrandar el donut todo lo que razonablemente permita el layout": 96px→128px
    (verificado que sigue entrando cómodo junto a la columna de Partidos incluso a 320px de
    ancho). El valor central crece en la misma proporción (22px→28px). */
-.effectiveness-donut--lg{ width: 128px; height:128px; margin: 0; }
-.effectiveness-donut--lg .effectiveness-donut__value{ font-size: 28px; font-weight: 800; }
+/* V03.1.4 — feedback directo: 128px (V03.1.3) quedó "demasiado grande", achicado un poco
+   (128px→112px, valor central 28px→25px en la misma proporción) — sigue siendo notablemente
+   más grande que el tamaño original de V03.1.2 (96px), no una vuelta atrás completa. */
+.effectiveness-donut--lg{ width: 112px; height:112px; margin: 0; }
+.effectiveness-donut--lg .effectiveness-donut__value{ font-size: 25px; font-weight: 800; }
 /* Partidos jugados/ganados: números protagonistas (26px, mismo peso que .pastilla-widget__value
    del Home) en vez del valor chico (15px) de .mini-stat__value — "agrandar visualmente los
    números" (consolidado §2), un paso más grande que V03.1.2 (24px) gracias al espacio extra
@@ -2368,6 +2374,14 @@ input, select{ font-family: inherit; }
 .evolution-summary__item{ display:flex; flex-direction:column; gap: 2px; }
 .evolution-summary__value{ font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .evolution-summary__label{ font-size: 10px; letter-spacing:0.03em; color: var(--paper-dim); }
+/* V03.1.4 — "Mejor nivel BRAMU" se muda acá (mudado desde una tarjeta propia en Rendimiento,
+   feedback directo del usuario): Nivel actual + Cambio quedan agrupados a la izquierda sin
+   tocarse; este ítem se ancla a la derecha con `margin-left:auto` (empuja SOLO este ítem al
+   borde derecho de la fila, sin repartir el espacio parejo entre los 3 como haría
+   justify-content) — `flex:0 0 auto` para que tome únicamente su ancho de contenido, nunca el
+   38% de los otros dos. */
+.evolution-summary__item--peak{ flex: 0 0 auto; margin-left: auto; align-items:flex-end; text-align:right; }
+.evolution-summary__sub{ font-size: 10px; color: var(--paper-faint); font-weight: 600; }
 
 /* V03.0.2 (§6) — ya no depende de scroll horizontal (el SVG ahora es responsive, ver
    .evolution-chart__svg): el `overflow-x:auto` queda como red de seguridad, nunca la
@@ -2571,13 +2585,19 @@ input, select{ font-family: inherit; }
    inactivo). Mismo acento lima que el resto de la app (subrayado + texto lima), en vez de
    inventar un componente de pestañas ajeno a BRAMU. */
 .profile-tab.is-active{ color: var(--brand-lime); font-weight: 700; border-bottom-color: var(--brand-lime); }
-.profile-panel{ display:flex; flex-direction:column; gap: 14px; }
+/* V03.1.4 — feedback directo del usuario mirando la pantalla en vivo: el espacio entre la
+   tarjeta de identidad y Rendimiento (14px, el gap que tenía este panel) se sentía distinto al
+   espacio entre Efectividad y Racha actual/Mejor racha (10px, el gap interno de
+   .profile-performance) — dos valores de "ritmo vertical" en la misma pantalla. Se toma Home
+   como referencia (ya validado): sus tarjetas apiladas usan SIEMPRE `.pastilla{margin-
+   bottom:12px}`, nunca 14 ni 10 — confirmado midiendo getBoundingClientRect ahí. Los DOS gaps
+   pasan a 12px (ver también .profile-performance más abajo) — un solo ritmo vertical en toda
+   la pantalla, igual al de Home. */
+.profile-panel{ display:flex; flex-direction:column; gap: 12px; }
 /* V03.1.2 (§2/§3) — bug real de espaciado: `.pastilla` trae su propio `margin-bottom:12px`
-   (regla base, styles.css), que NO colapsa con el `gap:14px` de este flex — se sumaban (26px
-   entre tarjetas consecutivas) en vez de usar solo el gap. Confirmado midiendo
-   getBoundingClientRect en MI PERFIL (identidad→rendimiento: 26px) y MIS DATOS (los 4 bloques:
-   26px entre cada uno). Con esto, el `gap` del panel queda como ÚNICA fuente de espaciado —
-   mismo ritmo (14px) en toda la pantalla, sin tocar el valor del gap en sí. */
+   (regla base, styles.css), que NO colapsa con el `gap` de este flex — se sumaban (26px entre
+   tarjetas consecutivas) en vez de usar solo el gap. Con esto, el `gap` del panel queda como
+   ÚNICA fuente de espaciado. */
 .profile-panel > .pastilla{ margin-bottom: 0; }
 @media (min-width: 720px){ .profile-tabs{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
