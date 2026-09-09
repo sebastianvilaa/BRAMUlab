@@ -104,7 +104,7 @@ alcance explícito del consolidado, sin cambios compartidos que pudieran afectar
 ## 7. Hash exacto y tag
 
 - Commit de implementación (código): `89814ca46362d7baf715cd0be2f359a1bf789b8e`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `eb2b7c446146b0679c3242338d807436833e1c74`.
 - Tag `BRAMUlab_V03.1.2` apuntará al commit inmediatamente posterior a este.
 
 ---
