@@ -1237,10 +1237,15 @@
              tarjeta del Home (avatar + nombre/@usuario + Nivel BRAMU/calibración), sin
              copiarla pixel a pixel: reusa las mismas clases `.player-card__level*` para que
              se sienta la misma identidad, sin la barra de progreso (eso ya lo resuelve Home;
-             acá la "trayectoria" la muestra el gráfico de Evolución más abajo). "X partidos
-             cargados" se movió al bloque de Rendimiento (§3). La foto ahora es editable
-             tocándola (affordance de cámara, ver .avatar-edit-badge) — reemplazar/quitar
-             reusan el mismo upload+compresión de Editar Datos, sin duplicar lógica. -->
+             acá la "trayectoria" la muestra el gráfico de Evolución más abajo). La foto ahora
+             es editable tocándola (affordance de cámara, ver .avatar-edit-badge) — reemplazar
+             reusa el mismo upload+compresión de Editar Datos, sin duplicar lógica.
+             V03.1 (§2/§3) — Edad/Mano dominante/Lado habitual se integran DENTRO de esta misma
+             tarjeta (fila propia, `.pastilla-identity__meta`, se apoya en `flex-wrap` de
+             `.pastilla--identity` para caer debajo de la línea principal) — reemplaza al bloque
+             separado "DATOS DECLARADOS" que existía antes. La categoría NUNCA se muestra acá
+             (§3: no debe competir con Nivel BRAMU) — queda solo en MIS DATOS con su fecha de
+             declaración (§4). -->
         <div class="pastilla pastilla--identity">
           <div class="profile-avatar-edit-wrap">
             <div class="profile-avatar" id="profile-avatar" aria-hidden="true">
@@ -1254,7 +1259,10 @@
           </div>
           <div class="pastilla-identity__info">
             <div class="pastilla-identity__name" id="profile-display-name">—</div>
-            <div class="pastilla-identity__handle" id="profile-username">—</div>
+            <!-- V03.1 (§2) — "@usuario" gana presencia (antes .pastilla-identity__handle,
+                 12px/paper-faint): sube a .pastilla-identity__handle--strong (13px/paper-dim),
+                 sigue sin competir con el nombre (18px). -->
+            <div class="pastilla-identity__handle pastilla-identity__handle--strong" id="profile-username">—</div>
           </div>
           <div class="player-card__level">
             <div class="player-card__level-label">NIVEL BRAMU</div>
@@ -1264,26 +1272,45 @@
             </div>
             <span class="player-card__level-sub" id="mi-perfil-level-sub" hidden></span>
           </div>
-        </div>
-
-        <div class="profile-group__title">DATOS DECLARADOS</div>
-        <div class="pastilla mini-stat-card">
-          <div class="mini-stat-grid">
+          <div class="pastilla-identity__meta mini-stat-grid mini-stat-grid--3col">
             <div class="mini-stat"><span class="mini-stat__label">Edad</span><span class="mini-stat__value" id="mi-perfil-age">—</span></div>
             <div class="mini-stat"><span class="mini-stat__label">Mano dominante</span><span class="mini-stat__value" id="mi-perfil-hand">—</span></div>
             <div class="mini-stat"><span class="mini-stat__label">Lado habitual</span><span class="mini-stat__value" id="mi-perfil-side">—</span></div>
-            <div class="mini-stat"><span class="mini-stat__label">Categoría</span><span class="mini-stat__value" id="mi-perfil-category">—</span></div>
           </div>
         </div>
 
+        <!-- V03.1 (§5/§6/§7) — RENDIMIENTO rediseñado: Efectividad pasa a ser el KPI
+             protagonista (mismo donut que la tarjeta de Efectividad del Home, ver
+             renderProfileEffectivenessDonut), con Partidos jugados/ganados apilados al lado
+             (nunca repiten el "X/Y" que ya lee el donut). Racha actual/Mejor racha quedan
+             debajo, separadas por una línea — mismos 5 KPIs de siempre, sin agregar
+             "derrotas" como dato protagonista (§10). -->
         <div class="profile-group__title">RENDIMIENTO</div>
-        <div class="pastilla mini-stat-card" id="profile-kpis">
-          <div class="mini-stat-grid">
-            <div class="mini-stat"><span class="mini-stat__label">Partidos jugados</span><span class="mini-stat__value" id="mi-perfil-played">—</span></div>
-            <div class="mini-stat"><span class="mini-stat__label">Partidos ganados</span><span class="mini-stat__value" id="mi-perfil-won">—</span></div>
-            <div class="mini-stat"><span class="mini-stat__label">Efectividad</span><span class="mini-stat__value" id="profile-kpi-effectiveness">—</span></div>
+        <div class="pastilla profile-performance-card" id="profile-kpis">
+          <div class="profile-performance-hero">
+            <div class="profile-performance-hero__donut">
+              <div class="effectiveness-donut effectiveness-donut--lg">
+                <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
+                  <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
+                  <circle class="effectiveness-donut__glow" id="mi-perfil-effectiveness-glow" cx="18" cy="18" r="15.5" />
+                  <circle class="effectiveness-donut__fill" id="mi-perfil-effectiveness-ring" cx="18" cy="18" r="15.5" />
+                </svg>
+                <span class="effectiveness-donut__value" id="mi-perfil-effectiveness-value">—</span>
+              </div>
+              <span class="profile-performance-hero__label">EFECTIVIDAD</span>
+            </div>
+            <div class="profile-performance-stack">
+              <div class="mini-stat"><span class="mini-stat__label">Partidos jugados</span><span class="mini-stat__value" id="mi-perfil-played">—</span></div>
+              <div class="mini-stat"><span class="mini-stat__label">Partidos ganados</span><span class="mini-stat__value" id="mi-perfil-won">—</span></div>
+            </div>
+          </div>
+          <div class="profile-performance-divider mini-stat-grid">
             <div class="mini-stat"><span class="mini-stat__label">Racha actual</span><span class="mini-stat__value" id="profile-kpi-streak">—</span></div>
-            <div class="mini-stat"><span class="mini-stat__label">Mejor racha</span><span class="mini-stat__value" id="mi-perfil-best-streak">—</span></div>
+            <div class="mini-stat">
+              <span class="mini-stat__label">Mejor racha</span>
+              <span class="mini-stat__value" id="mi-perfil-best-streak">—</span>
+              <span class="mini-stat__sub" id="mi-perfil-best-streak-range" hidden></span>
+            </div>
           </div>
         </div>
 
@@ -1301,6 +1328,11 @@
                  comentarios técnicos); la lógica subyacente no cambia. -->
             <span class="evolution-card__badge">BETA</span>
           </div>
+          <!-- V03.1 (§11/§12) — simplificada: solo Nivel actual + cambio en los últimos 30
+               días (antes también mostraba "cambio acumulado desde la base"/"partidos
+               considerados"/"mejor nivel" — se retiran de acá; sus cálculos siguen intactos,
+               solo dejan de mostrarse en esta cabecera). Sin detalle por punto (§12: el
+               gráfico ya no tiene nada tocable). -->
           <div id="evolution-numeric">
             <div class="evolution-summary">
               <div class="evolution-summary__item">
@@ -1309,23 +1341,11 @@
               </div>
               <div class="evolution-summary__item">
                 <span class="evolution-summary__value" id="evolution-change-value">—</span>
-                <span class="evolution-summary__label">Cambio acumulado</span>
-              </div>
-              <div class="evolution-summary__item">
-                <span class="evolution-summary__value" id="evolution-count-value">—</span>
-                <span class="evolution-summary__label">Partidos considerados</span>
-              </div>
-              <!-- V03.0.3 (§3) — "mejor Nivel BRAMU histórico, solo si puede calcularse con la
-                   serie real existente": máximo de evolution.points, misma fuente que el resto
-                   de esta tarjeta, sin fórmula nueva. -->
-              <div class="evolution-summary__item">
-                <span class="evolution-summary__value" id="evolution-best-value">—</span>
-                <span class="evolution-summary__label">Mejor nivel</span>
+                <span class="evolution-summary__label" id="evolution-change-label">Cambio últimos 30 días</span>
               </div>
             </div>
             <div class="evolution-chart-wrap" id="evolution-chart-wrap"></div>
             <p class="coverage-note" id="evolution-empty" hidden>Todavía no hay partidos que muevan tu nivel — arranca en 5.0.</p>
-            <p class="evolution-detail" id="evolution-point-detail" hidden></p>
             <p class="coverage-note evolution-footnote">Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.</p>
           </div>
           <div class="evolution-calibration" id="evolution-calibration" hidden>
@@ -1353,12 +1373,15 @@
             <svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg>
           </button>
         </div>
+        <!-- V03.1 (§15) — Identidad compacta: foto a la izquierda, nombre+apellido/@usuario/
+             nombre visible apilados a la derecha en 3 líneas (antes: foto centrada arriba +
+             4 filas label/valor por separado — mucho más alto). Nombre y apellido siguen
+             siendo 2 campos reales/editables por separado (Editar Datos); acá se muestran
+             juntos en una sola línea solo para ahorrar espacio, nunca se fusionan en el dato
+             guardado. -->
         <div class="pastilla profile-group">
           <div class="profile-group__title">IDENTIDAD</div>
-          <!-- V03.0.3 (§5) — "mostrar foto/avatar en la parte superior del bloque de
-               identidad", editable también desde acá (mismo helper que MI PERFIL, mismo
-               `profilePhoto`, sin segunda fuente). -->
-          <div class="profile-data-avatar-row">
+          <div class="profile-identity-compact">
             <div class="profile-avatar-edit-wrap">
               <div class="profile-avatar" id="profile-data-avatar" aria-hidden="true">
                 <span id="profile-data-avatar-initials">—</span>
@@ -1369,20 +1392,34 @@
               </button>
               <input type="file" id="mis-datos-avatar-input" accept="image/*" hidden />
             </div>
+            <div class="profile-identity-compact__info">
+              <div class="profile-identity-compact__name" id="profile-data-fullname">—</div>
+              <div class="profile-identity-compact__handle" id="profile-data-username">—</div>
+              <div class="profile-identity-compact__display"><span class="profile-field__label">Nombre visible</span> <span id="profile-data-displayname">—</span></div>
+            </div>
           </div>
-          <div class="profile-field"><span class="profile-field__label">Nombre</span><span class="profile-field__value" id="profile-data-firstname">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Apellido</span><span class="profile-field__value" id="profile-data-lastname">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">@usuario</span><span class="profile-field__value" id="profile-data-username">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Nombre visible</span><span class="profile-field__value" id="profile-data-displayname">—</span></div>
         </div>
 
+        <!-- V03.1 (§16) — agrupado en filas de 2-3 columnas (antes: 5 filas label/valor
+             sueltas, una debajo de otra). Fila 1: fecha de nacimiento + edad. Fila 2: género +
+             mano dominante + lado habitual. Fila 3: categoría declarada, con su fecha (§4) en
+             una sola línea combinada — dato histórico/declarado, nunca compite con Nivel BRAMU
+             (que vive únicamente en MI PERFIL). -->
         <div class="pastilla profile-group">
           <div class="profile-group__title">DATOS PERSONALES / DEPORTIVOS</div>
-          <div class="profile-field"><span class="profile-field__label">Fecha de nacimiento</span><span class="profile-field__value" id="profile-birthdate">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Género</span><span class="profile-field__value" id="profile-gender">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Mano hábil</span><span class="profile-field__value" id="profile-hand">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Lado habitual</span><span class="profile-field__value" id="profile-side">—</span></div>
-          <div class="profile-field"><span class="profile-field__label">Categoría declarada</span><span class="profile-field__value" id="profile-category">—</span></div>
+          <div class="mini-stat-grid">
+            <div class="mini-stat"><span class="mini-stat__label">Fecha de nacimiento</span><span class="mini-stat__value" id="profile-birthdate">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Edad</span><span class="mini-stat__value" id="profile-age">—</span></div>
+          </div>
+          <div class="mini-stat-grid mini-stat-grid--3col profile-personal-row">
+            <div class="mini-stat"><span class="mini-stat__label">Género</span><span class="mini-stat__value" id="profile-gender">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Mano dominante</span><span class="mini-stat__value" id="profile-hand">—</span></div>
+            <div class="mini-stat"><span class="mini-stat__label">Lado habitual</span><span class="mini-stat__value" id="profile-side">—</span></div>
+          </div>
+          <div class="mini-stat profile-personal-row">
+            <span class="mini-stat__label">Categoría declarada</span>
+            <span class="mini-stat__value" id="profile-category">—</span>
+          </div>
         </div>
 
         <div class="pastilla profile-group">
@@ -1394,21 +1431,40 @@
             <p class="coverage-note">Todavía no tenés email y contraseña. Completalos ahora — si cerrás sesión sin hacerlo, no vas a poder volver a entrar a este jugador.</p>
             <button type="button" id="profile-complete-access-btn" class="btn-secondary">COMPLETAR ACCESO</button>
           </div>
-          <!-- V03.0.2 (§7) — "Cambiar contraseña" como fila con chevron, no un botón gigante
-               más compitiendo con Cerrar sesión. -->
+          <!-- V03.0.2 (§7) — "Cambiar contraseña" como fila con chevron, no un botón gigante.
+               V03.1 (§19) — touch target angosto corregido acá (mismo `.profile-row-action`,
+               ver styles.css: min-height 48px + padding vertical simétrico). -->
           <button type="button" id="profile-change-password-btn" class="profile-row-action" hidden>
             <span>Cambiar contraseña</span>
             <span class="profile-row-action__chevron" aria-hidden="true">›</span>
           </button>
-          <!-- Auditoría funcional §5: reemplaza "Cambiar jugador" — el jugador pertenece a
-               una sesión, no a una preferencia libremente reemplazable. V03.0.1 (§6): se
-               reubica acá (antes vivía suelto en Perfil como link perdido). V03.0.2 (§7):
-               "claramente secundario/destructivo, pero integrado al mismo bloque". -->
+        </div>
+
+        <!-- V03.1 (§20) — "Cerrar sesión" se separa a su propia tarjeta (antes vivía pegada a
+             Cambiar contraseña dentro de Acceso y seguridad): el gap normal entre `.pastilla`
+             de `.profile-panel` ya da el aire pedido, sin inventar un margen especial. Solo
+             abre la confirmación (requestLogout) — nunca cierra sesión directo. -->
+        <div class="pastilla profile-group">
           <button type="button" id="profile-logout-btn" class="btn-secondary btn-secondary--danger profile-security-btn">CERRAR SESIÓN</button>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- V03.1 (§20) — confirmación simple antes de cerrar sesión (cuenta con acceso completo):
+       distinto del #logout-warning-modal de arriba (ese es para la cuenta SIN email/
+       contraseña — un riesgo real de quedar afuera). Este es solo "evitar un toque de más",
+       sin estética de alarma (mismo .overlay neutro, sin banner ni ícono de advertencia). -->
+  <div id="logout-confirm-modal" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title">¿CERRAR SESIÓN?</div>
+      <p class="overlay__text">Vas a tener que volver a ingresar con tu email y contraseña para acceder a tu cuenta.</p>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button type="button" id="logout-confirm-cancel-btn" class="btn-secondary">CANCELAR</button>
+        <button type="button" id="logout-confirm-btn" class="btn-secondary btn-secondary--danger">CERRAR SESIÓN</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============================================================
        V03.0 — ACCESO / CREAR CUENTA / PLAYER CARD / INICIAR SESIÓN

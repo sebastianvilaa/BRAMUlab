@@ -693,6 +693,44 @@
     };
   }
 
+  /** V03.1 (§11) — "cambio en los últimos 30 días" para la cabecera simplificada de Evolución
+   *  en MI PERFIL: nivel actual menos el nivel que el jugador tenía justo antes del corte de
+   *  30 días (el último punto de `evolution.points` anterior o igual al corte, o `base` si
+   *  todos los partidos considerados caen DENTRO de la ventana — incluido el caso sin ningún
+   *  partido, donde da 0). `nowDate` es inyectable para tests deterministas. Pura: no lee
+   *  Store ni fechas del sistema salvo por el parámetro. */
+  function computeLevelChangeLast30Days(evolution, nowDate) {
+    const now = nowDate || new Date();
+    const cutoff = new Date(now.getTime() - 30 * 86400000);
+    let levelAtCutoff = evolution.base;
+    (evolution.points || []).forEach((p) => {
+      if (new Date(p.playedAt).getTime() <= cutoff.getTime()) levelAtCutoff = p.level;
+    });
+    return roundToOneDecimal(evolution.current - levelAtCutoff);
+  }
+
+  /** V03.1 (§9) — igual que computeBestWinStreak, pero además devuelve el rango de fechas
+   *  (primer/último partido) del tramo ganador que definió esa mejor racha histórica, para
+   *  mostrar contexto temporal breve ("SEP 26" / "SEP–OCT 26"). `null` si nunca hubo racha
+   *  (best === 0). Entre rachas empatadas en longitud, se queda con la PRIMERA cronológica —
+   *  mismo criterio determinístico que el resto de la app (nunca depende del orden de
+   *  iteración de un Set/objeto). */
+  function computeBestWinStreakRange(matches, playerName) {
+    const chronological = (matches || []).slice().reverse();
+    let best = 0, bestStart = null, bestEnd = null;
+    let current = 0, currentStart = null;
+    chronological.forEach((m) => {
+      if (matchResultForPlayer(m, playerName) === 'win') {
+        if (current === 0) currentStart = getPlayedAt(m);
+        current += 1;
+        if (current > best) { best = current; bestStart = currentStart; bestEnd = getPlayedAt(m); }
+      } else {
+        current = 0; currentStart = null;
+      }
+    });
+    return best > 0 ? { count: best, startDate: bestStart, endDate: bestEnd } : null;
+  }
+
   /* ------------------------------------------------------------------ */
   /* V03.0 (§4) — CALIBRACIÓN DE NIVEL BRAMU PARA CUENTAS NUEVAS           */
   /* Cero cambios a computeLevelEvolution/isMatchConsideredForLevel — se   */
@@ -731,6 +769,7 @@
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
     filterHistoryCombined, computeHistoryTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
+    computeLevelChangeLast30Days, computeBestWinStreakRange,
     LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

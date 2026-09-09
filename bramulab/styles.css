@@ -1560,6 +1560,13 @@ input, select{ font-family: inherit; }
    separados y sin relación (coverage-note trae margin-top:8px + italic por defecto, pensado
    para notas sueltas, no para esto). Se agrupan como una sola ficha de identidad. */
 .pastilla-identity__info .coverage-note{ margin-top: 2px; font-style: normal; font-weight: 600; }
+/* V03.1 (§2) — "@usuario" gana presencia sin competir con el nombre: sube de --paper-faint/
+   12px a --paper-dim/13px y peso 600 (el nombre sigue siendo el único elemento en 18px). */
+.pastilla-identity__handle--strong{ font-size: 13px; color: var(--paper-dim); font-weight: 600; }
+/* V03.1 (§2) — Edad/Mano dominante/Lado habitual DENTRO de la misma tarjeta de identidad:
+   `flex-basis:100%` la empuja a su propia línea dentro del `flex-wrap` de `.pastilla--identity`
+   (nunca una tarjeta aparte, como pasaba con "DATOS DECLARADOS" antes de esta ronda). */
+.pastilla-identity__meta{ flex-basis: 100%; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 
 /* Tu momento */
 /* V02.6 (§6): quedaba "lavado" con `--paper-dim` — sube un poco el peso y el contraste, sin
@@ -1787,6 +1794,22 @@ input, select{ font-family: inherit; }
 .effectiveness-donut__glow{ fill:none; stroke: var(--brand-lime); stroke-width: 3.7; stroke-linecap: round; opacity: 0.16; }
 .effectiveness-donut__value{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .effectiveness-caption{ text-align:center; font-size: 11px; color: var(--paper-dim); margin: 0; }
+
+/* V03.1 (§5/§6/§7) — RENDIMIENTO de MI PERFIL: Efectividad protagonista (mismo donut del
+   Home, agrandado) + Partidos jugados/ganados apilados al lado, equilibrando su altura contra
+   el donut; debajo, Racha actual/Mejor racha separadas por una línea. Reusa el componente
+   `.effectiveness-donut` tal cual (nunca un segundo donut paralelo), solo con tamaño propio. */
+.profile-performance-card{ display:flex; flex-direction:column; gap: 14px; }
+/* Fila hero: donut (columna fija, izquierda) + Partidos jugados/ganados apilados (columna
+   flexible, derecha) — "la altura combinada de ambos equilibra la altura de Efectividad"
+   (consolidado §7) sale de `align-items:center` + `justify-content:center` en la pila. */
+.profile-performance-hero{ display:flex; align-items:center; gap: 16px; }
+.profile-performance-hero__donut{ display:flex; flex-direction:column; align-items:center; gap: 6px; flex:none; }
+.effectiveness-donut--lg{ width: 96px; height:96px; margin: 0; }
+.effectiveness-donut--lg .effectiveness-donut__value{ font-size: 22px; font-weight: 800; }
+.profile-performance-hero__label{ font-size: 11px; letter-spacing: 0.05em; color: var(--paper-dim); font-weight: 700; text-transform: uppercase; }
+.profile-performance-stack{ flex:1; display:flex; flex-direction:column; justify-content:center; gap: 12px; }
+.profile-performance-divider{ padding-top: 14px; border-top: 1px solid var(--line); }
 
 /* ==========================================================================
    Métricas pequeñas (§10)
@@ -2341,15 +2364,10 @@ input, select{ font-family: inherit; }
 /* V03.0.2 (§6) — referencias numéricas reales en Y (Nivel BRAMU) y fechas reales en X. */
 .evolution-chart__axis-label{ font-size: 9px; fill: var(--paper-faint); font-weight: 600; }
 .evolution-chart__line{ stroke: var(--brand-lime); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.evolution-chart__dot{ fill: var(--ink); stroke: var(--brand-lime); stroke-width: 2; cursor:pointer; }
-.evolution-chart__dot:focus-visible{ outline: none; stroke-width: 3; }
-/* §4.4 — pulso sutil reservado para el último punto, mismo lenguaje que el resto del sistema
-   de movimiento (brillo que respira, nunca parpadeo ni cambio de color). */
-.evolution-chart__dot--current{ fill: var(--brand-lime); animation: evolutionDotPulse 2.2s ease-in-out infinite; }
-@keyframes evolutionDotPulse{ 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.35); } }
-@media (prefers-reduced-motion: reduce){ .evolution-chart__dot--current{ animation:none; } }
-
-.evolution-detail{ font-size: 12px; color: var(--paper); background: rgba(149,255,25,0.06); border: 1px solid rgba(149,255,25,0.2); border-radius: 10px; padding: 8px 10px; margin: 0 0 8px; }
+/* V03.1 (§12) — "línea limpia, sin puntos, sin markers, sin tooltip por partido": se retiran
+   .evolution-chart__dot* (círculos por punto + su pulso) y .evolution-detail (el texto que
+   aparecía al tocar uno) — ninguno de los dos vuelve a emitirse desde buildLevelEvolutionSvgHTML/
+   index.html. */
 .evolution-footnote{ margin-top: 0; }
 
 /* ==========================================================================
@@ -2469,15 +2487,33 @@ input, select{ font-family: inherit; }
   cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;
 }
 .avatar-edit-badge svg{ width:13px; height:13px; }
-.profile-data-avatar-row{ display:flex; flex-direction:column; align-items:center; gap:4px; margin-bottom: 14px; }
+/* V03.1 (§15) — MIS DATOS/Identidad compacta: foto a la izquierda (nunca centrada, "no
+   desperdiciar espacio"), nombre+apellido/@usuario/nombre visible apilados a la derecha en 3
+   líneas cortas — reemplaza el bloque anterior (foto centrada arriba + 4 filas label/valor
+   sueltas debajo, mucho más alto). Mismo esqueleto que `.pastilla--identity` de MI PERFIL. */
+.profile-identity-compact{ display:flex; align-items:center; gap: 14px; }
+.profile-identity-compact__info{ flex:1; min-width:0; }
+.profile-identity-compact__name{ font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--paper); }
+.profile-identity-compact__handle{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
+.profile-identity-compact__display{ font-size: 11px; color: var(--paper-faint); margin-top: 4px; }
+.profile-identity-compact__display .profile-field__label{ font-size: 11px; }
+/* V03.1 (§16) — separación entre las filas agrupadas de "Datos personales/deportivos"
+   (fecha+edad / género+mano+lado / categoría) — mismo valor que ya usa `.profile-group
+   .profile-field + .profile-field` para la fila anterior de este mismo patrón. */
+.profile-personal-row{ margin-top: 14px; }
 
 /* V03.0.3 (§3) — ficha deportiva compacta: filas/mini-KPIs en grilla de 2 columnas, en vez de
    una sucesión de tarjetas grandes (una por dato). */
 .mini-stat-card{ padding: 14px 16px; }
 .mini-stat-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+/* V03.1 (§2/§16) — variante de 3 columnas (Edad/Mano dominante/Lado habitual, Género/Mano/
+   Lado) — mismo componente, sin duplicar mini-stat/mini-stat__label/value. */
+.mini-stat-grid--3col{ grid-template-columns: 1fr 1fr 1fr; }
 .mini-stat{ display:flex; flex-direction:column; gap:2px; }
 .mini-stat__label{ font-size: 11px; color: var(--paper-dim); }
 .mini-stat__value{ font-size: 15px; font-weight:700; color: var(--paper); font-variant-numeric: tabular-nums; }
+/* V03.1 (§9) — contexto temporal breve debajo de "Mejor racha" ("SEP 26"/"SEP–OCT 26"). */
+.mini-stat__sub{ font-size: 10px; color: var(--paper-faint); font-weight: 600; }
 
 /* V03.0 (§3) — banner "acceso pendiente de completar" en Perfil. Mismo tono de advertencia que
    ya usa el resto de la app para estados "todavía no" (--gold), sin inventar un color nuevo. */
@@ -2532,13 +2568,16 @@ input, select{ font-family: inherit; }
 .profile-access-pending .btn-secondary{ width:100%; margin-top: 8px; }
 /* V03.0.2 (§7) — "Cambiar contraseña" como fila con chevron (no un botón gigante) dentro del
    mismo bloque de Acceso y seguridad. */
+/* V03.1 (§19) — touch target angosto corregido: `min-height:48px` (mismo mínimo táctil que
+   `.option-col` en el resto de la app) + padding vertical simétrico (antes solo `12px 0 0`,
+   sin aire abajo — la fila medía bastante menos de 48px). */
 .profile-row-action{
-  display:flex; align-items:center; justify-content:space-between; width:100%;
-  background:none; border:none; border-top: 1px solid var(--line); margin-top: 12px; padding: 12px 0 0;
+  display:flex; align-items:center; justify-content:space-between; width:100%; min-height: 48px;
+  background:none; border:none; border-top: 1px solid var(--line); margin-top: 12px; padding: 14px 0;
   color: var(--paper); font-size: 13px; font-weight: 700; cursor:pointer; text-align:left;
 }
 .profile-row-action__chevron{ color: var(--paper-faint); font-size: 16px; }
-.profile-security-btn{ width:100%; margin-top: 12px; }
+.profile-security-btn{ width:100%; }
 
 /* V03.0.1 (§2/§4/§5/§8) — label visible y persistente arriba de cada campo, reemplaza el
    criterio placeholder-only anterior (mismo tono/tamaño que .profile-field__label). */

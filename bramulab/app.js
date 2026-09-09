@@ -128,6 +128,49 @@
       return '';
     }
   }
+  // V03.1 (§9/§14) — variantes del mismo criterio (tabla propia de 3 letras, nunca Intl
+  // directo por el mismo motivo de arriba): "08 SEP" CON espacio (eje X del gráfico de
+  // Evolución/fecha de categoría declarada, a diferencia de "08SEP" sin espacio de Último
+  // partido) y "SEP" solo mes (eje X cuando el rango cruza varios meses).
+  function formatAxisDayMonth(isoString) {
+    if (!isoString) return '';
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'numeric' }).formatToParts(new Date(isoString));
+      const day = parts.find((p) => p.type === 'day').value;
+      const month = Number(parts.find((p) => p.type === 'month').value);
+      return `${day} ${COMPACT_MONTH_LABELS[month - 1]}`;
+    } catch (e) { return ''; }
+  }
+  function formatAxisMonthOnly(isoString) {
+    if (!isoString) return '';
+    try {
+      const month = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric' }).format(new Date(isoString)));
+      return COMPACT_MONTH_LABELS[month - 1];
+    } catch (e) { return ''; }
+  }
+  /** V03.1 (§4) — "Categoría declarada / 5ª · declarada el 08 SEP 26". */
+  function formatDeclaredCategoryDate(isoString) {
+    if (!isoString) return '';
+    try {
+      const d = new Date(isoString);
+      const day = String(d.getDate()).padStart(2, '0');
+      const year = String(d.getFullYear()).slice(-2);
+      return `${day} ${COMPACT_MONTH_LABELS[d.getMonth()]} ${year}`;
+    } catch (e) { return ''; }
+  }
+  /** V03.1 (§9) — "Mejor racha": mismo mes → "SEP 26", cruza meses → "SEP–OCT 26" (año del
+   *  partido más reciente de la racha). */
+  function formatStreakRangeLabel(startIso, endIso) {
+    try {
+      const startMonth = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric' }).format(new Date(startIso)));
+      const endParts = new Intl.DateTimeFormat('en-US', { month: 'numeric', year: '2-digit' }).formatToParts(new Date(endIso));
+      const endMonth = Number(endParts.find((p) => p.type === 'month').value);
+      const year = endParts.find((p) => p.type === 'year').value;
+      return startMonth === endMonth
+        ? `${COMPACT_MONTH_LABELS[endMonth - 1]} ${year}`
+        : `${COMPACT_MONTH_LABELS[startMonth - 1]}–${COMPACT_MONTH_LABELS[endMonth - 1]} ${year}`;
+    } catch (e) { return ''; }
+  }
   let toastTimeoutId = null;
   let undoToastTimeoutId = null;
   function showToast(message, durationMs) {
@@ -6485,6 +6528,8 @@
         signupDraft.birthDate = $('#signup-birthdate').value;
         signupDraft.gender = $('#signup-gender').value;
         signupDraft.declaredCategory = $('#signup-category').value;
+        // V03.1 (§4) — se declara por primera vez acá: queda fechada desde el arranque.
+        signupDraft.declaredCategoryAt = new Date().toISOString();
         const user = Store.signUpAndLogin(signupDraft);
         syncCurrentIdentityFromStore();
         openPlayerCardScreen(user);
@@ -6627,13 +6672,17 @@
   /** V03.0 (§3) — "Cerrar sesión": borra ÚNICAMENTE la sesión activa (Store.logoutSession —
    *  limpia SESSION + CURRENT_PLAYER), nunca el Historial, USERS ni los partidos guardados
    *  (son datos globales del dispositivo, no de la sesión). Si la cuenta todavía no tiene
-   *  email, primero advierte — sin acceso completo no hay forma de volver a entrar a ESE
-   *  jugador (un userId ya estampado en el historial es exclusivo de esa cuenta, nunca se
-   *  "recupera" creando otra con el mismo nombre — ver player-home.js). */
+   *  email, advierte con el modal fuerte de siempre — sin acceso completo no hay forma de
+   *  volver a entrar a ESE jugador (un userId ya estampado en el historial es exclusivo de esa
+   *  cuenta, nunca se "recupera" creando otra con el mismo nombre — ver player-home.js).
+   *  V03.1 (§20) — si la cuenta SÍ tiene acceso completo, antes cerraba sesión con un solo
+   *  toque; ahora pasa por una confirmación simple (#logout-confirm-modal) — "dejar de ser
+   *  accidental" sin la estética de advertencia fuerte del caso de arriba (ese es un riesgo
+   *  real de quedar afuera; este es solo evitar un toque de más). */
   function requestLogout() {
     const user = Store.getCurrentUser();
     if (user && !user.email) { $('#logout-warning-modal').hidden = false; return; }
-    doLogout();
+    $('#logout-confirm-modal').hidden = false;
   }
   function doLogout() {
     Store.logoutSession();
@@ -6648,6 +6697,10 @@
     $('#logout-warning-cancel-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; });
     $('#logout-warning-complete-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; openCompleteAccessModal(); });
     $('#logout-warning-confirm-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; doLogout(); });
+  }
+  function initLogoutConfirmModal() {
+    $('#logout-confirm-cancel-btn').addEventListener('click', () => { $('#logout-confirm-modal').hidden = true; });
+    $('#logout-confirm-btn').addEventListener('click', () => { $('#logout-confirm-modal').hidden = true; doLogout(); });
   }
 
   function playerInitials(name) {
@@ -7017,6 +7070,33 @@
     $('#player-home-effectiveness-caption').textContent = `${eff.wins} ganados de ${eff.considered} jugados`;
   }
 
+  /** V03.1 (§6/§7) — Efectividad como KPI protagonista de RENDIMIENTO en MI PERFIL: mismo
+   *  componente donut que ya usa el Home (`.effectiveness-donut`, ver styles.css/
+   *  animateEffectivenessCircle), reusado con ids propios y sin caption interna (Partidos
+   *  jugados/ganados se muestran aparte en la columna vecina — nunca "14/18" duplicado acá,
+   *  consolidado §7). Siempre anima al renderizar: a diferencia del Home, esta tarjeta solo se
+   *  dibuja al abrir/cambiar de pestaña en Perfil, nunca en cada tick de una pantalla que ya
+   *  está en foco, así que no hace falta la lógica de `shouldAnimate` por sesión del Home. */
+  function renderProfileEffectivenessDonut(eff) {
+    const ring = $('#mi-perfil-effectiveness-ring');
+    const glow = $('#mi-perfil-effectiveness-glow');
+    const circles = [ring, glow];
+    const circumference = 2 * Math.PI * 15.5;
+    circles.forEach((c) => { c.style.strokeDasharray = `${circumference}`; });
+    if (eff.pct === null) {
+      circles.forEach((c) => { c.style.opacity = '0'; });
+      $('#mi-perfil-effectiveness-value').textContent = '—';
+      return;
+    }
+    ring.style.opacity = '1';
+    glow.style.opacity = '';
+    const filled = (eff.pct / 100) * circumference;
+    const toOffset = circumference - filled;
+    const ease = getComputedStyle(document.documentElement).getPropertyValue('--home-anim-ease').trim() || 'ease-out';
+    circles.forEach((c) => animateEffectivenessCircle(c, circumference, toOffset, ease));
+    $('#mi-perfil-effectiveness-value').textContent = `${eff.pct}%`;
+  }
+
   /** §10 — Cuatro métricas pequeñas: Racha actual (consecutiva desde el partido más reciente,
    *  no la mejor histórica), Partidos totales (real, sin importar la muestra), Mejor
    *  compañero (mayor efectividad con muestra mínima de 3, no el más repetido) y Rival más
@@ -7260,10 +7340,15 @@
     // #mi-perfil-played (bloque RENDIMIENTO, más abajo).
 
     // MI PERFIL — KPIs ya disponibles (misma fuente que el Home, nunca una segunda fórmula).
+    // V03.1 (§6/§7) — Efectividad pasa de texto a donut protagonista (mismo componente visual
+    // que la tarjeta de Efectividad del Home, ver renderProfileEffectivenessDonut); Partidos
+    // jugados/ganados se muestran aparte, así que acá nunca se repite "14/18".
     const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
-    $('#profile-kpi-effectiveness').textContent = eff.pct === null ? 'Sin datos' : `${eff.pct}% (${eff.wins}/${eff.considered})`;
+    renderProfileEffectivenessDonut(eff);
+    // V03.1 (§8/§10) — "principio de datos positivos": nunca un texto sobre la derrota (ni
+    // siquiera "Sin racha en curso") — un simple "—" cuando no hay racha positiva en curso.
     const streak = PH.computeCurrentStreak(matches, currentIdentity());
-    $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : 'Sin racha en curso';
+    $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : '—';
 
     // V03.0.3 (§3) — "rendimiento ya calculable": jugados/ganados/mejor racha, misma fuente
     // que el resto de la app (PH.computeEffectivenessTotal ya cuenta ganados; computeBestWinStreak
@@ -7271,32 +7356,44 @@
     // nueva.
     $('#mi-perfil-played').textContent = String(matches.length);
     $('#mi-perfil-won').textContent = String(eff.wins);
-    const bestStreak = PH.computeBestWinStreak(matches, currentIdentity());
-    $('#mi-perfil-best-streak').textContent = bestStreak > 0 ? `${bestStreak} ${bestStreak === 1 ? 'victoria' : 'victorias'}` : 'Sin datos';
+    // V03.1 (§9) — "Mejor racha" suma contexto temporal breve (mes o rango de meses del tramo
+    // real que definió esa racha) vía PH.computeBestWinStreakRange — mismo dato de siempre
+    // (computeBestWinStreak), con su fecha real, nunca una fórmula nueva.
+    const bestStreakRange = PH.computeBestWinStreakRange(matches, currentIdentity());
+    $('#mi-perfil-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
+    $('#mi-perfil-best-streak-range').hidden = !bestStreakRange;
+    if (bestStreakRange) $('#mi-perfil-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
 
-    // MIS DATOS — Identidad.
-    $('#profile-data-firstname').textContent = (user && user.firstName) || '—';
-    $('#profile-data-lastname').textContent = (user && user.lastName) || '—';
+    // MIS DATOS — Identidad (V03.1 §15: compacta, foto a la izquierda, nombre+apellido en UNA
+    // línea — nombre y apellido siguen siendo 2 campos reales/editables por separado, ver
+    // Editar Datos, solo se muestran juntos acá para ahorrar espacio vertical).
+    const fullName = [user && user.firstName, user && user.lastName].filter(Boolean).join(' ');
+    $('#profile-data-fullname').textContent = fullName || '—';
     $('#profile-data-username').textContent = user && user.username ? `@${user.username}` : '—';
     $('#profile-data-displayname').textContent = (user && user.displayName) || name || '—';
     setAvatarPreview('profile-data-avatar-img', 'profile-data-avatar-initials', user && user.profilePhoto, name);
 
-    // MIS DATOS — Datos personales/deportivos.
+    // MIS DATOS — Datos personales/deportivos (V03.1 §16: agrupado en filas compactas).
     const age = user ? PLI.calculateAge(user.birthDate) : null;
-    $('#profile-birthdate').textContent = (user && user.birthDate)
-      ? `${formatBirthDate(user.birthDate)}${age !== null ? ` (${age} años)` : ''}`
-      : '—';
+    $('#profile-birthdate').textContent = (user && user.birthDate) ? formatBirthDate(user.birthDate) : '—';
+    $('#profile-age').textContent = age !== null ? `${age} años` : '—';
     $('#profile-gender').textContent = (user && GENDER_LABELS[user.gender]) || '—';
     $('#profile-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
     $('#profile-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
-    $('#profile-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
+    // V03.1 (§4) — "Categoría declarada / 5ª · declarada el 08 SEP 26": categoría SOLO en MIS
+    // DATOS (nunca en MI PERFIL, retirada de la ficha deportiva en §3), con su fecha real si
+    // se conoce (cuentas ya existentes antes de esta ronda pueden tener categoría sin fecha —
+    // se muestra solo la categoría en ese caso, nunca una fecha inventada).
+    const categoryLabel = user && CATEGORY_LABELS[user.declaredCategory];
+    const categoryDate = user && user.declaredCategoryAt ? formatDeclaredCategoryDate(user.declaredCategoryAt) : '';
+    $('#profile-category').textContent = categoryLabel ? (categoryDate ? `${categoryLabel} · declarada el ${categoryDate}` : categoryLabel) : '—';
 
-    // V03.0.3 (§3) — MI PERFIL: mismos 4 valores ya declarados, mostrados en la ficha
-    // deportiva (edad en vez de fecha completa — "Edad" es lo que pide el consolidado acá).
+    // MI PERFIL — cabecera (V03.1 §2): Edad/Mano dominante/Lado habitual integrados en la
+    // misma tarjeta de identidad, mismos 3 valores que arriba. La categoría NO se muestra acá
+    // (§3): es un dato declarado privado, no identidad deportiva pública.
     $('#mi-perfil-age').textContent = age !== null ? `${age} años` : '—';
     $('#mi-perfil-hand').textContent = (user && HAND_LABELS[user.dominantHand]) || '—';
     $('#mi-perfil-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
-    $('#mi-perfil-category').textContent = (user && CATEGORY_LABELS[user.declaredCategory]) || '—';
 
     // MIS DATOS — Acceso y seguridad.
     $('#profile-data-email').textContent = (user && user.email) || '—';
@@ -7336,90 +7433,93 @@
   /* ETAPA 4.1 (§4) — GRÁFICO DE EVOLUCIÓN DEL NIVEL BRAMU (Perfil)
    *  Consume PH.computeLevelEvolution (pura). El SVG se reconstruye entero en cada render
    *  (mismo patrón que el resto de los gráficos de la app — buildEvolutionSvgHTML/
-   *  buildGamesEvolutionSvgHTML más arriba), con delegación de click/teclado en un único
-   *  listener sobre el contenedor (ver initProfileScreen) en vez de uno por punto. */
+   *  buildGamesEvolutionSvgHTML más arriba).
+   *  V03.1 (§12) — línea limpia sin puntos ni interacción por partido: ya no hace falta
+   *  guardar la última evolución renderizada para un detalle al tocar (retirado). */
   /* ------------------------------------------------------------------ */
-  let profileEvolutionData = null; // último PH.computeLevelEvolution renderizado — lo usa el detalle de punto
 
   const LEVEL_CHART_WIDTH = 320;
   const LEVEL_CHART_HEIGHT = 180;
-  const LEVEL_CHART_PAD_LEFT = 30;
+  const LEVEL_CHART_PAD_LEFT = 34;
   const LEVEL_CHART_PAD_RIGHT = 10;
   const LEVEL_CHART_PAD_TOP = 14;
-  const LEVEL_CHART_PAD_BOTTOM = 30;
-  // V03.0.2 (§6) — como máximo ~5-6 etiquetas de fecha en el eje X, sin importar cuántos
-  // puntos tenga la serie: "si hay muchos puntos, reducir etiquetas, no datos" (nunca se
-  // recortan dots/línea, solo el texto debajo).
-  const LEVEL_CHART_MAX_X_LABELS = 5;
+  const LEVEL_CHART_PAD_BOTTOM = 22;
+  // V03.1 (§14) — densidad adaptativa del eje X: "aproximadamente 4 a 8 referencias legibles"
+  // (antes fijo en 5). La cantidad real de etiquetas mostradas sigue saliendo de
+  // labelStep/isEdge más abajo — este es el techo.
+  const LEVEL_CHART_MAX_X_LABELS = 7;
 
-  /** V03.0.2 (§6) — granularidad adaptada al rango real entre el primer y último partido
-   *  considerado: corto → día/mes, intermedio → día + mes abreviado, largo → mes/año. Nunca
-   *  una escala de negocio inventada, solo el formato de fecha ya calculado por PH. */
-  function formatLevelAxisDate(iso, spanDays) {
-    try {
-      const d = new Date(iso);
-      if (spanDays <= 21) return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit' }).format(d);
-      if (spanDays <= 180) return new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: 'short' }).format(d);
-      return new Intl.DateTimeFormat('es-AR', { month: 'short', year: '2-digit' }).format(d);
-    } catch (e) { return ''; }
+  /** V03.1 (§14) — formato de etiqueta del eje X según el rango real de fechas cubierto:
+   *  pocos días → día+mes ("08 SEP"); ~1 mes → semana relativa al primer punto mostrado
+   *  ("SEM 1"/"SEM 2"...); 2-6 meses → día+mes (misma resolución que "pocos días", ya reducida
+   *  en cantidad de etiquetas por `labelStep`); varios meses → solo mes ("SEP"). Nunca una
+   *  escala de negocio inventada, solo el formato — la densidad de puntos/línea no cambia. */
+  function formatLevelAxisLabel(iso, firstIso, spanDays) {
+    if (spanDays <= 45) {
+      if (spanDays > 14) {
+        const daysSinceFirst = Math.max(0, Math.round((new Date(iso) - new Date(firstIso)) / 86400000));
+        return `SEM ${Math.floor(daysSinceFirst / 7) + 1}`;
+      }
+      return formatAxisDayMonth(iso);
+    }
+    if (spanDays <= 200) return formatAxisDayMonth(iso);
+    return formatAxisMonthOnly(iso);
   }
 
-  /** V03.0.3 (§4) — paso de grilla "legible": el candidato más chico de la lista que da como
-   *  máximo ~4 divisiones dentro de `range` — nunca decimales sueltos tipo 0.37. */
-  const LEVEL_AXIS_STEP_CANDIDATES = [0.1, 0.2, 0.5, 1, 2, 5];
-  function niceLevelAxisStep(range) {
-    const target = range / 4;
-    for (const step of LEVEL_AXIS_STEP_CANDIDATES) { if (step >= target) return step; }
-    return LEVEL_AXIS_STEP_CANDIDATES[LEVEL_AXIS_STEP_CANDIDATES.length - 1];
+  // V03.1 (§13) — rango Y adaptativo pero SIEMPRE en pasos de 0.25 (nunca un paso variable
+  // como antes): 6 líneas de grilla (5 pasos = 1.25 de rango) cuando la serie real entra ahí
+  // holgada; si la variación real es mayor, el rango crece en pasos de 0.25 hasta contenerla
+  // (nunca aplasta la curva contra el borde). 0.25 es exacto en binario (IEEE754), así que la
+  // aritmética de abajo no necesita redondeo de punto flotante.
+  const LEVEL_Y_STEP = 0.25;
+  const LEVEL_Y_MIN_LINES = 6;
+  function computeLevelYAxis(levels) {
+    const rawMin = Math.min(...levels);
+    const rawMax = Math.max(...levels);
+    const margin = LEVEL_Y_STEP; // medio paso de aire arriba/abajo antes de redondear a grilla
+    let yMin = Math.floor((rawMin - margin) / LEVEL_Y_STEP) * LEVEL_Y_STEP;
+    let yMax = Math.ceil((rawMax + margin) / LEVEL_Y_STEP) * LEVEL_Y_STEP;
+    const minRange = LEVEL_Y_STEP * (LEVEL_Y_MIN_LINES - 1);
+    if (yMax - yMin < minRange) {
+      const padEach = Math.ceil(((minRange - (yMax - yMin)) / 2) / LEVEL_Y_STEP) * LEVEL_Y_STEP;
+      yMin -= padEach;
+      yMax = yMin + minRange;
+    }
+    return { yMin, yMax, step: LEVEL_Y_STEP };
   }
 
   /** §4.4 — línea temporal izquierda→derecha, un nivel mayor se dibuja más arriba.
-   *  V03.0.2 (§6) — antes el SVG crecía de ancho intrínseco (56px por punto) dentro de un
-   *  contenedor con scroll horizontal; el consolidado pide explícitamente NO depender de
-   *  scroll horizontal como solución principal. El `viewBox` es un ancho virtual FIJO
-   *  (LEVEL_CHART_WIDTH) y el `<svg>` se renderiza a `width:100%` (ver .evolution-chart__svg) —
-   *  siempre entra en el ancho disponible, sin importar cuántos partidos haya.
-   *  V03.0.3 (§4) — la escala Y de V03.0.2 seguía "abriendo demasiado": incluía
-   *  `evolution.base` (el 5.0 fijo de arranque) en el mín/máx, así que una racha real de
-   *  5.9-6.6 igual mostraba una escala arrastrada hasta el 5.0 aunque el jugador nunca haya
-   *  estado ahí en la serie visible. Ahora el rango sale SOLO de los niveles reales de los
-   *  puntos mostrados (nunca del `base`), con un margen chico, redondeado a un paso legible
-   *  (niceLevelAxisStep) y máximo 5 marcas — igual que pide el consolidado con su propio
-   *  ejemplo (5.9-6.6 real, nunca 4.3-7.2). Con 1 solo punto no se dibuja ninguna línea
-   *  (`coords.length > 1` — nunca "inventar una línea" con un solo dato real). */
+   *  V03.0.2 (§6) — el `viewBox` es un ancho virtual FIJO (LEVEL_CHART_WIDTH) y el `<svg>` se
+   *  renderiza a `width:100%` (ver .evolution-chart__svg) — siempre entra en el ancho
+   *  disponible, sin importar cuántos partidos haya.
+   *  V03.1 (§12) — "línea limpia, sin puntos, sin markers, sin tooltip por partido": se retiran
+   *  los círculos por punto y toda interacción de click/teclado sobre ellos (ver
+   *  initProfileScreen) — la lectura es SOLO la forma de la curva + los ejes. Con 1 solo punto
+   *  no se dibuja ninguna línea (`coords.length > 1` — nunca "inventar una línea" con un solo
+   *  dato real). */
   function buildLevelEvolutionSvgHTML(evolution) {
     const points = evolution.points;
     if (!points.length) return '';
-    const levels = points.map((p) => p.level);
-    const rawMin = Math.min(...levels);
-    const rawMax = Math.max(...levels);
-    const rawSpan = Math.max(0.1, rawMax - rawMin);
-    const margin = Math.max(0.1, rawSpan * 0.2);
-    const step = niceLevelAxisStep(rawSpan + margin * 2);
-    const yMin = Math.floor((rawMin - margin) / step) * step;
-    const yMax = Math.ceil((rawMax + margin) / step) * step;
+    const { yMin, yMax, step } = computeLevelYAxis(points.map((p) => p.level));
     const width = LEVEL_CHART_WIDTH;
     const plotW = width - LEVEL_CHART_PAD_LEFT - LEVEL_CHART_PAD_RIGHT;
     const plotH = LEVEL_CHART_HEIGHT - LEVEL_CHART_PAD_TOP - LEVEL_CHART_PAD_BOTTOM;
     const xAt = (i) => (points.length === 1 ? LEVEL_CHART_PAD_LEFT + plotW / 2 : LEVEL_CHART_PAD_LEFT + (i / (points.length - 1)) * plotW);
     const yAt = (level) => LEVEL_CHART_PAD_TOP + (1 - (level - yMin) / (yMax - yMin)) * plotH;
 
-    // Eje Y: una línea de grilla por cada paso legible entre yMin y yMax (máximo 5, con el
-    // valor real al lado — nunca una escala inventada).
-    const tickCount = Math.min(5, Math.round((yMax - yMin) / step) + 1);
+    // Eje Y: una línea de grilla por cada paso de 0.25 entre yMin y yMax (§13) — 2 decimales
+    // en la etiqueta porque el paso ya no es siempre un múltiplo de 0.1 (6.25/6.75, etc.).
+    const tickCount = Math.round((yMax - yMin) / step) + 1;
     const yValues = Array.from({ length: tickCount }, (_, i) => yMax - i * step);
     const gridHTML = yValues.map((value) => {
       const t = (yMax - value) / (yMax - yMin);
       const y = (LEVEL_CHART_PAD_TOP + t * plotH);
-      // Redondeo de PRESENTACIÓN por errores de punto flotante de `yMax - i*step` (nunca
-      // afecta el valor real de los puntos/la línea, solo el texto de la etiqueta).
-      const label = step < 1 ? value.toFixed(1) : String(Math.round(value));
       return `<line x1="${LEVEL_CHART_PAD_LEFT}" y1="${y.toFixed(1)}" x2="${width}" y2="${y.toFixed(1)}" class="evolution-chart__grid" />`
-        + `<text x="0" y="${y.toFixed(1)}" dy="3.5" class="evolution-chart__axis-label">${label}</text>`;
+        + `<text x="0" y="${y.toFixed(1)}" dy="3.5" class="evolution-chart__axis-label">${value.toFixed(2)}</text>`;
     }).join('');
 
-    // Eje X: fechas reales, máximo LEVEL_CHART_MAX_X_LABELS etiquetas (siempre incluye la
-    // primera y la última) — la densidad de puntos/línea nunca se reduce, solo el texto.
+    // Eje X: densidad adaptativa (§14), máximo LEVEL_CHART_MAX_X_LABELS etiquetas (siempre
+    // incluye la primera y la última) — la densidad de la línea nunca se reduce, solo el texto.
     const firstDate = new Date(points[0].playedAt);
     const lastDate = new Date(points[points.length - 1].playedAt);
     const spanDays = Math.max(0, Math.round((lastDate - firstDate) / 86400000));
@@ -7429,43 +7529,23 @@
       if (!isEdge && (i % labelStep !== 0)) return '';
       const x = xAt(i);
       const anchor = i === 0 ? 'start' : (i === points.length - 1 ? 'end' : 'middle');
-      return `<text x="${x.toFixed(1)}" y="${LEVEL_CHART_HEIGHT}" class="evolution-chart__axis-label" text-anchor="${anchor}">${formatLevelAxisDate(p.playedAt, spanDays)}</text>`;
+      return `<text x="${x.toFixed(1)}" y="${LEVEL_CHART_HEIGHT}" class="evolution-chart__axis-label" text-anchor="${anchor}">${formatLevelAxisLabel(p.playedAt, points[0].playedAt, spanDays)}</text>`;
     }).join('');
 
     const coords = points.map((p, i) => [xAt(i), yAt(p.level)]);
     const pathD = coords.length > 1 ? 'M ' + coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ') : '';
     const lineHTML = pathD ? `<path d="${pathD}" class="evolution-chart__line" fill="none" />` : '';
 
-    const lastIdx = points.length - 1;
-    const dotsHTML = coords.map(([x, y], i) => {
-      const isLast = i === lastIdx;
-      const cls = 'evolution-chart__dot' + (isLast ? ' evolution-chart__dot--current' : '');
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isLast ? 5 : 3.5}" class="${cls}" data-index="${i}" tabindex="0" role="button" aria-label="Partido ${i + 1} de ${points.length}, nivel ${points[i].level.toFixed(1)}"></circle>`;
-    }).join('');
-
-    return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg" preserveAspectRatio="xMidYMid meet">${gridHTML}${xLabelsHTML}${lineHTML}${dotsHTML}</svg>`;
+    return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg" preserveAspectRatio="xMidYMid meet">${gridHTML}${xLabelsHTML}${lineHTML}</svg>`;
   }
 
-  /** §4.4 — "Al tocar un punto: fecha, resultado, victoria o derrota, rivales y nivel
-   *  resultante." Texto plano dentro de la misma tarjeta, sin abrir nada nuevo. */
-  function showLevelPointDetail(evolution, index) {
-    const p = evolution.points[index];
-    const el = $('#evolution-point-detail');
-    if (!p) { el.hidden = true; return; }
-    const resultLabel = p.result === 'win' ? 'Victoria' : 'Derrota';
-    const rivalsStr = p.rivals.join(' / ') || '—';
-    el.hidden = false;
-    el.textContent = `${formatRealDate(p.playedAt)} · ${resultLabel} vs ${rivalsStr} · Nivel ${p.level.toFixed(1)}`;
-  }
-
-  /** §4.1/§4.5 — resumen numérico + gráfico. Nivel actual y "variación del último partido"
-   *  van en la Tarjeta de jugador del Home (renderPlayerCard); acá van los 3 datos propios de
-   *  esta tarjeta: nivel actual, CAMBIO ACUMULADO desde la base (no el último movimiento) y
-   *  cantidad de partidos considerados — nunca predicciones ni percentiles (§4.5). */
+  /** §4.1 — resumen numérico + gráfico, simplificado (V03.1 §11): Nivel actual y cambio en
+   *  los ÚLTIMOS 30 DÍAS (ya no "cambio acumulado desde la base", ni partidos considerados/
+   *  mejor nivel — esos 2 últimos se retiran de esta cabecera por el pedido explícito de
+   *  simplificación; sus cálculos siguen intactos y disponibles, solo dejan de mostrarse acá). */
   function renderProfileEvolution(user) {
     const history = Store.loadHistory();
     const evolution = PH.computeLevelEvolution(history, currentIdentity());
-    profileEvolutionData = evolution;
 
     // V03.0 (§2) — mismo gate que la Tarjeta de jugador del Home: cuentas legacy ven el
     // número simulado de siempre (sin cambios), cuentas nuevas V03.0 ven CALIBRANDO/
@@ -7489,14 +7569,13 @@
     }
 
     $('#evolution-current-value').textContent = evolution.current.toFixed(1);
-    const change = formatLevelDelta(evolution.changeFromBase);
-    $('#evolution-change-value').textContent = evolution.consideredCount ? change.label : '—';
-    $('#evolution-count-value').textContent = String(evolution.consideredCount);
-    // V03.0.3 (§3) — "mejor Nivel BRAMU histórico, solo si puede calcularse con la serie real
-    // existente": máximo de la misma serie que ya dibuja el gráfico, nunca una fórmula nueva.
-    $('#evolution-best-value').textContent = evolution.consideredCount
-      ? Math.max(evolution.base, ...evolution.points.map((p) => p.level)).toFixed(1) : '—';
-    $('#evolution-point-detail').hidden = true;
+    // V03.1 (§11) — "Cambio últimos 30 días" reemplaza al cambio acumulado desde la base: si
+    // dio 0 (nunca jugó en la ventana, o jugó pero volvió al mismo nivel), el valor pasa a "—"
+    // y el label cambia a la frase completa pedida — nunca un "+0.0"/"↑0.0" ambiguo.
+    const change30 = PH.computeLevelChangeLast30Days(evolution);
+    const change = formatLevelDelta(change30);
+    $('#evolution-change-value').textContent = change30 ? change.label : '—';
+    $('#evolution-change-label').textContent = change30 ? 'Cambio últimos 30 días' : 'sin cambios en los últimos 30 días';
 
     $('#mi-perfil-level-value').textContent = evolution.current.toFixed(1);
     // V03.0.3.1 (§4) — cabecera de MI PERFIL muestra SOLO el Nivel BRAMU actual: se retira
@@ -7581,19 +7660,8 @@
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
     wireInlineAvatarEdit('profile-avatar', 'mi-perfil-avatar-input', 'mi-perfil-avatar-edit-btn');
     wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn');
-    const chartWrap = $('#evolution-chart-wrap');
-    chartWrap.addEventListener('click', (e) => {
-      const dot = e.target.closest('[data-index]');
-      if (!dot || !profileEvolutionData) return;
-      showLevelPointDetail(profileEvolutionData, Number(dot.dataset.index));
-    });
-    chartWrap.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      const dot = e.target.closest('[data-index]');
-      if (!dot || !profileEvolutionData) return;
-      e.preventDefault();
-      showLevelPointDetail(profileEvolutionData, Number(dot.dataset.index));
-    });
+    // V03.1 (§12) — sin puntos por partido, sin interacción por punto: el gráfico ya no tiene
+    // nada tocable (ver buildLevelEvolutionSvgHTML), así que este listener se retira entero.
   }
 
   let profileEditPhotoDataUrl = null; // null = sin cambio; '' = "quitar foto" explícito
@@ -7678,6 +7746,11 @@
       else if (PLI.isUsernameTaken(username, Store.loadUsers(), user.id)) error = 'Ese @usuario ya está en uso.';
       if (error) { $('#profile-edit-error').textContent = error; $('#profile-edit-error').hidden = false; return; }
 
+      // V03.1 (§4) — "fecha en la que fue declarada": se reestampa SOLO si el valor de
+      // categoría cambia respecto al ya guardado. Guardar sin tocar el campo (o guardando
+      // el mismo valor) conserva la fecha de declaración original.
+      const nextCategory = $('#profile-edit-category').value || null;
+      const categoryChanged = nextCategory !== (user.declaredCategory || null);
       const patch = {
         firstName,
         lastName: $('#profile-edit-last-name').value.trim(),
@@ -7687,7 +7760,8 @@
         gender: profileEditGender,
         dominantHand: profileEditHand,
         preferredSide: profileEditSide,
-        declaredCategory: $('#profile-edit-category').value || null,
+        declaredCategory: nextCategory,
+        declaredCategoryAt: categoryChanged ? (nextCategory ? new Date().toISOString() : null) : (user.declaredCategoryAt || null),
       };
       if (profileEditPhotoRemoved) patch.profilePhoto = null;
       else if (profileEditPhotoDataUrl) patch.profilePhoto = profileEditPhotoDataUrl;
@@ -8054,6 +8128,7 @@
     initChangePasswordScreen();
     initNotificationsScreen();
     initLogoutWarningModal();
+    initLogoutConfirmModal();
     initBottomNav();
     initRegisterSheet();
     initDiscardMatchModal();

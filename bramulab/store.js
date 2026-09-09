@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.0.3.2';
+  const APP_VERSION = 'BRAMUlab V03.1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -212,6 +212,11 @@
       dominantHand: fields.dominantHand || null,
       preferredSide: fields.preferredSide || null,
       declaredCategory: fields.declaredCategory || null,
+      // V03.1 (§4) — fecha en la que se declaró la categoría actual (no una auditoría de
+      // cambios, solo "desde cuándo vale la que está guardada ahora"). Se estampa junto con
+      // `declaredCategory` en el signup y se REESTAMPA solo si el valor cambia en Editar Datos
+      // (ver openProfileEditModal/submit) — nunca por abrir/guardar sin tocar el campo.
+      declaredCategoryAt: fields.declaredCategoryAt || null,
       profilePhoto: fields.profilePhoto || null,
       legacyMigrated: !!fields.legacyMigrated,
       createdAt: now,

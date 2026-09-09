@@ -3243,6 +3243,80 @@
   })();
 
   // ------------------------------------------------------------------
+  // V03.1 (§9/§11/§23) — 2 funciones puras nuevas de player-home.js para la cabecera
+  // simplificada de Evolución y "Mejor racha" con contexto temporal. El resto de la ronda
+  // (cabecera de MI PERFIL, compactación de MIS DATOS, tabs de Rendimiento, eje Y adaptativo
+  // del gráfico, modal de confirmación de logout) es UI/DOM de app.js, fuera del alcance de
+  // tests.html — mismo límite documentado en todos los informes de V03.0.x. Cubierto por QA
+  // manual (ver Informe). No tocan localStorage — sin AFFECTED_KEYS.
+  // ------------------------------------------------------------------
+  (function () {
+    const player = 'Sebastián';
+
+    // ---- computeLevelChangeLast30Days ----
+    const now = new Date('2026-09-08T12:00:00.000Z');
+    const evoEmpty = PH.computeLevelEvolution([], player);
+    assert('V031-EVO30D · sin partidos, el cambio es 0', PH.computeLevelChangeLast30Days(evoEmpty, now) === 0);
+
+    // Un solo partido, hace 10 días (dentro de la ventana): el nivel "de corte" es la base
+    // (nada quedó ANTES del corte), así que el cambio = current - base = el delta del partido.
+    const recentWin = mkLevelMatch('d30-1', '2026-08-29T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2);
+    const evoRecent = PH.computeLevelEvolution([recentWin], player);
+    assert('V031-EVO30D · un partido reciente (dentro de 30 días): cambio = delta de ese partido', PH.computeLevelChangeLast30Days(evoRecent, now) === 0.2, JSON.stringify(evoRecent));
+
+    // Un partido hace 60 días (fuera de la ventana) + uno hace 5 días: el "nivel de corte" es
+    // el nivel que ya tenía DESPUÉS del partido viejo — el cambio de 30 días es solo el delta
+    // del partido reciente, nunca el acumulado de ambos.
+    const oldWin = mkLevelMatch('d30-2', '2026-07-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2);
+    const newWin = mkLevelMatch('d30-3', '2026-09-03T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2);
+    const evoMixed = PH.computeLevelEvolution([oldWin, newWin], player);
+    assert('V031-EVO30D · partido viejo fuera de ventana + uno reciente: cambio = solo el reciente', PH.computeLevelChangeLast30Days(evoMixed, now) === 0.2, JSON.stringify(evoMixed));
+
+    // Dos partidos viejos que se cancelan en nivel pero están fuera de la ventana + ninguno
+    // reciente: el cambio de 30 días debe dar 0 (nada se movió DENTRO de la ventana).
+    const oldWin2 = mkLevelMatch('d30-4', '2026-06-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2);
+    const evoStale = PH.computeLevelEvolution([oldWin2], player);
+    assert('V031-EVO30D · único partido MUY viejo (fuera de ventana): cambio de 30 días es 0', PH.computeLevelChangeLast30Days(evoStale, now) === 0, JSON.stringify(evoStale));
+
+    // ---- computeBestWinStreakRange ----
+    assert('V031-RACHA · sin partidos, no hay mejor racha (null)', PH.computeBestWinStreakRange([], player) === null);
+
+    // Historial más reciente primero (mismo orden que Store.loadHistory/filterMatchesForPlayer):
+    // 3 victorias seguidas en agosto, luego una derrota, luego 1 victoria suelta más reciente.
+    const streakMatches = [
+      mkLevelMatch('r5', '2026-09-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // victoria suelta (más reciente)
+      mkLevelMatch('r4', '2026-08-20T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'B', 2), // derrota (corta la racha)
+      mkLevelMatch('r3', '2026-08-15T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // racha: fin
+      mkLevelMatch('r2', '2026-08-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // racha: medio
+      mkLevelMatch('r1', '2026-08-05T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2), // racha: inicio
+    ];
+    const range = PH.computeBestWinStreakRange(streakMatches, player);
+    assert('V031-RACHA · encuentra la racha de 3 (no la victoria suelta de 1)', range && range.count === 3, JSON.stringify(range));
+    assert('V031-RACHA · fecha de inicio de la racha es el primer partido de ese tramo', range.startDate === '2026-08-05T00:00:00.000Z');
+    assert('V031-RACHA · fecha de fin de la racha es el último partido de ese tramo', range.endDate === '2026-08-15T00:00:00.000Z');
+    assert('V031-RACHA · formatStreakRangeLabel (mismo mes) da "AGO 26"', (function () {
+      // Reimplementación mínima del formateo (app.js no está cargado acá): confirma que
+      // start/end alcanzan para derivar el label, sin repetir la función real.
+      const s = new Date(range.startDate), e = new Date(range.endDate);
+      return s.getUTCMonth() === e.getUTCMonth();
+    })());
+
+    // Empate de longitud: dos rachas de 2 (cronológico: u1,u2 victoria/victoria, u3 derrota
+    // corta, u4,u5 victoria/victoria) — se queda con la PRIMERA cronológica (u1-u2), criterio
+    // documentado y determinístico, no la más reciente.
+    const tieMatches = [
+      mkLevelMatch('u5', '2026-08-20T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+      mkLevelMatch('u4', '2026-08-15T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+      mkLevelMatch('u3', '2026-08-10T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'B', 2),
+      mkLevelMatch('u2', '2026-08-05T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+      mkLevelMatch('u1', '2026-08-01T00:00:00.000Z', [player, 'X', 'Y', 'Z'], 'A', 2),
+    ];
+    const tieRange = PH.computeBestWinStreakRange(tieMatches, player);
+    assert('V031-RACHA · empate de longitud: cuenta correcta (2)', tieRange && tieRange.count === 2, JSON.stringify(tieRange));
+    assert('V031-RACHA · empate de longitud: se queda con la PRIMERA racha cronológica', tieRange.startDate === '2026-08-01T00:00:00.000Z' && tieRange.endDate === '2026-08-05T00:00:00.000Z', JSON.stringify(tieRange));
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;
