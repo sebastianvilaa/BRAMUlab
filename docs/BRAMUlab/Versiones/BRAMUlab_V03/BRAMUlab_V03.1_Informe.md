@@ -284,7 +284,7 @@ ni requests fallidos atribuibles a la app.
 ## 19. Hash exacto y tag
 
 - Commit de implementación (código): `3a3dc89bceb777f6d224375048c3f00b20e8109d`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `554fddbb9ff87f88597eb58fc388e0d25366aa3f`.
 - Tag `BRAMUlab_V03.1` apuntará al commit inmediatamente posterior a este.
 
 ---
