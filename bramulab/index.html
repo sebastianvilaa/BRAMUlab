@@ -1279,16 +1279,16 @@
           </div>
         </div>
 
-        <!-- V03.1.1 (§2/§3/§4) — RENDIMIENTO pasa de un único bloque con título a 5 tarjetas
-             independientes ("los KPIs deben leerse por sí mismos", sin título de sección).
-             Efectividad sigue siendo el mismo donut de la tarjeta de Efectividad del Home
-             (ver renderProfileEffectivenessDonut), en su propia tarjeta más grande, compartiendo
-             fila con Partidos jugados/ganados apilados (nunca repiten el "X/Y" que ya lee el
-             donut). Racha actual/Mejor racha van en una segunda fila, cada una en su propia
-             tarjeta. Mismos 5 KPIs/fórmulas de siempre, sin agregar "derrotas" (§10 de V03.1). -->
+        <!-- V03.1.2 (§1) — Efectividad + Partidos jugados/ganados se fusionan en UNA sola
+             tarjeta (antes 3 tarjetas separadas, V03.1.1): donut+%+label a la izquierda,
+             Partidos jugados/ganados apilados a la derecha con números más grandes
+             (`.profile-performance-matches-value`, mismo tratamiento de "número protagonista"
+             que ya usan los widgets del Home) — aprovecha mejor el espacio que 3 bordes/
+             paddings independientes. Racha actual/Mejor racha siguen siendo 2 tarjetas
+             independientes (sin cambios). Mismos KPIs/fórmulas de siempre. -->
         <div class="profile-performance" id="profile-kpis">
-          <div class="profile-performance-row">
-            <div class="pastilla profile-performance-card--effectiveness">
+          <div class="pastilla profile-performance-card--merged">
+            <div class="profile-performance-hero__donut">
               <div class="effectiveness-donut effectiveness-donut--lg">
                 <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
                   <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
@@ -1299,14 +1299,14 @@
               </div>
               <span class="profile-performance-card__label">EFECTIVIDAD</span>
             </div>
-            <div class="profile-performance-stack">
-              <div class="pastilla profile-performance-card--mini">
+            <div class="profile-performance-matches">
+              <div class="profile-performance-matches__item">
                 <span class="mini-stat__label">Partidos jugados</span>
-                <span class="mini-stat__value" id="mi-perfil-played">—</span>
+                <span class="profile-performance-matches__value" id="mi-perfil-played">—</span>
               </div>
-              <div class="pastilla profile-performance-card--mini">
+              <div class="profile-performance-matches__item">
                 <span class="mini-stat__label">Partidos ganados</span>
-                <span class="mini-stat__value" id="mi-perfil-won">—</span>
+                <span class="profile-performance-matches__value" id="mi-perfil-won">—</span>
               </div>
             </div>
           </div>
