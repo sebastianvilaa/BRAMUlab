@@ -67,7 +67,7 @@ anteriores) en los dos anchos ya usados como referencia en esta serie de ajustes
 ## 6. Hash exacto y tag
 
 - Commit de implementación (código): `52589c1f3770d2cef167b033fa4657eb8d6cfa2a`.
-- Commit de este informe: pendiente de completar tras su propio commit.
+- Commit de este informe: `0092325e27d3e83957e613af0d5bdc3cd71b32f1`.
 - Tag `BRAMUlab_V03.1.5` apuntará al commit inmediatamente posterior a este.
 
 ---
