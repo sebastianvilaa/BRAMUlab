@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.1.1
+## Versión funcional actual: BRAMUlab_V03.1.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.1`. Pulido visual de Perfil sobre V03.1: corrige la alineación de Edad/Mano dominante/Lado habitual en MI PERFIL (un label que envuelve a 2 líneas ya no corre su valor respecto a los demás), reemplaza el bloque único de RENDIMIENTO por 5 tarjetas independientes sin título de sección (Efectividad protagonista + Partidos jugados/ganados + Racha actual/Mejor racha), y retira las etiquetas "SEM X" del eje X de Evolución (fechas reales para rangos cortos/medios, solo mes para rangos largos). MIS DATOS pierde los títulos redundantes "TUS DATOS"/"IDENTIDAD" y el botón de edición se integra dentro de la propia tarjeta de identidad. Sin cambios de lógica ni de arquitectura — puramente visual/markup.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.1.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.1.2`. Microparche de composición sobre V03.1.1: fusiona Efectividad + Partidos jugados + Partidos ganados en una sola tarjeta (donut a la izquierda, Partidos jugados/ganados apilados a la derecha con números más grandes) — Racha actual y Mejor racha siguen siendo 2 tarjetas independientes. Corrige además un bug real de espaciado (un `margin-bottom` que se sumaba al `gap` del contenedor, doblando la separación entre tarjetas) tanto en MI PERFIL como en MIS DATOS, unificando el ritmo visual de toda la pantalla a 14px. Sin cambios de lógica ni de arquitectura — puramente visual/markup.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.1.1 (pulido de MI PERFIL + simplificación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.1.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md) |
+| Qué se especificó en V03.1.2 (microparche de composición en Perfil) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.2_Informe.md) |
 
 **Rondas anteriores de V03, sin cambios de arquitectura desde entonces:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.1.1 (pulido de MI PERFIL + simplificación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.1.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1.1_Informe.md) |
 | Qué se especificó en V03.1 (rediseño de MI PERFIL + compactación de MIS DATOS) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.1_Informe.md) |
 | Qué se especificó en V03.0.3.2 (recuperación desde sesión + tabs de modo) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.0.3.2_Consolidado.md) |
