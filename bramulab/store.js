@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.2.2';
+  const APP_VERSION = 'BRAMUlab V03.3';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -53,6 +53,12 @@
     // actividad reconstruido a partir de eventos que YA ocurren en la app (ver
     // Store.addNotification*, llamado desde app.js).
     NOTIFICATIONS: 'bramulab.notifications.v1',
+    // V03.3 (§3/§9) — lista personal de "jugadores agregados", por userId (mismo criterio que
+    // NOTIFICATIONS: nunca por nombre visible, para que dos cuentas locales distintas no se
+    // mezclen entre sí). Guarda solo nombres normalizados — no hay todavía un sistema real de
+    // cuentas para cada jugador de la lista (consolidado §9: dato local/simulado, reemplazable
+    // por backend real más adelante).
+    ADDED_PLAYERS: 'bramulab.addedPlayers.v1',
   };
 
   function safeGet(key) {
@@ -441,6 +447,51 @@
     return loadNotifications(userId).filter((n) => !n.readAt).length;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V03.3 (§3/§9) — JUGADORES AGREGADOS                                  */
+  /* Relación simple "agregué a este jugador para tenerlo a mano" — nunca */
+  /* amistad/seguimiento recíproco (consolidado §1). Un dict por userId    */
+  /* (no un array plano con campo userId, a diferencia de NOTIFICATIONS):  */
+  /* la lista de cada persona es chica y siempre se lee completa, un dict  */
+  /* evita reescanear todo el array en cada isPlayerAdded/add/remove. */
+  /* ------------------------------------------------------------------ */
+
+  function loadAllAddedPlayers() { return safeGet(KEYS.ADDED_PLAYERS) || {}; }
+
+  /** Nombres normalizados agregados por `userId`, más reciente primero al agregarse (orden de
+   *  inserción). `[]` sin `userId` — nunca mezclar entre cuentas locales distintas. */
+  function loadAddedPlayers(userId) {
+    if (!userId) return [];
+    const all = loadAllAddedPlayers();
+    return Array.isArray(all[userId]) ? all[userId] : [];
+  }
+
+  function isPlayerAdded(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    return loadAddedPlayers(userId).some((n) => normalizePlayerName(n) === norm);
+  }
+
+  /** Idempotente: agregar dos veces al mismo jugador no duplica la entrada. */
+  function addPlayerToList(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    const all = loadAllAddedPlayers();
+    const list = Array.isArray(all[userId]) ? all[userId] : [];
+    if (list.some((n) => normalizePlayerName(n) === norm)) return true;
+    all[userId] = list.concat([norm]);
+    return safeSet(KEYS.ADDED_PLAYERS, all);
+  }
+
+  function removePlayerFromList(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    const all = loadAllAddedPlayers();
+    const list = Array.isArray(all[userId]) ? all[userId] : [];
+    all[userId] = list.filter((n) => normalizePlayerName(n) !== norm);
+    return safeSet(KEYS.ADDED_PLAYERS, all);
+  }
+
   global.PLStore = {
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
@@ -458,5 +509,7 @@
     // V03.0.2 — notificaciones locales
     loadNotifications, addNotification, addNotificationOnce,
     markNotificationRead, markAllNotificationsRead, countUnreadNotifications,
+    // V03.3 — jugadores agregados
+    loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

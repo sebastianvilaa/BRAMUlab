@@ -290,11 +290,15 @@
   // perdían la navegación inferior con sesión activa, inconsistencia expresa del consolidado.
   // Ver positionManualContinueBar/showView para el ajuste de layout que esto requiere
   // (.court-continue-wrap/.load-keypad ya no pueden asumir bottom:0 fijo).
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved'];
+  // BRAMUlab_V03.3 (§10) — 'player-search'/'player-public' se suman acá (mismo criterio V03.0.2
+  // §2 de arriba: pantallas personales donde navegar a Inicio/Historial/Ranking/Perfil es una
+  // salida válida).
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved', 'player-search', 'player-public'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
-      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications']
+      'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
+      'player-search', 'player-public']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -702,13 +706,24 @@
   /** V02.5 (Bloque B, §12.3) — fila compartida por RECIENTES y TODOS: avatar + Nombre (peso
    *  fuerte) + @usuario (secundario, derivado del nombre igual que buildPlayerHandle ya hace
    *  para el jugador actual — no es un campo de cuenta real, solo deja la interfaz lista para
-   *  cuando pueda haber más de un "Matu"). */
-  function buildPlayerRowHTML(name) {
+   *  cuando pueda haber más de un "Matu").
+   *  BRAMUlab_V03.3 (§6) — COMPONENTE ÚNICO DE FILA DE JUGADOR: se reutiliza tal cual en
+   *  Elegir compañero/rival (acá), Buscar jugadores y la lista JUGADORES de Perfil (ver
+   *  renderPlayerSearchResults/renderJugadoresTab más abajo) — un solo lugar que arma el HTML,
+   *  cada pantalla decide su propio listener de click. Suma Nivel BRAMU a la derecha (§6/§9,
+   *  PH.computeSimulatedJugadorLevel) — `level` es opcional para no romper ningún call site
+   *  que todavía no lo calcule. */
+  function buildPlayerRowHTML(name, level) {
+    const levelText = Number.isFinite(level) ? level.toFixed(1) : '—';
     return `<button type="button" class="player-row" data-name="${escapeHtml(name)}">
       <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
       <span class="player-row__info">
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(buildPlayerHandle(name))}</span>
+      </span>
+      <span class="player-row__level">
+        <span class="player-row__level-value">${levelText}</span>
+        <span class="player-row__level-label">NIVEL BRAMU</span>
       </span>
     </button>`;
   }
@@ -747,7 +762,7 @@
       recentNames = recents;
       if (recents.length) {
         recentsSection.hidden = false;
-        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n)).join('');
+        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
         $all('#load-player-sheet-recents .player-row').forEach((btn) => {
           btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
         });
@@ -767,7 +782,7 @@
     const trimmed = normalizePlayerName(query);
     const canAdd = !!trimmed && !ML.isDuplicatePlayerName(trimmed, excluded.concat([currentPlayerName]));
     const listWrap = $('#load-player-sheet-list');
-    let listHTML = matches.map((n) => buildPlayerRowHTML(n)).join('');
+    let listHTML = matches.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
     if (canAdd) listHTML += buildAddPlayerRowHTML(trimmed);
     listWrap.innerHTML = listHTML || '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
     $all('#load-player-sheet-list .player-row:not(.player-row--add)').forEach((btn) => {
@@ -7193,6 +7208,8 @@
     const goToProfile = () => openProfileScreen('mi-perfil');
     $('#player-home-card').addEventListener('click', goToProfile);
     $('#player-home-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToProfile(); } });
+    // BRAMUlab_V03.3 (§4) — "BUSCAR JUGADORES", al final del contenido principal del Home.
+    $('#player-home-search-players-card').addEventListener('click', openPlayerSearchScreen);
   }
 
   /** V03.0.2 (§12) — Notificaciones: pantalla completa (reemplaza el popup "todavía no hay
@@ -7317,7 +7334,7 @@
       const winsLabel = p.wins === 1 ? 'victoria' : 'victorias';
       const lossesLabel = p.losses === 1 ? 'derrota' : 'derrotas';
       return `
-      <div class="person-list__item">
+      <div class="person-list__item" data-name="${escapeHtml(p.name)}">
         <div class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</div>
         <div class="person-list__info">
           <div class="person-list__name">${escapeHtml(p.name)}</div>
@@ -7330,25 +7347,218 @@
       </div>
     `;
     }).join('');
+    // BRAMUlab_V03.3 (§10) — acceso #3 al perfil público: cada fila ya individualiza a UN
+    // jugador real (nombre + récord conjunto), a diferencia de las tarjetas del Home que solo
+    // muestran el mejor agregado — ver decisión documentada en el Informe.
+    $all('#companions-list .person-list__item').forEach((el) => {
+      el.addEventListener('click', () => openPlayerPublicProfile(el.dataset.name, 'companions'));
+    });
     showView('companions');
   }
   function initCompanionsScreen() {
     $('#companions-back-btn').addEventListener('click', () => openPlayerHome());
   }
 
+  /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V03.3 — SISTEMA DE JUGADORES                                */
+  /* Primera experiencia de "jugadores" de BRAMU: buscar, ver el perfil    */
+  /* público de otro jugador, agregarlo a una lista personal, y consultar  */
+  /* esa lista desde Perfil. Sin amigos/seguidores/popularidad/mensajes    */
+  /* (consolidado §1/§11) — la única relación es "agregado o no". Todo     */
+  /* local/simulado (consolidado §9): reutiliza PH.filterMatchesForPlayer/ */
+  /* computeEffectivenessTotal/computeBestWinStreakRange/computePeakLevel  */
+  /* tal cual, con el NOMBRE del otro jugador en vez de la identidad       */
+  /* propia — el mismo dato real que ya usan Home/MI PERFIL cuando ese     */
+  /* jugador tiene partidos registrados en este dispositivo; si nunca      */
+  /* jugó contra el usuario actual, PH.computeSimulatedJugadorLevel cae a  */
+  /* un valor simulado pero determinístico (nunca "—", nunca al azar).     */
+  /* ------------------------------------------------------------------ */
+
+  /** §8 — lista JUGADORES dentro de Perfil: mismo componente de fila único que Buscar
+   *  Jugadores/Elegir compañero-rival (buildPlayerRowHTML). Tocar una fila abre el perfil
+   *  público de ese jugador. */
+  function renderJugadoresTab() {
+    const user = Store.getCurrentUser();
+    const names = user ? Store.loadAddedPlayers(user.id) : [];
+    const history = Store.loadHistory();
+    const wrap = $('#jugadores-list');
+    const isEmpty = names.length === 0;
+    $('#jugadores-empty').hidden = !isEmpty;
+    wrap.hidden = isEmpty;
+    wrap.innerHTML = names.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    $all('#jugadores-list .player-row').forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'jugadores-tab'));
+    });
+  }
+
+  /** §5/§9 — universo completo de jugadores conocidos localmente (ML.buildJugadorDirectory,
+   *  mismo criterio que ya usa el selector de compañero/rival), filtrado por `query` con
+   *  ML.filterPlayerCandidates — query vacía muestra el directorio completo (sirve también
+   *  como "explorar", no solo buscar). */
+  function renderPlayerSearchResults(query) {
+    const history = Store.loadHistory();
+    const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
+    const results = ML.filterPlayerCandidates(pool, query, []);
+    const wrap = $('#player-search-list');
+    const isEmpty = results.length === 0;
+    $('#player-search-empty').hidden = !isEmpty;
+    wrap.hidden = isEmpty;
+    wrap.innerHTML = results.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    $all('#player-search-list .player-row').forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'search'));
+    });
+  }
+
+  /** §4/§5 — abre BUSCAR JUGADORES desde la tarjeta del Home. Mismo gate de sesión que el
+   *  resto de las pantallas personales (openPlayerHome/openManualLoadScreen/openHistoryScreen). */
+  function openPlayerSearchScreen() {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    $('#player-search-input').value = '';
+    renderPlayerSearchResults('');
+    showView('player-search');
+    setTimeout(() => $('#player-search-input').focus(), 60);
+  }
+
+  function initPlayerSearchScreen() {
+    $('#player-search-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#player-search-input').addEventListener('input', (e) => renderPlayerSearchResults(e.target.value));
+  }
+
+  /** §2.3 — mismo componente donut que Home/MI PERFIL (`.effectiveness-donut`), con ids
+   *  propios — mismo criterio de "un render por pantalla" que ya separa
+   *  renderPlayerEffectiveness (Home, animado) de renderProfileEffectivenessDonut (MI PERFIL,
+   *  sin animar): esta tercera copia tampoco anima (se pinta al abrir el perfil, nunca en un
+   *  tick de una pantalla ya en foco). */
+  function renderPlayerPublicEffectivenessDonut(eff) {
+    const ring = $('#player-public-effectiveness-ring');
+    const glow = $('#player-public-effectiveness-glow');
+    const circles = [ring, glow];
+    const circumference = 2 * Math.PI * 15.5;
+    circles.forEach((c) => { c.style.strokeDasharray = `${circumference}`; });
+    if (eff.pct === null) {
+      circles.forEach((c) => { c.style.opacity = '0'; });
+      $('#player-public-effectiveness-value').textContent = '—';
+      return;
+    }
+    ring.style.opacity = '1';
+    glow.style.opacity = '';
+    const filled = (eff.pct / 100) * circumference;
+    const toOffset = circumference - filled;
+    const ease = getComputedStyle(document.documentElement).getPropertyValue('--home-anim-ease').trim() || 'ease-out';
+    circles.forEach((c) => animateEffectivenessCircle(c, circumference, toOffset, ease));
+    $('#player-public-effectiveness-value').textContent = `${eff.pct}%`;
+  }
+
+  /** §3 — AGREGAR JUGADOR/JUGADOR AGREGADO: reusa el sistema global de botones (§7 del
+   *  consolidado de botones BRAMUlab_V03.2) — lima (`.btn-start`, acción principal) cuando
+   *  todavía no está agregado, neutro (`.btn-secondary`) una vez agregado. Tocar de nuevo lo
+   *  quita — sin confirmación: es una lista personal reversible, no una acción destructiva de
+   *  datos de partido (consolidado §3: "sin crear un flujo complejo"). */
+  function renderPlayerPublicAddButton() {
+    const user = Store.getCurrentUser();
+    const btn = $('#player-public-add-btn');
+    const added = !!(user && playerPublicName && Store.isPlayerAdded(user.id, playerPublicName));
+    btn.textContent = added ? 'JUGADOR AGREGADO' : 'AGREGAR JUGADOR';
+    btn.classList.toggle('btn-start', !added);
+    btn.classList.toggle('btn-secondary', added);
+  }
+
+  let playerPublicName = null;
+  let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
+
+  /** §2 — perfil público de `name`: identidad de solo lectura (sin tabs MI PERFIL/MIS DATOS,
+   *  sin ningún dato privado) + rendimiento derivado del historial de este dispositivo. Si
+   *  `name` corresponde a una cuenta local real (Store.loadUsers — poco común en este
+   *  prototipo de un solo dispositivo, pero el modelo ya lo soporta), se muestran sus datos
+   *  declarados reales (foto/edad/mano/lado); si es solo un nombre conocido por historial/
+   *  selección manual, sin cuenta detrás, esos campos quedan en "—" — nunca inventados. */
+  function renderPlayerPublicProfile() {
+    const name = playerPublicName;
+    if (!name) return;
+    const history = Store.loadHistory();
+    const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
+    const username = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
+
+    $('#player-public-header-title').textContent = name;
+    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', account && account.profilePhoto, name);
+    $('#player-public-name').textContent = name;
+    $('#player-public-username').textContent = username;
+
+    const age = account ? PLI.calculateAge(account.birthDate) : null;
+    $('#player-public-age').textContent = age !== null ? `${age} años` : '—';
+    $('#player-public-hand').textContent = (account && HAND_LABELS[account.dominantHand]) || '—';
+    $('#player-public-side').textContent = (account && SIDE_LABELS[account.preferredSide]) || '—';
+
+    const level = PH.computeSimulatedJugadorLevel(history, name);
+    $('#player-public-level-value').textContent = level.toFixed(1);
+
+    const matches = PH.filterMatchesForPlayer(history, name);
+    const eff = PH.computeEffectivenessTotal(matches, name);
+    renderPlayerPublicEffectivenessDonut(eff);
+    $('#player-public-played').textContent = String(matches.length);
+    $('#player-public-won').textContent = String(eff.wins);
+
+    const bestStreakRange = PH.computeBestWinStreakRange(matches, name);
+    $('#player-public-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
+    $('#player-public-best-streak-range').hidden = !bestStreakRange;
+    if (bestStreakRange) $('#player-public-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
+
+    // Sin partidos considerados todavía, no hay ningún pico real que mostrar — el "mejor
+    // nivel" trivialmente coincide con el actual (simulado), igual que le pasaría a cualquier
+    // cuenta real sin historial: ACT, nunca una fecha inventada.
+    const evolution = PH.computeLevelEvolution(history, name);
+    const peak = evolution.consideredCount > 0 ? PH.computePeakLevel(evolution) : { value: level, isCurrent: true, date: null };
+    $('#player-public-peak-level').textContent = peak.value.toFixed(1);
+    $('#player-public-peak-level-context').textContent = peak.isCurrent ? 'ACT' : formatPeakLevelDate(peak.date);
+
+    renderPlayerPublicAddButton();
+  }
+
+  /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`
+   *  decide a dónde vuelve el back (§10 no pide un histórico de navegación completo, solo que
+   *  volver tenga sentido). */
+  function openPlayerPublicProfile(name, origin) {
+    const norm = Store.normalizePlayerName(name);
+    if (!norm) return;
+    playerPublicName = norm;
+    playerPublicOrigin = origin || 'search';
+    renderPlayerPublicProfile();
+    showView('player-public');
+  }
+
+  function initPlayerPublicScreen() {
+    $('#player-public-back-btn').addEventListener('click', () => {
+      if (playerPublicOrigin === 'jugadores-tab') { openProfileScreen('jugadores'); return; }
+      if (playerPublicOrigin === 'companions') { showView('companions'); return; }
+      showView('player-search');
+    });
+    $('#player-public-add-btn').addEventListener('click', () => {
+      const user = Store.getCurrentUser();
+      if (!user || !playerPublicName) return;
+      if (Store.isPlayerAdded(user.id, playerPublicName)) Store.removePlayerFromList(user.id, playerPublicName);
+      else Store.addPlayerToList(user.id, playerPublicName);
+      renderPlayerPublicAddButton();
+    });
+  }
+
   // V03.0.1 (§1) — nombres de pestaña como constante única (consolidado: "deben quedar
   // fáciles de cambiar posteriormente sin alterar lógica").
-  const PROFILE_TAB_LABELS = { 'mi-perfil': 'MI PERFIL', 'mis-datos': 'MIS DATOS' };
+  // BRAMUlab_V03.3 (§8) — tercera pestaña JUGADORES (lista de agregados).
+  const PROFILE_TAB_LABELS = { 'mi-perfil': 'MI PERFIL', 'mis-datos': 'MIS DATOS', jugadores: 'JUGADORES' };
   let profileActiveTab = 'mi-perfil';
 
   function setProfileTab(tab) {
     profileActiveTab = PROFILE_TAB_LABELS[tab] ? tab : 'mi-perfil';
     $('#profile-panel-mi-perfil').hidden = profileActiveTab !== 'mi-perfil';
     $('#profile-panel-mis-datos').hidden = profileActiveTab !== 'mis-datos';
+    $('#profile-panel-jugadores').hidden = profileActiveTab !== 'jugadores';
     $('#profile-tab-mi-perfil').classList.toggle('is-active', profileActiveTab === 'mi-perfil');
     $('#profile-tab-mis-datos').classList.toggle('is-active', profileActiveTab === 'mis-datos');
+    $('#profile-tab-jugadores').classList.toggle('is-active', profileActiveTab === 'jugadores');
     $('#profile-tab-mi-perfil').setAttribute('aria-selected', String(profileActiveTab === 'mi-perfil'));
     $('#profile-tab-mis-datos').setAttribute('aria-selected', String(profileActiveTab === 'mis-datos'));
+    $('#profile-tab-jugadores').setAttribute('aria-selected', String(profileActiveTab === 'jugadores'));
   }
 
   /** V03.0.1 (§1) — Perfil pasa de una sola pantalla a 2 pestañas: MI PERFIL (ficha deportiva
@@ -7456,6 +7666,10 @@
     }
 
     renderProfileEvolution(user);
+    // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
+    // (mismo criterio que ya usa este función con MI PERFIL/MIS DATOS: las 3 se llenan al
+    // abrir Perfil, setProfileTab solo alterna cuál queda visible).
+    renderJugadoresTab();
   }
 
   /* ------------------------------------------------------------------ */
@@ -7732,8 +7946,10 @@
   function initProfileScreen() {
     $('#profile-tab-mi-perfil').textContent = PROFILE_TAB_LABELS['mi-perfil'];
     $('#profile-tab-mis-datos').textContent = PROFILE_TAB_LABELS['mis-datos'];
+    $('#profile-tab-jugadores').textContent = PROFILE_TAB_LABELS.jugadores;
     $('#profile-tab-mi-perfil').addEventListener('click', () => setProfileTab('mi-perfil'));
     $('#profile-tab-mis-datos').addEventListener('click', () => setProfileTab('mis-datos'));
+    $('#profile-tab-jugadores').addEventListener('click', () => setProfileTab('jugadores'));
     // V03.0.3 (§7) — flecha restaurada, convive con la bottom nav.
     $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
     $('#profile-logout-btn').addEventListener('click', requestLogout);
@@ -7744,6 +7960,8 @@
     wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn');
     // V03.1 (§12) — sin puntos por partido, sin interacción por punto: el gráfico ya no tiene
     // nada tocable (ver buildLevelEvolutionSvgHTML), así que este listener se retira entero.
+    // BRAMUlab_V03.3 (§8) — estado vacío de JUGADORES: mismo patrón que #history-empty-action.
+    $('#jugadores-empty-action').addEventListener('click', openPlayerSearchScreen);
   }
 
   let profileEditPhotoDataUrl = null; // null = sin cambio; '' = "quitar foto" explícito
@@ -8205,6 +8423,8 @@
     initRankingScreen();
     initCompanionsScreen();
     initProfileScreen();
+    initPlayerSearchScreen();
+    initPlayerPublicScreen();
     initProfileEditModal();
     initAccessScreen();
     initLoginScreen();

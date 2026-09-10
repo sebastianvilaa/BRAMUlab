@@ -759,6 +759,40 @@
   /* queda `true` de forma permanente en esta versión (nunca revierte a    */
   /* un número simulado) — deliberado, no un límite a resolver después.    */
   /* ------------------------------------------------------------------ */
+  /* ------------------------------------------------------------------ */
+  /* V03.3 (§2/§9) — NIVEL BRAMU DE OTROS JUGADORES (perfil público,       */
+  /* búsqueda, selector de compañero/rival). Reutiliza computeLevelEvolution */
+  /* tal cual: si `playerName` tiene partidos considerados en `history`     */
+  /* (siempre este dispositivo — nunca el historial completo de esa       */
+  /* persona, que no existe sin backend), su Nivel BRAMU es el mismo dato  */
+  /* real que ya usan Home/MI PERFIL. Sin ningún partido propio todavía    */
+  /* (jugador recién agregado/buscado, nunca enfrentado), no hay ninguna   */
+  /* fórmula real que aplicar — se asigna un valor simulado pero           */
+  /* DETERMINÍSTICO (siempre el mismo para el mismo nombre, nunca al azar  */
+  /* en cada render) para que la fila/perfil nunca queden en "—" (§9:      */
+  /* "asignar Nivel BRAMU simulado coherente para poder probar la          */
+  /* interfaz"). Rango angosto (3.0–7.5) a propósito: un rango amateur      */
+  /* plausible, nunca los extremos 1.0/10.0 que solo tendría sentido ver   */
+  /* en una evolución real. */
+  /* ------------------------------------------------------------------ */
+  const SIM_LEVEL_MIN = 3.0;
+  const SIM_LEVEL_MAX = 7.5;
+
+  function hashStringToLevel(str, min, max) {
+    const s = str || '';
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) { hash = (hash * 31 + s.charCodeAt(i)) >>> 0; }
+    const steps = Math.round((max - min) * 10);
+    const tenths = hash % (steps + 1);
+    return roundToOneDecimal(min + tenths / 10);
+  }
+
+  function computeSimulatedJugadorLevel(history, playerName) {
+    const evolution = computeLevelEvolution(history, playerName);
+    if (evolution.consideredCount > 0) return evolution.current;
+    return hashStringToLevel(Store.normalizePlayerName(playerName), SIM_LEVEL_MIN, SIM_LEVEL_MAX);
+  }
+
   const CALIBRATION_THRESHOLD = 5;
   function buildCalibrationStatus(consideredCount) {
     const n = consideredCount || 0;
@@ -788,5 +822,6 @@
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
     computeLevelChangeLast30Days, computeBestWinStreakRange, computePeakLevel,
     LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,
+    computeSimulatedJugadorLevel, SIM_LEVEL_MIN, SIM_LEVEL_MAX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

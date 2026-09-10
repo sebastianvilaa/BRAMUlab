@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.2.2" />
+<link rel="stylesheet" href="styles.css?v=03.3" />
 </head>
 <body>
 
@@ -1201,6 +1201,20 @@
         </div>
       </div>
 
+      <!-- BRAMUlab_V03.3 (§4) — "BUSCAR JUGADORES": tarjeta de navegación horizontal, al final
+           del contenido principal del Home, después de las tarjetas de compañeros/rivales de
+           arriba. Mismo componente `.pastilla--link` (icono+título+chevron) que ya usan
+           Efectividad/Mejor compañero/Rival más enfrentado — nunca un input embebido acá. -->
+      <div class="pastilla pastilla--link pastilla--search-players" id="player-home-search-players-card" role="button" tabindex="0">
+        <div class="pastilla__title-row">
+          <span class="pastilla-icon-label">
+            <svg class="pastilla__icon-svg pastilla__icon-svg--search" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <span class="pastilla__title">BUSCAR JUGADORES</span>
+          </span>
+          <span class="pastilla__chevron" aria-hidden="true">›</span>
+        </div>
+      </div>
+
       <!-- V02.1 (§23) — pie de autoría, movido acá desde la configuración del marcador. -->
       <p class="player-home-footer" id="player-home-footer"></p>
 
@@ -1261,9 +1275,13 @@
          Mismo patrón visual que .history-tabs (Historial), solo 2 pestañas fijas sin conteos.
          Los textos "MI PERFIL"/"MIS DATOS" son PROFILE_TAB_LABELS (app.js) — un único lugar
          para poder renombrarlos sin tocar lógica (consolidado §1). -->
+    <!-- BRAMUlab_V03.3 (§8) — tercera pestaña JUGADORES: lista de jugadores agregados por el
+         usuario. "JUGADORES" (nunca "Mis jugadores"): describe la sección sin sensación
+         posesiva/social (consolidado §8). -->
     <div class="profile-tabs" id="profile-tabs" role="tablist" aria-label="Perfil">
       <button type="button" class="profile-tab" id="profile-tab-mi-perfil" data-tab="mi-perfil" role="tab" aria-selected="true"></button>
       <button type="button" class="profile-tab" id="profile-tab-mis-datos" data-tab="mis-datos" role="tab" aria-selected="false"></button>
+      <button type="button" class="profile-tab" id="profile-tab-jugadores" data-tab="jugadores" role="tab" aria-selected="false"></button>
     </div>
     <div class="analysis-scroll">
       <div id="profile-panel-mi-perfil" class="profile-panel">
@@ -1501,6 +1519,128 @@
           <button type="button" id="profile-logout-btn" class="btn-secondary btn-secondary--danger profile-security-btn">CERRAR SESIÓN</button>
         </div>
       </div>
+
+      <!-- BRAMUlab_V03.3 (§8) — JUGADORES: lista de agregados, mismo componente de fila único
+           de §6 (ver buildPlayerRowHTML en app.js) que Buscar Jugadores/Elegir compañero-rival.
+           Estado vacío reutiliza el patrón ya existente de Historial (`.history-empty`). -->
+      <div id="profile-panel-jugadores" class="profile-panel" hidden>
+        <div id="jugadores-list" class="player-row-list"></div>
+        <div id="jugadores-empty" class="history-empty" hidden>
+          <p class="coverage-note">Todavía no agregaste jugadores.</p>
+          <button type="button" id="jugadores-empty-action" class="btn-mini">BUSCAR JUGADORES</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · BUSCAR JUGADORES — BRAMUlab_V03.3 (§5)
+       Buscador + lista completa de jugadores conocidos localmente (mismo universo que ya usa
+       el selector de compañero/rival, ver ML.buildJugadorDirectory). Sirve para IDENTIFICAR
+       personas, no para mostrar estadísticas completas — cada fila solo Nivel BRAMU (§6).
+       ============================================================ -->
+  <section id="view-player-search" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="player-search-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">BUSCAR JUGADORES</span>
+    </div>
+    <div class="analysis-scroll">
+      <div class="player-search-field">
+        <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="player-search-input" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="40" autocomplete="off" />
+      </div>
+      <div id="player-search-list" class="player-row-list"></div>
+      <p class="load-player-sheet__empty" id="player-search-empty" hidden>Sin coincidencias.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       VISTA · PERFIL PÚBLICO DE JUGADOR — BRAMUlab_V03.3 (§2)
+       Pantalla pública única (sin tabs MI PERFIL/MIS DATOS): identidad + rendimiento de
+       lectura, sin ningún dato privado (email/fecha de nacimiento/género/categoría/acceso) ni
+       controles de edición. Reutiliza visualmente la tarjeta de identidad y la tarjeta de
+       Efectividad de MI PERFIL (§2.1/§2.3 del consolidado).
+       ============================================================ -->
+  <section id="view-player-public" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="player-public-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title" id="player-public-header-title">PERFIL</span>
+    </div>
+    <div class="analysis-scroll">
+      <div class="pastilla pastilla--identity">
+        <div class="profile-avatar-edit-wrap">
+          <div class="profile-avatar" id="player-public-avatar" aria-hidden="true">
+            <span id="player-public-avatar-initials">—</span>
+            <img id="player-public-avatar-img" alt="" hidden />
+          </div>
+        </div>
+        <div class="pastilla-identity__info">
+          <div class="pastilla-identity__name" id="player-public-name">—</div>
+          <div class="pastilla-identity__handle pastilla-identity__handle--strong" id="player-public-username">—</div>
+        </div>
+        <div class="player-card__level">
+          <div class="player-card__level-label">NIVEL BRAMU</div>
+          <div class="player-card__level-row">
+            <span class="player-card__level-value" id="player-public-level-value">—</span>
+          </div>
+        </div>
+        <!-- §2.2 — nombre/apellido reales NUNCA protagonistas de la cabecera: la identidad
+             principal sigue siendo nombre visible + @usuario (arriba). Edad/mano/lado, mismo
+             patrón que MI PERFIL — "—" cuando no hay cuenta real detrás del nombre (jugador
+             conocido solo por historial local, sin datos declarados todavía). -->
+        <div class="pastilla-identity__meta mini-stat-grid mini-stat-grid--3col">
+          <div class="mini-stat"><span class="mini-stat__label">Edad</span><span class="mini-stat__value" id="player-public-age">—</span></div>
+          <div class="mini-stat"><span class="mini-stat__label">Mano dominante</span><span class="mini-stat__value" id="player-public-hand">—</span></div>
+          <div class="mini-stat"><span class="mini-stat__label">Lado habitual</span><span class="mini-stat__value" id="player-public-side">—</span></div>
+        </div>
+      </div>
+
+      <!-- §2.3 — misma tarjeta de Efectividad que MI PERFIL (donut + jugados/ganados). -->
+      <div class="pastilla profile-performance-card--merged">
+        <div class="pastilla__title-row">
+          <div class="pastilla__title">EFECTIVIDAD</div>
+        </div>
+        <div class="profile-performance-card--merged__body">
+          <div class="effectiveness-donut effectiveness-donut--lg">
+            <svg viewBox="0 0 36 36" class="effectiveness-donut__svg" aria-hidden="true">
+              <circle class="effectiveness-donut__track" cx="18" cy="18" r="15.5" />
+              <circle class="effectiveness-donut__glow" id="player-public-effectiveness-glow" cx="18" cy="18" r="15.5" />
+              <circle class="effectiveness-donut__fill" id="player-public-effectiveness-ring" cx="18" cy="18" r="15.5" />
+            </svg>
+            <span class="effectiveness-donut__value" id="player-public-effectiveness-value">—</span>
+          </div>
+          <div class="profile-performance-matches">
+            <div class="profile-performance-matches__item">
+              <span class="mini-stat__label">Partidos jugados</span>
+              <span class="profile-performance-matches__value" id="player-public-played">—</span>
+            </div>
+            <div class="profile-performance-matches__item">
+              <span class="mini-stat__label">Partidos ganados</span>
+              <span class="profile-performance-matches__value" id="player-public-won">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- §2.3 — "Mejor racha" y "Mejor nivel BRAMU" (NUNCA Racha actual/Evolución — esas son
+           datos personales, quedan solo en MI PERFIL). Mismo layout de 2 columnas que ya usa
+           MI PERFIL para Racha actual/Mejor racha. -->
+      <div class="profile-performance-row">
+        <div class="pastilla profile-performance-card--mini profile-performance-card--half">
+          <span class="mini-stat__label">Mejor racha</span>
+          <span class="mini-stat__value" id="player-public-best-streak">—</span>
+          <span class="mini-stat__sub" id="player-public-best-streak-range" hidden></span>
+        </div>
+        <div class="pastilla profile-performance-card--mini profile-performance-card--half">
+          <span class="mini-stat__label">Mejor nivel BRAMU</span>
+          <span class="mini-stat__value" id="player-public-peak-level">—</span>
+          <span class="mini-stat__sub" id="player-public-peak-level-context"></span>
+        </div>
+      </div>
+
+      <!-- §3 — agregar/quitar de la lista personal de jugadores. Sin mensajes, invitaciones,
+           compartir, bloquear, seguir, amistad ni reciprocidad. -->
+      <button type="button" id="player-public-add-btn" class="btn-start player-public-add-btn">AGREGAR JUGADOR</button>
     </div>
   </section>
 
@@ -2148,12 +2288,12 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.2.2"></script>
-  <script src="stats.js?v=03.2.2"></script>
-  <script src="store.js?v=03.2.2"></script>
-  <script src="player-home.js?v=03.2.2"></script>
-  <script src="match-load.js?v=03.2.2"></script>
-  <script src="player-identity.js?v=03.2.2"></script>
-  <script src="app.js?v=03.2.2"></script>
+  <script src="engine.js?v=03.3"></script>
+  <script src="stats.js?v=03.3"></script>
+  <script src="store.js?v=03.3"></script>
+  <script src="player-home.js?v=03.3"></script>
+  <script src="match-load.js?v=03.3"></script>
+  <script src="player-identity.js?v=03.3"></script>
+  <script src="app.js?v=03.3"></script>
 </body>
 </html>

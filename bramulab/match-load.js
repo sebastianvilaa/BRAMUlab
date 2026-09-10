@@ -93,6 +93,16 @@
     return (existingNames || []).some((n) => Store.normalizePlayerName(n) === norm);
   }
 
+  /** V03.3 (§5/§9) — universo de jugadores para Buscar Jugadores/lista JUGADORES: mismo
+   *  criterio que computeAllKnownPlayers (nombres recordados + aparecidos en el historial de
+   *  este dispositivo), excluyendo siempre al propio jugador actual — nunca aparece en su
+   *  propia búsqueda ni en su propia lista. */
+  function buildJugadorDirectory(history, playerNames, currentPlayerName) {
+    const pool = computeAllKnownPlayers(history, playerNames);
+    const self = Store.normalizePlayerName(currentPlayerName);
+    return pool.filter((n) => Store.normalizePlayerName(n) !== self);
+  }
+
   /* ------------------------------------------------------------------ */
   /* RESULTADO / TECLADO NUMÉRICO                                         */
   /* ------------------------------------------------------------------ */
@@ -304,6 +314,7 @@
 
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
+    buildJugadorDirectory,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
   };

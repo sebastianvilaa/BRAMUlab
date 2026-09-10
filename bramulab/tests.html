@@ -3365,6 +3365,77 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.3 — SISTEMA DE JUGADORES
+  // Nivel BRAMU simulado (PH.computeSimulatedJugadorLevel), universo de búsqueda
+  // (ML.buildJugadorDirectory) y lista personal de agregados (Store.loadAddedPlayers/
+  // isPlayerAdded/addPlayerToList/removePlayerFromList). No tocan localStorage salvo el
+  // último bloque (agregar/quitar), que usa el mismo patrón snapshot/restore de los bloques
+  // V03.0/V03.0.2/V03.0.3 de arriba.
+  // ------------------------------------------------------------------
+  (function () {
+    const player = 'Sebastián';
+
+    // ---- computeSimulatedJugadorLevel: sin datos -> determinístico, nunca al azar ----
+    const levelA1 = PH.computeSimulatedJugadorLevel([], 'Matu');
+    const levelA2 = PH.computeSimulatedJugadorLevel([], 'Matu');
+    assert('V033-NIVEL · sin historial, siempre el mismo valor para el mismo nombre (determinístico)', levelA1 === levelA2, JSON.stringify({ levelA1, levelA2 }));
+    assert('V033-NIVEL · sin historial, dentro del rango simulado [3.0, 7.5]', levelA1 >= PH.SIM_LEVEL_MIN && levelA1 <= PH.SIM_LEVEL_MAX, String(levelA1));
+    const levelB = PH.computeSimulatedJugadorLevel([], 'Cruz');
+    assert('V033-NIVEL · nombres distintos pueden dar valores distintos (no todos 5.0 por defecto)', levelA1 !== levelB || 'Matu' === 'Cruz', JSON.stringify({ levelA1, levelB }));
+
+    // ---- computeSimulatedJugadorLevel: CON datos -> mismo valor real que computeLevelEvolution ----
+    const wonMatch = mkLevelMatch('sim1', '2026-08-01T00:00:00.000Z', ['Nico', 'X', 'Y', 'Z'], 'A', 2);
+    const evoNico = PH.computeLevelEvolution([wonMatch], 'Nico');
+    const levelNico = PH.computeSimulatedJugadorLevel([wonMatch], 'Nico');
+    assert('V033-NIVEL · con partidos considerados, usa el MISMO valor real que computeLevelEvolution (nunca el simulado)', levelNico === evoNico.current, JSON.stringify({ levelNico, real: evoNico.current }));
+
+    // ---- ML.buildJugadorDirectory: universo de Buscar Jugadores/Elegir compañero-rival ----
+    const dirHistory = [
+      mkLevelMatch('dir1', '2026-08-01T00:00:00.000Z', [player, 'Matu', 'Cruz', 'Dan'], 'A', 2),
+    ];
+    const directory = ML.buildJugadorDirectory(dirHistory, [player, 'Zoe'], player);
+    assert('V033-DIR · nunca incluye al propio jugador actual', directory.indexOf(player) === -1, JSON.stringify(directory));
+    assert('V033-DIR · incluye jugadores recordados + del historial, sin duplicar', directory.filter((n) => n === 'Matu').length === 1 && directory.indexOf('Zoe') !== -1 && directory.indexOf('Cruz') !== -1, JSON.stringify(directory));
+    const directoryWithPlaceholders = ML.buildJugadorDirectory(dirHistory, [player, 'Zoe', 'Jugador 1', 'Vos'], player);
+    assert('V033-DIR · nunca incluye placeholders del sistema', !directoryWithPlaceholders.some((n) => Store.isPlaceholderPlayerName(n)), JSON.stringify(directoryWithPlaceholders));
+
+    // ---- Store: jugadores agregados (§3/§9) ----
+    const AFFECTED_KEYS = ['bramulab.addedPlayers.v1', 'bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      const ana = Store.createUserAccount({ email: 'anajug@test.com', password: 'Abc123!@', username: 'anajug', firstName: 'Ana', displayName: 'Ana' });
+      const bea = Store.createUserAccount({ email: 'beajug@test.com', password: 'Abc123!@', username: 'beajug', firstName: 'Bea', displayName: 'Bea' });
+
+      assert('V033-STORE · sin agregados todavía, lista vacía (nunca null/undefined)', Array.isArray(Store.loadAddedPlayers(ana.id)) && Store.loadAddedPlayers(ana.id).length === 0);
+      assert('V033-STORE · isPlayerAdded false antes de agregar', Store.isPlayerAdded(ana.id, 'Facundo') === false);
+      assert('V033-STORE · sin userId, isPlayerAdded/loadAddedPlayers nunca rompen (false/[])', Store.isPlayerAdded(null, 'Facundo') === false && Store.loadAddedPlayers(null).length === 0);
+
+      Store.addPlayerToList(ana.id, 'Facundo');
+      assert('V033-STORE · addPlayerToList: queda agregado', Store.isPlayerAdded(ana.id, 'Facundo') === true);
+      assert('V033-STORE · comparación normalizada ("facundo " === "Facundo")', Store.isPlayerAdded(ana.id, 'facundo ') === true);
+
+      Store.addPlayerToList(ana.id, 'Facundo');
+      assert('V033-STORE · agregar dos veces es idempotente (nunca duplica)', Store.loadAddedPlayers(ana.id).length === 1, JSON.stringify(Store.loadAddedPlayers(ana.id)));
+
+      Store.addPlayerToList(bea.id, 'Facundo');
+      assert('V033-STORE · separado por userId: agregarlo en la cuenta de Bea no toca la lista de Ana', Store.loadAddedPlayers(ana.id).length === 1 && Store.loadAddedPlayers(bea.id).length === 1);
+
+      Store.removePlayerFromList(ana.id, 'Facundo');
+      assert('V033-STORE · removePlayerFromList lo saca de la lista de Ana', Store.isPlayerAdded(ana.id, 'Facundo') === false);
+      assert('V033-STORE · quitarlo de Ana nunca afecta la lista de Bea', Store.isPlayerAdded(bea.id, 'Facundo') === true);
+
+      assert('V033-STORE · quitar algo que no está no rompe (no-op)', Store.removePlayerFromList(ana.id, 'Nunca Existió') === true && Store.loadAddedPlayers(ana.id).length === 0);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;
