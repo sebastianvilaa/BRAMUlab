@@ -721,6 +721,12 @@ input, select{ font-family: inherit; }
 /* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
    lado a lado). Modificador propio para no tocar el layout de los demás overlays. */
 .overlay__actions--stacked{ flex-direction: column; }
+/* BRAMUlab_V03.4.3 (§3) — modales de doble acción HORIZONTAL (Eliminar partido/Eliminar
+   grupo/etc., cualquier `.overlay__actions` SIN `--stacked`): los botones bajan de 14 a 12px
+   — con dos botones lado a lado, 14px quedaba ajustado. Nunca toca `.btn-start`/`.btn-secondary`
+   en sí (esas siguen en 14px en el resto de la app, incluidos los overlays apilados) — acotado
+   a este contexto puntual vía el propio contenedor. */
+.overlay__actions:not(.overlay__actions--stacked) > button{ font-size: 12px; }
 /* V02.8.2 (§5) — "ACTUALIZAR" seguía con el tracking de `.btn-start` (0.08em, sin tocar desde
    V02.8), 3x más abierto que el 0.03em ya normalizado en `.overlay__title` de este mismo
    modal — el botón, no el título, era el texto que se leía "demasiado abierto". Override
@@ -2917,7 +2923,10 @@ input, select{ font-family: inherit; }
 .groups-current-selector:active{ background: rgba(149,255,25,0.06); }
 .groups-current-selector__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .groups-current-selector__chevron{ flex:none; margin-left: 10px; color: var(--paper-dim); }
-.groups-panel{ display:flex; flex-direction:column; }
+/* BRAMUlab_V03.4.3 (§2) — bug real: la tarjeta de BRAMU Intelligence quedaba pegada a la línea
+   de `.history-filters` (esa línea no traía ningún margen propio). `margin-top` acá, mismo
+   ritmo de 12px ya usado entre bloques del mismo peso en el resto de la app (Home, V02.8 §7). */
+.groups-panel{ display:flex; flex-direction:column; margin-top: 12px; }
 /* BRAMUlab_V03.4.1 (§4) — bug real: `.groups-intel-item` son `<p>`, que traen margen vertical
    propio por default del navegador (~1em arriba/abajo) — eso, SUMADO al `gap` del flex, era el
    verdadero motivo del espacio excesivo entre insights (nunca el gap solo). `margin:0` deja el

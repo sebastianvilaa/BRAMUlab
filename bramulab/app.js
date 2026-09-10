@@ -8713,10 +8713,24 @@
    *  local de V03.4.1 queda como fallback MÍNIMO si la red falla — nunca como fuente primaria.
    *  Debounce de 300ms (nunca un fetch por tecla) + `AbortController` para descartar una
    *  respuesta vieja si el usuario ya tipeó algo más nuevo (nunca pinta resultados fuera de
-   *  orden). Con menos de 2 caracteres se muestra el dataset local como punto de partida para
-   *  "explorar" sin pegarle a la red todavía. */
+   *  orden).
+   *  BRAMUlab_V03.4.3 (§4) — la hoja arranca LIMPIA (ver `clearProfileLocationList`, usada al
+   *  abrir y mientras hay menos de 2 caracteres): antes mostraba de entrada el dataset local
+   *  completo como "para explorar", pero eso mezclaba justo la fuente que ahora es fallback
+   *  con la experiencia normal de apertura — resultados recién aparecen cuando el usuario
+   *  empieza a escribir de verdad. */
   let profileLocationSearchTimer = null;
   let profileLocationSearchController = null;
+
+  /** Estado inicial / "todavía no escribiste lo suficiente" — DISTINTO de "buscaste y no había
+   *  nada" (`#profile-location-empty`, que paintProfileLocationList sí puede mostrar): acá
+   *  nunca se llegó a buscar, así que tampoco corresponde decir "Sin coincidencias". */
+  function clearProfileLocationList() {
+    const wrap = $('#profile-location-list');
+    wrap.hidden = true;
+    wrap.innerHTML = '';
+    $('#profile-location-empty').hidden = true;
+  }
 
   function paintProfileLocationList(results) {
     const wrap = $('#profile-location-list');
@@ -8754,7 +8768,7 @@
     if (profileLocationSearchController) profileLocationSearchController.abort();
     if (trimmed.length < 2) {
       setProfileLocationStatus('');
-      paintProfileLocationList(PLLocations.searchLocations(query));
+      clearProfileLocationList();
       return;
     }
     setProfileLocationStatus('Buscando…');
@@ -8780,7 +8794,7 @@
   function openProfileLocationSheet() {
     $('#profile-location-search').value = '';
     setProfileLocationStatus('');
-    paintProfileLocationList(PLLocations.searchLocations(''));
+    clearProfileLocationList();
     $('#profile-location-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#profile-location-sheet-scrim').classList.add('is-open'); });
     setTimeout(() => $('#profile-location-search').focus(), 60);

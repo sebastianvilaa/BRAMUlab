@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.4.2" />
+<link rel="stylesheet" href="styles.css?v=03.4.3" />
 </head>
 <body>
 
@@ -1286,9 +1286,12 @@
              estaba en este contenedor. -->
         <div class="history-filters">
           <div class="history-tabs" id="groups-view-tabs" role="tablist" aria-label="Vista del grupo">
-            <button type="button" class="history-tab" data-view="actual" role="tab" aria-selected="true">ACTUAL</button>
-            <button type="button" class="history-tab" data-view="anterior" role="tab" aria-selected="false">ANTERIOR</button>
-            <button type="button" class="history-tab" data-view="race" role="tab" aria-selected="false">RACE ANUAL</button>
+            <!-- BRAMUlab_V03.4.3 (§1) — mismo criterio de mayúscula/minúscula que Historial
+                 ("Todos"/"Mis partidos"/"Observados", nunca en mayúscula sostenida): el texto
+                 va tal cual se lee, no hay `text-transform` en `.history-tab` que lo fuerce. -->
+            <button type="button" class="history-tab" data-view="actual" role="tab" aria-selected="true">Actual</button>
+            <button type="button" class="history-tab" data-view="anterior" role="tab" aria-selected="false">Anterior</button>
+            <button type="button" class="history-tab" data-view="race" role="tab" aria-selected="false">Race anual</button>
           </div>
         </div>
 
@@ -2595,14 +2598,14 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.4.2"></script>
-  <script src="stats.js?v=03.4.2"></script>
-  <script src="store.js?v=03.4.2"></script>
-  <script src="player-home.js?v=03.4.2"></script>
-  <script src="match-load.js?v=03.4.2"></script>
-  <script src="player-identity.js?v=03.4.2"></script>
-  <script src="groups.js?v=03.4.2"></script>
-  <script src="locations.js?v=03.4.2"></script>
-  <script src="app.js?v=03.4.2"></script>
+  <script src="engine.js?v=03.4.3"></script>
+  <script src="stats.js?v=03.4.3"></script>
+  <script src="store.js?v=03.4.3"></script>
+  <script src="player-home.js?v=03.4.3"></script>
+  <script src="match-load.js?v=03.4.3"></script>
+  <script src="player-identity.js?v=03.4.3"></script>
+  <script src="groups.js?v=03.4.3"></script>
+  <script src="locations.js?v=03.4.3"></script>
+  <script src="app.js?v=03.4.3"></script>
 </body>
 </html>
