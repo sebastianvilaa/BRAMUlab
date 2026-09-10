@@ -7392,15 +7392,38 @@
   /** §8 — lista JUGADORES dentro de Perfil: mismo componente de fila único que Buscar
    *  Jugadores/Elegir compañero-rival (buildPlayerRowHTML). Tocar una fila abre el perfil
    *  público de ese jugador. */
+  /** Microparche V03.3.3 — buscador propio de JUGADORES: filtra SOLO entre los jugadores ya
+   *  agregados por el usuario (nunca el universo completo, eso sigue siendo Buscar
+   *  Jugadores/`ML.buildJugadorDirectory`) — reutiliza `ML.filterPlayerCandidates`, la misma
+   *  función de substring normalizado que ya usan Buscar Jugadores y Elegir compañero/rival.
+   *  Solo aparece si hay al menos un jugador agregado; con la lista vacía de entrada no hay
+   *  nada que buscar todavía, se mantiene el estado vacío de siempre. */
   function renderJugadoresTab() {
     const user = Store.getCurrentUser();
-    const names = user ? Store.loadAddedPlayers(user.id) : [];
+    const allNames = user ? Store.loadAddedPlayers(user.id) : [];
+    const hasAny = allNames.length > 0;
+    $('#jugadores-search-wrap').hidden = !hasAny;
+    $('#jugadores-empty').hidden = hasAny;
+    if (!hasAny) {
+      $('#jugadores-list').hidden = true;
+      $('#jugadores-list').innerHTML = '';
+      $('#jugadores-search-empty').hidden = true;
+      return;
+    }
+    $('#jugadores-search-input').value = '';
+    renderJugadoresList('');
+  }
+
+  function renderJugadoresList(query) {
+    const user = Store.getCurrentUser();
+    const allNames = user ? Store.loadAddedPlayers(user.id) : [];
     const history = Store.loadHistory();
+    const filtered = ML.filterPlayerCandidates(allNames, query, []);
     const wrap = $('#jugadores-list');
-    const isEmpty = names.length === 0;
-    $('#jugadores-empty').hidden = !isEmpty;
+    const isEmpty = filtered.length === 0;
     wrap.hidden = isEmpty;
-    wrap.innerHTML = names.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    $('#jugadores-search-empty').hidden = !isEmpty;
+    wrap.innerHTML = filtered.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
     $all('#jugadores-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'jugadores-tab'));
     });
@@ -8015,6 +8038,8 @@
     // nada tocable (ver buildLevelEvolutionSvgHTML), así que este listener se retira entero.
     // BRAMUlab_V03.3 (§8) — estado vacío de JUGADORES: mismo patrón que #history-empty-action.
     $('#jugadores-empty-action').addEventListener('click', openPlayerSearchScreen);
+    // Microparche V03.3.3 — buscador propio de JUGADORES (filtra solo la lista agregada).
+    $('#jugadores-search-input').addEventListener('input', (e) => renderJugadoresList(e.target.value));
   }
 
   let profileEditPhotoDataUrl = null; // null = sin cambio; '' = "quitar foto" explícito

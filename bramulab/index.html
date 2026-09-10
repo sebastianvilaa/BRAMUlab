@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.3.2" />
+<link rel="stylesheet" href="styles.css?v=03.3.3" />
 </head>
 <body>
 
@@ -1527,9 +1527,19 @@
 
       <!-- BRAMUlab_V03.3 (§8) — JUGADORES: lista de agregados, mismo componente de fila único
            de §6 (ver buildPlayerRowHTML en app.js) que Buscar Jugadores/Elegir compañero-rival.
-           Estado vacío reutiliza el patrón ya existente de Historial (`.history-empty`). -->
+           Estado vacío reutiliza el patrón ya existente de Historial (`.history-empty`).
+           Microparche V03.3.3 — buscador PROPIO de esta lista (nunca el universo completo de
+           Buscar Jugadores): filtra solo entre los jugadores YA agregados, para poder
+           encontrar a alguien puntual el día que la lista crezca. Solo visible si hay al menos
+           un jugador agregado (nada que buscar todavía = sin buscador, mismo criterio que el
+           resto de la app). -->
       <div id="profile-panel-jugadores" class="profile-panel" hidden>
+        <div class="player-search-field" id="jugadores-search-wrap" hidden>
+          <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="jugadores-search-input" class="player-search-field__input" type="text" placeholder="Buscar en tus jugadores…" maxlength="40" autocomplete="off" />
+        </div>
         <div id="jugadores-list" class="player-row-list"></div>
+        <p class="load-player-sheet__empty" id="jugadores-search-empty" hidden>Sin coincidencias.</p>
         <div id="jugadores-empty" class="history-empty" hidden>
           <p class="coverage-note">Todavía no agregaste jugadores.</p>
           <button type="button" id="jugadores-empty-action" class="btn-mini">BUSCAR JUGADORES</button>
@@ -2307,12 +2317,12 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.3.2"></script>
-  <script src="stats.js?v=03.3.2"></script>
-  <script src="store.js?v=03.3.2"></script>
-  <script src="player-home.js?v=03.3.2"></script>
-  <script src="match-load.js?v=03.3.2"></script>
-  <script src="player-identity.js?v=03.3.2"></script>
-  <script src="app.js?v=03.3.2"></script>
+  <script src="engine.js?v=03.3.3"></script>
+  <script src="stats.js?v=03.3.3"></script>
+  <script src="store.js?v=03.3.3"></script>
+  <script src="player-home.js?v=03.3.3"></script>
+  <script src="match-load.js?v=03.3.3"></script>
+  <script src="player-identity.js?v=03.3.3"></script>
+  <script src="app.js?v=03.3.3"></script>
 </body>
 </html>
