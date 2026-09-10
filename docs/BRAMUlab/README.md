@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.3.1
+## Versión funcional actual: BRAMUlab_V03.3.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.3.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.3.1`. Microparche visual/UX sobre V03.3, sin tocar datos/lógica: la tarjeta "BUSCAR JUGADORES" del Home gana aire y baja el protagonismo de su texto (tono gris/secundario); el componente compartido de fila de jugador pierde el border-radius para que los separadores queden rectos (mismo cambio en Buscar Jugadores/JUGADORES/Elegir compañero/Elegir rival); el header del Perfil público pasa a un título fijo "PERFIL DE JUGADOR"; agregar un jugador ahora da feedback con un toast chico ("Jugador agregado"); y "JUGADOR AGREGADO" deja de ser un botón grande neutro — pasa a ser "ELIMINAR DE JUGADORES" con la misma jerarquía menor que "Eliminar partido" (rojo, sin fondo), con su propio toast rojo ("Jugador eliminado").
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.3.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.3.2`. Microparche sobre V03.3.1: Elegir compañero/rival y Buscar Jugadores ganan el mismo título "Recientes"/"Todos" que explica de dónde sale cada nombre. Al implementarlo se encontró y corrigió un bug real vigente desde V03.0: `ML.computeRecentPlayers` nunca encontraba los propios partidos de una cuenta creada después de V03.0 (comparaba por nombre plano en vez de por `userId`), así que "Recientes" en el selector de compañero/rival estaba siempre vacía en silencio — ahora funciona correctamente en ambas pantallas.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.3.1 (microparche: Home, fila de jugador, Perfil público) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.3.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Informe.md) |
+| Qué se especificó en V03.3.2 (título Recientes/Todos + bug real corregido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.3.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Informe.md) |
 
 **Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.3.1 (microparche: Home, fila de jugador, Perfil público) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.3.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Informe.md) |
 | Qué se especificó en V03.3 (perfil público, búsqueda y sistema de jugadores) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Informe.md) |
 | Qué se especificó en V03.2.2 (microparche visual: acceso, login, confirmar partido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md) |
