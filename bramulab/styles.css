@@ -2803,6 +2803,34 @@ input, select{ font-family: inherit; }
 .profile-row-action__chevron{ color: var(--paper-faint); font-size: 16px; }
 .profile-security-btn{ width:100%; }
 
+/* BRAMUlab_V03.4.1 (§9/§10) — filas compactas "label arriba / valor abajo / chevron" para
+   Género, Mano dominante, Lado habitual, Categoría y Ubicación en Editar Datos — reemplazan los
+   `.option-row` de botones grandes (mismas opciones y valores, ver app.js). Mismo espíritu que
+   `.profile-row-action` (fila+chevron+borde superior) combinado con la jerarquía label/valor
+   que ya usa `.mini-stat` en el resto de la app — sin inventar tipografía nueva. */
+.profile-select-rows{ margin-top: 4px; }
+.profile-select-row{
+  display:flex; align-items:center; justify-content:space-between; width:100%; min-height: 52px;
+  background:none; border:none; border-top: 1px solid var(--line); padding: 12px 0; cursor:pointer; text-align:left;
+}
+.profile-select-row:first-child{ border-top:none; }
+.profile-select-row__text{ display:flex; flex-direction:column; gap: 3px; min-width:0; }
+.profile-select-row__label{ font-size: 12px; color: var(--paper-dim); font-weight: 600; }
+.profile-select-row__value{ font-size: 14px; color: var(--paper); font-weight: 700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-select-row__chevron{ flex:none; margin-left: 10px; color: var(--paper-faint); font-size: 16px; }
+
+/* Hoja genérica de selección (§10) y hoja de ubicación (§9) — misma lista de filas simples. */
+.picker-sheet-list{ display:flex; flex-direction:column; max-height: 50vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.picker-sheet-option{
+  display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left;
+  background:none; border:none; border-top: 1px solid var(--court-line); padding: 14px 4px; min-height: 48px;
+  color: var(--paper); font-size: 14px; font-weight: 600; cursor:pointer;
+}
+.picker-sheet-option:first-child{ border-top:none; }
+.picker-sheet-option:active{ background: rgba(149,255,25,0.06); }
+.picker-sheet-option.is-selected{ color: var(--brand-lime); font-weight: 800; }
+.picker-sheet-option__check{ color: var(--brand-lime); flex:none; }
+
 /* V03.0.1 (§2/§4/§5/§8) — label visible y persistente arriba de cada campo, reemplaza el
    criterio placeholder-only anterior (mismo tono/tamaño que .profile-field__label). */
 .field-label{ display:block; font-size: 12px; color: var(--paper-dim); font-weight: 700; margin-bottom: 4px; }
@@ -2876,14 +2904,30 @@ input, select{ font-family: inherit; }
    no tenían un equivalente previo: la fila de tabla con posición/puntos, la lista de
    insights y la lista de miembros de Configuración del grupo.
    ========================================================================== */
-.groups-selector{ margin-bottom: 12px; }
+/* BRAMUlab_V03.4.1 (§2) — el selector de grupos usa el MISMO componente "chip redondeado" que
+   ya usaban los chips de modo de Historial (`.history-mode-chip`), deliberadamente DISTINTO de
+   `.history-tab` (superficie con esquinas planas, pensada para tabs de contenido) — mismo
+   principio de jerarquía que Historial ya resuelve ahí (pestañas de pertenencia = tabs;
+   modo = chips). El label "GRUPO" arriba deja explícito que es un selector de CONTEXTO, no una
+   tab de contenido más. */
+.groups-selector{ margin-bottom: 14px; }
+.groups-selector__label{ margin-bottom: 6px; }
 #groups-view-tabs{ margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .groups-panel{ display:flex; flex-direction:column; }
-.groups-intel-list{ display:flex; flex-direction:column; gap: 9px; margin-top: 2px; }
-.groups-intel-item{ font-size: 13px; font-weight:500; color: rgba(248,250,252,.82); line-height:1.5; padding-left: 14px; position:relative; }
+/* BRAMUlab_V03.4.1 (§4) — bug real: `.groups-intel-item` son `<p>`, que traen margen vertical
+   propio por default del navegador (~1em arriba/abajo) — eso, SUMADO al `gap` del flex, era el
+   verdadero motivo del espacio excesivo entre insights (nunca el gap solo). `margin:0` deja el
+   `gap` como única fuente de separación, ahora reducido para que se lea como un bloque único. */
+.groups-intel-list{ display:flex; flex-direction:column; gap: 6px; margin-top: 2px; }
+.groups-intel-item{ margin: 0; font-size: 13px; font-weight:500; color: rgba(248,250,252,.82); line-height:1.5; padding-left: 14px; position:relative; }
 .groups-intel-item::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
 .groups-race-title{ margin-bottom: 10px; }
 .groups-points-info-btn{ display:block; margin: 18px auto 4px; text-align:center; }
+/* BRAMUlab_V03.4.1 (§7) — el "+" del header (crear grupo) gana el mismo acento lima que el
+   resto de acciones de creación/alta de la app (AGREGAR JUGADOR, REGISTRAR PARTIDO...), para
+   distinguirse a simple vista del engranaje (siempre neutro, `.icon-btn`) que vive al lado —
+   nunca la misma pareja de íconos grises. */
+.groups-create-btn{ color: var(--brand-lime); }
 .group-points-info-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: 10px; }
 .group-points-info-list li{ font-size: 13px; color: var(--paper-dim); line-height:1.5; padding-left: 14px; position:relative; }
 .group-points-info-list li::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
@@ -2901,12 +2945,23 @@ input, select{ font-family: inherit; }
 .group-table__position{ flex:none; width:20px; text-align:center; font-family: var(--font-display); font-weight:800; font-size: 14px; color: var(--paper-faint); }
 .group-table__row--top1 .group-table__position{ color: var(--brand-lime); }
 .group-table__info{ flex:1; min-width:0; }
-.group-table__name{ display:block; font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* BRAMUlab_V03.4.1 (§6) — nombre + `· @usuario` en la misma línea cuando entran; `flex-wrap`
+   los baja solos a una línea propia cuando no hay lugar (nunca JS midiendo texto: el nombre
+   conserva su propio truncado por elipsis si es larguísimo, el handle se corre entero abajo). */
+.group-table__toprow{ display:flex; flex-wrap:wrap; align-items:baseline; column-gap: 5px; row-gap: 0; }
+.group-table__name{ display:block; font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.group-table__handle{ font-size: 12px; font-weight:600; color: var(--paper-dim); white-space:nowrap; }
 .group-table__admin-tag{
   font-size: 8px; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; color: var(--paper-faint);
   border: 1px solid var(--line-strong); border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
 }
 .group-table__caption{ display:block; font-size: 12px; color: var(--paper-dim); margin-top: 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* BRAMUlab_V03.4.1 (§6) — bug real: la fila mostraba inicial aunque el jugador tuviera foto de
+   perfil real. `.person-list__avatar` no tenía `overflow:hidden` (nunca hacía falta cuando su
+   único contenido eran las 2 letras de la inicial) — modificador aparte para no tocar el resto
+   de usos de esa clase (Compañeros/Rivales, que siguen siendo solo inicial). */
+.person-list__avatar--photo{ overflow:hidden; padding:0; }
+.person-list__avatar--photo img{ width:100%; height:100%; object-fit:cover; display:block; }
 .group-table__points{ flex:none; text-align:right; }
 .group-table__points-value{ display:block; font-family: var(--font-display); font-weight:800; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .group-table__points-label{ display:block; font-size: 8px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-top: 1px; }

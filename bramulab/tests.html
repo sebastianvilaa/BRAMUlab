@@ -27,6 +27,7 @@
 <script src="match-load.js"></script>
 <script src="player-identity.js"></script>
 <script src="groups.js"></script>
+<script src="locations.js"></script>
 <script>
 (function () {
   'use strict';
@@ -37,6 +38,7 @@
   const ML = window.PLMatchLoad; // Etapa 3 (Fase 3) — Cargar partido jugado
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta
   const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos
+  const PLLoc = window.PLLocations; // BRAMUlab_V03.4.1 — dataset/búsqueda de localidades
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -3712,6 +3714,89 @@
       resetAffectedKeys();
       Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
     }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.4.1 — microparche: UBICACIÓN (§9)
+  // Dataset/búsqueda puros (locations.js) + persistencia real (Store.createUserAccount/
+  // updateUserAccount) — el resto (armado de la hoja, render de filas) es orquestación de
+  // DOM sin lógica propia, no necesita test.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('V0341-UBIC · formatLocationLabel combina localidad y región', PLLoc.formatLocationLabel({ locality: 'Bella Vista', region: 'Buenos Aires' }) === 'Bella Vista, Buenos Aires');
+    assert('V0341-UBIC · búsqueda sin texto devuelve una lista no vacía para explorar', PLLoc.searchLocations('').length > 0);
+    assert('V0341-UBIC · búsqueda encuentra por localidad exacta del ejemplo del consolidado', PLLoc.searchLocations('bella vista').some((l) => l.locality === 'Bella Vista' && l.region === 'Buenos Aires'));
+    assert('V0341-UBIC · búsqueda insensible a acentos/mayúsculas ("CORDOBA" encuentra "Córdoba")', PLLoc.searchLocations('CORDOBA').some((l) => l.locality === 'Córdoba'));
+    assert('V0341-UBIC · búsqueda también matchea por región ("cordoba" encuentra localidades de esa provincia)', PLLoc.searchLocations('cordoba').length > 1);
+    assert('V0341-UBIC · sin coincidencias reales, devuelve vacío (nunca inventa una localidad)', PLLoc.searchLocations('zzzzxxxqqq').length === 0);
+
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      const noLocation = Store.createUserAccount({ email: 'sinubic@test.com', password: 'Abc123!@', username: 'sinubic', firstName: 'Sin', displayName: 'Sin Ubicacion' });
+      assert('V0341-UBIC · createUserAccount sin ubicación deja los 3 campos + rankingLocalZone en null (nunca inventa un valor)', noLocation.locality === null && noLocation.region === null && noLocation.country === null && noLocation.rankingLocalZone === null);
+
+      const withLocation = Store.createUserAccount({ email: 'conubic@test.com', password: 'Abc123!@', username: 'conubic', firstName: 'Con', displayName: 'Con Ubicacion', locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina' });
+      assert('V0341-UBIC · createUserAccount persiste los 3 campos cuando se pasan', withLocation.locality === 'Bella Vista' && withLocation.region === 'Buenos Aires' && withLocation.country === 'Argentina');
+
+      Store.updateUserAccount(noLocation.id, { locality: 'Palermo', region: 'CABA', country: 'Argentina' });
+      const reloaded = Store.getUserById(noLocation.id);
+      assert('V0341-UBIC · updateUserAccount persiste la ubicación (round-trip real via localStorage)', reloaded.locality === 'Palermo' && reloaded.region === 'CABA' && reloaded.country === 'Argentina');
+      assert('V0341-UBIC · rankingLocalZone sigue en null tras editar solo la ubicación (nadie lo calcula todavía)', reloaded.rankingLocalZone === null);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.4.1 — microparche: EMPATES (§5)
+  // Bug real reportado: dos jugadores con el mismo puntaje mostraban un "líder" y un
+  // "segundo" inventados. Corregido en PG.assignPositions (posiciones compartidas, estilo
+  // "competencia": 1,1,3 nunca 1,1,2) y en BRAMU Intelligence (insightLeader/
+  // insightGapOrParity/insightRaceLeader ahora reconocen el empate explícitamente).
+  // ------------------------------------------------------------------
+  (function () {
+    const noTies = PG.assignPositions([{ points: 10 }, { points: 8 }, { points: 5 }]);
+    assert('V0341-EMPATE · sin empates, posiciones secuenciales normales (1,2,3)', noTies.map((r) => r.position).join(',') === '1,2,3');
+
+    const simpleTie = PG.assignPositions([{ points: 6 }, { points: 6 }, { points: 0 }]);
+    assert('V0341-EMPATE · dos empatados en la cima comparten posición 1, el siguiente salta a 3 (nunca 1,1,2)', simpleTie.map((r) => r.position).join(',') === '1,1,3', JSON.stringify(simpleTie));
+
+    const multiTie = PG.assignPositions([{ points: 6 }, { points: 6 }, { points: 6 }, { points: 3 }, { points: 3 }, { points: 0 }]);
+    assert('V0341-EMPATE · empate de 3 en la cima + empate de 2 más abajo: posiciones 1,1,1,4,4,6', multiTie.map((r) => r.position).join(',') === '1,1,1,4,4,6', JSON.stringify(multiTie));
+
+    // ---- Integración real: caso del reporte — Seba y Esteban ganan juntos con victoria clara
+    // (6-3/6-2 → 5 base + 1 clara = 6 c/u), Diegote (equipo perdedor) queda en 0. ----
+    const weekStart = new Date(2026, 7, 31); // lunes 31-ago-2026
+    const joinedBefore = '2026-08-01T00:00:00.000Z';
+    const group = mkGroupFixture(['Seba', 'Esteban', 'Diegote', 'Wal'], 0, joinedBefore);
+    const calibration = calibrateEqualLevels(['Seba', 'Esteban', 'Diegote', 'Wal'], '2026-08-15T00:00:00.000Z');
+    const tieMatch = mkGroupMatch('tie1', new Date(2026, 8, 1, 10).toISOString(), ['Seba', 'Esteban', 'Diegote', 'Wal'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 2 }]);
+    const fullHistory = calibration.concat([tieMatch]);
+
+    const table = PG.computeWeeklyTable(fullHistory, group, weekStart);
+    const byName = {}; table.forEach((r) => { byName[r.name] = r; });
+    assert('V0341-EMPATE · Seba y Esteban terminan con el mismo puntaje (6) tras ganar juntos con victoria clara', byName.Seba.points === 6 && byName.Esteban.points === 6, JSON.stringify(table));
+    assert('V0341-EMPATE · Seba y Esteban comparten posición 1 en la tabla real', byName.Seba.position === 1 && byName.Esteban.position === 1, JSON.stringify(table));
+    assert('V0341-EMPATE · Diegote (0 pts) queda en la posición 3, nunca 2', byName.Diegote.position === 3, JSON.stringify(table));
+
+    // ---- BRAMU Intelligence reconoce el empate: nunca "le pisa los talones"/"segundo" entre iguales ----
+    const intel = PG.buildGroupIntelligence({ currentTable: table, previousTable: [], raceTable: [], currentMatches: [tieMatch], fullHistory });
+    const intelText = intel.join(' | ');
+    assert('V0341-EMPATE · BRAMU Intelligence anuncia el liderazgo compartido explícitamente', /comparten el liderazgo/.test(intelText), intelText);
+    assert('V0341-EMPATE · nunca usa "le pisa/pisan los talones" entre dos puntajes exactamente iguales', !intelText.includes('le pisa los talones') && !intelText.includes('le pisan los talones'), intelText);
+    assert('V0341-EMPATE · nunca dice "segundo" cuando el puntaje es idéntico', !intelText.toLowerCase().includes('segundo'), intelText);
+
+    // ---- Race anual usa la misma lógica de posición compartida ----
+    const race = PG.computeRaceAnual(fullHistory, group, 2026);
+    const raceByName = {}; race.forEach((r) => { raceByName[r.name] = r; });
+    assert('V0341-EMPATE · Race anual también comparte posición entre empatados', raceByName.Seba.position === 1 && raceByName.Esteban.position === 1 && raceByName.Diegote.position === 3, JSON.stringify(race));
+    const raceIntel = PG.buildGroupIntelligence({ currentTable: [], previousTable: [], raceTable: race, currentMatches: [], fullHistory }).join(' | ');
+    assert('V0341-EMPATE · el insight de líder de Race también reconoce empates ("comparten la punta")', /comparten la punta/.test(raceIntel), raceIntel);
   })();
 
   // ------------------------------------------------------------------

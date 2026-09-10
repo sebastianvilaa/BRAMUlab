@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.4';
+  const APP_VERSION = 'BRAMUlab V03.4.1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -231,6 +231,14 @@
       // (ver openProfileEditModal/submit) — nunca por abrir/guardar sin tocar el campo.
       declaredCategoryAt: fields.declaredCategoryAt || null,
       profilePhoto: fields.profilePhoto || null,
+      // BRAMUlab_V03.4.1 (§9) — ubicación para el futuro Ranking BRAMU local (NO implementado
+      // todavía, ver consolidado §9 in fine): una única elección normalizada del dataset de
+      // locations.js, guardada en 3 campos separados. `rankingLocalZone` queda preparado y en
+      // `null` siempre en esta ronda — ninguna función de la app lo calcula todavía.
+      locality: fields.locality || null,
+      region: fields.region || null,
+      country: fields.country || null,
+      rankingLocalZone: fields.rankingLocalZone || null,
       legacyMigrated: !!fields.legacyMigrated,
       createdAt: now,
       updatedAt: now,

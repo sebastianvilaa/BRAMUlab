@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.4
+## Versión funcional actual: BRAMUlab_V03.4.1
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.4"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4`. Ronda grande: **MIS GRUPOS**, competencia privada y semanal entre jugadores conocidos, separada del Nivel BRAMU y del Ranking BRAMU oficial (que todavía no existe). Reemplaza a RANKING en la barra inferior. Grupos múltiples con administradores, detección automática de partidos que cuentan (3 de 4 miembros), puntos por victoria + bonuses (sorpresa de nivel, remontada, victoria clara), tabla semanal a top-3-mejores-partidos, vistas ACTUAL/ANTERIOR/RACE ANUAL y BRAMU Intelligence grupal ("EL MOMENTO DEL GRUPO"). Nuevo módulo puro `groups.js`.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.1`. Microparche sobre V03.4 (Mis grupos): corrige un bug real de empates (dos jugadores con el mismo puntaje ahora comparten posición, tanto en la tabla como en BRAMU Intelligence — nunca más un "líder"/"segundo" inventado), ajusta jerarquía visual (selector de grupos vs. tabs de contenido, nombre del grupo en Intelligence, spacing, botones a ancho estándar, foto real en la tabla), y agrega el campo de ubicación pendiente en MIS DATOS ("¿De dónde sos?", preparado para el futuro Ranking BRAMU local — todavía no implementado) más selectores compactos para Género/Mano/Lado/Categoría. Nuevo módulo puro `locations.js`.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.4 (Mis grupos) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md) |
+| Qué se pidió en V03.4.1 (microparche: empates, jerarquía, ubicación) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.1_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.4.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.1_Informe.md) |
 
 **Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.4 (Mis grupos) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md) |
 | Qué se especificó en V03.3.3 (buscador dentro de JUGADORES) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.3.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md) |
 | Qué se especificó en V03.3.2 (título Recientes/Todos + bug real corregido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md) |

@@ -606,6 +606,7 @@
   /* ------------------------------------------------------------------ */
   const ML = window.PLMatchLoad;
   const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos (puntos, tabla semanal, Race anual, BRAMU Intelligence grupal)
+  const PLLocations = window.PLLocations; // BRAMUlab_V03.4.1 — dataset y búsqueda de localidades (MIS DATOS §9)
 
   let manualSelectedScoring = 'golden';
   let manualSelectedFormatId = 'classic';
@@ -7376,23 +7377,30 @@
     if (isEmpty) { $('#groups-settings-btn').hidden = true; return; }
     if (!activeGroupId || !groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[0].id;
     renderGroupsSelector(groups);
-    $('#groups-settings-btn').hidden = !currentIsAdminOfGroup(Store.getGroupById(activeGroupId));
+    const isAdmin = currentIsAdminOfGroup(Store.getGroupById(activeGroupId));
+    $('#groups-settings-btn').hidden = !isAdmin;
+    // BRAMUlab_V03.4.1 (§7) — acción inequívoca "+ AGREGAR JUGADOR" al final del contenido
+    // principal del grupo (además de Configuración) — nunca el "+" del header, que es
+    // EXCLUSIVAMENTE "crear grupo nuevo".
+    $('#groups-add-member-btn').hidden = !isAdmin;
     renderActiveGroupPanels();
     setGroupsTab(groupsActiveTab);
   }
 
-  /** §3 — selector de grupos como tabs/chips horizontales, SOLO si el usuario pertenece a más
-   *  de uno (con uno solo no hay nada que elegir). Reutiliza `.history-tab` tal cual (mismo
-   *  lenguaje visual de "chips seleccionables" que ya usa el resto de la app). */
+  /** §2/§3 — selector de grupos como CHIPS horizontales (`.history-mode-chip`, capa de
+   *  navegación/contexto — deliberadamente distinta de `.history-tab`, reservada para las tabs
+   *  de contenido ACTUAL/ANTERIOR/RACE ANUAL de abajo), solo si el usuario pertenece a más de
+   *  uno (con uno solo no hay nada que elegir). */
   function renderGroupsSelector(groups) {
     const wrap = $('#groups-selector');
-    if (groups.length < 2) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+    const chipsWrap = $('#groups-selector-chips');
+    if (groups.length < 2) { wrap.hidden = true; chipsWrap.innerHTML = ''; return; }
     wrap.hidden = false;
-    wrap.innerHTML = groups.map((g) => {
+    chipsWrap.innerHTML = groups.map((g) => {
       const active = g.id === activeGroupId;
-      return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-group-id="${escapeHtml(g.id)}" role="tab" aria-selected="${active}">${escapeHtml(g.name)}</button>`;
+      return `<button type="button" class="history-mode-chip${active ? ' is-active' : ''}" data-group-id="${escapeHtml(g.id)}" role="tab" aria-selected="${active}">${escapeHtml(g.name)}</button>`;
     }).join('');
-    $all('#groups-selector .history-tab').forEach((btn) => {
+    $all('#groups-selector-chips .history-mode-chip').forEach((btn) => {
       btn.addEventListener('click', () => { activeGroupId = btn.dataset.groupId; renderGroupsScreen(); });
     });
   }
@@ -7417,20 +7425,42 @@
     list.innerHTML = insights.map((text) => `<p class="groups-intel-item">${escapeHtml(text)}</p>`).join('');
   }
 
-  /** §11 — fila de la tabla principal: posición, avatar, nombre, segunda línea con partidos/
-   *  V/D, y puntos grandes a la derecha. Nunca Nivel BRAMU/efectividad/mano/lado (§11
-   *  explícito). Tampoco la etiqueta ADMIN acá — §5 es tajante ("no mostrar privilegios
-   *  administrativos como parte del ranking deportivo") y §5 mismo aclara que esa etiqueta
-   *  discreta vive en Configuración, no en la tabla (ver renderGroupSettingsMembers). Tocar la
-   *  fila abre el perfil público del jugador (§11). */
+  /** BRAMUlab_V03.4.1 (§6) — bug real: la fila siempre mostraba la inicial, aunque el jugador
+   *  tuviera una cuenta local real con foto de perfil cargada. Mismo criterio de búsqueda de
+   *  cuenta que ya usa `renderPlayerPublicProfile` (por nombre visible normalizado — este
+   *  prototipo no tiene más vínculo que ese entre "nombre en un partido" y "cuenta real"). */
+  function buildGroupRowAccount(name) {
+    return Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === Store.normalizePlayerName(name)) || null;
+  }
+  function buildGroupAvatarHTML(name) {
+    const account = buildGroupRowAccount(name);
+    if (account && account.profilePhoto) {
+      return `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(account.profilePhoto)}" alt="" /></span>`;
+    }
+    return `<span class="person-list__avatar">${escapeHtml(playerInitials(name))}</span>`;
+  }
+
+  /** §11 — fila de la tabla principal: posición, avatar (foto real si existe, §6), nombre +
+   *  `· @usuario` en la misma línea cuando entran (si no, el handle baja solo, ver
+   *  `.group-table__toprow` en styles.css), segunda línea con partidos/V/D, y puntos grandes a
+   *  la derecha. Nunca Nivel BRAMU/efectividad/mano/lado (§11 explícito). Tampoco la etiqueta
+   *  ADMIN acá — §5 es tajante ("no mostrar privilegios administrativos como parte del ranking
+   *  deportivo") y §5 mismo aclara que esa etiqueta discreta vive en Configuración, no en la
+   *  tabla (ver renderGroupSettingsMembers). Tocar la fila abre el perfil público del jugador
+   *  (§11, salvo la propia fila — ver isOwnGroupTableRow). */
   function buildGroupTableRowHTML(row) {
     const captionParts = [`${row.matchesCounted} ${row.matchesCounted === 1 ? 'partido' : 'partidos'}`];
     if (row.matchesCounted > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
+    const account = buildGroupRowAccount(row.name);
+    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(row.name);
     return `<button type="button" class="group-table__row${row.position === 1 && row.points > 0 ? ' group-table__row--top1' : ''}" data-name="${escapeHtml(row.name)}" data-user-id="${escapeHtml(row.userId || '')}">
       <span class="group-table__position">${row.position}</span>
-      <span class="person-list__avatar">${escapeHtml(playerInitials(row.name))}</span>
+      ${buildGroupAvatarHTML(row.name)}
       <span class="group-table__info">
-        <span class="group-table__name">${escapeHtml(row.name)}</span>
+        <span class="group-table__toprow">
+          <span class="group-table__name">${escapeHtml(row.name)}</span>
+          <span class="group-table__handle">· ${escapeHtml(handle)}</span>
+        </span>
         <span class="group-table__caption">${captionParts.join(' · ')}</span>
       </span>
       <span class="group-table__points">
@@ -7492,6 +7522,14 @@
     const beforePreviousTable = PG.computeWeeklyTable(fullHistory, group, prevPrevWeekStart);
     const raceTable = PG.computeRaceAnual(fullHistory, group, year);
 
+    // BRAMUlab_V03.4.1 (§3) — el nombre del grupo queda explícito en el propio título del
+    // bloque de Intelligence ("EL MOMENTO · {nombre}"), nunca solo "EL MOMENTO DEL GRUPO" a
+    // secas — mismo bloque debe dejar claro de QUÉ grupo está hablando BRAMU, sobre todo con
+    // 2+ grupos donde el usuario recién cambió de chip.
+    const intelTitle = `EL MOMENTO · ${group.name}`;
+    $('#groups-intel-actual-title').textContent = intelTitle;
+    $('#groups-intel-anterior-title').textContent = intelTitle;
+
     renderGroupIntelligenceInto('groups-intel-actual-list', 'groups-intel-actual-empty', PG.buildGroupIntelligence({
       currentTable, previousTable, raceTable, currentMatches, fullHistory,
     }));
@@ -7511,6 +7549,7 @@
   function initGroupsScreen() {
     $('#groups-back-btn').addEventListener('click', () => openPlayerHome());
     $('#groups-settings-btn').addEventListener('click', openGroupSettingsScreen);
+    $('#groups-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
     $all('#groups-view-tabs .history-tab').forEach((btn) => {
       btn.addEventListener('click', () => setGroupsTab(btn.dataset.view));
     });
@@ -8150,6 +8189,9 @@
     const categoryLabel = user && CATEGORY_LABELS[user.declaredCategory];
     const categoryDate = user && user.declaredCategoryAt ? formatDeclaredCategoryDate(user.declaredCategoryAt) : '';
     $('#profile-category').textContent = categoryLabel ? (categoryDate ? `${categoryLabel} · declarada el ${categoryDate}` : categoryLabel) : '—';
+    // BRAMUlab_V03.4.1 (§9) — "Bella Vista, Buenos Aires", de solo lectura acá (se edita desde
+    // Editar Datos). PLLocations.formatLocationLabel ya maneja el caso sin región.
+    $('#profile-location').textContent = (user && user.locality) ? PLLocations.formatLocationLabel(user) : '—';
 
     // MI PERFIL — cabecera (V03.1 §2): Edad/Mano dominante/Lado habitual integrados en la
     // misma tarjeta de identidad, mismos 3 valores que arriba. La categoría NO se muestra acá
@@ -8499,6 +8541,32 @@
   let profileEditHand = null;
   let profileEditSide = null;
   let profileEditGender = null; // V03.0.1 (§2) — mismo criterio que hand/side: género pasó de <select> a option-row.
+  let profileEditCategory = null; // BRAMUlab_V03.4.1 (§10) — reemplaza al <select> nativo.
+  let profileEditLocation = null; // BRAMUlab_V03.4.1 (§9) — { locality, region, country } | null.
+
+  /** BRAMUlab_V03.4.1 (§10) — un único mapa para las 4 filas compactas de elección fija
+   *  (Género/Mano dominante/Lado habitual/Categoría): mismas opciones/etiquetas de siempre
+   *  (GENDER_LABELS/HAND_LABELS/SIDE_LABELS/CATEGORY_LABELS, sin cambios), la hoja
+   *  `#profile-picker-sheet` se arma leyendo de acá — `openProfilePickerSheet` nunca
+   *  necesita un caso especial por campo. get/set son closures sobre las variables de
+   *  módulo de arriba (nunca se migran a un objeto: mínimo cambio de superficie, el resto de
+   *  esta función ya las usa por nombre). */
+  const PROFILE_PICKER_FIELDS = {
+    gender: { title: 'GÉNERO', labels: GENDER_LABELS, rowValueId: 'profile-edit-gender-value', get: () => profileEditGender, set: (v) => { profileEditGender = v; } },
+    hand: { title: 'MANO DOMINANTE', labels: HAND_LABELS, rowValueId: 'profile-edit-hand-value', get: () => profileEditHand, set: (v) => { profileEditHand = v; } },
+    side: { title: 'LADO HABITUAL', labels: SIDE_LABELS, rowValueId: 'profile-edit-side-value', get: () => profileEditSide, set: (v) => { profileEditSide = v; } },
+    category: { title: 'CATEGORÍA ACTUAL', labels: CATEGORY_LABELS, rowValueId: 'profile-edit-category-value', get: () => profileEditCategory, set: (v) => { profileEditCategory = v; } },
+  };
+
+  function updateProfileSelectRowDisplay(fieldKey) {
+    const field = PROFILE_PICKER_FIELDS[fieldKey];
+    const value = field.get();
+    $(`#${field.rowValueId}`).textContent = value ? field.labels[value] : '—';
+  }
+
+  function updateProfileLocationRowDisplay() {
+    $('#profile-edit-location-value').textContent = profileEditLocation ? PLLocations.formatLocationLabel(profileEditLocation) : '—';
+  }
 
   /** V03.0 (§5) — abre la edición de Perfil precargada con los datos actuales del Usuario.
    *  Nunca edita inline la vista de Perfil — mismo patrón que el resto de la app.
@@ -8512,6 +8580,8 @@
     profileEditHand = user.dominantHand || null;
     profileEditSide = user.preferredSide || null;
     profileEditGender = user.gender || null;
+    profileEditCategory = user.declaredCategory || null;
+    profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
     setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', user.profilePhoto, user.displayName);
     $('#profile-edit-avatar-remove-btn').hidden = !user.profilePhoto;
     $('#profile-edit-first-name').value = user.firstName || '';
@@ -8520,22 +8590,104 @@
     $('#profile-edit-username-feedback').textContent = '';
     $('#profile-edit-display-name').value = user.displayName || '';
     $('#profile-edit-birthdate').value = user.birthDate || '';
-    $('#profile-edit-category').value = user.declaredCategory || '';
-    resetOptionGroup('profile-edit-gender-options');
-    resetOptionGroup('profile-edit-hand-options');
-    resetOptionGroup('profile-edit-side-options');
-    if (user.gender) $(`#profile-edit-gender-options [data-value="${user.gender}"]`).click();
-    if (user.dominantHand) $(`#profile-edit-hand-options [data-value="${user.dominantHand}"]`).click();
-    if (user.preferredSide) $(`#profile-edit-side-options [data-value="${user.preferredSide}"]`).click();
+    updateProfileSelectRowDisplay('gender');
+    updateProfileSelectRowDisplay('hand');
+    updateProfileSelectRowDisplay('side');
+    updateProfileSelectRowDisplay('category');
+    updateProfileLocationRowDisplay();
     $('#profile-edit-error').hidden = true;
     showView('edit-data');
   }
 
-  function initProfileEditModal() {
-    wireOptionGroup('profile-edit-gender-options', (v) => { profileEditGender = v; });
-    wireOptionGroup('profile-edit-hand-options', (v) => { profileEditHand = v; });
-    wireOptionGroup('profile-edit-side-options', (v) => { profileEditSide = v; });
+  /** BRAMUlab_V03.4.1 (§10) — hoja única de selección, reutilizada para Género/Mano dominante/
+   *  Lado habitual/Categoría (ver PROFILE_PICKER_FIELDS). Tocar una opción la selecciona Y
+   *  cierra la hoja en el mismo toque — elección única, sin paso de "confirmar" aparte. */
+  function openProfilePickerSheet(fieldKey) {
+    const field = PROFILE_PICKER_FIELDS[fieldKey];
+    const current = field.get();
+    $('#profile-picker-sheet-title').textContent = field.title;
+    $('#profile-picker-sheet-list').innerHTML = Object.keys(field.labels).map((key) => {
+      const selected = key === current;
+      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-value="${escapeHtml(key)}">
+        <span>${escapeHtml(field.labels[key])}</span>
+        ${selected ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
+      </button>`;
+    }).join('');
+    $all('#profile-picker-sheet-list .picker-sheet-option').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        field.set(btn.dataset.value);
+        updateProfileSelectRowDisplay(fieldKey);
+        closeProfilePickerSheet();
+      });
+    });
+    $('#profile-picker-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#profile-picker-sheet-scrim').classList.add('is-open'); });
+  }
+  function closeProfilePickerSheet() {
+    const scrim = $('#profile-picker-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
 
+  /** BRAMUlab_V03.4.1 (§9) — hoja "¿De dónde sos?": buscador sobre `PLLocations.searchLocations`
+   *  (dataset local, ver locations.js) — una única elección normalizada, nunca texto libre.
+   *  Mismo patrón tap-selecciona-y-cierra que el picker genérico. */
+  function renderProfileLocationResults(query) {
+    const results = PLLocations.searchLocations(query);
+    const wrap = $('#profile-location-list');
+    const isEmpty = results.length === 0;
+    wrap.hidden = isEmpty;
+    $('#profile-location-empty').hidden = !isEmpty;
+    wrap.innerHTML = results.map((loc) => {
+      const label = PLLocations.formatLocationLabel(loc);
+      const selected = !!profileEditLocation && profileEditLocation.locality === loc.locality && profileEditLocation.region === loc.region;
+      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region)}" data-country="${escapeHtml(loc.country)}">
+        <span>${escapeHtml(label)}</span>
+        ${selected ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
+      </button>`;
+    }).join('');
+    $all('#profile-location-list .picker-sheet-option').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        profileEditLocation = { locality: btn.dataset.locality, region: btn.dataset.region, country: btn.dataset.country };
+        updateProfileLocationRowDisplay();
+        closeProfileLocationSheet();
+      });
+    });
+  }
+  function openProfileLocationSheet() {
+    $('#profile-location-search').value = '';
+    renderProfileLocationResults('');
+    $('#profile-location-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#profile-location-sheet-scrim').classList.add('is-open'); });
+    setTimeout(() => $('#profile-location-search').focus(), 60);
+  }
+  function closeProfileLocationSheet() {
+    const scrim = $('#profile-location-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+
+  function initProfilePickerSheets() {
+    $('#profile-edit-gender-row').addEventListener('click', () => openProfilePickerSheet('gender'));
+    $('#profile-edit-hand-row').addEventListener('click', () => openProfilePickerSheet('hand'));
+    $('#profile-edit-side-row').addEventListener('click', () => openProfilePickerSheet('side'));
+    $('#profile-edit-category-row').addEventListener('click', () => openProfilePickerSheet('category'));
+    $('#profile-picker-sheet-close').addEventListener('click', closeProfilePickerSheet);
+    $('#profile-picker-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-picker-sheet-scrim')) closeProfilePickerSheet(); });
+
+    $('#profile-edit-location-row').addEventListener('click', openProfileLocationSheet);
+    $('#profile-location-sheet-close').addEventListener('click', closeProfileLocationSheet);
+    $('#profile-location-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-location-sheet-scrim')) closeProfileLocationSheet(); });
+    $('#profile-location-search').addEventListener('input', (e) => renderProfileLocationResults(e.target.value));
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!$('#profile-picker-sheet-scrim').hidden) closeProfilePickerSheet();
+      if (!$('#profile-location-sheet-scrim').hidden) closeProfileLocationSheet();
+    });
+  }
+
+  function initProfileEditModal() {
     $('#profile-edit-username').addEventListener('input', () => {
       const user = Store.getCurrentUser();
       renderUsernameFeedback('profile-edit-username', 'profile-edit-username-feedback', user ? user.id : null);
@@ -8575,7 +8727,7 @@
       // V03.1 (§4) — "fecha en la que fue declarada": se reestampa SOLO si el valor de
       // categoría cambia respecto al ya guardado. Guardar sin tocar el campo (o guardando
       // el mismo valor) conserva la fecha de declaración original.
-      const nextCategory = $('#profile-edit-category').value || null;
+      const nextCategory = profileEditCategory || null;
       const categoryChanged = nextCategory !== (user.declaredCategory || null);
       const patch = {
         firstName,
@@ -8588,6 +8740,11 @@
         preferredSide: profileEditSide,
         declaredCategory: nextCategory,
         declaredCategoryAt: categoryChanged ? (nextCategory ? new Date().toISOString() : null) : (user.declaredCategoryAt || null),
+        // BRAMUlab_V03.4.1 (§9) — `rankingLocalZone` nunca se toca desde acá (queda tal cual
+        // estaba, `Store.updateUserAccount` solo mergea lo que sí se pasa en el patch).
+        locality: profileEditLocation ? profileEditLocation.locality : null,
+        region: profileEditLocation ? profileEditLocation.region : null,
+        country: profileEditLocation ? profileEditLocation.country : null,
       };
       if (profileEditPhotoRemoved) patch.profilePhoto = null;
       else if (profileEditPhotoDataUrl) patch.profilePhoto = profileEditPhotoDataUrl;
@@ -8955,6 +9112,7 @@
     initPlayerSearchScreen();
     initPlayerPublicScreen();
     initProfileEditModal();
+    initProfilePickerSheets();
     initAccessScreen();
     initLoginScreen();
     initForgotPasswordScreen();

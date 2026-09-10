@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.4" />
+<link rel="stylesheet" href="styles.css?v=03.4.1" />
 </head>
 <body>
 
@@ -1270,10 +1270,19 @@
     <div class="analysis-scroll">
       <div id="groups-empty" class="history-empty" hidden>
         <p class="coverage-note">Todavía no creaste ningún grupo. Armá uno con tus compañeros habituales y competí cada semana, aparte del resto de BRAMUlab.</p>
-        <button type="button" id="groups-empty-create-btn" class="btn-mini">CREAR GRUPO</button>
+        <button type="button" id="groups-empty-create-btn" class="btn-start btn-save">CREAR GRUPO</button>
       </div>
       <div id="groups-content" hidden>
-        <div id="groups-selector" class="history-tabs groups-selector" role="tablist" aria-label="Grupos" hidden></div>
+        <!-- BRAMUlab_V03.4.1 (§2) — el selector de grupos es una capa de NAVEGACIÓN/CONTEXTO
+             (chips redondeados, `.history-mode-chip`) deliberadamente distinta de las tabs de
+             contenido de abajo (`.history-tab`, superficie/subrayado) — mismo vocabulario ya
+             usado en Historial para esa misma distinción (pestañas de pertenencia vs. chips de
+             modo), nunca un lenguaje nuevo. Label "GRUPO" arriba para que se lea como selector
+             de contexto, no como una tab más. -->
+        <div id="groups-selector" class="groups-selector" hidden>
+          <div class="pastilla__microlabel groups-selector__label">GRUPO</div>
+          <div id="groups-selector-chips" class="history-mode-chips" role="tablist" aria-label="Grupos"></div>
+        </div>
         <div class="history-tabs" id="groups-view-tabs" role="tablist" aria-label="Vista del grupo">
           <button type="button" class="history-tab" data-view="actual" role="tab" aria-selected="true">ACTUAL</button>
           <button type="button" class="history-tab" data-view="anterior" role="tab" aria-selected="false">ANTERIOR</button>
@@ -1282,7 +1291,7 @@
 
         <div id="groups-panel-actual" class="groups-panel">
           <div class="pastilla groups-intel-card">
-            <div class="pastilla__title-row"><div class="pastilla__title">EL MOMENTO DEL GRUPO</div></div>
+            <div class="pastilla__title-row"><div class="pastilla__title" id="groups-intel-actual-title">EL MOMENTO DEL GRUPO</div></div>
             <div class="groups-intel-list" id="groups-intel-actual-list"></div>
             <p class="coverage-note" id="groups-intel-actual-empty" hidden>Todavía no hay partidos esta semana para que BRAMU pueda leer el grupo.</p>
           </div>
@@ -1292,7 +1301,7 @@
 
         <div id="groups-panel-anterior" class="groups-panel" hidden>
           <div class="pastilla groups-intel-card" id="groups-intel-anterior-card">
-            <div class="pastilla__title-row"><div class="pastilla__title">EL MOMENTO DEL GRUPO</div></div>
+            <div class="pastilla__title-row"><div class="pastilla__title" id="groups-intel-anterior-title">EL MOMENTO DEL GRUPO</div></div>
             <div class="groups-intel-list" id="groups-intel-anterior-list"></div>
             <p class="coverage-note" id="groups-intel-anterior-empty" hidden>No hubo partidos contables la semana pasada.</p>
           </div>
@@ -1306,6 +1315,9 @@
           <p class="coverage-note groups-table-empty" id="groups-table-race-empty" hidden>Todavía no hay puntos acumulados este año.</p>
         </div>
 
+        <!-- BRAMUlab_V03.4.1 (§7) — acción inequívoca dentro del contenido principal del grupo
+             (solo admins). El "+" del header sigue siendo EXCLUSIVAMENTE "crear grupo nuevo". -->
+        <button type="button" id="groups-add-member-btn" class="btn-start btn-save" hidden>+ AGREGAR JUGADOR</button>
         <button type="button" id="groups-points-info-btn" class="link-btn groups-points-info-btn">¿Cómo se suman los puntos?</button>
       </div>
     </div>
@@ -1331,7 +1343,7 @@
       <div class="profile-group__title" style="margin-top:24px;">MIEMBROS</div>
       <div id="group-settings-members-list" class="group-settings-members"></div>
 
-      <button type="button" id="group-settings-add-member-btn" class="btn-mini" style="margin-top:14px;">+ AGREGAR JUGADOR</button>
+      <button type="button" id="group-settings-add-member-btn" class="btn-start btn-save">+ AGREGAR JUGADOR</button>
       <p class="edit-error" id="group-settings-error" hidden></p>
     </div>
   </section>
@@ -1584,6 +1596,13 @@
           <div class="mini-stat profile-personal-row">
             <span class="mini-stat__label">Categoría declarada</span>
             <span class="mini-stat__value" id="profile-category">—</span>
+          </div>
+          <!-- BRAMUlab_V03.4.1 (§9) — de solo lectura acá (la edición vive en Editar Datos,
+               mismo criterio que el resto de esta tarjeta). Preparado para el futuro Ranking
+               BRAMU local — todavía no implementado. -->
+          <div class="mini-stat profile-personal-row">
+            <span class="mini-stat__label">Ubicación</span>
+            <span class="mini-stat__value" id="profile-location">—</span>
           </div>
         </div>
 
@@ -2114,38 +2133,49 @@
           <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
         </div>
         <div class="field field--labeled"><label class="field-label" for="profile-edit-birthdate">Fecha de nacimiento</label><input id="profile-edit-birthdate" class="field__input" type="date" /></div>
-        <div class="field-label">Género</div>
-        <div class="option-row option-row--2col" role="radiogroup" aria-label="Género" id="profile-edit-gender-options">
-          <button type="button" class="option-col" data-value="femenino" role="radio" aria-checked="false">Femenino</button>
-          <button type="button" class="option-col" data-value="masculino" role="radio" aria-checked="false">Masculino</button>
-          <button type="button" class="option-col" data-value="otro" role="radio" aria-checked="false">Otro</button>
-          <button type="button" class="option-col" data-value="prefiero-no-decir" role="radio" aria-checked="false">Prefiero no decir</button>
+        <!-- BRAMUlab_V03.4.1 (§9/§10) — Género/Mano dominante/Lado habitual/Categoría pasan de
+             `.option-row` (botones grandes) a filas compactas con chevron: mismas opciones y
+             mismo significado (ver profileEditGender/Hand/Side/Category en app.js), solo cambia
+             el control — tocar abre `#profile-picker-sheet` (una sola hoja reutilizada para las
+             4, ver openProfilePickerSheet). Ubicación (§9, nuevo) usa el mismo patrón de fila,
+             abriendo en cambio `#profile-location-sheet` (con buscador). -->
+        <div class="profile-select-rows">
+          <button type="button" class="profile-select-row" id="profile-edit-gender-row">
+            <span class="profile-select-row__text">
+              <span class="profile-select-row__label">Género</span>
+              <span class="profile-select-row__value" id="profile-edit-gender-value">—</span>
+            </span>
+            <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="profile-select-row" id="profile-edit-hand-row">
+            <span class="profile-select-row__text">
+              <span class="profile-select-row__label">Mano dominante</span>
+              <span class="profile-select-row__value" id="profile-edit-hand-value">—</span>
+            </span>
+            <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="profile-select-row" id="profile-edit-side-row">
+            <span class="profile-select-row__text">
+              <span class="profile-select-row__label">Lado habitual</span>
+              <span class="profile-select-row__value" id="profile-edit-side-value">—</span>
+            </span>
+            <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="profile-select-row" id="profile-edit-category-row">
+            <span class="profile-select-row__text">
+              <span class="profile-select-row__label">Categoría actual</span>
+              <span class="profile-select-row__value" id="profile-edit-category-value">—</span>
+            </span>
+            <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+          </button>
+          <button type="button" class="profile-select-row" id="profile-edit-location-row">
+            <span class="profile-select-row__text">
+              <span class="profile-select-row__label">¿De dónde sos?</span>
+              <span class="profile-select-row__value" id="profile-edit-location-value">—</span>
+            </span>
+            <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+          </button>
         </div>
-        <div class="field-label">Mano dominante</div>
-        <div class="option-row" role="radiogroup" aria-label="Mano dominante" id="profile-edit-hand-options">
-          <button type="button" class="option-col" data-value="derecha" role="radio" aria-checked="false">Derecha</button>
-          <button type="button" class="option-col" data-value="izquierda" role="radio" aria-checked="false">Izquierda</button>
-        </div>
-        <div class="field-label">Lado habitual</div>
-        <div class="option-row" role="radiogroup" aria-label="Lado habitual" id="profile-edit-side-options">
-          <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
-          <button type="button" class="option-col" data-value="reves" role="radio" aria-checked="false">Revés</button>
-          <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
-        </div>
-        <div class="field-label">Categoría actual</div>
-        <select id="profile-edit-category" class="field__input">
-          <option value="">Categoría actual</option>
-          <option value="1">1ª</option>
-          <option value="2">2ª</option>
-          <option value="3">3ª</option>
-          <option value="4">4ª</option>
-          <option value="5">5ª</option>
-          <option value="6">6ª</option>
-          <option value="7">7ª</option>
-          <option value="8">8ª</option>
-          <option value="9">9ª</option>
-          <option value="no-se">No sé mi categoría</option>
-        </select>
         <p class="edit-error" id="profile-edit-error" hidden></p>
         <button type="submit" class="btn-start btn-save">GUARDAR</button>
       </form>
@@ -2422,6 +2452,46 @@
     </div>
   </div>
 
+  <!-- ============================================================
+       HOJA GENÉRICA DE SELECCIÓN — BRAMUlab_V03.4.1 (§10)
+       Una sola hoja reutilizada para Género/Mano dominante/Lado habitual/Categoría (mismas
+       opciones y valores de siempre, ver openProfilePickerSheet en app.js) — tocar una opción
+       la selecciona Y cierra la hoja en el mismo toque (nunca un paso extra de "confirmar"
+       para una elección única). -->
+  <div id="profile-picker-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="profile-picker-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Elegir opción">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title" id="profile-picker-sheet-title">OPCIÓN</span>
+        <button type="button" id="profile-picker-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="picker-sheet-list" id="profile-picker-sheet-list"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       HOJA "¿DE DÓNDE SOS?" — BRAMUlab_V03.4.1 (§9)
+       Buscador + lista sobre el dataset local de locations.js — una única elección
+       normalizada ("Localidad, Provincia"), nunca texto libre. Todavía NO implementa Ranking
+       BRAMU oficial (§9 in fine): solo guarda el dato para más adelante. -->
+  <div id="profile-location-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="profile-location-sheet" class="bottom-sheet bottom-sheet--tall" role="dialog" aria-modal="true" aria-label="Elegir ubicación">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">¿DE DÓNDE SOS?</span>
+        <button type="button" id="profile-location-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="load-player-sheet__scroll">
+        <div class="player-search-field">
+          <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="profile-location-search" class="player-search-field__input" type="text" placeholder="Buscar tu localidad…" maxlength="60" autocomplete="off" />
+        </div>
+        <div id="profile-location-list" class="picker-sheet-list"></div>
+        <p class="load-player-sheet__empty" id="profile-location-empty" hidden>Sin coincidencias.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast global (fuera de cualquier vista para que se vea desde Historial, Análisis, etc.) -->
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
@@ -2472,13 +2542,14 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.4"></script>
-  <script src="stats.js?v=03.4"></script>
-  <script src="store.js?v=03.4"></script>
-  <script src="player-home.js?v=03.4"></script>
-  <script src="match-load.js?v=03.4"></script>
-  <script src="player-identity.js?v=03.4"></script>
-  <script src="groups.js?v=03.4"></script>
-  <script src="app.js?v=03.4"></script>
+  <script src="engine.js?v=03.4.1"></script>
+  <script src="stats.js?v=03.4.1"></script>
+  <script src="store.js?v=03.4.1"></script>
+  <script src="player-home.js?v=03.4.1"></script>
+  <script src="match-load.js?v=03.4.1"></script>
+  <script src="player-identity.js?v=03.4.1"></script>
+  <script src="groups.js?v=03.4.1"></script>
+  <script src="locations.js?v=03.4.1"></script>
+  <script src="app.js?v=03.4.1"></script>
 </body>
 </html>

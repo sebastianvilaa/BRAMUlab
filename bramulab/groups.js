@@ -256,12 +256,31 @@
     }));
   }
 
+  /** BRAMUlab_V03.4.1 (§5) — bug real corregido: dos jugadores con el MISMO puntaje deben
+   *  compartir posición ("1 Seba — 6 / 1 Esteban — 6 / 3 Diegote — 0"), nunca un desempate
+   *  inventado para forzar un líder único. `rows` ya viene ordenado (puntos desc + criterios de
+   *  desempate SOLO para el orden de pantalla, nunca para el número de posición en sí — ver
+   *  comentario de `computeWeeklyTable` más abajo). Posición "por competencia": un empate en la
+   *  cima dejaría el siguiente puesto distinto en 3, no en 2 (nunca "1, 1, 2"). */
+  function assignPositions(rows) {
+    let lastPoints = null;
+    let lastPosition = 0;
+    return rows.map((r, i) => {
+      const position = (lastPoints !== null && r.points === lastPoints) ? lastPosition : i + 1;
+      lastPoints = r.points;
+      lastPosition = position;
+      return Object.assign({}, r, { position });
+    });
+  }
+
   /** Regla central §8: para cada jugador cuentan sus 3 MEJORES partidos puntuables de la
    *  semana (menos de 3 jugados → cuentan todos). `matchesCounted/wins/losses` de la segunda
    *  línea de la tabla (§11) se calculan sobre ese mismo subconjunto de "los que cuentan",
-   *  nunca sobre el total jugado esa semana (que puede ser mayor). Orden final: puntos desc,
-   *  empate por victorias desc, empate final alfabético — mismo criterio determinístico que
-   *  `PH.computeBestPartner`. */
+   *  nunca sobre el total jugado esa semana (que puede ser mayor). Orden de PANTALLA: puntos
+   *  desc, empate por victorias desc, empate final alfabético — mismo criterio determinístico
+   *  que `PH.computeBestPartner`, usado únicamente para decidir en qué orden se listan los
+   *  empatados (nunca para inventarles una posición distinta — ver `assignPositions`: dos
+   *  filas con el mismo puntaje comparten número de posición sin importar este desempate). */
   function computeWeeklyTable(fullHistory, group, weekStart) {
     const weekEnd = new Date(weekStart.getTime() + WEEK_MS);
     const matches = computeMatchesForGroupInWeek(fullHistory, group, weekStart);
@@ -290,7 +309,7 @@
       };
     });
     rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
-    return rows.map((r, i) => Object.assign({ position: i + 1 }, r));
+    return assignPositions(rows);
   }
 
   /* ------------------------------------------------------------------ */
@@ -336,7 +355,7 @@
     });
     const rows = Object.keys(totals).map((k) => totals[k]);
     rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
-    return rows.map((r, i) => Object.assign({ position: i + 1 }, r));
+    return assignPositions(rows);
   }
 
   /* ------------------------------------------------------------------ */
@@ -352,18 +371,56 @@
 
   function pluralize(n, one, many) { return `${n} ${n === 1 ? one : many}`; }
 
-  function insightLeader(table) {
-    const withPoints = (table || []).filter((r) => r.points > 0);
-    if (!withPoints.length) return null;
-    return `${withPoints[0].name} lidera la semana con ${pluralize(withPoints[0].points, 'punto', 'puntos')}.`;
+  /** "Ana, Bea y Cruz" / "Ana y Bea" / "Ana" — único punto de armado de listas de nombres en
+   *  español, para nunca repetir la lógica de comas/"y" en cada insight. */
+  function joinNamesEs(names) {
+    if (names.length <= 1) return names[0] || '';
+    if (names.length === 2) return `${names[0]} y ${names[1]}`;
+    return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
   }
 
+  /** BRAMUlab_V03.4.1 (§5) — único punto de "¿quién está primero, con cuántos puntos, y con
+   *  quién lo comparte?". Nunca devuelve un solo nombre cuando hay un empate real en la cima —
+   *  la tabla ya no fuerza un líder único (ver `assignPositions`) y BRAMU Intelligence tiene que
+   *  reflejar exactamente lo mismo, nunca una lectura que contradiga la propia tabla. */
+  function topTiedNames(table) {
+    const withPoints = (table || []).filter((r) => r.points > 0);
+    if (!withPoints.length) return null;
+    const topPoints = withPoints[0].points;
+    return { names: withPoints.filter((r) => r.points === topPoints).map((r) => r.name), points: topPoints };
+  }
+
+  function insightLeader(table) {
+    const top = topTiedNames(table);
+    if (!top) return null;
+    if (top.names.length > 1) return `${joinNamesEs(top.names)} comparten el liderazgo con ${pluralize(top.points, 'punto', 'puntos')}.`;
+    return `${top.names[0]} lidera la semana con ${pluralize(top.points, 'punto', 'puntos')}.`;
+  }
+
+  /** BRAMUlab_V03.4.1 (§5) — el gap se mide entre el PRIMER GRUPO de puntaje y el SEGUNDO grupo
+   *  distinto (nunca entre la fila 0 y la fila 1 del array, que si están empatadas en la cima ya
+   *  las cuenta `insightLeader` — comparar esas dos acá daría gap=0 y el texto prohibido "le
+   *  pisa los talones" sobre gente que en realidad ya comparte el primer puesto). Nunca usa
+   *  "le pisa los talones"/"está segundo" cuando el puntaje es EXACTAMENTE igual — ese caso ya
+   *  no llega acá (queda filtrado al buscar el primer punto de corte con `points` distinto). */
   function insightGapOrParity(table) {
     const withPoints = (table || []).filter((r) => r.points > 0);
     if (withPoints.length < 2) return null;
-    const gap = withPoints[0].points - withPoints[1].points;
-    if (gap <= 1) return `La semana está muy pareja: ${withPoints[1].name} le pisa los talones a ${withPoints[0].name} por ${gap === 0 ? 'los mismos puntos' : `solo ${pluralize(gap, 'punto', 'puntos')}`}.`;
-    if (gap >= 4) return `${withPoints[0].name} se despegó del resto por ${pluralize(gap, 'punto', 'puntos')}.`;
+    const topPoints = withPoints[0].points;
+    const leaderNames = withPoints.filter((r) => r.points === topPoints).map((r) => r.name);
+    const chaser = withPoints.find((r) => r.points < topPoints);
+    if (!chaser) return null; // todo el mundo con puntos empatado en la cima — ya lo cuenta insightLeader
+    const chaserPoints = chaser.points;
+    const chaserNames = withPoints.filter((r) => r.points === chaserPoints).map((r) => r.name);
+    const gap = topPoints - chaserPoints;
+    if (gap <= 1) {
+      const verb = chaserNames.length > 1 ? 'le pisan' : 'le pisa';
+      return `La semana está muy pareja: ${joinNamesEs(chaserNames)} ${verb} los talones a ${joinNamesEs(leaderNames)} por ${pluralize(gap, 'punto', 'puntos')}.`;
+    }
+    if (gap >= 4) {
+      const verb = leaderNames.length > 1 ? 'se despegaron' : 'se despegó';
+      return `${joinNamesEs(leaderNames)} ${verb} del resto por ${pluralize(gap, 'punto', 'puntos')}.`;
+    }
     return null;
   }
 
@@ -398,8 +455,10 @@
   }
 
   function insightRaceLeader(raceTable) {
-    if (!raceTable || !raceTable.length || !raceTable[0].points) return null;
-    return `En la Race anual, ${raceTable[0].name} sigue al frente con ${pluralize(raceTable[0].points, 'punto', 'puntos')}.`;
+    const top = topTiedNames(raceTable);
+    if (!top) return null;
+    if (top.names.length > 1) return `En la Race anual, ${joinNamesEs(top.names)} comparten la punta con ${pluralize(top.points, 'punto', 'puntos')}.`;
+    return `En la Race anual, ${top.names[0]} sigue al frente con ${pluralize(top.points, 'punto', 'puntos')}.`;
   }
 
   function insightActivity(matches) {
@@ -428,9 +487,9 @@
     setWinnerTeam, computeBonusRemontada, computeBonusVictoriaClara,
     computeSimulatedLevelBeforeMatch, computeBonusSorpresa,
     computeMatchPointsBreakdown, computePointsForPlayerInMatch,
-    computeMatchesForGroupInWeek, membersRelevantForWeek, computeWeeklyTable,
+    computeMatchesForGroupInWeek, membersRelevantForWeek, assignPositions, computeWeeklyTable,
     computeRaceAnual,
-    buildGroupIntelligence,
+    buildGroupIntelligence, topTiedNames, joinNamesEs,
     BASE_POINTS, BONUS_POINTS, SORPRESA_MIN_DIFF, WEEK_MS, MAX_COUNTED_MATCHES_PER_WEEK,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
