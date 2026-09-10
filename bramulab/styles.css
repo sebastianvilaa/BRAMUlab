@@ -136,18 +136,15 @@
    verdes oscuros ("verde inglés"), incoherente con el azul noche ya adoptado como base de
    toda la app desde V02 (`--bg`/`--bg-deep`/`--bg-gradient-app`). Reemplazado por esos mismos
    tokens de superficie — nunca un color aislado nuevo — para que el arranque ya se sienta
-   parte del mismo sistema en vez de una pieza aislada con paleta propia. El halo del ícono
-   "B" (ver .app-splash__b) ya trae su propio glow lima horneado en el PNG: el `drop-shadow`
-   extra que había acá lo duplicaba (glow sobre glow) — se retira, no se controla doble. */
-/* BRAMUlab_V03.2.1 (§2) — QA en producción: con `justify-content:center` (centrado matemático)
-   el conjunto se leía "demasiado bajo" — el corrimiento óptico típico de un bloque compacto en
-   el medio exacto del alto real del dispositivo. Se sube con `padding-top` en `vh` (relativo al
-   alto del viewport; a diferencia del `%` de padding, que siempre se resuelve contra el ANCHO,
-   nunca serviría acá) en vez de mover el centrado matemático — nunca se toca el fondo/paleta. */
+   parte del mismo sistema en vez de una pieza aislada con paleta propia. */
+/* BRAMUlab_V03.4.4 (§3) — con el ISO retirado (una sola marca, ver index.html) el bloque queda
+   mucho más corto, así que el corrimiento óptico que forzó el `padding-top` de V03.2.1 (pensado
+   para un bloque de DOS elementos apilados) ya no aplica igual: vuelve el centrado matemático
+   real (`justify-content:center`), pedido explícito de este microparche ("recentrar
+   verticalmente"). Nunca se toca el fondo/paleta. */
 #app-splash{
   position: fixed; inset: 0; z-index: 9999;
-  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
-  padding-top: 26vh; gap: 20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
   background:
     radial-gradient(
       circle at 50% 38%,
@@ -159,8 +156,8 @@
   pointer-events: none;
   animation: app-splash-out 1.5s ease forwards;
 }
-.app-splash__b{ width: 128px; height: auto; }
-.app-splash__logo{ width: 184px; height: auto; opacity: 0.92; }
+/* Más protagonismo al wordmark (antes 184px, compartía peso con el ISO al lado): +40%. */
+.app-splash__logo{ width: 260px; height: auto; opacity: 1; }
 @keyframes app-splash-out{
   0%, 58% { opacity: 1; }
   92% { opacity: 0; }
@@ -2836,6 +2833,12 @@ input, select{ font-family: inherit; }
 .picker-sheet-option:active{ background: rgba(149,255,25,0.06); }
 .picker-sheet-option.is-selected{ color: var(--brand-lime); font-weight: 800; }
 .picker-sheet-option__check{ color: var(--brand-lime); flex:none; }
+/* BRAMUlab_V03.4.4 (§2) — segunda lectura "· N jugadores" en la hoja MIS GRUPOS: el nombre
+   hereda el color de la fila (paper normal, o lima si `.is-selected`), la cuenta SIEMPRE queda
+   en `--paper-dim` (el "Paper Dim" del sistema) sin importar el estado — por eso el color se
+   fija acá explícito en vez de dejarlo heredar. */
+.picker-sheet-option__text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.picker-sheet-option__meta{ color: var(--paper-dim); font-weight: 600; }
 
 /* V03.0.1 (§2/§4/§5/§8) — label visible y persistente arriba de cada campo, reemplaza el
    criterio placeholder-only anterior (mismo tono/tamaño que .profile-field__label). */
@@ -2941,11 +2944,16 @@ input, select{ font-family: inherit; }
 .group-points-info-list li::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
 .group-points-info-list strong{ color: var(--paper); }
 
-/* BRAMUlab_V03.4.2 (§1) — última fila de la hoja "MIS GRUPOS" ("+ CREAR GRUPO"): mismo
-   componente `.picker-sheet-option` de siempre, con acento lima para que se lea como la acción
-   de alta, "separada" del resto de la lista solo por el propio borde entre filas — nunca un
-   segundo control aparte. */
-.picker-sheet-option--action{ color: var(--brand-lime); font-weight: 800; }
+/* BRAMUlab_V03.4.4 (§1) — "+ CREAR GRUPO" deja de ser una fila de texto lima (se leía "perdida"
+   contra la lista de grupos) y pasa a botón real: mismo sistema que `.btn-secondary--accent`
+   (azul, EDITAR PARTIDO) / `.btn-secondary--danger` (rojo, CERRAR SESIÓN) — mismo alto/padding/
+   radio/tipografía/tracking que esa familia — acá con acento lima. Deliberadamente NO
+   `.btn-start` (lima sólido): es una acción secundaria respecto del grupo activo, nunca un CTA
+   primario. `flex:none` porque `.btn-secondary` trae `flex:1` pensado para vivir junto a OTRO
+   botón en una fila (ver nota de `.btn-save` más arriba, mismo motivo) — acá vive solo, abajo
+   de la lista de grupos dentro de `#groups-switch-list` (flex column). */
+.btn-secondary--lime{ background: rgba(149,255,25,0.10); border-color: rgba(149,255,25,0.45); color: var(--brand-lime); }
+.groups-switch-create-btn{ width:100%; flex:none; margin-top: 14px; }
 
 /* BRAMUlab_V03.4.2 (§6) — edición inline del nombre del grupo (reemplaza el botón grande
    "GUARDAR NOMBRE"): nombre + lápiz, el lápiz alterna a un `<input>` en el mismo lugar. Mismo

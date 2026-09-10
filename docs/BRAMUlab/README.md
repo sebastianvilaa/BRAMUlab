@@ -9,19 +9,22 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.4.3
+## Versión funcional actual: BRAMUlab_V03.4.4
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.3"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.3`. Ronda de cierre sobre MIS GRUPOS/ubicación, puramente visual — cero cambios de lógica: las tabs ACTUAL/ANTERIOR/RACE ANUAL pasan de mayúscula sostenida a "Actual/Anterior/Race anual" (mismo criterio que Historial), la tarjeta de BRAMU Intelligence gana el espacio vertical que le faltaba respecto al bloque de arriba, los modales de doble acción horizontal (Eliminar partido, Eliminar grupo, etc.) bajan sus botones de 14 a 12px sin tocar el resto de los botones de la app, y la hoja de ubicación de MIS DATOS abre completamente limpia (sin el dataset local precargado) — los resultados aparecen recién cuando el usuario empieza a escribir.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.4"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.4`. Microparche final sobre V03.4.3, puramente visual — cero cambios de lógica: el botón "+ CREAR GRUPO" del selector de MIS GRUPOS pasa de texto suelto a un botón real (misma familia que EDITAR PARTIDO/CERRAR SESIÓN, acá con acento lima), cada grupo del selector suma "· N jugadores" como segunda lectura (singular/plural cubierto), la pantalla de splash se recompone alrededor de una sola marca (se retira el ISO "B" que vivía separado del wordmark, el wordmark queda más grande y centrado), y se revisó el ícono de la app: los assets vigentes ya estaban en azul noche + lima desde V03.2, sin cambios de código — ver la nota del Informe sobre el ícono cacheado por el sistema operativo.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se pidió en V03.4.4 (botón crear grupo, contador de jugadores, splash, ícono) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.4.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Informe.md) |
+
+**Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
 | Qué se pidió en V03.4.3 (ajustes finales: tabs, spacing, modales, ubicación) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.3_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.4.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.3_Informe.md) |
 
-**Rondas anteriores:**
-
-| Qué necesitás | Documento |
-|---|---|
 | Qué se pidió en V03.4.2 (selector de grupo, tabs, Intelligence, eliminar grupo, GeoRef) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.2_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.4.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.2_Informe.md) |
 

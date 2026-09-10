@@ -7391,20 +7391,27 @@
   }
 
   /** BRAMUlab_V03.4.2 (§1) — hoja "MIS GRUPOS": todos los grupos del usuario (check en el
-   *  activo) + "+ CREAR GRUPO" como última fila de la MISMA lista (mismo componente
-   *  `.picker-sheet-option` que ya usa la hoja de selección genérica de MIS DATOS). Tocar un
-   *  grupo cambia el activo y cierra; tocar "+ CREAR GRUPO" cierra esta hoja y abre la de
-   *  siempre — un solo lugar resuelve cambiar Y crear, nunca dos acciones separadas. */
+   *  activo) + "+ CREAR GRUPO" al final (mismo `.picker-sheet-option` para las filas de grupo
+   *  que ya usa la hoja de selección genérica de MIS DATOS). Tocar un grupo cambia el activo y
+   *  cierra; tocar "+ CREAR GRUPO" cierra esta hoja y abre la de siempre — un solo lugar
+   *  resuelve cambiar Y crear, nunca dos acciones separadas.
+   *  BRAMUlab_V03.4.4 (§2) — cada fila suma "· N jugadores" como segunda lectura (cuenta de
+   *  miembros ACTIVOS del grupo, mismo criterio `PG.isMemberActiveAt` que ya usa
+   *  renderGroupSettingsMembers — nunca cuenta a alguien que ya salió del grupo). §1 — "+ CREAR
+   *  GRUPO" deja de ser texto suelto y pasa a `.btn-secondary--lime` (ver styles.css). */
   function renderGroupsSwitchList() {
     const groups = myActiveGroups();
+    const nowIso = new Date().toISOString();
     const rows = groups.map((g) => {
       const active = g.id === activeGroupId;
+      const memberCount = (g.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).length;
+      const memberLabel = memberCount === 1 ? '1 jugador' : `${memberCount} jugadores`;
       return `<button type="button" class="picker-sheet-option${active ? ' is-selected' : ''}" data-group-id="${escapeHtml(g.id)}">
-        <span>${escapeHtml(g.name)}</span>
+        <span class="picker-sheet-option__text"><span class="picker-sheet-option__name">${escapeHtml(g.name)}</span><span class="picker-sheet-option__meta"> · ${memberLabel}</span></span>
         ${active ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
       </button>`;
     }).join('');
-    $('#groups-switch-list').innerHTML = `${rows}<button type="button" class="picker-sheet-option picker-sheet-option--action" id="groups-switch-create-btn">+ CREAR GRUPO</button>`;
+    $('#groups-switch-list').innerHTML = `${rows}<button type="button" class="btn-secondary btn-secondary--lime groups-switch-create-btn" id="groups-switch-create-btn">+ CREAR GRUPO</button>`;
     $all('#groups-switch-list .picker-sheet-option[data-group-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
         activeGroupId = btn.dataset.groupId;

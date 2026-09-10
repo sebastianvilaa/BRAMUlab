@@ -24,16 +24,18 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.4.3" />
+<link rel="stylesheet" href="styles.css?v=03.4.4" />
 </head>
 <body>
 
-  <!-- V11.15 — pantalla de Flash al arrancar la app: mismo fondo degradé + B con glow del
-       sistema gráfico. Puramente decorativa (nunca bloquea la interacción: pointer-events
-       none desde el arranque) y se apaga sola vía CSS, sin depender de que app.js termine
-       de inicializar. -->
+  <!-- V11.15 — pantalla de Flash al arrancar la app: mismo fondo degradé del sistema gráfico.
+       Puramente decorativa (nunca bloquea la interacción: pointer-events none desde el
+       arranque) y se apaga sola vía CSS, sin depender de que app.js termine de inicializar.
+       BRAMUlab_V03.4.4 (§3) — se retira el ISO "B" (icons/splash-b.png), que vivía arriba del
+       wordmark como una segunda marca separada. Una sola marca protagonista: el wordmark
+       `icons/logo.png` (mismo asset ya usado en el header/footer del resto de la app), más
+       grande y centrado. -->
   <div id="app-splash" aria-hidden="true">
-    <img class="app-splash__b" src="icons/splash-b.png" alt="" />
     <img class="app-splash__logo" src="icons/logo.png" alt="BRAMU Lab" />
   </div>
 
@@ -2598,14 +2600,14 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.4.3"></script>
-  <script src="stats.js?v=03.4.3"></script>
-  <script src="store.js?v=03.4.3"></script>
-  <script src="player-home.js?v=03.4.3"></script>
-  <script src="match-load.js?v=03.4.3"></script>
-  <script src="player-identity.js?v=03.4.3"></script>
-  <script src="groups.js?v=03.4.3"></script>
-  <script src="locations.js?v=03.4.3"></script>
-  <script src="app.js?v=03.4.3"></script>
+  <script src="engine.js?v=03.4.4"></script>
+  <script src="stats.js?v=03.4.4"></script>
+  <script src="store.js?v=03.4.4"></script>
+  <script src="player-home.js?v=03.4.4"></script>
+  <script src="match-load.js?v=03.4.4"></script>
+  <script src="player-identity.js?v=03.4.4"></script>
+  <script src="groups.js?v=03.4.4"></script>
+  <script src="locations.js?v=03.4.4"></script>
+  <script src="app.js?v=03.4.4"></script>
 </body>
 </html>
