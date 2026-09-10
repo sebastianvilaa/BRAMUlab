@@ -1889,6 +1889,20 @@
     assert('ML · computeRecentPlayers respeta excludeNames', ML.computeRecentPlayers(history, 'Sebastián', ['Martín']).indexOf('Martín') === -1);
     assert('ML · computeRecentPlayers ignora partidos donde el jugador no participó (aunque sean los más recientes)', recents.indexOf('Nico') === -1, JSON.stringify(recents));
 
+    // Microparche V03.3.2 — bug real: computeRecentPlayers pasaba el `playerName` recibido
+    // TAL CUAL a PH.filterMatchesForPlayer, así que llamarla con el nombre plano de una cuenta
+    // cuyos partidos ya están estampados con `userId` (V03.0+) nunca encontraba sus propios
+    // partidos (regla de exclusividad de userId, ver player-home.js) — Recientes quedaba
+    // SIEMPRE vacía para cualquier cuenta creada después de V03.0.
+    const stampedMatch = mkHistoryMatch('id1', '2026-08-01T00:00:00.000Z', ['Vero', 'Matu', 'Cruz', 'Dan'], 'A');
+    stampedMatch.players[0].userId = 'u_vero123';
+    const stampedHistory = [stampedMatch];
+    assert('V0332-RECIENTES · con userId plano (string, sin id) NO encuentra sus propios partidos — documenta el bug original', ML.computeRecentPlayers(stampedHistory, 'Vero', []).length === 0, JSON.stringify(ML.computeRecentPlayers(stampedHistory, 'Vero', [])));
+    const recentsWithIdentity = ML.computeRecentPlayers(stampedHistory, { name: 'Vero', userId: 'u_vero123' }, []);
+    assert('V0332-RECIENTES · con {name,userId} correcto SÍ encuentra sus partidos (fix)', recentsWithIdentity.length === 3 && recentsWithIdentity.indexOf('Matu') !== -1 && recentsWithIdentity.indexOf('Vero') === -1, JSON.stringify(recentsWithIdentity));
+    assert('V0332-RECIENTES · {name,userId} con userId incorrecto no reclama partidos de otra cuenta', ML.computeRecentPlayers(stampedHistory, { name: 'Vero', userId: 'u_otro' }, []).length === 0);
+    assert('V0332-RECIENTES · string plano sigue funcionando igual que siempre para partidos SIN userId (legacy)', ML.computeRecentPlayers(history, 'Sebastián', []).length === recents.length);
+
     const known = ML.computeAllKnownPlayers(history, ['Zoe', 'Martín']);
     assert('ML · computeAllKnownPlayers une recordados + historial sin duplicar', known.filter((n) => n === 'Martín').length === 1 && known.indexOf('Zoe') !== -1, JSON.stringify(known));
 

@@ -18,16 +18,27 @@
   /* JUGADORES                                                            */
   /* ------------------------------------------------------------------ */
 
-  /** Jugadores con los que `playerName` ya compartió cancha (compañeros y rivales, mezclados),
+  /** Jugadores con los que `playerRef` ya compartió cancha (compañeros y rivales, mezclados),
    *  del más reciente al más antiguo por fecha REAL jugada (vía PH.filterMatchesForPlayer,
    *  que ya usa PH.getPlayedAt — nunca se repite esa cadena de fallback acá). Sin duplicados
-   *  (comparación normalizada) y sin nadie de `excludeNames` (tampoco el propio `playerName`,
-   *  se agrega solo por si el caller no lo incluyó). */
-  function computeRecentPlayers(history, playerName, excludeNames) {
+   *  (comparación normalizada) y sin nadie de `excludeNames` (tampoco el propio jugador, se
+   *  agrega solo por si el caller no lo incluyó).
+   *  Microparche V03.3.2 — bug real encontrado al agregar la sección "Recientes" a Buscar
+   *  Jugadores: `playerRef` acepta un string plano (legacy) o `{name,userId}` (V03.0) — antes
+   *  solo aceptaba el string y lo pasaba tal cual a `PH.filterMatchesForPlayer`, que SÍ ya
+   *  soporta ambas formas. Para cualquier cuenta creada después de V03.0 (sus partidos quedan
+   *  estampados con `userId`, autoritativo y exclusivo — ver player-home.js), llamar con el
+   *  nombre plano nunca encontraba sus propios partidos, así que esta función devolvía `[]`
+   *  siempre: la sección "Recientes" de Elegir compañero/rival estaba rota en silencio desde
+   *  V03.0 para toda cuenta nueva (nunca detectado — sin ella, la lista de abajo simplemente
+   *  se veía "completa", sin nada visualmente incorrecto). `PH.resolveIdentityRef` extrae el
+   *  nombre plano para la exclusión por string; `playerRef` se pasa intacto al filtro real. */
+  function computeRecentPlayers(history, playerRef, excludeNames) {
+    const selfName = PH.resolveIdentityRef(playerRef).name;
     const excluded = new Set(
-      (excludeNames || []).concat(playerName || '').map((n) => Store.normalizePlayerName(n)).filter(Boolean)
+      (excludeNames || []).concat(selfName || '').map((n) => Store.normalizePlayerName(n)).filter(Boolean)
     );
-    const matches = PH.filterMatchesForPlayer(history, playerName);
+    const matches = PH.filterMatchesForPlayer(history, playerRef);
     const seen = new Set();
     const result = [];
     matches.forEach((m) => {

@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.3.1" />
+<link rel="stylesheet" href="styles.css?v=03.3.2" />
 </head>
 <body>
 
@@ -982,10 +982,15 @@
         <input id="load-player-sheet-search" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" />
       </div>
       <div class="load-player-sheet__scroll" id="load-player-sheet-scroll">
-        <div id="load-player-sheet-recents-section" hidden>
+        <div id="load-player-sheet-recents-section" class="player-recents-section" hidden>
           <div class="load-player-sheet__section-label">Recientes</div>
           <div id="load-player-sheet-recents"></div>
         </div>
+        <!-- Microparche V03.3.2 (§1) — "Todos": antes la lista de abajo no explicaba de dónde
+             salían esos nombres cuando Recientes estaba vacía/oculta. Se oculta mientras se
+             busca (un resultado de búsqueda ya se explica solo) o si no hay nadie más que
+             mostrar, ver renderManualPlayerSheetContent en app.js. -->
+        <div class="load-player-sheet__section-label" id="load-player-sheet-list-label" hidden>Todos</div>
         <!-- V02.9 (§2) — la fila "Agregar a…" (id="load-player-sheet-add") ya no vive acá como
              CTA estático: se genera dentro de #load-player-sheet-list, ver
              buildAddPlayerRowHTML/renderManualPlayerSheetContent en app.js. -->
@@ -1549,7 +1554,19 @@
         <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="player-search-input" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="40" autocomplete="off" />
       </div>
-      <div id="player-search-list" class="player-row-list"></div>
+      <!-- Microparche V03.3.2 (§1) — mismo patrón Recientes/Todos que ya usa Elegir
+           compañero/rival (consistencia pedida en producción): "Recientes" son las personas
+           con las que ya compartiste cancha (ML.computeRecentPlayers, misma fuente real de
+           siempre); "Todos" es el resto del universo conocido localmente. Se explica de dónde
+           sale cada nombre en vez de tirar un listado plano sin contexto. -->
+      <div id="player-search-recents-section" class="player-recents-section" hidden>
+        <div class="load-player-sheet__section-label">Recientes</div>
+        <div id="player-search-recents" class="player-row-list"></div>
+      </div>
+      <div id="player-search-list-section" hidden>
+        <div class="load-player-sheet__section-label" id="player-search-list-label">Todos</div>
+        <div id="player-search-list" class="player-row-list"></div>
+      </div>
       <p class="load-player-sheet__empty" id="player-search-empty" hidden>Sin coincidencias.</p>
     </div>
   </section>
@@ -2290,12 +2307,12 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.3.1"></script>
-  <script src="stats.js?v=03.3.1"></script>
-  <script src="store.js?v=03.3.1"></script>
-  <script src="player-home.js?v=03.3.1"></script>
-  <script src="match-load.js?v=03.3.1"></script>
-  <script src="player-identity.js?v=03.3.1"></script>
-  <script src="app.js?v=03.3.1"></script>
+  <script src="engine.js?v=03.3.2"></script>
+  <script src="stats.js?v=03.3.2"></script>
+  <script src="store.js?v=03.3.2"></script>
+  <script src="player-home.js?v=03.3.2"></script>
+  <script src="match-load.js?v=03.3.2"></script>
+  <script src="player-identity.js?v=03.3.2"></script>
+  <script src="app.js?v=03.3.2"></script>
 </body>
 </html>

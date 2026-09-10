@@ -763,7 +763,9 @@
     // guarda qué nombres quedaron en RECIENTES para restarlos también de TODOS más abajo.
     let recentNames = [];
     if (!query) {
-      const recents = ML.computeRecentPlayers(history, currentPlayerName, excluded).slice(0, 12);
+      // Microparche V03.3.2 — currentIdentity() (no el string plano): computeRecentPlayers
+      // ahora resuelve pertenencia por userId cuando la cuenta lo tiene (ver match-load.js).
+      const recents = ML.computeRecentPlayers(history, currentIdentity(), excluded).slice(0, 12);
       recentNames = recents;
       if (recents.length) {
         recentsSection.hidden = false;
@@ -786,10 +788,18 @@
     // igual mientras la fila "Agregar a…" ya cubre ese hueco sería redundante.
     const trimmed = normalizePlayerName(query);
     const canAdd = !!trimmed && !ML.isDuplicatePlayerName(trimmed, excluded.concat([currentPlayerName]));
+    // Microparche V03.3.2 (§1) — label "Todos" solo mientras se navega sin buscar (un
+    // resultado de búsqueda ya se explica solo por el propio texto tecleado) y solo si hay
+    // algo real que mostrar debajo (nunca "TODOS" flotando sobre "Sin coincidencias.").
+    $('#load-player-sheet-list-label').hidden = !!query || !matches.length;
     const listWrap = $('#load-player-sheet-list');
     let listHTML = matches.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
     if (canAdd) listHTML += buildAddPlayerRowHTML(trimmed);
-    listWrap.innerHTML = listHTML || '<p class="load-player-sheet__empty">Sin coincidencias.</p>';
+    // Microparche V03.3.2 (§1) — ahora que "Recientes" funciona de verdad, "Todos" puede
+    // quedar legítimamente vacío (recientes ya cubrió a todo el universo conocido) sin que
+    // eso sea un error: "Sin coincidencias." solo aparece si TAMPOCO hubo nada en Recientes.
+    const showEmptyMessage = !listHTML && !recentNames.length;
+    listWrap.innerHTML = listHTML || (showEmptyMessage ? '<p class="load-player-sheet__empty">Sin coincidencias.</p>' : '');
     $all('#load-player-sheet-list .player-row:not(.player-row--add)').forEach((btn) => {
       btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
     });
@@ -7399,19 +7409,44 @@
   /** §5/§9 — universo completo de jugadores conocidos localmente (ML.buildJugadorDirectory,
    *  mismo criterio que ya usa el selector de compañero/rival), filtrado por `query` con
    *  ML.filterPlayerCandidates — query vacía muestra el directorio completo (sirve también
-   *  como "explorar", no solo buscar). */
+   *  como "explorar", no solo buscar).
+   *  Microparche V03.3.2 (§1) — mismo patrón Recientes/Todos que ya usaba Elegir compañero/
+   *  rival (ML.computeRecentPlayers), para que un nombre nunca aparezca sin explicación:
+   *  "Recientes" son personas con las que ya se compartió cancha; "Todos" es el resto del
+   *  universo conocido. Ambas etiquetas se ocultan mientras se busca (los resultados de una
+   *  búsqueda ya se explican solos por el propio texto tecleado). */
   function renderPlayerSearchResults(query) {
     const history = Store.loadHistory();
     const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
-    const results = ML.filterPlayerCandidates(pool, query, []);
+    const recentsSection = $('#player-search-recents-section');
+    const recentsWrap = $('#player-search-recents');
+    let recentNames = [];
+    if (!query) {
+      const recents = ML.computeRecentPlayers(history, currentIdentity(), []).slice(0, 12);
+      recentNames = recents;
+      if (recents.length) {
+        recentsSection.hidden = false;
+        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+        $all('#player-search-recents .player-row').forEach((btn) => {
+          btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'search'));
+        });
+      } else { recentsSection.hidden = true; recentsWrap.innerHTML = ''; }
+    } else {
+      recentsSection.hidden = true; recentsWrap.innerHTML = '';
+    }
+
+    const results = ML.filterPlayerCandidates(pool, query, query ? [] : recentNames);
+    const listSection = $('#player-search-list-section');
     const wrap = $('#player-search-list');
-    const isEmpty = results.length === 0;
-    $('#player-search-empty').hidden = !isEmpty;
-    wrap.hidden = isEmpty;
+    const isListEmpty = results.length === 0;
+    listSection.hidden = isListEmpty;
+    $('#player-search-list-label').hidden = !!query;
     wrap.innerHTML = results.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
     $all('#player-search-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'search'));
     });
+
+    $('#player-search-empty').hidden = !(isListEmpty && !recentNames.length);
   }
 
   /** §4/§5 — abre BUSCAR JUGADORES desde la tarjeta del Home. Mismo gate de sesión que el

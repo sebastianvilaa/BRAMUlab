@@ -2399,7 +2399,10 @@ input, select{ font-family: inherit; }
    igual criterio que buildPlayerHandle ya usa para el jugador actual — no un campo de cuenta
    real todavía). */
 .load-player-sheet__section-label{ font-size: 10px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; color: var(--court-text-faint); margin: 2px 0 6px; }
-#load-player-sheet-recents-section{ margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--court-line); }
+/* Microparche V03.3.2 (§1) — separador entre "Recientes" y el resto de la lista, reutilizable
+   (antes solo existía como regla scoped a #load-player-sheet-recents-section — ahora es una
+   clase para poder aplicarla también en Buscar Jugadores). */
+.player-recents-section{ margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--court-line); }
 .load-player-sheet__list{ margin-top: 2px; }
 .player-row{
   display:flex; align-items:center; gap: 12px; width:100%; text-align:left;
