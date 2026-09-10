@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.2.1
+## Versión funcional actual: BRAMUlab_V03.2.2
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.2.1"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.2.1`. Corrección tras QA visual de la V03.2 en producción: especificación única de botones (mismo tamaño/peso/tracking en TODA la app, incluida "EMPEZAR PARTIDO"/"LISTO"/confirmaciones en vivo — solo cambia color por familia), Splash subido ópticamente y logo agrandado, Bienvenida sin el título redundante "BIENVENIDO A BRAMU" y con el CTA de invitado renombrado ("REGISTRAR PARTIDO COMO INVITADO"), logo de marca agregado a Login/Crear cuenta/Recuperación/Completar acceso/Cambiar contraseña, "CREAR ACCESO"→"CREAR CUENTA", chevrons retirados del sheet "Registrar partido", header de Carga manual estático ("CARGAR PARTIDO" en vez de "SET 1"), bloque de resultado agrandado con "Resultado válido" reubicado justo debajo (antes vivía a cientos de píxeles, dentro de la barra fija de CONTINUAR), y "Eliminar partido" en Resumen vuelto a acción textual roja (la V03.2 lo había convertido en botón con relleno, que seguía compitiendo visualmente con los CTAs principales). Home, Historial, MI PERFIL, MIS DATOS, Ranking y toda la lógica de partido/Nivel BRAMU: sin cambios.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.2.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.2.2`. Microparche visual sobre V03.2.1: más aire entre los 3 botones de Bienvenida y "REGISTRAR PARTIDO COMO INVITADO" a la misma altura que los otros dos, "¿Olvidaste tu contraseña?" separado del botón de Login, y en Confirmar partido se corrige un bug real de alineación (la flecha de volver quedaba flotando junto al título en vez de pegada al borde izquierdo — única pantalla de la app con ese defecto), el título deja de ser el único de toda la app en verde lima (pasa a blanco, como el resto de los headers), y más aire entre la pill VICTORIA/la tarjeta de ganadores y entre la tarjeta de fecha-hora/el botón GUARDAR PARTIDO. Sin cambios en el resto de la app.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se especificó en V03.2.2 (microparche visual: acceso, login, confirmar partido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.2.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md) |
+
+**Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
 | Qué se especificó en V03.2.1 (corrección visual de acceso, botones y carga manual tras QA en producción) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.2.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Informe.md) |
-
-**Ronda anterior, base de esta corrección:**
-
-| Qué necesitás | Documento |
-|---|---|
 | Qué se especificó en V03.2 (auditoría y normalización del sistema visual transversal: acceso, splash, botones, modales, navegación inferior) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Informe.md) |
 
