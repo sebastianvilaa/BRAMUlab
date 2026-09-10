@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.3" />
+<link rel="stylesheet" href="styles.css?v=03.3.1" />
 </head>
 <body>
 
@@ -1564,7 +1564,9 @@
   <section id="view-player-public" class="view view--history" hidden>
     <div class="analysis-header">
       <button id="player-public-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title" id="player-public-header-title">PERFIL</span>
+      <!-- Microparche V03.3 (§3) — título fijo "PERFIL DE JUGADOR": el nombre visible del
+           jugador sigue siendo protagonista, pero DENTRO de la tarjeta de identidad, no acá. -->
+      <span class="analysis-header__title">PERFIL DE JUGADOR</span>
     </div>
     <div class="analysis-scroll">
       <div class="pastilla pastilla--identity">
@@ -2288,12 +2290,12 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.3"></script>
-  <script src="stats.js?v=03.3"></script>
-  <script src="store.js?v=03.3"></script>
-  <script src="player-home.js?v=03.3"></script>
-  <script src="match-load.js?v=03.3"></script>
-  <script src="player-identity.js?v=03.3"></script>
-  <script src="app.js?v=03.3"></script>
+  <script src="engine.js?v=03.3.1"></script>
+  <script src="stats.js?v=03.3.1"></script>
+  <script src="store.js?v=03.3.1"></script>
+  <script src="player-home.js?v=03.3.1"></script>
+  <script src="match-load.js?v=03.3.1"></script>
+  <script src="player-identity.js?v=03.3.1"></script>
+  <script src="app.js?v=03.3.1"></script>
 </body>
 </html>

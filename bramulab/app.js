@@ -173,10 +173,15 @@
   }
   let toastTimeoutId = null;
   let undoToastTimeoutId = null;
-  function showToast(message, durationMs) {
+  /** Microparche V03.3 (§5) — `variant` opcional ('danger') pinta el mismo toast de siempre
+   *  en rojo (`.toast.is-danger`) para feedback destructivo (ej. "Jugador eliminado"), sin
+   *  crear un segundo componente. Se limpia en cada llamada (`toggle`, no solo `add`) para
+   *  que un toast normal nunca herede el rojo de uno destructivo anterior. */
+  function showToast(message, durationMs, variant) {
     const toast = $('#toast');
     toast.textContent = message;
     toast.classList.add('is-visible');
+    toast.classList.toggle('is-danger', variant === 'danger');
     clearTimeout(toastTimeoutId);
     clearTimeout(undoToastTimeoutId);
     toastTimeoutId = setTimeout(() => toast.classList.remove('is-visible'), durationMs || 1600);
@@ -7455,13 +7460,17 @@
    *  todavía no está agregado, neutro (`.btn-secondary`) una vez agregado. Tocar de nuevo lo
    *  quita — sin confirmación: es una lista personal reversible, no una acción destructiva de
    *  datos de partido (consolidado §3: "sin crear un flujo complejo"). */
+  /** Microparche V03.3 (§5) — "JUGADOR AGREGADO" ya no es un estado final (botón grande
+   *  neutro): pasa a ser la acción para QUITARLO, con la misma jerarquía menor que ya usa
+   *  "Eliminar partido" (`.analysis-delete-btn` — rojo, sin fondo/pastilla, claramente
+   *  secundaria). AGREGAR sigue siendo `.btn-start` (acción principal positiva). */
   function renderPlayerPublicAddButton() {
     const user = Store.getCurrentUser();
     const btn = $('#player-public-add-btn');
     const added = !!(user && playerPublicName && Store.isPlayerAdded(user.id, playerPublicName));
-    btn.textContent = added ? 'JUGADOR AGREGADO' : 'AGREGAR JUGADOR';
+    btn.textContent = added ? 'ELIMINAR DE JUGADORES' : 'AGREGAR JUGADOR';
     btn.classList.toggle('btn-start', !added);
-    btn.classList.toggle('btn-secondary', added);
+    btn.classList.toggle('analysis-delete-btn', added);
   }
 
   let playerPublicName = null;
@@ -7480,7 +7489,9 @@
     const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
     const username = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
 
-    $('#player-public-header-title').textContent = name;
+    // Microparche V03.3 (§3) — el título del header queda fijo ("PERFIL DE JUGADOR", en
+    // index.html); el nombre visible sigue siendo protagonista dentro de la tarjeta de
+    // identidad de abajo, nunca en el header.
     setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', account && account.profilePhoto, name);
     $('#player-public-name').textContent = name;
     $('#player-public-username').textContent = username;
@@ -7533,11 +7544,18 @@
       if (playerPublicOrigin === 'companions') { showView('companions'); return; }
       showView('player-search');
     });
+    // Microparche V03.3 (§4/§5) — feedback con el mismo toast chico de siempre, nunca un
+    // modal: "Jugador agregado" (normal) / "Jugador eliminado" (variante roja, ver showToast).
     $('#player-public-add-btn').addEventListener('click', () => {
       const user = Store.getCurrentUser();
       if (!user || !playerPublicName) return;
-      if (Store.isPlayerAdded(user.id, playerPublicName)) Store.removePlayerFromList(user.id, playerPublicName);
-      else Store.addPlayerToList(user.id, playerPublicName);
+      if (Store.isPlayerAdded(user.id, playerPublicName)) {
+        Store.removePlayerFromList(user.id, playerPublicName);
+        showToast('Jugador eliminado', undefined, 'danger');
+      } else {
+        Store.addPlayerToList(user.id, playerPublicName);
+        showToast('Jugador agregado');
+      }
       renderPlayerPublicAddButton();
     });
   }

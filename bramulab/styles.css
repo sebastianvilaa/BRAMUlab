@@ -688,6 +688,11 @@ input, select{ font-family: inherit; }
   display:flex; align-items:center; gap: 12px;
 }
 .toast.is-visible{ opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+/* Microparche V03.3 (§5) — variante mínima para feedback destructivo (ej. "Jugador
+   eliminado"): mismo patrón de pastilla del toast base, solo cambia el color — reutiliza
+   `--danger`, nunca un rojo nuevo (mismo criterio que `.btn-secondary--danger`/
+   `.analysis-delete-btn`). */
+.toast.is-danger{ background: var(--danger); color: var(--paper); }
 
 /* Overlays genéricos */
 /* V02.1 (§28) — bug real encontrado: este rgba() quedó hardcodeado al viejo --ink verde-negro
@@ -1502,6 +1507,13 @@ input, select{ font-family: inherit; }
    (deja el título agrupado con su ícono a la izquierda, mientras el chevron sigue anclado a la
    derecha vía `justify-content:space-between` de `.pastilla--link`). */
 .pastilla-icon-label{ display:flex; align-items:center; gap: 10px; }
+/* Microparche V03.3 (§1) — ritmo vertical: separación propia respecto de la grilla de
+   métricas de arriba (antes pegada, sin aire — nunca tocando tamaño/estructura de la
+   tarjeta). Texto en el mismo tono gris/secundario que el resto de labels de apoyo del
+   sistema (`--paper-dim`, ver `.mini-stat__label`/`.evolution-summary__label`): baja su
+   protagonismo frente a títulos reales como ACTIVIDAD/EFECTIVIDAD, que quedan en `--paper`. */
+.pastilla--search-players{ margin-top: 10px; }
+.pastilla--search-players .pastilla__title{ color: var(--paper-dim); }
 
 /* ==========================================================================
    Etapa 4 (v2.0) — Hitos personales (§5)
@@ -1895,10 +1907,13 @@ input, select{ font-family: inherit; }
 .profile-performance-card--mini{ display:flex; flex-direction:column; justify-content:center; gap: 2px; flex:1; }
 .profile-performance-card--half{ flex:1; }
 
-/* BRAMUlab_V03.3 (§3) — AGREGAR JUGADOR/JUGADOR AGREGADO: mismo sistema global de botones
-   (`.btn-start` lima cuando la acción todavía no se hizo, `.btn-secondary` neutro una vez
-   agregado — toggle en JS, ver renderPlayerPublicAddButton en app.js), solo ancho completo. */
-.player-public-add-btn{ width:100%; margin-top: 4px; }
+/* BRAMUlab_V03.3 (§3) — AGREGAR JUGADOR: `.btn-start` lima, acción principal positiva.
+   Microparche V03.3 (§5) — una vez agregado, deja de ser un botón grande neutro: pasa a
+   `.analysis-delete-btn` (misma lógica que ELIMINAR PARTIDO — rojo, sin pastilla/fondo,
+   claramente secundaria frente al resto del perfil), toggle en JS, ver
+   renderPlayerPublicAddButton en app.js. Sin margin-top propio: `.btn-start`/
+   `.analysis-delete-btn` ya traen el suyo — acá solo se fuerza el ancho completo. */
+.player-public-add-btn{ width:100%; }
 
 /* ==========================================================================
    Métricas pequeñas (§10)
@@ -2388,7 +2403,11 @@ input, select{ font-family: inherit; }
 .load-player-sheet__list{ margin-top: 2px; }
 .player-row{
   display:flex; align-items:center; gap: 12px; width:100%; text-align:left;
-  background:none; border:none; border-radius: 12px; padding: 9px 6px; cursor:pointer;
+  /* Microparche V03.3 (§2) — sin border-radius: los separadores horizontales entre
+     jugadores (`.player-row + .player-row`, ver abajo) quedan RECTOS de punta a punta, en
+     vez de recortados por la esquina redondeada del `:active` de cada fila. Cambio en el
+     componente compartido — se ve igual en Buscar Jugadores/JUGADORES/Elegir compañero-rival. */
+  background:none; border:none; border-radius: 0; padding: 9px 6px; cursor:pointer;
   transition: background .12s ease;
 }
 .player-row:active{ background: rgba(149,255,25,0.08); }
