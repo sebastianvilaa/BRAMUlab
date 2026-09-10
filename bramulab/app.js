@@ -298,12 +298,14 @@
   // BRAMUlab_V03.3 (§10) — 'player-search'/'player-public' se suman acá (mismo criterio V03.0.2
   // §2 de arriba: pantallas personales donde navegar a Inicio/Historial/Ranking/Perfil es una
   // salida válida).
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved', 'player-search', 'player-public'];
+  // BRAMUlab_V03.4 — 'groups'/'group-settings' se suman con el mismo criterio: MIS GRUPOS
+  // reemplaza a Ranking en la barra, así que hereda su misma condición de visibilidad.
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'setup', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved', 'player-search', 'player-public', 'groups', 'group-settings'];
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public']
+      'player-search', 'player-public', 'groups', 'group-settings']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -603,6 +605,7 @@
    * dedupe por matchId — la edición reutiliza esa misma vía). */
   /* ------------------------------------------------------------------ */
   const ML = window.PLMatchLoad;
+  const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos (puntos, tabla semanal, Race anual, BRAMU Intelligence grupal)
 
   let manualSelectedScoring = 'golden';
   let manualSelectedFormatId = 'classic';
@@ -7325,6 +7328,448 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V03.4 — MIS GRUPOS                                          */
+  /* Competencia privada, semanal, separada del Nivel BRAMU/Ranking BRAMU  */
+  /* oficial (que no se implementa todavía — §1/§17 del consolidado). Todo */
+  /* el cálculo (pertenencia, puntos, bonuses, tabla semanal, Race anual,  */
+  /* BRAMU Intelligence grupal) vive en groups.js (`PG`, puro) — acá solo  */
+  /* se orquesta DOM/navegación sobre lo que esas funciones devuelven,     */
+  /* mismo criterio que el resto de la app.                                */
+  /* ------------------------------------------------------------------ */
+  let activeGroupId = null;
+  let groupsActiveTab = 'actual'; // 'actual' | 'anterior' | 'race'
+  let createGroupSelectedNames = []; // nombres normalizados elegidos en la hoja de selección
+  let createGroupSheetMode = 'create'; // 'create' | 'add-members' (reutiliza la misma hoja)
+
+  /** "MIS GRUPOS" es literalmente el subconjunto de `Store.loadGroups()` (lista GLOBAL, ver
+   *  store.js) donde la identidad activa resuelve como miembro ACTIVO ahora mismo — mismo
+   *  criterio de resolución (`userId` autoritativo, nombre como fallback) que el resto de la
+   *  app usa para "es mío". */
+  function myActiveGroups() {
+    const ref = currentIdentity();
+    const nowIso = new Date().toISOString();
+    return Store.loadGroups().filter((g) => !!PG.findActiveMemberForPlayerRow(ref, g.members, nowIso));
+  }
+
+  function currentMemberOfGroup(group) {
+    if (!group) return null;
+    return PG.findActiveMemberForPlayerRow(currentIdentity(), group.members, new Date().toISOString());
+  }
+
+  function currentIsAdminOfGroup(group) {
+    const mem = currentMemberOfGroup(group);
+    return !!(mem && mem.isAdmin);
+  }
+
+  function openGroupsScreen() {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    renderGroupsScreen();
+    showView('groups');
+  }
+
+  function renderGroupsScreen() {
+    const groups = myActiveGroups();
+    const isEmpty = groups.length === 0;
+    $('#groups-empty').hidden = !isEmpty;
+    $('#groups-content').hidden = isEmpty;
+    if (isEmpty) { $('#groups-settings-btn').hidden = true; return; }
+    if (!activeGroupId || !groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[0].id;
+    renderGroupsSelector(groups);
+    $('#groups-settings-btn').hidden = !currentIsAdminOfGroup(Store.getGroupById(activeGroupId));
+    renderActiveGroupPanels();
+    setGroupsTab(groupsActiveTab);
+  }
+
+  /** §3 — selector de grupos como tabs/chips horizontales, SOLO si el usuario pertenece a más
+   *  de uno (con uno solo no hay nada que elegir). Reutiliza `.history-tab` tal cual (mismo
+   *  lenguaje visual de "chips seleccionables" que ya usa el resto de la app). */
+  function renderGroupsSelector(groups) {
+    const wrap = $('#groups-selector');
+    if (groups.length < 2) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+    wrap.hidden = false;
+    wrap.innerHTML = groups.map((g) => {
+      const active = g.id === activeGroupId;
+      return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-group-id="${escapeHtml(g.id)}" role="tab" aria-selected="${active}">${escapeHtml(g.name)}</button>`;
+    }).join('');
+    $all('#groups-selector .history-tab').forEach((btn) => {
+      btn.addEventListener('click', () => { activeGroupId = btn.dataset.groupId; renderGroupsScreen(); });
+    });
+  }
+
+  function setGroupsTab(tab) {
+    groupsActiveTab = ['actual', 'anterior', 'race'].indexOf(tab) !== -1 ? tab : 'actual';
+    $all('#groups-view-tabs .history-tab').forEach((btn) => {
+      const active = btn.dataset.view === groupsActiveTab;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', String(active));
+    });
+    $('#groups-panel-actual').hidden = groupsActiveTab !== 'actual';
+    $('#groups-panel-anterior').hidden = groupsActiveTab !== 'anterior';
+    $('#groups-panel-race').hidden = groupsActiveTab !== 'race';
+  }
+
+  function renderGroupIntelligenceInto(listId, emptyId, insights) {
+    const list = $(`#${listId}`);
+    const empty = $(`#${emptyId}`);
+    if (!insights.length) { list.innerHTML = ''; empty.hidden = false; return; }
+    empty.hidden = true;
+    list.innerHTML = insights.map((text) => `<p class="groups-intel-item">${escapeHtml(text)}</p>`).join('');
+  }
+
+  /** §11 — fila de la tabla principal: posición, avatar, nombre, segunda línea con partidos/
+   *  V/D, y puntos grandes a la derecha. Nunca Nivel BRAMU/efectividad/mano/lado (§11
+   *  explícito). Tampoco la etiqueta ADMIN acá — §5 es tajante ("no mostrar privilegios
+   *  administrativos como parte del ranking deportivo") y §5 mismo aclara que esa etiqueta
+   *  discreta vive en Configuración, no en la tabla (ver renderGroupSettingsMembers). Tocar la
+   *  fila abre el perfil público del jugador (§11). */
+  function buildGroupTableRowHTML(row) {
+    const captionParts = [`${row.matchesCounted} ${row.matchesCounted === 1 ? 'partido' : 'partidos'}`];
+    if (row.matchesCounted > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
+    return `<button type="button" class="group-table__row${row.position === 1 && row.points > 0 ? ' group-table__row--top1' : ''}" data-name="${escapeHtml(row.name)}" data-user-id="${escapeHtml(row.userId || '')}">
+      <span class="group-table__position">${row.position}</span>
+      <span class="person-list__avatar">${escapeHtml(playerInitials(row.name))}</span>
+      <span class="group-table__info">
+        <span class="group-table__name">${escapeHtml(row.name)}</span>
+        <span class="group-table__caption">${captionParts.join(' · ')}</span>
+      </span>
+      <span class="group-table__points">
+        <span class="group-table__points-value">${row.points}</span>
+        <span class="group-table__points-label">PTS</span>
+      </span>
+    </button>`;
+  }
+
+  /** §11 — "tocar un jugador abre su perfil público". Para la propia fila (la identidad
+   *  activa aparece en su propio grupo), el destino correcto es MI PERFIL, no el perfil
+   *  público: `renderPlayerPublicProfile` busca partidos por NOMBRE plano
+   *  (`PH.filterMatchesForPlayer(history, name)`), y un partido propio ya estampado con
+   *  `userId` (regla de exclusividad de V03.0, ver player-home.js) nunca se encuentra por
+   *  nombre solo — mostraría "0 partidos" para alguien con historial real. Antes de V03.4 esto
+   *  nunca pasaba (Buscar Jugadores/JUGADORES excluyen siempre al propio jugador, ver
+   *  ML.buildJugadorDirectory) — la tabla de un grupo es el primer lugar de la app donde la
+   *  propia fila puede aparecer en una lista tocable. userId es autoritativo cuando existe
+   *  (mismo criterio que el resto de la app); si la fila no tiene cuenta real, cae a comparar
+   *  por nombre normalizado. */
+  function isOwnGroupTableRow(name, userId) {
+    const identity = currentIdentity();
+    if (userId) return !!identity.userId && userId === identity.userId;
+    return Store.normalizePlayerName(name) === Store.normalizePlayerName(identity.name);
+  }
+
+  function renderGroupTableInto(elId, emptyId, rows) {
+    const wrap = $(`#${elId}`);
+    const empty = $(`#${emptyId}`);
+    const isEmpty = rows.length === 0;
+    wrap.hidden = isEmpty;
+    empty.hidden = !isEmpty;
+    wrap.innerHTML = rows.map(buildGroupTableRowHTML).join('');
+    $all(`#${elId} .group-table__row`).forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (isOwnGroupTableRow(btn.dataset.name, btn.dataset.userId)) { openProfileScreen('mi-perfil'); return; }
+        openPlayerPublicProfile(btn.dataset.name, 'groups');
+      });
+    });
+  }
+
+  /** Arma ACTUAL/ANTERIOR/RACE ANUAL del grupo seleccionado en un solo lugar — las 3 pestañas
+   *  se calculan siempre juntas (barato para el volumen de datos de este prototipo) para que
+   *  cambiar de pestaña sea instantáneo, sin recalcular nada al tocarlas (ver setGroupsTab). */
+  function renderActiveGroupPanels() {
+    const group = Store.getGroupById(activeGroupId);
+    if (!group) return;
+    const fullHistory = Store.loadHistory();
+    const now = new Date();
+    const weekStart = PH.startOfWeekMonday(now);
+    const prevWeekStart = new Date(weekStart.getTime() - PG.WEEK_MS);
+    const prevPrevWeekStart = new Date(prevWeekStart.getTime() - PG.WEEK_MS);
+    const year = now.getFullYear();
+
+    const currentMatches = PG.computeMatchesForGroupInWeek(fullHistory, group, weekStart);
+    const currentTable = PG.computeWeeklyTable(fullHistory, group, weekStart);
+    const previousMatches = PG.computeMatchesForGroupInWeek(fullHistory, group, prevWeekStart);
+    const previousTable = PG.computeWeeklyTable(fullHistory, group, prevWeekStart);
+    const beforePreviousTable = PG.computeWeeklyTable(fullHistory, group, prevPrevWeekStart);
+    const raceTable = PG.computeRaceAnual(fullHistory, group, year);
+
+    renderGroupIntelligenceInto('groups-intel-actual-list', 'groups-intel-actual-empty', PG.buildGroupIntelligence({
+      currentTable, previousTable, raceTable, currentMatches, fullHistory,
+    }));
+    renderGroupTableInto('groups-table-actual', 'groups-table-actual-empty', currentTable);
+
+    // ANTERIOR — misma función de BRAMU Intelligence, con el marco de la semana pasada como
+    // "actual" (§12: "correspondiente a esa semana, si existe") y resultados ya congelados.
+    renderGroupIntelligenceInto('groups-intel-anterior-list', 'groups-intel-anterior-empty', PG.buildGroupIntelligence({
+      currentTable: previousTable, previousTable: beforePreviousTable, raceTable, currentMatches: previousMatches, fullHistory,
+    }));
+    renderGroupTableInto('groups-table-anterior', 'groups-table-anterior-empty', previousTable);
+
+    $('#groups-race-year-label').textContent = `RACE ANUAL ${year}`;
+    renderGroupTableInto('groups-table-race', 'groups-table-race-empty', raceTable);
+  }
+
+  function initGroupsScreen() {
+    $('#groups-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#groups-settings-btn').addEventListener('click', openGroupSettingsScreen);
+    $all('#groups-view-tabs .history-tab').forEach((btn) => {
+      btn.addEventListener('click', () => setGroupsTab(btn.dataset.view));
+    });
+    $('#groups-points-info-btn').addEventListener('click', openGroupPointsInfoSheet);
+    $('#group-points-info-close').addEventListener('click', closeGroupPointsInfoSheet);
+    $('#group-points-info-scrim').addEventListener('click', (e) => { if (e.target === $('#group-points-info-scrim')) closeGroupPointsInfoSheet(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#group-points-info-scrim').hidden) closeGroupPointsInfoSheet(); });
+  }
+
+  function openGroupPointsInfoSheet() {
+    $('#group-points-info-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#group-points-info-scrim').classList.add('is-open'); });
+  }
+  function closeGroupPointsInfoSheet() {
+    const scrim = $('#group-points-info-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+
+  /* ---- Hoja "Crear grupo" / "Agregar jugadores" (misma hoja, dos modos) ---- */
+
+  /** Fila de selección MÚLTIPLE — mismo componente único de fila que el resto de la app
+   *  (`.player-row`, avatar/nombre/@usuario/Nivel BRAMU) más el círculo de check propio de
+   *  esta variante (`.group-picker-row`, ver styles.css). Nunca un segundo componente de fila. */
+  function buildGroupMemberPickerRowHTML(name, level, selected) {
+    const levelText = Number.isFinite(level) ? level.toFixed(1) : '—';
+    const checkSvg = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L11 17 20 6"/></svg>';
+    return `<button type="button" class="player-row group-picker-row${selected ? ' is-selected' : ''}" data-name="${escapeHtml(name)}">
+      <span class="group-picker-row__check" aria-hidden="true">${checkSvg}</span>
+      <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(name)}</span>
+        <span class="player-row__handle">${escapeHtml(buildPlayerHandle(name))}</span>
+      </span>
+      <span class="player-row__level">
+        <span class="player-row__level-value">${levelText}</span>
+        <span class="player-row__level-label">NIVEL BRAMU</span>
+      </span>
+    </button>`;
+  }
+
+  function updateCreateGroupSelectedCount() {
+    const n = createGroupSelectedNames.length;
+    $('#create-group-selected-count').textContent = n === 0
+      ? 'Ningún jugador seleccionado todavía.'
+      : `${n} ${n === 1 ? 'jugador seleccionado' : 'jugadores seleccionados'}.`;
+  }
+
+  /** Universo de candidatos: mismo directorio que Buscar Jugadores (§16: reutilizar el sistema
+   *  de JUGADORES de V03.3, nunca inventar una segunda fuente). En modo "agregar jugadores" a
+   *  un grupo ya existente, se excluyen los que ya son miembros activos (no tiene sentido
+   *  ofrecer agregar a alguien que ya está). */
+  function renderCreateGroupPlayerList(query) {
+    const history = Store.loadHistory();
+    const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
+    let candidates = pool;
+    if (createGroupSheetMode === 'add-members') {
+      const group = Store.getGroupById(activeGroupId);
+      const nowIso = new Date().toISOString();
+      const activeNames = new Set((group ? group.members : [])
+        .filter((m) => PG.isMemberActiveAt(m, nowIso))
+        .map((m) => Store.normalizePlayerName(m.name)));
+      candidates = pool.filter((n) => !activeNames.has(Store.normalizePlayerName(n)));
+    }
+    const results = ML.filterPlayerCandidates(candidates, query, []);
+    const wrap = $('#create-group-player-list');
+    const isEmpty = results.length === 0;
+    wrap.hidden = isEmpty;
+    $('#create-group-player-empty').hidden = !isEmpty;
+    wrap.innerHTML = results.map((n) => buildGroupMemberPickerRowHTML(
+      n, PH.computeSimulatedJugadorLevel(history, n), createGroupSelectedNames.indexOf(Store.normalizePlayerName(n)) !== -1
+    )).join('');
+    $all('#create-group-player-list .group-picker-row').forEach((btn) => {
+      btn.addEventListener('click', () => toggleCreateGroupSelection(btn.dataset.name));
+    });
+    updateCreateGroupSelectedCount();
+  }
+
+  function toggleCreateGroupSelection(name) {
+    const norm = Store.normalizePlayerName(name);
+    const idx = createGroupSelectedNames.indexOf(norm);
+    if (idx === -1) createGroupSelectedNames.push(norm); else createGroupSelectedNames.splice(idx, 1);
+    renderCreateGroupPlayerList($('#create-group-player-search').value);
+  }
+
+  function openCreateGroupSheetScrim() {
+    $('#create-group-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#create-group-sheet-scrim').classList.add('is-open'); });
+    $('#create-group-sheet-scroll').scrollTop = 0;
+  }
+  function closeCreateGroupSheet() {
+    const scrim = $('#create-group-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+
+  function openCreateGroupSheet() {
+    createGroupSheetMode = 'create';
+    createGroupSelectedNames = [];
+    $('#create-group-name-field').hidden = false;
+    $('#create-group-sheet-title').textContent = 'CREAR GRUPO';
+    $('#create-group-players-label').textContent = 'Jugadores iniciales';
+    $('#create-group-submit-btn').textContent = 'CREAR GRUPO';
+    $('#create-group-name-input').value = '';
+    $('#create-group-player-search').value = '';
+    $('#create-group-error').hidden = true;
+    renderCreateGroupPlayerList('');
+    openCreateGroupSheetScrim();
+  }
+
+  /** §14 — "+ Agregar jugador" desde Configuración del grupo: misma hoja de selección
+   *  múltiple de Crear grupo, sin el campo de nombre (el grupo ya tiene uno) y agregando
+   *  directo al grupo seleccionado en vez de crear uno nuevo. */
+  function openAddMembersToGroupSheet() {
+    createGroupSheetMode = 'add-members';
+    createGroupSelectedNames = [];
+    $('#create-group-name-field').hidden = true;
+    $('#create-group-sheet-title').textContent = 'AGREGAR JUGADORES';
+    $('#create-group-players-label').textContent = 'Jugadores';
+    $('#create-group-submit-btn').textContent = 'AGREGAR AL GRUPO';
+    $('#create-group-player-search').value = '';
+    $('#create-group-error').hidden = true;
+    renderCreateGroupPlayerList('');
+    openCreateGroupSheetScrim();
+  }
+
+  function submitCreateGroup() {
+    if (createGroupSheetMode === 'add-members') {
+      if (!createGroupSelectedNames.length) {
+        $('#create-group-error').textContent = 'Elegí al menos un jugador.';
+        $('#create-group-error').hidden = false;
+        return;
+      }
+      const group = Store.getGroupById(activeGroupId);
+      if (!group) { closeCreateGroupSheet(); return; }
+      createGroupSelectedNames.forEach((n) => Store.addGroupMember(group.id, n));
+      closeCreateGroupSheet();
+      renderGroupSettingsMembers(Store.getGroupById(group.id));
+      renderGroupsScreen();
+      showToast('Jugadores agregados');
+      return;
+    }
+    const name = $('#create-group-name-input').value.trim();
+    if (!name) {
+      $('#create-group-error').textContent = 'Ingresá un nombre para el grupo.';
+      $('#create-group-error').hidden = false;
+      return;
+    }
+    const user = Store.getCurrentUser();
+    const group = Store.createGroup({
+      name, creatorName: currentPlayerName, creatorUserId: user ? user.id : null,
+      memberNames: createGroupSelectedNames,
+    });
+    closeCreateGroupSheet();
+    activeGroupId = group.id;
+    groupsActiveTab = 'actual';
+    renderGroupsScreen();
+    showToast('Grupo creado');
+  }
+
+  function initCreateGroupSheet() {
+    $('#groups-create-btn').addEventListener('click', openCreateGroupSheet);
+    $('#groups-empty-create-btn').addEventListener('click', openCreateGroupSheet);
+    $('#create-group-sheet-close').addEventListener('click', closeCreateGroupSheet);
+    $('#create-group-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#create-group-sheet-scrim')) closeCreateGroupSheet(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#create-group-sheet-scrim').hidden) closeCreateGroupSheet(); });
+    $('#create-group-player-search').addEventListener('input', (e) => renderCreateGroupPlayerList(e.target.value));
+    $('#create-group-submit-btn').addEventListener('click', submitCreateGroup);
+  }
+
+  /* ---- Configuración del grupo (§14) — solo admins llegan acá (gear oculto si no). ---- */
+
+  function openGroupSettingsScreen() {
+    const group = Store.getGroupById(activeGroupId);
+    if (!group || !currentIsAdminOfGroup(group)) return;
+    $('#group-settings-name-input').value = group.name;
+    $('#group-settings-error').hidden = true;
+    renderGroupSettingsMembers(group);
+    showView('group-settings');
+  }
+
+  /** §5 — cada fila de miembro con sus acciones de administrador inline. "Quitar admin"/
+   *  "Quitar del grupo" quedan deshabilitadas (con explicación) sobre el único administrador
+   *  activo — el guardrail real vive en Store (promoteGroupAdmin/demoteGroupAdmin/
+   *  removeGroupMember, que devuelven `{ok:false}` igual si se intenta igual), esto es solo
+   *  la señal visual para no dejar tocar un botón que de todos modos va a fallar. */
+  function renderGroupSettingsMembers(group) {
+    const nowIso = new Date().toISOString();
+    const active = (group.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso));
+    const activeAdmins = active.filter((m) => m.isAdmin).length;
+    const wrap = $('#group-settings-members-list');
+    wrap.innerHTML = active.map((m) => {
+      const isLastAdmin = m.isAdmin && activeAdmins === 1;
+      const lastAdminAttrs = isLastAdmin ? ' disabled title="El grupo necesita al menos un administrador"' : '';
+      return `<div class="group-settings-member" data-name="${escapeHtml(m.name)}">
+        <span class="person-list__avatar">${escapeHtml(playerInitials(m.name))}</span>
+        <span class="group-settings-member__info">
+          <span class="group-settings-member__name">${escapeHtml(m.name)}${m.isAdmin ? '<span class="group-table__admin-tag">ADMIN</span>' : ''}</span>
+        </span>
+        <span class="group-settings-member__actions">
+          ${m.isAdmin
+            ? `<button type="button" class="link-btn" data-action="demote"${lastAdminAttrs}>Quitar admin</button>`
+            : '<button type="button" class="link-btn" data-action="promote">Hacer admin</button>'}
+          <button type="button" class="link-btn link-btn--danger" data-action="remove"${lastAdminAttrs}>Quitar del grupo</button>
+        </span>
+      </div>`;
+    }).join('');
+  }
+
+  function handleGroupSettingsAction(action, name) {
+    const group = Store.getGroupById(activeGroupId);
+    if (!group) return;
+    if (action === 'remove') {
+      confirmAction(
+        `¿Quitar a ${name} del grupo?`,
+        'Sus resultados de semanas anteriores no se pierden.',
+        () => {
+          const r = Store.removeGroupMember(group.id, name);
+          if (!r.ok) { showToast('El grupo necesita al menos un administrador.'); return; }
+          renderGroupSettingsMembers(Store.getGroupById(group.id));
+          renderGroupsScreen();
+          showToast('Jugador quitado del grupo');
+        },
+        null, 'Quitar del grupo', 'Cancelar', true
+      );
+      return;
+    }
+    const result = action === 'promote' ? Store.promoteGroupAdmin(group.id, name)
+      : action === 'demote' ? Store.demoteGroupAdmin(group.id, name) : null;
+    if (result && !result.ok) { showToast('El grupo necesita al menos un administrador.'); return; }
+    renderGroupSettingsMembers(Store.getGroupById(group.id));
+    renderGroupsScreen();
+  }
+
+  function initGroupSettingsScreen() {
+    $('#group-settings-back-btn').addEventListener('click', () => { renderGroupsScreen(); showView('groups'); });
+    $('#group-settings-save-name-btn').addEventListener('click', () => {
+      const group = Store.getGroupById(activeGroupId);
+      const name = $('#group-settings-name-input').value.trim();
+      if (!group || !name) {
+        $('#group-settings-error').textContent = 'Ingresá un nombre para el grupo.';
+        $('#group-settings-error').hidden = false;
+        return;
+      }
+      Store.renameGroup(group.id, name);
+      $('#group-settings-error').hidden = true;
+      renderGroupsScreen();
+      showToast('Nombre actualizado');
+    });
+    $('#group-settings-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
+    $('#group-settings-members-list').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || btn.disabled) return;
+      const row = e.target.closest('.group-settings-member');
+      handleGroupSettingsAction(btn.dataset.action, row.dataset.name);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* V02.1 (§22) — VISTAS "COMPAÑEROS" / "RIVALES"                        */
   /* Comparten estructura (person-list): avatar/inicial, nombre, partidos
    * juntos/enfrentados, victorias, derrotas, efectividad conjunta. Datos de
@@ -7600,6 +8045,9 @@
     $('#player-public-back-btn').addEventListener('click', () => {
       if (playerPublicOrigin === 'jugadores-tab') { openProfileScreen('jugadores'); return; }
       if (playerPublicOrigin === 'companions') { showView('companions'); return; }
+      // BRAMUlab_V03.4 — fila de la tabla de un grupo: vuelve a MIS GRUPOS, nunca a Buscar
+      // Jugadores (que ni siquiera es de dónde vino).
+      if (playerPublicOrigin === 'groups') { showView('groups'); return; }
       showView('player-search');
     });
     // Microparche V03.3 (§4/§5) — feedback con el mismo toast chico de siempre, nunca un
@@ -8178,7 +8626,7 @@
         if (target === 'player-home') openPlayerHome();
         else if (target === 'history') openHistoryScreen('player-home');
         else if (target === 'manual-load') openRegisterSheet();
-        else if (target === 'ranking') openRankingScreen();
+        else if (target === 'groups') openGroupsScreen();
         else if (target === 'profile') openProfileScreen('mi-perfil');
       });
     });
@@ -8499,6 +8947,9 @@
     initManualLoadScreen();
     initPlayerHomeScreen();
     initRankingScreen();
+    initGroupsScreen();
+    initCreateGroupSheet();
+    initGroupSettingsScreen();
     initCompanionsScreen();
     initProfileScreen();
     initPlayerSearchScreen();

@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.3.3
+## Versión funcional actual: BRAMUlab_V03.4
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.3.3"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.3.3`. Microparche sobre V03.3.2: la pestaña JUGADORES de Perfil suma su propio buscador (filtra SOLO la lista de jugadores ya agregados, nunca el universo completo — eso sigue siendo Buscar Jugadores), pensado para cuando esa lista crezca. Reutiliza el mismo filtro por texto ya probado en Buscar Jugadores/Elegir compañero-rival, sin lógica nueva.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.4"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4`. Ronda grande: **MIS GRUPOS**, competencia privada y semanal entre jugadores conocidos, separada del Nivel BRAMU y del Ranking BRAMU oficial (que todavía no existe). Reemplaza a RANKING en la barra inferior. Grupos múltiples con administradores, detección automática de partidos que cuentan (3 de 4 miembros), puntos por victoria + bonuses (sorpresa de nivel, remontada, victoria clara), tabla semanal a top-3-mejores-partidos, vistas ACTUAL/ANTERIOR/RACE ANUAL y BRAMU Intelligence grupal ("EL MOMENTO DEL GRUPO"). Nuevo módulo puro `groups.js`.
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.3.3 (buscador dentro de JUGADORES) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.3.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md) |
+| Qué se especificó en V03.4 (Mis grupos) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4_Informe.md) |
 
 **Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.3.3 (buscador dentro de JUGADORES) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.3.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.3_Informe.md) |
 | Qué se especificó en V03.3.2 (título Recientes/Todos + bug real corregido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.3.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.2_Informe.md) |
 | Qué se especificó en V03.3.1 (microparche: Home, fila de jugador, Perfil público) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3.1_Consolidado.md) |

@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.3.3';
+  const APP_VERSION = 'BRAMUlab V03.4';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -59,6 +59,13 @@
     // cuentas para cada jugador de la lista (consolidado §9: dato local/simulado, reemplazable
     // por backend real más adelante).
     ADDED_PLAYERS: 'bramulab.addedPlayers.v1',
+    // BRAMUlab_V03.4 (§15) — grupos privados de "MIS GRUPOS". Lista GLOBAL (no por userId,
+    // a diferencia de ADDED_PLAYERS/NOTIFICATIONS): un grupo es una entidad compartida entre
+    // varios jugadores, igual criterio que HISTORY (que tampoco está aislado por cuenta —
+    // cada partido se filtra "es mío" con `userId`/nombre, no con una clave de storage
+    // distinta). "MIS GRUPOS" en pantalla es simplemente el subconjunto de esta lista donde la
+    // identidad activa resuelve como miembro activo (ver groups.js).
+    GROUPS: 'bramulab.groups.v1',
   };
 
   function safeGet(key) {
@@ -492,6 +499,167 @@
     return safeSet(KEYS.ADDED_PLAYERS, all);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
+  /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
+  /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
+  /* sin storage) — este bloque solo persiste la estructura del grupo.    */
+  /* ------------------------------------------------------------------ */
+
+  function genGroupId() { return 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  function loadGroups() { return safeGet(KEYS.GROUPS) || []; }
+  function saveGroupsList(list) { safeSet(KEYS.GROUPS, list || []); }
+  function getGroupById(id) {
+    if (!id) return null;
+    return loadGroups().find((g) => g && g.id === id) || null;
+  }
+
+  function newMembershipPeriod(nowIso) { return { joinedAt: nowIso || new Date().toISOString(), leftAt: null }; }
+
+  /** §4 — crea un grupo nuevo: el creador queda automáticamente dentro y como administrador
+   *  (único admin inicial). `memberNames` son los "jugadores iniciales" pedidos al crear —
+   *  nunca administradores todavía (eso es una acción aparte en Configuración, §5), y nunca
+   *  duplica al creador si su nombre aparece también en esa lista. */
+  function createGroup(fields) {
+    const now = new Date().toISOString();
+    const creatorName = normalizePlayerName(fields.creatorName);
+    const initialNames = (fields.memberNames || [])
+      .map((n) => normalizePlayerName(n))
+      .filter((n) => n && n !== creatorName);
+    const seen = new Set([creatorName]);
+    const members = [{
+      name: creatorName, userId: fields.creatorUserId || null, isAdmin: true,
+      periods: [newMembershipPeriod(now)],
+    }];
+    initialNames.forEach((n) => {
+      if (seen.has(n)) return;
+      seen.add(n);
+      members.push({ name: n, userId: null, isAdmin: false, periods: [newMembershipPeriod(now)] });
+    });
+    const group = {
+      id: genGroupId(), name: normalizePlayerName(fields.name) || 'Mi grupo',
+      createdAt: now, createdBy: fields.creatorUserId || null,
+      members,
+    };
+    const list = loadGroups();
+    list.push(group);
+    saveGroupsList(list);
+    return group;
+  }
+
+  function updateGroup(id, patch) {
+    const list = loadGroups();
+    const idx = list.findIndex((g) => g && g.id === id);
+    if (idx === -1) return null;
+    const updated = Object.assign({}, list[idx], patch, { id: list[idx].id });
+    list[idx] = updated;
+    saveGroupsList(list);
+    return updated;
+  }
+
+  function renameGroup(id, name) {
+    const clean = normalizePlayerName(name);
+    if (!clean) return null;
+    return updateGroup(id, { name: clean });
+  }
+
+  function findMemberIndex(group, name) {
+    const target = normalizePlayerName(name);
+    return (group.members || []).findIndex((m) => m && normalizePlayerName(m.name) === target);
+  }
+
+  /** "Activo ahora" reducido a su forma más simple: tiene un período sin `leftAt` todavía.
+   *  Equivalente a `PLGroups.isMemberActiveAt(m, ahora)` (groups.js) pero sin depender de ese
+   *  módulo desde acá — store.js queda autocontenido, igual criterio que el resto de sus
+   *  funciones (la única excepción ya documentada es `PLIdentity`, usada apenas en un punto). */
+  function hasOpenMembershipPeriod(member) {
+    return (member && member.periods || []).some((p) => p && !p.leftAt);
+  }
+
+  /** ¿Cuántos administradores ACTIVOS quedarían en `group` si excluyéramos a `excludeName`?
+   *  Único punto de verdad para el guardrail "nunca dejar al grupo sin administradores"
+   *  (§5) — lo usan por igual demoteGroupAdmin y removeGroupMember (sacar del grupo al único
+   *  admin también deja al grupo sin ninguno). */
+  function activeAdminCountExcluding(group, excludeName) {
+    const target = excludeName ? normalizePlayerName(excludeName) : null;
+    return (group.members || []).filter((m) => {
+      if (!m || !m.isAdmin) return false;
+      if (target && normalizePlayerName(m.name) === target) return false;
+      return hasOpenMembershipPeriod(m);
+    }).length;
+  }
+
+  /** §4/§5 — agregar un jugador (idempotente si ya está activo). Si la persona ya fue miembro
+   *  antes y salió (tiene períodos previos, todos cerrados), se abre un período NUEVO en la
+   *  MISMA fila en vez de crear una fila duplicada — conserva su historial de membresía
+   *  anterior intacto (ver comentario de `periods` al inicio de groups.js). */
+  function addGroupMember(groupId, name) {
+    const group = getGroupById(groupId);
+    const clean = normalizePlayerName(name);
+    if (!group || !clean) return { ok: false, reason: 'invalid' };
+    const idx = findMemberIndex(group, clean);
+    const now = new Date().toISOString();
+    if (idx === -1) {
+      group.members.push({ name: clean, userId: null, isAdmin: false, periods: [newMembershipPeriod(now)] });
+    } else {
+      const member = group.members[idx];
+      if (hasOpenMembershipPeriod(member)) return { ok: true, group }; // ya activo: no-op
+      member.periods = (member.periods || []).concat([newMembershipPeriod(now)]);
+    }
+    saveGroupsList(loadGroups().map((g) => (g.id === group.id ? group : g)));
+    return { ok: true, group };
+  }
+
+  /** §5/§6 — quitar a un jugador: cierra su período de membresía abierto (`leftAt = ahora`),
+   *  nunca borra la fila (los partidos ya jugados mientras fue miembro deben seguir
+   *  resolviendo su pertenencia histórica correctamente — ver isMemberActiveAt). Bloqueado si
+   *  la persona es el único administrador activo (dejaría al grupo sin ninguno, §5) —
+   *  primero hay que asignar otro admin o quitarle el rol a este antes de sacarlo del todo. */
+  function removeGroupMember(groupId, name) {
+    const group = getGroupById(groupId);
+    const clean = normalizePlayerName(name);
+    if (!group || !clean) return { ok: false, reason: 'invalid' };
+    const idx = findMemberIndex(group, clean);
+    if (idx === -1) return { ok: false, reason: 'not-found' };
+    const member = group.members[idx];
+    if (member.isAdmin && activeAdminCountExcluding(group, clean) === 0) {
+      return { ok: false, reason: 'last-admin' };
+    }
+    const now = new Date().toISOString();
+    const openPeriod = (member.periods || []).find((p) => p && !p.leftAt);
+    if (openPeriod) openPeriod.leftAt = now;
+    saveGroupsList(loadGroups().map((g) => (g.id === group.id ? group : g)));
+    return { ok: true, group };
+  }
+
+  /** §5 — designar administrador: cualquier miembro activo puede pasar a admin, sin límite de
+   *  cantidad ("posibilidad de agregar OTROS administradores"). */
+  function promoteGroupAdmin(groupId, name) {
+    const group = getGroupById(groupId);
+    const clean = normalizePlayerName(name);
+    if (!group || !clean) return { ok: false, reason: 'invalid' };
+    const idx = findMemberIndex(group, clean);
+    if (idx === -1) return { ok: false, reason: 'not-found' };
+    group.members[idx].isAdmin = true;
+    saveGroupsList(loadGroups().map((g) => (g.id === group.id ? group : g)));
+    return { ok: true, group };
+  }
+
+  /** §5 — quitar rol de administrador, "salvo que eso deje al grupo sin administradores". */
+  function demoteGroupAdmin(groupId, name) {
+    const group = getGroupById(groupId);
+    const clean = normalizePlayerName(name);
+    if (!group || !clean) return { ok: false, reason: 'invalid' };
+    const idx = findMemberIndex(group, clean);
+    if (idx === -1) return { ok: false, reason: 'not-found' };
+    if (!group.members[idx].isAdmin) return { ok: true, group }; // ya no era admin: no-op
+    if (activeAdminCountExcluding(group, clean) === 0) return { ok: false, reason: 'last-admin' };
+    group.members[idx].isAdmin = false;
+    saveGroupsList(loadGroups().map((g) => (g.id === group.id ? group : g)));
+    return { ok: true, group };
+  }
+
   global.PLStore = {
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
@@ -511,5 +679,8 @@
     markNotificationRead, markAllNotificationsRead, countUnreadNotifications,
     // V03.3 — jugadores agregados
     loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
+    // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
+    loadGroups, getGroupById, createGroup, renameGroup,
+    addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2435,6 +2435,19 @@ input, select{ font-family: inherit; }
 .player-row__level-label{ display:block; font-size: 8px; letter-spacing: 0.04em; color: var(--paper-faint); font-weight: 800; text-transform: uppercase; margin-top: 1px; }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
 .player-row-list{ margin-top: 2px; }
+/* BRAMUlab_V03.4 (§4) — variante de selección MÚLTIPLE de `.player-row` (crear grupo:
+   elegir varios jugadores iniciales a la vez, a diferencia del resto de la app que siempre
+   elige UNA persona). Se agrega la clase `group-picker-row` AL LADO de `player-row` (nunca
+   la reemplaza), así que el avatar/nombre/@usuario/Nivel BRAMU quedan exactamente iguales —
+   solo se suma el círculo de check a la izquierda y un tinte de fondo cuando está elegido. */
+.group-picker-row__check{
+  flex:none; width:20px; height:20px; border-radius:50%; border: 1.5px solid var(--line-strong);
+  display:flex; align-items:center; justify-content:center; color: var(--ink);
+}
+.group-picker-row.is-selected{ background: rgba(149,255,25,0.06); }
+.group-picker-row.is-selected .group-picker-row__check{ background: var(--brand-lime); border-color: var(--brand-lime); }
+.group-picker-row.is-selected .group-picker-row__check svg{ display:block; }
+.group-picker-row__check svg{ display:none; }
 /* V02.9 (§2) — REEMPLAZA el CTA de ancho completo de V02.6-V02.8.1 (fuera de la lista, compitiendo
    visualmente con el buscador): la fila "Agregar a…" ahora es un `.player-row` más, último
    elemento de #load-player-sheet-list (ver buildAddPlayerRowHTML en app.js) — mismo padding,
@@ -2812,7 +2825,13 @@ input, select{ font-family: inherit; }
 
 /* V03.0.1 (§2/§4/§5/§8) — CTA de guardado: mismo .btn-secondary del resto de la app (no
    .btn-start), consolidado pide "no hacerlo excesivamente grande" en varias pantallas. */
-.btn-save{ width:100%; margin-top: 16px; text-align:center; }
+/* BRAMUlab_V03.4 — bug real encontrado al usar `.btn-secondary.btn-save` suelto en
+   Configuración del grupo: `.btn-secondary` trae `flex:1` (pensado para vivir junto a otro
+   botón en una fila), y el padre acá es `.access-scroll` (`display:flex;flex-direction:
+   column`, ver styles.css) — sin resetear el flex, el botón crecía para llenar TODO el alto
+   restante de la pantalla (un rectángulo enorme, nunca un botón). `flex:none` acá lo deja fijo
+   siempre, sin importar qué padre lo contenga. */
+.btn-save{ width:100%; flex:none; margin-top: 16px; text-align:center; }
 
 /* V03.0 (§4) — sub-label de calibración en la Tarjeta de jugador del Home, reemplaza el número
    simulado para cuentas nuevas (nunca ambos a la vez — ver renderPlayerCard). */
@@ -2848,3 +2867,57 @@ input, select{ font-family: inherit; }
 .ficha-deportiva__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
 .ficha-deportiva__level-state{ font-family: var(--font-display); font-weight: 800; font-size: 16px; color: var(--brand-lime); }
 .ficha-deportiva__level-progress{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; font-weight: 700; }
+
+/* ==========================================================================
+   BRAMUlab_V03.4 — MIS GRUPOS
+   Reutiliza deliberadamente el lenguaje visual existente (.history-tab para el selector de
+   grupos y las pestañas ACTUAL/ANTERIOR/RACE ANUAL, .pastilla para BRAMU Intelligence,
+   .person-list__avatar para los avatares de la tabla) — solo se agregan acá las piezas que
+   no tenían un equivalente previo: la fila de tabla con posición/puntos, la lista de
+   insights y la lista de miembros de Configuración del grupo.
+   ========================================================================== */
+.groups-selector{ margin-bottom: 12px; }
+#groups-view-tabs{ margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.groups-panel{ display:flex; flex-direction:column; }
+.groups-intel-list{ display:flex; flex-direction:column; gap: 9px; margin-top: 2px; }
+.groups-intel-item{ font-size: 13px; font-weight:500; color: rgba(248,250,252,.82); line-height:1.5; padding-left: 14px; position:relative; }
+.groups-intel-item::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
+.groups-race-title{ margin-bottom: 10px; }
+.groups-points-info-btn{ display:block; margin: 18px auto 4px; text-align:center; }
+.group-points-info-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: 10px; }
+.group-points-info-list li{ font-size: 13px; color: var(--paper-dim); line-height:1.5; padding-left: 14px; position:relative; }
+.group-points-info-list li::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
+.group-points-info-list strong{ color: var(--paper); }
+
+/* Tabla semanal/Race — misma jerarquía "posición + avatar + nombre/segunda línea + valor
+   grande a la derecha" que el resto de listas tocables de la app (.person-list__item). */
+.group-table{ display:flex; flex-direction:column; gap: 8px; }
+.group-table__row{
+  display:flex; align-items:center; gap: 10px; width:100%; text-align:left;
+  background: var(--ink-soft); border: none; border-radius: 12px; padding: 12px 14px; cursor:pointer;
+  transition: background .12s ease;
+}
+.group-table__row:active{ background: rgba(149,255,25,0.08); }
+.group-table__position{ flex:none; width:20px; text-align:center; font-family: var(--font-display); font-weight:800; font-size: 14px; color: var(--paper-faint); }
+.group-table__row--top1 .group-table__position{ color: var(--brand-lime); }
+.group-table__info{ flex:1; min-width:0; }
+.group-table__name{ display:block; font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-table__admin-tag{
+  font-size: 8px; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; color: var(--paper-faint);
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 1px 6px; margin-left: 6px; vertical-align: middle;
+}
+.group-table__caption{ display:block; font-size: 12px; color: var(--paper-dim); margin-top: 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-table__points{ flex:none; text-align:right; }
+.group-table__points-value{ display:block; font-family: var(--font-display); font-weight:800; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.group-table__points-label{ display:block; font-size: 8px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-top: 1px; }
+
+/* Configuración del grupo — lista de miembros con acciones inline de administrador. */
+.group-settings-members{ display:flex; flex-direction:column; margin-top: 6px; }
+.group-settings-member{ display:flex; align-items:center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.group-settings-member:first-child{ border-top:none; }
+.group-settings-member__info{ flex:1; min-width:0; }
+.group-settings-member__name{ font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-settings-member__actions{ display:flex; flex-direction:column; align-items:flex-end; gap: 4px; flex:none; }
+.group-settings-member__actions .link-btn{ font-size: 11px; }
+.group-settings-member__actions .link-btn:disabled{ opacity: .35; cursor:not-allowed; }
+.link-btn--danger{ color: var(--danger); }

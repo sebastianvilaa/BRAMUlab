@@ -26,6 +26,7 @@
 <script src="player-home.js"></script>
 <script src="match-load.js"></script>
 <script src="player-identity.js"></script>
+<script src="groups.js"></script>
 <script>
 (function () {
   'use strict';
@@ -35,6 +36,7 @@
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador)
   const ML = window.PLMatchLoad; // Etapa 3 (Fase 3) — Cargar partido jugado
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta
+  const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -3443,6 +3445,269 @@
       assert('V033-STORE · quitarlo de Ana nunca afecta la lista de Bea', Store.isPlayerAdded(bea.id, 'Facundo') === true);
 
       assert('V033-STORE · quitar algo que no está no rompe (no-op)', Store.removePlayerFromList(ana.id, 'Nunca Existió') === true && Store.loadAddedPlayers(ana.id).length === 0);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.4 — MIS GRUPOS
+  // Pertenencia temporal, detección 3-de-4, puntos/bonuses, tabla semanal (top 3), semana
+  // lunes-domingo, semana anterior, Race anual, persistencia/admins (Store). No reutiliza
+  // mkLevelMatch para los tests de bonuses (remontada/victoria clara) porque ese helper
+  // siempre arma sets ganados por el equipo A sin importar `winnerTeam` — sirve para calibrar
+  // Nivel BRAMU (que solo mira winnerTeam/cantidad de sets) pero no para probar lógica que
+  // depende del SCORE real de cada set. mkGroupMatch de acá arma sets reales y deriva
+  // winnerTeam de quién los ganó de verdad.
+  // ------------------------------------------------------------------
+  function mkGroupMatch(matchId, playedAt, names, sets, overrides) {
+    const wonA = sets.filter((s) => s.gamesA > s.gamesB).length;
+    const winnerTeam = wonA > sets.length - wonA ? 'A' : 'B';
+    return Object.assign({
+      matchId, playedAt, startedAt: playedAt, finishedAt: playedAt, createdAt: playedAt,
+      winnerTeam, formatId: 'classic', mode: 'manual', regulationCompleted: true,
+      players: [
+        { id: 0, team: 'A', name: names[0] }, { id: 1, team: 'A', name: names[1] },
+        { id: 2, team: 'B', name: names[2] }, { id: 3, team: 'B', name: names[3] },
+      ],
+      sets, currentPartial: null, timeZone: 'UTC',
+    }, overrides || {});
+  }
+
+  function mkGroupFixture(names, adminIdx, joinedAtIso) {
+    return {
+      id: 'testgrp_' + names.join('-'), name: 'Grupo de prueba', createdAt: joinedAtIso, createdBy: null,
+      members: names.map((n, i) => ({ name: n, userId: null, isAdmin: i === (adminIdx || 0), periods: [{ joinedAt: joinedAtIso, leftAt: null }] })),
+    };
+  }
+
+  /** Sin ningún partido previo, `PH.computeSimulatedJugadorLevel` cae al Nivel BRAMU simulado
+   *  por HASH del nombre (rango 3.0-7.5, ver player-home.js) — nombres de prueba cualquiera
+   *  pueden caer, por pura coincidencia de hash, a más de 0,5 de diferencia entre sí y disparar
+   *  el bonus Sorpresa sin que el test lo esté pidiendo. Esta calibración le da a cada nombre
+   *  EXACTAMENTE 1 victoria real previa (contra rivales descartables que nunca son miembros de
+   *  ningún grupo de prueba), dejándolos a todos en el mismo 5.2 antes de que arranque el
+   *  escenario real — así los tests de tabla semanal/Race/semana anterior quedan libres de
+   *  bonuses accidentales, sin tener que adivinar valores de hash. */
+  function calibrateEqualLevels(names, dateIso) {
+    return names.map((n, i) => mkGroupMatch(
+      `cal-${n}-${i}`, dateIso, [n, `cal-mate-${i}`, `cal-o1-${i}`, `cal-o2-${i}`],
+      [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]
+    ));
+  }
+
+  // ---- Pertenencia temporal (§6) ----
+  (function () {
+    const member = {
+      name: 'Ana',
+      periods: [
+        { joinedAt: '2026-01-01T00:00:00.000Z', leftAt: '2026-03-01T00:00:00.000Z' },
+        { joinedAt: '2026-06-01T00:00:00.000Z', leftAt: null },
+      ],
+    };
+    assert('V034-MEMB · activo dentro del primer período', PG.isMemberActiveAt(member, '2026-02-01T00:00:00.000Z') === true);
+    assert('V034-MEMB · inactivo en el hueco entre dos períodos (salió y todavía no volvió)', PG.isMemberActiveAt(member, '2026-04-01T00:00:00.000Z') === false);
+    assert('V034-MEMB · activo de nuevo dentro del segundo período (reingreso, sin perder el primero)', PG.isMemberActiveAt(member, '2026-07-01T00:00:00.000Z') === true);
+    assert('V034-MEMB · leftAt es exclusivo: en el instante exacto de salida ya no está activo', PG.isMemberActiveAt(member, '2026-03-01T00:00:00.000Z') === false);
+    assert('V034-MEMB · joinedAt es inclusivo: en el instante exacto de ingreso sí está activo', PG.isMemberActiveAt(member, '2026-01-01T00:00:00.000Z') === true);
+  })();
+
+  // ---- Detección automática 3-de-4 (§7) ----
+  (function () {
+    const group = mkGroupFixture(['Ana', 'Bea', 'Cruz', 'Dan'], 0, '2026-01-01T00:00:00.000Z');
+    const sets2 = [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }];
+    const match4 = mkGroupMatch('g1', '2026-02-01T00:00:00.000Z', ['Ana', 'Bea', 'Cruz', 'Dan'], sets2);
+    assert('V034-DETECT · 4 de 4 miembros -> cuenta', PG.doesMatchCountForGroup(match4, group) === true);
+    const match3 = mkGroupMatch('g2', '2026-02-01T00:00:00.000Z', ['Ana', 'Bea', 'Cruz', 'Zoe'], sets2);
+    assert('V034-DETECT · 3 de 4 miembros -> SÍ cuenta', PG.doesMatchCountForGroup(match3, group) === true);
+    const match2 = mkGroupMatch('g3', '2026-02-01T00:00:00.000Z', ['Ana', 'Bea', 'Zoe', 'Wal'], sets2);
+    assert('V034-DETECT · 2 de 4 miembros -> NO cuenta', PG.doesMatchCountForGroup(match2, group) === false);
+    const matchNoWinner = mkGroupMatch('g4', '2026-02-01T00:00:00.000Z', ['Ana', 'Bea', 'Cruz', 'Dan'], sets2, { winnerTeam: null });
+    assert('V034-DETECT · sin ganador definido -> nunca cuenta, aunque haya 4 de 4', PG.doesMatchCountForGroup(matchNoWinner, group) === false);
+    const matchCut = mkGroupMatch('g5', '2026-02-01T00:00:00.000Z', ['Ana', 'Bea', 'Cruz', 'Dan'], sets2, { regulationCompleted: false });
+    assert('V034-DETECT · cortado manualmente (regulationCompleted:false) -> nunca cuenta', PG.doesMatchCountForGroup(matchCut, group) === false);
+
+    // ---- Múltiples grupos: el MISMO partido puede contar para más de uno ----
+    const groupB = mkGroupFixture(['Ana', 'Bea', 'Cruz', 'Eli'], 0, '2026-01-01T00:00:00.000Z');
+    assert('V034-MULTI · un mismo partido cuenta para el Grupo A (3/4)', PG.doesMatchCountForGroup(match3, group) === true);
+    assert('V034-MULTI · Y TAMBIÉN cuenta para el Grupo B, de forma independiente', PG.doesMatchCountForGroup(match3, groupB) === true);
+  })();
+
+  // ---- Bonus 2/3 — Remontada / Victoria clara (§9), con scores reales ----
+  (function () {
+    const m1 = mkGroupMatch('vc1', '2026-05-01T00:00:00.000Z', ['A1', 'A2', 'B1', 'B2'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]);
+    assert('V034-CLARA · 6-3/6-3 (12 vs 6) -> NO suma (el rival no queda por DEBAJO de la mitad)', PG.computeBonusVictoriaClara(m1) === false);
+
+    const m2 = mkGroupMatch('vc2', '2026-05-01T00:00:00.000Z', ['A1', 'A2', 'B1', 'B2'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 2 }]);
+    assert('V034-CLARA · 6-3/6-2 (12 vs 5) -> SÍ suma', PG.computeBonusVictoriaClara(m2) === true);
+
+    const m3 = mkGroupMatch('vc3', '2026-05-01T00:00:00.000Z', ['A1', 'A2', 'B1', 'B2'], [{ gamesA: 6, gamesB: 2 }, { gamesA: 6, gamesB: 1 }]);
+    assert('V034-CLARA · 6-2/6-1 -> SÍ suma', PG.computeBonusVictoriaClara(m3) === true);
+
+    const m4 = mkGroupMatch('vc4', '2026-05-01T00:00:00.000Z', ['A1', 'A2', 'B1', 'B2'], [{ gamesA: 4, gamesB: 6 }, { gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 2 }]);
+    assert('V034-CLARA · partido a 3 sets nunca suma victoria clara (solo aplica ganando en 2)', PG.computeBonusVictoriaClara(m4) === false);
+    assert('V034-REMONTADA · ese mismo partido a 3 sets (perdió el primero y ganó) SÍ suma remontada', PG.computeBonusRemontada(m4) === true);
+
+    const m5 = mkGroupMatch('vc5', '2026-05-01T00:00:00.000Z', ['A1', 'A2', 'B1', 'B2'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]);
+    assert('V034-REMONTADA · ganó los 2 sets de punta a punta -> NO suma remontada', PG.computeBonusRemontada(m5) === false);
+
+    // ---- Exclusión práctica (§9): ningún partido puede sumar las dos a la vez ----
+    const bothAtOnce = [m1, m2, m3, m4, m5].some((m) => PG.computeBonusRemontada(m) && PG.computeBonusVictoriaClara(m));
+    assert('V034-EXCLUSION · remontada y victoria clara nunca son true al mismo tiempo en ningún fixture', bothAtOnce === false);
+  })();
+
+  // ---- Bonus 1 — Sorpresa de nivel (§9), umbral 0,5, y base 5 (§9/§10) ----
+  (function () {
+    const playedAt = '2026-05-01T00:00:00.000Z';
+    const sets2 = [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }];
+    // Nivel base 5.0, delta ±0.2 por partido a 2 sets (classic) — 2 derrotas previas bajan a
+    // 4.6, 2 victorias previas suben a 5.4: diferencia real de 0.8 (>= 0.5).
+    const bigGapHistory = [
+      mkLevelMatch('cal1', '2026-04-01T00:00:00.000Z', ['W1', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('cal2', '2026-04-02T00:00:00.000Z', ['W1', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('cal3', '2026-04-01T00:00:00.000Z', ['W2', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('cal4', '2026-04-02T00:00:00.000Z', ['W2', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('cal5', '2026-04-01T00:00:00.000Z', ['L1', 'x', 'y', 'z'], 'A', 2),
+      mkLevelMatch('cal6', '2026-04-02T00:00:00.000Z', ['L1', 'x', 'y', 'z'], 'A', 2),
+      mkLevelMatch('cal7', '2026-04-01T00:00:00.000Z', ['L2', 'x', 'y', 'z'], 'A', 2),
+      mkLevelMatch('cal8', '2026-04-02T00:00:00.000Z', ['L2', 'x', 'y', 'z'], 'A', 2),
+    ];
+    const bigGapMatch = mkGroupMatch('sorpresa1', playedAt, ['W1', 'W2', 'L1', 'L2'], sets2); // gana el equipo A (W1+W2)
+    assert('V034-SORPRESA · diferencia de nivel de 0,8 (>= 0,5) a favor del perdedor -> suma bonus', PG.computeBonusSorpresa(bigGapMatch, bigGapHistory) === true);
+
+    const breakdown = PG.computeMatchPointsBreakdown(bigGapMatch, bigGapHistory);
+    assert('V034-BASE · victoria = 5 puntos base', breakdown.base === 5);
+    assert('V034-SORPRESA · el bonus se refleja en el total (5+1=6, único bonus de este fixture)', breakdown.total === 6 && breakdown.sorpresa === true && breakdown.remontada === false && breakdown.claraVictoria === false, JSON.stringify(breakdown));
+
+    // ---- Umbral 0,5: una diferencia MENOR nunca suma nada ----
+    const smallGapHistory = [
+      mkLevelMatch('sg1', '2026-04-01T00:00:00.000Z', ['W1', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('sg2', '2026-04-01T00:00:00.000Z', ['W2', 'x', 'y', 'z'], 'B', 2),
+      mkLevelMatch('sg3', '2026-04-01T00:00:00.000Z', ['L1', 'x', 'y', 'z'], 'A', 2),
+      mkLevelMatch('sg4', '2026-04-01T00:00:00.000Z', ['L2', 'x', 'y', 'z'], 'A', 2),
+    ];
+    const smallGapMatch = mkGroupMatch('sorpresa2', playedAt, ['W1', 'W2', 'L1', 'L2'], sets2);
+    assert('V034-THRESHOLD · diferencia real de 0,4 (< 0,5) -> NO suma bonus', PG.computeBonusSorpresa(smallGapMatch, smallGapHistory) === false);
+    assert('V034-THRESHOLD · sin sorpresa, el total queda en la base (5)', PG.computeMatchPointsBreakdown(smallGapMatch, smallGapHistory).total === 5);
+
+    // ---- Derrota = 0 puntos, sin importar bonuses del lado perdedor ----
+    const loserPoints = PG.computePointsForPlayerInMatch(bigGapMatch, 'L1', bigGapHistory);
+    assert('V034-BASE · el equipo perdedor nunca recibe puntos', loserPoints === 0);
+  })();
+
+  // ---- Tabla semanal: top 3 mejores partidos (§8) y semana lunes-domingo (§4) ----
+  (function () {
+    const weekStart = new Date(2026, 7, 31); // lunes 31-ago-2026 (misma semana que V02.7-ACT, arriba en este archivo)
+    const joinedBefore = '2026-08-01T00:00:00.000Z';
+    const group = mkGroupFixture(['P', 'X', 'Y', 'Z'], 0, joinedBefore);
+    const calibration = calibrateEqualLevels(['P', 'X', 'Y', 'Z'], '2026-08-15T00:00:00.000Z');
+
+    const m1 = mkGroupMatch('top1', new Date(2026, 8, 1, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]); // P+X ganan sin bonus -> 5
+    const m2 = mkGroupMatch('top2', new Date(2026, 8, 2, 10).toISOString(), ['P', 'Y', 'X', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 2 }]); // P+Y ganan con clara -> 6
+    const m3 = mkGroupMatch('top3', new Date(2026, 8, 3, 10).toISOString(), ['X', 'Y', 'P', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]); // P (equipo B) pierde -> 0
+    const m4 = mkGroupMatch('top4', new Date(2026, 8, 4, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 4, gamesB: 6 }, { gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 2 }]); // P+X remontan -> 6
+    const fullHistory = calibration.concat([m1, m2, m3, m4]);
+
+    const table = PG.computeWeeklyTable(fullHistory, group, weekStart);
+    const pRow = table.find((r) => r.name === 'P');
+    assert('V034-TOP3 · con 4 partidos jugados en la semana, solo cuentan los 3 mejores puntajes', pRow.matchesCounted === 3, JSON.stringify(pRow));
+    assert('V034-TOP3 · suma de esos 3 mejores puntajes (6+6+5=17, el 0 de la derrota queda afuera)', pRow.points === 17, JSON.stringify(pRow));
+    assert('V034-TOP3 · V/D reflejan SOLO el subconjunto contado (3V·0D, aunque jugó 4 partidos y perdió 1)', pRow.wins === 3 && pRow.losses === 0, JSON.stringify(pRow));
+    assert('V034-TABLA · la tabla no depende del Nivel BRAMU para ordenar (no aparece ningún campo de nivel en la fila)', pRow.level === undefined && pRow.points === 17);
+
+    // ---- Semana lunes-domingo: límites exactos ----
+    const sundayLate = new Date(2026, 8, 6, 23, 59, 0).toISOString(); // domingo 6-sep 23:59 (misma semana)
+    const nextMonday = new Date(2026, 8, 7, 0, 0, 0).toISOString(); // lunes 7-sep 00:00 (semana siguiente)
+    const mSunday = mkGroupMatch('wk1', sundayLate, ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]);
+    const mNextMon = mkGroupMatch('wk2', nextMonday, ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]);
+    const inWeek = PG.computeMatchesForGroupInWeek([mSunday, mNextMon], group, weekStart);
+    assert('V034-SEMANA · domingo 23:59 todavía pertenece a la semana (lunes 00:00 -> domingo 23:59)', inWeek.some((m) => m.matchId === 'wk1'));
+    assert('V034-SEMANA · lunes 00:00 siguiente YA pertenece a la semana próxima, nunca a esta', !inWeek.some((m) => m.matchId === 'wk2'));
+  })();
+
+  // ---- Semana ANTERIOR: no se mezcla con la actual (§10) ----
+  (function () {
+    const currentWeekStart = new Date(2026, 7, 31); // lunes 31-ago-2026
+    const previousWeekStart = new Date(currentWeekStart.getTime() - PG.WEEK_MS); // lunes 24-ago-2026
+    const group = mkGroupFixture(['P', 'X', 'Y', 'Z'], 0, '2026-08-01T00:00:00.000Z');
+    const calibration = calibrateEqualLevels(['P', 'X', 'Y', 'Z'], '2026-08-10T00:00:00.000Z');
+    const matchLastWeek = mkGroupMatch('prevwk1', new Date(2026, 7, 26, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]);
+    const matchThisWeek = mkGroupMatch('curwk1', new Date(2026, 8, 2, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]);
+    const fullHistory = calibration.concat([matchLastWeek, matchThisWeek]);
+
+    const pCurrent = PG.computeWeeklyTable(fullHistory, group, currentWeekStart).find((r) => r.name === 'P');
+    const pPrevious = PG.computeWeeklyTable(fullHistory, group, previousWeekStart).find((r) => r.name === 'P');
+    assert('V034-ANTERIOR · la tabla de ESTA semana solo cuenta el partido de esta semana', pCurrent.matchesCounted === 1 && pCurrent.points === 5, JSON.stringify(pCurrent));
+    assert('V034-ANTERIOR · la tabla de la semana ANTERIOR solo cuenta el de la semana pasada, sin mezclarse', pPrevious.matchesCounted === 1 && pPrevious.points === 5, JSON.stringify(pPrevious));
+  })();
+
+  // ---- Race anual (§10): acumula semanas, respeta el tope de 3/semana, no se resetea entre semanas ----
+  (function () {
+    const group = mkGroupFixture(['P', 'X', 'Y', 'Z'], 0, '2025-01-01T00:00:00.000Z');
+    const calibration = calibrateEqualLevels(['P', 'X', 'Y', 'Z'], '2025-06-01T00:00:00.000Z');
+    const wk1Match = mkGroupMatch('race1', new Date(2026, 1, 4, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]); // miércoles 4-feb-2026
+    const wk2Match = mkGroupMatch('race2', new Date(2026, 2, 11, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]); // miércoles 11-mar-2026
+    const outsideYearMatch = mkGroupMatch('race3', new Date(2025, 11, 20, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]); // dic-2025
+    const fullHistory = calibration.concat([wk1Match, wk2Match, outsideYearMatch]);
+
+    const pRace2026 = PG.computeRaceAnual(fullHistory, group, 2026).find((r) => r.name === 'P');
+    assert('V034-RACE · suma los puntos de 2 semanas distintas del año (5+5=10)', pRace2026.points === 10, JSON.stringify(pRace2026));
+    assert('V034-RACE · nunca incluye partidos de OTRO año calendario', pRace2026.matchesCounted === 2, JSON.stringify(pRace2026));
+    const pRace2025 = PG.computeRaceAnual(fullHistory, group, 2025).find((r) => r.name === 'P');
+    assert('V034-RACE · el año 2025 se calcula aparte, con su propio partido de diciembre', !!pRace2025 && pRace2025.points === 5, JSON.stringify(pRace2025));
+
+    // ---- Respeta el tope de 3 mejores partidos POR SEMANA, no del año entero ----
+    const capGroup = mkGroupFixture(['P', 'X', 'Y', 'Z'], 0, '2026-08-01T00:00:00.000Z');
+    const capCalibration = calibrateEqualLevels(['P', 'X', 'Y', 'Z'], '2026-08-15T00:00:00.000Z');
+    const sameWeek = capCalibration.concat([1, 2, 3, 4].map((d) => mkGroupMatch(`rtop${d}`, new Date(2026, 8, d, 10).toISOString(), ['P', 'X', 'Y', 'Z'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }])));
+    const pRaceCap = PG.computeRaceAnual(sameWeek, capGroup, 2026).find((r) => r.name === 'P');
+    assert('V034-RACE · 4 partidos de 5pts en la MISMA semana -> Race suma solo 15 (top 3), nunca 20', pRaceCap.points === 15, JSON.stringify(pRaceCap));
+  })();
+
+  // ---- Persistencia (Store) y guardrail de administradores (§5/§6/§15) ----
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.groups.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      const group = Store.createGroup({ name: 'Los Martes', creatorName: 'Ana', creatorUserId: 'u_ana', memberNames: ['Bea', 'Cruz'] });
+      assert('V034-STORE · createGroup deja al creador como único admin inicial', group.members.length === 3 && group.members[0].name === 'Ana' && group.members[0].isAdmin === true);
+      assert('V034-STORE · getGroupById recupera el mismo grupo recién creado', Store.getGroupById(group.id).name === 'Los Martes');
+
+      Store.renameGroup(group.id, 'Los Jueves');
+      assert('V034-STORE · renameGroup persiste el nuevo nombre', Store.getGroupById(group.id).name === 'Los Jueves');
+
+      const addRes = Store.addGroupMember(group.id, 'Dan');
+      assert('V034-STORE · addGroupMember agrega un miembro nuevo, no-admin', addRes.ok === true && Store.getGroupById(group.id).members.some((m) => m.name === 'Dan' && !m.isAdmin));
+
+      Store.addGroupMember(group.id, 'Dan');
+      assert('V034-STORE · agregarlo dos veces mientras sigue activo es idempotente (no duplica la fila)', Store.getGroupById(group.id).members.filter((m) => m.name === 'Dan').length === 1);
+
+      const promoteRes = Store.promoteGroupAdmin(group.id, 'Bea');
+      assert('V034-ADMINS · promoteGroupAdmin: Bea pasa a admin', promoteRes.ok === true && Store.getGroupById(group.id).members.find((m) => m.name === 'Bea').isAdmin === true);
+
+      const demoteAnaRes = Store.demoteGroupAdmin(group.id, 'Ana');
+      assert('V034-ADMINS · con 2 admins (Ana y Bea), quitarle el rol a Ana está permitido', demoteAnaRes.ok === true && Store.getGroupById(group.id).members.find((m) => m.name === 'Ana').isAdmin === false);
+
+      const demoteLastRes = Store.demoteGroupAdmin(group.id, 'Bea');
+      assert('V034-ADMINS · quitar el ÚLTIMO admin (Bea) está bloqueado — nunca deja al grupo sin ninguno', demoteLastRes.ok === false && demoteLastRes.reason === 'last-admin');
+      assert('V034-ADMINS · el bloqueo no cambia nada: Bea sigue siendo admin', Store.getGroupById(group.id).members.find((m) => m.name === 'Bea').isAdmin === true);
+
+      const removeLastAdminRes = Store.removeGroupMember(group.id, 'Bea');
+      assert('V034-ADMINS · sacar del grupo al único admin TAMBIÉN está bloqueado (dejaría el grupo sin admins)', removeLastAdminRes.ok === false && removeLastAdminRes.reason === 'last-admin');
+
+      const removeOkRes = Store.removeGroupMember(group.id, 'Cruz');
+      assert('V034-STORE · quitar a un miembro NO-admin sí funciona', removeOkRes.ok === true);
+      const cruzAfterRemove = Store.getGroupById(group.id).members.find((m) => m.name === 'Cruz');
+      assert('V034-PERTENENCIA · Cruz queda con el período cerrado (leftAt) — la fila NUNCA se borra', !!cruzAfterRemove && cruzAfterRemove.periods.length === 1 && !!cruzAfterRemove.periods[0].leftAt);
+
+      Store.addGroupMember(group.id, 'Cruz');
+      const cruzAfterRejoin = Store.getGroupById(group.id).members.find((m) => m.name === 'Cruz');
+      assert('V034-PERTENENCIA · reingreso: se abre un SEGUNDO período en la MISMA fila (nunca se duplica el miembro)', Store.getGroupById(group.id).members.filter((m) => m.name === 'Cruz').length === 1 && cruzAfterRejoin.periods.length === 2 && !cruzAfterRejoin.periods[1].leftAt);
     } finally {
       resetAffectedKeys();
       Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
