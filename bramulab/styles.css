@@ -372,11 +372,14 @@ input, select{ font-family: inherit; }
 /* V03.0.2 (§10) — tercera acción de Bienvenida ("registrar partido sin cuenta"): botón ghost
    deliberado (outline lima tenue, fondo transparente), nunca un `.link-btn` suelto — la
    prueba real lo describía como "un link olvidado". Mismo radio/tipografía que .btn-secondary,
-   con texto de apoyo secundario debajo del label. */
+   con texto de apoyo secundario debajo del label.
+   Microparche visual (post V03.2.1) — mismo alto que INICIAR SESIÓN/CREAR CUENTA (48px, ver
+   .btn-start/.btn-secondary): antes tenía su propio padding vertical (11px), pensado para
+   cuando todavía llevaba una segunda línea de texto de apoyo (retirada en V03.2.1). */
 .btn-ghost{
-  display:flex; flex-direction:column; align-items:center; gap:2px; width:100%;
-  background: transparent; color: var(--brand-lime); border: 1.5px solid rgba(149,255,25,0.35);
-  border-radius: 14px; padding: 11px 16px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+  width:100%; min-height: 48px; background: transparent; color: var(--brand-lime);
+  border: 1.5px solid rgba(149,255,25,0.35); border-radius: 14px; padding: 8px 16px; cursor:pointer;
 }
 .btn-ghost__label{ font-weight: 800; font-size: 13px; letter-spacing: 0.02em; }
 /* BRAMUlab_V03.2.1 (§3) — `.btn-ghost__hint` queda huérfana: era el texto de apoyo bajo
@@ -2160,8 +2163,17 @@ input, select{ font-family: inherit; }
 .court-header__state{ min-width:0; }
 .court-header__status{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper); text-transform: uppercase; }
 .court-header__format{ font-size: 11px; color: var(--court-text-dim); margin-top: 1px; }
-.court-header--saved{ justify-content:center; }
-.court-header__status--saved{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.03em; color: var(--brand-lime); text-transform: uppercase; }
+/* Microparche visual (post V03.2.1) — BUG REAL: `justify-content:center` centraba el PAR
+   (flecha + título) como grupo, así que la flecha quedaba flotando junto al título en vez de
+   pegada al borde izquierdo como en el resto de los headers. Mismo truco ya usado en
+   `.bottom-sheet__title` (posición absoluta, ignora el ancho de los hermanos): la flecha vuelve
+   a flex-start (comportamiento por defecto de `.court-header`) y el título se centra respecto
+   al header completo, no respecto al espacio libre después de la flecha.
+   El color lima tampoco correspondía: ningún otro título de header (`.court-header__status`,
+   `.analysis-header__title`) usa color de marca — pasa a heredar exactamente la misma
+   tipografía que `.court-header__status`, sin reglas propias de tamaño/color/tracking. */
+.court-header--saved{ position:relative; }
+.court-header__status--saved{ position:absolute; left:0; right:0; text-align:center; pointer-events:none; }
 
 /* V02.2 (Bloque C, §7) — composición de equipos: mismo lenguaje visual que la configuración
    en vivo (.team-block: superficie + acento LATERAL de color), variante COMPACTA para no
@@ -2264,6 +2276,10 @@ input, select{ font-family: inherit; }
    quedó definida, se está por guardar): blanco de alto contraste en vez del gris genérico,
    que perdía legibilidad. "Modificar" se lee, por contraste, aún más terciario que antes. */
 #match-saved-meta-line .court-meta-line__text{ color: var(--text); font-weight: 600; }
+/* Microparche visual (post V03.2.1) — 8→14px: quedaba pegada al botón GUARDAR PARTIDO justo
+   debajo. Scoped a Confirmar partido (nunca al `.court-meta-line` genérico, que en Carga
+   manual va seguido de otro contenido, no de un botón). */
+#match-saved-meta-line{ margin-bottom: 14px; }
 
 /* ---- Línea compacta de formato/sistema (§11 Etapa 3, restilo Etapa 4.2) ---- */
 .load-format-line{
@@ -2381,7 +2397,9 @@ input, select{ font-family: inherit; }
 /* ==========================================================================
    Etapa 4.2 (§8.2) — PARTIDO GUARDADO
    ========================================================================== */
-.court-saved-result{ text-align:center; padding: 10px 0 4px; }
+/* Microparche visual (post V03.2.1) — 4→14px de padding inferior: la pill VICTORIA quedaba
+   casi pegada a la tarjeta de ganadores de abajo. */
+.court-saved-result{ text-align:center; padding: 10px 0 14px; }
 .court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; }
 .court-saved-result__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
@@ -2525,7 +2543,9 @@ input, select{ font-family: inherit; }
   color: var(--paper); text-align:center; margin-bottom: 6px;
 }
 .access-subtitle{ color: var(--paper-dim); font-size: 13px; text-align:center; margin: 0 0 24px; }
-.access-actions{ display:flex; flex-direction:column; gap: 10px; margin-top: 8px; }
+/* Microparche visual (post V03.2.1) — 10→12px: los 3 botones de Bienvenida quedaban un poco
+   apretados entre sí. */
+.access-actions{ display:flex; flex-direction:column; gap: 12px; margin-top: 8px; }
 .access-form{ display:flex; flex-direction:column; gap: 4px; }
 .access-form .field{ margin-top: 0; }
 .access-form .field + .field{ margin-top: 8px; }
@@ -2549,7 +2569,9 @@ input, select{ font-family: inherit; }
 /* V03.0.3.1 (§1/§2) — link secundario "¿Olvidaste tu contraseña?" en Login (nunca compite
    con el CTA principal: mismo .link-btn discreto que el resto de la app, solo centrado) y
    pasos del wizard de recuperación (mismo patrón que .signup-step). */
-.login-forgot-link{ align-self:center; margin-top: 4px; }
+/* Microparche visual (post V03.2.1) — 4→10px: quedaba pegado al botón de arriba, como si
+   fuera parte de él. */
+.login-forgot-link{ align-self:center; margin-top: 10px; }
 .forgot-password-step{ display:flex; flex-direction:column; gap: 8px; }
 
 /* Consolidado §2 Paso 1 — checklist de fuerza de contraseña en vivo, cada regla pasa a lima
