@@ -1277,7 +1277,18 @@ input, select{ font-family: inherit; }
   cursor:pointer; white-space:nowrap;
 }
 .history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
-@media (min-width: 720px){ .history-filters{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
+/* BRAMUlab_V03.4.6 — BUG REAL, mismo mecanismo exacto que ya se corrigió en `.profile-tabs`
+   (V03.4.5 §3): en Historial, `.history-filters` es ítem flex DIRECTO de `.view--history`
+   (`display:flex;flex-direction:column`) — el `margin:0 auto` de acá desactiva
+   `align-items:stretch` por spec, así que en tablet el contenedor colapsaba a su ancho de
+   contenido (~361px medido, lejos del `max-width:768px` declarado) y quedaba centrado como
+   bloque angosto — con `.history-tab` en `flex:none` (chips de ancho natural, ver más arriba),
+   eso se leía como "las pestañas están centradas" en vez de ancladas a la izquierda. En MIS
+   GRUPOS (mismo `.history-filters`, mismas pestañas `.history-tab`) el bug NO se nota porque ahí
+   el contenedor vive anidado dentro de `.analysis-scroll` (no es flex item directo de
+   `.view--history`, ver index.html) — de ahí la diferencia visual entre pantallas "gemelas" que
+   se reportó. `width:100%` explícito, mismo arreglo. */
+@media (min-width: 720px){ .history-filters{ width: 100%; max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
 /* V02.1 (§27) — banda de filtro contextual (Racha actual/Efectividad desde el Home). */
 .history-context-filter{

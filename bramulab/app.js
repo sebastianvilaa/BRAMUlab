@@ -8547,15 +8547,30 @@
       $('#evolution-empty').hidden = true;
       // BRAMUlab_V03.4.5 (§4) — ancho real del contenedor ANTES de insertar el SVG (todavía
       // vacío acá, así que medirlo no depende de su propio contenido) — ver comentario en
-      // buildLevelEvolutionSvgHTML. Fallback a la constante fija solo si el contenedor mide 0
-      // (vista todavía oculta al momento del render).
-      const measuredWidth = Math.round(wrap.getBoundingClientRect().width);
-      wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution, measuredWidth || LEVEL_CHART_WIDTH);
-      // V03.1.3 (§3) — animación sutil de entrada: la línea se dibuja progresivamente, mismo
-      // mecanismo (Web Animations API sobre stroke-dashoffset) y misma duración/curva que la
-      // Efectividad (EFFECTIVENESS_ANIM_MS/--home-anim-ease) — "consistente con la animación
-      // de Efectividad" pedido por el consolidado. Sin puntos, sin tooltips: solo la curva.
-      animateEvolutionLine(wrap.querySelector('.evolution-chart__line'));
+      // buildLevelEvolutionSvgHTML.
+      // BRAMUlab_V03.4.6 — BUG REAL: `renderProfileView` (esta función lo llama) corre ANTES de
+      // `showView('profile')` en los 3 call sites que existen (openProfileScreen, guardar en
+      // Editar Datos, completar acceso) — en ese momento `#view-profile` todavía tiene `hidden`,
+      // así que la medición de acá SIEMPRE daba 0 y el fallback de V03.4.5 caía de vuelta en
+      // `LEVEL_CHART_WIDTH` (320), reproduciendo el bug de escala que esa ronda creía resuelto
+      // (confirmado: el `getBoundingClientRect()` de un elemento dentro de un ancestro oculto
+      // devuelve todo en 0). Un solo `requestAnimationFrame` alcanza — no cambia nada del orden
+      // en los 3 call sites: para cuando el callback corre, `showView('profile')` ya se ejecutó
+      // (mismo stack síncrono) y el layout real ya existe. Si el contenedor YA es visible en
+      // el momento de este render (ej. `refreshAfterAvatarChange`, que nunca llama a `showView`
+      // porque el usuario ya está parado en Perfil), se pinta de una sola vez, sin esperar un
+      // frame de más.
+      const paintChart = () => {
+        const measuredWidth = Math.round(wrap.getBoundingClientRect().width);
+        wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution, measuredWidth || LEVEL_CHART_WIDTH);
+        // V03.1.3 (§3) — animación sutil de entrada: la línea se dibuja progresivamente, mismo
+        // mecanismo (Web Animations API sobre stroke-dashoffset) y misma duración/curva que la
+        // Efectividad (EFFECTIVENESS_ANIM_MS/--home-anim-ease) — "consistente con la animación
+        // de Efectividad" pedido por el consolidado. Sin puntos, sin tooltips: solo la curva.
+        animateEvolutionLine(wrap.querySelector('.evolution-chart__line'));
+      };
+      if (wrap.getBoundingClientRect().width > 0) paintChart();
+      else requestAnimationFrame(paintChart);
     }
   }
 

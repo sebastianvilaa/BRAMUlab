@@ -9,19 +9,22 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.4.5
+## Versión funcional actual: BRAMUlab_V03.4.6
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.5"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.5`. Microparche responsive final sobre V03.4.4, puramente visual — cero cambios de lógica, datos ni fórmula: el botón "CREAR GRUPO" del selector de MIS GRUPOS pierde el "+" (mismo estilo outline verde), y se corrigen 3 bugs reales de responsive en tablet — la bottom nav quedaba a la mitad del ancho real por un conflicto entre `left:50%` y el `right:0` heredado de la regla base (nunca era cuestión de subir el `max-width`), las tabs de Perfil colapsaban a su ancho de contenido porque `margin:auto` desactiva el `stretch` por defecto de un ítem flex, y el gráfico de Evolución del Nivel BRAMU escalaba su texto ~2.2x porque el SVG usaba un `viewBox` de ancho fijo estirado a `width:100%` — las tres correcciones son de ancho/layout, ningún tamaño de fuente base cambió. Ver el Informe para el detalle de cada bug y cómo se verificó.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.6"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.6`. Dos hallazgos de QA sobre V03.4.5, ambos bugs reales — cero cambios de lógica/datos/fórmula: las tabs de Historial (Todos/Mis partidos/Observados) no quedaban alineadas a la izquierda en tablet por el mismo mecanismo que ya se había corregido en las tabs de Perfil (`margin:auto` desactiva el `stretch` de un ítem flex — `.history-filters` es ítem flex directo de `.view--history` en Historial, pero no en Mis Grupos, de ahí que una pantalla se viera bien y la otra no pese a compartir el mismo componente); y el gráfico de Evolución del Nivel BRAMU seguía escalando su texto en tablet porque el fix de V03.4.5 medía el ancho del contenedor ANTES de que `showView('profile')` lo hiciera visible — la medición daba 0 siempre y caía al fallback fijo, reproduciendo el bug que esa ronda creía resuelto. Ver el Informe para el detalle técnico y cómo se verificó esta vez contra una cuenta con datos reales.
+
+| Qué necesitás | Documento |
+|---|---|
+| Qué se pidió en V03.4.6 (tabs de Historial a la izquierda, gráfico de Evolución en tablet) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.6_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.6_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.4.6 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.6_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.6_Informe.md) |
+
+**Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
 | Qué se pidió en V03.4.5 (crear grupo sin "+", bottom nav y tabs de Perfil en tablet, gráfico de Evolución) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.5_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.5_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.4.5 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.5_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.5_Informe.md) |
 
-**Rondas anteriores:**
-
-| Qué necesitás | Documento |
-|---|---|
 | Qué se pidió en V03.4.4 (botón crear grupo, contador de jugadores, splash, ícono) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.4.4 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.4.4_Informe.md) |
 
