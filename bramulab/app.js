@@ -7391,10 +7391,13 @@
   }
 
   /** BRAMUlab_V03.4.2 (§1) — hoja "MIS GRUPOS": todos los grupos del usuario (check en el
-   *  activo) + "+ CREAR GRUPO" al final (mismo `.picker-sheet-option` para las filas de grupo
+   *  activo) + "CREAR GRUPO" al final (mismo `.picker-sheet-option` para las filas de grupo
    *  que ya usa la hoja de selección genérica de MIS DATOS). Tocar un grupo cambia el activo y
-   *  cierra; tocar "+ CREAR GRUPO" cierra esta hoja y abre la de siempre — un solo lugar
-   *  resuelve cambiar Y crear, nunca dos acciones separadas.
+   *  cierra; tocar "CREAR GRUPO" cierra esta hoja y abre la de siempre — un solo lugar
+   *  resuelve cambiar Y crear, nunca dos acciones separadas. BRAMUlab_V03.4.5 (§1) — el label
+   *  pierde el "+" inicial (quedaba redundante con el propio ícono/jerarquía del botón, ver
+   *  styles.css `.btn-secondary--lime`); mismo estilo outline verde, sin cambios de tamaño,
+   *  color, borde, padding ni ubicación.
    *  BRAMUlab_V03.4.4 (§2) — cada fila suma "· N jugadores" como segunda lectura (cuenta de
    *  miembros ACTIVOS del grupo, mismo criterio `PG.isMemberActiveAt` que ya usa
    *  renderGroupSettingsMembers — nunca cuenta a alguien que ya salió del grupo). §1 — "+ CREAR
@@ -7411,7 +7414,7 @@
         ${active ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
       </button>`;
     }).join('');
-    $('#groups-switch-list').innerHTML = `${rows}<button type="button" class="btn-secondary btn-secondary--lime groups-switch-create-btn" id="groups-switch-create-btn">+ CREAR GRUPO</button>`;
+    $('#groups-switch-list').innerHTML = `${rows}<button type="button" class="btn-secondary btn-secondary--lime groups-switch-create-btn" id="groups-switch-create-btn">CREAR GRUPO</button>`;
     $all('#groups-switch-list .picker-sheet-option[data-group-id]').forEach((btn) => {
       btn.addEventListener('click', () => {
         activeGroupId = btn.dataset.groupId;
@@ -8385,12 +8388,20 @@
    *  los círculos por punto y toda interacción de click/teclado sobre ellos (ver
    *  initProfileScreen) — la lectura es SOLO la forma de la curva + los ejes. Con 1 solo punto
    *  no se dibuja ninguna línea (`coords.length > 1` — nunca "inventar una línea" con un solo
-   *  dato real). */
-  function buildLevelEvolutionSvgHTML(evolution) {
+   *  dato real).
+   *  BRAMUlab_V03.4.5 (§4) — BUG REAL en tablet: con un `viewBox` de ancho fijo (320) y el SVG
+   *  renderizado a `width:100%`, un contenedor más ancho (tablet, ≥720px) escala TODO el
+   *  sistema de coordenadas por igual — texto de ejes incluido, porque en SVG `font-size` vive
+   *  en las mismas unidades del viewBox, no en píxeles reales. A 700px de contenedor eso es un
+   *  factor ~2.2x: labels de 9px se veían de ~20px. `chartWidth` (medido en el DOM real, ver
+   *  renderProfileEvolution) reemplaza la constante fija: el viewBox pasa a coincidir con el
+   *  ancho renderizado real, así que la escala queda siempre ~1:1 y el texto no crece — el
+   *  gráfico sí gana ancho real (más espacio entre puntos), la altura del viewBox no cambia. */
+  function buildLevelEvolutionSvgHTML(evolution, chartWidth) {
     const points = evolution.points;
     if (!points.length) return '';
     const { yMin, yMax, step } = computeLevelYAxis(points.map((p) => p.level));
-    const width = LEVEL_CHART_WIDTH;
+    const width = chartWidth || LEVEL_CHART_WIDTH;
     const plotW = width - LEVEL_CHART_PAD_LEFT - LEVEL_CHART_PAD_RIGHT;
     const plotH = LEVEL_CHART_HEIGHT - LEVEL_CHART_PAD_TOP - LEVEL_CHART_PAD_BOTTOM;
     const xAt = (i) => (points.length === 1 ? LEVEL_CHART_PAD_LEFT + plotW / 2 : LEVEL_CHART_PAD_LEFT + (i / (points.length - 1)) * plotW);
@@ -8534,7 +8545,12 @@
       $('#evolution-empty').hidden = false;
     } else {
       $('#evolution-empty').hidden = true;
-      wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution);
+      // BRAMUlab_V03.4.5 (§4) — ancho real del contenedor ANTES de insertar el SVG (todavía
+      // vacío acá, así que medirlo no depende de su propio contenido) — ver comentario en
+      // buildLevelEvolutionSvgHTML. Fallback a la constante fija solo si el contenedor mide 0
+      // (vista todavía oculta al momento del render).
+      const measuredWidth = Math.round(wrap.getBoundingClientRect().width);
+      wrap.innerHTML = buildLevelEvolutionSvgHTML(evolution, measuredWidth || LEVEL_CHART_WIDTH);
       // V03.1.3 (§3) — animación sutil de entrada: la línea se dibuja progresivamente, mismo
       // mecanismo (Web Animations API sobre stroke-dashoffset) y misma duración/curva que la
       // Efectividad (EFFECTIVENESS_ANIM_MS/--home-anim-ease) — "consistente con la animación

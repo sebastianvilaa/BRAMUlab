@@ -1978,7 +1978,22 @@ input, select{ font-family: inherit; }
 
 @media (min-width: 720px){
   .player-home-widgets-grid{ grid-template-columns: repeat(4, 1fr); }
-  .bottom-nav{ max-width: 480px; left:50%; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
+  /* BRAMUlab_V03.4.5 (§2) — BUG REAL, dos capas: (1) 480px es más angosto que el ancho "de
+     contenido" que ya usa el resto de la interfaz en este mismo breakpoint (768px — ver
+     `.view--history`, `.history-filters`, `.profile-tabs`, todos con `max-width:768px;
+     margin:0 auto`), por eso la barra se leía como una pastilla más chica que cualquier otro
+     bloque de la pantalla. (2) el truco de centrado `left:50%+transform:translateX(-50%)` NO
+     es el mismo patrón que esos otros componentes, y acá se combina mal con el `right:0` de la
+     regla BASE (más arriba, fuera de este media query) — ese `right:0` sigue activo (el media
+     query nunca lo pisaba) y junto con `left:50%` fuerza un ancho calculado de exactamente la
+     MITAD del viewport (768-384-0=384px en un iPad Mini), sin importar qué valor tuviera
+     `max-width`: subir el número solo no alcanzaba. Se reemplaza por el mismo patrón de
+     `.view--history`/`.history-filters`/`.profile-tabs`: `left:0;right:0` (ancho auto = 100%
+     del viewport) + `margin:0 auto` para centrar una vez capado por `max-width` — consistente,
+     sin el conflicto. Se retira también el `border-radius`: a 768px de viewport (iPad Mini) el
+     ancho de contenido coincide con el viewport, así que la barra queda de punta a punta —
+     esquinas redondeadas ahí se verían como un recorte roto contra el borde de la pantalla. */
+  .bottom-nav{ max-width: 768px; left:0; right:0; margin: 0 auto; }
   /* Etapa 4.1 (§2.2) — el ancho de tablet/escritorio de las hojas inferiores vive junto a la
      definición BASE de `.bottom-sheet` (más abajo en este archivo), nunca acá: un hallazgo
      externo de v2.0 detectó que esta regla, aunque más específica en intención, quedaba
@@ -2776,7 +2791,20 @@ input, select{ font-family: inherit; }
    tarjetas consecutivas) en vez de usar solo el gap. Con esto, el `gap` del panel queda como
    ÚNICA fuente de espaciado. */
 .profile-panel > .pastilla{ margin-bottom: 0; }
-@media (min-width: 720px){ .profile-tabs{ max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
+/* BRAMUlab_V03.4.5 (§3) — BUG REAL: `.profile-tabs` es un ítem flex del contenedor columna
+   `.view--history` (`display:flex;flex-direction:column`) — al agregarle `margin:0 auto` para
+   centrarlo (mismo patrón que `.history-filters`), el eje cruzado pasa a tener márgenes auto, y
+   por spec eso DESACTIVA el `align-items:stretch` por defecto: en vez de ocupar el ancho
+   disponible (768px en tablet), el contenedor colapsa a "encoger hasta el contenido" (ancho
+   real medido: ~348px, ni cerca del `max-width:768px` declarado) — los 3 `flex:1` de
+   `.profile-tab` se reparten ESE ancho angosto, no el ancho real de la pantalla, y todo el
+   bloque de pestañas queda apretado contra el borde izquierdo con un vacío enorme a la derecha
+   ("agrupadas", el bug real detrás del síntoma reportado). `width:100%` explícito devuelve el
+   ancho: ya no es `auto`, así que no depende de stretch para llenar el contenedor — con eso los
+   3 `flex:1` vuelven a repartirse el ancho real completo (hasta el tope de 768px). Mismo
+   tamaño/peso/tracking de siempre, cero cambios de tipografía; mobile (`<720px`, fuera de este
+   media query) intacto. */
+@media (min-width: 720px){ .profile-tabs{ width: 100%; max-width: 768px; margin: 0 auto; padding-left: 18px; padding-right: 18px; } }
 
 /* V03.0.1 (§1) — MIS DATOS agrupa en 3 bloques (Identidad / Datos personales / Acceso y
    seguridad) en vez de una sola lista plana de campos: mismo componente .pastilla, solo
