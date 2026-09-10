@@ -1,13 +1,16 @@
 /* ==========================================================================
-   BRAMU Lab — locations.js (BRAMUlab_V03.4.1)
-   Dataset local y funciones puras de búsqueda para el campo "¿De dónde sos?"
-   de MIS DATOS (§9). Sin backend, sin geocoding real — una lista curada de
-   localidades argentinas (foco en el AMBA, donde se concentra el pádel, más
-   las capitales/ciudades principales de cada provincia) para que el usuario
-   ELIJA una opción normalizada en vez de escribir texto libre. Preparado para
-   reemplazarse por una búsqueda real (API de geocoding) cuando exista backend
-   — `searchLocations` es el único punto de acceso, `app.js` nunca lee
-   `LOCATIONS` directamente.
+   BRAMU Lab — locations.js (BRAMUlab_V03.4.1, ampliado en V03.4.2)
+   Búsqueda de localidades para el campo "¿De dónde sos?" de MIS DATOS (§9).
+
+   BRAMUlab_V03.4.2 (§8) — la fuente PRINCIPAL pasa a ser la API pública GeoRef
+   de Argentina (apis.datos.gob.ar/georef), que cubre el país completo — el
+   dataset local curado de V03.4.1 (~180 localidades, foco AMBA) se degrada a
+   FALLBACK MÍNIMO: solo se usa si GeoRef no responde (sin conexión, error de
+   red, timeout), y nunca como fuente primaria. `searchLocationsRemote` es
+   async (hace un `fetch` real); `searchLocations` sigue siendo síncrona sobre
+   el dataset local — `app.js` decide cuál mostrar según el estado de la
+   búsqueda (ver renderProfileLocationResults). Ninguna de las dos inventa
+   resultados: sin coincidencias reales, ambas devuelven `[]`.
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -145,7 +148,50 @@
     return LOCATIONS.filter((loc) => normalizeText(`${loc.locality} ${loc.region}`).includes(q)).slice(0, max);
   }
 
+  /** GeoRef devuelve los nombres en MAYÚSCULAS ("GENERAL LAS HERAS") — mismo criterio de
+   *  Title Case que ya usa `Store.normalizePlayerName` para nombres de jugador (primera letra
+   *  de cada palabra en mayúscula, resto en minúscula), aplicado acá a topónimos para que se
+   *  vean como el resto de la interfaz, nunca gritando en mayúsculas. */
+  function toTitleCaseEs(s) {
+    return (s || '').trim().split(/\s+/).map((word) => {
+      if (!word) return word;
+      return word.charAt(0).toLocaleUpperCase('es') + word.slice(1).toLocaleLowerCase('es');
+    }).join(' ');
+  }
+
+  const GEOREF_URL = 'https://apis.datos.gob.ar/georef/api/localidades';
+  const GEOREF_MAX_RESULTS = 15;
+
+  /** BRAMUlab_V03.4.2 (§8) — fuente PRINCIPAL: localidades reales de Argentina vía la API
+   *  pública GeoRef (sin autenticación, CORS abierto — pensada para consumo público desde el
+   *  navegador). `signal` es un `AbortSignal` opcional (ver app.js: cancela una búsqueda vieja
+   *  cuando el usuario ya tipeó una nueva, para no pintar una respuesta fuera de orden). Nunca
+   *  atrapa errores acá adentro — los deja subir tal cual (red caída, timeout, HTTP no-2xx) para
+   *  que quien llama decida el fallback (§8: "no inventar resultados"), esta función solo sabe
+   *  pedir y traducir la forma de la respuesta. */
+  async function searchLocationsRemote(query, options) {
+    const opts = options || {};
+    const q = (query || '').trim();
+    if (!q) return [];
+    const url = `${GEOREF_URL}?nombre=${encodeURIComponent(q)}&max=${opts.max || GEOREF_MAX_RESULTS}&campos=nombre,provincia&orden=nombre`;
+    const res = await fetch(url, { signal: opts.signal });
+    if (!res.ok) throw new Error(`georef-http-${res.status}`);
+    const data = await res.json();
+    const seen = new Set();
+    const results = [];
+    (data && data.localidades ? data.localidades : []).forEach((loc) => {
+      if (!loc || !loc.nombre) return;
+      const locality = toTitleCaseEs(loc.nombre);
+      const region = loc.provincia && loc.provincia.nombre ? toTitleCaseEs(loc.provincia.nombre) : null;
+      const key = normalizeText(`${locality} ${region || ''}`);
+      if (seen.has(key)) return;
+      seen.add(key);
+      results.push({ locality, region, country: COUNTRY });
+    });
+    return results;
+  }
+
   global.PLLocations = {
-    LOCATIONS, searchLocations, formatLocationLabel,
+    LOCATIONS, searchLocations, searchLocationsRemote, formatLocationLabel, toTitleCaseEs,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

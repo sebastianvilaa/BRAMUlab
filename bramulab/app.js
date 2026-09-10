@@ -7376,33 +7376,56 @@
     $('#groups-content').hidden = isEmpty;
     if (isEmpty) { $('#groups-settings-btn').hidden = true; return; }
     if (!activeGroupId || !groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[0].id;
-    renderGroupsSelector(groups);
-    const isAdmin = currentIsAdminOfGroup(Store.getGroupById(activeGroupId));
+    const activeGroup = Store.getGroupById(activeGroupId);
+    // BRAMUlab_V03.4.2 (§1/§2) — un único selector "grupo activo ▾", siempre visible (incluso
+    // con un solo grupo: también funciona como "acá estás parado"), reemplaza a los chips.
+    $('#groups-current-selector-name').textContent = activeGroup ? activeGroup.name : '—';
+    const isAdmin = currentIsAdminOfGroup(activeGroup);
     $('#groups-settings-btn').hidden = !isAdmin;
     // BRAMUlab_V03.4.1 (§7) — acción inequívoca "+ AGREGAR JUGADOR" al final del contenido
-    // principal del grupo (además de Configuración) — nunca el "+" del header, que es
-    // EXCLUSIVAMENTE "crear grupo nuevo".
+    // principal del grupo (además de Configuración) — nunca el header, que ya no tiene "+"
+    // desde V03.4.2 (§2: esa acción se mudó entera al selector de arriba).
     $('#groups-add-member-btn').hidden = !isAdmin;
     renderActiveGroupPanels();
     setGroupsTab(groupsActiveTab);
   }
 
-  /** §2/§3 — selector de grupos como CHIPS horizontales (`.history-mode-chip`, capa de
-   *  navegación/contexto — deliberadamente distinta de `.history-tab`, reservada para las tabs
-   *  de contenido ACTUAL/ANTERIOR/RACE ANUAL de abajo), solo si el usuario pertenece a más de
-   *  uno (con uno solo no hay nada que elegir). */
-  function renderGroupsSelector(groups) {
-    const wrap = $('#groups-selector');
-    const chipsWrap = $('#groups-selector-chips');
-    if (groups.length < 2) { wrap.hidden = true; chipsWrap.innerHTML = ''; return; }
-    wrap.hidden = false;
-    chipsWrap.innerHTML = groups.map((g) => {
+  /** BRAMUlab_V03.4.2 (§1) — hoja "MIS GRUPOS": todos los grupos del usuario (check en el
+   *  activo) + "+ CREAR GRUPO" como última fila de la MISMA lista (mismo componente
+   *  `.picker-sheet-option` que ya usa la hoja de selección genérica de MIS DATOS). Tocar un
+   *  grupo cambia el activo y cierra; tocar "+ CREAR GRUPO" cierra esta hoja y abre la de
+   *  siempre — un solo lugar resuelve cambiar Y crear, nunca dos acciones separadas. */
+  function renderGroupsSwitchList() {
+    const groups = myActiveGroups();
+    const rows = groups.map((g) => {
       const active = g.id === activeGroupId;
-      return `<button type="button" class="history-mode-chip${active ? ' is-active' : ''}" data-group-id="${escapeHtml(g.id)}" role="tab" aria-selected="${active}">${escapeHtml(g.name)}</button>`;
+      return `<button type="button" class="picker-sheet-option${active ? ' is-selected' : ''}" data-group-id="${escapeHtml(g.id)}">
+        <span>${escapeHtml(g.name)}</span>
+        ${active ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
+      </button>`;
     }).join('');
-    $all('#groups-selector-chips .history-mode-chip').forEach((btn) => {
-      btn.addEventListener('click', () => { activeGroupId = btn.dataset.groupId; renderGroupsScreen(); });
+    $('#groups-switch-list').innerHTML = `${rows}<button type="button" class="picker-sheet-option picker-sheet-option--action" id="groups-switch-create-btn">+ CREAR GRUPO</button>`;
+    $all('#groups-switch-list .picker-sheet-option[data-group-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activeGroupId = btn.dataset.groupId;
+        closeGroupsSwitchSheet();
+        renderGroupsScreen();
+      });
     });
+    $('#groups-switch-create-btn').addEventListener('click', () => {
+      closeGroupsSwitchSheet();
+      openCreateGroupSheet();
+    });
+  }
+  function openGroupsSwitchSheet() {
+    renderGroupsSwitchList();
+    $('#groups-switch-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#groups-switch-sheet-scrim').classList.add('is-open'); });
+  }
+  function closeGroupsSwitchSheet() {
+    const scrim = $('#groups-switch-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
   }
 
   function setGroupsTab(tab) {
@@ -7522,13 +7545,11 @@
     const beforePreviousTable = PG.computeWeeklyTable(fullHistory, group, prevPrevWeekStart);
     const raceTable = PG.computeRaceAnual(fullHistory, group, year);
 
-    // BRAMUlab_V03.4.1 (§3) — el nombre del grupo queda explícito en el propio título del
-    // bloque de Intelligence ("EL MOMENTO · {nombre}"), nunca solo "EL MOMENTO DEL GRUPO" a
-    // secas — mismo bloque debe dejar claro de QUÉ grupo está hablando BRAMU, sobre todo con
-    // 2+ grupos donde el usuario recién cambió de chip.
-    const intelTitle = `EL MOMENTO · ${group.name}`;
-    $('#groups-intel-actual-title').textContent = intelTitle;
-    $('#groups-intel-anterior-title').textContent = intelTitle;
+    // BRAMUlab_V03.4.2 (§4) — título fijo "BRAMU INTELLIGENCE" (en el HTML); acá solo se pinta
+    // el nombre del grupo como segunda jerarquía, para que quede claro de QUÉ grupo está
+    // hablando BRAMU sin repetir "EL MOMENTO" dos veces en la pantalla.
+    $('#groups-intel-actual-title').textContent = group.name;
+    $('#groups-intel-anterior-title').textContent = group.name;
 
     renderGroupIntelligenceInto('groups-intel-actual-list', 'groups-intel-actual-empty', PG.buildGroupIntelligence({
       currentTable, previousTable, raceTable, currentMatches, fullHistory,
@@ -7550,13 +7571,20 @@
     $('#groups-back-btn').addEventListener('click', () => openPlayerHome());
     $('#groups-settings-btn').addEventListener('click', openGroupSettingsScreen);
     $('#groups-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
+    $('#groups-current-selector-btn').addEventListener('click', openGroupsSwitchSheet);
+    $('#groups-switch-sheet-close').addEventListener('click', closeGroupsSwitchSheet);
+    $('#groups-switch-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#groups-switch-sheet-scrim')) closeGroupsSwitchSheet(); });
     $all('#groups-view-tabs .history-tab').forEach((btn) => {
       btn.addEventListener('click', () => setGroupsTab(btn.dataset.view));
     });
     $('#groups-points-info-btn').addEventListener('click', openGroupPointsInfoSheet);
     $('#group-points-info-close').addEventListener('click', closeGroupPointsInfoSheet);
     $('#group-points-info-scrim').addEventListener('click', (e) => { if (e.target === $('#group-points-info-scrim')) closeGroupPointsInfoSheet(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#group-points-info-scrim').hidden) closeGroupPointsInfoSheet(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!$('#group-points-info-scrim').hidden) closeGroupPointsInfoSheet();
+      if (!$('#groups-switch-sheet-scrim').hidden) closeGroupsSwitchSheet();
+    });
   }
 
   function openGroupPointsInfoSheet() {
@@ -7711,7 +7739,9 @@
   }
 
   function initCreateGroupSheet() {
-    $('#groups-create-btn').addEventListener('click', openCreateGroupSheet);
+    // BRAMUlab_V03.4.2 (§2) — el header ya no tiene "+" (esa acción se mudó por completo a la
+    // hoja "MIS GRUPOS", ver renderGroupsSwitchList) — el único punto de entrada directo que
+    // queda es el estado vacío.
     $('#groups-empty-create-btn').addEventListener('click', openCreateGroupSheet);
     $('#create-group-sheet-close').addEventListener('click', closeCreateGroupSheet);
     $('#create-group-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#create-group-sheet-scrim')) closeCreateGroupSheet(); });
@@ -7725,10 +7755,64 @@
   function openGroupSettingsScreen() {
     const group = Store.getGroupById(activeGroupId);
     if (!group || !currentIsAdminOfGroup(group)) return;
-    $('#group-settings-name-input').value = group.name;
-    $('#group-settings-error').hidden = true;
+    $('#group-settings-name-display').textContent = group.name;
+    $('#group-settings-name-display').hidden = false;
+    $('#group-settings-name-input').hidden = true;
     renderGroupSettingsMembers(group);
     showView('group-settings');
+  }
+
+  /** BRAMUlab_V03.4.2 (§6) — reemplaza el botón grande "GUARDAR NOMBRE": tocar el lápiz
+   *  alterna el nombre visible por un `<input>` en el mismo lugar; Enter o blur confirman,
+   *  Escape cancela sin guardar (nunca pierde el nombre real por un blur accidental — si el
+   *  campo queda vacío o sin cambios, simplemente vuelve a mostrar el nombre que ya estaba). */
+  function enterGroupNameEditMode() {
+    const group = Store.getGroupById(activeGroupId);
+    if (!group) return;
+    $('#group-settings-name-display').hidden = true;
+    const input = $('#group-settings-name-input');
+    input.hidden = false;
+    input.value = group.name;
+    input.focus();
+    input.select();
+  }
+  function exitGroupNameEditMode(save) {
+    const input = $('#group-settings-name-input');
+    if (input.hidden) return; // ya se cerró (blur + Escape pueden disparar los dos en el mismo tick)
+    const group = Store.getGroupById(activeGroupId);
+    if (save && group) {
+      const nextName = input.value.trim();
+      if (nextName && nextName !== group.name) {
+        Store.renameGroup(group.id, nextName);
+        renderGroupsScreen();
+        showToast('Nombre actualizado');
+      }
+    }
+    const current = Store.getGroupById(activeGroupId);
+    $('#group-settings-name-display').textContent = current ? current.name : (group ? group.name : '—');
+    $('#group-settings-name-display').hidden = false;
+    input.hidden = true;
+  }
+
+  /** BRAMUlab_V03.4.2 (§7) — "ELIMINAR GRUPO": nunca borra partidos (Store.deleteGroup solo
+   *  saca al grupo de la lista, ver store.js) — vuelve a MIS GRUPOS, que se reacomoda solo
+   *  (activeGroupId ya no matchea ningún grupo → renderGroupsScreen elige otro, o el estado
+   *  vacío si no queda ninguno). */
+  function handleDeleteGroup() {
+    const group = Store.getGroupById(activeGroupId);
+    if (!group) return;
+    confirmAction(
+      '¿Eliminar este grupo?',
+      'Se eliminará el grupo para todos sus miembros. Esta acción no elimina los partidos de sus historiales.',
+      () => {
+        Store.deleteGroup(group.id);
+        activeGroupId = null;
+        showView('groups');
+        renderGroupsScreen();
+        showToast('Grupo eliminado');
+      },
+      null, 'Eliminar grupo', 'Cancelar', true
+    );
   }
 
   /** §5 — cada fila de miembro con sus acciones de administrador inline. "Quitar admin"/
@@ -7786,18 +7870,12 @@
 
   function initGroupSettingsScreen() {
     $('#group-settings-back-btn').addEventListener('click', () => { renderGroupsScreen(); showView('groups'); });
-    $('#group-settings-save-name-btn').addEventListener('click', () => {
-      const group = Store.getGroupById(activeGroupId);
-      const name = $('#group-settings-name-input').value.trim();
-      if (!group || !name) {
-        $('#group-settings-error').textContent = 'Ingresá un nombre para el grupo.';
-        $('#group-settings-error').hidden = false;
-        return;
-      }
-      Store.renameGroup(group.id, name);
-      $('#group-settings-error').hidden = true;
-      renderGroupsScreen();
-      showToast('Nombre actualizado');
+    $('#group-settings-name-edit-btn').addEventListener('click', enterGroupNameEditMode);
+    const nameInput = $('#group-settings-name-input');
+    nameInput.addEventListener('blur', () => exitGroupNameEditMode(true));
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
+      else if (e.key === 'Escape') { exitGroupNameEditMode(false); }
     });
     $('#group-settings-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
     $('#group-settings-members-list').addEventListener('click', (e) => {
@@ -7806,6 +7884,7 @@
       const row = e.target.closest('.group-settings-member');
       handleGroupSettingsAction(btn.dataset.action, row.dataset.name);
     });
+    $('#group-settings-delete-btn').addEventListener('click', handleDeleteGroup);
   }
 
   /* ------------------------------------------------------------------ */
@@ -8629,11 +8708,17 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
   }
 
-  /** BRAMUlab_V03.4.1 (§9) — hoja "¿De dónde sos?": buscador sobre `PLLocations.searchLocations`
-   *  (dataset local, ver locations.js) — una única elección normalizada, nunca texto libre.
-   *  Mismo patrón tap-selecciona-y-cierra que el picker genérico. */
-  function renderProfileLocationResults(query) {
-    const results = PLLocations.searchLocations(query);
+  /** BRAMUlab_V03.4.2 (§8) — hoja "¿De dónde sos?": la fuente PRINCIPAL pasa a ser la API
+   *  pública GeoRef (`PLLocations.searchLocationsRemote`, cubre toda Argentina); el dataset
+   *  local de V03.4.1 queda como fallback MÍNIMO si la red falla — nunca como fuente primaria.
+   *  Debounce de 300ms (nunca un fetch por tecla) + `AbortController` para descartar una
+   *  respuesta vieja si el usuario ya tipeó algo más nuevo (nunca pinta resultados fuera de
+   *  orden). Con menos de 2 caracteres se muestra el dataset local como punto de partida para
+   *  "explorar" sin pegarle a la red todavía. */
+  let profileLocationSearchTimer = null;
+  let profileLocationSearchController = null;
+
+  function paintProfileLocationList(results) {
     const wrap = $('#profile-location-list');
     const isEmpty = results.length === 0;
     wrap.hidden = isEmpty;
@@ -8641,27 +8726,68 @@
     wrap.innerHTML = results.map((loc) => {
       const label = PLLocations.formatLocationLabel(loc);
       const selected = !!profileEditLocation && profileEditLocation.locality === loc.locality && profileEditLocation.region === loc.region;
-      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region)}" data-country="${escapeHtml(loc.country)}">
+      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region || '')}" data-country="${escapeHtml(loc.country || '')}">
         <span>${escapeHtml(label)}</span>
         ${selected ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
       </button>`;
     }).join('');
     $all('#profile-location-list .picker-sheet-option').forEach((btn) => {
       btn.addEventListener('click', () => {
-        profileEditLocation = { locality: btn.dataset.locality, region: btn.dataset.region, country: btn.dataset.country };
+        profileEditLocation = { locality: btn.dataset.locality, region: btn.dataset.region || null, country: btn.dataset.country || null };
         updateProfileLocationRowDisplay();
         closeProfileLocationSheet();
       });
     });
   }
+
+  function setProfileLocationStatus(text) {
+    const el = $('#profile-location-status');
+    if (!text) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = text;
+  }
+
+  /** Único punto que decide qué mostrar según el largo de la búsqueda y el resultado real de
+   *  GeoRef — nunca inventa una localidad ni oculta que está mostrando el fallback local. */
+  async function searchProfileLocation(query) {
+    const trimmed = (query || '').trim();
+    if (profileLocationSearchController) profileLocationSearchController.abort();
+    if (trimmed.length < 2) {
+      setProfileLocationStatus('');
+      paintProfileLocationList(PLLocations.searchLocations(query));
+      return;
+    }
+    setProfileLocationStatus('Buscando…');
+    profileLocationSearchController = new AbortController();
+    const { signal } = profileLocationSearchController;
+    try {
+      const results = await PLLocations.searchLocationsRemote(trimmed, { signal });
+      if (signal.aborted) return;
+      setProfileLocationStatus('');
+      paintProfileLocationList(results);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // búsqueda vieja, cancelada por una más nueva
+      setProfileLocationStatus('No pudimos conectar con el buscador. Mostrando resultados locales.');
+      paintProfileLocationList(PLLocations.searchLocations(trimmed));
+    }
+  }
+
+  function onProfileLocationSearchInput(query) {
+    clearTimeout(profileLocationSearchTimer);
+    profileLocationSearchTimer = setTimeout(() => searchProfileLocation(query), 300);
+  }
+
   function openProfileLocationSheet() {
     $('#profile-location-search').value = '';
-    renderProfileLocationResults('');
+    setProfileLocationStatus('');
+    paintProfileLocationList(PLLocations.searchLocations(''));
     $('#profile-location-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#profile-location-sheet-scrim').classList.add('is-open'); });
     setTimeout(() => $('#profile-location-search').focus(), 60);
   }
   function closeProfileLocationSheet() {
+    clearTimeout(profileLocationSearchTimer);
+    if (profileLocationSearchController) profileLocationSearchController.abort();
     const scrim = $('#profile-location-sheet-scrim');
     scrim.classList.remove('is-open');
     setTimeout(() => { scrim.hidden = true; }, 220);
@@ -8678,7 +8804,7 @@
     $('#profile-edit-location-row').addEventListener('click', openProfileLocationSheet);
     $('#profile-location-sheet-close').addEventListener('click', closeProfileLocationSheet);
     $('#profile-location-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-location-sheet-scrim')) closeProfileLocationSheet(); });
-    $('#profile-location-search').addEventListener('input', (e) => renderProfileLocationResults(e.target.value));
+    $('#profile-location-search').addEventListener('input', (e) => onProfileLocationSearchInput(e.target.value));
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;

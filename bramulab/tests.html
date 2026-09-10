@@ -29,7 +29,7 @@
 <script src="groups.js"></script>
 <script src="locations.js"></script>
 <script>
-(function () {
+(async function () {
   'use strict';
   const E = window.PLEngine;
   const S = window.PLStats;
@@ -3797,6 +3797,80 @@
     assert('V0341-EMPATE · Race anual también comparte posición entre empatados', raceByName.Seba.position === 1 && raceByName.Esteban.position === 1 && raceByName.Diegote.position === 3, JSON.stringify(race));
     const raceIntel = PG.buildGroupIntelligence({ currentTable: [], previousTable: [], raceTable: race, currentMatches: [], fullHistory }).join(' | ');
     assert('V0341-EMPATE · el insight de líder de Race también reconoce empates ("comparten la punta")', /comparten la punta/.test(raceIntel), raceIntel);
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.4.2 — microparche: ELIMINAR GRUPO (§7)
+  // Store.deleteGroup: saca al grupo de la lista, NUNCA toca HISTORY.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.groups.v1', 'bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1', 'bramulab.history.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      const user = Store.createUserAccount({ email: 'delgrp@test.com', password: 'Abc123!@', username: 'delgrp', firstName: 'Del', displayName: 'Del Grupo' });
+      const group = Store.createGroup({ name: 'A Borrar', creatorName: 'Del Grupo', creatorUserId: user.id, memberNames: ['Otro'] });
+      Store.upsertHistory(mkGroupMatch('del-1', '2026-08-01T00:00:00.000Z', ['Del Grupo', 'Otro', 'X', 'Y'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 3 }]));
+
+      assert('V0342-DELGRP · el grupo existe antes de borrar', !!Store.getGroupById(group.id));
+      const ok = Store.deleteGroup(group.id);
+      assert('V0342-DELGRP · deleteGroup devuelve true al borrar un id real', ok === true);
+      assert('V0342-DELGRP · el grupo ya no aparece en loadGroups/getGroupById', Store.getGroupById(group.id) === null && !Store.loadGroups().some((g) => g.id === group.id));
+      assert('V0342-DELGRP · NUNCA borra los partidos del historial (consolidado: "no elimina los partidos de sus historiales")', Store.loadHistory().some((m) => m.matchId === 'del-1'));
+      assert('V0342-DELGRP · borrar un id que no existe es un no-op seguro (false, nunca rompe)', Store.deleteGroup('no-existe-este-id') === false);
+      assert('V0342-DELGRP · borrar el mismo id dos veces tampoco rompe (ya no está, false de nuevo)', Store.deleteGroup(group.id) === false);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.4.2 — microparche: UBICACIÓN vía GeoRef (§8)
+  // La fuente principal pasa a ser la API real — acá se mockea `window.fetch` para probar la
+  // lógica de armado de URL/parseo/dedupe/errores sin depender de la red real ni de que GeoRef
+  // esté arriba en el momento de correr la suite (esto SÍ se verifica contra la red real en el
+  // QA manual del informe, con "Bella Vista" y "General Las Heras").
+  // ------------------------------------------------------------------
+  await (async function () {
+    assert('V0342-GEOREF · toTitleCaseEs normaliza el "GRITA EN MAYÚSCULAS" que devuelve GeoRef', PLLoc.toTitleCaseEs('GENERAL LAS HERAS') === 'General Las Heras');
+    assert('V0342-GEOREF · toTitleCaseEs con texto vacío no rompe (string vacío, nunca undefined)', PLLoc.toTitleCaseEs('') === '');
+
+    const originalFetch = window.fetch;
+    try {
+      window.fetch = async (url) => {
+        assert('V0342-GEOREF · la URL pega al endpoint real de localidades con el término buscado', String(url).indexOf('apis.datos.gob.ar/georef/api/localidades') !== -1 && String(url).indexOf(encodeURIComponent('general las heras')) !== -1, String(url));
+        return {
+          ok: true,
+          json: async () => ({ localidades: [
+            { nombre: 'GENERAL LAS HERAS', provincia: { nombre: 'BUENOS AIRES' } },
+            { nombre: 'GENERAL LAS HERAS', provincia: { nombre: 'BUENOS AIRES' } },
+          ] }),
+        };
+      };
+      const results = await PLLoc.searchLocationsRemote('general las heras', {});
+      assert('V0342-GEOREF · encuentra "General Las Heras" (el caso real que el dataset local del §9 anterior dejaba afuera)', results.length === 1 && results[0].locality === 'General Las Heras' && results[0].region === 'Buenos Aires', JSON.stringify(results));
+      assert('V0342-GEOREF · dedupea resultados repetidos que a veces devuelve la propia API', results.length === 1);
+
+      window.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+      let threwHttp = false;
+      try { await PLLoc.searchLocationsRemote('cualquier cosa', {}); } catch (e) { threwHttp = true; }
+      assert('V0342-GEOREF · un HTTP no-2xx nunca se traga en silencio — sube el error para que app.js decida el fallback local', threwHttp === true);
+
+      window.fetch = async () => { throw new Error('network down'); };
+      let threwNetwork = false;
+      try { await PLLoc.searchLocationsRemote('cualquier cosa', {}); } catch (e) { threwNetwork = true; }
+      assert('V0342-GEOREF · un fallo de red también sube el error, nunca devuelve resultados inventados', threwNetwork === true);
+
+      let fetchCalledForEmpty = false;
+      window.fetch = async () => { fetchCalledForEmpty = true; return { ok: true, json: async () => ({ localidades: [] }) }; };
+      await PLLoc.searchLocationsRemote('', {});
+      assert('V0342-GEOREF · con query vacía, nunca llega a pegarle a la red (evita spam de fetch)', fetchCalledForEmpty === false);
+    } finally {
+      window.fetch = originalFetch;
+    }
   })();
 
   // ------------------------------------------------------------------

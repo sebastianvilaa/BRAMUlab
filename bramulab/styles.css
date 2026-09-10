@@ -2904,15 +2904,19 @@ input, select{ font-family: inherit; }
    no tenían un equivalente previo: la fila de tabla con posición/puntos, la lista de
    insights y la lista de miembros de Configuración del grupo.
    ========================================================================== */
-/* BRAMUlab_V03.4.1 (§2) — el selector de grupos usa el MISMO componente "chip redondeado" que
-   ya usaban los chips de modo de Historial (`.history-mode-chip`), deliberadamente DISTINTO de
-   `.history-tab` (superficie con esquinas planas, pensada para tabs de contenido) — mismo
-   principio de jerarquía que Historial ya resuelve ahí (pestañas de pertenencia = tabs;
-   modo = chips). El label "GRUPO" arriba deja explícito que es un selector de CONTEXTO, no una
-   tab de contenido más. */
-.groups-selector{ margin-bottom: 14px; }
-.groups-selector__label{ margin-bottom: 6px; }
-#groups-view-tabs{ margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+/* BRAMUlab_V03.4.2 (§1/§2) — reemplaza los chips de V03.4.1 (todavía competían visualmente con
+   las tabs de abajo): un único selector "grupo activo ▾" con la MISMA superficie que
+   `.group-table__row`/`.groups-current-selector` — abre una hoja para cambiar/crear. Las tabs
+   ACTUAL/ANTERIOR/RACE ANUAL ahora viven dentro de `.history-filters` (mismo wrapper que
+   Historial, sin overrides propios) para heredar el mismo padding/borde al byte. */
+.groups-current-selector{
+  display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left;
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 14px; cursor:pointer;
+}
+.groups-current-selector:active{ background: rgba(149,255,25,0.06); }
+.groups-current-selector__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.groups-current-selector__chevron{ flex:none; margin-left: 10px; color: var(--paper-dim); }
 .groups-panel{ display:flex; flex-direction:column; }
 /* BRAMUlab_V03.4.1 (§4) — bug real: `.groups-intel-item` son `<p>`, que traen margen vertical
    propio por default del navegador (~1em arriba/abajo) — eso, SUMADO al `gap` del flex, era el
@@ -2923,15 +2927,25 @@ input, select{ font-family: inherit; }
 .groups-intel-item::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
 .groups-race-title{ margin-bottom: 10px; }
 .groups-points-info-btn{ display:block; margin: 18px auto 4px; text-align:center; }
-/* BRAMUlab_V03.4.1 (§7) — el "+" del header (crear grupo) gana el mismo acento lima que el
-   resto de acciones de creación/alta de la app (AGREGAR JUGADOR, REGISTRAR PARTIDO...), para
-   distinguirse a simple vista del engranaje (siempre neutro, `.icon-btn`) que vive al lado —
-   nunca la misma pareja de íconos grises. */
-.groups-create-btn{ color: var(--brand-lime); }
 .group-points-info-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: 10px; }
 .group-points-info-list li{ font-size: 13px; color: var(--paper-dim); line-height:1.5; padding-left: 14px; position:relative; }
 .group-points-info-list li::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
 .group-points-info-list strong{ color: var(--paper); }
+
+/* BRAMUlab_V03.4.2 (§1) — última fila de la hoja "MIS GRUPOS" ("+ CREAR GRUPO"): mismo
+   componente `.picker-sheet-option` de siempre, con acento lima para que se lea como la acción
+   de alta, "separada" del resto de la lista solo por el propio borde entre filas — nunca un
+   segundo control aparte. */
+.picker-sheet-option--action{ color: var(--brand-lime); font-weight: 800; }
+
+/* BRAMUlab_V03.4.2 (§6) — edición inline del nombre del grupo (reemplaza el botón grande
+   "GUARDAR NOMBRE"): nombre + lápiz, el lápiz alterna a un `<input>` en el mismo lugar. Mismo
+   lápiz/botón circular que ya usa MIS DATOS (`.pencil-icon`/`.profile-edit-icon-btn`). */
+.group-name-edit{ margin-bottom: 4px; }
+.group-name-edit__row{ display:flex; align-items:center; gap: 10px; margin-top: 6px; }
+.group-name-edit__value{ flex:1; min-width:0; font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-name-edit__input{ flex:1; min-width:0; }
+.group-name-edit__pencil{ flex:none; }
 
 /* Tabla semanal/Race — misma jerarquía "posición + avatar + nombre/segunda línea + valor
    grande a la derecha" que el resto de listas tocables de la app (.person-list__item). */

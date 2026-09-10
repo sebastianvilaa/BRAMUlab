@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.4.1';
+  const APP_VERSION = 'BRAMUlab V03.4.2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -572,6 +572,20 @@
     return updateGroup(id, { name: clean });
   }
 
+  /** BRAMUlab_V03.4.2 (§7) — "ELIMINAR GRUPO": saca al grupo de la lista global de grupos,
+   *  NUNCA toca HISTORY — los partidos que alguna vez contaron para este grupo siguen intactos
+   *  en el historial de cada jugador (el consolidado es explícito: "no elimina los partidos de
+   *  sus historiales"). No-op silencioso si el id no existe (nunca rompe si se llama dos veces
+   *  por un doble tap accidental sobre el mismo grupo ya eliminado). */
+  function deleteGroup(id) {
+    if (!id) return false;
+    const list = loadGroups();
+    const next = list.filter((g) => !g || g.id !== id);
+    if (next.length === list.length) return false;
+    saveGroupsList(next);
+    return true;
+  }
+
   function findMemberIndex(group, name) {
     const target = normalizePlayerName(name);
     return (group.members || []).findIndex((m) => m && normalizePlayerName(m.name) === target);
@@ -688,7 +702,7 @@
     // V03.3 — jugadores agregados
     loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
-    loadGroups, getGroupById, createGroup, renameGroup,
+    loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
