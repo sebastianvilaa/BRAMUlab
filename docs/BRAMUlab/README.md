@@ -9,19 +9,21 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `990df66`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.2.2
+## Versión funcional actual: BRAMUlab_V03.3
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.2.2"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.2.2`. Microparche visual sobre V03.2.1: más aire entre los 3 botones de Bienvenida y "REGISTRAR PARTIDO COMO INVITADO" a la misma altura que los otros dos, "¿Olvidaste tu contraseña?" separado del botón de Login, y en Confirmar partido se corrige un bug real de alineación (la flecha de volver quedaba flotando junto al título en vez de pegada al borde izquierdo — única pantalla de la app con ese defecto), el título deja de ser el único de toda la app en verde lima (pasa a blanco, como el resto de los headers), y más aire entre la pill VICTORIA/la tarjeta de ganadores y entre la tarjeta de fecha-hora/el botón GUARDAR PARTIDO. Sin cambios en el resto de la app.
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.3"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.3`. Primera experiencia de "jugadores" de BRAMU sobre la misma base visual/funcional de V03.2.2: perfil público de otro jugador (identidad de solo lectura + Efectividad/Mejor racha/Mejor nivel BRAMU, derivados con las mismas funciones puras que ya usan Home/MI PERFIL), pantalla Buscar Jugadores, lista personal JUGADORES (3ª pestaña de Perfil) y un componente único de fila de jugador (avatar+nombre+@usuario+Nivel BRAMU) reutilizado ahí y en Elegir compañero/rival. Sin amigos, seguidores, popularidad, mensajes ni ninguna función social — solo "agregado o no".
 
 | Qué necesitás | Documento |
 |---|---|
-| Qué se especificó en V03.2.2 (microparche visual: acceso, login, confirmar partido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en V03.2.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md) |
+| Qué se especificó en V03.3 (perfil público, búsqueda y sistema de jugadores) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.3 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.3_Informe.md) |
 
 **Rondas anteriores:**
 
 | Qué necesitás | Documento |
 |---|---|
+| Qué se especificó en V03.2.2 (microparche visual: acceso, login, confirmar partido) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Consolidado.md) |
+| Qué se implementó, verificó y corrigió en V03.2.2 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.2_Informe.md) |
 | Qué se especificó en V03.2.1 (corrección visual de acceso, botones y carga manual tras QA en producción) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en V03.2.1 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2.1_Informe.md) |
 | Qué se especificó en V03.2 (auditoría y normalización del sistema visual transversal: acceso, splash, botones, modales, navegación inferior) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.2_Consolidado.md) |
