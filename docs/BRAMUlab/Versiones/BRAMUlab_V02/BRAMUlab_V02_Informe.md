@@ -1,191 +1,380 @@
 # BRAMUlab_V02
 ## Informe — qué se implementó, verificó y corrigió
 
-**Fecha:** 03/09/2026.
-**Base:** BRAMUlab_V01 en `v2.2.1` (commit `910975f`).
-**Commit de implementación:** `91a79f8`. **Tag:** `v3.0` (el tag técnico sigue la numeración de git existente — v1.1…v2.2.1 — separado del naming visible de producto, que a partir de esta ronda es "BRAMUlab V02", no un número de versión; ver §5 de este informe).
-**Estado:** publicado en producción.
+**Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva).
+**Fecha de esta síntesis:** 10/09/2026.
+**Estado actual de la app:** tag `BRAMUlab_V02.9.3`, commit `9653c748f2ce2e789de1eda9079c63dd9f8f60c4`. Última rama de trabajo cerrada: V02.9.3 (ajustes finales de Historial y Último partido).
+**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (matrices requisito→implementación, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior).
 
 ---
 
-## 1. Correcciones documentales previas (commit `a3f4907`)
+## 0. Arquitectura vigente al cierre de la línea V02 (acumulada, no por versión)
 
-Antes de implementar se aplicaron las 4 correcciones puntuales pedidas al `BRAMUlab_V02_Consolidado.md`: `privateNote` reclasificado de AGREGAR a CONSERVAR Y FUSIONAR (ya existía desde V01, solo se rediseña su presentación); "Entrega esperada" ahora apunta a `BRAMUlab_V01_Informe.md` en vez de "revisar informes de v2.2/v2.2.1"; versión visible fijada como texto de producto "BRAMUlab V02"; deliverable de este informe con ruta explícita. Detalle completo del diff en el propio consolidado.
+**Tokens CSS centralizados** (`styles.css:root`), valores finales tras 16 rondas de afinación:
+- Color: `--brand-lime:#95FF19` (identidad/acción/progreso — nunca color de equipo), `--accent-cyan:#199FFF` (funciona conceptualmente como "azul BRAMU", token sin renombrar por compatibilidad), `--team-a: var(--brand-lime)`, `--team-b: var(--accent-cyan)` (magenta salió del sistema de equipos en V02.5), `--text:#F8FAFC` (nunca blanco puro `#FFFFFF`), `--bg/--bg-deep/--surface-1/2/3`, `--line/--line-strong/--scrim`.
+- Radios: 7 familias reales y coherentes — circular `50%`, pill `999px`, control chico `8-10px`, superficie tocable `12px` (`14px` como escalón intermedio real), tarjeta estándar `var(--radius-card)` = 16px, hero `var(--radius-hero)` = 18px, sheet/modal `20px`. Normalizados en V02.8 los casos verificables 1:1 (literales que coincidían por casualidad con los tokens).
+- Motion: `--motion-base/--motion-fast/--motion-ease` (curva `cubic-bezier(0.32,0.72,0,1)`, agresiva — resuelve ~95-100% del recorrido en el primer 20-25% del tiempo, adecuada para feedback de UI pero NO para animaciones de entrada) más `--home-anim-level/--home-anim-activity/--home-anim-effectiveness` (duración) y `--home-anim-ease: ease-out` (curva dedicada, introducida en V02.8.1 tras diagnosticar por qué las animaciones de entrada del Home no se percibían). Todos colapsan a `1ms` bajo `prefers-reduced-motion`.
+- Fondo: `--bg-gradient-app` (token compartido desde V02.7) aplicado a Historial/Ranking/Perfil/Compañeros-Rivales/Carga manual/Confirmar partido/Resumen/Setup (Setup se sumó recién en V02.8); el Home mantiene su propio degradé bespoke, más intenso arriba, como "pantalla ancla".
+- Regla de bordes (documentada por la auditoría de V02.8, no cambiada): **fila de lista → sin borde**, solo fondo; **tarjeta autónoma → borde 1px `var(--line)`**, salvo razón jerárquica real (selección, pertenencia de equipo).
 
----
+**Componentes/patrones establecidos:**
+- Marcador canónico compartido (Historial/Confirmar partido) construido con separadores **geométricos** (`inline-flex`, barras/puntos `background:currentColor`), no glifos tipográficos — desde V02.6, con `aria-label` de texto completo para accesibilidad. La tarjeta "Último partido" del Home usa su PROPIO builder (`buildLastMatchScoreHTML`), deliberadamente separado del canónico desde V02.4, para poder tener un tratamiento tipográfico distinto sin arrastrar cambios a Historial/Confirmar.
+- Filas de equipo en Confirmar partido/Resumen sobre **CSS grid** (`minmax(0,1fr) auto` + columnas de set de ancho fijo) desde V02.6 — reemplaza un layout flex que rompía la alineación de columnas con nombres de equipo de longitud muy distinta.
+- "Último partido" es el **componente madre** de la representación visual de un partido jugado; desde V02.9, Historial es explícitamente su clon compacto (mismas 4 zonas: header con fecha/hora+badge, resultado protagonista, participantes abajo-izquierda, formato/sistema abajo-derecha).
+- Sistema de sheets con 3 alturas nombradas: compacto (`~35%`, Registrar partido, sin tocar desde V02.4), alto (`~70-75%`, selector de jugador, desde V02.5), y el modal centrado genérico (`.overlay`).
+- Animaciones de entrada al Home (Nivel/Actividad/Efectividad) se re-disparan en **cada** entrada o vuelta (decisión final de V02.8, revirtiendo la de "una vez por sesión" que V02.7 había tomado); implementadas con técnicas robustas por elemento — `@keyframes` sobre `transform:scaleX/scaleY` para Nivel/Actividad, Web Animations API sobre `stroke-dashoffset` para Efectividad — tras descartar la técnica original "0 + reflow + valor final" por depender de que el navegador registre un frame intermedio, algo que no siempre ocurre.
 
-## 2. Qué se reemplazó globalmente (tokens)
-
-**Tipografía.** `Oswald` + `Manrope` → **Inter** (pesos 400–900) como única familia, cargada por `@import` de Google Fonts (mismo mecanismo que ya usaba la app — ver desvío justificado en §7). `--font-display` y `--font-body` se mantuvieron como nombres de variable para no reescribir ~40 referencias existentes; ambas apuntan a Inter ahora.
-
-**Paleta.** Se centró en `:root` (`styles.css`) el set de tokens que pide el consolidado (`--bg-deep/--bg/--surface-1/2/3`, `--text/--text-dim/--text-faint`, `--brand-lime/--brand-lime-deep/--accent-cyan`, `--team-a/--team-a-deep/--team-b/--team-b-deep`, `--line/--line-strong/--scrim`, `--radius-card/--radius-hero/--radius-control/--radius-pill`, `--motion-fast/--motion-base/--motion-ease`). Los nombres de variable **viejos** (`--ink`, `--ink-soft`, `--ink-softer`, `--paper`, `--paper-dim`, `--paper-faint`) se conservaron como **alias** apuntando a los nuevos valores (`--ink: var(--bg)`, etc.) — decisión técnica explícita: la mayoría de las ~1600 líneas de `styles.css` ya usaba estas variables de forma consistente, así que redirigir su valor cambia la paleta de casi toda la app sin tener que tocar cada regla una por una. La paleta `--court-*` (marcador/carga manual, Etapa 4.2) se fusionó del mismo modo: dejó de tener valores propios y ahora es alias del sistema global (`--court-bg: var(--bg)`, etc.), cumpliendo el pedido de FUSIONAR sin reescribir sus ~40 usos.
-
-**Motion.** `--sheet-duration-enter/--sheet-duration-level/--sheet-ease` (ya existentes, usados por todas las hojas inferiores) pasaron a ser alias de los nuevos `--motion-base/--motion-fast/--motion-ease`, evitando dos sistemas de timing paralelos.
-
----
-
-## 3. Reclasificación de color — la parte que no era un simple find-and-replace
-
-Repintar `--team-a`/`--team-b` a azul/magenta de forma ciega habría roto la app: en el código anterior, **lima (`--team-a`) cumplía doble función** — color real de Equipo A en el marcador/estadísticas, y acento genérico de "acción/identidad/progreso" en el Home/Historial/Perfil (nav activo, barra de progreso del Nivel BRAMU, donut de efectividad, badges de victoria, etc., todos escritos como `var(--team-a)` porque lima ya era, de hecho, el único acento fuerte de la app). El consolidado separa esos dos roles explícitamente (§2.2, §2.4), así que se auditó **línea por línea** cada uso de `var(--team-a)`/`var(--team-b)` y de sus literales `rgba(200,255,61,…)`/`rgba(51,166,255,…)` asociados (glows, gradientes) en `styles.css`, y se clasificó cada uno:
-
-- **~32 usos genuinamente de equipo** (setup, marcador en vivo, banda de estado, editores Ajustar/Corrección rápida, `result-card`, estadísticas comparativas, Timeline, Historial ganador, y los jugadores de "Tu equipo"/"Rivales" en carga manual) → quedaron en `var(--team-a)`/`var(--team-b)`, que ahora resuelven a azul/magenta.
-- **~38 usos que en realidad eran acento de marca** (nav inferior activo, tarjeta de perfil, barra de Nivel BRAMU, Actividad/Efectividad, badges de victoria/racha, hoja "Registrar partido", banner de partido en curso, teclado numérico, evolución del Nivel BRAMU en Perfil, wordmark de Compartir) → reclasificados a `var(--brand-lime)`, que conserva el HEX exacto que ya tenían (`#C8FF3D`), así que no hubo que tocar los literales `rgba(200,255,61,…)` de esos casos — solo el nombre de variable.
-- Los `rgba(...)` de **glow que sí eran de equipo** (ej. el brillo del `team-zone` al marcar punto, los `@keyframes teamBannerPulseSetA/B`/`MatchA/B`) se recalcularon al nuevo RGB de azul/magenta (`45,156,255` / `255,62,165`).
-- Caso particular verificado a mano: `.load-player-chip--fixed` (el chip "vos" fijo en Equipo A dentro de carga manual) se mantuvo en azul, no lima — es Equipo A, no un acento de identidad, aunque superficialmente parecía candidato a lima por estar en la misma zona que otros acentos.
-
-**Dorado** se auditó con el mismo criterio: se conservó únicamente para Punto de Oro, y — por decisión de criterio, documentada acá para que se pueda objetar si no es la lectura correcta — también para **Star Point** y **Tie break**, tratándolos como la misma familia semántica de "punto/definición decisiva" que Punto de Oro (mismo tratamiento visual que ya tenían, sin fusionarlos entre sí). Todo lo demás que usaba dorado como acento genérico se pasó a lima: `btn-start` (CTA principal de Setup), `btn-mini`, el FAB "+" de la barra inferior, `overlay__title` (título de ~15 modales genéricos — Editar, Ajustar, Corrección rápida, "¿Quién sos?", etc.), selecciones de formato/puntuación, highlight popup, badges de Historial, y el wordmark de marca en las capturas de Compartir. La tarjeta "SIMULADO · BETA" de Perfil (evolución del Nivel BRAMU) se pasó a **cian** en vez de lima — no es Punto de Oro ni una acción, es información secundaria/disclaimer, que es exactamente el rol que el consolidado define para `--accent-cyan` (§2.2).
+**Sin arnés de test para DOM/`app.js`** en ningún punto de esta línea (mismo criterio heredado de V01) — `tests.html` solo carga `engine.js`/`stats.js`/`store.js`/`player-home.js`/`match-load.js`. Toda la verificación de UI/animaciones/layout se hizo a mano contra `.claude/dev-server.py`, con técnicas cada vez más rigurosas (computed styles → `MutationObserver` → `getAnimations()`/scrubbing determinístico → muestreo atómico en tiempo real) a medida que rondas sucesivas revelaron que las verificaciones anteriores no habían sido suficientes.
 
 ---
 
-## 4. Iconografía
+## 1. Sistema visual integral — V02 base
 
-Reemplazados por SVG de trazo propio (1.75–2px, mismo lenguaje): el menú ☰ del partido en vivo, las 14 apariciones del botón cerrar ✕ (overlays y hojas inferiores — un único `replace_all` porque las 14 comparten estructura idéntica), el indicador de "quién saca" (antes 🎾, ahora un punto lima de 5-6px, mismo lenguaje que los demás indicadores de la app en vez de un emoji nuevo), el ícono del placeholder de Ranking (antes 🏆) y el ícono del anillo del popup de Highlight (antes ⭐).
+**Fuente:** `BRAMUlab_V02_Informe.md`. Commit de implementación `91a79f8`. Tag técnico: creado inicialmente como `v3.0` (numeración paralela) y **corregido a `BRAMUlab_V02`** durante el "Ajuste visual de cierre 01" (mismo commit `91a79f8`, ver §1.1) — desde entonces ninguna ronda de esta línea volvió a crear tags `vN.N`.
 
-**Deliberadamente sin tocar:** los emoji que aparecen dentro de *texto generado* por BRAMU Intelligence/Timeline (`⭐ Highlight guardado`, `🏆 Fin del partido…`, `✎ Ajuste de marcador`, anotaciones del gráfico de Evolución, etc., todos en `app.js`) y el prefijo 🎾 en el listado de "sugerido" del selector de sacador. Son contenido editorial generado dinámicamente, no iconografía de interfaz — tocarlos implica editar la lógica de generación de texto en `app.js`/`stats.js`, fuera del alcance de un consolidado que dice explícitamente "conservá toda la lógica funcional validada" y "no rediseñes la estructura del marcador en vivo". Si Sebastián lo prefiere, es un ajuste concreto y acotado para una ronda futura.
+Reemplazo global de tokens: Oswald+Manrope→Inter (vía `@import` de Google Fonts, no `.woff2` local — desvío justificado, mismo mecanismo ya probado que usaba la app); paleta centralizada con las variables viejas (`--ink`, `--paper`, etc.) conservadas como **alias** de las nuevas para no reescribir ~1600 líneas de `styles.css` referencia por referencia; la paleta `--court-*` (marcador/carga manual) fusionada del mismo modo.
 
----
+**La reclasificación de color no fue un find-and-replace ciego.** En el código anterior, lima (`--team-a`) cumplía doble función — color real de Equipo A y acento genérico de identidad/acción en Home/Historial/Perfil. Se auditó línea por línea cada uso de `var(--team-a)`/`var(--team-b)` y sus literales `rgba(...)` asociados: **~32 usos genuinamente de equipo** quedaron en los tokens de equipo (ahora azul/magenta); **~38 usos que en realidad eran acento de marca** se reclasificaron a `var(--brand-lime)` (conservando el HEX exacto que ya tenían). Caso verificado a mano: el chip "vos" fijo de Equipo A en carga manual se mantuvo en azul (es equipo, no identidad), pese a estar en la misma zona que otros acentos. Dorado se conservó para Punto de Oro y — por decisión de criterio documentada — también para Star Point y Tie break (misma familia semántica de "punto decisivo"); todo lo demás que usaba dorado genérico pasó a lima.
 
-## 5. Versión visible de producto
+Iconografía: reemplazo por SVG lineal del menú del partido en vivo, las 14 apariciones del botón cerrar (un solo `replace_all`), el indicador de saque (de 🎾 a un punto lima), el placeholder de Ranking y el ícono del popup de Highlight. **Deliberadamente sin tocar:** emojis dentro de texto GENERADO por BRAMU Intelligence/Timeline (contenido editorial dinámico, no iconografía de interfaz).
 
-`Store.VERSION`/`version.json`/footer pasan de `v2.2.1` a **"BRAMUlab V02"** (texto de producto, con espacio — distinto de `BRAMUlab_V02`, que es la convención de nombrado de archivos/documentos). El mecanismo de chequeo de actualización (`checkForNewVersion()` en `app.js`) compara este string por igualdad estricta contra `version.json`, así que el mensaje "X está disponible" ahora lee naturalmente "BRAMUlab V02 está disponible." El tag técnico de git para este commit es `v3.0` (continúa la numeración interna existente — v1.1 → v2.2.1 — que es historial técnico de BRAMUlab_V01/V02, no el naming visible).
+Versión visible: `Store.VERSION`/`version.json`/footer → **"BRAMUlab V02"** (texto de producto con espacio). `sw.js` `CACHE_NAME` → `bramulab-v02`.
 
-`sw.js`: `CACHE_NAME` pasa de `bramulab-v2.2.1` a `bramulab-v02` (clave de caché, no necesita ser el string humano completo).
+**Verificación:** 483/483 tests (sin cambios — solo el string `APP_VERSION`). Verificación manual de las 10 pantallas pedidas por el consolidado en 402×874, con un partido cargado de punta a punta. **Limitación de entorno:** el sandbox de esta sesión no pudo registrar el Service Worker (`navigator.serviceWorker.register` fallaba pese a que `fetch('sw.js')` respondía 200) — la verificación real de "se ofrece y aplica la actualización" se hizo después de publicar, contra producción, confirmando el modal de actualización y el flujo completo funcionando.
 
----
+**Desvíos justificados:** (1) Inter vía CDN, no `.woff2` local — el consolidado lo dejaba como preferencia, no obligación. (2) Dorado extendido a Star Point/Tie break. (3) Emoji en texto generado sin tocar. (4) No se persiguió la unificación completa de radios/letter-spacing más allá de lo explícitamente pedido (esa deuda quedó documentada y fue el origen de la Auditoría de V02.8).
 
-## 6. Otros cambios visuales explícitos del consolidado
+### 1.1 Ajuste visual de cierre 01
 
-- **Tarjeta "Último partido" del Home** pasa a tratamiento hero real (§4.3): superficie con degradado propio (`linear-gradient` de `--surface-2` a `--bg-deep`) y radio 18px (`--radius-hero`), en vez de compartir el fondo plano `--surface-1` del resto de las tarjetas — antes de este cambio, al fusionar `--court-surface` con la paleta global, esta tarjeta habría quedado visualmente idéntica a cualquier otra `.pastilla`, perdiendo la jerarquía "pieza principal del Home" que pide el consolidado.
-- **BRAMU Intelligence** deja de ser un párrafo colgado (§4.6): en Análisis, el `<h3>` existente suma un ícono propio (SVG) y una frase de encuadre nueva ("Una lectura objetiva de lo que pasó en la cancha, no una planilla de estadísticas."), y el texto vive dentro de una superficie con borde/fondo propio. En Resumen (partido cargado manualmente), mismo tratamiento resuelto solo con CSS (`::before` + superficie) para no tocar el JS que ya hace `.hidden = true/false` sobre ese párrafo puntual.
-- **Banda de estado por equipo** (`status-banner--team-a/b`, Break/Set/Match point): el texto hardcodeado `#0C1400`/`#041420` (pensado para el lima/celeste viejos) pasa a `var(--text)` (blanco) — más legible sobre los nuevos azul/magenta, que son menos claros que el lima original.
+**Fuente:** sección dentro de `BRAMUlab_V02_Informe.md`. Commit `320d2c2`.
 
----
+**Tag técnico corregido:** se verificó primero (`gh api repos/.../pages`) que GitHub Pages depende solo del push a `main`, nunca de tags; se eliminó el tag `v3.0` (local y remoto) y se creó `BRAMUlab_V02` apuntando al mismo commit `91a79f8`.
 
-## 7. Desvíos justificados
+**Jerarquía tipográfica fusionada de verdad:** ~20 clases con `font-family` pero sin `font-weight` explícito (heredaban 400 del navegador pese a tamaños grandes) se auditaron y se les asignó peso según la escala del consolidado: 800 para resultados/números hero (`.player-home-lastmatch__score`, `.court-score__value`, `.player-card__level-value`), 700 para métricas protagonistas/títulos/CTA, 600 para subtítulos, 500 para nombres/metadatos.
 
-1. **Fuente Inter vía Google Fonts CDN, no `.woff2` local.** El consolidado lo dejaba como "preferencia técnica", no obligación. Se mantuvo el mismo mecanismo (`@import`) que ya usaba la app para Oswald/Manrope — es el patrón ya probado en producción, y empaquetar el archivo variable local implicaba descargar y versionar un binario sin poder verificar su integridad/subsetting en este entorno. Si en algún momento se prioriza que la PWA cargue tipografía 100% offline, es un cambio acotado para una ronda aparte.
-2. **Dorado extendido a Star Point/Tie break**, no solo a "Punto de Oro" en sentido literal — ver razonamiento en §3.
-3. **Emoji dentro de texto generado (BRAMU Intelligence/Timeline) sin tocar** — ver razonamiento en §4.
-4. **No se persiguió la unificación completa de radios/letter-spacing** que señala la auditoría visual pre-V02 (6 radios de tarjeta distintos, 18 valores de letter-spacing) más allá de lo que el consolidado pide explícitamente (radio base 16px/hero 18px como escala de referencia, uppercase reservado a volantas chicas). La mayoría del uppercase existente ya era en microlabels pequeños, que ya califica como "volanta" — no se encontró una violación grande de ese criterio que ameritara una pasada componente por componente con el presupuesto de esta ronda.
+**El bug más importante de la ronda:** el síntoma reportado — la segunda opción del sheet "Registrar partido" tapada por la barra inferior — **no era un problema de z-index**. Investigando con `getComputedStyle`, se descubrió que `--court-surface` devolvía **string vacío**: el bloque `:root{...}` completo que definía los 8 tokens `--court-*`/`--sheet-duration-*` nunca aparecía en `document.styleSheets[0].cssRules` pese a estar bien formado en el archivo fuente. **Causa raíz:** un comentario CSS inmediatamente anterior contenía la secuencia literal `--motion-*/--motion-ease` (sin espacio) — el `*/` ahí adentro cerraba el comentario antes de lo previsto, y todo el texto suelto siguiente se interpretaba como CSS inválido, haciendo que el parser descartara en silencio el bloque `:root{...}` completo que venía después. Esto dejaba **todo el sistema de tokens `--court-*` fusionado en V02 silenciosamente inactivo en producción desde su publicación**, sin ningún error de consola — afectando no solo el sheet "Registrar partido" sino "Elegir jugador", "Formato y puntuación" y buena parte de la pantalla de carga manual. Fix de una línea: agregar el espacio faltante.
 
----
+**Consecuencia de publicación:** dado que `sw.js` no cambiaba de bytes en esta ronda, ningún cliente con la caché `bramulab-v02` ya instalada iba a detectar el service worker nuevo por sí solo — se subió igual el `CACHE_NAME` técnico a `bramulab-v02-1` (sin cambiar la versión visible), estableciendo el patrón de "bump técnico de caché" que se repitió en cada ronda siguiente de esta línea.
 
-## 8. Verificación
+**Recomposición de "Último partido":** volanta+título+badge agrupados en un único bloque a la izquierda con fecha/hora/lugar a la derecha (antes en filas separadas); resultado a 36px/800/tabular; chevron movido de la fila del título a la fila de parejas; línea de acento de 2px en el borde superior (lima en victoria, coral en derrota).
 
-**Tests automatizados:** 483/483 verdes, sin cambios (`tests.html`) — ninguna función pura de `engine.js`/`stats.js`/`player-home.js`/`match-load.js`/`store.js` fue tocada, solo el string `APP_VERSION` (sin lógica dependiente de su formato).
+**Desvío observado, no corregido (quedó anotado para revisión futura):** un partido cargado con "Ahora" quedó con `playedAt` un día calendario por delante de `createdAt` — no se investigó por estar `match-load.js` explícitamente fuera de alcance de esta ronda. Este sería exactamente el bug que V02.1 (§1 de este informe) encontraría y corregiría a fondo poco después.
 
-**Verificación manual**, viewport 402×874 (iPhone 16 Pro), `.claude/dev-server.py` local con un jugador identificado y un partido cargado manualmente de principio a fin (creación de 2 jugadores invitados, entrada de resultado con teclado incluyendo la validación preventiva del hotfix v2.2.1 — confirmada intacta: el teclado seguía deshabilitando dígitos imposibles según el valor ya cargado del rival), más un partido en vivo iniciado desde cero para revisar marcador/menú/banda de estado:
-
-1. Home completo — pantalla capturada.
-2. Sheet "Registrar partido" — capturada.
-3. Carga manual sin teclado (resultado ya cargado) — capturada.
-4. Carga manual con teclado abierto — capturada.
-5. Selector de jugador (hoja "Elegir compañero", con validación de nombre duplicado intacta) — capturada.
-6. Formato y puntuación — capturada.
-7. Historial con pestañas y filtros (partido recién cargado, "Todos"/"Mis partidos"/"Observados" con conteos correctos) — capturada.
-8. Resumen con BRAMU Intelligence (nueva superficie editorial) — capturada.
-9. Partido en vivo, incluido el menú ☰ (ícono nuevo, banda "CAMBIAR", indicador de saque como punto lima) — capturada.
-10. Ranking/Perfil (estado vacío de Ranking con ícono nuevo; Perfil con evolución del Nivel BRAMU y badge cian) — capturada.
-
-Las diez se revisaron como conjunto: ninguna quedó con lenguaje verde-negro/dorado del sistema anterior ni se sintió "otra app" al pasar de una a otra.
-
-**Persistencia:** recargando `index.html` después de cargar el partido manual, `bramulab.history.v1` seguía con la entrada guardada y la app reabrió directamente sobre el partido en vivo que había quedado activo (comportamiento correcto de `bootDefaultScreen()`/auto-resume, sin tocar).
-
-**Actualización PWA — limitación de entorno, no de código.** El navegador de verificación de este entorno (sandbox de Claude Code) **no pudo registrar el service worker** (`navigator.serviceWorker.register('sw.js')` devuelve "unknown error fetching the script" pese a que un `fetch('sw.js')` directo responde 200 con el `Content-Type` correcto) — es una restricción del entorno de previsualización, no un problema de `sw.js` (no se tocó su lógica de cacheo, solo `CACHE_NAME`). Por este motivo, la verificación real de "se ofrece y aplica la actualización" se hizo después de publicar, contra la URL de producción — ver §9.
+**Tests:** 483/483 (sin cambios).
 
 ---
 
-## 9. Publicación
+## 2. BRAMUlab V02.1 — corrección funcional, UX y terminación visual
 
-- Commit de correcciones documentales: `a3f4907`.
-- Commit de implementación: `91a79f8` — *"BRAMUlab V02 · sistema visual integral"*.
-- Tag: `v3.0`.
-- Push a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages.
-- Verificación post-deploy contra `https://sebastianvilaa.github.io/BRAMUlab/bramulab/`: confirmado GitHub Actions "pages build and deployment" verde. Un cliente con el bundle viejo (`v2.2.1`, service worker de producción ya registrado de antes) mostró correctamente el modal "Hay una nueva versión de BRAMU / BRAMUlab V02 está disponible.", y tocar ACTUALIZAR recargó con el sistema visual nuevo aplicado (footer pasó a "BRAMUlab V02", fondo/paleta actualizados) — el flujo de actualización PWA funciona de punta a punta en producción real, cerrando la limitación de sandbox de §8.
+**Fuente:** `BRAMUlab_V02.1_Informe.md`. Base: `de00f8c`, tag `BRAMUlab_V02`. Tag de esta ronda: `BRAMUlab_V02.1` (commit `77f54c5`, derivado de la cita en el informe de V02.2 que lo usa como base).
+
+**Bug real #1 — el que motivó la ronda: "11 partidos cargados hoy, Actividad solo contaba 3".** Se auditaron primero `computeActivity30d`/`computeEffectiveness30d` (correctas, operan sobre timestamps absolutos) — el bug no estaba ahí. Estaba en el **prefill de carga manual**: `now.toISOString().slice(0,10)` (fecha en UTC) combinado con `getHours()/getMinutes()` (hora LOCAL). Durante la ventana horaria en la que el calendario UTC ya rotó pero el local no (Argentina UTC-3, aprox. 21:00-23:59), esa mezcla producía un `playedAt` hasta 24h en el futuro — no un detalle cosmético, un instante genuinamente futuro que el guard `age<0` de las funciones de cómputo excluía en silencio. **Reproducido en consola:** hora local `23:30` → `toISOString()` devuelve `2026-09-05T02:30:00.000Z`, escribiendo `"2026-09-05"` en el campo fecha mientras `getHours()` mostraba `23:30`. **Fix:** `localDateInputValue(d)`/`localTimeInputValue(d)` nuevas, siempre con getters locales, reemplazando tanto el prefill de "Ahora" como el fallback de edición (que también usaba `toISOString()`). Ningún registro histórico necesitó migración — el bug estaba en la ESCRITURA de partidos nuevos, nunca en la lectura.
+
+**Bug real #2 — tie-break sin poder superar 7.** El síntoma reportado tenía causa más profunda que un techo numérico: `applyGameTbStepper` exigía que **cada toque individual** produjera, por sí solo, un resultado FINAL válido — desde el default `7-5`, literalmente ningún botón hacía nada. **Fix:** el stepper ahora suma/resta libremente (sin techo artificial); la validación real se hace UNA VEZ al confirmar, con `E.isValidFinalTiebreakScore(a,b,cfg)` nueva en `engine.js`. Verificado llegando a **10-8** tocando "+" alternadamente (antes, imposible).
+
+**Bug real #3 — mensaje contradictorio del set decisivo.** El mensaje "falta definir el tercer set" podía seguir visible con el Set 3 ya válido, porque `manualSets[2]` seguía `null` hasta el toque explícito en CONTINUAR. Se resolvió como efecto directo del avance automático (Bloque B): con el Set 3 confirmándose en el mismo instante en que se completa, la ventana de contradicción desaparece.
+
+**Otros arreglos:** logo del Home dejó de navegar (`showView('setup')` eliminado); `Store.isPlaceholderPlayerName` excluye "Jugador 1"–"4"/"Vos" del selector sin tocar partidos históricos.
+
+**Rediseño estructural — Confirmar→Guardar→Resumen.** Reemplaza `Partido guardado`/`Resumen inmediato` (`#view-summary`)/`Análisis` por un flujo de dos pasos. `#view-match-saved` se repropone como PRE-guardado ("CONFIRMAR PARTIDO"); `finalizeManualContinue()` ya no persiste directo — arma el snapshot y recién al tocar GUARDAR llama `Store.upsertHistory` **una sola vez** (confirmado con `loadHistory().length` antes/después). `#view-analysis` pasa a ser la única pantalla de detalle para las 3 procedencias (vivo/manual/Historial), retitulada "RESUMEN DEL PARTIDO". **Eliminado por completo:** `#view-summary` y sus funciones (`renderSummary`, `buildSummaryCardHTML`, etc.). **Barrido de seguridad:** se encontraron y corrigieron 3 referencias sobrantes a `$('#view-summary')`/`$('#summary-*')` en `showView()`/`resetMatch()`/`discardActiveMatchState()` que habrían lanzado `TypeError`.
+
+**Bug real en BRAMU Intelligence.** `generateManualIntelligence` clasificaba TODO partido "ganó-perdió-ganó" como "parejo" sin mirar el margen real de cada set — `6–1 · 1–6 · 6–0` (dominio alternado, cierre contundente) se narraba como "desarrollo parejo". **Fix:** `classifyWonLostWonPattern(sets)` nueva, clasifica por margen real (`isSetMarginClose`). Los 5 casos textuales del consolidado quedaron cubiertos por tests automatizados.
+
+**Bug de CSS heredado.** `.overlay` tenía `background: rgba(11,18,17,0.92)` hardcodeado — exactamente el HEX del viejo `--ink` verde-negro pre-V02, nunca migrado por ser un literal, no una variable. Reemplazado por `var(--scrim)`. Además `.overlay` tenía `z-index:30`, por DEBAJO de `.bottom-nav` (`z-index:35`) — subido a 36.
+
+**Home:** destacados de chip a carrusel de tarjetas; avatar reemplazado por silueta SVG genérica + `@handle` derivado del nombre (nunca hardcodeado, nunca una foto real); nuevas vistas Compañeros/Rivales (`PH.computeTeammateBreakdown`/`computeRivalBreakdown`, puras, excluyen placeholders y observados); filtro contextual de Historial desde Racha/Efectividad.
+
+**Tests:** 349 (Etapa 2, herencia de V01) → esta ronda cierra en **523/523** (483 + 40 nuevos, 4 bloques: V02.1-TB tie-break, V02.1-PH placeholders, V02.1-M racha/compañeros/rivales/30 días, V02.1-BI narrativa). Durante la escritura de tests se corrigieron 4 errores de DATOS DE PRUEBA (no de código): un supuesto incorrecto de techo de tie-break con `winTarget` menor, una cuenta de días mal hecha a mano, y un `winnerTeam` invertido en el caso de remontada.
+
+**Nota de proceso:** la verificación visual/táctil completa se hizo con Service Worker/caché limpiados antes de cada verificación relevante — lección ya repetida desde V01 y que se mantuvo como práctica estándar en toda esta línea.
 
 ---
 
-## 10. Qué no se tocó (confirmado)
+## 3. BRAMUlab V02.2 — corrección UX y terminación visual
 
-Persistencia, modelos de datos, reglas de partido (`engine.js`), estadísticas y BRAMU Intelligence (`stats.js`), validaciones de carga manual (`match-load.js`), agregaciones del Home/Historial (`player-home.js`), esquema de `localStorage` (`store.js`, salvo el string de versión), navegación funcional, y la estructura del marcador en vivo (explícitamente fuera de alcance — solo se le fusionó la paleta). Nada de Base de datos, cuentas, ranking real, validación entre rivales ni procesamiento de notas privadas — todo eso sigue en `BRAMUlab_Backlog.md`, sin tocar.
+**Fuente:** `BRAMUlab_V02.2_Informe.md`. Commit de implementación `ab98131d27372bf994ae4b8f81357cf10b050733`. Tag `BRAMUlab_V02.2`.
+
+**Bug real: RECIENTES/TODOS duplicaban personas.** `renderManualPlayerSheetContent` armaba `TODOS` con una lista de exclusión que nunca incluía a quienes ya se mostraban en `RECIENTES` — cualquier persona con historial compartido aparecía dos veces en la misma pantalla. **Fix:** se guarda `recentNames` (vacía si hay búsqueda activa) y se agrega a la exclusión de `TODOS`. Verificado con test automático (`V02.2-SEL`) que reproduce el escenario exacto.
+
+**Decisiones de diseño documentadas:**
+- **Ganadores movidos DENTRO de la tarjeta de resultado** — revierte explícitamente una decisión mucho más antigua ("Bloque M1: el ganador vive FUERA de la tarjeta de score"); el consolidado V02.2 prevalece por instrucción expresa.
+- Sets/Games ganados pasan a calcularse desde `f.sets` (siempre disponible) en vez de solo para partidos cargados, eliminando la fila duplicada "Games ganados" que ya existía en la grilla de Por Games.
+- Nota privada colapsable en Resumen en vez de ocultarla sin alternativa — ocultarla por completo habría eliminado la única forma de agregarle nota a un partido ya guardado; se agregó un link discreto "+ Agregar nota privada" que revela el editor real.
+- Corrección de guion hyphen-minus→en dash en `formatSetSegmentLabel` (el resto de la app ya usaba en dash consistentemente).
+- Auto-avance completo hasta CONFIRMAR PARTIDO (`setTimeout` de 320ms) con el botón CONTINUAR conservado como red de seguridad para 2 casos no-interactivos (reabrir un partido completo, o un cambio de formato que deja el resultado ya válido).
+
+**Implementado además:** tarjetas EQUIPO A/EQUIPO B compactas reemplazando los 4 pills; sheet "Registrar partido" con las 2 opciones en igual jerarquía; avance automático de foco/set completo (selección secuencial Compañero→Rival1→Rival2→teclado, foco A→B, set→set→Confirmar); marcador canónico único (`buildCanonicalScoreLineHTML`) reutilizado en Historial/Confirmar/Último partido; Historial con pestañas reales (superficie propia); naming sin "BETA".
+
+**Tests:** **535/535** (523 + 12 nuevos: V02.2-SEL 7 casos selector, V02.2-SET 5 casos avance automático).
+
+**Nota sobre alcance de tests:** documentado explícitamente (y repetido en todos los informes siguientes) que `tests.html` nunca carga `app.js` — la orquestación de UI (secuencias automáticas, apertura de teclado, swipe) no es unit-testeable en este arnés, se verifica exclusivamente con recorrido manual.
+
+**Limitaciones honestas declaradas:** el panel del navegador quedó oculto del lado del cliente durante la sesión, impidiendo clicks por coordenadas — se dispararon los mismos eventos DOM que un toque real (`element.click()`, eventos `input` reales). El swipe de Historial no se pudo ejercitar de punta a punta (requiere secuencia táctil real) — verificado por revisión de código. Capturas no se pudieron guardar como archivos (limitación de herramientas de la sesión, no del alcance del pedido) — documentadas por descripción exacta de cada verificación en su lugar.
 
 ---
 
-## Ajuste visual de cierre 01
+## 4. BRAMUlab V02.3 — ajuste acotado de carga manual y métricas del Home
 
-**Fecha:** 04/09/2026.
-**Base:** este mismo BRAMUlab_V02 (commit `91a79f8`, tag técnico corregido más abajo).
-**Commit de implementación:** `320d2c2`.
-**Estado:** publicado en producción.
+**Fuente:** `BRAMUlab_V02.3_Informe.md`. Commit `28e994454aded5278976c5cc6dcc02240bcb9321`. Tag `BRAMUlab_V02.3`.
 
-Pasada acotada de jerarquía tipográfica y terminación visual pedida por Sebastián sobre la versión ya publicada de BRAMUlab_V02 — no reabre el sistema visual ni cambia la familia tipográfica, solo corrige ejecución.
+**Bug real: Actividad — la derrota nunca tenía relleno propio.** La altura del bloque exterior SÍ era proporcional a la cantidad de partidos, pero el único color visible (`--brand-lime`) vivía en una capa interna (`.activity-bar__win`) cuya altura era `wins/count` — con cero victorias, esa capa quedaba en 0% y lo único pintado era un fondo casi transparente, indistinguible de un período vacío. **Fix:** se elimina la capa `__win`; todo bloque con `count>0` recibe `.is-active`, pintando el bloque ENTERO en celeste (`--team-a`) sin importar la mezcla de resultados. *(Nota: esta implementación "todo celeste" sería, a su vez, declarada explícitamente "una interpretación incorrecta" por V02.4 — ver §5.)*
 
-### 1. Tag técnico corregido
+**Bug real: hora en 24h — el problema era el `<input type="time">` nativo, no el dato.** El valor interno siempre fue 24h; lo que se veía mal era el RENDERIZADO nativo del control, que en iOS/Safari sigue el idioma/región del dispositivo, no el `lang="es"` del documento. **Fix:** Hora deja de ser `<input type="time">` y pasa a un campo de texto enmascarado (`maskManualTimeInput`/`normalizeManualTimeOnBlur`), lo que además resolvió como efecto colateral la diferencia de tamaño/baseline entre Fecha y Hora (antes con chrome interno distinto).
 
-El tag `v3.0` (creado al publicar BRAMUlab_V02) reintroducía una numeración paralela (`v3.0`) que contradice el naming documental fijado en la reorganización del 03/09/2026 (`BRAMUlab_V01`/`BRAMUlab_V02`/`BRAMUlab_Partidos_V##`; ver memoria `project_bramu_lab_naming_reorg`). Se verificó primero que GitHub Pages no depende de tags — `gh api repos/sebastianvilaa/BRAMUlab/pages` confirma `source: {branch: "main", path: "/"}`, `build_type: "legacy"` — el deploy sale del push a `main`, nunca de un tag. Se eliminó el tag `v3.0` (local y remoto) y se creó `BRAMUlab_V02` apuntando al mismo commit `91a79f8` que ya tenía. La versión visible de producto sigue siendo el texto "BRAMUlab V02" (sin guion bajo), sin cambios — la corrección es solo del tag técnico de git. En adelante, ninguna ronda de BRAMUlab debe volver a crear tags `vN.N`.
+**Hallazgo de proceso:** al escribir el test de "un observado no suma actividad propia" se descubrió que NINGUNA función de `player-home.js` filtra participación por su cuenta — todas asumen que `matches` ya viene filtrado por `PH.filterMatchesForPlayer` (el único punto real de la app que decide propio/observado). No era un bug de producción (`app.js:renderPlayerHome` siempre filtraba correctamente) — se corrigió el TEST para ejercitar el camino real.
 
-### 2. Fusión de la jerarquía tipográfica de Inter
+**Otros cambios:** color contextual del selector (celeste Compañero/Equipo A, magenta Rival/Equipo B) reutilizando variables existentes; pausa deliberada tras el último set ("Resultado válido" + único CONTINUAR, en vez del auto-avance directo a Confirmar que V02.2 había introducido); Confirmar partido recompuesto reutilizando la tarjeta deportiva del Resumen; sheet Fecha/Hora/Lugar con columnas simétricas; tarjeta permanente de Notas "NOTAS DEL PARTIDO · SOLO VOS" (reemplaza el link colapsable de V02.2).
 
-Inter ya estaba cargada desde la implementación de BRAMUlab_V02, pero ~20 clases que usan `var(--font-display)`/`var(--font-body)` para datos protagonistas nunca declaraban `font-weight` — heredaban el peso por defecto del navegador (400), indistinguibles de un texto de cuerpo pese al tamaño grande. Se auditó cada regla con `font-family` sin `font-weight` en `styles.css` y se asignó peso según la escala del consolidado (§2.1), construyendo contraste entre niveles en vez de subir todo por igual:
+**Tests:** **548/548** (535 + 13: V02.3-ACT 7 casos, V02.3-EFE 6 casos).
 
-- **800** (resultados/números hero): `.player-home-lastmatch__score` (resultado de Último partido, antes 400), `.court-score__value` (resultado durante la carga, 52px, antes 400), `.court-saved-result__score` (pantalla "Partido guardado"), `.player-card__level-value` (Nivel BRAMU).
-- **700** (métricas protagonistas/títulos/CTA): `.result-card__set` (resultado del Resumen), `.effectiveness-donut__value` y `.pastilla-widget__value` (porcentajes y métricas — racha, partidos totales, efectividad), `.evolution-summary__value` (Perfil), `.overlay__title`, `.summary-card__title`, `.analysis-header__title`, `.analysis-section__title`, `.pastilla__title` (labels de tarjeta: TU MOMENTO, ACTIVIDAD, EFECTIVIDAD…), `.bottom-sheet__title`, `.court-header__status`/`--saved`, `.court-accumulated__set-score`, `.load-keypad__key` (dígitos del teclado numérico).
-- **600**: `.analysis-subsection__title` (nivel de título más chico que `.analysis-section__title`, para no igualar dos jerarquías distintas al mismo peso).
-- **500** (nombres y metadatos): `.player-card__name`, `.pastilla-identity__name`, `.player-home-lastmatch__date`/`__place`, `.sheet-active-card__teams`, `.active-match-banner__teams`, y el modificador `.pastilla-widget__value--text` (mejor compañero/rival frecuente — son nombres de persona, no números, así que quedan explícitamente más livianos que `.pastilla-widget__value` base aunque compartan la clase padre).
+**Desvío de entorno:** el registro EN VIVO del Service Worker falló en esta sesión puntual con "unknown error fetching the script" — el archivo servido confirmó el `CACHE_NAME` correcto vía `curl`; documentado como limitación de sesión, no defecto de la app (mismo mecanismo ya validado en V02.2).
 
-Se agregó `font-variant-numeric: tabular-nums` a los números que no lo tenían (`.player-card__level-value`, `.effectiveness-donut__value`, `.pastilla-widget__value`, `.result-card__set`, `.evolution-summary__value`, `.player-home-lastmatch__date`).
+---
 
-### 3. Recomposición de "Último partido"
+## 5. BRAMUlab V02.4 — ajuste visual corto
 
-La primera línea de la tarjeta ahora agrupa forma reciente + "ÚLTIMO PARTIDO" + badge Victoria/Derrota como un único bloque a la izquierda (`.player-home-lastmatch__heading`, nueva), con fecha/hora/lugar a la derecha — antes la volanta de forma vivía en una fila y el título+badge en otra. El resultado pasa a 36px/Inter 800/tabular (antes 34px sin peso explícito), con un tope de 32px por debajo de 360px de viewport. Las parejas bajan a 13px/500 con más separación alrededor de "vs" (`margin` de 6px a 8px), y el chevron se movió de la fila del título a la fila de parejas, alineado con ella en vez de quedar flotando arriba (`.player-home-lastmatch__teamsrow`, nueva). La tarjeta gana padding (16px → 20px/18px), el degradado se oscurece (`--surface-2` → `--surface-1` como punto de partida) y se agregó una línea de acento de 2px en el borde superior — lima en victoria, coral en derrota, vía las clases `.player-home-lastmatch--win`/`--loss` que `renderPlayerLastMatchCard()` aplica y remueve en cada render según `resultKind` (sin acento en estado vacío o "sin definición").
+**Fuente:** `BRAMUlab_V02.4_Informe.md`. Commit `86e9a945a820b3ca4a2ac662eb6aa926a3853186`. Tag `BRAMUlab_V02.4`.
 
-### 4. Ícono de "Tu momento"
+**Corrección explícita de V02.3:** "la implementación V02.3 con todas las barras celestes fue una interpretación incorrecta y debe reemplazarse" (cita textual del consolidado). Actividad vuelve a ser **barra apilada**: lima=victorias, gris-azulado (`--line-strong`)=derrotas, vía nueva función pura `PH.computeActivityBarSegments`, con leyenda "Ganados"/"Derrotas".
 
-El path SVG relleno anterior (una estrella de 4 puntas simplificada) se reemplazó por una pelota de pádel lineal propia (círculo + dos arcos de costura), en el mismo lenguaje de trazo (~1.8px, sin relleno) que el resto de la iconografía SVG de la app — antes era el único ícono "sólido" del sistema. Tamaño 20px, color lima, sin glow.
+**Bug real: barra de Nivel BRAMU con posición global, no progreso decimal.** El cálculo anterior representaba la posición del nivel en el rango `[LEVEL_MIN, LEVEL_MAX]` completo, no el avance decimal dentro del nivel entero actual — 6.2 podía mostrar más de la mitad de la barra. **Fix:** `PH.levelProgressPct` nueva, con aritmética ENTERA (`Math.round(level*10)` módulo 10) para evitar el error de precisión flotante de restar decimales (`6.3-6` en JS puede dar `0.29999999999999982`). Casos exactos verificados: 6.0→0%, 6.2→20%, 6.3→30%, 6.9→90%, 7.0→0% (nuevo nivel).
 
-### 5. El bug real detrás del sheet "Registrar partido"
+**Último partido:** Surface 3 + borde lima completo (se retira el acento lateral); marcador propio (`buildLastMatchScoreHTML`, deliberadamente separado del componente canónico compartido para no arrastrar el cambio a Historial/Confirmar) a 44px con `clamp()` para anchos chicos; separador de sets blanco/900 a 0.75em; guion interior en `span` propio, 0.65em/peso 500 (nunca hereda el 900 de los números); equipos en dos líneas.
 
-Este fue el hallazgo más importante de la ronda. El síntoma reportado — la segunda opción del sheet ("Registrar partido en vivo") tapada por la barra inferior en producción — **no era un problema de z-index ni de orden de capas**: `.sheet-scrim` ya tenía `z-index: 36`, por encima de `.bottom-nav` (`z-index: 35`), y geométricamente el sheet ya llegaba hasta el borde inferior real del viewport.
+**Ajuste fino de última hora en Partido completo:** el primer intento de agrandar las pastillas SET 1/2/3 (padding `9px 16px`) dio 73×62px, más de 20% por encima de la referencia — se revirtió el padding a `7px 14px` y se dejó crecer SOLO la tipografía, dando 69×57px, más ajustado al objetivo.
 
-Verificado con la app corriendo en `.claude/dev-server.py`: `getComputedStyle(document.documentElement).getPropertyValue('--court-surface')` devolvía **string vacío** — la variable no existía. Rastreando por qué, el `:root{ --sheet-duration-enter: var(--motion-base); ...; --court-bg: var(--bg); --court-surface: var(--surface-1); ... }` completo (la sección "Movimiento (§11 / Adenda §5)") nunca aparecía en `document.styleSheets[0].cssRules` pese a estar presente, bien formado y con llaves balanceadas en el archivo fuente. La causa: el comentario inmediatamente anterior contenía la secuencia literal `--motion-*/--motion-ease` (sin espacio) — el `*/` ahí adentro cierra el comentario CSS antes de lo previsto. Todo el texto suelto que sigue (`-motion-ease definidos en :root...`) pasa a interpretarse como CSS real; al no ser un selector válido, el parser descarta en silencio el bloque `:root{...}` completo que viene después, incluidas TODAS sus declaraciones. Reproducido de forma aislada inyectando el fragmento exacto en un `<style>` nuevo: 0 reglas útiles parseadas hasta corregir el espacio.
+**Sheet compacto:** nueva clase reutilizable `.bottom-sheet--compact` (`clamp(280px,35dvh,340px)`) aplicada a "Registrar partido" — medido en vivo en 305.9px sobre 874px (35% exacto).
 
-Ese bloque descartado definía `--court-bg`, `--court-surface`, `--court-surface-2`, `--court-line`, `--court-text-dim`, `--court-text-faint`, `--court-glow` y `--sheet-duration-enter`/`--sheet-duration-level`/`--sheet-ease` — es decir, **todo el sistema de tokens `--court-*` fusionado en BRAMUlab_V02 (§6 del consolidado) estaba silenciosamente inactivo en producción desde su publicación**, sin ningún error de consola (los `var()` con variable inválida simplemente caen al valor inicial de la propiedad). Esto dejaba transparente no solo el sheet "Registrar partido", sino también "Elegir jugador", "Formato y puntuación" y buena parte de la superficie de la pantalla de carga manual (`.court-players`, `.court-current-set`, `.load-keypad`, etc.) — todas consumían `var(--court-surface)`/`var(--court-line)` que resolvían a inválido.
+**Tests:** **558/558** (548 + 10: V02.4-NIVEL 6 casos, V02.4-ACT-SEG 4 casos).
 
-Fix de una línea: agregar un espacio (`--motion-* y --motion-ease` en vez de `--motion-*/--motion-ease`) para que el comentario cierre donde corresponde. Verificado post-fix: los 8 tokens `--court-*`/`--sheet-duration-*` resuelven correctamente, el sheet queda opaco y cubre la barra inferior por completo (confirmado con `document.elementFromPoint()` sobre la zona de superposición: devuelve `#register-sheet`, nunca un elemento de `.bottom-nav`), y la pantalla de carga manual — que antes de este hallazgo nunca se había visto con su fondo real — se ve con la superficie "cancha nocturna" que el consolidado pedía desde el principio.
+---
 
-**Nota sobre verificación con el service worker activo:** durante esta ronda se confirmó (otra vez) que `sw.js` cachea agresivamente (`cache.addAll` + cache-first) y que un simple recargo no alcanza para ver un cambio de CSS — hace falta `unregister()` + `caches.delete()` antes de recargar, en cada iteración. Ya estaba documentado en memoria de rondas anteriores; se repite acá porque este hallazgo específico habría sido imposible de detectar sin descartar primero la caché como explicación alternativa.
+## 6. BRAMUlab V02.5 — integración visual + UX de carga manual y resumen
 
-**Consecuencia para la publicación — bump técnico de `CACHE_NAME`:** este mismo comportamiento agresivo de caché aplica a cualquier usuario que ya tenga BRAMU abierto o instalado como PWA. `sw.js` no cambió de bytes en esta ronda (ninguna ronda de ajuste puntual lo toca normalmente), así que el navegador nunca detecta por sí solo que hay un service worker nuevo para reinstalar — un cliente que ya tenía `bramulab-v02` cacheado se habría quedado para siempre con el sheet transparente, sin ningún mecanismo que lo sacara de ahí. El chequeo de versión de la app (`checkForNewVersion()`) tampoco lo habría disparado, porque compara el string humano `Store.VERSION` contra `version.json` y ninguno de los dos cambia en esta ronda (§1: la versión visible sigue siendo "BRAMUlab V02", sin cambios). Se optó por subir únicamente la clave interna de caché en `sw.js` (`CACHE_NAME`: `bramulab-v02` → `bramulab-v02-1`, comentario agregado explicando el motivo) — no es un cambio de versión visible, es equivalente a lo que ya documentó el informe original de BRAMUlab_V02 (§5) cuando el propio nombre cambió como efecto colateral. Verificado localmente: con un cliente que ya tenía `bramulab-v02` activo (mismo estado que un usuario real con la app abierta), un simple recargo — sin `unregister()` manual — dispara el reinstall del service worker, repuebla la caché con los archivos corregidos y borra la caché vieja automáticamente (confirmado con `caches.keys()` antes/después).
+**Fuente:** `BRAMUlab_V02.5_Informe.md`. Commit `e85de14f2177e699ba17eb3356c43a3664359f88`. Tag `BRAMUlab_V02.5`.
 
-### 6. Verificación
+**Investigación de fechas (obligatoria antes de tocar UI):** se confirmó que el fix de V02.1 (`localDateInputValue`/`localTimeInputValue`) seguía vigente y correcto — no había bug nuevo ni reintroducido. **Conclusión:** los partidos con fecha rara que veía el usuario eran datos VIEJOS, cargados ANTES del fix de V02.1, nunca migrados con retroactividad — decisión correcta entonces y ahora, sin migrar nada ("no inventar migraciones"). **Endurecimiento igual aplicado:** se extrajo `ML.buildPlayedAtFromLocalFields(dateVal,timeVal)` (pura, construye el instante por componentes numéricos, nunca por concatenación de string), reemplazando 3 call-sites duplicados. **Efecto colateral corregido de paso:** "Modificar" sobre un partido ya guardado no actualizaba el campo `timeZone` del registro (solo la creación lo hacía) — corregido por prolijidad, sin impacto práctico en un único dispositivo sin cambio de huso.
 
-**Tests automatizados:** 483/483 verdes, sin cambios (`tests.html`) — ninguna función pura fue tocada, solo CSS, el markup de `renderPlayerLastMatchCard()` y el ícono SVG estático de "Tu momento".
+**Hallazgo real: 24 reglas con colores de equipo hardcodeados en RGB** que no habrían heredado el cambio de la nueva dupla cromática por no pasar por `var()` — sweep completo de los literales (`45,156,255`/`255,62,165`/`200,255,61`/`50,215,255`/`51,166,255`, este último un typo de paleta preexistente) al nuevo RGB.
 
-**Consola:** sin errores en ninguna de las pantallas revisadas.
+**Hallazgo real: "Partidos totales" desalineado del resto de KPIs.** Era la única de las 4 tarjetas de "Tu historial" sin el wrapper `.pastilla__title-row` (que aporta la altura del chevron en las otras 3), dejando su dato principal arrancando en una Y distinta. Corregido agregando el wrapper.
 
-**Verificación manual**, viewport 402×874, con dos partidos reales cargados de punta a punta por el flujo de carga manual (creación de jugadores invitados, selector "Elegir compañero"/"Elegir rival", entrada de resultado con teclado, formato Clásico/Punto de Oro) más un partido de prueba sintético con derrota (insertado vía `PLStore.upsertHistory` en consola para poder ver el estado "Derrota" sin tener que jugar un partido perdedor real; removido con `PLStore.removeFromHistory` antes de terminar):
+**Hallazgo real: ícono de Historial indistinguible.** Dibujaba la manecilla como un sub-path UNIDO (mismo color) al círculo sólido — sin contraste posible, se veía como una mancha lisa. Reemplazado por trazo (círculo+manecillas).
 
-1. Home completo, con partido real cargado — pastilla de jugador, Último partido, Tu momento, Actividad/Efectividad, métricas chicas.
-2. Último partido en victoria — acento lima, badge lima, jerarquía de resultado confirmada con `getComputedStyle` (800/36px) además de visualmente.
-3. Último partido en derrota (partido sintético) — acento coral, badge coral, delta de Nivel BRAMU en coral, sin regresión en el resto de la tarjeta.
-4. Sheet "Registrar partido" en 402×874 — ambas opciones completamente visibles y opacas, sin superposición de la barra inferior; áreas táctiles medidas con `getBoundingClientRect()`: 55px de alto cada una (≥48px). Verificado también en escritorio (1280×900): sheet centrado con ancho máximo, mismo resultado.
-5. Sheet "Elegir jugador" (compañero y rival) — mismo fix de fondo, confirmado opaco.
-6. Carga manual: pantalla de resultado por set (teclado numérico, dígitos ahora en 700), pantalla "Partido guardado" (resultado en 800/40px), formulario de jugadores con paleta azul/magenta intacta.
-7. Resumen/Análisis del partido cargado — BRAMU Intelligence, tarjeta de resultado con sets en 700, "SETS GANADOS"/"GAMES GANADOS" sin cambios de layout.
-8. Historial con pestañas y filtros — sin regresiones, conteos correctos (Todos/Mis partidos/Observados).
-9. Perfil — nombre en 500, Evolución del Nivel BRAMU con valores en 700, badge "SIMULADO · BETA" intacto.
-10. Ranking — estado vacío sin cambios.
+**Hallazgo real: Hora siempre 8px más abajo que Fecha.** `.field + .field{margin-top:8px}` (pensada para formularios apilados) alcanzaba también a Fecha/Hora por ser hermanos ADYACENTES en el DOM, aunque visualmente en una fila flex — corregido anulando el margin dentro de `.manual-datetime-row`.
 
-Las diez capturas se revisaron como conjunto: ninguna volvió a mostrar fondos transparentes ni texto liviano en un dato protagonista.
+**Hallazgo real: hueco grande entre nombre y resultado en el Resumen.** `.result-card__name{flex:1}` + `justify-content:space-between` empujaban el marcador al borde derecho de la tarjeta con nombres cortos. **Fix:** `flex:0 1 auto;max-width:62%` + `justify-content:flex-start` (esto sería, a su vez, la semilla de la regresión de columnas que V02.6 tendría que corregir con grid — ver §7).
 
-### 7. Desvío observado, no corregido (fuera de alcance de esta ronda)
+**Rediseño del selector de jugador:** sheet `.bottom-sheet--tall` (72dvh, categoría nueva, nunca confundida con `.bottom-sheet--compact`), campo de búsqueda completo con foco CONTEXTUAL verde/azul (decisión documentada: el consolidado pedía "azul BRAMU" fijo, se interpretó como el color del rol activo, preservando el sistema ya aprobado de V02.3 en vez de aplanarlo), filas `.player-row` con avatar+nombre+`@handle` compartidas por RECIENTES y TODOS.
 
-Durante la verificación se notó que un partido cargado manualmente con "Ahora" quedó con `playedAt` un día calendario por delante de `createdAt` (p. ej. partido creado 04/09 21:27 con `playedAt` guardado como 05/09 00:25 UTC). No se investigó ni se tocó — está dentro de `match-load.js`, explícitamente conservado en esta ronda (§6 del consolidado: "no modificar... estructura de la carga manual"). Queda anotado acá para que Sebastián decida si amerita una ronda de investigación aparte; no afectó ninguna de las verificaciones de esta pasada porque el ordenamiento de Último partido/Historial sigue siendo consistente con el valor guardado, solo que ese valor podría no ser el esperado.
+**Nueva dupla cromática:** `--brand-lime:#95FF19`/`--accent-cyan:#19BAFF`, `--team-a/b` como alias directos, magenta retirado del sistema de equipos. `--court-surface`/`--court-surface-2` redefinidos SOLO dentro de `.view--court` (no en `:root`) para no aclarar de más todos los sheets que comparten esas variables.
 
-### 8. Publicación
+**Guardado sin fricción:** Notas deja de ser paso obligatorio — se elimina la tarjeta de notas completa de `view-match-saved`; guardar va directo a Resumen. Textos técnicos ("PARTIDO CARGADO", "los datos viven en este dispositivo") retirados del Resumen (no de Historial, que sí los conserva).
 
-- Commit de implementación: `320d2c2` — *"BRAMUlab V02 · ajuste visual de cierre 01"*.
-- Commit de documentación (primer cierre): `f323973`.
-- Commit de bump técnico de caché (`sw.js`, §5): agregado tras verificar en producción que el fix no llegaba a un cliente con `bramulab-v02` ya cacheado — ver hash y mensaje en el historial de `main` junto a este mismo informe.
-- Tag técnico corregido: `BRAMUlab_V02` (reemplaza a `v3.0`, eliminado de local y remoto), mismo commit `91a79f8`.
-- Push a `main` en `sebastianvilaa/BRAMUlab` → despliegue automático en GitHub Pages (confirmado que el deploy depende solo de `main`, no de tags — ver §1).
+**Tests:** **565/565** (558 + 7: V02.5-FECHA, round-trip de `buildPlayedAtFromLocalFields` incluyendo el caso 23:30 del bug histórico de V02.1, bordes de año nuevo/fin de año).
+
+---
+
+## 7. BRAMUlab V02.6 — corrección visual + regresiones de layout
+
+**Fuente:** `BRAMUlab_V02.6_Informe.md`. Commit `59a978e4677f62e2741bda4ecb828475be9bfd22`. Tag `BRAMUlab_V02.6`.
+
+**Prioridad crítica — causa exacta de la regresión de Confirmar partido/Resumen.** V02.5 había armado `.result-card__row` como flex (`justify-content:flex-start`, nombre `flex:0 1 auto;max-width:62%`, sets `flex:none` después) para pegar el resultado al nombre. El problema no anticipado: en flex, el bloque de sets arranca justo después de donde termina la caja del nombre — con "Equipo A" corto ("Yo") y "Equipo B" largo, cada fila tenía un ancho de nombre distinto, así que las columnas de set de una fila NO quedaban alineadas con las de la otra. **Fix:** grid de 2 columnas (`minmax(0,1fr) auto`), con `.result-card__sets` fijando cada set en un track de ancho FIJO (`grid-auto-columns:28px`, 32px en Confirmar) — el ancho de la columna `auto` ya no depende del nombre, solo del número de sets, así que arranca en la misma X en ambas filas sin importar el largo del nombre. Sets/Games ganados: columnas laterales de `auto` (variable según dígitos) a `44px` fijos, con `min-height:44px`.
+
+**Implementación final del score dash/dot — dejar de depender del glifo.** V02.5 había compensado con `vertical-align:middle`, pero seguía siendo una aproximación tipográfica imperfecta a distintos tamaños de `clamp()`. **Solución:** `buildLastMatchScoreHTML` arma cada número en su propio `<span>`, y el guion/punto como `<span>` VACÍOS (`aria-hidden`) que son barras/puntos geométricos reales (`background:currentColor`). El contenedor pasa a `inline-flex;align-items:center` — el centrado es de LAYOUT, no de tipografía. Se agregó `buildLastMatchScoreLabel` (texto plano equivalente) como `aria-label`, ya que los separadores dejaron de llevar un carácter anunciable.
+
+**Sistema cromático:** azul `#19BAFF`→`#199FFF` arrastrando toda la familia (deep, focus, glows, sombras) + sweep de 11 hardcodes RGB equivalentes que habían quedado de V02.5 (mismo patrón de hallazgo que esa ronda tuvo con el verde); `--text` → `#F8FAFC`.
+
+**Otros ajustes:** degradé del Home con tope más oscuro (`#08121E`, antes `--surface-2` demasiado claro); glow leve en Actividad/Efectividad/Último partido (sin engrosar el borde a 2px); tarjeta de insight con borde completo azul + glow (antes borde lateral de 3px); menos aire muerto entre la barra de Nivel y el conteo de partidos (margin-top redundante retirado); "Tu momento" con más peso/contraste; copy de Efectividad → "22 ganados de 32 jugados"; botón "Agregar sin cuenta" de relleno a outlined; sheet Fecha/Hora/Lugar con tipografía un escalón más chica y más aire.
+
+**Tests:** **565/565** (sin cambios — ronda mayormente CSS/copy, sin lógica pura nueva).
+
+---
+
+## 8. BRAMUlab V02.7 — afinación visual + dinámica de Home + unificación de fondos
+
+**Fuente:** `BRAMUlab_V02.7_Informe.md`. Commit `f7896315dc264118c4f35e9c24e893d2b579deb6`. Tag `BRAMUlab_V02.7`.
+
+**Fondo unificado:** nuevo token `--bg-gradient-app` (mismos 3 stops que el Home pero con `--surface-1`) aplicado a Historial/Ranking/Perfil/Compañeros-Rivales/Resumen (`.view--analysis, .view--history`) y a Carga manual/Confirmar partido (`.view--court`) — Home mantiene su propio degradé, verificado con computed style idéntico byte a byte entre las 6 pantallas.
+
+**Actividad — cambio de modelo temporal, con bug real encontrado y corregido antes de publicar.** Nueva `startOfWeekMonday(date)` (medianoche LOCAL del lunes de la semana, usando getters locales — mismo criterio "fecha siempre local" desde V02.1/V02.5) y `computeActivityWeeks4(matches, playerName, nowDate)`. **Bug:** la primera versión armaba el array `[3,2,1,0].map(...)` (ya en orden correcto) y le aplicaba un `.reverse()` de más — la semana ACTUAL caía en el índice 0 (izquierda) en vez del 3 (derecha), exactamente al revés de lo pedido. **Detectado por los tests nuevos (`V02.7-ACT`, 3 fallos) antes de cualquier validación visual** — se quitó el `.reverse()` sobrante.
+
+**Bug real / hallazgo de contradicción: Efectividad NO era histórica total pese a decírselo así.** El consolidado pedía "mantener Efectividad como histórica total... si ya es ese comportamiento" — no lo era: `computeEffectiveness30d` (vigente desde V02.1 hasta V02.6) SÍ recortaba a los últimos 30 días (`if (age<0||age>THIRTY_DAYS_MS) return`), confirmado en código y por el propio test `V02.3-EFE · un partido de 31 días no modifica el porcentaje` (que se volvía exactamente lo OPUESTO de lo correcto y se eliminó). Autorizado explícitamente por el propio consolidado ("lógica histórica de Efectividad salvo confirmar que sea total"), se reemplazó por `computeEffectivenessTotal(matches, playerName)`, sin ventana de tiempo. **Consecuencia necesaria no prevista explícitamente pero indispensable:** el drill-through de Efectividad (Home→Historial) pasó de `filterMatchesWithin30d` a `filterMatchesWithDefinedResult` para no dejar una inconsistencia entre lo que el % mostraba y lo que el filtro abría.
+
+**Decisión de implementación sobre reentrada:** entre "limitar a la primera entrada" o "duración corta al reingresar" (ambas ofrecidas por el consolidado), se eligió un flag de sesión `homeEnteredThisSession` — más simple de razonar. **Esta decisión sería explícitamente revertida por V02.8** (ver §9): el consolidado siguiente pidió que las animaciones corrieran en CADA entrada, no solo la primera de la sesión.
+
+**Microanimaciones de entrada:** Nivel (`transition:width` con reflow forzado), Actividad (`transition:height` + `transition-delay` inline por índice), Efectividad (reutiliza la `transition:stroke-dasharray` ya existente). Doble capa de `prefers-reduced-motion`: colapso CSS de `--motion-base/fast` a 1ms + chequeo JS explícito (necesario porque el stagger de Actividad usa `transition-delay` inline, que no depende de esas variables).
+
+**Tests:** **571/571** — 565 preexistentes + 12 nuevos `V02.7-ACT` (semanas calendario) + 4 nuevos `V02.7-EFE` (efectividad total) + adaptaciones de `V02.1-M`/`V02.3-ACT`/`V02.3-EFE` a la nueva función/ventana, con 1 test eliminado por quedar exactamente contradicho por el nuevo comportamiento (ver arriba).
+
+**Limitación de entorno documentada:** no fue posible emular `prefers-reduced-motion:reduce` con las herramientas de esta sesión — verificado por lectura de código (doble capa) en vez de captura en vivo.
+
+---
+
+## 9. BRAMUlab V02.8 — cierre de la etapa de afinación visual
+
+**Fuente:** `BRAMUlab_V02.8_Informe.md`, más `BRAMUlab_V02.8_Consolidado.md` y `BRAMUlab_V02.8_Auditoria_Visual_CSS.md` como documentos de referencia. Commit `fe8c6be4443d44059b739fe2c74e625e33d52987`. Tag `BRAMUlab_V02.8`.
+
+**Reversión explícita de la decisión de V02.7 sobre reentrada:** se retira el flag `homeEnteredThisSession` — `shouldAnimate` pasa a recalcularse en cada llamada a `renderPlayerHome()`. Se encontraron además 2 call-sites reales que rompían esto silenciosamente: los botones "Volver" de Ranking y Perfil llamaban `showView('player-home')` directo (sin re-render) en vez de `openPlayerHome()` — corregidos para usar la función que sí re-renderiza.
+
+**Bug real: glow de Efectividad rectangular.** El `drop-shadow` de V02.7 generaba una percepción rectangular/cuadrada (un filtro rasterizado por bounding box, no por forma) y en iPhone casi no se veía. **Fix:** segundo `<circle>` (`.effectiveness-donut__glow`) dibujado DETRÁS del trazo principal en el mismo SVG, mismo `cx/cy/r`, trazo más grueso (7px vs 3px), opacidad baja (.45), `filter:blur(2.5px)` — un blur sobre una forma YA trazada sigue la curva, nunca encuadra en un rectángulo. Verificado por computed style: `stroke-dasharray` del glow idéntico al del trazo principal en todo momento.
+
+**Radios normalizados (casos verificables 1:1, sin homogeneizar familias):** `.court-team-card__player` 11px→12px; 6 literales `16px` migrados a `var(--radius-card)`; 2 literales `18px` migrados a `var(--radius-hero)`.
+
+**Limpieza CSS segura:** eliminado el duplicado exacto `.status-banner`/`.band-seg` (bloque "V5", 19 líneas, byte-idéntico al bloque "V7" que lo sucedía y ya ganaba la cascada). Eliminadas ~85 líneas de CSS muerto de la vieja pantalla "Resumen inmediato" (`.view--summary`, `.summary-card*`, `.summary-stats`, `.summary-actions` — la pantalla fue retirada en V02.1 y el CSS nunca se limpió), confirmado por grep sin referencias activas; se conservó `.summary-undo-btn` (reutilizada en Resumen).
+
+**`.overlay--highlight` corregido** de `rgba(11,18,17,0.55)` (negro-verdoso pre-V02, el mismo bug que V02.1 §28 ya había corregido en el resto de overlays pero que había quedado fuera de aquel barrido porque este popup no usa la clase base `.overlay`) a `var(--scrim)`.
+
+**`.overlay__title`** de `letter-spacing:0.1em` a `0.03em` para toda la familia de ~18 modales (Notificaciones, Pausa, Finalizar partido, ¿Quién sos?, etc.) — no solo el caso puntual reportado.
+
+**Setup finalmente recibe `--bg-gradient-app`** — última pantalla funcional que quedaba con el `--ink` plano heredado.
+
+**Resumen — ritmo vertical:** `.analysis-meta{margin-bottom}` 4px→14px; `.analysis-section{margin-bottom}` 26px→12px (16px vía overrides puntuales por ID antes de Momentos clave y de Notas privadas, únicos 2 puntos con "cambio real de bloque").
+
+**Decisión sobre una tensión aparente:** el consolidado lista "carga manual"/"Confirmar partido" en su categoría general de "mantener sin cambios" (§14), pero pide puntualmente 2 cambios dentro de esas mismas pantallas (texto del botón "Agregar sin cuenta", radio de `.court-team-card__player`). Resuelto como el patrón normal "regla general + excepción explícita nombrada" — no una contradicción real.
+
+**Arquitectura CSS:** decisión explícita de NO modularizar (2122 líneas, sin síntomas de guerra de especificidad, casi sin `!important`) — reevaluar a las 2500-3000 líneas o al sumar una feature grande.
+
+**Tests:** **571/571** (sin cambios — ronda de CSS/wiring de animación, sin lógica pura nueva). Verificación empírica con `MutationObserver({attributeOldValue:true})` confirmó la secuencia `valor final→0→valor final` en una SEGUNDA entrada al Home (Home→Ranking→Volver), probando que la reentrada sí re-anima.
+
+---
+
+## 10. BRAMUlab V02.8.1 — calibración visual (7 puntos)
+
+**Fuente:** `BRAMUlab_V02.8.1_Informe.md` (sin Consolidado propio — instrucciones dadas directamente en el chat). Commit `0851022c89874e4375cf31beaac8d034d15c1450`. Tag `BRAMUlab_V02.8.1`.
+
+**Hallazgo técnico no anticipado: la curva de easing, no solo la duración, era la causa de que las animaciones no se percibieran.** Con `--home-anim-level`/`--home-anim-effectiveness` ya en 550-750ms, Nivel y Efectividad seguían sin percibirse. Investigado estirando la duración a 4000ms de forma temporal y midiendo `scaleX`/`stroke-dashoffset` real en checkpoints: con `--motion-ease` (`cubic-bezier(0.32,0.72,0,1)`, la curva compartida de sheets/tabs/hover), el recorrido visual llegaba a ~95-100% dentro del primer 20-25% del tiempo — a cualquier duración configurada, la parte perceptible ocurría en los primeros ~150-200ms. **Fix:** `--home-anim-ease:ease-out` nueva, exclusiva de las 3 animaciones de entrada, sin tocar `--motion-ease` (que sigue gobernando el resto de la UI). Repetido el experimento con `ease-out`: crecimiento genuinamente repartido a lo largo de toda la duración (`scaleX` 0→0.395→0.698→0.915→1.0 en checkpoints de 1/2/3/5s sobre 4000ms).
+
+**Nivel BRAMU — técnica reemplazada.** De transición de `width` (frágil, depende de que el navegador registre un frame en 0% antes de animar) a `@keyframes playerLevelBarGrow` sobre `transform:scaleX()` con `transform-origin:left center`, disparada por clase `.is-animating` con reflow forzado. **Verificación determinística** (`Animation.currentTime` scrubbing, inmune a throttling): `scaleX` midió `0.000→0.378→0.685→0.907→1.000` en fracciones 0/0.25/0.5/0.75/1 — crecimiento monótono a lo largo de toda la duración.
+
+**Efectividad — técnica reemplazada.** Web Animations API (`Element.animate()`) sobre `stroke-dashoffset`, con `stroke-dasharray` CONSTANTE en los tres círculos. El valor final se asigna SIEMPRE por `style` antes de animar (progressive enhancement). **Verificación en tiempo real** (una ejecución atómica sin cortes): `stroke-dashoffset` pasó por `97.3894→81.9993→60.1402→43.2435→33.2503→32.1385` (exacto para 67%) en checkpoints de una versión de prueba a 4000ms.
+
+**Glow de Efectividad, otra vez rediseñado:** se elimina CUALQUIER `filter` (el de V02.8 seguía usando `blur()`); dos halos nuevos sin filtro (`glow-inner` 5px/.22, `glow-outer` 8px/.10) que comparten `stroke-dasharray`/`stroke-dashoffset` con el trazo principal, imposibilitando estructuralmente el efecto "caja".
+
+**Pulso de Último partido** recalibrado a un punto intermedio entre V02.7 (muy sutil) y V02.8 (muy fuerte): reposo `0 0 18px rgba(149,255,25,.12)` → pico `0 0 25px rgba(149,255,25,.24)`.
+
+**Hito:** `flex-basis` 86%→70% (móvil)/60%→48% (≥480px) + `min-height:2.8em` para favorecer wrap natural a 2 líneas sin salto manual — verificado con un hito real de 46 caracteres (alto medido 70px).
+
+**Botones de Resumen** igualados (min-height 46px, mismo radio/padding) vía regla acotada a `#analysis-share-section`, sin tocar `.btn-secondary`/`.btn-start` de base.
+
+**CTA "Agregar sin cuenta":** borde de color completo → `var(--court-line)` neutro; el contexto de equipo se reduce a un dot de 8px antes del texto; texto sigue blanco. Cambio técnico de paso: `renderManualPlayerSheetContent` pasa de `textContent` a `innerHTML` con `escapeHtml` sobre el nombre tipeado (necesario para insertar el dot).
+
+**Limitación de entorno con hallazgo temprano no resuelto todavía:** `getAnimations()` devolvió una lista vacía para Actividad en este entorno de sesión — señal de la misma fragilidad de técnica que en V02.8.2 SÍ se manifestaría como regresión real. Como el usuario confirmó en dispositivo real que Actividad seguía animando, se dejó sin tocar por instrucción explícita, dejando la observación registrada.
+
+**Tests:** **571/571** (sin cambios).
+
+---
+
+## 11. BRAMUlab V02.8.2 — calibración visual (5 puntos)
+
+**Fuente:** `BRAMUlab_V02.8.2_Informe.md` (sin Consolidado propio). Commit `a71d2f5ee14daf73e2f662acf7286bd635936201`. Tag `BRAMUlab_V02.8.2`.
+
+**Regresión real: Actividad dejó de animar.** Causa: la MISMA clase de fragilidad ya corregida en V02.8.1 para Nivel/Efectividad ("0 + reflow + valor final" depende de que el navegador efectivamente PINTE el frame en 0, no solo lo calcule) — en V02.8.1 Actividad todavía se percibía en la prueba real, así que se había dejado sin tocar; la señal temprana de `getAnimations()` vacío (documentada en el informe anterior) resultó ser la advertencia correcta. **Fix:** mismo patrón que Nivel — `@keyframes activityBarGrow` sobre `transform:scaleY(0→1)`, más simple de aplicar porque cada barra es un elemento NUEVO en cada render (la clase viaja incluida desde el HTML, sin necesitar la danza de sacar/reflow/volver a poner). Verificado: `getAnimations()` ahora devuelve exactamente 1 `Animation` por barra (antes 0).
+
+**Efectividad, estado estático refinado.** La animación ya funcionaba; el problema era que el estado FINAL se veía "tosco/pesado" con brillo casi imperceptible. **Insight del ajuste:** no era falta de opacidad — dos halos apilados (5px/.22 + 8px/.10 sobre un trazo de 3px, los tres centrados en la misma línea) sumaban un degradado escalonado de grosor que LEÍA como un aro borroso. Se afinaron a la vez trazo (3px→2.5px) y halos (interno 4px/.30, externo 6px/.18) — angostar y subir opacidad a la vez evita que el conjunto se vea más ancho.
+
+**Hito** reducido ~15% más (70%→60% móvil, 48%→40% desktop).
+
+**Tracking del botón "ACTUALIZAR" del aviso de actualización.** Diagnóstico primero, no asumido: `.overlay__title` de ese modal YA estaba en 0.03em (fijado en V02.8) — el elemento realmente desalineado era el botón `#update-now-btn`, que hereda `.btn-start{letter-spacing:0.08em}`, un valor nunca tocado por las correcciones de tracking anteriores (que solo tocaron `.overlay__title`). Fix acotado por ID, sin tocar la clase compartida `.btn-start` (que sigue en 0.08em en Setup/Resumen/otros overlays, fuera de alcance).
+
+**Sin cambios confirmados:** Último partido, botones de Resumen, CTA "jugador sin cuenta".
+
+**Tests:** **571/571** (sin cambios).
+
+---
+
+## 12. BRAMUlab V02.8.3 — corrección puntual de Efectividad
+
+**Fuente:** `BRAMUlab_V02.8.3_Informe.md` (sin Consolidado propio). Commit `db00447a4411339c232314a9aa2399275e839b0a`. Tag `BRAMUlab_V02.8.3`.
+
+**Bug real, no solo un ajuste de valores: `renderPlayerEffectiveness` forzaba `style.opacity='1'` inline sobre los TRES círculos del donut por igual** — incluidos los dos halos, que tenían su propia opacidad baja definida en CSS. Un estilo inline siempre gana sobre una regla de clase: **los halos venían renderizando a opacidad TOTAL desde que existen (V02.8.1)**, nunca a la opacidad sutil que describían los informes de V02.8.1/V02.8.2 — el "brillo bajo" documentado en esas rondas nunca llegó a verse así en pantalla. Esta es la causa real de que el ring se sintiera pesado pese a dos rondas previas de ajuste de valores.
+
+**Fix:** trazo principal sigue forzado a `opacity:1` (siempre opaco por diseño); los dos halos se limpian a `style.opacity=''` en vez de `'1'`, dejando que su opacidad de CSS se aplique de verdad. Con el bug corregido, se recalibraron los valores DESDE CERO (los de V02.8.2 no eran representativos, elegidos con el bug activo): trazo principal/aro de fondo 2.5px→**1.5px**; halo interno 4px/.30→**2.5px/.38**; halo externo 6px/.18→**3.5px/.24**.
+
+**Verificado:** `getComputedStyle` de los halos ahora informa `opacity:0.38`/`0.24` (antes del fix, informaba `1` sin importar qué se pusiera en CSS).
+
+**Tests:** **571/571** (sin cambios — ~15 líneas entre `app.js`/`styles.css`).
+
+---
+
+## 13. BRAMUlab V02.9 — refinamiento visual/UX de cinco componentes
+
+**Fuente:** `BRAMUlab_V02.9_Informe.md`. Commit `f19c0207d2e5bef9ce74a70e2a19733f0a8a809b`. Tag `BRAMUlab_V02.9`.
+
+**Efectividad, otra vez.** Aun sin ningún `filter`, DOS halos apilados (2.5px/.38 + 3.5px/.24 sobre un trazo de 1.5px, todos centrados en la misma línea) producían un degradado escalonado de grosor/opacidad que LEÍA como un aro borroso — el problema visual era real incluso sin blur de por medio. Se retira un halo entero: queda el trazo (1.5px, sin cambios) + UN único refuerzo (2.2px, opacidad 0.16).
+
+**Alta de jugador sin cuenta — rediseño completo.** Se retira el botón CTA de ancho completo; nueva `buildAddPlayerRowHTML` genera una fila `.player-row.player-row--add` (MISMO componente que una fila de jugador real) con ícono circular persona+ (SVG, sin iniciales) y texto `Agregar a "X"` (sin la coletilla "como jugador sin cuenta") como ÚLTIMO elemento de la lista de búsqueda, después de los jugadores reales — conviven en una sola lista. "Sin coincidencias" solo aparece cuando NI hay jugadores reales NI se puede ofrecer el alta.
+
+**Contradicción real detectada y resuelta: badge de Último partido.** El consolidado daba por sentado que el badge superior ya decía `VICTORIA`/`DERROTA` completo ("mantener... en zona superior") — el código real lo tenía ABREVIADO a `VIC`/`DER` desde V02.5 (§20 de ese informe). Como el propio §4 de este MISMO consolidado pide explícitamente la palabra completa para Historial y el principio rector de la ronda es que ambos compartan lenguaje, dejar Último partido abreviado mientras Historial usa la palabra completa habría creado la inconsistencia opuesta a la buscada — se corrige también acá (`VIC`→`VICTORIA`, `DER`→`DERROTA`), documentado explícitamente como discrepancia resuelta a favor de la coherencia que el propio documento pide.
+
+**Último partido — metadata agregada:** formato/sistema reales (`E.FORMATS[...].label`/`SCORING_SYSTEM_LABELS[...]`) en dos líneas, zona inferior derecha, mismos datos que consume Historial.
+
+**Historial rediseñado como clon compacto de Último partido:** las mismas 4 zonas (top-row fecha/hora+badge completo, score protagonista, bottom-row teams+meta). Se retira la línea de subtítulo completa junto con "PARTIDO CARGADO" — y también "POR GAMES" (mode==='games'), porque ninguno de los dos tiene equivalente en el componente madre. Se retira el botón `.history-item__delete` (✕) y el wrapper `.history-item__main` — la tarjeta vuelve a ser un solo bloque con un solo listener de click a Resumen. Funciones `deleteHistoryEntry`/`showUndoToast` eliminadas por quedar sin llamador.
+
+**Resumen — Eliminar partido.** Nuevo botón `#analysis-delete-btn` (estilo mínimo, texto apagado) al final de `#analysis-share-section`. Reutiliza el modal de confirmación GENÉRICO ya existente (`confirmAction`/`#confirm-overlay`) extendido con parámetros opcionales `acceptLabel`/`cancelLabel` (sin afectar a los 5 llamadores previos que no los pasan). Llama a `Store.removeFromHistory(matchId)` (misma función que ya usaba la X retirada de Historial).
+
+**Tests:** **571/571** (sin cambios — ronda entera de DOM/CSS).
+
+---
+
+## 14. BRAMUlab V02.9.1 — micro-ajuste visual (3 puntos)
+
+**Fuente:** `BRAMUlab_V02.9.1_Informe.md` (sin Consolidado propio). Commit `0d2f6c82b0c3e58812495e49b6dcc00868e3656e`. Tag `BRAMUlab_V02.9.1`.
+
+**Efectividad:** trazo principal/aro de fondo 1.5px→**2px**; halo escalado en la misma proporción (2.2px→2.7px) para conservar el margen relativo (~0.35px por lado) — si se hubiera dejado en 2.2px, el trazo más grueso lo habría tapado casi por completo. Opacidad del halo sin cambios (0.16).
+
+**Último partido:** `.player-home-lastmatch__top` pasa de layout de 2 columnas a 2 FILAS apiladas: fila 1 (título+fecha/hora), fila 2 (forma+badge). Se retira la clase `.player-home-lastmatch__heading` (sustituida por las 2 filas).
+
+**Historial — cambio de criterio de color, no solo de peso.** `.history-item__teams` baja de peso 800 a 700 + color `--paper-dim` como base. Más importante: en partidos PROPIOS, se deja de colorear al equipo GANADOR (`m.winnerTeam`, redundante con el badge de arriba) y pasa a colorearse la pareja PROPIA (`PH.getPlayerTeam`) — sigue "destacada" pero ya no duplica la señal del badge. Verificado con 2 partidos reales contra los mismos rivales (uno ganado, uno perdido): en AMBAS cards la pareja propia queda en lima/azul, confirmando que el color sigue a "propia", no al ganador. En Observados (sin badge propio) se mantiene sin cambios, coloreando al ganador junto con "GANÓ".
+
+**Tests:** **571/571** (sin cambios).
+
+---
+
+## 15. BRAMUlab V02.9.2 — ajuste de un valor
+
+**Fuente:** `BRAMUlab_V02.9.2_Informe.md` (sin Consolidado propio — Sebastián probó el valor en vivo con el inspector de Chrome sobre la app publicada). Commit `c9bbbd0a10a871560dc1c8d863765e98a7eb540a`. Tag `BRAMUlab_V02.9.2`.
+
+Trazo principal del donut de Efectividad 2px→**3px**; halo reescalado en la misma proporción (2.7px→3.7px, mismo margen relativo de ~0.35px por lado); opacidad del halo sin cambios (0.16) — el pedido era pura presencia del trazo, no del brillo.
+
+**Tests:** **571/571** (sin cambios — un solo valor de CSS).
+
+---
+
+## 16. BRAMUlab V02.9.3 — dos ajustes finales
+
+**Fuente:** `BRAMUlab_V02.9.3_Informe.md` (sin Consolidado propio). Commit `9653c748f2ce2e789de1eda9079c63dd9f8f60c4`. Tag `BRAMUlab_V02.9.3`.
+
+**Historial — jerarquía final: se retira TODO color de énfasis.** Ni al equipo ganador (ya sin uso desde V02.9.1) ni a la pareja propia (la variante que sí seguía activa desde V02.9.1) — el badge `VICTORIA`/`DERROTA`/"GANÓ" ya comunica el resultado, una segunda señal de color en los nombres quedaba redundante. Se retiran las clases `.history-item__winner--a/-b` y `.history-item__mine--a/-b` de CSS y su cálculo en `app.js`. En paralelo, `.history-item__score` sube de 20px a **30px** (el dato más grande de la card, sin ambigüedad) y `.history-item__teams` baja a 13px/500 (antes 14px/700). Verificado con 2 partidos reales (uno ganado, uno perdido) contra los mismos rivales: ambas cards con el mismo tratamiento neutro en los nombres, sin distinción alguna entre sí.
+
+**Último partido:** `.player-home-lastmatch__row1` (título+fecha, la línea 1 introducida en V02.9.1) baja su `margin-bottom` de 10px a **3px**, acercándola a la línea 2 — se leen como un solo encabezado compacto.
+
+**Tests:** **571/571** (sin cambios).
+
+---
+
+## 17. Contradicciones entre rondas — cómo se resolvieron
+
+Repaso explícito de los casos donde una ronda contradijo o revirtió una decisión previa, señalados por transparencia (cada uno ya fue resuelto dentro de su propia ronda, listados acá como antecedente):
+
+1. **Actividad, dos veces reinterpretada.** V02.3 pintó todo el volumen en celeste sólido; V02.4 declaró esa lectura "una interpretación incorrecta" y la revirtió a barra apilada lima/oscuro (victorias/derrotas). V02.5 además invirtió el ORDEN del apilado (victorias abajo, antes arriba). V02.7 cambió el MODELO temporal completo (de ventana rolling de 30 días a 4 semanas calendario lunes-domingo). Cada cambio está documentado y justificado en su propia ronda; no quedó ambigüedad — el estado final es el de V02.7 en adelante.
+2. **Efectividad, ventana temporal.** Vigente como cálculo de 30 días desde V02.1 hasta V02.6 (con tests que verificaban explícitamente "un partido de 31 días NO modifica el porcentaje"). V02.7 la reemplazó por histórica total, encontrando que el consolidado anterior YA asumía (incorrectamente) que ya era total — se documentó como hallazgo real, no como cambio de opinión, y el test viejo se eliminó por quedar exactamente contradicho.
+3. **Badge de resultado, abreviado vs. completo.** V02.1/V02.2 introducen `VIC`/`DER` para Historial y Último partido. V02.9 revierte a `VICTORIA`/`DERROTA` completo en AMBOS componentes, citando su propio criterio de "evitar abreviaturas si el espacio permite la palabra completa" y notando explícitamente que el consolidado de esa ronda daba por sentado (incorrectamente) que Último partido ya estaba completo.
+4. **Color de énfasis en los nombres de Historial — tres etapas.** Originalmente coloreaba al equipo GANADOR. V02.9.1 lo cambió a colorear a la pareja PROPIA (evitar redundancia con el badge). V02.9.3 removió TODO color de énfasis (ni ganador ni propia) — decisión final, con el resultado (30px) como único protagonista.
+5. **Reentrada de animaciones del Home — una vez por sesión vs. siempre.** V02.7 decidió, entre dos opciones que el propio consolidado ofrecía, un flag de sesión ("una vez"). V02.8 pidió explícitamente que corrieran en CADA entrada — revirtiendo esa elección, y de paso encontrando 2 call-sites (los botones "Volver" de Ranking/Perfil) que ni siquiera re-renderizaban.
+6. **Glow/halo de Efectividad — la saga más larga de la línea.** V02.6 introdujo un `drop-shadow` casi invisible; V02.7 lo hizo más visible; V02.8 lo reemplazó por 2 círculos concéntricos con `filter:blur()` (para evitar el efecto "caja" del drop-shadow); V02.8.1 eliminó el filtro por completo (2 halos sin blur); V02.8.2 afinó proporciones; **V02.8.3 encontró el bug real** (opacidad de los halos forzada a 1 por un `style.opacity='1'` inline que ganaba sobre cualquier valor de CSS, activo desde V02.8.1) y recién ahí los valores de halo tuvieron efecto real; V02.9 encontró que incluso sin filtro, DOS halos apilados seguían leyendo como "borroso" por el degradado de grosor/opacidad, y quedó en UN solo halo; V02.9.1/V02.9.2 subieron el trazo principal en dos pasos más (1.5px→2px→3px) tras pruebas en vivo de Sebastián con el inspector de Chrome. El estado final (V02.9.2 en adelante) es: trazo 3px, un halo de 3.7px/opacidad 0.16, sin ningún filtro.
+7. **Notas del partido — de paso obligatorio a opcional posterior.** V02.1 las incluía como campo dentro de "Confirmar partido" (antes de guardar). V02.2/V02.3 fueron variando su presentación (link colapsable → tarjeta permanente). V02.5 las sacó por completo del camino obligatorio de guardado, moviéndolas a un ítem opcional dentro del Resumen, ya con guardado directo. Este es el estado vigente.
+
+---
+
+## 18. PWA — patrón de versionado (constante en las 16 rondas)
+
+Cada ronda siguió el mismo patrón, sin excepciones: `Store.VERSION`/`version.json` actualizados al nombre de versión visible ("BRAMUlab V02.X"), y `sw.js`/`CACHE_NAME` con un bump técnico — incluso en rondas donde `sw.js` no cambiaba de bytes, porque sin ese bump un cliente con la caché vieja ya instalada nunca detecta el service worker nuevo por sí solo (lección aprendida explícitamente durante el "Ajuste visual de cierre 01" de V02 base, y repetida sin excepción desde entonces). El tag técnico de git para cada ronda sigue el naming oficial `BRAMUlab_V02[.N[.N]]`, nunca una numeración paralela `vN.N` — regla establecida tras el error de nombrado del tag `v3.0` en la publicación original de V02 base, corregido en el mismo "Ajuste visual de cierre 01".
+
+---
+
+## Estado al cierre
+
+BRAMUlab_V02 cierra en **V02.9.3** (tag `BRAMUlab_V02.9.3`, commit `9653c748f2ce2e789de1eda9079c63dd9f8f60c4`), con **571/571 tests** verdes desde V02.7 en adelante. Ninguna ronda de esta línea tocó `engine.js` (reglas deportivas) más allá de la función pura `isValidFinalTiebreakScore` (V02.1) ni el motor de `stats.js`/BRAMU Intelligence más allá de `classifyWonLostWonPattern` (V02.1) — ambas agregadas, nunca reemplazando lógica existente. `styles.css` permanece como un único archivo (decisión explícita de no modularizar hasta señales concretas, fijada en V02.8). El siguiente bloque de producto anunciado explícitamente al cierre de V02.8 es el **rediseño funcional de Historial** (distinto del alineamiento puramente visual que V02.9 ya le dio con Último partido).
+
+Los documentos originales de cada ronda (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior).
