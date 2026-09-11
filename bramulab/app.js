@@ -7334,24 +7334,29 @@
   /* mismo criterio que Mis grupos/groups.js. Fuente funcional cerrada:   */
   /* docs/BRAMUlab/Ranking_BRAMU.md.                                      */
   /* ------------------------------------------------------------------ */
+  // BRAMUlab_V03.5.1 (§3) — orden Local/Provincial/País/Global/Mi red, Local por defecto (era
+  // "Mis jugadores" primero) — §3.2 renombra "Mis jugadores" a "Mi red" (clave interna
+  // 'mi-red', antes 'mis-jugadores': se renombra también acá para que el código no quede
+  // desalineado del producto).
   const RANKING_SCOPE_TABS = [
-    { key: 'mis-jugadores', label: 'Mis jugadores' },
     { key: 'local', label: 'Local' },
     { key: 'provincial', label: 'Provincial' },
     { key: 'pais', label: 'País' },
     { key: 'global', label: 'Global' },
+    { key: 'mi-red', label: 'Mi red' },
   ];
-  // Mismo criterio que historyOwnershipFilter (Historial): ámbito/tipo/banda viven en memoria
-  // durante la sesión, sin resetear en cada apertura de la pantalla.
-  // §6 — "Mis jugadores" abre por defecto durante el piloto.
-  let rankingScopeFilter = 'mis-jugadores';
-  let rankingTypeFilter = 'general'; // 'general' | 'nivel'
-  let rankingBandFilter = 5; // banda inicial, ver rankingBandInitialized/renderRankingScreen
-  let rankingBandInitialized = false;
+  const RANKING_GENDER_LABELS = { masculino: 'Masculino', femenino: 'Femenino' };
+  // Mismo criterio que historyOwnershipFilter (Historial): ámbito/género/banda viven en
+  // memoria durante la sesión, sin resetear en cada apertura de la pantalla.
+  let rankingScopeFilter = 'local';
+  let rankingGenderFilter = 'masculino'; // se resuelve real la primera vez, ver rankingGenderInitialized
+  let rankingGenderInitialized = false;
+  let rankingBandFilter = null; // null = "Todos los niveles" (§5 — filtro, ya no un modo paralelo)
   // Paginación/búsqueda, en cambio, SÍ arrancan de cero cada vez que se abre la pantalla o se
-  // cambia de ámbito/tipo/banda (§12: entrar a una vista nueva siempre empieza por el bloque 1).
+  // cambia de ámbito/género/banda (§12: entrar a una vista nueva siempre empieza por el bloque 1).
   let rankingLoadedBlocks = 1;
   let rankingSearchQuery = '';
+  let rankingSearchOpen = false;
 
   function renderRankingScopeTabs() {
     const wrap = $('#ranking-scope-tabs');
@@ -7369,61 +7374,82 @@
     });
   }
 
-  // §7 — bandas fijas 1 a 10, misma clase visual que las chips de modo de Historial.
-  function renderRankingBandChips() {
-    const wrap = $('#ranking-band-chips');
-    wrap.innerHTML = Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
-      const active = rankingBandFilter === n;
-      return `<button type="button" class="history-mode-chip${active ? ' is-active' : ''}" data-band="${n}" role="tab" aria-selected="${active}">Nivel ${n}</button>`;
-    }).join('');
-    $all('#ranking-band-chips .history-mode-chip').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const n = Number(btn.dataset.band);
-        if (rankingBandFilter === n) return;
-        rankingBandFilter = n;
-        renderRankingBandChips();
-        onRankingFilterChanged();
-      });
-    });
+  /** §4 — género EFECTIVO para Ranking: el declarado en la cuenta si es masculino/femenino: si
+   *  no lo declaró (u otro/prefiere no decir), cae a 'masculino' como default técnico neutro —
+   *  nunca deja a self sin poder verse a sí mismo por falta de un dato opcional. */
+  function rankingEffectiveGender(user) {
+    const g = user && user.gender;
+    return (g === 'masculino' || g === 'femenino') ? g : 'masculino';
   }
 
-  function setRankingType(type) {
-    rankingTypeFilter = type;
-    $all('#ranking-type-selector .option-col').forEach((btn) => {
-      const active = btn.dataset.value === type;
-      btn.classList.toggle('is-selected', active);
-      btn.setAttribute('aria-checked', String(active));
-    });
-    $('#ranking-band-chips').hidden = type !== 'nivel';
+  function renderRankingGenderTrigger() {
+    $('#ranking-gender-trigger').textContent = `${RANKING_GENDER_LABELS[rankingGenderFilter]} ▾`;
   }
 
-  /** Bloque 2 — universo/orden/movimiento de la combinación ámbito+tipo+banda ACTUALMENTE
-   *  activa. El resto usa el universo mock determinístico de RK.buildScopeUniverseNames
-   *  (§21: dataset simulado, claramente separable de una futura fuente real). El Nivel de
-   *  CADA jugador —self incluido— es siempre PH.computeSimulatedJugadorLevel: Ranking nunca
-   *  calcula ni modifica Nivel BRAMU, solo ordena lo que esa función ya devuelve.
-   *
-   *  `mis-jugadores`: Ranking_BRAMU.md §10.1 define el universo por jugadores con al menos un
-   *  PARTIDO VALIDADO compartido — este prototipo todavía no tiene validación multiusuario
-   *  real (ningún partido pasa por un estado "pendiente/validado/disputado", ver §16.2 del
-   *  documento), así que no existe ese dato para leer. ML.computeRecentPlayers (partidos
-   *  simplemente guardados, sin noción de validación) es la aproximación más cercana
-   *  disponible hoy — es una SUSTITUCIÓN TEMPORAL de V03.5, no la regla final. Cuando exista
-   *  backend con validación real, este universo debe reconstruirse a partir de los vínculos
-   *  que esa validación produzca, no de esta función. */
-  /** Bloque 3 — arma un participante SIN puesto (compañero de Mis jugadores calibrando o
-   *  inactivo, §10.2): nunca pasa por RK.rankEntries (no tiene sentido ordenar algo sin
-   *  posición). El Nivel mostrado es real (PH.computeSimulatedJugadorLevel) salvo en
-   *  'sin-nivel', donde no existe todavía — mostrar cualquier número ahí sería inventarlo. */
+  /** §4.2 — desplegable compacto reutilizando el picker sheet de Perfil (openProfilePickerSheet
+   *  ya acepta un config crudo además de una key de PROFILE_PICKER_FIELDS, ver ahí). */
+  function rankingGenderPickerConfig() {
+    return {
+      title: 'GÉNERO DEL RANKING',
+      labels: RANKING_GENDER_LABELS,
+      get: () => rankingGenderFilter,
+      set: (v) => { rankingGenderFilter = v; },
+      onSelect: () => { renderRankingGenderTrigger(); onRankingFilterChanged(); },
+    };
+  }
+
+  function rankingSelfBand() {
+    const level = PH.computeSimulatedJugadorLevel(Store.loadHistory(), currentPlayerName);
+    return RK.bandForLevel(level);
+  }
+
+  function renderRankingBandTrigger() {
+    $('#ranking-band-trigger').textContent = rankingBandFilter == null ? 'Todos los niveles ▾' : `Nivel ${rankingBandFilter} ▾`;
+  }
+
+  /** §5.1 — "Todos los niveles" (default) + "Mi nivel · Nivel X" (atajo, se resuelve a un
+   *  número concreto al tocarlo — nunca queda como un estado dinámico "mi nivel" en curso) +
+   *  Nivel 1-10. Misma lógica de bandas ya existente (RK.bandFilter), nunca una nueva. */
+  function rankingBandPickerConfig() {
+    const selfBand = rankingSelfBand();
+    const labels = { todos: 'Todos los niveles', mi_nivel: `Mi nivel · Nivel ${selfBand}` };
+    for (let n = 1; n <= 10; n++) labels['n' + n] = `Nivel ${n}`;
+    return {
+      title: 'NIVEL',
+      labels,
+      get: () => (rankingBandFilter == null ? 'todos' : 'n' + rankingBandFilter),
+      set: (v) => {
+        if (v === 'todos') rankingBandFilter = null;
+        else if (v === 'mi_nivel') rankingBandFilter = selfBand;
+        else rankingBandFilter = Number(v.slice(1));
+      },
+      onSelect: () => { renderRankingBandTrigger(); onRankingFilterChanged(); },
+    };
+  }
+
+  /** Bloque 3 — arma un participante SIN puesto (compañero de Mi red calibrando o inactivo,
+   *  §10.2): nunca pasa por RK.rankEntries (no tiene sentido ordenar algo sin posición). El
+   *  Nivel mostrado es real (PH.computeSimulatedJugadorLevel) salvo en 'sin-nivel', donde no
+   *  existe todavía — mostrar cualquier número ahí sería inventarlo. */
   function buildUnrankedParticipant(name, history) {
     const status = RK.computeParticipantStatus(name, history);
     const level = status.key === 'sin-nivel' ? null : PH.computeSimulatedJugadorLevel(history, name);
     return { name, status, level };
   }
 
+  /** Bloque 2/3, refinado en V03.5.1 (§3/§4/§5) — universo/orden/movimiento de la combinación
+   *  ámbito+género+banda ACTUALMENTE activa. El Nivel de CADA jugador —self incluido— es
+   *  siempre PH.computeSimulatedJugadorLevel: Ranking nunca calcula ni modifica Nivel BRAMU,
+   *  solo ordena lo que esa función ya devuelve. Género es SIEMPRE obligatorio (§4: "no
+   *  mostrar ambos mezclados"), banda es un filtro opcional (§5, ya no un modo paralelo).
+   *
+   *  `mi-red` (antes "Mis jugadores"): §3.3 acota el universo a partidos COMPUTABLES de los
+   *  últimos 180 días (RK.computeNetworkNames) — reemplaza a ML.computeRecentPlayers, que no
+   *  filtraba por fecha ni por computabilidad y era, en sí misma, una sustitución temporal de
+   *  "partido validado" (este prototipo no tiene validación multiusuario real todavía). */
   function computeRankingView() {
     const scope = rankingScopeFilter;
-    const isTerritorial = scope !== 'mis-jugadores';
+    const isTerritorial = scope !== 'mi-red';
 
     // §17/Bloque 3 — Global bloqueado: corta ACÁ, antes de armar ningún universo (nunca
     // simular un desbloqueo que el documento prohíbe expresamente).
@@ -7435,13 +7461,15 @@
     const user = Store.getCurrentUser();
     const selfStatus = RK.computeSelfStatus(user, history, isTerritorial);
     const myId = Store.normalizePlayerName(currentPlayerName);
+    const selfGender = rankingEffectiveGender(user);
 
     if (isTerritorial) {
-      let allEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames(scope), history, currentPlayerName, true);
+      let allEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames(scope), history, currentPlayerName, true, selfGender);
       // Bloque 3 — solo CALIBRADO/RECALIBRANDO (acá: 'elegible') ocupa puesto (§6.2 regla 5).
       // Los mock territoriales son siempre elegibles por construcción; self se saca si no lo es.
       if (selfStatus.key !== 'elegible') allEntries = allEntries.filter((e) => !e.isMe);
-      const universe = rankingTypeFilter === 'nivel' ? RK.bandFilter(allEntries, rankingBandFilter) : allEntries;
+      let universe = RK.filterByGender(allEntries, rankingGenderFilter);
+      if (rankingBandFilter != null) universe = RK.bandFilter(universe, rankingBandFilter);
       const density = RK.computeTerritorialDensity(universe.length);
       if (density.level === 'insufficient') {
         return { scope, isTerritorial, selfStatus, density, totalCount: universe.length, ranked: [], movementMap: new Map(), myEntry: null, myId };
@@ -7455,18 +7483,22 @@
       return { scope, isTerritorial, selfStatus, density, ranked, movementMap, myEntry, myId, totalCount: ranked.length };
     }
 
-    // Mis jugadores — cada compañero tiene SU PROPIO estado real (nunca el universo mock
-    // territorial: acá todos son cuentas/partidos reales, ver ML.computeRecentPlayers).
-    const names = ML.computeRecentPlayers(history, currentIdentity(), []);
-    const participants = names.map((n) => ({ name: n, status: RK.computeParticipantStatus(n, history) }));
+    // Mi red — cada compañero tiene SU PROPIO estado real (nunca el universo mock territorial:
+    // acá todos son cuentas/partidos reales). §3.4 — nunca mezclar ocultos con la vista normal.
+    const hiddenNames = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
+    const hiddenSet = new Set(hiddenNames.map((n) => Store.normalizePlayerName(n)));
+    const rawNames = RK.computeNetworkNames(history, currentIdentity());
+    const visibleNames = rawNames.filter((n) => !hiddenSet.has(Store.normalizePlayerName(n)));
+    const participants = visibleNames.map((n) => ({ name: n, status: RK.computeParticipantStatus(n, history) }));
     const eligibleNames = participants.filter((p) => p.status.key === 'elegible').map((p) => p.name);
     const calibrandoNames = participants.filter((p) => p.status.key === 'sin-nivel' || p.status.key === 'calibrando').map((p) => p.name);
     const inactiveNames = participants.filter((p) => p.status.key === 'inactivo').map((p) => p.name);
 
-    let allEntries = RK.buildRankingEntries(eligibleNames, history, currentPlayerName);
+    let allEntries = RK.buildRankingEntries(eligibleNames, history, currentPlayerName, false, selfGender);
     if (selfStatus.key !== 'elegible') allEntries = allEntries.filter((e) => !e.isMe);
-    const universe = rankingTypeFilter === 'nivel' ? RK.bandFilter(allEntries, rankingBandFilter) : allEntries;
-    const density = RK.computeMisJugadoresDensity(universe.length);
+    let universe = RK.filterByGender(allEntries, rankingGenderFilter);
+    if (rankingBandFilter != null) universe = RK.bandFilter(universe, rankingBandFilter);
+    const density = RK.computeNetworkDensity(universe.length);
     const ranked = density.level === 'empty' ? [] : RK.rankEntries(universe);
     const movementMap = density.level === 'established' ? RK.computeWeeklyMovement(universe) : new Map();
     if (selfStatus.isNew) movementMap.set(myId, { delta: null, label: 'Nuevo' });
@@ -7477,13 +7509,15 @@
       totalCount: universe.length,
       unrankedCalibrando: calibrandoNames.map((n) => buildUnrankedParticipant(n, history)),
       unrankedInactive: inactiveNames.map((n) => buildUnrankedParticipant(n, history)),
+      hiddenCount: hiddenNames.length,
     };
   }
 
   function rankingContextLabel() {
     const scopeLabel = (RANKING_SCOPE_TABS.find((t) => t.key === rankingScopeFilter) || {}).label || '';
-    const typeLabel = rankingTypeFilter === 'nivel' ? `Nivel ${rankingBandFilter}` : 'General';
-    return `${scopeLabel} · ${typeLabel}`;
+    const genderLabel = RANKING_GENDER_LABELS[rankingGenderFilter];
+    const bandLabel = rankingBandFilter != null ? ` · Nivel ${rankingBandFilter}` : '';
+    return `${scopeLabel} · ${genderLabel}${bandLabel}`;
   }
 
   /** Bloque 3 — acción del CTA de #ranking-state-card, guardada acá porque el botón se pinta
@@ -7492,13 +7526,15 @@
 
   /** Bloque 3 (§19.3/Ranking_BRAMU.md §6.3) — copy de "estados propios": SIEMPRE en primera
    *  persona y privado (solo lo ve el propio usuario, nunca aparece en la fila de otro — "para
-   *  terceros no exponer motivos privados de exclusión", pedido explícito del Bloque 3). */
+   *  terceros no exponer motivos privados de exclusión", pedido explícito del Bloque 3).
+   *  V03.5.1 (§10) — los CTA que van a Perfil pasan 'ranking' como origen para que el back de
+   *  Mi Perfil/Mis Datos vuelva accá, no a Home. */
   function selfStatusCopy(status, scopeLabel) {
     switch (status.key) {
       case 'opt-out':
-        return { title: 'DESACTIVASTE EL RANKING', text: 'Desactivaste tu participación en el Ranking BRAMU. Podés reactivarla cuando quieras — tu Nivel BRAMU se mantiene igual.', cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos') };
+        return { title: 'DESACTIVASTE EL RANKING', text: 'Desactivaste tu participación en el Ranking BRAMU. Podés reactivarla cuando quieras — tu Nivel BRAMU se mantiene igual.', cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos', 'ranking') };
       case 'perfil-privado':
-        return { title: 'TU PERFIL ES PRIVADO', text: 'Con el perfil privado no ocupás posiciones en el Ranking BRAMU. Hacelo público para aparecer.', cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos') };
+        return { title: 'TU PERFIL ES PRIVADO', text: 'Con el perfil privado no ocupás posiciones en el Ranking BRAMU. Hacelo público para aparecer.', cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos', 'ranking') };
       case 'sin-nivel':
         return { title: 'TODAVÍA NO TENÉS NIVEL BRAMU', text: 'Jugá y guardá tu primer partido para que BRAMU empiece a calcular tu Nivel — recién ahí vas a poder ocupar una posición.', cta: 'IR AL INICIO', action: () => openPlayerHome() };
       case 'calibrando':
@@ -7506,21 +7542,21 @@
       case 'inactivo':
         return { title: 'SIN POSICIÓN POR INACTIVIDAD', text: 'Tu Nivel BRAMU se mantiene. Validá un nuevo partido para volver a aparecer.', cta: null };
       case 'sin-ubicacion':
-        return { title: 'FALTA TU UBICACIÓN', text: `Elegí tu localidad principal de juego en MIS DATOS para aparecer en ${scopeLabel}.`, cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos') };
+        return { title: 'FALTA TU UBICACIÓN', text: `Elegí tu localidad principal de juego en MIS DATOS para aparecer en ${scopeLabel}.`, cta: 'IR A MIS DATOS', action: () => openProfileScreen('mis-datos', 'ranking') };
       default:
         return null;
     }
   }
 
   /** Ranking_BRAMU.md §11.2 — 0-4 elegibles: nunca publicar puestos, explicar cuántos faltan y
-   *  ofrecer una salida (ámbito superior, o volver a General si la insuficiencia la causó el
-   *  filtro de banda — Caso 10 del documento). */
+   *  ofrecer una salida (ámbito superior, o volver a Todos los niveles si la insuficiencia la
+   *  causó el filtro de banda — Caso 10 del documento). */
   function territorialDensityCopy(view) {
     const scopeLabel = (RANKING_SCOPE_TABS.find((t) => t.key === view.scope) || {}).label || '';
     const missing = view.density.missing;
     const text = `Hay ${view.totalCount} ${view.totalCount === 1 ? 'jugador elegible' : 'jugadores elegibles'} en ${scopeLabel}. Faltan ${missing} para habilitar la clasificación.`;
-    if (rankingTypeFilter === 'nivel') {
-      return { title: `${scopeLabel.toUpperCase()} EN FORMACIÓN`, text, cta: 'VOLVER A GENERAL', action: () => { setRankingType('general'); onRankingFilterChanged(); } };
+    if (rankingBandFilter != null) {
+      return { title: `${scopeLabel.toUpperCase()} EN FORMACIÓN`, text, cta: 'VER TODOS LOS NIVELES', action: () => { rankingBandFilter = null; renderRankingBandTrigger(); onRankingFilterChanged(); } };
     }
     const NEXT_SCOPE = { local: 'provincial', provincial: 'pais' };
     const next = NEXT_SCOPE[view.scope];
@@ -7529,29 +7565,30 @@
     return { title: `${scopeLabel.toUpperCase()} EN FORMACIÓN`, text, cta: `VER ${nextLabel.toUpperCase()}`, action: () => { rankingScopeFilter = next; renderRankingScopeTabs(); onRankingFilterChanged(); } };
   }
 
-  /** Único punto de entrada para decidir si se muestra el contenido normal (Tu posición/Cerca
-   *  tuyo/Clasificación) o una tarjeta de estado que lo reemplaza por completo — Global
-   *  bloqueado > estado propio (privado, nunca visible para terceros) > densidad territorial
-   *  insuficiente. Bloque 3, "estados de producto". */
+  /** Único punto de entrada para decidir si se muestra el contenido normal (Tu posición +
+   *  Clasificación) o una tarjeta de estado que lo reemplaza por completo — Global bloqueado >
+   *  estado propio (privado, nunca visible para terceros) > densidad territorial insuficiente.
+   *  Bloque 3, "estados de producto". */
   function renderRankingStateCard(view) {
     const globalBlocked = $('#ranking-global-blocked');
     const stateCard = $('#ranking-state-card');
     const normal = $('#ranking-normal-content');
-    const helpBtn = $('#ranking-help-btn');
+    const filtersRow = $('#ranking-filters-row');
+    const searchBtn = $('#ranking-search-toggle-btn');
 
     if (view.globalBlocked) {
       globalBlocked.hidden = false;
       stateCard.hidden = true;
       normal.hidden = true;
-      helpBtn.hidden = false;
-      // Bloqueado: General/Por Nivel no tienen nada sobre qué actuar todavía.
-      $('#ranking-type-selector').hidden = true;
-      $('#ranking-band-chips').hidden = true;
+      // Bloqueado: género/nivel/búsqueda no tienen nada sobre qué actuar todavía.
+      filtersRow.hidden = true;
+      searchBtn.hidden = true;
+      if (rankingSearchOpen) closeRankingSearch();
       return;
     }
-    $('#ranking-type-selector').hidden = false;
-    if (rankingTypeFilter === 'nivel') $('#ranking-band-chips').hidden = false;
     globalBlocked.hidden = true;
+    filtersRow.hidden = false;
+    searchBtn.hidden = false;
 
     const scopeLabel = (RANKING_SCOPE_TABS.find((t) => t.key === view.scope) || {}).label || '';
     let copy = selfStatusCopy(view.selfStatus, scopeLabel);
@@ -7560,7 +7597,6 @@
     if (!copy) {
       stateCard.hidden = true;
       normal.hidden = false;
-      helpBtn.hidden = false;
       return;
     }
     $('#ranking-state-title').textContent = copy.title;
@@ -7570,29 +7606,27 @@
     else { cta.hidden = true; rankingStateCtaAction = null; }
     stateCard.hidden = false;
     normal.hidden = true;
-    helpBtn.hidden = false;
   }
 
-  /** §9 — tarjeta compacta pero de alta jerarquía: puesto, denominador, Nivel BRAMU público,
-   *  movimiento semanal simulado y contexto (mismo formato conceptual que el ejemplo del
-   *  documento de versión: "#18 de 74 / Nivel BRAMU 5,4 / ↑3 esta semana / Local · General").
-   *  Solo se llama cuando #ranking-normal-content está visible — renderRankingStateCard ya
-   *  filtró self-no-elegible/densidad insuficiente/Global bloqueado antes de esto. */
+  /** §7 — TU POSICIÓN vive DENTRO de la tarjeta (lenguaje visual de Último partido: borde
+   *  lima, jerarquía posición grande + Nivel BRAMU a la derecha), tarjeta completa interactiva
+   *  (§8.2 — tocarla hace scroll suave a la fila propia, ver locateMeInRanking) y NUNCA sticky
+   *  (§7.2). Solo se llama cuando #ranking-normal-content está visible — renderRankingStateCard
+   *  ya filtró self-no-elegible/densidad insuficiente/Global bloqueado antes de esto. */
   function renderRankingMyPosition(view) {
     const card = $('#ranking-my-position-card');
-    const locateBtn = $('#ranking-locate-me-btn');
-    if (!view.myEntry) { card.hidden = true; locateBtn.hidden = true; return; }
+    if (!view.myEntry) { card.hidden = true; return; }
     card.hidden = false;
 
-    // Ranking_BRAMU.md §10.2 — Mis jugadores con 1-2 elegibles: comparación simple, SIN "N de
-    // total" ni movimiento semanal (no tiene sentido comparar contra un corte que tampoco
-    // tenía puestos).
+    // Ranking_BRAMU.md §10.2 — Mi red con 1-2 elegibles: comparación simple, SIN "N de total"
+    // ni movimiento semanal (no tiene sentido comparar contra un corte que tampoco tenía
+    // puestos).
     if (!view.isTerritorial && view.density.level === 'simple') {
       card.innerHTML = `
+        <span class="ranking-my-position__label">TU POSICIÓN</span>
         <div class="ranking-my-position__level">Nivel BRAMU <strong>${view.myEntry.level.toFixed(1)}</strong></div>
-        <div class="ranking-my-position__context">Comparación entre ${view.totalCount} jugadores · Mis jugadores</div>
+        <div class="ranking-my-position__meta">Comparación entre ${view.totalCount} jugadores · Mi red</div>
       `;
-      locateBtn.hidden = true;
       return;
     }
 
@@ -7602,24 +7636,32 @@
     const formingBadge = view.isTerritorial && view.density.level === 'forming'
       ? ' <span class="ranking-forming-badge">EN FORMACIÓN</span>' : '';
     card.innerHTML = `
-      <div class="ranking-my-position__rank">
-        <span class="ranking-my-position__pos">#${view.myEntry.position}</span>
-        <span class="ranking-my-position__of">de ${view.totalCount}</span>${formingBadge}
+      <span class="ranking-my-position__label">TU POSICIÓN</span>
+      <div class="ranking-my-position__main">
+        <div class="ranking-my-position__rank">
+          <span class="ranking-my-position__pos">#${view.myEntry.position}</span>
+          <span class="ranking-my-position__of">de ${view.totalCount}</span>${formingBadge}
+        </div>
+        <div class="ranking-my-position__level">
+          <span class="ranking-my-position__level-value">${view.myEntry.level.toFixed(1)}</span>
+          <span class="ranking-my-position__level-label">NIVEL BRAMU</span>
+        </div>
       </div>
-      <div class="ranking-my-position__level">Nivel BRAMU <strong>${view.myEntry.level.toFixed(1)}</strong></div>
-      <div class="ranking-my-position__movement">${escapeHtml(mv.label)} esta semana</div>
-      <div class="ranking-my-position__context">${escapeHtml(rankingContextLabel())}</div>
+      <div class="ranking-my-position__meta">${escapeHtml(mv.label)} esta semana · ${escapeHtml(rankingContextLabel())}</div>
     `;
-    locateBtn.hidden = false;
   }
 
   /** §11.1 — reutiliza EXACTAMENTE la fila de la tabla de Mis grupos (.group-table__row,
    *  buildGroupTableRowHTML en spíritu): posición, avatar, nombre + @usuario, contexto mínimo
-   *  (localidad en Provincial/País/Global — Local/Mis jugadores no la necesitan, sería
-   *  redundante) y Nivel BRAMU. Se agrega SOLO el indicador de movimiento semanal al lado —
-   *  nunca efectividad/victorias/derrotas/rachas (§11.1, explícitamente prohibido en la fila).
-   *  `showPosition:false` — Ranking_BRAMU.md §10.2, Mis jugadores con 1-2 elegibles: se
-   *  muestran las filas pero SIN número de puesto ("comparación simple", nunca "1 de 2"). */
+   *  (localidad en Provincial/País/Global — Local/Mi red no la necesitan, sería redundante) y
+   *  Nivel BRAMU. Se agrega SOLO el indicador de movimiento semanal al lado — nunca
+   *  efectividad/victorias/derrotas/rachas (§11.1, explícitamente prohibido en la fila).
+   *  `showPosition:false` — Ranking_BRAMU.md §10.2, Mi red con 1-2 elegibles: se muestran las
+   *  filas pero SIN número de puesto ("comparación simple", nunca "1 de 2").
+   *  `hideAction:true` — V03.5.1 §3.4, solo Mi red: ícono "ocultar de Mi red" por fila (nunca
+   *  en la propia). Vive DENTRO del botón de la fila como un `<span role="button">` con su
+   *  propio `stopPropagation` (ver wireRankingRowClicks) — evitar anidar un <button> real
+   *  dentro de otro <button>. */
   function buildRankingRowHTML(entry, movementMap, opts) {
     const showPosition = !opts || opts.showPosition !== false;
     const mv = (movementMap && movementMap.get(entry.id)) || { label: '—' };
@@ -7629,6 +7671,9 @@
     const positionHTML = showPosition
       ? `<span class="group-table__position">${entry.position}</span>`
       : `<span class="group-table__position ranking-row__position--dash" aria-hidden="true">—</span>`;
+    const hideHTML = (opts && opts.hideAction && !entry.isMe)
+      ? `<span class="ranking-row__hide-btn" data-name="${escapeHtml(entry.name)}" role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>`
+      : '';
     return `<button type="button" class="group-table__row ranking-row${entry.isMe ? ' is-me' : ''}" data-name="${escapeHtml(entry.name)}">
       ${positionHTML}
       ${buildGroupAvatarHTML(entry.name)}
@@ -7644,12 +7689,13 @@
         <span class="group-table__points-label">NIVEL BRAMU</span>
       </span>
       ${showPosition ? `<span class="ranking-row__movement">${escapeHtml(mv.label)}</span>` : ''}
+      ${hideHTML}
     </button>`;
   }
 
-  /** Bloque 3 (Ranking_BRAMU.md §10.2) — compañero de Mis jugadores CALIBRANDO o INACTIVO:
-   *  visible como vínculo, nunca con puesto numérico. Nivel BRAMU solo si ya existe una
-   *  estimación real (calibrando/inactivo) — 'sin-nivel' no muestra ningún número. */
+  /** Bloque 3 (Ranking_BRAMU.md §10.2) — compañero de Mi red CALIBRANDO o INACTIVO: visible
+   *  como vínculo, nunca con puesto numérico. Nivel BRAMU solo si ya existe una estimación
+   *  real (calibrando/inactivo) — 'sin-nivel' no muestra ningún número. */
   function buildUnrankedRowHTML(p) {
     const account = buildGroupRowAccount(p.name);
     const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(p.name);
@@ -7670,35 +7716,27 @@
         <span class="group-table__caption ranking-row__status-badge">${escapeHtml(badge)}</span>
       </span>
       ${levelHTML}
+      <span class="ranking-row__hide-btn" data-name="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>
     </button>`;
   }
 
   /** §14 — misma regla que ya usa la tabla de Mis grupos (isOwnGroupTableRow): la fila propia
-   *  abre MI PERFIL, cualquier otra abre el Perfil público existente — nunca una ficha nueva. */
+   *  abre MI PERFIL, cualquier otra abre el Perfil público existente — nunca una ficha nueva.
+   *  V03.5.1 (§10) — origen 'ranking' para que el back de Mi Perfil vuelva acá. El ícono de
+   *  "ocultar" corta la propagación para no disparar también el click de la fila entera. */
   function wireRankingRowClicks(containerId) {
     $all(`#${containerId} .ranking-row`).forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.classList.contains('is-me')) { openProfileScreen('mi-perfil'); return; }
+        if (btn.classList.contains('is-me')) { openProfileScreen('mi-perfil', 'ranking'); return; }
         openPlayerPublicProfile(btn.dataset.name, 'ranking');
       });
     });
-  }
-
-  /** §10 — 2 puestos arriba / vos / 2 abajo, dentro del universo ACTUALMENTE filtrado (nunca
-   *  un ranking aparte). Oculta en Mis jugadores con 1-2 elegibles (§10.2, "comparación
-   *  simple" — con tan pocos jugadores ya se ven todos en Tu posición/Clasificación). */
-  function renderRankingNearby(view) {
-    const section = $('#ranking-nearby-section');
-    const wrap = $('#ranking-nearby-list');
-    if (!view.myEntry || (!view.isTerritorial && view.density.level === 'simple')) {
-      section.hidden = true;
-      wrap.innerHTML = '';
-      return;
-    }
-    section.hidden = false;
-    const nearby = RK.buildNearbyWindow(view.ranked, view.myEntry.id, 2);
-    wrap.innerHTML = nearby.map((e) => buildRankingRowHTML(e, view.movementMap)).join('');
-    wireRankingRowClicks('ranking-nearby-list');
+    $all(`#${containerId} .ranking-row__hide-btn`).forEach((span) => {
+      span.addEventListener('click', (e) => { e.stopPropagation(); hideNetworkPlayerAction(span.dataset.name); });
+      span.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); hideNetworkPlayerAction(span.dataset.name); }
+      });
+    });
   }
 
   /** id → "@usuario" (cuenta real) o el handle provisional derivado — mismo criterio que el
@@ -7713,13 +7751,13 @@
     return map;
   }
 
-  /** §11/§12/§13 — clasificación completa: con búsqueda activa se muestran TODOS los
-   *  resultados que matchean (no tiene sentido paginarlos en bloques de 50, §13: "no modifica
-   *  el cálculo del ranking"); sin búsqueda, se pagina en bloques de 50 (§12) — nunca cargar
-   *  cientos de filas desde el inicio. Mis jugadores con 1-2 elegibles (§10.2): mismas filas,
-   *  sin número de puesto. */
+  /** §8.1/§11/§12/§13 — clasificación completa: arranca en #1 (nunca centrada en el usuario
+   *  por defecto), con búsqueda activa se muestran TODOS los resultados que matchean (no tiene
+   *  sentido paginarlos, §13: "no modifica el cálculo del ranking"); sin búsqueda, se pagina en
+   *  bloques de 50 (§12/§8.4). Mi red con 1-2 elegibles (§10.2): mismas filas, sin puesto. */
   function renderRankingClassification(view) {
     const showPosition = view.isTerritorial || view.density.level !== 'simple';
+    const rowOpts = { showPosition, hideAction: !view.isTerritorial };
     $('#ranking-universe-count').textContent = showPosition
       ? `${view.totalCount} ${view.totalCount === 1 ? 'jugador elegible' : 'jugadores elegibles'}`
       : `Comparación entre ${view.totalCount} jugadores`;
@@ -7734,7 +7772,7 @@
       wrap.hidden = isEmpty;
       empty.hidden = !isEmpty;
       if (isEmpty) { wrap.innerHTML = ''; $('#ranking-list-empty-text').textContent = `Sin resultados para “${rankingSearchQuery}”.`; return; }
-      wrap.innerHTML = results.map((e) => buildRankingRowHTML(e, view.movementMap, { showPosition })).join('');
+      wrap.innerHTML = results.map((e) => buildRankingRowHTML(e, view.movementMap, rowOpts)).join('');
       wireRankingRowClicks('ranking-list');
       return;
     }
@@ -7745,25 +7783,25 @@
     loadMoreBtn.hidden = true;
     if (isEmpty) {
       wrap.innerHTML = '';
-      $('#ranking-list-empty-text').textContent = rankingTypeFilter === 'nivel'
+      $('#ranking-list-empty-text').textContent = rankingBandFilter != null
         ? `Todavía no hay jugadores elegibles en Nivel ${rankingBandFilter} acá.`
         : 'Todavía no hay jugadores elegibles en esta vista.';
       return;
     }
     if (!showPosition) {
       // §10.2 — comparación simple (1-2 elegibles): nunca son tantos como para paginar.
-      wrap.innerHTML = view.ranked.map((e) => buildRankingRowHTML(e, view.movementMap, { showPosition: false })).join('');
+      wrap.innerHTML = view.ranked.map((e) => buildRankingRowHTML(e, view.movementMap, rowOpts)).join('');
       wireRankingRowClicks('ranking-list');
       return;
     }
     const visible = RK.paginate(view.ranked, rankingLoadedBlocks);
-    wrap.innerHTML = visible.map((e) => buildRankingRowHTML(e, view.movementMap)).join('');
+    wrap.innerHTML = visible.map((e) => buildRankingRowHTML(e, view.movementMap, rowOpts)).join('');
     wireRankingRowClicks('ranking-list');
     loadMoreBtn.hidden = visible.length >= view.ranked.length;
   }
 
-  /** Bloque 3 — solo Mis jugadores: secciones CALIBRANDO/INACTIVOS, siempre sin puesto
-   *  (§10.2). En cualquier otro ámbito quedan ocultas (el universo mock es siempre elegible). */
+  /** Bloque 3 — solo Mi red: secciones CALIBRANDO/INACTIVOS, siempre sin puesto (§10.2). En
+   *  cualquier otro ámbito quedan ocultas (el universo mock es siempre elegible). */
   function renderRankingUnrankedSections(view) {
     const calibrandoSection = $('#ranking-calibrando-section');
     const inactiveSection = $('#ranking-inactive-section');
@@ -7781,14 +7819,24 @@
     }
   }
 
+  /** V03.5.1 (§3.5) — utilidad "Ocultos (N)": solo visible en Mi red, solo con al menos un
+   *  oculto (nunca mezclado al final de la clasificación normal). */
+  function renderRankingHiddenButton(view) {
+    const btn = $('#ranking-hidden-btn');
+    const count = view.hiddenCount || 0;
+    if (view.isTerritorial || count === 0) { btn.hidden = true; return; }
+    btn.hidden = false;
+    $('#ranking-hidden-count').textContent = String(count);
+  }
+
   function renderRankingContent() {
     const view = computeRankingView();
     renderRankingStateCard(view);
     if (view.globalBlocked || $('#ranking-normal-content').hidden) return;
     renderRankingMyPosition(view);
-    renderRankingNearby(view);
     renderRankingClassification(view);
     renderRankingUnrankedSections(view);
+    renderRankingHiddenButton(view);
   }
 
   function onRankingFilterChanged() {
@@ -7803,15 +7851,16 @@
     renderRankingClassification(computeRankingView());
   }
 
-  /** §9 — "Verme en la clasificación": salta directo al bloque de 50 que contiene la posición
-   *  del usuario (nunca obliga a tocar "cargar más" varias veces desde el puesto 1) y la
-   *  resalta con scroll suave. Sale de cualquier búsqueda activa — el objetivo es ubicarse en
-   *  la clasificación completa, no en un recorte de resultados que podría ni incluirla. */
+  /** §8.2 — tocar la tarjeta TU POSICIÓN salta directo al bloque de 50 que contiene la
+   *  posición del usuario (nunca obliga a tocar "cargar más" varias veces desde el puesto 1) y
+   *  la resalta con scroll suave, centrada cuando sea posible. Sale de cualquier búsqueda
+   *  activa — el objetivo es ubicarse en la clasificación completa, no en un recorte de
+   *  resultados que podría ni incluirla. Reemplaza el botón VERME EN LA CLASIFICACIÓN y el
+   *  bloque CERCA TUYO de V03.5, ambos eliminados. */
   function locateMeInRanking() {
     const view = computeRankingView();
     if (!view.myEntry) return;
-    rankingSearchQuery = '';
-    $('#ranking-search-input').value = '';
+    if (rankingSearchOpen) closeRankingSearch();
     rankingLoadedBlocks = Math.max(rankingLoadedBlocks, RK.blockForPosition(view.myEntry.position));
     renderRankingClassification(view);
     requestAnimationFrame(() => {
@@ -7825,19 +7874,96 @@
     renderRankingClassification(computeRankingView());
   }
 
-  /** §7 — "por defecto se preselecciona la banda correspondiente al Nivel público del
-   *  usuario": mismo Nivel simulado que ya usa el resto del prototipo (PH.computeSimulatedJugadorLevel),
-   *  nunca una fórmula propia de Ranking. Se precarga UNA sola vez (primera apertura): si el
-   *  usuario ya tocó el selector de banda, reabrir la pantalla no debe pisarle la elección. */
+  /** V03.5.1 (§6.1) — la lupa del header abre/cierra el buscador (ya no un bloque permanente).
+   *  Reutiliza exactamente la misma lógica (RK.filterEntriesBySearch/onRankingSearchInput). */
+  function openRankingSearch() {
+    rankingSearchOpen = true;
+    $('#ranking-search-bar').hidden = false;
+    setTimeout(() => $('#ranking-search-input').focus(), 60);
+  }
+  function closeRankingSearch() {
+    rankingSearchOpen = false;
+    $('#ranking-search-bar').hidden = true;
+    rankingSearchQuery = '';
+    $('#ranking-search-input').value = '';
+    renderRankingClassification(computeRankingView());
+  }
+  function toggleRankingSearch() { if (rankingSearchOpen) closeRankingSearch(); else openRankingSearch(); }
+
+  /** V03.5.1 (§3.4/§3.5) — "Ocultar de Mi red": preferencia personal, nunca borra nada (ver
+   *  Store.hideNetworkPlayer). Mismo toast breve que agregar/quitar de JUGADORES. */
+  function hideNetworkPlayerAction(name) {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    Store.hideNetworkPlayer(user.id, name);
+    showToast('Oculto de Mi red');
+    renderRankingContent();
+  }
+
+  function renderRankingHiddenSheet() {
+    const user = Store.getCurrentUser();
+    const hidden = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
+    const list = $('#ranking-hidden-list');
+    const empty = $('#ranking-hidden-empty');
+    if (!hidden.length) { list.hidden = true; list.innerHTML = ''; empty.hidden = false; return; }
+    empty.hidden = true;
+    list.hidden = false;
+    list.innerHTML = hidden.map((name) => {
+      const account = buildGroupRowAccount(name);
+      const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
+      return `<div class="group-table__row ranking-row ranking-row--static">
+        ${buildGroupAvatarHTML(name)}
+        <span class="group-table__info">
+          <span class="group-table__toprow">
+            <span class="group-table__name">${escapeHtml(name)}</span>
+            <span class="group-table__handle">· ${escapeHtml(handle)}</span>
+          </span>
+        </span>
+        <button type="button" class="btn-mini ranking-restore-btn" data-name="${escapeHtml(name)}">MOSTRAR</button>
+      </div>`;
+    }).join('');
+    $all('#ranking-hidden-list .ranking-restore-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const u = Store.getCurrentUser();
+        if (!u) return;
+        Store.unhideNetworkPlayer(u.id, btn.dataset.name);
+        showToast('De vuelta en Mi red');
+        renderRankingHiddenSheet();
+        renderRankingContent();
+      });
+    });
+  }
+  function openRankingHiddenSheet() {
+    renderRankingHiddenSheet();
+    $('#ranking-hidden-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => $('#ranking-hidden-sheet-scrim').classList.add('is-open'));
+  }
+  function closeRankingHiddenSheet() {
+    $('#ranking-hidden-sheet-scrim').classList.remove('is-open');
+    setTimeout(() => { $('#ranking-hidden-sheet-scrim').hidden = true; }, 220);
+  }
+
+  /** §8.3 — "↑ Ir al inicio": aparece solo lejos del inicio de la clasificación, smooth scroll
+   *  hacia arriba DENTRO de la pantalla (nunca recarga). */
+  function initRankingScrollTop() {
+    const scrollEl = $('#ranking-scroll');
+    const btn = $('#ranking-scrolltop-btn');
+    scrollEl.addEventListener('scroll', () => { btn.hidden = scrollEl.scrollTop < 400; });
+    btn.addEventListener('click', () => scrollEl.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
+
+  /** §3.1/§4.1 — ámbito Local y género del usuario actual por defecto, precargados UNA sola
+   *  vez (primera apertura): si el usuario ya tocó los desplegables, reabrir la pantalla no
+   *  debe pisarle la elección — mismo criterio que ya usaba la banda en V03.5. */
   function renderRankingScreen() {
     renderRankingScopeTabs();
-    if (!rankingBandInitialized) {
-      const level = PH.computeSimulatedJugadorLevel(Store.loadHistory(), currentPlayerName);
-      rankingBandFilter = RK.bandForLevel(level);
-      rankingBandInitialized = true;
+    if (!rankingGenderInitialized) {
+      rankingGenderFilter = rankingEffectiveGender(Store.getCurrentUser());
+      rankingGenderInitialized = true;
     }
-    renderRankingBandChips();
-    setRankingType(rankingTypeFilter);
+    renderRankingGenderTrigger();
+    renderRankingBandTrigger();
+    if (rankingSearchOpen) closeRankingSearch();
     rankingLoadedBlocks = 1;
     rankingSearchQuery = '';
     $('#ranking-search-input').value = '';
@@ -7860,14 +7986,11 @@
     // V03.0.3 (§7) — flecha restaurada, convive con la bottom nav; mismo criterio que el
     // resto de pantallas raíz (vuelve siempre a Home, sin origen especial).
     $('#ranking-back-btn').addEventListener('click', () => openPlayerHome());
-    $all('#ranking-type-selector .option-col').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (rankingTypeFilter === btn.dataset.value) return;
-        setRankingType(btn.dataset.value);
-        onRankingFilterChanged();
-      });
-    });
-    $('#ranking-locate-me-btn').addEventListener('click', locateMeInRanking);
+    $('#ranking-my-position-card').addEventListener('click', locateMeInRanking);
+    $('#ranking-gender-trigger').addEventListener('click', () => openProfilePickerSheet(rankingGenderPickerConfig()));
+    $('#ranking-band-trigger').addEventListener('click', () => openProfilePickerSheet(rankingBandPickerConfig()));
+    $('#ranking-search-toggle-btn').addEventListener('click', toggleRankingSearch);
+    $('#ranking-search-close-btn').addEventListener('click', closeRankingSearch);
     $('#ranking-load-more-btn').addEventListener('click', loadMoreRanking);
     $('#ranking-search-input').addEventListener('input', (e) => onRankingSearchInput(e.target.value));
     // Bloque 3 — CTA de #ranking-state-card: una sola acción guardada en rankingStateCtaAction,
@@ -7876,7 +7999,15 @@
     $('#ranking-help-btn').addEventListener('click', openRankingHelpSheet);
     $('#ranking-help-sheet-close').addEventListener('click', closeRankingHelpSheet);
     $('#ranking-help-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#ranking-help-sheet-scrim')) closeRankingHelpSheet(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#ranking-help-sheet-scrim').hidden) closeRankingHelpSheet(); });
+    $('#ranking-hidden-btn').addEventListener('click', openRankingHiddenSheet);
+    $('#ranking-hidden-sheet-close').addEventListener('click', closeRankingHiddenSheet);
+    $('#ranking-hidden-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#ranking-hidden-sheet-scrim')) closeRankingHiddenSheet(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!$('#ranking-help-sheet-scrim').hidden) closeRankingHelpSheet();
+      if (!$('#ranking-hidden-sheet-scrim').hidden) closeRankingHiddenSheet();
+    });
+    initRankingScrollTop();
   }
 
   /* ------------------------------------------------------------------ */
@@ -8657,6 +8788,9 @@
 
   let playerPublicName = null;
   let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
+  // BRAMUlab_V03.5.1 (§10) — mismo criterio que playerPublicOrigin, pero para Mi Perfil/Mis
+  // Datos: null (default) vuelve a Home como siempre; 'ranking' vuelve a Ranking.
+  let profileScreenOrigin = null;
 
   /** §2 — perfil público de `name`: identidad de solo lectura (sin tabs MI PERFIL/MIS DATOS,
    *  sin ningún dato privado) + rendimiento derivado del historial de este dispositivo. Si
@@ -9133,10 +9267,14 @@
    *  gate interno igual a openPlayerHome/openManualLoadScreen (protección adicional, el
    *  ocultamiento visual de la barra ya lo maneja showView). `tab` abre directo en esa
    *  pestaña — MI PERFIL por defecto (consolidado §1: ícono Perfil y tap en el Home van
-   *  ambos a MI PERFIL). */
-  function openProfileScreen(tab) {
+   *  ambos a MI PERFIL). `origin` — BRAMUlab_V03.5.1 (§10): opcional, 'ranking' cuando se
+   *  abre desde Ranking (fila propia o CTA de un estado) para que el back regrese ahí en vez
+   *  de a Home — ver profileScreenOrigin/#profile-back-btn. Sin origin (todo el resto de la
+   *  app, sin cambios) sigue yendo a Home como siempre. */
+  function openProfileScreen(tab, origin) {
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
+    profileScreenOrigin = origin || null;
     setProfileTab(tab || 'mi-perfil');
     renderProfileView();
     showView('profile');
@@ -9190,7 +9328,15 @@
     $('#profile-tab-mis-datos').addEventListener('click', () => setProfileTab('mis-datos'));
     $('#profile-tab-jugadores').addEventListener('click', () => setProfileTab('jugadores'));
     // V03.0.3 (§7) — flecha restaurada, convive con la bottom nav.
-    $('#profile-back-btn').addEventListener('click', () => openPlayerHome());
+    // BRAMUlab_V03.5.1 (§10) — bug corregido: Ranking → Mi Perfil → Back volvía a Home en vez
+    // de a Ranking (a diferencia de Perfil público, que ya funcionaba bien). Mismo criterio
+    // que playerPublicOrigin — no cambia el comportamiento normal (default sigue siendo Home).
+    $('#profile-back-btn').addEventListener('click', () => {
+      const origin = profileScreenOrigin;
+      profileScreenOrigin = null;
+      if (origin === 'ranking') { showView('ranking'); return; }
+      openPlayerHome();
+    });
     $('#profile-logout-btn').addEventListener('click', requestLogout);
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
     $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
@@ -9275,8 +9421,15 @@
   /** BRAMUlab_V03.4.1 (§10) — hoja única de selección, reutilizada para Género/Mano dominante/
    *  Lado habitual/Categoría (ver PROFILE_PICKER_FIELDS). Tocar una opción la selecciona Y
    *  cierra la hoja en el mismo toque — elección única, sin paso de "confirmar" aparte. */
-  function openProfilePickerSheet(fieldKey) {
-    const field = PROFILE_PICKER_FIELDS[fieldKey];
+  /** BRAMUlab_V03.5.1 (§4.2/§5.1) — generalizado para aceptar también un config crudo
+   *  `{title,labels,get,set,onSelect}` además de una key de PROFILE_PICKER_FIELDS (uso
+   *  original, sin cambios en sus 4 call sites): mismo sheet/DOM, mismo comportamiento — el
+   *  desplegable compacto de género/nivel de Ranking reutiliza exactamente esto en vez de un
+   *  picker nuevo. `onSelect`, si el config lo trae, reemplaza al
+   *  `updateProfileSelectRowDisplay(fieldKey)` propio de Perfil (que no aplicaría a un config
+   *  crudo sin `rowValueId`). */
+  function openProfilePickerSheet(fieldKeyOrConfig) {
+    const field = typeof fieldKeyOrConfig === 'string' ? PROFILE_PICKER_FIELDS[fieldKeyOrConfig] : fieldKeyOrConfig;
     const current = field.get();
     $('#profile-picker-sheet-title').textContent = field.title;
     $('#profile-picker-sheet-list').innerHTML = Object.keys(field.labels).map((key) => {
@@ -9289,7 +9442,7 @@
     $all('#profile-picker-sheet-list .picker-sheet-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         field.set(btn.dataset.value);
-        updateProfileSelectRowDisplay(fieldKey);
+        if (field.onSelect) field.onSelect(); else updateProfileSelectRowDisplay(fieldKeyOrConfig);
         closeProfilePickerSheet();
       });
     });

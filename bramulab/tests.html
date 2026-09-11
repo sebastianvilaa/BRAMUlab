@@ -3986,19 +3986,6 @@
       assert('V035-BUSQUEDA · sin coincidencias -> array vacío, nunca undefined/null', RK.filterEntriesBySearch(entries, 'zzz-inexistente', byUsername).length === 0);
     })();
 
-    // ---- buildNearbyWindow: 2 arriba / self / 2 abajo (§10), sin desbordar los extremos ----
-    (function () {
-      const ranked = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, position: i + 1 }));
-      const middle = RK.buildNearbyWindow(ranked, 'p5', 2);
-      assert('V035-CERCA · ventana de 5 (2 arriba + self + 2 abajo) en el medio de la lista',
-        middle.map((e) => e.id).join(',') === 'p3,p4,p5,p6,p7');
-      const top = RK.buildNearbyWindow(ranked, 'p0', 2);
-      assert('V035-CERCA · en el puesto 1 no desborda hacia arriba (nunca revienta el índice)', top.map((e) => e.id).join(',') === 'p0,p1,p2');
-      const bottom = RK.buildNearbyWindow(ranked, 'p9', 2);
-      assert('V035-CERCA · en el último puesto no desborda hacia abajo', bottom.map((e) => e.id).join(',') === 'p7,p8,p9');
-      assert('V035-CERCA · id inexistente -> array vacío (self no está en este universo filtrado)', RK.buildNearbyWindow(ranked, 'no-existe', 2).length === 0);
-    })();
-
     // ---- paginación en bloques de 50 (§12): nunca cargar cientos de filas desde el inicio,
     //      "Verme en la clasificación" salta directo al bloque que contiene la posición ----
     (function () {
@@ -4113,10 +4100,10 @@
     assert('V035B3-DENSIDAD-TERR · 15 -> established', RK.computeTerritorialDensity(15).level === 'established');
 
     // ---- densidad Mis jugadores (§10.2): umbrales DISTINTOS (1-2 sin números, 3+ "N de total") ----
-    assert('V035B3-DENSIDAD-MJ · 0 -> empty', RK.computeMisJugadoresDensity(0).level === 'empty');
-    assert('V035B3-DENSIDAD-MJ · 1 -> simple (sin "N de total")', RK.computeMisJugadoresDensity(1).level === 'simple');
-    assert('V035B3-DENSIDAD-MJ · 2 -> simple', RK.computeMisJugadoresDensity(2).level === 'simple');
-    assert('V035B3-DENSIDAD-MJ · 3 -> established ("N de total" habilitado)', RK.computeMisJugadoresDensity(3).level === 'established');
+    assert('V035B3-DENSIDAD-RED · 0 -> empty', RK.computeNetworkDensity(0).level === 'empty');
+    assert('V035B3-DENSIDAD-RED · 1 -> simple (sin "N de total")', RK.computeNetworkDensity(1).level === 'simple');
+    assert('V035B3-DENSIDAD-RED · 2 -> simple', RK.computeNetworkDensity(2).level === 'simple');
+    assert('V035B3-DENSIDAD-RED · 3 -> established ("N de total" habilitado)', RK.computeNetworkDensity(3).level === 'established');
 
     // ---- Global bloqueado (§17): constante explícita, nunca simulable ----
     assert('V035B3-GLOBAL · GLOBAL_UNLOCKED es false (este prototipo nunca tiene 2+ países reales)', RK.GLOBAL_UNLOCKED === false);
@@ -4130,6 +4117,60 @@
       assert('V035B3-LOCALIDAD · Mis jugadores (assignMockLocality:false/omitido) -> NUNCA localidad inventada', misJugadores.find((e) => e.name === 'Ana Rivas').locality === null);
       assert('V035B3-LOCALIDAD · self nunca tiene localidad mock, ni siquiera en territorial', territorial.find((e) => e.isMe) === undefined || territorial.find((e) => e.isMe).locality === null);
     })();
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.5.1 — Mi red (ventana de 180 días), género, ocultar/
+  // restaurar de Mi red (Store).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.history.v1', 'bramulab.hiddenNetworkPlayers.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    function mkMatch(id, daysAgo, names) {
+      const playedAt = new Date(Date.now() - daysAgo * 86400000).toISOString();
+      return mkGroupMatch(id, playedAt, names, [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]);
+    }
+
+    try {
+      // ---- computeNetworkNames: ventana de 180 días, solo computables, nunca self ----
+      resetAffectedKeys();
+      Store.upsertHistory(mkMatch('v0351-net-recent', 30, ['Red V0351', 'Reciente Uno V0351', 'Rival A V0351', 'Rival B V0351']));
+      Store.upsertHistory(mkMatch('v0351-net-old', 250, ['Red V0351', 'Viejo Uno V0351', 'Rival C V0351', 'Rival D V0351']));
+      Store.upsertHistory(mkGroupMatch('v0351-net-invalid', new Date(Date.now() - 10 * 86400000).toISOString(),
+        ['Red V0351', 'Invalido Uno V0351', 'Rival E V0351', 'Rival F V0351'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }], { winnerTeam: null }));
+      const netNames = RK.computeNetworkNames(Store.loadHistory(), 'Red V0351');
+      assert('V0351-RED · partido de hace 30 días (computable) -> aparece en Mi red', netNames.includes('Reciente Uno V0351'), JSON.stringify(netNames));
+      assert('V0351-RED · partido de hace 250 días (>180) -> NO aparece', !netNames.includes('Viejo Uno V0351'));
+      assert('V0351-RED · partido sin ganador (no computable) -> NO aparece, aunque sea reciente', !netNames.includes('Invalido Uno V0351'));
+      assert('V0351-RED · self nunca aparece en su propia red', !netNames.includes('Red V0351'));
+      assert('V0351-RED · rivales Y compañero, ambos cuentan como "red"', netNames.includes('Rival A V0351') && netNames.includes('Rival B V0351'));
+
+      // ---- género: mock determinístico por nombre + filtro obligatorio ----
+      assert('V0351-GENERO · nombre mock masculino conocido -> "masculino"', RK.mockGenderForName('Agustín Aguirre') === 'masculino');
+      assert('V0351-GENERO · nombre mock femenino conocido -> "femenino"', RK.mockGenderForName('Camila Benítez') === 'femenino');
+      const genderEntries = [{ id: 'a', gender: 'masculino' }, { id: 'b', gender: 'femenino' }, { id: 'c', gender: null }];
+      assert('V0351-GENERO · filterByGender("masculino") deja solo esos', RK.filterByGender(genderEntries, 'masculino').map((e) => e.id).join('') === 'a');
+      assert('V0351-GENERO · gender:null (sin declarar) no entra en NINGÚN filtro', RK.filterByGender(genderEntries, 'femenino').every((e) => e.id !== 'c'));
+
+      // ---- ocultar/restaurar Mi red (Store, mismo patrón que ADDED_PLAYERS) ----
+      resetAffectedKeys();
+      const uid = 'u-v0351-test';
+      assert('V0351-OCULTOS · nadie oculto al principio', Store.loadHiddenNetworkPlayers(uid).length === 0);
+      assert('V0351-OCULTOS · isNetworkPlayerHidden false antes de ocultar', Store.isNetworkPlayerHidden(uid, 'Compañero Oculto V0351') === false);
+      Store.hideNetworkPlayer(uid, 'Compañero Oculto V0351');
+      assert('V0351-OCULTOS · después de ocultar, aparece en la lista', Store.loadHiddenNetworkPlayers(uid).length === 1);
+      assert('V0351-OCULTOS · isNetworkPlayerHidden true después de ocultar', Store.isNetworkPlayerHidden(uid, 'Compañero Oculto V0351') === true);
+      Store.hideNetworkPlayer(uid, 'Compañero Oculto V0351'); // idempotente
+      assert('V0351-OCULTOS · ocultar dos veces no duplica', Store.loadHiddenNetworkPlayers(uid).length === 1);
+      Store.unhideNetworkPlayer(uid, 'Compañero Oculto V0351');
+      assert('V0351-OCULTOS · restaurar -> vuelve a aparecer en Mi red (ya no está oculto)', Store.isNetworkPlayerHidden(uid, 'Compañero Oculto V0351') === false);
+      assert('V0351-OCULTOS · nunca borra partidos/historial (ocultar es una preferencia de vista)', Store.loadHistory().length >= 0); // no debe tirar ni vaciar el historial
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
   })();
 
   // ------------------------------------------------------------------

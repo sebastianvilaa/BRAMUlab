@@ -730,6 +730,16 @@ input, select{ font-family: inherit; }
    acotado por ID (nunca la clase compartida `.btn-start`, que sigue con 0.08em en Setup/
    Resumen/otros overlays — Resumen queda intacto por instrucción explícita de esta ronda). */
 #update-now-btn{ letter-spacing: 0.03em; }
+/* BRAMUlab_V03.5.1 (§12) — "espaciado vertical excesivo" en el aviso de nueva versión: con
+   apenas un título corto, una línea de texto y 2 botones, el padding/márgenes genéricos de
+   `.overlay` (pensados para modales con más contenido) dejaban demasiado aire vertical.
+   Acotado por ID — nunca toca `.overlay__card`/`.overlay__title`/`.overlay__text`/
+   `.overlay__actions` compartidos (~18 modales, ver comentario arriba). Actualizar/Más tarde
+   y el proceso de actualización quedan intactos, solo cambia el espaciado. */
+#update-available-modal .overlay__card{ padding: 20px 22px; }
+#update-available-modal .overlay__title{ margin-bottom: 8px; }
+#update-available-modal .overlay__text{ margin-bottom: 10px; }
+#update-available-modal .overlay__actions{ margin-top: 4px; gap: 8px; }
 /* V6 — fila de título con X de cierre siempre visible (salir rápido si tocaste Editar por error). */
 .overlay__title-row{ display:flex; align-items:center; justify-content:center; position:relative; margin-bottom: 10px; }
 .overlay__title-row .overlay__title{ margin-bottom: 0; }
@@ -1261,8 +1271,13 @@ input, select{ font-family: inherit; }
   transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 .history-tab__count{ font-size: 11px; color: var(--paper-faint); font-weight: 600; }
+/* BRAMUlab_V03.5.1 (§11) — contraste activo/inactivo reforzado: color paper-dim→paper era una
+   diferencia débil (gris apagado a blanco). Mismo patrón que YA usa .profile-tab.is-active
+   (texto a --brand-lime en la pestaña activa) — ajuste al componente COMPARTIDO, no un parche
+   solo para Ranking: beneficia también a Historial y Mis grupos, que reutilizan esta misma
+   clase (#history-tabs/#groups-view-tabs). */
 .history-tab.is-active{
-  color: var(--paper); font-weight: 700; background: var(--ink-soft);
+  color: var(--brand-lime); font-weight: 700; background: var(--ink-soft);
   box-shadow: 0 -3px 10px rgba(0,0,0,0.16);
 }
 .history-tab.is-active .history-tab__count{ color: var(--brand-lime); }
@@ -1277,41 +1292,81 @@ input, select{ font-family: inherit; }
   cursor:pointer; white-space:nowrap;
 }
 .history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
-/* BRAMUlab_V03.5 (Bloque 1, §7) — selector General/Por Nivel y chips de banda de RANKING
-   BRAMU: mismas clases `.option-row--2col`/`.option-col` y `.history-mode-chips`/
-   `.history-mode-chip` que ya usa el resto de la app, solo con el margen propio que acá no
-   viene gratis de `.history-filters`/`.setup-section` (esas pestañas viven directo en
-   `.analysis-scroll`, no dentro de esos wrappers). */
-.ranking-type-selector{ margin-bottom: 12px; }
-.ranking-band-chips{ margin: -4px 0 14px; }
+/* BRAMUlab_V03.5.1 (§6) — lupa/? del header: mismo `.icon-btn` de siempre (back/gear de Mis
+   grupos), el círculo del "?" es el único elemento nuevo. */
+.ranking-help-icon-btn__circle{
+  display:flex; align-items:center; justify-content:center; width:20px; height:20px;
+  border: 1.5px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 800; line-height:1;
+}
 
-/* BRAMUlab_V03.5 (Bloque 2) — TU POSICIÓN: misma superficie tenue lima ya usada para
-   "partido en curso"/"cargar primer partido" (`.continue-banner`), acá reutilizada para dar
-   jerarquía alta pero compacta a la tarjeta más importante de la pantalla (§9: "alta
-   jerarquía visual, pero debe seguir siendo compacta"). */
-.ranking-my-position{ background: rgba(149,255,25,0.06); border: 1px solid rgba(149,255,25,0.30); }
-.ranking-my-position__rank{ display:flex; align-items:baseline; gap: 6px; margin-bottom: 6px; }
-.ranking-my-position__pos{ font-family: var(--font-display); font-weight: 900; font-size: 26px; color: var(--paper); font-variant-numeric: tabular-nums; }
+/* §6.1 — buscador reutilizado (.player-search-field de siempre), ahora oculto por defecto y
+   con una X propia para cerrarlo — ya no un bloque permanente dentro del cuerpo. */
+.ranking-search-field{ margin-bottom: 10px; position: relative; }
+.ranking-search-bar__close{ flex:none; background:none; border:none; color: var(--paper-faint); padding: 4px; cursor:pointer; }
+.ranking-search-bar__close:active{ color: var(--paper); }
+
+/* §4.2/§5.1 — desplegables compactos de género y nivel: nunca tabs grandes ni un segundo modo
+   paralelo (reemplazan General/Por Nivel + bandas de V03.5). Mismo lenguaje que `.option-col`
+   (radio pill) pero de ancho natural, lado a lado. */
+.ranking-filters-row{ display:flex; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
+.ranking-dropdown-trigger{
+  flex:none; background: var(--ink-soft); border: 1.5px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; font-family: var(--font-display); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.02em; color: var(--paper); cursor:pointer;
+}
+.ranking-dropdown-trigger:active{ border-color: var(--brand-lime); }
+
+/* BRAMUlab_V03.5.1 (§7) — TU POSICIÓN vive DENTRO de la tarjeta (nunca un título externo) con
+   el lenguaje visual de Último partido (`.player-home-lastmatch`): borde lima + radius-hero +
+   glow apenas encendido, nunca sticky (§7.2 — sin position:sticky en ningún lado). Tarjeta
+   completa es un <button> real (tocarla salta a la fila propia, ver locateMeInRanking) —
+   nunca copia el CONTENIDO de Último partido, solo su idioma visual (§7.1 explícito). */
+.ranking-my-position{
+  display:block; width:100%; text-align:left; cursor:pointer; font: inherit; color: inherit;
+  background: var(--surface-3); border: 1px solid var(--brand-lime); border-radius: var(--radius-hero);
+  padding: 16px 18px; margin-bottom: 14px;
+  box-shadow: 0 0 14px rgba(149,255,25,.10);
+}
+.ranking-my-position:active{ transform: scale(0.99); }
+.ranking-my-position__label{
+  display:block; font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--paper-dim); text-transform: uppercase; margin-bottom: 10px;
+}
+.ranking-my-position__main{ display:flex; align-items:flex-end; justify-content:space-between; gap: 10px; margin-bottom: 8px; }
+.ranking-my-position__rank{ display:flex; align-items:baseline; gap: 6px; flex-wrap:wrap; }
+.ranking-my-position__pos{ font-family: var(--font-display); font-weight: 900; font-size: 32px; color: var(--paper); font-variant-numeric: tabular-nums; line-height:1; }
 .ranking-my-position__of{ font-size: 13px; color: var(--paper-dim); font-weight: 700; }
-.ranking-my-position__level{ font-size: 14px; color: var(--paper); margin-bottom: 3px; }
-.ranking-my-position__level strong{ font-weight: 800; }
-.ranking-my-position__movement{ font-size: 12px; color: var(--paper-faint); margin-bottom: 3px; }
-.ranking-my-position__context{ font-size: 12px; color: var(--paper-dim); }
-.ranking-locate-btn{ width:100%; margin-top: 10px; }
+.ranking-my-position__level{ flex:none; text-align:right; }
+.ranking-my-position__level-value{ display:block; font-family: var(--font-display); font-weight: 800; font-size: 22px; color: var(--paper); font-variant-numeric: tabular-nums; line-height:1; }
+.ranking-my-position__level-label{ display:block; font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-top: 3px; }
+.ranking-my-position__level strong{ font-weight: 800; color: var(--paper); } /* comparación simple (1-2): sin jerarquía derecha propia */
+.ranking-my-position__meta{ font-size: 12px; color: var(--paper-dim); }
 
-/* Fila de Cerca tuyo/Clasificación — se apoya en `.group-table__row` (Mis grupos) sin
-   reemplazarla: solo se agrega el indicador de movimiento semanal y el resaltado sobrio de
-   la fila propia (mismo criterio "al lado, nunca en reemplazo" que .group-picker-row). */
+/* Fila de Clasificación — se apoya en `.group-table__row` (Mis grupos) sin reemplazarla: solo
+   se agrega el indicador de movimiento semanal, el resaltado sobrio de la fila propia y (en
+   Mi red) el ícono de ocultar (mismo criterio "al lado, nunca en reemplazo" que
+   .group-picker-row). */
 .ranking-row__movement{ flex:none; width: 30px; text-align:right; font-size: 11px; font-weight: 800; color: var(--paper-faint); font-variant-numeric: tabular-nums; }
 /* §18 — nunca rojo/verde según la dirección (podría leerse como mejora/empeoramiento del
    Nivel): el mismo tono gris para +N/−N/—, la única diferencia es el texto. */
 .ranking-row.is-me{ background: rgba(149,255,25,0.07); }
 .ranking-row.is-me .group-table__position{ color: var(--brand-lime); }
 .ranking-row.is-me .group-table__name{ color: var(--brand-lime); }
+/* V03.5.1 (§3.4) — "ocultar de Mi red": <span role="button"> DENTRO del <button> de la fila
+   (nunca un <button> anidado), con su propio stopPropagation — ver wireRankingRowClicks. */
+.ranking-row__hide-btn{ flex:none; display:flex; align-items:center; justify-content:center; width:26px; height:26px; margin-left:2px; color: var(--paper-faint); cursor:pointer; }
+.ranking-row__hide-btn:active{ color: var(--danger); }
+/* Fila estática de la hoja "Ocultos" (#ranking-hidden-list): mismo componente visual, sin el
+   cursor de fila tocable — acá lo único accionable es el botón MOSTRAR. */
+.ranking-row--static{ cursor:default; }
+.ranking-row--static:active{ background:none; }
 
 .ranking-universe-count{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 10px; }
-.ranking-search-field{ margin-bottom: 10px; }
 .ranking-load-more{ display:block; margin: 4px auto 0; }
+
+/* V03.5.1 (§3.5) — "Ocultos (N)": utilidad secundaria y discreta, nunca mezclada con la
+   clasificación — mismo `.link-btn` de siempre. */
+.ranking-hidden-btn{ display:block; margin: 10px auto 0; }
 
 /* BRAMUlab_V03.5 (Bloque 3) — tarjeta de estado genérica (self no elegible / densidad
    insuficiente) y bloqueo de Global: mismas clases base `.pastilla`/`.btn-mini` de siempre,
@@ -1324,16 +1379,25 @@ input, select{ font-family: inherit; }
   letter-spacing: 0.05em; text-transform: uppercase; color: var(--paper-faint);
   border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 7px;
 }
-/* Compañero de Mis jugadores sin puesto (calibrando/inactivo) o comparación simple (1-2
-   elegibles, §10.2): el guion reemplaza el número de posición, sin fingir un puesto que no
-   existe. */
+/* Compañero de Mi red sin puesto (calibrando/inactivo) o comparación simple (1-2 elegibles,
+   §10.2): el guion reemplaza el número de posición, sin fingir un puesto que no existe. */
 .ranking-row__position--dash{ color: var(--paper-faint); }
 .ranking-row__status-badge{ font-weight: 700; letter-spacing: 0.02em; }
 
-.ranking-help-btn{ display:block; width:100%; text-align:center; margin: 6px 0 4px; }
 .ranking-help-scroll{ display:flex; flex-direction:column; gap: 14px; }
 .ranking-help-item{ font-size: 13px; line-height: 1.5; color: var(--paper-dim); margin:0; }
 .ranking-help-item strong{ display:block; color: var(--paper); margin-bottom: 3px; font-size: 13px; }
+
+/* §8.3 — "↑ Ir al inicio": flotante y discreto, fuera de `.analysis-scroll` para quedar fijo
+   mientras la clasificación se desplaza (nunca compite en tamaño/color con la clasificación
+   misma). Aparece/desaparece por JS (ver initRankingScrollTop) — acá solo la posición/forma. */
+.ranking-scrolltop-btn{
+  position: fixed; left: 50%; bottom: calc(14px + var(--bottomnav-h, 0px) + var(--safe-bottom)); transform: translateX(-50%);
+  background: var(--ink-softer); border: 1px solid var(--line-strong); border-radius: 999px;
+  padding: 8px 16px; font-family: var(--font-display); font-weight: 700; font-size: 12px;
+  color: var(--paper); box-shadow: 0 4px 14px rgba(0,0,0,0.3); cursor:pointer; z-index: 30;
+}
+.ranking-scrolltop-btn:active{ border-color: var(--brand-lime); color: var(--brand-lime); }
 /* BRAMUlab_V03.4.6 — BUG REAL, mismo mecanismo exacto que ya se corrigió en `.profile-tabs`
    (V03.4.5 §3): en Historial, `.history-filters` es ítem flex DIRECTO de `.view--history`
    (`display:flex;flex-direction:column`) — el `margin:0 auto` de acá desactiva

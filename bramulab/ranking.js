@@ -1,5 +1,7 @@
 /* ==========================================================================
-   BRAMU Lab — ranking.js (BRAMUlab_V03.5, Bloques 2 y 3)
+   BRAMU Lab — ranking.js (BRAMUlab_V03.5, Bloques 2 y 3; refinado en V03.5.1:
+   "Mis jugadores"→"Mi red" con ventana de 180 días, género, Cerca tuyo
+   removido)
    Funciones puras del Ranking BRAMU simulado: universo mock territorial
    (determinístico, sin backend), ordenamiento por Nivel interno exacto
    (mismo criterio de ranking de competición que ya usa PLGroups.assignPositions
@@ -66,6 +68,36 @@
     return `${first} ${last}`;
   }
 
+  /** BRAMUlab_V03.5.1 (§4) — género de un jugador mock: derivado del primer nombre (los 26
+   *  nombres de MOCK_FIRST_NAMES ya son nombres de pila reales en español, cada uno con un
+   *  género convencional inequívoco — no es una suposición nueva, es el mismo nombre que ya se
+   *  venía usando). Nunca se le asigna género a una persona real por su nombre: para self/Mi
+   *  red siempre se lee (o no) el género DECLARADO en la cuenta, ver buildRankingEntries. */
+  const MOCK_FIRST_NAME_GENDER = {
+    'Agustín': 'masculino', 'Diego': 'masculino', 'Fabián': 'masculino', 'Hernán': 'masculino',
+    'Joaquín': 'masculino', 'Leandro': 'masculino', 'Nicolás': 'masculino', 'Pablo': 'masculino',
+    'Santiago': 'masculino', 'Tomás': 'masculino', 'Walter': 'masculino', 'Bruno': 'masculino',
+    'Bianca': 'femenino', 'Camila': 'femenino', 'Elena': 'femenino', 'Gabriela': 'femenino',
+    'Inés': 'femenino', 'Karina': 'femenino', 'Micaela': 'femenino', 'Olivia': 'femenino',
+    'Rocío': 'femenino', 'Valentina': 'femenino', 'Ximena': 'femenino', 'Yamila': 'femenino',
+    'Zoe': 'femenino', 'Carla': 'femenino',
+  };
+  function mockGenderForName(fullName) {
+    const first = (fullName || '').split(' ')[0];
+    return MOCK_FIRST_NAME_GENDER[first] || 'masculino';
+  }
+
+  /** Género DECLARADO de una cuenta real (self o compañero de Mi red con cuenta local en este
+   *  dispositivo) — nunca inventado. `null` si la persona no tiene cuenta encontrable o nunca
+   *  declaró género: esa fila simplemente no entra en ninguna clasificación segmentada por
+   *  género (§4, "no mostrar ambos mezclados" — no hay un tercer balde "sin declarar"). */
+  function resolveAccountGender(name) {
+    const norm = Store.normalizePlayerName(name);
+    const account = (Store.loadUsers() || []).find((u) => u && Store.normalizePlayerName(u.displayName) === norm);
+    const g = account && account.gender;
+    return (g === 'masculino' || g === 'femenino') ? g : null;
+  }
+
   /** Universo mock determinístico de un ámbito territorial (local/provincial/pais/global) —
    *  siempre la MISMA lista de nombres para el mismo ámbito, en cualquier momento (no depende
    *  de Date/Math.random). `mis-jugadores` NUNCA pasa por acá: se arma en app.js con partidos
@@ -103,7 +135,10 @@
    *  partidos compartidos) — asignarles una localidad simulada sería inventarle un dato real a
    *  alguien que nunca lo declaró, así que ahí siempre queda en `null` (ver §11.1: Local/Mis
    *  jugadores no necesitan ese contexto igual). */
-  function buildRankingEntries(names, history, selfName, assignMockLocality, localityIndexOffset) {
+  /** `selfGender` — género EFECTIVO de self para Ranking (ya resuelto por app.js, con su
+   *  propio fallback si el usuario no lo declaró — ver renderRankingScreen/rankingGenderFilter
+   *  en app.js): a diferencia de terceros, self siempre debe poder verse a sí mismo. */
+  function buildRankingEntries(names, history, selfName, assignMockLocality, selfGender, localityIndexOffset) {
     const selfNorm = Store.normalizePlayerName(selfName);
     const seen = new Set();
     const entries = [];
@@ -113,18 +148,28 @@
       if (!norm || seen.has(norm)) return;
       seen.add(norm);
       const level = PH.computeSimulatedJugadorLevel(history, rawName);
+      const isMe = norm === selfNorm;
       entries.push({
         id: norm,
-        name: norm === selfNorm ? Store.normalizePlayerName(selfName) : rawName,
+        name: isMe ? Store.normalizePlayerName(selfName) : rawName,
         level,
-        isMe: norm === selfNorm,
-        locality: (assignMockLocality && norm !== selfNorm) ? mockLocalityAt(localityCursor++) : null,
+        isMe,
+        locality: (assignMockLocality && !isMe) ? mockLocalityAt(localityCursor++) : null,
+        gender: isMe ? selfGender : (assignMockLocality ? mockGenderForName(rawName) : resolveAccountGender(rawName)),
       });
     });
     if (selfNorm && !seen.has(selfNorm)) {
-      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfName), isMe: true, locality: null });
+      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfName), isMe: true, locality: null, gender: selfGender });
     }
     return entries;
+  }
+
+  /** §4 — "no mostrar ambos mezclados en una única clasificación oficial": el filtro de
+   *  género es SIEMPRE obligatorio (nunca hay un valor "todos"), a diferencia de la banda de
+   *  Nivel. Quien no tiene género resoluble (`gender: null`, terceros sin cuenta o sin
+   *  declarar) no entra en ninguna de las dos — nunca se lo asigna a un balde por defecto. */
+  function filterByGender(entries, gender) {
+    return (entries || []).filter((e) => e.gender === gender);
   }
 
   function bandForLevel(level) {
@@ -238,13 +283,39 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* CERCA TUYO — 2 arriba / self / 2 abajo (§10).                        */
+  /* MI RED — BRAMUlab_V03.5.1 §3.3: solo jugadores con al menos un        */
+  /* partido COMPUTABLE compartido en los últimos 180 días (reemplaza      */
+  /* "Mis jugadores"/ML.computeRecentPlayers, que no filtraba por fecha    */
+  /* ni por computabilidad).                                               */
   /* ------------------------------------------------------------------ */
-  function buildNearbyWindow(rankedEntries, myId, radius) {
-    const idx = (rankedEntries || []).findIndex((e) => e.id === myId);
-    if (idx === -1) return [];
-    const r = radius == null ? 2 : radius;
-    return rankedEntries.slice(Math.max(0, idx - r), Math.min(rankedEntries.length, idx + r + 1));
+  const NETWORK_WINDOW_DAYS = 180;
+
+  /** `selfRef`: nombre plano o `{name,userId}` (mismo criterio que el resto de PH). Devuelve
+   *  nombres visibles únicos, en el orden en que aparecen (más reciente primero, ya que
+   *  PH.filterMatchesForPlayer ya ordena así) — nunca incluye a self ni a jugadores
+   *  placeholder (invitados sin cuenta), mismo criterio que ya usaba ML.computeRecentPlayers. */
+  function computeNetworkNames(history, selfRef, nowDate) {
+    const now = nowDate || new Date();
+    const cutoff = now.getTime() - NETWORK_WINDOW_DAYS * 86400000;
+    const selfNorm = Store.normalizePlayerName(typeof selfRef === 'object' && selfRef ? selfRef.name : selfRef);
+    const matches = PH.filterMatchesForPlayer(history, selfRef);
+    const seen = new Set();
+    const result = [];
+    matches.forEach((m) => {
+      if (!PH.isMatchConsideredForLevel(m, selfRef)) return;
+      const playedAt = PH.getPlayedAt(m);
+      const t = playedAt ? new Date(playedAt).getTime() : null;
+      if (t == null || t < cutoff) return;
+      (m.players || []).forEach((p) => {
+        if (!p || !p.name) return;
+        if (Store.isPlaceholderPlayerName(p.name)) return;
+        const norm = Store.normalizePlayerName(p.name);
+        if (!norm || norm === selfNorm || seen.has(norm)) return;
+        seen.add(norm);
+        result.push(p.name);
+      });
+    });
+    return result;
   }
 
   /* ------------------------------------------------------------------ */
@@ -405,8 +476,10 @@
     return { level: 'established' };
   }
 
-  /** 0: vacío. 1–2: comparación simple, SIN "N de total" (§10.2). 3+: "N de total" habilitado. */
-  function computeMisJugadoresDensity(count) {
+  /** 0: vacío. 1–2: comparación simple, SIN "N de total" (§10.2). 3+: "N de total" habilitado.
+   *  Renombrada en V03.5.1 (era computeMisJugadoresDensity) — mismos umbrales, ahora para
+   *  "Mi red". */
+  function computeNetworkDensity(count) {
     if (count <= 0) return { level: 'empty' };
     if (count <= 2) return { level: 'simple' };
     return { level: 'established' };
@@ -423,13 +496,16 @@
     BLOCK_SIZE,
     MOCK_SCOPE_CONFIG,
     buildScopeUniverseNames,
+    mockGenderForName,
     buildRankingEntries,
+    filterByGender,
     bandForLevel,
     rankEntries,
     bandFilter,
     computeWeeklyMovement,
     filterEntriesBySearch,
-    buildNearbyWindow,
+    NETWORK_WINDOW_DAYS,
+    computeNetworkNames,
     blockForPosition,
     paginate,
     INACTIVITY_DAYS,
@@ -437,7 +513,7 @@
     computeParticipantStatus,
     computeSelfStatus,
     computeTerritorialDensity,
-    computeMisJugadoresDensity,
+    computeNetworkDensity,
     GLOBAL_UNLOCKED,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

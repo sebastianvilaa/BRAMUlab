@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.5';
+  const APP_VERSION = 'BRAMUlab V03.5.1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -66,6 +66,10 @@
     // distinta). "MIS GRUPOS" en pantalla es simplemente el subconjunto de esta lista donde la
     // identidad activa resuelve como miembro activo (ver groups.js).
     GROUPS: 'bramulab.groups.v1',
+    // BRAMUlab_V03.5.1 (§3.4/§3.5) — jugadores ocultos de "Mi red", por userId (mismo criterio
+    // exacto que ADDED_PLAYERS: nunca borra nada, es una preferencia personal de vista — no
+    // afecta partidos, Nivel BRAMU, Ranking oficial ni al otro jugador).
+    HIDDEN_NETWORK_PLAYERS: 'bramulab.hiddenNetworkPlayers.v1',
   };
 
   function safeGet(key) {
@@ -508,6 +512,48 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* V03.5.1 (§3.4/§3.5) — JUGADORES OCULTOS DE "MI RED"                  */
+  /* Mismo patrón exacto que JUGADORES AGREGADOS de arriba (dict por       */
+  /* userId, idempotente) — "ocultar" es una preferencia de vista          */
+  /* personal, nunca borra partidos/Nivel/Ranking ni afecta al otro        */
+  /* jugador (§3.4 explícito).                                             */
+  /* ------------------------------------------------------------------ */
+
+  function loadAllHiddenNetworkPlayers() { return safeGet(KEYS.HIDDEN_NETWORK_PLAYERS) || {}; }
+
+  function loadHiddenNetworkPlayers(userId) {
+    if (!userId) return [];
+    const all = loadAllHiddenNetworkPlayers();
+    return Array.isArray(all[userId]) ? all[userId] : [];
+  }
+
+  function isNetworkPlayerHidden(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    return loadHiddenNetworkPlayers(userId).some((n) => normalizePlayerName(n) === norm);
+  }
+
+  /** Idempotente: ocultar dos veces al mismo jugador no duplica la entrada. */
+  function hideNetworkPlayer(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    const all = loadAllHiddenNetworkPlayers();
+    const list = Array.isArray(all[userId]) ? all[userId] : [];
+    if (list.some((n) => normalizePlayerName(n) === norm)) return true;
+    all[userId] = list.concat([norm]);
+    return safeSet(KEYS.HIDDEN_NETWORK_PLAYERS, all);
+  }
+
+  function unhideNetworkPlayer(userId, name) {
+    const norm = normalizePlayerName(name);
+    if (!userId || !norm) return false;
+    const all = loadAllHiddenNetworkPlayers();
+    const list = Array.isArray(all[userId]) ? all[userId] : [];
+    all[userId] = list.filter((n) => normalizePlayerName(n) !== norm);
+    return safeSet(KEYS.HIDDEN_NETWORK_PLAYERS, all);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
   /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
@@ -701,6 +747,7 @@
     markNotificationRead, markAllNotificationsRead, countUnreadNotifications,
     // V03.3 — jugadores agregados
     loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
+    loadHiddenNetworkPlayers, isNetworkPlayerHidden, hideNetworkPlayer, unhideNetworkPlayer,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
