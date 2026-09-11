@@ -9,16 +9,17 @@ Naming activo del proyecto (usar siempre exactamente así):
 
 No se usa "Jugador", "Legacy", "Etapa", "Fase", "Plan" ni fechas en el naming activo. Documentos con esos nombres existieron (consolidados/informes de cada ronda de desarrollo) pero se borraron del repositorio una vez que su contenido quedó resumido en el Consolidado/Informe de cada versión y en `BRAMUlab_Backlog.md` — siguen recuperables del historial de git (commit `40c82bc`, el último que todavía los incluye) si hiciera falta el texto original de alguno.
 
-## Versión funcional actual: BRAMUlab_V03.4.6
+## Versión funcional actual: BRAMUlab_V03.5
 
-La app publicada hoy se identifica en producto como **"BRAMUlab V03.4.6"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.4.6`, 828/828 tests. La línea V03 (identidad del jugador, cuentas, notificaciones, sistema de jugadores, Mis Grupos) tuvo 27 rondas de trabajo, cada una con su propio Consolidado/Informe suelto — el 10/09/2026 se sintetizaron en un único par de documentos, igual que ya se había hecho antes con V01:
+La app publicada hoy se identifica en producto como **"BRAMUlab V03.5"** (footer del Home/badge de versión) — tag técnico de git `BRAMUlab_V03.5`, 901/901 tests. Esta ronda agregó Ranking BRAMU (simulado, sin backend) al prototipo — documentada entera, con su cierre, en [`Versiones/BRAMUlab_V03/BRAMUlab_V03.5.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.5.md). La línea V03 anterior (identidad del jugador, cuentas, notificaciones, sistema de jugadores, Mis Grupos) tuvo 27 rondas de trabajo hasta V03.4.6, sintetizadas en un único par de documentos, igual que ya se había hecho antes con V01:
 
 | Qué necesitás | Documento |
 |---|---|
+| Ranking BRAMU (V03.5): alcance, bloques, implementación y cierre | [`Versiones/BRAMUlab_V03/BRAMUlab_V03.5.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03.5.md) |
 | Qué se pidió, ronda por ronda, desde V03.0 hasta V03.4.6 | [`Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md) |
-| Qué se implementó, verificó y corrigió en cada una (arquitectura vigente, bugs reales, contradicciones entre rondas resueltas explícitamente) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md) |
+| Qué se implementó, verificó y corrigió en cada una hasta V03.4.6 (arquitectura vigente, bugs reales, contradicciones entre rondas resueltas explícitamente) | [`Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md`](Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md) |
 
-**V03 es la versión activa** — a diferencia de V01/V02, todavía puede sumar rondas nuevas (V03.4.7, V03.5, etc.). Cuando eso pase, la ronda nueva se documenta primero en su propio Consolidado/Informe, y se vuelve a sintetizar más adelante si el par de arriba vuelve a acumular demasiadas rondas sueltas.
+**V03 es la versión activa** — a diferencia de V01/V02, todavía puede sumar rondas nuevas (V03.5.1, V03.6, etc.). Cuando eso pase, la ronda nueva se documenta primero en su propio Consolidado/Informe (o, como V03.5, en su propio documento operativo autocontenido), y se vuelve a sintetizar más adelante en el par Consolidado/Informe de arriba si acumula demasiadas rondas sueltas — recién cuando V03 quede definitivamente cerrada (§24 de `BRAMUlab_V03.5.md`), no todavía.
 
 ## Sistema visual base: BRAMUlab_V02 (V02.9.3, sin cambios desde entonces)
 
@@ -49,6 +50,20 @@ El marcador de pádel en vivo sin identidad de jugador — antesala técnica de 
 | Qué se pidió, ronda por ronda, desde V10 hasta V14 | [`../BRAMUlab_Partidos/BRAMUlab_Partidos_Consolidado.md`](../BRAMUlab_Partidos/BRAMUlab_Partidos_Consolidado.md) |
 | Qué se implementó, verificó y corrigió en cada una | [`../BRAMUlab_Partidos/BRAMUlab_Partidos_Informe.md`](../BRAMUlab_Partidos/BRAMUlab_Partidos_Informe.md) |
 
+## Sistemas de producto cerrados para próxima implementación
+
+Estas definiciones ya no son borradores ni documentos exploratorios. Están listas para diagnóstico técnico, planificación e implementación gradual:
+
+| Sistema | Definición normativa | Handoff / implementación | Estado |
+|---|---|---|---|
+| Nivel BRAMU | [`Nivel_BRAMU_Formula_V1.4.md`](Nivel_BRAMU_Formula_V1.4.md) | [`Nivel_BRAMU_Implementacion.md`](Nivel_BRAMU_Implementacion.md) | V1.4 cerrada para piloto |
+| Ranking BRAMU | [`Ranking_BRAMU.md`](Ranking_BRAMU.md) | Dentro del mismo documento | V1 cerrada |
+| BRAMU Intelligence manual | [`BRAMU_Intelligence.md`](BRAMU_Intelligence.md) | [`BRAMU_Intelligence_Implementacion.md`](BRAMU_Intelligence_Implementacion.md) | V1 cerrada |
+
+La evaluación de proveedores, costos, privacidad y contingencia de la capa generativa de Intelligence vive como referencia en [`Referencias/BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md`](Referencias/BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md). No reemplaza el consolidado funcional.
+
+Para los tres sistemas rige la misma regla: que la definición esté cerrada habilita el plan técnico y el desarrollo por bloques; no autoriza un despliegue general sin fixtures, pruebas, migraciones reversibles y piloto controlado.
+
 ## Backlog
 
 **Documento vivo.** [`BRAMUlab_Backlog.md`](BRAMUlab_Backlog.md) es el único lugar donde viven las ideas futuras del proyecto (validación de partidos, cuentas/ranking, notificaciones, smartwatch, fotos/recuerdos, motion, etc.) — nada de esto está autorizado para implementar todavía. Cuando Sebastián piense una idea nueva con ChatGPT, el flujo es: revisar primero este archivo para no chocar con o duplicar algo ya pensado, y agregarla acá — nunca dejarla suelta en un documento de ronda que después se borra.
@@ -59,7 +74,9 @@ Documentación visual y auditorías todavía útiles como contexto, pero que no 
 
 ## Qué leer, según lo que te pidan
 
-- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V03.4.6` (es la versión publicada hoy). Leé su Informe arriba para el estado real actual (identidad/cuenta/grupos), el Informe de V02 para el sistema visual que no cambió, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence).
+- **"Seguí desarrollando BRAMU Lab / la app / lo de siempre"** → estás en `BRAMUlab_V03.5` (es la versión publicada hoy). Leé `BRAMUlab_V03.5.md` para Ranking BRAMU (lo más nuevo), el Informe de V03 (hasta V03.4.6) para identidad/cuenta/grupos, el Informe de V02 para el sistema visual que no cambió, y el Informe/Consolidado de V01 para la lógica funcional de base (partidos, historial, BRAMU Intelligence).
 - **Cualquier pedido de ajuste visual, funcional o de UX puntual sobre Home/Historial/partidos** → sigue siendo sobre `BRAMUlab_V02` (subversión `V02.9.3`), no sobre V01 ni V03. Una futura ronda de corrección sobre identidad/cuenta/grupos se documenta como una nueva subversión de `BRAMUlab_V03` (misma carpeta `Versiones/BRAMUlab_V03/`); sobre el resto de la app, sigue siendo una nueva subversión de `BRAMUlab_V02` dentro de `Versiones/BRAMUlab_V02/` — nunca una carpeta nueva salvo cambio de versión mayor.
 - **"¿Qué falta / qué es lo próximo?"** → `BRAMUlab_Backlog.md`.
+- **"Implementar Nivel, Ranking o BRAMU Intelligence"** → leer primero la definición normativa del sistema y después su documento de implementación indicado en la tabla anterior. No rediseñar fórmulas ni reglas desde desarrollo.
 - **Cualquier documento que diga "Etapa", "Fase", "rama jugador" o "BRAMU Lab" (con espacio)** es histórico — ya no existe en el repositorio (se borró una vez resumido en el Consolidado/Informe/Backlog correspondiente), pero es recuperable del historial de git si hiciera falta.
+

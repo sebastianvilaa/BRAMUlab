@@ -28,6 +28,7 @@
 <script src="player-identity.js"></script>
 <script src="groups.js"></script>
 <script src="locations.js"></script>
+<script src="ranking.js"></script>
 <script>
 (async function () {
   'use strict';
@@ -39,6 +40,7 @@
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta
   const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos
   const PLLoc = window.PLLocations; // BRAMUlab_V03.4.1 — dataset/búsqueda de localidades
+  const RK = window.PLRanking; // BRAMUlab_V03.5 (Bloque 2) — Ranking BRAMU simulado
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -3871,6 +3873,263 @@
     } finally {
       window.fetch = originalFetch;
     }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.5 (Bloque 2) — RANKING BRAMU: universo simulado, orden,
+  // movimiento semanal, banda, búsqueda, paginación (ranking.js, puro).
+  // Fuente funcional cerrada: docs/BRAMUlab/Ranking_BRAMU.md.
+  // ------------------------------------------------------------------
+  (function () {
+    const emptyHistory = [];
+
+    // ---- universo mock: determinístico, sin duplicados, tamaño correcto (§21) ----
+    ['local', 'provincial', 'pais', 'global'].forEach((scope) => {
+      const a = RK.buildScopeUniverseNames(scope);
+      const b = RK.buildScopeUniverseNames(scope);
+      assert(`V035-UNIVERSO · ${scope}: determinístico entre llamadas`, JSON.stringify(a) === JSON.stringify(b));
+      assert(`V035-UNIVERSO · ${scope}: tamaño = config (${RK.MOCK_SCOPE_CONFIG[scope].count})`, a.length === RK.MOCK_SCOPE_CONFIG[scope].count, a.length);
+      const uniq = new Set(a.map((n) => Store.normalizePlayerName(n)));
+      assert(`V035-UNIVERSO · ${scope}: sin nombres repetidos`, uniq.size === a.length, `${uniq.size} únicos de ${a.length}`);
+    });
+
+    // ---- bandForLevel: banda fija 1-10 a partir del Nivel público (§7/§12.2) ----
+    assert('V035-BANDA · 5,4 -> Nivel 5', RK.bandForLevel(5.4) === 5);
+    assert('V035-BANDA · 5,0 -> Nivel 5', RK.bandForLevel(5.0) === 5);
+    assert('V035-BANDA · 10,0 -> Nivel 10 (nunca 11)', RK.bandForLevel(10.0) === 10);
+    assert('V035-BANDA · 1,0 -> Nivel 1', RK.bandForLevel(1.0) === 1);
+
+    // ---- buildRankingEntries: self siempre presente y marcado, Nivel SIEMPRE vía
+    //      PH.computeSimulatedJugadorLevel (nunca una fórmula propia de Ranking) ----
+    (function () {
+      const names = ['Ana Rivas', 'Bruno Sosa'];
+      const entries = RK.buildRankingEntries(names, emptyHistory, 'Carla Medina');
+      assert('V035-ENTRIES · agrega a self aunque no venga en `names`', entries.some((e) => e.isMe && e.name === 'Carla Medina'));
+      assert('V035-ENTRIES · exactamente UN self (nunca duplicado)', entries.filter((e) => e.isMe).length === 1);
+      const ana = entries.find((e) => e.name === 'Ana Rivas');
+      assert('V035-ENTRIES · el Nivel de cada jugador es EXACTAMENTE PH.computeSimulatedJugadorLevel (mismo número que vería su perfil público)',
+        ana.level === PH.computeSimulatedJugadorLevel(emptyHistory, 'Ana Rivas'));
+      // §21 — self coincide por nombre con una entrada del universo: nunca dos filas para la misma persona.
+      const dupEntries = RK.buildRankingEntries(['Carla Medina', 'Ana Rivas'], emptyHistory, 'Carla Medina');
+      assert('V035-ENTRIES · si self ya viene en `names`, no se duplica', dupEntries.filter((e) => Store.normalizePlayerName(e.name) === 'Carla Medina').length === 1);
+    })();
+
+    // ---- rankEntries: orden descendente + Ranking_BRAMU.md §5.1 (empate exacto comparte
+    //      puesto, "1, 1, 3" vía PG.assignPositions — se reutiliza, nunca se duplica) ----
+    (function () {
+      const entries = [
+        { id: 'a', name: 'A', level: 7.0, isMe: false },
+        { id: 'b', name: 'B', level: 5.0, isMe: false },
+        { id: 'c', name: 'C', level: 3.0, isMe: false },
+      ];
+      const ranked = RK.rankEntries(entries);
+      assert('V035-RANK · orden descendente por Nivel (deciles distintos, nunca se mezclan)',
+        ranked.map((e) => e.id).join('') === 'abc', ranked.map((e) => `${e.id}:${e.position}`).join(' '));
+      assert('V035-RANK · posiciones 1,2,3 sin empates entre niveles distintos',
+        ranked[0].position === 1 && ranked[1].position === 2 && ranked[2].position === 3);
+
+      // Mismo Nivel redondeado (empate "de a la vista", como lo verían dos usuarios reales) —
+      // el desempate interno (sortNudge, ver comentario en ranking.js) nunca los separa de
+      // jugadores de OTRO nivel, y entre sí quedan siempre ADYACENTES (posiciones consecutivas).
+      const tiedEntries = [
+        { id: 'x', name: 'X', level: 6.0, isMe: false },
+        { id: 'y', name: 'Y', level: 6.0, isMe: false },
+        { id: 'z', name: 'Z', level: 4.0, isMe: false },
+      ];
+      const tiedRanked = RK.rankEntries(tiedEntries);
+      const xy = tiedRanked.filter((e) => e.id === 'x' || e.id === 'y').map((e) => e.position).sort((a, b) => a - b);
+      assert('V035-RANK · mismo Nivel público -> posiciones consecutivas (1 y 2), nunca dispersas', xy[0] === 1 && xy[1] === 2, JSON.stringify(tiedRanked));
+      assert('V035-RANK · el de menor Nivel queda siempre después de los dos empatados', tiedRanked.find((e) => e.id === 'z').position === 3);
+
+      // Contrato exacto de empate ("1, 1, 3") de la función que ranking.js reutiliza —
+      // documentado acá porque es la garantía real detrás de V035-RANK de arriba.
+      const exactTie = PG.assignPositions([{ points: 10 }, { points: 10 }, { points: 7 }]);
+      assert('V035-RANK · PG.assignPositions("1, 1, 3"): empate EXACTO comparte puesto',
+        exactTie[0].position === 1 && exactTie[1].position === 1 && exactTie[2].position === 3);
+    })();
+
+    // ---- computeWeeklyMovement: determinístico, etiquetas ↑N/↓N/— únicamente (§8.2/§18:
+    //      nunca rojo/verde por dirección, eso lo decide el CSS de la fila, no esta función) ----
+    (function () {
+      const names = RK.buildScopeUniverseNames('local').slice(0, 20);
+      const entries = RK.buildRankingEntries(names, emptyHistory, 'Zoe Ordinaria');
+      const mv1 = RK.computeWeeklyMovement(entries);
+      const mv2 = RK.computeWeeklyMovement(entries);
+      let sameBothTimes = true;
+      mv1.forEach((v, id) => { if (!mv2.has(id) || mv2.get(id).label !== v.label) sameBothTimes = false; });
+      assert('V035-MOVIMIENTO · determinístico entre llamadas (nunca Math.random/Date.now)', sameBothTimes);
+      let labelsOk = true;
+      mv1.forEach((v) => { if (!/^(↑\d+|↓\d+|—)$/.test(v.label)) labelsOk = false; });
+      assert('V035-MOVIMIENTO · etiquetas siempre ↑N / ↓N / — (nunca un texto libre)', labelsOk, JSON.stringify(Array.from(mv1.values())));
+    })();
+
+    // ---- bandFilter ----
+    (function () {
+      const entries = [
+        { id: 'a', level: 5.4 }, { id: 'b', level: 5.9 }, { id: 'c', level: 6.1 }, { id: 'd', level: 4.9 },
+      ];
+      const band5 = RK.bandFilter(entries, 5);
+      assert('V035-BANDA-FILTER · Nivel 5 incluye 5,0-5,9 y excluye el resto', band5.map((e) => e.id).sort().join('') === 'ab');
+    })();
+
+    // ---- filterEntriesBySearch: por nombre visible o @usuario (§13), sin modificar el cálculo ----
+    (function () {
+      const entries = [
+        { id: 'ana-rivas', name: 'Ana Rivas', level: 5 },
+        { id: 'bruno-sosa', name: 'Bruno Sosa', level: 5 },
+      ];
+      const byUsername = new Map([['ana-rivas', '@ana'], ['bruno-sosa', '@bruno']]);
+      assert('V035-BUSQUEDA · matchea por nombre (case/acento-insensible vía Store.normalizePlayerName)',
+        RK.filterEntriesBySearch(entries, 'rivas', byUsername).length === 1);
+      assert('V035-BUSQUEDA · matchea por @usuario', RK.filterEntriesBySearch(entries, '@bruno', byUsername).map((e) => e.id).join('') === 'bruno-sosa');
+      assert('V035-BUSQUEDA · query vacía devuelve TODO sin filtrar', RK.filterEntriesBySearch(entries, '', byUsername).length === 2);
+      assert('V035-BUSQUEDA · sin coincidencias -> array vacío, nunca undefined/null', RK.filterEntriesBySearch(entries, 'zzz-inexistente', byUsername).length === 0);
+    })();
+
+    // ---- buildNearbyWindow: 2 arriba / self / 2 abajo (§10), sin desbordar los extremos ----
+    (function () {
+      const ranked = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, position: i + 1 }));
+      const middle = RK.buildNearbyWindow(ranked, 'p5', 2);
+      assert('V035-CERCA · ventana de 5 (2 arriba + self + 2 abajo) en el medio de la lista',
+        middle.map((e) => e.id).join(',') === 'p3,p4,p5,p6,p7');
+      const top = RK.buildNearbyWindow(ranked, 'p0', 2);
+      assert('V035-CERCA · en el puesto 1 no desborda hacia arriba (nunca revienta el índice)', top.map((e) => e.id).join(',') === 'p0,p1,p2');
+      const bottom = RK.buildNearbyWindow(ranked, 'p9', 2);
+      assert('V035-CERCA · en el último puesto no desborda hacia abajo', bottom.map((e) => e.id).join(',') === 'p7,p8,p9');
+      assert('V035-CERCA · id inexistente -> array vacío (self no está en este universo filtrado)', RK.buildNearbyWindow(ranked, 'no-existe', 2).length === 0);
+    })();
+
+    // ---- paginación en bloques de 50 (§12): nunca cargar cientos de filas desde el inicio,
+    //      "Verme en la clasificación" salta directo al bloque que contiene la posición ----
+    (function () {
+      assert('V035-PAGINA · BLOCK_SIZE = 50', RK.BLOCK_SIZE === 50);
+      assert('V035-PAGINA · blockForPosition(1) = 1', RK.blockForPosition(1) === 1);
+      assert('V035-PAGINA · blockForPosition(50) = 1 (el último del primer bloque)', RK.blockForPosition(50) === 1);
+      assert('V035-PAGINA · blockForPosition(51) = 2', RK.blockForPosition(51) === 2);
+      assert('V035-PAGINA · blockForPosition(339) = 7', RK.blockForPosition(339) === 7);
+      const universe = Array.from({ length: 130 }, (_, i) => ({ id: `p${i}` }));
+      assert('V035-PAGINA · paginate con 1 bloque cargado -> primeras 50 filas', RK.paginate(universe, 1).length === 50);
+      assert('V035-PAGINA · paginate con 3 bloques -> las 130 (nunca más de las que hay)', RK.paginate(universe, 3).length === 130);
+    })();
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.5 (Bloque 3) — ESTADOS DE PRODUCTO: participación real (sin
+  // Nivel/calibrando/inactivo/reingreso), densidad territorial y de Mis
+  // jugadores, Global bloqueado, localidad mock aislada de Mis jugadores.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.history.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    // Rivales SIEMPRE fijos (los mismos 2 en todos los partidos) — nunca llega a 3 distintos,
+    // sin importar cuántos partidos se jueguen.
+    function fixedTwoRivals() { return ['Rival Alfa V035', 'Rival Beta V035']; }
+    // Los primeros 2 partidos contra Alfa+Beta; desde el 3º, contra Alfa+Gama — introduce un
+    // TERCER rival distinto (Gama) a partir del partido 3, sin tocar los anteriores.
+    function rivalsReachingThreeFromMatch3(i) { return i < 2 ? ['Rival Alfa V035', 'Rival Beta V035'] : ['Rival Alfa V035', 'Rival Gama V035']; }
+
+    function seedMatches(name, count, daysAgoStart, stepDays, rivalsFn) {
+      resetAffectedKeys();
+      const rivals = rivalsFn || fixedTwoRivals;
+      for (let i = 0; i < count; i++) {
+        const daysAgo = daysAgoStart - i * stepDays;
+        const [r1, r2] = rivals(i);
+        Store.upsertHistory(mkGroupMatch(`v035b3-${name}-${i}`, new Date(Date.now() - daysAgo * 86400000).toISOString(),
+          [name, 'Compa V035', r1, r2], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      }
+    }
+
+    try {
+      // ---- computeParticipantStatus: sin-nivel / calibrando / elegible / inactivo / reingreso ----
+      resetAffectedKeys();
+      assert('V035B3-STATUS · 0 partidos -> sin-nivel', RK.computeParticipantStatus('Nadie V035', []).key === 'sin-nivel');
+
+      seedMatches('Calibrando V035', 3, 5, 1);
+      const calibStatus = RK.computeParticipantStatus('Calibrando V035', Store.loadHistory());
+      assert('V035B3-STATUS · 3 de 5 partidos -> calibrando', calibStatus.key === 'calibrando');
+      assert('V035B3-STATUS · progressText correcto ("3 / 5 PARTIDOS")', /3\s*\/\s*5/.test(calibStatus.calib.progressText || ''), calibStatus.calib.progressText);
+
+      // ---- Regla CERRADA de calibración (Ranking_BRAMU.md, Caso 4): 5 partidos computables Y
+      //      3 rivales distintos, a la vez — nunca la cantidad de partidos sola. ----
+      seedMatches('Cinco Dos Rivales V035', 5, 4, 1, fixedTwoRivals); // 5 partidos, siempre los MISMOS 2 rivales
+      const cincoDosRivales = RK.computeParticipantStatus('Cinco Dos Rivales V035', Store.loadHistory());
+      assert('V035B3-CALIB · 5 partidos + 2 rivales distintos -> sigue CALIBRANDO', cincoDosRivales.key === 'calibrando', JSON.stringify(cincoDosRivales.calib));
+      assert('V035B3-CALIB · progressText nombra el motivo real (rivales, no partidos)', /RIVALES/.test(cincoDosRivales.calib.progressText || ''), cincoDosRivales.calib.progressText);
+      assert('V035B3-CALIB · calib.distinctRivals = 2', cincoDosRivales.calib.distinctRivals === 2);
+
+      seedMatches('Cinco Tres Rivales V035', 5, 4, 1, rivalsReachingThreeFromMatch3); // 5 partidos, 3er rival aparece en el partido 3
+      const cincoTresRivales = RK.computeParticipantStatus('Cinco Tres Rivales V035', Store.loadHistory());
+      assert('V035B3-CALIB · 5 partidos + 3 rivales distintos -> CALIBRADO (elegible)', cincoTresRivales.key === 'elegible', JSON.stringify(cincoTresRivales.calib));
+      assert('V035B3-CALIB · Caso 4 (fin de calibración con el 5º partido) -> isNew true', cincoTresRivales.isNew === true);
+
+      seedMatches('Seis Dos Rivales V035', 6, 5, 1, fixedTwoRivals); // MÁS de 5 partidos, pero siempre los mismos 2 rivales
+      const seisDosRivales = RK.computeParticipantStatus('Seis Dos Rivales V035', Store.loadHistory());
+      assert('V035B3-CALIB · 6 partidos (>5) + 2 rivales distintos -> sigue CALIBRANDO', seisDosRivales.key === 'calibrando', JSON.stringify(seisDosRivales.calib));
+
+      // Establecido: 3er rival aparece bien antes del último partido (no "recién calibrado").
+      seedMatches('Establecido V035', 8, 4, 1, rivalsReachingThreeFromMatch3);
+      const establecido = RK.computeParticipantStatus('Establecido V035', Store.loadHistory());
+      assert('V035B3-STATUS · elegible con historial establecido (8 partidos, 3 rivales ya desde el 3º) -> isNew false', establecido.key === 'elegible' && establecido.isNew === false);
+
+      seedMatches('Inactivo V035', 6, 250, 3, rivalsReachingThreeFromMatch3); // último partido hace tiempo, ya calibrado
+      const inactivo = RK.computeParticipantStatus('Inactivo V035', Store.loadHistory());
+      assert('V035B3-STATUS · último partido computable a >180 días, ya calibrado -> inactivo (§7.2)', inactivo.key === 'inactivo');
+
+      // Reingreso (Caso 7): 5 partidos viejos (ya calibrado ahí, hueco >180d) + 1 reciente.
+      resetAffectedKeys();
+      for (let i = 0; i < 5; i++) {
+        const [r1, r2] = rivalsReachingThreeFromMatch3(i);
+        Store.upsertHistory(mkGroupMatch(`v035b3-reingreso-old-${i}`, new Date(Date.now() - (400 - i * 5) * 86400000).toISOString(),
+          ['Reingreso V035', 'Compa V035', r1, r2], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      }
+      Store.upsertHistory(mkGroupMatch('v035b3-reingreso-new', new Date(Date.now() - 3 * 86400000).toISOString(),
+        ['Reingreso V035', 'Compa V035', 'Rival Alfa V035', 'Rival Beta V035'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      const reingreso = RK.computeParticipantStatus('Reingreso V035', Store.loadHistory());
+      assert('V035B3-STATUS · Caso 7 (reingreso, hueco >180d antes del último partido) -> elegible + isNew', reingreso.key === 'elegible' && reingreso.isNew === true);
+
+      // ---- computeSelfStatus: opt-out/privado priman sobre todo; ubicación solo gatea territorial ----
+      resetAffectedKeys();
+      seedMatches('Self V035', 8, 4, 1, rivalsReachingThreeFromMatch3);
+      const selfHistory = Store.loadHistory();
+      const userBase = { displayName: 'Self V035', id: 'u1', locality: null };
+      assert('V035B3-SELF · rankingOptOut:true -> opt-out, sin importar el historial', RK.computeSelfStatus(Object.assign({}, userBase, { rankingOptOut: true }), selfHistory, true).key === 'opt-out');
+      assert('V035B3-SELF · isPublicProfile:false -> perfil-privado', RK.computeSelfStatus(Object.assign({}, userBase, { isPublicProfile: false }), selfHistory, true).key === 'perfil-privado');
+      assert('V035B3-SELF · elegible pero SIN localidad + ámbito territorial -> sin-ubicacion', RK.computeSelfStatus(userBase, selfHistory, true).key === 'sin-ubicacion');
+      assert('V035B3-SELF · elegible sin localidad + Mis jugadores (no territorial) -> elegible igual', RK.computeSelfStatus(userBase, selfHistory, false).key === 'elegible');
+      assert('V035B3-SELF · elegible CON localidad + territorial -> elegible', RK.computeSelfStatus(Object.assign({}, userBase, { locality: 'Bella Vista' }), selfHistory, true).key === 'elegible');
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+
+    // ---- densidad territorial (Ranking_BRAMU.md §11): 0-4 / 5-14 / 15+ ----
+    assert('V035B3-DENSIDAD-TERR · 0 -> insufficient, faltan 5', RK.computeTerritorialDensity(0).level === 'insufficient' && RK.computeTerritorialDensity(0).missing === 5);
+    assert('V035B3-DENSIDAD-TERR · 4 -> insufficient, faltan 1', RK.computeTerritorialDensity(4).level === 'insufficient' && RK.computeTerritorialDensity(4).missing === 1);
+    assert('V035B3-DENSIDAD-TERR · 5 -> forming', RK.computeTerritorialDensity(5).level === 'forming');
+    assert('V035B3-DENSIDAD-TERR · 14 -> forming', RK.computeTerritorialDensity(14).level === 'forming');
+    assert('V035B3-DENSIDAD-TERR · 15 -> established', RK.computeTerritorialDensity(15).level === 'established');
+
+    // ---- densidad Mis jugadores (§10.2): umbrales DISTINTOS (1-2 sin números, 3+ "N de total") ----
+    assert('V035B3-DENSIDAD-MJ · 0 -> empty', RK.computeMisJugadoresDensity(0).level === 'empty');
+    assert('V035B3-DENSIDAD-MJ · 1 -> simple (sin "N de total")', RK.computeMisJugadoresDensity(1).level === 'simple');
+    assert('V035B3-DENSIDAD-MJ · 2 -> simple', RK.computeMisJugadoresDensity(2).level === 'simple');
+    assert('V035B3-DENSIDAD-MJ · 3 -> established ("N de total" habilitado)', RK.computeMisJugadoresDensity(3).level === 'established');
+
+    // ---- Global bloqueado (§17): constante explícita, nunca simulable ----
+    assert('V035B3-GLOBAL · GLOBAL_UNLOCKED es false (este prototipo nunca tiene 2+ países reales)', RK.GLOBAL_UNLOCKED === false);
+
+    // ---- buildRankingEntries: localidad mock SOLO en ámbitos territoriales, nunca en Mis
+    //      jugadores (personas reales) — bug real encontrado y corregido durante el QA de este bloque. ----
+    (function () {
+      const territorial = RK.buildRankingEntries(['Ana Rivas'], [], 'Self V035', true);
+      assert('V035B3-LOCALIDAD · ámbito territorial (assignMockLocality:true) -> localidad asignada', !!territorial.find((e) => e.name === 'Ana Rivas').locality);
+      const misJugadores = RK.buildRankingEntries(['Ana Rivas'], [], 'Self V035', false);
+      assert('V035B3-LOCALIDAD · Mis jugadores (assignMockLocality:false/omitido) -> NUNCA localidad inventada', misJugadores.find((e) => e.name === 'Ana Rivas').locality === null);
+      assert('V035B3-LOCALIDAD · self nunca tiene localidad mock, ni siquiera en territorial', territorial.find((e) => e.isMe) === undefined || territorial.find((e) => e.isMe).locality === null);
+    })();
   })();
 
   // ------------------------------------------------------------------

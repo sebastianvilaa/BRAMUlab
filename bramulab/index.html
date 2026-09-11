@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.4.6" />
+<link rel="stylesheet" href="styles.css?v=03.5" />
 </head>
 <body>
 
@@ -1050,6 +1050,14 @@
     <div class="player-home-header">
       <img id="player-home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="player-home-header__actions">
+        <!-- BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU: vuelve al header del Home
+             (nunca a la bottom nav, ver comentario junto a #bottom-nav más abajo). Ícono de
+             podio/barras a propósito, no una copa (§4: "evitar una copa demasiado asociada a
+             premio o campeón" — esa lectura queda descartada aunque el viejo comentario de la
+             bottom nav la hubiera reservado para esto). -->
+        <button id="player-home-ranking-btn" class="icon-btn" type="button" aria-label="Ranking BRAMU">
+          <svg viewBox="0 0 24 24" class="player-home-ranking__icon"><rect x="3.5" y="11" width="5" height="10" rx="1.4"/><rect x="9.5" y="5" width="5" height="16" rx="1.4"/><rect x="15.5" y="14" width="5" height="7" rx="1.4"/></svg>
+        </button>
         <!-- §3/§17 — sin "Configurar partido" (acceso redundante eliminado) y sin emoji: la
              campana ahora es un ícono SVG propio, mismo trazo que la barra inferior. -->
         <button id="player-home-bell-btn" class="icon-btn player-home-bell" type="button" aria-label="Notificaciones">
@@ -1229,25 +1237,131 @@
   </section>
 
   <!-- ============================================================
-       VISTA · RANKING (placeholder explícito — Etapa 2 §10: el ranking real
-       no se implementa todavía, pero el destino no puede ser un botón muerto)
+       VISTA · RANKING BRAMU — BRAMUlab_V03.5
+       Bloque 1: estructura y navegación. Bloque 2: ranking establecido simulado (dataset
+       determinístico, Tu posición, Cerca tuyo, clasificación paginada, movimiento semanal,
+       búsqueda, Verme en la clasificación). Bloque 3: estados de producto (sin
+       Nivel/calibrando/inactivo/sin ubicación/densidad territorial y de Mis jugadores/Global
+       bloqueado/Nuevo-reingreso) + ayuda "Cómo funciona el Ranking BRAMU" — ver renderRankingContent
+       en app.js y ranking.js para el cálculo puro. Fuente funcional cerrada:
+       docs/BRAMUlab/Ranking_BRAMU.md. Esta pantalla es ÚNICA: los cambios de ámbito/tipo/banda
+       ocurren siempre acá adentro (§5 del documento de versión), nunca navegando a otra vista.
        ============================================================ -->
   <section id="view-ranking" class="view view--history" hidden>
-    <!-- V03.0.3 (§7) — V03.0.2 había quitado esta flecha (pantalla raíz, bottom nav ya
-         resolvía volver a Inicio); en uso real no quedó bien y se restaura, conviviendo con
-         la bottom nav. -->
     <div class="analysis-header">
       <button id="ranking-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title">RANKING</span>
+      <span class="analysis-header__title">RANKING BRAMU</span>
+    </div>
+    <!-- Mismo wrapper/clases que Historial (#history-tabs) y Mis grupos (#groups-view-tabs):
+         ningún sistema de tabs nuevo (§6 del documento de versión). -->
+    <div class="history-filters">
+      <div id="ranking-scope-tabs" class="history-tabs" role="tablist" aria-label="Ámbito del ranking"></div>
     </div>
     <div class="analysis-scroll">
-      <div class="pastilla pastilla--placeholder">
-        <div class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 5H4v1a4 4 0 0 0 4 4M17 5h3v1a4 4 0 0 1-4 4"/><path d="M12 13v3M9 20h6M10 17h4v3h-4z"/></svg></div>
-        <div class="pastilla__title">EL RANKING TODAVÍA NO ESTÁ LISTO</div>
-        <p class="coverage-note">Estamos construyendo el sistema de ranking real. Cuando esté disponible, vas a ver acá tu posición y tu categoría.</p>
+      <div id="ranking-type-selector" class="option-row option-row--2col ranking-type-selector" role="radiogroup" aria-label="Tipo de clasificación">
+        <button type="button" class="option-col is-selected" data-value="general" role="radio" aria-checked="true">General</button>
+        <button type="button" class="option-col" data-value="nivel" role="radio" aria-checked="false">Por Nivel</button>
       </div>
+      <!-- Selector de banda (§7): mismas clases que las chips de modo de Historial
+           (#history-mode-chips), hoy sin uso real ahí — acá sí se pintan y se usan. -->
+      <div id="ranking-band-chips" class="history-mode-chips ranking-band-chips" role="tablist" aria-label="Banda de Nivel BRAMU" hidden></div>
+
+      <!-- BRAMUlab_V03.5 (Bloque 3) — GLOBAL BLOQUEADO (§17): reemplaza TODO el contenido de
+           abajo mientras no haya elegibles en 2+ países (en este prototipo, nunca — ver
+           RK.GLOBAL_UNLOCKED). -->
+      <div id="ranking-global-blocked" class="pastilla pastilla--placeholder" hidden>
+        <div class="pastilla__title">RANKING GLOBAL</div>
+        <p class="coverage-note">El Ranking Global se habilitará cuando BRAMU tenga jugadores elegibles en más de un país.</p>
+      </div>
+
+      <!-- BRAMUlab_V03.5 (Bloque 3) — TARJETA DE ESTADO genérica: reemplaza Tu posición/Cerca
+           tuyo/Clasificación completas cuando el usuario no es elegible acá (sin Nivel,
+           calibrando, inactivo, sin ubicación, perfil privado, Ranking desactivado) o cuando el
+           universo filtrado no alcanza el mínimo de densidad (0-4 elegibles territorial). Nunca
+           dos fuentes de verdad para el mismo mensaje — un solo bloque, armado por JS
+           (renderRankingStateCard). */ -->
+      <div id="ranking-state-card" class="pastilla ranking-state-card" hidden>
+        <div class="pastilla__title" id="ranking-state-title"></div>
+        <p class="coverage-note" id="ranking-state-text"></p>
+        <button type="button" id="ranking-state-cta" class="btn-mini ranking-state-cta" hidden></button>
+      </div>
+
+      <div id="ranking-normal-content">
+        <!-- BRAMUlab_V03.5 (Bloque 2, §9) — TU POSICIÓN: puesto, denominador, Nivel BRAMU
+             público, movimiento semanal simulado y contexto (ámbito · tipo). Contenido armado
+             por JS (renderRankingMyPosition) — ver ranking.js para el cálculo puro. -->
+        <div class="analysis-section">
+          <h3 class="analysis-section__title">TU POSICIÓN</h3>
+          <div id="ranking-my-position-card" class="pastilla ranking-my-position" hidden></div>
+          <!-- §9 — "Verme en la clasificación": salta directo al bloque de 50 que contiene la
+               posición del usuario y la resalta, sin cargar manualmente desde el puesto 1. -->
+          <button type="button" id="ranking-locate-me-btn" class="btn-secondary btn-secondary--lime ranking-locate-btn" hidden>VERME EN LA CLASIFICACIÓN</button>
+        </div>
+
+        <!-- §10 — CERCA TUYO: 2 puestos arriba / vos / 2 abajo. Mismo componente de fila que la
+             tabla de Mis grupos (.group-table__row), nunca una fila nueva. -->
+        <div class="analysis-section" id="ranking-nearby-section">
+          <h3 class="analysis-section__title">CERCA TUYO</h3>
+          <div id="ranking-nearby-list" class="group-table"></div>
+        </div>
+
+        <!-- §11/§12/§13 — CLASIFICACIÓN completa: buscador (nombre o @usuario) + lista paginada
+             en bloques de 50. Mismo campo de búsqueda que Buscar Jugadores/Mis grupos
+             (.player-search-field), misma fila que Cerca tuyo. -->
+        <div class="analysis-section">
+          <h3 class="analysis-section__title">CLASIFICACIÓN</h3>
+          <p class="ranking-universe-count" id="ranking-universe-count"></p>
+          <div class="player-search-field ranking-search-field">
+            <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="ranking-search-input" class="player-search-field__input" type="text" placeholder="Buscar por nombre o @usuario…" maxlength="40" autocomplete="off" />
+          </div>
+          <div id="ranking-list" class="group-table"></div>
+          <div id="ranking-list-empty" class="pastilla" hidden>
+            <p class="coverage-note" id="ranking-list-empty-text"></p>
+          </div>
+          <button type="button" id="ranking-load-more-btn" class="btn-mini ranking-load-more" hidden>CARGAR 50 MÁS</button>
+        </div>
+
+        <!-- BRAMUlab_V03.5 (Bloque 3, Ranking_BRAMU.md §10.2) — solo Mis jugadores: compañeros
+             CALIBRANDO (sin puesto, sección propia) e INACTIVOS (visibles como vínculo, sin
+             puesto numérico). Nunca en ámbitos territoriales — el universo mock ahí es siempre
+             elegible por construcción. -->
+        <div class="analysis-section" id="ranking-calibrando-section" hidden>
+          <h3 class="analysis-section__title">CALIBRANDO</h3>
+          <div id="ranking-calibrando-list" class="group-table ranking-unranked-list"></div>
+        </div>
+        <div class="analysis-section" id="ranking-inactive-section" hidden>
+          <h3 class="analysis-section__title">INACTIVOS</h3>
+          <div id="ranking-inactive-list" class="group-table ranking-unranked-list"></div>
+        </div>
+      </div>
+
+      <!-- §19 — Ayuda, mismo patrón de bottom sheet que el resto de la app (ver
+           #ranking-help-sheet-scrim más abajo). -->
+      <button type="button" id="ranking-help-btn" class="link-btn ranking-help-btn">¿Cómo funciona el Ranking BRAMU?</button>
     </div>
   </section>
+
+  <!-- BRAMUlab_V03.5 (Bloque 3, §19) — Ayuda de Ranking BRAMU: mismo patrón de bottom sheet que
+       "FORMATO Y PUNTUACIÓN"/"¿DE DÓNDE SOS?" (#load-format-sheet-scrim/#profile-location-sheet-scrim).
+       Explica de forma breve, nunca una copia completa de Ranking_BRAMU.md (§19 explícito). -->
+  <div id="ranking-help-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="ranking-help-sheet" class="bottom-sheet bottom-sheet--tall" role="dialog" aria-modal="true" aria-label="Cómo funciona el Ranking BRAMU">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">CÓMO FUNCIONA EL RANKING BRAMU</span>
+        <button type="button" id="ranking-help-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="load-player-sheet__scroll ranking-help-scroll">
+        <p class="ranking-help-item"><strong>Nivel BRAMU y Ranking BRAMU no son lo mismo.</strong> El Nivel estima tu capacidad; el Ranking te dice en qué puesto estás hoy frente a un grupo de jugadores.</p>
+        <p class="ranking-help-item"><strong>¿Por qué cambió mi puesto si no jugué?</strong> El Ranking compara tu Nivel con el de otros jugadores. Podés mantener tu Nivel y cambiar de posición cuando otros entran, salen o actualizan el suyo.</p>
+        <p class="ranking-help-item"><strong>¿Qué significa la variación semanal?</strong> Tu puesto es actual y continuo. La flecha solo lo compara con el último corte semanal — el Ranking no empieza de cero cada semana.</p>
+        <p class="ranking-help-item"><strong>¿Por qué alguien puede no tener posición?</strong> Recién se muestran puestos con Nivel BRAMU calibrado, actividad reciente, ubicación declarada y perfil público habilitado.</p>
+        <p class="ranking-help-item"><strong>El Nivel que ves tiene un decimal, pero el orden usa más precisión.</strong> Así se evitan empates artificiales entre jugadores con el mismo número redondeado.</p>
+        <p class="ranking-help-item"><strong>Actividad y densidad.</strong> Con muy pocos jugadores elegibles en un ámbito, el Ranking todavía no publica puestos; más de 180 días sin un partido computable sacan a alguien temporalmente, sin perder su Nivel.</p>
+      </div>
+    </div>
+  </div>
 
   <!-- ============================================================
        VISTA · MIS GRUPOS — BRAMUlab_V03.4
@@ -2600,14 +2714,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.4.6"></script>
-  <script src="stats.js?v=03.4.6"></script>
-  <script src="store.js?v=03.4.6"></script>
-  <script src="player-home.js?v=03.4.6"></script>
-  <script src="match-load.js?v=03.4.6"></script>
-  <script src="player-identity.js?v=03.4.6"></script>
-  <script src="groups.js?v=03.4.6"></script>
-  <script src="locations.js?v=03.4.6"></script>
-  <script src="app.js?v=03.4.6"></script>
+  <script src="engine.js?v=03.5"></script>
+  <script src="stats.js?v=03.5"></script>
+  <script src="store.js?v=03.5"></script>
+  <script src="player-home.js?v=03.5"></script>
+  <script src="match-load.js?v=03.5"></script>
+  <script src="player-identity.js?v=03.5"></script>
+  <script src="groups.js?v=03.5"></script>
+  <script src="locations.js?v=03.5"></script>
+  <script src="ranking.js?v=03.5"></script>
+  <script src="app.js?v=03.5"></script>
 </body>
 </html>

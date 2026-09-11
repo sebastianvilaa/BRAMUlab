@@ -1277,6 +1277,63 @@ input, select{ font-family: inherit; }
   cursor:pointer; white-space:nowrap;
 }
 .history-mode-chip.is-active{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
+/* BRAMUlab_V03.5 (Bloque 1, §7) — selector General/Por Nivel y chips de banda de RANKING
+   BRAMU: mismas clases `.option-row--2col`/`.option-col` y `.history-mode-chips`/
+   `.history-mode-chip` que ya usa el resto de la app, solo con el margen propio que acá no
+   viene gratis de `.history-filters`/`.setup-section` (esas pestañas viven directo en
+   `.analysis-scroll`, no dentro de esos wrappers). */
+.ranking-type-selector{ margin-bottom: 12px; }
+.ranking-band-chips{ margin: -4px 0 14px; }
+
+/* BRAMUlab_V03.5 (Bloque 2) — TU POSICIÓN: misma superficie tenue lima ya usada para
+   "partido en curso"/"cargar primer partido" (`.continue-banner`), acá reutilizada para dar
+   jerarquía alta pero compacta a la tarjeta más importante de la pantalla (§9: "alta
+   jerarquía visual, pero debe seguir siendo compacta"). */
+.ranking-my-position{ background: rgba(149,255,25,0.06); border: 1px solid rgba(149,255,25,0.30); }
+.ranking-my-position__rank{ display:flex; align-items:baseline; gap: 6px; margin-bottom: 6px; }
+.ranking-my-position__pos{ font-family: var(--font-display); font-weight: 900; font-size: 26px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.ranking-my-position__of{ font-size: 13px; color: var(--paper-dim); font-weight: 700; }
+.ranking-my-position__level{ font-size: 14px; color: var(--paper); margin-bottom: 3px; }
+.ranking-my-position__level strong{ font-weight: 800; }
+.ranking-my-position__movement{ font-size: 12px; color: var(--paper-faint); margin-bottom: 3px; }
+.ranking-my-position__context{ font-size: 12px; color: var(--paper-dim); }
+.ranking-locate-btn{ width:100%; margin-top: 10px; }
+
+/* Fila de Cerca tuyo/Clasificación — se apoya en `.group-table__row` (Mis grupos) sin
+   reemplazarla: solo se agrega el indicador de movimiento semanal y el resaltado sobrio de
+   la fila propia (mismo criterio "al lado, nunca en reemplazo" que .group-picker-row). */
+.ranking-row__movement{ flex:none; width: 30px; text-align:right; font-size: 11px; font-weight: 800; color: var(--paper-faint); font-variant-numeric: tabular-nums; }
+/* §18 — nunca rojo/verde según la dirección (podría leerse como mejora/empeoramiento del
+   Nivel): el mismo tono gris para +N/−N/—, la única diferencia es el texto. */
+.ranking-row.is-me{ background: rgba(149,255,25,0.07); }
+.ranking-row.is-me .group-table__position{ color: var(--brand-lime); }
+.ranking-row.is-me .group-table__name{ color: var(--brand-lime); }
+
+.ranking-universe-count{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 10px; }
+.ranking-search-field{ margin-bottom: 10px; }
+.ranking-load-more{ display:block; margin: 4px auto 0; }
+
+/* BRAMUlab_V03.5 (Bloque 3) — tarjeta de estado genérica (self no elegible / densidad
+   insuficiente) y bloqueo de Global: mismas clases base `.pastilla`/`.btn-mini` de siempre,
+   solo el margen propio que acá no viene gratis de `.analysis-section`. */
+.ranking-state-cta{ margin-top: 10px; }
+/* §11.1 — 5-14 elegibles ("en formación"): etiqueta discreta, nunca un podio ni un color de
+   éxito — mismo tono neutro que el resto de metadatos secundarios de la app. */
+.ranking-forming-badge{
+  display:inline-block; vertical-align: middle; margin-left: 6px; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--paper-faint);
+  border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 7px;
+}
+/* Compañero de Mis jugadores sin puesto (calibrando/inactivo) o comparación simple (1-2
+   elegibles, §10.2): el guion reemplaza el número de posición, sin fingir un puesto que no
+   existe. */
+.ranking-row__position--dash{ color: var(--paper-faint); }
+.ranking-row__status-badge{ font-weight: 700; letter-spacing: 0.02em; }
+
+.ranking-help-btn{ display:block; width:100%; text-align:center; margin: 6px 0 4px; }
+.ranking-help-scroll{ display:flex; flex-direction:column; gap: 14px; }
+.ranking-help-item{ font-size: 13px; line-height: 1.5; color: var(--paper-dim); margin:0; }
+.ranking-help-item strong{ display:block; color: var(--paper); margin-bottom: 3px; font-size: 13px; }
 /* BRAMUlab_V03.4.6 — BUG REAL, mismo mecanismo exacto que ya se corrigió en `.profile-tabs`
    (V03.4.5 §3): en Historial, `.history-filters` es ítem flex DIRECTO de `.view--history`
    (`display:flex;flex-direction:column`) — el `margin:0 auto` de acá desactiva
@@ -1451,6 +1508,8 @@ input, select{ font-family: inherit; }
   padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line);
 }
 .player-home-header__actions{ display:flex; align-items:center; gap: 10px; }
+/* BRAMUlab_V03.5 (§4) — mismo tamaño/color que la campana de al lado; barras en vez de copa. */
+.player-home-ranking__icon{ width:20px; height:20px; fill: currentColor; }
 /* Etapa 4 (§17) — campana SVG propia (antes emoji 🔔), mismo lenguaje de trazo/tamaño que
    los íconos de la barra inferior. */
 .player-home-bell__icon{ width:20px; height:20px; fill: currentColor; }

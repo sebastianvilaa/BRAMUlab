@@ -28,9 +28,9 @@ Durante el piloto, la entrada principal debe ser **Mis jugadores**, porque puede
 
 Este consolidado toma como normativa de Nivel BRAMU, en este orden:
 
-1. `Nivel_BRAMU_Formula_V1_4_Cerrada.md` — fórmula, parámetros y elegibilidad congelados para el piloto.[^1]
-2. `Nivel_BRAMU_Handoff_Desarrollo_V1.md` — contrato de implementación y versionado.[^2]
-3. `Nivel_BRAMU_Consolidado_Base.md` — contexto funcional y estados de producto, solo cuando no contradice V1.4.[^3]
+1. `Nivel_BRAMU_Formula_V1.4.md` — fórmula, parámetros y elegibilidad congelados para el piloto.[^1]
+2. `Nivel_BRAMU_Implementacion.md` — contrato de implementación y versionado.[^2]
+3. `Nivel_BRAMU.md` — contexto funcional y estados de producto, solo cuando no contradice V1.4.[^3]
 4. `BRAMUlab_Backlog.md`, sección 1 — preserva íntegramente el contenido del documento original `BRAMU_Backlog_Futuro_Validacion_Partidos.md`.[^4]
 
 **Nota documental:** el archivo independiente `BRAMU_Backlog_Futuro_Validacion_Partidos.md` no se encontraba como hijo de la carpeta de documentación al momento de esta revisión. Su contenido figura explícitamente preservado en `BRAMUlab_Backlog.md`, sección 1, y se utilizó desde allí. Esta ausencia no cambia ninguna decisión de producto.
@@ -931,9 +931,9 @@ La Race BRAMU, los rankings privados de grupos y los filtros competitivos futuro
 
 ## Fuentes
 
-[^1]: BRAMU Lab. `Nivel_BRAMU_Formula_V1_4_Cerrada.md`. Documento privado de producto, 10 de septiembre de 2026.
-[^2]: BRAMU Lab. `Nivel_BRAMU_Handoff_Desarrollo_V1.md`. Documento privado de producto, 10 de septiembre de 2026.
-[^3]: BRAMU Lab. `Nivel_BRAMU_Consolidado_Base.md`. Documento privado de producto, 10 de septiembre de 2026.
+[^1]: BRAMU Lab. `Nivel_BRAMU_Formula_V1.4.md`. Documento privado de producto, 10 de septiembre de 2026.
+[^2]: BRAMU Lab. `Nivel_BRAMU_Implementacion.md`. Documento privado de producto, 10 de septiembre de 2026.
+[^3]: BRAMU Lab. `Nivel_BRAMU.md`. Documento privado de producto, 10 de septiembre de 2026.
 [^4]: BRAMU Lab. `BRAMUlab_Backlog.md`, sección 1, “Modelo de validación de partidos”. Documento privado de producto, actualizado el 4 de septiembre de 2026.
 [^5]: Lawn Tennis Association. [“Understanding your tennis ranking”](https://www.lta.org.uk/compete/wtn-rankings/understanding-your-lta-ranking/). Consultado el 10 de septiembre de 2026.
 [^6]: UTR Sports. [“Understanding the Algorithm — Complete Summary”](https://support.universaltennis.com/en/support/solutions/articles/9000151830-understanding-the-algorithm-complete-summary). Consultado el 10 de septiembre de 2026.

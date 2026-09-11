@@ -21,7 +21,7 @@
 // cualquier caso porque sw.js no cambia de bytes en una ronda de ajuste típica, así que sin
 // este bump un cliente con el bundle viejo ya instalado nunca dispara un reinstall del
 // service worker y se queda para siempre con la caché desactualizada.
-const CACHE_NAME = 'bramulab-v03-4-6';
+const CACHE_NAME = 'bramulab-v03-5';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -32,16 +32,17 @@ const CACHE_NAME = 'bramulab-v03-4-6';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.4.6',
-  './engine.js?v=03.4.6',
-  './stats.js?v=03.4.6',
-  './store.js?v=03.4.6',
-  './player-home.js?v=03.4.6',
-  './match-load.js?v=03.4.6',
-  './player-identity.js?v=03.4.6',
-  './groups.js?v=03.4.6',
-  './locations.js?v=03.4.6',
-  './app.js?v=03.4.6',
+  './styles.css?v=03.5',
+  './engine.js?v=03.5',
+  './stats.js?v=03.5',
+  './store.js?v=03.5',
+  './player-home.js?v=03.5',
+  './match-load.js?v=03.5',
+  './player-identity.js?v=03.5',
+  './groups.js?v=03.5',
+  './locations.js?v=03.5',
+  './ranking.js?v=03.5',
+  './app.js?v=03.5',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
