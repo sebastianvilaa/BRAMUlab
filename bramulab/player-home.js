@@ -787,10 +787,19 @@
     return roundToOneDecimal(min + tenths / 10);
   }
 
+  /** `playerName`: string plano O `{name, userId}` — mismo contrato que el resto del módulo
+   *  (ver resolveIdentityRef). `computeLevelEvolution` ya acepta ambos (vía
+   *  filterMatchesForPlayer/findPlayerRow), pero el fallback por hash necesita un STRING —
+   *  hotfix BRAMUlab_V03.5.2: acá faltaba resolver el ref antes de pasarlo a
+   *  Store.normalizePlayerName (que sí exige string), y explotaba con `.replace is not a
+   *  function` apenas alguien con 0 partidos considerados en `history` se consultaba con un
+   *  ref de objeto (ej. self vía `currentIdentity()`/`selfUserId` en Ranking, agregado en
+   *  V03.5.2). Nunca se toca `Store.normalizePlayerName` — su contrato de "siempre string" es
+   *  correcto y lo usa el resto de la app; el bug real era este fallback, no esa función. */
   function computeSimulatedJugadorLevel(history, playerName) {
     const evolution = computeLevelEvolution(history, playerName);
     if (evolution.consideredCount > 0) return evolution.current;
-    return hashStringToLevel(Store.normalizePlayerName(playerName), SIM_LEVEL_MIN, SIM_LEVEL_MAX);
+    return hashStringToLevel(Store.normalizePlayerName(resolveIdentityRef(playerName).name), SIM_LEVEL_MIN, SIM_LEVEL_MAX);
   }
 
   const CALIBRATION_THRESHOLD = 5;

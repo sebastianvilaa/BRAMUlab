@@ -3409,6 +3409,44 @@
     const levelNico = PH.computeSimulatedJugadorLevel([wonMatch], 'Nico');
     assert('V033-NIVEL · con partidos considerados, usa el MISMO valor real que computeLevelEvolution (nunca el simulado)', levelNico === evoNico.current, JSON.stringify({ levelNico, real: evoNico.current }));
 
+    // ---- HOTFIX BRAMUlab_V03.5.2 — `playerName` puede ser un ref de objeto {name,userId}
+    //      (mismo contrato que el resto del módulo, ver resolveIdentityRef): el fallback por
+    //      hash (0 partidos considerados) tiene que resolver el nombre ANTES de pasarlo a
+    //      Store.normalizePlayerName, que exige string. Bug real: pasar el objeto crudo tiraba
+    //      "(raw || '').replace is not a function" apenas alguien con 0 partidos considerados
+    //      en `history` se consultaba con un ref de objeto — exactamente lo que Ranking hace
+    //      para self desde el fix de identidad de V03.5.2 (buildRankingEntries/selfUserId,
+    //      rankingSelfBand/currentIdentity()), rompiendo Ranking para cualquier cuenta sin
+    //      partidos considerados en el historial recibido (ej. recién creada, o cuyo único
+    //      partido quedó fuera del snapshot semanal vigente). ----
+    (function () {
+      const ref = { name: 'Hotfix Identidad V0352', userId: 'u-hotfix-v0352' };
+      let level0;
+      let threw = false;
+      try { level0 = PH.computeSimulatedJugadorLevel([], ref); } catch (e) { threw = true; }
+      assert('V0352-HOTFIX · computeSimulatedJugadorLevel con ref de objeto y 0 partidos NUNCA explota (regresión del bug real)', !threw);
+      assert('V0352-HOTFIX · en ese caso, cae al Nivel simulado por hash igual que con un string (determinístico, en rango)',
+        !threw && typeof level0 === 'number' && level0 >= PH.SIM_LEVEL_MIN && level0 <= PH.SIM_LEVEL_MAX, String(level0));
+
+      // Con historial real estampado por userId, el ref de objeto debe encontrar el partido y
+      // devolver la evolución real — nunca el hash (confirma que el fix no rompe el camino
+      // bueno, solo el fallback).
+      const matchWithUserId = mkLevelMatch('hotfix1', '2026-08-01T00:00:00.000Z', ['Hotfix Identidad V0352', 'X', 'Y', 'Z'], 'A', 2);
+      matchWithUserId.players[0].userId = ref.userId;
+      const evoWithId = PH.computeLevelEvolution([matchWithUserId], ref);
+      const levelWithId = PH.computeSimulatedJugadorLevel([matchWithUserId], ref);
+      assert('V0352-HOTFIX · con historial real estampado por userId, el ref de objeto SÍ usa la evolución real (nunca el hash)',
+        levelWithId === evoWithId.current && evoWithId.consideredCount > 0, JSON.stringify({ levelWithId, real: evoWithId.current }));
+
+      // Reproducción exacta del stack reportado: Ranking (RK.buildRankingEntries con
+      // selfUserId) construyendo la entrada de self sin ningún partido en el historial.
+      let rkThrew = false;
+      let entries;
+      try { entries = RK.buildRankingEntries([], [], ref.name, true, 'masculino', undefined, ref.userId); } catch (e) { rkThrew = true; }
+      assert('V0352-HOTFIX · RK.buildRankingEntries (el stack exacto del bug reportado) con self sin partidos NUNCA explota', !rkThrew);
+      assert('V0352-HOTFIX · esa entrada de self queda marcada isMe con un Nivel numérico válido', !rkThrew && entries.some((e) => e.isMe && typeof e.level === 'number'));
+    })();
+
     // ---- ML.buildJugadorDirectory: universo de Buscar Jugadores/Elegir compañero-rival ----
     const dirHistory = [
       mkLevelMatch('dir1', '2026-08-01T00:00:00.000Z', [player, 'Matu', 'Cruz', 'Dan'], 'A', 2),
