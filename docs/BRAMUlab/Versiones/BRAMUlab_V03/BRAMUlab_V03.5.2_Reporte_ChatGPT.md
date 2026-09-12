@@ -8,7 +8,7 @@ se hizo realmente, cómo cambió respecto de lo pedido, y en qué estado quedó 
 
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** ver más abajo (§8, se completa al terminar de publicar)
+**Commit de esta ronda:** [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)
 **Tag:** `BRAMUlab_V03.5.2`
 **Base:** `BRAMUlab_V03.5.1`
 **Documentos fuente:** `docs/BRAMUlab/Ranking_BRAMU.md` (normativo, revisión 11/09/2026) +
@@ -163,8 +163,12 @@ edición anterior real con nivel más bajo para poder ver movimiento real):
 
 ## 8. Commit, tag, push, deploy
 
-*(completar con el hash de commit, confirmación de push y del deploy de GitHub Pages una vez
-publicado — este reporte se escribió antes de ese paso para no dejarlo pendiente después)*
+Commit [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac),
+staging explícito de solo los archivos de esta ronda (excluyendo a propósito trabajo paralelo
+no relacionado que ya estaba sin commitear en el repo: `BRAMU_Intelligence*`, `Referencias/`,
+`Backup/`, `Logo.ai`, y el reporte para ChatGPT de V03.5.1, que Sebastián había pedido dejar
+sin commitear). Tag `BRAMUlab_V03.5.2`. Push a `origin/main` y al tag. Deploy de GitHub Pages
+verificado antes de dar la ronda por publicada.
 
 ---
 
