@@ -11,12 +11,16 @@ ChatGPT y volvieron dos discrepancias conceptuales reales contra `Ranking_BRAMU.
 corrigieron dentro de esta misma versión (sin abrir V03.5.3) — el detalle está en la §4.2
 (Bugs) y reemplaza lo que este reporte decía antes sobre "elegibilidad en vivo". Después de
 publicar esa corrección apareció un **bug bloqueante real en producción** (Ranking no abría
-para cuentas sin partidos considerados) — corregido como hotfix, ver §4.3.
+para cuentas sin partidos considerados) — corregido como hotfix, ver §4.3. Al intentar
+verificar ese hotfix en producción se encontró un **segundo problema real**, propio y ya
+conocido de este proyecto (no del hotfix en sí): sin bumpear el cache-bust de assets/service
+worker, el cliente que ya tenía la app instalada seguía sirviendo el bundle roto desde caché
+indefinidamente — ver §4.4.
 
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77) (hotfix bloqueante) sobre [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343) (corrección de cierre) sobre [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99) (implementación inicial)
-**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido a `707ec77` — ver §8)
+**Commit de esta ronda:** [`d74334c`](https://github.com/sebastianvilaa/BRAMUlab/commit/d74334cdfb02117874ae3845cf0d529c744865f3) (bump de cache-bust) sobre [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77) (hotfix bloqueante) sobre [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343) (corrección de cierre) sobre [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99) (implementación inicial)
+**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido a `d74334c` — ver §8)
 **Base:** `BRAMUlab_V03.5.1`
 **Documentos fuente:** `docs/BRAMUlab/Ranking_BRAMU.md` (normativo, revisión 11/09/2026) +
 `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.5.2.md` (operativo de esta ronda, con su
@@ -191,6 +195,33 @@ no explota y devuelve el Nivel simulado por hash; con historial real estampado p
 sigue devolviendo la evolución real (nunca el hash); y una reproducción exacta del stack
 reportado vía `RK.buildRankingEntries` con self sin partidos.
 
+### 4.4 El hotfix del código no llegaba solo a producción (cache-bust faltante)
+
+Al verificar el hotfix de §4.3 directamente en producción (no solo con tests locales), el
+crash **se reprodujo de nuevo** en `sebastianvilaa.github.io` a pesar de que el código ya
+estaba corregido y pusheado. Causa: el commit del hotfix cambió bytes de `player-home.js` pero
+no bumpeó `CACHE_NAME`/las query strings `?v=` de `sw.js`/`index.html` — un cliente que ya
+tenía el service worker instalado (cualquiera que hubiera abierto la app antes de este hotfix)
+sigue sirviendo el `player-home.js` viejo desde caché para siempre, porque el service worker
+nunca detecta que hay bytes nuevos si su propia clave de caché no cambia. Como el string de
+versión humano ("BRAMUlab V03.5.2") tampoco cambió — a propósito, por instrucción explícita —
+`checkForNewVersion()` tampoco lo iba a detectar nunca: para ese cliente, la app "ya está
+actualizada" según su propia comparación de versión.
+
+Esto no es un bug nuevo introducido por este hotfix — es una regla ya conocida y documentada
+en el propio `sw.js` desde V02.1/V03.1.6 ("Bumpear siempre junto con CACHE_NAME/APP_VERSION/
+version.json... sin este bump un cliente con el bundle viejo ya instalado nunca dispara un
+reinstall del service worker") que se pasó por alto al armar el hotfix, tanto en éste como en
+la corrección de cierre anterior (§4.2) — ninguna de las dos bumpeó el cache-bust, aunque ahí
+no se notó porque nadie las verificó contra un cliente con el service worker ya instalado.
+
+**Corrección:** sufijo `-h1` agregado SOLO a `CACHE_NAME` y a las query strings `?v=` de
+assets — nunca a `Store.VERSION`/`version.json`, que siguen mostrando exactamente "BRAMUlab
+V03.5.2" (misma versión, nunca una V03.5.3). Verificado directamente en producción: la
+reproducción exacta del bug original (cuenta nueva sin partidos → tocar Ranking desde Home) ya
+no explota, confirmado llamando la función real en la página en vivo y con el flujo completo
+Home → Ranking → volver.
+
 ---
 
 ## 5. Decisiones UX materializadas
@@ -261,28 +292,37 @@ de cierre, se revisaron específicamente las superficies afectadas por ambos pun
   Historial, Home.
 - sin errores de consola nuevos, ni en local ni verificado luego en producción.
 
-**Verificación específica del hotfix** (mobile): cuenta nueva con 0 partidos → Home muestra
-"CALIBRANDO 0/5" correctamente → tocar el ícono de Ranking del header abre la pantalla sin
-excepción (antes tiraba `TypeError` y la pantalla no abría) → muestra el estado "Todavía no
-tenés Nivel BRAMU" (correcto para 0 partidos) → volver con la flecha regresa a Home
-correctamente. Repetido con la cuenta de prueba con historial real de la corrección anterior:
-Nivel del corte sigue mostrando el mismo valor (5.6) y el mismo período — el hotfix no tocó el
-camino que ya andaba bien.
+**Verificación específica del hotfix** (mobile, primero en local y después directo en
+producción): cuenta nueva con 0 partidos → Home muestra "CALIBRANDO 0/5" correctamente →
+tocar el ícono de Ranking del header abre la pantalla sin excepción (antes tiraba `TypeError`
+y la pantalla no abría) → muestra el estado "Todavía no tenés Nivel BRAMU" (correcto para 0
+partidos) → volver con la flecha regresa a Home correctamente. Repetido con la cuenta de
+prueba con historial real de la corrección anterior: Nivel del corte sigue mostrando el mismo
+valor (5.6) y el mismo período — el hotfix no tocó el camino que ya andaba bien.
+
+**Verificación en producción real (no solo local):** la primera vez que se probó el hotfix
+directo en `sebastianvilaa.github.io` con una cuenta nueva, el crash **se reprodujo igual**
+— ver §4.4 (cache-bust faltante). Después de esa corrección se repitió la prueba completa
+contra producción: función real llamada en la página en vivo sin excepción, y el flujo
+Home → Ranking → volver funcionando de punta a punta.
 
 ---
 
 ## 8. Commit, tag, push, deploy
 
-Tres commits en esta ronda: [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99)
+Cuatro commits en esta ronda: [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99)
 (implementación inicial), [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343)
-(corrección de cierre) y [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77)
-(hotfix bloqueante) — staging explícito en cada uno de solo los archivos tocados, excluyendo
-siempre el mismo trabajo paralelo no relacionado (`BRAMU_Intelligence*`, `Referencias/`,
-`Backup/`, `Logo.ai`, y el reporte de V03.5.1 sin commitear a pedido de Sebastián). El tag
-`BRAMUlab_V03.5.2` se movió una segunda vez, ahora a `707ec77` — sigue siendo la misma versión,
-nunca se abrió `V03.5.3`. Push a `origin/main` y al tag (force-push del tag, ya documentado
-como flujo aceptado para corregir un release). Deploy de GitHub Pages verificado en producción
-antes de dar el hotfix por publicado.
+(corrección de cierre), [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77)
+(hotfix bloqueante) y [`d74334c`](https://github.com/sebastianvilaa/BRAMUlab/commit/d74334cdfb02117874ae3845cf0d529c744865f3)
+(bump de cache-bust, §4.4) — staging explícito en cada uno de solo los archivos tocados,
+excluyendo siempre el mismo trabajo paralelo no relacionado (`BRAMU_Intelligence*`,
+`Referencias/`, `Backup/`, `Logo.ai`, y el reporte de V03.5.1 sin commitear a pedido de
+Sebastián). El tag `BRAMUlab_V03.5.2` se movió una tercera vez, ahora a `d74334c` — sigue
+siendo la misma versión, nunca se abrió `V03.5.3`. Push a `origin/main` y al tag (force-push
+del tag, ya documentado como flujo aceptado para corregir un release) en cada paso. Deploy de
+GitHub Pages verificado en producción — con una demora perceptible (varios minutos) entre el
+push del hotfix de código y que el deploy realmente apareciera, sin causa clara del lado del
+repositorio — antes de dar el hotfix por publicado.
 
 ---
 
@@ -320,6 +360,12 @@ https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 - Si en algún momento se decide versionar ubicación/opt-in/privacidad (para que también
   respeten el corte semanal), es una superficie nueva — no algo para resolver "de paso" en un
   microajuste futuro.
+- **Proceso a seguir de acá en adelante**: cualquier commit que cambie bytes de un `.js`/`.css`
+  propio de la app — hotfix incluido, no solo rondas con doc nueva — tiene que bumpear el
+  cache-bust (`CACHE_NAME`/`?v=`) aunque el string de versión humano no cambie. Esta misma
+  ronda lo pasó por alto dos veces (§4.2 y §4.3) antes de corregirlo en §4.4; a partir de acá,
+  verificar esto es un paso obligatorio antes de dar cualquier fix por publicado, no solo
+  correr los tests.
 
 ---
 
