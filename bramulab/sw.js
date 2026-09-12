@@ -21,7 +21,13 @@
 // cualquier caso porque sw.js no cambia de bytes en una ronda de ajuste típica, así que sin
 // este bump un cliente con el bundle viejo ya instalado nunca dispara un reinstall del
 // service worker y se queda para siempre con la caché desactualizada.
-const CACHE_NAME = 'bramulab-v03-5-2';
+// Hotfix bloqueante de V03.5.2 (crash de Ranking con self sin partidos) — sufijo `-h1` SOLO
+// acá y en las query strings de abajo, nunca en `Store.VERSION`/`version.json`: el string
+// humano de versión sigue siendo "BRAMUlab V03.5.2" a propósito (no es una V03.5.3), pero el
+// bundle SÍ cambió de bytes, así que sin este bump el cliente que ya tenía el service worker
+// instalado nunca se entera — se queda para siempre sirviendo el `player-home.js` roto desde
+// caché, exactamente el bug que este hotfix corrige.
+const CACHE_NAME = 'bramulab-v03-5-2-h1';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -32,17 +38,17 @@ const CACHE_NAME = 'bramulab-v03-5-2';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.5.2',
-  './engine.js?v=03.5.2',
-  './stats.js?v=03.5.2',
-  './store.js?v=03.5.2',
-  './player-home.js?v=03.5.2',
-  './match-load.js?v=03.5.2',
-  './player-identity.js?v=03.5.2',
-  './groups.js?v=03.5.2',
-  './locations.js?v=03.5.2',
-  './ranking.js?v=03.5.2',
-  './app.js?v=03.5.2',
+  './styles.css?v=03.5.2-h1',
+  './engine.js?v=03.5.2-h1',
+  './stats.js?v=03.5.2-h1',
+  './store.js?v=03.5.2-h1',
+  './player-home.js?v=03.5.2-h1',
+  './match-load.js?v=03.5.2-h1',
+  './player-identity.js?v=03.5.2-h1',
+  './groups.js?v=03.5.2-h1',
+  './locations.js?v=03.5.2-h1',
+  './ranking.js?v=03.5.2-h1',
+  './app.js?v=03.5.2-h1',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
