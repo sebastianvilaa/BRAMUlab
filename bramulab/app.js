@@ -6620,6 +6620,9 @@
   const SIDE_LABELS = { drive: 'Drive', reves: 'Revés', indiferente: 'Indiferente' };
   const CATEGORY_LABELS = { '1': '1ª', '2': '2ª', '3': '3ª', '4': '4ª', '5': '5ª', '6': '6ª', '7': '7ª', '8': '8ª', '9': '9ª', 'no-se': 'No sé mi categoría' };
   const GENDER_LABELS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro', 'prefiero-no-decir': 'Prefiero no decir' };
+  // BRAMUlab_V03.6 (§6) — mensaje prearmado único del deep link de WhatsApp: fijo, sin Nivel/
+  // localidad/nombre completo/horario/cancha ni links extra (consolidado explícito).
+  const WHATSAPP_CONTACT_MESSAGE = 'Hola, te encontré en BRAMUlab. ¿Te interesaría organizar un partido de pádel?';
 
   /** Consolidado §3 — "TU JUGADOR ESTÁ LISTO": momento de recompensa post-signup, nunca un
    *  alert genérico. Siempre muestra 0/5 CALIBRANDO (una cuenta recién creada nunca tiene
@@ -8880,6 +8883,7 @@
 
   let playerPublicName = null;
   let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
+  let playerPublicWhatsappPhone = null; // BRAMUlab_V03.6 (§5) — teléfono a contactar, solo mientras el botón está visible
   // BRAMUlab_V03.5.1 (§10) — mismo criterio que playerPublicOrigin, pero para Mi Perfil/Mis
   // Datos: null (default) vuelve a Home como siempre; 'ranking' vuelve a Ranking.
   let profileScreenOrigin = null;
@@ -8932,6 +8936,13 @@
     $('#player-public-peak-level-context').textContent = peak.isCurrent ? 'ACT' : formatPeakLevelDate(peak.date);
 
     renderPlayerPublicAddButton();
+    // BRAMUlab_V03.6 (§5/§8) — botón visible SOLO con teléfono válido + consentimiento
+    // explícito (PLIdentity.canContactViaWhatsApp, misma condición que usa el switch de Editar
+    // Datos): sin cuenta real detrás (`account` null) nunca hay nada que mostrar. Nunca texto
+    // ni placeholder cuando no corresponde (§5 — "no mostrar nada adicional").
+    const canContact = PLI.canContactViaWhatsApp(account);
+    $('#player-public-whatsapp-btn').hidden = !canContact;
+    playerPublicWhatsappPhone = canContact ? account.phone : null;
   }
 
   /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`
@@ -8972,6 +8983,14 @@
         showToast('Jugador agregado');
       }
       renderPlayerPublicAddButton();
+    });
+    // BRAMUlab_V03.6 (§6) — un solo toque abre WhatsApp con el mensaje prearmado; nunca un
+    // modal de confirmación previo (consolidado §9: "después el contacto debe ser de un
+    // toque"). `buildWhatsAppContactUrl` ya devuelve `null` si el teléfono no es válido —
+    // defensivo, en la práctica el botón está oculto en ese caso.
+    $('#player-public-whatsapp-btn').addEventListener('click', () => {
+      const url = PLI.buildWhatsAppContactUrl(playerPublicWhatsappPhone, WHATSAPP_CONTACT_MESSAGE);
+      if (url) window.open(url, '_blank', 'noopener');
     });
   }
 
@@ -9062,6 +9081,11 @@
     // BRAMUlab_V03.4.1 (§9) — "Bella Vista, Buenos Aires", de solo lectura acá (se edita desde
     // Editar Datos). PLLocations.formatLocationLabel ya maneja el caso sin región.
     $('#profile-location').textContent = (user && user.locality) ? PLLocations.formatLocationLabel(user) : '—';
+
+    // BRAMUlab_V03.6 (§4) — CONTACTO: de solo lectura acá (mismo criterio que el resto de MIS
+    // DATOS), la edición vive en Editar Datos.
+    $('#profile-data-phone').textContent = (user && user.phone) || '—';
+    $('#profile-data-whatsapp-status').textContent = (user && user.allowWhatsAppContact) ? 'Activado' : 'Desactivado';
 
     // MI PERFIL — cabecera (V03.1 §2): Edad/Mano dominante/Lado habitual integrados en la
     // misma tarjeta de identidad, mismos 3 valores que arriba. La categoría NO se muestra acá
@@ -9454,6 +9478,7 @@
   let profileEditGender = null; // V03.0.1 (§2) — mismo criterio que hand/side: género pasó de <select> a option-row.
   let profileEditCategory = null; // BRAMUlab_V03.4.1 (§10) — reemplaza al <select> nativo.
   let profileEditLocation = null; // BRAMUlab_V03.4.1 (§9) — { locality, region, country } | null.
+  let profileEditAllowWhatsApp = false; // BRAMUlab_V03.6 (§3) — `false` por defecto, mismo criterio de reset que hand/side/gender.
 
   /** BRAMUlab_V03.4.1 (§10) — un único mapa para las 4 filas compactas de elección fija
    *  (Género/Mano dominante/Lado habitual/Categoría): mismas opciones/etiquetas de siempre
@@ -9479,6 +9504,13 @@
     $('#profile-edit-location-value').textContent = profileEditLocation ? PLLocations.formatLocationLabel(profileEditLocation) : '—';
   }
 
+  /** BRAMUlab_V03.6 (§4) — refleja `profileEditAllowWhatsApp` en el switch visual + a11y. */
+  function updateProfileWhatsappToggleDisplay() {
+    const btn = $('#profile-edit-whatsapp-toggle');
+    btn.classList.toggle('is-on', profileEditAllowWhatsApp);
+    btn.setAttribute('aria-checked', String(profileEditAllowWhatsApp));
+  }
+
   /** V03.0 (§5) — abre la edición de Perfil precargada con los datos actuales del Usuario.
    *  Nunca edita inline la vista de Perfil — mismo patrón que el resto de la app.
    *  V03.0.1 (§2) — pasa de modal a pantalla completa (#view-edit-data). Nombre de función
@@ -9493,6 +9525,10 @@
     profileEditGender = user.gender || null;
     profileEditCategory = user.declaredCategory || null;
     profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+    profileEditAllowWhatsApp = !!user.allowWhatsAppContact;
+    $('#profile-edit-phone').value = user.phone || '';
+    $('#profile-edit-whatsapp-hint').hidden = true;
+    updateProfileWhatsappToggleDisplay();
     setAvatarPreview('profile-edit-avatar-img', 'profile-edit-avatar-initials', user.profilePhoto, user.displayName);
     $('#profile-edit-avatar-remove-btn').hidden = !user.profilePhoto;
     $('#profile-edit-first-name').value = user.firstName || '';
@@ -9688,6 +9724,22 @@
       $('#profile-edit-avatar-remove-btn').hidden = true;
     });
 
+    // BRAMUlab_V03.6 (§4/§8 caso C) — tocar el switch para ACTIVAR sin un teléfono válido
+    // cargado todavía no lo enciende: queda apagado y avisa acá mismo, en vez de dejar que la
+    // inconsistencia se descubra recién al tocar GUARDAR. Apagarlo siempre está permitido (§2 —
+    // "el consentimiento puede revocarse", sin condición).
+    $('#profile-edit-phone').addEventListener('input', () => { $('#profile-edit-whatsapp-hint').hidden = true; });
+    $('#profile-edit-whatsapp-toggle').addEventListener('click', () => {
+      if (!profileEditAllowWhatsApp && !PLI.isValidWhatsAppPhone($('#profile-edit-phone').value)) {
+        $('#profile-edit-whatsapp-hint').textContent = 'Para activar el contacto, cargá primero un número de WhatsApp válido.';
+        $('#profile-edit-whatsapp-hint').hidden = false;
+        return;
+      }
+      profileEditAllowWhatsApp = !profileEditAllowWhatsApp;
+      $('#profile-edit-whatsapp-hint').hidden = true;
+      updateProfileWhatsappToggleDisplay();
+    });
+
     $('#profile-edit-cancel').addEventListener('click', () => showView('profile'));
     $('#profile-edit-form').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -9696,11 +9748,16 @@
       const username = $('#profile-edit-username').value.trim();
       const displayName = normalizePlayerName($('#profile-edit-display-name').value);
       const firstName = $('#profile-edit-first-name').value.trim();
+      const phone = $('#profile-edit-phone').value.trim();
       let error = null;
       if (!firstName) error = 'Ingresá al menos tu nombre.';
       else if (!displayName) error = 'El nombre visible no puede quedar vacío.';
       else if (!PLI.isValidUsernameFormat(username)) error = '@usuario: entre 3 y 20 caracteres, sin espacios.';
       else if (PLI.isUsernameTaken(username, Store.loadUsers(), user.id)) error = 'Ese @usuario ya está en uso.';
+      // BRAMUlab_V03.6 (§8 caso C) — red de seguridad además del bloqueo en el propio switch
+      // (arriba): cubre el caso de activarlo con un teléfono válido y luego borrarlo/invalidarlo
+      // sin volver a tocar el switch.
+      else if (profileEditAllowWhatsApp && !PLI.isValidWhatsAppPhone(phone)) error = 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.';
       if (error) { $('#profile-edit-error').textContent = error; $('#profile-edit-error').hidden = false; return; }
 
       // V03.1 (§4) — "fecha en la que fue declarada": se reestampa SOLO si el valor de
@@ -9724,6 +9781,11 @@
         locality: profileEditLocation ? profileEditLocation.locality : null,
         region: profileEditLocation ? profileEditLocation.region : null,
         country: profileEditLocation ? profileEditLocation.country : null,
+        // BRAMUlab_V03.6 (§3) — se guarda tal cual lo tipeó el usuario (solo recortado): la
+        // normalización a solo-dígitos (§7) es exclusiva del deep link, nunca del dato guardado
+        // — así el usuario sigue viendo/editando su número en el formato que reconoce.
+        phone: phone || null,
+        allowWhatsAppContact: profileEditAllowWhatsApp,
       };
       if (profileEditPhotoRemoved) patch.profilePhoto = null;
       else if (profileEditPhotoDataUrl) patch.profilePhoto = profileEditPhotoDataUrl;

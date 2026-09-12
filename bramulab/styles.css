@@ -2058,6 +2058,11 @@ input, select{ font-family: inherit; }
    renderPlayerPublicAddButton en app.js. Sin margin-top propio: `.btn-start`/
    `.analysis-delete-btn` ya traen el suyo — acá solo se fuerza el ancho completo. */
 .player-public-add-btn{ width:100%; }
+/* BRAMUlab_V03.6 (§5) — "Contactar por WhatsApp" vive justo arriba de AGREGAR JUGADOR:
+   `.btn-secondary` no trae margin-top propio (a diferencia de `.btn-start`, pensado para vivir
+   junto a otro botón en una fila) y acá está solo, así que necesita el suyo. `flex:none` por el
+   mismo motivo documentado arriba para `.groups-switch-create-btn`. */
+.player-public-whatsapp-btn{ width:100%; flex:none; margin-top: 12px; margin-bottom: 10px; }
 
 /* ==========================================================================
    Métricas pequeñas (§10)
@@ -3054,6 +3059,25 @@ input, select{ font-family: inherit; }
 .field--labeled{ display:flex; flex-direction:column; }
 .field-hint{ font-size: 11px; color: var(--paper-faint); margin: 4px 2px 0; }
 .option-row--2col{ grid-template-columns: 1fr 1fr; }
+
+/* BRAMUlab_V03.6 (§4) — fila de consentimiento (permitir contacto por WhatsApp): mismo patrón
+   label+microcopy que el resto de Editar Datos, con un switch on/off en vez de un chevron —
+   primer control booleano de la app, no existía ningún componente de switch todavía. */
+.profile-toggle-row{ display:flex; align-items:center; justify-content:space-between; gap: 14px; padding: 8px 2px; }
+.profile-toggle-row__text{ display:flex; flex-direction:column; gap: 3px; }
+.profile-toggle-row__label{ font-size: 13px; color: var(--paper); font-weight: 600; }
+.profile-toggle-row__hint{ font-size: 11px; color: var(--paper-faint); }
+.toggle-switch{
+  flex: none; position:relative; width: 44px; height: 26px; padding:0; cursor:pointer;
+  border-radius: var(--radius-pill); border: 1px solid var(--line-strong); background: var(--surface-2);
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+.toggle-switch__thumb{
+  position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+  background: var(--paper-dim); transition: transform var(--motion-fast) ease, background var(--motion-fast) ease;
+}
+.toggle-switch.is-on{ background: rgba(149,255,25,0.18); border-color: var(--brand-lime); }
+.toggle-switch.is-on .toggle-switch__thumb{ transform: translateX(18px); background: var(--brand-lime); }
 
 /* V03.0.1 (§4/§5/§8) — ojo mostrar/ocultar contraseña: botón chico superpuesto al campo.
    V03.0.2 (§9/§13) — ícono real de ojo/ojo-tachado (antes ◎, un carácter Unicode sin

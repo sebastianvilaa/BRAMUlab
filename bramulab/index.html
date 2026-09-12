@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.5.2-h2" />
+<link rel="stylesheet" href="styles.css?v=03.6" />
 </head>
 <body>
 
@@ -1787,6 +1787,15 @@
           </div>
         </div>
 
+        <!-- BRAMUlab_V03.6 (§4) — de solo lectura acá (la edición vive en Editar Datos, mismo
+             criterio que el resto de esta pestaña). El teléfono se muestra tal cual porque acá
+             lo está viendo el dueño de la cuenta — nunca en Perfil público (ver §2/§5). -->
+        <div class="pastilla profile-group">
+          <div class="profile-group__title">CONTACTO</div>
+          <div class="profile-field"><span class="profile-field__label">WhatsApp</span><span class="profile-field__value" id="profile-data-phone">—</span></div>
+          <div class="profile-field"><span class="profile-field__label">Contacto por WhatsApp</span><span class="profile-field__value" id="profile-data-whatsapp-status">Desactivado</span></div>
+        </div>
+
         <div class="pastilla profile-group">
           <div class="profile-group__title">ACCESO Y SEGURIDAD</div>
           <div class="profile-field"><span class="profile-field__label">Email</span><span class="profile-field__value" id="profile-data-email">—</span></div>
@@ -1956,6 +1965,13 @@
         </div>
       </div>
 
+      <!-- BRAMUlab_V03.6 (§5) — "Contactar por WhatsApp": solo visible con teléfono válido +
+           consentimiento explícito (PLIdentity.canContactViaWhatsApp, ver
+           renderPlayerPublicProfile en app.js) — nunca un placeholder ni mensaje de "no acepta
+           mensajes" cuando falta alguno de los dos. Visualmente secundaria respecto de
+           identidad/Nivel (arriba), pero con acento lima para que el propósito social se
+           entienda — mismo `.btn-secondary--lime` que ya usa CREAR GRUPO. -->
+      <button type="button" id="player-public-whatsapp-btn" class="btn-secondary btn-secondary--lime player-public-whatsapp-btn" hidden>CONTACTAR POR WHATSAPP</button>
       <!-- §3 — agregar/quitar de la lista personal de jugadores. Sin mensajes, invitaciones,
            compartir, bloquear, seguir, amistad ni reciprocidad. -->
       <button type="button" id="player-public-add-btn" class="btn-start player-public-add-btn">AGREGAR JUGADOR</button>
@@ -2357,6 +2373,26 @@
             <span class="profile-select-row__chevron" aria-hidden="true">›</span>
           </button>
         </div>
+        <!-- BRAMUlab_V03.6 (§3/§4) — contacto por WhatsApp: teléfono privado de cuenta +
+             consentimiento explícito, `false` por defecto (ver profileEditAllowWhatsApp en
+             app.js). El toggle se bloquea (sin activarse) si se toca sin un teléfono válido
+             cargado todavía — feedback en #profile-edit-whatsapp-hint, nunca al enviar el
+             formulario en silencio. -->
+        <div class="profile-group__title">CONTACTO</div>
+        <div class="field field--labeled">
+          <label class="field-label" for="profile-edit-phone">WhatsApp</label>
+          <input id="profile-edit-phone" class="field__input" type="tel" placeholder="+54 9 11 1234 5678" maxlength="24" autocomplete="tel" />
+        </div>
+        <div class="profile-toggle-row">
+          <div class="profile-toggle-row__text">
+            <span class="profile-toggle-row__label">Permitir que otros jugadores me contacten por WhatsApp</span>
+            <span class="profile-toggle-row__hint">Tu número no se muestra públicamente. Solo se usa para abrir WhatsApp cuando otro jugador toca “Contactar”.</span>
+          </div>
+          <button type="button" id="profile-edit-whatsapp-toggle" class="toggle-switch" role="switch" aria-checked="false" aria-label="Permitir que otros jugadores me contacten por WhatsApp">
+            <span class="toggle-switch__thumb" aria-hidden="true"></span>
+          </button>
+        </div>
+        <p class="edit-error" id="profile-edit-whatsapp-hint" hidden></p>
         <p class="edit-error" id="profile-edit-error" hidden></p>
         <button type="submit" class="btn-start btn-save">GUARDAR</button>
       </form>
@@ -2744,15 +2780,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.5.2-h2"></script>
-  <script src="stats.js?v=03.5.2-h2"></script>
-  <script src="store.js?v=03.5.2-h2"></script>
-  <script src="player-home.js?v=03.5.2-h2"></script>
-  <script src="match-load.js?v=03.5.2-h2"></script>
-  <script src="player-identity.js?v=03.5.2-h2"></script>
-  <script src="groups.js?v=03.5.2-h2"></script>
-  <script src="locations.js?v=03.5.2-h2"></script>
-  <script src="ranking.js?v=03.5.2-h2"></script>
-  <script src="app.js?v=03.5.2-h2"></script>
+  <script src="engine.js?v=03.6"></script>
+  <script src="stats.js?v=03.6"></script>
+  <script src="store.js?v=03.6"></script>
+  <script src="player-home.js?v=03.6"></script>
+  <script src="match-load.js?v=03.6"></script>
+  <script src="player-identity.js?v=03.6"></script>
+  <script src="groups.js?v=03.6"></script>
+  <script src="locations.js?v=03.6"></script>
+  <script src="ranking.js?v=03.6"></script>
+  <script src="app.js?v=03.6"></script>
 </body>
 </html>

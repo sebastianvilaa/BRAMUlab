@@ -4435,6 +4435,90 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 — contacto entre jugadores por WhatsApp (PLIdentity, pura)
+  // ------------------------------------------------------------------
+  (function () {
+    // Normalización (§7) — quita espacios/guiones/paréntesis/el prefijo `+`, deja solo dígitos.
+    assert('V036-NORM · quita espacios', PLI.normalizePhoneForWhatsApp('11 1234 5678') === '1112345678');
+    assert('V036-NORM · quita guiones', PLI.normalizePhoneForWhatsApp('11-1234-5678') === '1112345678');
+    assert('V036-NORM · quita paréntesis', PLI.normalizePhoneForWhatsApp('(11) 1234-5678') === '1112345678');
+    assert('V036-NORM · quita el prefijo + (formato internacional recomendado)', PLI.normalizePhoneForWhatsApp('+54 9 11 1234 5678') === '5491112345678');
+    assert('V036-NORM · vacío/solo espacios → null', PLI.normalizePhoneForWhatsApp('   ') === null);
+    assert('V036-NORM · null → null', PLI.normalizePhoneForWhatsApp(null) === null);
+
+    // Validación simple (§7 in fine) — cantidad razonable de dígitos, sin telefonía internacional real.
+    assert('V036-VALID · formato internacional completo es válido', PLI.isValidWhatsAppPhone('+54 9 11 1234 5678'));
+    assert('V036-VALID · número local sin código de país (8+ dígitos) es válido', PLI.isValidWhatsAppPhone('11 1234 5678'));
+    assert('V036-VALID · campo vacío es inválido', !PLI.isValidWhatsAppPhone(''));
+    assert('V036-VALID · claramente corto (menos de 8 dígitos) es inválido', !PLI.isValidWhatsAppPhone('123456'));
+    assert('V036-VALID · claramente largo (más de 15 dígitos) es inválido', !PLI.isValidWhatsAppPhone('1234567890123456'));
+    assert('V036-VALID · solo texto sin dígitos es inválido', !PLI.isValidWhatsAppPhone('no tengo'));
+
+    // Visibilidad del contacto (§2/§5/§8) — exige AMBAS condiciones, nunca infiere una de la otra.
+    assert('V036-VISIBLE · teléfono válido + consentimiento true → visible',
+      PLI.canContactViaWhatsApp({ phone: '+54 9 11 1234 5678', allowWhatsAppContact: true }));
+    assert('V036-VISIBLE · teléfono cargado pero consentimiento false (default) → oculto (caso B)',
+      !PLI.canContactViaWhatsApp({ phone: '+54 9 11 1234 5678', allowWhatsAppContact: false }));
+    assert('V036-VISIBLE · consentimiento true pero sin teléfono → oculto (caso C, nunca se llega a guardar así igual)',
+      !PLI.canContactViaWhatsApp({ phone: null, allowWhatsAppContact: true }));
+    assert('V036-VISIBLE · consentimiento true con teléfono inválido → oculto (caso D)',
+      !PLI.canContactViaWhatsApp({ phone: '123', allowWhatsAppContact: true }));
+    assert('V036-VISIBLE · sin cuenta detrás del nombre (account null/undefined) → oculto (caso F)',
+      !PLI.canContactViaWhatsApp(null) && !PLI.canContactViaWhatsApp(undefined));
+    // Revocación (§2/§8 caso E) — el mismo objeto, solo cambiando allowWhatsAppContact a false,
+    // deja de ser contactable: no queda ningún estado intermedio.
+    const revocable = { phone: '+54 9 11 1234 5678', allowWhatsAppContact: true };
+    assert('V036-REVOCAR · antes de revocar, visible', PLI.canContactViaWhatsApp(revocable));
+    revocable.allowWhatsAppContact = false;
+    assert('V036-REVOCAR · después de revocar el consentimiento, oculto de inmediato', !PLI.canContactViaWhatsApp(revocable));
+
+    // Deep link (§6) — URL wa.me con el mensaje prearmado correctamente URL-encoded.
+    const MSG = 'Hola, te encontré en BRAMUlab. ¿Te interesaría organizar un partido de pádel?';
+    const url = PLI.buildWhatsAppContactUrl('+54 9 11 1234 5678', MSG);
+    assert('V036-LINK · usa el host wa.me con el teléfono normalizado (solo dígitos, sin +)', url === `https://wa.me/5491112345678?text=${encodeURIComponent(MSG)}`);
+    assert('V036-LINK · el mensaje queda URL-encoded (espacios/acentos/signos, nunca crudo)', url.includes(encodeURIComponent('¿Te interesaría')));
+    assert('V036-LINK · teléfono inválido → null (nunca arma una URL a medias)', PLI.buildWhatsAppContactUrl('123', MSG) === null);
+    assert('V036-LINK · teléfono vacío → null', PLI.buildWhatsAppContactUrl('', MSG) === null);
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 — consentimiento `false` por defecto en cuentas nuevas (Store real).
+  // Mismo patrón snapshot/restore de localStorage que los bloques V03.0/V03.0.3.1 de arriba
+  // (único otro lugar de esta suite que toca Store real).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      // Sin `phone`/`allowWhatsAppContact` en los fields (cuenta creada sin tocar la ronda de
+      // contacto todavía) — nunca deben quedar `undefined`, siempre `null`/`false` reales.
+      const bare = Store.createUserAccount({ email: 'contacto1@test.com', username: 'contacto1', firstName: 'Con', displayName: 'Con' });
+      assert('V036-DEFAULT · cuenta nueva sin `phone` arranca en null', bare.phone === null);
+      assert('V036-DEFAULT · cuenta nueva arranca con allowWhatsAppContact en false', bare.allowWhatsAppContact === false);
+
+      // Cargar un teléfono en el alta NUNCA implica consentimiento (consolidado §3, explícito):
+      // ni siquiera si `fields` trae un `phone`, `allowWhatsAppContact` sigue en false por defecto.
+      const withPhone = Store.createUserAccount({ email: 'contacto2@test.com', username: 'contacto2', firstName: 'Con2', displayName: 'Con2', phone: '+54 9 11 1234 5678' });
+      assert('V036-DEFAULT · cargar un teléfono no infiere consentimiento (sigue false)', withPhone.allowWhatsAppContact === false);
+
+      // updateUserAccount (mismo camino que usa Editar Datos) activa/revoca sin tocar nada más.
+      const activated = Store.updateUserAccount(withPhone.id, { phone: '+54 9 11 1234 5678', allowWhatsAppContact: true });
+      assert('V036-UPDATE · updateUserAccount activa el consentimiento explícitamente', activated.allowWhatsAppContact === true);
+      assert('V036-UPDATE · conserva el teléfono ya cargado', activated.phone === '+54 9 11 1234 5678');
+      const revoked = Store.updateUserAccount(withPhone.id, { allowWhatsAppContact: false });
+      assert('V036-UPDATE · revocar el consentimiento no borra el teléfono guardado (§4 — "el teléfono puede quedar guardado")', revoked.phone === '+54 9 11 1234 5678' && revoked.allowWhatsAppContact === false);
+      assert('V036-UPDATE · conserva el mismo userId (nunca crea una cuenta nueva)', revoked.id === withPhone.id);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

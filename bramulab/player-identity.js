@@ -114,10 +114,45 @@
     return age;
   }
 
+  // BRAMUlab_V03.6 (§7) — normalización mínima de teléfono para el deep link de WhatsApp:
+  // suficiente para prototipo, nunca una librería de telefonía internacional completa. Quita
+  // espacios/guiones/paréntesis/el prefijo `+`, deja solo dígitos — la MISMA normalización
+  // sirve para validar (largo razonable) y para armar `wa.me` (que exige solo dígitos).
+  const WHATSAPP_PHONE_MIN_DIGITS = 8;
+  const WHATSAPP_PHONE_MAX_DIGITS = 15;
+
+  function normalizePhoneForWhatsApp(phone) {
+    const digits = (phone || '').replace(/\D+/g, '');
+    return digits || null;
+  }
+
+  /** Validación simple (§7): impide activar el contacto con un campo vacío o claramente
+   *  inválido, sin resolver telefonía internacional real (sin distinguir código de país). */
+  function isValidWhatsAppPhone(phone) {
+    const digits = normalizePhoneForWhatsApp(phone);
+    return !!digits && digits.length >= WHATSAPP_PHONE_MIN_DIGITS && digits.length <= WHATSAPP_PHONE_MAX_DIGITS;
+  }
+
+  /** §2/§8 — único punto que decide si corresponde mostrar "Contactar por WhatsApp": exige
+   *  AMBAS condiciones (consentimiento explícito + teléfono válido), nunca infiere una a partir
+   *  de la otra. `user` acepta cualquier objeto con `phone`/`allowWhatsAppContact` (el Usuario
+   *  real de Store, o un fixture de test). */
+  function canContactViaWhatsApp(user) {
+    return !!(user && user.allowWhatsAppContact && isValidWhatsAppPhone(user.phone));
+  }
+
+  /** §6 — deep link `wa.me` con el mensaje prearmado, URL-encoded. `null` si el teléfono no es
+   *  válido (nunca arma una URL a medias que abriría WhatsApp sin destinatario). */
+  function buildWhatsAppContactUrl(phone, message) {
+    if (!isValidWhatsAppPhone(phone)) return null;
+    return `https://wa.me/${normalizePhoneForWhatsApp(phone)}?text=${encodeURIComponent(message || '')}`;
+  }
+
   global.PLIdentity = {
     isValidEmail, normalizeEmail,
     PASSWORD_MIN_LENGTH, checkPasswordStrength, passwordsMatch,
     slugifyUsername, isValidUsernameFormat, isUsernameTaken, isEmailTaken, suggestUsername,
     calculateAge,
+    normalizePhoneForWhatsApp, isValidWhatsAppPhone, canContactViaWhatsApp, buildWhatsAppContactUrl,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

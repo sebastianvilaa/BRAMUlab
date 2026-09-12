@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.5.2';
+  const APP_VERSION = 'BRAMUlab V03.6';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -243,6 +243,12 @@
       region: fields.region || null,
       country: fields.country || null,
       rankingLocalZone: fields.rankingLocalZone || null,
+      // BRAMUlab_V03.6 (§3) — contacto por WhatsApp: `phone` es dato privado de cuenta (nunca
+      // se muestra en Perfil público, ver renderPlayerPublicProfile en app.js);
+      // `allowWhatsAppContact` es `false` por defecto SIEMPRE, aunque `fields` traiga un
+      // teléfono — cargar un número nunca implica consentimiento (consolidado §3, explícito).
+      phone: fields.phone || null,
+      allowWhatsAppContact: !!fields.allowWhatsAppContact,
       legacyMigrated: !!fields.legacyMigrated,
       createdAt: now,
       updatedAt: now,
