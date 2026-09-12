@@ -11,7 +11,8 @@ quedó publicado.
 **Commit de la implementación inicial:** [`10a05ce`](https://github.com/sebastianvilaa/BRAMUlab/commit/10a05cea8f2a35be88911bfd2a0075fd5d06fa7b)
 **Commit de las correcciones post-QA real (§11):** [`7c79196`](https://github.com/sebastianvilaa/BRAMUlab/commit/7c79196)
 **Commit del hotfix focal de identidad — Ranking/Mis jugadores (§12):** [`aadf920`](https://github.com/sebastianvilaa/BRAMUlab/commit/aadf920)
-**Tag:** `BRAMUlab_V03.6` (movido a `aadf920` — misma versión, nunca se abrió V03.7)
+**Commit del cierre final — Ranking sin posición/color/CALIBRANDO/modal (§13):** [`53e068f`](https://github.com/sebastianvilaa/BRAMUlab/commit/53e068fcb1b60ba7b4eac68ff35de712643b09a8)
+**Tag:** `BRAMUlab_V03.6` (movido a `53e068f` — misma versión, nunca se abrió V03.7)
 **Base:** `BRAMUlab_V03.5.2`
 **Documento fuente:** `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.6.md`
 
@@ -734,8 +735,24 @@ Cache-bust `-h3` (`CACHE_NAME` y los 11 `?v=03.6-h3` propios en `index.html`/`sw
 
 ### 13.9 Commit, tag y verificación en producción
 
-_Se completa más abajo en esta misma sección tras el commit/push/deploy real (ver commit y tag
-al pie de este documento)._
+Commit [`53e068f`](https://github.com/sebastianvilaa/BRAMUlab/commit/53e068fcb1b60ba7b4eac68ff35de712643b09a8),
+tag `BRAMUlab_V03.6` movido al mismo commit, pusheados a `origin/main`. Deploy confirmado en el
+origen de GitHub Pages (`x-cache: MISS` directo, sin pasar por el request anterior) sirviendo
+`?v=03.6-h3`. Nota operativa: el edge de CDN (Fastly, `cache-control: max-age=600`) que atendió
+al navegador de verificación tardó ~10-15 minutos en reflejar el nuevo `index.html` — comprobado
+con un fetch `cache:'no-store'` que seguía devolviendo `-h2` mientras `curl` desde otra red ya
+recibía `-h3`; es propagación normal de CDN por edge, no un problema del deploy, y es
+exactamente el escenario para el que existe el modal "Hay una nueva versión" de la app (detecta
+la versión nueva vía `version.json` y ofrece actualizar sin esperar a que expire el caché de
+cada edge). Verificación funcional repetida directamente sobre la app en producción (accediendo
+con un parámetro para forzar el edge ya actualizado) con dos cuentas descartables nuevas
+(`Prod Check`/`Prod Check Dos` — las fixtures de rondas anteriores no persistían en este
+navegador de verificación): Ranking mostró la tarjeta "Todavía no tenés posición en el Ranking"
+con la clasificación completa debajo, el indicador de movimiento resolvió el color neutro
+correcto (`rgb(104,116,130)`, `--paper-faint`), el modal de actualización midió
+`line-height: 17.55px` (13px × 1.35, el valor esperado), y "CALIBRANDO" se mostró sin desborde
+tanto en Home como en el Perfil público de `Prod Check` visto desde `Prod Check Dos`. Ambas
+cuentas de prueba se eliminaron de producción al terminar (no quedó dato de prueba nuevo).
 
 ### 13.10 Limitaciones / decisiones pendientes
 
