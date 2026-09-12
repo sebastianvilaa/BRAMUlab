@@ -3948,19 +3948,20 @@
         exactTie[0].position === 1 && exactTie[1].position === 1 && exactTie[2].position === 3);
     })();
 
-    // ---- computeWeeklyMovement: determinístico, etiquetas ↑N/↓N/— únicamente (§8.2/§18:
-    //      nunca rojo/verde por dirección, eso lo decide el CSS de la fila, no esta función) ----
+    // ---- computeWeeklyMovement (firma BRAMUlab_V03.5.2: compara DOS universos reales, ver
+    //      bloque V0352 más abajo para la cobertura completa de la nueva semántica semanal) —
+    //      acá solo se cubre lo que no cambió: determinismo y forma general de las etiquetas. ----
     (function () {
       const names = RK.buildScopeUniverseNames('local').slice(0, 20);
       const entries = RK.buildRankingEntries(names, emptyHistory, 'Zoe Ordinaria');
-      const mv1 = RK.computeWeeklyMovement(entries);
-      const mv2 = RK.computeWeeklyMovement(entries);
+      const mv1 = RK.computeWeeklyMovement(entries, entries);
+      const mv2 = RK.computeWeeklyMovement(entries, entries);
       let sameBothTimes = true;
       mv1.forEach((v, id) => { if (!mv2.has(id) || mv2.get(id).label !== v.label) sameBothTimes = false; });
       assert('V035-MOVIMIENTO · determinístico entre llamadas (nunca Math.random/Date.now)', sameBothTimes);
       let labelsOk = true;
-      mv1.forEach((v) => { if (!/^(↑\d+|↓\d+|—)$/.test(v.label)) labelsOk = false; });
-      assert('V035-MOVIMIENTO · etiquetas siempre ↑N / ↓N / — (nunca un texto libre)', labelsOk, JSON.stringify(Array.from(mv1.values())));
+      mv1.forEach((v) => { if (!/^(↑ \d+|↓ \d+|—|Nuevo)$/.test(v.label)) labelsOk = false; });
+      assert('V035-MOVIMIENTO · etiquetas siempre "↑ N" / "↓ N" / "—" / "Nuevo" (nunca un texto libre)', labelsOk, JSON.stringify(Array.from(mv1.values())));
     })();
 
     // ---- bandFilter ----
@@ -4171,6 +4172,158 @@
       resetAffectedKeys();
       Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
     }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.5.2 — Ranking BRAMU pasa de continuo a SEMANAL
+  // (Ranking_BRAMU.md, revisión del 11/09/2026): período lunes-domingo en
+  // hora de Buenos Aires, snapshot recortado por `createdAt` (nunca
+  // `playedAt`), movimiento real entre dos ediciones.
+  // ------------------------------------------------------------------
+  (function () {
+    // ---- computeRankingWeekPeriod/computePreviousRankingWeekPeriod: lunes 00:00:00 a domingo
+    //      23:59:59.999, hora de Buenos Aires (offset fijo -03:00) — nunca la del dispositivo
+    //      que corre los tests. ----
+    (function () {
+      const ref = new Date('2026-09-09T15:00:00.000Z'); // miércoles, mediodía en Buenos Aires
+      const period = RK.computeRankingWeekPeriod(ref);
+      const shiftedStart = new Date(period.start.getTime() - 180 * 60000); // "reloj BA" del inicio
+      assert('V0352-PERIODO · el inicio cae en lunes (hora de Buenos Aires)', shiftedStart.getUTCDay() === 1, shiftedStart.toISOString());
+      assert('V0352-PERIODO · el inicio es medianoche exacta (hora de Buenos Aires)',
+        shiftedStart.getUTCHours() === 0 && shiftedStart.getUTCMinutes() === 0 && shiftedStart.getUTCSeconds() === 0, shiftedStart.toISOString());
+      assert('V0352-PERIODO · dura exactamente 7 días menos 1ms (lunes 00:00:00 a domingo 23:59:59.999)',
+        period.end.getTime() - period.start.getTime() === 7 * 86400000 - 1);
+      assert('V0352-PERIODO · el instante de referencia cae DENTRO del período que dice contener',
+        ref.getTime() >= period.start.getTime() && ref.getTime() <= period.end.getTime());
+
+      const prev = RK.computePreviousRankingWeekPeriod(ref);
+      assert('V0352-PERIODO · la semana anterior termina justo antes de que empiece la actual (sin huecos ni superposición)',
+        period.start.getTime() - prev.end.getTime() === 1);
+      assert('V0352-PERIODO · la semana anterior dura lo mismo (7 días)',
+        prev.end.getTime() - prev.start.getTime() === period.end.getTime() - period.start.getTime());
+
+      const laterSameWeek = new Date(ref.getTime() + 2 * 86400000); // viernes de la misma semana
+      const periodLater = RK.computeRankingWeekPeriod(laterSameWeek);
+      assert('V0352-PERIODO · el mismo período (start) para dos instantes de la misma semana calendario — estable durante toda la semana',
+        periodLater.start.getTime() === period.start.getTime());
+
+      const nextWeek = new Date(ref.getTime() + 7 * 86400000);
+      const periodNext = RK.computeRankingWeekPeriod(nextWeek);
+      assert('V0352-PERIODO · una semana después, el período avanza exactamente 7 días',
+        periodNext.start.getTime() - period.start.getTime() === 7 * 86400000);
+
+      const label = RK.formatRankingWeekRangeLabel(period);
+      assert('V0352-PERIODO · el label tiene el formato "Lun ## mmm — Dom ## mmm"',
+        /^Lun \d{2} [a-záéíóúñ]{3} — Dom \d{2} [a-záéíóúñ]{3}$/.test(label), label);
+    })();
+
+    // ---- historySnapshotAsOf: recorta por `createdAt` ("fecha de procesamiento"), nunca por
+    //      `playedAt` ("fecha efectiva") — Caso 2 de Ranking_BRAMU.md: un partido jugado ANTES
+    //      del corte pero CARGADO después no debe entrar en la edición que ya cerró. ----
+    (function () {
+      const cutoff = new Date('2026-09-07T03:00:00.000Z');
+      const names4 = ['A V0352', 'B V0352', 'C V0352', 'D V0352'];
+      const sets = [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }];
+      const before = mkGroupMatch('snap-before', new Date(cutoff.getTime() - 86400000).toISOString(), names4, sets);
+      const after = mkGroupMatch('snap-after', new Date(cutoff.getTime() + 86400000).toISOString(), names4, sets);
+      const snap = RK.historySnapshotAsOf([before, after], cutoff);
+      assert('V0352-SNAPSHOT · incluye partidos anteriores al corte', snap.some((m) => m.matchId === 'snap-before'));
+      assert('V0352-SNAPSHOT · excluye partidos posteriores al corte', !snap.some((m) => m.matchId === 'snap-after'));
+
+      const lateLoaded = mkGroupMatch('snap-late', new Date(cutoff.getTime() - 3600000).toISOString(), names4, sets,
+        { createdAt: new Date(cutoff.getTime() + 600000).toISOString() }); // jugado 1h ANTES, cargado 10min DESPUÉS del corte
+      const snap2 = RK.historySnapshotAsOf([lateLoaded], cutoff);
+      assert('V0352-SNAPSHOT · Caso 2 (Ranking_BRAMU.md) — jugado antes del corte pero CARGADO después -> NO entra en la edición que ya cerró',
+        snap2.length === 0, JSON.stringify(snap2));
+      const nextSnap = RK.historySnapshotAsOf([lateLoaded], new Date(cutoff.getTime() + 7 * 86400000));
+      assert('V0352-SNAPSHOT · el mismo partido SÍ entra en la edición siguiente (su createdAt ya quedó antes de ESE corte)', nextSnap.length === 1);
+    })();
+
+    // ---- Nivel del corte vs. Nivel actual (§5/§18 Caso 1): un partido que queda computable
+    //      DESPUÉS del corte no debe mover el Nivel que Ranking usa en la edición vigente,
+    //      aunque sí mueva el Nivel actual que ven Home/Perfil. ----
+    (function () {
+      const AFFECTED_KEYS = ['bramulab.history.v1'];
+      const snapshot = {};
+      AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+      try {
+        localStorage.removeItem('bramulab.history.v1');
+        const name = 'Corte V0352';
+        const period = RK.computeRankingWeekPeriod(new Date());
+        Store.upsertHistory(mkGroupMatch('v0352-before-cut', new Date(period.start.getTime() - 5 * 86400000).toISOString(),
+          [name, 'Compa V0352', 'Rival Uno V0352', 'Rival Dos V0352'], [{ gamesA: 6, gamesB: 3 }]));
+        const levelBefore = PH.computeSimulatedJugadorLevel(RK.historySnapshotAsOf(Store.loadHistory(), period.start), name);
+        Store.upsertHistory(mkGroupMatch('v0352-after-cut', new Date(period.start.getTime() + 3600000).toISOString(),
+          [name, 'Compa V0352', 'Rival Tres V0352', 'Rival Cuatro V0352'], [{ gamesA: 6, gamesB: 3 }]));
+        const levelSnapshotStillFrozen = PH.computeSimulatedJugadorLevel(RK.historySnapshotAsOf(Store.loadHistory(), period.start), name);
+        const levelActual = PH.computeSimulatedJugadorLevel(Store.loadHistory(), name);
+        assert('V0352-NIVEL-CORTE · un partido cargado DESPUÉS del corte no cambia el Nivel del corte vigente',
+          levelSnapshotStillFrozen === levelBefore, `${levelSnapshotStillFrozen} vs ${levelBefore}`);
+        assert('V0352-NIVEL-CORTE · el Nivel ACTUAL sí lo refleja (Home/Perfil siguen en vivo, nunca congelados)',
+          levelActual === 5.4 && levelBefore === 5.2, `actual=${levelActual} corte=${levelBefore}`);
+      } finally {
+        AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k));
+        Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+      }
+    })();
+
+    // ---- computeWeeklyMovement (nueva firma: dos universos reales) — §5/§18: flechas SIEMPRE
+    //      en puestos, "Nuevo" cuando no hay comparación válida anterior (nunca "—", que
+    //      significa "mismo puesto" — bug real de la implementación V03.5/V03.5.1, nunca
+    //      visible porque el universo "anterior" simulado de esa versión era siempre el mismo
+    //      set de ids que el actual). ----
+    (function () {
+      const currentUniverse = [
+        { id: 'a', level: 7.0 }, { id: 'b', level: 6.5 }, { id: 'c', level: 6.0 }, { id: 'nueva-entrada', level: 5.0 },
+      ];
+      const previousUniverse = [
+        { id: 'a', level: 6.0 }, { id: 'b', level: 6.5 }, { id: 'c', level: 7.0 },
+      ]; // 'a' subió (3ro -> 1ro), 'c' bajó (1ro -> 3ro), 'b' se mantuvo, 'nueva-entrada' no existía
+      const mv = RK.computeWeeklyMovement(currentUniverse, previousUniverse);
+      assert('V0352-MOVIMIENTO · subió puestos -> "↑ N" (con espacio, nunca puntos)', mv.get('a').label === '↑ 2', mv.get('a').label);
+      assert('V0352-MOVIMIENTO · bajó puestos -> "↓ N"', mv.get('c').label === '↓ 2', mv.get('c').label);
+      assert('V0352-MOVIMIENTO · mismo puesto -> "—"', mv.get('b').label === '—', mv.get('b').label);
+      assert('V0352-MOVIMIENTO · sin comparación anterior -> "Nuevo" (nunca "—")', mv.get('nueva-entrada').label === 'Nuevo', mv.get('nueva-entrada').label);
+      assert('V0352-MOVIMIENTO · determinístico entre llamadas',
+        RK.computeWeeklyMovement(currentUniverse, previousUniverse).get('a').label === mv.get('a').label);
+    })();
+
+    // ---- buildRankingEntries(..., selfUserId): bug real encontrado en esta ronda — una vez
+    //      que self jugó su primer partido, su propia fila de `players[]` queda con `userId`
+    //      estampado (regla de integridad ya vigente desde V03.0), y esa fila SOLO es hallable
+    //      pasando ese `userId` (nunca por nombre solo, aunque coincida exacto — ver
+    //      PH.findPlayerRow). Sin `selfUserId`, Ranking calculaba el Nivel de self con el mismo
+    //      hash simulado que un jugador mock, ignorando por completo su historial real. ----
+    (function () {
+      const AFFECTED_KEYS = ['bramulab.history.v1'];
+      const snapshot = {};
+      AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+      try {
+        localStorage.removeItem('bramulab.history.v1');
+        const selfName = 'Identidad V0352';
+        const selfUserId = 'u-identidad-v0352';
+        const sets = [{ gamesA: 6, gamesB: 3 }];
+        const names4 = [selfName, 'Compa V0352', 'Rival Uno V0352', 'Rival Dos V0352'];
+        const match = Object.assign(mkGroupMatch('v0352-identidad-1', new Date(Date.now() - 86400000).toISOString(), names4, sets));
+        match.players[0].userId = selfUserId; // misma forma que stampPlayersWithUserId en store.js
+        Store.upsertHistory(match);
+        const history = Store.loadHistory();
+        const realEvolutionLevel = PH.computeSimulatedJugadorLevel(history, { name: selfName, userId: selfUserId });
+        const entriesWithId = RK.buildRankingEntries([], history, selfName, true, 'masculino', undefined, selfUserId);
+        const entriesWithoutId = RK.buildRankingEntries([], history, selfName, true, 'masculino');
+        const meWithId = entriesWithId.find((e) => e.isMe);
+        const meWithoutId = entriesWithoutId.find((e) => e.isMe);
+        assert('V0352-IDENTIDAD · con selfUserId, el Nivel de self coincide con su evolución real (nunca el hash simulado)',
+          meWithId.level === realEvolutionLevel, `${meWithId.level} vs ${realEvolutionLevel}`);
+        assert('V0352-IDENTIDAD · sin selfUserId (callers viejos, ej. tests que no lo pasan), el comportamiento no cambia — nunca rompe compatibilidad',
+          typeof meWithoutId.level === 'number');
+        assert('V0352-IDENTIDAD · self sigue marcado isMe/id/gender igual, con o sin selfUserId',
+          meWithId.isMe === true && meWithId.id === Store.normalizePlayerName(selfName) && meWithId.gender === 'masculino');
+      } finally {
+        AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k));
+        Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+      }
+    })();
   })();
 
   // ------------------------------------------------------------------

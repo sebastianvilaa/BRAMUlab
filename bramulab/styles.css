@@ -1298,6 +1298,10 @@ input, select{ font-family: inherit; }
   display:flex; align-items:center; justify-content:center; width:20px; height:20px;
   border: 1.5px solid currentColor; border-radius: 50%; font-size: 12px; font-weight: 800; line-height:1;
 }
+/* BRAMUlab_V03.5.2 (§7) — lupa en lima mientras la búsqueda está activa/abierta, vuelve al tono
+   neutro de `.icon-btn` al cerrarla. Acotado por ID (nunca `.icon-btn.is-active` genérico) para
+   no afectar los demás botones que comparten esa clase (back, engranaje de Mis grupos, etc.). */
+#ranking-search-toggle-btn.is-active{ color: var(--brand-lime); }
 
 /* §6.1 — buscador reutilizado (.player-search-field de siempre), ahora oculto por defecto y
    con una X propia para cerrarlo — ya no un bloque permanente dentro del cuerpo. */
@@ -1361,7 +1365,10 @@ input, select{ font-family: inherit; }
 .ranking-row--static{ cursor:default; }
 .ranking-row--static:active{ background:none; }
 
-.ranking-universe-count{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 10px; }
+.ranking-universe-count{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 2px; }
+/* BRAMUlab_V03.5.2 (§3/§13.5) — identificación de la edición semanal, discreta y siempre
+   presente: nunca compite con el conteo de arriba (mismo tamaño/tono, no negrita). */
+.ranking-period-label{ font-size: 12px; color: var(--paper-faint); margin: 0 0 10px; }
 .ranking-load-more{ display:block; margin: 4px auto 0; }
 
 /* V03.5.1 (§3.5) — "Ocultos (N)": utilidad secundaria y discreta, nunca mezclada con la
@@ -2194,6 +2201,29 @@ input, select{ font-family: inherit; }
    Formato y puntuación) — nunca una excepción particular que las vuelva a angostar. */
 @media (min-width: 720px){
   .bottom-sheet{ max-width: 768px; }
+}
+/* BRAMUlab_V03.5.2 (§8) — en pantallas grandes, Registrar partido (y cualquier `.bottom-sheet`
+   con poco contenido) quedaba "flotando" con demasiado aire: anclado al piso del viewport pero
+   con una `min-height` pensada para mobile, dejaba un bloque de contenido corto perdido en un
+   panel alto y vacío. Ajuste del PATRÓN compartido (nunca uno por sheet): en desktop, el scrim
+   centra el panel en vez de anclarlo abajo (una composición de diálogo más natural que la de
+   una bandeja mobile) y `--compact` deja de forzar una altura mínima pensada en vh de celular
+   — el panel pasa a tomar la altura que su contenido real necesita. Alcanza a los ~11 sheets
+   que comparten `.sheet-scrim`/`.bottom-sheet`, sin rediseñar ninguno por separado. Mobile
+   (<720px) queda intacto: sigue anclado abajo, cómodo para el pulgar. */
+@media (min-width: 720px){
+  .sheet-scrim{ align-items: center; }
+  .bottom-sheet{ border-radius: 20px; }
+  .bottom-sheet--compact{ min-height: 0; }
+}
+/* §8.2 — además de lo anterior, el selector de género/nivel del Ranking (y cualquier otro campo
+   de Perfil que reuse esta misma hoja) se sentía "petiso": con 2-3 opciones cortas dentro de un
+   panel de 768px de ancho, el contenido quedaba perdido en un rectángulo mayormente vacío. Acá
+   sí hace falta un ancho propio (no el genérico de arriba, pensado para contenido más largo como
+   la ayuda de Ranking o Elegir jugador) — mismo criterio que un menú/diálogo de opciones nativo,
+   angosto y alto en vez de ancho y corto. */
+@media (min-width: 720px){
+  #profile-picker-sheet{ max-width: 420px; }
 }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
 /* V02.4 (Bloque C, §7) — categoría reutilizable de sheet COMPACTO: altura mínima garantizada

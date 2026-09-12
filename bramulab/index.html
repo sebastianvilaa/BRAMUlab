@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.5.1" />
+<link rel="stylesheet" href="styles.css?v=03.5.2" />
 </head>
 <body>
 
@@ -1317,6 +1317,9 @@
         <div class="analysis-section">
           <h3 class="analysis-section__title">CLASIFICACIÓN</h3>
           <p class="ranking-universe-count" id="ranking-universe-count"></p>
+          <!-- BRAMUlab_V03.5.2 (§3/§13.5) — identifica la edición semanal vigente; nunca
+               "Actualizado hoy" (el Ranking ya no es continuo). -->
+          <p class="ranking-period-label" id="ranking-period-label"></p>
           <div id="ranking-list" class="group-table"></div>
           <div id="ranking-list-empty" class="pastilla" hidden>
             <p class="coverage-note" id="ranking-list-empty-text"></p>
@@ -1377,9 +1380,12 @@
         <button type="button" id="ranking-help-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="load-player-sheet__scroll ranking-help-scroll">
-        <p class="ranking-help-item"><strong>Nivel BRAMU y Ranking BRAMU no son lo mismo.</strong> El Nivel estima tu capacidad; el Ranking te dice en qué puesto estás hoy frente a un grupo de jugadores.</p>
-        <p class="ranking-help-item"><strong>¿Por qué cambió mi puesto si no jugué?</strong> El Ranking compara tu Nivel con el de otros jugadores. Podés mantener tu Nivel y cambiar de posición cuando otros entran, salen o actualizan el suyo.</p>
-        <p class="ranking-help-item"><strong>¿Qué significa la variación semanal?</strong> Tu puesto es actual y continuo. La flecha solo lo compara con el último corte semanal — el Ranking no empieza de cero cada semana.</p>
+        <p class="ranking-help-item"><strong>Nivel BRAMU y Ranking BRAMU no son lo mismo.</strong> El Nivel estima tu capacidad y puede cambiar partido a partido. El Ranking te dice en qué puesto quedaste publicado dentro de un grupo de jugadores.</p>
+        <p class="ranking-help-item"><strong>¿Cuándo se actualiza el Ranking?</strong> Cada lunes se publica una nueva edición con los Niveles consolidados al cierre del domingo. Durante la semana, tu puesto se mantiene igual.</p>
+        <p class="ranking-help-item"><strong>¿Por qué mi Nivel actual puede ser distinto del que veo acá?</strong> Tu Nivel BRAMU puede cambiar durante la semana. El Ranking conserva el Nivel que tenías al último cierre semanal hasta la próxima publicación.</p>
+        <p class="ranking-help-item"><strong>¿Qué significa ↑ 4?</strong> Que subiste 4 puestos respecto de la edición semanal anterior — nunca puntos: Ranking BRAMU no tiene puntos propios.</p>
+        <p class="ranking-help-item"><strong>¿Por qué cambió mi puesto si no jugué?</strong> El Ranking compara tu Nivel del corte con el de otros jugadores. Podés mantener tu Nivel y cambiar de posición cuando otros entran, salen o actualizan el suyo en la nueva edición.</p>
+        <p class="ranking-help-item"><strong>Cargá el partido cuando termina.</strong> Así el resultado puede validarse a tiempo, actualizar tu Nivel y entrar en el próximo Ranking semanal — uno cargado después del cierre del domingo entra recién en la edición siguiente.</p>
         <p class="ranking-help-item"><strong>¿Por qué alguien puede no tener posición?</strong> Recién se muestran puestos con Nivel BRAMU calibrado, actividad reciente, ubicación declarada y perfil público habilitado.</p>
         <p class="ranking-help-item"><strong>El Nivel que ves tiene un decimal, pero el orden usa más precisión.</strong> Así se evitan empates artificiales entre jugadores con el mismo número redondeado.</p>
         <p class="ranking-help-item"><strong>Actividad y densidad.</strong> Con muy pocos jugadores elegibles en un ámbito, el Ranking todavía no publica puestos; más de 180 días sin un partido computable sacan a alguien temporalmente, sin perder su Nivel.</p>
@@ -1429,8 +1435,8 @@
             <!-- BRAMUlab_V03.4.3 (§1) — mismo criterio de mayúscula/minúscula que Historial
                  ("Todos"/"Mis partidos"/"Observados", nunca en mayúscula sostenida): el texto
                  va tal cual se lee, no hay `text-transform` en `.history-tab` que lo fuerce. -->
-            <button type="button" class="history-tab" data-view="actual" role="tab" aria-selected="true">Actual</button>
-            <button type="button" class="history-tab" data-view="anterior" role="tab" aria-selected="false">Anterior</button>
+            <button type="button" class="history-tab" data-view="actual" role="tab" aria-selected="true">Semana actual</button>
+            <button type="button" class="history-tab" data-view="anterior" role="tab" aria-selected="false">Semana pasada</button>
             <button type="button" class="history-tab" data-view="race" role="tab" aria-selected="false">Race anual</button>
           </div>
         </div>
@@ -2738,15 +2744,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.5.1"></script>
-  <script src="stats.js?v=03.5.1"></script>
-  <script src="store.js?v=03.5.1"></script>
-  <script src="player-home.js?v=03.5.1"></script>
-  <script src="match-load.js?v=03.5.1"></script>
-  <script src="player-identity.js?v=03.5.1"></script>
-  <script src="groups.js?v=03.5.1"></script>
-  <script src="locations.js?v=03.5.1"></script>
-  <script src="ranking.js?v=03.5.1"></script>
-  <script src="app.js?v=03.5.1"></script>
+  <script src="engine.js?v=03.5.2"></script>
+  <script src="stats.js?v=03.5.2"></script>
+  <script src="store.js?v=03.5.2"></script>
+  <script src="player-home.js?v=03.5.2"></script>
+  <script src="match-load.js?v=03.5.2"></script>
+  <script src="player-identity.js?v=03.5.2"></script>
+  <script src="groups.js?v=03.5.2"></script>
+  <script src="locations.js?v=03.5.2"></script>
+  <script src="ranking.js?v=03.5.2"></script>
+  <script src="app.js?v=03.5.2"></script>
 </body>
 </html>

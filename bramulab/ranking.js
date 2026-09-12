@@ -1,7 +1,9 @@
 /* ==========================================================================
    BRAMU Lab — ranking.js (BRAMUlab_V03.5, Bloques 2 y 3; refinado en V03.5.1:
    "Mis jugadores"→"Mi red" con ventana de 180 días, género, Cerca tuyo
-   removido)
+   removido; V03.5.2: Ranking pasa de continuo a SEMANAL — snapshot simulado
+   vía historySnapshotAsOf/computeRankingWeekPeriod, movimiento real entre dos
+   ediciones en vez del jitter simulado que usaba computeWeeklyMovement)
    Funciones puras del Ranking BRAMU simulado: universo mock territorial
    (determinístico, sin backend), ordenamiento por Nivel interno exacto
    (mismo criterio de ranking de competición que ya usa PLGroups.assignPositions
@@ -32,6 +34,89 @@
   const PLLoc = global.PLLocations;
 
   const BLOCK_SIZE = 50;
+
+  /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V03.5.2 — RANKING SEMANAL (Ranking_BRAMU.md §4, cambio       */
+  /* normativo de la revisión del 11/09/2026): Ranking deja de ser        */
+  /* continuo y pasa a publicarse una vez por semana. Nivel BRAMU sigue   */
+  /* siendo dinámico — esta sección NUNCA calcula Nivel, solo recorta EN  */
+  /* QUÉ INSTANTE se "lee" ese Nivel para congelar una edición semanal.   */
+  /* ------------------------------------------------------------------ */
+  const RANKING_TIMEZONE = 'America/Argentina/Buenos_Aires';
+  // Argentina no usa horario de verano desde 2009 — un offset fijo de -180min es exacto para
+  // el V1 conceptual del documento. Si alguna vez volviera a existir DST acá, este offset fijo
+  // dejaría de alcanzar y habría que resolverlo con una librería de tz real (backend, no V1).
+  const RANKING_TZ_OFFSET_MINUTES = -180;
+  const DAY_MS = 86400000;
+  const WEEK_MS = 7 * DAY_MS;
+
+  /** Mismo instante, expresado como si el reloj fuera el de Buenos Aires — SOLO para leer
+   *  campos `getUTC*()` con el día/hora que corresponde allá, nunca para construir un Date que
+   *  se use directamente como instante real (ver computeRankingWeekStart, que deshace este
+   *  corrimiento antes de devolver el resultado). */
+  function toBuenosAiresShifted(date) {
+    return new Date(date.getTime() + RANKING_TZ_OFFSET_MINUTES * 60000);
+  }
+
+  /** Lunes 00:00:00 (hora de Buenos Aires) de la semana que contiene `date` — como instante
+   *  UTC real, listo para comparar con cualquier timestamp guardado (`playedAt`/`createdAt`,
+   *  siempre ISO UTC en este prototipo). */
+  function computeRankingWeekStart(date) {
+    const shifted = toBuenosAiresShifted(date);
+    const dow = shifted.getUTCDay(); // 0=domingo..6=sábado, leído en el reloj ya corrido a BA
+    const daysSinceMonday = (dow + 6) % 7;
+    const mondayShifted = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate() - daysSinceMonday, 0, 0, 0, 0);
+    return new Date(mondayShifted - RANKING_TZ_OFFSET_MINUTES * 60000);
+  }
+
+  /** Ranking_BRAMU.md §4.1 — semana de Ranking: lunes 00:00:00 a domingo 23:59:59.999, ambos
+   *  como instantes reales (no strings) para poder comparar directo con timestamps. */
+  function computeRankingWeekPeriod(date) {
+    const start = computeRankingWeekStart(date || new Date());
+    const end = new Date(start.getTime() + WEEK_MS - 1);
+    return { start, end };
+  }
+
+  function computePreviousRankingWeekPeriod(date) {
+    const current = computeRankingWeekPeriod(date || new Date());
+    return { start: new Date(current.start.getTime() - WEEK_MS), end: new Date(current.end.getTime() - WEEK_MS) };
+  }
+
+  const WEEKDAY_ABBR_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const MONTH_ABBR_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+  /** §3/§13.5 — "Lun 31 ago", leído del calendario de Buenos Aires (nunca el del dispositivo:
+   *  cerca de medianoche podrían no coincidir). */
+  function formatRankingPeriodDay(instant) {
+    const shifted = toBuenosAiresShifted(instant);
+    const wd = WEEKDAY_ABBR_ES[shifted.getUTCDay()];
+    const dd = String(shifted.getUTCDate()).padStart(2, '0');
+    const mon = MONTH_ABBR_ES[shifted.getUTCMonth()];
+    return `${wd} ${dd} ${mon}`;
+  }
+
+  /** §3/§13.5 — "Lun 31 ago — Dom 06 sep" (sin el prefijo "Ranking semanal ·": app.js decide
+   *  dónde y cómo antepone esa etiqueta fija). */
+  function formatRankingWeekRangeLabel(period) {
+    return `${formatRankingPeriodDay(period.start)} — ${formatRankingPeriodDay(period.end)}`;
+  }
+
+  /** §4.3/Caso 2 — "quedó computable" se mide por cuándo el registro ENTRÓ al sistema
+   *  (`createdAt`, la única fecha de procesamiento que ya existía en el prototipo — ver
+   *  Etapa 3 §5.2 en player-home.js/app.js), nunca por `playedAt` (fecha efectiva, puede ser
+   *  anterior al alta si se cargó un partido ya jugado). Un partido jugado el domingo a la
+   *  noche pero recién guardado el lunes tiene `createdAt` DESPUÉS del corte → no entra en la
+   *  edición que ya cerró, entra en la siguiente (exactamente el Caso 2 del documento). Los
+   *  partidos sin `createdAt` (datos legacy/de prueba) caen de vuelta a `playedAt` — nunca se
+   *  descartan silenciosamente por falta de un campo que la mayoría de los registros sí tiene. */
+  function historySnapshotAsOf(history, cutoffDate) {
+    const cutoff = cutoffDate instanceof Date ? cutoffDate.getTime() : new Date(cutoffDate).getTime();
+    return (history || []).filter((m) => {
+      const recordedAt = (m && m.createdAt) || PH.getPlayedAt(m);
+      const t = recordedAt ? new Date(recordedAt).getTime() : null;
+      return t != null && t < cutoff;
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* UNIVERSO TERRITORIAL SIMULADO — MOCK, sin backend (§21)              */
@@ -138,8 +223,21 @@
   /** `selfGender` — género EFECTIVO de self para Ranking (ya resuelto por app.js, con su
    *  propio fallback si el usuario no lo declaró — ver renderRankingScreen/rankingGenderFilter
    *  en app.js): a diferencia de terceros, self siempre debe poder verse a sí mismo. */
-  function buildRankingEntries(names, history, selfName, assignMockLocality, selfGender, localityIndexOffset) {
+  /** `selfUserId` — BRAMUlab_V03.5.2, bug real encontrado durante esta ronda: una vez que self
+   *  jugó su primer partido, `store.js` estampa `userId` en su propia fila de `players[]`
+   *  (regla de integridad ya vigente desde V03.0 — ver stampPlayersWithUserId). Por esa MISMA
+   *  regla, `PH.findPlayerRow` nunca encuentra esa fila con solo el nombre plano: un partido
+   *  con `userId` estampado SOLO es hallable pasando ESE `userId` (nunca por nombre, aunque
+   *  coincida) — pasar únicamente `selfName` (string) hacía que `PH.computeSimulatedJugadorLevel`
+   *  no encontrara NINGÚN partido real de self y devolviera el Nivel simulado por hash (el
+   *  mismo que un jugador de mock territorial), en vez de su evolución real. Con `selfUserId`
+   *  presente se arma `{name, userId}` — mismo criterio que `currentIdentity()` en app.js — SOLO
+   *  para las dos líneas que calculan el Nivel de self; `selfNorm`/`Store.normalizePlayerName`
+   *  siguen usando el string plano (nunca le pasan un objeto). Sin este parámetro (tests
+   *  existentes, que no lo pasan) el comportamiento es idéntico al de antes. */
+  function buildRankingEntries(names, history, selfName, assignMockLocality, selfGender, localityIndexOffset, selfUserId) {
     const selfNorm = Store.normalizePlayerName(selfName);
+    const selfRef = selfUserId ? { name: selfName, userId: selfUserId } : selfName;
     const seen = new Set();
     const entries = [];
     let localityCursor = localityIndexOffset || 0;
@@ -147,8 +245,8 @@
       const norm = Store.normalizePlayerName(rawName);
       if (!norm || seen.has(norm)) return;
       seen.add(norm);
-      const level = PH.computeSimulatedJugadorLevel(history, rawName);
       const isMe = norm === selfNorm;
+      const level = PH.computeSimulatedJugadorLevel(history, isMe ? selfRef : rawName);
       entries.push({
         id: norm,
         name: isMe ? Store.normalizePlayerName(selfName) : rawName,
@@ -159,7 +257,7 @@
       });
     });
     if (selfNorm && !seen.has(selfNorm)) {
-      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfName), isMe: true, locality: null, gender: selfGender });
+      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfRef), isMe: true, locality: null, gender: selfGender });
     }
     return entries;
   }
@@ -234,35 +332,29 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* MOVIMIENTO SEMANAL SIMULADO — Ranking_BRAMU.md §8.2/§18: compara el  */
-  /* puesto actual contra el de un corte semanal anterior, nunca un       */
-  /* semáforo rojo/verde de éxito o fracaso.                              */
+  /* MOVIMIENTO SEMANAL — Ranking_BRAMU.md §5/§18: compara DOS ediciones  */
+  /* semanales reales (edición vigente vs. edición anterior equivalente,  */
+  /* mismo universo/filtro) — nunca un semáforo rojo/verde de éxito o     */
+  /* fracaso, y nunca puntos (§5: las flechas expresan PUESTOS). */
   /* ------------------------------------------------------------------ */
-  /** Nivel "de la semana pasada" determinístico: mismo id, mismo jitter, siempre — nunca
-   *  Math.random/Date.now. Rango acotado (±0.4) para que el movimiento semanal se sienta
-   *  creíble (pocos puestos), no un reordenamiento completo del universo. */
-  function priorWeekLevel(entry) {
-    const h = stableHash(entry.id + '::bramu-ranking-prevweek');
-    const jitter = ((h % 81) - 40) / 100; // -0.40 .. +0.40
-    return entry.level - jitter;
-  }
-
-  /** Devuelve un Map id → { delta, label }. `delta` > 0 significa que subió puestos (el
-   *  número de puesto bajó). Etiquetas "↑N" / "↓N" / "—" — mismo guion largo que ya usa el
-   *  resto de la app para "sin dato/sin cambio". Adrede sin color propio por dirección (§18:
-   *  "evitar tratamiento visual rojo/verde asociado a éxito o fracaso") — eso lo decide el CSS
-   *  de la fila (un único tono neutro para las tres variantes), nunca esta función. */
-  function computeWeeklyMovement(universe) {
-    const current = rankEntries(universe);
-    const priorSource = (universe || []).map((e) => Object.assign({}, e, { level: priorWeekLevel(e) }));
-    const prior = rankEntries(priorSource);
+  /** `currentUniverse`/`previousUniverse`: ya filtrados por género/banda por el llamador — el
+   *  Nivel de cada entrada debe venir de un `history` ya recortado al corte correspondiente
+   *  (ver historySnapshotAsOf) para que "edición anterior" sea una edición semanal real y no un
+   *  jitter simulado. Devuelve un Map id → { delta, label }. `delta` > 0 significa que subió
+   *  puestos (el número de puesto bajó). Etiquetas "↑ N" / "↓ N" / "—" / "Nuevo" (§5: "Nuevo" =
+   *  no existe comparación válida anterior — nunca "—", que significa "mismo puesto"). Adrede
+   *  sin color propio por dirección (§18: "evitar tratamiento visual rojo/verde asociado a
+   *  éxito o fracaso") — eso lo decide el CSS de la fila, nunca esta función. */
+  function computeWeeklyMovement(currentUniverse, previousUniverse) {
+    const current = rankEntries(currentUniverse);
+    const prior = rankEntries(previousUniverse);
     const priorPositionById = new Map(prior.map((e) => [e.id, e.position]));
     const map = new Map();
     current.forEach((e) => {
       const priorPos = priorPositionById.get(e.id);
-      if (priorPos == null) { map.set(e.id, { delta: null, label: '—' }); return; }
+      if (priorPos == null) { map.set(e.id, { delta: null, label: 'Nuevo' }); return; }
       const delta = priorPos - e.position;
-      map.set(e.id, { delta, label: delta === 0 ? '—' : (delta > 0 ? `↑${delta}` : `↓${Math.abs(delta)}`) });
+      map.set(e.id, { delta, label: delta === 0 ? '—' : (delta > 0 ? `↑ ${delta}` : `↓ ${Math.abs(delta)}`) });
     });
     return map;
   }
@@ -494,6 +586,11 @@
 
   global.PLRanking = {
     BLOCK_SIZE,
+    RANKING_TIMEZONE,
+    computeRankingWeekPeriod,
+    computePreviousRankingWeekPeriod,
+    formatRankingWeekRangeLabel,
+    historySnapshotAsOf,
     MOCK_SCOPE_CONFIG,
     buildScopeUniverseNames,
     mockGenderForName,

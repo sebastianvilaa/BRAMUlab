@@ -7398,8 +7398,15 @@
     };
   }
 
+  /** BRAMUlab_V03.5.2 (§5) — "filtros/bandas dependientes de Ranking" deben usar el Nivel DEL
+   *  CORTE semanal vigente, nunca el Nivel actual — así "Mi nivel · Nivel X" siempre nombra la
+   *  misma banda en la que el usuario realmente aparece clasificado esta semana. */
   function rankingSelfBand() {
-    const level = PH.computeSimulatedJugadorLevel(Store.loadHistory(), currentPlayerName);
+    const period = RK.computeRankingWeekPeriod(new Date());
+    const snapshotHistory = RK.historySnapshotAsOf(Store.loadHistory(), period.start);
+    // currentIdentity() — nunca el nombre plano: ver el comentario de buildRankingEntries en
+    // ranking.js sobre por qué un partido con userId estampado es invisible por nombre solo.
+    const level = PH.computeSimulatedJugadorLevel(snapshotHistory, currentIdentity());
     return RK.bandForLevel(level);
   }
 
@@ -7447,6 +7454,17 @@
    *  últimos 180 días (RK.computeNetworkNames) — reemplaza a ML.computeRecentPlayers, que no
    *  filtraba por fecha ni por computabilidad y era, en sí misma, una sustitución temporal de
    *  "partido validado" (este prototipo no tiene validación multiusuario real todavía). */
+  /** BRAMUlab_V03.5.2 (Ranking_BRAMU.md §4) — Ranking pasa de continuo a SEMANAL: el Nivel que
+   *  ordena y se muestra dentro de Ranking es el consolidado al cierre del domingo anterior
+   *  (`period`, calculado acá), nunca el Nivel actual — Home/Mi Perfil siguen mostrando el
+   *  actual sin cambios. `historySnapshotAsOf` recorta el historial a lo que ya era computable
+   *  ANTES de ese corte (por `createdAt`, no por `playedAt` — ver su comentario en ranking.js:
+   *  así un partido del domingo a la noche cargado el lunes no reescribe la edición que ya
+   *  cerró, entra en la siguiente, §4.3/Caso 2). La elegibilidad propia (selfStatus: calibrando/
+   *  inactivo/sin-ubicación/etc.) sigue evaluándose en vivo con el historial completo — el
+   *  documento solo pide congelar el NÚMERO y el PUESTO de quien ya es elegible, no el gatillo
+   *  de elegibilidad en sí (una simplificación deliberada de prototipo, ver reporte de esta
+   *  ronda). */
   function computeRankingView() {
     const scope = rankingScopeFilter;
     const isTerritorial = scope !== 'mi-red';
@@ -7463,8 +7481,16 @@
     const myId = Store.normalizePlayerName(currentPlayerName);
     const selfGender = rankingEffectiveGender(user);
 
+    const now = new Date();
+    const period = RK.computeRankingWeekPeriod(now);
+    const previousPeriod = RK.computePreviousRankingWeekPeriod(now);
+    const periodLabel = RK.formatRankingWeekRangeLabel(period);
+    const currentSnapshotHistory = RK.historySnapshotAsOf(history, period.start);
+    const previousSnapshotHistory = RK.historySnapshotAsOf(history, previousPeriod.start);
+
     if (isTerritorial) {
-      let allEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames(scope), history, currentPlayerName, true, selfGender);
+      const names = RK.buildScopeUniverseNames(scope);
+      let allEntries = RK.buildRankingEntries(names, currentSnapshotHistory, currentPlayerName, true, selfGender, undefined, currentUserId);
       // Bloque 3 — solo CALIBRADO/RECALIBRANDO (acá: 'elegible') ocupa puesto (§6.2 regla 5).
       // Los mock territoriales son siempre elegibles por construcción; self se saca si no lo es.
       if (selfStatus.key !== 'elegible') allEntries = allEntries.filter((e) => !e.isMe);
@@ -7472,19 +7498,29 @@
       if (rankingBandFilter != null) universe = RK.bandFilter(universe, rankingBandFilter);
       const density = RK.computeTerritorialDensity(universe.length);
       if (density.level === 'insufficient') {
-        return { scope, isTerritorial, selfStatus, density, totalCount: universe.length, ranked: [], movementMap: new Map(), myEntry: null, myId };
+        return { scope, isTerritorial, selfStatus, density, totalCount: universe.length, ranked: [], movementMap: new Map(), myEntry: null, myId, period, periodLabel };
       }
       const ranked = RK.rankEntries(universe);
-      const movementMap = RK.computeWeeklyMovement(universe);
+
+      // Edición anterior — mismo universo de nombres, Nivel leído al corte de la semana previa
+      // (§5.1: "mismo universo/filtro cuando sea posible").
+      let previousAllEntries = RK.buildRankingEntries(names, previousSnapshotHistory, currentPlayerName, true, selfGender, undefined, currentUserId);
+      if (selfStatus.key !== 'elegible') previousAllEntries = previousAllEntries.filter((e) => !e.isMe);
+      let previousUniverse = RK.filterByGender(previousAllEntries, rankingGenderFilter);
+      if (rankingBandFilter != null) previousUniverse = RK.bandFilter(previousUniverse, rankingBandFilter);
+      const movementMap = RK.computeWeeklyMovement(universe, previousUniverse);
       // Casos 4/7 — "fin de calibración"/"reingreso": self entra como Nuevo, nunca con una
       // variación calculada contra un corte que no lo incluía.
       if (selfStatus.isNew) movementMap.set(myId, { delta: null, label: 'Nuevo' });
       const myEntry = ranked.find((e) => e.id === myId) || null;
-      return { scope, isTerritorial, selfStatus, density, ranked, movementMap, myEntry, myId, totalCount: ranked.length };
+      return { scope, isTerritorial, selfStatus, density, ranked, movementMap, myEntry, myId, totalCount: ranked.length, period, periodLabel };
     }
 
     // Mi red — cada compañero tiene SU PROPIO estado real (nunca el universo mock territorial:
     // acá todos son cuentas/partidos reales). §3.4 — nunca mezclar ocultos con la vista normal.
+    // El estado (calibrando/inactivo/elegible) de cada compañero se evalúa EN VIVO — solo el
+    // Nivel de quien ya es elegible usa el historial recortado al corte (mismo criterio que
+    // territorial, ver comentario de la función).
     const hiddenNames = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
     const hiddenSet = new Set(hiddenNames.map((n) => Store.normalizePlayerName(n)));
     const rawNames = RK.computeNetworkNames(history, currentIdentity());
@@ -7494,13 +7530,28 @@
     const calibrandoNames = participants.filter((p) => p.status.key === 'sin-nivel' || p.status.key === 'calibrando').map((p) => p.name);
     const inactiveNames = participants.filter((p) => p.status.key === 'inactivo').map((p) => p.name);
 
-    let allEntries = RK.buildRankingEntries(eligibleNames, history, currentPlayerName, false, selfGender);
+    let allEntries = RK.buildRankingEntries(eligibleNames, currentSnapshotHistory, currentPlayerName, false, selfGender, undefined, currentUserId);
     if (selfStatus.key !== 'elegible') allEntries = allEntries.filter((e) => !e.isMe);
     let universe = RK.filterByGender(allEntries, rankingGenderFilter);
     if (rankingBandFilter != null) universe = RK.bandFilter(universe, rankingBandFilter);
     const density = RK.computeNetworkDensity(universe.length);
     const ranked = density.level === 'empty' ? [] : RK.rankEntries(universe);
-    const movementMap = density.level === 'established' ? RK.computeWeeklyMovement(universe) : new Map();
+
+    let movementMap = new Map();
+    if (density.level === 'established') {
+      // Red de la semana anterior: mismo criterio de 180 días pero con el reloj y el
+      // historial parados en el corte previo — así "Nuevo"/"↑/↓" comparan contra una red que
+      // realmente existía en ese momento, no contra la red de hoy con Niveles viejos.
+      const prevRawNames = RK.computeNetworkNames(previousSnapshotHistory, currentIdentity(), previousPeriod.start);
+      const prevVisibleNames = prevRawNames.filter((n) => !hiddenSet.has(Store.normalizePlayerName(n)));
+      const prevParticipants = prevVisibleNames.map((n) => ({ name: n, status: RK.computeParticipantStatus(n, previousSnapshotHistory, previousPeriod.start) }));
+      const prevEligibleNames = prevParticipants.filter((p) => p.status.key === 'elegible').map((p) => p.name);
+      let previousAllEntries = RK.buildRankingEntries(prevEligibleNames, previousSnapshotHistory, currentPlayerName, false, selfGender, undefined, currentUserId);
+      if (selfStatus.key !== 'elegible') previousAllEntries = previousAllEntries.filter((e) => !e.isMe);
+      let previousUniverse = RK.filterByGender(previousAllEntries, rankingGenderFilter);
+      if (rankingBandFilter != null) previousUniverse = RK.bandFilter(previousUniverse, rankingBandFilter);
+      movementMap = RK.computeWeeklyMovement(universe, previousUniverse);
+    }
     if (selfStatus.isNew) movementMap.set(myId, { delta: null, label: 'Nuevo' });
     const myEntry = ranked.find((e) => e.id === myId) || null;
 
@@ -7510,6 +7561,7 @@
       unrankedCalibrando: calibrandoNames.map((n) => buildUnrankedParticipant(n, history)),
       unrankedInactive: inactiveNames.map((n) => buildUnrankedParticipant(n, history)),
       hiddenCount: hiddenNames.length,
+      period, periodLabel,
     };
   }
 
@@ -7647,8 +7699,18 @@
           <span class="ranking-my-position__level-label">NIVEL BRAMU</span>
         </div>
       </div>
-      <div class="ranking-my-position__meta">${escapeHtml(mv.label)} esta semana · ${escapeHtml(rankingContextLabel())}</div>
+      <div class="ranking-my-position__meta">${escapeHtml(rankingMovementLongLabel(mv))} · ${escapeHtml(rankingContextLabel())}</div>
     `;
+  }
+
+  /** BRAMUlab_V03.5.2 (§4) — versión larga de la etiqueta de movimiento, preferida "cuando haya
+   *  espacio" (acá sí lo hay: la tarjeta Tu posición ocupa el ancho completo). Nunca menciona
+   *  "puntos" — Ranking BRAMU no tiene puntos propios (§3.2). */
+  function rankingMovementLongLabel(mv) {
+    if (mv.label === 'Nuevo') return 'Nuevo en esta clasificación';
+    if (mv.label === '—') return 'Mismo puesto que la semana anterior';
+    const n = Math.abs(mv.delta);
+    return `${mv.delta > 0 ? '↑' : '↓'} ${n} ${n === 1 ? 'puesto' : 'puestos'} vs. semana anterior`;
   }
 
   /** §11.1 — reutiliza EXACTAMENTE la fila de la tabla de Mis grupos (.group-table__row,
@@ -7761,6 +7823,10 @@
     $('#ranking-universe-count').textContent = showPosition
       ? `${view.totalCount} ${view.totalCount === 1 ? 'jugador elegible' : 'jugadores elegibles'}`
       : `Comparación entre ${view.totalCount} jugadores`;
+    // BRAMUlab_V03.5.2 (§3/§13.5) — identificación de la edición semanal vigente, cerca de
+    // CLASIFICACIÓN: "Ranking semanal · Lun 31 ago — Dom 06 sep". Nunca "Actualizado hoy" — el
+    // Ranking ya no es continuo.
+    $('#ranking-period-label').textContent = `Ranking semanal · ${view.periodLabel}`;
     const wrap = $('#ranking-list');
     const empty = $('#ranking-list-empty');
     const loadMoreBtn = $('#ranking-load-more-btn');
@@ -7879,11 +7945,14 @@
   function openRankingSearch() {
     rankingSearchOpen = true;
     $('#ranking-search-bar').hidden = false;
+    // BRAMUlab_V03.5.2 (§7) — lupa en lima mientras la búsqueda está activa/abierta.
+    $('#ranking-search-toggle-btn').classList.add('is-active');
     setTimeout(() => $('#ranking-search-input').focus(), 60);
   }
   function closeRankingSearch() {
     rankingSearchOpen = false;
     $('#ranking-search-bar').hidden = true;
+    $('#ranking-search-toggle-btn').classList.remove('is-active');
     rankingSearchQuery = '';
     $('#ranking-search-input').value = '';
     renderRankingClassification(computeRankingView());
