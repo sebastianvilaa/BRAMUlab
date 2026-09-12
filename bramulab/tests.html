@@ -4694,6 +4694,39 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 (cierre final, §1) — self SIN posición (sin-nivel/calibrando) ya no debe
+  // bloquear la clasificación de los demás jugadores. La decisión de mostrar la clasificación
+  // igual (en vez de la tarjeta bloqueante) vive en app.js — orquestación de pantalla, fuera de
+  // esta suite (no carga app.js, límite ya documentado en rondas anteriores). El contrato de
+  // datos puro del que depende esa decisión SÍ es testeable acá: excluir a self de las entradas
+  // (mismo filtro que ya aplica app.js cuando self no es elegible, sin cambios de esta ronda)
+  // nunca rompe ni desordena la clasificación de los demás jugadores. (pura)
+  // ------------------------------------------------------------------
+  (function () {
+    const names = ['Ana Rivas V036', 'Bruno Off V036', 'Cruz Mock V036'];
+    const entries = RK.buildRankingEntries(names, [], 'Self Sin Posicion V036', true, 'masculino');
+    // Mismo filtro que ya usa app.js (computeRankingView) cuando selfStatus.key !== 'elegible'.
+    const withoutSelf = entries.filter((e) => !e.isMe);
+    assert('V036-SINPOSICION · sin self (excluido por no ser elegible), los demás jugadores siguen presentes',
+      withoutSelf.length === names.length);
+    assert('V036-SINPOSICION · self nunca queda en el universo filtrado',
+      !withoutSelf.some((e) => e.isMe));
+    const ranked = RK.rankEntries(withoutSelf);
+    assert('V036-SINPOSICION · la clasificación de los demás sigue siendo válida (arranca en #1) aunque self no participe',
+      ranked.length === names.length && ranked[0].position === 1);
+    assert('V036-SINPOSICION · las posiciones quedan ordenadas sin huecos raros (no decrecientes)',
+      ranked.every((e, i) => i === 0 || e.position >= ranked[i - 1].position));
+
+    // Caso contrario (usuario elegible, self SÍ tiene posición): comportamiento intacto — self
+    // se incluye en la clasificación con su propia entrada, mismo criterio de siempre.
+    const withSelf = RK.buildRankingEntries(names, [], 'Self Sin Posicion V036', true, 'masculino', undefined, 'u-self-elegible-v036');
+    const rankedWithSelf = RK.rankEntries(withSelf);
+    const meEntry = rankedWithSelf.find((e) => e.isMe);
+    assert('V036-SINPOSICION · usuario elegible (con selfUserId) sí aparece en la clasificación con posición propia',
+      !!meEntry && typeof meEntry.position === 'number');
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

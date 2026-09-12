@@ -738,7 +738,12 @@ input, select{ font-family: inherit; }
    y el proceso de actualización quedan intactos, solo cambia el espaciado. */
 #update-available-modal .overlay__card{ padding: 20px 22px; }
 #update-available-modal .overlay__title{ margin-bottom: 8px; }
-#update-available-modal .overlay__text{ margin-bottom: 10px; }
+/* BRAMUlab_V03.6 (cierre final, §3) — el ajuste de V03.5.1 (arriba) acotó márgenes/padding,
+   pero el interlineado de `.overlay__text` seguía siendo el "normal" heredado (sin
+   line-height propio) — con apenas 1-2 líneas cortas de texto se seguía viendo demasiado
+   abierto en mobile. Acotado por ID, igual criterio que el resto de este bloque — nunca toca
+   `.overlay__text` compartido (~18 modales), ni el copy, ni la lógica de actualización. */
+#update-available-modal .overlay__text{ margin-bottom: 10px; line-height: 1.35; }
 #update-available-modal .overlay__actions{ margin-top: 4px; gap: 8px; }
 /* V6 — fila de título con X de cierre siempre visible (salir rápido si tocaste Editar por error). */
 .overlay__title-row{ display:flex; align-items:center; justify-content:center; position:relative; margin-bottom: 10px; }
@@ -1332,6 +1337,13 @@ input, select{ font-family: inherit; }
   box-shadow: 0 0 14px rgba(149,255,25,.10);
 }
 .ranking-my-position:active{ transform: scale(0.99); }
+/* BRAMUlab_V03.6 (cierre final, §1) — variante informativa para self sin Nivel/calibrando:
+   nunca bloquea la clasificación de abajo (ver renderRankingStateCard/renderRankingMyPosition,
+   app.js). Borde neutro en vez de lima — no es un logro que festejar, es un estado de espera —
+   y sin el feedback de tap del estado normal (tocarla no hace nada mientras esté así). */
+.ranking-my-position--pending{ border-color: var(--line-strong); box-shadow:none; cursor:default; }
+.ranking-my-position--pending:active{ transform:none; }
+.ranking-my-position__pending-text{ margin: 0; }
 .ranking-my-position__label{
   display:block; font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
   color: var(--paper-dim); text-transform: uppercase; margin-bottom: 10px;
@@ -1351,6 +1363,17 @@ input, select{ font-family: inherit; }
    Mi red) el ícono de ocultar (mismo criterio "al lado, nunca en reemplazo" que
    .group-picker-row). */
 .ranking-row__movement{ flex:none; width: 30px; text-align:right; font-size: 11px; font-weight: 800; color: var(--paper-faint); font-variant-numeric: tabular-nums; }
+/* BRAMUlab_V03.6 (cierre final, §2) — color semántico pedido explícitamente en esta ronda:
+   sube = lima BRAMU, baja = rojo (mismos tokens `--brand-lime`/`--danger` de siempre, ningún
+   color nuevo). "—"/"Nuevo" (`is-flat`) se dejan con el mismo gris neutro de antes — el
+   `color` ya heredado de `.ranking-row__movement` de arriba alcanza, esta regla es solo
+   explícita para que quede documentado que es una decisión, no un olvido. Colorea ÚNICAMENTE
+   este indicador — nunca el resto de la fila (nombre/Nivel siguen con su color de siempre). */
+.ranking-row__movement.is-up{ color: var(--brand-lime); }
+.ranking-row__movement.is-down{ color: var(--danger); }
+.ranking-row__movement.is-flat{ color: var(--paper-faint); }
+.ranking-my-position__movement.is-up{ color: var(--brand-lime); }
+.ranking-my-position__movement.is-down{ color: var(--danger); }
 /* BRAMUlab_V03.6 (hotfix — bug real §3) — estructura ÚNICA de 3 renglones (nombre/@usuario/
    ubicación) para toda fila de Ranking: antes nombre+`@usuario` vivían dentro de
    `.group-table__toprow` (flex-wrap, compartido con Mis Grupos), así que el handle quedaba en
@@ -1734,10 +1757,30 @@ input, select{ font-family: inherit; }
    Se retira el margin-top propio y se deja que el gap del contenedor sea la única fuente de
    separación, sin tocar el tamaño de la barra. */
 .player-card__count{ flex-basis: 100%; font-size: 12px; color: var(--paper-dim); }
-.player-card__level{ flex: none; text-align:right; }
+/* BRAMUlab_V03.6 (cierre final, §4) — bug real: este mismo `.player-card__level-value` muestra
+   tanto el Nivel numérico (2-4 caracteres, ej. "6.4") como los estados de calibración
+   ("CALIBRANDO"/"CALIBRACIÓN COMPLETA", hasta 21 caracteres) — compartido por Home, MI PERFIL y
+   Perfil público (mismas clases en las 3 pantallas). A 30px fijo, el texto largo desbordaba el
+   contenedor. Un primer intento con `clamp(…vw…)` resolvía el tamaño según el ANCHO DEL
+   VIEWPORT, no el del contenedor — Home (padre `.player-card`) tiene más ancho disponible que
+   MI PERFIL/Perfil público (padre `.pastilla--identity`, con `.pastilla-identity__info` de
+   `min-width:140px` compitiendo por espacio), así que el mismo tamaño en vw desbordaba ahí. Se
+   reemplaza por un modificador aplicado por JS (`setLevelValueText` en app.js) SOLO cuando el
+   contenido es un estado de calibración (nunca para el Nivel numérico, siempre corto): la regla
+   base vuelve a un tamaño fijo simple, y `--text` define un tamaño chico y seguro que entra en
+   el contenedor más angosto observado (~140px) en hasta 2 líneas. Sin agregar lógica de Nivel
+   nueva: solo responsive/CSS, ver también `.player-card__level-sub` (progreso X/5, sin cambios). */
+.player-card__level{ flex: none; text-align:right; max-width: 46%; }
 .player-card__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
-.player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; }
-.player-card__level-value{ font-family: var(--font-display); font-weight: 800; font-size: 30px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; flex-wrap:wrap; }
+.player-card__level-value{
+  font-family: var(--font-display); font-weight: 800; font-size: 30px;
+  line-height: 1.15; color: var(--paper); font-variant-numeric: tabular-nums;
+  white-space: normal; overflow-wrap: break-word;
+}
+.player-card__level-value--text{
+  font-size: 13px; line-height: 1.25; letter-spacing: 0.01em; text-align: right;
+}
 /* `flex-basis:100%` fuerza el salto de línea dentro del propio flex-wrap del contenedor —
    así la barra ocupa todo el ancho útil sin necesitar un wrapper extra. V02.1 (§19):
    overflow visible (antes hidden) para que el marcador de variación pueda asomar en el

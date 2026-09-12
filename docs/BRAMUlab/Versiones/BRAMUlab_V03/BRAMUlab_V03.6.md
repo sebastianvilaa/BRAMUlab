@@ -1,6 +1,6 @@
 # BRAMUlab V03.6 — Contacto entre jugadores por WhatsApp
 
-**Estado:** LISTA PARA IMPLEMENTAR Y VALIDAR VISUALMENTE  
+**Estado:** CERRADA (ver §19 — cierre final post-QA)  
 **Base:** BRAMUlab V03.5.2 cerrada funcionalmente para Ranking  
 **Objetivo:** agregar un mecanismo simple de contacto entre jugadores desde el Perfil público, usando WhatsApp, sin convertirlo en un sistema de mensajería propio.
 
@@ -372,3 +372,55 @@ Después:
 - prueba visual/real de Sebastián;
 - si queda bien, consolidar V03;
 - recién entonces pasar al handoff de Nivel BRAMU V04.
+
+---
+
+## 19. Cierre final (ronda de cierre post-QA)
+
+Última ronda sobre V03.6 antes de consolidar V03. No reabre V03.7 ni Nivel BRAMU V04. Fusiona
+acá los 4 ajustes de esta ronda de cierre (el detalle de bugs/decisión punto por punto queda en
+el reporte para ChatGPT, sección "Cierre final post-QA").
+
+### 19.1 — Ranking sin posición ya no bloquea la clasificación
+
+Una cuenta sin posición oficial (`sin-nivel`/`calibrando`) ya no ve una tarjeta bloqueante en vez
+de todo Ranking. En su lugar, en el lugar de "TU POSICIÓN" aparece una tarjeta informativa
+("Todavía no tenés posición en el Ranking...") y la clasificación (Local/Provincial/País/
+Global/Mi red), búsqueda, filtros y apertura de perfiles siguen disponibles debajo, sin cambios
+en la regla semanal ni en elegibilidad. No se inventa posición ni se agrega al usuario a la
+clasificación si no es elegible.
+
+### 19.2 — Movimiento semanal con color semántico
+
+El indicador de movimiento (↑/↓/—) de cada fila y de "TU POSICIÓN" ahora usa color: sube = verde
+lima (`--brand-lime`), baja = rojo (`--danger`), sin cambio = gris neutro (`--paper-faint`). Solo
+se colorea el indicador, nunca la fila completa; el significado de las flechas no cambia.
+
+### 19.3 — Interlineado del modal "Hay una nueva versión"
+
+Se redujo el `line-height` del texto del modal de actualización en mobile (acotado por ID,
+`#update-available-modal .overlay__text`, sin tocar el resto de modales que comparten
+`.overlay__text`). Sin cambios de copy ni de lógica de actualización/service worker.
+
+### 19.4 — Desborde visual de "CALIBRANDO"/"CALIBRACIÓN COMPLETA"
+
+Se corrigió el desborde/compresión que este texto causaba en la tarjeta de Nivel en cuentas
+nuevas, en Home, Mi Perfil y Perfil público (mismo componente compartido). El Nivel numérico
+sigue mostrándose igual; los estados de calibración usan un tamaño reducido y prolijo en hasta 2
+líneas, sin deformar la tarjeta ni afectar la legibilidad de "0 / 5 PARTIDOS". No se redefinió la
+experiencia de Nivel BRAMU (eso queda para V04) — solo se resolvió el problema visual/responsive
+actual.
+
+### 19.5 — No tocado / documentado para el futuro
+
+Sin cambios en: ubicación de "Cerrar sesión", mensaje genérico de login, circuito de
+validación/confirmación de partidos, notificaciones de partidos, cuestionario de Nivel BRAMU,
+calibración definitiva, historial multiusuario real, backend.
+
+Limitación conocida, documentada y no parchada en esta ronda: al usar varias cuentas en el mismo
+navegador/localStorage, una cuenta nueva puede ver partidos existentes en el storage como
+"Observados" aunque "Mis partidos" sea 0. Es una limitación del prototipo local sin backend real;
+queda como requisito futuro del modelo multiusuario: la participación real debe estar ligada por
+`userId`, un partido observado nunca debe convertirse en historial propio, y Nivel BRAMU solo
+debe considerar partidos donde el usuario realmente participó y que cumplan validación/
+elegibilidad.

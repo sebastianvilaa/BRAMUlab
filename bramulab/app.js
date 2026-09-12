@@ -6846,6 +6846,20 @@
     $('#logout-confirm-btn').addEventListener('click', () => { $('#logout-confirm-modal').hidden = true; doLogout(); });
   }
 
+  /** BRAMUlab_V03.6 (cierre final, §4) — único punto que escribe el "Nivel BRAMU" grande de
+   *  Home/MI PERFIL/Perfil público (mismas 3 clases compartidas, `.player-card__level-value`):
+   *  bug real de desborde encontrado en QA — a 30px fijo, "CALIBRACIÓN COMPLETA" (21
+   *  caracteres) desbordaba/comprimía la tarjeta, sobre todo en MI PERFIL/Perfil público, donde
+   *  el bloque de Nivel tiene menos ancho disponible que en Home. `isText` agrega el modificador
+   *  `--text` (tamaño reducido + wrap), reservado a los 2 estados de calibración; el Nivel
+   *  numérico (siempre corto) sigue exactamente igual que antes. Solo tamaño/wrap — ninguna
+   *  lógica de Nivel nueva. */
+  function setLevelValueText(elId, text, isText) {
+    const el = $(`#${elId}`);
+    el.textContent = text;
+    el.classList.toggle('player-card__level-value--text', !!isText);
+  }
+
   function playerInitials(name) {
     const parts = (name || '').trim().split(' ').filter(Boolean);
     if (!parts.length) return '?';
@@ -6953,7 +6967,7 @@
     const barWrapEl = $('#player-home-level-bar-wrap');
     if (!isLegacyLevelAccount()) {
       const calib = PH.buildCalibrationStatus(evolution.consideredCount);
-      $('#player-home-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      setLevelValueText('player-home-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
       levelSubEl.hidden = calib.complete;
       levelSubEl.textContent = calib.complete ? '' : calib.progressText;
       barWrapEl.hidden = true;
@@ -6961,7 +6975,7 @@
     }
     barWrapEl.hidden = false;
     levelSubEl.hidden = true;
-    $('#player-home-level-value').textContent = evolution.current.toFixed(1);
+    setLevelValueText('player-home-level-value', evolution.current.toFixed(1), false);
     const delta = formatLevelDelta(evolution.lastDelta);
     const deltaEl = $('#player-home-level-delta');
     deltaEl.textContent = delta.label;
@@ -7725,6 +7739,17 @@
     return { title: `${scopeLabel.toUpperCase()} EN FORMACIÓN`, text, cta: `VER ${nextLabel.toUpperCase()}`, action: () => { rankingScopeFilter = next; renderRankingScopeTabs(); onRankingFilterChanged(); } };
   }
 
+  /** BRAMUlab_V03.6 (cierre final, §1) — estados donde self simplemente todavía no tiene una
+   *  POSICIÓN OFICIAL (sin Nivel BRAMU, o calibrando) YA NO bloquean toda la clasificación —
+   *  antes mezclaba dos cosas distintas ("tener o no Nivel" vs. "tener o no posición"), e
+   *  impedía explorar Ranking a cualquier cuenta nueva. Ahora el mensaje correspondiente se
+   *  muestra DENTRO de #ranking-normal-content, en el lugar de TU POSICIÓN (ver
+   *  renderRankingMyPosition), y la clasificación/búsqueda/filtros siguen funcionando
+   *  normalmente debajo — nunca se inventa un puesto ni un Nivel para self. Los demás estados
+   *  (Ranking desactivado, perfil privado, inactivo, falta ubicación) siguen bloqueando igual
+   *  que antes — son decisiones/datos faltantes, no "todavía sin posición". */
+  const RANKING_NON_BLOCKING_SELF_KEYS = new Set(['sin-nivel', 'calibrando']);
+
   /** Único punto de entrada para decidir si se muestra el contenido normal (Tu posición +
    *  Clasificación) o una tarjeta de estado que lo reemplaza por completo — Global bloqueado >
    *  estado propio (privado, nunca visible para terceros) > densidad territorial insuficiente.
@@ -7751,7 +7776,9 @@
     searchBtn.hidden = false;
 
     const scopeLabel = (RANKING_SCOPE_TABS.find((t) => t.key === view.scope) || {}).label || '';
-    let copy = selfStatusCopy(view.selfStatus, scopeLabel);
+    const selfKey = view.selfStatus && view.selfStatus.key;
+    const selfIsPending = RANKING_NON_BLOCKING_SELF_KEYS.has(selfKey);
+    let copy = selfIsPending ? null : selfStatusCopy(view.selfStatus, scopeLabel);
     if (!copy && view.isTerritorial && view.density.level === 'insufficient') copy = territorialDensityCopy(view);
 
     if (!copy) {
@@ -7772,10 +7799,33 @@
    *  lima, jerarquía posición grande + Nivel BRAMU a la derecha), tarjeta completa interactiva
    *  (§8.2 — tocarla hace scroll suave a la fila propia, ver locateMeInRanking) y NUNCA sticky
    *  (§7.2). Solo se llama cuando #ranking-normal-content está visible — renderRankingStateCard
-   *  ya filtró self-no-elegible/densidad insuficiente/Global bloqueado antes de esto. */
+   *  ya filtró densidad insuficiente/Global bloqueado/estados propios bloqueantes (privado,
+   *  desactivado, inactivo, sin ubicación) antes de esto. `sin-nivel`/`calibrando` YA NO se
+   *  filtran ahí desde el cierre final de V03.6 — llegan hasta acá con `view.myEntry` null,
+   *  manejados en la rama de abajo. */
   function renderRankingMyPosition(view) {
     const card = $('#ranking-my-position-card');
-    if (!view.myEntry) { card.hidden = true; return; }
+    if (!view.myEntry) {
+      // BRAMUlab_V03.6 (cierre final, §1) — self sin Nivel/calibrando ya no bloquea toda la
+      // clasificación (ver renderRankingStateCard) — acá, en el mismo lugar donde iría TU
+      // POSICIÓN, se muestra un mensaje informativo en vez de ocultar la tarjeta entera. Nunca
+      // un puesto ni un Nivel inventado; nunca clickeable (mismo <button>, pero
+      // locateMeInRanking ya es un no-op sin myEntry).
+      const selfKey = view.selfStatus && view.selfStatus.key;
+      if (RANKING_NON_BLOCKING_SELF_KEYS.has(selfKey)) {
+        card.hidden = false;
+        card.classList.add('ranking-my-position--pending');
+        card.innerHTML = `
+          <span class="ranking-my-position__label">TODAVÍA NO TENÉS POSICIÓN EN EL RANKING</span>
+          <p class="coverage-note ranking-my-position__pending-text">Podés explorar la clasificación mientras completás tu Nivel BRAMU. Cuando seas elegible, tu posición aparecerá acá.</p>
+        `;
+        return;
+      }
+      card.hidden = true;
+      card.classList.remove('ranking-my-position--pending');
+      return;
+    }
+    card.classList.remove('ranking-my-position--pending');
     card.hidden = false;
 
     // Ranking_BRAMU.md §10.2 — Mi red con 1-2 elegibles: comparación simple, SIN "N de total"
@@ -7807,8 +7857,20 @@
           <span class="ranking-my-position__level-label">NIVEL BRAMU</span>
         </div>
       </div>
-      <div class="ranking-my-position__meta">${escapeHtml(rankingMovementLongLabel(mv))} · ${escapeHtml(rankingContextLabel())}</div>
+      <div class="ranking-my-position__meta"><span class="ranking-my-position__movement ${rankingMovementClass(mv)}">${escapeHtml(rankingMovementLongLabel(mv))}</span> · ${escapeHtml(rankingContextLabel())}</div>
     `;
+  }
+
+  /** BRAMUlab_V03.6 (cierre final, §2) — color semántico del indicador de movimiento: sube =
+   *  lima BRAMU, baja = rojo, sin cambio/"Nuevo" = neutro (tokens ya existentes, ninguno nuevo).
+   *  Se basa en `mv.delta` (nunca en el texto): positivo = subió puestos, negativo = bajó,
+   *  `null`/`0` (Nuevo/—) quedan neutros — mismo criterio que ya documenta §18 de este archivo
+   *  ("nunca rojo/verde según la dirección" se refería a ANTES de este pedido explícito; ahora
+   *  si corresponde). Colorea SOLO el indicador — nunca la fila entera. */
+  function rankingMovementClass(mv) {
+    if (mv.delta > 0) return 'is-up';
+    if (mv.delta < 0) return 'is-down';
+    return 'is-flat';
   }
 
   /** BRAMUlab_V03.5.2 (§4) — versión larga de la etiqueta de movimiento, preferida "cuando haya
@@ -7864,7 +7926,7 @@
         <span class="group-table__points-value">${entry.level.toFixed(1)}</span>
         <span class="group-table__points-label">NIVEL BRAMU</span>
       </span>
-      ${showPosition ? `<span class="ranking-row__movement">${escapeHtml(mv.label)}</span>` : ''}
+      ${showPosition ? `<span class="ranking-row__movement ${rankingMovementClass(mv)}">${escapeHtml(mv.label)}</span>` : ''}
       ${hideHTML}
     </button>`;
   }
@@ -9035,7 +9097,7 @@
     const levelSubEl = $('#player-public-level-sub');
     if (PH.isCalibratingRealAccount(account)) {
       const calib = PH.buildCalibrationStatus(evolution.consideredCount);
-      $('#player-public-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      setLevelValueText('player-public-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
       levelSubEl.hidden = calib.complete;
       levelSubEl.textContent = calib.complete ? '' : calib.progressText;
       // "Mejor nivel BRAMU" es otra lectura de la misma serie gateada — nunca un número mientras
@@ -9045,7 +9107,7 @@
       $('#player-public-peak-level-context').textContent = '';
     } else {
       const level = PH.computeSimulatedJugadorLevel(history, identity);
-      $('#player-public-level-value').textContent = level.toFixed(1);
+      setLevelValueText('player-public-level-value', level.toFixed(1), false);
       levelSubEl.hidden = true;
       // Sin partidos considerados todavía, no hay ningún pico real que mostrar — el "mejor
       // nivel" trivialmente coincide con el actual (simulado), igual que le pasaría a cualquier
@@ -9433,7 +9495,7 @@
       $('#evolution-calibration-state').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
       $('#evolution-calibration-progress').textContent = calib.complete ? '' : calib.progressText;
       $('#evolution-calibration-progress').hidden = calib.complete;
-      $('#mi-perfil-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      setLevelValueText('mi-perfil-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
       $('#mi-perfil-level-sub').textContent = calib.complete ? '' : calib.progressText;
       $('#mi-perfil-level-sub').hidden = calib.complete;
       $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
@@ -9449,7 +9511,7 @@
     $('#evolution-change-value').textContent = change30 ? change.label : '—';
     $('#evolution-change-label').textContent = change30 ? 'Cambio últimos 30 días' : 'sin cambios en los últimos 30 días';
 
-    $('#mi-perfil-level-value').textContent = evolution.current.toFixed(1);
+    setLevelValueText('mi-perfil-level-value', evolution.current.toFixed(1), false);
     // V03.0.3.1 (§4) — cabecera de MI PERFIL muestra SOLO el Nivel BRAMU actual: se retira
     // "+X"/última subida/variación reciente de acá (siguen existiendo, sin cambios, en la
     // tarjeta del Home y en el detalle de Evolución más abajo — #evolution-change-value).

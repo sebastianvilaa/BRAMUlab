@@ -595,5 +595,153 @@ terminar.
 Ninguna. Los 3 puntos de este hotfix se implementaron sin ambigüedad — incluido el punto que
 §11 había dejado explícitamente diferido (§11.10), ahora cerrado.
 
-**Próximo paso:** prueba visual/real de Sebastián sobre este release corregido; si queda bien,
-consolidar V03. No se avanza a Nivel BRAMU V04 sin esa validación — sigue sin abrirse V03.7.
+**Próximo paso (superado por §13):** prueba visual/real de Sebastián sobre este release
+corregido; si queda bien, consolidar V03. No se avanza a Nivel BRAMU V04 sin esa validación —
+sigue sin abrirse V03.7.
+
+---
+
+## 13. Cierre final post-QA
+
+Última ronda sobre V03.6, pedida explícitamente como cierre antes de consolidar toda V03. Sin
+abrir V03.7, sin tocar Nivel BRAMU V04/BRAMU Intelligence/Backend, sin releer documentación
+histórica — fuentes: `BRAMUlab_V03.6.md`, este mismo reporte y el código actual estrictamente
+necesario. Resuelve 4 problemas puntuales encontrados por Sebastián sobre el release anterior.
+
+### 13.1 Ranking sin posición bloqueaba toda la clasificación
+
+**Problema:** una cuenta sin posición oficial (`sin-nivel`/`calibrando`) veía
+`renderRankingStateCard` reemplazar TODA la clasificación por una tarjeta bloqueante
+("Todavía no tenés Nivel BRAMU" + "IR AL INICIO") — confundía "tener Nivel" con "tener
+posición en el Ranking" e impedía explorar el Ranking a cualquier cuenta nueva.
+
+**Corrección (`app.js`):** nueva constante `RANKING_NON_BLOCKING_SELF_KEYS =
+new Set(['sin-nivel','calibrando'])`. `renderRankingStateCard` ya no llama a `selfStatusCopy`
+(la copy bloqueante) cuando el estado propio es uno de esos dos — deja pasar directo a la
+clasificación normal (`#ranking-normal-content` visible: scopes, filtros, búsqueda,
+apertura de perfiles). `renderRankingMyPosition` gana una rama nueva: cuando no hay `myEntry` y
+el estado es uno de los dos no bloqueantes, en el lugar de "TU POSICIÓN" muestra una tarjeta
+informativa neutra ("TODAVÍA NO TENÉS POSICIÓN EN EL RANKING" / "Podés explorar la clasificación
+mientras completás tu Nivel BRAMU. Cuando seas elegible, tu posición aparecerá acá."), sin CTA.
+No se tocó la regla semanal, snapshots, elegibilidad, ni ningún otro `selfStatus` (opt-out,
+perfil-privado, inactivo, sin-ubicacion siguen bloqueando exactamente igual que antes).
+
+**Verificación:** cuenta de prueba nueva sin partidos → Local mostró la tarjeta informativa +
+clasificación completa (20 mock territoriales) debajo, búsqueda por "Santiago" funcionando,
+apertura de Perfil público desde el resultado funcionando, vuelta a Ranking preservando la
+búsqueda. Cuenta con posición real: comportamiento sin cambios (confirmado por test, ver 13.6).
+
+### 13.2 Movimiento semanal sin color semántico
+
+**Corrección (`app.js`/`styles.css`):** nuevo helper puro `rankingMovementClass(mv)` (sube → 
+`is-up`, baja → `is-down`, sin cambio → `is-flat`), aplicado en la fila de clasificación
+(`buildRankingRowHTML`) y en el meta de "TU POSICIÓN" (`renderRankingMyPosition`). CSS nueva
+reutiliza tokens existentes: `.is-up{ color: var(--brand-lime); }`,
+`.is-down{ color: var(--danger); }`, `.is-flat{ color: var(--paper-faint); }` — sin colores
+hardcodeados nuevos. Solo se colorea el indicador (↑/↓/—), nunca la fila completa; el
+significado de las flechas no cambia.
+
+**Verificación:** `getComputedStyle` sobre filas reales confirmó los 3 colores exactos
+(`rgb(149,255,25)`, `rgb(255,91,97)`, `rgb(104,116,130)` respectivamente, los mismos valores de
+`--brand-lime`/`--danger`/`--paper-faint`).
+
+### 13.3 Interlineado del modal "Hay una nueva versión"
+
+**Corrección (`styles.css`):** `#update-available-modal .overlay__text{ line-height: 1.35; }`,
+acotado por ID igual que el ajuste de un round anterior sobre el mismo modal — nunca toca la
+clase compartida `.overlay__text` que usan ~18 modales más. Sin cambios de copy ni de la lógica
+de detección/actualización (`service worker`/versión).
+
+**Verificación:** modal forzado a mostrarse con un texto largo realista a 375px y en el ancho
+del panel de escritorio — interlineado más compacto, sigue legible, sin overlap con los botones
+ACTUALIZAR/MÁS TARDE.
+
+### 13.4 Desborde visual de "CALIBRANDO"/"CALIBRACIÓN COMPLETA"
+
+**Problema:** `.player-card__level-value` (compartida por Home, Mi Perfil y Perfil público)
+muestra tanto el Nivel numérico corto (ej. "6.4") como los estados de calibración, hasta 21
+caracteres ("CALIBRACIÓN COMPLETA"). A tamaño fijo (30px) el texto largo desbordaba/comprimía la
+tarjeta en cuentas nuevas.
+
+**Primer intento (descartado):** `clamp(15px, 6.5vw, 30px)` en la regla base. Funcionaba en Home
+(contenedor padre `.player-card`, más ancho disponible) pero **desbordaba en Mi Perfil/Perfil
+público** (padre `.pastilla--identity`, con `.pastilla-identity__info{ min-width:140px }`
+compitiendo por espacio) — un `clamp()` con `vw` resuelve el tamaño según el ANCHO DEL VIEWPORT,
+no el del contenedor, así que el mismo valor no se adapta a layouts con distinto ancho
+disponible aunque compartan la misma clase.
+
+**Corrección final (`app.js`/`styles.css`):** nuevo helper `setLevelValueText(elId, text,
+isText)` que setea el texto y alterna una clase modificadora `.player-card__level-value--text`
+SOLO cuando el contenido es un estado de calibración (nunca para el Nivel numérico). Los 6
+puntos donde se pinta este valor (Home, Mi Perfil, Perfil público — rama calibrando y rama
+numérica de cada uno) pasan a usar este helper. La regla base `.player-card__level-value` vuelve
+a un tamaño fijo simple (30px, sin `vw`); `.player-card__level-value--text` define un tamaño
+chico y seguro (13px) que entra en el contenedor más angosto observado (~140px) en hasta 2
+líneas. No se agregó lógica de Nivel nueva ni se redefinió CALIBRANDO/progreso — solo
+responsive/CSS.
+
+**Verificación:** cuenta con 0 partidos (CALIBRANDO) y cuenta con 5 partidos (CALIBRACIÓN
+COMPLETA) revisadas en Home, Mi Perfil y Perfil público (esta última abierta desde una segunda
+cuenta vía Buscar Jugadores, ya que un usuario no puede ver su propio Perfil público) a 375px:
+texto en 1-2 líneas prolijas, sin desborde, sin deformar la tarjeta, "0 / 5 PARTIDOS"/"5
+partidos en tu historia" legibles. Nivel numérico de un mock territorial ("6.9") revisado sin
+cambios visuales.
+
+### 13.5 No tocado / documentado para el futuro
+
+Sin cambios en: ubicación de "Cerrar sesión", mensaje genérico de login, circuito de
+validación/confirmación de partidos, notificaciones de partidos, cuestionario de Nivel BRAMU,
+calibración definitiva, historial multiusuario real, backend.
+
+**Limitación conocida (documentada, no parchada):** usando varias cuentas en el mismo
+navegador/localStorage, una cuenta nueva puede ver partidos ya existentes en el storage como
+"Observados" aunque "Mis partidos" sea 0 — no hay aislamiento real entre cuentas sin backend.
+Requisito futuro para el modelo multiusuario/backend: la participación real debe ligarse por
+`userId`; un partido observado nunca debe convertirse en historial propio; Nivel BRAMU solo debe
+considerar partidos donde el usuario realmente participó y que cumplan validación/elegibilidad.
+
+### 13.6 Tests
+
+Focales durante el desarrollo, solo donde había lógica nueva (13.1 — colores/interlineado/
+tamaño de CALIBRANDO no se testean, como pidió la ronda): bloque `V036-SINPOSICION` (5
+aserciones) en `tests.html` cubriendo `RK.buildRankingEntries`/`RK.rankEntries` — self sin
+posición queda excluido del universo filtrado pero los demás jugadores siguen presentes y
+correctamente ordenados (arranca en #1, posiciones no decrecientes); una cuenta elegible (con
+`selfUserId`) sigue apareciendo con su posición propia, sin cambios.
+
+**Resultado final: 1003/1003 tests OK** (998 antes de esta ronda + 5 nuevas).
+
+### 13.7 QA manual (mobile 375px primero)
+
+- **Con posición:** sin cambios respecto del release anterior (confirmado por test, no hacía
+  falta repetir manualmente todo el circuito).
+- **Sin posición:** tarjeta "Todavía no tenés posición en el Ranking" + clasificación completa
+  visible debajo, scopes navegables, filtros visibles, búsqueda funcionando, apertura de
+  perfiles funcionando, ninguna posición inventada — ver 13.1.
+- **CALIBRANDO:** Home, Mi Perfil y Perfil público no rompen la tarjeta — ver 13.4.
+- **Modal de actualización:** interlineado corregido a 375px, chequeo rápido en el ancho de
+  escritorio del panel — ver 13.3.
+- **Regresión rápida:** Home, Ranking → búsqueda → Perfil público → volver (preserva búsqueda),
+  Mis jugadores (estado vacío correcto para la cuenta de prueba), Mis grupos (estado vacío
+  correcto) — sin errores de consola nuevos, sin romper nada de lo ya validado en rondas
+  anteriores (Mis jugadores, Perfil público, Ranking, WhatsApp, onboarding/ubicación/Mis datos
+  no se reabrieron por no haber regresión).
+
+### 13.8 Deploy
+
+Cache-bust `-h3` (`CACHE_NAME` y los 11 `?v=03.6-h3` propios en `index.html`/`sw.js`) —
+`Store.VERSION`/`version.json` sin cambios, siguen en `"BRAMUlab V03.6"`.
+
+### 13.9 Commit, tag y verificación en producción
+
+_Se completa más abajo en esta misma sección tras el commit/push/deploy real (ver commit y tag
+al pie de este documento)._
+
+### 13.10 Limitaciones / decisiones pendientes
+
+Ninguna nueva. La única limitación conocida es la de localStorage/multi-cuenta documentada en
+13.5, ya existente antes de esta ronda y fuera de alcance de V03.6 (requiere backend real).
+
+**Próximo paso:** prueba visual/real de Sebastián sobre este cierre; si queda bien, consolidar
+toda V03 y recién entonces evaluar el handoff a Nivel BRAMU V04. No se avanza a V04 en esta
+ronda.

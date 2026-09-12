@@ -38,7 +38,7 @@
 // reales no-self (ranking.js), "Mis jugadores" mostraba un @usuario fabricado en vez del real
 // (app.js), y estructura de fila de Ranking normalizada a 3 renglones (app.js/styles.css).
 // Mismo motivo de bump de siempre, ninguno nuevo.
-const CACHE_NAME = 'bramulab-v03-6-h2';
+const CACHE_NAME = 'bramulab-v03-6-h3';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -49,17 +49,17 @@ const CACHE_NAME = 'bramulab-v03-6-h2';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.6-h2',
-  './engine.js?v=03.6-h2',
-  './stats.js?v=03.6-h2',
-  './store.js?v=03.6-h2',
-  './player-home.js?v=03.6-h2',
-  './match-load.js?v=03.6-h2',
-  './player-identity.js?v=03.6-h2',
-  './groups.js?v=03.6-h2',
-  './locations.js?v=03.6-h2',
-  './ranking.js?v=03.6-h2',
-  './app.js?v=03.6-h2',
+  './styles.css?v=03.6-h3',
+  './engine.js?v=03.6-h3',
+  './stats.js?v=03.6-h3',
+  './store.js?v=03.6-h3',
+  './player-home.js?v=03.6-h3',
+  './match-load.js?v=03.6-h3',
+  './player-identity.js?v=03.6-h3',
+  './groups.js?v=03.6-h3',
+  './locations.js?v=03.6-h3',
+  './ranking.js?v=03.6-h3',
+  './app.js?v=03.6-h3',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
