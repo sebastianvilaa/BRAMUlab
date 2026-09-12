@@ -7437,9 +7437,11 @@
   /** Bloque 3 — arma un participante SIN puesto (compañero de Mi red calibrando o inactivo,
    *  §10.2): nunca pasa por RK.rankEntries (no tiene sentido ordenar algo sin posición). El
    *  Nivel mostrado es real (PH.computeSimulatedJugadorLevel) salvo en 'sin-nivel', donde no
-   *  existe todavía — mostrar cualquier número ahí sería inventarlo. */
-  function buildUnrankedParticipant(name, history) {
-    const status = RK.computeParticipantStatus(name, history);
+   *  existe todavía — mostrar cualquier número ahí sería inventarlo. `nowDate` — corrección de
+   *  cierre de V03.5.2: mismo corte que el resto de la edición vigente (`period.start`), nunca
+   *  "ahora" en vivo. */
+  function buildUnrankedParticipant(name, history, nowDate) {
+    const status = RK.computeParticipantStatus(name, history, nowDate);
     const level = status.key === 'sin-nivel' ? null : PH.computeSimulatedJugadorLevel(history, name);
     return { name, status, level };
   }
@@ -7460,11 +7462,25 @@
    *  actual sin cambios. `historySnapshotAsOf` recorta el historial a lo que ya era computable
    *  ANTES de ese corte (por `createdAt`, no por `playedAt` — ver su comentario en ranking.js:
    *  así un partido del domingo a la noche cargado el lunes no reescribe la edición que ya
-   *  cerró, entra en la siguiente, §4.3/Caso 2). La elegibilidad propia (selfStatus: calibrando/
-   *  inactivo/sin-ubicación/etc.) sigue evaluándose en vivo con el historial completo — el
-   *  documento solo pide congelar el NÚMERO y el PUESTO de quien ya es elegible, no el gatillo
-   *  de elegibilidad en sí (una simplificación deliberada de prototipo, ver reporte de esta
-   *  ronda). */
+   *  cerró, entra en la siguiente, §4.3/Caso 2).
+   *
+   *  CORRECCIÓN DE CIERRE de esta misma ronda (dos puntos, ver reporte):
+   *  1) `period` es la semana CALENDARIO que contiene "ahora" — sirve para el CORTE (todo lo
+   *     registrado antes de `period.start` es "lo consolidado al cierre del domingo pasado").
+   *     Pero la edición ACTIVA durante `period` no se identifica con ese rango: se identifica
+   *     con la semana que la produjo, que es `previousPeriod` (la semana calendario ANTERIOR).
+   *     Ejemplo del propio Ranking_BRAMU.md: durante Lun07–Dom13 se muestra la edición
+   *     "Ranking semanal · Lun 31 ago — Dom 06 sep" — nunca "Lun 07 — Dom 13", que sería la
+   *     semana todavía en curso. `periodLabel` usa `previousPeriod`, nunca `period`.
+   *  2) La elegibilidad (selfStatus/estado de cada compañero de Mi red: calibrando, inactivo,
+   *     elegible, sin-nivel) también queda CONGELADA al corte — se evalúa con
+   *     `currentSnapshotHistory` y `period.start` como "ahora", igual que el Nivel. Si alguien
+   *     termina de calibrarse o cruza 180 días de inactividad con un partido cuyo `createdAt`
+   *     cae DESPUÉS del corte, ese cambio recién se refleja en la próxima edición — nunca
+   *     altera la ya publicada. Ubicación y opt-in/privacidad son campos de cuenta SIN
+   *     historial de cambios en este prototipo (no existe un `createdAt` de "cuándo cambiaste
+   *     tu ubicación"): siguen leyéndose en vivo — versionarlos es una superficie nueva,
+   *     explícitamente fuera de alcance de esta corrección (ver reporte, limitaciones). */
   function computeRankingView() {
     const scope = rankingScopeFilter;
     const isTerritorial = scope !== 'mi-red';
@@ -7477,16 +7493,19 @@
 
     const history = Store.loadHistory();
     const user = Store.getCurrentUser();
-    const selfStatus = RK.computeSelfStatus(user, history, isTerritorial);
     const myId = Store.normalizePlayerName(currentPlayerName);
     const selfGender = rankingEffectiveGender(user);
 
     const now = new Date();
     const period = RK.computeRankingWeekPeriod(now);
     const previousPeriod = RK.computePreviousRankingWeekPeriod(now);
-    const periodLabel = RK.formatRankingWeekRangeLabel(period);
+    // El período que IDENTIFICA a la edición vigente es el que la produjo (previousPeriod),
+    // nunca la semana calendario en curso (period) — ver comentario de la función.
+    const periodLabel = RK.formatRankingWeekRangeLabel(previousPeriod);
     const currentSnapshotHistory = RK.historySnapshotAsOf(history, period.start);
     const previousSnapshotHistory = RK.historySnapshotAsOf(history, previousPeriod.start);
+    // La elegibilidad propia queda congelada al mismo corte que el Nivel — nunca en vivo.
+    const selfStatus = RK.computeSelfStatus(user, currentSnapshotHistory, isTerritorial, period.start);
 
     if (isTerritorial) {
       const names = RK.buildScopeUniverseNames(scope);
@@ -7518,14 +7537,18 @@
 
     // Mi red — cada compañero tiene SU PROPIO estado real (nunca el universo mock territorial:
     // acá todos son cuentas/partidos reales). §3.4 — nunca mezclar ocultos con la vista normal.
-    // El estado (calibrando/inactivo/elegible) de cada compañero se evalúa EN VIVO — solo el
-    // Nivel de quien ya es elegible usa el historial recortado al corte (mismo criterio que
-    // territorial, ver comentario de la función).
+    // Universo Y estado (calibrando/inactivo/elegible) de cada compañero quedan congelados al
+    // mismo corte que el Nivel (corrección de cierre de esta ronda): un compañero nuevo cuyo
+    // primer partido compartido se cargó después del corte, o alguien que recién completó
+    // calibración/cruzó inactividad con un partido posterior al corte, entra/sale recién en la
+    // próxima edición — nunca en la ya publicada. Ocultar sigue siendo una preferencia ACTUAL
+    // (nunca se snapshotea: si ocultás a alguien hoy, desaparece también de ediciones pasadas
+    // que puedas volver a ver, es a propósito — ver V03.5.1 §3.4).
     const hiddenNames = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
     const hiddenSet = new Set(hiddenNames.map((n) => Store.normalizePlayerName(n)));
-    const rawNames = RK.computeNetworkNames(history, currentIdentity());
+    const rawNames = RK.computeNetworkNames(currentSnapshotHistory, currentIdentity(), period.start);
     const visibleNames = rawNames.filter((n) => !hiddenSet.has(Store.normalizePlayerName(n)));
-    const participants = visibleNames.map((n) => ({ name: n, status: RK.computeParticipantStatus(n, history) }));
+    const participants = visibleNames.map((n) => ({ name: n, status: RK.computeParticipantStatus(n, currentSnapshotHistory, period.start) }));
     const eligibleNames = participants.filter((p) => p.status.key === 'elegible').map((p) => p.name);
     const calibrandoNames = participants.filter((p) => p.status.key === 'sin-nivel' || p.status.key === 'calibrando').map((p) => p.name);
     const inactiveNames = participants.filter((p) => p.status.key === 'inactivo').map((p) => p.name);
@@ -7558,8 +7581,8 @@
     return {
       scope, isTerritorial, selfStatus, density, ranked, movementMap, myEntry, myId,
       totalCount: universe.length,
-      unrankedCalibrando: calibrandoNames.map((n) => buildUnrankedParticipant(n, history)),
-      unrankedInactive: inactiveNames.map((n) => buildUnrankedParticipant(n, history)),
+      unrankedCalibrando: calibrandoNames.map((n) => buildUnrankedParticipant(n, currentSnapshotHistory, period.start)),
+      unrankedInactive: inactiveNames.map((n) => buildUnrankedParticipant(n, currentSnapshotHistory, period.start)),
       hiddenCount: hiddenNames.length,
       period, periodLabel,
     };

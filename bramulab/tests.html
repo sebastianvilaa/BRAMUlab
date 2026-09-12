@@ -4217,6 +4217,22 @@
         /^Lun \d{2} [a-záéíóúñ]{3} — Dom \d{2} [a-záéíóúñ]{3}$/.test(label), label);
     })();
 
+    // ---- CORRECCIÓN DE CIERRE (punto 1) — la edición ACTIVA durante una semana calendario se
+    //      identifica con la semana YA CERRADA que la produjo (previousPeriod), nunca con la
+    //      semana calendario todavía en curso (period). Ejemplo literal de la corrección:
+    //      durante Lun 07 — Dom 13 se muestra "Ranking semanal · Lun 31 ago — Dom 06 sep". ----
+    (function () {
+      const ref = new Date('2026-09-09T15:00:00.000Z'); // miércoles, dentro de Lun07–Dom13
+      const displayWeek = RK.computeRankingWeekPeriod(ref);
+      const dataWeek = RK.computePreviousRankingWeekPeriod(ref);
+      const labelActiveEdition = RK.formatRankingWeekRangeLabel(dataWeek);
+      const labelDisplayWeek = RK.formatRankingWeekRangeLabel(displayWeek);
+      assert('V0352-PERIODO-CORREGIDO · el label de la edición activa (semana YA CERRADA) nunca coincide con el de la semana calendario en curso',
+        labelActiveEdition !== labelDisplayWeek, `activa=${labelActiveEdition} en curso=${labelDisplayWeek}`);
+      assert('V0352-PERIODO-CORREGIDO · coincide exactamente con el ejemplo de la corrección: durante Lun 07–Dom 13 se muestra "Lun 31 ago — Dom 06 sep"',
+        labelActiveEdition === 'Lun 31 ago — Dom 06 sep', labelActiveEdition);
+    })();
+
     // ---- historySnapshotAsOf: recorta por `createdAt` ("fecha de procesamiento"), nunca por
     //      `playedAt` ("fecha efectiva") — Caso 2 de Ranking_BRAMU.md: un partido jugado ANTES
     //      del corte pero CARGADO después no debe entrar en la edición que ya cerró. ----
@@ -4323,6 +4339,60 @@
         AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k));
         Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
       }
+    })();
+
+    // ---- CORRECCIÓN DE CIERRE (punto 2) — la ELEGIBILIDAD también queda congelada al corte,
+    //      no solo el Nivel: alguien que completa calibración con un partido cuyo `createdAt`
+    //      cae DESPUÉS del corte sigue "calibrando" en la edición vigente (usando
+    //      historySnapshotAsOf + period.start como "ahora"), y recién aparece "elegible" si se
+    //      lo evalúa en vivo (con el partido ya cargado y "ahora" real). ----
+    (function () {
+      const name = 'Calibra Corte V0352';
+      const period = RK.computeRankingWeekPeriod(new Date());
+      const rivals = ['Rival A CorteV0352', 'Rival B CorteV0352', 'Rival C CorteV0352'];
+      const sets = [{ gamesA: 6, gamesB: 3 }];
+      const matches = [];
+      // 4 partidos bien antes del corte, con solo 2 rivales distintos (no alcanza para calibrar).
+      for (let i = 0; i < 4; i++) {
+        matches.push(mkGroupMatch('calcorte-' + i, new Date(period.start.getTime() - (10 - i) * 86400000).toISOString(),
+          [name, 'Compa CorteV0352', rivals[i % 2], 'Extra CorteV0352'], sets));
+      }
+      // El 5º partido (con el 3er rival distinto, el que completaría calibración) se jugó ANTES
+      // del corte pero se CARGÓ después — createdAt posterior al corte.
+      const lateMatch = mkGroupMatch('calcorte-5', new Date(period.start.getTime() - 86400000).toISOString(),
+        [name, 'Compa CorteV0352', rivals[2], 'Extra2 CorteV0352'], sets,
+        { createdAt: new Date(period.start.getTime() + 3600000).toISOString() });
+      const fullHistory = matches.concat([lateMatch]);
+      const snapshotHistory = RK.historySnapshotAsOf(fullHistory, period.start);
+      const statusInSnapshot = RK.computeParticipantStatus(name, snapshotHistory, period.start);
+      const statusLive = RK.computeParticipantStatus(name, fullHistory, new Date());
+      assert('V0352-ELEGIBILIDAD · calibración completada con un partido CARGADO después del corte -> sigue "calibrando" en la edición vigente',
+        statusInSnapshot.key === 'calibrando', JSON.stringify(statusInSnapshot));
+      assert('V0352-ELEGIBILIDAD · evaluado en vivo (partido ya cargado, "ahora" real) sí queda "elegible" -> confirma que la diferencia es el corte, no un bug',
+        statusLive.key === 'elegible', JSON.stringify(statusLive));
+    })();
+
+    // ---- misma corrección, caso inactividad: cruzar 180 días DESPUÉS del corte no saca a
+    //      nadie de la edición ya publicada — recién pasa a "inactivo" en la siguiente. ----
+    (function () {
+      const name = 'Inactivo Corte V0352';
+      const period = RK.computeRankingWeekPeriod(new Date());
+      const rivals = ['R1 InactCorte', 'R2 InactCorte', 'R3 InactCorte'];
+      const sets = [{ gamesA: 6, gamesB: 3 }];
+      const matches = [];
+      for (let i = 0; i < 5; i++) {
+        const daysBeforeCutoff = 179 - i; // el más reciente queda a 179 días del corte (todavía activo)
+        matches.push(mkGroupMatch('inactcorte-' + i, new Date(period.start.getTime() - daysBeforeCutoff * 86400000).toISOString(),
+          [name, 'Compa InactCorte', rivals[i % 3], 'Extra InactCorte'], sets));
+      }
+      const snapshotHistory = RK.historySnapshotAsOf(matches, period.start);
+      const statusAtCutoff = RK.computeParticipantStatus(name, snapshotHistory, period.start);
+      const farFuture = new Date(period.start.getTime() + 60 * 86400000); // "ahora" bien después del corte
+      const statusFarFuture = RK.computeParticipantStatus(name, matches, farFuture);
+      assert('V0352-ELEGIBILIDAD · a 179 días del corte, todavía "elegible" en la edición vigente (no cruzó los 180 días AL CORTE)',
+        statusAtCutoff.key === 'elegible', JSON.stringify(statusAtCutoff));
+      assert('V0352-ELEGIBILIDAD · mucho después, evaluado en vivo, sí pasa a "inactivo" -> confirma que el corte es lo que estabiliza la edición vigente',
+        statusFarFuture.key === 'inactivo', JSON.stringify(statusFarFuture));
     })();
   })();
 

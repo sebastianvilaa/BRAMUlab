@@ -429,13 +429,13 @@ No avanzar a Nivel BRAMU ni a otra versión sin instrucción explícita.
 
 ## 19. Cierre de V03.5.2
 
-**Tag:** `BRAMUlab_V03.5.2`. **Base:** BRAMUlab_V03.5.1. **Tests finales:** 936/936 (933 previos + 3 nuevos del bug real de identidad, ver §19.3).
+**Tag:** `BRAMUlab_V03.5.2`. **Base:** BRAMUlab_V03.5.1. **Tests finales:** 942/942 (933 al cerrar la implementación inicial + 3 del bug de identidad, §19.3 + 6 de la corrección de cierre revisada con ChatGPT, §19.6).
 
 ### 19.1 Qué quedó implementado
 
 Los dos bloques completos, sin recortes de alcance:
 
-- **Ranking semanal simulado**: `RK.computeRankingWeekPeriod`/`computePreviousRankingWeekPeriod` (lunes 00:00:00 a domingo 23:59:59.999, `America/Argentina/Buenos_Aires`, offset fijo -03:00) + `RK.historySnapshotAsOf` (recorta el historial por `createdAt`, nunca `playedAt` — ver §19.2). Tu posición, fila propia, el resto de filas y los filtros/bandas usan el Nivel de ese corte, nunca el actual. Identificación de edición visible junto a CLASIFICACIÓN (`Ranking semanal · Lun 07 sep — Dom 13 sep`). Movimiento semanal recalculado comparando dos ediciones reales (ya no un jitter simulado) — flechas "↑ N"/"↓ N puestos" (con espacio) y "Nuevo" cuando no hay comparación anterior válida.
+- **Ranking semanal simulado**: `RK.computeRankingWeekPeriod`/`computePreviousRankingWeekPeriod` (lunes 00:00:00 a domingo 23:59:59.999, `America/Argentina/Buenos_Aires`, offset fijo -03:00) + `RK.historySnapshotAsOf` (recorta el historial por `createdAt`, nunca `playedAt` — ver §19.2). Tu posición, fila propia, el resto de filas y los filtros/bandas usan el Nivel de ese corte, nunca el actual. La elegibilidad (calibrando/inactivo/elegible, universo de Mi red) también queda congelada al mismo corte — ver §19.6. Identificación de edición visible junto a CLASIFICACIÓN: la semana YA CERRADA que produjo la edición vigente, nunca la semana calendario en curso — ej. mientras se transita Lun 07–Dom 13 se muestra `Ranking semanal · Lun 31 ago — Dom 06 sep` (ver §19.6). Movimiento semanal recalculado comparando dos ediciones reales (ya no un jitter simulado) — flechas "↑ N"/"↓ N puestos" (con espacio) y "Nuevo" cuando no hay comparación anterior válida.
 - **Ayuda actualizada** con cadencia semanal, diferencia Nivel/Ranking, significado de las flechas y la recomendación de cargar el partido al terminar.
 - **Lupa activa**: lima mientras la búsqueda está abierta, neutra al cerrarla.
 - **Bottom sheets responsive**: en desktop (≥720px), el patrón compartido `.sheet-scrim`/`.bottom-sheet` centra el panel (en vez de anclarlo abajo) con bordes redondeados en las 4 esquinas, y `.bottom-sheet--compact` deja de forzar una altura mínima pensada en mobile — alcanza a los ~11 sheets de la app sin rediseñar ninguno. El selector de género/nivel del Ranking (`#profile-picker-sheet`) además usa un ancho propio más angosto en desktop, evitando la sensación de "petiso" en una lista de 2-3 opciones.
@@ -445,7 +445,7 @@ Los dos bloques completos, sin recortes de alcance:
 
 - **"Quedó computable" se mide por `createdAt`, no por `playedAt`.** El documento (§4.3/Caso 2) pide que un partido jugado antes del cierre pero cargado después no afecte la edición ya publicada. El prototipo ya tenía exactamente ese dato desde V03.0 (`createdAt` = momento en que el registro se guarda, distinto de `playedAt` = fecha efectiva elegida por el usuario) — se reutilizó tal cual, sin inventar un campo nuevo.
 - **Sin snapshot persistido.** Se descartó guardar un objeto "snapshot" en `Store` porque no hace falta: `historySnapshotAsOf(history, period.start)` recalculado en cada render da SIEMPRE el mismo resultado mientras `history` no cambie con `createdAt` anterior al corte — que es exactamente la garantía de estabilidad semanal que pide el documento, sin agregar una clave nueva de almacenamiento ni lógica de invalidación. Queda aislado en dos funciones puras (`computeRankingWeekPeriod`/`historySnapshotAsOf`) listas para reemplazarse por un snapshot real de backend.
-- **La elegibilidad propia (Sin Nivel/Calibrando/Inactivo/etc.) sigue evaluándose en vivo**, con el historial completo y "ahora" real — el documento pide congelar el NÚMERO y el PUESTO de quien ya es elegible, no el gatillo de elegibilidad en sí. Congelar también la elegibilidad habría exigido reconstruir el estado de calibración "tal como era hace una semana" para cada jugador, una complejidad no pedida explícitamente y fuera de lo que un prototipo simulado necesita.
+- **La elegibilidad (propia y de cada compañero de Mi red) queda congelada al mismo corte que el Nivel** (`currentSnapshotHistory` + `period.start` como "ahora" — ver §19.6): calibración, inactividad y universo de Mi red se evalúan contra lo que ya era computable antes del cierre, nunca en vivo. La única excepción real son los campos de cuenta sin historial de cambios en este prototipo (ubicación, opt-in/privacidad) — no existe un `createdAt` de "cuándo cambiaste tu ubicación" para poder congelarlos; versionarlos sería una superficie nueva, fuera de alcance.
 - **Mi red de la edición anterior** se recalcula con `computeNetworkNames`/`computeParticipantStatus` pasando el historial y el reloj parados en el corte previo — así "Nuevo"/"↑/↓" comparan contra una red que realmente existía en ese momento (y no la red de hoy con Niveles viejos).
 
 ### 19.3 Bug real encontrado y corregido durante esta ronda
@@ -458,8 +458,20 @@ Corregido agregando un parámetro opcional `selfUserId` a `RK.buildRankingEntrie
 
 Mobile (375px), tablet (768px) y desktop, con una cuenta y partidos sembrados a propósito (algunos antes del corte vigente, uno cargado después para probar el Caso 2, y una edición anterior real para el movimiento): período semanal visible y correcto, Nivel del corte distinto del Nivel actual cuando corresponde, movimiento real entre ediciones (incluida una fila mock bajando un puesto sin haber jugado — Caso 4 del documento, se dio espontáneamente con los datos de prueba), lupa activa/inactiva, selector de género/nivel y Registrar partido en desktop (ya no "flotando"), ayuda actualizada, Mi Perfil con back a Ranking (heredado de V03.5.1, sin regresión), Mis grupos con el copy nuevo. Sin errores de consola nuevos.
 
-### 19.5 Limitaciones conocidas
+### 19.6 Corrección de cierre (revisión con ChatGPT)
+
+Sebastián revisó el reporte de esta ronda con ChatGPT y detectó dos discrepancias conceptuales reales contra `Ranking_BRAMU.md`, corregidas dentro de esta misma versión (sin abrir V03.5.3):
+
+1. **Período mostrado.** La primera implementación identificaba la edición vigente con la semana calendario EN CURSO (`period`, la que contiene "ahora" — usada correctamente para el CORTE, pero no para la etiqueta). La edición vigente en realidad se identifica con la semana YA CERRADA que la produjo (`previousPeriod`, la semana calendario anterior). Corregido en `computeRankingView`: `periodLabel` ahora usa `previousPeriod`, nunca `period`. El corte de Nivel (`period.start`) no cambió — ya era correcto.
+2. **Elegibilidad también congelada.** La primera implementación evaluaba calibración/inactividad/universo de Mi red EN VIVO (historial completo, "ahora" real), congelando solo el Nivel de quien ya fuera elegible. Corregido: `computeSelfStatus`, `computeParticipantStatus` y `computeNetworkNames` para la edición vigente ahora reciben `currentSnapshotHistory` y `period.start` como "ahora" — exactamente el mismo mecanismo ya usado para el Nivel, sin agregar campos ni infraestructura nueva. Si alguien completa calibración o cruza 180 días de inactividad con un partido cuyo `createdAt` cae después del corte, ese cambio impacta recién en la próxima edición.
+
+Ubicación y opt-in/privacidad quedaron explícitamente fuera de esta corrección (ver limitaciones, §19.7) — son campos de cuenta sin historial de cambios en este prototipo.
+
+6 tests nuevos (`V0352-PERIODO-CORREGIDO` ×2, `V0352-ELEGIBILIDAD` ×4) cubren ambos puntos, incluida una aserción que reproduce exactamente el ejemplo numérico de la corrección (durante Lun 07–Dom 13 se muestra "Lun 31 ago — Dom 06 sep").
+
+### 19.7 Limitaciones conocidas
 
 - Igual que en V03.5.1: género y Nivel de jugadores mock territoriales siguen siendo simulaciones determinísticas por nombre, no datos reales.
 - El snapshot semanal es una función pura recalculada en cada render (nunca un valor persistido) — funcionalmente equivalente a un snapshot real mientras `history` no cambie retroactivamente, pero no hay auditoría histórica de ediciones pasadas más allá de la semana actual y la anterior (el documento reserva esa auditabilidad completa para el contrato de backend real, §17.4, explícitamente fuera de alcance de este prototipo).
+- **Ubicación y opt-in/privacidad no están versionados** — no hay forma de reconstruir "cuál era tu ubicación/tu configuración de privacidad al cierre del domingo pasado" en este prototipo, así que un cambio ahí impacta de inmediato en vez de esperar a la próxima edición (ver §19.6). Afecta poco en la práctica: opt-in/privacidad no son alcanzables desde la UI todavía (mismo estado que V03.5), y la ubicación solo gatilla el estado binario "sin ubicación" (el universo mock de Local no distingue localidades reales).
 - Esta publicación **no cierra Ranking dentro de V03** — sigue sujeta a la prueba real de Sebastián, ver §18.

@@ -6,10 +6,15 @@ No repite la especificación completa — eso vive en `BRAMUlab_V03.5.2.md` y en
 normativa `Ranking_BRAMU.md`, ambos en esta misma carpeta/`docs/BRAMUlab/` — solo resume qué
 se hizo realmente, cómo cambió respecto de lo pedido, y en qué estado quedó publicado.
 
+**Nota de esta actualización:** Sebastián revisó la primera versión de este reporte con
+ChatGPT y volvieron dos discrepancias conceptuales reales contra `Ranking_BRAMU.md`. Se
+corrigieron dentro de esta misma versión (sin abrir V03.5.3) — el detalle está en la §4 (Bugs)
+y reemplaza lo que este reporte decía antes sobre "elegibilidad en vivo".
+
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)
-**Tag:** `BRAMUlab_V03.5.2`
+**Commit de esta ronda:** ver §8 (se completa al final, después de publicar la corrección)
+**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido al commit corregido — ver §8)
 **Base:** `BRAMUlab_V03.5.1`
 **Documentos fuente:** `docs/BRAMUlab/Ranking_BRAMU.md` (normativo, revisión 11/09/2026) +
 `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.5.2.md` (operativo de esta ronda, con su
@@ -34,8 +39,12 @@ Los dos bloques pedidos, sin recortes de alcance:
   (Caso 2 del documento normativo).
 - **Nivel del corte, no el actual**, en Tu posición, fila propia, resto de filas y
   filtros/bandas. Home/Perfil siguen mostrando el Nivel actual sin cambios.
-- **Identificación de la edición** visible junto a CLASIFICACIÓN: `Ranking semanal · Lun 07
-  sep — Dom 13 sep`. Nunca "Actualizado hoy".
+- **Elegibilidad congelada al mismo corte** (calibrando/inactivo/elegible, universo de Mi
+  red) — no solo el número de Nivel. Ver §4, corrección de cierre.
+- **Identificación de la edición** visible junto a CLASIFICACIÓN: la semana YA CERRADA que
+  produjo la edición vigente, nunca la semana calendario en curso. Ejemplo real: mientras se
+  transita Lun 07–Dom 13 se muestra `Ranking semanal · Lun 31 ago — Dom 06 sep`. Nunca
+  "Actualizado hoy".
 - **Movimiento semanal real**: se reemplazó el jitter simulado de V03.5/V03.5.1 (una
   "semana anterior" ficticia con el mismo universo, solo re-nivelado al azar) por una
   comparación real entre dos ediciones — la actual y la anterior, recalculadas ambas contra
@@ -73,25 +82,29 @@ intactos — este documento no reabre esas decisiones.
 
 - **"Quedó computable" se mide por `createdAt`, no por `playedAt`.** El prototipo ya tenía
   ese dato desde V03.0 (fecha de procesamiento vs. fecha efectiva) — se reutilizó tal cual,
-  sin inventar un campo nuevo para satisfacer el Caso 2 del documento.
+  sin inventar un campo nuevo para satisfacer el Caso 2 del documento. Esta misma idea
+  terminó siendo también el mecanismo para congelar elegibilidad, no solo Nivel (§4).
 - **Sin snapshot persistido en `Store`.** `historySnapshotAsOf` recalculado en cada render da
   siempre el mismo resultado mientras no entren partidos nuevos con `createdAt` anterior al
   corte — es funcionalmente un snapshot real sin necesitar una clave de almacenamiento nueva
   ni lógica de invalidación. Queda aislado en dos funciones puras, listas para reemplazarse
   por un snapshot real de backend el día que exista.
-- **La elegibilidad propia (Sin Nivel/Calibrando/Inactivo/etc.) se evalúa en vivo**, no contra
-  el corte — el documento pide congelar el NÚMERO y el PUESTO de quien ya es elegible, no el
-  gatillo de elegibilidad en sí. Congelar también la elegibilidad hubiera exigido reconstruir
-  el estado de calibración "tal como era hace una semana" para cada jugador, una complejidad
-  no pedida explícitamente.
 - **Mi red de la edición anterior** se recalcula con el reloj y el historial parados en el
   corte previo, para comparar contra una red que realmente existía en ese momento.
+- **Ubicación y opt-in/privacidad no quedan congelados** — son campos de cuenta sin historial
+  de cambios en este prototipo (no existe un `createdAt` de "cuándo cambiaste tu ubicación").
+  Congelarlos exigiría versionar esos campos, una superficie nueva y explícitamente fuera de
+  alcance de esta ronda (ver §10, limitaciones). Afecta poco en la práctica: opt-in/privacidad
+  no son alcanzables desde la UI todavía, y el universo mock de Local no distingue localidades
+  reales (solo importa si tenés alguna declarada o no).
 
 ---
 
 ## 4. Bugs encontrados y corregidos
 
-**Uno real y preexistente de V03.5/V03.5.1**, no introducido en esta ronda pero encontrado al
+### 4.1 Bug de identidad de self (encontrado durante la implementación inicial)
+
+**Real y preexistente de V03.5/V03.5.1**, no introducido en esta ronda pero encontrado al
 verificar rigurosamente el Nivel del corte: `computeRankingView` pasaba el nombre plano de
 self (`currentPlayerName`, string) a `RK.buildRankingEntries`, nunca `currentIdentity()`
 (`{name, userId}`). Por la regla de integridad de `userId` ya vigente desde V03.0, una fila
@@ -104,6 +117,41 @@ contra el Nivel real de Home/Perfil.
 
 Corregido con un parámetro opcional (`selfUserId`) en `buildRankingEntries`, sin romper
 compatibilidad con callers/tests que no lo pasan. 3 tests nuevos cubren el caso.
+
+### 4.2 Corrección de cierre — dos discrepancias conceptuales (encontradas al revisar con ChatGPT)
+
+Sebastián revisó la primera versión de esta ronda con ChatGPT y volvieron dos discrepancias
+reales contra `Ranking_BRAMU.md`, corregidas antes de dar la ronda por cerrada:
+
+**Punto 1 — período mostrado.** La primera implementación identificaba la edición vigente con
+la semana calendario EN CURSO (`period`, la que contiene "ahora"). Esa variable seguía siendo
+correcta para el CORTE de Nivel (todo lo registrado antes de `period.start` es "lo consolidado
+al cierre del domingo pasado"), pero la edición vigente en sí se identifica con la semana YA
+CERRADA que la produjo — la semana calendario ANTERIOR (`previousPeriod`, que ya existía y se
+usaba correctamente para el movimiento). Corregido cambiando una sola línea: `periodLabel`
+ahora se arma con `previousPeriod`, nunca con `period`. El corte de Nivel no cambió — ya
+estaba bien.
+
+**Punto 2 — elegibilidad también debía congelarse.** La primera implementación evaluaba
+calibración, inactividad y el universo de Mi red EN VIVO (historial completo, "ahora" real),
+congelando solo el Nivel de quien ya fuera elegible — una simplificación que este mismo
+reporte documentaba como "adaptación". Sebastián marcó que eso no era correcto: el snapshot
+semanal tiene que ser estable en su totalidad, no solo en el número de Nivel. Corregido
+reutilizando el MISMO mecanismo ya construido para el Nivel (`historySnapshotAsOf` + el corte
+como "ahora"), sin agregar ningún dato ni infraestructura nueva: `computeSelfStatus`,
+`computeParticipantStatus` (para cada compañero de Mi red) y `computeNetworkNames` para la
+edición vigente ahora reciben `currentSnapshotHistory` y `period.start`, en vez de historial
+completo y "ahora" real. Si alguien completa calibración o cruza 180 días de inactividad con
+un partido cuyo `createdAt` cae después del corte, ese cambio impacta recién en la próxima
+edición — nunca en la ya publicada.
+
+Ambos puntos se verificaron con datos de prueba concretos: un jugador con 5 partidos
+computables donde el 5º (el que completaba calibración) tenía `createdAt` posterior al corte
+seguía mostrando "Calibrando 4/5" en la edición vigente, y solo pasaba a "Elegible" al
+evaluarlo en vivo — exactamente el comportamiento esperado.
+
+6 tests nuevos cubren ambos puntos (`V0352-PERIODO-CORREGIDO` ×2, `V0352-ELEGIBILIDAD` ×4),
+incluida una aserción que reproduce el ejemplo numérico exacto de la corrección.
 
 ---
 
@@ -121,7 +169,7 @@ compatibilidad con callers/tests que no lo pasan. 3 tests nuevos cubren el caso.
 
 ## 6. Tests agregados y resultado final
 
-23 aserciones nuevas en `ranking.js`/`tests.html`, todas sobre lógica pura nueva:
+29 aserciones nuevas en `ranking.js`/`tests.html`, todas sobre lógica pura nueva:
 
 - período semanal (lunes 00:00:00 a domingo 23:59:59.999, Buenos Aires) — 9 aserciones;
 - snapshot por `createdAt`, incluido el Caso 2 (jugado antes del corte, cargado después) — 4;
@@ -129,12 +177,17 @@ compatibilidad con callers/tests que no lo pasan. 3 tests nuevos cubren el caso.
 - movimiento entre dos ediciones reales, incluida la corrección de "Nuevo" (antes "—", bug
   nunca visible porque el universo "anterior" simulado de V03.5.1 era siempre el mismo set de
   ids que el actual) — 5;
-- bug de identidad de self (`selfUserId`) — 3.
+- bug de identidad de self (`selfUserId`) — 3;
+- corrección de cierre: período mostrado (la edición activa nunca coincide con la semana
+  calendario en curso, y coincide exactamente con el ejemplo "Lun 31 ago — Dom 06 sep") — 2;
+- corrección de cierre: elegibilidad congelada (calibración completada e inactividad cruzada
+  DESPUÉS del corte no alteran la edición vigente, solo la siguiente) — 4.
 
-**Resultado final: 936/936 tests OK** (913 previos + estos 23 nuevos). Además se ajustaron 2
-aserciones ya existentes a la nueva firma de `computeWeeklyMovement` (dos universos, no uno) —
-sin sumar al total, solo corregidas en su lugar. Corrida una sola vez después de aplicar el
-bump de versión, sin regresiones.
+Además se ajustaron 2 aserciones ya existentes a la nueva firma de `computeWeeklyMovement`
+(dos universos, no uno) — sin sumar al total, solo corregidas en su lugar.
+
+**Resultado final: 942/942 tests OK** (913 antes de esta ronda + 29 nuevas). Corrida una sola
+vez después de aplicar el bump de versión y ambas correcciones, sin regresiones.
 
 ---
 
@@ -142,9 +195,15 @@ bump de versión, sin regresiones.
 
 Mobile (375px), tablet (768px) y desktop, con una cuenta y partidos sembrados a propósito
 (algunos antes del corte vigente, uno cargado después del corte para probar el Caso 2, y una
-edición anterior real con nivel más bajo para poder ver movimiento real):
+edición anterior real con nivel más bajo para poder ver movimiento real). Tras la corrección
+de cierre, se revisaron específicamente las superficies afectadas por ambos puntos:
 
-- período semanal visible y con el formato correcto;
+- período semanal visible con el formato correcto, y verificado numéricamente que muestra la
+  semana YA CERRADA (no la semana calendario en curso) en Local, tablet y desktop;
+- un jugador con calibración recién completada por un partido cargado después del corte
+  siguió mostrando "Calibrando 4/5" en la edición vigente — confirmado en vivo, no solo en
+  tests — y pasó a "Elegible" al agregar un partido con `createdAt` anterior al corte;
+- Mi red con el mismo criterio (universo y calibración por compañero, congelados al corte);
 - Nivel del corte distinto del Nivel actual cuando corresponde (verificado con números
   concretos, no solo visualmente);
 - movimiento real entre ediciones, incluida una fila mock bajando un puesto sin haber jugado;
@@ -163,12 +222,9 @@ edición anterior real con nivel más bajo para poder ver movimiento real):
 
 ## 8. Commit, tag, push, deploy
 
-Commit [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac),
-staging explícito de solo los archivos de esta ronda (excluyendo a propósito trabajo paralelo
-no relacionado que ya estaba sin commitear en el repo: `BRAMU_Intelligence*`, `Referencias/`,
-`Backup/`, `Logo.ai`, y el reporte para ChatGPT de V03.5.1, que Sebastián había pedido dejar
-sin commitear). Tag `BRAMUlab_V03.5.2`. Push a `origin/main` y al tag. Deploy de GitHub Pages
-verificado antes de dar la ronda por publicada.
+*(completar con el hash de commit de la corrección, confirmación de push y del deploy de
+GitHub Pages una vez publicado — este reporte se actualizó antes de ese paso para no dejarlo
+pendiente después)*
 
 ---
 
@@ -187,6 +243,10 @@ https://sebastianvilaa.github.io/BRAMUlab/bramulab/
   retroactivamente con partidos de `createdAt` anterior al corte, pero sin auditoría histórica
   de ediciones más allá de la actual y la anterior (el documento reserva esa auditabilidad
   completa para el contrato de backend real, fuera de alcance de este prototipo).
+- **Ubicación y opt-in/privacidad no están versionados**: un cambio ahí impacta de inmediato
+  en la clasificación en vez de esperar a la próxima edición, a diferencia de calibración/
+  inactividad/Nivel (que sí quedan congelados desde la corrección de cierre, §4.2). Afecta
+  poco en la práctica por las mismas razones ya explicadas en §3.
 
 ---
 
@@ -199,13 +259,16 @@ https://sebastianvilaa.github.io/BRAMUlab/bramulab/
   explique, no un indicador visual adicional, así que no se agregó nada por ahora.
 - Con selectores/sheets en pantallas intermedias (720-900px aprox.), confirmar que el ancho
   angosto del picker de género/nivel se sigue sintiendo proporcionado y no demasiado angosto.
+- Si en algún momento se decide versionar ubicación/opt-in/privacidad (para que también
+  respeten el corte semanal), es una superficie nueva — no algo para resolver "de paso" en un
+  microajuste futuro.
 
 ---
 
 ## 12. Estado de cierre de Ranking BRAMU
 
-**Ranking sigue sin cerrarse definitivamente dentro de V03.** Esta publicación es la segunda
-ronda de refinamiento (V03.5.1 → V03.5.2), no el cierre de la función. Sebastián va a hacer
-una última prueba visual/real después del deploy; según lo que encuentre, puede pedir
-`V03.5.3` o microajustes puntuales. No se avanza a Nivel BRAMU real (V04) ni a ninguna versión
-nueva sin instrucción explícita.
+**Ranking sigue sin cerrarse definitivamente dentro de V03.** Esta publicación (con su
+corrección de cierre incluida) es la segunda ronda de refinamiento (V03.5.1 → V03.5.2), no el
+cierre de la función. Sebastián va a hacer una última prueba visual/real después del deploy;
+según lo que encuentre, puede pedir `V03.5.3` o microajustes puntuales. No se avanza a Nivel
+BRAMU real (V04) ni a ninguna versión nueva sin instrucción explícita.
