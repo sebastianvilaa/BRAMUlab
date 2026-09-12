@@ -10,7 +10,8 @@ quedó publicado.
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
 **Commit de la implementación inicial:** [`10a05ce`](https://github.com/sebastianvilaa/BRAMUlab/commit/10a05cea8f2a35be88911bfd2a0075fd5d06fa7b)
 **Commit de las correcciones post-QA real (§11):** [`7c79196`](https://github.com/sebastianvilaa/BRAMUlab/commit/7c79196)
-**Tag:** `BRAMUlab_V03.6` (movido a `7c79196` — misma versión, nunca se abrió V03.7)
+**Commit del hotfix focal de identidad — Ranking/Mis jugadores (§12):** [`aadf920`](https://github.com/sebastianvilaa/BRAMUlab/commit/aadf920)
+**Tag:** `BRAMUlab_V03.6` (movido a `aadf920` — misma versión, nunca se abrió V03.7)
 **Base:** `BRAMUlab_V03.5.2`
 **Documento fuente:** `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.6.md`
 
@@ -18,7 +19,10 @@ quedó publicado.
 importantes (Perfil público no recuperaba el historial/Nivel real de una cuenta con partidos)
 y varios ajustes de UX pendientes. Todo se corrigió dentro de esta misma versión — ver §11,
 que reemplaza la afirmación de la §4 original ("Bugs encontrados: Ninguno") para el estado
-final de la ronda.
+final de la ronda. Una revisión posterior encontró que el MISMO bug de identidad (nombre plano
+en vez de `{name,userId}`) también afectaba a Ranking (jugadores reales no-self) y a "Mis
+jugadores" (@usuario fabricado) — corregido en §12, junto con la normalización visual de la
+fila de Ranking a 3 renglones.
 
 ---
 
@@ -431,13 +435,165 @@ el bundle desplegado, ambos casos A y B reproducidos y confirmados correctos en
   olvido. Si en el futuro dos cuentas reales que juegan entre sí aparecen ambas en el mismo
   Ranking local, la que no es "yo" podría mostrar un Nivel por hash en vez del real. Documentado
   para una futura ronda de Ranking, fuera de esta.
+  **Actualización — corregido en §12**: la prueba real de Sebastián confirmó exactamente este
+  caso (Ranking mostrando Nivel simulado para cuentas reales no-self), y se resolvió en el
+  hotfix documentado abajo.
 - El resto de las limitaciones de la implementación inicial (§9) siguen vigentes sin cambios.
 
 ### 11.11 Decisiones pendientes
 
-Ninguna. Los 6 puntos pedidos se implementaron sin ambigüedad relevante. El único punto
-explícitamente diferido (Ranking, §11.10) fue por instrucción directa de esta ronda, no una
-decisión abierta.
+Ninguna dentro del alcance de §11. El punto diferido de Ranking (§11.10) se retomó y cerró en
+§12, a pedido explícito de Sebastián.
+
+---
+
+## 12. Hotfix focal — identidad real en Ranking / Mis jugadores
+
+Último hotfix antes de cerrar V03.6 (commit
+[`aadf920`](https://github.com/sebastianvilaa/BRAMUlab/commit/aadf920), tag movido ahí, sigue
+sin abrirse V03.7). Sebastián reportó tres inconsistencias más, todas con la MISMA causa raíz
+que §11 (contrato de identidad `{name, userId}`), esta vez en dos pantallas que §11 no había
+tocado.
+
+### 12.1 Bug real — Ranking podía mostrar Nivel simulado para jugadores reales no-self
+
+**Causa exacta:** `RK.buildRankingEntries` (ranking.js) solo armaba `{name, userId}` para
+**self** (vía `selfRef`/`selfUserId`, agregado en el hotfix de V03.5.2). Para CUALQUIER otro
+nombre — incluida una cuenta real con partidos ya estampados por `userId` — seguía pasando el
+nombre plano a `PH.computeSimulatedJugadorLevel`. Por la regla de integridad de `userId` (V03.0),
+esa consulta nunca encontraba los partidos reales de esa persona y caía al mismo Nivel simulado
+por hash que un jugador mock territorial — el mismo bug de fondo de §11.1/§11.2, esta vez en el
+caller de Ranking, que §11 había dejado explícitamente sin tocar (§11.10).
+
+El mismo patrón exacto apareció en `buildUnrankedParticipant` (app.js — compañeros de Mi red en
+estado calibrando/inactivo): también calculaba el Nivel con el nombre plano.
+
+**Corrección:** nueva función pura y exportada, `resolveRealAccountByName(name)` (ranking.js) —
+único punto de resolución de cuenta real por nombre visible, reutilizado para Nivel, ubicación
+y género de CUALQUIER entrada (self incluido). `buildRankingEntries` ahora arma
+`{name, userId: account.id}` para cualquier jugador con cuenta real resoluble, no solo self; un
+nombre sin cuenta real sigue con el string plano tal cual (el fallback por hash queda reservado
+exclusivamente para esos casos — mocks/territoriales, rivales conocidos solo por historial).
+`buildUnrankedParticipant` recibió el mismo tratamiento vía `buildGroupRowAccount` (app.js). En
+ningún caso se tocó `computeSimulatedJugadorLevel`, `normalizePlayerName`, ni ningún cálculo de
+Nivel BRAMU en sí — la corrección vive enteramente en los dos *callers*, tal como pedía la
+instrucción ("no parchear helpers genéricos").
+
+**Bonus del mismo fix — "Seba aparece sin ubicación":** `entry.locality` para self SIEMPRE
+había sido `null` a propósito (nunca se le asignaba una localidad mock) — pero tampoco se le
+asignaba nunca su ubicación REAL, aunque la hubiera declarado en Mis Datos. Ahora
+`resolveRealAccountByName` resuelve la cuenta real de self también para este campo, así que su
+propia fila de Ranking muestra su localidad declarada, igual que cualquier otra cuenta real.
+
+**Test agregado:** batería `V036-RANKING` (8 aserciones, con Store real vía snapshot/restore de
+`localStorage`): self + un segundo jugador real con `userId`, ambos con partidos reales
+estampados — el segundo jugador usa su evolución real (nunca el hash), su ubicación real (nunca
+mock), self también recupera su propia ubicación real, y un jugador mock sin cuenta real sigue
+exactamente igual que siempre (Nivel simulado + localidad mock territorial intactos).
+
+### 12.2 Bug real — "Mis jugadores" con @usuario no espejado
+
+**Caso reportado:** un jugador aparecía en Perfil > JUGADORES como "Sebastian / @sebastian",
+pero al abrir el MISMO jugador su Perfil público mostraba "Sebastian / @sebastian-gmail" — la
+misma persona con dos identidades públicas distintas.
+
+**Causa exacta:** `buildPlayerRowHTML` y `buildGroupMemberPickerRowHTML` (app.js — usadas por
+"Mis jugadores", Buscar Jugadores, Elegir compañero/rival y el selector de miembros de Crear
+grupo) llamaban directo a `buildPlayerHandle(name)`, que **fabrica** un @usuario a partir de la
+primera palabra del nombre (`"Sebastian"` → `"@sebastian"`) — sin nunca revisar si esa persona
+tenía una cuenta real vinculada con un @usuario propio. `renderPlayerPublicProfile` (Perfil
+público) sí lo hacía correctamente desde antes; estas dos filas compactas eran las únicas que
+no.
+
+**Corrección:** ambas funciones ahora resuelven la cuenta real primero, vía
+`buildGroupRowAccount(name)` — el MISMO helper que ya usan Ranking y Mis Grupos (`entry.name`,
+`buildRankingRowHTML`) — y usan `account.username` cuando existe; solo fabrican el handle con
+`buildPlayerHandle` si no hay ninguna cuenta real resoluble. Las 4 pantallas listadas arriba
+ahora comparten exactamente el mismo criterio de identidad.
+
+**Test agregado:** el armado de HTML vive en app.js, fuera de `tests.html` (límite ya
+documentado en rondas anteriores — la suite no carga app.js). Se agregó `V036-USERNAME` (2
+aserciones) fijando el contrato de Store del que depende el fix: una cuenta real se resuelve
+por `displayName` normalizado con su `username` propio, nunca el que se derivaría del nombre.
+La equivalencia real ("Mis jugadores" y Perfil público muestran EXACTAMENTE el mismo @usuario
+para la misma persona) se verificó por QA manual — ver §12.4.
+
+### 12.3 Normalización visual — estructura única de fila en Ranking
+
+**Causa exacta:** nombre y `@usuario` vivían dentro de `.group-table__toprow`
+(`display:flex; flex-wrap:wrap`), compartida con la tabla de Mis Grupos. Cuando "nombre +
+`· @usuario`" entraba en el ancho disponible quedaban en la misma línea (ej. "Tomás Aguirre
+@tomas"); cuando no entraba, el handle caía solo a su propia línea (ej. "Santiago Cabrera" /
+"@santiago") — un efecto colateral del ancho disponible según el largo de cada nombre, nunca
+una decisión de diseño, y por eso se veía inconsistente fila a fila.
+
+**Corrección:** nueva clase `.ranking-row__handle{ display:block; }` (styles.css), agregada
+junto a `.group-table__handle` en las 3 filas de Ranking (`buildRankingRowHTML`,
+`buildUnrankedRowHTML`, la fila estática de "Ocultos de Mi red") — el handle pasa a tener
+SIEMPRE su propio renglón, sin envolver más en `.group-table__toprow`. Se quitó el separador
+"· " del texto (ya no hace falta al no compartir línea). Estructura final, siempre igual:
+nombre / @usuario / ubicación (o el badge de estado en las filas de calibrando/inactivo, que ya
+ocupaba ese tercer renglón). **Nunca se tocó** `.group-table__toprow`/`.group-table__handle` en
+sí ni `buildGroupTableRowHTML` — la tabla de Mis Grupos sigue exactamente igual que antes,
+"·" incluido, porque ese componente no fue parte del reporte y no es Ranking.
+
+**Verificación:** sin test automatizado (es una estructura de HTML/CSS, no lógica) — confirmado
+por QA visual, ver §12.4. Combinado con §12.1, cada fila real del Local ahora muestra
+consistentemente los 3 renglones con datos REALES cuando existe cuenta vinculada (nombre real,
+@usuario real, ubicación real) y el mock territorial de siempre cuando no.
+
+### 12.4 QA real ejecutado
+
+Con dos cuentas reales jugando entre sí (local, y repetido en producción con `Prod Check`/
+`Prod Check Dos`):
+
+- **Mis jugadores vs. Perfil público:** jugador con cuenta real vinculada (`@tomasaguirre22`,
+  distinto del derivado del nombre `@tomas`) — "Mis jugadores" y su Perfil público mostraron
+  **exactamente el mismo** nombre/@usuario/Efectividad/CALIBRANDO X/5. Antes del fix, "Mis
+  jugadores" mostraba el handle fabricado.
+- **Ranking, jugador real no-self:** con self + un segundo jugador real jugando juntos (6
+  partidos reales, ambos con cuenta vinculada), la vista Local mostró filas reales — mocks
+  territoriales (Tomás Aguirre, Santiago Cabrera, Walter Cabrera, etc., los mismos nombres del
+  reporte) todas con la estructura de 3 renglones consistente, sin "·", y la fila propia
+  ("Seba", resaltada) mostrando su Nivel real (5.4, igual que Home) y su ubicación real ("Bella
+  Vista, Buenos Aires") por primera vez. Verificado también por consola directa
+  (`RK.buildRankingEntries`) contra el segundo jugador real: Nivel real (nunca hash), ubicación
+  real ("Villa Urquiza, CABA", nunca mock). Repetido en producción con `Prod Check`/`Prod Check
+  Dos`: `consideredCount` con `{name,userId}` = 2 (los 2 partidos reales), con nombre plano = 0
+  — confirma la causa raíz exacta.
+- **Mocks territoriales intactos:** en la misma vista Local, nombres sin cuenta real (rivales
+  de prueba, y todo el universo mock existente) siguieron mostrando su Nivel simulado por hash
+  y su localidad mock de siempre.
+- **WhatsApp (regresión):** botón "CONTACTAR POR WHATSAPP" sigue apareciendo solo con
+  consentimiento + teléfono válido; deep link verificado byte a byte, mensaje nuevo de §11.6
+  intacto ("¿Estás para armar un partido de pádel?").
+- **Tablet:** misma vista Local revisada a 768px — estructura de 3 renglones consistente, sin
+  desbordes ni recortes distintos a mobile.
+- Sin errores de consola nuevos. Todas las cuentas/partidos de prueba (locales y de producción)
+  se limpiaron/restauraron a su estado previo al terminar.
+
+### 12.5 Tests y resultado final
+
+18 aserciones nuevas (`V036-RANKING` ×8, `V036-USERNAME` ×2 — más las 10 de contexto ya
+contadas en §11 no se repiten aquí). Suite completa corrida una sola vez al final, como pidió
+la ronda (identidad compartida + Ranking).
+
+**Resultado final: 998/998 tests OK** (988 antes de este hotfix + 10 nuevas: 8 `V036-RANKING` +
+2 `V036-USERNAME`).
+
+### 12.6 Deploy
+
+Cache-bust `-h2` (`CACHE_NAME`/`?v=03.6-h2` en los 11 assets propios) — `Store.VERSION`/
+`version.json` sin cambios, siguen en `"BRAMUlab V03.6"`. Verificado en producción real:
+`index.html` sirve `?v=03.6-h2`, y el flujo completo (identidad real en Ranking + Mis
+jugadores) se reprodujo y confirmó correcto directamente en `sebastianvilaa.github.io`
+reutilizando las cuentas `Prod Check`/`Prod Check Dos`, restauradas a su estado original al
+terminar.
+
+### 12.7 Limitaciones / decisiones pendientes
+
+Ninguna. Los 3 puntos de este hotfix se implementaron sin ambigüedad — incluido el punto que
+§11 había dejado explícitamente diferido (§11.10), ahora cerrado.
 
 **Próximo paso:** prueba visual/real de Sebastián sobre este release corregido; si queda bien,
 consolidar V03. No se avanza a Nivel BRAMU V04 sin esa validación — sigue sin abrirse V03.7.
