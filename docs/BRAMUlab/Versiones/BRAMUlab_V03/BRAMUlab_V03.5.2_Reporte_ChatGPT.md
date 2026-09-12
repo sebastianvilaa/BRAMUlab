@@ -8,13 +8,15 @@ se hizo realmente, cómo cambió respecto de lo pedido, y en qué estado quedó 
 
 **Nota de esta actualización:** Sebastián revisó la primera versión de este reporte con
 ChatGPT y volvieron dos discrepancias conceptuales reales contra `Ranking_BRAMU.md`. Se
-corrigieron dentro de esta misma versión (sin abrir V03.5.3) — el detalle está en la §4 (Bugs)
-y reemplaza lo que este reporte decía antes sobre "elegibilidad en vivo".
+corrigieron dentro de esta misma versión (sin abrir V03.5.3) — el detalle está en la §4.2
+(Bugs) y reemplaza lo que este reporte decía antes sobre "elegibilidad en vivo". Después de
+publicar esa corrección apareció un **bug bloqueante real en producción** (Ranking no abría
+para cuentas sin partidos considerados) — corregido como hotfix, ver §4.3.
 
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343) (corrección de cierre) sobre [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99) (implementación inicial)
-**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido a `ec7f35c` — ver §8)
+**Commit de esta ronda:** [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77) (hotfix bloqueante) sobre [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343) (corrección de cierre) sobre [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99) (implementación inicial)
+**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido a `707ec77` — ver §8)
 **Base:** `BRAMUlab_V03.5.1`
 **Documentos fuente:** `docs/BRAMUlab/Ranking_BRAMU.md` (normativo, revisión 11/09/2026) +
 `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.5.2.md` (operativo de esta ronda, con su
@@ -153,6 +155,42 @@ evaluarlo en vivo — exactamente el comportamiento esperado.
 6 tests nuevos cubren ambos puntos (`V0352-PERIODO-CORREGIDO` ×2, `V0352-ELEGIBILIDAD` ×4),
 incluida una aserción que reproduce el ejemplo numérico exacto de la corrección.
 
+### 4.3 Bug bloqueante en producción (hotfix, encontrado después de publicar la corrección de cierre)
+
+Sebastián reportó que desde Home, tocar el botón de Ranking no abría la pantalla, con
+`Uncaught TypeError: (raw || "").replace is not a function` en consola (stack:
+`normalizePlayerName` ← `computeSimulatedJugadorLevel` ← `buildRankingEntries` ←
+`computeRankingView`).
+
+**Causa exacta:** `PH.computeSimulatedJugadorLevel(history, playerName)` acepta `playerName`
+como string O como `{name, userId}` en su camino principal (`computeLevelEvolution`, que ya
+resuelve ambos tipos internamente) — pero su rama de *fallback* (cuando el jugador tiene 0
+partidos considerados en el `history` recibido) llamaba `Store.normalizePlayerName(playerName)`
+directo, sin resolver el ref primero. `Store.normalizePlayerName` siempre esperó un string
+(hace `.replace()` sobre él) — correctamente, es su contrato de siempre y lo usa toda la app.
+El bug real estaba en `computeSimulatedJugadorLevel`: su propio fallback no respetaba el mismo
+contrato de identidad que su camino principal.
+
+Este fallback nunca se había ejecutado con un objeto porque, hasta el fix de identidad de esta
+misma versión (§4.1), nadie llamaba a esta función con un ref de objeto. Desde que
+`buildRankingEntries`/`rankingSelfBand` empezaron a pasar `{name, userId}` para self (para
+corregir el bug de identidad), cualquier cuenta con **0 partidos considerados en el historial
+recibido** — una cuenta recién creada, o una cuyo único partido quedó fuera del snapshot
+semanal vigente tras la corrección de cierre (§4.2) — disparaba el fallback con un objeto y
+explotaba. Bloqueante: pasa para cualquier usuario nuevo que toque Ranking antes de jugar su
+primer partido.
+
+**Corrección:** una línea, en el punto exacto del contrato roto — `resolveIdentityRef(playerName).name`
+antes de pasarlo a `Store.normalizePlayerName`, reutilizando la misma utilidad de resolución de
+identidad que ya usa el resto de `player-home.js` (nunca un parche defensivo en
+`normalizePlayerName`, que estaba bien). Preserva intacta la lógica de `selfUserId`/identidad
+de V03.5.2.
+
+5 tests nuevos (`V0352-HOTFIX`) cubren el caso: el fallback con ref de objeto y 0 partidos ya
+no explota y devuelve el Nivel simulado por hash; con historial real estampado por `userId`
+sigue devolviendo la evolución real (nunca el hash); y una reproducción exacta del stack
+reportado vía `RK.buildRankingEntries` con self sin partidos.
+
 ---
 
 ## 5. Decisiones UX materializadas
@@ -181,13 +219,18 @@ incluida una aserción que reproduce el ejemplo numérico exacto de la correcci�
 - corrección de cierre: período mostrado (la edición activa nunca coincide con la semana
   calendario en curso, y coincide exactamente con el ejemplo "Lun 31 ago — Dom 06 sep") — 2;
 - corrección de cierre: elegibilidad congelada (calibración completada e inactividad cruzada
-  DESPUÉS del corte no alteran la edición vigente, solo la siguiente) — 4.
+  DESPUÉS del corte no alteran la edición vigente, solo la siguiente) — 4;
+- hotfix bloqueante: ref de objeto con 0 partidos considerados no explota, sigue devolviendo
+  la evolución real cuando el historial sí tiene partidos, y reproducción exacta del stack
+  reportado vía `RK.buildRankingEntries` — 5.
 
 Además se ajustaron 2 aserciones ya existentes a la nueva firma de `computeWeeklyMovement`
 (dos universos, no uno) — sin sumar al total, solo corregidas en su lugar.
 
-**Resultado final: 942/942 tests OK** (913 antes de esta ronda + 29 nuevas). Corrida una sola
-vez después de aplicar el bump de versión y ambas correcciones, sin regresiones.
+**Resultado final: 947/947 tests OK** (913 antes de esta ronda + 34 nuevas). El hotfix toca
+`PH.computeSimulatedJugadorLevel` (lógica compartida — la usa también Buscar Jugadores, Mis
+grupos y Perfil público), así que se corrió la suite completa después de aplicarlo, sin
+regresiones en ningún otro lugar que dependa de esa función.
 
 ---
 
@@ -218,18 +261,28 @@ de cierre, se revisaron específicamente las superficies afectadas por ambos pun
   Historial, Home.
 - sin errores de consola nuevos, ni en local ni verificado luego en producción.
 
+**Verificación específica del hotfix** (mobile): cuenta nueva con 0 partidos → Home muestra
+"CALIBRANDO 0/5" correctamente → tocar el ícono de Ranking del header abre la pantalla sin
+excepción (antes tiraba `TypeError` y la pantalla no abría) → muestra el estado "Todavía no
+tenés Nivel BRAMU" (correcto para 0 partidos) → volver con la flecha regresa a Home
+correctamente. Repetido con la cuenta de prueba con historial real de la corrección anterior:
+Nivel del corte sigue mostrando el mismo valor (5.6) y el mismo período — el hotfix no tocó el
+camino que ya andaba bien.
+
 ---
 
 ## 8. Commit, tag, push, deploy
 
-Commit de la corrección de cierre: [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343),
-staging explícito de solo los archivos tocados por esta corrección (excluyendo el mismo
-trabajo paralelo no relacionado de siempre: `BRAMU_Intelligence*`, `Referencias/`, `Backup/`,
-`Logo.ai`, y el reporte de V03.5.1 sin commitear a pedido de Sebastián). El tag
-`BRAMUlab_V03.5.2` se movió de `4037cd1` (implementación inicial) a este commit — sigue siendo
-una corrección de cierre de la misma versión, no una `V03.5.3`. Push a `origin/main` y al tag
-(force-push del tag, ya documentado como flujo aceptado para corregir un release). Deploy de
-GitHub Pages verificado antes de dar la corrección por publicada.
+Tres commits en esta ronda: [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99)
+(implementación inicial), [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343)
+(corrección de cierre) y [`707ec77`](https://github.com/sebastianvilaa/BRAMUlab/commit/707ec77)
+(hotfix bloqueante) — staging explícito en cada uno de solo los archivos tocados, excluyendo
+siempre el mismo trabajo paralelo no relacionado (`BRAMU_Intelligence*`, `Referencias/`,
+`Backup/`, `Logo.ai`, y el reporte de V03.5.1 sin commitear a pedido de Sebastián). El tag
+`BRAMUlab_V03.5.2` se movió una segunda vez, ahora a `707ec77` — sigue siendo la misma versión,
+nunca se abrió `V03.5.3`. Push a `origin/main` y al tag (force-push del tag, ya documentado
+como flujo aceptado para corregir un release). Deploy de GitHub Pages verificado en producción
+antes de dar el hotfix por publicado.
 
 ---
 
