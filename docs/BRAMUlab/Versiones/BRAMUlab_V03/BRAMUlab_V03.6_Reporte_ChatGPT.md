@@ -8,10 +8,17 @@ quedó publicado.
 
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** [`10a05ce`](https://github.com/sebastianvilaa/BRAMUlab/commit/10a05cea8f2a35be88911bfd2a0075fd5d06fa7b)
-**Tag:** `BRAMUlab_V03.6`
+**Commit de la implementación inicial:** [`10a05ce`](https://github.com/sebastianvilaa/BRAMUlab/commit/10a05cea8f2a35be88911bfd2a0075fd5d06fa7b)
+**Commit de las correcciones post-QA real (§11):** [`7c79196`](https://github.com/sebastianvilaa/BRAMUlab/commit/7c79196)
+**Tag:** `BRAMUlab_V03.6` (movido a `7c79196` — misma versión, nunca se abrió V03.7)
 **Base:** `BRAMUlab_V03.5.2`
 **Documento fuente:** `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.6.md`
+
+**Nota de esta actualización:** la prueba real de Sebastián encontró dos bugs funcionales
+importantes (Perfil público no recuperaba el historial/Nivel real de una cuenta con partidos)
+y varios ajustes de UX pendientes. Todo se corrigió dentro de esta misma versión — ver §11,
+que reemplaza la afirmación de la §4 original ("Bugs encontrados: Ninguno") para el estado
+final de la ronda.
 
 ---
 
@@ -234,13 +241,203 @@ https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 
 ---
 
-## 10. Decisiones pendientes
+## 10. Decisiones pendientes (implementación inicial)
 
-Ninguna decisión de producto quedó abierta dentro del alcance de V03.6 — el documento no dejó
-ambigüedad relevante para el usuario final más allá de los tres detalles de implementación
-descriptos en la §3 (adaptaciones), que no cambian el comportamiento visible ni requieren
-confirmación adicional.
+Ninguna decisión de producto quedó abierta dentro del alcance inicial de V03.6 — el documento
+no dejó ambigüedad relevante para el usuario final más allá de los tres detalles de
+implementación descriptos en la §3 (adaptaciones), que no cambian el comportamiento visible ni
+requieren confirmación adicional. Ver §11 para lo que sí surgió después, en la prueba real.
 
-**Próximo paso, según instrucción explícita de esta ronda:** prueba visual/real de Sebastián
-sobre este release; si queda bien, consolidar V03. No se avanza a Nivel BRAMU V04 sin esa
-validación.
+---
+
+## 11. Correcciones posteriores a QA real
+
+Sebastián probó la app real (no solo cuentas de prueba sintéticas) y encontró dos bugs
+funcionales importantes más varios ajustes de UX. Todo se corrigió dentro de esta misma
+versión — commit [`7c79196`](https://github.com/sebastianvilaa/BRAMUlab/commit/7c79196),
+tag `BRAMUlab_V03.6` movido ahí, nunca se abrió V03.7.
+
+### 11.1 Bug real — Perfil público no recuperaba el historial correcto
+
+**Caso reportado:** la cuenta de Seba mostraba en Home 51 partidos/31 ganados/61% efectividad/
+Nivel ~6.4. Desde una segunda cuenta, su Perfil público mostraba 0 partidos/0 ganados/Mejor
+racha "—" — estadísticas vacías.
+
+**Causa exacta:** `renderPlayerPublicProfile` (app.js) consultaba todo el historial pasando el
+**nombre plano** (string) a `PH.filterMatchesForPlayer`/`computeEffectivenessTotal`/
+`computeBestWinStreakRange`/`computeLevelEvolution`, nunca `{name, userId}`. Por la regla de
+integridad de `userId` vigente desde V03.0 (`findPlayerRow`, player-home.js): una fila de
+`players[]` que YA tiene `userId` estampado es autoritativa y exclusiva — solo se encuentra
+buscando por ESE MISMO `userId`, nunca cae a comparar por nombre, ni siquiera si coincide
+exacto. Como los partidos reales de una cuenta activa terminan con `userId` estampado
+(automático al finalizar cualquier partido en vivo o carga manual), Perfil público nunca
+encontraba ninguno — mismo historial, identidad de consulta equivocada. Home nunca tuvo este
+bug porque siempre usó `currentIdentity()` (el objeto completo), nunca el string plano.
+
+**Dónde vivía exactamente:** `Store.loadUsers().find(...)` ya resolvía la cuenta real
+(`account`) dentro de la misma función, pero ese resultado solo se usaba para foto/edad/mano/
+lado — nunca para construir la identidad de consulta del historial. El fix es exactamente eso:
+`const identity = account ? { name, userId: account.id } : name;`, usado en las 4 llamadas de
+arriba en vez de `name`.
+
+**Mismo bug encontrado también en:** durante la investigación del contrato de identidad (pedida
+explícitamente), aparecieron 6 llamadas más con el idéntico patrón roto —
+`PH.computeSimulatedJugadorLevel(history, n)` con `n` de nombre plano — en Elegir compañero/
+rival, Buscar Jugadores (recientes y resultados), la lista JUGADORES de Perfil, y el selector
+de miembros de Crear grupo. Se corrigieron las 6 con un único helper nuevo
+(`computePlayerRowLevel`, app.js) que aplica el mismo criterio correcto — nunca se dejó a medio
+corregir un bug que ya se había identificado como sistémico.
+
+**No corregido a propósito:** `ranking.js` tiene el mismo patrón para jugadores que no son
+"self" dentro de una entrada de Ranking (`buildRankingEntries`, `isMe ? selfRef : rawName`).
+Por instrucción explícita de esta ronda ("no tocar Ranking salvo lo estrictamente necesario
+para preservar sus mocks") **no se tocó** — Ranking ya tiene su propio mecanismo dedicado
+(`selfUserId`, del hotfix de V03.5.2) que cubre el caso de self, el único que hoy importa para
+la elegibilidad/posición propia. Queda documentado como limitación conocida (§12) para una
+futura ronda de Ranking, no de esta.
+
+**Test agregado:** batería nueva en `tests.html` (`V036-PUBLICO`, 5 aserciones) que fabrica un
+historial con filas YA estampadas por `userId` y confirma que `{name, userId}` recupera los 3
+partidos/2 ganados/mejor racha de 2 correctamente, y que consultar solo por nombre (el bug
+viejo) da 0 — pin de regresión explícito del bug exacto.
+
+### 11.2 Bug real — Nivel simulado en cuentas sin partidos
+
+**Caso reportado:** una cuenta recién creada mostraba correctamente en Home "CALIBRANDO 0/5".
+Pero su Perfil público, visto desde otra cuenta, mostraba "NIVEL BRAMU 6.8" — un número
+inventado.
+
+**Causa exacta:** `PH.computeSimulatedJugadorLevel` tiene un fallback determinístico por hash,
+pensado **exclusivamente** para jugadores mock/territoriales sin ninguna cuenta real detrás
+(Ranking, filas de "jugador conocido solo por historial") — documentado así desde V03.3.
+Perfil público lo aplicaba indiscriminadamente a CUALQUIER nombre sin partidos considerados,
+incluidas cuentas reales V03.0 en calibración, que la propia app ya sabe tratar distinto: Home
+y MI PERFIL nunca les muestran un número (`isLegacyLevelAccount()`, app.js — cuentas nuevas
+solo ven CALIBRANDO/CALIBRACIÓN COMPLETA, permanente, la fórmula real todavía no existe para
+ellas). Perfil público era la única superficie que no respetaba ese gate.
+
+**Corrección:** nueva función pura `PH.isCalibratingRealAccount(account)` en player-home.js
+(`!!account && !account.legacyMigrated`) — mismo criterio que `isLegacyLevelAccount()` ya
+usaba para self, ahora reutilizable para el jugador de OTRA cuenta. `renderPlayerPublicProfile`
+y `computePlayerRowLevel` (§11.1) la consultan antes de llamar a
+`computeSimulatedJugadorLevel`: si es una cuenta real en calibración, se muestra CALIBRANDO +
+progreso (nuevo sub-label `#player-public-level-sub`, mismo componente visual que ya usan Home/
+MI PERFIL) y "Mejor nivel BRAMU" pasa a "—"; si no (cuenta legacy con historial, o nombre sin
+cuenta real detrás), sigue exactamente el comportamiento de siempre. Ranking sigue intacto —
+sus jugadores mock territoriales no tienen cuenta real, así que `isCalibratingRealAccount`
+nunca se activa para ellos.
+
+**Test agregado:** batería `V036-NIVEL` (6 aserciones): `isCalibratingRealAccount` con cuenta
+real no-legacy (true), legacy (false) y sin cuenta (false); un jugador mock sin cuenta sigue
+recibiendo el hash determinístico (Ranking intacto); una cuenta legacy con historial real
+recibe su Nivel real, nunca el hash.
+
+### 11.3 Recuperar contraseña — CTA para cuentas inexistentes
+
+Debajo de "No encontramos una cuenta con ese email." ahora aparece, en el mismo bloque
+(`#forgot-password-no-account`, oculto/mostrado junto con el error): "¿Todavía no tenés cuenta
+en BRAMUlab?" + botón "CREAR CUENTA" (`.btn-secondary`, mismo estilo que en Bienvenida) que
+abre el wizard de alta completo (`openSignupWizard`). "ENVIAR CÓDIGO" sigue siendo la acción
+principal cuando el email sí existe — no se tocó ese camino. Sin recuperación real por email/
+backend nueva, tal como pidió la instrucción.
+
+### 11.4 Onboarding — ubicación en el alta + invitación a completar perfil
+
+- **Ubicación agregada al paso 3 del alta** ("¿De dónde sos? (opcional)"), reutilizando
+  EXACTAMENTE la misma hoja de búsqueda GeoRef que ya usaba Editar Datos
+  (`openProfileLocationSheet`, generalizada para aceptar un `config` `{get,set,onSelect}` en
+  vez de un target fijo — mismo patrón que `openProfilePickerSheet` ya usaba para género/mano/
+  lado/categoría). **Opcional a propósito**: nunca entra en `recomputeSignupStepValidity`,
+  mismo criterio que ya tiene este campo en Editar Datos (nunca bloqueó guardar ahí).
+- **Invitación post-alta condicional**: en "TU JUGADOR ESTÁ LISTO", si a la cuenta recién
+  creada le falta ubicación y/o WhatsApp (los dos únicos datos opcionales), aparece un texto
+  corto ("Cuando quieras, podés completar tu ubicación y tu WhatsApp desde Mi Perfil.") + botón
+  secundario "COMPLETAR PERFIL" que abre directo Mis Datos. Si el usuario ya cargó ubicación en
+  el alta, el texto se ajusta solo a lo que falta (verificado: con ubicación ya cargada, dice
+  únicamente "tu WhatsApp"). "ENTRAR A BRAMU" sigue siendo la acción principal, sin cambios —
+  nunca se bloqueó ni se hizo obligatorio cargar WhatsApp.
+
+### 11.5 Mis Datos — tarjetas completas tappables
+
+Las tarjetas "DATOS PERSONALES / DEPORTIVOS" y "CONTACTO" de Mis Datos pasan a ser tappables
+en toda su superficie (no solo un ícono lápiz nuevo en la esquina, que también se agregó, mismo
+componente `.profile-edit-icon-btn` que ya usaba la tarjeta de Identidad) — tocar cualquier
+dato (WhatsApp, ubicación, categoría, etc.) abre Editar Datos, la MISMA pantalla de siempre —
+nunca se creó un formulario nuevo. La tarjeta de Identidad se dejó como estaba (su avatar ya es
+un área tappable distinta y deliberada — cambiar solo la foto — así que volverla tappable por
+completo hubiera creado un conflicto de un solo toque disparando dos acciones a la vez).
+Verificado en mobile, tablet y desktop.
+
+### 11.6 Copy del mensaje de WhatsApp
+
+Mensaje reemplazado de "¿Te interesaría organizar un partido de pádel?" a **"¿Estás para armar
+un partido de pádel?"** — un solo `const` (`WHATSAPP_CONTACT_MESSAGE`, app.js). URL-encoding,
+un solo toque y ausencia de Nivel/localidad/nombre agregado, sin cambios.
+
+### 11.7 Tests y resultado final
+
+11 aserciones nuevas (`V036-PUBLICO` ×5, `V036-NIVEL` ×6) sobre la causa raíz de ambos bugs,
+pura lógica en player-home.js — sin tocar Ranking, Nivel, BRAMU Intelligence ni lógica de
+partidos (verificado por diff: cero líneas en `ranking.js`/`stats.js`/`engine.js`/
+`match-load.js`). Suite completa corrida una sola vez al final, como pidió la ronda (se toca
+identidad/historial/Perfil, módulos compartidos).
+
+**Resultado final: 988/988 tests OK** (977 antes de esta corrección + 11 nuevas).
+
+### 11.8 QA real ejecutado
+
+Con dos y tres cuentas reales en el mismo `localStorage` (local, luego repetido en producción
+reutilizando las cuentas de prueba `Prod Check`/`Prod Check Dos` ya existentes ahí):
+
+- **Caso A (historial real):** cuenta con 5 partidos reales estampados por `userId` (3
+  ganados/2 perdidos) — Home mostró Nivel 5.2/60%/5 jugados/3 ganados/mejor racha 2 victorias;
+  Perfil público visto desde una segunda cuenta mostró **exactamente los mismos 5 números**.
+  Antes del fix, Perfil público mostraba 0/0/"—". Repetido en producción con 3 partidos reales
+  sobre la cuenta `Prod Check`: mismos números en ambos lugares (3 jugados/2 ganados/67%/mejor
+  racha 2 victorias), Nivel correctamente en "CALIBRANDO 3/5" (no llegó a los 5 necesarios).
+- **Caso B (cuenta nueva):** Home mostró "CALIBRANDO 0/5"; Perfil público desde otra cuenta
+  mostró **lo mismo**, "Mejor nivel BRAMU: —", nunca un número inventado. Antes del fix
+  mostraba "NIVEL BRAMU 6.8". Confirmado también en producción real con la cuenta `Prod Check`
+  (mostraba "7.3" en la ronda anterior de este mismo reporte — ver capturas previas — y ahora
+  "CALIBRANDO 0/5 PARTIDOS").
+- **Regresión — jugadores mock territoriales:** en la misma búsqueda, nombres sin cuenta real
+  (rivales fabricados para la prueba) siguieron mostrando su Nivel simulado por hash de siempre
+  (ej. 5.2, 4.8) — Ranking/Buscar Jugadores no perdieron ningún mock.
+- **Caso C (WhatsApp):** activar consentimiento con teléfono válido → botón visible; mensaje
+  nuevo confirmado byte a byte (`decodeURIComponent` del deep link real); revocar → botón
+  desaparece de inmediato.
+- **Caso D (recuperación):** email inexistente → aparece el CTA, "CREAR CUENTA" abre el wizard
+  de alta correctamente.
+- **Caso E (edición):** tocar el cuerpo de la tarjeta CONTACTO (no el lápiz) en Mis Datos abrió
+  Editar Datos correctamente — mobile, tablet y desktop.
+- **Onboarding completo:** alta con ubicación cargada (Palermo, CABA, vía GeoRef en vivo) →
+  "TU JUGADOR ESTÁ LISTO" mostró la invitación ajustada solo a WhatsApp (ubicación ya no
+  figuraba como faltante) → "COMPLETAR PERFIL" abrió Mis Datos con la ubicación ya guardada.
+- Sin errores de consola nuevos, ni en local ni en producción. Todas las cuentas de prueba
+  (locales y de producción) quedaron limpiadas/restauradas a su estado previo al terminar.
+
+### 11.9 Deploy
+
+Cache-bust `-h1` (`CACHE_NAME`/`?v=03.6-h1` en los 11 assets propios) — `Store.VERSION`/
+`version.json` sin cambios, siguen en `"BRAMUlab V03.6"`. Verificado en producción real:
+`index.html` sirve `?v=03.6-h1`, `PLPlayerHome.isCalibratingRealAccount` existe y funciona en
+el bundle desplegado, ambos casos A y B reproducidos y confirmados correctos en
+`sebastianvilaa.github.io` (no solo local).
+
+### 11.10 Limitaciones conocidas de esta corrección
+
+- **Ranking no recibió el mismo fix** para jugadores reales que no son self dentro de una
+  entrada (`ranking.js`, `isMe ? selfRef : rawName`) — decisión explícita de esta ronda, no un
+  olvido. Si en el futuro dos cuentas reales que juegan entre sí aparecen ambas en el mismo
+  Ranking local, la que no es "yo" podría mostrar un Nivel por hash en vez del real. Documentado
+  para una futura ronda de Ranking, fuera de esta.
+- El resto de las limitaciones de la implementación inicial (§9) siguen vigentes sin cambios.
+
+### 11.11 Decisiones pendientes
+
+Ninguna. Los 6 puntos pedidos se implementaron sin ambigüedad relevante. El único punto
+explícitamente diferido (Ranking, §11.10) fue por instrucción directa de esta ronda, no una
+decisión abierta.
+
+**Próximo paso:** prueba visual/real de Sebastián sobre este release corregido; si queda bien,
+consolidar V03. No se avanza a Nivel BRAMU V04 sin esa validación — sigue sin abrirse V03.7.
