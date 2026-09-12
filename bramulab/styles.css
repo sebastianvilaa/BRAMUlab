@@ -2102,6 +2102,22 @@ input, select{ font-family: inherit; }
 .profile-performance-card--mini{ display:flex; flex-direction:column; justify-content:center; gap: 2px; flex:1; }
 .profile-performance-card--half{ flex:1; }
 
+/* BRAMUlab_V03.7 (parte B) — tarjeta RANKING BRAMU del Perfil público: puramente informativa
+   (nunca clickeable — sin cursor/hover de acción propios), ancho completo, reutiliza `.pastilla`/
+   `.pastilla__title-row` tal cual (mismos tokens de color/tipografía, sin sombras ni colores
+   nuevos). Solo el header pasa a space-between (mismo patrón que `.pastilla--link`) para poner
+   el período de la edición semanal a la derecha, secundario. */
+.profile-ranking-card .pastilla__title-row{ justify-content: space-between; margin-bottom: 10px; }
+.profile-ranking-card .pastilla__title{ white-space: nowrap; }
+.profile-ranking-card__period{ font-size: 11px; color: var(--paper-faint); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-ranking-card__cols{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.profile-ranking-card__col{ display:flex; flex-direction:column; gap: 2px; min-width: 0; }
+.profile-ranking-card__scope{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; }
+.profile-ranking-card__pos{ font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.profile-ranking-card__denom{ font-size: 11px; color: var(--paper-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+.profile-ranking-card__territory{ font-size: 11px; color: var(--paper-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-ranking-card__status{ font-size: 12px; color: var(--paper-dim); margin: 0; }
+
 /* BRAMUlab_V03.3 (§3) — AGREGAR JUGADOR: `.btn-start` lima, acción principal positiva.
    Microparche V03.3 (§5) — una vez agregado, deja de ser un botón grande neutro: pasa a
    `.analysis-delete-btn` (misma lógica que ELIMINAR PARTIDO — rojo, sin pastilla/fondo,

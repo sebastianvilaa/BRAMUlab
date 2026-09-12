@@ -4727,6 +4727,158 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.7 (parte A) — geografía del Ranking coherente por ámbito (Ranking_BRAMU.md §8):
+  // BUG REAL corregido esta ronda — antes `mockLocalityAt` ciclaba SIEMPRE sobre TODO
+  // locations.js sin importar el ámbito, así que Local mezclaba localidades vecinas y
+  // Provincial mezclaba CABA/Córdoba con Buenos Aires. `scopeLocalityPool` (ranking.js) arma un
+  // pool coherente por comparación jerárquica de campos estructurados (`region`/`country`
+  // exactos), nunca substring.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.history.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    const BELLA_VISTA = { locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina' };
+
+    try {
+      resetAffectedKeys();
+
+      const localPool = RK.scopeLocalityPool('local', BELLA_VISTA);
+      assert('V037-GEO · Local -> pool de UNA sola localidad, la exacta del usuario',
+        localPool.length === 1 && localPool[0].locality === 'Bella Vista' && localPool[0].region === 'Buenos Aires');
+
+      const provPool = RK.scopeLocalityPool('provincial', BELLA_VISTA);
+      assert('V037-GEO · Provincial -> nunca incluye CABA (region distinta, aunque comparta el texto "Buenos Aires")',
+        provPool.length > 0 && !provPool.some((l) => l.region === 'CABA'));
+      assert('V037-GEO · Provincial -> nunca incluye Córdoba', !provPool.some((l) => l.region === 'Córdoba'));
+      assert('V037-GEO · Provincial -> incluye varias localidades reales de Provincia de Buenos Aires',
+        provPool.some((l) => l.locality === 'San Isidro') && provPool.some((l) => l.locality === 'Mar del Plata'));
+
+      const paisPool = RK.scopeLocalityPool('pais', BELLA_VISTA);
+      assert('V037-GEO · País -> puede mezclar Buenos Aires + CABA + Córdoba (mismo país)',
+        paisPool.some((l) => l.region === 'Buenos Aires') && paisPool.some((l) => l.region === 'CABA') && paisPool.some((l) => l.region === 'Córdoba'));
+
+      // ---- buildRankingEntries end-to-end con el pool de cada ámbito ----
+      // Self ("Nadie V037") nunca recibe localidad mock (solo la real de una cuenta, si
+      // existiera) — la aserción es sobre el universo territorial mock, no sobre self.
+      const localEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames('local').slice(0, 15), [], 'Nadie V037', localPool, 'masculino').filter((e) => !e.isMe);
+      assert('V037-GEO · Local -> TODOS los jugadores resultantes pertenecen a Bella Vista, Buenos Aires',
+        localEntries.length > 0 && localEntries.every((e) => e.locality === 'Bella Vista, Buenos Aires'));
+
+      const provEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames('provincial').slice(0, 40), [], 'Nadie V037', provPool, 'masculino');
+      assert('V037-GEO · Provincial -> ninguna fila resultante es de CABA ni de Córdoba',
+        !provEntries.some((e) => (e.locality || '').includes('CABA') || (e.locality || '').includes('Córdoba')));
+
+      const paisEntries = RK.buildRankingEntries(RK.buildScopeUniverseNames('pais').slice(0, 60), [], 'Nadie V037', paisPool, 'masculino');
+      assert('V037-GEO · País -> mezcla real de provincias (CABA y Buenos Aires conviven en las filas resultantes)',
+        paisEntries.some((e) => (e.locality || '').includes('CABA')) && paisEntries.some((e) => (e.locality || '').includes('Buenos Aires')));
+
+      // ---- Mi red: comportamiento anterior intacto (assignMockLocality:false nunca asigna localidad) ----
+      const redEntries = RK.buildRankingEntries(['Alguien V037'], [], 'Nadie V037', false, 'masculino');
+      assert('V037-GEO · Mi red (assignMockLocality:false) sigue sin asignar localidad mock',
+        redEntries.find((e) => e.name === 'Alguien V037').locality === null);
+
+      // ---- self con cuenta real: su ubicación REAL nunca se pisa con la mock del ámbito que mira ----
+      resetAffectedKeys();
+      Store.createUserAccount({ displayName: 'Self Geo V037', firstName: 'Self', locality: 'Rosario', region: 'Santa Fe', country: 'Argentina', gender: 'masculino' });
+      const selfEntry = RK.buildRankingEntries(['Alguien Mas V037'], [], 'Self Geo V037', RK.scopeLocalityPool('local', BELLA_VISTA), 'masculino').find((e) => e.isMe);
+      assert('V037-GEO · self (cuenta real) conserva su ubicación REAL, nunca la mock de Local aunque esté mirando Bella Vista',
+        !!selfEntry && selfEntry.locality === 'Rosario, Santa Fe');
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.7 (parte B) — RANKING BRAMU en Perfil público: RK.computeProfileRankingSummary
+  // reutiliza EXACTAMENTE la misma fuente/snapshot semanal que la pantalla Ranking (nunca una
+  // segunda lógica), calcula las 3 posiciones respecto de la ubicación DEL JUGADOR DEL PERFIL
+  // (la función ni siquiera recibe un "viewer" — la garantía es estructural), y nunca inventa
+  // puestos para calibrando/sin género declarado.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.history.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    // 5 partidos computables, todos claramente ANTES de esta semana calendario (>=10 días), con
+    // 3 rivales distintos acumulados (regla cerrada de calibración, Ranking_BRAMU.md Caso 4).
+    function seedCalibratedHistory(name) {
+      const rivalPairs = [['A', 'B'], ['A', 'B'], ['C', 'B'], ['D', 'B'], ['D', 'B']];
+      for (let i = 0; i < 5; i++) {
+        const playedAt = new Date(Date.now() - (30 - i * 5) * 86400000).toISOString();
+        Store.upsertHistory(mkGroupMatch(`v037-${name}-${i}`, playedAt,
+          [name, `Compa ${name}`, `Rival ${rivalPairs[i][0]} ${name}`, `Rival ${rivalPairs[i][1]} ${name}`],
+          [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      }
+    }
+
+    try {
+      resetAffectedKeys();
+      const now = new Date();
+
+      // ---- jugador elegible: Local + Provincia + País, con la ubicación DEL PERFIL ----
+      const subject = Store.createUserAccount({
+        displayName: 'Sujeto Rosario V037', firstName: 'Sujeto', gender: 'masculino',
+        locality: 'Rosario', region: 'Santa Fe', country: 'Argentina',
+      });
+      seedCalibratedHistory('Sujeto Rosario V037');
+      const history = Store.loadHistory();
+      const summary = RK.computeProfileRankingSummary(subject, history, now);
+      assert('V037-PERFIL · jugador elegible -> status elegible y scopes completos', summary.status.key === 'elegible' && !!summary.scopes);
+      assert('V037-PERFIL · Local/Provincia/País traen posición+total+territorio propios', ['local', 'provincial', 'pais'].every((k) => {
+        const s = summary.scopes[k];
+        return s && typeof s.position === 'number' && typeof s.total === 'number' && !!s.territory;
+      }), JSON.stringify(summary.scopes));
+      assert('V037-PERFIL · el territorio de cada columna es el DEL JUGADOR DEL PERFIL (Rosario/Santa Fe/Argentina)',
+        summary.scopes.local.territory === 'Rosario' && summary.scopes.provincial.territory === 'Santa Fe' && summary.scopes.pais.territory === 'Argentina');
+
+      // ---- período mostrado = la edición semanal VIGENTE (misma que usa la pantalla Ranking) ----
+      const expectedPeriodLabel = RK.formatRankingWeekRangeLabel(RK.computePreviousRankingWeekPeriod(now));
+      assert('V037-PERFIL · período mostrado coincide con la edición semanal vigente de la pantalla Ranking',
+        summary.periodLabel === expectedPeriodLabel);
+
+      // ---- reutiliza la MISMA fuente que Ranking: recalcular a mano por el mismo camino da el mismo total ----
+      const period = RK.computeRankingWeekPeriod(now);
+      const snapshotHistory = RK.historySnapshotAsOf(history, period.start);
+      const localPoolManual = RK.scopeLocalityPool('local', subject);
+      const localEntriesManual = RK.filterByGender(
+        RK.buildRankingEntries(RK.buildScopeUniverseNames('local'), snapshotHistory, subject.displayName, localPoolManual, 'masculino', undefined, subject.id),
+        'masculino');
+      assert('V037-PERFIL · el total de Local coincide con recalcularlo a mano por el mismo camino (sin lógica paralela)',
+        RK.rankEntries(localEntriesManual).length === summary.scopes.local.total);
+
+      // ---- jugador calibrando: NO recibe posiciones inventadas ----
+      resetAffectedKeys();
+      const calibrando = Store.createUserAccount({
+        displayName: 'Calibrando V037', firstName: 'Calibrando', gender: 'femenino',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      Store.upsertHistory(mkGroupMatch('v037-calib-0', new Date(Date.now() - 20 * 86400000).toISOString(),
+        ['Calibrando V037', 'Compa Calib V037', 'Rival Calib A V037', 'Rival Calib B V037'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      const calibSummary = RK.computeProfileRankingSummary(calibrando, Store.loadHistory(), now);
+      assert('V037-PERFIL · jugador calibrando -> status calibrando, sin scopes', calibSummary.status.key === 'calibrando' && calibSummary.scopes === null);
+
+      // ---- sin género declarado: aunque el resto sea elegible, nunca entra en ninguna clasificación ----
+      resetAffectedKeys();
+      const sinGenero = Store.createUserAccount({
+        displayName: 'Sin Genero V037', firstName: 'Sin Genero',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      seedCalibratedHistory('Sin Genero V037');
+      const sinGeneroSummary = RK.computeProfileRankingSummary(sinGenero, Store.loadHistory(), now);
+      assert('V037-PERFIL · elegible pero sin género declarado -> nunca puestos inventados (scopes null)',
+        sinGeneroSummary.scopes === null);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

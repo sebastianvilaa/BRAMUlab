@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.6-h3" />
+<link rel="stylesheet" href="styles.css?v=03.7" />
 </head>
 <body>
 
@@ -1985,6 +1985,39 @@
         </div>
       </div>
 
+      <!-- BRAMUlab_V03.7 (parte B) — tarjeta RANKING BRAMU: puramente informativa, NUNCA
+           clickeable (sin chevrons/hover de acción/navegación). Posiciones del jugador de ESTE
+           perfil (nunca de quien mira) en la edición semanal vigente — misma fuente/snapshot
+           que la pantalla Ranking (ver renderPlayerPublicRankingCard/RK.computeProfileRankingSummary
+           en app.js/ranking.js). Oculta por completo sin cuenta real detrás del nombre. -->
+      <div class="pastilla profile-ranking-card" id="player-public-ranking-card" hidden>
+        <div class="pastilla__title-row">
+          <div class="pastilla__title">RANKING BRAMU</div>
+          <span class="profile-ranking-card__period" id="player-public-ranking-period"></span>
+        </div>
+        <div class="profile-ranking-card__cols" id="player-public-ranking-cols">
+          <div class="profile-ranking-card__col">
+            <span class="profile-ranking-card__scope">LOCAL</span>
+            <span class="profile-ranking-card__pos" id="player-public-ranking-local-pos">—</span>
+            <span class="profile-ranking-card__denom" id="player-public-ranking-local-denom"></span>
+            <span class="profile-ranking-card__territory" id="player-public-ranking-local-territory"></span>
+          </div>
+          <div class="profile-ranking-card__col">
+            <span class="profile-ranking-card__scope">PROVINCIA</span>
+            <span class="profile-ranking-card__pos" id="player-public-ranking-provincial-pos">—</span>
+            <span class="profile-ranking-card__denom" id="player-public-ranking-provincial-denom"></span>
+            <span class="profile-ranking-card__territory" id="player-public-ranking-provincial-territory"></span>
+          </div>
+          <div class="profile-ranking-card__col">
+            <span class="profile-ranking-card__scope">PAÍS</span>
+            <span class="profile-ranking-card__pos" id="player-public-ranking-pais-pos">—</span>
+            <span class="profile-ranking-card__denom" id="player-public-ranking-pais-denom"></span>
+            <span class="profile-ranking-card__territory" id="player-public-ranking-pais-territory"></span>
+          </div>
+        </div>
+        <p class="profile-ranking-card__status" id="player-public-ranking-status" hidden></p>
+      </div>
+
       <!-- BRAMUlab_V03.6 (§5) — "Contactar por WhatsApp": solo visible con teléfono válido +
            consentimiento explícito (PLIdentity.canContactViaWhatsApp, ver
            renderPlayerPublicProfile en app.js) — nunca un placeholder ni mensaje de "no acepta
@@ -2831,15 +2864,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.6-h3"></script>
-  <script src="stats.js?v=03.6-h3"></script>
-  <script src="store.js?v=03.6-h3"></script>
-  <script src="player-home.js?v=03.6-h3"></script>
-  <script src="match-load.js?v=03.6-h3"></script>
-  <script src="player-identity.js?v=03.6-h3"></script>
-  <script src="groups.js?v=03.6-h3"></script>
-  <script src="locations.js?v=03.6-h3"></script>
-  <script src="ranking.js?v=03.6-h3"></script>
-  <script src="app.js?v=03.6-h3"></script>
+  <script src="engine.js?v=03.7"></script>
+  <script src="stats.js?v=03.7"></script>
+  <script src="store.js?v=03.7"></script>
+  <script src="player-home.js?v=03.7"></script>
+  <script src="match-load.js?v=03.7"></script>
+  <script src="player-identity.js?v=03.7"></script>
+  <script src="groups.js?v=03.7"></script>
+  <script src="locations.js?v=03.7"></script>
+  <script src="ranking.js?v=03.7"></script>
+  <script src="app.js?v=03.7"></script>
 </body>
 </html>

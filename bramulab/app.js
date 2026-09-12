@@ -7608,7 +7608,13 @@
 
     if (isTerritorial) {
       const names = RK.buildScopeUniverseNames(scope);
-      let allEntries = RK.buildRankingEntries(names, currentSnapshotHistory, currentPlayerName, true, selfGender, undefined, currentUserId);
+      // BRAMUlab_V03.7 (§8) — pool de localidades mock coherente con el ámbito mostrado (nunca
+      // más "true" ciclando TODO locations.js sin importar Local/Provincial/País): Local =
+      // únicamente la localidad exacta de `user`, Provincial = misma región/provincia (CABA y
+      // Buenos Aires quedan siempre separadas), País = mismo país. Ver scopeLocalityPool en
+      // ranking.js — corrige el bug real de geografía mezclada reportado en producción.
+      const localityPool = RK.scopeLocalityPool(scope, user);
+      let allEntries = RK.buildRankingEntries(names, currentSnapshotHistory, currentPlayerName, localityPool, selfGender, undefined, currentUserId);
       // Bloque 3 — solo CALIBRADO/RECALIBRANDO (acá: 'elegible') ocupa puesto (§6.2 regla 5).
       // Los mock territoriales son siempre elegibles por construcción; self se saca si no lo es.
       if (selfStatus.key !== 'elegible') allEntries = allEntries.filter((e) => !e.isMe);
@@ -7622,7 +7628,7 @@
 
       // Edición anterior — mismo universo de nombres, Nivel leído al corte de la semana previa
       // (§5.1: "mismo universo/filtro cuando sea posible").
-      let previousAllEntries = RK.buildRankingEntries(names, previousSnapshotHistory, currentPlayerName, true, selfGender, undefined, currentUserId);
+      let previousAllEntries = RK.buildRankingEntries(names, previousSnapshotHistory, currentPlayerName, localityPool, selfGender, undefined, currentUserId);
       if (selfStatus.key !== 'elegible') previousAllEntries = previousAllEntries.filter((e) => !e.isMe);
       let previousUniverse = RK.filterByGender(previousAllEntries, rankingGenderFilter);
       if (rankingBandFilter != null) previousUniverse = RK.bandFilter(previousUniverse, rankingBandFilter);
@@ -9125,6 +9131,59 @@
     const canContact = PLI.canContactViaWhatsApp(account);
     $('#player-public-whatsapp-btn').hidden = !canContact;
     playerPublicWhatsappPhone = canContact ? account.phone : null;
+
+    renderPlayerPublicRankingCard(account, history);
+  }
+
+  /** BRAMUlab_V03.7 (parte B) — separador de miles simple ("1.380"), convención argentina; el
+   *  universo mock de este prototipo nunca llega a necesitarlo en la práctica (máximo unos
+   *  cientos por ámbito) pero la tarjeta debe quedar lista para denominadores grandes. */
+  function formatRankingDenominator(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  function renderProfileRankingScopeCol(prefix, scopeResult) {
+    const pos = $(`#player-public-ranking-${prefix}-pos`);
+    const denom = $(`#player-public-ranking-${prefix}-denom`);
+    const territory = $(`#player-public-ranking-${prefix}-territory`);
+    if (!scopeResult) { pos.textContent = '—'; denom.textContent = ''; territory.textContent = ''; return; }
+    pos.textContent = `#${scopeResult.position}`;
+    denom.textContent = `de ${formatRankingDenominator(scopeResult.total)}`;
+    territory.textContent = scopeResult.territory || '';
+  }
+
+  /** BRAMUlab_V03.7 (parte B) — tarjeta RANKING BRAMU del Perfil público: puramente informativa
+   *  (nunca clickeable, sin chevrons/hover de acción/navegación — a propósito, ver pedido de la
+   *  ronda). Reutiliza EXACTAMENTE la misma fuente/snapshot semanal que la pantalla Ranking vía
+   *  RK.computeProfileRankingSummary (ranking.js) — nunca una segunda lógica de Ranking, nunca
+   *  Nivel actual en vivo. Las 3 posiciones se calculan respecto de la ubicación DE `account`
+   *  (el jugador de este Perfil), nunca de quien está mirando.
+   *
+   *  Sin cuenta real detrás del nombre (jugador mock/territorial de Buscar Jugadores/Ranking sin
+   *  identidad registrada), la tarjeta se oculta por completo — nunca se inventa un Ranking
+   *  oficial para una identidad no resuelta (preferencia explícita del pedido). Con cuenta real
+   *  pero sin elegibilidad completa (calibrando, inactivo, sin ubicación, sin género declarado),
+   *  se muestra un estado simple en vez de puestos inventados. */
+  function renderPlayerPublicRankingCard(account, history) {
+    const card = $('#player-public-ranking-card');
+    if (!account) { card.hidden = true; return; }
+    card.hidden = false;
+    const summary = RK.computeProfileRankingSummary(account, history, new Date());
+    const eligible = summary.status.key === 'elegible' && !!summary.scopes;
+    // §"DISEÑO DE LA TARJETA" — solo el rango de fechas a la derecha (sin el prefijo "Ranking
+    // semanal ·" que sí usa la pantalla Ranking): más corto, entra junto al título en una sola
+    // línea a 375px sin forzar el wrap de "RANKING BRAMU".
+    $('#player-public-ranking-period').textContent = eligible ? summary.periodLabel : '';
+    $('#player-public-ranking-cols').hidden = !eligible;
+    const statusEl = $('#player-public-ranking-status');
+    statusEl.hidden = eligible;
+    if (!eligible) {
+      statusEl.textContent = summary.status.key === 'calibrando' ? 'Completando calibración' : 'Todavía sin posición oficial';
+      return;
+    }
+    renderProfileRankingScopeCol('local', summary.scopes.local);
+    renderProfileRankingScopeCol('provincial', summary.scopes.provincial);
+    renderProfileRankingScopeCol('pais', summary.scopes.pais);
   }
 
   /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`

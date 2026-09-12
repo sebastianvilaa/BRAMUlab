@@ -38,7 +38,11 @@
 // reales no-self (ranking.js), "Mis jugadores" mostraba un @usuario fabricado en vez del real
 // (app.js), y estructura de fila de Ranking normalizada a 3 renglones (app.js/styles.css).
 // Mismo motivo de bump de siempre, ninguno nuevo.
-const CACHE_NAME = 'bramulab-v03-6-h3';
+// BRAMUlab_V03.7 — versión nueva (no un hotfix de V03.6): corrección de geografía del Ranking
+// (Local/Provincial/País dejan de mezclar localidades/provincias sin relación, ranking.js) +
+// nueva tarjeta RANKING BRAMU en Perfil público (app.js/index.html/styles.css). Sufijo `-h`
+// reiniciado (sin sufijo) porque es una versión nueva, no una ronda de ajuste sobre V03.6.
+const CACHE_NAME = 'bramulab-v03-7';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -49,17 +53,17 @@ const CACHE_NAME = 'bramulab-v03-6-h3';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.6-h3',
-  './engine.js?v=03.6-h3',
-  './stats.js?v=03.6-h3',
-  './store.js?v=03.6-h3',
-  './player-home.js?v=03.6-h3',
-  './match-load.js?v=03.6-h3',
-  './player-identity.js?v=03.6-h3',
-  './groups.js?v=03.6-h3',
-  './locations.js?v=03.6-h3',
-  './ranking.js?v=03.6-h3',
-  './app.js?v=03.6-h3',
+  './styles.css?v=03.7',
+  './engine.js?v=03.7',
+  './stats.js?v=03.7',
+  './store.js?v=03.7',
+  './player-home.js?v=03.7',
+  './match-load.js?v=03.7',
+  './player-identity.js?v=03.7',
+  './groups.js?v=03.7',
+  './locations.js?v=03.7',
+  './ranking.js?v=03.7',
+  './app.js?v=03.7',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -209,12 +209,63 @@
 
   /** Localidad mock determinística para la segunda línea de una fila en Provincial/País/
    *  Global (§13.1 de Ranking_BRAMU.md) — reutiliza el dataset REAL de locations.js (no
-   *  inventa ciudades nuevas), simplemente la cicla por índice. Local no la necesita (todas
-   *  las filas comparten la misma localidad, sería redundante repetirla). */
-  function mockLocalityAt(index) {
-    if (!PLLoc || !PLLoc.LOCATIONS || !PLLoc.LOCATIONS.length) return '';
-    const loc = PLLoc.LOCATIONS[index % PLLoc.LOCATIONS.length];
-    return PLLoc.formatLocationLabel(loc);
+   *  inventa ciudades nuevas), simplemente la cicla por índice dentro de `pool` (ver
+   *  scopeLocalityPool, BRAMUlab_V03.7). Local no la necesita (todas las filas comparten la
+   *  misma localidad, sería redundante repetirla). */
+  function mockLocalityAt(pool, index) {
+    if (!pool || !pool.length) return '';
+    return PLLoc.formatLocationLabel(pool[index % pool.length]);
+  }
+
+  /** BRAMUlab_V03.7 — BUG REAL DE PRODUCCIÓN corregido acá: antes `mockLocalityAt` ciclaba
+   *  SIEMPRE sobre `PLLoc.LOCATIONS` completo (~180 localidades de TODO el país) sin importar
+   *  el ámbito que se estaba mostrando — un usuario de Bella Vista veía en `Local` una mezcla
+   *  de Villa Urquiza/Villa Devoto/Bella Vista, y en `Provincial` aparecían filas de CABA y
+   *  hasta de Córdoba. Ranking_BRAMU.md §8 exige jerarquía estricta país/provincia/localidad,
+   *  nunca agrupamiento por substring ni universos que contradigan el ámbito mostrado.
+   *
+   *  Esta función arma el POOL de localidades del que `mockLocalityAt` puede samplear, coherente
+   *  con el ámbito:
+   *  - `local`: únicamente la localidad exacta de `userLoc` (todas las filas comparten
+   *    localidad/provincia/país — nunca se "agrupan" localidades vecinas, §8.1).
+   *  - `provincial`: todas las localidades de locations.js que comparten `region` Y `country`
+   *    con `userLoc`. El dataset ya distingue "CABA" de "Buenos Aires" como valores de `region`
+   *    DISTINTOS (nunca se tratan como equivalentes por contener el texto "Buenos Aires"), así
+   *    que un usuario de Provincia de Buenos Aires nunca recibe una fila de CABA acá.
+   *  - `pais`: todas las localidades que comparten `country` con `userLoc` (en este dataset,
+   *    100% Argentina — por eso Provincia de Buenos Aires + CABA + Córdoba conviven en País,
+   *    tal como pide §8.3).
+   *  - `global` (o sin `userLoc.country`, ej. cuenta sin ubicación cargada todavía): el dataset
+   *    completo, comportamiento previo sin cambios — nunca se rompe el ámbito por falta de dato.
+   *
+   *  Comparación siempre por CAMPO ESTRUCTURADO (`region`/`country` exactos), nunca por
+   *  substring ni coincidencia parcial de texto. */
+  function scopeLocalityPool(scopeKey, userLoc) {
+    const all = (PLLoc && PLLoc.LOCATIONS) || [];
+    if (!userLoc || !userLoc.country) return all;
+    if (scopeKey === 'local') {
+      return userLoc.locality ? [{ locality: userLoc.locality, region: userLoc.region, country: userLoc.country }] : all;
+    }
+    if (scopeKey === 'provincial') {
+      if (!userLoc.region) return all;
+      const pool = all.filter((l) => l.country === userLoc.country && l.region === userLoc.region);
+      return pool.length ? pool : all;
+    }
+    if (scopeKey === 'pais') {
+      const pool = all.filter((l) => l.country === userLoc.country);
+      return pool.length ? pool : all;
+    }
+    return all;
+  }
+
+  /** `assignMockLocality` acepta: `false`/`undefined` (nunca asignar localidad mock — Mi red),
+   *  `true` (legacy: samplear de TODO `PLLoc.LOCATIONS`, comportamiento previo a V03.7, usado
+   *  todavía por tests que no necesitan un ámbito específico), o un ARRAY ya filtrado por
+   *  `scopeLocalityPool` (el pool coherente con el ámbito real que se está mostrando). */
+  function resolveMockLocalityPool(assignMockLocality) {
+    if (Array.isArray(assignMockLocality)) return assignMockLocality;
+    if (assignMockLocality) return (PLLoc && PLLoc.LOCATIONS) || [];
+    return null;
   }
 
   /* ------------------------------------------------------------------ */
@@ -256,6 +307,7 @@
   function buildRankingEntries(names, history, selfName, assignMockLocality, selfGender, localityIndexOffset, selfUserId) {
     const selfNorm = Store.normalizePlayerName(selfName);
     const selfRef = selfUserId ? { name: selfName, userId: selfUserId } : selfName;
+    const localityPool = resolveMockLocalityPool(assignMockLocality);
     const seen = new Set();
     const entries = [];
     let localityCursor = localityIndexOffset || 0;
@@ -277,9 +329,10 @@
         level,
         isMe,
         // Real primero (self o cualquier cuenta real que la haya declarado); el mock territorial
-        // queda exclusivamente para nombres SIN cuenta real resoluble, tal como ya era.
-        locality: realLocality || ((assignMockLocality && !isMe && !account) ? mockLocalityAt(localityCursor++) : null),
-        gender: isMe ? selfGender : (assignMockLocality ? mockGenderForName(rawName) : resolveAccountGender(rawName)),
+        // queda exclusivamente para nombres SIN cuenta real resoluble, tal como ya era. El pool
+        // (BRAMUlab_V03.7) ya viene coherente con el ámbito — ver scopeLocalityPool.
+        locality: realLocality || ((localityPool && !isMe && !account) ? mockLocalityAt(localityPool, localityCursor++) : null),
+        gender: isMe ? selfGender : (localityPool ? mockGenderForName(rawName) : resolveAccountGender(rawName)),
       });
     });
     if (selfNorm && !seen.has(selfNorm)) {
@@ -612,6 +665,64 @@
    *  desbloqueo que el documento prohíbe expresamente mientras esa condición no se cumpla. */
   const GLOBAL_UNLOCKED = false;
 
+  /* ======================================================================
+     BRAMUlab_V03.7 (parte B) — RANKING BRAMU EN PERFIL PÚBLICO
+     Fuente funcional: Ranking_BRAMU.md (§8 ámbitos, §4 snapshot semanal). Reutiliza EXACTAMENTE
+     la misma fuente/snapshot que la pantalla Ranking (buildScopeUniverseNames/
+     scopeLocalityPool/buildRankingEntries/filterByGender/rankEntries/computeTerritorialDensity)
+     — nunca una segunda lógica de Ranking. Las posiciones se calculan SIEMPRE respecto de la
+     ubicación/género DEL JUGADOR DEL PERFIL, nunca de quien lo está mirando (§ pedido explícito
+     de esta ronda).
+     ====================================================================== */
+
+  /** Posición de UN jugador real (`subjectName`/`subjectRef`) en un ámbito territorial, dentro
+   *  del mismo universo mock + reglas que ya usa la pantalla Ranking. `null` si el ámbito no
+   *  alcanza densidad suficiente (§11, 0-4 elegibles) o si el jugador no tiene género declarado
+   *  (sin género resoluble no entra en ninguna clasificación segmentada, §11 — nunca se lo
+   *  asigna a un balde por defecto). */
+  function computeScopePosition(scopeKey, snapshotHistory, subjectRef, subjectName, subjectLoc, subjectGender) {
+    if (!subjectGender) return null;
+    const names = buildScopeUniverseNames(scopeKey);
+    const pool = scopeLocalityPool(scopeKey, subjectLoc);
+    const selfUserId = (subjectRef && typeof subjectRef === 'object') ? subjectRef.userId : undefined;
+    const entries = buildRankingEntries(names, snapshotHistory, subjectName, pool, subjectGender, undefined, selfUserId);
+    const universe = filterByGender(entries, subjectGender);
+    const density = computeTerritorialDensity(universe.length);
+    if (density.level === 'insufficient') return null;
+    const ranked = rankEntries(universe);
+    const norm = Store.normalizePlayerName(subjectName);
+    const mine = ranked.find((e) => e.id === norm);
+    if (!mine) return null;
+    const territory = scopeKey === 'pais' ? subjectLoc.country : (scopeKey === 'provincial' ? subjectLoc.region : subjectLoc.locality);
+    return { position: mine.position, total: ranked.length, territory: territory || '' };
+  }
+
+  /** Resumen de Ranking BRAMU para la tarjeta del Perfil público de `account` (cuenta real
+   *  completa — self o cualquier otro jugador con cuenta, ver renderPlayerPublicRankingCard en
+   *  app.js). Usa el mismo corte semanal que la pantalla Ranking (edición VIGENTE =
+   *  `previousPeriod`, ver computeRankingView/periodLabel en app.js — nunca recalcula Nivel
+   *  actual en vivo). Sin elegibilidad completa (calibrando, inactivo, sin ubicación, opt-out,
+   *  perfil privado, sin género declarado) devuelve `scopes: null` — nunca puestos inventados. */
+  function computeProfileRankingSummary(account, history, nowDate) {
+    const now = nowDate || new Date();
+    const period = computeRankingWeekPeriod(now);
+    const previousPeriod = computePreviousRankingWeekPeriod(now);
+    const periodLabel = formatRankingWeekRangeLabel(previousPeriod);
+    const snapshotHistory = historySnapshotAsOf(history, period.start);
+    const status = computeSelfStatus(account, snapshotHistory, true, period.start);
+    const subjectGender = (account && (account.gender === 'masculino' || account.gender === 'femenino')) ? account.gender : null;
+    if (status.key !== 'elegible' || !subjectGender) {
+      return { periodLabel, status: status.key === 'elegible' ? { key: 'sin-genero' } : status, scopes: null };
+    }
+    const subjectRef = { name: account.displayName, userId: account.id };
+    const scopes = {
+      local: computeScopePosition('local', snapshotHistory, subjectRef, account.displayName, account, subjectGender),
+      provincial: computeScopePosition('provincial', snapshotHistory, subjectRef, account.displayName, account, subjectGender),
+      pais: computeScopePosition('pais', snapshotHistory, subjectRef, account.displayName, account, subjectGender),
+    };
+    return { periodLabel, status, scopes };
+  }
+
   global.PLRanking = {
     BLOCK_SIZE,
     RANKING_TIMEZONE,
@@ -621,6 +732,7 @@
     historySnapshotAsOf,
     MOCK_SCOPE_CONFIG,
     buildScopeUniverseNames,
+    scopeLocalityPool,
     mockGenderForName,
     buildRankingEntries,
     filterByGender,
@@ -640,5 +752,6 @@
     computeTerritorialDensity,
     computeNetworkDensity,
     GLOBAL_UNLOCKED,
+    computeProfileRankingSummary,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
