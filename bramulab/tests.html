@@ -4519,6 +4519,90 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 (corrección post-QA real, prioridad 1) — BUG REAL: Perfil público consultaba
+  // historial pasando el nombre plano (string), nunca `{name, userId}`. Por la regla de
+  // integridad de userId (V03.0 — findPlayerRow), una fila YA estampada con userId solo se
+  // encuentra buscando por ESE MISMO userId, nunca por nombre — así que cualquier cuenta con
+  // partidos reales (todos estampados) aparecía con 0 partidos/0 ganados/racha vacía en su
+  // propio Perfil público, aunque Home mostrara su historial completo (Home ya usaba
+  // currentIdentity(), nunca el bug). Esta batería fija el contrato correcto en las mismas
+  // funciones puras que ahora usa renderPlayerPublicProfile (PH.filterMatchesForPlayer/
+  // computeEffectivenessTotal/computeBestWinStreakRange), y documenta exactamente por qué la
+  // versión vieja (nombre plano solo) daba resultados vacíos — tests.html no carga app.js (ver
+  // límite documentado en rondas anteriores), así que la reproducción es a nivel de
+  // player-home.js, la misma capa donde vivía la causa real. (pura)
+  // ------------------------------------------------------------------
+  (function () {
+    function makeStampedMatch(matchId, winnerTeam, playedAt) {
+      return {
+        matchId, winnerTeam, playedAt, finishedAt: playedAt,
+        players: [
+          { id: 0, team: 'A', name: 'Cuenta Real', userId: 'u_real' }, { id: 1, team: 'A', name: 'Compa Real' },
+          { id: 2, team: 'B', name: 'Rival Uno' }, { id: 3, team: 'B', name: 'Rival Dos' },
+        ],
+      };
+    }
+    const history = [
+      makeStampedMatch('pub-1', 'A', '2026-01-01T00:00:00.000Z'),
+      makeStampedMatch('pub-2', 'A', '2026-01-08T00:00:00.000Z'),
+      makeStampedMatch('pub-3', 'B', '2026-01-15T00:00:00.000Z'),
+    ];
+    const identity = { name: 'Cuenta Real', userId: 'u_real' };
+
+    const matchesByIdentity = PH.filterMatchesForPlayer(history, identity);
+    assert('V036-PUBLICO · con {name,userId} encuentra los 3 partidos reales (antes del fix: 0)', matchesByIdentity.length === 3);
+    const effByIdentity = PH.computeEffectivenessTotal(matchesByIdentity, identity);
+    assert('V036-PUBLICO · con {name,userId} cuenta 2 ganados / 1 perdido correctamente', effByIdentity.wins === 2 && effByIdentity.losses === 1);
+    const streakByIdentity = PH.computeBestWinStreakRange(matchesByIdentity, identity);
+    assert('V036-PUBLICO · con {name,userId} calcula la mejor racha real (2 seguidas)', !!streakByIdentity && streakByIdentity.count === 2);
+    const evolutionByIdentity = PH.computeLevelEvolution(history, identity);
+    assert('V036-PUBLICO · con {name,userId} la evolución de Nivel considera los 3 partidos', evolutionByIdentity.consideredCount === 3);
+
+    // Documenta el bug exacto: consultar SOLO por nombre (sin userId) contra un historial donde
+    // esas filas YA tienen userId estampado nunca las encuentra — exactamente lo que hacía la
+    // versión rota de renderPlayerPublicProfile antes de esta corrección.
+    const matchesByNameOnly = PH.filterMatchesForPlayer(history, 'Cuenta Real');
+    assert('V036-PUBLICO · consultar SOLO por nombre (bug viejo) da 0 partidos cuando las filas ya tienen userId', matchesByNameOnly.length === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 (corrección post-QA real, prioridad 2) — BUG REAL: una cuenta real (V03.0,
+  // no legacy) sin partidos considerados todavía recibía en Perfil público un Nivel simulado
+  // por hash (pensado EXCLUSIVAMENTE para jugadores mock/territoriales sin cuenta real detrás)
+  // como si fuera un dato real ("NIVEL BRAMU 6.8" para una cuenta 0/5). `PH.isCalibratingRealAccount`
+  // es el gate nuevo, extraído como función pura y testeable, que ahora usa
+  // renderPlayerPublicProfile (mismo criterio que ya usaba Home/MI PERFIL para self, vía su
+  // propio isLegacyLevelAccount() interno, sin tocarlo). (pura)
+  // ------------------------------------------------------------------
+  (function () {
+    assert('V036-NIVEL · cuenta real no-legacy sin partidos → calibrando (nunca Nivel numérico)', PH.isCalibratingRealAccount({ legacyMigrated: false }) === true);
+    assert('V036-NIVEL · cuenta legacy migrada → NO calibrando (sigue viendo el número real, sin cambios)', PH.isCalibratingRealAccount({ legacyMigrated: true }) === false);
+    assert('V036-NIVEL · sin cuenta real detrás del nombre (mock/territorial) → NO calibrando (el hash sigue disponible)', PH.isCalibratingRealAccount(null) === false && PH.isCalibratingRealAccount(undefined) === false);
+
+    // Jugador mock/territorial (Ranking/Buscar Jugadores) sin ninguna cuenta real: sigue viendo
+    // el mismo Nivel simulado por hash de siempre — nunca se rompe por esta corrección.
+    const mockLevel1 = PH.computeSimulatedJugadorLevel([], 'Jugador Territorial Mock V036');
+    const mockLevel2 = PH.computeSimulatedJugadorLevel([], 'Jugador Territorial Mock V036');
+    assert('V036-NIVEL · jugador mock sin cuenta sigue viendo Nivel simulado determinístico (Ranking intacto)',
+      mockLevel1 === mockLevel2 && mockLevel1 >= PH.SIM_LEVEL_MIN && mockLevel1 <= PH.SIM_LEVEL_MAX);
+
+    // Cuenta real (legacy) con historial computable: Nivel público debe ser el REAL
+    // (evolution.current), nunca el hash — mismo criterio que ya usa Home para cuentas legacy.
+    const stampedMatch = {
+      matchId: 'lvl-1', winnerTeam: 'A', playedAt: '2026-01-01T00:00:00.000Z', finishedAt: '2026-01-01T00:00:00.000Z',
+      players: [
+        { id: 0, team: 'A', name: 'Legacy Real V036', userId: 'u_legacy036' }, { id: 1, team: 'A', name: 'Compa' },
+        { id: 2, team: 'B', name: 'Rival A' }, { id: 3, team: 'B', name: 'Rival B' },
+      ],
+    };
+    const legacyIdentity = { name: 'Legacy Real V036', userId: 'u_legacy036' };
+    const evolution = PH.computeLevelEvolution([stampedMatch], legacyIdentity);
+    assert('V036-NIVEL · con historial computable, evolution.consideredCount > 0 (hay una serie real que mostrar)', evolution.consideredCount === 1);
+    const realLevel = PH.computeSimulatedJugadorLevel([stampedMatch], legacyIdentity);
+    assert('V036-NIVEL · con historial real, computeSimulatedJugadorLevel devuelve el Nivel REAL (evolution.current), nunca el hash', realLevel === evolution.current);
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

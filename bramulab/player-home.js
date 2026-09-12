@@ -802,6 +802,20 @@
     return hashStringToLevel(Store.normalizePlayerName(resolveIdentityRef(playerName).name), SIM_LEVEL_MIN, SIM_LEVEL_MAX);
   }
 
+  /** BRAMUlab_V03.6 (corrección post-QA real, prioridad 2) — único punto que decide si una
+   *  cuenta real debe verse SIEMPRE en calibración (nunca un Nivel numérico, ni el real ni el
+   *  simulado por hash) en cualquier superficie que muestre Nivel BRAMU de un jugador — Home,
+   *  MI PERFIL o Perfil público (app.js ya aplicaba este mismo criterio para self vía su propio
+   *  `isLegacyLevelAccount()`; acá queda como función pura y testeable, reutilizable también
+   *  para el jugador de OTRA cuenta). `account` es el registro real de Store.loadUsers()
+   *  (`null`/`undefined` si el nombre no tiene ninguna cuenta detrás — jugador mock/
+   *  territorial o rival conocido solo por historial): sin cuenta real, este gate no aplica en
+   *  absoluto y el fallback por hash de `computeSimulatedJugadorLevel` sigue disponible tal
+   *  cual, tal como necesita Ranking/Buscar Jugadores. */
+  function isCalibratingRealAccount(account) {
+    return !!account && !account.legacyMigrated;
+  }
+
   const CALIBRATION_THRESHOLD = 5;
   function buildCalibrationStatus(consideredCount) {
     const n = consideredCount || 0;
@@ -818,7 +832,7 @@
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
-    buildCalibrationStatus, CALIBRATION_THRESHOLD,
+    buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,

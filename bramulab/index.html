@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.6" />
+<link rel="stylesheet" href="styles.css?v=03.6-h1" />
 </head>
 <body>
 
@@ -1763,7 +1763,17 @@
              mano dominante + lado habitual. Fila 3: categoría declarada, con su fecha (§4) en
              una sola línea combinada — dato histórico/declarado, nunca compite con Nivel BRAMU
              (que vive únicamente en MI PERFIL). -->
-        <div class="pastilla profile-group">
+        <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 5) — toda la tarjeta pasa a ser
+             tappable (abre Editar Datos, MISMA pantalla de siempre), no solo el lápiz — pedido
+             explícito post-QA: "editar dependía demasiado del ícono lápiz". Sin conflicto con
+             ningún control anidado (esta tarjeta es solo texto de solo lectura, a diferencia de
+             la tarjeta de Identidad, que mantiene su lápiz propio sin este cambio porque su
+             avatar YA es un área tappable distinta —cambiar SOLO la foto—, ver
+             wireInlineAvatarEdit). -->
+        <div class="pastilla profile-group profile-group--editable" id="mis-datos-personal-card">
+          <button type="button" id="mis-datos-personal-edit-btn" class="profile-edit-icon-btn profile-group__edit" aria-label="Editar datos">
+            <svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg>
+          </button>
           <div class="profile-group__title">DATOS PERSONALES / DEPORTIVOS</div>
           <div class="mini-stat-grid">
             <div class="mini-stat"><span class="mini-stat__label">Fecha de nacimiento</span><span class="mini-stat__value" id="profile-birthdate">—</span></div>
@@ -1789,8 +1799,14 @@
 
         <!-- BRAMUlab_V03.6 (§4) — de solo lectura acá (la edición vive en Editar Datos, mismo
              criterio que el resto de esta pestaña). El teléfono se muestra tal cual porque acá
-             lo está viendo el dueño de la cuenta — nunca en Perfil público (ver §2/§5). -->
-        <div class="pastilla profile-group">
+             lo está viendo el dueño de la cuenta — nunca en Perfil público (ver §2/§5).
+             Corrección post-QA real (prioridad 5) — tarjeta tappable completa, mismo criterio
+             que DATOS PERSONALES/DEPORTIVOS arriba: tocar WhatsApp/el estado de contacto abre
+             Editar Datos, no depende solo del lápiz. -->
+        <div class="pastilla profile-group profile-group--editable" id="mis-datos-contact-card">
+          <button type="button" id="mis-datos-contact-edit-btn" class="profile-edit-icon-btn profile-group__edit" aria-label="Editar datos">
+            <svg viewBox="0 0 24 24" class="pencil-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l6 6L7 23H1v-6L14.5 3.5z"/></svg>
+          </button>
           <div class="profile-group__title">CONTACTO</div>
           <div class="profile-field"><span class="profile-field__label">WhatsApp</span><span class="profile-field__value" id="profile-data-phone">—</span></div>
           <div class="profile-field"><span class="profile-field__label">Contacto por WhatsApp</span><span class="profile-field__value" id="profile-data-whatsapp-status">Desactivado</span></div>
@@ -1910,6 +1926,10 @@
           <div class="player-card__level-row">
             <span class="player-card__level-value" id="player-public-level-value">—</span>
           </div>
+          <!-- BRAMUlab_V03.6 (corrección post-QA) — mismo sub-label de calibración que Home/MI
+               PERFIL (`.player-card__level-sub`), visible solo para cuentas reales todavía sin
+               5 partidos considerados (ver renderPlayerPublicProfile). -->
+          <span class="player-card__level-sub" id="player-public-level-sub" hidden></span>
         </div>
         <!-- §2.2 — nombre/apellido reales NUNCA protagonistas de la cabecera: la identidad
              principal sigue siendo nombre visible + @usuario (arriba). Edad/mano/lado, mismo
@@ -2079,6 +2099,14 @@
           <p class="access-subtitle">Ingresá el email de tu cuenta para recuperar el acceso.</p>
           <div class="field field--labeled"><label class="field-label" for="forgot-password-email">Email</label><input id="forgot-password-email" class="field__input" type="email" autocomplete="username" /></div>
           <p class="edit-error" id="forgot-password-email-error" hidden>No encontramos una cuenta con ese email.</p>
+          <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — antes este mensaje era un
+               callejón sin salida (ningún camino hacia adelante si el email no existía). Mismo
+               hidden que el error de arriba (ver forgot-password-email-submit en app.js): nunca
+               se pisa el mensaje de error existente, solo agrega la acción debajo. -->
+          <div class="forgot-password-no-account" id="forgot-password-no-account" hidden>
+            <p class="coverage-note">¿Todavía no tenés cuenta en BRAMUlab?</p>
+            <button type="button" id="forgot-password-signup-btn" class="btn-secondary">CREAR CUENTA</button>
+          </div>
           <button type="button" id="forgot-password-email-submit" class="btn-start btn-save">ENVIAR CÓDIGO</button>
         </div>
 
@@ -2215,6 +2243,22 @@
             <option value="9">9ª</option>
             <option value="no-se">No sé mi categoría</option>
           </select>
+          <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación agregada al alta
+               (dato estructural para búsqueda/Ranking a futuro), pero OPCIONAL: mismo criterio
+               que ya usa este campo en Editar Datos (nunca bloqueó guardar ahí, ver §9 de
+               V03.4.1) — no forma parte de recomputeSignupStepValidity. Reutiliza el mismo
+               componente de fila + la misma hoja de búsqueda GeoRef (#profile-location-sheet)
+               que Editar Datos, generalizada para aceptar un target distinto (ver
+               openProfileLocationSheet en app.js) en vez de duplicar sheet/búsqueda/CSS. -->
+          <div class="profile-select-rows">
+            <button type="button" class="profile-select-row" id="signup-location-row">
+              <span class="profile-select-row__text">
+                <span class="profile-select-row__label">¿De dónde sos? (opcional)</span>
+                <span class="profile-select-row__value" id="signup-location-value">—</span>
+              </span>
+              <span class="profile-select-row__chevron" aria-hidden="true">›</span>
+            </button>
+          </div>
           <p class="edit-error" id="signup-step3-error" hidden></p>
         </div>
 
@@ -2247,6 +2291,13 @@
       </div>
       <p class="coverage-note access-subtitle">Completá 5 partidos para conocer tu Nivel BRAMU.</p>
       <button type="button" id="player-card-enter-btn" class="btn-start">ENTRAR A BRAMU</button>
+      <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — orientación post-alta: nunca
+           bloquea ni reemplaza ENTRAR A BRAMU (acción principal, sin cambios), solo ofrece un
+           camino directo a Mis Datos si todavía falta ubicación o WhatsApp (ambos opcionales
+           en el alta) — ver openPlayerCardScreen en app.js, que oculta este bloque entero si no
+           falta ninguno de los dos. -->
+      <p class="coverage-note player-card-complete-hint" id="player-card-complete-hint" hidden></p>
+      <button type="button" id="player-card-complete-profile-btn" class="btn-secondary" hidden>COMPLETAR PERFIL</button>
     </div>
   </section>
 
@@ -2780,15 +2831,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.6"></script>
-  <script src="stats.js?v=03.6"></script>
-  <script src="store.js?v=03.6"></script>
-  <script src="player-home.js?v=03.6"></script>
-  <script src="match-load.js?v=03.6"></script>
-  <script src="player-identity.js?v=03.6"></script>
-  <script src="groups.js?v=03.6"></script>
-  <script src="locations.js?v=03.6"></script>
-  <script src="ranking.js?v=03.6"></script>
-  <script src="app.js?v=03.6"></script>
+  <script src="engine.js?v=03.6-h1"></script>
+  <script src="stats.js?v=03.6-h1"></script>
+  <script src="store.js?v=03.6-h1"></script>
+  <script src="player-home.js?v=03.6-h1"></script>
+  <script src="match-load.js?v=03.6-h1"></script>
+  <script src="player-identity.js?v=03.6-h1"></script>
+  <script src="groups.js?v=03.6-h1"></script>
+  <script src="locations.js?v=03.6-h1"></script>
+  <script src="ranking.js?v=03.6-h1"></script>
+  <script src="app.js?v=03.6-h1"></script>
 </body>
 </html>

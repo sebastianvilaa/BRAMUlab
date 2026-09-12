@@ -29,7 +29,12 @@
 // caché, exactamente el bug que este hotfix corrige.
 // `-h2` — microajuste visual posterior (bottom sheet de selección simple del Ranking en
 // mobile, solo `styles.css`): mismo motivo de bump, ninguno nuevo.
-const CACHE_NAME = 'bramulab-v03-6';
+// BRAMUlab_V03.6 — sufijo `-h1` reiniciado para esta versión (ronda de correcciones post-QA
+// real: bug de historial/Nivel simulado en Perfil público, Recuperar contraseña, onboarding,
+// Mis Datos tappable, copy de WhatsApp — ver el Reporte para ChatGPT). Mismo criterio de
+// siempre: `Store.VERSION`/`version.json` siguen en "BRAMUlab V03.6" (nunca V03.7), pero
+// varios `.js`/`.css` propios sí cambiaron de bytes.
+const CACHE_NAME = 'bramulab-v03-6-h1';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -40,17 +45,17 @@ const CACHE_NAME = 'bramulab-v03-6';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.6',
-  './engine.js?v=03.6',
-  './stats.js?v=03.6',
-  './store.js?v=03.6',
-  './player-home.js?v=03.6',
-  './match-load.js?v=03.6',
-  './player-identity.js?v=03.6',
-  './groups.js?v=03.6',
-  './locations.js?v=03.6',
-  './ranking.js?v=03.6',
-  './app.js?v=03.6',
+  './styles.css?v=03.6-h1',
+  './engine.js?v=03.6-h1',
+  './stats.js?v=03.6-h1',
+  './store.js?v=03.6-h1',
+  './player-home.js?v=03.6-h1',
+  './match-load.js?v=03.6-h1',
+  './player-identity.js?v=03.6-h1',
+  './groups.js?v=03.6-h1',
+  './locations.js?v=03.6-h1',
+  './ranking.js?v=03.6-h1',
+  './app.js?v=03.6-h1',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

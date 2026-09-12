@@ -3002,6 +3002,19 @@ input, select{ font-family: inherit; }
    .profile-field (KPIs de MI PERFIL) no cambia, esa fila corta no tenía ese problema. */
 .profile-group .profile-field{ flex-direction:column; align-items:flex-start; gap: 2px; }
 .profile-group .profile-field__value{ text-align:left; font-size:14px; }
+
+/* BRAMUlab_V03.6 (corrección post-QA real, prioridad 5) — tarjetas de MIS DATOS tappables
+   completas (DATOS PERSONALES/DEPORTIVOS y CONTACTO), no solo su lápiz — mismo destino de
+   siempre (openProfileEditModal), reutilizando el ícono/posición ya usados por la tarjeta de
+   Identidad (`.profile-edit-icon-btn`), generalizados acá con una clase propia en vez de
+   duplicar la regla `.profile-identity-card__edit`. `position:relative` en `.profile-group`
+   es seguro para TODAS sus instancias (Acceso y seguridad, Cerrar sesión) — no afecta su
+   layout, solo habilita el ícono absoluto en las 2 tarjetas que lo usan. */
+.profile-group{ position:relative; }
+.profile-group__edit{ position:absolute; top: 14px; right: 14px; }
+.profile-group--editable{ cursor:pointer; transition: transform .1s ease; }
+.profile-group--editable:active{ transform: scale(0.99); }
+.profile-group--editable > .profile-group__title{ padding-right: 40px; }
 .profile-incomplete-banner{ border: 1px solid rgba(255,201,61,0.35); background: rgba(255,201,61,0.08); }
 .profile-incomplete-banner .pastilla__title{ color: var(--gold); }
 .profile-access-pending{ margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
@@ -3078,6 +3091,20 @@ input, select{ font-family: inherit; }
 }
 .toggle-switch.is-on{ background: rgba(149,255,25,0.18); border-color: var(--brand-lime); }
 .toggle-switch.is-on .toggle-switch__thumb{ transform: translateX(18px); background: var(--brand-lime); }
+
+/* BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — CTA "CREAR CUENTA" debajo del error
+   de email no encontrado en Recuperar contraseña. `.btn-secondary` trae `flex:1` (pensado para
+   vivir junto a otro botón en una fila, ver comentario de `.btn-save` más abajo) — acá vive
+   solo, mismo criterio ya usado en `.profile-access-pending .btn-secondary`. */
+.forgot-password-no-account{ margin-top: 4px; }
+.forgot-password-no-account .coverage-note{ margin-bottom: 8px; }
+.forgot-password-no-account .btn-secondary{ width:100%; flex:none; }
+
+/* BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación "COMPLETAR PERFIL" en TU
+   JUGADOR ESTÁ LISTO: mismo criterio que `.forgot-password-no-account .btn-secondary` (vive
+   sola, sin otro botón al lado, así que resetea el `flex:1` de `.btn-secondary`). */
+.player-card-complete-hint{ margin-top: 14px; margin-bottom: 8px; text-align:center; }
+#player-card-complete-profile-btn{ width:100%; flex:none; }
 
 /* V03.0.1 (§4/§5/§8) — ojo mostrar/ocultar contraseña: botón chico superpuesto al campo.
    V03.0.2 (§9/§13) — ícono real de ojo/ojo-tachado (antes ◎, un carácter Unicode sin

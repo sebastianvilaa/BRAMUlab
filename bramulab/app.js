@@ -723,6 +723,26 @@
    *  cada pantalla decide su propio listener de click. Suma Nivel BRAMU a la derecha (§6/§9,
    *  PH.computeSimulatedJugadorLevel) — `level` es opcional para no romper ningún call site
    *  que todavía no lo calcule. */
+  /** BRAMUlab_V03.6 (corrección post-QA real, prioridades 1/2) — MISMO bug de fondo encontrado
+   *  en Perfil público, hallado también acá durante la investigación del contrato de identidad:
+   *  estas filas compactas (Elegir compañero/rival, Buscar Jugadores, lista JUGADORES de
+   *  Perfil) llamaban a `PH.computeSimulatedJugadorLevel` con el nombre plano (nunca
+   *  `{name, userId}`), así que una cuenta real con partidos YA estampados caía al fallback por
+   *  hash en vez de mostrar su Nivel real, y una cuenta real todavía en calibración recibía ese
+   *  mismo hash como si fuera un dato real. Único punto de cálculo para estas filas: resuelve la
+   *  cuenta real si existe (mismo criterio que renderPlayerPublicProfile) y aplica el mismo gate
+   *  de calibración (`PH.isCalibratingRealAccount`) — `null` para una cuenta real en
+   *  calibración (la fila compacta no tiene espacio para "CALIBRANDO X/5"; `buildPlayerRowHTML`
+   *  ya muestra "—" para cualquier valor no numérico, mismo criterio de siempre), Nivel real
+   *  para una cuenta real con historial o legacy, y el hash de siempre para nombres SIN cuenta
+   *  real detrás (mock/territoriales, rivales conocidos solo por historial) — Ranking/Buscar
+   *  Jugadores no pierden ningún mock. */
+  function computePlayerRowLevel(history, name) {
+    const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === Store.normalizePlayerName(name));
+    if (PH.isCalibratingRealAccount(account)) return null;
+    return PH.computeSimulatedJugadorLevel(history, account ? { name, userId: account.id } : name);
+  }
+
   function buildPlayerRowHTML(name, level) {
     const levelText = Number.isFinite(level) ? level.toFixed(1) : '—';
     return `<button type="button" class="player-row" data-name="${escapeHtml(name)}">
@@ -774,7 +794,7 @@
       recentNames = recents;
       if (recents.length) {
         recentsSection.hidden = false;
-        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
         $all('#load-player-sheet-recents .player-row').forEach((btn) => {
           btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name));
         });
@@ -798,7 +818,7 @@
     // algo real que mostrar debajo (nunca "TODOS" flotando sobre "Sin coincidencias.").
     $('#load-player-sheet-list-label').hidden = !!query || !matches.length;
     const listWrap = $('#load-player-sheet-list');
-    let listHTML = matches.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    let listHTML = matches.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
     if (canAdd) listHTML += buildAddPlayerRowHTML(trimmed);
     // Microparche V03.3.2 (§1) — ahora que "Recientes" funciona de verdad, "Todos" puede
     // quedar legítimamente vacío (recientes ya cubrió a todo el universo conocido) sin que
@@ -6305,6 +6325,7 @@
     forgotPasswordEmail = '';
     $('#forgot-password-form').reset();
     $('#forgot-password-email-error').hidden = true;
+    $('#forgot-password-no-account').hidden = true;
     $('#forgot-password-code-error').hidden = true;
     $('#forgot-password-new-error').hidden = true;
     updatePasswordRulesUI('', 'forgot-password-rules');
@@ -6347,13 +6368,20 @@
     $('#forgot-password-email-submit').addEventListener('click', () => {
       const email = $('#forgot-password-email').value.trim();
       const user = Store.getUserByEmail(email);
-      if (!user) { $('#forgot-password-email-error').hidden = false; return; }
+      // BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — antes este mensaje era un
+      // callejón sin salida: "no encontramos una cuenta" sin ningún camino hacia adelante.
+      // Agrega el CTA "CREAR CUENTA" debajo del mismo error, sin tocar ENVIAR CÓDIGO como
+      // acción principal cuando el email sí existe.
+      if (!user) { $('#forgot-password-email-error').hidden = false; $('#forgot-password-no-account').hidden = false; return; }
       $('#forgot-password-email-error').hidden = true;
+      $('#forgot-password-no-account').hidden = true;
       forgotPasswordUserId = user.id;
       forgotPasswordEmail = email;
       forgotPasswordStep = 2;
       renderForgotPasswordStep();
     });
+
+    $('#forgot-password-signup-btn').addEventListener('click', openSignupWizard);
 
     $('#forgot-password-code-submit').addEventListener('click', () => {
       const code = $('#forgot-password-code').value.trim();
@@ -6435,6 +6463,14 @@
     delete $('#signup-username').dataset.touched;
     resetOptionGroup('signup-hand-options');
     resetOptionGroup('signup-side-options');
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación opcional del alta.
+    $('#signup-location-value').textContent = '—';
+  }
+
+  /** BRAMUlab_V03.6 — mismo patrón que updateProfileLocationRowDisplay, para la fila de
+   *  ubicación del paso 3 del alta (opcional, ver signup-location-row). */
+  function updateSignupLocationRowDisplay() {
+    $('#signup-location-value').textContent = signupDraft.location ? PLLocations.formatLocationLabel(signupDraft.location) : '—';
   }
 
   function openSignupWizard() {
@@ -6564,6 +6600,15 @@
     });
     wireOptionGroup('signup-hand-options', (v) => { signupDraft.dominantHand = v; recomputeSignupStepValidity(); });
     wireOptionGroup('signup-side-options', (v) => { signupDraft.preferredSide = v; recomputeSignupStepValidity(); });
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — reutiliza la MISMA hoja de
+    // búsqueda GeoRef que Editar Datos (openProfileLocationSheet, generalizada arriba), con un
+    // target propio (signupDraft.location) en vez de duplicar sheet/búsqueda. Opcional: nunca
+    // entra en recomputeSignupStepValidity.
+    $('#signup-location-row').addEventListener('click', () => openProfileLocationSheet({
+      get: () => signupDraft.location || null,
+      set: (loc) => { signupDraft.location = loc; },
+      onSelect: updateSignupLocationRowDisplay,
+    }));
 
     $('#signup-avatar-edit-btn').addEventListener('click', () => $('#signup-avatar-input').click());
     $('#signup-avatar-input').addEventListener('change', async (e) => {
@@ -6594,6 +6639,12 @@
         signupDraft.declaredCategory = $('#signup-category').value;
         // V03.1 (§4) — se declara por primera vez acá: queda fechada desde el arranque.
         signupDraft.declaredCategoryAt = new Date().toISOString();
+        // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación opcional: `null` en
+        // los 3 campos si el usuario nunca tocó la fila (mismo criterio que ya usa Editar Datos
+        // al guardar sin ubicación elegida).
+        signupDraft.locality = signupDraft.location ? signupDraft.location.locality : null;
+        signupDraft.region = signupDraft.location ? signupDraft.location.region : null;
+        signupDraft.country = signupDraft.location ? signupDraft.location.country : null;
         const user = Store.signUpAndLogin(signupDraft);
         syncCurrentIdentityFromStore();
         openPlayerCardScreen(user);
@@ -6622,7 +6673,9 @@
   const GENDER_LABELS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro', 'prefiero-no-decir': 'Prefiero no decir' };
   // BRAMUlab_V03.6 (§6) — mensaje prearmado único del deep link de WhatsApp: fijo, sin Nivel/
   // localidad/nombre completo/horario/cancha ni links extra (consolidado explícito).
-  const WHATSAPP_CONTACT_MESSAGE = 'Hola, te encontré en BRAMUlab. ¿Te interesaría organizar un partido de pádel?';
+  // BRAMUlab_V03.6 (corrección post-QA real, prioridad 6) — copy reemplazado a pedido: mismo
+  // criterio de siempre (sin Nivel/localidad/nombre/horario/cancha/links extra).
+  const WHATSAPP_CONTACT_MESSAGE = 'Hola, te encontré en BRAMUlab. ¿Estás para armar un partido de pádel?';
 
   /** Consolidado §3 — "TU JUGADOR ESTÁ LISTO": momento de recompensa post-signup, nunca un
    *  alert genérico. Siempre muestra 0/5 CALIBRANDO (una cuenta recién creada nunca tiene
@@ -6637,11 +6690,26 @@
     $('#player-card-hand').textContent = HAND_LABELS[user.dominantHand] || '—';
     $('#player-card-side').textContent = SIDE_LABELS[user.preferredSide] || '—';
     $('#player-card-category').textContent = CATEGORY_LABELS[user.declaredCategory] || '—';
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, solo si
+    // realmente falta algo (ubicación/WhatsApp, ambos opcionales en el alta): nunca aparece
+    // para una cuenta que ya cargó los dos. Nunca menciona el Nivel BRAMU (calibrando siempre,
+    // sin excepción, recién creada) ni bloquea ENTRAR A BRAMU.
+    const missingOptional = [];
+    if (!user.locality) missingOptional.push('tu ubicación');
+    if (!user.phone) missingOptional.push('tu WhatsApp');
+    const hasMissingOptional = missingOptional.length > 0;
+    $('#player-card-complete-hint').hidden = !hasMissingOptional;
+    $('#player-card-complete-profile-btn').hidden = !hasMissingOptional;
+    if (hasMissingOptional) $('#player-card-complete-hint').textContent = `Cuando quieras, podés completar ${missingOptional.join(' y ')} desde Mi Perfil.`;
     showView('player-card');
   }
 
   function initPlayerCardScreen() {
     $('#player-card-enter-btn').addEventListener('click', () => { completeIdentifyAction(); });
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — camino directo a Mis Datos, nunca
+    // pasa por completeIdentifyAction (esa acción es específica de ENTRAR A BRAMU/reanudar un
+    // partido pausado por pedir login, no aplica acá).
+    $('#player-card-complete-profile-btn').addEventListener('click', () => openProfileScreen('mis-datos'));
   }
 
   /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
@@ -8435,7 +8503,7 @@
     wrap.hidden = isEmpty;
     $('#create-group-player-empty').hidden = !isEmpty;
     wrap.innerHTML = results.map((n) => buildGroupMemberPickerRowHTML(
-      n, PH.computeSimulatedJugadorLevel(history, n), createGroupSelectedNames.indexOf(Store.normalizePlayerName(n)) !== -1
+      n, computePlayerRowLevel(history, n), createGroupSelectedNames.indexOf(Store.normalizePlayerName(n)) !== -1
     )).join('');
     $all('#create-group-player-list .group-picker-row').forEach((btn) => {
       btn.addEventListener('click', () => toggleCreateGroupSelection(btn.dataset.name));
@@ -8773,7 +8841,7 @@
     const isEmpty = filtered.length === 0;
     wrap.hidden = isEmpty;
     $('#jugadores-search-empty').hidden = !isEmpty;
-    wrap.innerHTML = filtered.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    wrap.innerHTML = filtered.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
     $all('#jugadores-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'jugadores-tab'));
     });
@@ -8799,7 +8867,7 @@
       recentNames = recents;
       if (recents.length) {
         recentsSection.hidden = false;
-        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+        recentsWrap.innerHTML = recents.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
         $all('#player-search-recents .player-row').forEach((btn) => {
           btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'search'));
         });
@@ -8814,7 +8882,7 @@
     const isListEmpty = results.length === 0;
     listSection.hidden = isListEmpty;
     $('#player-search-list-label').hidden = !!query;
-    wrap.innerHTML = results.map((n) => buildPlayerRowHTML(n, PH.computeSimulatedJugadorLevel(history, n))).join('');
+    wrap.innerHTML = results.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
     $all('#player-search-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'search'));
     });
@@ -8899,6 +8967,15 @@
     if (!name) return;
     const history = Store.loadHistory();
     const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 1) — BUG REAL: esta función consultaba
+    // TODO el historial/Nivel pasando `name` (string plano) a player-home.js. Por la regla de
+    // integridad de userId (V03.0 — findPlayerRow), una fila de partido YA estampada con
+    // userId solo se encuentra buscando por ESE MISMO userId, nunca por nombre — así que
+    // cualquier cuenta con partidos reales (todos estampados) aparecía con 0 partidos/0
+    // ganados/racha vacía en su propio Perfil público, aunque Home mostrara su historial
+    // completo. Mismo criterio que ya usa `currentIdentity()` para self: si hay una cuenta real
+    // detrás del nombre, la identidad de consulta es `{name, userId}`, nunca el nombre solo.
+    const identity = account ? { name, userId: account.id } : name;
     const username = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
 
     // Microparche V03.3 (§3) — el título del header queda fijo ("PERFIL DE JUGADOR", en
@@ -8913,27 +8990,50 @@
     $('#player-public-hand').textContent = (account && HAND_LABELS[account.dominantHand]) || '—';
     $('#player-public-side').textContent = (account && SIDE_LABELS[account.preferredSide]) || '—';
 
-    const level = PH.computeSimulatedJugadorLevel(history, name);
-    $('#player-public-level-value').textContent = level.toFixed(1);
-
-    const matches = PH.filterMatchesForPlayer(history, name);
-    const eff = PH.computeEffectivenessTotal(matches, name);
+    const matches = PH.filterMatchesForPlayer(history, identity);
+    const eff = PH.computeEffectivenessTotal(matches, identity);
     renderPlayerPublicEffectivenessDonut(eff);
     $('#player-public-played').textContent = String(matches.length);
     $('#player-public-won').textContent = String(eff.wins);
 
-    const bestStreakRange = PH.computeBestWinStreakRange(matches, name);
+    const bestStreakRange = PH.computeBestWinStreakRange(matches, identity);
     $('#player-public-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
     $('#player-public-best-streak-range').hidden = !bestStreakRange;
     if (bestStreakRange) $('#player-public-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
 
-    // Sin partidos considerados todavía, no hay ningún pico real que mostrar — el "mejor
-    // nivel" trivialmente coincide con el actual (simulado), igual que le pasaría a cualquier
-    // cuenta real sin historial: ACT, nunca una fecha inventada.
-    const evolution = PH.computeLevelEvolution(history, name);
-    const peak = evolution.consideredCount > 0 ? PH.computePeakLevel(evolution) : { value: level, isCurrent: true, date: null };
-    $('#player-public-peak-level').textContent = peak.value.toFixed(1);
-    $('#player-public-peak-level-context').textContent = peak.isCurrent ? 'ACT' : formatPeakLevelDate(peak.date);
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 2) — BUG REAL: una cuenta real (V03.0,
+    // no legacy) sin partidos considerados todavía recibía acá un Nivel simulado por hash
+    // (pensado EXCLUSIVAMENTE para jugadores mock/territoriales sin cuenta real detrás, §9 de
+    // V03.3) como si fuera un dato real ("NIVEL BRAMU 6.8" para una cuenta 0/5). Mismo gate que
+    // ya usa Home/MI PERFIL para self (`isLegacyLevelAccount`, ver renderPlayerCard/
+    // renderProfileEvolution): una cuenta real no-legacy NUNCA ve un número de Nivel inventado,
+    // solo CALIBRANDO/CALIBRACIÓN COMPLETA con su progreso — el fallback por hash queda
+    // reservado exclusivamente a nombres SIN cuenta real detrás (jugadores mock/territoriales
+    // de Ranking/Buscar Jugadores, rivales conocidos por historial pero nunca registrados),
+    // que siguen viéndolo exactamente igual que antes.
+    const evolution = PH.computeLevelEvolution(history, identity);
+    const levelSubEl = $('#player-public-level-sub');
+    if (PH.isCalibratingRealAccount(account)) {
+      const calib = PH.buildCalibrationStatus(evolution.consideredCount);
+      $('#player-public-level-value').textContent = calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO';
+      levelSubEl.hidden = calib.complete;
+      levelSubEl.textContent = calib.complete ? '' : calib.progressText;
+      // "Mejor nivel BRAMU" es otra lectura de la misma serie gateada — nunca un número mientras
+      // la cuenta esté en calibración (mismo criterio que Home/MI PERFIL, que directamente
+      // ocultan esa tarjeta en ese caso).
+      $('#player-public-peak-level').textContent = '—';
+      $('#player-public-peak-level-context').textContent = '';
+    } else {
+      const level = PH.computeSimulatedJugadorLevel(history, identity);
+      $('#player-public-level-value').textContent = level.toFixed(1);
+      levelSubEl.hidden = true;
+      // Sin partidos considerados todavía, no hay ningún pico real que mostrar — el "mejor
+      // nivel" trivialmente coincide con el actual (simulado), igual que le pasaría a cualquier
+      // nombre mock sin historial: ACT, nunca una fecha inventada.
+      const peak = evolution.consideredCount > 0 ? PH.computePeakLevel(evolution) : { value: level, isCurrent: true, date: null };
+      $('#player-public-peak-level').textContent = peak.value.toFixed(1);
+      $('#player-public-peak-level-context').textContent = peak.isCurrent ? 'ACT' : formatPeakLevelDate(peak.date);
+    }
 
     renderPlayerPublicAddButton();
     // BRAMUlab_V03.6 (§5/§8) — botón visible SOLO con teléfono válido + consentimiento
@@ -9457,6 +9557,16 @@
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
     $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 5) — DATOS PERSONALES/DEPORTIVOS y
+    // CONTACTO pasan a ser tarjetas tappables completas (mismo destino que el lápiz de
+    // Identidad, `openProfileEditModal`): tocar cualquier dato de esas 2 tarjetas — WhatsApp,
+    // ubicación, categoría, etc. — abre Editar Datos, no depende solo del ícono. `stopPropagation`
+    // en el lápiz propio de cada tarjeta evita un segundo llamado redundante por burbujeo (mismo
+    // click abriría la pantalla dos veces seguidas si no se corta acá).
+    $('#mis-datos-personal-card').addEventListener('click', openProfileEditModal);
+    $('#mis-datos-personal-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openProfileEditModal(); });
+    $('#mis-datos-contact-card').addEventListener('click', openProfileEditModal);
+    $('#mis-datos-contact-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openProfileEditModal(); });
     wireInlineAvatarEdit('profile-avatar', 'mi-perfil-avatar-input', 'mi-perfil-avatar-edit-btn');
     wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn');
     // V03.1 (§12) — sin puntos por partido, sin interacción por punto: el gráfico ya no tiene
@@ -9612,9 +9722,10 @@
     const isEmpty = results.length === 0;
     wrap.hidden = isEmpty;
     $('#profile-location-empty').hidden = !isEmpty;
+    const current = activeLocationTarget.get();
     wrap.innerHTML = results.map((loc) => {
       const label = PLLocations.formatLocationLabel(loc);
-      const selected = !!profileEditLocation && profileEditLocation.locality === loc.locality && profileEditLocation.region === loc.region;
+      const selected = !!current && current.locality === loc.locality && current.region === loc.region;
       return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region || '')}" data-country="${escapeHtml(loc.country || '')}">
         <span>${escapeHtml(label)}</span>
         ${selected ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
@@ -9622,8 +9733,8 @@
     }).join('');
     $all('#profile-location-list .picker-sheet-option').forEach((btn) => {
       btn.addEventListener('click', () => {
-        profileEditLocation = { locality: btn.dataset.locality, region: btn.dataset.region || null, country: btn.dataset.country || null };
-        updateProfileLocationRowDisplay();
+        activeLocationTarget.set({ locality: btn.dataset.locality, region: btn.dataset.region || null, country: btn.dataset.country || null });
+        activeLocationTarget.onSelect();
         closeProfileLocationSheet();
       });
     });
@@ -9666,7 +9777,15 @@
     profileLocationSearchTimer = setTimeout(() => searchProfileLocation(query), 300);
   }
 
-  function openProfileLocationSheet() {
+  // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — target por defecto: Editar Datos
+  // (`profileEditLocation`), único uso hasta esta ronda. `openProfileLocationSheet(config)`
+  // ahora acepta un config crudo `{get,set,onSelect}` — mismo criterio ya usado por
+  // `openProfilePickerSheet` para reutilizar UNA sola hoja en vez de duplicarla (acá, para que
+  // el paso 3 del alta reutilice exactamente la misma hoja/búsqueda GeoRef sin copiar nada).
+  let activeLocationTarget = { get: () => profileEditLocation, set: (loc) => { profileEditLocation = loc; }, onSelect: updateProfileLocationRowDisplay };
+
+  function openProfileLocationSheet(config) {
+    activeLocationTarget = config || { get: () => profileEditLocation, set: (loc) => { profileEditLocation = loc; }, onSelect: updateProfileLocationRowDisplay };
     $('#profile-location-search').value = '';
     setProfileLocationStatus('');
     clearProfileLocationList();
@@ -9690,7 +9809,10 @@
     $('#profile-picker-sheet-close').addEventListener('click', closeProfilePickerSheet);
     $('#profile-picker-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-picker-sheet-scrim')) closeProfilePickerSheet(); });
 
-    $('#profile-edit-location-row').addEventListener('click', openProfileLocationSheet);
+    // BRAMUlab_V03.6 — wrapper obligatorio: `openProfileLocationSheet` ahora acepta un
+    // `config` opcional (ver arriba); pasarla directo como listener filtraría el propio evento
+    // de click como si fuera ese config.
+    $('#profile-edit-location-row').addEventListener('click', () => openProfileLocationSheet());
     $('#profile-location-sheet-close').addEventListener('click', closeProfileLocationSheet);
     $('#profile-location-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-location-sheet-scrim')) closeProfileLocationSheet(); });
     $('#profile-location-search').addEventListener('input', (e) => onProfileLocationSearchInput(e.target.value));
