@@ -2216,14 +2216,30 @@ input, select{ font-family: inherit; }
   .bottom-sheet{ border-radius: 20px; }
   .bottom-sheet--compact{ min-height: 0; }
 }
+/* BRAMUlab_V03.5.2 (microajuste visual) — en MOBILE, el selector de género/nivel del Ranking
+   (y cualquier otro campo de Perfil que reuse esta misma hoja) seguía sintiéndose "petiso" con
+   solo 2-3 opciones cortas: `#profile-picker-sheet` nunca tuvo una altura mínima propia (a
+   diferencia de `.bottom-sheet--compact`, pensada para Registrar partido), así que se achicaba
+   al alto exacto del contenido y quedaba pegado contra el borde inferior con muy poca
+   presencia. Mínimo modesto (bien por debajo del de Registrar partido, que es para 2 botones
+   grandes, no una lista de opciones) + la lista centrada en ese alto extra, en vez de quedar
+   pegada arriba contra el header — nunca una tarjeta enorme ni aire de más. Sigue anclado
+   abajo (`.sheet-scrim` no cambia en mobile). Acotado por ID, nunca `.bottom-sheet` genérica —
+   no toca Registrar partido, ayuda de Ranking, Elegir jugador ni ningún otro sheet. Reseteado
+   explícitamente en el media query de desktop de abajo para no tocar ese comportamiento. */
+#profile-picker-sheet{ min-height: clamp(220px, 32dvh, 260px); display:flex; flex-direction:column; }
+#profile-picker-sheet .picker-sheet-list{ flex:1; justify-content:center; }
 /* §8.2 — además de lo anterior, el selector de género/nivel del Ranking (y cualquier otro campo
    de Perfil que reuse esta misma hoja) se sentía "petiso": con 2-3 opciones cortas dentro de un
    panel de 768px de ancho, el contenido quedaba perdido en un rectángulo mayormente vacío. Acá
    sí hace falta un ancho propio (no el genérico de arriba, pensado para contenido más largo como
    la ayuda de Ranking o Elegir jugador) — mismo criterio que un menú/diálogo de opciones nativo,
-   angosto y alto en vez de ancho y corto. */
+   angosto y alto en vez de ancho y corto. Min-height/flex de la lista reseteados acá: el ajuste
+   de presencia vertical es solo para mobile, desktop conserva el comportamiento ya implementado
+   (sheet centrado, alto natural por contenido). */
 @media (min-width: 720px){
-  #profile-picker-sheet{ max-width: 420px; }
+  #profile-picker-sheet{ max-width: 420px; min-height: 0; }
+  #profile-picker-sheet .picker-sheet-list{ flex: none; justify-content: flex-start; }
 }
 .sheet-scrim.is-open .bottom-sheet{ transform: translateY(0); }
 /* V02.4 (Bloque C, §7) — categoría reutilizable de sheet COMPACTO: altura mínima garantizada

@@ -27,7 +27,9 @@
 // bundle SÍ cambió de bytes, así que sin este bump el cliente que ya tenía el service worker
 // instalado nunca se entera — se queda para siempre sirviendo el `player-home.js` roto desde
 // caché, exactamente el bug que este hotfix corrige.
-const CACHE_NAME = 'bramulab-v03-5-2-h1';
+// `-h2` — microajuste visual posterior (bottom sheet de selección simple del Ranking en
+// mobile, solo `styles.css`): mismo motivo de bump, ninguno nuevo.
+const CACHE_NAME = 'bramulab-v03-5-2-h2';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -38,17 +40,17 @@ const CACHE_NAME = 'bramulab-v03-5-2-h1';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.5.2-h1',
-  './engine.js?v=03.5.2-h1',
-  './stats.js?v=03.5.2-h1',
-  './store.js?v=03.5.2-h1',
-  './player-home.js?v=03.5.2-h1',
-  './match-load.js?v=03.5.2-h1',
-  './player-identity.js?v=03.5.2-h1',
-  './groups.js?v=03.5.2-h1',
-  './locations.js?v=03.5.2-h1',
-  './ranking.js?v=03.5.2-h1',
-  './app.js?v=03.5.2-h1',
+  './styles.css?v=03.5.2-h2',
+  './engine.js?v=03.5.2-h2',
+  './stats.js?v=03.5.2-h2',
+  './store.js?v=03.5.2-h2',
+  './player-home.js?v=03.5.2-h2',
+  './match-load.js?v=03.5.2-h2',
+  './player-identity.js?v=03.5.2-h2',
+  './groups.js?v=03.5.2-h2',
+  './locations.js?v=03.5.2-h2',
+  './ranking.js?v=03.5.2-h2',
+  './app.js?v=03.5.2-h2',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

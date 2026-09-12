@@ -369,7 +369,42 @@ https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 
 ---
 
-## 12. Estado de cierre de Ranking BRAMU
+## 12. Microajuste visual posterior — bottom sheet de selección simple en mobile
+
+Sebastián reportó que, en mobile, el bottom sheet de selección simple del Ranking (sobre todo
+género Masculino/Femenino) seguía sintiéndose "petiso" con pocas opciones — un pulido visual
+puntual, sin ningún problema funcional (Ranking abre, sin errores, navegación y snapshot
+semanal correctos).
+
+**CSS tocado**, acotado por ID a `#profile-picker-sheet` (nunca la clase compartida
+`.bottom-sheet` ni ningún otro sheet): en mobile, `min-height: clamp(220px, 32dvh, 260px)` +
+la lista de opciones centrada en ese alto extra (en vez de pegada contra el header) — mismo
+criterio que ya usaba `.bottom-sheet--compact` para Registrar partido, pero con un mínimo más
+chico, pensado para una lista de opciones y no para 2 botones grandes. Reseteado
+explícitamente dentro del `@media (min-width: 720px)` ya existente para que desktop/tablet
+conserven el comportamiento responsive tal cual estaba (sheet centrado, angosto, alto natural
+por contenido — verificado que no cambió). No se tocó JS, lógica de Ranking, snapshot semanal,
+búsqueda, navegación ni Mis grupos.
+
+Al compartir `#profile-picker-sheet` el selector de Nivel (12 opciones) automáticamente queda
+cubierto por el mismo cambio, pero su contenido ya supera el mínimo nuevo por sí solo, así que
+se ve exactamente igual que antes — el ajuste solo tiene efecto visible en selectores cortos
+(2-3 opciones), que es el caso reportado.
+
+**Cache-bust**: sufijo `-h2` (`CACHE_NAME`/`?v=`), mismo motivo que `-h1` en §4.4 — cambiaron
+bytes de `styles.css`, así que sin este bump el cliente con el service worker ya instalado no
+lo hubiera recibido nunca. `Store.VERSION`/`version.json` siguen en "BRAMUlab V03.5.2".
+
+**QA**: solo visual, sin correr la suite completa (no hay lógica nueva). Mobile 375px: selector
+de género con más presencia vertical, opciones centradas, sigue anclado abajo; selector de
+Nivel sin cambios visibles (lista larga, ya superaba el mínimo). Desktop (ancho real ≥1000px,
+evitando el ancho angosto que a veces reporta el panel de preview): selector de género sigue
+centrado, angosto (420px) y del alto natural de su contenido — comportamiento responsive
+intacto.
+
+---
+
+## 13. Estado de cierre de Ranking BRAMU
 
 **Ranking sigue sin cerrarse definitivamente dentro de V03.** Esta publicación (con su
 corrección de cierre incluida) es la segunda ronda de refinamiento (V03.5.1 → V03.5.2), no el
