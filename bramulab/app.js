@@ -743,13 +743,21 @@
     return PH.computeSimulatedJugadorLevel(history, account ? { name, userId: account.id } : name);
   }
 
+  /** BRAMUlab_V03.6 (hotfix — bug real §2) — "Mis jugadores" (y toda fila que pasa por acá)
+   *  mostraba un @usuario FABRICADO desde el nombre (`buildPlayerHandle`) aunque el jugador
+   *  tuviera una cuenta real vinculada con un @usuario propio distinto — la misma persona se
+   *  veía con handles distintos en esta lista vs. su Perfil público (que sí resolvía la cuenta
+   *  real, ver renderPlayerPublicProfile). Mismo criterio ya usado por Ranking/Mis Grupos
+   *  (buildGroupRowAccount) — nunca inventar un handle cuando hay una cuenta real resoluble. */
   function buildPlayerRowHTML(name, level) {
     const levelText = Number.isFinite(level) ? level.toFixed(1) : '—';
+    const account = buildGroupRowAccount(name);
+    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
     return `<button type="button" class="player-row" data-name="${escapeHtml(name)}">
       <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
       <span class="player-row__info">
         <span class="player-row__name">${escapeHtml(name)}</span>
-        <span class="player-row__handle">${escapeHtml(buildPlayerHandle(name))}</span>
+        <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
       <span class="player-row__level">
         <span class="player-row__level-value">${levelText}</span>
@@ -7513,7 +7521,13 @@
    *  "ahora" en vivo. */
   function buildUnrankedParticipant(name, history, nowDate) {
     const status = RK.computeParticipantStatus(name, history, nowDate);
-    const level = status.key === 'sin-nivel' ? null : PH.computeSimulatedJugadorLevel(history, name);
+    // BRAMUlab_V03.6 (hotfix — bug real §1) — mismo contrato de identidad que buildRankingEntries
+    // (ranking.js): un compañero de Mi red con cuenta real vinculada nunca debe caer al Nivel
+    // simulado por hash — se resuelve su userId antes de calcular, nunca se cambia SI se
+    // muestra un nivel acá (esa decisión, `status.key === 'sin-nivel'`, queda intacta).
+    const account = buildGroupRowAccount(name);
+    const identity = account ? { name, userId: account.id } : name;
+    const level = status.key === 'sin-nivel' ? null : PH.computeSimulatedJugadorLevel(history, identity);
     return { name, status, level };
   }
 
@@ -7818,6 +7832,14 @@
    *  en la propia). Vive DENTRO del botón de la fila como un `<span role="button">` con su
    *  propio `stopPropagation` (ver wireRankingRowClicks) — evitar anidar un <button> real
    *  dentro de otro <button>. */
+  /** BRAMUlab_V03.6 (hotfix — bug real §3) — estructura ÚNICA de 3 renglones para toda fila de
+   *  Ranking (nombre / @usuario / ubicación), reportada como inconsistente en la prueba real:
+   *  antes nombre+`· @usuario` vivían en `.group-table__toprow` (flex-wrap), así que el handle
+   *  quedaba en la MISMA línea o se caía a una propia según si el nombre era corto o largo —
+   *  nunca decisión de diseño, un efecto colateral del ancho disponible. Ahora el handle es
+   *  SIEMPRE su propio renglón (`.ranking-row__handle`, display:block) y se quita el "· " —
+   *  separador que ya no hace falta al no compartir línea. Nunca toca `.group-table__toprow`
+   *  en sí (la tabla de Mis Grupos la sigue usando tal cual, sin cambios). */
   function buildRankingRowHTML(entry, movementMap, opts) {
     const showPosition = !opts || opts.showPosition !== false;
     const mv = (movementMap && movementMap.get(entry.id)) || { label: '—' };
@@ -7834,10 +7856,8 @@
       ${positionHTML}
       ${buildGroupAvatarHTML(entry.name)}
       <span class="group-table__info">
-        <span class="group-table__toprow">
-          <span class="group-table__name">${escapeHtml(entry.name)}</span>
-          <span class="group-table__handle">· ${escapeHtml(handle)}</span>
-        </span>
+        <span class="group-table__name">${escapeHtml(entry.name)}</span>
+        <span class="group-table__handle ranking-row__handle">${escapeHtml(handle)}</span>
         ${caption}
       </span>
       <span class="group-table__points">
@@ -7865,10 +7885,8 @@
       <span class="group-table__position ranking-row__position--dash" aria-hidden="true">—</span>
       ${buildGroupAvatarHTML(p.name)}
       <span class="group-table__info">
-        <span class="group-table__toprow">
-          <span class="group-table__name">${escapeHtml(p.name)}</span>
-          <span class="group-table__handle">· ${escapeHtml(handle)}</span>
-        </span>
+        <span class="group-table__name">${escapeHtml(p.name)}</span>
+        <span class="group-table__handle ranking-row__handle">${escapeHtml(handle)}</span>
         <span class="group-table__caption ranking-row__status-badge">${escapeHtml(badge)}</span>
       </span>
       ${levelHTML}
@@ -8077,10 +8095,8 @@
       return `<div class="group-table__row ranking-row ranking-row--static">
         ${buildGroupAvatarHTML(name)}
         <span class="group-table__info">
-          <span class="group-table__toprow">
-            <span class="group-table__name">${escapeHtml(name)}</span>
-            <span class="group-table__handle">· ${escapeHtml(handle)}</span>
-          </span>
+          <span class="group-table__name">${escapeHtml(name)}</span>
+          <span class="group-table__handle ranking-row__handle">${escapeHtml(handle)}</span>
         </span>
         <button type="button" class="btn-mini ranking-restore-btn" data-name="${escapeHtml(name)}">MOSTRAR</button>
       </div>`;
@@ -8460,12 +8476,16 @@
   function buildGroupMemberPickerRowHTML(name, level, selected) {
     const levelText = Number.isFinite(level) ? level.toFixed(1) : '—';
     const checkSvg = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L11 17 20 6"/></svg>';
+    // BRAMUlab_V03.6 (hotfix — bug real §2) — mismo criterio que buildPlayerRowHTML: @usuario
+    // real si hay cuenta vinculada, nunca fabricado desde el nombre.
+    const account = buildGroupRowAccount(name);
+    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(name);
     return `<button type="button" class="player-row group-picker-row${selected ? ' is-selected' : ''}" data-name="${escapeHtml(name)}">
       <span class="group-picker-row__check" aria-hidden="true">${checkSvg}</span>
       <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
       <span class="player-row__info">
         <span class="player-row__name">${escapeHtml(name)}</span>
-        <span class="player-row__handle">${escapeHtml(buildPlayerHandle(name))}</span>
+        <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
       <span class="player-row__level">
         <span class="player-row__level-value">${levelText}</span>

@@ -4603,6 +4603,97 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 (hotfix — bug real §1) — RANKING: un jugador real NO-self con cuenta
+  // vinculada por userId caía al mismo Nivel simulado por hash que un jugador mock territorial,
+  // porque `buildRankingEntries` (ranking.js) solo armaba `{name, userId}` para SELF — cualquier
+  // otro nombre, aunque tuviera una cuenta real con partidos ya estampados, se consultaba con el
+  // nombre plano (mismo bug de fondo que Perfil público/filas compactas, ver bloques V036-PUBLICO/
+  // V036-NIVEL arriba, esta vez en el caller de Ranking). Corregido con
+  // `resolveRealAccountByName`, nuevo y exportado, reutilizado también para la ubicación real
+  // (self incluido — "Seba aparece sin ubicación" era el mismo síntoma). Fixture con Store real
+  // (snapshot/restore de localStorage, mismo patrón que V0352-IDENTIDAD arriba — único otro
+  // bloque de ranking.js que toca Store real).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.history.v1', 'bramulab.users.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      const selfUser = Store.createUserAccount({ displayName: 'Self V036 Ranking', firstName: 'Self', username: 'selfv036ranking', locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina' });
+      const otherUser = Store.createUserAccount({ displayName: 'Otro Real V036', firstName: 'Otro', username: 'otrorealv036', locality: 'Villa Urquiza', region: 'CABA', country: 'Argentina' });
+      const names4 = [selfUser.displayName, 'Compa Mock V036', otherUser.displayName, 'Rival Mock V036'];
+      const match = mkGroupMatch('v036-ranking-1', new Date(Date.now() - 86400000).toISOString(), names4, [{ gamesA: 6, gamesB: 3 }]);
+      match.players[0].userId = selfUser.id; // self, misma forma que stampPlayersWithUserId
+      match.players[2].userId = otherUser.id; // segundo jugador REAL, no-self, ya estampado
+      Store.upsertHistory(match);
+      const history = Store.loadHistory();
+
+      const entries = RK.buildRankingEntries(names4, history, selfUser.displayName, true, 'masculino', undefined, selfUser.id);
+      const otherEntry = entries.find((e) => e.id === Store.normalizePlayerName(otherUser.displayName));
+      const meEntry = entries.find((e) => e.isMe);
+      const mockEntry = entries.find((e) => e.id === Store.normalizePlayerName('Compa Mock V036'));
+
+      const evolutionOther = PH.computeLevelEvolution(history, { name: otherUser.displayName, userId: otherUser.id });
+      assert('V036-RANKING · jugador real no-self con cuenta vinculada usa su Nivel REAL (evolución de sus propios partidos), nunca el hash',
+        otherEntry.level === evolutionOther.current);
+      assert('V036-RANKING · esa evolución realmente considera el partido ya estampado por userId (fixture válido, no un 5.0 vacío por casualidad)',
+        evolutionOther.consideredCount === 1);
+      assert('V036-RANKING · consultar por nombre plano (causa raíz del bug) NO encuentra ese partido — confirma por qué el fallback por hash era incorrecto acá',
+        PH.computeLevelEvolution(history, otherUser.displayName).consideredCount === 0);
+      assert('V036-RANKING · usa la ubicación REAL de la cuenta vinculada, nunca una localidad mock territorial',
+        otherEntry.locality === PLLoc.formatLocationLabel(otherUser));
+
+      assert('V036-RANKING · self sigue usando su Nivel real vía selfUserId, sin cambios de este hotfix',
+        meEntry.level === PH.computeLevelEvolution(history, { name: selfUser.displayName, userId: selfUser.id }).current);
+      assert('V036-RANKING · self ahora muestra su propia ubicación real (bug real reportado: "Seba aparece sin ubicación")',
+        meEntry.locality === PLLoc.formatLocationLabel(selfUser));
+
+      assert('V036-RANKING · un nombre SIN cuenta real (mock/territorial) sigue usando el Nivel simulado por hash, intacto',
+        mockEntry.level === PH.computeSimulatedJugadorLevel(history, 'Compa Mock V036'));
+      assert('V036-RANKING · ese mismo nombre mock sigue recibiendo su localidad mock territorial de siempre (Ranking territorial intacto)',
+        typeof mockEntry.locality === 'string' && mockEntry.locality.length > 0);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.6 (hotfix — bug real §2) — "Mis jugadores" (y toda fila compacta que pasa por
+  // buildPlayerRowHTML/buildGroupMemberPickerRowHTML, app.js) mostraba un @usuario FABRICADO
+  // desde el nombre en vez del @usuario real de la cuenta vinculada — la misma persona se veía
+  // con handles distintos en esa lista vs. su Perfil público. El armado de HTML vive en app.js,
+  // fuera de esta suite (tests.html no lo carga — límite documentado en rondas anteriores); este
+  // bloque fija el contrato de Store del que ese fix depende: una cuenta real debe resolverse
+  // por `displayName` normalizado con su `username` PROPIO, nunca el que se derivaría del
+  // nombre — mismo criterio que ya usa `buildGroupRowAccount`/`renderPlayerPublicProfile`. La
+  // verificación de que "Mis jugadores" y "Perfil público" muestran EXACTAMENTE el mismo
+  // @usuario para la misma persona se hizo por QA manual (ver Reporte para ChatGPT, §12).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      // Caso real reportado: jugador guardado originalmente por nombre legacy ("Sebastian"),
+      // luego resulta tener una cuenta real con un @usuario que NO coincide con el que se
+      // fabricaría desde el nombre (@sebastian) — ej. @sebastian-gmail.
+      const user = Store.createUserAccount({ displayName: 'Sebastian', firstName: 'Sebastian', username: 'sebastian-gmail' });
+      const found = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === Store.normalizePlayerName('Sebastian'));
+      assert('V036-USERNAME · la cuenta real se resuelve por displayName normalizado (contrato de buildGroupRowAccount)', !!found && found.id === user.id);
+      assert('V036-USERNAME · su @usuario real es exactamente el declarado, nunca el que buildPlayerHandle fabricaría desde el nombre ("sebastian")',
+        found.username === 'sebastian-gmail' && found.username !== 'sebastian');
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

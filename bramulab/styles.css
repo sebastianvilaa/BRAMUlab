@@ -1351,6 +1351,14 @@ input, select{ font-family: inherit; }
    Mi red) el ícono de ocultar (mismo criterio "al lado, nunca en reemplazo" que
    .group-picker-row). */
 .ranking-row__movement{ flex:none; width: 30px; text-align:right; font-size: 11px; font-weight: 800; color: var(--paper-faint); font-variant-numeric: tabular-nums; }
+/* BRAMUlab_V03.6 (hotfix — bug real §3) — estructura ÚNICA de 3 renglones (nombre/@usuario/
+   ubicación) para toda fila de Ranking: antes nombre+`@usuario` vivían dentro de
+   `.group-table__toprow` (flex-wrap, compartido con Mis Grupos), así que el handle quedaba en
+   la MISMA línea o se caía a la suya según si el nombre entraba o no en el ancho disponible —
+   inconsistencia reportada en la prueba real, nunca una decisión de diseño. Acá se fuerza
+   SIEMPRE su propio renglón, sin tocar `.group-table__handle`/`.group-table__toprow` en sí
+   (Mis Grupos los sigue usando exactamente igual que antes). */
+.ranking-row__handle{ display:block; margin-top: 1px; }
 /* §18 — nunca rojo/verde según la dirección (podría leerse como mejora/empeoramiento del
    Nivel): el mismo tono gris para +N/−N/—, la única diferencia es el texto. */
 .ranking-row.is-me{ background: rgba(149,255,25,0.07); }

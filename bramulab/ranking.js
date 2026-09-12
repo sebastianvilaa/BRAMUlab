@@ -172,13 +172,25 @@
     return MOCK_FIRST_NAME_GENDER[first] || 'masculino';
   }
 
+  /** BRAMUlab_V03.6 (hotfix — bug real §1) — único punto de resolución de cuenta real por
+   *  nombre visible, reutilizado para Nivel/ubicación/género de CUALQUIER entrada (self
+   *  incluido): antes esta búsqueda vivía duplicada solo dentro de `resolveAccountGender`, y
+   *  `buildRankingEntries` nunca la usaba para decidir la IDENTIDAD de consulta del Nivel de un
+   *  jugador real no-self (ver comentario de `buildRankingEntries` más abajo). `null` si el
+   *  nombre no tiene ninguna cuenta local resoluble (jugador mock/territorial, o rival conocido
+   *  solo por historial, nunca registrado). */
+  function resolveRealAccountByName(name) {
+    const norm = Store.normalizePlayerName(name);
+    if (!norm) return null;
+    return (Store.loadUsers() || []).find((u) => u && Store.normalizePlayerName(u.displayName) === norm) || null;
+  }
+
   /** Género DECLARADO de una cuenta real (self o compañero de Mi red con cuenta local en este
    *  dispositivo) — nunca inventado. `null` si la persona no tiene cuenta encontrable o nunca
    *  declaró género: esa fila simplemente no entra en ninguna clasificación segmentada por
    *  género (§4, "no mostrar ambos mezclados" — no hay un tercer balde "sin declarar"). */
   function resolveAccountGender(name) {
-    const norm = Store.normalizePlayerName(name);
-    const account = (Store.loadUsers() || []).find((u) => u && Store.normalizePlayerName(u.displayName) === norm);
+    const account = resolveRealAccountByName(name);
     const g = account && account.gender;
     return (g === 'masculino' || g === 'femenino') ? g : null;
   }
@@ -216,25 +228,31 @@
    *  cálculo propio, así que el número que ve acá siempre coincide con el que va a ver si
    *  toca la fila y abre el perfil público de esa persona. */
   /** `assignMockLocality` — SOLO true para los ámbitos territoriales (universo 100% mock, ver
-   *  buildScopeUniverseNames). Mis jugadores son personas reales (self o compañeros con
-   *  partidos compartidos) — asignarles una localidad simulada sería inventarle un dato real a
-   *  alguien que nunca lo declaró, así que ahí siempre queda en `null` (ver §11.1: Local/Mis
-   *  jugadores no necesitan ese contexto igual). */
+   *  buildScopeUniverseNames): nombres SIN cuenta real detrás siguen recibiendo una localidad
+   *  simulada ahí (nunca en Mi red/Local, §11.1). BRAMUlab_V03.6 (hotfix — bug real §1/§3):
+   *  esto es aparte de la ubicación REAL de una cuenta real (self o compañero con cuenta
+   *  local), que ahora se resuelve siempre que exista, en cualquier ámbito — nunca se le
+   *  inventa una localidad mock a alguien con cuenta real, pero tampoco se le sigue negando la
+   *  suya propia si la declaró (bug real encontrado en la prueba de Sebastián: "Seba aparece
+   *  sin ubicación" — self nunca leía su propia `locality` acá). */
   /** `selfGender` — género EFECTIVO de self para Ranking (ya resuelto por app.js, con su
    *  propio fallback si el usuario no lo declaró — ver renderRankingScreen/rankingGenderFilter
    *  en app.js): a diferencia de terceros, self siempre debe poder verse a sí mismo. */
-  /** `selfUserId` — BRAMUlab_V03.5.2, bug real encontrado durante esta ronda: una vez que self
-   *  jugó su primer partido, `store.js` estampa `userId` en su propia fila de `players[]`
-   *  (regla de integridad ya vigente desde V03.0 — ver stampPlayersWithUserId). Por esa MISMA
-   *  regla, `PH.findPlayerRow` nunca encuentra esa fila con solo el nombre plano: un partido
-   *  con `userId` estampado SOLO es hallable pasando ESE `userId` (nunca por nombre, aunque
-   *  coincida) — pasar únicamente `selfName` (string) hacía que `PH.computeSimulatedJugadorLevel`
-   *  no encontrara NINGÚN partido real de self y devolviera el Nivel simulado por hash (el
-   *  mismo que un jugador de mock territorial), en vez de su evolución real. Con `selfUserId`
-   *  presente se arma `{name, userId}` — mismo criterio que `currentIdentity()` en app.js — SOLO
-   *  para las dos líneas que calculan el Nivel de self; `selfNorm`/`Store.normalizePlayerName`
-   *  siguen usando el string plano (nunca le pasan un objeto). Sin este parámetro (tests
-   *  existentes, que no lo pasan) el comportamiento es idéntico al de antes. */
+  /** `selfUserId` — BRAMUlab_V03.5.2, bug real: una vez que self jugó su primer partido,
+   *  `store.js` estampa `userId` en su propia fila de `players[]` (regla de integridad ya
+   *  vigente desde V03.0 — ver stampPlayersWithUserId). Por esa MISMA regla, `PH.findPlayerRow`
+   *  nunca encuentra esa fila con solo el nombre plano: un partido con `userId` estampado SOLO
+   *  es hallable pasando ESE `userId` (nunca por nombre, aunque coincida). Con `selfUserId`
+   *  presente se arma `{name, userId}` — mismo criterio que `currentIdentity()` en app.js.
+   *  BRAMUlab_V03.6 (hotfix — bug real §1): el MISMO problema existía para cualquier jugador
+   *  real NO-self — `resolveRealAccountByName(rawName)` ahora resuelve su cuenta (si existe) y
+   *  arma `{name, userId: account.id}` para el Nivel, exactamente igual que ya se hacía solo
+   *  para self. Un nombre sin cuenta real resoluble sigue usando el string plano tal cual — el
+   *  fallback por hash de `computeSimulatedJugadorLevel` queda reservado exclusivamente a esos
+   *  casos (jugadores mock/territoriales, rivales conocidos solo por historial). Sin
+   *  `selfUserId` (tests existentes que no lo pasan) el comportamiento de self es idéntico al
+   *  de antes; la resolución de terceros por cuenta real es incondicional (no depende de este
+   *  parámetro). */
   function buildRankingEntries(names, history, selfName, assignMockLocality, selfGender, localityIndexOffset, selfUserId) {
     const selfNorm = Store.normalizePlayerName(selfName);
     const selfRef = selfUserId ? { name: selfName, userId: selfUserId } : selfName;
@@ -246,18 +264,28 @@
       if (!norm || seen.has(norm)) return;
       seen.add(norm);
       const isMe = norm === selfNorm;
-      const level = PH.computeSimulatedJugadorLevel(history, isMe ? selfRef : rawName);
+      // BRAMUlab_V03.6 (hotfix — bug real §1) — resuelto para CUALQUIER entrada, self incluido:
+      // antes solo self tenía este tratamiento (vía selfRef/selfUserId, arriba); un jugador real
+      // no-self nunca resolvía su cuenta y caía siempre al fallback por hash.
+      const account = resolveRealAccountByName(rawName);
+      const identity = isMe ? selfRef : (account ? { name: rawName, userId: account.id } : rawName);
+      const level = PH.computeSimulatedJugadorLevel(history, identity);
+      const realLocality = (account && account.locality) ? PLLoc.formatLocationLabel(account) : null;
       entries.push({
         id: norm,
         name: isMe ? Store.normalizePlayerName(selfName) : rawName,
         level,
         isMe,
-        locality: (assignMockLocality && !isMe) ? mockLocalityAt(localityCursor++) : null,
+        // Real primero (self o cualquier cuenta real que la haya declarado); el mock territorial
+        // queda exclusivamente para nombres SIN cuenta real resoluble, tal como ya era.
+        locality: realLocality || ((assignMockLocality && !isMe && !account) ? mockLocalityAt(localityCursor++) : null),
         gender: isMe ? selfGender : (assignMockLocality ? mockGenderForName(rawName) : resolveAccountGender(rawName)),
       });
     });
     if (selfNorm && !seen.has(selfNorm)) {
-      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfRef), isMe: true, locality: null, gender: selfGender });
+      const selfAccount = resolveRealAccountByName(selfName);
+      const selfLocality = (selfAccount && selfAccount.locality) ? PLLoc.formatLocationLabel(selfAccount) : null;
+      entries.push({ id: selfNorm, name: Store.normalizePlayerName(selfName), level: PH.computeSimulatedJugadorLevel(history, selfRef), isMe: true, locality: selfLocality, gender: selfGender });
     }
     return entries;
   }
