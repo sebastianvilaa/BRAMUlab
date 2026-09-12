@@ -13,8 +13,8 @@ y reemplaza lo que este reporte decía antes sobre "elegibilidad en vivo".
 
 **Link para revisar la app en vivo:** https://sebastianvilaa.github.io/BRAMUlab/bramulab/
 **Repositorio de código (GitHub):** https://github.com/sebastianvilaa/BRAMUlab
-**Commit de esta ronda:** ver §8 (se completa al final, después de publicar la corrección)
-**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido al commit corregido — ver §8)
+**Commit de esta ronda:** [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343) (corrección de cierre) sobre [`dd4055a`](https://github.com/sebastianvilaa/BRAMUlab/commit/dd4055af36a8220a0e91786e60a36e65c9d25dac)/[`4037cd1`](https://github.com/sebastianvilaa/BRAMUlab/commit/4037cd1842858a4c59e6074131304202e5257d99) (implementación inicial)
+**Tag:** `BRAMUlab_V03.5.2` (mismo tag, movido a `ec7f35c` — ver §8)
 **Base:** `BRAMUlab_V03.5.1`
 **Documentos fuente:** `docs/BRAMUlab/Ranking_BRAMU.md` (normativo, revisión 11/09/2026) +
 `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03.5.2.md` (operativo de esta ronda, con su
@@ -222,9 +222,14 @@ de cierre, se revisaron específicamente las superficies afectadas por ambos pun
 
 ## 8. Commit, tag, push, deploy
 
-*(completar con el hash de commit de la corrección, confirmación de push y del deploy de
-GitHub Pages una vez publicado — este reporte se actualizó antes de ese paso para no dejarlo
-pendiente después)*
+Commit de la corrección de cierre: [`ec7f35c`](https://github.com/sebastianvilaa/BRAMUlab/commit/ec7f35cf7bc47a073a5a3746892e2e6b58d09343),
+staging explícito de solo los archivos tocados por esta corrección (excluyendo el mismo
+trabajo paralelo no relacionado de siempre: `BRAMU_Intelligence*`, `Referencias/`, `Backup/`,
+`Logo.ai`, y el reporte de V03.5.1 sin commitear a pedido de Sebastián). El tag
+`BRAMUlab_V03.5.2` se movió de `4037cd1` (implementación inicial) a este commit — sigue siendo
+una corrección de cierre de la misma versión, no una `V03.5.3`. Push a `origin/main` y al tag
+(force-push del tag, ya documentado como flujo aceptado para corregir un release). Deploy de
+GitHub Pages verificado antes de dar la corrección por publicada.
 
 ---
 
