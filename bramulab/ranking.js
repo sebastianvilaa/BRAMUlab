@@ -723,6 +723,46 @@
     return { periodLabel, status, scopes };
   }
 
+  /* ======================================================================
+     BRAMUlab_V03.8 — RANKING BRAMU EN TU MOMENTO (Home)
+     Ranking_BRAMU.md §13.6: Home nunca duplica la clasificación territorial completa con otra
+     tarjeta — como mucho aporta UN insight puntual dentro de TU MOMENTO. Reutiliza las mismas
+     piezas que ya arma computeScopePosition/computeSelfStatus (nunca una tercera lógica de
+     Ranking); la única pieza nueva acá es el DELTA entre la edición vigente y la anterior para
+     el ámbito Local, que es la misma resta que ya usa computeWeeklyMovement internamente
+     (`priorPos - position`) — no un cálculo de movimiento alternativo.
+     ====================================================================== */
+
+  /** Insight de Ranking para `TU MOMENTO` del Home — SIEMPRE ámbito Local (el ámbito por
+   *  defecto/canónico de Ranking, §8), nunca "elige" el ámbito más favorable. `null` si no hay
+   *  cuenta, no es elegible, no tiene género declarado o el ámbito Local no alcanza densidad —
+   *  nunca se inventa una posición para poder mostrar algo. `isNew` reutiliza EXACTAMENTE el
+   *  mismo criterio que ya usa `computeRankingView` (§ Caso 4/7 de Ranking_BRAMU.md,
+   *  `selfStatus.isNew`) para decidir "Nuevo" — no una redefinición propia. `delta`: `null` si
+   *  no hay edición anterior comparable (además de `isNew`, cubre el caso borde de density
+   *  insuficiente la semana pasada); en ese caso Home no debe forzar un mensaje (§13.6, "sin
+   *  movimiento"). */
+  function computeHomeRankingInsight(account, history, nowDate) {
+    const now = nowDate || new Date();
+    const period = computeRankingWeekPeriod(now);
+    const previousPeriod = computePreviousRankingWeekPeriod(now);
+    const currentSnapshotHistory = historySnapshotAsOf(history, period.start);
+    const status = computeSelfStatus(account, currentSnapshotHistory, true, period.start);
+    if (status.key !== 'elegible') return null;
+    const gender = (account && (account.gender === 'masculino' || account.gender === 'femenino')) ? account.gender : null;
+    if (!gender) return null;
+    const ref = { name: account.displayName, userId: account.id };
+    const current = computeScopePosition('local', currentSnapshotHistory, ref, account.displayName, account, gender);
+    if (!current) return null;
+    if (status.isNew) {
+      return { position: current.position, total: current.total, territory: current.territory, isNew: true, delta: null };
+    }
+    const previousSnapshotHistory = historySnapshotAsOf(history, previousPeriod.start);
+    const previous = computeScopePosition('local', previousSnapshotHistory, ref, account.displayName, account, gender);
+    const delta = previous ? previous.position - current.position : null;
+    return { position: current.position, total: current.total, territory: current.territory, isNew: false, delta };
+  }
+
   global.PLRanking = {
     BLOCK_SIZE,
     RANKING_TIMEZONE,
@@ -753,5 +793,6 @@
     computeNetworkDensity,
     GLOBAL_UNLOCKED,
     computeProfileRankingSummary,
+    computeHomeRankingInsight,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

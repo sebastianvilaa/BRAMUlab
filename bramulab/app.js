@@ -6884,7 +6884,8 @@
     if (!currentPlayerName) { openAccessFlow(); return; }
     renderActiveMatchBanner();
     renderNotificationsBadge();
-    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+    const history = Store.loadHistory();
+    const matches = PH.filterMatchesForPlayer(history, currentIdentity());
     // V02.8 (§1) — se anima en CADA render (cada entrada/vuelta real al Home, ver comentario
     // en la declaración de `currentPlayerName` de más arriba), salvo `prefers-reduced-motion`.
     // Se sigue chequeando en JS (no solo vía el colapso de `--home-anim-*` a 1ms en CSS) porque
@@ -6897,7 +6898,12 @@
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(matches);
-    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity());
+    // BRAMUlab_V03.8 (Ranking_BRAMU.md §13.6) — insight de Ranking (siempre ámbito Local, nunca
+    // Nivel actual en vivo) como candidato más para TU MOMENTO, nunca una tarjeta territorial
+    // completa nueva en Home. `null` cuando no hay cuenta/no es elegible/sin género/densidad
+    // insuficiente — buildTuMomentoText ya sabe ignorarlo en ese caso.
+    const rankingInsight = RK.computeHomeRankingInsight(Store.getCurrentUser(), history, new Date());
+    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), rankingInsight);
     renderPlayerActivity(matches, shouldAnimate);
     renderPlayerEffectiveness(matches, shouldAnimate);
     renderPlayerWidgets(matches);
@@ -9142,48 +9148,62 @@
     return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   }
 
-  function renderProfileRankingScopeCol(prefix, scopeResult) {
-    const pos = $(`#player-public-ranking-${prefix}-pos`);
-    const denom = $(`#player-public-ranking-${prefix}-denom`);
-    const territory = $(`#player-public-ranking-${prefix}-territory`);
+  function renderRankingCardScopeCol(idPrefix, scopeKey, scopeResult) {
+    const pos = $(`#${idPrefix}-${scopeKey}-pos`);
+    const denom = $(`#${idPrefix}-${scopeKey}-denom`);
+    const territory = $(`#${idPrefix}-${scopeKey}-territory`);
     if (!scopeResult) { pos.textContent = '—'; denom.textContent = ''; territory.textContent = ''; return; }
     pos.textContent = `#${scopeResult.position}`;
     denom.textContent = `de ${formatRankingDenominator(scopeResult.total)}`;
     territory.textContent = scopeResult.territory || '';
   }
 
-  /** BRAMUlab_V03.7 (parte B) — tarjeta RANKING BRAMU del Perfil público: puramente informativa
-   *  (nunca clickeable, sin chevrons/hover de acción/navegación — a propósito, ver pedido de la
-   *  ronda). Reutiliza EXACTAMENTE la misma fuente/snapshot semanal que la pantalla Ranking vía
-   *  RK.computeProfileRankingSummary (ranking.js) — nunca una segunda lógica de Ranking, nunca
-   *  Nivel actual en vivo. Las 3 posiciones se calculan respecto de la ubicación DE `account`
-   *  (el jugador de este Perfil), nunca de quien está mirando.
+  /** BRAMUlab_V03.7 (parte B) / BRAMUlab_V03.8 (§3, Ranking_BRAMU.md §15.1) — tarjeta RANKING
+   *  BRAMU compartida entre Perfil público (`idPrefix` = `'player-public-ranking'`) y Mi Perfil
+   *  (`idPrefix` = `'mi-perfil-ranking'`): MISMA fuente/lógica para las dos
+   *  (RK.computeProfileRankingSummary, ranking.js) — nunca una segunda implementación de
+   *  Ranking, ver `renderPlayerPublicRankingCard`/`renderMiPerfilRankingCard` más abajo, que
+   *  solo fijan el `idPrefix`. Puramente informativa (nunca clickeable, sin chevrons/hover de
+   *  acción/navegación). Las posiciones se calculan respecto de la ubicación DE `account` (el
+   *  jugador de ESE perfil), nunca de quien está mirando.
    *
    *  Sin cuenta real detrás del nombre (jugador mock/territorial de Buscar Jugadores/Ranking sin
    *  identidad registrada), la tarjeta se oculta por completo — nunca se inventa un Ranking
-   *  oficial para una identidad no resuelta (preferencia explícita del pedido). Con cuenta real
-   *  pero sin elegibilidad completa (calibrando, inactivo, sin ubicación, sin género declarado),
-   *  se muestra un estado simple en vez de puestos inventados. */
-  function renderPlayerPublicRankingCard(account, history) {
-    const card = $('#player-public-ranking-card');
+   *  oficial para una identidad no resuelta. Con cuenta real pero sin elegibilidad completa
+   *  (calibrando, inactivo, sin ubicación, sin género declarado), se muestra un estado simple en
+   *  vez de puestos inventados. */
+  function renderRankingCardForAccount(idPrefix, account, history) {
+    const card = $(`#${idPrefix}-card`);
     if (!account) { card.hidden = true; return; }
     card.hidden = false;
     const summary = RK.computeProfileRankingSummary(account, history, new Date());
     const eligible = summary.status.key === 'elegible' && !!summary.scopes;
-    // §"DISEÑO DE LA TARJETA" — solo el rango de fechas a la derecha (sin el prefijo "Ranking
-    // semanal ·" que sí usa la pantalla Ranking): más corto, entra junto al título en una sola
-    // línea a 375px sin forzar el wrap de "RANKING BRAMU".
-    $('#player-public-ranking-period').textContent = eligible ? summary.periodLabel : '';
-    $('#player-public-ranking-cols').hidden = !eligible;
-    const statusEl = $('#player-public-ranking-status');
+    // §"DISEÑO DE LA TARJETA" (V03.7) — solo el rango de fechas a la derecha (sin el prefijo
+    // "Ranking semanal ·" que sí usa la pantalla Ranking): más corto, entra junto al título en
+    // una sola línea a 375px sin forzar el wrap de "RANKING BRAMU".
+    $(`#${idPrefix}-period`).textContent = eligible ? summary.periodLabel : '';
+    $(`#${idPrefix}-cols`).hidden = !eligible;
+    const statusEl = $(`#${idPrefix}-status`);
     statusEl.hidden = eligible;
     if (!eligible) {
       statusEl.textContent = summary.status.key === 'calibrando' ? 'Completando calibración' : 'Todavía sin posición oficial';
       return;
     }
-    renderProfileRankingScopeCol('local', summary.scopes.local);
-    renderProfileRankingScopeCol('provincial', summary.scopes.provincial);
-    renderProfileRankingScopeCol('pais', summary.scopes.pais);
+    renderRankingCardScopeCol(idPrefix, 'local', summary.scopes.local);
+    renderRankingCardScopeCol(idPrefix, 'provincial', summary.scopes.provincial);
+    renderRankingCardScopeCol(idPrefix, 'pais', summary.scopes.pais);
+  }
+
+  function renderPlayerPublicRankingCard(account, history) {
+    renderRankingCardForAccount('player-public-ranking', account, history);
+  }
+
+  /** BRAMUlab_V03.8 (§3) — misma tarjeta también en Mi Perfil (perfil propio), llamada desde
+   *  `renderProfileView`. `user`: `Store.getCurrentUser()` — `null` sin sesión (no debería
+   *  ocurrir estando en Mi Perfil, pero `renderRankingCardForAccount` lo maneja igual: oculta la
+   *  tarjeta). */
+  function renderMiPerfilRankingCard(user, history) {
+    renderRankingCardForAccount('mi-perfil-ranking', user, history);
   }
 
   /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`
@@ -9367,6 +9387,11 @@
     }
 
     renderProfileEvolution(user);
+    // BRAMUlab_V03.8 (§3, Ranking_BRAMU.md §15.1) — misma tarjeta RANKING BRAMU del Perfil
+    // público, ahora también en Mi Perfil: debajo de Mejor racha/Evolución (donde vive "Mejor
+    // nivel BRAMU" acá), misma fuente/lógica (RK.computeProfileRankingSummary vía
+    // renderRankingCardForAccount) — nunca una segunda implementación de Ranking.
+    renderMiPerfilRankingCard(user, Store.loadHistory());
     // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
     // (mismo criterio que ya usa este función con MI PERFIL/MIS DATOS: las 3 se llenan al
     // abrir Perfil, setProfileTab solo alterna cuál queda visible).

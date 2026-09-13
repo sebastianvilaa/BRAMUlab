@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=03.7" />
+<link rel="stylesheet" href="styles.css?v=03.8" />
 </head>
 <body>
 
@@ -1715,6 +1715,38 @@
             <p class="coverage-note">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
           </div>
         </div>
+
+        <!-- BRAMUlab_V03.8 (§3, Ranking_BRAMU.md §15.1) — misma tarjeta RANKING BRAMU del
+             Perfil público, ahora también en Mi Perfil (perfil propio): superficie oficial de
+             Ranking en los dos lugares, misma fuente/lógica (ver renderMiPerfilRankingCard/
+             renderRankingCardForAccount en app.js). Puramente informativa, nunca clickeable. -->
+        <div class="pastilla profile-ranking-card" id="mi-perfil-ranking-card" hidden>
+          <div class="pastilla__title-row">
+            <div class="pastilla__title">RANKING BRAMU</div>
+            <span class="profile-ranking-card__period" id="mi-perfil-ranking-period"></span>
+          </div>
+          <div class="profile-ranking-card__cols" id="mi-perfil-ranking-cols">
+            <div class="profile-ranking-card__col">
+              <span class="profile-ranking-card__scope">LOCAL</span>
+              <span class="profile-ranking-card__pos" id="mi-perfil-ranking-local-pos">—</span>
+              <span class="profile-ranking-card__denom" id="mi-perfil-ranking-local-denom"></span>
+              <span class="profile-ranking-card__territory" id="mi-perfil-ranking-local-territory"></span>
+            </div>
+            <div class="profile-ranking-card__col">
+              <span class="profile-ranking-card__scope">PROVINCIA</span>
+              <span class="profile-ranking-card__pos" id="mi-perfil-ranking-provincial-pos">—</span>
+              <span class="profile-ranking-card__denom" id="mi-perfil-ranking-provincial-denom"></span>
+              <span class="profile-ranking-card__territory" id="mi-perfil-ranking-provincial-territory"></span>
+            </div>
+            <div class="profile-ranking-card__col">
+              <span class="profile-ranking-card__scope">PAÍS</span>
+              <span class="profile-ranking-card__pos" id="mi-perfil-ranking-pais-pos">—</span>
+              <span class="profile-ranking-card__denom" id="mi-perfil-ranking-pais-denom"></span>
+              <span class="profile-ranking-card__territory" id="mi-perfil-ranking-pais-territory"></span>
+            </div>
+          </div>
+          <p class="profile-ranking-card__status" id="mi-perfil-ranking-status" hidden></p>
+        </div>
       </div>
 
       <div id="profile-panel-mis-datos" class="profile-panel" hidden>
@@ -2864,15 +2896,15 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=03.7"></script>
-  <script src="stats.js?v=03.7"></script>
-  <script src="store.js?v=03.7"></script>
-  <script src="player-home.js?v=03.7"></script>
-  <script src="match-load.js?v=03.7"></script>
-  <script src="player-identity.js?v=03.7"></script>
-  <script src="groups.js?v=03.7"></script>
-  <script src="locations.js?v=03.7"></script>
-  <script src="ranking.js?v=03.7"></script>
-  <script src="app.js?v=03.7"></script>
+  <script src="engine.js?v=03.8"></script>
+  <script src="stats.js?v=03.8"></script>
+  <script src="store.js?v=03.8"></script>
+  <script src="player-home.js?v=03.8"></script>
+  <script src="match-load.js?v=03.8"></script>
+  <script src="player-identity.js?v=03.8"></script>
+  <script src="groups.js?v=03.8"></script>
+  <script src="locations.js?v=03.8"></script>
+  <script src="ranking.js?v=03.8"></script>
+  <script src="app.js?v=03.8"></script>
 </body>
 </html>

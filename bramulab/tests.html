@@ -4879,6 +4879,174 @@
   })();
 
   // ------------------------------------------------------------------
+  // BRAMUlab_V03.8 — cierre UX de Ranking BRAMU: (A) tarjeta territorial también en Mi Perfil,
+  // MISMA fuente/lógica que Perfil público (RK.computeProfileRankingSummary, sin segunda
+  // implementación); (B) contrato puro detrás de "TU POSICIÓN → contexto cercano"
+  // (RK.blockForPosition/RK.paginate); (C) Ranking como candidato de TU MOMENTO
+  // (PH.buildRankingMomentoClause/PH.buildTuMomentoText con rankingInsight) y
+  // RK.computeHomeRankingInsight (siempre ámbito Local).
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.history.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    function seedCalibratedHistory(name) {
+      const rivalPairs = [['A', 'B'], ['A', 'B'], ['C', 'B'], ['D', 'B'], ['D', 'B']];
+      for (let i = 0; i < 5; i++) {
+        const playedAt = new Date(Date.now() - (30 - i * 5) * 86400000).toISOString();
+        Store.upsertHistory(mkGroupMatch(`v038-${name}-${i}`, playedAt,
+          [name, `Compa ${name}`, `Rival ${rivalPairs[i][0]} ${name}`, `Rival ${rivalPairs[i][1]} ${name}`],
+          [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      }
+    }
+
+    try {
+      resetAffectedKeys();
+      const now = new Date();
+
+      // ---- (A) Mi Perfil: MISMA fuente/lógica que Perfil público ----
+      const subject = Store.createUserAccount({
+        displayName: 'Sujeto Perfil V038', firstName: 'Sujeto', gender: 'masculino',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      seedCalibratedHistory('Sujeto Perfil V038');
+      const history = Store.loadHistory();
+      // renderMiPerfilRankingCard/renderPlayerPublicRankingCard (app.js) llaman a la MISMA
+      // renderRankingCardForAccount -> RK.computeProfileRankingSummary: acá se prueba esa única
+      // fuente/lógica compartida directamente (app.js no está cargado en esta suite).
+      const summaryA = RK.computeProfileRankingSummary(subject, history, now);
+      const summaryB = RK.computeProfileRankingSummary(subject, history, now);
+      assert('V038-MIPERFIL · jugador elegible -> Local/Provincia/País con posición+total+territorio',
+        ['local', 'provincial', 'pais'].every((k) => summaryA.scopes[k] && typeof summaryA.scopes[k].position === 'number'));
+      assert('V038-MIPERFIL · Mi Perfil y Perfil público usan la MISMA edición semanal (mismo periodLabel)',
+        summaryA.periodLabel === RK.formatRankingWeekRangeLabel(RK.computePreviousRankingWeekPeriod(now)));
+      assert('V038-MIPERFIL · Perfil propio y público consumen la misma lógica/fuente (resultado idéntico ante los mismos datos)',
+        JSON.stringify(summaryA) === JSON.stringify(summaryB));
+
+      resetAffectedKeys();
+      const calibrando = Store.createUserAccount({
+        displayName: 'Calibrando V038', firstName: 'Calibrando', gender: 'femenino',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      Store.upsertHistory(mkGroupMatch('v038-calib-0', new Date(Date.now() - 20 * 86400000).toISOString(),
+        ['Calibrando V038', 'Compa Calib V038', 'Rival Calib A V038', 'Rival Calib B V038'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      const calibSummary = RK.computeProfileRankingSummary(calibrando, Store.loadHistory(), now);
+      assert('V038-MIPERFIL · calibrando/no elegible -> nunca puestos inventados (scopes null), misma tarjeta que Perfil público',
+        calibSummary.status.key === 'calibrando' && calibSummary.scopes === null);
+
+      // ---- (B) "TU POSICIÓN" -> contexto cercano: contrato puro detrás de locateMeInRanking ----
+      resetAffectedKeys();
+      const ranked = [];
+      for (let i = 1; i <= 137; i++) ranked.push({ id: `p${i}`, position: i });
+      assert('V038-TUPOSICION · self dentro del primer bloque (posición 12 de 137) -> ya localizable sin cargar más',
+        RK.blockForPosition(12) === 1 && RK.paginate(ranked, RK.blockForPosition(12)).length >= 12);
+      assert('V038-TUPOSICION · self fuera del bloque inicial (posición 137) -> el bloque calculado SIEMPRE incluye su fila',
+        RK.paginate(ranked, RK.blockForPosition(137)).some((e) => e.position === 137));
+      assert('V038-TUPOSICION · posición justo en el borde de un bloque (posición 50) queda incluida en ese mismo bloque',
+        RK.blockForPosition(50) === 1 && RK.paginate(ranked, RK.blockForPosition(50)).some((e) => e.position === 50));
+      assert('V038-TUPOSICION · el bloque calculado deja visibles jugadores inmediatamente antes y después de la posición propia',
+        (() => {
+          const visible = RK.paginate(ranked, RK.blockForPosition(90));
+          const idx = visible.findIndex((e) => e.position === 90);
+          return idx > 0 && idx < visible.length - 1;
+        })());
+
+      // ---- (C) TU MOMENTO: Ranking como candidato nuevo, siempre ámbito Local ----
+      assert('V038-MOMENTO · sin insight (sin posición/no elegible) -> nunca inventa un candidato',
+        PH.buildRankingMomentoClause(null) === null);
+      assert('V038-MOMENTO · "Nuevo" -> mensaje de entrada al Ranking',
+        PH.buildRankingMomentoClause({ isNew: true, position: 8, total: 21, territory: 'Bella Vista', delta: null })
+          === 'Entraste al Ranking de Bella Vista: #8 de 21');
+      assert('V038-MOMENTO · movimiento positivo -> candidato correcto (puestos, nunca "jugó mejor")',
+        PH.buildRankingMomentoClause({ isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: 2 })
+          === '#8 de 21 en Bella Vista · ↑ 2 esta semana');
+      assert('V038-MOMENTO · movimiento negativo -> lenguaje factual, mismo formato',
+        PH.buildRankingMomentoClause({ isNew: false, position: 10, total: 21, territory: 'Bella Vista', delta: -2 })
+          === '#10 de 21 en Bella Vista · ↓ 2 esta semana');
+      assert('V038-MOMENTO · sin movimiento (delta 0) -> no fuerza mensaje de Ranking',
+        PH.buildRankingMomentoClause({ isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: 0 }) === null);
+      assert('V038-MOMENTO · sin dato comparable (delta null, no Nuevo) -> no fuerza mensaje',
+        PH.buildRankingMomentoClause({ isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: null }) === null);
+
+      // buildTuMomentoText: forma reciente > Ranking > compañero/actividad (integración, no
+      // un motor editorial nuevo — mismo mecanismo de "hasta 2 clauses" de siempre).
+      function m3Wins(prefix, playerName, partnerName) {
+        const arr = [];
+        for (let i = 0; i < 3; i++) {
+          arr.push(mkGroupMatch(`${prefix}-${i}`, new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+            [playerName, partnerName, 'Riv Uno', 'Riv Dos'], [{ gamesA: 6, gamesB: 2 }, { gamesA: 6, gamesB: 3 }]));
+        }
+        return arr;
+      }
+      const rankingUp = { isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: 2 };
+      const withForm = m3Wins('v038-form', 'Jugador Form', 'Compa Form');
+      const textWithBoth = PH.buildTuMomentoText(withForm, 'Jugador Form', rankingUp);
+      assert('V038-MOMENTO · forma reciente sigue siendo prioridad 1 (no la desplaza Ranking)',
+        /venís de ganar/i.test(textWithBoth));
+      assert('V038-MOMENTO · con espacio disponible, Ranking se suma como segundo dato',
+        textWithBoth.includes('#8 de 21 en Bella Vista · ↑ 2 esta semana'));
+
+      // Sin forma reciente (partidos "neutros", sin ganador) pero con compañero frecuente Y
+      // actividad del mes — antes de V03.8 esas dos ocupaban las 2 clauses; con Ranking
+      // presente, Ranking pasa a ocupar la 1ª (prioridad 2, por encima de compañero/mes) y
+      // "actividad del mes" queda afuera (cupo de 2 ya lleno) — Ranking SÍ compite por el cupo,
+      // nunca se limita a "rellenar si sobra lugar".
+      const neutralMatches = [0, 1, 2].map((i) => mkGroupMatch(`v038-neutral-${i}`,
+        new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+        ['Jugador Neutral', 'Compa Frecuente', 'Riv Uno', 'Riv Dos'],
+        [{ gamesA: 6, gamesB: 2 }, { gamesA: 6, gamesB: 3 }], { winnerTeam: null }));
+      const textNoFormWithRanking = PH.buildTuMomentoText(neutralMatches, 'Jugador Neutral', rankingUp);
+      assert('V038-MOMENTO · sin forma reciente, Ranking pasa a ocupar la 1ª prioridad disponible',
+        textNoFormWithRanking.includes('#8 de 21 en Bella Vista · ↑ 2 esta semana'));
+      assert('V038-MOMENTO · Ranking + compañero llenan el cupo de 2 -> "actividad del mes" queda afuera',
+        /Compa Frecuente es tu compañero más frecuente/.test(textNoFormWithRanking) && !/jugaste \d+ partidos? este mes/.test(textNoFormWithRanking));
+
+      const textNoFormNoRanking = PH.buildTuMomentoText(neutralMatches, 'Jugador Neutral', null);
+      assert('V038-MOMENTO · sin rankingInsight (compatibilidad hacia atrás) -> comportamiento IDÉNTICO al de antes de V03.8',
+        textNoFormNoRanking === PH.buildTuMomentoText(neutralMatches, 'Jugador Neutral'));
+
+      const flatInsight = { isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: 0 };
+      const textFlat = PH.buildTuMomentoText(neutralMatches, 'Jugador Neutral', flatInsight);
+      assert('V038-MOMENTO · sin movimiento no desplaza al compañero frecuente (no fuerza un mensaje de Ranking vacío)',
+        /Compa Frecuente es tu compañero más frecuente/.test(textFlat) && !textFlat.includes('Bella Vista'));
+
+      // ---- RK.computeHomeRankingInsight: siempre ámbito Local, nunca inventa ----
+      resetAffectedKeys();
+      const homeSubject = Store.createUserAccount({
+        displayName: 'Home Insight V038', firstName: 'Home', gender: 'masculino',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      seedCalibratedHistory('Home Insight V038');
+      const insight = RK.computeHomeRankingInsight(homeSubject, Store.loadHistory(), now);
+      assert('V038-HOMEINSIGHT · cuenta recién calibrada (Caso 4) -> "Nuevo", nunca un delta inventado',
+        !!insight && insight.isNew === true && insight.delta === null && insight.territory === 'Bella Vista');
+
+      resetAffectedKeys();
+      const homeCalibrando = Store.createUserAccount({
+        displayName: 'Home Calibrando V038', firstName: 'Home', gender: 'masculino',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      Store.upsertHistory(mkGroupMatch('v038-home-calib-0', new Date(Date.now() - 5 * 86400000).toISOString(),
+        ['Home Calibrando V038', 'Compa V038', 'Rival A V038', 'Rival B V038'], [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }]));
+      assert('V038-HOMEINSIGHT · sin posición oficial (calibrando) -> null, nunca inventa Ranking en Home',
+        RK.computeHomeRankingInsight(homeCalibrando, Store.loadHistory(), now) === null);
+
+      resetAffectedKeys();
+      const homeSinGenero = Store.createUserAccount({
+        displayName: 'Home Sin Genero V038', firstName: 'Home',
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      });
+      seedCalibratedHistory('Home Sin Genero V038');
+      assert('V038-HOMEINSIGHT · elegible pero sin género declarado -> null, nunca puestos inventados',
+        RK.computeHomeRankingInsight(homeSinGenero, Store.loadHistory(), now) === null);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

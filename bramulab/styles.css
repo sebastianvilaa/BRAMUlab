@@ -2111,11 +2111,15 @@ input, select{ font-family: inherit; }
 .profile-ranking-card .pastilla__title{ white-space: nowrap; }
 .profile-ranking-card__period{ font-size: 11px; color: var(--paper-faint); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profile-ranking-card__cols{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.profile-ranking-card__col{ display:flex; flex-direction:column; gap: 2px; min-width: 0; }
-.profile-ranking-card__scope{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; }
-.profile-ranking-card__pos{ font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
-.profile-ranking-card__denom{ font-size: 11px; color: var(--paper-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
-.profile-ranking-card__territory{ font-size: 11px; color: var(--paper-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.profile-ranking-card__col{ display:flex; flex-direction:column; gap: 1px; min-width: 0; }
+.profile-ranking-card__scope{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; margin-bottom: 1px; }
+/* BRAMUlab_V03.8 (§4) — el puesto era demasiado chico para ser el protagonista visual de la
+   tarjeta (17px, casi al mismo peso que "de N"). Sube a 22px/line-height ajustado y "de N" baja
+   a 10px — jerarquía puesto > denominador > territorio sin agrandar la tarjeta (el `gap` del
+   `.profile-ranking-card__col` se ajustó de 2px a 1px para compensar la línea extra de alto). */
+.profile-ranking-card__pos{ font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--paper); font-variant-numeric: tabular-nums; }
+.profile-ranking-card__denom{ font-size: 10px; color: var(--paper-faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+.profile-ranking-card__territory{ font-size: 10px; color: var(--paper-dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profile-ranking-card__status{ font-size: 12px; color: var(--paper-dim); margin: 0; }
 
 /* BRAMUlab_V03.3 (§3) — AGREGAR JUGADOR: `.btn-start` lima, acción principal positiva.

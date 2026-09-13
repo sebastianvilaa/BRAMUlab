@@ -202,10 +202,30 @@
 
   function capitalizeFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
+  /** BRAMUlab_V03.8 (Ranking_BRAMU.md §13.6) — texto del insight de Ranking para UN candidato
+   *  de `buildTuMomentoText`, a partir de `rankingInsight` (RK.computeHomeRankingInsight,
+   *  siempre ámbito Local). `null` si no hay nada que valga la pena mostrar (sin movimiento
+   *  real y no es "Nuevo") — Home nunca fuerza un mensaje de Ranking solo para llenar espacio.
+   *  Copy tal cual la normativa: las flechas son SIEMPRE puestos, nunca "jugó mejor". */
+  function buildRankingMomentoClause(insight) {
+    if (!insight) return null;
+    if (insight.isNew) return `Entraste al Ranking de ${insight.territory}: #${insight.position} de ${insight.total}`;
+    if (insight.delta > 0) return `#${insight.position} de ${insight.total} en ${insight.territory} · ↑ ${insight.delta} esta semana`;
+    if (insight.delta < 0) return `#${insight.position} de ${insight.total} en ${insight.territory} · ↓ ${Math.abs(insight.delta)} esta semana`;
+    return null;
+  }
+
   /** Etapa 2 §6.2 — texto determinístico de "Tu momento": nunca inventa, combina como
-   *  máximo dos datos (forma reciente > compañero frecuente > actividad del mes, en ese
-   *  orden de prioridad) y solo cuando hay muestra suficiente para no forzar conclusiones. */
-  function buildTuMomentoText(matches, playerName) {
+   *  máximo dos datos y solo cuando hay muestra suficiente para no forzar conclusiones.
+   *  BRAMUlab_V03.8 — `rankingInsight` (opcional, RK.computeHomeRankingInsight) se suma como
+   *  candidato NUEVO al mismo mecanismo de prioridad ya existente, en vez de crear un motor
+   *  editorial paralelo: forma reciente > Ranking semanal (Local) > compañero frecuente >
+   *  actividad del mes. Se prioriza por encima de compañero/actividad (información fresca de
+   *  vigencia semanal, "expira" en la próxima edición) pero nunca desplaza la forma reciente,
+   *  que sigue siendo la lectura más personal. Sin `rankingInsight` (llamador no lo pasa, o
+   *  `RK.computeHomeRankingInsight` devolvió `null`), el comportamiento es IDÉNTICO al de antes
+   *  de V03.8. */
+  function buildTuMomentoText(matches, playerName, rankingInsight) {
     const n = (matches || []).length;
     if (n === 0) {
       return 'Tu historia empieza acá. Cargá tu primer partido para empezar a descubrir tu pádel.';
@@ -221,6 +241,10 @@
     const wins = form.filter((f) => f.result === 'win').length;
     if (withResult.length >= 3) {
       clauses.push(`venís de ganar ${wins} de tus últimos ${form.length} partidos`);
+    }
+    if (clauses.length < 2) {
+      const rankingClause = buildRankingMomentoClause(rankingInsight);
+      if (rankingClause) clauses.push(rankingClause);
     }
     const partner = computeMostFrequentPartner(matches, playerName);
     if (clauses.length < 2 && partner && partner.count >= 2) {
@@ -835,6 +859,7 @@
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
+    buildRankingMomentoClause,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
     computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivityWeeks4, computeEffectivenessTotal,
     startOfWeekMonday, computeActivityBarSegments, levelProgressPct,

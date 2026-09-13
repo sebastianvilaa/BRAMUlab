@@ -2,8 +2,9 @@
 
 **Estado:** V1 cerrada y lista para handoff de producto, UX y desarrollo.  
 **Alcance:** Ranking BRAMU individual para pádel amateur de dobles. No redefine Nivel BRAMU, no crea matchmaking y no incluye rankings privados de grupos.  
-**Fecha de actualización:** 11 de septiembre de 2026.  
-**Cambio normativo principal de esta revisión:** Ranking BRAMU pasa de continuo a **publicación semanal**. Nivel BRAMU continúa siendo dinámico y se actualiza partido a partido.
+**Fecha de actualización:** 13 de septiembre de 2026.  
+**Cambio normativo principal de la revisión del 11 de septiembre de 2026:** Ranking BRAMU pasa de continuo a **publicación semanal**. Nivel BRAMU continúa siendo dinámico y se actualiza partido a partido.  
+**Actualización del 13 de septiembre de 2026 (cierre UX, BRAMUlab V03.8):** no cambia ninguna regla de cálculo/elegibilidad/snapshot. Cierra cuatro decisiones UX: (1) `TU POSICIÓN` debe garantizar contexto cercano a la fila propia (§13.3); (2) la tarjeta territorial semanal es superficie oficial tanto en Perfil público como en Mi Perfil (§15.1); (3) en Home, Ranking solo puede aportar un insight puntual dentro de `TU MOMENTO`, nunca una tarjeta territorial duplicada (§13.6); (4) `Explorar rankings` queda definido conceptualmente como evolución futura, fuera de V1 (§8.6).
 
 ---
 
@@ -44,7 +45,7 @@ Ranking BRAMU depende de la normativa vigente de Nivel BRAMU:
 
 Ranking no modifica la fórmula de Nivel BRAMU.
 
-En caso de contradicción entre una versión anterior de este documento y esta revisión, prevalece esta revisión del 11 de septiembre de 2026.
+En caso de contradicción entre una versión anterior de este documento y esta revisión, prevalece esta revisión (última actualización: 13 de septiembre de 2026, sobre la base normativa fijada el 11 de septiembre de 2026).
 
 ---
 
@@ -314,6 +315,27 @@ Mismo país de ubicación principal de juego.
 - al cambiar de universo entra como `Nuevo` en la siguiente edición semanal;
 - no arrastra una flecha del territorio anterior.
 
+### 8.6 Explorar rankings (evolución futura, fuera de V1)
+
+Los ámbitos Local/Provincial/País/Global responden siempre a **¿dónde estoy yo parado?** — usan
+la ubicación estructurada propia del jugador, congelada en la edición semanal. Esta ronda (13 de
+septiembre de 2026) define conceptualmente, para más adelante, una función **separada**:
+
+`Explorar rankings` — **¿cómo está el Ranking en otra ciudad, provincia o país?**
+
+Principios para cuando se implemente:
+
+- búsqueda geográfica estructurada, nunca una cascada gigante País → Provincia → Localidad;
+- distinguir entidades homónimas por tipo y jerarquía territorial (ejemplos: `Santa Fe,
+  Argentina · Provincia`, `Santa Fe, Santa Fe · Localidad`, `Rosario, Santa Fe · Localidad`,
+  `Chile · País`);
+- es solo consulta: nunca modifica la ubicación del usuario ni sus ámbitos personales;
+- no reemplaza Local/Provincial/País/Global — convive como una vista aparte.
+
+`Explorar rankings` queda **fuera de V1** mientras BRAMU tenga poca densidad de jugadores por
+territorio. No se implementa en BRAMUlab V03.8 ni en ninguna ronda hasta que se decida
+explícitamente lo contrario.
+
 ---
 
 ## 9. Mi red
@@ -456,6 +478,19 @@ La tarjeta no es sticky.
 
 Tocarla lleva suavemente a la fila propia dentro de la clasificación.
 
+**Cierre del 13 de septiembre de 2026 —** tocar `TU POSICIÓN` debe **garantizar** que el usuario
+llegue al contexto cercano a su fila propia, esté o no ya cargada:
+
+- si la fila propia ya está renderizada (dentro de los bloques ya cargados), hace scroll suave
+  hasta ella;
+- si todavía no está cargada, se arma/carga la ventana mínima razonable necesaria para mostrar
+  un pequeño contexto alrededor de la posición propia, y lleva ahí;
+- deja visibles, cuando sea posible, a los jugadores inmediatamente anteriores y posteriores.
+
+Esto **no es** un ámbito nuevo, ni un filtro, ni una pantalla paralela ("cerca de mí") — es
+únicamente una ayuda de navegación dentro de la misma clasificación vigente. No cambia scope,
+género ni filtro de Nivel.
+
 ### 13.4 Clasificación
 
 - comienza desde #1;
@@ -474,6 +509,24 @@ Formato recomendado:
 `Ranking semanal · Lun 31 ago — Dom 06 sep`
 
 No usar “Actualizado hoy”, porque el Ranking no es continuo.
+
+### 13.6 Home — integración únicamente vía `TU MOMENTO` (cierre del 13 de septiembre de 2026)
+
+Home **no duplica** la clasificación territorial completa con otra tarjeta de Ranking. Ranking
+puede aportar, cuando corresponda, un **insight puntual** dentro del mecanismo ya existente de
+`TU MOMENTO`, usando siempre hechos del snapshot semanal vigente (nunca el Nivel actual en vivo):
+
+- movimiento semanal positivo: p. ej. `#8 de 21 en Bella Vista · ↑ 2 esta semana`;
+- movimiento semanal negativo: mismo formato, tono neutro y factual, nunca punitivo;
+- entrada nueva a una clasificación válida: p. ej. `Entraste al Ranking de Bella Vista: #8 de
+  21`;
+- sin movimiento relevante, o si `TU MOMENTO` ya tiene una observación más importante, no se
+  fuerza un mensaje de Ranking solo para llenar espacio;
+- sin posición oficial (calibrando, sin ubicación, etc.), se mantiene la experiencia actual de
+  calibración/primer partido — nunca se inventa una posición.
+
+Las flechas siguen significando exclusivamente **puestos**: `TU MOMENTO` nunca debe atribuir una
+subida a "jugó mejor esta semana".
 
 ---
 
@@ -529,6 +582,33 @@ No mostrar como parte de la fila principal:
 Cada fila abre Perfil público.
 
 El back debe respetar el origen: Ranking → Perfil → volver a Ranking.
+
+### 15.1 Tarjeta territorial semanal en Perfil (público y propio) — cierre del 13 de septiembre de 2026
+
+La tarjeta territorial semanal (Local/Provincia/País) es **superficie oficial** de Ranking BRAMU
+y debe existir en dos lugares, con la misma fuente y la misma lógica (nunca una segunda
+implementación de Ranking):
+
+- Perfil público de un jugador real elegible;
+- Mi Perfil (perfil propio).
+
+Muestra, para cada uno de Local/Provincia/País:
+
+- puesto;
+- denominador;
+- territorio correspondiente;
+
+y, en el encabezado, el período de la edición semanal vigente.
+
+Reglas:
+
+- siempre usa el snapshot semanal **del jugador de ese perfil** (nunca el Nivel actual en vivo
+  para recalcular una posición);
+- no es clickeable (sin navegación propia);
+- no inventa puestos para una cuenta calibrando/no elegible (se muestra un estado simple, p. ej.
+  "Completando calibración" o "Todavía sin posición oficial");
+- no inventa un Ranking oficial para una identidad sin cuenta real apta para Ranking (esa
+  tarjeta directamente no se muestra).
 
 ---
 
@@ -707,6 +787,14 @@ Una localidad con cuatro elegibles no publica posiciones.
 25. Cada fila abre Perfil público.
 26. Ranking conserva snapshots completos y `ranking_rules_version`.
 27. Mis grupos, matchmaking y Race quedan fuera de V1.
+28. Tocar `TU POSICIÓN` garantiza contexto cercano a la fila propia (scroll o carga de la
+    ventana mínima necesaria) — nunca abre un ámbito, filtro ni pantalla nueva.
+29. La tarjeta territorial semanal es superficie oficial de Ranking tanto en Perfil público como
+    en Mi Perfil, con la misma fuente/lógica.
+30. Home no duplica la clasificación territorial completa; Ranking solo puede aportar un
+    insight puntual dentro de `TU MOMENTO`, con hechos del snapshot semanal.
+31. `Explorar rankings` (consulta de otro territorio sin cambiar la ubicación propia) es una
+    evolución futura conceptual, fuera de V1.
 
 ---
 
@@ -751,7 +839,7 @@ Observar:
 
 ---
 
-## 22. Estado de decisiones al 11 de septiembre de 2026
+## 22. Estado de decisiones al 13 de septiembre de 2026
 
 ### Cerradas
 
@@ -779,6 +867,12 @@ Observar:
 - Global requiere al menos dos países para desbloquearse.
 - Empates exactos comparten puesto.
 - Ranking y Mis grupos siguen siendo productos distintos.
+- Tocar `TU POSICIÓN` garantiza contexto cercano a la fila propia (scroll o carga mínima),
+  nunca un ámbito/filtro/pantalla nuevos.
+- La tarjeta territorial semanal es superficie oficial en Perfil público **y** en Mi Perfil,
+  misma fuente/lógica.
+- Home no duplica la clasificación territorial completa; Ranking puede aparecer como insight
+  puntual dentro de `TU MOMENTO`.
 
 ### Fuera de alcance V1
 
@@ -787,7 +881,9 @@ Observar:
 - matchmaking;
 - torneos propios;
 - puntos de Ranking independientes del Nivel;
-- reescritura retroactiva ordinaria de rankings publicados.
+- reescritura retroactiva ordinaria de rankings publicados;
+- `Explorar rankings` (búsqueda/consulta del Ranking de otro territorio) mientras la densidad
+  de BRAMU sea baja.
 
 ---
 

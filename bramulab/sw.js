@@ -42,7 +42,11 @@
 // (Local/Provincial/País dejan de mezclar localidades/provincias sin relación, ranking.js) +
 // nueva tarjeta RANKING BRAMU en Perfil público (app.js/index.html/styles.css). Sufijo `-h`
 // reiniciado (sin sufijo) porque es una versión nueva, no una ronda de ajuste sobre V03.6.
-const CACHE_NAME = 'bramulab-v03-7';
+// BRAMUlab_V03.8 — cierre UX de Ranking BRAMU: tarjeta territorial también en Mi Perfil (misma
+// fuente que Perfil público), jerarquía tipográfica del puesto reforzada, Ranking como
+// candidato de TU MOMENTO en Home (ranking.js/player-home.js/app.js/index.html/styles.css) —
+// "TU POSICIÓN → contexto cercano" ya funcionaba (sin cambios de código, ver reporte).
+const CACHE_NAME = 'bramulab-v03-8';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -53,17 +57,17 @@ const CACHE_NAME = 'bramulab-v03-7';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.7',
-  './engine.js?v=03.7',
-  './stats.js?v=03.7',
-  './store.js?v=03.7',
-  './player-home.js?v=03.7',
-  './match-load.js?v=03.7',
-  './player-identity.js?v=03.7',
-  './groups.js?v=03.7',
-  './locations.js?v=03.7',
-  './ranking.js?v=03.7',
-  './app.js?v=03.7',
+  './styles.css?v=03.8',
+  './engine.js?v=03.8',
+  './stats.js?v=03.8',
+  './store.js?v=03.8',
+  './player-home.js?v=03.8',
+  './match-load.js?v=03.8',
+  './player-identity.js?v=03.8',
+  './groups.js?v=03.8',
+  './locations.js?v=03.8',
+  './ranking.js?v=03.8',
+  './app.js?v=03.8',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
