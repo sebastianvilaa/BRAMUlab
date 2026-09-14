@@ -4,7 +4,7 @@
 **Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva).
 **Fecha de esta síntesis:** 10/09/2026 — actualizado el 14/09/2026 con el cierre final de la línea en V03.10.
 **Estado actual de la app:** tag `BRAMUlab_V03.10`, 1060/1060 tests. **BRAMUlab_V03 queda CERRADA** — validada visualmente en producción por el usuario. Última ronda: V03.10 (cierre conservador de `TU MOMENTO` + identidad segura por `userId` en Compañeros/Rivales).
-**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada, en orden cronológico. Hasta V03.4.6, el detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Desde V03.5 en adelante, la fuente de cada sección es el `BRAMUlab_V03.X_Reporte_ChatGPT.md` de esa ronda, que sigue presente en este mismo directorio (no se borró ni se archivó).
+**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada, en orden cronológico. Hasta V03.4.6, el detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Desde V03.5 en adelante, la fuente de cada sección es el `BRAMUlab_V03.X_Reporte_ChatGPT.md` de esa ronda; ninguno se borró — todos se conservan (junto con sus handoffs) en [`../../Archivo/BRAMUlab_V03/`](../../Archivo/BRAMUlab_V03/).
 
 ---
 
@@ -479,4 +479,4 @@ Ver `BRAMUlab_Backlog.md` para el detalle completo de ideas futuras.
 
 ---
 
-Los documentos originales de cada ronda anterior a V03.5 (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Los documentos de V03.5 en adelante (`BRAMUlab_V03.X.md` + `BRAMUlab_V03.X_Reporte_ChatGPT.md`) siguen presentes en este mismo directorio.
+Los documentos originales de cada ronda anterior a V03.5 (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Los documentos de V03.5 en adelante (`BRAMUlab_V03.X.md` + `BRAMUlab_V03.X_Reporte_ChatGPT.md`), junto con los handoffs y el reporte de cierre de la línea, se conservan en [`../../Archivo/BRAMUlab_V03/`](../../Archivo/BRAMUlab_V03/).
