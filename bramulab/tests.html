@@ -29,6 +29,10 @@
 <script src="groups.js"></script>
 <script src="locations.js"></script>
 <script src="ranking.js"></script>
+<!-- BRAMUlab_V04.1 (Etapa A) — level.js se carga SOLO acá, dentro del arnés de tests.
+     No se agrega a index.html/sw.js: nada de la app productiva lo llama todavía (ver
+     cabecera del propio archivo y BRAMUlab_V04_Informe.md). -->
+<script src="level.js"></script>
 <script>
 (async function () {
   'use strict';
@@ -41,11 +45,18 @@
   const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos
   const PLLoc = window.PLLocations; // BRAMUlab_V03.4.1 — dataset/búsqueda de localidades
   const RK = window.PLRanking; // BRAMUlab_V03.5 (Bloque 2) — Ranking BRAMU simulado
+  const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
 
   function assert(name, cond, detail) { record(name, !!cond, detail); }
+
+  // BRAMUlab_V04.1 (Etapa A, Nivel BRAMU) — tolerancia ±0.01 pedida para los fixtures
+  // portados de Nivel_BRAMU_Formula_V1.4.md §14/§15 (ver bloque LV más abajo). El resto
+  // de los tests puros del motor comparan igualdad exacta (son fórmulas cerradas sin
+  // ambigüedad de reconstrucción histórica) — este helper es solo para esos casos.
+  function closeEnough(actual, expected, tol) { return Math.abs(actual - expected) <= (tol == null ? 0.01 : tol); }
 
   // ------------------------------------------------------------------
   // Fixtures y helpers de simulación (motor real, sin DOM)
@@ -5210,6 +5221,358 @@
       RK.formatRankingWeekRangeLabel(RK.computePreviousRankingWeekPeriod(oneMsBeforeCutoff)) === 'Lun 31 ago — Dom 06 sep');
     assert('V039-ROLLOVER · 1ms después del corte exacto -> ya la edición nueva',
       RK.formatRankingWeekRangeLabel(RK.computePreviousRankingWeekPeriod(oneMsAfterCutoff)) === 'Lun 07 sep — Dom 13 sep');
+  })();
+
+  // ======================================================================
+  // BRAMUlab_V04.1 (Etapa A) — NIVEL BRAMU: motor puro (level.js / window.PLLevel)
+  // Fuente normativa: docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md. LV apagado
+  // (NIVEL_BRAMU_V1_ENABLED=false, sin consumidores en la app productiva) — estos
+  // fixtures prueban el módulo de forma aislada, sin localStorage (AFFECTED_KEYS no
+  // aplica: level.js es puro). Los bloques "unitarios" comparan contra números exactos
+  // citados de la fórmula (sin ambigüedad); el bloque F14 compone el motor completo y
+  // compara contra la tabla de 18 simulaciones de partido único de la fórmula (§14) con
+  // tolerancia ±0.01, usando dos arquetipos de confianza reverse-engineered a partir de
+  // esa misma tabla (CONF_ESTABLE=0.80 encaja exacto en los 7 primeros casos de nivel
+  // parejo/dispar; CONF_NUEVO=0.15 es la confianza inicial documentada en §3.2 para
+  // cuestionario completo, y encaja igual de bien en los casos "nuevos vs. estables") —
+  // ver BRAMUlab_V04_Informe.md §"V04.1" para el detalle de esa derivación.
+  // ======================================================================
+
+  // ------------------------------------------------------------------
+  // Nivel efectivo (§4.1) y fuerza de pareja (§4.2) — ejemplos exactos del documento.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-EFECTIVO · nivel 8.0 con confianza 0.90 -> efectivo 7.70 (ejemplo exacto §4.1)',
+      LV.computeEffectiveLevel(8.0, 0.90) === 7.7000, LV.computeEffectiveLevel(8.0, 0.90));
+    assert('LV-EFECTIVO · nivel 8.0 con confianza 0.15 -> efectivo 5.45 (ejemplo exacto §4.1)',
+      LV.computeEffectiveLevel(8.0, 0.15) === 5.4500, LV.computeEffectiveLevel(8.0, 0.15));
+    assert('LV-EFECTIVO · nivel 5.0 -> efectivo 5.0 con CUALQUIER confianza (§4.1)',
+      LV.computeEffectiveLevel(5.0, 0.00) === 5.0 && LV.computeEffectiveLevel(5.0, 0.50) === 5.0 && LV.computeEffectiveLevel(5.0, 0.95) === 5.0);
+    assert('LV-FUERZA · fuerza_pareja = promedio simple de los dos niveles efectivos (§4.2)',
+      LV.computePairStrength(7.0, 5.0) === 6.0 && LV.computePairStrength(3.0, 3.0) === 3.0);
+  })();
+
+  // ------------------------------------------------------------------
+  // Expectativa previa (§5) — tabla exacta "con confiabilidad alta": diff 0/0.5/1.0/2.0/3.0
+  // -> 50%/68%/82%/96%/99% (redondeado al entero más cercano, como en el propio documento).
+  // ------------------------------------------------------------------
+  (function () {
+    const cases = [[0.0, 0.50], [0.5, 0.68], [1.0, 0.82], [2.0, 0.96], [3.0, 0.99]];
+    cases.forEach(([diff, expectedPct]) => {
+      const p = LV.computeExpectation(5.0 + diff, 5.0);
+      const roundedPct = Math.round(p * 100) / 100;
+      assert(`LV-EXPECTATIVA · diff ${diff} -> ${Math.round(p * 100)}% (tabla §5 dice ${Math.round(expectedPct * 100)}%)`,
+        closeEnough(roundedPct, expectedPct, 0.006), p);
+    });
+    assert('LV-EXPECTATIVA · diff 0 -> exactamente 50% (sin redondeo de por medio)',
+      LV.computeExpectation(5.0, 5.0) === 0.5);
+  })();
+
+  // ------------------------------------------------------------------
+  // Multiplicador de margen (§6.1) — rango 0.90-1.15, verificado en los extremos y con
+  // los scores reales de la batería §14 (super tie-break: puntos de STB NUNCA cuentan
+  // como games, ver score de 3 sets con solo 2 sets "de games").
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-MARGEN · dominio en el piso (0.55 o menos) -> multiplicador mínimo 0.90',
+      LV.computeMarginMultiplier(1, 2, 6, 12) === 0.90); // share_sets=0.5, share_games=0.5 -> dominio=0.50 <= piso 0.55
+    assert('LV-MARGEN · dominio total (share_sets=1, share_games=1) -> multiplicador máximo 1.15 (capped)',
+      LV.computeMarginMultiplier(2, 2, 20, 20) === 1.15);
+    assert('LV-MARGEN · 6-4,6-4 (dos sets) -> 1.0643 (dominio 0.78)',
+      closeEnough(LV.computeMarginMultiplier(2, 2, 12, 20), 1.0643, 0.0005));
+    assert('LV-MARGEN · super tie-break 6-4,4-6,10-8 -> solo 2 sets de games (10/20), STB excluido',
+      closeEnough(LV.computeMarginMultiplier(2, 3, 10, 20), 0.9179, 0.0005));
+  })();
+
+  // ------------------------------------------------------------------
+  // Factor de formato (§7) — tabla exacta, y "no reconocido" -> 0 (nunca inventa un peso).
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-FORMATO · bestOf3 = 1.00', LV.computeFormatFactor('bestOf3') === 1.00);
+    assert('LV-FORMATO · twoSetsPlusMatchTiebreak = 0.90', LV.computeFormatFactor('twoSetsPlusMatchTiebreak') === 0.90);
+    assert('LV-FORMATO · miniSets = 0.80', LV.computeFormatFactor('miniSets') === 0.80);
+    assert('LV-FORMATO · shortSingleSet = 0.65', LV.computeFormatFactor('shortSingleSet') === 0.65);
+    assert('LV-FORMATO · incomplete = 0.00', LV.computeFormatFactor('incomplete') === 0.00);
+    assert('LV-FORMATO · clave desconocida -> 0 (nunca inventa)', LV.computeFormatFactor('formato-inexistente') === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // Factor de repetición (§8) — tabla exacta asumiendo la MISMA pareja repetida
+  // (n_r1=n_r2=n_pair, caso descrito literalmente en la fórmula).
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-REPETICION · primer encuentro (n_pair=0) -> 1.00', LV.computeRepetitionFactor(0, 0, 0) === 1.00);
+    assert('LV-REPETICION · segundo encuentro (n_pair=1) -> 0.85', LV.computeRepetitionFactor(1, 1, 1) === 0.85);
+    assert('LV-REPETICION · tercer encuentro (n_pair=2) -> 0.70', LV.computeRepetitionFactor(2, 2, 2) === 0.70);
+    assert('LV-REPETICION · cuarto encuentro (n_pair=3) -> 0.55', LV.computeRepetitionFactor(3, 3, 3) === 0.55);
+    assert('LV-REPETICION · quinto encuentro (n_pair=4) -> piso 0.45', LV.computeRepetitionFactor(4, 4, 4) === 0.45);
+    assert('LV-REPETICION · décimo encuentro -> sigue en el piso 0.45 (nunca negativo)', LV.computeRepetitionFactor(9, 9, 9) === 0.45);
+  })();
+
+  // ------------------------------------------------------------------
+  // Factor de compañero (§8) — tabla exacta.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-COMPANERO · primer partido juntos (n=0) -> 1.00', LV.computeCompanionFactor(0) === 1.00);
+    assert('LV-COMPANERO · segundo partido juntos (n=1) -> 0.95', LV.computeCompanionFactor(1) === 0.95);
+    assert('LV-COMPANERO · quinto partido juntos (n=4) -> 0.80', LV.computeCompanionFactor(4) === 0.80);
+    assert('LV-COMPANERO · noveno partido juntos (n=8) -> piso 0.60', LV.computeCompanionFactor(8) === 0.60);
+    assert('LV-COMPANERO · n=100 -> sigue en el piso 0.60 (nunca negativo)', LV.computeCompanionFactor(100) === 0.60);
+  })();
+
+  // ------------------------------------------------------------------
+  // Factor de círculo competitivo cerrado (§8.1) — Etapa A solo aplica el factor una vez
+  // decidido el booleano; la detección real es Etapa B.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-CIRCULO · círculo cerrado -> 0.45', LV.computeCircleFactor(true) === 0.45);
+    assert('LV-CIRCULO · sin círculo cerrado -> 1.00', LV.computeCircleFactor(false) === 1.00);
+  })();
+
+  // ------------------------------------------------------------------
+  // Factor de disponibilidad (§13) — tabla exacta 4/3/2 de 4, y valor no admitido -> 0.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-DISPONIBILIDAD · 4 de 4 conocidos -> 1.00', LV.computeAvailabilityFactor(4) === 1.00);
+    assert('LV-DISPONIBILIDAD · 3 de 4 conocidos -> 0.80', LV.computeAvailabilityFactor(3) === 0.80);
+    assert('LV-DISPONIBILIDAD · 2 de 4 conocidos (uno por pareja) -> 0.60', LV.computeAvailabilityFactor(2) === 0.60);
+    assert('LV-DISPONIBILIDAD · valor no admitido (1) -> 0 (nunca inventa)', LV.computeAvailabilityFactor(1) === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // K por confianza (§9) y factor de confianza rival (§9) — fórmulas exactas.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-K · confianza 0.00 -> K máximo 0.40', LV.computeK(0.00) === 0.40);
+    assert('LV-K · confianza 0.95 (techo) -> K mínimo 0.115', LV.computeK(0.95) === 0.115);
+    assert('LV-K · confianza 0.15 (cuestionario completo inicial) -> K 0.355', LV.computeK(0.15) === 0.355);
+    assert('LV-K · confianza 0.80 -> K 0.16', LV.computeK(0.80) === 0.16);
+    assert('LV-OPONENTE · confianza rival 0 -> factor mínimo 0.55', LV.computeOpponentFactor(0) === 0.55);
+    assert('LV-OPONENTE · confianza rival 0.95 -> factor 0.9775', LV.computeOpponentFactor(0.95) === 0.9775);
+    assert('LV-OPONENTE · confianza rival 0.80 -> factor 0.91', LV.computeOpponentFactor(0.80) === 0.91);
+    assert('LV-OPONENTE · confianza rival 0.15 -> factor 0.6175', LV.computeOpponentFactor(0.15) === 0.6175);
+  })();
+
+  // ------------------------------------------------------------------
+  // Confianza desde evidencia (§10.2) — tabla exacta del documento ("evidencia
+  // equivalente" 0/1/3/5/10/15 -> 15%/28%/49%/63%/82%/90%, b=0.15 cuestionario completo).
+  // ------------------------------------------------------------------
+  (function () {
+    const table = [[0, 0.15], [1, 0.28], [3, 0.49], [5, 0.63], [10, 0.82], [15, 0.90]];
+    table.forEach(([evidence, expected]) => {
+      const c = LV.computeConfidenceFromEvidence(evidence, LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL);
+      assert(`LV-CONFIANZA · evidencia ${evidence} -> ${Math.round(c * 100)}% (tabla §10.2 dice ${Math.round(expected * 100)}%)`,
+        closeEnough(c, expected, 0.006), c);
+    });
+    assert('LV-CONFIANZA · evidencia 0, camino rápido (b=0.10) -> exactamente 10%',
+      LV.computeConfidenceFromEvidence(0, LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK) === 0.10);
+    assert('LV-CONFIANZA · evidencia muy grande -> converge al techo 0.95 (nunca lo supera)',
+      LV.computeConfidenceFromEvidence(1000, LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL) <= 0.95
+      && closeEnough(LV.computeConfidenceFromEvidence(1000, LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL), 0.95, 0.001));
+    assert('LV-CONFIANZA · forma incremental post-partido coincide con la fórmula acumulada equivalente',
+      closeEnough(LV.computeConfidenceAfterMatch(0.15, 1), LV.computeConfidenceFromEvidence(1, 0.15), 0.0001));
+  })();
+
+  // ------------------------------------------------------------------
+  // Decay de confianza por inactividad (§10.3) — gracia de 60 días, semivida de 240.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-INACTIVIDAD · 60 días o menos -> sin cambio (dentro de la gracia)',
+      LV.computeEffectiveConfidenceAfterInactivity(0.80, 60) === 0.80
+      && LV.computeEffectiveConfidenceAfterInactivity(0.80, 0) === 0.80);
+    assert('LV-INACTIVIDAD · 300 días (60 + una semivida completa de 240) -> exactamente la mitad',
+      LV.computeEffectiveConfidenceAfterInactivity(0.80, 300) === 0.40);
+    assert('LV-INACTIVIDAD · inactividad extrema -> nunca baja del piso 0.15',
+      LV.computeEffectiveConfidenceAfterInactivity(0.80, 5000) === 0.15);
+    assert('LV-INACTIVIDAD · el NIVEL (mu) nunca se toca acá — esta función solo devuelve confianza',
+      typeof LV.computeEffectiveConfidenceAfterInactivity(0.80, 300) === 'number');
+  })();
+
+  // ------------------------------------------------------------------
+  // Clamps de nivel (§2/§9) y redondeo público vs. interno (§2) — límites 1.0000-10.0000.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-CLAMP · por debajo del piso -> 1.0', LV.clampLevel(0.3) === 1.0);
+    assert('LV-CLAMP · por encima del techo -> 10.0', LV.clampLevel(10.7) === 10.0);
+    assert('LV-CLAMP · dentro del rango -> sin cambio', LV.clampLevel(6.2345) === 6.2345);
+    assert('LV-REDONDEO · público a 1 decimal, nunca altera la precisión interna',
+      LV.roundPublicLevel(6.2345) === 6.2 && LV.roundPublicLevel(6.2567) === 6.3);
+    assert('LV-REDONDEO · nunca "-0.0" (normaliza a 0)', Object.is(LV.roundPublicLevel(-0.02), -0) === false && LV.roundPublicLevel(-0.02) === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // Topes de delta por partido (§9) — ±0.50 calibrando/recalibrando, ±0.35 calibrado.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LV-TOPE · estado calibrando -> tope 0.50', LV.deltaCapForState(LV.STATES.CALIBRATING) === 0.50);
+    assert('LV-TOPE · estado recalibrando -> tope 0.50', LV.deltaCapForState(LV.STATES.RECALIBRATING) === 0.50);
+    assert('LV-TOPE · estado calibrado -> tope 0.35', LV.deltaCapForState(LV.STATES.CALIBRATED) === 0.35);
+    // Delta crudo forzado a superar cualquier tope realista (K=0.40 x 1 x margen máx x todo en 1) para verificar el clamp real.
+    const forced = LV.computePlayerDelta({
+      confidence: 0, result: 1, expectation: 0, margin: 1.15, formatFactor: 1, repetitionFactor: 1,
+      companionFactor: 1, circleFactor: 1, availabilityFactor: 1, rivalPairConfidenceAvg: 0.95, state: LV.STATES.CALIBRATED,
+    });
+    assert('LV-TOPE · un delta crudo por encima de 0.35 queda clampeado exactamente a 0.35 en CALIBRADO',
+      forced.deltaRaw > 0.35 && forced.deltaCapped === 0.35, JSON.stringify(forced));
+  })();
+
+  // ------------------------------------------------------------------
+  // Signo de delta: victoria NUNCA negativa, derrota NUNCA positiva (§6/§9) — invariante
+  // estructural verificada con una matriz de combinaciones de factores en sus extremos.
+  // ------------------------------------------------------------------
+  (function () {
+    const confidences = [0.00, 0.15, 0.45, 0.80, 0.95];
+    const expectations = [0.05, 0.23, 0.50, 0.77, 0.95];
+    const factorCombos = [
+      { margin: 0.90, formatFactor: 0.65, repetitionFactor: 0.45, companionFactor: 0.60, circleFactor: 0.45, availabilityFactor: 0.60, rivalPairConfidenceAvg: 0.00 },
+      { margin: 1.15, formatFactor: 1.00, repetitionFactor: 1.00, companionFactor: 1.00, circleFactor: 1.00, availabilityFactor: 1.00, rivalPairConfidenceAvg: 0.95 },
+    ];
+    let allOk = true;
+    const failures = [];
+    confidences.forEach((confidence) => {
+      expectations.forEach((expectation) => {
+        factorCombos.forEach((factors) => {
+          [1, 0].forEach((result) => {
+            const out = LV.computePlayerDelta(Object.assign({ confidence, result, expectation, state: LV.STATES.CALIBRATED }, factors));
+            const ok = result === 1 ? out.deltaCapped >= 0 : out.deltaCapped <= 0;
+            if (!ok) { allOk = false; failures.push({ confidence, result, expectation, factors, out }); }
+          });
+        });
+      });
+    });
+    assert('LV-SIGNO · en ' + (confidences.length * expectations.length * factorCombos.length * 2) + ' combinaciones, victoria nunca da delta negativo y derrota nunca da delta positivo',
+      allOk, JSON.stringify(failures.slice(0, 3)));
+  })();
+
+  // ------------------------------------------------------------------
+  // algorithm_version presente en toda salida auditable (§19) y determinismo: misma
+  // entrada + misma versión = misma salida (Implementacion.md §4).
+  // ------------------------------------------------------------------
+  (function () {
+    const sampleInput = {
+      matchId: 'det-01',
+      teamA: { players: [{ id: 'a1', mu: 5.0, confidence: 0.80, state: 'calibrado' }, { id: 'a2', mu: 5.0, confidence: 0.80, state: 'calibrado' }], repetitionFactor: 1, companionFactor: 1, circleFactors: [false, false] },
+      teamB: { players: [{ id: 'b1', mu: 5.0, confidence: 0.80, state: 'calibrado' }, { id: 'b2', mu: 5.0, confidence: 0.80, state: 'calibrado' }], repetitionFactor: 1, companionFactor: 1, circleFactors: [false, false] },
+      winnerTeam: 'A', score: { setsWonByWinner: 2, setsPlayed: 2, gamesWonByWinner: 12, gamesTotal: 20 },
+      formatKey: 'bestOf3', knownLevelsCount: 4,
+    };
+    const out1 = LV.computeMatchUpdate(sampleInput);
+    const out2 = LV.computeMatchUpdate(sampleInput);
+    assert('LV-VERSION · algorithm_version presente y correcto en la salida', out1.algorithmVersion === 'nivel_bramu_v1_0');
+    assert('LV-DETERMINISMO · misma entrada + misma versión = misma salida, byte a byte',
+      JSON.stringify(out1) === JSON.stringify(out2));
+    assert('LV-FLAG · NIVEL_BRAMU_V1_ENABLED sigue apagado (constante de código, Etapa A)',
+      LV.NIVEL_BRAMU_V1_ENABLED === false);
+    assert('LV-EXPECTATIVA-COMPLEMENTARIA · expectation.A + expectation.B = 1 exacto en la salida compuesta',
+      out1.expectation.A + out1.expectation.B === 1);
+  })();
+
+  // ======================================================================
+  // Nivel_BRAMU_Formula_V1.4.md §14 — batería normativa de 18 simulaciones de partido
+  // único. CONF_ESTABLE/CONF_NUEVO ver nota de cabecera de este bloque más arriba.
+  // ======================================================================
+  (function () {
+    const CONF_ESTABLE = 0.80;
+    const CONF_NUEVO = LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL; // 0.15
+    function mkPlayer(id, mu, confidence, state) { return { id, mu, confidence, state: state || LV.STATES.CALIBRATED }; }
+    function mkTeam(players, repetitionFactor, companionFactor) {
+      return { players, repetitionFactor: repetitionFactor == null ? 1.00 : repetitionFactor, companionFactor: companionFactor == null ? 1.00 : companionFactor, circleFactors: [false, false] };
+    }
+    const DOS_SETS = { setsWonByWinner: 2, setsPlayed: 2, gamesWonByWinner: 12, gamesTotal: 20 }; // 6-4,6-4
+    const CERRADO = { setsWonByWinner: 2, setsPlayed: 3, gamesWonByWinner: 17, gamesTotal: 33 };  // 6-4,4-6,7-6
+    const AMPLIO = { setsWonByWinner: 2, setsPlayed: 2, gamesWonByWinner: 12, gamesTotal: 14 };   // 6-1,6-1
+    const MINISETS = { setsWonByWinner: 2, setsPlayed: 2, gamesWonByWinner: 8, gamesTotal: 12 };  // 4-2,4-2
+    const SUPER_TB = { setsWonByWinner: 2, setsPlayed: 3, gamesWonByWinner: 10, gamesTotal: 20 }; // 6-4,4-6,10-8 (STB sin games)
+
+    const CASES = [
+      { label: 'F14-01 · Parejas 5.0 estables, partido cerrado', score: CERRADO, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.07, a2: 0.07, b1: -0.07, b2: -0.07 } },
+      { label: 'F14-02 · Parejas 5.0 estables, dos sets', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.08, a2: 0.08, b1: -0.08, b2: -0.08 } },
+      { label: 'F14-03 · Parejas 5.0 estables, amplio', score: AMPLIO, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.08, a2: 0.08, b1: -0.08, b2: -0.08 } },
+      { label: 'F14-04 · 5.0 vence a 6.0', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 6.0, CONF_ESTABLE), mkPlayer('b2', 6.0, CONF_ESTABLE)]),
+        checks: { a1: 0.12, a2: 0.12, b1: -0.12, b2: -0.12 } },
+      { label: 'F14-05 · 6.0 vence a 5.0', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 6.0, CONF_ESTABLE), mkPlayer('a2', 6.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.04, a2: 0.04, b1: -0.04, b2: -0.04 } },
+      { label: 'F14-06 · 4.5 vence a 6.5', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 4.5, CONF_ESTABLE), mkPlayer('a2', 4.5, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 6.5, CONF_ESTABLE), mkPlayer('b2', 6.5, CONF_ESTABLE)]),
+        checks: { a1: 0.14, a2: 0.14, b1: -0.14, b2: -0.14 } },
+      { label: 'F14-07 · 6.5 vence a 4.5', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 6.5, CONF_ESTABLE), mkPlayer('a2', 6.5, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 4.5, CONF_ESTABLE), mkPlayer('b2', 4.5, CONF_ESTABLE)]),
+        checks: { a1: 0.01, a2: 0.01, b1: -0.01, b2: -0.01 } },
+      { label: 'F14-08 · Pareja 7.0+3.0 vence a 5.0+5.0', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 7.0, CONF_ESTABLE), mkPlayer('a2', 3.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.08, a2: 0.08, b1: -0.08, b2: -0.08 } },
+      { label: 'F14-09 · Nuevos 5.0 vencen a 5.0 estables', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING), mkPlayer('a2', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.17, a2: 0.17, b1: -0.05, b2: -0.05 } },
+      { label: 'F14-10 · Estables 5.0 vencen a 5.0 nuevos', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING), mkPlayer('b2', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING)]),
+        checks: { a1: 0.05, a2: 0.05, b1: -0.17, b2: -0.17 } },
+      { label: 'F14-11 · Nuevos 5.0 vencen a 6.0 estables', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING), mkPlayer('a2', 5.0, CONF_NUEVO, LV.STATES.CALIBRATING)]),
+        teamB: mkTeam([mkPlayer('b1', 6.0, CONF_ESTABLE), mkPlayer('b2', 6.0, CONF_ESTABLE)]),
+        checks: { a1: 0.27, a2: 0.27, b1: -0.08, b2: -0.08 } },
+      { label: 'F14-12 · Segunda victoria ante misma pareja 5.0 (n_pair=1)', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)], 0.85),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)], 0.85),
+        checks: { a1: 0.07, a2: 0.07, b1: -0.07, b2: -0.07 } },
+      { label: 'F14-13 · Cuarta victoria ante misma pareja 5.0 (n_pair=3)', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)], 0.55),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)], 0.55),
+        checks: { a1: 0.04, a2: 0.04, b1: -0.04, b2: -0.04 } },
+      { label: 'F14-14 · Mini sets entre pares 5.0', score: MINISETS, formatKey: 'miniSets',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.06, a2: 0.06, b1: -0.06, b2: -0.06 } },
+      { label: 'F14-15 · Super tie-break entre pares 5.0', score: SUPER_TB, formatKey: 'twoSetsPlusMatchTiebreak',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.06, a2: 0.06, b1: -0.06, b2: -0.06 } },
+      { label: 'F14-16 · Compañeros 5.0 con confianza 20% y 90%', score: DOS_SETS, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, 0.20, LV.STATES.CALIBRATING), mkPlayer('a2', 5.0, 0.90)]),
+        teamB: mkTeam([mkPlayer('b1', 5.0, CONF_ESTABLE), mkPlayer('b2', 5.0, CONF_ESTABLE)]),
+        checks: { a1: 0.17, a2: 0.06 } }, // el documento no da el desglose de B para este caso ("—")
+      { label: 'F14-17 · 5.0 vence a 6.0 en partido cerrado', score: CERRADO, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 6.0, CONF_ESTABLE), mkPlayer('b2', 6.0, CONF_ESTABLE)]),
+        checks: { a1: 0.10, a2: 0.10, b1: -0.10, b2: -0.10 } },
+      { label: 'F14-18 · 5.0 vence a 6.0 ampliamente', score: AMPLIO, formatKey: 'bestOf3',
+        teamA: mkTeam([mkPlayer('a1', 5.0, CONF_ESTABLE), mkPlayer('a2', 5.0, CONF_ESTABLE)]),
+        teamB: mkTeam([mkPlayer('b1', 6.0, CONF_ESTABLE), mkPlayer('b2', 6.0, CONF_ESTABLE)]),
+        checks: { a1: 0.13, a2: 0.13, b1: -0.13, b2: -0.13 } },
+    ];
+
+    CASES.forEach((c) => {
+      const out = LV.computeMatchUpdate({
+        matchId: c.label, teamA: c.teamA, teamB: c.teamB, winnerTeam: 'A',
+        score: c.score, formatKey: c.formatKey, knownLevelsCount: 4,
+      });
+      Object.keys(c.checks).forEach((playerId) => {
+        const expected = c.checks[playerId];
+        const actual = out.players[playerId].deltaCapped;
+        assert(`${c.label} · ${playerId} delta ${actual >= 0 ? '+' : ''}${actual.toFixed(4)} ~ ${expected >= 0 ? '+' : ''}${expected} (tol ±0.01)`,
+          closeEnough(actual, expected, 0.01), JSON.stringify(out.players[playerId]));
+      });
+      assert(`${c.label} · algorithm_version y reasonCodes presentes en la salida auditable`,
+        out.algorithmVersion === 'nivel_bramu_v1_0' && Array.isArray(out.reasonCodes));
+    });
   })();
 
   // ------------------------------------------------------------------

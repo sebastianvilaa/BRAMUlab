@@ -20,11 +20,11 @@ No significa que la fórmula sea una verdad matemática definitiva. La V1 debe i
 
 ## 2. Documentos fuente
 
-El desarrollo debe usar estos documentos en este orden:
+El desarrollo debe usar estos documentos, en este orden de precedencia (normalizado en `BRAMUlab_V04_Consolidado.md` §0 — reemplaza los nombres de archivo obsoletos que tenía este bloque):
 
-1. `docs/bramulab/Nivel_BRAMU_Formula_V1_4_Cerrada.md`: fuente normativa de fórmula, parámetros, elegibilidad, casos y simulaciones.
-2. `docs/bramulab/Nivel_BRAMU_Consolidado_Base.md`: contexto funcional, cuestionario, estados y experiencia de producto.
-3. `docs/bramulab/Nivel_BRAMU_Handoff_Desarrollo_V1.md`: secuencia de implementación, límites y definición de terminado.
+1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md`: fuente normativa de fórmula, parámetros, elegibilidad, casos y simulaciones.
+2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md` (este documento): secuencia de implementación, límites y definición de terminado.
+3. `docs/BRAMUlab/Nivel_BRAMU.md`: contexto funcional, cuestionario, estados y experiencia de producto — no puede reabrir decisiones ya superadas por el punto 1.
 
 Si aparece una contradicción, no resolverla por interpretación: documentarla antes de programar. La fórmula no debe rediseñarse desde desarrollo.
 

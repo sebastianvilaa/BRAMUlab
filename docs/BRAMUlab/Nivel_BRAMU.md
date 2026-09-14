@@ -2,6 +2,8 @@
 
 **Estado:** definición funcional avanzada. Documento vivo para cerrar producto, preparar backend y diseñar posteriormente el algoritmo. No implementar la fórmula definitiva sin resolver los parámetros marcados como pendientes.
 
+**Nota (BRAMUlab_V04, normalización documental §1.2):** la fórmula, sus parámetros y las simulaciones que este documento daba como pendientes YA quedaron cerrados y congelados en `Nivel_BRAMU_Formula_V1.4.md` (versión de algoritmo `nivel_bramu_v1_0`). Toda frase de este documento que hable de una fórmula/parámetros "todavía por diseñar o simular" corresponde a una etapa anterior a ese cierre y queda superada — marcada puntualmente donde aparece. Este documento sigue vigente como contexto funcional y de UX (estados, cuestionario, recalibración, superficies), pero no puede reabrir lo ya cerrado por la fórmula V1.4.
+
 **Fecha de consolidación:** 10 de septiembre de 2026.
 
 ## 1. Propósito
@@ -222,7 +224,8 @@ Los puntos, quiebres, winners, errores y eventos del registro en vivo pueden enr
 
 ## 8. Criterios de cálculo ya decididos
 
-La fórmula exacta todavía debe diseñarse y simularse. Estos comportamientos sí quedan fijados:
+*(Superado por `Nivel_BRAMU_Formula_V1.4.md` — la frase siguiente es contenido histórico: la fórmula exacta ya fue diseñada, simulada y cerrada para V1. Ver ese documento para la fórmula real.)*
+~~La fórmula exacta todavía debe diseñarse y simularse.~~ Estos comportamientos sí quedan fijados:
 
 ### 8.1 Fuerza del partido
 
@@ -463,7 +466,9 @@ No se incorpora matchmaking en la primera etapa. Solo tendrá sentido cuando exi
 - Guardar snapshots históricos de nivel y confiabilidad.
 - BRAMU Intelligence puede interpretar dificultad, pero nunca inventar acciones técnicas.
 
-## 16. Parámetros todavía pendientes de simulación
+## 16. Parámetros todavía pendientes de simulación *(superado por `Nivel_BRAMU_Formula_V1.4.md`)*
+
+**Nota (BRAMUlab_V04):** esta sección completa es contenido histórico. Los 12 parámetros listados abajo ya fueron resueltos, simulados y congelados como parte de `Nivel_BRAMU_Formula_V1.4.md` (fórmula V1, versión de algoritmo `nivel_bramu_v1_0`) — ninguno sigue pendiente. Se conserva tal cual para trazabilidad de qué estaba abierto antes del cierre de fórmula, no como lista de trabajo vigente.
 
 No son dudas conceptuales; requieren diseñar la fórmula y probarla con casos sintéticos y datos reales:
 
@@ -482,7 +487,9 @@ No son dudas conceptuales; requieren diseñar la fórmula y probarla con casos s
 
 Estos parámetros deben resolverse mediante simulación antes de desarrollo, sin reabrir las decisiones de producto ya cerradas.
 
-## 17. Próximo paso recomendado
+## 17. Próximo paso recomendado *(superado por `Nivel_BRAMU_Formula_V1.4.md` y `Nivel_BRAMU_Implementacion.md`)*
+
+**Nota (BRAMUlab_V04):** los pasos 3-6 describían el camino hacia una fórmula todavía no diseñada. Ese camino ya se recorrió: la fórmula está cerrada en `Nivel_BRAMU_Formula_V1.4.md` y la secuencia técnica de desarrollo vigente es la de `Nivel_BRAMU_Implementacion.md` (Etapas A-E). Se conserva la lista original como registro histórico del plan pre-fórmula.
 
 1. Revisar este consolidado como fuente única de definición del Nivel BRAMU.
 2. Cruzar el contrato de datos con el consolidado de backend V04.

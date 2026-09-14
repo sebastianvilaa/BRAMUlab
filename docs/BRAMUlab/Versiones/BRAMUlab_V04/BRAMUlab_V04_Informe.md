@@ -1,0 +1,304 @@
+# BRAMUlab_V04
+## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A implementada)
+
+**Estado:** V04.0 cerrada (diagnóstico). V04.1 (Etapa A) implementada — motor puro sin conectar a la app productiva. V04.0 documentada primero acá abajo tal cual quedó cerrada; V04.1 se agrega como sección nueva al final, sin reabrir nada de V04.0.
+**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 (mismo día, ronda separada autorizada explícitamente por Sebastián).
+**Base:** `BRAMUlab_V03.10` (sin regresiones detectadas ni reabiertas).
+**Objetivo de V04.0:** el definido en `BRAMUlab_V04_Consolidado.md` §8 — auditoría técnica real, dos normalizaciones documentales, plan exacto para Etapa A. Nada más.
+
+---
+
+## 0. Resumen ejecutivo
+
+Se leyeron completos los 6 documentos pedidos, se aplicaron las 2 normalizaciones documentales de §1 del Consolidado (ninguna otra), y se auditó el código real de los 8 archivos listados en §8.2 (más `app.js` con grep dirigido, dado su tamaño — 10.650 líneas). No se escribió ni se modificó ningún archivo de `bramulab/` (código de producto). No se tocó UI, versión pública, `Ranking`, `BRAMU Intelligence` ni Backend.
+
+**Conclusión corta:** no hay bloqueo técnico real para autorizar Etapa A. Hay un único punto de alcance a confirmar antes de programarla (§8 de este informe) — no es una decisión de producto, es una elección de secuencia técnica.
+
+---
+
+## 1. Documentación leída (completa)
+
+1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md` (fórmula normativa, 847 líneas).
+2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md` (handoff de desarrollo, 202 líneas).
+3. `docs/BRAMUlab/Nivel_BRAMU.md` (consolidado funcional base, 494 líneas).
+4. `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md` (qué se pidió en V03, 234 líneas).
+5. `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md` (qué se implementó realmente en V03 — leído en profundidad su §0 "Arquitectura vigente" y las secciones con detalle de `store.js`/`player-home.js`).
+6. `docs/BRAMUlab/Versiones/BRAMUlab_V04/BRAMUlab_V04_Consolidado.md` (esta ronda).
+
+---
+
+## 2. Normalización documental aplicada (§1 del Consolidado — solo estas dos)
+
+### 2.1 `Nivel_BRAMU_Implementacion.md` §2 "Documentos fuente"
+
+**Antes** apuntaba a 3 nombres de archivo que ya no existen en el repositorio (`docs/bramulab/Nivel_BRAMU_Formula_V1_4_Cerrada.md`, `docs/bramulab/Nivel_BRAMU_Consolidado_Base.md`, `docs/bramulab/Nivel_BRAMU_Handoff_Desarrollo_V1.md`).
+
+**Después:** reemplazados por los 3 nombres vigentes, en el mismo orden de precedencia que fija `BRAMUlab_V04_Consolidado.md` §0 (Formula_V1.4 → Implementacion → Nivel_BRAMU.md), con la descripción de cada uno tomada textualmente de esa misma fuente. No se tocó ninguna palabra de fórmula, regla, parámetro ni alcance — solo los 3 nombres de archivo y su orden.
+
+### 2.2 `Nivel_BRAMU.md` — frases heredadas de "fórmula pendiente"
+
+Se identificaron y marcaron 4 lugares donde el documento todavía afirmaba que la fórmula/parámetros estaban por diseñar o simular (contenido correcto cuando se escribió, superado desde que `Nivel_BRAMU_Formula_V1.4.md` cerró la fórmula):
+
+| Ubicación | Qué decía | Qué se hizo |
+|---|---|---|
+| Cabecera (`Estado`) | "No implementar la fórmula definitiva sin resolver los parámetros marcados como pendientes." | Se agregó una nota explícita debajo, sin borrar la frase original, aclarando que la fórmula y los parámetros ya están cerrados en `Nivel_BRAMU_Formula_V1.4.md`. |
+| §8 (intro) | "La fórmula exacta todavía debe diseñarse y simularse." | Frase tachada (`~~...~~`) con nota de superado, seguida de la lista de comportamientos ya fijados (esa lista sigue siendo válida, no se tocó). |
+| §16 (sección completa) | Título "Parámetros todavía pendientes de simulación" + 12 parámetros listados como abiertos | Título anotado como superado + nota explicando que los 12 ya se resolvieron en la fórmula V1.4 (versión `nivel_bramu_v1_0`). La lista original se conserva completa como registro histórico de qué estaba abierto antes del cierre. |
+| §17 (sección completa) | "Próximo paso recomendado" con 6 pasos hacia una fórmula todavía no diseñada | Título anotado como superado + nota indicando que ese camino ya se recorrió y cuál es la secuencia vigente (`Nivel_BRAMU_Implementacion.md`, Etapas A-E). Los 6 pasos originales se conservan sin editar. |
+
+Ninguna decisión funcional/UX de `Nivel_BRAMU.md` (estados, cuestionario, recalibración, superficies, contrato de backend) fue alterada — solo se marcó como superado lo que hablaba específicamente de la fórmula/parámetros como no resueltos.
+
+### Observación NO corregida (fuera del alcance autorizado de esta ronda)
+
+`Nivel_BRAMU.md` §17, paso 2, dice literalmente: *"Cruzar el contrato de datos con el consolidado de backend V04."* Esa numeración es la vieja (de antes de la reorganización de nombres del 03/09/2026, documentada en memoria): en ese momento `V04` significaba Backend. Con la numeración vigente, `V04` es esta misma línea (Nivel BRAMU) y Backend es `V06`. No se corrigió porque el Consolidado de esta ronda autoriza exactamente 2 normalizaciones (§1.1 y §1.2) y esta no es ninguna de las dos — queda registrada acá para una futura pasada documental, no se tocó el archivo por esto.
+
+---
+
+## 3. Auditoría técnica del estado actual
+
+### 3.1 `store.js` (761 líneas)
+
+- `SCHEMA_VERSION = 3` (sin cambios desde V03.0), `APP_VERSION = 'BRAMUlab V03.10'`.
+- Persistencia 100% `localStorage`, sin backend. Patrón `KEYS` centralizado + `safeGet`/`safeSet`/`safeRemove` (nunca acceso directo a `localStorage` fuera de estas 3 funciones).
+- Dos patrones de aislamiento ya establecidos y reutilizables para un futuro estado de Nivel:
+  - **Array global no aislado por usuario** (como `HISTORY`, `GROUPS`): para entidades compartidas entre jugadores.
+  - **Dict por `userId`** (como `ADDED_PLAYERS`, `HIDDEN_NETWORK_PLAYERS`): para datos personales de cada cuenta, evitando reescanear un array completo.
+- `password` en texto plano, documentado y aceptado explícitamente como prototipo — sin relación con Nivel BRAMU, mencionado solo como referencia de que este archivo ya convive con deuda técnica documentada a propósito.
+- No existe ningún mecanismo de *feature flag* en todo el archivo (ni en el resto del repo — se verificó por grep). Habrá que crearlo desde cero.
+
+### 3.2 `player-home.js` (911 líneas) — Nivel BRAMU provisional (§2 del Consolidado, confirmado)
+
+Bloque `V03.0` / Etapa 4.1, líneas 686-909, confirmado tal cual lo describe el Consolidado:
+
+- `LEVEL_BASE = 5.0`, `LEVEL_MIN = 1.0`, `LEVEL_MAX = 10.0`.
+- `isMatchConsideredForLevel(match, playerName)` — partido terminado, con ganador, `regulationCompleted !== false`, el jugador participó.
+- `computeLevelDeltaForMatch(match, playerName)` — delta fijo `±0.1`/`±0.2` según formato (Americano o super-tercer-set = `±0.1`; resto `±0.2`). **No tiene relación matemática con la fórmula V1.4** (no hay expectativa, no hay confianza, no hay factores) — es un contador de racha simple.
+- `computeLevelEvolution(history, playerName)` — recalcula SIEMPRE desde cero (nunca incremental), recorre orden cronológico ascendente, aplica cada delta y clampea a `[1.0, 10.0]` en cada paso. Devuelve `{ base, points[], current, changeFromBase, consideredCount, lastDelta }`.
+- `computeSimulatedJugadorLevel(history, playerName)` — si el jugador tiene partidos considerados, devuelve `evolution.current`; si no, un valor determinístico por **hash del nombre** en el rango `[3.0, 7.5]` (nunca aleatorio, nunca el mismo para dos nombres distintos, pero tampoco ninguna estimación real).
+- `buildCalibrationStatus(consideredCount)` — umbral fijo `CALIBRATION_THRESHOLD = 5` (sin la condición de "3 rivales distintos" de la fórmula V1.4 — esa condición adicional la agrega `ranking.js` por su cuenta, ver 3.3).
+- `isCalibratingRealAccount(account)` — gate que fuerza estado CALIBRANDO (nunca un número) para toda cuenta real sin `legacyMigrated`, independientemente de cuántos partidos tenga.
+
+Todas estas funciones están exportadas en `global.PLPlayerHome` y consumidas directamente por `ranking.js` y `app.js` (ver 3.3/3.4). **Ninguna se toca en Etapa A.**
+
+### 3.3 `ranking.js` (798 líneas)
+
+Confirma textualmente lo que dice su propio comentario de cabecera: nunca calcula ni modifica Nivel BRAMU, siempre lee `PH.computeSimulatedJugadorLevel`/`PH.computeLevelEvolution`. Punto notable para el futuro reemplazo: la función `sortNudge` (líneas 364-390) inyecta un decimal falso estable por jugador para desempatar el orden del ranking mock, porque el nivel simulado actual solo tiene 1 decimal real y con cientos de jugadores mock produce empates masivos. El propio comentario del código ya dice que esa función debe eliminarse por completo (nunca adaptarse) el día que exista el Nivel BRAMU real con sus 4 decimales de precisión interna — coincide exactamente con lo que la fórmula V1.4 define (`mu` a cuatro decimales). Esto es una confirmación útil: **la arquitectura de Ranking ya está preparada, sin que nadie lo haya pedido para V04, para el día en que el motor real exista** — no hace falta ningún cambio en `ranking.js` para Etapa A.
+
+`buildCalibrationProgress`/`computeParticipantStatus` (líneas 554-613) ya implementan la condición real de la fórmula V1.4 ("5 computables Y 3 rivales distintos"), aunque hoy corren sobre el nivel simulado — es lógica de elegibilidad, no de cálculo de nivel, y coincide conceptualmente con lo que Etapa B deberá formalizar sobre el motor real.
+
+### 3.4 `app.js` (10.650 líneas) — puntos de consumo confirmados por grep dirigido
+
+`app.js` nunca calcula Nivel por su cuenta: siempre llama a `PH.computeLevelEvolution` o `PH.computeSimulatedJugadorLevel`. Puntos de consumo relevantes (no exhaustivo, pero cubre todas las superficies que muestran Nivel hoy):
+
+- `computePlayerRowLevel(history, name)` (~línea 740) — único punto de cálculo para la fila compacta de jugador reutilizada en Elegir compañero/rival, Buscar Jugadores y JUGADORES de Perfil.
+- Notificación de "Nivel BRAMU cambió" tras guardar un partido (~línea 4258-4265) — compara `computeLevelEvolution` antes/después, solo para cuentas legacy.
+- Home / Player Card y MI PERFIL — Evolución del Nivel, gráfico SVG, "cambio últimos 30 días", "Mejor nivel BRAMU" (~líneas 6971, 9148, 9430-9603).
+- Perfil público (~línea 7508, 7550-7556) — mismo criterio, con el mismo gate de calibración que Home.
+
+**Ninguno de estos puntos se toca en Etapa A.**
+
+### 3.5 `tests.html` (5.231 líneas)
+
+Arnés propio, no un framework de terceros: un único `<script>` con una IIFE `async`, que carga los módulos puros vía `<script src="...">` (mismo orden que `index.html`, sin `app.js`) y expone `assert(name, cond, detail)` / `record(...)`. Cada bloque de test que toca `localStorage` sigue el mismo patrón manual: `AFFECTED_KEYS` (snapshot antes, `resetAffectedKeys()` durante, restaurar al final) — nunca un mock de storage. El resumen final (`passCount/failCount`) se pinta en el DOM; no hay exit code de proceso ni integración CI — correrlo significa abrir el archivo y mirar el resumen. Baseline actual: **1060/1060** (confirmado en V03_Informe.md).
+
+Un módulo puro nuevo (`level.js`) se integra agregando su `<script src="level.js">` en la misma lista de carga (antes de `app.js`, que `tests.html` ni siquiera carga) y un bloque de fixtures nuevo con el mismo patrón `assert(...)`. Como el motor de Etapa A es puro (sin `localStorage`), sus fixtures **no necesitan `AFFECTED_KEYS`** — primer módulo del proyecto en esa situación tan limpia.
+
+### 3.6 `index.html` (2.910 líneas)
+
+Carga de módulos al final del `<body>`, todos con `?v=03.10` (cuarteto de versionado desde V03.1.6 — ver memoria `V03.1.6`): `engine.js → stats.js → store.js → player-home.js → match-load.js → player-identity.js → groups.js → locations.js → ranking.js → app.js`. Un `level.js` nuevo deberá agregarse a esta lista **con el mismo sufijo `?v=X`** que tenga la versión pública vigente en el momento en que se agregue — nunca sin query string (esa fue exactamente la causa raíz del bug de V03.1.6).
+
+### 3.7 `sw.js` (132 líneas)
+
+`CACHE_NAME = 'bramulab-v03-10'` + `CORE_ASSETS` (lista de assets pre-cacheados, con los mismos `?v=03.10`). Regla de cuarteto: `Store.VERSION`/`APP_VERSION`, `version.json`, `sw.js` (`CACHE_NAME` + `CORE_ASSETS`) e `index.html` (`?v=X`) deben moverse juntos en cualquier release real. **En V04.0 no se tocó ninguno de los 4** — no hubo release.
+
+### 3.8 `version.json`
+
+Un solo campo: `{ "version": "BRAMUlab V03.10" }`. Sin cambios.
+
+---
+
+## 4. Plan técnico propuesto para Etapa A
+
+### 4.1 Archivos a agregar/modificar
+
+| Archivo | Acción | Motivo |
+|---|---|---|
+| `bramulab/level.js` | **Nuevo** | Motor puro V1 (parámetros, funciones matemáticas, contrato de entrada/salida, códigos de auditoría). Cero DOM, cero `localStorage`. |
+| `bramulab/tests.html` | Modificar | Agregar `<script src="level.js">` a la lista de carga + un bloque nuevo de fixtures (mismo patrón `assert`). |
+| `bramulab/index.html` | Modificar | Agregar `<script src="level.js?v=X">` a la lista de módulos, mismo sufijo de versión vigente al momento de implementar. |
+| `bramulab/sw.js` | Modificar (solo si `level.js` se agrega a `CORE_ASSETS`) | Si se decide precachearlo desde ya, exige bump de `CACHE_NAME` + entrada en `CORE_ASSETS` — ver 4.6. |
+| `bramulab/store.js` | **No modificar en Etapa A** (recomendación — ver §8) | El motor puro no necesita persistir nada para cumplir su "salida esperada" (Implementacion.md §5: "cálculo ejecutable mediante pruebas"). |
+
+**Sin cambios** en `player-home.js`, `ranking.js`, `app.js`, `groups.js`, `stats.js`, `engine.js`, `match-load.js`, `player-identity.js`, `locations.js` — confirmado, ninguno de estos archivos necesita tocarse para que Etapa A cumpla su objetivo.
+
+### 4.2 Modelo de datos propuesto (dentro de `level.js`, como *shapes* documentados, no persistidos todavía)
+
+**Estado de rating de un jugador** (Formula_V1.4 §2 + Implementacion.md §5 Etapa A):
+
+```
+{
+  mu: number,              // 1.0000–10.0000, 4 decimales internos
+  confidence: number,      // 0.00–0.95
+  evidenceUnits: number,   // acumulado ponderado, >= 0
+  state: 'sin_estimacion' | 'calibrando' | 'calibrado' | 'recalibrando',
+  ratedMatches: number,
+  distinctOpponents: number,
+  lastRatedAt: string | null,   // ISO
+  algorithmVersion: 'nivel_bramu_v1_0',
+}
+```
+
+**Registro auditable de UN cálculo de partido** (Formula_V1.4 §19 + Implementacion.md §4):
+
+```
+{
+  matchId: string,
+  algorithmVersion: 'nivel_bramu_v1_0',
+  computedAt: string,          // ISO
+  snapshotsBefore: [ {playerId, mu, confidence}, ... ],  // los 4 participantes
+  expectationA: number,
+  factors: { margin, format, repetition, companion, circle, availability, opponent },
+  perPlayerDelta: [ {playerId, delta, kUsed}, ... ],   // sin redondear
+  snapshotsAfter: [ {playerId, mu, confidence, evidenceUnits}, ... ],
+  reasonCodes: string[],
+}
+```
+
+### 4.3 Claves de `localStorage` provisionales
+
+**Ninguna se activa en Etapa A.** Se documentan como propuesta para cuando (en una etapa posterior) haga falta persistir de verdad:
+
+- `bramulab.levelState.v1` — dict por `userId` (mismo patrón que `ADDED_PLAYERS`/`HIDDEN_NETWORK_PLAYERS`), un estado de rating por jugador.
+- `bramulab.levelEvents.v1` — array global append-only (mismo patrón que `HISTORY`, con el mismo tope de longitud que ya usa esa clave) para el log de eventos inmutable que pide `Nivel_BRAMU.md` §13.3.
+
+No se crean todavía en `store.js` — quedan documentadas acá para que Etapa B (o la etapa que efectivamente conecte persistencia) no tenga que inventar el esquema desde cero.
+
+### 4.4 Contrato de entrada/salida del motor
+
+Función principal propuesta:
+
+```
+Level.computeMatchUpdate(input) -> output
+```
+
+`input`: los 4 niveles/confianzas efectivos antes del partido, equipos, resultado (sets/games), `formatId`, contadores de repetición (`n_pair`, `n_r1`, `n_r2`), contador de compañero (`n_companero`), flag de círculo competitivo cerrado, cantidad de niveles conocidos (4/3/2), confianza promedio de la pareja rival.
+
+`output`: expectativa previa, cada factor aplicado por separado (auditable individualmente — nunca solo el producto final), delta sin redondear por jugador, confianza posterior por jugador, códigos de razón, `algorithm_version`.
+
+Funciones puras internas (una por sección de la fórmula, para que cada una tenga su propio fixture aislado): `computeEffectiveLevel`, `computeTeamStrength`, `computeExpectation`, `computeMarginMultiplier`, `computeFormatFactor`, `computeRepetitionFactor`, `computeCompanionFactor`, `computeCircleFactor`, `computeAvailabilityFactor`, `computeK`, `computeOpponentFactor`, `computeDelta`, `computeConfidenceAfter`, `applyInactivityDecay`. Precisión interna a 4 decimales en todo el pipeline; `roundPublicLevel(mu)` como única función que redondea a 1 decimal, usada exclusivamente por la capa de presentación (nunca dentro del propio motor).
+
+### 4.5 Ubicación de parámetros
+
+Un único objeto `PARAMS` centralizado al inicio de `level.js` (no un archivo separado — un solo módulo nuevo es más simple de auditar en Etapa A, mismo criterio de "pocas piezas" que ya usa el resto del proyecto). Debe incluir, tal cual la fórmula V1.4: rango de escala (1.0–10.0), divisor de expectativa (1.5), pesos de margen (0.45/0.55) y su rango (0.90–1.15), tabla de factores de formato, constantes de repetición (0.10 / 0.025 / piso 0.45) y de compañero (0.05 / piso 0.60), factor de círculo (0.45), factores de disponibilidad (1.00/0.80/0.60), factor de rival (0.55/0.45), constantes de confianza (`b` 0.15/0.10, techo 0.95, divisor 5.5), inactividad (60 días de gracia, semivida 240 días, piso 0.15), topes por estado (±0.50/±0.35), `algorithm_version = 'nivel_bramu_v1_0'`.
+
+### 4.6 Forma del feature flag
+
+Recomendación: una constante de código dentro de `level.js` (`const NIVEL_BRAMU_V1_ENABLED = false;`), **no** una clave de `localStorage` ni un toggle expuesto en ninguna pantalla. Motivo: hoy no hay backend ni configuración remota — un flag en `Store` sería alcanzable por cualquiera que abra la consola del navegador, y el Consolidado exige explícitamente "apagado" y "sin exposición general". Una constante de código convierte la futura activación en un cambio de una sola línea, explícito y revisable en un commit — no en un estado que pueda quedar prendido por accidente en el dispositivo de alguien. Si en el futuro hace falta activarlo gradualmente por usuario (rollout controlado, Etapa E), ese es el momento de mover el flag a una clave de `Store`, no antes.
+
+### 4.7 Convivencia temporal con el Nivel provisional de V03
+
+`level.js` se agrega, se prueba con fixtures, y **nada lo llama todavía** desde `app.js`/`player-home.js`/`ranking.js`. El Nivel provisional simulado de V03 (§3.2 de este informe) sigue siendo el único que ve la UI, sin ningún cambio de comportamiento. El feature flag en `false` no tiene ningún efecto observable en esta etapa porque ningún consumidor lo lee todavía — su único trabajo hoy es dejar preparado el punto exacto donde, en una etapa futura, se decidirá explícitamente activar la migración (nunca de forma implícita).
+
+### 4.8 Estrategia de tests y fixtures
+
+- Nuevo bloque en `tests.html`, mismo patrón `assert(name, cond, detail)`, sin `AFFECTED_KEYS` (motor puro, sin storage).
+- Fixtures a portar directamente de la fórmula normativa: la tabla completa de 18 simulaciones de partido único (Formula_V1.4 §14) y las 3 simulaciones longitudinales (§15), con tolerancia ±0.01 (mismo criterio que define Implementacion.md §5 Etapa E, aplicado ya en Etapa A como primer gate de corrección).
+- Tests de límites explícitos: victoria nunca delta negativo, derrota nunca delta positivo, clamp 1.0000–10.0000, expectativa complementaria entre A/B, disponibilidad 1.00/0.80/0.60, topes ±0.50 (calibrando/recalibrando) y ±0.35 (calibrado), `algorithm_version` presente en toda salida.
+
+### 4.9 Qué puede hacerse ahora sin backend
+
+Todo el motor puro es computable hoy: `userId` estable, historial estructurado, resultados por sets/games, composición de parejas, fechas reales, formatos, arnés de tests — exactamente lo que dice el Consolidado §3. Etapa A no necesita ningún dato que no exista ya en el dispositivo local.
+
+### 4.10 Qué debe quedar desacoplado para backend futuro
+
+El contrato de `Level.computeMatchUpdate(input)` recibe únicamente objetos planos (niveles/confianzas/contadores) — nunca llama a `Store` ni a `localStorage` directamente. Eso ya garantiza, por diseño, que el día que exista backend real, lo único que cambia es **quién** llama al motor y **de dónde** vienen esos objetos de entrada (hoy: `player-home.js` leyendo `localStorage`; mañana: una capa de servidor) — el motor en sí no se toca. Quedan explícitamente fuera de Etapa A (dependen de infraestructura multiusuario real, según §3 del Consolidado): validación de resultado por la pareja rival, invitaciones/reclamos entre cuentas de distintos dispositivos, sincronización central, idempotencia distribuida.
+
+### 4.11 Riesgos reales de regresión
+
+- **Ninguno sobre código existente**, si Etapa A se limita estrictamente a un archivo nuevo sin consumidores. El riesgo real no es técnico sino de disciplina de alcance: la tentación de "ya que estamos, conectamos un llamado condicional al flag" en `player-home.js` sería exactamente la migración que el Consolidado prohíbe en esta etapa.
+- **Versionado:** si `level.js` se agrega a `index.html`/`CORE_ASSETS` de `sw.js`, corresponde bump de cuarteto (lección de V03.1.6) aunque el archivo no tenga todavía ningún efecto funcional — un `<script>` nuevo sin `?v=X` puede quedar servido por caché HTTP vieja. Decisión a tomar en el momento de implementar Etapa A, no ahora.
+- **Conteo de tests:** el baseline es 1060/1060 (V03.10). Los fixtures nuevos deben sumar sobre ese número, nunca reemplazarlo ni resetear el conteo.
+
+---
+
+## 5. Checklist de lo prohibido en V04.0 (confirmación explícita)
+
+- [x] No se implementó Etapa A (ningún archivo de código nuevo o modificado).
+- [x] No se cambió la fórmula V1.4 (ni una palabra).
+- [x] No se cambió UI.
+- [x] No se reemplazó el Nivel provisional vigente (`player-home.js` intacto).
+- [x] No se conectó Ranking al motor nuevo (no existe motor nuevo todavía).
+- [x] No se tocó `BRAMU Intelligence` (se detectó trabajo en curso no relacionado — `docs/BRAMUlab/BRAMU_Intelligence.md` modificado y `BRAMU_Intelligence_Implementacion.md` nuevo, ambos fuera del alcance de esta ronda — no se abrieron ni se editaron).
+- [x] No se introdujo backend.
+- [x] No se borró lógica legacy/provisional.
+- [x] No se cambió la versión pública de la app (`store.js`/`version.json`/`sw.js` sin tocar).
+
+---
+
+## 6. Bloqueos reales para autorizar Etapa A
+
+**Ninguno técnico.**
+
+Un único punto de alcance a confirmar, que no es una decisión de producto sino de secuencia técnica: el Consolidado (§5/§6) menciona que `store.js` "posiblemente" se vea afectado en Etapa A para modelo/feature flag. Este informe recomienda **diferir cualquier cambio a `store.js`** hasta que exista un consumidor real que necesite persistir estado de Nivel (Etapa B en adelante) — porque la "salida esperada" de Etapa A, tal como la define `Nivel_BRAMU_Implementacion.md` §5, es únicamente "cálculo ejecutable mediante pruebas", que el motor puro cumple sin escribir nada en `localStorage`. Si se prefiere dejar el modelo de persistencia ya armado (aunque desconectado) desde Etapa A, es una alternativa válida — solo se señala como punto a confirmar antes de programar, no como bloqueo.
+
+---
+
+## 7. Próximo paso
+
+Si se autoriza Etapa A con este plan, la implementación se limita a: `bramulab/level.js` nuevo (motor puro + parámetros + contrato + auditoría), su carga en `index.html`/`tests.html`, sus fixtures, y el feature flag apagado como constante de código — sin tocar ningún otro archivo de producto ni la versión pública. Etapas B en adelante quedan para rondas futuras, cada una con su propio gate.
+
+---
+
+# V04.1 — Etapa A (implementada)
+
+**Autorización:** Sebastián autorizó Etapa A sobre este mismo diagnóstico, con 2 decisiones cerradas explícitas: **diferir `store.js`** (sin persistencia real todavía) y **no conectar `level.js` a la app productiva** (ni siquiera el flag, desde ningún consumidor). Ajuste de alcance recibido: `app.js`, `player-home.js`, `ranking.js`, `store.js`, `index.html`, `sw.js`, `version.json` y la versión pública quedan explícitamente fuera de esta ronda.
+
+## V04.1.1 Qué se implementó
+
+**`bramulab/level.js` (nuevo, 488 líneas).** Motor puro, sin DOM ni `localStorage`, exactamente el contrato propuesto en §4.4 de este informe con un ajuste real encontrado al programarlo (ver §V04.1.3): expone
+
+- `PARAMS` — objeto único congelado (`Object.freeze`) con todos los parámetros V1 citando su sección de origen en `Nivel_BRAMU_Formula_V1.4.md` (§2, §4.1, §5, §6.1, §7, §8, §8.1, §9, §10.2, §10.3, §13).
+- `ALGORITHM_VERSION = 'nivel_bramu_v1_0'`, `NIVEL_BRAMU_V1_ENABLED = false` (constante de código, no Store — decisión de §4.6 de este mismo informe, confirmada al autorizar V04.1).
+- Funciones puras, una por pieza de la fórmula: `computeEffectiveLevel`, `computePairStrength`, `computeExpectation`, `computeMarginMultiplier`, `computeFormatFactor`, `computeRepetitionFactor`, `computeCompanionFactor`, `computeCircleFactor`, `computeAvailabilityFactor`, `computeK`, `computeOpponentFactor`, `deltaCapForState`, `computePlayerDelta`, `computeEvidenceQuality`, `computeConfidenceFromEvidence`, `computeConfidenceAfterMatch`, `computeEffectiveConfidenceAfterInactivity`, `roundPublicLevel`, `clampLevel`.
+- `computeMatchUpdate(input)` — función compuesta que arma la salida auditable completa de UN partido (los 4 jugadores): `algorithmVersion`, `teamStrength`, `expectation` (complementaria exacta A+B=1), `margin`, `formatFactor`, `availabilityFactor`, `rivalPairConfidenceAvg`, `reasonCodes[]`, y por jugador `muBefore/effectiveLevel/k/opponentFactor/circleFactor/deltaRaw/deltaCapped/capApplied/deltaPublic/evidenceQuality/muAfter/muAfterPublic/confidenceAfter`.
+- Contrato explícito (cabecera del archivo y de `computeMatchUpdate`): `repetitionFactor`/`companionFactor` (por equipo) y `circleFactors` (por jugador) entran como valores YA CALCULADOS — Etapa A no deriva ninguno de los tres desde historial real, tal como pidió la autorización.
+
+**`bramulab/tests.html` (modificado).** `<script src="level.js">` agregado únicamente en la lista de carga del arnés de tests (no en `index.html`), con un comentario explícito de por qué. Se agregó un helper `closeEnough(actual, expected, tol)` (tolerancia ±0.01 por defecto) junto al `assert` existente, y una batería nueva de 160 fixtures organizados en bloques temáticos (uno por pieza de la fórmula) más la batería completa de `Nivel_BRAMU_Formula_V1.4.md` §14.
+
+## V04.1.2 Tests: antes/después
+
+| | Cantidad |
+|---|---:|
+| Baseline (`BRAMUlab_V03.10`, sin tocar) | 1060/1060 |
+| Fixtures nuevos de Nivel BRAMU | 160/160 |
+| **Total, corrido de verdad contra el arnés real** | **1220/1220** |
+
+Verificado levantando `python3 .claude/dev-server.py` (el mismo script del repo) y corriendo `tests.html` en el navegador — no solo revisado el código. Apareció 1 fallo real en la primera corrida (detallado en §V04.1.3, corregido antes de este informe) — la segunda corrida ya dio 1220/1220 limpio.
+
+## V04.1.3 Fixtures normativos validados y diferencia real encontrada
+
+**Tabla exacta, sin ambigüedad (una por pieza aislada de la fórmula):** nivel efectivo (ejemplos §4.1: `8.0/0.90→7.70`, `8.0/0.15→5.45`), expectativa (tabla §5 completa: diff 0/0.5/1.0/2.0/3.0 → 50/68/82/96/99%), factor de formato (tabla §7 completa), factor de repetición (tabla §8 completa, primero a quinto encuentro), factor de compañero (tabla §8 completa), factor de círculo (§8.1, los 2 valores), disponibilidad (tabla §13 completa), K por confianza y factor de confianza rival (fórmulas §9 en varios puntos), **confianza desde evidencia (tabla §10.2 completa: evidencia 0/1/3/5/10/15 → 15/28/49/63/82/90%)**, decay por inactividad (§10.3: gracia de 60 días, semivida exacta de 240 días verificada en el punto donde da exactamente la mitad), clamps 1.0000–10.0000, redondeo público vs. interno, topes ±0.50/±0.35 por estado, invariante de signo (victoria nunca negativo / derrota nunca positivo, verificado con 100 combinaciones de confianza×expectativa×factores en sus extremos), determinismo (misma entrada + misma versión = misma salida, comparación `JSON.stringify` byte a byte), `algorithm_version` presente, flag apagado.
+
+**Batería compuesta — `Nivel_BRAMU_Formula_V1.4.md` §14 (18 simulaciones de partido único):** las 18 filas de la tabla, con tolerancia ±0.01, **todas dentro de tolerancia** (diferencia real máxima observada: 0.0093, en el caso "amplio" entre parejas 5.0 estables).
+
+**Diferencia real encontrada — merece registrarse, no es un bug de código:** la tabla §14 no dice con qué nivel de confianza calcula cada arquetipo ("estables"/"nuevos"), solo los deltas resultantes. Para poder programar los 18 fixtures hubo que reconstruir esos dos valores por prueba numérica contra la propia tabla:
+
+- **Confianza "estable" = 0.80.** Con este valor, 16 de las 18 filas (todas menos las 2 que involucran el arquetipo "nuevo") reproducen el delta documentado con una diferencia menor a 0.005 — prácticamente exacto, muy por debajo de la tolerancia ±0.01 pedida. También reproduce exactamente los porcentajes de expectativa de las filas 4-7 (23%/77%/8%/92%).
+- **Confianza "nuevo" = 0.15** (la confiabilidad inicial de cuestionario completo, ya documentada en §3.2 — no un valor inventado). Con este valor, las 4 filas que involucran el arquetipo "nuevo" quedan dentro de ±0.01 (diferencia máxima 0.0054).
+
+Ningún parámetro de `PARAMS` tuvo que ajustarse para lograr este encaje — la fórmula tal cual está escrita en `Nivel_BRAMU_Formula_V1.4.md` reproduce la tabla §14 completa con estos dos arquetipos de confianza. Se documenta acá porque el propio documento normativo no fija ese dato explícitamente en todas las filas (sí lo hace en la fila 16, "compañeros con confianza 20%/90%", que se usó tal cual sin necesidad de reconstruir nada).
+
+**No se intentó reproducir §15 (simulaciones longitudinales) numéricamente.** Esas 3 secuencias (jugador subestimado/sobreestimado/alternado) dependen partido a partido de datos que el documento no fija (score exacto de cada partido, perfil del compañero en un juego de dobles) — inventar esos valores para forzar el encaje habría sido fabricar un dato no normativo, contrario al principio que la propia fórmula repite varias veces ("nunca inventar valores faltantes", §13). Queda como pendiente explícito, no como fixture fabricado. Si en el futuro se quiere esta cobertura, hace falta que producto fije esos supuestos (formato/score/compañero de cada partido de la secuencia) antes de programarla.
+
+**El fallo real de la primera corrida** fue un error propio en un fixture, no del motor: un caso de "margen en el piso" usaba un score cuyo dominio (0.575) en realidad quedaba por encima del piso de la fórmula (0.55), así que el motor devolvía correctamente 0.9179 en vez del 0.90 que el fixture esperaba — corregido cambiando el score del fixture a uno que sí cae exactamente en el piso (dominio 0.50). El motor nunca estuvo mal; el fixture sí.
+
+## V04.1.4 Riesgos / pendientes para Etapa B
+
+- Etapa B deberá construir la integración histórica real que hoy `level.js` recibe como input ya resuelto: detección de círculo competitivo cerrado, conteo real de repetición de rivales/compañero desde el historial, reglas de elegibilidad/invitados/estados de partido, imputación de niveles faltantes (§13 de la fórmula).
+- `store.js` sigue sin ningún modelo de persistencia de Nivel BRAMU — la propuesta de claves (`bramulab.levelState.v1`/`bramulab.levelEvents.v1`) de §4.3 de este informe sigue siendo solo eso, una propuesta, confirmada como diferida.
+- Las simulaciones longitudinales de §15 de la fórmula quedan sin fixture — ver §V04.1.3. No bloquea Etapa B, pero si Etapa C/E necesitan esa cobertura, alguien deberá fijar los supuestos de cada secuencia primero.
+- `level.js` no fue cargado nunca desde `index.html`: no hay riesgo de cuarteto de versionado en esta ronda (no aplica, no hubo release), pero cuando SÍ se conecte a producción, va a hacer falta el bump completo (`Store.VERSION`/`version.json`/`sw.js`/`?v=X`) — mismo criterio que el resto del proyecto desde V03.1.6.
+
+## V04.1.5 No se avanzó a Etapa B
+
+Confirmado — ningún archivo de integración histórica, persistencia ni UI fue tocado. El gate de §9 de `BRAMUlab_V04_Consolidado.md` sigue vigente sin cambios para autorizar la próxima etapa.
