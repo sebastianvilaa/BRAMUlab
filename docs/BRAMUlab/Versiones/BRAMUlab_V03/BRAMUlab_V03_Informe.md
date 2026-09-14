@@ -2,9 +2,9 @@
 ## Informe — qué se implementó, verificó y corrigió
 
 **Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva).
-**Fecha de esta síntesis:** 10/09/2026.
-**Estado actual de la app:** tag `BRAMUlab_V03.4.6`, 828/828 tests. Última ronda cerrada: V03.4.6 (dos correcciones responsive sobre Mis Grupos/Historial/Evolución).
-**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada, en orden cronológico. El detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior).
+**Fecha de esta síntesis:** 10/09/2026 — actualizado el 14/09/2026 con el cierre final de la línea en V03.10.
+**Estado actual de la app:** tag `BRAMUlab_V03.10`, 1060/1060 tests. **BRAMUlab_V03 queda CERRADA** — validada visualmente en producción por el usuario. Última ronda: V03.10 (cierre conservador de `TU MOMENTO` + identidad segura por `userId` en Compañeros/Rivales).
+**Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada, en orden cronológico. Hasta V03.4.6, el detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales ya se borraron del repositorio una vez confirmado que este resumen no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Desde V03.5 en adelante, la fuente de cada sección es el `BRAMUlab_V03.X_Reporte_ChatGPT.md` de esa ronda, que sigue presente en este mismo directorio (no se borró ni se archivó).
 
 ---
 
@@ -13,14 +13,15 @@
 Módulos de lógica pura, sin DOM, mismo patrón heredado de V01/V02:
 
 - `engine.js` / `stats.js` — motor del marcador y estadísticas, sin cambios en esta línea.
-- `player-home.js` (`window.PH`) — agregaciones del jugador: Home, MI PERFIL, ahora también base de datos para Perfil público y Mis Grupos. Funciones clave acumuladas en V03: `findPlayerRow` (identidad por `userId`, autoritativa y exclusiva — una fila con `userId` estampado SOLO se encuentra por ese `userId`, nunca por nombre, ni siquiera si coincide), `resolveIdentityRef`, `buildCalibrationStatus`, `computeBestWinStreakRange`, `computeLevelChangeLast30Days`, `computePeakLevel`, `computeSimulatedJugadorLevel` (Nivel BRAMU determinístico por hash de nombre para jugadores sin historial contra el usuario actual, reemplazado por el valor real en cuanto exista al menos un partido considerado).
-- `player-identity.js` (`window.PLI`, nuevo en V03.0) — validación pura: formato de email, fuerza de contraseña, slugify de `@usuario`, cálculo de edad.
+- `player-home.js` (`window.PH`) — agregaciones del jugador: Home, MI PERFIL, base de datos para Perfil público y Mis Grupos, y (desde V03.9/V03.10) el texto determinístico de `TU MOMENTO`. Funciones clave acumuladas en V03: `findPlayerRow` (identidad por `userId`, autoritativa y exclusiva — una fila con `userId` estampado SOLO se encuentra por ese `userId`, nunca por nombre, ni siquiera si coincide), `resolveIdentityRef`, `buildCalibrationStatus`, `computeBestWinStreakRange`, `computeLevelChangeLast30Days`, `computePeakLevel`, `computeSimulatedJugadorLevel` (Nivel BRAMU determinístico por hash de nombre para jugadores sin historial contra el usuario actual, reemplazado por el valor real en cuanto exista al menos un partido considerado), `buildTuMomentoText`/`buildRankingMomentoClause` (V03.8-V03.10: framing conservador de forma reciente + Ranking como candidato), y `getPartnerRow`/`getOpponentRows`/`computeTeammateBreakdown`/`computeRivalBreakdown` (V03.10: agregan por IDENTIDAD — `userId` autoritativo cuando existe, nunca solo por nombre visible — para que Compañeros/Rivales puedan mostrar `@username` sin fusionar cuentas homónimas).
+- `player-identity.js` (`window.PLI`, nuevo en V03.0) — validación pura: formato de email, fuerza de contraseña, slugify de `@usuario`, cálculo de edad; suma en V03.6 `normalizePhoneForWhatsApp`/`isValidWhatsAppPhone`/`canContactViaWhatsApp`/`buildWhatsAppContactUrl`.
 - `match-load.js` (`window.PLMatchLoad` / `ML`) — sumó `buildJugadorDirectory` (universo de jugadores conocidos, nunca incluye al propio usuario), `filterPlayerCandidates`, `computeRecentPlayers` (con el bug de identidad corregido en V03.3.2, ver §19).
-- `groups.js` (`window.PLGroups`, nuevo en V03.4) — toda la lógica pura de competencia por grupos: pertenencia temporal por períodos, detección automática de partidos válidos (3 de 4), cálculo de puntos y bonuses, tabla semanal (top 3), Race anual, BRAMU Intelligence grupal, y `assignPositions` (posición "estilo competencia", con empates compartidos — fix de V03.4.1).
-- `locations.js` (`window.PLLocations`, nuevo en V03.4.1) — dataset local de ~180 localidades argentinas como fallback, mas `searchLocationsRemote` (V03.4.2) contra la API pública GeoRef como fuente principal.
-- `store.js` — persistencia `localStorage`. Claves nuevas de esta línea: `bramulab.users.v1`, `bramulab.session.v1` (V03.0), `bramulab.notifications.v1` (V03.0.2, aislada por `userId`), `bramulab.addedPlayers.v1` (V03.3, aislada por `userId`), `bramulab.groups.v1` (V03.4, **global**, no aislada por usuario — un grupo es una entidad compartida entre varios jugadores, mismo criterio que `HISTORY`). `SCHEMA_VERSION` se mantiene en 3 durante toda la línea; los únicos campos nuevos en el registro `User` son `declaredCategoryAt` (V03.1) y `locality`/`region`/`country`/`rankingLocalZone` (V03.4.1).
+- `groups.js` (`window.PLGroups`, nuevo en V03.4) — toda la lógica pura de competencia por grupos: pertenencia temporal por períodos, detección automática de partidos válidos (3 de 4), cálculo de puntos y bonuses, tabla semanal (top 3), Race anual, BRAMU Intelligence grupal, y `assignPositions` (posición "estilo competencia", con empates compartidos — fix de V03.4.1). Sigue siendo un producto distinto de Ranking BRAMU (§28 en adelante): Mis Grupos mide rendimiento dentro de un espacio privado, Ranking BRAMU es la clasificación territorial oficial.
+- `locations.js` (`window.PLLocations`, nuevo en V03.4.1) — dataset local de ~180 localidades argentinas como fallback, mas `searchLocationsRemote` (V03.4.2) contra la API pública GeoRef como fuente principal; reutilizado tal cual por Ranking BRAMU (V03.7) para asignar localidad/región/país reales a los ámbitos territoriales.
+- `ranking.js` (`window.PLRanking`, nuevo en V03.5) — toda la lógica pura de Ranking BRAMU: universo territorial mock (V03.7: pool de localidades coherente por ámbito, comparación jerárquica país/provincia/localidad, nunca substring), orden por Nivel consolidado interno exacto con empates compartidos (reutiliza `PLGroups.assignPositions`), snapshot/publicación semanal (`computeRankingWeekPeriod`/`historySnapshotAsOf`/`formatRankingWeekRangeLabel`), movimiento entre dos ediciones, densidad y elegibilidad (calibrando/inactivo/Mi red), `computeProfileRankingSummary` (V03.7/V03.8: tarjeta territorial compartida por Perfil público y Mi Perfil) y `computeHomeRankingInsight` (V03.8: insight de Ranking para `TU MOMENTO`, siempre ámbito Local). Nunca calcula ni modifica Nivel BRAMU — siempre lee `PH.computeSimulatedJugadorLevel`.
+- `store.js` — persistencia `localStorage`. Claves nuevas de esta línea: `bramulab.users.v1`, `bramulab.session.v1` (V03.0), `bramulab.notifications.v1` (V03.0.2, aislada por `userId`), `bramulab.addedPlayers.v1` (V03.3, aislada por `userId`), `bramulab.groups.v1` (V03.4, **global**, no aislada por usuario — un grupo es una entidad compartida entre varios jugadores, mismo criterio que `HISTORY`). `SCHEMA_VERSION` se mantiene en 3 durante toda la línea; los campos nuevos en el registro `User` son `declaredCategoryAt` (V03.1), `locality`/`region`/`country`/`rankingLocalZone` (V03.4.1) y `phone`/`allowWhatsAppContact` (V03.6, este último `false` por defecto siempre).
 
-**Identidad por `userId` (núcleo de toda la línea, sin cambios desde V03.0):** cada jugador dentro de `match.players[]` puede tener un `userId` opcional. Regla de integridad autoritativa y exclusiva: una fila con `userId` estampado solo se encuentra buscando exactamente por ese `userId`; una fila sin `userId` (partido legacy) sigue resolviendo por nombre normalizado. Esto es lo que permite que renombrar el "Nombre visible" desde Perfil nunca desvincule el historial — y es también la causa raíz de al menos un bug real detectado más tarde (V03.3.2, §19: una función nueva olvidó pasar el `userId` y perdió silenciosamente los partidos "Recientes" de cualquier cuenta creada después de V03.0).
+**Identidad por `userId` (núcleo de toda la línea, sin cambios de regla desde V03.0, con superficie ampliada en V03.10):** cada jugador dentro de `match.players[]` puede tener un `userId` opcional. Regla de integridad autoritativa y exclusiva: una fila con `userId` estampado solo se encuentra buscando exactamente por ese `userId`; una fila sin `userId` (partido legacy) sigue resolviendo por nombre normalizado. Esto es lo que permite que renombrar el "Nombre visible" desde Perfil nunca desvincule el historial — y es también la causa raíz de varios bugs reales detectados a lo largo de la línea cuando una función nueva olvidaba pasar el `userId` y perdía silenciosamente la identidad: partidos "Recientes" (V03.3.2, §19), Nivel real de self en Ranking (V03.5.2), Nivel real de terceros en Ranking/Mis jugadores (V03.6), y agregados de Compañeros/Rivales, que hasta V03.9 agrupaban por nombre visible puro y por eso arriesgaban fusionar dos cuentas reales homónimas (corregido en V03.10, ver §33).
 
 **Sin arnés de test para DOM/`app.js`** en ningún punto de esta línea (mismo límite documentado desde V01) — toda navegación/interacción visual se verifica a mano con el Browser tool (mobile 375×812 + tablet 768px + desktop), nunca en `tests.html`. `tests.html` cubre exclusivamente las funciones puras de los módulos de arriba.
 
@@ -387,14 +388,95 @@ Módulos de lógica pura, sin DOM, mismo patrón heredado de V01/V02:
 
 ---
 
-## Estado actual de la app: BRAMUlab_V03.4.6
-
-Tag `BRAMUlab_V03.4.6`, publicada en https://sebastianvilaa.github.io/BRAMUlab/bramulab/. 828/828 tests. Arquitectura vigente descripta en §0: identidad por `userId` exclusivo, cuentas/sesión locales, notificaciones, sistema de jugadores (buscar/perfil público/agregar), Mis Grupos (puntos/bonuses/tabla semanal/Race anual/BRAMU Intelligence grupal), ubicación vía GeoRef, todo sin backend real.
-
-**Estado de la última ronda (V03.4.6) como vigente:** las tabs de Historial (Todos/Mis partidos/Observados) quedan alineadas a la izquierda en tablet, igual que las de Mis Grupos — corregido el mismo bug de `align-items:stretch` desactivado por `margin:0 auto` en un ítem flex directo de `.view--history`, esta vez en `.history-filters`. El gráfico de Evolución del Nivel BRAMU en Perfil ya no escala su tipografía en tablet — corregido el bug de timing (la medición del contenedor corría antes de que `showView('profile')` lo hiciera visible, cayendo siempre al fallback de ancho fijo) pospuesta a un `requestAnimationFrame`. Ambos verificados esta vez contra una cuenta con datos reales, no una réplica aislada del algoritmo — el método de verificación de la ronda anterior (V03.4.5) es precisamente lo que había dejado pasar el segundo bug.
-
-**Qué sigue pendiente para cualquier ronda futura de esta línea** (repetido de forma consistente en todos los consolidados desde V03.0): backend real, Ranking BRAMU oficial, fórmula real y definitiva de Nivel BRAMU (sigue siendo una serie simulada), amigos/seguidores/mensajería, notificaciones push, armado de partido desde perfil o grupo. Ver `BRAMUlab_Backlog.md` para el detalle completo de ideas futuras.
+**Estado de V03.4.6 como último cierre de la etapa "sin Ranking oficial":** las tabs de Historial (Todos/Mis partidos/Observados) quedan alineadas a la izquierda en tablet, igual que las de Mis Grupos — corregido el mismo bug de `align-items:stretch` desactivado por `margin:0 auto` en un ítem flex directo de `.view--history`, esta vez en `.history-filters`. El gráfico de Evolución del Nivel BRAMU en Perfil ya no escala su tipografía en tablet — corregido el bug de timing (la medición del contenedor corría antes de que `showView('profile')` lo hiciera visible, cayendo siempre al fallback de ancho fijo) pospuesta a un `requestAnimationFrame`. A partir de acá la línea abre el frente de Ranking BRAMU (§28).
 
 ---
 
-Los documentos originales de cada ronda (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior).
+## 28. V03.5 / V03.5.1 / V03.5.2 — Ranking BRAMU semanal
+
+**Fuentes:** `BRAMUlab_V03.5.md`, `BRAMUlab_V03.5.1.md`, `BRAMUlab_V03.5.2_Reporte_ChatGPT.md`. Tag `BRAMUlab_V03.5.2` (movido varias veces, commit final `d74334c`, sobre el hotfix `707ec77`, la corrección de cierre `ec7f35c` y la implementación inicial `dd4055a`/`4037cd1`). Base: `BRAMUlab_V03.4.6`.
+
+**Implementado:** nuevo módulo `ranking.js` (`window.PLRanking`) con toda la lógica pura del Ranking BRAMU — cinco ámbitos (Local/Provincial/País/Global/Mi red), filtros de género/rama y de banda de Nivel, orden por Nivel consolidado interno exacto reutilizando `PLGroups.assignPositions` para los empates (nunca una segunda regla de competición). V03.5.1 renombra "Mis jugadores" a **Mi red** (vínculos por partido compartido en los últimos 180 días, ocultar/restaurar) y agrega el selector de género. V03.5.2 es el cambio más grande: Ranking pasa de continuo a **publicación semanal** (`computeRankingWeekPeriod`/`historySnapshotAsOf`, corte lunes 00:00 Buenos Aires, offset fijo `-180min` — Argentina no usa horario de verano desde 2009) y movimiento real entre dos ediciones (reemplaza el jitter simulado que usaba V03.5.1).
+
+**Bugs reales encontrados y corregidos en la misma ronda:** (1) identidad de self en Ranking — `computeRankingView` pasaba el nombre plano en vez de `{name, userId}`, así que en cuanto self jugaba su primer partido (que estampa `userId`) Ranking dejaba de encontrarle su historial real y mostraba el mismo Nivel simulado por hash que un jugador mock; (2) corrección de cierre pedida por Sebastián tras revisar con ChatGPT — el período mostrado debía identificar la semana YA CERRADA que produjo la edición vigente (`previousPeriod`), nunca la semana calendario en curso, y la elegibilidad (calibración/inactividad/Mi red) debía congelarse al mismo corte que el Nivel, no evaluarse en vivo; (3) hotfix bloqueante en producción — `computeSimulatedJugadorLevel` explotaba (`TypeError`) para cualquier cuenta nueva sin partidos que tocara Ranking, porque su rama de fallback no resolvía `{name, userId}` antes de normalizar; (4) el hotfix no llegaba solo a producción — faltaba bumpear el cache-bust, así que un cliente con el service worker ya instalado seguía sirviendo el bundle roto (lección ya documentada desde V03.1.6, pasada por alto acá dos veces antes de corregirse).
+
+**Verificado:** en vivo y en producción real, incluido el caso límite del Caso 2 del documento normativo (partido del domingo cargado el lunes no altera la edición ya publicada) y el ejemplo numérico exacto de la corrección de cierre.
+
+**Tests:** **947/947** al cierre de V03.5.2 (34 nuevas sobre la base heredada de V03.4.6, entre período semanal, snapshot por `createdAt`, movimiento entre ediciones, identidad de self, corrección de cierre y hotfix).
+
+## 29. V03.6 — Contacto por WhatsApp + identidad
+
+**Fuente:** `BRAMUlab_V03.6_Reporte_ChatGPT.md`. Tag `BRAMUlab_V03.6` (commit final `53e068f`, sobre el hotfix de identidad `aadf920`, las correcciones post-QA `7c79196` y la implementación inicial `10a05ce`). Base: `BRAMUlab_V03.5.2`.
+
+**Implementado:** `phone` + `allowWhatsAppContact` en la cuenta (`false` por defecto siempre); sección CONTACTO en Editar Datos con el primer switch on/off de la app, bloqueado si se intenta activar sin teléfono válido; botón "CONTACTAR POR WHATSAPP" en Perfil público (visible solo con teléfono válido Y consentimiento a la vez) que abre un deep link `wa.me` de un solo toque con mensaje fijo, sin exponer nunca el número.
+
+**Hotfix de identidad (bug real, mismo patrón que §28):** Ranking (jugadores reales no-self) y "Mis jugadores" seguían resolviendo Nivel/`@usuario` por nombre plano en vez de `{name, userId}` cuando existía una cuenta real detrás — corregido con un único punto de resolución de cuenta real por nombre, reutilizado en ambos lugares.
+
+**Cierre final de la ronda:** self sin posición oficial (`sin-nivel`/`calibrando`) deja de bloquear toda la clasificación de Ranking (antes reemplazaba la clasificación completa por una tarjeta bloqueante); color semántico en el indicador de movimiento (sube = lima, baja = rojo, sin cambio = neutro, reutilizando tokens existentes); corrección de un desborde visual real de "CALIBRANDO"/"CALIBRACIÓN COMPLETA" en Home/Mi Perfil/Perfil público.
+
+**Limitación conocida, documentada y no corregida:** con varias cuentas en el mismo navegador, una cuenta nueva puede ver partidos ya existentes en `localStorage` como "Observados" aunque "Mis partidos" sea 0 — requiere el futuro modelo multiusuario/Backend (participación real ligada por `userId`, nunca por coincidencia de nombre en almacenamiento compartido).
+
+**Tests:** **1003/1003** al cierre (progresó 977 → 988 → 998 → 1003 a través de las cuatro sub-rondas de esta versión).
+
+## 30. V03.7 — Geografía del Ranking + Ranking en Perfil público
+
+**Fuente:** `BRAMUlab_V03.7_Reporte_ChatGPT.md`. Commit `24dc7b8` (+ `b2fe91f` de reporte). Tag `BRAMUlab_V03.7`. Base: `BRAMUlab_V03.6`.
+
+**Bug real de producción corregido:** `mockLocalityAt` (en `ranking.js`) ciclaba siempre sobre TODO `locations.js` (~180 localidades de toda Argentina) sin importar el ámbito mostrado — un usuario de Bella Vista veía Villa Urquiza/Villa Devoto mezcladas en Local, y CABA/Córdoba aparecían en Provincial. Nueva `scopeLocalityPool(scopeKey, userLoc)` arma el pool coherente por ámbito comparando SIEMPRE campos estructurados exactos (`country`/`region`/`locality`), nunca substring — `CABA` y `Buenos Aires` ya eran valores de `region` distintos en el dataset, el bug era que nunca se leía ese campo.
+
+**Implementado:** tarjeta territorial semanal (Local/Provincia/País, puesto + denominador + territorio + período) en el Perfil público de un jugador real elegible, vía nueva `RK.computeProfileRankingSummary` — reutiliza exactamente la misma fuente/snapshot que la pantalla Ranking, calculada siempre sobre la ubicación del jugador DE ESE PERFIL (nunca de quien mira). Sin cuenta real detrás del nombre, la tarjeta se oculta por completo; sin elegibilidad completa (calibrando, sin género declarado, etc.), muestra un estado simple.
+
+**Verificado en producción real:** cuenta descartable de Bella Vista confirmó Local mostrando exclusivamente esa localidad en las 20 filas de la clasificación.
+
+**Tests:** **1020/1020** (17 nuevas: geografía + Perfil público).
+
+## 31. V03.8 — Cierre UX de Ranking
+
+**Fuente:** `BRAMUlab_V03.8_Reporte_ChatGPT.md`. Commit `abb2cd3` (+ `6fa9b73` de reporte). Tag `BRAMUlab_V03.8`. Base: `BRAMUlab_V03.7`.
+
+**Implementado:** la misma tarjeta territorial de Perfil público se generaliza (`renderRankingCardForAccount`, parametrizada por prefijo de IDs) y pasa a existir también en Mi Perfil, sin segunda implementación; jerarquía tipográfica del puesto reforzada (17px→22px) en ambas tarjetas; nueva `RK.computeHomeRankingInsight` (siempre ámbito Local) + `PH.buildRankingMomentoClause` integran Ranking como candidato nuevo de `TU MOMENTO` en Home, con prioridad forma reciente > Ranking semanal Local > compañero frecuente > actividad del mes — nunca una tarjeta territorial duplicada en Home.
+
+**Hallazgo de auditoría (no bug):** `TU POSICIÓN` ya cargaba el bloque de paginación necesario y hacía scroll centrado a la fila propia desde una ronda anterior — se formalizó el comportamiento en `Ranking_BRAMU.md` sin tocar código, y se confirmó con QA real (posición #59 de 152, tocar la tarjeta centró la fila con vecinos visibles).
+
+**Tests:** **1043/1043** (23 nuevas).
+
+## 32. V03.9 — Microajustes de cierre
+
+**Fuente:** `BRAMUlab_V03.9_Reporte_ChatGPT.md`. Commit `cd217bb` (+ `27fef73` de reporte). Tag `BRAMUlab_V03.9`. Base: `BRAMUlab_V03.8`.
+
+**Implementado:** framing de `TU MOMENTO` según balance real (más victorias → "Ganaste..."; más derrotas → "Perdiste..."; empate → formulación neutral — nunca "venís de ganar" con balance negativo, bug real reportado); composición/copy de `TU POSICIÓN` en Mi red con 1-2 elegibles (reutiliza la estructura visual del caso general con `—` en el puesto, singular/plural correcto, nunca `#1 de 1`); prueba determinística del rollover semanal exacto en el corte lunes 00:00 Buenos Aires (sin cambios de lógica temporal, la que ya existía desde V03.5.2 ya era correcta).
+
+**Tests:** **1052/1052** (9 nuevas focales).
+
+## 33. V03.10 — Cierre final de V03
+
+**Fuente:** `BRAMUlab_V03.10_Reporte_ChatGPT.md` (bajo el handoff `BRAMUlab_V03.10_Handoff_Cierre_V03.md`, que superó a un handoff previo descartado sobre el mismo tema). Commit `baf8453` (+ `008f32c` de reporte). Tag `BRAMUlab_V03.10`. Base: `BRAMUlab_V03.9`.
+
+**Implementado:** cierre conservador de `TU MOMENTO` — la cláusula de forma reciente entra ÚNICAMENTE con balance positivo; con empate o mayoría de derrotas se OMITE por completo (nunca se reemplaza por "Perdiste..."/un framing neutro, la solución de V03.9, superada acá), y el mecanismo sigue con el próximo candidato de la misma prioridad vigente — decisión deliberada para no convertir `TU MOMENTO` en un motor de análisis antes de BRAMU Intelligence. Compañeros/Rivales ganan identidad segura: `getPartnerRow`/`getOpponentRows`/`buildPersonBreakdown` (`player-home.js`) agregan por `userId` cuando existe (nunca solo por nombre visible, evitando fusionar dos cuentas reales homónimas), y `resolvePersonAccount` (`app.js`) resuelve `@username` de forma autoritativa por `userId` o, para legacy sin `userId`, solo si el nombre resuelve a una única cuenta real — nunca se inventa ni deriva un username, a diferencia del generador de handles sintéticos que sí usa Mis Grupos (tomado como referencia solo visual, no de identidad).
+
+**Verificado en producción real:** dos cuentas reales con el mismo `displayName` y `userId` distinto aparecieron como filas separadas en Rivales, cada una con su propio `@username` correcto — nunca fusionadas ni cruzadas.
+
+**Tests:** **1060/1060** (14 nuevas focales + 2 actualizadas al nuevo comportamiento).
+
+---
+
+## Estado actual de la app: BRAMUlab_V03.10 (línea CERRADA)
+
+Tag `BRAMUlab_V03.10`, publicada en https://sebastianvilaa.github.io/BRAMUlab/bramulab/ y **validada visualmente en producción por el usuario**. **1060/1060 tests.** BRAMUlab_V03 queda cerrada acá — no se espera una V03.11 salvo instrucción explícita.
+
+**Arquitectura acumulada final** (detalle completo en §0): identidad por `userId` exclusivo y autoritativo — ahora extendida también a los agregados de Compañeros/Rivales (V03.10) — cuentas/sesión locales, notificaciones, sistema de jugadores (buscar/perfil público/agregar), contacto por WhatsApp con consentimiento explícito (V03.6), Mis Grupos (puntos/bonuses/tabla semanal/Race anual/BRAMU Intelligence grupal, producto distinto de Ranking BRAMU), ubicación vía GeoRef, y **Ranking BRAMU implementado a nivel prototipo**: universo territorial y snapshot semanal simulados/determinísticos (`ranking.js`), publicación semanal real (lunes 00:00 Buenos Aires, congela Nivel/elegibilidad/ubicación al corte), geografía jerárquica validada en producción (V03.7), tarjeta territorial en Perfil público y Mi Perfil con la misma fuente (V03.7/V03.8), rollover semanal verificado por test determinístico y luego observado en producción real, y Ranking integrado a Home únicamente como insight puntual de `TU MOMENTO` (V03.8), con `TU MOMENTO` deliberadamente liviano y determinístico (V03.9/V03.10) — nada de esto usa backend real ni persiste snapshots fuera de lo que el propio historial local permite reconstruir en cada render.
+
+**Qué sigue pendiente, con el roadmap vigente:**
+
+- **`V04` — Nivel BRAMU:** fórmula real y definitiva (sigue siendo una serie simulada/determinística en todo el prototipo).
+- **`V05` — BRAMU Intelligence:** interpretación de rachas/tendencias/contexto a nivel jugador — explícitamente diferida por V03.10 para mantener `TU MOMENTO` liviano; Mis Grupos ya tiene su propia BRAMU Intelligence grupal desde V03.4, acotada a esa competencia.
+- **`V06` — Backend/Infraestructura:** sin la cual quedan pendientes, entre otras cosas — snapshot semanal real que congele ubicación + opt-in/privacidad al corte (hoy solo Nivel/elegibilidad quedan congelados, ver §28); snapshots persistidos y auditables; historial/visibilidad ligados a `userId` y rol; un partido observado que nunca se convierta en historial deportivo propio; validación de partidos entre usuarios registrados antes de impactar oficialmente Nivel/Ranking; y la limitación ya conocida de `localStorage` compartido entre cuentas del mismo navegador (documentada desde V03.6, sin cambios).
+- **Ranking futuro, fuera de V1 mientras haya poca densidad:** `Explorar rankings` (consultar el Ranking de otro territorio sin cambiar la ubicación propia, definido conceptualmente en V03.8) — búsqueda geográfica estructurada, nunca una cascada País→Provincia→Localidad gigante.
+- **Identidad/prototipo:** jugadores legacy sin cuenta real no tienen username oficial (nunca se inventa uno); Mis Grupos puede seguir mostrando handles sintéticos del prototipo — no deben tratarse como identidad real fuera de ese contexto.
+- Amigos/seguidores/mensajería más allá del contacto por WhatsApp, notificaciones push, armado de partido desde perfil o grupo, gamificación adicional (premios, medallas).
+
+Ver `BRAMUlab_Backlog.md` para el detalle completo de ideas futuras.
+
+---
+
+Los documentos originales de cada ronda anterior a V03.5 (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior). Los documentos de V03.5 en adelante (`BRAMUlab_V03.X.md` + `BRAMUlab_V03.X_Reporte_ChatGPT.md`) siguen presentes en este mismo directorio.
