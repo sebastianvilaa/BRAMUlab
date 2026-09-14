@@ -375,6 +375,27 @@
     return { closed: false, expired: false, reasonCodes };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V04.4 (Etapa D, bloque 1) — categorías de comunicación (§3.7). */
+  /* Puramente de presentación (qué palabra usar para un número), no       */
+  /* participa del cálculo — se agrega acá y no en app.js para que la      */
+  /* fuente de los 6 cortes siga siendo este módulo, nunca UI duplicando   */
+  /* números de la fórmula.                                                */
+  /* ------------------------------------------------------------------ */
+  const LEVEL_CATEGORIES = Object.freeze([
+    { max: 2.4, key: 'iniciacion', label: 'Iniciación' },
+    { max: 3.9, key: 'recreativo', label: 'Recreativo' },
+    { max: 5.4, key: 'intermedio', label: 'Intermedio' },
+    { max: 6.9, key: 'intermedio_alto', label: 'Intermedio alto' },
+    { max: 8.4, key: 'avanzado', label: 'Avanzado' },
+    { max: 10.0, key: 'competicion', label: 'Competición' },
+  ]);
+
+  function categorizeLevel(level) {
+    const found = LEVEL_CATEGORIES.find((c) => level <= c.max + 1e-9) || LEVEL_CATEGORIES[LEVEL_CATEGORIES.length - 1];
+    return { key: found.key, label: found.label };
+  }
+
   global.PLLevelCalibration = {
     PARAMS,
     FULL_QUESTIONNAIRE,
@@ -389,5 +410,7 @@
     startRecalibration,
     confirmRecalibrationQuestionnaire,
     computeRecalibrationClosure,
+    LEVEL_CATEGORIES,
+    categorizeLevel,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -3335,4 +3335,77 @@ input, select{ font-family: inherit; }
 .group-settings-member__actions{ display:flex; flex-direction:column; align-items:flex-end; gap: 4px; flex:none; }
 .group-settings-member__actions .link-btn{ font-size: 11px; }
 .group-settings-member__actions .link-btn:disabled{ opacity: .35; cursor:not-allowed; }
+
+/* ==========================================================================
+   BRAMUlab_V04.4 (Etapa D, bloque 1) — Onboarding de Nivel BRAMU V1.
+   Reutiliza tokens existentes (--ink-soft/--line/--radius-card de .pastilla,
+   --brand-lime, --gold, --paper*) — ningún color ni tipografía nueva.
+   ========================================================================== */
+
+/* Paso "intro": 2 tarjetas de camino (rápido/completo), RECOMENDADO destacado con el mismo
+   acento lima que ya usa el resto de la app para "elección preferida" (nunca un color nuevo). */
+.nivel-path-list{ display:flex; flex-direction:column; gap: 12px; }
+.nivel-path-card{
+  display:flex; flex-direction:column; align-items:flex-start; gap: 4px; text-align:left;
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 16px; cursor:pointer; font-family: inherit;
+}
+.nivel-path-card--recommended{ border-color: var(--brand-lime); box-shadow: 0 0 0 1px rgba(149,255,25,0.25); }
+.nivel-path-card__badge{
+  font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime);
+  text-transform: uppercase;
+}
+.nivel-path-card__title{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); }
+.nivel-path-card__desc{ font-size: 12px; color: var(--paper-dim); line-height:1.4; }
+
+/* Listas de respuestas (camino rápido y cuestionario completo) — filas verticales de texto
+   largo, a diferencia de `.option-row`/`.option-col` (pensado para 2-3 palabras en fila). */
+.nivel-answer-list{ display:flex; flex-direction:column; gap: 8px; margin-bottom: 16px; }
+.nivel-answer-option{
+  display:block; width:100%; text-align:left; font-family: inherit;
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 12px 14px; cursor:pointer;
+}
+.nivel-answer-option__title{ display:block; font-size: 13px; font-weight:700; color: var(--paper); }
+.nivel-answer-option__desc{ display:block; font-size: 11px; color: var(--paper-dim); margin-top: 2px; line-height:1.35; }
+.nivel-answer-option.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.08); }
+.nivel-answer-option.is-selected .nivel-answer-option__title{ color: var(--brand-lime); }
+
+/* Progreso del cuestionario completo — barra simple, mismo radio/alto que el resto de barras
+   de progreso de la app (.player-card__bar). */
+.nivel-quiz-progress{ height:4px; border-radius:2px; background: var(--line); overflow:hidden; margin-bottom: 8px; }
+.nivel-quiz-progress__bar{ height:100%; background: var(--brand-lime); border-radius:2px; transition: width .25s ease; }
+.nivel-quiz-progress-label{ font-size: 10px; font-weight:800; letter-spacing:0.04em; color: var(--paper-faint); text-transform:uppercase; margin: 0 0 14px; }
+.nivel-quiz-question{ font-family: var(--font-display); font-weight:700; font-size: 16px; color: var(--paper); margin: 0 0 14px; line-height:1.3; }
+
+/* Resultado: nivel estimado protagonista + categoría, mismo lenguaje de número grande que
+   `.player-card__level-value` pero centrado (esta pantalla no comparte fila con nada más). */
+.nivel-result-card{
+  text-align:center; background: var(--ink-soft); border: 1px solid var(--line);
+  border-radius: var(--radius-card); padding: 20px 16px; margin-bottom: 12px;
+}
+.nivel-result-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 6px; }
+.nivel-result-card__value{ font-family: var(--font-display); font-weight:800; font-size: 44px; color: var(--paper); line-height:1; font-variant-numeric: tabular-nums; }
+.nivel-result-card__category{ font-size: 13px; font-weight:700; color: var(--brand-lime); margin-top: 4px; }
+
+/* Ajuste ±0.5 — stepper de 2 botones + valor en vivo, pasos de 0.1 ya validados por
+   level-calibration.js (acá solo se deshabilita visualmente en los extremos). */
+.nivel-adjust{ margin: 4px 0 20px; }
+.nivel-adjust__label{ font-size: 12px; color: var(--paper-dim); text-align:center; margin-bottom: 10px; }
+.nivel-adjust__row{ display:flex; align-items:center; justify-content:center; gap: 18px; }
+.nivel-adjust__btn{
+  width:40px; height:40px; border-radius:50%; border: 1px solid var(--line); background: var(--ink-soft);
+  color: var(--paper); font-size: 20px; font-weight:700; line-height:1; cursor:pointer;
+}
+.nivel-adjust__btn:disabled{ opacity:.3; cursor:not-allowed; }
+.nivel-adjust__value{ font-family: var(--font-display); font-weight:800; font-size: 20px; color: var(--paper); min-width: 64px; text-align:center; font-variant-numeric: tabular-nums; }
+
+/* Insignia CALIBRANDO/CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL) — texto +
+   señal gráfica (nunca solo color): punto ámbar mientras calibra (mismo --gold que el resto de
+   la app usa para "todavía no"), lima al calibrar (mismo criterio que el check de calibración
+   ya documentado en Nivel_BRAMU.md §4.3/§9.1). */
+.level-v1-badge{ display:inline-flex; align-items:center; gap: 5px; }
+.level-v1-badge__dot{ width:7px; height:7px; border-radius:50%; flex:none; background: var(--gold); box-shadow: 0 0 6px rgba(255,201,61,0.45); }
+.level-v1-badge--calibrated .level-v1-badge__dot{ background: var(--brand-lime); box-shadow: 0 0 6px rgba(149,255,25,0.5); }
+.level-v1-badge--calibrated{ color: var(--brand-lime); }
 .link-btn--danger{ color: var(--danger); }

@@ -70,6 +70,19 @@
     // exacto que ADDED_PLAYERS: nunca borra nada, es una preferencia personal de vista — no
     // afecta partidos, Nivel BRAMU, Ranking oficial ni al otro jugador).
     HIDDEN_NETWORK_PLAYERS: 'bramulab.hiddenNetworkPlayers.v1',
+    // BRAMUlab_V04.4 (Etapa D, bloque 1) — PROTOTIPO explícito, no el esquema definitivo de
+    // backend (Consolidado §"persistencia temporal"): estado real de Nivel BRAMU V1 por
+    // userId (dict, mismo criterio que ADDED_PLAYERS/HIDDEN_NETWORK_PLAYERS), tal cual lo
+    // devuelve level-calibration.js — mu/confidence/evidenceUnits/state/ratedMatches/
+    // distinctOpponents/lastRatedAt/algorithmVersion/origin. Nada de esto se conecta todavía a
+    // partidos reales ni a Ranking; existe solo para poder probar la UX entre recargas.
+    LEVEL_V1_STATE: 'bramulab.levelV1State.v1',
+    // Flag de DISPOSITIVO (no por usuario): "¿mostrar el onboarding de Nivel BRAMU V1 al crear
+    // una cuenta nueva?". Apagado por defecto — la versión pública sigue mostrando exactamente
+    // el flujo de V03.10 hasta que alguien lo prenda a propósito desde Herramientas de
+    // desarrollo (mantener presionado el logo del Home). Nunca leído por Ranking/Historial/
+    // ninguna otra pantalla — su único efecto es esta ronda de onboarding.
+    LEVEL_V1_PREVIEW: 'bramulab.levelV1PreviewEnabled.v1',
   };
 
   function safeGet(key) {
@@ -560,6 +573,31 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* BRAMUlab_V04.4 (Etapa D, bloque 1) — NIVEL BRAMU V1: prototipo local  */
+  /* Persiste EXACTAMENTE el objeto que devuelve                          */
+  /* PLLevelCalibration.buildInitialCalibrationState — este archivo no lo  */
+  /* interpreta ni le agrega campos, solo lo guarda/lee por userId.        */
+  /* ------------------------------------------------------------------ */
+
+  function loadAllLevelV1States() { return safeGet(KEYS.LEVEL_V1_STATE) || {}; }
+
+  function loadLevelV1State(userId) {
+    if (!userId) return null;
+    const all = loadAllLevelV1States();
+    return all[userId] || null;
+  }
+
+  function saveLevelV1State(userId, state) {
+    if (!userId || !state) return false;
+    const all = loadAllLevelV1States();
+    all[userId] = state;
+    return safeSet(KEYS.LEVEL_V1_STATE, all);
+  }
+
+  function isLevelV1PreviewEnabled() { return safeGet(KEYS.LEVEL_V1_PREVIEW) === true; }
+  function setLevelV1PreviewEnabled(enabled) { return safeSet(KEYS.LEVEL_V1_PREVIEW, !!enabled); }
+
+  /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
   /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
@@ -754,6 +792,8 @@
     // V03.3 — jugadores agregados
     loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
     loadHiddenNetworkPlayers, isNetworkPlayerHidden, hideNetworkPlayer, unhideNetworkPlayer,
+    // BRAMUlab_V04.4 (Etapa D, bloque 1) — Nivel BRAMU V1, prototipo local
+    loadLevelV1State, saveLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,

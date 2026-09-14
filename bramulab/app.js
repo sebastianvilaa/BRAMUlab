@@ -8,6 +8,8 @@
   const Store = window.PLStore;
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador) — agregación pura del Home del jugador
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta (email/contraseña/@usuario/edad)
+  const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
+  const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
   const $ = (sel) => document.querySelector(sel);
   const $all = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -305,7 +307,9 @@
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public', 'groups', 'group-settings']
+      'player-search', 'player-public', 'groups', 'group-settings',
+      // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
+      'nivel-onboarding']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     const nav = $('#bottom-nav');
     if (nav) {
@@ -6713,11 +6717,215 @@
   }
 
   function initPlayerCardScreen() {
-    $('#player-card-enter-btn').addEventListener('click', () => { completeIdentifyAction(); });
+    // BRAMUlab_V04.4 (Etapa D, bloque 1) — único punto de entrada al onboarding de Nivel BRAMU
+    // V1: solo tras un alta NUEVA (esta pantalla nunca aparece en Login, ver completeIdentifyAction
+    // más abajo, que SÍ es compartida con Login y por eso no es donde ramificar), con el flag de
+    // vista previa prendido y sin un estado V1 ya guardado para este usuario (nunca repite el
+    // onboarding si ya existe, aunque el flag siga prendido — ej. crear una segunda cuenta).
+    $('#player-card-enter-btn').addEventListener('click', () => {
+      const user = Store.getCurrentUser();
+      if (Store.isLevelV1PreviewEnabled() && user && !Store.loadLevelV1State(user.id)) {
+        openNivelOnboardingIntro();
+        return;
+      }
+      completeIdentifyAction();
+    });
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — camino directo a Mis Datos, nunca
     // pasa por completeIdentifyAction (esa acción es específica de ENTRAR A BRAMU/reanudar un
     // partido pausado por pedir login, no aplica acá).
     $('#player-card-complete-profile-btn').addEventListener('click', () => openProfileScreen('mis-datos'));
+  }
+
+  /* ======================================================================
+     BRAMUlab_V04.4 (Etapa D, bloque 1) — ONBOARDING DE NIVEL BRAMU V1
+     Primer bloque visible de Etapa D, detrás de Store.isLevelV1PreviewEnabled().
+     Esta sección es SOLO orquestación de UI: cero fórmula propia — cada número
+     sale de LVC (level-calibration.js) o LV (level.js). No se conecta a
+     partidos reales, Ranking, Perfil público ni BRAMU Intelligence (eso queda
+     para el próximo bloque de Etapa D, ver Consolidado/Informe).
+     ====================================================================== */
+
+  let nivelStep = 'intro'; // 'intro' | 'quick' | 'quiz' | 'result'
+  let nivelPathType = null; // 'quick' | 'full'
+  let nivelQuizIndex = 0;
+  let nivelQuizAnswers = {};
+  let nivelRawResult = null; // { raw, q?, answers? } | { raw, seedKey }
+  let nivelAdjustment = 0;
+
+  const NIVEL_STEP_TITLES = { intro: 'TU NIVEL BRAMU', quick: 'ELEGÍ TU NIVEL', quiz: 'TU NIVEL BRAMU', result: 'TU NIVEL BRAMU' };
+
+  // §3.6 — mismo texto de camino rápido que la fórmula normativa, reutilizado tal cual para
+  // las descripciones de cada fila (nunca una segunda redacción suelta en este archivo).
+  const NIVEL_QUICK_SEED_COPY = [
+    { key: 'iniciacion', title: 'Iniciación', desc: 'Estoy aprendiendo las reglas y los golpes básicos' },
+    { key: 'intermedio', title: 'Intermedio', desc: 'Puedo sostener el juego y empiezo a usar posiciones y paredes' },
+    { key: 'intermedio_alto', title: 'Intermedio alto', desc: 'Juego con control, entiendo la pareja y construyo puntos' },
+    { key: 'avanzado', title: 'Avanzado', desc: 'Manejo ritmos, posiciones y recursos con consistencia' },
+    { key: 'competicion', title: 'Competición', desc: 'Compito de manera habitual frente a jugadores avanzados' },
+  ];
+
+  function openNivelOnboardingIntro() {
+    nivelStep = 'intro';
+    nivelPathType = null;
+    nivelQuizIndex = 0;
+    nivelQuizAnswers = {};
+    nivelRawResult = null;
+    nivelAdjustment = 0;
+    renderNivelOnboardingStep();
+    showView('nivel-onboarding');
+  }
+
+  function renderNivelOnboardingStep() {
+    $('#nivel-onboarding-step-title').textContent = NIVEL_STEP_TITLES[nivelStep] || 'TU NIVEL BRAMU';
+    $all('.nivel-step').forEach((el) => { el.hidden = el.dataset.step !== nivelStep; });
+    if (nivelStep === 'quick') renderNivelQuickStep();
+    else if (nivelStep === 'quiz') renderNivelQuizStep();
+    else if (nivelStep === 'result') renderNivelResultStep();
+  }
+
+  function renderNivelQuickStep() {
+    const list = $('#nivel-quick-list');
+    list.innerHTML = NIVEL_QUICK_SEED_COPY.map((opt) => `
+      <button type="button" class="nivel-answer-option" data-seed="${opt.key}">
+        <span class="nivel-answer-option__title">${opt.title}</span>
+        <span class="nivel-answer-option__desc">${opt.desc}</span>
+      </button>
+    `).join('');
+    $all('#nivel-quick-list .nivel-answer-option').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const seed = LVC.computeQuickLevel(btn.dataset.seed);
+        if (!seed) return;
+        nivelPathType = 'quick';
+        nivelRawResult = seed;
+        nivelAdjustment = 0;
+        nivelStep = 'result';
+        renderNivelOnboardingStep();
+      });
+    });
+  }
+
+  function renderNivelQuizStep() {
+    const question = LVC.FULL_QUESTIONNAIRE[nivelQuizIndex];
+    const total = LVC.FULL_QUESTIONNAIRE.length;
+    $('#nivel-quiz-progress-bar').style.width = Math.round(((nivelQuizIndex + 1) / total) * 100) + '%';
+    $('#nivel-quiz-progress-label').textContent = `Pregunta ${nivelQuizIndex + 1} de ${total}`;
+    $('#nivel-quiz-question-text').textContent = question.label;
+    const selectedIdx = nivelQuizAnswers[question.id];
+    const list = $('#nivel-quiz-answer-list');
+    list.innerHTML = question.options.map((opt, idx) => `
+      <button type="button" class="nivel-answer-option${idx === selectedIdx ? ' is-selected' : ''}" data-idx="${idx}">
+        <span class="nivel-answer-option__title">${opt.label}</span>
+      </button>
+    `).join('');
+    const continueBtn = $('#nivel-quiz-continue-btn');
+    continueBtn.disabled = typeof selectedIdx !== 'number';
+    continueBtn.textContent = nivelQuizIndex === total - 1 ? 'VER MI NIVEL' : 'CONTINUAR';
+    $all('#nivel-quiz-answer-list .nivel-answer-option').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        nivelQuizAnswers[question.id] = Number(btn.dataset.idx);
+        renderNivelQuizStep();
+      });
+    });
+  }
+
+  function renderNivelResultStep() {
+    const category = LVC.categorizeLevel(nivelRawResult.raw);
+    updateNivelAdjustUI(category);
+  }
+
+  /** Único punto que recalcula el número mostrado al mover el stepper — nunca reimplementa
+   *  `raw + ajuste`, solo lo aplica para PREVIEW (el clamp/validación real y definitiva la
+   *  hace `LVC.confirmInitialLevel` al confirmar). */
+  function updateNivelAdjustUI(category) {
+    const cat = category || LVC.categorizeLevel(nivelRawResult.raw);
+    const adjusted = nivelRawResult.raw + nivelAdjustment;
+    $('#nivel-result-value').textContent = adjusted.toFixed(1);
+    $('#nivel-result-category').textContent = cat.label;
+    $('#nivel-adjust-value').textContent = (nivelAdjustment > 0 ? '+' : '') + nivelAdjustment.toFixed(1);
+    $('#nivel-adjust-minus').disabled = nivelAdjustment <= -LVC.PARAMS.ADJUSTMENT_MAX_ABS + 1e-9;
+    $('#nivel-adjust-plus').disabled = nivelAdjustment >= LVC.PARAMS.ADJUSTMENT_MAX_ABS - 1e-9;
+  }
+
+  /** Confirma el nivel inicial (LVC.confirmInitialLevel + buildInitialCalibrationState),
+   *  guarda el estado real de Nivel BRAMU V1 (Store.saveLevelV1State, prototipo local — ver
+   *  cabecera de store.js) y entra a BRAMU mostrando ese Nivel en CALIBRANDO (renderPlayerCard/
+   *  renderProfileEvolution ya lo detectan, ver `currentLevelV1State`). */
+  function confirmNivelOnboarding() {
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    const confirmResult = LVC.confirmInitialLevel(nivelRawResult, nivelAdjustment, false, new Date().toISOString());
+    if (!confirmResult.ok) return; // defensivo: el stepper de UI ya impide llegar acá fuera de rango
+    const state = LVC.buildInitialCalibrationState(nivelPathType, confirmResult, nivelPathType === 'full' ? nivelQuizAnswers : null);
+    Store.saveLevelV1State(user.id, state);
+    completeIdentifyAction();
+  }
+
+  function initNivelOnboardingScreen() {
+    $('#nivel-onboarding-back-btn').addEventListener('click', () => {
+      if (nivelStep === 'result') { nivelStep = nivelPathType === 'full' ? 'quiz' : 'quick'; renderNivelOnboardingStep(); return; }
+      if (nivelStep === 'quiz') {
+        if (nivelQuizIndex > 0) { nivelQuizIndex -= 1; renderNivelOnboardingStep(); return; }
+        nivelStep = 'intro'; renderNivelOnboardingStep(); return;
+      }
+      if (nivelStep === 'quick') { nivelStep = 'intro'; renderNivelOnboardingStep(); return; }
+      // 'intro': volver es abandonar el onboarding — reanuda el mismo destino de siempre.
+      completeIdentifyAction();
+    });
+
+    $('#nivel-path-full-btn').addEventListener('click', () => {
+      nivelPathType = 'full';
+      nivelQuizIndex = 0;
+      nivelQuizAnswers = {};
+      nivelStep = 'quiz';
+      renderNivelOnboardingStep();
+    });
+    $('#nivel-path-quick-btn').addEventListener('click', () => {
+      nivelPathType = 'quick';
+      nivelStep = 'quick';
+      renderNivelOnboardingStep();
+    });
+
+    $('#nivel-quiz-continue-btn').addEventListener('click', () => {
+      const total = LVC.FULL_QUESTIONNAIRE.length;
+      if (nivelQuizIndex < total - 1) { nivelQuizIndex += 1; renderNivelOnboardingStep(); return; }
+      nivelRawResult = LVC.computeFullQuestionnaireRaw(nivelQuizAnswers);
+      nivelAdjustment = 0;
+      nivelStep = 'result';
+      renderNivelOnboardingStep();
+    });
+
+    $('#nivel-adjust-minus').addEventListener('click', () => {
+      nivelAdjustment = Math.max(-LVC.PARAMS.ADJUSTMENT_MAX_ABS, round1(nivelAdjustment - LVC.PARAMS.ADJUSTMENT_STEP));
+      updateNivelAdjustUI();
+    });
+    $('#nivel-adjust-plus').addEventListener('click', () => {
+      nivelAdjustment = Math.min(LVC.PARAMS.ADJUSTMENT_MAX_ABS, round1(nivelAdjustment + LVC.PARAMS.ADJUSTMENT_STEP));
+      updateNivelAdjustUI();
+    });
+
+    $('#nivel-confirm-btn').addEventListener('click', confirmNivelOnboarding);
+    // "Revisar respuestas" (§5.3) — vuelve a empezar la elección de camino; esta primera
+    // versión visible no reconstruye las respuestas anteriores paso a paso (queda para el
+    // siguiente bloque de Etapa D si se pide edición in-place).
+    $('#nivel-review-btn').addEventListener('click', () => { openNivelOnboardingIntro(); });
+  }
+
+  function round1(n) { return Math.round(n * 10) / 10; }
+
+  /** `null` sin sesión o sin estado guardado — único punto de lectura del prototipo local
+   *  (Store.loadLevelV1State) para que Home/Perfil compartan exactamente el mismo criterio de
+   *  "¿existe un Nivel BRAMU V1 real para este usuario?". */
+  function currentLevelV1State() {
+    const user = Store.getCurrentUser();
+    return user ? Store.loadLevelV1State(user.id) : null;
+  }
+
+  /** Texto CALIBRANDO/CALIBRADO + progreso, reutilizado idéntico en Home y MI PERFIL — un
+   *  solo lugar que decide esta redacción (Consolidado §"estado calibrando"). */
+  function levelV1BadgeHTML(state) {
+    const calibrated = state.state === LV.STATES.CALIBRATED;
+    const label = calibrated ? 'NIVEL CALIBRADO' : `CALIBRANDO · ${state.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+    return `<span class="level-v1-badge${calibrated ? ' level-v1-badge--calibrated' : ''}"><span class="level-v1-badge__dot" aria-hidden="true"></span><span>${label}</span></span>`;
   }
 
   /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
@@ -6968,9 +7176,23 @@
     $('#player-home-match-count').textContent = n === 1 ? '1 partido en tu historia' : `${n} partidos en tu historia`;
     // `matches` ya viene filtrado a los propios del jugador (PH.filterMatchesForPlayer) — es
     // exactamente la misma noción de "mine" que usa la evolución (§4.2: nunca un Observado).
-    const evolution = PH.computeLevelEvolution(matches, currentIdentity());
     const levelSubEl = $('#player-home-level-sub');
     const barWrapEl = $('#player-home-level-bar-wrap');
+    // BRAMUlab_V04.4 (Etapa D, bloque 1) — si existe un Nivel BRAMU V1 real confirmado para
+    // este usuario, REEMPLAZA al simulado/provisional de V03 en esta tarjeta (Consolidado §7:
+    // nunca conviven dos verdades a la vez). A diferencia del simulado, V1 SÍ muestra un
+    // número aunque siga CALIBRANDO — la estimación inicial ya es un dato real, no un
+    // placeholder (Nivel_BRAMU.md §4.2). Sin evolución por partidos reales todavía (próximo
+    // bloque de Etapa D): la barra de progreso de nivel queda oculta.
+    const levelV1 = currentLevelV1State();
+    if (levelV1) {
+      barWrapEl.hidden = true;
+      levelSubEl.hidden = false;
+      levelSubEl.innerHTML = levelV1BadgeHTML(levelV1);
+      setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
+      return;
+    }
+    const evolution = PH.computeLevelEvolution(matches, currentIdentity());
     if (!isLegacyLevelAccount()) {
       const calib = PH.buildCalibrationStatus(evolution.consideredCount);
       setLevelValueText('player-home-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
@@ -9599,6 +9821,32 @@
    *  mejor nivel — esos 2 últimos se retiran de esta cabecera por el pedido explícito de
    *  simplificación; sus cálculos siguen intactos y disponibles, solo dejan de mostrarse acá). */
   function renderProfileEvolution(user) {
+    // BRAMUlab_V04.4 (Etapa D, bloque 1) — mismo gate y misma fuente que renderPlayerCard:
+    // Nivel BRAMU V1 real reemplaza al simulado/provisional en MI PERFIL, nunca convive con
+    // él. Reutiliza el bloque `#evolution-calibration` existente (mismo lenguaje visual que ya
+    // usan las cuentas V03 en calibración) en vez de crear un bloque paralelo — la diferencia
+    // es que acá SÍ hay un número real (levelV1BadgeHTML/roundPublicLevel), no un placeholder.
+    const levelV1 = currentLevelV1State();
+    if (levelV1) {
+      $('#evolution-numeric').hidden = true;
+      $('#evolution-calibration').hidden = false;
+      $('#mi-perfil-level-sub').hidden = false;
+      const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
+      $('#evolution-calibration-state').textContent = isCalibrated ? 'NIVEL CALIBRADO' : 'CALIBRANDO';
+      $('#evolution-calibration-progress').hidden = isCalibrated;
+      $('#evolution-calibration-progress').textContent = isCalibrated ? '' : `${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+      // BRAMUlab_V04.4 — nunca la nota del simulado (contradiría el número real de arriba).
+      $('#evolution-calibration-note-simulado').hidden = true;
+      $('#evolution-calibration-note-v1').hidden = false;
+      setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
+      $('#mi-perfil-level-sub').innerHTML = levelV1BadgeHTML(levelV1);
+      $('#mi-perfil-level-delta').textContent = '';
+      $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
+      return;
+    }
+    $('#evolution-calibration-note-simulado').hidden = false;
+    $('#evolution-calibration-note-v1').hidden = true;
+
     const history = Store.loadHistory();
     const evolution = PH.computeLevelEvolution(history, currentIdentity());
 
@@ -10487,6 +10735,7 @@
     initForgotPasswordScreen();
     initSignupWizard();
     initPlayerCardScreen();
+    initNivelOnboardingScreen();
     initCompleteAccessModal();
     initChangePasswordScreen();
     initNotificationsScreen();
@@ -10600,9 +10849,15 @@
   const LONG_PRESS_MS = 1800;
   let longPressTimeoutId = null;
 
+  /** BRAMUlab_V04.4 (Etapa D, bloque 1) — refleja Store.isLevelV1PreviewEnabled() en el label
+   *  del botón cada vez que se abre el menú (nunca queda desincronizado entre aperturas). */
+  function refreshNivelV1ToggleLabel() {
+    $('#dev-tools-toggle-nivel-v1').textContent = `Nivel BRAMU V1 (preview): ${Store.isLevelV1PreviewEnabled() ? 'ON' : 'OFF'}`;
+  }
+
   function initDevTools() {
     const logo = $('#home-logo');
-    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
+    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshNivelV1ToggleLabel(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
     const cancel = () => clearTimeout(longPressTimeoutId);
     logo.addEventListener('pointerdown', start);
     logo.addEventListener('pointerup', cancel);
@@ -10613,6 +10868,10 @@
     $('#dev-tools-cancel').addEventListener('click', () => { $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-modal').addEventListener('click', (e) => { if (e.target === $('#dev-tools-modal')) $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
+    $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => {
+      Store.setLevelV1PreviewEnabled(!Store.isLevelV1PreviewEnabled());
+      refreshNivelV1ToggleLabel();
+    });
   }
 
   /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca

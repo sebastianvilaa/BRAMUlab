@@ -1,8 +1,8 @@
 # BRAMUlab_V04
-## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B) + V04.3 (Etapa C)
+## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B) + V04.3 (Etapa C) + V04.4 (Etapa D, bloque 1)
 
-**Estado:** V04.0 cerrada (diagnóstico). V04.1 (motor puro), V04.2 (elegibilidad/invitados/repetición/círculo) y V04.3 (cuestionario/ajuste/calibración/recalibración) implementadas — ninguna conectada todavía a la app productiva. Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores.
-**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 · V04.3 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
+**Estado:** V04.0 cerrada (diagnóstico). V04.1/V04.2/V04.3 (motor puro, elegibilidad/invitados/repetición/círculo, cuestionario/ajuste/calibración/recalibración) implementadas, ninguna conectada a la app productiva. V04.4 es la primera ronda con UI real — detrás de un flag apagado por defecto, la app productiva (`BRAMUlab_V03.10`) sigue funcionando exactamente igual para cualquier usuario que no lo active. Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores.
+**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 · V04.3 el 14/09/2026 · V04.4 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
 **Base:** `BRAMUlab_V03.10` (sin regresiones detectadas ni reabiertas).
 **Objetivo de V04.0:** el definido en `BRAMUlab_V04_Consolidado.md` §8 — auditoría técnica real, dos normalizaciones documentales, plan exacto para Etapa A. Nada más.
 
@@ -418,3 +418,77 @@ Dos huecos que la fórmula no fija EXPLÍCITAMENTE, resueltos por la lectura má
 ## V04.3.6 No se avanzó a Etapa D
 
 Confirmado — UI, explicaciones de producto, y cualquier conexión a `app.js`/`player-home.js`/`ranking.js`/`store.js` quedan fuera de esta ronda.
+
+---
+
+# V04.4 — Etapa D, bloque 1 (implementada)
+
+**Autorización:** Sebastián autorizó el PRIMER BLOQUE VISIBLE de Etapa D sobre V04.3 ya cerrada y commiteada — el recorrido completo Crear cuenta → cuestionario/ajuste → CALIBRANDO real en Home/Perfil, para revisión visual antes de seguir. A diferencia de A/B/C, esta autorización SÍ permite tocar `app.js`/`index.html`/`store.js` (no estaban en su lista de "no tocar"), con la condición explícita de no romper ni activar nada para la versión pública.
+
+## V04.4.1 Cómo abrir/probar exactamente esta experiencia
+
+1. Levantar el server local (`python3 .claude/dev-server.py`, puerto 4173) y abrir `index.html`.
+2. En cualquier pantalla donde se vea el wordmark BRAMU Lab arriba a la izquierda (ej. Configurar partido), **mantener presionado el logo ~1.8 segundos** — se abre el menú "HERRAMIENTAS" ya existente (el mismo de "Forzar actualización").
+3. Tocar **"Nivel BRAMU V1 (preview): OFF"** — pasa a "ON". Es un flag de DISPOSITIVO (`localStorage`, no por cuenta): queda prendido hasta que alguien vuelva a tocarlo.
+4. Crear una cuenta nueva (CREAR CUENTA → completar los 3 pasos de siempre). Al tocar **ENTRAR A BRAMU** en "TU JUGADOR ESTÁ LISTO", en vez de ir directo a Home ahora entra al onboarding nuevo: elegir camino → responder → ver resultado → ajustar (opcional) → CONFIRMAR MI NIVEL. Al confirmar, entra a Home mostrando el Nivel real en estado CALIBRANDO.
+5. Para volver a ver el comportamiento de siempre (sin onboarding), repetir el paso 2-3 y dejarlo en OFF — una cuenta nueva vuelve a ver exactamente lo de V03.10 (CALIBRANDO sin número).
+
+Nota: el flag es por dispositivo/navegador (no por cuenta) — con el flag prendido, CUALQUIER cuenta nueva ve el onboarding; una cuenta que ya tiene un Nivel V1 guardado nunca lo repite (aunque el flag siga prendido).
+
+## V04.4.2 Qué se implementó
+
+**`bramulab/store.js` (modificado, +40 líneas).** Persistencia de PROTOTIPO explícita (comentada como tal en el código, nunca presentada como el esquema definitivo de backend): `KEYS.LEVEL_V1_STATE` (`bramulab.levelV1State.v1`, dict por `userId`, mismo patrón que `ADDED_PLAYERS`) y `KEYS.LEVEL_V1_PREVIEW` (`bramulab.levelV1PreviewEnabled.v1`, booleano de dispositivo). Funciones: `loadLevelV1State`/`saveLevelV1State`/`isLevelV1PreviewEnabled`/`setLevelV1PreviewEnabled`. `saveLevelV1State` guarda EXACTAMENTE lo que devuelve `LVC.buildInitialCalibrationState` — `store.js` no interpreta ni transforma ese objeto.
+
+**`bramulab/level-calibration.js` (modificado, +23 líneas).** Se agregó `categorizeLevel(level)` — categorías de comunicación de §3.7 (Iniciación/Recreativo/Intermedio/Intermedio alto/Avanzado/Competición), la única pieza de cálculo/presentación que faltaba para el resultado del onboarding. Sigue siendo Etapa C's dominio (fórmula ya normativa), no una lógica nueva de UI.
+
+**`bramulab/index.html` (modificado, +85 líneas).**
+- 3 `<script>` nuevos (`level.js`/`level-context.js`/`level-calibration.js`) agregados a la app productiva por primera vez, con el mismo `?v=03.10` que el resto — inertes para cualquier usuario real (`NIVEL_BRAMU_V1_ENABLED` sigue en `false`, y nada los llama sin el flag).
+- Un ítem nuevo en el menú oculto de Herramientas de desarrollo (`#dev-tools-toggle-nivel-v1`).
+- Una vista nueva, `#view-nivel-onboarding`, con el mismo patrón "un solo `showView`, pasos internos con `data-step`" que ya usan `#view-signup`/`#view-forgot-password`: intro, camino rápido, cuestionario (reutilizado para las 7 preguntas), resultado.
+- Una nota nueva en el bloque `#evolution-calibration` de MI PERFIL (`#evolution-calibration-note-v1`) para no contradecir al simulado (ver bug real, V04.4.4).
+
+**`bramulab/styles.css` (modificado, +73 líneas).** Un bloque nuevo de CSS reutilizando tokens existentes (`--ink-soft`/`--line`/`--radius-card` de `.pastilla`, `--brand-lime`, `--gold`, `--paper*`) — ningún color ni tipografía nuevos: tarjetas de camino (`.nivel-path-card`), lista de respuestas (`.nivel-answer-list`/`.nivel-answer-option`), progreso del cuestionario (`.nivel-quiz-progress`), tarjeta de resultado (`.nivel-result-card`), stepper de ajuste (`.nivel-adjust`), y la insignia CALIBRANDO/CALIBRADO (`.level-v1-badge`, punto ámbar/lima + texto — nunca solo color).
+
+**`bramulab/app.js` (modificado, +267 líneas).**
+- Bloque nuevo "ONBOARDING DE NIVEL BRAMU V1": estado de módulo (`nivelStep`/`nivelPathType`/`nivelQuizIndex`/`nivelQuizAnswers`/`nivelRawResult`/`nivelAdjustment`), render por paso, handlers de navegación/selección/ajuste, y `confirmNivelOnboarding()` (llama a `LVC.confirmInitialLevel` + `LVC.buildInitialCalibrationState`, guarda con `Store.saveLevelV1State`, entra a BRAMU con `completeIdentifyAction()` — el mismo mecanismo que ya usa Login).
+- `initPlayerCardScreen()`: el botón ENTRAR A BRAMU ahora ramifica al onboarding SOLO si el flag está prendido Y no hay un Nivel V1 ya guardado para ese usuario — Login nunca pasa por acá (¡`completeIdentifyAction` es compartida con Login, por eso la ramificación vive en el botón del Player Card, no ahí!).
+- `renderPlayerCard` (Home) y `renderProfileEvolution` (MI PERFIL): gate nuevo al principio de cada función — si existe un Nivel V1 real (`currentLevelV1State()`), lo muestra (número real + badge CALIBRANDO/CALIBRADO) y `return` antes de llegar al camino simulado de V03, que queda 100% intacto y sin tocar para cualquier cuenta sin Nivel V1.
+- `initDevTools()`: wiring del toggle + refresco de su label cada vez que se abre el menú (nunca desincronizado).
+
+## V04.4.3 Verificación visual real (Browser tool, no solo código)
+
+Se crearon 3 cuentas de prueba reales y se navegó el flujo completo con capturas en cada paso:
+
+1. **Cuestionario completo + ajuste.** Las 7 preguntas una por una (progreso 1/7…7/7 correcto), resultado bruto 4.9 ("Intermedio"), ajuste hasta +0.5 (tope respetado, botón "+" se deshabilita exactamente en el límite), confirmado en 5.4. Home y MI PERFIL mostraron "5.4 · CALIBRANDO · 0/5 PARTIDOS" con el punto ámbar (`rgb(255,201,61)` = `--gold`, verificado por `getComputedStyle`). Persistió correctamente tras recargar la página (localStorage).
+2. **Camino rápido, sin ajuste, en mobile (375px).** Semilla "Avanzado" → 7.0 exacto, confirmado sin tocar el ajuste, Home mostró "7.0 · CALIBRANDO · 0/5 PARTIDOS" — probado en viewport mobile de punta a punta (intro, lista de semillas, resultado, Home), todo legible y sin desbordes.
+3. **Flag apagado (control).** Cuenta nueva con el flag en OFF: ENTRAR A BRAMU fue DIRECTO a Home mostrando "CALIBRANDO · 0/5 PARTIDOS" sin ningún número — bit a bit el mismo comportamiento que `BRAMUlab_V03.10` documentado desde V03.0.
+
+`localStorage['bramulab.levelV1State.v1']` confirmado con las 2 cuentas guardadas, aisladas por `userId`, con `origin` completo (rawLevel/adjustment/confirmedLevel/questionnaireAnswers/confirmedAt para la cuenta completa; seedKey implícito vía `type:'quick'` para la rápida), `algorithmVersion:'nivel_bramu_v1_0'`, `confidence` 0.15 (completo) / 0.10 (rápido) — exactamente los valores que exige Etapa C.
+
+## V04.4.4 Bug real encontrado y corregido en esta misma ronda
+
+Al integrar el bloque `#evolution-calibration` de MI PERFIL (reutilizado tal cual para mostrar CALIBRANDO), apareció una contradicción visual real: ese bloque ya traía una nota fija — *"BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante"* — correcta para el simulado de V03 (que nunca calcula nada real), pero **directamente contradictoria** con el número real de Nivel BRAMU V1 mostrado arriba en la misma pantalla. Corregido agregando una segunda nota (`#evolution-calibration-note-v1`) con el texto correcto para V1, mutuamente excluyente con la del simulado — exactamente la regla que pide el Consolidado §7 ("no pueden convivir visualmente dos verdades distintas"), aplicada acá de forma literal a un caso real que el propio desarrollo de esta ronda produjo.
+
+## V04.4.5 Tests: antes/después
+
+| | Cantidad |
+|---|---:|
+| Baseline (V04.3, sin tocar) | 1317/1317 |
+| Fixtures nuevos (persistencia `store.js` + `LVC.categorizeLevel`) | 21/21 |
+| **Total, corrido de verdad contra el arnés real** | **1338/1338** |
+
+Los 21 fixtures nuevos cubren únicamente las 2 piezas puras sin DOM que esta ronda agregó (persistencia de prototipo y categorización) — el resto (onboarding, integración Home/MI PERFIL) es UI/DOM, sin arnés automatizado posible (mismo límite de `app.js` documentado desde V01), verificado a mano con capturas reales (§V04.4.3). No se duplicó ningún fixture matemático de V04.1-V04.3.
+
+## V04.4.6 Contradicciones/decisiones — ninguna bloqueante
+
+No apareció ninguna contradicción real entre `Nivel_BRAMU_Formula_V1.4.md`/`Nivel_BRAMU_Implementacion.md`/`Nivel_BRAMU.md` para lo que exige este bloque — el único hallazgo real fue el bug de copy de §V04.4.4, ya corregido. Una decisión de implementación (no de producto) documentada: "Revisar respuestas" en la pantalla de resultado reinicia la elección de camino desde el intro, en vez de reconstruir las respuestas anteriores in-place — simplificación deliberada para esta primera ronda visible, consistente con "no implementar toda Etapa D de una sola vez"; si se pide edición in-place, es un cambio acotado a `renderNivelOnboardingStep`/`nivelQuizAnswers`.
+
+## V04.4.7 Riesgos / pendientes para el próximo bloque de Etapa D
+
+- Evolución por partidos reales, Ranking, perfil público, explicación de deltas y recalibración visual quedan explícitamente para la próxima ronda (no se tocó `player-home.js`/`ranking.js`).
+- El flag de vista previa vive en `localStorage` del dispositivo — cuando este bloque se dé por aprobado y se decida activar Nivel BRAMU V1 de verdad, hace falta una decisión explícita de producto sobre cómo migrar (activar para todos, gradual, etc.) — no resuelto acá a propósito.
+- La persistencia sigue siendo prototipo (`store.js`) — la arquitectura definitiva de backend sigue sin diseñarse, tal como pedía esta ronda.
+
+## V04.4.8 No se avanzó al siguiente bloque de Etapa D
+
+Confirmado.

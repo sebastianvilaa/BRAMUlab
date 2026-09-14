@@ -6110,6 +6110,69 @@
     assert('LVC-NO-MUTACION · confirmInitialLevel nunca muta el rawResult de entrada', r1.raw === LVC.computeFullQuestionnaireRaw(answers).raw);
   })();
 
+  // ======================================================================
+  // BRAMUlab_V04.4 (Etapa D, bloque 1) — piezas puras nuevas de esta ronda:
+  // persistencia local (prototipo) de Nivel BRAMU V1 en store.js, y
+  // LVC.categorizeLevel (§3.7). El resto de la ronda es UI/DOM en app.js e
+  // index.html (onboarding, Home, MI PERFIL) — sin arnés automatizado
+  // posible (mismo límite documentado desde V01: "Sin arnés de test para
+  // DOM/app.js"), verificado a mano con el Browser tool (capturas en el
+  // Informe). No se duplica ningún fixture matemático ya cubierto en
+  // V04.1-V04.3 (cuestionario/ajuste/calibración siguen siendo los mismos).
+  // ======================================================================
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.levelV1State.v1', 'bramulab.levelV1PreviewEnabled.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+
+      assert('V044-STORE · sin userId -> loadLevelV1State devuelve null (nunca explota)', Store.loadLevelV1State(null) === null);
+      assert('V044-STORE · userId sin estado guardado todavía -> null', Store.loadLevelV1State('u_sin_estado') === null);
+
+      const stateA = { mu: 5.4, confidence: 0.15, evidenceUnits: 0, state: 'calibrando', ratedMatches: 0, distinctOpponents: 0, lastRatedAt: null, algorithmVersion: 'nivel_bramu_v1_0', origin: { type: 'full' } };
+      const okSave = Store.saveLevelV1State('u_a', stateA);
+      assert('V044-STORE · saveLevelV1State devuelve true al guardar correctamente', okSave === true);
+      assert('V044-STORE · loadLevelV1State recupera EXACTO lo guardado (mismo objeto, sin reinterpretar)', JSON.stringify(Store.loadLevelV1State('u_a')) === JSON.stringify(stateA));
+
+      const stateB = Object.assign({}, stateA, { mu: 7.0, origin: { type: 'quick' } });
+      Store.saveLevelV1State('u_b', stateB);
+      assert('V044-STORE · dos usuarios distintos quedan aislados entre sí (dict por userId, nunca se pisan)',
+        Store.loadLevelV1State('u_a').mu === 5.4 && Store.loadLevelV1State('u_b').mu === 7.0);
+
+      const stateAUpdated = Object.assign({}, stateA, { state: 'calibrado', ratedMatches: 5 });
+      Store.saveLevelV1State('u_a', stateAUpdated);
+      assert('V044-STORE · volver a guardar el MISMO userId reemplaza el estado anterior (nunca duplica ni acumula)',
+        Store.loadLevelV1State('u_a').state === 'calibrado' && Store.loadLevelV1State('u_b').mu === 7.0);
+
+      assert('V044-FLAG · apagado por defecto (comportamiento real de la versión pública, sin tocar nada)', Store.isLevelV1PreviewEnabled() === false);
+      Store.setLevelV1PreviewEnabled(true);
+      assert('V044-FLAG · setLevelV1PreviewEnabled(true) -> isLevelV1PreviewEnabled() true', Store.isLevelV1PreviewEnabled() === true);
+      Store.setLevelV1PreviewEnabled(false);
+      assert('V044-FLAG · vuelve a false correctamente (reversible, no queda pegado)', Store.isLevelV1PreviewEnabled() === false);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ---- LVC.categorizeLevel (§3.7) — los 6 cortes exactos, ambos bordes de cada banda. ----
+  (function () {
+    const cases = [
+      [1.0, 'Iniciación'], [2.4, 'Iniciación'],
+      [2.5, 'Recreativo'], [3.9, 'Recreativo'],
+      [4.0, 'Intermedio'], [5.4, 'Intermedio'],
+      [5.5, 'Intermedio alto'], [6.9, 'Intermedio alto'],
+      [7.0, 'Avanzado'], [8.4, 'Avanzado'],
+      [8.5, 'Competición'], [10.0, 'Competición'],
+    ];
+    cases.forEach(([level, expected]) => {
+      assert(`LVC-CATEGORIA · ${level} -> "${expected}"`, LVC.categorizeLevel(level).label === expected, LVC.categorizeLevel(level));
+    });
+  })();
+
   // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------

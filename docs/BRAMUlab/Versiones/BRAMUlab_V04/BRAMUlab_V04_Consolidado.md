@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.3 (Etapa C) implementada · cuestionario/ajuste/calibración/recalibración puros, sin conectar a la app productiva  
+**Estado:** V04.4 (Etapa D, bloque 1) implementada · primer onboarding visible de Nivel BRAMU V1, detrás de un flag apagado por defecto — V03.10 pública sin cambios de comportamiento  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -402,6 +402,28 @@ Implementado, siguiendo exactamente los 6 puntos de la autorización:
 **No se tocó** `app.js`/`player-home.js`/`ranking.js`/`store.js`/`index.html`/`sw.js`/`version.json`, UI, cuestionario, calibración/recalibración (Etapa C), BRAMU Intelligence, backend ni la versión pública.
 
 **No se avanzó a Etapa C.**
+
+---
+
+## 13. V04.4 — Etapa D, bloque 1 (implementada)
+
+**Autorizado por Sebastián** sobre V04.3 ya cerrada y commiteada. Objetivo: primer bloque VISIBLE de Etapa D — recorrido completo Crear cuenta → cuestionario/camino rápido → resultado → ajuste → confirmar → CALIBRANDO real en Home/Perfil, probable de revisar visualmente antes de seguir. A diferencia de A/B/C, esta ronda SÍ toca `app.js`/`index.html`/`store.js`/`styles.css` (no estaban en la lista de "no tocar" de esta autorización) — con un requisito explícito y verificado: la versión pública `BRAMUlab_V03.10` debe seguir funcionando exactamente igual para cualquier usuario que no active el flag.
+
+**Flag de vista previa:** `Store.isLevelV1PreviewEnabled()`, apagado por defecto, sin ningún camino de activación accidental — se prende únicamente manteniendo presionado el logo del Home (mismo gesto ya usado para "Herramientas de desarrollo"/Forzar actualización) y tocando el nuevo ítem "Nivel BRAMU V1 (preview)". Verificado explícitamente con el flag apagado: una cuenta nueva sigue viendo exactamente el mismo `CALIBRANDO · 0/5 PARTIDOS` sin número de siempre — cero diferencia de comportamiento.
+
+**Implementado (con el flag prendido):**
+- Onboarding nuevo en una sola vista (`#view-nivel-onboarding`, mismo patrón que `#view-signup`/`#view-forgot-password`): intro (elegir camino) → camino rápido (5 semillas de `level-calibration.js`) o cuestionario completo (7 pasos, una pregunta por pantalla, barra de progreso) → resultado (nivel + categoría + ajuste ±0.5 en vivo + confirmar). Cero fórmula propia en `app.js` — cada número sale de `LVC`/`LV`.
+- Persistencia de PROTOTIPO explícita en `store.js` (`bramulab.levelV1State.v1`, dict por userId — mismo patrón que `ADDED_PLAYERS`): guarda exactamente lo que devuelve `LVC.buildInitialCalibrationState` (mu, confidence, evidenceUnits, state, ratedMatches, distinctOpponents, lastRatedAt, algorithm_version, origin completo con respuestas/bruto/ajuste/confirmado).
+- Home (Player Card) y MI PERFIL reemplazan el Nivel simulado/provisional de V03 por el Nivel BRAMU V1 real cuando existe — nunca los dos a la vez. A diferencia del simulado (que nunca mostraba número mientras calibraba), V1 SÍ muestra el número real con el badge CALIBRANDO/CALIBRADO (punto ámbar/lima + texto, nunca solo color).
+- Verificado a mano con el Browser tool (capturas en el Informe): 3 cuentas de prueba (camino completo con ajuste +0.5, camino rápido sin ajuste, y una cuenta con el flag apagado para confirmar que V03.10 no cambió), en desktop y mobile (375px), con persistencia confirmada tras recargar la página.
+
+**Resultado de tests:** 1317/1317 (baseline de V04.3) + 21/21 nuevos = **1338/1338**. Los 21 fixtures nuevos cubren únicamente las piezas puras SIN DOM de esta ronda (persistencia de `store.js`, `LVC.categorizeLevel`) — el resto (onboarding, Home, MI PERFIL) es UI/DOM sin arnés automatizado posible, mismo límite documentado desde V01, verificado a mano.
+
+**Bug real encontrado y corregido en esta misma ronda:** el bloque `#evolution-calibration` de MI PERFIL (reutilizado para mostrar CALIBRANDO) tenía una nota fija "BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante" — correcta para el simulado de V03, pero CONTRADICTORIA al mostrar un Nivel V1 real arriba (Consolidado §7: nunca dos verdades a la vez). Se agregó una nota separada para el caso V1, nunca se muestran las dos.
+
+**No se tocó** `player-home.js`/`ranking.js`/`sw.js`/`version.json`, Ranking BRAMU, BRAMU Intelligence, perfil público, cálculo real de partidos, recalibración visual ni backend real.
+
+**No se avanzó al siguiente bloque de Etapa D** (evolución por partidos reales, Ranking, perfil público, explicación de deltas, recalibración visual).
 
 ---
 

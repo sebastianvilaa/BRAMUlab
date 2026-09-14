@@ -91,6 +91,11 @@
       <div class="menu-sheet">
         <div class="menu-sheet__title">HERRAMIENTAS</div>
         <button id="dev-tools-force-update" class="menu-item" type="button">Forzar actualización</button>
+        <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — único interruptor de la vista previa de Nivel
+             BRAMU V1: apagado por defecto, nunca visible fuera de este menú oculto, nunca
+             alcanzable por un usuario público sin saber que existe. Su label se actualiza en
+             initDevTools() cada vez que se abre este menú. -->
+        <button id="dev-tools-toggle-nivel-v1" class="menu-item" type="button">Nivel BRAMU V1 (preview): OFF</button>
         <button id="dev-tools-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
       </div>
     </div>
@@ -1712,7 +1717,12 @@
           <div class="evolution-calibration" id="evolution-calibration" hidden>
             <div class="evolution-calibration__state" id="evolution-calibration-state">CALIBRANDO</div>
             <div class="evolution-calibration__progress" id="evolution-calibration-progress">0 / 5 PARTIDOS</div>
-            <p class="coverage-note">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
+            <p class="coverage-note" id="evolution-calibration-note-simulado">BRAMU todavía no calculó tu Nivel — la fórmula real se define más adelante.</p>
+            <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — nota distinta para Nivel BRAMU V1 real: a
+                 diferencia del simulado de arriba, ACÁ sí hay una fórmula real y un número real
+                 (mostrado en la cabecera) — nunca la misma frase ("todavía no calculó tu Nivel")
+                 que contradiría al número que se está mostrando (Consolidado §7). -->
+            <p class="coverage-note" id="evolution-calibration-note-v1" hidden>Es una primera referencia basada en tus respuestas — todavía no es una medición de tu juego. BRAMU la va a calibrar con partidos reales.</p>
           </div>
         </div>
 
@@ -2366,6 +2376,70 @@
     </div>
   </section>
 
+  <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — Onboarding de Nivel BRAMU V1: SOLO se abre si
+       Store.isLevelV1PreviewEnabled() está prendido (ver dev-tools-modal). Mismo patrón que
+       #view-signup/#view-forgot-password: una única vista, el paso interno (`.nivel-step`,
+       data-step) lo maneja app.js — nunca duplica la fórmula de level-calibration.js, solo
+       arma el DOM a partir de lo que esa capa devuelve. -->
+  <section id="view-nivel-onboarding" class="view view--access" hidden>
+    <div class="analysis-header">
+      <button type="button" id="nivel-onboarding-back-btn" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title" id="nivel-onboarding-step-title">TU NIVEL BRAMU</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header">
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+
+      <div class="nivel-step" id="nivel-step-intro" data-step="intro">
+        <p class="access-subtitle">Calculemos tu primer Nivel BRAMU. Elegí cómo preferís estimarlo — los dos caminos te dejan jugar hoy mismo.</p>
+        <div class="nivel-path-list">
+          <button type="button" class="nivel-path-card nivel-path-card--recommended" id="nivel-path-full-btn">
+            <span class="nivel-path-card__badge">RECOMENDADO</span>
+            <span class="nivel-path-card__title">Ayudame a calcularlo</span>
+            <span class="nivel-path-card__desc">7 preguntas, cerca de 2 minutos. Una estimación inicial más precisa.</span>
+          </button>
+          <button type="button" class="nivel-path-card" id="nivel-path-quick-btn">
+            <span class="nivel-path-card__title">Elegir mi nivel</span>
+            <span class="nivel-path-card__desc">30 segundos. Cinco descripciones y una estimación menos confiable.</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="nivel-step" id="nivel-step-quick" data-step="quick" hidden>
+        <p class="access-subtitle">Elegí la descripción que más se parece a tu juego hoy.</p>
+        <div class="nivel-answer-list" id="nivel-quick-list"></div>
+      </div>
+
+      <div class="nivel-step" id="nivel-step-quiz" data-step="quiz" hidden>
+        <div class="nivel-quiz-progress"><div class="nivel-quiz-progress__bar" id="nivel-quiz-progress-bar"></div></div>
+        <p class="nivel-quiz-progress-label" id="nivel-quiz-progress-label">Pregunta 1 de 7</p>
+        <p class="nivel-quiz-question" id="nivel-quiz-question-text">—</p>
+        <div class="nivel-answer-list" id="nivel-quiz-answer-list"></div>
+        <button type="button" class="btn-start btn-save" id="nivel-quiz-continue-btn" disabled>CONTINUAR</button>
+      </div>
+
+      <div class="nivel-step" id="nivel-step-result" data-step="result" hidden>
+        <div class="nivel-result-card">
+          <div class="nivel-result-card__label">TU NIVEL BRAMU ESTIMADO</div>
+          <div class="nivel-result-card__value" id="nivel-result-value">—</div>
+          <div class="nivel-result-card__category" id="nivel-result-category">—</div>
+        </div>
+        <p class="coverage-note access-subtitle" id="nivel-result-note">Es una primera referencia basada en tus respuestas — todavía no es una medición de tu juego. BRAMU la va a calibrar con partidos reales.</p>
+
+        <div class="nivel-adjust">
+          <div class="nivel-adjust__label">¿Querés ajustarlo? Podés hacerlo una sola vez, hasta 0,5 puntos.</div>
+          <div class="nivel-adjust__row">
+            <button type="button" class="nivel-adjust__btn" id="nivel-adjust-minus" aria-label="Bajar 0,1">−</button>
+            <div class="nivel-adjust__value" id="nivel-adjust-value">—</div>
+            <button type="button" class="nivel-adjust__btn" id="nivel-adjust-plus" aria-label="Subir 0,1">+</button>
+          </div>
+        </div>
+
+        <button type="button" class="btn-start" id="nivel-confirm-btn">CONFIRMAR MI NIVEL</button>
+        <button type="button" class="link-btn" id="nivel-review-btn">Revisar respuestas</button>
+      </div>
+    </div>
+  </section>
+
   <!-- V13.2 (§2) / V13.3 — BUG REAL corregido: estos dos modales vivían adentro de
        `#view-setup`, que queda `hidden` en cuanto arranca un partido (`showView('match')`) —
        un elemento `position:fixed` no se pinta igual si un ANCESTRO tiene `display:none`,
@@ -2899,6 +2973,15 @@
   <script src="engine.js?v=03.10"></script>
   <script src="stats.js?v=03.10"></script>
   <script src="store.js?v=03.10"></script>
+  <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
+       agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
+       usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
+       onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
+       prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
+       logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
+  <script src="level.js?v=03.10"></script>
+  <script src="level-context.js?v=03.10"></script>
+  <script src="level-calibration.js?v=03.10"></script>
   <script src="player-home.js?v=03.10"></script>
   <script src="match-load.js?v=03.10"></script>
   <script src="player-identity.js?v=03.10"></script>
