@@ -57,19 +57,32 @@
     return row ? row.team : null;
   }
 
-  function getPartnerName(m, playerRef) {
+  /** BRAMUlab_V03.10 (§2) — misma resolución de compañero que `getPartnerName`, pero devuelve
+   *  la fila cruda de `players[]` (con `userId` si el partido ya está estampado, V03.0) en vez
+   *  de solo el nombre — necesaria para que Compañeros/Rivales pueda mostrar `@username` sin
+   *  perder identidad. `getPartnerName` se reescribe sobre esta para no duplicar la lógica de
+   *  equipo/self. */
+  function getPartnerRow(m, playerRef) {
     const team = getPlayerTeam(m, playerRef);
     if (!team) return null;
     const selfRow = findPlayerRow(m, playerRef);
-    const partner = (m.players || []).find((pl) => pl.team === team && pl !== selfRow);
-    return partner ? partner.name : null;
+    return (m.players || []).find((pl) => pl.team === team && pl !== selfRow) || null;
+  }
+  function getPartnerName(m, playerRef) {
+    const row = getPartnerRow(m, playerRef);
+    return row ? row.name : null;
   }
 
-  function getOpponentNames(m, playerName) {
-    const team = getPlayerTeam(m, playerName);
+  /** BRAMUlab_V03.10 (§2) — variante de `getOpponentNames` que devuelve las filas crudas (con
+   *  `userId` si existe), mismo motivo que `getPartnerRow`. */
+  function getOpponentRows(m, playerRef) {
+    const team = getPlayerTeam(m, playerRef);
     if (!team) return [];
     const rivalTeam = team === 'A' ? 'B' : 'A';
-    return (m.players || []).filter((pl) => pl.team === rivalTeam).map((pl) => pl.name);
+    return (m.players || []).filter((pl) => pl.team === rivalTeam);
+  }
+  function getOpponentNames(m, playerName) {
+    return getOpponentRows(m, playerName).map((pl) => pl.name);
   }
 
   /** 'win' | 'loss' | 'neutral' — neutral cuando el partido no tiene ganador definido
@@ -240,19 +253,20 @@
     const withResult = form.filter((f) => f.result !== 'neutral');
     const wins = form.filter((f) => f.result === 'win').length;
     // BRAMUlab_V03.9 (§1) — BUG REAL de framing: "venís de ganar 2 de tus últimos 5 partidos"
-    // es un dato verdadero pero presenta en positivo un balance reciente NEGATIVO (2 victorias,
-    // 3 derrotas). El framing ahora sigue el balance real, nunca solo el conteo de victorias:
-    // más victorias que derrotas -> "ganaste"; más derrotas -> "perdiste"; empate -> neutral,
-    // sin elegir un bando. Mismo umbral de muestra suficiente y mismo tratamiento de partidos
-    // neutrales/sin resultado (siguen sin contar para wins/losses ni para el umbral).
+    // es un dato verdadero pero presenta en positivo un balance reciente NEGATIVO. V03.10 (§1)
+    // — cierre conservador previo a BRAMU Intelligence: la cláusula de forma reciente entra
+    // ÚNICAMENTE cuando el balance es positivo (victorias > derrotas). Con empate o mayoría de
+    // derrotas NO se genera cláusula — nunca se reemplaza por "perdiste..."/un framing neutro
+    // (eso fue la solución V03.9, ya superada): simplemente se omite y sigue el próximo
+    // candidato (Ranking / compañero / actividad). Interpretar una mala racha, tendencia o
+    // contexto temporal queda para BRAMU Intelligence (V05) — TU MOMENTO sigue siendo una
+    // superficie liviana y determinística. Mismo umbral de muestra suficiente y mismo
+    // tratamiento de partidos neutrales/sin resultado (siguen sin contar para wins/losses ni
+    // para el umbral).
     if (withResult.length >= 3) {
       const losses = form.filter((f) => f.result === 'loss').length;
       if (wins > losses) {
         clauses.push(`ganaste ${wins} de tus últimos ${form.length} partidos`);
-      } else if (losses > wins) {
-        clauses.push(`perdiste ${losses} de tus últimos ${form.length} partidos`);
-      } else {
-        clauses.push(`en tus últimos ${form.length} partidos: ${wins} ${wins === 1 ? 'victoria' : 'victorias'} y ${losses} ${losses === 1 ? 'derrota' : 'derrotas'}`);
       }
     }
     if (clauses.length < 2) {
@@ -408,31 +422,40 @@
    *  Placeholders del sistema ("Jugador 1"...) se excluyen igual que en el selector de carga
    *  manual (§9) — nunca listados como si fueran personas reales. Orden: más partidos juntos/
    *  enfrentados primero; empate por victorias; empate final alfabético (determinístico). */
-  function buildPersonBreakdown(matches, playerName, nameExtractor) {
-    const byName = {};
+  /** BRAMUlab_V03.10 (§2) — `rowExtractor` devuelve filas crudas de `players[]` (`{name,
+   *  userId?}`), no strings, para agrupar por IDENTIDAD y no solo por nombre visible: la clave
+   *  es `userId` cuando la fila ya está estampada (V03.0, autoritativo y exclusivo — dos
+   *  cuentas reales con el MISMO nombre visible nunca se funden en una sola fila), y cae a
+   *  nombre normalizado únicamente para filas legacy sin `userId`, exactamente el mismo
+   *  criterio de resolución que ya usa el resto del proyecto (`findPlayerRow`). Cada entrada
+   *  agregada conserva `userId` para que app.js pueda resolver `@username` con seguridad. */
+  function buildPersonBreakdown(matches, playerName, rowExtractor) {
+    const byKey = {};
     (matches || []).forEach((m) => {
       const result = matchResultForPlayer(m, playerName);
-      nameExtractor(m).forEach((name) => {
+      rowExtractor(m).forEach((row) => {
+        const name = row && row.name;
         if (!name || Store.isPlaceholderPlayerName(name)) return;
-        if (!byName[name]) byName[name] = { name, count: 0, wins: 0, losses: 0 };
-        const entry = byName[name];
+        const key = row.userId ? `id:${row.userId}` : `name:${Store.normalizePlayerName(name)}`;
+        if (!byKey[key]) byKey[key] = { name, userId: row.userId || null, count: 0, wins: 0, losses: 0 };
+        const entry = byKey[key];
         entry.count += 1;
         if (result === 'win') entry.wins += 1;
         else if (result === 'loss') entry.losses += 1;
       });
     });
-    return Object.keys(byName).map((n) => byName[n])
+    return Object.keys(byKey).map((k) => byKey[k])
       .map((e) => Object.assign(e, { pct: (e.wins + e.losses) ? Math.round((e.wins / (e.wins + e.losses)) * 100) : null }))
       .sort((a, b) => b.count - a.count || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
   }
   function computeTeammateBreakdown(matches, playerName) {
     return buildPersonBreakdown(matches, playerName, (m) => {
-      const p = getPartnerName(m, playerName);
-      return p ? [p] : [];
+      const row = getPartnerRow(m, playerName);
+      return row ? [row] : [];
     });
   }
   function computeRivalBreakdown(matches, playerName) {
-    return buildPersonBreakdown(matches, playerName, (m) => getOpponentNames(m, playerName));
+    return buildPersonBreakdown(matches, playerName, (m) => getOpponentRows(m, playerName));
   }
 
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -867,7 +890,7 @@
   global.PLPlayerHome = {
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
-    getPlayerTeam, getPartnerName, getOpponentNames, matchResultForPlayer,
+    getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
     filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,

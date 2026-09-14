@@ -5047,55 +5047,142 @@
   })();
 
   // ------------------------------------------------------------------
-  // BRAMUlab_V03.9 — microajustes de cierre de V03: (1) framing de forma reciente en TU MOMENTO
-  // según el balance real (nunca "ganar" con un balance negativo); (3) rollover semanal
-  // determinístico alrededor del corte real de Buenos Aires. (El punto 2 — composición/copy de
-  // TU POSICIÓN en Mi red con 1-2 elegibles — es un cambio de DOM puro en app.js, no testeable
-  // en esta suite; verificado por QA manual, ver reporte.)
+  // BRAMUlab_V03.10 (§1) — cierre conservador de TU MOMENTO, previo a BRAMU Intelligence: la
+  // cláusula de forma reciente entra ÚNICAMENTE con balance positivo (victorias > derrotas).
+  // V03.9 había resuelto el framing con "perdiste"/neutral para balances negativos/parejos —
+  // esa solución queda SUPERADA acá: ahora esos casos NO generan ninguna cláusula de forma
+  // reciente (nunca la reemplazan por otro copy), y el mecanismo de prioridad existente sigue
+  // con el próximo candidato (Ranking / compañero / actividad) sin ningún cambio de lógica ahí.
   // ------------------------------------------------------------------
   (function () {
     function mkResultMatch(id, daysAgo, playerName, win) {
       const playedAt = new Date(Date.now() - daysAgo * 86400000).toISOString();
       const sets = win ? [{ gamesA: 6, gamesB: 2 }, { gamesA: 6, gamesB: 3 }] : [{ gamesA: 2, gamesB: 6 }, { gamesA: 3, gamesB: 6 }];
-      return mkGroupMatch(id, playedAt, [playerName, 'Compa Momento V039', 'Riv Uno V039', 'Riv Dos V039'], sets);
+      return mkGroupMatch(id, playedAt, [playerName, 'Compa Momento V0310', 'Riv Uno V0310', 'Riv Dos V0310'], sets);
+    }
+    function buildForm(playerName, wins) {
+      return wins.map((win, i) => mkResultMatch(`v0310-${playerName}-${i}`, wins.length - i, playerName, win));
     }
 
-    // 3 victorias / 2 derrotas -> balance positivo -> "ganaste".
-    const winsMajority = [true, true, true, false, false].map((win, i) => mkResultMatch(`v039-wm-${i}`, 5 - i, 'Jugador Positivo V039', win));
-    const textPositive = PH.buildTuMomentoText(winsMajority, 'Jugador Positivo V039');
-    assert('V039-MOMENTO · 3W/2L -> frase positiva ("ganaste"), nunca "venís de ganar"',
+    // 3 victorias / 2 derrotas -> balance positivo -> SÍ genera cláusula ("ganaste").
+    const winsMajority = buildForm('Jugador Ganador V0310', [true, true, true, false, false]);
+    const textPositive = PH.buildTuMomentoText(winsMajority, 'Jugador Ganador V0310');
+    assert('V0310-MOMENTO · 3W/2L -> SÍ genera cláusula de forma reciente ("Ganaste...")',
       /^Ganaste 3 de tus últimos 5 partidos\./.test(textPositive), textPositive);
 
-    // 2 victorias / 3 derrotas -> balance NEGATIVO -> BUG REAL corregido: nunca "ganaste"/"venís
-    // de ganar" (presentaría en positivo un balance real negativo).
-    const lossMajority = [true, true, false, false, false].map((win, i) => mkResultMatch(`v039-lm-${i}`, 5 - i, 'Jugador Negativo V039', win));
-    const textNegative = PH.buildTuMomentoText(lossMajority, 'Jugador Negativo V039');
-    assert('V039-MOMENTO · 2W/3L -> frase negativa ("perdiste"), NUNCA presenta en positivo un balance negativo',
-      /^Perdiste 3 de tus últimos 5 partidos\./.test(textNegative) && !/ganaste|venís de ganar/i.test(textNegative), textNegative);
+    // 2 victorias / 3 derrotas -> balance NEGATIVO -> NO genera cláusula (nunca "perdiste...").
+    const lossMajority = buildForm('Jugador Perdedor V0310', [true, true, false, false, false]);
+    const textNegative = PH.buildTuMomentoText(lossMajority, 'Jugador Perdedor V0310');
+    assert('V0310-MOMENTO · 2W/3L -> NO genera cláusula de forma reciente (nunca "perdiste...")',
+      !/ganaste|perdiste|victorias?|derrotas?/i.test(textNegative), textNegative);
 
-    // Empate (2W/2L) -> frase neutral, sin elegir un bando.
-    const tie = [true, true, false, false].map((win, i) => mkResultMatch(`v039-tie-${i}`, 4 - i, 'Jugador Empate V039', win));
-    const textTie = PH.buildTuMomentoText(tie, 'Jugador Empate V039');
-    assert('V039-MOMENTO · empate (2W/2L) -> formulación neutral, ni "ganaste" ni "perdiste"',
-      /^En tus últimos 4 partidos: 2 victorias y 2 derrotas\./.test(textTie), textTie);
+    // 0 victorias / 5 derrotas -> el caso real reportado -> NO genera cláusula.
+    const allLosses = buildForm('Jugador Cero Victorias V0310', [false, false, false, false, false]);
+    const textAllLosses = PH.buildTuMomentoText(allLosses, 'Jugador Cero Victorias V0310');
+    assert('V0310-MOMENTO · 0W/5L (caso real reportado) -> NUNCA "Perdiste 5 de tus últimos 5 partidos"',
+      !/ganaste|perdiste|victorias?|derrotas?/i.test(textAllLosses), textAllLosses);
+
+    // Empate (2W/2L) -> tampoco genera cláusula (ni "ganaste" ni un framing neutro).
+    const tie = buildForm('Jugador Empate V0310', [true, true, false, false]);
+    const textTie = PH.buildTuMomentoText(tie, 'Jugador Empate V0310');
+    assert('V0310-MOMENTO · empate (2W/2L) -> NO genera cláusula de forma reciente',
+      !/ganaste|perdiste|victorias?|derrotas?/i.test(textTie), textTie);
 
     // Partidos neutrales (sin winnerTeam) siguen sin contar para el umbral -> comportamiento
     // existente intacto (no se activa ningún framing de forma reciente).
-    const neutralOnly = [0, 1, 2].map((i) => mkGroupMatch(`v039-neutral-${i}`,
+    const neutralOnly = [0, 1, 2].map((i) => mkGroupMatch(`v0310-neutral-${i}`,
       new Date(Date.now() - (i + 1) * 86400000).toISOString(),
-      ['Jugador Sin Forma V039', 'Compa Sin Forma V039', 'Riv Uno V039', 'Riv Dos V039'],
+      ['Jugador Sin Forma V0310', 'Compa Sin Forma V0310', 'Riv Uno V0310', 'Riv Dos V0310'],
       [{ gamesA: 6, gamesB: 2 }, { gamesA: 6, gamesB: 3 }], { winnerTeam: null }));
-    assert('V039-MOMENTO · partidos neutrales (sin resultado) siguen sin activar el framing de forma reciente',
-      !/ganaste|perdiste|victorias?/i.test(PH.buildTuMomentoText(neutralOnly, 'Jugador Sin Forma V039')));
+    assert('V0310-MOMENTO · partidos neutrales (sin resultado) siguen sin activar el framing de forma reciente',
+      !/ganaste|perdiste|victorias?/i.test(PH.buildTuMomentoText(neutralOnly, 'Jugador Sin Forma V0310')));
 
-    // Ranking conserva su prioridad vigente (forma reciente > Ranking semanal Local): con
-    // balance negativo Y un insight de Ranking con movimiento, el texto sigue empezando con la
-    // frase de forma reciente (ahora "perdiste") y el insight de Ranking se suma como 2º dato.
-    const rankingUp = { isNew: false, position: 8, total: 21, territory: 'Bella Vista', delta: 2 };
-    const textNegativeWithRanking = PH.buildTuMomentoText(lossMajority, 'Jugador Negativo V039', rankingUp);
-    assert('V039-MOMENTO · Ranking sigue sin desplazar la prioridad 1 (forma reciente), incluso con balance negativo',
-      /^Perdiste 3 de tus últimos 5 partidos\./.test(textNegativeWithRanking) &&
-      textNegativeWithRanking.includes('#8 de 21 en Bella Vista · ↑ 2 esta semana'), textNegativeWithRanking);
+    // Si se omite la forma reciente (balance <= 0) y existe insight de Ranking, Ranking pasa a
+    // ocupar el primer lugar disponible -> el Ranking negativo/con movimiento SÍ puede aparecer
+    // como primer insight (es un hecho contextual de posición, no una interpretación).
+    const rankingDown = { isNew: false, position: 5, total: 21, territory: 'Bella Vista', delta: -3 };
+    const textLossWithRanking = PH.buildTuMomentoText(allLosses, 'Jugador Cero Victorias V0310', rankingDown);
+    assert('V0310-MOMENTO · sin forma reciente, Ranking (incluso negativo) ocupa el primer lugar disponible',
+      textLossWithRanking.startsWith('#5 de 21 en Bella Vista · ↓ 3 esta semana') &&
+      !/ganaste|perdiste/i.test(textLossWithRanking), textLossWithRanking);
+
+    // Si tampoco hay Ranking, conserva el fallback actual a compañero frecuente / actividad
+    // (mecanismo de prioridad sin cambios, hasta 2 candidatos) — acá compañero frecuente (>=2)
+    // Y actividad del mes (>0) ambos califican, exactamente como pasaría sin este cambio de
+    // V03.10 si la forma reciente nunca hubiera calificado.
+    const textLossNoRanking = PH.buildTuMomentoText(allLosses, 'Jugador Cero Victorias V0310', null);
+    assert('V0310-MOMENTO · sin forma reciente y sin Ranking, cae a los siguientes candidatos (compañero + actividad)',
+      textLossNoRanking.startsWith('Compa Momento V0310 es tu compañero más frecuente.') &&
+      !/ganaste|perdiste/i.test(textLossNoRanking), textLossNoRanking);
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V03.10 (§2) — identidad segura en Compañeros/Rivales: PH.computeTeammateBreakdown/
+  // computeRivalBreakdown ahora agregan por IDENTIDAD (userId autoritativo cuando la fila ya
+  // está estampada, V03.0) en vez de por nombre visible puro — así dos cuentas reales con el
+  // MISMO displayName nunca se funden en una sola fila. La resolución de `@username` en sí
+  // (Store.getUserById / fallback de nombre inequívoco) vive en app.js
+  // (`resolvePersonAccount`), no cargado en esta suite (límite ya documentado en rondas
+  // anteriores) — verificada por QA manual, ver reporte.
+  // ------------------------------------------------------------------
+  (function () {
+    function mkMatchWithRows(id, playedAt, rows, winnerTeam) {
+      return {
+        matchId: id, playedAt, startedAt: playedAt, finishedAt: playedAt, createdAt: playedAt,
+        winnerTeam, formatId: 'classic', mode: 'manual', regulationCompleted: true,
+        players: rows.map((r, i) => Object.assign({ id: i, team: r.team, name: r.name }, r.userId ? { userId: r.userId } : {})),
+        sets: [{ gamesA: 6, gamesB: 3 }, { gamesA: 6, gamesB: 4 }], currentPartial: null, timeZone: 'UTC',
+      };
+    }
+    const selfRef = 'Self Identidad V0310';
+
+    // ---- compañero con userId (cuenta real ya estampada) -> conserva ese userId en la fila ----
+    const m1 = mkMatchWithRows('v0310-id-1', new Date(Date.now() - 5 * 86400000).toISOString(),
+      [{ team: 'A', name: selfRef }, { team: 'A', name: 'Diego Fernández', userId: 'user-diego-a' },
+       { team: 'B', name: 'Rival Uno V0310' }, { team: 'B', name: 'Rival Dos V0310' }], 'A');
+    const teammatesM1 = PH.computeTeammateBreakdown([m1], selfRef);
+    assert('V0310-IDENTIDAD · compañero con userId -> la fila conserva ESE userId (nunca se pierde al agregar)',
+      teammatesM1.length === 1 && teammatesM1[0].name === 'Diego Fernández' && teammatesM1[0].userId === 'user-diego-a',
+      JSON.stringify(teammatesM1));
+
+    // ---- DOS cuentas reales con el MISMO displayName pero userId distinto -> NUNCA se funden
+    //      en una sola fila (regla de identidad autoritativa por userId, V03.0) ----
+    const m2 = mkMatchWithRows('v0310-id-2', new Date(Date.now() - 4 * 86400000).toISOString(),
+      [{ team: 'A', name: selfRef }, { team: 'A', name: 'Diego Fernández', userId: 'user-diego-b' },
+       { team: 'B', name: 'Rival Uno V0310' }, { team: 'B', name: 'Rival Dos V0310' }], 'B');
+    const teammatesBoth = PH.computeTeammateBreakdown([m1, m2], selfRef);
+    assert('V0310-IDENTIDAD · mismo displayName, userId distinto -> DOS filas separadas, nunca fusionadas',
+      teammatesBoth.length === 2 &&
+      teammatesBoth.every((e) => e.name === 'Diego Fernández') &&
+      new Set(teammatesBoth.map((e) => e.userId)).size === 2 &&
+      teammatesBoth.every((e) => e.count === 1), JSON.stringify(teammatesBoth));
+    const diegoA = teammatesBoth.find((e) => e.userId === 'user-diego-a');
+    const diegoB = teammatesBoth.find((e) => e.userId === 'user-diego-b');
+    assert('V0310-IDENTIDAD · cada fila conserva su propio récord (victorias/derrotas) por ID, no mezclado',
+      diegoA && diegoA.wins === 1 && diegoA.losses === 0 && diegoB && diegoB.wins === 0 && diegoB.losses === 1,
+      JSON.stringify({ diegoA, diegoB }));
+
+    // ---- legacy sin userId -> sigue agrupando por nombre normalizado (comportamiento previo a
+    //      V03.10 intacto), con userId: null explícito (nunca inventado) ----
+    const m3 = mkMatchWithRows('v0310-id-3', new Date(Date.now() - 3 * 86400000).toISOString(),
+      [{ team: 'A', name: selfRef }, { team: 'A', name: 'Compa Legacy V0310' },
+       { team: 'B', name: 'Rival Uno V0310' }, { team: 'B', name: 'Rival Dos V0310' }], 'A');
+    const teammatesLegacy = PH.computeTeammateBreakdown([m3], selfRef);
+    assert('V0310-IDENTIDAD · compañero legacy sin userId -> se agrupa por nombre, userId null (nunca inventado)',
+      teammatesLegacy.length === 1 && teammatesLegacy[0].userId === null, JSON.stringify(teammatesLegacy));
+
+    // ---- mismo criterio aplicado a RIVALES (no solo compañeros) ----
+    const rivalsBoth = PH.computeRivalBreakdown([m1, m2], selfRef);
+    const rivalUno = rivalsBoth.find((e) => e.name === 'Rival Uno V0310');
+    assert('V0310-IDENTIDAD · el mismo criterio de identidad aplica a Rivales, no solo a Compañeros',
+      rivalUno && rivalUno.userId === null && rivalUno.count === 2, JSON.stringify(rivalsBoth));
+
+    // ---- placeholders del sistema siguen excluidos (regresión) ----
+    const m4 = mkMatchWithRows('v0310-id-4', new Date(Date.now() - 2 * 86400000).toISOString(),
+      [{ team: 'A', name: selfRef }, { team: 'A', name: 'Jugador 2' },
+       { team: 'B', name: 'Rival Uno V0310' }, { team: 'B', name: 'Rival Dos V0310' }], 'A');
+    assert('V0310-IDENTIDAD · placeholders del sistema ("Jugador 2") siguen excluidos, sin cambios',
+      PH.computeTeammateBreakdown([m4], selfRef).length === 0);
   })();
 
   // ------------------------------------------------------------------

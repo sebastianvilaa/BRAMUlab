@@ -8861,6 +8861,22 @@
     partners: { title: 'COMPAÑEROS', countLabel: (n) => n === 1 ? '1 partido juntos' : `${n} partidos juntos` },
     rivals: { title: 'RIVALES', countLabel: (n) => n === 1 ? '1 enfrentamiento' : `${n} enfrentamientos` },
   };
+  /** BRAMUlab_V03.10 (§2) — identidad segura para una fila de Compañeros/Rivales. `p.userId`
+   *  (agregado en player-home.js) es AUTORITATIVO Y EXCLUSIVO cuando existe (V03.0): resuelve
+   *  por `Store.getUserById` directo, nunca por nombre — así dos cuentas reales con el mismo
+   *  nombre visible jamás muestran el @username de la otra. Sin `userId` (registro legacy), cae
+   *  al fallback de nombre ya existente en el proyecto (mismo criterio que
+   *  `buildGroupRowAccount`), pero SOLO cuenta como resolución "segura" si hay EXACTAMENTE una
+   *  cuenta real con ese nombre visible — con dos o más, la identidad es ambigua y se prefiere
+   *  no mostrar nada antes que arriesgar el username equivocado (nunca inventa ni deriva un
+   *  `@username` del nombre, a diferencia de `buildPlayerHandle`, que sí lo hace y por eso NO se
+   *  usa acá). */
+  function resolvePersonAccount(p) {
+    if (p.userId) return Store.getUserById(p.userId);
+    const norm = Store.normalizePlayerName(p.name);
+    const candidates = Store.loadUsers().filter((u) => u && Store.normalizePlayerName(u.displayName) === norm);
+    return candidates.length === 1 ? candidates[0] : null;
+  }
   function openPersonListScreen(kind) {
     const cfg = PERSON_LIST_CONFIG[kind];
     $('#companions-title').textContent = cfg.title;
@@ -8872,14 +8888,23 @@
     wrap.hidden = isEmpty;
     // V02.2 (Bloque H, §21) — resumen explícito en palabras completas (nunca "9V 2D") y la
     // efectividad SIEMPRE con su label debajo: nunca un "78%" suelto sin decir qué mide.
+    // BRAMUlab_V03.10 (§2) — `Nombre · @username` cuando hay cuenta real resoluble (mismos
+    // tokens visuales que MIS GRUPOS: `.group-table__toprow`/`__name`/`__handle`, tomado como
+    // referencia visual — sin rediseñar la tarjeta); solo el nombre cuando no la hay. Nunca un
+    // `@username` inventado.
     wrap.innerHTML = people.map((p) => {
       const winsLabel = p.wins === 1 ? 'victoria' : 'victorias';
       const lossesLabel = p.losses === 1 ? 'derrota' : 'derrotas';
+      const account = resolvePersonAccount(p);
+      const handle = account && account.username ? `@${account.username}` : null;
       return `
       <div class="person-list__item" data-name="${escapeHtml(p.name)}">
         <div class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</div>
         <div class="person-list__info">
-          <div class="person-list__name">${escapeHtml(p.name)}</div>
+          <div class="group-table__toprow">
+            <span class="group-table__name">${escapeHtml(p.name)}</span>
+            ${handle ? `<span class="group-table__handle">· ${escapeHtml(handle)}</span>` : ''}
+          </div>
           <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins} ${winsLabel} · ${p.losses} ${lossesLabel}</div>
         </div>
         <div class="person-list__pct-wrap">

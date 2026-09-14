@@ -50,7 +50,10 @@
 // el balance real (nunca "ganar" con balance negativo, player-home.js), composición/copy de TU
 // POSICIÓN en Mi red con 1-2 elegibles (app.js), prueba determinística de rollover semanal
 // (tests.html, sin cambios de lógica temporal).
-const CACHE_NAME = 'bramulab-v03-9';
+// BRAMUlab_V03.10 — cierre final de V03: TU MOMENTO omite la forma reciente cuando el balance no
+// es positivo (nunca "perdiste"/neutro, superando el copy de V03.9, player-home.js); Compañeros/
+// Rivales muestran `Nombre · @username` con identidad segura por userId (player-home.js/app.js).
+const CACHE_NAME = 'bramulab-v03-10';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -61,17 +64,17 @@ const CACHE_NAME = 'bramulab-v03-9';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.9',
-  './engine.js?v=03.9',
-  './stats.js?v=03.9',
-  './store.js?v=03.9',
-  './player-home.js?v=03.9',
-  './match-load.js?v=03.9',
-  './player-identity.js?v=03.9',
-  './groups.js?v=03.9',
-  './locations.js?v=03.9',
-  './ranking.js?v=03.9',
-  './app.js?v=03.9',
+  './styles.css?v=03.10',
+  './engine.js?v=03.10',
+  './stats.js?v=03.10',
+  './store.js?v=03.10',
+  './player-home.js?v=03.10',
+  './match-load.js?v=03.10',
+  './player-identity.js?v=03.10',
+  './groups.js?v=03.10',
+  './locations.js?v=03.10',
+  './ranking.js?v=03.10',
+  './app.js?v=03.10',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
