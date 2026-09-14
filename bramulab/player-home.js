@@ -239,8 +239,21 @@
     const form = computeRecentForm(matches, playerName, 5);
     const withResult = form.filter((f) => f.result !== 'neutral');
     const wins = form.filter((f) => f.result === 'win').length;
+    // BRAMUlab_V03.9 (§1) — BUG REAL de framing: "venís de ganar 2 de tus últimos 5 partidos"
+    // es un dato verdadero pero presenta en positivo un balance reciente NEGATIVO (2 victorias,
+    // 3 derrotas). El framing ahora sigue el balance real, nunca solo el conteo de victorias:
+    // más victorias que derrotas -> "ganaste"; más derrotas -> "perdiste"; empate -> neutral,
+    // sin elegir un bando. Mismo umbral de muestra suficiente y mismo tratamiento de partidos
+    // neutrales/sin resultado (siguen sin contar para wins/losses ni para el umbral).
     if (withResult.length >= 3) {
-      clauses.push(`venís de ganar ${wins} de tus últimos ${form.length} partidos`);
+      const losses = form.filter((f) => f.result === 'loss').length;
+      if (wins > losses) {
+        clauses.push(`ganaste ${wins} de tus últimos ${form.length} partidos`);
+      } else if (losses > wins) {
+        clauses.push(`perdiste ${losses} de tus últimos ${form.length} partidos`);
+      } else {
+        clauses.push(`en tus últimos ${form.length} partidos: ${wins} ${wins === 1 ? 'victoria' : 'victorias'} y ${losses} ${losses === 1 ? 'derrota' : 'derrotas'}`);
+      }
     }
     if (clauses.length < 2) {
       const rankingClause = buildRankingMomentoClause(rankingInsight);

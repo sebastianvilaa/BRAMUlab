@@ -7842,12 +7842,27 @@
 
     // Ranking_BRAMU.md §10.2 — Mi red con 1-2 elegibles: comparación simple, SIN "N de total"
     // ni movimiento semanal (no tiene sentido comparar contra un corte que tampoco tenía
-    // puestos).
+    // puestos). NUNCA inventar `#1 de 1` — la regla deportiva vigente no cambia acá.
+    // BRAMUlab_V03.9 (§2) — BUG REAL de composición: el markup anterior (una sola línea "Nivel
+    // BRAMU X" sin la fila `__main`/`__rank` que sí usa el caso general) dejaba el Nivel
+    // "flotando" desbalanceado y decía "Comparación entre 1 jugadores" (singular roto). Ahora
+    // reutiliza la MISMA estructura `__main`/`__rank`/`__level` del caso general (mismos
+    // estilos, cero CSS nuevo) con "—" en la zona de puesto en vez de un número inventado, y
+    // singular/plural correcto en el contexto.
     if (!view.isTerritorial && view.density.level === 'simple') {
+      const count = view.totalCount;
       card.innerHTML = `
         <span class="ranking-my-position__label">TU POSICIÓN</span>
-        <div class="ranking-my-position__level">Nivel BRAMU <strong>${view.myEntry.level.toFixed(1)}</strong></div>
-        <div class="ranking-my-position__meta">Comparación entre ${view.totalCount} jugadores · Mi red</div>
+        <div class="ranking-my-position__main">
+          <div class="ranking-my-position__rank">
+            <span class="ranking-my-position__pos">—</span>
+          </div>
+          <div class="ranking-my-position__level">
+            <span class="ranking-my-position__level-value">${view.myEntry.level.toFixed(1)}</span>
+            <span class="ranking-my-position__level-label">NIVEL BRAMU</span>
+          </div>
+        </div>
+        <div class="ranking-my-position__meta">Comparación simple · ${count} ${count === 1 ? 'jugador' : 'jugadores'} · Mi red</div>
       `;
       return;
     }
