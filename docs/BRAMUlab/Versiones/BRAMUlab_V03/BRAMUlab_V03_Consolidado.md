@@ -14,7 +14,7 @@
 
 La versión mayor que agrega **identidad real del jugador** (cuenta local con email/contraseña, Player Card, Perfil editable, calibración de Nivel BRAMU) sobre la misma base visual/funcional que dejó cerrada `BRAMUlab_V02.9.3`. A partir de ahí la línea sumó, en orden: un sistema completo de cuentas/sesión, notificaciones, una ficha deportiva de Perfil separada de los datos administrativos, una auditoría y normalización de todo el sistema visual transversal (botones/modales/acceso), un primer sistema social liviano ("Jugadores": buscar, perfil público, agregar) y finalmente "Mis Grupos" — competencia privada semanal entre jugadores conocidos, con puntos, bonuses, Race anual y BRAMU Intelligence grupal.
 
-No hay backend real en ningún punto de esta línea — todo (cuentas, notificaciones, jugadores agregados, grupos, ubicación) es prototipo `localStorage`, explícitamente aislado para ser reemplazado en una futura V04.
+No hay backend real en ningún punto de esta línea — todo (cuentas, notificaciones, jugadores agregados, grupos, ubicación) es prototipo `localStorage`, explícitamente aislado para ser reemplazado en una futura V06 (Backend/Infraestructura, roadmap vigente — ver "Estado actual" más abajo).
 
 ---
 
