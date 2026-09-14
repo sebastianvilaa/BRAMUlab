@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.2 (Etapa B) implementada · elegibilidad/invitados/repetición/círculo puros, sin conectar a la app productiva  
+**Estado:** V04.3 (Etapa C) implementada · cuestionario/ajuste/calibración/recalibración puros, sin conectar a la app productiva  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -402,3 +402,29 @@ Implementado, siguiendo exactamente los 6 puntos de la autorización:
 **No se tocó** `app.js`/`player-home.js`/`ranking.js`/`store.js`/`index.html`/`sw.js`/`version.json`, UI, cuestionario, calibración/recalibración (Etapa C), BRAMU Intelligence, backend ni la versión pública.
 
 **No se avanzó a Etapa C.**
+
+---
+
+## 12. V04.3 — Etapa C (implementada)
+
+**Autorizado por Sebastián** sobre V04.2 ya cerrada y commiteada. Objetivo: implementar como lógica pura el ciclo completo estimación inicial → cuestionario rápido/completo → ajuste → calibración → transición a calibrado → recalibración. Sin UI, sin conectar a `store.js`/`app.js`/Ranking/historial real.
+
+**Arquitectura:** `bramulab/level-calibration.js` (nuevo, 393 líneas), separado de `level.js`/`level-context.js` como recomendaba este documento — reutiliza `Level.STATES`, `Level.PARAMS.CONFIDENCE_ORIGIN_*` y `Level.clampLevel` en vez de duplicarlos.
+
+Implementado, siguiendo los 7 puntos de la autorización:
+
+1. **Cuestionario completo** — las 7 preguntas y pesos exactos de `Nivel_BRAMU_Formula_V1.4.md` §3.1/§3.5, `Q = Σ(w×q)`, `nivel = 1 + 7.5×Q`, rango bruto 1.0–8.5, confidence inicial 0.15.
+2. **Camino rápido** — las 5 semillas exactas de §3.3, confidence inicial 0.10.
+3. **Ajuste inicial** — único, ±0.5 en pasos de 0.1, resultado final limitado a 1.0–9.0, rechazo explícito (no clamp silencioso) de ajustes fuera de rango o de un segundo ajuste tras confirmar.
+4. **Estado inicial** — `state=calibrando`, `mu`/`confidence`/`evidence_units`/`rated_matches`/`distinct_opponents`/`last_rated_at`/`algorithm_version` + `origin` con las respuestas como dato DECLARADO, nunca como hecho deportivo.
+5. **Calibración** — transición CALIBRANDO→CALIBRADO solo con 5 partidos computables Y 3 rivales distintos a la vez (§10.2).
+6. **Recalibración** — cooldown de 90 días desde la confirmación del cuestionario, `mu_provisional`/`confidence_provisional` con la fórmula exacta de §11.2, cierre con 3 partidos+2 rivales, ventana máxima de 120 días, expiración vuelve al consolidado sin perder trazabilidad (§11.3).
+7. **Trazabilidad** — cada función devuelve origen, respuestas, nivel bruto/ajuste/confirmado, estado previo/posterior, fecha, `algorithm_version` y `reasonCodes`.
+
+**Resultado de tests:** 1265/1265 (baseline de V04.2) + 52/52 nuevos = **1317/1317**, corrido de verdad contra el arnés real, sin fallos en la primera corrida.
+
+**Contradicciones reales:** ninguna encontrada entre `Nivel_BRAMU_Formula_V1.4.md`, `Nivel_BRAMU_Implementacion.md` y `Nivel_BRAMU.md` para lo que exige esta etapa. Se documentan 2 inferencias (huecos que la fórmula no fija explícitamente, resueltos por la lectura más consistente, no contradicciones) en `BRAMUlab_V04_Informe.md` §"V04.3": el ajuste propio del cuestionario de recalibración reutiliza el mismo clamp 1.0–9.0 que el inicial, y "la última calibración o recalibración" (para el cómputo del cooldown) queda a criterio de quien integre el módulo en el futuro (sin historial propio en esta etapa).
+
+**No se tocó** `app.js`/`player-home.js`/`ranking.js`/`store.js`/`index.html`/`sw.js`/`version.json`, UI, backend ni BRAMU Intelligence.
+
+**No se avanzó a Etapa D.**

@@ -35,6 +35,8 @@
 <script src="level.js"></script>
 <!-- BRAMUlab_V04.2 (Etapa B) — level-context.js, mismo criterio: solo en el arnés. -->
 <script src="level-context.js"></script>
+<!-- BRAMUlab_V04.3 (Etapa C) — level-calibration.js, mismo criterio: solo en el arnés. -->
+<script src="level-calibration.js"></script>
 <script>
 (async function () {
   'use strict';
@@ -49,6 +51,7 @@
   const RK = window.PLRanking; // BRAMUlab_V03.5 (Bloque 2) — Ranking BRAMU simulado
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado
   const LVX = window.PLLevelContext; // BRAMUlab_V04.2 (Etapa B) — elegibilidad/invitados/repetición/círculo
+  const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración/recalibración
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -5891,6 +5894,220 @@
     const r1 = LVX.computeMatchLevelUpdate(match, [], states, {});
     const r2 = LVX.computeMatchLevelUpdate(match, [], states, {});
     assert('LVX-DETERMINISMO · misma entrada = misma salida, byte a byte', JSON.stringify(r1) === JSON.stringify(r2));
+  })();
+
+  // ======================================================================
+  // BRAMUlab_V04.3 (Etapa C) — LEVEL-CALIBRATION: cuestionario, ajuste
+  // inicial, calibración, recalibración (level-calibration.js /
+  // window.PLLevelCalibration). Fuente normativa: Nivel_BRAMU_Formula_V1.4.md
+  // §3, §10.2, §11. Módulo puro, sin localStorage — sin AFFECTED_KEYS.
+  // ======================================================================
+
+  function mkAnswersLVC(idx) {
+    // idx = [autoevaluacion, tiempo_jugando, clases_entrenamiento, frecuencia_reciente,
+    //        experiencia_competitiva, red, paredes] — mismo orden que FULL_QUESTIONNAIRE.
+    const ids = ['autoevaluacion', 'tiempo_jugando', 'clases_entrenamiento', 'frecuencia_reciente', 'experiencia_competitiva', 'red', 'paredes'];
+    const out = {};
+    ids.forEach((id, i) => { out[id] = idx[i]; });
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // 1. Cuestionario completo: catálogo (7 preguntas, pesos exactos) + extremos.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LVC-CUESTIONARIO · exactamente 7 preguntas', LVC.FULL_QUESTIONNAIRE.length === 7);
+    const totalWeight = LVC.FULL_QUESTIONNAIRE.reduce((s, q) => s + q.weight, 0);
+    assert('LVC-CUESTIONARIO · los 7 pesos suman EXACTO 1.00 (30/15/10/10/15/10/10)', Math.abs(totalWeight - 1.00) < 1e-9, totalWeight);
+    const weightsById = {}; LVC.FULL_QUESTIONNAIRE.forEach((q) => { weightsById[q.id] = q.weight; });
+    assert('LVC-CUESTIONARIO · pesos exactos por dimensión',
+      weightsById.autoevaluacion === 0.30 && weightsById.tiempo_jugando === 0.15 && weightsById.clases_entrenamiento === 0.10 &&
+      weightsById.frecuencia_reciente === 0.10 && weightsById.experiencia_competitiva === 0.15 && weightsById.red === 0.10 && weightsById.paredes === 0.10);
+
+    const allZero = LVC.computeFullQuestionnaireRaw(mkAnswersLVC([0, 0, 0, 0, 0, 0, 0]));
+    assert('LVC-CUESTIONARIO · extremo inferior (todas las opciones mínimas) -> Q=0, nivel=1.00', allZero.q === 0 && allZero.raw === 1.00);
+
+    const allMax = LVC.computeFullQuestionnaireRaw(mkAnswersLVC([4, 4, 4, 5, 5, 4, 4]));
+    assert('LVC-CUESTIONARIO · extremo superior (todas las opciones máximas) -> Q=1, nivel=8.50 (rango bruto 1.0-8.5)',
+      allMax.q === 1.00 && allMax.raw === 8.50);
+  })();
+
+  // ------------------------------------------------------------------
+  // 2. Los 6 perfiles sintéticos publicados en Nivel_BRAMU_Formula_V1.4.md §3.4.
+  //    La fórmula solo publica el resultado agregado (bruto + rango tras ajuste),
+  //    no las 7 respuestas originales de cada perfil — impossible reconstruir el
+  //    combo EXACTO sin inventar datos. Se construyen respuestas narrativamente
+  //    consistentes con cada perfil y se verifica que el bruto caiga dentro del
+  //    propio "rango tras ajuste" publicado (bruto±0.5, clampeado en los bordes de
+  //    la escala) — el mismo margen que el producto ya define como corrección
+  //    aceptable para esa persona, no una tolerancia inventada por este arnés.
+  // ------------------------------------------------------------------
+  (function () {
+    const profiles = [
+      { label: 'Principiante total', answers: [0, 0, 1, 1, 0, 0, 0], range: [1.00, 1.88] },
+      { label: 'Inicial recreativo', answers: [1, 1, 1, 2, 1, 1, 1], range: [2.11, 3.11] },
+      { label: 'Intermedio en formación', answers: [2, 2, 2, 3, 2, 2, 2], range: [4.01, 5.01] },
+      { label: 'Intermedio consolidado', answers: [3, 3, 2, 3, 3, 3, 2], range: [5.54, 6.54] },
+      { label: 'Avanzado amateur', answers: [3, 4, 3, 4, 4, 3, 3], range: [6.74, 7.74] },
+      { label: 'Competición', answers: [4, 4, 4, 5, 5, 4, 4], range: [8.00, 9.00] },
+    ];
+    profiles.forEach((p) => {
+      const result = LVC.computeFullQuestionnaireRaw(mkAnswersLVC(p.answers));
+      assert(`LVC-PERFIL · "${p.label}" -> bruto ${result.raw} dentro del rango publicado [${p.range[0]}, ${p.range[1]}]`,
+        result.raw >= p.range[0] - 0.001 && result.raw <= p.range[1] + 0.001, result.raw);
+    });
+  })();
+
+  // ------------------------------------------------------------------
+  // 3. Camino rápido — 5 semillas + confianza inicial 0.10 vs. 0.15 del completo.
+  // ------------------------------------------------------------------
+  (function () {
+    assert('LVC-RAPIDO · Iniciación = 2.0', LVC.computeQuickLevel('iniciacion').raw === 2.0);
+    assert('LVC-RAPIDO · Intermedio = 4.0', LVC.computeQuickLevel('intermedio').raw === 4.0);
+    assert('LVC-RAPIDO · Intermedio alto = 5.5', LVC.computeQuickLevel('intermedio_alto').raw === 5.5);
+    assert('LVC-RAPIDO · Avanzado = 7.0', LVC.computeQuickLevel('avanzado').raw === 7.0);
+    assert('LVC-RAPIDO · Competición = 8.5', LVC.computeQuickLevel('competicion').raw === 8.5);
+    assert('LVC-RAPIDO · semilla inexistente -> null (nunca inventa)', LVC.computeQuickLevel('inexistente') === null);
+
+    const quickState = LVC.buildInitialCalibrationState('quick', LVC.confirmInitialLevel(LVC.computeQuickLevel('intermedio'), 0, false, '2026-01-01T00:00:00.000Z'), null);
+    assert('LVC-CONFIANZA · camino rápido -> confidence inicial 0.10', quickState.confidence === 0.10 && quickState.confidence === LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK);
+    const fullState = LVC.buildInitialCalibrationState('full', LVC.confirmInitialLevel(LVC.computeFullQuestionnaireRaw(mkAnswersLVC([2, 2, 2, 3, 2, 2, 2])), 0, false, '2026-01-01T00:00:00.000Z'), {});
+    assert('LVC-CONFIANZA · cuestionario completo -> confidence inicial 0.15', fullState.confidence === 0.15 && fullState.confidence === LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL);
+  })();
+
+  // ------------------------------------------------------------------
+  // 4. Ajuste inicial: +0.5/-0.5, rechazo >0.5, límites 1.0/9.0, segundo ajuste.
+  // ------------------------------------------------------------------
+  (function () {
+    const raw5 = { raw: 5.0 };
+    const adjUp = LVC.confirmInitialLevel(raw5, 0.5, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-AJUSTE · +0.5 -> confirmado 5.5', adjUp.ok === true && adjUp.origin.confirmedLevel === 5.5);
+    const adjDown = LVC.confirmInitialLevel(raw5, -0.5, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-AJUSTE · -0.5 -> confirmado 4.5', adjDown.ok === true && adjDown.origin.confirmedLevel === 4.5);
+
+    const adjTooBig = LVC.confirmInitialLevel(raw5, 0.6, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-AJUSTE · intento de ajuste > 0.5 -> RECHAZADO (nunca clampeado silenciosamente)',
+      adjTooBig.ok === false && adjTooBig.reasonCodes.indexOf('ajuste_fuera_de_rango_0_5') !== -1);
+    const adjNotStep = LVC.confirmInitialLevel(raw5, 0.15, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-AJUSTE · ajuste que no es múltiplo de 0.1 -> rechazado',
+      adjNotStep.ok === false && adjNotStep.reasonCodes.indexOf('ajuste_no_es_multiplo_de_0_1') !== -1);
+
+    const rawLow = { raw: 1.0 };
+    const adjLowerBound = LVC.confirmInitialLevel(rawLow, -0.5, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-LIMITE · 1.0 - 0.5 -> clampeado al piso 1.0 (nunca por debajo de la escala)', adjLowerBound.origin.confirmedLevel === 1.0);
+    const rawHigh = { raw: 8.5 };
+    const adjUpperBound = LVC.confirmInitialLevel(rawHigh, 0.5, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-LIMITE · 8.5 + 0.5 -> exactamente 9.0 (techo del rango ajustado)', adjUpperBound.origin.confirmedLevel === 9.0);
+
+    const segundoAjuste = LVC.confirmInitialLevel(raw5, 0.3, true, '2026-01-02T00:00:00.000Z');
+    assert('LVC-AJUSTE · segundo ajuste (alreadyConfirmed=true) -> SIEMPRE rechazado',
+      segundoAjuste.ok === false && segundoAjuste.reasonCodes.indexOf('ajuste_ya_confirmado_no_puede_repetirse') !== -1);
+  })();
+
+  // ------------------------------------------------------------------
+  // 5. Calibración: transición CALIBRANDO -> CALIBRADO exige AMBAS condiciones.
+  // ------------------------------------------------------------------
+  (function () {
+    const calibrando = { state: LV.STATES.CALIBRATING, mu: 5.0, confidence: 0.15 };
+    const t43 = LVC.computeCalibrationTransition(calibrando, 4, 3);
+    assert('LVC-CALIBRACION · 4 partidos + 3 rivales -> sigue calibrando (faltan partidos)',
+      t43.transition === false && t43.reasonCodes.indexOf('faltan_partidos_computables') !== -1);
+    const t52 = LVC.computeCalibrationTransition(calibrando, 5, 2);
+    assert('LVC-CALIBRACION · 5 partidos + 2 rivales -> sigue calibrando (faltan rivales)',
+      t52.transition === false && t52.reasonCodes.indexOf('faltan_rivales_distintos') !== -1);
+    const t53 = LVC.computeCalibrationTransition(calibrando, 5, 3);
+    assert('LVC-CALIBRACION · 5 partidos + 3 rivales -> CALIBRADO',
+      t53.transition === true && t53.newState.state === LV.STATES.CALIBRATED);
+    const yaCalibrado = { state: LV.STATES.CALIBRATED, mu: 5.0, confidence: 0.5 };
+    const tYa = LVC.computeCalibrationTransition(yaCalibrado, 10, 10);
+    assert('LVC-CALIBRACION · un jugador que YA está calibrado no vuelve a transicionar',
+      tYa.transition === false && tYa.reasonCodes.indexOf('jugador_no_esta_calibrando') !== -1);
+    assert('LVC-NO-MUTACION · computeCalibrationTransition nunca muta el estado de entrada',
+      calibrando.state === LV.STATES.CALIBRATING);
+  })();
+
+  // ------------------------------------------------------------------
+  // 6. Recalibración — cooldown 90 días, ancla provisional exacta, cierre, expiración.
+  // ------------------------------------------------------------------
+  (function () {
+    const lastConfirmation = '2026-01-01T00:00:00.000Z';
+    const antes = LVC.computeRecalibrationEligibility(lastConfirmation, new Date(new Date(lastConfirmation).getTime() + 89 * 86400000).toISOString());
+    assert('LVC-RECALIBRACION · a los 89 días -> NO disponible (cooldown 90 no cumplido)', antes.eligible === false);
+    const justoA90 = LVC.computeRecalibrationEligibility(lastConfirmation, new Date(new Date(lastConfirmation).getTime() + 90 * 86400000).toISOString());
+    assert('LVC-RECALIBRACION · exactamente a los 90 días -> SÍ disponible', justoA90.eligible === true);
+
+    // Fórmula exacta de mu/confidence provisional (§11.2).
+    const consolidatedState = { mu: 6.0, confidence: 0.80 };
+    const started = '2026-04-01T00:00:00.000Z';
+    const recal = LVC.startRecalibration(consolidatedState, 7.0, started); // q_nuevo confirmado = 7.0
+    assert('LVC-RECALIBRACION · mu_provisional = clamp(0.75*6.0 + 0.25*7.0; 5.5; 6.5) = 6.25 EXACTO',
+      recal.muProvisional === 6.25, recal.muProvisional);
+    assert('LVC-RECALIBRACION · confidence_provisional = max(0.30; min(0.70; 0.75*0.80)) = 0.60 EXACTO',
+      recal.confidenceProvisional === 0.60, recal.confidenceProvisional);
+    assert('LVC-RECALIBRACION · state pasa a RECALIBRANDO', recal.state === LV.STATES.RECALIBRATING);
+    assert('LVC-NO-MUTACION · startRecalibration nunca muta el estado consolidado de entrada',
+      consolidatedState.mu === 6.0 && consolidatedState.confidence === 0.80);
+
+    // Límite ±0.5 del ancla: q_nuevo muy lejos del actual -> el shift nunca supera 0.5.
+    const recalLejos = LVC.startRecalibration({ mu: 5.0, confidence: 0.80 }, 10.0, started);
+    assert('LVC-RECALIBRACION · límite ±0.5: q_nuevo=10.0 con mu_actual=5.0 -> mu_provisional nunca pasa de 5.5',
+      recalLejos.muProvisional === 5.5, recalLejos.muProvisional);
+    const recalLejosAbajo = LVC.startRecalibration({ mu: 5.0, confidence: 0.80 }, 1.0, started);
+    assert('LVC-RECALIBRACION · límite ±0.5 hacia abajo: q_nuevo=1.0 con mu_actual=5.0 -> mu_provisional nunca baja de 4.5',
+      recalLejosAbajo.muProvisional === 4.5, recalLejosAbajo.muProvisional);
+
+    // Piso/techo de confidence_provisional (0.30-0.70).
+    const recalConfBaja = LVC.startRecalibration({ mu: 5.0, confidence: 0.10 }, 5.0, started);
+    assert('LVC-RECALIBRACION · confidence_provisional nunca baja del piso 0.30 (0.75*0.10=0.075 -> 0.30)',
+      recalConfBaja.confidenceProvisional === 0.30, recalConfBaja.confidenceProvisional);
+    const recalConfAlta = LVC.startRecalibration({ mu: 5.0, confidence: 0.95 }, 5.0, started);
+    assert('LVC-RECALIBRACION · confidence_provisional nunca supera el techo 0.70 (0.75*0.95=0.7125 -> 0.70)',
+      recalConfAlta.confidenceProvisional === 0.70, recalConfAlta.confidenceProvisional);
+
+    // Cierre: 2/2 sigue, 3/1 sigue, 3/2 cierra.
+    const c22 = LVC.computeRecalibrationClosure(recal, 2, 2, started);
+    assert('LVC-RECALIBRACION · 2 partidos + 2 rivales -> sigue (faltan partidos)',
+      c22.closed === false && c22.reasonCodes.indexOf('faltan_partidos_computables') !== -1);
+    const c31 = LVC.computeRecalibrationClosure(recal, 3, 1, started);
+    assert('LVC-RECALIBRACION · 3 partidos + 1 rival -> sigue (faltan rivales)',
+      c31.closed === false && c31.reasonCodes.indexOf('faltan_rivales_distintos') !== -1);
+    const c32 = LVC.computeRecalibrationClosure(recal, 3, 2, started);
+    assert('LVC-RECALIBRACION · 3 partidos + 2 rivales -> CIERRA, mu pasa a ser el provisional consolidado',
+      c32.closed === true && c32.resultState.state === LV.STATES.CALIBRATED && c32.resultState.mu === recal.muProvisional);
+
+    // Expiración a 120 días -> vuelve al consolidado anterior, sin perder trazabilidad.
+    const nowAt120 = new Date(new Date(started).getTime() + 121 * 86400000).toISOString();
+    const expirado = LVC.computeRecalibrationClosure(recal, 0, 0, nowAt120);
+    assert('LVC-RECALIBRACION · expiración > 120 días sin completar -> vuelve al nivel consolidado anterior',
+      expirado.expired === true && expirado.resultState.state === LV.STATES.CALIBRATED && expirado.resultState.mu === recal.muConsolidatedPrevious);
+    assert('LVC-RECALIBRACION · la expiración conserva trazabilidad (qué provisional no llegó a confirmarse)',
+      expirado.resultState.recalibrationExpired && expirado.resultState.recalibrationExpired.muProvisional === recal.muProvisional);
+    const nowAtExactly120 = new Date(new Date(started).getTime() + 120 * 86400000).toISOString();
+    const noExpiradoTodavia = LVC.computeRecalibrationClosure(recal, 0, 0, nowAtExactly120);
+    assert('LVC-RECALIBRACION · exactamente a los 120 días todavía NO expiró (limite inclusive)',
+      noExpiradoTodavia.expired === false);
+    assert('LVC-NO-MUTACION · computeRecalibrationClosure nunca muta el estado de recalibración de entrada',
+      recal.state === LV.STATES.RECALIBRATING && recal.recalibrationRatedMatches === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // 7. Determinismo + algorithm_version + trazabilidad mínima.
+  // ------------------------------------------------------------------
+  (function () {
+    const answers = mkAnswersLVC([2, 3, 1, 3, 2, 2, 3]);
+    const r1 = LVC.computeFullQuestionnaireRaw(answers);
+    const r2 = LVC.computeFullQuestionnaireRaw(answers);
+    assert('LVC-DETERMINISMO · mismas respuestas = mismo resultado, byte a byte', JSON.stringify(r1) === JSON.stringify(r2));
+
+    const confirmed = LVC.confirmInitialLevel(r1, 0.2, false, '2026-02-01T00:00:00.000Z');
+    const state = LVC.buildInitialCalibrationState('full', confirmed, answers);
+    assert('LVC-VERSION · algorithm_version presente y correcto en el estado inicial', state.algorithmVersion === 'nivel_bramu_v1_0');
+    assert('LVC-TRAZABILIDAD · el estado conserva origen (rawLevel/adjustment/confirmedLevel/respuestas)',
+      state.origin.rawLevel === r1.raw && state.origin.adjustment === 0.2 && state.origin.confirmedLevel === round4Lvc(r1.raw + 0.2) &&
+      JSON.stringify(state.origin.questionnaireAnswers) === JSON.stringify(answers));
+    function round4Lvc(n) { return Math.round(n * 10000) / 10000; }
+
+    assert('LVC-NO-MUTACION · confirmInitialLevel nunca muta el rawResult de entrada', r1.raw === LVC.computeFullQuestionnaireRaw(answers).raw);
   })();
 
   // ------------------------------------------------------------------

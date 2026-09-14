@@ -1,8 +1,8 @@
 # BRAMUlab_V04
-## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B)
+## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B) + V04.3 (Etapa C)
 
-**Estado:** V04.0 cerrada (diagnóstico). V04.1 (Etapa A, motor puro) y V04.2 (Etapa B, elegibilidad/invitados/repetición/círculo) implementadas — ninguna conectada todavía a la app productiva. Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores.
-**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
+**Estado:** V04.0 cerrada (diagnóstico). V04.1 (motor puro), V04.2 (elegibilidad/invitados/repetición/círculo) y V04.3 (cuestionario/ajuste/calibración/recalibración) implementadas — ninguna conectada todavía a la app productiva. Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores.
+**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 · V04.3 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
 **Base:** `BRAMUlab_V03.10` (sin regresiones detectadas ni reabiertas).
 **Objetivo de V04.0:** el definido en `BRAMUlab_V04_Consolidado.md` §8 — auditoría técnica real, dos normalizaciones documentales, plan exacto para Etapa A. Nada más.
 
@@ -365,3 +365,56 @@ Apareció 1 fallo real en la primera corrida (detallado en §V04.2.3, corregido 
 ## V04.2.6 No se avanzó a Etapa C
 
 Confirmado — cuestionario, calibración/recalibración inicial, UI, y cualquier conexión a `app.js`/`player-home.js`/`ranking.js` quedan fuera de esta ronda.
+
+---
+
+# V04.3 — Etapa C (implementada)
+
+**Autorización:** Sebastián autorizó Etapa C sobre V04.2 ya cerrada y commiteada — ciclo completo estimación inicial/cuestionario/ajuste/calibración/recalibración, como lógica pura y testeable, sin UI ni conexión a `store.js`/`app.js`/Ranking/historial real.
+
+## V04.3.1 Qué se implementó
+
+**`bramulab/level-calibration.js` (nuevo, 393 líneas).** Reutiliza `Level.STATES`, `Level.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL/QUICK` y `Level.clampLevel` de `level.js` — ninguna constante ni fórmula de Etapa A se reimplementa.
+
+- **`FULL_QUESTIONNAIRE`** — array de 7 preguntas con `id`, `weight`, `label` y sus `options` (`label`+`value`) en el orden y con los pesos exactos de `Nivel_BRAMU_Formula_V1.4.md` §3.1/§3.5 (30/15/10/10/15/10/10, suma exacta 1.00).
+- **`computeFullQuestionnaireRaw(answerIndices)`** — `Q = Σ(w×q)`; `nivel = 1 + 7.5×Q`; devuelve `{raw, q, answers}` con las respuestas resueltas (índice + valor) para auditoría.
+- **`QUICK_SEEDS`** + `computeQuickLevel(seedKey)` — las 5 semillas exactas de §3.3.
+- **`validateAdjustment`/`confirmInitialLevel`** — valida `|ajuste|≤0.5` y múltiplo de 0.1 ANTES de aplicar (rechazo explícito, nunca clamp silencioso), calcula `confirmedLevel = clamp(raw+ajuste, 1.0, 9.0)`, y rechaza SIEMPRE un segundo ajuste (`alreadyConfirmed`).
+- **`buildInitialCalibrationState(originType, confirmResult, questionnaireAnswers)`** — arma el estado `{mu, confidence, evidenceUnits:0, state:'calibrando', ratedMatches:0, distinctOpponents:0, lastRatedAt:null, algorithmVersion, origin}`; `confidence` = `CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK` (0.10) o `_FULL` (0.15) según `originType`.
+- **`computeCalibrationTransition(currentState, ratedMatches, distinctOpponents)`** — CALIBRANDO→CALIBRADO solo con AMBAS condiciones (5 partidos, 3 rivales) — nunca solo cantidad de partidos.
+- **`computeRecalibrationEligibility`/`startRecalibration`/`confirmRecalibrationQuestionnaire`/`computeRecalibrationClosure`** — cooldown de 90 días, `mu_provisional`/`confidence_provisional` con la fórmula exacta de §11.2, cierre con 3 partidos+2 rivales dentro de una ventana de 120 días, expiración con reversión al consolidado y trazabilidad conservada (`recalibrationExpired`).
+
+**`bramulab/tests.html` (modificado).** `<script src="level-calibration.js">` agregado únicamente en el arnés de tests, con 52 fixtures nuevos en 7 bloques.
+
+## V04.3.2 Tests: antes/después
+
+| | Cantidad |
+|---|---:|
+| Baseline (V04.2, sin tocar) | 1265/1265 |
+| Fixtures nuevos de Etapa C | 52/52 |
+| **Total, corrido de verdad contra el arnés real** | **1317/1317** |
+
+Sin fallos en la primera corrida — a diferencia de V04.1/V04.2, esta ronda no encontró ningún bug real de código ni de fixture.
+
+## V04.3.3 Los 6 perfiles sintéticos (§3.4) — cómo se verificaron
+
+`Nivel_BRAMU_Formula_V1.4.md` §3.4 publica, para cada perfil, el resultado AGREGADO (bruto + "rango tras ajuste") pero nunca las 7 respuestas originales que lo produjeron — no hay ninguna forma de reconstruir el combo exacto sin inventar datos que la fórmula no publica. Se construyó, para cada perfil, un conjunto de respuestas narrativamente consistente con su descripción (por ejemplo "Avanzado amateur" con opciones altas pero no todas máximas) y se verificó que el bruto resultante cae DENTRO del propio "rango tras ajuste" que la fórmula ya define para ese perfil (bruto±0.5, clampeado en los bordes de la escala) — es el mismo margen que el producto acepta como corrección válida para esa persona, no una tolerancia inventada por este arnés. Los 6 perfiles pasaron con los siguientes brutos calculados (todos dentro de su rango publicado): Principiante total 1.3375 (rango 1.00–1.88), Inicial recreativo 2.93125 (2.11–3.11), Intermedio en formación 4.7125 (4.01–5.01), Intermedio consolidado 5.96875 (5.54–6.54), Avanzado amateur 7.00 (6.74–7.74), Competición 8.50 exacto (8.00–9.00, coincide con el bruto publicado porque es el caso de todas las respuestas al máximo).
+
+## V04.3.4 Contradicciones — ninguna real; 2 inferencias documentadas (no bloqueantes)
+
+Se revisaron específicamente `Nivel_BRAMU_Formula_V1.4.md` §3/§11, `Nivel_BRAMU_Implementacion.md` (Etapa C) y `Nivel_BRAMU.md` §4-§6 buscando una contradicción real. No se encontró ninguna — el único punto que en una primera lectura pareció tensionar (`Nivel_BRAMU.md` §4.4 llama "recomendación inicial, a probar" a los 3 partidos/2 rivales de cierre de recalibración, mientras `Nivel_BRAMU_Formula_V1.4.md` §11.3 lo fija como regla cerrada) NO es una contradicción: los números coinciden exactamente (3 y 2) — `Nivel_BRAMU.md` es simplemente el documento anterior al cierre de fórmula, y ya está marcado como tal desde la normalización de V04.0.
+
+Dos huecos que la fórmula no fija EXPLÍCITAMENTE, resueltos por la lectura más consistente con el resto del documento (no contradicciones, decisiones técnicas menores):
+
+1. **Clamp del ajuste propio del cuestionario de recalibración.** §11.1 dice "repetir cuestionario completo... permitir un ajuste acotado" sin repetir el rango 1.0–9.0 que sí fija §3.2 para la calibración inicial. `confirmRecalibrationQuestionnaire` reutiliza literalmente `confirmInitialLevel` (mismo mecanismo, mismo clamp) — es la única lectura consistente con "repetir cuestionario completo", no una decisión de producto nueva.
+2. **Qué cuenta como "la última calibración o recalibración"** para calcular el cooldown de 90 días (`Nivel_BRAMU.md` §6.1). Este módulo no guarda historial de recalibraciones — `computeRecalibrationEligibility` recibe `lastConfirmationAt` como parámetro explícito; decidir CUÁL es esa fecha (inicial vs. la recalibración más reciente) queda para quien integre este módulo con persistencia real (Etapa D+ o backend), exactamente como Etapa A/B ya delegaron sus propios inputs.
+
+## V04.3.5 Riesgos / pendientes para Etapa D+
+
+- Ningún dato se persiste — `store.js` sigue sin ningún modelo de Nivel BRAMU real. Etapa D (UI/explicaciones) o una etapa de integración deberá decidir dónde vive el estado entre sesiones.
+- La detección de "quién es la última calibración/recalibración" (inferencia 2 arriba) queda abierta para quien conecte este módulo a datos reales.
+- Los 6 perfiles sintéticos se verificaron por rango, no por reconstrucción exacta — si en algún momento aparecen las 7 respuestas originales de cada perfil (por ejemplo en una revisión futura de la fórmula), valdría la pena reemplazar estos fixtures por los exactos.
+
+## V04.3.6 No se avanzó a Etapa D
+
+Confirmado — UI, explicaciones de producto, y cualquier conexión a `app.js`/`player-home.js`/`ranking.js`/`store.js` quedan fuera de esta ronda.
