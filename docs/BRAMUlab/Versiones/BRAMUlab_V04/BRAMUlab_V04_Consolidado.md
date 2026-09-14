@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.1 (Etapa A) implementada · motor puro sin conectar a la app productiva  
+**Estado:** V04.2 (Etapa B) implementada · elegibilidad/invitados/repetición/círculo puros, sin conectar a la app productiva  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -377,3 +377,28 @@ Lo implementado (arquitectura ya prevista en §5/§6, confirmada sin desvíos):
 Detalle completo (derivación de los arquetipos de confianza usados para los fixtures, diferencias encontradas y lo que queda para Etapa B) en `BRAMUlab_V04_Informe.md` §"V04.1".
 
 **No se avanzó a Etapa B** — sigue pendiente de autorización, gate en §4/§9 de este documento sin cambios.
+
+---
+
+## 11. V04.2 — Etapa B (implementada)
+
+**Autorizado por Sebastián** sobre V04.1 ya cerrada y commiteada. Objetivo: "construir la capa pura que, a partir de un partido + historial + estados de jugadores, determine si ese partido puede aportar evidencia al Nivel BRAMU y arme correctamente el contexto que necesita `level.js`." Explícitamente sin conectar todavía a la UI ni reemplazar el Nivel provisional de V03, y sin tocar `store.js` (persistencia sigue diferida).
+
+**Arquitectura:** `bramulab/level-context.js` (nuevo, 626 líneas), separado de `level.js` tal como recomendaba este documento — interpreta partido/historial/estados y arma el contexto; toda la matemática compartida (nivel efectivo, fuerza de pareja, factor de repetición/compañero) se delega a `Level.compute*` de `level.js`, nunca se reimplementa.
+
+Implementado, siguiendo exactamente los 6 puntos de la autorización:
+
+1. **Elegibilidad** — estados `computable`/`pendiente`/`excluido`/`corregido`/`anulado`/`duplicado`; formato válido, resultado incompleto/abandono/walkover excluidos, observado por espectador excluido, ventana de 30 días para partidos manuales (§12.2).
+2. **Participantes e invitados** — disponibilidad 1.00/0.80/0.60 (§13), imputación exacta (promedio de niveles efectivos conocidos), invitados identificados aparte para que nunca reciban delta, confianza rival calculada solo con rivales reales cuando hay invitado.
+3. **Repetición (180 días)** — `n_pair`/`n_r1`/`n_r2`/`n_companero` derivados del historial real, alimentando `Level.computeRepetitionFactor`/`computeCompanionFactor` sin duplicarlas.
+4. **Círculo competitivo cerrado (§8.1)** — detección real de los 7 umbrales (20 partidos, concentración 80% en hasta 11 coparticipantes, grupo ≤12, amplitud ≤1.5, partido íntegramente dentro, rival no superior a 0.75).
+5. **Contexto compuesto** — `buildLevelEngineContext`/`computeMatchLevelUpdate` transforman partido+historial+estados en el input exacto de `Level.computeMatchUpdate`, o devuelven `eligible:false` sin llamar al motor.
+6. **Correcciones/anulaciones** — modeladas como estado y decisión de elegibilidad (`corregido`/`anulado`), sin construir persistencia ni reversión real — eso queda fuera de Etapa B, tal como se pidió.
+
+**Resultado de tests:** 1220/1220 (baseline de V04.1) + 45/45 nuevos = **1265/1265**, corrido de verdad contra el arnés real.
+
+**Diferencias/decisiones técnicas reales encontradas** (detalle completo en `BRAMUlab_V04_Informe.md` §"V04.2"): el modelo de datos real de hoy no tiene "mini sets" ni un `formatId` de "match tie-break" (`engine.js` solo define `classic`/`americano`) — se mapean con reglas explícitas y documentadas, no inventadas; el reparto de `n_pair`/`n_r1`/`n_r2` entre los 2 compañeros de una pareja no está unívocamente definido por la fórmula cuando difieren entre sí — se resolvió tomando el máximo (criterio conservador, documentado); se usó un truco algebraico exacto (no una aproximación) para que el invitado aporte a la fuerza de pareja exactamente su nivel imputado sin tocar `level.js`.
+
+**No se tocó** `app.js`/`player-home.js`/`ranking.js`/`store.js`/`index.html`/`sw.js`/`version.json`, UI, cuestionario, calibración/recalibración (Etapa C), BRAMU Intelligence, backend ni la versión pública.
+
+**No se avanzó a Etapa C.**

@@ -33,6 +33,8 @@
      No se agrega a index.html/sw.js: nada de la app productiva lo llama todavía (ver
      cabecera del propio archivo y BRAMUlab_V04_Informe.md). -->
 <script src="level.js"></script>
+<!-- BRAMUlab_V04.2 (Etapa B) — level-context.js, mismo criterio: solo en el arnés. -->
+<script src="level-context.js"></script>
 <script>
 (async function () {
   'use strict';
@@ -46,6 +48,7 @@
   const PLLoc = window.PLLocations; // BRAMUlab_V03.4.1 — dataset/búsqueda de localidades
   const RK = window.PLRanking; // BRAMUlab_V03.5 (Bloque 2) — Ranking BRAMU simulado
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado
+  const LVX = window.PLLevelContext; // BRAMUlab_V04.2 (Etapa B) — elegibilidad/invitados/repetición/círculo
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -5573,6 +5576,321 @@
       assert(`${c.label} · algorithm_version y reasonCodes presentes en la salida auditable`,
         out.algorithmVersion === 'nivel_bramu_v1_0' && Array.isArray(out.reasonCodes));
     });
+  })();
+
+  // ======================================================================
+  // BRAMUlab_V04.2 (Etapa B) — LEVEL-CONTEXT: elegibilidad, invitados,
+  // repetición/compañero real, círculo competitivo cerrado (level-context.js /
+  // window.PLLevelContext). Fuente normativa: Nivel_BRAMU_Formula_V1.4.md §8,
+  // §8.1, §12, §13. Módulo puro, sin localStorage — sin AFFECTED_KEYS.
+  // ======================================================================
+
+  function mkPlayerRowLVX(name, team, userId) { return { name, team, userId: userId || null }; }
+  function mkSetLVX(gamesA, gamesB, winner, extraordinary) { return { gamesA, gamesB, winner, extraordinary: !!extraordinary, tiebreak: null }; }
+  function mkMatchLVX(overrides) {
+    const base = {
+      matchId: 'lvx-' + Math.random().toString(36).slice(2),
+      players: [],
+      winnerTeam: 'A',
+      sets: [mkSetLVX(6, 4, 'A'), mkSetLVX(6, 4, 'A')],
+      formatId: 'classic',
+      regulationCompleted: true,
+      mode: 'complete',
+      playedAt: '2026-06-01T12:00:00.000Z',
+      startedAt: '2026-06-01T12:00:00.000Z',
+      finishedAt: '2026-06-01T13:00:00.000Z',
+      createdAt: '2026-06-01T13:00:00.000Z',
+    };
+    return Object.assign(base, overrides);
+  }
+  function mkStateLVX(mu, confidence, state) { return { mu, confidence, state: state || LV.STATES.CALIBRATED }; }
+
+  // ------------------------------------------------------------------
+  // 1. Disponibilidad e invitados (§13) — 4/4, 3/4, 2/4, exclusiones.
+  // ------------------------------------------------------------------
+  (function () {
+    const match4 = mkMatchLVX({ players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')] });
+    const states4 = { u1: mkStateLVX(5, 0.8), u2: mkStateLVX(5, 0.8), u3: mkStateLVX(5, 0.8), u4: mkStateLVX(5, 0.8) };
+    const ctx4 = LVX.computeAvailabilityContext(match4, states4);
+    assert('LVX-DISPONIBILIDAD · 4/4 conocidos -> computable, factor 1.00', ctx4.computable && ctx4.availabilityFactor === 1.00 && ctx4.knownLevelsCount === 4);
+
+    const match3 = mkMatchLVX({ players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('Invitado', 'B', null)] });
+    const states3 = { u1: mkStateLVX(5, 0.8), u2: mkStateLVX(5, 0.8), u3: mkStateLVX(5, 0.8) };
+    const ctx3 = LVX.computeAvailabilityContext(match3, states3);
+    assert('LVX-DISPONIBILIDAD · 3/4 conocidos -> computable, factor 0.80', ctx3.computable && ctx3.availabilityFactor === 0.80 && ctx3.knownLevelsCount === 3);
+
+    const match2 = mkMatchLVX({ players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('Inv A', 'A', null), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('Inv B', 'B', null)] });
+    const states2 = { u1: mkStateLVX(6, 0.8), u3: mkStateLVX(4, 0.8) };
+    const ctx2 = LVX.computeAvailabilityContext(match2, states2);
+    assert('LVX-DISPONIBILIDAD · 2/4 (uno por pareja) -> computable, factor 0.60', ctx2.computable && ctx2.availabilityFactor === 0.60 && ctx2.knownLevelsCount === 2);
+    assert('LVX-IMPUTACION · 2 conocidos -> imputado = promedio EXACTO de los 2 niveles efectivos conocidos',
+      ctx2.imputedEffectiveLevel === LV.computePairStrength(LV.computeEffectiveLevel(6, 0.8), LV.computeEffectiveLevel(4, 0.8)));
+
+    const matchSamePair = mkMatchLVX({ players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('Inv B1', 'B', null), mkPlayerRowLVX('Inv B2', 'B', null)] });
+    const ctxSamePair = LVX.computeAvailabilityContext(matchSamePair, { u1: mkStateLVX(6, 0.8), u2: mkStateLVX(5, 0.8) });
+    assert('LVX-DISPONIBILIDAD · 2 conocidos en la MISMA pareja -> NO computable',
+      ctxSamePair.computable === false && ctxSamePair.reasonCodes.indexOf('dos_conocidos_en_la_misma_pareja') !== -1);
+
+    // 0 conocidos en A, 1 conocido en B (total=1) -> genuinamente "sin nivel en una pareja",
+    // sin ser a la vez el caso más específico "2 conocidos en la misma pareja" (ver arriba).
+    const matchNoneA = mkMatchLVX({ players: [mkPlayerRowLVX('Inv A1', 'A', null), mkPlayerRowLVX('Inv A2', 'A', null), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('Inv B2', 'B', null)] });
+    const ctxNoneA = LVX.computeAvailabilityContext(matchNoneA, { u3: mkStateLVX(5, 0.8) });
+    assert('LVX-DISPONIBILIDAD · sin nivel conocido en una pareja -> NO computable',
+      ctxNoneA.computable === false && ctxNoneA.reasonCodes.indexOf('sin_nivel_conocido_en_alguna_pareja') !== -1);
+
+    const match3known3 = mkMatchLVX({ players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')] });
+    const ctx1only = LVX.computeAvailabilityContext(match3known3, { u1: mkStateLVX(5, 0.8) });
+    assert('LVX-DISPONIBILIDAD · valor no admitido (1 conocido de 4) -> NO computable (sin nivel en la pareja rival)',
+      ctx1only.computable === false);
+  })();
+
+  // ------------------------------------------------------------------
+  // 2. Invitado sin actualización + confianza rival con invitado (end-to-end,
+  //    vía computeMatchLevelUpdate -> Level.computeMatchUpdate real).
+  // ------------------------------------------------------------------
+  (function () {
+    const match = mkMatchLVX({
+      matchId: 'lvx-guest-1',
+      players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('Invitado B2', 'B', null)],
+      winnerTeam: 'A',
+    });
+    const states = { u1: mkStateLVX(6, 0.80), u2: mkStateLVX(4, 0.80), u3: mkStateLVX(7, 0.30) };
+    const result = LVX.computeMatchLevelUpdate(match, [], states, {});
+    assert('LVX-INVITADO · partido con 3/4 conocidos es elegible', result.eligible === true, JSON.stringify(result));
+    assert('LVX-INVITADO · exactamente 1 invitado identificado', result.guestPlayerIds.length === 1);
+    const guestId = result.guestPlayerIds[0];
+    assert('LVX-INVITADO · la fila del invitado existe en la salida del motor (level.js calcula las 4)', !!result.engineOutput.players[guestId]);
+    assert('LVX-INVITADO · el nivel efectivo del invitado en la salida = el imputado real (nunca inventado)',
+      closeEnough(result.engineOutput.players[guestId].effectiveLevel, result.imputedEffectiveLevel, 0.0001));
+    assert('LVX-RIVAL-INVITADO · confianza_pareja_rival con invitado = confianza del ÚNICO rival real (0.30), nunca diluida',
+      result.engineOutput.rivalPairConfidenceAvg.A === 0.30);
+    // "Los invitados nunca reciben actualización" (§13): esto lo garantiza el LLAMADOR al
+    // ignorar guestPlayerIds — se verifica acá que la lista identifica correctamente a quién
+    // hay que excluir antes de aplicar cualquier delta.
+    const realPlayerIds = Object.keys(result.engineOutput.players).filter((id) => result.guestPlayerIds.indexOf(id) === -1);
+    assert('LVX-INVITADO · los 3 jugadores reales quedan identificables aparte del invitado', realPlayerIds.length === 3);
+  })();
+
+  // ------------------------------------------------------------------
+  // 3. Ventana de 30 días para partidos manuales (§12.2) — dentro / límite / fuera.
+  // ------------------------------------------------------------------
+  (function () {
+    const players = [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')];
+    const playedAt = '2026-01-01T00:00:00.000Z';
+    function mkManual(daysLater) {
+      const createdAt = new Date(new Date(playedAt).getTime() + daysLater * 86400000).toISOString();
+      return mkMatchLVX({ matchId: 'lvx-30d-' + daysLater, players, mode: 'manual', playedAt, startedAt: playedAt, finishedAt: playedAt, createdAt });
+    }
+    assert('LVX-30DIAS · dentro de la ventana (10 días) -> computable', LVX.computeMatchStatus(mkManual(10)).status === LVX.MATCH_STATUS.COMPUTABLE);
+    assert('LVX-30DIAS · exactamente en el límite (30 días) -> todavía computable', LVX.computeMatchStatus(mkManual(30)).status === LVX.MATCH_STATUS.COMPUTABLE);
+    assert('LVX-30DIAS · fuera de la ventana (31 días) -> excluido', LVX.computeMatchStatus(mkManual(31)).status === LVX.MATCH_STATUS.EXCLUDED);
+    const liveLate = mkMatchLVX({ matchId: 'lvx-30d-live', players, mode: 'complete', playedAt, createdAt: new Date(new Date(playedAt).getTime() + 90 * 86400000).toISOString() });
+    assert('LVX-30DIAS · la ventana de 30 días NO aplica a partidos no manuales', LVX.computeMatchStatus(liveLate).status === LVX.MATCH_STATUS.COMPUTABLE);
+  })();
+
+  // ------------------------------------------------------------------
+  // 4. Estados de partido (§12/§13): pendiente/computable/excluido/corregido/
+  //    anulado/duplicado, resultado incompleto, observado por espectador.
+  // ------------------------------------------------------------------
+  (function () {
+    const players = [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')];
+    function statusOf(extra) { return LVX.computeMatchStatus(mkMatchLVX(Object.assign({ players }, extra))).status; }
+    assert('LVX-ESTADO · sin validationState (comportamiento real de hoy, sin backend) -> computable', statusOf({}) === LVX.MATCH_STATUS.COMPUTABLE);
+    assert('LVX-ESTADO · validationState=pendiente -> pendiente', statusOf({ validationState: 'pendiente' }) === LVX.MATCH_STATUS.PENDING);
+    assert('LVX-ESTADO · validationState=disputado -> excluido', statusOf({ validationState: 'disputado' }) === LVX.MATCH_STATUS.EXCLUDED);
+    assert('LVX-ESTADO · validationState=anulado -> anulado', statusOf({ validationState: 'anulado' }) === LVX.MATCH_STATUS.ANNULLED);
+    assert('LVX-ESTADO · validationState=corregido -> corregido (solo modelado, sin recalcular)', statusOf({ validationState: 'corregido' }) === LVX.MATCH_STATUS.CORRECTED);
+    assert('LVX-ESTADO · observado por espectador (recordedByParticipant=false) -> excluido', statusOf({ recordedByParticipant: false }) === LVX.MATCH_STATUS.EXCLUDED);
+    assert('LVX-ESTADO · resultado incompleto (regulationCompleted=false) -> excluido (incompleto/abandono/walkover)', statusOf({ regulationCompleted: false }) === LVX.MATCH_STATUS.EXCLUDED);
+    assert('LVX-ESTADO · sin winnerTeam definido -> excluido', statusOf({ winnerTeam: undefined }) === LVX.MATCH_STATUS.EXCLUDED);
+
+    const dupMatch = mkMatchLVX({ matchId: 'lvx-dup-1', players });
+    const already = new Set(['lvx-dup-1']);
+    assert('LVX-DUPLICADO · matchId ya computado antes -> duplicado, nunca se recomputa dos veces',
+      LVX.computeMatchStatus(dupMatch, { alreadyComputedMatchIds: already }).status === LVX.MATCH_STATUS.DUPLICATE);
+    assert('LVX-DUPLICADO · el mismo matchId SIN el guard de duplicado -> computable normalmente',
+      LVX.computeMatchStatus(dupMatch, {}).status === LVX.MATCH_STATUS.COMPUTABLE);
+  })();
+
+  // ------------------------------------------------------------------
+  // 5. Repetición en 180 días (§8): exclusión de partidos más antiguos, mismo
+  //    compañero, integración directa con Level.computeRepetitionFactor/
+  //    computeCompanionFactor (sin duplicar la fórmula).
+  // ------------------------------------------------------------------
+  (function () {
+    const refA1 = { userId: 'u1', name: 'A1' }, refA2 = { userId: 'u2', name: 'A2' };
+    const refB1 = { userId: 'u3', name: 'B1' }, refB2 = { userId: 'u4', name: 'B2' };
+    const nowIso = '2026-06-01T00:00:00.000Z';
+    function daysBeforeIso(n) { return new Date(new Date(nowIso).getTime() - n * 86400000).toISOString(); }
+    const samePairPlayers = [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')];
+    function mkHist(id, daysAgo) {
+      const iso = daysBeforeIso(daysAgo);
+      return mkMatchLVX({ matchId: id, players: samePairPlayers, playedAt: iso, startedAt: iso, finishedAt: iso, createdAt: iso });
+    }
+    const history = [mkHist('lvx-rep-1', 10), mkHist('lvx-rep-2', 50), mkHist('lvx-rep-old', 200)];
+    const current = mkMatchLVX({ matchId: 'lvx-rep-current', players: samePairPlayers, playedAt: nowIso, startedAt: nowIso, finishedAt: nowIso, createdAt: nowIso });
+
+    const counts = LVX.computeIndividualRepetitionCounts(history, current, refA1, [refB1, refB2], nowIso);
+    assert('LVX-REPETICION · n_pair cuenta solo los 2 encuentros DENTRO de 180 días (no el de hace 200)', counts.nPair === 2, JSON.stringify(counts));
+    assert('LVX-REPETICION · n_r1/n_r2 reflejan igual solo los encuentros dentro de ventana', counts.nR1 === 2 && counts.nR2 === 2);
+
+    const teamFactors = LVX.computeTeamRepetitionFactors(history, current, [refA1, refA2], [refB1, refB2], nowIso);
+    assert('LVX-INTEGRACION · factor_repeticion del equipo = Level.computeRepetitionFactor(2,2,2) EXACTO (sin duplicar la fórmula)',
+      teamFactors.repetitionFactor === LV.computeRepetitionFactor(2, 2, 2));
+
+    const companion = LVX.computeCompanionCount(history, current, refA1, refA2, nowIso);
+    assert('LVX-COMPANERO · mismo compañero en los 2 partidos dentro de ventana -> n_companero=2', companion === 2);
+    assert('LVX-INTEGRACION · factor de compañero = Level.computeCompanionFactor(2) EXACTO (sin duplicar la fórmula)',
+      teamFactors.companionFactor === LV.computeCompanionFactor(2));
+  })();
+
+  // ======================================================================
+  // 6. Círculo competitivo cerrado (§8.1) — batería completa de umbrales.
+  // ======================================================================
+  (function () {
+    const self = { userId: 'sc1', name: 'Self' };
+    const h1 = { userId: 'sc2', name: 'H1' }, h2 = { userId: 'sc3', name: 'H2' }, h3 = { userId: 'sc4', name: 'H3' };
+    const habitualStates = {
+      sc1: mkStateLVX(5.0, 0.80), sc2: mkStateLVX(5.0, 0.80), sc3: mkStateLVX(5.0, 0.80), sc4: mkStateLVX(5.0, 0.80),
+    };
+    const CIRCLE_NOW = '2026-09-01T00:00:00.000Z';
+    function daysBeforeCircle(n) { return new Date(new Date(CIRCLE_NOW).getTime() - n * 86400000).toISOString(); }
+    function mkCircleMatch(id, daysAgo, partnerRef, rivalRefs) {
+      const iso = daysBeforeCircle(daysAgo);
+      return mkMatchLVX({
+        matchId: id,
+        players: [
+          mkPlayerRowLVX(self.name, 'A', self.userId), mkPlayerRowLVX(partnerRef.name, 'A', partnerRef.userId),
+          mkPlayerRowLVX(rivalRefs[0].name, 'B', rivalRefs[0].userId), mkPlayerRowLVX(rivalRefs[1].name, 'B', rivalRefs[1].userId),
+        ],
+        playedAt: iso, startedAt: iso, finishedAt: iso, createdAt: iso,
+      });
+    }
+    function mkCurrentCircleMatch(id, partnerRef, rivalRefs) {
+      return mkMatchLVX({
+        matchId: id,
+        players: [
+          mkPlayerRowLVX(self.name, 'A', self.userId), mkPlayerRowLVX(partnerRef.name, 'A', partnerRef.userId),
+          mkPlayerRowLVX(rivalRefs[0].name, 'B', rivalRefs[0].userId), mkPlayerRowLVX(rivalRefs[1].name, 'B', rivalRefs[1].userId),
+        ],
+        playedAt: CIRCLE_NOW, startedAt: CIRCLE_NOW, finishedAt: CIRCLE_NOW, createdAt: CIRCLE_NOW,
+      });
+    }
+
+    // --- F1: no alcanza 20 partidos (19) ---
+    const history19 = [];
+    for (let i = 0; i < 19; i++) history19.push(mkCircleMatch('lvx-circ-19-' + i, 5 + i, h1, [h2, h3]));
+    const current19 = mkCurrentCircleMatch('lvx-circ-19-current', h1, [h2, h3]);
+    const circle19 = LVX.computeClosedCircleContext(history19, current19, self, LV.STATES.CALIBRATED, habitualStates, CIRCLE_NOW);
+    assert('LVX-CIRCULO · 19 partidos computables (no alcanza 20) -> círculo NO aplica',
+      circle19.closedCircleApplies === false && circle19.reasonCodes.indexOf('menos_de_20_partidos_computables') !== -1, JSON.stringify(circle19));
+
+    // --- F2: alcanza exactamente 20, 100% concentrado -> círculo SÍ aplica ---
+    const history20 = [];
+    for (let i = 0; i < 20; i++) history20.push(mkCircleMatch('lvx-circ-20-' + i, 5 + i, h1, [h2, h3]));
+    const current20 = mkCurrentCircleMatch('lvx-circ-20-current', h1, [h2, h3]);
+    const circle20 = LVX.computeClosedCircleContext(history20, current20, self, LV.STATES.CALIBRATED, habitualStates, CIRCLE_NOW);
+    assert('LVX-CIRCULO · exactamente 20 partidos, 100% concentrados en 3 coparticipantes -> círculo SÍ aplica',
+      circle20.closedCircleApplies === true && circle20.groupSize === 4, JSON.stringify(circle20));
+
+    // --- Jugador todavía calibrando -> el círculo nunca aplica, sin mirar historial ---
+    const circleCalibrando = LVX.computeClosedCircleContext(history20, current20, self, LV.STATES.CALIBRATING, habitualStates, CIRCLE_NOW);
+    assert('LVX-CIRCULO · jugador CALIBRANDO (no calibrado) -> círculo nunca aplica',
+      circleCalibrando.closedCircleApplies === false && circleCalibrando.reasonCodes.indexOf('jugador_no_calibrado') !== -1);
+
+    // --- F3/F4: 79% vs 80% de concentración, usando 100 partidos ---
+    // Los partidos "externos" usan rivales SIN estado en playerStates (invitados puros para
+    // el algoritmo de círculo) -> nunca pueden entrar al ranking ni ser "cubiertos" por
+    // ningún prefijo, así el porcentaje de concentración queda exacto, sin depender del
+    // orden alfabético de desempate.
+    function buildConcentrationHistory(habitualCount, otherCount) {
+      const list = [];
+      for (let i = 0; i < habitualCount; i++) list.push(mkCircleMatch('lvx-circ-hab-' + habitualCount + '-' + i, 2 + i, h1, [h2, h3]));
+      for (let i = 0; i < otherCount; i++) {
+        list.push(mkCircleMatch('lvx-circ-out-' + habitualCount + '-' + i, 2 + habitualCount + i,
+          { userId: 'ext-p-' + habitualCount + '-' + i, name: 'ExtP' + i },
+          [{ userId: 'ext-r1-' + habitualCount + '-' + i, name: 'ExtR1' + i }, { userId: 'ext-r2-' + habitualCount + '-' + i, name: 'ExtR2' + i }]));
+      }
+      return list;
+    }
+    const history79 = buildConcentrationHistory(79, 21);
+    const circle79 = LVX.computeClosedCircleContext(history79, mkCurrentCircleMatch('lvx-circ-79-current', h1, [h2, h3]), self, LV.STATES.CALIBRATED, habitualStates, CIRCLE_NOW);
+    assert('LVX-CIRCULO · concentración 79% (79/100) -> NO alcanza el 80% -> círculo no aplica',
+      circle79.closedCircleApplies === false && circle79.reasonCodes.indexOf('no_alcanza_concentracion_80_por_ciento') !== -1, JSON.stringify(circle79));
+
+    const history80 = buildConcentrationHistory(80, 20);
+    const circle80 = LVX.computeClosedCircleContext(history80, mkCurrentCircleMatch('lvx-circ-80-current', h1, [h2, h3]), self, LV.STATES.CALIBRATED, habitualStates, CIRCLE_NOW);
+    assert('LVX-CIRCULO · concentración exacta 80% (80/100) -> SÍ alcanza -> círculo aplica',
+      circle80.closedCircleApplies === true, JSON.stringify(circle80));
+
+    // --- F5: sin ningún grupo de hasta 12 (11 coparticipantes) que concentre el 80% ---
+    const historyDispersa = [];
+    for (let i = 0; i < 20; i++) {
+      historyDispersa.push(mkCircleMatch('lvx-circ-disp-' + i, 2 + i,
+        { userId: 'disp-p-' + i, name: 'DispP' + i },
+        [{ userId: 'disp-r1-' + i, name: 'DispR1' + i }, { userId: 'disp-r2-' + i, name: 'DispR2' + i }]));
+    }
+    const circleDispersa = LVX.computeClosedCircleContext(historyDispersa, mkCurrentCircleMatch('lvx-circ-disp-current', h1, [h2, h3]), self, LV.STATES.CALIBRATED,
+      Object.assign({}, habitualStates), CIRCLE_NOW);
+    assert('LVX-CIRCULO · 20 coparticipantes todos distintos (ningún grupo de ≤11 concentra 80%) -> círculo no aplica',
+      circleDispersa.closedCircleApplies === false && circleDispersa.reasonCodes.indexOf('no_alcanza_concentracion_80_por_ciento') !== -1);
+
+    // --- F6: amplitud de grupo > 1.5 ---
+    const statesAmplitudAlta = Object.assign({}, habitualStates, { sc3: mkStateLVX(7.0, 0.80) }); // h2 sube a 7.0 -> amplitud 2.0
+    const circleAmplitud = LVX.computeClosedCircleContext(history20, current20, self, LV.STATES.CALIBRATED, statesAmplitudAlta, CIRCLE_NOW);
+    assert('LVX-CIRCULO · amplitud de grupo > 1.5 (2.0) -> círculo no aplica',
+      circleAmplitud.closedCircleApplies === false && circleAmplitud.reasonCodes.indexOf('amplitud_de_grupo_mayor_a_1_5') !== -1, JSON.stringify(circleAmplitud));
+
+    // --- F7: pareja rival claramente superior (>= 0.75) dentro del propio círculo ---
+    const statesRivalSuperior = {
+      sc1: mkStateLVX(5.0, 0.80), sc2: mkStateLVX(5.0, 0.80), // self + h1 (propia pareja) = 5.0
+      sc3: mkStateLVX(6.5, 0.80), sc4: mkStateLVX(6.5, 0.80), // h2 + h3 (pareja rival ACTUAL) = 6.2 efectivo
+    };
+    // Historial previo con la MISMA agrupación (self+h1 vs h2+h3) repetida, para que el
+    // círculo ya exista antes de este partido puntual.
+    const historyRivalSuperior = [];
+    for (let i = 0; i < 20; i++) historyRivalSuperior.push(mkCircleMatch('lvx-circ-rs-' + i, 2 + i, h1, [h2, h3]));
+    const currentRivalSuperior = mkCurrentCircleMatch('lvx-circ-rs-current', h1, [h2, h3]);
+    const circleRivalSuperior = LVX.computeClosedCircleContext(historyRivalSuperior, currentRivalSuperior, self, LV.STATES.CALIBRATED, statesRivalSuperior, CIRCLE_NOW);
+    assert('LVX-CIRCULO · amplitud de grupo dentro de rango (1.5 exacto) para aislar solo la condición de rival superior',
+      circleRivalSuperior.amplitude === 1.5, JSON.stringify(circleRivalSuperior));
+    assert('LVX-CIRCULO · pareja rival ACTUAL claramente superior (diff efectiva 1.2 ≥ 0.75) -> círculo NO aplica a este partido',
+      circleRivalSuperior.closedCircleApplies === false && circleRivalSuperior.reasonCodes.indexOf('rival_claramente_superior') !== -1);
+    // Verificación de integración: la comparación de fuerza usa LITERALMENTE Level.computeEffectiveLevel/
+    // computePairStrength (sin reimplementar la fórmula acá).
+    const ownStrengthCheck = LV.computePairStrength(LV.computeEffectiveLevel(5.0, 0.80), LV.computeEffectiveLevel(5.0, 0.80));
+    const rivalStrengthCheck = LV.computePairStrength(LV.computeEffectiveLevel(6.5, 0.80), LV.computeEffectiveLevel(6.5, 0.80));
+    assert('LVX-INTEGRACION · diferencia de fuerza de pareja (círculo) coincide con Level.computePairStrength/computeEffectiveLevel',
+      closeEnough(rivalStrengthCheck - ownStrengthCheck, 1.2, 0.0001));
+
+    // --- Partido actual con un rival FUERA del círculo habitual -> nunca "íntegramente dentro" ---
+    const externalRival = { userId: 'ext-out', name: 'Externo' };
+    const currentWithOutsider = mkCurrentCircleMatch('lvx-circ-outsider-current', h1, [h2, externalRival]);
+    const statesWithOutsider = Object.assign({}, habitualStates, { 'ext-out': mkStateLVX(5.0, 0.80) });
+    const circleOutsider = LVX.computeClosedCircleContext(history20, currentWithOutsider, self, LV.STATES.CALIBRATED, statesWithOutsider, CIRCLE_NOW);
+    assert('LVX-CIRCULO · partido actual con un rival externo al círculo -> nunca "íntegramente dentro", círculo no aplica',
+      circleOutsider.closedCircleApplies === false && circleOutsider.reasonCodes.indexOf('partido_actual_fuera_del_circulo') !== -1);
+
+    // --- F8: salida del círculo por paso del tiempo (ventana de 180 días se desliza) ---
+    const muchoDespues = new Date(new Date(CIRCLE_NOW).getTime() + 200 * 86400000).toISOString();
+    const currentMuchoDespues = Object.assign({}, mkCurrentCircleMatch('lvx-circ-salida-current', h1, [h2, h3]), { playedAt: muchoDespues, startedAt: muchoDespues, finishedAt: muchoDespues, createdAt: muchoDespues });
+    const circleSalida = LVX.computeClosedCircleContext(history20, currentMuchoDespues, self, LV.STATES.CALIBRATED, habitualStates, muchoDespues);
+    assert('LVX-CIRCULO · 200 días después, los mismos 20 partidos ya quedaron fuera de la ventana -> círculo deja de aplicar ("salida del círculo")',
+      circleSalida.closedCircleApplies === false && circleSalida.reasonCodes.indexOf('menos_de_20_partidos_computables') !== -1);
+  })();
+
+  // ------------------------------------------------------------------
+  // 7. Determinismo del contexto compuesto (Implementacion.md §4).
+  // ------------------------------------------------------------------
+  (function () {
+    const match = mkMatchLVX({
+      matchId: 'lvx-det-1',
+      players: [mkPlayerRowLVX('A1', 'A', 'u1'), mkPlayerRowLVX('A2', 'A', 'u2'), mkPlayerRowLVX('B1', 'B', 'u3'), mkPlayerRowLVX('B2', 'B', 'u4')],
+    });
+    const states = { u1: mkStateLVX(5.5, 0.7), u2: mkStateLVX(4.8, 0.6), u3: mkStateLVX(5.2, 0.75), u4: mkStateLVX(4.9, 0.65) };
+    const r1 = LVX.computeMatchLevelUpdate(match, [], states, {});
+    const r2 = LVX.computeMatchLevelUpdate(match, [], states, {});
+    assert('LVX-DETERMINISMO · misma entrada = misma salida, byte a byte', JSON.stringify(r1) === JSON.stringify(r2));
   })();
 
   // ------------------------------------------------------------------

@@ -1,8 +1,8 @@
 # BRAMUlab_V04
-## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A implementada)
+## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B)
 
-**Estado:** V04.0 cerrada (diagnóstico). V04.1 (Etapa A) implementada — motor puro sin conectar a la app productiva. V04.0 documentada primero acá abajo tal cual quedó cerrada; V04.1 se agrega como sección nueva al final, sin reabrir nada de V04.0.
-**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 (mismo día, ronda separada autorizada explícitamente por Sebastián).
+**Estado:** V04.0 cerrada (diagnóstico). V04.1 (Etapa A, motor puro) y V04.2 (Etapa B, elegibilidad/invitados/repetición/círculo) implementadas — ninguna conectada todavía a la app productiva. Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores.
+**Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
 **Base:** `BRAMUlab_V03.10` (sin regresiones detectadas ni reabiertas).
 **Objetivo de V04.0:** el definido en `BRAMUlab_V04_Consolidado.md` §8 — auditoría técnica real, dos normalizaciones documentales, plan exacto para Etapa A. Nada más.
 
@@ -302,3 +302,66 @@ Ningún parámetro de `PARAMS` tuvo que ajustarse para lograr este encaje — la
 ## V04.1.5 No se avanzó a Etapa B
 
 Confirmado — ningún archivo de integración histórica, persistencia ni UI fue tocado. El gate de §9 de `BRAMUlab_V04_Consolidado.md` sigue vigente sin cambios para autorizar la próxima etapa.
+
+---
+
+# V04.2 — Etapa B (implementada)
+
+**Autorización:** Sebastián autorizó Etapa B sobre V04.1 ya cerrada y commiteada, con el objetivo textual de "construir la capa pura que, a partir de un partido + historial + estados de jugadores, determine si ese partido puede aportar evidencia al Nivel BRAMU y arme correctamente el contexto que necesita `level.js`" — sin conectar a UI, sin tocar `store.js` salvo bloqueo técnico real (no hubo ninguno), y modelando corrección/anulación solo como estado/decisión, sin persistencia ni reversión real.
+
+## V04.2.1 Qué se implementó
+
+**`bramulab/level-context.js` (nuevo, 626 líneas).** Módulo puro, separado de `level.js` como recomendaba el Consolidado: interpreta partido/historial/estados de jugadores y arma el CONTEXTO — nunca reimplementa una fórmula matemática de `level.js`, siempre delega (`Level.computeEffectiveLevel`, `Level.computePairStrength`, `Level.computeRepetitionFactor`, `Level.computeCompanionFactor`, `Level.computeAvailabilityFactor`, `Level.computeMatchUpdate`).
+
+Modelo de datos: el archivo documenta en su propia cabecera, con precisión, qué campos son REALES en `match`/`sets`/`players` hoy (verificados contra `store.js`/`engine.js`/`player-home.js`, sin inventar nada) y cuáles son 2 campos FORWARD-COMPATIBLE que todavía no existen en ningún partido real (`validationState`, `recordedByParticipant`) — con default exacto al comportamiento real de hoy cuando faltan (todo partido local se trata como `validado`, y siempre `recordedByParticipant:true`, porque hoy es estructuralmente imposible cargar un partido como espectador — `app.js` ya lo dice: "en la carga manual, el jugador actual siempre es Equipo A").
+
+**Funciones expuestas (`window.PLLevelContext`):**
+
+- **Elegibilidad:** `computeMatchStatus(match, options)` → uno de `MATCH_STATUS` (`computable`/`pendiente`/`excluido`/`corregido`/`anulado`/`duplicado`) + `reasonCodes`. `options.alreadyComputedMatchIds` (un `Set`) es el único mecanismo de "duplicado" posible sin backend — idempotencia local por `matchId`.
+- **Formato/margen:** `detectFormatKey(match)`, `computeMarginScoreInputs(match, winnerTeam)` — traducen el partido real al contrato exacto de `level.js`.
+- **Invitados:** `resolvePlayerRating`, `computeAvailabilityContext`, `buildGuestEngineInput`.
+- **Repetición:** `computeIndividualRepetitionCounts`, `computeCompanionCount`, `computeTeamRepetitionFactors`.
+- **Círculo:** `computeClosedCircleContext`.
+- **Compuestas:** `buildLevelEngineContext` (arma el input, nunca llama al motor) y `computeMatchLevelUpdate` (arma el input, y SOLO si `eligible:true` llama a `Level.computeMatchUpdate`).
+
+**`bramulab/tests.html` (modificado).** `<script src="level-context.js">` agregado únicamente en el arnés de tests (después de `level.js`, mismo criterio de "solo ahí" que Etapa A), con 45 fixtures nuevos organizados en 7 bloques temáticos.
+
+## V04.2.2 Tests: antes/después
+
+| | Cantidad |
+|---|---:|
+| Baseline (V04.1, sin tocar) | 1220/1220 |
+| Fixtures nuevos de Etapa B | 45/45 |
+| **Total, corrido de verdad contra el arnés real** | **1265/1265** |
+
+Apareció 1 fallo real en la primera corrida (detallado en §V04.2.3, corregido antes de este informe) — la segunda corrida ya dio 1265/1265 limpio.
+
+## V04.2.3 Bug real encontrado y corregido (no un fixture mal escrito, esta vez sí el código)
+
+`computeAvailabilityContext` chequeaba PRIMERO la condición genérica "sin nivel conocido en alguna pareja" (`knownA===0 || knownB===0`) y DESPUÉS la condición específica "2 conocidos en la misma pareja" (`knownLevelsCount===2 && (knownA===2||knownB===2)`). Matemáticamente, cualquier entrada que cumple la segunda condición (2 conocidos concentrados en un equipo) SIEMPRE cumple también la primera (el otro equipo tiene 0) — así que, en ese orden, la condición específica quedaba inalcanzable (código muerto): el motivo reportado siempre era el genérico, nunca el específico. Corregido invirtiendo el orden (la condición específica se evalúa primero) — el comportamiento de elegibilidad (excluir el partido) era correcto desde el principio; lo que estaba mal era CUÁL de los dos `reasonCodes` se reportaba, dato que sí importa para la auditoría/explicación (§18 de la fórmula).
+
+## V04.2.4 Decisiones técnicas reales (zona gris de la fórmula, no bugs)
+
+**1. Formato real hoy vs. taxonomía de la fórmula (§7).** `engine.js` solo define 2 formatos: `classic` (bestOfSets 3) y `americano` (bestOfSets 1) — no existe "mini sets a cuatro games" ni un `formatId` propio de "match tie-break" en todo el código real (ni en `engine.js` ni en `match-load.js`, que reutiliza los mismos `Engine.FORMATS`). Mapeo implementado, explícito y documentado en la cabecera del archivo:
+- `classic` → `'bestOf3'` (1.00), SALVO que el último de 3 sets tenga `extraordinary:true` (el único rastro real hoy de un match tie-break, generado por `applyExtraordinaryGameTiebreak` en `engine.js`) → `'twoSetsPlusMatchTiebreak'` (0.90).
+- `americano` → `'shortSingleSet'` (0.65) — el formato corto más cercano de la fórmula a un partido de 1 solo set; no hay ninguna mención textual de "Americano" en `Nivel_BRAMU_Formula_V1.4.md`, así que esta equivalencia es una interpretación de esta ronda, no un dato normativo.
+- `'miniSets'` (0.80) de la fórmula **no tiene hoy ningún camino real que lo produzca** — brecha real entre producto y fórmula, documentada, no resuelta (no hay ningún formato de 4 games en la app).
+
+**2. `n_pair`/`n_r1`/`n_r2` cuando los 2 compañeros tienen historiales distintos entre sí (§8).** La fórmula describe estos 3 contadores "de la pareja" sin fijar qué hacer si, contra los mismos 2 rivales de HOY, cada compañero tiene un conteo distinto en los últimos 180 días (por ejemplo, si no siempre jugaron juntos). Se resolvió calculando los 3 contadores para cada compañero por separado y tomando el MÁXIMO de cada uno entre ambos — el criterio más conservador (nunca subestima cuánta repetición hay realmente), consistente con el resto de la fórmula, que en todos sus mecanismos ya penaliza el farming y nunca lo premia. `n_companero` no tuvo esta ambigüedad: es simétrico por construcción (cuántas veces A y B jugaron juntos es el mismo número visto desde cualquiera de los dos).
+
+**3. Invitado: cómo alimentar su fuerza de pareja a `level.js` sin tocarlo.** `level.js` (Etapa A, cerrado) siempre calcula `computeEffectiveLevel(mu, confidence)` internamente para los 4 jugadores — no hay forma de "inyectarle" directamente un nivel efectivo ya imputado. Se resolvió con un truco algebraico EXACTO (no una aproximación): dado el nivel efectivo imputado `E` (§13: promedio de los niveles efectivos conocidos) y la confianza `c` del compañero real conocido (mismo valor que además deja exactamente correcta `confianza_pareja_rival` para el equipo rival, §9), se despeja `mu_sintético = 5 + (E − 5) / c`. Al pasar `(mu_sintético, c)` por `computeEffectiveLevel`, el resultado es matemáticamente idéntico a `E`. Este `mu` sintético es una construcción puramente interna para alimentar el motor — nunca se expone como "nivel del invitado" (la salida real y correcta para mostrar/auditar es `imputedEffectiveLevel`, verificado en los fixtures `LVX-INVITADO`).
+
+**4. Grupo del círculo: cuál de varios prefijos válidos usar (§8.1).** Cuando más de un tamaño de grupo (de 1 a 11 coparticipantes) alcanza el 80% de concentración, se usa el MÁS CHICO que ya lo alcanza — el grupo mínimo necesario, nunca inflado con gente que no hace falta para la concentración (más defendible para el chequeo de amplitud, que se vuelve más estricto cuantas más personas se sumen sin necesidad).
+
+**5. Ventana del círculo: partidos previos, no el partido actual.** El "círculo preexistente" (20+ partidos, concentración, amplitud) se calcula SOLO con partidos ANTERIORES al que se está evaluando — nunca el propio partido influye en su propia clasificación (evita un razonamiento circular). El partido actual se chequea DESPUÉS, por separado, contra ese círculo ya establecido.
+
+## V04.2.5 Riesgos / pendientes para Etapa C+
+
+- La brecha real de formato (`miniSets` sin camino de producción) queda documentada — si en el futuro se agrega un formato corto real a `engine.js`, `detectFormatKey` va a necesitar una regla nueva.
+- El criterio de MÁXIMO para `n_pair`/`n_r1`/`n_r2` entre compañeros es una decisión técnica razonable pero no normativa — si producto quiere fijar un criterio distinto (por ejemplo, promedio), es un cambio acotado a `computeTeamRepetitionFactors`.
+- `store.js` sigue sin ningún modelo de persistencia — `playerStates`/`history`/`options.alreadyComputedMatchIds` siguen siendo inputs explícitos que un futuro integrador (Etapa C o backend) deberá poblar desde datos reales.
+- `corregido`/`anulado` quedan modelados como estado — la reversión/recálculo real de §12.3 (revertir el delta anterior, recalcular con los mismos snapshots, aplicar solo la diferencia neta) sigue sin construirse, tal como pidió esta ronda.
+
+## V04.2.6 No se avanzó a Etapa C
+
+Confirmado — cuestionario, calibración/recalibración inicial, UI, y cualquier conexión a `app.js`/`player-home.js`/`ranking.js` quedan fuera de esta ronda.
