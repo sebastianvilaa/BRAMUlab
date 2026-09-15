@@ -6475,7 +6475,10 @@
 
   // BRAMUlab_V03.2.1 (§5) — "CREAR ACCESO" → "CREAR CUENTA" en todo el flujo (nombre real de
   // la acción que el usuario reconoce, ver botón CREAR CUENTA en Bienvenida).
-  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU IDENTIDAD', 3: 'TU PERFIL' };
+  // BRAMUlab_V04.8 (§4) — TU IDENTIDAD + TU PERFIL se fusionan en un solo paso "TU PERFIL"
+  // (antes 2 y 3): el usuario completa un solo perfil, no una secuencia artificial de 3
+  // pantallas. CREAR CUENTA sigue aparte (acceso: email/contraseña, no datos de perfil).
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU PERFIL' };
 
   function resetSignupWizard() {
     signupStep = 1;
@@ -6507,13 +6510,8 @@
 
   function renderSignupStep() {
     $all('#signup-form .signup-step').forEach((el) => { el.hidden = Number(el.dataset.step) !== signupStep; });
-    $all('.signup-progress__dot').forEach((dot) => {
-      const n = Number(dot.dataset.stepDot);
-      dot.classList.toggle('is-active', n === signupStep);
-      dot.classList.toggle('is-done', n < signupStep);
-    });
     $('#signup-step-title').textContent = SIGNUP_STEP_TITLES[signupStep];
-    $('#signup-continue-btn').textContent = signupStep === 3 ? 'CREAR MI PERFIL' : 'CONTINUAR';
+    $('#signup-continue-btn').textContent = signupStep === 2 ? 'CREAR MI PERFIL' : 'CONTINUAR';
     recomputeSignupStepValidity();
   }
 
@@ -6534,15 +6532,15 @@
       const strength = updatePasswordRulesUI(password, 'signup-password-rules');
       ok = PLI.isValidEmail(email) && !PLI.isEmailTaken(email, Store.loadUsers()) && strength.ok && PLI.passwordsMatch(password, repeat);
     } else if (signupStep === 2) {
+      // BRAMUlab_V04.8 (§4) — validación fusionada de TU IDENTIDAD + TU PERFIL (antes 2 pasos).
+      // BRAMUlab_V04.6 — Categoría no forma parte de esta validación: ya no se pregunta en el
+      // alta (ver Handoff V04.6 §4), se pregunta una sola vez al final de Nivel BRAMU. Ubicación
+      // es obligatoria (antes era la única opcional del paso 3).
       const username = $('#signup-username').value;
       const displayName = $('#signup-display-name').value.trim();
       ok = !!$('#signup-first-name').value.trim() && !!displayName
-        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameTaken(username, Store.loadUsers());
-    } else if (signupStep === 3) {
-      // BRAMUlab_V04.6 — Categoría sale de esta validación: ya no se pregunta en el alta (ver
-      // Handoff V04.6 §4), se pregunta una sola vez al final de Nivel BRAMU. Ubicación pasa a
-      // ser obligatoria acá (antes era la única opcional del paso 3).
-      ok = !!$('#signup-birthdate').value && !!$('#signup-gender').value
+        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameTaken(username, Store.loadUsers())
+        && !!$('#signup-birthdate').value && !!$('#signup-gender').value
         && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!signupDraft.location;
     }
     $('#signup-continue-btn').disabled = !ok;
@@ -6654,15 +6652,14 @@
         signupDraft.password = $('#signup-password').value;
         signupStep = 2;
         renderSignupStep();
-      } else if (signupStep === 2) {
+      } else {
+        // BRAMUlab_V04.8 (§4) — paso único "TU PERFIL" (antes TU IDENTIDAD + TU PERFIL por
+        // separado): junta los mismos campos de siempre en un solo guardado.
         signupDraft.firstName = $('#signup-first-name').value.trim();
         signupDraft.lastName = $('#signup-last-name').value.trim();
         signupDraft.username = $('#signup-username').value.trim();
         signupDraft.displayName = normalizePlayerName($('#signup-display-name').value);
         signupDraft.profilePhoto = signupPhotoDataUrl;
-        signupStep = 3;
-        renderSignupStep();
-      } else {
         signupDraft.birthDate = $('#signup-birthdate').value;
         signupDraft.gender = $('#signup-gender').value;
         // BRAMUlab_V04.6 — Categoría YA NO se declara acá (sale del alta, ver Handoff V04.6
@@ -6718,18 +6715,35 @@
    *  que ya hay un Nivel confirmado calibrando con partidos reales, algo falso en ese momento.
    *  Con `nivelOnboardingPending` en true se muestra un estado neutral ("PENDIENTE", sin
    *  progreso ni número inventado); una vez confirmado el Nivel (o con el preview apagado, donde
-   *  no existe este onboarding y sigue vigente el Nivel simulado de siempre) se ve CALIBRANDO. */
+   *  no existe este onboarding y sigue vigente el Nivel simulado de siempre) se ve CALIBRANDO.
+   *  BRAMUlab_V04.8 (§2) — la ficha pasa a reusar el mismo DOM/clases que la Tarjeta de jugador
+   *  de Home/MI PERFIL (`.player-card__avatar`/`__info`/`__level*`, ver index.html): mismo
+   *  criterio de foto (`data-has-photo`, igual que renderPlayerCard) — nunca un layout propio
+   *  para esta pantalla. Edad/Mano/Lado se retiran de esta tarjeta (ya se ven/editan en Mis
+   *  Datos): "esto es tu perfil en BRAMU", no una ficha de datos aparte.
+   *  Esta pantalla nunca vuelve a mostrarse DESPUÉS de confirmar el Nivel BRAMU V1
+   *  (confirmNivelOnboarding entra directo a BRAMU vía completeIdentifyAction, sin pasar por
+   *  acá): el caso "no pendiente" solo ocurre con el preview apagado (producción sin Nivel V1
+   *  todavía), siempre con la cuenta recién creada — mismo criterio legacy que Home usa para
+   *  cuentas nuevas (PH.buildCalibrationStatus), nunca el badge de calibración real de Home. */
   function openPlayerCardScreen(user) {
-    setAvatarPreview('player-card-avatar-img', 'player-card-avatar-initials', user.profilePhoto, user.displayName);
+    const hasPhoto = !!user.profilePhoto;
+    $('#player-card-avatar').dataset.hasPhoto = String(hasPhoto);
+    const avatarImg = $('#player-card-avatar-img');
+    if (hasPhoto) avatarImg.src = user.profilePhoto; else avatarImg.removeAttribute('src');
     $('#player-card-name').textContent = user.displayName || '—';
     $('#player-card-handle').textContent = user.username ? `@${user.username}` : '—';
-    const age = PLI.calculateAge(user.birthDate);
-    $('#player-card-age').textContent = age === null ? '—' : String(age);
-    $('#player-card-hand').textContent = HAND_LABELS[user.dominantHand] || '—';
-    $('#player-card-side').textContent = SIDE_LABELS[user.preferredSide] || '—';
     const pending = nivelOnboardingPending(user);
-    $('#player-card-level-state').textContent = pending ? 'PENDIENTE' : 'CALIBRANDO';
-    $('#player-card-level-progress').hidden = pending;
+    const levelSubEl = $('#player-card-level-sub');
+    if (pending) {
+      setLevelValueText('player-card-level-value', 'PENDIENTE', true);
+      levelSubEl.hidden = true;
+      levelSubEl.innerHTML = '';
+    } else {
+      setLevelValueText('player-card-level-value', 'CALIBRANDO', true);
+      levelSubEl.hidden = false;
+      levelSubEl.textContent = PH.buildCalibrationStatus(0).progressText;
+    }
     $('#player-card-subtitle').textContent = pending
       ? 'Para poder jugar, primero creá tu Nivel BRAMU.'
       : 'Completá 5 partidos para conocer tu Nivel BRAMU.';

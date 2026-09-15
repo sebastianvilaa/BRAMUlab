@@ -701,3 +701,67 @@ Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw
 ## V04.7.12 No se avanzó
 
 Confirmado — no se tocó la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real. V04.7 queda online para una nueva revisión visual de Sebastián.
+
+# V04.8 — corrección de regresiones visuales de V04.7 + simplificación del onboarding (implementada)
+
+**Fuentes leídas esta ronda:** `Nivel_BRAMU_Formula_V1.5.md`, `BRAMUlab_V04_Informe.md` (este archivo, §V04.7), `BRAMUlab_V04_Consolidado.md`. No se releyó V03 ni se repitió auditoría general — ronda acotada, pedido explícito de Sebastián: "recuperar una base visual coherente antes de seguir con la revisión manual", sin reabrir Nivel BRAMU V1.5.
+
+**Diagnóstico (breve, sin bloqueo real):** revisando el diff exacto de V04.7 (`git show`), la regresión de la tarjeta de jugador y el centrado vertical de "TU PERFIL ESTÁ LISTO" resultaron ser 2 reglas CSS puntuales agregadas esa ronda (`.player-card__level{flex-basis:100%;...}` y `#view-player-card .access-scroll{justify-content:center}`) — revertibles sin tocar `level.js`/`level-context.js`/`level-calibration.js`. El resto del pedido (fusión de pasos del alta, header centrado, copy del CTA) es UX/CSS/orquestación de `app.js`, mismo criterio de siempre.
+
+## V04.8.1 Regresión de la tarjeta de jugador (revertida)
+
+`.player-card__level` (compartida por Home, MI PERFIL y Perfil público — misma clase, 3 pantallas) vuelve a su composición anterior a V04.7: `flex:none; max-width:46%; text-align:right`, en la MISMA fila que avatar+nombre+@usuario (antes: `flex-basis:100%` + `border-top`, propia fila completa). Los estados PENDIENTE/CALIBRANDO/CALIBRADO se siguen resolviendo dentro de este mismo bloque angosto (`.player-card__level-sub`), sin ninguna rama nueva de layout. Verificado en vivo con 3 cuentas reales: una cuenta con Nivel `PENDIENTE` recién creada, una cuenta `CALIBRANDO · 0/5` recién confirmada, y una cuenta **`legacyMigrated` con 6 partidos reales fabricados** (recipe de [[project_bramu_lab_v03_4_6_qa_findings]] adaptada: `Store.createUserAccount({legacyMigrated:true})` + 6 `Store.upsertHistory(...)` vía consola) — la tarjeta "clásica" con barra de progreso + variación + partidos totales sigue intacta en Home y MI PERFIL.
+
+## V04.8.2 "TU PERFIL ESTÁ LISTO" comparte identidad con Home/MI PERFIL
+
+La ficha de `#view-player-card` deja de tener su propio esqueleto centrado (`.ficha-deportiva__avatar`/`__name`/`__handle`/`__stats`/`__level*`, retirados) y pasa a reusar literalmente el DOM/clases de `.player-card` (avatar+nombre+@usuario a la izquierda, NIVEL BRAMU arriba a la derecha) agregando `player-card` como segunda clase sobre `.ficha-deportiva` (que ahora solo aporta el marco distintivo: borde con glow lima, fondo propio). Edad/Mano/Lado se retiran de esta tarjeta (ya se ven y editan en Mis Datos) — la ficha ya no es una "tarjeta de datos" aparte, es la misma identidad que después aparece en BRAMU.
+
+## V04.8.3 Estado PENDIENTE — confirmado correcto, sin CALIBRANDO antes de crear Nivel
+
+Verificado en vivo: una cuenta recién creada (antes de tocar ENTRAR A BRAMU) muestra `NIVEL BRAMU` / `PENDIENTE`, nunca `CALIBRANDO · 0/5`; recién después de confirmar el Nivel en el onboarding aparece `CALIBRANDO · 0/5` en Home. Como Home/MI PERFIL nunca son alcanzables con el onboarding pendiente (choke point `openPlayerHome`, V04.7.1) y `confirmNivelOnboarding()` entra directo a Home sin volver a mostrar "TU PERFIL ESTÁ LISTO", la única pantalla que necesitaba la lógica PENDIENTE era esta — ya la tenía desde V04.7.2, ahora reescrita sobre el DOM nuevo de §V04.8.2 sin cambiar el criterio (`nivelOnboardingPending(user)`).
+
+## V04.8.4 Onboarding fusionado: TU IDENTIDAD + TU PERFIL → TU PERFIL
+
+El alta pasa de 3 pasos (`CREAR CUENTA` → `TU IDENTIDAD` → `TU PERFIL`) a 2 (`CREAR CUENTA` → `TU PERFIL`): los campos de los antiguos pasos 2 y 3 (foto, nombre, apellido, @usuario, nombre visible, fecha de nacimiento, género, mano hábil, lado habitual, ubicación — mismo orden de siempre) quedan en una sola pantalla con scroll, título `TU PERFIL`, CTA final `CREAR MI PERFIL`. Se retiran los puntitos de progreso de 3 pasos (`.signup-progress`, pedido explícito: "no usar indicadores de pasos para este bloque") — con 2 pasos reales no aportaban nada. `CREAR CUENTA` (email/contraseña) sigue siendo su propio paso: es acceso de cuenta, no dato de perfil deportivo (mismo criterio que ya separa WhatsApp/email de esta pantalla). Sin cambios de validación: los mismos campos exigidos de siempre, solo evaluados juntos.
+
+## V04.8.5 Header compartido — título centrado en la familia de acceso
+
+`.view--access .analysis-header` pasa de `flex` (título `flex:1 1 auto`, quedaba pegado a la flecha) a un grid de 3 columnas simétricas (`1fr auto 1fr`): el título queda centrado respecto del ANCHO TOTAL de la barra, no del espacio libre restante. Acotado a `.view--access` (Login, Crear cuenta/TU PERFIL, TU NIVEL BRAMU, Editar Datos, Completar Acceso, Cambiar contraseña, Configuración del grupo) — Home/Historial/Ranking/Notificaciones/Perfil (`.view--history`) quedan afuera a propósito: tienen botones propios a la derecha del título que un centrado simétrico rompería, y no estaban en el pedido. "TU PERFIL ESTÁ LISTO" gana un header nuevo (mismo patrón, sin flecha — no hay a dónde volver desde un alta recién creada).
+
+## V04.8.6 "TU PERFIL ESTÁ LISTO" — anclada arriba (revierte el centrado vertical de V04.7)
+
+Se retira `#view-player-card .access-scroll{justify-content:center}` (agregado en V04.7). La pantalla vuelve a la estructura pedida: header → logo → tarjeta → copy → CTA → acción secundaria, ancladas arriba como Login, sin todo el bloque flotando en el centro.
+
+## V04.8.7 Copy del botón secundario — "COMPLETAR PERFIL" → "IR A MIS DATOS"
+
+Con el perfil ya creado, "COMPLETAR PERFIL" debajo de "TU PERFIL ESTÁ LISTO" era contradictorio. El botón (visible solo si falta ubicación o WhatsApp, sin cambios de lógica) pasa a decir "IR A MIS DATOS" — mismo texto que ya usa esta app para el mismo destino (ver el CTA equivalente de Ranking en `app.js`, `openProfileScreen('mis-datos')`). Se descartó reusar el texto "COMPLETAR ACCESO": esa denominación ya existe en esta misma app con un significado distinto (agregar email/contraseña a una cuenta invitada, `#profile-complete-access-btn` en Mis Datos) — reusarla acá hubiera creado ambigüedad, no coherencia.
+
+## V04.8.8 Responsive
+
+Verificado en vivo con el Browser tool en 375px (mobile): formulario `TU PERFIL` fusionado (scroll completo, sin cortes ni superposición), `TU PERFIL ESTÁ LISTO` (anclada arriba, header centrado, tarjeta compacta), tarjeta de Home y de MI PERFIL (avatar+nombre+Nivel en una sola fila, barra/badge sin desalinear). Headers de `CREAR CUENTA`/`TU PERFIL`/`TU NIVEL BRAMU`/`ELEGÍ TU NIVEL` confirmados centrados tanto en mobile como en desktop angosto (~800px).
+
+## V04.8.9 Archivos tocados
+
+`bramulab/app.js`, `bramulab/index.html`, `bramulab/styles.css`, `bramulab/store.js` (`APP_VERSION`), `bramulab/sw.js` (`CACHE_NAME`), `bramulab/version.json`. `bramulab/level.js`/`level-context.js`/`level-calibration.js`/`tests.html`: **cero líneas tocadas**.
+
+## V04.8.10 Tests
+
+Sin fixtures nuevos: todas las correcciones de esta ronda son CSS/orquestación de `app.js` (mismo límite de siempre, `tests.html` no carga `app.js`). Verificado en vivo con el Browser tool (detalle por sección arriba), incluyendo una cuenta `legacyMigrated` con historial real fabricada para esta ronda (§V04.8.1) — la única forma de ver la tarjeta clásica con datos reales sin esperar 5 partidos jugados a mano.
+
+**Resultado:** **1394/1394**, sin cambios respecto al baseline de V04.7, todo verde — corrido antes y después del bump de versión.
+
+## V04.8.11 Contradicciones / decisiones de producto
+
+Ninguna bloqueante. Una simplificación de alcance respecto a la ficha original: se retiran Edad/Mano/Lado de "TU PERFIL ESTÁ LISTO" (§V04.8.2) — el pedido no los incluía entre los elementos a compartir con Home/MI PERFIL, y esos datos ya son visibles/editables en Mis Datos.
+
+## V04.8.12 Riesgos / deuda relevante
+
+- Se observó (sin corregir, fuera de alcance de esta ronda) que el Perfil público de OTRO jugador que todavía no confirmó su Nivel BRAMU muestra `CALIBRANDO · 0/5` en vez de un estado neutral — el mismo problema de fondo que V04.7.2/V04.8.3 resuelven para el propio flujo de alta, visto desde Buscar Jugadores/Perfil público. No estaba en la lista de superficies pedida ("TU PERFIL ESTÁ LISTO; Home; MI PERFIL") — queda anotado para una ronda futura, no se tocó `renderPlayerPublicProfile` en esta.
+
+## V04.8.13 Versionado y despliegue
+
+Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw.js` (`CACHE_NAME`)/`index.html` (14 `?v=`) → `BRAMUlab V04.8`. Commit y push a `origin/main` en esta misma intervención; deploy de GitHub Pages a verificar después del push.
+
+## V04.8.14 No se avanzó
+
+Confirmado — no se tocó la Fórmula V1.5, `level.js`, `level-context.js`, `level-calibration.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, cuestionario, camino rápido, mapa de categorías, medidor de Nivel, Ranking BRAMU, BRAMU Intelligence ni Backend. V04.8 queda online para revisión visual de Sebastián.

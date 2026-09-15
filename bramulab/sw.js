@@ -62,7 +62,7 @@
 // BRAMUlab_V04.6 — estimador inicial V1.1 (reemplaza a V1.4) + medidor/categoría/laboratorio;
 // bump necesario para que quien ya tenía la PWA instalada deje de ver el cuestionario/stepper
 // viejos (Handoff V04.6 §14).
-const CACHE_NAME = 'bramulab-v04-7';
+const CACHE_NAME = 'bramulab-v04-8';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si

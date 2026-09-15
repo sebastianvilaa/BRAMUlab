@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.7" />
+<link rel="stylesheet" href="styles.css?v=04.8" />
 </head>
 <body>
 
@@ -2210,11 +2210,14 @@
     </div>
   </section>
 
-  <!-- Consolidado §2 — 3 pasos en UNA sola vista (mismo patrón que #view-manual-load: estado
-       interno manejado por JS, sin pasar por showView() entre pasos). -->
+  <!-- Consolidado §2 — 2 pasos en UNA sola vista (mismo patrón que #view-manual-load: estado
+       interno manejado por JS, sin pasar por showView() entre pasos).
+       BRAMUlab_V04.8 (§4) — CREAR CUENTA (acceso: email/contraseña) sigue siendo su propio paso;
+       TU IDENTIDAD + TU PERFIL (antes 2 pasos separados) se fusionan en un solo formulario
+       "TU PERFIL" con scroll (ver data-step="2" más abajo) — el usuario completa UN perfil, no
+       una secuencia artificial de 3 pantallas. Sin puntitos de progreso para este bloque (§4,
+       explícito): con solo 2 pasos reales, un indicador de progreso no aporta nada. -->
   <section id="view-signup" class="view view--access" hidden>
-    <!-- V03.0.2 (§1/§11) — header unificado, igual que Login (consolidado: "no rediseñar el
-         flujo de 3 pasos", solo aplicar la constante de header). -->
     <div class="analysis-header">
       <button type="button" id="signup-back-btn" class="icon-btn" aria-label="Volver">←</button>
       <span class="analysis-header__title" id="signup-step-title">CREAR CUENTA</span>
@@ -2222,11 +2225,6 @@
     <div class="access-scroll access-scroll--under-header">
       <!-- BRAMUlab_V03.2.1 (§5) — mismo logo de marca que Login, mismo patrón. -->
       <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
-      <div class="signup-progress" aria-hidden="true">
-        <span class="signup-progress__dot" data-step-dot="1"></span>
-        <span class="signup-progress__dot" data-step-dot="2"></span>
-        <span class="signup-progress__dot" data-step-dot="3"></span>
-      </div>
 
       <form id="signup-form" class="access-form">
         <!-- BRAMUlab_V03.2 (§4/§13) — labels persistentes (antes placeholder-only, único paso
@@ -2252,6 +2250,10 @@
           <p class="edit-error" id="signup-step1-error" hidden></p>
         </div>
 
+        <!-- BRAMUlab_V04.8 (§4) — fusión de TU IDENTIDAD + TU PERFIL: mismos campos de siempre,
+             mismo orden recomendado (foto → nombre → apellido → @usuario → nombre visible →
+             fecha de nacimiento → género → mano hábil → lado habitual → ubicación), ahora en
+             UNA sola pantalla con scroll en vez de 2 pasos separados. -->
         <div class="signup-step" data-step="2" hidden>
           <div class="signup-avatar-upload">
             <div class="signup-avatar" id="signup-avatar">
@@ -2273,10 +2275,6 @@
             <input id="signup-display-name" class="field__input" type="text" maxlength="18" />
             <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
           </div>
-          <p class="edit-error" id="signup-step2-error" hidden></p>
-        </div>
-
-        <div class="signup-step" data-step="3" hidden>
           <div class="field"><input id="signup-birthdate" class="field__input" type="date" /></div>
           <select id="signup-gender" class="field__input">
             <option value="">Género</option>
@@ -2318,7 +2316,7 @@
               <span class="profile-select-row__chevron" aria-hidden="true">›</span>
             </button>
           </div>
-          <p class="edit-error" id="signup-step3-error" hidden></p>
+          <p class="edit-error" id="signup-step2-error" hidden></p>
         </div>
 
         <button type="button" id="signup-continue-btn" class="btn-start btn-start--overlay" disabled>CONTINUAR</button>
@@ -2326,29 +2324,34 @@
     </div>
   </section>
 
+  <!-- BRAMUlab_V04.8 (§2/§6/§7) — mismo header compartido que el resto de la familia de acceso
+       (sin flecha: no hay a dónde "volver" desde un alta recién creada), pantalla anclada
+       arriba como Login (REVIERTE el centrado vertical de V04.7, ver
+       #view-player-card .access-scroll en styles.css: ya no existe). La ficha reusa
+       `.player-card` (avatar+nombre+@usuario a la izquierda, NIVEL BRAMU arriba a la derecha):
+       misma identidad que después se ve en Home/MI PERFIL, no una tarjeta propia de onboarding
+       (ver openPlayerCardScreen en app.js). -->
   <section id="view-player-card" class="view view--access" hidden>
-    <div class="access-scroll">
-      <!-- BRAMUlab_V04.7 — única pantalla de la familia de acceso sin brand-logo (revisión
-           visual: "la marca desaparece"); mismo `.brand-logo--access` que Login/Crear cuenta/
-           TU NIVEL BRAMU, nunca un tratamiento propio. -->
+    <div class="analysis-header">
+      <span class="analysis-header__title">TU PERFIL ESTÁ LISTO</span>
+    </div>
+    <div class="access-scroll access-scroll--under-header">
       <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
-      <div class="access-title">TU PERFIL ESTÁ LISTO</div>
-      <div class="ficha-deportiva">
-        <div class="ficha-deportiva__avatar" id="player-card-avatar">
-          <span id="player-card-avatar-initials">—</span>
-          <img id="player-card-avatar-img" alt="" hidden />
+      <div class="ficha-deportiva player-card">
+        <div class="player-card__avatar" id="player-card-avatar" data-has-photo="false" aria-hidden="true">
+          <svg viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
+          <img id="player-card-avatar-img" class="player-card__avatar-img" alt="" />
         </div>
-        <div class="ficha-deportiva__name" id="player-card-name">—</div>
-        <div class="ficha-deportiva__handle" id="player-card-handle">—</div>
-        <div class="ficha-deportiva__stats">
-          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Edad</span><span class="ficha-deportiva__stat-value" id="player-card-age">—</span></div>
-          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Mano</span><span class="ficha-deportiva__stat-value" id="player-card-hand">—</span></div>
-          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Lado</span><span class="ficha-deportiva__stat-value" id="player-card-side">—</span></div>
+        <div class="player-card__info">
+          <div class="player-card__name" id="player-card-name">—</div>
+          <div class="player-card__handle" id="player-card-handle">—</div>
         </div>
-        <div class="ficha-deportiva__level">
-          <div class="ficha-deportiva__level-label">NIVEL BRAMU</div>
-          <div class="ficha-deportiva__level-state" id="player-card-level-state">CALIBRANDO</div>
-          <div class="ficha-deportiva__level-progress" id="player-card-level-progress">0 / 5 PARTIDOS</div>
+        <div class="player-card__level">
+          <div class="player-card__level-label">NIVEL BRAMU</div>
+          <div class="player-card__level-row">
+            <span class="player-card__level-value" id="player-card-level-value">—</span>
+          </div>
+          <span class="player-card__level-sub" id="player-card-level-sub" hidden></span>
         </div>
       </div>
       <p class="coverage-note access-subtitle" id="player-card-subtitle">Completá 5 partidos para conocer tu Nivel BRAMU.</p>
@@ -2357,9 +2360,13 @@
            bloquea ni reemplaza ENTRAR A BRAMU (acción principal, sin cambios), solo ofrece un
            camino directo a Mis Datos si todavía falta ubicación o WhatsApp (ambos opcionales
            en el alta) — ver openPlayerCardScreen en app.js, que oculta este bloque entero si no
-           falta ninguno de los dos. -->
+           falta ninguno de los dos.
+           BRAMUlab_V04.8 (§8) — copy del botón secundario: "COMPLETAR PERFIL" contradecía el
+           título de arriba (el perfil ya está creado). Pasa a "IR A MIS DATOS", mismo texto que
+           ya usa esta app para el mismo destino (ver openProfileScreen('mis-datos') más abajo y
+           el CTA equivalente de Ranking en app.js). -->
       <p class="coverage-note player-card-complete-hint" id="player-card-complete-hint" hidden></p>
-      <button type="button" id="player-card-complete-profile-btn" class="btn-secondary" hidden>COMPLETAR PERFIL</button>
+      <button type="button" id="player-card-complete-profile-btn" class="btn-secondary" hidden>IR A MIS DATOS</button>
     </div>
   </section>
 
@@ -3001,24 +3008,24 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=04.7"></script>
-  <script src="stats.js?v=04.7"></script>
-  <script src="store.js?v=04.7"></script>
+  <script src="engine.js?v=04.8"></script>
+  <script src="stats.js?v=04.8"></script>
+  <script src="store.js?v=04.8"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.7"></script>
-  <script src="level-context.js?v=04.7"></script>
-  <script src="level-calibration.js?v=04.7"></script>
-  <script src="player-home.js?v=04.7"></script>
-  <script src="match-load.js?v=04.7"></script>
-  <script src="player-identity.js?v=04.7"></script>
-  <script src="groups.js?v=04.7"></script>
-  <script src="locations.js?v=04.7"></script>
-  <script src="ranking.js?v=04.7"></script>
-  <script src="app.js?v=04.7"></script>
+  <script src="level.js?v=04.8"></script>
+  <script src="level-context.js?v=04.8"></script>
+  <script src="level-calibration.js?v=04.8"></script>
+  <script src="player-home.js?v=04.8"></script>
+  <script src="match-load.js?v=04.8"></script>
+  <script src="player-identity.js?v=04.8"></script>
+  <script src="groups.js?v=04.8"></script>
+  <script src="locations.js?v=04.8"></script>
+  <script src="ranking.js?v=04.8"></script>
+  <script src="app.js?v=04.8"></script>
 </body>
 </html>

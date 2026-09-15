@@ -527,3 +527,23 @@ Implementado, siguiendo los 7 puntos de la autorización:
 **Resultado de tests:** 1394/1394 sin cambios — ninguna corrección de esta ronda toca lógica pura (`level.js`/`level-context.js`/`level-calibration.js` sin una línea modificada); verificado en vivo con el Browser tool (navegación, medidor, Home/MI PERFIL, modo laboratorio, responsive 375px y desktop).
 
 **No se tocó** Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real. V04.7 queda online para una nueva revisión visual de Sebastián.
+
+---
+
+## 17. V04.8 — corrección de regresiones visuales de V04.7 + simplificación del onboarding (implementada)
+
+**Autorizado por Sebastián** sobre V04.7 online, ronda correctiva "amplia pero acotada" para recuperar una base visual coherente antes de seguir con la revisión manual — sin nueva auditoría general, sin reabrir Nivel BRAMU V1.5, sin tocar fórmula/pesos/anclas/motor.
+
+**Regresión revertida — tarjeta de Nivel de Home/MI PERFIL/Perfil público:** el §16 de arriba ("Jerarquía/espaciado") describe cómo V04.7 pasó `.player-card__level` a su propia fila completa con separador — esa composición resultó ser la regresión, no una mejora: "una línea divisoria separa nombre y Nivel, la tarjeta gana altura innecesaria, la jerarquía se rompe". V04.8 la revierte a la composición de referencia (avatar+nombre+@usuario a la izquierda, NIVEL BRAMU arriba a la derecha, en la MISMA fila) — los estados PENDIENTE/CALIBRANDO/CALIBRADO se resuelven dentro de ese mismo bloque angosto, nunca obligan a una fila propia. Verificado con una cuenta `legacyMigrated` con historial real fabricada para la ocasión: la tarjeta clásica con barra de progreso no se rompió.
+
+**"TU PERFIL ESTÁ LISTO" pasa a compartir la identidad de Home/MI PERFIL:** la ficha deja de tener su propio esqueleto centrado (avatar/nombre/@usuario/Edad-Mano-Lado en columna) y reusa el DOM/clases de `.player-card` — misma identidad que después se ve en BRAMU, no una tarjeta inventada para el alta. Edad/Mano/Lado se retiran (ya están en Mis Datos). También se revierte el centrado vertical que V04.7 le había dado (§16, "más aire… centrado vertical en los pasos cortos"): vuelve a quedar anclada arriba, como Login.
+
+**Onboarding fusionado:** `TU IDENTIDAD` + `TU PERFIL` (pasos 2 y 3 del alta) se unen en una sola pantalla `TU PERFIL` con scroll, mismos campos y mismo orden de siempre. `CREAR CUENTA` sigue aparte (acceso, no perfil deportivo). Se retiran los puntitos de progreso de 3 pasos.
+
+**Header centrado en toda la familia de acceso:** el título de `.analysis-header` pasa de pegado a la flecha a centrado respecto del ancho total de la barra, vía grid de 3 columnas — acotado a las pantallas de acceso (Login/TU PERFIL/TU NIVEL BRAMU/Editar Datos/Completar Acceso/Cambiar contraseña/Configuración del grupo), Home/Historial/Ranking quedan afuera (tienen botones propios a la derecha).
+
+**Copy corregido:** "COMPLETAR PERFIL" (contradecía "TU PERFIL ESTÁ LISTO", el perfil ya existe) pasa a "IR A MIS DATOS" — mismo texto que ya usa la app para ese mismo destino.
+
+**Resultado de tests:** 1394/1394 sin cambios — ronda 100% CSS/orquestación de `app.js`, `level.js`/`level-context.js`/`level-calibration.js` sin una línea modificada; verificado en vivo con el Browser tool (alta completa, PENDIENTE→CALIBRANDO, Home, MI PERFIL, cuenta legacy con historial real, responsive 375px).
+
+**No se tocó** Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real. Queda anotado (sin corregir, fuera de alcance) que el Perfil público de un jugador que todavía no confirmó su Nivel muestra `CALIBRANDO · 0/5` en vez de un estado neutral — mismo problema de fondo que esta ronda resuelve para el propio flujo de alta, visto desde afuera. V04.8 queda online para revisión visual de Sebastián.

@@ -1777,27 +1777,22 @@ input, select{ font-family: inherit; }
    base vuelve a un tamaño fijo simple, y `--text` define un tamaño chico y seguro que entra en
    el contenedor más angosto observado (~140px) en hasta 2 líneas. Sin agregar lógica de Nivel
    nueva: solo responsive/CSS, ver también `.player-card__level-sub` (progreso X/5, sin cambios). */
-/* BRAMUlab_V04.7 — la tarjeta de Nivel (Home Y MI PERFIL, mismas clases) competía por ancho con
-   nombre/foto en la misma fila (max-width:46%, right-aligned) y el sub-texto de calibración
-   podía leerse partido/con mala jerarquía. Pasa a su propia fila de ancho completo
-   (`flex-basis:100%`, mismo truco que .player-card__bar/.player-card__count ya usan más abajo),
-   con separador propio arriba — mismo patrón que .pastilla-identity__meta (Perfil, ver más
-   abajo): `margin-top` propio SUMADO al `gap` del contenedor, no en su reemplazo. Al dejar de
-   competir por ancho, .player-card__level-value--text ya no depende del tratamiento angosto que
-   motivó su creación en V03.6 (queda solo por si un estado llegara a ser muy largo). */
-.player-card__level{
-  flex: none; flex-basis: 100%; max-width:none; text-align:left;
-  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
-}
+/* BRAMUlab_V04.8 — REVIERTE el cambio de V04.7 que forzaba esta tarjeta a su propia fila
+   completa con separador (`flex-basis:100%; border-top`, revisión visual: "la jerarquía se
+   rompe, la tarjeta gana altura innecesaria"). Vuelve a compartir la fila con `.player-card__info`
+   (46% de ancho, alineado a la derecha) — la composición de referencia de siempre. Los estados
+   PENDIENTE/CALIBRANDO/CALIBRADO se resuelven dentro de este mismo bloque angosto (ver
+   `.player-card__level-sub`), nunca obligan a cambiar esta arquitectura. */
+.player-card__level{ flex: none; text-align:right; max-width: 46%; }
 .player-card__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
-.player-card__level-row{ display:flex; align-items:baseline; gap: 8px; justify-content:flex-start; flex-wrap:wrap; }
+.player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; flex-wrap:wrap; }
 .player-card__level-value{
-  font-family: var(--font-display); font-weight: 800; font-size: 32px;
+  font-family: var(--font-display); font-weight: 800; font-size: 30px;
   line-height: 1.15; color: var(--paper); font-variant-numeric: tabular-nums;
   white-space: normal; overflow-wrap: break-word;
 }
 .player-card__level-value--text{
-  font-size: 14px; line-height: 1.25; letter-spacing: 0.01em; text-align: left;
+  font-size: 13px; line-height: 1.25; letter-spacing: 0.01em; text-align: right;
 }
 /* `flex-basis:100%` fuerza el salto de línea dentro del propio flex-wrap del contenedor —
    así la barra ocupa todo el ancho útil sin necesitar un wrapper extra. V02.1 (§19):
@@ -2890,21 +2885,29 @@ input, select{ font-family: inherit; }
    logo de ~14px de alto ya no tiene ese rol). Centrado vertical scoped a Bienvenida (nunca al
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
-/* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, aplicado puntualmente donde la revisión
-   visual encontró contenido corto quedando "pegado arriba" con un vacío grande abajo:
-   TU PERFIL ESTÁ LISTO (siempre corta) y los pasos "intro"/"quick" de TU NIVEL BRAMU
-   (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep — quiz/resultado
-   son más largos y necesitan seguir ancladas arriba para poder hacer scroll). */
-#view-player-card .access-scroll{ justify-content: center; }
+/* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, para los pasos "intro"/"quick" de TU
+   NIVEL BRAMU (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep —
+   quiz/resultado son más largos y necesitan seguir ancladas arriba para poder hacer scroll).
+   BRAMUlab_V04.8 — REVIERTE el mismo criterio aplicado a TU PERFIL ESTÁ LISTO (V04.7): "todo el
+   conjunto suspendido en el centro" (revisión visual). Esa pantalla vuelve a anclarse arriba,
+   como Login — ahora con su propio header (ver #view-player-card .analysis-header más abajo). */
 .access-scroll--centered{ justify-content: center; }
+/* BRAMUlab_V04.8 (§6) — header compartido de toda la familia de acceso (Login/Crear cuenta/TU
+   PERFIL/TU NIVEL BRAMU/Editar Datos/Completar Acceso/Cambiar contraseña/Configuración del
+   grupo, todas `.view--access`): el título pasa a quedar centrado respecto del ANCHO TOTAL de
+   la barra, no del espacio libre que deja la flecha (antes `.analysis-header__title` era
+   `flex:1 1 auto` sin `text-align`, así que se leía pegado a la flecha en vez de centrado).
+   Grid de 3 columnas simétricas en vez de flex: la flecha (o nada, ver TU PERFIL ESTÁ LISTO, sin
+   volver) vive en la primera, el título centrado en la segunda, la tercera queda de espejo.
+   Acotado a `.view--access`: Home/Historial/Ranking/Notificaciones/etc. (`.view--history`)
+   tienen botones propios a la derecha del título y quedan afuera de este cambio a propósito. */
+.view--access .analysis-header{ display:grid; grid-template-columns: 1fr auto 1fr; column-gap: 12px; }
+.view--access .analysis-header .icon-btn{ grid-column: 1; justify-self:start; }
+.view--access .analysis-header__title{ grid-column: 2; text-align:center; }
 /* V03.0.3 (§9/§10) / BRAMUlab_V03.2 (§6) — INICIAR SESIÓN/CREAR CUENTA necesitaban igualarse en
    tamaño. BRAMUlab_V03.2.1 (§1) — ya no hace falta el scope: `.btn-start`/`.btn-secondary`
    comparten una única especificación global (ver §7/§8 arriba), así que ambos botones terminan
    iguales sin necesitar este override. */
-.access-title{
-  font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em;
-  color: var(--paper); text-align:center; margin-bottom: 6px;
-}
 .access-subtitle{ color: var(--paper-dim); font-size: 13px; text-align:center; margin: 0 0 24px; }
 /* Microparche visual (post V03.2.1) — 10→12px: los 3 botones de Bienvenida quedaban un poco
    apretados entre sí. */
@@ -2922,14 +2925,10 @@ input, select{ font-family: inherit; }
    suficiente sin tocar la regla compartida. */
 .access-form .edit-error{ margin-top: 10px; }
 
-/* Consolidado §2 — "pequeñas pelotas BRAMU" de progreso de los 3 pasos. */
-.signup-progress{ display:flex; justify-content:center; gap: 8px; margin: 4px 0 18px; }
-.signup-progress__dot{
-  width: 8px; height:8px; border-radius:50%; background: var(--ink-softer);
-  border: 1px solid var(--line); transition: background-color .15s ease, border-color .15s ease;
-}
-.signup-progress__dot.is-active{ background: var(--brand-lime); border-color: var(--brand-lime); box-shadow: 0 0 8px rgba(149,255,25,0.5); }
-.signup-progress__dot.is-done{ background: var(--brand-lime-deep); border-color: var(--brand-lime-deep); }
+/* BRAMUlab_V04.8 (§4) — REVIERTE los puntitos de progreso de 3 pasos (Consolidado §2): TU
+   IDENTIDAD + TU PERFIL se fusionan en una sola pantalla ("TU PERFIL"), y esta ronda pide
+   explícitamente no usar indicador de pasos para ese bloque — con CREAR CUENTA + TU PERFIL ya
+   no hay wizard de 3 pasos que anunciar. */
 .signup-step{ display:flex; flex-direction:column; gap: 8px; }
 .signup-step + .signup-step{ margin-top: 0; }
 
@@ -3240,29 +3239,21 @@ input, select{ font-family: inherit; }
 .evolution-calibration__progress{ font-size: 12px; color: var(--paper-dim); margin-top: 4px; font-weight: 700; }
 
 /* Consolidado §3 — "TU JUGADOR ESTÁ LISTO": ficha deportiva estilo tarjeta de presentación
-   (Premier Padel/FIP), deliberadamente más aspiracional que `.player-card` del Home (borde con
-   glow, fondo propio) para que se sienta un momento de recompensa, no una repetición visual. */
+   (Premier Padel/FIP), deliberadamente más aspiracional que el resto de las `.pastilla` (borde
+   con glow, fondo propio) para que se sienta un momento de recompensa.
+   BRAMUlab_V04.8 (§2) — pasa a compartir la MISMA estructura interna que la Tarjeta de jugador
+   de Home/MI PERFIL (`.player-card`, agregada como segunda clase en el HTML): avatar+nombre+
+   @usuario a la izquierda, NIVEL BRAMU arriba a la derecha — "esto es tu perfil en BRAMU", no
+   una tarjeta inventada solo para el alta. Antes tenía su propio esqueleto centrado
+   (`.ficha-deportiva__avatar`/`__name`/`__handle`/`__stats`/`__level*`, retirados acá, con
+   Edad/Mano/Lado en una fila propia — esos datos ya se ven/editan en Mis Datos, afuera del
+   alcance de esta ronda). Esta clase ahora solo aporta el marco distintivo (glow lima, fondo
+   propio); el contenido interno es 100% `.player-card__*`. */
 .ficha-deportiva{
   background: var(--ink-soft); border: 1px solid rgba(149,255,25,0.35); border-radius: var(--radius-hero);
-  padding: 26px 22px; text-align:center; box-shadow: 0 0 32px rgba(149,255,25,0.12);
-  margin-bottom: 18px;
+  padding: 20px; box-shadow: 0 0 32px rgba(149,255,25,0.12); margin-bottom: 18px;
 }
-.ficha-deportiva__avatar{
-  width: 84px; height:84px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
-  display:flex; align-items:center; justify-content:center; overflow:hidden; margin: 0 auto 12px;
-  font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--brand-lime);
-}
-.ficha-deportiva__avatar img{ width:100%; height:100%; object-fit:cover; }
-.ficha-deportiva__name{ font-family: var(--font-display); font-weight: 700; font-size: 21px; color: var(--paper); }
-.ficha-deportiva__handle{ font-size: 12px; color: var(--paper-faint); margin-bottom: 16px; }
-.ficha-deportiva__stats{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
-.ficha-deportiva__stat{ display:flex; flex-direction:column; gap: 3px; }
-.ficha-deportiva__stat-label{ font-size: 9px; letter-spacing:0.04em; text-transform:uppercase; color: var(--paper-faint); font-weight:800; }
-.ficha-deportiva__stat-value{ font-size: 13px; color: var(--paper); font-weight: 700; }
-.ficha-deportiva__level{ border-top: 1px solid var(--line); padding-top: 14px; }
-.ficha-deportiva__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
-.ficha-deportiva__level-state{ font-family: var(--font-display); font-weight: 800; font-size: 16px; color: var(--brand-lime); }
-.ficha-deportiva__level-progress{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; font-weight: 700; }
+.ficha-deportiva.player-card{ cursor:default; }
 
 /* ==========================================================================
    BRAMUlab_V03.4 — MIS GRUPOS
