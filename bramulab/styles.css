@@ -2888,6 +2888,10 @@ input, select{ font-family: inherit; }
 /* Microparche visual (post V03.2.1) — 10→12px: los 3 botones de Bienvenida quedaban un poco
    apretados entre sí. */
 .access-actions{ display:flex; flex-direction:column; gap: 12px; margin-top: 8px; }
+/* BRAMUlab_V04.6 — "CREAR USUARIO DE PRUEBA" del modo laboratorio: discreta a propósito
+   (mismo `.link-btn` que "Revisar respuestas"), nunca compite visualmente con las 3 acciones
+   reales de arriba — `hidden` por defecto, ver refreshLabPreviewUI en app.js. */
+.access-lab-action{ display:block; width:100%; text-align:center; margin-top: 18px; }
 .access-form{ display:flex; flex-direction:column; gap: 4px; }
 .access-form .field{ margin-top: 0; }
 .access-form .field + .field{ margin-top: 8px; }

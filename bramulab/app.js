@@ -6273,6 +6273,11 @@
       afterIdentifyAction = null;
       showView('setup');
     });
+    // BRAMUlab_V04.6 (corrección de acceso al laboratorio) — único punto de entrada real a
+    // "Crear usuario de prueba": visible acá (hidden por defecto, ver refreshLabPreviewUI) en
+    // vez de detrás del long-press descartado sobre el logo de Home. Mismo flujo de siempre
+    // (createLabTestUserAndOpenOnboarding ya existía, solo cambia desde dónde se dispara).
+    $('#access-create-test-user-btn').addEventListener('click', createLabTestUserAndOpenOnboarding);
   }
 
   function initLoginScreen() {
@@ -10971,10 +10976,11 @@
    *  de versión pública (Store.VERSION), ahora también "BRAMUlab V04.6" (ver store.js). Llamado
    *  al boot (para reflejar un estado ya guardado de una sesión anterior) y después de cada
    *  toggle, desde CUALQUIERA de los 2 lugares que lo cambian.
-   *  BRAMUlab_V04.6 — también sincroniza acá las 2 ayudas de laboratorio (Handoff V04.6 §10):
-   *  "Crear usuario de prueba"/"Resetear Nivel BRAMU" quedan `hidden` con el preview apagado —
-   *  nunca alcanzables sin saber que el modo laboratorio existe, mismo criterio que el resto de
-   *  este menú oculto. */
+   *  BRAMUlab_V04.6 — también sincroniza acá "Resetear Nivel BRAMU" (Herramientas, cuenta ya
+   *  logueada) y "CREAR USUARIO DE PRUEBA" (pantalla de acceso, corrección de esta ronda: el
+   *  long-press quedó descartado como mecanismo de acceso al laboratorio — ver
+   *  `#access-create-test-user-btn`) — ambos quedan `hidden` con el preview apagado, el flujo
+   *  normal de acceso/Herramientas queda IGUAL que antes de V04.4. */
   function refreshLabPreviewUI() {
     const enabled = Store.isLevelV1PreviewEnabled();
     const headerBtn = $('#player-home-lab-preview-btn');
@@ -10983,10 +10989,10 @@
     if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.6 PREVIEW' : 'HERRAMIENTAS';
     const toggleBtn = $('#dev-tools-toggle-nivel-v1');
     if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
-    const createTestUserBtn = $('#dev-tools-create-test-user');
-    if (createTestUserBtn) createTestUserBtn.hidden = !enabled;
     const resetNivelBtn = $('#dev-tools-reset-nivel');
     if (resetNivelBtn) resetNivelBtn.hidden = !enabled;
+    const createTestUserBtn = $('#access-create-test-user-btn');
+    if (createTestUserBtn) createTestUserBtn.hidden = !enabled;
   }
 
   /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
@@ -10998,12 +11004,15 @@
 
   let labTestUserCounter = 0;
 
-  /** BRAMUlab_V04.6 — "Crear usuario de prueba" (Handoff V04.6 §10.A): cuenta local temporal
-   *  SIN mail/contraseña (nunca pasa por el wizard de alta ni sus validaciones), directo al
-   *  flujo de "TU PERFIL ESTÁ LISTO" -> onboarding de Nivel BRAMU V1 (mismo camino que
-   *  cualquier alta nueva con el preview activo, ver initPlayerCardScreen). País/género fijos
-   *  en el piloto compatible (Argentina/masculino) para poder probar el camino CON mapa de
-   *  categoría; se puede repetir tantas veces como haga falta, sin tocar la cuenta real. */
+  /** BRAMUlab_V04.6 — "Crear usuario de prueba": cuenta local temporal SIN mail/contraseña
+   *  (nunca pasa por el wizard de alta ni sus validaciones), directo al flujo de "TU PERFIL
+   *  ESTÁ LISTO" -> onboarding de Nivel BRAMU V1 (mismo camino que cualquier alta nueva con el
+   *  preview activo, ver initPlayerCardScreen). País/género fijos en el piloto compatible
+   *  (Argentina/masculino) para poder probar el camino CON mapa de categoría; se puede repetir
+   *  tantas veces como haga falta, sin tocar la cuenta real. Disparada desde
+   *  `#access-create-test-user-btn` (pantalla de acceso, corrección de esta ronda — ver
+   *  initAccessScreen): el long-press sobre el logo de Home quedó descartado como mecanismo de
+   *  acceso, esta función no cambió, solo desde dónde se llama. */
   function createLabTestUserAndOpenOnboarding() {
     labTestUserCounter += 1;
     const n = labTestUserCounter;
@@ -11016,7 +11025,6 @@
     Store.saveSessionUserId(user.id);
     Store.saveCurrentPlayerName(user.displayName);
     syncCurrentIdentityFromStore();
-    $('#dev-tools-modal').hidden = true;
     showToast('Usuario de prueba creado', 2000);
     openPlayerCardScreen(user);
   }
@@ -11059,7 +11067,6 @@
     $('#dev-tools-modal').addEventListener('click', (e) => { if (e.target === $('#dev-tools-modal')) $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
     $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => { setLevelV1Preview(!Store.isLevelV1PreviewEnabled()); });
-    $('#dev-tools-create-test-user').addEventListener('click', createLabTestUserAndOpenOnboarding);
     $('#dev-tools-reset-nivel').addEventListener('click', resetLevelV1ForLabAccount);
   }
 

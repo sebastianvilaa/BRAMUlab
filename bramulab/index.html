@@ -2111,6 +2111,14 @@
           <span class="btn-ghost__label">REGISTRAR PARTIDO COMO INVITADO</span>
         </button>
       </div>
+      <!-- BRAMUlab_V04.6 (corrección de acceso al laboratorio) — visible SOLO con el preview de
+           Nivel BRAMU V1 activado (ver refreshLabPreviewUI en app.js): con el laboratorio
+           apagado, esta pantalla sigue teniendo EXACTAMENTE las 3 acciones de siempre (V03.0.1
+           §7), esta fila queda `hidden`. Reemplaza al acceso anterior por long-press sobre el
+           logo de Home (descartado: quedaba escondido 2 niveles adentro) — crea una cuenta local
+           temporal sin mail/contraseña y entra directo al onboarding para poder repetir el alta
+           + Nivel BRAMU las veces que haga falta. -->
+      <button type="button" id="access-create-test-user-btn" class="link-btn access-lab-action" hidden>CREAR USUARIO DE PRUEBA</button>
     </div>
   </section>
 
@@ -2443,14 +2451,13 @@
            alcanzable por un usuario público sin saber que existe. Su label se actualiza en
            initDevTools() cada vez que se abre este menú. -->
       <button id="dev-tools-toggle-nivel-v1" class="menu-item" type="button">Nivel BRAMU V1 (preview): OFF</button>
-      <!-- BRAMUlab_V04.6 — modo laboratorio, ayudas mínimas (Handoff V04.6 §10): solo visibles
-           con el preview de Nivel BRAMU V1 ya activado (ver refreshLabPreviewUI en app.js).
-           "Crear usuario de prueba" evita mail/contraseña por completo (Store.createUserAccount
-           + saveSessionUserId directo, sin pasar por el wizard de alta) para poder repetir el
-           onboarding las veces que haga falta; "Resetear Nivel BRAMU" borra SOLO
-           LEVEL_V1_STATE de la cuenta activa (Store.resetLevelV1State) — historial,
-           estadísticas, red, jugadores y grupos quedan intactos. -->
-      <button id="dev-tools-create-test-user" class="menu-item" type="button" hidden>Crear usuario de prueba</button>
+      <!-- BRAMUlab_V04.6 (corrección de acceso) — "Crear usuario de prueba" SALE de este menú:
+           quedaba detrás de un long-press descartado como mecanismo de acceso al laboratorio;
+           ahora vive en la pantalla de acceso (#access-create-test-user-btn, ver index.html
+           arriba). "Resetear Nivel BRAMU" sigue acá (es para una cuenta YA logueada, no un
+           acceso inicial) — solo visible con el preview activado (ver refreshLabPreviewUI en
+           app.js): borra SOLO LEVEL_V1_STATE de la cuenta activa (Store.resetLevelV1State) —
+           historial, estadísticas, red, jugadores y grupos quedan intactos. -->
       <button id="dev-tools-reset-nivel" class="menu-item" type="button" hidden>Resetear Nivel BRAMU</button>
       <button id="dev-tools-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
     </div>
