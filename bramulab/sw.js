@@ -53,7 +53,13 @@
 // BRAMUlab_V03.10 — cierre final de V03: TU MOMENTO omite la forma reciente cuando el balance no
 // es positivo (nunca "perdiste"/neutro, superando el copy de V03.9, player-home.js); Compañeros/
 // Rivales muestran `Nombre · @username` con identidad segura por userId (player-home.js/app.js).
-const CACHE_NAME = 'bramulab-v03-10';
+// BRAMUlab_V04.5 — primer bump de versión pública desde el cierre de V03.10 (tag estable
+// anterior, sigue disponible). La app que Sebastián abre para desarrollar/probar V04 ahora se
+// identifica como "BRAMUlab V04.5" en vez de seguir mostrando "V03.10" — necesario además para
+// que level.js/level-context.js/level-calibration.js (agregados a index.html en V04.4, hasta
+// ahora sin bump porque no había release) y el ícono nuevo de preview (V04.4.1→V04.5) lleguen
+// realmente a quien ya tenía la PWA/caché instalada, mismo motivo que cualquier bump anterior.
+const CACHE_NAME = 'bramulab-v04-5';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -64,17 +70,22 @@ const CACHE_NAME = 'bramulab-v03-10';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=03.10',
-  './engine.js?v=03.10',
-  './stats.js?v=03.10',
-  './store.js?v=03.10',
-  './player-home.js?v=03.10',
-  './match-load.js?v=03.10',
-  './player-identity.js?v=03.10',
-  './groups.js?v=03.10',
-  './locations.js?v=03.10',
-  './ranking.js?v=03.10',
-  './app.js?v=03.10',
+  './styles.css?v=04.5',
+  './engine.js?v=04.5',
+  './stats.js?v=04.5',
+  './store.js?v=04.5',
+  // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
+  // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
+  './level.js?v=04.5',
+  './level-context.js?v=04.5',
+  './level-calibration.js?v=04.5',
+  './player-home.js?v=04.5',
+  './match-load.js?v=04.5',
+  './player-identity.js?v=04.5',
+  './groups.js?v=04.5',
+  './locations.js?v=04.5',
+  './ranking.js?v=04.5',
+  './app.js?v=04.5',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V03.10';
+  const APP_VERSION = 'BRAMUlab V04.5';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -78,10 +78,12 @@
     // partidos reales ni a Ranking; existe solo para poder probar la UX entre recargas.
     LEVEL_V1_STATE: 'bramulab.levelV1State.v1',
     // Flag de DISPOSITIVO (no por usuario): "¿mostrar el onboarding de Nivel BRAMU V1 al crear
-    // una cuenta nueva?". Apagado por defecto — la versión pública sigue mostrando exactamente
-    // el flujo de V03.10 hasta que alguien lo prenda a propósito desde Herramientas de
-    // desarrollo (mantener presionado el logo del Home). Nunca leído por Ranking/Historial/
-    // ninguna otra pantalla — su único efecto es esta ronda de onboarding.
+    // una cuenta nueva?". Apagado por defecto — sin tocarlo, una cuenta nueva sigue viendo
+    // exactamente el mismo CALIBRANDO sin número de siempre (comportamiento heredado de V03,
+    // sin relación con el string de versión visible, que desde V04.5 es independiente de este
+    // flag). Se prende desde el ícono de matraz del Home o, si ya existía, manteniendo
+    // presionado el logo (Herramientas). Nunca leído por Ranking/Historial/ninguna otra
+    // pantalla — su único efecto es el onboarding de este bloque.
     LEVEL_V1_PREVIEW: 'bramulab.levelV1PreviewEnabled.v1',
   };
 

@@ -1609,7 +1609,7 @@ input, select{ font-family: inherit; }
   padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line);
 }
 .player-home-header__actions{ display:flex; align-items:center; gap: 10px; }
-/* BRAMUlab_V04.4.1 — mismo tamaño/color que Ranking/Notificaciones de al lado; se pinta lima
+/* BRAMUlab_V04.5 — mismo tamaño/color que Ranking/Notificaciones de al lado; se pinta lima
    (mismo tono que "elección activa" del resto de la app) SOLO mientras el preview está
    encendido, para que el estado se vea sin abrir ningún menú. */
 .player-home-lab-preview__icon{ width:20px; height:20px; fill: currentColor; }

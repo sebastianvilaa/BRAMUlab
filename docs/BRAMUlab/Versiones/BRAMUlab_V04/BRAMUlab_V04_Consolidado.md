@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.4.1 implementada · acceso al preview simplificado a un ícono de header (mouse+touch), sin cambios al onboarding/diseño de V04.4 — V03.10 pública sigue sin cambios de comportamiento  
+**Estado:** V04.5 implementada · acceso al preview simplificado a un ícono de header (mouse+touch) + versión pública visible pasa a `BRAMUlab V04.5` — sin cambios al onboarding/diseño de V04.4  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -427,17 +427,24 @@ Implementado, siguiendo exactamente los 6 puntos de la autorización:
 
 ---
 
-## 14. V04.4.1 — corrección mínima: acceso al preview (implementada)
+## 14. V04.5 — acceso al preview + versión pública visible (implementada)
 
-**Pedido de Sebastián:** simplificar el acceso al preview de Nivel BRAMU V1 — un ícono visible en la cabecera del Home, junto a Ranking/Notificaciones, que active/desactive el preview con un solo toque, funcionando en mouse Y touch, sin depender del long-press sobre el logo (que se conserva, pero deja de ser obligatorio). Identificación clara del estado: `BRAMUlab V03.10` con el preview apagado, `V04.4 PREVIEW` visible cuando está prendido. Sin proteger este acceso como si fuera producción pública — es para revisión de Sebastián.
+**Nota de numeración:** esta ronda se llamó `V04.4.1` en el commit anterior. Sebastián definió que BRAMUlab no sigue usando subversiones de 3 niveles (`V04.4.1`, `V04.4.2`...) — a partir de acá la secuencia es plana: `V04.4`, `V04.5`, `V04.6`... Esta sección (y su equivalente en el Informe) quedan renombradas a `V04.5`; el contenido de las rondas anteriores (`V04.0` a `V04.4`, ya cerradas) no se reescribe.
 
-**Implementado:** ícono de matraz/laboratorio (`#player-home-lab-preview-btn`) en `.player-home-header__actions`, junto a Ranking/Notificaciones. Un toque activa/desactiva `Store.isLevelV1PreviewEnabled()` directamente (sin menú intermedio), con toast de confirmación ("ACTIVADO"/"DESACTIVADO") y el propio ícono se pinta lima mientras está prendido — visible sin abrir nada. El menú de Herramientas (long-press, conservado) ahora muestra su título como "HERRAMIENTAS · V04.4 PREVIEW" mientras el preview está activo, o "HERRAMIENTAS" a secas si no — un único punto (`refreshLabPreviewUI`) sincroniza ícono + label del toggle + título del menú, sin importar desde cuál de los 2 lugares se cambió.
+**Pedido de Sebastián (2 correcciones sobre lo recién commiteado, antes de seguir probando):**
 
-**No se tocó** el onboarding ni el diseño de Nivel BRAMU de V04.4 — cero cambios en `#view-nivel-onboarding`, `level.js`/`level-context.js`/`level-calibration.js`, ni en la lógica de gate de `initPlayerCardScreen`/`renderPlayerCard`/`renderProfileEvolution` (siguen leyendo exactamente el mismo flag).
+1. **Acceso al preview simplificado** — un ícono visible en la cabecera del Home, junto a Ranking/Notificaciones, que active/desactive el preview con un solo toque, funcionando en mouse Y touch, sin depender del long-press sobre el logo (que se conserva, pero deja de ser obligatorio). Identificación clara del estado activo (`V04.5 PREVIEW`).
+2. **Versión/caché real** — la app seguía mostrando `BRAMUlab V03.10` y el ícono nuevo no llegaba a aparecer, señal de assets viejos servidos por el navegador/PWA. Aplicar el cuarteto de versionado ya establecido (Store.VERSION/`version.json`/`sw.js`/`?v=` de los assets) para que la versión que Sebastián desarrolla y prueba se identifique como `BRAMUlab V04.5` — `V03.10` queda como el tag estable anterior, ya cerrado, sin necesidad de seguir mostrándose.
 
-**Resultado de tests:** 1338/1338 (baseline de V04.4) sin cambios — esta ronda no agrega lógica pura nueva (reutiliza `Store.isLevelV1PreviewEnabled`/`setLevelV1PreviewEnabled`, ya cubiertos por los 21 fixtures de V04.4); todo lo nuevo es UI/DOM (ícono, toast, sincronización), verificado a mano con el Browser tool en desktop y mobile (detalle en el Informe).
+**Implementado (parte 1, acceso):** ícono de matraz/laboratorio (`#player-home-lab-preview-btn`) en `.player-home-header__actions`, junto a Ranking/Notificaciones. Un toque activa/desactiva `Store.isLevelV1PreviewEnabled()` directamente (sin menú intermedio), con toast de confirmación ("ACTIVADO"/"DESACTIVADO") y el propio ícono se pinta lima mientras está prendido — visible sin abrir nada. El menú de Herramientas (long-press, conservado) muestra su título como "HERRAMIENTAS · V04.5 PREVIEW" mientras el preview está activo, o "HERRAMIENTAS" a secas si no — un único punto (`refreshLabPreviewUI`) sincroniza ícono + label del toggle + título del menú, sin importar desde cuál de los 2 lugares se cambió.
 
-**No apareció ninguna contradicción ni decisión de producto nueva** — corrección de acceso puramente técnica, commiteada directamente según la regla vigente.
+**Implementado (parte 2, versión pública):** bump real y coherente del cuarteto ya establecido desde V03.1.6 — `Store.VERSION`/`APP_VERSION` → `'BRAMUlab V04.5'`; `version.json` → `{"version":"BRAMUlab V04.5"}`; `sw.js` → `CACHE_NAME='bramulab-v04-5'` y los `?v=03.10` de `CORE_ASSETS` → `?v=04.5` (incluidos `level.js`/`level-context.js`/`level-calibration.js`, que habían quedado fuera de `CORE_ASSETS` en V04.4 porque todavía no había release); `index.html` → mismos `?v=04.5` en los 12 `<script>`/`<link>`. Los 4 lugares se movieron juntos, mismo criterio que cualquier bump anterior del proyecto — evita el bug de caché HTTP nativa ya documentado desde V03.1.6.
+
+**No se tocó** el onboarding ni el diseño de Nivel BRAMU de V04.4 — cero cambios en `#view-nivel-onboarding`, `level.js`/`level-context.js`/`level-calibration.js` (contenido), ni en la lógica de gate de `initPlayerCardScreen`/`renderPlayerCard`/`renderProfileEvolution` (siguen leyendo exactamente el mismo flag). No se tocó Backend/Ranking/Intelligence.
+
+**Resultado de tests:** 1338/1338 (baseline de V04.4) sin cambios — ninguna de las 2 correcciones agrega lógica pura nueva. Verificado además a mano con el Browser tool: la app ahora muestra `BRAMUlab V04.5` (footer del Home), el ícono de matraz aparece y activa/desactiva el preview correctamente en desktop y mobile, tras recarga de página (detalle en el Informe).
+
+**No apareció ninguna contradicción ni decisión de producto nueva** — corrección de numeración y de infraestructura de versionado, ambas explícitamente autorizadas por Sebastián, commiteada directamente según la regla vigente.
 
 ---
 

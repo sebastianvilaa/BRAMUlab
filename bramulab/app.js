@@ -7547,7 +7547,7 @@
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
-    // BRAMUlab_V04.4.1 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
+    // BRAMUlab_V04.5 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
     // del long-press sobre el logo (se conserva, pero deja de ser necesario).
     $('#player-home-lab-preview-btn').addEventListener('click', () => {
       const next = !Store.isLevelV1PreviewEnabled();
@@ -10754,7 +10754,7 @@
     initMatchHeaderHomeLink();
     initDevTools();
     initUpdateCheck();
-    // BRAMUlab_V04.4.1 — refleja un preview ya prendido de una sesión anterior (el ícono del
+    // BRAMUlab_V04.5 — refleja un preview ya prendido de una sesión anterior (el ícono del
     // header debe verse activo desde el primer render, no recién tras el próximo toggle).
     refreshLabPreviewUI();
     bootDefaultScreen();
@@ -10859,18 +10859,19 @@
   const LONG_PRESS_MS = 1800;
   let longPressTimeoutId = null;
 
-  /** BRAMUlab_V04.4.1 — único punto que sincroniza TODO lo que refleja el estado del preview:
+  /** BRAMUlab_V04.5 — único punto que sincroniza TODO lo que refleja el estado del preview:
    *  el ícono del header del Home (mouse Y touch, sin depender del long-press), el label del
-   *  toggle dentro de Herramientas, y el título del propio menú ("· V04.4 PREVIEW" cuando está
-   *  prendido — identificación clara pedida por Sebastián, nunca confundible con
-   *  `BRAMUlab V03.10`). Llamado al boot (para reflejar un estado ya guardado de una sesión
-   *  anterior) y después de cada toggle, desde CUALQUIERA de los 2 lugares que lo cambian. */
+   *  toggle dentro de Herramientas, y el título del propio menú ("· V04.5 PREVIEW" cuando está
+   *  prendido) — identificación clara de que se está probando esta versión, además del string
+   *  de versión pública (Store.VERSION), ahora también "BRAMUlab V04.5" (ver store.js). Llamado
+   *  al boot (para reflejar un estado ya guardado de una sesión anterior) y después de cada
+   *  toggle, desde CUALQUIERA de los 2 lugares que lo cambian. */
   function refreshLabPreviewUI() {
     const enabled = Store.isLevelV1PreviewEnabled();
     const headerBtn = $('#player-home-lab-preview-btn');
     if (headerBtn) headerBtn.classList.toggle('is-active', enabled);
     const title = $('#dev-tools-title');
-    if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.4 PREVIEW' : 'HERRAMIENTAS';
+    if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.5 PREVIEW' : 'HERRAMIENTAS';
     const toggleBtn = $('#dev-tools-toggle-nivel-v1');
     if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
   }
