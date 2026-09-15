@@ -6231,6 +6231,12 @@
   function openPlayerHome() {
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
+    // BRAMUlab_V04.7 — bug real corregido: cualquier camino que intentara mostrar el Home
+    // (login, "volver" del onboarding de Nivel, reanudar sesión) pasaba por acá sin verificar
+    // si el Nivel BRAMU V1 obligatorio seguía pendiente. Único choke point: si está pendiente,
+    // retoma "TU PERFIL ESTÁ LISTO" (nunca entra al Home) en vez de renderizarlo.
+    const pendingUser = nivelOnboardingPendingUser();
+    if (pendingUser) { openPlayerCardScreen(pendingUser); return; }
     renderPlayerHome();
     showView('player-home');
   }
@@ -6251,7 +6257,10 @@
   function completeIdentifyAction() {
     const action = afterIdentifyAction;
     afterIdentifyAction = null;
-    if (action) action(); else { renderPlayerHome(); showView('player-home'); }
+    // BRAMUlab_V04.7 — pasa por openPlayerHome() (antes duplicaba renderPlayerHome+showView acá
+    // mismo) para que el guard de Nivel BRAMU obligatorio (nivelOnboardingPendingUser) también
+    // cubra este camino: login y "ENTRAR A BRAMU" con Nivel ya confirmado usan esta función.
+    if (action) action(); else openPlayerHome();
   }
 
   function initAccessScreen() {
@@ -6702,9 +6711,14 @@
   const WHATSAPP_CONTACT_MESSAGE = 'Hola, te encontré en BRAMUlab. ¿Estás para armar un partido de pádel?';
 
   /** Consolidado §3 — "TU JUGADOR ESTÁ LISTO": momento de recompensa post-signup, nunca un
-   *  alert genérico. Siempre muestra 0/5 CALIBRANDO (una cuenta recién creada nunca tiene
-   *  partidos todavía) — no reusa PH.buildCalibrationStatus con datos reales a propósito, acá
-   *  el estado es fijo por definición. */
+   *  alert genérico.
+   *  BRAMUlab_V04.7 — bug real corregido: esta pantalla mostraba siempre "CALIBRANDO · 0/5"
+   *  aunque el Nivel BRAMU V1 todavía no existiera (con el preview activo, ENTRAR A BRAMU manda
+   *  directo al onboarding obligatorio desde acá — ver initPlayerCardScreen). CALIBRANDO implica
+   *  que ya hay un Nivel confirmado calibrando con partidos reales, algo falso en ese momento.
+   *  Con `nivelOnboardingPending` en true se muestra un estado neutral ("PENDIENTE", sin
+   *  progreso ni número inventado); una vez confirmado el Nivel (o con el preview apagado, donde
+   *  no existe este onboarding y sigue vigente el Nivel simulado de siempre) se ve CALIBRANDO. */
   function openPlayerCardScreen(user) {
     setAvatarPreview('player-card-avatar-img', 'player-card-avatar-initials', user.profilePhoto, user.displayName);
     $('#player-card-name').textContent = user.displayName || '—';
@@ -6713,10 +6727,16 @@
     $('#player-card-age').textContent = age === null ? '—' : String(age);
     $('#player-card-hand').textContent = HAND_LABELS[user.dominantHand] || '—';
     $('#player-card-side').textContent = SIDE_LABELS[user.preferredSide] || '—';
+    const pending = nivelOnboardingPending(user);
+    $('#player-card-level-state').textContent = pending ? 'PENDIENTE' : 'CALIBRANDO';
+    $('#player-card-level-progress').hidden = pending;
+    $('#player-card-subtitle').textContent = pending
+      ? 'Para poder jugar, primero creá tu Nivel BRAMU.'
+      : 'Completá 5 partidos para conocer tu Nivel BRAMU.';
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, solo si
     // realmente falta algo (ubicación/WhatsApp, ambos opcionales en el alta): nunca aparece
-    // para una cuenta que ya cargó los dos. Nunca menciona el Nivel BRAMU (calibrando siempre,
-    // sin excepción, recién creada) ni bloquea ENTRAR A BRAMU.
+    // para una cuenta que ya cargó los dos. Nunca menciona el Nivel BRAMU ni bloquea ENTRAR A
+    // BRAMU/el onboarding obligatorio.
     const missingOptional = [];
     if (!user.locality) missingOptional.push('tu ubicación');
     if (!user.phone) missingOptional.push('tu WhatsApp');
@@ -6734,11 +6754,9 @@
     // vista previa prendido y sin un estado V1 ya guardado para este usuario (nunca repite el
     // onboarding si ya existe, aunque el flag siga prendido — ej. crear una segunda cuenta).
     $('#player-card-enter-btn').addEventListener('click', () => {
-      const user = Store.getCurrentUser();
-      if (Store.isLevelV1PreviewEnabled() && user && !Store.loadLevelV1State(user.id)) {
-        openNivelOnboardingIntro();
-        return;
-      }
+      // BRAMUlab_V04.7 — mismo criterio de nivelOnboardingPending (antes reimplementado acá
+      // mismo, ver openPlayerHome/nivelOnboardingPending para el resto de los puntos de entrada).
+      if (nivelOnboardingPending(Store.getCurrentUser())) { openNivelOnboardingIntro(); return; }
       completeIdentifyAction();
     });
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — camino directo a Mis Datos, nunca
@@ -6851,6 +6869,10 @@
   function renderNivelOnboardingStep() {
     $('#nivel-onboarding-step-title').textContent = NIVEL_STEP_TITLES[nivelStep] || 'TU NIVEL BRAMU';
     $all('.nivel-step').forEach((el) => { el.hidden = el.dataset.step !== nivelStep; });
+    // BRAMUlab_V04.7 — "intro"/"quick" son cortos y quedaban pegados arriba con un vacío grande
+    // abajo (revisión visual, comparado contra Login); "quiz"/"result" son más largos y necesitan
+    // seguir anclados arriba para poder scrollear. Ver .access-scroll--centered en styles.css.
+    $('#nivel-onboarding-scroll').classList.toggle('access-scroll--centered', nivelStep === 'intro' || nivelStep === 'quick');
     if (nivelStep === 'quick') renderNivelQuickStep();
     else if (nivelStep === 'quiz') renderNivelQuizStep();
     else if (nivelStep === 'result') renderNivelResultStep();
@@ -6920,10 +6942,12 @@
     return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${NIVEL_GAUGE.r} ${NIVEL_GAUGE.r} 0 0 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
 
-  /** Único punto que mueve la aguja/arco del medidor — nunca redibuja `d`/`transform` en otro
-   *  lado. `animate=true` deja que la transición CSS (`.nivel-gauge__needle`,
+  /** Único punto que mueve el marcador/arco del medidor — nunca redibuja `d`/`transform` en otro
+   *  lado. `animate=true` deja que la transición CSS (`.nivel-gauge__marker`,
    *  `.nivel-gauge__fill`) haga el movimiento suave pedido al afinar por categoría (§7:
-   *  "mover suavemente la aguja... desde la estimación inicial al valor afinado"). */
+   *  "mover suavemente la aguja... desde la estimación inicial al valor afinado").
+   *  BRAMUlab_V04.7 — el elemento rotado pasa de aguja larga a tick corto (rediseño visual, ver
+   *  index.html/styles.css); la fórmula de rotación y el pivote NO cambian. */
   function setNivelGaugeValue(value, animate) {
     const v = Math.min(NIVEL_GAUGE.max, Math.max(NIVEL_GAUGE.min, value));
     const needle = $('#nivel-gauge-needle');
@@ -6988,8 +7012,13 @@
         nivelStep = 'intro'; renderNivelOnboardingStep(); return;
       }
       if (nivelStep === 'quick') { nivelStep = 'intro'; renderNivelOnboardingStep(); return; }
-      // 'intro': volver es abandonar el onboarding — reanuda el mismo destino de siempre.
-      completeIdentifyAction();
+      // BRAMUlab_V04.7 — bug real corregido: 'intro' volvía llamando completeIdentifyAction(),
+      // que mandaba directo al Home como si el onboarding hubiera terminado — el Nivel BRAMU
+      // obligatorio quedaba sin crear y la app se podía usar igual. Ahora vuelve a "TU PERFIL
+      // ESTÁ LISTO" (el onboarding sigue pendiente); openPlayerHome/nivelOnboardingPendingUser
+      // bloquean cualquier otro camino que intente llegar al Home sin Nivel confirmado.
+      const user = Store.getCurrentUser();
+      if (user) { openPlayerCardScreen(user); } else { completeIdentifyAction(); }
     });
 
     $('#nivel-path-full-btn').addEventListener('click', () => {
@@ -7030,12 +7059,31 @@
     return user ? Store.loadLevelV1State(user.id) : null;
   }
 
+  /** BRAMUlab_V04.7 — único criterio de "¿el onboarding obligatorio de Nivel BRAMU V1 sigue
+   *  pendiente para este usuario?", reemplaza las 2 copias sueltas que existían (enter-btn de
+   *  TU PERFIL ESTÁ LISTO y el bug de navegación del back-button). Detrás del mismo flag de
+   *  siempre (Store.isLevelV1PreviewEnabled) y nunca para cuentas legacyMigrated (siguen con el
+   *  Nivel simulado de V03, Consolidado §4: "no romper niveles de usuarios de prueba"). */
+  function nivelOnboardingPending(user) {
+    return !!(user && !user.legacyMigrated && Store.isLevelV1PreviewEnabled() && !Store.loadLevelV1State(user.id));
+  }
+
+  /** `user` con onboarding pendiente, o `null` — atajo para los guards que solo necesitan
+   *  decidir si cortan el paso hacia el Home (openPlayerHome, único choke point real). */
+  function nivelOnboardingPendingUser() {
+    const user = Store.getCurrentUser();
+    return nivelOnboardingPending(user) ? user : null;
+  }
+
   /** Texto CALIBRANDO/CALIBRADO + progreso, reutilizado idéntico en Home y MI PERFIL — un
-   *  solo lugar que decide esta redacción (Consolidado §"estado calibrando"). */
+   *  solo lugar que decide esta redacción (Consolidado §"estado calibrando").
+   *  BRAMUlab_V04.7 — el punto ámbar/lima flotante (`__dot`) se retira (revisión visual: "no
+   *  ayuda"): el badge pasa a ser una píldora con fondo propio (ver `.level-v1-badge` en
+   *  styles.css), el color de fondo ya comunica el estado sin necesitar un punto aparte. */
   function levelV1BadgeHTML(state) {
     const calibrated = state.state === LV.STATES.CALIBRATED;
     const label = calibrated ? 'NIVEL CALIBRADO' : `CALIBRANDO · ${state.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
-    return `<span class="level-v1-badge${calibrated ? ' level-v1-badge--calibrated' : ''}"><span class="level-v1-badge__dot" aria-hidden="true"></span><span>${label}</span></span>`;
+    return `<span class="level-v1-badge${calibrated ? ' level-v1-badge--calibrated' : ''}">${label}</span>`;
   }
 
   /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
@@ -7659,10 +7707,19 @@
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
     // BRAMUlab_V04.5 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
     // del long-press sobre el logo (se conserva, pero deja de ser necesario).
+    // BRAMUlab_V04.7 — con el preview YA activado, un toque abre HERRAMIENTAS (mismo modal que
+    // el long-press, con "Resetear Nivel BRAMU" adentro) en vez de apagarlo directo: antes
+    // "Resetear Nivel BRAMU" solo era alcanzable manteniendo presionado el logo ~2s (Handoff
+    // V04.6 §10 solo había resuelto "Crear usuario de prueba"). Con el preview apagado, un toque
+    // lo prende igual que antes (con su toast de siempre).
     $('#player-home-lab-preview-btn').addEventListener('click', () => {
-      const next = !Store.isLevelV1PreviewEnabled();
-      setLevelV1Preview(next);
-      showToast(`Nivel BRAMU V1 preview: ${next ? 'ACTIVADO' : 'DESACTIVADO'}`, 2200);
+      if (!Store.isLevelV1PreviewEnabled()) {
+        setLevelV1Preview(true);
+        showToast('Nivel BRAMU V1 preview: ACTIVADO', 2200);
+        return;
+      }
+      refreshLabPreviewUI();
+      $('#dev-tools-modal').hidden = false;
     });
     // V03.0.1 (§3) — tarjeta/nombre/foto del Home tappable → Perfil › MI PERFIL.
     const goToProfile = () => openProfileScreen('mi-perfil');

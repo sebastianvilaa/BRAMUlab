@@ -616,3 +616,88 @@ Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw
 ## V04.6.8 No se avanzó
 
 Confirmado — no se tocó Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real; no se avanzó a evolución por partidos reales más allá de lo ya existente. V04.6 queda online para la revisión visual manual de Sebastián.
+
+---
+
+# V04.7 — corrección visual/UX de onboarding y Nivel BRAMU (implementada)
+
+**Fuentes leídas esta ronda:** `Nivel_BRAMU_Formula_V1.5.md`, `Nivel_BRAMU_Handoff_Cuestionario_V1.5.md`, `BRAMUlab_V04_Informe.md` (este archivo, §V04.6). No se releyó V03 ni se repitieron auditorías generales — ronda acotada a diagnóstico + implementación en la misma intervención, pedido explícito de Sebastián.
+
+**Diagnóstico (breve, sin bloqueo real):** la batería de problemas reportada tras la revisión visual manual de V04.6 es real y está toda dentro de `bramulab/app.js` (orquestación de vistas), `bramulab/index.html` (markup) y `bramulab/styles.css` — ningún archivo de Nivel BRAMU (`level.js`, `level-context.js`, `level-calibration.js`) necesita tocarse. El bug de navegación reportado también es real y puntual: una sola llamada mal ubicada (`app.js`, back-button de "intro"). Se avanzó directo a implementación en la misma intervención.
+
+## V04.7.1 Bug de navegación — Nivel obligatorio (corregido)
+
+**Causa raíz:** el handler del back-button en el paso "intro" del onboarding de Nivel llamaba `completeIdentifyAction()` — la MISMA función que se usa cuando el onboarding ya terminó — sin verificar si el usuario tenía un Nivel BRAMU V1 confirmado. `completeIdentifyAction()` sin una acción pendiente simplemente mostraba el Home. Ningún otro punto de entrada al Home (`openPlayerHome`, login) verificaba tampoco si el onboarding obligatorio seguía pendiente.
+
+**Corrección — un único choke point, reutilizado en todos los caminos:**
+- `nivelOnboardingPending(user)` (nueva, `app.js`): `true` solo si el preview está activo, la cuenta no es `legacyMigrated` y no existe `LEVEL_V1_STATE` guardado para ese `userId` — mismo criterio que ya usaba el botón ENTRAR A BRAMU, ahora en un solo lugar.
+- `nivelOnboardingPendingUser()` (nueva): atajo para los guards que solo necesitan cortar el paso al Home.
+- `openPlayerHome()`: si `nivelOnboardingPendingUser()` devuelve una cuenta, abre "TU PERFIL ESTÁ LISTO" en vez de renderizar el Home. Es el único punto real de entrada al Home (header, banner de partido activo, "volver" de Ranking/Grupos/Notificaciones/Buscar jugadores, tab Inicio, boot con sesión activa — todos pasan por acá).
+- `completeIdentifyAction()`: su rama por defecto (sin acción pendiente) ahora llama `openPlayerHome()` en vez de duplicar `renderPlayerHome()+showView('player-home')` — así el guard también cubre login y "ENTRAR A BRAMU" con Nivel ya confirmado.
+- Back-button de "intro": en vez de `completeIdentifyAction()`, vuelve a `openPlayerCardScreen(user)` ("TU PERFIL ESTÁ LISTO") — el onboarding queda pendiente, nunca se abandona hacia el Home.
+
+**Verificado en vivo** (Browser tool, cuenta de laboratorio sin `LEVEL_V1_STATE`, preview activo): recargar la app con el onboarding sin terminar redirige a "TU PERFIL ESTÁ LISTO" (nunca al Home); tocar la flecha atrás en "intro" hace lo mismo (confirmado leyendo `document.querySelector('.view:not([hidden])').id` tras el click, no solo por screenshot); no se generan loops (ENTRAR A BRAMU desde ahí vuelve a abrir el onboarding, igual que siempre).
+
+## V04.7.2 Estado "PENDIENTE" antes de confirmar Nivel
+
+"TU PERFIL ESTÁ LISTO" mostraba siempre `CALIBRANDO` + `0 / 5 PARTIDOS` — una afirmación falsa cuando, con el preview activo, el Nivel BRAMU todavía no existe (el onboarding recién se abre al tocar ENTRAR A BRAMU). Se agregaron ids (`#player-card-level-state`, `#player-card-level-progress`, `#player-card-subtitle`) y `openPlayerCardScreen` ahora decide con el mismo `nivelOnboardingPending(user)`: pendiente → `NIVEL BRAMU` / `PENDIENTE` (fila de progreso oculta, sin inventar ningún número) y subtítulo "Para poder jugar, primero creá tu Nivel BRAMU."; no pendiente (preview apagado, cuenta legacy, o Nivel ya confirmado desde otro camino) → el `CALIBRANDO · 0/5 PARTIDOS` de siempre.
+
+## V04.7.3 Medidor rediseñado
+
+**Problema:** la aguja (`<line>` de pivote a casi el borde del arco, `x1/y1=110,112 → x2/y2=110,34`) se pisaba visualmente con el número central (`.nivel-gauge__value`, posicionado cerca del mismo pivote) — confirmado midiendo ambos elementos con `getBoundingClientRect` antes de tocar nada.
+
+**Rediseño (index.html + styles.css, CERO cambios en la fórmula ni en `setNivelGaugeValue`'s matemática):**
+- La `<line>` pasa de pivote→casi-arco a un tick corto que vive únicamente SOBRE el arco (`x1/y1=110,15 → x2/y2=110,33`, mismo `transform-origin: 110px 112px`) — la MISMA fórmula de rotación (`rotate(20×v−110, cx, cy)`) sigue aplicándose sin tocar una línea de JS; solo cambia la geometría del elemento que se rota.
+- `.nivel-gauge__pivot` (círculo central) se retira — ya no hace falta ningún elemento en el centro.
+- El número gana protagonismo: 40px→48px, reposicionado con `top:58%` (antes `bottom:6px`) para centrarlo mejor en el hueco del semicírculo.
+- Se conserva: semicírculo, escala 1-10, azul `--accent-cyan` existente (nunca una paleta nueva), categoría de comunicación debajo, animación CSS al ajustar por categoría (`transition: transform` en el marcador, `transition: d` en el arco relleno — ninguno de los dos se tocó).
+
+**Verificado en vivo:** cuestionario completo → estimación inicial `3.0` (Recreativo), categoría `5ª` → animación visible hacia `2.2` (Iniciación), el marcador nunca entra en la zona del número en ningún valor de la escala 1-10 (verificado en los extremos y en el punto medio).
+
+## V04.7.4 Jerarquía y espaciado — onboarding, Home, MI PERFIL
+
+- **"TU NIVEL BRAMU" pegada arriba:** los pasos cortos ("intro"/"quick") se sentían pegados arriba comparados con Login/Bienvenida. Nueva clase `.access-scroll--centered` (mismo `justify-content:center` que ya usaba `#view-access`), alternada por JS en `renderNivelOnboardingStep()` según el paso — "quiz"/"resultado" siguen ancladas arriba (necesitan scroll, son más largas). Mismo tratamiento aplicado a `#view-player-card` (TU PERFIL ESTÁ LISTO, siempre corta).
+- **CTA "CONFIRMAR MI NIVEL" corrido a la izquierda:** bug real de CSS, no de composición — `.btn-start` sin el modificador `--overlay` es un contenedor flex (`display:flex`) dentro de un padre NO-flex (`.nivel-step`, `display:block`); un contenedor flex en flujo normal calcula su ancho por `fit-content`, no por "llenar el disponible" (a diferencia de un `<div>` común) — quedaba angosto (~60% del ancho) y pegado a la izquierda. Confirmado con `getComputedStyle` antes de tocar nada. Corregido agregando `.btn-start--overlay` (mismo modificador que ya usa `#signup-continue-btn`).
+- **"Revisar respuestas" pegado al botón:** sin margen propio y corrido a la izquierda (mismo motivo: `<button>` es `inline-block` por default UA, se posiciona con el `text-align` que herede). Se le da `display:block; width:fit-content; margin:16px auto 0` — separado, centrado, angosto (nunca compite visualmente con el CTA).
+- **"UNA ÚLTIMA PREGUNTA..." débil / pregunta pegada / chips juntos:** el volante gana tamaño (11px→12px) y un `margin-bottom` propio; la pregunta gana aire arriba y abajo; los chips de categoría ganan `gap` (8px→10px) y padding (8px 14px→10px 16px) para sentirse más táctiles; el card del medidor gana padding/margen.
+- **CTA del cuestionario ("CONTINUAR") sin transición al activarse:** se agrega `opacity` a la `transition` base de `.btn-start` (global, sin cambiar ningún valor de opacidad) — el salto disabled→enabled ahora se percibe como una transición suave, no un cambio abrupto.
+- **Tarjeta de Nivel de Home/MI PERFIL apretada:** `.player-card__level` (mismas clases, compartidas por Home y MI PERFIL — una sola corrección aplica a las dos pantallas, ver index.html) competía por ancho con nombre/foto en la misma fila (`max-width:46%`, `text-align:right`) y podía leerse partida. Pasa a `flex-basis:100%` (mismo truco que `.player-card__bar`/`.player-card__count` ya usaban) — fila propia de ancho completo, separador (`border-top`) igual al patrón ya usado por `.pastilla-identity__meta`, número más grande (30px→32px), texto alineado a la izquierda. La insignia `CALIBRANDO`/`CALIBRADO` (`.level-v1-badge`) pasa de "punto de color + texto" a una píldora con fondo propio — el punto ámbar/lima flotante se retira (el color de fondo ya es la señal gráfica).
+- **Logo ausente en "TU PERFIL ESTÁ LISTO":** única pantalla de la familia de acceso sin `.brand-logo--access` (Login/Crear cuenta/TU NIVEL BRAMU/etc. sí lo tienen) — agregado, mismo tratamiento.
+
+**No tocado a propósito:** contenido/copys del cuestionario y las 5 opciones del camino rápido (sin cambios salvo el ya reportado en V04.6), matemática/anclas/pesos, orden de los bloques de la pantalla de resultado (ya coincidía con lo pedido).
+
+## V04.7.5 Modo laboratorio
+
+"Crear usuario de prueba" ya vivía en la pantalla de acceso desde V04.6 (sin long-press). "Resetear Nivel BRAMU" seguía siendo alcanzable SOLO mediante el long-press de 1.8s sobre el logo de Home — el ícono de matraz del header (`#player-home-lab-preview-btn`) togueleaba directo el flag (V04.5) pero nunca abría el menú con el resto de las herramientas. Ahora: con el preview YA activo, un toque abre HERRAMIENTAS (el mismo modal del long-press, con "Resetear Nivel BRAMU" visible) en vez de apagar el flag directo; con el preview apagado, un toque lo prende igual que antes (mismo toast). El long-press legacy se conserva (no molesta) pero deja de ser necesario para ninguna de las 2 acciones.
+
+**Verificado en vivo:** con preview activo, un toque en el ícono abre el menú (`dev-tools-modal.hidden === false`, sin esperar 1.8s); "Resetear Nivel BRAMU" borra el estado, muestra el toast y reabre el onboarding; el back-button desde ahí vuelve a "TU PERFIL ESTÁ LISTO" con `PENDIENTE" (no a Home) — cierra el círculo con V04.7.1.
+
+## V04.7.6 Responsive
+
+Verificado en vivo con el Browser tool en 375px (mobile) y desktop (~800px): onboarding (intro/quick/quiz/resultado+medidor+categoría), Home (player card), MI PERFIL — sin overflow horizontal, sin botones fuera de eje, sin elementos superpuestos, número del medidor nunca pisado por el marcador en ningún valor de la escala. La pantalla "TODAVÍA NO COMPLETASTE TU ACCESO" (cierre de sesión de usuario temporal) se revisó en código (no rediseño, solo verificación pedida): ya usa `.btn-start--overlay`/`.btn-secondary` de ancho completo, tres acciones correctamente cableadas (`openCompleteAccessModal`/`doLogout`/cerrar modal) — sin cambios necesarios.
+
+## V04.7.7 Archivos tocados
+
+`bramulab/app.js`, `bramulab/index.html`, `bramulab/styles.css`, `bramulab/store.js` (`APP_VERSION`), `bramulab/sw.js` (`CACHE_NAME` + 14 `?v=`), `bramulab/version.json`. `bramulab/level.js`/`level-context.js`/`level-calibration.js`/`tests.html`: **cero líneas tocadas**.
+
+## V04.7.8 Tests
+
+Sin fixtures nuevos: ninguna corrección de esta ronda es lógica pura — son bugs de orquestación de vistas (`app.js`) y de CSS, sobre una capa que el arnés de `tests.html` no ejerce (no carga `app.js`, mismo límite documentado desde V04.4: "el resto [onboarding, Home, MI PERFIL] es UI/DOM sin arnés automatizado posible, verificado a mano"). El guard de navegación, el estado PENDIENTE, la consistencia Home/MI PERFIL y el modo laboratorio se verificaron en vivo con el Browser tool (detalle en cada sección de arriba), no con fixtures nuevos.
+
+**Resultado:** **1394/1394**, sin cambios respecto al baseline de V04.6, todo verde — corrido de verdad contra el arnés real antes y después del bump de versión.
+
+## V04.7.9 Contradicciones / decisiones de producto
+
+Ninguna bloqueante. Una decisión de alcance registrada: el ícono de matraz del header deja de togueleear el flag OFF con un toque cuando el preview ya está activo (ahora abre HERRAMIENTAS, donde sí se puede apagar) — cambio menor de interacción, necesario para eliminar la dependencia práctica del long-press pedida explícitamente; el toque para ACTIVAR desde OFF no cambió.
+
+## V04.7.10 Riesgos / deuda relevante
+
+- Ninguna deuda nueva. El único cambio de interacción (matraz con preview activo → abre menú en vez de apagar directo) es intencional y está documentado en V04.7.5/V04.7.9.
+
+## V04.7.11 Versionado y despliegue
+
+Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`)/`index.html` (14 `?v=`) → `BRAMUlab V04.7`. Commit y push a `origin/main` en esta misma intervención; deploy de GitHub Pages a verificar después del push.
+
+## V04.7.12 No se avanzó
+
+Confirmado — no se tocó la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real. V04.7 queda online para una nueva revisión visual de Sebastián.

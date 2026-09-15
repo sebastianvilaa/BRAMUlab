@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.6" />
+<link rel="stylesheet" href="styles.css?v=04.7" />
 </head>
 <body>
 
@@ -2328,6 +2328,10 @@
 
   <section id="view-player-card" class="view view--access" hidden>
     <div class="access-scroll">
+      <!-- BRAMUlab_V04.7 — única pantalla de la familia de acceso sin brand-logo (revisión
+           visual: "la marca desaparece"); mismo `.brand-logo--access` que Login/Crear cuenta/
+           TU NIVEL BRAMU, nunca un tratamiento propio. -->
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
       <div class="access-title">TU PERFIL ESTÁ LISTO</div>
       <div class="ficha-deportiva">
         <div class="ficha-deportiva__avatar" id="player-card-avatar">
@@ -2343,11 +2347,11 @@
         </div>
         <div class="ficha-deportiva__level">
           <div class="ficha-deportiva__level-label">NIVEL BRAMU</div>
-          <div class="ficha-deportiva__level-state">CALIBRANDO</div>
-          <div class="ficha-deportiva__level-progress">0 / 5 PARTIDOS</div>
+          <div class="ficha-deportiva__level-state" id="player-card-level-state">CALIBRANDO</div>
+          <div class="ficha-deportiva__level-progress" id="player-card-level-progress">0 / 5 PARTIDOS</div>
         </div>
       </div>
-      <p class="coverage-note access-subtitle">Completá 5 partidos para conocer tu Nivel BRAMU.</p>
+      <p class="coverage-note access-subtitle" id="player-card-subtitle">Completá 5 partidos para conocer tu Nivel BRAMU.</p>
       <button type="button" id="player-card-enter-btn" class="btn-start">ENTRAR A BRAMU</button>
       <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — orientación post-alta: nunca
            bloquea ni reemplaza ENTRAR A BRAMU (acción principal, sin cambios), solo ofrece un
@@ -2369,7 +2373,7 @@
       <button type="button" id="nivel-onboarding-back-btn" class="icon-btn" aria-label="Volver">←</button>
       <span class="analysis-header__title" id="nivel-onboarding-step-title">TU NIVEL BRAMU</span>
     </div>
-    <div class="access-scroll access-scroll--under-header">
+    <div class="access-scroll access-scroll--under-header" id="nivel-onboarding-scroll">
       <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
 
       <div class="nivel-step" id="nivel-step-intro" data-step="intro">
@@ -2411,8 +2415,12 @@
             <svg viewBox="0 0 220 140" class="nivel-gauge__svg" aria-hidden="true">
               <path class="nivel-gauge__track" d="M 22 112 A 88 88 0 0 1 198 112"></path>
               <path class="nivel-gauge__fill" id="nivel-gauge-value-arc" d="M 22 112 A 88 88 0 0 1 22 112"></path>
-              <line class="nivel-gauge__needle" id="nivel-gauge-needle" x1="110" y1="112" x2="110" y2="34"></line>
-              <circle class="nivel-gauge__pivot" cx="110" cy="112" r="6"></circle>
+              <!-- BRAMUlab_V04.7 — reemplaza la aguja larga (pivote a pivote-hasta-casi-el-arco,
+                   se pisaba con el número central, ver Informe V04.7): un tick corto que vive
+                   SOBRE el propio arco (mismo radio que .nivel-gauge__track/__fill), rotado con
+                   la misma fórmula de siempre (setNivelGaugeValue en app.js, sin tocar) alrededor
+                   del mismo pivote invisible — nunca cruza el centro donde vive el número. -->
+              <line class="nivel-gauge__marker" id="nivel-gauge-needle" x1="110" y1="15" x2="110" y2="33"></line>
             </svg>
             <div class="nivel-gauge__value" id="nivel-gauge-value">—</div>
           </div>
@@ -2428,7 +2436,7 @@
 
         <p class="nivel-coherence-note" id="nivel-coherence-note" hidden>Algunas respuestas describen niveles diferentes. ¿Querés revisarlas?</p>
 
-        <button type="button" class="btn-start" id="nivel-confirm-btn" disabled>CONFIRMAR MI NIVEL</button>
+        <button type="button" class="btn-start btn-start--overlay" id="nivel-confirm-btn" disabled>CONFIRMAR MI NIVEL</button>
         <button type="button" class="link-btn" id="nivel-review-btn">Revisar respuestas</button>
       </div>
     </div>
@@ -2993,24 +3001,24 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=04.6"></script>
-  <script src="stats.js?v=04.6"></script>
-  <script src="store.js?v=04.6"></script>
+  <script src="engine.js?v=04.7"></script>
+  <script src="stats.js?v=04.7"></script>
+  <script src="store.js?v=04.7"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.6"></script>
-  <script src="level-context.js?v=04.6"></script>
-  <script src="level-calibration.js?v=04.6"></script>
-  <script src="player-home.js?v=04.6"></script>
-  <script src="match-load.js?v=04.6"></script>
-  <script src="player-identity.js?v=04.6"></script>
-  <script src="groups.js?v=04.6"></script>
-  <script src="locations.js?v=04.6"></script>
-  <script src="ranking.js?v=04.6"></script>
-  <script src="app.js?v=04.6"></script>
+  <script src="level.js?v=04.7"></script>
+  <script src="level-context.js?v=04.7"></script>
+  <script src="level-calibration.js?v=04.7"></script>
+  <script src="player-home.js?v=04.7"></script>
+  <script src="match-load.js?v=04.7"></script>
+  <script src="player-identity.js?v=04.7"></script>
+  <script src="groups.js?v=04.7"></script>
+  <script src="locations.js?v=04.7"></script>
+  <script src="ranking.js?v=04.7"></script>
+  <script src="app.js?v=04.7"></script>
 </body>
 </html>

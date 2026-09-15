@@ -62,7 +62,7 @@
 // BRAMUlab_V04.6 — estimador inicial V1.1 (reemplaza a V1.4) + medidor/categoría/laboratorio;
 // bump necesario para que quien ya tenía la PWA instalada deje de ver el cuestionario/stepper
 // viejos (Handoff V04.6 §14).
-const CACHE_NAME = 'bramulab-v04-6';
+const CACHE_NAME = 'bramulab-v04-7';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -73,22 +73,22 @@ const CACHE_NAME = 'bramulab-v04-6';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.6',
-  './engine.js?v=04.6',
-  './stats.js?v=04.6',
-  './store.js?v=04.6',
+  './styles.css?v=04.7',
+  './engine.js?v=04.7',
+  './stats.js?v=04.7',
+  './store.js?v=04.7',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.6',
-  './level-context.js?v=04.6',
-  './level-calibration.js?v=04.6',
-  './player-home.js?v=04.6',
-  './match-load.js?v=04.6',
-  './player-identity.js?v=04.6',
-  './groups.js?v=04.6',
-  './locations.js?v=04.6',
-  './ranking.js?v=04.6',
-  './app.js?v=04.6',
+  './level.js?v=04.7',
+  './level-context.js?v=04.7',
+  './level-calibration.js?v=04.7',
+  './player-home.js?v=04.7',
+  './match-load.js?v=04.7',
+  './player-identity.js?v=04.7',
+  './groups.js?v=04.7',
+  './locations.js?v=04.7',
+  './ranking.js?v=04.7',
+  './app.js?v=04.7',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

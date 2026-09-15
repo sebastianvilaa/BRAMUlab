@@ -349,10 +349,13 @@ input, select{ font-family: inherit; }
   margin-top: 10px; min-height: 48px; padding: 0 18px; border: none; border-radius: 14px; background: var(--brand-lime);
   color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 14px;
   letter-spacing: 0.05em; cursor:pointer; box-shadow: 0 10px 24px rgba(149,255,25,0.22);
-  transition: transform .1s ease, box-shadow .1s ease; text-transform: uppercase;
+  transition: transform .1s ease, box-shadow .1s ease, opacity .15s ease; text-transform: uppercase;
   display:flex; align-items:center; justify-content:center;
 }
 .btn-start:active{ transform: scale(0.98); }
+/* BRAMUlab_V04.7 — la transición de `opacity` (arriba) hace que activarse al elegir una
+   respuesta se sienta como una transición, no un salto abrupto (revisión visual del
+   cuestionario de Nivel BRAMU: "el CTA debe activarse de manera visualmente clara"). */
 .btn-start:disabled{ opacity:0.4; cursor:not-allowed; box-shadow:none; }
 .btn-start--overlay{ width: 100%; margin-top: 4px; }
 .setup-footer{ margin-top: 14px; text-align:center; font-size: 9px; color: var(--paper-dim); opacity: 0.55; letter-spacing: 0.03em; }
@@ -1774,16 +1777,27 @@ input, select{ font-family: inherit; }
    base vuelve a un tamaño fijo simple, y `--text` define un tamaño chico y seguro que entra en
    el contenedor más angosto observado (~140px) en hasta 2 líneas. Sin agregar lógica de Nivel
    nueva: solo responsive/CSS, ver también `.player-card__level-sub` (progreso X/5, sin cambios). */
-.player-card__level{ flex: none; text-align:right; max-width: 46%; }
+/* BRAMUlab_V04.7 — la tarjeta de Nivel (Home Y MI PERFIL, mismas clases) competía por ancho con
+   nombre/foto en la misma fila (max-width:46%, right-aligned) y el sub-texto de calibración
+   podía leerse partido/con mala jerarquía. Pasa a su propia fila de ancho completo
+   (`flex-basis:100%`, mismo truco que .player-card__bar/.player-card__count ya usan más abajo),
+   con separador propio arriba — mismo patrón que .pastilla-identity__meta (Perfil, ver más
+   abajo): `margin-top` propio SUMADO al `gap` del contenedor, no en su reemplazo. Al dejar de
+   competir por ancho, .player-card__level-value--text ya no depende del tratamiento angosto que
+   motivó su creación en V03.6 (queda solo por si un estado llegara a ser muy largo). */
+.player-card__level{
+  flex: none; flex-basis: 100%; max-width:none; text-align:left;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+}
 .player-card__level-label{ font-size: 9px; letter-spacing:0.03em; color: var(--paper-faint); font-weight:800; text-transform:uppercase; margin-bottom: 4px; }
-.player-card__level-row{ display:flex; align-items:baseline; gap: 6px; justify-content:flex-end; flex-wrap:wrap; }
+.player-card__level-row{ display:flex; align-items:baseline; gap: 8px; justify-content:flex-start; flex-wrap:wrap; }
 .player-card__level-value{
-  font-family: var(--font-display); font-weight: 800; font-size: 30px;
+  font-family: var(--font-display); font-weight: 800; font-size: 32px;
   line-height: 1.15; color: var(--paper); font-variant-numeric: tabular-nums;
   white-space: normal; overflow-wrap: break-word;
 }
 .player-card__level-value--text{
-  font-size: 13px; line-height: 1.25; letter-spacing: 0.01em; text-align: right;
+  font-size: 14px; line-height: 1.25; letter-spacing: 0.01em; text-align: left;
 }
 /* `flex-basis:100%` fuerza el salto de línea dentro del propio flex-wrap del contenedor —
    así la barra ocupa todo el ancho útil sin necesitar un wrapper extra. V02.1 (§19):
@@ -2876,6 +2890,13 @@ input, select{ font-family: inherit; }
    logo de ~14px de alto ya no tiene ese rol). Centrado vertical scoped a Bienvenida (nunca al
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
+/* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, aplicado puntualmente donde la revisión
+   visual encontró contenido corto quedando "pegado arriba" con un vacío grande abajo:
+   TU PERFIL ESTÁ LISTO (siempre corta) y los pasos "intro"/"quick" de TU NIVEL BRAMU
+   (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep — quiz/resultado
+   son más largos y necesitan seguir ancladas arriba para poder hacer scroll). */
+#view-player-card .access-scroll{ justify-content: center; }
+.access-scroll--centered{ justify-content: center; }
 /* V03.0.3 (§9/§10) / BRAMUlab_V03.2 (§6) — INICIAR SESIÓN/CREAR CUENTA necesitaban igualarse en
    tamaño. BRAMUlab_V03.2.1 (§1) — ya no hace falta el scope: `.btn-start`/`.btn-secondary`
    comparten una única especificación global (ver §7/§8 arriba), así que ambos botones terminan
@@ -3210,7 +3231,7 @@ input, select{ font-family: inherit; }
 
 /* V03.0 (§4) — sub-label de calibración en la Tarjeta de jugador del Home, reemplaza el número
    simulado para cuentas nuevas (nunca ambos a la vez — ver renderPlayerCard). */
-.player-card__level-sub{ display:block; font-size: 10px; color: var(--paper-faint); font-weight: 700; letter-spacing: 0.02em; margin-top: 2px; }
+.player-card__level-sub{ display:block; font-size: 10px; color: var(--paper-faint); font-weight: 700; letter-spacing: 0.02em; margin-top: 6px; }
 
 /* Perfil — mismo estado de calibración que la Tarjeta de jugador del Home, dentro de la
    tarjeta "Evolución del Nivel BRAMU" (reemplaza el gráfico numérico para cuentas nuevas). */
@@ -3394,7 +3415,7 @@ input, select{ font-family: inherit; }
    El lima queda para la acción de confirmación (`.btn-start`), no para el medidor. */
 .nivel-gauge-card{
   text-align:center; background: var(--ink-soft); border: 1px solid var(--line);
-  border-radius: var(--radius-card); padding: 18px 16px 14px; margin-bottom: 10px;
+  border-radius: var(--radius-card); padding: 22px 16px 18px; margin-bottom: 18px;
 }
 .nivel-gauge-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 4px; }
 .nivel-gauge-card__category{ font-size: 13px; font-weight:700; color: var(--accent-cyan); margin-top: 2px; }
@@ -3402,11 +3423,15 @@ input, select{ font-family: inherit; }
 .nivel-gauge__svg{ display:block; width:100%; height:auto; }
 .nivel-gauge__track{ fill:none; stroke: var(--line); stroke-width:14; stroke-linecap:round; }
 .nivel-gauge__fill{ fill:none; stroke: var(--accent-cyan); stroke-width:14; stroke-linecap:round; transition: d var(--motion-base) var(--motion-ease); }
-.nivel-gauge__needle{ stroke: var(--paper); stroke-width:4; stroke-linecap:round; transform-origin: 110px 112px; }
-.nivel-gauge__pivot{ fill: var(--paper); }
+/* BRAMUlab_V04.7 — REEMPLAZA `.nivel-gauge__needle` (línea larga pivote→arco + `.nivel-gauge__pivot`
+   en el centro): un tick corto posicionado y rotado con la MISMA fórmula/transform-origin de
+   siempre (setNivelGaugeValue en app.js no cambia), pero su geometría ahora vive SOLO sobre el
+   arco — nunca atraviesa el centro donde está el número grande. Blanco sobre el azul del arco
+   para leerse como "marcador", no como una segunda barra. */
+.nivel-gauge__marker{ stroke: var(--paper); stroke-width:6; stroke-linecap:round; transform-origin: 110px 112px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
 .nivel-gauge__value{
-  position:absolute; left:50%; bottom: 6px; transform: translateX(-50%);
-  font-family: var(--font-display); font-weight:800; font-size: 40px; color: var(--paper);
+  position:absolute; left:50%; top: 58%; transform: translate(-50%, -50%);
+  font-family: var(--font-display); font-weight:800; font-size: 48px; color: var(--paper);
   line-height:1; font-variant-numeric: tabular-nums;
 }
 
@@ -3414,14 +3439,17 @@ input, select{ font-family: inherit; }
    ni destacado (ni siquiera visualmente): mismo trato para las 11 opciones, incluidas las 2
    neutrales (No compito/No estoy seguro). `.is-selected` es el único estado que cambia, recién
    después de que el jugador elige. */
-.nivel-category-step{ margin: 4px 0 14px; }
-.nivel-category-step__title{ font-size: 11px; font-weight:800; letter-spacing:0.03em; color: var(--paper-faint); text-transform:uppercase; text-align:center; }
-.nivel-category-step__question{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); text-align:center; margin: 4px 0 12px; line-height:1.3; }
-.nivel-category-grid{ display:flex; flex-wrap:wrap; gap: 8px; justify-content:center; }
+.nivel-category-step{ margin: 6px 0 18px; }
+/* BRAMUlab_V04.7 — "queda muy débil"/"la pregunta principal queda demasiado pegada" (revisión
+   visual): el volante gana tamaño/tracking y un margen propio respecto de la pregunta en vez de
+   apoyarse solo en line-height; la pregunta gana aire arriba y abajo antes de los chips. */
+.nivel-category-step__title{ font-size: 12px; font-weight:800; letter-spacing:0.04em; color: var(--paper-faint); text-transform:uppercase; text-align:center; margin-bottom: 6px; }
+.nivel-category-step__question{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); text-align:center; margin: 0 0 16px; line-height:1.3; }
+.nivel-category-grid{ display:flex; flex-wrap:wrap; gap: 10px; justify-content:center; }
 .nivel-category-chip{
-  font-family: inherit; font-size: 12px; font-weight:700; color: var(--paper);
+  font-family: inherit; font-size: 13px; font-weight:700; color: var(--paper);
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-pill);
-  padding: 8px 14px; cursor:pointer;
+  padding: 10px 16px; cursor:pointer;
 }
 .nivel-category-chip.is-selected{ border-color: var(--accent-cyan); background: rgba(25,159,255,0.12); color: var(--accent-cyan); }
 
@@ -3433,12 +3461,21 @@ input, select{ font-family: inherit; }
   border-radius: var(--radius-control); padding: 10px 12px; margin: 0 0 14px;
 }
 
-/* Insignia CALIBRANDO/CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL) — texto +
-   señal gráfica (nunca solo color): punto ámbar mientras calibra (mismo --gold que el resto de
-   la app usa para "todavía no"), lima al calibrar (mismo criterio que el check de calibración
-   ya documentado en Nivel_BRAMU.md §4.3/§9.1). */
-.level-v1-badge{ display:inline-flex; align-items:center; gap: 5px; }
-.level-v1-badge__dot{ width:7px; height:7px; border-radius:50%; flex:none; background: var(--gold); box-shadow: 0 0 6px rgba(255,201,61,0.45); }
-.level-v1-badge--calibrated .level-v1-badge__dot{ background: var(--brand-lime); box-shadow: 0 0 6px rgba(149,255,25,0.5); }
-.level-v1-badge--calibrated{ color: var(--brand-lime); }
+/* BRAMUlab_V04.7 — "Revisar respuestas" quedaba pegado al CTA (sin margen propio, `.link-btn`
+   no trae ninguno) y corrido a la izquierda (`<button>` es inline-block por default UA, se
+   posiciona con el text-align del padre — acá explícito en vez de depender de heredarlo).
+   `width:fit-content` lo mantiene angosto (nunca se estira como .btn-start/.btn-secondary) para
+   leerse claramente secundario, nunca como una segunda acción del mismo peso. */
+#nivel-review-btn{ display:block; width:fit-content; margin: 16px auto 0; text-align:center; }
+
+/* Insignia CALIBRANDO/CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL).
+   BRAMUlab_V04.7 — REEMPLAZA el punto ámbar/lima flotante (`__dot`, retirado — revisión visual:
+   "no ayuda"): píldora con fondo propio, el color YA es la señal gráfica (nunca solo texto),
+   mismo --gold "todavía no" / --brand-lime "listo" de siempre. */
+.level-v1-badge{
+  display:inline-block; font-size: 11px; font-weight: 800; letter-spacing:0.02em;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  background: rgba(255,201,61,0.12); border: 1px solid rgba(255,201,61,0.32); color: var(--gold);
+}
+.level-v1-badge--calibrated{ background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.35); color: var(--brand-lime); }
 .link-btn--danger{ color: var(--danger); }

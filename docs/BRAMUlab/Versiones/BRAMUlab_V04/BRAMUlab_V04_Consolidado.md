@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.6 implementada · el estimador inicial pasa de V1.4 a `nivel_inicial_v1_1` (Nivel_BRAMU_Formula_V1.5.md §3) — cuestionario/camino rápido nuevos, categoría como último paso con ajuste automático ±0.5 (el stepper manual de V04.4 queda retirado), medidor semicircular, coherencia, confianza variable, y 2 ayudas mínimas de modo laboratorio. Motor de partidos (`level.js`, `nivel_bramu_v1_0`) sin cambios.  
+**Estado:** V04.7 implementada · ronda de corrección visual/UX sobre el onboarding y Nivel BRAMU V1 de V04.6 — sin tocar la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0` ni el estimador `nivel_inicial_v1_1`. Corrige un bug real de navegación (se podía llegar al Home sin Nivel BRAMU confirmado), rediseña el medidor (aguja larga → marcador corto sobre el arco), estado "PENDIENTE" antes de confirmar Nivel, y una pasada de jerarquía/espaciado en onboarding, Home y MI PERFIL.  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -507,3 +507,23 @@ Implementado, siguiendo los 7 puntos de la autorización:
 **No se tocó** Ranking BRAMU, BRAMU Intelligence, Backend/autenticación real, ni la lógica competitiva posterior al nivel inicial (motor de partidos, invitados, círculo, inactividad — todos en `level.js`/`level-context.js`, sin una línea modificada).
 
 **No se avanzó** a evolución por partidos reales más allá de lo ya existente, Ranking, perfil público ni BRAMU Intelligence. V04.6 queda online para revisión visual manual de Sebastián.
+
+---
+
+## 16. V04.7 — corrección visual/UX del onboarding y Nivel BRAMU V1 (implementada)
+
+**Autorizado por Sebastián** sobre V04.6 online, tras la revisión visual manual (la matemática de V1.5 quedó validada — no se reabre). Objetivo: cerrar TODOS los problemas visuales/UX detectados en una única ronda coherente, más un bug real de navegación, sin tocar Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking, Intelligence ni Backend.
+
+**Bug real de navegación corregido:** desde la pantalla inicial de Nivel ("intro"), la flecha atrás llamaba `completeIdentifyAction()` — el mismo camino que se usa cuando el onboarding YA terminó — y mandaba directo al Home sin Nivel BRAMU confirmado. Cualquier otro camino que intentara mostrar el Home (`openPlayerHome`, login) tampoco verificaba si el onboarding obligatorio seguía pendiente. Corregido con un único choke point (`nivelOnboardingPending`/`nivelOnboardingPendingUser`, ver Informe §"V04.7"): la flecha atrás vuelve a "TU PERFIL ESTÁ LISTO" (nunca al Home), y `openPlayerHome()` redirige ahí a cualquier cuenta con el preview activo que todavía no tenga `LEVEL_V1_STATE` — sin loops, sin afectar cuentas `legacyMigrated` ni al flag apagado.
+
+**Estado "PENDIENTE":** "TU PERFIL ESTÁ LISTO" ya no muestra `CALIBRANDO · 0/5` antes de que exista un Nivel confirmado (afirmaba una calibración inexistente) — pasa a `NIVEL BRAMU / PENDIENTE`, sin inventar ningún número; una vez confirmado el Nivel, Home/MI PERFIL muestran `CALIBRANDO · 0/5` como siempre.
+
+**Medidor rediseñado:** la aguja larga (pivote→casi el arco) se pisaba con el número central. Se reemplaza por un marcador corto que vive SOLO sobre el arco (misma fórmula/pivote de rotación de siempre, `setNivelGaugeValue` sin tocar), nunca cruza el centro; el número gana protagonismo (40px→48px, reposicionado). Se conserva semicírculo, escala 1-10, azul BRAMU, categoría debajo y la animación al ajustar por categoría.
+
+**Jerarquía/espaciado (onboarding + Home + MI PERFIL):** más aire en "TU PERFIL ESTÁ LISTO" y "TU NIVEL BRAMU" (centrado vertical en los pasos cortos, mismo criterio que Bienvenida); CTA "CONFIRMAR MI NIVEL" corregido de ancho angosto/corrido a la izquierda (bug real de CSS: `.btn-start` sin `--overlay` no hereda el ancho completo cuando su padre no es un contenedor flex) a ancho completo; "Revisar respuestas" separado y centrado; volante/pregunta/chips de categoría con más aire; activación del CTA del cuestionario con transición suave. La tarjeta de Nivel de Home/MI PERFIL (mismas clases `.player-card__level*`, una sola corrección para ambas pantallas) pasa de una columna angosta compitiendo por ancho con nombre/foto a su propia fila de ancho completo con separador — número más grande, insignia CALIBRANDO/CALIBRADO como píldora con fondo (se retira el punto ámbar/lima flotante). Logo BRAMU agregado a "TU PERFIL ESTÁ LISTO" (única pantalla de la familia de acceso que no lo tenía).
+
+**Modo laboratorio:** "Crear usuario de prueba" ya vivía en la pantalla de acceso desde V04.6 (sin long-press). "Resetear Nivel BRAMU" seguía dependiendo del long-press sobre el logo — el ícono de matraz del header del Home ahora abre HERRAMIENTAS con un toque cuando el preview ya está activo (antes solo togueleaba on/off); el long-press legacy se conserva pero deja de ser necesario para ninguna de las 2 acciones.
+
+**Resultado de tests:** 1394/1394 sin cambios — ninguna corrección de esta ronda toca lógica pura (`level.js`/`level-context.js`/`level-calibration.js` sin una línea modificada); verificado en vivo con el Browser tool (navegación, medidor, Home/MI PERFIL, modo laboratorio, responsive 375px y desktop).
+
+**No se tocó** Fórmula V1.5, `level.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real. V04.7 queda online para una nueva revisión visual de Sebastián.
