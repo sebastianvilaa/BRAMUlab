@@ -7547,6 +7547,13 @@
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
+    // BRAMUlab_V04.4.1 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
+    // del long-press sobre el logo (se conserva, pero deja de ser necesario).
+    $('#player-home-lab-preview-btn').addEventListener('click', () => {
+      const next = !Store.isLevelV1PreviewEnabled();
+      setLevelV1Preview(next);
+      showToast(`Nivel BRAMU V1 preview: ${next ? 'ACTIVADO' : 'DESACTIVADO'}`, 2200);
+    });
     // V03.0.1 (§3) — tarjeta/nombre/foto del Home tappable → Perfil › MI PERFIL.
     const goToProfile = () => openProfileScreen('mi-perfil');
     $('#player-home-card').addEventListener('click', goToProfile);
@@ -10747,6 +10754,9 @@
     initMatchHeaderHomeLink();
     initDevTools();
     initUpdateCheck();
+    // BRAMUlab_V04.4.1 — refleja un preview ya prendido de una sesión anterior (el ícono del
+    // header debe verse activo desde el primer render, no recién tras el próximo toggle).
+    refreshLabPreviewUI();
     bootDefaultScreen();
     registerServiceWorker();
   });
@@ -10849,15 +10859,32 @@
   const LONG_PRESS_MS = 1800;
   let longPressTimeoutId = null;
 
-  /** BRAMUlab_V04.4 (Etapa D, bloque 1) — refleja Store.isLevelV1PreviewEnabled() en el label
-   *  del botón cada vez que se abre el menú (nunca queda desincronizado entre aperturas). */
-  function refreshNivelV1ToggleLabel() {
-    $('#dev-tools-toggle-nivel-v1').textContent = `Nivel BRAMU V1 (preview): ${Store.isLevelV1PreviewEnabled() ? 'ON' : 'OFF'}`;
+  /** BRAMUlab_V04.4.1 — único punto que sincroniza TODO lo que refleja el estado del preview:
+   *  el ícono del header del Home (mouse Y touch, sin depender del long-press), el label del
+   *  toggle dentro de Herramientas, y el título del propio menú ("· V04.4 PREVIEW" cuando está
+   *  prendido — identificación clara pedida por Sebastián, nunca confundible con
+   *  `BRAMUlab V03.10`). Llamado al boot (para reflejar un estado ya guardado de una sesión
+   *  anterior) y después de cada toggle, desde CUALQUIERA de los 2 lugares que lo cambian. */
+  function refreshLabPreviewUI() {
+    const enabled = Store.isLevelV1PreviewEnabled();
+    const headerBtn = $('#player-home-lab-preview-btn');
+    if (headerBtn) headerBtn.classList.toggle('is-active', enabled);
+    const title = $('#dev-tools-title');
+    if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.4 PREVIEW' : 'HERRAMIENTAS';
+    const toggleBtn = $('#dev-tools-toggle-nivel-v1');
+    if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
+   *  header (mouse/touch directo) como por el toggle de Herramientas (long-press, se conserva). */
+  function setLevelV1Preview(enabled) {
+    Store.setLevelV1PreviewEnabled(enabled);
+    refreshLabPreviewUI();
   }
 
   function initDevTools() {
     const logo = $('#home-logo');
-    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshNivelV1ToggleLabel(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
+    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshLabPreviewUI(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
     const cancel = () => clearTimeout(longPressTimeoutId);
     logo.addEventListener('pointerdown', start);
     logo.addEventListener('pointerup', cancel);
@@ -10868,10 +10895,7 @@
     $('#dev-tools-cancel').addEventListener('click', () => { $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-modal').addEventListener('click', (e) => { if (e.target === $('#dev-tools-modal')) $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
-    $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => {
-      Store.setLevelV1PreviewEnabled(!Store.isLevelV1PreviewEnabled());
-      refreshNivelV1ToggleLabel();
-    });
+    $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => { setLevelV1Preview(!Store.isLevelV1PreviewEnabled()); });
   }
 
   /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca

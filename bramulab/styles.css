@@ -1609,6 +1609,11 @@ input, select{ font-family: inherit; }
   padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line);
 }
 .player-home-header__actions{ display:flex; align-items:center; gap: 10px; }
+/* BRAMUlab_V04.4.1 — mismo tamaño/color que Ranking/Notificaciones de al lado; se pinta lima
+   (mismo tono que "elección activa" del resto de la app) SOLO mientras el preview está
+   encendido, para que el estado se vea sin abrir ningún menú. */
+.player-home-lab-preview__icon{ width:20px; height:20px; fill: currentColor; }
+.player-home-lab-preview.is-active{ color: var(--brand-lime); }
 /* BRAMUlab_V03.5 (§4) — mismo tamaño/color que la campana de al lado; barras en vez de copa. */
 .player-home-ranking__icon{ width:20px; height:20px; fill: currentColor; }
 /* Etapa 4 (§17) — campana SVG propia (antes emoji 🔔), mismo lenguaje de trazo/tamaño que

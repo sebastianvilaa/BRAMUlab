@@ -492,3 +492,40 @@ No apareció ninguna contradicción real entre `Nivel_BRAMU_Formula_V1.4.md`/`Ni
 ## V04.4.8 No se avanzó al siguiente bloque de Etapa D
 
 Confirmado.
+
+---
+
+# V04.4.1 — corrección mínima: acceso al preview (implementada)
+
+**Pedido:** Sebastián, revisando la UI de V04.4, pidió simplificar cómo se activa/desactiva el preview — un ícono visible en la cabecera (junto a Ranking/Notificaciones) en vez de depender únicamente del long-press oculto sobre el logo, que debía funcionar con mouse y con touch, y una identificación clara (`V04.4 PREVIEW`) de que se está probando esa versión. Explícito: no tocar el onboarding ni el diseño de Nivel todavía, no avanzar a V04.5.
+
+## V04.4.1.1 Qué se implementó
+
+**`bramulab/index.html` (+11 líneas).** Botón nuevo `#player-home-lab-preview-btn` en `.player-home-header__actions` (mismo lugar que Ranking/Notificaciones), con un ícono SVG de matraz (neck + body, mismo `fill:currentColor` que los otros 2 íconos del header). `#dev-tools-title` ganó un `id` para poder actualizarse dinámicamente.
+
+**`bramulab/styles.css` (+6 líneas).** `.player-home-lab-preview__icon` (mismo tamaño/color que Ranking/Notificaciones) y `.player-home-lab-preview.is-active{color:var(--brand-lime)}` — el ícono se pinta lima solo mientras el preview está prendido, mismo tono que "elección activa" en el resto de la app.
+
+**`bramulab/app.js` (+27 líneas, neto).**
+- `refreshLabPreviewUI()` — único punto que sincroniza los 3 lugares que reflejan el estado (clase `is-active` del ícono del header, texto de `#dev-tools-title`, label del toggle dentro de Herramientas). Reemplaza a la función anterior `refreshNivelV1ToggleLabel` (más angosta, solo tocaba el label del menú).
+- `setLevelV1Preview(enabled)` — escribe con `Store.setLevelV1PreviewEnabled` y llama a `refreshLabPreviewUI()`; único punto de escritura, usado tanto por el ícono nuevo como por el toggle de Herramientas (que se conserva sin cambios de comportamiento, solo ahora comparte la función de sincronización).
+- Click del ícono nuevo: toggle directo + `showToast('Nivel BRAMU V1 preview: ACTIVADO/DESACTIVADO', 2200)`.
+- `refreshLabPreviewUI()` se llama también una vez al boot (`DOMContentLoaded`), para que un preview ya prendido en una sesión anterior se vea activo desde el primer render, no recién después del próximo toggle.
+
+## V04.4.1.2 Verificación real (Browser tool)
+
+- **Desktop, mouse:** click en el ícono → pasa de gris a lima, toast "Nivel BRAMU V1 preview: ACTIVADO", recarga de página → sigue lima (persistencia + sync de boot confirmados). `dev-tools-title`/label del toggle confirmados sincronizados vía inspección directa del DOM (`"HERRAMIENTAS · V04.4 PREVIEW"` / `"Nivel BRAMU V1 (preview): ON"`).
+- **Mobile (375px), touch:** mismo ícono, mismo tap → toggle a OFF confirmado visualmente (ícono vuelve a gris).
+- **Preview OFF → V03.10:** sin cambios de comportamiento — es la MISMA lectura de `Store.isLevelV1PreviewEnabled()` que ya gateaba `initPlayerCardScreen`, no se tocó esa condición.
+- **Preview ON → flujo V04.4 disponible:** no fue necesario repetir el alta completa — el gate de `initPlayerCardScreen` sigue leyendo exactamente el mismo flag que ahora el ícono escribe; verificado que el ícono efectivamente cambia ese valor (arriba) es suficiente para garantizar que el onboarding sigue disponible.
+
+## V04.4.1.3 Tests
+
+Sin fixtures nuevos — a propósito. Esta ronda no introduce ninguna lógica pura nueva: todo lo agregado es DOM/UI (ícono, clase `is-active`, toast, sincronización de 3 elementos de pantalla) sobre una función de Store (`isLevelV1PreviewEnabled`/`setLevelV1PreviewEnabled`) ya cubierta por los 21 fixtures de V04.4. Fabricar un fixture para "un botón cambia una clase CSS" no agregaría cobertura real y no es el patrón del proyecto (`app.js` no tiene arnés de DOM desde V01). Baseline verificado sin cambios: **1338/1338**.
+
+## V04.4.1.4 Contradicciones / decisiones de producto
+
+Ninguna. Corrección de acceso puramente técnica sobre un flag ya existente — commiteada directamente según la regla de esta ronda.
+
+## V04.4.1.5 No se avanzó a V04.5
+
+Confirmado — onboarding y diseño de Nivel BRAMU sin cambios.

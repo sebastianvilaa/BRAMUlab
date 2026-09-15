@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.4 (Etapa D, bloque 1) implementada · primer onboarding visible de Nivel BRAMU V1, detrás de un flag apagado por defecto — V03.10 pública sin cambios de comportamiento  
+**Estado:** V04.4.1 implementada · acceso al preview simplificado a un ícono de header (mouse+touch), sin cambios al onboarding/diseño de V04.4 — V03.10 pública sigue sin cambios de comportamiento  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -424,6 +424,20 @@ Implementado, siguiendo exactamente los 6 puntos de la autorización:
 **No se tocó** `player-home.js`/`ranking.js`/`sw.js`/`version.json`, Ranking BRAMU, BRAMU Intelligence, perfil público, cálculo real de partidos, recalibración visual ni backend real.
 
 **No se avanzó al siguiente bloque de Etapa D** (evolución por partidos reales, Ranking, perfil público, explicación de deltas, recalibración visual).
+
+---
+
+## 14. V04.4.1 — corrección mínima: acceso al preview (implementada)
+
+**Pedido de Sebastián:** simplificar el acceso al preview de Nivel BRAMU V1 — un ícono visible en la cabecera del Home, junto a Ranking/Notificaciones, que active/desactive el preview con un solo toque, funcionando en mouse Y touch, sin depender del long-press sobre el logo (que se conserva, pero deja de ser obligatorio). Identificación clara del estado: `BRAMUlab V03.10` con el preview apagado, `V04.4 PREVIEW` visible cuando está prendido. Sin proteger este acceso como si fuera producción pública — es para revisión de Sebastián.
+
+**Implementado:** ícono de matraz/laboratorio (`#player-home-lab-preview-btn`) en `.player-home-header__actions`, junto a Ranking/Notificaciones. Un toque activa/desactiva `Store.isLevelV1PreviewEnabled()` directamente (sin menú intermedio), con toast de confirmación ("ACTIVADO"/"DESACTIVADO") y el propio ícono se pinta lima mientras está prendido — visible sin abrir nada. El menú de Herramientas (long-press, conservado) ahora muestra su título como "HERRAMIENTAS · V04.4 PREVIEW" mientras el preview está activo, o "HERRAMIENTAS" a secas si no — un único punto (`refreshLabPreviewUI`) sincroniza ícono + label del toggle + título del menú, sin importar desde cuál de los 2 lugares se cambió.
+
+**No se tocó** el onboarding ni el diseño de Nivel BRAMU de V04.4 — cero cambios en `#view-nivel-onboarding`, `level.js`/`level-context.js`/`level-calibration.js`, ni en la lógica de gate de `initPlayerCardScreen`/`renderPlayerCard`/`renderProfileEvolution` (siguen leyendo exactamente el mismo flag).
+
+**Resultado de tests:** 1338/1338 (baseline de V04.4) sin cambios — esta ronda no agrega lógica pura nueva (reutiliza `Store.isLevelV1PreviewEnabled`/`setLevelV1PreviewEnabled`, ya cubiertos por los 21 fixtures de V04.4); todo lo nuevo es UI/DOM (ícono, toast, sincronización), verificado a mano con el Browser tool en desktop y mobile (detalle en el Informe).
+
+**No apareció ninguna contradicción ni decisión de producto nueva** — corrección de acceso puramente técnica, commiteada directamente según la regla vigente.
 
 ---
 
