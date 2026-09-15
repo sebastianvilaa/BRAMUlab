@@ -6461,7 +6461,7 @@
 
   // BRAMUlab_V03.2.1 (§5) — "CREAR ACCESO" → "CREAR CUENTA" en todo el flujo (nombre real de
   // la acción que el usuario reconoce, ver botón CREAR CUENTA en Bienvenida).
-  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU IDENTIDAD', 3: 'TU PÁDEL' };
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU IDENTIDAD', 3: 'TU PERFIL' };
 
   function resetSignupWizard() {
     signupStep = 1;
@@ -6475,12 +6475,12 @@
     delete $('#signup-username').dataset.touched;
     resetOptionGroup('signup-hand-options');
     resetOptionGroup('signup-side-options');
-    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación opcional del alta.
+    // BRAMUlab_V04.6 — ubicación pasa a ser obligatoria del alta (ver Handoff V04.6 §4).
     $('#signup-location-value').textContent = '—';
   }
 
   /** BRAMUlab_V03.6 — mismo patrón que updateProfileLocationRowDisplay, para la fila de
-   *  ubicación del paso 3 del alta (opcional, ver signup-location-row). */
+   *  ubicación del paso 3 del alta (obligatoria desde V04.6, ver signup-location-row). */
   function updateSignupLocationRowDisplay() {
     $('#signup-location-value').textContent = signupDraft.location ? PLLocations.formatLocationLabel(signupDraft.location) : '—';
   }
@@ -6499,7 +6499,7 @@
       dot.classList.toggle('is-done', n < signupStep);
     });
     $('#signup-step-title').textContent = SIGNUP_STEP_TITLES[signupStep];
-    $('#signup-continue-btn').textContent = signupStep === 3 ? 'CREAR MI JUGADOR' : 'CONTINUAR';
+    $('#signup-continue-btn').textContent = signupStep === 3 ? 'CREAR MI PERFIL' : 'CONTINUAR';
     recomputeSignupStepValidity();
   }
 
@@ -6525,8 +6525,11 @@
       ok = !!$('#signup-first-name').value.trim() && !!displayName
         && PLI.isValidUsernameFormat(username) && !PLI.isUsernameTaken(username, Store.loadUsers());
     } else if (signupStep === 3) {
+      // BRAMUlab_V04.6 — Categoría sale de esta validación: ya no se pregunta en el alta (ver
+      // Handoff V04.6 §4), se pregunta una sola vez al final de Nivel BRAMU. Ubicación pasa a
+      // ser obligatoria acá (antes era la única opcional del paso 3).
       ok = !!$('#signup-birthdate').value && !!$('#signup-gender').value
-        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!$('#signup-category').value;
+        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!signupDraft.location;
     }
     $('#signup-continue-btn').disabled = !ok;
     return ok;
@@ -6607,7 +6610,7 @@
       recomputeSignupStepValidity();
     });
     $('#signup-display-name').addEventListener('input', recomputeSignupStepValidity);
-    ['signup-birthdate', 'signup-gender', 'signup-category'].forEach((id) => {
+    ['signup-birthdate', 'signup-gender'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
     });
     wireOptionGroup('signup-hand-options', (v) => { signupDraft.dominantHand = v; recomputeSignupStepValidity(); });
@@ -6619,7 +6622,7 @@
     $('#signup-location-row').addEventListener('click', () => openProfileLocationSheet({
       get: () => signupDraft.location || null,
       set: (loc) => { signupDraft.location = loc; },
-      onSelect: updateSignupLocationRowDisplay,
+      onSelect: () => { updateSignupLocationRowDisplay(); recomputeSignupStepValidity(); },
     }));
 
     $('#signup-avatar-edit-btn').addEventListener('click', () => $('#signup-avatar-input').click());
@@ -6648,12 +6651,12 @@
       } else {
         signupDraft.birthDate = $('#signup-birthdate').value;
         signupDraft.gender = $('#signup-gender').value;
-        signupDraft.declaredCategory = $('#signup-category').value;
-        // V03.1 (§4) — se declara por primera vez acá: queda fechada desde el arranque.
-        signupDraft.declaredCategoryAt = new Date().toISOString();
-        // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación opcional: `null` en
-        // los 3 campos si el usuario nunca tocó la fila (mismo criterio que ya usa Editar Datos
-        // al guardar sin ubicación elegida).
+        // BRAMUlab_V04.6 — Categoría YA NO se declara acá (sale del alta, ver Handoff V04.6
+        // §4): queda `null` hasta que el onboarding de Nivel BRAMU la pregunte como último
+        // paso y la guarde en este MISMO campo (`completeNivelCategoryStep` en este archivo) —
+        // nunca dos categorías independientes.
+        // BRAMUlab_V04.6 — ubicación ya es obligatoria (recomputeSignupStepValidity lo exige):
+        // `signupDraft.location` siempre existe acá.
         signupDraft.locality = signupDraft.location ? signupDraft.location.locality : null;
         signupDraft.region = signupDraft.location ? signupDraft.location.region : null;
         signupDraft.country = signupDraft.location ? signupDraft.location.country : null;
@@ -6681,7 +6684,11 @@
 
   const HAND_LABELS = { derecha: 'Derecha', izquierda: 'Izquierda' };
   const SIDE_LABELS = { drive: 'Drive', reves: 'Revés', indiferente: 'Indiferente' };
-  const CATEGORY_LABELS = { '1': '1ª', '2': '2ª', '3': '3ª', '4': '4ª', '5': '5ª', '6': '6ª', '7': '7ª', '8': '8ª', '9': '9ª', 'no-se': 'No sé mi categoría' };
+  // BRAMUlab_V04.6 — 'no-compito' se agrega para la pregunta final de categoría de Nivel
+  // BRAMU (§6 del Handoff V04.6): distinta de 'no-se' (no conozco mi categoría) — "no
+  // compito" declara que directamente no juega torneos. Mismo mapa reusado por Editar Datos
+  // (PROFILE_PICKER_FIELDS.category lee sus keys de acá, sin lista propia).
+  const CATEGORY_LABELS = { '1': '1ª', '2': '2ª', '3': '3ª', '4': '4ª', '5': '5ª', '6': '6ª', '7': '7ª', '8': '8ª', '9': '9ª', 'no-se': 'No estoy seguro', 'no-compito': 'No compito' };
   const GENDER_LABELS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro', 'prefiero-no-decir': 'Prefiero no decir' };
   // BRAMUlab_V03.6 (§6) — mensaje prearmado único del deep link de WhatsApp: fijo, sin Nivel/
   // localidad/nombre completo/horario/cancha ni links extra (consolidado explícito).
@@ -6701,7 +6708,6 @@
     $('#player-card-age').textContent = age === null ? '—' : String(age);
     $('#player-card-hand').textContent = HAND_LABELS[user.dominantHand] || '—';
     $('#player-card-side').textContent = SIDE_LABELS[user.preferredSide] || '—';
-    $('#player-card-category').textContent = CATEGORY_LABELS[user.declaredCategory] || '—';
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, solo si
     // realmente falta algo (ubicación/WhatsApp, ambos opcionales en el alta): nunca aparece
     // para una cuenta que ya cargó los dos. Nunca menciona el Nivel BRAMU (calibrando siempre,
@@ -6748,21 +6754,81 @@
   let nivelStep = 'intro'; // 'intro' | 'quick' | 'quiz' | 'result'
   let nivelPathType = null; // 'quick' | 'full'
   let nivelQuizIndex = 0;
-  let nivelQuizAnswers = {};
-  let nivelRawResult = null; // { raw, q?, answers? } | { raw, seedKey }
-  let nivelAdjustment = 0;
+  let nivelQuizAnswers = {}; // {autoevaluacion, anos, entrenamiento, frecuencia, competicion, red, paredes} -> key
+  let nivelRawResult = null; // LVC.computeFullEstimate() | LVC.computeQuickLevel()
+  let nivelCategoryContextKey = null; // 'ar_masculino_v1' | null — calculado 1 vez al entrar
+  let nivelDeclaredCategory = null; // key elegida en la pregunta final, o null hasta responder
+  let nivelCategoryStep = null; // LVC.computeCategoryStep() más reciente, o null
 
   const NIVEL_STEP_TITLES = { intro: 'TU NIVEL BRAMU', quick: 'ELEGÍ TU NIVEL', quiz: 'TU NIVEL BRAMU', result: 'TU NIVEL BRAMU' };
 
-  // §3.6 — mismo texto de camino rápido que la fórmula normativa, reutilizado tal cual para
-  // las descripciones de cada fila (nunca una segunda redacción suelta en este archivo).
+  // §3.2/§3.5 — mismas 5 anclas de autoevaluación de la fórmula normativa, reutilizadas tal
+  // cual para las descripciones de cada fila (nunca una segunda redacción suelta acá).
   const NIVEL_QUICK_SEED_COPY = [
-    { key: 'iniciacion', title: 'Iniciación', desc: 'Estoy aprendiendo las reglas y los golpes básicos' },
-    { key: 'intermedio', title: 'Intermedio', desc: 'Puedo sostener el juego y empiezo a usar posiciones y paredes' },
-    { key: 'intermedio_alto', title: 'Intermedio alto', desc: 'Juego con control, entiendo la pareja y construyo puntos' },
-    { key: 'avanzado', title: 'Avanzado', desc: 'Manejo ritmos, posiciones y recursos con consistencia' },
-    { key: 'competicion', title: 'Competición', desc: 'Compito de manera habitual frente a jugadores avanzados' },
+    { key: 'iniciacion', title: 'Iniciación', desc: 'Estoy aprendiendo las reglas y los golpes básicos; me cuesta sostener el punto' },
+    { key: 'intermedio', title: 'Intermedio', desc: 'Sostengo intercambios y tengo algunos recursos, pero todavía cometo errores frecuentes' },
+    { key: 'intermedio_alto', title: 'Intermedio alto', desc: 'Construyo puntos y uso posiciones, paredes y juego en pareja, aunque bajo presión todavía cometo errores' },
+    { key: 'avanzado', title: 'Avanzado', desc: 'Manejo ritmos, posiciones y distintos recursos con consistencia' },
+    { key: 'profesional', title: 'Profesional', desc: 'Compito en categorías máximas o circuito profesional a alta velocidad y presión' },
   ];
+
+  // §3.5 — cuestionario completo V1.1 EXACTO (7 preguntas). Cada `id` es la key que espera
+  // `LVC.computeFullEstimate` — nunca un índice posicional (V1.1 ya no pondera por posición).
+  const NIVEL_FULL_QUESTIONS = [
+    { id: 'autoevaluacion', label: '¿Cómo describirías tu juego actual?', options: NIVEL_QUICK_SEED_COPY.map((o) => ({ key: o.key, title: o.title, desc: o.desc })) },
+    { id: 'anos', label: '¿Hace cuánto jugás al pádel?', options: [
+      { key: 'menos_1', title: 'Menos de un año' },
+      { key: 'uno_a_cinco', title: 'Entre uno y cinco años' },
+      { key: 'mas_5', title: 'Más de cinco años' },
+    ] },
+    { id: 'entrenamiento', label: '¿Qué experiencia tenés con clases o entrenamiento?', options: [
+      { key: 'nunca', title: 'Nunca tomé clases' },
+      { key: 'aisladas', title: 'Hice algunas clases o clínicas aisladas' },
+      { key: 'sin_continuidad', title: 'Tomo clases de vez en cuando, sin continuidad' },
+      { key: 'regular_pasado', title: 'Entrené regularmente durante una etapa, aunque actualmente no entreno' },
+      { key: 'regular_actual', title: 'Entreno con regularidad actualmente' },
+    ] },
+    { id: 'frecuencia', label: 'En tus últimos tres meses activos, ¿con qué frecuencia jugaste?', options: [
+      { key: 'esporadico', title: 'Juego esporádicamente o muy poco' },
+      { key: 'una_a_tres_mes', title: 'Juego entre una y tres veces por mes' },
+      { key: 'una_dos_semana', title: 'Juego una o dos veces por semana' },
+      { key: 'tres_mas_semana', title: 'Juego tres veces por semana o más' },
+    ] },
+    { id: 'competicion', label: 'Cuando competís en tu categoría habitual, ¿cómo suelen ser tus resultados?', options: [
+      { key: 'no_compito', title: 'No compito' },
+      { key: 'sin_referencia', title: 'Competí pocas veces y todavía no tengo una referencia clara' },
+      { key: 'dificil', title: 'Suelo tener partidos difíciles o quedar eliminado en las primeras rondas' },
+      { key: 'parejo', title: 'Tengo partidos parejos y algunas veces avanzo de ronda' },
+      { key: 'finales', title: 'Suelo llegar a cuartos, semifinales o finales' },
+    ] },
+    { id: 'red', label: 'Cuando estás en la red, ¿qué opción te representa mejor?', options: [
+      { key: 'a', title: 'Me cuesta subir, ubicarme y sostener la posición en la red' },
+      { key: 'b', title: 'Resuelvo voleas simples, pero pierdo la red fácilmente cuando me presionan o me superan con un globo' },
+      { key: 'c', title: 'Suelo sostener la red y ubicarme con mi compañero, aunque de vez en cuando me apuro y cometo errores no forzados' },
+      { key: 'd', title: 'Uso voleas y bandejas para conservar la posición, elijo cuándo acelerar y minimizo los errores no forzados' },
+      { key: 'e', title: 'Manejo distintos golpes, direcciones y ritmos incluso bajo presión; recupero la red con consistencia' },
+    ] },
+    { id: 'paredes', label: '¿Cómo te llevás con las paredes?', options: [
+      { key: 'a', title: 'Intento jugar la pelota antes de la pared porque todavía me cuesta interpretar el rebote' },
+      { key: 'b', title: 'Resuelvo rebotes simples de pared de fondo, pero a veces me ubico tarde o calculo mal la salida' },
+      { key: 'c', title: 'Uso pared de fondo y lateral con naturalidad en situaciones habituales, pero las pelotas rápidas o profundas todavía me generan errores' },
+      { key: 'd', title: 'Leo y resuelvo paredes simples y dobles, me ubico antes del rebote y mantengo el control incluso con velocidad' },
+      { key: 'e', title: 'Anticipo rebotes complejos y utilizo las paredes con consistencia bajo presión' },
+    ] },
+  ];
+
+  // §6 del Handoff V04.6 — última pregunta, compartida por los dos caminos. Mismas 9
+  // categorías que ya usa `declaredCategory` (CATEGORY_LABELS) + las 2 neutrales. Ningún
+  // orden ni estilo la destaca — nunca preseleccionada ni sugerida.
+  const NIVEL_CATEGORY_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'no-compito', 'no-se']
+    .map((key) => ({ key, title: CATEGORY_LABELS[key] }));
+
+  /** Piloto argentino masculino (§3.3 Fórmula V1.5) — único mapa activo hoy. Cualquier otro
+   *  contexto queda sin mapa compatible: la categoría se guarda igual, pero nunca ajusta el
+   *  nivel (`LVC.computeCategoryAdjustment` ya maneja ese caso). */
+  function computeNivelCategoryContextKey(user) {
+    return (user && user.country === 'Argentina' && user.gender === 'masculino') ? 'ar_masculino_v1' : null;
+  }
 
   function openNivelOnboardingIntro() {
     nivelStep = 'intro';
@@ -6770,7 +6836,9 @@
     nivelQuizIndex = 0;
     nivelQuizAnswers = {};
     nivelRawResult = null;
-    nivelAdjustment = 0;
+    nivelDeclaredCategory = null;
+    nivelCategoryStep = null;
+    nivelCategoryContextKey = computeNivelCategoryContextKey(Store.getCurrentUser());
     renderNivelOnboardingStep();
     showView('nivel-onboarding');
   }
@@ -6797,7 +6865,8 @@
         if (!seed) return;
         nivelPathType = 'quick';
         nivelRawResult = seed;
-        nivelAdjustment = 0;
+        nivelDeclaredCategory = null;
+        nivelCategoryStep = null;
         nivelStep = 'result';
         renderNivelOnboardingStep();
       });
@@ -6805,58 +6874,104 @@
   }
 
   function renderNivelQuizStep() {
-    const question = LVC.FULL_QUESTIONNAIRE[nivelQuizIndex];
-    const total = LVC.FULL_QUESTIONNAIRE.length;
+    const question = NIVEL_FULL_QUESTIONS[nivelQuizIndex];
+    const total = NIVEL_FULL_QUESTIONS.length;
     $('#nivel-quiz-progress-bar').style.width = Math.round(((nivelQuizIndex + 1) / total) * 100) + '%';
     $('#nivel-quiz-progress-label').textContent = `Pregunta ${nivelQuizIndex + 1} de ${total}`;
     $('#nivel-quiz-question-text').textContent = question.label;
-    const selectedIdx = nivelQuizAnswers[question.id];
+    const selectedKey = nivelQuizAnswers[question.id];
     const list = $('#nivel-quiz-answer-list');
-    list.innerHTML = question.options.map((opt, idx) => `
-      <button type="button" class="nivel-answer-option${idx === selectedIdx ? ' is-selected' : ''}" data-idx="${idx}">
-        <span class="nivel-answer-option__title">${opt.label}</span>
+    list.innerHTML = question.options.map((opt) => `
+      <button type="button" class="nivel-answer-option${opt.key === selectedKey ? ' is-selected' : ''}" data-key="${opt.key}">
+        <span class="nivel-answer-option__title">${opt.title}</span>
+        ${opt.desc ? `<span class="nivel-answer-option__desc">${opt.desc}</span>` : ''}
       </button>
     `).join('');
     const continueBtn = $('#nivel-quiz-continue-btn');
-    continueBtn.disabled = typeof selectedIdx !== 'number';
+    continueBtn.disabled = !selectedKey;
     continueBtn.textContent = nivelQuizIndex === total - 1 ? 'VER MI NIVEL' : 'CONTINUAR';
     $all('#nivel-quiz-answer-list .nivel-answer-option').forEach((btn) => {
       btn.addEventListener('click', () => {
-        nivelQuizAnswers[question.id] = Number(btn.dataset.idx);
+        nivelQuizAnswers[question.id] = btn.dataset.key;
         renderNivelQuizStep();
       });
     });
   }
 
+  // §7 del Handoff V04.6 — geometría del medidor semicircular 1-10 (compartida por el arco de
+  // fondo ya dibujado en index.html y el arco/aguja que esta función recalcula).
+  const NIVEL_GAUGE = Object.freeze({ cx: 110, cy: 112, r: 88, min: 1, max: 10 });
+
+  function nivelGaugePoint(thetaDeg) {
+    const rad = thetaDeg * Math.PI / 180;
+    return { x: NIVEL_GAUGE.cx + NIVEL_GAUGE.r * Math.cos(rad), y: NIVEL_GAUGE.cy - NIVEL_GAUGE.r * Math.sin(rad) };
+  }
+  // v=1 -> 180° (izquierda), v=10 -> 0° (derecha), pasando por arriba (90°) en el medio.
+  function nivelGaugeTheta(value) { return 180 * (NIVEL_GAUGE.max - value) / (NIVEL_GAUGE.max - NIVEL_GAUGE.min); }
+
+  function nivelGaugeArcPath(fromValue, toValue) {
+    const p1 = nivelGaugePoint(nivelGaugeTheta(fromValue));
+    const p2 = nivelGaugePoint(nivelGaugeTheta(toValue));
+    return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${NIVEL_GAUGE.r} ${NIVEL_GAUGE.r} 0 0 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  }
+
+  /** Único punto que mueve la aguja/arco del medidor — nunca redibuja `d`/`transform` en otro
+   *  lado. `animate=true` deja que la transición CSS (`.nivel-gauge__needle`,
+   *  `.nivel-gauge__fill`) haga el movimiento suave pedido al afinar por categoría (§7:
+   *  "mover suavemente la aguja... desde la estimación inicial al valor afinado"). */
+  function setNivelGaugeValue(value, animate) {
+    const v = Math.min(NIVEL_GAUGE.max, Math.max(NIVEL_GAUGE.min, value));
+    const needle = $('#nivel-gauge-needle');
+    needle.style.transition = animate ? 'transform var(--motion-base) var(--motion-ease)' : 'none';
+    needle.setAttribute('transform', `rotate(${(20 * v - 110).toFixed(2)} ${NIVEL_GAUGE.cx} ${NIVEL_GAUGE.cy})`);
+    $('#nivel-gauge-value-arc').setAttribute('d', nivelGaugeArcPath(NIVEL_GAUGE.min, v));
+    $('#nivel-gauge-value').textContent = LV.roundPublicLevel(v).toFixed(1);
+    $('#nivel-result-category').textContent = LVC.categorizeLevel(v).label;
+  }
+
   function renderNivelResultStep() {
-    const category = LVC.categorizeLevel(nivelRawResult.raw);
-    updateNivelAdjustUI(category);
+    $('#nivel-category-grid').innerHTML = NIVEL_CATEGORY_OPTIONS.map((opt) => `
+      <button type="button" class="nivel-category-chip${opt.key === nivelDeclaredCategory ? ' is-selected' : ''}" data-key="${opt.key}">${opt.title}</button>
+    `).join('');
+    $all('#nivel-category-grid .nivel-category-chip').forEach((btn) => {
+      btn.addEventListener('click', () => selectNivelCategory(btn.dataset.key));
+    });
+    if (!nivelDeclaredCategory) {
+      $('#nivel-result-label').textContent = 'TU ESTIMACIÓN INICIAL';
+      $('#nivel-coherence-note').hidden = true;
+      $('#nivel-confirm-btn').disabled = true;
+      setNivelGaugeValue(nivelRawResult.raw, false);
+    } else {
+      $('#nivel-result-label').textContent = 'TU PUNTO DE PARTIDA EN BRAMU';
+      $('#nivel-coherence-note').hidden = !nivelCategoryStep.coherenceFlag;
+      $('#nivel-confirm-btn').disabled = false;
+      setNivelGaugeValue(nivelCategoryStep.adjustedLevel, true);
+    }
   }
 
-  /** Único punto que recalcula el número mostrado al mover el stepper — nunca reimplementa
-   *  `raw + ajuste`, solo lo aplica para PREVIEW (el clamp/validación real y definitiva la
-   *  hace `LVC.confirmInitialLevel` al confirmar). */
-  function updateNivelAdjustUI(category) {
-    const cat = category || LVC.categorizeLevel(nivelRawResult.raw);
-    const adjusted = nivelRawResult.raw + nivelAdjustment;
-    $('#nivel-result-value').textContent = adjusted.toFixed(1);
-    $('#nivel-result-category').textContent = cat.label;
-    $('#nivel-adjust-value').textContent = (nivelAdjustment > 0 ? '+' : '') + nivelAdjustment.toFixed(1);
-    $('#nivel-adjust-minus').disabled = nivelAdjustment <= -LVC.PARAMS.ADJUSTMENT_MAX_ABS + 1e-9;
-    $('#nivel-adjust-plus').disabled = nivelAdjustment >= LVC.PARAMS.ADJUSTMENT_MAX_ABS - 1e-9;
+  /** Aplica la pregunta final de categoría (§6/§7 del Handoff V04.6) — recalcula vía
+   *  `LVC.computeCategoryStep` y deja que `renderNivelResultStep` anime la aguja desde la
+   *  estimación inicial hacia el valor afinado. Nunca reimplementa el ajuste acá. */
+  function selectNivelCategory(key) {
+    nivelDeclaredCategory = key;
+    nivelCategoryStep = LVC.computeCategoryStep(nivelRawResult, nivelCategoryContextKey, key);
+    renderNivelResultStep();
   }
 
-  /** Confirma el nivel inicial (LVC.confirmInitialLevel + buildInitialCalibrationState),
+  /** Confirma el nivel inicial V1.1 (LVC.confirmInitialLevelV1_1 + buildInitialCalibrationState),
    *  guarda el estado real de Nivel BRAMU V1 (Store.saveLevelV1State, prototipo local — ver
-   *  cabecera de store.js) y entra a BRAMU mostrando ese Nivel en CALIBRANDO (renderPlayerCard/
-   *  renderProfileEvolution ya lo detectan, ver `currentLevelV1State`). */
+   *  cabecera de store.js) y persiste la categoría declarada en el MISMO campo de la cuenta
+   *  (`declaredCategory`/`declaredCategoryAt`, ver Handoff V04.6 §4: "no crear dos categorías
+   *  independientes") antes de entrar a BRAMU mostrando ese Nivel en CALIBRANDO
+   *  (renderPlayerCard/renderProfileEvolution ya lo detectan, ver `currentLevelV1State`). */
   function confirmNivelOnboarding() {
     const user = Store.getCurrentUser();
-    if (!user) return;
-    const confirmResult = LVC.confirmInitialLevel(nivelRawResult, nivelAdjustment, false, new Date().toISOString());
-    if (!confirmResult.ok) return; // defensivo: el stepper de UI ya impide llegar acá fuera de rango
+    if (!user || !nivelCategoryStep) return;
+    const confirmedAt = new Date().toISOString();
+    const confirmResult = LVC.confirmInitialLevelV1_1(nivelCategoryStep, nivelCategoryStep.coherenceFlag, confirmedAt);
     const state = LVC.buildInitialCalibrationState(nivelPathType, confirmResult, nivelPathType === 'full' ? nivelQuizAnswers : null);
     Store.saveLevelV1State(user.id, state);
+    Store.updateUserAccount(user.id, { declaredCategory: nivelDeclaredCategory, declaredCategoryAt: confirmedAt });
     completeIdentifyAction();
   }
 
@@ -6886,31 +7001,21 @@
     });
 
     $('#nivel-quiz-continue-btn').addEventListener('click', () => {
-      const total = LVC.FULL_QUESTIONNAIRE.length;
+      const total = NIVEL_FULL_QUESTIONS.length;
       if (nivelQuizIndex < total - 1) { nivelQuizIndex += 1; renderNivelOnboardingStep(); return; }
-      nivelRawResult = LVC.computeFullQuestionnaireRaw(nivelQuizAnswers);
-      nivelAdjustment = 0;
+      nivelRawResult = LVC.computeFullEstimate(nivelQuizAnswers);
+      nivelDeclaredCategory = null;
+      nivelCategoryStep = null;
       nivelStep = 'result';
       renderNivelOnboardingStep();
     });
 
-    $('#nivel-adjust-minus').addEventListener('click', () => {
-      nivelAdjustment = Math.max(-LVC.PARAMS.ADJUSTMENT_MAX_ABS, round1(nivelAdjustment - LVC.PARAMS.ADJUSTMENT_STEP));
-      updateNivelAdjustUI();
-    });
-    $('#nivel-adjust-plus').addEventListener('click', () => {
-      nivelAdjustment = Math.min(LVC.PARAMS.ADJUSTMENT_MAX_ABS, round1(nivelAdjustment + LVC.PARAMS.ADJUSTMENT_STEP));
-      updateNivelAdjustUI();
-    });
-
     $('#nivel-confirm-btn').addEventListener('click', confirmNivelOnboarding);
-    // "Revisar respuestas" (§5.3) — vuelve a empezar la elección de camino; esta primera
-    // versión visible no reconstruye las respuestas anteriores paso a paso (queda para el
-    // siguiente bloque de Etapa D si se pide edición in-place).
+    // "Revisar respuestas" — vuelve a empezar la elección de camino (también es la acción que
+    // ofrece el aviso de coherencia, §8 del Handoff V04.6); esta primera versión no reconstruye
+    // las respuestas anteriores paso a paso.
     $('#nivel-review-btn').addEventListener('click', () => { openNivelOnboardingIntro(); });
   }
-
-  function round1(n) { return Math.round(n * 10) / 10; }
 
   /** `null` sin sesión o sin estado guardado — único punto de lectura del prototipo local
    *  (Store.loadLevelV1State) para que Home/Perfil compartan exactamente el mismo criterio de
@@ -10861,19 +10966,27 @@
 
   /** BRAMUlab_V04.5 — único punto que sincroniza TODO lo que refleja el estado del preview:
    *  el ícono del header del Home (mouse Y touch, sin depender del long-press), el label del
-   *  toggle dentro de Herramientas, y el título del propio menú ("· V04.5 PREVIEW" cuando está
+   *  toggle dentro de Herramientas, y el título del propio menú ("· V04.6 PREVIEW" cuando está
    *  prendido) — identificación clara de que se está probando esta versión, además del string
-   *  de versión pública (Store.VERSION), ahora también "BRAMUlab V04.5" (ver store.js). Llamado
+   *  de versión pública (Store.VERSION), ahora también "BRAMUlab V04.6" (ver store.js). Llamado
    *  al boot (para reflejar un estado ya guardado de una sesión anterior) y después de cada
-   *  toggle, desde CUALQUIERA de los 2 lugares que lo cambian. */
+   *  toggle, desde CUALQUIERA de los 2 lugares que lo cambian.
+   *  BRAMUlab_V04.6 — también sincroniza acá las 2 ayudas de laboratorio (Handoff V04.6 §10):
+   *  "Crear usuario de prueba"/"Resetear Nivel BRAMU" quedan `hidden` con el preview apagado —
+   *  nunca alcanzables sin saber que el modo laboratorio existe, mismo criterio que el resto de
+   *  este menú oculto. */
   function refreshLabPreviewUI() {
     const enabled = Store.isLevelV1PreviewEnabled();
     const headerBtn = $('#player-home-lab-preview-btn');
     if (headerBtn) headerBtn.classList.toggle('is-active', enabled);
     const title = $('#dev-tools-title');
-    if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.5 PREVIEW' : 'HERRAMIENTAS';
+    if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.6 PREVIEW' : 'HERRAMIENTAS';
     const toggleBtn = $('#dev-tools-toggle-nivel-v1');
     if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
+    const createTestUserBtn = $('#dev-tools-create-test-user');
+    if (createTestUserBtn) createTestUserBtn.hidden = !enabled;
+    const resetNivelBtn = $('#dev-tools-reset-nivel');
+    if (resetNivelBtn) resetNivelBtn.hidden = !enabled;
   }
 
   /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
@@ -10883,8 +10996,57 @@
     refreshLabPreviewUI();
   }
 
+  let labTestUserCounter = 0;
+
+  /** BRAMUlab_V04.6 — "Crear usuario de prueba" (Handoff V04.6 §10.A): cuenta local temporal
+   *  SIN mail/contraseña (nunca pasa por el wizard de alta ni sus validaciones), directo al
+   *  flujo de "TU PERFIL ESTÁ LISTO" -> onboarding de Nivel BRAMU V1 (mismo camino que
+   *  cualquier alta nueva con el preview activo, ver initPlayerCardScreen). País/género fijos
+   *  en el piloto compatible (Argentina/masculino) para poder probar el camino CON mapa de
+   *  categoría; se puede repetir tantas veces como haga falta, sin tocar la cuenta real. */
+  function createLabTestUserAndOpenOnboarding() {
+    labTestUserCounter += 1;
+    const n = labTestUserCounter;
+    const user = Store.createUserAccount({
+      firstName: 'Jugador', lastName: `Prueba ${n}`, displayName: `Jugador de Prueba ${n}`,
+      username: `pruebalab${Date.now().toString(36)}${n}`,
+      birthDate: '1995-06-15', gender: 'masculino', dominantHand: 'derecha', preferredSide: 'drive',
+      locality: 'Buenos Aires', region: 'Buenos Aires', country: 'Argentina',
+    });
+    Store.saveSessionUserId(user.id);
+    Store.saveCurrentPlayerName(user.displayName);
+    syncCurrentIdentityFromStore();
+    $('#dev-tools-modal').hidden = true;
+    showToast('Usuario de prueba creado', 2000);
+    openPlayerCardScreen(user);
+  }
+
+  /** BRAMUlab_V04.6 — "Resetear Nivel BRAMU" (Handoff V04.6 §10.B): borra SOLO
+   *  `Store.resetLevelV1State` de la cuenta activa (historial, estadísticas, red, jugadores y
+   *  grupos quedan intactos, ver cabecera de esa función en store.js) y reabre directo el
+   *  onboarding para poder regenerar el Nivel con `nivel_inicial_v1_1` sobre la misma base
+   *  ficticia acumulada — nunca migra silenciosamente un origen `nivel_inicial_v1_0`/V1.4
+   *  viejo (§10 in fine del Handoff). */
+  function resetLevelV1ForLabAccount() {
+    const user = Store.getCurrentUser();
+    $('#dev-tools-modal').hidden = true;
+    if (!user) { showToast('Iniciá sesión para resetear Nivel BRAMU', 2200); return; }
+    const had = Store.resetLevelV1State(user.id);
+    if (!had) { showToast('Esta cuenta no tenía un Nivel BRAMU V1 guardado', 2200); return; }
+    showToast('Nivel BRAMU reseteado — historial y estadísticas intactos', 2400);
+    openNivelOnboardingIntro();
+  }
+
   function initDevTools() {
-    const logo = $('#home-logo');
+    // BRAMUlab_V04.6 — corrección de un bug preexistente detectado al verificar esta ronda:
+    // `#home-logo` (el ID que este selector usaba desde V13.1) vive dentro de `#view-setup`,
+    // NUNCA dentro de `#view-player-home` — el logo real del Home tiene su PROPIO id
+    // (`#player-home-logo`, ver index.html) desde el rediseño de Home. El long-press sobre el
+    // logo de Home nunca estaba conectado a nada; se corrige acá porque bloqueaba llegar a los
+    // 2 botones nuevos de laboratorio de esta ronda (§10 del Handoff V04.6) — no es un cambio
+    // de alcance de Nivel BRAMU, es la única forma de que "Crear usuario de prueba"/"Resetear
+    // Nivel BRAMU" sean alcanzables de verdad.
+    const logo = $('#player-home-logo');
     const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshLabPreviewUI(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
     const cancel = () => clearTimeout(longPressTimeoutId);
     logo.addEventListener('pointerdown', start);
@@ -10897,6 +11059,8 @@
     $('#dev-tools-modal').addEventListener('click', (e) => { if (e.target === $('#dev-tools-modal')) $('#dev-tools-modal').hidden = true; });
     $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
     $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => { setLevelV1Preview(!Store.isLevelV1PreviewEnabled()); });
+    $('#dev-tools-create-test-user').addEventListener('click', createLabTestUserAndOpenOnboarding);
+    $('#dev-tools-reset-nivel').addEventListener('click', resetLevelV1ForLabAccount);
   }
 
   /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca

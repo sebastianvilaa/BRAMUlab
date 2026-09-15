@@ -5897,86 +5897,252 @@
   })();
 
   // ======================================================================
-  // BRAMUlab_V04.3 (Etapa C) — LEVEL-CALIBRATION: cuestionario, ajuste
-  // inicial, calibración, recalibración (level-calibration.js /
-  // window.PLLevelCalibration). Fuente normativa: Nivel_BRAMU_Formula_V1.4.md
-  // §3, §10.2, §11. Módulo puro, sin localStorage — sin AFFECTED_KEYS.
+  // BRAMUlab_V04.6 (Etapa C) — LEVEL-CALIBRATION: estimador inicial V1.1
+  // (reemplaza al V1.4 de V04.3), ajuste automático por categoría,
+  // calibración, recalibración (level-calibration.js / window.PLLevelCalibration).
+  // Fuente normativa: Nivel_BRAMU_Formula_V1.5.md §3, §10.2, §11 — y
+  // Nivel_BRAMU_Handoff_Cuestionario_V1.5.md / BRAMUlab_V04.6_Handoff.md para
+  // las decisiones de UX/laboratorio de esta ronda. Módulo puro, sin
+  // localStorage — sin AFFECTED_KEYS (salvo la sección V046-STORE, que prueba
+  // el prototipo de persistencia en store.js).
   // ======================================================================
 
-  function mkAnswersLVC(idx) {
-    // idx = [autoevaluacion, tiempo_jugando, clases_entrenamiento, frecuencia_reciente,
-    //        experiencia_competitiva, red, paredes] — mismo orden que FULL_QUESTIONNAIRE.
-    const ids = ['autoevaluacion', 'tiempo_jugando', 'clases_entrenamiento', 'frecuencia_reciente', 'experiencia_competitiva', 'red', 'paredes'];
-    const out = {};
-    ids.forEach((id, i) => { out[id] = idx[i]; });
-    return out;
+  /** answers V1.1: {autoevaluacion, anos, entrenamiento, frecuencia, competicion, red, paredes}
+   *  — todas KEYS, nunca índices posicionales (a diferencia del V1.4 retirado). */
+  function mkAnswersV11(overrides) {
+    return Object.assign({
+      autoevaluacion: 'intermedio', anos: 'uno_a_cinco', entrenamiento: 'nunca',
+      frecuencia: 'esporadico', competicion: 'no_compito', red: 'c', paredes: 'c',
+    }, overrides || {});
   }
 
   // ------------------------------------------------------------------
-  // 1. Cuestionario completo: catálogo (7 preguntas, pesos exactos) + extremos.
+  // 1. Anclas y modificadores del estimador inicial (§3.2 Fórmula V1.5).
   // ------------------------------------------------------------------
   (function () {
-    assert('LVC-CUESTIONARIO · exactamente 7 preguntas', LVC.FULL_QUESTIONNAIRE.length === 7);
-    const totalWeight = LVC.FULL_QUESTIONNAIRE.reduce((s, q) => s + q.weight, 0);
-    assert('LVC-CUESTIONARIO · los 7 pesos suman EXACTO 1.00 (30/15/10/10/15/10/10)', Math.abs(totalWeight - 1.00) < 1e-9, totalWeight);
-    const weightsById = {}; LVC.FULL_QUESTIONNAIRE.forEach((q) => { weightsById[q.id] = q.weight; });
-    assert('LVC-CUESTIONARIO · pesos exactos por dimensión',
-      weightsById.autoevaluacion === 0.30 && weightsById.tiempo_jugando === 0.15 && weightsById.clases_entrenamiento === 0.10 &&
-      weightsById.frecuencia_reciente === 0.10 && weightsById.experiencia_competitiva === 0.15 && weightsById.red === 0.10 && weightsById.paredes === 0.10);
+    assert('LVC-ANCLAS · 5 anclas de autoevaluación (2.0/4.0/5.5/7.0/8.5), etiqueta superior "Profesional"',
+      LVC.ANCHOR_AUTOEVALUACION.length === 5 &&
+      LVC.ANCHOR_AUTOEVALUACION.map((a) => a.value).join(',') === '2,4,5.5,7,8.5' &&
+      LVC.ANCHOR_AUTOEVALUACION[4].key === 'profesional' && LVC.ANCHOR_AUTOEVALUACION[4].label === 'Profesional');
+    assert('LVC-ANCLAS · escala técnica común A-E (1.0/3.0/5.0/6.5/8.5)',
+      LVC.ANCHOR_TECNICA.map((a) => a.value).join(',') === '1,3,5,6.5,8.5');
+    assert('LVC-TECNICA · ancla_tecnica = (red+paredes)/2 — C+D -> 5.75', LVC.computeTechnicalAnchor('c', 'd') === 5.75);
+    assert('LVC-TECNICA · A+A -> 1.0 (piso)', LVC.computeTechnicalAnchor('a', 'a') === 1.0);
+    assert('LVC-TECNICA · falta una respuesta -> null (nunca promedia con un valor inventado)',
+      LVC.computeTechnicalAnchor('c', null) === null && LVC.computeTechnicalAnchor(null, null) === null);
 
-    const allZero = LVC.computeFullQuestionnaireRaw(mkAnswersLVC([0, 0, 0, 0, 0, 0, 0]));
-    assert('LVC-CUESTIONARIO · extremo inferior (todas las opciones mínimas) -> Q=0, nivel=1.00', allZero.q === 0 && allZero.raw === 1.00);
+    const trainingByKey = {}; LVC.TRAINING_MODIFIERS.forEach((t) => { trainingByKey[t.key] = t.value; });
+    assert('LVC-ENTRENAMIENTO · 5 modificadores exactos (0/0.02/0.05/0.08/0.10)',
+      trainingByKey.nunca === 0.00 && trainingByKey.aisladas === 0.02 && trainingByKey.sin_continuidad === 0.05 &&
+      trainingByKey.regular_pasado === 0.08 && trainingByKey.regular_actual === 0.10);
 
-    const allMax = LVC.computeFullQuestionnaireRaw(mkAnswersLVC([4, 4, 4, 5, 5, 4, 4]));
-    assert('LVC-CUESTIONARIO · extremo superior (todas las opciones máximas) -> Q=1, nivel=8.50 (rango bruto 1.0-8.5)',
-      allMax.q === 1.00 && allMax.raw === 8.50);
+    const compByKey = {}; LVC.COMPETITION_MODIFIERS.forEach((c) => { compByKey[c.key] = c.value; });
+    assert('LVC-COMPETITIVO · 5 modificadores exactos (0/0/-0.15/+0.10/+0.20)',
+      compByKey.no_compito === 0.00 && compByKey.sin_referencia === 0.00 && compByKey.dificil === -0.15 &&
+      compByKey.parejo === 0.10 && compByKey.finales === 0.20);
+
+    assert('LVC-CATEGORIA · mapa piloto ar_masculino_v1 con las 9 anclas exactas',
+      LVC.CATEGORY_CONTEXT_MAPS.ar_masculino_v1['1'] === 8.4 && LVC.CATEGORY_CONTEXT_MAPS.ar_masculino_v1['4'] === 6.1 &&
+      LVC.CATEGORY_CONTEXT_MAPS.ar_masculino_v1['5'] === 5.5 && LVC.CATEGORY_CONTEXT_MAPS.ar_masculino_v1['9'] === 2.0);
+    assert('LVC-CATEGORIA · claves neutrales exactas (no-compito/no-se)',
+      LVC.CATEGORY_NEUTRAL_KEYS.indexOf('no-compito') !== -1 && LVC.CATEGORY_NEUTRAL_KEYS.indexOf('no-se') !== -1 && LVC.CATEGORY_NEUTRAL_KEYS.length === 2);
   })();
 
   // ------------------------------------------------------------------
-  // 2. Los 6 perfiles sintéticos publicados en Nivel_BRAMU_Formula_V1.4.md §3.4.
-  //    La fórmula solo publica el resultado agregado (bruto + rango tras ajuste),
-  //    no las 7 respuestas originales de cada perfil — impossible reconstruir el
-  //    combo EXACTO sin inventar datos. Se construyen respuestas narrativamente
-  //    consistentes con cada perfil y se verifica que el bruto caiga dentro del
-  //    propio "rango tras ajuste" publicado (bruto±0.5, clampeado en los bordes de
-  //    la escala) — el mismo margen que el producto ya define como corrección
-  //    aceptable para esa persona, no una tolerancia inventada por este arnés.
+  // 2. Estimación inicial — cuestionario completo (§3.2/§3.5) y camino rápido (§3.6).
+  //    nivel_base = 0.65×autoeval + 0.35×técnica + modificador_entrenamiento — SIN categoría
+  //    todavía (V1.1 la pregunta después, ver bloque 3).
   // ------------------------------------------------------------------
   (function () {
-    const profiles = [
-      { label: 'Principiante total', answers: [0, 0, 1, 1, 0, 0, 0], range: [1.00, 1.88] },
-      { label: 'Inicial recreativo', answers: [1, 1, 1, 2, 1, 1, 1], range: [2.11, 3.11] },
-      { label: 'Intermedio en formación', answers: [2, 2, 2, 3, 2, 2, 2], range: [4.01, 5.01] },
-      { label: 'Intermedio consolidado', answers: [3, 3, 2, 3, 3, 3, 2], range: [5.54, 6.54] },
-      { label: 'Avanzado amateur', answers: [3, 4, 3, 4, 4, 3, 3], range: [6.74, 7.74] },
-      { label: 'Competición', answers: [4, 4, 4, 5, 5, 4, 4], range: [8.00, 9.00] },
-    ];
-    profiles.forEach((p) => {
-      const result = LVC.computeFullQuestionnaireRaw(mkAnswersLVC(p.answers));
-      assert(`LVC-PERFIL · "${p.label}" -> bruto ${result.raw} dentro del rango publicado [${p.range[0]}, ${p.range[1]}]`,
-        result.raw >= p.range[0] - 0.001 && result.raw <= p.range[1] + 0.001, result.raw);
-    });
-  })();
+    const est = LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado' }));
+    assert('LVC-BASE · 0.65×5.5 + 0.35×5.75 + 0.08 = 5.6675 EXACTO', est.baseLevel === 5.6675, est.baseLevel);
+    assert('LVC-BASE · raw = baseLevel clampeado 1.0-9.0 (sin categoría todavía)', est.raw === est.baseLevel);
+    assert('LVC-BASE · nunca inventa un modificador competitivo no formulado', LVC.computeFullEstimate(mkAnswersV11({ competicion: undefined })).competitionAnswer === null);
+    assert('LVC-BASE · falta autoevaluación/red/paredes/entrenamiento -> null (nunca un valor a mitad de camino)',
+      LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'inexistente' })) === null &&
+      LVC.computeFullEstimate(mkAnswersV11({ red: 'inexistente' })) === null &&
+      LVC.computeFullEstimate(mkAnswersV11({ entrenamiento: 'inexistente' })) === null);
 
-  // ------------------------------------------------------------------
-  // 3. Camino rápido — 5 semillas + confianza inicial 0.10 vs. 0.15 del completo.
-  // ------------------------------------------------------------------
-  (function () {
     assert('LVC-RAPIDO · Iniciación = 2.0', LVC.computeQuickLevel('iniciacion').raw === 2.0);
     assert('LVC-RAPIDO · Intermedio = 4.0', LVC.computeQuickLevel('intermedio').raw === 4.0);
     assert('LVC-RAPIDO · Intermedio alto = 5.5', LVC.computeQuickLevel('intermedio_alto').raw === 5.5);
     assert('LVC-RAPIDO · Avanzado = 7.0', LVC.computeQuickLevel('avanzado').raw === 7.0);
-    assert('LVC-RAPIDO · Competición = 8.5', LVC.computeQuickLevel('competicion').raw === 8.5);
+    assert('LVC-RAPIDO · Profesional = 8.5 (ya no "Competición", ver §3.2 V1.5)', LVC.computeQuickLevel('profesional').raw === 8.5);
     assert('LVC-RAPIDO · semilla inexistente -> null (nunca inventa)', LVC.computeQuickLevel('inexistente') === null);
-
-    const quickState = LVC.buildInitialCalibrationState('quick', LVC.confirmInitialLevel(LVC.computeQuickLevel('intermedio'), 0, false, '2026-01-01T00:00:00.000Z'), null);
-    assert('LVC-CONFIANZA · camino rápido -> confidence inicial 0.10', quickState.confidence === 0.10 && quickState.confidence === LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK);
-    const fullState = LVC.buildInitialCalibrationState('full', LVC.confirmInitialLevel(LVC.computeFullQuestionnaireRaw(mkAnswersLVC([2, 2, 2, 3, 2, 2, 2])), 0, false, '2026-01-01T00:00:00.000Z'), {});
-    assert('LVC-CONFIANZA · cuestionario completo -> confidence inicial 0.15', fullState.confidence === 0.15 && fullState.confidence === LV.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_FULL);
+    assert('LVC-RAPIDO · sin ancla técnica propia (no formula esa pregunta)', LVC.computeQuickLevel('avanzado').technicalAnchor === null);
   })();
 
   // ------------------------------------------------------------------
-  // 4. Ajuste inicial: +0.5/-0.5, rechazo >0.5, límites 1.0/9.0, segundo ajuste.
+  // 3. Categoría como último paso (§3.3/§3.6) — ajuste automático ±0.5, mapa piloto,
+  //    claves neutrales, contexto no soportado, camino rápido sin modificador competitivo.
+  // ------------------------------------------------------------------
+  (function () {
+    const base = LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales' }));
+    const conMapa = LVC.computeCategoryStep(base, 'ar_masculino_v1', '4');
+    assert('LVC-CATEGORIA-PASO · referencia = ancla(6.1) + modificador(+0.20) = 6.3 EXACTO', conMapa.categoryReference === 6.3, conMapa.categoryReference);
+    assert('LVC-CATEGORIA-PASO · ajuste = clamp(0.70×(6.3-5.6675)) = 0.4427 EXACTO', conMapa.categoryAdjustment === 0.4427, conMapa.categoryAdjustment);
+    assert('LVC-CATEGORIA-PASO · nivel afinado = base + ajuste', conMapa.adjustedLevel === 6.1102);
+
+    const sinMapa = LVC.computeCategoryStep(base, null, '4');
+    assert('LVC-CONTEXTO · sin mapa compatible -> ajuste 0, referencia null, categoría se guarda igual',
+      sinMapa.categoryAdjustment === 0 && sinMapa.categoryReference === null && sinMapa.declaredCategory === '4' && sinMapa.adjustedLevel === base.baseLevel);
+    const mapaInexistente = LVC.computeCategoryStep(base, 'contexto_inexistente', '4');
+    assert('LVC-CONTEXTO · categoryContextKey desconocida -> mismo criterio que sin mapa', mapaInexistente.categoryAdjustment === 0);
+
+    const noCompito = LVC.computeCategoryStep(base, 'ar_masculino_v1', 'no-compito');
+    const noSe = LVC.computeCategoryStep(base, 'ar_masculino_v1', 'no-se');
+    assert('LVC-NEUTRAL · "No compito" -> ajuste 0 aunque el mapa exista', noCompito.categoryAdjustment === 0 && noCompito.categoryReference === null);
+    assert('LVC-NEUTRAL · "No estoy seguro" -> ajuste 0 aunque el mapa exista', noSe.categoryAdjustment === 0 && noSe.categoryReference === null);
+
+    const capAlto = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'b', paredes: 'b', entrenamiento: 'nunca' })), 'ar_masculino_v1', '1');
+    assert('LVC-LIMITE · ajuste automático NUNCA supera +0.5 aunque la referencia esté muy lejos', capAlto.categoryAdjustment === 0.5, capAlto.categoryAdjustment);
+    const capBajo = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'profesional', red: 'e', paredes: 'e', entrenamiento: 'regular_actual' })), 'ar_masculino_v1', '9');
+    assert('LVC-LIMITE · ajuste automático NUNCA supera -0.5 aunque la referencia esté muy lejos', capBajo.categoryAdjustment === -0.5, capBajo.categoryAdjustment);
+
+    const quick = LVC.computeQuickLevel('avanzado');
+    const quickConCategoria = LVC.computeCategoryStep(quick, 'ar_masculino_v1', '3');
+    assert('LVC-RAPIDO-CATEGORIA · usa SOLO la ancla de categoría, nunca un modificador competitivo no formulado (§3.6)',
+      quickConCategoria.categoryReference === 6.9);
+    assert('LVC-RAPIDO-CATEGORIA · confianza SIGUE en 0.10 aunque exista categoría con mapa (§3.6)',
+      quickConCategoria.naturalConfidenceOrigin === 0.10);
+  })();
+
+  // ------------------------------------------------------------------
+  // 4. Coherencia (§3.4) — brecha >= 2.0 (límite inclusive) y confianza variable 0.12/0.15/0.18.
+  // ------------------------------------------------------------------
+  (function () {
+    const rawExacto = LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'a', paredes: 'b', entrenamiento: 'nunca', competicion: 'no_compito' }));
+    const exacto2 = LVC.computeCategoryStep(rawExacto, null, 'no-compito');
+    assert('LVC-COHERENCIA · brecha EXACTA 2.0 -> coherenceFlag true (límite inclusive, §3.4 ">=")', exacto2.coherenceGap === 2 && exacto2.coherenceFlag === true);
+
+    const rawDebajo = LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'avanzado', red: 'e', paredes: 'e', entrenamiento: 'nunca', competicion: 'parejo' }));
+    const debajo2 = LVC.computeCategoryStep(rawDebajo, 'ar_masculino_v1', '5');
+    assert('LVC-COHERENCIA · brecha 1.925 (< 2.0) -> coherenceFlag false', debajo2.coherenceGap === 1.925 && debajo2.coherenceFlag === false);
+
+    // Puntos de contexto -> confianza de origen (0-1:0.12, 2-3:0.15, 4-5:0.18); saturación desde
+    // "una o dos veces por semana" (§3.4: jugar más no vuelve la estimación más precisa).
+    const p0 = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'menos_1', frecuencia: 'esporadico' })), null, 'no-compito');
+    const p1 = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'uno_a_cinco', frecuencia: 'esporadico' })), null, 'no-compito');
+    const p2 = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'mas_5', frecuencia: 'esporadico' })), null, 'no-compito');
+    const p3 = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'mas_5', frecuencia: 'una_a_tres_mes' })), null, 'no-compito');
+    const p4 = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'mas_5', frecuencia: 'una_dos_semana' })), null, 'no-compito');
+    const p4b = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'mas_5', frecuencia: 'tres_mas_semana' })), null, 'no-compito');
+    assert('LVC-CONFIANZA · 0 puntos -> 0.12', p0.naturalConfidenceOrigin === 0.12);
+    assert('LVC-CONFIANZA · 1 punto -> 0.12', p1.naturalConfidenceOrigin === 0.12);
+    assert('LVC-CONFIANZA · 2 puntos -> 0.15', p2.naturalConfidenceOrigin === 0.15);
+    assert('LVC-CONFIANZA · 3 puntos -> 0.15', p3.naturalConfidenceOrigin === 0.15);
+    assert('LVC-CONFIANZA · 4 puntos -> 0.18', p4.naturalConfidenceOrigin === 0.18);
+    assert('LVC-CONFIANZA · satura en 0.18 desde "1-2 veces por semana" (3-4 veces no suma más)', p4b.naturalConfidenceOrigin === 0.18);
+    const pCat = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ anos: 'uno_a_cinco', frecuencia: 'esporadico' })), 'ar_masculino_v1', '5');
+    assert('LVC-CONFIANZA · categoría con mapa compatible aporta +1 punto de contexto (1+0+1=2 -> cruza a 0.15)', pCat.naturalConfidenceOrigin === 0.15);
+  })();
+
+  // ------------------------------------------------------------------
+  // 5. Confirmación V1.1 (§3.4/§3.7) — questionnaireVersion, coherencia confirmada sin
+  //    revisar limita la confianza a 0.10 (nunca castiga el nivel calculado).
+  // ------------------------------------------------------------------
+  (function () {
+    const gap = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'avanzado', red: 'b', paredes: 'b', entrenamiento: 'nunca', competicion: 'dificil', anos: 'mas_5', frecuencia: 'una_dos_semana' })), 'ar_masculino_v1', '6');
+    assert('LVC-CONFIRMAR · setup: coherenceFlag true para este combo', gap.coherenceFlag === true);
+    const sinConfirmarIgual = LVC.confirmInitialLevelV1_1(gap, false, '2026-01-01T00:00:00.000Z');
+    const confirmandoIgual = LVC.confirmInitialLevelV1_1(gap, true, '2026-01-01T00:00:00.000Z');
+    assert('LVC-CONFIRMAR · el NIVEL calculado nunca se penaliza por coherencia', sinConfirmarIgual.origin.confirmedLevel === confirmandoIgual.origin.confirmedLevel && confirmandoIgual.origin.confirmedLevel === 5.1);
+    assert('LVC-CONFIRMAR · confianza SIN confirmar-igual conserva el valor natural (0.18)', sinConfirmarIgual.origin.confidenceOrigin === 0.18);
+    assert('LVC-CONFIRMAR · confianza confirmando igual sin revisar queda LIMITADA a 0.10', confirmandoIgual.origin.confidenceOrigin === 0.10);
+    assert('LVC-CONFIRMAR · questionnaireVersion = "nivel_inicial_v1_1" en el origen persistido', confirmandoIgual.origin.questionnaireVersion === 'nivel_inicial_v1_1');
+    assert('LVC-CONFIRMAR · trazabilidad completa (baseLevel/technicalAnchor/categoryReference/categoryAdjustment/declaredCategory/competitionAnswer/coherenceFlag)',
+      confirmandoIgual.origin.baseLevel === 5.6 && confirmandoIgual.origin.technicalAnchor === 3 && confirmandoIgual.origin.categoryReference === 4.65 &&
+      confirmandoIgual.origin.categoryAdjustment === -0.5 && confirmandoIgual.origin.declaredCategory === '6' && confirmandoIgual.origin.competitionAnswer === 'dificil' &&
+      confirmandoIgual.origin.coherenceFlag === true);
+
+    const sinGap = LVC.computeCategoryStep(LVC.computeFullEstimate(mkAnswersV11()), null, 'no-compito');
+    const confirmSinGap = LVC.confirmInitialLevelV1_1(sinGap, true, '2026-01-01T00:00:00.000Z');
+    assert('LVC-CONFIRMAR · confirmDespiteCoherence=true no hace nada si coherenceFlag era false', confirmSinGap.origin.confidenceOrigin === sinGap.naturalConfidenceOrigin);
+
+    const buildQuick = LVC.buildInitialCalibrationState('quick', LVC.confirmInitialLevelV1_1(LVC.computeCategoryStep(LVC.computeQuickLevel('intermedio'), null, 'no-se'), false, '2026-01-01T00:00:00.000Z'), null);
+    assert('LVC-ESTADO · camino rápido -> confidence inicial 0.10 (propagada del confirm, nunca redecidida por tipo)', buildQuick.confidence === 0.10);
+    assert('LVC-ESTADO · algorithm_version = nivel_bramu_v1_0 (motor SIN cambios)', buildQuick.algorithmVersion === 'nivel_bramu_v1_0');
+    assert('LVC-ESTADO · state arranca en CALIBRANDO', buildQuick.state === LV.STATES.CALIBRATING);
+
+    assert('LVC-REDONDEO · LV.roundPublicLevel del confirmado (6.1102) -> 6.1 público',
+      LV.roundPublicLevel(6.1102).toFixed(1) === '6.1');
+  })();
+
+  // ------------------------------------------------------------------
+  // 6. Fixtures obligatorios V1.1 (Handoff V04.6 §12 / Nivel_BRAMU_Formula_V1.5.md §3.8),
+  //    tolerancia interna ±0.01. Camino completo Y camino rápido + categoría, misma persona.
+  // ------------------------------------------------------------------
+  (function () {
+    function full(a, category, ctx) {
+      const step = LVC.computeCategoryStep(LVC.computeFullEstimate(a), ctx, category);
+      return step.adjustedLevel;
+    }
+    function quick(seed, category, ctx) {
+      const step = LVC.computeCategoryStep(LVC.computeQuickLevel(seed), ctx, category);
+      return step.adjustedLevel;
+    }
+    const CTX = 'ar_masculino_v1';
+    const perfiles = [
+      { label: 'Esteban', full: full(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales', anos: 'mas_5', frecuencia: 'una_dos_semana' }), '4', CTX), fullExpected: 6.11, quickV: quick('intermedio_alto', '4', CTX), quickExpected: 5.92 },
+      { label: 'Seba', full: full(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales', anos: 'mas_5', frecuencia: 'una_dos_semana' }), '5', CTX), fullExpected: 5.69, quickV: quick('intermedio_alto', '5', CTX), quickExpected: 5.50 },
+      { label: 'Lucho', full: full(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'c', paredes: 'c', entrenamiento: 'sin_continuidad', competicion: 'parejo', anos: 'uno_a_cinco', frecuencia: 'una_dos_semana' }), '6', CTX), fullExpected: 4.75, quickV: quick('intermedio', '6', CTX), quickExpected: 4.50 },
+      { label: 'Agustín', full: full(mkAnswersV11({ autoevaluacion: 'iniciacion', red: 'a', paredes: 'b', entrenamiento: 'sin_continuidad', competicion: 'no_compito', anos: 'uno_a_cinco', frecuencia: 'esporadico' }), 'no-compito', CTX), fullExpected: 2.05, quickV: quick('iniciacion', 'no-compito', CTX), quickExpected: 2.00 },
+    ];
+    perfiles.forEach((p) => {
+      assert(`LVC-FIXTURE · ${p.label} · completo -> ${p.fullExpected} (±0.01)`, closeEnough(p.full, p.fullExpected, 0.01), p.full);
+      assert(`LVC-FIXTURE · ${p.label} · rápido + categoría -> ${p.quickExpected} (±0.01)`, closeEnough(p.quickV, p.quickExpected, 0.01), p.quickV);
+    });
+  })();
+
+  // ------------------------------------------------------------------
+  // 7. Perfiles de estrés (§3.8 Fórmula V1.5) — la fórmula solo publica el resultado
+  //    aproximado (1 decimal) de cada escenario cualitativo, no las 7 respuestas
+  //    originales: imposible reconstruir el combo EXACTO sin inventar datos (mismo criterio
+  //    documentado ya en V04.1-V04.3 para los perfiles de V1.4). Se construyen respuestas
+  //    narrativamente consistentes con cada descripción y se fija el resultado EXACTO que
+  //    devuelve el propio motor para ese combo (regresión), verificando además el
+  //    comportamiento cualitativo puntual que cada perfil viene a demostrar.
+  // ------------------------------------------------------------------
+  (function () {
+    function step(a, category, ctx) { return LVC.computeCategoryStep(LVC.computeFullEstimate(a), ctx, category); }
+    const CTX = 'ar_masculino_v1';
+
+    const veterano = step(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'c', paredes: 'b', entrenamiento: 'aisladas', competicion: 'no_compito', anos: 'mas_5', frecuencia: 'tres_mas_semana' }), 'no-compito', CTX);
+    assert('LVC-ESTRES · "Veterano muy activo, técnica limitada" -> 4.02 (años/frecuencia máximos NUNCA inflan mu, solo confianza)',
+      veterano.adjustedLevel === 4.02 && veterano.naturalConfidenceOrigin === 0.18);
+
+    const tecnicoNuevo = step(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'd', paredes: 'd', entrenamiento: 'sin_continuidad', competicion: 'no_compito', anos: 'menos_1', frecuencia: 'una_a_tres_mes' }), 'no-compito', CTX);
+    assert('LVC-ESTRES · "Técnicamente bueno, poco tiempo" -> 5.9, plausible con confianza MENOR (0.12)',
+      tecnicoNuevo.adjustedLevel === 5.9 && tecnicoNuevo.naturalConfidenceOrigin === 0.12);
+
+    const autodeclarado = step(mkAnswersV11({ autoevaluacion: 'avanzado', red: 'b', paredes: 'b', entrenamiento: 'nunca', competicion: 'dificil', anos: 'uno_a_cinco', frecuencia: 'una_dos_semana' }), '6', CTX);
+    assert('LVC-ESTRES · "Autodeclarado avanzado, técnica baja, 6.ª" -> 5.1, solicita revisión (coherenceFlag)',
+      autodeclarado.adjustedLevel === 5.1 && autodeclarado.categoryAdjustment === -0.5 && autodeclarado.coherenceFlag === true);
+
+    const humilde = step(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'd', paredes: 'd', entrenamiento: 'regular_actual', competicion: 'parejo', anos: 'uno_a_cinco', frecuencia: 'una_dos_semana' }), '4', CTX);
+    assert('LVC-ESTRES · "Humilde, técnica alta, 4.ª" -> 5.475, corrección prudente (ajuste tope +0.5)',
+      humilde.adjustedLevel === 5.475 && humilde.categoryAdjustment === 0.5);
+
+    const noCompiteBien = step(mkAnswersV11({ autoevaluacion: 'avanzado', red: 'd', paredes: 'e', entrenamiento: 'regular_actual', competicion: 'no_compito', anos: 'mas_5', frecuencia: 'una_dos_semana' }), 'no-compito', CTX);
+    assert('LVC-ESTRES · "Juega muy bien, no compite" -> 7.275, la ausencia de torneos NO lo castiga (ajuste 0)',
+      noCompiteBien.adjustedLevel === 7.275 && noCompiteBien.categoryAdjustment === 0);
+
+    const finalesModesta = step(mkAnswersV11({ autoevaluacion: 'intermedio', red: 'b', paredes: 'c', entrenamiento: 'aisladas', competicion: 'finales', anos: 'uno_a_cinco', frecuencia: 'una_dos_semana' }), '7', CTX);
+    assert('LVC-ESTRES · "Llega a finales en categoría modesta" -> 4.006, se interpreta DENTRO de su categoría',
+      finalesModesta.adjustedLevel === 4.006);
+
+    const principiante = step(mkAnswersV11({ autoevaluacion: 'iniciacion', red: 'a', paredes: 'a', entrenamiento: 'nunca', competicion: 'no_compito', anos: 'menos_1', frecuencia: 'esporadico' }), 'no-compito', CTX);
+    assert('LVC-ESTRES · "Principiante total" -> 1.65, conserva el extremo bajo', principiante.adjustedLevel === 1.65);
+
+    const profesional = step(mkAnswersV11({ autoevaluacion: 'profesional', red: 'e', paredes: 'e', entrenamiento: 'regular_actual', competicion: 'finales', anos: 'mas_5', frecuencia: 'tres_mas_semana' }), '1', CTX);
+    assert('LVC-ESTRES · "Profesional coherente" -> 8.6, NUNCA toca el techo 9.0 solo por autodeclaración',
+      profesional.adjustedLevel === 8.6 && profesional.adjustedLevel < 9.0);
+  })();
+
+  // ------------------------------------------------------------------
+  // 8. Ajuste genérico (legado) — SOLO reutilizado por la recalibración (§11): límite ±0.5,
+  //    clamp 1.0/9.0, segundo ajuste rechazado. Ya NO exige múltiplos de 0.1 (era una
+  //    restricción del stepper manual retirado en V04.6, nunca de la fórmula).
   // ------------------------------------------------------------------
   (function () {
     const raw5 = { raw: 5.0 };
@@ -5984,13 +6150,13 @@
     assert('LVC-AJUSTE · +0.5 -> confirmado 5.5', adjUp.ok === true && adjUp.origin.confirmedLevel === 5.5);
     const adjDown = LVC.confirmInitialLevel(raw5, -0.5, false, '2026-01-01T00:00:00.000Z');
     assert('LVC-AJUSTE · -0.5 -> confirmado 4.5', adjDown.ok === true && adjDown.origin.confirmedLevel === 4.5);
+    const adjContinuo = LVC.confirmInitialLevel(raw5, 0.4427, false, '2026-01-01T00:00:00.000Z');
+    assert('LVC-AJUSTE · un ajuste continuo (no múltiplo de 0.1, ej. 0.4427 del automático) YA NO se rechaza',
+      adjContinuo.ok === true && adjContinuo.origin.confirmedLevel === 5.4427);
 
     const adjTooBig = LVC.confirmInitialLevel(raw5, 0.6, false, '2026-01-01T00:00:00.000Z');
     assert('LVC-AJUSTE · intento de ajuste > 0.5 -> RECHAZADO (nunca clampeado silenciosamente)',
       adjTooBig.ok === false && adjTooBig.reasonCodes.indexOf('ajuste_fuera_de_rango_0_5') !== -1);
-    const adjNotStep = LVC.confirmInitialLevel(raw5, 0.15, false, '2026-01-01T00:00:00.000Z');
-    assert('LVC-AJUSTE · ajuste que no es múltiplo de 0.1 -> rechazado',
-      adjNotStep.ok === false && adjNotStep.reasonCodes.indexOf('ajuste_no_es_multiplo_de_0_1') !== -1);
 
     const rawLow = { raw: 1.0 };
     const adjLowerBound = LVC.confirmInitialLevel(rawLow, -0.5, false, '2026-01-01T00:00:00.000Z');
@@ -6005,7 +6171,8 @@
   })();
 
   // ------------------------------------------------------------------
-  // 5. Calibración: transición CALIBRANDO -> CALIBRADO exige AMBAS condiciones.
+  // 9. Calibración: transición CALIBRANDO -> CALIBRADO exige AMBAS condiciones.
+  //    SIN CAMBIOS desde V04.3 (Handoff V04.6 §2: CONSERVAR íntegramente).
   // ------------------------------------------------------------------
   (function () {
     const calibrando = { state: LV.STATES.CALIBRATING, mu: 5.0, confidence: 0.15 };
@@ -6027,7 +6194,8 @@
   })();
 
   // ------------------------------------------------------------------
-  // 6. Recalibración — cooldown 90 días, ancla provisional exacta, cierre, expiración.
+  // 10. Recalibración — cooldown 90 días, ancla provisional exacta, cierre, expiración.
+  //     SIN CAMBIOS desde V04.3 (Handoff V04.6 §2: CONSERVAR íntegramente).
   // ------------------------------------------------------------------
   (function () {
     const lastConfirmation = '2026-01-01T00:00:00.000Z';
@@ -6091,23 +6259,25 @@
   })();
 
   // ------------------------------------------------------------------
-  // 7. Determinismo + algorithm_version + trazabilidad mínima.
+  // 11. Determinismo V1.1 + no-mutación en toda la cadena estimate -> categoryStep -> confirm.
   // ------------------------------------------------------------------
   (function () {
-    const answers = mkAnswersLVC([2, 3, 1, 3, 2, 2, 3]);
-    const r1 = LVC.computeFullQuestionnaireRaw(answers);
-    const r2 = LVC.computeFullQuestionnaireRaw(answers);
+    const answers = mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales', anos: 'mas_5', frecuencia: 'una_dos_semana' });
+    const r1 = LVC.computeFullEstimate(answers);
+    const r2 = LVC.computeFullEstimate(answers);
     assert('LVC-DETERMINISMO · mismas respuestas = mismo resultado, byte a byte', JSON.stringify(r1) === JSON.stringify(r2));
 
-    const confirmed = LVC.confirmInitialLevel(r1, 0.2, false, '2026-02-01T00:00:00.000Z');
+    const step1 = LVC.computeCategoryStep(r1, 'ar_masculino_v1', '4');
+    const confirmed = LVC.confirmInitialLevelV1_1(step1, false, '2026-02-01T00:00:00.000Z');
     const state = LVC.buildInitialCalibrationState('full', confirmed, answers);
-    assert('LVC-VERSION · algorithm_version presente y correcto en el estado inicial', state.algorithmVersion === 'nivel_bramu_v1_0');
-    assert('LVC-TRAZABILIDAD · el estado conserva origen (rawLevel/adjustment/confirmedLevel/respuestas)',
-      state.origin.rawLevel === r1.raw && state.origin.adjustment === 0.2 && state.origin.confirmedLevel === round4Lvc(r1.raw + 0.2) &&
+    assert('LVC-VERSION · algorithm_version presente y correcto en el estado inicial (motor V1.0, sin cambios)', state.algorithmVersion === 'nivel_bramu_v1_0');
+    assert('LVC-TRAZABILIDAD · el estado conserva origen completo + respuestas declaradas',
+      state.origin.confirmedLevel === 6.1102 && state.origin.declaredCategory === '4' &&
       JSON.stringify(state.origin.questionnaireAnswers) === JSON.stringify(answers));
-    function round4Lvc(n) { return Math.round(n * 10000) / 10000; }
 
-    assert('LVC-NO-MUTACION · confirmInitialLevel nunca muta el rawResult de entrada', r1.raw === LVC.computeFullQuestionnaireRaw(answers).raw);
+    assert('LVC-NO-MUTACION · computeFullEstimate no muta `answers`', JSON.stringify(answers) === JSON.stringify(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales', anos: 'mas_5', frecuencia: 'una_dos_semana' })));
+    assert('LVC-NO-MUTACION · computeCategoryStep nunca muta el rawResult de entrada', r1.baseLevel === LVC.computeFullEstimate(answers).baseLevel);
+    assert('LVC-NO-MUTACION · confirmInitialLevelV1_1 nunca muta el categoryStep de entrada', step1.adjustedLevel === 6.1102);
   })();
 
   // ======================================================================
@@ -6158,19 +6328,56 @@
     }
   })();
 
-  // ---- LVC.categorizeLevel (§3.7) — los 6 cortes exactos, ambos bordes de cada banda. ----
+  // ---- LVC.categorizeLevel (§3.7 Fórmula V1.5) — cortes actualizados en V04.6 (V1.4 tenía
+  // 5.4/6.9/8.4; V1.5 corrige a 4.9/6.3/7.9) y la etiqueta superior pasa de "Competición" a
+  // "Profesional" — los 6 cortes exactos, ambos bordes de cada banda. ----
   (function () {
     const cases = [
       [1.0, 'Iniciación'], [2.4, 'Iniciación'],
       [2.5, 'Recreativo'], [3.9, 'Recreativo'],
-      [4.0, 'Intermedio'], [5.4, 'Intermedio'],
-      [5.5, 'Intermedio alto'], [6.9, 'Intermedio alto'],
-      [7.0, 'Avanzado'], [8.4, 'Avanzado'],
-      [8.5, 'Competición'], [10.0, 'Competición'],
+      [4.0, 'Intermedio'], [4.9, 'Intermedio'],
+      [5.0, 'Intermedio alto'], [6.3, 'Intermedio alto'],
+      [6.4, 'Avanzado'], [7.9, 'Avanzado'],
+      [8.0, 'Profesional'], [10.0, 'Profesional'],
     ];
     cases.forEach(([level, expected]) => {
       assert(`LVC-CATEGORIA · ${level} -> "${expected}"`, LVC.categorizeLevel(level).label === expected, LVC.categorizeLevel(level));
     });
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlab_V04.6 — modo laboratorio: Store.resetLevelV1State (Handoff V04.6 §10.B). Borra
+  // SOLO la entrada de LEVEL_V1_STATE del userId dado; historial/usuarios/grupos/jugadores
+  // (otras claves) quedan intactos — se verifica explícitamente que NO se tocan.
+  // ------------------------------------------------------------------
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.levelV1State.v1', 'bramulab.history.v1', 'bramulab.users.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+
+    try {
+      resetAffectedKeys();
+      assert('V046-STORE · resetLevelV1State sin userId -> false (nunca explota)', Store.resetLevelV1State(null) === false);
+      assert('V046-STORE · resetLevelV1State de un userId sin estado guardado -> false', Store.resetLevelV1State('u_sin_estado') === false);
+
+      Store.saveLevelV1State('u_x', { mu: 6.0, confidence: 0.18, state: 'calibrando' });
+      Store.saveLevelV1State('u_y', { mu: 4.0, confidence: 0.12, state: 'calibrando' });
+      localStorage.setItem('bramulab.history.v1', JSON.stringify([{ matchId: 'm1' }]));
+      localStorage.setItem('bramulab.users.v1', JSON.stringify([{ id: 'u_x' }, { id: 'u_y' }]));
+
+      const historyBefore = localStorage.getItem('bramulab.history.v1');
+      const usersBefore = localStorage.getItem('bramulab.users.v1');
+      const ok = Store.resetLevelV1State('u_x');
+      assert('V046-STORE · resetLevelV1State devuelve true al borrar una entrada existente', ok === true);
+      assert('V046-STORE · el userId reseteado vuelve a null (puede repetir el onboarding)', Store.loadLevelV1State('u_x') === null);
+      assert('V046-STORE · otro userId queda intacto (reset nunca es global)', Store.loadLevelV1State('u_y').mu === 4.0);
+      assert('V046-STORE · Historial y Usuarios quedan byte a byte intactos (reset SOLO toca LEVEL_V1_STATE)',
+        localStorage.getItem('bramulab.history.v1') === historyBefore && localStorage.getItem('bramulab.users.v1') === usersBefore);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
   })();
 
   // ------------------------------------------------------------------

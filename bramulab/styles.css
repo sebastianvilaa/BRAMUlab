@@ -3383,27 +3383,51 @@ input, select{ font-family: inherit; }
 .nivel-quiz-progress-label{ font-size: 10px; font-weight:800; letter-spacing:0.04em; color: var(--paper-faint); text-transform:uppercase; margin: 0 0 14px; }
 .nivel-quiz-question{ font-family: var(--font-display); font-weight:700; font-size: 16px; color: var(--paper); margin: 0 0 14px; line-height:1.3; }
 
-/* Resultado: nivel estimado protagonista + categoría, mismo lenguaje de número grande que
-   `.player-card__level-value` pero centrado (esta pantalla no comparte fila con nada más). */
-.nivel-result-card{
+/* BRAMUlab_V04.6 — Resultado: medidor semicircular tipo velocímetro 1-10, reemplaza el
+   `.nivel-result-card` plano de V04.4 y el stepper manual retirado (Handoff V04.6 §7). Azul
+   existente del sistema BRAMU (`--accent-cyan`) para el arco/aguja — nunca una paleta nueva ni
+   el gradiente "rojo=malo/verde=bueno": el Nivel es una categoría de juego, no una nota moral.
+   El lima queda para la acción de confirmación (`.btn-start`), no para el medidor. */
+.nivel-gauge-card{
   text-align:center; background: var(--ink-soft); border: 1px solid var(--line);
-  border-radius: var(--radius-card); padding: 20px 16px; margin-bottom: 12px;
+  border-radius: var(--radius-card); padding: 18px 16px 14px; margin-bottom: 10px;
 }
-.nivel-result-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 6px; }
-.nivel-result-card__value{ font-family: var(--font-display); font-weight:800; font-size: 44px; color: var(--paper); line-height:1; font-variant-numeric: tabular-nums; }
-.nivel-result-card__category{ font-size: 13px; font-weight:700; color: var(--brand-lime); margin-top: 4px; }
+.nivel-gauge-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 4px; }
+.nivel-gauge-card__category{ font-size: 13px; font-weight:700; color: var(--accent-cyan); margin-top: 2px; }
+.nivel-gauge{ position:relative; max-width: 260px; margin: 0 auto; }
+.nivel-gauge__svg{ display:block; width:100%; height:auto; }
+.nivel-gauge__track{ fill:none; stroke: var(--line); stroke-width:14; stroke-linecap:round; }
+.nivel-gauge__fill{ fill:none; stroke: var(--accent-cyan); stroke-width:14; stroke-linecap:round; transition: d var(--motion-base) var(--motion-ease); }
+.nivel-gauge__needle{ stroke: var(--paper); stroke-width:4; stroke-linecap:round; transform-origin: 110px 112px; }
+.nivel-gauge__pivot{ fill: var(--paper); }
+.nivel-gauge__value{
+  position:absolute; left:50%; bottom: 6px; transform: translateX(-50%);
+  font-family: var(--font-display); font-weight:800; font-size: 40px; color: var(--paper);
+  line-height:1; font-variant-numeric: tabular-nums;
+}
 
-/* Ajuste ±0.5 — stepper de 2 botones + valor en vivo, pasos de 0.1 ya validados por
-   level-calibration.js (acá solo se deshabilita visualmente en los extremos). */
-.nivel-adjust{ margin: 4px 0 20px; }
-.nivel-adjust__label{ font-size: 12px; color: var(--paper-dim); text-align:center; margin-bottom: 10px; }
-.nivel-adjust__row{ display:flex; align-items:center; justify-content:center; gap: 18px; }
-.nivel-adjust__btn{
-  width:40px; height:40px; border-radius:50%; border: 1px solid var(--line); background: var(--ink-soft);
-  color: var(--paper); font-size: 20px; font-weight:700; line-height:1; cursor:pointer;
+/* Pregunta final de categoría (§6 del Handoff V04.6) — grilla de chips, NINGUNO preseleccionado
+   ni destacado (ni siquiera visualmente): mismo trato para las 11 opciones, incluidas las 2
+   neutrales (No compito/No estoy seguro). `.is-selected` es el único estado que cambia, recién
+   después de que el jugador elige. */
+.nivel-category-step{ margin: 4px 0 14px; }
+.nivel-category-step__title{ font-size: 11px; font-weight:800; letter-spacing:0.03em; color: var(--paper-faint); text-transform:uppercase; text-align:center; }
+.nivel-category-step__question{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); text-align:center; margin: 4px 0 12px; line-height:1.3; }
+.nivel-category-grid{ display:flex; flex-wrap:wrap; gap: 8px; justify-content:center; }
+.nivel-category-chip{
+  font-family: inherit; font-size: 12px; font-weight:700; color: var(--paper);
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-pill);
+  padding: 8px 14px; cursor:pointer;
 }
-.nivel-adjust__btn:disabled{ opacity:.3; cursor:not-allowed; }
-.nivel-adjust__value{ font-family: var(--font-display); font-weight:800; font-size: 20px; color: var(--paper); min-width: 64px; text-align:center; font-variant-numeric: tabular-nums; }
+.nivel-category-chip.is-selected{ border-color: var(--accent-cyan); background: rgba(25,159,255,0.12); color: var(--accent-cyan); }
+
+/* Aviso de coherencia (§8 del Handoff V04.6) — nunca acusatorio, ofrece "Revisar respuestas"
+   (mismo link de siempre, debajo del CTA) sin bloquear la confirmación. */
+.nivel-coherence-note{
+  font-size: 12px; color: var(--gold); text-align:center; line-height:1.4;
+  background: rgba(255,201,61,0.10); border: 1px solid rgba(255,201,61,0.28);
+  border-radius: var(--radius-control); padding: 10px 12px; margin: 0 0 14px;
+}
 
 /* Insignia CALIBRANDO/CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL) — texto +
    señal gráfica (nunca solo color): punto ámbar mientras calibra (mismo --gold que el resto de

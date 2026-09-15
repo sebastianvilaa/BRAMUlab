@@ -27,7 +27,7 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V04.5';
+  const APP_VERSION = 'BRAMUlab V04.6';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -596,6 +596,18 @@
     return safeSet(KEYS.LEVEL_V1_STATE, all);
   }
 
+  /** BRAMUlab_V04.6 — modo laboratorio, "Resetear Nivel BRAMU": borra ÚNICAMENTE la entrada de
+   *  este userId en LEVEL_V1_STATE (vuelve a poder correr el onboarding con
+   *  `nivel_inicial_v1_1`). Nunca toca HISTORY/GROUPS/ADDED_PLAYERS/HIDDEN_NETWORK_PLAYERS ni
+   *  el resto de la cuenta — mismo criterio de aislamiento que `logoutSession` con la sesión. */
+  function resetLevelV1State(userId) {
+    if (!userId) return false;
+    const all = loadAllLevelV1States();
+    if (!(userId in all)) return false;
+    delete all[userId];
+    return safeSet(KEYS.LEVEL_V1_STATE, all);
+  }
+
   function isLevelV1PreviewEnabled() { return safeGet(KEYS.LEVEL_V1_PREVIEW) === true; }
   function setLevelV1PreviewEnabled(enabled) { return safeSet(KEYS.LEVEL_V1_PREVIEW, !!enabled); }
 
@@ -795,7 +807,7 @@
     loadAddedPlayers, isPlayerAdded, addPlayerToList, removePlayerFromList,
     loadHiddenNetworkPlayers, isNetworkPlayerHidden, hideNetworkPlayer, unhideNetworkPlayer,
     // BRAMUlab_V04.4 (Etapa D, bloque 1) — Nivel BRAMU V1, prototipo local
-    loadLevelV1State, saveLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
+    loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,

@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.5 implementada · acceso al preview simplificado a un ícono de header (mouse+touch) + versión pública visible pasa a `BRAMUlab V04.5` — sin cambios al onboarding/diseño de V04.4  
+**Estado:** V04.6 implementada · el estimador inicial pasa de V1.4 a `nivel_inicial_v1_1` (Nivel_BRAMU_Formula_V1.5.md §3) — cuestionario/camino rápido nuevos, categoría como último paso con ajuste automático ±0.5 (el stepper manual de V04.4 queda retirado), medidor semicircular, coherencia, confianza variable, y 2 ayudas mínimas de modo laboratorio. Motor de partidos (`level.js`, `nivel_bramu_v1_0`) sin cambios.  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 
@@ -13,16 +13,19 @@ V03 quedó cerrada en `BRAMUlab_V03.10`. No se reabre salvo una regresión concr
 
 Nivel BRAMU ya fue resuelto conceptualmente en un Work especializado. Desarrollo no debe rediseñar la fórmula ni volver a discutir decisiones de producto cerradas.
 
-Documentación vigente, en este orden de precedencia:
+Documentación vigente, en este orden de precedencia (normalizado en V04.6 — ver §15):
 
-1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md`
+1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.5.md`
 2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md`
 3. `docs/BRAMUlab/Nivel_BRAMU.md`
+4. `docs/BRAMUlab/Nivel_BRAMU_Handoff_Cuestionario_V1.5.md`
 
 Ante contradicción:
-- manda `Nivel_BRAMU_Formula_V1.4.md` para fórmula, parámetros, elegibilidad, casos y simulaciones;
+- manda `Nivel_BRAMU_Formula_V1.5.md` para fórmula, parámetros, elegibilidad, casos y simulaciones;
 - manda `Nivel_BRAMU_Implementacion.md` para secuencia técnica, límites y definición de terminado;
-- `Nivel_BRAMU.md` aporta contexto funcional y UX, pero no puede reabrir decisiones superadas por V1.4.
+- `Nivel_BRAMU.md` aporta contexto funcional y UX, pero no puede reabrir decisiones superadas por V1.5.
+
+**Superado en V04.6:** `Nivel_BRAMU_Formula_V1.4.md` queda como antecedente histórico — sus §§3.1-3.7 (cuestionario/ajuste manual del estimador inicial) ya NO se usan para altas nuevas, reemplazados por `nivel_inicial_v1_1` (V1.5 §3). El resto de V1.4 (motor de partidos, elegibilidad, recalibración) sigue vigente sin cambios — V1.5 es una corrección acotada del estimador inicial, no una reescritura completa.
 
 No mezclar esta versión con:
 - Ranking BRAMU: ya implementado en V03;
@@ -471,3 +474,36 @@ Implementado, siguiendo los 7 puntos de la autorización:
 **No se tocó** `app.js`/`player-home.js`/`ranking.js`/`store.js`/`index.html`/`sw.js`/`version.json`, UI, backend ni BRAMU Intelligence.
 
 **No se avanzó a Etapa D.**
+
+---
+
+## 15. V04.6 — estimador inicial V1.1 (implementada)
+
+**Autorizado por Sebastián** sobre V04.5 online. Objetivo: sustituir de forma acotada el estimador inicial V1.4 (cuestionario/ajuste manual de V04.3-V04.5) por `nivel_inicial_v1_1` (Nivel_BRAMU_Formula_V1.5.md §3), con su UX inmediata — sin tocar el motor de partidos, Ranking BRAMU ni BRAMU Intelligence.
+
+**Diagnóstico previo (sin bloqueo real):** la prueba visual real de V04.4/V04.5 mostró que años/frecuencia/etiquetas competitivas abstractas podían inflar a amateurs experimentados sin evidencia técnica real — no era un bug de implementación (V04 reproducía V1.4 correctamente), sino un sesgo de la fórmula V1.4 en sí. V1.5 lo corrige separando capacidad (autoevaluación+técnica), contexto (años/frecuencia/entrenamiento, nunca suben `mu` directamente) y confiabilidad (confianza variable + coherencia).
+
+**Reemplazado en `bramulab/level-calibration.js`:**
+- El cuestionario ponderado de 7 preguntas (`Q = Σ(w×q)`, `1 + 7.5×Q`) por `computeFullEstimate` (`nivel_base = 0.65×autoevaluación + 0.35×técnica + modificador_entrenamiento`).
+- El camino rápido conserva las mismas 5 anclas (2.0/4.0/5.5/7.0/8.5), pero la etiqueta superior pasa de "Competición" a "Profesional".
+- La categoría deja de pedirse en el alta de cuenta (paso 3 del signup) y pasa a ser la ÚLTIMA pregunta de Nivel, compartida por los dos caminos, con ajuste automático `clamp(0.70×(referencia_categoria−nivel_base); ±0.5)` — nunca manual. El stepper ±0.5 de V04.4 queda retirado (`validateAdjustment` ya no exige múltiplos de 0.1: esa granularidad era del stepper, nunca una regla de la fórmula).
+- Confianza de origen fija (0.15 completo / 0.10 rápido) por confianza variable (0.12/0.15/0.18 en el completo según puntos de contexto; 0.10 fijo en el rápido, con o sin categoría) y coherencia (`brecha ≥ 2.0` ofrece "Revisar respuestas"; si se confirma igual, confianza limitada a 0.10 — el nivel calculado nunca se penaliza).
+- `LEVEL_CATEGORIES`/`categorizeLevel`: cortes actualizados (1.0-2.4/2.5-3.9/4.0-4.9/5.0-6.3/6.4-7.9/8.0-10.0) y etiqueta superior "Profesional".
+
+**Conservado íntegro:** `bramulab/level.js` (motor `nivel_bramu_v1_0`, `PARAMS`, sin ninguna línea tocada), calibración (§10.2, 5 partidos+3 rivales) y recalibración (§11, cooldown 90 días/ancla 75-25/±0.5/ventana 120 días/cierre 3+2) — la primitiva genérica `confirmInitialLevel`/`validateAdjustment` sigue reutilizándose tal cual por la recalibración, solo se le quitó la exigencia de múltiplos de 0.1 (compartida, nunca una segunda implementación).
+
+**Cuenta/perfil:** `TU PÁDEL`→`TU PERFIL`, `CREAR MI JUGADOR`→`CREAR MI PERFIL`, `TU JUGADOR ESTÁ LISTO`→`TU PERFIL ESTÁ LISTO` (evita lenguaje de "crear jugador"). Ubicación pasa de opcional a obligatoria en el alta (dato necesario para el mapa de categoría). Categoría se guarda en el MISMO campo `declaredCategory` de siempre, tanto si se responde en Nivel como si se edita luego desde Mis Datos — nunca dos categorías independientes. Género sigue sin tocarse esta ronda.
+
+**UX nueva del resultado:** medidor semicircular 1-10 (`#nivel-gauge-*`, azul `--accent-cyan` existente del sistema BRAMU, nunca una paleta nueva ni gradiente rojo/verde) con número grande y categoría de comunicación debajo; "Tu estimación inicial" antes de responder categoría, "Tu punto de partida en BRAMU" después, con la aguja/arco animando el ajuste (nunca una animación ficticia si el ajuste es 0). Grilla de 11 chips para la categoría (1ª-9ª + "No compito" + "No estoy seguro"), ninguno preseleccionado ni destacado. Aviso de coherencia no acusatorio, con "Revisar respuestas" como alternativa a confirmar igual.
+
+**Modo laboratorio (Handoff V04.6 §10):** dos ayudas mínimas en el menú de Herramientas (long-press sobre el logo de Home), visibles solo con el preview activado — "Crear usuario de prueba" (`Store.createUserAccount` sin email/contraseña + `saveSessionUserId` directo, sin pasar por el wizard) y "Resetear Nivel BRAMU" (`Store.resetLevelV1State`, nuevo: borra SOLO la entrada de `LEVEL_V1_STATE` del userId activo, reabre el onboarding — historial/estadísticas/red/jugadores/grupos quedan intactos). Ninguna migración productiva de estados preview V1.4 viejos: son datos ficticios de laboratorio, se resetean explícitamente.
+
+**Bug real preexistente encontrado y corregido (bloqueaba esta misma ronda):** `#dev-tools-modal` vivía dentro de `#view-setup` desde V13.1 y nunca se movió cuando Home pasó a ser `#view-player-home` con su propio logo (`#player-home-logo`) — un `position:fixed` dentro de un ancestro `display:none` no se pinta, y además `initDevTools()` seguía escuchando en `#home-logo` (el logo de Setup, no el de Home). El long-press sobre el logo de Home nunca abría nada de verdad, en ninguna versión anterior. Se corrigió moviendo el modal afuera de cualquier `.view` (mismo lugar que `#update-available-modal`/`#scoring-system-modal`, ya corregidos así en V13.2/V13.3) y apuntando el listener a `#player-home-logo`. Sin este fix, los 2 botones nuevos de laboratorio de esta ronda habrían quedado inalcanzables.
+
+**Categoría/ubicación después de confirmar Nivel:** una edición posterior nunca recalcula retroactivamente el nivel inicial ya confirmado (el Nivel inicial es una fotografía de origen; después evoluciona solo por las reglas del motor de partidos) — decisión registrada, sin FAQ todavía.
+
+**Resultado de tests:** 1338/1338 (baseline de V04.5) − 2 fixtures del cuestionario V1.4 retirados (catálogo/pesos ya no existen) + 58 nuevos de V1.1 (anclas/modificadores, estimación completa/rápida, categoría/coherencia/confianza, confirmación, 4 fixtures obligatorios × 2 caminos, 8 perfiles de estrés §3.8, ajuste genérico sin múltiplos de 0.1, determinismo, `Store.resetLevelV1State`, `categorizeLevel` con los nuevos cortes) = **1394/1394**, corrido de verdad contra el arnés real.
+
+**No se tocó** Ranking BRAMU, BRAMU Intelligence, Backend/autenticación real, ni la lógica competitiva posterior al nivel inicial (motor de partidos, invitados, círculo, inactividad — todos en `level.js`/`level-context.js`, sin una línea modificada).
+
+**No se avanzó** a evolución por partidos reales más allá de lo ya existente, Ranking, perfil público ni BRAMU Intelligence. V04.6 queda online para revisión visual manual de Sebastián.

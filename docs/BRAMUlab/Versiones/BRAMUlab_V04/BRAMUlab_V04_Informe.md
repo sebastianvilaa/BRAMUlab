@@ -1,5 +1,5 @@
 # BRAMUlab_V04
-## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B) + V04.3 (Etapa C) + V04.4 (Etapa D, bloque 1) + V04.5 (acceso al preview + versión pública)
+## Informe — V04.0 (diagnóstico) + V04.1 (Etapa A) + V04.2 (Etapa B) + V04.3 (Etapa C) + V04.4 (Etapa D, bloque 1) + V04.5 (acceso al preview + versión pública) + V04.6 (estimador inicial V1.1)
 
 **Estado:** V04.0 cerrada (diagnóstico). V04.1/V04.2/V04.3 (motor puro, elegibilidad/invitados/repetición/círculo, cuestionario/ajuste/calibración/recalibración) implementadas, ninguna conectada a la app productiva. V04.4 es la primera ronda con UI real, detrás de un flag. V04.5 simplifica el acceso a ese flag (ícono de header) y bumpea la versión pública visible — la app que Sebastián desarrolla y prueba ahora se identifica como `BRAMUlab V04.5` (`V03.10` queda como tag estable anterior, cerrado). Cada ronda se agrega como sección nueva al final, sin reabrir las anteriores. A partir de V04.5 la numeración es plana (`V04.4`, `V04.5`, `V04.6`...) — sin más subversiones de 3 niveles tipo `V04.4.1`.
 **Fecha:** V04.0 el 14/09/2026 · V04.1 el 14/09/2026 · V04.2 el 14/09/2026 · V04.3 el 14/09/2026 · V04.4 el 14/09/2026 · V04.5 el 14/09/2026 (mismo día, rondas separadas, cada una autorizada explícitamente por Sebastián sobre la anterior ya cerrada).
@@ -536,3 +536,83 @@ Ninguna. Corrección de numeración documental + infraestructura de versionado, 
 ## V04.5.5 No se avanzó funcionalmente
 
 Confirmado — onboarding y diseño de Nivel BRAMU sin cambios; no se tocó Backend/Ranking/Intelligence.
+
+---
+
+# V04.6 — estimador inicial V1.1 (implementada)
+
+**Fuentes leídas completas esta ronda:** `Nivel_BRAMU_Handoff_Cuestionario_V1.5.md`, `BRAMUlab_V04.6_Handoff.md`; `Nivel_BRAMU_Formula_V1.5.md` §3 completo (anclas, contexto/categoría, confiabilidad/coherencia, cuestionario, camino rápido, resultado, perfiles §3.8). No se releyó V03 ni se auditó el repositorio de nuevo — ahorro de contexto explícito pedido para esta ronda.
+
+**Diagnóstico:** sin bloqueo real de producto. V04 reproducía V1.4 correctamente; el sesgo (años/frecuencia/etiquetas inflando el nivel) era de la fórmula V1.4 en sí, ya corregido por V1.5 §3. Se avanzó directo a implementación en la misma intervención, según lo pedido.
+
+## V04.6.1 Qué se implementó
+
+**`bramulab/level-calibration.js` (reescrito, motor de estimación inicial):**
+- Anclas/modificadores nuevos: `ANCHOR_AUTOEVALUACION` (5, "Profesional" en vez de "Competición"), `ANCHOR_TECNICA` (A-E), `TRAINING_MODIFIERS` (5), `COMPETITION_MODIFIERS` (5), `YEARS_POINTS`/`FREQUENCY_POINTS` (puntos de contexto), `CATEGORY_CONTEXT_MAPS.ar_masculino_v1` (9 anclas piloto), `CATEGORY_NEUTRAL_KEYS` (`no-compito`/`no-se`).
+- Funciones nuevas: `computeTechnicalAnchor`, `computeFullEstimate` (nivel_base, sin categoría), `computeQuickLevel` (mismas 5 anclas, sin ancla técnica), `computeCategoryAdjustment`/`computeCategoryStep` (referencia + ajuste ±0.5 + coherencia + confianza natural), `confirmInitialLevelV1_1` (aplica el cap de confianza a 0.10 solo si `coherenceFlag && confirmDespiteCoherence`, nunca penaliza el nivel).
+- `buildInitialCalibrationState` simplificada: la confianza sale directo de `confirmResult.origin.confidenceOrigin` (ya variable), nunca vuelve a decidirla por tipo de camino.
+- `validateAdjustment`/`confirmInitialLevel` (genéricas) se CONSERVAN, reutilizadas solo por la recalibración — se les quitó la exigencia de múltiplos de 0.1 (era del stepper manual retirado, nunca de la fórmula).
+- `LEVEL_CATEGORIES`/`categorizeLevel`: cortes 1.0-2.4/2.5-3.9/4.0-4.9/5.0-6.3/6.4-7.9/8.0-10.0, etiqueta superior "Profesional".
+- Calibración (§10.2) y recalibración (§11) copiadas sin ninguna modificación funcional.
+- `bramulab/level.js` — **cero líneas tocadas** (motor `nivel_bramu_v1_0`/`PARAMS` intactos; verificado con `grep`/diff mental línea por línea antes de cerrar la ronda).
+
+**`bramulab/store.js`:** `APP_VERSION` → `'BRAMUlab V04.6'`; función nueva `resetLevelV1State(userId)` (borra solo esa entrada de `LEVEL_V1_STATE`, para el modo laboratorio).
+
+**`bramulab/app.js`:**
+- Bloque completo de onboarding reescrito: `NIVEL_FULL_QUESTIONS` (7 preguntas V1.1 con las keys exactas que espera `LVC`), `NIVEL_CATEGORY_OPTIONS` (11 chips, reusa `CATEGORY_LABELS`), medidor (`nivelGaugeTheta`/`nivelGaugeArcPath`/`setNivelGaugeValue` — geometría del semicírculo, animación vía CSS transition), `selectNivelCategory`/`renderNivelResultStep` (categoría en la MISMA pantalla que el medidor, debajo), `confirmNivelOnboarding` (usa `confirmInitialLevelV1_1` + persiste `declaredCategory`/`declaredCategoryAt` en la cuenta, mismo campo de siempre).
+- Signup paso 3: quitado `#signup-category` de la validación/guardado (`TU PÁDEL`→`TU PERFIL`, `CREAR MI JUGADOR`→`CREAR MI PERFIL`); ubicación pasa a obligatoria (`recomputeSignupStepValidity` exige `signupDraft.location`).
+- `CATEGORY_LABELS`: agregado `'no-compito'` y renombrado `'no-se'` de "No sé mi categoría" a "No estoy seguro" (mismo mapa que ya lee Editar Datos vía `PROFILE_PICKER_FIELDS.category` — la opción nueva aparece ahí gratis, sin tocar esa pantalla).
+- `openPlayerCardScreen`: quitada la línea que pintaba `#player-card-category` (la categoría ya no existe en ese punto del flujo).
+- `refreshLabPreviewUI`: ahora también muestra/oculta `#dev-tools-create-test-user`/`#dev-tools-reset-nivel`; título del menú → `"· V04.6 PREVIEW"`.
+- Funciones nuevas `createLabTestUserAndOpenOnboarding` (`Store.createUserAccount` sin email/password + `saveSessionUserId` directo) y `resetLevelV1ForLabAccount` (`Store.resetLevelV1State` + reabre el onboarding).
+- **`initDevTools` — corrección de bug preexistente (ver V04.6.4):** el selector pasa de `$('#home-logo')` a `$('#player-home-logo')`.
+
+**`bramulab/index.html`:** signup paso 3 sin `<select id="signup-category">`, ubicación sin "(opcional)"; `#view-player-card` sin la fila "Categoría"; `#view-nivel-onboarding` con el medidor SVG (`.nivel-gauge*`) + grilla de categoría + aviso de coherencia, reemplazando `.nivel-result-card`/`.nivel-adjust` (stepper); `#dev-tools-modal` **movido** afuera de `#view-setup` (ver V04.6.4), con los 2 botones nuevos `hidden` por defecto; 14 `?v=04.5` → `?v=04.6`.
+
+**`bramulab/styles.css`:** bloque `.nivel-result-card`/`.nivel-adjust*` reemplazado por `.nivel-gauge*`/`.nivel-category-*`/`.nivel-coherence-note` (azul `--accent-cyan` para el medidor, nunca una paleta nueva).
+
+**`bramulab/sw.js`:** `CACHE_NAME` → `'bramulab-v04-6'`; los 14 `?v=04.5` de `CORE_ASSETS` → `?v=04.6`. **`bramulab/version.json`** → `{"version":"BRAMUlab V04.6"}`.
+
+## V04.6.2 Verificación visual real (Browser tool, mobile 375px)
+
+Recorrido end-to-end completo, con inspección directa del estado persistido en cada paso (no solo screenshots):
+- **Alta nueva:** paso 3 sin Categoría, ubicación obligatoria (botón deshabilitado hasta elegir localidad real vía GeoRef), `TU PERFIL`/`CREAR MI PERFIL`/`TU PERFIL ESTÁ LISTO` confirmados, sin fila Categoría en la ficha.
+- **Camino completo:** 7 preguntas con las descripciones exactas de §3.5, progreso `Pregunta N de 7`, resultado con medidor mostrando `5.7` "Intermedio alto" ("TU ESTIMACIÓN INICIAL"), categoría `4ª` → medidor anima a `6.1` ("TU PUNTO DE PARTIDA EN BRAMU") — estado persistido verificado byte a byte: `confirmedLevel:6.1102, baseLevel:5.6675, categoryReference:6.3, categoryAdjustment:0.4427, confidenceOrigin:0.18, coherenceFlag:false, questionnaireVersion:'nivel_inicial_v1_1'` — coincide EXACTO con el fixture "Esteban" (6.11).
+- **Camino rápido + "No compito":** `Avanzado` (7.0) → categoría "No compito" → medidor NO se mueve (ajuste 0, sin animación ficticia), confirma `mu:7, confidence:0.1, declaredCategory:'no-compito'` — y el MISMO valor se refleja en Home y MI PERFIL.
+- **Coherencia:** `Avanzado`+red B+paredes B+nunca entrenó+`dificil`+categoría `6ª` → medidor a `5.1`, aviso "Algunas respuestas describen niveles diferentes. ¿Querés revisarlas?" visible (no acusatorio), confirmar sin revisar → `confirmedLevel:5.1` (SIN penalizar) pero `confidence:0.1` (limitada) — coincide exacto con el perfil de estrés "Autodeclarado avanzado" (§3.8: 5.1).
+- **Modo laboratorio:** long-press sobre el logo de Home abre el menú con los 2 botones nuevos visibles (preview ya activo); "Crear usuario de prueba" crea una cuenta sin email/contraseña y entra directo a onboarding; "Resetear Nivel BRAMU" borra el estado y reabre el onboarding, confirmado que NO toca `bramulab.history.v1`/`bramulab.users.v1`.
+- **Responsive:** las 4 pantallas (intro, quiz, resultado+medidor+categoría+coherencia, Home/Perfil) se ven completas y utilizables a 375px, sin overflow ni bloques partidos.
+
+## V04.6.3 Bug real preexistente encontrado y corregido (bloqueaba esta misma ronda)
+
+Al verificar el long-press sobre el logo de Home para llegar a los 2 botones nuevos de laboratorio, el modal nunca aparecía. Investigado con `getBoundingClientRect`/DOM: `#dev-tools-modal` (agregado en V13.1) quedó adentro de `#view-setup` desde siempre, y nunca se movió cuando Home pasó a tener su propia vista (`#view-player-home`) con su propio logo (`#player-home-logo`, distinto de `#home-logo`, que sigue viviendo en Setup). Dos problemas independientes, misma causa raíz:
+1. `initDevTools()` escuchaba `pointerdown` en `#home-logo` (el logo de Setup, invisible desde Home) — el long-press sobre el logo real de Home nunca disparaba nada.
+2. Aunque se disparara, el modal (`position:fixed` dentro de un ancestro `display:none`) nunca se pintaría — MISMA clase de bug que V13.2/V13.3 ya corrigieron para `#update-available-modal`/`#scoring-system-modal` (comentario explícito en `index.html` documentando ese fix anterior).
+
+Corregido: `initDevTools` ahora escucha en `#player-home-logo`; `#dev-tools-modal` se movió afuera de cualquier `.view`, junto a los otros 2 modales globales. Verificado con un `pointerdown` sintético + espera >1.8s: el menú aparece con los 2 botones nuevos visibles y funcionales. Sin este fix, "Crear usuario de prueba"/"Resetear Nivel BRAMU" habrían quedado inalcanzables — se corrige porque bloqueaba el propio alcance de V04.6, no por ir a auditar el resto de la app.
+
+## V04.6.4 Tests: antes/después
+
+**Antes (V04.5):** 1338/1338.
+**Después (V04.6):** **1394/1394**, corrido de verdad contra el arnés real (dos fallos reales en la primera corrida, ambos por una construcción de fixture propia con puntos de confianza mal contados — corregidos, no eran bugs del motor; confirmado re-verificando el mismo combo con `LVC.computeCategoryStep` directo en el Browser tool antes y después del fix).
+
+Se retiraron los fixtures del catálogo/pesos del cuestionario V1.4 (2, ya no aplican — la función que probaban no existe más) y se agregaron 58 nuevos: anclas/modificadores/mapa de categoría, ancla técnica, estimación completa/rápida (incl. `null` defensivo por respuesta faltante), categoría (mapa piloto/sin mapa/clave neutral/límite ±0.5/camino rápido sin modificador competitivo), coherencia (brecha exacta 2.0 inclusive/justo debajo/confianza por puntos 0.12-0.15-0.18 con saturación), confirmación V1.1 (questionnaireVersion, cap de confianza sin penalizar el nivel, trazabilidad completa, redondeo público), los 4 fixtures obligatorios × 2 caminos (Esteban/Seba/Lucho/Agustín, tolerancia ±0.01), los 8 perfiles de estrés de §3.8 (regresión exacta sobre combos propios, documentado que la fórmula no publica las respuestas originales — mismo criterio ya usado para los perfiles de V1.4 en V04.3), ajuste genérico sin múltiplos de 0.1, determinismo V1.1, `Store.resetLevelV1State` (incluida la verificación explícita de que Historial/Usuarios no se tocan), y `categorizeLevel` con los cortes/etiqueta nuevos. Calibración y recalibración (§10.2/§11) se dejaron BYTE A BYTE como estaban — cero cambios, siguen verdes.
+
+## V04.6.5 Contradicciones / decisiones — ninguna bloqueante
+
+- **`categoryContextKey` (qué determina "mapa compatible"):** la Fórmula V1.5 define el mapa piloto pero no dice explícitamente cómo detectar el contexto del jugador. Se resolvió con la lectura más consistente con "piloto argentino masculino": `país==='Argentina' && género==='masculino'` (hoy toda ubicación de la app es Argentina vía GeoRef, así que en la práctica es solo un chequeo de género) — cualquier otro caso queda sin mapa, categoría se guarda igual con ajuste 0. No es una equivalencia rígida nueva, es la puerta de entrada al mapa ya definido.
+- **8 perfiles de estrés (§3.8):** la fórmula publica el resultado aproximado (1 decimal) de cada escenario, no las 7 respuestas que lo produjeron — se construyeron respuestas narrativamente consistentes con cada descripción (ver V04.6.1) y se fijó como fixture el resultado EXACTO que el motor devuelve para ese combo propio, no el número redondeado del documento (5 de los 8 coinciden exacto o casi exacto con la Fórmula; los otros 3 quedan dentro de ~0.1, documentado inline en cada assert). Mismo criterio de honestidad ya aplicado a los perfiles de V1.4 en V04.3 — nunca se inventó una precisión que no existe.
+
+## V04.6.6 Riesgos / deuda relevante
+
+- Los perfiles de estrés de §3.8 son una aproximación cualitativa (ver V04.6.5), no una reproducción exacta — si en el futuro la Fórmula publica las 7 respuestas originales de cada perfil, conviene reemplazar esos fixtures por los reales.
+- El modo laboratorio no migra estados `nivel_bramu_v1_0`/origen V1.4 viejos que pudieran existir en cuentas de prueba de rondas anteriores — quedarían con `questionnaireVersion` ausente/vieja hasta que se resetee explícitamente esa cuenta (comportamiento a propósito, ver Handoff V04.6 §10 in fine).
+- Ubicación ahora obligatoria en el alta: cualquier cuenta creada ANTES de V04.6 sin ubicación sigue sin ella (no se migra retroactivamente) — solo afecta a altas nuevas de acá en adelante.
+
+## V04.6.7 Versionado y despliegue
+
+Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`)/`index.html` (14 `?v=`) → `BRAMUlab V04.6`. Commit y push a `origin/main` en esta misma intervención (ver mensaje de commit); deploy de GitHub Pages a verificar después del push.
+
+## V04.6.8 No se avanzó
+
+Confirmado — no se tocó Ranking BRAMU, BRAMU Intelligence ni Backend/autenticación real; no se avanzó a evolución por partidos reales más allá de lo ya existente. V04.6 queda online para la revisión visual manual de Sebastián.

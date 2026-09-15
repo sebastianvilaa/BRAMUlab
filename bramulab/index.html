@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.5" />
+<link rel="stylesheet" href="styles.css?v=04.6" />
 </head>
 <body>
 
@@ -80,26 +80,6 @@
         <button id="header-menu-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
       </div>
     </div>
-
-    <!-- V13.1 (§9) — herramienta discreta de desarrollo: mantener presionado el logo ~2s
-         abre este modal. Pensada para forzar la actualización de la PWA en iPhone sin
-         depender de un hard refresh de escritorio, sin borrar ningún dato del usuario
-         (localStorage, partido en curso, Historial quedan intactos: solo se limpia la
-         caché de assets del service worker y se recarga). Fuera del flujo normal a
-         propósito — nunca un botón visible en la interfaz. -->
-    <div id="dev-tools-modal" class="overlay overlay--menu" hidden>
-      <div class="menu-sheet">
-        <div class="menu-sheet__title" id="dev-tools-title">HERRAMIENTAS</div>
-        <button id="dev-tools-force-update" class="menu-item" type="button">Forzar actualización</button>
-        <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — único interruptor de la vista previa de Nivel
-             BRAMU V1: apagado por defecto, nunca visible fuera de este menú oculto, nunca
-             alcanzable por un usuario público sin saber que existe. Su label se actualiza en
-             initDevTools() cada vez que se abre este menú. -->
-        <button id="dev-tools-toggle-nivel-v1" class="menu-item" type="button">Nivel BRAMU V1 (preview): OFF</button>
-        <button id="dev-tools-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
-      </div>
-    </div>
-
 
     <form id="setup-form" class="setup-form" autocomplete="off">
 
@@ -2312,30 +2292,19 @@
               <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
             </div>
           </div>
-          <select id="signup-category" class="field__input">
-            <option value="">Categoría actual</option>
-            <option value="1">1ª</option>
-            <option value="2">2ª</option>
-            <option value="3">3ª</option>
-            <option value="4">4ª</option>
-            <option value="5">5ª</option>
-            <option value="6">6ª</option>
-            <option value="7">7ª</option>
-            <option value="8">8ª</option>
-            <option value="9">9ª</option>
-            <option value="no-se">No sé mi categoría</option>
-          </select>
-          <!-- BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — ubicación agregada al alta
-               (dato estructural para búsqueda/Ranking a futuro), pero OPCIONAL: mismo criterio
-               que ya usa este campo en Editar Datos (nunca bloqueó guardar ahí, ver §9 de
-               V03.4.1) — no forma parte de recomputeSignupStepValidity. Reutiliza el mismo
-               componente de fila + la misma hoja de búsqueda GeoRef (#profile-location-sheet)
-               que Editar Datos, generalizada para aceptar un target distinto (ver
-               openProfileLocationSheet en app.js) en vez de duplicar sheet/búsqueda/CSS. -->
+          <!-- BRAMUlab_V04.6 — Categoría sale del alta: se pregunta una sola vez, como último
+               paso del onboarding de Nivel BRAMU (ver Handoff V04.6 §4/§6), y se guarda en el
+               MISMO campo `declaredCategory` de siempre — nunca dos categorías independientes.
+               Ubicación deja de ser opcional (Handoff V04.6 §4): dato estructural para el ajuste
+               por categoría (§3.3 de la fórmula) y para el futuro Ranking BRAMU local.
+               Reutiliza el mismo componente de fila + la misma hoja de búsqueda GeoRef
+               (#profile-location-sheet) que Editar Datos, generalizada para aceptar un target
+               distinto (ver openProfileLocationSheet en app.js) en vez de duplicar
+               sheet/búsqueda/CSS. -->
           <div class="profile-select-rows">
             <button type="button" class="profile-select-row" id="signup-location-row">
               <span class="profile-select-row__text">
-                <span class="profile-select-row__label">¿De dónde sos? (opcional)</span>
+                <span class="profile-select-row__label">¿De dónde sos?</span>
                 <span class="profile-select-row__value" id="signup-location-value">—</span>
               </span>
               <span class="profile-select-row__chevron" aria-hidden="true">›</span>
@@ -2351,7 +2320,7 @@
 
   <section id="view-player-card" class="view view--access" hidden>
     <div class="access-scroll">
-      <div class="access-title">TU JUGADOR ESTÁ LISTO</div>
+      <div class="access-title">TU PERFIL ESTÁ LISTO</div>
       <div class="ficha-deportiva">
         <div class="ficha-deportiva__avatar" id="player-card-avatar">
           <span id="player-card-avatar-initials">—</span>
@@ -2363,7 +2332,6 @@
           <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Edad</span><span class="ficha-deportiva__stat-value" id="player-card-age">—</span></div>
           <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Mano</span><span class="ficha-deportiva__stat-value" id="player-card-hand">—</span></div>
           <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Lado</span><span class="ficha-deportiva__stat-value" id="player-card-side">—</span></div>
-          <div class="ficha-deportiva__stat"><span class="ficha-deportiva__stat-label">Categoría</span><span class="ficha-deportiva__stat-value" id="player-card-category">—</span></div>
         </div>
         <div class="ficha-deportiva__level">
           <div class="ficha-deportiva__level-label">NIVEL BRAMU</div>
@@ -2424,28 +2392,69 @@
         <button type="button" class="btn-start btn-save" id="nivel-quiz-continue-btn" disabled>CONTINUAR</button>
       </div>
 
+      <!-- BRAMUlab_V04.6 — reemplaza el stepper manual ±0.5 (retirado, ver Handoff V04.6 §7):
+           medidor semicircular 1-10 + "Tu estimación inicial", categoría como ÚLTIMA pregunta
+           compartida por los dos caminos (debajo del medidor, sin preselección) y el ajuste
+           automático (±0.5, nunca manual) mueve la aguja hacia "Tu punto de partida en BRAMU". -->
       <div class="nivel-step" id="nivel-step-result" data-step="result" hidden>
-        <div class="nivel-result-card">
-          <div class="nivel-result-card__label">TU NIVEL BRAMU ESTIMADO</div>
-          <div class="nivel-result-card__value" id="nivel-result-value">—</div>
-          <div class="nivel-result-card__category" id="nivel-result-category">—</div>
+        <div class="nivel-gauge-card">
+          <div class="nivel-gauge-card__label" id="nivel-result-label">TU ESTIMACIÓN INICIAL</div>
+          <div class="nivel-gauge">
+            <svg viewBox="0 0 220 140" class="nivel-gauge__svg" aria-hidden="true">
+              <path class="nivel-gauge__track" d="M 22 112 A 88 88 0 0 1 198 112"></path>
+              <path class="nivel-gauge__fill" id="nivel-gauge-value-arc" d="M 22 112 A 88 88 0 0 1 22 112"></path>
+              <line class="nivel-gauge__needle" id="nivel-gauge-needle" x1="110" y1="112" x2="110" y2="34"></line>
+              <circle class="nivel-gauge__pivot" cx="110" cy="112" r="6"></circle>
+            </svg>
+            <div class="nivel-gauge__value" id="nivel-gauge-value">—</div>
+          </div>
+          <div class="nivel-gauge-card__category" id="nivel-result-category">—</div>
         </div>
         <p class="coverage-note access-subtitle" id="nivel-result-note">Es una primera referencia basada en tus respuestas — todavía no es una medición de tu juego. BRAMU la va a calibrar con partidos reales.</p>
 
-        <div class="nivel-adjust">
-          <div class="nivel-adjust__label">¿Querés ajustarlo? Podés hacerlo una sola vez, hasta 0,5 puntos.</div>
-          <div class="nivel-adjust__row">
-            <button type="button" class="nivel-adjust__btn" id="nivel-adjust-minus" aria-label="Bajar 0,1">−</button>
-            <div class="nivel-adjust__value" id="nivel-adjust-value">—</div>
-            <button type="button" class="nivel-adjust__btn" id="nivel-adjust-plus" aria-label="Subir 0,1">+</button>
-          </div>
+        <div class="nivel-category-step">
+          <div class="nivel-category-step__title">Una última pregunta para afinar tu nivel</div>
+          <div class="nivel-category-step__question">¿En qué categoría suelen ser parejos tus partidos?</div>
+          <div class="nivel-category-grid" id="nivel-category-grid"></div>
         </div>
 
-        <button type="button" class="btn-start" id="nivel-confirm-btn">CONFIRMAR MI NIVEL</button>
+        <p class="nivel-coherence-note" id="nivel-coherence-note" hidden>Algunas respuestas describen niveles diferentes. ¿Querés revisarlas?</p>
+
+        <button type="button" class="btn-start" id="nivel-confirm-btn" disabled>CONFIRMAR MI NIVEL</button>
         <button type="button" class="link-btn" id="nivel-review-btn">Revisar respuestas</button>
       </div>
     </div>
   </section>
+
+  <!-- BRAMUlab_V04.6 — MISMA clase de bug real que V13.2/V13.3 corrigieron para los 2 modales
+       de abajo, encontrada al verificar esta ronda: `#dev-tools-modal` (V13.1) había quedado
+       adentro de `#view-setup` y nunca se movió — un `position:fixed` dentro de un ancestro
+       `display:none` no se pinta, así que mantener presionado el logo de Home (que además
+       apuntaba al `#home-logo` DE SETUP, no al del Home — ver `initDevTools` en app.js) nunca
+       abría nada de verdad. Se corrige acá porque bloqueaba llegar a los 2 botones nuevos de
+       laboratorio de esta ronda (Handoff V04.6 §10) — mismo criterio que el comentario de
+       abajo: afuera de cualquier `.view`, junto al toast global. -->
+  <div id="dev-tools-modal" class="overlay overlay--menu" hidden>
+    <div class="menu-sheet">
+      <div class="menu-sheet__title" id="dev-tools-title">HERRAMIENTAS</div>
+      <button id="dev-tools-force-update" class="menu-item" type="button">Forzar actualización</button>
+      <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — único interruptor de la vista previa de Nivel
+           BRAMU V1: apagado por defecto, nunca visible fuera de este menú oculto, nunca
+           alcanzable por un usuario público sin saber que existe. Su label se actualiza en
+           initDevTools() cada vez que se abre este menú. -->
+      <button id="dev-tools-toggle-nivel-v1" class="menu-item" type="button">Nivel BRAMU V1 (preview): OFF</button>
+      <!-- BRAMUlab_V04.6 — modo laboratorio, ayudas mínimas (Handoff V04.6 §10): solo visibles
+           con el preview de Nivel BRAMU V1 ya activado (ver refreshLabPreviewUI en app.js).
+           "Crear usuario de prueba" evita mail/contraseña por completo (Store.createUserAccount
+           + saveSessionUserId directo, sin pasar por el wizard de alta) para poder repetir el
+           onboarding las veces que haga falta; "Resetear Nivel BRAMU" borra SOLO
+           LEVEL_V1_STATE de la cuenta activa (Store.resetLevelV1State) — historial,
+           estadísticas, red, jugadores y grupos quedan intactos. -->
+      <button id="dev-tools-create-test-user" class="menu-item" type="button" hidden>Crear usuario de prueba</button>
+      <button id="dev-tools-reset-nivel" class="menu-item" type="button" hidden>Resetear Nivel BRAMU</button>
+      <button id="dev-tools-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
+    </div>
+  </div>
 
   <!-- V13.2 (§2) / V13.3 — BUG REAL corregido: estos dos modales vivían adentro de
        `#view-setup`, que queda `hidden` en cuanto arranca un partido (`showView('match')`) —
@@ -2977,24 +2986,24 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=04.5"></script>
-  <script src="stats.js?v=04.5"></script>
-  <script src="store.js?v=04.5"></script>
+  <script src="engine.js?v=04.6"></script>
+  <script src="stats.js?v=04.6"></script>
+  <script src="store.js?v=04.6"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.5"></script>
-  <script src="level-context.js?v=04.5"></script>
-  <script src="level-calibration.js?v=04.5"></script>
-  <script src="player-home.js?v=04.5"></script>
-  <script src="match-load.js?v=04.5"></script>
-  <script src="player-identity.js?v=04.5"></script>
-  <script src="groups.js?v=04.5"></script>
-  <script src="locations.js?v=04.5"></script>
-  <script src="ranking.js?v=04.5"></script>
-  <script src="app.js?v=04.5"></script>
+  <script src="level.js?v=04.6"></script>
+  <script src="level-context.js?v=04.6"></script>
+  <script src="level-calibration.js?v=04.6"></script>
+  <script src="player-home.js?v=04.6"></script>
+  <script src="match-load.js?v=04.6"></script>
+  <script src="player-identity.js?v=04.6"></script>
+  <script src="groups.js?v=04.6"></script>
+  <script src="locations.js?v=04.6"></script>
+  <script src="ranking.js?v=04.6"></script>
+  <script src="app.js?v=04.6"></script>
 </body>
 </html>
