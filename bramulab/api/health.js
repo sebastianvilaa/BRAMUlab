@@ -6,7 +6,13 @@
 // supabase/migrations/20260916120000_bloque1_environment_guard_and_identity_seed.sql).
 //
 // No usa el SDK de Supabase para no agregar dependencias: llama directo a la
-// API REST (PostgREST) con la anon key. Nunca lee SUPABASE_SERVICE_ROLE_KEY.
+// API REST (PostgREST) con la key pública. Nunca lee SUPABASE_SERVICE_ROLE_KEY.
+//
+// SUPABASE_ANON_KEY actualmente contiene la Publishable Key nueva de Supabase
+// (prefijo sb_publishable_...), no un JWT legacy "anon". Por eso va SOLO en
+// el header `apikey`: una Publishable Key mandada además como
+// `Authorization: Bearer <key>` no es un JWT válido y PostgREST responde 401.
+// El nombre de variable se mantiene por ahora para no reconfigurar Vercel.
 //
 // GET /api/health
 
@@ -28,7 +34,6 @@ export default async function handler(req, res) {
     response = await fetch(`${supabaseUrl}/rest/v1/app_config?select=environment,updated_at&limit=1`, {
       headers: {
         apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
       },
     });
   } catch (err) {

@@ -118,6 +118,36 @@ test('ok=false por missing_env_vars cuando falta configuración', async () => {
   assert.equal(res.body.error, 'missing_env_vars');
 });
 
+test('manda la Publishable Key solo en apikey, nunca como Authorization Bearer', async () => {
+  let seenHeaders = null;
+  const { server, url } = await startFakeSupabase((req, res) => {
+    seenHeaders = req.headers;
+    // Simula PostgREST real: si llega un Authorization Bearer que no es un
+    // JWT válido, responde 401 en vez de aplicar RLS. Así la prueba falla
+    // igual que en Staging si alguien reintroduce el header de más.
+    if (req.headers.authorization) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ message: 'Invalid JWT' }));
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify([{ environment: 'staging', updated_at: '2026-09-16T00:00:00Z' }]));
+  });
+
+  process.env.BRAMU_ENV_NAME = 'staging';
+  process.env.SUPABASE_URL = url;
+  process.env.SUPABASE_ANON_KEY = 'sb_publishable_fake_key';
+
+  const res = fakeRes();
+  await handler({}, res);
+  server.close();
+
+  assert.equal(seenHeaders.apikey, 'sb_publishable_fake_key');
+  assert.equal(seenHeaders.authorization, undefined);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+});
+
 test('ok=false por supabase_unreachable cuando no hay servidor escuchando', async () => {
   process.env.BRAMU_ENV_NAME = 'staging';
   process.env.SUPABASE_URL = 'http://127.0.0.1:1';

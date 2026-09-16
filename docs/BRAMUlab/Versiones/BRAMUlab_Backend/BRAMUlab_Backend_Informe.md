@@ -51,7 +51,7 @@ No usa la numeración `V04.x` (esa numeración es de Nivel BRAMU). Backend/Infra
 |---|---|---|---|
 | `BRAMU_ENV_NAME` | Público | Build (`build-env.mjs`) y runtime (`api/health.js`) | Vercel → Settings → Environment Variables (una por Environment: Production / Preview). Local: `bramulab/.env.development` |
 | `SUPABASE_URL` | Público | Build y runtime | Igual que arriba |
-| `SUPABASE_ANON_KEY` | Público (protegida por RLS, no es secreta) | Build y runtime | Igual que arriba |
+| `SUPABASE_ANON_KEY` | Público (protegida por RLS, no es secreta). Contiene la Publishable Key nueva de Supabase (`sb_publishable_...`), no el JWT `anon` legacy — va solo en el header `apikey`, nunca en `Authorization: Bearer` (ver §12) | Build y runtime | Igual que arriba |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Secreta** | Todavía no se usa en ningún código de Bloque 1 | Reservada para Bloque 2+; si se necesita antes, configurarla en Vercel marcada como sensible y nunca pegarla en el chat |
 | `VERCEL`, `VERCEL_ENV` | Provistas automáticamente por Vercel | Guarda cruzada en `build-env.mjs` | No se configuran a mano |
 
@@ -100,9 +100,9 @@ Mientras Vercel no esté conectado, Production sigue siendo GitHub Pages (`https
 - **Suite existente de la app** (`bramulab/tests.html`, engine/Nivel/stats/etc.): no se tocó ningún archivo que esa suite carga. Sigue en **1400/1400**.
 - **Tests nuevos, locales y reproducibles** (sin red, corren con Node):
   - `node --test bramulab/scripts/env-guard.test.mjs` — 10/10 verdes (guarda ambiental: variables faltantes, entorno inválido, cruces Production↔no-Production).
-  - `node --test bramulab/api/health.test.mjs` — 6/6 verdes (health check contra un servidor HTTP local que simula las respuestas de Supabase: ok, mismatch, tabla vacía, error 5xx, variables faltantes, servidor caído).
-  - Total infraestructura: **16/16 verdes**, ejecutados en esta misma máquina como parte de esta ronda.
-- **Test que requiere un servicio externo real** (no local, no automático): `supabase/tests/verify-rls.mjs` contra un proyecto Supabase real. Se probó su lógica contra un mock local (mismo comportamiento esperado), pero **todavía no corrió contra un proyecto Supabase real** porque ese proyecto no existe hasta que Sebastián lo cree. Correrlo contra Staging apenas exista es parte de cerrar este bloque.
+  - `node --test bramulab/api/health.test.mjs` — 7/7 verdes (health check contra un servidor HTTP local que simula las respuestas de Supabase: ok, mismatch, tabla vacía, error 5xx, variables faltantes, servidor caído, y el caso de regresión de §12: Publishable Key solo en `apikey`).
+  - Total infraestructura: **17/17 verdes**, ejecutados en esta misma máquina como parte de esta ronda.
+- **Test que requiere un servicio externo real** (no local, no automático): `supabase/tests/verify-rls.mjs`. No corrió todavía contra el proyecto Supabase real (esta sesión no tiene esas credenciales). Sí se re-verificó su lógica contra el mock local después del fix de §12, con el mismo resultado. Falta correrlo contra Staging de verdad — mismo pendiente que antes del fix.
 
 ### 10. Limitación conocida: Development no tiene `/api/*` con el servidor local
 
@@ -113,6 +113,16 @@ Mientras Vercel no esté conectado, Production sigue siendo GitHub Pages (`https
 `bramulab/index.html`, `app.js`, `engine.js`, `store.js`, `level*.js`, `stats.js`, `groups.js`, `ranking.js`, `sw.js`, `manifest.webmanifest` — ningún archivo de producto/UX se modificó. `env.generated.js` no se referencia todavía desde `index.html`; eso es trabajo de Bloque 2, cuando haya algo real que leer de esa configuración (Supabase Auth).
 
 ---
+
+### 12. Corrección post-verificación en Staging (mismo día): Publishable Key vs `Authorization: Bearer`
+
+Al conectar el primer deploy Preview real en Vercel, `/api/health` devolvía `{"ok":false,"error":"supabase_rest_error","status":401}`.
+
+Causa: el proyecto Supabase usa la Publishable Key nueva (prefijo `sb_publishable_...`), no el JWT `anon` legacy. `health.js` y `verify-rls.mjs` mandaban esa key en dos headers, `apikey` y `Authorization: Bearer`. PostgREST intenta validar cualquier `Authorization: Bearer` como JWT; como la Publishable Key no es un JWT, la request entera se rechaza con 401 antes de llegar a RLS.
+
+Fix: sacar el header `Authorization` de ambos archivos. La key va solo en `apikey`, que es lo único que PostgREST necesita para autenticación anónima. `SUPABASE_ANON_KEY` sigue llamándose así (no se tocó Vercel) pero de acá en adelante hay que leerlo como "key pública de Supabase", no como "JWT anon". No se tocaron RLS, migraciones, ni ningún archivo fuera de `bramulab/api/health.js`, `supabase/tests/verify-rls.mjs` y sus tests.
+
+Test de regresión agregado: `bramulab/api/health.test.mjs` → "manda la Publishable Key solo en apikey, nunca como Authorization Bearer" — el mock de Supabase devuelve 401 si detecta un header `Authorization`, igual que PostgREST real.
 
 ## Acciones manuales pendientes (Sebastián)
 

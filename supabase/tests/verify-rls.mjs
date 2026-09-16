@@ -15,6 +15,11 @@
 //   - lectura anónima de "players" -> vacía (RLS sin política de select deniega filas)
 //   - escritura anónima en "players" -> rechazada
 //   - lectura anónima de "app_config" -> permitida (única tabla con política pública de lectura)
+//
+// SUPABASE_ANON_KEY actualmente contiene la Publishable Key nueva de Supabase
+// (prefijo sb_publishable_...), no un JWT legacy "anon". Va SOLO en el header
+// `apikey`: mandarla también como `Authorization: Bearer <key>` no es un JWT
+// válido y PostgREST responde 401 en vez de aplicar RLS normalmente.
 
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY;
@@ -25,7 +30,7 @@ if (!url || !anonKey) {
   process.exit(1);
 }
 
-const headers = { apikey: anonKey, Authorization: `Bearer ${anonKey}` };
+const headers = { apikey: anonKey };
 
 async function expectDenied(label, path, init) {
   const res = await fetch(`${url}/rest/v1/${path}`, { headers, ...init });
