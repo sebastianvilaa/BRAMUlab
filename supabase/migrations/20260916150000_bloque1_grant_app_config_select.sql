@@ -1,0 +1,22 @@
+-- BRAMUlab — Bloque 1: grant explícito de lectura en app_config.
+--
+-- GRANT y RLS son dos capas separadas en Postgres: una policy de RLS solo
+-- se evalúa para las operaciones que el rol ya tiene permitidas por GRANT.
+-- Sin GRANT, Postgres deniega el acceso a nivel de tabla antes de llegar a
+-- evaluar ninguna policy.
+--
+-- El proyecto Supabase de este piloto se creó con "Automatically expose
+-- new tables" desactivado (a propósito, para no exponer nada por default).
+-- Con esa opción apagada, las tablas nuevas no reciben el GRANT automático
+-- para anon/authenticated que Supabase aplicaría si estuviera prendida.
+-- Por eso la policy app_config_public_read de
+-- 20260916120000_bloque1_environment_guard_and_identity_seed.sql existe
+-- pero la Data API no podía leer la tabla (401 en /rest/v1/app_config).
+--
+-- Esta migración NO modifica la anterior (ya aplicada) y es deliberadamente
+-- mínima: únicamente SELECT, únicamente en app_config. No otorga
+-- insert/update/delete sobre app_config y no toca "players", que debe
+-- seguir sin ningún grant ni policy (deny-by-default real hasta que
+-- Bloque 2 defina su propio acceso).
+
+grant select on table public.app_config to anon, authenticated;

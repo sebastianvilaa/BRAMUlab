@@ -35,6 +35,7 @@ No usa la numeración `V04.x` (esa numeración es de Nivel BRAMU). Backend/Infra
 - [`supabase/migrations/20260916120000_bloque1_environment_guard_and_identity_seed.sql`](../../../../supabase/migrations/20260916120000_bloque1_environment_guard_and_identity_seed.sql):
   - `app_config`: fila única (`id` fijo en `1`) con `environment` (`development|staging|production`). RLS habilitada con una única política pública de `select` para `anon`/`authenticated`. Sin políticas de escritura: se administra a mano por SQL editor.
   - `players`: esqueleto mínimo (`player_id`, `type`, `auth_user_id`, `display_name`, `is_active`, timestamps). RLS habilitada, **cero políticas** — deny-by-default real, nadie puede leer ni escribir todavía. Bloque 2 agrega `profiles` y las políticas reales.
+- [`supabase/migrations/20260916150000_bloque1_grant_app_config_select.sql`](../../../../supabase/migrations/20260916150000_bloque1_grant_app_config_select.sql) — agregada el mismo día tras verificar Staging (ver §13): `grant select on table public.app_config to anon, authenticated;`. Sin este GRANT la policy de arriba existe pero nunca se evalúa, porque el proyecto se creó con "Automatically expose new tables" desactivado.
 - [`supabase/tests/verify-rls.mjs`](../../../../supabase/tests/verify-rls.mjs) — script de verificación contra un proyecto Supabase real (requiere red): confirma que `players` no es legible/escribible por `anon` y que `app_config` sí es legible. **No forma parte de la suite local.**
 
 ### 2. Qué se decidió y por qué (no estaba fijado por Backend_Infraestructura.md)
@@ -124,16 +125,28 @@ Fix: sacar el header `Authorization` de ambos archivos. La key va solo en `apike
 
 Test de regresión agregado: `bramulab/api/health.test.mjs` → "manda la Publishable Key solo en apikey, nunca como Authorization Bearer" — el mock de Supabase devuelve 401 si detecta un header `Authorization`, igual que PostgREST real.
 
+### 13. Segunda corrección post-verificación en Staging (mismo día): falta GRANT en `app_config`
+
+Con el fix de §12 aplicado, `/api/health` seguía devolviendo `{"ok":false,"error":"supabase_rest_error","status":401}`.
+
+Causa: GRANT y RLS son dos capas separadas en Postgres. La policy `app_config_public_read` (de `20260916120000_...sql`) solo se evalúa para operaciones que el rol ya tiene permitidas por GRANT — sin GRANT, Postgres deniega el acceso a nivel de tabla antes de llegar a evaluar la policy. El proyecto Supabase de este piloto se creó con **"Automatically expose new tables" desactivado** (decisión correcta para no exponer nada por default), así que las tablas nuevas no reciben el GRANT automático que Supabase aplicaría si esa opción estuviera prendida. La migración original nunca declaró el GRANT explícito, asumiendo que Supabase lo aplicaba solo — esa suposición era la que estaba mal, no la policy.
+
+Fix: nueva migración [`20260916150000_bloque1_grant_app_config_select.sql`](../../../../supabase/migrations/20260916150000_bloque1_grant_app_config_select.sql) — un único `grant select on table public.app_config to anon, authenticated;`. No modifica la migración anterior (ya aplicada), no toca `players` (sigue sin GRANT ni policy — deny-by-default real, a propósito) y no otorga insert/update/delete sobre `app_config`.
+
+`supabase/tests/verify-rls.mjs`: no necesitó cambios de lógica. `expectDenied()` ya trataba "vacío" y "401/403" como equivalentes (ambos son "denegado" visto desde afuera), así que el mismo test que hoy exige `app_config` legible ya habría detectado este problema si hubiera corrido contra Staging antes que `/api/health`. Se agregó un comentario explicando el modelo de dos capas (GRANT + RLS) y se ajustó el label de `players` a "vacía o rechazada" para reflejar que cualquiera de las dos capas puede producir la denegación. Verificado con un mock local que reproduce el síntoma exacto (401 en `app_config` sin el grant) y confirma que el script falla correctamente en ese caso, y pasa una vez que `app_config` responde 200.
+
 ## Acciones manuales pendientes (Sebastián)
 
 Ver la respuesta de esta ronda en el chat — sección "ACCIONES MANUALES QUE DEBE HACER SEBASTIÁN" — para el detalle paso a paso en lenguaje no técnico. Resumen de qué falta para que Bloque 1 quede operativamente cerrado (el código ya está listo para todo esto):
 
 1. Crear el proyecto Supabase de **Staging** (y más adelante el de Production).
-2. Correr la migración de Bloque 1 en ese proyecto (SQL Editor, pegar y ejecutar).
+2. Correr, en orden, las dos migraciones de Bloque 1 en ese proyecto (SQL Editor, pegar y ejecutar cada una): `20260916120000_bloque1_environment_guard_and_identity_seed.sql` y `20260916150000_bloque1_grant_app_config_select.sql`.
 3. Insertar la fila de `app_config` de ese proyecto con su `environment` correspondiente.
 4. Crear/conectar un proyecto Vercel a este repositorio, con Root Directory `bramulab`.
 5. Cargar las variables de entorno en Vercel (Production y Preview, con los valores de cada proyecto Supabase).
 6. Verificar `/api/health` en el deploy resultante.
 7. Correr `supabase/tests/verify-rls.mjs` contra Staging.
+
+Ambos puntos anteriores (Publishable Key y GRANT faltante en `app_config`, §12 y §13) ya se resolvieron en el proyecto de Staging existente cuando se ejecute el paso 2 con la migración nueva incluida — no hace falta recrear el proyecto.
 
 Hasta que esto pase, Bloque 1 está **completo del lado del código** pero **no cerrado operativamente**.
