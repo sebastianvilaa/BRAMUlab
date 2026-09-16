@@ -1,8 +1,8 @@
 # Nivel BRAMU — Consolidado base de definición de producto
 
-**Estado:** contexto funcional vigente. El motor y el estimador inicial están cerrados para el piloto en `Nivel_BRAMU_Formula_V1.5.md`.
+**Estado:** definición funcional avanzada. Documento vivo para cerrar producto, preparar backend y diseñar posteriormente el algoritmo. No implementar la fórmula definitiva sin resolver los parámetros marcados como pendientes.
 
-**Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_1` para el cuestionario. Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
+**Nota (BRAMUlab_V04, normalización documental §1.2):** la fórmula, sus parámetros y las simulaciones que este documento daba como pendientes YA quedaron cerrados y congelados en `Nivel_BRAMU_Formula_V1.4.md` (versión de algoritmo `nivel_bramu_v1_0`). Toda frase de este documento que hable de una fórmula/parámetros "todavía por diseñar o simular" corresponde a una etapa anterior a ese cierre y queda superada — marcada puntualmente donde aparece. Este documento sigue vigente como contexto funcional y de UX (estados, cuestionario, recalibración, superficies), pero no puede reabrir lo ya cerrado por la fórmula V1.4.
 
 **Fecha de consolidación:** 10 de septiembre de 2026.
 
@@ -46,17 +46,6 @@ Un jugador puede conservar su nivel y cambiar de posición en el ranking aunque 
 - Cálculo interno: hasta **cuatro decimales**.
 - Ordenamiento de rankings y cálculos: utiliza el valor interno, no el redondeo visible.
 - No mostrar variaciones `+0,0` o `−0,0`.
-
-Categorías de comunicación vigentes:
-
-| Nivel | Categoría |
-|---:|---|
-| 1,0–2,4 | Iniciación |
-| 2,5–3,9 | Recreativo |
-| 4,0–4,9 | Intermedio |
-| 5,0–6,3 | Intermedio alto |
-| 6,4–7,9 | Avanzado |
-| 8,0–10,0 | Profesional |
 
 La relación entre número, categoría descriptiva y categorías competitivas reales deberá validarse con jugadores de distintos niveles antes del lanzamiento. La categoría declarada por el usuario no reemplaza al Nivel BRAMU.
 
@@ -135,9 +124,7 @@ La evaluación completa es la recomendada, pero no debe convertirse en una barre
 6. Desempeño declarado en la red.
 7. Lectura y uso declarado de rebotes.
 
-La capacidad inicial se estima principalmente mediante autoevaluación, red y paredes. La formación aporta una corrección mínima. Tiempo jugando y frecuencia reciente sirven para estimar cuán informada y vigente es la respuesta, pero no suben directamente el nivel: jugar hace muchos años o jugar muchas veces por semana no implica jugar mejor.
-
-La experiencia competitiva describe el rendimiento dentro de la categoría habitual. La categoría concreta se pregunta al final y solo se utiliza cuando existe un mapa local compatible y versionado.
+La edad no debe utilizarse para calcular capacidad. La frecuencia reciente aporta una señal más pertinente, aunque tampoco debe confundirse con compromiso, seriedad o calidad: jugar mucho no implica necesariamente jugar mejor.
 
 Las preguntas técnicas deben ser pocas y discriminantes. El cuestionario no intenta observar toda la técnica del jugador.
 
@@ -145,21 +132,19 @@ Las preguntas técnicas deben ser pocas y discriminantes. El cuestionario no int
 
 Al terminar:
 
-1. BRAMU calcula y muestra una estimación previa.
-2. Formula una última pregunta neutral: **¿En qué categoría suelen ser parejos tus partidos?**
-3. No destaca ni recomienda una categoría.
-4. Si existe un mapa compatible, aplica automáticamente una corrección máxima de **±0,5**.
-5. Muestra **Tu punto de partida en BRAMU**, número y categoría descriptiva.
-6. El jugador confirma o revisa respuestas y comienza el estado CALIBRANDO.
+1. BRAMU calcula un nivel inicial estimado.
+2. Muestra número, categoría y descripción comprensible.
+3. Pregunta si el resultado representa al jugador.
+4. Permite un único ajuste de hasta **±0,5**.
+5. La descripción cambia para acompañar el valor elegido.
+6. El jugador confirma y comienza el estado CALIBRANDO.
 
-No existe un stepper para mover libremente el número. Deben guardarse separadamente:
+El ajuste es una corrección acotada de la estimación inicial, no una edición libre. Deben guardarse separadamente:
 
-- resultado base del cuestionario;
-- categoría y contexto declarados;
-- ajuste automático de categoría;
+- resultado bruto del cuestionario;
+- ajuste elegido por el jugador;
 - resultado inicial confirmado;
-- `questionnaire_version = nivel_inicial_v1_1`;
-- confianza de origen y bandera de coherencia;
+- versión del cuestionario;
 - fecha y hora de confirmación.
 
 Las respuestas sirven para estimar el punto de partida. Nunca autorizan a BRAMU Intelligence a afirmar que una volea, un rebote, un smash u otra acción técnica ocurrió en un partido.
@@ -178,9 +163,9 @@ Las respuestas sirven para estimar el punto de partida. Nunca autorizan a BRAMU 
 ### 6.2 Funcionamiento recomendado
 
 1. Explicar que la recalibración no borra partidos ni garantiza una suba.
-2. Repetir el cuestionario completo vigente.
-3. Confirmar o actualizar la categoría contextual.
-4. Mostrar la nueva referencia con el ajuste automático de categoría, sin edición libre.
+2. Repetir el cuestionario completo.
+3. Mostrar una nueva referencia estimada.
+4. Permitir una corrección acotada dentro de ±0,5 sobre esa referencia.
 5. Cambiar el estado a RECALIBRANDO.
 6. Dar mayor sensibilidad temporal a los próximos partidos computables.
 7. Consolidar el nuevo nivel solamente después de obtener evidencia de juego.
@@ -239,7 +224,7 @@ Los puntos, quiebres, winners, errores y eventos del registro en vivo pueden enr
 
 ## 8. Criterios de cálculo ya decididos
 
-*(Superado por `Nivel_BRAMU_Formula_V1.5.md` — la frase siguiente es contenido histórico: la fórmula exacta ya fue diseñada, simulada y cerrada para V1. Ver ese documento para la fórmula real.)*
+*(Superado por `Nivel_BRAMU_Formula_V1.4.md` — la frase siguiente es contenido histórico: la fórmula exacta ya fue diseñada, simulada y cerrada para V1. Ver ese documento para la fórmula real.)*
 ~~La fórmula exacta todavía debe diseñarse y simularse.~~ Estos comportamientos sí quedan fijados:
 
 ### 8.1 Fuerza del partido
@@ -295,8 +280,7 @@ El color debe acompañar, nunca reemplazar, texto e iconografía accesible.
 
 - cuestionario rápido o completo;
 - devolución inmediata;
-- pregunta final de categoría y ajuste automático máximo ±0,5;
-- sin edición libre del número;
+- ajuste ±0,5;
 - explicación breve de calibración.
 
 **Home / Player Card**
@@ -443,8 +427,7 @@ Principios adoptados:
 - doble camino rápido/completo;
 - cuestionario breve;
 - resultado inmediato;
-- participación mediante categoría contextual y revisión de respuestas;
-- corrección automática limitada a ±0,5, sin stepper libre;
+- participación controlada mediante ajuste ±0,5;
 - separación entre nivel y confiabilidad;
 - evolución posterior mediante partidos;
 - explicación accesible de variaciones;
@@ -483,9 +466,9 @@ No se incorpora matchmaking en la primera etapa. Solo tendrá sentido cuando exi
 - Guardar snapshots históricos de nivel y confiabilidad.
 - BRAMU Intelligence puede interpretar dificultad, pero nunca inventar acciones técnicas.
 
-## 16. Parámetros todavía pendientes de simulación *(superado por `Nivel_BRAMU_Formula_V1.5.md`)*
+## 16. Parámetros todavía pendientes de simulación *(superado por `Nivel_BRAMU_Formula_V1.4.md`)*
 
-**Nota vigente:** esta sección completa es contenido histórico. Los parámetros del motor quedaron resueltos en V1.4 y la estimación inicial fue corregida en `Nivel_BRAMU_Formula_V1.5.md`. Se conserva la lista para trazabilidad, no como trabajo pendiente.
+**Nota (BRAMUlab_V04):** esta sección completa es contenido histórico. Los 12 parámetros listados abajo ya fueron resueltos, simulados y congelados como parte de `Nivel_BRAMU_Formula_V1.4.md` (fórmula V1, versión de algoritmo `nivel_bramu_v1_0`) — ninguno sigue pendiente. Se conserva tal cual para trazabilidad de qué estaba abierto antes del cierre de fórmula, no como lista de trabajo vigente.
 
 No son dudas conceptuales; requieren diseñar la fórmula y probarla con casos sintéticos y datos reales:
 
@@ -504,9 +487,9 @@ No son dudas conceptuales; requieren diseñar la fórmula y probarla con casos s
 
 Estos parámetros deben resolverse mediante simulación antes de desarrollo, sin reabrir las decisiones de producto ya cerradas.
 
-## 17. Próximo paso recomendado *(superado por `Nivel_BRAMU_Formula_V1.5.md` y `Nivel_BRAMU_Implementacion.md`)*
+## 17. Próximo paso recomendado *(superado por `Nivel_BRAMU_Formula_V1.4.md` y `Nivel_BRAMU_Implementacion.md`)*
 
-**Nota vigente:** los pasos siguientes describían el camino hacia una fórmula todavía no diseñada. Ese camino ya se recorrió; la fuente normativa actual es `Nivel_BRAMU_Formula_V1.5.md` y la próxima tarea técnica está definida en `Nivel_BRAMU_Implementacion.md`.
+**Nota (BRAMUlab_V04):** los pasos 3-6 describían el camino hacia una fórmula todavía no diseñada. Ese camino ya se recorrió: la fórmula está cerrada en `Nivel_BRAMU_Formula_V1.4.md` y la secuencia técnica de desarrollo vigente es la de `Nivel_BRAMU_Implementacion.md` (Etapas A-E). Se conserva la lista original como registro histórico del plan pre-fórmula.
 
 1. Revisar este consolidado como fuente única de definición del Nivel BRAMU.
 2. Cruzar el contrato de datos con el consolidado de backend V04.
@@ -514,3 +497,4 @@ Estos parámetros deben resolverse mediante simulación antes de desarrollo, sin
 4. Diseñar y comparar variantes matemáticas contra los comportamientos fijados.
 5. Validar la escala con jugadores reales de categorías diferentes.
 6. Recién entonces convertir la fórmula elegida en especificación técnica para desarrollo.
+

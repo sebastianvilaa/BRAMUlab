@@ -1,201 +1,228 @@
-# Nivel BRAMU V1 — Handoff para desarrollo
+# Nivel BRAMU V1.5 — Estado de implementación
 
-**Estado:** fórmula congelada para piloto  
-**Versión del algoritmo:** `nivel_bramu_v1_0`  
-**Objetivo:** convertir la definición de producto y matemática ya aprobada en una implementación segura, verificable y gradual.
+**Estado:** motor de partidos V1.0 + estimador inicial V1.1 implementados y testeados localmente hasta **BRAMUlab V04.9**.  
+**Versión del motor:** `nivel_bramu_v1_0`.  
+**Versión del cuestionario:** `nivel_inicial_v1_1`.  
+**Baseline vigente:** **1394/1394 tests**.  
+**Actualización:** 15 de septiembre de 2026.
 
-## 1. Decisión de producto
+Este documento reemplaza el handoff previo de implementación que describía trabajo todavía pendiente. Ese handoff histórico se conserva en `Archivo/Nivel_BRAMU/`.
 
-Nivel BRAMU está suficientemente definido para comenzar desarrollo.
+---
 
-Esto significa que:
+## 1. Autoridad documental
 
-- el comportamiento esperado del sistema está decidido;
-- la fórmula V1 puede implementarse sin nuevas decisiones de producto;
-- los parámetros iniciales están congelados para el piloto;
-- cualquier ajuste posterior deberá producir una nueva versión del algoritmo o un cambio de parámetros documentado;
-- la validación con datos reales forma parte de la calibración posterior al piloto, no es un bloqueo para empezar a desarrollar.
+Para Nivel BRAMU rige esta precedencia:
 
-No significa que la fórmula sea una verdad matemática definitiva. La V1 debe implementarse versionada y parametrizada para poder medirla, auditarla y mejorarla sin alterar resultados históricos silenciosamente.
+1. `Nivel_BRAMU_Formula_V1.5.md` — fórmula normativa vigente, parámetros, fixtures y estimador inicial.
+2. `Nivel_BRAMU_Implementacion.md` — este documento; estado técnico actual y límites de implementación.
+3. `Nivel_BRAMU.md` — contexto funcional, estados y experiencia de producto.
+4. `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md` — trazabilidad de qué se implementó realmente en cada ronda.
 
-## 2. Documentos fuente
+`Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico en `Archivo/Nivel_BRAMU/`. V1.5 conserva el motor `nivel_bramu_v1_0` y reemplaza la estimación inicial por `nivel_inicial_v1_1`.
 
-El desarrollo debe usar estos documentos, en este orden de precedencia (normalizado en `BRAMUlab_V04_Consolidado.md` §0 — reemplaza los nombres de archivo obsoletos que tenía este bloque):
+Ante una contradicción matemática manda V1.5. Desarrollo no debe rediseñar la fórmula por interpretación.
 
-1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md`: fuente normativa de fórmula, parámetros, elegibilidad, casos y simulaciones.
-2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md` (este documento): secuencia de implementación, límites y definición de terminado.
-3. `docs/BRAMUlab/Nivel_BRAMU.md`: contexto funcional, cuestionario, estados y experiencia de producto — no puede reabrir decisiones ya superadas por el punto 1.
+---
 
-Si aparece una contradicción, no resolverla por interpretación: documentarla antes de programar. La fórmula no debe rediseñarse desde desarrollo.
+## 2. Qué ya está implementado
 
-## 3. Alcance cerrado de V1
+### Motor puro
 
-La implementación debe respetar, como mínimo, estas decisiones:
+Implementado en módulos separados de UI:
 
-- escala pública de 1.0 a 10.0;
-- un decimal visible y cuatro decimales internos;
-- nivel efectivo dependiente de `mu` y confianza;
-- expectativa por promedio de cada pareja;
-- actualización híbrida basada en resultado esperado, confianza y calidad de evidencia;
-- margen por sets con efecto acotado;
-- factores por formato, confianza rival, repetición de rivales, compañero repetido, círculo competitivo cerrado y disponibilidad de participantes;
-- cuestionario rápido y completo con nivel inicial estimado;
-- un único ajuste inicial de hasta ±0.5;
-- estado visual de calibración hasta completar 5 partidos computables y enfrentar al menos 3 rivales distintos;
-- recalibración voluntaria disponible cada 90 días;
-- invitado sin estimación subjetiva de terceros;
-- al menos un jugador con nivel por pareja para que el partido sea computable;
-- factores de disponibilidad: 1.00 con cuatro conocidos, 0.80 con tres y 0.60 con dos —uno por pareja—;
-- los invitados no reciben actualización;
-- los partidos internos de un círculo competitivo cerrado tienen peso reducido, sin impedir que el jugador progrese al aportar evidencia externa o contra rivales claramente superiores;
-- ningún resultado histórico debe cambiar silenciosamente cuando cambie la fórmula.
+- cálculo de Nivel y confianza;
+- nivel efectivo;
+- fuerza de pareja;
+- expectativa;
+- factores y deltas;
+- precisión interna y redondeo público;
+- snapshots y salida auditable;
+- `reasonCodes`;
+- límites/clamps y comportamiento determinístico.
 
-## 4. Principio técnico central
+El motor continúa identificado como `nivel_bramu_v1_0`.
 
-El cálculo debe vivir en un motor puro, determinista y auditable.
+### Elegibilidad y calidad de evidencia
 
-Para una misma entrada y una misma versión del algoritmo, el resultado debe ser siempre idéntico. La interfaz no debe recalcular por su cuenta ni contener reglas de negocio duplicadas.
+Implementado y testeado:
 
-Cada actualización debe conservar:
+- partidos computables / pendientes / excluidos / corregidos / anulados / duplicados dentro del contexto local de Nivel;
+- invitados e imputación neutral;
+- disponibilidad 1.00 / 0.80 / 0.60 según participantes conocidos;
+- repetición de rivales;
+- compañero repetido;
+- círculo competitivo cerrado;
+- diversidad de rivales;
+- reglas de calibración/recalibración definidas por V1.
 
-- valores anteriores del jugador;
-- instantánea de niveles efectivos y confianza de los participantes;
-- expectativa calculada;
-- factores aplicados;
-- delta resultante;
-- valores posteriores;
-- versión del algoritmo;
-- códigos de motivo suficientes para explicar el cálculo;
-- fecha y origen de la operación.
+### Estimador inicial V1.1
 
-Las correcciones de partidos deben ser idempotentes y reconstruibles. No se debe sumar o restar un nuevo delta sobre un resultado ya corregido sin revertir o recalcular la operación original de forma controlada.
+Implementado:
 
-## 5. Implementación por etapas
+- camino completo;
+- camino rápido;
+- anclas técnicas V1.1;
+- antigüedad/frecuencia como contexto de confianza y no como capacidad directa;
+- pregunta competitiva contextual;
+- pregunta final de categoría;
+- mapa local versionado;
+- ajuste automático máximo ±0,5;
+- sin stepper manual;
+- confianza de origen;
+- detección de incoherencia;
+- `questionnaireVersion = nivel_inicial_v1_1`;
+- trazabilidad del origen del Nivel.
 
-Cada etapa debe revisarse y probarse antes de abrir la siguiente. No conviene pedir todo en una única entrega.
+### UX integrada
 
-### Etapa A — Modelo de datos y motor de cálculo
+Hasta V04.9 se implementó y refinó:
 
-Implementar sin cambios visibles de interfaz:
+- onboarding de Nivel;
+- estado `PENDIENTE` antes de confirmar;
+- estado `CALIBRANDO` después de confirmar;
+- Nivel visible con un decimal;
+- medidor 1–10;
+- pregunta final de categoría;
+- coherencia/revisión de respuestas;
+- Player Card / Home;
+- Mi Perfil;
+- Perfil público;
+- progreso de calibración;
+- herramientas mínimas de laboratorio para repetir onboarding/resetear Nivel.
 
-- estado de rating por jugador: `mu`, confianza, cantidad y tipo de evidencia, estado, timestamps y versión;
-- registro auditable del cálculo por partido y por jugador;
-- configuración centralizada de parámetros V1;
-- motor puro y determinista;
-- redondeo público separado de la precisión interna;
-- feature flag `nivel_bramu_v1` o equivalente.
+La implementación real, ronda por ronda, está documentada en `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`.
 
-**Salida esperada:** cálculo ejecutable mediante pruebas, todavía sin afectar producción ni mostrar resultados al usuario.
+---
 
-### Etapa B — Elegibilidad, invitados y calidad de evidencia
+## 3. Qué NO significa “implementado” todavía
 
-Implementar:
+Nivel V1 todavía no es una funcionalidad productiva multiusuario completa.
 
-- validación del partido computable;
-- regla de al menos un jugador con nivel por pareja;
-- imputación del invitado según la fórmula aprobada;
-- factores 1.00, 0.80 y 0.60;
-- repetición de rivales y compañero;
-- detección y factor de círculo competitivo cerrado;
-- estados de partido pendiente, computable, excluido, corregido o anulado;
-- política temporal y de validación definida en la fórmula;
-- ausencia de actualizaciones retroactivas silenciosas.
+Falta la infraestructura real que permita que el Nivel opere con autoridad compartida entre usuarios/dispositivos:
 
-**Salida esperada:** el backend puede decidir de forma trazable si un partido aporta evidencia y con qué peso.
+- autenticación real;
+- persistencia server-side;
+- validación de partidos entre rivales;
+- participantes compartidos con identidad real/provisional;
+- idempotencia distribuida;
+- correcciones/anulaciones oficiales;
+- sincronización multiusuario;
+- autoridad server-side para cálculos oficiales;
+- métricas reales de distribución/deriva.
 
-### Etapa C — Inicio, calibración y recalibración
+Estas dependencias pertenecen a `Backend_Infraestructura.md`. No requieren rediseñar la fórmula de Nivel.
 
-Implementar:
+---
 
-- cuestionario rápido y cuestionario completo;
-- cálculo del nivel inicial estimado;
-- ajuste único de hasta ±0.5;
-- guardado de respuestas como origen del nivel, nunca como hechos deportivos observados;
-- estado de nivel estimado/en calibración;
-- transición a calibrado luego de 5 partidos computables y 3 rivales distintos;
-- recalibración manual disponible cada 90 días desde el perfil;
-- tratamiento explícito de una nueva estimación sin borrar la trazabilidad anterior.
+## 4. Contrato técnico que debe preservarse
 
-**Salida esperada:** ciclo completo desde usuario nuevo hasta nivel calibrado.
+Cuando Nivel se integre con backend real:
 
-### Etapa D — Presentación y explicación
+- el cálculo sigue siendo puro, determinista y versionado;
+- UI no duplica reglas matemáticas;
+- servidor es autoridad para operaciones oficiales;
+- cada actualización guarda snapshots suficientes para reconstruir el cálculo;
+- no se recalcula silenciosamente el historial con niveles actuales;
+- correcciones y anulaciones deben ser idempotentes;
+- un cambio de fórmula exige una nueva versión explícita;
+- la precisión interna se conserva separada del valor público;
+- Ranking consume Nivel consolidado; nunca calcula Nivel por su cuenta;
+- BRAMU Intelligence consume snapshots/códigos guardados; nunca recalcula la expectativa histórica con niveles actuales.
 
-Implementar:
+---
 
-- nivel público con un decimal;
-- diferenciación visual del nivel en calibración;
-- estado y confianza expresados en lenguaje de producto;
-- explicación breve de por qué un partido incidió mucho, poco o nada, usando códigos calculados;
-- ausencia de cambios ficticios como `+0.0`;
-- consistencia entre perfil, historial, perfil público y cualquier otra superficie que muestre el nivel.
+## 5. Estados vigentes
 
-**Salida esperada:** experiencia comprensible sin exponer complejidad matemática innecesaria.
+### Sin estimación / PENDIENTE
 
-### Etapa E — Pruebas, simulaciones y activación controlada
+No confirmó todavía el cuestionario/camino rápido. No mostrar un Nivel inventado.
 
-Construir una batería reproducible con:
+### CALIBRANDO
 
-- fixtures exactos de los casos incluidos en la fórmula cerrada;
-- victoria que nunca disminuye el nivel y derrota que nunca lo aumenta;
-- simetría y límites de cada factor;
-- escenarios de 4, 3 y 2 jugadores conocidos;
-- repetición de compañero y rivales;
-- círculo competitivo cerrado y salida del círculo;
-- corrección y anulación de partidos;
-- idempotencia ante reintentos;
-- estabilidad del redondeo;
-- simulaciones anuales del grupo cerrado dentro de los rangos aprobados;
-- comparación entre resultados del motor y resultados esperados con tolerancia máxima definida, inicialmente ±0.01;
-- activación gradual mediante feature flag y monitoreo de distribución, deriva y casos extremos.
+Comienza al confirmar el punto de partida. Se muestra el Nivel estimado y progreso de calibración.
 
-**Salida esperada:** aprobación técnica para piloto, sin migración irreversible ni exposición general antes de pasar las pruebas.
+Para consolidar se requieren simultáneamente:
 
-## 6. Qué no debe hacer desarrollo en esta primera conversación
+- 5 partidos computables;
+- al menos 3 rivales distintos.
 
-- No implementar toda la funcionalidad de una vez.
-- No cambiar la fórmula para adaptarla a la arquitectura sin informar el conflicto.
-- No inventar valores faltantes ni niveles subjetivos para invitados.
-- No mezclar Nivel BRAMU con Ranking BRAMU.
-- No conectar respuestas técnicas del cuestionario con relatos de BRAMU Intelligence.
-- No recalcular el historial con una nueva versión sin una migración explícita.
-- No desplegar ni habilitar el cálculo para usuarios reales antes de aprobar pruebas y estrategia de migración.
+### CALIBRADO
 
-## 7. Primera tarea para el chat de desarrollo
+Existe evidencia mínima suficiente. El Nivel sigue evolucionando; “calibrado” no significa permanente.
 
-La primera entrega debe ser únicamente un diagnóstico y plan técnico. Debe incluir:
+### RECALIBRANDO
 
-- arquitectura actual relevante;
-- archivos, tablas, endpoints, servicios y pantallas afectados;
-- diferencias entre el modelo existente y el requerido;
-- propuesta de modelo de datos y auditoría;
-- propuesta de motor de cálculo y ubicación de parámetros;
-- migraciones necesarias y cómo revertirlas;
-- plan concreto por etapas A–E;
-- riesgos, contradicciones y decisiones que realmente requieran producto;
-- estrategia de pruebas y fixtures;
-- estimación de qué puede implementarse en cada bloque pequeño.
+Mantiene el último consolidado válido para usos oficiales hasta completar la recalibración según V1.5.
 
-Después de aprobar ese plan, la primera autorización de código debería limitarse a la **Etapa A**.
+---
 
-## 8. Definición de terminado para el piloto
+## 6. Fixtures de referencia V1.1
 
-Nivel BRAMU V1 se considera implementado —no solo programado— cuando:
+Cuestionario completo, tolerancia interna ±0,01:
 
-- el motor coincide con los fixtures aprobados;
-- todos los parámetros están centralizados y documentados;
-- cada cálculo conserva la versión y una auditoría reproducible;
-- reintentos, correcciones y anulaciones no duplican efectos;
-- las reglas de invitados y elegibilidad funcionan en todos los casos admitidos;
-- la calibración y recalibración respetan sus umbrales;
-- el mismo nivel se muestra de forma consistente en todo el producto;
-- la V1 puede habilitarse y deshabilitarse de forma controlada;
-- existen métricas para detectar inflación, deflación, concentración, saltos anómalos y deriva por círculos cerrados;
-- las simulaciones del grupo cerrado permanecen dentro de los rangos de producto aprobados;
-- producto revisa los resultados del piloto antes de declarar una V1 estable.
+- Esteban → 6,11
+- Seba → 5,69
+- Lucho → 4,75
+- Agustín → 2,05
 
-## 9. Estado de la decisión
+Camino rápido + categoría:
 
-**Fórmula de producto:** cerrada para V1.  
-**Lista para desarrollo:** sí.  
-**Lista para desplegar a producción:** todavía no; primero requiere plan técnico, implementación gradual, pruebas y piloto medido.  
-**Próxima acción:** enviar al chat de desarrollo el mensaje incluido en la conversación de entrega y pedir solamente el plan técnico.
+- Esteban → 5,92
+- Seba → 5,50
+- Lucho → 4,50
+- Agustín → 2,00
+
+La batería completa incluye además estrés, coherencia, límites ±0,5, categoría ausente/no soportada, redondeo y no regresión del motor.
+
+Baseline al cierre de V04.9: **1394/1394**.
+
+---
+
+## 7. Estado de V04.9
+
+V04.9 es la última ronda implementada de esta línea al momento de esta normalización documental.
+
+Cerró principalmente:
+
+- pulido del onboarding/perfil;
+- legibilidad del cuestionario;
+- medidor sin marcador blanco redundante;
+- jerarquía del número/categoría;
+- representación de `CALIBRANDO` sin romper la tarjeta clásica;
+- consistencia Home / Mi Perfil;
+- `PENDIENTE` correcto en perfil público antes de confirmar Nivel.
+
+No modificó Fórmula V1.5, `level.js`, `level-context.js` ni `level-calibration.js` en su lógica normativa.
+
+---
+
+## 8. Próxima etapa correcta
+
+No repetir Etapas A/B/C ni volver a implementar el cuestionario.
+
+Antes de agregar más funciones de Nivel:
+
+1. completar revisión visual/UX de V04.9;
+2. mantener tests verdes;
+3. usar el piloto real para validar comprensión y distribución del Nivel;
+4. integrar posteriormente con el backend real siguiendo `Backend_Infraestructura.md`;
+5. recién con datos reales evaluar ajustes de parámetros/anclas como una nueva versión explícita.
+
+No hay una “Etapa C pendiente” en este documento: el estimador V1.1 ya fue implementado.
+
+---
+
+## 9. Definición de listo para piloto
+
+Nivel BRAMU puede considerarse listo para un piloto controlado cuando:
+
+- V04.9 supera la revisión visual final;
+- 1394/1394 tests permanecen verdes;
+- ambos caminos de onboarding producen valores coherentes con fixtures;
+- PENDIENTE/CALIBRANDO/CALIBRADO se representan consistentemente;
+- no hay migraciones silenciosas desde estados viejos;
+- el usuario entiende que el número inicial es un punto de partida;
+- el producto registra suficiente trazabilidad para diagnosticar casos reales.
+
+La activación pública productiva multiusuario depende además del backend real y validación de partidos.
