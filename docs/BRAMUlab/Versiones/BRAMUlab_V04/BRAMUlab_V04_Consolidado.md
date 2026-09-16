@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.7 implementada · ronda de corrección visual/UX sobre el onboarding y Nivel BRAMU V1 de V04.6 — sin tocar la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0` ni el estimador `nivel_inicial_v1_1`. Corrige un bug real de navegación (se podía llegar al Home sin Nivel BRAMU confirmado), rediseña el medidor (aguja larga → marcador corto sobre el arco), estado "PENDIENTE" antes de confirmar Nivel, y una pasada de jerarquía/espaciado en onboarding, Home y MI PERFIL.  
+**Estado:** V04.9 implementada · pulido visual puntual sobre el onboarding y Nivel BRAMU V1 de V04.6-V04.8 — sin tocar la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0` ni el estimador `nivel_inicial_v1_1`. Reorganiza el formulario TU PERFIL (foto + Nombre/Apellido/@usuario agrupados), retira el marcador blanco del medidor (el propio extremo del arco indica la posición), y separa el estado CALIBRANDO del Nivel V1 en Home/MI PERFIL a una fila de ancho completo (nunca una píldora en la columna angosta que ya usa CALIBRADO) — el Perfil público de otro jugador ahora también respeta `PENDIENTE` antes de que esa cuenta confirme su Nivel.  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 

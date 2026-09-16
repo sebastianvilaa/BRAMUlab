@@ -6493,13 +6493,16 @@
     resetOptionGroup('signup-hand-options');
     resetOptionGroup('signup-side-options');
     // BRAMUlab_V04.6 — ubicación pasa a ser obligatoria del alta (ver Handoff V04.6 §4).
-    $('#signup-location-value').textContent = '—';
+    // BRAMUlab_V04.9 (§3) — "Elegir ubicación" en vez de un simple "—": la fila ahora se ve
+    // enmarcada como un campo real (ver #signup-location-row en styles.css), un placeholder
+    // reconocible (en vez de un guion suelto) refuerza que hay que tocarla para elegir.
+    $('#signup-location-value').textContent = 'Elegir ubicación';
   }
 
   /** BRAMUlab_V03.6 — mismo patrón que updateProfileLocationRowDisplay, para la fila de
    *  ubicación del paso 3 del alta (obligatoria desde V04.6, ver signup-location-row). */
   function updateSignupLocationRowDisplay() {
-    $('#signup-location-value').textContent = signupDraft.location ? PLLocations.formatLocationLabel(signupDraft.location) : '—';
+    $('#signup-location-value').textContent = signupDraft.location ? PLLocations.formatLocationLabel(signupDraft.location) : 'Elegir ubicación';
   }
 
   function openSignupWizard() {
@@ -6571,6 +6574,19 @@
     renderUsernameFeedback('signup-username', 'signup-username-feedback');
   }
 
+  /** BRAMUlab_V04.9 (§1) — iniciales reales en vivo mientras se completa Nombre/Apellido (ej.
+   *  "Sebastián Vila" → "SV"), sin esperar a subir una foto: primera letra de cada campo, nunca
+   *  `playerInitials` (pensado para UN string "nombre apellido" ya combinado, no 2 campos
+   *  separados). Si ya hay una foto elegida, no pisa el preview (`setAvatarPreview` ya la
+   *  muestra). Sin datos todavía, vuelve al mismo placeholder genérico de siempre ("—"). */
+  function updateSignupAvatarInitials() {
+    if (signupPhotoDataUrl) return;
+    const first = $('#signup-first-name').value.trim();
+    const last = $('#signup-last-name').value.trim();
+    const initials = (first.charAt(0) + last.charAt(0)).toUpperCase();
+    $('#signup-avatar-initials').textContent = initials || '—';
+  }
+
   function setAvatarPreview(imgId, initialsId, dataUrl, fallbackName) {
     const img = $(`#${imgId}`), initials = $(`#${initialsId}`);
     if (dataUrl) { img.src = dataUrl; img.hidden = false; initials.hidden = true; }
@@ -6614,8 +6630,8 @@
     // Acceso/Cambiar contraseña ("Signup donde corresponda").
     wirePasswordToggle('signup-password', 'signup-password-toggle');
     wirePasswordToggle('signup-password-repeat', 'signup-password-repeat-toggle');
-    $('#signup-first-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
-    $('#signup-last-name').addEventListener('input', () => { maybeSuggestSignupUsername(); recomputeSignupStepValidity(); });
+    $('#signup-first-name').addEventListener('input', () => { maybeSuggestSignupUsername(); updateSignupAvatarInitials(); recomputeSignupStepValidity(); });
+    $('#signup-last-name').addEventListener('input', () => { maybeSuggestSignupUsername(); updateSignupAvatarInitials(); recomputeSignupStepValidity(); });
     $('#signup-username').addEventListener('input', () => {
       $('#signup-username').dataset.touched = '1';
       renderUsernameFeedback('signup-username', 'signup-username-feedback');
@@ -6747,17 +6763,17 @@
     $('#player-card-subtitle').textContent = pending
       ? 'Para poder jugar, primero creá tu Nivel BRAMU.'
       : 'Completá 5 partidos para conocer tu Nivel BRAMU.';
-    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, solo si
-    // realmente falta algo (ubicación/WhatsApp, ambos opcionales en el alta): nunca aparece
-    // para una cuenta que ya cargó los dos. Nunca menciona el Nivel BRAMU ni bloquea ENTRAR A
-    // BRAMU/el onboarding obligatorio.
-    const missingOptional = [];
-    if (!user.locality) missingOptional.push('tu ubicación');
-    if (!user.phone) missingOptional.push('tu WhatsApp');
-    const hasMissingOptional = missingOptional.length > 0;
-    $('#player-card-complete-hint').hidden = !hasMissingOptional;
-    $('#player-card-complete-profile-btn').hidden = !hasMissingOptional;
-    if (hasMissingOptional) $('#player-card-complete-hint').textContent = `Cuando quieras, podés completar ${missingOptional.join(' y ')} desde Mi Perfil.`;
+    // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, nunca bloquea
+    // ni reemplaza ENTRAR A BRAMU, nunca menciona el Nivel BRAMU.
+    // BRAMUlab_V04.9 (§4) — simplificado a solo WhatsApp: desde el Handoff V04.6 la ubicación es
+    // obligatoria del alta (ya viene siempre completa acá), así que el único dato que puede
+    // faltar en esta pantalla es el WhatsApp (sigue opcional) — se retira el composer genérico
+    // "tu ubicación y/o tu WhatsApp" (dead code desde que ubicación dejó de ser opcional) por un
+    // copy fijo, sin puntos rojos ni sistema de pendientes.
+    const missingWhatsapp = !user.phone;
+    $('#player-card-complete-hint').hidden = !missingWhatsapp;
+    $('#player-card-complete-profile-btn').hidden = !missingWhatsapp;
+    if (missingWhatsapp) $('#player-card-complete-hint').textContent = 'Podés completar tu WhatsApp más adelante desde Mi Perfil.';
     showView('player-card');
   }
 
@@ -6883,10 +6899,9 @@
   function renderNivelOnboardingStep() {
     $('#nivel-onboarding-step-title').textContent = NIVEL_STEP_TITLES[nivelStep] || 'TU NIVEL BRAMU';
     $all('.nivel-step').forEach((el) => { el.hidden = el.dataset.step !== nivelStep; });
-    // BRAMUlab_V04.7 — "intro"/"quick" son cortos y quedaban pegados arriba con un vacío grande
-    // abajo (revisión visual, comparado contra Login); "quiz"/"result" son más largos y necesitan
-    // seguir anclados arriba para poder scrollear. Ver .access-scroll--centered en styles.css.
-    $('#nivel-onboarding-scroll').classList.toggle('access-scroll--centered', nivelStep === 'intro' || nivelStep === 'quick');
+    // BRAMUlab_V04.7 — "intro"/"quick" centraban verticalmente (`.access-scroll--centered`,
+    // retirada en V04.9 — "quedó demasiado centrada", revisión visual): todo el flujo de TU
+    // NIVEL BRAMU queda anclado arriba, igual que el resto de la familia de acceso.
     if (nivelStep === 'quick') renderNivelQuickStep();
     else if (nivelStep === 'quiz') renderNivelQuizStep();
     else if (nivelStep === 'result') renderNivelResultStep();
@@ -6956,17 +6971,16 @@
     return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${NIVEL_GAUGE.r} ${NIVEL_GAUGE.r} 0 0 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
 
-  /** Único punto que mueve el marcador/arco del medidor — nunca redibuja `d`/`transform` en otro
-   *  lado. `animate=true` deja que la transición CSS (`.nivel-gauge__marker`,
-   *  `.nivel-gauge__fill`) haga el movimiento suave pedido al afinar por categoría (§7:
-   *  "mover suavemente la aguja... desde la estimación inicial al valor afinado").
-   *  BRAMUlab_V04.7 — el elemento rotado pasa de aguja larga a tick corto (rediseño visual, ver
-   *  index.html/styles.css); la fórmula de rotación y el pivote NO cambian. */
-  function setNivelGaugeValue(value, animate) {
+  /** Único punto que mueve el arco del medidor — nunca redibuja `d` en otro lado. La transición
+   *  suave al afinar por categoría (§7: "mover suavemente... desde la estimación inicial al
+   *  valor afinado") la aporta la propia transición CSS de `.nivel-gauge__fill` (siempre activa).
+   *  BRAMUlab_V04.9 (§7) — se retira el tick blanco (`.nivel-gauge__marker` de V04.7, ver
+   *  index.html/styles.css): seguía sin funcionar y en valores altos salía del arco (revisión
+   *  visual). El propio extremo redondeado del arco (`stroke-linecap:round`) ya indica la
+   *  posición en la escala, sin agregar ningún reemplazo — el parámetro `animate` que solo
+   *  controlaba la transición del tick queda sin ningún efecto y se retira de la firma. */
+  function setNivelGaugeValue(value) {
     const v = Math.min(NIVEL_GAUGE.max, Math.max(NIVEL_GAUGE.min, value));
-    const needle = $('#nivel-gauge-needle');
-    needle.style.transition = animate ? 'transform var(--motion-base) var(--motion-ease)' : 'none';
-    needle.setAttribute('transform', `rotate(${(20 * v - 110).toFixed(2)} ${NIVEL_GAUGE.cx} ${NIVEL_GAUGE.cy})`);
     $('#nivel-gauge-value-arc').setAttribute('d', nivelGaugeArcPath(NIVEL_GAUGE.min, v));
     $('#nivel-gauge-value').textContent = LV.roundPublicLevel(v).toFixed(1);
     $('#nivel-result-category').textContent = LVC.categorizeLevel(v).label;
@@ -6983,12 +6997,12 @@
       $('#nivel-result-label').textContent = 'TU ESTIMACIÓN INICIAL';
       $('#nivel-coherence-note').hidden = true;
       $('#nivel-confirm-btn').disabled = true;
-      setNivelGaugeValue(nivelRawResult.raw, false);
+      setNivelGaugeValue(nivelRawResult.raw);
     } else {
       $('#nivel-result-label').textContent = 'TU PUNTO DE PARTIDA EN BRAMU';
       $('#nivel-coherence-note').hidden = !nivelCategoryStep.coherenceFlag;
       $('#nivel-confirm-btn').disabled = false;
-      setNivelGaugeValue(nivelCategoryStep.adjustedLevel, true);
+      setNivelGaugeValue(nivelCategoryStep.adjustedLevel);
     }
   }
 
@@ -7350,6 +7364,10 @@
     // exactamente la misma noción de "mine" que usa la evolución (§4.2: nunca un Observado).
     const levelSubEl = $('#player-home-level-sub');
     const barWrapEl = $('#player-home-level-bar-wrap');
+    // BRAMUlab_V04.9 (§11) — default seguro: solo el branch V1 CALIBRANDO de abajo la muestra,
+    // así ningún otro estado (legacy/simulado, o un V1 recién reseteado desde el modo
+    // laboratorio) puede dejarla visible por accidente de un render anterior.
+    $('#player-home-calibration').hidden = true;
     // BRAMUlab_V04.4 (Etapa D, bloque 1) — si existe un Nivel BRAMU V1 real confirmado para
     // este usuario, REEMPLAZA al simulado/provisional de V03 en esta tarjeta (Consolidado §7:
     // nunca conviven dos verdades a la vez). A diferencia del simulado, V1 SÍ muestra un
@@ -7359,9 +7377,25 @@
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       barWrapEl.hidden = true;
-      levelSubEl.hidden = false;
-      levelSubEl.innerHTML = levelV1BadgeHTML(levelV1);
       setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
+      // BRAMUlab_V04.9 (§10/§11) — CALIBRADO conserva la píldora chica de siempre en la columna
+      // angosta (`.player-card__level-sub`, referencia buena de V04.8, nunca se toca);
+      // CALIBRANDO pasa a la fila completa de abajo (`.player-card__calibration`) en vez de esa
+      // píldora, que ahí se sentía grande y alteraba la composición (revisión visual).
+      const calibrated = levelV1.state === LV.STATES.CALIBRATED;
+      const calibEl = $('#player-home-calibration');
+      if (calibrated) {
+        levelSubEl.hidden = false;
+        levelSubEl.innerHTML = levelV1BadgeHTML(levelV1);
+        calibEl.hidden = true;
+      } else {
+        levelSubEl.hidden = true;
+        levelSubEl.innerHTML = '';
+        calibEl.hidden = false;
+        $('#player-home-calibration-label').textContent = `CALIBRANDO · ${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+        const calibPct = Math.min(100, (levelV1.ratedMatches / LVC.PARAMS.CALIBRATION_MIN_MATCHES) * 100);
+        $('#player-home-calibration-bar-fill').style.width = calibPct + '%';
+      }
       return;
     }
     const evolution = PH.computeLevelEvolution(matches, currentIdentity());
@@ -9558,13 +9592,26 @@
     const evolution = PH.computeLevelEvolution(history, identity);
     const levelSubEl = $('#player-public-level-sub');
     if (PH.isCalibratingRealAccount(account)) {
-      const calib = PH.buildCalibrationStatus(evolution.consideredCount);
-      setLevelValueText('player-public-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
-      levelSubEl.hidden = calib.complete;
-      levelSubEl.textContent = calib.complete ? '' : calib.progressText;
+      // BRAMUlab_V04.9 (§14) — BUG REAL detectado en V04.8: esta rama mostraba "CALIBRANDO · 0/5"
+      // para cualquier cuenta real no-legacy, aunque esa persona TODAVÍA no hubiera confirmado su
+      // Nivel BRAMU V1 (con el preview activo, el onboarding queda pendiente hasta que la propia
+      // cuenta lo confirma — ver openPlayerCardScreen/nivelOnboardingPending). Mismo choke point
+      // que ya usa self: `nivelOnboardingPending(account)` es válido acá tal cual (`account` ya
+      // pasó `isCalibratingRealAccount`, que garantiza `!account.legacyMigrated`) — nunca inventa
+      // un número ni un progreso antes de que la cuenta confirme su Nivel.
+      if (nivelOnboardingPending(account)) {
+        setLevelValueText('player-public-level-value', 'PENDIENTE', true);
+        levelSubEl.hidden = true;
+        levelSubEl.textContent = '';
+      } else {
+        const calib = PH.buildCalibrationStatus(evolution.consideredCount);
+        setLevelValueText('player-public-level-value', calib.complete ? 'CALIBRACIÓN COMPLETA' : 'CALIBRANDO', true);
+        levelSubEl.hidden = calib.complete;
+        levelSubEl.textContent = calib.complete ? '' : calib.progressText;
+      }
       // "Mejor nivel BRAMU" es otra lectura de la misma serie gateada — nunca un número mientras
-      // la cuenta esté en calibración (mismo criterio que Home/MI PERFIL, que directamente
-      // ocultan esa tarjeta en ese caso).
+      // la cuenta esté pendiente/en calibración (mismo criterio que Home/MI PERFIL, que
+      // directamente ocultan esa tarjeta en ese caso).
       $('#player-public-peak-level').textContent = '—';
       $('#player-public-peak-level-context').textContent = '';
     } else {
@@ -10014,11 +10061,13 @@
     // él. Reutiliza el bloque `#evolution-calibration` existente (mismo lenguaje visual que ya
     // usan las cuentas V03 en calibración) en vez de crear un bloque paralelo — la diferencia
     // es que acá SÍ hay un número real (levelV1BadgeHTML/roundPublicLevel), no un placeholder.
+    // BRAMUlab_V04.9 (§12) — default seguro, mismo criterio que renderPlayerCard: solo el
+    // branch V1 CALIBRANDO de abajo la muestra.
+    $('#mi-perfil-calibration').hidden = true;
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
       $('#evolution-calibration').hidden = false;
-      $('#mi-perfil-level-sub').hidden = false;
       const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
       $('#evolution-calibration-state').textContent = isCalibrated ? 'NIVEL CALIBRADO' : 'CALIBRANDO';
       $('#evolution-calibration-progress').hidden = isCalibrated;
@@ -10027,7 +10076,22 @@
       $('#evolution-calibration-note-simulado').hidden = true;
       $('#evolution-calibration-note-v1').hidden = false;
       setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
-      $('#mi-perfil-level-sub').innerHTML = levelV1BadgeHTML(levelV1);
+      // BRAMUlab_V04.9 (§10/§12) — mismo criterio que Home: CALIBRADO conserva la píldora chica
+      // de siempre (`#mi-perfil-level-sub`, columna angosta); CALIBRANDO pasa a la fila completa
+      // de calibración (`#mi-perfil-calibration`), nunca la píldora ahí.
+      const calibEl = $('#mi-perfil-calibration');
+      if (isCalibrated) {
+        $('#mi-perfil-level-sub').hidden = false;
+        $('#mi-perfil-level-sub').innerHTML = levelV1BadgeHTML(levelV1);
+        calibEl.hidden = true;
+      } else {
+        $('#mi-perfil-level-sub').hidden = true;
+        $('#mi-perfil-level-sub').innerHTML = '';
+        calibEl.hidden = false;
+        $('#mi-perfil-calibration-label').textContent = `CALIBRANDO · ${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+        const calibPct = Math.min(100, (levelV1.ratedMatches / LVC.PARAMS.CALIBRATION_MIN_MATCHES) * 100);
+        $('#mi-perfil-calibration-bar-fill').style.width = calibPct + '%';
+      }
       $('#mi-perfil-level-delta').textContent = '';
       $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
       return;

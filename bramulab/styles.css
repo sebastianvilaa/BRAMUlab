@@ -2886,12 +2886,14 @@ input, select{ font-family: inherit; }
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
 /* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, para los pasos "intro"/"quick" de TU
-   NIVEL BRAMU (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep —
-   quiz/resultado son más largos y necesitan seguir ancladas arriba para poder hacer scroll).
+   NIVEL BRAMU (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep).
    BRAMUlab_V04.8 — REVIERTE el mismo criterio aplicado a TU PERFIL ESTÁ LISTO (V04.7): "todo el
    conjunto suspendido en el centro" (revisión visual). Esa pantalla vuelve a anclarse arriba,
-   como Login — ahora con su propio header (ver #view-player-card .analysis-header más abajo). */
-.access-scroll--centered{ justify-content: center; }
+   como Login — ahora con su propio header (ver #view-player-card .analysis-header más abajo).
+   BRAMUlab_V04.9 (§5) — REVIERTE el mismo criterio para "intro"/"quick": "quedó demasiado
+   centrada verticalmente" (revisión visual). Se retira la clase y su toggle en JS (ver
+   renderNivelOnboardingStep en app.js) en vez de dejarla sin uso — todo el flujo de TU NIVEL
+   BRAMU queda anclado arriba, igual que el resto de la familia de acceso. */
 /* BRAMUlab_V04.8 (§6) — header compartido de toda la familia de acceso (Login/Crear cuenta/TU
    PERFIL/TU NIVEL BRAMU/Editar Datos/Completar Acceso/Cambiar contraseña/Configuración del
    grupo, todas `.view--access`): el título pasa a quedar centrado respecto del ANCHO TOTAL de
@@ -2970,6 +2972,39 @@ input, select{ font-family: inherit; }
    lineal reusado acá y en la acción de editar de MIS DATOS (.profile-edit-icon-btn). */
 .pencil-icon{ width:14px; height:14px; }
 .profile-avatar-row{ display:flex; justify-content:center; margin: 0 0 14px; }
+
+/* BRAMUlab_V04.9 (§1) — foto a la izquierda + Nombre/Apellido/@usuario apilados a su derecha
+   (mismo lenguaje que `.pastilla-identity` de MI PERFIL/Perfil público: avatar chico integrado
+   en la fila, nunca centrado solo arriba). Reduce el avatar de 84px a 64px (mismo tamaño que
+   `.profile-avatar`) para que conviva bien junto a 3 campos de texto en el ancho del formulario. */
+.signup-identity-row{ display:flex; align-items:flex-start; gap: 14px; }
+.signup-identity-row .signup-avatar-upload{ width:64px; margin: 2px 0 0; }
+.signup-identity-row .signup-avatar{ width:64px; height:64px; font-size:20px; }
+.signup-identity-row .signup-avatar-edit{ width:26px; height:26px; }
+.signup-identity-row .signup-avatar-edit .pencil-icon{ width:13px; height:13px; }
+.signup-identity-fields{ flex:1 1 auto; min-width:0; }
+/* Fecha de nacimiento + Género comparten fila con ancho suficiente; en mobile quedan apiladas
+   (default: sin display propio, las dos `.field` son bloques y el margin-top de siempre entre
+   `.field + .field` ya las separa — ver `.access-form .field + .field`). */
+@media (min-width: 480px){
+  .signup-row-2col{ display:flex; gap: 14px; }
+  .signup-row-2col .field{ flex:1 1 0; min-width:0; }
+  .signup-row-2col .field + .field{ margin-top:0; }
+}
+/* Mano hábil/Lado habitual del alta — mismas 2/3 opciones de siempre (`.option-col`, compartido
+   con selectores de sistema de puntuación en otras pantallas, nunca tocado en su regla base),
+   pero más livianas acá: "se sienten grandes para opciones tan simples" (revisión visual). */
+#signup-hand-options .option-col, #signup-side-options .option-col{
+  min-height: 40px; padding: 9px 4px; font-size: 11px; font-weight: 700;
+}
+/* La fila de ubicación del alta es la ÚNICA de su lista (a diferencia de Editar Datos, que
+   tiene 5 filas y por eso ya se lee enmarcada por los `border-top` intermedios):
+   `.profile-select-row:first-child` le saca el borde de siempre, dejándola sin ningún borde —
+   "texto suelto con un guión debajo" (revisión visual). Gana un borde propio, mismo lenguaje
+   `border-bottom` que el resto de los campos del formulario (`.field__input`), sin tocar
+   `.profile-select-row` base (Editar Datos comparte esa clase y ya se ve bien tal cual). */
+#signup-location-row{ border-top:none; border-bottom: 2px solid var(--line); min-height:auto; padding: 8px 2px 10px; }
+#signup-location-row .profile-select-row__value{ font-size:16px; }
 
 /* Perfil — avatar de la identidad principal, mismo componente visual que .signup-avatar pero
    integrado en la fila `.pastilla--identity` (junto a nombre/@usuario), no centrado solo. */
@@ -3381,14 +3416,18 @@ input, select{ font-family: inherit; }
 
 /* Listas de respuestas (camino rápido y cuestionario completo) — filas verticales de texto
    largo, a diferencia de `.option-row`/`.option-col` (pensado para 2-3 palabras en fila). */
-.nivel-answer-list{ display:flex; flex-direction:column; gap: 8px; margin-bottom: 16px; }
+/* BRAMUlab_V04.9 (§6) — legibilidad: "chicas, demasiado bold, interlineado apretado, demasiado
+   juntas" (revisión visual, foco en 375px). Gap de la lista y el título de cada opción ganan
+   aire/tamaño; el peso baja de 700 a 500 (menos ruido en 7 preguntas seguidas), sin tocar
+   preguntas/respuestas ni el resto del sistema tipográfico de la app. */
+.nivel-answer-list{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 16px; }
 .nivel-answer-option{
   display:block; width:100%; text-align:left; font-family: inherit;
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
-  padding: 12px 14px; cursor:pointer;
+  padding: 13px 14px; cursor:pointer;
 }
-.nivel-answer-option__title{ display:block; font-size: 13px; font-weight:700; color: var(--paper); }
-.nivel-answer-option__desc{ display:block; font-size: 11px; color: var(--paper-dim); margin-top: 2px; line-height:1.35; }
+.nivel-answer-option__title{ display:block; font-size: 14px; font-weight:500; line-height:1.3; color: var(--paper); }
+.nivel-answer-option__desc{ display:block; font-size: 11px; color: var(--paper-dim); margin-top: 3px; line-height:1.35; }
 .nivel-answer-option.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.08); }
 .nivel-answer-option.is-selected .nivel-answer-option__title{ color: var(--brand-lime); }
 
@@ -3409,20 +3448,22 @@ input, select{ font-family: inherit; }
   border-radius: var(--radius-card); padding: 22px 16px 18px; margin-bottom: 18px;
 }
 .nivel-gauge-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 4px; }
-.nivel-gauge-card__category{ font-size: 13px; font-weight:700; color: var(--accent-cyan); margin-top: 2px; }
+/* BRAMUlab_V04.9 (§8) — sin el marcador blanco hay más jerarquía disponible para el número:
+   la categoría gana tamaño/presencia (13px→16px) para acompañarlo, sin tocar color/peso. */
+.nivel-gauge-card__category{ font-size: 16px; font-weight:700; color: var(--accent-cyan); margin-top: 4px; }
 .nivel-gauge{ position:relative; max-width: 260px; margin: 0 auto; }
 .nivel-gauge__svg{ display:block; width:100%; height:auto; }
 .nivel-gauge__track{ fill:none; stroke: var(--line); stroke-width:14; stroke-linecap:round; }
+/* BRAMUlab_V04.9 (§7) — `stroke-linecap:round` en el propio extremo del arco es, a partir de
+   esta ronda, el ÚNICO indicador de la posición en la escala (se retira el tick blanco
+   `.nivel-gauge__marker` de V04.7 — ver index.html/setNivelGaugeValue en app.js). */
 .nivel-gauge__fill{ fill:none; stroke: var(--accent-cyan); stroke-width:14; stroke-linecap:round; transition: d var(--motion-base) var(--motion-ease); }
-/* BRAMUlab_V04.7 — REEMPLAZA `.nivel-gauge__needle` (línea larga pivote→arco + `.nivel-gauge__pivot`
-   en el centro): un tick corto posicionado y rotado con la MISMA fórmula/transform-origin de
-   siempre (setNivelGaugeValue en app.js no cambia), pero su geometría ahora vive SOLO sobre el
-   arco — nunca atraviesa el centro donde está el número grande. Blanco sobre el azul del arco
-   para leerse como "marcador", no como una segunda barra. */
-.nivel-gauge__marker{ stroke: var(--paper); stroke-width:6; stroke-linecap:round; transform-origin: 110px 112px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+/* BRAMUlab_V04.9 (§8) — número más protagonista ahora que no compite con el marcador (48px→62px),
+   centrado dentro del hueco del semicírculo sin tocar el arco (ver comentario de §7 más arriba:
+   el `top` no cambia, ya dejaba margen de sobra al arco en la parte superior). */
 .nivel-gauge__value{
-  position:absolute; left:50%; top: 58%; transform: translate(-50%, -50%);
-  font-family: var(--font-display); font-weight:800; font-size: 48px; color: var(--paper);
+  position:absolute; left:50%; top: 60%; transform: translate(-50%, -50%);
+  font-family: var(--font-display); font-weight:800; font-size: 62px; color: var(--paper);
   line-height:1; font-variant-numeric: tabular-nums;
 }
 
@@ -3459,14 +3500,31 @@ input, select{ font-family: inherit; }
    leerse claramente secundario, nunca como una segunda acción del mismo peso. */
 #nivel-review-btn{ display:block; width:fit-content; margin: 16px auto 0; text-align:center; }
 
-/* Insignia CALIBRANDO/CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL).
+/* Insignia CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL).
    BRAMUlab_V04.7 — REEMPLAZA el punto ámbar/lima flotante (`__dot`, retirado — revisión visual:
    "no ayuda"): píldora con fondo propio, el color YA es la señal gráfica (nunca solo texto),
-   mismo --gold "todavía no" / --brand-lime "listo" de siempre. */
+   mismo --gold "todavía no" / --brand-lime "listo" de siempre.
+   BRAMUlab_V04.9 (§10) — deja de usarse para CALIBRANDO (ver `.player-card__calibration` más
+   abajo): en la columna angosta de siempre (`.player-card__level-sub`, 46% de ancho) el texto
+   "CALIBRANDO · X / 5 PARTIDOS" se sentía como una píldora grande que alteraba la composición.
+   Sigue siendo la insignia de CALIBRADO tal cual (nunca cambia de posición ni de tamaño, esa
+   sí es la referencia buena de V04.8). */
 .level-v1-badge{
   display:inline-block; font-size: 11px; font-weight: 800; letter-spacing:0.02em;
   padding: 3px 10px; border-radius: var(--radius-pill);
   background: rgba(255,201,61,0.12); border: 1px solid rgba(255,201,61,0.32); color: var(--gold);
 }
 .level-v1-badge--calibrated{ background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.35); color: var(--brand-lime); }
+
+/* BRAMUlab_V04.9 (§11/§12) — estado CALIBRANDO compacto, en su propia fila de ancho completo
+   (mismo lugar que ocupa `.player-card__bar` para cuentas legacy calibradas): label ámbar +
+   barra fina de progreso 0→5, compartido tal cual por Home y MI PERFIL ("deben hablar el mismo
+   lenguaje"). Nunca convive con `.level-v1-badge` (son estados mutuamente excluyentes). */
+.player-card__calibration{ flex-basis: 100%; margin-top: 10px; }
+.player-card__calibration-label{
+  font-size: 11px; font-weight: 800; letter-spacing:0.02em; color: var(--gold);
+  text-transform:uppercase; margin-bottom: 6px;
+}
+.player-card__calibration-bar{ height: 4px; border-radius: 999px; overflow:hidden; background: rgba(244,247,242,0.08); }
+.player-card__calibration-bar-fill{ display:block; height:100%; background: var(--gold); border-radius: 999px; transition: width var(--motion-base) var(--motion-ease); }
 .link-btn--danger{ color: var(--danger); }

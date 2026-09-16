@@ -765,3 +765,96 @@ Cuarteto completo bumpeado en la misma ronda: `Store.VERSION`/`version.json`/`sw
 ## V04.8.14 No se avanzó
 
 Confirmado — no se tocó la Fórmula V1.5, `level.js`, `level-context.js`, `level-calibration.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, cuestionario, camino rápido, mapa de categorías, medidor de Nivel, Ranking BRAMU, BRAMU Intelligence ni Backend. V04.8 queda online para revisión visual de Sebastián.
+
+# V04.9 — pulido visual de onboarding, Nivel y estado CALIBRANDO (implementada)
+
+**Fuentes leídas esta ronda:** solo la sección V04.8 de este mismo Informe + búsqueda dirigida en `app.js`/`index.html`/`styles.css` sobre los selectores/funciones involucrados. No se releyó V03, la Fórmula V1.5 completa ni se reabrió la matemática de Nivel (pedido explícito de Sebastián, ronda quirúrgica sobre lo ya revisado a mano en V04.8).
+
+## V04.9.1 TU PERFIL — foto + Nombre/Apellido/@usuario agrupados
+
+La foto (antes centrada arriba, `.signup-avatar-upload` a 84px con `margin:auto`) pasa a vivir en una fila propia (`.signup-identity-row`) junto con Nombre/Apellido/@usuario apilados a su derecha (`.signup-identity-fields`) — mismo lenguaje que ya usa `.pastilla-identity` en MI PERFIL/Perfil público (avatar chico integrado en la fila, nunca solo). El avatar baja de 84px a 64px para convivir con los 3 campos de texto en el ancho del formulario. Nombre visible sigue siendo su propio campo de ancho completo debajo, sin cambios de orden.
+
+**Iniciales en vivo:** nueva `updateSignupAvatarInitials()`, cableada al `input` de Nombre/Apellido (mismos listeners que ya disparaban `maybeSuggestSignupUsername`): sin foto, el avatar muestra la primera letra de Nombre + primera letra de Apellido en mayúsculas ("Sebastián" + "Vila" → "SV"), actualizándose en cada tecla; sin datos todavía, el placeholder de siempre ("—"); con foto elegida, la foto reemplaza a las iniciales (`setAvatarPreview`, sin cambios). Verificado en vivo.
+
+Fecha de nacimiento + Género pasan a la misma fila (`.signup-row-2col`, `flex` a partir de 480px, apiladas antes) y ambos ganan label propio (`.field--labeled`, antes el género solo tenía su placeholder "Género" dentro del `<select>` — ahora dice "Elegir" con el label arriba, igual que el resto de los campos). Mano hábil/Lado habitual y Ubicación no cambian de posición ni de comportamiento — solo ganan el ajuste visual de las 2 secciones siguientes.
+
+## V04.9.2 Mano hábil / Lado habitual — botones más livianos
+
+`#signup-hand-options .option-col, #signup-side-options .option-col` (scoped por ID, nunca la regla base `.option-col` — compartida con los selectores de sistema de puntuación de otras pantallas): `min-height` 48px→40px, `padding` 12px→9px, `font-size` 12px→11px, `font-weight` 800→700. Siguen siendo botones (no dropdown), mismo estado `is-selected` de siempre.
+
+## V04.9.3 Ubicación — fila enmarcada como campo real
+
+`#signup-location-row` era la ÚNICA fila de su lista (`.profile-select-rows`, a diferencia de Editar Datos que tiene 5 y por eso ya se ve enmarcada por los `border-top` intermedios) — `.profile-select-row:first-child` le sacaba el borde de siempre, dejándola sin ningún borde ("texto suelto con un guion debajo"). Gana un borde propio (`border-bottom: 2px solid`, mismo lenguaje que `.field__input`) scoped por ID — `.profile-select-row` base no se toca, Editar Datos sigue igual. El placeholder pasa de "—" a "Elegir ubicación" (`resetSignupWizard`/`updateSignupLocationRowDisplay`) — más reconocible como acción, no como dato vacío. Ubicación sigue obligatoria, mismo buscador GeoRef de siempre.
+
+## V04.9.4 "TU PERFIL ESTÁ LISTO" — copy de WhatsApp fijo
+
+Con ubicación obligatoria desde el Handoff V04.6, el composer genérico "podés completar tu ubicación y/o tu WhatsApp" de `openPlayerCardScreen` era dead code por el lado de ubicación (siempre completa a esta altura) — se simplifica a un copy fijo, WhatsApp-only: **"Podés completar tu WhatsApp más adelante desde Mi Perfil."**, visible únicamente si todavía no hay teléfono cargado. Sin puntos rojos ni sistema de pendientes (pedido explícito). Estructura de la pantalla sin cambios.
+
+## V04.9.5 Intro de Nivel — anclada arriba
+
+Se retira `.access-scroll--centered` (agregada en V04.7 para los pasos "intro"/"quick", nunca revertida): el toggle en `renderNivelOnboardingStep()` se elimina en vez de dejarlo sin uso, y la regla CSS correspondiente se retira del stylesheet. Todo el flujo de TU NIVEL BRAMU (intro → quick/quiz → resultado) queda anclado arriba, igual que el resto de la familia de acceso — nunca más "todo el bloque flotando en el centro vertical".
+
+## V04.9.6 Cuestionario — legibilidad de las opciones
+
+`.nivel-answer-option__title` (el texto de cada respuesta, compartido por el camino rápido y las 7 preguntas completas): `font-size` 13px→14px, `font-weight` 700→500, `line-height` agregado en 1.3. `.nivel-answer-list` gana `gap` 8px→10px; `.nivel-answer-option` gana un poco de padding vertical (12px→13px). Sin cambios de preguntas, respuestas ni autoavance. Verificado en vivo, 375px: las 7 preguntas (incluidas las de 5 opciones con texto largo) se leen holgadas, sin superposición ni overflow.
+
+## V04.9.7 Medidor — se retira el tick blanco
+
+`.nivel-gauge__marker`/`#nivel-gauge-needle` (tick corto agregado en V04.7 sobre el arco) se retira por completo, sin reemplazo — index.html pierde el `<line>`, `setNivelGaugeValue()` pierde las 2 líneas que lo rotaban (y el parámetro `animate`, que solo controlaba la transición de ESE elemento y queda sin ningún efecto una vez retirado — se retira de la firma junto con el resto en vez de dejarlo como dead code, mismos 2 call sites actualizados). El propio extremo redondeado del arco azul (`stroke-linecap:round` en `.nivel-gauge__fill`, sin cambios) pasa a ser el único indicador de posición en la escala. Se conservan intactos: semicírculo, track oscuro, arco azul, animación del arco al cambiar el valor, número, categoría.
+
+## V04.9.8 Medidor — número y categoría con más protagonismo
+
+Sin el tick compitiendo visualmente: `.nivel-gauge__value` 48px→62px (`top` sin cambios, 60% — ya dejaba margen de sobra respecto del arco, verificado en vivo que el número no lo toca en ningún valor 1-10); `.nivel-gauge-card__category` 13px→16px. Sin cambios de color/familia tipográfica.
+
+## V04.9.9 Resultado + categoría
+
+Sin rediseño — la pantalla hereda directo los ajustes de §V04.9.7/§V04.9.8 (medidor sin marcador, número/categoría más grandes) y de §V04.9.6 (nada acá, esta pantalla no tiene lista de respuestas). Medidor, explicación, última pregunta de categoría, chips, aviso de coherencia, CONFIRMAR MI NIVEL y Revisar respuestas siguen exactamente en su lugar.
+
+## V04.9.10 Tarjeta Home/MI PERFIL — CALIBRANDO en fila completa, CALIBRADO sin cambios
+
+La píldora `.level-v1-badge` ("CALIBRANDO · X / 5 PARTIDOS") vivía dentro de `.player-card__level-sub`, en la columna angosta de siempre (`.player-card__level`, `max-width:46%`, la composición de referencia recuperada en V04.8) — ahí se sentía grande y alteraba la composición. Se separan los 2 estados:
+
+- **CALIBRADO:** sin cambios — sigue mostrando la píldora chica de siempre en `.player-card__level-sub`, mismo lugar, mismo tamaño. `NIVEL BRAMU` + número nunca se mueven de la columna derecha de la fila superior.
+- **CALIBRANDO:** nueva fila de ancho completo (`.player-card__calibration`, `flex-basis:100%`, mismo lugar que ocupa `.player-card__bar` para cuentas legacy calibradas) con label ámbar ("CALIBRANDO · X / 5 PARTIDOS") + una barra fina de progreso 0→5 (`.player-card__calibration-bar`). `.player-card__level-sub` queda oculto en este estado — nunca conviven las 2 formas de mostrar calibración.
+
+Compartido tal cual por Home (`renderPlayerCard`) y MI PERFIL (`renderProfileEvolution`) — mismas clases CSS, mismo criterio de cuál rama usar (`levelV1.state === LV.STATES.CALIBRATED`), "hablan el mismo lenguaje" como pedía la ronda. Cada función arranca ocultando su bloque de calibración por default (antes de cualquier branch) para que ningún otro estado (legacy, simulado, o un Nivel V1 recién reseteado desde el modo laboratorio) pueda dejarlo visible por un render anterior.
+
+## V04.9.11 CALIBRADO (cuenta legacy) — sin regresión
+
+La tarjeta clásica (barra + variación + partidos totales, cuentas `legacyMigrated`) no pasa por ninguno de los branches tocados en §V04.9.10 — verificado en vivo con una cuenta `legacyMigrated` fabricada por consola (mismo recipe de V04.8.1): sigue mostrando `NIVEL BRAMU` + número simulado + barra clásica, sin ningún cambio de altura ni de geometría.
+
+## V04.9.12 Perfil público — PENDIENTE antes de confirmar Nivel (deuda de V04.8 cerrada)
+
+Bug real anotado como deuda en §V04.8.12: `renderPlayerPublicProfile` mostraba `CALIBRANDO · 0/5` para CUALQUIER cuenta real no-legacy con el preview de Nivel V1 activo, aunque esa persona todavía no hubiera confirmado su propio Nivel (`PH.isCalibratingRealAccount(account)` no distinguía "sin Nivel V1 guardado todavía" de "con Nivel V1 guardado, calibrando"). Corregido reusando el mismo choke point que ya usa self (`nivelOnboardingPending(account)` — válido acá tal cual, `account` ya pasó `isCalibratingRealAccount` que garantiza `!legacyMigrated`): antes de confirmar Nivel se ve `PENDIENTE`, después `CALIBRANDO · X/5` (con el progreso real, nunca inventado). `isCalibratingRealAccount`/`buildCalibrationStatus` (player-home.js) no se tocaron — todo el fix vive en `app.js`, en el call site.
+
+**Verificado en vivo:** 2 cuentas reales fabricadas por consola (`Store.createUserAccount` + agregadas a `PLAYER_NAMES` para aparecer en Buscar Jugadores) — una sin Nivel V1 guardado (→ `PENDIENTE`, "Mejor nivel BRAMU" en `—`) y una con `Store.saveLevelV1State(...)` guardado (→ `CALIBRANDO`, progreso real derivado del historial de partidos, `0/5` porque la cuenta fabricada no tiene partidos reales — mismo criterio de siempre, nunca un número inventado).
+
+## V04.9.13 Responsive
+
+Verificado en vivo con el Browser tool en 375px (mobile) y desktop angosto (600-700px): TU PERFIL (foto+campos agrupados, fecha+género en fila desde 480px), cuestionario (7 preguntas), resultado/medidor, Home CALIBRANDO, Home CALIBRADO (legacy), MI PERFIL CALIBRANDO. Sin overflow, sin texto superpuesto, sin cambios de layout entre estados CALIBRANDO/CALIBRADO (misma altura de tarjeta, geometría idéntica salvo la fila de calibración que reemplaza a la barra clásica).
+
+## V04.9.14 Archivos tocados
+
+`bramulab/app.js`, `bramulab/index.html`, `bramulab/styles.css`, `bramulab/store.js` (`APP_VERSION`), `bramulab/sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`, quedaban en `?v=04.7` desde V04.8 — corregido de paso), `bramulab/version.json`. `bramulab/level.js`/`level-context.js`/`level-calibration.js`/`tests.html`: **cero líneas tocadas**.
+
+## V04.9.15 Tests
+
+Sin fixtures nuevos — el fix de Perfil público (§V04.9.12) reusa una función pura ya testeada (`nivelOnboardingPending`, sin cambios) en un nuevo call site de `app.js`, capa sin arnés automatizado (mismo límite documentado desde V04.4). Verificado en vivo con el Browser tool (detalle por sección arriba).
+
+**Resultado:** **1394/1394**, sin cambios respecto al baseline de V04.8, todo verde — corrido antes y después del bump de versión.
+
+## V04.9.16 Contradicciones / decisiones de producto
+
+Ninguna bloqueante. Una decisión de scope tomada en el momento: `setNivelGaugeValue` pierde su parámetro `animate` (quedaba sin ningún efecto una vez retirado el tick que controlaba) en vez de dejarlo como dead code — mismo criterio ya aplicado en V04.8 ("una rama que nunca se ejecuta es peor que no tener rama").
+
+## V04.9.17 Riesgos / deuda relevante
+
+Ninguna deuda nueva detectada. La deuda de V04.8.12 (Perfil público con `CALIBRANDO · 0/5` antes de confirmar Nivel) queda cerrada en esta ronda (§V04.9.12).
+
+## V04.9.18 Versionado y despliegue
+
+Cuarteto completo bumpeado en la misma ronda: `Store.APP_VERSION`/`version.json`/`sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`)/`index.html` (14 `?v=`) → `BRAMUlab V04.9`. Commit y push a `origin/main` en esta misma intervención; deploy de GitHub Pages a verificar después del push.
+
+## V04.9.19 No se avanzó
+
+Confirmado — no se tocó la Fórmula V1.5, `level.js`, `level-context.js`, `level-calibration.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, pesos, anclas, categoría, lógica matemática, Ranking BRAMU, BRAMU Intelligence ni Backend. Header centrado de V04.8 sin cambios, TU PERFIL sigue siendo un único paso (sin volver a dividirse), sin autoavance agregado, sin sistema de notificaciones por datos incompletos. V04.9 queda online para revisión visual de Sebastián.
