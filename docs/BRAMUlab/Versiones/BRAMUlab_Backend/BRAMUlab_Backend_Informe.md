@@ -10,9 +10,10 @@ No usa la numeración `V04.x` (esa numeración es de Nivel BRAMU). Backend/Infra
 
 ---
 
-## Bloque 1 — Fundación de backend y entornos
+## Bloque 1 — Fundación de backend y entornos — CERRADO
 
 **Fecha:** 16 de septiembre de 2026.
+**Estado: CERRADO.** Código implementado y verificado en el Staging real de Supabase + Vercel (ver §14). Production queda preparado conceptualmente (misma estructura de migraciones/guarda ambiental, sin datos ni credenciales compartidas con Staging) pero su proyecto todavía no existe — se crea siguiendo el mismo procedimiento ya validado, cuando corresponda antes del lanzamiento real (no bloquea Bloque 2).
 **Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 1" y §16 "Primer handoff".
 
 ### 1. Qué se implementó
@@ -103,7 +104,7 @@ Mientras Vercel no esté conectado, Production sigue siendo GitHub Pages (`https
   - `node --test bramulab/scripts/env-guard.test.mjs` — 10/10 verdes (guarda ambiental: variables faltantes, entorno inválido, cruces Production↔no-Production).
   - `node --test bramulab/api/health.test.mjs` — 7/7 verdes (health check contra un servidor HTTP local que simula las respuestas de Supabase: ok, mismatch, tabla vacía, error 5xx, variables faltantes, servidor caído, y el caso de regresión de §12: Publishable Key solo en `apikey`).
   - Total infraestructura: **17/17 verdes**, ejecutados en esta misma máquina como parte de esta ronda.
-- **Test que requiere un servicio externo real** (no local, no automático): `supabase/tests/verify-rls.mjs`. No corrió todavía contra el proyecto Supabase real (esta sesión no tiene esas credenciales). Sí se re-verificó su lógica contra el mock local después del fix de §12, con el mismo resultado. Falta correrlo contra Staging de verdad — mismo pendiente que antes del fix.
+- **Test que requiere un servicio externo real**: `supabase/tests/verify-rls.mjs` corrió contra el proyecto Supabase de Staging REAL el 16/09/2026 (lo ejecutó Sebastián con las credenciales de ese proyecto). Resultado: `RLS OK: deny-by-default se cumple.` — lectura pública de `app_config` en 200, lectura y escritura anónima de `players` denegadas (401). Ver §14.
 
 ### 10. Limitación conocida: Development no tiene `/api/*` con el servidor local
 
@@ -135,18 +136,17 @@ Fix: nueva migración [`20260916150000_bloque1_grant_app_config_select.sql`](../
 
 `supabase/tests/verify-rls.mjs`: no necesitó cambios de lógica. `expectDenied()` ya trataba "vacío" y "401/403" como equivalentes (ambos son "denegado" visto desde afuera), así que el mismo test que hoy exige `app_config` legible ya habría detectado este problema si hubiera corrido contra Staging antes que `/api/health`. Se agregó un comentario explicando el modelo de dos capas (GRANT + RLS) y se ajustó el label de `players` a "vacía o rechazada" para reflejar que cualquiera de las dos capas puede producir la denegación. Verificado con un mock local que reproduce el síntoma exacto (401 en `app_config` sin el grant) y confirma que el script falla correctamente en ese caso, y pasa una vez que `app_config` responde 200.
 
-## Acciones manuales pendientes (Sebastián)
+### 14. Cierre operativo real (16 de septiembre de 2026)
 
-Ver la respuesta de esta ronda en el chat — sección "ACCIONES MANUALES QUE DEBE HACER SEBASTIÁN" — para el detalle paso a paso en lenguaje no técnico. Resumen de qué falta para que Bloque 1 quede operativamente cerrado (el código ya está listo para todo esto):
+Sebastián completó las acciones manuales y verificó Bloque 1 contra servicios reales:
 
-1. Crear el proyecto Supabase de **Staging** (y más adelante el de Production).
-2. Correr, en orden, las dos migraciones de Bloque 1 en ese proyecto (SQL Editor, pegar y ejecutar cada una): `20260916120000_bloque1_environment_guard_and_identity_seed.sql` y `20260916150000_bloque1_grant_app_config_select.sql`.
-3. Insertar la fila de `app_config` de ese proyecto con su `environment` correspondiente.
-4. Crear/conectar un proyecto Vercel a este repositorio, con Root Directory `bramulab`.
-5. Cargar las variables de entorno en Vercel (Production y Preview, con los valores de cada proyecto Supabase).
-6. Verificar `/api/health` en el deploy resultante.
-7. Correr `supabase/tests/verify-rls.mjs` contra Staging.
+1. Proyecto Supabase de **Staging** creado.
+2. Las dos migraciones de Bloque 1 aplicadas en orden (`20260916120000_...` y `20260916150000_...`).
+3. `app_config` de ese proyecto seteado en `environment = 'staging'`.
+4. Proyecto Vercel conectado al repositorio, Preview de la rama `staging` desplegado (`READY`).
+5. `GET /api/health` en ese deploy → `{"ok":true,"environment":"staging","supabase":"reachable",...}`.
+6. `node supabase/tests/verify-rls.mjs` corrido contra ese proyecto Supabase real → `RLS OK: deny-by-default se cumple.` (`app_config` legible en 200; `players` denegado en 401 para lectura y escritura anónima, como se esperaba).
 
-Ambos puntos anteriores (Publishable Key y GRANT faltante en `app_config`, §12 y §13) ya se resolvieron en el proyecto de Staging existente cuando se ejecute el paso 2 con la migración nueva incluida — no hace falta recrear el proyecto.
+Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.md` §15 Bloque 1 quedan cumplidos sobre Staging real. **Bloque 1 queda CERRADO.**
 
-Hasta que esto pase, Bloque 1 está **completo del lado del código** pero **no cerrado operativamente**.
+**Pendiente real, no bloqueante para Bloque 2:** el proyecto Supabase de **Production** y su conexión en Vercel todavía no existen — se crean más adelante, antes del lanzamiento real, con el mismo procedimiento ya validado en Staging (mismas migraciones, misma guarda ambiental, sin copiar datos ni credenciales de Staging). `Backend_Infraestructura.md` §15 Bloque 2 depende solo de Bloque 1, no de que Production ya exista.
