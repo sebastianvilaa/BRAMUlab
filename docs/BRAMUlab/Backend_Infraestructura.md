@@ -1,703 +1,1004 @@
 # BRAMUlab — Backend e Infraestructura
 
-**Estado:** fuente maestra consolidada para cierre de producto previo al diseño técnico  
-**Actualización:** 14 de septiembre de 2026  
-**Etapa del roadmap:** posterior a BRAMUlab V04 — Nivel BRAMU  
+> Fuente maestra vigente para construir el backend mínimo del piloto real.
+>
+> Estado: consolidado para implementación.
+>
+> Alcance de producto de referencia: BRAMUlab V04.10.
+>
+> El informe `docs/BRAMUlab/Archivo/Backend_Infraestructura/Backend_Infraestructura_Informe.md` se conserva únicamente como diagnóstico histórico. Ante diferencias, manda este documento.
 
 ---
 
-## 0. Autoridad y alcance
+## 1. Propósito y criterio de diseño
 
-Este documento es la fuente maestra vigente para Backend/Infraestructura de BRAMUlab.
+El objetivo inmediato es llevar BRAMU desde un prototipo basado en `localStorage` a una Producción real para aproximadamente 10–20 jugadores, con cuentas, datos persistentes y partidos compartidos entre dispositivos.
 
-Integra:
+La primera infraestructura:
 
-- las decisiones originales de `Backend_Infraestructura.md` que siguen vigentes;
-- el diagnóstico preservado en `Backend_Infraestructura_Informe.md`;
-- las definiciones vigentes de Nivel BRAMU, Ranking BRAMU y BRAMU Intelligence;
-- las decisiones posteriores sobre infraestructura real, entornos, lanzamiento e identidades provisionales.
+- no es descartable ni una base piloto que luego haya que migrar;
+- debe funcionar también con usuarios que Sebastián no conozca;
+- debe soportar cómodamente cientos de usuarios y crecer aproximadamente hasta 1.000 sin rehacer la arquitectura;
+- no debe diseñarse para 100.000 usuarios ni incorporar complejidad comercial anticipada;
+- debe mantener el motor y los contratos vigentes de Nivel BRAMU;
+- debe producir datos confiables que Ranking BRAMU pueda publicar y BRAMU Intelligence pueda consumir más adelante.
 
-`Backend_Infraestructura_Informe.md` permanece como registro histórico del diagnóstico original. No es fuente normativa y no debe reescribirse para reflejar esta consolidación.
-
-Este documento:
-
-- define decisiones confirmadas y límites de producto;
-- registra dependencias ya resueltas;
-- identifica las decisiones que todavía bloquean el diseño técnico;
-- separa pendientes no bloqueantes y funciones postergadas;
-- no diseña todavía las tablas definitivas;
-- no autoriza implementación.
-
-### Precedencia de fuentes relacionadas
-
-1. Este documento, para Backend/Infraestructura.
-2. `Nivel_BRAMU_Formula_V1.4.md`, para fórmula, elegibilidad y comportamiento de Nivel.
-3. `Nivel_BRAMU_Implementacion.md` y la implementación documentada en `Versiones/BRAMUlab_V04/`, para el contrato técnico ya construido de Nivel.
-4. `Ranking_BRAMU.md`, para Ranking semanal, universos, elegibilidad y snapshots.
-5. `BRAMU_Intelligence.md` y `BRAMU_Intelligence_Implementacion.md`, para claims, evidencia, caché y recálculo de Intelligence.
-6. `Backend_Infraestructura_Informe.md`, únicamente como trazabilidad del diagnóstico anterior.
-
-Si dos fuentes vigentes se contradicen, la contradicción debe cerrarse explícitamente antes de implementar el bloque afectado. Desarrollo no debe resolverla por interpretación.
+La prioridad es construir la mínima verdad multiusuario. Toda función que no sea necesaria para registrar, validar, procesar y consultar esa verdad queda fuera del piloto.
 
 ---
 
-# DECISIONES CONFIRMADAS
+## 2. Estado de partida
 
-## 1. Infraestructura real y escala esperada
+- BRAMUlab V03.10 está cerrada.
+- Nivel BRAMU V04.10 está cerrado en producto, UX y motor local; mantiene 1400/1400 tests.
+- El contrato matemático vigente es Nivel BRAMU V1.5, con motor `nivel_bramu_v1_0` y estimador inicial `nivel_inicial_v1_1`.
+- Ranking BRAMU V1 está cerrado conceptualmente y en UX, pero su implementación actual es local/simulada.
+- BRAMU Intelligence V1 está definida y documentada, pero no implementada.
+- Cuentas, perfiles, partidos, historial, Nivel, grupos y Ranking continúan dependiendo total o parcialmente de `localStorage`, mocks o simulaciones.
+- Nivel V1 continúa detrás de una herramienta/preview interno. Antes del piloto debe convertirse en el flujo normal, con autoridad server-side y sin controles de laboratorio visibles para usuarios comunes.
 
-- La primera infraestructura no será descartable ni una simulación técnica.
-- Producción nace como la base real y permanente de BRAMU.
-- Los amigos y conocidos de la primera ola utilizan las mismas cuentas y datos de Producción que cualquier usuario posterior.
-- No existe una migración futura desde una “base piloto” hacia una “base real”.
-- La solución debe funcionar correctamente aunque ingresen personas que Sebastián no conoce.
-- Debe soportar con comodidad un lanzamiento inicial de cientos de usuarios y crecer hacia aproximadamente 1.000 sin rehacer la arquitectura.
-- No se diseña para 100.000 usuarios ni para necesidades comerciales todavía inexistentes.
-- Se mantiene el criterio de costo cero mientras exista una alternativa razonable, segura y estable.
-- Si para operar correctamente aparece un costo inevitable, debe evaluarse antes de contratarlo. No debe reemplazarse la arquitectura por una solución descartable solo para evitar un costo futuro pequeño.
-
-## 2. Arquitectura mínima vigente
-
-La base técnica prevista continúa siendo:
-
-- la aplicación web/PWA actual, sin migración de framework como requisito;
-- GitHub como repositorio e historial del código;
-- Vercel para publicar las versiones online de Staging y Producción;
-- Supabase Auth para cuentas, sesiones y recuperación;
-- Supabase Postgres para datos persistentes y compartidos;
-- Row Level Security y funciones server-side para permisos y operaciones oficiales;
-- almacenamiento local acotado para partido en curso y cola de sincronización;
-- proveedor de correo compatible con recuperación real, sujeto a prueba operativa.
-
-No forman parte de la infraestructura mínima:
-
-- microservicios;
-- un servidor propio administrado manualmente;
-- Kubernetes;
-- una migración a React u otro framework solo por incorporar backend;
-- una segunda base provisional;
-- componentes “enterprise” sin necesidad real.
-
-## 3. Desarrollo, Staging y Producción
-
-BRAMU trabaja con tres conceptos separados.
-
-### 3.1 Desarrollo
-
-- Es el entorno donde se modifica el código.
-- Puede estar incompleto o roto.
-- Nunca utiliza datos reales de Producción.
-- Puede usar datos locales o un backend de desarrollo/pruebas; la configuración exacta se define en el diseño técnico.
-
-### 3.2 Staging
-
-- Es una versión online e instalable destinada a pruebas y aceptación.
-- Debe reproducir la experiencia visual y funcional prevista para Producción.
-- Utiliza usuarios y datos de prueba.
-- Su backend y base de datos están separados de Producción.
-- Nunca puede apuntar a la base de Producción.
-- Puede utilizar un ícono o marca visual diferenciada para evitar confusiones.
-- Es el lugar donde Sebastián realiza la aceptación antes de publicar.
-
-### 3.3 Producción
-
-- Es BRAMU real.
-- Contiene cuentas, perfiles, partidos y datos reales.
-- Un despliegue de código no reemplaza, reinicia ni sobrescribe los datos de usuarios.
-- Todo cambio de estructura de datos se aplica mediante migraciones controladas, versionadas y verificables.
-- Los datos deben poder respaldarse y recuperarse.
-
-La separación es lógica y operativa. No obliga por sí sola a contratar tres proyectos pagos: como mínimo Staging y Producción deben tener bases hospedadas distintas, y Desarrollo nunca debe usar Producción.
-
-## 4. Lanzamiento
-
-El orden previsto es:
-
-1. pruebas internas en Staging;
-2. apertura de Producción real;
-3. primera ola de amigos y conocidos en Producción;
-4. difusión pública mediante Instagram y otros canales cuando el sistema sea estable;
-5. posible publicidad paga solo si el producto demuestra funcionar.
-
-El dominio propio puede evaluarse antes de la difusión pública. Su compra no está confirmada todavía.
-
-La app continúa como web app/PWA. App Store y Google Play no forman parte de esta etapa.
-
-## 5. Cuentas, perfiles e identidad real
-
-Cada cuenta real debe tener:
-
-- un identificador técnico estable;
-- autenticación real;
-- una relación estable con su identidad de jugador;
-- un `@usuario` único;
-- nombre para mostrar;
-- nombre real y apellido real;
-- correo privado para autenticación y recuperación.
-
-Decisiones vigentes:
-
-- las contraseñas son administradas por Supabase Auth;
-- BRAMU no guarda contraseñas en `localStorage` ni en tablas propias;
-- la recuperación utiliza un código aleatorio de seis dígitos, de un solo uso;
-- la vigencia inicial prevista es de 60 minutos;
-- deben existir límites de reintentos y de correos;
-- los errores no deben revelar si un correo pertenece a una cuenta;
-- el correo no es público ni se utiliza para buscar jugadores;
-- la primera base real comienza sin importar cuentas, sesiones ni partidos simulados de V03.
-
-La intención anterior de hacer públicos y buscables `@usuario`, nombre para mostrar, nombre y apellido continúa como base, pero su relación exacta con la opción “perfil privado” permanece abierta y se detalla en los bloqueantes.
-
-## 6. Identidades provisionales de jugadores invitados
-
-Un invitado no es un texto descartable dentro de un partido.
-
-### 6.1 Identidad persistente
-
-- Cada invitado existe como una identidad provisional persistente con ID interno propio.
-- La misma identidad puede participar en múltiples partidos.
-- Puede acumular historial y estadísticas aunque todavía no tenga cuenta.
-- Al volver a jugar con esa persona debe ser posible reutilizar el mismo ID provisional.
-- Puede aparecer en recientes, Mi red, compañeros, rivales y otras relaciones derivadas de partidos.
-- No participa del Ranking BRAMU competitivo mientras no tenga una cuenta y un Nivel que lo hagan elegible.
-- Nunca se le asigna un Nivel permanente estimado por terceros.
-
-### 6.2 Datos mínimos
-
-Para crear una identidad provisional no se exige:
-
-- teléfono;
-- correo;
-- DNI;
-- apellido;
-- otros datos personales adicionales.
-
-El nombre o apodo ingresado no es prueba de identidad y nunca habilita una fusión automática.
-
-### 6.3 Invitación y reclamo
-
-- Cada identidad provisional puede tener un link único de invitación/reclamo.
-- El link pertenece a la identidad, no a un partido.
-- “Invitar a BRAMU” puede aparecer en Perfil provisional, Mi red, Resumen de partido, compañero/rival u otras superficies.
-- Todas las superficies comparten el mismo reclamo de identidad.
-- La invitación utiliza el sistema normal para compartir del dispositivo, incluido WhatsApp.
-- Cuando la persona se registra mediante ese link, reclama la identidad provisional.
-- Todos los partidos que ya utilizaban ese ID quedan vinculados; no se asocian uno por uno.
-- Una cuenta real puede reclamar más de una identidad provisional cuando la misma persona fue creada por separado en redes diferentes.
-- Si se confirma que dos identidades provisionales representan a la misma persona, pueden unificarse o vincularse a la misma identidad real.
-- BRAMU nunca fusiona automáticamente identidades por coincidencia de nombre o apodo.
-
-Siguen abiertas la verificación exacta del reclamo, la detección de duplicados y las consecuencias retroactivas sobre Nivel y Ranking.
-
-## 7. Partido compartido, historial y validación
-
-- Un partido real existe una sola vez en la base de datos.
-- Los historiales relacionados consultan ese mismo objeto compartido.
-- BRAMU modela pádel de dobles: dos parejas y hasta cuatro participantes.
-- Se distingue autor del registro, participantes, parejas, identidades reales, identidades provisionales y observadores.
-- Un participante registrado que carga un partido oficial deja el resultado pendiente de validación rival.
-- Alcanza la confirmación de un solo rival registrado.
-- Quien cargó el partido no puede confirmarse a sí mismo.
-- Su compañero no reemplaza la confirmación rival.
-- Modificar un dato relevante vuelve a dejar el partido pendiente.
-- Los partidos pendientes, disputados, observados, anulados, duplicados o con score inválido no afectan Nivel ni Ranking, salvo las reglas específicas de invitados computables que todavía deben armonizarse entre Nivel y Ranking.
-- Nadie puede eliminar unilateralmente un partido compartido.
-- Cada usuario puede ocultarlo solamente de su propio historial.
-- La eliminación global se representa como anulación lógica y auditable.
-- Las notas privadas pertenecen exclusivamente al usuario que las escribió.
-
-Todavía deben cerrarse la máquina completa de estados, correcciones, disputas, anulación y visibilidad de partidos observados.
-
-## 8. Conexión inestable y sincronización
-
-- El partido en curso se conserva localmente para evitar perder el tanteo.
-- Si no hay conexión al finalizar, se guarda una operación pendiente.
-- La aplicación reintenta al recuperar conexión.
-- Debe mostrar estado pendiente de sincronizar, sincronizado o error.
-- Los reintentos utilizan un identificador estable para no crear duplicados.
-- Los datos ya sincronizados no deben depender de `localStorage` como fuente de verdad.
-
-La política exacta de conflictos entre dispositivos y la retención de la cola local se define durante el diseño técnico.
-
-## 9. Seguridad y autoridad
-
-- El navegador no es autoridad para validar resultados oficiales ni modificar Nivel, Ranking o Intelligence.
-- Las operaciones oficiales se autorizan y ejecutan del lado servidor.
-- Las credenciales administrativas y claves de proveedores nunca se incluyen en el JavaScript público.
-- Cada usuario solo puede modificar los datos que le corresponden según reglas explícitas.
-- Las notas privadas no son accesibles para otros participantes.
-- Staging y Producción utilizan bases y secretos distintos.
-- Antes de abrir Producción deben probarse accesos indebidos entre cuentas, no solamente el recorrido normal de la interfaz.
-- Las operaciones críticas deben ser idempotentes y auditables.
-
-La matriz concreta de permisos y los límites operativos se cierran en el diseño técnico, una vez resueltos los bloqueantes de producto.
+No se migrarán a Producción los partidos, cuentas o rankings simulados actuales. Producción comenzará limpia.
 
 ---
 
-# DEPENDENCIAS YA RESUELTAS
+## 3. Arquitectura mínima elegida
 
-## 10. Nivel BRAMU
+### 3.1 Componentes
 
-La dependencia conceptual y matemática de Nivel está cerrada.
+- **Frontend/PWA actual:** se conserva la aplicación web y el repositorio GitHub.
+- **Publicación:** Vercel para Staging y Producción, con proyectos o configuraciones claramente separados.
+- **Backend administrado:** Supabase.
+  - Supabase Auth para cuentas, sesiones, verificación y recuperación.
+  - PostgreSQL para datos persistentes y relaciones.
+  - Row Level Security (RLS) para permisos de lectura y escritura.
+  - funciones server-side/Edge Functions o comandos RPC únicamente donde sea necesario ejecutar operaciones privilegiadas, atómicas o validadas.
+- **Correo transaccional:** proveedor SMTP externo configurado y probado para verificación y recuperación reales.
+- **Repositorio y flujo de trabajo:** GitHub continúa siendo la fuente del código; los despliegues de código nunca reemplazan los datos.
 
-Además, BRAMUlab V04 ya implementó como módulos puros y testeados:
+Esta arquitectura es una base real, no provisional. Permite el piloto y el crecimiento inicial sin agregar servidores propios, microservicios, colas o una plataforma analítica.
 
-- motor determinístico y parámetros V1;
-- `algorithm_version = nivel_bramu_v1_0`;
-- cálculo de nivel efectivo, fuerza, expectativa, factores, delta y confianza;
-- snapshots anteriores y posteriores;
-- `reasonCodes` y salida auditable;
-- elegibilidad y estados computable, pendiente, excluido, corregido, anulado y duplicado dentro del contexto de Nivel;
-- invitados e imputación neutral 1,00 / 0,80 / 0,60;
-- repetición, compañero y círculo competitivo;
-- cuestionario rápido y completo;
-- ajuste inicial;
-- calibración y recalibración.
+### 3.2 Principios obligatorios
 
-Reglas vigentes relevantes para backend:
-
-- Nivel cambia inmediatamente cuando el partido se vuelve válido y confirmado.
-- La precisión interna es de cuatro decimales; la presentación pública usa uno.
-- Calibración requiere cinco partidos computables y tres rivales distintos.
-- Recalibración conserva separado el valor provisional del consolidado.
-- Ranking utiliza el último consolidado válido hasta cerrar la recalibración.
-- Un partido manual debe completar carga, asociación y validación dentro de 30 días para modificar Nivel y Ranking.
-- Fuera de esa ventana puede permanecer en el historial, pero no modifica Nivel ni Ranking.
-- Una corrección debe revertir la variación anterior, recalcular con los mismos snapshots previos y aplicar la diferencia neta.
-- No se recalcula silenciosamente todo el historial con niveles actuales.
-
-Lo que todavía falta no es rediseñar la fórmula, sino integrar esos contratos con persistencia, eventos y operaciones multiusuario.
-
-## 11. Ranking BRAMU
-
-Ranking ya no es continuo en vivo. Su cadencia vigente es semanal.
-
-### 11.1 Regla de publicación
-
-- Ordena por Nivel BRAMU consolidado interno exacto.
-- No tiene puntos propios.
-- Semana: lunes 00:00:00 a domingo 23:59:59.
-- Zona horaria V1: `America/Argentina/Buenos_Aires`.
-- La nueva edición queda constituida el lunes 00:00:00.
-- La materialización técnica puede terminar segundos o minutos después, pero conserva ese instante efectivo.
-- Nivel puede cambiar durante la semana; la posición publicada y el Nivel del corte permanecen estables hasta la siguiente edición.
-- Un partido validado después del cierre impacta en la edición siguiente.
-- No se reescribe retroactivamente una edición publicada por cargas tardías o correcciones ordinarias.
-
-### 11.2 Elegibilidad y snapshots
-
-Ranking ya definió:
-
-- cuenta activa e identidad estable;
-- perfil público;
-- opt-in habilitado;
-- ubicación estructurada completa;
-- Nivel calibrado o recalibrando con consolidado anterior;
-- actividad dentro de 180 días;
-- ausencia de exclusión de integridad;
-- universos Local, Provincial, País, Global y Mi red;
-- umbrales de densidad 0–4, 5–14 y 15+;
-- contrato mínimo del estado del jugador;
-- contenido mínimo del snapshot semanal;
-- fecha efectiva, fecha de publicación, timezone y versión de reglas.
-
-### 11.3 Mi red
-
-`Mi red` reemplazó el nombre anterior `Mis jugadores` dentro de Ranking.
-
-- Es una vista de vínculos deportivos, no una lista manual de contactos ni Mis grupos.
-- Incluye al propio usuario y relaciones derivadas de partidos dentro de la ventana de 180 días.
-- Permite ocultar o restaurar una persona sin afectar partidos, Nivel ni Ranking oficial.
-- La decisión posterior sobre identidades provisionales amplía su alcance: los invitados persistentes también deben poder aparecer en Mi red, aunque no tengan posición competitiva.
-
-Esta última decisión todavía debe armonizarse en `Ranking_BRAMU.md`, que actualmente excluye invitados no reclamados de Mi red.
-
-## 12. BRAMU Intelligence
-
-La dependencia conceptual de Intelligence está cerrada.
-
-Ya están definidos:
-
-- datos mínimos de entrada por partido;
-- perspectiva del jugador;
-- separación entre historia personal, Nivel y Ranking;
-- objeto mínimo de insight;
-- claims, evidencia, alcance, muestra, confianza, relevancia y versiones;
-- memoria editorial y cooldowns;
-- caché por hash de datos, claims, perspectiva, versión y modelo;
-- recálculo de derivados afectados por correcciones o anulaciones;
-- conservación del texto y evidencia que el usuario vio;
-- marcado de textos dependientes como obsoletos;
-- núcleo determinístico y plantillas como funcionamiento completo;
-- generación externa opcional, reversible y posterior al benchmark;
-- Cloudflare/Qwen como primera evaluación y Groq/GPT-OSS como contingencia.
-
-La IA generativa no es requisito para abrir Producción. No puede calcular Nivel, Ranking, resultado ni hechos nuevos.
+- Producción y Staging nunca comparten base de datos, proyecto Supabase ni credenciales.
+- El navegador no puede decidir el resultado oficial de un partido, el Nivel oficial ni el Ranking publicado.
+- Toda escritura sensible se valida en el servidor.
+- Las operaciones que pueden reintentarse usan una clave de idempotencia para no duplicar partidos o efectos.
+- Los cambios de estructura se aplican mediante migraciones versionadas y controladas.
+- Las fórmulas y contratos se versionan; el backend no debe copiar lógica matemática divergente dentro de la interfaz.
+- Un despliegue de frontend jamás reinicia, siembra ni sobrescribe datos de Producción.
 
 ---
 
-# DECISIONES ABIERTAS BLOQUEANTES
+## 4. Alcance del backend mínimo del piloto
 
-Estas decisiones deben cerrarse antes de diseñar el esquema definitivo y el plan completo de implementación. No impiden estudiar herramientas ni preparar un entorno vacío, pero sí impiden considerar Backend listo.
+### 4.1 Incluido
 
-## 13. Alcance funcional de la primera Producción
+1. Registro, verificación de email, login, cierre de sesión y recuperación real de contraseña.
+2. Cuenta, identidad de jugador y perfil persistentes.
+3. `@usuario` único y buscable.
+4. Ubicación canónica necesaria para Ranking territorial.
+5. Rama competitiva separada del género personal.
+6. Persistencia server-side del cuestionario, estimación y estado oficial de Nivel.
+7. Búsqueda de jugadores reales.
+8. Identidades provisionales persistentes para invitados.
+9. Alta de partidos de dobles con cuatro participantes, sets y resultado.
+10. Ciclo oficial mínimo: pendiente de validación, validado o rechazado.
+11. Descubrimiento claro de validaciones pendientes.
+12. Actualización atómica de partido, Nivel, calibración, snapshots, `reasonCodes`, estadísticas oficiales y futura elegibilidad de Ranking.
+13. Historial compartido por participante con estados visibles.
+14. Corrección o anulación excepcional por administración.
+15. Ranking BRAMU V1 semanal calculado desde datos reales validados.
+16. Separación completa de Development, Staging y Production.
+17. Caché y cola local de reintentos, sin convertir datos locales en autoridad.
+18. Métricas mínimas del piloto.
+19. Datos y versiones suficientes para que BRAMU Intelligence pueda construirse posteriormente sin rehacer el historial.
 
-Debe confirmarse qué funciones actuales entran en la primera versión con backend real:
+### 4.2 Expresamente fuera del piloto
 
-- Jugadores agregados manualmente;
-- Mi red;
-- Mis grupos;
-- ranking semanal de grupos;
-- Intelligence grupal;
-- partidos observados;
-- bandeja de notificaciones y solicitudes;
-- BRAMU Intelligence postpartido;
-- “Tu momento”.
-
-Mi red y Jugadores agregados ya son conceptos diferentes. Falta decidir si ambos sobreviven y se persisten desde la primera Producción.
-
-## 14. Privacidad, perfil y búsqueda
-
-Debe definirse:
-
-1. qué significa exactamente “perfil privado”;
-2. qué identidad continúa visible o buscable cuando el perfil es privado;
-3. cuáles son los campos deportivos públicos, privados o configurables;
-4. si el historial de partidos puede ser público y bajo qué regla;
-5. qué campos usa cada buscador:
-   - búsqueda global;
-   - selección de compañero/rival;
-   - Jugadores agregados;
-   - Mi red;
-   - Ranking.
-
-La intención vigente de hacer públicos `@usuario`, nombre para mostrar, nombre y apellido no alcanza para resolver todos estos permisos.
-
-## 15. Cuenta, `@usuario` y acceso
-
-Antes de cerrar autenticación y perfiles debe definirse:
-
-- caracteres y longitud de `@usuario`;
-- normalización de mayúsculas, tildes y espacios;
-- palabras reservadas;
-- posibilidad y frecuencia de cambio;
-- comportamiento de referencias antiguas;
-- si el correo debe verificarse antes de cargar o validar partidos;
-- si se permiten cuentas de menores de edad;
-- qué ocurre con datos compartidos cuando una cuenta se elimina.
-
-## 16. Reclamo, duplicados y Nivel de identidades provisionales
-
-La identidad provisional persistente está confirmada. Siguen abiertos:
-
-- qué comprobación adicional, si alguna, necesita el reclamo mediante link;
-- cómo se revoca o reemplaza un link comprometido;
-- quién puede impugnar un reclamo incorrecto;
-- cómo se confirma que dos identidades provisionales representan a la misma persona;
-- cómo se resuelve una cuenta que reclama identidades incompatibles;
-- cómo detectar duplicados sin producir falsas fusiones;
-- qué ocurre con Nivel, calibración y Ranking al reclamar una identidad provisional;
-- si algún cálculo se vuelve retroactivo y bajo qué límite temporal.
-
-No debe inventarse retroactividad. La respuesta debe cruzarse con la ventana de 30 días de Nivel y con la regla de que el invitado imputado no recibe delta ni Nivel permanente.
-
-## 17. Máquina completa de estados del partido
-
-La capa de Nivel ya reconoce estados útiles, pero no sustituye el flujo multiusuario completo.
-
-Debe cerrarse una máquina canónica que contemple, cuando corresponda:
-
-- borrador;
-- pendiente de sincronización;
-- sincronizado;
-- pendiente de validación;
-- validado;
-- corrección propuesta;
-- disputado;
-- observado;
-- vencido para cómputo;
-- corregido;
-- anulado;
-- duplicado.
-
-Para cada transición debe definirse:
-
-- quién puede iniciarla;
-- quién debe aprobarla;
-- qué dato cambia;
-- qué eventos genera;
-- si afecta historia personal, estadísticas, Nivel, Ranking o Intelligence.
-
-## 18. Correcciones, disputas y anulación
-
-Debe definirse:
-
-- qué acciones tiene el rival además de confirmar;
-- quién puede proponer una corrección;
-- quién aprueba cambios de participantes, parejas, fecha, formato o resultado;
-- qué ocurre si una disputa nunca se resuelve;
-- cuántas aprobaciones requiere anular un partido validado;
-- quién representa a la contraparte cuando existen cuatro cuentas;
-- qué ocurre con un partido duplicado cargado independientemente por dos usuarios;
-- cómo se ven los partidos observados en los historiales de los supuestos participantes.
-
-## 19. Vencimiento de 30 días y reclamos posteriores
-
-Nivel ya resolvió que un partido cargado, asociado o validado fuera de 30 días no modifica Nivel ni Ranking.
-
-Falta definir:
-
-- si todavía puede validarse socialmente después del vencimiento;
-- si puede corregirse;
-- si una identidad provisional puede reclamarlo como parte de su historial;
-- qué estado visible adopta;
-- cómo se explica que existe en el historial pero no computa;
-- si el reclamo de identidad posterior cambia estadísticas personales no competitivas.
-
-## 20. Ubicación estructurada internacional
-
-Ranking exige país, provincia/estado y localidad estructurados, pero todavía debe definirse:
-
-- fuente canónica de ubicaciones;
-- alcance inicial Argentina o internacional;
-- identificadores persistentes;
-- tratamiento de localidades no encontradas;
-- equivalentes de provincia/estado fuera de Argentina;
-- relación entre GeoRef como fuente argentina y los universos País/Global.
-
-Esto afecta el modelo de perfil y los snapshots, por lo que debe cerrarse antes del esquema definitivo.
-
-## 21. Ranking semanal e Intelligence
-
-Existe una contradicción nueva que debe resolverse:
-
-- `Ranking_BRAMU.md` §4 y §17 establecen publicaciones semanales congeladas.
-- `BRAMU_Intelligence_Implementacion.md` §10 todavía describe movimientos “al procesar el evento actual”, heredados del modelo anterior.
-
-Debe definirse que los insights de movimiento de Ranking se disparan al publicar la edición semanal o establecer otro contrato explícito compatible con snapshots semanales.
-
-También debe cerrarse:
-
-- para qué participantes se genera Intelligence;
-- si se genera al cargar, al validar o en ambos momentos;
-- qué historia personal puede usar un partido pendiente u observado;
-- qué versión ve el usuario cuando un insight anterior queda obsoleto.
-
-## 22. Invitados computables: Nivel y Ranking
-
-Existe otra contradicción que requiere corrección explícita:
-
-- Nivel V1.4 §13 y §21 permite que un partido con tres niveles conocidos, o con dos conocidos —uno por pareja—, aporte Nivel mediante imputación neutral y disponibilidad reducida.
-- `Ranking_BRAMU.md` §16 incluye “invitados sin identidad elegible” dentro de los casos que no impactan en Nivel.
-
-Debe aclararse si esa frase se refiere únicamente al invitado —que no recibe Nivel ni posición— o si pretende excluir el partido completo. Backend no debe interpretar esta diferencia por su cuenta.
-
----
-
-# DECISIONES ABIERTAS NO BLOQUEANTES
-
-Estas decisiones deben resolverse antes de abrir el bloque correspondiente o Producción, pero no cambian por sí solas el modelo central de producto.
-
-## 23. Operación y seguridad
-
-- matriz completa de permisos Row Level Security;
-- rate limits de registro, login, recuperación, reclamos y validaciones;
-- proveedor SMTP y prueba real de entrega;
-- política de backups y ejercicio de recuperación;
-- retención y anonimización de logs;
-- monitoreo de errores y procesos fallidos;
-- operaciones administrativas mínimas para disputas, duplicados y bloqueos;
-- procedimiento de rotación de secretos;
-- política de pausa o límites de planes gratuitos vigente al momento de configurar.
-
-## 24. Sincronización
-
-- resolución de ediciones concurrentes desde dos dispositivos;
-- prioridad entre una revisión online y otra offline;
-- tiempo de retención de operaciones pendientes;
-- cantidad y frecuencia de reintentos;
-- limpieza de la copia local después de sincronizar;
-- recuperación manual cuando el envío no puede completarse.
-
-## 25. Ranking
-
-- valor inicial de `ranking_opt_in`: automático al calibrar o activación manual;
-- política de retención de snapshots semanales;
-- autoridad para establecer o levantar estados de integridad;
-- tratamiento operativo de una edición semanal que falle o se publique tarde.
-
-## 26. BRAMU Intelligence generativa
-
-- consentimiento exacto para el piloto opt-in;
-- tratamiento de textos generados si se retira el consentimiento;
-- política de retención de datos técnicos de generación;
-- revisión de privacidad y transferencias internacionales antes de enviar datos reales;
-- presupuesto y cuotas operativas antes de activar el proveedor.
-
-La generación externa permanece apagada hasta completar benchmark, modo sombra, validación y revisión de privacidad.
-
-## 27. Datos y administración
-
-- formatos definitivos de imagen y tamaño de foto de perfil;
-- interfaz de administración: scripts internos o panel mínimo;
-- nombres concretos de proyectos, ramas y variables de cada entorno;
-- estrategia técnica de migraciones y rollback;
-- retención final de auditorías y eventos históricos.
-
----
-
-# FUNCIONES POSTERGADAS
-
-## 28. Fuera del primer backend real
-
-Salvo decisión posterior explícita, no forman parte del primer alcance:
-
-- App Store y Google Play;
-- aplicación nativa;
-- smartwatch, Live Activities o Isla Dinámica;
-- microservicios o infraestructura autoalojada;
-- arquitectura para 100.000 usuarios;
-- temporadas o Race BRAMU oficial;
-- premios y torneos;
-- clubes verificados;
+- implementación de BRAMU Intelligence;
+- IA generativa;
 - matchmaking;
-- seguidores, chat o red social completa;
-- fotos y recuerdos asociados a partidos;
-- IA para recomendaciones técnicas o análisis de notas privadas;
-- exploración de rankings de otras ciudades, provincias o países;
-- dominio propio hasta que se evalúe para la difusión pública;
-- publicidad paga hasta validar el producto;
-- notificaciones push, si el flujo inicial puede resolverse con bandeja interna y/o correo.
-
-No se importan cuentas, sesiones ni partidos simulados de V03 a Producción.
-
----
-
-# TRAZABILIDAD DEL INFORME ANTERIOR
-
-## 29. Estado de cada pregunta de `Backend_Infraestructura_Informe.md`
-
-### 29.1 Nivel BRAMU
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| N1 | **RESUELTO** | V04.1–V04.3 implementó contratos puros, estados, versión y salidas auditables. Backend debe integrarlos, no rediseñarlos. |
-| N2 | **SUPERADO EN PARTE** | Los módulos ya producen `reasonCodes`, snapshots y trazabilidad. Sigue pendiente diseñar el registro persistente de eventos server-side. Es una decisión técnica, salvo correcciones/anulaciones. |
-| N3 | **RESUELTO** | V04.3 separó consolidado y provisional y fijó el ciclo de recalibración. |
-| N4 | **ABIERTO** | La reversión matemática está definida, pero faltan efectos exactos sobre contadores, evidencia, actividad y progreso de calibración/recalibración. |
-| N5 | **CAMBIÓ DE ALCANCE** | El invitado ahora tiene identidad provisional persistente. Sigue abierta la consecuencia de reclamarla y cualquier retroactividad. |
-
-### 29.2 Ranking BRAMU
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| R1 | **RESUELTO** | Ranking §6 y §17 cierran elegibilidad y contrato mínimo. |
-| R2 | **ABIERTO** | Falta la fuente y representación internacional de ubicaciones. |
-| R3 | **ABIERTO NO BLOQUEANTE** | Ranking exige opt-in, pero no quedó cerrado su valor inicial. |
-| R4 | **RESUELTO** | Corte semanal lunes 00:00, timezone `America/Argentina/Buenos_Aires`. |
-| R5 | **CAMBIÓ DE ALCANCE** | Ranking dejó de actualizar posiciones en vivo y pasó a edición semanal. Falta armonizar el disparador de Intelligence. |
-| R6 | **ABIERTO NO BLOQUEANTE** | Falta política de retención de snapshots. |
-| R7 | **RESUELTO EN CONCEPTO** | “Mi red” es automática y distinta de Jugadores agregados. Falta decidir si ambos módulos se persisten en la primera Producción e incorporar identidades provisionales. |
-| R8 | **ABIERTO NO BLOQUEANTE** | Falta autoridad y procedimiento de integridad. |
-
-### 29.3 BRAMU Intelligence
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| I1 | **ABIERTO** | Falta definir qué superficies de Intelligence entran en la primera Producción. |
-| I2 | **ABIERTO** | Falta definir para qué participantes se genera cada perspectiva. |
-| I3 | **ABIERTO** | Falta cerrar los disparadores según estado de partido. |
-| I4 | **RESUELTO EN CONCEPTO** | Se recalculan derivados afectados y se marcan textos dependientes como obsoletos. |
-| I5 | **ABIERTO** | Falta decidir qué versión histórica ve el usuario después de una corrección. |
-| I6 | **RESUELTO** | El objeto mínimo está definido en `BRAMU_Intelligence_Implementacion.md` §5 y §13. |
-| I7 | **RESUELTO** | La generación externa no se activa antes de benchmark y modo sombra. |
-| I8 | **ABIERTO NO BLOQUEANTE** | Falta granularidad y revocación del consentimiento. |
-
-### 29.4 Identidad, cuentas y perfiles
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| U1 | **ABIERTO** | Falta definición operativa de perfil privado. |
-| U2 | **ABIERTO** | Falta lista cerrada de campos deportivos públicos. |
-| U3 | **SUPERADO EN PARTE** | Ranking y Mi red ya tienen alcances propios; falta cerrar búsqueda global y selección de jugadores. |
-| U4 | **ABIERTO** | Faltan reglas definitivas de `@usuario`. |
-| U5 | **ABIERTO** | Falta definir qué puede hacer una cuenta sin correo verificado. |
-| U6 | **RESUELTO EN CONCEPTO** | Cuenta real, identidad de jugador e identidad provisional son objetos diferenciados. Una cuenta puede reclamar más de una identidad provisional. |
-| U7 | **SUPERADO EN PARTE** | Se prohibió la fusión automática y se permitió reclamar múltiples IDs; falta el flujo de verificación y unificación. |
-| U8 | **ABIERTO** | Falta política de eliminación de cuenta y conservación de datos compartidos. |
-| U9 | **ABIERTO** | Falta decidir si se admiten menores. |
-| U10 | **POSTERGADO** | Foto real no bloquea; puede usarse avatar/iniciales. |
-
-### 29.5 Partidos y validación
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| M1 | **SUPERADO EN PARTE** | Nivel implementó estados de computabilidad, pero falta la máquina multiusuario completa. |
-| M2 | **SUPERADO EN PARTE** | Existen formatos y criterios de Nivel; faltan enums definitivos compartidos de origen, carácter y elegibilidad. |
-| M3 | **RESUELTO EN SU NÚCLEO** | Link por identidad provisional y asociación de todos sus partidos están confirmados. Falta verificación, disputas de reclamo y retroactividad. |
-| M4 | **ABIERTO** | Faltan acciones exactas del rival. |
-| M5 | **ABIERTO** | Falta flujo y aprobación de correcciones. |
-| M6 | **ABIERTO** | Falta resolución de disputa sin acuerdo. |
-| M7 | **ABIERTO** | Falta regla de aprobación de anulación. |
-| M8 | **SUPERADO EN PARTE** | Nivel cierra la no computabilidad después de 30 días; falta el comportamiento social e histórico. |
-| M9 | **ABIERTO** | Falta visibilidad y aceptación de partidos observados. |
-| M10 | **ABIERTO** | Falta resolución de duplicados cargados por personas distintas. |
-| M11 | **ABIERTO TÉCNICO** | Falta política de conflicto offline entre dispositivos. |
-| M12 | **SUPERADO EN PARTE** | V04.2 mapea formatos actuales; mini sets no tienen camino real y los casos especiales requieren contrato final. |
-| M13 | **ABIERTO** | Falta canal mínimo para solicitudes de validación/corrección/anulación. |
-
-### 29.6 Backend/Infraestructura
-
-| ID | Estado actual | Resultado de consolidación |
-|---|---|---|
-| B1 | **ABIERTO** | Falta el alcance funcional de la primera Producción. |
-| B2 | **RESUELTO** | Operaciones oficiales y secretos viven del lado servidor. |
-| B3 | **SUPERADO EN PARTE** | Se confirma atomicidad e idempotencia como principios; el límite exacto de cada transacción pertenece al diseño técnico y depende de la máquina de estados. |
-| B4 | **ABIERTO TÉCNICO** | La matriz RLS se diseña después de cerrar privacidad y permisos. |
-| B5 | **SUPERADO EN PARTE** | Nivel es inmediato, Ranking semanal e IA generativa asíncrona; falta el disparador de Intelligence. |
-| B6 | **ABIERTO TÉCNICO** | Falta seleccionar y probar SMTP. |
-| B7 | **ABIERTO TÉCNICO** | Falta política y prueba de recuperación. |
-| B8 | **ABIERTO TÉCNICO** | Falta retención y privacidad de logs. |
-| B9 | **RESUELTO EN PRINCIPIO** | Datos, algoritmos y reglas deben versionarse; Producción cambia mediante migraciones controladas. La herramienta exacta se elige en diseño técnico. |
-| B10 | **ABIERTO NO BLOQUEANTE** | Falta alcance de administración interna. |
-| B11 | **SUPERADO EN PARTE** | Outbox, reintentos e idempotencia están confirmados; faltan conflictos y retención local. |
-| B12 | **RESUELTO EN CONCEPTO** | Desarrollo, Staging y Producción están separados; Staging nunca usa Producción. Falta configuración técnica concreta. |
+- rankings privados de grupos;
+- expansión de Ranking fuera del V1 vigente;
+- marcador en vivo integrado;
+- push notifications;
+- flujo autoservicio complejo de reclamos, fusiones o disputas;
+- detección automática de duplicados por nombre o apodo;
+- antitrampa sofisticado;
+- estadísticas técnicas adicionales;
+- configuración de privacidad campo por campo;
+- aplicación nativa de App Store o Google Play;
+- microservicios, colas distribuidas, data warehouse o infraestructura para escala masiva;
+- dominio propio como requisito del piloto;
+- migración de datos simulados desde `localStorage`.
 
 ---
 
-## 30. Contradicciones vigentes que deben corregirse al cerrar los bloqueantes
+## 5. Decisiones de producto cerradas para el piloto
 
-1. **Invitados en Mi red:** la decisión posterior exige que identidades provisionales aparezcan en Mi red; `Ranking_BRAMU.md` §9 todavía excluye invitados no reclamados.
-2. **Partidos con invitados y Nivel:** Nivel §13/§21 permite cómputo reducido con invitados; Ranking §16 puede leerse como exclusión del partido completo.
-3. **Intelligence de movimientos:** Intelligence §10 conserva un disparador ligado al evento actual; Ranking ahora se publica semanalmente.
+### 5.1 Privacidad básica del perfil
 
-Las contradicciones anteriores de Backend sobre actualización quincenal, dos decimales públicos, Ranking futuro, invitados como texto y Backend llamado V04 quedan superadas por esta consolidación.
+Durante el piloto, los perfiles deportivos son visibles únicamente para personas autenticadas en BRAMU; no son páginas públicas indexables en Internet.
+
+**Visibles para usuarios autenticados:**
+
+- `@usuario`;
+- nombre para mostrar;
+- nombre y apellido;
+- avatar;
+- localidad deportiva;
+- rama competitiva;
+- mano/lado y datos deportivos ya definidos por producto;
+- categoría contextual;
+- Nivel público, estado y progreso de calibración;
+- posición vigente de Ranking cuando corresponda;
+- estadísticas oficiales agregadas.
+
+**Privados:**
+
+- email;
+- fecha de nacimiento exacta;
+- género personal;
+- identificadores de autenticación;
+- sesiones, tokens y datos de recuperación;
+- notas privadas;
+- información técnica de dispositivos y logs.
+
+El detalle completo de un partido es accesible para sus participantes y administración. El perfil público muestra resúmenes y estadísticas, no convierte todo el historial detallado en público.
+
+No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene su consentimiento específico mediante `ranking_opt_in`; salir del Ranking no elimina el perfil deportivo ni el historial compartido.
+
+### 5.2 `@usuario`
+
+- Es obligatorio, único y no distingue mayúsculas/minúsculas.
+- Se almacena en forma canónica minúscula.
+- Formato inicial: entre 3 y 24 caracteres; letras ASCII minúsculas, números, punto y guion bajo.
+- No admite espacios, tildes ni caracteres ambiguos.
+- Existe una lista de nombres reservados.
+- La unicidad se impone en la base de datos, no solo en la interfaz.
+- Es buscable junto con nombre para mostrar, nombre y apellido, únicamente por usuarios autenticados.
+- Durante el piloto queda fijo; una corrección excepcional puede hacerla administración.
+
+### 5.3 Ubicación canónica
+
+- Cada ubicación tiene un `location_id` interno estable.
+- Para Argentina se utilizan identificadores y jerarquías canónicas de GeoRef cuando existan.
+- Se guardan por separado código de país, provincia/área administrativa, localidad, etiquetas de presentación, fuente y estado de verificación.
+- Se registra la localidad principal de juego, no dirección exacta ni GPS.
+- El cambio conserva la espera/cooldown de 30 días definido por Ranking.
+- Una localidad escrita manualmente puede guardarse en el perfil, pero queda `verified_for_ranking = false` hasta ser vinculada o verificada. Mientras tanto no habilita Ranking territorial.
+- El piloto prioriza Argentina; el modelo conserva `country_code` para no bloquear una expansión futura.
+
+### 5.4 Rama competitiva y género personal
+
+- `competitive_branch` es un campo explícito separado y admite las ramas competitivas vigentes M/F.
+- Es obligatorio para participar del Ranking.
+- No se deriva automáticamente del género personal.
+- El género personal es privado y opcional para el piloto.
+
+### 5.5 Autoridad temporal
+
+- Fechas oficiales, vencimientos, semana de Ranking y ventanas se calculan con hora del servidor.
+- Ranking semanal utiliza `America/Argentina/Buenos_Aires`: lunes 00:00 a domingo 23:59.
+- El snapshot publicado el lunes queda estable durante la semana.
+- Una validación tardía entra en la próxima edición y no reescribe retrospectivamente una edición publicada.
 
 ---
 
-## 31. Estado de cierre
+## 6. Modelo de datos mínimo
 
-Backend/Infraestructura todavía no está listo para diseñar la implementación completa.
+Esta sección define entidades y contratos lógicos. Los nombres físicos, índices y SQL exactos se cierran en las migraciones de implementación.
 
-Necesita una ronda puntual de decisiones, limitada a:
+### 6.1 Cuenta e identidad
 
-1. alcance funcional de la primera Producción;
-2. privacidad, perfil y búsquedas;
-3. reglas de cuenta, username, correo y menores;
-4. reclamo/unificación de identidades provisionales y efectos sobre Nivel;
-5. máquina de estados, correcciones, disputas y anulación;
-6. ubicación internacional;
-7. disparadores y perspectivas de Intelligence;
-8. armonización de invitados entre Nivel, Ranking y Mi red.
+#### Cuenta de autenticación
 
-Una vez cerrados esos ocho puntos, puede diseñarse:
+Responsabilidad de Supabase Auth:
 
-- arquitectura de datos definitiva;
-- contratos server-side;
-- permisos RLS;
-- migraciones;
-- sincronización;
-- plan de implementación por etapas;
-- pruebas de seguridad y aceptación;
-- apertura de Staging y Producción.
+- `auth_user_id`;
+- email normalizado y estado de verificación;
+- credenciales cifradas administradas por el proveedor;
+- sesiones;
+- timestamps de alta y último acceso;
+- estado activo/desactivado.
 
-Hasta entonces no corresponde implementar Backend ni convertir decisiones técnicas pendientes en supuestos de producto.
+BRAMU nunca guarda contraseñas ni códigos de recuperación en texto plano.
+
+#### `players`
+
+Identidad deportiva estable:
+
+- `player_id` UUID;
+- tipo: `registered` o `provisional`;
+- `auth_user_id` opcional y único cuando hay cuenta;
+- `canonical_player_id` opcional para una unificación administrativa futura;
+- nombre para mostrar;
+- creador y timestamps;
+- estado activo/archivado.
+
+Los partidos, relaciones y estadísticas se vinculan con `player_id`, no directamente con email o nombre escrito.
+
+#### `profiles`
+
+- `player_id`;
+- `username` canónico y etiqueta visible;
+- nombre, apellido, display name y avatar;
+- datos deportivos definidos por producto;
+- `competitive_branch`;
+- género personal privado y opcional;
+- `location_id`;
+- `ranking_opt_in`;
+- estado/completitud del perfil;
+- timestamps.
+
+### 6.2 Identidad provisional e invitación
+
+#### `provisional_claims`
+
+- `claim_id`;
+- `provisional_player_id`;
+- hash de token de alta entropía;
+- estado, creador, creación, vencimiento y uso;
+- `claimed_by_player_id` cuando corresponda.
+
+El link pertenece a la identidad provisional, no a un partido. Varias superficies pueden compartir el mismo link.
+
+### 6.3 Ubicación
+
+#### `locations`
+
+- `location_id`;
+- `country_code`;
+- códigos canónicos de provincia/área y localidad;
+- etiquetas normalizadas;
+- fuente;
+- `verified_for_ranking`;
+- estado activo y timestamps.
+
+### 6.4 Partido
+
+#### `matches`
+
+- `match_id`;
+- `created_by_player_id`;
+- fecha/hora jugada y zona horaria;
+- origen/modo/formato vigentes;
+- estado oficial;
+- `validation_deadline_at`;
+- claves de versión e idempotencia;
+- timestamps de creación, envío, validación, rechazo y anulación;
+- actor de última acción administrativa;
+- motivo estructurado de rechazo/anulación/corrección cuando exista.
+
+Estados server-side del piloto:
+
+- `pending_validation`;
+- `validated`;
+- `rejected`;
+- `expired`;
+- `annulled`.
+
+`draft` y `sync_pending` son estados locales de interfaz, no estados oficiales del partido.
+
+Un partido nuevo se crea siempre como `pending_validation`. La ausencia de estado nunca significa validado.
+
+#### `match_participants`
+
+- `match_id`;
+- `player_id`;
+- equipo 1/2;
+- posición dentro de la pareja;
+- rol registrado/provisional al momento del partido;
+- snapshot mínimo del nombre mostrado;
+- vínculo con el participante que creó o validó.
+
+Debe haber exactamente cuatro participantes y dos por pareja. No existe modalidad individual.
+
+#### `match_sets`
+
+- `match_id`;
+- número de set;
+- games/puntos de cada equipo;
+- modalidad de definición cuando corresponda;
+- orden estable.
+
+#### `match_actions`
+
+Registro append-only de:
+
+- creación/envío;
+- validación;
+- rechazo;
+- vencimiento;
+- corrección administrativa;
+- anulación administrativa.
+
+Incluye actor, timestamp del servidor, motivo y metadatos mínimos. Es la auditoría del ciclo del partido.
+
+#### `match_revisions`
+
+Conserva la revisión original y las correcciones excepcionales sin borrar la evidencia necesaria para revertir efectos.
+
+#### `match_user_state`
+
+Estado privado por usuario cuando el producto lo necesite:
+
+- oculto en su historial;
+- nota privada;
+- preferencias locales sincronizables.
+
+Ocultar no elimina el partido ni sus efectos oficiales.
+
+### 6.5 Nivel
+
+#### `level_states`
+
+Estado actual por jugador:
+
+- Nivel consolidado y provisional cuando corresponda;
+- confianza/evidencia;
+- estado `PENDIENTE`, `CALIBRANDO`, `CALIBRADO` o `RECALIBRANDO`;
+- contadores de progreso;
+- timestamps relevantes;
+- versión de motor y estimador.
+
+#### `match_level_results`
+
+Snapshot reproducible de cómo un partido validado afectó el Nivel:
+
+- snapshot previo de cada participante computable;
+- expectativa;
+- factores aplicados;
+- datos conocidos/imputados y disponibilidad;
+- delta por jugador;
+- snapshot posterior;
+- `reasonCodes`;
+- versión de fórmula/motor;
+- vínculo con la revisión exacta del partido.
+
+#### `level_events`
+
+Eventos append-only:
+
+- estimación inicial;
+- confirmación/cambio de cuestionario;
+- ajuste por categoría contextual;
+- variación por partido;
+- corrección/reversión;
+- entrada/salida de recalibración;
+- cambios relevantes de estado.
+
+No se recalcula silenciosamente todo el historial cuando cambia una fórmula. Las correcciones deben poder revertir exactamente el efecto guardado y aplicar la regla definida por Nivel.
+
+### 6.6 Ranking semanal
+
+#### `ranking_editions`
+
+- `edition_id`;
+- semana y zona horaria;
+- inicio/cierre;
+- timestamp de publicación;
+- versión de reglas;
+- estado de cálculo/publicación.
+
+#### `ranking_rows`
+
+- edición;
+- ámbito: Local, Provincial, País, Global o Mi red;
+- rama competitiva;
+- ubicación canónica cuando corresponda;
+- `player_id`;
+- posición;
+- score/criterios vigentes;
+- movimiento respecto de la edición anterior;
+- flags/motivos de elegibilidad;
+- snapshot de Nivel y actividad relevantes.
+
+Una edición publicada es inmutable. Una corrección posterior impacta la siguiente edición salvo intervención administrativa excepcional documentada.
+
+### 6.7 Notificaciones internas
+
+#### `notifications`
+
+Para el piloto se limita a una bandeja interna:
+
+- validación pendiente;
+- partido validado;
+- partido rechazado;
+- corrección/anulación administrativa.
+
+No incluye push. La pantalla/badge de pendientes debe consultar esta fuente o una vista server-side equivalente.
+
+### 6.8 Métricas del piloto
+
+#### `pilot_events`
+
+Eventos mínimos, con identificador pseudónimo, timestamp de servidor y propiedades acotadas:
+
+- `signup_started`;
+- `signup_completed`;
+- `level_started`;
+- `level_confirmed` con modo rápido/completo;
+- `match_created`;
+- `match_validated`;
+- `match_rejected`;
+- cambio de calibración 1/5, 3/5 y 5/5;
+- actividad diaria deduplicada.
+
+El tiempo de validación se deriva de timestamps del partido. Los regresos a 1, 7 y 14 días se derivan de actividad, sin construir una plataforma analítica independiente.
+
+No se almacenan contraseñas, tokens, textos privados ni contenido innecesario dentro de métricas.
+
+---
+
+## 7. Autoridad server-side y estado local permitido
+
+### 7.1 Autoridad exclusiva del servidor
+
+- cuentas, verificación y sesiones;
+- identidad de jugador y relación cuenta–jugador;
+- usernames y su unicidad;
+- perfiles y permisos;
+- ubicaciones canónicas y aptitud para Ranking;
+- partidos, participantes, sets y revisiones;
+- estado y deadline de validación;
+- acciones de validación/rechazo/corrección/anulación;
+- estadísticas oficiales;
+- Nivel actual, progreso de calibración, snapshots, eventos y `reasonCodes`;
+- elegibilidad y ediciones de Ranking;
+- reclamos de identidades provisionales;
+- métricas oficiales del piloto;
+- timestamps usados para reglas.
+
+### 7.2 Puede existir localmente
+
+- archivos de la PWA y caché de recursos;
+- preferencias puramente visuales;
+- borrador de un partido todavía no enviado;
+- estado temporal de una pantalla;
+- caché de lectura con fecha/versión;
+- outbox de acciones pendientes de sincronización;
+- identificadores de idempotencia;
+- último estado confirmado por servidor para permitir una UX tolerante a cortes.
+
+Los datos locales no otorgan validez oficial. Al recuperar conexión, el servidor acepta o rechaza la operación y la interfaz muestra el resultado. No se calcula en local un Nivel o Ranking oficial alternativo.
+
+---
+
+## 8. Flujos productivos exactos
+
+### 8.1 Registro, login y recuperación
+
+1. La persona inicia el registro con email y contraseña.
+2. Supabase crea una cuenta no verificada y envía el email real de confirmación.
+3. Al verificar, un comando idempotente crea su `player`, `profile` incompleto y `level_state` inicial.
+4. La sesión se mantiene con los mecanismos estándar de Supabase.
+5. El login acepta email y contraseña; `@usuario` es identidad pública, no reemplaza el email como credencial en el piloto.
+6. “Olvidé mi contraseña” envía un código de seis dígitos con vigencia de 60 minutos.
+7. Los intentos se limitan, las respuestas no revelan si un email existe y los tokens quedan administrados/hasheados por el proveedor.
+
+Solo cuentas con email verificado pueden cargar, validar o rechazar partidos oficiales.
+
+### 8.2 Completar perfil
+
+1. El usuario elige un `@usuario` disponible.
+2. Completa nombre, apellido, display name y datos deportivos requeridos.
+3. Elige explícitamente su rama competitiva.
+4. Selecciona una localidad canónica; el fallback manual queda no verificado para Ranking.
+5. Acepta las condiciones y define `ranking_opt_in`.
+6. El servidor valida formato, unicidad y campos requeridos.
+
+### 8.3 Definir Nivel
+
+1. Con el perfil mínimo completo, Nivel V1 pasa a ser el flujo productivo normal.
+2. El usuario inicia el cuestionario rápido o completo.
+3. Las respuestas pueden guardarse como borrador, pero la confirmación oficial se envía al servidor.
+4. El servidor ejecuta el estimador vigente, registra versión, contexto, evento y estado inicial.
+5. Devuelve el Nivel y progreso confirmados.
+6. Los controles de laboratorio quedan ocultos o restringidos a administración fuera del flujo común.
+
+### 8.4 Buscar jugadores
+
+1. Solo un usuario autenticado puede buscar.
+2. La búsqueda consulta jugadores reales por `@usuario`, display name, nombre o apellido.
+3. Devuelve información deportiva pública mínima.
+4. No mezcla mocks, cuentas de Staging ni semillas.
+5. Una identidad provisional no aparece en la búsqueda global; solo puede reaparecer para usuarios relacionados mediante partidos, recientes o red.
+
+### 8.5 Crear y cargar un partido
+
+1. Un participante registrado arma dos parejas con cuatro `player_id`.
+2. Puede elegir usuarios reales o reutilizar identidades provisionales relacionadas; si crea una nueva, obtiene un UUID persistente.
+3. Completa fecha, formato y resultado.
+4. El dispositivo conserva borrador y, si no hay conexión, lo deja en outbox con una clave idempotente.
+5. Al enviar, el servidor valida participantes, resultado, permisos, fecha y reglas básicas.
+6. Crea el partido como `pending_validation`, nunca como validado.
+7. El partido aparece en los cuatro historiales vinculados con su estado, pero todavía no afecta Nivel, calibración, Ranking ni estadísticas oficiales.
+
+### 8.6 Validar o rechazar
+
+1. La bandeja “Pendientes” muestra al menos al rival registrado habilitado para decidir.
+2. Alcanza la confirmación de un único rival registrado del equipo contrario.
+3. El creador no puede autovalidar; la confirmación de su compañero no reemplaza la rival.
+4. El rival revisa participantes, fecha y resultado.
+5. Puede validar o rechazar con un motivo simple.
+6. Si valida, una única transacción server-side:
+   - cambia el estado a `validated`;
+   - registra la acción;
+   - congela la revisión computada;
+   - calcula y guarda Nivel conforme V1.5;
+   - actualiza progreso y estado de calibración;
+   - guarda snapshots, delta, versiones y `reasonCodes`;
+   - actualiza estadísticas oficiales;
+   - deja el partido disponible para la próxima evaluación de Ranking;
+   - genera las notificaciones y métricas mínimas.
+7. Si rechaza, el partido queda `rejected`, visible pero sin efectos oficiales.
+8. Si pasan 30 días sin una validación habilitada, queda `expired`: permanece en historial, pero no computa Nivel ni Ranking.
+
+No existe disputa autoservicio compleja en el piloto. Una corrección o anulación excepcional la realiza administración, con motivo, revisión y reversión idempotente del efecto exacto.
+
+### 8.7 Actualización oficial de Nivel
+
+- Solo ocurre con partidos `validated`.
+- Respeta elegibilidad, invitados, repetición, círculo competitivo, imputación y demás reglas de Nivel V1.5.
+- Un invitado provisional puede permitir el cómputo del partido cuando las reglas vigentes tengan información suficiente, pero no recibe un Nivel permanente cargado por terceros.
+- La actualización guarda pre/post snapshot y no depende de que el cliente permanezca conectado.
+- Reintentar la misma validación no duplica deltas.
+
+### 8.8 Historial
+
+- Incluye partidos pendientes, validados, rechazados, vencidos y anulados con etiqueta clara.
+- Solo los validados alimentan estadísticas y resultados oficiales.
+- Cada usuario puede ocultar un partido de su propia vista sin borrarlo ni alterar a los demás.
+- La fuente es el backend. El caché local sirve solo para velocidad o lectura temporal.
+
+### 8.9 Ranking
+
+1. Un proceso server-side semanal cierra la edición según la zona horaria definida.
+2. Evalúa únicamente cuentas reales y datos validados.
+3. Aplica la elegibilidad vigente: cuenta estable/activa, perfil deportivo visible, consentimiento, ubicación canónica, Nivel consolidado, actividad e integridad.
+4. Publica `ranking_editions` y `ranking_rows`.
+5. La app lee la edición publicada; no recalcula posiciones en el navegador.
+6. Si todavía no hay participantes suficientes, muestra un estado vacío honesto. Nunca utiliza personas simuladas como reemplazo.
+
+---
+
+## 9. Invitados e identidades provisionales en el piloto
+
+### 9.1 Comportamiento incluido
+
+- Un invitado es un `player` provisional persistente con UUID propio, no texto dentro del partido.
+- Puede reutilizarse en múltiples partidos y aparecer en recientes, red, compañeros y rivales de usuarios relacionados.
+- Puede acumular historial y estadísticas derivadas, pero no Nivel permanente ni posición competitiva hasta tener cuenta y cumplir elegibilidad.
+- No se pide teléfono, email, DNI ni apellido para crearlo.
+- Tiene un único link de invitación/reclamo por identidad, compartible mediante el sistema normal del dispositivo.
+- Al registrarse desde el link, la nueva cuenta reclama ese `player_id` y obtiene todos los partidos ya vinculados a ese ID.
+- BRAMU nunca fusiona personas automáticamente por coincidencia de nombre o apodo.
+
+### 9.2 Reclamo simplificado
+
+- El link contiene un token aleatorio de alta entropía; en base se guarda su hash.
+- La persona debe registrarse o iniciar sesión para consumirlo.
+- El reclamo de una identidad no reclamada es atómico y de un solo uso.
+- Si una cuenta necesita reclamar una segunda identidad, o existen duplicados, se resuelve manualmente por administración durante el piloto.
+- No se construye todavía una interfaz general de fusiones, pruebas de identidad o matching entre redes.
+
+### 9.3 Efecto sobre Nivel y Ranking
+
+- Reclamar una identidad no recalcula retroactivamente deltas ya procesados.
+- Un partido todavía pendiente y dentro de sus 30 días puede validarse después del reclamo y se procesa con la identidad ya vinculada.
+- Un partido vencido sigue siendo historial y no se reactiva automáticamente.
+- El jugador reclamado empieza a construir su Nivel y elegibilidad según las reglas vigentes desde las acciones oficiales que correspondan; no hereda automáticamente un Nivel permanente estimado por terceros.
+
+### 9.4 Red y Ranking
+
+Una identidad provisional puede aparecer en recientes o en la red personal como relación derivada de partidos, pero nunca ocupa una posición competitiva de Ranking. Esto concilia la utilidad social del invitado con la exigencia de identidad elegible de Ranking.
+
+---
+
+## 10. Permisos y seguridad mínima
+
+### 10.1 Política general
+
+RLS comienza en “denegar por defecto”. Cada acceso se habilita mediante una política explícita y probada.
+
+### 10.2 Lecturas
+
+- Un usuario autenticado puede leer campos públicos de perfiles registrados.
+- Puede leer identidades provisionales solo si está relacionado con ellas mediante un partido o las creó.
+- Puede leer el detalle de un partido si participa, lo creó o es administrador.
+- Puede leer su propia cuenta, datos privados, borradores sincronizados y notas.
+- Las ediciones de Ranking publicadas son legibles por usuarios autenticados.
+- Datos de auth, tokens de claim, logs y métricas crudas no son legibles desde el cliente.
+
+### 10.3 Escrituras
+
+- Cada usuario edita únicamente su perfil permitido.
+- No puede cambiar por API directa username, ubicación, rama o estado de Nivel evitando validaciones; usa comandos server-side o reglas verificadas.
+- Solo un participante habilitado crea el partido.
+- Solo un rival registrado del equipo contrario puede validarlo o rechazarlo.
+- Nadie puede modificar directamente Nivel, snapshots, estadísticas o Ranking.
+- Correcciones/anulaciones requieren rol administrativo y dejan auditoría.
+- El cliente nunca recibe claves de servicio.
+
+### 10.4 Controles mínimos
+
+- rate limiting en registro, login, recuperación, búsqueda y claims;
+- validación server-side de todos los payloads;
+- claves de idempotencia;
+- tokens con expiración y almacenamiento seguro;
+- logs sin contraseñas, tokens ni datos privados innecesarios;
+- backups/PITR disponibles según el plan contratado y exportación periódica antes del piloto;
+- secretos separados por entorno;
+- pruebas automáticas de RLS con casos permitidos y prohibidos.
+
+---
+
+## 11. Development, Staging y Production
+
+| Entorno | Uso | Datos | Acceso |
+|---|---|---|---|
+| Development | Modificar y probar código localmente | Falsos/locales o proyecto dev desechable; nunca Producción | Equipo de desarrollo |
+| Staging | Versión online e instalable para aceptación | Proyecto Supabase y base separados; usuarios de prueba | Sebastián/equipo/testers |
+| Production | BRAMU real | Cuentas, partidos y datos reales persistentes | Usuarios reales |
+
+Reglas:
+
+- Staging nunca apunta a la base de Producción.
+- Las variables públicas y secretos se administran por entorno.
+- La PWA de Staging debe tener nombre/ícono/color distinguible.
+- `robots` y controles de acceso evitan difusión accidental de Staging.
+- Seeds y usuarios test solo existen en Development/Staging.
+- Producción no incluye botón, fallback ni ruta común que cargue datos simulados.
+- Una migración se prueba primero en Development, luego Staging y finalmente Producción con respaldo y verificación.
+- El código desplegado cambia comportamiento/esquema mediante migraciones; nunca reemplaza filas reales.
+
+---
+
+## 12. Autenticación y recuperación reales
+
+- Método inicial: email + contraseña.
+- Email verificado obligatorio para acciones oficiales.
+- Recuperación mediante OTP de seis dígitos, vigencia de 60 minutos, límite de intentos y respuestas que no permitan enumerar cuentas.
+- Las URLs de callback se permiten únicamente para los dominios correctos de Staging y Producción.
+- El remitente y proveedor SMTP deben verificarse antes de invitar al primer jugador.
+- Se prueban: alta, reenvío, expiración, recuperación, cambio de contraseña, cierre de sesiones y acceso desde segundo dispositivo.
+- No se incorporan social login, teléfono/SMS ni passkeys en el piloto.
+- La eliminación de cuenta es asistida por administración: se desactiva el acceso y se anonimiza lo público que corresponda, preservando identificadores deportivos mínimos cuando el historial compartido lo requiera.
+
+El piloto inicial se orienta a adultos invitados. Si el alcance incorpora menores, las reglas de consentimiento y tratamiento de datos deberán resolverse antes de aceptar esas altas; esto no bloquea el piloto adulto.
+
+---
+
+## 13. Eliminación de mocks y caminos de laboratorio
+
+Antes del piloto:
+
+1. Producción arranca sin cuentas, partidos ni filas de Ranking simuladas.
+2. La app deja de leer claves históricas de `localStorage` como fallback productivo.
+3. Las nuevas claves locales se versionan y separan por entorno.
+4. Búsqueda y perfiles consultan exclusivamente personas reales del backend.
+5. Ranking consulta exclusivamente la última edición real publicada.
+6. Si no hay datos, se muestra estado vacío; no se rellenan posiciones con mocks.
+7. Nivel productivo deja de depender del preview interno.
+8. El laboratorio, si se conserva, queda fuera de navegación común y restringido a Development/Staging o rol administrativo.
+9. El service worker no comparte caché entre dominios/entornos ni conserva respuestas falsas después de un despliegue.
+10. Los usuarios test se crean únicamente en Staging.
+
+---
+
+## 14. Preparación de datos para BRAMU Intelligence
+
+Intelligence no se implementa en el piloto. Para no cerrarle el camino, el backend conserva:
+
+- IDs estables de usuario, jugador, partido, participante y edición;
+- `played_at`, `created_at`, `validated_at` y estado;
+- parejas, rivales y relaciones derivadas;
+- formato, origen y score estructurado por set;
+- distinción entre dato personal, pendiente y oficial;
+- revisiones, correcciones y anulaciones;
+- snapshots de Nivel antes/después;
+- expectativa, factores, delta, datos conocidos/imputados;
+- `reasonCodes` y versiones del motor;
+- estado y progreso de calibración;
+- categoría contextual;
+- ediciones y movimientos semanales de Ranking;
+- ubicación canónica a la granularidad permitida;
+- eventos mínimos del recorrido de producto.
+
+Se evita guardar inferencias generativas como hechos. En el futuro, Intelligence deberá producir afirmaciones deterministas y versionadas desde estos datos; la generación de lenguaje será opcional y no autoridad.
+
+---
+
+## 15. Orden de implementación
+
+Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de comenzar el siguiente.
+
+### Bloque 1 — Fundación de backend y entornos **(PRIMERO)**
+
+**Incluye**
+
+- proyectos/configuración separados de Supabase para Staging y Production;
+- integración base del frontend por entorno;
+- migraciones versionadas;
+- esquema inicial de identidades y guardas ambientales;
+- roles mínimos y RLS en denegación por defecto;
+- health check;
+- despliegue separado de Staging;
+- backups/exportación y secretos documentados.
+
+**Depende de:** nada.
+
+**Terminado cuando**
+
+- Staging conecta solo con su backend;
+- Production conecta solo con el suyo;
+- un build falla de forma segura si faltan o se cruzan variables;
+- una migración puede aplicarse primero en Staging y luego en Producción sin sembrar datos;
+- las tablas protegidas no pueden leerse/escribirse anónimamente;
+- no se modificó todavía el comportamiento productivo de Nivel o partidos.
+
+### Bloque 2 — Auth, perfil, username, ubicación y recuperación
+
+**Incluye**
+
+- registro, verificación, login, logout y recuperación;
+- creación idempotente de `player/profile`;
+- perfil mínimo;
+- username único;
+- rama competitiva;
+- ubicación canónica/manual no elegible;
+- primeras métricas de alta.
+
+**Depende de:** Bloque 1.
+
+**Terminado cuando**
+
+- una persona puede crear cuenta real, verificarla, completar perfil y entrar desde otro dispositivo;
+- recuperación funciona con correo real en Staging;
+- username duplicado falla en servidor;
+- ubicación manual no habilita Ranking;
+- un usuario no puede leer ni editar datos privados ajenos.
+
+### Bloque 3 — Nivel productivo y persistente
+
+**Incluye**
+
+- persistencia de cuestionarios/confirmación;
+- ejecución server-side del estimador y contratos vigentes;
+- `level_states` y `level_events`;
+- Nivel como flujo normal;
+- laboratorio oculto/restringido;
+- métricas de inicio, confirmación y modo.
+
+**Depende de:** Bloques 1 y 2.
+
+**Terminado cuando**
+
+- Nivel confirmado permanece entre dispositivos y sesiones;
+- el servidor es autoridad;
+- rápido/completo generan los resultados esperados del motor probado;
+- se guardan versiones y contexto;
+- un usuario común no ve controles de laboratorio.
+
+### Bloque 4 — Jugadores, búsqueda e invitados provisionales
+
+**Incluye**
+
+- búsqueda real;
+- creación/reutilización de `player` provisional;
+- recientes/red relacionada;
+- link y claim básico de una sola identidad;
+- administración manual de duplicados excepcionales.
+
+**Depende de:** Bloque 2; consume Nivel público del Bloque 3.
+
+**Terminado cuando**
+
+- búsqueda no devuelve mocks;
+- un provisional mantiene el mismo ID en varios partidos;
+- no aparece globalmente;
+- un link permite registrarse y reclamar todo el historial del ID;
+- nombres iguales nunca se fusionan solos.
+
+### Bloque 5 — Partidos compartidos e historial
+
+**Incluye**
+
+- partidos, cuatro participantes, sets y resultado;
+- borrador/outbox local;
+- creación idempotente como `pending_validation`;
+- historial compartido y badges de estado;
+- vencimiento a 30 días;
+- ocultamiento individual.
+
+**Depende de:** Bloques 2, 3 y 4.
+
+**Terminado cuando**
+
+- un partido cargado en un dispositivo aparece una sola vez en los participantes relacionados;
+- sin conexión se conserva y reintenta sin duplicar;
+- no afecta Nivel ni estadísticas antes de validar;
+- pendientes/rechazados/vencidos se distinguen;
+- ocultar no elimina el partido.
+
+### Bloque 6 — Validación y actualización oficial
+
+**Incluye**
+
+- bandeja/badge de pendientes;
+- validación o rechazo por un rival;
+- transacción atómica de estado, Nivel, calibración, snapshots, `reasonCodes`, estadísticas y métricas;
+- notificaciones internas;
+- comando administrativo de corrección/anulación.
+
+**Depende de:** Bloque 5.
+
+**Terminado cuando**
+
+- creador/compañero no pueden autovalidar;
+- un rival autorizado valida o rechaza;
+- validar una vez actualiza todo coherentemente;
+- reintentar no duplica efectos;
+- rechazo/vencimiento no computan;
+- corrección/anulación revierten el efecto exacto y dejan auditoría;
+- los escenarios vigentes de Nivel continúan pasando.
+
+### Bloque 7 — Ranking real semanal
+
+**Incluye**
+
+- cálculo server-side;
+- edición y filas inmutables;
+- ámbitos y elegibilidad V1;
+- movimiento semanal;
+- estados vacíos honestos;
+- eliminación del Ranking simulado en Producción.
+
+**Depende de:** Bloque 6 y ubicación canónica del Bloque 2.
+
+**Terminado cuando**
+
+- solo cuentas reales elegibles y partidos validados participan;
+- el snapshot semanal permanece estable;
+- una validación tardía entra en la edición siguiente;
+- provisionales no ocupan posiciones;
+- no existe fallback a mocks.
+
+### Bloque 8 — Endurecimiento y salida al piloto
+
+**Incluye**
+
+- prueba integral en Staging;
+- revisión de RLS, rate limits, emails, recuperación, caché y service worker;
+- tablero/consulta simple de métricas;
+- respaldo/exportación;
+- procedimiento administrativo;
+- checklist y despliegue limpio de Producción.
+
+**Depende de:** Bloques 1–7.
+
+**Terminado cuando**
+
+- los recorridos críticos funcionan entre al menos dos dispositivos y cuentas;
+- no hay cruces entre entornos;
+- se puede recuperar una cuenta;
+- se puede detectar y corregir un partido excepcional;
+- métricas mínimas se registran sin datos sensibles;
+- Producción no contiene seeds ni mocks;
+- los primeros 10–20 jugadores pueden operar con datos persistentes.
+
+---
+
+## 16. Primer handoff recomendado para Claude Code
+
+El primer trabajo de implementación debe ser **Bloque 1 — Fundación de backend y entornos**.
+
+Su alcance debe terminar en una base segura y verificable, sin intentar migrar simultáneamente Auth, Nivel y partidos. El handoff debe pedir:
+
+- auditar la configuración actual del repositorio necesaria para integrar Supabase/Vercel;
+- crear la estructura de migraciones y configuración por entorno;
+- conectar exclusivamente Staging a su proyecto de Staging;
+- establecer guardas que impidan usar credenciales de Producción desde Staging/Development;
+- crear el núcleo mínimo de identidad requerido por el siguiente bloque;
+- habilitar RLS en denegación por defecto y sus pruebas;
+- documentar variables, despliegue, respaldo y rollback;
+- no importar `localStorage`, no sembrar Producción y no alterar todavía el motor de Nivel.
+
+No debe abarcar los ocho bloques en una única entrega.
+
+---
+
+## 17. Riesgos reales y mitigación
+
+| Riesgo | Mitigación mínima |
+|---|---|
+| La app sigue mostrando datos viejos de `localStorage` | Namespace nuevo por entorno, sin fallback productivo, limpieza guiada de claves históricas |
+| Duplicación por reintentos offline | UUID de cliente + clave de idempotencia única server-side |
+| Partido validado pero Nivel a medias | Una transacción/comando server-side atómico |
+| Fórmula divergente entre cliente y servidor | Un único motor compartido/versionado y tests de paridad |
+| Filtración por permisos demasiado amplios | RLS deny-by-default y pruebas positivas/negativas |
+| Staging toca datos reales | Proyectos, claves, dominios y comprobaciones separados |
+| Caché/service worker conserva mocks | Versionado de cachés y limpieza en despliegue |
+| Emails de verificación/recuperación no llegan | SMTP real y pruebas antes del piloto |
+| Localidad manual contamina Ranking territorial | `verified_for_ranking = false` hasta mapping/verificación |
+| Reclamo de invitado por link filtrado | Token largo, hash, expiración/rotación, un solo uso y login |
+| Doble efecto por corrección | Revisión y snapshot exactos, reversión idempotente |
+| Cron semanal con fecha incorrecta | Zona horaria explícita y tests en límites de semana |
+| Límites del plan gratuito | Métricas de uso y alertas; evaluar costo solo al acercarse al límite |
+| Sobrediseño retrasa el piloto | Mantener fuera las funciones postergadas y entregar por bloques |
+
+La migración no requiere transformar los datos simulados actuales. El riesgo principal no es el volumen, sino permitir que el frontend continúe tratándolos como autoridad o mezcle caches de entornos.
+
+---
+
+## 18. Alineaciones y contradicciones resueltas
+
+1. **Referencias históricas a V04:** V04 corresponde a Nivel BRAMU. Backend/Infraestructura es una etapa posterior y aquí no se numera como V04.
+2. **Invitado como texto vs identidad:** queda superado. Todo invitado es una identidad provisional persistente con ID.
+3. **Invitado en red vs Ranking:** puede aparecer en relaciones personales/recientes, pero no recibe posición competitiva hasta tener cuenta y ser elegible.
+4. **Efecto de partidos con invitados:** manda Nivel BRAMU V1.5. El partido puede afectar a jugadores computables si cumple sus reglas; el provisional no recibe Nivel permanente de terceros.
+5. **Ubicación manual de V04.10:** se conserva como fallback de perfil, pero sin ID canónico/verificación no habilita Ranking territorial.
+6. **Ranking local simulado:** se elimina del camino productivo. Ranking real depende de partidos validados y snapshots semanales server-side.
+7. **Movimientos de Intelligence:** cuando se implemente, consumirá movimientos entre ediciones semanales publicadas; no existe movimiento oficial instantáneo.
+8. **Piloto descartable:** queda superado. Los amigos iniciales usan Producción y conservan sus cuentas/datos.
+
+Estas alineaciones no requieren modificar ahora la documentación de Nivel, Ranking o Intelligence. Deben respetarse en sus futuros handoffs de implementación.
+
+---
+
+## 19. Decisiones abiertas no bloqueantes
+
+Pueden decidirse con datos del piloto:
+
+- compra y proveedor de dominio propio;
+- proveedor definitivo de email al superar el volumen inicial;
+- matching inteligente de identidades entre redes;
+- sugerencia de invitados recientes y ventana tentativa;
+- autoservicio para reclamar múltiples identidades;
+- interfaz completa de fusiones;
+- social login/passkeys;
+- push notifications;
+- políticas avanzadas de moderación y antitrampa;
+- analítica externa;
+- automatización de eliminación/exportación de cuenta;
+- soporte territorial fuera de Argentina.
+
+---
+
+## 20. Bloqueantes antes de implementar
+
+No queda un bloqueo conceptual de producto para comenzar el Bloque 1.
+
+Antes de conectar servicios deberá resolverse como tarea operativa, no conceptual:
+
+- crear o identificar las cuentas/proyectos de Supabase y Vercel;
+- definir quién custodia accesos, secretos y códigos de recuperación;
+- elegir un proveedor SMTP compatible con el presupuesto del piloto;
+- confirmar los dominios gratuitos de Staging/Producción mientras no haya dominio propio.
+
+Estas selecciones no cambian el modelo ni impiden preparar el primer handoff técnico.
+
+---
+
+## 21. Definición de terminado del backend mínimo del piloto
+
+Backend/Infraestructura está listo para el piloto cuando:
+
+- existen Development, Staging y Production realmente separados;
+- una cuenta puede registrarse, verificarse, recuperarse y usarse desde distintos dispositivos;
+- perfil, username, ubicación, rama y Nivel persisten server-side;
+- búsqueda devuelve solo personas reales del entorno;
+- invitados tienen identidad persistente y claim básico;
+- un partido siempre nace pendiente;
+- un rival puede validarlo o rechazarlo;
+- la validación actualiza atómicamente historial, Nivel, calibración, snapshots, `reasonCodes` y estadísticas;
+- pendientes y estados son visibles;
+- Ranking semanal usa exclusivamente datos reales elegibles;
+- Producción no contiene ni consulta mocks;
+- la app funciona con caché temporal pero no depende de `localStorage` como verdad;
+- quedan guardados los contratos necesarios para Intelligence;
+- las métricas mínimas permiten evaluar el piloto;
+- backups, RLS, logs y procedimiento administrativo fueron probados en Staging.
+
+Al cumplir esta definición, BRAMU puede incorporar los primeros 10–20 jugadores en una Producción real sin necesitar una migración posterior hacia otra base “definitiva”.
