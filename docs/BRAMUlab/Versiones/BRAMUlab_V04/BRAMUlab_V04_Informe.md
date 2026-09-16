@@ -858,3 +858,67 @@ Cuarteto completo bumpeado en la misma ronda: `Store.APP_VERSION`/`version.json`
 ## V04.9.19 No se avanzó
 
 Confirmado — no se tocó la Fórmula V1.5, `level.js`, `level-context.js`, `level-calibration.js`, `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, pesos, anclas, categoría, lógica matemática, Ranking BRAMU, BRAMU Intelligence ni Backend. Header centrado de V04.8 sin cambios, TU PERFIL sigue siendo un único paso (sin volver a dividirse), sin autoavance agregado, sin sistema de notificaciones por datos incompletos. V04.9 queda online para revisión visual de Sebastián.
+
+# V04.10 — pulido final de Nivel (implementada)
+
+**Fuentes leídas esta ronda:** `docs/BRAMUlab/README.md` + `docs/BRAMUlab/Versiones/BRAMUlab_V04/BRAMUlab_V04.10_Handoff.md` (especificación completa) + búsqueda dirigida en `app.js`/`index.html`/`styles.css`/`locations.js` sobre los selectores/funciones implicados. No se releyó V03, V1.4 ni se reabrió la definición de Nivel/Ranking/Intelligence/Backend (pedido explícito).
+
+## V04.10.1 TU PERFIL — el avatar vuelve arriba
+
+La composición horizontal de V04.9 (avatar a la izquierda + Nombre/Apellido/@usuario apilados a su derecha) "no funcionó visualmente" (revisión real) — REVIERTE a la composición vertical de siempre: foto centrada arriba (`.signup-avatar-upload`, 84px, sin ningún modificador — se retiran las reglas `.signup-identity-row`/`.signup-identity-fields` de V04.9), Nombre/Apellido/@usuario/Nombre visible apilados debajo, cada uno su propio campo de ancho completo. Se conservan tal cual: iniciales dinámicas en vivo (`updateSignupAvatarInitials`, sin cambios), foto reemplazando iniciales, placeholder "—" sin datos, edición/carga de foto, validaciones. Ninguna arquitectura lateral nueva.
+
+## V04.10.2 Fecha de nacimiento + Género en la misma fila, también en 375px
+
+V04.9 ya los fusionaba en una fila (`.signup-row-2col`), pero solo desde 480px — apiladas en mobile. El pedido explícito de esta ronda es que convivan en la misma fila también en 375px: se retira el `@media (min-width:480px)` que la gateaba, el `flex` pasa a aplicarse siempre (gap 14px→8px para que las dos columnas entren cómodas en el ancho mínimo soportado). Misma altura visual y baseline (ambas son `.field--labeled`, comparten el mismo `.field__input`), sin cambios de significado ni validación. Verificado en vivo en 375px y desktop angosto: sin overflow, tap targets cómodos.
+
+## V04.10.3 Ubicación — fallback manual cuando la búsqueda no encuentra nada
+
+Bug de producto real: ubicación es obligatoria, así que un buscador (GeoRef + fallback local) sin resultados podía dejar a un usuario bloqueado sin forma de terminar el alta. Se agrega, en el mismo estado "Sin coincidencias" de siempre (`#profile-location-sheet`), un link discreto **"No encuentro mi ubicación"** que abre un formulario mínimo (Localidad + Provincia). Nueva función pura `PLLocations.buildManualLocation(locality, region)` (locations.js) — normaliza a Title Case (mismo criterio que GeoRef, `toTitleCaseEs`) y devuelve el MISMO shape `{locality, region, country}` que `searchLocations`/`searchLocationsRemote`, o `null` si falta alguno de los dos (ambos obligatorios). Sin ID/zona geográfica normalizada: ese campo nunca existió en este dataset, así que una ubicación manual no vuelve elegible a nadie para un futuro Ranking territorial oficial (`rankingLocalZone` sigue siempre `null`, sin cambios). `Ranking_BRAMU.md` y su lógica no se tocaron.
+
+**Verificado en vivo:** búsqueda sin resultados → aparece el link → formulario vacío → error "Completá localidad y provincia." → completado ("bella vista"/"buenos aires") → guarda "Bella Vista, Buenos Aires" y cierra la hoja, igual que una elección normal del buscador.
+
+## V04.10.4 "YA CASI ESTAMOS" — título y CTA reflejan que falta definir Nivel
+
+`#view-player-card` decía "TU PERFIL ESTÁ LISTO"/"ENTRAR A BRAMU" incluso cuando el Nivel BRAMU V1 todavía estaba pendiente de confirmar. Título y botón ahora dicen **"YA CASI ESTAMOS"**/**"DEFINIR MI NIVEL"** — pero SOLO mientras `nivelOnboardingPending(user)` es `true` (mismo flag de siempre, ver `openPlayerCardScreen`). Con el preview de Nivel V1 apagado (todavía el default de producción hoy — la fórmula real no se lanzó, ver README §5) no existe ningún Nivel que "definir" en este camino, así que el copy vuelve al de siempre ("TU PERFIL ESTÁ LISTO"/"ENTRAR A BRAMU"), que sigue describiendo correctamente ese destino (`completeIdentifyAction`, directo a Home). **Decisión de esta ronda, no pedida explícitamente pero necesaria:** el handoff no distinguía los 2 casos — un relabel incondicional habría sido incorrecto para el camino sin preview (el único que ve producción hoy). Título/botón ganan `id` (`#player-card-title`) para poder alternar el texto; nada más de la pantalla cambia. CTA secundario ("IR A MIS DATOS") y el copy de WhatsApp (V04.9) quedan sin cambios.
+
+## V04.10.5 Estado de Nivel antes del cuestionario — ya correcto, verificado
+
+"YA CASI ESTAMOS" ya mostraba `PENDIENTE` (nunca `CALIBRANDO · 0/5`) antes de confirmar Nivel desde V04.7.2/V04.8.3, y `CALIBRANDO · X/5` reales después — consistente con Home/MI PERFIL (mismo `nivelOnboardingPending`) y con Perfil público (fix de V04.9.12). Sin cambios de código: verificado en vivo que la regla se sostiene sobre el resto de esta ronda.
+
+## V04.10.6 Cuestionario — último ajuste tipográfico
+
+Título de cada opción sin cambios (14px/500/line-height 1.3, ya correcto desde V04.9). La descripción gana tamaño (11px→13px) para acompañarlo mejor; peso normal (400, nunca tuvo `font-weight` propio) y `line-height` un poco más suelto (1.35→1.4) para el texto más grande. Gap de la lista (10px) y padding de la tarjeta (13px 14px) de V04.9 se conservan tal cual. Sin cambios de contenido, preguntas, respuestas ni comportamiento (nunca autoavance).
+
+## V04.10.7 No regresión — CALIBRANDO/CALIBRADO
+
+Verificado en vivo, sin ningún cambio de código en esta sección: Home CALIBRANDO (identidad izquierda, NIVEL BRAMU + número arriba a la derecha, banda `CALIBRANDO · X/5 PARTIDOS` + progreso fino, historial debajo — arquitectura de V04.9 intacta), MI PERFIL CALIBRANDO (misma geometría que un usuario calibrado, estado de calibración compacto, bloque EVOLUCIÓN DEL NIVEL BRAMU en CALIBRANDO), y una cuenta madura fabricada por consola (`legacyMigrated`, recipe de V04.8.1) — la tarjeta clásica con barra de progreso sigue intacta, sin cambios de altura ni geometría. El revert de §V04.10.1 vive enteramente en el formulario de alta, sin ningún punto de contacto con estas pantallas.
+
+## V04.10.8 Responsive
+
+Verificado en vivo con el Browser tool en 375px (mobile) y desktop angosto (700px): TU PERFIL (avatar vertical, fecha+género en fila en ambos anchos), hoja de ubicación con fallback manual, cuestionario (camino rápido, misma tipografía que las 7 preguntas completas), YA CASI ESTAMOS (PENDIENTE/DEFINIR MI NIVEL), Home CALIBRANDO, MI PERFIL CALIBRANDO, Home de cuenta calibrada (legacy). Sin overflow, sin solapamientos, sin cambios de altura entre estados.
+
+## V04.10.9 Archivos tocados
+
+`bramulab/app.js`, `bramulab/index.html`, `bramulab/styles.css`, `bramulab/locations.js` (`buildManualLocation`, nueva función pura), `bramulab/store.js` (`APP_VERSION`), `bramulab/sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`), `bramulab/version.json`, `bramulab/tests.html` (6 assertions nuevas). `level.js`/`level-context.js`/`level-calibration.js`: **cero líneas tocadas**.
+
+## V04.10.10 Tests
+
+Se agregaron 6 assertions dirigidas para `PLLocations.buildManualLocation` (Title Case, `country` completado, `null` sin localidad/provincia/con espacios vacíos, nunca agrega un ID/zona geográfica) — única rama nueva de esta ronda que vive en una capa pura ya cubierta por el arnés (locations.js). El resto (revert del avatar, fila 375px, YA CASI ESTAMOS, tipografía del cuestionario) es CSS/orquestación de `app.js`, mismo límite documentado desde V04.4 (sin arnés automatizado posible) — verificado en vivo con el Browser tool.
+
+**Resultado:** **1400/1400** (1394 baseline + 6 nuevas), todo verde — corrido antes y después del bump de versión, en un puerto de servidor local nuevo para evitar el caching agresivo de `python -m http.server` sin `Cache-Control` (mismo motivo que documenta V03.1.6 — el dev server local no reproduce el bug de caché de producción, pero acá cachea DEMASIADO en sentido contrario durante la sesión de pruebas).
+
+## V04.10.11 Contradicciones / decisiones de producto
+
+Ninguna bloqueante. Una decisión de producto tomada sin pausar (per pedido explícito de no requerir segunda autorización si no hay contradicción real): título/CTA de "YA CASI ESTAMOS" quedan GATEADOS por `nivelOnboardingPending`, no aplicados incondicionalmente — ver razón completa en §V04.10.4. Es la lectura más literal y correcta del pedido ("todavía falta definir Nivel" solo es cierto en el camino pendiente).
+
+## V04.10.12 Riesgos / deuda relevante
+
+Ninguna deuda nueva detectada.
+
+## V04.10.13 Versionado y despliegue
+
+Cuarteto completo bumpeado en la misma ronda: `Store.APP_VERSION`/`version.json`/`sw.js` (`CACHE_NAME` + 14 `CORE_ASSETS`)/`index.html` (14 `?v=`) → `BRAMUlab V04.10`. Commit y push a `origin/main` en esta misma intervención; deploy de GitHub Pages verificado después del push.
+
+## V04.10.14 No se avanzó
+
+Confirmado — no se tocó la Fórmula V1.5, `level.js`, `level-context.js`, `level-calibration.js` (matemática normativa), `nivel_bramu_v1_0`, `nivel_inicial_v1_1`, pesos/anclas/fixtures matemáticos, reglas de calibración/recalibración, Ranking BRAMU, BRAMU Intelligence, Backend/Infraestructura, historial/estadísticas, navegación general ni el diseño global de Home/Perfil. No se agregaron funciones nuevas fuera de `buildManualLocation` (pedida explícitamente por el handoff, §3). El handoff de esta ronda queda archivado en `docs/BRAMUlab/Archivo/BRAMUlab_V04/BRAMUlab_V04.10_Handoff.md`. V04.10 queda online para revisión visual de Sebastián.

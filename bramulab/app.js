@@ -6741,7 +6741,11 @@
    *  (confirmNivelOnboarding entra directo a BRAMU vía completeIdentifyAction, sin pasar por
    *  acá): el caso "no pendiente" solo ocurre con el preview apagado (producción sin Nivel V1
    *  todavía), siempre con la cuenta recién creada — mismo criterio legacy que Home usa para
-   *  cuentas nuevas (PH.buildCalibrationStatus), nunca el badge de calibración real de Home. */
+   *  cuentas nuevas (PH.buildCalibrationStatus), nunca el badge de calibración real de Home.
+   *  BRAMUlab_V04.10 (§4) — "todavía falta definir Nivel": título/CTA principal pasan a "YA
+   *  CASI ESTAMOS"/"DEFINIR MI NIVEL" mientras `pending`, gateados por el MISMO flag de
+   *  siempre — el caso "no pendiente" conserva el copy anterior, que sigue siendo el correcto
+   *  para ese camino (sin ningún Nivel que definir). */
   function openPlayerCardScreen(user) {
     const hasPhoto = !!user.profilePhoto;
     $('#player-card-avatar').dataset.hasPhoto = String(hasPhoto);
@@ -6763,6 +6767,12 @@
     $('#player-card-subtitle').textContent = pending
       ? 'Para poder jugar, primero creá tu Nivel BRAMU.'
       : 'Completá 5 partidos para conocer tu Nivel BRAMU.';
+    // BRAMUlab_V04.10 (§4) — "todavía falta definir Nivel": título/CTA principal cambian SOLO
+    // mientras el onboarding está pendiente (mismo `pending` de arriba) — con el preview
+    // apagado (caso "no pendiente", default de producción hoy) no hay ningún Nivel que definir
+    // acá, así que el copy de siempre sigue describiendo bien ese camino.
+    $('#player-card-title').textContent = pending ? 'YA CASI ESTAMOS' : 'TU PERFIL ESTÁ LISTO';
+    $('#player-card-enter-btn').textContent = pending ? 'DEFINIR MI NIVEL' : 'ENTRAR A BRAMU';
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — invitación simple, nunca bloquea
     // ni reemplaza ENTRAR A BRAMU, nunca menciona el Nivel BRAMU.
     // BRAMUlab_V04.9 (§4) — simplificado a solo WhatsApp: desde el Handoff V04.6 la ubicación es
@@ -10421,6 +10431,39 @@
     wrap.hidden = true;
     wrap.innerHTML = '';
     $('#profile-location-empty').hidden = true;
+    $('#profile-location-manual-trigger').hidden = true;
+    hideProfileLocationManualForm();
+  }
+
+  /** BRAMUlab_V04.10 (§3) — "No encuentro mi ubicación": carga manual mínima (Localidad +
+   *  Provincia) para cuando la búsqueda no encuentra nada, ubicación sigue siendo obligatoria.
+   *  Reusa `PLLocations.buildManualLocation` (pura, testeada) — nunca arma el objeto acá. */
+  function resetProfileLocationManualForm() {
+    $('#profile-location-manual-locality').value = '';
+    $('#profile-location-manual-region').value = '';
+    $('#profile-location-manual-error').hidden = true;
+  }
+  function showProfileLocationManualForm() {
+    resetProfileLocationManualForm();
+    $('#profile-location-list').hidden = true;
+    $('#profile-location-empty').hidden = true;
+    $('#profile-location-manual-trigger').hidden = true;
+    $('#profile-location-manual').hidden = false;
+    setTimeout(() => $('#profile-location-manual-locality').focus(), 60);
+  }
+  function hideProfileLocationManualForm() {
+    $('#profile-location-manual').hidden = true;
+  }
+  function submitProfileLocationManualForm() {
+    const loc = PLLocations.buildManualLocation($('#profile-location-manual-locality').value, $('#profile-location-manual-region').value);
+    if (!loc) {
+      $('#profile-location-manual-error').textContent = 'Completá localidad y provincia.';
+      $('#profile-location-manual-error').hidden = false;
+      return;
+    }
+    activeLocationTarget.set(loc);
+    activeLocationTarget.onSelect();
+    closeProfileLocationSheet();
   }
 
   function paintProfileLocationList(results) {
@@ -10428,6 +10471,8 @@
     const isEmpty = results.length === 0;
     wrap.hidden = isEmpty;
     $('#profile-location-empty').hidden = !isEmpty;
+    $('#profile-location-manual-trigger').hidden = !isEmpty;
+    hideProfileLocationManualForm();
     const current = activeLocationTarget.get();
     wrap.innerHTML = results.map((loc) => {
       const label = PLLocations.formatLocationLabel(loc);
@@ -10522,6 +10567,8 @@
     $('#profile-location-sheet-close').addEventListener('click', closeProfileLocationSheet);
     $('#profile-location-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-location-sheet-scrim')) closeProfileLocationSheet(); });
     $('#profile-location-search').addEventListener('input', (e) => onProfileLocationSearchInput(e.target.value));
+    $('#profile-location-manual-trigger').addEventListener('click', showProfileLocationManualForm);
+    $('#profile-location-manual-save').addEventListener('click', submitProfileLocationManualForm);
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;

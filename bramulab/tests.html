@@ -3787,6 +3787,17 @@
     assert('V0341-UBIC · búsqueda también matchea por región ("cordoba" encuentra localidades de esa provincia)', PLLoc.searchLocations('cordoba').length > 1);
     assert('V0341-UBIC · sin coincidencias reales, devuelve vacío (nunca inventa una localidad)', PLLoc.searchLocations('zzzzxxxqqq').length === 0);
 
+    // BRAMUlab_V04.10 (§3) — "No encuentro mi ubicación": carga manual mínima, mismo shape
+    // {locality, region, country} que el resto del módulo, sin ningún ID/zona geográfica
+    // normalizada (ese campo nunca existió acá).
+    const manual = PLLoc.buildManualLocation('bella vista', 'buenos aires');
+    assert('V0410-UBIC · buildManualLocation normaliza a Title Case, mismo criterio que GeoRef', manual && manual.locality === 'Bella Vista' && manual.region === 'Buenos Aires', JSON.stringify(manual));
+    assert('V0410-UBIC · buildManualLocation completa country con el país del dataset', manual && manual.country === 'Argentina', JSON.stringify(manual));
+    assert('V0410-UBIC · buildManualLocation sin localidad devuelve null (ambas obligatorias)', PLLoc.buildManualLocation('', 'Buenos Aires') === null);
+    assert('V0410-UBIC · buildManualLocation sin provincia devuelve null (ambas obligatorias)', PLLoc.buildManualLocation('Bella Vista', '') === null);
+    assert('V0410-UBIC · buildManualLocation con solo espacios devuelve null (trim antes de validar)', PLLoc.buildManualLocation('   ', '   ') === null);
+    assert('V0410-UBIC · buildManualLocation nunca agrega un ID/zona geográfica normalizada', manual && !('id' in manual) && !('zoneId' in manual) && !('rankingLocalZone' in manual), JSON.stringify(manual));
+
     const AFFECTED_KEYS = ['bramulab.users.v1', 'bramulab.session.v1', 'bramulab.currentPlayerName.v1', 'bramulab.playerNames.v1'];
     const snapshot = {};
     AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });

@@ -1,9 +1,9 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.9**  
+**Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
-**Tests al cierre de V04.9:** **1394/1394**  
-**Actualización documental:** 15 de septiembre de 2026
+**Tests al cierre de V04.10:** **1400/1400**  
+**Actualización documental:** 16 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -13,7 +13,7 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 
 ### BRAMUlab V04 — Nivel BRAMU
 
-V04 está implementada hasta **V04.9** sobre la base cerrada V03.10.
+V04 está implementada hasta **V04.10** sobre la base cerrada V03.10.
 
 Documentación de implementación:
 
@@ -125,7 +125,7 @@ La reorganización documental del 15/09/2026 quedó registrada en:
 
 ### Nivel BRAMU
 
-Implementado localmente detrás del flujo/preview vigente hasta V04.9:
+Implementado localmente detrás del flujo/preview vigente hasta V04.10:
 
 - motor matemático puro;
 - elegibilidad, invitados, repetición y círculo competitivo;
@@ -135,7 +135,7 @@ Implementado localmente detrás del flujo/preview vigente hasta V04.9:
 - estados pendiente/calibrando/calibrado;
 - presentación en Home/Perfil/Perfil público;
 - laboratorio de prueba;
-- 1394/1394 tests.
+- 1400/1400 tests.
 
 Todavía no existe backend real multiusuario ni validación productiva con datos reales.
 

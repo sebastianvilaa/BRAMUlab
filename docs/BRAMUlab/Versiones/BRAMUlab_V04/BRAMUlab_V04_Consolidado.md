@@ -1,7 +1,7 @@
 # BRAMUlab_V04
 ## Consolidado — Nivel BRAMU
 
-**Estado:** V04.9 implementada · pulido visual puntual sobre el onboarding y Nivel BRAMU V1 de V04.6-V04.8 — sin tocar la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0` ni el estimador `nivel_inicial_v1_1`. Reorganiza el formulario TU PERFIL (foto + Nombre/Apellido/@usuario agrupados), retira el marcador blanco del medidor (el propio extremo del arco indica la posición), y separa el estado CALIBRANDO del Nivel V1 en Home/MI PERFIL a una fila de ancho completo (nunca una píldora en la columna angosta que ya usa CALIBRADO) — el Perfil público de otro jugador ahora también respeta `PENDIENTE` antes de que esa cuenta confirme su Nivel.  
+**Estado:** V04.10 implementada · último paquete corto de pulido de UX/UI de Nivel sobre V04.6-V04.9 — sin tocar la Fórmula V1.5, `level.js`, `nivel_bramu_v1_0` ni el estimador `nivel_inicial_v1_1`. TU PERFIL revierte a foto centrada arriba (la fila lateral de V04.9 no funcionó visualmente); Fecha de nacimiento + Género comparten fila también en 375px; ubicación obligatoria gana una carga manual mínima (Localidad + Provincia) para cuando el buscador no encuentra nada, sin inventar ningún ID geográfico normalizado; "TU PERFIL ESTÁ LISTO" pasa a "YA CASI ESTAMOS"/"DEFINIR MI NIVEL" mientras el Nivel V1 sigue pendiente de confirmar; último ajuste tipográfico del cuestionario. CALIBRANDO/CALIBRADO (Home/MI PERFIL/Perfil público, cerrado en V04.9) queda sin cambios, verificado sin regresión.  
 **Base cerrada:** `BRAMUlab_V03.10`  
 **Objetivo de V04:** implementar Nivel BRAMU V1 de forma gradual, verificable y reversible, sin reabrir la definición conceptual ya cerrada.
 

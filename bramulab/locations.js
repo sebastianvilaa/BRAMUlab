@@ -191,7 +191,23 @@
     return results;
   }
 
+  /** BRAMUlab_V04.10 (§3) — carga manual mínima cuando el buscador (GeoRef + fallback local) no
+   *  encuentra la localidad del usuario: ubicación sigue siendo obligatoria, nadie puede quedar
+   *  bloqueado por un buscador sin resultados. Devuelve el MISMO shape `{locality, region,
+   *  country}` que `searchLocations`/`searchLocationsRemote` — sin ningún ID/zona geográfica
+   *  normalizada (nunca existió ese campo en este dataset), así que un dato manual no vuelve
+   *  elegible a nadie para un futuro Ranking territorial oficial ni inventa una validación que
+   *  no existe. `null` si falta localidad o provincia (ambas obligatorias para que la etiqueta
+   *  "Localidad, Provincia" tenga sentido, mismo formato que `formatLocationLabel`). */
+  function buildManualLocation(locality, region) {
+    const loc = toTitleCaseEs((locality || '').trim());
+    const reg = toTitleCaseEs((region || '').trim());
+    if (!loc || !reg) return null;
+    return { locality: loc, region: reg, country: COUNTRY };
+  }
+
   global.PLLocations = {
     LOCATIONS, searchLocations, searchLocationsRemote, formatLocationLabel, toTitleCaseEs,
+    buildManualLocation,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
