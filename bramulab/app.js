@@ -8,6 +8,7 @@
   const Store = window.PLStore;
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador) — agregación pura del Home del jugador
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta (email/contraseña/@usuario/edad)
+  const Auth = window.PLAuth; // Backend Bloque 2 — Supabase Auth + RPCs de perfil real (auth.js)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
   const $ = (sel) => document.querySelector(sel);
@@ -6289,16 +6290,46 @@
     $('#access-create-test-user-btn').addEventListener('click', createLabTestUserAndOpenOnboarding);
   }
 
+  const LOGIN_ERROR_TEXT = {
+    invalid_credentials: 'Revisá tu email y contraseña.',
+    email_not_confirmed: 'Todavía no confirmaste tu email — revisá tu casilla.',
+    rate_limited: 'Demasiados intentos. Probá de nuevo en unos minutos.',
+    not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
+    unknown: 'No pudimos iniciar sesión. Probá de nuevo.',
+  };
+
+  /** Backend Bloque 2 — con backend real configurado, el login pasa por Supabase (email/
+   *  contraseña reales, Backend_Infraestructura.md §8.1.5) y el perfil se trae del servidor
+   *  (Auth.fetchOwnProfile) para cachearlo con la misma forma que Store.createUserAccount —
+   *  ver el comentario de auth.js. Si el perfil todavía está incompleto (verificó el email pero
+   *  nunca terminó "TU PERFIL"), retoma ese paso en vez de entrar al Home. Sin backend
+   *  configurado (desarrollo local), sigue el camino 100% local de siempre. */
   function initLoginScreen() {
     $('#login-back-btn').addEventListener('click', () => showView('access'));
     wirePasswordToggle('login-password', 'login-password-toggle');
-    $('#login-form').addEventListener('submit', (e) => {
+    $('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const result = Store.loginWithEmail($('#login-email').value, $('#login-password').value);
-      if (!result.ok) { $('#login-error').hidden = false; return; }
+      const email = $('#login-email').value.trim();
+      const password = $('#login-password').value;
+      if (!Auth.isConfigured()) {
+        const result = Store.loginWithEmail(email, password);
+        if (!result.ok) { $('#login-error').hidden = false; return; }
+        $('#login-error').hidden = true;
+        syncCurrentIdentityFromStore();
+        completeIdentifyAction();
+        return;
+      }
+      const submitBtn = $('#login-form button[type="submit"]');
+      submitBtn.disabled = true;
+      const result = await Auth.signInWithPassword(email, password);
+      submitBtn.disabled = false;
+      if (!result.ok) {
+        $('#login-error').textContent = LOGIN_ERROR_TEXT[result.reason] || LOGIN_ERROR_TEXT.unknown;
+        $('#login-error').hidden = false;
+        return;
+      }
       $('#login-error').hidden = true;
-      syncCurrentIdentityFromStore();
-      completeIdentifyAction();
+      await resumeServerSession({ afterLogin: true });
     });
     // V03.0.3.1 (§1) — "¿Olvidaste tu contraseña?": acción secundaria hacia el wizard de
     // recuperación (#view-forgot-password), sin afectar la sesión ni el intento de login.
@@ -6379,6 +6410,10 @@
     resetForgotPasswordWizard(2);
     forgotPasswordUserId = user.id;
     forgotPasswordEmail = user.email || '';
+    // Backend Bloque 2 — este camino salta directo al paso 2 (código), así que acá es donde
+    // hay que disparar el envío real (el otro camino, #forgot-password-email-submit, lo hace
+    // al tocar "ENVIAR CÓDIGO"). Best-effort: si falla, "REENVIAR" en el paso 2 lo reintenta.
+    if (Auth.isConfigured()) Auth.sendRecoveryOtp(forgotPasswordEmail);
     renderForgotPasswordStep();
     showView('forgot-password');
   }
@@ -6391,17 +6426,40 @@
       else showView('login');
     });
 
-    $('#forgot-password-email-submit').addEventListener('click', () => {
+    $('#forgot-password-email-submit').addEventListener('click', async () => {
       const email = $('#forgot-password-email').value.trim();
-      const user = Store.getUserByEmail(email);
-      // BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — antes este mensaje era un
-      // callejón sin salida: "no encontramos una cuenta" sin ningún camino hacia adelante.
-      // Agrega el CTA "CREAR CUENTA" debajo del mismo error, sin tocar ENVIAR CÓDIGO como
-      // acción principal cuando el email sí existe.
-      if (!user) { $('#forgot-password-email-error').hidden = false; $('#forgot-password-no-account').hidden = false; return; }
+      if (!Auth.isConfigured()) {
+        const user = Store.getUserByEmail(email);
+        // BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — antes este mensaje era un
+        // callejón sin salida: "no encontramos una cuenta" sin ningún camino hacia adelante.
+        // Agrega el CTA "CREAR CUENTA" debajo del mismo error, sin tocar ENVIAR CÓDIGO como
+        // acción principal cuando el email sí existe.
+        if (!user) { $('#forgot-password-email-error').hidden = false; $('#forgot-password-no-account').hidden = false; return; }
+        $('#forgot-password-email-error').hidden = true;
+        $('#forgot-password-no-account').hidden = true;
+        forgotPasswordUserId = user.id;
+        forgotPasswordEmail = email;
+        forgotPasswordStep = 2;
+        renderForgotPasswordStep();
+        return;
+      }
+      // Backend Bloque 2 (Backend_Infraestructura.md §8.1.7) — "las respuestas no revelan si
+      // un email existe": a diferencia del camino local de arriba, acá NUNCA se muestra "no
+      // encontramos una cuenta" — Supabase responde igual exista o no la cuenta, así que
+      // siempre se avanza al paso 2. Un error acá es de verdad (red caída, rate limit), no
+      // "email no encontrado".
+      const submitBtn = $('#forgot-password-email-submit');
+      submitBtn.disabled = true;
+      const result = await Auth.sendRecoveryOtp(email);
+      submitBtn.disabled = false;
+      if (!result.ok && result.reason === 'rate_limited') {
+        $('#forgot-password-email-error').textContent = 'Demasiados intentos. Probá de nuevo en unos minutos.';
+        $('#forgot-password-email-error').hidden = false;
+        $('#forgot-password-no-account').hidden = true;
+        return;
+      }
       $('#forgot-password-email-error').hidden = true;
       $('#forgot-password-no-account').hidden = true;
-      forgotPasswordUserId = user.id;
       forgotPasswordEmail = email;
       forgotPasswordStep = 2;
       renderForgotPasswordStep();
@@ -6409,9 +6467,29 @@
 
     $('#forgot-password-signup-btn').addEventListener('click', openSignupWizard);
 
-    $('#forgot-password-code-submit').addEventListener('click', () => {
+    $('#forgot-password-resend-btn').addEventListener('click', async () => {
+      const result = await Auth.sendRecoveryOtp(forgotPasswordEmail);
+      showToast(result.ok ? 'Código reenviado' : 'No pudimos reenviar el código. Probá de nuevo.');
+    });
+
+    $('#forgot-password-code-submit').addEventListener('click', async () => {
       const code = $('#forgot-password-code').value.trim();
-      if (code !== FORGOT_PASSWORD_CODE) { $('#forgot-password-code-error').hidden = false; return; }
+      if (!Auth.isConfigured()) {
+        if (code !== FORGOT_PASSWORD_CODE) { $('#forgot-password-code-error').hidden = false; return; }
+        $('#forgot-password-code-error').hidden = true;
+        forgotPasswordStep = 3;
+        renderForgotPasswordStep();
+        return;
+      }
+      const submitBtn = $('#forgot-password-code-submit');
+      submitBtn.disabled = true;
+      const result = await Auth.verifyRecoveryOtp(forgotPasswordEmail, code);
+      submitBtn.disabled = false;
+      if (!result.ok) {
+        $('#forgot-password-code-error').textContent = result.reason === 'code_expired' ? 'El código venció — pedí uno nuevo.' : 'Código incorrecto.';
+        $('#forgot-password-code-error').hidden = false;
+        return;
+      }
       $('#forgot-password-code-error').hidden = true;
       forgotPasswordStep = 3;
       renderForgotPasswordStep();
@@ -6421,11 +6499,9 @@
     wirePasswordToggle('forgot-password-repeat', 'forgot-password-repeat-toggle');
     $('#forgot-password-new').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'forgot-password-rules'));
 
-    $('#forgot-password-form').addEventListener('submit', (e) => {
+    $('#forgot-password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (forgotPasswordStep !== 3) return;
-      const user = forgotPasswordUserId ? Store.getUserById(forgotPasswordUserId) : null;
-      if (!user) { showView(forgotPasswordOrigin === 'session' ? 'profile' : 'login'); return; }
       const next = $('#forgot-password-new').value;
       const repeat = $('#forgot-password-repeat').value;
       const strength = PLI.checkPasswordStrength(next);
@@ -6433,20 +6509,42 @@
       if (!strength.ok) error = 'La nueva contraseña todavía no cumple los requisitos.';
       else if (!PLI.passwordsMatch(next, repeat)) error = 'Las contraseñas no coinciden.';
       if (error) { $('#forgot-password-new-error').textContent = error; $('#forgot-password-new-error').hidden = false; return; }
-      // Regla crítica (§3) — un único campo cambia: `password`. userId/email/username/
-      // displayName/foto/historial/notificaciones quedan intactos porque nunca se tocan.
-      Store.updateUserAccount(user.id, { password: next });
-      if (forgotPasswordOrigin === 'session') {
-        // V03.0.3.2 (§3) — la sesión sigue siendo válida (mismo userId, nunca se toca
-        // SESSION/CURRENT_PLAYER): nunca se obliga a loguear de nuevo. Vuelve a MIS DATOS.
-        showView('profile');
-      } else {
-        $('#login-email').value = forgotPasswordEmail;
-        $('#login-password').value = '';
-        $('#login-error').hidden = true;
-        showView('login');
+
+      if (!Auth.isConfigured()) {
+        const user = forgotPasswordUserId ? Store.getUserById(forgotPasswordUserId) : null;
+        if (!user) { showView(forgotPasswordOrigin === 'session' ? 'profile' : 'login'); return; }
+        // Regla crítica (§3) — un único campo cambia: `password`. userId/email/username/
+        // displayName/foto/historial/notificaciones quedan intactos porque nunca se tocan.
+        Store.updateUserAccount(user.id, { password: next });
+        if (forgotPasswordOrigin === 'session') {
+          // V03.0.3.2 (§3) — la sesión sigue siendo válida (mismo userId, nunca se toca
+          // SESSION/CURRENT_PLAYER): nunca se obliga a loguear de nuevo. Vuelve a MIS DATOS.
+          showView('profile');
+        } else {
+          $('#login-email').value = forgotPasswordEmail;
+          $('#login-password').value = '';
+          $('#login-error').hidden = true;
+          showView('login');
+        }
+        showToast('Contraseña actualizada');
+        return;
+      }
+
+      // Backend Bloque 2 — verifyRecoveryOtp (paso anterior) ya dejó una sesión real activa;
+      // updateUser la usa directo, sin pedir la contraseña actual (es justamente el camino para
+      // cuando no se la recuerda).
+      const submitBtn = $('#forgot-password-form button[type="submit"]');
+      submitBtn.disabled = true;
+      const result = await Auth.updatePassword(next);
+      submitBtn.disabled = false;
+      if (!result.ok) {
+        $('#forgot-password-new-error').textContent = 'No pudimos actualizar la contraseña. Probá de nuevo.';
+        $('#forgot-password-new-error').hidden = false;
+        return;
       }
       showToast('Contraseña actualizada');
+      if (forgotPasswordOrigin === 'session') showView('profile');
+      else await resumeServerSession({ afterLogin: true });
     });
   }
 
@@ -6478,7 +6576,10 @@
   // BRAMUlab_V04.8 (§4) — TU IDENTIDAD + TU PERFIL se fusionan en un solo paso "TU PERFIL"
   // (antes 2 y 3): el usuario completa un solo perfil, no una secuencia artificial de 3
   // pantallas. CREAR CUENTA sigue aparte (acceso: email/contraseña, no datos de perfil).
-  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU PERFIL' };
+  // Backend Bloque 2 — paso 'verify' nuevo entre 1 y 2: con backend real, el email verificado
+  // es obligatorio (Backend_Infraestructura.md §8.1) antes de poder completar el perfil.
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', verify: 'CONFIRMÁ TU EMAIL', 2: 'TU PERFIL' };
+  const SIGNUP_STEP_ORDER = [1, 'verify', 2];
 
   function resetSignupWizard() {
     signupStep = 1;
@@ -6492,6 +6593,9 @@
     delete $('#signup-username').dataset.touched;
     resetOptionGroup('signup-hand-options');
     resetOptionGroup('signup-side-options');
+    resetOptionGroup('signup-branch-options');
+    $('#signup-verify-code').value = '';
+    $('#signup-verify-error').hidden = true;
     // BRAMUlab_V04.6 — ubicación pasa a ser obligatoria del alta (ver Handoff V04.6 §4).
     // BRAMUlab_V04.9 (§3) — "Elegir ubicación" en vez de un simple "—": la fila ahora se ve
     // enmarcada como un campo real (ver #signup-location-row en styles.css), un placeholder
@@ -6512,9 +6616,12 @@
   }
 
   function renderSignupStep() {
-    $all('#signup-form .signup-step').forEach((el) => { el.hidden = Number(el.dataset.step) !== signupStep; });
+    // dataset.step es siempre string ("1"/"verify"/"2") — comparar contra String(signupStep)
+    // en vez de Number(...) porque 'verify' no es numérico (Number('verify') es NaN).
+    $all('#signup-form .signup-step').forEach((el) => { el.hidden = el.dataset.step !== String(signupStep); });
     $('#signup-step-title').textContent = SIGNUP_STEP_TITLES[signupStep];
-    $('#signup-continue-btn').textContent = signupStep === 2 ? 'CREAR MI PERFIL' : 'CONTINUAR';
+    $('#signup-continue-btn').textContent = signupStep === 2 ? 'CREAR MI PERFIL' : signupStep === 'verify' ? 'CONFIRMAR CÓDIGO' : 'CONTINUAR';
+    if (signupStep === 'verify') $('#signup-verify-email').textContent = signupDraft.email || 'tu email';
     recomputeSignupStepValidity();
   }
 
@@ -6533,34 +6640,60 @@
       const password = $('#signup-password').value;
       const repeat = $('#signup-password-repeat').value;
       const strength = updatePasswordRulesUI(password, 'signup-password-rules');
-      ok = PLI.isValidEmail(email) && !PLI.isEmailTaken(email, Store.loadUsers()) && strength.ok && PLI.passwordsMatch(password, repeat);
+      // Backend Bloque 2 — con backend real, "email ya usado" lo decide Supabase al hacer
+      // signUp (ver initSignupWizard: mapea 'email_taken'), no la lista local: esa lista local
+      // solo tiene sentido en el camino sin backend (desarrollo local).
+      const emailAvailable = Auth.isConfigured() || !PLI.isEmailTaken(email, Store.loadUsers());
+      ok = PLI.isValidEmail(email) && emailAvailable && strength.ok && PLI.passwordsMatch(password, repeat);
+    } else if (signupStep === 'verify') {
+      ok = /^[0-9]{6}$/.test($('#signup-verify-code').value.trim());
     } else if (signupStep === 2) {
       // BRAMUlab_V04.8 (§4) — validación fusionada de TU IDENTIDAD + TU PERFIL (antes 2 pasos).
       // BRAMUlab_V04.6 — Categoría no forma parte de esta validación: ya no se pregunta en el
       // alta (ver Handoff V04.6 §4), se pregunta una sola vez al final de Nivel BRAMU. Ubicación
       // es obligatoria (antes era la única opcional del paso 3).
+      // Backend Bloque 2 (Backend_Infraestructura.md §5.4) — rama competitiva, obligatoria.
       const username = $('#signup-username').value;
       const displayName = $('#signup-display-name').value.trim();
+      const usernameAvailable = Auth.isConfigured() || !PLI.isUsernameTaken(username, Store.loadUsers());
       ok = !!$('#signup-first-name').value.trim() && !!displayName
-        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameTaken(username, Store.loadUsers())
+        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameReserved(username) && usernameAvailable
         && !!$('#signup-birthdate').value && !!$('#signup-gender').value
-        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!signupDraft.location;
+        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!signupDraft.competitiveBranch && !!signupDraft.location;
     }
     $('#signup-continue-btn').disabled = !ok;
     return ok;
   }
 
+  // Backend Bloque 2 — token de carrera para el chequeo async de abajo: si el usuario sigue
+  // tipeando, la respuesta de una consulta vieja al servidor nunca debe pisar el feedback de la
+  // consulta más nueva (mismo problema que ya resuelve profileLocationSearchController con
+  // AbortController para la búsqueda de ubicación, acá con un contador simple porque
+  // is_username_available es una sola llamada RPC, no una búsqueda cancelable).
+  let usernameFeedbackToken = 0;
+
   function renderUsernameFeedback(inputId, feedbackId, excludeUserId) {
     const username = $(`#${inputId}`).value.trim();
     const el = $(`#${feedbackId}`);
+    usernameFeedbackToken += 1;
     if (!username) { el.textContent = ''; el.classList.remove('is-taken'); return; }
-    if (!PLI.isValidUsernameFormat(username)) { el.textContent = 'Entre 3 y 20 caracteres, sin espacios.'; el.classList.add('is-taken'); return; }
+    if (!PLI.isValidUsernameFormat(username)) { el.textContent = 'Entre 3 y 24 caracteres: minúsculas, números, punto o guion bajo.'; el.classList.add('is-taken'); return; }
+    if (PLI.isUsernameReserved(username)) { el.textContent = '! Ese @usuario no está disponible'; el.classList.add('is-taken'); return; }
+    // Backend Bloque 2 — con backend real y sesión activa, la lista local (Store.loadUsers())
+    // nunca tiene cuentas reales: el chequeo que importa es el del servidor (is_username_available,
+    // ver más abajo). Sin sesión (paso 1/verify del alta todavía no terminaron) ni backend
+    // configurado, sigue el chequeo local de siempre.
     const taken = PLI.isUsernameTaken(username, Store.loadUsers(), excludeUserId);
-    // V03.0.1 (§2) — feedback más claro (✓/!), pedido puntualmente para Editar Datos pero
-    // esta función es compartida con el signup (step 2) — misma mejora ahí también,
-    // consistencia justificada, sin lógica nueva.
     el.textContent = taken ? '! Ya está en uso' : '✓ Disponible';
     el.classList.toggle('is-taken', taken);
+    if (!taken && Auth.isConfigured()) {
+      const token = usernameFeedbackToken;
+      Auth.isUsernameAvailable(username).then((available) => {
+        if (token !== usernameFeedbackToken || available === null) return; // hay una consulta más nueva, o falló la red
+        el.textContent = available ? '✓ Disponible' : '! Ya está en uso';
+        el.classList.toggle('is-taken', !available);
+      });
+    }
   }
 
   /** Consolidado §2 Paso 2 — mientras el usuario no haya tocado @usuario a mano, se le
@@ -6619,12 +6752,42 @@
     });
   }
 
+  const SIGNUP_VERIFY_ERROR_TEXT = {
+    code_invalid: 'Código incorrecto.',
+    code_expired: 'El código venció — pedí uno nuevo.',
+    rate_limited: 'Demasiados intentos. Probá de nuevo en unos minutos.',
+    not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
+    unknown: 'No pudimos confirmar el código. Probá de nuevo.',
+  };
+  const SIGNUP_STEP1_ERROR_TEXT = {
+    email_taken: 'Ese email ya tiene una cuenta — iniciá sesión.',
+    rate_limited: 'Demasiados intentos. Probá de nuevo en unos minutos.',
+    not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
+    unknown: 'No pudimos crear la cuenta. Probá de nuevo.',
+  };
+  const COMPLETE_PROFILE_ERROR_TEXT = {
+    username_invalid_format: 'Ese @usuario no tiene un formato válido.',
+    username_reserved: 'Ese @usuario no está disponible.',
+    username_taken: 'Ese @usuario ya está en uso.',
+    username_locked: 'Tu @usuario ya quedó fijo y no se puede cambiar.',
+    competitive_branch_invalid: 'Elegí tu rama competitiva.',
+    location_required: 'Elegí tu ubicación.',
+    not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
+    unknown: 'No pudimos guardar tu perfil. Probá de nuevo.',
+  };
+
   function initSignupWizard() {
     $('#signup-back-btn').addEventListener('click', () => {
-      if (signupStep > 1) { signupStep -= 1; renderSignupStep(); } else showView('access');
+      const idx = SIGNUP_STEP_ORDER.indexOf(signupStep);
+      if (idx > 0) { signupStep = SIGNUP_STEP_ORDER[idx - 1]; renderSignupStep(); } else showView('access');
     });
     ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
+    });
+    $('#signup-verify-code').addEventListener('input', recomputeSignupStepValidity);
+    $('#signup-verify-resend-btn').addEventListener('click', async () => {
+      const result = await Auth.resendSignupOtp(signupDraft.email);
+      showToast(result.ok ? 'Código reenviado' : (SIGNUP_VERIFY_ERROR_TEXT[result.reason] || SIGNUP_VERIFY_ERROR_TEXT.unknown));
     });
     // V03.0.2 (§9/§11) — mismo componente de ojo mostrar/ocultar que Login/Completar
     // Acceso/Cambiar contraseña ("Signup donde corresponda").
@@ -6643,6 +6806,7 @@
     });
     wireOptionGroup('signup-hand-options', (v) => { signupDraft.dominantHand = v; recomputeSignupStepValidity(); });
     wireOptionGroup('signup-side-options', (v) => { signupDraft.preferredSide = v; recomputeSignupStepValidity(); });
+    wireOptionGroup('signup-branch-options', (v) => { signupDraft.competitiveBranch = v; recomputeSignupStepValidity(); });
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — reutiliza la MISMA hoja de
     // búsqueda GeoRef que Editar Datos (openProfileLocationSheet, generalizada arriba), con un
     // target propio (signupDraft.location) en vez de duplicar sheet/búsqueda. Opcional: nunca
@@ -6661,36 +6825,83 @@
       setAvatarPreview('signup-avatar-img', 'signup-avatar-initials', signupPhotoDataUrl);
     });
 
-    $('#signup-continue-btn').addEventListener('click', () => {
+    $('#signup-continue-btn').addEventListener('click', async () => {
       if (!recomputeSignupStepValidity()) return;
+      const continueBtn = $('#signup-continue-btn');
+
       if (signupStep === 1) {
         signupDraft.email = $('#signup-email').value.trim();
         signupDraft.password = $('#signup-password').value;
+        if (!Auth.isConfigured()) { signupStep = 2; renderSignupStep(); return; }
+        continueBtn.disabled = true;
+        const result = await Auth.signUp(signupDraft.email, signupDraft.password);
+        continueBtn.disabled = false;
+        if (!result.ok) {
+          $('#signup-step1-error').textContent = SIGNUP_STEP1_ERROR_TEXT[result.reason] || SIGNUP_STEP1_ERROR_TEXT.unknown;
+          $('#signup-step1-error').hidden = false;
+          return;
+        }
+        $('#signup-step1-error').hidden = true;
+        signupStep = 'verify';
+        renderSignupStep();
+        return;
+      }
+
+      if (signupStep === 'verify') {
+        continueBtn.disabled = true;
+        const result = await Auth.verifySignupOtp(signupDraft.email, $('#signup-verify-code').value.trim());
+        continueBtn.disabled = false;
+        if (!result.ok) {
+          $('#signup-verify-error').textContent = SIGNUP_VERIFY_ERROR_TEXT[result.reason] || SIGNUP_VERIFY_ERROR_TEXT.unknown;
+          $('#signup-verify-error').hidden = false;
+          return;
+        }
+        $('#signup-verify-error').hidden = true;
         signupStep = 2;
         renderSignupStep();
-      } else {
-        // BRAMUlab_V04.8 (§4) — paso único "TU PERFIL" (antes TU IDENTIDAD + TU PERFIL por
-        // separado): junta los mismos campos de siempre en un solo guardado.
-        signupDraft.firstName = $('#signup-first-name').value.trim();
-        signupDraft.lastName = $('#signup-last-name').value.trim();
-        signupDraft.username = $('#signup-username').value.trim();
-        signupDraft.displayName = normalizePlayerName($('#signup-display-name').value);
-        signupDraft.profilePhoto = signupPhotoDataUrl;
-        signupDraft.birthDate = $('#signup-birthdate').value;
-        signupDraft.gender = $('#signup-gender').value;
-        // BRAMUlab_V04.6 — Categoría YA NO se declara acá (sale del alta, ver Handoff V04.6
-        // §4): queda `null` hasta que el onboarding de Nivel BRAMU la pregunte como último
-        // paso y la guarde en este MISMO campo (`completeNivelCategoryStep` en este archivo) —
-        // nunca dos categorías independientes.
-        // BRAMUlab_V04.6 — ubicación ya es obligatoria (recomputeSignupStepValidity lo exige):
-        // `signupDraft.location` siempre existe acá.
-        signupDraft.locality = signupDraft.location ? signupDraft.location.locality : null;
-        signupDraft.region = signupDraft.location ? signupDraft.location.region : null;
-        signupDraft.country = signupDraft.location ? signupDraft.location.country : null;
+        return;
+      }
+
+      // BRAMUlab_V04.8 (§4) — paso único "TU PERFIL" (antes TU IDENTIDAD + TU PERFIL por
+      // separado): junta los mismos campos de siempre en un solo guardado.
+      signupDraft.firstName = $('#signup-first-name').value.trim();
+      signupDraft.lastName = $('#signup-last-name').value.trim();
+      signupDraft.username = $('#signup-username').value.trim();
+      signupDraft.displayName = normalizePlayerName($('#signup-display-name').value);
+      signupDraft.profilePhoto = signupPhotoDataUrl;
+      signupDraft.birthDate = $('#signup-birthdate').value;
+      signupDraft.gender = $('#signup-gender').value;
+      // BRAMUlab_V04.6 — Categoría YA NO se declara acá (sale del alta, ver Handoff V04.6
+      // §4): queda `null` hasta que el onboarding de Nivel BRAMU la pregunte como último
+      // paso y la guarde en este MISMO campo (`completeNivelCategoryStep` en este archivo) —
+      // nunca dos categorías independientes.
+      // BRAMUlab_V04.6 — ubicación ya es obligatoria (recomputeSignupStepValidity lo exige):
+      // `signupDraft.location` siempre existe acá.
+      signupDraft.locality = signupDraft.location ? signupDraft.location.locality : null;
+      signupDraft.region = signupDraft.location ? signupDraft.location.region : null;
+      signupDraft.country = signupDraft.location ? signupDraft.location.country : null;
+
+      if (!Auth.isConfigured()) {
         const user = Store.signUpAndLogin(signupDraft);
         syncCurrentIdentityFromStore();
         openPlayerCardScreen(user);
+        return;
       }
+
+      continueBtn.disabled = true;
+      const completeResult = await Auth.completeProfile(signupDraft);
+      if (!completeResult.ok) {
+        continueBtn.disabled = false;
+        $('#signup-step2-error').textContent = COMPLETE_PROFILE_ERROR_TEXT[completeResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown;
+        $('#signup-step2-error').hidden = false;
+        return;
+      }
+      $('#signup-step2-error').hidden = true;
+      const serverUser = await Auth.fetchOwnProfile();
+      continueBtn.disabled = false;
+      Store.cacheServerUser(serverUser);
+      syncCurrentIdentityFromStore();
+      openPlayerCardScreen(serverUser);
     });
   }
 
@@ -7192,7 +7403,7 @@
     // V03.0.3.2 (§1/§2) — camino B para quien no recuerda la actual: mismo wizard de
     // recuperación, arrancando directo en el código (sin pedir email de nuevo).
     $('#change-password-forgot-btn').addEventListener('click', openForgotPasswordFromSession);
-    $('#change-password-form').addEventListener('submit', (e) => {
+    $('#change-password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
       if (!user) { showView('profile'); return; }
@@ -7201,11 +7412,45 @@
       const repeat = $('#change-password-repeat').value;
       const strength = PLI.checkPasswordStrength(next);
       let error = null;
-      if ((user.password || '') !== current) error = 'La contraseña actual no es correcta.';
+      // Backend Bloque 2 — para una cuenta real, `user.password` siempre es null (auth.js nunca
+      // guarda la contraseña real, ver fetchOwnProfile): la comparación en texto plano de abajo
+      // solo tiene sentido para el camino local sin backend. La verificación real de "contraseña
+      // actual correcta" pasa por re-autenticar contra Supabase (más abajo).
+      if (!user.serverBacked && (user.password || '') !== current) error = 'La contraseña actual no es correcta.';
       else if (!strength.ok) error = 'La nueva contraseña todavía no cumple los requisitos.';
       else if (!PLI.passwordsMatch(next, repeat)) error = 'Las contraseñas nuevas no coinciden.';
       if (error) { $('#change-password-error').textContent = error; $('#change-password-error').hidden = false; return; }
-      Store.updateUserAccount(user.id, { password: next });
+
+      if (!user.serverBacked) {
+        Store.updateUserAccount(user.id, { password: next });
+        Store.addNotification({
+          userId: user.id, type: 'password_updated', category: 'info',
+          title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
+        });
+        renderNotificationsBadge();
+        showView('profile');
+        showToast('Contraseña actualizada');
+        return;
+      }
+
+      const submitBtn = $('#change-password-form button[type="submit"]');
+      submitBtn.disabled = true;
+      // Re-autentica con la contraseña actual (única forma de confirmarla contra Supabase, que
+      // no expone un endpoint de "verificar contraseña" aparte) antes de fijar la nueva.
+      const reauth = await Auth.signInWithPassword(user.email, current);
+      if (!reauth.ok) {
+        submitBtn.disabled = false;
+        $('#change-password-error').textContent = 'La contraseña actual no es correcta.';
+        $('#change-password-error').hidden = false;
+        return;
+      }
+      const result = await Auth.updatePassword(next);
+      submitBtn.disabled = false;
+      if (!result.ok) {
+        $('#change-password-error').textContent = 'No pudimos actualizar la contraseña. Probá de nuevo.';
+        $('#change-password-error').hidden = false;
+        return;
+      }
       Store.addNotification({
         userId: user.id, type: 'password_updated', category: 'info',
         title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
@@ -7232,6 +7477,11 @@
     $('#logout-confirm-modal').hidden = false;
   }
   function doLogout() {
+    // Backend Bloque 2 — best-effort: invalida la sesión real en Supabase (revoca el refresh
+    // token) sin bloquear la salida local, que sigue siendo instantánea como siempre. Si falla
+    // (sin red), la sesión del servidor igual expira sola; nunca deja a alguien "trabado" sin
+    // poder cerrar sesión localmente por un problema de conexión.
+    if (Auth.isConfigured()) Auth.signOut();
     Store.logoutSession();
     currentPlayerName = null;
     currentUserId = null;
@@ -10368,7 +10618,19 @@
     updateProfileSelectRowDisplay('side');
     updateProfileSelectRowDisplay('category');
     updateProfileLocationRowDisplay();
-    $('#profile-edit-error').hidden = true;
+    // Backend Bloque 2 — esta pantalla todavía escribe SOLO en el caché local
+    // (Store.updateUserAccount): para una cuenta real, guardar acá se vería como que funcionó
+    // pero se perdería en el próximo login/recarga (Auth.fetchOwnProfile pisa el caché con lo
+    // que de verdad hay en el servidor). Mejor bloquear el guardado con un aviso claro que
+    // dejar creer que el cambio quedó — wiring completo de esta pantalla queda para una ronda
+    // aparte (fuera del alcance de Bloque 2: varios campos de acá, como teléfono/WhatsApp o
+    // avatar, ni siquiera existen todavía en Backend_Infraestructura.md §6.1).
+    const editingDisabled = !!user.serverBacked;
+    $('#profile-edit-error').textContent = editingDisabled
+      ? 'La edición de perfil para cuentas reales todavía no está conectada al servidor — vuelve en una próxima actualización.'
+      : '';
+    $('#profile-edit-error').hidden = !editingDisabled;
+    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = editingDisabled; });
     showView('edit-data');
   }
 
@@ -10477,14 +10739,21 @@
     wrap.innerHTML = results.map((loc) => {
       const label = PLLocations.formatLocationLabel(loc);
       const selected = !!current && current.locality === loc.locality && current.region === loc.region;
-      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region || '')}" data-country="${escapeHtml(loc.country || '')}">
+      // Backend Bloque 2 — localityId/provinceId (GeoRef) viajan como data-* además de
+      // locality/region/country, para que el click de abajo los pueda reconstruir: son lo único
+      // que distingue una ubicación GeoRef real de una manual (ver find-or-create de
+      // complete_profile en supabase/migrations/20260916180000_...sql).
+      return `<button type="button" class="picker-sheet-option${selected ? ' is-selected' : ''}" data-locality="${escapeHtml(loc.locality)}" data-region="${escapeHtml(loc.region || '')}" data-country="${escapeHtml(loc.country || '')}" data-locality-id="${escapeHtml(loc.localityId || '')}" data-province-id="${escapeHtml(loc.provinceId || '')}">
         <span>${escapeHtml(label)}</span>
         ${selected ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
       </button>`;
     }).join('');
     $all('#profile-location-list .picker-sheet-option').forEach((btn) => {
       btn.addEventListener('click', () => {
-        activeLocationTarget.set({ locality: btn.dataset.locality, region: btn.dataset.region || null, country: btn.dataset.country || null });
+        activeLocationTarget.set({
+          locality: btn.dataset.locality, region: btn.dataset.region || null, country: btn.dataset.country || null,
+          localityId: btn.dataset.localityId || null, provinceId: btn.dataset.provinceId || null,
+        });
         activeLocationTarget.onSelect();
         closeProfileLocationSheet();
       });
@@ -10620,6 +10889,10 @@
       e.preventDefault();
       const user = Store.getCurrentUser();
       if (!user) { showView('profile'); return; }
+      // Backend Bloque 2 — defensa en profundidad además del botón deshabilitado en
+      // openProfileEditModal: nunca escribir el caché local de una cuenta real con datos que el
+      // servidor no tiene (se perderían en el próximo Auth.fetchOwnProfile).
+      if (user.serverBacked) return;
       const username = $('#profile-edit-username').value.trim();
       const displayName = normalizePlayerName($('#profile-edit-display-name').value);
       const firstName = $('#profile-edit-first-name').value.trim();
@@ -10992,6 +11265,53 @@
     openPlayerHome();
   }
 
+  /** Backend Bloque 2 — retoma "TU PERFIL" (paso 2 del signup) para una cuenta que ya verificó
+   *  su email pero cerró la app antes de terminar el alta: ya hay sesión real, así que los
+   *  pasos 1/verify no aplican (`resetSignupWizard` + forzar signupStep=2 directo). */
+  function resumeSignupProfileStep(serverUser) {
+    resetSignupWizard();
+    signupDraft.email = serverUser.email;
+    signupStep = 2;
+    renderSignupStep();
+    showView('signup');
+  }
+
+  /** Backend Bloque 2 — hidrata Store con el perfil real del servidor (Auth.fetchOwnProfile,
+   *  misma forma que Store.createUserAccount, ver auth.js) y decide a dónde entrar: perfil
+   *  incompleto retoma "TU PERFIL"; perfil completo sigue el camino de siempre —
+   *  completeIdentifyAction() si viene de un login recién hecho, bootDefaultScreen() si viene
+   *  de restaurar una sesión ya existente al abrir la app (Backend_Infraestructura.md §8.1: "el
+   *  login acepta... entrar desde otro dispositivo"). */
+  async function resumeServerSession(opts) {
+    const options = opts || {};
+    const serverUser = await Auth.fetchOwnProfile();
+    if (!serverUser) {
+      if (options.afterLogin) {
+        $('#login-error').textContent = LOGIN_ERROR_TEXT.unknown;
+        $('#login-error').hidden = false;
+      } else {
+        bootDefaultScreen();
+      }
+      return;
+    }
+    Store.cacheServerUser(serverUser);
+    syncCurrentIdentityFromStore();
+    if (!serverUser.username) { resumeSignupProfileStep(serverUser); return; }
+    if (options.afterLogin) completeIdentifyAction(); else bootDefaultScreen();
+  }
+
+  /** Único punto de entrada al arranque (reemplaza el `bootDefaultScreen()` directo de antes):
+   *  sin backend configurado (desarrollo local) o sin sesión activa, el arranque es IDÉNTICO al
+   *  de siempre. Con una sesión real ya guardada por el navegador (Supabase persiste el token,
+   *  `persistSession:true` en auth.js), la reconoce sin pedir login de nuevo — "entrar desde
+   *  otro dispositivo"/entre recargas de Backend_Infraestructura.md §15 Bloque 2. */
+  async function bootWithServerSession() {
+    if (!Auth.isConfigured()) { bootDefaultScreen(); return; }
+    const session = await Auth.getSession();
+    if (!session) { bootDefaultScreen(); return; }
+    await resumeServerSession({ afterLogin: false });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     // V03.0 (§8) — migración/bootstrap una sola vez, ANTES de cualquier init/render: si este
     // dispositivo ya tenía un jugador identificado antes de V03.0, queda logueado de
@@ -11049,7 +11369,7 @@
     // BRAMUlab_V04.5 — refleja un preview ya prendido de una sesión anterior (el ícono del
     // header debe verse activo desde el primer render, no recién tras el próximo toggle).
     refreshLabPreviewUI();
-    bootDefaultScreen();
+    bootWithServerSession();
     registerServiceWorker();
   });
 

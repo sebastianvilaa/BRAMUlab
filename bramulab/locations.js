@@ -168,12 +168,18 @@
    *  cuando el usuario ya tipeó una nueva, para no pintar una respuesta fuera de orden). Nunca
    *  atrapa errores acá adentro — los deja subir tal cual (red caída, timeout, HTTP no-2xx) para
    *  que quien llama decida el fallback (§8: "no inventar resultados"), esta función solo sabe
-   *  pedir y traducir la forma de la respuesta. */
+   *  pedir y traducir la forma de la respuesta.
+   *  Backend Bloque 2 (Backend_Infraestructura.md §5.3, "usar identificadores... canónicos de
+   *  GeoRef cuando corresponda") — `campos` ahora pide también `id` (de la localidad; el de la
+   *  provincia ya viene incluido por default dentro de `provincia`), expuestos acá como
+   *  `localityId`/`provinceId`. Son los únicos datos que permiten al backend distinguir una
+   *  ubicación GeoRef real de una manual (ver find-or-create de `complete_profile`) — sin
+   *  romper compatibilidad: siguen estando `locality`/`region`/`country` de siempre. */
   async function searchLocationsRemote(query, options) {
     const opts = options || {};
     const q = (query || '').trim();
     if (!q) return [];
-    const url = `${GEOREF_URL}?nombre=${encodeURIComponent(q)}&max=${opts.max || GEOREF_MAX_RESULTS}&campos=nombre,provincia&orden=nombre`;
+    const url = `${GEOREF_URL}?nombre=${encodeURIComponent(q)}&max=${opts.max || GEOREF_MAX_RESULTS}&campos=id,nombre,provincia&orden=nombre`;
     const res = await fetch(url, { signal: opts.signal });
     if (!res.ok) throw new Error(`georef-http-${res.status}`);
     const data = await res.json();
@@ -186,7 +192,11 @@
       const key = normalizeText(`${locality} ${region || ''}`);
       if (seen.has(key)) return;
       seen.add(key);
-      results.push({ locality, region, country: COUNTRY });
+      results.push({
+        locality, region, country: COUNTRY,
+        localityId: loc.id || null,
+        provinceId: (loc.provincia && loc.provincia.id) || null,
+      });
     });
     return results;
   }

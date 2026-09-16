@@ -2203,6 +2203,7 @@
           <div class="field field--labeled"><label class="field-label" for="forgot-password-code">Código</label><input id="forgot-password-code" class="field__input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></div>
           <p class="edit-error" id="forgot-password-code-error" hidden>Código incorrecto.</p>
           <button type="button" id="forgot-password-code-submit" class="btn-start btn-save">VALIDAR CÓDIGO</button>
+          <button type="button" id="forgot-password-resend-btn" class="link-btn">Reenviar código</button>
         </div>
 
         <div class="forgot-password-step" data-step="3" hidden>
@@ -2268,6 +2269,19 @@
           <p class="edit-error" id="signup-step1-error" hidden></p>
         </div>
 
+        <!-- Backend Bloque 2 (Backend_Infraestructura.md §8.1) — email verificado obligatorio
+             antes de poder completar el perfil: paso nuevo, inevitable en cuanto el alta pasa a
+             ser real (antes, sin backend, la cuenta se creaba y logueaba en el mismo instante).
+             Mismo patrón de código de 6 dígitos que #view-forgot-password (nunca un link de
+             confirmación con redirect: ver auth.js, detectSessionInUrl:false) — así la persona
+             nunca sale de esta pantalla para confirmar su cuenta. -->
+        <div class="signup-step" data-step="verify" hidden>
+          <p class="access-subtitle">Te enviamos un código de 6 dígitos a <strong id="signup-verify-email">tu email</strong>. Ingresalo para confirmar tu cuenta.</p>
+          <div class="field field--labeled"><label class="field-label" for="signup-verify-code">Código</label><input id="signup-verify-code" class="field__input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></div>
+          <p class="edit-error" id="signup-verify-error" hidden></p>
+          <button type="button" id="signup-verify-resend-btn" class="link-btn">Reenviar código</button>
+        </div>
+
         <!-- BRAMUlab_V04.8 (§4) — fusión de TU IDENTIDAD + TU PERFIL: mismos campos de siempre,
              mismo orden recomendado (foto → nombre → apellido → @usuario → nombre visible →
              fecha de nacimiento → género → mano hábil → lado habitual → ubicación), ahora en
@@ -2291,7 +2305,7 @@
           <div class="field field--labeled"><label class="field-label" for="signup-last-name">Apellido</label><input id="signup-last-name" class="field__input" type="text" maxlength="18" /></div>
           <div class="field field--labeled">
             <label class="field-label" for="signup-username">@usuario</label>
-            <input id="signup-username" class="field__input" type="text" maxlength="20" />
+            <input id="signup-username" class="field__input" type="text" maxlength="24" />
             <p class="signup-username-feedback" id="signup-username-feedback"></p>
           </div>
           <div class="field field--labeled">
@@ -2330,6 +2344,17 @@
               <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
               <button type="button" class="option-col" data-value="reves" role="radio" aria-checked="false">Revés</button>
               <button type="button" class="option-col" data-value="indiferente" role="radio" aria-checked="false">Indiferente</button>
+            </div>
+          </div>
+          <!-- Backend Bloque 2 (Backend_Infraestructura.md §5.4) — rama competitiva: campo
+               nuevo, separado del género personal de arriba y obligatorio para Ranking. Nunca se
+               deriva automáticamente del género — el usuario la elige explícitamente, mismo
+               patrón visual que Mano hábil/Lado habitual. -->
+          <div class="setup-section">
+            <div class="setup-section__title">Rama competitiva</div>
+            <div class="option-row" role="radiogroup" aria-label="Rama competitiva" id="signup-branch-options">
+              <button type="button" class="option-col" data-value="F" role="radio" aria-checked="false">Femenina</button>
+              <button type="button" class="option-col" data-value="M" role="radio" aria-checked="false">Masculina</button>
             </div>
           </div>
           <!-- BRAMUlab_V04.6 — Categoría sale del alta: se pregunta una sola vez, como último
@@ -2588,7 +2613,7 @@
         <div class="field field--labeled"><label class="field-label" for="profile-edit-last-name">Apellido</label><input id="profile-edit-last-name" class="field__input" type="text" maxlength="18" /></div>
         <div class="field field--labeled">
           <label class="field-label" for="profile-edit-username">@usuario</label>
-          <input id="profile-edit-username" class="field__input" type="text" maxlength="20" />
+          <input id="profile-edit-username" class="field__input" type="text" maxlength="24" />
           <p class="signup-username-feedback" id="profile-edit-username-feedback"></p>
         </div>
         <div class="field field--labeled">
@@ -3065,24 +3090,36 @@
 
   <!-- V03.1.6 — "?v=X" acá también (ver nota junto a styles.css más arriba): mismo cache-busting,
        mismo motivo, bumpear siempre junto con esa. -->
-  <script src="engine.js?v=04.10"></script>
-  <script src="stats.js?v=04.10"></script>
-  <script src="store.js?v=04.10"></script>
+  <!-- Backend Bloque 2 — cliente de Supabase Auth vía CDN (sin bundler en este proyecto, ver
+       docs/BRAMUlab/Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md Bloque 2). `env.
+       generated.js` lo genera bramulab/scripts/build-env.mjs (Bloque 1) SOLO en un build real de
+       Vercel — en desarrollo local (.claude/dev-server.py) no existe, el <script> simplemente da
+       404 y auth.js queda "no configurado" sin romper nada (mismo criterio que ya usa health.js:
+       nunca falla la app entera por faltar backend). Nunca se agrega SUPABASE_SERVICE_ROLE_KEY
+       acá ni a ningún archivo que llegue al navegador. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="env.generated.js"></script>
+  <script src="engine.js?v=04.10-h1"></script>
+  <script src="stats.js?v=04.10-h1"></script>
+  <script src="store.js?v=04.10-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.10"></script>
-  <script src="level-context.js?v=04.10"></script>
-  <script src="level-calibration.js?v=04.10"></script>
-  <script src="player-home.js?v=04.10"></script>
-  <script src="match-load.js?v=04.10"></script>
-  <script src="player-identity.js?v=04.10"></script>
-  <script src="groups.js?v=04.10"></script>
-  <script src="locations.js?v=04.10"></script>
-  <script src="ranking.js?v=04.10"></script>
-  <script src="app.js?v=04.10"></script>
+  <script src="level.js?v=04.10-h1"></script>
+  <script src="level-context.js?v=04.10-h1"></script>
+  <script src="level-calibration.js?v=04.10-h1"></script>
+  <script src="player-home.js?v=04.10-h1"></script>
+  <script src="match-load.js?v=04.10-h1"></script>
+  <script src="player-identity.js?v=04.10-h1"></script>
+  <script src="groups.js?v=04.10-h1"></script>
+  <script src="locations.js?v=04.10-h1"></script>
+  <script src="ranking.js?v=04.10-h1"></script>
+  <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
+       único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
+  <script src="auth.js?v=04.10-h1"></script>
+  <script src="app.js?v=04.10-h1"></script>
 </body>
 </html>

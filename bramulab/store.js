@@ -330,6 +330,29 @@
     clearCurrentPlayerName();
   }
 
+  /** Backend Bloque 2 (auth.js) — guarda/actualiza, en la MISMA lista local de USERS, un
+   *  usuario cuyo `id` YA es estable (el `player_id` real de Supabase, armado por
+   *  PLAuth.fetchOwnProfile) y lo deja como sesión activa. A diferencia de
+   *  createUserAccount, nunca genera un id nuevo — upsert por `user.id` tal cual llega, para
+   *  que una misma cuenta real siempre caiga en la misma fila entre logins. Esto es lo que
+   *  permite que el resto de la app (Home, Grupos, Notificaciones, Ranking simulado — todos
+   *  leen Store.getCurrentUser() de forma síncrona) siga funcionando sin ningún cambio una vez
+   *  que hay backend real: el "userId" que usan pasa a ser el player_id de Supabase en vez de
+   *  un id local `u_...`, pero sigue siendo un string opaco para esos módulos. */
+  function cacheServerUser(user) {
+    if (!user || !user.id) return null;
+    const list = loadUsers();
+    const idx = list.findIndex((u) => u && u.id === user.id);
+    if (idx === -1) list.push(user); else list[idx] = user;
+    saveUsersList(list);
+    saveSessionUserId(user.id);
+    if (user.displayName) {
+      saveCurrentPlayerName(user.displayName);
+      rememberPlayerNames([user.displayName]);
+    }
+    return user;
+  }
+
   /** Tagea con `userId` al jugador de `players` cuyo nombre normalizado coincide con `name` —
    *  usado al finalizar un partido nuevo (en vivo o carga manual) para que ese partido quede
    *  vinculado por id, no solo por nombre (ver regla de integridad más abajo). Nunca asigna el
@@ -798,7 +821,7 @@
     loadUsers, getUserById, getUserByEmail, getUserByUsername,
     createUserAccount, updateUserAccount,
     loadSession, saveSessionUserId, clearSession, getCurrentUser,
-    signUpAndLogin, loginWithEmail, logoutSession,
+    signUpAndLogin, loginWithEmail, logoutSession, cacheServerUser,
     stampPlayersWithUserId, backfillHistoryUserId, migrateLegacyPlayerToUserIfNeeded,
     // V03.0.2 — notificaciones locales
     loadNotifications, addNotification, addNotificationOnce,

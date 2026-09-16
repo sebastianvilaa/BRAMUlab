@@ -62,7 +62,14 @@
 // BRAMUlab_V04.6 — estimador inicial V1.1 (reemplaza a V1.4) + medidor/categoría/laboratorio;
 // bump necesario para que quien ya tenía la PWA instalada deje de ver el cuestionario/stepper
 // viejos (Handoff V04.6 §14).
-const CACHE_NAME = 'bramulab-v04-10';
+// Backend Bloque 2 — sufijo `-h1` (mismo patrón que V03.5.2/V03.6 más arriba): agrega
+// auth.js/env.generated.js + toca index.html/app.js/store.js/player-identity.js/locations.js
+// para conectar Supabase Auth real. `Store.VERSION`/`version.json` siguen en "BRAMUlab V04.10"
+// a propósito — esto es un bloque de Backend/Infraestructura, no una ronda nueva de Nivel BRAMU
+// (ver docs/BRAMUlab/README.md §6: Backend no usa la numeración V04.x). Sin este bump, un
+// cliente que ya tenía el service worker instalado seguiría sirviendo desde caché la versión
+// sin backend real.
+const CACHE_NAME = 'bramulab-v04-10-h1';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -74,21 +81,27 @@ const CORE_ASSETS = [
   './',
   './index.html',
   './styles.css?v=04.10',
-  './engine.js?v=04.10',
-  './stats.js?v=04.10',
-  './store.js?v=04.10',
+  './engine.js?v=04.10-h1',
+  './stats.js?v=04.10-h1',
+  './store.js?v=04.10-h1',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.10',
-  './level-context.js?v=04.10',
-  './level-calibration.js?v=04.10',
-  './player-home.js?v=04.10',
-  './match-load.js?v=04.10',
-  './player-identity.js?v=04.10',
-  './groups.js?v=04.10',
-  './locations.js?v=04.10',
-  './ranking.js?v=04.10',
-  './app.js?v=04.10',
+  './level.js?v=04.10-h1',
+  './level-context.js?v=04.10-h1',
+  './level-calibration.js?v=04.10-h1',
+  './player-home.js?v=04.10-h1',
+  './match-load.js?v=04.10-h1',
+  './player-identity.js?v=04.10-h1',
+  './groups.js?v=04.10-h1',
+  './locations.js?v=04.10-h1',
+  './ranking.js?v=04.10-h1',
+  // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
+  // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
+  // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
+  // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
+  // que se pide, por el fetch handler genérico de más abajo.
+  './auth.js?v=04.10-h1',
+  './app.js?v=04.10-h1',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

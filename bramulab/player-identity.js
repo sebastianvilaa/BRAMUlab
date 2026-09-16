@@ -56,14 +56,37 @@
     const slug = (base || '')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-+|-+$)/g, '');
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/(^_+|_+$)/g, '');
     return slug || 'jugador';
   }
 
+  /** Backend Bloque 2 (criterio ya cerrado, Backend_Infraestructura.md \u00a75.2) \u2014 formato
+   *  autoritativo de @usuario: 3\u201324 caracteres, letras ASCII min\u00fasculas, n\u00fameros, punto y
+   *  guion bajo, sin espacios ni tildes. Reemplaza el formato previo de V03.0 (guion medio,
+   *  3\u201320), ahora que existe unicidad real server-side (ver supabase/migrations/
+   *  20260916180000_bloque2_auth_profile_username_location.sql) que la impone de verdad \u2014 este
+   *  m\u00f3dulo sigue siendo la \u00daNICA fuente de verdad del formato en el cliente, replicado ah\u00ed
+   *  como CHECK de columna. */
   function isValidUsernameFormat(username) {
     const u = (username || '').replace(/^@/, '');
-    return /^[a-z0-9-]{3,20}$/.test(u);
+    return /^[a-z0-9._]{3,24}$/.test(u);
+  }
+
+  /** Espejo, para feedback instant\u00e1neo en el formulario, de la tabla `reserved_usernames` del
+   *  servidor (misma migraci\u00f3n de arriba). NUNCA es la autoridad: is_username_available/
+   *  complete_profile deciden de verdad \u2014 esto solo evita mostrar "disponible" un instante
+   *  antes de que la respuesta del servidor lo corrija. */
+  const RESERVED_USERNAMES = new Set([
+    'admin', 'administrator', 'root', 'superuser', 'support', 'help', 'api',
+    'bramu', 'bramulab', 'moderator', 'mod', 'staff', 'system', 'null',
+    'undefined', 'test', 'official', 'security', 'info', 'contact',
+    'webmaster', 'postmaster', 'sales', 'billing', 'ranking', 'nivel',
+    'nosotros', 'about', 'legal', 'privacy', 'terminos', 'soporte', 'ayuda',
+  ]);
+
+  function isUsernameReserved(username) {
+    return RESERVED_USERNAMES.has((username || '').trim().toLowerCase().replace(/^@/, ''));
   }
 
   function isUsernameTaken(username, users, excludeUserId) {
@@ -84,11 +107,11 @@
    *  proponer un @usuario mientras el campo sigue "sin tocar" por el usuario (consolidado §2
    *  "sugerir variantes... solo si no complica la ronda"). Nunca devuelve un slug ya tomado. */
   function suggestUsername(firstName, lastName, users) {
-    const base = slugifyUsername([firstName, lastName].filter(Boolean).join('-') || firstName || lastName);
-    if (!isUsernameTaken(base, users)) return base;
+    const base = slugifyUsername([firstName, lastName].filter(Boolean).join('_') || firstName || lastName);
+    if (!isUsernameTaken(base, users) && !isUsernameReserved(base)) return base;
     let n = 1;
-    while (isUsernameTaken(`${base}-${n}`, users)) n += 1;
-    return `${base}-${n}`;
+    while (isUsernameTaken(`${base}_${n}`, users) || isUsernameReserved(`${base}_${n}`)) n += 1;
+    return `${base}_${n}`;
   }
 
   /** Edad en años cumplidos a partir de una fecha de nacimiento "YYYY-MM-DD" (el formato de
@@ -151,7 +174,7 @@
   global.PLIdentity = {
     isValidEmail, normalizeEmail,
     PASSWORD_MIN_LENGTH, checkPasswordStrength, passwordsMatch,
-    slugifyUsername, isValidUsernameFormat, isUsernameTaken, isEmailTaken, suggestUsername,
+    slugifyUsername, isValidUsernameFormat, isUsernameReserved, isUsernameTaken, isEmailTaken, suggestUsername,
     calculateAge,
     normalizePhoneForWhatsApp, isValidWhatsAppPhone, canContactViaWhatsApp, buildWhatsAppContactUrl,
   };

@@ -2772,19 +2772,29 @@
     assert('V03-PASS · passwordsMatch true cuando coinciden', PLI.passwordsMatch('Abc123!@', 'Abc123!@'));
     assert('V03-PASS · passwordsMatch false cuando difieren', !PLI.passwordsMatch('Abc123!@', 'Otra123!@'));
 
-    assert('V03-SLUG · quita acentos y espacios', PLI.slugifyUsername('Sebastián Vila') === 'sebastian-vila');
+    assert('V03-SLUG · quita acentos y espacios', PLI.slugifyUsername('Sebastián Vila') === 'sebastian_vila');
     assert('V03-SLUG · nunca vacío (fallback jugador)', PLI.slugifyUsername('   ') === 'jugador');
-    assert('V03-USERFMT · formato válido (3-20, [a-z0-9-])', PLI.isValidUsernameFormat('seba-vila'));
-    assert('V03-USERFMT · muy corto es inválido', !PLI.isValidUsernameFormat('ab'));
-    assert('V03-USERFMT · con espacios es inválido', !PLI.isValidUsernameFormat('se ba'));
+    // Backend Bloque 2 (Backend_Infraestructura.md §5.2) — formato autoritativo: 3-24
+    // caracteres, [a-z0-9._], reemplaza el formato previo de V03.0 ([a-z0-9-], 3-20).
+    assert('V0302-USERFMT · formato válido (3-24, [a-z0-9._])', PLI.isValidUsernameFormat('seba.vila_1'));
+    assert('V0302-USERFMT · muy corto es inválido', !PLI.isValidUsernameFormat('ab'));
+    assert('V0302-USERFMT · muy largo (25) es inválido', !PLI.isValidUsernameFormat('a'.repeat(25)));
+    assert('V0302-USERFMT · exactamente 24 es válido', PLI.isValidUsernameFormat('a'.repeat(24)));
+    assert('V0302-USERFMT · con espacios es inválido', !PLI.isValidUsernameFormat('se ba'));
+    assert('V0302-USERFMT · guion medio ya no es válido (formato previo de V03.0)', !PLI.isValidUsernameFormat('seba-vila'));
+    assert('V0302-USERFMT · tildes son inválidas', !PLI.isValidUsernameFormat('sebastián'));
+    assert('V0302-RESERVED · "admin" está reservado', PLI.isUsernameReserved('admin'));
+    assert('V0302-RESERVED · "admin" reservado no distingue mayúsculas ni @', PLI.isUsernameReserved('@Admin'));
+    assert('V0302-RESERVED · un @usuario común no está reservado', !PLI.isUsernameReserved('cruz_dan'));
 
     const users = [{ id: 'u1', email: 'ana@test.com', username: 'ana' }, { id: 'u2', email: 'bea@test.com', username: 'bea' }];
     assert('V03-DUP-FIXTURE · isEmailTaken detecta duplicado', PLI.isEmailTaken('ANA@test.com', users));
     assert('V03-DUP-FIXTURE · isEmailTaken respeta excludeUserId', !PLI.isEmailTaken('ana@test.com', users, 'u1'));
     assert('V03-DUP-FIXTURE · isUsernameTaken detecta duplicado case-insensitive', PLI.isUsernameTaken('ANA', users));
     assert('V03-DUP-FIXTURE · isUsernameTaken libre da false', !PLI.isUsernameTaken('cruz', users));
-    assert('V03-SUGGEST · usuario libre se usa tal cual', PLI.suggestUsername('Cruz', 'Dan', users) === 'cruz-dan');
-    assert('V03-SUGGEST · usuario ocupado agrega sufijo numérico', PLI.suggestUsername('Ana', '', users) === 'ana-1');
+    assert('V0302-SUGGEST · usuario libre se usa tal cual', PLI.suggestUsername('Cruz', 'Dan', users) === 'cruz_dan');
+    assert('V0302-SUGGEST · usuario ocupado agrega sufijo numérico', PLI.suggestUsername('Ana', '', users) === 'ana_1');
+    assert('V0302-SUGGEST · nunca sugiere un @usuario reservado', PLI.suggestUsername('Admin', '', users) === 'admin_1');
 
     assert('V03-EDAD · caso simple (cumpleaños ya pasado este año)', PLI.calculateAge('2000-01-15', new Date(2026, 5, 1)) === 26);
     assert('V03-EDAD · cumpleaños todavía no llega este año resta un año', PLI.calculateAge('2000-12-15', new Date(2026, 5, 1)) === 25);
