@@ -1,2 +1,9 @@
 .DS_Store
 Temporales/
+
+# BRAMUlab — Bloque 1: config por entorno, nunca commitear valores reales.
+bramulab/env.generated.js
+bramulab/.env
+bramulab/.env.*
+!bramulab/.env.example
+node_modules/

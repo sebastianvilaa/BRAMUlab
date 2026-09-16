@@ -31,6 +31,15 @@ V03 está **cerrada en V03.10**. No se reabre salvo regresión concreta.
 
 Los documentos intermedios de V03 viven en `Archivo/BRAMUlab_V03/` y no son fuente activa.
 
+### Backend / Infraestructura
+
+Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuente maestra de decisiones). No usa la numeración `V04.x`: esa numeración es de Nivel BRAMU.
+
+- `Backend_Infraestructura.md` — qué se decidió (arquitectura, modelo de datos, alcance por bloque).
+- `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` — qué se implementó, testeó y qué acción manual falta, bloque por bloque.
+
+Bloque 1 (fundación de backend y entornos) está implementado del lado del código; su cierre operativo depende de acciones manuales de Sebastián (crear proyectos Supabase/Vercel) documentadas en el Informe.
+
 ---
 
 ## 2. Fuentes maestras vigentes
@@ -40,7 +49,7 @@ Los documentos intermedios de V03 viven en `Archivo/BRAMUlab_V03/` y no son fuen
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada para futura implementación |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` | Fuente maestra previa al diseño técnico/implementación |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 implementado en código; cierre operativo pendiente de acciones manuales |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -175,6 +184,6 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“Seguir con Nivel BRAMU / V04”** → este README + `Nivel_BRAMU_Formula_V1.5.md` y, si corresponde, la última sección de `BRAMUlab_V04_Informe.md`.
 - **“Ranking”** → `Ranking_BRAMU.md` + Nivel V1.5 solo donde Ranking dependa de Nivel.
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
-- **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md`.
+- **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 - **“Qué falta / ideas futuras”** → `BRAMUlab_Backlog.md`.
 - **“Qué pasó en una versión anterior”** → `Versiones/<versión>/..._Informe.md`; ir a la sección concreta, no cargar todo por defecto.
