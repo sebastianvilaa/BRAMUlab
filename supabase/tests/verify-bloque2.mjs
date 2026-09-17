@@ -111,7 +111,13 @@ async function serviceDelete(path) {
   });
 }
 
-const stamp = Date.now();
+// Base36 (no Date.now() decimal): un timestamp decimal de 13 dígitos ya deja los usernames de
+// abajo pegados al límite de 24 caracteres del formato vigente ([a-z0-9._]{3,24}) — el sufijo
+// "_otro" del test de username_locked o el prefijo más largo de georefUsername alcanzaban para
+// pasarse, y entonces el servidor rechazaba por username_invalid_format antes de poder probar lo
+// que el test quería (username_locked / la ubicación GeoRef). Base36 da ~8 caracteres para el
+// mismo instante y usa solo [a-z0-9], así que nunca hace falta pensar en el charset.
+const stamp = Date.now().toString(36);
 const userA = { email: `bramu-verify-b2-a-${stamp}@example.com`, password: 'Verificar#Bloque2!' };
 const userB = { email: `bramu-verify-b2-b-${stamp}@example.com`, password: 'Verificar#Bloque2!' };
 const cleanup = { authIds: [], playerIds: [], locationIds: [] };
@@ -155,7 +161,9 @@ async function main() {
   const reservedCheck = await rpc('is_username_available', tokenA, { p_username: 'admin' });
   report('is_username_available: "admin" (reservado) -> false', reservedCheck.res.ok && reservedCheck.json === false, JSON.stringify(reservedCheck.json));
 
-  const freeUsername = `verify_b2_${stamp}`;
+  // "vb2_" + ~8 chars de stamp + el sufijo más largo usado más abajo ("_otro", 5 chars) queda
+  // bien lejos de los 24 del formato vigente — ver el comentario de `stamp` más arriba.
+  const freeUsername = `vb2_${stamp}`;
   const freeCheck = await rpc('is_username_available', tokenA, { p_username: freeUsername });
   report(`is_username_available: "${freeUsername}" (libre) -> true`, freeCheck.res.ok && freeCheck.json === true, JSON.stringify(freeCheck.json));
 
@@ -212,7 +220,7 @@ async function main() {
   report('RLS: un usuario no puede leer el profile de otro', crossRead.ok && Array.isArray(crossReadRows) && crossReadRows.length === 0, JSON.stringify(crossReadRows));
 
   // --- 11) ubicación GeoRef (con IDs canónicos) -> verified_for_ranking=true ---
-  const georefUsername = `verify_b2_geo_${stamp}`;
+  const georefUsername = `vb2geo_${stamp}`;
   const georefPayload = {
     p_username: georefUsername,
     p_first_name: 'Verificación',
