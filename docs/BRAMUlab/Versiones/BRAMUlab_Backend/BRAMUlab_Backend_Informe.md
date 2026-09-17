@@ -247,3 +247,30 @@ Todo lo de servidor (RLS, trigger, RPCs, invariante de ubicación, unicidad/bloq
 - `2e340a8` — fix de los usernames de prueba de `verify-bloque2.mjs` que superaban 24 caracteres (§4).
 
 Pusheados **únicamente a `staging`** (`git push origin main:staging`) tras la validación real de §4/§5 — nunca a `main`, y sin tocar Production (que todavía no existe como proyecto Supabase/Vercel). Ver el detalle exacto en el mensaje de esta ronda.
+
+## Alineación conceptual posterior al Bloque 2 — 17/09/2026
+
+Sin cambiar código de Bloques 1–2 ni su estado de validación, producto cerró la definición del ciclo de partido en `Experiencia_Inicial.md` y se alineó `Backend_Infraestructura.md`.
+
+Reglas que desarrollo debe tomar como vigentes antes de Bloques 4–6:
+
+- validación por pareja, no cuatro aprobaciones;
+- acciones: `Confirmar / Proponer corrección / No participé`;
+- carga retroactiva máxima: 14 días;
+- pendiente nunca validado: 30 días desde la carga original;
+- corrección normal post-validación: 3 días desde `validated_at`;
+- incidencia de identidad: 10 días desde `validated_at`;
+- límite personal de 5 pendientes accionables antes de iniciar una carga nueva;
+- revisiones append-only y control de concurrencia por versión;
+- un error de identidad no invalida automáticamente un partido real;
+- Ranking semanal publicado permanece inmutable y las correcciones impactan hacia adelante.
+
+Impacto por roadmap:
+
+- Bloque 3: no cambia su alcance conceptual; solo debe preservar consistencia de Nivel ante revisiones oficiales futuras.
+- Bloque 4: claim de provisional puede habilitar capacidad de actuar por su pareja en un pendiente vigente.
+- Bloque 5: debe preparar revisiones, lado accionable, deadlines y contador de pendientes.
+- Bloque 6: implementa el flujo completo de confirmación/corrección/identidad.
+
+Queda un único detalle menor de producto antes de cerrar el subflujo de identidad post-validación: plazo adicional exacto para completar el participante correcto una vez abierta esa incidencia. No bloquea Bloques 2–3.
+
