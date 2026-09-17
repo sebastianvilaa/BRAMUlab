@@ -1,7 +1,7 @@
 # BRAMUlab — Backlog vigente
 
 **Estado:** ideas y funciones futuras todavía no autorizadas para implementar.  
-**Actualización documental:** 15 de septiembre de 2026.  
+**Actualización documental:** 17 de septiembre de 2026.  
 **Regla:** este archivo contiene solo futuro real. Lo ya definido o implementado vive en su fuente maestra correspondiente.
 
 ---
@@ -13,6 +13,7 @@ No volver a tratar como idea futura abierta:
 - **Nivel BRAMU V1** → `Nivel_BRAMU_Formula_V1.5.md`, `Nivel_BRAMU_Implementacion.md`, `Nivel_BRAMU.md` y V04.
 - **Ranking BRAMU V1** → `Ranking_BRAMU.md`.
 - **BRAMU Intelligence V1** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
+- **Experiencia inicial / validación por parejas / correcciones / pendientes** → `Experiencia_Inicial.md` + contrato técnico en `Backend_Infraestructura.md`.
 - **Backend / cuentas reales / entornos / infraestructura** → `Backend_Infraestructura.md`.
 - **Identidad local, Player Card, Perfil, Mis grupos y prototipo de Ranking** → V03 cerrada.
 
@@ -22,13 +23,10 @@ Si una idea de este backlog entra en desarrollo, primero debe pasar a un documen
 
 ## 2. Backend/producto multiusuario — pendientes funcionales posteriores
 
-La arquitectura general ya está definida en `Backend_Infraestructura.md`. Lo que sigue pendiente de producto o detalle técnico incluye:
+La arquitectura general y el ciclo básico de partido ya están definidos en `Backend_Infraestructura.md` y `Experiencia_Inicial.md`. Lo que sigue realmente pendiente incluye:
 
-- máquina completa de estados de partido compartido: pendiente, validado, disputado, corregido, anulado, duplicado y observado;
-- UX de confirmación por rival;
-- historial de correcciones y resolución de desacuerdos;
 - política exacta para partidos observados y eventual reclamo/validación posterior;
-- verificación de reclamo de identidades provisionales;
+- verificación reforzada de reclamo de identidades provisionales si el claim básico del piloto demuestra fricción;
 - detección y resolución de identidades provisionales duplicadas;
 - política de conflictos entre dispositivos y retención de cola offline;
 - privacidad exacta de perfiles y relación con datos públicos/buscables;
@@ -93,7 +91,7 @@ Evoluciones posibles, no prioritarias antes del piloto:
 - integración definitiva entre registro Completo / Por Games / Resultado manual dentro de un único modelo compartido;
 - formatos excepcionales: partido interrumpido, amistoso con reglas arbitrarias, Partido Libre;
 - rediseño estructural definitivo del marcador en vivo si las pruebas reales muestran fricción;
-- simplificación adicional de corrección/undo si aparece como problema en cancha;
+- simplificación adicional de corrección/undo si las pruebas reales muestran fricción, sin romper el contrato vigente de revisiones;
 - carga colaborativa desde más de un dispositivo, solo cuando exista backend real y se justifique.
 
 La prioridad sigue siendo registrar un partido con la menor cantidad de acciones posible.
