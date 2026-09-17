@@ -2,7 +2,7 @@
 
 **Estado:** V1 cerrada y lista para handoff de producto, UX y desarrollo.  
 **Alcance:** Ranking BRAMU individual para pádel amateur de dobles. No redefine Nivel BRAMU, no crea matchmaking y no incluye rankings privados de grupos.  
-**Fecha de actualización:** 13 de septiembre de 2026.  
+**Fecha de actualización:** 17 de septiembre de 2026.  
 **Cambio normativo principal de la revisión del 11 de septiembre de 2026:** Ranking BRAMU pasa de continuo a **publicación semanal**. Nivel BRAMU continúa siendo dinámico y se actualiza partido a partido.  
 **Actualización del 13 de septiembre de 2026 (cierre UX, BRAMUlab V03.8):** no cambia ninguna regla de cálculo/elegibilidad/snapshot. Cierra cuatro decisiones UX: (1) `TU POSICIÓN` debe garantizar contexto cercano a la fila propia (§13.3); (2) la tarjeta territorial semanal es superficie oficial tanto en Perfil público como en Mi Perfil (§15.1); (3) en Home, Ranking solo puede aportar un insight puntual dentro de `TU MOMENTO`, nunca una tarjeta territorial duplicada (§13.6); (4) `Explorar rankings` queda definido conceptualmente como evolución futura, fuera de V1 (§8.6).
 
@@ -148,9 +148,9 @@ Eso es correcto y debe poder explicarse desde la ayuda.
 
 Para afectar una edición semanal, el partido debe haber quedado **computable y validado antes del cierre**.
 
-Un partido jugado el domingo a las 22:00 pero cargado o validado el lunes:
+Un partido jugado el domingo a las 22:00 pero cargado, validado o corregido el lunes:
 
-- puede modificar el Nivel actual cuando quede computable;
+- puede modificar el Nivel actual cuando quede computable/corregido;
 - **no modifica retroactivamente** el Ranking ya publicado;
 - impacta en la edición siguiente.
 
@@ -614,21 +614,32 @@ Reglas:
 
 ## 16. Integridad y partidos
 
-Solo impactan en Nivel —y por lo tanto en una futura edición de Ranking— los partidos oficialmente computables según Nivel V1.4.
+Solo impacta en Nivel —y por lo tanto en una futura edición de Ranking— la **revisión oficial computable** de un partido validado según las reglas vigentes de Nivel.
 
-No impactan:
+No impactan como fuente oficial:
 
-- pendientes;
-- observados sin validación;
-- disputados;
+- partidos pendientes de validación;
+- revisiones propuestas pero todavía no aceptadas;
+- partidos expirados;
 - anulados;
 - duplicados;
 - score inválido;
-- invitados sin identidad elegible.
+- participantes cuya identidad no aporte evidencia suficiente según Nivel.
 
-Una corrección de partido recalcula Nivel según su contrato, pero **no reescribe una edición semanal ya publicada** salvo una política excepcional de integridad que se defina explícitamente en el futuro.
+Si una corrección post-validación se acepta, Backend actualiza la verdad actual y recalcula los efectos de Nivel que correspondan. El Ranking aplica una regla independiente y más simple:
 
-El historial debe conservar fecha efectiva y fecha de procesamiento para auditoría.
+> **Una edición semanal publicada nunca se reescribe por una corrección posterior.**
+
+Consecuencias:
+
+- si la corrección queda oficial **antes** del cierre del domingo, el Nivel corregido puede entrar en la edición del lunes siguiente;
+- si queda oficial **después** del cierre, se refleja recién en una edición futura;
+- durante una corrección pendiente sigue mandando la última revisión oficial validada;
+- una incidencia de identidad posterior a la publicación tampoco modifica retrospectivamente esa edición.
+
+La edición histórica representa la información oficial disponible en su instante de corte, no una reconstrucción retrospectiva con datos descubiertos después.
+
+El historial debe conservar fecha efectiva, fecha de procesamiento, revisión oficial y timestamps de correcciones para auditoría.
 
 ---
 
@@ -767,8 +778,8 @@ Una localidad con cuatro elegibles no publica posiciones.
 5. Timezone inicial: `America/Argentina/Buenos_Aires`.
 6. El snapshot usa el Nivel consolidado vigente al cierre.
 7. El Nivel mostrado dentro del Ranking es el del snapshot, no necesariamente el Nivel actual.
-8. Un partido validado después del cierre impacta en la edición siguiente.
-9. No se reescribe retrospectivamente una edición publicada por carga tardía ordinaria.
+8. Un partido validado o una corrección oficializada después del cierre impacta en una edición siguiente.
+9. No se reescribe retrospectivamente una edición publicada por carga tardía, corrección posterior o incidencia de identidad.
 10. La clave de orden es Nivel consolidado interno exacto descendente.
 11. Empate exacto comparte puesto.
 12. Solo `CALIBRADO` y `RECALIBRANDO` con consolidado previo pueden ser elegibles.
@@ -852,8 +863,8 @@ Observar:
 - El lunes se publica una nueva edición usando el Nivel vigente al cierre del domingo.
 - La edición permanece estable durante la semana.
 - El Nivel de Ranking es el Nivel del corte.
-- Partidos computables después del cierre entran en la edición siguiente.
-- Carga tardía ordinaria no reescribe rankings históricos.
+- Partidos computables o correcciones oficializadas después del cierre entran en una edición siguiente.
+- Carga tardía, correcciones posteriores e incidencias de identidad no reescriben rankings históricos publicados.
 - Las flechas `↑/↓` expresan **puestos**, nunca puntos.
 - Se recomienda cargar partidos inmediatamente al terminar para favorecer validación, Nivel actualizado y entrada en el corte correcto.
 - Local, Provincial, País, Global y Mi red son los ámbitos UX vigentes.
