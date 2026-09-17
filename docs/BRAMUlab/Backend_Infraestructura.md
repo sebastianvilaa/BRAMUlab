@@ -2,7 +2,7 @@
 
 > Fuente maestra vigente para construir el backend mínimo del piloto real.
 >
-> Estado: consolidado para implementación.
+> Estado: consolidado para implementación. Alineación de ciclo de partido actualizada el 17/09/2026.
 >
 > Alcance de producto de referencia: BRAMUlab V04.10.
 >
@@ -30,7 +30,7 @@ La prioridad es construir la mínima verdad multiusuario. Toda función que no s
 ## 2. Estado de partida
 
 - BRAMUlab V03.10 está cerrada.
-- Nivel BRAMU V04.10 está cerrado en producto, UX y motor local; mantiene 1400/1400 tests.
+- Nivel BRAMU V04.10 está cerrado en producto, UX y motor local. La batería total actual del producto/backend alcanzó 1408/1408 tras Bloque 2; esto no modifica la fórmula de Nivel.
 - El contrato matemático vigente es Nivel BRAMU V1.5, con motor `nivel_bramu_v1_0` y estimador inicial `nivel_inicial_v1_1`.
 - Ranking BRAMU V1 está cerrado conceptualmente y en UX, pero su implementación actual es local/simulada.
 - BRAMU Intelligence V1 está definida y documentada, pero no implementada.
@@ -82,11 +82,11 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 7. Búsqueda de jugadores reales.
 8. Identidades provisionales persistentes para invitados.
 9. Alta de partidos de dobles con cuatro participantes, sets y resultado.
-10. Ciclo oficial mínimo: pendiente de validación, validado o rechazado.
-11. Descubrimiento claro de validaciones pendientes.
-12. Actualización atómica de partido, Nivel, calibración, snapshots, `reasonCodes`, estadísticas oficiales y futura elegibilidad de Ranking.
-13. Historial compartido por participante con estados visibles.
-14. Corrección o anulación excepcional por administración.
+10. Ciclo oficial por parejas: pendiente, confirmación, propuesta de corrección, incidencia de identidad, validado, expirado y anulación administrativa excepcional.
+11. Descubrimiento claro de pendientes accionables y límite personal de 5 antes de iniciar una carga nueva.
+12. Revisiones append-only, deadlines server-side y control de concurrencia para evitar versiones incompatibles.
+13. Actualización atómica de partido, Nivel, calibración, snapshots, `reasonCodes`, estadísticas oficiales y futura elegibilidad de Ranking.
+14. Historial compartido por participante con estados visibles e historial de modificaciones.
 15. Ranking BRAMU V1 semanal calculado desde datos reales validados.
 16. Separación completa de Development, Staging y Production.
 17. Caché y cola local de reintentos, sin convertir datos locales en autoridad.
@@ -102,7 +102,7 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 - expansión de Ranking fuera del V1 vigente;
 - marcador en vivo integrado;
 - push notifications;
-- flujo autoservicio complejo de reclamos, fusiones o disputas;
+- fusiones complejas de identidades, arbitraje externo de disputas o reclamos de identidad avanzados;
 - detección automática de duplicados por nombre o apodo;
 - antitrampa sofisticado;
 - estadísticas técnicas adicionales;
@@ -179,9 +179,13 @@ No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene
 ### 5.5 Autoridad temporal
 
 - Fechas oficiales, vencimientos, semana de Ranking y ventanas se calculan con hora del servidor.
+- La carga normal solo admite partidos jugados hasta **14 días antes** del momento de creación.
+- Un partido que todavía no llegó a validarse tiene un deadline fijo de **30 días desde la carga original**. Las revisiones no reinician ese reloj.
+- Un partido ya validado admite correcciones normales durante **3 días desde `validated_at`**.
+- Una incidencia de identidad puede abrirse durante **10 días desde `validated_at`**.
 - Ranking semanal utiliza `America/Argentina/Buenos_Aires`: lunes 00:00 a domingo 23:59.
 - El snapshot publicado el lunes queda estable durante la semana.
-- Una validación tardía entra en la próxima edición y no reescribe retrospectivamente una edición publicada.
+- Una validación o corrección posterior al cierre impacta hacia adelante y no reescribe retrospectivamente una edición publicada.
 
 ---
 
@@ -255,6 +259,7 @@ El link pertenece a la identidad provisional, no a un partido. Varias superficie
 - `verified_for_ranking`;
 - estado activo y timestamps.
 
+
 ### 6.4 Partido
 
 #### `matches`
@@ -265,18 +270,23 @@ El link pertenece a la identidad provisional, no a un partido. Varias superficie
 - origen/modo/formato vigentes;
 - estado oficial;
 - `validation_deadline_at`;
+- `validated_at`;
+- versión/revisión oficial vigente;
+- lado/pareja que tiene la acción cuando el partido sigue pendiente;
+- flags/estado de incidencia de identidad cuando corresponda;
 - claves de versión e idempotencia;
-- timestamps de creación, envío, validación, rechazo y anulación;
+- timestamps de creación, envío, validación, expiración y anulación;
 - actor de última acción administrativa;
-- motivo estructurado de rechazo/anulación/corrección cuando exista.
+- motivo estructurado de anulación/corrección cuando exista.
 
-Estados server-side del piloto:
+Estados server-side mínimos:
 
 - `pending_validation`;
 - `validated`;
-- `rejected`;
 - `expired`;
 - `annulled`.
+
+No se necesita un estado `rejected` para representar una simple disconformidad rival: `Proponer corrección` mantiene el partido pendiente y `No participé` abre una incidencia de identidad. Un rechazo administrativo excepcional puede modelarse como motivo/acción sin convertirlo en la interacción normal de V1.
 
 `draft` y `sync_pending` son estados locales de interfaz, no estados oficiales del partido.
 
@@ -285,14 +295,15 @@ Un partido nuevo se crea siempre como `pending_validation`. La ausencia de estad
 #### `match_participants`
 
 - `match_id`;
-- `player_id`;
+- `player_id` cuando está identificado;
 - equipo 1/2;
 - posición dentro de la pareja;
-- rol registrado/provisional al momento del partido;
+- rol registrado/provisional/no identificado cuando corresponda;
 - snapshot mínimo del nombre mostrado;
-- vínculo con el participante que creó o validó.
+- revisión desde la que ese participante aplica;
+- timestamps/actor de asociación.
 
-Debe haber exactamente cuatro participantes y dos por pareja. No existe modalidad individual.
+El partido de dobles conserva cuatro lugares y dos por pareja. Una incidencia puede dejar temporalmente un lugar `por identificar` sin adjudicarlo a una persona incorrecta.
 
 #### `match_sets`
 
@@ -300,24 +311,49 @@ Debe haber exactamente cuatro participantes y dos por pareja. No existe modalida
 - número de set;
 - games/puntos de cada equipo;
 - modalidad de definición cuando corresponda;
-- orden estable.
+- orden estable;
+- revisión a la que pertenecen.
 
 #### `match_actions`
 
-Registro append-only de:
+Registro append-only de, como mínimo:
 
 - creación/envío;
+- confirmación;
+- propuesta de corrección;
+- identidad cuestionada / `No participé`;
+- reemplazo de participante;
 - validación;
-- rechazo;
 - vencimiento;
-- corrección administrativa;
-- anulación administrativa.
+- corrección post-validación aceptada/rechazada por timeout;
+- anulación/corrección administrativa.
 
-Incluye actor, timestamp del servidor, motivo y metadatos mínimos. Es la auditoría del ciclo del partido.
+Incluye actor, pareja/lado representado, timestamp del servidor, revisión base, motivo estructurado y metadatos mínimos.
 
 #### `match_revisions`
 
-Conserva la revisión original y las correcciones excepcionales sin borrar la evidencia necesaria para revertir efectos.
+Cada versión editable del partido queda preservada.
+
+Debe permitir reconstruir:
+
+- revisión original;
+- quién cambió qué;
+- qué pareja propuso la revisión;
+- qué revisión fue confirmada;
+- cuál es la revisión oficial;
+- qué revisiones quedaron sin aceptar.
+
+Nunca se sobreescribe silenciosamente una revisión anterior.
+
+#### Control de concurrencia
+
+Toda acción de confirmación/corrección debe declarar la revisión/version esperada.
+
+Si dos usuarios actúan sobre una misma versión:
+
+- la primera escritura válida actualiza la versión;
+- la segunda no crea una rama paralela;
+- el servidor devuelve conflicto/estado actualizado para que el cliente recargue.
 
 #### `match_user_state`
 
@@ -368,7 +404,7 @@ Eventos append-only:
 - entrada/salida de recalibración;
 - cambios relevantes de estado.
 
-No se recalcula silenciosamente todo el historial cuando cambia una fórmula. Las correcciones deben poder revertir exactamente el efecto guardado y aplicar la regla definida por Nivel.
+No se recalcula silenciosamente todo el historial cuando cambia una fórmula. Si una **revisión aceptada de un partido ya computado** cambia datos usados por Nivel, Backend debe revertir/reprocesar de forma determinista e idempotente los efectos necesarios para mantener consistencia desde ese punto, siempre con la misma versión de motor aplicable al evento. Esto es una regla técnica de consistencia, no un rediseño de la fórmula.
 
 ### 6.6 Ranking semanal
 
@@ -402,9 +438,12 @@ Una edición publicada es inmutable. Una corrección posterior impacta la siguie
 
 Para el piloto se limita a una bandeja interna:
 
-- validación pendiente;
+- revisión/confirmación pendiente;
+- propuesta de corrección recibida;
+- identidad cuestionada / participante incorrecto;
 - partido validado;
-- partido rechazado;
+- partido expirado;
+- corrección aceptada;
 - corrección/anulación administrativa.
 
 No incluye push. La pantalla/badge de pendientes debe consultar esta fuente o una vista server-side equivalente.
@@ -505,50 +544,97 @@ Solo cuentas con email verificado pueden cargar, validar o rechazar partidos ofi
 4. No mezcla mocks, cuentas de Staging ni semillas.
 5. Una identidad provisional no aparece en la búsqueda global; solo puede reaparecer para usuarios relacionados mediante partidos, recientes o red.
 
+
 ### 8.5 Crear y cargar un partido
 
-1. Un participante registrado arma dos parejas con cuatro `player_id`.
+1. Un participante registrado arma dos parejas con cuatro lugares de jugador.
 2. Puede elegir usuarios reales o reutilizar identidades provisionales relacionadas; si crea una nueva, obtiene un UUID persistente.
 3. Completa fecha, formato y resultado.
-4. El dispositivo conserva borrador y, si no hay conexión, lo deja en outbox con una clave idempotente.
-5. Al enviar, el servidor valida participantes, resultado, permisos, fecha y reglas básicas.
-6. Crea el partido como `pending_validation`, nunca como validado.
-7. El partido aparece en los cuatro historiales vinculados con su estado, pero todavía no afecta Nivel, calibración, Ranking ni estadísticas oficiales.
+4. El servidor rechaza una fecha jugada hace más de **14 días**.
+5. El dispositivo conserva borrador y, si no hay conexión, lo deja en outbox con una clave idempotente.
+6. Al enviar, el servidor valida participantes, resultado, permisos, fecha y reglas básicas.
+7. Crea el partido como `pending_validation`, fija `validation_deadline_at = created_at + 30 días` y deja la acción del lado de la pareja contraria a quien realizó la carga.
+8. El partido aparece en los historiales vinculados con su estado, pero todavía no afecta Nivel, calibración, Ranking ni estadísticas oficiales.
 
-### 8.6 Validar o rechazar
 
-1. La bandeja “Pendientes” muestra al menos al rival registrado habilitado para decidir.
-2. Alcanza la confirmación de un único rival registrado del equipo contrario.
-3. El creador no puede autovalidar; la confirmación de su compañero no reemplaza la rival.
-4. El rival revisa participantes, fecha y resultado.
-5. Puede validar o rechazar con un motivo simple.
-6. Si valida, una única transacción server-side:
-   - cambia el estado a `validated`;
-   - registra la acción;
-   - congela la revisión computada;
-   - calcula y guarda Nivel conforme V1.5;
-   - actualiza progreso y estado de calibración;
-   - guarda snapshots, delta, versiones y `reasonCodes`;
-   - actualiza estadísticas oficiales;
-   - deja el partido disponible para la próxima evaluación de Ranking;
-   - genera las notificaciones y métricas mínimas.
-7. Si rechaza, el partido queda `rejected`, visible pero sin efectos oficiales.
-8. Si pasan 30 días sin una validación habilitada, queda `expired`: permanece en historial, pero no computa Nivel ni Ranking.
+### 8.6 Revisar, confirmar y corregir por parejas
 
-No existe disputa autoservicio compleja en el piloto. Una corrección o anulación excepcional la realiza administración, con motivo, revisión y reversión idempotente del efecto exacto.
+#### Antes de validar
+
+1. La bandeja muestra los partidos donde la **pareja del usuario** tiene la acción.
+2. Las acciones de producto son:
+   - `Confirmar`;
+   - `Proponer corrección`;
+   - `No participé` / identidad incorrecta.
+3. Alcanza una acción de cualquiera de los dos integrantes de la pareja para representar a ese lado.
+4. Si confirma la pareja contraria a la revisión vigente, el partido queda `validated`.
+5. Si propone una corrección:
+   - se crea una nueva revisión append-only;
+   - esa pareja queda considerada conforme con la nueva revisión;
+   - la acción pasa a la otra pareja.
+6. La corrección puede modificar resultado, participantes u otros campos habilitados.
+7. `No participé` no invalida el partido: marca una identidad incorrecta y abre corrección del participante.
+8. El deadline original de 30 días nunca se reinicia.
+9. Si llega el deadline sin una revisión confirmada por ambas parejas, el partido queda `expired`, permanece en historial y no produce efectos oficiales.
+
+#### Límite de pendientes accionables
+
+- El contador es **personal**: suma todos los partidos no oficiales donde el lado de ese usuario tiene la acción, independientemente de con quién haya jugado.
+- Con **5 pendientes accionables**, ese usuario no puede iniciar una carga nueva hasta que su lado resuelva al menos uno.
+- Si el compañero de ese partido resuelve, el pendiente desaparece para ambos.
+- Los partidos esperando al otro lado no cuentan.
+- Las incidencias/correcciones de partidos ya validados no cuentan para este bloqueo.
+
+#### Después de validar
+
+- Durante **3 días desde `validated_at`**, cualquiera de los participantes puede proponer una corrección normal.
+- Mientras se discute, la última revisión validada sigue siendo la versión oficial.
+- La nueva revisión solo reemplaza a la oficial cuando la pareja contraria la confirma.
+- Después de esos 3 días ya no se reabre por autoservicio una discusión normal de resultado.
+
+#### Incidencia de identidad post-validación
+
+- Hasta **10 días desde `validated_at`**, cualquier participante puede señalar que una identidad cargada no corresponde.
+- Esto no reabre la ventana de resultado.
+- La persona incorrecta debe desvincularse del slot afectado.
+- El participante correcto puede ser una cuenta real o una identidad provisional.
+- Si todavía no se conoce, el lugar puede quedar temporalmente `por identificar`.
+- La incidencia no invalida automáticamente el partido ni reescribe un Ranking semanal ya publicado.
+- El plazo exacto adicional para completar una identidad ya cuestionada queda como detalle menor de producto pendiente antes de implementar ese subflujo.
+
+#### Validación atómica
+
+Cuando una revisión queda oficialmente validada, una única operación server-side:
+
+- congela la revisión oficial;
+- registra la acción;
+- calcula/actualiza Nivel conforme V1.5;
+- actualiza progreso y estado de calibración;
+- guarda snapshots, delta, versiones y `reasonCodes`;
+- actualiza estadísticas oficiales;
+- deja el partido disponible para la próxima evaluación de Ranking;
+- genera notificaciones y métricas mínimas.
+
+Si una corrección post-validación se acepta, Backend reemplaza atómicamente la revisión oficial y recalcula/revierte los efectos necesarios sin duplicarlos.
+
+No existe arbitraje automático sobre cuál pareja “dice la verdad”: si un partido nunca validado no alcanza acuerdo dentro de 30 días, expira.
 
 ### 8.7 Actualización oficial de Nivel
 
-- Solo ocurre con partidos `validated`.
+- Solo una revisión oficial de un partido `validated` produce efectos.
 - Respeta elegibilidad, invitados, repetición, círculo competitivo, imputación y demás reglas de Nivel V1.5.
 - Un invitado provisional puede permitir el cómputo del partido cuando las reglas vigentes tengan información suficiente, pero no recibe un Nivel permanente cargado por terceros.
 - La actualización guarda pre/post snapshot y no depende de que el cliente permanezca conectado.
-- Reintentar la misma validación no duplica deltas.
+- Reintentar la misma validación o aceptación de corrección no duplica deltas.
+- Una corrección aceptada que altere datos usados por Nivel debe mantener consistencia matemática mediante reversión/reproceso determinista e idempotente según el contrato vigente.
 
 ### 8.8 Historial
 
-- Incluye partidos pendientes, validados, rechazados, vencidos y anulados con etiqueta clara.
-- Solo los validados alimentan estadísticas y resultados oficiales.
+- Incluye partidos pendientes, validados, expirados y anulados con etiqueta clara.
+- Un partido validado puede mostrar además una incidencia/corrección pendiente sin dejar de conservar su última revisión oficial.
+- Solo la revisión oficial validada alimenta estadísticas y resultados oficiales.
+- El detalle del partido conserva una sección discreta de **Modificaciones** con actor, timestamp, tipo de cambio y before/after mínimo.
+- Un partido expirado queda visible pero no alimenta ninguna estadística oficial, Nivel ni Ranking.
 - Cada usuario puede ocultar un partido de su propia vista sin borrarlo ni alterar a los demás.
 - La fuente es el backend. El caché local sirve solo para velocidad o lectura temporal.
 
@@ -586,8 +672,9 @@ No existe disputa autoservicio compleja en el piloto. Una corrección o anulaci�
 ### 9.3 Efecto sobre Nivel y Ranking
 
 - Reclamar una identidad no recalcula retroactivamente deltas ya procesados.
-- Un partido todavía pendiente y dentro de sus 30 días puede validarse después del reclamo y se procesa con la identidad ya vinculada.
+- Un partido todavía pendiente y dentro de sus 30 días puede continuar su ciclo después del reclamo; el nuevo usuario adquiere capacidad de actuar por la pareja correspondiente.
 - Un partido vencido sigue siendo historial y no se reactiva automáticamente.
+- Un partido ya validado tampoco se reabre por el solo hecho del claim; aplican las mismas ventanas post-validación que para cualquier participante.
 - El jugador reclamado empieza a construir su Nivel y elegibilidad según las reglas vigentes desde las acciones oficiales que correspondan; no hereda automáticamente un Nivel permanente estimado por terceros.
 
 ### 9.4 Red y Ranking
@@ -789,6 +876,7 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - creación/reutilización de `player` provisional;
 - recientes/red relacionada;
 - link y claim básico de una sola identidad;
+- al reclamar una identidad todavía vinculada a un partido pendiente, habilitación inmediata para actuar por la pareja correspondiente;
 - administración manual de duplicados excepcionales.
 
 **Depende de:** Bloque 2; consume Nivel público del Bloque 3.
@@ -805,11 +893,17 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 **Incluye**
 
-- partidos, cuatro participantes, sets y resultado;
+- partidos, cuatro lugares de participante, sets y resultado;
+- validación server-side de carga retroactiva máxima de 14 días;
 - borrador/outbox local;
 - creación idempotente como `pending_validation`;
-- historial compartido y badges de estado;
+- `validation_deadline_at` fijo a 30 días desde la carga;
+- revisiones append-only;
+- pareja/lado que tiene la acción;
+- control de concurrencia por versión;
+- historial compartido, badges de estado y sección de modificaciones;
 - vencimiento a 30 días;
+- contador personal de pendientes accionables y bloqueo de carga nueva al llegar a 5;
 - ocultamiento individual.
 
 **Depende de:** Bloques 2, 3 y 4.
@@ -826,22 +920,29 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 **Incluye**
 
-- bandeja/badge de pendientes;
-- validación o rechazo por un rival;
-- transacción atómica de estado, Nivel, calibración, snapshots, `reasonCodes`, estadísticas y métricas;
+- bandeja/badge de pendientes accionables;
+- `Confirmar / Proponer corrección / No participé` con autoridad por pareja;
+- correcciones pre-validación dentro del deadline fijo;
+- 3 días post-validación para corrección normal;
+- 10 días post-validación para incidencia de identidad;
+- reemplazo de participante por cuenta real o provisional;
+- transacción atómica de revisión oficial, Nivel, calibración, snapshots, `reasonCodes`, estadísticas y métricas;
+- reversión/reproceso idempotente cuando una corrección oficial cambia datos computados;
 - notificaciones internas;
-- comando administrativo de corrección/anulación.
+- comando administrativo de anulación/corrección excepcional.
 
 **Depende de:** Bloque 5.
 
 **Terminado cuando**
 
-- creador/compañero no pueden autovalidar;
-- un rival autorizado valida o rechaza;
-- validar una vez actualiza todo coherentemente;
+- la revisión original requiere confirmación del lado contrario a quien la cargó;
+- cualquiera de los dos integrantes del lado accionable puede resolver por su pareja;
+- una propuesta de corrección pasa la acción al otro lado;
+- `No participé` corrige identidad y no rechaza automáticamente el partido;
+- validar una revisión una vez actualiza todo coherentemente;
 - reintentar no duplica efectos;
-- rechazo/vencimiento no computan;
-- corrección/anulación revierten el efecto exacto y dejan auditoría;
+- pendientes/vencidos no computan;
+- corrección/anulación revierten/reprocesan el efecto necesario y dejan auditoría completa;
 - los escenarios vigentes de Nivel continúan pasando.
 
 ### Bloque 7 — Ranking real semanal
@@ -942,8 +1043,12 @@ La migración no requiere transformar los datos simulados actuales. El riesgo pr
 6. **Ranking local simulado:** se elimina del camino productivo. Ranking real depende de partidos validados y snapshots semanales server-side.
 7. **Movimientos de Intelligence:** cuando se implemente, consumirá movimientos entre ediciones semanales publicadas; no existe movimiento oficial instantáneo.
 8. **Piloto descartable:** queda superado. Los amigos iniciales usan Producción y conservan sus cuentas/datos.
+9. **Validar/rechazar vs revisión por parejas:** queda superado. El flujo vigente usa `Confirmar / Proponer corrección / No participé`, con revisiones append-only y turnos por pareja.
+10. **Ventanas de partido:** carga retroactiva máxima 14 días; pendiente no validado expira a los 30 días desde la carga; corrección normal post-validación 3 días; incidencia de identidad post-validación 10 días.
+11. **Ranking y correcciones:** una edición publicada es inmutable. Una corrección posterior actualiza la verdad actual y solo puede reflejarse en ediciones futuras.
+12. **Pendientes accionables:** el límite de 5 es personal, cruza cualquier compañero y bloquea solo iniciar una carga nueva; no bloquea navegación ni recepción de partidos.
 
-Estas alineaciones no requieren modificar ahora la documentación de Nivel, Ranking o Intelligence. Deben respetarse en sus futuros handoffs de implementación.
+Estas alineaciones no modifican la fórmula de Nivel ni la arquitectura de Ranking/Intelligence. Sí deben reflejarse en sus contratos de integración cuando corresponda.
 
 ---
 
@@ -954,7 +1059,6 @@ Pueden decidirse con datos del piloto:
 - compra y proveedor de dominio propio;
 - proveedor definitivo de email al superar el volumen inicial;
 - matching inteligente de identidades entre redes;
-- sugerencia de invitados recientes y ventana tentativa;
 - autoservicio para reclamar múltiples identidades;
 - interfaz completa de fusiones;
 - social login/passkeys;
@@ -968,7 +1072,7 @@ Pueden decidirse con datos del piloto:
 
 ## 20. Bloqueantes antes de implementar
 
-No queda un bloqueo conceptual de producto para comenzar el Bloque 1.
+No queda un bloqueo conceptual de producto para los Bloques 1–3. Antes de implementar el subflujo final de identidad cuestionada en Bloque 6 queda solo un detalle menor: fijar el plazo adicional exacto para completar el jugador real una vez abierta esa incidencia.
 
 Antes de conectar servicios deberá resolverse como tarea operativa, no conceptual:
 
@@ -991,9 +1095,9 @@ Backend/Infraestructura está listo para el piloto cuando:
 - búsqueda devuelve solo personas reales del entorno;
 - invitados tienen identidad persistente y claim básico;
 - un partido siempre nace pendiente;
-- un rival puede validarlo o rechazarlo;
+- la pareja contraria puede confirmar o proponer corrección y cualquier participante puede señalar una identidad incorrecta dentro de las ventanas vigentes;
 - la validación actualiza atómicamente historial, Nivel, calibración, snapshots, `reasonCodes` y estadísticas;
-- pendientes y estados son visibles;
+- pendientes accionables, revisiones, incidencias de identidad y estados son visibles;
 - Ranking semanal usa exclusivamente datos reales elegibles;
 - Producción no contiene ni consulta mocks;
 - la app funciona con caché temporal pero no depende de `localStorage` como verdad;
