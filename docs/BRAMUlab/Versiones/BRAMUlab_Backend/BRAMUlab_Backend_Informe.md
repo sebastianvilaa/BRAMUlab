@@ -153,10 +153,10 @@ Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.
 
 ---
 
-## Bloque 2 — Auth, perfil, username, ubicación y recuperación — CÓDIGO COMPLETO, PENDIENTE DE VALIDACIÓN
+## Bloque 2 — Auth, perfil, username, ubicación y recuperación — CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL
 
 **Fecha:** 16 de septiembre de 2026.
-**Estado: CÓDIGO COMPLETO, PENDIENTE DE VALIDACIÓN.** Todo lo de esta sección está escrito y pasa la suite local (1408/1408), pero nada corrió todavía contra el Supabase/Vercel de Staging reales — a diferencia de Bloque 1, esta ronda no tuvo credenciales de un proyecto real disponibles para verificar en vivo. Ver §14 más abajo para la lista exacta de lo que falta confirmar y cómo.
+**Estado: CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL.** Toda la lógica de servidor (migración, RLS, trigger, RPCs) ya corrió contra el Supabase de **Staging real** con resultado OK (§4). Lo que todavía no se probó es el recorrido de una persona real en el navegador — crear cuenta, recibir el email real, tipear el código, entrar desde otro dispositivo — porque eso depende de que Sebastián lo haga a mano (ver §7/§8). **No cerrar el bloque hasta esa prueba manual.**
 **Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 2".
 
 ### 1. Qué se implementó
@@ -203,33 +203,47 @@ Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.
 
 ### 4. Tests
 
-- **Suite local** (`bramulab/tests.html`): **1408/1408 verdes** (1400 previos − 4 assertions de formato de `@usuario` desactualizadas, reemplazadas por 12 nuevas: formato 3–24/`[a-z0-9._]`, reservados, `slugifyUsername`/`suggestUsername` con `_`). Verificado abriendo `tests.html` en el navegador contra el dev server local (`.claude/dev-server.py`).
-- **Smoke test manual en el navegador** (sin backend real — ver §13 sobre por qué): alta completa de una cuenta 100% local (sin `window.__BRAMU_ENV__`/CDN, mismo camino que desarrollo local siempre tuvo) hasta "TU PERFIL ESTÁ LISTO" y Home, incluyendo el campo nuevo de Rama competitiva y una búsqueda real contra GeoRef (`Palermo, Ciudad Autónoma De Buenos Aires`, con id `0209801001`/provincia `02` confirmados). Sin errores nuevos en consola (los únicos dos son esperados: `env.generated.js` 404 porque no existe fuera de un build de Vercel, y el CDN de `supabase-js` bloqueado por la política de red de este entorno de desarrollo). Confirma que el camino sin backend real sigue intacto — **no** confirma los caminos reales de Supabase (ver §13/§14).
-- **`supabase/tests/verify-bloque2.mjs`** (nuevo, sigue el patrón de `verify-rls.mjs` de Bloque 1) — requiere red y `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` de un proyecto real con esta migración aplicada. **No corrió todavía** (ver §13/§14): crea 2 cuentas de prueba ya confirmadas vía Admin API, verifica RLS anónima, que el trigger arma `players`+`profiles`, que no se puede escribir `profiles` directo, `is_username_available` (reservado/libre), `complete_profile` (alta con ubicación manual → `verified_for_ranking=false`, `username_locked` al intentar cambiar el username, idempotencia, `username_taken` entre cuentas distintas, ubicación GeoRef → `verified_for_ranking=true`, RLS entre cuentas), y limpia las 2 cuentas y sus filas al final.
+- **Suite local** (`bramulab/tests.html`): **1408/1408 verdes** (1400 previos − 4 assertions de formato de `@usuario` desactualizadas, reemplazadas por 12 nuevas: formato 3–24/`[a-z0-9._]`, reservados, `slugifyUsername`/`suggestUsername` con `_`). Verificado abriendo `tests.html` en el navegador contra el dev server local (`.claude/dev-server.py`), y de nuevo tras el fix de §4bis sin ningún cambio de resultado.
+- **Smoke test manual en el navegador** (sin backend real): alta completa de una cuenta 100% local hasta "TU PERFIL ESTÁ LISTO" y Home, incluyendo el campo nuevo de Rama competitiva y una búsqueda real contra GeoRef. Sin errores nuevos en consola. Confirma que el camino sin backend real sigue intacto.
+- **`supabase/tests/verify-bloque2.mjs` contra Supabase Staging REAL** (16/09/2026, corrido por Sebastián con las credenciales de ese proyecto — nunca compartidas en el chat): **16/16 checks OK**, salida final `BLOQUE 2 OK: Auth/perfil/username/ubicación se comportan como espera Backend_Infraestructura.md.` Confirmado contra el servicio real:
+  - lectura anónima de `profiles`/`locations`/`reserved_usernames`/`pilot_events` → denegada;
+  - el trigger `handle_email_confirmed` arma `players`+`profiles` (incompleto) apenas el email queda verificado;
+  - `PATCH` directo sobre `profiles` → rechazado (RLS, sin política de update);
+  - `is_username_available`: `"admin"` (reservado) → `false`; un username libre → `true`;
+  - `complete_profile` con ubicación manual → OK, y esa ubicación queda `verified_for_ranking=false`;
+  - `username_locked` al intentar cambiar el username ya fijado;
+  - repetir el mismo username es idempotente (no falla);
+  - `username_taken` cuando otra cuenta intenta usar el mismo username;
+  - RLS: una cuenta no puede leer el `profile` de otra;
+  - `complete_profile` con ubicación GeoRef (IDs canónicos) → OK, y esa ubicación queda `verified_for_ranking=true`.
 
-### 5. Commit / push
+  Primera corrida real: 2 FALLA (`username_invalid_format` en vez de `username_locked`/en el alta GeoRef) — bug del propio script, no del backend: los usernames de prueba (`verify_b2_${stamp}` con `stamp=Date.now()`, 13 dígitos decimales) superaban el límite de 24 caracteres una vez agregado el sufijo `_otro` o el prefijo `_geo_`. Corregido acortando `stamp` a base36 (~8 caracteres) y los prefijos (`vb2_`/`vb2geo_`) — sin tocar la migración ni relajar ninguna validación. Segunda corrida: **16/16 OK**.
 
-Ver el commit de esta ronda en el historial de `main` (mensaje `feat(BRAMUlab Backend Bloque 2): ...`) — incluye la migración, `auth.js`, los cambios de `index.html`/`app.js`/`store.js`/`player-identity.js`/`locations.js`/`sw.js`, `supabase/tests/verify-bloque2.mjs` y esta actualización del Informe.
+### 5. Configuración manual ya completada por Sebastián (16/09/2026)
 
-### 6. Limitación real de esta ronda: sin credenciales de un proyecto Supabase real
+1. Migración `20260916180000_bloque2_auth_profile_username_location.sql` aplicada en Supabase Staging.
+2. SMTP custom de Staging configurado con Gmail (Authentication → Settings).
+3. Plantilla "Confirm signup" usando `{{ .Token }}` (código de 6 dígitos, no link).
+4. Plantilla "Reset Password" usando `{{ .Token }}`.
+5. `verify-bloque2.mjs` corrido contra ese proyecto real → 16/16 OK (§4).
 
-A diferencia de Bloque 1 (donde Sebastián corrió `verify-rls.mjs`/`/api/health` contra Staging real el mismo día), esta ronda no tuvo acceso a un proyecto Supabase/Vercel real para verificar en vivo — ni el `SUPABASE_URL`/`SUPABASE_ANON_KEY` de Staging, ni mucho menos la `SUPABASE_SERVICE_ROLE_KEY` (que nunca debe pegarse en un chat de todos modos). Todo lo de este bloque está escrito siguiendo al pie de la letra la API documentada de Supabase Auth/PostgREST (`signUp`/`verifyOtp`/`signInWithPassword`/`resetPasswordForEmail`/`updateUser`/`.rpc(...)`, todas estables desde hace años) y probado exhaustivamente donde se pudo (suite local, GeoRef real, camino sin backend), pero **la integración real con Supabase — la parte más importante de este bloque — todavía no se ejecutó ni una sola vez contra un servicio real.**
+### 6. Qué falta para poder cerrar Bloque 2
 
-### 7. Cómo verificar esto contra Staging real, paso a paso
+Todo lo de servidor (RLS, trigger, RPCs, invariante de ubicación, unicidad/bloqueo de username) ya está probado contra Staging real. Lo que **todavía no se probó** es el recorrido de una persona real a través de la UI:
 
-1. Aplicar la migración `20260916180000_bloque2_auth_profile_username_location.sql` en el proyecto Supabase de Staging (SQL Editor, después de las dos de Bloque 1).
-2. En el dashboard de Supabase, Authentication → Email Templates: editar "Confirm signup" y "Reset Password" para que usen `{{ .Token }}` en vez de `{{ .ConfirmationURL }}` (ver §2).
-3. Confirmar que Staging tiene un proveedor SMTP real configurado (Authentication → Settings) — sin esto, ningún email sale y ni el alta ni la recuperación se pueden probar de punta a punta.
-4. Correr `SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/tests/verify-bloque2.mjs` (las tres variables son las de ESE proyecto de Staging, la service role key nunca se pega en el chat) — confirma toda la lógica de servidor (RLS, trigger, RPCs) sin necesitar un email real.
-5. Con el deploy de Staging (Vercel) ya actualizado con este código: probar a mano, en el navegador real, el recorrido completo — crear cuenta con un email real, recibir el código de 6 dígitos, confirmarlo, completar "TU PERFIL" (incluida una ubicación real y una manual), cerrar sesión, iniciar sesión de nuevo, "olvidé mi contraseña" con el email real, y entrar desde un segundo dispositivo/navegador para confirmar que la sesión y el perfil persisten.
-6. Confirmar que un `@usuario` duplicado falla mostrando el mensaje en español correcto (no un error crudo de Postgres) y que una cuenta no puede ver el perfil de otra ni siquiera pidiéndolo directo a la API REST.
+1. Deploy de Staging (Vercel) actualizado con el código de este bloque (rama `staging`, ver §7 de esta ronda de push).
+2. Crear una cuenta con un email real desde el navegador, confirmar que el email de confirmación llega de verdad (con el código de 6 dígitos, no un link) y que `Auth.verifySignupOtp` lo acepta.
+3. Completar "TU PERFIL" (username, rama competitiva, ubicación real vía GeoRef y también una manual) y llegar a "TU PERFIL ESTÁ LISTO".
+4. Cerrar sesión, iniciar sesión de nuevo con esa misma cuenta.
+5. "Olvidé mi contraseña" con el email real, confirmar que el código de recuperación llega y que `Auth.verifyRecoveryOtp`/`Auth.updatePassword` funcionan de punta a punta.
+6. Entrar desde un segundo dispositivo/navegador con la misma cuenta y confirmar que el perfil persiste (Backend_Infraestructura.md §15 Bloque 2, "Terminado cuando").
+7. Confirmar que los mensajes de error en español que arma `app.js` (`SIGNUP_STEP1_ERROR_TEXT`/`SIGNUP_VERIFY_ERROR_TEXT`/`COMPLETE_PROFILE_ERROR_TEXT`/`LOGIN_ERROR_TEXT`) se ven razonables ante un error real (contraseña incorrecta, código vencido, etc.) — se armaron mapeando los códigos documentados de Supabase sin haber visto todavía una respuesta real de error en el navegador.
 
-### 8. Acciones manuales pendientes de Sebastián
+**Bloque 2 NO queda cerrado hasta confirmar los puntos 1-7 en un recorrido real.**
 
-1. Aplicar la migración de esta ronda en Staging (y, más adelante, en Production cuando exista).
-2. Editar las 2 plantillas de email en el dashboard de Supabase (§2/§7 punto 2).
-3. Confirmar SMTP real en Staging si todavía no está (§7 punto 3) — sin esto no se puede probar nada de punta a punta.
-4. Correr `verify-bloque2.mjs` contra Staging con la service role key (§7 punto 4).
-5. Hacer el recorrido manual completo en el navegador (§7 punto 5) y avisar si algo no se comporta como este Informe describe — especialmente los mensajes de error en español (`SIGNUP_STEP1_ERROR_TEXT`/`SIGNUP_VERIFY_ERROR_TEXT`/`COMPLETE_PROFILE_ERROR_TEXT`/`LOGIN_ERROR_TEXT` en `app.js`), que se armaron mapeando los códigos de error documentados de Supabase/las excepciones de `complete_profile` sin poder ver una respuesta real todavía.
+### 7. Commits / push
 
-**Bloque 2 NO queda cerrado hasta que los puntos 1-5 se confirmen contra Staging real.**
+- `f8a6058` — implementación completa (migración, `auth.js`, wiring de `index.html`/`app.js`/`store.js`/`player-identity.js`/`locations.js`/`sw.js`, `verify-bloque2.mjs`, Informe).
+- `2e340a8` — fix de los usernames de prueba de `verify-bloque2.mjs` que superaban 24 caracteres (§4).
+
+Pusheados **únicamente a `staging`** (`git push origin main:staging`) tras la validación real de §4/§5 — nunca a `main`, y sin tocar Production (que todavía no existe como proyecto Supabase/Vercel). Ver el detalle exacto en el mensaje de esta ronda.

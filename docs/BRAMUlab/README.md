@@ -40,7 +40,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 1 (fundación de backend y entornos) está CERRADO**: verificado contra Supabase Staging y Vercel reales (health check y RLS deny-by-default confirmados en producción de Staging, 16/09/2026). El proyecto Supabase/Vercel de Production todavía no existe; se crea más adelante con el mismo procedimiento, sin bloquear Bloque 2.
 
-**Bloque 2 (Auth, perfil, username, ubicación, recuperación) tiene su código completo (16/09/2026), pendiente de validación real en Staging** — no está cerrado todavía: falta aplicar la migración y correr `supabase/tests/verify-bloque2.mjs` contra un proyecto Supabase real, configurar las plantillas de email (código de 6 dígitos) y probar el recorrido completo en el navegador. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle exacto de qué falta.
+**Bloque 2 (Auth, perfil, username, ubicación, recuperación): CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL (16/09/2026)** — la migración, RLS, el trigger y las RPCs ya corrieron contra Supabase Staging real con resultado OK (`verify-bloque2.mjs`, 16/16). No está cerrado todavía: falta probar a mano el recorrido completo de una persona real en el navegador (alta con email real, recuperación de contraseña, segundo dispositivo). Pusheado únicamente a la rama `staging`, no a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle exacto de qué falta.
 
 ---
 
@@ -51,7 +51,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada para futura implementación |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 CERRADO (verificado en Staging real); Bloque 2 código completo, pendiente de validación real en Staging |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 CERRADO (verificado en Staging real); Bloque 2 server-side validado en Staging real, pendiente de validación UX-Auth real |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
