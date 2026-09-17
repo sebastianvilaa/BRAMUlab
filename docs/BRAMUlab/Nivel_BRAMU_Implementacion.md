@@ -1,10 +1,10 @@
 # Nivel BRAMU V1.5 — Estado de implementación
 
-**Estado:** motor de partidos V1.0 + estimador inicial V1.1 implementados y testeados localmente hasta **BRAMUlab V04.9**.  
+**Estado:** motor de partidos V1.0 + estimador inicial V1.1 implementados y testeados localmente hasta **BRAMUlab V04.10**.  
 **Versión del motor:** `nivel_bramu_v1_0`.  
 **Versión del cuestionario:** `nivel_inicial_v1_1`.  
-**Baseline vigente:** **1394/1394 tests**.  
-**Actualización:** 15 de septiembre de 2026.
+**Baseline de cierre de Nivel V04.10:** **1400/1400 tests**.  
+**Actualización:** 17 de septiembre de 2026.
 
 Este documento reemplaza el handoff previo de implementación que describía trabajo todavía pendiente. Ese handoff histórico se conserva en `Archivo/Nivel_BRAMU/`.
 
@@ -76,7 +76,7 @@ Implementado:
 
 ### UX integrada
 
-Hasta V04.9 se implementó y refinó:
+Hasta V04.10 se implementó y refinó:
 
 - onboarding de Nivel;
 - estado `PENDIENTE` antes de confirmar;
@@ -125,6 +125,7 @@ Cuando Nivel se integre con backend real:
 - cada actualización guarda snapshots suficientes para reconstruir el cálculo;
 - no se recalcula silenciosamente el historial con niveles actuales;
 - correcciones y anulaciones deben ser idempotentes;
+- si una revisión oficial de un partido ya computado cambia datos usados por Nivel, Backend debe mantener consistencia mediante reversión/reproceso determinista desde el punto necesario, sin cambiar la fórmula ni reescribir rankings ya publicados;
 - un cambio de fórmula exige una nueva versión explícita;
 - la precisión interna se conserva separada del valor público;
 - Ranking consume Nivel consolidado; nunca calcula Nivel por su cuenta;
@@ -175,15 +176,15 @@ Camino rápido + categoría:
 
 La batería completa incluye además estrés, coherencia, límites ±0,5, categoría ausente/no soportada, redondeo y no regresión del motor.
 
-Baseline al cierre de V04.9: **1394/1394**.
+Baseline al cierre de V04.10: **1400/1400**.
 
 ---
 
-## 7. Estado de V04.9
+## 7. Estado de V04.10
 
-V04.9 es la última ronda implementada de esta línea al momento de esta normalización documental.
+V04.10 es el cierre local/producto/UX de esta línea antes de la integración productiva con backend.
 
-Cerró principalmente:
+El tramo V04.9–V04.10 cerró principalmente:
 
 - pulido del onboarding/perfil;
 - legibilidad del cuestionario;
@@ -193,7 +194,7 @@ Cerró principalmente:
 - consistencia Home / Mi Perfil;
 - `PENDIENTE` correcto en perfil público antes de confirmar Nivel.
 
-No modificó Fórmula V1.5, `level.js`, `level-context.js` ni `level-calibration.js` en su lógica normativa.
+No modificó la Fórmula V1.5 ni el motor `nivel_bramu_v1_0` en su lógica normativa.
 
 ---
 
@@ -203,11 +204,10 @@ No repetir Etapas A/B/C ni volver a implementar el cuestionario.
 
 Antes de agregar más funciones de Nivel:
 
-1. completar revisión visual/UX de V04.9;
-2. mantener tests verdes;
+1. mantener tests verdes;
+2. integrar Nivel con el backend real siguiendo `Backend_Infraestructura.md`;
 3. usar el piloto real para validar comprensión y distribución del Nivel;
-4. integrar posteriormente con el backend real siguiendo `Backend_Infraestructura.md`;
-5. recién con datos reales evaluar ajustes de parámetros/anclas como una nueva versión explícita.
+4. recién con datos reales evaluar ajustes de parámetros/anclas como una nueva versión explícita.
 
 No hay una “Etapa C pendiente” en este documento: el estimador V1.1 ya fue implementado.
 
@@ -217,8 +217,8 @@ No hay una “Etapa C pendiente” en este documento: el estimador V1.1 ya fue i
 
 Nivel BRAMU puede considerarse listo para un piloto controlado cuando:
 
-- V04.9 supera la revisión visual final;
-- 1394/1394 tests permanecen verdes;
+- V04.10 permanece como cierre visual/UX local;
+- 1400/1400 tests de cierre de Nivel permanecen verdes;
 - ambos caminos de onboarding producen valores coherentes con fixtures;
 - PENDIENTE/CALIBRANDO/CALIBRADO se representan consistentemente;
 - no hay migraciones silenciosas desde estados viejos;
