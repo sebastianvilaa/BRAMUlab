@@ -3,7 +3,7 @@
 **Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 16 de septiembre de 2026
+**Actualización documental:** 17 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -51,7 +51,8 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada para futura implementación |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 CERRADO (verificado en Staging real); Bloque 2 server-side validado en Staging real, pendiente de validación UX-Auth real |
+| **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Home Estado Cero y validación/correcciones por parejas cerradas conceptualmente; impacto principal en Bloques 4–6 |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 CERRADO; Bloque 2 server-side validado en Staging real, pendiente de validación UX-Auth real |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -79,6 +80,7 @@ Solo documentos que pueden ser necesarios para tomar decisiones actuales:
 
 - este `README.md`;
 - `BRAMUlab_Backlog.md`;
+- `Experiencia_Inicial.md`;
 - fuentes maestras de Nivel;
 - `Ranking_BRAMU.md`;
 - `BRAMU_Intelligence.md` y su implementación;
@@ -163,9 +165,24 @@ La UI actual de V03 es prototipo/simulación local y no debe confundirse con el 
 
 V1 está definida como motor selectivo de insights respaldados por evidencia. La capa generativa es opcional y solo redacta claims ya calculados; no inventa datos ni decide Nivel/Ranking.
 
+### Experiencia inicial y ciclo de partido
+
+`Experiencia_Inicial.md` es la fuente activa para Home Estado Cero, pendientes accionables, validación por parejas, correcciones, `No participé`, identidades provisionales y progresión temprana.
+
+Reglas de ciclo cerradas el 17/09/2026:
+
+- carga retroactiva máxima: 14 días;
+- pendiente nunca validado: 30 días desde la carga;
+- corrección normal post-validación: 3 días;
+- incidencia de identidad post-validación: 10 días;
+- 5 pendientes accionables personales bloquean solo iniciar una nueva carga;
+- Ranking publicado nunca se reescribe por correcciones posteriores.
+
+`Backend_Infraestructura.md` traduce estas reglas a servidor. No reabrir el viejo modelo `validar/rechazar`.
+
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloques 1–2 no cambian por la alineación del ciclo de partido; el impacto principal comienza en Bloques 4–6. No implementar desde antecedentes del Archivo.
 
 ---
 
@@ -186,6 +203,7 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“Seguir con Nivel BRAMU / V04”** → este README + `Nivel_BRAMU_Formula_V1.5.md` y, si corresponde, la última sección de `BRAMUlab_V04_Informe.md`.
 - **“Ranking”** → `Ranking_BRAMU.md` + Nivel V1.5 solo donde Ranking dependa de Nivel.
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
+- **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
 - **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 - **“Qué falta / ideas futuras”** → `BRAMUlab_Backlog.md`.
 - **“Qué pasó en una versión anterior”** → `Versiones/<versión>/..._Informe.md`; ir a la sección concreta, no cargar todo por defecto.
