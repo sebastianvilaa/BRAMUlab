@@ -2,9 +2,10 @@
 
 **Estado:** V1 cerrada y lista para handoff de producto, UX y desarrollo.  
 **Alcance:** Ranking BRAMU individual para pádel amateur de dobles. No redefine Nivel BRAMU, no crea matchmaking y no incluye rankings privados de grupos.  
-**Fecha de actualización:** 17 de septiembre de 2026.  
+**Fecha de actualización:** 18 de septiembre de 2026.  
 **Cambio normativo principal de la revisión del 11 de septiembre de 2026:** Ranking BRAMU pasa de continuo a **publicación semanal**. Nivel BRAMU continúa siendo dinámico y se actualiza partido a partido.  
 **Actualización del 13 de septiembre de 2026 (cierre UX, BRAMUlab V03.8):** no cambia ninguna regla de cálculo/elegibilidad/snapshot. Cierra cuatro decisiones UX: (1) `TU POSICIÓN` debe garantizar contexto cercano a la fila propia (§13.3); (2) la tarjeta territorial semanal es superficie oficial tanto en Perfil público como en Mi Perfil (§15.1); (3) en Home, Ranking solo puede aportar un insight puntual dentro de `TU MOMENTO`, nunca una tarjeta territorial duplicada (§13.6); (4) `Explorar rankings` queda definido conceptualmente como evolución futura, fuera de V1 (§8.6).
+**Actualización del 18 de septiembre de 2026 (experiencia inicial):** se define el acceso de usuarios que todavía no completaron los datos requeridos para Ranking y el comportamiento de quienes ya los completaron pero continúan `CALIBRANDO` (§13.7). No cambia la elegibilidad deportiva ni la lógica de snapshots.
 
 ---
 
@@ -38,14 +39,15 @@ La publicación semanal toma como referencia el patrón deportivo habitual de ra
 
 Ranking BRAMU depende de la normativa vigente de Nivel BRAMU:
 
-1. `Nivel_BRAMU_Formula_V1.4.md` — fórmula y parámetros.
+1. `Nivel_BRAMU_Formula_V1.5.md` — fórmula y parámetros.
 2. `Nivel_BRAMU_Implementacion.md` — contrato de implementación y versionado.
 3. `Nivel_BRAMU.md` — contexto funcional y estados.
-4. `BRAMUlab_Backlog.md` — validación de partidos y decisiones futuras relacionadas.
+4. `Experiencia_Inicial.md` — reglas de entrada temprana y progresión del usuario.
+5. `BRAMUlab_Backlog.md` — validación de partidos y decisiones futuras relacionadas.
 
 Ranking no modifica la fórmula de Nivel BRAMU.
 
-En caso de contradicción entre una versión anterior de este documento y esta revisión, prevalece esta revisión (última actualización: 13 de septiembre de 2026, sobre la base normativa fijada el 11 de septiembre de 2026).
+En caso de contradicción entre una versión anterior de este documento y esta revisión, prevalece esta revisión (última actualización: 18 de septiembre de 2026).
 
 ---
 
@@ -528,6 +530,57 @@ puede aportar, cuando corresponda, un **insight puntual** dentro del mecanismo y
 Las flechas siguen significando exclusivamente **puestos**: `TU MOMENTO` nunca debe atribuir una
 subida a "jugó mejor esta semana".
 
+### 13.7 Acceso temprano antes de tener posición oficial — cierre del 18 de septiembre de 2026
+
+La entrada a Ranking permanece visible desde el comienzo. BRAMU no oculta la función por falta de
+datos o por calibración.
+
+#### A. Faltan datos necesarios para Ranking
+
+Si el usuario todavía no completó alguno de estos datos:
+
+- localidad deportiva;
+- rama competitiva;
+- `ranking_opt_in`;
+
+al tocar Ranking:
+
+- se muestra la pantalla/estructura de Ranking detrás, atenuada;
+- la vista queda bloqueada: no permite scroll ni interacción con la clasificación;
+- por delante aparece un modal simple con CTA a completar los datos faltantes;
+- el CTA abre directamente el flujo de completado correspondiente;
+- la interfaz no utiliza el término interno `perfil competitivo`.
+
+Copy conceptual de referencia, no definitivo:
+
+> **Completá tus datos para entrar al Ranking**  
+> Necesitamos algunos datos más para ubicarte en el ranking correcto.
+
+CTA conceptual:
+
+`Completar datos`
+
+Si todavía falta localidad o rama competitiva, la clasificación visible detrás funciona como
+**preview/shell visual**, no como una promesa de que ya sea el universo correcto del jugador.
+
+#### B. Datos completos + Nivel `CALIBRANDO`
+
+Una vez completos los datos anteriores:
+
+- Ranking queda accesible y puede explorarse normalmente;
+- el usuario puede navegar clasificaciones y entender la función;
+- no ocupa posición oficial propia mientras su Nivel siga `CALIBRANDO`;
+- no se inventa una fila propia ni un puesto;
+- se muestra un estado breve explicando por qué todavía no aparece.
+
+Copy conceptual de referencia, no definitivo:
+
+> **Tu Nivel todavía se está calibrando.**  
+> Cuando completes la calibración, vas a poder aparecer en el Ranking.
+
+Al cumplir la elegibilidad vigente, el usuario puede entrar en una edición oficial sin volver a
+completar esos datos.
+
 ---
 
 ## 14. Ayuda “Cómo funciona”
@@ -755,6 +808,8 @@ El domingo Seba cierra con Nivel público 6,0. En la edición del lunes deja `Ni
 
 Un jugador estimado en 8,2 pero calibrando no ocupa puesto territorial.
 
+Si ya completó localidad, rama competitiva y `ranking_opt_in`, puede explorar Ranking normalmente y ve un estado propio sin posición oficial.
+
 ### Caso 7 — Inactividad
 
 Al superar 180 días queda fuera de elegibilidad. Su siguiente aparición semanal, luego de un partido computable, es `Nuevo`.
@@ -766,6 +821,12 @@ Dos jugadores con 6,1274 comparten puesto. El siguiente salta un número: `4, 4,
 ### Caso 9 — Universo insuficiente
 
 Una localidad con cuatro elegibles no publica posiciones.
+
+### Caso 10 — Usuario nuevo sin datos de Ranking
+
+Tiene cuenta y Nivel inicial, pero todavía no completó localidad, rama o `ranking_opt_in`.
+
+Al tocar Ranking ve la estructura de la sección atenuada y bloqueada, con un modal que lo lleva a completar únicamente esos datos. No se le inventa un ámbito Local antes de conocer su localidad.
 
 ---
 
@@ -806,6 +867,8 @@ Una localidad con cuatro elegibles no publica posiciones.
     insight puntual dentro de `TU MOMENTO`, con hechos del snapshot semanal.
 31. `Explorar rankings` (consulta de otro territorio sin cambiar la ubicación propia) es una
     evolución futura conceptual, fuera de V1.
+32. Si faltan localidad, rama competitiva o `ranking_opt_in`, la entrada a Ranking sigue visible pero la sección queda bloqueada por un modal que deriva al completado de esos datos.
+33. Con esos datos completos y Nivel `CALIBRANDO`, Ranking es explorable aunque el usuario todavía no tenga posición oficial propia.
 
 ---
 
@@ -826,6 +889,8 @@ Ranking V1 estará listo para implementación real cuando pueda demostrarse que:
 - los filtros de Nivel usan el valor público del snapshot;
 - movimiento semanal compara snapshots equivalentes y expresa puestos;
 - privacidad, integridad y Perfil público son coherentes;
+- un usuario con datos de Ranking incompletos recibe el gate de completado sin entrar a una clasificación incorrecta;
+- un usuario con datos completos pero Nivel `CALIBRANDO` puede explorar Ranking sin recibir una posición propia inventada;
 - existe auditabilidad completa de snapshots y reglas.
 
 ---
@@ -850,7 +915,7 @@ Observar:
 
 ---
 
-## 22. Estado de decisiones al 13 de septiembre de 2026
+## 22. Estado de decisiones al 18 de septiembre de 2026
 
 ### Cerradas
 
@@ -884,6 +949,10 @@ Observar:
   misma fuente/lógica.
 - Home no duplica la clasificación territorial completa; Ranking puede aparecer como insight
   puntual dentro de `TU MOMENTO`.
+- La entrada a Ranking permanece visible aunque falten datos necesarios para participar.
+- Si faltan localidad, rama competitiva o `ranking_opt_in`, Ranking se presenta atenuado y bloqueado por un modal con CTA a completar los datos faltantes.
+- No se utiliza `perfil competitivo` como término de interfaz.
+- Con los datos requeridos completos y Nivel `CALIBRANDO`, Ranking puede explorarse normalmente aunque el jugador aún no tenga posición oficial propia.
 
 ### Fuera de alcance V1
 

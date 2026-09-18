@@ -1,10 +1,12 @@
 # BRAMU Intelligence V1 — Implementación vigente
 
-**Estado:** definición funcional cerrada; todavía no implementada en la app productiva.  
+**Estado:** definición funcional cerrada; implementación obligatoria antes de la primera salida productiva.  
 **Alcance:** Intelligence posterior a partidos cargados manualmente / ya jugados.  
-**Actualización documental:** 15 de septiembre de 2026.
+**Actualización documental:** 18 de septiembre de 2026.
 
 Este documento reemplaza el handoff anterior que quedó desactualizado en sus referencias a Nivel V1.4 y al Ranking continuo. El detalle normativo completo sigue viviendo en `BRAMU_Intelligence.md`.
+
+**Alineación de alcance 18/09/2026:** BRAMUlab principal registra únicamente partidos propios ya jugados. No existe carga por espectador ni marcador en vivo dentro de esta aplicación. Las referencias históricas del documento normativo a `origen: espectador/organizador` o partidos observados se interpretan como soporte legacy/defensivo y **no autorizan** a implementar esos flujos en BRAMUlab.
 
 ---
 
@@ -175,7 +177,7 @@ Payload seudonimizado: placeholders y solo valores necesarios. No enviar nombre 
 
 Proveedor inicial previsto: Cloudflare Workers AI / Qwen3 30B A3B. Alternativa: Groq / GPT-OSS 20B con Zero Data Retention, sujeto a la evaluación vigente en `Referencias/`.
 
-Siempre debe existir fallback inmediato a plantillas. Apagar IA no apaga BRAMU Intelligence.
+Siempre debe existir fallback inmediato a plantillas. Apagar IA no apaga BRAMU Intelligence. La primera salida productiva **no depende** de que la capa generativa esté activa: V1 debe poder salir completa con motor determinístico + plantillas.
 
 ---
 
@@ -219,7 +221,7 @@ Mantener el banco amplio definido en `BRAMU_Intelligence.md`, incluyendo:
 - formatos distintos;
 - rachas/cortes/récords;
 - partidos sin nada excepcional;
-- estados pendientes/disputados/observados/fuera de término;
+- estados pendientes/disputados/fuera de término;
 - niveles conocidos/parciales/calibrando;
 - ediciones de Ranking semanales;
 - correcciones/anulaciones.
@@ -232,14 +234,18 @@ Si la capa generativa no supera el benchmark, V1 debe poder salir con plantillas
 
 ## 12. Próxima acción correcta
 
-No implementar Intelligence antes de tener los datos/identidades/persistencia que exige su contrato.
+No implementar Intelligence antes de tener los datos/identidades/persistencia que exige su contrato. **Sí implementarla antes de abrir Producción a los primeros usuarios reales.**
 
-Cuando llegue su etapa:
+Orden vigente:
 
-1. revisar `Backend_Infraestructura.md` ya implementado o en condiciones de soportar identidad/partidos compartidos;
+1. completar los bloques previos de Backend necesarios para identidad, partidos compartidos, validación, snapshots de Nivel y Ranking real;
 2. consumir Nivel V1.5 desde snapshots oficiales;
 3. consumir Ranking desde ediciones semanales publicadas;
-4. construir primero motor determinístico + fixtures;
-5. recién después integrar UX y capa generativa opcional.
+4. construir motor determinístico + fixtures;
+5. integrar UX post-partido, evidencia y plantillas;
+6. ejecutar el endurecimiento final y recién entonces abrir Producción a los primeros usuarios;
+7. integrar/activar la capa generativa solo cuando supere su benchmark, sin bloquear la salida.
+
+BRAMU Intelligence V1 puede seguir mejorándose después de la primera salida: nuevas frases, mejor selección editorial y una futura capa generativa pueden versionarse sin reabrir el núcleo ni convertir texto histórico en autoridad.
 
 No volver a investigar desde cero la definición de BRAMU Intelligence salvo que producto decida reabrirla explícitamente.

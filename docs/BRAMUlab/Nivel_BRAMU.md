@@ -4,7 +4,8 @@
 
 **Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_1` para el cuestionario. Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
 
-**Fecha de consolidación:** 10 de septiembre de 2026.
+**Fecha de consolidación:** 10 de septiembre de 2026.  
+**Actualización UX:** 18 de septiembre de 2026 — se explicita la progresión temprana de Mi Perfil y Perfil público sin modificar fórmula, estados ni criterios de calibración.
 
 ## 1. Propósito
 
@@ -210,7 +211,7 @@ Para computar debe cumplir todas estas condiciones:
 - al menos un usuario registrado por pareja;
 - resultado validado por, como mínimo, un usuario registrado de la pareja rival;
 - estado oficial/validado;
-- no ser un partido observado por un espectador;
+- haber sido cargado por uno de los participantes registrados del encuentro;
 - no estar disputado, anulado ni pendiente;
 - no ser un duplicado del mismo encuentro.
 
@@ -235,7 +236,7 @@ Para computar debe cumplir todas estas condiciones:
 - estado de validación;
 - repetición reciente de compañeros y rivales.
 
-Los puntos, quiebres, winners, errores y eventos del registro en vivo pueden enriquecer BRAMU Intelligence, pero no deben dar una ventaja matemática frente a quien carga solamente el resultado final.
+BRAMUlab V1 trabaja con la carga posterior del resultado del partido propio. No registra puntos, quiebres, winners, errores ni eventos en vivo dentro de esta aplicación. El Nivel no exige esos datos adicionales: el resultado estructurado disponible debe ser suficiente para aplicar el motor vigente.
 
 ## 8. Criterios de cálculo ya decididos
 
@@ -308,18 +309,28 @@ El color debe acompañar, nunca reemplazar, texto e iconografía accesible.
 
 **Perfil propio**
 
-- nivel actual;
+- siempre puede mostrar identidad, Nivel actual y estado;
+- con 0 partidos oficiales: Nivel estimado + `CALIBRANDO · 0/5`, sin Evolución vacía, Efectividad vacía, compañeros/rivales vacíos ni gráficos sin evidencia;
+- los partidos pendientes pueden existir en Historial/partido, pero no alimentan estadísticas oficiales del Perfil;
+- a medida que aparecen partidos oficiales, los módulos se incorporan progresivamente cuando tienen datos legítimos;
 - estado y confiabilidad;
-- evolución;
-- partidos que sostienen la estimación;
-- explicación de variaciones;
+- evolución cuando exista evidencia suficiente;
+- partidos que sostienen la estimación cuando existan;
+- explicación de variaciones cuando haya una variación real;
 - acceso secundario a recalibración.
 
 **Perfil público**
 
 - nivel visible;
-- estado CALIBRANDO o check de calibración;
-- no exponer respuestas del cuestionario.
+- estado `CALIBRANDO` o check de calibración;
+- con 0 partidos oficiales: identidad + Nivel estimado/estado, sin estadísticas agregadas, evolución ni módulos vacíos;
+- no exponer respuestas del cuestionario;
+- incorporar información deportiva progresivamente solo cuando exista evidencia oficial suficiente;
+- nunca inventar posición de Ranking: si todavía no corresponde, usar el estado definido por `Ranking_BRAMU.md`.
+
+Criterio común para ambos perfiles:
+
+> **Perfil también se construye con evidencia real.**
 
 **Ranking**
 
@@ -444,7 +455,7 @@ Principios adoptados:
 - cuestionario breve;
 - resultado inmediato;
 - participación mediante categoría contextual y revisión de respuestas;
-- corrección automática limitada a ±0,5, sin stepper libre;
+- corrección automática limitada a ±0,5;
 - separación entre nivel y confiabilidad;
 - evolución posterior mediante partidos;
 - explicación accesible de variaciones;
@@ -475,6 +486,7 @@ No se incorpora matchmaking en la primera etapa. Solo tendrá sentido cuando exi
 - Acceso a recalibración secundario dentro de Perfil/Mis datos.
 - Recalibrar no borra historial ni altera instantáneamente el ranking.
 - Un usuario registrado por pareja y validación rival para computar.
+- La carga dentro de BRAMUlab corresponde siempre a un partido propio ya jugado; no existen partidos cargados por espectadores como fuente del Nivel.
 - Invitados reclamables durante 30 días.
 - Resultado por sets y games como evidencia suficiente.
 - Los datos punto a punto no dan ventaja matemática para nivel.
@@ -482,6 +494,8 @@ No se incorpora matchmaking en la primera etapa. Solo tendrá sentido cuando exi
 - Inactividad reduce confiabilidad, no nivel.
 - Guardar snapshots históricos de nivel y confiabilidad.
 - BRAMU Intelligence puede interpretar dificultad, pero nunca inventar acciones técnicas.
+- Mi Perfil y Perfil público se forman progresivamente y no muestran módulos estadísticos vacíos por falta de evidencia.
+- Los partidos pendientes pueden ser visibles como actividad, pero no alimentan estadísticas oficiales de Perfil hasta validarse.
 
 ## 16. Parámetros todavía pendientes de simulación *(superado por `Nivel_BRAMU_Formula_V1.5.md`)*
 

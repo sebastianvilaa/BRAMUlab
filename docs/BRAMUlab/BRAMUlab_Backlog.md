@@ -16,6 +16,7 @@ No volver a tratar como idea futura abierta:
 - **Experiencia inicial / validación por parejas / correcciones / pendientes** → `Experiencia_Inicial.md` + contrato técnico en `Backend_Infraestructura.md`.
 - **Backend / cuentas reales / entornos / infraestructura** → `Backend_Infraestructura.md`.
 - **Identidad local, Player Card, Perfil, Mis grupos y prototipo de Ranking** → V03 cerrada.
+- **Carga de partidos propios** → BRAMUlab registra únicamente partidos ya jugados por el propio usuario. Los partidos observados y el marcador en vivo no son backlog de esta app; el marcador en vivo pertenece a una aplicación/producto separado (**BRAMUlive**).
 
 Si una idea de este backlog entra en desarrollo, primero debe pasar a un documento/consolidado autorizado; no se implementa directo desde acá.
 
@@ -25,7 +26,6 @@ Si una idea de este backlog entra en desarrollo, primero debe pasar a un documen
 
 La arquitectura general y el ciclo básico de partido ya están definidos en `Backend_Infraestructura.md` y `Experiencia_Inicial.md`. Lo que sigue realmente pendiente incluye:
 
-- política exacta para partidos observados y eventual reclamo/validación posterior;
 - verificación reforzada de reclamo de identidades provisionales si el claim básico del piloto demuestra fricción;
 - detección y resolución de identidades provisionales duplicadas;
 - política de conflictos entre dispositivos y retención de cola offline;
@@ -73,7 +73,6 @@ Cualquier cambio matemático requiere nueva versión explícita; nunca modificar
 
 V1 ya está definida. Futuro posible:
 
-- incorporar datos de registro Por Games o punto a punto para análisis temporal más profundo;
 - enriquecer relaciones de compañero/rival cuando exista mayor historial;
 - benchmarking poblacional solo con una base suficientemente limpia;
 - recuerdos/resúmenes de períodos, temporadas o hitos personales;
@@ -85,17 +84,23 @@ Nunca habilitar análisis técnico individual si BRAMU no registra evidencia suf
 
 ---
 
-## 6. Registro de partidos y marcador
+## 6. Registro de partidos dentro de BRAMUlab
 
-Evoluciones posibles, no prioritarias antes del piloto:
+Decisión vigente:
 
-- integración definitiva entre registro Completo / Por Games / Resultado manual dentro de un único modelo compartido;
+- BRAMUlab registra únicamente **partidos propios ya jugados**;
+- quien inicia la carga debe ser uno de los cuatro participantes;
+- no existe carga por espectador ni categoría funcional `Observados`;
+- el acceso desde `+` debe conducir directamente a `Cargar mi partido`;
+- el marcador/registro en vivo pertenece a una aplicación/producto separado (**BRAMUlive**) y no forma parte del backlog de esta app.
+
+Evoluciones posibles de la carga propia, no prioritarias antes del piloto:
+
 - formatos excepcionales: partido interrumpido, amistoso con reglas arbitrarias, Partido Libre;
-- rediseño estructural definitivo del marcador en vivo si las pruebas reales muestran fricción;
 - simplificación adicional de corrección/undo si las pruebas reales muestran fricción, sin romper el contrato vigente de revisiones;
 - carga colaborativa desde más de un dispositivo, solo cuando exista backend real y se justifique.
 
-La prioridad sigue siendo registrar un partido con la menor cantidad de acciones posible.
+La prioridad sigue siendo registrar un partido propio con la menor cantidad de acciones posible.
 
 ---
 

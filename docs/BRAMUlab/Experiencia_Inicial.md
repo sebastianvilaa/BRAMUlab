@@ -1,7 +1,7 @@
 # BRAMUlab — Experiencia inicial y progresión temprana
 
 **Estado:** consolidado de producto y UX.  
-**Fecha:** 17 de septiembre de 2026.  
+**Fecha:** 18 de septiembre de 2026.  
 **Objetivo:** definir cómo se comporta BRAMU desde que un usuario termina su alta y estimador de Nivel hasta que empieza a construir historial real, incluyendo Home Estado Cero, aparición progresiva de módulos, partidos pendientes, validación por parejas e identidades provisionales.
 
 > Este documento no rediseña Nivel BRAMU, Ranking BRAMU ni el roadmap de Backend/Infraestructura. Consolida decisiones de experiencia y explicita los puntos que Backend debe soportar para implementarlas.
@@ -60,6 +60,147 @@ No se muestran módulos vacíos, porcentajes sin valor, tarjetas bloqueadas ni l
 Criterio de producto:
 
 > **Personalizada para el caso del jugador, no recortada.**
+
+### 2.1 Confirmación de email diferida durante el alta
+
+La verificación del email sigue siendo obligatoria antes de entrar a la Home real y utilizar BRAMU normalmente, pero **no debe interrumpir el inicio del alta apenas el usuario crea la cuenta**.
+
+El recorrido de producto queda, en este orden:
+
+1. el usuario crea la cuenta e ingresa su email;
+2. BRAMU envía inmediatamente el código de confirmación;
+3. el usuario puede seguir completando el perfil mínimo;
+4. completa y confirma su estimación de Nivel BRAMU;
+5. ve su Nivel inicial estimado;
+6. confirma el email como último paso;
+7. entra a Home Estado Cero.
+
+No existe `Saltar por ahora` para el estimador inicial ni para la confirmación definitiva del email. Ambas cosas son obligatorias antes de la primera Home, pero la confirmación de email se **difiere** para no cortar el impulso inicial del usuario.
+
+Mientras el email todavía no fue confirmado:
+
+- el progreso del alta se guarda como **borrador local en ese mismo dispositivo/navegador**;
+- el usuario puede abandonar y retomar luego desde ese dispositivo;
+- ese borrador no se promete como sincronizado entre dispositivos ni como persistencia definitiva de cuenta;
+- puede existir una acción secundaria `Confirmar email ahora` para quien quiera resolverlo antes;
+- si el código vence, se envía uno nuevo sin perder el borrador local.
+
+Al finalizar perfil + estimador, BRAMU debe pedir la confirmación como último paso para asegurar la cuenta y empezar a usar la app normalmente.
+
+Copy conceptual de referencia, no definitivo:
+
+> **Para empezar a usar BRAMU necesitamos que confirmes tu email.**  
+> Revisá tu bandeja de entrada o Spam/Correo no deseado.
+
+Si el usuario intenta salir antes de confirmar, BRAMU puede explicarlo sin tono de amenaza:
+
+> **Tu cuenta todavía no está confirmada.**  
+> Tu progreso queda guardado en este dispositivo. Confirmá tu email para asegurar tu cuenta y usar BRAMU normalmente.
+
+Esta regla evita enviar al usuario al correo antes de que haya visto valor en BRAMU, pero conserva la verificación como gate final antes de Home.
+
+**Alineación técnica cerrada (18/09/2026):** `Backend_Infraestructura.md` ya incorpora este recorrido. El progreso previo a la verificación vive como borrador local del mismo dispositivo; después de confirmar el email, Backend crea/activa la identidad persistente y convierte Perfil mínimo + Nivel confirmado en verdad server-side. Desarrollo debe aplicar esta alineación como ajuste acotado previo/dentro de Bloque 3, sin reabrir la arquitectura de Auth del Bloque 2.
+
+### 2.2 Perfil mínimo de entrada vs. perfil competitivo
+
+BRAMU separa dos conceptos que antes estaban mezclados:
+
+- **perfil mínimo de entrada:** lo indispensable para darle identidad al jugador y llevarlo al estimador de Nivel sin fricción innecesaria;
+- **perfil competitivo:** los datos adicionales necesarios únicamente cuando el jugador quiere participar del Ranking BRAMU.
+
+#### Perfil mínimo obligatorio antes del estimador
+
+Se solicita solamente:
+
+- nombre;
+- apellido;
+- `@usuario` único;
+- aceptación de términos y condiciones.
+
+Estos datos son suficientes para identificar al jugador dentro de la aplicación y continuar hacia Nivel BRAMU.
+
+No se pide durante esta etapa un segundo campo redundante tipo `Cómo querés que te llamemos`, `Nombre visible` o `Apodo`. BRAMU utiliza el nombre ya ingresado como referencia inicial. La posibilidad de definir luego un apodo o nombre visible personalizado queda fuera del alta y se resolverá desde Perfil cuando corresponda.
+
+#### Datos que no bloquean Nivel, Home ni el primer partido
+
+No son obligatorios para terminar el alta deportiva inicial:
+
+- foto/avatar;
+- WhatsApp;
+- localidad deportiva;
+- rama competitiva;
+- `ranking_opt_in`;
+- mano/lado de juego;
+- género personal opcional;
+- apodo/nombre visible personalizado;
+- otros datos secundarios de Perfil.
+
+Pueden completarse posteriormente desde Perfil / Mis datos o mediante una invitación contextual cuando habiliten una función concreta.
+
+#### Perfil competitivo y Ranking
+
+Localidad deportiva, rama competitiva y `ranking_opt_in` **siguen siendo necesarios para participar oficialmente del Ranking BRAMU**. La decisión nueva no elimina ni debilita esas reglas: solamente cambia el momento en que pasan a ser obligatorias.
+
+Un jugador puede, por lo tanto:
+
+1. crear su identidad básica;
+2. obtener su Nivel inicial;
+3. entrar a Home;
+4. registrar y validar partidos;
+5. completar más adelante su perfil competitivo;
+6. entrar al Ranking cuando además cumpla las reglas de elegibilidad vigentes.
+
+Esto es compatible con `Ranking_BRAMU.md`, que ya exige perfil/opt-in/ubicación y Nivel elegible para ocupar una posición oficial. No hace falta pedir esos datos antes de que produzcan valor real.
+
+#### Acceso al Ranking antes de completar los datos necesarios
+
+El acceso desde navegación permanece visible desde el inicio: BRAMU no oculta el icono/entrada a Ranking.
+
+Si el usuario intenta entrar y todavía le falta alguno de los datos necesarios para participar en Ranking —localidad deportiva, rama competitiva o `ranking_opt_in`—:
+
+- se muestra la pantalla/estructura de Ranking detrás, atenuada;
+- la vista queda bloqueada: no se puede scrollear ni interactuar con la clasificación;
+- por delante aparece un modal simple que explica que faltan datos;
+- el CTA lleva directamente al flujo para completar únicamente los datos pendientes necesarios para Ranking;
+- no se utiliza en la interfaz el concepto interno `perfil competitivo`.
+
+Copy conceptual de referencia, no definitivo:
+
+> **Completá tus datos para entrar al Ranking**  
+> Necesitamos algunos datos más para ubicarte en el ranking correcto.
+
+CTA conceptual:
+
+`Completar datos`
+
+La pantalla atenuada funciona como anticipo visual de la función. Si todavía falta localidad o rama, no debe fingir que la clasificación visible detrás ya corresponde al universo correcto del jugador: puede funcionar como shell/preview de Ranking hasta completar esos datos.
+
+Una vez completos los datos requeridos:
+
+- el usuario puede entrar y explorar Ranking aunque su Nivel siga `CALIBRANDO`;
+- mientras esté `CALIBRANDO` no ocupa una posición oficial propia;
+- la interfaz explica ese estado de manera breve y factual;
+- cuando cumpla la elegibilidad vigente, puede aparecer en una edición oficial sin pedir nuevamente esos datos.
+
+Copy conceptual para el estado calibrando, no definitivo:
+
+> **Tu Nivel todavía se está calibrando.**  
+> Cuando completes la calibración, vas a poder aparecer en el Ranking.
+
+Criterio de producto:
+
+> **BRAMU pide un dato cuando ese dato empieza a servir para algo.**
+
+#### Alineación técnica resuelta
+
+`Backend_Infraestructura.md` queda alineado con esta definición:
+
+- nombre + apellido + `@usuario` + términos son el único perfil mínimo que bloquea el acceso a Nivel;
+- localidad deportiva, rama competitiva y `ranking_opt_in` existen en el modelo, pero no bloquean Nivel, Home ni el primer partido;
+- esos datos pasan a ser obligatorios únicamente cuando el usuario quiere entrar oficialmente al Ranking;
+- no se agrega un segundo campo obligatorio de nombre visible/apodo durante el alta.
+
+**Impacto en Bloque 3:** antes de conectar Nivel productivo, Desarrollo debe ajustar el recorrido vigente de Staging para que estos campos no funcionen como gate previo. Es una alineación de producto acotada, no una reapertura del Bloque 2 ni un rediseño de perfil.
 
 ---
 
@@ -162,7 +303,7 @@ La Home simplemente es más corta porque todavía tiene menos cosas que contar.
 
 ## 4. Acción principal de Estado Cero
 
-La acción principal es **registrar el primer partido**.
+La acción principal es **registrar el primer partido propio**.
 
 No compiten con ella:
 
@@ -173,6 +314,24 @@ No compiten con ella:
 - tutoriales generales.
 
 Si existe un partido pendiente que el usuario debe resolver, esa acción puede superar temporalmente en urgencia a `Cargar primer partido` mediante el carrusel destacado, pero no transforma la Home en una pantalla de alerta.
+
+### 4.1 BRAMUlab registra únicamente partidos propios ya jugados
+
+En la aplicación principal de BRAMUlab, quien inicia una carga debe ser **uno de los cuatro participantes del partido**.
+
+Por lo tanto:
+
+- no existe carga de partidos como espectador;
+- no existe una categoría funcional `Observados`;
+- no se registra un partido ajeno para que después aparezca en la cuenta de terceros;
+- el marcador/registro en vivo no forma parte de esta aplicación;
+- el acceso principal desde `+` / registrar partido debe conducir directamente a **Cargar mi partido**, sin un selector previo entre `Registrar en vivo` y `Registrar mi partido`.
+
+El marcador en vivo pertenece a una aplicación/producto separado (**BRAMUlive**). El trabajo histórico realizado sobre esa experiencia se conserva en sus versiones anteriores y no debe borrarse por esta decisión.
+
+Criterio de producto:
+
+> **BRAMUlab registra mi actividad competitiva; no funciona como anotador de partidos ajenos.**
 
 ---
 
@@ -243,6 +402,56 @@ Si el quinto partido cumple ambas condiciones, pasa a `CALIBRADO` al finalizar/p
 
 Los módulos de Home pueden haber empezado a aparecer mucho antes.
 
+### 5.6 Mi Perfil y Perfil público también se forman progresivamente
+
+La lógica de progresión temprana no aplica solo a Home.
+
+**Mi Perfil** y **Perfil público** tampoco deben presentarse como pantallas completas llenas de módulos vacíos cuando todavía no existe evidencia suficiente.
+
+#### Mi Perfil con 0 partidos oficiales
+
+Debe mostrar como mínimo:
+
+- identidad del jugador;
+- `@usuario`;
+- Nivel BRAMU inicial estimado;
+- estado `CALIBRANDO · 0/5`;
+- acceso a editar/completar los datos de Perfil que correspondan.
+
+No debe mostrar todavía:
+
+- Evolución vacía;
+- Efectividad vacía;
+- compañeros/rivales sin evidencia;
+- gráficos sin datos;
+- estadísticas agregadas en cero que en realidad significan `sin partidos oficiales`;
+- módulos bloqueados o placeholders de funciones futuras.
+
+Si existen partidos cargados pero pendientes, pueden reconocerse en las superficies de partido/Historial correspondientes, pero no alimentan estadísticas oficiales del Perfil hasta validarse.
+
+#### Perfil público con 0 partidos oficiales
+
+Debe poder existir y mostrar:
+
+- nombre/avatar cuando corresponda;
+- `@usuario`;
+- Nivel BRAMU inicial estimado;
+- estado visible `CALIBRANDO`.
+
+No debe exponer respuestas del cuestionario ni completar la pantalla con estadísticas inexistentes.
+
+Si corresponde mostrar una superficie relacionada con Ranking, respeta las reglas vigentes de Ranking: no inventa posición oficial y puede mostrar un estado simple de calibración cuando corresponda.
+
+#### Progresión posterior
+
+A medida que aparecen partidos válidos/oficiales, Mi Perfil y Perfil público incorporan módulos únicamente cuando pueden mostrar información legítima.
+
+Criterio de producto:
+
+> **Perfil también se construye con evidencia real.**
+
+No existe un umbral artificial de 5 partidos para empezar a mostrar información. Cada módulo aparece cuando tiene datos suficientes según su propia regla.
+
 ---
 
 ## 6. Partidos pendientes y Home
@@ -270,8 +479,73 @@ Home Estado Cero estándar:
 - aparece también en Notificaciones;
 - al validarse y convertirse en oficial, puede transformarse inmediatamente en su primer partido válido y Home empieza a formarse.
 
----
+### 6.4 Carga sin conexión
 
+Perder conexión al guardar un partido no obliga al usuario a repetir la carga ni a quedarse dentro del formulario.
+
+Si el dispositivo no puede entregar el partido al servidor:
+
+- conserva localmente el borrador completo y la intención de envío;
+- permite salir de la carga y ver el Resumen;
+- el encuentro puede aparecer localmente en Home/Historial con estado `PENDIENTE DE SINCRONIZACIÓN`;
+- ese estado no equivale a `PENDIENTE DE VALIDACIÓN`: todavía no existe un partido oficial en el servidor;
+- no alimenta Nivel, calibración, Ranking ni estadísticas oficiales;
+- BRAMU reintenta automáticamente cuando recupera conexión;
+- el reintento usa la misma identidad de envío para no crear duplicados por problemas de red.
+
+Cuando el servidor acepta la carga, el estado local desaparece y el partido entra al ciclo real que corresponda.
+
+Si el servidor no puede aceptar el envío por una inconsistencia real, BRAMU no descarta lo cargado. El estado pasa a un concepto tipo `NECESITA REVISIÓN` y el CTA devuelve al dato que debe corregirse.
+
+### 6.5 Dos participantes cargan el mismo partido
+
+Dos personas no tienen que coordinar de antemano quién será “el cargador”.
+
+Al recibir una carga, BRAMU debe detectar si ya existe un encuentro pendiente que con alta certeza representa **el mismo partido**.
+
+La detección se apoya en información estructurada, no en nombres libres:
+
+- los mismos cuatro `player_id`;
+- la misma composición de parejas;
+- fecha/hora del encuentro dentro de una ventana compatible;
+- formato compatible.
+
+El score se utiliza para decidir qué hacer con la segunda declaración, no como único identificador del encuentro.
+
+#### Misma carga desde la pareja contraria
+
+Si la segunda declaración representa el mismo encuentro y el score normalizado coincide:
+
+- no se crea un segundo partido;
+- la segunda carga se asocia al mismo `match_id`;
+- funciona como conformidad explícita de la pareja contraria;
+- si no existe otra incidencia pendiente, el partido puede quedar validado directamente.
+
+#### Mismo encuentro, score diferente
+
+Si BRAMU reconoce el mismo encuentro pero la segunda carga trae un resultado distinto:
+
+- no crea silenciosamente otro partido;
+- la segunda declaración se incorpora como propuesta de corrección/revisión sobre el partido existente;
+- continúa el flujo normal de revisión por parejas.
+
+#### Segunda carga desde la misma pareja
+
+Si dos integrantes de la misma pareja cargan el mismo encuentro:
+
+- existe un solo `match_id`;
+- la segunda carga no reemplaza la necesidad de conformidad rival;
+- no se duplican Historial, Nivel, estadísticas ni notificaciones.
+
+#### Caso ambiguo
+
+BRAMU no fusiona a ciegas si la coincidencia no es suficientemente segura, por ejemplo si los mismos cuatro jugadores disputaron más de un partido cercano en el tiempo.
+
+En ese caso debe pedir una confirmación simple para distinguir `Es el mismo partido` de `Es otro partido`.
+
+La misma regla aplica si una carga estuvo offline: al sincronizar, puede encontrarse con que la otra pareja ya creó el encuentro y debe asociarse al partido existente en vez de generar un duplicado.
+
+---
 
 ## 7. Principio de validación: se juega en equipo, se valida en equipo
 
@@ -315,7 +589,6 @@ Por lo tanto:
 Este criterio reduce burocracia y aumenta la probabilidad de resolución aunque uno de los cuatro jugadores use poco la aplicación.
 
 ---
-
 
 ## 8. Pendiente accionable
 
@@ -381,14 +654,47 @@ Carrusel y campana no son redundantes:
 
 Cuando otro integrante de la pareja resuelve la tarea, desaparece para ambos.
 
-### 9.3 Historial / Pendientes
+### 9.3 Historial / estado vacío y pendientes
 
-Los partidos pendientes permanecen accesibles desde Historial con estado visible.
+Historial utiliza la pantalla real del producto también desde el primer día. No necesita un onboarding separado.
+
+#### Historial con 0 partidos cargados
+
+Si el usuario todavía no tiene ningún partido asociado:
+
+- se muestra un estado vacío simple y claro;
+- no se muestran tabs, filtros, contadores ni controles que todavía no tengan contenido útil;
+- aparece un CTA principal `Cargar primer partido`;
+- ese CTA abre exactamente el mismo flujo de carga que desde Home;
+- no se agregan tutoriales, explicaciones largas ni placeholders de partidos futuros.
+
+Copy conceptual de referencia, no definitivo:
+
+> **Todavía no tenés partidos.**  
+> Cargá el primero para empezar a construir tu historial.
+
+CTA conceptual:
+
+`Cargar primer partido`
+
+#### Historial con partidos pendientes
+
+Un partido pendiente **sí forma parte del Historial** desde que fue cargado, aunque todavía no sea oficial.
+
+La fila/tarjeta debe mostrar el encuentro real y un estado visible `PENDIENTE DE VALIDACIÓN` o equivalente.
+
+El tratamiento visual distingue dos situaciones:
+
+- **pendiente accionable:** la pareja del usuario tiene que responder; recibe mayor jerarquía visual y acento lima/verde de acción, coherente con Home y Notificaciones;
+- **pendiente en espera:** el usuario o su pareja ya hicieron su parte y esperan al otro lado; sigue visible con tratamiento más neutro, sin fingir urgencia.
+
+No usar naranja como color principal de los pendientes: el naranja queda reservado semánticamente al estado `CALIBRANDO`.
+
+Los partidos pendientes no alimentan todavía Efectividad, Actividad oficial, rachas, compañeros/rivales, Nivel, calibración ni Ranking. Historial reconoce que el encuentro existe; la validación determina cuándo pasa a ser verdad deportiva oficial.
 
 Debe existir una forma clara de revisar el conjunto de pendientes sin depender exclusivamente de Home o de una notificación antigua.
 
 ---
-
 
 ## 10. Máximo de pendientes accionables antes de nuevas cargas
 
@@ -417,7 +723,6 @@ Si en una pareja solo existe un usuario registrado y el compañero es provisiona
 La resolución debe ser extremadamente simple y rápida. La regla existe para ordenar tareas, no para castigar el uso frecuente de BRAMU.
 
 ---
-
 
 ## 11. Ventanas temporales antes de la validación
 
@@ -459,7 +764,6 @@ Copy conceptual de última semana:
 > Si no se valida antes del vencimiento, quedará registrado pero no computará.
 
 ---
-
 
 ## 12. Correcciones entre parejas
 
@@ -531,7 +835,6 @@ Es trazabilidad, no contenido protagonista de la experiencia.
 
 ---
 
-
 ## 13. `No participé` y participantes incorrectos
 
 `No participé` no equivale a rechazar el partido ni a desconocer un resultado.
@@ -599,12 +902,27 @@ Si se sabe que la persona asociada era incorrecta pero todavía no se sabe quié
 - el resultado del partido puede seguir conservándose como registro oficial;
 - los efectos que dependan de conocer correctamente esa identidad deben respetar las reglas de Nivel/Backend y recalcularse cuando corresponda.
 
-Si finalmente el jugador real nunca se identifica, el partido puede conservar un lugar tipo `Jugador no identificado` sin convertir por eso el encuentro en inexistente.
+Una vez abierta la incidencia de identidad, BRAMU da **7 días corridos desde el reporte** para identificar al jugador correcto.
 
-**Pendiente de cierre menor:** definir el plazo exacto adicional para completar esa identidad una vez abierta la incidencia. La referencia evaluada es una ventana corta desde el reporte, pero todavía no se fija numéricamente en este documento.
+Durante esa ventana:
+
+- cualquiera de los participantes habilitados puede completar el slot con una cuenta real o una identidad provisional;
+- el resultado oficial del partido se conserva mientras se resuelve la identidad;
+- los efectos que dependan de conocer correctamente a esa persona deben permanecer suspendidos o recalcularse según las reglas vigentes.
+
+Si vencen esos 7 días sin identificar al jugador real:
+
+- el slot queda definitivamente como `Jugador no identificado`;
+- no se fabrica ni asigna una identidad por inferencia;
+- el partido puede conservarse como registro del encuentro;
+- no se atribuyen a una persona desconocida efectos individuales que requieran identidad;
+- una edición de Ranking ya publicada nunca se reescribe por este caso.
+
+La regla temporal completa queda, por lo tanto:
+
+> **Hasta 10 días desde `validated_at` para detectar el error de identidad; una vez reportado, 7 días para identificar al jugador correcto.**
 
 ---
-
 
 ## 14. Autor del registro y trazabilidad
 
@@ -637,7 +955,6 @@ Ejemplos de notificación:
 - `Agus indicó que un participante no corresponde.`
 
 ---
-
 
 ## 15. Invitados, identidades provisionales y reclamo de actividad
 
@@ -705,7 +1022,6 @@ Un reclamo posterior puede recuperar el historial de esa identidad, pero **no re
 
 ---
 
-
 ## 16. Alineación con Backend/Infraestructura
 
 La contradicción anterior entre `validar/rechazar` y el modelo de revisión por parejas queda **resuelta conceptualmente**.
@@ -747,7 +1063,28 @@ El mayor impacto empieza en:
 
 Home Estado Cero no se transforma en checklist de cuenta.
 
-Foto, WhatsApp y demás datos viven en Perfil / Mis datos.
+Una vez completados nombre, apellido, `@usuario`, términos, Nivel inicial y confirmación final del email, la cuenta puede utilizar BRAMU normalmente aunque todavía falten datos secundarios o competitivos.
+
+### 17.1 Datos competitivos pendientes
+
+Localidad deportiva, rama competitiva y `ranking_opt_in` pueden permanecer incompletos sin bloquear:
+
+- Home;
+- búsqueda de jugadores;
+- carga y validación de partidos;
+- calibración de Nivel.
+
+Sí deben completarse antes de ocupar una posición oficial en Ranking BRAMU.
+
+Cuando el usuario intente entrar al Ranking sin esos datos, BRAMU muestra la estructura de Ranking atenuada y bloqueada, con un modal que explica que necesita completar algunos datos para ubicarlo correctamente. El CTA lleva al flujo de completado correspondiente.
+
+Una vez completos esos datos, Ranking deja de estar bloqueado aunque el Nivel continúe `CALIBRANDO`: el usuario puede explorarlo, pero todavía no ocupa una posición oficial propia hasta cumplir la elegibilidad vigente.
+
+### 17.2 Datos secundarios/opcionales
+
+Foto, WhatsApp, mano/lado, género personal opcional y apodo/nombre visible personalizado viven en Perfil / Mis datos y no bloquean la experiencia inicial.
+
+El apodo no se pregunta durante el alta. El nombre ya ingresado funciona como referencia inicial; más adelante puede evaluarse un campo opcional con un concepto tipo `Apodo / cómo querés que aparezca`, sin duplicar la pregunta al comienzo.
 
 ### Propuesta a evaluar
 
@@ -833,8 +1170,15 @@ Los textos definitivos deben cerrarse al momento de trabajar la pantalla visual,
 
 ---
 
-
 ## 22. Casos límite consolidados
+
+### A0. Usuario abandona el alta antes de confirmar el email
+
+- el progreso previo queda como borrador local en ese dispositivo/navegador;
+- al volver desde ese mismo entorno, retoma el paso pendiente;
+- no se promete recuperación automática desde otro dispositivo;
+- si el OTP venció, puede solicitar uno nuevo sin perder ese borrador;
+- no entra a Home hasta confirmar el email.
 
 ### A. Usuario termina estimador y no hizo nada
 
@@ -899,9 +1243,10 @@ Solo un reclamo explícito puede vincularlo.
 ### J. Se sabe que un jugador cargado era incorrecto pero nadie identifica al real
 
 - el partido no se borra ni se convierte automáticamente en inexistente;
-- el slot queda por identificar;
+- el slot queda `por identificar`;
 - no se fabrica una identidad;
-- el plazo exacto adicional de resolución queda como decisión menor pendiente.
+- desde la apertura de la incidencia corren **7 días** para identificar al jugador correcto;
+- si vence esa ventana sin resolución, el slot pasa a `Jugador no identificado` y deja de estar abierto a resolución normal.
 
 ### K. Partido expirado y luego el invitado reclama su identidad
 
@@ -913,16 +1258,58 @@ Solo un reclamo explícito puede vincularlo.
 - la carga normal se rechaza server-side;
 - no se crea un pendiente nuevo.
 
----
+### M. Usuario guarda sin conexión
 
+- el partido queda como borrador/outbox local;
+- puede ver Resumen y continuar usando la app;
+- Home/Historial pueden mostrar `PENDIENTE DE SINCRONIZACIÓN`;
+- no produce efectos oficiales;
+- al volver Internet se reintenta automáticamente con la misma identidad de envío;
+- si el servidor requiere una corrección, el contenido se conserva y pasa a `NECESITA REVISIÓN`.
+
+### N. Dos rivales cargan el mismo partido casi al mismo tiempo
+
+- Backend intenta resolver ambos envíos contra el mismo encuentro;
+- si cuatro jugadores, parejas, fecha/hora y formato identifican con seguridad el mismo partido, existe un solo `match_id`;
+- si el score coincide y la segunda carga proviene de la pareja contraria, esa declaración puede completar la validación;
+- si el score difiere, se trata como revisión/propuesta de corrección;
+- si la coincidencia es ambigua, BRAMU pregunta antes de fusionar;
+- nunca fusiona por simple coincidencia de nombres.
+
+---
 
 ## 23. Decisiones confirmadas
 
+- El perfil mínimo previo al estimador se limita a nombre, apellido, `@usuario` y aceptación de términos.
+- Localidad deportiva, rama competitiva y `ranking_opt_in` no bloquean Nivel, Home ni el primer partido; pasan a ser obligatorios cuando el jugador quiere participar oficialmente del Ranking.
+- Foto, WhatsApp, mano/lado, género personal opcional y apodo/nombre visible personalizado no bloquean el alta.
+- No se pregunta un segundo `nombre visible/apodo` durante el onboarding; el nombre ya ingresado funciona como referencia inicial.
+- La entrada a Ranking permanece visible aunque falten datos competitivos.
+- Si faltan localidad deportiva, rama competitiva o `ranking_opt_in`, Ranking muestra su estructura atenuada y queda bloqueado por un modal con CTA a completar los datos faltantes.
+- La interfaz no usa el término interno `perfil competitivo`; habla de completar datos para poder entrar al Ranking.
+- Con los datos de Ranking completos pero Nivel `CALIBRANDO`, el usuario puede explorar Ranking aunque todavía no tenga posición oficial propia.
+- Mi Perfil y Perfil público también se forman progresivamente: con 0 partidos oficiales muestran identidad + Nivel estimado/estado, pero ocultan módulos estadísticos sin evidencia.
+- Los partidos pendientes pueden reconocerse como actividad, pero no alimentan Efectividad, Evolución, compañeros/rivales ni otras estadísticas oficiales de Perfil hasta validarse.
+- Historial con 0 partidos muestra un estado vacío simple y CTA `Cargar primer partido`, sin filtros ni placeholders inútiles.
+- Los partidos pendientes aparecen en Historial desde la carga; los accionables reciben mayor jerarquía visual y los que esperan a la otra pareja usan un tratamiento neutro.
+- El lima/verde identifica acción pendiente; el naranja permanece reservado a `CALIBRANDO`.
+- La confirmación del email es obligatoria antes de la primera Home, pero se difiere hasta después de completar Perfil + estimador de Nivel.
+- Antes de confirmar el email, Perfil mínimo + Nivel viven como borrador local del mismo dispositivo; al confirmar, se persisten/revalidan server-side de forma idempotente antes de Home.
+- El código de confirmación se envía al crear la cuenta, pero no interrumpe inmediatamente el alta.
+- El usuario puede ver su Nivel inicial estimado antes de confirmar el email.
+- No existe `Saltar por ahora` para el estimador inicial ni para la confirmación definitiva del email.
+- Antes de validar el email, el progreso del alta se conserva como borrador local en ese dispositivo/navegador.
+- Si el usuario abandona antes de confirmar, al volver en el mismo dispositivo retoma el alta; no entra a una Home incompleta.
+- Un código vencido puede reemplazarse por uno nuevo sin perder el borrador local.
 - Home Estado Cero es la Home real, no onboarding.
 - No crear una Home nueva.
 - No mostrar estadísticas vacías.
 - Identidad + Nivel permanecen.
 - `Cargar primer partido` es el CTA principal cuando realmente no existe actividad cargada.
+- En BRAMUlab la carga siempre corresponde a un partido propio ya jugado: quien la inicia debe ser uno de los cuatro participantes.
+- No existe carga por espectador ni categoría funcional `Observados` en la app principal.
+- El marcador/registro en vivo pertenece a una aplicación separada (**BRAMUlive**) y no forma parte del flujo `+` de BRAMUlab.
+- Desde `+`, el recorrido objetivo es directo a `Cargar mi partido`, sin selector previo entre modo en vivo y carga propia.
 - `TU MOMENTO` genera expectativa y explica valor; no repite el CTA.
 - `Buscar jugadores` conserva su función real.
 - Datos secundarios de Perfil no ocupan Home.
@@ -952,17 +1339,24 @@ Solo un reclamo explícito puede vincularlo.
 - Un partido validado admite corrección normal durante 3 días desde `validated_at`.
 - La versión oficial anterior sigue vigente mientras una corrección post-validación está pendiente.
 - Una incidencia de identidad puede abrirse hasta 10 días desde `validated_at`.
+- Una vez abierta, existe una ventana adicional fija de 7 días desde el reporte para identificar al jugador correcto.
 - Cualquier participante puede detectar que una identidad cargada es incorrecta.
 - `No participé` corrige identidad; no rechaza el partido.
+- Si una incidencia de identidad se abre dentro de los 10 días post-validación, hay 7 días desde el reporte para identificar al jugador correcto; vencido ese plazo, el slot queda `Jugador no identificado`.
 - Un error de identidad no invalida automáticamente un partido real.
 - Identidades provisionales son persistentes y se reclaman explícitamente.
 - Un claim pendiente puede habilitar al nuevo usuario a actuar por su pareja.
 - Un claim posterior no reabre automáticamente un partido oficial o expirado.
 - Nunca hacer matching automático por nombre.
 - Ranking BRAMU publicado es un snapshot semanal inmutable; las correcciones posteriores impactan hacia adelante.
+- Una carga sin conexión se conserva como borrador/outbox local con estado `PENDIENTE DE SINCRONIZACIÓN`; no es oficial hasta que el servidor la acepta.
+- El reintento de una misma carga es idempotente y no crea duplicados por cortes de conexión.
+- Si dos participantes cargan el mismo encuentro, Backend debe resolverlo contra un único `match_id` cuando la coincidencia estructurada sea suficientemente segura.
+- Una segunda carga coincidente desde la pareja contraria y con el mismo score puede actuar como conformidad rival y completar la validación.
+- Una segunda carga del mismo encuentro con score distinto se trata como propuesta de corrección, no como un segundo partido.
+- Ante una coincidencia ambigua, BRAMU pide confirmación antes de fusionar; nunca deduplica por nombre libre.
 
 ---
-
 
 ## 24. Propuestas todavía no cerradas
 
@@ -970,17 +1364,16 @@ Solo un reclamo explícito puede vincularlo.
 - intensidad/motion exacto del destacado accionable;
 - mostrar o no autor del partido en cada fila compacta de Historial;
 - copy definitivo para el estado conceptual `PARTICIPACIÓN CUESTIONADA`;
-- plazo exacto adicional para identificar al jugador correcto una vez abierta una incidencia de identidad;
 - representación visual definitiva de `Jugador no identificado`;
 - nivel de detalle exacto del before/after dentro de `Modificaciones`;
+- copy, nombre final y ubicación exacta del futuro campo opcional `Apodo / cómo querés que aparezca`;
 - recordatorio de datos incompletos mediante Notificaciones;
 - `Recordar por WhatsApp` con deep link;
 - tratamiento administrativo de duplicados/reclamo de segunda identidad durante el piloto, más allá de la resolución manual ya prevista.
 
-Ninguno de estos puntos modifica la arquitectura general ni reabre las reglas 14/30/3/10 ya confirmadas.
+Ninguno de estos puntos modifica la arquitectura general ni reabre las reglas 14/30/3/10/7 ya confirmadas.
 
 ---
-
 
 ## 25. Qué debe validarse con usuarios reales
 
@@ -989,6 +1382,10 @@ Ninguno de estos puntos modifica la arquitectura general ni reabre las reglas 14
 - que `Cargar primer partido` sea obvio sin tutorial;
 - que `Confirmar / Proponer corrección / No participé` tenga una jerarquía inequívoca;
 - que el usuario entienda un pendiente accionable y pueda resolverlo muy rápido;
+- que Historial vacío conduzca naturalmente a `Cargar primer partido` sin sentirse como otra pantalla de onboarding;
+- que en Historial se distinga sin confusión un pendiente accionable de uno que simplemente espera respuesta rival;
+- que `PENDIENTE DE SINCRONIZACIÓN` se entienda como un estado local/transitorio y no como validación rival;
+- que una detección ambigua de partido duplicado pueda resolverse con una confirmación simple, sin generar ansiedad ni duplicados;
 - que el límite de 5 pendientes no produzca abandono o confusión;
 - que las ventanas post-validación sean comprensibles sin llenar la interfaz de fechas;
 - que el historial de modificaciones dé confianza sin agregar ruido;
@@ -1012,4 +1409,3 @@ Prioridad:
 5. probar la experiencia con usuarios reales antes de sumar funciones adicionales.
 
 > La mejor primera experiencia no es la que explica todo BRAMU. Es la que hace que el usuario entienda dónde está, qué puede hacer ahora y empiece a generar datos reales sin sentir que entró a una aplicación vacía.
-

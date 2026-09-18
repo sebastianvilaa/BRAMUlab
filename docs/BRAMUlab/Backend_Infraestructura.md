@@ -21,9 +21,9 @@ La primera infraestructura:
 - debe soportar cómodamente cientos de usuarios y crecer aproximadamente hasta 1.000 sin rehacer la arquitectura;
 - no debe diseñarse para 100.000 usuarios ni incorporar complejidad comercial anticipada;
 - debe mantener el motor y los contratos vigentes de Nivel BRAMU;
-- debe producir datos confiables que Ranking BRAMU pueda publicar y BRAMU Intelligence pueda consumir más adelante.
+- debe producir datos confiables que Ranking BRAMU pueda publicar y BRAMU Intelligence V1 pueda consumir dentro de la primera salida productiva.
 
-La prioridad es construir la mínima verdad multiusuario. Toda función que no sea necesaria para registrar, validar, procesar y consultar esa verdad queda fuera del piloto.
+La prioridad es construir primero la mínima verdad multiusuario y, sobre esa base real, completar la experiencia de producto definida para la primera salida. BRAMU Intelligence V1 forma parte de esa experiencia antes de abrir Producción a los primeros usuarios; su capa generativa no es requisito de salida.
 
 ---
 
@@ -91,16 +91,16 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 16. Separación completa de Development, Staging y Production.
 17. Caché y cola local de reintentos, sin convertir datos locales en autoridad.
 18. Métricas mínimas del piloto.
-19. Datos y versiones suficientes para que BRAMU Intelligence pueda construirse posteriormente sin rehacer el historial.
+19. BRAMU Intelligence V1 determinística, con evidencia verificable, relevancia, plantillas y UX post-partido, apoyada sobre los datos oficiales ya persistidos.
+20. Datos y versiones suficientes para que BRAMU Intelligence pueda seguir mejorándose sin rehacer el historial.
 
 ### 4.2 Expresamente fuera del piloto
 
-- implementación de BRAMU Intelligence;
-- IA generativa;
+- IA generativa como requisito de salida (puede activarse más adelante si supera sus pruebas);
 - matchmaking;
 - rankings privados de grupos;
 - expansión de Ranking fuera del V1 vigente;
-- marcador en vivo integrado;
+- marcador en vivo dentro de BRAMUlab: pertenece a una aplicación/producto separado (**BRAMUlive**) y no forma parte del alcance de esta app;
 - push notifications;
 - fusiones complejas de identidades, arbitraje externo de disputas o reclamos de identidad avanzados;
 - detección automática de duplicados por nombre o apodo;
@@ -183,6 +183,7 @@ No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene
 - Un partido que todavía no llegó a validarse tiene un deadline fijo de **30 días desde la carga original**. Las revisiones no reinician ese reloj.
 - Un partido ya validado admite correcciones normales durante **3 días desde `validated_at`**.
 - Una incidencia de identidad puede abrirse durante **10 días desde `validated_at`**.
+- Una vez abierta esa incidencia, existe una ventana adicional fija de **7 días desde el reporte** para identificar al jugador correcto.
 - Ranking semanal utiliza `America/Argentina/Buenos_Aires`: lunes 00:00 a domingo 23:59.
 - El snapshot publicado el lunes queda estable durante la semana.
 - Una validación o corrección posterior al cierre impacta hacia adelante y no reescribe retrospectivamente una edición publicada.
@@ -291,6 +292,28 @@ No se necesita un estado `rejected` para representar una simple disconformidad r
 `draft` y `sync_pending` son estados locales de interfaz, no estados oficiales del partido.
 
 Un partido nuevo se crea siempre como `pending_validation`. La ausencia de estado nunca significa validado.
+
+#### Identidad de envío y deduplicación de encuentro
+
+La idempotencia y la deduplicación resuelven problemas distintos:
+
+- **idempotencia:** el mismo envío/reintento del mismo dispositivo no puede crear dos partidos;
+- **deduplicación de encuentro:** dos participantes diferentes que cargan independientemente el mismo partido deben converger, cuando exista certeza suficiente, en un único `match_id`.
+
+El comando de creación debe normalizar y comparar como mínimo:
+
+- los cuatro `player_id`;
+- la composición de las dos parejas, sin depender del orden visual A/B;
+- `played_at` dentro de una ventana temporal compatible;
+- formato/modalidad.
+
+El score estructurado se normaliza según orientación de parejas y se utiliza para decidir si la segunda declaración confirma la revisión existente o propone una diferente.
+
+La resolución **create-or-attach** debe ser atómica/concurrency-safe: dos solicitudes simultáneas que representan inequívocamente el mismo encuentro no pueden atravesar la comprobación y crear dos filas oficiales por una carrera de concurrencia.
+
+Si existen varios candidatos plausibles o falta certeza suficiente, el servidor no fusiona automáticamente. Devuelve el candidato/estado necesario para que el cliente pida una confirmación simple.
+
+Nunca se deduplican encuentros por coincidencia de nombre o apodo.
 
 #### `match_participants`
 
@@ -506,35 +529,71 @@ Los datos locales no otorgan validez oficial. Al recuperar conexión, el servido
 
 ## 8. Flujos productivos exactos
 
-### 8.1 Registro, login y recuperación
+### 8.1 Registro, confirmación diferida, login y recuperación
 
 1. La persona inicia el registro con email y contraseña.
-2. Supabase crea una cuenta no verificada y envía el email real de confirmación.
-3. Al verificar, un comando idempotente crea su `player`, `profile` incompleto y `level_state` inicial.
-4. La sesión se mantiene con los mecanismos estándar de Supabase.
-5. El login acepta email y contraseña; `@usuario` es identidad pública, no reemplaza el email como credencial en el piloto.
-6. “Olvidé mi contraseña” envía un código de seis dígitos con vigencia de 60 minutos.
-7. Los intentos se limitan, las respuestas no revelan si un email existe y los tokens quedan administrados/hasheados por el proveedor.
+2. Supabase crea una cuenta no verificada y envía inmediatamente el código real de confirmación.
+3. La interfaz **no obliga a abandonar BRAMU para verificar en ese momento**. Mientras el email siga sin confirmar, el usuario puede completar en el mismo dispositivo:
+   - nombre;
+   - apellido;
+   - `@usuario`;
+   - aceptación de términos;
+   - cuestionario rápido o completo de Nivel;
+   - confirmación visual de su Nivel inicial estimado.
+4. Todo ese progreso previo a la verificación se conserva como **borrador local del mismo dispositivo/navegador**. No se promete sincronización entre dispositivos ni autoridad server-side antes de confirmar el email.
+5. El estimador puede ejecutarse localmente mediante el mismo motor/versionado compartido para mostrar el resultado durante el alta. Esa salida todavía no es el estado oficial persistente.
+6. Después de ver el Nivel inicial, la confirmación de email se convierte en gate final obligatorio antes de Home.
+7. Una vez confirmado el email, un comando idempotente:
+   - crea o completa `player`, `profile` y `level_state`;
+   - valida username y perfil mínimo;
+   - recibe el cuestionario/contexto confirmado;
+   - ejecuta nuevamente el estimador vigente del lado servidor;
+   - persiste versión, resultado, contexto y evento;
+   - devuelve el estado oficial que habilita Home.
+8. Si el usuario confirma el email antes por decisión propia, el resto del onboarding puede persistirse normalmente contra una sesión ya verificada; no cambia el orden funcional Perfil mínimo → Nivel → Home.
+9. La sesión verificada se mantiene con los mecanismos estándar de Supabase.
+10. El login acepta email y contraseña; `@usuario` es identidad pública, no reemplaza el email como credencial.
+11. “Olvidé mi contraseña” envía un código de seis dígitos con vigencia de 60 minutos.
+12. Los intentos se limitan, las respuestas no revelan si un email existe y los tokens quedan administrados/hasheados por el proveedor.
 
-Solo cuentas con email verificado pueden cargar, validar o rechazar partidos oficiales.
+Solo cuentas con email verificado pueden entrar a Home normal y ejecutar acciones oficiales como cargar, validar o corregir partidos.
 
-### 8.2 Completar perfil
+### 8.2 Perfil mínimo de entrada y datos competitivos
 
-1. El usuario elige un `@usuario` disponible.
-2. Completa nombre, apellido, display name y datos deportivos requeridos.
-3. Elige explícitamente su rama competitiva.
-4. Selecciona una localidad canónica; el fallback manual queda no verificado para Ranking.
-5. Acepta las condiciones y define `ranking_opt_in`.
-6. El servidor valida formato, unicidad y campos requeridos.
+Antes de Nivel, el único perfil mínimo obligatorio es:
 
-### 8.3 Definir Nivel
+1. nombre;
+2. apellido;
+3. `@usuario` único;
+4. aceptación de términos y condiciones.
 
-1. Con el perfil mínimo completo, Nivel V1 pasa a ser el flujo productivo normal.
+No se pide un segundo `display name`, apodo o “cómo querés que te llamemos” como requisito del onboarding. El nombre ingresado funciona como presentación inicial; un nombre visible/apodo personalizado puede existir más adelante como dato opcional de Perfil.
+
+No bloquean Nivel, Home ni el primer partido:
+
+- foto/avatar;
+- WhatsApp;
+- localidad deportiva;
+- rama competitiva;
+- `ranking_opt_in`;
+- mano/lado;
+- género personal opcional;
+- otros datos deportivos secundarios.
+
+Localidad, rama competitiva y `ranking_opt_in` continúan existiendo en el modelo y siguen siendo obligatorios para **participar oficialmente del Ranking**, pero se piden cuando el usuario intenta entrar a esa función, no antes de Nivel.
+
+El servidor continúa imponiendo formato/unicidad de username y validaciones de cada campo cuando corresponde.
+
+### 8.3 Definir y persistir Nivel
+
+1. Con nombre, apellido, `@usuario` y términos completos, Nivel V1 pasa a ser el siguiente paso obligatorio del onboarding.
 2. El usuario inicia el cuestionario rápido o completo.
-3. Las respuestas pueden guardarse como borrador, pero la confirmación oficial se envía al servidor.
-4. El servidor ejecuta el estimador vigente, registra versión, contexto, evento y estado inicial.
-5. Devuelve el Nivel y progreso confirmados.
-6. Los controles de laboratorio quedan ocultos o restringidos a administración fuera del flujo común.
+3. Si el email todavía no fue confirmado, respuestas, contexto y confirmación quedan en el borrador local del onboarding y el motor compartido puede mostrar el Nivel estimado.
+4. Si la sesión ya está verificada, la confirmación puede enviarse inmediatamente al servidor.
+5. Como gate final del alta, después de confirmar el email el servidor ejecuta el estimador vigente y persiste `level_state`, `level_event`, versión, respuestas/contexto necesario y resultado oficial.
+6. El resultado oficial devuelto debe coincidir con el motor probado para el mismo input; cualquier divergencia es error.
+7. Una vez persistido, el Nivel confirmado permanece entre dispositivos y sesiones.
+8. Los controles de laboratorio quedan ocultos o restringidos a administración fuera del flujo común.
 
 ### 8.4 Buscar jugadores
 
@@ -547,14 +606,33 @@ Solo cuentas con email verificado pueden cargar, validar o rechazar partidos ofi
 
 ### 8.5 Crear y cargar un partido
 
+BRAMUlab solo permite cargar un partido propio ya jugado. El creador debe ocupar uno de los cuatro lugares del encuentro.
+
+No existe en este producto:
+
+- carga por espectador;
+- partido `Observado`;
+- registro/marcador en vivo;
+- un selector previo que ofrezca `Registrar en vivo` como alternativa a `Cargar mi partido`.
+
+El marcador en vivo pertenece a una aplicación/producto separado (**BRAMUlive**) y no debe reintroducirse en este backend por herencia del prototipo histórico.
+
 1. Un participante registrado arma dos parejas con cuatro lugares de jugador.
 2. Puede elegir usuarios reales o reutilizar identidades provisionales relacionadas; si crea una nueva, obtiene un UUID persistente.
 3. Completa fecha, formato y resultado.
 4. El servidor rechaza una fecha jugada hace más de **14 días**.
-5. El dispositivo conserva borrador y, si no hay conexión, lo deja en outbox con una clave idempotente.
-6. Al enviar, el servidor valida participantes, resultado, permisos, fecha y reglas básicas.
-7. Crea el partido como `pending_validation`, fija `validation_deadline_at = created_at + 30 días` y deja la acción del lado de la pareja contraria a quien realizó la carga.
-8. El partido aparece en los historiales vinculados con su estado, pero todavía no afecta Nivel, calibración, Ranking ni estadísticas oficiales.
+5. El cliente asigna una identidad idempotente a la intención de carga.
+6. Si no hay conexión, conserva el borrador completo en outbox, permite salir del formulario y lo presenta localmente como `sync_pending` / `PENDIENTE DE SINCRONIZACIÓN`.
+7. Al recuperar conexión, reintenta automáticamente con la misma identidad de envío.
+8. Al recibir una carga, el servidor valida participantes, resultado, permisos, fecha y reglas básicas y ejecuta una resolución atómica `create-or-attach`.
+9. Si no existe un encuentro compatible, crea el partido como `pending_validation`, fija `validation_deadline_at = created_at + 30 días` y deja la acción del lado de la pareja contraria a quien realizó la carga.
+10. Si ya existe inequívocamente el mismo encuentro:
+    - misma revisión/score desde la pareja contraria → registra su conformidad y puede validar el partido;
+    - mismo encuentro con score/revisión diferente → incorpora la nueva declaración como propuesta de revisión/corrección;
+    - nueva carga desde la misma pareja → la asocia al encuentro sin reemplazar la conformidad rival necesaria.
+11. Si la coincidencia es ambigua, no fusiona automáticamente y devuelve un estado de resolución para que el cliente confirme si se trata del mismo partido.
+12. Una vez aceptado por el servidor, el partido aparece en los historiales vinculados con su estado oficial. Antes de validar no afecta Nivel, calibración, Ranking ni estadísticas oficiales.
+13. Si el servidor rechaza el envío por una inconsistencia corregible, el cliente conserva el borrador y lo marca como `NECESITA REVISIÓN`; nunca descarta silenciosamente la carga.
 
 
 ### 8.6 Revisar, confirmar y corregir por parejas
@@ -598,9 +676,10 @@ Solo cuentas con email verificado pueden cargar, validar o rechazar partidos ofi
 - Esto no reabre la ventana de resultado.
 - La persona incorrecta debe desvincularse del slot afectado.
 - El participante correcto puede ser una cuenta real o una identidad provisional.
-- Si todavía no se conoce, el lugar puede quedar temporalmente `por identificar`.
+- Si todavía no se conoce, el lugar queda temporalmente `por identificar`.
+- Desde la apertura de la incidencia corren **7 días corridos** para asociar el participante correcto como cuenta real o identidad provisional.
+- Si vence esa ventana sin resolución, el slot pasa a `Jugador no identificado` y deja de estar abierto a resolución normal.
 - La incidencia no invalida automáticamente el partido ni reescribe un Ranking semanal ya publicado.
-- El plazo exacto adicional para completar una identidad ya cuestionada queda como detalle menor de producto pendiente antes de implementar ese subflujo.
 
 #### Validación atómica
 
@@ -774,9 +853,13 @@ Antes del piloto:
 
 ---
 
-## 14. Preparación de datos para BRAMU Intelligence
+## 14. Preparación e implementación de BRAMU Intelligence
 
-Intelligence no se implementa en el piloto. Para no cerrarle el camino, el backend conserva:
+BRAMU Intelligence V1 **sí debe estar implementada antes de abrir Producción a los primeros usuarios reales**. No se construye antes de que existan identidades, partidos, Nivel y Ranking reales: consume esa verdad una vez disponibles los contratos que necesita.
+
+La primera salida puede funcionar íntegramente con el motor determinístico y plantillas. La capa generativa es opcional, desacoplada y mejorable posteriormente; apagarla o no activarla no apaga BRAMU Intelligence.
+
+Para sostener la V1 y permitir mejoras posteriores, el backend conserva:
 
 - IDs estables de usuario, jugador, partido, participante y edición;
 - `played_at`, `created_at`, `validated_at` y estado;
@@ -793,7 +876,7 @@ Intelligence no se implementa en el piloto. Para no cerrarle el camino, el backe
 - ubicación canónica a la granularidad permitida;
 - eventos mínimos del recorrido de producto.
 
-Se evita guardar inferencias generativas como hechos. En el futuro, Intelligence deberá producir afirmaciones deterministas y versionadas desde estos datos; la generación de lenguaje será opcional y no autoridad.
+Se evita guardar inferencias generativas como hechos. Intelligence produce afirmaciones deterministas y versionadas desde estos datos; la generación de lenguaje es opcional, puede mejorar frases posteriormente y nunca es autoridad.
 
 ---
 
@@ -831,27 +914,32 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 - registro, verificación, login, logout y recuperación;
 - creación idempotente de `player/profile`;
-- perfil mínimo;
+- identidad/perfil mínimo;
 - username único;
-- rama competitiva;
-- ubicación canónica/manual no elegible;
+- soporte persistente para rama competitiva, ubicación y `ranking_opt_in` como datos completables posteriormente;
 - primeras métricas de alta.
 
 **Depende de:** Bloque 1.
 
 **Terminado cuando**
 
-- una persona puede crear cuenta real, verificarla, completar perfil y entrar desde otro dispositivo;
+- una persona puede crear cuenta real, verificarla y volver a autenticarse desde otro dispositivo;
+- existen los contratos server-side seguros para perfil, username, ubicación y rama;
 - recuperación funciona con correo real en Staging;
 - username duplicado falla en servidor;
 - ubicación manual no habilita Ranking;
 - un usuario no puede leer ni editar datos privados ajenos.
 
+**Alineación posterior de producto:** Bloque 2 permanece cerrado como infraestructura/Auth. Antes/durante Bloque 3 debe aplicarse un ajuste acotado al recorrido de Staging: verificación diferida y perfil mínimo reducido. Esto no reabre la arquitectura ni las pruebas de seguridad de Bloque 2.
+
 ### Bloque 3 — Nivel productivo y persistente
 
 **Incluye**
 
-- persistencia de cuestionarios/confirmación;
+- alineación acotada del onboarding vigente con la confirmación de email diferida;
+- perfil mínimo previo a Nivel limitado a nombre + apellido + `@usuario` + términos;
+- borrador local pre-verificación para Perfil mínimo + cuestionario/contexto de Nivel;
+- persistencia idempotente al confirmar email;
 - ejecución server-side del estimador y contratos vigentes;
 - `level_states` y `level_events`;
 - Nivel como flujo normal;
@@ -862,8 +950,11 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 **Terminado cuando**
 
+- el usuario puede completar Perfil mínimo + estimador antes de confirmar el email sin perder el progreso en ese dispositivo;
+- confirmar el email convierte de forma idempotente ese borrador en identidad + Nivel oficiales server-side;
+- localidad, rama y `ranking_opt_in` no bloquean Nivel ni Home;
 - Nivel confirmado permanece entre dispositivos y sesiones;
-- el servidor es autoridad;
+- el servidor es autoridad del resultado persistido;
 - rápido/completo generan los resultados esperados del motor probado;
 - se guardan versiones y contexto;
 - un usuario común no ve controles de laboratorio.
@@ -895,9 +986,13 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 - partidos, cuatro lugares de participante, sets y resultado;
 - validación server-side de carga retroactiva máxima de 14 días;
-- borrador/outbox local;
+- borrador/outbox local y estado `sync_pending`;
+- reintento automático con identidad idempotente;
+- resolución atómica `create-or-attach` para evitar duplicados cuando dos participantes cargan el mismo encuentro;
+- detección estructurada por participantes, parejas, fecha/hora y formato, sin matching por nombre;
+- segunda declaración coincidente como conformidad rival o propuesta de corrección según score/revisión;
 - creación idempotente como `pending_validation`;
-- `validation_deadline_at` fijo a 30 días desde la carga;
+- `validation_deadline_at` fijo a 30 días desde la carga aceptada por servidor;
 - revisiones append-only;
 - pareja/lado que tiene la acción;
 - control de concurrencia por versión;
@@ -911,7 +1006,9 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 **Terminado cuando**
 
 - un partido cargado en un dispositivo aparece una sola vez en los participantes relacionados;
-- sin conexión se conserva y reintenta sin duplicar;
+- sin conexión se conserva, puede mostrarse como `sync_pending` y reintenta sin duplicar;
+- dos cargas independientes del mismo encuentro convergen en un único `match_id` cuando la coincidencia es inequívoca;
+- una coincidencia ambigua nunca se fusiona silenciosamente;
 - no afecta Nivel ni estadísticas antes de validar;
 - pendientes/rechazados/vencidos se distinguen;
 - ocultar no elimina el partido.
@@ -924,7 +1021,8 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - `Confirmar / Proponer corrección / No participé` con autoridad por pareja;
 - correcciones pre-validación dentro del deadline fijo;
 - 3 días post-validación para corrección normal;
-- 10 días post-validación para incidencia de identidad;
+- 10 días post-validación para abrir una incidencia de identidad;
+- 7 días desde el reporte para identificar al participante correcto;
 - reemplazo de participante por cuenta real o provisional;
 - transacción atómica de revisión oficial, Nivel, calibración, snapshots, `reasonCodes`, estadísticas y métricas;
 - reversión/reproceso idempotente cuando una corrección oficial cambia datos computados;
@@ -966,7 +1064,31 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - provisionales no ocupan posiciones;
 - no existe fallback a mocks.
 
-### Bloque 8 — Endurecimiento y salida al piloto
+### Bloque 8 — BRAMU Intelligence V1
+
+**Incluye**
+
+- motor determinístico de hechos, candidatos, comparabilidad y relevancia según `BRAMU_Intelligence.md`;
+- evidencia estructurada y versionada por insight;
+- selección adaptativa: 1 insight principal + 0–2 secundarios;
+- plantillas siempre disponibles y estados de abstención/aprendizaje;
+- integración post-partido y `Por qué aparece`;
+- consumo de snapshots/reasonCodes de Nivel y ediciones semanales de Ranking sin recalcularlos;
+- fixtures determinísticos y protección contra números, entidades o claims inventados;
+- arquitectura preparada para capa generativa opcional, sin convertirla en requisito de salida.
+
+**Depende de:** Bloques 5–7, especialmente partidos oficiales, snapshots de Nivel y Ranking real.
+
+**Terminado cuando**
+
+- un partido oficial puede producir únicamente insights sustentados por evidencia real;
+- un partido sin conclusión suficientemente fuerte puede abstenerse sin llenar espacios;
+- la salida determinística funciona sin proveedor de IA;
+- correcciones/anulaciones pueden invalidar o recomputar derivados cuando corresponda;
+- los fixtures cumplen 0 números incorrectos, 0 entidades inventadas, 0 acciones no registradas y 0 claims sin evidencia;
+- la UX post-partido muestra Intelligence sin depender de datos simulados.
+
+### Bloque 9 — Endurecimiento y salida a primeros usuarios
 
 **Incluye**
 
@@ -977,7 +1099,7 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - procedimiento administrativo;
 - checklist y despliegue limpio de Producción.
 
-**Depende de:** Bloques 1–7.
+**Depende de:** Bloques 1–8.
 
 **Terminado cuando**
 
@@ -1006,7 +1128,7 @@ Su alcance debe terminar en una base segura y verificable, sin intentar migrar s
 - documentar variables, despliegue, respaldo y rollback;
 - no importar `localStorage`, no sembrar Producción y no alterar todavía el motor de Nivel.
 
-No debe abarcar los ocho bloques en una única entrega.
+No debe abarcar los nueve bloques en una única entrega.
 
 ---
 
@@ -1015,7 +1137,8 @@ No debe abarcar los ocho bloques en una única entrega.
 | Riesgo | Mitigación mínima |
 |---|---|
 | La app sigue mostrando datos viejos de `localStorage` | Namespace nuevo por entorno, sin fallback productivo, limpieza guiada de claves históricas |
-| Duplicación por reintentos offline | UUID de cliente + clave de idempotencia única server-side |
+| Duplicación por reintentos offline | UUID/identidad de envío + clave de idempotencia única server-side |
+| Dos participantes cargan el mismo partido | Resolución atómica `create-or-attach` con identidad de jugadores/parejas/tiempo/formato; si es ambiguo, pedir confirmación |
 | Partido validado pero Nivel a medias | Una transacción/comando server-side atómico |
 | Fórmula divergente entre cliente y servidor | Un único motor compartido/versionado y tests de paridad |
 | Filtración por permisos demasiado amplios | RLS deny-by-default y pruebas positivas/negativas |
@@ -1041,14 +1164,17 @@ La migración no requiere transformar los datos simulados actuales. El riesgo pr
 4. **Efecto de partidos con invitados:** manda Nivel BRAMU V1.5. El partido puede afectar a jugadores computables si cumple sus reglas; el provisional no recibe Nivel permanente de terceros.
 5. **Ubicación manual de V04.10:** se conserva como fallback de perfil, pero sin ID canónico/verificación no habilita Ranking territorial.
 6. **Ranking local simulado:** se elimina del camino productivo. Ranking real depende de partidos validados y snapshots semanales server-side.
-7. **Movimientos de Intelligence:** cuando se implemente, consumirá movimientos entre ediciones semanales publicadas; no existe movimiento oficial instantáneo.
+7. **Movimientos de Intelligence:** Intelligence V1 se implementa antes de la primera salida productiva y consume movimientos entre ediciones semanales publicadas; no existe movimiento oficial instantáneo.
 8. **Piloto descartable:** queda superado. Los amigos iniciales usan Producción y conservan sus cuentas/datos.
+8.a. **Partidos observados / marcador en vivo:** quedan fuera de BRAMUlab. La app principal registra únicamente partidos propios ya jugados; el marcador en vivo se conserva como producto/aplicación separada (**BRAMUlive**, anteriormente desarrollada como BRAMUlab Partidos).
 9. **Validar/rechazar vs revisión por parejas:** queda superado. El flujo vigente usa `Confirmar / Proponer corrección / No participé`, con revisiones append-only y turnos por pareja.
-10. **Ventanas de partido:** carga retroactiva máxima 14 días; pendiente no validado expira a los 30 días desde la carga; corrección normal post-validación 3 días; incidencia de identidad post-validación 10 días.
+10. **Ventanas de partido:** carga retroactiva máxima 14 días; pendiente no validado expira a los 30 días desde la carga; corrección normal post-validación 3 días; la incidencia de identidad puede abrirse hasta 10 días post-validación y, una vez abierta, dispone de 7 días para identificar al jugador correcto.
 11. **Ranking y correcciones:** una edición publicada es inmutable. Una corrección posterior actualiza la verdad actual y solo puede reflejarse en ediciones futuras.
 12. **Pendientes accionables:** el límite de 5 es personal, cruza cualquier compañero y bloquea solo iniciar una carga nueva; no bloquea navegación ni recepción de partidos.
+13. **Offline:** una carga sin conexión queda localmente `sync_pending`, conserva todo el contenido y reintenta con identidad idempotente; no es oficial hasta ser aceptada por servidor.
+14. **Doble carga del mismo encuentro:** dos participantes pueden cargar independientemente el mismo partido; Backend debe convergerlos en un único `match_id` cuando la coincidencia estructurada sea inequívoca. Coincidencia de score desde la pareja contraria puede completar validación; discrepancia se convierte en revisión/corrección; caso ambiguo requiere confirmación.
 
-Estas alineaciones no modifican la fórmula de Nivel ni la arquitectura de Ranking/Intelligence. Sí deben reflejarse en sus contratos de integración cuando corresponda.
+Estas alineaciones no modifican la fórmula de Nivel ni la arquitectura de Ranking/Intelligence. BRAMU Intelligence V1 queda incorporada al camino obligatorio previo a la primera salida productiva, con generación de lenguaje opcional y mejorable posteriormente.
 
 ---
 
@@ -1072,7 +1198,16 @@ Pueden decidirse con datos del piloto:
 
 ## 20. Bloqueantes antes de implementar
 
-No queda un bloqueo conceptual de producto para los Bloques 1–3. Antes de implementar el subflujo final de identidad cuestionada en Bloque 6 queda solo un detalle menor: fijar el plazo adicional exacto para completar el jugador real una vez abierta esa incidencia.
+No queda un bloqueo conceptual de producto antes de continuar Backend.
+
+**Prerequisito inmediato para Bloque 3:** el código actual de Staging debe alinearse con dos decisiones ya cerradas, sin rediseñar Auth ni reabrir Bloque 2:
+
+1. confirmación de email diferida hasta después de Perfil mínimo + estimador;
+2. perfil mínimo previo a Nivel limitado a nombre + apellido + `@usuario` + términos.
+
+El puente pre-verificación se resuelve como borrador local del mismo dispositivo y se vuelve oficial/idempotente después de confirmar el email.
+
+El subflujo de identidad cuestionada también queda cerrado con la regla **10 + 7**: hasta 10 días desde `validated_at` para abrir la incidencia y 7 días desde el reporte para identificar al jugador correcto.
 
 Antes de conectar servicios deberá resolverse como tarea operativa, no conceptual:
 
@@ -1091,7 +1226,7 @@ Backend/Infraestructura está listo para el piloto cuando:
 
 - existen Development, Staging y Production realmente separados;
 - una cuenta puede registrarse, verificarse, recuperarse y usarse desde distintos dispositivos;
-- perfil, username, ubicación, rama y Nivel persisten server-side;
+- perfil, username y Nivel persisten server-side; ubicación/rama/`ranking_opt_in` persisten cuando el usuario los completa y no bloquean el onboarding inicial;
 - búsqueda devuelve solo personas reales del entorno;
 - invitados tienen identidad persistente y claim básico;
 - un partido siempre nace pendiente;
@@ -1101,8 +1236,9 @@ Backend/Infraestructura está listo para el piloto cuando:
 - Ranking semanal usa exclusivamente datos reales elegibles;
 - Producción no contiene ni consulta mocks;
 - la app funciona con caché temporal pero no depende de `localStorage` como verdad;
-- quedan guardados los contratos necesarios para Intelligence;
+- BRAMU Intelligence V1 funciona sobre datos reales con fallback determinístico;
 - las métricas mínimas permiten evaluar el piloto;
 - backups, RLS, logs y procedimiento administrativo fueron probados en Staging.
 
 Al cumplir esta definición, BRAMU puede incorporar los primeros 10–20 jugadores en una Producción real sin necesitar una migración posterior hacia otra base “definitiva”.
+

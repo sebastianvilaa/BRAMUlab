@@ -40,7 +40,11 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 1 (fundación de backend y entornos) está CERRADO**: verificado contra Supabase Staging y Vercel reales (health check y RLS deny-by-default confirmados en producción de Staging, 16/09/2026). El proyecto Supabase/Vercel de Production todavía no existe; se crea más adelante con el mismo procedimiento, sin bloquear Bloque 2.
 
-**Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación/onboarding, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo. Próximo bloque autorizado: **Bloque 3** (Nivel productivo y persistente) — no iniciado todavía.
+**Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo.
+
+**Antes/durante Bloque 3 hay una alineación de producto obligatoria y acotada sobre el flujo ya implementado:** la confirmación de email se difiere hasta después de Perfil mínimo + estimador, y el Perfil mínimo previo a Nivel queda reducido a nombre + apellido + `@usuario` + términos. Localidad, rama y `ranking_opt_in` pasan a pedirse cuando habilitan Ranking. Esto no reabre la arquitectura/Auth de Bloque 2.
+
+Próximo bloque autorizado: **Bloque 3** (Nivel productivo y persistente) — no iniciado todavía.
 
 ---
 
@@ -50,9 +54,9 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
-| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada para futura implementación |
-| **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Home Estado Cero y validación/correcciones por parejas cerradas conceptualmente; impacto principal en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1 y 2 CERRADOS (verificados en Staging real); Bloque 3 es el próximo autorizado, no iniciado |
+| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
+| **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1 y 2 CERRADOS; Bloque 3 es el próximo autorizado. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -163,26 +167,36 @@ La UI actual de V03 es prototipo/simulación local y no debe confundirse con el 
 
 ### BRAMU Intelligence
 
-V1 está definida como motor selectivo de insights respaldados por evidencia. La capa generativa es opcional y solo redacta claims ya calculados; no inventa datos ni decide Nivel/Ranking.
+V1 está definida como motor selectivo de insights respaldados por evidencia y **forma parte del alcance previo a la primera salida productiva**. Se implementa después de contar con identidades, partidos, Nivel y Ranking reales, y antes del endurecimiento final de Producción.
+
+La V1 debe poder funcionar completamente con núcleo determinístico + plantillas. La capa generativa es opcional, mejorable posteriormente y solo redacta claims ya calculados; no inventa datos ni decide Nivel/Ranking.
 
 ### Experiencia inicial y ciclo de partido
 
 `Experiencia_Inicial.md` es la fuente activa para Home Estado Cero, pendientes accionables, validación por parejas, correcciones, `No participé`, identidades provisionales y progresión temprana.
 
-Reglas de ciclo cerradas el 17/09/2026:
+Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
+- confirmación de email diferida hasta después de Perfil mínimo + estimador;
+- Perfil mínimo antes de Nivel: nombre + apellido + `@usuario` + términos;
+- localidad, rama y `ranking_opt_in` se vuelven obligatorios al entrar a Ranking, no antes;
+- BRAMUlab carga únicamente partidos propios ya jugados; no hay carga por espectador ni marcador en vivo dentro de esta app;
 - carga retroactiva máxima: 14 días;
-- pendiente nunca validado: 30 días desde la carga;
+- pendiente nunca validado: 30 días desde la carga aceptada por servidor;
 - corrección normal post-validación: 3 días;
-- incidencia de identidad post-validación: 10 días;
+- incidencia de identidad: hasta 10 días para abrirla + 7 días desde el reporte para identificar al jugador correcto;
 - 5 pendientes accionables personales bloquean solo iniciar una nueva carga;
+- offline: `sync_pending` local + reintento idempotente;
+- doble carga del mismo encuentro: `create-or-attach` hacia un único `match_id` cuando la coincidencia es inequívoca;
 - Ranking publicado nunca se reescribe por correcciones posteriores.
 
 `Backend_Infraestructura.md` traduce estas reglas a servidor. No reabrir el viejo modelo `validar/rechazar`.
 
+**Nota de alcance:** referencias históricas en fórmulas/Intelligence a partidos `observados` o cargados por espectador se consideran casos legacy/defensivos, no una función activa de BRAMUlab. Desarrollo no debe crear flujo de carga por espectador.
+
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloques 1–2 no cambian por la alineación del ciclo de partido; el impacto principal comienza en Bloques 4–6. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. El próximo trabajo es Bloque 3, incluyendo la alineación acotada del onboarding indicada arriba. Luego continúan Jugadores/Invitados, Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
 
 ---
 
