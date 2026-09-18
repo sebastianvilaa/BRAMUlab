@@ -1,7 +1,7 @@
 # BRAMUlab — Backlog vigente
 
 **Estado:** ideas y funciones futuras todavía no autorizadas para implementar.  
-**Actualización documental:** 17 de septiembre de 2026.  
+**Actualización documental:** 18 de septiembre de 2026.  
 **Regla:** este archivo contiene solo futuro real. Lo ya definido o implementado vive en su fuente maestra correspondiente.
 
 ---
@@ -31,7 +31,8 @@ La arquitectura general y el ciclo básico de partido ya están definidos en `Ba
 - política de conflictos entre dispositivos y retención de cola offline;
 - privacidad exacta de perfiles y relación con datos públicos/buscables;
 - matriz final de permisos/RLS;
-- límites operativos y antiabuso para producción.
+- límites operativos y antiabuso para producción;
+- `supabase/tests/verify-bloque2.mjs` debería confirmar que sus propias operaciones de limpieza (borrado de cuentas/filas de prueba al final del script) realmente tuvieron éxito, en vez de dispararlas sin revisar la respuesta — un permiso faltante de `service_role` (corregido el 18/09/2026, ver Bloque 2 del Informe de Backend) dejó pasar desapercibidas dos corridas reales cuya limpieza falló en silencio. No bloquea ningún bloque; es una mejora de robustez del propio script de verificación.
 
 No diseñar otra arquitectura paralela: estos puntos completan la fuente maestra de Backend.
 

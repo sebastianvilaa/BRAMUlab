@@ -3,7 +3,7 @@
 **Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 17 de septiembre de 2026
+**Actualización documental:** 18 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -40,7 +40,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 1 (fundación de backend y entornos) está CERRADO**: verificado contra Supabase Staging y Vercel reales (health check y RLS deny-by-default confirmados en producción de Staging, 16/09/2026). El proyecto Supabase/Vercel de Production todavía no existe; se crea más adelante con el mismo procedimiento, sin bloquear Bloque 2.
 
-**Bloque 2 (Auth, perfil, username, ubicación, recuperación): CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL (16/09/2026)** — la migración, RLS, el trigger y las RPCs ya corrieron contra Supabase Staging real con resultado OK (`verify-bloque2.mjs`, 16/16). No está cerrado todavía: falta probar a mano el recorrido completo de una persona real en el navegador (alta con email real, recuperación de contraseña, segundo dispositivo). Pusheado únicamente a la rama `staging`, no a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle exacto de qué falta.
+**Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación/onboarding, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo. Próximo bloque autorizado: **Bloque 3** (Nivel productivo y persistente) — no iniciado todavía.
 
 ---
 
@@ -52,7 +52,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada para futura implementación |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Home Estado Cero y validación/correcciones por parejas cerradas conceptualmente; impacto principal en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloque 1 CERRADO; Bloque 2 server-side validado en Staging real, pendiente de validación UX-Auth real |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1 y 2 CERRADOS (verificados en Staging real); Bloque 3 es el próximo autorizado, no iniciado |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel

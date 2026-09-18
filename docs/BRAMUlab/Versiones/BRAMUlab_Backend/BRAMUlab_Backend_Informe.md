@@ -153,10 +153,10 @@ Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.
 
 ---
 
-## Bloque 2 — Auth, perfil, username, ubicación y recuperación — CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL
+## Bloque 2 — Auth, perfil, username, ubicación y recuperación — CERRADO
 
-**Fecha:** 16 de septiembre de 2026.
-**Estado: CÓDIGO COMPLETO / SERVER-SIDE VALIDADO / PENDIENTE DE VALIDACIÓN UX-AUTH REAL.** Toda la lógica de servidor (migración, RLS, trigger, RPCs) ya corrió contra el Supabase de **Staging real** con resultado OK (§4). Lo que todavía no se probó es el recorrido de una persona real en el navegador — crear cuenta, recibir el email real, tipear el código, entrar desde otro dispositivo — porque eso depende de que Sebastián lo haga a mano (ver §7/§8). **No cerrar el bloque hasta esa prueba manual.**
+**Fecha de implementación:** 16 de septiembre de 2026. **Fecha de cierre:** 18 de septiembre de 2026.
+**Estado: CERRADO.** Toda la lógica de servidor (migración, RLS, trigger, RPCs) y el recorrido real de una persona en el navegador (alta, confirmación, perfil, logout/login, segunda sesión limpia, recuperación de contraseña, username duplicado) quedaron validados contra Supabase Staging real, con la cuenta real `sebas_lp873@yahoo.com.ar`. Ver §6 para el detalle exacto de esa validación del 18/09.
 **Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 2".
 
 ### 1. Qué se implementó
@@ -227,26 +227,44 @@ Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.
 4. Plantilla "Reset Password" usando `{{ .Token }}`.
 5. `verify-bloque2.mjs` corrido contra ese proyecto real → 16/16 OK (§4).
 
-### 6. Qué falta para poder cerrar Bloque 2
+### 6. Validación real de UX/Auth — 18/09/2026
 
-Todo lo de servidor (RLS, trigger, RPCs, invariante de ubicación, unicidad/bloqueo de username) ya está probado contra Staging real. Lo que **todavía no se probó** es el recorrido de una persona real a través de la UI:
+Sesión de validación guiada paso a paso contra la app real de Staging (`https://bramulab-git-staging-bramu-lab.vercel.app`), con la cuenta real `sebas_lp873@yahoo.com.ar` (nombre visible `Sebas`, username `sebas`). Continuación del handoff `Temporales/HANDOFF_BRAMUlab_Bloque2_Continuacion.md` (signup/confirmación/onboarding ya habían quedado probados el día anterior, ver ese handoff).
 
-1. Deploy de Staging (Vercel) actualizado con el código de este bloque (rama `staging`, ver §7 de esta ronda de push).
-2. Crear una cuenta con un email real desde el navegador, confirmar que el email de confirmación llega de verdad (con el código de 6 dígitos, no un link) y que `Auth.verifySignupOtp` lo acepta.
-3. Completar "TU PERFIL" (username, rama competitiva, ubicación real vía GeoRef y también una manual) y llegar a "TU PERFIL ESTÁ LISTO".
-4. Cerrar sesión, iniciar sesión de nuevo con esa misma cuenta.
-5. "Olvidé mi contraseña" con el email real, confirmar que el código de recuperación llega y que `Auth.verifyRecoveryOtp`/`Auth.updatePassword` funcionan de punta a punta.
-6. Entrar desde un segundo dispositivo/navegador con la misma cuenta y confirmar que el perfil persiste (Backend_Infraestructura.md §15 Bloque 2, "Terminado cuando").
-7. Confirmar que los mensajes de error en español que arma `app.js` (`SIGNUP_STEP1_ERROR_TEXT`/`SIGNUP_VERIFY_ERROR_TEXT`/`COMPLETE_PROFILE_ERROR_TEXT`/`LOGIN_ERROR_TEXT`) se ven razonables ante un error real (contraseña incorrecta, código vencido, etc.) — se armaron mapeando los códigos documentados de Supabase sin haber visto todavía una respuesta real de error en el navegador.
+**Bug real encontrado y corregido durante esta validación — permiso faltante de `service_role`:**
 
-**Bloque 2 NO queda cerrado hasta confirmar los puntos 1-7 en un recorrido real.**
+- Al consultar `players` con la service role key (para el diagnóstico de datos), Postgres devolvió `permission denied for table players` (SQLSTATE 42501), con el hint `GRANT SELECT ON public.players TO service_role;`.
+- Causa: mismo problema de dos capas que Bloque 1 §13 (GRANT y RLS son independientes), esta vez del lado de `service_role` en vez de `anon`/`authenticated`. Con "Automatically expose new tables" desactivado, ningún rol recibe GRANT automático sobre una tabla nueva — la migración de Bloque 2 le había dado `select` a `authenticated`, pero nunca a `service_role`. Los flujos de producto (trigger/`complete_profile`, ambos SECURITY DEFINER, dueños de la tabla) nunca se vieron afectados; solo las consultas directas con la service role key.
+- Fix: [`supabase/migrations/20260918120000_bloque2_grant_service_role_access.sql`](../../../../supabase/migrations/20260918120000_bloque2_grant_service_role_access.sql) — GRANT explícito a `service_role` sobre `players`/`profiles`/`locations`/`pilot_events`/`reserved_usernames`, más un `ALTER DEFAULT PRIVILEGES` para que las tablas de bloques futuros ya vengan con ese acceso sin repetir el hallazgo. No toca `anon`/`authenticated` (deny-by-default se mantiene igual). Aplicada por Sebastián en el SQL Editor de Staging (`Success`) y confirmada corriendo el diagnóstico de nuevo.
+- Efecto colateral descubierto: como consecuencia del mismo permiso faltante, la limpieza de `supabase/tests/verify-bloque2.mjs` (que también usa `service_role` para borrar sus cuentas de prueba) venía fallando en silencio en sus dos corridas reales anteriores — quedaron 4 filas de prueba (`verify_b2_...`/`vb2_...`/`vb2geo_...`, una de ellas sin ningún dato) en `players`/`profiles`, todas con `auth_user_id=NULL` (sus cuentas de Auth sí se habían borrado bien). Identificadas de forma inequívoca por los nombres/usernames literales del propio script y por no tener ninguna relación con `sebas_lp873@yahoo.com.ar`; **eliminadas** por Sebastián vía SQL directo (`delete from pilot_events/players where player_id in (...)`, los 4 IDs exactos) tras confirmar el origen. Confirmado por diagnóstico posterior: 1 solo `player` en toda la tabla, el real. Ver `docs/BRAMUlab/BRAMUlab_Backlog.md` §2 para la mejora pendiente en `verify-bloque2.mjs` (que su limpieza revise si el borrado tuvo éxito).
+- Nuevo script reutilizable: [`supabase/tests/diagnose-bloque2-user.mjs`](../../../../supabase/tests/diagnose-bloque2-user.mjs) — diagnóstico de solo lectura de una cuenta real por email (Auth único, email confirmado, player/profile únicos, sin huérfanos, username sin duplicar, evento de alta único). El email es un parámetro obligatorio, sin default hardcodeado; no imprime ni usa la service role key más que para las requests. Usado repetidas veces contra Staging real durante esta sesión.
+
+**Resultado de la validación (los 10 puntos pedidos):**
+
+| Validación | Estado | Evidencia | Observaciones |
+|---|---|---|---|
+| Signup real | APROBADO | Cuenta real creada, confirmada por `diagnose-bloque2-user.mjs` | — |
+| SMTP personalizado | APROBADO | Gmail SMTP (Staging), emails de alta y recuperación recibidos realmente | — |
+| OTP de 6 dígitos | APROBADO | Corregido de 8→6 en Supabase (ver handoff); funcionó en alta y en recuperación | — |
+| Confirmación de email | APROBADO | `email_confirmed_at` no nulo, confirmado contra Staging real | — |
+| Perfil/onboarding persistido | APROBADO | `username=sebas`, `display_name=Sebas`, `first_name=sebastian`, `last_name=Vila`, `birth_date=1989-07-07`, `gender=masculino`, `dominant_hand=derecha`, `preferred_side=reves`, `competitive_branch=M`, ubicación GeoRef verificada (Bella Vista, Buenos Aires, `verified_for_ranking=true`) | — |
+| Logout/login | APROBADO | Prueba manual + mismo `player_id` antes/después, `last_sign_in_at` avanzó | — |
+| Segunda sesión limpia | APROBADO | Prueba manual en incógnito + mismo `player_id`/profile completo, confirmado por diagnóstico | Vercel protege el Preview de Staging con su propio login — esperado, no es un bug de la app |
+| Recuperación de contraseña | APROBADO | Código real, contraseña nueva funciona, la vieja quedó rechazada (probado explícitamente) + `last_sign_in_at` avanzó, mismo `player_id` | — |
+| Username duplicado | APROBADO | Rechazo `username_taken` confirmado 2 veces contra Staging real (`verify-bloque2.mjs`) + mensaje en pantalla verificado por código (`Ese @usuario ya está en uso.`) | No se repitió en vivo en la UI por decisión explícita de Sebastián (evidencia ya suficiente) |
+| Ausencia de duplicados/huérfanos | APROBADO | Cuenta real: 1 usuario, 1 player, 1 profile, 1 evento de alta, sin huérfanos; las 4 filas de prueba identificadas y eliminadas (ver arriba) | — |
+
+Con esto, todos los criterios de "Terminado cuando" de `Backend_Infraestructura.md` §15 Bloque 2 quedan cumplidos sobre Staging real. **Bloque 2 queda CERRADO.**
 
 ### 7. Commits / push
 
 - `f8a6058` — implementación completa (migración, `auth.js`, wiring de `index.html`/`app.js`/`store.js`/`player-identity.js`/`locations.js`/`sw.js`, `verify-bloque2.mjs`, Informe).
-- `2e340a8` — fix de los usernames de prueba de `verify-bloque2.mjs` que superaban 24 caracteres (§4).
+- `2e340a8` — fix de los usernames de prueba de `verify-bloque2.mjs` que superaban 24 caracteres.
+- `059a979` — doc: registrar la validación server-side real (16/16 OK) previa a esta ronda.
+- `8e3d560` — fix del permiso faltante de `service_role` (migración `20260918120000_...`).
+- Commit de esta ronda — cierre documental de Bloque 2, script `diagnose-bloque2-user.mjs`, nota de backlog sobre `verify-bloque2.mjs`.
 
-Pusheados **únicamente a `staging`** (`git push origin main:staging`) tras la validación real de §4/§5 — nunca a `main`, y sin tocar Production (que todavía no existe como proyecto Supabase/Vercel). Ver el detalle exacto en el mensaje de esta ronda.
+Pusheados **únicamente a `staging`** (`git push origin main:staging`) — nunca a `main`, y sin tocar Production (que todavía no existe como proyecto Supabase/Vercel).
 
 ## Alineación conceptual posterior al Bloque 2 — 17/09/2026
 
