@@ -1,27 +1,35 @@
 /* ==========================================================================
-   BRAMU Lab — Tokens
+   BRAMUlive — Tokens (anteriormente BRAMU Lab Partidos)
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Manrope:wght@500;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root{
-  --ink: #0B1211;
-  --ink-soft: #10201D;
-  --ink-softer: #16281F;
-  --paper: #F4F7F2;
-  --paper-dim: rgba(244,247,242,0.56);
-  --paper-faint: rgba(244,247,242,0.30);
-  --team-a: #C8FF3D;
-  --team-a-deep: #7FBF14;
-  --team-b: #33A6FF;
-  --team-b-deep: #1E6FBF;
+  /* BRAMUlive (2026-09-18) — valores alineados a la identidad azul marino actual de BRAMU
+     (misma paleta resuelta que bramulab/styles.css: --bg/--brand-lime/--accent-cyan). Se
+     conservan los MISMOS nombres de token que ya usaba todo este archivo — solo cambian los
+     valores — para no reescribir el resto de la hoja de estilos del marcador. */
+  --ink: #050A12;
+  --ink-soft: #09131F;
+  --ink-softer: #0D1A2A;
+  --paper: #F8FAFC;
+  --paper-dim: rgba(248,250,252,0.56);
+  --paper-faint: rgba(248,250,252,0.30);
+  --team-a: #95FF19;
+  --team-a-deep: #66B30F;
+  --team-b: #199FFF;
+  --team-b-deep: #0D6FCC;
   --gold: #FFC93D;
   --star: #FFA93D;
-  --danger: #FF5B54;
+  --danger: #FF5B61;
   --confirm-green: #2ECC71;
-  --line: rgba(244,247,242,0.10);
+  --line: rgba(183,211,235,0.14);
 
+  /* Se conserva Oswald condensada para los números grandes del marcador — decisión útil del
+     producto original: una tipografía sin condensar no entra en el mismo espacio en pantallas
+     angostas. Solo el texto de cuerpo pasa a Inter, la misma familia que usa BRAMUlab, para que
+     ambas apps se sientan hermanas sin rediseñar la pantalla de partido. */
   --font-display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
-  --font-body: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);

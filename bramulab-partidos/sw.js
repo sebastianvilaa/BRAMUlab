@@ -1,23 +1,27 @@
-/* BRAMU Lab — service worker mínimo, offline-first para los archivos propios.
-   Usa rutas relativas para funcionar tanto en file:// / local como en
-   GitHub Pages (subcarpetas). Si falla el registro (p.ej. abierto con
-   file://, donde los service workers no corren), la app sigue funcionando
-   normalmente: este archivo es un "mejor esfuerzo", no una dependencia. */
+/* BRAMUlive — service worker mínimo, offline-first para los archivos propios.
+   Usa rutas relativas para funcionar tanto en file:// / local como en un
+   hosting estático. Si falla el registro (p.ej. abierto con file://, donde
+   los service workers no corren), la app sigue funcionando normalmente:
+   este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// Reorganización de aplicaciones — esta es BRAMU Lab Partidos, el marcador congelado en
-// v14 (bramulab-partidos/, antes bramu-lab/). Cache con nombre propio, separado del de
-// BRAMU Lab (la app principal en bramulab/). Debe coincidir con PLStore.VERSION (store.js)
-// Y con `version.json` — ese archivo es lo que el cliente consulta para detectar que hay
-// una versión nueva, así que los TRES deben actualizarse juntos si esta versión congelada
-// volviera a tocarse (no debería). Esto NUNCA toca localStorage — el historial y el
-// partido en curso viven en otra capa de almacenamiento y no se pierden por este cambio.
+// BRAMUlive (2026-09-18): nombre público nuevo para el producto que vivía en esta carpeta
+// (bramulab-partidos/, antes bramu-lab/) como "BRAMU Lab Partidos" — el marcador congelado
+// en V14. Se separa definitivamente de BRAMUlab (la app principal en bramulab/) como
+// aplicación hermana independiente: cuentas/Nivel/Ranking quedan en BRAMUlab, el registro
+// en vivo queda en BRAMUlive. El nombre técnico de la carpeta NO cambia por ahora (evita
+// churn); solo cambia el nombre visible al usuario (manifest, título, footer).
+// Cache con nombre propio, separado del de BRAMUlab. Debe coincidir con PLStore.VERSION
+// (store.js) y con `version.json` — ese archivo es lo que el cliente consulta para detectar
+// que hay una versión nueva, así que los TRES deben actualizarse juntos.
+// Esto NUNCA toca localStorage — el historial y el partido en curso viven en otra capa de
+// almacenamiento y no se pierden por este cambio.
 //
-// BRAMU Lab Partidos y BRAMU Lab conviven en el mismo origen (sebastianvilaa.github.io) —
-// y Cache Storage es por origen, no por ruta. El filtro de limpieza de abajo solo borra
-// cachés de la propia familia ('bramulab-partidos-...'), nunca las de la otra app: sin
-// este prefijo específico, cualquiera de los dos service workers borraría la caché del
-// otro en cuanto se activara.
-const CACHE_NAME = 'bramulab-partidos-v14';
+// BRAMUlive y BRAMUlab pueden convivir en el mismo origen — y Cache Storage es por origen,
+// no por ruta. El filtro de limpieza de abajo solo borra cachés de la propia familia
+// ('bramulab-partidos-...', nombre técnico heredado), nunca las de la otra app: sin este
+// prefijo específico, cualquiera de los dos service workers borraría la caché del otro en
+// cuanto se activara.
+const CACHE_NAME = 'bramulab-partidos-v15';
 const CORE_ASSETS = [
   './',
   './index.html',

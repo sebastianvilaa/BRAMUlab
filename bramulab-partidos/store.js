@@ -1,18 +1,20 @@
 /* ==========================================================================
-   BRAMU Lab — store.js (v9)
+   BRAMUlive — store.js (v15) — anteriormente desarrollado como BRAMU Lab Partidos
    Persistencia local (localStorage). Sin servidor, sin cuentas.
    Incluye schemaVersion simple: si encuentra datos de una versión anterior
    o incompleta, los ignora de forma segura en vez de romper la app.
    V9: las claves internas de localStorage se MANTIENEN tal cual (padellab.*)
    a propósito — cambiarlas perdería el historial y el partido en curso de
-   quien actualice desde una versión anterior (consolidado V9, branding). */
+   quien actualice desde una versión anterior (consolidado V9, branding).
+   V15: el nombre público pasa a BRAMUlive; las claves internas siguen sin
+   tocarse por el mismo motivo. */
 (function (global) {
   'use strict';
 
   const SCHEMA_VERSION = 3;
   // V10 (44/97): único punto central del número de versión visible (footer). Cambiar
   // acá alcanza para toda la app — nunca duplicar el string de versión en otro archivo JS.
-  const APP_VERSION = 'v14';
+  const APP_VERSION = 'v15';
   const KEYS = {
     ACTIVE_MATCH: 'padellab.activeMatch.v1',
     HISTORY: 'padellab.history.v1',

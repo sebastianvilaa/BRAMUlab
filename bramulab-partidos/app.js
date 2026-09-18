@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BRAMU Lab — app.js (v9)
+   BRAMUlive — app.js (v15) — anteriormente desarrollado como BRAMU Lab Partidos
    ========================================================================== */
 (function () {
   'use strict';
@@ -174,7 +174,7 @@
     // V10 (44/97): el número de versión sale de PLStore.VERSION (único punto central) —
     // cambiarlo ahí alcanza para actualizar el footer sin tocar más archivos.
     const footerEl = $('#setup-footer');
-    if (footerEl) footerEl.textContent = `BRAMU Lab · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
+    if (footerEl) footerEl.textContent = `BRAMUlive · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
     $all('#scoring-options .option-col').forEach((btn) => {
       btn.addEventListener('click', () => {
         $all('#scoring-options .option-col').forEach((b) => { b.classList.remove('is-selected'); b.setAttribute('aria-checked', 'false'); });
@@ -4566,11 +4566,14 @@
     // si algo más fallaba en el camino, una caída silenciosa al respaldo viejo). El
     // ocultamiento fuera de pantalla ahora vive en un contenedor PADRE separado
     // (`buildShareImageBlob`), nunca en este nodo. Acá solo van estilos de layout/color.
-    wrap.style.cssText = 'width:540px; background:#0B1211; display:block;'
-      + '--ink:#0B1211; --ink-soft:#10201D; --ink-softer:#16281F; --paper:#F4F7F2;'
-      + '--paper-dim:rgba(244,247,242,0.56); --paper-faint:rgba(244,247,242,0.30);'
-      + '--team-a:#C8FF3D; --team-a-deep:#7FBF14; --team-b:#33A6FF; --team-b-deep:#1E6FBF;'
-      + '--gold:#FFC93D; --star:#FFA93D; --danger:#FF5B54; --line:rgba(244,247,242,0.10);';
+    // BRAMUlive (2026-09-18): estos valores son una copia manual de los tokens de :root en
+    // styles.css (necesaria porque este nodo se serializa tal cual, aislado del documento) —
+    // si el :root vuelve a cambiar de paleta, este bloque también hay que actualizarlo.
+    wrap.style.cssText = 'width:540px; background:#050A12; display:block;'
+      + '--ink:#050A12; --ink-soft:#09131F; --ink-softer:#0D1A2A; --paper:#F8FAFC;'
+      + '--paper-dim:rgba(248,250,252,0.56); --paper-faint:rgba(248,250,252,0.30);'
+      + '--team-a:#95FF19; --team-a-deep:#66B30F; --team-b:#199FFF; --team-b-deep:#0D6FCC;'
+      + '--gold:#FFC93D; --star:#FFA93D; --danger:#FF5B61; --line:rgba(183,211,235,0.14);';
     return wrap;
   }
 
@@ -4715,9 +4718,9 @@
 
   function deliverShareBlob(blob, f) {
     const nameA = S.teamLabel(f.players, 'A'), nameB = S.teamLabel(f.players, 'B');
-    const file = new File([blob], 'bramulab.png', { type: 'image/png' });
+    const file = new File([blob], 'bramulive.png', { type: 'image/png' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'BRAMU Lab', text: `${nameA} vs ${nameB}` }).catch(() => {});
+      navigator.share({ files: [file], title: 'BRAMUlive', text: `${nameA} vs ${nameB}` }).catch(() => {});
     } else {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<title>BRAMU Lab · Tests (V12.2)</title>
+<title>BRAMUlive · Tests (v15)</title>
 <style>
   body{ font-family: -apple-system, system-ui, sans-serif; background:#0B1211; color:#F4F7F2; padding:20px; max-width:820px; margin:0 auto; }
   h1{ font-size:18px; } h2{ font-size:13px; color:#FFC93D; margin-top:28px; text-transform:uppercase; letter-spacing:.05em; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 <div id="summary">Corriendo tests…</div>
-<h1>BRAMU Lab V12.2 — batería sintética de BRAMU Intelligence + Ajustar/Sacador/Tie break extraordinario</h1>
+<h1>BRAMUlive (v15) — batería sintética de BRAMU Intelligence + Ajustar/Sacador/Tie break extraordinario</h1>
 <div id="results"></div>
 
 <script src="engine.js"></script>
@@ -1554,6 +1554,61 @@
     const matchCtx = { players: makePlayers(), format };
     const text = S.generateManualIntelligence(S.computeManualStats([], matchCtx), matchCtx, [], null, { manual: false });
     assert('V14-defensivo · sin sets no crashea y devuelve texto', typeof text === 'string' && text.length > 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlive — mejoras reales portadas desde bramulab (V02.1 §6): tie-break final sin techo
+  // artificial. `isValidFinalTiebreakScore` no existía en esta línea al momento de congelar V14;
+  // se agregó después en bramulab y se porta acá quirúrgicamente (motor puro, sin tocar UI).
+  // ------------------------------------------------------------------
+  (function () {
+    const cfg = { winTarget: 7, requireDiff2: true };
+    [[7, 0], [7, 5], [8, 6], [10, 8], [16, 14]].forEach(([a, b]) => {
+      assert(`BRAMUlive-TB · ${a}-${b} es un tie break final válido`, E.isValidFinalTiebreakScore(a, b, cfg));
+      assert(`BRAMUlive-TB · ${b}-${a} (mismo par, invertido) también válido`, E.isValidFinalTiebreakScore(b, a, cfg));
+    });
+    [[7, 6], [8, 7]].forEach(([a, b]) => {
+      assert(`BRAMUlive-TB · ${a}-${b} NO es un tie break final válido (falta diferencia de 2)`, !E.isValidFinalTiebreakScore(a, b, cfg));
+    });
+    assert('BRAMUlive-TB · 7-7 no es válido (nadie ganó)', !E.isValidFinalTiebreakScore(7, 7, cfg));
+    const cfg10 = { winTarget: 10, requireDiff2: true };
+    assert('BRAMUlive-TB · super tie break a 10: 10-8 válido con winTarget 10', E.isValidFinalTiebreakScore(10, 8, cfg10));
+    assert('BRAMUlive-TB · super tie break a 10: 9-7 (no llega a 10) NO es válido con winTarget 10', !E.isValidFinalTiebreakScore(9, 7, cfg10));
+    assert('BRAMUlive-TB · el mismo 9-7 SÍ es válido con winTarget 7 (formatos nunca se mezclan)', E.isValidFinalTiebreakScore(9, 7, cfg));
+  })();
+
+  // ------------------------------------------------------------------
+  // BRAMUlive — mejora real portada desde bramulab (V02.1 §17): BRAMU Intelligence de carga
+  // manual no llama "parejo" a un partido de dominio alternado, y sí distingue victoria
+  // dominante de sets corridos ajustados. Mismos casos textuales verificados en bramulab.
+  // ------------------------------------------------------------------
+  (function () {
+    function manualCase(setsRaw, winnerTeam) {
+      const players = makePlayers();
+      const sets = setsRaw.map(([a, b]) => ({ gamesA: a, gamesB: b, tiebreak: null, winner: a > b ? 'A' : 'B' }));
+      const matchCtx = { players, format: E.FORMATS.classic };
+      const stats = S.computeManualStats(sets, matchCtx);
+      const text = S.generateManualIntelligence(stats, matchCtx, sets, winnerTeam, { manual: false });
+      return { text, stats };
+    }
+    const alternating = manualCase([[6, 1], [1, 6], [6, 0]], 'A');
+    assert('BRAMUlive-BI · 6-1 · 1-6 · 6-0 NUNCA se describe como "parejo"/"desarrollo parejo"', !/\bparejo\b/i.test(alternating.text.split('\n\n')[0]), alternating.text);
+    assert('BRAMUlive-BI · 6-1 · 1-6 · 6-0 se lee como dominio alternado/cambiante', /alternad|cambiante/i.test(alternating.text), alternating.text);
+
+    const veryClose = manualCase([[7, 6], [6, 7], [7, 6]], 'A');
+    assert('BRAMUlive-BI · 7-6 · 6-7 · 7-6 se describe como extremadamente parejo', /extremadamente parejo|muy ajustado/i.test(veryClose.text), veryClose.text);
+
+    const dominant = manualCase([[6, 0], [6, 0]], 'A');
+    assert('BRAMUlive-BI · 6-0 · 6-0 se describe como victoria dominante (no "sin ceder un set" genérico)', /dominante|dominaron/i.test(dominant.text), dominant.text);
+
+    const comeback = manualCase([[2, 6], [6, 4], [6, 3]], 'A');
+    assert('BRAMUlive-BI · 2-6 · 6-4 · 6-3 (ganador A perdió el set 1) se narra como remontada', /dar vuelta|reaccionaron/i.test(comeback.text), comeback.text);
+
+    const competitive = manualCase([[6, 2], [5, 7], [6, 4]], 'A');
+    assert('BRAMUlive-BI · 6-2 · 5-7 · 6-4: set decisivo (6-4, margen 2) se marca como ajustado', /margen ajustado/i.test(competitive.text), competitive.text);
+
+    const wideDecider = manualCase([[4, 6], [7, 6], [6, 1]], 'A');
+    assert('BRAMUlive-BI · 4-6 · 7-6 · 6-1: set decisivo (6-1, margen 5) se marca como amplio (antes no existía este caso)', /margen amplio/i.test(wideDecider.text), wideDecider.text);
   })();
 
   // ------------------------------------------------------------------

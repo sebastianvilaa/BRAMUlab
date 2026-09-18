@@ -1,9 +1,10 @@
-# BRAMUlab_Partidos
+# BRAMUlab_Partidos → BRAMUlive
 ## Informe — qué se implementó, verificó y corrigió
 
-**Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva).
-**Fecha de esta síntesis:** 10/09/2026.
-**Estado final de la app:** commit `5c46337`, tag `v14` — producto congelado, sin ninguna ronda nueva autorizada desde entonces.
+**Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva). Sección 7 en adelante documenta la ronda V15 (18/09/2026), la primera desde el congelamiento en V14.
+**Fecha de esta síntesis:** 10/09/2026 (cuerpo original) — actualizado el 18/09/2026 (§7).
+**Estado final de la app hasta V14:** commit `5c46337`, tag `v14` — producto congelado desde el 2/09/2026.
+**Nombre público actual:** BRAMUlive (desde el 18/09/2026, ver §7). El nombre técnico de la carpeta de código sigue siendo `bramulab-partidos/` — no se renombró (evita churn; ver §7).
 **Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales, junto con los consolidados que los motivaron, ya no están en este repositorio; se borraron una vez confirmado que este resumen no perdía nada relevante y siguen recuperables del historial de git (commit `40c82bc` o anterior).
 
 ---
@@ -173,3 +174,37 @@ BRAMUlab_Partidos terminó su desarrollo funcional en **V14** (commit `5c46337`,
 - Ninguno de estos gaps se rellenó con suposiciones: donde la evidencia indirecta (cifras de test, referencias cruzadas de rondas posteriores) permite confirmar que el trabajo ocurrió, se dice así explícitamente; donde no hay evidencia de qué se hizo exactamente, se deja constancia de que no se sabe, en vez de inventarlo.
 
 Los documentos originales de cada ronda (citados arriba por nombre) ya no están en este repositorio — se borraron una vez confirmado que este Informe no perdía nada relevante; siguen recuperables del historial de git (commit `40c82bc` o anterior).
+
+---
+
+## 7. V15 (18/09/2026) — BRAMUlive: separación definitiva de BRAMUlab y actualización
+
+**Fuente:** decisión de producto tomada en conversación con Sebastián el 18/09/2026, como tarea previa a Backend Bloque 3 de la app principal. Sin Consolidado propio (no fue una ronda de especificación funcional nueva).
+
+**Decisión:** BRAMUlab_Partidos deja de ser un producto congelado/histórico y pasa a llamarse **BRAMUlive**, como aplicación hermana independiente de BRAMUlab (la app de cuentas/Nivel/Historial/Ranking, carpeta `bramulab/`). BRAMUlab principal registra exclusivamente partidos propios ya jugados; el registro en vivo (Completo, Por Games, marcador, Timeline, estadísticas, resumen) queda exclusivamente en BRAMUlive.
+
+**Base heredada:** V14 (commit `5c46337`), sin reconstruir desde cero ni copiar código de `bramulab/` hacia acá — se partió de la versión standalone ya madura descripta en §5-§6.
+
+**Nombre técnico vs. nombre público:** la carpeta de código sigue siendo `bramulab-partidos/` a propósito (reduce churn, preserva referencias/historial); solo cambió el nombre visible al usuario (`<title>`, manifest `name`/`short_name`, footer, título del share nativo, imagen exportada al compartir).
+
+**Mejoras reales portadas desde `bramulab/` (detectadas por auditoría, nunca implementadas acá):**
+- `engine.js` — `isValidFinalTiebreakScore` (bramulab la había agregado en su ronda "V02.1 §6": valida un resultado final de tie break sin techo artificial, p. ej. 16-14).
+- `stats.js` — dos correcciones de `generateManualIntelligence` (ronda "V02.1 §17" de bramulab): una victoria en sets corridos ahora distingue dominio real ("dominaron de punta a punta") de sets corridos ajustados; el set decisivo ahora también puede narrarse como "margen amplio" (antes solo existía el caso ajustado).
+- Fusión quirúrgica, no reemplazo de archivo: se copiaron exactamente esas funciones/ramas, verificadas línea por línea contra el diff real de `bramulab/engine.js`/`bramulab/stats.js`.
+- Se agregaron 23 tests de regresión nuevos en `tests.html` (bloques `BRAMUlive-TB`/`BRAMUlive-BI`) espejando los mismos casos que ya cubría `bramulab/tests.html` para estas dos mejoras.
+
+**Actualización visual:** paleta alineada a la identidad azul marino actual de BRAMU (mismos valores resueltos que `bramulab/styles.css`: fondo `#050A12`/`#09131F`/`#0D1A2A`, lima `#95FF19`, celeste `#199FFF`, rojo `#FF5B61`, línea `rgba(183,211,235,0.14)`) — reemplaza la paleta propia anterior (verde-negro `#0B1211`, lima/celeste más saturados). Tipografía de cuerpo pasa de Manrope a Inter (misma familia que BRAMUlab). Se conserva deliberadamente Oswald condensada para los números grandes del marcador — decisión útil del producto original para que quepan en pantallas angostas, no una cuestión de identidad de marca. No se tocó la estructura/UX del marcador ni se copió el CSS de BRAMUlab: solo cambiaron los *valores* de los mismos tokens que ya usaba esta hoja de estilos. Se corrigió además un hardcode real encontrado en el generador de imagen para compartir (`app.js`, función de exportación DOM→SVG→PNG), que tenía la paleta vieja escrita a mano por fuera de los tokens de `:root` — sin ese fix, la imagen compartida se habría seguido viendo con los colores viejos.
+
+**Timeline:** se conserva íntegra (pertenece al producto de seguimiento en vivo).
+
+**Por Games:** sigue **BETA**, sin graduar ni rediseñar en esta ronda — se decidió esperar a volver a probar BRAMUlive en uso real antes de tocarlo.
+
+**Carga manual dentro de BRAMUlive:** se conserva sin cambios ni poda. BRAMUlab principal y BRAMUlive tienen temporalmente una capacidad histórica solapada (ambas pueden cargar un partido ya jugado) — el alcance final de BRAMUlive se decidirá en una ronda futura; esta no fue el momento de abrir esa decisión de producto.
+
+**PWA:** ya estaba correctamente aislada desde el commit de reorganización del 2/09/2026 (manifest, service worker, cache name `bramulab-partidos-v##`, storage `padellab.*` propios, sin overlap con `bramulab.*`). Esta ronda solo actualizó los valores visibles (nombre, colores del manifest/meta theme-color) y bumpeó la versión interna a **v15** (`version.json`, `Store.VERSION`, `CACHE_NAME` — los tres sincronizados, mismo criterio que la propia disciplina de versionado documentada en `sw.js`).
+
+**Migración/limpieza:** ninguna necesaria de este lado — BRAMUlive no tenía nada que migrar (su storage/PWA ya estaban aislados). La limpieza de estado incompatible (un `activeMatch` viejo guardado en `localStorage` desde antes de esta separación) se resolvió del lado de BRAMUlab principal, no acá — ver `docs/BRAMUlab/README.md`/`Experiencia_Inicial.md` y el commit técnico de esa carpeta.
+
+**Tests finales:** **346/346** en verde (323 previos sin modificar + 23 nuevos de esta ronda).
+
+**Visión futura (solo contexto, no implementado):** BRAMUlive podría evolucionar hacia un producto más profesional/instrumental (periodistas, medios, relatores, analistas), con identidad visual propia (acentos tipo "LIVE"/rojo) y eventualmente cuentas/backend propios. Nada de eso se implementó en esta ronda — sigue siendo una herramienta local sin autenticación, sin conexión a Supabase/BRAMUlab.

@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.10" />
+<link rel="stylesheet" href="styles.css?v=04.10-h2" />
 </head>
 <body>
 
@@ -40,551 +40,6 @@
   </div>
 
   <!-- ============================================================
-       VISTA 1 · CONFIGURACIÓN PREVIA AL PARTIDO
-       ============================================================ -->
-  <section id="view-setup" class="view view--setup">
-
-    <div id="continue-banner" class="continue-banner" hidden>
-      <div class="continue-banner__text">
-        <strong>Tenés un partido en curso</strong>
-        <span id="continue-banner-detail">Set 1 · 0-0</span>
-      </div>
-      <button id="continue-match-btn" class="btn-mini" type="button">CONTINUAR</button>
-    </div>
-
-    <header class="setup-header">
-      <img id="home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
-      <div class="setup-header__nav">
-        <!-- V03.0.3 (§12) — el modo de registro sale de este menú/wordmark (pasa a tabs
-             visibles debajo, ver .setup-mode-tabs): el trigger ya no necesita mostrarlo. -->
-        <button id="header-menu-btn" class="link-btn" type="button" aria-haspopup="true">MENÚ ▾</button>
-      </div>
-    </header>
-
-    <!-- V03.0.3 (§12) — "quitar el selector de modo del encabezado; usar dos solapas claras,
-         debajo del header BRAMU, antes de equipos/configuración". Reemplaza al menú anidado
-         (header-menu → mode-select-menu) que lo tenía escondido 2 niveles adentro. Mismo
-         patrón visual .option-row/.option-col ya usado en el resto de setup (Sistema de
-         puntuación, más abajo) — evidente, táctil, mobile-first. -->
-    <div class="setup-mode-tabs" id="setup-mode-tabs" role="radiogroup" aria-label="Modo de registro">
-      <button type="button" class="option-col" data-value="complete" role="radio" aria-checked="true">PUNTO A PUNTO</button>
-      <button type="button" class="option-col" data-value="games" role="radio" aria-checked="false">POR GAMES</button>
-    </div>
-
-    <!-- Etapa 2 (Rama Jugador §3.1) — menú compacto del header: Mi pádel / Historial (el modo
-         de registro ya no vive acá, ver .setup-mode-tabs arriba). -->
-    <div id="header-menu" class="overlay overlay--menu" hidden>
-      <div class="menu-sheet">
-        <button id="header-menu-player-home" class="menu-item" type="button">Mi pádel</button>
-        <button id="header-menu-history" class="menu-item" type="button">Historial</button>
-        <button id="header-menu-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
-      </div>
-    </div>
-
-    <form id="setup-form" class="setup-form" autocomplete="off">
-
-      <div class="team-block team-block--a">
-        <div class="team-block__label"><span class="team-dot team-dot--a"></span> Equipo A</div>
-        <div class="field"><input id="player-1" class="field__input" list="known-players" type="text" placeholder="Jugador 1" maxlength="18" /></div>
-        <div class="field"><input id="player-2" class="field__input" list="known-players" type="text" placeholder="Jugador 2" maxlength="18" /></div>
-      </div>
-
-      <div class="vs-divider" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
-
-      <div class="team-block team-block--b">
-        <div class="team-block__label"><span class="team-dot team-dot--b"></span> Equipo B</div>
-        <div class="field"><input id="player-3" class="field__input" list="known-players" type="text" placeholder="Jugador 3" maxlength="18" /></div>
-        <div class="field"><input id="player-4" class="field__input" list="known-players" type="text" placeholder="Jugador 4" maxlength="18" /></div>
-      </div>
-      <datalist id="known-players"></datalist>
-
-      <div class="setup-section">
-        <div class="setup-section__title">Formato de partido</div>
-        <div id="format-options" class="option-grid" role="radiogroup" aria-label="Formato de partido">
-          <button type="button" class="option-pill is-selected" data-value="classic" role="radio" aria-checked="true">
-            <span class="option-pill__title">Clásico</span>
-            <span class="option-pill__hint">Al mejor de 3 sets</span>
-          </button>
-          <button type="button" class="option-pill" data-value="americano" role="radio" aria-checked="false">
-            <span class="option-pill__title">Americano</span>
-            <span class="option-pill__hint">1 set · Tie break en 5–5</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="setup-section">
-        <div class="setup-section__title">Sistema de puntuación</div>
-        <div id="scoring-options" class="option-row" role="radiogroup" aria-label="Sistema de puntuación">
-          <button type="button" class="option-col" data-value="starpoint" role="radio" aria-checked="false">STAR POINT</button>
-          <button type="button" class="option-col is-selected" data-value="golden" role="radio" aria-checked="true">PUNTO DE ORO</button>
-          <button type="button" class="option-col" data-value="classic" role="radio" aria-checked="false">CON VENTAJA</button>
-        </div>
-        <div id="scoring-hint" class="setup-hint">Punto decisivo en 40–40</div>
-      </div>
-
-      <button type="submit" id="start-match-btn" class="btn-start">EMPEZAR PARTIDO</button>
-    </form>
-    <!-- V02.1 (§23) — el pie de autoría se mudó al Home (debajo de las métricas); acá quedaba
-         duplicado y era el único lugar que todavía decía "BRAMU Lab" con espacio. -->
-    <!-- V03.0.3 (§12) — invitado (sin sesión): sin Historial/Ranking/Perfil ni bottom nav
-         personal en esta pantalla, así que necesita una salida explícita propia. Oculto por
-         default; showView() decide su visibilidad cada vez que se entra a 'setup' (único
-         punto de verdad, no se infiere en cada call-site). -->
-    <button type="button" id="setup-guest-home-link" class="link-btn setup-guest-home-link" hidden>Volver al inicio</button>
-  </section>
-
-  <!-- ============================================================
-       VISTA 2 · PARTIDO EN VIVO
-       ============================================================ -->
-  <section id="view-match" class="view view--match" hidden>
-
-    <div class="match-header">
-      <div class="match-header__info" id="match-header-info">
-        <!-- V12.1 (§3) — usar el logo real ya existente en vez de texto CSS.
-             Etapa 3 (Fase 2, §6) — ahora también es el tap target para volver al Home SIN
-             descartar el partido en curso (antes no existía ninguna salida no destructiva
-             desde acá, solo ☰ → "Volver al inicio", que sí descarta). -->
-        <img id="match-header-logo-btn" class="brand-logo brand-logo--match-header" src="icons/logo.png" alt="Volver al inicio sin descartar el partido" />
-        <span class="match-header__sep" aria-hidden="true">·</span>
-        <span class="match-header__format" id="match-header-format"></span>
-        <span class="match-header__sep" aria-hidden="true">·</span>
-        <span class="match-header__system" id="match-header-system"></span>
-        <span class="match-header__sep" id="match-header-mode-sep" aria-hidden="true" hidden>·</span>
-        <span class="match-header__mode" id="match-header-mode" hidden>POR GAMES</span>
-        <span class="match-header__sep" aria-hidden="true">·</span>
-        <span class="match-header__timer" id="match-timer">00:00</span>
-      </div>
-      <button id="menu-btn" class="icon-btn" type="button" aria-label="Menú"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-    </div>
-
-    <div class="scoreboard" id="scoreboard">
-      <div class="scoreboard__row" data-team="A" id="scoreboard-row-a">
-        <div class="scoreboard__names" id="scoreboard-names-a"></div>
-        <div class="scoreboard__cells" id="scoreboard-cells-a"></div>
-      </div>
-      <div class="scoreboard__row" data-team="B" id="scoreboard-row-b">
-        <div class="scoreboard__names" id="scoreboard-names-b"></div>
-        <div class="scoreboard__cells" id="scoreboard-cells-b"></div>
-      </div>
-    </div>
-
-    <div id="status-banner" class="status-banner" hidden>
-      <span id="status-banner-primary" class="status-banner__primary"></span>
-      <!-- V13.4 (§8) — "CAMBIAR" DENTRO de la franja contextual, junto al texto central
-           (ej. "PUNTO DE ORO   CAMBIAR" / "DEUCE   CAMBIAR"). Visible en Deuce/Punto de
-           Oro/Star Point/Ventaja (donde el sistema de puntuación realmente importa) y solo
-           mientras no esté bloqueado (§3, §6, §11). Fuera de esa zona, el cambio se hace
-           desde ☰ → Sistema de puntuación. -->
-      <button type="button" id="scoring-system-change-btn" class="scoring-cambiar-btn" hidden>CAMBIAR</button>
-      <span id="tiebreak-mode-text" class="tb-mode-text" hidden></span>
-      <select id="tiebreak-mode-select" class="tb-select" hidden></select>
-      <!-- V12 (§12.2) — definición vigente del Tie break extraordinario, tappable para
-           "EDITAR DEFINICIÓN"; solo se muestra mientras ese TB está activo. -->
-      <button type="button" id="etb-definition-label" class="tb-mode-text tb-mode-text--tappable" hidden></button>
-    </div>
-
-    <div id="server-prompt" class="server-prompt" hidden>
-      <span class="server-prompt__label">¿Quién saca?</span>
-      <div class="server-prompt__options" id="server-prompt-options"></div>
-    </div>
-
-    <button type="button" id="zone-a" class="team-zone team-zone--a" aria-label="Sumar punto a Equipo A">
-      <div class="team-zone__players" id="zone-players-a"></div>
-      <div class="team-zone__score" id="score-a">0</div>
-    </button>
-
-    <!-- V12.1 (§2) — franja propia y estable: siempre en el mismo lugar, nunca se mueve
-         por banners de Set/Match Point ni por el selector de Tie break. -->
-    <div id="game-progression" class="game-progression" hidden></div>
-
-    <div class="control-bar">
-      <button id="undo-btn" class="control-btn" type="button" aria-label="Deshacer último punto">
-        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 5v3L7 4l5-4v3a8 8 0 108 8h2a10 10 0 11-10-10z"/></svg>
-        <span class="control-btn__label">Deshacer</span>
-      </button>
-      <button id="adjust-btn" class="control-btn" type="button" aria-label="Ajustar marcador">
-        <svg viewBox="0 0 24 24" class="control-btn__icon"><rect x="3" y="5" width="18" height="2" rx="1"/><circle cx="15" cy="6" r="2.5"/><rect x="3" y="11" width="18" height="2" rx="1"/><circle cx="9" cy="12" r="2.5"/><rect x="3" y="17" width="18" height="2" rx="1"/><circle cx="17" cy="18" r="2.5"/></svg>
-        <span class="control-btn__label">Ajustar</span>
-      </button>
-      <button id="highlight-btn" class="control-btn" type="button" aria-label="Guardar highlight">
-        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M12 2l2.9 6.6L22 9.6l-5 4.9 1.2 7-6.2-3.4L5.8 21.5 7 14.5l-5-4.9 7.1-1z"/></svg>
-        <span class="control-btn__label">Highlight</span>
-      </button>
-      <button id="edit-btn" class="control-btn" type="button" aria-label="Editar marcador">
-        <svg viewBox="0 0 24 24" class="control-btn__icon"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-        <span class="control-btn__label">Editar</span>
-      </button>
-    </div>
-
-    <!-- V10 (40-43): Highlight rápido — popup no invasivo para categorizar el highlight
-         recién guardado (el guardado en sí ya ocurrió al tocar el botón Highlight, esto
-         solo agrega una categoría opcional). Se cierra solo, tocando afuera, o eligiendo
-         una categoría; en ningún caso deshace el Highlight ya guardado. -->
-    <div id="highlight-popup" class="overlay overlay--highlight" hidden>
-      <div class="highlight-popup__card">
-        <div class="highlight-popup__ring">
-          <svg viewBox="0 0 36 36" class="highlight-popup__ring-svg" aria-hidden="true">
-            <circle class="highlight-popup__ring-track" cx="18" cy="18" r="16" />
-            <circle id="highlight-popup-ring-progress" class="highlight-popup__ring-progress" cx="18" cy="18" r="16" />
-          </svg>
-          <span class="highlight-popup__ring-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 7.1-1.01L12 2z"/></svg></span>
-        </div>
-        <div id="highlight-popup-grid" class="highlight-popup__grid">
-          <button type="button" class="highlight-popup__btn" data-category="smash">Smash / X3</button>
-          <button type="button" class="highlight-popup__btn" data-category="blooper">Blooper</button>
-          <button type="button" class="highlight-popup__btn" data-category="recuperacion">Recuperación</button>
-          <button type="button" class="highlight-popup__btn" data-category="puntazo">Puntazo</button>
-        </div>
-      </div>
-    </div>
-
-    <button type="button" id="zone-b" class="team-zone team-zone--b" aria-label="Sumar punto a Equipo B">
-      <div class="team-zone__players" id="zone-players-b"></div>
-      <div class="team-zone__score" id="score-b">0</div>
-    </button>
-
-    <!-- Menú -->
-    <div id="menu-overlay" class="overlay overlay--menu" hidden>
-      <div class="menu-sheet">
-        <button id="menu-finish" class="menu-item" type="button">Finalizar partido</button>
-        <button id="menu-extraordinary-tb" class="menu-item" type="button" hidden>Resolver con Tie break</button>
-        <button id="menu-pause" class="menu-item" type="button">Pausar cronómetro</button>
-        <button id="menu-edit-players" class="menu-item" type="button">Editar jugadores</button>
-        <button id="menu-scoring-system" class="menu-item" type="button">Sistema de puntuación</button>
-        <div class="menu-sep"></div>
-        <button id="menu-reset" class="menu-item menu-item--danger" type="button">Reiniciar partido</button>
-        <button id="menu-home" class="menu-item menu-item--danger" type="button">Volver al inicio</button>
-        <button id="menu-close" class="menu-item menu-item--cancel" type="button">Cancelar</button>
-      </div>
-    </div>
-
-    <!-- Pausa -->
-    <div id="pause-overlay" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title">PAUSA</div>
-        <p class="overlay__text">El cronómetro está detenido.</p>
-        <button id="resume-btn" class="btn-start btn-start--overlay" type="button">REANUDAR</button>
-      </div>
-    </div>
-
-    <!-- Finalizar manualmente -->
-    <div id="finish-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide">
-        <div class="overlay__title">FINALIZAR PARTIDO</div>
-        <div class="edit-field">
-          <div class="edit-field__label">Motivo</div>
-          <div class="option-grid" id="finish-reason-options" role="radiogroup">
-            <button type="button" class="option-pill is-selected" data-value="tiempo">Por tiempo</button>
-            <button type="button" class="option-pill" data-value="retiro">Retiro / lesión</button>
-            <button type="button" class="option-pill" data-value="suspendido">Suspendido</button>
-            <button type="button" class="option-pill" data-value="otro">Otro</button>
-          </div>
-        </div>
-        <div class="edit-field">
-          <div class="edit-field__label">Ganador</div>
-          <div class="option-grid" id="finish-winner-options" role="radiogroup">
-            <button type="button" class="option-pill" data-value="A">Gana Equipo A</button>
-            <button type="button" class="option-pill" data-value="B">Gana Equipo B</button>
-            <button type="button" class="option-pill is-selected" data-value="none">Sin definir</button>
-          </div>
-        </div>
-        <div class="overlay__actions">
-          <button id="finish-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="finish-confirm" class="btn-start btn-start--overlay" type="button">Finalizar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Editar marcador (basado en estados reglamentarios válidos) -->
-    <div id="edit-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide overlay__card--scroll">
-        <div class="overlay__title-row">
-          <div class="overlay__title" id="edit-modal-title">CORREGIR MARCADOR</div>
-          <button type="button" id="edit-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-
-        <div id="edit-mode-body">
-        <p class="overlay__text" id="edit-mode-body-text">Solo se pueden elegir resultados reglamentariamente posibles. Lo que registres desde acá en adelante cuenta para las estadísticas.</p>
-        <p class="overlay__text overlay__text--note" id="edit-correct-note" hidden>Los puntos ya registrados se conservarán. El cambio quedará marcado como un ajuste manual.</p>
-
-        <div class="edit-field" id="edit-finished-sets-section">
-          <div class="edit-field__label">Sets finalizados</div>
-          <div id="edit-finished-sets-list" class="edit-chip-list"></div>
-          <div id="edit-add-set-row" class="edit-add-set-row">
-            <select id="edit-add-set-select" class="edit-select"></select>
-            <button id="edit-add-set-btn" type="button" class="btn-mini">+ Agregar</button>
-          </div>
-          <div id="edit-add-set-tb-row" class="edit-row" hidden>
-            <span class="edit-row__label">Tie break (opcional):</span>
-            <button type="button" class="stepper-btn" data-stepper="add-tb-a" data-delta="-1">–</button>
-            <span id="edit-add-tb-a" class="stepper-value">–</span>
-            <button type="button" class="stepper-btn" data-stepper="add-tb-a" data-delta="1">+</button>
-            <span class="edit-row__sep">–</span>
-            <button type="button" class="stepper-btn" data-stepper="add-tb-b" data-delta="-1">–</button>
-            <span id="edit-add-tb-b" class="stepper-value">–</span>
-            <button type="button" class="stepper-btn" data-stepper="add-tb-b" data-delta="1">+</button>
-          </div>
-        </div>
-
-        <div id="edit-current-set-section" class="edit-field">
-          <div class="edit-field__label">Set actual</div>
-          <div class="edit-row">
-            <button type="button" class="stepper-btn" data-stepper="cur-a" data-delta="-1">–</button>
-            <span id="edit-cur-a" class="stepper-value">0</span>
-            <button type="button" class="stepper-btn" data-stepper="cur-a" data-delta="1">+</button>
-            <span class="edit-row__sep">–</span>
-            <button type="button" class="stepper-btn" data-stepper="cur-b" data-delta="-1">–</button>
-            <span id="edit-cur-b" class="stepper-value">0</span>
-            <button type="button" class="stepper-btn" data-stepper="cur-b" data-delta="1">+</button>
-          </div>
-
-          <div id="edit-tb-section" class="edit-field" hidden>
-            <div class="edit-field__label">Tie break en curso</div>
-            <select id="edit-tb-mode-select" class="edit-select">
-              <option value="classic">Clásico</option>
-              <option value="death7">Muere en 7</option>
-              <option value="to15">Tie break a 15</option>
-            </select>
-            <div class="edit-row" style="margin-top:8px;">
-              <button type="button" class="stepper-btn" data-stepper="tb-a" data-delta="-1">–</button>
-              <span id="edit-tb-a" class="stepper-value">0</span>
-              <button type="button" class="stepper-btn" data-stepper="tb-a" data-delta="1">+</button>
-              <span class="edit-row__sep">–</span>
-              <button type="button" class="stepper-btn" data-stepper="tb-b" data-delta="-1">–</button>
-              <span id="edit-tb-b" class="stepper-value">0</span>
-              <button type="button" class="stepper-btn" data-stepper="tb-b" data-delta="1">+</button>
-            </div>
-          </div>
-
-          <div id="edit-points-section" class="edit-field">
-            <div class="edit-field__label">Puntos del game actual</div>
-            <div id="edit-points-normal">
-              <div class="point-track-label point-track-label--a">Equipo A</div>
-              <div id="edit-points-track-a" class="point-track"></div>
-              <div class="point-track-label point-track-label--b">Equipo B</div>
-              <div id="edit-points-track-b" class="point-track"></div>
-            </div>
-            <div id="edit-points-special" hidden>
-              <div id="edit-points-special-grid" class="option-grid"></div>
-              <button type="button" id="edit-points-special-back" class="link-btn">← Volver a puntos normales</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="edit-field">
-          <div class="edit-field__label">¿Quién está sacando ahora?</div>
-          <div id="edit-server-options" class="server-grid"></div>
-        </div>
-
-        <p id="edit-error" class="edit-error" hidden></p>
-
-        <div class="overlay__actions">
-          <button id="edit-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="edit-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
-        </div>
-        </div><!-- /edit-mode-body -->
-      </div>
-    </div>
-
-    <!-- V6 — Corrección rápida: alternativa liviana al Editor completo para el caso
-         común ("tenía 0-30 pero en realidad iba 15-30"), sin tocar sets/games. -->
-    <div id="quick-correction-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide">
-        <div class="overlay__title-row">
-          <div class="overlay__title">CORRECCIÓN RÁPIDA</div>
-          <button type="button" id="quick-correction-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <p class="overlay__text">Ajustá solo el punto del game actual. No toca sets ni games.</p>
-        <div id="quick-correction-body"></div>
-        <p id="quick-correction-error" class="edit-error" hidden></p>
-        <div class="overlay__actions">
-          <button id="quick-correction-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="quick-correction-save" class="btn-start btn-start--overlay" type="button">GUARDAR CORRECCIÓN</button>
-        </div>
-        <button type="button" id="quick-correction-full-editor" class="link-btn quick-correction-full-link">EDITAR MARCADOR COMPLETO</button>
-      </div>
-    </div>
-
-    <!-- V12 (§2) — Ajustar: "me perdí parte del game; conozco el tanteador actual pero no
-         necesariamente la secuencia que llevó hasta ahí". A diferencia de Corrección Rápida,
-         NUNCA reconstruye una secuencia de puntos plausible: siempre marca el tramo salteado
-         como un ajuste manual, para no fabricar datos que no ocurrieron. -->
-    <div id="adjust-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide">
-        <div class="overlay__title-row">
-          <div class="overlay__title">AJUSTAR MARCADOR</div>
-          <button type="button" id="adjust-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <p class="overlay__text">Elegí el tanteador actual del game. No hace falta reconstruir cómo se llegó — lo que no se conoce queda marcado como ajuste manual.</p>
-        <div id="adjust-body"></div>
-        <div class="overlay__actions">
-          <button id="adjust-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="adjust-save" class="btn-start btn-start--overlay" type="button">CONFIRMAR AJUSTE</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- V12 (§5) — Corregir sacador: se abre al tocar el indicador de saque en el
-         marcador compacto. Reasigna el saque del game actual sin tocar games anteriores.
-         También se reusa para "¿Quién comienza sacando?" al arrancar un Tie break
-         extraordinario (§11) — mismo mecanismo, título dinámico. -->
-    <div id="server-correction-modal" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title-row">
-          <div class="overlay__title" id="server-correction-title">¿QUIÉN ESTÁ SACANDO?</div>
-          <button type="button" id="server-correction-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <div id="server-correction-options" class="server-grid"></div>
-        <div class="overlay__actions">
-          <button id="server-correction-cancel" class="btn-secondary" type="button">Cancelar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- V13 (§14-17) — flujo de Tie break en modo Por Games: ganador obligatorio + score
-         interno opcional, resuelto en un solo paso (nunca cuenta puntos del TB uno por
-         uno). Sirve tanto para el TB reglamentario (el ganador ya se sabe por el toque en
-         la zona, así que el paso 1 se salta) como para "Resolver con Tie break"
-         extraordinario desde el menú (ahí sí hace falta preguntar el ganador primero). -->
-    <div id="game-tb-modal" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title-row">
-          <div class="overlay__title" id="game-tb-modal-title">TIE BREAK</div>
-          <button type="button" id="game-tb-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <div id="game-tb-winner-section" class="edit-field" hidden>
-          <div class="edit-field__label">¿Quién ganó el Tie break?</div>
-          <div class="option-grid" id="game-tb-winner-options" role="radiogroup">
-            <button type="button" class="option-pill" data-team="A">Equipo A</button>
-            <button type="button" class="option-pill" data-team="B">Equipo B</button>
-          </div>
-        </div>
-        <div id="game-tb-score-section" class="edit-field" hidden>
-          <div class="edit-field__label" id="game-tb-score-label">¿Sabés el resultado del Tie break?</div>
-          <div class="edit-row">
-            <button type="button" class="stepper-btn" data-stepper="gtb-a" data-delta="-1">–</button>
-            <span id="game-tb-score-a" class="stepper-value">–</span>
-            <button type="button" class="stepper-btn" data-stepper="gtb-a" data-delta="1">+</button>
-            <span class="edit-row__sep">–</span>
-            <button type="button" class="stepper-btn" data-stepper="gtb-b" data-delta="-1">–</button>
-            <span id="game-tb-score-b" class="stepper-value">–</span>
-            <button type="button" class="stepper-btn" data-stepper="gtb-b" data-delta="1">+</button>
-          </div>
-          <button type="button" id="game-tb-omit-btn" class="link-btn">OMITIR</button>
-        </div>
-        <p class="overlay__text overlay__text--note" id="game-tb-error" hidden></p>
-        <div class="overlay__actions">
-          <button id="game-tb-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="game-tb-confirm" class="btn-start btn-start--overlay" type="button" hidden>Confirmar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- V13 (§10) — Editar en modo Por Games: primero corrección rápida (steppers de games
-         del set actual), con un link para expandir a la edición profunda (sets ya
-         finalizados). Un solo modal con revelado progresivo, en vez de duplicar toda la
-         estructura del Editor completo de puntos (que no aplica acá — no hay puntos). -->
-    <div id="games-editor-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide overlay__card--scroll">
-        <div class="overlay__title-row">
-          <div class="overlay__title">AJUSTAR GAMES</div>
-          <button type="button" id="games-editor-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <p class="overlay__text">Corregí el score de games del set actual. Lo que registres desde acá en adelante cuenta para las estadísticas.</p>
-        <div class="edit-field">
-          <div class="edit-field__label" id="games-editor-cur-label-a">Equipo A</div>
-          <div id="games-editor-cur-track-a" class="point-track"></div>
-        </div>
-        <div class="edit-field">
-          <div class="edit-field__label" id="games-editor-cur-label-b">Equipo B</div>
-          <div id="games-editor-cur-track-b" class="point-track"></div>
-        </div>
-        <button type="button" id="games-editor-expand-btn" class="link-btn">EDITAR MARCADOR COMPLETO</button>
-        <div id="games-editor-deep" hidden>
-          <div class="edit-field">
-            <div class="edit-field__label">Sets finalizados</div>
-            <div id="games-editor-finished-sets-list" class="edit-chip-list"></div>
-            <div id="games-editor-add-set-row" class="edit-add-set-row">
-              <select id="games-editor-add-set-select" class="edit-select"></select>
-              <button id="games-editor-add-set-btn" type="button" class="btn-mini">+ Agregar</button>
-            </div>
-            <div id="games-editor-add-set-tb-row" class="edit-row" hidden>
-              <span class="edit-row__label">Tie break (opcional):</span>
-              <button type="button" class="stepper-btn" data-stepper="gadd-tb-a" data-delta="-1">–</button>
-              <span id="games-editor-add-tb-a" class="stepper-value">–</span>
-              <button type="button" class="stepper-btn" data-stepper="gadd-tb-a" data-delta="1">+</button>
-              <span class="edit-row__sep">–</span>
-              <button type="button" class="stepper-btn" data-stepper="gadd-tb-b" data-delta="-1">–</button>
-              <span id="games-editor-add-tb-b" class="stepper-value">–</span>
-              <button type="button" class="stepper-btn" data-stepper="gadd-tb-b" data-delta="1">+</button>
-            </div>
-          </div>
-        </div>
-        <p class="overlay__text overlay__text--note" id="games-editor-error" hidden></p>
-        <div class="overlay__actions">
-          <button id="games-editor-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="games-editor-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- V13 (§18) — Editar jugadores: cambia el nombre visible de cada jugador, retroactivo a
-         toda la presentación (marcador, Resumen, Análisis, Intelligence, Historial,
-         Highlights) porque internamente sigue siendo el mismo ID. Nunca crea un jugador
-         nuevo. Deliberadamente separado del indicador de saque (que corrige SACADOR, no
-         nombres) — se accede solo desde el menú ☰. -->
-    <div id="edit-players-modal" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title-row">
-          <div class="overlay__title">EDITAR JUGADORES</div>
-          <button type="button" id="edit-players-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <div id="edit-players-fields"></div>
-        <div class="overlay__actions">
-          <button id="edit-players-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="edit-players-save" class="btn-start btn-start--overlay" type="button">Guardar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- V12 (§9-12) — Resolver con Tie break / Editar definición: mismo modal para arrancar
-         un Tie break extraordinario (títulos/acción dinámicos) y para cambiar su objetivo en
-         vivo — la elección de modalidad/objetivo es idéntica en ambos casos (§10, §12). -->
-    <div id="etb-modal" class="overlay" hidden>
-      <div class="overlay__card overlay__card--wide">
-        <div class="overlay__title-row">
-          <div class="overlay__title" id="etb-modal-title">RESOLVER CON TIE BREAK</div>
-          <button type="button" id="etb-close-x" class="overlay__close-x" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <div class="option-grid" id="etb-preset-options">
-          <button type="button" class="option-pill" data-preset="classic"><span class="option-pill__title">Tie break clásico</span></button>
-          <button type="button" class="option-pill" data-preset="death7"><span class="option-pill__title">Muere en 7</span></button>
-          <button type="button" class="option-pill" data-preset="to15"><span class="option-pill__title">Tie break a 15</span></button>
-          <button type="button" class="option-pill" data-preset="custom"><span class="option-pill__title">Otro</span></button>
-        </div>
-        <div id="etb-custom-section" hidden>
-          <div class="edit-row">
-            <span class="edit-row__label">Jugar a:</span>
-            <button type="button" id="etb-target-minus" class="stepper-btn">–</button>
-            <span id="etb-target-value" class="stepper-value">12</span>
-            <button type="button" id="etb-target-plus" class="stepper-btn">+</button>
-          </div>
-          <div class="option-grid" id="etb-rule-options">
-            <button type="button" class="option-pill" data-rule="diff2"><span class="option-pill__title">Diferencia de 2</span></button>
-            <button type="button" class="option-pill" data-rule="death"><span class="option-pill__title" id="etb-death-label">Muere en 12</span></button>
-          </div>
-        </div>
-        <p class="edit-error" id="etb-error" hidden></p>
-        <div class="overlay__actions">
-          <button id="etb-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="etb-confirm" class="btn-start btn-start--overlay" type="button">INICIAR TIE BREAK</button>
-        </div>
-      </div>
-    </div>
-
-  </section>
-
-  <!-- ============================================================
        VISTA 3/4 · RESUMEN / ANÁLISIS COMPLETO — pantalla canónica única (V02.1 §13/§15).
        Reemplaza a la vieja pareja "Resumen inmediato" (#view-summary) + "Análisis" y su
        navegación circular ("Ver resumen"/"Volver a análisis" ya no existen).
@@ -597,12 +52,10 @@
     <div class="analysis-scroll">
       <!-- V02.1 (§13/§15) — único Resumen del partido: reemplaza a la vieja pareja
            Resumen inmediato ↔ Análisis y su navegación circular ("Ver resumen"/"Volver a
-           análisis"). Deshacer/Reanudar solo aparecen para el partido EN VIVO recién
-           terminado (mismas condiciones que antes tenía #view-summary). -->
-      <div class="analysis-live-actions" id="analysis-live-actions" hidden>
-        <button id="analysis-undo-btn" class="summary-undo-btn" type="button" hidden>↩ Deshacer último punto</button>
-        <button id="analysis-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
-      </div>
+           análisis").
+           BRAMUlive (2026-09-18) — se retiran Deshacer/Reanudar: eran exclusivas del partido
+           EN VIVO recién terminado, que se separó a BRAMUlive. Esta pantalla sigue siendo
+           compartida por carga manual/Historial (ver renderAnalysis en app.js). -->
       <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
@@ -647,7 +100,6 @@
       <section class="analysis-section" id="analysis-keymoments">
         <h3 class="analysis-section__title">MOMENTOS CLAVE</h3>
         <div id="analysis-keymoments-list" class="keymoments-list"></div>
-        <button id="analysis-full-timeline-btn" class="link-btn" type="button">VER TIMELINE COMPLETO</button>
       </section>
       <!-- Etapa 4.2 (§10) — nota privada, solo partidos CARGADOS (mode==='manual'): nunca en
            tarjetas públicas/listas/perfiles — accesible únicamente desde este detalle.
@@ -694,19 +146,6 @@
         <button id="analysis-delete-btn" class="analysis-delete-btn" type="button">Eliminar partido</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
-    </div>
-  </section>
-
-  <!-- ============================================================
-       VISTA 5 · TIMELINE COMPLETO
-       ============================================================ -->
-  <section id="view-timeline" class="view view--history" hidden>
-    <div class="analysis-header">
-      <button id="timeline-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title">TIMELINE COMPLETO</span>
-    </div>
-    <div class="analysis-scroll">
-      <div id="timeline-full-list"></div>
     </div>
   </section>
 
@@ -1059,19 +498,6 @@
       </div>
     </div>
     <div class="analysis-scroll player-home-scroll">
-
-      <!-- Etapa 3 (Fase 2, §7; Correcciones postprueba §3.2) — franja COMPACTA de partido en
-           curso: prioridad sobre TODO lo demás (Hitos incluidos), solo visible con un partido
-           en vivo activo. Ver renderActiveMatchBanner() en app.js — sin cambios de Etapa 4. -->
-      <button type="button" id="active-match-banner" class="active-match-banner" hidden>
-        <span class="active-match-banner__pulse" aria-hidden="true"></span>
-        <span class="active-match-banner__info">
-          <span class="active-match-banner__label">PARTIDO EN CURSO</span>
-          <span class="active-match-banner__teams" id="active-match-banner-teams"></span>
-          <span class="active-match-banner__meta" id="active-match-banner-meta"></span>
-        </span>
-        <span class="active-match-banner__cta">Continuar ›</span>
-      </button>
 
       <!-- §5 — Hitos personales: franja horizontal desplazable, solo con al menos un hito
            justificado por la historia real (PH.computeHitos). Oculta por completo si no hay
@@ -2109,25 +1535,16 @@
            texto quedaba redundante. El subtítulo queda como única entrada, breve y sin volver
            a nombrar la marca. -->
       <p class="access-subtitle">Entrá con tu cuenta o creá tu jugador para empezar.</p>
-      <!-- V03.0.1 (§7, corrección del usuario) — EXACTAMENTE 3 acciones mientras no hay
-           sesión: sin "Cancelar" (esta pantalla es la raíz pública, no hay una pantalla
-           personal a la que volver sin sesión). "REGISTRAR PARTIDO COMO INVITADO" permite
-           jugar en vivo como invitado sin crear cuenta (ver openGuestRegisterFlow, app.js) —
-           la barra inferior personal sigue oculta mientras ese partido esté en curso (mecanismo
-           de showView, no un caso especial acá).
-           V03.0.2 (§10) — jerarquía 1-2-3 explícita: la tercera acción deja de ser un
-           `.link-btn` (se leía como un link olvidado/"cancelar") y pasa a un botón ghost/
-           outline deliberado.
-           BRAMUlab_V03.2.1 (§3) — "REGISTRAR PARTIDO SIN CUENTA" → "REGISTRAR PARTIDO COMO
-           INVITADO" (nombra a quién juega, no la ausencia de cuenta) y se retira el texto de
-           apoyo ("Jugá sin crear perfil ni guardar historial.") — no hacía falta explicar de
-           más una acción ya autoexplicativa. -->
+      <!-- V03.0.1 (§7, corrección del usuario) — sin "Cancelar" (esta pantalla es la raíz
+           pública, no hay una pantalla personal a la que volver sin sesión).
+           BRAMUlive (2026-09-18) — se retira "REGISTRAR PARTIDO COMO INVITADO": esa acción
+           solo llevaba al registro en vivo (openGuestRegisterFlow ya no existe), que se separó
+           a BRAMUlive como producto propio. BRAMUlab solo carga partidos propios ya jugados, y
+           eso requiere una cuenta (ver Experiencia_Inicial.md §4.1/§13). Quedan las 2 acciones
+           reales: iniciar sesión o crear cuenta. -->
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
         <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
-        <button type="button" id="access-guest-btn" class="btn-ghost">
-          <span class="btn-ghost__label">REGISTRAR PARTIDO COMO INVITADO</span>
-        </button>
       </div>
       <!-- BRAMUlab_V04.6 (corrección de acceso al laboratorio) — visible SOLO con el preview de
            Nivel BRAMU V1 activado (ver refreshLabPreviewUI en app.js): con el laboratorio
@@ -2563,30 +1980,6 @@
     </div>
   </div>
 
-  <!-- V13.4 (§1-13) — cambiar el sistema de puntuación durante el partido, REEMPLAZA el
-       modelo "regla por punto" de V13.3. En Modo Completo el sistema es una propiedad DEL
-       PARTIDO: la corrección solo es posible mientras siga siendo compatible con el game en
-       curso (opciones incompatibles quedan deshabilitadas acá abajo) y se bloquea para
-       siempre en cuanto cierra el primer game que realmente dependió de la regla (40-40). En
-       Por Games sigue siendo puro metadata, sin restricciones. Mismo selector visual que en
-       la configuración inicial, reutilizado tanto desde el menú ☰ como desde "CAMBIAR" en la
-       franja contextual. -->
-  <div id="scoring-system-modal" class="overlay" hidden>
-    <div class="overlay__card">
-      <div class="overlay__title">SISTEMA DE PUNTUACIÓN</div>
-      <div id="scoring-system-options" class="option-row" role="radiogroup">
-        <button type="button" class="option-col" data-value="starpoint">STAR POINT</button>
-        <button type="button" class="option-col" data-value="golden">PUNTO DE ORO</button>
-        <button type="button" class="option-col" data-value="classic">CON VENTAJA</button>
-      </div>
-      <div id="scoring-system-hint" class="setup-hint">Punto decisivo en 40–40</div>
-      <div class="overlay__actions">
-        <button id="scoring-system-cancel" class="btn-secondary" type="button">Cancelar</button>
-        <button id="scoring-system-confirm" class="btn-start btn-start--overlay" type="button">Guardar</button>
-      </div>
-    </div>
-  </div>
-
   <!-- V03.0.1 (§2) — "Editar Datos" pasa de modal a pantalla completa: header con volver,
        scroll natural, labels visibles y persistentes arriba de cada campo (antes
        placeholder-only). Nivel BRAMU/mejor nivel/ranking/partidos/victorias/efectividad NO
@@ -2824,87 +2217,6 @@
     </div>
   </div>
 
-  <!-- Etapa 3 (Fase 2, §9) — confirmación de descarte del partido en curso al elegir "Registrar
-       partido nuevo" desde la hoja. Modal dedicado (no reutiliza #confirm-overlay): acá los roles
-       de los botones están invertidos respecto a la convención genérica — la acción seleccionada
-       por defecto/segura es "Volver al partido" (principal, lima/gold) y la destructiva
-       "Descartar" usa rojo, algo que #confirm-overlay no modela (ahí "Confirmar" siempre es la
-       acción principal, nunca la de seguridad). -->
-  <div id="discard-match-modal" class="overlay" hidden>
-    <div class="overlay__card">
-      <div class="overlay__title">HAY UN PARTIDO EN CURSO</div>
-      <p class="overlay__text">Si registrás un partido nuevo, el partido actual se cerrará y su progreso no quedará guardado en el historial.</p>
-      <div class="overlay__actions overlay__actions--stacked">
-        <button type="button" id="discard-match-keep" class="btn-start btn-start--overlay">VOLVER AL PARTIDO</button>
-        <button type="button" id="discard-match-confirm" class="btn-secondary btn-secondary--danger">DESCARTAR Y REGISTRAR UNO NUEVO</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ============================================================
-       HOJA "REGISTRAR PARTIDO" — Etapa 3 (Fase 2, §4-§9)
-       Vive fuera de cualquier vista, como el toast: el "+" de la barra inferior la abre
-       igual desde Inicio/Historial/Ranking/Perfil. Contenido según haya o no un partido
-       en vivo activo (#register-sheet-active vs. #register-sheet-level1/2) — ver
-       getActiveMatchSummary()/openRegisterSheet() en app.js.
-       ============================================================ -->
-  <div id="register-sheet-scrim" class="sheet-scrim" hidden>
-    <!-- V02.4 (Bloque C, §7) — .bottom-sheet--compact: categoría reutilizable de sheet de
-         altura mínima garantizada (~35% de la altura útil), para sheets de contenido corto
-         que quedaban demasiado bajos/pegados al borde con la sola altura auto por contenido
-         del .bottom-sheet base (ver styles.css). -->
-    <div id="register-sheet" class="bottom-sheet bottom-sheet--compact" role="dialog" aria-modal="true" aria-label="Registrar partido">
-      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
-
-      <!-- Con partido en curso (§8). Fase 2 · Correcciones postprueba (§3.4) — el título de
-           la hoja es "REGISTRAR PARTIDO" en los tres niveles; "PARTIDO EN CURSO" aparece una
-           sola vez, dentro de la tarjeta contextual de abajo (antes se repetía acá también). -->
-      <div id="register-sheet-active" class="bottom-sheet__level" hidden>
-        <div class="bottom-sheet__header">
-          <span class="bottom-sheet__title">REGISTRAR PARTIDO</span>
-          <button type="button" id="register-sheet-close-active" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <button type="button" id="register-sheet-active-card" class="sheet-active-card">
-          <div class="sheet-active-card__label">PARTIDO EN CURSO</div>
-          <div class="sheet-active-card__teams" id="register-sheet-active-teams"></div>
-          <div class="sheet-active-card__meta" id="register-sheet-active-meta"></div>
-          <div class="sheet-active-card__cta">CONTINUAR PARTIDO</div>
-        </button>
-        <button type="button" id="register-sheet-new-match" class="sheet-option">Registrar partido nuevo</button>
-      </div>
-
-      <!-- Sin partido en curso, nivel 1 (§4) -->
-      <div id="register-sheet-level1" class="bottom-sheet__level" hidden>
-        <div class="bottom-sheet__header">
-          <span class="bottom-sheet__title">REGISTRAR PARTIDO</span>
-          <button type="button" id="register-sheet-close-1" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <!-- V02.2 (Bloque B, §6) — misma jerarquía exacta para ambas opciones: ninguna usa
-             lima sólida ni borde lima (eso quedaba reservado a una sola, dándole falso
-             protagonismo).
-             BRAMUlab_V03.2.1 (§7) — se retira el chevron de las dos: no aportaba (no navegan a
-             un submenú, cada una dispara la acción directamente). -->
-        <button type="button" id="register-sheet-load-played" class="sheet-option">
-          <span class="sheet-option__label">Cargar mi partido jugado</span>
-        </button>
-        <button type="button" id="register-sheet-live" class="sheet-option">
-          <span class="sheet-option__label">Registrar partido en vivo</span>
-        </button>
-      </div>
-
-      <!-- Nivel 2: elegir modo en vivo (§4) — ninguna opción preseleccionada ni destacada. -->
-      <div id="register-sheet-level2" class="bottom-sheet__level" hidden>
-        <div class="bottom-sheet__header">
-          <button type="button" id="register-sheet-back-2" class="bottom-sheet__back" aria-label="Volver">←</button>
-          <span class="bottom-sheet__title">REGISTRAR EN VIVO</span>
-          <button type="button" id="register-sheet-close-2" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
-        <button type="button" id="register-sheet-mode-games" class="sheet-option">Game por game</button>
-        <button type="button" id="register-sheet-mode-complete" class="sheet-option">Punto por punto</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ============================================================
        HOJA "CREAR GRUPO" — BRAMUlab_V03.4 (§4)
        Nombre + jugadores iniciales, en una sola hoja simple (sin wizard de varios pasos —
@@ -3099,27 +2411,27 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.10-h1"></script>
-  <script src="stats.js?v=04.10-h1"></script>
-  <script src="store.js?v=04.10-h1"></script>
+  <script src="engine.js?v=04.10-h2"></script>
+  <script src="stats.js?v=04.10-h2"></script>
+  <script src="store.js?v=04.10-h2"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.10-h1"></script>
-  <script src="level-context.js?v=04.10-h1"></script>
-  <script src="level-calibration.js?v=04.10-h1"></script>
-  <script src="player-home.js?v=04.10-h1"></script>
-  <script src="match-load.js?v=04.10-h1"></script>
-  <script src="player-identity.js?v=04.10-h1"></script>
-  <script src="groups.js?v=04.10-h1"></script>
-  <script src="locations.js?v=04.10-h1"></script>
-  <script src="ranking.js?v=04.10-h1"></script>
+  <script src="level.js?v=04.10-h2"></script>
+  <script src="level-context.js?v=04.10-h2"></script>
+  <script src="level-calibration.js?v=04.10-h2"></script>
+  <script src="player-home.js?v=04.10-h2"></script>
+  <script src="match-load.js?v=04.10-h2"></script>
+  <script src="player-identity.js?v=04.10-h2"></script>
+  <script src="groups.js?v=04.10-h2"></script>
+  <script src="locations.js?v=04.10-h2"></script>
+  <script src="ranking.js?v=04.10-h2"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.10-h1"></script>
-  <script src="app.js?v=04.10-h1"></script>
+  <script src="auth.js?v=04.10-h2"></script>
+  <script src="app.js?v=04.10-h2"></script>
 </body>
 </html>
