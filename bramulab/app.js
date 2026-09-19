@@ -3422,10 +3422,29 @@
   // BRAMUlab_V04.8 (§4) — TU IDENTIDAD + TU PERFIL se fusionan en un solo paso "TU PERFIL"
   // (antes 2 y 3): el usuario completa un solo perfil, no una secuencia artificial de 3
   // pantallas. CREAR CUENTA sigue aparte (acceso: email/contraseña, no datos de perfil).
-  // Backend Bloque 2 — paso 'verify' nuevo entre 1 y 2: con backend real, el email verificado
-  // es obligatorio (Backend_Infraestructura.md §8.1) antes de poder completar el perfil.
-  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', verify: 'CONFIRMÁ TU EMAIL', 2: 'TU PERFIL' };
-  const SIGNUP_STEP_ORDER = [1, 'verify', 2];
+  // Backend Bloque 3 (Backend_Infraestructura.md §8.1, 03_Revision_ChatGPT.md §8) — 'verify'
+  // pasa a ser el ÚLTIMO paso, no el segundo: la confirmación de email se DIFIERE hasta
+  // después de perfil mínimo + Nivel BRAMU (ver openNivelOnboardingIntro/confirmNivelOnboarding
+  // más abajo, que corren ENTRE el paso 2 y 'verify' desde una vista separada,
+  // #view-nivel-onboarding). "TU PERFIL" pasa a ser el perfil MÍNIMO (nombre/apellido/
+  // @usuario/términos) — rama competitiva/ubicación/datos secundarios se retiran de acá (no
+  // bloquean Nivel/Home/primer partido, Experiencia_Inicial.md §2.2).
+  const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU PERFIL', verify: 'CONFIRMÁ TU EMAIL' };
+  const SIGNUP_STEP_ORDER = [1, 2, 'verify'];
+
+  // Backend Bloque 3 (03_Revision_ChatGPT.md §10) — sin sistema legal todavía: un string de
+  // versión simple, alcanza para el soporte técnico pedido (terms_version/terms_accepted_at
+  // server-side). Cambiar este valor es la única acción necesaria el día que haya términos
+  // reales que versionar.
+  const TERMS_VERSION = 'piloto_v1';
+
+  // Backend Bloque 3 — distingue las 2 formas de llegar a #view-nivel-onboarding:
+  //  'draft'   → alta real en curso, TODAVÍA sin cuenta confirmada: opera sobre `signupDraft`
+  //              (nunca sobre Store.getCurrentUser(), que no existe todavía).
+  //  'account' → cuenta YA existente (alta local sin backend, cuenta de laboratorio, o
+  //              "Resetear Nivel BRAMU"): comportamiento IDÉNTICO al de antes de Bloque 3,
+  //              opera sobre Store.getCurrentUser()/Store.saveLevelV1State.
+  let nivelOnboardingContext = 'account';
 
   function resetSignupWizard() {
     signupStep = 1;
@@ -3446,7 +3465,11 @@
     // BRAMUlab_V04.9 (§3) — "Elegir ubicación" en vez de un simple "—": la fila ahora se ve
     // enmarcada como un campo real (ver #signup-location-row en styles.css), un placeholder
     // reconocible (en vez de un guion suelto) refuerza que hay que tocarla para elegir.
+    // Nota Backend Bloque 3: estos campos (avatar/fecha/género/mano/lado/rama/ubicación) quedan
+    // ocultos en el paso "TU PERFIL" (ver index.html) — se resetean igual por si en algún
+    // momento se vuelven a mostrar, no aportan ni estorban mientras estén hidden.
     $('#signup-location-value').textContent = 'Elegir ubicación';
+    $('#signup-terms-checkbox').checked = false;
   }
 
   /** BRAMUlab_V03.6 — mismo patrón que updateProfileLocationRowDisplay, para la fila de
@@ -3466,7 +3489,15 @@
     // en vez de Number(...) porque 'verify' no es numérico (Number('verify') es NaN).
     $all('#signup-form .signup-step').forEach((el) => { el.hidden = el.dataset.step !== String(signupStep); });
     $('#signup-step-title').textContent = SIGNUP_STEP_TITLES[signupStep];
-    $('#signup-continue-btn').textContent = signupStep === 2 ? 'CREAR MI PERFIL' : signupStep === 'verify' ? 'CONFIRMAR CÓDIGO' : 'CONTINUAR';
+    // Backend Bloque 3 — paso 2 ("TU PERFIL") ya no crea la cuenta: solo guarda el perfil
+    // mínimo en el borrador y sigue hacia Nivel BRAMU (ver el handler de abajo), así que su
+    // botón vuelve a decir "CONTINUAR" en vez de "CREAR MI PERFIL".
+    $('#signup-continue-btn').textContent = signupStep === 'verify' ? 'CONFIRMAR CÓDIGO' : 'CONTINUAR';
+    // Backend Bloque 3 — "Confirmar email ahora" solo tiene sentido con backend real (sin
+    // Auth.isConfigured() no existe ningún OTP que confirmar; el camino local crea la cuenta
+    // en el mismo paso 2 de siempre). Se recalcula en cada render del paso 2, sin importar por
+    // qué camino se llegó (flujo normal o resumeDraftFlow).
+    if (signupStep === 2) $('#signup-verify-now-btn').hidden = !Auth.isConfigured();
     if (signupStep === 'verify') $('#signup-verify-email').textContent = signupDraft.email || 'tu email';
     recomputeSignupStepValidity();
   }
@@ -3494,18 +3525,18 @@
     } else if (signupStep === 'verify') {
       ok = /^[0-9]{6}$/.test($('#signup-verify-code').value.trim());
     } else if (signupStep === 2) {
-      // BRAMUlab_V04.8 (§4) — validación fusionada de TU IDENTIDAD + TU PERFIL (antes 2 pasos).
-      // BRAMUlab_V04.6 — Categoría no forma parte de esta validación: ya no se pregunta en el
-      // alta (ver Handoff V04.6 §4), se pregunta una sola vez al final de Nivel BRAMU. Ubicación
-      // es obligatoria (antes era la única opcional del paso 3).
-      // Backend Bloque 2 (Backend_Infraestructura.md §5.4) — rama competitiva, obligatoria.
+      // Backend Bloque 3 (Experiencia_Inicial.md §2.2, Backend_Infraestructura.md §8.2) —
+      // "TU PERFIL" pasa a ser el perfil MÍNIMO: nombre + apellido + @usuario + términos.
+      // Rama competitiva/ubicación/fecha de nacimiento/género/mano/lado/avatar/nombre visible
+      // NO bloquean acá (Experiencia_Inicial.md §2.2: "no son obligatorios para terminar el
+      // alta deportiva inicial") — se completan después desde Perfil. Sin backend real
+      // (desarrollo local, camino sin cambios de Bloque 3) la cuenta local sigue necesitando
+      // un @usuario único contra la lista local, igual que siempre.
       const username = $('#signup-username').value;
-      const displayName = $('#signup-display-name').value.trim();
       const usernameAvailable = Auth.isConfigured() || !PLI.isUsernameTaken(username, Store.loadUsers());
-      ok = !!$('#signup-first-name').value.trim() && !!displayName
+      ok = !!$('#signup-first-name').value.trim() && !!$('#signup-last-name').value.trim()
         && PLI.isValidUsernameFormat(username) && !PLI.isUsernameReserved(username) && usernameAvailable
-        && !!$('#signup-birthdate').value && !!$('#signup-gender').value
-        && !!signupDraft.dominantHand && !!signupDraft.preferredSide && !!signupDraft.competitiveBranch && !!signupDraft.location;
+        && $('#signup-terms-checkbox').checked;
     }
     $('#signup-continue-btn').disabled = !ok;
     return ok;
@@ -3650,6 +3681,8 @@
     ['signup-birthdate', 'signup-gender'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
     });
+    // Backend Bloque 3 — checkbox de términos, único requisito nuevo del perfil mínimo.
+    $('#signup-terms-checkbox').addEventListener('change', recomputeSignupStepValidity);
     wireOptionGroup('signup-hand-options', (v) => { signupDraft.dominantHand = v; recomputeSignupStepValidity(); });
     wireOptionGroup('signup-side-options', (v) => { signupDraft.preferredSide = v; recomputeSignupStepValidity(); });
     wireOptionGroup('signup-branch-options', (v) => { signupDraft.competitiveBranch = v; recomputeSignupStepValidity(); });
@@ -3671,6 +3704,20 @@
       setAvatarPreview('signup-avatar-img', 'signup-avatar-initials', signupPhotoDataUrl);
     });
 
+    // Backend Bloque 3 (Experiencia_Inicial.md §2.1) — acción secundaria "Confirmar email
+    // ahora": el usuario puede resolver el OTP antes de terminar perfil mínimo + Nivel. Guarda
+    // lo que ya haya en el paso 2 (puede estar incompleto) para no perderlo, y salta a
+    // 'verify' sin pasar por el resto del flujo — al confirmar, resumeDraftFlow() decide sola
+    // adónde seguir.
+    $('#signup-verify-now-btn').addEventListener('click', () => {
+      signupDraft.firstName = $('#signup-first-name').value.trim() || signupDraft.firstName || null;
+      signupDraft.lastName = $('#signup-last-name').value.trim() || signupDraft.lastName || null;
+      signupDraft.username = $('#signup-username').value.trim() || signupDraft.username || null;
+      Store.saveSignupDraft(signupDraft);
+      signupStep = 'verify';
+      renderSignupStep();
+    });
+
     $('#signup-continue-btn').addEventListener('click', async () => {
       if (!recomputeSignupStepValidity()) return;
       const continueBtn = $('#signup-continue-btn');
@@ -3688,7 +3735,12 @@
           return;
         }
         $('#signup-step1-error').hidden = true;
-        signupStep = 'verify';
+        // Backend Bloque 3 (Experiencia_Inicial.md §2.1) — el código ya se envió (Auth.signUp
+        // lo dispara), pero 'verify' pasa a ser el ÚLTIMO paso: se sigue directo a "TU
+        // PERFIL" sin pedirlo todavía. El borrador se persiste para sobrevivir un refresh
+        // antes de confirmar (caso A0).
+        signupStep = 2;
+        Store.saveSignupDraft(signupDraft);
         renderSignupStep();
         return;
       }
@@ -3703,29 +3755,28 @@
           return;
         }
         $('#signup-verify-error').hidden = true;
-        signupStep = 2;
-        renderSignupStep();
+        // Backend Bloque 3 (03_Revision_ChatGPT.md §8) — "email confirmado ≠ onboarding
+        // terminado": nunca se asume Home acá. resumeDraftFlow() decide si falta perfil
+        // mínimo, falta Nivel, o ya está todo listo para oficializar.
+        continueBtn.disabled = true;
+        await resumeDraftFlow();
+        continueBtn.disabled = false;
         return;
       }
 
-      // BRAMUlab_V04.8 (§4) — paso único "TU PERFIL" (antes TU IDENTIDAD + TU PERFIL por
-      // separado): junta los mismos campos de siempre en un solo guardado.
+      // signupStep === 2 — perfil MÍNIMO (Backend Bloque 3, Experiencia_Inicial.md §2.2):
+      // nombre + apellido + @usuario + términos, nada más. Rama competitiva/ubicación/datos
+      // secundarios NO se piden acá (Experiencia_Inicial.md §2.2) — quedan para Perfil más
+      // adelante. Nunca llama a Auth.completeProfile acá: eso pasa recién al oficializar
+      // (runOfficializeAndEnter), después de confirmar el email, con el borrador ya completo.
       signupDraft.firstName = $('#signup-first-name').value.trim();
       signupDraft.lastName = $('#signup-last-name').value.trim();
       signupDraft.username = $('#signup-username').value.trim();
-      signupDraft.displayName = normalizePlayerName($('#signup-display-name').value);
-      signupDraft.profilePhoto = signupPhotoDataUrl;
-      signupDraft.birthDate = $('#signup-birthdate').value;
-      signupDraft.gender = $('#signup-gender').value;
-      // BRAMUlab_V04.6 — Categoría YA NO se declara acá (sale del alta, ver Handoff V04.6
-      // §4): queda `null` hasta que el onboarding de Nivel BRAMU la pregunte como último
-      // paso y la guarde en este MISMO campo (`completeNivelCategoryStep` en este archivo) —
-      // nunca dos categorías independientes.
-      // BRAMUlab_V04.6 — ubicación ya es obligatoria (recomputeSignupStepValidity lo exige):
-      // `signupDraft.location` siempre existe acá.
-      signupDraft.locality = signupDraft.location ? signupDraft.location.locality : null;
-      signupDraft.region = signupDraft.location ? signupDraft.location.region : null;
-      signupDraft.country = signupDraft.location ? signupDraft.location.country : null;
+      // Sin "nombre visible" propio en el alta (Experiencia_Inicial.md §2.2: "BRAMU utiliza
+      // el nombre ya ingresado como referencia inicial") — createUserAccount/complete_profile
+      // ya saben usar el nombre de pila cuando displayName llega vacío/repetido.
+      signupDraft.displayName = signupDraft.firstName;
+      signupDraft.termsVersion = TERMS_VERSION;
 
       if (!Auth.isConfigured()) {
         const user = Store.signUpAndLogin(signupDraft);
@@ -3734,20 +3785,134 @@
         return;
       }
 
-      continueBtn.disabled = true;
-      const completeResult = await Auth.completeProfile(signupDraft);
-      if (!completeResult.ok) {
-        continueBtn.disabled = false;
+      Store.saveSignupDraft(signupDraft);
+      nivelOnboardingContext = 'draft';
+      openNivelOnboardingIntro();
+    });
+  }
+
+  /** Backend Bloque 3 — pinta en el DOM del paso 2 lo que ya haya en `signupDraft`, para
+   *  retomar el alta sin que el usuario tenga que retipear nombre/apellido/@usuario (A0:
+   *  abandonó antes de confirmar el email, o confirmó temprano y todavía le falta el perfil). */
+  function prefillSignupStep2Fields() {
+    $('#signup-first-name').value = signupDraft.firstName || '';
+    $('#signup-last-name').value = signupDraft.lastName || '';
+    $('#signup-username').value = signupDraft.username || '';
+    if (signupDraft.username) $('#signup-username').dataset.touched = '1';
+    $('#signup-terms-checkbox').checked = !!signupDraft.termsVersion;
+    updateSignupAvatarInitials();
+    if (signupDraft.username) renderUsernameFeedback('signup-username', 'signup-username-feedback');
+  }
+
+  /** Backend Bloque 3 (03_Revision_ChatGPT.md §8) — único punto que decide "¿dónde sigue el
+   *  alta en curso?" a partir de `signupDraft`: perfil mínimo incompleto -> paso 2; perfil listo
+   *  pero Nivel sin confirmar -> Nivel BRAMU; los dos completos -> oficializa y entra a Home.
+   *  Se llama tras CUALQUIER verificación de OTP exitosa (al final del flujo normal, o
+   *  "Confirmar email ahora" adelantado) y al arrancar la app si queda un borrador sin
+   *  terminar (bootWithServerSession/resumeServerSession). */
+  async function resumeDraftFlow() {
+    // `signupDraft.username` alcanza como criterio: solo se fija en el paso 2 después de que
+    // recomputeSignupStepValidity ya exigió nombre/apellido/formato/términos (flujo normal), o
+    // se siembra en resumeSignupProfileStep SOLO cuando el servidor confirma que complete_profile
+    // ya corrió (`serverUser.username`) — en ambos casos implica perfil mínimo completo.
+    if (!signupDraft.username) {
+      signupStep = 2;
+      prefillSignupStep2Fields();
+      renderSignupStep();
+      showView('signup');
+      return;
+    }
+    if (!signupDraft.nivelState) {
+      nivelOnboardingContext = 'draft';
+      openNivelOnboardingIntro();
+      return;
+    }
+    await runOfficializeAndEnter();
+  }
+
+  /** Backend Bloque 3 — comando idempotente completo: perfil mínimo (complete_profile) +
+   *  oficialización de Nivel (Edge Function officialize-onboarding, motor JS compartido con
+   *  el navegador — nunca recalculado acá). Cada paso es idempotente por su cuenta (ver la
+   *  migración/la Edge Function), así que reintentar esta función entera tras cualquier error
+   *  de red/timeout es siempre seguro. Si el @usuario quedó ocupado mientras tanto (carrera,
+   *  03_Revision_ChatGPT.md §6), complete_profile revierte toda su transacción sin tocar
+   *  Nivel: se conserva TODO el resto del borrador y solo se vuelve a pedir el @usuario. */
+  async function runOfficializeAndEnter() {
+    const completeResult = await Auth.completeProfile({
+      username: signupDraft.username,
+      firstName: signupDraft.firstName,
+      lastName: signupDraft.lastName,
+      displayName: signupDraft.displayName || signupDraft.firstName,
+      termsVersion: signupDraft.termsVersion,
+    });
+    if (!completeResult.ok) {
+      signupStep = 2;
+      prefillSignupStep2Fields();
+      renderSignupStep();
+      showView('signup');
+      const isUsernameIssue = ['username_taken', 'username_reserved', 'username_invalid_format'].includes(completeResult.code);
+      if (isUsernameIssue) {
+        const feedback = $('#signup-username-feedback');
+        feedback.textContent = COMPLETE_PROFILE_ERROR_TEXT[completeResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown;
+        feedback.classList.add('is-taken');
+      } else {
         $('#signup-step2-error').textContent = COMPLETE_PROFILE_ERROR_TEXT[completeResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown;
         $('#signup-step2-error').hidden = false;
-        return;
       }
-      $('#signup-step2-error').hidden = true;
-      const serverUser = await Auth.fetchOwnProfile();
-      continueBtn.disabled = false;
-      Store.cacheServerUser(serverUser);
-      syncCurrentIdentityFromStore();
-      openPlayerCardScreen(serverUser);
+      return;
+    }
+
+    const officialResult = await Auth.officializeLevel({
+      mode: signupDraft.nivelPathType,
+      quickSeedKey: signupDraft.nivelPathType === 'quick' ? signupDraft.nivelQuickSeedKey : undefined,
+      quizAnswers: signupDraft.nivelPathType === 'full' ? signupDraft.nivelQuizAnswers : undefined,
+      categoryContextKey: signupDraft.nivelCategoryContextKey || null,
+      declaredCategory: signupDraft.nivelDeclaredCategory,
+    });
+    if (!officialResult.ok) {
+      // El borrador NO se toca: perfil mínimo ya quedó persistido (complete_profile es
+      // idempotente), así que reintentar desde acá vuelve a llamarlo con el mismo username
+      // (no-op) y reintenta solo la parte de Nivel que de verdad falló.
+      showToast('No pudimos confirmar tu Nivel BRAMU. Probá de nuevo.', 3000);
+      signupStep = 'verify';
+      renderSignupStep();
+      showView('signup');
+      return;
+    }
+
+    Store.clearSignupDraft();
+    signupDraft = {};
+    const serverUser = await Auth.fetchOwnProfile();
+    Store.cacheServerUser(serverUser);
+    syncServerLevelState(serverUser);
+    syncCurrentIdentityFromStore();
+    completeIdentifyAction();
+  }
+
+  /** Backend Bloque 3 — cachea `user.levelState` (autoridad server-side) en la MISMA forma
+   *  local que ya usa Store.loadLevelV1State, para que Home/Mi Perfil/Perfil público
+   *  (currentLevelV1State y todo lo que ya lee esa clave) sigan funcionando SIN NINGÚN
+   *  CAMBIO — mismo criterio que Store.cacheServerUser para el resto del perfil (ver cabecera
+   *  de auth.js). PENDIENTE se sigue representando como ausencia de fila local (igual que
+   *  siempre): nunca se cachea acá, solo CALIBRANDO/CALIBRADO/RECALIBRANDO en adelante. */
+  function syncServerLevelState(user) {
+    if (!user || !user.levelState || user.levelState.status === 'PENDIENTE') return;
+    const STATE_MAP = { CALIBRANDO: LV.STATES.CALIBRATING, CALIBRADO: LV.STATES.CALIBRATED, RECALIBRANDO: LV.STATES.RECALIBRATING };
+    Store.saveLevelV1State(user.id, {
+      mu: user.levelState.mu,
+      confidence: user.levelState.confidence,
+      evidenceUnits: 0,
+      state: STATE_MAP[user.levelState.status] || LV.STATES.CALIBRATING,
+      ratedMatches: user.levelState.ratedMatches || 0,
+      distinctOpponents: user.levelState.distinctOpponents || 0,
+      lastRatedAt: null,
+      algorithmVersion: user.levelState.algorithmVersion,
+      origin: {
+        type: user.levelState.questionnaireMode,
+        questionnaireVersion: user.levelState.questionnaireVersion,
+        categoryContextKey: user.levelState.categoryContextKey,
+        declaredCategory: user.levelState.declaredCategory,
+      },
     });
   }
 
@@ -3853,7 +4018,7 @@
     $('#player-card-enter-btn').addEventListener('click', () => {
       // BRAMUlab_V04.7 — mismo criterio de nivelOnboardingPending (antes reimplementado acá
       // mismo, ver openPlayerHome/nivelOnboardingPending para el resto de los puntos de entrada).
-      if (nivelOnboardingPending(Store.getCurrentUser())) { openNivelOnboardingIntro(); return; }
+      if (nivelOnboardingPending(Store.getCurrentUser())) { nivelOnboardingContext = 'account'; openNivelOnboardingIntro(); return; }
       completeIdentifyAction();
     });
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 4) — camino directo a Mis Datos, nunca
@@ -3945,7 +4110,15 @@
 
   /** Piloto argentino masculino (§3.3 Fórmula V1.5) — único mapa activo hoy. Cualquier otro
    *  contexto queda sin mapa compatible: la categoría se guarda igual, pero nunca ajusta el
-   *  nivel (`LVC.computeCategoryAdjustment` ya maneja ese caso). */
+   *  nivel (`LVC.computeCategoryAdjustment` ya maneja ese caso).
+   *  Backend Bloque 3 — en modo 'draft' (alta real en curso, sin cuenta todavía) recibe
+   *  `signupDraft` en vez de `Store.getCurrentUser()`: como el perfil mínimo ya NO pide
+   *  género/localidad (Experiencia_Inicial.md §2.2), `signupDraft.country`/`.gender` no
+   *  existen y esta función devuelve `null` con normalidad — el ajuste por categoría
+   *  simplemente no aplica para nadie hasta que complete esos datos más adelante desde
+   *  Perfil (degradación ya prevista por la fórmula, Nivel_BRAMU_Formula_V1.5.md §3.3: "queda
+   *  sin mapa compatible... nunca ajusta el nivel", nunca un error). Documentado como efecto
+   *  observado en el informe de este bloque, no rediseña la fórmula. */
   function computeNivelCategoryContextKey(user) {
     return (user && user.country === 'Argentina' && user.gender === 'masculino') ? 'ar_masculino_v1' : null;
   }
@@ -3958,7 +4131,7 @@
     nivelRawResult = null;
     nivelDeclaredCategory = null;
     nivelCategoryStep = null;
-    nivelCategoryContextKey = computeNivelCategoryContextKey(Store.getCurrentUser());
+    nivelCategoryContextKey = computeNivelCategoryContextKey(nivelOnboardingContext === 'draft' ? signupDraft : Store.getCurrentUser());
     renderNivelOnboardingStep();
     showView('nivel-onboarding');
   }
@@ -4082,18 +4255,36 @@
     renderNivelResultStep();
   }
 
-  /** Confirma el nivel inicial V1.1 (LVC.confirmInitialLevelV1_1 + buildInitialCalibrationState),
-   *  guarda el estado real de Nivel BRAMU V1 (Store.saveLevelV1State, prototipo local — ver
-   *  cabecera de store.js) y persiste la categoría declarada en el MISMO campo de la cuenta
-   *  (`declaredCategory`/`declaredCategoryAt`, ver Handoff V04.6 §4: "no crear dos categorías
-   *  independientes") antes de entrar a BRAMU mostrando ese Nivel en CALIBRANDO
-   *  (renderPlayerCard/renderProfileEvolution ya lo detectan, ver `currentLevelV1State`). */
+  /** Confirma el nivel inicial V1.1 (LVC.confirmInitialLevelV1_1 + buildInitialCalibrationState).
+   *  En modo 'account' (cuenta local/laboratorio ya existente) el comportamiento es EL MISMO
+   *  de siempre: guarda Store.saveLevelV1State + declaredCategory y entra directo.
+   *  En modo 'draft' (Backend Bloque 3, alta real en curso) NO guarda nada todavía ni entra a
+   *  ningún lado: solo deja la vista previa local + las respuestas crudas en `signupDraft` y
+   *  sigue hacia la confirmación de email (03_Revision_ChatGPT.md §2/§6 — el navegador nunca
+   *  es autoridad; la oficialización real corre server-side en runOfficializeAndEnter, sobre
+   *  las mismas respuestas crudas, nunca sobre este resultado local). */
   function confirmNivelOnboarding() {
-    const user = Store.getCurrentUser();
-    if (!user || !nivelCategoryStep) return;
+    if (!nivelCategoryStep) return;
     const confirmedAt = new Date().toISOString();
     const confirmResult = LVC.confirmInitialLevelV1_1(nivelCategoryStep, nivelCategoryStep.coherenceFlag, confirmedAt);
     const state = LVC.buildInitialCalibrationState(nivelPathType, confirmResult, nivelPathType === 'full' ? nivelQuizAnswers : null);
+
+    if (nivelOnboardingContext === 'draft') {
+      signupDraft.nivelPathType = nivelPathType;
+      signupDraft.nivelQuickSeedKey = nivelPathType === 'quick' ? (nivelRawResult && nivelRawResult.seedKey) : null;
+      signupDraft.nivelQuizAnswers = nivelPathType === 'full' ? nivelQuizAnswers : null;
+      signupDraft.nivelCategoryContextKey = nivelCategoryContextKey;
+      signupDraft.nivelDeclaredCategory = nivelDeclaredCategory;
+      signupDraft.nivelState = state; // vista previa local únicamente — nunca la autoridad
+      Store.saveSignupDraft(signupDraft);
+      signupStep = 'verify';
+      renderSignupStep();
+      showView('signup');
+      return;
+    }
+
+    const user = Store.getCurrentUser();
+    if (!user) return;
     Store.saveLevelV1State(user.id, state);
     Store.updateUserAccount(user.id, { declaredCategory: nivelDeclaredCategory, declaredCategoryAt: confirmedAt });
     completeIdentifyAction();
@@ -4112,6 +4303,15 @@
       // obligatorio quedaba sin crear y la app se podía usar igual. Ahora vuelve a "TU PERFIL
       // ESTÁ LISTO" (el onboarding sigue pendiente); openPlayerHome/nivelOnboardingPendingUser
       // bloquean cualquier otro camino que intente llegar al Home sin Nivel confirmado.
+      // Backend Bloque 3 — en modo 'draft' (sin cuenta todavía) vuelve al paso 2 del alta en
+      // vez de a openPlayerCardScreen/completeIdentifyAction (que necesitan una cuenta real).
+      if (nivelOnboardingContext === 'draft') {
+        signupStep = 2;
+        prefillSignupStep2Fields();
+        renderSignupStep();
+        showView('signup');
+        return;
+      }
       const user = Store.getCurrentUser();
       if (user) { openPlayerCardScreen(user); } else { completeIdentifyAction(); }
     });
@@ -8081,23 +8281,33 @@
     openPlayerHome();
   }
 
-  /** Backend Bloque 2 — retoma "TU PERFIL" (paso 2 del signup) para una cuenta que ya verificó
-   *  su email pero cerró la app antes de terminar el alta: ya hay sesión real, así que los
-   *  pasos 1/verify no aplican (`resetSignupWizard` + forzar signupStep=2 directo). */
+  /** Backend Bloque 3 — retoma el alta en curso para una cuenta que ya tiene sesión real pero
+   *  todavía no terminó perfil mínimo + Nivel BRAMU (email confirmado antes de tiempo, o la
+   *  app se cerró entre confirmar el email y oficializar del todo — 03_Revision_ChatGPT.md
+   *  §8: "email confirmado ≠ onboarding terminado"). Si el borrador local del mismo
+   *  dispositivo sigue disponible, se usa tal cual (resumeDraftFlow ya lo revisa); si se
+   *  perdió (otro dispositivo, storage borrado) pero el servidor YA tiene perfil mínimo
+   *  completo (`serverUser.username`), se siembra desde ahí para no hacer retipear datos que
+   *  ya existen — nunca se inventa un @usuario ni se llama a complete_profile de nuevo acá. */
   function resumeSignupProfileStep(serverUser) {
-    resetSignupWizard();
-    signupDraft.email = serverUser.email;
-    signupStep = 2;
-    renderSignupStep();
-    showView('signup');
+    if (!signupDraft || typeof signupDraft !== 'object') signupDraft = {};
+    signupDraft.email = serverUser.email || signupDraft.email || null;
+    if (serverUser.username) {
+      signupDraft.firstName = signupDraft.firstName || serverUser.firstName || null;
+      signupDraft.lastName = signupDraft.lastName || serverUser.lastName || null;
+      signupDraft.username = signupDraft.username || serverUser.username;
+    }
+    Store.saveSignupDraft(signupDraft);
+    resumeDraftFlow();
   }
 
-  /** Backend Bloque 2 — hidrata Store con el perfil real del servidor (Auth.fetchOwnProfile,
-   *  misma forma que Store.createUserAccount, ver auth.js) y decide a dónde entrar: perfil
-   *  incompleto retoma "TU PERFIL"; perfil completo sigue el camino de siempre —
-   *  completeIdentifyAction() si viene de un login recién hecho, bootDefaultScreen() si viene
-   *  de restaurar una sesión ya existente al abrir la app (Backend_Infraestructura.md §8.1: "el
-   *  login acepta... entrar desde otro dispositivo"). */
+  /** Backend Bloque 2/3 — hidrata Store con el perfil real del servidor (Auth.fetchOwnProfile,
+   *  misma forma que Store.createUserAccount, ver auth.js) y decide a dónde entrar. Bloque 3:
+   *  perfil incompleto O Nivel todavía no oficializado (`levelState` ausente o PENDIENTE)
+   *  retoma el alta (resumeSignupProfileStep -> resumeDraftFlow); solo con AMBOS completos
+   *  sigue el camino de siempre — completeIdentifyAction() si viene de un login recién hecho,
+   *  bootDefaultScreen() si viene de restaurar una sesión ya existente al abrir la app
+   *  (Backend_Infraestructura.md §8.1: "el login acepta... entrar desde otro dispositivo"). */
   async function resumeServerSession(opts) {
     const options = opts || {};
     const serverUser = await Auth.fetchOwnProfile();
@@ -8111,20 +8321,31 @@
       return;
     }
     Store.cacheServerUser(serverUser);
+    syncServerLevelState(serverUser);
     syncCurrentIdentityFromStore();
-    if (!serverUser.username) { resumeSignupProfileStep(serverUser); return; }
+    const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
+    if (!onboardingDone) { resumeSignupProfileStep(serverUser); return; }
     if (options.afterLogin) completeIdentifyAction(); else bootDefaultScreen();
   }
 
   /** Único punto de entrada al arranque (reemplaza el `bootDefaultScreen()` directo de antes):
    *  sin backend configurado (desarrollo local) o sin sesión activa, el arranque es IDÉNTICO al
-   *  de siempre. Con una sesión real ya guardada por el navegador (Supabase persiste el token,
-   *  `persistSession:true` en auth.js), la reconoce sin pedir login de nuevo — "entrar desde
-   *  otro dispositivo"/entre recargas de Backend_Infraestructura.md §15 Bloque 2. */
+   *  de siempre salvo que quede un borrador de alta sin terminar en este dispositivo (Backend
+   *  Bloque 3, caso A0: abandonó antes de confirmar el email) — ahí retoma el paso exacto en
+   *  vez de mostrar Acceso desde cero. Con una sesión real ya guardada por el navegador
+   *  (Supabase persiste el token, `persistSession:true` en auth.js), la reconoce sin pedir
+   *  login de nuevo — "entrar desde otro dispositivo"/entre recargas de
+   *  Backend_Infraestructura.md §15 Bloque 2. */
   async function bootWithServerSession() {
     if (!Auth.isConfigured()) { bootDefaultScreen(); return; }
+    const savedDraft = Store.loadSignupDraft();
+    if (savedDraft) signupDraft = savedDraft;
     const session = await Auth.getSession();
-    if (!session) { bootDefaultScreen(); return; }
+    if (!session) {
+      if (savedDraft && savedDraft.email) { await resumeDraftFlow(); return; }
+      bootDefaultScreen();
+      return;
+    }
     await resumeServerSession({ afterLogin: false });
   }
 
@@ -8280,19 +8501,37 @@
    *  logueada) y "CREAR USUARIO DE PRUEBA" (pantalla de acceso, corrección de esta ronda: el
    *  long-press quedó descartado como mecanismo de acceso al laboratorio — ver
    *  `#access-create-test-user-btn`) — ambos quedan `hidden` con el preview apagado, el flujo
-   *  normal de acceso/Herramientas queda IGUAL que antes de V04.4. */
+   *  normal de acceso/Herramientas queda IGUAL que antes de V04.4.
+   *  Backend Bloque 3 (03_Revision_ChatGPT.md §7) — "conservarlos, pero Production: ocultos
+   *  para usuarios comunes. Development/Staging: siguen disponibles para pruebas internas."
+   *  `isProductionEnv()` es la única condición nueva; nada se elimina del código. */
+  function isProductionEnv() {
+    return !!(window.__BRAMU_ENV__ && window.__BRAMU_ENV__.name === 'production');
+  }
+
   function refreshLabPreviewUI() {
     const enabled = Store.isLevelV1PreviewEnabled();
+    const production = isProductionEnv();
     const headerBtn = $('#player-home-lab-preview-btn');
-    if (headerBtn) headerBtn.classList.toggle('is-active', enabled);
+    if (headerBtn) {
+      headerBtn.hidden = production;
+      headerBtn.classList.toggle('is-active', enabled);
+    }
     const title = $('#dev-tools-title');
     if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.6 PREVIEW' : 'HERRAMIENTAS';
     const toggleBtn = $('#dev-tools-toggle-nivel-v1');
     if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
+    // Backend Bloque 3 (03_Revision_ChatGPT.md §7) — "no permitir que Resetear Nivel modifique
+    // arbitrariamente un Nivel server-backed real": esa cuenta ya no usa LEVEL_V1_STATE local
+    // como autoridad (ver syncServerLevelState), así que el botón queda oculto para ella
+    // siempre, sin importar el preview.
     const resetNivelBtn = $('#dev-tools-reset-nivel');
-    if (resetNivelBtn) resetNivelBtn.hidden = !enabled;
+    if (resetNivelBtn) {
+      const currentUser = Store.getCurrentUser();
+      resetNivelBtn.hidden = production || !enabled || !!(currentUser && currentUser.serverBacked);
+    }
     const createTestUserBtn = $('#access-create-test-user-btn');
-    if (createTestUserBtn) createTestUserBtn.hidden = !enabled;
+    if (createTestUserBtn) createTestUserBtn.hidden = production || !enabled;
   }
 
   /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
@@ -8339,9 +8578,14 @@
     const user = Store.getCurrentUser();
     $('#dev-tools-modal').hidden = true;
     if (!user) { showToast('Iniciá sesión para resetear Nivel BRAMU', 2200); return; }
+    // Backend Bloque 3 (03_Revision_ChatGPT.md §7) — defensa en profundidad además de ocultar
+    // el botón en refreshLabPreviewUI: nunca borra nada para una cuenta server-backed real, ni
+    // siquiera si algo lo dispara sin pasar por el botón (p. ej. una tecla vieja mapeada).
+    if (user.serverBacked) { showToast('Esta cuenta usa Nivel BRAMU real del servidor — no se puede resetear desde acá', 2600); return; }
     const had = Store.resetLevelV1State(user.id);
     if (!had) { showToast('Esta cuenta no tenía un Nivel BRAMU V1 guardado', 2200); return; }
     showToast('Nivel BRAMU reseteado — historial y estadísticas intactos', 2400);
+    nivelOnboardingContext = 'account';
     openNivelOnboardingIntro();
   }
 
@@ -8355,7 +8599,14 @@
     // de alcance de Nivel BRAMU, es la única forma de que "Crear usuario de prueba"/"Resetear
     // Nivel BRAMU" sean alcanzables de verdad.
     const logo = $('#player-home-logo');
-    const start = () => { clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshLabPreviewUI(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS); };
+    // Backend Bloque 3 (03_Revision_ChatGPT.md §7) — en Production, mantener presionado el
+    // logo ya no abre nada: sin este disparador NI el ícono de matraz (ver
+    // refreshLabPreviewUI), el modal de Herramientas queda inalcanzable para un usuario común,
+    // sin borrar el código para Development/Staging.
+    const start = () => {
+      if (isProductionEnv()) return;
+      clearTimeout(longPressTimeoutId); longPressTimeoutId = setTimeout(() => { refreshLabPreviewUI(); $('#dev-tools-modal').hidden = false; }, LONG_PRESS_MS);
+    };
     const cancel = () => clearTimeout(longPressTimeoutId);
     logo.addEventListener('pointerdown', start);
     logo.addEventListener('pointerup', cancel);

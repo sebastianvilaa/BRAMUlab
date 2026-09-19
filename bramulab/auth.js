@@ -150,18 +150,24 @@
   /** Arma el objeto "user" con la MISMA forma que Store.createUserAccount —
    *  ver el comentario de cabecera. `null` si no hay sesión o el trigger
    *  todavía no corrió (no debería pasar: solo hay sesión tras confirmar el
-   *  email, momento en el que el trigger de la migración ya insertó la fila). */
+   *  email, momento en el que el trigger de la migración ya insertó la fila).
+   *  Backend Bloque 3 — además trae `level_states` (puede no existir todavía si el trigger
+   *  corrió pero `level_states` no se creó por algún motivo excepcional; PENDIENTE es el
+   *  default real del backend desde Bloque 3, ver la migración). `levelState` queda `null`
+   *  solo en ese caso excepcional, nunca se inventa un estado. */
   async function fetchOwnProfile() {
     const c = getClient();
     if (!c) return null;
-    const [{ data: userData, error: userError }, { data: profileRows, error: profileError }] = await Promise.all([
+    const [{ data: userData, error: userError }, { data: profileRows, error: profileError }, { data: levelRows, error: levelError }] = await Promise.all([
       c.auth.getUser(),
       c.from('profiles').select('*, locations(province_label, locality_label, display_label, verified_for_ranking)'),
+      c.from('level_states').select('*'),
     ]);
     if (userError || !userData || !userData.user) return null;
     if (profileError || !Array.isArray(profileRows) || !profileRows.length) return null;
     const profile = profileRows[0];
     const location = profile.locations || null;
+    const levelState = (!levelError && Array.isArray(levelRows) && levelRows.length) ? levelRows[0] : null;
     const now = new Date().toISOString();
     return {
       id: profile.player_id,
@@ -176,10 +182,25 @@
       dominantHand: profile.dominant_hand || null,
       preferredSide: profile.preferred_side || null,
       competitiveBranch: profile.competitive_branch || null,
-      // Categoría/Nivel siguen sin backend productivo (Bloque 3, fuera de
-      // alcance acá): se conservan en null, nunca inventados desde acá.
-      declaredCategory: null,
-      declaredCategoryAt: null,
+      // Backend Bloque 3 — Nivel BRAMU ya es productivo: declaredCategory viene de
+      // level_states (única fuente, nunca un segundo campo independiente en profiles).
+      declaredCategory: levelState ? levelState.declared_category || null : null,
+      declaredCategoryAt: levelState ? levelState.updated_at || null : null,
+      // Backend Bloque 3 — estado oficial de Nivel BRAMU server-side. `null` únicamente en el
+      // caso excepcional de que el trigger no haya podido crear la fila (nunca se inventa un
+      // PENDIENTE local acá): app.js decide qué hacer con eso (retomar el borrador).
+      levelState: levelState ? {
+        status: levelState.status,
+        mu: levelState.mu,
+        confidence: levelState.confidence,
+        ratedMatches: levelState.rated_matches,
+        distinctOpponents: levelState.distinct_opponents,
+        declaredCategory: levelState.declared_category,
+        categoryContextKey: levelState.category_context_key,
+        algorithmVersion: levelState.algorithm_version,
+        questionnaireVersion: levelState.questionnaire_version,
+        questionnaireMode: levelState.questionnaire_mode,
+      } : null,
       // Avatar real necesita Supabase Storage — no está en el alcance de
       // Bloque 2 (Backend_Infraestructura.md §4.1 no lo incluye todavía).
       profilePhoto: null,
@@ -235,9 +256,30 @@
       p_location_locality_label: location.locality || null,
       p_location_georef_province_id: location.provinceId || null,
       p_location_georef_locality_id: location.localityId || null,
+      // Backend Bloque 3 (03_Revision_ChatGPT.md §10) — solo se manda cuando el borrador
+      // realmente tiene una versión de términos aceptada; complete_profile conserva la
+      // anterior si no se manda ninguna (coalesce, ver la migración).
+      p_terms_version: fields.termsVersion || null,
     });
     if (error) return { ok: false, code: error.message || 'unknown' };
     return { ok: true, profile: data };
+  }
+
+  /** Backend Bloque 3 — llama a la Edge Function `officialize-onboarding` (motor JS
+   *  compartido con el navegador, ver supabase/functions/officialize-onboarding/index.ts),
+   *  única vía real de oficializar Nivel BRAMU server-side. `client.functions.invoke` adjunta
+   *  solo el access token de la sesión ACTIVA (nunca uno viejo ni el de otra cuenta) — por
+   *  eso esta función, a diferencia de completeProfile/isUsernameAvailable, exige sesión real
+   *  (requiere el email ya confirmado: no hay sesión antes de eso, ver cabecera del archivo).
+   *  `payload` viaja tal cual a la función — respuestas CRUDAS del cuestionario, nunca un
+   *  Nivel ya calculado acá (la Edge Function es la que corre el motor con autoridad). */
+  async function officializeLevel(payload) {
+    const c = getClient();
+    if (!c) return { ok: false, error: 'not_configured' };
+    const { data, error } = await c.functions.invoke('officialize-onboarding', { body: payload });
+    if (error) return { ok: false, error: (data && data.error) || error.message || 'unknown' };
+    if (!data || !data.ok) return { ok: false, error: (data && data.error) || 'unknown' };
+    return { ok: true, levelState: data.levelState };
   }
 
   global.PLAuth = {
@@ -245,6 +287,6 @@
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, getSession,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
-    fetchOwnProfile, isUsernameAvailable, completeProfile,
+    fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -283,6 +283,53 @@ Reglas que desarrollo debe tomar como vigentes antes de Bloques 4–6:
 - un error de identidad no invalida automáticamente un partido real;
 - Ranking semanal publicado permanece inmutable y las correcciones impactan hacia adelante.
 
+## Bloque 3 — Nivel productivo y persistente — IMPLEMENTADO, pendiente de validación en Staging
+
+**Fecha de implementación:** 19 de septiembre de 2026. **Estado: implementado, no cerrado todavía** — falta que Sebastián aplique la migración, despliegue la Edge Function y corra la verificación real contra Supabase Staging (mismo procedimiento que cerró Bloques 1 y 2).
+**Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 3". Revisión y autorización de arquitectura: `docs/BRAMUlab/Implementacion/Backend/Bloque_03/03_Revision_ChatGPT.md`. Informe operativo completo de esta ronda: `docs/BRAMUlab/Implementacion/Backend/Bloque_03/04_Informe_Implementacion_Claude.md`.
+
+### 1. Qué se implementó (resumen — detalle completo en el informe operativo de Bloque 3)
+
+**Migración SQL** — `supabase/migrations/20260919120000_bloque3_nivel_persistente.sql`:
+
+- `profiles`: agrega `terms_version`/`terms_accepted_at` (server-side, nunca solo el borrador local).
+- `complete_profile`: `competitive_branch` y ubicación dejan de ser obligatorios (perfil mínimo = nombre + apellido + `@usuario` + términos); el resto de la función (formato/reservado/único/`username_locked`) no cambia — sin generalizar a un merge parcial con `COALESCE`.
+- `is_username_available`: se agrega `grant ... to anon` (acotada a disponibilidad booleana) para dar feedback antes de que exista sesión.
+- `level_states`/`level_events` (nuevas): estado y eventos append-only de Nivel BRAMU. `level_states.status` incluye `PENDIENTE` como valor explícito de columna (no como ausencia de fila, a diferencia del prototipo local histórico).
+- `handle_email_confirmed` (trigger de Bloque 2): extendido idempotentemente para crear también `level_states` en `PENDIENTE` apenas existe `player_id` — cubre la confirmación anticipada del email sin oficializar Nivel todavía.
+- `officialize_level_onboarding` (RPC nueva, `SECURITY DEFINER`): única vía de escritura de `level_states`/`level_events`. **Otorgada exclusivamente a `service_role`** (nunca `authenticated`/`anon`): el cliente no puede llamarla directo ni inyectar un `mu`/`confidence` arbitrario. Idempotente por estado (`PENDIENTE` -> `CALIBRANDO` una sola vez, con `for update` + índice único parcial sobre `level_events` como defensa adicional).
+
+**Motor server-side — Edge Function, no PL/pgSQL** (decisión cerrada en `03_Revision_ChatGPT.md` §2): `supabase/functions/officialize-onboarding/index.ts` verifica el JWT del usuario, corre el estimador a partir de las respuestas CRUDAS del cuestionario (nunca un Nivel ya calculado por el cliente) y llama a `officialize_level_onboarding` con la service role key. El motor que corre ahí es el **mismo archivo** que usa el navegador: `supabase/functions/_shared/level.js` y `level-calibration.js` son **symlinks reales** a `bramulab/level.js`/`bramulab/level-calibration.js` — nunca una copia manual que pueda divergir. Verificado localmente que ambos archivos se cargan y ejecutan sin cambios fuera del navegador (Node, vía `vm`).
+
+**Frontend** (`bramulab/`):
+
+- `auth.js`: `officializeLevel(payload)` (invoca la Edge Function con la sesión activa); `completeProfile` manda `p_terms_version`; `fetchOwnProfile` ahora también trae `level_states` (`levelState`).
+- `store.js`: borrador de alta local device-only (`SIGNUP_DRAFT`, `saveSignupDraft`/`loadSignupDraft`/`clearSignupDraft`).
+- `app.js`/`index.html`: wizard de alta reordenado (`[1, 2, 'verify']` en vez de `[1, 'verify', 2]` — el email se confirma al final, no al principio); paso 2 ("TU PERFIL") reducido al perfil mínimo con checkbox de términos; el onboarding de Nivel BRAMU (reutilizado sin tocar su lógica) corre contra el borrador antes de tener cuenta confirmada; comando idempotente completo (`runOfficializeAndEnter`) que llama `complete_profile` y luego la Edge Function; `resumeDraftFlow` retoma el paso exacto tras confirmar el email (temprano o al final) o al reabrir la app con un borrador sin terminar; controles de laboratorio ocultos en Production (`window.__BRAMU_ENV__.name`), visibles en Development/Staging; "Resetear Nivel BRAMU" ya no actúa sobre una cuenta `serverBacked`.
+
+### 2. Decisiones de alcance (qué quedó deliberadamente afuera)
+
+- Pantalla "Completá tus datos para el Ranking": no se implementa (`03_Revision_ChatGPT.md` §5) — el modelo ya admite localidad/rama/`ranking_opt_in` incompletos sin bloquear Nivel/Home.
+- `match_level_results` y el resto de `event_type` de `level_events` (variación por partido, recalibración, corrección): quedan para los bloques que los necesiten (5/6) — nunca se declaró estructura sin uso todavía.
+- Edición de perfil competitivo (rama/ubicación) después del alta: sigue sin UI/contrato propio, igual que en Bloque 2.
+
+### 3. Tests
+
+- Baseline reconfirmado con el runner real (`tests.html` en navegador, no conteo por grep) **antes** de tocar código: **1408/1408**.
+- Después de implementar: **1408/1408 sin cambios** (no se tocó ninguna fórmula ni archivo del motor de Nivel).
+- Verificación manual en el navegador (camino sin backend, `!Auth.isConfigured()`): alta completa con perfil mínimo (nombre/apellido/@usuario/términos, sin rama/ubicación/avatar), creación de cuenta local, entrada a Home; "Crear usuario de prueba" → onboarding de Nivel BRAMU en modo cuenta existente (rápido, con pregunta de categoría, nota de coherencia real) → confirmación → Home con Nivel real; "Resetear Nivel BRAMU" desde Herramientas. Sin errores nuevos en consola.
+- **Pendiente de Sebastián contra Supabase Staging real** (mismo procedimiento que Bloques 1/2): aplicar la migración; `supabase functions deploy officialize-onboarding`; correr `supabase/tests/verify-bloque2.mjs` sin modificar (debe seguir dando 16/16); correr `supabase/tests/verify-bloque3.mjs` (perfil mínimo, `PENDIENTE` temprano, RLS, seguridad de la RPC privada, oficialización real rápida/completa, idempotencia, carrera de `@usuario`); correr `supabase/tests/verify-nivel-parity.mjs` (paridad Node↔Edge Function del motor compartido); validación manual con una cuenta real en la app de Staging (alta, confirmación anticipada y al final, refresh a mitad de alta).
+
+### 4. Configuración manual pendiente (Sebastián)
+
+1. Aplicar `supabase/migrations/20260919120000_bloque3_nivel_persistente.sql` en Supabase Staging (SQL Editor, mismo procedimiento que Bloques 1/2).
+2. Desplegar la Edge Function: `supabase functions deploy officialize-onboarding` (requiere Supabase CLI vinculado al proyecto de Staging).
+3. Correr `verify-bloque2.mjs` (sin modificar), `verify-bloque3.mjs` y `verify-nivel-parity.mjs` contra Staging real.
+4. Validación manual de UX real (alta completa, confirmación anticipada, refresh a mitad de alta, username ocupado) con una cuenta real, igual que se hizo para Bloque 2.
+5. Si el deploy de la Edge Function fallara por no poder resolver el import a `../_shared/level.js`/`level-calibration.js` (symlinks fuera de `supabase/functions/`), ver la nota de contingencia en el informe operativo de Bloque 3 antes de cambiar de arquitectura.
+
+Con esos 4 pasos corridos y en verde, Bloque 3 queda en condiciones de cerrarse con el mismo criterio que Bloques 1 y 2.
+
 Impacto por roadmap:
 
 - Bloque 3: no cambia su alcance conceptual; solo debe preservar consistencia de Nivel ante revisiones oficiales futuras.

@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.10-h2" />
+<link rel="stylesheet" href="styles.css?v=04.10-h3" />
 </head>
 <body>
 
@@ -1686,12 +1686,12 @@
           <p class="edit-error" id="signup-step1-error" hidden></p>
         </div>
 
-        <!-- Backend Bloque 2 (Backend_Infraestructura.md §8.1) — email verificado obligatorio
-             antes de poder completar el perfil: paso nuevo, inevitable en cuanto el alta pasa a
-             ser real (antes, sin backend, la cuenta se creaba y logueaba en el mismo instante).
-             Mismo patrón de código de 6 dígitos que #view-forgot-password (nunca un link de
-             confirmación con redirect: ver auth.js, detectSessionInUrl:false) — así la persona
-             nunca sale de esta pantalla para confirmar su cuenta. -->
+        <!-- Backend Bloque 3 (Backend_Infraestructura.md §8.1, Experiencia_Inicial.md §2.1) —
+             'verify' pasa a ser el ÚLTIMO paso del wizard (antes iba justo después de crear la
+             cuenta): la confirmación de email se DIFIERE hasta después de perfil mínimo +
+             Nivel BRAMU. Mismo patrón de código de 6 dígitos que #view-forgot-password (nunca
+             un link de confirmación con redirect: ver auth.js, detectSessionInUrl:false) — así
+             la persona nunca sale de esta pantalla para confirmar su cuenta. -->
         <div class="signup-step" data-step="verify" hidden>
           <p class="access-subtitle">Te enviamos un código de 6 dígitos a <strong id="signup-verify-email">tu email</strong>. Ingresalo para confirmar tu cuenta.</p>
           <div class="field field--labeled"><label class="field-label" for="signup-verify-code">Código</label><input id="signup-verify-code" class="field__input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></div>
@@ -1699,18 +1699,16 @@
           <button type="button" id="signup-verify-resend-btn" class="link-btn">Reenviar código</button>
         </div>
 
-        <!-- BRAMUlab_V04.8 (§4) — fusión de TU IDENTIDAD + TU PERFIL: mismos campos de siempre,
-             mismo orden recomendado (foto → nombre → apellido → @usuario → nombre visible →
-             fecha de nacimiento → género → mano hábil → lado habitual → ubicación), ahora en
-             UNA sola pantalla con scroll en vez de 2 pasos separados.
-             BRAMUlab_V04.9 (§1) — probó agrupar foto+campos en una fila horizontal
-             (`.signup-identity-row`, avatar a la izquierda) — "no funcionó visualmente"
-             (revisión real). BRAMUlab_V04.10 (§1) — REVIERTE a la composición vertical de
-             siempre: foto centrada arriba, Nombre/Apellido/@usuario/Nombre visible apilados
-             debajo, cada uno su propio campo de ancho completo. No reinventar otra
-             arquitectura lateral. -->
+        <!-- Backend Bloque 3 (Experiencia_Inicial.md §2.2) — "TU PERFIL" pasa a ser el perfil
+             MÍNIMO: nombre + apellido + @usuario + términos, nada más. Avatar/nombre
+             visible/fecha de nacimiento/género/mano hábil/lado habitual/rama competitiva/
+             ubicación NO bloquean el alta (Experiencia_Inicial.md §2.2: "no son obligatorios
+             para terminar el alta deportiva inicial") — quedan `hidden` acá (nunca eliminados:
+             se completan después desde Perfil / al entrar a Ranking) en vez de reescribir todo
+             el paso. BRAMUlab_V04.8 (§4)/V04.10 (§1) documentan el armado visual original de
+             estos mismos campos, antes de Bloque 3. -->
         <div class="signup-step" data-step="2" hidden>
-          <div class="signup-avatar-upload">
+          <div class="signup-avatar-upload" hidden>
             <div class="signup-avatar" id="signup-avatar">
               <span id="signup-avatar-initials">—</span>
               <img id="signup-avatar-img" alt="" hidden />
@@ -1725,7 +1723,7 @@
             <input id="signup-username" class="field__input" type="text" maxlength="24" />
             <p class="signup-username-feedback" id="signup-username-feedback"></p>
           </div>
-          <div class="field field--labeled">
+          <div class="field field--labeled" hidden>
             <label class="field-label" for="signup-display-name">Nombre visible</label>
             <input id="signup-display-name" class="field__input" type="text" maxlength="18" />
             <p class="field-hint">Así te va a mostrar BRAMU en partidos, rankings y grupos.</p>
@@ -1735,7 +1733,7 @@
                "Género" adentro). BRAMUlab_V04.10 (§2) — la fila pasa a aplicarse siempre
                (antes ≥480px, apiladas en mobile): el pedido explícito es que convivan en la
                misma fila también en 375px. -->
-          <div class="signup-row-2col">
+          <div class="signup-row-2col" hidden>
             <div class="field field--labeled"><label class="field-label" for="signup-birthdate">Fecha de nacimiento</label><input id="signup-birthdate" class="field__input" type="date" /></div>
             <div class="field field--labeled">
               <label class="field-label" for="signup-gender">Género</label>
@@ -1748,14 +1746,14 @@
               </select>
             </div>
           </div>
-          <div class="setup-section">
+          <div class="setup-section" hidden>
             <div class="setup-section__title">Mano hábil</div>
             <div class="option-row" role="radiogroup" aria-label="Mano hábil" id="signup-hand-options">
               <button type="button" class="option-col" data-value="derecha" role="radio" aria-checked="false">Derecha</button>
               <button type="button" class="option-col" data-value="izquierda" role="radio" aria-checked="false">Izquierda</button>
             </div>
           </div>
-          <div class="setup-section">
+          <div class="setup-section" hidden>
             <div class="setup-section__title">Lado habitual</div>
             <div class="option-row" role="radiogroup" aria-label="Lado habitual" id="signup-side-options">
               <button type="button" class="option-col" data-value="drive" role="radio" aria-checked="false">Drive</button>
@@ -1764,10 +1762,9 @@
             </div>
           </div>
           <!-- Backend Bloque 2 (Backend_Infraestructura.md §5.4) — rama competitiva: campo
-               nuevo, separado del género personal de arriba y obligatorio para Ranking. Nunca se
-               deriva automáticamente del género — el usuario la elige explícitamente, mismo
-               patrón visual que Mano hábil/Lado habitual. -->
-          <div class="setup-section">
+               separado del género personal de arriba, obligatorio recién para participar del
+               Ranking (Backend Bloque 3 lo retira del alta — Experiencia_Inicial.md §2.2). -->
+          <div class="setup-section" hidden>
             <div class="setup-section__title">Rama competitiva</div>
             <div class="option-row" role="radiogroup" aria-label="Rama competitiva" id="signup-branch-options">
               <button type="button" class="option-col" data-value="F" role="radio" aria-checked="false">Femenina</button>
@@ -1777,13 +1774,12 @@
           <!-- BRAMUlab_V04.6 — Categoría sale del alta: se pregunta una sola vez, como último
                paso del onboarding de Nivel BRAMU (ver Handoff V04.6 §4/§6), y se guarda en el
                MISMO campo `declaredCategory` de siempre — nunca dos categorías independientes.
-               Ubicación deja de ser opcional (Handoff V04.6 §4): dato estructural para el ajuste
-               por categoría (§3.3 de la fórmula) y para el futuro Ranking BRAMU local.
-               Reutiliza el mismo componente de fila + la misma hoja de búsqueda GeoRef
-               (#profile-location-sheet) que Editar Datos, generalizada para aceptar un target
-               distinto (ver openProfileLocationSheet en app.js) en vez de duplicar
-               sheet/búsqueda/CSS. -->
-          <div class="profile-select-rows">
+               Backend Bloque 3 (Experiencia_Inicial.md §2.2) — ubicación deja de ser
+               obligatoria del alta: se pide recién al entrar a Ranking. Reutiliza el mismo
+               componente de fila + la misma hoja de búsqueda GeoRef (#profile-location-sheet)
+               que Editar Datos (openProfileLocationSheet en app.js) — se conserva oculto y sin
+               tocar por si un bloque futuro necesita retomarlo desde acá. -->
+          <div class="profile-select-rows" hidden>
             <button type="button" class="profile-select-row" id="signup-location-row">
               <span class="profile-select-row__text">
                 <span class="profile-select-row__label">¿De dónde sos?</span>
@@ -1792,7 +1788,22 @@
               <span class="profile-select-row__chevron" aria-hidden="true">›</span>
             </button>
           </div>
+          <!-- Backend Bloque 3 (03_Revision_ChatGPT.md §10) — soporte técnico de términos y
+               condiciones: terms_version/terms_accepted_at (ver la migración de Bloque 3). Sin
+               sistema legal todavía — el texto es un placeholder hasta que exista una versión
+               real que versionar. -->
+          <div class="field field--checkbox">
+            <label class="field-checkbox-label">
+              <input type="checkbox" id="signup-terms-checkbox" />
+              <span>Acepto los Términos y Condiciones de BRAMU (versión piloto)</span>
+            </label>
+          </div>
           <p class="edit-error" id="signup-step2-error" hidden></p>
+          <!-- Experiencia_Inicial.md §2.1 — acción secundaria para quien prefiere resolver el
+               email ya mismo, sin esperar a terminar perfil + Nivel BRAMU. Solo tiene sentido
+               con backend real: sin Auth.isConfigured() no hay OTP que confirmar (ver
+               initSignupWizard en app.js, que la oculta/ignora en ese camino). -->
+          <button type="button" id="signup-verify-now-btn" class="link-btn">¿Ya tenés el código? Confirmar email ahora</button>
         </div>
 
         <button type="button" id="signup-continue-btn" class="btn-start btn-start--overlay" disabled>CONTINUAR</button>
@@ -2411,27 +2422,27 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.10-h2"></script>
-  <script src="stats.js?v=04.10-h2"></script>
-  <script src="store.js?v=04.10-h2"></script>
+  <script src="engine.js?v=04.10-h3"></script>
+  <script src="stats.js?v=04.10-h3"></script>
+  <script src="store.js?v=04.10-h3"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.10-h2"></script>
-  <script src="level-context.js?v=04.10-h2"></script>
-  <script src="level-calibration.js?v=04.10-h2"></script>
-  <script src="player-home.js?v=04.10-h2"></script>
-  <script src="match-load.js?v=04.10-h2"></script>
-  <script src="player-identity.js?v=04.10-h2"></script>
-  <script src="groups.js?v=04.10-h2"></script>
-  <script src="locations.js?v=04.10-h2"></script>
-  <script src="ranking.js?v=04.10-h2"></script>
+  <script src="level.js?v=04.10-h3"></script>
+  <script src="level-context.js?v=04.10-h3"></script>
+  <script src="level-calibration.js?v=04.10-h3"></script>
+  <script src="player-home.js?v=04.10-h3"></script>
+  <script src="match-load.js?v=04.10-h3"></script>
+  <script src="player-identity.js?v=04.10-h3"></script>
+  <script src="groups.js?v=04.10-h3"></script>
+  <script src="locations.js?v=04.10-h3"></script>
+  <script src="ranking.js?v=04.10-h3"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.10-h2"></script>
-  <script src="app.js?v=04.10-h2"></script>
+  <script src="auth.js?v=04.10-h3"></script>
+  <script src="app.js?v=04.10-h3"></script>
 </body>
 </html>

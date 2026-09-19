@@ -3,7 +3,7 @@
 **Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 18 de septiembre de 2026
+**Actualización documental:** 19 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -42,9 +42,11 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo.
 
-**Antes/durante Bloque 3 hay una alineación de producto obligatoria y acotada sobre el flujo ya implementado:** la confirmación de email se difiere hasta después de Perfil mínimo + estimador, y el Perfil mínimo previo a Nivel queda reducido a nombre + apellido + `@usuario` + términos. Localidad, rama y `ranking_opt_in` pasan a pedirse cuando habilitan Ranking. Esto no reabre la arquitectura/Auth de Bloque 2.
+**Bloque 3 (Nivel productivo y persistente) está IMPLEMENTADO, pendiente de validación real en Staging** (19/09/2026): la alineación de onboarding (confirmación de email diferida, perfil mínimo = nombre + apellido + `@usuario` + términos), `level_states`/`level_events`, la Edge Function `officialize-onboarding` (reutiliza el motor JS compartido, `supabase/functions/_shared/` son symlinks reales a `bramulab/level.js`/`level-calibration.js`, nunca una copia) y la RPC privada `officialize_level_onboarding` ya están escritos y pasaron la regresión local (1408/1408) y una verificación manual del camino sin backend. Falta que Sebastián aplique la migración `20260919120000_bloque3_nivel_persistente.sql`, despliegue la Edge Function y corra `verify-bloque3.mjs`/`verify-nivel-parity.mjs` contra Supabase Staging real antes de dar el bloque por cerrado. Ver `Implementacion/Backend/Bloque_03/04_Informe_Implementacion_Claude.md` para el detalle completo y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el resumen de fuente maestra.
 
-Próximo bloque autorizado: **Bloque 3** (Nivel productivo y persistente) — no iniciado todavía.
+Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking (sin cambios sobre lo ya alineado).
+
+Próximo bloque, una vez validado Bloque 3 en Staging: **Bloque 4** (Jugadores, búsqueda e invitados provisionales) — no iniciado.
 
 ---
 
@@ -142,19 +144,9 @@ La reorganización documental del 15/09/2026 quedó registrada en:
 
 ### Nivel BRAMU
 
-Implementado localmente detrás del flujo/preview vigente hasta V04.10:
+Implementado localmente detrás del flujo/preview vigente hasta V04.10 (motor matemático puro, elegibilidad/invitados/repetición/círculo competitivo, estimador inicial V1.1, onboarding rápido/completo, categoría contextual, presentación en Home/Perfil/Perfil público, laboratorio de prueba, 1408/1408 tests).
 
-- motor matemático puro;
-- elegibilidad, invitados, repetición y círculo competitivo;
-- estimador inicial V1.1;
-- onboarding rápido/completo;
-- categoría contextual;
-- estados pendiente/calibrando/calibrado;
-- presentación en Home/Perfil/Perfil público;
-- laboratorio de prueba;
-- 1400/1400 tests.
-
-Todavía no existe backend real multiusuario ni validación productiva con datos reales.
+**Backend Bloque 3 (19/09/2026, implementado, pendiente de validación en Staging)** agrega la persistencia server-side real: `level_states`/`level_events`, estado `PENDIENTE` explícito (creado por `handle_email_confirmed` apenas hay `player_id`, incluso si el email se confirma antes de terminar el resto del onboarding), y la oficialización atómica/idempotente vía la Edge Function `officialize-onboarding` + la RPC privada `officialize_level_onboarding` — el motor sigue siendo el mismo archivo JS que usa el navegador (symlink real, nunca una copia), nunca se reimplementó en SQL. El laboratorio de prueba queda oculto en Production (visible en Development/Staging). Detalle completo en `Implementacion/Backend/Bloque_03/`.
 
 ### Ranking BRAMU
 
@@ -196,7 +188,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. El próximo trabajo es Bloque 3, incluyendo la alineación acotada del onboarding indicada arriba. Luego continúan Jugadores/Invitados, Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloque 3 (Nivel productivo y persistente) está implementado, pendiente de aplicar la migración/desplegar la Edge Function y validar con cuenta real en Staging. Luego continúan Jugadores/Invitados, Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
 
 ---
 

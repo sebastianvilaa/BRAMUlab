@@ -99,19 +99,18 @@ La implementación real, ronda por ronda, está documentada en `Versiones/BRAMUl
 
 Nivel V1 todavía no es una funcionalidad productiva multiusuario completa.
 
-Falta la infraestructura real que permita que el Nivel opere con autoridad compartida entre usuarios/dispositivos:
+**Actualización Backend Bloque 3 (19/09/2026, implementado, pendiente de validación en Staging):** la estimación INICIAL (cuestionario rápido/completo + ajuste por categoría) ya tiene autenticación real, persistencia server-side (`level_states`/`level_events`) y autoridad server-side para ese cálculo puntual — ejecutada por la Edge Function `officialize-onboarding` sobre el mismo motor JS compartido, nunca reimplementada en SQL ni confiada al navegador. Ver `Backend_Infraestructura.md` §15 Bloque 3 y `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 
-- autenticación real;
-- persistencia server-side;
+Sigue faltando la infraestructura real para que el Nivel opere con autoridad compartida a lo largo de TODO su ciclo de vida (no solo la estimación inicial):
+
 - validación de partidos entre rivales;
 - participantes compartidos con identidad real/provisional;
-- idempotencia distribuida;
-- correcciones/anulaciones oficiales;
-- sincronización multiusuario;
-- autoridad server-side para cálculos oficiales;
+- actualización de Nivel partido a partido (`match_level_results`, Bloques 5/6) con idempotencia distribuida;
+- correcciones/anulaciones oficiales que reprocesen Nivel;
+- sincronización multiusuario del historial de partidos;
 - métricas reales de distribución/deriva.
 
-Estas dependencias pertenecen a `Backend_Infraestructura.md`. No requieren rediseñar la fórmula de Nivel.
+Estas dependencias pertenecen a `Backend_Infraestructura.md` (Bloques 4 en adelante). No requieren rediseñar la fórmula de Nivel.
 
 ---
 

@@ -85,6 +85,14 @@
     // presionado el logo (Herramientas). Nunca leído por Ranking/Historial/ninguna otra
     // pantalla — su único efecto es el onboarding de este bloque.
     LEVEL_V1_PREVIEW: 'bramulab.levelV1PreviewEnabled.v1',
+    // Backend Bloque 3 (03_Revision_ChatGPT.md §8/§9, Backend_Infraestructura.md §8.1) —
+    // borrador de UNA SOLA alta en curso con backend real, en este mismo dispositivo/
+    // navegador, antes de que exista sesión (o mientras la sesión existe pero el onboarding
+    // todavía no terminó). Ranura única (no un dict por userId como LEVEL_V1_STATE): antes de
+    // confirmar el email no hay ningún userId todavía, así que no hay nada por lo que
+    // indexar. Nunca se promete continuidad entre dispositivos — ver
+    // Store.saveSignupDraft/loadSignupDraft/clearSignupDraft más abajo.
+    SIGNUP_DRAFT: 'bramulab.signupDraft.v1',
   };
 
   function safeGet(key) {
@@ -635,6 +643,19 @@
   function setLevelV1PreviewEnabled(enabled) { return safeSet(KEYS.LEVEL_V1_PREVIEW, !!enabled); }
 
   /* ------------------------------------------------------------------ */
+  /* Backend Bloque 3 — BORRADOR LOCAL DE ALTA (pre-confirmación de email) */
+  /* Ranura única en este dispositivo: perfil mínimo + cuestionario/estado */
+  /* de Nivel BRAMU mientras el email todavía no fue confirmado (o la      */
+  /* oficialización todavía no terminó). Nunca es autoridad — la oficial-  */
+  /* ización server-side (Auth.completeProfile + Auth.officializeLevel)   */
+  /* es la única fuente de verdad una vez que corre.                      */
+  /* ------------------------------------------------------------------ */
+
+  function loadSignupDraft() { return safeGet(KEYS.SIGNUP_DRAFT) || null; }
+  function saveSignupDraft(draft) { return safeSet(KEYS.SIGNUP_DRAFT, draft || {}); }
+  function clearSignupDraft() { return safeRemove(KEYS.SIGNUP_DRAFT); }
+
+  /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
   /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
@@ -831,6 +852,8 @@
     loadHiddenNetworkPlayers, isNetworkPlayerHidden, hideNetworkPlayer, unhideNetworkPlayer,
     // BRAMUlab_V04.4 (Etapa D, bloque 1) — Nivel BRAMU V1, prototipo local
     loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
+    // Backend Bloque 3 — borrador local de alta (pre-confirmación de email)
+    loadSignupDraft, saveSignupDraft, clearSignupDraft,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
