@@ -72,6 +72,10 @@
     if (!c) return { ok: false, reason: 'not_configured' };
     const { data, error } = await c.auth.signUp({ email, password });
     if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
+    // Supabase puede devolver un user obfuscado sin error si el email ya existe.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return { ok: false, reason: 'email_taken' };
+    }
     return { ok: true, user: data.user };
   }
 
