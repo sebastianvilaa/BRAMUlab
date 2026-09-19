@@ -1,8 +1,8 @@
 # BRAMUlab_Partidos → BRAMUlive
 ## Informe — qué se implementó, verificó y corrigió
 
-**Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva). Sección 7 en adelante documenta la ronda V15 (18/09/2026), la primera desde el congelamiento en V14.
-**Fecha de esta síntesis:** 10/09/2026 (cuerpo original) — actualizado el 18/09/2026 (§7).
+**Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva). Sección 7 en adelante documenta las rondas posteriores al congelamiento en V14: V15 (18/09/2026) y V16 (19/09/2026).
+**Fecha de esta síntesis:** 10/09/2026 (cuerpo original) — actualizado el 18/09/2026 (§7) y el 19/09/2026 (§8).
 **Estado final de la app hasta V14:** commit `5c46337`, tag `v14` — producto congelado desde el 2/09/2026.
 **Nombre público actual:** BRAMUlive (desde el 18/09/2026, ver §7). El nombre técnico de la carpeta de código sigue siendo `bramulab-partidos/` — no se renombró (evita churn; ver §7).
 **Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales, junto con los consolidados que los motivaron, ya no están en este repositorio; se borraron una vez confirmado que este resumen no perdía nada relevante y siguen recuperables del historial de git (commit `40c82bc` o anterior).
@@ -208,3 +208,38 @@ Los documentos originales de cada ronda (citados arriba por nombre) ya no están
 **Tests finales:** **346/346** en verde (323 previos sin modificar + 23 nuevos de esta ronda).
 
 **Visión futura (solo contexto, no implementado):** BRAMUlive podría evolucionar hacia un producto más profesional/instrumental (periodistas, medios, relatores, analistas), con identidad visual propia (acentos tipo "LIVE"/rojo) y eventualmente cuentas/backend propios. Nada de eso se implementó en esta ronda — sigue siendo una herramienta local sin autenticación, sin conexión a Supabase/BRAMUlab.
+
+---
+
+## 8. V16 (19/09/2026) — corrección de criterio: heredar la UI/UX real del flujo en vivo pre-separación
+
+**Fuente:** decisión de producto tomada en conversación con Sebastián el 19/09/2026, corrigiendo explícitamente el criterio de la ronda V15.
+
+**Qué cambió el criterio:** V15 se limitó a alinear la paleta de BRAMUlive a la identidad azul marino actual de BRAMU, conservando la estructura visual propia de la línea V10-V14. Al validar visualmente contra la última versión real de `Registrar partido en vivo` que existía dentro de `bramulab/` justo antes de la separación (tag `pre-bramulive-separation-2026-09-18`), quedó claro que ese criterio fue demasiado conservador: BRAMUlive seguía mostrando patrones estructurales del diseño viejo (amarillo como color de selección/CTA, setup con menú desplegable de modo, pareja "Resumen inmediato + Análisis" con navegación circular, BRAMU Intelligence sin tarjeta editorial propia, tipografía condensada donde la referencia ya usaba Inter). La nueva regla de autoridad: BRAMUlive es la continuación de la versión MÁS NUEVA del flujo en vivo pre-separación, no una paleta nueva sobre la base V14.
+
+**Método:** comparación de código real (no visual/aproximada) entre `bramulab/{index.html,styles.css,app.js}` leídos directamente del tag `pre-bramulive-separation-2026-09-18` (sin checkout, vía `git show`) contra `bramulab-partidos/` en `staging`. Se portó lo que correspondía; se conservó lo específico de BRAMUlive que seguía siendo válido (Por Games BETA, carga manual con `<select>`, Timeline, tres modos de registro).
+
+**Portado — sistema de diseño:**
+- Tokens: se agregan `--brand-lime`/`--brand-lime-deep`/`--scrim`/`--line-strong`/`--bg-gradient-app`/`--radius-*`; `--font-display` pasa de Oswald condensada a Inter (la referencia real tampoco usa una condensada para los números del marcador — se verificó contra el CSS real, no se asumió).
+- Se corrigen ~35 reglas que todavía usaban `var(--gold)`/rgba viejas como color de selección/acento genérico (Formato, Sistema de puntuación, CTA principal, banners, Timeline, Historial, compartir) — el dorado queda reservado exclusivamente a Punto de Oro/Star Point/Tie break, como en la referencia.
+- Se encuentran y corrigen además hardcodes de paleta vieja en rgba (no solo hex) que la ronda V15 no había detectado: `rgba(200,255,61,*)`/`rgba(51,166,255,*)` (lima/celeste viejos) y `rgba(255,91,84,*)` (rojo viejo) dispersos en ~25 reglas, más el splash de arranque completo (`#app-splash`, gradiente y logo hardcodeados en verde-negro).
+- Sistema de botones unificado (`.btn-start`/`.btn-secondary`): misma geometría base (min-height 48px, flex-centrado, mayúsculas, tracking 0.05em) en vez de dos tamaños/tipografías distintos.
+- Bug real de alineación portado (ya corregido en la referencia, V02.6): `.result-card__row`/`.result-card__sets` pasan de `flex` a `grid` — evita que las columnas de sets queden desalineadas entre la fila del Equipo A y la del Equipo B cuando los nombres tienen largo distinto.
+
+**Portado — estructura:**
+- Setup: el selector de modo (Completo/Por Games) pasa de un botón "MODO COMPLETO ▾" que abría un menú (y partía a 2 líneas en mobile angosto) a tabs siempre visibles, debajo del header.
+- Splash de arranque: un solo logo protagonista (se retira el ícono "B" separado), gradiente con los tokens actuales.
+- **Resumen/Análisis unificado** (el cambio más grande): se retira `#view-summary` (la vieja pantalla "Resumen inmediato", un overlay de posición fija) y su navegación circular "Ver resumen"/"Ver análisis". Un único punto de entrada (`openResumen(f, openedFrom)`) para las tres procedencias: partido en vivo recién terminado (`'live'`), partido cargado manualmente recién guardado (`'manual'`), o abierto desde Historial (`'history'`). Deshacer/Reanudar viven ahora dentro del Resumen unificado, visibles solo para el partido en vivo recién terminado. BRAMU Intelligence pasa a vivir dentro de una tarjeta editorial propia (ícono + frase de encuadre), como en la referencia. Se agrega "Eliminar partido" (no existía en BRAMUlive), reutilizando el modal de confirmación genérico.
+- **Bug real encontrado durante la verificación manual, no por auditoría de código:** `#confirm-overlay` vivía anidado dentro de `#view-match` — un `position:fixed` no se pinta si un ancestro tiene `[hidden]` (mismo bug documentado en la historia de `bramulab`, "Hay una nueva versión"/Ajustar). Nunca se había manifestado porque las únicas confirmaciones existentes (Reiniciar partido, Volver al inicio) solo se disparaban con `view-match` visible; "Eliminar partido" la dispara desde `view-analysis`, con `view-match` oculta. Se corrigió moviendo el modal fuera de cualquier vista, igual que el resto de los overlays genéricos.
+
+**Explícitamente NO portado:**
+- El shell/navegación de BRAMUlab (Home, bottom nav Inicio/Historial/Mis grupos/Perfil, Auth) — BRAMUlive conserva su propia navegación (Historial directo + tabs de modo).
+- Carga manual (`view-manual-load`, con `<select>` por set) — se conserva tal cual, sin subir al patrón "court" más nuevo de `bramulab/match-load.js`: es una decisión de alcance explícita para otra ronda, no un olvido.
+- Rediseño de Por Games (sigue BETA) y del header del marcador (la truncación de texto en mobile angosto en `.match-header` es preexistente, no introducida por esta ronda).
+- Un sistema de tokens `--radius-*` aplicado retroactivamente a todo el archivo — se agregaron los tokens y se usan en las reglas nuevas/tocadas, pero no se hizo una pasada de reemplazo masivo sobre valores hardcodeados que ya coincidían en píxeles.
+
+**CSS muerto retirado (mismo criterio que la propia limpieza histórica de `bramulab`, V02.8 §12):** `.view--summary`, `.summary-card*`, `.summary-actions` — sin uso real tras la unificación. `.summary-undo-btn` se conserva (la reutiliza el Resumen unificado).
+
+**Tests:** **346/346** en verde, sin cambios en la suite (esta ronda es de capa de aplicación/UI, no de motor — `engine.js`/`stats.js` no se tocaron). Verificado a mano en el navegador: Setup (Punto a Punto/Por Games, tabs, Formato, Sistema), partido en vivo (header, marcador, banners, Deshacer/Ajustar/Highlight/Editar), finalización manual, Resumen unificado (Deshacer/Reanudar/Compartir/Volver al inicio/Eliminar partido), Historial. Responsive verificado en mobile (375px), tablet (768px) y desktop.
+
+**Versión final:** `v16` (`version.json`, `Store.VERSION`, `CACHE_NAME`, footer — los cuatro sincronizados).

@@ -21,7 +21,12 @@
 // ('bramulab-partidos-...', nombre técnico heredado), nunca las de la otra app: sin este
 // prefijo específico, cualquiera de los dos service workers borraría la caché del otro en
 // cuanto se activara.
-const CACHE_NAME = 'bramulab-partidos-v15';
+// V16 (2026-09-19) — corrige el criterio de la V15: hereda la UI/UX real del flujo en vivo
+// tal como había evolucionado dentro de BRAMUlab justo antes de separarlo (tag
+// pre-bramulive-separation-2026-09-18), no solo su paleta. Bump necesario por el mismo
+// motivo de siempre: sin esto, un cliente con el service worker ya instalado seguiría
+// viendo la pantalla vieja.
+const CACHE_NAME = 'bramulab-partidos-v16';
 const CORE_ASSETS = [
   './',
   './index.html',

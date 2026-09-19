@@ -17,7 +17,6 @@
        none desde el arranque) y se apaga sola vía CSS, sin depender de que app.js termine
        de inicializar. -->
   <div id="app-splash" aria-hidden="true">
-    <img class="app-splash__b" src="icons/splash-b.png" alt="" />
     <img class="app-splash__logo" src="icons/logo.png" alt="BRAMUlive" />
   </div>
 
@@ -38,8 +37,6 @@
       <img id="home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMUlive" />
       <div class="setup-header__nav">
         <button id="open-history-btn" class="link-btn" type="button">Historial</button>
-        <span class="setup-header__sep" aria-hidden="true">·</span>
-        <button id="mode-select-btn" class="link-btn" type="button" aria-haspopup="true">MODO COMPLETO ▾</button>
       </div>
     </header>
 
@@ -57,15 +54,14 @@
       </div>
     </div>
 
-    <!-- V13 (§2) — selector de modo de registro: Completo (punto por punto) o Por Games ·
-         BETA (un toque por game). Se recuerda la última elección para la próxima vez que
-         se abre Home; una vez arrancado el partido, el modo queda bloqueado. -->
-    <div id="mode-select-menu" class="overlay overlay--menu" hidden>
-      <div class="menu-sheet">
-        <button type="button" class="menu-item" data-mode="complete">Completo</button>
-        <button type="button" class="menu-item" data-mode="games">Por games · BETA</button>
-        <button id="mode-select-cancel" class="menu-item menu-item--cancel" type="button">Cancelar</button>
-      </div>
+    <!-- BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — selector de modo de
+         registro como tabs siempre visibles, en vez del menú desplegable anterior (que además
+         partía a 2 líneas en pantallas angostas). Completo (punto por punto) o Por Games ·
+         BETA (un toque por game). Se recuerda la última elección para la próxima vez que se
+         abre; una vez arrancado el partido, el modo queda bloqueado. -->
+    <div class="setup-mode-tabs" id="setup-mode-tabs" role="radiogroup" aria-label="Modo de registro">
+      <button type="button" class="option-col" data-mode="complete" role="radio" aria-checked="true">PUNTO A PUNTO</button>
+      <button type="button" class="option-col" data-mode="games" role="radio" aria-checked="false">POR GAMES · BETA</button>
     </div>
 
     <form id="setup-form" class="setup-form" autocomplete="off">
@@ -246,18 +242,6 @@
         <div class="overlay__title">PAUSA</div>
         <p class="overlay__text">El cronómetro está detenido.</p>
         <button id="resume-btn" class="btn-start btn-start--overlay" type="button">REANUDAR</button>
-      </div>
-    </div>
-
-    <!-- Confirmación genérica -->
-    <div id="confirm-overlay" class="overlay" hidden>
-      <div class="overlay__card">
-        <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
-        <p class="overlay__text" id="confirm-text"></p>
-        <div class="overlay__actions">
-          <button id="confirm-cancel" class="btn-secondary" type="button">Cancelar</button>
-          <button id="confirm-accept" class="btn-start btn-start--overlay" type="button">Confirmar</button>
-        </div>
       </div>
     </div>
 
@@ -578,44 +562,54 @@
 
   </section>
 
-  <!-- ============================================================
-       VISTA 3 · RESUMEN INMEDIATO
-       ============================================================ -->
-  <section id="view-summary" class="view view--summary" hidden>
-    <div class="summary-card">
-      <button id="summary-back-btn" class="summary-undo-btn" type="button" hidden>← Volver a Análisis</button>
-      <button id="summary-undo-btn" class="summary-undo-btn" type="button">↩ Deshacer último punto</button>
-      <button id="summary-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
-      <div class="summary-card__title">RESUMEN DEL PARTIDO</div>
-      <div class="summary-card__meta" id="summary-meta"></div>
-      <div class="summary-card__reason" id="summary-reason" hidden></div>
-      <div id="summary-result-slot"></div>
-      <div id="summary-legal"></div>
-      <div class="summary-actions">
-        <button id="summary-analysis-btn" class="btn-secondary" type="button">VER ANÁLISIS</button>
-        <button id="summary-share-btn" class="btn-secondary" type="button">COMPARTIR</button>
-        <button id="summary-new-btn" class="btn-start" type="button">VOLVER AL INICIO</button>
+  <!-- Confirmación genérica — BRAMUlive (2026-09-19): reubicada acá desde dentro de
+       #view-match, mismo motivo que "Hay una nueva versión"/Ajustar/etc.: un elemento
+       position:fixed no se pinta si un ancestro tiene [hidden] (display:none), y ahora
+       "Eliminar partido" la dispara también desde #view-analysis. Vive fuera de cualquier
+       vista, igual que el resto de los overlays genéricos. -->
+  <div id="confirm-overlay" class="overlay" hidden>
+    <div class="overlay__card">
+      <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
+      <p class="overlay__text" id="confirm-text"></p>
+      <div class="overlay__actions">
+        <button id="confirm-cancel" class="btn-secondary" type="button">Cancelar</button>
+        <button id="confirm-accept" class="btn-start btn-start--overlay" type="button">Confirmar</button>
       </div>
-      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMUlive" />
     </div>
-  </section>
+  </div>
 
   <!-- ============================================================
-       VISTA 4 · ANÁLISIS COMPLETO
+       VISTA 3/4 · RESUMEN / ANÁLISIS COMPLETO — pantalla canónica única.
+       BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — reemplaza a la vieja
+       pareja "Resumen inmediato" (#view-summary, overlay de posición fija) + "Análisis" y su
+       navegación circular ("Ver resumen"/"Ver análisis" ya no existen). Un solo punto de
+       entrada para las tres procedencias: partido en vivo recién terminado, partido cargado
+       manualmente recién guardado, o cualquier partido abierto desde Historial.
        ============================================================ -->
   <section id="view-analysis" class="view view--analysis" hidden>
     <div class="analysis-header">
       <button id="analysis-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
-      <span class="analysis-header__title">ANÁLISIS DEL PARTIDO</span>
-      <button id="analysis-summary-btn" class="link-btn analysis-header__summary-btn" type="button">Ver resumen</button>
+      <span class="analysis-header__title">RESUMEN DEL PARTIDO</span>
     </div>
     <div class="analysis-scroll">
+      <!-- Deshacer/Reanudar solo aparecen para el partido EN VIVO recién terminado (mismas
+           condiciones que antes tenía el Resumen inmediato retirado). -->
+      <div class="analysis-live-actions" id="analysis-live-actions" hidden>
+        <button id="analysis-undo-btn" class="summary-undo-btn" type="button" hidden>↩ Deshacer último punto</button>
+        <button id="analysis-resume-btn" class="summary-undo-btn" type="button" hidden>↩ Reanudar partido</button>
+      </div>
       <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
+      <p id="analysis-coverage-note" class="coverage-note coverage-note--center" hidden></p>
       <section class="analysis-section" id="analysis-intelligence">
-        <h3 class="analysis-section__title">BRAMU INTELLIGENCE</h3>
-        <div id="analysis-intelligence-text" class="intelligence-text"></div>
-        <p id="analysis-coverage-note" class="coverage-note" hidden></p>
+        <div class="intelligence-card">
+          <h3 class="analysis-section__title intelligence-title">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>
+            BRAMU INTELLIGENCE
+          </h3>
+          <p class="intelligence-frame">Una lectura objetiva de lo que pasó en la cancha, no una planilla de estadísticas.</p>
+          <div id="analysis-intelligence-text" class="intelligence-text"></div>
+        </div>
       </section>
       <section class="analysis-section" id="analysis-stats">
         <h3 class="analysis-section__title">ESTADÍSTICAS</h3>
@@ -648,6 +642,7 @@
       <section class="analysis-section" id="analysis-share-section">
         <button id="analysis-share-btn" class="btn-secondary" type="button" style="width:100%">COMPARTIR</button>
         <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
+        <button id="analysis-delete-btn" class="analysis-delete-btn" type="button">Eliminar partido</button>
       </section>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMUlive" />
     </div>

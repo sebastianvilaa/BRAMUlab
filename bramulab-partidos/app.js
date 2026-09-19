@@ -1,5 +1,5 @@
 /* ==========================================================================
-   BRAMUlive — app.js (v15) — anteriormente desarrollado como BRAMU Lab Partidos
+   BRAMUlive — app.js (v16) — anteriormente desarrollado como BRAMU Lab Partidos
    ========================================================================== */
 (function () {
   'use strict';
@@ -33,11 +33,10 @@
   let pendingConfirmAccept = null;
   let selectedFinishReason = 'tiempo';
   let selectedFinishWinner = 'none';
-  let analysisOpenedFrom = 'setup'; // 'live' | 'history' | 'setup'
+  let analysisOpenedFrom = 'setup'; // 'live' | 'manual' | 'history' | 'setup'
   let currentHistoryContext = null; // matchId visto en Análisis cuando viene del Historial
-  let analysisCurrent = null; // snapshot mostrado actualmente en Análisis (Bloque P: VER RESUMEN)
+  let analysisCurrent = null; // snapshot mostrado actualmente en Análisis
   let analysisSetFilter = 'match'; // 'match' | 1 | 2 | 3 — selector compartido Estadísticas/Evolución (S2/V5)
-  let summaryViewSource = 'live'; // 'live' | 'analysis' — de dónde se abrió el Resumen (Bloque P/AA1)
 
   function currentFormat() { return E.FORMATS[match.formatId]; }
   /** V13 (§1-2): `match.mode` es 'complete' (motor punto por punto, de siempre) o 'games'
@@ -130,7 +129,6 @@
 
   function showView(name) {
     ['setup', 'match', 'analysis', 'history', 'timeline', 'manual-load'].forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
-    if (name !== 'match') $('#view-summary').hidden = true;
   }
 
   /* ------------------------------------------------------------------ */
@@ -158,8 +156,6 @@
   let selectedScoring = 'golden';
   let selectedFormatId = 'classic';
   let selectedRecordingMode = 'complete'; // 'complete' | 'games' — V13 (§2)
-
-  const RECORDING_MODE_LABELS = { complete: 'MODO COMPLETO', games: 'MODO POR GAMES · BETA' };
 
   const SCORING_HINTS = {
     starpoint: 'Dos ventajas y luego punto decisivo',
@@ -199,26 +195,27 @@
     checkForActiveMatch();
   }
 
-  /* V13 (§2): selector de modo de registro en la navegación superior de Home, con lógica
-   *  tipo web (botón "MODO COMPLETO ▾" que abre un menú de 2 opciones). Se recuerda la
-   *  última elección (Store.loadRecordingMode) para la próxima vez que se abre Home. */
+  /* BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — selector de modo de
+   *  registro como tabs siempre visibles (antes: botón "MODO COMPLETO ▾" que abría un menú
+   *  de 2 opciones, partía a 2 líneas en pantallas angostas). Se recuerda la última elección
+   *  (Store.loadRecordingMode) para la próxima vez que se abre. */
   function initModeSelector() {
     selectedRecordingMode = Store.loadRecordingMode();
-    updateModeSelectButtonLabel();
-    $('#mode-select-btn').addEventListener('click', () => { $('#mode-select-menu').hidden = false; });
-    $('#mode-select-cancel').addEventListener('click', () => { $('#mode-select-menu').hidden = true; });
-    $('#mode-select-menu').addEventListener('click', (e) => { if (e.target === $('#mode-select-menu')) $('#mode-select-menu').hidden = true; });
-    $all('#mode-select-menu [data-mode]').forEach((btn) => {
+    updateModeSelectTabs();
+    $all('#setup-mode-tabs .option-col').forEach((btn) => {
       btn.addEventListener('click', () => {
         selectedRecordingMode = btn.dataset.mode;
         Store.saveRecordingMode(selectedRecordingMode);
-        updateModeSelectButtonLabel();
-        $('#mode-select-menu').hidden = true;
+        updateModeSelectTabs();
       });
     });
   }
-  function updateModeSelectButtonLabel() {
-    $('#mode-select-btn').textContent = (RECORDING_MODE_LABELS[selectedRecordingMode] || RECORDING_MODE_LABELS.complete) + ' ▾';
+  function updateModeSelectTabs() {
+    $all('#setup-mode-tabs .option-col').forEach((btn) => {
+      const isSelected = btn.dataset.mode === selectedRecordingMode;
+      btn.classList.toggle('is-selected', isSelected);
+      btn.setAttribute('aria-checked', String(isSelected));
+    });
   }
 
   function refreshKnownPlayersDatalist() {
@@ -569,8 +566,7 @@
     };
 
     Store.upsertHistory(finishedSnapshot);
-    renderSummary();
-    $('#view-summary').hidden = false;
+    openResumen(finishedSnapshot, 'manual');
   }
 
   /* ------------------------------------------------------------------ */
@@ -834,7 +830,7 @@
     if (wasFinished) Store.removeFromHistory(match.id);
     finishedSnapshot = null;
     manualFinish = null;
-    $('#view-summary').hidden = true;
+    showView('match');
     if (!timer.pausedAt) startTimerLoop();
     if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     renderGamesMode();
@@ -1567,7 +1563,7 @@
     if (wasFinished) Store.removeFromHistory(match.id); // evita que quede una copia "fantasma" finalizada
     finishedSnapshot = null;
     manualFinish = null;
-    $('#view-summary').hidden = true;
+    showView('match');
     if (!timer.pausedAt) startTimerLoop();
     if (wasFinished) { matchIsActive = true; requestWakeLock(); } // V13.2 (§1): el partido vuelve a estar activo
     render();
@@ -1579,7 +1575,7 @@
     Store.removeFromHistory(match.id);
     manualFinish = null;
     finishedSnapshot = null;
-    $('#view-summary').hidden = true;
+    showView('match');
     if (timer.pausedAt) { $('#pause-overlay').hidden = false; } else { startTimerLoop(); }
     matchIsActive = true; requestWakeLock(); // V13.2 (§1): el partido vuelve a estar activo
     if (isGamesMode()) renderGamesMode(); else render();
@@ -1863,7 +1859,6 @@
     timer.pausedAt = null;
     timer.totalPausedMs = 0;
     $('#pause-overlay').hidden = true;
-    $('#view-summary').hidden = true;
     startTimerLoop();
     render();
     showToast('Partido reiniciado');
@@ -1875,7 +1870,6 @@
     Store.clearActiveMatch();
     match = null;
     $('#pause-overlay').hidden = true;
-    $('#view-summary').hidden = true;
     checkForActiveMatch();
     showView('setup');
   }
@@ -2924,8 +2918,7 @@
 
     Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
-    renderSummary();
-    $('#view-summary').hidden = false;
+    openResumen(finishedSnapshot, 'live');
   }
 
   /** V13 (§20-27) — equivalente de `finishMatch` para Por Games: usa los generadores de
@@ -2978,8 +2971,7 @@
 
     Store.upsertHistory(finishedSnapshot);
     Store.clearActiveMatch();
-    renderSummary();
-    $('#view-summary').hidden = false;
+    openResumen(finishedSnapshot, 'live');
   }
 
   /* ------------------------------------------------------------------ */
@@ -3197,66 +3189,32 @@
     }).join('');
   }
 
-  /** Bloque P/AA1: el Resumen ahora puede abrirse tanto para el partido recién finalizado
-   *  (live) como para cualquier partido histórico visto desde Análisis. `f` es el snapshot a
-   *  mostrar; `source` determina si tiene sentido ofrecer Deshacer/Reanudar/Nuevo partido
-   *  (solo si es el partido activo real) o solo un botón para volver a Análisis.
-   *  V6 (21-23): título "RESUMEN DEL PARTIDO" y tarjeta única fusionada (buildSummaryCardHTML). */
-  function renderSummary(f, source) {
-    f = f || finishedSnapshot;
-    summaryViewSource = source || 'live';
-    const isLiveMatch = summaryViewSource === 'live' && f === finishedSnapshot;
-
-    $('#summary-reason').hidden = true; // la razón ahora vive dentro del result-card
-    $('#summary-meta').textContent = buildMatchMetaLine(f);
-    $('#summary-result-slot').innerHTML = buildSummaryCardHTML(f);
-    $('#summary-legal').innerHTML = buildCoverageLegalHTML(f);
-    // V14: un partido cargado nunca tuvo puntos/games EN VIVO que deshacer — sin este guard,
-    // "Deshacer último punto" quedaría visible y tocable sobre un `match`/`pointEvents` que
-    // nunca existieron para este partido (crashearía o no haría nada coherente).
-    $('#summary-undo-btn').hidden = !isLiveMatch || f.terminationType !== 'automatic' || f.mode === 'manual';
-    $('#summary-resume-btn').hidden = !isLiveMatch || f.terminationType !== 'manual';
-    $('#summary-back-btn').hidden = isLiveMatch;
-    $('#summary-new-btn').hidden = !isLiveMatch;
-  }
-
-  function initSummaryScreen() {
-    $('#summary-new-btn').addEventListener('click', () => {
-      Store.clearActiveMatch();
-      match = null;
-      checkForActiveMatch();
-      showView('setup');
-    });
-    $('#summary-analysis-btn').addEventListener('click', () => {
-      // V6 — bug crítico corregido: antes se priorizaba `analysisCurrent` (que puede
-      // haber quedado en memoria de un partido anterior visto en Análisis) por sobre
-      // el partido recién finalizado. Si este Resumen es el del partido EN VIVO que
-      // acaba de terminar, el snapshot recién finalizado (`finishedSnapshot`) es
-      // SIEMPRE la fuente de verdad, nunca un análisis viejo en memoria.
-      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
-      analysisOpenedFrom = summaryViewSource === 'analysis' ? analysisOpenedFrom : 'live';
-      renderAnalysis(f);
-      showView('analysis');
-    });
-    // V7 (103-104): el Resumen recién finalizado SIEMPRE comparte `finishedSnapshot` — nunca
-    // un análisis viejo que pueda haber quedado en memoria de otro partido visto antes. El
-    // Resumen histórico (abierto desde Análisis/Historial) comparte el snapshot que se le
-    // pasó a este Resumen. Mismo criterio que ya usa "Ver análisis" un poco más arriba.
-    $('#summary-share-btn').addEventListener('click', () => {
-      const f = summaryViewSource === 'live' ? finishedSnapshot : analysisCurrent;
-      shareResult(f, 'resumen');
-    });
-    $('#summary-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
-    $('#summary-resume-btn').addEventListener('click', resumeMatch);
-    $('#summary-back-btn').addEventListener('click', () => { renderAnalysis(analysisCurrent); showView('analysis'); });
+  /** BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — único punto de entrada
+   *  al Resumen del partido, para las tres procedencias posibles: partido en vivo recién
+   *  terminado ('live'), partido cargado manualmente recién guardado ('manual'), o cualquier
+   *  partido abierto desde Historial ('history'). Reemplaza al viejo par Resumen inmediato
+   *  (overlay de posición fija, #view-summary) + Análisis y su navegación circular. */
+  function openResumen(f, openedFrom) {
+    analysisOpenedFrom = openedFrom;
+    renderAnalysis(f);
+    showView('analysis');
   }
 
   /* ------------------------------------------------------------------ */
-  /* ANÁLISIS COMPLETO                                                    */
+  /* ANÁLISIS COMPLETO — también la pantalla "Resumen del partido"        */
   /* ------------------------------------------------------------------ */
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
+    // Deshacer/Reanudar solo tienen sentido para el partido EN VIVO recién terminado: un
+    // partido cargado manualmente o uno viejo visto desde Historial nunca tuvo puntos/games
+    // en curso que deshacer sobre el `match`/`pointEvents` actuales.
+    const isLiveMatch = analysisOpenedFrom === 'live' && f === finishedSnapshot;
+    const showUndo = isLiveMatch && f.terminationType === 'automatic' && f.mode !== 'manual';
+    const showResume = isLiveMatch && f.terminationType === 'manual';
+    $('#analysis-live-actions').hidden = !showUndo && !showResume;
+    $('#analysis-undo-btn').hidden = !showUndo;
+    $('#analysis-resume-btn').hidden = !showResume;
     $('#analysis-meta').textContent = buildMatchMetaLine(f);
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
     $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
@@ -4416,20 +4374,27 @@
   function initTimelineScreen() { $('#timeline-back-btn').addEventListener('click', () => showView('analysis')); }
 
   function initAnalysisScreen() {
+    // BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — ya no existe una
+    // "Análisis" separada a la que volver: el Resumen es la pantalla canónica única, así que
+    // "←" siempre sale hacia la procedencia real (nunca hacia el marcador — un partido recién
+    // terminado no tiene a dónde volver ahí).
     $('#analysis-back-btn').addEventListener('click', () => {
-      if (analysisOpenedFrom === 'live' && finishedSnapshot) { $('#view-summary').hidden = false; showView('match'); }
-      else if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
-      else showView('setup');
+      if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
+      else { checkForActiveMatch(); showView('setup'); }
     });
-    // Bloque P: VER RESUMEN — especialmente importante entrando desde Historial, donde tocar
-    // un partido abre Análisis directo (AA1) y hasta ahora no había forma de ver su Resumen.
-    $('#analysis-summary-btn').addEventListener('click', () => {
+    $('#analysis-undo-btn').addEventListener('click', () => { if (isGamesMode()) undoLastGame(); else undoLastPoint(); });
+    $('#analysis-resume-btn').addEventListener('click', resumeMatch);
+    // V02.9 (§5, portado) — "Eliminar partido" al final del Resumen: acción deliberada y
+    // secundaria, alcanzable solo si se llega hasta acá. Reutiliza el modal de confirmación
+    // genérico, mismo componente que Reiniciar partido/Volver al inicio desde el vivo.
+    $('#analysis-delete-btn').addEventListener('click', () => {
       const f = analysisCurrent;
       if (!f) return;
-      const source = (f === finishedSnapshot && analysisOpenedFrom === 'live') ? 'live' : 'analysis';
-      renderSummary(f, source);
-      // El Resumen es un overlay de posición fija: no hace falta cambiar de vista de fondo.
-      $('#view-summary').hidden = false;
+      confirmAction('¿Eliminar este partido?', 'Se actualizarán tu historial y tus estadísticas.', () => {
+        Store.removeFromHistory(f.matchId);
+        showToast('Partido eliminado');
+        showView('setup');
+      });
     });
   }
 
@@ -4478,7 +4443,7 @@
           <button type="button" class="history-item__delete" aria-label="Eliminar partido">✕</button>
         </div>
       `;
-      item.querySelector('.history-item__main').addEventListener('click', () => { analysisOpenedFrom = 'history'; renderAnalysis(m); showView('analysis'); });
+      item.querySelector('.history-item__main').addEventListener('click', () => { openResumen(m, 'history'); });
       item.querySelector('.history-item__delete').addEventListener('click', (e) => { e.stopPropagation(); deleteHistoryEntry(m); });
       wrap.appendChild(item);
     });
@@ -4785,7 +4750,6 @@
     initEtbModal();
     initGameTbModal();
     initGamesEditModal();
-    initSummaryScreen();
     initAnalysisScreen();
     initTimelineScreen();
     initHistoryScreen();

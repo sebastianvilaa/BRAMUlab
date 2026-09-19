@@ -1,19 +1,23 @@
 /* ==========================================================================
    BRAMUlive — Tokens (anteriormente BRAMU Lab Partidos)
    ========================================================================== */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root{
-  /* BRAMUlive (2026-09-18) — valores alineados a la identidad azul marino actual de BRAMU
-     (misma paleta resuelta que bramulab/styles.css: --bg/--brand-lime/--accent-cyan). Se
-     conservan los MISMOS nombres de token que ya usaba todo este archivo — solo cambian los
-     valores — para no reescribir el resto de la hoja de estilos del marcador. */
+  /* BRAMUlive (2026-09-19) — se corrige el criterio de la ronda anterior (2026-09-18):
+     no alcanza con alinear la paleta, hay que heredar el sistema de tokens real del flujo
+     en vivo tal como quedó DENTRO de BRAMUlab justo antes de separarlo (tag
+     pre-bramulive-separation-2026-09-18). Mismos nombres de token que ya usaba este
+     archivo — solo cambian valores y se agregan los que faltaban (--brand-lime/-deep,
+     --scrim, --line-strong) para poder portar reglas compartidas tal cual. */
   --ink: #050A12;
   --ink-soft: #09131F;
   --ink-softer: #0D1A2A;
   --paper: #F8FAFC;
   --paper-dim: rgba(248,250,252,0.56);
   --paper-faint: rgba(248,250,252,0.30);
+  --brand-lime: #95FF19;
+  --brand-lime-deep: #66B30F;
   --team-a: #95FF19;
   --team-a-deep: #66B30F;
   --team-b: #199FFF;
@@ -23,13 +27,23 @@
   --danger: #FF5B61;
   --confirm-green: #2ECC71;
   --line: rgba(183,211,235,0.14);
+  --line-strong: rgba(183,211,235,0.24);
+  --scrim: rgba(1,5,10,0.78);
+  /* V02.7 (§1, portado) — degradé compartido de las pantallas funcionales (Setup/Análisis/
+     Historial), en vez del fondo plano `--ink` liso que tenían acá. */
+  --bg-gradient-app: linear-gradient(180deg, var(--ink-soft) 0%, var(--ink) 45%, #03070D 100%);
 
-  /* Se conserva Oswald condensada para los números grandes del marcador — decisión útil del
-     producto original: una tipografía sin condensar no entra en el mismo espacio en pantallas
-     angostas. Solo el texto de cuerpo pasa a Inter, la misma familia que usa BRAMUlab, para que
-     ambas apps se sientan hermanas sin rediseñar la pantalla de partido. */
-  --font-display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+  /* BRAMUlive (2026-09-19) — se retira Oswald: la referencia real del flujo en vivo
+     (bramulab/styles.css al tag pre-separación) usa Inter también para los números grandes
+     del marcador (`--font-display` == `--font-body` ahí) — nunca usó una condensada. Portar
+     tal cual, no la aproximación anterior. */
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --radius-card: 16px;
+  --radius-hero: 18px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -44,20 +58,12 @@
    reusado acá tal cual para la pantalla de arranque. ========================================================================== */
 #app-splash{
   position: fixed; inset: 0; z-index: 9999;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 18px;
-  background:
-    radial-gradient(
-      circle at 50% 38%,
-      rgba(22, 40, 31, 0.95) 0%,
-      rgba(16, 32, 29, 0.92) 38%,
-      rgba(11, 18, 17, 0.98) 72%,
-      #050907 100%
-    );
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background: radial-gradient( circle at 50% 38%, var(--ink-softer) 0%, var(--ink-soft) 38%, var(--ink) 72%, #03070D 100% );
   pointer-events: none;
   animation: app-splash-out 1.5s ease forwards;
 }
-.app-splash__b{ width: 116px; height: auto; filter: drop-shadow(0 0 34px rgba(200,255,61,0.35)); }
-.app-splash__logo{ width: 168px; height: auto; opacity: 0.92; }
+.app-splash__logo{ width: 260px; height: auto; opacity: 1; }
 @keyframes app-splash-out{
   0%, 58% { opacity: 1; }
   92% { opacity: 0; }
@@ -68,7 +74,7 @@
 .brand-logo--header{ height: 24px; width: auto; }
 .brand-logo--footer{ height: 18px; width: auto; margin: 18px auto 0; opacity: 0.55; }
 /* V12.1 (§3): logo real en el header del partido en vivo, en vez de texto CSS "BRAMU". */
-.brand-logo--match-header{ height: 15px; width: auto; flex: none; }
+.brand-logo--match-header{ height: 15px; width: auto; flex: none; cursor:pointer; }
 
 html,body{
   margin:0; padding:0; height:100%;
@@ -89,36 +95,52 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .view--setup{
   display:flex; flex-direction:column;
+  background: var(--bg-gradient-app);
   padding: calc(20px + var(--safe-top)) 22px calc(28px + var(--safe-bottom));
   max-width: 560px; margin: 0 auto;
 }
 .continue-banner{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
-  background: rgba(255,201,61,0.10); border: 1px solid rgba(255,201,61,0.35);
+  background: rgba(149,255,25,0.10); border: 1px solid rgba(149,255,25,0.35);
   border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
 }
 .continue-banner__text{ display:flex; flex-direction:column; font-size: 13px; }
-.continue-banner__text strong{ color: var(--gold); font-size: 13px; }
+.continue-banner__text strong{ color: var(--brand-lime); font-size: 13px; }
 .continue-banner__text span{ color: var(--paper-dim); font-size: 12px; }
 .btn-mini{
-  background: var(--gold); color:#1A1400; border:none; border-radius: 999px;
+  background: var(--brand-lime); color:#1A1400; border:none; border-radius: 999px;
   padding: 8px 14px; font-weight:800; font-size: 12px; letter-spacing:0.06em; cursor:pointer; white-space:nowrap;
+  text-transform: uppercase;
 }
 
 .setup-header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 22px; }
 .setup-header__nav{ display:flex; align-items:center; gap:6px; }
-.setup-header__sep{ color: var(--paper-faint); font-size: 12px; }
 .link-btn{ background:none; border:none; color: var(--paper-dim); font-size: 13px; font-weight:700; text-decoration: underline; cursor:pointer; }
+
+/* BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — tabs de modo de registro,
+   debajo del header y antes de Equipo A/B. Reusa `.option-col`/`data-mode` por dentro (mismo
+   patrón de radiogroup del resto de Setup), solo cambia la piel visual a subrayado. Sin
+   padding horizontal propio: `.view--setup` ya trae 22px de cada lado. */
+.setup-mode-tabs{ display:flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+.setup-mode-tabs .option-col{
+  flex:1; display:block; min-height:0; background:none; border:none; border-radius:0;
+  border-bottom: 2px solid transparent; color: var(--paper-faint); font-family: var(--font-display);
+  font-size: 13px; font-weight: 600; letter-spacing: 0.02em; padding: 9px 4px 10px; text-align:center;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+.setup-mode-tabs .option-col.is-selected{
+  background:none; color: var(--brand-lime); font-weight: 700; border-bottom-color: var(--brand-lime);
+}
 
 .setup-form{ display:flex; flex-direction:column; gap: 16px; }
 
 .team-block{
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px;
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
   padding: 14px 16px 16px; border-left: 4px solid var(--team-a);
 }
 .team-block--b{ border-left-color: var(--team-b); }
 .team-block__label{
-  display:flex; align-items:center; gap:8px; font-size: 12px; letter-spacing: 0.12em;
+  display:flex; align-items:center; gap:8px; font-size: 12px; letter-spacing: 0.03em;
   text-transform: uppercase; color: var(--paper-dim); margin-bottom: 10px; font-weight: 700;
 }
 .team-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
@@ -143,11 +165,12 @@ input, select{ font-family: inherit; }
 
 .option-row{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .option-col{
+  display:flex; align-items:center; justify-content:center; min-height: 48px;
   background: var(--ink-soft); border: 1.5px solid var(--line); border-radius: 12px;
   padding: 12px 4px; font-weight: 800; font-size: 12px; letter-spacing: 0.03em; text-align:center;
   cursor:pointer; transition: border-color .15s ease, background .15s ease;
 }
-.option-col.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.10); color: var(--gold); }
+.option-col.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.10); color: var(--brand-lime); }
 /* V13.4 (§9) — opciones incompatibles con la secuencia real del game en curso: no
    seleccionables (nunca permiten crear un partido híbrido). */
 .option-col.is-disabled{ opacity: 0.35; cursor: not-allowed; }
@@ -162,8 +185,8 @@ input, select{ font-family: inherit; }
 .option-pill:active{ transform: scale(0.98); }
 .option-pill__title{ font-weight: 800; font-size: 14px; }
 .option-pill__hint{ font-size: 11px; color: var(--paper-dim); }
-.option-pill.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.09); }
-.option-pill.is-selected .option-pill__title{ color: var(--gold); }
+.option-pill.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.09); }
+.option-pill.is-selected .option-pill__title{ color: var(--brand-lime); }
 
 /* V12.1 (§5) — las 4 tarjetas de modalidad del Tie break extraordinario deben verse
    uniformes: misma altura, mismo padding, mismo peso visual (antes "Tie break clásico"
@@ -177,10 +200,11 @@ input, select{ font-family: inherit; }
 #etb-custom-section .edit-row{ margin-bottom: 12px; }
 
 .btn-start{
-  margin-top: 10px; padding: 17px; border: none; border-radius: 16px; background: var(--gold);
-  color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: 0.08em; cursor:pointer; box-shadow: 0 10px 24px rgba(255,201,61,0.22);
-  transition: transform .1s ease, box-shadow .1s ease;
+  margin-top: 10px; min-height: 48px; padding: 0 18px; border: none; border-radius: 14px; background: var(--brand-lime);
+  color: #1A1400; font-family: var(--font-display); font-weight: 700; font-size: 14px;
+  letter-spacing: 0.05em; cursor:pointer; box-shadow: 0 10px 24px rgba(149,255,25,0.22);
+  transition: transform .1s ease, box-shadow .1s ease, opacity .15s ease; text-transform: uppercase;
+  display:flex; align-items:center; justify-content:center;
 }
 .btn-start:active{ transform: scale(0.98); }
 .btn-start:disabled{ opacity:0.4; cursor:not-allowed; box-shadow:none; }
@@ -188,7 +212,9 @@ input, select{ font-family: inherit; }
 .setup-footer{ margin-top: 14px; text-align:center; font-size: 9px; color: var(--paper-dim); opacity: 0.55; letter-spacing: 0.03em; }
 .btn-secondary{
   background: var(--ink-softer); color: var(--paper); border: 1px solid var(--line);
-  border-radius: 14px; padding: 13px 16px; font-weight: 800; font-size: 13px; cursor:pointer;
+  border-radius: 14px; min-height: 48px; padding: 0 18px; font-family: var(--font-display); font-weight: 700;
+  font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
   flex: 1;
 }
 .load-played-btn{ display:block; margin: 10px auto 0; text-align:center; }
@@ -201,7 +227,7 @@ input, select{ font-family: inherit; }
 .manual-set-row{ display:flex; align-items:center; gap: 10px; margin-bottom: 8px; }
 .manual-set-row__label{ font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); flex: none; width: 52px; }
 .manual-set-row .edit-select{ flex: 1; }
-.manual-field-label{ display:block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
+.manual-field-label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
 .manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
 .manual-datetime-row .field{ flex: 1; min-width: 130px; }
 .manual-time-clear{ display:block; margin-top: 4px; font-size: 11px; }
@@ -227,7 +253,7 @@ input, select{ font-family: inherit; }
   overflow:hidden; text-overflow: ellipsis; white-space:nowrap; min-width:0;
 }
 .match-header__timer{ font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--paper-dim); flex:none; }
-.match-header__mode{ font-family: var(--font-display); font-weight:700; font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--gold); flex:none; }
+.match-header__mode{ font-family: var(--font-display); font-weight:700; font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--brand-lime); flex:none; }
 .icon-btn{ background:none; border:none; color: var(--paper-dim); font-size: 20px; padding: 4px 8px; cursor:pointer; line-height:1; }
 
 /* V12 (§4) — progresión reciente del game: puntos reales en color de equipo, tramos
@@ -236,8 +262,8 @@ input, select{ font-family: inherit; }
    para separarla claramente del marcador y de la fila de herramientas). */
 .game-progression{ display:flex; align-items:center; justify-content:center; gap: 6px; padding: 7px 10px; background: var(--ink); border-top: 1px solid var(--line); }
 .game-progression__dot{ width:9px; height:9px; border-radius:50%; flex:none; background: var(--paper-faint); }
-.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(200,255,61,0.5); }
-.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(51,166,255,0.5); }
+.game-progression__dot[data-team="A"]{ background: var(--team-a); box-shadow: 0 0 4px rgba(149,255,25,0.5); }
+.game-progression__dot[data-team="B"]{ background: var(--team-b); box-shadow: 0 0 4px rgba(25,159,255,0.5); }
 .game-progression__dot--gap{ background: transparent; border: 1.5px solid var(--paper-dim); width:8px; height:8px; box-shadow:none; }
 
 @media (max-width: 380px){
@@ -291,8 +317,8 @@ input, select{ font-family: inherit; }
 }
 .status-banner__primary{ flex: 1 1 auto; min-width:0; }
 .band-seg{ display:inline; }
-.band-seg--team{ position:relative; }
-.band-seg--team::before{ content:'·'; margin: 0 8px; opacity:0.55; }
+.band-seg--team{ position:relative; font-weight: 800; }
+.band-seg--team::before{ content:'·'; margin: 0 8px; opacity:0.6; font-weight:600; }
 
 /* ==========================================================================
    BANDA CONTEXTUAL — V7 (Bloques 7-21 del consolidado)
@@ -359,8 +385,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-set.status-banner--team-a{ animation-name: teamBannerPulseSetA; }
 .status-banner--escalate-set.status-banner--team-b{ animation-name: teamBannerPulseSetB; }
 .status-banner--escalate-set.status-banner--team-both{ animation-name: teamBannerPulseSetBoth; }
-@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(200,255,61,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(200,255,61,0.65);} }
-@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(51,166,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(51,166,255,0.7);} }
+@keyframes teamBannerPulseSetA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(149,255,25,0.35);} 50%{ filter:brightness(1.2); box-shadow:0 4px 28px rgba(149,255,25,0.65);} }
+@keyframes teamBannerPulseSetB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(25,159,255,0.35);} 50%{ filter:brightness(1.28); box-shadow:0 4px 28px rgba(25,159,255,0.7);} }
 @keyframes teamBannerPulseSetBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 20px rgba(244,247,242,0.2);} 50%{ filter:brightness(1.14); box-shadow:0 4px 28px rgba(244,247,242,0.4);} }
 
 /* Match Point — la jerarquía contextual de mayor peso (14): mayor amplitud/glow todavía. */
@@ -368,8 +394,8 @@ input, select{ font-family: inherit; }
 .status-banner--escalate-match.status-banner--team-a{ animation-name: teamBannerPulseMatchA; }
 .status-banner--escalate-match.status-banner--team-b{ animation-name: teamBannerPulseMatchB; }
 .status-banner--escalate-match.status-banner--team-both{ animation-name: teamBannerPulseMatchBoth; }
-@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(200,255,61,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(200,255,61,0.85);} }
-@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(51,166,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(51,166,255,0.9);} }
+@keyframes teamBannerPulseMatchA{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(149,255,25,0.45);} 50%{ filter:brightness(1.28); box-shadow:0 4px 34px rgba(149,255,25,0.85);} }
+@keyframes teamBannerPulseMatchB{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(25,159,255,0.45);} 50%{ filter:brightness(1.36); box-shadow:0 4px 34px rgba(25,159,255,0.9);} }
 @keyframes teamBannerPulseMatchBoth{ 0%,100%{ filter:brightness(1); box-shadow:0 4px 24px rgba(244,247,242,0.3);} 50%{ filter:brightness(1.18); box-shadow:0 4px 34px rgba(244,247,242,0.55);} }
 @media (prefers-reduced-motion: reduce){
   .status-banner--gold, .status-banner--star,
@@ -410,7 +436,7 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px;
   padding: 7px 13px; font-size: 12px; font-weight: 700; color: var(--paper); cursor:pointer; white-space:nowrap;
 }
-.server-chip-btn:active{ background: rgba(255,201,61,0.15); border-color: var(--gold); }
+.server-chip-btn:active{ background: rgba(149,255,25,0.15); border-color: var(--brand-lime); }
 
 /* Zonas táctiles */
 .team-zone{
@@ -419,9 +445,9 @@ input, select{ font-family: inherit; }
   -webkit-user-select: none; user-select: none; touch-action: manipulation; transition: filter .08s ease;
 }
 .team-zone:active{ filter: brightness(1.18); }
-.team-zone--a{ background: linear-gradient(180deg, rgba(200,255,61,0.16), rgba(200,255,61,0.04)); border-bottom: 1px solid var(--line); }
+.team-zone--a{ background: linear-gradient(180deg, rgba(149,255,25,0.16), rgba(149,255,25,0.04)); border-bottom: 1px solid var(--line); }
 .team-zone--b{
-  background: linear-gradient(0deg, rgba(51,166,255,0.18), rgba(51,166,255,0.04));
+  background: linear-gradient(0deg, rgba(25,159,255,0.18), rgba(25,159,255,0.04));
   border-top: 1px solid var(--line);
   border-bottom: 4px solid var(--team-b-deep);
   padding-bottom: calc(10px + var(--safe-bottom));
@@ -434,8 +460,8 @@ input, select{ font-family: inherit; }
   font-family: var(--font-display); font-weight: 700; line-height: 1; letter-spacing: 0.01em;
   font-size: clamp(56px, 24vh, 124px);
 }
-.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(200,255,61,0.25); }
-.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(51,166,255,0.25); }
+.team-zone--a .team-zone__score{ color: var(--team-a); text-shadow: 0 0 34px rgba(149,255,25,0.25); }
+.team-zone--b .team-zone__score{ color: var(--team-b); text-shadow: 0 0 34px rgba(25,159,255,0.25); }
 .team-zone__score--word{ font-size: clamp(30px, 9vh, 52px); }
 
 .control-bar{
@@ -447,7 +473,7 @@ input, select{ font-family: inherit; }
 .control-btn:disabled{ opacity: 0.3; cursor: not-allowed; }
 .control-btn__icon{ width:22px; height:22px; fill: currentColor; }
 .control-btn__label{ font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
-.control-btn--flash{ color: var(--gold); animation: highlightFlash .5s ease; }
+.control-btn--flash{ color: var(--brand-lime); animation: highlightFlash .5s ease; }
 @keyframes highlightFlash{ 0%{ transform: scale(1);} 40%{ transform: scale(1.3);} 100%{ transform: scale(1);} }
 
 /* Punto de oro / star point — tratamiento pleno de pantalla */
@@ -477,11 +503,11 @@ input, select{ font-family: inherit; }
 .toast__undo-btn{ background:none; border:none; color: var(--team-b-deep); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; cursor:pointer; padding:0; }
 
 /* Overlays genéricos */
-.overlay{ position: fixed; inset: 0; background: rgba(11,18,17,0.92); display:flex; align-items:center; justify-content:center; z-index: 30; padding: 20px; }
+.overlay{ position: fixed; inset: 0; background: var(--scrim); display:flex; align-items:center; justify-content:center; z-index: 36; padding: 20px; }
 .overlay__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 20px; padding: 24px 22px; text-align:center; max-width: 380px; width: 100%; }
 .overlay__card--wide{ max-width: 460px; text-align:left; }
 .overlay__card--scroll{ max-height: 85vh; overflow-y: auto; }
-.overlay__title{ font-family: var(--font-display); font-size: 20px; letter-spacing: 0.1em; color: var(--gold); margin-bottom: 10px; text-align:center; }
+.overlay__title{ font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.03em; color: var(--brand-lime); margin-bottom: 10px; text-align:center; }
 .overlay__text{ color: var(--paper-dim); font-size: 13px; margin: 0 0 16px; }
 .overlay__actions{ display:flex; gap: 10px; margin-top: 6px; }
 /* V13.4 (§14) — popup de actualización: acción principal arriba, secundaria abajo (antes
@@ -512,17 +538,17 @@ input, select{ font-family: inherit; }
    menos el marcador (que queda arriba, siempre legible) que un cuadro grande pegado al
    borde inferior. De paso ya no compite por espacio con el .toast de confirmación, que
    sigue ambos apareciendo a la vez pero ahora en zonas distintas de la pantalla. */
-.overlay--highlight{ background: rgba(11,18,17,0.55); align-items:center; justify-content:center; }
-.highlight-popup__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 18px; padding: 16px; width: 100%; max-width: 320px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+.overlay--highlight{ background: var(--scrim); align-items:center; justify-content:center; }
+.highlight-popup__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-hero); padding: 16px; width: 100%; max-width: 320px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
 .highlight-popup__ring{ position: relative; width: 30px; height: 30px; margin: 0 auto 10px; }
 .highlight-popup__ring-svg{ width: 30px; height: 30px; transform: rotate(-90deg); }
 .highlight-popup__ring-track{ fill:none; stroke: var(--line); stroke-width: 3; }
-.highlight-popup__ring-progress{ fill:none; stroke: var(--gold); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: 0; }
+.highlight-popup__ring-progress{ fill:none; stroke: var(--brand-lime); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: 0; }
 .highlight-popup__ring-progress.is-draining{ stroke-dashoffset: 100.53; transition: stroke-dashoffset linear; }
 .highlight-popup__ring-icon{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size: 13px; }
 .highlight-popup__grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .highlight-popup__btn{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 12px; color: var(--paper); font-family: var(--font-body); font-weight: 800; font-size: 13px; padding: 14px 8px; cursor:pointer; transition: background .2s ease, border-color .2s ease, color .2s ease; }
-.highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--gold); color: var(--gold); }
+.highlight-popup__btn:active{ transform: scale(0.96); border-color: var(--brand-lime); color: var(--brand-lime); }
 .highlight-popup__btn.is-confirmed{ background: var(--confirm-green); border-color: var(--confirm-green); color: #06210F; }
 
 /* Edición basada en estados válidos */
@@ -534,13 +560,13 @@ input, select{ font-family: inherit; }
 .edit-select{ background: var(--ink-softer); border: 1px solid var(--line); border-radius: 8px; color: var(--paper); font-size: 14px; font-weight: 700; padding: 8px; flex: 1; min-width: 100px; }
 .edit-chip-list{ display:flex; flex-wrap:wrap; gap: 8px; margin-bottom: 10px; }
 .edit-chip{ display:flex; align-items:center; gap: 8px; background: var(--ink-softer); border-radius: 999px; padding: 6px 8px 6px 14px; font-family: var(--font-display); font-size: 14px; font-weight:700; }
-.edit-chip__remove{ background: rgba(255,91,84,0.2); color: var(--danger); border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:1; }
+.edit-chip__remove{ background: rgba(255,91,97,0.2); color: var(--danger); border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:1; }
 .edit-add-set-row{ display:flex; gap: 8px; }
 .stepper-btn{ background: var(--ink-softer); border: 1px solid var(--line); color: var(--paper); width: 34px; height: 34px; border-radius: 8px; font-size: 18px; font-weight: 700; cursor:pointer; }
 .stepper-btn:disabled{ opacity: 0.3; cursor:not-allowed; }
 .stepper-value{ min-width: 30px; text-align:center; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
 .edit-error{ color: var(--danger); font-size: 12px; font-weight: 700; margin: -6px 0 12px; }
-.overlay__text--note{ color: var(--gold); background: rgba(255,201,61,0.08); border: 1px solid rgba(255,201,61,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
+.overlay__text--note{ color: var(--brand-lime); background: rgba(149,255,25,0.08); border: 1px solid rgba(149,255,25,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
 
 /* V5 (Bloque I) — selectores horizontales de puntos: 4 posiciones discretas, no un slider continuo. */
 .point-track-label{ font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--paper-dim); margin: 10px 0 6px; }
@@ -552,24 +578,24 @@ input, select{ font-family: inherit; }
   padding: 12px 4px; font-family: var(--font-display); font-size: 16px; font-weight: 700;
   color: var(--paper-dim); cursor:pointer; transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
-.point-track__stop.is-selected{ border-color: var(--gold); background: rgba(255,201,61,0.12); color: var(--gold); }
+.point-track__stop.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.12); color: var(--brand-lime); }
 #edit-points-special{ margin-top: 4px; }
 
 /* V12 (§2.3) — Ajustar: la selección usa el color de CADA equipo, nunca el dorado de
    Editar/Corrección Rápida (para no confundirla con esas ni con el verde de confirmación
    de Highlight). Se sobreescribe solo dentro de #adjust-body, sin tocar el resto de la app. */
-#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.14); color: var(--team-a); }
-#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.14); color: var(--team-b); }
+#adjust-body .point-track__stop.is-selected[data-team="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
+#adjust-body .point-track__stop.is-selected[data-team="B"]{ border-color: var(--team-b); background: rgba(25,159,255,0.14); color: var(--team-b); }
 
 /* V13 (§10) — Ajustar Games: mismo componente de "paradas" que Ajustar, pero 0-6 (7
    columnas) en vez de 0-15-30-40, y coloreado por equipo (no dorado, mismo criterio que
    Ajustar de arriba). */
 .point-track--games{ grid-template-columns: repeat(7, 1fr); }
-#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(200,255,61,0.14); color: var(--team-a); }
-#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(51,166,255,0.14); color: var(--team-b); }
-#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(200,255,61,0.10); }
+#games-editor-cur-track-a .point-track__stop.is-selected{ border-color: var(--team-a); background: rgba(149,255,25,0.14); color: var(--team-a); }
+#games-editor-cur-track-b .point-track__stop.is-selected{ border-color: var(--team-b); background: rgba(25,159,255,0.14); color: var(--team-b); }
+#adjust-body .option-pill.is-selected[data-lead="A"]{ border-color: var(--team-a); background: rgba(149,255,25,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="A"] .option-pill__title{ color: var(--team-a); }
-#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(51,166,255,0.10); }
+#adjust-body .option-pill.is-selected[data-lead="B"]{ border-color: var(--team-b); background: rgba(25,159,255,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="B"] .option-pill__title{ color: var(--team-b); }
 #adjust-body .option-pill.is-selected[data-lead="none"]{ border-color: var(--paper); background: rgba(244,247,242,0.10); }
 #adjust-body .option-pill.is-selected[data-lead="none"] .option-pill__title{ color: var(--paper); }
@@ -584,43 +610,24 @@ input, select{ font-family: inherit; }
 
 .server-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .server-radio{ background: var(--ink-softer); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; font-size: 13px; font-weight:700; text-align:center; cursor:pointer; }
-.server-radio.is-selected{ border-color: var(--gold); color: var(--gold); background: rgba(255,201,61,0.08); }
+.server-radio.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(149,255,25,0.08); }
 .server-radio__hint{ font-size: 10px; opacity: 0.6; display:block; }
 
-/* ==========================================================================
-   RESUMEN INMEDIATO (overlay sobre la pantalla de partido)
-   ========================================================================== */
-/* V11.9 (feedback real) — bug clásico de flexbox: centrar verticalmente con
-   `align-items:center` en un contenedor con `overflow-y:auto` recorta el lado de ARRIBA
-   cuando el contenido no entra (se puede scrollear hacia abajo pero no hacia arriba,
-   quedando siempre cortada la parte superior) — pasaba en tablet acostada, donde hay
-   menos alto disponible que en vertical. `margin:auto` en la tarjeta centra igual cuando
-   sobra espacio, pero deja de "recortar" cuando no entra: ahí el scroll arranca
-   normalmente desde arriba. */
-.view--summary{
-  position: fixed; inset: 0; z-index: 25; background: var(--ink); overflow-y:auto;
-  display:flex; justify-content:center;
-  padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
-}
+/* BRAMUlive (2026-09-19) — CSS muerto retirado: `.view--summary`/`.summary-card`/
+   `.summary-card__title`/`.summary-card__meta`/`.summary-card__reason`/`.summary-stats`/
+   `.summary-actions` estilaban la vieja pantalla "Resumen inmediato", retirada al unificar
+   con Análisis (portado desde bramulab pre-separación) — ningún elemento del HTML actual
+   las usa. `.summary-undo-btn` es la única superviviente real: la reutiliza el Resumen
+   unificado (#analysis-undo-btn/#analysis-resume-btn), así que se mantiene tal cual. */
 .summary-undo-btn{
   display:block; margin: 0 auto 14px; background:none; border:none; color: var(--paper-dim);
   font-size: 12px; text-decoration: underline; cursor:pointer;
 }
-.summary-card{ max-width: 420px; width:100%; text-align:center; margin: auto 0; }
-.summary-card__title{ font-family: var(--font-display); font-size: 22px; letter-spacing: 0.06em; color: var(--gold); margin-bottom: 6px; }
-.summary-card__meta{ font-size: 11px; color: var(--paper-faint); margin-bottom: 10px; letter-spacing:0.02em; }
-/* V13.1 (§8): centrada, igual que en Resumen (`.summary-card` es `text-align:center` — acá
-   se replica solo en esta línea, sin volver centrado todo Análisis). */
-.analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 4px; padding: 0 2px; text-align: center; }
-.summary-card__reason{ font-size: 12px; color: var(--paper-dim); margin-bottom: 10px; text-transform:uppercase; letter-spacing:0.08em; }
-.summary-stats{ display:flex; flex-direction:column; gap: 4px; margin: 16px 0 20px; }
-/* V7 (47): mismo aire entre tarjeta→VER ANÁLISIS que entre VER ANÁLISIS→COMPARTIR (10px,
-   igual al gap interno de .summary-actions) — antes quedaba pegado al bloque de arriba. */
-.summary-actions{ display:flex; flex-direction:column; gap: 10px; margin-top: 10px; }
+.analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 14px; padding: 0 2px; text-align: center; }
 
 /* Bloque M1: el ganador vive FUERA de la tarjeta de score. */
 .winners-banner{ text-align:center; margin-bottom: 14px; }
-.result-card__winners{ font-size: 11px; letter-spacing:0.1em; text-transform:uppercase; color: var(--paper-dim); font-weight:700; margin-bottom: 2px; }
+.result-card__winners{ font-size: 11px; letter-spacing:0.03em; text-transform:uppercase; color: var(--paper-dim); font-weight:700; margin-bottom: 2px; }
 /* V7 (45-46-107): color de PERTENENCIA del equipo ganador — el dorado queda reservado para
    Punto de Oro/Star Point (5), nunca para "quién ganó". */
 .result-card__winners-names{ font-size: 22px; font-weight: 800; }
@@ -628,19 +635,19 @@ input, select{ font-family: inherit; }
 .result-card__winners-names--b{ color: var(--team-b); }
 
 /* Componente de resultado tipo TV — reutilizado en Resumen / Análisis (Bloque Q: mismo componente) */
-.result-card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; text-align:left; }
-.result-card__row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 8px 0; }
+.result-card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 16px 18px; text-align:left; }
+.result-card__row{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 12px; padding: 8px 0; }
 .result-card__row + .result-card__row{ border-top: 1px solid var(--line); }
-.result-card__name{ font-weight: 800; font-size: 14px; flex: 1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.result-card__name{ font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
-.result-card__sets{ display:flex; gap: 6px; flex: none; }
+.result-card__sets{ display:grid; grid-auto-flow:column; grid-auto-columns: 28px; gap: 6px; justify-content:end; }
 /* M3: mismo tamaño para ganador y perdedor de cada set; el ganador va a 100% de contraste,
    el perdedor se atenúa (55–65%) para que se entienda instantáneamente quién ganó cada set. */
-.result-card__set{ min-width: 28px; text-align:center; font-family: var(--font-display); font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
+.result-card__set{ width: 28px; text-align:center; font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
 .result-card__set--win{ opacity: 1; background: rgba(244,247,242,0.14); }
 .result-card__set--lose{ opacity: 0.6; }
-.result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--gold); }
+.result-card__set.is-incomplete::after{ content:'*'; position:absolute; top:-2px; right:2px; font-size:10px; color: var(--brand-lime); }
 /* V12.2 (§2) — celda del segmento de Tie break extraordinario: mismo tamaño que un set
    normal, con una etiqueta "TB" chica arriba para identificarlo como el segmento decisivo
    aparte (nunca se confunde con un set reglamentario). */
@@ -651,7 +658,7 @@ input, select{ font-family: inherit; }
 .result-card__durations{ display:flex; justify-content:flex-end; gap: 6px; font-size: 10px; color: var(--paper-faint); margin-bottom: 6px; }
 .result-card__duration-cell{ min-width: 28px; text-align:center; }
 .result-card__footer{ display:flex; justify-content: space-between; align-items:center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--paper-dim); }
-.result-card__incomplete-note{ font-size: 11px; color: var(--gold); margin-top: 8px; }
+.result-card__incomplete-note{ font-size: 11px; color: var(--brand-lime); margin-top: 8px; }
 /* M5: duración total/registrada, debajo del score, dentro del mismo componente. */
 .result-card__duration-total{ margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--line); text-align:center; font-size: 12px; color: var(--paper-dim); font-weight: 700; }
 
@@ -661,24 +668,45 @@ input, select{ font-family: inherit; }
 .result-card__stats{ display:flex; flex-direction:column; gap: 6px; }
 .result-card__stats .bar-stat-row{ background: rgba(244,247,242,0.05); }
 
-.summary-stat-row{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap: 10px; background: var(--ink-soft); border-radius: 10px; padding: 10px 12px; }
-.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 16px; }
-.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 16px; }
-.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.04em; }
+.summary-stat-row{ display:grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items:center; gap: 10px; min-height: 44px; background: var(--ink-soft); border-radius: 10px; padding: 11px 14px; }
+.summary-stat-row__a{ text-align:left; color: var(--team-a); font-weight: 800; font-family: var(--font-display); font-size: 17px; line-height:1; }
+.summary-stat-row__b{ text-align:right; color: var(--team-b); font-weight: 800; font-family: var(--font-display); font-size: 17px; line-height:1; }
+.summary-stat-row__label{ text-align:center; font-size: 10px; color: var(--paper-dim); text-transform:uppercase; letter-spacing: 0.03em; line-height:1.3; }
 
 /* ==========================================================================
    ANÁLISIS / HISTORIAL / TIMELINE
    ========================================================================== */
-.view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; }
-.analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(12px + var(--safe-top)) 14px 12px; border-bottom: 1px solid var(--line); }
-.analysis-header__title{ font-family: var(--font-display); font-size: 15px; letter-spacing: 0.1em; color: var(--paper-dim); flex: 1 1 auto; }
-.analysis-header__summary-btn{ flex: none; font-size: 11px; }
+.view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; background: var(--bg-gradient-app); }
+.analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line); }
+.analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper-dim); flex: 1 1 auto; }
 .analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
-.analysis-section{ margin-bottom: 26px; }
-.analysis-section__title{ font-family: var(--font-display); font-size: 13px; letter-spacing: 0.12em; color: var(--paper-dim); margin-bottom: 10px; }
-.analysis-subsection__title{ font-family: var(--font-display); font-size: 11px; letter-spacing: 0.1em; color: var(--paper-dim); margin: 14px 0 8px; }
-.intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
+.analysis-section{ margin-bottom: 12px; }
+.analysis-section__title{ font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; color: var(--paper-dim); margin-bottom: 10px; }
+.analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.03em; color: var(--paper-dim); margin: 14px 0 8px; }
+/* BRAMUlive (2026-09-19, portado desde bramulab pre-separación) — Deshacer/Reanudar del
+   partido en vivo recién terminado, ahora dentro del Resumen unificado. */
+.analysis-live-actions{ margin-bottom: 4px; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
+.coverage-note--center{ text-align:center; }
+/* BRAMU Intelligence deja de ser un párrafo colgado: icono propio, título, frase de encuadre
+   y una superficie editorial que los agrupa a los tres. */
+.intelligence-card{
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 14px 16px;
+}
+.intelligence-title{ display:flex; align-items:center; gap: 8px; color: var(--brand-lime); margin-bottom: 4px; }
+.intelligence-title svg{ flex:none; }
+.intelligence-frame{ font-size: 12px; color: var(--paper-faint); font-style: italic; margin: 0 0 12px; }
+.intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
+#analysis-intelligence-text p:last-child{ margin-bottom: 0; }
+/* "Eliminar partido": deliberadamente la acción de MENOR peso visual de todo Resumen — acción
+   TEXTUAL (sin fondo/pastilla), rojo siempre visible, centrada, sin subrayado, mucho más
+   chica que EDITAR PARTIDO/VOLVER AL INICIO. Reutiliza --danger (nunca un rojo nuevo). */
+.analysis-delete-btn{
+  display:block; width:100%; margin-top: 10px; background:none; border:none; padding: 10px 16px;
+  color: var(--danger); font-family: var(--font-display); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.05em; text-transform: uppercase; text-align:center; cursor:pointer;
+}
 
 /* V6 — leyenda de colores del gráfico de Evolución (Momentum) */
 /* V9.2 (17): flex-wrap para que la leyenda de símbolos (agregada al lado de los nombres de
@@ -742,7 +770,7 @@ input, select{ font-family: inherit; }
   padding: 6px 14px; font-family: var(--font-display); font-size: 11px; font-weight: 700;
   letter-spacing: 0.06em; color: var(--paper-dim); cursor:pointer;
 }
-.set-filter-tabs__btn.is-selected{ border-color: var(--gold); color: var(--gold); background: rgba(255,201,61,0.1); }
+.set-filter-tabs__btn.is-selected{ border-color: var(--brand-lime); color: var(--brand-lime); background: rgba(149,255,25,0.1); }
 
 /* Bloque S1/S14 — filas con barra comparativa */
 .bar-stat-row{ background: var(--ink-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
@@ -801,13 +829,13 @@ input, select{ font-family: inherit; }
 .player-serve-row__detail{ color: var(--paper-dim); font-size: 13px; margin-top: 2px; }
 
 .highlight-row{ display:flex; flex-direction:column; gap:2px; background: var(--ink-soft); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; }
-.highlight-row__time{ color: var(--gold); font-weight: 800; font-size: 12px; }
+.highlight-row__time{ color: var(--brand-lime); font-weight: 800; font-size: 12px; }
 .highlight-row__meta{ color: var(--paper-dim); font-size: 12px; }
 
 .keymoments-list{ position:relative; padding-left: 18px; }
 .keymoments-list::before{ content:''; position:absolute; left:5px; top:4px; bottom:4px; width:2px; background: var(--line); }
 .keymoment-row{ position:relative; padding: 0 0 16px 14px; }
-.keymoment-row::before{ content:''; position:absolute; left:-13px; top:4px; width:8px; height:8px; border-radius:50%; background: var(--gold); }
+.keymoment-row::before{ content:''; position:absolute; left:-13px; top:4px; width:8px; height:8px; border-radius:50%; background: var(--brand-lime); }
 .keymoment-row__time{ font-family: var(--font-display); font-size: 11px; color: var(--paper-dim); }
 .keymoment-row__label{ font-size: 13px; font-weight: 700; margin-top: 2px; }
 
@@ -834,7 +862,7 @@ input, select{ font-family: inherit; }
   font-size: 9px; font-weight: 800; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 999px;
   background: rgba(244,247,242,0.1); color: var(--paper-dim);
 }
-.timeline-tag--BREAK{ background: rgba(255,91,84,0.15); color: #FF8A84; }
+.timeline-tag--BREAK{ background: rgba(255,91,97,0.15); color: #FF8A84; }
 .timeline-tag--ORO{ background: rgba(255,201,61,0.16); color: var(--gold); }
 .timeline-tag--STAR{ background: rgba(255,169,61,0.16); color: var(--star); }
 .timeline-tag--TB{ background: rgba(255,201,61,0.1); color: var(--gold); }
@@ -844,14 +872,14 @@ input, select{ font-family: inherit; }
 /* V13.3 (§13) — Timeline Por Games: HOLD en verde sutil (opuesto visual de BREAK), y el
    detalle de cada game (ganador/sacador) es más largo que un score de puntos — se le da
    espacio propio en vez de flex:none para que no se corte. */
-.timeline-tag--HOLD{ background: rgba(200,255,61,0.14); color: var(--team-a); }
+.timeline-tag--HOLD{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .timeline-game--compact .timeline-point-row__score{ flex: 1 1 auto; text-align: right; }
 
 /* V6 — resumen de sets cargados a mano (Partido ya empezado): sin games, no interactivo. */
 .timeline-set--manual{ opacity: 0.85; }
 .timeline-set__header--static{ background: var(--ink-softer); padding: 12px 14px; font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: 0.03em; cursor:default; }
 
-.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--gold); background: rgba(255,201,61,0.08); border: 1px dashed rgba(255,201,61,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
+.timeline-adjustment-marker{ text-align:center; font-size: 11px; font-weight: 700; color: var(--brand-lime); background: rgba(149,255,25,0.08); border: 1px dashed rgba(149,255,25,0.35); border-radius: 10px; padding: 8px 10px; margin: 4px 0 10px; }
 .timeline-game__points{ display:none; padding: 6px 4px 4px; }
 .timeline-game.is-expanded .timeline-game__points{ display:block; }
 .timeline-point-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; font-size: 11px; color: var(--paper-dim); padding: 5px 8px; border-bottom: 1px solid var(--line); flex-wrap:wrap; }
@@ -867,16 +895,16 @@ input, select{ font-family: inherit; }
 .history-item__main{ flex:1; min-width:0; }
 .history-item__delete{ flex:none; background:none; border:none; color: var(--paper-faint); font-size: 15px; padding: 6px 10px; cursor:pointer; }
 .history-item__delete:active{ color: var(--danger); }
-.history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; margin-bottom: 4px; }
+.history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; }
 .history-item__subtitle{ font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 4px; }
 .history-item__teams{ font-size: 14px; font-weight: 800; margin-bottom: 4px; }
 .history-item__teams .vs-sep{ color: var(--paper-dim); font-weight: 500; margin: 0 4px; }
 /* V7 (45-46-107-112): color de equipo en vez de dorado genérico para el ganador. */
 .history-item__winner--a{ color: var(--team-a); }
 .history-item__winner--b{ color: var(--team-b); }
-.history-item__score{ font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.history-item__score{ font-size: 30px; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
 .history-item__meta{ display:flex; justify-content:flex-start; font-size: 12px; color: var(--paper-dim); }
-.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--gold); background: rgba(255,201,61,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 6px; }
+.history-item__badge{ display:inline-block; font-size: 10px; text-transform:uppercase; letter-spacing:0.06em; color: var(--brand-lime); background: rgba(149,255,25,0.1); padding: 2px 8px; border-radius: 999px; margin-top: 8px; }
 
 /* ==========================================================================
    RESPONSIVE
@@ -899,10 +927,6 @@ input, select{ font-family: inherit; }
      acá; Análisis/Historial/Match la conservan porque son pantallas de lectura/control más
      largas, donde sí ayuda a separarse del margen. */
   .view--analysis, .view--history{ max-width: 768px; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,0.5); }
-  /* V11.10 (feedback real) — un poco más de aire en tablet, sigue sin llegar de punta a
-     punta (a 768px de vista, deja ~80px de margen por lado en un iPad portrait de 768-834px
-     — el "aire a los costados" que se pidió). */
-  .summary-card{ max-width: 600px; }
 }
 
 /* V11.11 probó un tercer escalón de 1100px para Análisis/Historial en escritorio grande
@@ -997,13 +1021,13 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 .share-capture{ padding: 32px 28px 26px; font-family: var(--font-body); }
 .share-capture__header{ display:flex; flex-direction:column; align-items:center; gap: 4px; margin-bottom: 22px; text-align:center; }
-.share-capture__brand{ font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: var(--gold); }
-.share-capture__brand-accent{ font-weight: 900; color: var(--team-a); text-transform: uppercase; }
-.share-capture__brand-sub{ font-weight: 400; text-transform: lowercase; color: var(--gold); }
+.share-capture__brand{ font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: var(--brand-lime); }
+.share-capture__brand-accent{ font-weight: 900; color: var(--brand-lime); text-transform: uppercase; }
+.share-capture__brand-sub{ font-weight: 400; text-transform: lowercase; color: var(--brand-lime); }
 .share-capture__kind{ font-family: var(--font-body); font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--paper-dim); text-transform: uppercase; }
 .share-capture__section{ margin-bottom: 22px; }
 .share-capture__section:last-of-type{ margin-bottom: 0; }
 .share-capture__footer{ display:flex; flex-direction:column; align-items:center; gap: 4px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); text-align:center; }
 .share-capture__footer span:first-child{ font-size: 12px; color: var(--paper-dim); }
-.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(255,201,61,0.6); text-transform: lowercase; }
-.share-capture__brand-mini-accent{ font-weight: 900; color: var(--team-a); text-transform: uppercase; }
+.share-capture__brand-mini{ font-family: var(--font-display); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: rgba(149,255,25,0.6); text-transform: lowercase; }
+.share-capture__brand-mini-accent{ font-weight: 900; color: var(--brand-lime); text-transform: uppercase; }
