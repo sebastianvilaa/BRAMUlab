@@ -1,7 +1,7 @@
 # Backend Bloque 3 — Validación ChatGPT posterior a implementación
 
 **Fecha:** 19/09/2026  
-**Estado:** implementación aplicada parcialmente en Supabase Staging; cierre final todavía pendiente de verificaciones E2E.
+**Estado:** scripts reales de Staging aprobados; validación funcional en la app bloqueada en confirmación de email. Bloque 3 sigue abierto.
 
 ## Qué se verificó y aplicó
 
@@ -46,14 +46,14 @@ Permanecen:
 - leaked password protection deshabilitado: configuración de Auth preexistente, fuera del alcance del cierre funcional de Bloque 3.
 - avisos de performance/RLS initplan e índices de FK: no bloqueantes para este bloque; revisar en hardening.
 
-## Qué falta para cerrar Bloque 3
+## Criterio de cierre de Bloque 3
 
-Todavía falta evidencia real E2E:
+Evidencia real de Staging:
 
-1. ejecutar `verify-bloque2.mjs` sin modificar;
-2. ejecutar `verify-bloque3.mjs`;
-3. ejecutar `verify-nivel-parity.mjs`;
-4. probar en Staging real:
+1. [x] ejecutar `verify-bloque2.mjs` sin modificar;
+2. [x] ejecutar `verify-bloque3.mjs` sin modificar;
+3. [x] ejecutar `verify-nivel-parity.mjs` sin modificar;
+4. [ ] probar en Staging real:
    - alta completa con camino rápido;
    - alta completa con camino completo;
    - confirmación de email al final;
@@ -62,7 +62,7 @@ Todavía falta evidencia real E2E:
    - username ocupado/carrera;
    - llegada a Home solo con Nivel oficial.
 
-La integración de Supabase usada por ChatGPT no expone la `service_role` key, por lo que los scripts Node que requieren Admin/Auth no pueden ejecutarse desde esta sesión sin recurrir a otro entorno autorizado. El próximo paso recomendado es ChatGPT Work, usando la sesión autenticada del dashboard de Supabase de Staging y sin mostrar/copiar secretos al chat.
+Los scripts se ejecutaron desde la Mac de Sebastián con credenciales cargadas sin mostrarlas; sus resultados constan más abajo. La integración de Supabase en Work no exponía la `service_role` key y su terminal no tenía acceso de red a Supabase, bloqueos anteriores que no afectan la evidencia obtenida desde la Mac.
 
 **No marcar Bloque 3 como CERRADO todavía.**
 
@@ -79,3 +79,18 @@ La integración de Supabase usada por ChatGPT no expone la `service_role` key, p
 ### Continuación tras autorización explícita
 
 Sebastián autorizó leer la credencial de Staging desde el dashboard y usarla solo en el proceso del terminal, sin mostrarla en el chat. Antes de acceder a ella se comprobó la conectividad del terminal con `https://serxtivkfnptzurnvewg.supabase.co/rest/v1/`: `curl` agotó el tiempo de espera de la conexión proxy (`HTTP 000`, `Proxy CONNECT aborted due to timeout`). La solicitud de acceso de red ampliado fue rechazada automáticamente por la política de este entorno. No se accedió a ninguna clave ni se ejecutó ningún script; el bloqueo actual es la red del terminal, además de la necesidad posterior de un buzón para OTP. No se hicieron cambios en Supabase ni en la app.
+
+## Validación real desde la Mac de Sebastián — 19/09/2026 (sin cierre)
+
+- Se actualizó la rama local `staging` por fast-forward hasta `1e3a9e2`, coincidente con `origin/staging`. Los dos elementos locales preexistentes sin seguimiento (`Referencias/` y `docs/identidad-visual/Logo.ai`) quedaron intactos y fuera de cualquier commit.
+- La Mac tenía Node `v26.8.2` y acceso de red al proyecto Supabase (`GET /rest/v1/` sin autenticación: HTTP 401 esperado). Las claves de Staging se cargaron de forma oculta en variables de entorno de esa Terminal; no se mostraron ni se incorporaron al repositorio.
+- Se ejecutaron, **sin modificar los scripts**, contra `bramulab-staging` (`serxtivkfnptzurnvewg`):
+  - `node supabase/tests/verify-bloque2.mjs`: **BLOQUE 2 OK**; Auth/perfil/username/ubicación, RLS y limpieza de prueba informada por el script.
+  - `node supabase/tests/verify-bloque3.mjs`: **BLOQUE 3 OK**; `level_states=PENDIENTE` tras confirmar email, perfil mínimo, RPC privada inaccesible con JWT de usuario, Edge Function rápida/completa, idempotencia, un único `initial_estimate`, username ocupado, RLS cruzada, `is_username_available` para `anon`; limpieza informada por el script.
+  - `node supabase/tests/verify-nivel-parity.mjs`: **PARIDAD OK**; modo rápido y completo: `mu` y `confidence` de la Edge Function exactamente iguales a Node; limpieza informada por el script.
+- La validación manual se intentó en `https://bramulab-git-staging-bramu-lab.vercel.app/` con una cuenta nueva y un correo accesible al usuario. Tras `CREAR CUENTA` → email/contraseña → `CONTINUAR`, Sebastián mostró la pantalla `CONFIRMÁ TU EMAIL`, sin evidencia todavía de haber pasado por `TU PERFIL`/Nivel. Se pidió confirmación expresa del recorrido exacto para descartar el botón de confirmación anticipada; no se recibió esa aclaración antes de detener esta ronda.
+- En esa pantalla **no llegó ningún código** al buzón ni a spam; `Reenviar código` mostró el modal `código reenviado`, pero tampoco llegó correo. Al ingresar códigos arbitrarios, la interfaz mostró `el código venció, pedí uno nuevo`. Ese mensaje **no demuestra** que se haya enviado un OTP ni que haya vencido uno real. La confirmación y el resto del onboarding quedaron bloqueados.
+- El `app.js` servido desde la URL de Staging contiene `SIGNUP_STEP_ORDER = [1, 2, 'verify']`; el handler en el código de `staging` avanza de acceso a `TU PERFIL` antes del OTP. La discrepancia con la captura del navegador de Sebastián podría depender de recursos almacenados localmente o de otra condición todavía no identificada; **causa no confirmada**. No se logró inspeccionar el deployment desde la integración de Vercel (sin equipos listados; consulta de URL devolvió 403). No se alteró la configuración.
+- El navegador de Work rechazó automáticamente la solicitud de datos para el alta de prueba porque su petición describía el formulario de creación como inicio de sesión; no se creó ninguna cuenta desde ese navegador. Sebastián realizó el intento manual en su Mac.
+
+**Resultado manual:** alta desde cero **bloqueada** en OTP; perfil mínimo, caminos rápido/completo, confirmación final/anticipada, refresh/reanudación y Home tras Nivel oficial **no verificados**. La cuenta iniciada en la prueba puede haber quedado sin confirmar; su estado y eventual limpieza quedan pendientes de comprobación. No se cambió código, producto, migraciones ni configuración. **No cerrar Bloque 3.**
