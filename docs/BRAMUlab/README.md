@@ -46,7 +46,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking (sin cambios sobre lo ya alineado).
 
-Próximo bloque, una vez validado Bloque 3 en Staging: **Bloque 4** (Jugadores, búsqueda e invitados provisionales) — no iniciado.
+Próximo bloque autorizado: **Bloque 4** (Jugadores, búsqueda e invitados provisionales) — no iniciado.
 
 ---
 
