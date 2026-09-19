@@ -283,9 +283,9 @@ Reglas que desarrollo debe tomar como vigentes antes de Bloques 4–6:
 - un error de identidad no invalida automáticamente un partido real;
 - Ranking semanal publicado permanece inmutable y las correcciones impactan hacia adelante.
 
-## Bloque 3 — Nivel productivo y persistente — IMPLEMENTADO, pendiente de validación en Staging
+## Bloque 3 — Nivel productivo y persistente — CERRADO
 
-**Fecha de implementación:** 19 de septiembre de 2026. **Estado: implementado, no cerrado todavía** — falta que Sebastián aplique la migración, despliegue la Edge Function y corra la verificación real contra Supabase Staging (mismo procedimiento que cerró Bloques 1 y 2).
+**Fecha de implementación y cierre:** 19 de septiembre de 2026. **Estado: CERRADO** — migraciones, Edge Function, verificación automática y validación manual real completadas en Supabase/Vercel Staging.
 **Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 3". Revisión y autorización de arquitectura: `docs/BRAMUlab/Implementacion/Backend/Bloque_03/03_Revision_ChatGPT.md`. Informe operativo completo de esta ronda: `docs/BRAMUlab/Implementacion/Backend/Bloque_03/04_Informe_Implementacion_Claude.md`.
 
 ### 1. Qué se implementó (resumen — detalle completo en el informe operativo de Bloque 3)
@@ -318,17 +318,19 @@ Reglas que desarrollo debe tomar como vigentes antes de Bloques 4–6:
 - Baseline reconfirmado con el runner real (`tests.html` en navegador, no conteo por grep) **antes** de tocar código: **1408/1408**.
 - Después de implementar: **1408/1408 sin cambios** (no se tocó ninguna fórmula ni archivo del motor de Nivel).
 - Verificación manual en el navegador (camino sin backend, `!Auth.isConfigured()`): alta completa con perfil mínimo (nombre/apellido/@usuario/términos, sin rama/ubicación/avatar), creación de cuenta local, entrada a Home; "Crear usuario de prueba" → onboarding de Nivel BRAMU en modo cuenta existente (rápido, con pregunta de categoría, nota de coherencia real) → confirmación → Home con Nivel real; "Resetear Nivel BRAMU" desde Herramientas. Sin errores nuevos en consola.
-- **Pendiente de Sebastián contra Supabase Staging real** (mismo procedimiento que Bloques 1/2): aplicar la migración; `supabase functions deploy officialize-onboarding`; correr `supabase/tests/verify-bloque2.mjs` sin modificar (debe seguir dando 16/16); correr `supabase/tests/verify-bloque3.mjs` (perfil mínimo, `PENDIENTE` temprano, RLS, seguridad de la RPC privada, oficialización real rápida/completa, idempotencia, carrera de `@usuario`); correr `supabase/tests/verify-nivel-parity.mjs` (paridad Node↔Edge Function del motor compartido); validación manual con una cuenta real en la app de Staging (alta, confirmación anticipada y al final, refresh a mitad de alta).
+- **Verificación final contra Supabase Staging real — 19/09/2026, HEAD funcional `7b24979a`:** `verify-bloque2.mjs` → **BLOQUE 2 OK**; `verify-bloque3.mjs` → **BLOQUE 3 OK**; `verify-nivel-parity.mjs` → **PARIDAD OK**. La corrida final ya valida `nivel_inicial_v1_2` en caminos rápido y completo, idempotencia, un único `initial_estimate`, carrera de `@usuario`, RLS y paridad exacta Node↔Edge Function.
 
-### 4. Configuración manual pendiente (Sebastián)
+### 4. Configuración y validación manual completadas
 
-1. Aplicar `supabase/migrations/20260919120000_bloque3_nivel_persistente.sql` en Supabase Staging (SQL Editor, mismo procedimiento que Bloques 1/2).
-2. Desplegar la Edge Function: `supabase functions deploy officialize-onboarding` (requiere Supabase CLI vinculado al proyecto de Staging).
-3. Correr `verify-bloque2.mjs` (sin modificar), `verify-bloque3.mjs` y `verify-nivel-parity.mjs` contra Staging real.
-4. Validación manual de UX real (alta completa, confirmación anticipada, refresh a mitad de alta, username ocupado) con una cuenta real, igual que se hizo para Bloque 2.
-5. Si el deploy de la Edge Function fallara por no poder resolver el import a `../_shared/level.js`/`level-calibration.js` (symlinks fuera de `supabase/functions/`), ver la nota de contingencia en el informe operativo de Bloque 3 antes de cambiar de arquitectura.
+1. Migraciones de Bloque 3 aplicadas en Supabase Staging.
+2. Edge Function `officialize-onboarding` desplegada y activa con el motor V1.2 compartido.
+3. Tres verificadores reales corridos sin modificar sobre HEAD funcional `7b24979a`: **BLOQUE 2 OK**, **BLOQUE 3 OK**, **PARIDAD OK**.
+4. Camino rápido V1.2 validado con confirmación anticipada + refresh: terminó en Home sin segundo OTP; backend persistió `CALIBRANDO`, `mu=5.5`, `questionnaire_mode=quick`, un único `initial_estimate`.
+5. Camino completo V1.2 validado con 6 preguntas + confirmación final por OTP: terminó en Home; backend persistió `CALIBRANDO`, `mu=5.6675` (5.7 público), `questionnaire_mode=full`, un único `initial_estimate`.
 
-Con esos 4 pasos corridos y en verde, Bloque 3 queda en condiciones de cerrarse con el mismo criterio que Bloques 1 y 2.
+Detalle operativo y evidencia final: `docs/BRAMUlab/Implementacion/Backend/Bloque_03/12_Cierre_Bloque_03.md`.
+
+**Bloque 3 CERRADO.**
 
 Impacto por roadmap:
 
