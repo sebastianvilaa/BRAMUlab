@@ -9,9 +9,9 @@
       "port": 4173
     },
     {
-      "name": "bramulab-partidos",
+      "name": "bramulive",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["/Users/sebas/Library/CloudStorage/Dropbox/Otros Trabajos/BRAMUlab/BRAMUlab/.claude/dev-server-partidos.py"],
+      "runtimeArgs": ["/Users/sebas/Library/CloudStorage/Dropbox/Otros Trabajos/BRAMUlab/BRAMUlab/.claude/dev-server-bramulive.py"],
       "url": "http://localhost:4174",
       "port": 4174
     }

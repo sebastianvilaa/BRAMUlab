@@ -4,7 +4,7 @@ import functools
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVE_DIR = os.path.join(BASE_DIR, '..', 'bramulab-partidos')
+SERVE_DIR = os.path.join(BASE_DIR, '..', 'bramulive')
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):

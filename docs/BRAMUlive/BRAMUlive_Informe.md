@@ -1,17 +1,17 @@
-# BRAMUlab_Partidos → BRAMUlive
+# BRAMUlive — Informe
 ## Informe — qué se implementó, verificó y corrigió
 
 **Tipo de documento:** informe retrospectivo (síntesis documental de informes ya cerrados, no una verificación nueva). Sección 7 en adelante documenta las rondas posteriores al congelamiento en V14: V15 (18/09/2026) y V16 (19/09/2026).
 **Fecha de esta síntesis:** 10/09/2026 (cuerpo original) — actualizado el 18/09/2026 (§7) y el 19/09/2026 (§8).
 **Estado final de la app hasta V14:** commit `5c46337`, tag `v14` — producto congelado desde el 2/09/2026.
-**Nombre público actual:** BRAMUlive (desde el 18/09/2026, ver §7). El nombre técnico de la carpeta de código sigue siendo `bramulab-partidos/` — no se renombró (evita churn; ver §7).
+**Producto y carpeta vigentes:** BRAMUlive, `bramulive/` (nombre público desde el 18/09/2026, ver §7). La etapa V10–V14 se llamaba `BRAMUlab_Partidos`; hasta esta ronda de orden, el código estaba en `bramulab-partidos/`.
 **Cómo leer este documento:** cada sección corresponde a una ronda ya implementada y publicada. El detalle completo (archivos tocados, capturas, verificación manual paso a paso) vivía en el informe original de cada ronda (citado por nombre en cada sección) — esos originales, junto con los consolidados que los motivaron, ya no están en este repositorio; se borraron una vez confirmado que este resumen no perdía nada relevante y siguen recuperables del historial de git (commit `40c82bc` o anterior).
 
 ---
 
 ## 0. Arquitectura vigente al cierre (acumulada, no por versión)
 
-Toda la línea corre en JavaScript puro sobre la carpeta de código `bramulab-partidos/`, sin framework ni paso de build, publicada en GitHub Pages (`https://sebastianvilaa.github.io/BRAMUlab/bramu-lab/`) desde el mismo repositorio `https://github.com/sebastianvilaa/BRAMUlab` — el repo se pasó de privado a público en V10 porque GitHub Pages gratuito no funciona sobre repos privados.
+Toda la línea corre en JavaScript puro, sin framework ni paso de build. La app vigente vive en `bramulive/` y se publica en `https://bramulive.vercel.app` desde `staging`, como proyecto Vercel independiente. En V10 se publicaba en GitHub Pages (`https://sebastianvilaa.github.io/BRAMUlab/bramu-lab/`) desde el mismo repositorio `https://github.com/sebastianvilaa/BRAMUlab`; entonces el repositorio pasó de privado a público porque GitHub Pages gratuito no funcionaba sobre repos privados.
 
 - **`engine.js`** — motor de scoring reglamentario: Clásico/Americano, Punto de Oro/Star Point/Con Ventaja, Tie breaks normales, rotación de saque, Quick Correction. Extendido en V12 reutilizando un mecanismo preexistente de "reemplazo de estado completo" (`applyAdjustment`, que ya sostenía el editor de marcador) para construir `AJUSTAR` y el Tie break extraordinario sin tocar el motor reglamentario. Extendido en V13 con un **motor paralelo y más simple** para el modo Por Games (`applyGameWin` / `applyGameTiebreak` / `applyExtraordinaryGameTiebreak`), construido así deliberadamente porque el motor de puntos existente resultó "entrelazado con la lógica de puntos" y no se prestaba a simplemente "apagar" el conteo interno — el motor nuevo reutiliza todo lo agnóstico de puntos (formatos, validadores reglamentarios, resolución de sacador) sin duplicar el motor de Completo.
 - **`stats.js`** — BRAMU Intelligence y estadísticas. Ya traía, antes de V11, una arquitectura de "historias" candidatas con peso/prioridad (no una plantilla de frases sueltas) — el trabajo de V10-V13.3 fue extender y corregir ese motor, no reescribirlo. Con V13.3 se formaliza explícitamente la arquitectura **DATOS → HECHOS → EVENTOS → JERARQUÍA → RELACIONES → HISTORIA → EVIDENCIA → REDACCIÓN**, compartida entre Completo y Por Games (que difieren solo en cuánta evidencia hay disponible). Por Games (V13) y los partidos cargados manualmente (V14) usan cada uno su propio generador de texto, más corto, que solo afirma lo que sus datos reales sostienen — nunca comparten motor con Completo para no arriesgar inventar hechos a nivel de punto que esos modos no tienen.
@@ -185,7 +185,7 @@ Los documentos originales de cada ronda (citados arriba por nombre) ya no están
 
 **Base heredada:** V14 (commit `5c46337`), sin reconstruir desde cero ni copiar código de `bramulab/` hacia acá — se partió de la versión standalone ya madura descripta en §5-§6.
 
-**Nombre técnico vs. nombre público:** la carpeta de código sigue siendo `bramulab-partidos/` a propósito (reduce churn, preserva referencias/historial); solo cambió el nombre visible al usuario (`<title>`, manifest `name`/`short_name`, footer, título del share nativo, imagen exportada al compartir).
+**Nombre técnico vs. nombre público en V15:** en esa ronda la carpeta todavía se llamaba `bramulab-partidos/` (se evitó moverla en ese momento); solo cambió el nombre visible al usuario (`<title>`, manifest `name`/`short_name`, footer, título del share nativo, imagen exportada al compartir). El traslado técnico posterior a `bramulive/` no altera lo implementado en V15.
 
 **Mejoras reales portadas desde `bramulab/` (detectadas por auditoría, nunca implementadas acá):**
 - `engine.js` — `isValidFinalTiebreakScore` (bramulab la había agregado en su ronda "V02.1 §6": valida un resultado final de tie break sin techo artificial, p. ej. 16-14).
@@ -217,7 +217,7 @@ Los documentos originales de cada ronda (citados arriba por nombre) ya no están
 
 **Qué cambió el criterio:** V15 se limitó a alinear la paleta de BRAMUlive a la identidad azul marino actual de BRAMU, conservando la estructura visual propia de la línea V10-V14. Al validar visualmente contra la última versión real de `Registrar partido en vivo` que existía dentro de `bramulab/` justo antes de la separación (tag `pre-bramulive-separation-2026-09-18`), quedó claro que ese criterio fue demasiado conservador: BRAMUlive seguía mostrando patrones estructurales del diseño viejo (amarillo como color de selección/CTA, setup con menú desplegable de modo, pareja "Resumen inmediato + Análisis" con navegación circular, BRAMU Intelligence sin tarjeta editorial propia, tipografía condensada donde la referencia ya usaba Inter). La nueva regla de autoridad: BRAMUlive es la continuación de la versión MÁS NUEVA del flujo en vivo pre-separación, no una paleta nueva sobre la base V14.
 
-**Método:** comparación de código real (no visual/aproximada) entre `bramulab/{index.html,styles.css,app.js}` leídos directamente del tag `pre-bramulive-separation-2026-09-18` (sin checkout, vía `git show`) contra `bramulab-partidos/` en `staging`. Se portó lo que correspondía; se conservó lo específico de BRAMUlive que seguía siendo válido (Por Games BETA, carga manual con `<select>`, Timeline, tres modos de registro).
+**Método:** comparación de código real (no visual/aproximada) entre `bramulab/{index.html,styles.css,app.js}` leídos directamente del tag `pre-bramulive-separation-2026-09-18` (sin checkout, vía `git show`) contra la carpeta entonces llamada `bramulab-partidos/` en `staging`. Se portó lo que correspondía; se conservó lo específico de BRAMUlive que seguía siendo válido (Por Games BETA, carga manual con `<select>`, Timeline, tres modos de registro).
 
 **Portado — sistema de diseño:**
 - Tokens: se agregan `--brand-lime`/`--brand-lime-deep`/`--scrim`/`--line-strong`/`--bg-gradient-app`/`--radius-*`; `--font-display` pasa de Oswald condensada a Inter (la referencia real tampoco usa una condensada para los números del marcador — se verificó contra el CSS real, no se asumió).

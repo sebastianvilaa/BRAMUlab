@@ -4,29 +4,27 @@
    los service workers no corren), la app sigue funcionando normalmente:
    este archivo es un "mejor esfuerzo", no una dependencia. */
 
-// BRAMUlive (2026-09-18): nombre público nuevo para el producto que vivía en esta carpeta
-// (bramulab-partidos/, antes bramu-lab/) como "BRAMU Lab Partidos" — el marcador congelado
-// en V14. Se separa definitivamente de BRAMUlab (la app principal en bramulab/) como
-// aplicación hermana independiente: cuentas/Nivel/Ranking quedan en BRAMUlab, el registro
-// en vivo queda en BRAMUlive. El nombre técnico de la carpeta NO cambia por ahora (evita
-// churn); solo cambia el nombre visible al usuario (manifest, título, footer).
-// Cache con nombre propio, separado del de BRAMUlab. Debe coincidir con PLStore.VERSION
-// (store.js) y con `version.json` — ese archivo es lo que el cliente consulta para detectar
-// que hay una versión nueva, así que los TRES deben actualizarse juntos.
+// BRAMUlive (desde 2026-09-18): aplicación hermana de BRAMUlab (bramulab/).
+// Antes se llamaba BRAMU Lab Partidos y vivía en bramulab-partidos/.
+// Cuentas/Nivel/Ranking quedan en BRAMUlab; el registro en vivo, acá.
+// Cache con nombre propio, separado del de BRAMUlab. Cuando cambie el bundle,
+// actualizar esta clave y `version.json`/PLStore.VERSION según corresponda;
+// un cambio de ruta requiere renovar la caché aunque la versión visible siga en v16.
 // Esto NUNCA toca localStorage — el historial y el partido en curso viven en otra capa de
 // almacenamiento y no se pierden por este cambio.
 //
 // BRAMUlive y BRAMUlab pueden convivir en el mismo origen — y Cache Storage es por origen,
 // no por ruta. El filtro de limpieza de abajo solo borra cachés de la propia familia
-// ('bramulab-partidos-...', nombre técnico heredado), nunca las de la otra app: sin este
-// prefijo específico, cualquiera de los dos service workers borraría la caché del otro en
+// (bramulive-* y el prefijo anterior bramulab-partidos-*), nunca las de la otra app: sin
+// estos prefijos específicos, cualquiera de los dos service workers borraría la caché del otro en
 // cuanto se activara.
 // V16 (2026-09-19) — corrige el criterio de la V15: hereda la UI/UX real del flujo en vivo
 // tal como había evolucionado dentro de BRAMUlab justo antes de separarlo (tag
 // pre-bramulive-separation-2026-09-18), no solo su paleta. Bump necesario por el mismo
 // motivo de siempre: sin esto, un cliente con el service worker ya instalado seguiría
 // viendo la pantalla vieja.
-const CACHE_NAME = 'bramulab-partidos-v16';
+// Mismo producto v16; clave renovada por el traslado de la carpeta técnica.
+const CACHE_NAME = 'bramulive-v16';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -57,7 +55,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((k) => k.startsWith('bramulab-partidos-') && k !== CACHE_NAME).map((k) => caches.delete(k))
+      keys.filter((k) => (k.startsWith('bramulive-') || k.startsWith('bramulab-partidos-')) && k !== CACHE_NAME).map((k) => caches.delete(k))
     ))
   );
   self.clients.claim();
