@@ -1,7 +1,7 @@
 # Backend Bloque 3 — Validación ChatGPT posterior a implementación
 
 **Fecha:** 19/09/2026  
-**Estado:** scripts reales de Staging aprobados; validación funcional en la app bloqueada en confirmación de email. Bloque 3 sigue abierto.
+**Estado:** **CERRADO** — validación automática y manual real completada en Staging el 19/09/2026.
 
 ## Qué se verificó y aplicó
 
@@ -53,7 +53,7 @@ Evidencia real de Staging:
 1. [x] ejecutar `verify-bloque2.mjs` sin modificar;
 2. [x] ejecutar `verify-bloque3.mjs` sin modificar;
 3. [x] ejecutar `verify-nivel-parity.mjs` sin modificar;
-4. [ ] probar en Staging real:
+4. [x] probar en Staging real:
    - alta completa con camino rápido;
    - alta completa con camino completo;
    - confirmación de email al final;
@@ -64,7 +64,7 @@ Evidencia real de Staging:
 
 Los scripts se ejecutaron desde la Mac de Sebastián con credenciales cargadas sin mostrarlas; sus resultados constan más abajo. La integración de Supabase en Work no exponía la `service_role` key y su terminal no tenía acceso de red a Supabase, bloqueos anteriores que no afectan la evidencia obtenida desde la Mac.
 
-**No marcar Bloque 3 como CERRADO todavía.**
+**Criterio cumplido al cierre definitivo documentado en `12_Cierre_Bloque_03.md`.**
 
 ## Intento de validación real desde Work — 19/09/2026 (sin cierre)
 
@@ -94,3 +94,27 @@ Sebastián autorizó leer la credencial de Staging desde el dashboard y usarla s
 - El navegador de Work rechazó automáticamente la solicitud de datos para el alta de prueba porque su petición describía el formulario de creación como inicio de sesión; no se creó ninguna cuenta desde ese navegador. Sebastián realizó el intento manual en su Mac.
 
 **Resultado manual:** alta desde cero **bloqueada** en OTP; perfil mínimo, caminos rápido/completo, confirmación final/anticipada, refresh/reanudación y Home tras Nivel oficial **no verificados**. La cuenta iniciada en la prueba puede haber quedado sin confirmar; su estado y eventual limpieza quedan pendientes de comprobación. No se cambió código, producto, migraciones ni configuración. **No cerrar Bloque 3.**
+
+
+## Cierre definitivo — 19/09/2026
+
+Bloque 3 quedó **CERRADO** en `staging` después de completar la evidencia pendiente sobre el HEAD funcional `7b24979a`.
+
+### Verificación automática final
+
+- `verify-bloque2.mjs` → **BLOQUE 2 OK**
+- `verify-bloque3.mjs` → **BLOQUE 3 OK**
+- `verify-nivel-parity.mjs` → **PARIDAD OK**
+
+La corrida final ya usa `nivel_inicial_v1_2` en camino rápido y completo y confirma paridad Node ↔ Edge Function.
+
+### Validación manual final
+
+- **Camino rápido + confirmación anticipada + refresh:** llegó a Home sin segundo OTP; Supabase persistió `CALIBRANDO`, `mu=5.5`, `questionnaire_version=nivel_inicial_v1_2`, `questionnaire_mode=quick` y exactamente 1 `initial_estimate`.
+- **Camino completo:** 6 preguntas, sin categoría local, resultado público 5.7, OTP al final, entrada directa a Home; Supabase persistió `CALIBRANDO`, `mu=5.6675`, `confidence=0.18`, `questionnaire_version=nivel_inicial_v1_2`, `questionnaire_mode=full` y exactamente 1 `initial_estimate`.
+
+La inconsistencia histórica de `questionnaire_mode` observada en la primera cuenta bajo V1.1 no se reproduce en V1.2.
+
+Detalle completo: `12_Cierre_Bloque_03.md`.
+
+**Backend Bloque 3: CERRADO.**
