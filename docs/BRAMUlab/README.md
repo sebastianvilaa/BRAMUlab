@@ -42,7 +42,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo.
 
-**Bloque 3 (Nivel productivo y persistente) está IMPLEMENTADO, pendiente de validación real en Staging** (19/09/2026): la alineación de onboarding (confirmación de email diferida, perfil mínimo = nombre + apellido + `@usuario` + términos), `level_states`/`level_events`, la Edge Function `officialize-onboarding` (reutiliza el motor JS compartido, `supabase/functions/_shared/` son symlinks reales a `bramulab/level.js`/`level-calibration.js`, nunca una copia) y la RPC privada `officialize_level_onboarding` ya están escritos y pasaron la regresión local (1408/1408) y una verificación manual del camino sin backend. Falta que Sebastián aplique la migración `20260919120000_bloque3_nivel_persistente.sql`, despliegue la Edge Function y corra `verify-bloque3.mjs`/`verify-nivel-parity.mjs` contra Supabase Staging real antes de dar el bloque por cerrado. Ver `Implementacion/Backend/Bloque_03/04_Informe_Implementacion_Claude.md` para el detalle completo y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el resumen de fuente maestra.
+**Bloque 3 (Nivel productivo y persistente) está CERRADO** (19/09/2026): onboarding real con confirmación diferida, perfil mínimo, `level_states`/`level_events`, Edge Function `officialize-onboarding`, RPC privada, estimador universal `nivel_inicial_v1_2`, confirmación final y anticipada, refresh/reanudación, caminos rápido/completo, idempotencia y paridad navegador/servidor quedaron validados contra Supabase/Vercel Staging real. La corrida final sobre HEAD funcional `7b24979a` dio **BLOQUE 2 OK**, **BLOQUE 3 OK** y **PARIDAD OK**. Ver `Implementacion/Backend/Bloque_03/12_Cierre_Bloque_03.md` y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 
 Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking (sin cambios sobre lo ya alineado).
 
@@ -58,7 +58,7 @@ Próximo bloque, una vez validado Bloque 3 en Staging: **Bloque 4** (Jugadores, 
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1 y 2 CERRADOS; Bloque 3 es el próximo autorizado. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1, 2 y 3 CERRADOS. Próximo autorizado: Bloque 4. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -146,7 +146,7 @@ La reorganización documental del 15/09/2026 quedó registrada en:
 
 Implementado localmente detrás del flujo/preview vigente hasta V04.10 (motor matemático puro, elegibilidad/invitados/repetición/círculo competitivo, estimador inicial V1.1, onboarding rápido/completo, categoría contextual, presentación en Home/Perfil/Perfil público, laboratorio de prueba, 1408/1408 tests).
 
-**Backend Bloque 3 (19/09/2026, implementado, pendiente de validación en Staging)** agrega la persistencia server-side real: `level_states`/`level_events`, estado `PENDIENTE` explícito (creado por `handle_email_confirmed` apenas hay `player_id`, incluso si el email se confirma antes de terminar el resto del onboarding), y la oficialización atómica/idempotente vía la Edge Function `officialize-onboarding` + la RPC privada `officialize_level_onboarding` — el motor sigue siendo el mismo archivo JS que usa el navegador (symlink real, nunca una copia), nunca se reimplementó en SQL. El laboratorio de prueba queda oculto en Production (visible en Development/Staging). Detalle completo en `Implementacion/Backend/Bloque_03/`.
+**Backend Bloque 3 (19/09/2026, CERRADO)** agrega la persistencia server-side real: `level_states`/`level_events`, estado `PENDIENTE` explícito (creado por `handle_email_confirmed` apenas hay `player_id`, incluso si el email se confirma antes de terminar el resto del onboarding), y la oficialización atómica/idempotente vía la Edge Function `officialize-onboarding` + la RPC privada `officialize_level_onboarding` — el motor sigue siendo el mismo archivo JS que usa el navegador (symlink real, nunca una copia), nunca se reimplementó en SQL. El laboratorio de prueba queda oculto en Production (visible en Development/Staging). Detalle completo en `Implementacion/Backend/Bloque_03/`.
 
 ### Ranking BRAMU
 
@@ -188,7 +188,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloque 3 (Nivel productivo y persistente) está implementado, pendiente de aplicar la migración/desplegar la Edge Function y validar con cuenta real en Staging. Luego continúan Jugadores/Invitados, Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloques 1, 2 y 3 están cerrados en Staging. El próximo autorizado es Bloque 4 (Jugadores, búsqueda e invitados provisionales); luego continúan Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
 
 ---
 
