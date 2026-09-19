@@ -75,3 +75,7 @@ La integración de Supabase usada por ChatGPT no expone la `service_role` key, p
 - **Flujos manuales pendientes:** alta desde cero, perfil mínimo, caminos rápido/completo, OTP final/anticipado, refresh/reanudación y llegada a Home. No se creó ninguna cuenta de prueba en este intento.
 
 **Estado:** Bloque 3 sigue abierto. Hace falta un mecanismo aprobado para suministrar las credenciales al terminal sin mostrarlas en chat y acceso a un buzón de prueba para verificar el OTP real. Recién entonces corresponde ejecutar los tres scripts sin cambios y completar los flujos manuales.
+
+### Continuación tras autorización explícita
+
+Sebastián autorizó leer la credencial de Staging desde el dashboard y usarla solo en el proceso del terminal, sin mostrarla en el chat. Antes de acceder a ella se comprobó la conectividad del terminal con `https://serxtivkfnptzurnvewg.supabase.co/rest/v1/`: `curl` agotó el tiempo de espera de la conexión proxy (`HTTP 000`, `Proxy CONNECT aborted due to timeout`). La solicitud de acceso de red ampliado fue rechazada automáticamente por la política de este entorno. No se accedió a ninguna clave ni se ejecutó ningún script; el bloqueo actual es la red del terminal, además de la necesidad posterior de un buzón para OTP. No se hicieron cambios en Supabase ni en la app.
