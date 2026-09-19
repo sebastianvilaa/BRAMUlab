@@ -4202,7 +4202,7 @@
   /** Confirma el nivel inicial V1.2 universal. La categoría local ya no participa del alta
    *  ni del número: el navegador guarda solo la vista previa y el servidor recalcula la misma
    *  estimación desde las respuestas crudas antes de persistirla. */
-  function confirmNivelOnboarding() {
+  async function confirmNivelOnboarding() {
     if (!nivelRawResult) return;
     const confirmedAt = new Date().toISOString();
     const confirmResult = LVC.confirmInitialLevelV1_2(nivelRawResult, confirmedAt);
@@ -4214,6 +4214,22 @@
       signupDraft.nivelQuizAnswers = nivelPathType === 'full' ? nivelQuizAnswers : null;
       signupDraft.nivelState = state; // vista previa local únicamente — nunca la autoridad
       Store.saveSignupDraft(signupDraft);
+
+      // Backend Bloque 3 — si el email ya se confirmó anticipadamente, Supabase dejó una
+      // sesión persistida. En ese caso NO corresponde volver a pedir OTP: el borrador ya tiene
+      // perfil mínimo + Nivel y puede ir directo al comando idempotente de oficialización.
+      // La comparación de email evita usar por accidente una sesión de otra cuenta junto con
+      // un borrador local viejo.
+      const session = await Auth.getSession();
+      const sessionEmail = session && session.user && session.user.email
+        ? session.user.email.trim().toLowerCase()
+        : null;
+      const draftEmail = signupDraft.email ? signupDraft.email.trim().toLowerCase() : null;
+      if (session && sessionEmail && draftEmail && sessionEmail === draftEmail) {
+        await runOfficializeAndEnter();
+        return;
+      }
+
       signupStep = 'verify';
       renderSignupStep();
       showView('signup');
