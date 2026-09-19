@@ -254,7 +254,7 @@
       p_gender: fields.gender || null,
       p_dominant_hand: fields.dominantHand || null,
       p_preferred_side: fields.preferredSide || null,
-      p_competitive_branch: fields.competitiveBranch,
+      p_competitive_branch: fields.competitiveBranch || null,
       p_location_country_code: 'AR',
       p_location_province_label: location.region || null,
       p_location_locality_label: location.locality || null,
