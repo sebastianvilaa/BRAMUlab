@@ -18,8 +18,8 @@
 // inyectar un mu/confidence arbitrario sin pasar antes por el motor real de acá.
 //
 // Body esperado (JSON), enviado con el access token del usuario en el header Authorization:
-//   { mode: 'quick'|'full', quickSeedKey?: string, quizAnswers?: object,
-//     categoryContextKey: string|null, declaredCategory: string }
+//   { mode: 'quick'|'full', quickSeedKey?: string, quizAnswers?: object }
+// Nivel inicial V1.2: país/rama/categoría local NO forman parte del payload ni del cálculo.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import '../_shared/level.js';

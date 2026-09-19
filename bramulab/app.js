@@ -4037,11 +4037,8 @@
   let nivelStep = 'intro'; // 'intro' | 'quick' | 'quiz' | 'result'
   let nivelPathType = null; // 'quick' | 'full'
   let nivelQuizIndex = 0;
-  let nivelQuizAnswers = {}; // {autoevaluacion, anos, entrenamiento, frecuencia, competicion, red, paredes} -> key
+  let nivelQuizAnswers = {}; // {autoevaluacion, anos, entrenamiento, frecuencia, red, paredes} -> key
   let nivelRawResult = null; // LVC.computeFullEstimate() | LVC.computeQuickLevel()
-  let nivelCategoryContextKey = null; // 'ar_masculino_v1' | null — calculado 1 vez al entrar
-  let nivelDeclaredCategory = null; // key elegida en la pregunta final, o null hasta responder
-  let nivelCategoryStep = null; // LVC.computeCategoryStep() más reciente, o null
 
   const NIVEL_STEP_TITLES = { intro: 'TU NIVEL BRAMU', quick: 'ELEGÍ TU NIVEL', quiz: 'TU NIVEL BRAMU', result: 'TU NIVEL BRAMU' };
 
@@ -8508,7 +8505,7 @@
   /** BRAMUlab_V04.6 — "Resetear Nivel BRAMU" (Handoff V04.6 §10.B): borra SOLO
    *  `Store.resetLevelV1State` de la cuenta activa (historial, estadísticas, red, jugadores y
    *  grupos quedan intactos, ver cabecera de esa función en store.js) y reabre directo el
-   *  onboarding para poder regenerar el Nivel con `nivel_inicial_v1_1` sobre la misma base
+   *  onboarding para poder regenerar el Nivel con `nivel_inicial_v1_2` sobre la misma base
    *  ficticia acumulada — nunca migra silenciosamente un origen `nivel_inicial_v1_0`/V1.4
    *  viejo (§10 in fine del Handoff). */
   function resetLevelV1ForLabAccount() {
