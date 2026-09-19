@@ -31,7 +31,7 @@ La prioridad es construir primero la mínima verdad multiusuario y, sobre esa ba
 
 - BRAMUlab V03.10 está cerrada.
 - Nivel BRAMU V04.10 está cerrado en producto, UX y motor local. La batería total actual del producto/backend alcanzó 1408/1408 tras Bloque 2; esto no modifica la fórmula de Nivel.
-- El contrato matemático vigente es Nivel BRAMU V1.5, con motor `nivel_bramu_v1_0` y estimador inicial `nivel_inicial_v1_1`.
+- El contrato matemático vigente es Nivel BRAMU V1.5, con motor `nivel_bramu_v1_0` y estimador inicial `nivel_inicial_v1_2`.
 - Ranking BRAMU V1 está cerrado conceptualmente y en UX, pero su implementación actual es local/simulada.
 - BRAMU Intelligence V1 está definida y documentada, pero no implementada.
 - Cuentas, perfiles, partidos, historial, Nivel, grupos y Ranking continúan dependiendo total o parcialmente de `localStorage`, mocks o simulaciones.
@@ -421,7 +421,7 @@ Eventos append-only:
 
 - estimación inicial;
 - confirmación/cambio de cuestionario;
-- ajuste por categoría contextual;
+- estimación inicial universal sin ajuste por categoría local;
 - variación por partido;
 - corrección/reversión;
 - entrada/salida de recalibración;

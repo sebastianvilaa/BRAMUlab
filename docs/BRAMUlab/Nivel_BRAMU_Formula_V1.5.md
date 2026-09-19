@@ -2,7 +2,10 @@
 
 **Estado:** fuente normativa vigente para Nivel BRAMU.  
 **Versión del motor de partidos:** `nivel_bramu_v1_0` (sin cambios respecto de V1.4).  
-**Versión del estimador inicial:** `nivel_inicial_v1_1`.  
+**Versión del estimador inicial:** `nivel_inicial_v1_2`.  
+
+> **Decisión vigente — 19/09/2026 (V1.2 del estimador):** la categoría local deja de formar parte del onboarding y del cálculo del Nivel inicial. El resultado inicial es universal y sale solo de la autoevaluación/cuestiónario; los partidos reales lo calibran. El cuestionario completo pasa de 7 a 6 preguntas: se retira también la pregunta de resultados “en tu categoría habitual”, porque sin un sistema local identificado no aporta una señal universal confiable. País, rama y categoría quedan como contexto competitivo posterior (Perfil/Ranking), no como requisito para obtener Nivel ni entrar a Home. Las secciones históricas de este documento que describen mapas/anclas/ajustes por categoría se conservan como referencia de la hipótesis V1.1 y como posible insumo futuro, pero **no son activas en `nivel_inicial_v1_2`**.
+
 **Precedencia:** esta revisión reemplaza a V1.4 como fuente vigente. V1.4 se conserva como antecedente.
 
 V1.5 modifica únicamente la estimación inicial y el uso del cuestionario durante una recalibración. No cambia expectativa, fuerza de pareja, deltas, confiabilidad por partidos, invitados, repetición, círculo competitivo ni ninguna otra regla del motor ya implementado.

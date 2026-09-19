@@ -3866,8 +3866,6 @@
       mode: signupDraft.nivelPathType,
       quickSeedKey: signupDraft.nivelPathType === 'quick' ? signupDraft.nivelQuickSeedKey : undefined,
       quizAnswers: signupDraft.nivelPathType === 'full' ? signupDraft.nivelQuizAnswers : undefined,
-      categoryContextKey: signupDraft.nivelCategoryContextKey || null,
-      declaredCategory: signupDraft.nivelDeclaredCategory,
     });
     if (!officialResult.ok) {
       // El borrador NO se toca: perfil mínimo ya quedó persistido (complete_profile es
@@ -4057,8 +4055,9 @@
     { key: 'profesional', title: 'Profesional', desc: 'Compito en categorías máximas o circuito profesional a alta velocidad y presión' },
   ];
 
-  // §3.5 — cuestionario completo V1.1 EXACTO (7 preguntas). Cada `id` es la key que espera
-  // `LVC.computeFullEstimate` — nunca un índice posicional (V1.1 ya no pondera por posición).
+  // Estimador inicial V1.2 — cuestionario completo de 6 preguntas. Se retira la pregunta
+  // competitiva ligada a categoría porque la categoría local ya no interviene en el cálculo
+  // inicial universal. Cada `id` sigue siendo una key explícita, nunca un índice posicional.
   const NIVEL_FULL_QUESTIONS = [
     { id: 'autoevaluacion', label: '¿Cómo describirías tu juego actual?', options: NIVEL_QUICK_SEED_COPY.map((o) => ({ key: o.key, title: o.title, desc: o.desc })) },
     { id: 'anos', label: '¿Hace cuánto jugás al pádel?', options: [
@@ -4079,13 +4078,6 @@
       { key: 'una_dos_semana', title: 'Juego una o dos veces por semana' },
       { key: 'tres_mas_semana', title: 'Juego tres veces por semana o más' },
     ] },
-    { id: 'competicion', label: 'Cuando competís en tu categoría habitual, ¿cómo suelen ser tus resultados?', options: [
-      { key: 'no_compito', title: 'No compito' },
-      { key: 'sin_referencia', title: 'Competí pocas veces y todavía no tengo una referencia clara' },
-      { key: 'dificil', title: 'Suelo tener partidos difíciles o quedar eliminado en las primeras rondas' },
-      { key: 'parejo', title: 'Tengo partidos parejos y algunas veces avanzo de ronda' },
-      { key: 'finales', title: 'Suelo llegar a cuartos, semifinales o finales' },
-    ] },
     { id: 'red', label: 'Cuando estás en la red, ¿qué opción te representa mejor?', options: [
       { key: 'a', title: 'Me cuesta subir, ubicarme y sostener la posición en la red' },
       { key: 'b', title: 'Resuelvo voleas simples, pero pierdo la red fácilmente cuando me presionan o me superan con un globo' },
@@ -4102,36 +4094,12 @@
     ] },
   ];
 
-  // §6 del Handoff V04.6 — última pregunta, compartida por los dos caminos. Mismas 9
-  // categorías que ya usa `declaredCategory` (CATEGORY_LABELS) + las 2 neutrales. Ningún
-  // orden ni estilo la destaca — nunca preseleccionada ni sugerida.
-  const NIVEL_CATEGORY_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'no-compito', 'no-se']
-    .map((key) => ({ key, title: CATEGORY_LABELS[key] }));
-
-  /** Piloto argentino masculino (§3.3 Fórmula V1.5) — único mapa activo hoy. Cualquier otro
-   *  contexto queda sin mapa compatible: la categoría se guarda igual, pero nunca ajusta el
-   *  nivel (`LVC.computeCategoryAdjustment` ya maneja ese caso).
-   *  Backend Bloque 3 — en modo 'draft' (alta real en curso, sin cuenta todavía) recibe
-   *  `signupDraft` en vez de `Store.getCurrentUser()`: como el perfil mínimo ya NO pide
-   *  género/localidad (Experiencia_Inicial.md §2.2), `signupDraft.country`/`.gender` no
-   *  existen y esta función devuelve `null` con normalidad — el ajuste por categoría
-   *  simplemente no aplica para nadie hasta que complete esos datos más adelante desde
-   *  Perfil (degradación ya prevista por la fórmula, Nivel_BRAMU_Formula_V1.5.md §3.3: "queda
-   *  sin mapa compatible... nunca ajusta el nivel", nunca un error). Documentado como efecto
-   *  observado en el informe de este bloque, no rediseña la fórmula. */
-  function computeNivelCategoryContextKey(user) {
-    return (user && user.country === 'Argentina' && user.gender === 'masculino') ? 'ar_masculino_v1' : null;
-  }
-
   function openNivelOnboardingIntro() {
     nivelStep = 'intro';
     nivelPathType = null;
     nivelQuizIndex = 0;
     nivelQuizAnswers = {};
     nivelRawResult = null;
-    nivelDeclaredCategory = null;
-    nivelCategoryStep = null;
-    nivelCategoryContextKey = computeNivelCategoryContextKey(nivelOnboardingContext === 'draft' ? signupDraft : Store.getCurrentUser());
     renderNivelOnboardingStep();
     showView('nivel-onboarding');
   }
@@ -4161,8 +4129,6 @@
         if (!seed) return;
         nivelPathType = 'quick';
         nivelRawResult = seed;
-        nivelDeclaredCategory = null;
-        nivelCategoryStep = null;
         nivelStep = 'result';
         renderNivelOnboardingStep();
       });
@@ -4227,54 +4193,28 @@
   }
 
   function renderNivelResultStep() {
-    $('#nivel-category-grid').innerHTML = NIVEL_CATEGORY_OPTIONS.map((opt) => `
-      <button type="button" class="nivel-category-chip${opt.key === nivelDeclaredCategory ? ' is-selected' : ''}" data-key="${opt.key}">${opt.title}</button>
-    `).join('');
-    $all('#nivel-category-grid .nivel-category-chip').forEach((btn) => {
-      btn.addEventListener('click', () => selectNivelCategory(btn.dataset.key));
-    });
-    if (!nivelDeclaredCategory) {
-      $('#nivel-result-label').textContent = 'TU ESTIMACIÓN INICIAL';
-      $('#nivel-coherence-note').hidden = true;
-      $('#nivel-confirm-btn').disabled = true;
-      setNivelGaugeValue(nivelRawResult.raw);
-    } else {
-      $('#nivel-result-label').textContent = 'TU PUNTO DE PARTIDA EN BRAMU';
-      $('#nivel-coherence-note').hidden = !nivelCategoryStep.coherenceFlag;
-      $('#nivel-confirm-btn').disabled = false;
-      setNivelGaugeValue(nivelCategoryStep.adjustedLevel);
-    }
+    // V1.2 — el resultado inicial es universal: no depende de país/rama/categoría local.
+    // La coherencia sigue comparando autoevaluación vs. técnica en el camino completo.
+    const universalStep = LVC.computeCategoryStep(nivelRawResult, null, null);
+    $('#nivel-result-label').textContent = 'TU PUNTO DE PARTIDA EN BRAMU';
+    $('#nivel-coherence-note').hidden = !universalStep.coherenceFlag;
+    $('#nivel-confirm-btn').disabled = false;
+    setNivelGaugeValue(universalStep.adjustedLevel);
   }
 
-  /** Aplica la pregunta final de categoría (§6/§7 del Handoff V04.6) — recalcula vía
-   *  `LVC.computeCategoryStep` y deja que `renderNivelResultStep` anime la aguja desde la
-   *  estimación inicial hacia el valor afinado. Nunca reimplementa el ajuste acá. */
-  function selectNivelCategory(key) {
-    nivelDeclaredCategory = key;
-    nivelCategoryStep = LVC.computeCategoryStep(nivelRawResult, nivelCategoryContextKey, key);
-    renderNivelResultStep();
-  }
-
-  /** Confirma el nivel inicial V1.1 (LVC.confirmInitialLevelV1_1 + buildInitialCalibrationState).
-   *  En modo 'account' (cuenta local/laboratorio ya existente) el comportamiento es EL MISMO
-   *  de siempre: guarda Store.saveLevelV1State + declaredCategory y entra directo.
-   *  En modo 'draft' (Backend Bloque 3, alta real en curso) NO guarda nada todavía ni entra a
-   *  ningún lado: solo deja la vista previa local + las respuestas crudas en `signupDraft` y
-   *  sigue hacia la confirmación de email (03_Revision_ChatGPT.md §2/§6 — el navegador nunca
-   *  es autoridad; la oficialización real corre server-side en runOfficializeAndEnter, sobre
-   *  las mismas respuestas crudas, nunca sobre este resultado local). */
+  /** Confirma el nivel inicial V1.2 universal. La categoría local ya no participa del alta
+   *  ni del número: el navegador guarda solo la vista previa y el servidor recalcula la misma
+   *  estimación desde las respuestas crudas antes de persistirla. */
   function confirmNivelOnboarding() {
-    if (!nivelCategoryStep) return;
+    if (!nivelRawResult) return;
     const confirmedAt = new Date().toISOString();
-    const confirmResult = LVC.confirmInitialLevelV1_1(nivelCategoryStep, nivelCategoryStep.coherenceFlag, confirmedAt);
+    const confirmResult = LVC.confirmInitialLevelV1_2(nivelRawResult, confirmedAt);
     const state = LVC.buildInitialCalibrationState(nivelPathType, confirmResult, nivelPathType === 'full' ? nivelQuizAnswers : null);
 
     if (nivelOnboardingContext === 'draft') {
       signupDraft.nivelPathType = nivelPathType;
       signupDraft.nivelQuickSeedKey = nivelPathType === 'quick' ? (nivelRawResult && nivelRawResult.seedKey) : null;
       signupDraft.nivelQuizAnswers = nivelPathType === 'full' ? nivelQuizAnswers : null;
-      signupDraft.nivelCategoryContextKey = nivelCategoryContextKey;
-      signupDraft.nivelDeclaredCategory = nivelDeclaredCategory;
       signupDraft.nivelState = state; // vista previa local únicamente — nunca la autoridad
       Store.saveSignupDraft(signupDraft);
       signupStep = 'verify';
@@ -4286,7 +4226,6 @@
     const user = Store.getCurrentUser();
     if (!user) return;
     Store.saveLevelV1State(user.id, state);
-    Store.updateUserAccount(user.id, { declaredCategory: nivelDeclaredCategory, declaredCategoryAt: confirmedAt });
     completeIdentifyAction();
   }
 
@@ -4333,8 +4272,6 @@
       const total = NIVEL_FULL_QUESTIONS.length;
       if (nivelQuizIndex < total - 1) { nivelQuizIndex += 1; renderNivelOnboardingStep(); return; }
       nivelRawResult = LVC.computeFullEstimate(nivelQuizAnswers);
-      nivelDeclaredCategory = null;
-      nivelCategoryStep = null;
       nivelStep = 'result';
       renderNivelOnboardingStep();
     });

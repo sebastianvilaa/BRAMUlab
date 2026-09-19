@@ -2,7 +2,7 @@
 
 **Estado:** motor de partidos V1.0 + estimador inicial V1.1 implementados y testeados localmente hasta **BRAMUlab V04.10**.  
 **Versión del motor:** `nivel_bramu_v1_0`.  
-**Versión del cuestionario:** `nivel_inicial_v1_1`.  
+**Versión del cuestionario:** `nivel_inicial_v1_2`.  
 **Baseline de cierre de Nivel V04.10:** **1400/1400 tests**.  
 **Actualización:** 17 de septiembre de 2026.
 
@@ -19,7 +19,7 @@ Para Nivel BRAMU rige esta precedencia:
 3. `Nivel_BRAMU.md` — contexto funcional, estados y experiencia de producto.
 4. `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md` — trazabilidad de qué se implementó realmente en cada ronda.
 
-`Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico en `Archivo/Nivel_BRAMU/`. V1.5 conserva el motor `nivel_bramu_v1_0` y reemplaza la estimación inicial por `nivel_inicial_v1_1`.
+`Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico en `Archivo/Nivel_BRAMU/`. V1.5 conserva el motor `nivel_bramu_v1_0` y reemplaza la estimación inicial vigente por `nivel_inicial_v1_2`.
 
 Ante una contradicción matemática manda V1.5. Desarrollo no debe rediseñar la fórmula por interpretación.
 
@@ -71,7 +71,7 @@ Implementado:
 - sin stepper manual;
 - confianza de origen;
 - detección de incoherencia;
-- `questionnaireVersion = nivel_inicial_v1_1`;
+- `questionnaireVersion = nivel_inicial_v1_2`;
 - trazabilidad del origen del Nivel.
 
 ### UX integrada
@@ -225,3 +225,11 @@ Nivel BRAMU puede considerarse listo para un piloto controlado cuando:
 - el producto registra suficiente trazabilidad para diagnosticar casos reales.
 
 La activación pública productiva multiusuario depende además del backend real y validación de partidos.
+
+
+## Decisión de producto 19/09/2026 — universalidad y sensación de participación
+
+**CONFIRMADO para V1:** la categoría local se retira del onboarding y del cálculo inicial. No se pide país/rama/sistema competitivo para poder obtener Nivel. El camino completo queda en 6 preguntas y el rápido conserva sus 5 descripciones.
+
+**PROPUESTA FUTURA CERCANA, NO IMPLEMENTAR AHORA:** recuperar la sensación de agencia que daba el ajuste final sin volver a depender de categorías locales. El objetivo UX es que el usuario no sienta “me pusieron una nota” y tenga una instancia breve de participación/confirmación antes de aceptar el punto de partida. Debe ser universal, acotada y explícita; no debe permitir “subirse” arbitrariamente el Nivel ni fingir precisión. Diseñar y probar esta interacción después de cerrar Backend Bloque 3, antes del piloto si entra sin ensuciar el flujo.
+

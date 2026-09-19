@@ -81,14 +81,9 @@ Deno.serve(async (req) => {
   }
 
   const mode = payload && payload.mode;
-  const categoryContextKey = (payload && payload.categoryContextKey) || null;
-  const declaredCategory = payload && payload.declaredCategory;
 
   if (mode !== 'quick' && mode !== 'full') {
     return jsonResponse({ ok: false, error: 'invalid_questionnaire_mode' }, 400);
-  }
-  if (!declaredCategory) {
-    return jsonResponse({ ok: false, error: 'declared_category_required' }, 400);
   }
 
   // Respuestas CRUDAS del cuestionario, nunca un Nivel ya calculado por el cliente — el motor
@@ -102,12 +97,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: 'invalid_questionnaire_answers' }, 400);
   }
 
-  const categoryStep = LVC.computeCategoryStep(rawResult, categoryContextKey, declaredCategory);
   const confirmedAt = new Date().toISOString();
-  // Mismo criterio que confirmNivelOnboarding en app.js: confirmar siempre implica "confirmo
-  // pese a la nota de coherencia" si es que se mostró — no existe un tercer estado intermedio
-  // en el flujo real.
-  const confirmResult = LVC.confirmInitialLevelV1_1(categoryStep, categoryStep.coherenceFlag, confirmedAt);
+  // V1.2 — mismo estimador universal que el navegador: la categoría local no participa del
+  // alta ni del número oficial. La autoridad sigue siendo este recálculo server-side.
+  const confirmResult = LVC.confirmInitialLevelV1_2(rawResult, confirmedAt);
   if (!confirmResult || !confirmResult.ok) {
     return jsonResponse({ ok: false, error: 'engine_confirmation_failed' }, 400);
   }
@@ -126,8 +119,8 @@ Deno.serve(async (req) => {
     p_questionnaire_mode: mode,
     p_mu: mu,
     p_confidence: confidence,
-    p_declared_category: declaredCategory,
-    p_category_context_key: categoryContextKey,
+    p_declared_category: null,
+    p_category_context_key: null,
     p_input_context: inputContext,
     p_result: confirmResult.origin,
   });

@@ -5918,8 +5918,9 @@
   })();
 
   // ======================================================================
-  // BRAMUlab_V04.6 (Etapa C) — LEVEL-CALIBRATION: estimador inicial V1.1
-  // (reemplaza al V1.4 de V04.3), ajuste automático por categoría,
+  // BRAMUlab_V04.6 / Backend Bloque 3 — LEVEL-CALIBRATION.
+  // El estimador vigente es V1.2 universal: la categoría queda fuera del onboarding/cálculo.
+  // Las pruebas de utilidades de categoría se conservan como cobertura LEGACY/FUTURA,
   // calibración, recalibración (level-calibration.js / window.PLLevelCalibration).
   // Fuente normativa: Nivel_BRAMU_Formula_V1.5.md §3, §10.2, §11 — y
   // Nivel_BRAMU_Handoff_Cuestionario_V1.5.md / BRAMUlab_V04.6_Handoff.md para
@@ -5994,8 +5995,8 @@
   })();
 
   // ------------------------------------------------------------------
-  // 3. Categoría como último paso (§3.3/§3.6) — ajuste automático ±0.5, mapa piloto,
-  //    claves neutrales, contexto no soportado, camino rápido sin modificador competitivo.
+  // 3. LEGACY/FUTURO — utilidades de categoría fuera del estimador inicial V1.2.
+  //    Se conservan testeadas para no romper datos históricos ni una futura capa contextual.
   // ------------------------------------------------------------------
   (function () {
     const base = LVC.computeFullEstimate(mkAnswersV11({ autoevaluacion: 'intermedio_alto', red: 'c', paredes: 'd', entrenamiento: 'regular_pasado', competicion: 'finales' }));
@@ -6070,7 +6071,7 @@
     assert('LVC-CONFIRMAR · el NIVEL calculado nunca se penaliza por coherencia', sinConfirmarIgual.origin.confirmedLevel === confirmandoIgual.origin.confirmedLevel && confirmandoIgual.origin.confirmedLevel === 5.1);
     assert('LVC-CONFIRMAR · confianza SIN confirmar-igual conserva el valor natural (0.18)', sinConfirmarIgual.origin.confidenceOrigin === 0.18);
     assert('LVC-CONFIRMAR · confianza confirmando igual sin revisar queda LIMITADA a 0.10', confirmandoIgual.origin.confidenceOrigin === 0.10);
-    assert('LVC-CONFIRMAR · questionnaireVersion = "nivel_inicial_v1_1" en el origen persistido', confirmandoIgual.origin.questionnaireVersion === 'nivel_inicial_v1_1');
+    assert('LVC-CONFIRMAR · questionnaireVersion = "nivel_inicial_v1_2" en el origen persistido', confirmandoIgual.origin.questionnaireVersion === 'nivel_inicial_v1_2');
     assert('LVC-CONFIRMAR · trazabilidad completa (baseLevel/technicalAnchor/categoryReference/categoryAdjustment/declaredCategory/competitionAnswer/coherenceFlag)',
       confirmandoIgual.origin.baseLevel === 5.6 && confirmandoIgual.origin.technicalAnchor === 3 && confirmandoIgual.origin.categoryReference === 4.65 &&
       confirmandoIgual.origin.categoryAdjustment === -0.5 && confirmandoIgual.origin.declaredCategory === '6' && confirmandoIgual.origin.competitionAnswer === 'dificil' &&

@@ -139,15 +139,13 @@ const userA = { email: `bramu-verify-b3-a-${stamp}@example.com`, password: 'Veri
 const userB = { email: `bramu-verify-b3-b-${stamp}@example.com`, password: 'Verificar#Bloque3!' };
 const cleanup = { authIds: [], playerIds: [] };
 
-const QUICK_PAYLOAD_A = { mode: 'quick', quickSeedKey: 'intermedio', categoryContextKey: null, declaredCategory: '4' };
+const QUICK_PAYLOAD_A = { mode: 'quick', quickSeedKey: 'intermedio' };
 const FULL_PAYLOAD_B = {
   mode: 'full',
   quizAnswers: {
     autoevaluacion: 'intermedio_alto', anos: 'uno_a_cinco', entrenamiento: 'sin_continuidad',
-    frecuencia: 'una_dos_semana', competicion: 'sin_referencia', red: 'c', paredes: 'c',
+    frecuencia: 'una_dos_semana', red: 'c', paredes: 'c',
   },
-  categoryContextKey: null,
-  declaredCategory: '5',
 };
 
 async function main() {
@@ -180,7 +178,7 @@ async function main() {
 
   // --- 4) §2/§9: la RPC de persistencia NO es alcanzable con el token del propio usuario ---
   const directRpcAttempt = await rpcAs(tokenA, anonKey, 'officialize_level_onboarding', {
-    p_auth_user_id: createdA.id, p_algorithm_version: 'nivel_bramu_v1_0', p_questionnaire_version: 'nivel_inicial_v1_1',
+    p_auth_user_id: createdA.id, p_algorithm_version: 'nivel_bramu_v1_0', p_questionnaire_version: 'nivel_inicial_v1_2',
     p_questionnaire_mode: 'quick', p_mu: 9.9, p_confidence: 0.9, p_declared_category: '1',
     p_category_context_key: null, p_input_context: {}, p_result: {},
   });
@@ -201,7 +199,7 @@ async function main() {
   // --- 7) idempotencia: payload MUY DISTINTO después de oficializar -> NO sobrescribe.
   // 'profesional' produciría un mu bien distinto a 'intermedio' si de verdad recalculara —
   // exactamente lo que este chequeo necesita para no pasar "por casualidad".
-  const officialize3 = await callEdgeFunction(tokenA, { ...QUICK_PAYLOAD_A, quickSeedKey: 'profesional', declaredCategory: '1' });
+  const officialize3 = await callEdgeFunction(tokenA, { ...QUICK_PAYLOAD_A, quickSeedKey: 'profesional' });
   const notOverwritten = officialize3.res.ok && officialize3.json && officialize3.json.ok && officialize3.json.levelState && officialize3.json.levelState.mu === muFirst;
   report('idempotencia: un payload MUY distinto tras oficializar NO sobrescribe el resultado oficial', notOverwritten, JSON.stringify(officialize3.json));
 

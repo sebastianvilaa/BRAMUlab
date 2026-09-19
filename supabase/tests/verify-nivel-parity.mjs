@@ -56,8 +56,7 @@ function computeLocalOfficial(payload) {
   const rawResult = payload.mode === 'quick'
     ? LVC.computeQuickLevel(payload.quickSeedKey)
     : LVC.computeFullEstimate(payload.quizAnswers);
-  const categoryStep = LVC.computeCategoryStep(rawResult, payload.categoryContextKey, payload.declaredCategory);
-  const confirmResult = LVC.confirmInitialLevelV1_1(categoryStep, categoryStep.coherenceFlag, new Date().toISOString());
+  const confirmResult = LVC.confirmInitialLevelV1_2(rawResult, new Date().toISOString());
   return { mu: confirmResult.origin.confirmedLevel, confidence: confirmResult.origin.confidenceOrigin };
 }
 
@@ -111,17 +110,15 @@ async function serviceDelete(path) {
 // el símlink/import compartido realmente trajo el MISMO archivo a la Edge Function, así que
 // cualquier combinación fija y determinística alcanza.
 const CASES = [
-  { name: 'camino rápido', payload: { mode: 'quick', quickSeedKey: 'avanzado', categoryContextKey: null, declaredCategory: '3' } },
+  { name: 'camino rápido', payload: { mode: 'quick', quickSeedKey: 'avanzado' } },
   {
     name: 'camino completo',
     payload: {
       mode: 'full',
       quizAnswers: {
         autoevaluacion: 'avanzado', anos: 'mas_5', entrenamiento: 'regular_actual',
-        frecuencia: 'tres_mas_semana', competicion: 'finales', red: 'd', paredes: 'e',
+        frecuencia: 'tres_mas_semana', red: 'd', paredes: 'e',
       },
-      categoryContextKey: null,
-      declaredCategory: '2',
     },
   },
 ];

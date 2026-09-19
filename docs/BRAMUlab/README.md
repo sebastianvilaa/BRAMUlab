@@ -66,7 +66,7 @@ Próximo bloque, una vez validado Bloque 3 en Staging: **Bloque 4** (Jugadores, 
 `Nivel_BRAMU_Formula_V1.5.md` es la **fuente normativa vigente**.
 
 - Motor de partidos: `nivel_bramu_v1_0` — conservado sin cambios.
-- Estimador inicial: `nivel_inicial_v1_1` — reemplaza la estimación inicial de V1.4.
+- Estimador inicial: `nivel_inicial_v1_2` — estimación inicial universal; reemplaza V1.1 retirando categoría local del onboarding/cálculo.
 - `Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico y vive en `Archivo/Nivel_BRAMU/`.
 - Los handoffs del cuestionario V1.5 ya fueron consumidos y también viven en Archivo.
 

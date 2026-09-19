@@ -2,7 +2,7 @@
 
 **Estado:** contexto funcional vigente. El motor y el estimador inicial están cerrados para el piloto en `Nivel_BRAMU_Formula_V1.5.md`.
 
-**Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_1` para el cuestionario. Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
+**Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_2` para el cuestionario universal (sin ajuste por categoría local en el alta). Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
 
 **Fecha de consolidación:** 10 de septiembre de 2026.  
 **Actualización UX:** 18 de septiembre de 2026 — se explicita la progresión temprana de Mi Perfil y Perfil público sin modificar fórmula, estados ni criterios de calibración.
@@ -157,9 +157,9 @@ No existe un stepper para mover libremente el número. Deben guardarse separadam
 
 - resultado base del cuestionario;
 - categoría y contexto declarados;
-- ajuste automático de categoría;
+- categoría local fuera del cálculo inicial; queda como contexto competitivo posterior;
 - resultado inicial confirmado;
-- `questionnaire_version = nivel_inicial_v1_1`;
+- `questionnaire_version = nivel_inicial_v1_2`;
 - confianza de origen y bandera de coherencia;
 - fecha y hora de confirmación.
 
@@ -181,7 +181,7 @@ Las respuestas sirven para estimar el punto de partida. Nunca autorizan a BRAMU 
 1. Explicar que la recalibración no borra partidos ni garantiza una suba.
 2. Repetir el cuestionario completo vigente.
 3. Confirmar o actualizar la categoría contextual.
-4. Mostrar la nueva referencia con el ajuste automático de categoría, sin edición libre.
+4. Mostrar la referencia universal calculada y permitir confirmarla o revisar respuestas.
 5. Cambiar el estado a RECALIBRANDO.
 6. Dar mayor sensibilidad temporal a los próximos partidos computables.
 7. Consolidar el nuevo nivel solamente después de obtener evidencia de juego.
@@ -296,7 +296,7 @@ El color debe acompañar, nunca reemplazar, texto e iconografía accesible.
 
 - cuestionario rápido o completo;
 - devolución inmediata;
-- pregunta final de categoría y ajuste automático máximo ±0,5;
+- sin pregunta final de categoría ni ajuste local en el onboarding inicial;
 - sin edición libre del número;
 - explicación breve de calibración.
 

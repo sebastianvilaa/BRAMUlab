@@ -39,7 +39,7 @@
   function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
   function findByKey(list, key) { return list.find((o) => o.key === key) || null; }
 
-  const QUESTIONNAIRE_VERSION = 'nivel_inicial_v1_1';
+  const QUESTIONNAIRE_VERSION = 'nivel_inicial_v1_2';
 
   /* ------------------------------------------------------------------ */
   /* PARÁMETROS — citan su sección de Nivel_BRAMU_Formula_V1.5.md.        */
@@ -342,6 +342,17 @@
     };
   }
 
+  /** V1.2 — confirmación UNIVERSAL del estimador inicial.
+   *  La categoría local deja de formar parte del onboarding y del cálculo inicial: construye
+   *  deliberadamente el paso neutral (sin mapa ni categoría), conserva la coherencia entre
+   *  autoevaluación/técnica y reutiliza la misma confirmación auditada de V1.1. Las utilidades
+   *  de categoría quedan abajo como legado/futuro, pero ya no intervienen en el alta real. */
+  function confirmInitialLevelV1_2(rawResult, confirmedAt) {
+    if (!rawResult) return null;
+    const universalStep = computeCategoryStep(rawResult, null, null);
+    return confirmInitialLevelV1_1(universalStep, universalStep.coherenceFlag, confirmedAt);
+  }
+
   /* ------------------------------------------------------------------ */
   /* 5. AJUSTE GENÉRICO (legado, §3.3/§11 recalibración) — primitiva            */
   /* reutilizada EXCLUSIVAMENTE por la recalibración (§11.1: "repetir       */
@@ -562,6 +573,7 @@
     computeCategoryAdjustment,
     computeCategoryStep,
     confirmInitialLevelV1_1,
+    confirmInitialLevelV1_2,
     validateAdjustment,
     confirmInitialLevel,
     buildInitialCalibrationState,
