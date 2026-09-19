@@ -65,3 +65,13 @@ Todavía falta evidencia real E2E:
 La integración de Supabase usada por ChatGPT no expone la `service_role` key, por lo que los scripts Node que requieren Admin/Auth no pueden ejecutarse desde esta sesión sin recurrir a otro entorno autorizado. El próximo paso recomendado es ChatGPT Work, usando la sesión autenticada del dashboard de Supabase de Staging y sin mostrar/copiar secretos al chat.
 
 **No marcar Bloque 3 como CERRADO todavía.**
+
+## Intento de validación real desde Work — 19/09/2026 (sin cierre)
+
+- Se actualizó `staging` por fast-forward a `7a5e00c` antes de validar. No se modificaron los scripts, el producto, `main` ni BRAMUlive.
+- Supabase `bramulab-staging` (`serxtivkfnptzurnvewg`) se observó `ACTIVE_HEALTHY`; las tres migraciones de Bloque 3 constan aplicadas y `officialize-onboarding` sigue `ACTIVE`, versión 1, con JWT requerido. No se reaplicó ni desplegó nada.
+- La app `https://bramulab-git-staging-bramu-lab.vercel.app/` abre el acceso inicial. Su `/api/health` respondió `{"ok":true,"environment":"staging","supabase":"reachable"}`.
+- **Scripts pendientes, no fallidos:** `verify-bloque2.mjs`, `verify-bloque3.mjs` y `verify-nivel-parity.mjs` no se ejecutaron contra Staging. El terminal no tiene `SUPABASE_SERVICE_ROLE_KEY`; la conexión Supabase disponible no expone esa credencial. La revisión automática bloqueó abrir/capturar la configuración de claves del dashboard por riesgo de exponer secretos. No se leyó, mostró ni copió ninguna clave secreta.
+- **Flujos manuales pendientes:** alta desde cero, perfil mínimo, caminos rápido/completo, OTP final/anticipado, refresh/reanudación y llegada a Home. No se creó ninguna cuenta de prueba en este intento.
+
+**Estado:** Bloque 3 sigue abierto. Hace falta un mecanismo aprobado para suministrar las credenciales al terminal sin mostrarlas en chat y acceso a un buzón de prueba para verificar el OTP real. Recién entonces corresponde ejecutar los tres scripts sin cambios y completar los flujos manuales.
