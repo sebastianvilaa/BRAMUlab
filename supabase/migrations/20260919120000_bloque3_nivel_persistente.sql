@@ -65,6 +65,10 @@ comment on column public.profiles.terms_accepted_at is
  *      sigue siendo sobreescritura total, exactamente como en Bloque 2 — 03_Revision_
  *      ChatGPT.md §4 pidió explícitamente no generalizar a COALESCE.
  *  Username sigue fijo tras el primer set (`username_locked`) y único (`username_taken`). */
+drop function if exists public.complete_profile(
+  text, text, text, text, date, text, text, text, text, text, text, text, text, text
+);
+
 create or replace function public.complete_profile(
   p_username text,
   p_first_name text,
