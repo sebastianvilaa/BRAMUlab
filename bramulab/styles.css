@@ -1304,6 +1304,10 @@ input, select{ font-family: inherit; }
   padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line);
 }
 .player-home-header__actions{ display:flex; align-items:center; gap: 10px; }
+/* Backend Bloque 3 — hotfix visual: .icon-btn se había perdido al separar BRAMUlive porque su
+   regla global histórica quedó dentro de un bloque de estilos retirado junto con el marcador.
+   Restauración exacta de la regla global usada por volver/Ranking/laboratorio/notificaciones. */
+.icon-btn{ background:none; border:none; color: var(--paper-dim); font-size: 20px; padding: 4px 8px; cursor:pointer; line-height:1; }
 /* BRAMUlab_V04.5 — mismo tamaño/color que Ranking/Notificaciones de al lado; se pinta lima
    (mismo tono que "elección activa" del resto de la app) SOLO mientras el preview está
    encendido, para que el estado se vea sin abrir ningún menú. */
