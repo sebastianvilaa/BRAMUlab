@@ -6952,6 +6952,20 @@
       renderPlayerPublicProfileServerBacked(playerPublicPlayerId, name);
       return;
     }
+    // Micro-hotfix — renderPlayerPublicProfileServerBacked() oculta meta/Edad/Mano/Lado,
+    // Efectividad, performance y AGREGAR JUGADOR (hotfix §4 de
+    // 05_Revision_Post_Implementacion_ChatGPT.md); esos `hidden` quedaban pegados si después se
+    // navegaba a un perfil LOCAL/legacy en la misma sesión, porque esta rama nunca los
+    // restablecía (solo fijaba texto/valores, nunca visibilidad). Se restablece acá la
+    // visibilidad original ANTES de que la lógica de siempre decida sus valores — la rama
+    // server-backed de arriba no se toca.
+    $('#player-public-meta-grid').hidden = false;
+    $('#player-public-age').parentElement.hidden = false;
+    $('#player-public-hand').parentElement.hidden = false;
+    $('#player-public-side').parentElement.hidden = false;
+    $('#player-public-effectiveness-card').hidden = false;
+    $('#player-public-performance-row').hidden = false;
+    $('#player-public-add-btn').hidden = false;
     const history = Store.loadHistory();
     const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 1) — BUG REAL: esta función consultaba

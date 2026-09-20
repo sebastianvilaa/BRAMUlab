@@ -19,7 +19,8 @@
 // Qué comprueba (ver docs/BRAMUlab/Implementacion/Backend/Bloque_04/03_Revision_ChatGPT.md y el
 // hotfix 05_Revision_Post_Implementacion_ChatGPT.md):
 //   §10.4/RLS — anon no puede llamar ninguna RPC nueva ni leer provisional_claims/
-//               api_rate_limits directo;
+//               api_rate_limits directo; TAMPOCO un usuario authenticated (ninguna de las dos
+//               tablas tiene GRANT a ese rol — deny-by-default total, ver la migración);
 //   §6        — search_players/get_public_profile: coincidencia por @usuario/nombre/apellido,
 //               el caller nunca aparece en sus propios resultados, query corta devuelve vacío,
 //               una provisional NUNCA aparece en ninguna de las dos, shape sin campos privados;
@@ -227,6 +228,22 @@ async function main() {
   const anonReadClaimsRows = anonReadClaims.ok ? await anonReadClaims.json() : null;
   const anonReadClaimsBlocked = !anonReadClaims.ok || (Array.isArray(anonReadClaimsRows) && anonReadClaimsRows.length === 0);
   report('RLS: anon no puede leer provisional_claims', anonReadClaimsBlocked, `status ${anonReadClaims.status}`);
+
+  // Micro-hotfix — ninguna de las dos tablas tiene GRANT a `authenticated` (deny-by-default
+  // total, mismo criterio que pilot_events/reserved_usernames): una cuenta real logueada
+  // tampoco puede leerlas directo, solo a través de las RPCs SECURITY DEFINER de este archivo.
+  // Se acepta como bloqueo tanto un error HTTP (falta el GRANT de tabla) como una respuesta
+  // vacía por RLS (si en algún momento se otorgara SELECT sin políticas) — mismo criterio que
+  // el test de anon de arriba.
+  const authedReadClaims = await restAuthed('provisional_claims?select=claim_id', userA.token);
+  const authedReadClaimsRows = authedReadClaims.ok ? await authedReadClaims.json() : null;
+  const authedReadClaimsBlocked = !authedReadClaims.ok || (Array.isArray(authedReadClaimsRows) && authedReadClaimsRows.length === 0);
+  report('RLS: un usuario authenticated no puede leer provisional_claims directo', authedReadClaimsBlocked, `status ${authedReadClaims.status}`);
+
+  const authedReadRateLimits = await restAuthed('api_rate_limits?select=player_id', userA.token);
+  const authedReadRateLimitsRows = authedReadRateLimits.ok ? await authedReadRateLimits.json() : null;
+  const authedReadRateLimitsBlocked = !authedReadRateLimits.ok || (Array.isArray(authedReadRateLimitsRows) && authedReadRateLimitsRows.length === 0);
+  report('RLS: un usuario authenticated no puede leer api_rate_limits directo', authedReadRateLimitsBlocked, `status ${authedReadRateLimits.status}`);
 
   // --- 2) búsqueda ---
   // Hotfix §1 — el test tiene que probar de verdad que escribir "@sebastian" funciona, no solo

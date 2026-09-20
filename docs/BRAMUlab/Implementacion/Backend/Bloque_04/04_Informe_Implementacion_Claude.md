@@ -1,17 +1,18 @@
 # Backend Bloque 4 — Informe de implementación (Claude)
 ## Jugadores, búsqueda e invitados provisionales
 
-**Fecha:** 20/09/2026 (implementación) — actualizado 20/09/2026 con el hotfix post-revisión
+**Fecha:** 20/09/2026 (implementación) — actualizado 20/09/2026 con el hotfix post-revisión y un
+micro-hotfix visual posterior
 **Rama:** `staging`, HEAD de partida `4d74393` (incluye `03_Revision_ChatGPT.md`); hotfix sobre
-`10cd0cf` (incluye `05_Revision_Post_Implementacion_ChatGPT.md`)
-**Estado:** implementado en código y migración local, con el hotfix post-revisión plegado.
-**NO aplicado a Supabase real** (Staging/Producción) — instrucción explícita de ambas rondas.
-`main` y BRAMUlive no fueron tocados.
+`10cd0cf` (incluye `05_Revision_Post_Implementacion_ChatGPT.md`); micro-hotfix sobre `b09b150`
+**Estado:** implementado en código y migración local, con el hotfix post-revisión y el
+micro-hotfix visual plegados. **NO aplicado a Supabase real** (Staging/Producción) —
+instrucción explícita de las tres rondas. `main` y BRAMUlive no fueron tocados.
 
 Este informe documenta la implementación de Bloque 4 siguiendo exactamente
-`03_Revision_ChatGPT.md` (que tiene precedencia sobre `02_Analisis_Claude.md` donde difieren), y
-el hotfix acotado de `05_Revision_Post_Implementacion_ChatGPT.md` (§1.7) aplicado antes de tocar
-Supabase Staging.
+`03_Revision_ChatGPT.md` (que tiene precedencia sobre `02_Analisis_Claude.md` donde difieren), el
+hotfix acotado de `05_Revision_Post_Implementacion_ChatGPT.md` (§1.7), y un micro-hotfix visual
+posterior (§1.8) aplicados antes de tocar Supabase Staging.
 
 ---
 
@@ -244,18 +245,46 @@ early-session shortcut y el botón `#signup-continue-btn` en `signupStep==='veri
 
 ---
 
+## 1.8 Micro-hotfix visual — estado de Perfil público no se restablecía al camino local/legacy
+
+**Problema real detectado:** `renderPlayerPublicProfileServerBacked()` oculta correctamente
+(`hidden = true`) `#player-public-meta-grid` (y Edad/Mano/Lado dentro), `#player-public-
+effectiveness-card`, `#player-public-performance-row` y `#player-public-add-btn` — pero
+`renderPlayerPublicProfile()` (rama local/legacy) nunca los restablecía a `hidden = false`: solo
+fijaba texto/valores, nunca visibilidad. Si en la misma sesión se visitaba primero un perfil
+server-backed y DESPUÉS uno local/legacy, ese segundo perfil quedaba con esos módulos ocultos
+sin motivo (arrastrando el estado del anterior).
+
+**Corrección:** al entrar a la rama local/legacy de `renderPlayerPublicProfile()` (después del
+`return` temprano de la rama server-backed, antes de que la lógica local existente calcule sus
+valores), se restablece explícitamente `hidden = false` sobre los 5 elementos de arriba. La
+lógica local de siempre sigue decidiendo sus valores exactamente igual que antes — no se tocó
+ni una línea de la rama server-backed ni de la lógica de cálculo local.
+
+**Verificado en el navegador real** (no analítico): se simuló el estado "recién oculto por un
+perfil server-backed" fijando `hidden = true` a mano en los 5 elementos vía consola, y se abrió
+el perfil público local de un jugador conocido (`Rival De Prueba`, sembrado con
+`Store.rememberPlayerNames`) — los 5 elementos volvieron a `hidden = false` y se vieron con sus
+valores reales (Edad/Mano/Lado en "—" por no tener cuenta detrás, EFECTIVIDAD, Mejor racha/
+Mejor nivel BRAMU y AGREGAR JUGADOR, los 4 visibles). Suite local (`tests.html`) reconfirmada en
+**1408/1408 OK** después del cambio.
+
+---
+
 ## 2. Tests y verificación
 
 | Verificación | Resultado |
 |---|---|
-| `bramulab/tests.html` (navegador real, no grep) | **1408/1408 OK** (antes de la implementación, después de la implementación, y después del hotfix) |
+| `bramulab/tests.html` (navegador real, no grep) | **1408/1408 OK** (antes de la implementación, después de la implementación, después del hotfix, y después del micro-hotfix visual) |
 | `index.html` cargado en el dev server local, consola sin errores nuevos | OK (único 404 preexistente: `env.generated.js`, esperado sin backend configurado localmente) |
 | `?claim=<token>` en la URL: se limpia la URL, no guarda el token sin backend configurado | OK (verificado en el navegador) |
 | Selectores DOM nuevos del hotfix §4 (`player-public-meta-grid`/`-effectiveness-card`/`-performance-row`, jerarquía `.mini-stat` esperada) | OK, verificado por consola en el navegador real |
-| `node --check` sobre los 5 archivos JS tocados en total (`app.js`, `auth.js`, `store.js`, `sw.js`, `verify-bloque4.mjs`) | OK, sin errores de sintaxis |
-| `verify-bloque4.mjs` contra Supabase Staging | **NO ejecutado** — sin `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` en esta terminal, y la instrucción explícita de ambas rondas es no aplicar nada a Supabase real todavía (la migración necesita estar aplicada para que el script tenga algo que probar) |
+| Micro-hotfix §1.8: perfil público local restablece visibilidad tras simular un estado oculto por la rama server-backed | OK, verificado en el navegador real de punta a punta (ver §1.8) |
+| `node --check` sobre los archivos JS tocados en total (`app.js`, `auth.js`, `store.js`, `sw.js`, `verify-bloque4.mjs`) | OK, sin errores de sintaxis |
+| `verify-bloque4.mjs` contra Supabase Staging | **NO ejecutado** — sin `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` en esta terminal, y la instrucción explícita de las tres rondas es no aplicar nada a Supabase real todavía (la migración necesita estar aplicada para que el script tenga algo que probar) |
 | `verify-bloque2.mjs`/`verify-bloque3.mjs` | No re-ejecutados en esta ronda (sin cambios de código que los afecten; sin credenciales tampoco) |
 | Hotfix §2 (claim transitorio no avanza a complete_profile/officializeLevel) | Verificado por inspección de código (no automatizable: es lógica de `app.js`, sin cobertura de tests en este proyecto) |
+| `verify-bloque4.mjs`: 2 tests RLS nuevos (`authenticated` no lee `provisional_claims`/`api_rate_limits` directo) | Agregados, `node --check` OK; no ejecutados contra Staging (ver arriba) |
 
 ---
 
@@ -338,5 +367,6 @@ early-session shortcut y el botón `#signup-continue-btn` en `signupStep==='veri
 ## 6. Commits
 
 - Implementación original de Bloque 4: `77455c5` (rama `staging`).
-- Hotfix post-revisión (este documento): ver el commit indicado en la respuesta de esta ronda
-  en el chat (mensaje + hash), rama `staging`, sin tocar `main` ni BRAMUlive.
+- Hotfix post-revisión (§1.7): `b09b150` (rama `staging`).
+- Micro-hotfix visual (§1.8, este documento): ver el commit indicado en la respuesta de esta
+  ronda en el chat (mensaje + hash), rama `staging`, sin tocar `main` ni BRAMUlive.
