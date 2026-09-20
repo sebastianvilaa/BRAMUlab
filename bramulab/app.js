@@ -8559,11 +8559,24 @@
     try {
       token = new URLSearchParams(window.location.search).get('claim');
     } catch (e) { token = null; }
-    if (!token) return;
-    if (Auth.isConfigured()) {
-      Store.saveClaimToken(token.trim());
-      showToast('Vas a reclamar una invitación — iniciá sesión o creá tu cuenta para continuar.', 3600);
+    const cleanToken = token ? token.trim() : '';
+    if (!cleanToken) return;
+
+    // Nunca descartar el único ejemplar del token si el backend todavía no está disponible:
+    // puede tratarse de una carga transitoria donde env.generated.js o Supabase todavía no
+    // quedaron configurados. Mantener ?claim= permite que un reload vuelva a intentar.
+    if (!Auth.isConfigured()) return;
+
+    // Store.saveClaimToken devuelve si pudo persistir en localStorage. Store mantiene además
+    // una copia volátil para esta misma página, pero si la persistencia falló NO limpiamos el
+    // query param: así un reload no convierte una intención de claim en un alta normal.
+    const persisted = Store.saveClaimToken(cleanToken);
+    showToast('Vas a reclamar una invitación — iniciá sesión o creá tu cuenta para continuar.', 3600);
+    if (!persisted) {
+      console.warn('[BRAMU LAB] El claim quedó solo en memoria; se conserva ?claim= en la URL para no perderlo al recargar.');
+      return;
     }
+
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete('claim');
