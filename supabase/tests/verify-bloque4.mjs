@@ -443,23 +443,43 @@ async function main() {
 async function cleanupAll() {
   console.log('\nLimpiando cuentas y filas de prueba...');
   const uniquePlayerIds = [...new Set(cleanup.playerIds.filter(Boolean))];
+  let cleanupOk = true;
+
+  // Fase 1: borrar primero TODAS las filas dependientes. Bloque 4 crea relaciones
+  // player -> player mediante created_by_player_id; si intentamos borrar al creador antes que
+  // sus provisionales, Postgres rechaza ese DELETE aunque los hijos se eliminen más tarde.
   for (const id of uniquePlayerIds) {
     const okClaimsCreated = await serviceDelete(`provisional_claims?created_by_player_id=eq.${id}`);
     const okClaimsProv = await serviceDelete(`provisional_claims?provisional_player_id=eq.${id}`);
+    const okClaimsClaimed = await serviceDelete(`provisional_claims?claimed_by_player_id=eq.${id}`);
     const okRateLimits = await serviceDelete(`api_rate_limits?player_id=eq.${id}`);
     const okEvents = await serviceDelete(`level_events?player_id=eq.${id}`);
     const okStates = await serviceDelete(`level_states?player_id=eq.${id}`);
     const okPilot = await serviceDelete(`pilot_events?player_id=eq.${id}`);
-    const okPlayers = await serviceDelete(`players?player_id=eq.${id}`);
-    if (!okClaimsCreated || !okClaimsProv || !okRateLimits || !okEvents || !okStates || !okPilot || !okPlayers) {
-      console.warn(`ATENCIÓN: la limpieza de player_id=${id} pudo no haberse completado del todo (claims_creator=${okClaimsCreated} claims_prov=${okClaimsProv} rate=${okRateLimits} events=${okEvents} states=${okStates} pilot=${okPilot} players=${okPlayers}) — revisar a mano en Staging.`);
+    if (!okClaimsCreated || !okClaimsProv || !okClaimsClaimed || !okRateLimits || !okEvents || !okStates || !okPilot) {
+      cleanupOk = false;
+      console.warn(`ATENCIÓN: limpieza de dependencias incompleta para player_id=${id} (claims_creator=${okClaimsCreated} claims_prov=${okClaimsProv} claims_claimed=${okClaimsClaimed} rate=${okRateLimits} events=${okEvents} states=${okStates} pilot=${okPilot}).`);
     }
   }
+
+  // Fase 2: borrar identities en orden inverso al alta. Así los players creados por una cuenta
+  // de prueba desaparecen antes que su creador y no queda un falso warning por FK.
+  for (const id of [...uniquePlayerIds].reverse()) {
+    const okPlayers = await serviceDelete(`players?player_id=eq.${id}`);
+    if (!okPlayers) {
+      cleanupOk = false;
+      console.warn(`ATENCIÓN: no se pudo borrar player_id=${id} — revisar a mano en Staging.`);
+    }
+  }
+
   for (const id of cleanup.authIds) {
     const ok = await adminDeleteUser(id);
-    if (!ok) console.warn(`ATENCIÓN: no se pudo borrar la cuenta de Auth ${id} — revisar a mano en Staging.`);
+    if (!ok) {
+      cleanupOk = false;
+      console.warn(`ATENCIÓN: no se pudo borrar la cuenta de Auth ${id} — revisar a mano en Staging.`);
+    }
   }
-  console.log('Limpieza terminada.');
+  console.log(cleanupOk ? 'Limpieza terminada.' : 'Limpieza terminada con advertencias.');
 }
 
 let exitCode = 1;
