@@ -4674,7 +4674,16 @@
 
   function renderPlayerCard(matches, shouldAnimate) {
     $('#player-home-name').textContent = currentPlayerName;
-    $('#player-home-handle').textContent = buildPlayerHandle(currentPlayerName);
+    // Backend Bloque 4 — una cuenta real/server-backed ya tiene un @usuario canónico.
+    // Home todavía usaba el helper legacy buildPlayerHandle(nombre), pensado antes del sistema
+    // de cuentas reales, y por eso podía mostrar @sebastian mientras Mi Perfil/Mis Datos
+    // mostraban correctamente @sebas. Para cuentas con username se usa la misma fuente
+    // autoritativa que Perfil; el fallback derivado se conserva SOLO para identidades
+    // local/legacy sin username real.
+    const homeUser = Store.getCurrentUser();
+    $('#player-home-handle').textContent = homeUser && homeUser.username
+      ? `@${homeUser.username}`
+      : buildPlayerHandle(currentPlayerName);
     // V03.0.1 (§3) — bug: la foto ya persistía en Perfil/Editar Datos pero el Home seguía
     // mostrando siempre el ícono genérico porque `renderPlayerCard` nunca leía `profilePhoto`.
     // Misma fuente que el resto de la app (Store.getCurrentUser()), sin segunda fuente ni
@@ -4683,7 +4692,6 @@
     // decide en CSS qué capa se pinta (ver styles.css) — nunca dos `hidden` independientes
     // que puedan quedar desincronizados entre sí (la causa real del bug reportado tras
     // V03.0.2: dos escrituras separadas, sin ninguna garantía de quedar siempre en sync).
-    const homeUser = Store.getCurrentUser();
     const homeAvatarImg = $('#player-home-avatar-img');
     const hasPhoto = !!(homeUser && homeUser.profilePhoto);
     $('#player-home-avatar').dataset.hasPhoto = String(hasPhoto);
