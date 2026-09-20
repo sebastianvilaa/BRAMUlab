@@ -341,3 +341,97 @@ Impacto por roadmap:
 
 Queda un único detalle menor de producto antes de cerrar el subflujo de identidad post-validación: plazo adicional exacto para completar el participante correcto una vez abierta esa incidencia. No bloquea Bloques 2–3.
 
+
+
+## Bloque 4 — Jugadores, búsqueda e invitados provisionales — CERRADO
+
+**Fecha de implementación y cierre:** 20 de septiembre de 2026.  
+**Estado: CERRADO en Staging.**  
+**Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 4".  
+**Evidencia final:** `docs/BRAMUlab/Implementacion/Backend/Bloque_04/08_Validacion_Final_Staging.md`.  
+**Cierre formal:** `docs/BRAMUlab/Implementacion/Backend/Bloque_04/09_Cierre_Bloque_04.md`.
+
+### 1. Implementación cerrada
+
+Bloque 4 incorpora:
+
+- búsqueda real autenticada de jugadores registrados por `@username`, display name, nombre y apellido;
+- Perfil público server-backed por `player_id`, sin exposición de datos privados ni estadísticas todavía inexistentes;
+- identidad provisional persistente con UUID;
+- creación de provisional siempre nueva, sin deduplicación automática por nombre;
+- reutilización explícita por `player_id`;
+- listado acotado de provisionales del creador;
+- links de claim de alta entropía, almacenamiento server-side solo del hash, vigencia de 30 días, rotación/revocación y consumo de un solo uso;
+- claim atómico que conserva el `player_id` provisional y reasigna/preserva eventos de la cuenta recién confirmada;
+- rate limiting para búsqueda y claim;
+- tablas internas de claims/rate limits sin acceso directo de `anon`/`authenticated`;
+- integración de frontend para consumir el claim antes de `complete_profile` y de oficializar Nivel;
+- retry seguro ante errores transitorios;
+- preservación de intención de claim si `localStorage` no puede persistir.
+
+### 2. Migraciones Staging
+
+Aplicadas al proyecto `bramulab-staging`:
+
+- `20260920162203` — `bloque4_jugadores_busqueda_provisional`;
+- `20260920162333` — `bloque4_server_only_table_grants`.
+
+La segunda migración revoca privilegios directos de `anon` y `authenticated` sobre
+`provisional_claims` y `api_rate_limits`.
+
+### 3. Verificación automática
+
+Contra Supabase Staging real:
+
+- `verify-bloque2.mjs` → **BLOQUE 2 OK**;
+- `verify-bloque3.mjs` → **BLOQUE 3 OK**;
+- `verify-bloque4.mjs` → **BLOQUE 4 OK**, limpieza final sin advertencias;
+- `verify-claim-token-storage.mjs` → **CLAIM TOKEN STORAGE OK**;
+- suite local `tests.html` → **1408/1408**;
+- `node --check` de los JS tocados → OK.
+
+### 4. Validación manual real
+
+Sobre Vercel Preview/Staging:
+
+- búsqueda real y Perfil público server-backed → **PASS**;
+- fix de username canónico en Home/Mi Perfil/Mis Datos → **PASS**;
+- regresión visual server-backed → local/mock sin contaminación de `hidden` → **PASS**;
+- claim final sobre assets h11:
+  - `@claimb4h11` adoptó el `player_id` provisional
+    `44c94e30-268f-4ad1-95d1-081e8b0f0a7d`;
+  - claim quedó `claimed`;
+  - `provisional_claimed` exactamente una vez;
+  - `level_confirmed` exactamente una vez;
+  - Home sin segundo OTP;
+  - reabrir el link no produjo una segunda fusión;
+- alta normal `@normalb4h11` sin `?claim=` → **PASS**, identidad independiente y sin claim asociado.
+
+### 5. Fallo manual intermedio y hotfix
+
+La primera prueba de claim produjo la cuenta separada `@claim_mualea_20` mientras el claim
+seguía `pending`. El backend mostró que la RPC de claim nunca había sido invocada.
+
+Causa: el frontend eliminaba `?claim=` aunque la escritura en `localStorage` hubiera fallado.
+
+Corrección:
+
+- fallback volátil en memoria;
+- conservar `?claim=` cuando no se pudo persistir;
+- no descartar intención si Auth todavía no está configurado;
+- limpieza conjunta de storage + fallback;
+- cache bump a h11.
+
+La revalidación posterior fue exitosa. `@claim_mualea_20` se conserva en Staging como evidencia
+del fallo previo, sin intentar auto-fusionarla.
+
+### 6. Alcance deliberadamente diferido
+
+Bloque 4 no implementa partidos compartidos, historial compartido, validación de partidos ni
+"Recientes" derivados de encuentros reales. Eso pertenece a Bloque 5+.
+
+El criterio conceptual "un provisional mantiene el mismo ID en varios partidos" queda preparado
+por contrato de identidad (UUID persistente + reutilización explícita + claim conservando ID),
+pero su prueba literal multi-partido se realizará al existir partidos reales en Bloque 5.
+
+**Bloque 4 CERRADO. Bloque 5 todavía no iniciado.**
