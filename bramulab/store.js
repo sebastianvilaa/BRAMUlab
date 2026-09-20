@@ -668,9 +668,34 @@
   /* Ranura única, mismo criterio que SIGNUP_DRAFT — ver el comentario    */
   /* de KEYS.CLAIM_TOKEN más arriba.                                      */
   /* ------------------------------------------------------------------ */
-  function loadClaimToken() { return safeGet(KEYS.CLAIM_TOKEN) || null; }
-  function saveClaimToken(token) { return safeSet(KEYS.CLAIM_TOKEN, token || null); }
-  function clearClaimToken() { return safeRemove(KEYS.CLAIM_TOKEN); }
+  // Backend Bloque 4 — fallback volátil deliberado: el link de claim se abre ANTES de que
+  // exista una cuenta/sesión y hasta ahora dependía 100% de localStorage. En navegadores/
+  // contextos privados donde localStorage rechaza una escritura, captureClaimTokenFromUrl()
+  // mostraba igualmente que había reconocido la invitación pero el token se perdía antes de
+  // confirmar el OTP; runOfficializeAndEnter() veía null y el alta continuaba como cuenta
+  // nueva normal. Esta copia en memoria preserva el token durante la navegación de ESA misma
+  // página. Si la persistencia falla, app.js además conserva ?claim= en la URL para que un
+  // eventual reload pueda capturarlo otra vez.
+  let volatileClaimToken = null;
+
+  function loadClaimToken() {
+    return safeGet(KEYS.CLAIM_TOKEN) || volatileClaimToken || null;
+  }
+
+  function saveClaimToken(token) {
+    const clean = token || null;
+    volatileClaimToken = clean;
+    if (!clean) {
+      safeRemove(KEYS.CLAIM_TOKEN);
+      return true;
+    }
+    return safeSet(KEYS.CLAIM_TOKEN, clean);
+  }
+
+  function clearClaimToken() {
+    volatileClaimToken = null;
+    safeRemove(KEYS.CLAIM_TOKEN);
+  }
 
   /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
