@@ -46,7 +46,9 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking (sin cambios sobre lo ya alineado).
 
-Próximo bloque autorizado: **Bloque 4** (Jugadores, búsqueda e invitados provisionales) — no iniciado.
+**Bloque 4 (Jugadores, búsqueda e invitados provisionales) está CERRADO** (20/09/2026): búsqueda real autenticada, Perfil público server-backed, provisionales persistentes, link/claim de identidad, rate limiting y hardening de tablas server-only quedaron aplicados y validados contra Supabase/Vercel Staging real. La prueba manual final confirmó que un alta desde claim conserva exactamente el `player_id` provisional, el link es de un solo uso y el alta normal sin claim permanece independiente. Ver `Implementacion/Backend/Bloque_04/08_Validacion_Final_Staging.md` y `09_Cierre_Bloque_04.md`.
+
+**No iniciar Bloque 5 automáticamente.** Su arranque requiere un handoff nuevo y un chat nuevo de Claude Code.
 
 ---
 
@@ -58,7 +60,7 @@ Próximo bloque autorizado: **Bloque 4** (Jugadores, búsqueda e invitados provi
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1, 2 y 3 CERRADOS. Próximo autorizado: Bloque 4. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–4 CERRADOS en Staging. Bloque 5 todavía no iniciado. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
