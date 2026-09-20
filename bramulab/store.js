@@ -101,6 +101,13 @@
     // dispositivos: si se abre el link en un dispositivo y se completa el alta en otro, el
     // token no viaja solo — es una limitación conocida y aceptada, igual que SIGNUP_DRAFT.
     CLAIM_TOKEN: 'bramulab.claimToken.v1',
+    // Backend Bloque 5 (02_Analisis_Claude.md §7, 04_Revision_ChatGPT.md) — outbox de cargas de
+    // partido server-backed todavía no confirmadas por el servidor. Lista (no una ranura única
+    // como SIGNUP_DRAFT/CLAIM_TOKEN): puede haber más de una carga pendiente si el usuario
+    // cargó varios partidos seguido sin conexión. Cada entrada sale de esta lista recién cuando
+    // create_or_attach_match devuelve un resultado FINAL (creado/adjuntado/confirmado/revisado/
+    // ya validado) — nunca antes. Ver matches.js: PLMatches.createOrAttach.
+    MATCH_OUTBOX: 'bramulab.matchOutbox.v1',
   };
 
   function safeGet(key) {
@@ -698,6 +705,49 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Backend Bloque 5 — OUTBOX DE CARGAS DE PARTIDO SERVER-BACKED         */
+  /* Ver el comentario de KEYS.MATCH_OUTBOX más arriba y                  */
+  /* 02_Analisis_Claude.md §7. Cada entrada representa UN intento lógico  */
+  /* de create-or-attach todavía sin resultado final: `submissionId` es   */
+  /* la idempotency key de ESE intento (estable mientras se reintenta el  */
+  /* mismo envío; una respuesta a una desambiguación es un intento NUEVO, */
+  /* con su propia submissionId nueva). `localDraftId` identifica la      */
+  /* entrada en esta lista — nunca se promete que coincida con el         */
+  /* `matchId` real de servidor, que todavía no existe mientras la        */
+  /* entrada sigue acá.                                                   */
+  /* ------------------------------------------------------------------ */
+
+  function genLocalDraftId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  function loadMatchOutbox() { return safeGet(KEYS.MATCH_OUTBOX) || []; }
+
+  function getMatchOutboxEntry(localDraftId) {
+    if (!localDraftId) return null;
+    return loadMatchOutbox().find((e) => e && e.localDraftId === localDraftId) || null;
+  }
+
+  /** Inserta o actualiza una entrada por `localDraftId` (nunca duplica). Si `fields` no trae
+   *  `localDraftId`, se genera uno nuevo — usado para la primera carga de un intento. Devuelve
+   *  la entrada final (con `localDraftId` siempre presente). */
+  function saveMatchOutboxEntry(fields) {
+    const entry = Object.assign({ localDraftId: genLocalDraftId(), createdAt: new Date().toISOString() }, fields || {});
+    const list = loadMatchOutbox().filter((e) => e && e.localDraftId !== entry.localDraftId);
+    list.push(entry);
+    safeSet(KEYS.MATCH_OUTBOX, list);
+    return entry;
+  }
+
+  /** Se llama únicamente cuando create_or_attach_match devolvió un resultado FINAL (creado,
+   *  adjuntado, confirmado, revisado o ya validado) — nunca ante un error corregible ni una
+   *  ambigüedad todavía sin resolver (esos casos actualizan la entrada con
+   *  `saveMatchOutboxEntry`, no la borran). */
+  function removeMatchOutboxEntry(localDraftId) {
+    if (!localDraftId) return;
+    const list = loadMatchOutbox().filter((e) => e && e.localDraftId !== localDraftId);
+    safeSet(KEYS.MATCH_OUTBOX, list);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
   /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
@@ -898,6 +948,8 @@
     loadSignupDraft, saveSignupDraft, clearSignupDraft,
     // Backend Bloque 4 — token de reclamo pendiente (`?claim=<token>`)
     loadClaimToken, saveClaimToken, clearClaimToken,
+    // Backend Bloque 5 — outbox de cargas de partido server-backed
+    loadMatchOutbox, getMatchOutboxEntry, saveMatchOutboxEntry, removeMatchOutboxEntry,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,

@@ -238,28 +238,17 @@
     return { iso: dt.toISOString(), timeKnown };
   }
 
-  /** Validador puro central de "Cargar partido jugado" (§10 del consolidado: aislado en
-   *  funciones puras y testeables, nunca distribuido por eventos DOM). Recibe los 4 nombres ya
-   *  resueltos, hasta 3 sets en bruto (`{a,b}|null`, en el orden en que se muestran en
-   *  pantalla), el formato elegido y la fecha (string, puede venir vacía). Devuelve SIEMPRE
-   *  una razón específica en vez de un booleano solo — el mensaje visible se arma en app.js a
-   *  partir de `reason`, nunca un "Hay un error" genérico. `ok:true` incluye `sets[]` con la
-   *  MISMA forma que usa el motor (`gamesA/gamesB/tiebreak/winner`, sin `setNumber`) y
-   *  `winnerTeam`, listos para pasar a finishMatchManual sin transformación adicional. */
-  function validateMatchDraft(names, rawSets, formatId, dateVal) {
+  /** Backend Bloque 5 (02_Analisis_Claude.md §1.1/§7, 03_Plan_Implementacion_Claude.md Fase C)
+   *  — extraída de `validateMatchDraft` sin cambiar ni una línea de su lógica: la mitad
+   *  "sets → resultado" de la validación, la única parte que también necesita correr
+   *  server-side (Edge Function `create-or-attach-match`, vía symlink real a este mismo
+   *  archivo — nunca una copia). Recibe hasta 3 sets en bruto (`{a,b}|null`) y el formato;
+   *  nunca toca nombres/fecha (eso sigue siendo exclusivo de `validateMatchDraft`, que llama a
+   *  esta función para la parte que comparten). Devuelve la MISMA forma que antes:
+   *  `{ok:false,reason}` o `{ok:true, sets, winnerTeam}` con `sets[]` en la forma del motor
+   *  (`gamesA/gamesB/tiebreak/winner`). */
+  function validateMatchSets(rawSets, formatId) {
     const format = Engine.FORMATS[formatId] || Engine.FORMATS.classic;
-    const [a1, a2, b1, b2] = names || [];
-    if (!a1 || !a2 || !b1 || !b2) return { ok: false, reason: 'players-missing' };
-    const allNames = [a1, a2, b1, b2];
-    for (let i = 0; i < allNames.length; i++) {
-      for (let j = i + 1; j < allNames.length; j++) {
-        if (Store.normalizePlayerName(allNames[i]) === Store.normalizePlayerName(allNames[j])) {
-          return { ok: false, reason: 'players-duplicate' };
-        }
-      }
-    }
-    if (!dateVal) return { ok: false, reason: 'date-missing' };
-
     const set1 = rawSets[0] || null;
     const set2 = format.bestOfSets === 1 ? null : (rawSets[1] || null);
     const thirdVisible = isThirdSetVisible(set1, set2, format);
@@ -304,6 +293,29 @@
     return { ok: true, sets, winnerTeam };
   }
 
+  /** Validador puro central de "Cargar partido jugado" (§10 del consolidado: aislado en
+   *  funciones puras y testeables, nunca distribuido por eventos DOM). Recibe los 4 nombres ya
+   *  resueltos, hasta 3 sets en bruto (`{a,b}|null`, en el orden en que se muestran en
+   *  pantalla), el formato elegido y la fecha (string, puede venir vacía). Devuelve SIEMPRE
+   *  una razón específica en vez de un booleano solo — el mensaje visible se arma en app.js a
+   *  partir de `reason`, nunca un "Hay un error" genérico. `ok:true` incluye `sets[]` con la
+   *  MISMA forma que usa el motor (`gamesA/gamesB/tiebreak/winner`, sin `setNumber`) y
+   *  `winnerTeam`, listos para pasar a finishMatchManual sin transformación adicional. */
+  function validateMatchDraft(names, rawSets, formatId, dateVal) {
+    const [a1, a2, b1, b2] = names || [];
+    if (!a1 || !a2 || !b1 || !b2) return { ok: false, reason: 'players-missing' };
+    const allNames = [a1, a2, b1, b2];
+    for (let i = 0; i < allNames.length; i++) {
+      for (let j = i + 1; j < allNames.length; j++) {
+        if (Store.normalizePlayerName(allNames[i]) === Store.normalizePlayerName(allNames[j])) {
+          return { ok: false, reason: 'players-duplicate' };
+        }
+      }
+    }
+    if (!dateVal) return { ok: false, reason: 'date-missing' };
+    return validateMatchSets(rawSets, formatId);
+  }
+
   /** §11: al cambiar de formato, ¿qué sets ya cargados siguen siendo compatibles con
    *  `newFormatId`? Nunca borra a ciegas: conserva cada set que siga siendo un score completo
    *  válido y cuya posición siga existiendo en el nuevo formato; limpia el resto (incluido un
@@ -327,6 +339,6 @@
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
     buildJugadorDirectory,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
-    validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
+    validateMatchSets, validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2007,6 +2007,32 @@
     assert('ML · validateMatchDraft arma tiebreak plausible para un set 7-6', withTb.ok === true && !!withTb.sets[0].tiebreak && withTb.sets[0].tiebreak.a === 7, JSON.stringify(withTb));
   })();
 
+  // ---- Backend Bloque 5 — validateMatchSets (extraída de validateMatchDraft, reusada
+  // server-side vía symlink en supabase/functions/create-or-attach-match, ver
+  // docs/BRAMUlab/Implementacion/Backend/Bloque_05/02_Analisis_Claude.md §1.1/§7). Mismos casos
+  // que arriba pero llamando DIRECTO a la función que la Edge Function invoca, sin pasar por la
+  // validación de nombres/fecha de validateMatchDraft (que server-side no aplica: ahí se
+  // valida por player_id, no por nombre de texto). ----
+  (function () {
+    const win20 = ML.validateMatchSets([{ a: 6, b: 4 }, { a: 6, b: 2 }, null], 'classic');
+    assert('ML · validateMatchSets 2-0 válido (misma forma que validateMatchDraft)', win20.ok === true && win20.winnerTeam === 'A' && win20.sets.length === 2, JSON.stringify(win20));
+
+    const win21 = ML.validateMatchSets([{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 3 }], 'classic');
+    assert('ML · validateMatchSets 2-1 (con Set 3) válido', win21.ok === true && win21.winnerTeam === 'A' && win21.sets.length === 3, JSON.stringify(win21));
+
+    const invalid = ML.validateMatchSets([{ a: 6, b: 5 }, { a: 6, b: 2 }, null], 'classic');
+    assert('ML · validateMatchSets con 6-5 (imposible en Clásico) → set-invalid', invalid.ok === false && invalid.reason === 'set-invalid', JSON.stringify(invalid));
+
+    const americanoOk = ML.validateMatchSets([{ a: 6, b: 3 }, null, null], 'americano');
+    assert('ML · validateMatchSets Americano solo necesita el Set 1', americanoOk.ok === true && americanoOk.sets.length === 1, JSON.stringify(americanoOk));
+
+    const withTb = ML.validateMatchSets([{ a: 7, b: 6 }, { a: 6, b: 3 }, null], 'classic');
+    assert('ML · validateMatchSets arma tiebreak plausible para un set 7-6', withTb.ok === true && !!withTb.sets[0].tiebreak, JSON.stringify(withTb));
+
+    const noWinner = ML.validateMatchSets([{ a: 6, b: 4 }, null, null], 'classic');
+    assert('ML · validateMatchSets con Set 2 sin cargar (Clásico) → set-incomplete', noWinner.ok === false && noWinner.reason === 'set-incomplete', JSON.stringify(noWinner));
+  })();
+
   // ---- Cambio de formato (computeFormatChangeImpact) ----
   (function () {
     const threeSets = [{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 3 }];
