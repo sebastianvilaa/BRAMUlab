@@ -557,6 +557,30 @@
     </button>`;
   }
 
+  /** Backend Bloque 4 — variante de buildPlayerRowHTML para una fila YA resuelta por el
+   *  servidor (`search_players`): nunca re-resuelve por nombre (`buildGroupRowAccount` solo
+   *  conoce cuentas locales de ESTE dispositivo — nunca iba a encontrar a otra persona real,
+   *  02_Analisis_Claude.md §5). `data-player-id` es lo que `openPlayerPublicProfile` necesita
+   *  para pedir el perfil real vía `get_public_profile`, nunca por nombre. Nivel se muestra tal
+   *  cual lo persiste Bloque 3 (número real desde el día 1, nunca "CALIBRANDO X/5" — ese
+   *  placeholder es exclusivo del Nivel simulado local, ver renderPlayerPublicProfile). */
+  function buildPlayerRowHTMLFromServerRow(row) {
+    const name = row.display_name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.username || 'Jugador';
+    const levelText = (row.level_status && row.level_status !== 'PENDIENTE' && Number.isFinite(row.level_public)) ? row.level_public.toFixed(1) : '—';
+    const handle = row.username ? `@${row.username}` : buildPlayerHandle(name);
+    return `<button type="button" class="player-row" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(row.player_id)}">
+      <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(name)}</span>
+        <span class="player-row__handle">${escapeHtml(handle)}</span>
+      </span>
+      <span class="player-row__level">
+        <span class="player-row__level-value">${levelText}</span>
+        <span class="player-row__level-label">NIVEL BRAMU</span>
+      </span>
+    </button>`;
+  }
+
   /** V02.9 (§2) — REEMPLAZA el CTA grande de "agregar sin cuenta" (`.sheet-option--primary`,
    *  ancho completo, debajo de la lista): ahora es una fila más dentro del propio listado de
    *  resultados, mismo componente `.player-row` que un jugador real (ver buildPlayerRowHTML) —
@@ -3838,6 +3862,32 @@
    *  03_Revision_ChatGPT.md §6), complete_profile revierte toda su transacción sin tocar
    *  Nivel: se conserva TODO el resto del borrador y solo se vuelve a pedir el @usuario. */
   async function runOfficializeAndEnter() {
+    // Backend Bloque 4 (03_Revision_ChatGPT.md §2/Decisión 2) — "antes de complete_profile y
+    // de oficializar Nivel, consumir el claim": este es el único punto donde una cuenta nueva
+    // que llegó desde un link de reclamo (?claim=<token>, ver captureClaimTokenFromUrl) todavía
+    // no tiene perfil oficializado, así que es el momento correcto (y el único) para intentar
+    // adoptar la identidad provisional. Éxito o fracaso, el alta sigue su curso normal después
+    // (nunca bloquea la creación de la cuenta por un token roto).
+    const pendingClaimToken = Store.loadClaimToken();
+    if (pendingClaimToken) {
+      const claimResult = await Auth.claimProvisionalPlayer(pendingClaimToken);
+      if (claimResult.ok) {
+        Store.clearClaimToken();
+        showToast('Reclamaste la invitación — tu historial ya quedó vinculado a tu cuenta.', 3200);
+      } else if (claimResult.code !== 'not_configured') {
+        // Códigos definitivos (03_Revision_ChatGPT.md §7 — nunca fusión automática): el token
+        // no aplica más, reintentarlo no cambiaría nada. Cualquier otro código (red,
+        // rate_limited) se trata como transitorio: se conserva el token para la próxima vez
+        // que se llegue acá — reintentar esta función entera es siempre seguro (ver el
+        // comentario de cabecera más abajo).
+        const DEFINITIVE_CODES = ['claim_invalid', 'claim_expired', 'claim_already_used', 'account_already_registered', 'account_already_claimed_identity'];
+        if (DEFINITIVE_CODES.includes(claimResult.code)) {
+          Store.clearClaimToken();
+          showToast('No pudimos vincular esa invitación. Tu cuenta se crea igual, normalmente.', 3600);
+        }
+      }
+    }
+
     const completeResult = await Auth.completeProfile({
       username: signupDraft.username,
       firstName: signupDraft.firstName,
@@ -6676,6 +6726,15 @@
    *  universo conocido. Ambas etiquetas se ocultan mientras se busca (los resultados de una
    *  búsqueda ya se explican solos por el propio texto tecleado). */
   function renderPlayerSearchResults(query) {
+    // Backend Bloque 4 (03_Revision_ChatGPT.md §6) — para una cuenta serverBacked, la
+    // autoridad deja de ser el universo local (Store.loadHistory/loadPlayerNames): busca
+    // cuentas reales vía search_players. El camino local/legacy queda IDÉNTICO para cualquier
+    // otra cuenta (sin backend configurado, o cuenta local V03.0/legacy).
+    const currentUser = Store.getCurrentUser();
+    if (Auth.isConfigured() && currentUser && currentUser.serverBacked) {
+      renderPlayerSearchResultsServerBacked(query);
+      return;
+    }
     const history = Store.loadHistory();
     const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
     const recentsSection = $('#player-search-recents-section');
@@ -6709,6 +6768,51 @@
     $('#player-search-empty').hidden = !(isListEmpty && !recentNames.length);
   }
 
+  /** Backend Bloque 4 (03_Revision_ChatGPT.md §5/§6) — variante server-backed: resultados
+   *  reales de `search_players` (nunca el universo local), identidad por `player_id`. Sin
+   *  Recientes todavía (Decisión 5: sin `matches` compartidos reales — Bloque 5 — no existe una
+   *  señal genuina de "con quién compartí cancha" para una cuenta real; se deja vacío/oculto,
+   *  nunca tomado del historial local ni inventado). Query < 2 caracteres no llama a la red
+   *  (mismo mínimo que ya exige la RPC del lado del servidor, §4 de la revisión). */
+  async function renderPlayerSearchResultsServerBacked(query) {
+    $('#player-search-recents-section').hidden = true;
+    $('#player-search-recents').innerHTML = '';
+    $('#player-search-list-label').hidden = true;
+    const listSection = $('#player-search-list-section');
+    const wrap = $('#player-search-list');
+    const emptyEl = $('#player-search-empty');
+    const trimmed = (query || '').trim();
+    if (trimmed.length < 2) {
+      listSection.hidden = true;
+      wrap.innerHTML = '';
+      emptyEl.hidden = !trimmed;
+      emptyEl.textContent = trimmed ? 'Escribí al menos 2 caracteres.' : 'Sin coincidencias.';
+      return;
+    }
+    const result = await Auth.searchPlayers(trimmed);
+    // Backend Bloque 4 — si mientras esperaba la respuesta el usuario ya volvió a tipear (o
+    // salió de la pantalla), esta respuesta puede llegar tarde. `player-search-input` es la
+    // única fuente de verdad de "qué se está buscando ahora"; una respuesta para un query que
+    // ya no coincide con el input actual se descarta en vez de pisar resultados más nuevos.
+    if (($('#player-search-input').value || '').trim() !== trimmed) return;
+    if (!result.ok) {
+      listSection.hidden = true;
+      wrap.innerHTML = '';
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'No pudimos buscar en este momento. Probá de nuevo.';
+      return;
+    }
+    const rows = result.players;
+    const isEmpty = rows.length === 0;
+    listSection.hidden = isEmpty;
+    wrap.innerHTML = rows.map(buildPlayerRowHTMLFromServerRow).join('');
+    $all('#player-search-list .player-row').forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile({ name: btn.dataset.name, playerId: btn.dataset.playerId }, 'search'));
+    });
+    emptyEl.hidden = !isEmpty;
+    emptyEl.textContent = 'Sin coincidencias.';
+  }
+
   /** §4/§5 — abre BUSCAR JUGADORES desde la tarjeta del Home. Mismo gate de sesión que el
    *  resto de las pantallas personales (openPlayerHome/openManualLoadScreen/openHistoryScreen). */
   function openPlayerSearchScreen() {
@@ -6720,9 +6824,22 @@
     setTimeout(() => $('#player-search-input').focus(), 60);
   }
 
+  // Backend Bloque 4 (§4 de la revisión: "el frontend debe usar debounce de búsqueda ~300ms")
+  // — SOLO para el camino server-backed, que dispara una llamada de red por tecla; el camino
+  // local/legacy sigue filtrando en memoria de forma síncrona, sin ningún cambio.
+  let playerSearchDebounceId = null;
   function initPlayerSearchScreen() {
     $('#player-search-back-btn').addEventListener('click', () => openPlayerHome());
-    $('#player-search-input').addEventListener('input', (e) => renderPlayerSearchResults(e.target.value));
+    $('#player-search-input').addEventListener('input', (e) => {
+      const value = e.target.value;
+      const currentUser = Store.getCurrentUser();
+      if (Auth.isConfigured() && currentUser && currentUser.serverBacked) {
+        clearTimeout(playerSearchDebounceId);
+        playerSearchDebounceId = setTimeout(() => renderPlayerSearchResults(value), 300);
+        return;
+      }
+      renderPlayerSearchResults(value);
+    });
   }
 
   /** §2.3 — mismo componente donut que Home/MI PERFIL (`.effectiveness-donut`), con ids
@@ -6769,6 +6886,10 @@
   }
 
   let playerPublicName = null;
+  // Backend Bloque 4 — `player_id` real cuando el perfil se abrió desde un resultado
+  // server-backed (search_players/get_public_profile); `null` para el camino local/legacy de
+  // siempre (resolución por nombre, ver renderPlayerPublicProfile).
+  let playerPublicPlayerId = null;
   let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
   let playerPublicWhatsappPhone = null; // BRAMUlab_V03.6 (§5) — teléfono a contactar, solo mientras el botón está visible
   // BRAMUlab_V03.5.1 (§10) — mismo criterio que playerPublicOrigin, pero para Mi Perfil/Mis
@@ -6784,6 +6905,14 @@
   function renderPlayerPublicProfile() {
     const name = playerPublicName;
     if (!name) return;
+    // Backend Bloque 4 (03_Revision_ChatGPT.md §6) — "para la UI server-backed, la identidad
+    // pasa a ser player_id, no nombre": con un player_id real presente, nunca se re-resuelve
+    // por nombre local (eso nunca iba a encontrar a otra persona real de Staging, ver
+    // 02_Analisis_Claude.md §1). El camino local/legacy de abajo queda intacto.
+    if (playerPublicPlayerId && Auth.isConfigured()) {
+      renderPlayerPublicProfileServerBacked(playerPublicPlayerId, name);
+      return;
+    }
     const history = Store.loadHistory();
     const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 1) — BUG REAL: esta función consultaba
@@ -6879,6 +7008,65 @@
     renderPlayerPublicRankingCard(account, history);
   }
 
+  /** Backend Bloque 4 (03_Revision_ChatGPT.md §6) — variante server-backed: identidad real
+   *  resuelta por `player_id` (`get_public_profile`), nunca por nombre local. Edad NUNCA se
+   *  muestra (privada para otra persona real — §5 de la revisión) ni la tarjeta de Ranking
+   *  (corre sobre el Ranking simulado LOCAL de este dispositivo, sin sentido para otra cuenta
+   *  real todavía). Partidos/efectividad/racha quedan en su estado vacío honesto: sin
+   *  `matches` compartidos reales todavía (Bloque 5), este dispositivo nunca tiene datos
+   *  reales de encuentros con una cuenta recién encontrada por búsqueda — mostrar vacío es
+   *  correcto, no un bug (mismo criterio que "Recientes" en renderPlayerSearchResultsServerBacked). */
+  async function renderPlayerPublicProfileServerBacked(playerId, fallbackName) {
+    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, fallbackName);
+    $('#player-public-name').textContent = fallbackName;
+    $('#player-public-username').textContent = buildPlayerHandle(fallbackName);
+    $('#player-public-age').textContent = '—';
+    $('#player-public-hand').textContent = '—';
+    $('#player-public-side').textContent = '—';
+    setLevelValueText('player-public-level-value', '—', false);
+    $('#player-public-level-sub').hidden = true;
+    renderPlayerPublicEffectivenessDonut({ pct: null });
+    $('#player-public-played').textContent = '0';
+    $('#player-public-won').textContent = '0';
+    $('#player-public-best-streak').textContent = '—';
+    $('#player-public-best-streak-range').hidden = true;
+    $('#player-public-peak-level').textContent = '—';
+    $('#player-public-peak-level-context').textContent = '';
+    $('#player-public-ranking-card').hidden = true;
+    $('#player-public-whatsapp-btn').hidden = true;
+    playerPublicWhatsappPhone = null;
+    renderPlayerPublicAddButton();
+
+    const result = await Auth.getPublicProfile(playerId);
+    // Si mientras esperaba la respuesta el usuario ya navegó a otro perfil, no pisar esa
+    // pantalla con una respuesta tardía de esta.
+    if (playerPublicPlayerId !== playerId) return;
+    if (!result.ok || !result.profile) {
+      showToast('No pudimos cargar este perfil.', 2600);
+      return;
+    }
+    const p = result.profile;
+    const name = p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || fallbackName;
+    playerPublicName = Store.normalizePlayerName(name);
+    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, name);
+    $('#player-public-name').textContent = name;
+    $('#player-public-username').textContent = p.username ? `@${p.username}` : buildPlayerHandle(name);
+    $('#player-public-hand').textContent = HAND_LABELS[p.dominant_hand] || '—';
+    $('#player-public-side').textContent = SIDE_LABELS[p.preferred_side] || '—';
+
+    if (!p.level_status || p.level_status === 'PENDIENTE') {
+      setLevelValueText('player-public-level-value', 'PENDIENTE', true);
+      $('#player-public-level-sub').hidden = true;
+    } else {
+      const levelText = Number.isFinite(p.level_public) ? p.level_public.toFixed(1) : '—';
+      setLevelValueText('player-public-level-value', levelText, false);
+      $('#player-public-level-sub').hidden = true;
+      $('#player-public-peak-level').textContent = levelText;
+      $('#player-public-peak-level-context').textContent = 'ACT';
+    }
+    renderPlayerPublicAddButton();
+  }
+
   /** BRAMUlab_V03.7 (parte B) — separador de miles simple ("1.380"), convención argentina; el
    *  universo mock de este prototipo nunca llega a necesitarlo en la práctica (máximo unos
    *  cientos por ámbito) pero la tarjeta debe quedar lista para denominadores grandes. */
@@ -6947,10 +7135,16 @@
   /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`
    *  decide a dónde vuelve el back (§10 no pide un histórico de navegación completo, solo que
    *  volver tenga sentido). */
-  function openPlayerPublicProfile(name, origin) {
+  function openPlayerPublicProfile(nameOrRef, origin) {
+    // Backend Bloque 4 — acepta también `{name, playerId}` (mismo criterio que
+    // `PH.filterMatchesForPlayer` ya acepta hace tiempo, ver 02_Analisis_Claude.md §5). Todo
+    // call site existente sigue pasando un string plano (camino local/legacy, sin cambios).
+    const isRef = nameOrRef && typeof nameOrRef === 'object';
+    const name = isRef ? nameOrRef.name : nameOrRef;
     const norm = Store.normalizePlayerName(name);
     if (!norm) return;
     playerPublicName = norm;
+    playerPublicPlayerId = isRef ? (nameOrRef.playerId || null) : null;
     playerPublicOrigin = origin || 'search';
     renderPlayerPublicProfile();
     showView('player-public');
@@ -8275,7 +8469,41 @@
     syncCurrentIdentityFromStore();
     const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
     if (!onboardingDone) { resumeSignupProfileStep(serverUser); return; }
+    // Backend Bloque 4 (03_Revision_ChatGPT.md §7) — una cuenta que YA terminó su onboarding
+    // nunca llega a runOfficializeAndEnter() (único lugar donde se consume un claim), así que
+    // un token pendiente acá quedaría inválido para siempre sin este aviso explícito: "una
+    // cuenta ya completa que intenta reclamar otra identidad no se fusiona automáticamente" —
+    // se resuelve a mano durante el piloto, nunca en silencio.
+    if (Store.loadClaimToken()) {
+      Store.clearClaimToken();
+      showToast('Esta cuenta ya tiene perfil — reclamar otra identidad se resuelve manualmente durante el piloto.', 3600);
+    }
     if (options.afterLogin) completeIdentifyAction(); else bootDefaultScreen();
+  }
+
+  /** Backend Bloque 4 — captura `?claim=<token>` de la URL de entrada (link de invitación/
+   *  reclamo, Backend_Infraestructura.md §6.2/§9). Ranura única en este dispositivo/navegador
+   *  (Store.saveClaimToken, mismo criterio que signupDraft) — se consume recién en
+   *  runOfficializeAndEnter(), nunca acá. Se limpia de la URL con `history.replaceState` para
+   *  no reprocesarlo en cada refresh (mismo motivo que ya evita eso el propio flujo de OTP).
+   *  Esta PWA no tiene router: se lee una sola vez, al boot, antes de cualquier otra decisión
+   *  de arranque. Sin backend configurado (desarrollo local sin Supabase) no hay nada que
+   *  reclamar — se limpia la URL igual mismo, sin guardar el token. */
+  function captureClaimTokenFromUrl() {
+    let token = null;
+    try {
+      token = new URLSearchParams(window.location.search).get('claim');
+    } catch (e) { token = null; }
+    if (!token) return;
+    if (Auth.isConfigured()) {
+      Store.saveClaimToken(token.trim());
+      showToast('Vas a reclamar una invitación — iniciá sesión o creá tu cuenta para continuar.', 3600);
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('claim');
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (e) { /* noop — navegador sin History API real (poco probable) */ }
   }
 
   /** Único punto de entrada al arranque (reemplaza el `bootDefaultScreen()` directo de antes):
@@ -8287,6 +8515,7 @@
    *  login de nuevo — "entrar desde otro dispositivo"/entre recargas de
    *  Backend_Infraestructura.md §15 Bloque 2. */
   async function bootWithServerSession() {
+    captureClaimTokenFromUrl();
     if (!Auth.isConfigured()) { bootDefaultScreen(); return; }
     const savedDraft = Store.loadSignupDraft();
     if (savedDraft) signupDraft = savedDraft;
@@ -8482,6 +8711,14 @@
     }
     const createTestUserBtn = $('#access-create-test-user-btn');
     if (createTestUserBtn) createTestUserBtn.hidden = production || !enabled;
+    // Backend Bloque 4 — mismo gate que resetNivelBtn, pero AL REVÉS: esto solo tiene sentido
+    // para una cuenta serverBacked real (crea filas reales en Supabase vía RPC), nunca para una
+    // cuenta local de laboratorio.
+    const createTestClaimBtn = $('#dev-tools-create-test-claim');
+    if (createTestClaimBtn) {
+      const currentUser = Store.getCurrentUser();
+      createTestClaimBtn.hidden = production || !enabled || !(currentUser && currentUser.serverBacked);
+    }
   }
 
   /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
@@ -8539,6 +8776,34 @@
     openNivelOnboardingIntro();
   }
 
+  /** Backend Bloque 4 — "flujo habilitado para prueba" (03_Revision_ChatGPT.md §9, prueba
+   *  manual de Staging): crea una identidad provisional real (create_provisional_player),
+   *  genera su link de reclamo (create_claim_link) y lo copia al portapapeles. Existe SOLO
+   *  como herramienta de laboratorio (mismo criterio que "Resetear Nivel BRAMU") — la UI de
+   *  producto para invitar (reutilizar un invitado dentro de la carga de un partido) es
+   *  responsabilidad de Bloque 5, fuera de alcance acá. */
+  async function createTestProvisionalAndCopyClaimLink() {
+    $('#dev-tools-modal').hidden = true;
+    const user = Store.getCurrentUser();
+    if (!Auth.isConfigured() || !user || !user.serverBacked) {
+      showToast('Necesitás una cuenta real (backend configurado) para probar esto.', 2600);
+      return;
+    }
+    const displayName = `Invitado de prueba ${Date.now().toString(36)}`;
+    const createResult = await Auth.createProvisionalPlayer(displayName);
+    if (!createResult.ok) { showToast(`No se pudo crear el invitado (${createResult.code}).`, 3000); return; }
+    const linkResult = await Auth.createClaimLink(createResult.player.player_id);
+    if (!linkResult.ok) { showToast(`No se pudo generar el link (${linkResult.code}).`, 3000); return; }
+    const url = `${window.location.origin}${window.location.pathname}?claim=${linkResult.token}`;
+    console.log('[BRAMU LAB] Link de reclamo de prueba:', url);
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast(`Link copiado — "${displayName}"`, 3200);
+    } catch (e) {
+      showToast('No se pudo copiar automático — el link quedó en la consola.', 3200);
+    }
+  }
+
   function initDevTools() {
     // BRAMUlab_V04.6 — corrección de un bug preexistente detectado al verificar esta ronda:
     // `#home-logo` (el ID que este selector usaba desde V13.1) vive dentro de `#view-setup`,
@@ -8569,6 +8834,7 @@
     $('#dev-tools-force-update').addEventListener('click', forceUpdateApp);
     $('#dev-tools-toggle-nivel-v1').addEventListener('click', () => { setLevelV1Preview(!Store.isLevelV1PreviewEnabled()); });
     $('#dev-tools-reset-nivel').addEventListener('click', resetLevelV1ForLabAccount);
+    $('#dev-tools-create-test-claim').addEventListener('click', createTestProvisionalAndCopyClaimLink);
   }
 
   /** Busca versión nueva del service worker, limpia solo la Cache Storage de assets (nunca

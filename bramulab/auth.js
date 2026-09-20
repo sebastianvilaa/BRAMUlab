@@ -286,11 +286,87 @@
     return { ok: true, levelState: data.levelState };
   }
 
+  /** Backend Bloque 4 — búsqueda pública acotada de cuentas registradas (RPC `search_players`,
+   *  ver la migración `20260920120000_bloque4_jugadores_busqueda_provisional.sql`).
+   *  `authenticated` únicamente: solo tiene sentido llamarla con una cuenta `serverBacked` ya
+   *  con sesión real (mismo criterio que el resto de este archivo — `isConfigured()` es la
+   *  única bisagra). Devuelve `{ok:true, players:[...]}` con la forma exacta que ya declara la
+   *  RPC (snake_case tal cual, `app.js` traduce a la forma que usa la UI) o `{ok:false, code}`
+   *  con el código de excepción tal cual lo levanta la función (`rate_limited`, etc.). */
+  async function searchPlayers(query, limit) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('search_players', { p_query: query, p_limit: limit || 20 });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, players: Array.isArray(data) ? data : [] };
+  }
+
+  /** Backend Bloque 4 — perfil público de un `player_id` puntual (RPC `get_public_profile`).
+   *  `null` (nunca un objeto vacío) si la RPC no devolvió fila — provisional, inexistente o
+   *  perfil todavía sin completar, ver la migración. */
+  async function getPublicProfile(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_public_profile', { p_player_id: playerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    const row = Array.isArray(data) && data.length ? data[0] : null;
+    return { ok: true, profile: row };
+  }
+
+  /** Backend Bloque 4 — crea SIEMPRE una nueva identidad provisional (RPC
+   *  `create_provisional_player`, nunca reutiliza por nombre — ver 03_Revision_ChatGPT.md §3
+   *  de Bloque 4). Reutilizar una ya existente es responsabilidad de Bloque 5 (selección
+   *  explícita por `player_id`, ver `listMyProvisionalPlayers`). */
+  async function createProvisionalPlayer(displayName) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('create_provisional_player', { p_display_name: displayName });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, player: data };
+  }
+
+  /** Backend Bloque 4 — provisionales creadas por la cuenta activa, todavía no reclamadas (RPC
+   *  `list_my_provisional_players` — nunca una lectura directa de `players`, ver la migración). */
+  async function listMyProvisionalPlayers() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('list_my_provisional_players');
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, players: Array.isArray(data) ? data : [] };
+  }
+
+  /** Backend Bloque 4 — genera/rota el link de reclamo de una provisional propia (RPC
+   *  `create_claim_link`). Devuelve el token CRUDO una sola vez (`{ok:true, token}`) — nunca
+   *  más recuperable después de esta llamada (la base solo guarda su hash). */
+  async function createClaimLink(provisionalPlayerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('create_claim_link', { p_provisional_player_id: provisionalPlayerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, token: data };
+  }
+
+  /** Backend Bloque 4 — consume un token de reclamo (RPC `claim_provisional_player`). Debe
+   *  llamarse con sesión real ya activa, ANTES de `completeProfile`/`officializeLevel` para esa
+   *  misma cuenta (03_Revision_ChatGPT.md §2/Decisión 2 — ver `app.js runOfficializeAndEnter`).
+   *  `{ok:false, code}` con el código de excepción tal cual lo levanta la función
+   *  (`claim_invalid`/`claim_expired`/`claim_already_used`/`account_already_registered`/
+   *  `account_already_claimed_identity`/`rate_limited`) para que `app.js` decida el mensaje. */
+  async function claimProvisionalPlayer(token) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('claim_provisional_player', { p_token: token });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, player: data };
+  }
+
   global.PLAuth = {
     isConfigured, getClient,
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, getSession,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
+    searchPlayers, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
+    createClaimLink, claimProvisionalPlayer,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

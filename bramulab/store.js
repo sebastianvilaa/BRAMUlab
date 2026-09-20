@@ -93,6 +93,14 @@
     // indexar. Nunca se promete continuidad entre dispositivos — ver
     // Store.saveSignupDraft/loadSignupDraft/clearSignupDraft más abajo.
     SIGNUP_DRAFT: 'bramulab.signupDraft.v1',
+    // Backend Bloque 4 — token CRUDO de un link de reclamo (`?claim=<token>`) pendiente de
+    // consumir en este dispositivo/navegador. Ranura única, mismo criterio que SIGNUP_DRAFT:
+    // se lee al bootear la app (antes de que exista sesión) y se consume recién después de que
+    // la cuenta que llega desde el link confirma su email — nunca antes (Auth.
+    // claimProvisionalPlayer exige sesión real). Nunca se promete continuidad entre
+    // dispositivos: si se abre el link en un dispositivo y se completa el alta en otro, el
+    // token no viaja solo — es una limitación conocida y aceptada, igual que SIGNUP_DRAFT.
+    CLAIM_TOKEN: 'bramulab.claimToken.v1',
   };
 
   function safeGet(key) {
@@ -656,6 +664,15 @@
   function clearSignupDraft() { return safeRemove(KEYS.SIGNUP_DRAFT); }
 
   /* ------------------------------------------------------------------ */
+  /* Backend Bloque 4 — TOKEN DE RECLAMO PENDIENTE (`?claim=<token>`)      */
+  /* Ranura única, mismo criterio que SIGNUP_DRAFT — ver el comentario    */
+  /* de KEYS.CLAIM_TOKEN más arriba.                                      */
+  /* ------------------------------------------------------------------ */
+  function loadClaimToken() { return safeGet(KEYS.CLAIM_TOKEN) || null; }
+  function saveClaimToken(token) { return safeSet(KEYS.CLAIM_TOKEN, token || null); }
+  function clearClaimToken() { return safeRemove(KEYS.CLAIM_TOKEN); }
+
+  /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
   /* tablas y BRAMU Intelligence es responsabilidad de groups.js (puro,   */
@@ -854,6 +871,8 @@
     loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // Backend Bloque 3 — borrador local de alta (pre-confirmación de email)
     loadSignupDraft, saveSignupDraft, clearSignupDraft,
+    // Backend Bloque 4 — token de reclamo pendiente (`?claim=<token>`)
+    loadClaimToken, saveClaimToken, clearClaimToken,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
