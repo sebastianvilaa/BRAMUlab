@@ -1408,7 +1408,7 @@
              principal sigue siendo nombre visible + @usuario (arriba). Edad/mano/lado, mismo
              patrón que MI PERFIL — "—" cuando no hay cuenta real detrás del nombre (jugador
              conocido solo por historial local, sin datos declarados todavía). -->
-        <div class="pastilla-identity__meta mini-stat-grid mini-stat-grid--3col">
+        <div class="pastilla-identity__meta mini-stat-grid mini-stat-grid--3col" id="player-public-meta-grid">
           <div class="mini-stat"><span class="mini-stat__label">Edad</span><span class="mini-stat__value" id="player-public-age">—</span></div>
           <div class="mini-stat"><span class="mini-stat__label">Mano dominante</span><span class="mini-stat__value" id="player-public-hand">—</span></div>
           <div class="mini-stat"><span class="mini-stat__label">Lado habitual</span><span class="mini-stat__value" id="player-public-side">—</span></div>
@@ -1416,7 +1416,7 @@
       </div>
 
       <!-- §2.3 — misma tarjeta de Efectividad que MI PERFIL (donut + jugados/ganados). -->
-      <div class="pastilla profile-performance-card--merged">
+      <div class="pastilla profile-performance-card--merged" id="player-public-effectiveness-card">
         <div class="pastilla__title-row">
           <div class="pastilla__title">EFECTIVIDAD</div>
         </div>
@@ -1445,7 +1445,7 @@
       <!-- §2.3 — "Mejor racha" y "Mejor nivel BRAMU" (NUNCA Racha actual/Evolución — esas son
            datos personales, quedan solo en MI PERFIL). Mismo layout de 2 columnas que ya usa
            MI PERFIL para Racha actual/Mejor racha. -->
-      <div class="profile-performance-row">
+      <div class="profile-performance-row" id="player-public-performance-row">
         <div class="pastilla profile-performance-card--mini profile-performance-card--half">
           <span class="mini-stat__label">Mejor racha</span>
           <span class="mini-stat__value" id="player-public-best-streak">—</span>

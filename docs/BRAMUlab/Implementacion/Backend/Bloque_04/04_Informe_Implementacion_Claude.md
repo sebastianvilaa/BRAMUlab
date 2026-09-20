@@ -1,13 +1,17 @@
 # Backend Bloque 4 — Informe de implementación (Claude)
 ## Jugadores, búsqueda e invitados provisionales
 
-**Fecha:** 20/09/2026
-**Rama:** `staging`, HEAD de partida `4d74393` (incluye `03_Revision_ChatGPT.md`)
-**Estado:** implementado en código y migración local. **NO aplicado a Supabase real** (Staging/
-Producción) — instrucción explícita de esta ronda. `main` y BRAMUlive no fueron tocados.
+**Fecha:** 20/09/2026 (implementación) — actualizado 20/09/2026 con el hotfix post-revisión
+**Rama:** `staging`, HEAD de partida `4d74393` (incluye `03_Revision_ChatGPT.md`); hotfix sobre
+`10cd0cf` (incluye `05_Revision_Post_Implementacion_ChatGPT.md`)
+**Estado:** implementado en código y migración local, con el hotfix post-revisión plegado.
+**NO aplicado a Supabase real** (Staging/Producción) — instrucción explícita de ambas rondas.
+`main` y BRAMUlive no fueron tocados.
 
 Este informe documenta la implementación de Bloque 4 siguiendo exactamente
-`03_Revision_ChatGPT.md` (que tiene precedencia sobre `02_Analisis_Claude.md` donde difieren).
+`03_Revision_ChatGPT.md` (que tiene precedencia sobre `02_Analisis_Claude.md` donde difieren), y
+el hotfix acotado de `05_Revision_Post_Implementacion_ChatGPT.md` (§1.7) aplicado antes de tocar
+Supabase Staging.
 
 ---
 
@@ -163,16 +167,95 @@ No se modificaron `verify-bloque2.mjs` ni `verify-bloque3.mjs`.
 
 ---
 
+## 1.7 Hotfix post-implementación — `05_Revision_Post_Implementacion_ChatGPT.md`
+
+Revisión de código/migración/tests detectó 4 problemas antes de tocar Supabase Staging. Se
+corrigieron los 4, acotados a lo pedido, editando **en el lugar** la migración
+`20260920120000_...sql` (nunca se llegó a aplicar en ningún entorno, así que no hizo falta un
+archivo de follow-up separado — a diferencia de los hotfixes de Bloque 3, que sí corrigen una
+migración ya viva).
+
+**§1 — Búsqueda: anti-enumeración incompleta.** `search_players` armaba
+`'%' || p_query || '%'` y usaba `ilike`: una query de `%%`/`__` actuaba como wildcard SQL real y
+podía devolver el universo entero pese al mínimo de 2 caracteres. Corregido: coincidencia por
+substring **literal** vía `position(lower(query) in lower(campo)) > 0` (nunca interpreta
+`%`/`_` como patrón); acepta un `@` inicial (`@sebastian` encuentra el username `sebastian`,
+recalculando el mínimo de 2 caracteres ÚTILES sobre el texto ya sin el `@`); longitud máxima de
+40 caracteres (query absurdamente larga → vacío controlado, igual que una corta).
+
+**§2 — Claim: un fallo transitorio podía destruir la posibilidad de reclamar.** En
+`runOfficializeAndEnter()`, si `claimProvisionalPlayer()` fallaba por algo transitorio (red,
+`rate_limited`), el código conservaba el token pero **igual seguía** hacia
+`complete_profile`/`officializeLevel` — terminaba de registrar la cuenta, y en el próximo
+intento el claim ya no podía adoptarse (`account_already_registered`): conservar el token no
+alcanzaba si el resto del flujo lo volvía inservible de todos modos. Corregido: un código
+NO-definitivo corta la función ANTES de tocar perfil/Nivel (token y borrador quedan intactos) y
+muestra un aviso. Vía de reintento sin OTP nuevo: el handler de `#signup-continue-btn` para
+`signupStep === 'verify'` ahora chequea PRIMERO si ya existe una sesión válida para el mismo
+email del borrador — si la hay (el OTP de esa alta ya se consumió con éxito en el intento
+anterior), salta directo a `resumeDraftFlow()` (que reintenta `runOfficializeAndEnter()`
+completo) en vez de exigir/consumir un código de un solo uso ya gastado.
+
+**§3 — Rate limiting del claim: los intentos inválidos no quedaban contados.**
+`claim_provisional_player` llamaba a `consume_rate_limit` pero después usaba `raise exception`
+para `claim_invalid`/`claim_expired`/`claim_already_used`/`account_already_registered` — en
+Postgres, una excepción sin capturar aborta TODA la transacción de la función, revirtiendo
+también el incremento del contador ya ejecutado. Corregido: **cambio de contrato** —
+`claim_provisional_player` ahora devuelve `jsonb` (`{ok, code, player_id}`) para todos los
+errores de negocio esperables (incluido el propio `rate_limited` del claim, por consistencia
+interna de la función) en vez de `raise exception` + `public.players`. `no_player_for_session`
+sigue siendo una excepción real (violación de invariante de sesión, no un resultado de negocio
+esperable — mismo criterio que el resto de RPCs del archivo). Actualizado `Auth.
+claimProvisionalPlayer` (auth.js) para interpretar el nuevo shape; `app.js` no necesitó cambios
+adicionales más allá de los de §2 (ya usaba `claimResult.ok`/`.code`).
+
+**§5 — validaciones de payload.** Longitud máxima de `p_display_name` en
+`create_provisional_player` (40 caracteres, `display_name_too_long`); formato del token de
+claim (64 hex — sha256 de 32 bytes) validado **después** de `consume_rate_limit`, para que un
+token con formato inválido cuente igual como intento real (mismo motivo que §3).
+
+**§4 — Perfil público server-backed mostraba módulos vacíos y una acción local por nombre.**
+`renderPlayerPublicProfileServerBacked` mantenía "Edad" visible con `—`, dejaba visibles
+Efectividad/Partidos/Mejor racha sin datos reales, usaba el Nivel actual como "Mejor nivel
+BRAMU histórico" (no es un máximo comprobado), y mantenía `AGREGAR JUGADOR` visible (escribe la
+lista local histórica por **nombre** — la misma identidad-por-nombre que esta rama acababa de
+resolver correctamente por `player_id`). Corregido: se ocultan por completo (nunca un
+placeholder) Edad, la tarjeta de Efectividad/Partidos, la fila Mejor racha/Mejor nivel BRAMU, y
+`AGREGAR JUGADOR` (se dejó de llamar a `renderPlayerPublicAddButton()` en esta rama). Mano/Lado
+se muestran solo si existen (se ocultan individualmente si no); el contenedor de esos 3
+mini-stats (`#player-public-meta-grid`, nuevo id en `index.html`) se oculta entero si ninguno
+queda visible. Ranking sigue oculto (ya estaba correcto). Se agregaron 3 `id` nuevos en
+`index.html` (`player-public-meta-grid`, `player-public-effectiveness-card`,
+`player-public-performance-row`) — sin ningún otro cambio de markup/CSS, así que el camino
+local/legacy es visualmente idéntico (los `id` no tienen reglas propias).
+
+**Lo que NO se tocó (§6 de la revisión), confirmado:** token 30 días, pgcrypto, UUID nuevo por
+provisional, nunca fusionar por nombre, `list_my_provisional_players` en vez de abrir `players`,
+preservación/reasignación de `pilot_events`, claim antes de persistir perfil/Nivel, Recientes
+oculto hasta Bloque 5, JUGADORES/carga manual fuera de alcance, el fix de `sw.js` (ya estaba
+hecho de la ronda anterior), `main`/BRAMUlive/Supabase remoto/Vercel sin tocar.
+
+**Hotfix §2 no es automatizable con `verify-bloque4.mjs`:** es lógica de orquestación de
+`app.js` (cuándo llamar `complete_profile`/`officializeLevel`), no de las RPCs de Postgres —
+`app.js` no tiene cobertura de tests automatizados en este proyecto (convención existente, no
+introducida acá). Se verificó por inspección de código (el `return` que faltaba, ahora
+presente) + trazando a mano los dos puntos de entrada reales (`confirmNivelOnboarding`
+early-session shortcut y el botón `#signup-continue-btn` en `signupStep==='verify'`).
+
+---
+
 ## 2. Tests y verificación
 
 | Verificación | Resultado |
 |---|---|
-| `bramulab/tests.html` (navegador real, no grep) | **1408/1408 OK** (antes y después) |
+| `bramulab/tests.html` (navegador real, no grep) | **1408/1408 OK** (antes de la implementación, después de la implementación, y después del hotfix) |
 | `index.html` cargado en el dev server local, consola sin errores nuevos | OK (único 404 preexistente: `env.generated.js`, esperado sin backend configurado localmente) |
 | `?claim=<token>` en la URL: se limpia la URL, no guarda el token sin backend configurado | OK (verificado en el navegador) |
-| `node --check` sobre los 4 archivos JS tocados (`app.js`, `auth.js`, `store.js`, `sw.js`) | OK, sin errores de sintaxis |
-| `verify-bloque4.mjs` contra Supabase Staging | **NO ejecutado** — sin `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` en esta terminal, y la instrucción explícita de esta ronda es no aplicar nada a Supabase real todavía (la migración necesita estar aplicada para que el script tenga algo que probar) |
+| Selectores DOM nuevos del hotfix §4 (`player-public-meta-grid`/`-effectiveness-card`/`-performance-row`, jerarquía `.mini-stat` esperada) | OK, verificado por consola en el navegador real |
+| `node --check` sobre los 5 archivos JS tocados en total (`app.js`, `auth.js`, `store.js`, `sw.js`, `verify-bloque4.mjs`) | OK, sin errores de sintaxis |
+| `verify-bloque4.mjs` contra Supabase Staging | **NO ejecutado** — sin `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` en esta terminal, y la instrucción explícita de ambas rondas es no aplicar nada a Supabase real todavía (la migración necesita estar aplicada para que el script tenga algo que probar) |
 | `verify-bloque2.mjs`/`verify-bloque3.mjs` | No re-ejecutados en esta ronda (sin cambios de código que los afecten; sin credenciales tampoco) |
+| Hotfix §2 (claim transitorio no avanza a complete_profile/officializeLevel) | Verificado por inspección de código (no automatizable: es lógica de `app.js`, sin cobertura de tests en este proyecto) |
 
 ---
 
@@ -194,6 +277,18 @@ No se modificaron `verify-bloque2.mjs` ni `verify-bloque3.mjs`.
 | §8 — qué implementar en esta ronda | Todo lo listado quedó implementado; nada de lo no autorizado (partidos reales, Ranking, fusiones autoservicio, BRAMUlive) fue tocado |
 | §9 — criterio de validación | Cubierto en `verify-bloque4.mjs` + prueba manual de laboratorio (§1.4); pendiente de correr contra Staging real |
 
+### Checklist contra `05_Revision_Post_Implementacion_ChatGPT.md`
+
+| Punto de la revisión | Estado |
+|---|---|
+| §1 — búsqueda literal, `@usuario`, longitud máxima | Implementado (`position(...)`, strip de `@`, cap de 40) |
+| §2 — fallo transitorio de claim no avanza a complete_profile/oficialización | Implementado (`return` agregado en `runOfficializeAndEnter`) + vía de reintento sin OTP nuevo |
+| §3 — rate limit del claim cuenta intentos inválidos | Implementado (contrato `jsonb`, sin `raise exception` para errores de negocio) |
+| §4 — perfil público server-backed sin módulos vacíos ni acción local por nombre | Implementado (oculta Edad/Efectividad/Partidos/Mejor racha/Mejor nivel histórico/Agregar Jugador; mano/lado condicionales) |
+| §5 — validaciones de longitud/formato | Implementado (`p_query` 40, `p_display_name` 40, token 64 hex post-cuota) |
+| §6 — qué NO cambiar | Respetado en su totalidad |
+| §7 — validación requerida (`verify-bloque4.mjs` actualizado, suite local, `node --check`) | Cumplido |
+
 ---
 
 ## 4. Observaciones no bloqueantes
@@ -209,6 +304,15 @@ No se modificaron `verify-bloque2.mjs` ni `verify-bloque3.mjs`.
   UI real de invitación (crear/reutilizar un provisional al armar un partido) es de Bloque 5.
 - `canonical_player_id` (Backend_Infraestructura.md §6.1) no se usa ni se toca — es un mecanismo
   administrativo distinto, reservado para el futuro.
+- El hotfix §3 pedía el cambio de contrato específicamente para los errores de negocio
+  (`claim_invalid`/`claim_expired`/`claim_already_used`/`account_already_registered`/
+  `account_already_claimed_identity`). Extendí el mismo criterio al propio `rate_limited` DE
+  `claim_provisional_player` (no al de `search_players`/`get_public_profile`/
+  `create_provisional_player`/`create_claim_link`, que la revisión explícitamente dijo que
+  podían mantener su excepción de siempre): con TODOS los caminos de esa única función
+  devolviendo el mismo shape `jsonb`, `Auth.claimProvisionalPlayer`/`app.js` no necesitan
+  distinguir "excepción HTTP" de "resultado de negocio" para esa RPC en particular — una
+  simplificación interna, no un cambio de alcance.
 
 ---
 
@@ -231,7 +335,8 @@ No se modificaron `verify-bloque2.mjs` ni `verify-bloque3.mjs`.
 
 ---
 
-## 6. Commit
+## 6. Commits
 
-Ver el commit indicado en la respuesta de esta ronda en el chat (mensaje + hash), rama
-`staging`, sin tocar `main` ni BRAMUlive.
+- Implementación original de Bloque 4: `77455c5` (rama `staging`).
+- Hotfix post-revisión (este documento): ver el commit indicado en la respuesta de esta ronda
+  en el chat (mensaje + hash), rama `staging`, sin tocar `main` ni BRAMUlive.

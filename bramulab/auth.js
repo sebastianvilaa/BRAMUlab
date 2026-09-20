@@ -349,15 +349,19 @@
   /** Backend Bloque 4 — consume un token de reclamo (RPC `claim_provisional_player`). Debe
    *  llamarse con sesión real ya activa, ANTES de `completeProfile`/`officializeLevel` para esa
    *  misma cuenta (03_Revision_ChatGPT.md §2/Decisión 2 — ver `app.js runOfficializeAndEnter`).
-   *  `{ok:false, code}` con el código de excepción tal cual lo levanta la función
-   *  (`claim_invalid`/`claim_expired`/`claim_already_used`/`account_already_registered`/
-   *  `account_already_claimed_identity`/`rate_limited`) para que `app.js` decida el mensaje. */
+   *  Hotfix (05_Revision_Post_Implementacion_ChatGPT.md §3) — la RPC cambió de contrato: ahora
+   *  devuelve `jsonb` (`{ok, code, player_id}`) para los errores de negocio ESPERABLES en vez
+   *  de levantar una excepción (eso revertía el incremento del rate limiter). `error` acá
+   *  significa un fallo REALMENTE inesperado (red, `no_player_for_session`, etc.) — se mapea
+   *  igual a `{ok:false, code}` para que `app.js` no necesite distinguir el origen. */
   async function claimProvisionalPlayer(token) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
     const { data, error } = await c.rpc('claim_provisional_player', { p_token: token });
     if (error) return { ok: false, code: error.message || 'unknown' };
-    return { ok: true, player: data };
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    if (!data.ok) return { ok: false, code: data.code || 'unknown' };
+    return { ok: true, player: { player_id: data.player_id } };
   }
 
   global.PLAuth = {

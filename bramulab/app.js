@@ -3743,8 +3743,30 @@
     });
 
     $('#signup-continue-btn').addEventListener('click', async () => {
-      if (!recomputeSignupStepValidity()) return;
       const continueBtn = $('#signup-continue-btn');
+
+      // Backend Bloque 4 hotfix (05_Revision_Post_Implementacion_ChatGPT.md §2) — si ya existe
+      // una sesión válida para ESTE MISMO email, el OTP de esta alta ya se consumió con éxito
+      // en un intento anterior (típicamente: runOfficializeAndEnter() se cortó por un fallo
+      // TRANSITORIO del claim, ver esa función). Un código de un solo uso ya gastado nunca
+      // puede volver a verificarse — pedirlo de nuevo llevaría a un error confuso
+      // (code_invalid) en vez de al reintento real que el usuario necesita. Se salta directo a
+      // resumeDraftFlow() (que reintenta runOfficializeAndEnter() completo, siempre seguro de
+      // reintentar) ANTES de exigir un código con formato válido en el campo.
+      if (signupStep === 'verify') {
+        const existingSession = await Auth.getSession();
+        const existingSessionEmail = existingSession && existingSession.user && existingSession.user.email
+          ? existingSession.user.email.trim().toLowerCase() : null;
+        const draftEmailForRetry = signupDraft.email ? signupDraft.email.trim().toLowerCase() : null;
+        if (existingSession && existingSessionEmail && draftEmailForRetry && existingSessionEmail === draftEmailForRetry) {
+          continueBtn.disabled = true;
+          await resumeDraftFlow();
+          continueBtn.disabled = false;
+          return;
+        }
+      }
+
+      if (!recomputeSignupStepValidity()) return;
 
       if (signupStep === 1) {
         signupDraft.email = $('#signup-email').value.trim();
@@ -3876,14 +3898,31 @@
         showToast('Reclamaste la invitación — tu historial ya quedó vinculado a tu cuenta.', 3200);
       } else if (claimResult.code !== 'not_configured') {
         // Códigos definitivos (03_Revision_ChatGPT.md §7 — nunca fusión automática): el token
-        // no aplica más, reintentarlo no cambiaría nada. Cualquier otro código (red,
-        // rate_limited) se trata como transitorio: se conserva el token para la próxima vez
-        // que se llegue acá — reintentar esta función entera es siempre seguro (ver el
-        // comentario de cabecera más abajo).
+        // no aplica más, reintentarlo no cambiaría nada — se limpia y el alta sigue su curso
+        // normal SIN reclamo.
         const DEFINITIVE_CODES = ['claim_invalid', 'claim_expired', 'claim_already_used', 'account_already_registered', 'account_already_claimed_identity'];
         if (DEFINITIVE_CODES.includes(claimResult.code)) {
           Store.clearClaimToken();
           showToast('No pudimos vincular esa invitación. Tu cuenta se crea igual, normalmente.', 3600);
+        } else {
+          // Backend Bloque 4 hotfix (05_Revision_Post_Implementacion_ChatGPT.md §2) —
+          // CORRECCIÓN OBLIGATORIA: un fallo TRANSITORIO (red, rate_limited, etc.) NUNCA puede
+          // dejar avanzar a complete_profile/officializeLevel. Antes de este fix, el código
+          // seguía de largo igual: terminaba de registrar la cuenta (P2), y en el próximo
+          // intento el claim ya no podía adoptarse (account_already_registered) — conservar el
+          // token no alcanzaba si el resto del flujo lo volvía inservible de todos modos. Acá
+          // se corta ANTES de tocar perfil/Nivel: el token y el borrador quedan intactos.
+          // Vía de reintento sin pedir un OTP nuevo: la sesión YA es válida en este punto
+          // (nunca se llega hasta acá sin sesión), así que alcanza con volver a pasar por este
+          // mismo flujo — el botón CONFIRMAR MI NIVEL/CONFIRMAR CÓDIGO de la pantalla a la que
+          // se vuelve detecta la sesión ya activa y reintenta runOfficializeAndEnter()
+          // directamente, sin consumir OTP (ver el chequeo de sesión agregado en el handler de
+          // signup-continue-btn más abajo).
+          showToast('No pudimos procesar tu invitación pendiente. Volvé a intentarlo en un momento (no hace falta un código nuevo).', 4000);
+          signupStep = 'verify';
+          renderSignupStep();
+          showView('signup');
+          return;
         }
       }
     }
@@ -7008,34 +7047,36 @@
     renderPlayerPublicRankingCard(account, history);
   }
 
-  /** Backend Bloque 4 (03_Revision_ChatGPT.md §6) — variante server-backed: identidad real
-   *  resuelta por `player_id` (`get_public_profile`), nunca por nombre local. Edad NUNCA se
-   *  muestra (privada para otra persona real — §5 de la revisión) ni la tarjeta de Ranking
-   *  (corre sobre el Ranking simulado LOCAL de este dispositivo, sin sentido para otra cuenta
-   *  real todavía). Partidos/efectividad/racha quedan en su estado vacío honesto: sin
-   *  `matches` compartidos reales todavía (Bloque 5), este dispositivo nunca tiene datos
-   *  reales de encuentros con una cuenta recién encontrada por búsqueda — mostrar vacío es
-   *  correcto, no un bug (mismo criterio que "Recientes" en renderPlayerSearchResultsServerBacked). */
+  /** Backend Bloque 4 (03_Revision_ChatGPT.md §6, hotfix §4 de
+   *  05_Revision_Post_Implementacion_ChatGPT.md) — variante server-backed: identidad real
+   *  resuelta por `player_id` (`get_public_profile`), nunca por nombre local. Mientras Bloque 5
+   *  no aporte historial oficial, esta pantalla muestra SOLO identidad + @usuario + Nivel/
+   *  estado + mano/lado (si existen) — misma regla vigente que "con 0 partidos oficiales:
+   *  identidad + Nivel/estado, sin estadísticas agregadas, evolución ni módulos vacíos".
+   *  Se OCULTAN por completo (nunca un placeholder "—"): Edad (privada para otra persona real),
+   *  Efectividad/Partidos, Mejor racha, Mejor nivel BRAMU histórico (mostrar el Nivel actual
+   *  como "mejor" sería un máximo histórico no comprobado) y Ranking (hasta Bloque 7). También
+   *  se oculta AGREGAR JUGADOR: esa acción escribe la lista local histórica por NOMBRE
+   *  (Store.addPlayerToList), la misma identidad-por-nombre que esta rama acaba de resolver
+   *  correctamente por player_id — reintroducirla acá sería la misma regresión que Bloque 4
+   *  vino a corregir. El camino local/legacy (renderPlayerPublicProfile de arriba) conserva su
+   *  UI anterior sin ningún cambio. */
   async function renderPlayerPublicProfileServerBacked(playerId, fallbackName) {
     setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, fallbackName);
     $('#player-public-name').textContent = fallbackName;
     $('#player-public-username').textContent = buildPlayerHandle(fallbackName);
-    $('#player-public-age').textContent = '—';
-    $('#player-public-hand').textContent = '—';
-    $('#player-public-side').textContent = '—';
     setLevelValueText('player-public-level-value', '—', false);
     $('#player-public-level-sub').hidden = true;
-    renderPlayerPublicEffectivenessDonut({ pct: null });
-    $('#player-public-played').textContent = '0';
-    $('#player-public-won').textContent = '0';
-    $('#player-public-best-streak').textContent = '—';
-    $('#player-public-best-streak-range').hidden = true;
-    $('#player-public-peak-level').textContent = '—';
-    $('#player-public-peak-level-context').textContent = '';
+    $('#player-public-age').parentElement.hidden = true;
+    $('#player-public-hand').parentElement.hidden = true;
+    $('#player-public-side').parentElement.hidden = true;
+    $('#player-public-meta-grid').hidden = true; // se revela más abajo solo si hay mano/lado reales
+    $('#player-public-effectiveness-card').hidden = true;
+    $('#player-public-performance-row').hidden = true;
     $('#player-public-ranking-card').hidden = true;
     $('#player-public-whatsapp-btn').hidden = true;
     playerPublicWhatsappPhone = null;
-    renderPlayerPublicAddButton();
+    $('#player-public-add-btn').hidden = true;
 
     const result = await Auth.getPublicProfile(playerId);
     // Si mientras esperaba la respuesta el usuario ya navegó a otro perfil, no pisar esa
@@ -7051,20 +7092,22 @@
     setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, name);
     $('#player-public-name').textContent = name;
     $('#player-public-username').textContent = p.username ? `@${p.username}` : buildPlayerHandle(name);
-    $('#player-public-hand').textContent = HAND_LABELS[p.dominant_hand] || '—';
-    $('#player-public-side').textContent = SIDE_LABELS[p.preferred_side] || '—';
+
+    const hasHand = !!(p.dominant_hand && HAND_LABELS[p.dominant_hand]);
+    const hasSide = !!(p.preferred_side && SIDE_LABELS[p.preferred_side]);
+    $('#player-public-hand').parentElement.hidden = !hasHand;
+    if (hasHand) $('#player-public-hand').textContent = HAND_LABELS[p.dominant_hand];
+    $('#player-public-side').parentElement.hidden = !hasSide;
+    if (hasSide) $('#player-public-side').textContent = SIDE_LABELS[p.preferred_side];
+    $('#player-public-meta-grid').hidden = !(hasHand || hasSide); // Edad queda SIEMPRE oculta acá
 
     if (!p.level_status || p.level_status === 'PENDIENTE') {
       setLevelValueText('player-public-level-value', 'PENDIENTE', true);
-      $('#player-public-level-sub').hidden = true;
     } else {
       const levelText = Number.isFinite(p.level_public) ? p.level_public.toFixed(1) : '—';
       setLevelValueText('player-public-level-value', levelText, false);
-      $('#player-public-level-sub').hidden = true;
-      $('#player-public-peak-level').textContent = levelText;
-      $('#player-public-peak-level-context').textContent = 'ACT';
     }
-    renderPlayerPublicAddButton();
+    $('#player-public-level-sub').hidden = true;
   }
 
   /** BRAMUlab_V03.7 (parte B) — separador de miles simple ("1.380"), convención argentina; el

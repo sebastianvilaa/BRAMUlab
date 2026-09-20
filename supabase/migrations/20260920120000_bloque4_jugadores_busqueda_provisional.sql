@@ -40,6 +40,23 @@
 -- NO se aplica todavía a Supabase real (Staging/Producción): queda pendiente de un paso
 -- explícito posterior, fuera de esta ronda (instrucción expresa: "no apliques nada a Supabase
 -- real todavía").
+--
+-- Hotfix (2026-09-20, docs/BRAMUlab/Implementacion/Backend/Bloque_04/
+-- 05_Revision_Post_Implementacion_ChatGPT.md) — correcciones obligatorias plegadas DIRECTO en
+-- esta misma migración (nunca se llegó a aplicar en ningún entorno, así que no hace falta un
+-- archivo de follow-up separado, a diferencia de los hotfixes de Bloque 3):
+--   §1 — search_players: la búsqueda pasa a ser substring LITERAL vía `position(...)`, nunca
+--        `ilike` con un patrón armado desde el input (`%%`/`__` ya no actúan como wildcard);
+--        acepta un `@` inicial para @usuario; longitud máxima de query;
+--   §3 — claim_provisional_player cambia su contrato a un resultado estructurado (`jsonb`
+--        `{ok, code, player_id}`) para los errores de negocio esperables (`claim_invalid`,
+--        `claim_expired`, `claim_already_used`, `account_already_registered`,
+--        `account_already_claimed_identity`, `rate_limited`) — un `raise exception` sin capturar
+--        revierte TODA la transacción de la función, incluido el incremento de
+--        `consume_rate_limit` ya ejecutado antes; con un `return` normal ese incremento persiste;
+--   §5 — longitud máxima de `p_display_name` en `create_provisional_player`; formato del token
+--        de claim (64 hex) validado DESPUÉS de consumir cuota, para que un token con formato
+--        inválido también cuente como intento real.
 
 -- ------------------------------------------------------------------
 -- 1) pgcrypto (Decisión 3)
@@ -161,10 +178,16 @@ revoke all on function public.consume_rate_limit(uuid, text, integer, integer) f
 /** Búsqueda acotada de cuentas REGISTRADAS con perfil ya completo (nunca provisionales, nunca
  *  una cuenta a mitad de onboarding) por @usuario/nombre/apellido/display name.
  *  `authenticated` únicamente (nunca `anon`). Rate limit 30 req/60s por jugador (valores de la
- *  revisión §4). Query < 2 caracteres devuelve vacío (nunca todo el universo). Límite
- *  server-side fijo de 25 filas sin importar lo que pida el cliente. Nunca `select *`: cada
- *  columna pública se declara explícita (Backend_Infraestructura.md §5.1) — nunca email,
- *  auth_user_id, birth_date, género personal, terms_*, ni mu sin redondear. */
+ *  revisión §4). Query < 2 caracteres útiles devuelve vacío (nunca todo el universo); acepta un
+ *  `@` inicial para @usuario (`@sebastian` encuentra el username `sebastian`, el símbolo nunca
+ *  forma parte de la columna). Límite server-side fijo de 25 filas y longitud máxima de 40
+ *  caracteres de query (hotfix §1/§5 de 05_Revision_Post_Implementacion_ChatGPT.md: una query
+ *  absurdamente larga se trata igual que una corta, vacío controlado). Coincidencia por
+ *  substring LITERAL vía `position(...)`, NUNCA `ilike` con un patrón armado desde el input —
+ *  antes de este hotfix, `%%`/`__` actuaban como wildcard SQL y podían devolver el universo
+ *  entero pese al mínimo de 2 caracteres, anulando la protección anti-enumeración. Nunca
+ *  `select *`: cada columna pública se declara explícita (Backend_Infraestructura.md §5.1) —
+ *  nunca email, auth_user_id, birth_date, género personal, terms_*, ni mu sin redondear. */
 create or replace function public.search_players(p_query text, p_limit integer default 20)
 returns table (
   player_id uuid,
@@ -188,7 +211,7 @@ declare
   v_caller_player_id uuid;
   v_query text := trim(coalesce(p_query, ''));
   v_limit integer := least(greatest(coalesce(p_limit, 20), 1), 25);
-  v_like text;
+  v_query_lower text;
 begin
   select p.player_id into v_caller_player_id from public.players p where p.auth_user_id = auth.uid();
   if v_caller_player_id is null then
@@ -199,11 +222,16 @@ begin
     raise exception 'rate_limited' using errcode = 'P0001';
   end if;
 
-  if length(v_query) < 2 then
+  if left(v_query, 1) = '@' then
+    v_query := substring(v_query from 2);
+  end if;
+  v_query := trim(v_query);
+
+  if length(v_query) < 2 or length(v_query) > 40 then
     return;
   end if;
 
-  v_like := '%' || v_query || '%';
+  v_query_lower := lower(v_query);
 
   return query
     select
@@ -218,10 +246,10 @@ begin
       and pl.player_id <> v_caller_player_id
       and pr.username is not null
       and (
-        pr.username ilike v_like
-        or pr.display_name ilike v_like
-        or pr.first_name ilike v_like
-        or pr.last_name ilike v_like
+        position(v_query_lower in lower(pr.username)) > 0
+        or position(v_query_lower in lower(pr.display_name)) > 0
+        or position(v_query_lower in lower(pr.first_name)) > 0
+        or position(v_query_lower in lower(pr.last_name)) > 0
       )
     order by pr.username asc
     limit v_limit;
@@ -320,6 +348,11 @@ begin
 
   if v_display_name = '' then
     raise exception 'display_name_required' using errcode = 'P0001';
+  end if;
+  -- Hotfix §5 — longitud máxima razonable: nunca se restringe formato/acentos/caracteres
+  -- humanos normales, solo se impide un payload absurdamente largo.
+  if length(v_display_name) > 40 then
+    raise exception 'display_name_too_long' using errcode = 'P0001';
   end if;
 
   if not public.consume_rate_limit(v_caller_player_id, 'create_provisional_player', 10, 3600) then
@@ -463,15 +496,28 @@ grant execute on function public.create_claim_link(uuid) to authenticated;
  *  pilot_events.player_id no tiene ON DELETE CASCADE y signup_completed es evidencia válida
  *  del alta) — mismo criterio se extiende, por seguridad, a cualquier fila que P2 pudiera haber
  *  creado como creador (players.created_by_player_id/provisional_claims.created_by_player_id),
- *  para que el DELETE de P2 nunca falle por una referencia huérfana. */
+ *  para que el DELETE de P2 nunca falle por una referencia huérfana.
+ *
+ *  Hotfix §3 (05_Revision_Post_Implementacion_ChatGPT.md) — CAMBIO DE CONTRATO: devuelve
+ *  `jsonb` (`{ok, code, player_id}`) en vez de `public.players` + `raise exception` para los
+ *  errores de negocio ESPERABLES (`claim_invalid`/`claim_expired`/`claim_already_used`/
+ *  `account_already_registered`/`account_already_claimed_identity`/`rate_limited`). Un `raise
+ *  exception` sin capturar aborta TODA la transacción de la función — incluido el incremento de
+ *  `consume_rate_limit` ya ejecutado antes de la excepción — así que la versión anterior
+ *  dejaba sin contar exactamente los intentos que más interesa limitar (tokens inválidos/
+ *  vencidos/ya usados). Con un `return` normal ese incremento persiste. `no_player_for_session`
+ *  sigue siendo una excepción real: es una violación de invariante de sesión (ni siquiera hay
+ *  player_id con el que rate-limitar), no un resultado de negocio esperable — mismo criterio
+ *  que el resto de las RPCs de este archivo. */
 create or replace function public.claim_provisional_player(p_token text)
-returns public.players
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_caller_player_id uuid;
+  v_token text := trim(coalesce(p_token, ''));
   v_token_hash text;
   v_claim public.provisional_claims;
   v_p2_has_profile boolean;
@@ -484,21 +530,28 @@ begin
   end if;
 
   if not public.consume_rate_limit(v_caller_player_id, 'claim_provisional_player', 10, 900) then
-    raise exception 'rate_limited' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'rate_limited');
   end if;
 
-  v_token_hash := encode(extensions.digest(trim(coalesce(p_token, '')), 'sha256'), 'hex');
+  -- Hotfix §5 — formato del token (64 hex: sha256 de 32 bytes) validado DESPUÉS de consumir
+  -- cuota, para que un token con formato inválido cuente igual como intento real (mismo motivo
+  -- que el cambio de contrato de arriba: es exactamente el tipo de intento que interesa contar).
+  if v_token !~ '^[0-9a-f]{64}$' then
+    return jsonb_build_object('ok', false, 'code', 'claim_invalid');
+  end if;
+
+  v_token_hash := encode(extensions.digest(v_token, 'sha256'), 'hex');
 
   select * into v_claim from public.provisional_claims where token_hash = v_token_hash for update;
   if v_claim is null then
-    raise exception 'claim_invalid' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'claim_invalid');
   end if;
   if v_claim.status <> 'pending' then
-    raise exception 'claim_already_used' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'claim_already_used');
   end if;
   if v_claim.expires_at <= now() then
     update public.provisional_claims set status = 'expired' where claim_id = v_claim.claim_id;
-    raise exception 'claim_expired' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'claim_expired');
   end if;
 
   -- 03_Revision_ChatGPT.md §7/Decisión 2 — "antes de complete_profile Y de oficializar Nivel":
@@ -512,7 +565,7 @@ begin
     select 1 from public.level_states where player_id = v_caller_player_id and status <> 'PENDIENTE'
   ) into v_p2_has_profile;
   if v_p2_has_profile then
-    raise exception 'account_already_registered' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'account_already_registered');
   end if;
 
   -- Análisis §C — "qué ocurre si una cuenta ya está asociada a otro player_id": si esta MISMA
@@ -523,12 +576,12 @@ begin
     select 1 from public.provisional_claims where claimed_by_player_id = v_caller_player_id
   ) into v_already_claimed_identity;
   if v_already_claimed_identity then
-    raise exception 'account_already_claimed_identity' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'account_already_claimed_identity');
   end if;
 
   select * into v_p1 from public.players where player_id = v_claim.provisional_player_id for update;
   if v_p1 is null or v_p1.type <> 'provisional' then
-    raise exception 'claim_invalid' using errcode = 'P0001';
+    return jsonb_build_object('ok', false, 'code', 'claim_invalid');
   end if;
 
   -- Preservar identidad de P2 antes de borrarlo (§5 de la revisión + extensión defensiva):
@@ -561,17 +614,19 @@ begin
   insert into public.pilot_events (event_name, player_id, properties)
     values ('provisional_claimed', v_p1.player_id, '{}'::jsonb);
 
-  return v_p1;
+  return jsonb_build_object('ok', true, 'player_id', v_p1.player_id);
 end;
 $$;
 
 comment on function public.claim_provisional_player is
-  'Único camino de consumo de un claim. Debe llamarse ANTES de complete_profile/
-   officialize_level_onboarding (P2 sin perfil todavía) — una cuenta ya completa, o una que ya
-   adoptó otra identidad reclamada antes, recibe account_already_registered/
-   account_already_claimed_identity (nunca fusión automática, política manual del piloto).
-   Preserva pilot_events y cualquier fila donde P2 figure como creador (reasigna, nunca borra).
-   Atómico vía for update sobre la fila del claim.';
+  'Único camino de consumo de un claim. Devuelve jsonb {ok, code, player_id} — nunca raise
+   exception para errores de negocio esperables (hotfix §3: eso revertía el incremento del rate
+   limiter). Debe llamarse ANTES de complete_profile/officialize_level_onboarding (P2 sin
+   perfil todavía) — una cuenta ya completa, o una que ya adoptó otra identidad reclamada antes,
+   recibe {ok:false, code:account_already_registered/account_already_claimed_identity} (nunca
+   fusión automática, política manual del piloto). Preserva pilot_events y cualquier fila donde
+   P2 figure como creador (reasigna, nunca borra). Atómico vía for update sobre la fila del
+   claim.';
 
 revoke all on function public.claim_provisional_player(text) from public;
 grant execute on function public.claim_provisional_player(text) to authenticated;

@@ -16,21 +16,37 @@
 //   SUPABASE_SERVICE_ROLE_KEY=xxxx \
 //   node supabase/tests/verify-bloque4.mjs
 //
-// Qué comprueba (ver docs/BRAMUlab/Implementacion/Backend/Bloque_04/03_Revision_ChatGPT.md):
+// Qué comprueba (ver docs/BRAMUlab/Implementacion/Backend/Bloque_04/03_Revision_ChatGPT.md y el
+// hotfix 05_Revision_Post_Implementacion_ChatGPT.md):
 //   §10.4/RLS — anon no puede llamar ninguna RPC nueva ni leer provisional_claims/
 //               api_rate_limits directo;
 //   §6        — search_players/get_public_profile: coincidencia por @usuario/nombre/apellido,
 //               el caller nunca aparece en sus propios resultados, query corta devuelve vacío,
 //               una provisional NUNCA aparece en ninguna de las dos, shape sin campos privados;
+//   hotfix §1 — búsqueda LITERAL: `@usuario` encuentra el username sin el @; `%%`/`__` NO
+//               enumeran el universo (ya no son wildcard SQL); una query demasiado larga
+//               devuelve vacío controlado;
 //   §3        — create_provisional_player SIEMPRE crea un UUID nuevo, incluso con el mismo
 //               nombre y el mismo creador (nunca se fusiona por nombre);
+//   hotfix §5 — create_provisional_player rechaza un display_name absurdamente largo;
 //   §4        — rate limiting real (búsqueda) rechaza por encima del límite configurado;
+//   hotfix §3 — claim_provisional_player devuelve un resultado jsonb estructurado
+//               ({ok,code,player_id}) para errores de negocio esperables, NUNCA una excepción
+//               que revertiría el incremento del rate limiter; se verifica explícitamente que
+//               los intentos INVÁLIDOS (formato de token roto) SÍ consumen cuota — más de 10 en
+//               15 min con la misma cuenta terminan en rate_limited;
 //   §5/§7     — claim feliz: pilot_events (signup_completed) se preserva y se reasigna, el
 //               player_id adoptado es el de la provisional (nunca uno nuevo), complete_profile/
 //               officialize-onboarding posteriores funcionan sin cambios sobre ese ID;
 //   §7        — token vencido, ya usado, y cuenta ya registrada intentando reclamar: todos
-//               rechazados explícitamente, nunca fusión automática;
+//               rechazados explícitamente (código estructurado), nunca fusión automática;
 //   §7        — dos reclamos simultáneos del mismo token: solo uno gana (concurrencia real).
+//
+// Hotfix §2 (claim transitorio no debe dejar avanzar a complete_profile/officializeLevel) es
+// lógica de `bramulab/app.js` (orquestación del flujo de signup), no de estas RPCs — este
+// script no lo ejercita: app.js no tiene cobertura de tests automatizados en este proyecto (por
+// diseño, ver memoria del repo); se verificó por inspección de código + el informe de
+// implementación documenta el razonamiento y la garantía exacta.
 
 const url = process.env.SUPABASE_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY;
@@ -213,9 +229,11 @@ async function main() {
   report('RLS: anon no puede leer provisional_claims', anonReadClaimsBlocked, `status ${anonReadClaims.status}`);
 
   // --- 2) búsqueda ---
-  const searchForB = await rpcAs(userA.token, anonKey, 'search_players', { p_query: userB.username });
+  // Hotfix §1 — el test tiene que probar de verdad que escribir "@sebastian" funciona, no solo
+  // el username sin el @.
+  const searchForB = await rpcAs(userA.token, anonKey, 'search_players', { p_query: `@${userB.username}` });
   const searchForBRow = searchForB.res.ok && Array.isArray(searchForB.json) ? searchForB.json.find((r) => r.player_id === userB.playerId) : null;
-  report('búsqueda: A encuentra a B por @usuario', !!searchForBRow, JSON.stringify(searchForB.json));
+  report('búsqueda: A encuentra a B escribiendo "@" + @usuario', !!searchForBRow, JSON.stringify(searchForB.json));
   const searchForBShapeOk = searchForBRow && !('email' in searchForBRow) && !('auth_user_id' in searchForBRow) && !('birth_date' in searchForBRow) && !('gender' in searchForBRow);
   report('búsqueda: la fila nunca incluye campos privados (email/auth_user_id/birth_date/gender)', !!searchForBShapeOk, JSON.stringify(searchForBRow));
 
@@ -226,6 +244,16 @@ async function main() {
   const searchShort = await rpcAs(userA.token, anonKey, 'search_players', { p_query: 'v' });
   report('búsqueda: query < 2 caracteres devuelve vacío (nunca todo el universo)', searchShort.res.ok && Array.isArray(searchShort.json) && searchShort.json.length === 0, JSON.stringify(searchShort.json));
 
+  // Hotfix §1 — corrección obligatoria: antes de este hotfix, `search_players` armaba
+  // `'%' || p_query || '%'` y usaba `ilike`, así que un query de "%%" o "__" actuaba como
+  // wildcard SQL real y podía devolver el universo entero pese al mínimo de 2 caracteres.
+  const searchPercent = await rpcAs(userA.token, anonKey, 'search_players', { p_query: '%%' });
+  report('búsqueda: "%%" NO enumera usuarios (substring literal, no wildcard SQL)', searchPercent.res.ok && Array.isArray(searchPercent.json) && searchPercent.json.length === 0, JSON.stringify(searchPercent.json));
+  const searchUnderscore = await rpcAs(userA.token, anonKey, 'search_players', { p_query: '__' });
+  report('búsqueda: "__" NO enumera usuarios (substring literal, no wildcard SQL)', searchUnderscore.res.ok && Array.isArray(searchUnderscore.json) && searchUnderscore.json.length === 0, JSON.stringify(searchUnderscore.json));
+  const searchTooLong = await rpcAs(userA.token, anonKey, 'search_players', { p_query: 'x'.repeat(80) });
+  report('búsqueda: query demasiado larga devuelve vacío de forma controlada (nunca un error)', searchTooLong.res.ok && Array.isArray(searchTooLong.json) && searchTooLong.json.length === 0, JSON.stringify(searchTooLong.json));
+
   // --- 3) provisionales: SIEMPRE un UUID nuevo, nunca se fusionan por nombre ---
   const DUP_NAME = `Invitado Duplicado ${stamp}`;
   const prov1 = await rpcAs(userA.token, anonKey, 'create_provisional_player', { p_display_name: DUP_NAME });
@@ -235,6 +263,10 @@ async function main() {
   if (prov1Id) cleanup.playerIds.push(prov1Id);
   if (prov1DupId) cleanup.playerIds.push(prov1DupId);
   report('provisional: crear dos veces con el MISMO nombre desde el MISMO creador da IDs distintos (nunca se fusiona)', prov1.res.ok && prov1Dup.res.ok && !!prov1Id && !!prov1DupId && prov1Id !== prov1DupId, `${prov1Id} vs ${prov1DupId}`);
+
+  // Hotfix §5 — longitud máxima razonable de display_name.
+  const provNameTooLong = await rpcAs(userA.token, anonKey, 'create_provisional_player', { p_display_name: 'X'.repeat(80) });
+  report('provisional: display_name absurdamente largo se rechaza', !provNameTooLong.res.ok && provNameTooLong.json && provNameTooLong.json.message === 'display_name_too_long', JSON.stringify(provNameTooLong.json));
 
   const provNeverInSearch = await rpcAs(userA.token, anonKey, 'search_players', { p_query: DUP_NAME.slice(0, 10) });
   report('búsqueda: una identidad provisional NUNCA aparece en search_players', provNeverInSearch.res.ok && Array.isArray(provNeverInSearch.json) && provNeverInSearch.json.length === 0, JSON.stringify(provNeverInSearch.json));
@@ -260,8 +292,10 @@ async function main() {
   const hadSignupCompleted = Array.isArray(pilotEventsBeforeClaim) && pilotEventsBeforeClaim.some((e) => e.event_name === 'signup_completed');
   report('setup: la cuenta nueva tiene su signup_completed original antes de reclamar', hadSignupCompleted, JSON.stringify(pilotEventsBeforeClaim));
 
+  // Hotfix §3 — claim_provisional_player ahora devuelve jsonb {ok, code, player_id} en vez de
+  // la fila de players + raise exception (ver la migración).
   const claimHappy = await rpcAs(accC.token, anonKey, 'claim_provisional_player', { p_token: token2 });
-  const claimHappyOk = claimHappy.res.ok && claimHappy.json && claimHappy.json.player_id === prov1Id;
+  const claimHappyOk = claimHappy.res.ok && claimHappy.json && claimHappy.json.ok === true && claimHappy.json.player_id === prov1Id;
   report('claim feliz: adopta el MISMO player_id de la provisional (nunca uno nuevo)', claimHappyOk, JSON.stringify(claimHappy.json));
 
   const oldP2Gone = await serviceGet(`players?select=player_id&player_id=eq.${originalPlayerIdC}`);
@@ -297,7 +331,8 @@ async function main() {
   // --- 6) token ya usado: reintentar el MISMO token2 debe rechazarse ---
   const accD = await createFreshUnfinishedAccount('d');
   const reuseUsedToken = await rpcAs(accD.token, anonKey, 'claim_provisional_player', { p_token: token2 });
-  report('claim: reusar un token ya reclamado se rechaza', !reuseUsedToken.res.ok, JSON.stringify(reuseUsedToken.json));
+  const reuseUsedTokenRejected = reuseUsedToken.res.ok && reuseUsedToken.json && reuseUsedToken.json.ok === false && reuseUsedToken.json.code === 'claim_already_used';
+  report('claim: reusar un token ya reclamado se rechaza (claim_already_used)', reuseUsedTokenRejected, JSON.stringify(reuseUsedToken.json));
   if (accD.playerId) cleanup.playerIds.push(accD.playerId);
 
   // --- 7) token vencido ---
@@ -310,7 +345,8 @@ async function main() {
   report('setup: se pudo forzar el vencimiento del claim vía service_role (para el test)', expirePatchOk, '');
   const accE = await createFreshUnfinishedAccount('e');
   const claimExpired = await rpcAs(accE.token, anonKey, 'claim_provisional_player', { p_token: token3 });
-  report('claim: un token vencido se rechaza (claim_expired)', !claimExpired.res.ok && claimExpired.json && claimExpired.json.message === 'claim_expired', JSON.stringify(claimExpired.json));
+  const claimExpiredRejected = claimExpired.res.ok && claimExpired.json && claimExpired.json.ok === false && claimExpired.json.code === 'claim_expired';
+  report('claim: un token vencido se rechaza (claim_expired)', claimExpiredRejected, JSON.stringify(claimExpired.json));
   if (accE.playerId) cleanup.playerIds.push(accE.playerId);
 
   // --- 8) cuenta ya registrada intentando reclamar: nunca fusión automática ---
@@ -321,7 +357,8 @@ async function main() {
   const token4 = link4.res.ok ? link4.json : null;
   // userB YA tiene perfil completo (creado en el paso 0) — intenta reclamar de todos modos.
   const claimByAlreadyRegistered = await rpcAs(userB.token, anonKey, 'claim_provisional_player', { p_token: token4 });
-  report('claim: una cuenta YA con perfil completo no puede reclamar automáticamente (account_already_registered)', !claimByAlreadyRegistered.res.ok && claimByAlreadyRegistered.json && claimByAlreadyRegistered.json.message === 'account_already_registered', JSON.stringify(claimByAlreadyRegistered.json));
+  const claimByAlreadyRegisteredRejected = claimByAlreadyRegistered.res.ok && claimByAlreadyRegistered.json && claimByAlreadyRegistered.json.ok === false && claimByAlreadyRegistered.json.code === 'account_already_registered';
+  report('claim: una cuenta YA con perfil completo no puede reclamar automáticamente (account_already_registered)', claimByAlreadyRegisteredRejected, JSON.stringify(claimByAlreadyRegistered.json));
 
   // --- 9) concurrencia: dos reclamos simultáneos del MISMO token, solo uno gana ---
   const prov4 = await rpcAs(userA.token, anonKey, 'create_provisional_player', { p_display_name: `Invitado Concurrencia ${stamp}` });
@@ -334,11 +371,15 @@ async function main() {
     rpcAs(accF.token, anonKey, 'claim_provisional_player', { p_token: token5 }),
     rpcAs(accG.token, anonKey, 'claim_provisional_player', { p_token: token5 }),
   ]);
-  const winners = [raceF, raceG].filter((r) => r.res.ok);
-  report('concurrencia: dos reclamos simultáneos del mismo token -> exactamente uno gana', winners.length === 1, `F=${raceF.res.ok} G=${raceG.res.ok}`);
+  // Hotfix §3 — con el contrato jsonb, AMBAS respuestas llegan con HTTP 200 (nunca una
+  // excepción); el ganador se distingue por json.ok === true, no por res.ok.
+  const raceFWon = raceF.res.ok && raceF.json && raceF.json.ok === true;
+  const raceGWon = raceG.res.ok && raceG.json && raceG.json.ok === true;
+  const winners = [raceFWon, raceGWon].filter(Boolean);
+  report('concurrencia: dos reclamos simultáneos del mismo token -> exactamente uno gana', winners.length === 1, `F=${JSON.stringify(raceF.json)} G=${JSON.stringify(raceG.json)}`);
   if (winners.length === 1) {
     cleanup.playerIds.push(prov4Id); // el ganador adoptó prov4Id
-    const loserAcc = raceF.res.ok ? accG : accF;
+    const loserAcc = raceFWon ? accG : accF;
     if (loserAcc.playerId) cleanup.playerIds.push(loserAcc.playerId); // el perdedor sigue en su P2 original
   } else {
     if (prov4Id) cleanup.playerIds.push(prov4Id);
@@ -354,6 +395,25 @@ async function main() {
   const succeededCount = rateLimitCalls.filter((r) => r.res.ok).length;
   report('rate limiting: 35 búsquedas rápidas seguidas -> al menos una rechazada por rate_limited', rateLimitedCount > 0, `ok=${succeededCount} rate_limited=${rateLimitedCount}`);
   report('rate limiting: nunca deja pasar más de 30 dentro de la ventana', succeededCount <= 30, `ok=${succeededCount}`);
+
+  // --- 11) rate limiting del CLAIM: los intentos INVÁLIDOS también deben contar (hotfix §3) ---
+  // Antes del hotfix, cada `claim_invalid` era un `raise exception` que revertía el incremento
+  // de `consume_rate_limit` de esa misma llamada — así que reintentar un token roto NUNCA
+  // llegaba a `rate_limited`, sin importar cuántas veces se probara. Secuencial (no
+  // Promise.all): necesitamos que la llamada #11, específicamente, sea la que consuma el
+  // décimo-primer lugar de la ventana.
+  const accH = await createFreshUnfinishedAccount('h');
+  const invalidClaimAttempts = [];
+  for (let i = 0; i < 11; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    invalidClaimAttempts.push(await rpcAs(accH.token, anonKey, 'claim_provisional_player', { p_token: 'no-es-un-token-valido' }));
+  }
+  const firstTenAllInvalid = invalidClaimAttempts.slice(0, 10).every((r) => r.res.ok && r.json && r.json.ok === false && r.json.code === 'claim_invalid');
+  report('rate limiting del claim: los primeros 10 intentos con token inválido responden claim_invalid (y consumen cuota)', firstTenAllInvalid, JSON.stringify(invalidClaimAttempts.slice(0, 10).map((r) => r.json)));
+  const eleventh = invalidClaimAttempts[10];
+  const eleventhRateLimited = !!eleventh && eleventh.res.ok && eleventh.json && eleventh.json.ok === false && eleventh.json.code === 'rate_limited';
+  report('rate limiting del claim: el intento #11 (misma ventana de 15 min) devuelve rate_limited — los inválidos SÍ consumieron cuota', eleventhRateLimited, JSON.stringify(eleventh && eleventh.json));
+  if (accH.playerId) cleanup.playerIds.push(accH.playerId);
 
   const allPassed = results.every(Boolean);
   console.log('');
