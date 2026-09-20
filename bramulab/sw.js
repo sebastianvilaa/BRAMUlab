@@ -85,7 +85,7 @@
 // referencia a CACHE_NAME (install/activate/fetch de abajo) lanzaba ReferenceError en tiempo
 // de ejecución, rompiendo el caching offline-first por completo. Se corrige acá de paso,
 // porque bumpear el sufijo exige tocar esta misma línea de todos modos.
-const CACHE_NAME = 'bramulab-v04-10-h9';
+const CACHE_NAME = 'bramulab-v04-10-h10';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -96,28 +96,28 @@ const CACHE_NAME = 'bramulab-v04-10-h9';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.10-h9',
-  './engine.js?v=04.10-h9',
-  './stats.js?v=04.10-h9',
-  './store.js?v=04.10-h9',
+  './styles.css?v=04.10-h10',
+  './engine.js?v=04.10-h10',
+  './stats.js?v=04.10-h10',
+  './store.js?v=04.10-h10',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.10-h9',
-  './level-context.js?v=04.10-h9',
-  './level-calibration.js?v=04.10-h9',
-  './player-home.js?v=04.10-h9',
-  './match-load.js?v=04.10-h9',
-  './player-identity.js?v=04.10-h9',
-  './groups.js?v=04.10-h9',
-  './locations.js?v=04.10-h9',
-  './ranking.js?v=04.10-h9',
+  './level.js?v=04.10-h10',
+  './level-context.js?v=04.10-h10',
+  './level-calibration.js?v=04.10-h10',
+  './player-home.js?v=04.10-h10',
+  './match-load.js?v=04.10-h10',
+  './player-identity.js?v=04.10-h10',
+  './groups.js?v=04.10-h10',
+  './locations.js?v=04.10-h10',
+  './ranking.js?v=04.10-h10',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.10-h9',
-  './app.js?v=04.10-h9',
+  './auth.js?v=04.10-h10',
+  './app.js?v=04.10-h10',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
