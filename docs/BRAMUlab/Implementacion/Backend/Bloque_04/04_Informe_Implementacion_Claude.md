@@ -5,9 +5,12 @@
 micro-hotfix visual posterior
 **Rama:** `staging`, HEAD de partida `4d74393` (incluye `03_Revision_ChatGPT.md`); hotfix sobre
 `10cd0cf` (incluye `05_Revision_Post_Implementacion_ChatGPT.md`); micro-hotfix sobre `b09b150`
-**Estado:** implementado en código y migración local, con el hotfix post-revisión y el
-micro-hotfix visual plegados. **NO aplicado a Supabase real** (Staging/Producción) —
-instrucción explícita de las tres rondas. `main` y BRAMUlive no fueron tocados.
+**Estado histórico de implementación:** este informe se escribió antes de aplicar Bloque 4 a
+Supabase real. **Estado final vigente al 20/09/2026: CERRADO en Staging.** Las migraciones fueron
+aplicadas a `bramulab-staging`, los verificadores reales terminaron en verde y la validación
+manual completa (búsqueda, Perfil público, claim y regresiones) quedó consolidada en
+`08_Validacion_Final_Staging.md` y formalizada en `09_Cierre_Bloque_04.md`.
+Production, `main` y BRAMUlive no fueron tocados.
 
 Este informe documenta la implementación de Bloque 4 siguiendo exactamente
 `03_Revision_ChatGPT.md` (que tiene precedencia sobre `02_Analisis_Claude.md` donde difieren), el
@@ -370,3 +373,16 @@ Mejor nivel BRAMU y AGREGAR JUGADOR, los 4 visibles). Suite local (`tests.html`)
 - Hotfix post-revisión (§1.7): `b09b150` (rama `staging`).
 - Micro-hotfix visual (§1.8, este documento): ver el commit indicado en la respuesta de esta
   ronda en el chat (mensaje + hash), rama `staging`, sin tocar `main` ni BRAMUlive.
+
+
+---
+
+## 6. Actualización de cierre — 20/09/2026
+
+Este informe conserva el detalle histórico de la implementación previa a Staging. Para el
+estado final del bloque prevalecen:
+
+- `08_Validacion_Final_Staging.md` — evidencia automática y manual consolidada;
+- `09_Cierre_Bloque_04.md` — cierre formal.
+
+Estado final: **Backend Bloque 4 CERRADO en Staging**.
