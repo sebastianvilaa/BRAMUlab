@@ -22,7 +22,7 @@ La recomendación es construir Nivel BRAMU V1 como un sistema híbrido, específ
 - reducción del peso de formatos cortos, rivales poco confiables y enfrentamientos repetidos;
 - nivel estable durante la inactividad, pero con menor confiabilidad y mayor sensibilidad al regreso.
 
-Esta arquitectura resuelve la fórmula candidata para el piloto. Sus parámetros iniciales producen comportamientos coherentes en simulaciones, pero no deben considerarse calibrados científicamente hasta contar con resultados reales de BRAMU. El motor de partidos continúa publicado internamente como **Nivel BRAMU V1.0**. El origen del nivel debe conservar además `questionnaire_version = nivel_inicial_v1_1` para distinguir la nueva estimación de la implementada originalmente desde V1.4.
+Esta arquitectura resuelve la fórmula candidata para el lanzamiento inicial. Sus parámetros iniciales producen comportamientos coherentes en simulaciones, pero no deben considerarse calibrados científicamente hasta contar con resultados reales de BRAMU. El motor de partidos continúa publicado internamente como **Nivel BRAMU V1.0**. El origen del nivel debe conservar además `questionnaire_version = nivel_inicial_v1_1` para distinguir la nueva estimación de la implementada originalmente desde V1.4.
 
 ## 1. Qué enseñan los modelos existentes
 
@@ -32,7 +32,7 @@ Elo aporta la idea central más útil: convertir la diferencia de nivel previa e
 
 ### Glicko y Glicko-2
 
-Glicko agrega una desviación de rating que representa incertidumbre. Un jugador nuevo o inactivo tiene una estimación menos confiable y, por lo tanto, puede moverse más; un jugador activo y bien medido cambia menos. La incertidumbre aumenta con la inactividad sin que la habilidad estimada tenga que disminuir.^1 Glicko-2 añade volatilidad para representar cambios de rendimiento, aunque su implementación completa está pensada para períodos con varios resultados y agrega complejidad innecesaria para el primer piloto de BRAMU.^2
+Glicko agrega una desviación de rating que representa incertidumbre. Un jugador nuevo o inactivo tiene una estimación menos confiable y, por lo tanto, puede moverse más; un jugador activo y bien medido cambia menos. La incertidumbre aumenta con la inactividad sin que la habilidad estimada tenga que disminuir.^1 Glicko-2 añade volatilidad para representar cambios de rendimiento, aunque su implementación completa está pensada para períodos con varios resultados y agrega complejidad innecesaria para el lanzamiento inicial de BRAMU.^2
 
 ### TrueSkill
 
@@ -165,9 +165,9 @@ Después de mostrar el `nivel_base`, BRAMU pregunta de forma neutral:
 
 No se destaca ni recomienda ninguna respuesta. Deben existir `No compito` y `No estoy seguro`.
 
-Las referencias de categoría viven en una configuración separada por país, región, circuito y división competitiva. Para el piloto argentino masculino se adopta esta hipótesis inicial:
+Las referencias de categoría viven en una configuración separada por país, región, circuito y división competitiva. Para el lanzamiento inicial en Argentina, rama masculina se adopta esta hipótesis inicial:
 
-| Categoría | Ancla local piloto |
+| Categoría | Ancla local inicial |
 |---:|---:|
 | 9.ª | 2,0 |
 | 8.ª | 2,8 |
@@ -895,11 +895,11 @@ La investigación y simulación permiten cerrar una fórmula candidata, pero no 
 3. si el margen 0,90–1,15 predice mejor que un rango más estrecho;
 4. si la curva de confiabilidad corresponde a la diversidad real de jugadores;
 5. si las categorías descriptivas propuestas coinciden con el lenguaje que los usuarios entienden en Argentina;
-6. si los anclajes argentinos de categoría necesitan ajustes después del piloto;
+6. si los anclajes argentinos de categoría necesitan ajustes después de contar con las primeras semanas de datos reales;
 7. qué mapas locales corresponden a otras regiones, circuitos y divisiones competitivas;
 8. si el promedio de pareja necesita en el futuro una corrección por desequilibrio.
 
-Estos puntos no bloquean una V1 de piloto. Deben medirse con validación retrospectiva:
+Estos puntos no bloquean una V1 para el lanzamiento inicial. Deben medirse con validación retrospectiva:
 
 - entrenar parámetros con una parte de los partidos;
 - predecir una muestra no utilizada;
@@ -920,7 +920,7 @@ El sistema puede considerarse cerrado para desarrollo cuando:
 - se creen pruebas automáticas con estos escenarios;
 - toda modificación futura requiera una nueva versión del algoritmo.
 
-La fórmula y el cuestionario V1.1 quedan cerrados como candidatos implementables para el piloto. Después del lanzamiento requieren validación empírica con datos propios y cualquier cambio posterior debe versionarse.
+La fórmula y el cuestionario V1.1 quedan cerrados como candidatos implementables para el lanzamiento inicial. Después del lanzamiento requieren validación empírica con datos propios y cualquier cambio posterior debe versionarse.
 
 ## Fuentes
 
