@@ -571,14 +571,15 @@ límite de 5 porque ya tenían evidencia suficiente en backend real/tests.
 **Bloque 5 CERRADO en Staging.**
 
 
-## Bloque 6 — Validación y actualización oficial — BACKEND VALIDADO / FASE B PENDIENTE
+## Bloque 6 — Validación y actualización oficial — FASE B IMPLEMENTADA / QA REAL PENDIENTE
 
 **Inicio:** 21 de septiembre de 2026.  
-**Estado actual:** backend/Fase A **IMPLEMENTADO y VALIDADO en Supabase Staging**. Bloque 6 completo todavía **NO cerrado**: falta Fase B de frontend/wiring y posterior QA real de navegador.  
+**Estado actual:** backend/Fase A **IMPLEMENTADO y VALIDADO en Supabase Staging** + frontend/Fase B **IMPLEMENTADO y REVISADO CENTRALMENTE**. Bloque 6 completo todavía **NO cerrado**: falta QA real de navegador en Staging sobre el bundle `04.10-h16`.  
 **Evidencia backend real:** `docs/BRAMUlab/Implementacion/Backend/Bloque_06/12_Validacion_Backend_Staging_ChatGPT.md`.  
-**Próximo handoff:** `docs/BRAMUlab/Implementacion/Backend/Bloque_06/13_Handoff_Fase_B_Claude.md`.
+**Resultado de Claude Fase B:** `14_Resultado_Fase_B_Claude.md`.  
+**Revisión central Fase B:** `15_Revision_Central_Fase_B_ChatGPT.md`.
 
-### 1. Backend implementado
+### 1. Backend implementado y validado
 
 Bloque 6 ya tiene en Staging:
 
@@ -602,7 +603,7 @@ Edge Functions activas:
 - `resolve-identity-issue`;
 - `admin-resolve-identity-issue`.
 
-### 2. Revisión y validación
+### 2. Validación backend
 
 La revisión final C-01…C-10 quedó corregida y validada.
 
@@ -627,9 +628,9 @@ Validación directa sobre Supabase Staging confirmó, entre otros:
 - `last_rated_at` vuelve al `initial_estimate` al retirar el único partido computable;
 - helpers internos y vía admin no son ejecutables por `anon`/`authenticated`.
 
-### 3. Bugs detectados recién en Staging real
+### 3. Bugs encontrados en Staging real
 
-Se corrigieron cuatro fallos de implementación que no habían aparecido en revisión estática:
+Durante la validación backend se corrigieron cuatro fallos:
 
 1. helpers SECURITY DEFINER heredaban EXECUTE público;
 2. `get_notifications` tenía ambigüedad PL/pgSQL de `read_at`;
@@ -638,36 +639,62 @@ Se corrigieron cuatro fallos de implementación que no habían aparecido en revi
 
 Todos quedaron corregidos mediante migraciones B6 nuevas y revalidados.
 
-### 4. Limpieza
+### 4. Fase B frontend/wiring
 
-La QA creó exclusivamente fixtures sintéticos identificables.
+Claude conectó:
 
-Resultado final:
+- pendientes accionables;
+- Confirmar;
+- Proponer corrección;
+- responder corrección;
+- No participé;
+- resolución de identidad;
+- Notificaciones server-backed;
+- refresh de Home/Historial/Nivel/pendientes.
+
+Evidencia de Claude:
+
+- `tests.html` → **1448/1448 OK**;
+- `match-level-engine.test.mjs` → **30/30 OK**;
+- `node --check` limpio.
+
+La revisión central encontró y corrigió tres puntos localizados:
+
+1. acciones de corrección/identidad vencidas seguían visibles aunque el backend las rechazara;
+2. el vencimiento de 7 días de una incidencia no tenía camino de materialización desde la app; ahora se materializa perezosamente al reabrir el partido mediante `forceUnidentified`;
+3. `match-validation.js` no estaba precacheado y el bundle seguía h15; se corrigió a **04.10-h16**.
+
+Además, mientras una incidencia de identidad está open, el partido deja temporalmente de alimentar derivados personales que dependen de saber quién jugó, coherente con la suspensión server-side del efecto de Nivel.
+
+### 5. Limpieza backend
+
+Resultado final de fixtures de QA backend:
 
 - usuarios `bramu-b6qa-sql-*` restantes: **0**;
 - partidos QA B6 restantes: **0**;
 - submissions QA B6 restantes: **0**;
 - extensión PostgreSQL `http` temporal: **eliminada**.
 
-### 5. Qué falta para cerrar Bloque 6
+### 6. Qué falta para cerrar Bloque 6
 
-Falta **Fase B frontend/wiring**:
+Únicamente **QA real de navegador en Staging** sobre el bundle `04.10-h16`.
 
-- conectar `auth.js` con las operaciones B6;
-- hacer funcionar desde la app real `Confirmar / Proponer corrección / No participé`;
-- responder correcciones;
-- resolver identidades;
-- conectar bandeja/badge de Notificaciones;
-- refrescar Home/Historial/Nivel/pendientes después de cada acción;
-- preservar camino local/legacy.
+Debe validar los riesgos concretos de Fase B:
 
-El frontend vigente todavía contiene referencias explícitas a que la corrección server-backed de Bloque 6 “todavía no está implementada”.
+- autoridad por pareja;
+- Confirmar;
+- corrección y respuesta;
+- ventanas 3/10 días;
+- incidencia y resolución de identidad;
+- terminal `Jugador no identificado`;
+- Notificaciones;
+- refresh de Home/Historial/Nivel;
+- ausencia de regresiones importantes de Bloque 5.
 
-Después de Fase B:
+Después de esa QA y cualquier corrección dirigida:
 
-1. revisión central del diff;
-2. deploy de Staging si corresponde;
-3. QA real de navegador con cuentas reales/sintéticas;
-4. recién entonces cierre formal de Bloque 6.
+1. limpieza de fixtures creados por navegador;
+2. cierre formal de Bloque 6;
+3. recién entonces iniciar Bloque 7.
 
 **No iniciar Bloque 7 todavía.**
