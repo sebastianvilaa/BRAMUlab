@@ -77,7 +77,7 @@ begin
   -- notification_id se deriva determinísticamente (md5 formateado como uuid) del tipo+clave real
   -- para que sea estable entre lecturas sucesivas.
   return query
-    select * from (
+    select all_rows.* from (
       -- 1) pending_review — partido pending_validation, deadline vigente, la acción es del lado
       --    del caller (aparece para AMBOS integrantes de esa pareja, cada uno al consultar).
       select
@@ -136,8 +136,8 @@ begin
       from public.notifications n
       where n.player_id = v_caller_player_id
     ) all_rows
-    where not p_only_unread or read_at is null
-    order by created_at desc
+    where not p_only_unread or all_rows.read_at is null
+    order by all_rows.created_at desc
     limit v_limit;
 end;
 $$;
