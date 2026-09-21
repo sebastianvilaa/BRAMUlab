@@ -1,6 +1,6 @@
 # BRAMUlab — Backend e Infraestructura
 
-> Fuente maestra vigente para construir el backend mínimo del piloto real.
+> Fuente maestra vigente para construir el backend mínimo para el lanzamiento inicial.
 >
 > Estado: consolidado para implementación. Alineación de ciclo de partido actualizada el 17/09/2026.
 >
@@ -16,7 +16,7 @@ El objetivo inmediato es llevar BRAMU desde un prototipo basado en `localStorage
 
 La primera infraestructura:
 
-- no es descartable ni una base piloto que luego haya que migrar;
+- no es descartable ni una base provisional que luego haya que migrar;
 - debe funcionar también con usuarios que Sebastián no conozca;
 - debe soportar cómodamente cientos de usuarios y crecer aproximadamente hasta 1.000 sin rehacer la arquitectura;
 - no debe diseñarse para 100.000 usuarios ni incorporar complejidad comercial anticipada;
@@ -35,7 +35,7 @@ La prioridad es construir primero la mínima verdad multiusuario y, sobre esa ba
 - Ranking BRAMU V1 está cerrado conceptualmente y en UX, pero su implementación actual es local/simulada.
 - BRAMU Intelligence V1 está definida y documentada, pero no implementada.
 - Cuentas, perfiles, partidos, historial, Nivel, grupos y Ranking continúan dependiendo total o parcialmente de `localStorage`, mocks o simulaciones.
-- Nivel V1 continúa detrás de una herramienta/preview interno. Antes del piloto debe convertirse en el flujo normal, con autoridad server-side y sin controles de laboratorio visibles para usuarios comunes.
+- Nivel V1 continúa detrás de una herramienta/preview interno. Antes del lanzamiento inicial debe convertirse en el flujo normal, con autoridad server-side y sin controles de laboratorio visibles para usuarios comunes.
 
 No se migrarán a Producción los partidos, cuentas o rankings simulados actuales. Producción comenzará limpia.
 
@@ -55,7 +55,7 @@ No se migrarán a Producción los partidos, cuentas o rankings simulados actuale
 - **Correo transaccional:** proveedor SMTP externo configurado y probado para verificación y recuperación reales.
 - **Repositorio y flujo de trabajo:** GitHub continúa siendo la fuente del código; los despliegues de código nunca reemplazan los datos.
 
-Esta arquitectura es una base real, no provisional. Permite el piloto y el crecimiento inicial sin agregar servidores propios, microservicios, colas o una plataforma analítica.
+Esta arquitectura es una base real, no provisional. Permite el lanzamiento inicial y el crecimiento posterior sin agregar servidores propios, microservicios, colas o una plataforma analítica.
 
 ### 3.2 Principios obligatorios
 
@@ -69,7 +69,7 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 
 ---
 
-## 4. Alcance del backend mínimo del piloto
+## 4. Alcance del backend mínimo para el lanzamiento inicial
 
 ### 4.1 Incluido
 
@@ -90,11 +90,11 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 15. Ranking BRAMU V1 semanal calculado desde datos reales validados.
 16. Separación completa de Development, Staging y Production.
 17. Caché y cola local de reintentos, sin convertir datos locales en autoridad.
-18. Métricas mínimas del piloto.
+18. Métricas mínimas del lanzamiento inicial.
 19. BRAMU Intelligence V1 determinística, con evidencia verificable, relevancia, plantillas y UX post-partido, apoyada sobre los datos oficiales ya persistidos.
 20. Datos y versiones suficientes para que BRAMU Intelligence pueda seguir mejorándose sin rehacer el historial.
 
-### 4.2 Expresamente fuera del piloto
+### 4.2 Expresamente fuera del lanzamiento inicial
 
 - IA generativa como requisito de salida (puede activarse más adelante si supera sus pruebas);
 - matchmaking;
@@ -109,16 +109,16 @@ Esta arquitectura es una base real, no provisional. Permite el piloto y el creci
 - configuración de privacidad campo por campo;
 - aplicación nativa de App Store o Google Play;
 - microservicios, colas distribuidas, data warehouse o infraestructura para escala masiva;
-- dominio propio como requisito del piloto;
+- dominio propio como requisito del lanzamiento inicial;
 - migración de datos simulados desde `localStorage`.
 
 ---
 
-## 5. Decisiones de producto cerradas para el piloto
+## 5. Decisiones de producto cerradas para el lanzamiento inicial
 
 ### 5.1 Privacidad básica del perfil
 
-Durante el piloto, los perfiles deportivos son visibles únicamente para personas autenticadas en BRAMU; no son páginas públicas indexables en Internet.
+Durante el lanzamiento inicial, los perfiles deportivos son visibles únicamente para personas autenticadas en BRAMU; no son páginas públicas indexables en Internet.
 
 **Visibles para usuarios autenticados:**
 
@@ -146,7 +146,7 @@ Durante el piloto, los perfiles deportivos son visibles únicamente para persona
 
 El detalle completo de un partido es accesible para sus participantes y administración. El perfil público muestra resúmenes y estadísticas, no convierte todo el historial detallado en público.
 
-No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene su consentimiento específico mediante `ranking_opt_in`; salir del Ranking no elimina el perfil deportivo ni el historial compartido.
+No habrá controles de privacidad campo por campo en el lanzamiento inicial. Ranking mantiene su consentimiento específico mediante `ranking_opt_in`; salir del Ranking no elimina el perfil deportivo ni el historial compartido.
 
 ### 5.2 `@usuario`
 
@@ -157,7 +157,7 @@ No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene
 - Existe una lista de nombres reservados.
 - La unicidad se impone en la base de datos, no solo en la interfaz.
 - Es buscable junto con nombre para mostrar, nombre y apellido, únicamente por usuarios autenticados.
-- Durante el piloto queda fijo; una corrección excepcional puede hacerla administración.
+- Durante el lanzamiento inicial queda fijo; una corrección excepcional puede hacerla administración.
 
 ### 5.3 Ubicación canónica
 
@@ -167,14 +167,14 @@ No habrá controles de privacidad campo por campo en el piloto. Ranking mantiene
 - Se registra la localidad principal de juego, no dirección exacta ni GPS.
 - El cambio conserva la espera/cooldown de 30 días definido por Ranking.
 - Una localidad escrita manualmente puede guardarse en el perfil, pero queda `verified_for_ranking = false` hasta ser vinculada o verificada. Mientras tanto no habilita Ranking territorial.
-- El piloto prioriza Argentina; el modelo conserva `country_code` para no bloquear una expansión futura.
+- El lanzamiento inicial prioriza Argentina; el modelo conserva `country_code` para no bloquear una expansión futura.
 
 ### 5.4 Rama competitiva y género personal
 
 - `competitive_branch` es un campo explícito separado y admite las ramas competitivas vigentes M/F.
 - Es obligatorio para participar del Ranking.
 - No se deriva automáticamente del género personal.
-- El género personal es privado y opcional para el piloto.
+- El género personal es privado y opcional para el lanzamiento inicial.
 
 ### 5.5 Autoridad temporal
 
@@ -459,7 +459,7 @@ Una edición publicada es inmutable. Una corrección posterior impacta la siguie
 
 #### `notifications`
 
-Para el piloto se limita a una bandeja interna:
+Para el lanzamiento inicial se limita a una bandeja interna:
 
 - revisión/confirmación pendiente;
 - propuesta de corrección recibida;
@@ -471,9 +471,9 @@ Para el piloto se limita a una bandeja interna:
 
 No incluye push. La pantalla/badge de pendientes debe consultar esta fuente o una vista server-side equivalente.
 
-### 6.8 Métricas del piloto
+### 6.8 Métricas del lanzamiento inicial
 
-#### `pilot_events`
+#### `pilot_events` — nombre técnico histórico
 
 Eventos mínimos, con identificador pseudónimo, timestamp de servidor y propiedades acotadas:
 
@@ -509,7 +509,7 @@ No se almacenan contraseñas, tokens, textos privados ni contenido innecesario d
 - Nivel actual, progreso de calibración, snapshots, eventos y `reasonCodes`;
 - elegibilidad y ediciones de Ranking;
 - reclamos de identidades provisionales;
-- métricas oficiales del piloto;
+- métricas oficiales del lanzamiento inicial;
 - timestamps usados para reglas.
 
 ### 7.2 Puede existir localmente
@@ -728,7 +728,7 @@ No existe arbitraje automático sobre cuál pareja “dice la verdad”: si un p
 
 ---
 
-## 9. Invitados e identidades provisionales en el piloto
+## 9. Invitados e identidades provisionales en el lanzamiento inicial
 
 ### 9.1 Comportamiento incluido
 
@@ -745,7 +745,7 @@ No existe arbitraje automático sobre cuál pareja “dice la verdad”: si un p
 - El link contiene un token aleatorio de alta entropía; en base se guarda su hash.
 - La persona debe registrarse o iniciar sesión para consumirlo.
 - El reclamo de una identidad no reclamada es atómico y de un solo uso.
-- Si una cuenta necesita reclamar una segunda identidad, o existen duplicados, se resuelve manualmente por administración durante el piloto.
+- Si una cuenta necesita reclamar una segunda identidad, o existen duplicados, se resuelve manualmente por administración durante el lanzamiento inicial.
 - No se construye todavía una interfaz general de fusiones, pruebas de identidad o matching entre redes.
 
 ### 9.3 Efecto sobre Nivel y Ranking
@@ -794,7 +794,7 @@ RLS comienza en “denegar por defecto”. Cada acceso se habilita mediante una 
 - claves de idempotencia;
 - tokens con expiración y almacenamiento seguro;
 - logs sin contraseñas, tokens ni datos privados innecesarios;
-- backups/PITR disponibles según el plan contratado y exportación periódica antes del piloto;
+- backups/PITR disponibles según el plan contratado y exportación periódica antes del lanzamiento inicial;
 - secretos separados por entorno;
 - pruebas automáticas de RLS con casos permitidos y prohibidos.
 
@@ -829,16 +829,16 @@ Reglas:
 - Las URLs de callback se permiten únicamente para los dominios correctos de Staging y Producción.
 - El remitente y proveedor SMTP deben verificarse antes de invitar al primer jugador.
 - Se prueban: alta, reenvío, expiración, recuperación, cambio de contraseña, cierre de sesiones y acceso desde segundo dispositivo.
-- No se incorporan social login, teléfono/SMS ni passkeys en el piloto.
+- No se incorporan social login, teléfono/SMS ni passkeys en el lanzamiento inicial.
 - La eliminación de cuenta es asistida por administración: se desactiva el acceso y se anonimiza lo público que corresponda, preservando identificadores deportivos mínimos cuando el historial compartido lo requiera.
 
-El piloto inicial se orienta a adultos invitados. Si el alcance incorpora menores, las reglas de consentimiento y tratamiento de datos deberán resolverse antes de aceptar esas altas; esto no bloquea el piloto adulto.
+El lanzamiento inicial se orienta a adultos invitados. Si el alcance incorpora menores, las reglas de consentimiento y tratamiento de datos deberán resolverse antes de aceptar esas altas; esto no bloquea el lanzamiento inicial para adultos.
 
 ---
 
 ## 13. Eliminación de mocks y caminos de laboratorio
 
-Antes del piloto:
+Antes del lanzamiento inicial:
 
 1. Producción arranca sin cuentas, partidos ni filas de Ranking simuladas.
 2. La app deja de leer claves históricas de `localStorage` como fallback productivo.
@@ -1144,13 +1144,13 @@ No debe abarcar los nueve bloques en una única entrega.
 | Filtración por permisos demasiado amplios | RLS deny-by-default y pruebas positivas/negativas |
 | Staging toca datos reales | Proyectos, claves, dominios y comprobaciones separados |
 | Caché/service worker conserva mocks | Versionado de cachés y limpieza en despliegue |
-| Emails de verificación/recuperación no llegan | SMTP real y pruebas antes del piloto |
+| Emails de verificación/recuperación no llegan | SMTP real y pruebas antes del lanzamiento inicial |
 | Localidad manual contamina Ranking territorial | `verified_for_ranking = false` hasta mapping/verificación |
 | Reclamo de invitado por link filtrado | Token largo, hash, expiración/rotación, un solo uso y login |
 | Doble efecto por corrección | Revisión y snapshot exactos, reversión idempotente |
 | Cron semanal con fecha incorrecta | Zona horaria explícita y tests en límites de semana |
 | Límites del plan gratuito | Métricas de uso y alertas; evaluar costo solo al acercarse al límite |
-| Sobrediseño retrasa el piloto | Mantener fuera las funciones postergadas y entregar por bloques |
+| Sobrediseño retrasa el lanzamiento inicial | Mantener fuera las funciones postergadas y entregar por bloques |
 
 La migración no requiere transformar los datos simulados actuales. El riesgo principal no es el volumen, sino permitir que el frontend continúe tratándolos como autoridad o mezcle caches de entornos.
 
@@ -1165,7 +1165,7 @@ La migración no requiere transformar los datos simulados actuales. El riesgo pr
 5. **Ubicación manual de V04.10:** se conserva como fallback de perfil, pero sin ID canónico/verificación no habilita Ranking territorial.
 6. **Ranking local simulado:** se elimina del camino productivo. Ranking real depende de partidos validados y snapshots semanales server-side.
 7. **Movimientos de Intelligence:** Intelligence V1 se implementa antes de la primera salida productiva y consume movimientos entre ediciones semanales publicadas; no existe movimiento oficial instantáneo.
-8. **Piloto descartable:** queda superado. Los amigos iniciales usan Producción y conservan sus cuentas/datos.
+8. **Terminología histórica “piloto descartable”:** queda superada. Los primeros usuarios reales usan Production y conservan sus cuentas/datos; no existe una etapa real descartable ni un reinicio posterior.
 8.a. **Partidos observados / marcador en vivo:** quedan fuera de BRAMUlab. La app principal registra únicamente partidos propios ya jugados; el marcador en vivo se conserva como producto/aplicación separada (**BRAMUlive**, anteriormente desarrollada como BRAMUlab Partidos).
 9. **Validar/rechazar vs revisión por parejas:** queda superado. El flujo vigente usa `Confirmar / Proponer corrección / No participé`, con revisiones append-only y turnos por pareja.
 10. **Ventanas de partido:** carga retroactiva máxima 14 días; pendiente no validado expira a los 30 días desde la carga; corrección normal post-validación 3 días; la incidencia de identidad puede abrirse hasta 10 días post-validación y, una vez abierta, dispone de 7 días para identificar al jugador correcto.
@@ -1180,7 +1180,7 @@ Estas alineaciones no modifican la fórmula de Nivel ni la arquitectura de Ranki
 
 ## 19. Decisiones abiertas no bloqueantes
 
-Pueden decidirse con datos del piloto:
+Pueden decidirse con datos de las primeras semanas de uso real:
 
 - compra y proveedor de dominio propio;
 - proveedor definitivo de email al superar el volumen inicial;
@@ -1213,16 +1213,16 @@ Antes de conectar servicios deberá resolverse como tarea operativa, no conceptu
 
 - crear o identificar las cuentas/proyectos de Supabase y Vercel;
 - definir quién custodia accesos, secretos y códigos de recuperación;
-- elegir un proveedor SMTP compatible con el presupuesto del piloto;
+- elegir un proveedor SMTP compatible con el presupuesto del lanzamiento inicial;
 - confirmar los dominios gratuitos de Staging/Producción mientras no haya dominio propio.
 
 Estas selecciones no cambian el modelo ni impiden preparar el primer handoff técnico.
 
 ---
 
-## 21. Definición de terminado del backend mínimo del piloto
+## 21. Definición de terminado del backend mínimo para el lanzamiento inicial
 
-Backend/Infraestructura está listo para el piloto cuando:
+Backend/Infraestructura está listo para el lanzamiento inicial cuando:
 
 - existen Development, Staging y Production realmente separados;
 - una cuenta puede registrarse, verificarse, recuperarse y usarse desde distintos dispositivos;
@@ -1237,7 +1237,7 @@ Backend/Infraestructura está listo para el piloto cuando:
 - Producción no contiene ni consulta mocks;
 - la app funciona con caché temporal pero no depende de `localStorage` como verdad;
 - BRAMU Intelligence V1 funciona sobre datos reales con fallback determinístico;
-- las métricas mínimas permiten evaluar el piloto;
+- las métricas mínimas permiten evaluar el lanzamiento inicial;
 - backups, RLS, logs y procedimiento administrativo fueron probados en Staging.
 
 Al cumplir esta definición, BRAMU puede incorporar los primeros 10–20 jugadores en una Producción real sin necesitar una migración posterior hacia otra base “definitiva”.
