@@ -35,6 +35,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import '../_shared/engine.js';
 import '../_shared/match-load.js';
+import { officializeMatch } from '../_shared/match-officialize-core.ts';
 
 // deno-lint-ignore no-explicit-any
 const ML = (globalThis as any).PLMatchLoad;
@@ -162,6 +163,28 @@ Deno.serve(async (req) => {
 
   if (rpcError) {
     return jsonResponse({ ok: false, code: 'persist_failed', detail: rpcError.message }, 500);
+  }
+
+  // Backend Bloque 6 — segundo trigger de oficialización (02_Analisis_Claude.md §3.1): cuando
+  // la conformidad rival deja readyForValidation=true (códigos matched_confirmed /
+  // matched_already_confirmed), la MISMA invocación de esta Edge Function importa y llama a la
+  // rutina compartida antes de responder — el cliente nunca necesita una segunda llamada.
+  // Nunca dos lógicas paralelas (04_Revision_ChatGPT.md §10): éste es el mismo núcleo que usa
+  // officialize-match/respond-match-correction/resolve-identity-issue.
+  //
+  // Un fallo acá NUNCA debe ocultar el resultado de create_or_attach_match, que ya se persistió
+  // con éxito: si la oficialización falla (motor no disponible, snapshot inconsistente), el
+  // partido queda readyForValidation=true sin oficializar — se recupera solo, sin cron, en la
+  // próxima lectura que lo detecte y dispare un reintento silencioso contra officialize-match
+  // (mismo criterio que Bloque 5 ya usa para expiración lógica: nada se pierde por no tener
+  // un job).
+  if (result && result.ok && result.readyForValidation && result.matchId) {
+    try {
+      await officializeMatch(serviceClient, result.matchId, 'initial', null, null);
+    } catch (_err) {
+      // Silencioso a propósito — ver comentario de arriba. No se re-lanza para no convertir un
+      // create_or_attach_match ya persistido con éxito en un error 500 de cara al cliente.
+    }
   }
 
   return jsonResponse(result);
