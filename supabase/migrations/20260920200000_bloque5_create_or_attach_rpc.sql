@@ -415,7 +415,17 @@ begin
   -- status = 'pending_validation' de acá en más. Bloque 5 NUNCA lo cambia a 'validated' —
   -- 06_Revision_Pre_Staging_ChatGPT.md §1.
   if v_scores_match then
-    if v_caller_team <> v_current_proposer_team then
+    if v_match.action_side is null then
+      -- La conformidad rival ya fue registrada por algún integrante de esa pareja.
+      -- Otra carga coincidente del mismo encuentro (por ejemplo, el compañero del que confirmó)
+      -- converge al mismo match_id pero NO duplica la acción 'confirmed'. match_submissions ya
+      -- conserva la declaración/idempotencia individual; la conformidad de pareja sigue siendo
+      -- un único hecho para Bloque 6.
+      v_result := jsonb_build_object(
+        'ok', true, 'code', 'matched_already_confirmed', 'matchId', v_match.match_id,
+        'status', 'pending_validation', 'readyForValidation', true
+      );
+    elsif v_caller_team <> v_current_proposer_team then
       -- CONFORMIDAD RIVAL: la declaración coincide y viene del lado que todavía no había
       -- hablado. Se registra la conformidad (acción append-only 'confirmed') y se libera
       -- action_side (ya no queda ninguna acción HUMANA pendiente) — pero el partido sigue
