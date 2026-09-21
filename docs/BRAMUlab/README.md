@@ -48,7 +48,9 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 4 (Jugadores, búsqueda e invitados provisionales) está CERRADO** (20/09/2026): búsqueda real autenticada, Perfil público server-backed, provisionales persistentes, link/claim de identidad, rate limiting y hardening de tablas server-only quedaron aplicados y validados contra Supabase/Vercel Staging real. La prueba manual final confirmó que un alta desde claim conserva exactamente el `player_id` provisional, el link es de un solo uso y el alta normal sin claim permanece independiente. Ver `Implementacion/Backend/Bloque_04/08_Validacion_Final_Staging.md` y `09_Cierre_Bloque_04.md`.
 
-**No iniciar Bloque 5 automáticamente.** Su arranque requiere un handoff nuevo y un chat nuevo de Claude Code.
+**Bloque 5 (Partidos e Historial) está CERRADO** (21/09/2026): modelo server-backed de partidos compartidos, create-or-attach, idempotencia/concurrencia, revisiones append-only, outbox/`sync_pending`, historial compartido, ocultamiento privado, nota privada, provisionales relacionadas y separación estricta entre partido visible y partido computable quedaron implementados y validados en Supabase/Vercel Staging real. La QA de navegador detectó y corrigió homónimos reales tratados como duplicados, `00:00` con hora desconocida, estado pendiente faltante en Último partido y copy Eliminar/Ocultar. Revalidación final dirigida: 4/4 PASS. Suite local final: **1448/1448**. Ver `Implementacion/Backend/Bloque_05/16_Cierre_Bloque_05.md`.
+
+**No iniciar Bloque 6 automáticamente.** El próximo bloque es Validación y actualización oficial y debe arrancar con un handoff específico.
 
 ---
 
@@ -60,7 +62,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–4 CERRADOS en Staging. Bloque 5 todavía no iniciado. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–5 CERRADOS en Staging. Próximo: Bloque 6 — Validación y actualización oficial. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -190,7 +192,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. Bloques 1, 2 y 3 están cerrados en Staging. El próximo autorizado es Bloque 4 (Jugadores, búsqueda e invitados provisionales); luego continúan Partidos/Historial, Validación, Ranking, Intelligence y endurecimiento. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–5 están cerrados en Staging.** El próximo bloque del roadmap es **Bloque 6 — Validación y actualización oficial**; después continúan Ranking real semanal, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo ni iniciar Bloque 6 sin un handoff específico.
 
 ---
 
