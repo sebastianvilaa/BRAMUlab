@@ -1,6 +1,6 @@
 # Nivel BRAMU — Consolidado base de definición de producto
 
-**Estado:** contexto funcional vigente. El motor y el estimador inicial están cerrados para el piloto en `Nivel_BRAMU_Formula_V1.5.md`.
+**Estado:** contexto funcional vigente. El motor y el estimador inicial están cerrados para el lanzamiento inicial en `Nivel_BRAMU_Formula_V1.5.md`.
 
 **Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_2` para el cuestionario universal (sin ajuste por categoría local en el alta). Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
 
