@@ -90,16 +90,25 @@ begin
       else 'CALIBRANDO'
     end;
 
-    -- B6-A-13: last_rated_at es actividad deportiva computable — se recompone como el máximo
-    -- played_at de los resultados applied+eligible que le quedan a este jugador tras revertir
-    -- (NULL si no le queda ninguno).
-    select max(m.played_at) into v_last_rated_at
-      from public.match_level_result_players mlrp
-      join public.match_level_results mlr
-        on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
-        and mlr.result_id <> v_applied.result_id
-      join public.matches m on m.match_id = mlr.match_id
-      where mlrp.player_id = v_row.player_id;
+    -- B6-A-13 + C-09: last_rated_at se recompone desde la actividad computable restante,
+    -- pero NUNCA puede perder el ancla inicial del cuestionario. Si se revierte el único partido
+    -- computable, el reloj de inactividad vuelve al initial_estimate en vez de quedar NULL.
+    select greatest(
+      (
+        select max(m.played_at)
+        from public.match_level_result_players mlrp
+        join public.match_level_results mlr
+          on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
+          and mlr.result_id <> v_applied.result_id
+        join public.matches m on m.match_id = mlr.match_id
+        where mlrp.player_id = v_row.player_id
+      ),
+      (
+        select max(le.created_at)
+        from public.level_events le
+        where le.player_id = v_row.player_id and le.event_type = 'initial_estimate'
+      )
+    ) into v_last_rated_at;
 
     -- B6-A-03/B6-A-04/C-01: revertir con el EFECTO REAL de esta aplicación — `X_after` (valor
     -- ABSOLUTO de fórmula, nunca contaminado por el LIVE) menos `original_live_X_before` (el
