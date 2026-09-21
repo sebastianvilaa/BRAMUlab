@@ -20,32 +20,44 @@
 //   node supabase/tests/verify-bloque5.mjs
 //
 // Qué comprueba (ver docs/BRAMUlab/Implementacion/Backend/Bloque_05/
-// {02_Analisis_Claude.md,04_Revision_ChatGPT.md}):
-//   RLS       — anon no puede llamar ninguna RPC nueva ni la Edge Function; authenticated no
-//               puede leer match_submissions directo; un no-participante no puede leer el
-//               detalle de un partido ajeno (get_match_detail devuelve null, nunca confirma ni
-//               niega su existencia).
+// {02_Analisis_Claude.md,04_Revision_ChatGPT.md,06_Revision_Pre_Staging_ChatGPT.md}):
+//   RLS       — anon no puede llamar ninguna RPC nueva ni la Edge Function; un usuario
+//               authenticated no puede leer match_submissions NI matches NI match_participants
+//               directo por REST — la única lectura es vía RPC (§5 de la revisión pre-Staging);
+//               un no-participante no puede leer el detalle de un partido ajeno (get_match_detail
+//               devuelve null, nunca confirma ni niega su existencia).
 //   Identidad — partido normal con 4 cuentas reales; registrado + provisional; el MISMO
 //               provisional aparece en 2 partidos distintos con el MISMO player_id (creador
 //               original y, vía list_related_provisional_players, un co-participante distinto
 //               del creador); un claim posterior conserva la relación en ambos partidos sin
 //               migrar ninguna fila.
 //   Ventanas  — carga >14 días rechazada (played_at_too_old); carga en el futuro rechazada.
-//   Idempotencia — reintento exacto de la misma idempotencyKey devuelve el mismo match_id sin
-//               crear una fila nueva; la misma key con payload distinto se rechaza.
+//   Idempotencia — dos requests CONCURRENTES con la misma key+payload devuelven el mismo
+//               resultado sin duplicar (advisory lock por idempotency_key, §3 de la revisión
+//               pre-Staging); un reintento secuencial posterior también; la misma key con
+//               payload distinto se rechaza (el hash cubre TODO el payload de negocio, §4).
 //   Dedup     — dos cuentas cargan el mismo encuentro con el mismo score → un único match_id,
-//               matched_confirmed; equipos A/B invertidos entre las dos cargas igual convergen;
-//               score distinto → matched_revised (revisión nueva, nunca un partido duplicado);
-//               candidato ambiguo (2 partidos plausibles) → ambiguous_candidates, nunca
-//               auto-merge, resuelto con disambiguationMatchId.
-//   Concurrencia — dos cargas simultáneas del mismo encuentro nuevo (Promise.all) → un único
+//               `matched_confirmed`, pero el partido SIGUE `pending_validation` (Bloque 5 nunca
+//               marca `validated`, §1 de la revisión pre-Staging) — se registra conformidad
+//               (`match_actions` tipo `confirmed`), `validated_at` queda null, Nivel no se
+//               toca; equipos A/B invertidos entre las dos cargas igual convergen; score
+//               distinto → `matched_revised` (revisión nueva, nunca un partido duplicado);
+//               candidato ambiguo (2 partidos plausibles, creados deliberadamente con
+//               `disambiguationForceNew`) → `ambiguous_candidates`, nunca auto-merge, resuelto
+//               con `disambiguationMatchId`; un `disambiguationMatchId` fuera de la ventana
+//               temporal se rechaza explícitamente (§6).
+//   Concurrencia — dos cargas simultáneas del mismo encuentro NUEVO (Promise.all) → un único
 //               match_id (advisory lock por huella).
-//   Nivel     — level_states del jugador no cambia mientras el partido sigue pending_validation.
+//   Nivel     — level_states del jugador no cambia mientras el partido sigue pending_validation,
+//               ni siquiera después de una conformidad rival registrada.
 //   Historial — visible para los 4 participantes (get_my_matches); no visible para un 5º
 //               jugador sin relación; hide_match_for_me oculta solo para quien lo pide.
 //   Pendientes — validation_deadline_at queda fijo en +30 días; get_pending_action_count
 //               refleja correctamente accionable vs. en espera; con 5 pendientes acumulados,
-//               una 6ª carga se rechaza con pending_action_limit_reached.
+//               CREAR un partido nuevo se rechaza (pending_action_limit_reached), pero
+//               responder/coincidir sobre un partido YA EXISTENTE sigue permitido (§2 de la
+//               revisión pre-Staging) — sección aislada con cuentas dedicadas (G/H/I/J/F) para
+//               que residuos de otros fixtures nunca contaminen el conteo.
 //   Limpieza  — en 2 fases por dependencias FK, mismo patrón que verify-bloque4.mjs.
 
 const url = process.env.SUPABASE_URL;
@@ -197,19 +209,25 @@ function invertedSets(sets) {
 }
 
 async function main() {
-  // --- 0) 6 cuentas reales onboardeadas ---
+  // --- 0) cuentas reales onboardeadas ---
   // A/B/C/D: núcleo reusado en dedup/revisión/ambigüedad/concurrencia/idempotencia — su estado
   // acumulado de pendientes entre sí no importa para esas aserciones puntuales.
   // E: SIEMPRE ajena — nunca debe aparecer en match1/match2/match3 antes de su propio test
-  // negativo (línea ~295), para que "todavía no está relacionada con el provisional" sea cierto.
-  // F: SIEMPRE fresca hasta la sección de límite de pendientes (línea ~480) — necesita arrancar
-  // en 0 pendientes accionables reales, sin contaminación de ningún test anterior.
+  // negativo, para que "todavía no está relacionada con el provisional" sea cierto.
+  // F/G/H/I/J: dedicadas EXCLUSIVAMENTE a la sección de límite de pendientes
+  // (06_Revision_Pre_Staging_ChatGPT.md §8) — nunca aparecen en ningún otro fixture, para que el
+  // conteo de F sea determinístico y los creadores G/H/I/J nunca estén bloqueados por residuos
+  // de tests anteriores.
   const A = await createOnboardedAccount('a', `vb5a_${stamp}`);
   const B = await createOnboardedAccount('b', `vb5b_${stamp}`);
   const C = await createOnboardedAccount('c', `vb5c_${stamp}`);
   const D = await createOnboardedAccount('d', `vb5d_${stamp}`);
   const E = await createOnboardedAccount('e', `vb5e_${stamp}`);
   const F = await createOnboardedAccount('f', `vb5f_${stamp}`);
+  const G = await createOnboardedAccount('g', `vb5g_${stamp}`);
+  const H = await createOnboardedAccount('h', `vb5h_${stamp}`);
+  const I = await createOnboardedAccount('i', `vb5i_${stamp}`);
+  const J = await createOnboardedAccount('j', `vb5j_${stamp}`);
 
   // --- 1) RLS/seguridad ---
   const anonMy = await rpcAsAnon('get_my_matches', {});
@@ -225,6 +243,19 @@ async function main() {
 
   const anonEdge = await createOrAttach(anonKey, { idempotencyKey: genUuid() });
   report('seguridad: la Edge Function create-or-attach-match rechaza sin sesión real', !anonEdge.res.ok, `status ${anonEdge.res.status}`);
+
+  // §5 de 06_Revision_Pre_Staging_ChatGPT.md: NINGUNA de las 7 tablas tiene policy/GRANT de
+  // SELECT para `authenticated` — la única lectura es vía RPC. Se prueba explícitamente sobre
+  // las 2 tablas más consultadas (matches/match_participants) además de match_submissions.
+  const authedReadMatches = await restAuthed('matches?select=match_id', A.token);
+  const authedReadMatchesRows = authedReadMatches.ok ? await authedReadMatches.json() : null;
+  const authedReadMatchesBlocked = !authedReadMatches.ok || (Array.isArray(authedReadMatchesRows) && authedReadMatchesRows.length === 0);
+  report('RLS: un usuario authenticated no puede leer matches directo (solo vía RPC)', authedReadMatchesBlocked, `status ${authedReadMatches.status}`);
+
+  const authedReadParticipants = await restAuthed('match_participants?select=match_id', A.token);
+  const authedReadParticipantsRows = authedReadParticipants.ok ? await authedReadParticipants.json() : null;
+  const authedReadParticipantsBlocked = !authedReadParticipants.ok || (Array.isArray(authedReadParticipantsRows) && authedReadParticipantsRows.length === 0);
+  report('RLS: un usuario authenticated no puede leer match_participants directo (solo vía RPC)', authedReadParticipantsBlocked, `status ${authedReadParticipants.status}`);
 
   const authedReadSubmissions = await restAuthed('match_submissions?select=idempotency_key', A.token);
   const authedReadSubmissionsRows = authedReadSubmissions.ok ? await authedReadSubmissions.json() : null;
@@ -318,7 +349,8 @@ async function main() {
   });
   report('ventana: carga en el futuro se rechaza (played_at_in_future)', inFuture.json && inFuture.json.ok === false && inFuture.json.code === 'played_at_in_future', JSON.stringify(inFuture.json));
 
-  // --- 6) idempotencia ---
+  // --- 6) idempotencia: carrera concurrente sobre la MISMA key, reintento posterior, y payload
+  //        distinto con la misma key (06_Revision_Pre_Staging_ChatGPT.md §3/§4) ---
   const idemKey = genUuid();
   const idemPlayedAt = isoDaysAgo(5, 12);
   const idemPayload = {
@@ -327,19 +359,39 @@ async function main() {
     rawSets: [{ a: 6, b: 2 }, { a: 6, b: 3 }], formatId: 'classic',
     playedAtIso: idemPlayedAt, playedAtTimeKnown: true,
   };
-  const idem1 = await createOrAttach(A.token, idemPayload);
-  const idem1MatchId = idem1.json && idem1.json.matchId;
-  if (idem1MatchId) cleanup.matchIds.push(idem1MatchId);
-  const idem2 = await createOrAttach(A.token, idemPayload); // MISMO payload, MISMA key
-  report('idempotencia: reintento exacto devuelve el MISMO match_id', idem1.res.ok && idem2.res.ok && idem1MatchId && idem2.json.matchId === idem1MatchId, `${idem1MatchId} vs ${idem2.json && idem2.json.matchId}`);
+  const [idemRace1, idemRace2] = await Promise.all([
+    createOrAttach(A.token, idemPayload),
+    createOrAttach(A.token, idemPayload),
+  ]);
+  const idemMatchId = (idemRace1.json && idemRace1.json.matchId) || (idemRace2.json && idemRace2.json.matchId);
+  if (idemMatchId) cleanup.matchIds.push(idemMatchId);
+  report('idempotencia: dos requests CONCURRENTES con la misma key+payload devuelven el mismo resultado, sin error',
+    idemRace1.res.ok && idemRace2.res.ok && idemRace1.json && idemRace2.json
+      && idemRace1.json.matchId === idemRace2.json.matchId && idemRace1.json.code === idemRace2.json.code,
+    JSON.stringify({ idemRace1: idemRace1.json, idemRace2: idemRace2.json }));
 
-  const matchesWithFingerprintCount = await serviceGet(`matches?select=match_id&match_id=eq.${idem1MatchId}`);
-  report('idempotencia: el reintento no creó una segunda fila en matches', Array.isArray(matchesWithFingerprintCount) && matchesWithFingerprintCount.length === 1, JSON.stringify(matchesWithFingerprintCount));
+  const matchesWithIdemKeyCount = await serviceGet(`matches?select=match_id&match_id=eq.${idemMatchId}`);
+  report('idempotencia: la carrera concurrente NO creó una segunda fila en matches', Array.isArray(matchesWithIdemKeyCount) && matchesWithIdemKeyCount.length === 1, JSON.stringify(matchesWithIdemKeyCount));
 
-  const idem3 = await createOrAttach(A.token, Object.assign({}, idemPayload, { rawSets: [{ a: 6, b: 0 }, { a: 6, b: 0 }] }));
-  report('idempotencia: MISMA key con payload DISTINTO se rechaza', idem3.json && idem3.json.ok === false && idem3.json.code === 'idempotency_key_reused_with_different_payload', JSON.stringify(idem3.json));
+  const idemRetry = await createOrAttach(A.token, idemPayload);
+  report('idempotencia: un reintento SECUENCIAL posterior devuelve el MISMO match_id', idemRetry.res.ok && idemRetry.json && idemRetry.json.matchId === idemMatchId, JSON.stringify(idemRetry.json));
 
-  // --- 7) deduplicación: misma carga desde la pareja contraria, mismo score → matched_confirmed ---
+  const idemDifferentPayload = await createOrAttach(A.token, Object.assign({}, idemPayload, {
+    rawSets: [{ a: 6, b: 0 }, { a: 6, b: 0 }],
+  }));
+  report('idempotencia: MISMA key con payload DISTINTO (incluye timezone/location/scoringSystem en el hash) se rechaza',
+    idemDifferentPayload.json && idemDifferentPayload.json.ok === false && idemDifferentPayload.json.code === 'idempotency_key_reused_with_different_payload',
+    JSON.stringify(idemDifferentPayload.json));
+
+  const idemSamePayloadDifferentLocation = await createOrAttach(A.token, Object.assign({}, idemPayload, {
+    locationName: 'Un lugar distinto',
+  }));
+  report('idempotencia: MISMA key con solo locationName distinto también se rechaza (hash cubre todo el payload de negocio)',
+    idemSamePayloadDifferentLocation.json && idemSamePayloadDifferentLocation.json.ok === false && idemSamePayloadDifferentLocation.json.code === 'idempotency_key_reused_with_different_payload',
+    JSON.stringify(idemSamePayloadDifferentLocation.json));
+
+  // --- 7) deduplicación: misma carga desde la pareja contraria, mismo score → matched_confirmed,
+  //        pero el partido SIGUE pending_validation (06_Revision_Pre_Staging_ChatGPT.md §1) ---
   const dedupPlayedAt = isoDaysAgo(6, 20);
   const dedupSets = [{ a: 6, b: 3 }, { a: 6, b: 4 }];
   const dedupCreate = await createOrAttach(A.token, {
@@ -357,14 +409,28 @@ async function main() {
     pair1PlayerIds: [C.playerId, D.playerId], pair2PlayerIds: [A.playerId, B.playerId],
     rawSets: invertedSets(dedupSets), formatId: 'classic', playedAtIso: dedupPlayedAt, playedAtTimeKnown: true,
   });
-  report('dedup: C (rival, A/B invertidos como pair2, score invertido correctamente) confirma el MISMO match_id',
-    dedupConfirm.res.ok && dedupConfirm.json && dedupConfirm.json.ok && dedupConfirm.json.matchId === dedupMatchId && dedupConfirm.json.code === 'matched_confirmed' && dedupConfirm.json.status === 'validated',
+  report('dedup: C (rival, A/B invertidos como pair2, score invertido correctamente) converge al MISMO match_id (matched_confirmed)',
+    dedupConfirm.res.ok && dedupConfirm.json && dedupConfirm.json.ok && dedupConfirm.json.matchId === dedupMatchId && dedupConfirm.json.code === 'matched_confirmed',
+    JSON.stringify(dedupConfirm.json));
+  report('dedup: la confirmación NUNCA pone status=validated — Bloque 5 solo registra conformidad (sigue pending_validation)',
+    dedupConfirm.json && dedupConfirm.json.status === 'pending_validation' && dedupConfirm.json.readyForValidation === true,
     JSON.stringify(dedupConfirm.json));
 
-  const levelBeforeAfterPending = await serviceGet(`level_states?select=player_id,mu,rated_matches&player_id=eq.${A.playerId}`);
-  report('Nivel: level_states de A no se ve alterado por partidos pending_validation/validated de Bloque 5 (Bloque 5 nunca escribe Nivel)',
-    Array.isArray(levelBeforeAfterPending) && levelBeforeAfterPending.length === 1 && levelBeforeAfterPending[0].rated_matches === 0,
-    JSON.stringify(levelBeforeAfterPending));
+  const dedupMatchRow = await serviceGet(`matches?select=status,validated_at,action_side&match_id=eq.${dedupMatchId}`);
+  report('dedup: la fila real de matches confirma status=pending_validation, validated_at=null, action_side=null',
+    Array.isArray(dedupMatchRow) && dedupMatchRow[0]
+      && dedupMatchRow[0].status === 'pending_validation' && dedupMatchRow[0].validated_at === null && dedupMatchRow[0].action_side === null,
+    JSON.stringify(dedupMatchRow));
+
+  const dedupActions = await serviceGet(`match_actions?select=action_type&match_id=eq.${dedupMatchId}`);
+  const dedupActionTypes = Array.isArray(dedupActions) ? dedupActions.map((a) => a.action_type) : [];
+  report('dedup: se registró la acción "confirmed" (nunca "validated") en match_actions',
+    dedupActionTypes.includes('confirmed') && !dedupActionTypes.includes('validated'), JSON.stringify(dedupActionTypes));
+
+  const levelAfterConformity = await serviceGet(`level_states?select=player_id,mu,rated_matches&player_id=eq.${A.playerId}`);
+  report('Nivel: level_states de A no cambia ni siquiera después de una conformidad rival registrada (Bloque 5 nunca escribe Nivel)',
+    Array.isArray(levelAfterConformity) && levelAfterConformity.length === 1 && levelAfterConformity[0].rated_matches === 0,
+    JSON.stringify(levelAfterConformity));
 
   // --- 8) score distinto → matched_revised (nunca un partido duplicado) ---
   const revisePlayedAt = isoDaysAgo(7, 19);
@@ -390,6 +456,10 @@ async function main() {
     Array.isArray(reviseRevisionCount) && reviseRevisionCount.length === 2, JSON.stringify(reviseRevisionCount));
 
   // --- 9) candidato ambiguo: mismos 4, 2 partidos plausibles en la ventana ---
+  // El 2º encuentro se crea con `disambiguationForceNew` a propósito: con la misma huella y
+  // ventana que el 1º, el algoritmo normal lo adjuntaría como revisión — para el setup de
+  // ambigüedad necesitamos DELIBERADAMENTE 2 match_id distintos (06_Revision_Pre_Staging_
+  // ChatGPT.md §7).
   const ambigBase = isoDaysAgo(8, 12);
   const ambigCreate1 = await createOrAttach(A.token, {
     idempotencyKey: genUuid(),
@@ -402,12 +472,14 @@ async function main() {
     pair1PlayerIds: [A.playerId, B.playerId], pair2PlayerIds: [C.playerId, D.playerId],
     rawSets: [{ a: 6, b: 2 }, { a: 6, b: 2 }], formatId: 'classic',
     playedAtIso: new Date(new Date(ambigBase).getTime() + 60 * 60 * 1000).toISOString(), playedAtTimeKnown: true,
+    disambiguationForceNew: true,
   });
   const ambigMatch1 = ambigCreate1.json && ambigCreate1.json.matchId;
   const ambigMatch2 = ambigCreate2.json && ambigCreate2.json.matchId;
   if (ambigMatch1) cleanup.matchIds.push(ambigMatch1);
   if (ambigMatch2) cleanup.matchIds.push(ambigMatch2);
-  report('setup ambigüedad: A creó 2 partidos plausibles (mismos 4, ventana ±3h de ambos)', !!ambigMatch1 && !!ambigMatch2 && ambigMatch1 !== ambigMatch2, `${ambigMatch1} / ${ambigMatch2}`);
+  report('setup ambigüedad: A creó 2 partidos DISTINTOS a propósito (mismos 4, ventana ±3h de ambos, disambiguationForceNew)',
+    !!ambigMatch1 && !!ambigMatch2 && ambigMatch1 !== ambigMatch2 && ambigCreate2.json.code === 'created', `${ambigMatch1} / ${ambigMatch2}`);
 
   const ambigThird = await createOrAttach(C.token, {
     idempotencyKey: genUuid(),
@@ -427,6 +499,17 @@ async function main() {
     });
     report('dedup: la desambiguación explícita resuelve al candidato elegido', ambigResolved.json && ambigResolved.json.ok && ambigResolved.json.matchId === ambigMatch1, JSON.stringify(ambigResolved.json));
   }
+
+  // --- 9bis) disambiguationMatchId fuera de la ventana temporal se rechaza (§6) ---
+  const disambigOutOfWindow = await createOrAttach(A.token, {
+    idempotencyKey: genUuid(),
+    pair1PlayerIds: [A.playerId, B.playerId], pair2PlayerIds: [C.playerId, D.playerId],
+    rawSets: basicSets(), formatId: 'classic', playedAtIso: isoDaysAgo(13, 9), playedAtTimeKnown: true,
+    disambiguationMatchId: dedupMatchId, // dedupMatchId está a isoDaysAgo(6,20): 7 días de diferencia, fuera de ventana
+  });
+  report('desambiguación: un disambiguationMatchId fuera de la ventana temporal se rechaza (disambiguation_match_id_invalid), nunca adjunta',
+    disambigOutOfWindow.json && disambigOutOfWindow.json.ok === false && disambigOutOfWindow.json.code === 'disambiguation_match_id_invalid',
+    JSON.stringify(disambigOutOfWindow.json));
 
   // --- 10) concurrencia: 2 cargas simultáneas del MISMO encuentro NUEVO ---
   const raceSets = [{ a: 6, b: 0 }, { a: 6, b: 0 }];
@@ -478,30 +561,35 @@ async function main() {
     report('deadline: validation_deadline_at = created_at + 30 días exactos', false, 'no se pudo leer matches');
   }
 
-  // --- 13) límite de 5 pendientes accionables (usando F, nunca tocada hasta acá) ---
-  // F debe tener la ACCIÓN en 5 partidos nuevos: para eso F es cargada por el RIVAL (F queda del
-  // lado que todavía no declaró, action_side apunta a su equipo).
-  const pendingPartners = [A, B, C, D];
+  // --- 13) límite de 5 pendientes accionables — sección AISLADA con cuentas dedicadas
+  //         (06_Revision_Pre_Staging_ChatGPT.md §8): G/H/I/J crean, F siempre recibe. Ninguna
+  //         de las 5 aparece en ningún fixture anterior. ---
+  const pendingCreators = [G, H, I, J];
   let pendingCountBefore = null;
   {
     const r = await rpcAs(F.token, anonKey, 'get_pending_action_count', {});
     pendingCountBefore = r.json && r.json.count;
   }
-  report('pendientes: F arranca sin pendientes accionables (nunca participó de un partido antes de esta sección)', pendingCountBefore === 0, `count=${pendingCountBefore}`);
+  report('pendientes: F arranca sin pendientes accionables (cuenta dedicada, nunca usada antes)', pendingCountBefore === 0, `count=${pendingCountBefore}`);
 
+  const pendingFixtures = [];
   for (let i = 0; i < 5; i += 1) {
-    const partner = pendingPartners[i % pendingPartners.length];
-    const rival1 = pendingPartners[(i + 1) % pendingPartners.length];
-    const rival2 = pendingPartners[(i + 2) % pendingPartners.length];
-    // eslint-disable-next-line no-await-in-loop
-    const r = await createOrAttach(partner.token, {
-      idempotencyKey: genUuid(),
+    const partner = pendingCreators[i % pendingCreators.length];
+    const rival1 = pendingCreators[(i + 1) % pendingCreators.length];
+    const rival2 = pendingCreators[(i + 2) % pendingCreators.length];
+    const fixture = {
       pair1PlayerIds: [partner.playerId, rival1.playerId], // partner+rival1 vs rival2+F: F queda del lado sin declarar
       pair2PlayerIds: [rival2.playerId, F.playerId],
       rawSets: [{ a: 6, b: 3 + (i % 3) }, { a: 6, b: 2 }], formatId: 'classic',
-      playedAtIso: isoDaysAgo(10 + i, 15), playedAtTimeKnown: true,
-    });
+      // i+1 (nunca 0): isoDaysAgo(0, hora fija) podría caer en el futuro según a qué hora UTC
+      // corra el script — siempre al menos 1 día atrás, y siempre dentro de la ventana de 14
+      // días (nunca disparar played_at_too_old por accidente en esta sección).
+      playedAtIso: isoDaysAgo(i + 1, 15), playedAtTimeKnown: true,
+    };
+    // eslint-disable-next-line no-await-in-loop
+    const r = await createOrAttach(partner.token, Object.assign({ idempotencyKey: genUuid() }, fixture));
     if (r.json && r.json.matchId) cleanup.matchIds.push(r.json.matchId);
+    pendingFixtures.push(Object.assign({ matchId: r.json && r.json.matchId }, fixture));
   }
 
   const pendingAfter5 = await rpcAs(F.token, anonKey, 'get_pending_action_count', {});
@@ -509,11 +597,30 @@ async function main() {
 
   const sixthByF = await createOrAttach(F.token, {
     idempotencyKey: genUuid(),
-    pair1PlayerIds: [F.playerId, A.playerId], pair2PlayerIds: [B.playerId, C.playerId],
-    rawSets: basicSets(), formatId: 'classic', playedAtIso: isoDaysAgo(11, 16), playedAtTimeKnown: true,
+    pair1PlayerIds: [F.playerId, G.playerId], pair2PlayerIds: [H.playerId, I.playerId],
+    rawSets: basicSets(), formatId: 'classic', playedAtIso: isoDaysAgo(10, 16), playedAtTimeKnown: true,
   });
-  report('pendientes: con 5 acumulados, una 6ª carga NUEVA de F se rechaza (pending_action_limit_reached)',
+  report('pendientes: con 5 acumulados, CREAR un partido NUEVO se rechaza (pending_action_limit_reached)',
     sixthByF.json && sixthByF.json.ok === false && sixthByF.json.code === 'pending_action_limit_reached', JSON.stringify(sixthByF.json));
+
+  // 06_Revision_Pre_Staging_ChatGPT.md §2/§9: con 5 pendientes, F SIGUE pudiendo responder sobre
+  // un encuentro YA EXISTENTE — el límite nunca bloquea un attach/conformidad.
+  const firstFixture = pendingFixtures[0];
+  if (firstFixture && firstFixture.matchId) {
+    const attachWhileAtLimit = await createOrAttach(F.token, {
+      idempotencyKey: genUuid(),
+      pair1PlayerIds: firstFixture.pair2PlayerIds, // F relabela su propio lado como "pair1"
+      pair2PlayerIds: firstFixture.pair1PlayerIds,
+      rawSets: invertedSets(firstFixture.rawSets), // mismo resultado, orientación invertida
+      formatId: firstFixture.formatId, playedAtIso: firstFixture.playedAtIso, playedAtTimeKnown: true,
+    });
+    report('pendientes: con 5 acumulados, F SÍ puede responder/coincidir sobre un partido YA EXISTENTE (nunca bloqueado)',
+      attachWhileAtLimit.res.ok && attachWhileAtLimit.json && attachWhileAtLimit.json.ok
+        && attachWhileAtLimit.json.matchId === firstFixture.matchId && attachWhileAtLimit.json.code === 'matched_confirmed',
+      JSON.stringify(attachWhileAtLimit.json));
+  } else {
+    report('pendientes: con 5 acumulados, F SÍ puede responder/coincidir sobre un partido YA EXISTENTE (nunca bloqueado)', false, 'no se pudo obtener el primer fixture de pendientes');
+  }
 
   const sixthByOther = await createOrAttach(A.token, {
     idempotencyKey: genUuid(),
@@ -526,7 +633,7 @@ async function main() {
   const allPassed = results.every(Boolean);
   console.log('');
   console.log(allPassed
-    ? 'BLOQUE 5 OK: create-or-attach/idempotencia/deduplicación/concurrencia/provisionales relacionadas/pendientes/ocultamiento se comportan como espera 02_Analisis_Claude.md/04_Revision_ChatGPT.md.'
+    ? 'BLOQUE 5 OK: create-or-attach/idempotencia/deduplicación/concurrencia/provisionales relacionadas/pendientes/ocultamiento se comportan como espera 02_Analisis_Claude.md/04_Revision_ChatGPT.md/06_Revision_Pre_Staging_ChatGPT.md.'
     : 'BLOQUE 5: hay fallas — revisar antes de cerrar el bloque.');
   return allPassed;
 }

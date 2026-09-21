@@ -7,6 +7,8 @@
 
 **Estado de Bloque 5 al cierre de esta ronda: IMPLEMENTADO Y REVISADO, NO VERIFICADO CONTRA SUPABASE REAL.** No se cierra formalmente el bloque en este documento — eso requiere la corrida real de `verify-bloque5.mjs` contra Staging, que esta sesión no pudo ejecutar (ver §2, bloqueo de credenciales).
 
+> **Nota posterior (20/09/2026):** `06_Revision_Pre_Staging_ChatGPT.md` encontró correcciones obligatorias sobre la implementación descrita acá abajo antes del primer intento real contra Supabase — ver `07_Correccion_Pre_Staging_Claude.md` para el detalle exacto de qué cambió (en particular: Bloque 5 ya NO marca un partido `validated`, §1 de esa revisión). Este documento queda como registro histórico de esa ronda; el comportamiento real y vigente del código es el que describe `07_Correccion_Pre_Staging_Claude.md`.
+
 ---
 
 ## 1. Qué se implementó

@@ -1,13 +1,15 @@
 -- BRAMUlab — Bloque 5: Partidos compartidos e historial — esquema base.
 --
--- Ver docs/BRAMUlab/Implementacion/Backend/Bloque_05/{02_Analisis_Claude.md,04_Revision_ChatGPT.md}
--- para el razonamiento completo. Resumen de esta migración:
+-- Ver docs/BRAMUlab/Implementacion/Backend/Bloque_05/{02_Analisis_Claude.md,04_Revision_ChatGPT.md,
+-- 06_Revision_Pre_Staging_ChatGPT.md} para el razonamiento completo. Resumen de esta migración:
 --
 --   1) `matches` — un encuentro de dobles ya jugado. Nace SIEMPRE `pending_validation`, con
 --      `validation_deadline_at = created_at + 30 días` fijo (Backend_Infraestructura.md §5.5).
---      `action_side` es una columna DERIVADA, mantenida en sincronía por
---      `create_or_attach_match` con `proposed_by_team` de la revisión vigente — nunca una
---      fuente de verdad independiente. Sin `status='rejected'`: no existe esa respuesta normal
+--      `action_side` es una columna DERIVADA: mientras haya una revisión esperando respuesta
+--      humana, es el equipo opuesto a `proposed_by_team` de la revisión vigente; se vuelve NULL
+--      apenas se registra la conformidad rival (§1 de 06_Revision_Pre_Staging_ChatGPT.md) — SIN
+--      que eso implique `status='validated'` todavía, esa transición y sus efectos son de
+--      Bloque 6. Sin `status='rejected'`: no existe esa respuesta normal
 --      (Backend_Infraestructura.md §18.9).
 --   2) `match_participants` — los 4 lugares del encuentro, por player_id (registrado o
 --      provisional). Tabla de estado ACTUAL, no revisionada: Bloque 5 solo inserta, nunca
@@ -29,13 +31,22 @@
 --   7) `match_user_state` — ocultamiento/nota privada por participante. Ocultar NUNCA borra el
 --      partido compartido ni sus efectos oficiales (Backend_Infraestructura.md §8.8).
 --
--- RLS deny-by-default en las 7 tablas: SELECT solo para participantes del partido (o propia
--- fila en `match_user_state`); CERO insert/update/delete para authenticated/anon en ninguna —
--- toda escritura pasa por las RPC SECURITY DEFINER de las próximas 2 migraciones.
+-- RLS deny-by-default TOTAL en las 7 tablas (§5 de 06_Revision_Pre_Staging_ChatGPT.md):
+-- CERO políticas de select/insert/update/delete para `authenticated`/`anon` en ninguna de las
+-- 7 — la policy original de "select si sos participante" sobre `match_participants` se
+-- consultaba a SÍ MISMA dentro de su propio `using`, lo cual es un patrón de recursión de RLS
+-- evitable; en vez de resolverlo con una función helper, se eliminó la lectura directa por
+-- completo. Un usuario autenticado lee EXCLUSIVAMENTE mediante `get_my_matches`/
+-- `get_match_detail`/`get_pending_action_count`/`list_related_provisional_players` (próxima
+-- migración) — todas `SECURITY DEFINER`, ejecutan con los privilegios del dueño de la función
+-- (que sí puede leer las tablas), nunca con los del caller. Mismo criterio que
+-- `list_my_provisional_players` ya usa en Bloque 4 para `players`. `service_role` conserva
+-- acceso directo completo (lo necesitan los scripts de verificación para setup/cleanup).
 --
 -- GRANT y RLS son capas separadas (lección de Bloque 1 §13 / Bloque 2 Informe, "Automatically
--- expose new tables" está desactivado en este proyecto): cada tabla nueva de acá abajo tiene su
--- propio `grant select ... to authenticated` explícito, además de la policy.
+-- expose new tables" está desactivado en este proyecto) — por eso ninguna de las 7 tablas
+-- recibe tampoco un GRANT de SELECT a `authenticated`: ni la policy ni el grant existen para
+-- lectura directa de cliente en ninguna de las dos capas.
 --
 -- Deliberadamente FUERA de esta migración (no le corresponde a Bloque 5):
 --   - Confirmar / Proponer corrección / No participé como acciones explícitas de usuario: Bloque 6.
@@ -192,11 +203,14 @@ create table public.match_actions (
   match_id        uuid not null references public.matches (match_id) on delete cascade,
   action_type     text not null check (action_type in (
                      -- Emitidos por Bloque 5:
-                     'created', 'declared_again_same_side', 'validated', 'revision_proposed',
+                     'created', 'declared_again_same_side', 'confirmed', 'revision_proposed',
                      -- Reservados para Bloque 6 (Backend_Infraestructura.md §6.4 ya los declara
                      -- como parte del contrato de match_actions) — sin emisor todavía, mismo
-                     -- criterio que pilot_events/level_events en Bloques 2/3.
-                     'confirmed', 'identity_questioned', 'participant_replaced',
+                     -- criterio que pilot_events/level_events en Bloques 2/3. NUNCA 'validated':
+                     -- esa transición y sus efectos pertenecen enteramente a Bloque 6
+                     -- (06_Revision_Pre_Staging_ChatGPT.md §1) — 'confirmed' es lo que Bloque 5
+                     -- emite cuando la pareja contraria declara el mismo score.
+                     'validated', 'identity_questioned', 'participant_replaced',
                      'correction_timeout_resolved', 'annulled'
                    )),
   actor_player_id uuid not null references public.players (player_id),
@@ -211,8 +225,9 @@ create table public.match_actions (
 
 comment on table public.match_actions is
   'Bitácora de auditoría append-only. Bloque 5 solo emite created/declared_again_same_side/
-   validated/revision_proposed. occurred_at es SIEMPRE hora de servidor (default now()), nunca
-   un valor que el cliente pueda mandar.';
+   confirmed/revision_proposed — NUNCA validated (esa transición y sus efectos de Nivel son de
+   Bloque 6). occurred_at es SIEMPRE hora de servidor (default now()), nunca un valor que el
+   cliente pueda mandar.';
 
 -- ------------------------------------------------------------------
 -- 7) match_user_state
@@ -246,84 +261,20 @@ alter table public.match_revisions enable row level security;
 alter table public.match_actions enable row level security;
 alter table public.match_user_state enable row level security;
 alter table public.match_submissions enable row level security;
--- match_submissions: deny-by-default TOTAL, cero políticas (mismo criterio que
--- provisional_claims/api_rate_limits en Bloque 4) — ni siquiera el propio autor la lee directo.
-
-create policy "matches_select_participant"
-  on public.matches
-  for select
-  to authenticated
-  using (
-    match_id in (
-      select match_id from public.match_participants
-      where player_id in (select player_id from public.players where auth_user_id = auth.uid())
-    )
-  );
-
-create policy "match_participants_select_participant"
-  on public.match_participants
-  for select
-  to authenticated
-  using (
-    match_id in (
-      select match_id from public.match_participants
-      where player_id in (select player_id from public.players where auth_user_id = auth.uid())
-    )
-  );
-
-create policy "match_sets_select_participant"
-  on public.match_sets
-  for select
-  to authenticated
-  using (
-    match_id in (
-      select match_id from public.match_participants
-      where player_id in (select player_id from public.players where auth_user_id = auth.uid())
-    )
-  );
-
-create policy "match_revisions_select_participant"
-  on public.match_revisions
-  for select
-  to authenticated
-  using (
-    match_id in (
-      select match_id from public.match_participants
-      where player_id in (select player_id from public.players where auth_user_id = auth.uid())
-    )
-  );
-
-create policy "match_actions_select_participant"
-  on public.match_actions
-  for select
-  to authenticated
-  using (
-    match_id in (
-      select match_id from public.match_participants
-      where player_id in (select player_id from public.players where auth_user_id = auth.uid())
-    )
-  );
-
-create policy "match_user_state_select_own"
-  on public.match_user_state
-  for select
-  to authenticated
-  using (player_id in (select player_id from public.players where auth_user_id = auth.uid()));
-
--- Sin políticas de insert/update/delete en ninguna de las 7 tablas para authenticated/anon:
--- toda escritura pasa por las RPC SECURITY DEFINER de las próximas 2 migraciones.
+-- Deny-by-default TOTAL en las 7 — cero políticas de select/insert/update/delete para
+-- authenticated/anon (mismo criterio que provisional_claims/api_rate_limits en Bloque 4, ahora
+-- extendido a TODA lectura, no solo escritura — ver el comentario de cabecera de este archivo y
+-- 06_Revision_Pre_Staging_ChatGPT.md §5). Ningún usuario, ni siquiera sobre su propia fila, lee
+-- estas tablas directo: siempre a través de las RPC SECURITY DEFINER de la próxima migración.
 
 -- ------------------------------------------------------------------
--- GRANTs — capa separada de RLS, ninguna de las dos alcanza sola en este proyecto
+-- GRANTs — capa separada de RLS, ninguna de las dos alcanza sola en este proyecto. Ninguna de
+-- las 7 tablas recibe GRANT de SELECT a `authenticated`/`anon` a propósito — ver arriba. Las RPC
+-- SECURITY DEFINER de la próxima migración no necesitan este GRANT para leer/escribir: corren
+-- con los privilegios del ROL DUEÑO de la tabla (quien aplicó la migración), no con los del
+-- caller — el GRANT a `service_role` de acá abajo es para el acceso DIRECTO vía REST con la
+-- service role key que sí necesitan los scripts de verificación (setup/cleanup de fixtures).
 -- ------------------------------------------------------------------
-
-grant select on table public.matches to authenticated;
-grant select on table public.match_participants to authenticated;
-grant select on table public.match_sets to authenticated;
-grant select on table public.match_revisions to authenticated;
-grant select on table public.match_actions to authenticated;
-grant select on table public.match_user_state to authenticated;
--- match_submissions: sin grant a authenticated/anon a propósito.
 
 grant select, insert, update, delete on table public.matches to service_role;
 grant select, insert, update, delete on table public.match_participants to service_role;

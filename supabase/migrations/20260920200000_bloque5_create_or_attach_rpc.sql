@@ -2,7 +2,7 @@
 --
 -- Depende de 20260920180000_bloque5_matches_core.sql y 20260920190000_bloque5_rpcs_read.sql.
 -- Ver docs/BRAMUlab/Implementacion/Backend/Bloque_05/{02_Analisis_Claude.md §5,
--- 04_Revision_ChatGPT.md §2} para el razonamiento completo.
+-- 04_Revision_ChatGPT.md §2, 06_Revision_Pre_Staging_ChatGPT.md} para el razonamiento completo.
 --
 -- NO se otorga a `authenticated` ni `anon`: la única vía de entrada es la Edge Function
 -- `create-or-attach-match` (supabase/functions/create-or-attach-match/), que ya verificó el JWT
@@ -17,18 +17,43 @@
 -- independientes del mismo encuentro llegan siempre a la MISMA asignación team_a/team_b, sin
 -- importar quién cargó primero ni cómo llamó "A"/"B" a su propia pareja en el formulario.
 --
+-- Bloque 5 NUNCA marca un partido `validated` (06_Revision_Pre_Staging_ChatGPT.md §1): cuando
+-- la pareja contraria declara el mismo score, esto registra la conformidad (`match_actions`
+-- tipo `confirmed`) y libera `action_side` (ya no queda ninguna acción HUMANA pendiente), pero
+-- el partido sigue `pending_validation`, sin `validated_at`, sin ningún efecto de Nivel. La
+-- transición real a `validated` y sus efectos son exclusivos de Bloque 6.
+--
 -- Errores de negocio esperables → jsonb {ok:false, code:...} con RETURN, nunca RAISE EXCEPTION
 -- (mismo criterio que claim_provisional_player en Bloque 4: una excepción revertiría toda la
 -- transacción, incluido el registro en match_submissions que necesitamos conservar incluso
 -- para un resultado de error).
 --
--- Concurrencia: `select ... for update` sobre la fila candidata de `matches` antes de decidir
--- crear vs. adjuntar — mismo patrón ya probado en officialize_level_onboarding/
+-- Concurrencia — DOS advisory locks transaccionales distintos, cada uno resuelve un problema
+-- diferente (06_Revision_Pre_Staging_ChatGPT.md §3):
+--   1) por `idempotency_key` (semilla 1): tomado ANTES de consultar `match_submissions`, para
+--      que dos requests concurrentes con la MISMA key nunca lean "no existe" al mismo tiempo.
+--   2) por huella de participantes (semilla 0): tomado antes de la búsqueda de candidatos, para
+--      que dos transacciones concurrentes que representan el MISMO encuentro NUEVO (sin fila
+--      todavía que bloquear con `for update`) no puedan ambas ver "0 candidatos" y crear dos
+--      partidos duplicados.
+-- Además, `select ... for update` sobre la fila candidata de `matches` cuando SÍ existe, antes
+-- de decidir cómo adjuntar — mismo patrón que officialize_level_onboarding/
 -- claim_provisional_player.
 --
 -- Expiración lógica (Decisión #4): un candidato pending_validation cuyo validation_deadline_at
 -- ya venció NUNCA se ofrece como candidato de create-or-attach (se trata igual que si no
 -- existiera) — Bloque 5 nunca escribe status='expired' físicamente.
+--
+-- Límite de 5 pendientes accionables (06_Revision_Pre_Staging_ChatGPT.md §2): bloquea
+-- EXCLUSIVAMENTE el camino "crear un partido nuevo" (incluida la desambiguación explícita
+-- "es otro partido") — nunca un attach, una conformidad, una revisión o una desambiguación
+-- hacia un candidato existente. El chequeo vive físicamente DENTRO de la rama de creación, no
+-- antes de la búsqueda de candidatos.
+--
+-- `p_disambiguation_match_id` respeta la MISMA ventana temporal (±3h / mismo día) que la
+-- búsqueda normal — un candidato fuera de ventana nunca se acepta solo porque el cliente lo
+-- haya nombrado explícitamente; se rechaza con `disambiguation_match_id_invalid`
+-- (06_Revision_Pre_Staging_ChatGPT.md §6).
 
 create or replace function public.create_or_attach_match(
   p_auth_user_id uuid,
@@ -95,17 +120,29 @@ begin
   end if;
 
   -- ------------------------------------------------------------------
-  -- Idempotencia (02_Analisis_Claude.md §5.5) — SIEMPRE lo primero.
+  -- Idempotencia (02_Analisis_Claude.md §5.5; corregida en 06_Revision_Pre_Staging_ChatGPT.md
+  -- §3/§4). El hash cubre TODOS los inputs de negocio de la RPC — no solo los que participan de
+  -- la huella — para que reusar la misma key con cualquier otro dato distinto se detecte como
+  -- `idempotency_key_reused_with_different_payload`, nunca se confunda con "mismo intento".
   -- ------------------------------------------------------------------
   v_payload := jsonb_build_object(
     'pair1a', p_pair1_player_id_1, 'pair1b', p_pair1_player_id_2,
     'pair2a', p_pair2_player_id_1, 'pair2b', p_pair2_player_id_2,
     'playedAt', p_played_at, 'playedAtTimeKnown', p_played_at_time_known,
     'formatId', p_format_id, 'sets', p_sets,
+    'reportedTimeZone', p_reported_time_zone, 'scoringSystem', p_scoring_system,
+    'locationName', p_location_name, 'locationLat', p_location_lat, 'locationLng', p_location_lng,
     'disambiguationMatchId', p_disambiguation_match_id,
     'disambiguationForceNew', p_disambiguation_force_new
   );
   v_payload_hash := encode(extensions.digest(v_payload::text, 'sha256'), 'hex');
+
+  -- Advisory lock por idempotency_key — ANTES de consultar match_submissions. Sin esto, dos
+  -- requests concurrentes con la MISMA key podrían leer "no existe" al mismo tiempo y ejecutar
+  -- la lógica de negocio dos veces (06_Revision_Pre_Staging_ChatGPT.md §3). Semilla 1, distinta
+  -- de la semilla 0 del lock por huella de más abajo — resuelven problemas diferentes y no
+  -- comparten el mismo espacio de hash.
+  perform pg_advisory_xact_lock(hashtextextended(p_idempotency_key::text, 1));
 
   select * into v_existing_submission from public.match_submissions where idempotency_key = p_idempotency_key;
   if v_existing_submission is not null then
@@ -181,18 +218,6 @@ begin
   end if;
 
   -- ------------------------------------------------------------------
-  -- Límite de pendientes accionables (Experiencia_Inicial.md §10) — ANTES de intentar
-  -- create-or-attach, sin importar si esta carga terminaría creando o adjuntando.
-  -- ------------------------------------------------------------------
-  v_pending_count := public.compute_pending_action_count(v_caller_player_id);
-  if v_pending_count >= 5 then
-    v_result := jsonb_build_object('ok', false, 'code', 'pending_action_limit_reached', 'count', v_pending_count);
-    insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
-      values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', null, v_result);
-    return v_result;
-  end if;
-
-  -- ------------------------------------------------------------------
   -- Ventana de 14 días retroactivos, con hora de SERVIDOR (nunca el reloj del cliente).
   -- ------------------------------------------------------------------
   if p_played_at > now() + interval '5 minutes' then
@@ -230,32 +255,20 @@ begin
 
   v_caller_team := case when v_caller_player_id in (v_team_a_1, v_team_a_2) then 'A' else 'B' end;
 
-  -- ------------------------------------------------------------------
-  -- Advisory lock por huella (transaction-scoped, se libera solo al terminar la transacción).
-  -- Necesario porque el caso "crear nuevo" (0 candidatos) NO tiene todavía ninguna fila de
-  -- `matches` que bloquear con "for update": sin este lock, dos transacciones concurrentes que
-  -- representan el MISMO encuentro nuevo podrían ambas ver "0 candidatos" antes de que
-  -- cualquiera de las dos confirme su INSERT, y crear dos partidos duplicados
-  -- (02_Analisis_Claude.md §5.6). Con el lock, la segunda espera a que la primera termine su
-  -- transacción completa (crear o adjuntar) y entonces sí ve la fila ya committeada.
-  -- hashtextextended (64 bits) en vez de hashtext (32 bits) para reducir el riesgo de colisión
-  -- entre huellas distintas a un nivel despreciable para la escala del piloto.
-  -- ------------------------------------------------------------------
+  -- Advisory lock por huella — ver comentario de cabecera de este archivo (§3 de la revisión
+  -- pre-Staging). Necesario porque el caso "crear nuevo" (0 candidatos) no tiene todavía
+  -- ninguna fila de `matches` que bloquear con `for update`.
   perform pg_advisory_xact_lock(hashtextextended(v_fingerprint, 0));
 
   -- ------------------------------------------------------------------
   -- Búsqueda de candidatos (Decisiones #1/#2 de 04_Revision_ChatGPT.md). Un candidato
   -- pending_validation cuyo deadline ya venció NUNCA se ofrece — se trata como si no existiera.
+  -- Si el cliente mandó `p_disambiguation_match_id`, se aplica exactamente la MISMA condición
+  -- de ventana temporal que la búsqueda normal (06_Revision_Pre_Staging_ChatGPT.md §6): nunca
+  -- se adjunta a un candidato fuera de ventana solo porque el cliente lo haya nombrado.
   -- ------------------------------------------------------------------
   if p_disambiguation_force_new then
     v_target_match_id := null;
-  elsif p_disambiguation_match_id is not null then
-    select match_id into v_target_match_id
-    from public.matches
-    where match_id = p_disambiguation_match_id
-      and participant_fingerprint = v_fingerprint
-      and format_id = p_format_id
-      and (status = 'validated' or (status = 'pending_validation' and validation_deadline_at > now()));
   else
     select
       jsonb_agg(jsonb_build_object('matchId', m.match_id, 'playedAt', m.played_at, 'formatId', m.format_id, 'status', m.status)),
@@ -266,6 +279,7 @@ begin
     where m.participant_fingerprint = v_fingerprint
       and m.format_id = p_format_id
       and (m.status = 'validated' or (m.status = 'pending_validation' and m.validation_deadline_at > now()))
+      and (p_disambiguation_match_id is null or m.match_id = p_disambiguation_match_id)
       and (
         case
           when p_played_at_time_known and m.played_at_time_known
@@ -275,7 +289,17 @@ begin
         end
       );
 
-    if coalesce(v_candidate_count, 0) > 1 then
+    if p_disambiguation_match_id is not null then
+      -- El filtro de arriba ya acota a ese match_id puntual (clave primaria): el conteo solo
+      -- puede ser 0 o 1. Si es 0 (no calificó por huella/formato/estado/ventana), es un error de
+      -- negocio EXPLÍCITO — nunca se cae silenciosamente al camino de crear un partido nuevo.
+      if coalesce(v_candidate_count, 0) <> 1 then
+        v_result := jsonb_build_object('ok', false, 'code', 'disambiguation_match_id_invalid');
+        insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
+          values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', null, v_result);
+        return v_result;
+      end if;
+    elsif coalesce(v_candidate_count, 0) > 1 then
       v_result := jsonb_build_object('ok', false, 'code', 'ambiguous_candidates', 'candidates', v_candidates);
       insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
         values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', null, v_result);
@@ -287,6 +311,19 @@ begin
   -- CREAR (0 candidatos, o desambiguación explícita "es otro partido")
   -- ------------------------------------------------------------------
   if v_target_match_id is null then
+    -- Límite de pendientes accionables (Experiencia_Inicial.md §10): bloquea EXCLUSIVAMENTE
+    -- crear un partido nuevo — nunca un attach/conformidad/revisión/desambiguación sobre un
+    -- encuentro ya existente (06_Revision_Pre_Staging_ChatGPT.md §2). Por eso el chequeo vive
+    -- ACÁ, recién cuando ya se sabe que esta carga efectivamente va a crear, y no antes de la
+    -- búsqueda de candidatos.
+    v_pending_count := public.compute_pending_action_count(v_caller_player_id);
+    if v_pending_count >= 5 then
+      v_result := jsonb_build_object('ok', false, 'code', 'pending_action_limit_reached', 'count', v_pending_count);
+      insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
+        values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', null, v_result);
+      return v_result;
+    end if;
+
     insert into public.matches (
       created_by_player_id, participant_fingerprint, format_id, scoring_system,
       played_at, played_at_time_known, reported_time_zone,
@@ -340,7 +377,9 @@ begin
   end if;
 
   -- ------------------------------------------------------------------
-  -- ADJUNTAR a v_target_match_id (1 candidato, o desambiguación explícita eligiendo uno)
+  -- ADJUNTAR a v_target_match_id (1 candidato, o desambiguación explícita eligiendo uno) — NUNCA
+  -- bloqueado por el límite de pendientes: responder o coincidir sobre un encuentro existente no
+  -- es "iniciar una carga nueva" (06_Revision_Pre_Staging_ChatGPT.md §2).
   -- ------------------------------------------------------------------
   select * into v_match from public.matches where match_id = v_target_match_id for update;
 
@@ -373,17 +412,23 @@ begin
     return v_result;
   end if;
 
-  -- status = 'pending_validation' de acá en más.
+  -- status = 'pending_validation' de acá en más. Bloque 5 NUNCA lo cambia a 'validated' —
+  -- 06_Revision_Pre_Staging_ChatGPT.md §1.
   if v_scores_match then
     if v_caller_team <> v_current_proposer_team then
-      -- CONFIRMACIÓN: la declaración coincide y viene del lado que todavía no había hablado.
-      update public.matches set status = 'validated', validated_at = now(), action_side = null, updated_at = now()
+      -- CONFORMIDAD RIVAL: la declaración coincide y viene del lado que todavía no había
+      -- hablado. Se registra la conformidad (acción append-only 'confirmed') y se libera
+      -- action_side (ya no queda ninguna acción HUMANA pendiente) — pero el partido sigue
+      -- pending_validation, sin validated_at, sin ningún efecto de Nivel. La oficialización
+      -- real (status=validated + transacción atómica de Nivel) es exclusiva de Bloque 6.
+      update public.matches set action_side = null, updated_at = now()
       where match_id = v_match.match_id;
       insert into public.match_actions (match_id, action_type, actor_player_id, acting_side, revision_id, metadata)
-      values (v_match.match_id, 'validated', v_caller_player_id, v_caller_team, v_match.current_revision_id, '{}'::jsonb);
-      insert into public.pilot_events (event_name, player_id, properties)
-      values ('match_validated', v_caller_player_id, jsonb_build_object('matchId', v_match.match_id));
-      v_result := jsonb_build_object('ok', true, 'code', 'matched_confirmed', 'matchId', v_match.match_id, 'status', 'validated');
+      values (v_match.match_id, 'confirmed', v_caller_player_id, v_caller_team, v_match.current_revision_id, '{}'::jsonb);
+      v_result := jsonb_build_object(
+        'ok', true, 'code', 'matched_confirmed', 'matchId', v_match.match_id,
+        'status', 'pending_validation', 'readyForValidation', true
+      );
     else
       -- REDECLARACIÓN DEL MISMO LADO (p. ej. la pareja del cargador original también carga): sin
       -- cambio de estado, nunca reemplaza la conformidad rival necesaria.
@@ -394,8 +439,9 @@ begin
   else
     -- REVISIÓN NUEVA: el score declarado difiere del vigente — cubre tanto "el rival corrige"
     -- como "el propio lado se corrige antes de que el rival responda" (Experiencia_Inicial.md
-    -- §12.1), con la misma regla simétrica: la acción siempre pasa al lado opuesto al que
-    -- acaba de declarar, sin importar cuál era el lado con la acción antes.
+    -- §12.1) e incluso "alguien discrepa después de que ya se había registrado conformidad"
+    -- (action_side era null), con la misma regla simétrica: la acción siempre pasa al lado
+    -- opuesto al que acaba de declarar, sin importar cuál era el lado con la acción antes.
     select coalesce(max(revision_number), 0) + 1 into v_revision_number from public.match_revisions where match_id = v_match.match_id;
 
     insert into public.match_revisions (match_id, revision_number, proposed_by_player_id, proposed_by_team, source, played_at, input_submission_id)
@@ -431,9 +477,12 @@ $$;
 comment on function public.create_or_attach_match is
   'Única vía de creación/adjunción de un partido. SOLO service_role — la llama exclusivamente
    la Edge Function create-or-attach-match, que ya validó el JWT y ya revalidó formato/sets con
-   engine.js (nunca reimplementado en SQL). Idempotente vía match_submissions; concurrency-safe
-   vía "select ... for update" sobre la fila candidata. Nunca RAISE EXCEPTION para errores de
-   negocio esperables (mismo criterio que claim_provisional_player en Bloque 4).';
+   engine.js (nunca reimplementado en SQL). Idempotente vía match_submissions + advisory lock
+   por idempotency_key; deduplicación de encuentro concurrency-safe vía advisory lock por huella
+   + "select ... for update" sobre la fila candidata. NUNCA marca un partido validated — eso es
+   de Bloque 6 (06_Revision_Pre_Staging_ChatGPT.md §1). El límite de 5 pendientes bloquea
+   EXCLUSIVAMENTE crear un partido nuevo (§2). Nunca RAISE EXCEPTION para errores de negocio
+   esperables (mismo criterio que claim_provisional_player en Bloque 4).';
 
 revoke all on function public.create_or_attach_match(
   uuid, uuid, uuid, uuid, uuid, uuid, timestamptz, boolean, text, jsonb,

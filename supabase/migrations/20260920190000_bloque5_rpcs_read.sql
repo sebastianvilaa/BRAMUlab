@@ -1,8 +1,11 @@
 -- BRAMUlab — Bloque 5: RPCs de lectura y escritura trivial.
 --
 -- Depende de 20260920180000_bloque5_matches_core.sql. Ver
--- docs/BRAMUlab/Implementacion/Backend/Bloque_05/02_Analisis_Claude.md §10/§11 para el
--- contrato completo de cada función.
+-- docs/BRAMUlab/Implementacion/Backend/Bloque_05/{02_Analisis_Claude.md §10/§11,
+-- 06_Revision_Pre_Staging_ChatGPT.md} para el contrato completo de cada función. Única vía de
+-- lectura de las 7 tablas de partidos: ninguna tiene policy ni GRANT de SELECT para
+-- `authenticated` (§5 de la revisión pre-Staging) — estas RPC `SECURITY DEFINER` corren con los
+-- privilegios del dueño de la tabla, nunca con los del caller.
 --
 --   1) compute_pending_action_count(p_player_id) — helper interno (no otorgado a authenticated,
 --      mismo criterio que consume_rate_limit en Bloque 4), reusado por get_pending_action_count
@@ -100,6 +103,7 @@ returns table (
   my_team text,
   action_side text,
   is_action_mine boolean,
+  ready_for_validation boolean,
   created_by_player_id uuid,
   validated_at timestamptz,
   validation_deadline_at timestamptz,
@@ -130,6 +134,11 @@ begin
       mp_self.team as my_team,
       m.action_side,
       (m.status = 'pending_validation' and m.validation_deadline_at > now() and m.action_side = mp_self.team) as is_action_mine,
+      -- Conformidad rival ya registrada (create_or_attach_match libera action_side) pero
+      -- TODAVÍA pending_validation — Bloque 5 nunca oficializa; es Bloque 6 quien consume este
+      -- flag para decidir cuándo correr la transacción atómica de validación
+      -- (06_Revision_Pre_Staging_ChatGPT.md §1).
+      (m.status = 'pending_validation' and m.validation_deadline_at > now() and m.action_side is null) as ready_for_validation,
       m.created_by_player_id, m.validated_at, m.validation_deadline_at,
       coalesce(mus.hidden, false) as hidden,
       (
@@ -160,9 +169,11 @@ $$;
 comment on function public.get_my_matches is
   'Feed de partidos del caller. status="expired" es una PRESENTACIÓN calculada en lectura
    (pending_validation + deadline vencido), nunca una escritura física — ver Decisión #4 de
-   04_Revision_ChatGPT.md. No incluye winnerTeam: se deriva client-side desde sets+formatId con
-   el mismo Engine compartido que ya usa la carga local, para no duplicar la regla de victoria
-   en una tercera capa (02_Analisis_Claude.md §2).';
+   04_Revision_ChatGPT.md. ready_for_validation=true significa "conformidad rival ya
+   registrada, pending_validation todavía" — Bloque 5 nunca pone status=validated
+   (06_Revision_Pre_Staging_ChatGPT.md §1). No incluye winnerTeam: se deriva client-side desde
+   sets+formatId con el mismo Engine compartido que ya usa la carga local, para no duplicar la
+   regla de victoria en una tercera capa (02_Analisis_Claude.md §2).';
 
 revoke all on function public.get_my_matches(integer, boolean) from public;
 grant execute on function public.get_my_matches(integer, boolean) to authenticated;
@@ -213,6 +224,7 @@ begin
     'myTeam', v_my_row.team,
     'actionSide', v_match.action_side,
     'isActionMine', (v_match.status = 'pending_validation' and v_match.validation_deadline_at > now() and v_match.action_side = v_my_row.team),
+    'readyForValidation', (v_match.status = 'pending_validation' and v_match.validation_deadline_at > now() and v_match.action_side is null),
     'createdByPlayerId', v_match.created_by_player_id,
     'validatedAt', v_match.validated_at,
     'validationDeadlineAt', v_match.validation_deadline_at,
