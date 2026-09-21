@@ -5159,7 +5159,7 @@
 
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
-    renderPlayerLastMatchCard(displayMatches);
+    renderPlayerLastMatchCard(displayMatches, matches);
     // BRAMUlab_V03.8 (Ranking_BRAMU.md §13.6) — insight de Ranking (siempre ámbito Local, nunca
     // Nivel actual en vivo) como candidato más para TU MOMENTO, nunca una tarjeta territorial
     // completa nueva en Home. `null` cuando no hay cuenta/no es elegible/sin género/densidad
@@ -5317,7 +5317,7 @@
    *  parejas en secundario. Estado vacío: mismo flujo del botón central "+". El click de
    *  toda la tarjeta se resuelve en initPlayerHomeScreen() (ver más abajo), no acá — así no
    *  hace falta reasignar un listener nuevo en cada render. */
-  function renderPlayerLastMatchCard(matches) {
+  function renderPlayerLastMatchCard(matches, computableMatches) {
     const card = $('#player-home-last-match-card');
     const body = $('#player-home-last-match-body');
     if (!matches.length) {
@@ -5353,13 +5353,17 @@
     const placeStr = (m.location && m.location.name) || '';
 
     const RESULT_LABEL = { win: 'Victoria', loss: 'Derrota', neutral: 'Sin definición' };
-    // computeRecentForm viene del más reciente al más antiguo; se invierte para dibujar la
-    // volanta en orden cronológico (izquierda=más antiguo → derecha=este partido, §7).
-    // Etapa 4.2 (§11) — sin letra adentro: la forma y el color ya se entienden solos, con el
-    // aria-label como alternativa accesible (nunca el color como única señal).
-    const formOldestFirst = PH.computeRecentForm(matches, currentIdentity(), 5).slice().reverse();
+    // La tarjeta puede mostrar un partido pendiente, pero la forma reciente es una métrica:
+    // se calcula SOLO con el historial computable. Un pending/sync_pending/expired no puede
+    // agregar una victoria/derrota ni alterar la racha visual antes de validarse.
+    // El glow "current" se usa únicamente si el partido que ocupa la tarjeta también es el
+    // último partido computable; si la tarjeta muestra un pendiente, los dots quedan como
+    // contexto histórico y ninguno se presenta falsamente como el partido actual.
+    const formSource = Array.isArray(computableMatches) ? computableMatches : matches;
+    const formOldestFirst = PH.computeRecentForm(formSource, currentIdentity(), 5).slice().reverse();
+    const currentIsComputable = formSource.some((fm) => fm && fm.matchId === m.matchId);
     const formDotsHtml = formOldestFirst.map((f, i) => {
-      const isCurrent = i === formOldestFirst.length - 1;
+      const isCurrent = currentIsComputable && i === formOldestFirst.length - 1;
       const cls = `lastmatch-form-dot lastmatch-form-dot--${f.result}${isCurrent ? ' lastmatch-form-dot--current' : ''}`;
       return `<span class="${cls}" aria-label="${RESULT_LABEL[f.result]}"></span>`;
     }).join('');
