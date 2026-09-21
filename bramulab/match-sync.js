@@ -120,7 +120,7 @@
       playedAt: row.playedAt,
       startedAt: row.playedAt,
       finishedAt: row.playedAt,
-      timeZone: null,
+      timeZone: row.reportedTimeZone || null,
       players,
       mode: 'manual',
       scoringSystem: row.scoringSystem || null,
@@ -142,7 +142,7 @@
       highlights: [],
       events: [],
       coverageStartLabel: null,
-      timeKnown: true,
+      timeKnown: row.playedAtTimeKnown !== false,
       location,
       privateNote: row.privateNote || null,
       // Campos NUEVOS, exclusivos de un partido server-backed — un consumidor viejo que no los
@@ -268,7 +268,12 @@
    *  como ya hacen hoy con `Store.loadHistory()`. Nunca migra el legacy al servidor: solo se
    *  concatenan arrays en memoria, cada partido conserva su origen (`serverBacked`). */
   function buildDisplayHistory({ localHistory, serverRows, outboxEntries }) {
-    const server = (Array.isArray(serverRows) ? serverRows : []).map(translateServerMatchToLocalShape);
+    // hidden es una preferencia privada de visualización: jamás borra el partido ni sus
+    // efectos oficiales, pero sí debe sacarlo de MI Historial/Home. Se filtra también acá
+    // como defensa adicional aunque get_my_matches normalmente ya se pida sin ocultos.
+    const server = (Array.isArray(serverRows) ? serverRows : [])
+      .filter((row) => !row.hidden)
+      .map(translateServerMatchToLocalShape);
     const outbox = (Array.isArray(outboxEntries) ? outboxEntries : []).map(buildOutboxDisplayEntry).filter(Boolean);
     return sortByCreatedAtDesc((Array.isArray(localHistory) ? localHistory : []).concat(server, outbox));
   }
