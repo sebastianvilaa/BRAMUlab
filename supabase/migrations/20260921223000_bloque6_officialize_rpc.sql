@@ -182,7 +182,7 @@ begin
   where match_id = p_match_id and effect_status = 'applied'
   for update;
 
-  if v_existing_applied is not null and v_existing_applied.revision_id = p_revision_id and v_existing_applied.trigger = p_trigger then
+  if v_existing_applied.result_id is not null and v_existing_applied.revision_id = p_revision_id and v_existing_applied.trigger = p_trigger then
     select array_agg(player_id order by player_id) into v_existing_player_ids
     from public.match_level_result_players where result_id = v_existing_applied.result_id;
 
@@ -234,7 +234,7 @@ begin
   -- get_player_level_state_as_of y podía devolver un estado roto. El resultado revertido sigue
   -- siendo auditable por match_level_results.reverses_result_id/superseded_by_result_id.
   -- ------------------------------------------------------------------
-  if v_existing_applied is not null then
+  if v_existing_applied.result_id is not null then
     update public.match_level_results
       set effect_status = 'reverted', reverted_at = now()
       where result_id = v_existing_applied.result_id;
@@ -254,11 +254,11 @@ begin
     p_known_levels_count, p_team_strength_a, p_team_strength_b, p_expectation_a, p_expectation_b,
     p_rival_pair_confidence_avg_a, p_rival_pair_confidence_avg_b, p_margin, p_format_factor,
     p_availability_factor, p_repetition_factor_a, p_repetition_factor_b, p_companion_factor_a, p_companion_factor_b,
-    case when v_existing_applied is not null then v_existing_applied.result_id else null end,
+    case when v_existing_applied.result_id is not null then v_existing_applied.result_id else null end,
     p_actor_player_id, p_actor_note
   ) returning result_id into v_result_id;
 
-  if v_existing_applied is not null then
+  if v_existing_applied.result_id is not null then
     update public.match_level_results set superseded_by_result_id = v_result_id where result_id = v_existing_applied.result_id;
   end if;
 
