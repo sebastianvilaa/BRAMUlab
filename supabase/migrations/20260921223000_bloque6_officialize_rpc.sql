@@ -120,14 +120,20 @@ begin
   end if;
 
   -- ------------------------------------------------------------------
-  -- C-02 — defensa en profundidad para la PRIMERA oficialización: bajo lock, solo procede si el
-  -- partido genuinamente está listo (nadie con una acción pendiente), la ventana de 30 días
-  -- sigue vigente y no hay una incidencia de identidad open. Si el partido YA está validated, el
-  -- único camino admisible es el retorno idempotente de más abajo — nunca se llega hasta acá con
-  -- intención de crear un resultado nuevo (confirm_match_validation ya lo trata como
-  -- already_validated antes de invocar el núcleo).
+  -- C-02 — defensa en profundidad para la PRIMERA oficialización.
+  -- Solo un partido pending_validation puede crear un resultado initial nuevo. Un partido ya
+  -- validated es un estado terminal para este trigger: el reintento de Confirmar se resuelve en
+  -- la Edge Function como NO-OP y, aun si algún caller service-role invoca este núcleo directo,
+  -- acá nunca se permite que un trigger='initial' pise un resultado posterior de corrección o
+  -- identidad. Tampoco estados annulled/expired/etc. pueden oficializarse por accidente.
   -- ------------------------------------------------------------------
-  if p_trigger = 'initial' and v_match.status <> 'validated' then
+  if p_trigger = 'initial' then
+    if v_match.status = 'validated' then
+      return jsonb_build_object('ok', false, 'code', 'already_validated');
+    end if;
+    if v_match.status <> 'pending_validation' then
+      return jsonb_build_object('ok', false, 'code', 'match_not_actionable');
+    end if;
     if v_match.action_side is not null then
       return jsonb_build_object('ok', false, 'code', 'not_ready_for_validation');
     end if;
@@ -344,14 +350,24 @@ begin
     if v_has_new_row then
       v_new_last_rated_at := greatest(coalesce(v_current_level_state.last_rated_at, v_match.played_at), v_match.played_at);
     else
-      -- Reversión pura sin reemplazo en esta misma operación (p. ej. identidad retirada): la
-      -- actividad computable más reciente pasa a ser la del resultado applied+eligible más
-      -- reciente que le quede, si le queda alguno.
-      select max(m.played_at) into v_new_last_rated_at
-      from public.match_level_result_players mlrp
-      join public.match_level_results mlr on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
-      join public.matches m on m.match_id = mlr.match_id
-      where mlrp.player_id = v_player_id;
+      -- Reversión pura sin reemplazo en esta misma operación (p. ej. identidad retirada):
+      -- last_rated_at nunca puede caer por debajo del ancla inicial del cuestionario (C-09).
+      -- Se recompone con la actividad computable restante y, como piso temporal real, el
+      -- initial_estimate que creó el primer Nivel del jugador.
+      select greatest(
+        (
+          select max(m.played_at)
+          from public.match_level_result_players mlrp
+          join public.match_level_results mlr on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
+          join public.matches m on m.match_id = mlr.match_id
+          where mlrp.player_id = v_player_id
+        ),
+        (
+          select max(le.created_at)
+          from public.level_events le
+          where le.player_id = v_player_id and le.event_type = 'initial_estimate'
+        )
+      ) into v_new_last_rated_at;
     end if;
 
     update public.level_states set
