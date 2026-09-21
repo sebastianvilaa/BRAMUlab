@@ -293,6 +293,22 @@ async function main() {
   report('tras la corrección, rated_matches de A1 sigue siendo 1 (mismo partido, no duplicado)', !!levelA1AfterCorrection && levelA1AfterCorrection.rated_matches === 1, JSON.stringify(levelA1AfterCorrection));
   report('el mu de A1 cambió tras la corrección (resultado más amplio -> mayor magnitud)', !!levelA1AfterCorrection && !!levelA1 && levelA1AfterCorrection.mu !== levelA1.mu, JSON.stringify({ before: levelA1, after: levelA1AfterCorrection }));
 
+  // Regresión central post-C-02: Confirmar sobre un partido que YA tuvo una corrección debe ser
+  // un NO-OP real. Nunca puede reentrar como trigger='initial' y reemplazar el resultado vigente.
+  const appliedBeforeRetryAfterCorrection = matchId
+    ? (await serviceGet(`match_level_results?match_id=eq.${matchId}&effect_status=eq.applied&select=result_id,trigger,revision_id`))?.[0]
+    : null;
+  const retryAfterCorrection = await callFunction('officialize-match', accounts.a1.accessToken, { matchId });
+  report('reintento Confirmar después de una corrección devuelve already_validated', retryAfterCorrection.json && retryAfterCorrection.json.ok === true && retryAfterCorrection.json.code === 'already_validated', JSON.stringify(retryAfterCorrection.json));
+  const appliedAfterRetryAfterCorrection = matchId
+    ? (await serviceGet(`match_level_results?match_id=eq.${matchId}&effect_status=eq.applied&select=result_id,trigger,revision_id`))?.[0]
+    : null;
+  report('reintento Confirmar NO reemplaza el correction_accepted vigente por un nuevo initial',
+    !!appliedBeforeRetryAfterCorrection && !!appliedAfterRetryAfterCorrection
+      && appliedBeforeRetryAfterCorrection.result_id === appliedAfterRetryAfterCorrection.result_id
+      && appliedAfterRetryAfterCorrection.trigger === 'correction_accepted',
+    JSON.stringify({ before: appliedBeforeRetryAfterCorrection, after: appliedAfterRetryAfterCorrection }));
+
   // ------------------------------------------------------------------
   // 4) Incidencia de identidad — B2 reporta que no participó; se reemplaza por B1... (usamos
   //    un 5º jugador para no romper la fingerprint del partido).
@@ -314,8 +330,18 @@ async function main() {
   const matchAfterIssue = matchId ? (await serviceGet(`matches?match_id=eq.${matchId}&select=status`))?.[0] : null;
   report('el partido SIGUE validated mientras la incidencia está abierta (resultado deportivo oficial)', !!matchAfterIssue && matchAfterIssue.status === 'validated', JSON.stringify(matchAfterIssue));
 
-  const levelA1WhileOpen = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches`))?.[0] : null;
+  const levelA1WhileOpen = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches,last_rated_at`))?.[0] : null;
   report('rated_matches de A1 (jugador NO cuestionado) baja mientras la incidencia está abierta -> reversión de PARTIDO COMPLETO', !!levelA1WhileOpen && levelA1WhileOpen.rated_matches === 0, JSON.stringify(levelA1WhileOpen));
+
+  // C-09 regresión: al revertirse el ÚNICO partido computable, last_rated_at debe volver al
+  // initial_estimate del cuestionario, nunca quedar NULL (si no, se pierde el reloj de inactividad).
+  const initialAnchorA1 = accounts.a1.playerId
+    ? (await serviceGet(`level_events?player_id=eq.${accounts.a1.playerId}&event_type=eq.initial_estimate&select=created_at&order=created_at.asc&limit=1`))?.[0]
+    : null;
+  report('C-09: revertir el único partido conserva last_rated_at anclado al cuestionario',
+    !!levelA1WhileOpen && !!levelA1WhileOpen.last_rated_at && !!initialAnchorA1
+      && new Date(levelA1WhileOpen.last_rated_at).getTime() === new Date(initialAnchorA1.created_at).getTime(),
+    JSON.stringify({ state: levelA1WhileOpen, initialAnchor: initialAnchorA1 }));
 
   const proposeBlocked = await callFunction('propose-match-correction', accounts.a1.accessToken, {
     matchId, sets: [{ gamesA: 6, gamesB: 1 }, { gamesA: 6, gamesB: 1 }],
