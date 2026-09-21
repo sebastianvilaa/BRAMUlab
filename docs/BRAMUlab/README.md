@@ -3,7 +3,7 @@
 **Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 19 de septiembre de 2026
+**Actualización documental:** 21 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -50,7 +50,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 5 (Partidos e Historial) está CERRADO** (21/09/2026): modelo server-backed de partidos compartidos, create-or-attach, idempotencia/concurrencia, revisiones append-only, outbox/`sync_pending`, historial compartido, ocultamiento privado, nota privada, provisionales relacionadas y separación estricta entre partido visible y partido computable quedaron implementados y validados en Supabase/Vercel Staging real. La QA de navegador detectó y corrigió homónimos reales tratados como duplicados, `00:00` con hora desconocida, estado pendiente faltante en Último partido y copy Eliminar/Ocultar. Revalidación final dirigida: 4/4 PASS. Suite local final: **1448/1448**. Ver `Implementacion/Backend/Bloque_05/16_Cierre_Bloque_05.md`.
 
-**Bloque 6 (Validación y actualización oficial) está INICIADO en etapa de análisis** (21/09/2026). El primer handoff está en `Implementacion/Backend/Bloque_06/01_Handoff_Inicio_Bloque_06.md`. Esta primera ronda es solo análisis/plan; todavía no hay implementación autorizada.
+**Bloque 6 (Validación y actualización oficial) está IMPLEMENTADO y VALIDADO en backend/Fase A sobre Supabase Staging** (21/09/2026), pero todavía **NO está cerrado**: falta Fase B de frontend/wiring + QA de navegador. Evidencia backend: `Implementacion/Backend/Bloque_06/12_Validacion_Backend_Staging_ChatGPT.md`. Próximo handoff: `13_Handoff_Fase_B_Claude.md`.
 
 ---
 
@@ -62,7 +62,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–5 CERRADOS en Staging. Bloque 6 INICIADO en análisis/plan; implementación todavía no autorizada. Roadmap vigente: Bloques 1–7 → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–5 CERRADOS en Staging. Bloque 6 con backend/Fase A IMPLEMENTADO y VALIDADO en Staging; Fase B frontend/wiring pendiente, por lo que todavía no está cerrado. Roadmap vigente: completar Bloque 6 → Bloque 7 → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -192,7 +192,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–5 están cerrados en Staging. Bloque 6 está iniciado en etapa de análisis/plan**, sin implementación autorizada todavía. Después continúan Ranking real semanal, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–5 están cerrados en Staging. Bloque 6 ya tiene backend/Fase A implementado y validado en Supabase Staging, y está pendiente de Fase B frontend/wiring + QA de navegador.** Después continúan Ranking real semanal, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
 
 ---
 
