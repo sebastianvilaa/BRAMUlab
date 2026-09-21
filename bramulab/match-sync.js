@@ -106,6 +106,22 @@
     const sets = buildLocalSets(row.sets);
     const winnerTeam = deriveWinnerTeam(sets, row.formatId);
     const players = buildLocalPlayers(row.participants);
+    const openIdentityIssues = Array.isArray(row.openIdentityIssues) ? row.openIdentityIssues : null;
+    // Bloque 6 — un slot sin player_id puede estar temporalmente "Por identificar" (issue open)
+    // o haber quedado terminalmente como "Jugador no identificado". get_match_detail expone
+    // únicamente issues OPEN; por eso, cuando el detalle completo está disponible, un slot NULL
+    // sin issue open ya es terminal y no debe seguir pareciendo resoluble.
+    if (openIdentityIssues) {
+      const openSlots = new Set(openIdentityIssues.map((i) => `${i.team}:${i.positionInTeam}`));
+      const positionByTeam = { A: 0, B: 0 };
+      players.forEach((p) => {
+        positionByTeam[p.team] = (positionByTeam[p.team] || 0) + 1;
+        if (!p.userId) {
+          const key = `${p.team}:${positionByTeam[p.team]}`;
+          p.name = openSlots.has(key) ? 'Por identificar' : 'Jugador no identificado';
+        }
+      });
+    }
     const { stats, intelligence } = computeDescriptiveStats(sets, players, row.formatId);
     const location = row.locationName || Number.isFinite(row.locationLat)
       ? { name: row.locationName || '', lat: row.locationLat, lng: row.locationLng }
@@ -163,8 +179,8 @@
       // se deriva el booleano desde el array cuando está disponible, nunca al revés (el array
       // nunca se inventa desde el booleano). `pendingCorrectionRevisionId` viene igual de ambas.
       pendingCorrectionRevisionId: row.pendingCorrectionRevisionId || null,
-      openIdentityIssues: Array.isArray(row.openIdentityIssues) ? row.openIdentityIssues : null,
-      hasOpenIdentityIssue: Array.isArray(row.openIdentityIssues) ? row.openIdentityIssues.length > 0 : !!row.hasOpenIdentityIssue,
+      openIdentityIssues,
+      hasOpenIdentityIssue: openIdentityIssues ? openIdentityIssues.length > 0 : !!row.hasOpenIdentityIssue,
       // Solo get_match_detail la trae (get_my_matches no) — se usa para derivar client-side
       // quién propuso la corrección post-validación pendiente (último 'revision_proposed'),
       // ver paintB6Actions en app.js. `null` para cualquier fila que no la incluya.
@@ -252,7 +268,10 @@
   function isComputableMatch(match) {
     if (!match) return false;
     if (!match.serverBacked) return true;
-    return match.status === 'validated';
+    // Una incidencia de identidad abierta suspende los derivados que dependen de saber quién
+    // jugó (Nivel ya se revierte server-side al abrirla). El partido sigue visible/oficial, pero
+    // no debe alimentar Efectividad/Evolución/compañeros/rivales mientras el slot esté en duda.
+    return match.status === 'validated' && !match.hasOpenIdentityIssue;
   }
 
   /** Orden más-reciente-primero por `createdAt`, para que `matches[0]` siga significando "el
