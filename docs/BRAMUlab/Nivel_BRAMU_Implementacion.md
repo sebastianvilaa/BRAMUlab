@@ -205,16 +205,16 @@ Antes de agregar más funciones de Nivel:
 
 1. mantener tests verdes;
 2. integrar Nivel con el backend real siguiendo `Backend_Infraestructura.md`;
-3. usar el piloto real para validar comprensión y distribución del Nivel;
+3. usar las primeras semanas de uso real para validar comprensión y distribución del Nivel;
 4. recién con datos reales evaluar ajustes de parámetros/anclas como una nueva versión explícita.
 
 No hay una “Etapa C pendiente” en este documento: el estimador V1.1 ya fue implementado.
 
 ---
 
-## 9. Definición de listo para piloto
+## 9. Definición de listo para lanzamiento inicial
 
-Nivel BRAMU puede considerarse listo para un piloto controlado cuando:
+Nivel BRAMU puede considerarse listo para el lanzamiento inicial cuando:
 
 - V04.10 permanece como cierre visual/UX local;
 - 1400/1400 tests de cierre de Nivel permanecen verdes;
@@ -231,5 +231,5 @@ La activación pública productiva multiusuario depende además del backend real
 
 **CONFIRMADO para V1:** la categoría local se retira del onboarding y del cálculo inicial. No se pide país/rama/sistema competitivo para poder obtener Nivel. El camino completo queda en 6 preguntas y el rápido conserva sus 5 descripciones.
 
-**PROPUESTA FUTURA CERCANA, NO IMPLEMENTAR AHORA:** recuperar la sensación de agencia que daba el ajuste final sin volver a depender de categorías locales. El objetivo UX es que el usuario no sienta “me pusieron una nota” y tenga una instancia breve de participación/confirmación antes de aceptar el punto de partida. Debe ser universal, acotada y explícita; no debe permitir “subirse” arbitrariamente el Nivel ni fingir precisión. Diseñar y probar esta interacción después de cerrar Backend Bloque 3, antes del piloto si entra sin ensuciar el flujo.
+**PROPUESTA FUTURA CERCANA, NO IMPLEMENTAR AHORA:** recuperar la sensación de agencia que daba el ajuste final sin volver a depender de categorías locales. El objetivo UX es que el usuario no sienta “me pusieron una nota” y tenga una instancia breve de participación/confirmación antes de aceptar el punto de partida. Debe ser universal, acotada y explícita; no debe permitir “subirse” arbitrariamente el Nivel ni fingir precisión. Diseñar y probar esta interacción después de cerrar Backend Bloque 3, antes del lanzamiento inicial si entra sin ensuciar el flujo.
 
