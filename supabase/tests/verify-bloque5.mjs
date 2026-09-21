@@ -427,6 +427,28 @@ async function main() {
   report('dedup: se registró la acción "confirmed" (nunca "validated") en match_actions',
     dedupActionTypes.includes('confirmed') && !dedupActionTypes.includes('validated'), JSON.stringify(dedupActionTypes));
 
+  // El segundo integrante de la pareja rival puede cargar el mismo partido después de la
+  // conformidad, pero eso NO crea una segunda conformidad de pareja: converge de forma
+  // informativa al mismo match_id. La declaración individual ya queda auditada en
+  // match_submissions por su propia idempotencyKey.
+  const dedupConfirmPartner = await createOrAttach(D.token, {
+    idempotencyKey: genUuid(),
+    pair1PlayerIds: [D.playerId, C.playerId], pair2PlayerIds: [A.playerId, B.playerId],
+    rawSets: invertedSets(dedupSets), formatId: 'classic', playedAtIso: dedupPlayedAt, playedAtTimeKnown: true,
+  });
+  report('dedup: el compañero del rival no duplica la conformidad ya registrada',
+    dedupConfirmPartner.res.ok && dedupConfirmPartner.json && dedupConfirmPartner.json.ok
+      && dedupConfirmPartner.json.matchId === dedupMatchId
+      && dedupConfirmPartner.json.code === 'matched_already_confirmed'
+      && dedupConfirmPartner.json.readyForValidation === true,
+    JSON.stringify(dedupConfirmPartner.json));
+
+  const dedupActionsAfterPartner = await serviceGet(`match_actions?select=action_type&match_id=eq.${dedupMatchId}`);
+  const confirmedCountAfterPartner = Array.isArray(dedupActionsAfterPartner)
+    ? dedupActionsAfterPartner.filter((a) => a.action_type === 'confirmed').length : -1;
+  report('dedup: existe exactamente UNA conformidad de pareja aunque ambos rivales hayan cargado',
+    confirmedCountAfterPartner === 1, JSON.stringify(dedupActionsAfterPartner));
+
   const levelAfterConformity = await serviceGet(`level_states?select=player_id,mu,rated_matches&player_id=eq.${A.playerId}`);
   report('Nivel: level_states de A no cambia ni siquiera después de una conformidad rival registrada (Bloque 5 nunca escribe Nivel)',
     Array.isArray(levelAfterConformity) && levelAfterConformity.length === 1 && levelAfterConformity[0].rated_matches === 0,
