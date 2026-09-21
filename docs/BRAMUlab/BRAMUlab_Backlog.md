@@ -26,14 +26,14 @@ Si una idea de este backlog entra en desarrollo, primero debe pasar a un documen
 
 La arquitectura general y el ciclo básico de partido ya están definidos en `Backend_Infraestructura.md` y `Experiencia_Inicial.md`. Lo que sigue realmente pendiente incluye:
 
-- verificación reforzada de reclamo de identidades provisionales si el claim básico del piloto demuestra fricción;
+- verificación reforzada de reclamo de identidades provisionales si el claim básico del lanzamiento inicial demuestra fricción;
 - detección y resolución de identidades provisionales duplicadas;
 - política de conflictos entre dispositivos y retención de cola offline;
 - privacidad exacta de perfiles y relación con datos públicos/buscables;
 - matriz final de permisos/RLS;
 - límites operativos y antiabuso para producción;
 - `supabase/tests/verify-bloque2.mjs` debería confirmar que sus propias operaciones de limpieza (borrado de cuentas/filas de prueba al final del script) realmente tuvieron éxito, en vez de dispararlas sin revisar la respuesta — un permiso faltante de `service_role` (corregido el 18/09/2026, ver Bloque 2 del Informe de Backend) dejó pasar desapercibidas dos corridas reales cuya limpieza falló en silencio. No bloquea ningún bloque; es una mejora de robustez del propio script de verificación (`verify-bloque3.mjs`, de Bloque 3, ya nace revisando el resultado de cada borrado).
-- (Bloque 3) `supabase/functions/officialize-onboarding` responde CORS con `Access-Control-Allow-Origin: '*'` — razonable para el piloto (la función igual exige un JWT válido), pero se puede acotar a los dominios reales de Staging/Production cuando existan, sin que sea un requisito para cerrar el bloque.
+- (Bloque 3) `supabase/functions/officialize-onboarding` responde CORS con `Access-Control-Allow-Origin: '*'` — razonable para el lanzamiento inicial (la función igual exige un JWT válido), pero se puede acotar a los dominios reales de Staging/Production cuando existan, sin que sea un requisito para cerrar el bloque.
 - (Bloque 3) `complete_profile` sigue sobreescribiendo por completo los campos que recibe (sin `COALESCE` parcial, decisión explícita de `03_Revision_ChatGPT.md` §4 para no tocar más semántica de la necesaria de Bloque 2). El día que exista una pantalla "Completar datos para Ranking" que llame a `complete_profile` por segunda vez, esa pantalla necesita re-enviar también nombre/apellido/`@usuario`/términos ya cargados (o `complete_profile` necesita revisar su semántica en ese momento) para no pisarlos con `null`.
 
 No diseñar otra arquitectura paralela: estos puntos completan la fuente maestra de Backend.
@@ -52,13 +52,13 @@ La V1 oficial está cerrada en `Ranking_BRAMU.md`. Queda fuera de alcance actual
 - premios o competiciones que exijan una capa extra de validación;
 - herramientas de administración/integridad para universos competitivos grandes.
 
-No agregar estas funciones durante el piloto inicial salvo decisión explícita.
+No agregar estas funciones durante el lanzamiento inicial salvo decisión explícita.
 
 ---
 
-## 4. Nivel BRAMU — evoluciones posteriores al piloto
+## 4. Nivel BRAMU — evoluciones posteriores al lanzamiento inicial
 
-Nivel V1 está implementado para ser probado, no cerrado para siempre. Después del piloto real puede evaluarse:
+Nivel V1 está implementado para ser probado, no cerrado para siempre. Después de las primeras semanas de uso real puede evaluarse:
 
 - recalibrar anclas, categorías locales o parámetros a partir de datos reales;
 - ampliar mapas de categoría a otros países/circuitos;
@@ -96,7 +96,7 @@ Decisión vigente:
 - el acceso desde `+` debe conducir directamente a `Cargar mi partido`;
 - el marcador/registro en vivo pertenece a una aplicación/producto separado (**BRAMUlive**) y no forma parte del backlog de esta app.
 
-Evoluciones posibles de la carga propia, no prioritarias antes del piloto:
+Evoluciones posibles de la carga propia, no prioritarias antes del lanzamiento inicial:
 
 - formatos excepcionales: partido interrumpido, amistoso con reglas arbitrarias, Partido Libre;
 - simplificación adicional de corrección/undo si las pruebas reales muestran fricción, sin romper el contrato vigente de revisiones;
@@ -168,7 +168,7 @@ Solo evaluar después de validar:
 - costos inevitables de infraestructura/IA;
 - interés de clubes/organizadores.
 
-No agregar publicidad, paywalls o planes pagos al piloto por defecto.
+No agregar publicidad, paywalls o planes pagos al lanzamiento inicial por defecto.
 
 ---
 
