@@ -55,8 +55,8 @@ Por lo tanto, después de `hide_match_for_me`, el cache podía volver a incluir 
 
 ### Corrección
 
-- el feed normal se pide con `includeHidden:false`;
-- `buildDisplayHistory` además filtra `row.hidden` como defensa;
+- el cache de lectura conserva `includeHidden:true` para no perder los efectos oficiales de un partido validado que el usuario decidió esconder;
+- `buildDisplayHistory` filtra `row.hidden`, por lo que Home/Historial personal no lo muestran;
 - `buildComputableHistory` NO filtra hidden: ocultar es una preferencia visual privada y nunca elimina efectos oficiales de un partido validado.
 
 ---
@@ -102,7 +102,7 @@ No quedaron fixtures de la prueba.
 
 Como hubo cambios posteriores al bundle `04.10-h12`, se hizo bump a:
 
-`04.10-h13`
+`04.10-h14`
 
 en `index.html` y `sw.js`.
 
