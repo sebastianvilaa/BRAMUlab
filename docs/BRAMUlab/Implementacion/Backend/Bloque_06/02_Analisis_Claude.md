@@ -4,7 +4,8 @@
 **Rama:** `staging`
 **HEAD de partida:** `9d9aeb8` (fast-forward desde `02dafa1`, sin commits propios todavía)
 **Handoff base:** `Implementacion/Backend/Bloque_06/01_Handoff_Inicio_Bloque_06.md`
-**Alcance de esta ronda:** SOLO análisis. No se tocó código, Supabase, Vercel, `main`, Production ni BRAMUlive.
+**Revisión central:** `Implementacion/Backend/Bloque_06/04_Revision_ChatGPT.md` — **APROBADO CON AJUSTES OBLIGATORIOS**, incorporados en esta versión del documento (ver §3.4–§3.7, §4 y §6 actualizados).
+**Alcance de esta ronda:** análisis. No se tocó Supabase real, Vercel, `main`, Production ni BRAMUlive. La implementación de Fase A (código en `staging`, sin aplicar a Supabase real) se describe en `03_Plan_Implementacion_Claude.md` y en el cierre de esa ronda.
 
 ---
 
@@ -135,7 +136,9 @@ Nunca se recomputa en cascada el resto del historial de los 4 jugadores: la reve
 
 ### 3.5 (§6.5) Cambio de participante después de validar
 
-Ver **DECISIÓN ABIERTA #2** más abajo — es exactamente el punto que el handoff pide marcar así si la fuente no lo resuelve de forma inequívoca, y no lo resuelve.
+**Resuelto por la revisión central (04_Revision_ChatGPT.md §2) — ya no es una decisión abierta.** Se adopta la recomendación de este análisis con una precisión temporal obligatoria: al reemplazar un participante después de validar, se usa el estado histórico que ese participante correcto tenía **inmediatamente antes de la oficialización original de ese partido**, no su Nivel actual al resolver la incidencia.
+
+Precisión obligatoria agregada por la revisión: la reconstrucción de "estado inmediatamente anterior" no puede resolverse solo con "último evento con `created_at <= validated_at`" porque puede haber más de un evento con timestamps equivalentes. Necesita **orden determinístico**: `(created_at, event_id)` como clave de ordenamiento, nunca `created_at` solo. Si no existe ningún estado de Nivel válido para ese jugador en ese momento (por ejemplo, todavía no tenía cuenta), se lo trata como participante sin Nivel conocido según las reglas de imputación/disponibilidad de §13 de la fórmula — mismo camino que ya existe para invitados, sin regla nueva.
 
 ### 3.6 (§6.6) Representación de "Jugador no identificado" sin fabricar identidad
 
@@ -143,19 +146,30 @@ Ver **DECISIÓN ABIERTA #2** más abajo — es exactamente el punto que el hando
 
 `match_identity_issues`: `issue_id`, `match_id`, `team`, `position_in_team` (referencia al slot exacto), `previous_player_id` (auditoría de quién estaba mal puesto), `opened_by_player_id`, `opened_at`, `status check (in ('open','resolved','unidentified'))`, `resolved_player_id`, `resolved_at`. Único índice parcial: como máximo una incidencia `open` por slot a la vez.
 
-- Al abrirse la incidencia (`report_identity_issue`, pre o post-validación): si el partido ya está `validated`, dentro de la misma operación se revierte (§3.3) el efecto de Nivel que ese slot había recibido — "el jugador incorrecto no puede seguir recibiendo efecto" es una regla ya cerrada por el handoff, no una decisión a tomar. `match_participants.player_id` de ese slot pasa a `NULL` inmediatamente (el slot queda "por identificar"); `display_name_snapshot` se actualiza a un valor neutro tipo "Por identificar" para no seguir mostrando el nombre de quien dijo que no participó.
-- Si se resuelve dentro de los 7 días (`resolve_identity_issue`): `match_participants.player_id` pasa al nuevo jugador; si el partido está `validated`, se recalcula (mismo mecanismo de §3.3/§3.4) el efecto de Nivel de los 4 slots usando el snapshot correcto del participante correcto (DECISIÓN ABIERTA #2).
-- Si vencen los 7 días sin resolución: **no hace falta ninguna escritura nueva.** Una lectura que detecte `status='open'` con `opened_at + 7 días` vencido presenta ese slot como `Jugador no identificado` (terminal) sin volver a ofrecerlo como accionable — otra vez expiración lógica calculada en lectura, sin cron. El slot sigue con `player_id=NULL` para siempre: eso es exactamente "no fabricar identidad". Para el motor de Nivel, un slot en este estado terminal se trata igual que un invitado sin nivel conocido de §13 de la fórmula (nunca recibe efecto, participa solo por imputación si corresponde) — no hace falta ninguna regla nueva del motor, ya existe.
+**Alcance de la reversión al abrir la incidencia — corregido por la revisión central (04_Revision_ChatGPT.md §3).** La versión anterior de este análisis decía que se revertía "el efecto de Nivel que ese slot había recibido" — insuficiente: la composición de los cuatro jugadores determina fuerza de pareja, expectativa, disponibilidad/imputación, confianza rival, repetición, compañero y círculo competitivo, así que una identidad incorrecta puede invalidar **el cálculo completo del partido**, no solo el delta de un jugador. Secuencia correcta:
+
+1. abrir la incidencia (pre o post-validación) retira inmediatamente `match_participants.player_id` de ese slot (pasa a `NULL`, `display_name_snapshot` a un valor neutro);
+2. si el partido estaba `validated`, la misma operación **suspende/revierte de forma atómica el efecto de Nivel completo de ese partido** (los 4 jugadores conocidos, no solo el slot cuestionado) — es una reversión pura contra el resultado ya calculado (`match_level_results`), no requiere el motor JS de nuevo;
+3. mientras la incidencia sigue abierta, ese partido no mantiene ningún delta de Nivel vigente (compuesto sobre una identidad que ya se sabe incorrecta);
+4. si se identifica al jugador correcto dentro de los 7 días, se recalcula y reaplica el **partido completo** (los 4 slots, no solo el reemplazado) con los snapshots temporales correctos (§3.5) — sí requiere el motor JS, vía Edge Function;
+5. si vencen los 7 días sin resolución, el slot queda `Jugador no identificado` de forma **idempotente y materializada** (no puramente lazy/sin escritura — corrección de la versión anterior de este análisis, ver 04_Revision_ChatGPT.md §6/§7): la primera lectura o acción posterior al vencimiento dispara una operación server-side que fija `status='unidentified'` y reevalúa el partido con las reglas V1.5 de nivel ausente — si sigue siendo computable (por ejemplo, quedan 3 niveles conocidos con al menos uno por pareja), se reaplica el efecto válido tratando ese slot exactamente como un invitado sin nivel conocido de §13; si no cumple elegibilidad, el partido queda sin efecto de Nivel pero sigue siendo oficial en historial/estadísticas.
+
+El resultado deportivo puede seguir siendo oficial durante todo el proceso (`Experiencia_Inicial.md`). El slot nunca recibe un `player_id` fabricado — eso es lo que "no fabricar identidad" significa en este modelo.
 
 ### 3.7 (§6.7) Estadísticas oficiales
 
-Hoy **toda** estadística (`stats.js`) es client-side y parte de un array de partidos ya en memoria — no hay una segunda fuente server-side que pueda divergir todavía. Se recomienda **no** crear un pipeline de agregados persistidos (evita una segunda fuente de verdad, y el handoff pide explícitamente no crear métricas nuevas). En cambio:
+**Corregido por la revisión central (04_Revision_ChatGPT.md §4/§5).** La versión anterior de este análisis proponía agregar un parámetro `p_only_validated` a `get_my_matches` sin auditar antes lo que ya existe — eso hubiera reabierto exactamente el bug de "ocultar afecta lo oficial" que Bloque 5 ya cerró, porque `get_my_matches` filtra `hidden` por defecto salvo que se pida `p_include_hidden`.
 
-- extender `get_my_matches` (ya existente, ya filtra `hidden`) para que el cliente pueda pedir específicamente "mis partidos oficiales" (`status='validated'`) como el único insumo legítimo de `stats.js`;
-- el cliente sigue corriendo el mismo módulo `stats.js` puro que ya existe, pero alimentado por la respuesta del servidor en vez de `localStorage`;
-- esto garantiza automáticamente "pending nunca cuenta, validated sí" porque la fuente de datos ya viene filtrada por el servidor, y una corrección/anulación se refleja sola en la próxima lectura (no hay un agregado desactualizado que invalidar).
+**Lo que ya existe y hay que reutilizar**, confirmado en el código de `bramulab/match-sync.js` (Bloque 5, ya wireado en `app.js`):
 
-Es una combinación mínima, no dos de las tres opciones que el handoff planteaba: se deriva server-side (la lista de partidos oficiales) y se computa client-side (con el motor ya existente, sin duplicarlo).
+- `translateServerMatchToLocalShape(row)` — ya traduce una fila `get_my_matches`/`get_match_detail` a la **misma forma local** que usa la carga manual (`players[]`, `sets[]`, `winnerTeam` derivado con el mismo `Engine`, `mode:'manual'`, `regulationCompleted:true`) — es, de hecho, un adaptador muy cercano al que Bloque 6 necesita para alimentar `level-context.js` (ver §4, Riesgo 1 actualizado);
+- `isComputableMatch(match)` — ya devuelve `status === 'validated'` para un partido server-backed, sin excepciones;
+- `buildDisplayHistory({localHistory, serverRows, outboxEntries})` — filtra `hidden`, para Home/Historial;
+- `buildComputableHistory({localHistory, serverRows})` — **no filtra `hidden`**, para `stats.js`/`player-home.js`/`groups.js`; ya está wireada en `app.js` (`Matches.getMyMatches({limit:200, includeHidden:true})` alimenta ambas funciones desde el mismo cache).
+
+El propio comentario de cabecera de `match-sync.js` ya documenta explícitamente que esto quedó preparado a propósito para Bloque 6: *"un partido server-backed SOLO es computable cuando `status==='validated'` — hoy eso nunca ocurre todavía... así que en la práctica ningún partido server-backed alimenta estadísticas hasta que exista Bloque 6."*
+
+**Conclusión:** Bloque 6 no necesita ninguna vía nueva de datos para estadísticas. En cuanto `officialize_match_validation` empiece a escribir `matches.status='validated'` de verdad, `buildComputableHistory` (ya invocada por `app.js`) empieza a incluir esos partidos automáticamente, con `hidden` sin afectar el cómputo. El primer paso de cualquier checkpoint de estadísticas debe ser **probar el camino vigente contra un partido validado real** y corregir solo lo que efectivamente falte — nunca agregar una segunda vía de datos por adelantado.
 
 ### 3.8 (§6.8) Repetición / compañero / círculo competitivo
 
@@ -186,98 +200,88 @@ Se invocan igual que los scripts `verify-*.mjs` ya existentes: un script Node co
 
 ## 4. Riesgos técnicos reales
 
-### Riesgo 1 — Adaptador de datos entre el esquema Supabase y `level-context.js` (alto, central)
+### Riesgo 1 — Adaptador de datos entre el esquema Supabase y `level-context.js` (medio, reducido tras auditar `match-sync.js`)
 
-`level-context.js` fue escrito para el modelo local (`match.players[]` con `{name, team, userId}`, `match.sets[].winner`, `match.winnerTeam`, `match.formatId`, `match.mode`, `match.regulationCompleted`, `match.validationState`) — ninguno de esos campos existe tal cual en `matches`/`match_participants`/`match_sets`. Antes de poder llamar a `computeMatchLevelUpdate`, la Edge Function necesita una capa de adaptación explícita que traduzca filas Supabase → esa forma exacta. Es trabajo real, pero acotado y sin ambigüedad de producto: todos los campos que necesita tienen un origen server-side claro, con una excepción:
+`level-context.js` fue escrito para el modelo local (`match.players[]` con `{name, team, userId}`, `match.sets[].winner`, `match.winnerTeam`, `match.formatId`, `match.mode`, `match.regulationCompleted`, `match.validationState`). El riesgo era mayor en la versión anterior de este análisis porque asumía que había que construir este adaptador desde cero. **No es así:** `bramulab/match-sync.js` (Bloque 5, ya implementado y wireado en `app.js`) ya expone `translateServerMatchToLocalShape(row)`, que traduce una fila `get_my_matches`/`get_match_detail` a **exactamente** esa forma local (`players[]`, `sets[]` con `winner` derivado vía el mismo `Engine`, `mode:'manual'`, `regulationCompleted:true`), reutilizable tal cual server-side. El trabajo real que queda es más chico de lo estimado:
 
-- `match.regulationCompleted`: no existe ningún camino en Bloque 5 para cargar un partido incompleto/abandono/walkover (`validateMatchSets` exige un ganador válido por sets). Se puede fijar siempre en `true` al adaptar — no es una laguna que Bloque 6 tenga que resolver, es una laguna preexistente de qué puede cargarse, fuera de este alcance.
-- `match.mode`: todo partido server-backed es carga manual por definición del producto (`Experiencia_Inicial.md` §4.1) → siempre `'manual'`.
-- `match.validationState`: se deriva 1:1 de `matches.status` (`pending_validation→'pendiente'`, `validated→'validado'`, etc.).
+- una nueva RPC de lectura que devuelva, para un conjunto arbitrario de `player_id` (no solo el caller, a diferencia de `get_my_matches`), sus partidos `validated` en un formato de fila compatible con lo que `translateServerMatchToLocalShape` espera;
+- el mapeo `level_states.status` (`PENDIENTE/CALIBRANDO/CALIBRADO/RECALIBRANDO`) → `Level.STATES` (`sin_estimacion/calibrando/calibrado/recalibrando`) — los strings no coinciden 1:1, hay que traducirlos explícitamente;
+- el chequeo de ventana temporal de Nivel (ver Riesgo 2, ya resuelto por la revisión central) **antes** de invocar el motor, no dentro de `level-context.js`.
 
-**Mitigación:** escribir y testear este adaptador como una función pura aislada (mismo criterio "cero DOM/localStorage" que el resto del motor), con fixtures explícitos que crucen los tests de `Nivel_BRAMU_Formula_V1.5.md` §14 contra partidos con forma Supabase.
+`match.regulationCompleted` se fija siempre en `true` (no existe ningún camino en Bloque 5 para cargar un partido incompleto/walkover — laguna preexistente fuera de este alcance, ya así en `match-sync.js`).
 
-### Riesgo 2 — El chequeo interno de 30 días de `level-context.js` queda inerte con datos de Bloque 5 (alto, ligado a Decisión Abierta #1)
+### Riesgo 2 — Ventana de 30 días: RESUELTO por la revisión central, ya no es un riesgo abierto
 
-`computeMatchStatus` en `level-context.js` excluye un partido manual si `createdAt - playedAt > 30 días`. Pero Bloque 5 **ya** limita la carga a 14 días retroactivos (`create_or_attach_match`), así que ese chequeo interno **nunca puede dispararse** con datos reales de Bloque 5 (14 < 30 siempre). El control real de "ventana vigente para que un partido compute" que pide el handoff §5 tiene que vivir en otro lado — ver Decisión Abierta #1.
+**Antes** DECISIÓN ABIERTA #1 de este análisis. La revisión central (`04_Revision_ChatGPT.md` §1) la resolvió por precedencia documental: `Nivel_BRAMU_Formula_V1.5.md` es la fuente normativa de Nivel y su §12.2/§13 son explícitos — `validated_at − played_at > 30 días` significa historial/estadísticas sí, Nivel no. Bloque 5 conserva sus reglas operativas (14 días de carga + 30 días de pendiente desde la carga, que en el peor caso permite `validated_at` hasta 44 días después de `played_at`) sin reabrirse; la diferencia entre ambas ventanas la absorbe Bloque 6 como una elegibilidad **adicional y más estricta**, exclusiva del efecto de Nivel, nunca del estado oficial del partido.
+
+Implementación obligatoria: el chequeo `validated_at − played_at ≤ 30 días` vive en el **adaptador/orquestador server-side de Bloque 6** (antes de invocar el motor), no dentro de `level-context.js` (cuyo chequeo interno de `createdAt − playedAt` queda confirmado como inerte con datos de Bloque 5, y no se toca ese archivo). Un partido que exceda la ventana queda `validated` igual — el resultado deportivo es oficial — pero no produce ningún delta de Nivel, con un `reasonCode` explícito (`fuera_de_ventana_30_dias_desde_partido`) guardado igual que cualquier otro resultado de elegibilidad, nunca como una excepción silenciosa.
 
 ### Riesgo 3 — Costo de traer historial de 180 días por 4 jugadores en cada oficialización (medio)
 
 Cada oficialización necesita, para cada uno de hasta 4 participantes conocidos, sus partidos validados de los últimos 180 días (para repetición/compañero/círculo). Para 10–20 jugadores de piloto el volumen es trivial, pero conviene que la consulta esté indexada por `(player_id, played_at)` vía `match_participants_player_id_idx` (ya existe) + `matches_played_at_idx` (ya existe) — no se necesita un índice nuevo, pero si el volumen creciera fuerte convendría revisarlo en Bloque 9.
 
-### Riesgo 4 — Corrección post-validación que además cambia Nivel de un partido con incidencia de identidad simultánea (medio)
+### Riesgo 4 — Corrección post-validación que además cambia Nivel de un partido con incidencia de identidad simultánea (medio, con regla de serialización obligatoria)
 
-Si una corrección de resultado (§3.4) y una incidencia de identidad (§3.6) están abiertas al mismo tiempo sobre el mismo partido, el orden de reversión/reaplicación importa (revertir dos veces el mismo efecto, o aplicar la corrección sobre snapshots que ya no corresponden al participante vigente). **Mitigación recomendada:** serializar ambos flujos con el mismo lock de `level_states` de §3.2 (ya cubre esto porque ambos pasan por la misma RPC de reversión/reaplicación) y prohibir aceptar una corrección de resultado mientras existe una incidencia de identidad `open` sobre ese mismo partido (se resuelve primero la identidad, después se puede corregir el resultado) — evita razonar dos reversiones concurrentes sobre el mismo partido.
+Si una corrección de resultado (§3.4) y una incidencia de identidad (§3.6) están abiertas al mismo tiempo sobre el mismo partido, el orden de reversión/reaplicación importa. La revisión central (`04_Revision_ChatGPT.md` §11) hace obligatoria la mitigación que este análisis ya recomendaba: **no permitir aceptar una corrección de resultado mientras exista una incidencia de identidad `open` sobre ese mismo partido** — se resuelve primero la identidad, después el resultado. Se serializa además con el mismo lock de `level_states` de §3.2 (ambos caminos pasan por el mismo núcleo de reversión/reaplicación).
 
 ### Riesgo 5 — Regresión sobre Bloques 2–5 (bajo, con mitigación ya probada)
 
-Bloque 6 no necesita modificar el cuerpo de `create_or_attach_match` salvo un agregado acotado al final (invocar la oficialización compartida cuando `readyForValidation=true`) — evita tocar la lógica de deduplicación/concurrencia ya validada. La suite local (1448/1448 al cierre de Bloque 5) y los `verify-bloque{2,3,4,5}.mjs` deben seguir en verde antes de considerar cerrado cualquier checkpoint.
+Bloque 6 no necesita modificar el cuerpo de `create_or_attach_match` salvo un agregado acotado al final (invocar la rutina compartida de oficialización cuando `readyForValidation=true`, importada como módulo — nunca una llamada HTTP Edge→Edge hacia el mismo backend, `04_Revision_ChatGPT.md` §10) — evita tocar la lógica de deduplicación/concurrencia ya validada. La suite local (1448/1448 al cierre de Bloque 5) y los `verify-bloque{2,3,4,5}.mjs` deben seguir en verde antes de considerar cerrado cualquier checkpoint.
+
+### Riesgo 6 (nuevo) — `evidence_units`/`confidence_origin` no existen todavía en `level_states`
+
+`Nivel_BRAMU_Formula_V1.5.md` §2/§19 exige conservar `evidence_units` (evidencia acumulada ponderada) como parte del estado de cada jugador — es lo que hace matemáticamente exacta y determinística una reversión de confianza (§10.1/§10.2 de la fórmula: `evidence_units` se acumula de forma aditiva y `confidence` es una función pura del total acumulado, no de una cadena de valores intermedios). `level_states` de Bloque 3 no tiene esa columna porque solo necesitaba persistir el resultado del cuestionario inicial. Bloque 6 la necesita para poder revertir/reaplicar `confidence` con la misma exactitud que `mu` (diferencia neta), en vez de aproximar. Se agrega como columna nueva (ver plan §1.4) con backfill seguro: al cierre de Bloque 3, `confidence == b` (`evidence_units` implícitamente 0 para todos), así que `confidence_origin` puede completarse desde el valor actual de `confidence` sin ambigüedad.
 
 ---
 
-## 5. Decisiones técnicas recomendadas (resumen)
+## 5. Decisiones técnicas recomendadas (resumen, actualizado tras la revisión central)
 
-1. Un único núcleo de oficialización (`officialize_match_validation` + rutina compartida en la Edge Function), invocado desde dos triggers (`Confirmar` explícito y el cierre de `create-or-attach-match`) — nunca dos lógicas paralelas.
+1. Un único núcleo de oficialización, extraído como **módulo compartido** que importan las distintas Edge Functions (nunca una llamada HTTP Edge→Edge) — invocado desde dos triggers (`Confirmar` explícito y el cierre de `create-or-attach-match`), y reutilizado también para reaplicar tras una corrección o una identidad resuelta.
 2. Atomicidad vía lock de fila (`for update`, orden por `player_id`) + verificación optimista del snapshot usado por el motor, dentro de la RPC — no se confía en que la lectura Edge siga vigente al escribir.
-3. Nueva tabla `match_level_results` + 2 columnas en `level_events` + nuevos valores de `event_type`, en vez de sobrecargar `level_states`/`level_events` actuales o crear una segunda fuente de verdad.
+3. Nuevas tablas `match_level_results`/`match_level_result_players` (normalizada, no un blob `jsonb` único) para poder contar `rated_matches`/`distinct_opponents` por consulta directa en vez de mantener contadores incrementales propensos a desincronizarse con las reversiones.
 4. Corrección post-validación: revisión "en espera" separada de la oficial (`matches.pending_correction_revision_id`), nunca se pierde cuál es la versión oficial vigente mientras se decide.
-5. "Jugador no identificado": tabla chica `match_identity_issues` con ciclo de vida propio y expiración lógica en lectura — nunca una fila fantasma en `players`.
-6. Estadísticas oficiales: servidor filtra (`status='validated'`), cliente sigue calculando con el mismo `stats.js` — sin agregados persistidos nuevos.
-7. Notificaciones: tabla nueva siguiendo el contrato ya cerrado de `Backend_Infraestructura.md` §6.7, escrita desde las mismas RPCs de negocio.
-8. Comando administrativo: 2 RPCs `service_role`-only + script local, mismo patrón que `verify-*.mjs` — sin rol admin nuevo, sin panel.
-9. El adaptador Supabase → `level-context.js` es trabajo de datos, no de fórmula: la matemática de Nivel (incluida repetición/compañero/círculo) ya está cerrada y testeada en `level.js`/`level-context.js`.
+5. "Jugador no identificado": tabla chica `match_identity_issues` con ciclo de vida propio; el vencimiento a 7 días se **materializa de forma idempotente** en la primera lectura/acción posterior (no queda como estado puramente derivado sin escritura — corregido por la revisión central).
+6. Estadísticas oficiales: **no se agrega ninguna vía nueva de datos.** Se reutiliza `buildComputableHistory`/`buildDisplayHistory` (`match-sync.js`, Bloque 5) ya wireadas en `app.js`, que ya separan correctamente computable-con-ocultos vs. visible-sin-ocultos.
+7. Ocultar (`hidden`) nunca puede sacar un partido `validated` de Nivel/estadísticas — la capa computable no filtra `hidden`, ya es así en el código existente, Bloque 6 no debe introducir un feed que sí filtre.
+8. Notificaciones: tabla nueva siguiendo el contrato ya cerrado de `Backend_Infraestructura.md` §6.7; el vencimiento/aviso temporal se materializa igual que el de identidad — idempotente en la primera lectura/acción posterior, sin cron.
+9. Comando administrativo: 2 RPCs `service_role`-only + script en el repo para trazabilidad — pensado para que lo ejecute un agente/entorno autorizado, nunca que Sebastián maneje la `service role key` o pegue secretos en el chat.
+10. Ventana de Nivel de 30 días desde `played_at`: chequeo explícito en el orquestador de Bloque 6, separado del estado oficial del partido (Riesgo 2).
+11. Cambio de participante: snapshot histórico reconstruido con orden determinístico `(created_at, event_id)`, nunca el Nivel actual (§3.5).
+12. `evidence_units`/`confidence_origin` se agregan a `level_states` para que la reversión de `confidence` sea exacta, no aproximada (Riesgo 6).
 
 ---
 
-## 6. DECISIONES ABIERTAS
+## 6. Decisiones de producto — estado final tras la revisión central
 
-Solo se listan acá los puntos donde las fuentes vigentes genuinamente no alcanzan a determinar una respuesta inequívoca — no se inventó ninguna decisión de producto.
+Las dos decisiones que este análisis había marcado como abiertas fueron revisadas y **cerradas** por `04_Revision_ChatGPT.md`. Se documentan acá como registro, no como pendientes.
 
-### DECISIÓN ABIERTA #1 — Ventana temporal exacta para que un partido sea computable por Nivel
+### Ex-DECISIÓN ABIERTA #1 — Ventana temporal de Nivel → RESUELTA
 
-**El problema:** existen tres lecturas distintas, y ninguna fuente las concilia explícitamente:
+Ver Riesgo 2 (§4). Resolución: `Nivel_BRAMU_Formula_V1.5.md` manda por precedencia documental. `validated_at − played_at > 30 días` ⇒ historial/estadísticas oficiales sí, Nivel no. Bloque 5 no se reabre.
 
-- `Nivel_BRAMU_Formula_V1.5.md` §12.2 (texto literal): *"un partido manual debe completar carga, asociación **y validación** dentro de los 30 días posteriores a la fecha real de juego."* — es decir, `validated_at − played_at ≤ 30 días`.
-- El propio handoff de Bloque 6, §5: *"un partido manual debe quedar cargado/asociado/validado dentro de **la ventana vigente** para ser computable"* — sin fijar cuál es "la ventana vigente" quando hay más de una en juego.
-- `Backend_Infraestructura.md`/Bloque 5 (ya implementado y cerrado, no se reabre): carga retroactiva máxima **14 días** desde `played_at`, más deadline de validación de **30 días desde la carga** (`created_at`, no `played_at`). En el peor caso, un partido puede validarse hasta **44 días** después de jugado (`14 + 30`) y seguir siendo `validated` según Bloque 5.
-- El propio motor local (`level-context.js`, ya escrito antes de que existiera Bloque 5) interpreta el "30 días" de una tercera forma: `created_at − played_at ≤ 30 días` (ventana de **carga**, no de validación) — que, alimentada con datos reales de Bloque 5 (siempre `≤14` días), **nunca se dispara** (ver Riesgo 2).
+### Ex-DECISIÓN ABIERTA #2 — Snapshot del participante correcto → APROBADA con precisión temporal
 
-Ninguna de las tres lecturas es la misma, y las tres citan la misma regla de producto "30 días". No es un caso donde Backend_Infraestructura ya tradujo la regla de Nivel sin ambigüedad: es un caso donde la traducción diverge del texto normativo de Nivel.
+Ver §3.5. Resolución: estado histórico inmediatamente anterior a la oficialización original, con orden determinístico `(created_at, event_id)` — nunca el Nivel actual al momento de resolver.
 
-**Recomendación concreta:** no agregar una segunda ventana temporal independiente para Nivel. Tratar "la ventana vigente" del handoff como **la ventana operativa ya implementada y cerrada de Bloque 5** (14 días de carga + 30 días de pendiente desde la carga) como único criterio de computabilidad temporal — es decir, **cualquier partido que llegue a `validated` bajo las reglas de Bloque 5 es, por ese solo hecho, elegible en el tiempo para Nivel**, sin un segundo chequeo `validated_at − played_at ≤ 30` que podría rechazar por Nivel un partido que el propio sistema ya aceptó como oficial. Motivo: (a) evita crear un estado nuevo "validado pero no computable por antigüedad" que ninguna fuente define ni ninguna pantalla contempla; (b) evita reabrir Bloque 5 (expresamente prohibido en esta ronda y ya cerrado con evidencia real en Staging); (c) el caso límite real (validación entre el día 30 y el 44 desde jugado) requiere que una pareja tarde casi el máximo del plazo pendiente en confirmar un partido cargado casi al límite retroactivo — un caso extremo, no el camino normal.
-
-Si Sebastián/ChatGPT central prefieren la lectura literal de la fórmula (`validated_at − played_at ≤ 30`), la alternativa es agregar ese chequeo explícito dentro de `officialize_match_validation`: un partido que lo exceda queda `validated` igual (Bloque 5 ya lo aceptó, no se puede negar la oficialización del resultado en sí) pero **sin efecto de Nivel**, con un `reasonCode` nuevo (`'fuera_de_ventana_30_dias_desde_partido'`) — technically posible, pero introduce el estado híbrido mencionado arriba y una superficie nueva para explicarlo al usuario.
-
-### DECISIÓN ABIERTA #2 — Snapshot temporal del participante correcto tras un cambio de identidad
-
-Exactamente el punto que el handoff (§6.5) pide marcar así si no hay criterio inequívoco — y no lo hay: ninguna fuente dice si, al reemplazar un slot (por `No participé` o por incidencia de identidad post-validación), el cálculo debe usar el **Nivel del participante correcto tal como estaba en el momento en que el partido se validó originalmente**, o su **Nivel actual** en el momento en que se resuelve la incidencia (que puede ser hasta 17 días después — 10 para abrir + 7 para identificar — y el jugador correcto puede haber jugado otros partidos mientras tanto).
-
-**Recomendación concreta: usar el snapshot histórico del participante correcto reconstruido a la fecha de validación original (`validated_at`), no su Nivel actual.**
-
-Motivos:
-
-- Es la lectura más consistente con `Nivel_BRAMU_Formula_V1.5.md` §12.3, que ya exige "recalcular el partido corregido con los mismos snapshots previos" para correcciones de resultado — aplicar el mismo criterio a un cambio de participante evita dos reglas distintas para dos tipos de corrección sobre el mismo partido.
-- Evita que el resultado de este partido quede influido por partidos que el participante correcto jugó **después**, lo cual sería cronológicamente incorrecto (el partido se jugó en una fecha fija, con un nivel de cada jugador en ese momento).
-- Es técnicamente viable sin infraestructura nueva más allá de la que Bloque 6 ya necesita: si cada `match_level_results`/`level_event` guarda el `muAfter`/`confidenceAfter` posterior a cada partido con su timestamp (requisito ya cerrado en §3.3 para poder revertir exacto), "el estado de un jugador a una fecha `T`" se reconstruye tomando su último `level_event` con `created_at ≤ T` — no hace falta una tabla de snapshots periódicos aparte.
-- Si el participante correcto no tenía todavía ningún `level_state`/`level_event` anterior a `validated_at` (por ejemplo, se registró después), se lo trata exactamente como un invitado sin nivel conocido según §13 de la fórmula — mismo camino de imputación que ya existe, sin regla nueva.
-
-**Alternativa no recomendada:** usar el Nivel actual del participante correcto. Es más simple de implementar (no requiere reconstrucción "a una fecha"), pero rompe la consistencia con §12.3 y puede dar resultados que dependen de *cuándo* se resuelve la incidencia, no de *cuándo* se jugó el partido.
-
-Estas son las únicas dos decisiones de producto/criterio genuinamente abiertas encontradas. Todo lo demás en §6.1–§6.11 del handoff tiene una respuesta técnica concreta derivable de fuentes ya cerradas y del código ya implementado (ver §3).
+**No queda ninguna decisión de producto pendiente de Sebastián o de ChatGPT central antes de implementar** (`04_Revision_ChatGPT.md` §13). Cualquier decisión abierta nueva que surja durante la implementación de Fase A se documentará en el cierre de esa ronda, no acá.
 
 ---
 
-## 7. Casos mínimos de testing (refinado sobre §7 del handoff)
+## 7. Casos mínimos de testing (refinado sobre §7 del handoff + §12 de la revisión central)
 
-Se mantiene la lista completa del handoff (Validación/Nivel/Corrección/Identidad/Seguridad/Regresiones) y se agregan, con los nombres de RPC/Edge Function propuestos en este análisis:
+Se mantiene la lista completa del handoff (Validación/Nivel/Corrección/Identidad/Seguridad/Regresiones) y se agrega, con los nombres de RPC/Edge Function de este análisis y la cobertura adicional obligatoria de `04_Revision_ChatGPT.md` §12:
 
 - `officialize_match_validation` llamada dos veces seguidas (reintento HTTP) → mismo `match_level_results`, cero deltas duplicados.
 - Dos partidos distintos que comparten un jugador, oficializados en paralelo → ambos aplican, ningún delta se pierde, orden de lock por `player_id` no produce deadlock.
 - `officialize_match_validation` con snapshot desactualizado a propósito → `stale_level_snapshot`, cero escritura, la Edge Function reintenta y sí aplica.
 - Partido con 4 niveles conocidos / 3 / 2 (uno por pareja) / 2 en la misma pareja (no computa) — sobre datos reales de `match_participants`, no simulados.
+- Partido validado entre el día 31 y el 44 desde `played_at`: historial/estadísticas oficiales sí, Nivel no — verificar `reasonCode` explícito y cero deltas.
 - Corrección post-validación aceptada dentro de 3 días → reversión exacta + delta neto; fuera de 3 días → rechazada, sin tocar `level_states`.
-- `report_identity_issue` sobre partido `validated` → el jugador incorrecto pierde el efecto en la misma operación (verificar `level_states`/`match_level_results` antes/después).
-- `resolve_identity_issue` con el participante correcto usando snapshot histórico vs. snapshot actual — verificar que se usa el histórico (Decisión Abierta #2).
-- Incidencia sin resolver a los 7 días → lectura muestra `Jugador no identificado`, sin escritura, sin efecto de Nivel para ese slot.
+- Corrección de resultado bloqueada mientras existe una incidencia de identidad `open` sobre el mismo partido (Riesgo 4).
+- `report_identity_issue` sobre partido `validated` → se suspende/revierte el efecto **completo del partido** (los 4 jugadores conocidos), no solo el del slot cuestionado.
+- `resolve_identity_issue` dentro de 7 días → recalcula y reaplica el **partido completo**, usando el snapshot histórico reconstruido del participante correcto (orden determinístico) — nunca su Nivel actual.
+- Incidencia sin resolver a los 7 días → la primera lectura/acción posterior materializa `unidentified` de forma idempotente y reaplica con las reglas V1.5 de nivel ausente (computable con 3 conocidos, o sin efecto si no cumple elegibilidad).
+- Un partido `validated` oculto (`hidden=true` para ese usuario) sigue contando en Nivel y en `buildComputableHistory` — nunca se usa un feed que filtre ocultos para la capa computable.
 - `compute_pending_action_count` no cambia con correcciones/incidencias post-validación abiertas (regresión directa de Bloque 5, sin tocar esa función).
 - `admin_annul_match`/`admin_force_resolve` solo ejecutables con `service_role` — un intento con JWT de usuario normal debe fallar (RLS/GRANT).
 - Suite local completa (baseline 1448/1448 al cierre de Bloque 5) + `verify-bloque{2,3,4,5}.mjs` en verde antes y después de cada checkpoint.
