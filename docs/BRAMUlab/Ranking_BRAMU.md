@@ -895,7 +895,7 @@ Ranking V1 estará listo para implementación real cuando pueda demostrarse que:
 
 ---
 
-## 21. Métricas para piloto
+## 21. Métricas para el lanzamiento inicial
 
 Observar:
 
