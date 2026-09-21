@@ -3460,7 +3460,10 @@
    *  nunca en un intervalo de fondo (sin sobrearquitecturar). */
   async function refreshServerMatches() {
     if (!isServerBackedSession() || !Matches) return;
-    const result = await Matches.getMyMatches({ limit: 200, includeHidden: false });
+    // Pedimos también los ocultos para que un partido VALIDADO que el usuario esconda
+    // siga alimentando sus efectos oficiales. La capa de display (match-sync.js) filtra
+    // hidden para Home/Historial; la capa computable lo conserva.
+    const result = await Matches.getMyMatches({ limit: 200, includeHidden: true });
     if (result.ok) Store.saveServerMatchesCache(result.matches);
   }
 
@@ -3548,9 +3551,9 @@
 
   /** Abre el Resumen de un partido server-backed recién guardado/reconciliado — busca la fila
    *  ya traducida en el cache (recién refrescado por refreshServerMatches) para no depender de
-   *  una segunda llamada de red. Un partido recién guardado nunca está oculto, así que el feed
-   *  normal (includeHidden:false) debe contenerlo; si por algún motivo no aparece, cae a Home
-   *  en vez de romper la navegación. */
+   *  una segunda llamada de red. El cache incluye hidden a propósito para preservar efectos
+   *  oficiales; un partido recién guardado nunca está oculto. Si por algún motivo no aparece,
+   *  cae a Home en vez de romper la navegación. */
   async function openServerMatchResumen(matchId) {
     const cache = Store.loadServerMatchesCache();
     const row = (cache.matches || []).find((m) => m.matchId === matchId);
