@@ -9,6 +9,8 @@
   const PH = window.PLPlayerHome; // Etapa 2 (Rama Jugador) — agregación pura del Home del jugador
   const PLI = window.PLIdentity; // V03.0 — validación de cuenta (email/contraseña/@usuario/edad)
   const Auth = window.PLAuth; // Backend Bloque 2 — Supabase Auth + RPCs de perfil real (auth.js)
+  const Matches = window.PLMatches; // Backend Bloque 5 — create_or_attach_match/get_my_matches/etc. (matches.js)
+  const MSync = window.PLMatchSync; // Backend Bloque 5 — traducción servidor->local + separación historial/estadísticas (match-sync.js)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
   const $ = (sel) => document.querySelector(sel);
@@ -375,6 +377,11 @@
     if (historyContextFilter) historyOwnershipFilter = 'mine';
     renderHistory();
     showView('history');
+    // Backend Bloque 5 — refresco "mejor esfuerzo" en segundo plano: la lista ya se pintó con
+    // el cache local (nunca queda en blanco esperando la red); si el refresco trae novedades
+    // (un partido nuevo cargado por un rival, una conformidad, un ocultamiento), se vuelve a
+    // pintar sola cuando llega.
+    if (isServerBackedSession()) refreshServerMatches().then(renderHistory);
   }
 
   function makeMatchId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -414,6 +421,22 @@
   let manualPlayers = { a1: null, a2: null, b1: null, b2: null };
   let manualSets = [null, null, null]; // sets ya CONFIRMADOS — [{a,b}|null, ...], a=games Equipo A, b=games Equipo B
   let manualActiveSheetSlot = null; // 'a2' | 'b1' | 'b2' — slot que la hoja de jugador edita
+  // Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md) — con sesión server-backed, cada
+  // slot se resuelve por player_id real (nunca por nombre) — manualPlayers[slot] sigue siendo
+  // el NOMBRE a mostrar (nada cambia en renderManualPlayerChip/renderManualPlayers), pero
+  // manualPlayerIds[slot] es `{playerId, kind:'registered'|'provisional'}` cuando hay backend,
+  // o `null` en el camino 100% local (nunca se usa ahí). Resuelto una sola vez al abrir la
+  // pantalla (a1 = la sesión activa) o al elegir cada jugador (ver selectManualPlayer).
+  let manualServerBacked = false;
+  let manualPlayerIds = { a1: null, a2: null, b1: null, b2: null };
+  // Idempotency key ESTABLE para el intento lógico actual — se genera una sola vez por carga
+  // nueva y se reutiliza en cada reintento (automático o manual) del MISMO envío; una carga que
+  // el usuario reabre y edita ANTES de que el servidor la haya aceptado genera una key nueva
+  // (es, de verdad, un intento lógico distinto — 02_Analisis_Claude.md §5.5/§7).
+  let manualSubmissionId = null;
+  // localDraftId del outbox cuando se reabre un borrador todavía sync_pending/necesita_revision
+  // para editarlo — null para una carga nueva o para un partido ya aceptado por el servidor.
+  let manualOutboxDraftId = null;
   let manualDefaultDateVal = ''; // snapshot al abrir la pantalla — para saber si "Ahora · Hoy" sigue vigente
   let manualDefaultTimeVal = '';
 
@@ -477,6 +500,16 @@
    *  — §7: "excluir a los jugadores ya elegidos en cualquiera de los otros lugares". */
   function manualExcludedNamesForSlot(slot) {
     return manualPlayerNamesArray().filter(Boolean).filter((n) => n !== manualPlayers[slot]);
+  }
+
+  /** Backend Bloque 5 — equivalente por `player_id` de `manualExcludedNamesForSlot`: server-
+   *  backed excluye por identidad real, nunca por nombre (dos jugadores reales pueden
+   *  coincidir en nombre visible sin ser la misma persona). */
+  function manualExcludedPlayerIdsForSlot(slot) {
+    return ['a1', 'a2', 'b1', 'b2']
+      .filter((s) => s !== slot)
+      .map((s) => manualPlayerIds[s] && manualPlayerIds[s].playerId)
+      .filter(Boolean);
   }
 
   function openManualPlayerSheet(slot) {
@@ -599,7 +632,18 @@
     </button>`;
   }
 
+  // Backend Bloque 5 (§4 de la revisión de Bloque 4, mismo criterio que
+  // renderPlayerSearchResultsServerBacked) — debounce ~300ms SOLO para el camino server-backed,
+  // que dispara una llamada de red por tecla; el camino local/legacy sigue filtrando en
+  // memoria de forma síncrona, sin ningún cambio.
+  let manualPlayerSheetDebounceId = null;
+
   function renderManualPlayerSheetContent(query) {
+    if (manualServerBacked) {
+      clearTimeout(manualPlayerSheetDebounceId);
+      manualPlayerSheetDebounceId = setTimeout(() => renderManualPlayerSheetContentServerBacked(query), query ? 300 : 0);
+      return;
+    }
     const slot = manualActiveSheetSlot;
     if (!slot) return;
     const excluded = manualExcludedNamesForSlot(slot);
@@ -654,21 +698,114 @@
     if (canAdd) $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer(trimmed));
   }
 
+  /** Backend Bloque 5 — fila de un invitado (identidad provisional) seleccionable en el sheet
+   *  server-backed: creado por mí (`list_my_provisional_players`) o relacionado vía un partido
+   *  compartido (`list_related_provisional_players`, Decisión #3 de 04_Revision_ChatGPT.md).
+   *  Mismo componente `.player-row` que un jugador real, sin Nivel/@usuario (un invitado no
+   *  tiene ninguno de los dos). */
+  function buildProvisionalRowHTML(p) {
+    const name = p.display_name || 'Invitado';
+    return `<button type="button" class="player-row" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(p.player_id)}" data-kind="provisional">
+      <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(name)}</span>
+        <span class="player-row__handle">Invitado</span>
+      </span>
+    </button>`;
+  }
+
+  /** Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md, punto 2) — variante server-
+   *  backed del sheet de Elegir compañero/rival: los 4 lugares se resuelven SIEMPRE por
+   *  `player_id` real, nunca por coincidencia de nombre. Invitados (provisionales) primero
+   *  (universo chico, sin llamada por tecla); jugadores reales vía `search_players` recién con
+   *  2+ caracteres (mismo mínimo que Buscar Jugadores/Bloque 4). "Agregar a…" crea una
+   *  identidad provisional NUEVA — nunca reutiliza una existente por nombre parecido
+   *  (Backend_Infraestructura.md §9.1: "nunca fusiona por nombre"). */
+  async function renderManualPlayerSheetContentServerBacked(query) {
+    const slot = manualActiveSheetSlot;
+    if (!slot) return;
+    const excludedIds = manualExcludedPlayerIdsForSlot(slot);
+    const trimmed = (query || '').trim();
+
+    $('#load-player-sheet-recents-section').hidden = true;
+    $('#load-player-sheet-recents').innerHTML = '';
+    $('#load-player-sheet-list-label').hidden = true;
+    const listWrap = $('#load-player-sheet-list');
+
+    const [relatedResult, myProvResult, searchResult] = await Promise.all([
+      Matches.listRelatedProvisionalPlayers(),
+      Auth.listMyProvisionalPlayers(),
+      trimmed.length >= 2 ? Auth.searchPlayers(trimmed) : Promise.resolve({ ok: true, players: [] }),
+    ]);
+
+    // El sheet puede haber cambiado de slot/texto mientras esperaba estas 3 respuestas — una
+    // respuesta tardía nunca debe pisar lo que el usuario ya está viendo ahora.
+    if (manualActiveSheetSlot !== slot || (($('#load-player-sheet-search').value || '').trim()) !== trimmed) return;
+
+    const provisionalById = new Map();
+    (relatedResult.ok ? relatedResult.players : []).forEach((p) => provisionalById.set(p.player_id, p));
+    (myProvResult.ok ? myProvResult.players : []).forEach((p) => { if (!provisionalById.has(p.player_id)) provisionalById.set(p.player_id, p); });
+    const queryLower = normalizePlayerName(trimmed).toLocaleLowerCase('es');
+    const provisionals = Array.from(provisionalById.values())
+      .filter((p) => !excludedIds.includes(p.player_id))
+      .filter((p) => !queryLower || normalizePlayerName(p.display_name || '').toLocaleLowerCase('es').includes(queryLower));
+
+    const realRows = (searchResult.ok ? searchResult.players : []).filter((r) => !excludedIds.includes(r.player_id));
+
+    let html = '';
+    if (provisionals.length) {
+      html += '<div class="load-player-sheet__list-label">INVITADOS</div>';
+      html += provisionals.map(buildProvisionalRowHTML).join('');
+    }
+    if (realRows.length) html += realRows.map(buildPlayerRowHTMLFromServerRow).join('');
+    const alreadyOffered = (n) => provisionals.some((p) => normalizePlayerName(p.display_name || '') === n)
+      || realRows.some((r) => normalizePlayerName(r.display_name || '') === n);
+    const canAdd = trimmed.length >= 2 && !alreadyOffered(normalizePlayerName(trimmed));
+    if (canAdd) html += buildAddPlayerRowHTML(trimmed);
+
+    listWrap.innerHTML = html || '<p class="load-player-sheet__empty">Escribí al menos 2 caracteres para buscar, o elegí un invitado.</p>';
+    $all('#load-player-sheet-list .player-row[data-player-id]').forEach((btn) => {
+      btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name, btn.dataset.playerId, btn.dataset.kind));
+    });
+    if (canAdd) $('#load-player-sheet-add').addEventListener('click', () => createManualProvisionalAndSelect(trimmed));
+  }
+
+  /** Backend Bloque 4 — `create_provisional_player` SIEMPRE crea un UUID nuevo (nunca reutiliza
+   *  por nombre, ver la migración de Bloque 4); acá es "agregar sin cuenta" dentro de la carga
+   *  de un partido — Bloque 4 dejó explícitamente esta reutilización como responsabilidad de
+   *  Bloque 5. */
+  async function createManualProvisionalAndSelect(name) {
+    const result = await Auth.createProvisionalPlayer(name);
+    if (!result.ok) { showToast('No se pudo crear el invitado. Probá de nuevo.', 2600); return; }
+    selectManualPlayer(result.player.display_name || name, result.player.player_id, 'provisional');
+  }
+
   /** V02.2 (Bloque C, §9) — una persona no puede ocupar dos lugares en el mismo partido. La UI
    *  normal ya lo evita (RECIENTES/TODOS excluyen a quien ya está asignado, §8), pero esto es
    *  la fuente de verdad explícita: si de todos modos llega un nombre ya asignado, NO se cierra
-   *  el sheet — se explica brevemente que ya participa y se deja elegir de nuevo. */
-  function selectManualPlayer(name) {
+   *  el sheet — se explica brevemente que ya participa y se deja elegir de nuevo.
+   *  Backend Bloque 5 — `playerId`/`kind` opcionales: presentes en el camino server-backed
+   *  (dedup por identidad real, nunca por nombre), ausentes en el camino local/legacy (sin
+   *  ningún cambio de comportamiento ahí). */
+  function selectManualPlayer(name, playerId, kind) {
     const slot = manualActiveSheetSlot;
     const norm = normalizePlayerName(name);
     if (!slot || !norm) return;
-    const excludedForDup = manualExcludedNamesForSlot(slot).concat([currentPlayerName]);
-    if (ML.isDuplicatePlayerName(norm, excludedForDup)) {
-      showToast(`${norm} ya participa en este partido.`);
-      return;
+    if (manualServerBacked && playerId) {
+      if (manualExcludedPlayerIdsForSlot(slot).includes(playerId)) {
+        showToast(`${norm} ya participa en este partido.`);
+        return;
+      }
+      manualPlayerIds[slot] = { playerId, kind: kind || 'registered' };
+    } else {
+      const excludedForDup = manualExcludedNamesForSlot(slot).concat([currentPlayerName]);
+      if (ML.isDuplicatePlayerName(norm, excludedForDup)) {
+        showToast(`${norm} ya participa en este partido.`);
+        return;
+      }
     }
     manualPlayers[slot] = norm;
-    Store.rememberPlayerNames([norm]);
+    if (!manualServerBacked) Store.rememberPlayerNames([norm]);
     markManualLoadDirty();
     renderManualPlayers();
     renderManualScoreboard();
@@ -706,6 +843,7 @@
       const slot = manualActiveSheetSlot;
       if (!slot) return;
       manualPlayers[slot] = null;
+      if (manualServerBacked) manualPlayerIds[slot] = null;
       markManualLoadDirty();
       renderManualPlayers();
       renderManualScoreboard();
@@ -1313,6 +1451,38 @@
     manualDecided = false;
     manualDraftActiveTeam = 'A';
 
+    // Backend Bloque 5 — server-backed: los 4 lugares se resuelven por player_id real, nunca
+    // por nombre. `editMatch` acá NUNCA es un partido server-backed YA aceptado por el servidor
+    // (eso queda bloqueado en el propio botón "Editar partido" de Resumen — la corrección de un
+    // partido ya cargado es Bloque 6): solo puede ser una carga nueva o un borrador de outbox
+    // todavía sync_pending/necesita_revision.
+    manualServerBacked = isServerBackedSession();
+    if (manualServerBacked && editMatch && editMatch.serverBacked) {
+      const byTeam = (team) => (editMatch.players || []).filter((p) => p && p.team === team);
+      const teamA = byTeam('A'), teamB = byTeam('B');
+      manualPlayerIds = {
+        a1: { playerId: currentUserId, kind: 'registered' },
+        a2: teamA[1] ? { playerId: teamA[1].userId, kind: null } : null,
+        b1: teamB[0] ? { playerId: teamB[0].userId, kind: null } : null,
+        b2: teamB[1] ? { playerId: teamB[1].userId, kind: null } : null,
+      };
+      // Reabrir un borrador todavía sin sincronizar para editarlo es, de verdad, un intento
+      // lógico nuevo (02_Analisis_Claude.md §5.5/§7) — se genera una key nueva recién al
+      // guardar, nunca acá (mientras el usuario solo mira/navega no hay ningún intento nuevo
+      // todavía). `manualOutboxDraftId` identifica QUÉ entrada del outbox actualizar en vez de
+      // crear una segunda.
+      manualOutboxDraftId = editMatch.matchId;
+      manualSubmissionId = null;
+    } else if (manualServerBacked) {
+      manualPlayerIds = { a1: { playerId: currentUserId, kind: 'registered' }, a2: null, b1: null, b2: null };
+      manualOutboxDraftId = null;
+      manualSubmissionId = Matches.genUuid();
+    } else {
+      manualPlayerIds = { a1: null, a2: null, b1: null, b2: null };
+      manualOutboxDraftId = null;
+      manualSubmissionId = null;
+    }
+
     if (editMatch) {
       const teamPlayers = (team) => (editMatch.players || []).filter((p) => p && p.team === team);
       const teamA = teamPlayers('A'), teamB = teamPlayers('B');
@@ -1398,7 +1568,12 @@
     closeAllManualOverlays();
     try {
       const snapshot = buildManualMatchSnapshot(draft);
-      if (manualIsNewLoad) {
+      // Backend Bloque 5 — server-backed SIEMPRE pasa por la misma pantalla de Confirmar
+      // partido (reutiliza la UX existente): "VER RESUMEN" ahí decide create-or-attach en vez
+      // de `persistManualSnapshot` local, sin importar si esta carga es nueva o si se está
+      // reeditando un borrador de outbox todavía sync_pending/necesita_revision (ver
+      // initMatchSavedScreen).
+      if (manualServerBacked || manualIsNewLoad) {
         openConfirmMatchScreen(snapshot);
       } else {
         persistManualSnapshot(snapshot);
@@ -1519,12 +1694,76 @@
     showView('match-saved');
   }
 
+  /** Backend Bloque 5 (punto 3 del wiring) — arma el payload de `create_or_attach_match` desde
+   *  el estado actual del formulario + `manualPlayerIds`, lo guarda en el outbox local ANTES
+   *  de enviarlo (nunca al revés — un corte de red entre "armar" y "guardar" perdería la
+   *  carga), y recién entonces llama a la Edge Function. `handleCreateOrAttachOutcome`
+   *  interpreta la respuesta (mismo código que usa `retryMatchOutbox`, nunca duplicado). */
+  async function submitManualMatchServerBacked(built, location) {
+    const ids = ['a1', 'a2', 'b1', 'b2'].map((s) => manualPlayerIds[s] && manualPlayerIds[s].playerId);
+    if (ids.some((id) => !id)) {
+      showToast('Faltan jugadores por resolver — volvé a elegirlos.', 2800);
+      showView('manual-load');
+      return;
+    }
+    if (!manualSubmissionId) manualSubmissionId = Matches.genUuid();
+    let reportedTimeZone = null;
+    try { reportedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { /* offline-safe fallback */ }
+    const payload = {
+      pair1PlayerIds: [ids[0], ids[1]],
+      pair2PlayerIds: [ids[2], ids[3]],
+      rawSets: manualSets.filter(Boolean),
+      formatId: manualSelectedFormatId,
+      playedAtIso: built.iso,
+      playedAtTimeKnown: built.timeKnown,
+      reportedTimeZone,
+      scoringSystem: manualSelectedScoring,
+      locationName: location ? location.name : null,
+      locationLat: location && Number.isFinite(location.lat) ? location.lat : null,
+      locationLng: location && Number.isFinite(location.lng) ? location.lng : null,
+    };
+    const participantNames = {};
+    ids.forEach((id, i) => { participantNames[id] = [manualPlayers.a1, manualPlayers.a2, manualPlayers.b1, manualPlayers.b2][i]; });
+
+    const entryFields = {
+      submissionId: manualSubmissionId,
+      payload, participantNames,
+      privateNote: manualExistingPrivateNote || null,
+      state: 'sync_pending',
+    };
+    // Solo se pasa `localDraftId` cuando se está REEDITANDO un borrador de outbox ya existente
+    // — Object.assign en Store.saveMatchOutboxEntry copiaría un `undefined` explícito por
+    // encima del id generado por defecto si esta clave estuviera siempre presente.
+    if (manualOutboxDraftId) entryFields.localDraftId = manualOutboxDraftId;
+    const entry = Store.saveMatchOutboxEntry(entryFields);
+    manualOutboxDraftId = entry.localDraftId;
+    manualConfirmDraft = null;
+
+    const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: manualSubmissionId }, payload));
+    await handleCreateOrAttachOutcome(entry, result, { silent: false });
+
+    if (result && result.ok) return; // handleCreateOrAttachOutcome ya navegó al Resumen real.
+    const code = result && result.code;
+    if (code === 'ambiguous_candidates') return; // el modal de desambiguación ya está abierto.
+    if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
+      // Error de negocio real: el toast ya se mostró — volver al formulario para corregir,
+      // nunca dejar el partido "perdido" (Experiencia_Inicial.md §6.4, NECESITA REVISIÓN).
+      showView('manual-load');
+      return;
+    }
+    // Transitorio (sin conexión/servidor no disponible): mostrar igual un Resumen local con
+    // estado PENDIENTE DE SINCRONIZACIÓN — nunca dejar al usuario "colgado" en Confirmar.
+    const displayEntry = Store.getMatchOutboxEntry(entry.localDraftId) || entry;
+    if (MSync) openCanonicalResumen(MSync.buildOutboxDisplayEntry(displayEntry), 'player-home');
+    else openPlayerHome();
+  }
+
   function initMatchSavedScreen() {
     // §10 — desde Confirmar se puede volver a corregir el resultado sin perder nada: los sets
     // y jugadores siguen intactos en memoria, la pantalla de carga los vuelve a mostrar tal
     // cual quedaron.
     $('#match-saved-back-btn').addEventListener('click', () => showView('manual-load'));
-    $('#match-saved-view-summary').addEventListener('click', () => {
+    $('#match-saved-view-summary').addEventListener('click', async () => {
       if (!manualConfirmDraft) return;
       // Vuelve a leer fecha/hora/lugar por si el usuario usó "Modificar" mientras estaba en
       // esta pantalla — nunca persiste el draft original a ciegas.
@@ -1533,6 +1772,15 @@
       const built = ML.buildPlayedAtFromLocalFields(dateVal, timeVal);
       const placeName = $('#manual-place-input').value.trim();
       const location = (placeName || manualCoords) ? Object.assign({ name: placeName }, manualCoords || {}) : null;
+
+      if (manualServerBacked) {
+        const btn = $('#match-saved-view-summary');
+        btn.disabled = true;
+        try { await submitManualMatchServerBacked(built, location); }
+        finally { btn.disabled = false; }
+        return;
+      }
+
       // V02.5 (Bloque C, §14) — Notas ya no vive en esta pantalla: se guarda sin nota (opcional,
       // se agrega después desde el Resumen, ver #analysis-note-display/renderAnalysisNoteDisplay).
       // Una edición SÍ preserva la nota que ya tuviera (manualConfirmDraft.privateNote), nunca la
@@ -1840,10 +2088,26 @@
   /* ------------------------------------------------------------------ */
   /* ANÁLISIS COMPLETO — también la pantalla "Resumen del partido" (§13/§15)               */
   /* ------------------------------------------------------------------ */
+  /** Backend Bloque 5 (punto 6 del wiring) — texto de estado agregado a la línea de fecha del
+   *  Resumen para un partido server-backed. Deliberadamente texto simple, sin badge/color
+   *  nuevo (UX REVIEW pendiente, ver 09_Resultado_Wiring_Frontend_Claude.md): "matched_confirmed"
+   *  y "matched_already_confirmed" siguen mostrando PENDIENTE DE VALIDACIÓN — Bloque 5 nunca
+   *  marca `validated` (06_Revision_Pre_Staging_ChatGPT.md §1), así que la UI tampoco debe
+   *  sugerir "Validado"/"Oficial" solo porque la pareja rival ya haya declarado lo mismo. */
+  function serverMatchStatusLabel(f) {
+    if (!f.serverBacked) return '';
+    if (f.status === 'sync_pending') return 'PENDIENTE DE SINCRONIZACIÓN';
+    if (f.status === 'necesita_revision') return 'NECESITA REVISIÓN';
+    if (f.status === 'expired') return 'VENCIDO — NO COMPUTA';
+    if (f.status === 'validated') return 'VALIDADO'; // reservado para cuando exista Bloque 6
+    return 'PENDIENTE DE VALIDACIÓN'; // pending_validation, con o sin readyForValidation
+  }
+
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
-    $('#analysis-meta').textContent = buildMatchMetaLine(f);
+    const statusLabel = serverMatchStatusLabel(f);
+    $('#analysis-meta').textContent = buildMatchMetaLine(f) + (statusLabel ? ` · ${statusLabel}` : '');
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
     $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
     const covNote = $('#analysis-coverage-note');
@@ -1859,7 +2123,12 @@
     // Etapa 3 (Fase 3, §15) — segundo acceso a "Editar partido": desde el detalle del partido
     // (acá, Análisis — es el mismo destino al que ya lleva "VER DETALLE" del Último Partido
     // para cualquier modo). Solo para partidos cargados manualmente.
-    $('#analysis-edit-btn').hidden = f.mode !== 'manual';
+    // Backend Bloque 5 — un partido server-backed YA aceptado por el servidor (cualquier
+    // estado salvo sync_pending/necesita_revision) no se puede reabrir para editar acá: la
+    // corrección de un partido ya cargado es Bloque 6 (Proponer corrección), todavía sin
+    // implementar. Un borrador de outbox sigue siendo editable como siempre.
+    const serverAlreadySynced = f.serverBacked && f.status !== 'sync_pending' && f.status !== 'necesita_revision';
+    $('#analysis-edit-btn').hidden = f.mode !== 'manual' || serverAlreadySynced;
     $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
     // Etapa 4.2 (§10) — sensaciones privadas: solo partidos CARGADOS, accesibles únicamente
     // desde este detalle (nunca en Home/Historial/Resumen/exportaciones).
@@ -1879,11 +2148,40 @@
     // si este Análisis es el del partido recién cargado o uno viejo visto desde Historial.
     $('#analysis-home-btn').onclick = () => { openPlayerHome(); };
     // V02.9 (§5) — "Eliminar partido": acción deliberada al final del Resumen, con
-    // confirmación. En esta etapa local (sin cuentas/backend) es una eliminación completa del
-    // registro, igual que ya hacía la X de Historial retirada en esta misma ronda (§4) — Home/
-    // Historial/estadísticas se recalculan solos en el próximo render porque leen siempre
-    // Store.loadHistory(), nunca un historial paralelo (ver openPlayerHome/renderHistory).
+    // confirmación. Backend Bloque 5 (punto 8 del wiring) bifurca en 3 caminos: local legacy
+    // sigue eliminando de verdad (sin cambios); un borrador de outbox todavía sin sincronizar
+    // se descarta (nunca llegó a existir en el servidor, no hay nada que "ocultar"); un
+    // partido server-backed YA aceptado usa `hide_match_for_me` — NUNCA borra el partido
+    // compartido, solo lo saca de MI vista (Backend_Infraestructura.md §8.8).
     $('#analysis-delete-btn').onclick = () => {
+      if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
+        confirmAction(
+          '¿Descartar esta carga?',
+          'Todavía no se envió al servidor — se va a borrar de este dispositivo.',
+          () => {
+            Store.removeMatchOutboxEntry(f.matchId);
+            showToast('Carga descartada');
+            openPlayerHome();
+          },
+          null, 'Descartar', 'Cancelar', true
+        );
+        return;
+      }
+      if (f.serverBacked) {
+        confirmAction(
+          '¿Ocultar este partido de tu historial?',
+          'Solo lo vas a dejar de ver vos — sigue existiendo para los demás participantes y no se borra ni se altera.',
+          async () => {
+            const result = await Matches.hideMatchForMe(f.matchId, true);
+            if (!result || !result.ok) { showToast('No se pudo ocultar el partido — probá de nuevo.', 2800); return; }
+            await refreshServerMatches();
+            showToast('Partido oculto de tu historial');
+            openPlayerHome();
+          },
+          null, 'Ocultar', 'Cancelar', true
+        );
+        return;
+      }
       confirmAction(
         '¿Eliminar este partido?',
         'Se actualizarán tu historial y tus estadísticas.',
@@ -2772,10 +3070,22 @@
     // Etapa 4.2 (§10) — autoguardado al salir del campo, sobre el partido actualmente
     // mostrado en Análisis (analysisCurrent). Nunca crea un registro nuevo: si por algún
     // motivo ese partido ya no existe en el historial, Store.patchHistoryEntry no hace nada.
-    $('#analysis-note-textarea').addEventListener('blur', () => {
+    $('#analysis-note-textarea').addEventListener('blur', async () => {
       if (!analysisCurrent || analysisCurrent.mode !== 'manual') return;
       const value = $('#analysis-note-textarea').value.trim() || null;
-      Store.patchHistoryEntry(analysisCurrent.matchId, { privateNote: value });
+      const f = analysisCurrent;
+      // Backend Bloque 5 (punto 9 del wiring) — un partido server-backed usa
+      // `set_match_private_note` (o, si todavía es un borrador de outbox sin sincronizar,
+      // actualiza el campo local del outbox) — nunca comparte esta nota con los demás
+      // participantes (Backend_Infraestructura.md §5.1). Local legacy: sin cambios.
+      if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
+        const entry = Store.getMatchOutboxEntry(f.matchId);
+        if (entry) Store.saveMatchOutboxEntry(Object.assign({}, entry, { privateNote: value }));
+      } else if (f.serverBacked) {
+        await Matches.setMatchPrivateNote(f.matchId, value);
+      } else {
+        Store.patchHistoryEntry(f.matchId, { privateNote: value });
+      }
       analysisCurrent.privateNote = value; // refleja el cambio si se vuelve a abrir esta misma sesión
       // V02.3 (Bloque C, §7) — vuelve al estado de LECTURA dentro de la MISMA tarjeta
       // permanente (nunca oculta la tarjeta ni la reemplaza por un link aparte).
@@ -2895,7 +3205,7 @@
   }
 
   function renderHistory() {
-    const fullHistory = Store.loadHistory();
+    const fullHistory = getDisplayHistory();
     renderHistoryFilters(fullHistory);
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
@@ -2909,7 +3219,11 @@
       const ids = historyContextFilter.matchIds;
       list = list.filter((m) => ids.has(m.matchId));
     } else if (historyContextFilter && historyContextFilter.type === 'effectiveness') {
-      const allowed = new Set(PH.filterMatchesWithDefinedResult(PH.filterMatchesForPlayer(fullHistory, currentIdentity()), currentIdentity()).map((m) => m.matchId));
+      // Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md, §5) — el widget de Efectividad
+      // del Home calcula su % sobre `getComputableHistory()` (nunca un partido server-backed
+      // pendiente); este drill-down debe partir de la MISMA fuente para no mostrar acá un
+      // conjunto más amplio (con pendientes) que el que realmente compuso ese porcentaje.
+      const allowed = new Set(PH.filterMatchesWithDefinedResult(PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity()), currentIdentity()).map((m) => m.matchId));
       list = list.filter((m) => allowed.has(m.matchId));
     }
     const wrap = $('#history-list');
@@ -2987,6 +3301,7 @@
           </div>` : ''}
         </div>
         ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
+        ${serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--pending">${serverMatchStatusLabel(m)}</span>` : ''}
       `;
       item.addEventListener('click', () => openCanonicalResumen(m, 'history'));
       wrap.appendChild(item);
@@ -3093,6 +3408,216 @@
    *  (ver regla de exclusividad de `userId` en player-home.js). */
   function currentIdentity() { return { name: currentPlayerName, userId: currentUserId }; }
 
+  /* ------------------------------------------------------------------ */
+  /* Backend Bloque 5 — HISTORIAL EFECTIVO (09_Resultado_Wiring_Frontend_Claude.md)          */
+  /* Único punto de entrada que combina historial local legacy + partidos server-backed
+   * (cache de get_my_matches) + outbox local, en la MISMA forma que ya usa toda la app
+   * (match-sync.js: PLMatchSync). Reemplaza los call-sites de `Store.loadHistory()` que
+   * necesitan ver TODO (Historial, badges) o solo lo COMPUTABLE (estadísticas/agregaciones,
+   * Home, Perfil, Ranking simulado, TU MOMENTO) — un partido server-backed pending/expired/
+   * sync_pending NUNCA debe alimentar el segundo grupo (02_Analisis_Claude.md §8,
+   * Backend_Infraestructura.md §8.5: "antes de validar no afecta Nivel ni estadísticas"). */
+  /* ------------------------------------------------------------------ */
+
+  /** ¿La sesión activa es una cuenta real con backend configurado? Único gate — mismo criterio
+   *  que ya usan renderPlayerSearchResults/Bloque 4 (`Auth.isConfigured() && user.serverBacked`). */
+  function isServerBackedSession() {
+    const user = Store.getCurrentUser();
+    return !!(Auth && Auth.isConfigured() && user && user.serverBacked);
+  }
+
+  /** Historial para MOSTRAR (Historial, badges, Home "Último partido"): incluye partidos
+   *  server-backed en CUALQUIER estado (pending_validation/expired/validated) más el outbox
+   *  local todavía sin resolver. Para una cuenta sin backend, es exactamente
+   *  `Store.loadHistory()` de siempre — cero cambio de comportamiento. */
+  function getDisplayHistory() {
+    const localHistory = Store.loadHistory();
+    if (!isServerBackedSession() || !MSync) return localHistory;
+    const cache = Store.loadServerMatchesCache();
+    return MSync.buildDisplayHistory({
+      localHistory,
+      serverRows: cache.matches,
+      outboxEntries: Store.loadMatchOutbox(),
+    });
+  }
+
+  /** Historial para ESTADÍSTICAS/AGREGACIONES (player-home.js/stats.js/groups.js): local
+   *  legacy completo + SOLO partidos server-backed ya `validated` (hoy, ninguno — Bloque 5
+   *  nunca escribe ese estado) — nunca outbox, nunca pending/expired server-backed. Todo
+   *  call-site que alimenta Nivel/Efectividad/Racha/Compañero-Rival/Ranking simulado/TU
+   *  MOMENTO debe usar ESTA función, nunca `getDisplayHistory()`. */
+  function getComputableHistory() {
+    const localHistory = Store.loadHistory();
+    if (!isServerBackedSession() || !MSync) return localHistory;
+    const cache = Store.loadServerMatchesCache();
+    return MSync.buildComputableHistory({ localHistory, serverRows: cache.matches });
+  }
+
+  /** Refresca el cache local de `get_my_matches` (Store.saveServerMatchesCache) — "mejor
+   *  esfuerzo": una falla de red deja el cache anterior intacto (nunca lo vacía), consistente
+   *  con Backend_Infraestructura.md §7.2 ("caché de lectura... nunca autoridad"). Se llama al
+   *  entrar a Home/Historial y después de cualquier create-or-attach/hide/nota exitosos —
+   *  nunca en un intervalo de fondo (sin sobrearquitecturar). */
+  async function refreshServerMatches() {
+    if (!isServerBackedSession() || !Matches) return;
+    const result = await Matches.getMyMatches({ limit: 200, includeHidden: true });
+    if (result.ok) Store.saveServerMatchesCache(result.matches);
+  }
+
+  /** Reintenta cada entrada `sync_pending` del outbox con su MISMA `submissionId` (idempotency
+   *  key) — nunca genera una nueva para un reintento automático (02_Analisis_Claude.md §7). Se
+   *  llama al arrancar la app (si hay sesión server-backed) y al recuperar conexión
+   *  (`window.online`). Una entrada `necesita_revision` (error de negocio/ambigüedad ya
+   *  informado) NO se reintenta sola — espera una decisión explícita del usuario. */
+  async function retryMatchOutbox() {
+    if (!isServerBackedSession() || !Matches) return;
+    const pending = Store.loadMatchOutbox().filter((e) => e && e.state === 'sync_pending');
+    for (const entry of pending) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: entry.submissionId }, entry.payload));
+      // eslint-disable-next-line no-await-in-loop
+      await handleCreateOrAttachOutcome(entry, result, { silent: true });
+    }
+  }
+
+  window.addEventListener('online', () => { retryMatchOutbox(); });
+
+  /** Códigos de error de NEGOCIO reales — el servidor procesó el envío y lo rechazó por un
+   *  motivo de contenido que el usuario puede corregir. Cualquier código FUERA de este
+   *  conjunto (red caída, `rate_limited`, error 5xx de la Edge Function, `unknown`) se trata
+   *  como transitorio: la entrada del outbox permanece `sync_pending` y se reintenta sola
+   *  (retryMatchOutbox) — nunca se le pide al usuario "corregir" un problema que no es suyo. */
+  const MATCH_BUSINESS_ERROR_CODES = new Set([
+    'duplicate_participant', 'not_a_participant', 'participant_not_found', 'provisional_not_selectable',
+    'invalid_format', 'invalid_sets', 'pending_action_limit_reached', 'played_at_in_future', 'played_at_too_old',
+    'disambiguation_match_id_invalid', 'idempotency_key_reused_with_different_payload',
+    'validated_match_needs_bloque6_correction',
+  ]);
+  const MATCH_BUSINESS_ERROR_MESSAGES = {
+    duplicate_participant: 'Hay un jugador repetido en el partido.',
+    not_a_participant: 'Tenés que ser uno de los 4 jugadores del partido.',
+    participant_not_found: 'Uno de los jugadores elegidos ya no está disponible.',
+    provisional_not_selectable: 'Ese invitado no está disponible para vos todavía.',
+    invalid_format: 'El formato del partido no es válido.',
+    invalid_sets: 'El resultado cargado no es válido.',
+    pending_action_limit_reached: 'Tenés 5 partidos pendientes de tu lado — resolvé alguno antes de cargar uno nuevo.',
+    played_at_in_future: 'La fecha del partido no puede ser en el futuro.',
+    played_at_too_old: 'Solo se pueden cargar partidos jugados hasta 14 días atrás.',
+    disambiguation_match_id_invalid: 'Ese partido ya no está disponible para asociar esta carga.',
+    idempotency_key_reused_with_different_payload: 'Este intento cambió — probá guardar de nuevo.',
+    validated_match_needs_bloque6_correction: 'Ese partido ya quedó oficial — la corrección todavía no está disponible.',
+  };
+
+  /** Punto único de interpretación de la respuesta de `Matches.createOrAttach` (Bloque 5),
+   *  compartido por el guardado interactivo y por `retryMatchOutbox` (reintento en segundo
+   *  plano) — misma lógica, sin duplicarla. `opts.silent=true` (reintento automático) nunca
+   *  navega ni interrumpe a un usuario que puede ni siquiera estar mirando la pantalla. */
+  async function handleCreateOrAttachOutcome(entry, result, opts) {
+    const silent = !!(opts && opts.silent);
+    if (result && result.ok) {
+      Store.removeMatchOutboxEntry(entry.localDraftId);
+      await refreshServerMatches();
+      if (!silent) {
+        showToast('Partido guardado');
+        await openServerMatchResumen(result.matchId);
+      }
+      return { ok: true };
+    }
+
+    const code = (result && result.code) || 'unknown';
+    if (code === 'ambiguous_candidates') {
+      Store.saveMatchOutboxEntry(Object.assign({}, entry, {
+        state: 'necesita_revision',
+        lastError: { code, candidates: (result && result.candidates) || [] },
+      }));
+      if (!silent) openAmbiguousMatchModal(entry, (result && result.candidates) || []);
+      return { ok: false, code };
+    }
+
+    if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
+      Store.saveMatchOutboxEntry(Object.assign({}, entry, { state: 'necesita_revision', lastError: { code } }));
+      if (!silent) showToast(MATCH_BUSINESS_ERROR_MESSAGES[code] || 'No se pudo guardar el partido.', 3200);
+      return { ok: false, code };
+    }
+
+    // Transitorio (red/rate limit/error inesperado del servidor): la entrada sigue
+    // sync_pending tal cual estaba — nunca se le suma un error para que el usuario "corrija".
+    if (!silent) showToast('Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3200);
+    return { ok: false, code, transient: true };
+  }
+
+  /** Abre el Resumen de un partido server-backed recién guardado/reconciliado — busca la fila
+   *  ya traducida en el cache (recién refrescado por refreshServerMatches) para no depender de
+   *  una segunda llamada de red. Si por algún motivo no está (debería ser siempre, se pidió con
+   *  includeHidden:true), cae a Historial en vez de romper la navegación. */
+  async function openServerMatchResumen(matchId) {
+    const cache = Store.loadServerMatchesCache();
+    const row = (cache.matches || []).find((m) => m.matchId === matchId);
+    if (row && MSync) {
+      openCanonicalResumen(MSync.translateServerMatchToLocalShape(row), 'player-home');
+      return;
+    }
+    openPlayerHome();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Backend Bloque 5 — DESAMBIGUACIÓN DE ENCUENTRO (create-or-attach)                       */
+  /* Resolución funcional y mínima (UX REVIEW pendiente — ver
+   * 09_Resultado_Wiring_Frontend_Claude.md): lista los candidatos que devolvió el backend y
+   * deja elegir uno puntual o "Es otro partido". Cualquiera de las dos respuestas es un
+   * intento lógico NUEVO (trae información que la carga original no tenía) — usa una
+   * idempotencyKey nueva, nunca reutiliza la del intento ambiguo original. */
+  /* ------------------------------------------------------------------ */
+  let ambiguousMatchEntry = null;
+
+  function closeAmbiguousMatchModal() {
+    $('#ambiguous-match-overlay').hidden = true;
+    ambiguousMatchEntry = null;
+  }
+
+  function openAmbiguousMatchModal(entry, candidates) {
+    ambiguousMatchEntry = entry;
+    const list = $('#ambiguous-match-list');
+    list.innerHTML = (candidates || []).map((c) => {
+      const label = `${formatRealDate(c.playedAt)} · ${formatRealTime(c.playedAt).slice(0, 5)} — ${(E.FORMATS[c.formatId] && E.FORMATS[c.formatId].label) || c.formatId}`;
+      return `<button type="button" class="btn-secondary" data-match-id="${escapeHtml(c.matchId)}" style="width:100%;text-align:left;">${escapeHtml(label)}</button>`;
+    }).join('');
+    $all('#ambiguous-match-list button').forEach((btn) => {
+      btn.addEventListener('click', () => resolveAmbiguousMatch(btn.dataset.matchId));
+    });
+    $('#ambiguous-match-overlay').hidden = false;
+  }
+
+  /** Responde a la ambigüedad con una elección puntual (`disambiguationMatchId`). Nueva
+   *  idempotencyKey (§ arriba); `Store.saveMatchOutboxEntry` actualiza la MISMA entrada del
+   *  outbox (mismo `localDraftId`) con la key nueva — nunca crea un segundo borrador local. */
+  async function resolveAmbiguousMatch(chosenMatchId) {
+    const entry = ambiguousMatchEntry;
+    if (!entry) return;
+    closeAmbiguousMatchModal();
+    const newSubmissionId = Matches.genUuid();
+    const updatedEntry = Store.saveMatchOutboxEntry(Object.assign({}, entry, { submissionId: newSubmissionId, state: 'sync_pending' }));
+    const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: newSubmissionId }, entry.payload, { disambiguationMatchId: chosenMatchId }));
+    await handleCreateOrAttachOutcome(updatedEntry, result, { silent: false });
+  }
+
+  /** Responde a la ambigüedad indicando que es un encuentro genuinamente distinto
+   *  (`disambiguationForceNew`) — misma mecánica de idempotencyKey nueva que resolveAmbiguousMatch. */
+  async function forceNewFromAmbiguous() {
+    const entry = ambiguousMatchEntry;
+    if (!entry) return;
+    closeAmbiguousMatchModal();
+    const newSubmissionId = Matches.genUuid();
+    const updatedEntry = Store.saveMatchOutboxEntry(Object.assign({}, entry, { submissionId: newSubmissionId, state: 'sync_pending' }));
+    const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: newSubmissionId }, entry.payload, { disambiguationForceNew: true }));
+    await handleCreateOrAttachOutcome(updatedEntry, result, { silent: false });
+  }
+
+  function initAmbiguousMatchModal() {
+    $('#ambiguous-match-cancel').addEventListener('click', closeAmbiguousMatchModal);
+    $('#ambiguous-match-force-new').addEventListener('click', forceNewFromAmbiguous);
+  }
+
   // Etapa 4.1 (§4): el Nivel BRAMU dejó de ser un valor fijo — ahora se DERIVA de
   // PH.computeLevelEvolution (player-home.js), la ÚNICA fuente de verdad que consumen por
   // igual la Tarjeta de jugador (Home) y la tarjeta "Evolución del Nivel BRAMU" (Perfil).
@@ -3121,6 +3646,10 @@
     if (pendingUser) { openPlayerCardScreen(pendingUser); return; }
     renderPlayerHome();
     showView('player-home');
+    // Backend Bloque 5 — mismo criterio "mejor esfuerzo" que openHistoryScreen: el Home ya se
+    // pintó con el cache local, un refresco en segundo plano lo actualiza si hay novedades
+    // (Último partido, pendientes) sin bloquear la navegación esperando la red.
+    if (isServerBackedSession()) refreshServerMatches().then(renderPlayerHome);
   }
 
   /* ------------------------------------------------------------------ */
@@ -4609,8 +5138,16 @@
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
     renderNotificationsBadge();
-    const history = Store.loadHistory();
+    // Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md, §5/§6) — Home separa dos
+    // fuentes: `matches` (SOLO computable, para Nivel/Efectividad/Actividad/Hitos/Tu momento —
+    // ningún partido pendiente puede alterar una métrica oficial) y `displayMatches` (incluye
+    // server-backed pending/sync_pending/expired), reservada EXCLUSIVAMENTE para "Último
+    // partido": Experiencia_Inicial.md §22.B exige que esa tarjeta muestre el partido pendiente
+    // aunque "0 estadísticas oficiales" se deriven de él.
+    const history = getComputableHistory();
     const matches = PH.filterMatchesForPlayer(history, currentIdentity());
+    const displayHistory = getDisplayHistory();
+    const displayMatches = PH.filterMatchesForPlayer(displayHistory, currentIdentity());
     // V02.8 (§1) — se anima en CADA render (cada entrada/vuelta real al Home, ver comentario
     // en la declaración de `currentPlayerName` de más arriba), salvo `prefers-reduced-motion`.
     // Se sigue chequeando en JS (no solo vía el colapso de `--home-anim-*` a 1ms en CSS) porque
@@ -4622,7 +5159,7 @@
 
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
-    renderPlayerLastMatchCard(matches);
+    renderPlayerLastMatchCard(displayMatches);
     // BRAMUlab_V03.8 (Ranking_BRAMU.md §13.6) — insight de Ranking (siempre ámbito Local, nunca
     // Nivel actual en vivo) como candidato más para TU MOMENTO, nunca una tarjeta territorial
     // completa nueva en Home. `null` cuando no hay cuenta/no es elegible/sin género/densidad
@@ -5058,7 +5595,7 @@
    *  último cambio. */
   function initPlayerHomeLastMatchCard() {
     $('#player-home-last-match-card').addEventListener('click', () => {
-      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+      const matches = PH.filterMatchesForPlayer(getDisplayHistory(), currentIdentity());
       if (!matches.length) { openManualLoadScreen('player-home'); return; }
       openCanonicalResumen(matches[0], 'player-home');
     });
@@ -5070,7 +5607,7 @@
    *  tienen handler acá (§22: "mantener sin acción hasta definir qué detalle aporta valor"). */
   function initPlayerHomeMetricsNav() {
     $('#widget-streak-card').addEventListener('click', () => {
-      const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+      const matches = PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity());
       const streakMatches = PH.computeCurrentStreakMatches(matches, currentIdentity());
       if (!streakMatches.length) return; // sin racha activa, no hay nada que filtrar
       const matchIds = new Set(streakMatches.map((m) => m.matchId));
@@ -5284,7 +5821,7 @@
    *  misma banda en la que el usuario realmente aparece clasificado esta semana. */
   function rankingSelfBand() {
     const period = RK.computeRankingWeekPeriod(new Date());
-    const snapshotHistory = RK.historySnapshotAsOf(Store.loadHistory(), period.start);
+    const snapshotHistory = RK.historySnapshotAsOf(getComputableHistory(), period.start);
     // currentIdentity() — nunca el nombre plano: ver el comentario de buildRankingEntries en
     // ranking.js sobre por qué un partido con userId estampado es invisible por nombre solo.
     const level = PH.computeSimulatedJugadorLevel(snapshotHistory, currentIdentity());
@@ -5378,7 +5915,7 @@
       return { scope, isTerritorial, globalBlocked: true };
     }
 
-    const history = Store.loadHistory();
+    const history = getComputableHistory();
     const user = Store.getCurrentUser();
     const myId = Store.normalizePlayerName(currentPlayerName);
     const selfGender = rankingEffectiveGender(user);
@@ -6273,7 +6810,7 @@
   function renderActiveGroupPanels() {
     const group = Store.getGroupById(activeGroupId);
     if (!group) return;
-    const fullHistory = Store.loadHistory();
+    const fullHistory = getComputableHistory();
     const now = new Date();
     const weekStart = PH.startOfWeekMonday(now);
     const prevWeekStart = new Date(weekStart.getTime() - PG.WEEK_MS);
@@ -6377,7 +6914,7 @@
    *  un grupo ya existente, se excluyen los que ya son miembros activos (no tiene sentido
    *  ofrecer agregar a alguien que ya está). */
   function renderCreateGroupPlayerList(query) {
-    const history = Store.loadHistory();
+    const history = getDisplayHistory();
     const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
     let candidates = pool;
     if (createGroupSheetMode === 'add-members') {
@@ -6662,7 +7199,7 @@
   function openPersonListScreen(kind) {
     const cfg = PERSON_LIST_CONFIG[kind];
     $('#companions-title').textContent = cfg.title;
-    const matches = PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity());
+    const matches = PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity());
     const people = kind === 'partners' ? PH.computeTeammateBreakdown(matches, currentIdentity()) : PH.computeRivalBreakdown(matches, currentIdentity());
     const wrap = $('#companions-list');
     const isEmpty = people.length === 0;
@@ -6751,7 +7288,7 @@
   function renderJugadoresList(query) {
     const user = Store.getCurrentUser();
     const allNames = user ? Store.loadAddedPlayers(user.id) : [];
-    const history = Store.loadHistory();
+    const history = getComputableHistory();
     const filtered = ML.filterPlayerCandidates(allNames, query, []);
     const wrap = $('#jugadores-list');
     const isEmpty = filtered.length === 0;
@@ -6974,7 +7511,7 @@
     $('#player-public-effectiveness-card').hidden = false;
     $('#player-public-performance-row').hidden = false;
     $('#player-public-add-btn').hidden = false;
-    const history = Store.loadHistory();
+    const history = getComputableHistory();
     const account = Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === name);
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 1) — BUG REAL: esta función consultaba
     // TODO el historial/Nivel pasando `name` (string plano) a player-home.js. Por la regla de
@@ -7283,7 +7820,7 @@
     setAvatarPreview('profile-avatar-img', 'profile-avatar-initials', user && user.profilePhoto, name);
     $('#profile-display-name').textContent = (user && user.displayName) || name || '—';
     $('#profile-username').textContent = user && user.username ? `@${user.username}` : '—';
-    const matches = name ? PH.filterMatchesForPlayer(Store.loadHistory(), currentIdentity()) : [];
+    const matches = name ? PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity()) : [];
     // V03.0.3 (§2) — "la cantidad de partidos puede salir de la cabecera y pasar al bloque de
     // estadísticas": #profile-match-count se retira de la cabecera, el conteo ahora vive en
     // #mi-perfil-played (bloque RENDIMIENTO, más abajo).
@@ -7388,7 +7925,7 @@
     // público, ahora también en Mi Perfil: debajo de Mejor racha/Evolución (donde vive "Mejor
     // nivel BRAMU" acá), misma fuente/lógica (RK.computeProfileRankingSummary vía
     // renderRankingCardForAccount) — nunca una segunda implementación de Ranking.
-    renderMiPerfilRankingCard(user, Store.loadHistory());
+    renderMiPerfilRankingCard(user, getComputableHistory());
     // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
     // (mismo criterio que ya usa este función con MI PERFIL/MIS DATOS: las 3 se llenan al
     // abrir Perfil, setProfileTab solo alterna cuál queda visible).
@@ -7599,7 +8136,7 @@
     $('#evolution-calibration-note-simulado').hidden = false;
     $('#evolution-calibration-note-v1').hidden = true;
 
-    const history = Store.loadHistory();
+    const history = getComputableHistory();
     const evolution = PH.computeLevelEvolution(history, currentIdentity());
 
     // V03.0 (§2) — mismo gate que la Tarjeta de jugador del Home: cuentas legacy ven el
@@ -8543,6 +9080,11 @@
       Store.clearClaimToken();
       showToast('Esta cuenta ya tiene perfil — reclamar otra identidad se resuelve manualmente durante el piloto.', 3600);
     }
+    // Backend Bloque 5 — reintento de outbox en segundo plano (nunca bloquea la navegación):
+    // cubre tanto "recién logueado" como "recarga con sesión ya persistida" (ambos casos pasan
+    // por acá), que es exactamente cuándo hace falta reconciliar cargas sync_pending que hayan
+    // sobrevivido a un refresh/cierre de la app (02_Analisis_Claude.md §7).
+    retryMatchOutbox();
     if (options.afterLogin) completeIdentifyAction(); else bootDefaultScreen();
   }
 
@@ -8614,6 +9156,7 @@
     // corresponde (ver Store.migrateLegacyPlayerToUserIfNeeded).
     Store.migrateLegacyPlayerToUserIfNeeded();
     initConfirmModal();
+    initAmbiguousMatchModal();
     initAnalysisScreen();
     initHistoryScreen();
     initManualLoadScreen();

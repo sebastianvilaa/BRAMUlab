@@ -15,15 +15,11 @@
    ejecutarse — la carga 100% local (match-load.js + Store.upsertHistory)
    sigue intacta, sin ningún cambio, para esa cuenta.
 
-   IMPORTANTE — estado de esta ronda (docs/BRAMUlab/Implementacion/Backend/
-   Bloque_05/02_Analisis_Claude.md + 05_Resultado_Implementacion_Claude.md):
-   este archivo está escrito y revisado, pero SIN wiring todavía en app.js/
-   index.html/sw.js — no se llama desde ningún lugar de la app todavía. La
-   integración amplia de frontend (bifurcar buildManualMatchSnapshot,
-   getEffectiveHistory, el botón "Eliminar partido") queda pendiente del
-   checkpoint acordado con Sebastián/ChatGPT: no avanzar esa parte hasta que
-   el backend esté aplicado y verificado contra Supabase Staging real (esta
-   sesión no tuvo credenciales de Supabase disponibles — ver el informe).
+   Backend real validado contra Supabase Staging (ver
+   docs/BRAMUlab/Implementacion/Backend/Bloque_05/08_Validacion_Backend_Staging_ChatGPT.md).
+   Wiring de frontend cableado en app.js desde
+   09_Resultado_Wiring_Frontend_Claude.md — ver ese documento para el flujo
+   completo (selector server-backed, outbox, historial compartido).
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -90,10 +86,34 @@
     return data;
   }
 
+  /** `get_my_matches` es `returns table(...)`: PostgREST devuelve sus columnas en snake_case
+   *  (`match_id`, `played_at`, ...), a diferencia de `get_match_detail` (un único `jsonb` que
+   *  la propia RPC ya arma en camelCase). Se normaliza acá, en la ÚNICA frontera de red del
+   *  dominio de partidos, para que todo lo que vive más allá de este archivo (match-sync.js,
+   *  app.js) hable siempre el mismo vocabulario camelCase sin importar de qué RPC vino el dato. */
+  function normalizeMyMatchesRow(row) {
+    return {
+      matchId: row.match_id,
+      status: row.status,
+      playedAt: row.played_at,
+      formatId: row.format_id,
+      scoringSystem: row.scoring_system,
+      myTeam: row.my_team,
+      actionSide: row.action_side,
+      isActionMine: row.is_action_mine,
+      readyForValidation: row.ready_for_validation,
+      createdByPlayerId: row.created_by_player_id,
+      validatedAt: row.validated_at,
+      validationDeadlineAt: row.validation_deadline_at,
+      hidden: row.hidden,
+      participants: row.participants,
+      sets: row.sets,
+    };
+  }
+
   /** Feed de partidos del caller (RPC `get_my_matches`). `opts.limit`/`opts.includeHidden`
-   *  opcionales. Devuelve `{ok:true, matches:[...]}` con la forma exacta que declara la RPC
-   *  (snake_case de columnas SQL ya vienen como camelCase dentro de cada jsonb — ver la
-   *  migración) o `{ok:false, code}`. */
+   *  opcionales. Devuelve `{ok:true, matches:[...]}`, ya normalizado a camelCase (ver
+   *  `normalizeMyMatchesRow`), o `{ok:false, code}`. */
   async function getMyMatches(opts) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
@@ -103,7 +123,7 @@
       p_include_hidden: !!o.includeHidden,
     });
     if (error) return { ok: false, code: error.message || 'unknown' };
-    return { ok: true, matches: Array.isArray(data) ? data : [] };
+    return { ok: true, matches: (Array.isArray(data) ? data : []).map(normalizeMyMatchesRow) };
   }
 
   /** Detalle completo de un partido (RPC `get_match_detail`). `null` (dentro de `{ok:true}`)

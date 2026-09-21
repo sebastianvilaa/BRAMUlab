@@ -108,6 +108,12 @@
     // create_or_attach_match devuelve un resultado FINAL (creado/adjuntado/confirmado/revisado/
     // ya validado) — nunca antes. Ver matches.js: PLMatches.createOrAttach.
     MATCH_OUTBOX: 'bramulab.matchOutbox.v1',
+    // Backend Bloque 5 — cache de LECTURA de get_my_matches, nunca autoridad
+    // (Backend_Infraestructura.md §7.2: "caché de lectura con fecha/versión"). Se sobrescribe
+    // completa en cada refresco exitoso (nunca un merge parcial) para que un partido oculto/
+    // ya no visible del lado del servidor desaparezca también acá — nunca queda un residuo
+    // local más "verdadero" que la última respuesta real del servidor.
+    SERVER_MATCHES_CACHE: 'bramulab.serverMatchesCache.v1',
   };
 
   function safeGet(key) {
@@ -726,8 +732,12 @@
     return loadMatchOutbox().find((e) => e && e.localDraftId === localDraftId) || null;
   }
 
-  /** Inserta o actualiza una entrada por `localDraftId` (nunca duplica). Si `fields` no trae
-   *  `localDraftId`, se genera uno nuevo — usado para la primera carga de un intento. Devuelve
+  /** Inserta o reemplaza una entrada por `localDraftId` (nunca duplica). Si `fields` no trae
+   *  `localDraftId`, se genera uno nuevo — usado para la primera carga de un intento. IMPORTANTE:
+   *  reemplaza la entrada entera con `fields` (nunca la mergea con lo que ya había guardado) —
+   *  para actualizar solo algunos campos de una entrada existente, el llamador debe partir de
+   *  `Object.assign({}, getMatchOutboxEntry(id), {camposNuevos})` (así lo hace cada call-site de
+   *  app.js: nunca un `fields` parcial suelto, o perdería `submissionId`/`payload`/etc.). Devuelve
    *  la entrada final (con `localDraftId` siempre presente). */
   function saveMatchOutboxEntry(fields) {
     const entry = Object.assign({ localDraftId: genLocalDraftId(), createdAt: new Date().toISOString() }, fields || {});
@@ -745,6 +755,21 @@
     if (!localDraftId) return;
     const list = loadMatchOutbox().filter((e) => e && e.localDraftId !== localDraftId);
     safeSet(KEYS.MATCH_OUTBOX, list);
+  }
+
+  /** Cache de lectura de get_my_matches (filas YA normalizadas a camelCase por matches.js —
+   *  ver PLMatches.getMyMatches). `raw` es siempre el array completo devuelto por la última
+   *  llamada exitosa; nunca se mergea parcialmente. `fetchedAt` permite a la UI mostrar "datos
+   *  de hace un momento" si decide leer el cache antes de que la llamada de red termine, pero
+   *  nunca se usa para decidir si el cache "todavía vale" — un refresco exitoso siempre
+   *  reemplaza el cache entero, y una llamada fallida simplemente deja el cache anterior
+   *  intacto (mejor mostrar datos un poco viejos que nada, nunca inventar). */
+  function loadServerMatchesCache() {
+    const snap = safeGet(KEYS.SERVER_MATCHES_CACHE);
+    return snap && Array.isArray(snap.matches) ? snap : { matches: [], fetchedAt: null };
+  }
+  function saveServerMatchesCache(matches) {
+    safeSet(KEYS.SERVER_MATCHES_CACHE, { matches: Array.isArray(matches) ? matches : [], fetchedAt: new Date().toISOString() });
   }
 
   /* ------------------------------------------------------------------ */
@@ -950,6 +975,7 @@
     loadClaimToken, saveClaimToken, clearClaimToken,
     // Backend Bloque 5 — outbox de cargas de partido server-backed
     loadMatchOutbox, getMatchOutboxEntry, saveMatchOutboxEntry, removeMatchOutboxEntry,
+    loadServerMatchesCache, saveServerMatchesCache,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,

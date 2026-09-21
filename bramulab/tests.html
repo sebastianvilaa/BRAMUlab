@@ -22,6 +22,11 @@
 
 <script src="engine.js"></script>
 <script src="stats.js"></script>
+<!-- Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md) — match-sync.js es puro
+     (depende solo de PLEngine/PLStats, sin DOM/red/storage), mismo criterio que level.js/
+     level-context.js más abajo: se carga acá para poder testear la traducción servidor->local
+     y la separación historial/estadísticas sin necesitar Supabase real. -->
+<script src="match-sync.js"></script>
 <script src="store.js"></script>
 <script src="player-home.js"></script>
 <script src="match-load.js"></script>
@@ -52,6 +57,7 @@
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado
   const LVX = window.PLLevelContext; // BRAMUlab_V04.2 (Etapa B) — elegibilidad/invitados/repetición/círculo
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración/recalibración
+  const MSync = window.PLMatchSync; // Backend Bloque 5 — traducción servidor->local, separación historial/estadísticas
   const results = [];
 
   function record(name, ok, detail) { results.push({ name, ok, detail: detail || '' }); }
@@ -6422,6 +6428,189 @@
       assert('V046-STORE · otro userId queda intacto (reset nunca es global)', Store.loadLevelV1State('u_y').mu === 4.0);
       assert('V046-STORE · Historial y Usuarios quedan byte a byte intactos (reset SOLO toca LEVEL_V1_STATE)',
         localStorage.getItem('bramulab.history.v1') === historyBefore && localStorage.getItem('bramulab.users.v1') === usersBefore);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // Backend Bloque 5 — wiring frontend de partidos compartidos (match-sync.js).
+  // 09_Resultado_Wiring_Frontend_Claude.md. No repite pruebas SQL/backend ya cubiertas por
+  // 08_Validacion_Backend_Staging_ChatGPT.md — cubre solo la traducción servidor->local, la
+  // separación historial/estadísticas y el outbox, que viven acá (frontend).
+  // ------------------------------------------------------------------
+  function makeServerParticipants() {
+    return [
+      { team: 'A', position: 1, playerId: 'p_ana', displayName: 'Ana' },
+      { team: 'A', position: 2, playerId: 'p_bea', displayName: 'Bea' },
+      { team: 'B', position: 1, playerId: 'p_cruz', displayName: 'Cruz' },
+      { team: 'B', position: 2, playerId: 'p_dan', displayName: 'Dan' },
+    ];
+  }
+  function makeServerSets() {
+    return [
+      { setNumber: 1, gamesA: 6, gamesB: 3, tiebreakA: null, tiebreakB: null },
+      { setNumber: 2, gamesA: 6, gamesB: 4, tiebreakA: null, tiebreakB: null },
+    ];
+  }
+  function makeServerRow(overrides) {
+    return Object.assign({
+      matchId: 'srv_1',
+      status: 'pending_validation',
+      playedAt: '2026-09-10T20:00:00.000Z',
+      formatId: 'classic',
+      scoringSystem: 'golden',
+      myTeam: 'A',
+      actionSide: 'B',
+      isActionMine: true,
+      readyForValidation: false,
+      createdByPlayerId: 'p_ana',
+      validatedAt: null,
+      validationDeadlineAt: '2026-09-13T20:00:00.000Z',
+      hidden: false,
+      participants: makeServerParticipants(),
+      sets: makeServerSets(),
+    }, overrides || {});
+  }
+
+  // ---- Traducción servidor -> forma local (único punto de traducción, §4 del wiring) ----
+  (function () {
+    const row = makeServerRow();
+    const m = MSync.translateServerMatchToLocalShape(row);
+    assert('BLOQUE5-SYNC · traduce matchId/serverBacked/status tal cual', m.matchId === 'srv_1' && m.serverBacked === true && m.status === 'pending_validation');
+    assert('BLOQUE5-SYNC · players[] con 4 jugadores, team/userId/name correctos (identidad SIEMPRE por playerId)',
+      m.players.length === 4 && m.players[0].team === 'A' && m.players[0].userId === 'p_ana' && m.players[0].name === 'Ana' &&
+      m.players[2].team === 'B' && m.players[2].userId === 'p_cruz');
+    assert('BLOQUE5-SYNC · sets[] con winner por set (A gana 6-3/6-4)', m.sets.length === 2 && m.sets[0].winner === 'A' && m.sets[1].winner === 'A');
+    assert('BLOQUE5-SYNC · winnerTeam derivado acá con Engine (nunca un campo que el servidor envíe)', m.winnerTeam === 'A');
+    assert('BLOQUE5-SYNC · stats/intelligence descriptivos calculados con el MISMO agregador que un partido local',
+      !!m.stats && typeof m.intelligence === 'string' && m.intelligence.length > 0);
+  })();
+
+  // ---- Separación historial vs. estadísticas (§5 del wiring) ----
+  (function () {
+    const pending = MSync.translateServerMatchToLocalShape(makeServerRow({ status: 'pending_validation' }));
+    const expired = MSync.translateServerMatchToLocalShape(makeServerRow({ status: 'expired' }));
+    const validated = MSync.translateServerMatchToLocalShape(makeServerRow({ status: 'validated' }));
+    const localLegacy = { matchId: 'local_1', players: [], sets: [] }; // sin serverBacked
+    assert('BLOQUE5-COMPUTABLE · pending_validation NUNCA es computable', MSync.isComputableMatch(pending) === false);
+    assert('BLOQUE5-COMPUTABLE · expired NUNCA es computable', MSync.isComputableMatch(expired) === false);
+    assert('BLOQUE5-COMPUTABLE · validated SÍ es computable (reservado para cuando exista Bloque 6)', MSync.isComputableMatch(validated) === true);
+    assert('BLOQUE5-COMPUTABLE · un partido local legacy (sin serverBacked) siempre es computable, como siempre', MSync.isComputableMatch(localLegacy) === true);
+  })();
+
+  // ---- matched_confirmed / matched_already_confirmed siguen siendo pending_validation (§6) ----
+  (function () {
+    // create_or_attach_match (hotfix 20260921004000_bloque5_conformity_guard.sql) NUNCA escribe
+    // status='validated' — ni 'matched_confirmed' (una pareja confirma lo ya declarado por la
+    // otra) ni 'matched_already_confirmed' (la segunda declaración converge sin duplicar la
+    // acción, action_side ya null) validan un partido: eso es Bloque 6. get_my_matches devuelve
+    // siempre status:'pending_validation' para ambos — la UI nunca debe mostrar "Validado"/
+    // "Oficial" solo porque las dos parejas ya declararon lo mismo.
+    const matchedConfirmed = makeServerRow({ status: 'pending_validation', actionSide: 'A', readyForValidation: true });
+    const matchedAlreadyConfirmed = makeServerRow({ status: 'pending_validation', actionSide: null, readyForValidation: true });
+    const a = MSync.translateServerMatchToLocalShape(matchedConfirmed);
+    const b = MSync.translateServerMatchToLocalShape(matchedAlreadyConfirmed);
+    assert('BLOQUE5-CONFORMIDAD · matched_confirmed sigue traduciendo status pending_validation (nunca validated)', a.status === 'pending_validation');
+    assert('BLOQUE5-CONFORMIDAD · matched_confirmed no es computable pese a readyForValidation:true', MSync.isComputableMatch(a) === false);
+    assert('BLOQUE5-CONFORMIDAD · matched_already_confirmed (action_side ya limpio) sigue pending_validation', b.status === 'pending_validation');
+    assert('BLOQUE5-CONFORMIDAD · matched_already_confirmed no es computable pese a readyForValidation:true', MSync.isComputableMatch(b) === false);
+  })();
+
+  // ---- buildDisplayHistory/buildComputableHistory: local legacy intacto + orden + filtro ----
+  (function () {
+    const local1 = { matchId: 'local_1', createdAt: '2026-09-01T10:00:00.000Z', players: [], sets: [], finishedAt: '2026-09-01T10:00:00.000Z' };
+    const local2 = { matchId: 'local_2', createdAt: '2026-09-05T10:00:00.000Z', players: [], sets: [], finishedAt: '2026-09-05T10:00:00.000Z' };
+
+    const onlyLocalDisplay = MSync.buildDisplayHistory({ localHistory: [local2, local1], serverRows: [], outboxEntries: [] });
+    assert('BLOQUE5-HISTORIAL · sin server ni outbox, buildDisplayHistory conserva el legacy sin alterar contenido',
+      onlyLocalDisplay.length === 2 && onlyLocalDisplay.some((m) => m.matchId === 'local_1') && onlyLocalDisplay.some((m) => m.matchId === 'local_2'));
+    const onlyLocalComputable = MSync.buildComputableHistory({ localHistory: [local2, local1], serverRows: [] });
+    assert('BLOQUE5-HISTORIAL · sin server, buildComputableHistory devuelve el legacy completo (siempre computable, como hoy)', onlyLocalComputable.length === 2);
+
+    const serverRow = makeServerRow({ matchId: 'srv_recent', playedAt: '2026-09-15T10:00:00.000Z' });
+    const display = MSync.buildDisplayHistory({ localHistory: [local2, local1], serverRows: [serverRow], outboxEntries: [] });
+    assert('BLOQUE5-HISTORIAL · Historial (display) incluye el partido server-backed pendiente', display.some((m) => m.matchId === 'srv_recent'));
+    assert('BLOQUE5-HISTORIAL · el más reciente queda primero aunque sea server-backed (nunca siempre el local)', display[0].matchId === 'srv_recent');
+
+    const computable = MSync.buildComputableHistory({ localHistory: [local2, local1], serverRows: [serverRow] });
+    assert('BLOQUE5-HISTORIAL · el mismo partido pendiente NUNCA entra a estadísticas (buildComputableHistory)',
+      !computable.some((m) => m.matchId === 'srv_recent') && computable.length === 2);
+  })();
+
+  // ---- Outbox: sobrevive, reintento conserva idempotencyKey, éxito lo saca (§10 del wiring) ----
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.matchOutbox.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      const payload = {
+        pair1PlayerIds: ['p_ana', 'p_bea'], pair2PlayerIds: ['p_cruz', 'p_dan'],
+        rawSets: [{ a: 6, b: 3 }], formatId: 'classic', playedAtIso: '2026-09-18T20:00:00.000Z', playedAtTimeKnown: true,
+      };
+      const saved = Store.saveMatchOutboxEntry({ submissionId: 'sub-abc-123', payload, participantNames: { p_ana: 'Ana' }, state: 'sync_pending' });
+      assert('BLOQUE5-OUTBOX · saveMatchOutboxEntry genera localDraftId cuando no se pasa uno', !!saved.localDraftId);
+
+      // "Sobrevive a un refresh" — releer desde cero (nueva lectura de localStorage).
+      const reread = Store.getMatchOutboxEntry(saved.localDraftId);
+      assert('BLOQUE5-OUTBOX · sync_pending sobrevive un refresh de la app', !!reread && reread.state === 'sync_pending' && reread.submissionId === 'sub-abc-123');
+
+      const asDisplay = MSync.buildOutboxDisplayEntry(reread);
+      assert('BLOQUE5-OUTBOX · un borrador sync_pending se traduce con status sync_pending', asDisplay.status === 'sync_pending' && asDisplay.serverBacked === true);
+      assert('BLOQUE5-OUTBOX · un borrador todavía sin confirmar nunca es computable', MSync.isComputableMatch(asDisplay) === false);
+
+      // Actualizar un campo (p.ej. nota privada, mismo patrón que initAnalysisScreen en app.js)
+      // SIEMPRE parte de Object.assign({}, entryExistente, {...}) — saveMatchOutboxEntry
+      // reemplaza la entrada entera, nunca la mergea con lo ya guardado (ver su comentario en
+      // store.js) — un `fields` parcial suelto perdería submissionId/payload silenciosamente.
+      const afterNoteEdit = Store.saveMatchOutboxEntry(Object.assign({}, reread, { privateNote: 'Cancha 3' }));
+      assert('BLOQUE5-OUTBOX · actualizar un campo (nota privada) conserva la MISMA submissionId', afterNoteEdit.submissionId === 'sub-abc-123');
+      assert('BLOQUE5-OUTBOX · sigue habiendo una sola entrada para este localDraftId (nunca duplica)', Store.loadMatchOutbox().length === 1);
+
+      // Reintento automático ante error transitorio (retryMatchOutbox/online listener en app.js):
+      // mismo submissionId, nunca uno nuevo — sólo una respuesta a desambiguación genera otro.
+      const afterRetry = Store.saveMatchOutboxEntry(Object.assign({}, Store.getMatchOutboxEntry(saved.localDraftId), { state: 'sync_pending' }));
+      assert('BLOQUE5-OUTBOX · un reintento automático nunca genera una nueva idempotencyKey', afterRetry.submissionId === 'sub-abc-123');
+
+      // Éxito final del servidor -> se saca del outbox (handleCreateOrAttachOutcome en app.js).
+      Store.removeMatchOutboxEntry(saved.localDraftId);
+      assert('BLOQUE5-OUTBOX · un create-or-attach exitoso remueve la entrada del outbox', Store.getMatchOutboxEntry(saved.localDraftId) === null);
+      assert('BLOQUE5-OUTBOX · remove no deja basura (quedó vacío porque era la única entrada)', Store.loadMatchOutbox().length === 0);
+    } finally {
+      resetAffectedKeys();
+      Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
+    }
+  })();
+
+  // ---- Ocultar un partido server-backed nunca borra nada local (§8 del wiring) ----
+  (function () {
+    const AFFECTED_KEYS = ['bramulab.history.v1', 'bramulab.serverMatchesCache.v1'];
+    const snapshot = {};
+    AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
+    function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
+    try {
+      resetAffectedKeys();
+      const localMatch = {
+        matchId: 'local_hide_test', players: [{ id: 0, team: 'A', name: 'Ana' }], sets: [{ gamesA: 6, gamesB: 2, winner: 'A' }],
+        finishedAt: '2026-09-01T10:00:00.000Z', createdAt: '2026-09-01T10:00:00.000Z',
+      };
+      Store.upsertHistory(localMatch);
+      const historyBefore = localStorage.getItem('bramulab.history.v1');
+
+      // Simula lo que hace refreshServerMatches() después de un hide_match_for_me exitoso: el
+      // cache de servidor se sobreescribe entero. hide_match_for_me (matches.js) es una RPC que
+      // marca `hidden` server-side — nunca llama Store.removeFromHistory ni escribe en
+      // bramulab.history.v1: un partido server-backed nunca vivió ahí. Se verifica acá el
+      // invariante de storage que hace estructuralmente imposible que "ocultar" un partido
+      // compartido borre algo del historial local.
+      Store.saveServerMatchesCache([makeServerRow({ matchId: 'srv_hidden', hidden: true })]);
+      MSync.buildDisplayHistory({ localHistory: Store.loadHistory(), serverRows: Store.loadServerMatchesCache().matches, outboxEntries: [] });
+
+      assert('BLOQUE5-HIDE · ocultar/leer un partido server-backed nunca escribe en bramulab.history.v1', localStorage.getItem('bramulab.history.v1') === historyBefore);
+      assert('BLOQUE5-HIDE · el partido local sigue intacto en Store.loadHistory()', Store.loadHistory().some((m) => m.matchId === 'local_hide_test'));
     } finally {
       resetAffectedKeys();
       Object.keys(snapshot).forEach((k) => { if (snapshot[k] !== null) localStorage.setItem(k, snapshot[k]); });
