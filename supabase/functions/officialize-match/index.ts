@@ -94,10 +94,43 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!matchRow) return jsonResponse({ ok: false, code: 'match_not_found' }, 404);
 
-  // B6-A-10: 'validated' NUNCA es match_not_actionable acá — es exactamente el reintento
-  // idempotente que el propio contrato de este endpoint promete.
   if (matchRow.status !== 'pending_validation' && matchRow.status !== 'validated') {
     return jsonResponse({ ok: false, code: 'match_not_actionable', status: matchRow.status }, 409);
+  }
+
+  // Defensa de autoridad también para el reintento idempotente: conocer un matchId no alcanza.
+  // El caller debe seguir siendo participante actual del partido, incluso si ya está validated.
+  const { data: callerParticipant } = await serviceClient
+    .from('match_participants')
+    .select('team')
+    .eq('match_id', matchId)
+    .eq('player_id', callerPlayerId)
+    .maybeSingle();
+  if (!callerParticipant) {
+    return jsonResponse({ ok: false, code: 'not_a_participant' }, 403);
+  }
+
+  // B6-A-10 / corrección central posterior a C-02:
+  // un partido YA validated es un NO-OP desde este endpoint. Nunca se vuelve a invocar
+  // trigger='initial' porque el resultado vigente puede ser una correction_accepted o una
+  // identity_resolved posterior; reentrar como initial revertiría ese resultado vigente.
+  if (matchRow.status === 'validated') {
+    const { data: appliedResult } = await serviceClient
+      .from('match_level_results')
+      .select('result_id,eligible,trigger')
+      .eq('match_id', matchId)
+      .eq('effect_status', 'applied')
+      .maybeSingle();
+
+    return jsonResponse({
+      ok: true,
+      code: 'already_validated',
+      matchId,
+      resultId: appliedResult && appliedResult.result_id,
+      eligible: appliedResult && appliedResult.eligible,
+      currentTrigger: appliedResult && appliedResult.trigger,
+      idempotentReturn: true,
+    });
   }
 
   if (matchRow.status === 'pending_validation') {
