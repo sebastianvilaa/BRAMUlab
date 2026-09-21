@@ -6504,6 +6504,64 @@
       && metaMatch.privateNote === 'nota privada');
   })();
 
+  // ---- Hotfix B6 · Resumen abierto debe reemplazar snapshot tras mutación server-backed ----
+  (function () {
+    const oldCorrectionRow = makeServerRow({
+      status: 'validated',
+      validatedAt: '2026-09-21T15:00:00.000Z',
+      pendingCorrectionRevisionId: 'rev_pending',
+      sets: [
+        { setNumber: 1, gamesA: 6, gamesB: 2, tiebreakA: null, tiebreakB: null },
+        { setNumber: 2, gamesA: 6, gamesB: 1, tiebreakA: null, tiebreakB: null },
+      ],
+    });
+    const oldCorrectionSnapshot = MSync.translateServerMatchToLocalShape(oldCorrectionRow);
+    const acceptedCorrectionRow = makeServerRow({
+      status: 'validated',
+      validatedAt: '2026-09-21T15:00:00.000Z',
+      pendingCorrectionRevisionId: null,
+      sets: [
+        { setNumber: 1, gamesA: 6, gamesB: 2, tiebreakA: null, tiebreakB: null },
+        { setNumber: 2, gamesA: 6, gamesB: 3, tiebreakA: null, tiebreakB: null },
+      ],
+    });
+    const refreshedCorrection = MSync.refreshOpenAnalysisSnapshot(oldCorrectionSnapshot, acceptedCorrectionRow, 'srv_1');
+    assert('BLOQUE6-REFRESH · corrección aceptada reemplaza marcador y limpia CORRECCIÓN PROPUESTA en el Resumen abierto',
+      refreshedCorrection !== oldCorrectionSnapshot
+      && refreshedCorrection.sets[1].gamesA === 6
+      && refreshedCorrection.sets[1].gamesB === 3
+      && refreshedCorrection.pendingCorrectionRevisionId === null);
+
+    const questionedParticipants = makeServerParticipants();
+    questionedParticipants[1] = { team: 'A', position: 2, playerId: null, displayName: 'Por identificar' };
+    const questionedRow = makeServerRow({
+      status: 'validated',
+      validatedAt: '2026-09-21T15:00:00.000Z',
+      participants: questionedParticipants,
+      openIdentityIssues: [{
+        issueId: 'issue_1', team: 'A', positionInTeam: 2,
+        openedAt: '2026-09-21T15:10:00.000Z', resolutionDeadlineAt: '2026-09-28T15:10:00.000Z',
+      }],
+    });
+    const questionedSnapshot = MSync.translateServerMatchToLocalShape(questionedRow);
+    const resolvedParticipants = makeServerParticipants();
+    resolvedParticipants[1] = { team: 'A', position: 2, playerId: 'p_pedro', displayName: 'Pedro' };
+    const resolvedRow = makeServerRow({
+      status: 'validated',
+      validatedAt: '2026-09-21T15:00:00.000Z',
+      participants: resolvedParticipants,
+      openIdentityIssues: [],
+    });
+    const refreshedIdentity = MSync.refreshOpenAnalysisSnapshot(questionedSnapshot, resolvedRow, 'srv_1');
+    assert('BLOQUE6-REFRESH · identidad resuelta reemplaza Por identificar y limpia IDENTIDAD CUESTIONADA en el Resumen abierto',
+      refreshedIdentity !== questionedSnapshot
+      && refreshedIdentity.players[1].userId === 'p_pedro'
+      && refreshedIdentity.players[1].name === 'Pedro'
+      && refreshedIdentity.hasOpenIdentityIssue === false
+      && Array.isArray(refreshedIdentity.openIdentityIssues)
+      && refreshedIdentity.openIdentityIssues.length === 0);
+  })();
+
   // ---- Separación historial vs. estadísticas (§5 del wiring) ----
   (function () {
     const pending = MSync.translateServerMatchToLocalShape(makeServerRow({ status: 'pending_validation' }));

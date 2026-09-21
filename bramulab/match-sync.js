@@ -188,6 +188,15 @@
     };
   }
 
+  /** Hotfix B6 — reemplaza el snapshot del Resumen abierto por el detalle canónico recién
+   *  leído del servidor. Mantener esta decisión en una función pura permite cubrir la regresión:
+   *  una mutación exitosa nunca debe dejar marcador/participantes/estado del Resumen atados al
+   *  snapshot previo. Si el usuario ya navegó a otro partido, no reemplaza nada. */
+  function refreshOpenAnalysisSnapshot(currentAnalysis, freshServerRow, matchId) {
+    if (!currentAnalysis || !freshServerRow || currentAnalysis.matchId !== matchId) return currentAnalysis;
+    return translateServerMatchToLocalShape(freshServerRow);
+  }
+
   /** Traduce una entrada del outbox local (store.js: bramulab.matchOutbox.v1) a una fila
    *  MÍNIMA con forma de partido, suficiente para que el Historial la liste con badge
    *  "PENDIENTE DE SINCRONIZACIÓN" (o "NECESITA REVISIÓN") — nunca se le agregan sets/
@@ -319,7 +328,7 @@
   }
 
   global.PLMatchSync = {
-    translateServerMatchToLocalShape, buildOutboxDisplayEntry,
+    translateServerMatchToLocalShape, refreshOpenAnalysisSnapshot, buildOutboxDisplayEntry,
     isComputableMatch, buildDisplayHistory, buildComputableHistory,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2261,6 +2261,20 @@
     if (!$('#view-notifications').hidden) renderNotificationsScreenServerBacked();
     else renderNotificationsBadge();
     if (matchId && !$('#view-analysis').hidden && analysisCurrent && analysisCurrent.matchId === matchId) {
+      // Hotfix B6 — no alcanza con repintar el bloque de acciones sobre el snapshot viejo:
+      // corrección aceptada e identidad resuelta cambian también marcador/participantes/meta.
+      // Releer el detalle canónico y re-renderizar TODO el Resumen mantiene analysisCurrent y
+      // todas sus superficies sincronizadas sin obligar a salir de la pantalla.
+      const detail = await Matches.getMatchDetail(matchId);
+      if (detail.ok && detail.match && analysisCurrent && analysisCurrent.matchId === matchId) {
+        const fresh = MSync.refreshOpenAnalysisSnapshot(analysisCurrent, detail.match, matchId);
+        if (fresh && fresh !== analysisCurrent) {
+          renderAnalysis(fresh);
+          return;
+        }
+      }
+      // Fallback seguro ante una lectura transitoria fallida: al menos refrescar las acciones
+      // con el comportamiento previo; el próximo refresh volverá a intentar el detalle completo.
       await renderB6Actions(analysisCurrent);
     }
   }
