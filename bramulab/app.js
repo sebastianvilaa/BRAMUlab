@@ -2676,8 +2676,8 @@
     // para cualquier modo). Solo para partidos cargados manualmente.
     // Backend Bloque 5 — un partido server-backed YA aceptado por el servidor (cualquier
     // estado salvo sync_pending/necesita_revision) no se puede reabrir para editar acá: la
-    // corrección de un partido ya cargado es Bloque 6 (Proponer corrección), todavía sin
-    // implementar. Un borrador de outbox sigue siendo editable como siempre.
+    // corrección de un partido ya cargado usa Bloque 6 (Proponer corrección), ya conectado
+    // server-side. Un borrador de outbox sigue siendo editable como siempre.
     const serverAlreadySynced = f.serverBacked && f.status !== 'sync_pending' && f.status !== 'necesita_revision';
     $('#analysis-edit-btn').hidden = f.mode !== 'manual' || serverAlreadySynced;
     $('#analysis-edit-btn').onclick = () => openManualLoadScreen('player-home', f);
