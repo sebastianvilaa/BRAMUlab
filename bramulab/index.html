@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.10-h12" />
+<link rel="stylesheet" href="styles.css?v=04.10-h13" />
 </head>
 <body>
 
@@ -2443,33 +2443,33 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.10-h12"></script>
-  <script src="stats.js?v=04.10-h12"></script>
-  <script src="store.js?v=04.10-h12"></script>
+  <script src="engine.js?v=04.10-h13"></script>
+  <script src="stats.js?v=04.10-h13"></script>
+  <script src="store.js?v=04.10-h13"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.10-h12"></script>
-  <script src="level-context.js?v=04.10-h12"></script>
-  <script src="level-calibration.js?v=04.10-h12"></script>
-  <script src="player-home.js?v=04.10-h12"></script>
-  <script src="match-load.js?v=04.10-h12"></script>
-  <script src="player-identity.js?v=04.10-h12"></script>
-  <script src="groups.js?v=04.10-h12"></script>
-  <script src="locations.js?v=04.10-h12"></script>
-  <script src="ranking.js?v=04.10-h12"></script>
+  <script src="level.js?v=04.10-h13"></script>
+  <script src="level-context.js?v=04.10-h13"></script>
+  <script src="level-calibration.js?v=04.10-h13"></script>
+  <script src="player-home.js?v=04.10-h13"></script>
+  <script src="match-load.js?v=04.10-h13"></script>
+  <script src="player-identity.js?v=04.10-h13"></script>
+  <script src="groups.js?v=04.10-h13"></script>
+  <script src="locations.js?v=04.10-h13"></script>
+  <script src="ranking.js?v=04.10-h13"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.10-h12"></script>
+  <script src="auth.js?v=04.10-h13"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.10-h12"></script>
-  <script src="match-sync.js?v=04.10-h12"></script>
-  <script src="app.js?v=04.10-h12"></script>
+  <script src="matches.js?v=04.10-h13"></script>
+  <script src="match-sync.js?v=04.10-h13"></script>
+  <script src="app.js?v=04.10-h13"></script>
 </body>
 </html>
