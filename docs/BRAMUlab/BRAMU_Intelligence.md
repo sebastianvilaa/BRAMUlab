@@ -430,7 +430,7 @@ Penalizaciones:
 - `−10` si la frase propuesta reutiliza la misma estructura de los últimos 5;
 - descarte total si falta evidencia, comparabilidad o identidad estable.
 
-Estos pesos y penalizaciones quedan congelados como parámetros V1 para el piloto. Pueden recalibrarse después con datos reales, siempre mediante una nueva versión documentada y sin reescribir silenciosamente insights históricos.
+Estos pesos y penalizaciones quedan congelados como parámetros V1 para el lanzamiento inicial. Pueden recalibrarse después con datos reales, siempre mediante una nueva versión documentada y sin reescribir silenciosamente insights históricos.
 
 ### 6.2 Orden editorial de prioridad
 
@@ -1093,7 +1093,7 @@ La validación debe hacerse con historias reales. Evaluar frases aisladas produc
 - terminar el ajuste visual del bloque dentro de la pantalla existente;
 - revisar política de privacidad y transferencias internacionales antes de enviar datos reales a un proveedor.
 
-No queda una decisión funcional bloqueante que requiera respuesta del usuario antes del handoff. Los parámetros quedan versionados para que el piloto pueda validarlos sin reabrir el concepto del producto.
+No queda una decisión funcional bloqueante que requiera respuesta del usuario antes del handoff. Los parámetros quedan versionados para que las primeras semanas de uso real puedan validarlos sin reabrir el concepto del producto.
 
 ---
 
