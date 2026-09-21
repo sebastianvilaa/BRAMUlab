@@ -251,7 +251,16 @@
    *  descendente porque `upsertHistory` siempre inserta al frente; acá se ordena explícito
    *  porque server/outbox se insertan por concatenación, no por `unshift`.) */
   function sortByCreatedAtDesc(list) {
-    return list.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // "Más reciente" en BRAMU significa cuándo se JUGÓ el partido, no cuándo se guardó.
+    // Un legacy puede cargarse retroactivamente (createdAt hoy, playedAt hace varios días);
+    // ordenar solo por createdAt lo pondría falsamente por encima de un partido realmente
+    // más nuevo. Mismo criterio conceptual que PH.getPlayedAt, sin depender de player-home.js.
+    const playedMs = (m) => {
+      const iso = m && (m.playedAt || m.startedAt || m.createdAt);
+      const ms = iso ? new Date(iso).getTime() : 0;
+      return Number.isFinite(ms) ? ms : 0;
+    };
+    return list.slice().sort((a, b) => playedMs(b) - playedMs(a));
   }
 
   /** Historial para MOSTRAR (Historial/Home badges): local legacy + server-backed traducidos
