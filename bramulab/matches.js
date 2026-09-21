@@ -114,6 +114,11 @@
       privateNote: row.private_note,
       participants: row.participants,
       sets: row.sets,
+      // Backend Bloque 6 (Fase B) — extensión de get_my_matches (03_Plan_Implementacion_
+      // Claude.md, ver 20260921220000_bloque6_read_rpcs.sql): distingue "corrección propuesta"/
+      // "identidad cuestionada" de un pendiente accionable normal, sin tocar ningún campo previo.
+      pendingCorrectionRevisionId: row.pending_correction_revision_id || null,
+      hasOpenIdentityIssue: !!row.has_open_identity_issue,
     };
   }
 

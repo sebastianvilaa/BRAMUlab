@@ -11,6 +11,7 @@
   const Auth = window.PLAuth; // Backend Bloque 2 — Supabase Auth + RPCs de perfil real (auth.js)
   const Matches = window.PLMatches; // Backend Bloque 5 — create_or_attach_match/get_my_matches/etc. (matches.js)
   const MSync = window.PLMatchSync; // Backend Bloque 5 — traducción servidor->local + separación historial/estadísticas (match-sync.js)
+  const MV = window.PLMatchValidation; // Backend Bloque 6 (Fase B) — Confirmar/corrección/identidad/notificaciones (match-validation.js)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
   const $ = (sel) => document.querySelector(sel);
@@ -2111,13 +2112,471 @@
    *  y "matched_already_confirmed" siguen mostrando PENDIENTE DE VALIDACIÓN — Bloque 5 nunca
    *  marca `validated` (06_Revision_Pre_Staging_ChatGPT.md §1), así que la UI tampoco debe
    *  sugerir "Validado"/"Oficial" solo porque la pareja rival ya haya declarado lo mismo. */
+  /** Backend Bloque 6 (Fase B) — ahora que existe Bloque 6, distingue identidad cuestionada/
+   *  corrección propuesta/tu turno de un pendiente/validado genérico (Experiencia_Inicial.md
+   *  §9.3: "el tratamiento visual distingue pendiente accionable de pendiente en espera").
+   *  `hasOpenIdentityIssue` siempre tiene prioridad — sin importar el estado del partido, una
+   *  identidad cuestionada es lo primero que hay que resolver. */
   function serverMatchStatusLabel(f) {
     if (!f.serverBacked) return '';
     if (f.status === 'sync_pending') return 'PENDIENTE DE SINCRONIZACIÓN';
     if (f.status === 'necesita_revision') return 'NECESITA REVISIÓN';
     if (f.status === 'expired') return 'VENCIDO — NO COMPUTA';
-    if (f.status === 'validated') return 'VALIDADO'; // reservado para cuando exista Bloque 6
-    return 'PENDIENTE DE VALIDACIÓN'; // pending_validation, con o sin readyForValidation
+    if (f.status === 'annulled') return 'ANULADO';
+    if (f.hasOpenIdentityIssue) return 'IDENTIDAD CUESTIONADA';
+    if (f.status === 'validated') return f.pendingCorrectionRevisionId ? 'CORRECCIÓN PROPUESTA' : 'VALIDADO';
+    if (f.isActionMine) return 'TU TURNO: CONFIRMAR';
+    return 'PENDIENTE DE VALIDACIÓN'; // pending_validation, esperando a la otra pareja
+  }
+
+  /** Modificador de color del badge de Historial (§9.3): `action` (lima, mi pareja tiene que
+   *  responder), `identity` (identidad cuestionada), `pending` (neutro — espera a la otra
+   *  pareja, o un estado puramente informativo). Nunca naranja (reservado a CALIBRANDO). */
+  function serverMatchStatusBadgeModifier(f) {
+    if (!f.serverBacked) return '';
+    if (f.hasOpenIdentityIssue) return 'identity';
+    if (f.status === 'pending_validation' && f.isActionMine) return 'action';
+    return 'pending';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer     */
+  /* corrección/Responder corrección/No participé/identidad.                   */
+  /* Ver docs/BRAMUlab/Implementacion/Backend/Bloque_06/13_Handoff_Fase_B_Claude.md. */
+  /* ------------------------------------------------------------------ */
+
+  // Proponer corrección — sheet activo.
+  let b6CorrectionMatch = null; // f (forma local) del partido que se está corrigiendo
+  let b6CorrectionSetCount = 0;
+  // No participé — partido activo (para armar los 4 lugares del picker).
+  let b6ReportIdentityMatch = null;
+  // Resolver identidad — issue/slot activos + exclusión de duplicados para el picker.
+  let b6IdentityResolveIssue = null; // {issueId, matchId, team, positionInTeam}
+  let b6IdentityResolveExcludedIds = [];
+  let b6IdentityResolveSearchTimer = null;
+  let b6IdentityResolveRequestId = 0;
+
+  /** `f.players` está ordenado A(1,2),B(1,2) — la posición dentro del equipo es el índice
+   *  relativo DENTRO de ese equipo (mismo orden en el que get_match_detail/get_my_matches ya
+   *  lo entregan, ver buildLocalPlayers en match-sync.js). */
+  function b6PlayersOfTeam(f, team) {
+    return (f.players || []).filter((p) => p && p.team === team);
+  }
+  function b6PlayerAt(f, team, positionInTeam) {
+    return b6PlayersOfTeam(f, team)[positionInTeam - 1] || null;
+  }
+  function b6AllSlots(f) {
+    const slots = [];
+    ['A', 'B'].forEach((team) => {
+      b6PlayersOfTeam(f, team).forEach((p, idx) => {
+        slots.push({ team, positionInTeam: idx + 1, name: p.name || 'Por identificar', userId: p.userId || null });
+      });
+    });
+    return slots;
+  }
+
+  /** Copia humana + severidad de los códigos de error de negocio que puede devolver cualquier
+   *  RPC/Edge Function de Bloque 6 — mismo criterio que MATCH_BUSINESS_ERROR_MESSAGES de más
+   *  abajo (Bloque 5), acá en su propio mapa porque el vocabulario de códigos es distinto. */
+  const B6_ERROR_MESSAGES = {
+    not_actionable_for_caller: 'Todavía no es tu turno — la acción es de la otra pareja.',
+    match_expired: 'Este partido venció sin validarse a tiempo.',
+    identity_issue_open: 'Primero hay que resolver la identidad cuestionada.',
+    not_a_participant: 'No participás de este partido.',
+    match_not_actionable: 'Este partido ya no admite esta acción.',
+    correction_window_expired: 'La ventana para responder esta corrección ya venció.',
+    correction_already_pending: 'Ya hay una corrección propuesta esperando respuesta.',
+    cannot_respond_to_own_proposal: 'No podés responder tu propia propuesta — espera a la otra pareja.',
+    no_pending_correction: 'No hay ninguna corrección pendiente para responder.',
+    resolution_window_expired: 'La ventana de 7 días para identificar al jugador correcto ya venció.',
+    resolution_window_not_expired: 'Todavía no venció la ventana de 7 días.',
+    duplicate_participant: 'Esa persona ya participa en este partido.',
+    provisional_not_selectable: 'Ese invitado no está relacionado con vos — no se puede elegir.',
+    participant_not_found: 'No encontramos a ese jugador.',
+    identity_issue_already_open: 'Ya hay una incidencia abierta para ese lugar.',
+    identity_window_expired: 'La ventana de 10 días para cuestionar una identidad ya venció.',
+    invalid_sets: 'El resultado cargado no es válido.',
+  };
+  function b6ErrorMessage(code) {
+    return B6_ERROR_MESSAGES[code] || 'No se pudo completar la acción. Probá de nuevo.';
+  }
+
+  /** "Refresco coherente" tras cualquier acción B6 exitosa (13_Handoff_Fase_B_Claude.md §7):
+   *  cache de partidos, Nivel propio, badge/lista de notificaciones y, si el Resumen de ESTE
+   *  partido sigue abierto, su bloque de acciones — todo server-backed, nunca lógica local. */
+  async function afterB6Action(matchId) {
+    await refreshServerMatches();
+    if (Auth && Auth.isConfigured()) {
+      const profile = await Auth.fetchOwnProfile();
+      if (profile) { Store.cacheServerUser(profile); syncServerLevelState(profile); }
+    }
+    if (!$('#view-player-home').hidden) renderPlayerHome();
+    if (!$('#view-history').hidden) renderHistory();
+    if (!$('#view-notifications').hidden) renderNotificationsScreenServerBacked();
+    else renderNotificationsBadge();
+    if (matchId && !$('#view-analysis').hidden && analysisCurrent && analysisCurrent.matchId === matchId) {
+      await renderB6Actions(analysisCurrent);
+    }
+  }
+
+  /** Pinta el bloque de acciones B6 del Resumen con lo que YA se tiene (`f`, snapshot de lista
+   *  o de la creación reciente) y, en paralelo, relee `get_match_detail` para refinarlo con el
+   *  detalle completo (openIdentityIssues/actions/pendingCorrectionRevisionId con team/position,
+   *  que `get_my_matches` no trae) — quién tiene la acción puede haber cambiado mientras el
+   *  usuario miraba otra pantalla, nunca se confía en un snapshot viejo para decidir qué botón
+   *  mostrar. */
+  async function renderB6Actions(f) {
+    const section = $('#analysis-b6-actions');
+    if (!f || !f.serverBacked) { section.hidden = true; return; }
+    section.hidden = false;
+    paintB6Actions(f);
+    if (!Matches || !Matches.isConfigured()) return;
+    const result = await Matches.getMatchDetail(f.matchId);
+    if (!result.ok || !result.match) return;
+    // Pudo haberse navegado a otro partido mientras se esperaba esta respuesta.
+    if (!analysisCurrent || analysisCurrent.matchId !== f.matchId) return;
+    paintB6Actions(MSync.translateServerMatchToLocalShape(result.match));
+  }
+
+  function paintB6Actions(f) {
+    b6ReportIdentityMatch = f;
+    const banner = $('#b6-status-banner');
+    const bannerText = $('#b6-status-banner-text');
+    const confirmBlock = $('#b6-confirm-block');
+    const identityBlock = $('#b6-identity-block');
+    const identityList = $('#b6-identity-list');
+    const proposeBlock = $('#b6-propose-correction-block');
+    const reportBlock = $('#b6-report-identity-block');
+    const respondBlock = $('#b6-respond-correction-block');
+    const respondText = $('#b6-respond-correction-text');
+
+    banner.hidden = true; banner.classList.remove('b6-banner--waiting');
+    confirmBlock.hidden = true;
+    identityBlock.hidden = true;
+    proposeBlock.hidden = true;
+    reportBlock.hidden = true;
+    respondBlock.hidden = true;
+
+    if (f.status === 'expired') {
+      banner.hidden = false; banner.classList.add('b6-banner--waiting');
+      bannerText.textContent = 'Este partido venció sin validarse a tiempo. Queda registrado, pero no computa para Nivel ni estadísticas oficiales.';
+      return;
+    }
+    if (f.status === 'annulled') {
+      banner.hidden = false; banner.classList.add('b6-banner--waiting');
+      bannerText.textContent = 'Este partido fue anulado administrativamente.';
+      return;
+    }
+
+    const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
+    if (openIssues.length) {
+      identityBlock.hidden = false;
+      identityList.innerHTML = openIssues.map((issue) => {
+        const slot = b6PlayerAt(f, issue.team, issue.positionInTeam);
+        const label = slot && slot.userId ? (slot.name || 'Este lugar') : 'Por identificar';
+        return `
+          <div class="b6-identity-row">
+            <span class="b6-identity-row__label">${escapeHtml(label)}<small>Identidad cuestionada</small></span>
+            <button type="button" class="btn-mini" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">RESOLVER</button>
+          </div>`;
+      }).join('');
+      $all('#b6-identity-list [data-issue-id]').forEach((btn) => {
+        btn.onclick = () => openIdentityResolveSheet({
+          issueId: btn.dataset.issueId, matchId: f.matchId,
+          team: btn.dataset.team, positionInTeam: Number(btn.dataset.position),
+        }, f);
+      });
+    }
+
+    if (f.status === 'pending_validation') {
+      if (f.isActionMine && !openIssues.length) {
+        banner.hidden = false;
+        bannerText.textContent = 'Te toca confirmar este resultado.';
+        confirmBlock.hidden = false;
+      } else if (f.actionSide && !openIssues.length) {
+        const waitingTeam = S.teamLabel(f.players, f.actionSide);
+        banner.hidden = false; banner.classList.add('b6-banner--waiting');
+        bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
+      }
+      reportBlock.hidden = false;
+      proposeBlock.hidden = !!openIssues.length; // sin los 4 IDs reales no hay revisión posible.
+      return;
+    }
+
+    if (f.status === 'validated') {
+      reportBlock.hidden = false;
+
+      // Corrección pendiente: se deriva quién la propuso desde el último match_actions
+      // 'revision_proposed' (get_match_detail#actions, solo disponible tras el refresco de
+      // detalle — ver renderB6Actions) — la propia RPC ya impide una segunda propuesta mientras
+      // haya una pendiente, así que la ÚLTIMA acción de ese tipo siempre corresponde a
+      // `pendingCorrectionRevisionId` vigente.
+      let proposedByTeam = null;
+      if (f.pendingCorrectionRevisionId && Array.isArray(f.actionsRaw)) {
+        const proposals = f.actionsRaw.filter((a) => a.actionType === 'revision_proposed');
+        proposedByTeam = proposals.length ? proposals[proposals.length - 1].actingSide : null;
+      }
+
+      if (proposedByTeam && f.myTeam && proposedByTeam !== f.myTeam) {
+        respondBlock.hidden = false;
+        respondText.textContent = `${S.teamLabel(f.players, proposedByTeam)} propuso una corrección del resultado. ¿La aceptás?`;
+        proposeBlock.hidden = true;
+      } else if (proposedByTeam) {
+        banner.hidden = false;
+        bannerText.textContent = 'Tu propuesta de corrección está esperando respuesta de la otra pareja.';
+        proposeBlock.hidden = true;
+      } else if (!f.pendingCorrectionRevisionId) {
+        if (!openIssues.length) {
+          banner.hidden = false;
+          bannerText.textContent = 'Partido oficial.';
+        }
+        proposeBlock.hidden = !!openIssues.length;
+      } else {
+        // pendingCorrectionRevisionId existe pero `actionsRaw` todavía no llegó (primer pintado
+        // con el snapshot de lista, antes del refresco de detalle) — no se muestra ningún botón
+        // todavía para no arriesgar mostrar "Proponer corrección" mientras ya hay una pendiente.
+        proposeBlock.hidden = true;
+      }
+    }
+  }
+
+  /* ---- Confirmar ---- */
+  function initB6ConfirmButton() {
+    $('#b6-confirm-btn').addEventListener('click', async () => {
+      if (!analysisCurrent) return;
+      const matchId = analysisCurrent.matchId;
+      const btn = $('#b6-confirm-btn');
+      btn.disabled = true;
+      const result = await MV.officializeMatch(matchId);
+      btn.disabled = false;
+      if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+      showToast('Partido confirmado.');
+      await afterB6Action(matchId);
+    });
+  }
+
+  /* ---- No participé ---- */
+  function openReportIdentityPicker() {
+    const f = b6ReportIdentityMatch;
+    if (!f) return;
+    const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
+    const blocked = new Set(openIssues.map((i) => `${i.team}:${i.positionInTeam}`));
+    const slots = b6AllSlots(f).filter((s) => !blocked.has(`${s.team}:${s.positionInTeam}`));
+    if (!slots.length) { showToast('No hay ningún lugar disponible para cuestionar.', 2400); return; }
+    $('#report-identity-list').innerHTML = slots.map((s) => `
+      <button type="button" class="b6-slot-option" data-team="${escapeHtml(s.team)}" data-position="${s.positionInTeam}">
+        <span>${escapeHtml(s.name)}</span>
+        <span class="b6-slot-option__team">Equipo ${s.team === 'A' ? '1' : '2'}</span>
+      </button>`).join('');
+    $all('#report-identity-list .b6-slot-option').forEach((btn) => {
+      btn.onclick = () => {
+        $('#report-identity-overlay').hidden = true;
+        confirmReportIdentity(f.matchId, btn.dataset.team, Number(btn.dataset.position), btn.querySelector('span').textContent);
+      };
+    });
+    $('#report-identity-overlay').hidden = false;
+  }
+  function confirmReportIdentity(matchId, team, positionInTeam, name) {
+    confirmAction(
+      '¿Confirmás que no participó?',
+      `Vas a indicar que la identidad cargada para ${name} en este partido es incorrecta. El partido sigue existiendo — se va a pedir corregir quién ocupaba ese lugar.`,
+      async () => {
+        const result = await MV.reportIdentityIssue(matchId, team, positionInTeam, null);
+        if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+        showToast('Identidad cuestionada.');
+        await afterB6Action(matchId);
+      },
+      null, 'Sí, no participó', 'Cancelar', true
+    );
+  }
+
+  /* ---- Resolver identidad ---- */
+  function openIdentityResolveSheet(issue, f) {
+    b6IdentityResolveIssue = issue;
+    b6IdentityResolveExcludedIds = (f.players || []).map((p) => p.userId).filter(Boolean);
+    $('#identity-resolve-search').value = '';
+    renderIdentityResolveResults('');
+    $('#identity-resolve-scrim').hidden = false;
+  }
+  function closeIdentityResolveSheet() {
+    $('#identity-resolve-scrim').hidden = true;
+    b6IdentityResolveIssue = null;
+  }
+  function buildIdentityResolveRowHTML(displayName, playerId, kind) {
+    return `<button type="button" class="player-row" data-player-id="${escapeHtml(playerId)}" data-kind="${kind}">
+      <span class="player-row__avatar">${escapeHtml(playerInitials(displayName))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(displayName)}</span>
+        <span class="player-row__handle">${kind === 'provisional' ? 'Invitado' : ''}</span>
+      </span>
+    </button>`;
+  }
+  async function renderIdentityResolveResults(query) {
+    const requestId = ++b6IdentityResolveRequestId;
+    const trimmed = (query || '').trim();
+    const excluded = b6IdentityResolveExcludedIds;
+    const [relatedResult, myProvResult, searchResult] = await Promise.all([
+      Matches.listRelatedProvisionalPlayers(),
+      Auth.listMyProvisionalPlayers(),
+      trimmed.length >= 2 ? Auth.searchPlayers(trimmed) : Promise.resolve({ ok: true, players: [] }),
+    ]);
+    if (requestId !== b6IdentityResolveRequestId) return; // respuesta tardía, el sheet ya cambió
+    const provisionalById = new Map();
+    (relatedResult.ok ? relatedResult.players : []).forEach((p) => provisionalById.set(p.player_id, p));
+    (myProvResult.ok ? myProvResult.players : []).forEach((p) => { if (!provisionalById.has(p.player_id)) provisionalById.set(p.player_id, p); });
+    const queryLower = trimmed.toLocaleLowerCase('es');
+    const provisionals = Array.from(provisionalById.values())
+      .filter((p) => !excluded.includes(p.player_id))
+      .filter((p) => !queryLower || (p.display_name || '').toLocaleLowerCase('es').includes(queryLower));
+    const realRows = (searchResult.ok ? searchResult.players : []).filter((r) => !excluded.includes(r.player_id));
+
+    let html = '';
+    if (provisionals.length) html += provisionals.map((p) => buildIdentityResolveRowHTML(p.display_name || 'Invitado', p.player_id, 'provisional')).join('');
+    if (realRows.length) html += realRows.map((r) => buildIdentityResolveRowHTML(r.display_name || r.username || 'Jugador', r.player_id, 'registered')).join('');
+
+    $('#identity-resolve-list').innerHTML = html;
+    $('#identity-resolve-empty').hidden = !!html;
+    $all('#identity-resolve-list .player-row').forEach((btn) => {
+      btn.onclick = () => selectIdentityReplacement(btn.dataset.playerId, btn.querySelector('.player-row__name').textContent);
+    });
+  }
+  async function createIdentityResolveProvisionalAndSelect(name) {
+    const result = await Auth.createProvisionalPlayer(name);
+    if (!result.ok) { showToast('No se pudo crear el invitado. Probá de nuevo.', 2600); return; }
+    selectIdentityReplacement(result.player.player_id, result.player.display_name || name);
+  }
+  async function selectIdentityReplacement(playerId, displayName) {
+    const issue = b6IdentityResolveIssue;
+    if (!issue) return;
+    closeIdentityResolveSheet();
+    const result = await MV.resolveIdentityIssue(issue.issueId, { replacementPlayerId: playerId });
+    if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+    showToast(`${displayName} queda como el jugador correcto.`);
+    await afterB6Action(issue.matchId);
+  }
+  function initIdentityResolveSheet() {
+    $('#identity-resolve-close').addEventListener('click', closeIdentityResolveSheet);
+    $('#identity-resolve-scrim').addEventListener('click', (e) => { if (e.target === $('#identity-resolve-scrim')) closeIdentityResolveSheet(); });
+    $('#identity-resolve-search').addEventListener('input', (e) => {
+      clearTimeout(b6IdentityResolveSearchTimer);
+      const value = e.target.value;
+      b6IdentityResolveSearchTimer = setTimeout(() => renderIdentityResolveResults(value), 250);
+    });
+  }
+
+  /* ---- Proponer corrección ---- */
+  function openProposeCorrection(f) {
+    b6CorrectionMatch = f;
+    b6CorrectionSetCount = (f.sets || []).length || 1;
+    const wrap = $('#propose-correction-sets');
+    wrap.innerHTML = (f.sets || []).map((s, i) => `
+      <div class="b6-correction-set">
+        <span class="b6-correction-set__label">SET ${i + 1}</span>
+        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="a" value="${Number.isFinite(s.gamesA) ? s.gamesA : ''}" />
+        <span class="b6-correction-set__sep">–</span>
+        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="b" value="${Number.isFinite(s.gamesB) ? s.gamesB : ''}" />
+      </div>`).join('');
+    $('#propose-correction-error').hidden = true;
+    $('#propose-correction-scrim').hidden = false;
+  }
+  function closeProposeCorrection() {
+    $('#propose-correction-scrim').hidden = true;
+    b6CorrectionMatch = null;
+  }
+  async function submitProposeCorrection() {
+    const f = b6CorrectionMatch;
+    if (!f) return;
+    const format = E.FORMATS[f.formatId] || E.FORMATS.classic;
+    const sets = [];
+    for (let i = 0; i < b6CorrectionSetCount; i++) {
+      const aInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="a"]`);
+      const bInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="b"]`);
+      const gamesA = Number(aInput.value), gamesB = Number(bInput.value);
+      if (!Number.isFinite(gamesA) || !Number.isFinite(gamesB) || !E.isValidCompletedSetScore(gamesA, gamesB, format)) {
+        $('#propose-correction-error').textContent = `El Set ${i + 1} no tiene un resultado válido.`;
+        $('#propose-correction-error').hidden = false;
+        return;
+      }
+      sets.push({ gamesA, gamesB, tiebreakA: null, tiebreakB: null });
+    }
+    $('#propose-correction-error').hidden = true;
+    const btn = $('#propose-correction-submit');
+    btn.disabled = true;
+    let result;
+    if (f.status === 'validated') {
+      result = await MV.proposeMatchCorrection(f.matchId, sets);
+    } else {
+      // Pre-validación (Experiencia_Inicial.md §12.1): el "mecanismo de revisión vigente" es
+      // el mismo create_or_attach_match de Bloque 5 — reenviar con los mismos 4 participantes
+      // reales y el score corregido crea una nueva revisión y pasa la acción al otro lado. La
+      // orientación A/B la resuelve el servidor desde match_participants ya almacenada (C-04),
+      // nunca se recalcula acá — alcanza con mandar cada equipo con SUS propios games.
+      const teamA = b6PlayersOfTeam(f, 'A'), teamB = b6PlayersOfTeam(f, 'B');
+      result = await Matches.createOrAttach({
+        pair1PlayerIds: [teamA[0] && teamA[0].userId, teamA[1] && teamA[1].userId],
+        pair2PlayerIds: [teamB[0] && teamB[0].userId, teamB[1] && teamB[1].userId],
+        rawSets: sets.map((s) => ({ a: s.gamesA, b: s.gamesB, tiebreakA: s.tiebreakA, tiebreakB: s.tiebreakB })),
+        formatId: f.formatId,
+        playedAtIso: f.playedAt,
+        playedAtTimeKnown: f.timeKnown,
+        reportedTimeZone: f.timeZone,
+        scoringSystem: f.scoringSystem,
+        locationName: f.location && f.location.name,
+        locationLat: f.location && f.location.lat,
+        locationLng: f.location && f.location.lng,
+      });
+    }
+    btn.disabled = false;
+    if (!result || result.ok === false) {
+      $('#propose-correction-error').textContent = b6ErrorMessage(result && result.code);
+      $('#propose-correction-error').hidden = false;
+      return;
+    }
+    closeProposeCorrection();
+    showToast('Corrección propuesta.');
+    await afterB6Action(f.matchId);
+  }
+  function initProposeCorrectionSheet() {
+    $('#propose-correction-close').addEventListener('click', closeProposeCorrection);
+    $('#propose-correction-scrim').addEventListener('click', (e) => { if (e.target === $('#propose-correction-scrim')) closeProposeCorrection(); });
+    $('#propose-correction-submit').addEventListener('click', submitProposeCorrection);
+  }
+
+  /* ---- Responder corrección ---- */
+  function initB6RespondButtons() {
+    $('#b6-respond-accept-btn').addEventListener('click', async () => {
+      if (!analysisCurrent) return;
+      const matchId = analysisCurrent.matchId;
+      const result = await MV.respondMatchCorrection(matchId, true);
+      if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+      showToast('Corrección aceptada.');
+      await afterB6Action(matchId);
+    });
+    $('#b6-respond-reject-btn').addEventListener('click', () => {
+      if (!analysisCurrent) return;
+      const matchId = analysisCurrent.matchId;
+      confirmAction(
+        '¿Rechazar la corrección?',
+        'El resultado oficial actual se mantiene sin cambios.',
+        async () => {
+          const result = await MV.respondMatchCorrection(matchId, false);
+          if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+          showToast('Corrección rechazada.');
+          await afterB6Action(matchId);
+        },
+        null, 'Rechazar', 'Cancelar', true
+      );
+    });
+  }
+
+  function initB6ActionsSection() {
+    initB6ConfirmButton();
+    initB6RespondButtons();
+    initIdentityResolveSheet();
+    initProposeCorrectionSheet();
+    $('#b6-report-identity-btn').addEventListener('click', openReportIdentityPicker);
+    $('#report-identity-cancel').addEventListener('click', () => { $('#report-identity-overlay').hidden = true; });
+    $('#b6-propose-correction-btn').addEventListener('click', () => { if (analysisCurrent) openProposeCorrection(analysisCurrent); });
   }
 
   function renderAnalysis(f) {
@@ -2126,6 +2585,10 @@
     const statusLabel = serverMatchStatusLabel(f);
     $('#analysis-meta').textContent = buildMatchMetaLine(f) + (statusLabel ? ` · ${statusLabel}` : '');
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
+    // Backend Bloque 6 (Fase B) — pendientes/Confirmar/corrección/identidad. Nunca bloquea el
+    // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
+    // en paralelo con get_match_detail fresco (ver renderB6Actions).
+    renderB6Actions(f);
     $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
     const covNote = $('#analysis-coverage-note');
     const legalHTML = buildCoverageLegalHTML(f);
@@ -3330,7 +3793,7 @@
           </div>` : ''}
         </div>
         ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
-        ${serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--pending">${serverMatchStatusLabel(m)}</span>` : ''}
+        ${serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--${serverMatchStatusBadgeModifier(m)}">${serverMatchStatusLabel(m)}</span>` : ''}
       `;
       item.addEventListener('click', () => openCanonicalResumen(m, 'history'));
       wrap.appendChild(item);
@@ -5167,10 +5630,37 @@
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
 
+  /** Backend Bloque 6 (Fase B) — Experiencia_Inicial.md §9.1: superficie prioritaria cuando
+   *  existe AL MENOS un pendiente accionable (isActionMine, server-backed, pending_validation).
+   *  Un solo pendiente => copy puntual con el nombre de la pareja rival; más de uno => copy
+   *  genérico que lleva a Historial (nunca elige arbitrariamente cuál mostrar). */
+  function renderPlayerHomePendingBanner(displayMatches) {
+    const banner = $('#player-home-pending-banner');
+    const pending = (displayMatches || []).filter((m) => m.serverBacked && m.status === 'pending_validation' && m.isActionMine);
+    if (!pending.length) { banner.hidden = true; banner.onclick = null; return; }
+    banner.hidden = false;
+    if (pending.length === 1) {
+      const m = pending[0];
+      const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
+      const rivalNames = S.teamLabel(m.players, rivalTeam);
+      $('#player-home-pending-banner-text').textContent = `${rivalNames || 'Tu rival'} registró un partido en el que participaste.`;
+      $('#player-home-pending-banner-cta').textContent = 'REVISAR';
+      banner.onclick = () => openCanonicalResumen(m, 'player-home');
+    } else {
+      $('#player-home-pending-banner-text').textContent = `Tenés ${pending.length} partidos esperando tu confirmación.`;
+      $('#player-home-pending-banner-cta').textContent = 'VER PENDIENTES';
+      banner.onclick = () => openHistoryScreen('player-home');
+    }
+  }
+
   function renderPlayerHome() {
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
     renderNotificationsBadge();
+    // Backend Bloque 6 (Fase B) — refresco best-effort en segundo plano: el badge/banner ya
+    // pintados con el cache anterior se actualizan solos apenas llega la respuesta, sin
+    // bloquear el resto del render del Home.
+    refreshB6Notifications().then(renderNotificationsBadge);
     // Backend Bloque 5 (09_Resultado_Wiring_Frontend_Claude.md, §5/§6) — Home separa dos
     // fuentes: `matches` (SOLO computable, para Nivel/Efectividad/Actividad/Hitos/Tu momento —
     // ningún partido pendiente puede alterar una métrica oficial) y `displayMatches` (incluye
@@ -5190,6 +5680,7 @@
     const prefersReducedMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
     const shouldAnimate = !prefersReducedMotion;
 
+    renderPlayerHomePendingBanner(displayMatches);
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(displayMatches, matches);
@@ -5663,6 +6154,13 @@
     // Configurar partido, un acceso oculto y redundante con el "+" central.
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
+    // Backend Bloque 6 (Fase B) — el onclick real se reasigna en cada render (depende de
+    // cuántos pendientes haya, ver renderPlayerHomePendingBanner); acá solo se cablea el
+    // teclado UNA vez, delegando al onclick vigente en el momento de la tecla.
+    const pendingBanner = $('#player-home-pending-banner');
+    pendingBanner.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (pendingBanner.onclick) pendingBanner.onclick(); }
+    });
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
@@ -5692,13 +6190,53 @@
 
   /** V03.0.2 (§12) — Notificaciones: pantalla completa (reemplaza el popup "todavía no hay
    *  notificaciones" de Etapa 2). Modelo local por `userId` (Store.loadNotifications), nunca
-   *  por nombre visible. Agrupación cronológica descendente: Hoy / Esta semana / Anteriores. */
+   *  por nombre visible. Agrupación cronológica descendente: Hoy / Esta semana / Anteriores.
+   *  Backend Bloque 6 (Fase B) — para una cuenta server-backed, se MEZCLA con `get_notifications`
+   *  (tareas accionables derivadas + informativas persistidas, ver match-validation.js): la
+   *  bandeja local sigue existiendo tal cual para eventos puramente de cuenta (acceso completado,
+   *  contraseña cambiada) que nunca pasan por el servidor. */
   const NOTIF_CATEGORY_LABEL = { positive: 'Positivo', info: 'Informativo', pending: 'Pendiente', error: 'Error' };
+
+  // Cache de get_notifications — se refresca en los puntos de entrada reales (Home, abrir la
+  // bandeja, tras cualquier acción B6) y alimenta tanto el badge (síncrono) como la lista.
+  let b6NotificationsCache = [];
+
+  async function refreshB6Notifications() {
+    if (!isServerBackedSession() || !MV) { b6NotificationsCache = []; return; }
+    const result = await MV.getNotifications({ limit: 100 });
+    if (result.ok) b6NotificationsCache = result.notifications;
+  }
+
+  const B6_NOTIF_COPY = {
+    pending_review: { title: 'Partido pendiente', body: 'Tenés un partido esperando tu confirmación.', category: 'pending' },
+    correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen una corrección de resultado.', category: 'pending' },
+    identity_questioned: { title: 'Identidad cuestionada', body: 'Hay una identidad cuestionada en uno de tus partidos.', category: 'pending' },
+    match_validated: { title: 'Partido oficial', body: 'Tu partido ya quedó validado.', category: 'positive' },
+    correction_accepted: { title: 'Corrección aceptada', body: 'Se aceptó una corrección de resultado.', category: 'info' },
+    identity_resolved: { title: 'Identidad resuelta', body: 'Se resolvió una identidad cuestionada.', category: 'info' },
+    identity_unidentified: { title: 'Jugador no identificado', body: 'Un lugar quedó como Jugador no identificado — el resultado se conserva.', category: 'info' },
+    match_expired: { title: 'Partido vencido', body: 'Un partido venció sin validarse a tiempo.', category: 'error' },
+    admin_action: { title: 'Acción administrativa', body: 'Un administrador realizó una acción sobre un partido tuyo.', category: 'info' },
+  };
+  /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
+   *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
+   *  caminos de render distintos. `source`/`type` extra: el click handler los usa para saber
+   *  qué RPC llamar al marcar como leída (nunca la del otro origen). */
+  function mapB6Notification(n) {
+    const copy = B6_NOTIF_COPY[n.type] || { title: 'Notificación', body: '', category: 'info' };
+    return {
+      id: n.id, title: copy.title, body: copy.body, category: copy.category,
+      createdAt: n.createdAt, readAt: n.readAt, matchId: n.matchId,
+      source: 'server', type: n.type,
+    };
+  }
 
   function renderNotificationsBadge() {
     const user = Store.getCurrentUser();
+    const localCount = user ? Store.countUnreadNotifications(user.id) : 0;
+    const serverCount = b6NotificationsCache.filter((n) => !n.readAt).length;
+    const count = localCount + serverCount;
     const badge = $('#player-home-bell-badge');
-    const count = user ? Store.countUnreadNotifications(user.id) : 0;
     badge.hidden = count === 0;
     badge.textContent = count > 9 ? '9+' : String(count);
   }
@@ -5716,7 +6254,11 @@
 
   function renderNotificationsList() {
     const user = Store.getCurrentUser();
-    const list = user ? Store.loadNotifications(user.id) : [];
+    const localList = user ? Store.loadNotifications(user.id) : [];
+    // Bloque 6 — se derivan/traducen y se mezclan por fecha real, más reciente primero, sin
+    // importar el origen (local vs. servidor son invisibles para quien lee la bandeja).
+    const serverList = b6NotificationsCache.map(mapB6Notification);
+    const list = localList.concat(serverList).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     $('#notifications-empty').hidden = list.length > 0;
     if (!list.length) { $('#notifications-list').innerHTML = ''; return; }
     const groups = [];
@@ -5730,7 +6272,7 @@
       <div class="notif-group">
         <div class="notif-group__title">${g.label.toUpperCase()}</div>
         ${g.items.map((n) => `
-          <button type="button" class="notif-item notif-item--${n.category} ${n.readAt ? '' : 'is-unread'}" data-id="${n.id}">
+          <button type="button" class="notif-item notif-item--${n.category} ${n.readAt ? '' : 'is-unread'}" data-id="${escapeHtml(n.id)}" data-source="${n.source || 'local'}" data-match-id="${n.matchId ? escapeHtml(n.matchId) : ''}">
             <span class="notif-item__dot" aria-hidden="true"></span>
             <span class="notif-item__body">
               <span class="notif-item__title">${n.title}</span>
@@ -5753,25 +6295,57 @@
     } catch (e) { return ''; }
   }
 
-  function openNotificationsScreen() {
+  async function openNotificationsScreen() {
     if (!currentPlayerName) { openAccessFlow(); return; }
     renderNotificationsList();
     showView('notifications');
+    await refreshB6Notifications();
+    // El usuario pudo haber navegado a otra pantalla mientras se esperaba la respuesta.
+    if (!$('#view-notifications').hidden) { renderNotificationsList(); renderNotificationsBadge(); }
+  }
+
+  /** Re-pinta la bandeja YA ABIERTA con datos frescos — usada por afterB6Action (una acción B6
+   *  puede resolver/crear una tarea mientras el usuario tiene la bandeja abierta). */
+  async function renderNotificationsScreenServerBacked() {
+    await refreshB6Notifications();
+    renderNotificationsList();
+    renderNotificationsBadge();
+  }
+
+  /** Abre el Resumen de un partido por id (click en una notificación ligada a `matchId`) — SIEMPRE
+   *  relee get_match_detail, nunca asume un snapshot viejo. */
+  async function openMatchById(matchId) {
+    if (!matchId || !Matches) return;
+    const result = await Matches.getMatchDetail(matchId);
+    if (result.ok && result.match) openCanonicalResumen(MSync.translateServerMatchToLocalShape(result.match), 'player-home');
   }
 
   function initNotificationsScreen() {
     $('#notifications-back-btn').addEventListener('click', () => openPlayerHome());
-    $('#notifications-mark-all-btn').addEventListener('click', () => {
+    $('#notifications-mark-all-btn').addEventListener('click', async () => {
       const user = Store.getCurrentUser();
-      if (!user) return;
-      Store.markAllNotificationsRead(user.id);
-      renderNotificationsList();
-      renderNotificationsBadge();
+      if (user) Store.markAllNotificationsRead(user.id);
+      // Bloque 6 — solo afecta las notificaciones PERSISTIDAS informativas (nunca las tareas
+      // sintéticas: no tienen una fila real que marcar, get_notifications las sigue mostrando
+      // hasta que el estado real se resuelva).
+      if (isServerBackedSession() && MV) await MV.markAllNotificationsRead();
+      await renderNotificationsScreenServerBacked();
     });
-    $('#notifications-list').addEventListener('click', (e) => {
+    $('#notifications-list').addEventListener('click', async (e) => {
       const item = e.target.closest('.notif-item');
       if (!item) return;
       const id = item.dataset.id;
+      const source = item.dataset.source;
+      const matchId = item.dataset.matchId || null;
+      if (source === 'server') {
+        if (MV) await MV.markNotificationRead(id); // no-op silencioso para una tarea sintética
+        const cached = b6NotificationsCache.find((n) => n.id === id);
+        if (cached) cached.readAt = cached.readAt || new Date().toISOString();
+        item.classList.remove('is-unread');
+        renderNotificationsBadge();
+        if (matchId) { await openMatchById(matchId); return; }
+        return;
+      }
       Store.markNotificationRead(id);
       item.classList.remove('is-unread');
       renderNotificationsBadge();
@@ -9195,6 +9769,7 @@
     Store.migrateLegacyPlayerToUserIfNeeded();
     initConfirmModal();
     initAmbiguousMatchModal();
+    initB6ActionsSection();
     initAnalysisScreen();
     initHistoryScreen();
     initManualLoadScreen();

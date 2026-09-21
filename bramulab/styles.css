@@ -3178,3 +3178,79 @@ input, select{ font-family: inherit; }
 .player-card__calibration-bar{ height: 4px; border-radius: 999px; overflow:hidden; background: rgba(244,247,242,0.08); }
 .player-card__calibration-bar-fill{ display:block; height:100%; background: var(--gold); border-radius: 999px; transition: width var(--motion-base) var(--motion-ease); }
 .link-btn--danger{ color: var(--danger); }
+
+/* ==========================================================================
+   Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer
+   corrección/Responder corrección/No participé/identidad.
+   Experiencia_Inicial.md §9: acento lima/verde para lo ACCIONABLE (nunca
+   naranja — reservado a CALIBRANDO), tratamiento neutro para lo que solo
+   espera al otro lado. Reutiliza tokens/componentes ya existentes
+   (--brand-lime/--text-dim/--danger, .pastilla, .player-row, .overlay,
+   .bottom-sheet) — ninguna paleta nueva.
+   ========================================================================== */
+
+/* ---- Home: banner de pendiente accionable (§9.1) ---- */
+.player-home-pending-banner{
+  display:block; width:100%; text-align:left; cursor:pointer;
+  border-color: rgba(149,255,25,0.45);
+  background: linear-gradient(180deg, rgba(149,255,25,0.10) 0%, var(--ink-soft) 70%);
+}
+.player-home-pending-banner__title{
+  display:block; font-family: var(--font-display); font-weight: 800; font-size: 12px;
+  letter-spacing: 0.04em; color: var(--brand-lime); text-transform: uppercase;
+  /* Latido breve/sutil (§9.1) — respeta prefers-reduced-motion más abajo. */
+  animation: b6PendingPulse 2.4s ease-in-out infinite;
+}
+.player-home-pending-banner__text{ font-size: 13px; color: var(--paper); margin: 6px 0 10px; line-height:1.4; }
+.player-home-pending-banner__cta{
+  display:inline-block; font-size: 11px; font-weight: 800; letter-spacing:0.04em;
+  color: var(--ink-soft); background: var(--brand-lime); padding: 6px 14px; border-radius: var(--radius-pill);
+}
+@keyframes b6PendingPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
+@media (prefers-reduced-motion: reduce){ .player-home-pending-banner__title{ animation:none; } }
+
+/* ---- Historial: badge accionable vs. en espera (§9.3) ---- */
+.history-item__badge--action{
+  color: var(--ink-soft); background: var(--brand-lime); font-weight: 800;
+}
+.history-item__badge--identity{ color: var(--danger); background: rgba(255,91,97,0.12); }
+
+/* ---- Resumen del partido: bloque de acciones B6 ---- */
+.b6-actions{ display:flex; flex-direction:column; gap: 12px; }
+.b6-banner{
+  border: 1px solid rgba(149,255,25,0.35); background: rgba(149,255,25,0.08);
+  border-radius: var(--radius-control); padding: 10px 12px;
+}
+.b6-banner--waiting{ border-color: var(--line); background: rgba(244,247,242,0.04); }
+.b6-banner__text{ font-size: 13px; color: var(--paper); line-height:1.4; margin:0; }
+.b6-action-block{ display:flex; flex-direction:column; gap: 8px; }
+.b6-action-row{ display:flex; gap: 10px; }
+.b6-action-block--identity{
+  border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
+  border-radius: var(--radius-control); padding: 10px 12px;
+}
+.b6-identity-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 6px 0; }
+.b6-identity-row + .b6-identity-row{ border-top: 1px solid rgba(255,91,97,0.18); }
+.b6-identity-row__label{ font-size: 13px; color: var(--paper); }
+.b6-identity-row__label small{ display:block; font-size: 11px; color: var(--text-dim); margin-top:2px; }
+
+/* ---- "No participé": lista de 4 lugares dentro de .overlay__card ---- */
+.b6-slot-list{ display:flex; flex-direction:column; gap: 6px; margin: 12px 0; text-align:left; }
+.b6-slot-option{
+  display:flex; align-items:center; justify-content:space-between; width:100%;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control);
+  padding: 10px 12px; color: var(--paper); font-size: 13px; cursor:pointer;
+}
+.b6-slot-option:active{ background: rgba(149,255,25,0.08); }
+.b6-slot-option__team{ font-size: 11px; color: var(--text-dim); }
+
+/* ---- Proponer corrección: editor mínimo de games por set ---- */
+.b6-correction-sets{ display:flex; flex-direction:column; gap: 10px; padding: 12px 16px; }
+.b6-correction-set{ display:flex; align-items:center; gap: 10px; }
+.b6-correction-set__label{ width: 56px; font-size: 12px; color: var(--text-dim); text-transform:uppercase; letter-spacing:.03em; }
+.b6-correction-set input{
+  width: 56px; text-align:center; font-size: 18px; font-weight:700; color: var(--paper);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-control);
+  padding: 8px 0;
+}
+.b6-correction-set__sep{ color: var(--text-dim); font-size: 16px; }

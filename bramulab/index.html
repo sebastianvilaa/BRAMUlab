@@ -58,6 +58,35 @@
            compartida por carga manual/Historial (ver renderAnalysis en app.js). -->
       <p id="analysis-meta" class="analysis-meta"></p>
       <section class="analysis-section" id="analysis-result"></section>
+      <!-- Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer corrección/
+           Responder corrección/No participé/identidad. Vive pegado al resultado, arriba de
+           Intelligence: "qué necesita hacer el jugador" es lo primero que se lee al abrir un
+           partido server-backed (13_Handoff_Fase_B_Claude.md — prioridad de UX). Oculta por
+           completo para un partido local/outbox (ver renderB6Actions en app.js). -->
+      <section class="analysis-section b6-actions" id="analysis-b6-actions" hidden>
+        <div class="b6-banner" id="b6-status-banner" hidden>
+          <p class="b6-banner__text" id="b6-status-banner-text"></p>
+        </div>
+        <div class="b6-action-block b6-action-block--identity" id="b6-identity-block" hidden>
+          <div id="b6-identity-list"></div>
+        </div>
+        <div class="b6-action-block" id="b6-respond-correction-block" hidden>
+          <p class="b6-banner__text" id="b6-respond-correction-text"></p>
+          <div class="b6-action-row">
+            <button type="button" class="btn-start" id="b6-respond-accept-btn" style="flex:1">ACEPTAR</button>
+            <button type="button" class="btn-secondary" id="b6-respond-reject-btn" style="flex:1">RECHAZAR</button>
+          </div>
+        </div>
+        <div class="b6-action-block" id="b6-confirm-block" hidden>
+          <button type="button" class="btn-start" id="b6-confirm-btn" style="width:100%">CONFIRMAR PARTIDO</button>
+        </div>
+        <div class="b6-action-block" id="b6-propose-correction-block" hidden>
+          <button type="button" class="btn-secondary btn-secondary--accent" id="b6-propose-correction-btn" style="width:100%">PROPONER CORRECCIÓN</button>
+        </div>
+        <div class="b6-action-block" id="b6-report-identity-block" hidden>
+          <button type="button" class="link-btn" id="b6-report-identity-btn">No participé / una identidad cargada es incorrecta</button>
+        </div>
+      </section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
            manuales) pegada al resultado, nunca colgando lejos bajo Intelligence. -->
       <p id="analysis-coverage-note" class="coverage-note coverage-note--center" hidden></p>
@@ -498,6 +527,17 @@
       </div>
     </div>
     <div class="analysis-scroll player-home-scroll">
+
+      <!-- Backend Bloque 6 (Fase B) — Experiencia_Inicial.md §9.1: cuando existe un pendiente
+           accionable, el carrusel superior es la superficie prioritaria. Acento lima/verde más
+           intenso que un destacado informativo común (nunca naranja: reservado a CALIBRANDO),
+           CTA claro hacia el partido. Toda la tarjeta es tocable — mismo patrón que
+           player-home-last-match-card. Oculta por completo sin pendientes accionables. -->
+      <div class="pastilla player-home-pending-banner" id="player-home-pending-banner" hidden role="button" tabindex="0">
+        <span class="player-home-pending-banner__title" id="player-home-pending-banner-title">PARTIDO PENDIENTE</span>
+        <p class="player-home-pending-banner__text" id="player-home-pending-banner-text"></p>
+        <span class="player-home-pending-banner__cta" id="player-home-pending-banner-cta">REVISAR</span>
+      </div>
 
       <!-- §5 — Hitos personales: franja horizontal desplazable, solo con al menos un hito
            justificado por la historia real (PH.computeHitos). Oculta por completo si no hay
@@ -2250,6 +2290,82 @@
   </div>
 
   <!-- ============================================================
+       Backend Bloque 6 (Fase B) — "No participé": elegir CUÁL de los 4 lugares tiene la
+       identidad incorrecta (Experiencia_Inicial.md §13: cualquier participante puede
+       denunciarlo, no hace falta que sea el propio jugador mal asociado). Mismo patrón mínimo
+       que #ambiguous-match-overlay — una lista de opciones dentro de .overlay__card. La
+       confirmación final reutiliza #confirm-overlay (confirmAction), ver
+       openReportIdentityPicker en app.js.
+       ============================================================ -->
+  <div id="report-identity-overlay" class="overlay" hidden>
+    <div class="overlay__card overlay__card--wide">
+      <div class="overlay__title">¿Quién no participó?</div>
+      <p class="overlay__text">Elegí el lugar cuya identidad cargada es incorrecta. El partido sigue existiendo — solo se corrige quién ocupaba ese lugar.</p>
+      <div id="report-identity-list" class="b6-slot-list"></div>
+      <div class="overlay__actions">
+        <button id="report-identity-cancel" class="btn-secondary" type="button">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Backend Bloque 6 (Fase B) — resolver una identidad cuestionada: elegir un reemplazo
+       real (registrado o provisional seleccionable, B6-B-05) para el lugar cuestionado. Mismo
+       componente de fila (.player-row) y misma fuente de datos (Matches.
+       listRelatedProvisionalPlayers/Auth.listMyProvisionalPlayers/Auth.searchPlayers) que la
+       hoja "Elegir jugador" de la carga de partido (#load-player-sheet) — instancia PROPIA y
+       separada a propósito (nunca comparte estado con manualActiveSheetSlot/manualPlayerIds
+       de app.js, para no arriesgar una regresión en un flujo ya validado), ver
+       openIdentityResolveSheet en app.js.
+       ============================================================ -->
+  <div id="identity-resolve-scrim" class="sheet-scrim" hidden>
+    <div id="identity-resolve-sheet" class="bottom-sheet bottom-sheet--tall load-player-sheet" role="dialog" aria-modal="true" aria-label="Elegir reemplazo">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">¿QUIÉN JUGÓ REALMENTE?</span>
+        <button type="button" id="identity-resolve-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="player-search-field">
+        <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="identity-resolve-search" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" />
+      </div>
+      <div class="load-player-sheet__scroll" id="identity-resolve-scroll">
+        <div id="identity-resolve-list" class="load-player-sheet__list"></div>
+        <p id="identity-resolve-empty" class="load-player-sheet__empty" hidden>Escribí al menos 2 caracteres para buscar, o elegí un invitado.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       Backend Bloque 6 (Fase B) — Proponer corrección: editor MÍNIMO de resultado (solo
+       games por set, nunca participantes/formato/fecha — eso no se toca por este camino).
+       Reutiliza el mismo motor de validación de sets (engine.js#isValidCompletedSetScore) que
+       ya usa la carga manual, con un componente de entrada simple (inputs numéricos) en vez
+       del teclado completo de #view-manual-load: es un editor puntual de 1 a 3 valores, no una
+       carga nueva completa (13_Handoff_Fase_B_Claude.md: "reutilizar el editor de score
+       existente si encaja; no crear una UX paralela innecesaria" — se reutiliza la MISMA regla
+       de legalidad, la interacción se simplifica a propósito). Ver openProposeCorrection en
+       app.js.
+       ============================================================ -->
+  <div id="propose-correction-scrim" class="sheet-scrim" hidden>
+    <div id="propose-correction-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Proponer corrección">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">PROPONER CORRECCIÓN</span>
+        <button type="button" id="propose-correction-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="load-player-sheet__scroll">
+        <p class="overlay__text" style="padding:0 16px;">Corregí el resultado (games por set). Los participantes y el formato no cambian por acá.</p>
+        <div id="propose-correction-sets" class="b6-correction-sets"></div>
+        <p id="propose-correction-error" class="coverage-note" style="padding:0 16px;color:var(--danger);" hidden></p>
+        <div style="padding:12px 16px 20px;">
+          <button type="button" id="propose-correction-submit" class="btn-start" style="width:100%">ENVIAR CORRECCIÓN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        HOJA "CREAR GRUPO" — BRAMUlab_V03.4 (§4)
        Nombre + jugadores iniciales, en una sola hoja simple (sin wizard de varios pasos —
        el consolidado pide "flujo simple"). El buscador/lista reutiliza el mismo universo y
@@ -2470,6 +2586,10 @@
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
   <script src="matches.js?v=04.10-h15"></script>
   <script src="match-sync.js?v=04.10-h15"></script>
+  <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
+       corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
+       auth.js/matches.js. Inerte sin backend configurado. -->
+  <script src="match-validation.js?v=04.10-h15"></script>
   <script src="app.js?v=04.10-h15"></script>
 </body>
 </html>

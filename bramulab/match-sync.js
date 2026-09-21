@@ -156,6 +156,19 @@
       createdByPlayerId: row.createdByPlayerId || null,
       validatedAt: row.validatedAt || null,
       validationDeadlineAt: row.validationDeadlineAt || null,
+      myTeam: row.myTeam || null,
+      // Backend Bloque 6 (Fase B) — extensión de get_my_matches/get_match_detail. `get_my_matches`
+      // (Historial/Home) solo trae el booleano `hasOpenIdentityIssue`; `get_match_detail` (Resumen)
+      // trae además el detalle completo `openIdentityIssues` (team/position/deadline por slot) —
+      // se deriva el booleano desde el array cuando está disponible, nunca al revés (el array
+      // nunca se inventa desde el booleano). `pendingCorrectionRevisionId` viene igual de ambas.
+      pendingCorrectionRevisionId: row.pendingCorrectionRevisionId || null,
+      openIdentityIssues: Array.isArray(row.openIdentityIssues) ? row.openIdentityIssues : null,
+      hasOpenIdentityIssue: Array.isArray(row.openIdentityIssues) ? row.openIdentityIssues.length > 0 : !!row.hasOpenIdentityIssue,
+      // Solo get_match_detail la trae (get_my_matches no) — se usa para derivar client-side
+      // quién propuso la corrección post-validación pendiente (último 'revision_proposed'),
+      // ver paintB6Actions en app.js. `null` para cualquier fila que no la incluya.
+      actionsRaw: Array.isArray(row.actions) ? row.actions : null,
     };
   }
 
