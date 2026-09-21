@@ -1,7 +1,8 @@
 -- BRAMUlab — Bloque 6: officialize_match_validation — núcleo único de oficialización.
 --
 -- Ver docs/BRAMUlab/Implementacion/Backend/Bloque_06/{02_Analisis_Claude.md §3.1/§3.2/§3.3,
--- 03_Plan_Implementacion_Claude.md §1.4, 06_Revision_Fase_A_ChatGPT.md B6-A-07/08/09/11/12/13}.
+-- 03_Plan_Implementacion_Claude.md §1.4, 06_Revision_Fase_A_ChatGPT.md B6-A-07/08/09/11/12/13,
+-- 08_Revision_Central_Adicional.md B6-B-02/04/06}.
 -- Resumen del contrato:
 --
 -- NO recalcula nada — TODA la matemática (elegibilidad de ventana, expectativa, factores,
@@ -12,20 +13,25 @@
 --      distinta y adicional a la verificación de snapshots de Nivel) y lock de level_states en
 --      orden determinístico por player_id con verificación optimista contra el snapshot que el
 --      motor usó;
---   2) para trigger=correction_accepted / identity_resolved / identity_unidentified, hace
+--   2) para trigger=identity_resolved, reasigna match_participants + refresca
+--      participant_fingerprint (B6-B-04) ANTES de recalcular distinct_opponents (B6-B-06); para
+--      trigger=correction_accepted / identity_resolved / identity_unidentified, hace
 --      ATÓMICAMENTE, en la MISMA transacción que aplica Nivel, el movimiento de puntero de
---      revisión o la reasignación de participante/cierre de incidencia (B6-A-08/B6-A-09) — nunca
---      queda un estado a medias entre "el resultado ya cambió" y "Nivel todavía no";
---   3) revierte el match_level_results anterior si existe (marca reverted, nunca borra);
+--      revisión o el cierre de incidencia (B6-A-08/B6-A-09) — nunca queda un estado a medias
+--      entre "el resultado ya cambió" y "Nivel todavía no";
+--   3) revierte el match_level_results anterior si existe (marca reverted, nunca borra) — sin
+--      escribir un level_events aparte para eso (B6-B-02: cada jugador afectado ya recibe un
+--      evento con snapshot completo más abajo, en la misma transacción);
 --   4) persiste el nuevo match_level_results (+ match_level_result_players si eligible), con
 --      referencia de fórmula (formula_*, inmutable) y valores LIVE (mu/confidence/
---      evidence_units before/after, B6-A-04) separados;
+--      evidence_units before/after, B6-A-04/B6-B-01) separados;
 --   5) escribe los valores YA CALCULADOS en level_states, recalcula rated_matches por conteo
 --      directo y distinct_opponents contando CUALQUIER player_id rival de match_participants
 --      (registrado o provisional, nunca un slot NULL — B6-A-11), avanza/retrocede status de
 --      forma NO monotónica según la evidencia oficial vigente (B6-A-12), y recompone
 --      last_rated_at como actividad deportiva computable, no hora de escritura (B6-A-13);
---   6) escribe level_events/match_actions/notifications/pilot_events;
+--   6) escribe level_events (snapshot post-evento COMPLETO, incluido lastRatedAtAfter — B6-B-02)
+--      /match_actions/notifications/pilot_events;
 --   7) es idempotente por (match_id, revision_id, trigger, composición exacta de jugadores).
 --
 -- Único llamador: la rutina compartida `match-officialize-core.ts` — SOLO service_role.
@@ -193,17 +199,19 @@ begin
 
   -- ------------------------------------------------------------------
   -- Revertir el resultado anterior vigente (si existe) — nunca se borra, se marca reverted.
+  --
+  -- B6-B-02: acá NO se escribe un level_events por jugador. Todo jugador del resultado anterior
+  -- (viejo ∪ nuevo, ver PLMatchLevelEngine.computeLevelStateUpdates) recibe MÁS ABAJO, en la
+  -- MISMA transacción, un evento único con el snapshot post-operación COMPLETO — un segundo
+  -- evento acá, con el mismo `created_at` de transacción (now() es fijo por transacción en
+  -- Postgres) y solo `{revertedResultId}`, competía por el desempate de
+  -- get_player_level_state_as_of y podía devolver un estado roto. El resultado revertido sigue
+  -- siendo auditable por match_level_results.reverses_result_id/superseded_by_result_id.
   -- ------------------------------------------------------------------
   if v_existing_applied is not null then
     update public.match_level_results
       set effect_status = 'reverted', reverted_at = now()
       where result_id = v_existing_applied.result_id;
-
-    insert into public.level_events (player_id, event_type, algorithm_version, match_id, match_level_result_id, result)
-    select mlrp.player_id, 'match_correction_reversal', v_existing_applied.algorithm_version, p_match_id, v_existing_applied.result_id,
-      jsonb_build_object('revertedResultId', v_existing_applied.result_id)
-    from public.match_level_result_players mlrp
-    where mlrp.result_id = v_existing_applied.result_id;
   end if;
 
   -- ------------------------------------------------------------------
@@ -244,6 +252,22 @@ begin
       (rp->>'confidenceBefore')::numeric, (rp->>'confidenceAfter')::numeric,
       (rp->>'evidenceUnitsBefore')::numeric, (rp->>'evidenceUnitsAfter')::numeric
     from jsonb_array_elements(coalesce(p_result_players, '[]'::jsonb)) rp;
+  end if;
+
+  -- ------------------------------------------------------------------
+  -- B6-B-06 — para identity_resolved, el reemplazo de participante debe quedar escrito ANTES de
+  -- recalcular rated_matches/distinct_opponents (loop de abajo): si no, el conteo de los propios
+  -- RIVALES del jugador reemplazado podía leer ese slot todavía NULL/con el jugador viejo. Ocurre
+  -- en la MISMA transacción que todo lo demás — si algo falla después, Postgres revierte todo.
+  -- B6-B-04: el fingerprint se actualiza inmediatamente después, atómicamente.
+  -- ------------------------------------------------------------------
+  if p_trigger = 'identity_resolved' then
+    update public.match_participants set
+      player_id = p_identity_replacement_player_id,
+      display_name_snapshot = coalesce((select display_name from public.players where player_id = p_identity_replacement_player_id), 'Jugador')
+    where match_id = p_match_id and team = v_identity_issue.team and position_in_team = v_identity_issue.position_in_team;
+
+    perform public._bloque6_refresh_participant_fingerprint(p_match_id);
   end if;
 
   -- ------------------------------------------------------------------
@@ -325,7 +349,9 @@ begin
         'muAfter', (v_update->>'finalMu')::numeric,
         'confidenceAfter', (v_update->>'finalConfidence')::numeric,
         'evidenceUnitsAfter', (v_update->>'finalEvidenceUnits')::numeric,
-        'statusAfter', v_new_status
+        'statusAfter', v_new_status,
+        -- B6-B-02: imprescindible para que get_player_level_state_as_of pueda devolver lastRatedAt.
+        'lastRatedAtAfter', v_new_last_rated_at
       )
     );
   end loop;
@@ -333,7 +359,9 @@ begin
   -- ------------------------------------------------------------------
   -- B6-A-08/B6-A-09 — bookkeeping atómico específico de trigger, en la MISMA transacción que
   -- ya aplicó/revirtió Nivel: nunca queda un estado a medias entre "el resultado/participante ya
-  -- cambió" y "Nivel todavía no".
+  -- cambió" y "Nivel todavía no". La reasignación de match_participants de identity_resolved ya
+  -- ocurrió ARRIBA (B6-B-06, antes de recalcular distinct_opponents) — acá solo cierra la
+  -- incidencia, enlazando el resultado recién calculado.
   -- ------------------------------------------------------------------
   if p_trigger = 'correction_accepted' then
     update public.matches set
@@ -342,11 +370,6 @@ begin
       updated_at = now()
     where match_id = p_match_id;
   elsif p_trigger = 'identity_resolved' then
-    update public.match_participants set
-      player_id = p_identity_replacement_player_id,
-      display_name_snapshot = coalesce((select display_name from public.players where player_id = p_identity_replacement_player_id), 'Jugador')
-    where match_id = p_match_id and team = v_identity_issue.team and position_in_team = v_identity_issue.position_in_team;
-
     update public.match_identity_issues set
       status = 'resolved', resolved_player_id = p_identity_replacement_player_id, resolved_at = now(),
       reapplied_result_id = v_result_id, updated_at = now()
@@ -403,8 +426,10 @@ comment on function public.officialize_match_validation is
    matemática (motor JS compartido, incluida la diferencia neta) ya la hizo la Edge Function con
    bramulab/match-level-engine.js. SOLO service_role. Idempotente por (match_id, revision_id,
    trigger, composición de jugadores). Verifica revisión esperada (B6-A-07) y hace atómico el
-   bookkeeping de corrección/identidad con la aplicación de Nivel (B6-A-08/B6-A-09). Ver
-   02_Analisis_Claude.md §3.1-§3.3 y 06_Revision_Fase_A_ChatGPT.md.';
+   bookkeeping de corrección/identidad con la aplicación de Nivel (B6-A-08/B6-A-09). Para
+   identity_resolved, reasigna el participante + refresca el fingerprint ANTES de recalcular
+   distinct_opponents (B6-B-06/B6-B-04). Ver 02_Analisis_Claude.md §3.1-§3.3,
+   06_Revision_Fase_A_ChatGPT.md y 08_Revision_Central_Adicional.md.';
 
 revoke all on function public.officialize_match_validation(
   uuid, uuid, text, uuid, text, boolean, jsonb, text, integer,

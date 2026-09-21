@@ -109,6 +109,9 @@ begin
     display_name_snapshot = coalesce((select display_name from public.players where player_id = p_replacement_player_id), 'Jugador')
   where match_id = v_issue.match_id and team = v_issue.team and position_in_team = v_issue.position_in_team;
 
+  -- B6-B-04: mantiene participant_fingerprint sincronizado también en la vía administrativa.
+  perform public._bloque6_refresh_participant_fingerprint(v_issue.match_id);
+
   update public.match_identity_issues set status = 'resolved', resolved_player_id = p_replacement_player_id, resolved_at = now(), updated_at = now()
     where issue_id = p_issue_id;
 

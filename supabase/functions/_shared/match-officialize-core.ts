@@ -238,7 +238,12 @@ export async function officializeMatch(
           p_cutoff: cutoff,
         });
         if (asOf && Number.isFinite(asOf.mu) && Number.isFinite(asOf.confidence)) {
-          playerStates[playerId] = { mu: asOf.mu, confidence: asOf.confidence, state: MLE.mapLevelStateStatusToEngineState(asOf.status) };
+          // B6-B-02: la confidence histórica reconstruida es CRUDA (tal cual quedó escrita en su
+          // momento) — nunca se usa directamente como si ya fuera efectiva. Se le aplica la
+          // regla de inactividad (§10.3) usando su lastRatedAt histórico y la fecha del partido
+          // (cutoff), igual que a cualquier otro jugador conocido.
+          const effectiveConfidence = MLE.computeEffectiveConfidence(asOf.confidence, asOf.lastRatedAt, cutoff);
+          playerStates[playerId] = { mu: asOf.mu, confidence: effectiveConfidence, state: MLE.mapLevelStateStatusToEngineState(asOf.status) };
         }
         // Sin `asOf` (nunca tuvo Nivel antes de validatedAtIso): se lo deja sin entrada — se
         // trata como invitado sin Nivel conocido (Nivel_BRAMU_Formula_V1.5.md §13), nunca se
@@ -271,7 +276,6 @@ export async function officializeMatch(
       engineOutput,
       guestPlayerIds,
       currentLevelStatesByPlayerId: liveByPlayerId,
-      referenceIso: localMatch.playedAt,
     });
 
     const teamStrength = engineOutput ? engineOutput.teamStrength : null;

@@ -336,7 +336,6 @@ test('computeLevelStateUpdates: primera oficialización (sin resultado previo) a
     engineOutput: officialization.engineOutput,
     guestPlayerIds: officialization.guestPlayerIds,
     currentLevelStatesByPlayerId: live,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
 
   assert.equal(resultPlayers.length, 4);
@@ -371,7 +370,6 @@ test('computeLevelStateUpdates: revertir usa el MOVIMIENTO REAL (after-before), 
   const live = { p1: { mu: 10.00, confidence: 0.6244, evidenceUnits: 3.4 } };
   const { levelStateUpdates } = MLE.computeLevelStateUpdates({
     oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
   const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
   // Revertir el movimiento REAL (+0.05) desde 10.00 da 9.95 — si se usara deltaCapped (+0.20) a
@@ -393,7 +391,6 @@ test('computeLevelStateUpdates: revertir cerca del clamp inferior 1.0 también u
   const live = { p3: { mu: 1.00, confidence: 0.6244, evidenceUnits: 3.4 } };
   const { levelStateUpdates } = MLE.computeLevelStateUpdates({
     oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
   const p3Update = levelStateUpdates.find((u) => u.playerId === 'p3');
   assert.ok(Math.abs(p3Update.finalMu - 1.05) < 1e-9, `esperaba 1.05, obtuve ${p3Update.finalMu}`);
@@ -413,27 +410,29 @@ test('computeLevelStateUpdates: revertir restaura confidence EXACTAMENTE (movimi
   const live = { p1: { mu: 5.08, confidence: 0.6244, evidenceUnits: 3.4 } };
   const { levelStateUpdates } = MLE.computeLevelStateUpdates({
     oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
   const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
   assert.ok(Math.abs(p1Update.finalConfidence - 0.60) < 1e-9, `esperaba 0.60, obtuve ${p1Update.finalConfidence}`);
   assert.ok(Math.abs(p1Update.finalEvidenceUnits - 3.0) < 1e-9);
 });
 
-test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) revierte+reaplica con confianza incremental real', () => {
+test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) revierte+reaplica con confianza incremental real (B6-B-01)', () => {
   const first = firstOfficialization();
   const oldAppliedResult = {
+    // B6-B-01: el "before" LIVE de la primera aplicación es EXACTAMENTE la referencia de fórmula
+    // que el motor usó (p.confidenceBefore/p.muBefore) — sin decay de por medio (evenPlayerStates
+    // no tiene lastRatedAt), el valor LIVE antes de la primera vez que se computa un partido
+    // siempre coincide con lo que alimentó la fórmula.
     players: Object.keys(first.engineOutput.players)
       .filter((id) => !first.guestPlayerIds.includes(id))
       .map((id) => {
         const p = first.engineOutput.players[id];
-        const live = liveStates()[id];
-        // Simula que la primera oficialización ya se aplicó tal cual sobre el estado live base.
+        const evidenceUnits = liveStates()[id].evidenceUnits;
         return {
           playerId: id, team: p.team,
-          muBefore: live.mu, muAfter: Level.clampLevel(live.mu + p.deltaCapped),
-          confidenceBefore: live.confidence, confidenceAfter: Level.computeConfidenceAfterMatch(live.confidence, p.evidenceQuality),
-          evidenceUnitsBefore: live.evidenceUnits, evidenceUnitsAfter: live.evidenceUnits + p.evidenceQuality,
+          muBefore: p.muBefore, muAfter: p.muAfter,
+          confidenceBefore: p.confidenceBefore, confidenceAfter: p.confidenceAfter,
+          evidenceUnitsBefore: evidenceUnits, evidenceUnitsAfter: evidenceUnits + p.evidenceQuality,
         };
       }),
   };
@@ -443,7 +442,8 @@ test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) re
     liveAfterFirst[p.playerId] = { mu: p.muAfter, confidence: p.confidenceAfter, evidenceUnits: p.evidenceUnitsAfter };
   });
 
-  // Corrección: resultado más amplio (6-2, 6-2 en vez de 6-4, 6-4).
+  // Corrección: resultado más amplio (6-2, 6-2 en vez de 6-4, 6-4). Misma referencia de fórmula
+  // (evenPlayerStates) que la primera vez — "mismos snapshots previos" (Nivel_BRAMU_Formula_V1.5.md §12.3).
   const correctedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 2, gamesA2: 6, gamesB2: 2 });
   const correctedMatch = MatchSync.translateServerMatchToLocalShape(correctedRow);
   const corrected = MLE.computeOfficializationResult({
@@ -455,7 +455,6 @@ test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) re
     engineOutput: corrected.engineOutput,
     guestPlayerIds: corrected.guestPlayerIds,
     currentLevelStatesByPlayerId: liveAfterFirst,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
 
   assert.equal(resultPlayers.length, 4);
@@ -466,10 +465,14 @@ test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) re
   const expectedMuAfterRevert = Level.clampLevel(liveAfterFirst.p1.mu - (p1Old.muAfter - p1Old.muBefore));
   const expectedFinalMu = Level.clampLevel(expectedMuAfterRevert + p1New.deltaCapped);
   assert.ok(Math.abs(p1Update.finalMu - expectedFinalMu) < 1e-9);
-  // confidence: revertir movimiento real, reaplicar con la fórmula incremental real.
+  // B6-B-01: confidence NUNCA se rebasa sobre el valor live revertido — es EXACTAMENTE lo que el
+  // motor calculó desde su propia referencia de fórmula congelada (p1New.confidenceAfter).
+  assert.ok(Math.abs(p1Update.finalConfidence - p1New.confidenceAfter) < 1e-9);
+  const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
+  // El "before" LIVE persistido para la PRÓXIMA reversión es el valor revertido (0.9, sin decay
+  // en este escenario) — nunca la base de fórmula reaplicada dos veces.
   const expectedConfidenceAfterRevert = liveAfterFirst.p1.confidence - (p1Old.confidenceAfter - p1Old.confidenceBefore);
-  const expectedFinalConfidence = Level.computeConfidenceAfterMatch(expectedConfidenceAfterRevert, p1New.evidenceQuality);
-  assert.ok(Math.abs(p1Update.finalConfidence - expectedFinalConfidence) < 1e-9);
+  assert.ok(Math.abs(p1Result.confidenceBefore - expectedConfidenceAfterRevert) < 1e-9);
   assert.ok(p1New.deltaCapped >= p1Old.muAfter - p1Old.muBefore, 'resultado más amplio -> delta nuevo mayor o igual');
 });
 
@@ -516,7 +519,6 @@ test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado rev
     engineOutput: swapped.engineOutput,
     guestPlayerIds: swapped.guestPlayerIds,
     currentLevelStatesByPlayerId: liveAfterFirst,
-    referenceIso: '2026-01-01T00:00:00.000Z',
   });
 
   assert.ok(!resultPlayers.some((r) => r.playerId === 'p4'));
@@ -556,13 +558,79 @@ test('computeLevelStateUpdates: un jugador con decay por inactividad usa confian
     p1: { mu: 5.0, confidence: rawConfidence, evidenceUnits: 5.0, lastRatedAt: '2026-01-01T00:00:00.000Z' },
     p2: liveStates().p2, p3: liveStates().p3, p4: liveStates().p4,
   };
-  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+  const { levelStateUpdates, resultPlayers } = MLE.computeLevelStateUpdates({
     oldAppliedResult: null, engineOutput: officialization.engineOutput, guestPlayerIds: officialization.guestPlayerIds,
-    currentLevelStatesByPlayerId: live, referenceIso: inactiveReferenceIso,
+    currentLevelStatesByPlayerId: live,
   });
   const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
   // La confianza posterior nunca "recupera de golpe" el valor previo a la inactividad: sale de
   // la base EFECTIVA (decayeada), no de la cruda almacenada (0.80).
   const expectedFinal = Level.computeConfidenceAfterMatch(rawConfidence, officialization.engineOutput.players.p1.evidenceQuality);
   assert.ok(p1Update.finalConfidence < expectedFinal, 'no debe recuperar de golpe la confianza previa a la inactividad');
+  // B6-B-01: el "before" LIVE persistido para la próxima reversión es la confianza CRUDA
+  // original (0.80, antes de decay) — nunca la base decayeada que alimentó la fórmula. Esto es
+  // lo que permite que revertir restaure exactamente la confianza previa (ver el test dedicado
+  // más abajo).
+  const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
+  assert.ok(Math.abs(p1Result.confidenceBefore - rawConfidence) < 1e-9);
+});
+
+test('computeLevelStateUpdates: partido tras >60d de inactividad -> aplicar -> revertir -> confidence CRUDA original restaurada exactamente, decay se aplica una sola vez (B6-B-01)', () => {
+  const originalLastRatedAt = '2026-01-01T00:00:00.000Z';
+  const matchPlayedAt = '2026-08-01T00:00:00.000Z'; // ~212 días después, muy por encima de los 60 de gracia
+  const rawConfidence = 0.80;
+
+  const row = buildRow({ playedAt: matchPlayedAt, gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
+  const localMatch = MatchSync.translateServerMatchToLocalShape(row);
+  const playerStates = MLE.buildPlayerStatesDict([
+    { playerId: 'p1', mu: 5.0, confidence: rawConfidence, status: 'CALIBRADO', lastRatedAt: originalLastRatedAt },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p4', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], matchPlayedAt);
+
+  const officialization = MLE.computeOfficializationResult({
+    localMatch, history: [], playerStates, validatedAtIso: matchPlayedAt,
+  });
+  assert.equal(officialization.eligible, true);
+
+  // 1) Aplicar: p1 sale de un estado LIVE con confianza cruda 0.80 (todavía no persistida con
+  // decay — buildPlayerStatesDict solo ajustó la copia que alimentó al motor).
+  const liveBeforeApply = {
+    p1: { mu: 5.0, confidence: rawConfidence, evidenceUnits: 5.0, lastRatedAt: originalLastRatedAt },
+    p2: liveStates().p2, p3: liveStates().p3, p4: liveStates().p4,
+  };
+  const applied = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput, guestPlayerIds: officialization.guestPlayerIds,
+    currentLevelStatesByPlayerId: liveBeforeApply,
+  });
+  const p1AppliedResult = applied.resultPlayers.find((r) => r.playerId === 'p1');
+  const p1AppliedUpdate = applied.levelStateUpdates.find((u) => u.playerId === 'p1');
+  assert.ok(Math.abs(p1AppliedResult.confidenceBefore - rawConfidence) < 1e-9);
+
+  // 2) Simula que level_states quedó con el resultado de la aplicación (lo que escribiría
+  // officialize_match_validation).
+  const liveAfterApply = {
+    p1: { mu: p1AppliedUpdate.finalMu, confidence: p1AppliedUpdate.finalConfidence, evidenceUnits: p1AppliedUpdate.finalEvidenceUnits },
+  };
+
+  // 3) Revertir puro (equivalente a _bloque6_revert_applied_result): debe restaurar la confianza
+  // CRUDA original (0.80), nunca la base decayeada que se usó para calcular el delta.
+  const reverted = MLE.computeLevelStateUpdates({
+    oldAppliedResult: { players: [p1AppliedResult] },
+    engineOutput: null, guestPlayerIds: [],
+    currentLevelStatesByPlayerId: liveAfterApply,
+  });
+  const p1RevertedUpdate = reverted.levelStateUpdates.find((u) => u.playerId === 'p1');
+  assert.ok(Math.abs(p1RevertedUpdate.finalConfidence - rawConfidence) < 1e-9,
+    `esperaba la confianza cruda original ${rawConfidence}, obtuve ${p1RevertedUpdate.finalConfidence}`);
+
+  // 4) El siguiente partido, calculado desde la confianza cruda restaurada + el mismo
+  // lastRatedAt original, aplica el decay EXACTAMENTE UNA VEZ — nunca sobre una base que ya
+  // estaba decayeada (lo que habría pasado si confidenceBefore hubiera persistido la base
+  // decayeada en vez de la cruda).
+  const nextMatchPlayedAt = '2026-09-01T00:00:00.000Z';
+  const decayOnRestored = MLE.computeEffectiveConfidence(p1RevertedUpdate.finalConfidence, originalLastRatedAt, nextMatchPlayedAt);
+  const decayFromScratch = MLE.computeEffectiveConfidence(rawConfidence, originalLastRatedAt, nextMatchPlayedAt);
+  assert.ok(Math.abs(decayOnRestored - decayFromScratch) < 1e-9);
 });

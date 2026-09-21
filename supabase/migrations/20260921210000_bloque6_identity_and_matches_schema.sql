@@ -23,6 +23,9 @@
 --      para poder trazar cada delta hasta el partido/resultado que lo originó.
 --   4) `match_identity_issues` — ciclo de vida de una incidencia de identidad por slot. Único
 --      índice parcial: como máximo una incidencia `open` por slot a la vez.
+--   5) `_bloque6_refresh_participant_fingerprint(match_id)` — 08_Revision_Central_Adicional.md
+--      B6-B-04: mantiene matches.participant_fingerprint sincronizado con match_participants
+--      tras cualquier cambio de identidad, reutilizando exactamente el mismo hash de Bloque 5.
 
 -- ------------------------------------------------------------------
 -- 1) matches.pending_correction_revision_id
@@ -146,3 +149,67 @@ alter table public.match_identity_issues enable row level security;
 -- exclusiva vía RPC SECURITY DEFINER (get_match_detail extendida).
 
 grant select, insert, update, delete on table public.match_identity_issues to service_role;
+
+-- ------------------------------------------------------------------
+-- 5) _bloque6_refresh_participant_fingerprint — 08_Revision_Central_Adicional.md B6-B-04
+-- ------------------------------------------------------------------
+--
+-- Bloque 5 deduplica por participant_fingerprint (sha256 de los 4 player_id canonicalizados por
+-- pareja — ver create_or_attach_match). Bloque 6 modifica match_participants (identidad
+-- cuestionada/resuelta/no identificada) pero nunca actualizaba matches.participant_fingerprint:
+-- una carga posterior con los participantes correctos podía crear un duplicado, y una carga con
+-- la identidad incorrecta vieja todavía podía adjuntarse al partido. Definida ANTES de las RPCs
+-- que la invocan (officialize_match_validation/report_identity_issue/resolve_identity_issue/
+-- admin_force_resolve_identity_issue) para que el orden de migraciones quede limpio. Interna —
+-- sin GRANT a nadie, uso exclusivo de otras funciones SECURITY DEFINER de Bloque 6.
+create or replace function public._bloque6_refresh_participant_fingerprint(p_match_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_a1 uuid;
+  v_a2 uuid;
+  v_b1 uuid;
+  v_b2 uuid;
+  v_pair_a_key text;
+  v_pair_b_key text;
+  v_fingerprint text;
+begin
+  select
+    max(player_id) filter (where team = 'A' and position_in_team = 1),
+    max(player_id) filter (where team = 'A' and position_in_team = 2),
+    max(player_id) filter (where team = 'B' and position_in_team = 1),
+    max(player_id) filter (where team = 'B' and position_in_team = 2)
+    into v_a1, v_a2, v_b1, v_b2
+  from public.match_participants
+  where match_id = p_match_id;
+
+  if v_a1 is not null and v_a2 is not null and v_b1 is not null and v_b2 is not null then
+    -- EXACTAMENTE el mismo algoritmo que create_or_attach_match (Bloque 5) — nunca se
+    -- reimplementa distinto: ordenar IDs dentro de cada pareja, ordenar ambas parejas,
+    -- sha256(pairA|pairB).
+    v_pair_a_key := least(v_a1::text, v_a2::text) || ':' || greatest(v_a1::text, v_a2::text);
+    v_pair_b_key := least(v_b1::text, v_b2::text) || ':' || greatest(v_b1::text, v_b2::text);
+    v_fingerprint := encode(
+      extensions.digest(least(v_pair_a_key, v_pair_b_key) || '|' || greatest(v_pair_a_key, v_pair_b_key), 'sha256'),
+      'hex'
+    );
+  else
+    -- Al menos un slot sin identidad: centinela determinístico y único por match_id — jamás
+    -- coincide con un hash sha256 real (formato distinto, nunca 64 caracteres hex puros)
+    -- mientras exista un slot no identificado/open.
+    v_fingerprint := 'bloque6_unidentified:' || p_match_id::text;
+  end if;
+
+  update public.matches set participant_fingerprint = v_fingerprint, updated_at = now()
+    where match_id = p_match_id;
+end;
+$$;
+
+comment on function public._bloque6_refresh_participant_fingerprint is
+  'Recalcula matches.participant_fingerprint tras cualquier cambio de identidad de Bloque 6
+   (B6-B-04). Con los 4 player_id conocidos, EXACTAMENTE el mismo hash que create_or_attach_match
+   (Bloque 5) — nunca un algoritmo distinto. Con algún slot NULL, un centinela determinístico por
+   match_id que nunca colisiona con un hash real. Interno, sin GRANT.';

@@ -41,6 +41,14 @@
 //   Notificaciones — get_notifications trae el evento de match_validated para los 4 participantes.
 //   Seguridad   — anon no puede llamar ninguna RPC nueva de Bloque 6; admin_annul_match/
 //               admin_force_resolve_identity_issue rechazadas con un JWT de usuario normal.
+//   Identidad pre-validación (B6-B-03/04/05/07, 08_Revision_Central_Adicional.md) — resolver una
+//               identidad sobre un partido todavía pending_validation crea una nueva revisión
+//               append-only y pasa la acción a la pareja contraria (nunca muta directo); un
+//               jugador ajeno al partido no puede resolver aunque conozca el issueId;
+//               validation_deadline_at nunca se reinicia; participant_fingerprint pasa al
+//               centinela mientras el slot está sin identificar y vuelve al hash real al
+//               resolver; un partido pending_validation con la ventana de 30 días ya vencida
+//               rechaza report_identity_issue con match_expired.
 //   Regresión   — verify-bloque5.mjs (Bloque 5) se re-corre aparte y debe seguir en 100%; este
 //               script no lo reimplementa.
 
@@ -294,10 +302,15 @@ async function main() {
 
     const levelA1AfterResolve = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches,distinct_opponents,status`))?.[0] : null;
     report('rated_matches de A1 vuelve a 1 tras resolver la identidad', !!levelA1AfterResolve && levelA1AfterResolve.rated_matches === 1, JSON.stringify(levelA1AfterResolve));
-    // B6-A-11: player5 (reemplazo) es un rival DISTINTO de B1 — distinct_opponents de A1 debe
-    // contar a ambos (B1 del set original + player5 del set corregido), nunca deduplicar por
-    // "ya había un rival en este partido".
-    report('distinct_opponents de A1 cuenta a player5 como rival distinto (B6-A-11)', !!levelA1AfterResolve && levelA1AfterResolve.distinct_opponents >= 1, JSON.stringify(levelA1AfterResolve));
+    // B6-A-11/B6-B-06: A1 jugó contra B1 (set original) y contra player5 (reemplazo de B2) — dos
+    // rivales DISTINTOS. B6-B-06 exigía que la reasignación de match_participants quedara escrita
+    // ANTES de este recálculo: si el orden estuviera roto, este conteo daría 1 (solo B1), no 2.
+    report('distinct_opponents de A1 cuenta EXACTAMENTE a B1 + player5 (B6-A-11/B6-B-06)', !!levelA1AfterResolve && levelA1AfterResolve.distinct_opponents === 2, JSON.stringify(levelA1AfterResolve));
+
+    const matchFingerprintAfterResolve = matchId ? (await serviceGet(`matches?match_id=eq.${matchId}&select=participant_fingerprint`))?.[0] : null;
+    report('B6-B-04: participant_fingerprint vuelve a un hash real (64 hex) tras resolver con los 4 IDs conocidos',
+      !!matchFingerprintAfterResolve && /^[0-9a-f]{64}$/.test(matchFingerprintAfterResolve.participant_fingerprint || ''),
+      JSON.stringify(matchFingerprintAfterResolve));
   }
 
   const pendingCountA1 = await rpcAs(accounts.a1.accessToken, 'get_pending_action_count', {});
@@ -329,6 +342,99 @@ async function main() {
   const afterHide = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches`))?.[0] : null;
   report('ocultar el partido NO cambia rated_matches (hidden nunca toca la capa computable)', !!beforeHide && !!afterHide && beforeHide.rated_matches === afterHide.rated_matches, JSON.stringify({ beforeHide, afterHide }));
   await rpcAs(accounts.a1.accessToken, 'hide_match_for_me', { p_match_id: matchId, p_hidden: false });
+
+  // ------------------------------------------------------------------
+  // 4.3) B6-B-03/04/05/07 — identidad sobre un partido TODAVÍA pending_validation: conversación
+  //      entre parejas (nueva revisión append-only, nunca mutación directa), autorización de
+  //      participante actual, y ventana de 30 días sin reiniciarse.
+  // ------------------------------------------------------------------
+  const emailOutsider = `bramu-verify6-outsider-${stamp}@example.com`;
+  const createdOutsider = await adminCreateConfirmedUser(emailOutsider, 'Verificar#Bloque6!');
+  authIds.push(createdOutsider.id);
+  const sessionOutsider = await signIn(emailOutsider, 'Verificar#Bloque6!');
+  await ensureFullOnboarding(sessionOutsider.access_token, `v6out${stamp}`.slice(0, 20));
+  const outsiderPlayerId = await ownPlayerId(sessionOutsider.access_token);
+  if (outsiderPlayerId) playerIds.push(outsiderPlayerId);
+
+  // Mismos 4 jugadores, fecha bien alejada (>3h) de la del partido #1 -> fingerprint distinto,
+  // nunca colisiona con el partido ya validated de más arriba.
+  const playedAt2 = new Date(Date.now() - 5 * 86400000).toISOString();
+  const idem3 = crypto.randomUUID();
+  const created2 = await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem3,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 3 }, { a: 6, b: 3 }],
+    formatId: 'classic',
+    playedAtIso: playedAt2,
+    playedAtTimeKnown: true,
+  });
+  const match2Id = created2.json && created2.json.matchId;
+  if (match2Id) matchIds.push(match2Id);
+  report('partido #2 creado, sigue pending_validation (B no confirmó todavía)', !!match2Id && created2.json.status === 'pending_validation', JSON.stringify(created2.json));
+
+  const match2Before = match2Id ? (await serviceGet(`matches?match_id=eq.${match2Id}&select=action_side,current_revision_id,validation_deadline_at,participant_fingerprint`))?.[0] : null;
+  report('partido #2 arranca con action_side=B (equipo contrario al creador A1)', !!match2Before && match2Before.action_side === 'B', JSON.stringify(match2Before));
+
+  // B1 mismo indica que su propio slot está mal (Experiencia_Inicial.md §13.1/§13.2: no hace
+  // falta que sea otro quien lo detecte).
+  const report2 = await rpcAs(accounts.b1.accessToken, 'report_identity_issue', {
+    p_match_id: match2Id, p_team: 'B', p_position_in_team: 1, p_reason: 'Error de carga',
+  });
+  report('report_identity_issue sobre partido #2 (todavía pending_validation) -> identity_issue_opened', report2.json && report2.json.ok && report2.json.code === 'identity_issue_opened', JSON.stringify(report2.json));
+  const issueId2 = report2.json && report2.json.issueId;
+
+  const match2AfterReport = match2Id ? (await serviceGet(`matches?match_id=eq.${match2Id}&select=participant_fingerprint`))?.[0] : null;
+  report('B6-B-04: participant_fingerprint pasa al centinela mientras el slot está sin identificar', !!match2AfterReport && match2AfterReport.participant_fingerprint === `bloque6_unidentified:${match2Id}`, JSON.stringify(match2AfterReport));
+
+  if (issueId2) {
+    // B6-B-05: un jugador AJENO al partido (nunca fue participante) no puede resolver la
+    // incidencia, aunque conozca el issueId. resolve_identity_issue es SOLO service_role — se
+    // llama por la Edge Function (mismo camino que un cliente real), nunca por RPC directa.
+    const outsiderAttempt = await callFunction('resolve-identity-issue', sessionOutsider.access_token, {
+      issueId: issueId2, replacementPlayerId: player5Id,
+    });
+    report('B6-B-05: un jugador ajeno al partido no puede resolver la incidencia', outsiderAttempt.json && outsiderAttempt.json.ok === false && outsiderAttempt.json.code === 'not_a_participant', JSON.stringify(outsiderAttempt.json));
+
+    // B2 (pareja de B1, participante actual) resuelve reemplazando por player5 -> pasa la acción
+    // a la pareja CONTRARIA (A), nunca reinicia validation_deadline_at.
+    const resolve2 = await callFunction('resolve-identity-issue', accounts.b2.accessToken, {
+      issueId: issueId2, replacementPlayerId: player5Id,
+    });
+    report('B6-B-03: resolución pre-validación (B2, participante actual) -> identity_resolved', resolve2.json && resolve2.json.ok && resolve2.json.code === 'identity_resolved', JSON.stringify(resolve2.json));
+
+    const match2After = match2Id ? (await serviceGet(`matches?match_id=eq.${match2Id}&select=action_side,current_revision_id,validation_deadline_at,participant_fingerprint,status`))?.[0] : null;
+    report('B6-B-03: la acción pasa a la pareja CONTRARIA del actor (B2 actuó -> action_side=A)', !!match2After && match2After.action_side === 'A', JSON.stringify(match2After));
+    report('B6-B-03: current_revision_id cambió (nueva revisión append-only, nunca mutación directa)', !!match2After && !!match2Before && match2After.current_revision_id !== match2Before.current_revision_id, JSON.stringify({ before: match2Before, after: match2After }));
+    report('B6-B-07: validation_deadline_at NUNCA se reinicia por una corrección de identidad', !!match2After && !!match2Before && match2After.validation_deadline_at === match2Before.validation_deadline_at, JSON.stringify({ before: match2Before, after: match2After }));
+    report('B6-B-04: participant_fingerprint vuelve a un hash real (64 hex) tras resolver con los 4 IDs conocidos', !!match2After && /^[0-9a-f]{64}$/.test(match2After.participant_fingerprint || ''), JSON.stringify(match2After));
+    report('el partido #2 SIGUE pending_validation (identidad no oficializa por sí sola)', !!match2After && match2After.status === 'pending_validation', JSON.stringify(match2After));
+  }
+
+  // ------------------------------------------------------------------
+  // 4.4) B6-B-07 — partido pending_validation con la ventana de 30 días ya vencida: no aceptable
+  //      ni para reportar identidad.
+  // ------------------------------------------------------------------
+  const playedAt3 = new Date(Date.now() - 10 * 86400000).toISOString();
+  const idem4 = crypto.randomUUID();
+  const created3 = await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem4,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 0 }, { a: 6, b: 0 }],
+    formatId: 'classic',
+    playedAtIso: playedAt3,
+    playedAtTimeKnown: true,
+  });
+  const match3Id = created3.json && created3.json.matchId;
+  if (match3Id) matchIds.push(match3Id);
+  if (match3Id) {
+    await servicePatch(`matches?match_id=eq.${match3Id}`, { validation_deadline_at: new Date(Date.now() - 86400000).toISOString() });
+    const expiredAttempt = await rpcAs(accounts.a1.accessToken, 'report_identity_issue', {
+      p_match_id: match3Id, p_team: 'A', p_position_in_team: 1, p_reason: 'test B6-B-07',
+    });
+    report('B6-B-07: report_identity_issue sobre un partido pending_validation ya vencido -> match_expired', expiredAttempt.json && expiredAttempt.json.ok === false && expiredAttempt.json.code === 'match_expired', JSON.stringify(expiredAttempt.json));
+  }
 
   // ------------------------------------------------------------------
   // 5) Seguridad — anon / usuario normal no pueden alcanzar RPCs privadas de Bloque 6.

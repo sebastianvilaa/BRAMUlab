@@ -240,15 +240,21 @@
   /** Diferencia NETA entre un resultado anterior (si existe, ya vigente) y uno nuevo recién
    *  calculado (Nivel_BRAMU_Formula_V1.5.md §12.3: "revertir exactamente el efecto anterior;
    *  recalcular; aplicar solo la diferencia neta") — corregido según 06_Revision_Fase_A_
-   *  ChatGPT.md B6-A-04/B6-A-05:
+   *  ChatGPT.md B6-A-04/B6-A-05 y 08_Revision_Central_Adicional.md B6-B-01:
    *
    *  1) Revertir usa el MOVIMIENTO REALMENTE APLICADO de la aplicación anterior
-   *     (`oldP.muAfter - oldP.muBefore`, ambos LIVE — nunca `deltaCapped`, que puede diferir del
-   *     movimiento real cerca de los clamps 1.0/10.0).
-   *  2) Aplicar el delta nuevo usa la fórmula INCREMENTAL real de confianza
-   *     (`Level.computeConfidenceAfterMatch`) sobre el valor LIVE ya revertido — nunca una
-   *     reconstrucción "desde cero" vía evidence_units, que deja de ser válida una vez que
-   *     existió decay por inactividad (B6-A-05).
+   *     (`oldP.muAfter - oldP.muBefore` / `oldP.confidenceAfter - oldP.confidenceBefore`, ambos
+   *     LIVE — nunca `deltaCapped`/`evidenceQuality`, que pueden diferir del movimiento real
+   *     cerca de los clamps 1.0/10.0 o de la fórmula incremental).
+   *  2) El nuevo `confidenceAfter` (LIVE) es EXACTAMENTE `newP.confidenceAfter` — el motor ya lo
+   *     calculó desde su propia referencia de fórmula congelada (`newP.confidenceBefore` =
+   *     `formulaConfidenceBefore`, ya decay-ajustada por quien armó `playerStates` — nunca se
+   *     vuelve a aplicar decay ni se recalcula acá, B6-B-01). El nuevo `confidenceBefore` (LIVE)
+   *     es el valor LIVE tal cual estaba INMEDIATAMENTE ANTES de esta aplicación
+   *     (`confidenceAfterRevert`) — nunca la base decayeada que alimentó la fórmula. Antes de
+   *     este fix, `confidenceBefore` persistía la base YA decayeada: revertir devolvía esa base
+   *     decayeada en vez de la confianza cruda original, y el siguiente partido podía volver a
+   *     aplicar decay sobre un valor que ya estaba decayeado ("doble decay", B6-B-01).
    *  3) `mu`/`confidence`/`evidence_units` "before"/"after" que se persisten en
    *     `match_level_result_players` son los valores LIVE de ESTA aplicación puntual (soportan
    *     la próxima reversión exacta) — DISTINTOS de `formulaMuBefore`/`formulaConfidenceBefore`
@@ -264,10 +270,11 @@
    *  `currentLevelStatesByPlayerId`: `{[playerId]: {mu,confidence,evidenceUnits,lastRatedAt}}`
    *  LIVE actual (ahora mismo) — el llamador la arma leyendo `levelStates` de
    *  `get_match_officialization_snapshot` para cualquier player_id involucrado (viejo ∪ nuevo).
-   *  `referenceIso`: `localMatch.playedAt` del partido que se está (re)aplicando — referencia
-   *  para decidir inactividad (B6-A-05) de un jugador que aparece por primera vez en este
-   *  partido (`!oldP`). */
-  function computeLevelStateUpdates({ oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId, referenceIso }) {
+   *  Nunca recibe/necesita `referenceIso`: la inactividad (B6-A-05) ya se resolvió ANTES de
+   *  llegar acá, al construir `playerStates` para el motor (`buildPlayerStatesDict` o el
+   *  snapshot inmutable de una corrección) — este módulo solo usa lo que `newP.confidenceBefore`
+   *  ya trae. */
+  function computeLevelStateUpdates({ oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId }) {
     const oldByPlayerId = {};
     ((oldAppliedResult && oldAppliedResult.players) || []).forEach((p) => {
       if (p && p.playerId) oldByPlayerId[p.playerId] = p;
@@ -319,26 +326,17 @@
         return;
       }
 
-      // Paso 2 — aplicar el delta NUEVO sobre el estado YA revertido, con la fórmula
-      // incremental real de confianza (B6-A-05): nunca sobre `formulaMuBefore`/
-      // `formulaConfidenceBefore` (esos son solo la referencia que alimentó la fórmula, no la
-      // base real de escritura de level_states).
-      //
-      // Inactividad (B6-A-05, Nivel_BRAMU_Formula_V1.5.md §10.3): "la confianza efectiva pasa a
-      // ser la BASE de la actualización incremental del siguiente partido". Esto solo aplica
-      // cuando este jugador NO tenía ya una aplicación previa para ESTE partido (`!oldP` — la
-      // primera vez que se computa este partido para él, o una identidad recién asignada): el
-      // decay real de su inactividad todavía no fue considerado en ningún punto del camino LIVE.
-      // Para un jugador que YA tenía una aplicación previa (corrección/reaplicación del MISMO
-      // partido), `confidenceAfterRevert` deriva por resta exacta del valor LIVE actual — que ya
-      // incorporó cualquier decay ocurrido desde entonces por construcción — así que aplicar
-      // decay UNA SEGUNDA VEZ acá sería incorrecto.
-      const confidenceBaseForApply = oldP
-        ? confidenceAfterRevert
-        : computeEffectiveConfidence(confidenceAfterRevert, current.lastRatedAt, referenceIso);
-
+      // Paso 2 — aplicar el delta NUEVO. B6-B-01: `confidenceAfter` es EXACTAMENTE lo que el
+      // motor ya calculó (`newP.confidenceAfter` = `Level.computeConfidenceAfterMatch(newP.
+      // confidenceBefore, newP.evidenceQuality)`, level.js#computeMatchUpdate) — nunca se vuelve
+      // a invocar la fórmula acá ni se aplica decay una segunda vez: quien armó `playerStates`
+      // para el motor (buildPlayerStatesDict o el snapshot inmutable de una corrección) ya
+      // decidió la base correcta (decayeada o no). `mu` sigue siendo un delta ADITIVO
+      // (`deltaCapped`) aplicado sobre el valor LIVE ya revertido — a diferencia de confidence,
+      // el delta de mu es independiente de la base salvo el clamp de escala, ya cubierto por el
+      // paso de reversión (B6-A-04).
       const muAfterApply = Level.clampLevel(muAfterRevert + newP.deltaCapped);
-      const confidenceAfterApply = Level.computeConfidenceAfterMatch(confidenceBaseForApply, newP.evidenceQuality);
+      const confidenceAfterApply = newP.confidenceAfter;
       const evidenceUnitsAfterApply = evidenceUnitsAfterRevert + newP.evidenceQuality;
 
       levelStateUpdates.push({
@@ -369,12 +367,13 @@
         deltaCapped: newP.deltaCapped,
         evidenceQuality: newP.evidenceQuality,
         // Valores LIVE realmente aplicados en ESTA operación — sostienen la próxima reversión
-        // exacta (B6-A-04). confidenceBefore es la base REALMENTE usada por la fórmula
-        // incremental (ya con inactividad aplicada si correspondía, B6-A-05) — nunca el valor
-        // pre-decay, para que una reversión futura reste exactamente lo que se sumó acá.
+        // exacta (B6-A-04/B6-B-01). confidenceBefore es el valor LIVE tal cual estaba
+        // INMEDIATAMENTE ANTES de esta aplicación (nunca la base decayeada que alimentó la
+        // fórmula) — así "after - before" siempre reconstruye el movimiento total (decay +
+        // delta del partido) y revertir restaura exactamente la confianza cruda previa.
         muBefore: muAfterRevert,
         muAfter: muAfterApply,
-        confidenceBefore: confidenceBaseForApply,
+        confidenceBefore: confidenceAfterRevert,
         confidenceAfter: confidenceAfterApply,
         evidenceUnitsBefore: evidenceUnitsAfterRevert,
         evidenceUnitsAfter: evidenceUnitsAfterApply,

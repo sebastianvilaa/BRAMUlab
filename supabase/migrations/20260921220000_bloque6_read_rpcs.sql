@@ -273,35 +273,60 @@ set search_path = public
 as $$
   select case
     -- initial_estimate (Bloque 3) usa otras claves (confirmedLevel/confidenceOrigin) y siempre
-    -- representa evidencia 0 / status CALIBRANDO — se traduce acá sin tocar el contrato ya
-    -- cerrado de officialize_level_onboarding.
+    -- representa evidencia 0 / status CALIBRANDO / sin actividad computable todavía — se
+    -- traduce acá sin tocar el contrato ya cerrado de officialize_level_onboarding.
     when le.event_type = 'initial_estimate' then jsonb_build_object(
       'mu', (le.result->>'confirmedLevel')::numeric,
       'confidence', (le.result->>'confidenceOrigin')::numeric,
       'evidenceUnits', 0,
-      'status', 'CALIBRANDO'
+      'status', 'CALIBRANDO',
+      'lastRatedAt', null
     )
     else jsonb_build_object(
       'mu', (le.result->>'muAfter')::numeric,
       'confidence', (le.result->>'confidenceAfter')::numeric,
       'evidenceUnits', (le.result->>'evidenceUnitsAfter')::numeric,
-      'status', le.result->>'statusAfter'
+      'status', le.result->>'statusAfter',
+      -- B6-B-02: imprescindible para que el llamador pueda aplicar la regla de inactividad
+      -- (§10.3) sobre este estado reconstruido, igual que sobre cualquier estado LIVE actual —
+      -- nunca se trata una confidence histórica cruda como si ya fuera efectiva.
+      'lastRatedAt', le.result->>'lastRatedAtAfter'
     )
   end
   from public.level_events le
   where le.player_id = p_player_id
-    and le.created_at <= p_cutoff
+    -- B6-B-02: estrictamente ANTERIOR al cutoff, nunca <= — el cutoff es el instante de la
+    -- oficialización que se está (re)calculando, nunca su propio resultado.
+    and le.created_at < p_cutoff
+    -- B6-B-02: solo eventos con snapshot post-evento COMPLETO (o initial_estimate). Antes de
+    -- este fix, `_bloque6_revert_applied_result` escribía un `match_correction_reversal` con
+    -- solo `{revertedResultId}` — si ese era el último evento antes del cutoff, esta función
+    -- devolvía campos NULL y un jugador real podía terminar tratado como invitado sin Nivel.
+    -- Ahora TODO evento de Bloque 6 lleva el snapshot completo (ver officialize_match_validation
+    -- y _bloque6_revert_applied_result); este filtro es además una defensa en profundidad contra
+    -- cualquier evento futuro que no lo traiga.
+    and (
+      le.event_type = 'initial_estimate'
+      or (
+        le.result ? 'muAfter' and le.result ? 'confidenceAfter'
+        and le.result ? 'evidenceUnitsAfter' and le.result ? 'statusAfter'
+        and le.result ? 'lastRatedAtAfter'
+      )
+    )
   -- Orden determinístico obligatorio (04_Revision_ChatGPT.md §2): (created_at, event_id), NUNCA
-  -- created_at solo — puede haber más de un evento con timestamps equivalentes.
+  -- created_at solo — puede haber más de un evento con timestamps equivalentes (misma
+  -- transacción: now() es fijo por transacción en Postgres).
   order by le.created_at desc, le.event_id desc
   limit 1;
 $$;
 
 comment on function public.get_player_level_state_as_of is
-  'Reconstrucción determinística del estado de un jugador INMEDIATAMENTE ANTES de p_cutoff
-   (Decisión Abierta #2 de 02_Analisis_Claude.md, resuelta por 04_Revision_ChatGPT.md §2). NULL
-   si el jugador no tenía ningún evento antes de esa fecha — el llamador lo trata como invitado
-   sin Nivel conocido (Nivel_BRAMU_Formula_V1.5.md §13), nunca inventa un valor. SOLO service_role.';
+  'Reconstrucción determinística del estado de un jugador ESTRICTAMENTE ANTERIOR a p_cutoff
+   (Decisión Abierta #2 de 02_Analisis_Claude.md, resuelta por 04_Revision_ChatGPT.md §2;
+   08_Revision_Central_Adicional.md B6-B-02: cutoff exclusivo + solo eventos con snapshot
+   completo + devuelve lastRatedAt). NULL si el jugador no tenía ningún evento antes de esa
+   fecha — el llamador lo trata como invitado sin Nivel conocido (Nivel_BRAMU_Formula_V1.5.md
+   §13), nunca inventa un valor. SOLO service_role.';
 
 revoke all on function public.get_player_level_state_as_of(uuid, timestamptz) from public;
 grant execute on function public.get_player_level_state_as_of(uuid, timestamptz) to service_role;
