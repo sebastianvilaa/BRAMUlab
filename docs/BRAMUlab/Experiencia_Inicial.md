@@ -1008,9 +1008,9 @@ Por lo tanto, una cuenta recién creada normalmente **no recibe mágicamente un 
 
 Para relacionarlos debe existir una acción explícita de reclamo/invitación.
 
-### 15.5 Duplicados durante el piloto
+### 15.5 Duplicados durante el lanzamiento inicial
 
-Si una cuenta necesita reclamar una segunda identidad provisional o existen duplicados de la misma persona, el piloto puede resolverlo administrativamente.
+Si una cuenta necesita reclamar una segunda identidad provisional o existen duplicados de la misma persona, durante el lanzamiento inicial puede resolverse administrativamente.
 
 No se construye todavía una interfaz autoservicio compleja de fusiones de identidades.
 
@@ -1369,7 +1369,7 @@ Solo un reclamo explícito puede vincularlo.
 - copy, nombre final y ubicación exacta del futuro campo opcional `Apodo / cómo querés que aparezca`;
 - recordatorio de datos incompletos mediante Notificaciones;
 - `Recordar por WhatsApp` con deep link;
-- tratamiento administrativo de duplicados/reclamo de segunda identidad durante el piloto, más allá de la resolución manual ya prevista.
+- tratamiento administrativo de duplicados/reclamo de segunda identidad durante el lanzamiento inicial, más allá de la resolución manual ya prevista.
 
 Ninguno de estos puntos modifica la arquitectura general ni reabre las reglas 14/30/3/10/7 ya confirmadas.
 
