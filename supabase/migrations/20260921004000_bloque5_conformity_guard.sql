@@ -354,14 +354,20 @@ begin
         and (select count(*) from public.match_participants mp where mp.match_id = m.match_id and mp.player_id = any(v_ids)) = 3
         and (select count(*) from public.match_participants mp where mp.match_id = m.match_id and mp.player_id is null) = 1;
 
-      if coalesce(v_identity_candidate_count, 0) > 0 then
-        v_result := jsonb_build_object('ok', false, 'code', 'identity_resolution_required', 'candidates', v_identity_candidates);
-        if v_identity_candidate_count = 1 then
-          v_result := v_result || jsonb_build_object('matchId', v_identity_target_match_id);
-        end if;
+      if coalesce(v_identity_candidate_count, 0) > 1 then
+        -- C-03 exige ambigüedad explícita cuando más de un partido con slot no identificado
+        -- podría corresponder: nunca elegir/fusionar a ciegas.
+        v_result := jsonb_build_object('ok', false, 'code', 'ambiguous_candidates', 'candidates', v_identity_candidates);
         insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
-          values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code',
-            case when v_identity_candidate_count = 1 then v_identity_target_match_id else null end, v_result);
+          values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', null, v_result);
+        return v_result;
+      elsif coalesce(v_identity_candidate_count, 0) = 1 then
+        v_result := jsonb_build_object(
+          'ok', false, 'code', 'identity_resolution_required',
+          'matchId', v_identity_target_match_id, 'candidates', v_identity_candidates
+        );
+        insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
+          values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code', v_identity_target_match_id, v_result);
         return v_result;
       end if;
     end if;
