@@ -434,4 +434,145 @@ El criterio conceptual "un provisional mantiene el mismo ID en varios partidos" 
 por contrato de identidad (UUID persistente + reutilización explícita + claim conservando ID),
 pero su prueba literal multi-partido se realizará al existir partidos reales en Bloque 5.
 
-**Bloque 4 CERRADO. Bloque 5 todavía no iniciado.**
+**Bloque 4 CERRADO.**
+
+
+## Bloque 5 — Partidos e Historial — CERRADO
+
+**Fecha de implementación y cierre:** 21 de septiembre de 2026.  
+**Estado: CERRADO en Staging.**  
+**Alcance de referencia:** `Backend_Infraestructura.md` §15 "Bloque 5".  
+**Evidencia backend:** `docs/BRAMUlab/Implementacion/Backend/Bloque_05/08_Validacion_Backend_Staging_ChatGPT.md`.  
+**QA navegador:** `12_Validacion_Navegador_Work.md` + `15_Revalidacion_Dirigida_Work.md`.  
+**Cierre formal:** `docs/BRAMUlab/Implementacion/Backend/Bloque_05/16_Cierre_Bloque_05.md`.
+
+### 1. Implementación cerrada
+
+Bloque 5 incorpora:
+
+- tablas server-backed para partidos, participantes, sets, revisiones, acciones, estado privado e idempotencia;
+- carga retroactiva máxima de 14 días;
+- `pending_validation` + deadline fijo de 30 días;
+- create-or-attach por identidades reales, parejas, fecha/hora y formato, nunca por nombre;
+- advisory locks para idempotencia y fingerprint de encuentro;
+- convergencia de cargas inequívocas en un único `match_id`;
+- ambigüedad explícita sin fusiones silenciosas;
+- revisiones append-only;
+- provisionales relacionadas reutilizables por el mismo `player_id`;
+- límite de 5 pendientes accionables que bloquea solo iniciar un partido nuevo;
+- expiración lógica;
+- outbox local, `sync_pending` y retry con idempotency key estable;
+- historial compartido server-backed;
+- ocultamiento individual y nota privada;
+- separación de historial visible vs. partidos computables;
+- pending/sync_pending/expired fuera de Nivel, stats y métricas oficiales;
+- wiring real de Home, Historial, Resumen y selector de jugadores.
+
+La segunda declaración coincidente del lado rival **no oficializa** el partido en Bloque 5:
+registra conformidad, mantiene `pending_validation` y puede dejar
+`readyForValidation=true`. La oficialización atómica pertenece a Bloque 6.
+
+### 2. Supabase Staging
+
+Migraciones aplicadas:
+
+- `bloque5_matches_core`;
+- `bloque5_rpcs_read`;
+- `bloque5_create_or_attach_rpc`;
+- `bloque5_defer_submission_fk`;
+- `bloque5_conformity_guard`;
+- `bloque5_feed_metadata`.
+
+Edge Function desplegada y activa:
+
+- `create-or-attach-match` con JWT obligatorio.
+
+El acceso directo de `authenticated` a las tablas de partidos permanece denegado; la lectura
+del producto pasa por RPCs acotadas.
+
+### 3. Verificación backend real
+
+Contra Postgres Staging se validó:
+
+- create-or-attach;
+- idempotencia secuencial y concurrente;
+- concurrencia por fingerprint;
+- una sola conformidad por pareja;
+- ausencia de efectos de Nivel antes de validar;
+- provisionales relacionadas;
+- ambigüedad;
+- desambiguación temporal;
+- límite de pendientes;
+- ocultamiento;
+- nota privada;
+- expiración lógica;
+- RLS / RPC-only.
+
+Durante la primera prueba real aparecieron y se corrigieron dos bugs de integridad:
+
+1. FK de revisión→submission necesitaba ser diferible;
+2. el segundo integrante de una pareja ya conforme podía duplicar la acción `confirmed`.
+
+### 4. Wiring frontend y suite
+
+Bundle final de Bloque 5:
+
+- `04.10-h15`.
+
+Suite final:
+
+- **1448/1448 OK**;
+- 0 fallas;
+- 0 errores de consola;
+- `node --check` limpio en los JS relevantes.
+
+Se preservó el camino local/legacy y no se migró historial viejo automáticamente.
+
+### 5. QA real de navegador
+
+La primera QA en Vercel Staging confirmó el flujo principal y detectó:
+
+- usuarios reales distintos con mismo display name tratados como duplicados;
+- `00:00` mostrado en Historial cuando la hora era desconocida;
+- falta de estado pendiente en Último partido;
+- copy visible `Eliminar partido` aunque la acción server-backed era ocultar.
+
+Los cuatro puntos fueron corregidos.
+
+Revalidación dirigida final sobre `04.10-h15`:
+
+- homónimos reales por `player_id` → **PASS**;
+- hora desconocida sin `00:00` → **PASS**;
+- Último partido con `PENDIENTE DE VALIDACIÓN` → **PASS**;
+- botón server-backed `OCULTAR PARTIDO` → **PASS**.
+
+No surgieron bugs nuevos.
+
+### 6. Limpieza
+
+Los dos partidos creados exclusivamente por Work para QA fueron eliminados de Staging de forma
+controlada después de preservar la evidencia documental.
+
+Resultado final:
+
+- fixtures `QA B5 Work%` restantes: **0**;
+- submissions QA asociadas restantes: **0**.
+
+Las identidades QA de Bloques anteriores se conservaron.
+
+### 7. Cobertura deliberadamente no repetida
+
+Work no pudo simular offline de forma fiable y no se forzó una prueba falsa. El outbox,
+`sync_pending` y retry quedan cubiertos por implementación + suite local.
+
+Tampoco se repitieron en navegador carreras de idempotencia, RLS, concurrencia, ambigüedad y
+límite de 5 porque ya tenían evidencia suficiente en backend real/tests.
+
+**Bloque 5 CERRADO en Staging.**
+
+Próximo bloque del roadmap:
+
+**Bloque 6 — Validación y actualización oficial.**
+
+No iniciarlo automáticamente; requiere handoff específico y lectura de las fuentes maestras
+vigentes.
