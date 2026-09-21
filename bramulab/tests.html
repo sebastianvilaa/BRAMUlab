@@ -6486,6 +6486,22 @@
     assert('BLOQUE5-SYNC · winnerTeam derivado acá con Engine (nunca un campo que el servidor envíe)', m.winnerTeam === 'A');
     assert('BLOQUE5-SYNC · stats/intelligence descriptivos calculados con el MISMO agregador que un partido local',
       !!m.stats && typeof m.intelligence === 'string' && m.intelligence.length > 0);
+
+    const metaRow = makeServerRow({
+      playedAtTimeKnown: false,
+      reportedTimeZone: 'America/Argentina/Buenos_Aires',
+      locationName: 'Club Test',
+      locationLat: -34.6,
+      locationLng: -58.45,
+      privateNote: 'nota privada',
+    });
+    const metaMatch = MSync.translateServerMatchToLocalShape(metaRow);
+    assert('BLOQUE5-SYNC · preserva timeKnown=false (nunca inventa una hora)',
+      metaMatch.timeKnown === false);
+    assert('BLOQUE5-SYNC · preserva zona horaria, lugar y nota privada del caller',
+      metaMatch.timeZone === 'America/Argentina/Buenos_Aires'
+      && metaMatch.location && metaMatch.location.name === 'Club Test'
+      && metaMatch.privateNote === 'nota privada');
   })();
 
   // ---- Separación historial vs. estadísticas (§5 del wiring) ----
@@ -6537,6 +6553,33 @@
     const computable = MSync.buildComputableHistory({ localHistory: [local2, local1], serverRows: [serverRow] });
     assert('BLOQUE5-HISTORIAL · el mismo partido pendiente NUNCA entra a estadísticas (buildComputableHistory)',
       !computable.some((m) => m.matchId === 'srv_recent') && computable.length === 2);
+
+    // Un partido cargado retroactivamente hoy no pasa a ser "el más reciente": manda playedAt,
+    // no createdAt. Evita que un legacy guardado tarde desordene Home/Último partido.
+    const retroLegacy = {
+      matchId: 'local_retro',
+      createdAt: '2026-09-20T10:00:00.000Z',
+      playedAt: '2026-08-20T10:00:00.000Z',
+      players: [], sets: [], finishedAt: '2026-09-20T10:00:00.000Z',
+    };
+    const orderedByPlayed = MSync.buildDisplayHistory({
+      localHistory: [retroLegacy, local2, local1], serverRows: [serverRow], outboxEntries: [],
+    });
+    assert('BLOQUE5-HISTORIAL · ordena por fecha jugada real, no por fecha de guardado',
+      orderedByPlayed[0].matchId === 'srv_recent'
+      && orderedByPlayed[orderedByPlayed.length - 1].matchId === 'local_retro');
+
+    const hiddenPending = makeServerRow({ matchId: 'srv_hidden_pending', hidden: true, status: 'pending_validation' });
+    const displayWithHidden = MSync.buildDisplayHistory({
+      localHistory: [local2], serverRows: [hiddenPending], outboxEntries: [],
+    });
+    assert('BLOQUE5-HIDE · hidden server-backed desaparece de Historial/Home personal',
+      !displayWithHidden.some((m) => m.matchId === 'srv_hidden_pending'));
+
+    const hiddenValidated = makeServerRow({ matchId: 'srv_hidden_validated', hidden: true, status: 'validated' });
+    const computableWithHidden = MSync.buildComputableHistory({ localHistory: [], serverRows: [hiddenValidated] });
+    assert('BLOQUE5-HIDE · ocultar no borra efectos oficiales: validated oculto sigue computable',
+      computableWithHidden.some((m) => m.matchId === 'srv_hidden_validated'));
   })();
 
   // ---- Outbox: sobrevive, reintento conserva idempotencyKey, éxito lo saca (§10 del wiring) ----
