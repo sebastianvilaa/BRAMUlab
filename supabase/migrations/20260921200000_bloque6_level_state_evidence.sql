@@ -19,6 +19,11 @@
 -- computado, así que evidence_units era 0 para todos y por lo tanto confidence == confidence_origin
 -- (b) en ese momento — completar confidence_origin desde confidence actual no pierde información
 -- ni inventa un valor.
+--
+-- C-09 (10_Revision_Final_Pre_Staging_ChatGPT.md): además, esta migración inicia el reloj de
+-- inactividad (§10.3) desde el cuestionario — backfill de last_rated_at para estados ya
+-- inicializados (desde su propio evento initial_estimate) + officialize_level_onboarding
+-- extendida para fijarlo en nuevos Nivel iniciales.
 
 alter table public.level_states
   add column if not exists evidence_units numeric not null default 0,
@@ -36,6 +41,21 @@ comment on column public.level_states.confidence_origin is
 update public.level_states
   set confidence_origin = confidence
   where confidence_origin is null and confidence is not null;
+
+-- C-09 (10_Revision_Final_Pre_Staging_ChatGPT.md): Bloque 3 dejaba last_rated_at=NULL después del
+-- cuestionario — B6-A-05 interpreta NULL como "sin decay posible todavía", así que un jugador
+-- podía crear su Nivel inicial, no jugar durante meses, y su primer partido no aplicaba ninguna
+-- reducción de confidence por inactividad (Nivel_BRAMU_Formula_V1.5.md §10.3). El cuestionario ES
+-- el primer instante que establece un estado de Nivel: desde ahí arranca el reloj. Backfill para
+-- estados ya inicializados (nunca se modifica la migración histórica de Bloque 3): toma el
+-- created_at de su propio evento initial_estimate.
+update public.level_states ls
+  set last_rated_at = le.created_at
+  from public.level_events le
+  where le.player_id = ls.player_id
+    and le.event_type = 'initial_estimate'
+    and ls.last_rated_at is null
+    and ls.status <> 'PENDIENTE';
 
 -- ------------------------------------------------------------------
 -- officialize_level_onboarding (Bloque 3) — agregado mínimo, misma firma, mismo comportamiento
@@ -88,6 +108,9 @@ begin
     -- oficialización del cuestionario, todavía no hay ningún partido computado).
     confidence_origin = p_confidence,
     evidence_units = 0,
+    -- C-09: el cuestionario ES el primer instante que establece un estado de Nivel — el reloj de
+    -- inactividad (§10.3) arranca acá, nunca queda NULL hasta el primer partido computado.
+    last_rated_at = now(),
     declared_category = p_declared_category,
     category_context_key = p_category_context_key,
     algorithm_version = p_algorithm_version,

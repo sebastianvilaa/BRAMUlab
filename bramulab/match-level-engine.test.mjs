@@ -316,8 +316,70 @@ test('sanitizeUnidentifiedPlayers: dos slots sin identidad de partidos distintos
 });
 
 /* ------------------------------------------------------------------ */
-/* computeLevelStateUpdates — diferencia neta con movimiento real (B6-A-04) */
-/* y confianza incremental (B6-A-05), Nivel_BRAMU_Formula_V1.5.md §12.3     */
+/* computeOfficializationResultFrozenContext — C-06, factores contextuales  */
+/* congelados para correction_accepted (nunca recalculados desde historial) */
+/* ------------------------------------------------------------------ */
+
+test('computeOfficializationResultFrozenContext: C-06 — reusa factores contextuales CONGELADOS, nunca los recalcula desde historial', () => {
+  const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
+  const localMatch = MatchSync.translateServerMatchToLocalShape(row);
+  const playerStates = evenPlayerStates();
+
+  const frozenContext = {
+    knownLevelsCount: 4,
+    repetitionFactorA: 0.85, repetitionFactorB: 0.70,
+    companionFactorA: 0.90, companionFactorB: 0.95,
+    circleFactorByPlayerId: { p1: true, p2: false, p3: false, p4: false },
+  };
+
+  const result = MLE.computeOfficializationResultFrozenContext({
+    localMatch, playerStates, frozenContext, validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+
+  assert.equal(result.eligible, true);
+  assert.equal(result.context.repetitionFactorA, 0.85);
+  assert.equal(result.context.repetitionFactorB, 0.70);
+  assert.equal(result.context.companionFactorA, 0.90);
+  assert.equal(result.context.companionFactorB, 0.95);
+  assert.equal(result.context.knownLevelsCount, 4);
+  // p1 tiene círculo cerrado congelado -> circleFactor menor (penalización), distinto de p2
+  // (sin círculo, factor abierto) aunque ambos partan del mismo mu/confidence.
+  assert.ok(result.engineOutput.players.p1.circleFactor < result.engineOutput.players.p2.circleFactor);
+
+  // Sin congelar (misma corrida, sin historial -> factores por defecto de buildLevelEngineContext):
+  // deben DIFERIR precisamente porque acá se usaron los congelados, nunca los recalculados.
+  const unfrozen = MLE.computeOfficializationResult({
+    localMatch, history: [], playerStates, validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+  assert.notEqual(result.engineOutput.players.p1.deltaCapped, unfrozen.engineOutput.players.p1.deltaCapped,
+    'con factores congelados distintos, el delta debe diferir del que da el camino normal (sin ellos)');
+});
+
+test('computeOfficializationResultFrozenContext: score distinto SÍ cambia el delta (solo lo dependiente del score se recalcula)', () => {
+  const frozenContext = {
+    knownLevelsCount: 4, repetitionFactorA: 1, repetitionFactorB: 1,
+    companionFactorA: 1, companionFactorB: 1, circleFactorByPlayerId: {},
+  };
+  const playerStates = evenPlayerStates();
+
+  const narrowRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
+  const wideRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 0, gamesA2: 6, gamesB2: 0 });
+
+  const narrow = MLE.computeOfficializationResultFrozenContext({
+    localMatch: MatchSync.translateServerMatchToLocalShape(narrowRow), playerStates, frozenContext, validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+  const wide = MLE.computeOfficializationResultFrozenContext({
+    localMatch: MatchSync.translateServerMatchToLocalShape(wideRow), playerStates, frozenContext, validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+
+  assert.ok(wide.engineOutput.players.p1.deltaCapped > narrow.engineOutput.players.p1.deltaCapped,
+    'un resultado más amplio debe seguir produciendo un delta mayor aun con factores congelados');
+});
+
+/* ------------------------------------------------------------------ */
+/* computeLevelStateUpdates — efecto relativo a un baseline LIVE inmutable  */
+/* (C-01, 10_Revision_Final_Pre_Staging_ChatGPT.md), nunca contaminado por  */
+/* un partido/corrección posterior intercalado.                            */
 /* ------------------------------------------------------------------ */
 
 function firstOfficialization() {
@@ -344,24 +406,25 @@ test('computeLevelStateUpdates: primera oficialización (sin resultado previo) a
   const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
   const p1Delta = officialization.engineOutput.players.p1.deltaCapped;
   assert.ok(Math.abs((p1Update.finalMu - live.p1.mu) - p1Delta) < 1e-9);
-  // Los valores LIVE before/after de la fila de auditoría son los realmente aplicados, no la
-  // referencia de fórmula.
-  assert.ok(Math.abs(p1Result.muBefore - live.p1.mu) < 1e-9);
+  // C-01: el baseline LIVE inmutable, para una primera aplicación, es el valor LIVE actual; el
+  // "after" persistido es el valor ABSOLUTO de fórmula (aquí coincide con finalMu porque no hay
+  // aplicación anterior que revertir).
+  assert.ok(Math.abs(p1Result.originalLiveMuBefore - live.p1.mu) < 1e-9);
   assert.ok(Math.abs(p1Result.muAfter - p1Update.finalMu) < 1e-9);
   assert.equal(typeof p1Result.formulaMuBefore, 'number');
   assert.equal(p1Result.formulaState, 'CALIBRADO', 'formulaState debe quedar en formato level_states (CALIBRADO), no en formato interno del motor');
 });
 
-test('computeLevelStateUpdates: revertir usa el MOVIMIENTO REAL (after-before), nunca deltaCapped, cerca del clamp superior 10.0 (B6-A-04)', () => {
+test('computeLevelStateUpdates: revertir puro usa el EFECTO real (formula_after - baseline), nunca deltaCapped, cerca del clamp superior 10.0 (B6-A-04/C-01)', () => {
   // Simula un resultado previo cuyo deltaCapped nominal era +0.20 pero el clamp de escala lo
-  // recortó a +0.05 real (mu 9.95 -> 10.00).
+  // recortó a +0.05 real (baseline 9.95 -> formula_after 10.00).
   const oldAppliedResult = {
     players: [
       {
         playerId: 'p1', team: 'A',
-        muBefore: 9.95, muAfter: 10.00, // movimiento real = +0.05, NO +0.20
-        confidenceBefore: 0.60, confidenceAfter: 0.6244,
-        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+        originalLiveMuBefore: 9.95, muAfter: 10.00, // efecto real = +0.05, NO +0.20
+        originalLiveConfidenceBefore: 0.60, confidenceAfter: 0.6244,
+        originalLiveEvidenceUnitsBefore: 3.0, evidenceQuality: 0.4,
       },
     ],
   };
@@ -372,19 +435,19 @@ test('computeLevelStateUpdates: revertir usa el MOVIMIENTO REAL (after-before), 
     oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
   });
   const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
-  // Revertir el movimiento REAL (+0.05) desde 10.00 da 9.95 — si se usara deltaCapped (+0.20) a
-  // mano hubiera dado 9.80, un resultado incorrecto.
+  // Revertir el efecto REAL (+0.05) desde 10.00 da 9.95 — si se usara deltaCapped (+0.20) a mano
+  // hubiera dado 9.80, un resultado incorrecto.
   assert.ok(Math.abs(p1Update.finalMu - 9.95) < 1e-9, `esperaba 9.95, obtuve ${p1Update.finalMu}`);
 });
 
-test('computeLevelStateUpdates: revertir cerca del clamp inferior 1.0 también usa movimiento real', () => {
+test('computeLevelStateUpdates: revertir cerca del clamp inferior 1.0 también usa el efecto real', () => {
   const oldAppliedResult = {
     players: [
       {
         playerId: 'p3', team: 'B',
-        muBefore: 1.05, muAfter: 1.00, // movimiento real = -0.05, no -0.20
-        confidenceBefore: 0.60, confidenceAfter: 0.6244,
-        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+        originalLiveMuBefore: 1.05, muAfter: 1.00, // efecto real = -0.05, no -0.20
+        originalLiveConfidenceBefore: 0.60, confidenceAfter: 0.6244,
+        originalLiveEvidenceUnitsBefore: 3.0, evidenceQuality: 0.4,
       },
     ],
   };
@@ -396,14 +459,14 @@ test('computeLevelStateUpdates: revertir cerca del clamp inferior 1.0 también u
   assert.ok(Math.abs(p3Update.finalMu - 1.05) < 1e-9, `esperaba 1.05, obtuve ${p3Update.finalMu}`);
 });
 
-test('computeLevelStateUpdates: revertir restaura confidence EXACTAMENTE (movimiento real, no aproximado) — B6-A-03', () => {
+test('computeLevelStateUpdates: revertir restaura confidence/evidence EXACTAMENTE — B6-A-03', () => {
   const oldAppliedResult = {
     players: [
       {
         playerId: 'p1', team: 'A',
-        muBefore: 5.0, muAfter: 5.08,
-        confidenceBefore: 0.60, confidenceAfter: 0.6244,
-        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+        originalLiveMuBefore: 5.0, muAfter: 5.08,
+        originalLiveConfidenceBefore: 0.60, confidenceAfter: 0.6244,
+        originalLiveEvidenceUnitsBefore: 3.0, evidenceQuality: 0.4,
       },
     ],
   };
@@ -416,30 +479,28 @@ test('computeLevelStateUpdates: revertir restaura confidence EXACTAMENTE (movimi
   assert.ok(Math.abs(p1Update.finalEvidenceUnits - 3.0) < 1e-9);
 });
 
-test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) revierte+reaplica con confianza incremental real (B6-B-01)', () => {
+test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) revierte+reaplica contra el baseline inmutable (B6-B-01/C-01)', () => {
   const first = firstOfficialization();
   const oldAppliedResult = {
-    // B6-B-01: el "before" LIVE de la primera aplicación es EXACTAMENTE la referencia de fórmula
-    // que el motor usó (p.confidenceBefore/p.muBefore) — sin decay de por medio (evenPlayerStates
-    // no tiene lastRatedAt), el valor LIVE antes de la primera vez que se computa un partido
-    // siempre coincide con lo que alimentó la fórmula.
     players: Object.keys(first.engineOutput.players)
       .filter((id) => !first.guestPlayerIds.includes(id))
       .map((id) => {
         const p = first.engineOutput.players[id];
-        const evidenceUnits = liveStates()[id].evidenceUnits;
         return {
           playerId: id, team: p.team,
-          muBefore: p.muBefore, muAfter: p.muAfter,
-          confidenceBefore: p.confidenceBefore, confidenceAfter: p.confidenceAfter,
-          evidenceUnitsBefore: evidenceUnits, evidenceUnitsAfter: evidenceUnits + p.evidenceQuality,
+          originalLiveMuBefore: p.muBefore, muAfter: p.muAfter,
+          originalLiveConfidenceBefore: p.confidenceBefore, confidenceAfter: p.confidenceAfter,
+          originalLiveEvidenceUnitsBefore: liveStates()[id].evidenceUnits, evidenceQuality: p.evidenceQuality,
         };
       }),
   };
   // Estado live ya refleja la primera oficialización.
   const liveAfterFirst = {};
   oldAppliedResult.players.forEach((p) => {
-    liveAfterFirst[p.playerId] = { mu: p.muAfter, confidence: p.confidenceAfter, evidenceUnits: p.evidenceUnitsAfter };
+    liveAfterFirst[p.playerId] = {
+      mu: p.muAfter, confidence: p.confidenceAfter,
+      evidenceUnits: p.originalLiveEvidenceUnitsBefore + p.evidenceQuality,
+    };
   });
 
   // Corrección: resultado más amplio (6-2, 6-2 en vez de 6-4, 6-4). Misma referencia de fórmula
@@ -461,22 +522,77 @@ test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) re
   const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
   const p1Old = oldAppliedResult.players.find((p) => p.playerId === 'p1');
   const p1New = corrected.engineOutput.players.p1;
-  // mu: revertir movimiento real, aplicar delta nuevo, clamp.
-  const expectedMuAfterRevert = Level.clampLevel(liveAfterFirst.p1.mu - (p1Old.muAfter - p1Old.muBefore));
-  const expectedFinalMu = Level.clampLevel(expectedMuAfterRevert + p1New.deltaCapped);
+  const expectedFinalMu = Level.clampLevel(liveAfterFirst.p1.mu - (p1Old.muAfter - p1Old.originalLiveMuBefore) + (p1New.muAfter - p1Old.originalLiveMuBefore));
   assert.ok(Math.abs(p1Update.finalMu - expectedFinalMu) < 1e-9);
-  // B6-B-01: confidence NUNCA se rebasa sobre el valor live revertido — es EXACTAMENTE lo que el
-  // motor calculó desde su propia referencia de fórmula congelada (p1New.confidenceAfter).
-  assert.ok(Math.abs(p1Update.finalConfidence - p1New.confidenceAfter) < 1e-9);
+  const expectedFinalConfidence = liveAfterFirst.p1.confidence - (p1Old.confidenceAfter - p1Old.originalLiveConfidenceBefore) + (p1New.confidenceAfter - p1Old.originalLiveConfidenceBefore);
+  assert.ok(Math.abs(p1Update.finalConfidence - expectedFinalConfidence) < 1e-9);
   const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
-  // El "before" LIVE persistido para la PRÓXIMA reversión es el valor revertido (0.9, sin decay
-  // en este escenario) — nunca la base de fórmula reaplicada dos veces.
-  const expectedConfidenceAfterRevert = liveAfterFirst.p1.confidence - (p1Old.confidenceAfter - p1Old.confidenceBefore);
-  assert.ok(Math.abs(p1Result.confidenceBefore - expectedConfidenceAfterRevert) < 1e-9);
-  assert.ok(p1New.deltaCapped >= p1Old.muAfter - p1Old.muBefore, 'resultado más amplio -> delta nuevo mayor o igual');
+  // C-01: el baseline se propaga SIN CAMBIOS entre correcciones del mismo partido.
+  assert.ok(Math.abs(p1Result.originalLiveMuBefore - p1Old.originalLiveMuBefore) < 1e-9);
+  assert.ok(Math.abs(p1Result.originalLiveConfidenceBefore - p1Old.originalLiveConfidenceBefore) < 1e-9);
+  assert.ok(p1New.deltaCapped >= p1Old.muAfter - p1Old.originalLiveMuBefore, 'resultado más amplio -> delta nuevo mayor o igual');
 });
 
-test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado revierte puro (movimiento real), el nuevo aplica puro', () => {
+test('computeLevelStateUpdates: C-01 — corregir un partido antiguo DESPUÉS de que el jugador disputó otro partido intercalado deja ese segundo efecto intacto', () => {
+  const first = firstOfficialization();
+  const p1First = first.engineOutput.players.p1;
+  const originalLiveMuBefore = p1First.muBefore; // 5.0, baseline inmutable de ESTE partido.
+  const originalLiveConfidenceBefore = p1First.confidenceBefore;
+  const originalLiveEvidenceUnitsBefore = liveStates().p1.evidenceUnits;
+
+  const oldAppliedResult = {
+    players: [{
+      playerId: 'p1', team: 'A',
+      originalLiveMuBefore, muAfter: p1First.muAfter,
+      originalLiveConfidenceBefore, confidenceAfter: p1First.confidenceAfter,
+      originalLiveEvidenceUnitsBefore, evidenceQuality: p1First.evidenceQuality,
+    }],
+  };
+
+  // Estado live tras la primera oficialización de ESTE partido...
+  const liveRightAfterFirst = {
+    mu: p1First.muAfter, confidence: p1First.confidenceAfter,
+    evidenceUnits: originalLiveEvidenceUnitsBefore + p1First.evidenceQuality,
+  };
+  // ...y luego un partido TOTALMENTE DISTINTO mueve el LIVE (+0.40 mu, -0.05 confidence, +0.5
+  // evidence) — un efecto que NUNCA debe perderse al corregir el primer partido.
+  const otherMatchEffect = { mu: 0.40, confidence: -0.05, evidenceUnits: 0.5 };
+  const liveNow = {
+    p1: {
+      mu: liveRightAfterFirst.mu + otherMatchEffect.mu,
+      confidence: liveRightAfterFirst.confidence + otherMatchEffect.confidence,
+      evidenceUnits: liveRightAfterFirst.evidenceUnits + otherMatchEffect.evidenceUnits,
+    },
+  };
+
+  // Corrección del PRIMER partido (resultado más amplio) — misma referencia de fórmula.
+  const correctedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 1, gamesA2: 6, gamesB2: 1 });
+  const correctedMatch = MatchSync.translateServerMatchToLocalShape(correctedRow);
+  const corrected = MLE.computeOfficializationResult({
+    localMatch: correctedMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+  const p1New = corrected.engineOutput.players.p1;
+
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult, engineOutput: corrected.engineOutput, guestPlayerIds: corrected.guestPlayerIds,
+    currentLevelStatesByPlayerId: liveNow,
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+
+  // El efecto NUEVO del primer partido, relativo al MISMO baseline inmutable, reemplaza
+  // exactamente al viejo — el efecto del partido intercalado (otherMatchEffect) permanece.
+  const expectedMu = Level.clampLevel(liveNow.p1.mu - (p1First.muAfter - originalLiveMuBefore) + (p1New.muAfter - originalLiveMuBefore));
+  const expectedConfidence = liveNow.p1.confidence - (p1First.confidenceAfter - originalLiveConfidenceBefore) + (p1New.confidenceAfter - originalLiveConfidenceBefore);
+  assert.ok(Math.abs(p1Update.finalMu - expectedMu) < 1e-9);
+  assert.ok(Math.abs(p1Update.finalConfidence - expectedConfidence) < 1e-9);
+  // Sanity check explícito: el efecto del partido intercalado (+0.40 mu) sigue presente —
+  // removerlo por error daría un finalMu mucho menor.
+  const muWithoutInterleavedEffect = Level.clampLevel(liveRightAfterFirst.mu - (p1First.muAfter - originalLiveMuBefore) + (p1New.muAfter - originalLiveMuBefore));
+  assert.ok(Math.abs(p1Update.finalMu - muWithoutInterleavedEffect - otherMatchEffect.mu) < 1e-9,
+    'el efecto del partido intercalado debe seguir sumado, nunca pisado por la corrección');
+});
+
+test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado revierte puro (efecto real), el nuevo aplica puro', () => {
   const first = firstOfficialization();
   const oldAppliedResult = {
     players: Object.keys(first.engineOutput.players)
@@ -486,15 +602,18 @@ test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado rev
         const live = liveStates()[id];
         return {
           playerId: id, team: p.team,
-          muBefore: live.mu, muAfter: Level.clampLevel(live.mu + p.deltaCapped),
-          confidenceBefore: live.confidence, confidenceAfter: Level.computeConfidenceAfterMatch(live.confidence, p.evidenceQuality),
-          evidenceUnitsBefore: live.evidenceUnits, evidenceUnitsAfter: live.evidenceUnits + p.evidenceQuality,
+          originalLiveMuBefore: live.mu, muAfter: Level.clampLevel(live.mu + p.deltaCapped),
+          originalLiveConfidenceBefore: live.confidence, confidenceAfter: Level.computeConfidenceAfterMatch(live.confidence, p.evidenceQuality),
+          originalLiveEvidenceUnitsBefore: live.evidenceUnits, evidenceQuality: p.evidenceQuality,
         };
       }),
   };
   const liveAfterFirst = {};
   oldAppliedResult.players.forEach((p) => {
-    liveAfterFirst[p.playerId] = { mu: p.muAfter, confidence: p.confidenceAfter, evidenceUnits: p.evidenceUnitsAfter };
+    liveAfterFirst[p.playerId] = {
+      mu: p.muAfter, confidence: p.confidenceAfter,
+      evidenceUnits: p.originalLiveEvidenceUnitsBefore + p.evidenceQuality,
+    };
   });
   liveAfterFirst.p5 = { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 };
 
@@ -525,7 +644,7 @@ test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado rev
   const p4Update = levelStateUpdates.find((u) => u.playerId === 'p4');
   const p4Old = oldAppliedResult.players.find((p) => p.playerId === 'p4');
   assert.ok(p4Update, 'p4 debe recibir un ajuste de reversión aunque ya no participe del resultado nuevo');
-  const expectedP4Mu = Level.clampLevel(liveAfterFirst.p4.mu - (p4Old.muAfter - p4Old.muBefore));
+  const expectedP4Mu = Level.clampLevel(liveAfterFirst.p4.mu - (p4Old.muAfter - p4Old.originalLiveMuBefore));
   assert.ok(Math.abs(p4Update.finalMu - expectedP4Mu) < 1e-9);
 
   const p5Update = levelStateUpdates.find((u) => u.playerId === 'p5');
@@ -567,12 +686,10 @@ test('computeLevelStateUpdates: un jugador con decay por inactividad usa confian
   // la base EFECTIVA (decayeada), no de la cruda almacenada (0.80).
   const expectedFinal = Level.computeConfidenceAfterMatch(rawConfidence, officialization.engineOutput.players.p1.evidenceQuality);
   assert.ok(p1Update.finalConfidence < expectedFinal, 'no debe recuperar de golpe la confianza previa a la inactividad');
-  // B6-B-01: el "before" LIVE persistido para la próxima reversión es la confianza CRUDA
-  // original (0.80, antes de decay) — nunca la base decayeada que alimentó la fórmula. Esto es
-  // lo que permite que revertir restaure exactamente la confianza previa (ver el test dedicado
-  // más abajo).
+  // C-01: el baseline LIVE inmutable persistido para la próxima reversión es la confianza CRUDA
+  // original (0.80, antes de decay) — nunca la base decayeada que alimentó la fórmula.
   const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
-  assert.ok(Math.abs(p1Result.confidenceBefore - rawConfidence) < 1e-9);
+  assert.ok(Math.abs(p1Result.originalLiveConfidenceBefore - rawConfidence) < 1e-9);
 });
 
 test('computeLevelStateUpdates: partido tras >60d de inactividad -> aplicar -> revertir -> confidence CRUDA original restaurada exactamente, decay se aplica una sola vez (B6-B-01)', () => {
@@ -606,7 +723,7 @@ test('computeLevelStateUpdates: partido tras >60d de inactividad -> aplicar -> r
   });
   const p1AppliedResult = applied.resultPlayers.find((r) => r.playerId === 'p1');
   const p1AppliedUpdate = applied.levelStateUpdates.find((u) => u.playerId === 'p1');
-  assert.ok(Math.abs(p1AppliedResult.confidenceBefore - rawConfidence) < 1e-9);
+  assert.ok(Math.abs(p1AppliedResult.originalLiveConfidenceBefore - rawConfidence) < 1e-9);
 
   // 2) Simula que level_states quedó con el resultado de la aplicación (lo que escribiría
   // officialize_match_validation).
@@ -627,8 +744,8 @@ test('computeLevelStateUpdates: partido tras >60d de inactividad -> aplicar -> r
 
   // 4) El siguiente partido, calculado desde la confianza cruda restaurada + el mismo
   // lastRatedAt original, aplica el decay EXACTAMENTE UNA VEZ — nunca sobre una base que ya
-  // estaba decayeada (lo que habría pasado si confidenceBefore hubiera persistido la base
-  // decayeada en vez de la cruda).
+  // estaba decayeada (lo que habría pasado si originalLiveConfidenceBefore hubiera persistido la
+  // base decayeada en vez de la cruda).
   const nextMatchPlayedAt = '2026-09-01T00:00:00.000Z';
   const decayOnRestored = MLE.computeEffectiveConfidence(p1RevertedUpdate.finalConfidence, originalLastRatedAt, nextMatchPlayedAt);
   const decayFromScratch = MLE.computeEffectiveConfidence(rawConfidence, originalLastRatedAt, nextMatchPlayedAt);

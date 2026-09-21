@@ -2,7 +2,10 @@
 //
 // Ver docs/BRAMUlab/Implementacion/Backend/Bloque_06/{02_Analisis_Claude.md §3.1-§3.6,
 // 03_Plan_Implementacion_Claude.md §1.7, 04_Revision_ChatGPT.md §10, 06_Revision_Fase_A_
-// ChatGPT.md (B6-A-02/06/07/08/09)}.
+// ChatGPT.md (B6-A-02/06/07/08/09), 10_Revision_Final_Pre_Staging_ChatGPT.md (C-01: baseline
+// LIVE inmutable en liveByPlayerId.originalLive* para una identidad recién incorporada; C-06:
+// correction_accepted congela repetición/compañero/círculo/disponibilidad, nunca los recalcula
+// del historial actual).
 //
 // Mismo patrón que officialize-onboarding/create-or-attach-match (Bloques 3/5): importa el
 // motor JS compartido (symlinks reales a bramulab/, nunca copias) y hace TODO el cálculo acá
@@ -244,6 +247,16 @@ export async function officializeMatch(
           // (cutoff), igual que a cualquier otro jugador conocido.
           const effectiveConfidence = MLE.computeEffectiveConfidence(asOf.confidence, asOf.lastRatedAt, cutoff);
           playerStates[playerId] = { mu: asOf.mu, confidence: effectiveConfidence, state: MLE.mapLevelStateStatusToEngineState(asOf.status) };
+          // C-01: el baseline LIVE inmutable de este jugador para ESTE partido es su estado RAW
+          // histórico a la fecha de oficialización original — NUNCA su Nivel actual (que puede
+          // incluir partidos jugados durante los hasta 17 días de la ventana de identidad). Sin
+          // esto, computeLevelStateUpdates asumiría por defecto el LIVE actual como baseline,
+          // perdiendo cualquier efecto que este partido debería aportar por separado.
+          liveByPlayerId[playerId] = Object.assign({}, liveByPlayerId[playerId], {
+            originalLiveMu: asOf.mu,
+            originalLiveConfidence: asOf.confidence,
+            originalLiveEvidenceUnits: Number(asOf.evidenceUnits) || 0,
+          });
         }
         // Sin `asOf` (nunca tuvo Nivel antes de validatedAtIso): se lo deja sin entrada — se
         // trata como invitado sin Nivel conocido (Nivel_BRAMU_Formula_V1.5.md §13), nunca se
@@ -260,16 +273,52 @@ export async function officializeMatch(
       // agrega entrada, level-context.js ya resuelve esto correctamente vía §13.
     }
 
-    const officialization = MLE.computeOfficializationResult({
-      localMatch,
-      history,
-      playerStates,
-      validatedAtIso,
-    });
+    const oldAppliedResult = snapshot.currentAppliedResult || null;
+
+    // ------------------------------------------------------------------
+    // C-06 — una corrección de RESULTADO (mismos 4 participantes) reutiliza los factores
+    // contextuales que NO dependen del score (repetición/compañero/círculo/disponibilidad/
+    // knownLevelsCount) del resultado vigente ANTES de esta corrección — nunca los recalcula
+    // desde el historial ACTUAL, que puede haber cambiado por una anulación/corrección de OTRO
+    // encuentro. Solo aplica cuando existe un resultado previo eligible con esos factores ya
+    // persistidos; si no (p. ej. nunca fue eligible), cae al camino normal. Una corrección de
+    // IDENTIDAD (trigger=identity_resolved/identity_unidentified) SÍ recalcula — la composición
+    // cambió, per 10_Revision_Final_Pre_Staging_ChatGPT.md C-06.
+    // ------------------------------------------------------------------
+    // deno-lint-ignore no-explicit-any
+    let officialization: any;
+    const canFreezeContext = trigger === 'correction_accepted' && oldAppliedResult && oldAppliedResult.eligible
+      && Number.isFinite(oldAppliedResult.knownLevelsCount);
+    if (canFreezeContext) {
+      const circleFactorByPlayerId: Record<string, boolean> = {};
+      // deno-lint-ignore no-explicit-any
+      (oldAppliedResult.players || []).forEach((p: any) => {
+        circleFactorByPlayerId[p.playerId] = p.circleFactor === LV.PARAMS.CIRCLE_FACTOR_CLOSED;
+      });
+      officialization = MLE.computeOfficializationResultFrozenContext({
+        localMatch,
+        playerStates,
+        frozenContext: {
+          knownLevelsCount: oldAppliedResult.knownLevelsCount,
+          repetitionFactorA: oldAppliedResult.repetitionFactorA,
+          repetitionFactorB: oldAppliedResult.repetitionFactorB,
+          companionFactorA: oldAppliedResult.companionFactorA,
+          companionFactorB: oldAppliedResult.companionFactorB,
+          circleFactorByPlayerId,
+        },
+        validatedAtIso,
+      });
+    } else {
+      officialization = MLE.computeOfficializationResult({
+        localMatch,
+        history,
+        playerStates,
+        validatedAtIso,
+      });
+    }
 
     const engineOutput = officialization.eligible ? officialization.engineOutput : null;
     const guestPlayerIds: string[] = officialization.guestPlayerIds || [];
-    const oldAppliedResult = snapshot.currentAppliedResult || null;
 
     const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
       oldAppliedResult,

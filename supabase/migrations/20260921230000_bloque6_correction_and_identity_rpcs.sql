@@ -101,14 +101,16 @@ begin
       join public.matches m on m.match_id = mlr.match_id
       where mlrp.player_id = v_row.player_id;
 
-    -- B6-A-03/B6-A-04: revertir con el MOVIMIENTO REAL ya persistido (after-before, siempre el
-    -- valor efectivamente aplicado, nunca delta_capped/evidence_quality que pueden diferir cerca
-    -- de los clamps o de la fórmula incremental de confianza) — mu/confidence/evidence_units los
-    -- tres, nunca solo mu.
+    -- B6-A-03/B6-A-04/C-01: revertir con el EFECTO REAL de esta aplicación — `X_after` (valor
+    -- ABSOLUTO de fórmula, nunca contaminado por el LIVE) menos `original_live_X_before` (el
+    -- baseline LIVE inmutable de este partido/jugador) — nunca `delta_capped`/`evidence_quality`
+    -- a mano, que pueden diferir cerca de los clamps o de la fórmula incremental de confianza, y
+    -- nunca un movimiento LIVE-a-LIVE, que un partido/corrección posterior intercalado podía
+    -- corromper (C-01) — mu/confidence/evidence_units los tres, nunca solo mu.
     update public.level_states set
-      mu = round(greatest(1.0, least(10.0, mu - (v_row.mu_after - v_row.mu_before))), 4),
-      confidence = confidence - (v_row.confidence_after - v_row.confidence_before),
-      evidence_units = greatest(0, evidence_units - (v_row.evidence_units_after - v_row.evidence_units_before)),
+      mu = round(greatest(1.0, least(10.0, mu - (v_row.mu_after - v_row.original_live_mu_before))), 4),
+      confidence = confidence - (v_row.confidence_after - v_row.original_live_confidence_before),
+      evidence_units = greatest(0, evidence_units - v_row.evidence_quality),
       rated_matches = coalesce(v_rated, 0),
       distinct_opponents = coalesce(v_distinct, 0),
       status = v_status,
@@ -230,10 +232,9 @@ begin
   insert into public.match_actions (match_id, action_type, actor_player_id, acting_side, revision_id, metadata)
   values (p_match_id, 'revision_proposed', v_caller_player_id, v_caller_team, v_revision_id, '{}'::jsonb);
 
-  insert into public.notifications (player_id, type, match_id, payload)
-  select mp.player_id, 'correction_proposed', p_match_id, jsonb_build_object('proposedByPlayerId', v_caller_player_id)
-  from public.match_participants mp
-  where mp.match_id = p_match_id and mp.player_id is not null and mp.team <> v_caller_team;
+  -- C-08: sin insert en notifications acá — get_notifications DERIVA la tarea
+  -- 'correction_proposed' en lectura desde matches.pending_correction_revision_id (mientras la
+  -- ventana de 3 días siga vigente, C-10), nunca la persiste como mensaje histórico.
 
   return jsonb_build_object('ok', true, 'code', 'correction_proposed', 'matchId', p_match_id, 'pendingCorrectionRevisionId', v_revision_id);
 end;
@@ -429,10 +430,9 @@ begin
   insert into public.match_actions (match_id, action_type, actor_player_id, acting_side, metadata)
   values (p_match_id, 'identity_questioned', v_caller_player_id, null, jsonb_build_object('team', p_team, 'position', p_position_in_team, 'reason', p_reason));
 
-  insert into public.notifications (player_id, type, match_id, payload)
-  select mp.player_id, 'identity_questioned', p_match_id, jsonb_build_object('team', p_team, 'position', p_position_in_team)
-  from public.match_participants mp
-  where mp.match_id = p_match_id and mp.player_id is not null;
+  -- C-08: sin insert en notifications acá — get_notifications DERIVA la tarea
+  -- 'identity_questioned' en lectura desde match_identity_issues.status='open', nunca la
+  -- persiste como mensaje histórico (el match_actions de arriba ya conserva la auditoría).
 
   return jsonb_build_object('ok', true, 'code', 'identity_issue_opened', 'issueId', v_issue_id, 'resolutionDeadlineAt', now() + interval '7 days');
 end;

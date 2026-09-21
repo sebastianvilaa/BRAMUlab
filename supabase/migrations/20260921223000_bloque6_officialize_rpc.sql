@@ -120,6 +120,26 @@ begin
   end if;
 
   -- ------------------------------------------------------------------
+  -- C-02 — defensa en profundidad para la PRIMERA oficialización: bajo lock, solo procede si el
+  -- partido genuinamente está listo (nadie con una acción pendiente), la ventana de 30 días
+  -- sigue vigente y no hay una incidencia de identidad open. Si el partido YA está validated, el
+  -- único camino admisible es el retorno idempotente de más abajo — nunca se llega hasta acá con
+  -- intención de crear un resultado nuevo (confirm_match_validation ya lo trata como
+  -- already_validated antes de invocar el núcleo).
+  -- ------------------------------------------------------------------
+  if p_trigger = 'initial' and v_match.status <> 'validated' then
+    if v_match.action_side is not null then
+      return jsonb_build_object('ok', false, 'code', 'not_ready_for_validation');
+    end if;
+    if v_match.validation_deadline_at is null or now() > v_match.validation_deadline_at then
+      return jsonb_build_object('ok', false, 'code', 'match_expired');
+    end if;
+    if exists (select 1 from public.match_identity_issues where match_id = p_match_id and status = 'open') then
+      return jsonb_build_object('ok', false, 'code', 'identity_issue_open');
+    end if;
+  end if;
+
+  -- ------------------------------------------------------------------
   -- B6-A-07 — verificación de REVISIÓN esperada, distinta y adicional a la de snapshots de
   -- Nivel: protege contra oficializar/reaplicar sobre una revisión que ya dejó de ser la
   -- correcta para este trigger (p. ej. una nueva corrección pre-validación se coló entre que la
@@ -237,20 +257,24 @@ begin
   end if;
 
   if coalesce(p_eligible, false) then
+    -- C-01: original_live_*_before es el baseline LIVE INMUTABLE de este partido/jugador
+    -- (se propaga sin cambios entre correcciones); mu_after/confidence_after son el valor
+    -- ABSOLUTO de fórmula de ESTA aplicación puntual (nunca el LIVE contaminado por partidos
+    -- posteriores) — ver PLMatchLevelEngine.computeLevelStateUpdates.
     insert into public.match_level_result_players (
       result_id, player_id, team,
       formula_mu_before, formula_confidence_before, formula_state,
       effective_level, k, opponent_factor, circle_factor, delta_raw, delta_capped, evidence_quality,
-      mu_before, mu_after, confidence_before, confidence_after, evidence_units_before, evidence_units_after
+      original_live_mu_before, original_live_confidence_before, original_live_evidence_units_before,
+      mu_after, confidence_after
     )
     select
       v_result_id, (rp->>'playerId')::uuid, rp->>'team',
       (rp->>'formulaMuBefore')::numeric, (rp->>'formulaConfidenceBefore')::numeric, rp->>'formulaState',
       (rp->>'effectiveLevel')::numeric, (rp->>'k')::numeric, (rp->>'opponentFactor')::numeric, (rp->>'circleFactor')::numeric,
       (rp->>'deltaRaw')::numeric, (rp->>'deltaCapped')::numeric, (rp->>'evidenceQuality')::numeric,
-      (rp->>'muBefore')::numeric, (rp->>'muAfter')::numeric,
-      (rp->>'confidenceBefore')::numeric, (rp->>'confidenceAfter')::numeric,
-      (rp->>'evidenceUnitsBefore')::numeric, (rp->>'evidenceUnitsAfter')::numeric
+      (rp->>'originalLiveMuBefore')::numeric, (rp->>'originalLiveConfidenceBefore')::numeric, (rp->>'originalLiveEvidenceUnitsBefore')::numeric,
+      (rp->>'muAfter')::numeric, (rp->>'confidenceAfter')::numeric
     from jsonb_array_elements(coalesce(p_result_players, '[]'::jsonb)) rp;
   end if;
 
@@ -441,3 +465,91 @@ grant execute on function public.officialize_match_validation(
   numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric, numeric,
   numeric, numeric, numeric, numeric, jsonb, jsonb, uuid, uuid
 ) to service_role;
+
+-- ------------------------------------------------------------------
+-- confirm_match_validation — C-02 (10_Revision_Final_Pre_Staging_ChatGPT.md)
+-- ------------------------------------------------------------------
+--
+-- Confirmación B6 NATIVA por pareja para el botón "Confirmar" — reemplaza el hack de
+-- officialize-match/index.ts que reconstruía un create_or_attach_match (Bloque 5) para registrar
+-- conformidad, lo que dejaba abierta la posibilidad de que el lado PROPONENTE (action_side
+-- todavía de la pareja contraria) intentara oficializar sin autoridad real, y rechazaba de plano
+-- un partido con un slot "Jugador no identificado" terminal (C-07). Esta RPC SOLO registra
+-- conformidad — nunca invoca el motor de Nivel; el llamador invoca officialize_match_validation
+-- (trigger=initial) inmediatamente después cuando readyForValidation=true, igual que siempre.
+create or replace function public.confirm_match_validation(
+  p_auth_user_id uuid,
+  p_match_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_caller_player_id uuid;
+  v_caller_team text;
+  v_match public.matches;
+begin
+  select player_id into v_caller_player_id from public.players where auth_user_id = p_auth_user_id;
+  if v_caller_player_id is null then
+    raise exception 'no_player_for_user' using errcode = 'P0001';
+  end if;
+
+  select * into v_match from public.matches where match_id = p_match_id for update;
+  if v_match is null then
+    return jsonb_build_object('ok', false, 'code', 'match_not_found');
+  end if;
+
+  select team into v_caller_team from public.match_participants
+    where match_id = p_match_id and player_id = v_caller_player_id;
+  if v_caller_team is null then
+    return jsonb_build_object('ok', false, 'code', 'not_a_participant');
+  end if;
+
+  if v_match.status = 'validated' then
+    -- Idempotente (B6-A-10): ya no hay nada que confirmar, el llamador solo necesita invocar el
+    -- núcleo de oficialización, que es idempotente por sí mismo.
+    return jsonb_build_object('ok', true, 'code', 'already_validated', 'matchId', p_match_id, 'readyForValidation', true, 'idempotentReturn', true);
+  end if;
+  if v_match.status <> 'pending_validation' then
+    return jsonb_build_object('ok', false, 'code', 'match_not_actionable', 'status', v_match.status);
+  end if;
+  if v_match.validation_deadline_at is null or now() > v_match.validation_deadline_at then
+    return jsonb_build_object('ok', false, 'code', 'match_expired');
+  end if;
+  if exists (select 1 from public.match_identity_issues where match_id = p_match_id and status = 'open') then
+    return jsonb_build_object('ok', false, 'code', 'identity_issue_open');
+  end if;
+
+  if v_match.action_side is null then
+    -- Ya nadie tiene la acción pendiente (otro integrante ya confirmó) — idempotente, listo
+    -- para oficializar sin insertar una segunda acción 'confirmed'.
+    return jsonb_build_object('ok', true, 'code', 'already_confirmed', 'matchId', p_match_id, 'readyForValidation', true, 'idempotentReturn', true);
+  end if;
+
+  if v_match.action_side <> v_caller_team then
+    -- C-02: el caller pertenece a la pareja que YA propuso/es conforme — la acción real es de la
+    -- pareja contraria. Confirmar nunca puede saltearse la autoridad por pareja.
+    return jsonb_build_object('ok', false, 'code', 'not_actionable_for_caller');
+  end if;
+
+  update public.matches set action_side = null, updated_at = now() where match_id = p_match_id;
+
+  insert into public.match_actions (match_id, action_type, actor_player_id, acting_side, revision_id, metadata)
+  values (p_match_id, 'confirmed', v_caller_player_id, v_caller_team, v_match.current_revision_id, '{}'::jsonb);
+
+  return jsonb_build_object('ok', true, 'code', 'confirmed', 'matchId', p_match_id, 'readyForValidation', true);
+end;
+$$;
+
+comment on function public.confirm_match_validation is
+  'C-02: confirmación B6 nativa por pareja para "Confirmar" — exige participante actual, deadline
+   vigente, sin incidencia de identidad open y que action_side sea EXACTAMENTE el equipo del
+   caller (nunca el lado proponente). Nunca invoca el motor de Nivel — solo registra conformidad
+   y libera action_side; el llamador invoca officialize_match_validation(trigger=initial) después
+   si readyForValidation=true. SOLO service_role — invocable exclusivamente desde
+   officialize-match/index.ts, que ya verificó el JWT.';
+
+revoke all on function public.confirm_match_validation(uuid, uuid) from public;
+grant execute on function public.confirm_match_validation(uuid, uuid) to service_role;

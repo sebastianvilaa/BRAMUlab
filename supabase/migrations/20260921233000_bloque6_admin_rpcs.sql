@@ -101,9 +101,28 @@ begin
     return jsonb_build_object('ok', false, 'code', 'duplicate_participant');
   end if;
 
-  -- A diferencia de resolve_identity_issue, esta vía IGNORA deliberadamente resolution_deadline_at
-  -- (es el "corregir excepcionalmente" del handoff §6.11) — por eso exige actor + motivo, nunca
-  -- disponible al cliente normal.
+  if v_match.status = 'validated' then
+    -- C-05 (10_Revision_Final_Pre_Staging_ChatGPT.md): STAGED, igual que resolve_identity_issue
+    -- normal (B6-A-09) — solo AUTORIZA (actor+motivo ya validados, ignora deliberadamente
+    -- resolution_deadline_at: es el "corregir excepcionalmente" del handoff §6.11), nunca muta
+    -- match_participants ni cierra la incidencia todavía. La Edge Function
+    -- admin-resolve-identity-issue (alcanzable SOLO con la service role key exacta, nunca un JWT
+    -- de usuario) llama inmediatamente después a officialize_match_validation(trigger=
+    -- identity_resolved), que hace la reasignación + el refresco de fingerprint + la
+    -- reaplicación de Nivel + el cierre de la incidencia en UNA sola transacción atómica. Antes
+    -- de este fix, un fallo/interrupción entre la mutación directa y el recálculo separado podía
+    -- dejar la identidad ya reasignada con Nivel todavía suspendido, y sin camino idempotente
+    -- para completarlo (officialize_match_validation exige la incidencia todavía open).
+    return jsonb_build_object(
+      'ok', true, 'code', 'identity_resolved_authorized', 'issueId', p_issue_id, 'matchId', v_issue.match_id,
+      'team', v_issue.team, 'positionInTeam', v_issue.position_in_team,
+      'replacementPlayerId', p_replacement_player_id, 'needsRecompute', true
+    );
+  end if;
+
+  -- Partido todavía pending_validation: sin efecto de Nivel que atomizar, se reasigna directo
+  -- (ignora deliberadamente resolution_deadline_at, es el "corregir excepcionalmente" del
+  -- handoff §6.11).
   update public.match_participants set
     player_id = p_replacement_player_id,
     display_name_snapshot = coalesce((select display_name from public.players where player_id = p_replacement_player_id), 'Jugador')
@@ -122,16 +141,19 @@ begin
   );
 
   return jsonb_build_object(
-    'ok', true, 'code', 'identity_resolved', 'issueId', p_issue_id, 'matchId', v_issue.match_id,
-    'needsRecompute', (v_match.status = 'validated')
+    'ok', true, 'code', 'identity_resolved', 'issueId', p_issue_id, 'matchId', v_issue.match_id, 'needsRecompute', false
   );
 end;
 $$;
 
 comment on function public.admin_force_resolve_identity_issue is
   'Resolución administrativa excepcional de una incidencia de identidad, incluso fuera de la
-   ventana normal de 7 días. Actor + motivo obligatorios. needsRecompute=true indica que la
-   Edge Function debe reaplicar Nivel vía officialize_match_validation. SOLO service_role.';
+   ventana normal de 7 días. Actor + motivo obligatorios. Partido validated (C-05): SOLO
+   autoriza (needsRecompute=true) — la reasignación, el refresco de fingerprint, el cierre de la
+   incidencia y la reaplicación de Nivel ocurren atómicamente dentro de
+   officialize_match_validation(trigger=identity_resolved), invocado por la Edge Function
+   admin-resolve-identity-issue (SOLO alcanzable con la service role key exacta). Partido
+   pending_validation: sin efecto de Nivel que atomizar, se reasigna directo. SOLO service_role.';
 
 revoke all on function public.admin_force_resolve_identity_issue(uuid, uuid, text, text) from public;
 grant execute on function public.admin_force_resolve_identity_issue(uuid, uuid, text, text) to service_role;

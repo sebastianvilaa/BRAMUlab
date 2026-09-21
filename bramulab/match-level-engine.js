@@ -237,43 +237,146 @@
     };
   }
 
+  /** C-06 (10_Revision_Final_Pre_Staging_ChatGPT.md) — mismo `buildTeamInput` privado de
+   *  level-context.js#buildLevelEngineContext, reimplementado en miniatura porque esa función es
+   *  un closure interno no exportado (nunca se reabre ni se reimplementa distinto — es exactamente
+   *  la misma lógica, solo expuesta para reuso acá). Resuelve jugadores conocidos/invitados de UN
+   *  equipo ya resuelto por `LevelContext.computeAvailabilityContext` (que no depende de historial). */
+  function buildTeamPlayersInput(resolvedTeam, teamKey, imputedEffectiveLevel) {
+    const guestIds = [];
+    const players = (resolvedTeam || []).map((r, idx) => {
+      const id = r.userId || ('guest:' + teamKey + idx + ':' + (r.name || 'sin_nombre'));
+      if (r.known) return { id, mu: r.mu, confidence: r.confidence, state: r.state };
+      const mirror = resolvedTeam.find((other) => other !== r && other.known);
+      const guestInput = LevelContext.buildGuestEngineInput(imputedEffectiveLevel, mirror ? mirror.confidence : 0.95);
+      guestIds.push(id);
+      return Object.assign({ id }, guestInput);
+    });
+    return { players, guestIds };
+  }
+
+  /** C-06 — variante de `computeOfficializationResult` EXCLUSIVA de trigger=correction_accepted:
+   *  una corrección de RESULTADO (mismos 4 participantes) debe reutilizar los MISMOS factores
+   *  contextuales que no dependen del score — repetición/compañero/círculo/disponibilidad/
+   *  knownLevelsCount — del resultado más reciente de este partido, nunca recalcularlos desde el
+   *  historial ACTUAL (que puede haber cambiado por una anulación/corrección de OTRO encuentro,
+   *  alterando el peso de este partido por una razón ajena al score corregido). Solo lo que
+   *  depende del SCORE (ganador, margen, formato, deltas) se recalcula desde los sets nuevos.
+   *  Una corrección de IDENTIDAD sí puede recalcular estos factores (la composición cambió) —
+   *  por eso esta variante es exclusiva de `correction_accepted`, nunca de `identity_resolved`.
+   *  `frozenContext`: `{knownLevelsCount, repetitionFactorA, repetitionFactorB, companionFactorA,
+   *  companionFactorB, circleFactorByPlayerId}` — el llamador los arma desde el
+   *  `currentAppliedResult` vigente ANTES de esta corrección (nunca desde `history`). */
+  function computeOfficializationResultFrozenContext({ localMatch, playerStates, frozenContext, validatedAtIso }) {
+    const playedAtIso = localMatch && localMatch.playedAt;
+    if (!isWithinNivelWindow(playedAtIso, validatedAtIso)) {
+      return {
+        eligible: false, reasonCodes: [REASON_OUTSIDE_NIVEL_WINDOW], engineOutput: null,
+        guestPlayerIds: [], imputedEffectiveLevel: null, context: null,
+      };
+    }
+
+    const safeMatch = sanitizeUnidentifiedPlayers(localMatch);
+    // Disponibilidad/invitados NO depende de historial — reuso directo, nunca reimplementado.
+    const availability = LevelContext.computeAvailabilityContext(safeMatch, playerStates || {});
+    if (!availability.computable) {
+      return {
+        eligible: false, reasonCodes: availability.reasonCodes, engineOutput: null,
+        guestPlayerIds: [], imputedEffectiveLevel: null, context: null,
+      };
+    }
+
+    const teamAInput = buildTeamPlayersInput(availability.teamA, 'A', availability.imputedEffectiveLevel);
+    const teamBInput = buildTeamPlayersInput(availability.teamB, 'B', availability.imputedEffectiveLevel);
+
+    function circleFactorsForTeam(resolvedTeam) {
+      const frozen = (frozenContext && frozenContext.circleFactorByPlayerId) || {};
+      return (resolvedTeam || []).map((r) => (r.known && r.userId ? !!frozen[r.userId] : false));
+    }
+
+    const engineInput = {
+      matchId: safeMatch.matchId,
+      teamA: {
+        players: teamAInput.players,
+        repetitionFactor: frozenContext.repetitionFactorA,
+        companionFactor: frozenContext.companionFactorA,
+        circleFactors: circleFactorsForTeam(availability.teamA),
+      },
+      teamB: {
+        players: teamBInput.players,
+        repetitionFactor: frozenContext.repetitionFactorB,
+        companionFactor: frozenContext.companionFactorB,
+        circleFactors: circleFactorsForTeam(availability.teamB),
+      },
+      winnerTeam: safeMatch.winnerTeam,
+      score: LevelContext.computeMarginScoreInputs(safeMatch, safeMatch.winnerTeam),
+      formatKey: LevelContext.detectFormatKey(safeMatch),
+      knownLevelsCount: frozenContext.knownLevelsCount,
+    };
+
+    const engineOutput = Level.computeMatchUpdate(engineInput);
+    engineInput.teamA.players.concat(engineInput.teamB.players).forEach((p) => {
+      if (engineOutput.players[p.id]) engineOutput.players[p.id].state = p.state;
+    });
+
+    return {
+      eligible: true,
+      reasonCodes: (availability.reasonCodes || []).concat(engineOutput.reasonCodes || []),
+      engineOutput,
+      guestPlayerIds: teamAInput.guestIds.concat(teamBInput.guestIds),
+      imputedEffectiveLevel: availability.imputedEffectiveLevel,
+      context: {
+        knownLevelsCount: frozenContext.knownLevelsCount,
+        repetitionFactorA: frozenContext.repetitionFactorA,
+        repetitionFactorB: frozenContext.repetitionFactorB,
+        companionFactorA: frozenContext.companionFactorA,
+        companionFactorB: frozenContext.companionFactorB,
+      },
+    };
+  }
+
   /** Diferencia NETA entre un resultado anterior (si existe, ya vigente) y uno nuevo recién
    *  calculado (Nivel_BRAMU_Formula_V1.5.md §12.3: "revertir exactamente el efecto anterior;
    *  recalcular; aplicar solo la diferencia neta") — corregido según 06_Revision_Fase_A_
-   *  ChatGPT.md B6-A-04/B6-A-05 y 08_Revision_Central_Adicional.md B6-B-01:
+   *  ChatGPT.md B6-A-04/B6-A-05, 08_Revision_Central_Adicional.md B6-B-01 y
+   *  10_Revision_Final_Pre_Staging_ChatGPT.md C-01:
    *
-   *  1) Revertir usa el MOVIMIENTO REALMENTE APLICADO de la aplicación anterior
-   *     (`oldP.muAfter - oldP.muBefore` / `oldP.confidenceAfter - oldP.confidenceBefore`, ambos
-   *     LIVE — nunca `deltaCapped`/`evidenceQuality`, que pueden diferir del movimiento real
-   *     cerca de los clamps 1.0/10.0 o de la fórmula incremental).
-   *  2) El nuevo `confidenceAfter` (LIVE) es EXACTAMENTE `newP.confidenceAfter` — el motor ya lo
-   *     calculó desde su propia referencia de fórmula congelada (`newP.confidenceBefore` =
-   *     `formulaConfidenceBefore`, ya decay-ajustada por quien armó `playerStates` — nunca se
-   *     vuelve a aplicar decay ni se recalcula acá, B6-B-01). El nuevo `confidenceBefore` (LIVE)
-   *     es el valor LIVE tal cual estaba INMEDIATAMENTE ANTES de esta aplicación
-   *     (`confidenceAfterRevert`) — nunca la base decayeada que alimentó la fórmula. Antes de
-   *     este fix, `confidenceBefore` persistía la base YA decayeada: revertir devolvía esa base
-   *     decayeada en vez de la confianza cruda original, y el siguiente partido podía volver a
-   *     aplicar decay sobre un valor que ya estaba decayeado ("doble decay", B6-B-01).
-   *  3) `mu`/`confidence`/`evidence_units` "before"/"after" que se persisten en
-   *     `match_level_result_players` son los valores LIVE de ESTA aplicación puntual (soportan
-   *     la próxima reversión exacta) — DISTINTOS de `formulaMuBefore`/`formulaConfidenceBefore`
-   *     (la referencia inmutable que alimentó la fórmula, ya presente en `newP` vía
-   *     `engineOutput.players[id].muBefore/confidenceBefore`).
+   *  C-01 — ni revertir ni aplicar tocan el valor LIVE actual como base aditiva/absoluta: ambos
+   *  se calculan como un EFECTO relativo a una única referencia INMUTABLE por partido/jugador
+   *  (`originalLiveXBefore` — el valor LIVE que existía la primera vez que este partido se
+   *  calculó para este jugador, se propaga sin cambios en cada corrección posterior):
    *
-   *  `oldAppliedResult`: null, o `{ players: [{playerId, muBefore, muAfter, confidenceBefore,
-   *  confidenceAfter, evidenceUnitsBefore, evidenceUnitsAfter}] }` — los valores LIVE ya
-   *  persistidos por la aplicación anterior (el `currentAppliedResult` que devuelve
-   *  `get_match_officialization_snapshot`).
-   *  `engineOutput`: la salida de `computeOfficializationResult` (o null si no eligible).
+   *    efecto_X = X_after(fórmula, absoluto) - originalLiveXBefore
+   *    final_live_X = current_live_X - efecto_anterior_X + efecto_nuevo_X
+   *
+   *  `X_after` es SIEMPRE el valor absoluto que la fórmula calculó desde su propia referencia
+   *  congelada (`newP.muAfter`/`newP.confidenceAfter`, level.js#computeMatchUpdate) — NUNCA el
+   *  valor LIVE ya escrito (B6-B-01 asignaba `newP.confidenceAfter` directo como el nuevo LIVE,
+   *  y mu sumaba `deltaCapped` sobre el LIVE revertido: ambos casos, si un partido/corrección de
+   *  OTRO encuentro ocurrió entre dos aplicaciones de ESTE, el efecto quedaba contaminado por esa
+   *  interferencia — el clamp de mu cerca de 1.0/10.0 se re-anclaba en un punto equivocado, y
+   *  confidence directamente perdía cualquier ganancia/pérdida posterior). Con `X_after` SIEMPRE
+   *  relativo a la MISMA referencia inmutable, el término `originalLiveXBefore` se CANCELA
+   *  algebraicamente cuando existe una aplicación anterior (`final = current - oldP.XAfter +
+   *  newP.XAfter`) — el efecto de cualquier partido posterior queda intacto sin importar cuántas
+   *  veces se corrija este partido. `evidence_units` ya era un incremento puro (`evidenceQuality`,
+   *  nunca un valor absoluto) — sigue igual, solo expresado con el mismo criterio de "efecto".
+   *
+   *  Para un jugador NUEVO en el resultado (`!oldP`): `originalLiveXBefore` lo establece el
+   *  llamador vía `current.originalLiveMu/Confidence/EvidenceUnits` — una identidad recién
+   *  incorporada por corrección usa su estado RAW histórico reconstruido a la fecha de
+   *  oficialización original (nunca su Nivel actual, que puede incluir partidos posteriores);
+   *  si falta, se asume el valor LIVE actual (primera vez real, trigger=initial).
+   *
+   *  `oldAppliedResult`: null, o `{ players: [{playerId, muAfter, confidenceAfter, evidenceQuality,
+   *  originalLiveMuBefore, originalLiveConfidenceBefore, originalLiveEvidenceUnitsBefore}] }` —
+   *  el `currentAppliedResult` que devuelve `get_match_officialization_snapshot`.
+   *  `engineOutput`: la salida de `computeOfficializationResult`/`...FrozenContext` (o null).
    *  `guestPlayerIds`: ids sintéticos de invitados en el engineOutput nuevo — nunca reciben fila.
-   *  `currentLevelStatesByPlayerId`: `{[playerId]: {mu,confidence,evidenceUnits,lastRatedAt}}`
-   *  LIVE actual (ahora mismo) — el llamador la arma leyendo `levelStates` de
-   *  `get_match_officialization_snapshot` para cualquier player_id involucrado (viejo ∪ nuevo).
-   *  Nunca recibe/necesita `referenceIso`: la inactividad (B6-A-05) ya se resolvió ANTES de
-   *  llegar acá, al construir `playerStates` para el motor (`buildPlayerStatesDict` o el
-   *  snapshot inmutable de una corrección) — este módulo solo usa lo que `newP.confidenceBefore`
-   *  ya trae. */
+   *  `currentLevelStatesByPlayerId`: `{[playerId]: {mu,confidence,evidenceUnits,lastRatedAt,
+   *  originalLiveMu?,originalLiveConfidence?,originalLiveEvidenceUnits?}}` LIVE actual (ahora
+   *  mismo) — el llamador la arma leyendo `levelStates` de `get_match_officialization_snapshot`
+   *  para cualquier player_id involucrado (viejo ∪ nuevo). */
   function computeLevelStateUpdates({ oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId }) {
     const oldByPlayerId = {};
     ((oldAppliedResult && oldAppliedResult.players) || []).forEach((p) => {
@@ -299,17 +402,22 @@
       const oldP = oldByPlayerId[playerId];
       const newP = newByPlayerId[playerId];
 
-      // Paso 1 — revertir el movimiento REAL de la aplicación anterior (B6-A-04): nunca
-      // deltaCapped, siempre after-before ya persistido.
-      const oldMuMovement = oldP ? (oldP.muAfter - oldP.muBefore) : 0;
-      const oldConfidenceMovement = oldP ? (oldP.confidenceAfter - oldP.confidenceBefore) : 0;
-      const oldEvidenceMovement = oldP ? (oldP.evidenceUnitsAfter - oldP.evidenceUnitsBefore) : 0;
+      // Baseline LIVE original INMUTABLE de este partido para este jugador (C-01) — oldP ya
+      // trae el propio (se propaga sin cambios entre correcciones); si es nuevo, lo decide el
+      // llamador o, por defecto, el valor LIVE actual (primera vez real).
+      const originalLiveMuBefore = oldP ? oldP.originalLiveMuBefore
+        : (Number.isFinite(current.originalLiveMu) ? current.originalLiveMu : current.mu);
+      const originalLiveConfidenceBefore = oldP ? oldP.originalLiveConfidenceBefore
+        : (Number.isFinite(current.originalLiveConfidence) ? current.originalLiveConfidence : current.confidence);
+      const originalLiveEvidenceUnitsBefore = oldP ? oldP.originalLiveEvidenceUnitsBefore
+        : (Number.isFinite(current.originalLiveEvidenceUnits) ? current.originalLiveEvidenceUnits : (current.evidenceUnits || 0));
 
-      const muAfterRevert = Level.clampLevel(current.mu - oldMuMovement);
-      // confidence no tiene clamp de escala propio (su rango lo mantiene la propia fórmula
-      // incremental entre 0 y CONFIDENCE_MAX); evidence_units sí tiene piso 0.
-      const confidenceAfterRevert = current.confidence - oldConfidenceMovement;
-      const evidenceUnitsAfterRevert = Math.max(0, (current.evidenceUnits || 0) - oldEvidenceMovement);
+      // Efecto de la aplicación ANTERIOR, relativo a ese baseline inmutable — nunca al LIVE de
+      // aquel momento (C-01: eso seguía siendo vulnerable a un partido/corrección posterior
+      // intercalado entre esa aplicación y esta).
+      const oldMuEffect = oldP ? (oldP.muAfter - originalLiveMuBefore) : 0;
+      const oldConfidenceEffect = oldP ? (oldP.confidenceAfter - originalLiveConfidenceBefore) : 0;
+      const oldEvidenceEffect = oldP ? oldP.evidenceQuality : 0;
 
       if (!newP) {
         // Solo reversión pura — identidad retirada de este partido, o corrección que ya no
@@ -319,34 +427,33 @@
           currentMuForLock: current.mu,
           currentConfidenceForLock: current.confidence,
           currentEvidenceUnitsForLock: current.evidenceUnits || 0,
-          finalMu: muAfterRevert,
-          finalConfidence: confidenceAfterRevert,
-          finalEvidenceUnits: evidenceUnitsAfterRevert,
+          finalMu: Level.clampLevel(current.mu - oldMuEffect),
+          finalConfidence: current.confidence - oldConfidenceEffect,
+          finalEvidenceUnits: Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect),
         });
         return;
       }
 
-      // Paso 2 — aplicar el delta NUEVO. B6-B-01: `confidenceAfter` es EXACTAMENTE lo que el
-      // motor ya calculó (`newP.confidenceAfter` = `Level.computeConfidenceAfterMatch(newP.
-      // confidenceBefore, newP.evidenceQuality)`, level.js#computeMatchUpdate) — nunca se vuelve
-      // a invocar la fórmula acá ni se aplica decay una segunda vez: quien armó `playerStates`
-      // para el motor (buildPlayerStatesDict o el snapshot inmutable de una corrección) ya
-      // decidió la base correcta (decayeada o no). `mu` sigue siendo un delta ADITIVO
-      // (`deltaCapped`) aplicado sobre el valor LIVE ya revertido — a diferencia de confidence,
-      // el delta de mu es independiente de la base salvo el clamp de escala, ya cubierto por el
-      // paso de reversión (B6-A-04).
-      const muAfterApply = Level.clampLevel(muAfterRevert + newP.deltaCapped);
-      const confidenceAfterApply = newP.confidenceAfter;
-      const evidenceUnitsAfterApply = evidenceUnitsAfterRevert + newP.evidenceQuality;
+      // Efecto NUEVO, relativo al MISMO baseline inmutable — `newP.muAfter`/`confidenceAfter`
+      // son los valores ABSOLUTOS que la fórmula ya calculó (level.js#computeMatchUpdate) desde
+      // su propia referencia congelada (`newP.muBefore`/`confidenceBefore`), nunca reconstruidos
+      // acá. `evidenceQuality` ya es un incremento puro, no depende de ningún baseline.
+      const newMuEffect = newP.muAfter - originalLiveMuBefore;
+      const newConfidenceEffect = newP.confidenceAfter - originalLiveConfidenceBefore;
+      const newEvidenceEffect = newP.evidenceQuality;
+
+      const finalMu = Level.clampLevel(current.mu - oldMuEffect + newMuEffect);
+      const finalConfidence = current.confidence - oldConfidenceEffect + newConfidenceEffect;
+      const finalEvidenceUnits = Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect + newEvidenceEffect);
 
       levelStateUpdates.push({
         playerId,
         currentMuForLock: current.mu,
         currentConfidenceForLock: current.confidence,
         currentEvidenceUnitsForLock: current.evidenceUnits || 0,
-        finalMu: muAfterApply,
-        finalConfidence: confidenceAfterApply,
-        finalEvidenceUnits: evidenceUnitsAfterApply,
+        finalMu,
+        finalConfidence,
+        finalEvidenceUnits,
       });
 
       resultPlayers.push({
@@ -366,17 +473,16 @@
         deltaRaw: newP.deltaRaw,
         deltaCapped: newP.deltaCapped,
         evidenceQuality: newP.evidenceQuality,
-        // Valores LIVE realmente aplicados en ESTA operación — sostienen la próxima reversión
-        // exacta (B6-A-04/B6-B-01). confidenceBefore es el valor LIVE tal cual estaba
-        // INMEDIATAMENTE ANTES de esta aplicación (nunca la base decayeada que alimentó la
-        // fórmula) — así "after - before" siempre reconstruye el movimiento total (decay +
-        // delta del partido) y revertir restaura exactamente la confianza cruda previa.
-        muBefore: muAfterRevert,
-        muAfter: muAfterApply,
-        confidenceBefore: confidenceAfterRevert,
-        confidenceAfter: confidenceAfterApply,
-        evidenceUnitsBefore: evidenceUnitsAfterRevert,
-        evidenceUnitsAfter: evidenceUnitsAfterApply,
+        // Baseline LIVE inmutable — se propaga SIN CAMBIOS a través de cualquier corrección
+        // futura de este mismo partido (C-01).
+        originalLiveMuBefore,
+        originalLiveConfidenceBefore,
+        originalLiveEvidenceUnitsBefore,
+        // Valores ABSOLUTOS de fórmula de ESTA aplicación — sostienen el efecto de una futura
+        // corrección sin contaminarse por el LIVE (C-01). NUNCA lo que se escribió en
+        // level_states (eso es finalMu/finalConfidence, ver levelStateUpdates arriba).
+        muAfter: newP.muAfter,
+        confidenceAfter: newP.confidenceAfter,
       });
     });
 
@@ -394,6 +500,7 @@
     buildUnidentifiedRef,
     sanitizeUnidentifiedPlayers,
     computeOfficializationResult,
+    computeOfficializationResultFrozenContext,
     computeLevelStateUpdates,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

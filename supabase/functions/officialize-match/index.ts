@@ -1,29 +1,29 @@
 // BRAMUlab — Backend Bloque 6: oficialización explícita ("Confirmar").
 //
 // Ver docs/BRAMUlab/Implementacion/Backend/Bloque_06/{02_Analisis_Claude.md §3.1,
-// 06_Revision_Fase_A_ChatGPT.md B6-A-06/B6-A-10}.
+// 06_Revision_Fase_A_ChatGPT.md B6-A-06/B6-A-10, 10_Revision_Final_Pre_Staging_ChatGPT.md C-02/C-07}.
 //
 // Body esperado (JSON), con el access token del usuario en el header Authorization:
 //   { matchId: string }
 //
-// Tres casos, MISMO endpoint — nunca dos lógicas paralelas (04_Revision_ChatGPT.md §10):
+// Dos casos, MISMO endpoint — nunca dos lógicas paralelas (04_Revision_ChatGPT.md §10):
 //   1) matches.status ya es 'validated': idempotente (B6-A-10) — llama directo a la rutina
 //      compartida, que a su vez es idempotente por (match_id, revision_id, trigger) dentro de
 //      officialize_match_validation. Nunca se corta antes con match_not_actionable solo porque
 //      ya está validated — el contrato explícito de Confirmar es poder reintentarse sin efecto
 //      doble.
-//   2) matches.action_side ya es NULL (pending_validation, la conformidad rival ya quedó
-//      registrada — por Bloque 5, o por este mismo endpoint llamado un instante antes por otro
-//      participante): oficializa directo.
-//   3) matches.action_side todavía es el equipo del caller (pending_validation, es su turno real
-//      de responder): registra su conformidad con el MISMO score vigente de la revisión ACTUAL
-//      (B6-A-06 — nunca una mezcla de sets de varias revisiones) vía create_or_attach_match
-//      (Bloque 5, RPC ya existente, NUNCA reimplementada acá) y, si eso deja action_side=NULL,
-//      oficializa en la misma llamada.
+//   2) matches.status es 'pending_validation': confirm_match_validation (C-02, RPC B6 nativa)
+//      registra la conformidad del caller SOLO si action_side es exactamente su equipo — nunca
+//      reconstruye un create_or_attach_match (Bloque 5), que exigía 4 player_id no nulos y por
+//      eso rechazaba con unidentified_slot_present un partido con un slot "Jugador no
+//      identificado" terminal aunque la incidencia ya hubiera vencido (C-07: ese partido puede
+//      seguir su camino normal a validated, con Nivel reducido o sin efecto según corresponda —
+//      nunca se fabrica una identidad). Si readyForValidation=true, oficializa en la misma llamada.
 //
 // El "reintento silencioso" que el cliente dispara al detectar readyForValidation=true en una
 // lectura (self-healing sin cron, 02_Analisis_Claude.md §3.1) llama a este mismo endpoint con
-// solo matchId — cae siempre en el caso 2, o en el caso 1 si ya se resolvió mientras tanto.
+// solo matchId — cae siempre en el caso 1, o converge de nuevo al caso 2 si otro participante ya
+// confirmó mientras tanto (idempotente).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { officializeMatch } from '../_shared/match-officialize-core.ts';
@@ -87,101 +87,35 @@ Deno.serve(async (req) => {
   if (!callerPlayer) return jsonResponse({ ok: false, code: 'no_player_for_user' }, 400);
   const callerPlayerId = callerPlayer.player_id;
 
-  const { data: callerRow } = await serviceClient
-    .from('match_participants')
-    .select('team')
-    .eq('match_id', matchId)
-    .eq('player_id', callerPlayerId)
-    .maybeSingle();
-  if (!callerRow) return jsonResponse({ ok: false, code: 'not_a_participant' }, 403);
-
   const { data: matchRow } = await serviceClient
     .from('matches')
-    .select('status, action_side, current_revision_id')
+    .select('status')
     .eq('match_id', matchId)
     .maybeSingle();
   if (!matchRow) return jsonResponse({ ok: false, code: 'match_not_found' }, 404);
 
   // B6-A-10: 'validated' NUNCA es match_not_actionable acá — es exactamente el reintento
-  // idempotente que el propio contrato de este endpoint promete (y que verify-bloque6.mjs
-  // ejercita explícitamente).
+  // idempotente que el propio contrato de este endpoint promete.
   if (matchRow.status !== 'pending_validation' && matchRow.status !== 'validated') {
     return jsonResponse({ ok: false, code: 'match_not_actionable', status: matchRow.status }, 409);
   }
 
-  if (matchRow.status === 'pending_validation' && matchRow.action_side === callerRow.team) {
-    // Caso 3: es el turno real del caller. Reconstruye el envío desde la revisión ACTUAL
-    // (B6-A-06: current_revision_id -> su revision_number -> SOLO esos match_sets, nunca todos
-    // los de match_id sin filtrar) y lo resubmite vía create_or_attach_match (Bloque 5) — el
-    // mismo mecanismo que ya usa cualquier carga, nunca reimplementado acá.
-    const { data: currentRevision } = await serviceClient
-      .from('match_revisions')
-      .select('revision_number')
-      .eq('revision_id', matchRow.current_revision_id)
-      .maybeSingle();
-    if (!currentRevision) {
-      return jsonResponse({ ok: false, code: 'current_revision_not_found' }, 500);
-    }
-
-    const { data: setsRows } = await serviceClient
-      .from('match_sets')
-      .select('set_number,games_a,games_b,tiebreak_a,tiebreak_b')
-      .eq('match_id', matchId)
-      .eq('revision_number', currentRevision.revision_number)
-      .order('set_number');
-    const { data: participantsRows } = await serviceClient
-      .from('match_participants')
-      .select('team,position_in_team,player_id')
-      .eq('match_id', matchId)
-      .order('team')
-      .order('position_in_team');
-    const { data: matchMeta } = await serviceClient
-      .from('matches')
-      .select('played_at,played_at_time_known,format_id,scoring_system,reported_time_zone,location_name,location_lat,location_lng')
-      .eq('match_id', matchId)
-      .maybeSingle();
-
-    // deno-lint-ignore no-explicit-any
-    const teamA = (participantsRows || []).filter((p: any) => p.team === 'A').map((p: any) => p.player_id);
-    // deno-lint-ignore no-explicit-any
-    const teamB = (participantsRows || []).filter((p: any) => p.team === 'B').map((p: any) => p.player_id);
-
-    if (teamA.length !== 2 || teamB.length !== 2 || teamA.some((id: unknown) => !id) || teamB.some((id: unknown) => !id)) {
-      // Un slot sin player_id (incidencia de identidad abierta) no puede resubmitirse por este
-      // camino — el detalle del partido debe estar mostrando la incidencia, no "Confirmar".
-      return jsonResponse({ ok: false, code: 'unidentified_slot_present' }, 409);
-    }
-
-    const { data: confirmResult, error: confirmError } = await serviceClient.rpc('create_or_attach_match', {
+  if (matchRow.status === 'pending_validation') {
+    // C-02: confirm_match_validation exige bajo lock que action_side sea EXACTAMENTE el equipo
+    // del caller — nunca deja que el lado proponente oficialice antes de la conformidad rival.
+    const { data: confirmResult, error: confirmError } = await serviceClient.rpc('confirm_match_validation', {
       p_auth_user_id: authUserId,
-      p_idempotency_key: crypto.randomUUID(),
-      p_pair1_player_id_1: teamA[0],
-      p_pair1_player_id_2: teamA[1],
-      p_pair2_player_id_1: teamB[0],
-      p_pair2_player_id_2: teamB[1],
-      p_played_at: matchMeta?.played_at,
-      p_played_at_time_known: matchMeta?.played_at_time_known,
-      p_format_id: matchMeta?.format_id,
-      // deno-lint-ignore no-explicit-any
-      p_sets: (setsRows || []).map((s: any) => ({
-        gamesA: s.games_a,
-        gamesB: s.games_b,
-        tiebreakA: s.tiebreak_a,
-        tiebreakB: s.tiebreak_b,
-      })),
-      p_reported_time_zone: matchMeta?.reported_time_zone || null,
-      p_scoring_system: matchMeta?.scoring_system || null,
-      p_location_name: matchMeta?.location_name || null,
-      p_location_lat: matchMeta?.location_lat || null,
-      p_location_lng: matchMeta?.location_lng || null,
+      p_match_id: matchId,
     });
-
-    if (confirmError || !confirmResult || confirmResult.ok === false) {
-      return jsonResponse({ ok: false, code: 'confirm_failed', detail: confirmResult }, 500);
+    if (confirmError) {
+      return jsonResponse({ ok: false, code: 'confirm_failed', detail: confirmError.message }, 500);
+    }
+    if (!confirmResult || confirmResult.ok === false) {
+      return jsonResponse(confirmResult || { ok: false, code: 'unknown_error' });
     }
     if (!confirmResult.readyForValidation) {
-      // No debería pasar (confirmar exactamente el mismo score vigente siempre libera
-      // action_side) — se devuelve sin oficializar; el cliente puede releer/reintentar.
+      // No debería pasar (confirm_match_validation solo devuelve ok:true con
+      // readyForValidation=true o false explícito antes de eso) — se devuelve sin oficializar.
       return jsonResponse({ ok: true, code: 'confirmed_not_ready', matchId });
     }
   }

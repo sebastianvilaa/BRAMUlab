@@ -108,8 +108,9 @@ begin
     -- INMUTABLE a través de correcciones posteriores: "mismos snapshots previos"
     -- (Nivel_BRAMU_Formula_V1.5.md §12.3) significa que el Nivel de cada jugador INMEDIATAMENTE
     -- ANTES de este encuentro no cambia aunque el partido se corrija muchas veces después. Usa
-    -- formula_mu_before/formula_confidence_before/formula_state (B6-A-04) — NUNCA los mu_before/
-    -- confidence_before "live" de la primera fila, que son un concepto distinto.
+    -- formula_mu_before/formula_confidence_before/formula_state (B6-A-04) — NUNCA
+    -- original_live_mu_before/original_live_confidence_before (C-01), que son un concepto
+    -- distinto (el baseline LIVE, no lo que alimentó la fórmula).
     'priorSnapshots', (
       select coalesce(jsonb_agg(jsonb_build_object(
         'playerId', first_rows.player_id, 'muBefore', first_rows.formula_mu_before,
@@ -124,19 +125,27 @@ begin
         order by mlrp.player_id, mlr.computed_at asc
       ) first_rows
     ),
-    -- El resultado actualmente vigente (si existe) — para revertirlo antes de reaplicar. Los
-    -- campos mu/confidence/evidenceUnits before/after son LIVE (B6-A-04): el movimiento real
-    -- aplicado, nunca deltaCapped.
+    -- El resultado actualmente vigente (si existe) — para revertirlo antes de reaplicar y, para
+    -- trigger=correction_accepted, como fuente de los factores contextuales CONGELADOS (C-01/
+    -- C-06, 10_Revision_Final_Pre_Staging_ChatGPT.md). `muAfter`/`confidenceAfter` son el valor
+    -- ABSOLUTO de fórmula de esa aplicación (nunca contaminado por el LIVE actual);
+    -- `originalLive*Before` es el baseline LIVE inmutable de este partido/jugador. El efecto
+    -- real a revertir es siempre `After - originalLiveBefore`, nunca un movimiento LIVE-a-LIVE.
     'currentAppliedResult', (
       select jsonb_build_object(
         'resultId', mlr.result_id, 'revisionId', mlr.revision_id, 'eligible', mlr.eligible,
         'reasonCodes', mlr.reason_codes, 'algorithmVersion', mlr.algorithm_version,
+        'knownLevelsCount', mlr.known_levels_count,
+        'repetitionFactorA', mlr.repetition_factor_a, 'repetitionFactorB', mlr.repetition_factor_b,
+        'companionFactorA', mlr.companion_factor_a, 'companionFactorB', mlr.companion_factor_b,
         'players', (
           select coalesce(jsonb_agg(jsonb_build_object(
             'playerId', mlrp.player_id, 'team', mlrp.team,
-            'muBefore', mlrp.mu_before, 'muAfter', mlrp.mu_after,
-            'confidenceBefore', mlrp.confidence_before, 'confidenceAfter', mlrp.confidence_after,
-            'evidenceUnitsBefore', mlrp.evidence_units_before, 'evidenceUnitsAfter', mlrp.evidence_units_after
+            'muAfter', mlrp.mu_after, 'confidenceAfter', mlrp.confidence_after,
+            'evidenceQuality', mlrp.evidence_quality, 'circleFactor', mlrp.circle_factor,
+            'originalLiveMuBefore', mlrp.original_live_mu_before,
+            'originalLiveConfidenceBefore', mlrp.original_live_confidence_before,
+            'originalLiveEvidenceUnitsBefore', mlrp.original_live_evidence_units_before
           )), '[]'::jsonb)
           from public.match_level_result_players mlrp where mlrp.result_id = mlr.result_id
         )
@@ -273,14 +282,16 @@ set search_path = public
 as $$
   select case
     -- initial_estimate (Bloque 3) usa otras claves (confirmedLevel/confidenceOrigin) y siempre
-    -- representa evidencia 0 / status CALIBRANDO / sin actividad computable todavía — se
-    -- traduce acá sin tocar el contrato ya cerrado de officialize_level_onboarding.
+    -- representa evidencia 0 / status CALIBRANDO — se traduce acá sin tocar el contrato ya
+    -- cerrado de officialize_level_onboarding. C-09: el cuestionario ES el primer instante que
+    -- establece Nivel — lastRatedAt es su propio created_at (nunca null: el reloj de
+    -- inactividad, §10.3, arranca desde acá, no desde el primer partido computado).
     when le.event_type = 'initial_estimate' then jsonb_build_object(
       'mu', (le.result->>'confirmedLevel')::numeric,
       'confidence', (le.result->>'confidenceOrigin')::numeric,
       'evidenceUnits', 0,
       'status', 'CALIBRANDO',
-      'lastRatedAt', null
+      'lastRatedAt', le.created_at
     )
     else jsonb_build_object(
       'mu', (le.result->>'muAfter')::numeric,

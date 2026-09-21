@@ -2,6 +2,14 @@
 -- Reaplica create_or_attach_match con guardia para action_side IS NULL.
 -- Cuando una pareja rival ya registró conformidad, la carga posterior del compañero
 -- converge al mismo match_id sin insertar una segunda acción 'confirmed'.
+--
+-- 10_Revision_Final_Pre_Staging_ChatGPT.md — ACOTADO a C-03/C-04, único touch de Bloque 5
+-- autorizado para la corrección final de Bloque 6:
+--   C-03: antes de CREAR, guardia contra un match con incidencia de identidad open/terminal-
+--     unidentified cuyos 3 participantes conocidos coincidan con 3 de los 4 IDs entrantes (su
+--     fingerprint es el centinela, nunca coincide por huella exacta) -> identity_resolution_required.
+--   C-04: al ADJUNTAR a un match existente, la orientación A/B se toma de match_participants ya
+--     almacenada, nunca se recalcula por orden léxico (que un reemplazo de identidad puede invertir).
 
 -- BRAMUlab — Bloque 5: create_or_attach_match — RPC privada, atómica e idempotente.
 --
@@ -118,6 +126,9 @@ declare
   v_revision_id uuid;
   v_revision_number integer;
   v_new_action_side text;
+  v_identity_candidates jsonb;
+  v_identity_candidate_count integer;
+  v_identity_target_match_id uuid;
 begin
   select player_id into v_caller_player_id from public.players where auth_user_id = p_auth_user_id;
   if v_caller_player_id is null then
@@ -316,6 +327,45 @@ begin
   -- CREAR (0 candidatos, o desambiguación explícita "es otro partido")
   -- ------------------------------------------------------------------
   if v_target_match_id is null then
+    -- C-03 (10_Revision_Final_Pre_Staging_ChatGPT.md): un partido con una incidencia de
+    -- identidad open/terminal-unidentified tiene un fingerprint CENTINELA
+    -- (bloque6_unidentified:<match_id>, ver _bloque6_refresh_participant_fingerprint) — nunca
+    -- coincide por huella exacta con una carga normal de 4 IDs, así que la búsqueda de arriba
+    -- siempre da 0 candidatos para él. Sin esta guardia, tanto una carga con los 3 participantes
+    -- conocidos correctos como una con la identidad vieja todavía crearían un match_id duplicado
+    -- en vez de señalar el partido que necesita resolución de identidad primero.
+    if not p_disambiguation_force_new then
+      select
+        jsonb_agg(jsonb_build_object('matchId', m.match_id, 'playedAt', m.played_at, 'formatId', m.format_id, 'status', m.status)),
+        count(*), (array_agg(m.match_id))[1]
+        into v_identity_candidates, v_identity_candidate_count, v_identity_target_match_id
+      from public.matches m
+      where m.format_id = p_format_id
+        and (m.status = 'validated' or (m.status = 'pending_validation' and m.validation_deadline_at > now()))
+        and (
+          case
+            when p_played_at_time_known and m.played_at_time_known
+              then abs(extract(epoch from (m.played_at - p_played_at))) <= 10800
+            else date_trunc('day', m.played_at at time zone 'America/Argentina/Buenos_Aires')
+               = date_trunc('day', p_played_at at time zone 'America/Argentina/Buenos_Aires')
+          end
+        )
+        and exists (select 1 from public.match_identity_issues mii where mii.match_id = m.match_id and mii.status in ('open', 'unidentified'))
+        and (select count(*) from public.match_participants mp where mp.match_id = m.match_id and mp.player_id = any(v_ids)) = 3
+        and (select count(*) from public.match_participants mp where mp.match_id = m.match_id and mp.player_id is null) = 1;
+
+      if coalesce(v_identity_candidate_count, 0) > 0 then
+        v_result := jsonb_build_object('ok', false, 'code', 'identity_resolution_required', 'candidates', v_identity_candidates);
+        if v_identity_candidate_count = 1 then
+          v_result := v_result || jsonb_build_object('matchId', v_identity_target_match_id);
+        end if;
+        insert into public.match_submissions (idempotency_key, submitted_by_player_id, payload_hash, result_code, result_match_id, result_payload)
+          values (p_idempotency_key, v_caller_player_id, v_payload_hash, v_result->>'code',
+            case when v_identity_candidate_count = 1 then v_identity_target_match_id else null end, v_result);
+        return v_result;
+      end if;
+    end if;
+
     -- Límite de pendientes accionables (Experiencia_Inicial.md §10): bloquea EXCLUSIVAMENTE
     -- crear un partido nuevo — nunca un attach/conformidad/revisión/desambiguación sobre un
     -- encuentro ya existente (06_Revision_Pre_Staging_ChatGPT.md §2). Por eso el chequeo vive
@@ -387,6 +437,20 @@ begin
   -- es "iniciar una carga nueva" (06_Revision_Pre_Staging_ChatGPT.md §2).
   -- ------------------------------------------------------------------
   select * into v_match from public.matches where match_id = v_target_match_id for update;
+
+  -- C-04 (10_Revision_Final_Pre_Staging_ChatGPT.md): para un ATTACH a un match YA EXISTENTE, la
+  -- orientación A/B se toma de match_participants YA ALMACENADA — nunca se recalcula por orden
+  -- léxico de los IDs entrantes (v_pair1_is_first/v_caller_team de más arriba, calculados para el
+  -- camino "crear nuevo"). Un reemplazo de identidad puede cambiar cuál pair key sería
+  -- lexicográficamente menor si se recalculara desde cero, invirtiendo qué pareja es "A" frente a
+  -- la orientación ya fija del partido. Un fingerprint coincidente garantiza la MISMA pareja
+  -- (X+Y vs Z+W) — nunca una partición distinta de los mismos 4 IDs — así que pair1 SIEMPRE
+  -- coincide íntegramente con team A o con team B ya almacenada.
+  select team into v_caller_team from public.match_participants
+    where match_id = v_match.match_id and player_id = v_caller_player_id;
+  select (count(*) filter (where mp.team = 'A')) = 2 into v_pair1_is_first
+    from public.match_participants mp
+    where mp.match_id = v_match.match_id and mp.player_id in (p_pair1_player_id_1, p_pair1_player_id_2);
 
   select revision_number into v_current_revision_number from public.match_revisions where revision_id = v_match.current_revision_id;
   select proposed_by_team into v_current_proposer_team from public.match_revisions where revision_id = v_match.current_revision_id;

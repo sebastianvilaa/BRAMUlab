@@ -49,6 +49,20 @@
 //               centinela mientras el slot está sin identificar y vuelve al hash real al
 //               resolver; un partido pending_validation con la ventana de 30 días ya vencida
 //               rechaza report_identity_issue con match_expired.
+//   Corrección final pre-Staging (10_Revision_Final_Pre_Staging_ChatGPT.md) — C-02: la pareja sin
+//               la acción real no puede Confirmar (confirm_match_validation); C-03: cargar con
+//               los IDs correctos mientras hay una incidencia open no crea un match_id duplicado;
+//               C-04: attach a un match existente tras un reemplazo de identidad preserva la
+//               orientación A/B almacenada; C-05: admin_force_resolve_identity_issue sobre un
+//               partido validated queda STAGED (la incidencia sigue open hasta que
+//               admin-resolve-identity-issue, SOLO alcanzable con la service role key exacta,
+//               completa la reaplicación de Nivel); C-07: un slot "Jugador no identificado"
+//               terminal pre-validación no bloquea Confirmar; C-08/C-10: las tareas accionables
+//               de Notificaciones se derivan en lectura y desaparecen solas al resolverse; C-09:
+//               last_rated_at nunca es NULL tras el cuestionario. (C-01/C-06 — diferencia neta
+//               contra un baseline LIVE inmutable y factores contextuales congelados en
+//               correction_accepted — tienen cobertura dedicada en
+//               bramulab/match-level-engine.test.mjs, no acá.)
 //   Regresión   — verify-bloque5.mjs (Bloque 5) se re-corre aparte y debe seguir en 100%; este
 //               script no lo reimplementa.
 
@@ -82,6 +96,20 @@ async function rpcAs(accessToken, fn, body) {
 
 async function rpcAsAnon(fn, body) {
   return rpcAs(anonKey, fn, body);
+}
+
+// Para RPCs SOLO service_role (admin_*, officialize_match_validation, etc.): apikey y
+// Authorization deben ser AMBOS la service role key, mismo criterio que serviceGet/servicePatch
+// — nunca reusar rpcAs (que fija apikey=anonKey, pensado para un usuario normal).
+async function rpcAsService(fn, body) {
+  const res = await fetch(`${url}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* sin cuerpo */ }
+  return { res, json };
 }
 
 async function callFunction(name, accessToken, body) {
@@ -434,6 +462,225 @@ async function main() {
       p_match_id: match3Id, p_team: 'A', p_position_in_team: 1, p_reason: 'test B6-B-07',
     });
     report('B6-B-07: report_identity_issue sobre un partido pending_validation ya vencido -> match_expired', expiredAttempt.json && expiredAttempt.json.ok === false && expiredAttempt.json.code === 'match_expired', JSON.stringify(expiredAttempt.json));
+  }
+
+  // ------------------------------------------------------------------
+  // 4.5) C-02 — Confirmar exige autoridad por pareja real: el lado PROPONENTE (action_side
+  //      todavía de la pareja contraria) no puede oficializar. Reusa el partido #2 (A1,A2 vs
+  //      player5,B2 tras la resolución de identidad de 4.3), que quedó con action_side='A'.
+  // ------------------------------------------------------------------
+  if (match2Id) {
+    const proposerAttempt = await callFunction('officialize-match', accounts.b2.accessToken, { matchId: match2Id });
+    report('C-02: la pareja SIN la acción (B, action_side=A) no puede confirmar', proposerAttempt.json && proposerAttempt.json.ok === false && proposerAttempt.json.code === 'not_actionable_for_caller', JSON.stringify(proposerAttempt.json));
+
+    const realConfirm = await callFunction('officialize-match', accounts.a1.accessToken, { matchId: match2Id });
+    report('C-02: la pareja CON la acción real (A) confirma y oficializa', realConfirm.json && realConfirm.json.ok === true && realConfirm.json.code === 'officialized', JSON.stringify(realConfirm.json));
+
+    const match2Validated = (await serviceGet(`matches?match_id=eq.${match2Id}&select=status`))?.[0];
+    report('C-02: partido #2 queda validated tras la confirmación correcta', !!match2Validated && match2Validated.status === 'validated', JSON.stringify(match2Validated));
+  }
+
+  // ------------------------------------------------------------------
+  // 4.6) C-04 — attach a un match YA EXISTENTE tras un reemplazo de identidad: la orientación A/B
+  //      se toma de match_participants almacenada, nunca de un recálculo léxico de los IDs
+  //      entrantes (que un reemplazo puede invertir). player5 (nuevo team B) redeclara el score
+  //      vigente de partido #2 — debe converger sin error ni corromper los sets.
+  // ------------------------------------------------------------------
+  if (match2Id) {
+    const setsBefore = await serviceGet(`match_sets?match_id=eq.${match2Id}&select=set_number,games_a,games_b&order=set_number`);
+    const idem5 = crypto.randomUUID();
+    const reattach = await callFunction('create-or-attach-match', session5.access_token, {
+      idempotencyKey: idem5,
+      pair1PlayerIds: [player5Id, accounts.b2.playerId],
+      pair2PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+      rawSets: [{ a: 6, b: 3 }, { a: 6, b: 3 }],
+      formatId: 'classic',
+      playedAtIso: playedAt2,
+      playedAtTimeKnown: true,
+    });
+    report('C-04: re-declarar el score vigente tras el swap converge sin error (nunca ambiguous/creado de nuevo)', reattach.json && reattach.json.ok === true && reattach.json.matchId === match2Id, JSON.stringify(reattach.json));
+    const setsAfter = await serviceGet(`match_sets?match_id=eq.${match2Id}&select=set_number,games_a,games_b&order=set_number`);
+    report('C-04: los sets almacenados NO se corrompen (misma orientación que antes del re-attach)', JSON.stringify(setsBefore) === JSON.stringify(setsAfter), JSON.stringify({ setsBefore, setsAfter }));
+  }
+
+  // ------------------------------------------------------------------
+  // 4.7) C-09 — el Nivel inicial fija last_rated_at desde el cuestionario (nunca NULL).
+  // ------------------------------------------------------------------
+  const levelStateA1Full = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=last_rated_at`))?.[0] : null;
+  report('C-09: last_rated_at de A1 nunca es NULL (arranca desde el cuestionario, no desde el primer partido)', !!levelStateA1Full && !!levelStateA1Full.last_rated_at, JSON.stringify(levelStateA1Full));
+
+  // ------------------------------------------------------------------
+  // 4.8) C-08/C-10 — tareas accionables DERIVADAS en get_notifications (nunca persistidas),
+  //      desaparecen automáticamente al resolverse el estado.
+  // ------------------------------------------------------------------
+  const playedAt6 = new Date(Date.now() - 6 * 86400000).toISOString();
+  const idem6 = crypto.randomUUID();
+  const created6 = await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem6,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 2 }, { a: 6, b: 2 }],
+    formatId: 'classic',
+    playedAtIso: playedAt6,
+    playedAtTimeKnown: true,
+  });
+  const match6Id = created6.json && created6.json.matchId;
+  if (match6Id) matchIds.push(match6Id);
+  if (match6Id) {
+    const notifB1Pending = await rpcAs(accounts.b1.accessToken, 'get_notifications', { p_limit: 20 });
+    const hasPendingReview = Array.isArray(notifB1Pending.json) && notifB1Pending.json.some((n) => n.type === 'pending_review' && n.match_id === match6Id);
+    report('C-08: get_notifications de B1 (lado accionable) trae pending_review sintético para partido #6', hasPendingReview, JSON.stringify(notifB1Pending.json && notifB1Pending.json.filter((n) => n.match_id === match6Id)));
+
+    await callFunction('create-or-attach-match', accounts.b1.accessToken, {
+      idempotencyKey: crypto.randomUUID(),
+      pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+      pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+      rawSets: [{ a: 6, b: 2 }, { a: 6, b: 2 }],
+      formatId: 'classic',
+      playedAtIso: playedAt6,
+      playedAtTimeKnown: true,
+    });
+    const notifB1AfterConfirm = await rpcAs(accounts.b1.accessToken, 'get_notifications', { p_limit: 20 });
+    const stillPending = Array.isArray(notifB1AfterConfirm.json) && notifB1AfterConfirm.json.some((n) => n.type === 'pending_review' && n.match_id === match6Id);
+    report('C-08/C-10: pending_review desaparece SOLO tras confirmar (derivado, nunca marcable como leído)', !stillPending, JSON.stringify(notifB1AfterConfirm.json && notifB1AfterConfirm.json.filter((n) => n.match_id === match6Id)));
+  }
+
+  // ------------------------------------------------------------------
+  // 4.9) C-03 — guardia de duplicados: una carga con los 3 participantes conocidos coincidentes
+  //      mientras hay una incidencia open NO crea un segundo match_id.
+  // ------------------------------------------------------------------
+  const playedAt7 = new Date(Date.now() - 7 * 86400000).toISOString();
+  const idem7 = crypto.randomUUID();
+  const created7 = await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem7,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 3 }, { a: 6, b: 3 }],
+    formatId: 'classic',
+    playedAtIso: playedAt7,
+    playedAtTimeKnown: true,
+  });
+  const match7Id = created7.json && created7.json.matchId;
+  if (match7Id) matchIds.push(match7Id);
+  if (match7Id) {
+    const report7 = await rpcAs(accounts.a2.accessToken, 'report_identity_issue', {
+      p_match_id: match7Id, p_team: 'A', p_position_in_team: 2, p_reason: 'test C-03',
+    });
+    const issueId7 = report7.json && report7.json.issueId;
+    if (issueId7) {
+      const duplicateAttempt = await callFunction('create-or-attach-match', accounts.b1.accessToken, {
+        idempotencyKey: crypto.randomUUID(),
+        pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+        pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+        rawSets: [{ a: 6, b: 3 }, { a: 6, b: 3 }],
+        formatId: 'classic',
+        playedAtIso: playedAt7,
+        playedAtTimeKnown: true,
+      });
+      report('C-03: cargar con los 4 IDs correctos mientras hay issue open -> identity_resolution_required, NUNCA crea otro match_id',
+        duplicateAttempt.json && duplicateAttempt.json.ok === false && duplicateAttempt.json.code === 'identity_resolution_required' && duplicateAttempt.json.matchId === match7Id,
+        JSON.stringify(duplicateAttempt.json));
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 4.10) C-05 — resolución administrativa de identidad sobre un partido validated: STAGED, la
+  //       incidencia queda EXACTAMENTE open hasta que la Edge Function admin completa la
+  //       reaplicación de Nivel. usuario normal no puede ejecutar la vía admin.
+  // ------------------------------------------------------------------
+  const playedAt8 = new Date(Date.now() - 8 * 86400000).toISOString();
+  const idem8a = crypto.randomUUID();
+  await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem8a,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 1 }, { a: 6, b: 1 }],
+    formatId: 'classic',
+    playedAtIso: playedAt8,
+    playedAtTimeKnown: true,
+  });
+  const created8b = await callFunction('create-or-attach-match', accounts.b1.accessToken, {
+    idempotencyKey: crypto.randomUUID(),
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 1 }, { a: 6, b: 1 }],
+    formatId: 'classic',
+    playedAtIso: playedAt8,
+    playedAtTimeKnown: true,
+  });
+  const match8Id = created8b.json && created8b.json.matchId;
+  if (match8Id) matchIds.push(match8Id);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const match8Row = match8Id ? (await serviceGet(`matches?match_id=eq.${match8Id}&select=status`))?.[0] : null;
+  if (match8Id && match8Row && match8Row.status === 'validated') {
+    const report8 = await rpcAs(accounts.a1.accessToken, 'report_identity_issue', {
+      p_match_id: match8Id, p_team: 'A', p_position_in_team: 2, p_reason: 'test C-05',
+    });
+    const issueId8 = report8.json && report8.json.issueId;
+    if (issueId8) {
+      const userAdminAttempt = await rpcAs(accounts.a1.accessToken, 'admin_force_resolve_identity_issue', {
+        p_issue_id: issueId8, p_replacement_player_id: player5Id, p_actor_label: 'test', p_reason: 'test',
+      });
+      report('C-05: un usuario normal no puede llamar admin_force_resolve_identity_issue', userAdminAttempt.res.status === 401 || userAdminAttempt.res.status === 404 || userAdminAttempt.res.status === 403, `status=${userAdminAttempt.res.status}`);
+
+      const authAttempt = await rpcAsService('admin_force_resolve_identity_issue', {
+        p_issue_id: issueId8, p_replacement_player_id: player5Id, p_actor_label: 'QA automatizada', p_reason: 'verify-bloque6 C-05',
+      });
+      report('C-05: admin_force_resolve_identity_issue sobre partido validated -> SOLO autoriza (identity_resolved_authorized)', authAttempt.json && authAttempt.json.ok === true && authAttempt.json.code === 'identity_resolved_authorized' && authAttempt.json.needsRecompute === true, JSON.stringify(authAttempt.json));
+
+      const issueStillOpen = (await serviceGet(`match_identity_issues?issue_id=eq.${issueId8}&select=status`))?.[0];
+      report('C-05: la incidencia sigue EXACTAMENTE open tras solo autorizar (nada mutó todavía)', !!issueStillOpen && issueStillOpen.status === 'open', JSON.stringify(issueStillOpen));
+
+      const wrongKeyAttempt = await callFunction('admin-resolve-identity-issue', anonKey, {
+        issueId: issueId8, replacementPlayerId: player5Id, actorLabel: 'test', reason: 'test',
+      });
+      report('C-05: admin-resolve-identity-issue rechaza cualquier bearer que no sea la service role key exacta', wrongKeyAttempt.json && wrongKeyAttempt.json.ok === false && wrongKeyAttempt.json.code === 'forbidden', JSON.stringify(wrongKeyAttempt.json));
+
+      const adminComplete = await callFunction('admin-resolve-identity-issue', serviceRoleKey, {
+        issueId: issueId8, replacementPlayerId: player5Id, actorLabel: 'QA automatizada', reason: 'verify-bloque6 C-05',
+      });
+      report('C-05: admin-resolve-identity-issue completa la reasignación + reaplicación de Nivel atómicamente', adminComplete.json && adminComplete.json.ok === true && adminComplete.json.code === 'identity_resolved', JSON.stringify(adminComplete.json));
+
+      const issueNowResolved = (await serviceGet(`match_identity_issues?issue_id=eq.${issueId8}&select=status,resolved_player_id`))?.[0];
+      report('C-05: la incidencia queda resolved con el reemplazo correcto', !!issueNowResolved && issueNowResolved.status === 'resolved' && issueNowResolved.resolved_player_id === player5Id, JSON.stringify(issueNowResolved));
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 4.11) C-07 — "Jugador no identificado" terminal PRE-validación no bloquea Confirmar.
+  // ------------------------------------------------------------------
+  const playedAt9 = new Date(Date.now() - 9 * 86400000).toISOString();
+  const idem9 = crypto.randomUUID();
+  const created9 = await callFunction('create-or-attach-match', accounts.a1.accessToken, {
+    idempotencyKey: idem9,
+    pair1PlayerIds: [accounts.a1.playerId, accounts.a2.playerId],
+    pair2PlayerIds: [accounts.b1.playerId, accounts.b2.playerId],
+    rawSets: [{ a: 6, b: 4 }, { a: 4, b: 6 }, { a: 6, b: 4 }],
+    formatId: 'classic',
+    playedAtIso: playedAt9,
+    playedAtTimeKnown: true,
+  });
+  const match9Id = created9.json && created9.json.matchId;
+  if (match9Id) matchIds.push(match9Id);
+  if (match9Id) {
+    const report9 = await rpcAs(accounts.b2.accessToken, 'report_identity_issue', {
+      p_match_id: match9Id, p_team: 'B', p_position_in_team: 1, p_reason: 'test C-07',
+    });
+    const issueId9 = report9.json && report9.json.issueId;
+    if (issueId9) {
+      await servicePatch(`match_identity_issues?issue_id=eq.${issueId9}`, { resolution_deadline_at: new Date(Date.now() - 3600000).toISOString() });
+      const forceResult = await callFunction('resolve-identity-issue', accounts.b2.accessToken, {
+        issueId: issueId9, forceUnidentified: true,
+      });
+      report('C-07: force_unidentified materializa el estado terminal sobre partido pending_validation', forceResult.json && forceResult.json.ok === true, JSON.stringify(forceResult.json));
+
+      // El lado accionable (B, ya que A cargó) confirma con el slot B1 todavía NULL/terminal.
+      const confirmWithUnidentified = await callFunction('officialize-match', accounts.b2.accessToken, { matchId: match9Id });
+      report('C-07: Confirmar valida un partido con "Jugador no identificado" terminal (nunca rechaza por slot NULL)', confirmWithUnidentified.json && confirmWithUnidentified.json.ok === true, JSON.stringify(confirmWithUnidentified.json));
+
+      const match9Row = (await serviceGet(`matches?match_id=eq.${match9Id}&select=status`))?.[0];
+      report('C-07: partido #9 queda validated con un participante no identificado', !!match9Row && match9Row.status === 'validated', JSON.stringify(match9Row));
+    }
   }
 
   // ------------------------------------------------------------------
