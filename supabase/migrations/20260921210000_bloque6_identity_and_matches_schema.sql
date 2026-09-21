@@ -177,14 +177,16 @@ declare
   v_pair_b_key text;
   v_fingerprint text;
 begin
-  select
-    max(player_id) filter (where team = 'A' and position_in_team = 1),
-    max(player_id) filter (where team = 'A' and position_in_team = 2),
-    max(player_id) filter (where team = 'B' and position_in_team = 1),
-    max(player_id) filter (where team = 'B' and position_in_team = 2)
-    into v_a1, v_a2, v_b1, v_b2
-  from public.match_participants
-  where match_id = p_match_id;
+  -- Un match tiene a lo sumo un slot por (team, position_in_team); leerlos directo evita
+  -- depender de agregados sobre uuid (PostgreSQL no define max(uuid)).
+  select player_id into v_a1 from public.match_participants
+    where match_id = p_match_id and team = 'A' and position_in_team = 1;
+  select player_id into v_a2 from public.match_participants
+    where match_id = p_match_id and team = 'A' and position_in_team = 2;
+  select player_id into v_b1 from public.match_participants
+    where match_id = p_match_id and team = 'B' and position_in_team = 1;
+  select player_id into v_b2 from public.match_participants
+    where match_id = p_match_id and team = 'B' and position_in_team = 2;
 
   if v_a1 is not null and v_a2 is not null and v_b1 is not null and v_b2 is not null then
     -- EXACTAMENTE el mismo algoritmo que create_or_attach_match (Bloque 5) — nunca se
