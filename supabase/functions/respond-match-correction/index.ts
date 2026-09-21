@@ -75,7 +75,12 @@ Deno.serve(async (req) => {
     return jsonResponse(result || { ok: false, code: 'unknown_error' });
   }
 
-  if (result.code === 'correction_accepted') {
+  if (result.code === 'correction_authorized') {
+    // B6-A-08: respond_post_validation_correction SOLO autorizó — todavía no movió
+    // current_revision_id/pending_correction_revision_id. officializeMatch (trigger=
+    // correction_accepted) hace, en UNA sola transacción dentro de officialize_match_validation,
+    // el revert+reapply de Nivel Y el movimiento del puntero de revisión — nunca queda una
+    // ventana donde el resultado oficial ya cambió pero Nivel todavía no.
     const { data: callerPlayer } = await serviceClient
       .from('players')
       .select('player_id')
@@ -90,11 +95,10 @@ Deno.serve(async (req) => {
       null,
     );
     if (!officialization.ok) {
-      // La aceptación de la corrección YA quedó persistida (current_revision_id se movió). Un
-      // fallo acá se recupera solo en la próxima lectura/acción que detecte la revisión oficial
-      // desactualizada respecto de match_level_results — mismo criterio de auto-recuperación
-      // sin cron que el hook de create-or-attach-match.
-      return jsonResponse({ ok: true, code: 'correction_accepted_pending_recompute', matchId });
+      // Ni el puntero de revisión ni Nivel se movieron todavía (atómico dentro de la RPC) — el
+      // partido sigue con pending_correction_revision_id intacto. El cliente puede reintentar
+      // (mismo endpoint) sin ningún riesgo de doble efecto.
+      return jsonResponse({ ok: false, code: officialization.code || 'correction_recompute_failed', matchId });
     }
     return jsonResponse({ ok: true, code: 'correction_accepted', matchId, resultId: officialization.resultId, eligible: officialization.eligible });
   }

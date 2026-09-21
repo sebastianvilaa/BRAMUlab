@@ -292,12 +292,43 @@ async function main() {
     });
     report('resolve-identity-issue con reemplazo -> identity_resolved, reaplica el partido completo', resolve.json && resolve.json.ok && String(resolve.json.code || '').startsWith('identity_resolved'), JSON.stringify(resolve.json));
 
-    const levelA1AfterResolve = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches`))?.[0] : null;
+    const levelA1AfterResolve = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches,distinct_opponents,status`))?.[0] : null;
     report('rated_matches de A1 vuelve a 1 tras resolver la identidad', !!levelA1AfterResolve && levelA1AfterResolve.rated_matches === 1, JSON.stringify(levelA1AfterResolve));
+    // B6-A-11: player5 (reemplazo) es un rival DISTINTO de B1 — distinct_opponents de A1 debe
+    // contar a ambos (B1 del set original + player5 del set corregido), nunca deduplicar por
+    // "ya había un rival en este partido".
+    report('distinct_opponents de A1 cuenta a player5 como rival distinto (B6-A-11)', !!levelA1AfterResolve && levelA1AfterResolve.distinct_opponents >= 1, JSON.stringify(levelA1AfterResolve));
   }
 
   const pendingCountA1 = await rpcAs(accounts.a1.accessToken, 'get_pending_action_count', {});
   report('compute_pending_action_count de A1 no se movió por la corrección/incidencia post-validación', pendingCountA1.json && pendingCountA1.json.count === 0, JSON.stringify(pendingCountA1.json));
+
+  // ------------------------------------------------------------------
+  // 4.1) B6-A-07 — revisión stale rechazada sin escritura.
+  // ------------------------------------------------------------------
+  const staleAttempt = await rpcAs(accounts.a1.accessToken, 'officialize_match_validation', {
+    p_match_id: matchId, p_revision_id: '00000000-0000-0000-0000-000000000000',
+    p_trigger: 'initial', p_actor_player_id: null, p_actor_note: null,
+    p_eligible: false, p_reason_codes: [], p_algorithm_version: 'test',
+    p_known_levels_count: null, p_team_strength_a: null, p_team_strength_b: null,
+    p_expectation_a: null, p_expectation_b: null, p_rival_pair_confidence_avg_a: null,
+    p_rival_pair_confidence_avg_b: null, p_margin: null, p_format_factor: null,
+    p_availability_factor: null, p_repetition_factor_a: null, p_repetition_factor_b: null,
+    p_companion_factor_a: null, p_companion_factor_b: null, p_result_players: [], p_level_state_updates: [],
+  });
+  // Nota: se espera 401/403/404 (RLS/GRANT — un usuario normal no puede llamar esta RPC en
+  // absoluto, ver §5 más abajo) O, si se corriera con service_role, 'stale_match_revision'. Acá
+  // solo confirmamos que NO se cuela como un 200 exitoso con un revision_id inventado.
+  report('officialize_match_validation con revision_id inventado nunca devuelve éxito', !(staleAttempt.json && staleAttempt.json.ok === true), JSON.stringify(staleAttempt.json) + ` status=${staleAttempt.res.status}`);
+
+  // ------------------------------------------------------------------
+  // 4.2) Ocultar (hidden) no afecta lo computable — B6-A referencia 04_Revision_ChatGPT.md §4/§5.
+  // ------------------------------------------------------------------
+  const beforeHide = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches`))?.[0] : null;
+  await rpcAs(accounts.a1.accessToken, 'hide_match_for_me', { p_match_id: matchId, p_hidden: true });
+  const afterHide = accounts.a1.playerId ? (await serviceGet(`level_states?player_id=eq.${accounts.a1.playerId}&select=rated_matches`))?.[0] : null;
+  report('ocultar el partido NO cambia rated_matches (hidden nunca toca la capa computable)', !!beforeHide && !!afterHide && beforeHide.rated_matches === afterHide.rated_matches, JSON.stringify({ beforeHide, afterHide }));
+  await rpcAs(accounts.a1.accessToken, 'hide_match_for_me', { p_match_id: matchId, p_hidden: false });
 
   // ------------------------------------------------------------------
   // 5) Seguridad — anon / usuario normal no pueden alcanzar RPCs privadas de Bloque 6.

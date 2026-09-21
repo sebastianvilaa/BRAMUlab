@@ -9,6 +9,10 @@
 // get_my_matches -> PLMatchSync.translateServerMatchToLocalShape -> PLMatchLevelEngine.
 // computeOfficializationResult -> PLLevelContext.computeMatchLevelUpdate -> PLLevel.
 // computeMatchUpdate.
+//
+// Cobertura agregada tras 06_Revision_Fase_A_ChatGPT.md §4 (B6-A-04/05 — movimiento real vs.
+// deltaCapped en los bordes 1.0/10.0, inactividad 59/60/>60 días, corrección sobre estado con
+// decay).
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,15 +84,53 @@ test('mapLevelStateStatusToEngineState: PENDIENTE u otro valor cae a STATES.NONE
 });
 
 /* ------------------------------------------------------------------ */
-/* buildPlayerStatesDict — PENDIENTE / mu ausente nunca entra al diccionario */
+/* computeEffectiveConfidence / buildPlayerStatesDict — inactividad B6-A-05 */
 /* ------------------------------------------------------------------ */
+
+test('computeEffectiveConfidence: 59 días de inactividad no cambia nada', () => {
+  const lastRated = '2026-01-01T00:00:00.000Z';
+  const reference = new Date(new Date(lastRated).getTime() + 59 * 86400000).toISOString();
+  const eff = MLE.computeEffectiveConfidence(0.80, lastRated, reference);
+  assert.equal(eff, 0.80);
+});
+
+test('computeEffectiveConfidence: exactamente 60 días todavía no decae (límite inclusive de la fórmula)', () => {
+  const lastRated = '2026-01-01T00:00:00.000Z';
+  const reference = new Date(new Date(lastRated).getTime() + 60 * 86400000).toISOString();
+  const eff = MLE.computeEffectiveConfidence(0.80, lastRated, reference);
+  assert.equal(eff, 0.80);
+});
+
+test('computeEffectiveConfidence: más de 60 días de inactividad reduce la confianza efectiva sin tocar mu', () => {
+  const lastRated = '2026-01-01T00:00:00.000Z';
+  const reference = new Date(new Date(lastRated).getTime() + 300 * 86400000).toISOString(); // 300 días
+  const eff = MLE.computeEffectiveConfidence(0.80, lastRated, reference);
+  assert.ok(eff < 0.80, `esperaba decay, obtuve ${eff}`);
+  assert.ok(eff >= 0.15, 'nunca por debajo del piso 0.15');
+});
+
+test('computeEffectiveConfidence: sin lastRatedAt (jugador recién oficializado) no decae', () => {
+  const eff = MLE.computeEffectiveConfidence(0.15, null, '2026-06-01T00:00:00.000Z');
+  assert.equal(eff, 0.15);
+});
+
+test('buildPlayerStatesDict: aplica inactividad por jugador usando referenceIso (playedAt del partido)', () => {
+  const referenceIso = '2026-06-01T00:00:00.000Z'; // ~151 días después de lastRatedAt
+  const dict = MLE.buildPlayerStatesDict([
+    { playerId: 'p1', mu: 5.5, confidence: 0.6, status: 'CALIBRADO', lastRatedAt: '2026-01-01T00:00:00.000Z' },
+    { playerId: 'p2', mu: 5.0, confidence: 0.6, status: 'CALIBRADO', lastRatedAt: null },
+  ], referenceIso);
+  assert.ok(dict.p1.confidence < 0.6, 'p1 estuvo inactivo, su confianza debe decaer');
+  assert.equal(dict.p2.confidence, 0.6, 'p2 sin lastRatedAt no decae');
+  assert.equal(dict.p1.mu, 5.5, 'mu nunca decae');
+});
 
 test('buildPlayerStatesDict: excluye PENDIENTE (mu/confidence null) y filas sin playerId', () => {
   const dict = MLE.buildPlayerStatesDict([
-    { playerId: 'p1', mu: 5.5, confidence: 0.6, status: 'CALIBRADO' },
-    { playerId: 'p2', mu: null, confidence: null, status: 'PENDIENTE' },
-    { playerId: null, mu: 5.0, confidence: 0.5, status: 'CALIBRANDO' },
-  ]);
+    { playerId: 'p1', mu: 5.5, confidence: 0.6, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p2', mu: null, confidence: null, status: 'PENDIENTE', lastRatedAt: null },
+    { playerId: null, mu: 5.0, confidence: 0.5, status: 'CALIBRANDO', lastRatedAt: null },
+  ], '2026-01-02T00:00:00.000Z');
   assert.deepEqual(Object.keys(dict), ['p1']);
   assert.equal(dict.p1.state, Level.STATES.CALIBRATED);
 });
@@ -143,11 +185,21 @@ function buildRow({ playedAt, gamesA1, gamesB1, gamesA2, gamesB2 }) {
 
 function evenPlayerStates() {
   return MLE.buildPlayerStatesDict([
-    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p4', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-  ]);
+    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p4', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], '2026-01-01T00:00:00.000Z');
+}
+
+function liveStates(overrides) {
+  const base = {
+    p1: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 },
+    p2: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 },
+    p3: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 },
+    p4: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 },
+  };
+  return Object.assign(base, overrides || {});
 }
 
 test('computeOfficializationResult: fuera de ventana de 30 días -> no elegible, motor nunca se invoca', () => {
@@ -183,14 +235,9 @@ test('computeOfficializationResult: dentro de ventana, 4 conocidos, parejas pare
   assert.ok(players.p2.deltaCapped > 0, 'ganador debe subir');
   assert.ok(players.p3.deltaCapped < 0, 'perdedor debe bajar');
   assert.ok(players.p4.deltaCapped < 0, 'perdedor debe bajar');
-  // Parejas simétricas (mismo mu/confidence en los 4) -> deltas de compañeros iguales entre sí
-  // y magnitud del ganador igual a la del perdedor (Nivel_BRAMU_Formula_V1.5.md §14: "Parejas
-  // 5,0 estables, dos sets" -> +/-X simétrico).
   assert.ok(Math.abs(players.p1.deltaCapped - players.p2.deltaCapped) < 1e-9);
   assert.ok(Math.abs(players.p3.deltaCapped - players.p4.deltaCapped) < 1e-9);
   assert.ok(Math.abs(players.p1.deltaCapped + players.p3.deltaCapped) < 1e-9);
-  // Contexto expuesto para auditoría (match_level_results) — knownLevelsCount y factores de
-  // equipo que la función de conveniencia de level-context.js no expone directamente.
   assert.equal(result.context.knownLevelsCount, 4);
   assert.equal(typeof result.context.repetitionFactorA, 'number');
   assert.equal(typeof result.context.companionFactorA, 'number');
@@ -200,11 +247,9 @@ test('computeOfficializationResult: 2 conocidos en la MISMA pareja -> no elegibl
   const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
   const localMatch = MatchSync.translateServerMatchToLocalShape(row);
   const playerStates = MLE.buildPlayerStatesDict([
-    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    // p3/p4 (equipo B) sin level_state -> invitados sin nivel conocido, los 2 conocidos quedan
-    // concentrados en el mismo equipo A.
-  ]);
+    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], '2026-01-01T00:00:00.000Z');
   const result = MLE.computeOfficializationResult({
     localMatch,
     history: [],
@@ -215,146 +260,39 @@ test('computeOfficializationResult: 2 conocidos en la MISMA pareja -> no elegibl
   assert.ok(result.reasonCodes.includes('dos_conocidos_en_la_misma_pareja'));
 });
 
-/* ------------------------------------------------------------------ */
-/* computeLevelStateUpdates — diferencia neta (Nivel_BRAMU_Formula_V1.5.md §12.3) */
-/* ------------------------------------------------------------------ */
-
-function liveStates(overrides) {
-  const base = {
-    p1: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0, confidenceOrigin: 0.15 },
-    p2: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0, confidenceOrigin: 0.15 },
-    p3: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0, confidenceOrigin: 0.15 },
-    p4: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0, confidenceOrigin: 0.15 },
-  };
-  return Object.assign(base, overrides || {});
-}
-
-test('computeLevelStateUpdates: primera oficialización (sin resultado previo) aplica el delta nuevo completo', () => {
+test('computeOfficializationResult: 3 conocidos + 1 invitado imputado -> computa, el invitado nunca recibe delta', () => {
   const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
   const localMatch = MatchSync.translateServerMatchToLocalShape(row);
-  const officialization = MLE.computeOfficializationResult({
-    localMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
-  });
-
-  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
-    oldAppliedResult: null,
-    engineOutput: officialization.engineOutput,
-    guestPlayerIds: officialization.guestPlayerIds,
-    currentLevelStatesByPlayerId: liveStates(),
-  });
-
-  assert.equal(resultPlayers.length, 4);
-  assert.equal(levelStateUpdates.length, 4);
-  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
-  const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
-  // Sin resultado previo, el neto ES el delta nuevo completo.
-  assert.ok(Math.abs((p1Update.finalMu - p1Update.currentMuForLock) - p1Result.deltaCapped) < 1e-9);
-});
-
-test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) aplica solo la diferencia neta', () => {
-  const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
-  const localMatch = MatchSync.translateServerMatchToLocalShape(row);
-  const first = MLE.computeOfficializationResult({
-    localMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
-  });
-  const oldAppliedResult = {
-    players: Object.keys(first.engineOutput.players)
-      .filter((id) => !first.guestPlayerIds.includes(id))
-      .map((id) => Object.assign({ playerId: id }, first.engineOutput.players[id])),
-  };
-
-  // Corrección: el resultado real fue MÁS amplio (6-2, 6-2) — el ganador debería ganar más neto
-  // que en la primera pasada, no un delta completo nuevo sumado al viejo.
-  const correctedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 2, gamesA2: 6, gamesB2: 2 });
-  const correctedMatch = MatchSync.translateServerMatchToLocalShape(correctedRow);
-  const corrected = MLE.computeOfficializationResult({
-    localMatch: correctedMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
-  });
-
-  const live = liveStates();
-  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
-    oldAppliedResult,
-    engineOutput: corrected.engineOutput,
-    guestPlayerIds: corrected.guestPlayerIds,
-    currentLevelStatesByPlayerId: live,
-  });
-
-  assert.equal(resultPlayers.length, 4);
-  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
-  const p1OldDelta = oldAppliedResult.players.find((p) => p.playerId === 'p1').deltaCapped;
-  const p1NewDelta = corrected.engineOutput.players.p1.deltaCapped;
-  const expectedFinalMu = Level.clampLevel(live.p1.mu + (p1NewDelta - p1OldDelta));
-  assert.ok(Math.abs(p1Update.finalMu - expectedFinalMu) < 1e-9);
-  // El resultado más amplio debe producir un delta nuevo mayor o igual al original.
-  assert.ok(p1NewDelta >= p1OldDelta);
-});
-
-test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado revierte puro, el nuevo aplica puro', () => {
-  const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
-  const localMatch = MatchSync.translateServerMatchToLocalShape(row);
-  const first = MLE.computeOfficializationResult({
-    localMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
-  });
-  const oldAppliedResult = {
-    players: Object.keys(first.engineOutput.players)
-      .filter((id) => !first.guestPlayerIds.includes(id))
-      .map((id) => Object.assign({ playerId: id }, first.engineOutput.players[id])),
-  };
-
-  // p4 sale, p5 entra en su lugar (misma composición de partido, otro jugador en esa posición).
-  const swappedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
-  swappedRow.participants[3].playerId = 'p5';
-  swappedRow.participants[3].displayName = 'B2-nuevo';
-  const swappedMatch = MatchSync.translateServerMatchToLocalShape(swappedRow);
-  const swapped = MLE.computeOfficializationResult({
-    localMatch: swappedMatch, history: [],
-    playerStates: MLE.buildPlayerStatesDict([
-      { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-      { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-      { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-      { playerId: 'p5', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    ]),
+  const playerStates = MLE.buildPlayerStatesDict([
+    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], '2026-01-01T00:00:00.000Z');
+  const result = MLE.computeOfficializationResult({
+    localMatch,
+    history: [],
+    playerStates,
     validatedAtIso: '2026-01-02T00:00:00.000Z',
   });
-
-  const live = liveStates({ p5: { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0, confidenceOrigin: 0.15 } });
-  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
-    oldAppliedResult,
-    engineOutput: swapped.engineOutput,
-    guestPlayerIds: swapped.guestPlayerIds,
-    currentLevelStatesByPlayerId: live,
-  });
-
-  // p4 ya no aparece en el resultado nuevo, pero SÍ debe ajustarse su level_state (reversión pura).
-  assert.ok(!resultPlayers.some((r) => r.playerId === 'p4'));
-  const p4Update = levelStateUpdates.find((u) => u.playerId === 'p4');
-  assert.ok(p4Update, 'p4 debe recibir un ajuste de reversión aunque ya no participe del resultado nuevo');
-  const p4OldDelta = oldAppliedResult.players.find((p) => p.playerId === 'p4').deltaCapped;
-  assert.ok(Math.abs((p4Update.finalMu - p4Update.currentMuForLock) - (-p4OldDelta)) < 1e-9);
-
-  // p5 es nuevo en este partido: no tenía fila vieja, su neto es el delta completo nuevo.
-  const p5Update = levelStateUpdates.find((u) => u.playerId === 'p5');
-  const p5Result = resultPlayers.find((r) => r.playerId === 'p5');
-  assert.ok(Math.abs((p5Update.finalMu - p5Update.currentMuForLock) - p5Result.deltaCapped) < 1e-9);
+  assert.equal(result.eligible, true);
+  assert.ok(result.guestPlayerIds.length === 1, 'debe haber exactamente un invitado imputado');
+  assert.ok(!['p1', 'p2', 'p3'].includes(result.guestPlayerIds[0]));
 });
 
 test('computeOfficializationResult: un slot no identificado (playerId null) se trata como invitado, con referencia única', () => {
   const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
-  // Mismo string compartido que report_identity_issue realmente escribe en
-  // match_participants.display_name_snapshot para CUALQUIER slot no identificado.
   row.participants[3].playerId = null;
   row.participants[3].displayName = 'Por identificar';
   const localMatch = MatchSync.translateServerMatchToLocalShape(row);
   assert.equal(localMatch.players[3].name, 'Por identificar', 'sin sanear todavía, antes de pasar por el motor');
 
+  const playerStates = MLE.buildPlayerStatesDict([
+    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], '2026-01-01T00:00:00.000Z');
   const result = MLE.computeOfficializationResult({
-    localMatch, history: [],
-    playerStates: MLE.buildPlayerStatesDict([
-      { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-      { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-      { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    ]),
-    validatedAtIso: '2026-01-02T00:00:00.000Z',
+    localMatch, history: [], playerStates, validatedAtIso: '2026-01-02T00:00:00.000Z',
   });
 
   assert.equal(result.eligible, true);
@@ -374,30 +312,257 @@ test('sanitizeUnidentifiedPlayers: dos slots sin identidad de partidos distintos
   const sanitizedA = MLE.sanitizeUnidentifiedPlayers(MatchSync.translateServerMatchToLocalShape(rowA));
   const sanitizedB = MLE.sanitizeUnidentifiedPlayers(MatchSync.translateServerMatchToLocalShape(rowB));
   assert.notEqual(sanitizedA.players[3].name, sanitizedB.players[3].name);
-  // Un jugador YA identificado no se toca.
   assert.equal(sanitizedA.players[0].name, 'A1');
 });
 
-test('computeOfficializationResult: 3 conocidos + 1 invitado imputado -> computa, el invitado nunca recibe delta', () => {
+/* ------------------------------------------------------------------ */
+/* computeLevelStateUpdates — diferencia neta con movimiento real (B6-A-04) */
+/* y confianza incremental (B6-A-05), Nivel_BRAMU_Formula_V1.5.md §12.3     */
+/* ------------------------------------------------------------------ */
+
+function firstOfficialization() {
   const row = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
   const localMatch = MatchSync.translateServerMatchToLocalShape(row);
-  const playerStates = MLE.buildPlayerStatesDict([
-    { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO' },
-    // p4 sin level_state -> invitado, un conocido en cada pareja (2 en A, 1 en B) -> computa
-    // con disponibilidad 3/4.
-  ]);
-  const result = MLE.computeOfficializationResult({
-    localMatch,
-    history: [],
-    playerStates,
+  return MLE.computeOfficializationResult({
+    localMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+}
+
+test('computeLevelStateUpdates: primera oficialización (sin resultado previo) aplica el delta completo sobre el estado live', () => {
+  const officialization = firstOfficialization();
+  const live = liveStates();
+  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null,
+    engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds,
+    currentLevelStatesByPlayerId: live,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+
+  assert.equal(resultPlayers.length, 4);
+  assert.equal(levelStateUpdates.length, 4);
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  const p1Result = resultPlayers.find((r) => r.playerId === 'p1');
+  const p1Delta = officialization.engineOutput.players.p1.deltaCapped;
+  assert.ok(Math.abs((p1Update.finalMu - live.p1.mu) - p1Delta) < 1e-9);
+  // Los valores LIVE before/after de la fila de auditoría son los realmente aplicados, no la
+  // referencia de fórmula.
+  assert.ok(Math.abs(p1Result.muBefore - live.p1.mu) < 1e-9);
+  assert.ok(Math.abs(p1Result.muAfter - p1Update.finalMu) < 1e-9);
+  assert.equal(typeof p1Result.formulaMuBefore, 'number');
+  assert.equal(p1Result.formulaState, 'CALIBRADO', 'formulaState debe quedar en formato level_states (CALIBRADO), no en formato interno del motor');
+});
+
+test('computeLevelStateUpdates: revertir usa el MOVIMIENTO REAL (after-before), nunca deltaCapped, cerca del clamp superior 10.0 (B6-A-04)', () => {
+  // Simula un resultado previo cuyo deltaCapped nominal era +0.20 pero el clamp de escala lo
+  // recortó a +0.05 real (mu 9.95 -> 10.00).
+  const oldAppliedResult = {
+    players: [
+      {
+        playerId: 'p1', team: 'A',
+        muBefore: 9.95, muAfter: 10.00, // movimiento real = +0.05, NO +0.20
+        confidenceBefore: 0.60, confidenceAfter: 0.6244,
+        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+      },
+    ],
+  };
+  // engineOutput null => esta corrección retira por completo el efecto (ej. anulación / partido
+  // ya no elegible), solo debe revertir.
+  const live = { p1: { mu: 10.00, confidence: 0.6244, evidenceUnits: 3.4 } };
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  // Revertir el movimiento REAL (+0.05) desde 10.00 da 9.95 — si se usara deltaCapped (+0.20) a
+  // mano hubiera dado 9.80, un resultado incorrecto.
+  assert.ok(Math.abs(p1Update.finalMu - 9.95) < 1e-9, `esperaba 9.95, obtuve ${p1Update.finalMu}`);
+});
+
+test('computeLevelStateUpdates: revertir cerca del clamp inferior 1.0 también usa movimiento real', () => {
+  const oldAppliedResult = {
+    players: [
+      {
+        playerId: 'p3', team: 'B',
+        muBefore: 1.05, muAfter: 1.00, // movimiento real = -0.05, no -0.20
+        confidenceBefore: 0.60, confidenceAfter: 0.6244,
+        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+      },
+    ],
+  };
+  const live = { p3: { mu: 1.00, confidence: 0.6244, evidenceUnits: 3.4 } };
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+  const p3Update = levelStateUpdates.find((u) => u.playerId === 'p3');
+  assert.ok(Math.abs(p3Update.finalMu - 1.05) < 1e-9, `esperaba 1.05, obtuve ${p3Update.finalMu}`);
+});
+
+test('computeLevelStateUpdates: revertir restaura confidence EXACTAMENTE (movimiento real, no aproximado) — B6-A-03', () => {
+  const oldAppliedResult = {
+    players: [
+      {
+        playerId: 'p1', team: 'A',
+        muBefore: 5.0, muAfter: 5.08,
+        confidenceBefore: 0.60, confidenceAfter: 0.6244,
+        evidenceUnitsBefore: 3.0, evidenceUnitsAfter: 3.4,
+      },
+    ],
+  };
+  const live = { p1: { mu: 5.08, confidence: 0.6244, evidenceUnits: 3.4 } };
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  assert.ok(Math.abs(p1Update.finalConfidence - 0.60) < 1e-9, `esperaba 0.60, obtuve ${p1Update.finalConfidence}`);
+  assert.ok(Math.abs(p1Update.finalEvidenceUnits - 3.0) < 1e-9);
+});
+
+test('computeLevelStateUpdates: corrección de resultado (mismos 4 jugadores) revierte+reaplica con confianza incremental real', () => {
+  const first = firstOfficialization();
+  const oldAppliedResult = {
+    players: Object.keys(first.engineOutput.players)
+      .filter((id) => !first.guestPlayerIds.includes(id))
+      .map((id) => {
+        const p = first.engineOutput.players[id];
+        const live = liveStates()[id];
+        // Simula que la primera oficialización ya se aplicó tal cual sobre el estado live base.
+        return {
+          playerId: id, team: p.team,
+          muBefore: live.mu, muAfter: Level.clampLevel(live.mu + p.deltaCapped),
+          confidenceBefore: live.confidence, confidenceAfter: Level.computeConfidenceAfterMatch(live.confidence, p.evidenceQuality),
+          evidenceUnitsBefore: live.evidenceUnits, evidenceUnitsAfter: live.evidenceUnits + p.evidenceQuality,
+        };
+      }),
+  };
+  // Estado live ya refleja la primera oficialización.
+  const liveAfterFirst = {};
+  oldAppliedResult.players.forEach((p) => {
+    liveAfterFirst[p.playerId] = { mu: p.muAfter, confidence: p.confidenceAfter, evidenceUnits: p.evidenceUnitsAfter };
+  });
+
+  // Corrección: resultado más amplio (6-2, 6-2 en vez de 6-4, 6-4).
+  const correctedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 2, gamesA2: 6, gamesB2: 2 });
+  const correctedMatch = MatchSync.translateServerMatchToLocalShape(correctedRow);
+  const corrected = MLE.computeOfficializationResult({
+    localMatch: correctedMatch, history: [], playerStates: evenPlayerStates(), validatedAtIso: '2026-01-02T00:00:00.000Z',
+  });
+
+  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult,
+    engineOutput: corrected.engineOutput,
+    guestPlayerIds: corrected.guestPlayerIds,
+    currentLevelStatesByPlayerId: liveAfterFirst,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+
+  assert.equal(resultPlayers.length, 4);
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  const p1Old = oldAppliedResult.players.find((p) => p.playerId === 'p1');
+  const p1New = corrected.engineOutput.players.p1;
+  // mu: revertir movimiento real, aplicar delta nuevo, clamp.
+  const expectedMuAfterRevert = Level.clampLevel(liveAfterFirst.p1.mu - (p1Old.muAfter - p1Old.muBefore));
+  const expectedFinalMu = Level.clampLevel(expectedMuAfterRevert + p1New.deltaCapped);
+  assert.ok(Math.abs(p1Update.finalMu - expectedFinalMu) < 1e-9);
+  // confidence: revertir movimiento real, reaplicar con la fórmula incremental real.
+  const expectedConfidenceAfterRevert = liveAfterFirst.p1.confidence - (p1Old.confidenceAfter - p1Old.confidenceBefore);
+  const expectedFinalConfidence = Level.computeConfidenceAfterMatch(expectedConfidenceAfterRevert, p1New.evidenceQuality);
+  assert.ok(Math.abs(p1Update.finalConfidence - expectedFinalConfidence) < 1e-9);
+  assert.ok(p1New.deltaCapped >= p1Old.muAfter - p1Old.muBefore, 'resultado más amplio -> delta nuevo mayor o igual');
+});
+
+test('computeLevelStateUpdates: identidad reemplazada -> el jugador retirado revierte puro (movimiento real), el nuevo aplica puro', () => {
+  const first = firstOfficialization();
+  const oldAppliedResult = {
+    players: Object.keys(first.engineOutput.players)
+      .filter((id) => !first.guestPlayerIds.includes(id))
+      .map((id) => {
+        const p = first.engineOutput.players[id];
+        const live = liveStates()[id];
+        return {
+          playerId: id, team: p.team,
+          muBefore: live.mu, muAfter: Level.clampLevel(live.mu + p.deltaCapped),
+          confidenceBefore: live.confidence, confidenceAfter: Level.computeConfidenceAfterMatch(live.confidence, p.evidenceQuality),
+          evidenceUnitsBefore: live.evidenceUnits, evidenceUnitsAfter: live.evidenceUnits + p.evidenceQuality,
+        };
+      }),
+  };
+  const liveAfterFirst = {};
+  oldAppliedResult.players.forEach((p) => {
+    liveAfterFirst[p.playerId] = { mu: p.muAfter, confidence: p.confidenceAfter, evidenceUnits: p.evidenceUnitsAfter };
+  });
+  liveAfterFirst.p5 = { mu: 5.0, confidence: 0.60, evidenceUnits: 3.0 };
+
+  // p4 sale, p5 entra en su lugar.
+  const swappedRow = buildRow({ playedAt: '2026-01-01T00:00:00.000Z', gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
+  swappedRow.participants[3].playerId = 'p5';
+  swappedRow.participants[3].displayName = 'B2-nuevo';
+  const swappedMatch = MatchSync.translateServerMatchToLocalShape(swappedRow);
+  const swapped = MLE.computeOfficializationResult({
+    localMatch: swappedMatch, history: [],
+    playerStates: MLE.buildPlayerStatesDict([
+      { playerId: 'p1', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+      { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+      { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+      { playerId: 'p5', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    ], '2026-01-01T00:00:00.000Z'),
     validatedAtIso: '2026-01-02T00:00:00.000Z',
   });
-  assert.equal(result.eligible, true);
-  assert.ok(result.guestPlayerIds.length === 1, 'debe haber exactamente un invitado imputado');
-  assert.ok(!Object.prototype.hasOwnProperty.call(result.engineOutput.players, 'p1') === false);
-  // El id del invitado nunca es uno de los 4 player_id reales conocidos — el llamador debe
-  // excluirlo de cualquier escritura en level_states usando exactamente guestPlayerIds.
-  assert.ok(!['p1', 'p2', 'p3'].includes(result.guestPlayerIds[0]));
+
+  const { resultPlayers, levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult,
+    engineOutput: swapped.engineOutput,
+    guestPlayerIds: swapped.guestPlayerIds,
+    currentLevelStatesByPlayerId: liveAfterFirst,
+    referenceIso: '2026-01-01T00:00:00.000Z',
+  });
+
+  assert.ok(!resultPlayers.some((r) => r.playerId === 'p4'));
+  const p4Update = levelStateUpdates.find((u) => u.playerId === 'p4');
+  const p4Old = oldAppliedResult.players.find((p) => p.playerId === 'p4');
+  assert.ok(p4Update, 'p4 debe recibir un ajuste de reversión aunque ya no participe del resultado nuevo');
+  const expectedP4Mu = Level.clampLevel(liveAfterFirst.p4.mu - (p4Old.muAfter - p4Old.muBefore));
+  assert.ok(Math.abs(p4Update.finalMu - expectedP4Mu) < 1e-9);
+
+  const p5Update = levelStateUpdates.find((u) => u.playerId === 'p5');
+  const p5Result = resultPlayers.find((r) => r.playerId === 'p5');
+  assert.ok(Math.abs((p5Update.finalMu - liveAfterFirst.p5.mu) - p5Result.deltaCapped) < 1e-9);
+});
+
+test('computeLevelStateUpdates: un jugador con decay por inactividad usa confianza efectiva como base del próximo partido, sin recuperar de golpe (B6-A-05)', () => {
+  const inactiveReferenceIso = '2026-08-01T00:00:00.000Z'; // ~212 días desde lastRatedAt
+  const rawConfidence = 0.80;
+  const effectiveConfidence = MLE.computeEffectiveConfidence(rawConfidence, '2026-01-01T00:00:00.000Z', inactiveReferenceIso);
+  assert.ok(effectiveConfidence < rawConfidence);
+
+  const row = buildRow({ playedAt: inactiveReferenceIso, gamesA1: 6, gamesB1: 4, gamesA2: 6, gamesB2: 4 });
+  const localMatch = MatchSync.translateServerMatchToLocalShape(row);
+  const playerStates = MLE.buildPlayerStatesDict([
+    { playerId: 'p1', mu: 5.0, confidence: rawConfidence, status: 'CALIBRADO', lastRatedAt: '2026-01-01T00:00:00.000Z' },
+    { playerId: 'p2', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p3', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+    { playerId: 'p4', mu: 5.0, confidence: 0.9, status: 'CALIBRADO', lastRatedAt: null },
+  ], inactiveReferenceIso);
+  assert.ok(Math.abs(playerStates.p1.confidence - effectiveConfidence) < 1e-9);
+
+  const officialization = MLE.computeOfficializationResult({
+    localMatch, history: [], playerStates, validatedAtIso: inactiveReferenceIso,
+  });
+  assert.equal(officialization.eligible, true);
+
+  const live = {
+    p1: { mu: 5.0, confidence: rawConfidence, evidenceUnits: 5.0, lastRatedAt: '2026-01-01T00:00:00.000Z' },
+    p2: liveStates().p2, p3: liveStates().p3, p4: liveStates().p4,
+  };
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput, guestPlayerIds: officialization.guestPlayerIds,
+    currentLevelStatesByPlayerId: live, referenceIso: inactiveReferenceIso,
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  // La confianza posterior nunca "recupera de golpe" el valor previo a la inactividad: sale de
+  // la base EFECTIVA (decayeada), no de la cruda almacenada (0.80).
+  const expectedFinal = Level.computeConfidenceAfterMatch(rawConfidence, officialization.engineOutput.players.p1.evidenceQuality);
+  assert.ok(p1Update.finalConfidence < expectedFinal, 'no debe recuperar de golpe la confianza previa a la inactividad');
 });

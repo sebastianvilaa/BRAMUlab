@@ -104,34 +104,54 @@ grant select, insert, update, delete on table public.match_level_results to serv
 -- match_level_result_players
 -- ------------------------------------------------------------------
 
+-- 06_Revision_Fase_A_ChatGPT.md B6-A-04/B6-A-05: se distinguen DOS pares de "antes/después"
+-- porque representan conceptos distintos —
+--   - formula_mu_before / formula_confidence_before / formula_state: la referencia INMUTABLE
+--     (por partido/jugador, nunca cambia entre correcciones del MISMO partido) que alimentó la
+--     fórmula (expectativa, K, opponentFactor) — Nivel_BRAMU_Formula_V1.5.md §12.3 "los mismos
+--     snapshots previos". Nunca se usa para revertir.
+--   - mu_before/mu_after/confidence_before/confidence_after/evidence_units_before/
+--     evidence_units_after: los valores LIVE efectivamente escritos en level_states por ESTA
+--     aplicación puntual (cambian con cada corrección/reaplicación). `after - before` es el
+--     MOVIMIENTO REAL aplicado — la única cantidad segura para revertir exactamente, porque
+--     `delta_capped` puede diferir del movimiento real cerca de los clamps de escala 1.0/10.0
+--     (B6-A-04) y porque `confidence` sigue la fórmula incremental real, no una reconstrucción
+--     "desde cero" vía evidence_units, una vez que existió decay por inactividad (B6-A-05).
 create table public.match_level_result_players (
-  result_id              uuid not null references public.match_level_results (result_id) on delete cascade,
-  player_id              uuid not null references public.players (player_id),
-  team                   text not null check (team in ('A', 'B')),
-  mu_before               numeric not null,
-  confidence_before       numeric not null,
-  evidence_units_before   numeric not null,
-  effective_level         numeric not null,
-  k                       numeric not null,
-  opponent_factor         numeric not null,
+  result_id                  uuid not null references public.match_level_results (result_id) on delete cascade,
+  player_id                  uuid not null references public.players (player_id),
+  team                       text not null check (team in ('A', 'B')),
+  formula_mu_before          numeric not null,
+  formula_confidence_before  numeric not null,
+  formula_state              text not null,
+  effective_level            numeric not null,
+  k                          numeric not null,
+  opponent_factor            numeric not null,
   -- Círculo competitivo SÍ es individual (level-context.js calcula un array por jugador dentro
   -- del equipo, dos compañeros pueden tener un círculo cerrado distinto). Repetición/compañero/
   -- disponibilidad son de equipo/partido y viven en match_level_results (cabecera), no acá.
-  circle_factor           numeric not null,
-  delta_raw               numeric not null,
-  delta_capped            numeric not null,
-  evidence_quality        numeric not null,
-  mu_after                numeric not null,
-  confidence_after        numeric not null,
-  evidence_units_after    numeric not null,
+  circle_factor              numeric not null,
+  delta_raw                  numeric not null,
+  delta_capped               numeric not null,
+  evidence_quality           numeric not null,
+  mu_before                  numeric not null,
+  mu_after                   numeric not null,
+  confidence_before          numeric not null,
+  confidence_after           numeric not null,
+  evidence_units_before      numeric not null,
+  evidence_units_after       numeric not null,
   primary key (result_id, player_id)
 );
 
 comment on table public.match_level_result_players is
   'Una fila por jugador CONOCIDO afectado por un match_level_results (Bloque 6). Un invitado o
    un slot no identificado NUNCA tiene fila acá (Nivel_BRAMU_Formula_V1.5.md §13/§21: nunca
-   reciben efecto). Fuente para derivar rated_matches/distinct_opponents por consulta directa
-   (join contra match_level_results.effect_status=applied), nunca por contador incremental.';
+   reciben efecto). mu_before/mu_after/confidence_before/confidence_after/
+   evidence_units_before/evidence_units_after son valores LIVE (soportan la reversión exacta vía
+   "after-before", B6-A-04); formula_mu_before/formula_confidence_before/formula_state son la
+   referencia inmutable que alimentó la fórmula (§12.3). Fuente para derivar
+   rated_matches/distinct_opponents por consulta directa (join contra
+   match_level_results.effect_status=applied), nunca por contador incremental.';
 
 create index match_level_result_players_player_id_idx on public.match_level_result_players (player_id, result_id);
 

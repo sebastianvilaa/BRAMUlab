@@ -67,10 +67,32 @@ alter table public.level_events
     'identity_reassignment_delta'
   ));
 
+-- 06_Revision_Fase_A_ChatGPT.md B6-A-01: questionnaire_version/questionnaire_mode eran NOT NULL
+-- desde Bloque 3 (obligatorios solo para initial_estimate, el único event_type que existía
+-- entonces). Los 4 event_type nuevos de Bloque 6 (match_delta/match_correction_reversal/
+-- match_correction_reapply/identity_reassignment_delta) nunca los completan — sin este cambio,
+-- la primera oficialización real habría fallado por NOT NULL. Se preserva la invariancia
+-- original con un CHECK explícito en vez de dejarla implícita.
+alter table public.level_events
+  alter column questionnaire_version drop not null,
+  alter column questionnaire_mode drop not null;
+
+alter table public.level_events
+  add constraint level_events_questionnaire_required_for_initial_estimate check (
+    event_type <> 'initial_estimate'
+    or (questionnaire_version is not null and questionnaire_mode is not null)
+  );
+
 alter table public.level_events
   add column if not exists match_id uuid references public.matches (match_id),
   add column if not exists match_level_result_id uuid references public.match_level_results (result_id);
 
+comment on column public.level_events.questionnaire_version is
+  'Obligatorio (por CHECK) únicamente cuando event_type=initial_estimate — Bloque 6 (B6-A-01)
+   relajó el NOT NULL de columna porque sus 4 event_type nuevos nunca lo completan.';
+comment on column public.level_events.questionnaire_mode is
+  'Obligatorio (por CHECK) únicamente cuando event_type=initial_estimate — ver
+   questionnaire_version.';
 comment on column public.level_events.match_id is
   'Solo se completa en event_type de Bloque 6 (match_delta/match_correction_reversal/
    match_correction_reapply/identity_reassignment_delta). NULL para initial_estimate.';

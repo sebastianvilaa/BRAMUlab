@@ -89,11 +89,13 @@ begin
     ),
     -- level_states de los participantes CONOCIDOS (player_id no nulo). Un slot no identificado
     -- simplemente no aparece acá — el llamador lo trata como invitado, sin caso especial.
+    -- lastRatedAt (B6-A-05) es imprescindible para decidir inactividad server-side.
     'levelStates', (
       select coalesce(jsonb_agg(jsonb_build_object(
         'playerId', ls.player_id, 'mu', ls.mu, 'confidence', ls.confidence,
         'evidenceUnits', ls.evidence_units, 'confidenceOrigin', ls.confidence_origin,
-        'status', ls.status, 'ratedMatches', ls.rated_matches, 'distinctOpponents', ls.distinct_opponents
+        'status', ls.status, 'ratedMatches', ls.rated_matches, 'distinctOpponents', ls.distinct_opponents,
+        'lastRatedAt', ls.last_rated_at
       )), '[]'::jsonb)
       from public.level_states ls
       where ls.player_id in (
@@ -101,26 +103,30 @@ begin
         where mp.match_id = v_match.match_id and mp.player_id is not null
       )
     ),
-    -- Snapshot ORIGINAL (primera vez que se calculó ALGO para este partido, applied o reverted)
-    -- de cada jugador que ya participó de algún cálculo previo de este partido. Es INMUTABLE a
-    -- través de correcciones posteriores: "mismos snapshots previos" (Nivel_BRAMU_Formula_V1.5.md
-    -- §12.3) significa que el Nivel de cada jugador INMEDIATAMENTE ANTES de este encuentro no
-    -- cambia aunque el partido se corrija muchas veces después.
+    -- Snapshot de FÓRMULA ORIGINAL (primera vez que se calculó ALGO para este partido, applied o
+    -- reverted) de cada jugador que ya participó de algún cálculo previo de este partido. Es
+    -- INMUTABLE a través de correcciones posteriores: "mismos snapshots previos"
+    -- (Nivel_BRAMU_Formula_V1.5.md §12.3) significa que el Nivel de cada jugador INMEDIATAMENTE
+    -- ANTES de este encuentro no cambia aunque el partido se corrija muchas veces después. Usa
+    -- formula_mu_before/formula_confidence_before/formula_state (B6-A-04) — NUNCA los mu_before/
+    -- confidence_before "live" de la primera fila, que son un concepto distinto.
     'priorSnapshots', (
       select coalesce(jsonb_agg(jsonb_build_object(
-        'playerId', first_rows.player_id, 'muBefore', first_rows.mu_before,
-        'confidenceBefore', first_rows.confidence_before, 'evidenceUnitsBefore', first_rows.evidence_units_before
+        'playerId', first_rows.player_id, 'muBefore', first_rows.formula_mu_before,
+        'confidenceBefore', first_rows.formula_confidence_before, 'state', first_rows.formula_state
       )), '[]'::jsonb)
       from (
         select distinct on (mlrp.player_id)
-          mlrp.player_id, mlrp.mu_before, mlrp.confidence_before, mlrp.evidence_units_before
+          mlrp.player_id, mlrp.formula_mu_before, mlrp.formula_confidence_before, mlrp.formula_state
         from public.match_level_result_players mlrp
         join public.match_level_results mlr on mlr.result_id = mlrp.result_id
         where mlr.match_id = v_match.match_id
         order by mlrp.player_id, mlr.computed_at asc
       ) first_rows
     ),
-    -- El resultado actualmente vigente (si existe) — para revertirlo antes de reaplicar.
+    -- El resultado actualmente vigente (si existe) — para revertirlo antes de reaplicar. Los
+    -- campos mu/confidence/evidenceUnits before/after son LIVE (B6-A-04): el movimiento real
+    -- aplicado, nunca deltaCapped.
     'currentAppliedResult', (
       select jsonb_build_object(
         'resultId', mlr.result_id, 'revisionId', mlr.revision_id, 'eligible', mlr.eligible,
@@ -128,11 +134,9 @@ begin
         'players', (
           select coalesce(jsonb_agg(jsonb_build_object(
             'playerId', mlrp.player_id, 'team', mlrp.team,
-            'muBefore', mlrp.mu_before, 'confidenceBefore', mlrp.confidence_before,
-            'evidenceUnitsBefore', mlrp.evidence_units_before,
-            'deltaCapped', mlrp.delta_capped, 'evidenceQuality', mlrp.evidence_quality,
-            'muAfter', mlrp.mu_after, 'confidenceAfter', mlrp.confidence_after,
-            'evidenceUnitsAfter', mlrp.evidence_units_after
+            'muBefore', mlrp.mu_before, 'muAfter', mlrp.mu_after,
+            'confidenceBefore', mlrp.confidence_before, 'confidenceAfter', mlrp.confidence_after,
+            'evidenceUnitsBefore', mlrp.evidence_units_before, 'evidenceUnitsAfter', mlrp.evidence_units_after
           )), '[]'::jsonb)
           from public.match_level_result_players mlrp where mlrp.result_id = mlr.result_id
         )
@@ -140,6 +144,21 @@ begin
       from public.match_level_results mlr
       where mlr.match_id = v_match.match_id and mlr.effect_status = 'applied'
       limit 1
+    ),
+    -- Sets de la revisión PROPUESTA en espera (si existe) — B6-A-06/B6-A-08: cuando
+    -- trigger=correction_accepted, el orquestador debe construir el partido a oficializar con
+    -- ESTOS sets, nunca con los de la revisión vigente todavía-no-reemplazada ni con una mezcla
+    -- de revisiones (match_sets no filtrado por revision_number).
+    'pendingCorrectionSets', (
+      case when v_match.pending_correction_revision_id is null then null else (
+        select jsonb_agg(jsonb_build_object(
+          'setNumber', ms.set_number, 'gamesA', ms.games_a, 'gamesB', ms.games_b,
+          'tiebreakA', ms.tiebreak_a, 'tiebreakB', ms.tiebreak_b
+        ) order by ms.set_number)
+        from public.match_sets ms
+        where ms.match_id = v_match.match_id
+          and ms.revision_number = (select revision_number from public.match_revisions where revision_id = v_match.pending_correction_revision_id)
+      ) end
     ),
     -- Incidencia de identidad abierta, si existe — el llamador la usa para bloquear una
     -- corrección de resultado mientras esté open (04_Revision_ChatGPT.md §11).

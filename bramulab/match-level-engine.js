@@ -6,41 +6,43 @@
    motor: recibe objetos ya resueltos por la Edge Function (que sí consulta
    Supabase) y devuelve estructuras listas para persistir.
 
+   Revisión 06_Revision_Fase_A_ChatGPT.md (21/09/2026) — B6-A-04/B6-A-05
+   corregidos acá:
+   - la reversión de `mu`/`confidence`/`evidence_units` usa el MOVIMIENTO
+     REALMENTE APLICADO (`after - before`) de la aplicación anterior, nunca
+     `deltaCapped` — el clamp de escala 1.0/10.0 puede haber recortado el
+     movimiento efectivo cerca de los bordes (B6-A-04);
+   - `confidence` se calcula con la fórmula INCREMENTAL real
+     (`Level.computeConfidenceAfterMatch`), nunca reconstruida "desde cero"
+     con evidence_units — evidence_units queda como total histórico de
+     auditoría (Nivel_BRAMU_Formula_V1.5.md §10.1), pero no vuelve a
+     determinar `confidence` por sí solo una vez que existió decay por
+     inactividad (B6-A-05, ver `computeEffectiveConfidence`);
+   - se distingue explícitamente la referencia de FÓRMULA (`formulaMuBefore`/
+     `formulaConfidenceBefore`/`formulaState` — inmutable por partido,
+     alimenta expectativa/K) del valor LIVE realmente aplicado
+     (`muBefore`/`muAfter`/... — cambia con cada aplicación, sostiene la
+     reversión exacta).
+
    POR QUÉ ESTE ARCHIVO ES CHICO (a propósito, ver 02_Analisis_Claude.md §3.2/
    §3.8 y Riesgo 1 tras auditar el código existente):
    - la traducción de una fila server-backed a la forma local que
-     `level-context.js` espera (`players[]`, `sets[]` con `winner` derivado,
-     `mode:'manual'`, `regulationCompleted:true`) YA la resuelve
-     `match-sync.js#translateServerMatchToLocalShape` (Bloque 5) — este
-     archivo no la reimplementa, la Edge Function reutiliza esa función tal
-     cual sobre filas que las RPCs de lectura de Bloque 6 devuelven con la
-     MISMA forma camelCase que `get_my_matches`;
+     `level-context.js` espera YA la resuelve
+     `match-sync.js#translateServerMatchToLocalShape` (Bloque 5);
    - la matemática de Nivel, incluida repetición/compañero/círculo
      competitivo real desde historial, YA la resuelve
      `level-context.js#computeMatchLevelUpdate` (Etapa B) + `level.js`
-     (Etapa A) — este archivo no las reimplementa, las invoca;
-   - la reconstrucción de "estado de un jugador a una fecha pasada"
-     (Decisión Abierta #2, resuelta por 04_Revision_ChatGPT.md §2) y el
-     conteo de rated_matches/distinct_opponents se resuelven en SQL, por
-     consulta directa contra match_level_result_players — no hace falta
-     reimplementarlos acá (ver migraciones de Bloque 6).
+     (Etapa A) — este archivo no las reimplementa, las invoca.
 
    Lo que SÍ falta y por eso vive acá:
    - la ventana de 30 días desde `played_at` que determina si un partido
-     `validated` produce o no efecto de Nivel (Nivel_BRAMU_Formula_V1.5.md
-     §12.2/§13, resuelta como Decisión Abierta #1 por 04_Revision_ChatGPT.md
-     §1) — el chequeo interno de `level-context.js` (createdAt-playedAt) NO
-     sirve para esto con datos de Bloque 5 (ver 02_Analisis_Claude.md Riesgo
-     2), así que el chequeo real vive acá, ANTES de invocar el motor;
-   - el mapeo entre `level_states.status` (PENDIENTE/CALIBRANDO/CALIBRADO/
-     RECALIBRANDO) y `Level.STATES` (sin_estimacion/calibrando/calibrado/
-     recalibrando) — los strings no coinciden 1:1;
-   - una referencia sintética única por slot "no identificado", para que dos
-     slots sin identidad en partidos distintos nunca se traten como "la
-     misma persona" por coincidencia de nombre dentro de level-context.js;
-   - el punto único de entrada que decide, ANTES de tocar el motor, si un
-     partido produce efecto de Nivel o no, y devuelve un resultado uniforme
-     tanto para el caso "no computable" como para el caso "computable".
+     `validated` produce o no efecto de Nivel (Decisión Abierta #1, resuelta);
+   - el mapeo entre `level_states.status` y `Level.STATES`;
+   - la confianza EFECTIVA por inactividad (Nivel_BRAMU_Formula_V1.5.md
+     §10.3), calculada acá y nunca en SQL;
+   - una referencia sintética única por slot "no identificado";
+   - la reversión/reaplicación por diferencia neta con movimiento real
+     (B6-A-04) y confianza incremental (B6-A-05).
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -48,11 +50,10 @@
   const Level = global.PLLevel;
   const LevelContext = global.PLLevelContext;
 
-  // Nivel_BRAMU_Formula_V1.5.md §12.2/§13 — resuelto como Decisión Abierta #1 por
-  // 04_Revision_ChatGPT.md §1: validated_at - played_at > 30 días => historial/estadísticas
-  // oficiales sí, Nivel no. Bloque 5 no se reabre (su propia ventana de carga+pendiente puede
-  // permitir hasta 44 días entre played_at y validated_at); este chequeo es ADICIONAL y más
-  // estricto, exclusivo del efecto de Nivel.
+  // Nivel_BRAMU_Formula_V1.5.md §12.2/§13 — Decisión Abierta #1, resuelta: validated_at -
+  // played_at > 30 días => historial/estadísticas oficiales sí, Nivel no. Bloque 5 no se reabre
+  // (su propia ventana de carga+pendiente puede permitir hasta 44 días entre played_at y
+  // validated_at); este chequeo es ADICIONAL y más estricto, exclusivo del efecto de Nivel.
   const NIVEL_MATCH_WINDOW_DAYS = 30;
   const DAY_MS = 86400000;
 
@@ -97,20 +98,37 @@
     }
   }
 
-  /** `{playerId,mu,confidence,status}[]` (fila cruda de level_states, service_role) ->
-   *  `{[playerId]: {mu,confidence,state}}` (lo que `resolvePlayerRating` de level-context.js
-   *  necesita). Un jugador PENDIENTE (mu/confidence todavía null, cuestionario sin confirmar)
-   *  queda deliberadamente AFUERA del diccionario: level-context.js lo trata entonces como
-   *  invitado sin nivel conocido, exactamente la regla correcta para alguien sin Nivel real
-   *  todavía (Nivel_BRAMU_Formula_V1.5.md §13) — nunca se le inventa un mu. */
-  function buildPlayerStatesDict(levelStateRows) {
+  /** Nivel_BRAMU_Formula_V1.5.md §10.3 — B6-A-05. Sin cambio los primeros 60 días sin
+   *  actividad computable; después, la confianza EFECTIVA decae (nunca `mu`). `lastRatedAtIso`
+   *  nulo (jugador recién oficializado, sin ningún partido computable todavía) significa "sin
+   *  decay posible todavía" — se devuelve `rawConfidence` sin tocar. */
+  function computeEffectiveConfidence(rawConfidence, lastRatedAtIso, referenceIso) {
+    if (!Number.isFinite(rawConfidence)) return rawConfidence;
+    const lastRated = parseTimeOrNull(lastRatedAtIso);
+    const reference = parseTimeOrNull(referenceIso);
+    if (lastRated === null || reference === null) return rawConfidence;
+    const daysInactive = Math.max(0, (reference - lastRated) / DAY_MS);
+    return Level.computeEffectiveConfidenceAfterInactivity(rawConfidence, daysInactive);
+  }
+
+  /** `{playerId,mu,confidence,status,lastRatedAt}[]` (filas crudas de level_states,
+   *  service_role) -> `{[playerId]: {mu,confidence,state}}` (lo que `resolvePlayerRating` de
+   *  level-context.js necesita) — con la confianza ya ajustada por inactividad respecto de
+   *  `referenceIso` (`localMatch.playedAt`, B6-A-05). Un jugador PENDIENTE (mu/confidence
+   *  todavía null) queda deliberadamente AFUERA del diccionario: level-context.js lo trata
+   *  entonces como invitado sin nivel conocido (Nivel_BRAMU_Formula_V1.5.md §13). Este
+   *  diccionario es la referencia por defecto para un jugador que NO tiene todavía un
+   *  `priorSnapshot` propio de este partido — ver `computeOfficializationResult` y el
+   *  orquestador (`match-officialize-core.ts`), que la combina con los snapshots inmutables ya
+   *  existentes antes de llamar acá. */
+  function buildPlayerStatesDict(levelStateRows, referenceIso) {
     const dict = {};
     (Array.isArray(levelStateRows) ? levelStateRows : []).forEach((row) => {
       if (!row || !row.playerId) return;
       if (!Number.isFinite(row.mu) || !Number.isFinite(row.confidence)) return;
       dict[row.playerId] = {
         mu: row.mu,
-        confidence: row.confidence,
+        confidence: computeEffectiveConfidence(row.confidence, row.lastRatedAt, referenceIso),
         state: mapLevelStateStatusToEngineState(row.status),
       };
     });
@@ -131,10 +149,9 @@
    *  para un slot sin `player_id` — que server-side es SIEMPRE el mismo string compartido
    *  ('Por identificar', ver report_identity_issue) para cualquier slot no identificado de
    *  CUALQUIER partido. Sin este paso, dos slots sin identidad de partidos distintos
-   *  colisionarían como "la misma persona" en `identityKey` (level-context.js cae a
-   *  `'name:'+nombre` cuando no hay `userId`). Se aplica sobre CUALQUIER partido que vaya a
-   *  alimentar el motor — el actual y cada partido de `history` — mutando una copia, nunca el
-   *  objeto original. Un jugador ya identificado (`userId` presente) no se toca. */
+   *  colisionarían como "la misma persona" en `identityKey`. Se aplica sobre CUALQUIER partido
+   *  que vaya a alimentar el motor — el actual y cada partido de `history` — mutando una copia,
+   *  nunca el objeto original. Un jugador ya identificado (`userId` presente) no se toca. */
   function sanitizeUnidentifiedPlayers(localMatch) {
     if (!localMatch || !Array.isArray(localMatch.players)) return localMatch;
     const players = localMatch.players.map((p) => {
@@ -149,14 +166,15 @@
 
   /** Punto único de entrada: decide primero la ventana de Nivel (§12.2/§13) y SOLO si el
    *  partido está dentro de ventana invoca el motor real. `localMatch`/`history` deben venir
-   *  YA en la forma local que `PLMatchSync.translateServerMatchToLocalShape` produce (la Edge
-   *  Function la reutiliza tal cual, ver cabecera). `playedAtIso` es `localMatch.playedAt`;
+   *  YA en la forma local que `PLMatchSync.translateServerMatchToLocalShape` produce.
+   *  `playerStates` ya debe traer, para cada jugador conocido, la referencia de FÓRMULA correcta
+   *  (snapshot inmutable si ya existe uno para este partido, o el valor actual con inactividad
+   *  ya aplicada si es la primera vez — arma esta combinación el orquestador, no este módulo).
    *  `validatedAtIso` es la oficialización ACTUAL (primera vez) o la ORIGINAL ya fija del
    *  partido (corrección/identidad) — nunca "ahora" en una reaplicación.
    *
-   *  Devuelve siempre la misma forma, elegible o no, para que el llamador nunca tenga que
-   *  distinguir "no elegible" de "elegible pero sin computar" con dos contratos distintos:
-   *    { eligible, reasonCodes, engineOutput, guestPlayerIds, imputedEffectiveLevel } */
+   *  Devuelve siempre la misma forma, elegible o no:
+   *    { eligible, reasonCodes, engineOutput, guestPlayerIds, imputedEffectiveLevel, context } */
   function computeOfficializationResult({ localMatch, history, playerStates, validatedAtIso }) {
     const playedAtIso = localMatch && localMatch.playedAt;
     if (!isWithinNivelWindow(playedAtIso, validatedAtIso)) {
@@ -166,6 +184,7 @@
         engineOutput: null,
         guestPlayerIds: [],
         imputedEffectiveLevel: null,
+        context: null,
       };
     }
 
@@ -179,8 +198,7 @@
     // Llama a las dos funciones de nivel más bajo de level-context.js en la MISMA secuencia
     // exacta que su propio `computeMatchLevelUpdate` (no se reimplementa ninguna fórmula, solo
     // se captura también `context.engineInput` — knownLevelsCount, repetitionFactor/
-    // companionFactor por equipo — que la función de conveniencia no expone y que
-    // match_level_results necesita para auditoría completa, Nivel_BRAMU_Formula_V1.5.md §19).
+    // companionFactor por equipo — que la función de conveniencia no expone).
     const context = LevelContext.buildLevelEngineContext(safeMatch, safeHistory, playerStates || {}, options);
     if (!context.eligible) {
       return {
@@ -194,6 +212,14 @@
     }
 
     const engineOutput = Level.computeMatchUpdate(context.engineInput);
+
+    // `computeMatchUpdate` no repite `state` en su salida (era solo un INPUT) — se adjunta acá
+    // desde `context.engineInput` para que `computeLevelStateUpdates` pueda persistir
+    // `formulaState` (la referencia de estado que alimentó K/cap, Nivel_BRAMU_Formula_V1.5.md
+    // §9) junto con `formulaMuBefore`/`formulaConfidenceBefore`.
+    context.engineInput.teamA.players.concat(context.engineInput.teamB.players).forEach((p) => {
+      if (engineOutput.players[p.id]) engineOutput.players[p.id].state = p.state;
+    });
 
     return {
       eligible: true,
@@ -213,37 +239,35 @@
 
   /** Diferencia NETA entre un resultado anterior (si existe, ya vigente) y uno nuevo recién
    *  calculado (Nivel_BRAMU_Formula_V1.5.md §12.3: "revertir exactamente el efecto anterior;
-   *  recalcular; aplicar solo la diferencia neta"). Nunca reimplementa el motor: toma los
-   *  deltas YA CALCULADOS de ambos lados y hace aritmética simple sobre el estado LIVE actual
-   *  de cada jugador. Cubre los tres casos:
-   *   - jugador en ambos (corrección de resultado con los mismos 4, o identidad que no lo
-   *     afecta): net = deltaNuevo - deltaViejo;
-   *   - jugador solo en el nuevo (identidad recién asignada a este partido): net = deltaNuevo
-   *     puro, usando el mu efectivo LIVE actual como base — el snapshot "antes de ESTE
-   *     partido" que alimentó el cálculo del motor es otro concepto (ver
-   *     get_match_officialization_snapshot/get_player_level_state_as_of), no se confunde con
-   *     "estado live actual sobre el que se aplica el neto";
-   *   - jugador solo en el viejo (identidad retirada de este partido): net = -deltaViejo puro.
+   *  recalcular; aplicar solo la diferencia neta") — corregido según 06_Revision_Fase_A_
+   *  ChatGPT.md B6-A-04/B6-A-05:
    *
-   *  `oldAppliedResult`: null, o `{ players: [{playerId, deltaCapped, evidenceQuality}] }` (el
-   *  `currentAppliedResult` que devuelve get_match_officialization_snapshot).
-   *  `engineOutput`: la salida de `computeOfficializationResult` (o null si no eligible — en ese
-   *  caso el nuevo lado no aporta a nadie, todo el mundo solo revierte lo viejo).
+   *  1) Revertir usa el MOVIMIENTO REALMENTE APLICADO de la aplicación anterior
+   *     (`oldP.muAfter - oldP.muBefore`, ambos LIVE — nunca `deltaCapped`, que puede diferir del
+   *     movimiento real cerca de los clamps 1.0/10.0).
+   *  2) Aplicar el delta nuevo usa la fórmula INCREMENTAL real de confianza
+   *     (`Level.computeConfidenceAfterMatch`) sobre el valor LIVE ya revertido — nunca una
+   *     reconstrucción "desde cero" vía evidence_units, que deja de ser válida una vez que
+   *     existió decay por inactividad (B6-A-05).
+   *  3) `mu`/`confidence`/`evidence_units` "before"/"after" que se persisten en
+   *     `match_level_result_players` son los valores LIVE de ESTA aplicación puntual (soportan
+   *     la próxima reversión exacta) — DISTINTOS de `formulaMuBefore`/`formulaConfidenceBefore`
+   *     (la referencia inmutable que alimentó la fórmula, ya presente en `newP` vía
+   *     `engineOutput.players[id].muBefore/confidenceBefore`).
+   *
+   *  `oldAppliedResult`: null, o `{ players: [{playerId, muBefore, muAfter, confidenceBefore,
+   *  confidenceAfter, evidenceUnitsBefore, evidenceUnitsAfter}] }` — los valores LIVE ya
+   *  persistidos por la aplicación anterior (el `currentAppliedResult` que devuelve
+   *  `get_match_officialization_snapshot`).
+   *  `engineOutput`: la salida de `computeOfficializationResult` (o null si no eligible).
    *  `guestPlayerIds`: ids sintéticos de invitados en el engineOutput nuevo — nunca reciben fila.
-   *  `currentLevelStatesByPlayerId`: `{[playerId]: {mu,confidence,evidenceUnits,confidenceOrigin}}`
-   *  LIVE actual — el llamador la arma leyendo `levelStates` de
-   *  get_match_officialization_snapshot para cualquier player_id involucrado (viejo ∪ nuevo).
-   *  `preMatchEvidenceUnitsByPlayerId`: `{[playerId]: number}` — evidence_units INMUTABLE de
-   *  cada jugador nuevo en el resultado, tal como estaba justo antes de ESTE partido (de
-   *  `priorSnapshots`, o reconstruido con get_player_level_state_as_of para una identidad
-   *  recién asignada — Decisión Abierta #2). 0 si no hay ningún antecedente (jugador sin Nivel
-   *  antes de este partido). Es un concepto DISTINTO de `currentLevelStatesByPlayerId`: éste es
-   *  "antes de este partido específico" (fijo para siempre), aquél es "ahora mismo" (cambia con
-   *  cada partido). Solo se usa para completar la fila de auditoría (match_level_result_players),
-   *  nunca para el neto aplicado a level_states. */
-  function computeLevelStateUpdates({
-    oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId, preMatchEvidenceUnitsByPlayerId,
-  }) {
+   *  `currentLevelStatesByPlayerId`: `{[playerId]: {mu,confidence,evidenceUnits,lastRatedAt}}`
+   *  LIVE actual (ahora mismo) — el llamador la arma leyendo `levelStates` de
+   *  `get_match_officialization_snapshot` para cualquier player_id involucrado (viejo ∪ nuevo).
+   *  `referenceIso`: `localMatch.playedAt` del partido que se está (re)aplicando — referencia
+   *  para decidir inactividad (B6-A-05) de un jugador que aparece por primera vez en este
+   *  partido (`!oldP`). */
+  function computeLevelStateUpdates({ oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId, referenceIso }) {
     const oldByPlayerId = {};
     ((oldAppliedResult && oldAppliedResult.players) || []).forEach((p) => {
       if (p && p.playerId) oldByPlayerId[p.playerId] = p;
@@ -267,47 +291,94 @@
       if (!current) return; // defensivo: el llamador debe garantizar cobertura completa.
       const oldP = oldByPlayerId[playerId];
       const newP = newByPlayerId[playerId];
-      const oldDelta = oldP ? oldP.deltaCapped : 0;
-      const oldEvidence = oldP ? oldP.evidenceQuality : 0;
-      const newDelta = newP ? newP.deltaCapped : 0;
-      const newEvidence = newP ? newP.evidenceQuality : 0;
 
-      const netMuChange = newDelta - oldDelta;
-      const netEvidenceChange = newEvidence - oldEvidence;
-      const finalMu = Level.clampLevel(current.mu + netMuChange);
-      const finalEvidenceUnits = Math.max(0, (current.evidenceUnits || 0) + netEvidenceChange);
-      const finalConfidence = Level.computeConfidenceFromEvidence(finalEvidenceUnits, current.confidenceOrigin);
+      // Paso 1 — revertir el movimiento REAL de la aplicación anterior (B6-A-04): nunca
+      // deltaCapped, siempre after-before ya persistido.
+      const oldMuMovement = oldP ? (oldP.muAfter - oldP.muBefore) : 0;
+      const oldConfidenceMovement = oldP ? (oldP.confidenceAfter - oldP.confidenceBefore) : 0;
+      const oldEvidenceMovement = oldP ? (oldP.evidenceUnitsAfter - oldP.evidenceUnitsBefore) : 0;
+
+      const muAfterRevert = Level.clampLevel(current.mu - oldMuMovement);
+      // confidence no tiene clamp de escala propio (su rango lo mantiene la propia fórmula
+      // incremental entre 0 y CONFIDENCE_MAX); evidence_units sí tiene piso 0.
+      const confidenceAfterRevert = current.confidence - oldConfidenceMovement;
+      const evidenceUnitsAfterRevert = Math.max(0, (current.evidenceUnits || 0) - oldEvidenceMovement);
+
+      if (!newP) {
+        // Solo reversión pura — identidad retirada de este partido, o corrección que ya no
+        // incluye a este jugador.
+        levelStateUpdates.push({
+          playerId,
+          currentMuForLock: current.mu,
+          currentConfidenceForLock: current.confidence,
+          currentEvidenceUnitsForLock: current.evidenceUnits || 0,
+          finalMu: muAfterRevert,
+          finalConfidence: confidenceAfterRevert,
+          finalEvidenceUnits: evidenceUnitsAfterRevert,
+        });
+        return;
+      }
+
+      // Paso 2 — aplicar el delta NUEVO sobre el estado YA revertido, con la fórmula
+      // incremental real de confianza (B6-A-05): nunca sobre `formulaMuBefore`/
+      // `formulaConfidenceBefore` (esos son solo la referencia que alimentó la fórmula, no la
+      // base real de escritura de level_states).
+      //
+      // Inactividad (B6-A-05, Nivel_BRAMU_Formula_V1.5.md §10.3): "la confianza efectiva pasa a
+      // ser la BASE de la actualización incremental del siguiente partido". Esto solo aplica
+      // cuando este jugador NO tenía ya una aplicación previa para ESTE partido (`!oldP` — la
+      // primera vez que se computa este partido para él, o una identidad recién asignada): el
+      // decay real de su inactividad todavía no fue considerado en ningún punto del camino LIVE.
+      // Para un jugador que YA tenía una aplicación previa (corrección/reaplicación del MISMO
+      // partido), `confidenceAfterRevert` deriva por resta exacta del valor LIVE actual — que ya
+      // incorporó cualquier decay ocurrido desde entonces por construcción — así que aplicar
+      // decay UNA SEGUNDA VEZ acá sería incorrecto.
+      const confidenceBaseForApply = oldP
+        ? confidenceAfterRevert
+        : computeEffectiveConfidence(confidenceAfterRevert, current.lastRatedAt, referenceIso);
+
+      const muAfterApply = Level.clampLevel(muAfterRevert + newP.deltaCapped);
+      const confidenceAfterApply = Level.computeConfidenceAfterMatch(confidenceBaseForApply, newP.evidenceQuality);
+      const evidenceUnitsAfterApply = evidenceUnitsAfterRevert + newP.evidenceQuality;
 
       levelStateUpdates.push({
         playerId,
         currentMuForLock: current.mu,
         currentConfidenceForLock: current.confidence,
         currentEvidenceUnitsForLock: current.evidenceUnits || 0,
-        finalMu,
-        finalConfidence,
-        finalEvidenceUnits,
+        finalMu: muAfterApply,
+        finalConfidence: confidenceAfterApply,
+        finalEvidenceUnits: evidenceUnitsAfterApply,
       });
 
-      if (newP) {
-        const evidenceUnitsBefore = ((preMatchEvidenceUnitsByPlayerId || {})[playerId]) || 0;
-        resultPlayers.push({
-          playerId,
-          team: newP.team,
-          muBefore: newP.muBefore,
-          confidenceBefore: newP.confidenceBefore,
-          evidenceUnitsBefore,
-          effectiveLevel: newP.effectiveLevel,
-          k: newP.k,
-          opponentFactor: newP.opponentFactor,
-          circleFactor: newP.circleFactor,
-          deltaRaw: newP.deltaRaw,
-          deltaCapped: newP.deltaCapped,
-          evidenceQuality: newP.evidenceQuality,
-          muAfter: newP.muAfter,
-          confidenceAfter: newP.confidenceAfter,
-          evidenceUnitsAfter: evidenceUnitsBefore + newP.evidenceQuality,
-        });
-      }
+      resultPlayers.push({
+        playerId,
+        team: newP.team,
+        // Referencia de FÓRMULA (inmutable por partido — alimentó expectativa/K/opponentFactor).
+        // Nunca se usa para revertir, solo para explicar/auditar el cálculo y para que una
+        // futura corrección de ESTE MISMO partido siga usando "los mismos snapshots previos"
+        // (Nivel_BRAMU_Formula_V1.5.md §12.3).
+        formulaMuBefore: newP.muBefore,
+        formulaConfidenceBefore: newP.confidenceBefore,
+        formulaState: mapEngineStateToLevelStateStatus(newP.state),
+        effectiveLevel: newP.effectiveLevel,
+        k: newP.k,
+        opponentFactor: newP.opponentFactor,
+        circleFactor: newP.circleFactor,
+        deltaRaw: newP.deltaRaw,
+        deltaCapped: newP.deltaCapped,
+        evidenceQuality: newP.evidenceQuality,
+        // Valores LIVE realmente aplicados en ESTA operación — sostienen la próxima reversión
+        // exacta (B6-A-04). confidenceBefore es la base REALMENTE usada por la fórmula
+        // incremental (ya con inactividad aplicada si correspondía, B6-A-05) — nunca el valor
+        // pre-decay, para que una reversión futura reste exactamente lo que se sumó acá.
+        muBefore: muAfterRevert,
+        muAfter: muAfterApply,
+        confidenceBefore: confidenceBaseForApply,
+        confidenceAfter: confidenceAfterApply,
+        evidenceUnitsBefore: evidenceUnitsAfterRevert,
+        evidenceUnitsAfter: evidenceUnitsAfterApply,
+      });
     });
 
     return { resultPlayers, levelStateUpdates };
@@ -319,6 +390,7 @@
     isWithinNivelWindow,
     mapLevelStateStatusToEngineState,
     mapEngineStateToLevelStateStatus,
+    computeEffectiveConfidence,
     buildPlayerStatesDict,
     buildUnidentifiedRef,
     sanitizeUnidentifiedPlayers,

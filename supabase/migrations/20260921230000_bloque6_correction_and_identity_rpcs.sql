@@ -39,6 +39,7 @@ declare
   v_rated integer;
   v_distinct integer;
   v_status text;
+  v_last_rated_at timestamptz;
 begin
   select * into v_applied from public.match_level_results
     where match_id = p_match_id and effect_status = 'applied' for update;
@@ -56,27 +57,50 @@ begin
       where mlrp.player_id = v_row.player_id and mlr.effect_status = 'applied' and mlr.eligible
         and mlr.result_id <> v_applied.result_id;
 
+    -- B6-A-11: cuenta CUALQUIER player_id rival de match_participants (registrado o
+    -- provisional, nunca un slot NULL) de partidos con resultado applied+eligible — no exige
+    -- que el rival tenga su propia fila en match_level_result_players (un rival sin Nivel
+    -- propio sigue siendo una identidad distinta a efectos de diversidad).
     select count(distinct opp.player_id) into v_distinct
-      from public.match_level_result_players mlrp
+      from public.match_participants self_p
+      join public.match_participants opp
+        on opp.match_id = self_p.match_id and opp.team <> self_p.team and opp.player_id is not null
       join public.match_level_results mlr
-        on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
+        on mlr.match_id = self_p.match_id and mlr.effect_status = 'applied' and mlr.eligible
         and mlr.result_id <> v_applied.result_id
-      join public.match_level_result_players opp on opp.result_id = mlrp.result_id and opp.team <> mlrp.team
-      where mlrp.player_id = v_row.player_id;
+      where self_p.player_id = v_row.player_id;
 
+    -- B6-A-12: no monotónico — la evidencia oficial VIGENTE decide, nunca "una vez CALIBRADO
+    -- siempre CALIBRADO". RECALIBRANDO conserva su semántica propia, fuera de Bloque 6.
     v_status := case
       when v_cls.status = 'RECALIBRANDO' then 'RECALIBRANDO'
-      when v_cls.status = 'CALIBRADO' then 'CALIBRADO'
       when coalesce(v_rated, 0) >= 5 and coalesce(v_distinct, 0) >= 3 then 'CALIBRADO'
       else 'CALIBRANDO'
     end;
 
+    -- B6-A-13: last_rated_at es actividad deportiva computable — se recompone como el máximo
+    -- played_at de los resultados applied+eligible que le quedan a este jugador tras revertir
+    -- (NULL si no le queda ninguno).
+    select max(m.played_at) into v_last_rated_at
+      from public.match_level_result_players mlrp
+      join public.match_level_results mlr
+        on mlr.result_id = mlrp.result_id and mlr.effect_status = 'applied' and mlr.eligible
+        and mlr.result_id <> v_applied.result_id
+      join public.matches m on m.match_id = mlr.match_id
+      where mlrp.player_id = v_row.player_id;
+
+    -- B6-A-03/B6-A-04: revertir con el MOVIMIENTO REAL ya persistido (after-before, siempre el
+    -- valor efectivamente aplicado, nunca delta_capped/evidence_quality que pueden diferir cerca
+    -- de los clamps o de la fórmula incremental de confianza) — mu/confidence/evidence_units los
+    -- tres, nunca solo mu.
     update public.level_states set
-      mu = round(greatest(1.0, least(10.0, mu - v_row.delta_capped)), 4),
-      evidence_units = greatest(0, evidence_units - v_row.evidence_quality),
+      mu = round(greatest(1.0, least(10.0, mu - (v_row.mu_after - v_row.mu_before))), 4),
+      confidence = confidence - (v_row.confidence_after - v_row.confidence_before),
+      evidence_units = greatest(0, evidence_units - (v_row.evidence_units_after - v_row.evidence_units_before)),
       rated_matches = coalesce(v_rated, 0),
       distinct_opponents = coalesce(v_distinct, 0),
       status = v_status,
+      last_rated_at = v_last_rated_at,
       updated_at = now()
     where player_id = v_row.player_id;
 
@@ -95,7 +119,10 @@ $$;
 comment on function public._bloque6_revert_applied_result is
   'Interno — sin GRANT a nadie, uso exclusivo de otras funciones SECURITY DEFINER de Bloque 6
    (corren con los privilegios del mismo dueño, no necesitan GRANT explícito). Reversión pura y
-   exacta, sin motor JS: ir a "sin efecto" nunca necesita recalcular nada.';
+   exacta (movimiento real after-before, B6-A-03/04), sin motor JS: ir a "sin efecto" nunca
+   necesita recalcular nada. distinct_opponents cuenta cualquier rival identificado (B6-A-11);
+   status nunca es monotónico (B6-A-12); last_rated_at se recompone como actividad computable
+   restante (B6-A-13).';
 
 -- ------------------------------------------------------------------
 -- 1) propose_post_validation_correction
@@ -251,24 +278,24 @@ begin
     return jsonb_build_object('ok', true, 'code', 'correction_rejected', 'matchId', p_match_id);
   end if;
 
-  update public.matches set
-    current_revision_id = v_pending_revision.revision_id,
-    pending_correction_revision_id = null,
-    updated_at = now()
-  where match_id = p_match_id;
-
-  -- match_actions('correction_accepted') y el recálculo de Nivel los escribe
-  -- officialize_match_validation (trigger='correction_accepted'), llamada por la Edge Function
-  -- inmediatamente después con este mismo revision_id — mismo criterio que Bloque 5 separa
-  -- "mover el puntero de revisión" (SQL puro) de "efectos de Nivel" (requiere motor JS).
-  return jsonb_build_object('ok', true, 'code', 'correction_accepted', 'matchId', p_match_id, 'newRevisionId', v_pending_revision.revision_id);
+  -- B6-A-08: NO se mueve current_revision_id/pending_correction_revision_id acá. Esta función
+  -- solo AUTORIZA la aceptación (caller válido, ventana vigente, no es su propia propuesta) y
+  -- devuelve la revisión objetivo — mover el puntero y aplicar/reaplicar Nivel ocurre
+  -- ATÓMICAMENTE dentro de officialize_match_validation(trigger=correction_accepted,
+  -- p_revision_id=pendingRevisionId), que la Edge Function llama inmediatamente después. Si
+  -- mover el puntero ocurriera acá, en una transacción SEPARADA de la de Nivel, un fallo entre
+  -- ambas dejaría el resultado oficial ya cambiado con Nivel/snapshots todavía correspondiendo a
+  -- la revisión anterior — exactamente lo que B6-A-08 corrige.
+  return jsonb_build_object('ok', true, 'code', 'correction_authorized', 'matchId', p_match_id, 'pendingRevisionId', v_pending_revision.revision_id);
 end;
 $$;
 
 comment on function public.respond_post_validation_correction is
-  'Acepta o rechaza la corrección post-validación en espera. Solo mueve el puntero de revisión —
-   el recálculo de Nivel (si se acepta) lo hace la Edge Function llamando después a
-   officialize_match_validation(trigger=correction_accepted) con el mismo revisionId.';
+  'Rechazo: mutación directa (sin Nivel involucrado). Aceptación: SOLO autoriza y devuelve
+   pendingRevisionId — mover current_revision_id/pending_correction_revision_id y aplicar Nivel
+   ocurre atómicamente dentro de officialize_match_validation(trigger=correction_accepted),
+   nunca acá (B6-A-08: evita una ventana de inconsistencia entre "resultado ya cambió" y "Nivel
+   todavía no").';
 
 revoke all on function public.respond_post_validation_correction(uuid, uuid, boolean) from public;
 grant execute on function public.respond_post_validation_correction(uuid, uuid, boolean) to service_role;
@@ -411,6 +438,24 @@ begin
     if now() < v_issue.resolution_deadline_at then
       return jsonb_build_object('ok', false, 'code', 'resolution_window_not_expired');
     end if;
+
+    if v_match.status = 'validated' then
+      -- B6-A-09: partido validated -> NO se mutan match_identity_issues/notifications acá. Solo
+      -- se AUTORIZA (ventana efectivamente vencida, incidencia todavía open) — materializar el
+      -- estado terminal y reaplicar Nivel para el partido completo ocurre ATÓMICAMENTE dentro
+      -- de officialize_match_validation(trigger=identity_unidentified), que la Edge Function
+      -- llama inmediatamente después. Sin esto, una identidad podía quedar "resolved"/
+      -- "unidentified" con el efecto de Nivel todavía suspendido si el recálculo fallaba en una
+      -- transacción separada.
+      return jsonb_build_object(
+        'ok', true, 'code', 'identity_unidentified_authorized', 'issueId', p_issue_id, 'matchId', v_issue.match_id,
+        'team', v_issue.team, 'positionInTeam', v_issue.position_in_team,
+        'needsRecompute', true
+      );
+    end if;
+
+    -- Partido todavía pending_validation: no hay ningún efecto de Nivel que atomizar, se
+    -- materializa directo.
     update public.match_identity_issues set status = 'unidentified', resolved_at = now(), updated_at = now()
       where issue_id = p_issue_id;
     -- match_participants.player_id sigue NULL para siempre — nunca se fabrica una identidad
@@ -423,7 +468,7 @@ begin
     select mp.player_id, 'identity_unidentified', v_issue.match_id, jsonb_build_object('issueId', p_issue_id)
     from public.match_participants mp where mp.match_id = v_issue.match_id and mp.player_id is not null;
 
-    return jsonb_build_object('ok', true, 'code', 'identity_unidentified', 'issueId', p_issue_id, 'matchId', v_issue.match_id);
+    return jsonb_build_object('ok', true, 'code', 'identity_unidentified', 'issueId', p_issue_id, 'matchId', v_issue.match_id, 'needsRecompute', false);
   end if;
 
   if p_replacement_player_id is null then
@@ -438,6 +483,19 @@ begin
     return jsonb_build_object('ok', false, 'code', 'duplicate_participant');
   end if;
 
+  if v_match.status = 'validated' then
+    -- B6-A-09: idéntico criterio que arriba — solo AUTORIZA, nunca reasigna match_participants
+    -- ni marca la incidencia resolved acá. officialize_match_validation(trigger=
+    -- identity_resolved) hace la reasignación + el cierre de la incidencia + la reaplicación de
+    -- Nivel del partido completo en UNA sola transacción.
+    return jsonb_build_object(
+      'ok', true, 'code', 'identity_resolved_authorized', 'issueId', p_issue_id, 'matchId', v_issue.match_id,
+      'team', v_issue.team, 'positionInTeam', v_issue.position_in_team,
+      'replacementPlayerId', p_replacement_player_id, 'needsRecompute', true
+    );
+  end if;
+
+  -- Partido todavía pending_validation: sin efecto de Nivel que atomizar, se reasigna directo.
   update public.match_participants set
     player_id = p_replacement_player_id,
     display_name_snapshot = coalesce((select display_name from public.players where player_id = p_replacement_player_id), 'Jugador')
@@ -449,23 +507,20 @@ begin
   insert into public.match_actions (match_id, action_type, actor_player_id, acting_side, metadata)
   values (v_issue.match_id, 'participant_replaced', v_caller_player_id, null, jsonb_build_object('issueId', p_issue_id, 'replacementPlayerId', p_replacement_player_id));
 
-  -- Si el partido sigue pending_validation, no hay ningún efecto de Nivel que recalcular
-  -- todavía — devuelve directamente. Si ya estaba validated, el llamador (Edge Function) debe
-  -- reaplicar el partido completo con officialize_match_validation(trigger=identity_resolved) —
-  -- se lo indica con needsRecompute.
   return jsonb_build_object(
-    'ok', true, 'code', 'identity_resolved', 'issueId', p_issue_id, 'matchId', v_issue.match_id,
-    'needsRecompute', (v_match.status = 'validated')
+    'ok', true, 'code', 'identity_resolved', 'issueId', p_issue_id, 'matchId', v_issue.match_id, 'needsRecompute', false
   );
 end;
 $$;
 
 comment on function public.resolve_identity_issue is
-  'Reemplaza el slot con el jugador correcto (dentro de los 7 días) o, con
-   force_unidentified=true y ya vencida la ventana, materializa de forma idempotente el estado
-   terminal unidentified (04_Revision_ChatGPT.md §6) — nunca fabrica una identidad. Si el
-   partido está validated, needsRecompute=true indica que la Edge Function debe reaplicar Nivel
-   para el partido completo vía officialize_match_validation.';
+  'Partido pending_validation: reasigna el slot / materializa unidentified DIRECTO (sin Nivel
+   involucrado). Partido validated (B6-A-09): SOLO autoriza (needsRecompute=true) — la
+   reasignación del slot, el cierre de la incidencia y la reaplicación de Nivel del partido
+   completo ocurren atómicamente dentro de
+   officialize_match_validation(trigger=identity_resolved|identity_unidentified), nunca acá.
+   force_unidentified=true materializa de forma idempotente el vencimiento de 7 días
+   (04_Revision_ChatGPT.md §6) — nunca fabrica una identidad.';
 
 revoke all on function public.resolve_identity_issue(uuid, uuid, uuid, boolean) from public;
 grant execute on function public.resolve_identity_issue(uuid, uuid, uuid, boolean) to service_role;

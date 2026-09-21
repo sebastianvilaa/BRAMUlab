@@ -5,12 +5,13 @@
 // Body esperado (JSON), con el access token del usuario en el header Authorization:
 //   { issueId: string, replacementPlayerId?: string, forceUnidentified?: boolean }
 //
-// resolve_identity_issue (SQL puro) solo reasigna el slot o materializa el vencimiento. Si
-// needsRecompute=true (el partido ya estaba validated), esta Edge Function invoca acá mismo la
-// rutina compartida de oficialización para reaplicar el PARTIDO COMPLETO (trigger=
-// identity_resolved / identity_unidentified) — nunca dos lógicas paralelas
-// (04_Revision_ChatGPT.md §10). Si el partido sigue pending_validation, no hay ningún efecto de
-// Nivel que recalcular todavía.
+// resolve_identity_issue: si el partido sigue pending_validation, reasigna el slot o materializa
+// el vencimiento DIRECTO (sin Nivel involucrado). Si el partido ya estaba validated (B6-A-09),
+// SOLO autoriza (needsRecompute=true, code=*_authorized) — NO reasigna match_participants ni
+// cierra la incidencia todavía. Esta Edge Function arma entonces `identityAction` y llama a la
+// rutina compartida, que hace la reasignación + cierre de incidencia + reaplicación de Nivel del
+// PARTIDO COMPLETO en UNA sola transacción dentro de officialize_match_validation — nunca queda
+// una ventana donde la identidad ya cambió pero Nivel todavía no.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { officializeMatch } from '../_shared/match-officialize-core.ts';
@@ -86,23 +87,30 @@ Deno.serve(async (req) => {
       .eq('auth_user_id', authUserId)
       .maybeSingle();
 
-    const trigger = result.code === 'identity_unidentified' ? 'identity_unidentified' : 'identity_resolved';
+    const isUnidentified = result.code === 'identity_unidentified_authorized';
+    const trigger = isUnidentified ? 'identity_unidentified' : 'identity_resolved';
     const officialization = await officializeMatch(
       serviceClient,
       result.matchId,
       trigger,
       callerPlayer ? callerPlayer.player_id : null,
       null,
+      {
+        issueId,
+        team: result.team,
+        positionInTeam: result.positionInTeam,
+        replacementPlayerId: isUnidentified ? null : result.replacementPlayerId,
+      },
     );
     if (!officialization.ok) {
-      // La reasignación del slot YA quedó persistida. Un fallo acá se recupera solo en la
-      // próxima lectura/acción sobre este partido — mismo criterio de auto-recuperación sin
-      // cron que el resto de Bloque 6.
-      return jsonResponse({ ok: true, code: result.code + '_pending_recompute', issueId, matchId: result.matchId });
+      // B6-A-09: NADA se persistió todavía (ni la reasignación del slot ni el cierre de la
+      // incidencia) — la incidencia sigue exactamente open. El cliente puede reintentar este
+      // mismo endpoint sin ningún riesgo de estado a medias.
+      return jsonResponse({ ok: false, code: officialization.code || 'identity_recompute_failed', issueId, matchId: result.matchId });
     }
     return jsonResponse({
       ok: true,
-      code: result.code,
+      code: isUnidentified ? 'identity_unidentified' : 'identity_resolved',
       issueId,
       matchId: result.matchId,
       resultId: officialization.resultId,
