@@ -2201,6 +2201,52 @@
     return B6_ERROR_MESSAGES[code] || 'No se pudo completar la acción. Probá de nuevo.';
   }
 
+  // Las ventanas se derivan client-side solo para NO ofrecer acciones vencidas; el servidor
+  // sigue siendo la autoridad y vuelve a validarlas al ejecutar cada operación.
+  function b6WindowStillOpen(baseIso, days) {
+    if (!baseIso) return false;
+    const t = new Date(baseIso).getTime();
+    return Number.isFinite(t) && Date.now() <= t + days * 86400000;
+  }
+  function b6CorrectionWindowOpen(f) {
+    return !!(f && f.status === 'validated' && b6WindowStillOpen(f.validatedAt, 3));
+  }
+  function b6IdentityReportWindowOpen(f) {
+    if (!f) return false;
+    if (f.status === 'pending_validation') return true;
+    return f.status === 'validated' && b6WindowStillOpen(f.validatedAt, 10);
+  }
+  function b6IdentityIssueExpired(issue) {
+    if (!issue || !issue.resolutionDeadlineAt) return false;
+    const t = new Date(issue.resolutionDeadlineAt).getTime();
+    return Number.isFinite(t) && Date.now() > t;
+  }
+
+  /** No hay cron para la ventana de 7 días de identidad: el estado terminal se materializa
+   *  perezosamente al volver a abrir el partido. Es una transición automática del producto,
+   *  no una decisión del usuario. La Edge Function ya garantiza la operación atómica tanto en
+   *  pending como en validated. */
+  async function materializeExpiredIdentityIssues(f) {
+    const issues = Array.isArray(f && f.openIdentityIssues) ? f.openIdentityIssues : [];
+    const expired = issues.filter(b6IdentityIssueExpired);
+    if (!expired.length || !MV) return { match: f, changed: false };
+    let changed = false;
+    for (const issue of expired) {
+      const result = await MV.resolveIdentityIssue(issue.issueId, { forceUnidentified: true });
+      if (result && result.ok !== false) changed = true;
+      else if (result && result.code !== 'already_resolved') {
+        // Si el servidor no pudo materializarlo, se conserva la incidencia open y no se inventa
+        // ningún estado terminal en cliente. Un reintento posterior sigue siendo seguro.
+        return { match: f, changed: false };
+      }
+    }
+    if (!changed) return { match: f, changed: false };
+    await refreshServerMatches();
+    const fresh = await Matches.getMatchDetail(f.matchId);
+    if (!fresh.ok || !fresh.match) return { match: f, changed: true };
+    return { match: MSync.translateServerMatchToLocalShape(fresh.match), changed: true };
+  }
+
   /** "Refresco coherente" tras cualquier acción B6 exitosa (13_Handoff_Fase_B_Claude.md §7):
    *  cache de partidos, Nivel propio, badge/lista de notificaciones y, si el Resumen de ESTE
    *  partido sigue abierto, su bloque de acciones — todo server-backed, nunca lógica local. */
@@ -2235,7 +2281,17 @@
     if (!result.ok || !result.match) return;
     // Pudo haberse navegado a otro partido mientras se esperaba esta respuesta.
     if (!analysisCurrent || analysisCurrent.matchId !== f.matchId) return;
-    paintB6Actions(MSync.translateServerMatchToLocalShape(result.match));
+    let detailed = MSync.translateServerMatchToLocalShape(result.match);
+    const terminalized = await materializeExpiredIdentityIssues(detailed);
+    if (!analysisCurrent || analysisCurrent.matchId !== f.matchId) return;
+    detailed = terminalized.match;
+    if (terminalized.changed) {
+      // El slot pasó automáticamente a "Jugador no identificado": re-render completo para que
+      // nombres, badges, stats computables y acciones se alineen con el estado recién persistido.
+      renderAnalysis(detailed);
+      return;
+    }
+    paintB6Actions(detailed);
   }
 
   function paintB6Actions(f) {
@@ -2269,6 +2325,9 @@
     }
 
     const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
+    // get_my_matches trae solo el booleano; get_match_detail trae además el array. En el primer
+    // pintado no se debe ofrecer Confirmar/Corregir durante esos milisegundos de refinamiento.
+    const hasOpenIdentity = !!f.hasOpenIdentityIssue || openIssues.length > 0;
     if (openIssues.length) {
       identityBlock.hidden = false;
       identityList.innerHTML = openIssues.map((issue) => {
@@ -2289,22 +2348,26 @@
     }
 
     if (f.status === 'pending_validation') {
-      if (f.isActionMine && !openIssues.length) {
+      if (f.isActionMine && !hasOpenIdentity) {
         banner.hidden = false;
         bannerText.textContent = 'Te toca confirmar este resultado.';
         confirmBlock.hidden = false;
-      } else if (f.actionSide && !openIssues.length) {
+      } else if (f.actionSide && !hasOpenIdentity) {
         const waitingTeam = S.teamLabel(f.players, f.actionSide);
         banner.hidden = false; banner.classList.add('b6-banner--waiting');
         bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
       }
-      reportBlock.hidden = false;
-      proposeBlock.hidden = !!openIssues.length; // sin los 4 IDs reales no hay revisión posible.
+      reportBlock.hidden = !b6IdentityReportWindowOpen(f);
+      proposeBlock.hidden = hasOpenIdentity; // sin los 4 IDs reales no hay revisión posible.
       return;
     }
 
     if (f.status === 'validated') {
-      reportBlock.hidden = false;
+      reportBlock.hidden = !b6IdentityReportWindowOpen(f);
+      const correctionWindowOpen = b6CorrectionWindowOpen(f);
+      // Un puntero físico puede seguir presente luego de los 3 días (C-10). Para UX solo existe
+      // una corrección pendiente ACTIVA mientras la ventana siga vigente.
+      const hasActiveCorrection = !!f.pendingCorrectionRevisionId && correctionWindowOpen;
 
       // Corrección pendiente: se deriva quién la propuso desde el último match_actions
       // 'revision_proposed' (get_match_detail#actions, solo disponible tras el refresco de
@@ -2312,7 +2375,7 @@
       // haya una pendiente, así que la ÚLTIMA acción de ese tipo siempre corresponde a
       // `pendingCorrectionRevisionId` vigente.
       let proposedByTeam = null;
-      if (f.pendingCorrectionRevisionId && Array.isArray(f.actionsRaw)) {
+      if (hasActiveCorrection && Array.isArray(f.actionsRaw)) {
         const proposals = f.actionsRaw.filter((a) => a.actionType === 'revision_proposed');
         proposedByTeam = proposals.length ? proposals[proposals.length - 1].actingSide : null;
       }
@@ -2325,16 +2388,15 @@
         banner.hidden = false;
         bannerText.textContent = 'Tu propuesta de corrección está esperando respuesta de la otra pareja.';
         proposeBlock.hidden = true;
-      } else if (!f.pendingCorrectionRevisionId) {
-        if (!openIssues.length) {
+      } else if (!hasActiveCorrection) {
+        if (!hasOpenIdentity) {
           banner.hidden = false;
           bannerText.textContent = 'Partido oficial.';
         }
-        proposeBlock.hidden = !!openIssues.length;
+        proposeBlock.hidden = hasOpenIdentity || !correctionWindowOpen;
       } else {
-        // pendingCorrectionRevisionId existe pero `actionsRaw` todavía no llegó (primer pintado
-        // con el snapshot de lista, antes del refresco de detalle) — no se muestra ningún botón
-        // todavía para no arriesgar mostrar "Proponer corrección" mientras ya hay una pendiente.
+        // Existe una corrección ACTIVA pero `actionsRaw` todavía no llegó (primer pintado con
+        // snapshot de lista): no se muestra ningún botón hasta conocer qué pareja la propuso.
         proposeBlock.hidden = true;
       }
     }
@@ -2359,6 +2421,10 @@
   function openReportIdentityPicker() {
     const f = b6ReportIdentityMatch;
     if (!f) return;
+    if (!b6IdentityReportWindowOpen(f)) {
+      showToast('La ventana para corregir la identidad de este partido ya venció.', 2600);
+      return;
+    }
     const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
     const blocked = new Set(openIssues.map((i) => `${i.team}:${i.positionInTeam}`));
     const slots = b6AllSlots(f).filter((s) => !blocked.has(`${s.team}:${s.positionInTeam}`));
@@ -2486,6 +2552,11 @@
   async function submitProposeCorrection() {
     const f = b6CorrectionMatch;
     if (!f) return;
+    if (f.status === 'validated' && !b6CorrectionWindowOpen(f)) {
+      $('#propose-correction-error').textContent = 'La ventana de 3 días para corregir el resultado ya venció.';
+      $('#propose-correction-error').hidden = false;
+      return;
+    }
     const format = E.FORMATS[f.formatId] || E.FORMATS.classic;
     const sets = [];
     for (let i = 0; i < b6CorrectionSetCount; i++) {
