@@ -1149,6 +1149,23 @@
   }
 
   function manualCurrentDraft() {
+    if (manualServerBacked) {
+      // Backend Bloque 5 — identidad real = player_id. Dos cuentas distintas pueden tener
+      // exactamente el mismo display_name y siguen siendo personas distintas. La validación
+      // legacy por nombre se conserva SOLO para el camino local.
+      const ids = ['a1', 'a2', 'b1', 'b2'].map((slot) => manualPlayerIds[slot] && manualPlayerIds[slot].playerId);
+      if (ids.some((id) => !id)) return { ok: false, reason: 'players-missing' };
+      if (new Set(ids).size !== 4) return { ok: false, reason: 'players-duplicate' };
+
+      // validateMatchDraft también valida resultado/formato/fecha. Le pasamos labels internos
+      // inequívocos para reutilizar esa lógica sin volver a deduplicar por display_name.
+      return ML.validateMatchDraft(
+        ['__player_a1', '__player_a2', '__player_b1', '__player_b2'],
+        manualSets,
+        manualSelectedFormatId,
+        $('#manual-date-input').value
+      );
+    }
     return ML.validateMatchDraft(manualPlayerNamesArray(), manualSets, manualSelectedFormatId, $('#manual-date-input').value);
   }
 
@@ -2136,6 +2153,15 @@
     // guardada (eso reemplazaba la tarjeta entera por un link "+ Agregar nota" — ver
     // renderAnalysisNoteDisplay). Arranca siempre en modo LECTURA (textarea oculto) —
     // cambiar de partido nunca debe dejar el editor abierto del partido anterior.
+    const deleteBtn = $('#analysis-delete-btn');
+    if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
+      deleteBtn.textContent = 'DESCARTAR CARGA';
+    } else if (f.serverBacked) {
+      deleteBtn.textContent = 'OCULTAR PARTIDO';
+    } else {
+      deleteBtn.textContent = 'ELIMINAR PARTIDO';
+    }
+
     const noteSection = $('#analysis-note-section');
     noteSection.hidden = f.mode !== 'manual';
     if (f.mode === 'manual') {
@@ -3287,9 +3313,12 @@
       // Sin "PARTIDO CARGADO"/"POR GAMES" (origen técnico del partido, sin jerarquía acá) ni X
       // de borrado directo (la eliminación vive ahora en Resumen, §5) — toda la tarjeta es un
       // único blanco de toque, como en Último Partido.
+      const historyDateStr = formatRealDate(playedAt, m.timeZone);
+      const historyTimeStr = m.timeKnown === false ? '' : formatRealTime(playedAt, m.timeZone).slice(0, 5);
+      const historyDateTimeStr = [historyDateStr, historyTimeStr].filter(Boolean).join(' · ');
       item.innerHTML = `
         <div class="history-item__top-row">
-          <div class="history-item__date">${formatRealDate(playedAt, m.timeZone)} · ${formatRealTime(playedAt, m.timeZone).slice(0, 5)}</div>
+          <div class="history-item__date">${historyDateTimeStr}</div>
           ${resultBadgeHTML}
         </div>
         <div class="history-item__score">${scoreStr}</div>
@@ -5397,6 +5426,7 @@
         <div class="player-home-lastmatch__row2">
           <div class="player-home-lastmatch__form">${formDotsHtml}</div>
           <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+          ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--status">${serverMatchStatusLabel(m)}</span>` : ''}
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
