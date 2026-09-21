@@ -1630,6 +1630,10 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
+/* Backend Bloque 5 — estado operativo del partido, separado del resultado deportivo.
+   Neutral a propósito: PENDIENTE/EXPIRADO/SYNC no es logro ni error y nunca debe competir
+   con VICTORIA/DERROTA. */
+.player-home-lastmatch__badge--status{ background: rgba(154,167,181,0.12); color: var(--court-text-dim); }
 /* §11 — "resultado claramente protagonista y de mayor tamaño": el primer nivel de lectura de
    la tarjeta.
    V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML en
