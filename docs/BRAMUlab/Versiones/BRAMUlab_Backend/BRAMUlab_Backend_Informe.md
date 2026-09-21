@@ -570,9 +570,23 @@ límite de 5 porque ya tenían evidencia suficiente en backend real/tests.
 
 **Bloque 5 CERRADO en Staging.**
 
-Próximo bloque del roadmap:
 
-**Bloque 6 — Validación y actualización oficial.**
+## Bloque 6 — Validación y actualización oficial — EN ANÁLISIS
 
-No iniciarlo automáticamente; requiere handoff específico y lectura de las fuentes maestras
-vigentes.
+**Inicio:** 21 de septiembre de 2026.  
+**Estado:** análisis/plan iniciado; implementación todavía NO autorizada.  
+**Handoff inicial:** `docs/BRAMUlab/Implementacion/Backend/Bloque_06/01_Handoff_Inicio_Bloque_06.md`.
+
+La primera ronda debe auditar cómo oficializar partidos de forma atómica e idempotente integrando:
+
+- autoridad por pareja;
+- `Confirmar / Proponer corrección / No participé`;
+- revisiones pre y post-validación;
+- incidencias de identidad 10 + 7;
+- snapshots/reasonCodes y motor Nivel V1.5;
+- reversión/reproceso exactos;
+- estadísticas oficiales;
+- notificaciones internas;
+- comando administrativo mínimo.
+
+No se toca Supabase/Vercel ni código hasta revisión central del análisis y plan de Claude.
