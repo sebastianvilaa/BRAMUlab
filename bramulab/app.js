@@ -2477,9 +2477,12 @@
     $('#identity-resolve-search').value = '';
     renderIdentityResolveResults('');
     $('#identity-resolve-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#identity-resolve-scrim').classList.add('is-open'); });
   }
   function closeIdentityResolveSheet() {
-    $('#identity-resolve-scrim').hidden = true;
+    const scrim = $('#identity-resolve-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
     b6IdentityResolveIssue = null;
   }
   function buildIdentityResolveRowHTML(displayName, playerId, kind) {
