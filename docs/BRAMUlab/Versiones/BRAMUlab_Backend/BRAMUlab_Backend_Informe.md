@@ -689,3 +689,85 @@ No se inició Bloque 7 durante este cierre.
 - Production: NO tocada;
 - BRAMUlive: NO modificado por este cierre.
 
+---
+
+## Bloque 7 — Ranking real semanal — EN CURSO
+
+**Inicio:** 22 de septiembre de 2026.  
+**Estado:** **Fase 1 aplicada y validada en Staging**.  
+**HEAD de código validado para Fase 1:** `7437452f37b527679f10e721b5799896669e6d40`.  
+**Evidencia central:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/07_Validacion_Central_Fase_1_Staging.md`.
+
+### Fase 1 — esquema y contratos mínimos
+
+Aplicado en Supabase Staging:
+
+- `ranking_editions`;
+- `ranking_rows`;
+- `profiles.location_effective_from`;
+- `location_change_events`;
+- `players.ranking_excluded`;
+- RPC autenticada `complete_ranking_profile_data(...)`;
+- hardening de `complete_profile(...)` para que ya no pueda modificar ubicación/rama por fuera del contrato específico de Ranking;
+- RLS deny-by-default en tablas nuevas;
+- revocación explícita de EXECUTE público/anon en la nueva SECURITY DEFINER;
+- tablas históricas de Ranking/ubicación sin UPDATE/DELETE ordinario para `service_role`;
+- serialización de cambios de ubicación mediante `FOR UPDATE`;
+- constraints de integridad de snapshot y unicidad por jugador/scope_type/edición.
+
+### Validación real de Staging
+
+Antes de aplicar se ejecutaron las cuatro migraciones completas dentro de una transacción con `ROLLBACK`.
+
+Después se aplicaron en Staging mediante el mecanismo de migraciones de Supabase y se revalidó:
+
+- tablas/columnas/RPC presentes;
+- PUBLIC/anon sin EXECUTE sobre `complete_ranking_profile_data`;
+- authenticated con EXECUTE;
+- RLS sin políticas de cliente sobre tablas server-only;
+- `service_role` sin UPDATE/DELETE en tablas append-only;
+- alta inicial de datos de Ranking;
+- `complete_profile` no puede saltarse ubicación/rama;
+- cooldown de 30 días;
+- reenvío idempotente de la misma ubicación canónica;
+- `FOR UPDATE` presente para serialización;
+- unicidad de scope propio;
+- constraints de motivos, empate y escala.
+
+Toda la prueba funcional post-aplicación se hizo dentro de una transacción con rollback. Al terminar:
+
+- `ranking_editions`: 0 filas;
+- `ranking_rows`: 0 filas;
+- `location_change_events`: 0 filas;
+- perfiles con `location_effective_from` fijado por QA: 0.
+
+No quedaron fixtures ni cambios de perfil por la validación.
+
+### Advisories
+
+Supabase reporta `RLS enabled / no policy` sobre las tablas nuevas: es **intencional** (deny-by-default; lectura futura solo por RPC). También advierte que `complete_ranking_profile_data` es SECURITY DEFINER ejecutable por authenticated: igualmente **intencional**, porque la función resuelve la identidad desde `auth.uid()` y PUBLIC/anon quedaron revocados.
+
+Los avisos de índices FK son informativos/performance y se revisarán junto con las queries reales de Fase 2/3, evitando índices especulativos prematuros.
+
+### Runner de Fase 1
+
+El primer `verify-bloque7-fase1.mjs` generado por Claude no debe ejecutarse: intentaba limpiar fixtures mediante `service_role` después de haber revocado DELETE en las tablas append-only, por lo que podía dejar residuos.
+
+Se reemplaza como fuente de verificación de esta fase por:
+
+`supabase/tests/verify-bloque7-fase1.sql`
+
+Ese runner usa transacción + `ROLLBACK`, no deja fixtures y reproduce los checks centrales seguros.
+
+### Siguiente paso
+
+**Fase 2 — función de cálculo de una edición semanal para un corte dado, invocable manualmente.**
+
+Todavía NO:
+
+- `pg_cron`;
+- RPCs públicas de lectura;
+- frontend real de Ranking;
+- eliminación de mocks;
+- Production.
+

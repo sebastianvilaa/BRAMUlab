@@ -54,6 +54,8 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 6 (Validación y actualización oficial) está CERRADO en Staging** (22/09/2026): backend/Fase A validado, frontend/Fase B conectado y QA real de navegador cerrada sobre `04.10-h19`. La revalidación final dio PASS en resolución de identidad, propuesta de corrección y regresión mínima; los fixtures de navegador fueron limpiados de Staging y los estados de Nivel afectados volvieron a su `initial_estimate`. Ver `Implementacion/Backend/Bloque_06/20_Cierre_Bloque_06.md`.
 
+**Bloque 7 (Ranking real semanal) está EN CURSO en Staging** (22/09/2026): Fase 1 de esquema/contratos mínimos quedó aplicada y validada contra Supabase Staging real. Ya existen `ranking_editions`, `ranking_rows`, auditoría/cooldown de ubicación y la RPC específica `complete_ranking_profile_data`; todavía no existe función de publicación semanal, cron, RPCs de lectura ni conexión del frontend. Siguiente paso: Fase 2 — cálculo de una edición semanal invocable a mano. Ver `Implementacion/Backend/Bloque_07/07_Validacion_Central_Fase_1_Staging.md`.
+
 ---
 
 ## 1.1 Testing y lanzamiento inicial — definición vigente
@@ -82,7 +84,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Siguiente bloque: Ranking real semanal (Bloque 7) → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Bloque 7 EN CURSO: Fase 1 aplicada/validada; sigue Fase 2 de cálculo semanal → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -213,7 +215,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging.** Después continúan Ranking real semanal (Bloque 7), Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging y Bloque 7 está en curso con Fase 1 aplicada/validada.** Después siguen las fases restantes de Ranking real semanal, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
 
 ---
 
