@@ -802,3 +802,28 @@ Prueba adicional con los 7 perfiles registrados actuales de Staging: la función
 No quedó ninguna edición ni fixture persistente.
 
 **Siguiente:** Fase 3 — RPCs de lectura server-side.
+
+### Fase 3 — RPCs de lectura
+
+**Estado:** **APLICADA Y VALIDADA EN STAGING**.  
+**HEAD funcional validado:** `451459fa9c8a96e4bf7c4bcd905f692b966354e4`.  
+**Evidencia:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/15_Validacion_Central_Fase_3_Staging.md`.
+
+Quedaron disponibles los contratos server-side para:
+
+- edición vigente;
+- clasificación Local/Provincial/País/Global;
+- filtro de Nivel server-side;
+- búsqueda y paginación;
+- movimiento semanal;
+- Tu posición y ventana cercana;
+- Mi red as-of-cutoff;
+- ocultar/restaurar Mi red;
+- resumen territorial de Perfil;
+- insight mínimo de Ranking para Home.
+
+La revisión real detectó y corrigió antes de aplicar: error de sintaxis por `position`, firmas `smallint`, corte de Mi red siete días antes de tiempo, mezcla potencial de ramas en Mi red, falta de lista de ocultos/restauración, movimiento faltante en filas y comparación contra una edición vieja no semanal.
+
+Migración y runner final pasaron con rollback, luego se aplicaron y revalidaron en Staging. El estado sin edición publicada también fue probado explícitamente. No quedaron fixtures.
+
+**Siguiente:** Fase 4 — publicación automática semanal con `pg_cron`.
