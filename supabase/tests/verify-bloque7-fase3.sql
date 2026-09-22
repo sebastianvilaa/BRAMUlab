@@ -116,7 +116,7 @@ begin
   v_cutoff_prev := v_cutoff_curr - interval '7 days';
   v_far_past := v_cutoff_prev - interval '30 days';
   v_between := v_cutoff_prev + interval '2 days';
-  v_recent := v_cutoff_curr - interval '10 days';
+  v_recent := v_cutoff_curr - interval '2 days';
 
   -- ------------------------------------------------------------------
   -- Ubicaciones + fixtures.
@@ -190,7 +190,8 @@ begin
   ) values
     (v_result_id, v_caller_id, 'A', 6.0, 0.8, 'CALIBRADO', 6.0, 0.3, 1.0, 1.0, 0.1, 0.1, 1.0, 6.0, 0.8, 6, 6.1, 0.81),
     (v_result_id, v_net1,      'B', 4.5, 0.8, 'CALIBRADO', 4.5, 0.3, 1.0, 1.0, 0.1, 0.1, 1.0, 4.5, 0.8, 6, 4.6, 0.81),
-    (v_result_id, v_net2,      'B', 4.2, 0.8, 'CALIBRADO', 4.2, 0.3, 1.0, 1.0, 0.1, 0.1, 1.0, 4.2, 0.8, 6, 4.3, 0.81);
+    (v_result_id, v_net2,      'B', 4.2, 0.8, 'CALIBRADO', 4.2, 0.3, 1.0, 1.0, 0.1, 0.1, 1.0, 4.2, 0.8, 6, 4.3, 0.81),
+    (v_result_id, v_f1,        'A', 6.3, 0.8, 'CALIBRADO', 6.3, 0.3, 1.0, 1.0, 0.1, 0.1, 1.0, 6.3, 0.8, 6, 6.4, 0.81);
 
   -- ------------------------------------------------------------------
   -- Ediciones.
@@ -221,6 +222,12 @@ begin
     select 1 from jsonb_array_elements(v_resp->'rows') r
     where (r->>'playerId') = v_caller_id::text and (r->>'position')::int = 1
   ) then raise exception 'classification_local_caller_position_wrong: %', v_resp; end if;
+  if not exists (
+    select 1 from jsonb_array_elements(v_resp->'rows') r
+    where (r->>'playerId') = v_caller_id::text
+      and (r->'movement'->>'status') = 'movimiento'
+      and (r->'movement'->>'delta')::int = 5
+  ) then raise exception 'classification_row_movement_missing_or_wrong: %', v_resp; end if;
 
   -- 3) Rama F totalmente independiente de la clasificación M consultada arriba.
   v_resp := public.get_ranking_classification('local', 'F', null, null, 50, 0);
@@ -244,6 +251,16 @@ begin
   if jsonb_array_length(v_resp->'rows') <> 1 or (v_resp->'rows'->0->>'playerId') <> v_bg3::text then
     raise exception 'classification_search_wrong: %', v_resp;
   end if;
+  if (v_resp->>'matchedTotal')::int <> 1 then
+    raise exception 'classification_search_matched_total_wrong: %', v_resp;
+  end if;
+  v_rejected := false;
+  begin
+    perform public.get_ranking_classification('local', 'M', 11, null, 50, 0);
+  exception when others then
+    if sqlerrm = 'invalid_level_band' then v_rejected := true; else raise; end if;
+  end;
+  if not v_rejected then raise exception 'classification_invalid_band_not_rejected'; end if;
 
   -- 6) Global M — locked (todo AR, una sola rama a la vez) pero total_eligible real: 7 bg +
   --    caller (Bella Vista) + net1 + net2 (Córdoba, también AR y también M) = 10.
@@ -287,20 +304,31 @@ begin
   v_resp := public.get_home_ranking_insight();
   if (v_resp->>'position')::int <> 1 then raise exception 'home_insight_wrong: %', v_resp; end if;
 
-  -- 11) Mi red — propio + net1 + net2 (180 días antes del cutoff), 3 elegibles → CON puesto.
+  -- 11) Mi red — partido dentro de los 7 días finales de la edición. NULL usa la rama propia M,
+  --     por lo que v_f1 (F) no se mezcla. Propio + net1 + net2 = 3 elegibles → puesto.
   v_resp := public.get_ranking_network(null);
-  if (v_resp->>'total')::int <> 3 then raise exception 'network_total_wrong: %', v_resp; end if;
+  if (v_resp->>'competitiveBranch') <> 'M' or (v_resp->>'total')::int <> 3 then
+    raise exception 'network_total_or_default_branch_wrong: %', v_resp;
+  end if;
   if not exists (
     select 1 from jsonb_array_elements(v_resp->'rows') r where (r->>'playerId') = v_caller_id::text and (r->>'isSelf')::boolean
   ) then raise exception 'network_missing_self: %', v_resp; end if;
   if exists (select 1 from jsonb_array_elements(v_resp->'rows') r where (r->>'position') is null) then
     raise exception 'network_3_plus_should_have_positions: %', v_resp;
   end if;
+  v_resp := public.get_ranking_network('F');
+  if (v_resp->>'competitiveBranch') <> 'F' or (v_resp->>'total')::int <> 1
+     or jsonb_array_length(v_resp->'rows') <> 1
+     or (v_resp->'rows'->0->>'playerId') <> v_f1::text then
+    raise exception 'network_branch_selector_wrong: %', v_resp;
+  end if;
 
   -- 12) Ocultar a net2 → Mi red pasa a 2 (propio + net1) → 1-2 SIN puesto.
   perform public.set_ranking_network_hidden(v_net2, true);
   v_resp := public.get_ranking_network(null);
-  if (v_resp->>'total')::int <> 2 or (v_resp->>'hiddenCount')::int <> 1 then
+  if (v_resp->>'total')::int <> 2 or (v_resp->>'hiddenCount')::int <> 1
+     or jsonb_array_length(v_resp->'hiddenRows') <> 1
+     or (v_resp->'hiddenRows'->0->>'playerId') <> v_net2::text then
     raise exception 'network_hide_wrong: %', v_resp;
   end if;
   if exists (select 1 from jsonb_array_elements(v_resp->'rows') r where (r->>'position') is not null) then
@@ -310,7 +338,8 @@ begin
   -- 13) Restaurar → vuelve a 3.
   perform public.set_ranking_network_hidden(v_net2, false);
   v_resp := public.get_ranking_network(null);
-  if (v_resp->>'total')::int <> 3 or (v_resp->>'hiddenCount')::int <> 0 then
+  if (v_resp->>'total')::int <> 3 or (v_resp->>'hiddenCount')::int <> 0
+     or jsonb_array_length(v_resp->'hiddenRows') <> 0 then
     raise exception 'network_unhide_wrong: %', v_resp;
   end if;
 
@@ -330,7 +359,10 @@ begin
 
   -- 16) Perfil — resumen territorial del jugador OBJETIVO (bg3), nunca del que consulta.
   v_resp := public.get_profile_ranking_summary(v_bg3);
-  if ((v_resp->'local')->>'position') is null then raise exception 'profile_summary_missing_position: %', v_resp; end if;
+  if ((v_resp->'local')->>'position') is null or ((v_resp->'local')->>'scopeKey') is null
+     or ((v_resp->'local')->>'location') is null then
+    raise exception 'profile_summary_missing_position_or_territory: %', v_resp;
+  end if;
 
   -- 17) Columnas privadas no expuestas — level_internal/reason_codes/email/auth_user_id nunca
   --     aparecen en ninguna fila pública devuelta hasta acá.
@@ -340,23 +372,31 @@ begin
     raise exception 'classification_leaked_private_column: %', v_resp;
   end if;
 
-  -- 18) Seguridad: PUBLIC/anon sin EXECUTE; authenticated SÍ.
-  if has_function_privilege('public', 'public.get_ranking_classification(text,text,smallint,text,integer,integer)', 'EXECUTE')
-     or has_function_privilege('anon', 'public.get_ranking_classification(text,text,smallint,text,integer,integer)', 'EXECUTE') then
+  -- 18) Movimiento compara solo contra la semana inmediatamente anterior. Con una semana
+  --     faltante, debe ser Nuevo y no delta contra una edición vieja.
+  select * into v_edition_curr from public.compute_ranking_edition(v_cutoff_curr + interval '14 days');
+  v_resp := public.get_my_ranking_position('local', null);
+  if (v_resp->'movement'->>'status') <> 'nuevo' then
+    raise exception 'movement_across_missing_week_should_be_nuevo: %', v_resp;
+  end if;
+
+  -- 19) Seguridad: PUBLIC/anon sin EXECUTE; authenticated SÍ.
+  if has_function_privilege('public', 'public.get_ranking_classification(text,text,integer,text,integer,integer)', 'EXECUTE')
+     or has_function_privilege('anon', 'public.get_ranking_classification(text,text,integer,text,integer,integer)', 'EXECUTE') then
     raise exception 'classification_execute_too_broad';
   end if;
-  if not has_function_privilege('authenticated', 'public.get_ranking_classification(text,text,smallint,text,integer,integer)', 'EXECUTE') then
+  if not has_function_privilege('authenticated', 'public.get_ranking_classification(text,text,integer,text,integer,integer)', 'EXECUTE') then
     raise exception 'classification_authenticated_execute_missing';
   end if;
-  if has_function_privilege('public', 'public._bloque7_scope_rows(uuid,text,text,text,smallint)', 'EXECUTE')
-     or has_function_privilege('authenticated', 'public._bloque7_scope_rows(uuid,text,text,text,smallint)', 'EXECUTE') then
+  if has_function_privilege('public', 'public._bloque7_scope_rows(uuid,text,text,text,integer)', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public._bloque7_scope_rows(uuid,text,text,text,integer)', 'EXECUTE') then
     raise exception 'scope_rows_helper_execute_too_broad';
   end if;
   if has_table_privilege('service_role', 'public.ranking_network_hidden', 'UPDATE') then
     raise exception 'ranking_network_hidden_update_should_not_exist';
   end if;
 
-  -- 19) Sin edición (no aplica acá porque ya publicamos — se deja como caso estático: el
+  -- 20) Sin edición (no aplica acá porque ya publicamos — se deja como caso estático: el
   --     código de get_current_ranking_edition/get_ranking_classification para "sin edición"
   --     ya se revisó por lectura, no hay forma de simular "0 ediciones en la tabla" sin
   --     borrar las reales de Staging, lo cual está fuera de alcance de este runner).

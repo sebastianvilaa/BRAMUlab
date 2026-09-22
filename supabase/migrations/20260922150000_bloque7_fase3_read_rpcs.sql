@@ -76,11 +76,11 @@ create or replace function public._bloque7_scope_rows(
   p_scope_type text,
   p_scope_key text,
   p_competitive_branch text,
-  p_level_band smallint
+  p_level_band integer
 )
 returns table (
   player_id uuid,
-  position integer,
+  rank_position integer,
   tie_group integer,
   total_eligible integer,
   density_status text,
@@ -155,7 +155,7 @@ comment on function public._bloque7_scope_rows is
    lectura pública reusa esto — nunca hay una segunda implementación del ranking. SOLO
    invocable por el owner (otras funciones SECURITY DEFINER); revocado de PUBLIC.';
 
-revoke all on function public._bloque7_scope_rows(uuid, text, text, text, smallint) from public;
+revoke all on function public._bloque7_scope_rows(uuid, text, text, text, integer) from public;
 
 -- ------------------------------------------------------------------
 -- 3) Movimiento semanal
@@ -170,9 +170,9 @@ set search_path = public
 as $$
   select e2.edition_id
   from public.ranking_editions e1
-  join public.ranking_editions e2 on e2.period_start_at < e1.period_start_at
+  join public.ranking_editions e2
+    on e2.period_start_at = e1.period_start_at - interval '7 days'
   where e1.edition_id = p_edition_id
-  order by e2.period_start_at desc
   limit 1;
 $$;
 
@@ -184,7 +184,7 @@ create or replace function public._bloque7_compute_movement(
   p_scope_type text,
   p_scope_key text,
   p_competitive_branch text,
-  p_level_band smallint
+  p_level_band integer
 )
 returns jsonb
 language plpgsql
@@ -215,13 +215,13 @@ begin
     return jsonb_build_object('status', 'nuevo', 'delta', null);
   end if;
 
-  select position into v_current_position
+  select rank_position into v_current_position
     from public._bloque7_scope_rows(p_current_edition_id, p_scope_type, p_scope_key, p_competitive_branch, p_level_band)
     where player_id = p_player_id;
   -- Cambio de banda entre ediciones también rompe comparabilidad: si el jugador no estaba en
   -- esta banda la edición anterior, _bloque7_scope_rows (filtrado por banda) simplemente no
   -- devuelve fila para él — v_prev_position queda NULL sin necesitar un caso especial.
-  select position into v_prev_position
+  select rank_position into v_prev_position
     from public._bloque7_scope_rows(v_prev_edition_id, p_scope_type, p_scope_key, p_competitive_branch, p_level_band)
     where player_id = p_player_id;
 
@@ -233,7 +233,7 @@ begin
 end;
 $$;
 
-revoke all on function public._bloque7_compute_movement(uuid, uuid, text, text, text, smallint) from public;
+revoke all on function public._bloque7_compute_movement(uuid, uuid, text, text, text, integer) from public;
 
 -- ------------------------------------------------------------------
 -- 4) RPCs públicas (authenticated)
@@ -264,7 +264,7 @@ grant execute on function public.get_current_ranking_edition() to authenticated;
 create or replace function public.get_ranking_classification(
   p_scope_type text,
   p_competitive_branch text,
-  p_level_band smallint default null,
+  p_level_band integer default null,
   p_search text default null,
   p_limit integer default 50,
   p_offset integer default 0
@@ -279,6 +279,7 @@ declare
   v_edition public.ranking_editions;
   v_scope_key text;
   v_total integer;
+  v_matched_total integer;
   v_total_eligible integer;
   v_density_status text;
   v_rows jsonb;
@@ -296,6 +297,9 @@ begin
   end if;
   if p_competitive_branch not in ('F', 'M') then
     raise exception 'invalid_competitive_branch' using errcode = 'P0001';
+  end if;
+  if p_level_band is not null and (p_level_band < 1 or p_level_band > 10) then
+    raise exception 'invalid_level_band' using errcode = 'P0001';
   end if;
   if p_limit is null or p_limit <= 0 or p_limit > 100 then p_limit := 50; end if;
   if p_offset is null or p_offset < 0 then p_offset := 0; end if;
@@ -324,7 +328,7 @@ begin
 
   select count(*) into v_total
     from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, p_competitive_branch, p_level_band)
-    where position is not null;
+    where rank_position is not null;
 
   -- Densidad/total real de la rama+scope+banda (handoff §10 Ranking_BRAMU §10: "0-4/Comunidad
   -- insuficiente", "locked" de Global): se necesita AUNQUE `rows` quede vacío, para no perder
@@ -333,23 +337,36 @@ begin
     from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, p_competitive_branch, p_level_band) sr
     limit 1;
 
+  select count(*) into v_matched_total
+  from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, p_competitive_branch, p_level_band) sr
+  join public.profiles pr on pr.player_id = sr.player_id
+  where sr.rank_position is not null
+    and (
+      coalesce(trim(p_search), '') = ''
+      or pr.display_name ilike '%' || trim(p_search) || '%'
+      or pr.username ilike '%' || trim(p_search) || '%'
+    );
+
   select coalesce(jsonb_agg(row_data), '[]'::jsonb) into v_rows
   from (
     select jsonb_build_object(
       'playerId', sr.player_id, 'displayName', pr.display_name, 'username', pr.username,
-      'avatarUrl', pr.avatar_url, 'position', sr.position, 'total', sr.total_eligible,
+      'avatarUrl', pr.avatar_url, 'position', sr.rank_position, 'total', sr.total_eligible,
       'densityStatus', sr.density_status, 'levelPublic', sr.level_public, 'levelBand', sr.level_band,
-      'competitiveBranch', sr.competitive_branch, 'location', sr.location_display_label
+      'competitiveBranch', sr.competitive_branch, 'location', sr.location_display_label,
+      'movement', public._bloque7_compute_movement(
+        sr.player_id, v_edition.edition_id, p_scope_type, v_scope_key, p_competitive_branch, p_level_band
+      )
     ) as row_data
     from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, p_competitive_branch, p_level_band) sr
     join public.profiles pr on pr.player_id = sr.player_id
-    where sr.position is not null
+    where sr.rank_position is not null
       and (
         coalesce(trim(p_search), '') = ''
         or pr.display_name ilike '%' || trim(p_search) || '%'
         or pr.username ilike '%' || trim(p_search) || '%'
       )
-    order by sr.position asc, sr.player_id asc
+    order by sr.rank_position asc, sr.player_id asc
     limit p_limit offset p_offset
   ) t;
 
@@ -361,7 +378,8 @@ begin
     ),
     'scopeType', p_scope_type, 'scopeKey', v_scope_key, 'ownScope', true,
     'competitiveBranch', p_competitive_branch, 'levelBand', p_level_band,
-    'total', v_total, 'totalEligible', coalesce(v_total_eligible, 0),
+    'total', v_total, 'matchedTotal', coalesce(v_matched_total, 0),
+    'totalEligible', coalesce(v_total_eligible, 0),
     'densityStatus', coalesce(v_density_status, 'insufficient'), 'rows', v_rows
   );
 end;
@@ -374,12 +392,12 @@ comment on function public.get_ranking_classification is
    listan (Ranking_BRAMU.md §6/handoff §6: los no elegibles no aparecen como jugadores
    rankeados). Nunca expone level_internal ni reason_codes.';
 
-revoke all on function public.get_ranking_classification(text, text, smallint, text, integer, integer) from public;
-grant execute on function public.get_ranking_classification(text, text, smallint, text, integer, integer) to authenticated;
+revoke all on function public.get_ranking_classification(text, text, integer, text, integer, integer) from public;
+grant execute on function public.get_ranking_classification(text, text, integer, text, integer, integer) to authenticated;
 
 create or replace function public.get_my_ranking_position(
   p_scope_type text,
-  p_level_band smallint default null
+  p_level_band integer default null
 )
 returns jsonb
 language plpgsql
@@ -392,6 +410,8 @@ declare
   v_scope_key text;
   v_branch text;
   v_own record;
+  v_raw_own record;
+  v_fallback_own record;
   v_movement jsonb;
   v_window jsonb;
 begin
@@ -405,11 +425,23 @@ begin
   if p_scope_type not in ('local', 'provincial', 'pais', 'global') then
     raise exception 'invalid_scope_type' using errcode = 'P0001';
   end if;
+  if p_level_band is not null and (p_level_band < 1 or p_level_band > 10) then
+    raise exception 'invalid_level_band' using errcode = 'P0001';
+  end if;
 
   select * into v_edition from public.ranking_editions order by period_start_at desc limit 1;
   if v_edition is null then
     return jsonb_build_object('edition', null, 'hasPosition', false);
   end if;
+
+  select rr.level_public, rr.level_band, rr.level_status, rr.competitive_branch,
+         rr.is_eligible, rr.eligibility_reason_codes
+    into v_fallback_own
+  from public.ranking_rows rr
+  where rr.edition_id = v_edition.edition_id
+    and rr.player_id = v_caller_player_id
+    and rr.scope_type = 'global'
+  limit 1;
 
   if p_scope_type = 'global' then
     v_scope_key := 'GLOBAL';
@@ -423,15 +455,28 @@ begin
   end if;
 
   if v_scope_key is null or v_branch is null then
-    -- Caller CALIBRANDO/no elegible/sin fila en este scope: estado propio sin inventar puesto
-    -- (handoff §8).
     return jsonb_build_object(
       'edition', jsonb_build_object('editionId', v_edition.edition_id, 'periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
-      'scopeType', p_scope_type, 'hasPosition', false
+      'scopeType', p_scope_type, 'hasPosition', false,
+      'competitiveBranch', v_fallback_own.competitive_branch,
+      'isEligible', coalesce(v_fallback_own.is_eligible, false),
+      'levelPublic', v_fallback_own.level_public,
+      'levelBand', v_fallback_own.level_band,
+      'levelStatus', v_fallback_own.level_status,
+      'reasonCodes', coalesce(v_fallback_own.eligibility_reason_codes, '[]'::jsonb),
+      'movement', jsonb_build_object('status', 'nuevo', 'delta', null),
+      'contextWindow', '[]'::jsonb
     );
   end if;
 
-  select position, total_eligible, density_status, level_public, level_band, is_eligible
+  select rr.level_public, rr.level_band, rr.level_status, rr.is_eligible, rr.eligibility_reason_codes
+    into v_raw_own
+  from public.ranking_rows rr
+  where rr.edition_id = v_edition.edition_id and rr.player_id = v_caller_player_id
+    and rr.scope_type = p_scope_type and rr.scope_key = v_scope_key
+  limit 1;
+
+  select rank_position, total_eligible, density_status, level_public, level_band, is_eligible
     into v_own
     from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, v_branch, p_level_band)
     where player_id = v_caller_player_id;
@@ -439,20 +484,28 @@ begin
   if v_own is null then
     return jsonb_build_object(
       'edition', jsonb_build_object('editionId', v_edition.edition_id, 'periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
-      'scopeType', p_scope_type, 'scopeKey', v_scope_key, 'competitiveBranch', v_branch, 'hasPosition', false
+      'scopeType', p_scope_type, 'scopeKey', v_scope_key, 'competitiveBranch', v_branch,
+      'levelBandFilter', p_level_band, 'hasPosition', false,
+      'isEligible', coalesce(v_raw_own.is_eligible, false),
+      'levelPublic', coalesce(v_raw_own.level_public, v_fallback_own.level_public),
+      'levelBand', coalesce(v_raw_own.level_band, v_fallback_own.level_band),
+      'levelStatus', coalesce(v_raw_own.level_status, v_fallback_own.level_status),
+      'reasonCodes', coalesce(v_raw_own.eligibility_reason_codes, v_fallback_own.eligibility_reason_codes, '[]'::jsonb),
+      'movement', jsonb_build_object('status', 'nuevo', 'delta', null),
+      'contextWindow', '[]'::jsonb
     );
   end if;
 
   v_movement := public._bloque7_compute_movement(v_caller_player_id, v_edition.edition_id, p_scope_type, v_scope_key, v_branch, p_level_band);
 
-  if v_own.position is not null then
+  if v_own.rank_position is not null then
     select coalesce(jsonb_agg(jsonb_build_object(
         'playerId', sr.player_id, 'displayName', pr.display_name, 'username', pr.username,
-        'position', sr.position, 'levelPublic', sr.level_public, 'isSelf', sr.player_id = v_caller_player_id
-      ) order by sr.position), '[]'::jsonb) into v_window
+        'position', sr.rank_position, 'levelPublic', sr.level_public, 'isSelf', sr.player_id = v_caller_player_id
+      ) order by sr.rank_position), '[]'::jsonb) into v_window
     from public._bloque7_scope_rows(v_edition.edition_id, p_scope_type, v_scope_key, v_branch, p_level_band) sr
     join public.profiles pr on pr.player_id = sr.player_id
-    where sr.position is not null and sr.position between v_own.position - 2 and v_own.position + 2;
+    where sr.rank_position is not null and sr.rank_position between v_own.rank_position - 2 and v_own.rank_position + 2;
   else
     v_window := '[]'::jsonb;
   end if;
@@ -460,9 +513,12 @@ begin
   return jsonb_build_object(
     'edition', jsonb_build_object('editionId', v_edition.edition_id, 'periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
     'scopeType', p_scope_type, 'scopeKey', v_scope_key, 'competitiveBranch', v_branch, 'levelBand', p_level_band,
-    'hasPosition', v_own.position is not null,
-    'position', v_own.position, 'total', v_own.total_eligible, 'densityStatus', v_own.density_status,
-    'levelPublic', v_own.level_public, 'movement', v_movement, 'contextWindow', v_window
+    'hasPosition', v_own.rank_position is not null,
+    'position', v_own.rank_position, 'total', v_own.total_eligible, 'densityStatus', v_own.density_status,
+    'isEligible', coalesce(v_raw_own.is_eligible, v_own.is_eligible, false),
+    'levelPublic', v_own.level_public, 'levelStatus', v_raw_own.level_status,
+    'reasonCodes', coalesce(v_raw_own.eligibility_reason_codes, '[]'::jsonb),
+    'movement', v_movement, 'contextWindow', v_window
   );
 end;
 $$;
@@ -472,8 +528,8 @@ comment on function public.get_my_ranking_position is
    anterior comparable, ventana de contexto alrededor de la fila propia. Nunca inventa un
    puesto para un caller CALIBRANDO/sin ubicación/sin rama.';
 
-revoke all on function public.get_my_ranking_position(text, smallint) from public;
-grant execute on function public.get_my_ranking_position(text, smallint) to authenticated;
+revoke all on function public.get_my_ranking_position(text, integer) from public;
+grant execute on function public.get_my_ranking_position(text, integer) to authenticated;
 
 create or replace function public.get_ranking_network(p_competitive_branch text default null)
 returns jsonb
@@ -486,7 +542,12 @@ declare
   v_edition public.ranking_editions;
   v_related uuid[];
   v_rows jsonb;
+  v_hidden_rows jsonb;
   v_hidden_count integer;
+  v_visible_count integer;
+  v_total_eligible integer;
+  v_branch text;
+  v_cutoff timestamptz;
 begin
   select player_id into v_caller_player_id from public.players where auth_user_id = auth.uid();
   if v_caller_player_id is null then
@@ -501,7 +562,27 @@ begin
 
   select * into v_edition from public.ranking_editions order by period_start_at desc limit 1;
   if v_edition is null then
-    return jsonb_build_object('edition', null, 'total', 0, 'rows', '[]'::jsonb, 'hiddenCount', 0);
+    return jsonb_build_object('edition', null, 'total', 0, 'visibleCount', 0, 'rows', '[]'::jsonb, 'hiddenCount', 0, 'hiddenRows', '[]'::jsonb);
+  end if;
+
+  v_cutoff := v_edition.period_end_at + interval '1 microsecond';
+
+  if p_competitive_branch is null then
+    select rr.competitive_branch into v_branch
+    from public.ranking_rows rr
+    where rr.edition_id = v_edition.edition_id and rr.player_id = v_caller_player_id
+      and rr.scope_type = 'global'
+    limit 1;
+  else
+    v_branch := p_competitive_branch;
+  end if;
+
+  if v_branch is null then
+    return jsonb_build_object(
+      'edition', jsonb_build_object('editionId', v_edition.edition_id, 'periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
+      'competitiveBranch', null, 'total', 0, 'visibleCount', 0, 'rows', '[]'::jsonb,
+      'hiddenCount', 0, 'hiddenRows', '[]'::jsonb
+    );
   end if;
 
   -- Relaciones computables AS-OF el cutoff de la edición (handoff §9: "180 días anteriores al
@@ -510,55 +591,84 @@ begin
   select array_agg(distinct mp.player_id) into v_related
   from public.match_level_result_players mlrp0
   join public.match_level_results mlr0
-    on mlr0.result_id = mlrp0.result_id and mlr0.effect_status = 'applied' and mlr0.eligible
+    on mlr0.result_id = mlrp0.result_id and mlr0.eligible
   join public.matches m on m.match_id = mlr0.match_id
-  join public.match_level_result_players mp on mp.result_id = mlrp0.result_id and mp.player_id <> v_caller_player_id
+  join public.match_level_result_players mp
+    on mp.result_id = mlrp0.result_id and mp.player_id <> v_caller_player_id
   where mlrp0.player_id = v_caller_player_id
-    -- Defensa en profundidad, mismo criterio que get_player_match_history_for_level_engine
-    -- (Bloque 6): match_level_results.effect_status='applied' ya implica un partido validado,
-    -- pero se re-chequea matches.status explícitamente igual.
-    and m.status = 'validated'
-    and m.played_at < v_edition.period_start_at
-    and m.played_at >= v_edition.period_start_at - interval '180 days';
+    and mlr0.computed_at < v_cutoff
+    and (mlr0.reverted_at is null or mlr0.reverted_at >= v_cutoff)
+    and m.played_at < v_cutoff
+    and m.played_at >= v_cutoff - interval '180 days';
 
   v_related := array_append(coalesce(v_related, array[]::uuid[]), v_caller_player_id);
 
-  select count(*) into v_hidden_count from public.ranking_network_hidden where player_id = v_caller_player_id;
-
-  -- Mi red usa siempre la fila Global (nunca depende de que cada miembro comparta el mismo
-  -- territorio, Ranking_BRAMU.md §9/§10: "no usa umbrales territoriales"). Umbral propio:
-  -- 1-2 elegibles → sin puesto; 3+ → posiciones reales (distinto del 0-4/5-14/15+ territorial).
-  with network as (
+  -- Mi red usa la fila Global congelada y una sola rama por vista.
+  with base_network as (
     select rr.player_id, rr.competitive_branch, rr.level_public, rr.level_internal, rr.is_eligible,
-           pr.display_name, pr.username
+           pr.display_name, pr.username,
+           exists (
+             select 1 from public.ranking_network_hidden h
+             where h.player_id = v_caller_player_id and h.hidden_player_id = rr.player_id
+           ) as is_hidden
     from public.ranking_rows rr
     join public.profiles pr on pr.player_id = rr.player_id
     where rr.edition_id = v_edition.edition_id
       and rr.scope_type = 'global'
       and rr.player_id = any(v_related)
-      and (p_competitive_branch is null or rr.competitive_branch = p_competitive_branch)
-      and not exists (
-        select 1 from public.ranking_network_hidden h
-        where h.player_id = v_caller_player_id and h.hidden_player_id = rr.player_id
-      )
+      and rr.competitive_branch = v_branch
   ),
-  eligible_count as (select count(*) as n from network where is_eligible),
+  visible_network as (
+    select * from base_network where not is_hidden
+  ),
+  eligible_count as (
+    select count(*)::integer as n from visible_network where is_eligible
+  ),
   ranked as (
-    select player_id, rank() over (order by level_internal desc) as rnk from network where is_eligible
+    select player_id, rank() over (order by level_internal desc) as rnk
+    from visible_network where is_eligible
   )
-  select coalesce(jsonb_agg(jsonb_build_object(
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
       'playerId', n.player_id, 'displayName', n.display_name, 'username', n.username,
       'competitiveBranch', n.competitive_branch, 'levelPublic', n.level_public,
       'isSelf', n.player_id = v_caller_player_id,
-      'position', case when (select ec.n from eligible_count ec) <= 2 then null else r.rnk end
-    ) order by coalesce(r.rnk, 999999), n.level_public desc nulls last), '[]'::jsonb)
-    into v_rows
-  from network n
+      'position', case when (select ec.n from eligible_count ec) <= 2 then null else r.rnk end,
+      'total', (select ec.n from eligible_count ec)
+    ) order by coalesce(r.rnk, 999999), n.level_public desc nulls last), '[]'::jsonb),
+    count(*)::integer,
+    count(*) filter (where n.is_eligible)::integer
+  into v_rows, v_visible_count, v_total_eligible
+  from visible_network n
   left join ranked r on r.player_id = n.player_id;
+
+  with hidden_network as (
+    select rr.player_id, rr.competitive_branch, rr.level_public, pr.display_name, pr.username
+    from public.ranking_rows rr
+    join public.profiles pr on pr.player_id = rr.player_id
+    where rr.edition_id = v_edition.edition_id
+      and rr.scope_type = 'global'
+      and rr.player_id = any(v_related)
+      and rr.competitive_branch = v_branch
+      and exists (
+        select 1 from public.ranking_network_hidden h
+        where h.player_id = v_caller_player_id and h.hidden_player_id = rr.player_id
+      )
+  )
+  select
+    coalesce(jsonb_agg(jsonb_build_object(
+      'playerId', h.player_id, 'displayName', h.display_name, 'username', h.username,
+      'competitiveBranch', h.competitive_branch, 'levelPublic', h.level_public
+    ) order by h.display_name, h.player_id), '[]'::jsonb),
+    count(*)::integer
+  into v_hidden_rows, v_hidden_count
+  from hidden_network h;
 
   return jsonb_build_object(
     'edition', jsonb_build_object('editionId', v_edition.edition_id, 'periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
-    'total', jsonb_array_length(v_rows), 'rows', v_rows, 'hiddenCount', v_hidden_count
+    'competitiveBranch', v_branch,
+    'total', coalesce(v_total_eligible, 0), 'visibleCount', coalesce(v_visible_count, 0),
+    'rows', v_rows, 'hiddenCount', coalesce(v_hidden_count, 0), 'hiddenRows', v_hidden_rows
   );
 end;
 $$;
@@ -654,11 +764,15 @@ begin
   -- SIEMPRE los ámbitos propios del jugador OBJETIVO, congelados en la edición vigente —
   -- nunca un territorio elegido por quien mira (handoff §10/Ranking_BRAMU.md §15.1: misma
   -- fuente/lógica en Perfil propio y público).
-  select coalesce(jsonb_object_agg(scope_type, jsonb_build_object(
-      'position', position, 'total', total_eligible, 'densityStatus', density_status
+  select coalesce(jsonb_object_agg(rr.scope_type, jsonb_build_object(
+      'position', rr.position, 'total', rr.total_eligible, 'densityStatus', rr.density_status,
+      'scopeKey', rr.scope_key, 'location', rr.location_display_label,
+      'countryCode', rr.location_country_code, 'provinceId', rr.location_province_id,
+      'localityId', rr.location_locality_id
     )), '{}'::jsonb) into v_scopes
-  from public.ranking_rows
-  where edition_id = v_edition.edition_id and player_id = p_player_id and scope_type in ('local', 'provincial', 'pais');
+  from public.ranking_rows rr
+  where rr.edition_id = v_edition.edition_id and rr.player_id = p_player_id
+    and rr.scope_type in ('local', 'provincial', 'pais');
 
   return jsonb_build_object(
     'edition', jsonb_build_object('periodStartAt', v_edition.period_start_at, 'periodEndAt', v_edition.period_end_at),
