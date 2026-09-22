@@ -771,3 +771,34 @@ Todavía NO:
 - eliminación de mocks;
 - Production.
 
+### Fase 2 — cálculo semanal
+
+**Estado:** **APLICADA Y VALIDADA EN STAGING**.  
+**HEAD funcional validado:** `f950595959cc192f394278f52775609d0d28b2ca`.  
+**Evidencia:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/12_Validacion_Central_Fase_2_Staging.md`.
+
+Quedó operativo el cálculo server-side de una edición semanal mediante `compute_ranking_edition(cutoff)`, sin recalcular Nivel y preservando snapshots inmutables.
+
+Cerrado y validado:
+
+- cutoff lunes 00:00 Buenos Aires;
+- atomicidad e idempotencia;
+- historial as-of-cutoff de ubicación + rama/opt-in;
+- ramas M/F independientes;
+- Nivel consolidado para RECALIBRANDO;
+- actividad computable LIVE para inactividad;
+- Local/Provincial/País canónicos;
+- Global por rama, con lock por diversidad de países;
+- densidad y empate;
+- motivos de no elegibilidad;
+- candidatos sin ubicación conservados en Global;
+- seguridad service-only;
+- tablas históricas append-only.
+
+La primera versión falló en dry-run real y fue corregida antes de tocar Staging. La versión final pasó pre-validación con rollback, aplicación real y runner post-aplicación transaccional.
+
+Prueba adicional con los 7 perfiles registrados actuales de Staging: la función produjo 7 filas Global no elegibles, 0 territoriales, con motivos reales de datos faltantes; luego rollback limpio.
+
+No quedó ninguna edición ni fixture persistente.
+
+**Siguiente:** Fase 3 — RPCs de lectura server-side.
