@@ -100,9 +100,12 @@ alter table public.ranking_profile_events enable row level security;
 -- Deny-by-default, mismo criterio que location_change_events: uso interno exclusivo de
 -- complete_ranking_profile_data (SECURITY DEFINER) y de compute_ranking_edition (lectura).
 
--- SELECT + INSERT únicamente — nunca se otorga UPDATE/DELETE ni siquiera de entrada (a
--- diferencia de las tablas de Fase 1, que lo otorgaron por error y hubo que revocarlo en
--- F1-C02): append-only real desde el primer día.
+-- El proyecto tiene DEFAULT PRIVILEGES históricos que pueden conceder CRUD a service_role.
+-- Por eso no alcanza con "otorgar solo SELECT/INSERT": hay que revocar explícitamente cualquier
+-- capacidad de mutación heredada y luego conceder únicamente lo necesario.
+revoke update, delete, truncate, references, trigger
+  on table public.ranking_profile_events
+  from service_role;
 grant select, insert on table public.ranking_profile_events to service_role;
 
 -- ------------------------------------------------------------------
