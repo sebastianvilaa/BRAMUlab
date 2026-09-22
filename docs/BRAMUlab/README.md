@@ -7,6 +7,8 @@
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
+`Metodo_Trabajo.md` es la guía operativa vigente para coordinación de agentes, commits, pruebas y deploys — leerla antes de coordinar una ronda de trabajo, no solo antes de programar.
+
 ---
 
 ## 1. Qué está activo hoy
@@ -107,6 +109,7 @@ Ranking BRAMU vigente es **semanal**. Nivel puede cambiar partido a partido, per
 Solo documentos que pueden ser necesarios para tomar decisiones actuales:
 
 - este `README.md`;
+- `Metodo_Trabajo.md` — guía operativa de coordinación de agentes, commits, pruebas y deploys;
 - `BRAMUlab_Backlog.md`;
 - `Experiencia_Inicial.md`;
 - fuentes maestras de Nivel;
