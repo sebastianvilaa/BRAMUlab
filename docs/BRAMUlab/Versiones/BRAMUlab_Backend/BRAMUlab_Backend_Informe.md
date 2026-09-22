@@ -570,131 +570,122 @@ límite de 5 porque ya tenían evidencia suficiente en backend real/tests.
 
 **Bloque 5 CERRADO en Staging.**
 
-
-## Bloque 6 — Validación y actualización oficial — FASE B IMPLEMENTADA / QA REAL PENDIENTE
+## Bloque 6 — Validación y actualización oficial — CERRADO EN STAGING
 
 **Inicio:** 21 de septiembre de 2026.  
-**Estado actual:** backend/Fase A **IMPLEMENTADO y VALIDADO en Supabase Staging** + frontend/Fase B **IMPLEMENTADO y REVISADO CENTRALMENTE**. Bloque 6 completo todavía **NO cerrado**: falta QA real de navegador en Staging sobre el bundle `04.10-h16`.  
-**Evidencia backend real:** `docs/BRAMUlab/Implementacion/Backend/Bloque_06/12_Validacion_Backend_Staging_ChatGPT.md`.  
-**Resultado de Claude Fase B:** `14_Resultado_Fase_B_Claude.md`.  
-**Revisión central Fase B:** `15_Revision_Central_Fase_B_ChatGPT.md`.
+**Cierre:** 22 de septiembre de 2026.  
+**Estado:** **CERRADO en Staging**.  
+**HEAD funcional final validado:** `58b765d328fcd927abb599d0a4cb64d7973276df`.  
+**Bundle final validado:** `04.10-h19`.  
+**Cierre formal:** `docs/BRAMUlab/Implementacion/Backend/Bloque_06/20_Cierre_Bloque_06.md`.
 
-### 1. Backend implementado y validado
+### 1. Alcance cerrado
 
-Bloque 6 ya tiene en Staging:
+Bloque 6 deja operativo el paso de partido compartido pendiente a partido oficial, con autoridad server-side y actualización coherente de Nivel/derivados.
+
+Quedó implementado y validado:
 
 - autoridad por pareja para `Confirmar`;
-- oficialización atómica de partido + Nivel;
-- corrección post-validación;
-- reversión/reaplicación exacta;
-- incidencias de identidad;
-- reemplazo o terminal `Jugador no identificado`;
-- notificaciones internas y tareas accionables derivadas;
-- comando administrativo service-role-only;
-- snapshots, `reasonCodes`, `match_level_results` y trazabilidad por jugador;
-- inicio correcto del reloj de inactividad desde `initial_estimate`.
+- oficialización atómica e idempotente;
+- correcciones pre/post validación bajo las ventanas vigentes;
+- reversión y reaplicación exacta preservando efectos posteriores y factores contextuales congelados;
+- `No participé` como incidencia de identidad, sin borrar el partido;
+- reemplazo por jugador real/provisional o terminal `Jugador no identificado`;
+- notificaciones internas y tareas accionables derivadas del estado real;
+- suspensión/restauración de derivados personales mientras una identidad está abierta;
+- guardas de seguridad para helpers internos y comando administrativo service-role-only;
+- refresco inmediato de Home/Historial/Nivel/Resumen después de mutaciones;
+- hojas de `Resolver identidad` y `Proponer corrección` visibles e interactuables;
+- preservación del copy server-backed `OCULTAR PARTIDO` y ausencia de duplicados.
 
-Edge Functions activas:
+### 2. Backend real validado
 
-- `create-or-attach-match` (redesplegada con integración B6);
-- `officialize-match`;
-- `propose-match-correction`;
-- `respond-match-correction`;
-- `resolve-identity-issue`;
-- `admin-resolve-identity-issue`.
+La validación directa en Supabase Staging cubrió C-01…C-10 y corrigió cuatro fallos reales encontrados durante la implementación:
 
-### 2. Validación backend
+1. EXECUTE público heredado en helpers SECURITY DEFINER;
+2. ambigüedad PL/pgSQL de `read_at` en notificaciones;
+3. chequeo incorrecto de composite NULL que bloqueaba una corrección aceptada;
+4. uso de `max(uuid)` en refresco de fingerprint.
 
-La revisión final C-01…C-10 quedó corregida y validada.
+También quedaron validados idempotencia, orientación A/B estable, corrección con contexto congelado, terminal no identificado, notificaciones derivadas, reloj de inactividad y vencimientos lógicos.
 
-Cobertura local del motor:
+Evidencia: `12_Validacion_Backend_Staging_ChatGPT.md`.
 
-- `match-level-engine.test.mjs` → **30/30 OK**;
-- incluye diferencia neta con partido posterior intercalado, clamps, inactividad y factores contextuales congelados.
+### 3. Frontend y hotfixes dirigidos
 
-Validación directa sobre Supabase Staging confirmó, entre otros:
+Fase B conectó Confirmar, correcciones, identidad, Notificaciones y refresh de proyecciones.
 
-- lado proponente no puede autoconfirmarse;
-- lado accionable sí confirma;
-- reintentos no duplican efectos;
-- corrección reemplaza el resultado vigente sin borrar efectos ajenos;
-- issue de identidad revierte el partido completo;
-- resolución admin es staged y termina atómicamente;
-- guard anti-duplicado funciona con issue `open` y `unidentified`;
-- orientación A/B se preserva tras reemplazo de identidad;
-- un slot terminal no identificado no bloquea validar el partido;
-- `pending_review`, `correction_proposed` e `identity_questioned` aparecen/desaparecen según el estado real;
-- corrección pendiente vencida deja de mostrarse aunque su puntero físico siga presente;
-- `last_rated_at` vuelve al `initial_estimate` al retirar el único partido computable;
-- helpers internos y vía admin no son ejecutables por `anon`/`authenticated`.
+La primera QA real de navegador encontró dos incidencias visuales/locales, sin pérdida ni corrupción de datos:
 
-### 3. Bugs encontrados en Staging real
+- el Resumen quedaba con snapshot viejo después de aceptar una corrección o resolver identidad;
+- dos `.sheet-scrim` de Bloque 6 se abrían con `hidden=false` pero sin `is-open`, por lo que quedaban invisibles.
 
-Durante la validación backend se corrigieron cuatro fallos:
+Se corrigieron de forma acotada:
 
-1. helpers SECURITY DEFINER heredaban EXECUTE público;
-2. `get_notifications` tenía ambigüedad PL/pgSQL de `read_at`;
-3. `v_existing_applied IS NOT NULL` era incorrecto para un composite con campos NULL y bloqueaba correcciones reales;
-4. `max(uuid)` en el refresco de fingerprint no existe en PostgreSQL.
+- refresh canónico del Resumen → bundle h17;
+- apertura/cierre de `identity-resolve-scrim` → h18;
+- apertura/cierre de `propose-correction-scrim` → h19.
 
-Todos quedaron corregidos mediante migraciones B6 nuevas y revalidados.
+No se modificó backend, reglas de producto, Supabase ni Edge Functions en esos hotfixes visuales.
 
-### 4. Fase B frontend/wiring
+### 4. QA final de navegador
 
-Claude conectó:
+Revalidación final sobre:
 
-- pendientes accionables;
-- Confirmar;
-- Proponer corrección;
-- responder corrección;
-- No participé;
-- resolución de identidad;
-- Notificaciones server-backed;
-- refresh de Home/Historial/Nivel/pendientes.
+- HEAD `58b765d328fcd927abb599d0a4cb64d7973276df`;
+- bundle `04.10-h19`.
 
-Evidencia de Claude:
+Resultado:
 
-- `tests.html` → **1448/1448 OK**;
-- `match-level-engine.test.mjs` → **30/30 OK**;
-- `node --check` limpio.
+- Resolver identidad → **PASS**;
+- Proponer corrección → **PASS**;
+- regresión mínima → **PASS**;
+- operaciones persistidas una sola vez;
+- sin segundo partido;
+- Notificaciones correcto;
+- `OCULTAR PARTIDO` correcto;
+- sin incidencias nuevas.
 
-La revisión central encontró y corrigió tres puntos localizados:
+La falta de sesión autenticada para comprobar visualmente un segundo integrante del mismo lado accionable queda como deuda de cobertura manual no bloqueante: la autoridad por pareja y la idempotencia fueron validadas directamente en backend y el camino real de un integrante accionable quedó probado en navegador.
 
-1. acciones de corrección/identidad vencidas seguían visibles aunque el backend las rechazara;
-2. el vencimiento de 7 días de una incidencia no tenía camino de materialización desde la app; ahora se materializa perezosamente al reabrir el partido mediante `forceUnidentified`;
-3. `match-validation.js` no estaba precacheado y el bundle seguía h15; se corrigió a **04.10-h16**.
+### 5. Limpieza QA al cierre
 
-Además, mientras una incidencia de identidad está open, el partido deja temporalmente de alimentar derivados personales que dependen de saber quién jugó, coherente con la suspensión server-side del efecto de Nivel.
+Se eliminaron de Staging los dos partidos creados exclusivamente para la QA de navegador:
 
-### 5. Limpieza backend
+- `e452fec7-1bd3-4d3a-b29c-20f05644bf51`;
+- `9ed80346-cc61-4b5c-b01b-fb5390d0b42e`.
 
-Resultado final de fixtures de QA backend:
+El segundo había producido correcciones, incidencias de identidad y efectos temporales de Nivel. Antes de eliminar su trazabilidad se restauraron los jugadores afectados a su último `initial_estimate`.
 
-- usuarios `bramu-b6qa-sql-*` restantes: **0**;
-- partidos QA B6 restantes: **0**;
-- submissions QA B6 restantes: **0**;
-- extensión PostgreSQL `http` temporal: **eliminada**.
+Verificación posterior:
 
-### 6. Qué falta para cerrar Bloque 6
+- matches: **0**;
+- participants/submissions/revisions/sets/actions: **0**;
+- match_level_results / players: **0**;
+- incidencias de identidad: **0**;
+- notificaciones ligadas a partidos: **0**;
+- level_events ligados a partidos: **0**;
+- pilot_events ligados a partidos: **0**;
+- los Level states afectados quedaron con `rated_matches=0`, `distinct_opponents=0`, `evidence_units=0` y valores de mu/confidence coincidentes con su estimación inicial.
 
-Únicamente **QA real de navegador en Staging** sobre el bundle `04.10-h16`.
+Las cuentas QA se preservaron.
 
-Debe validar los riesgos concretos de Fase B:
+### 6. Decisión de cierre
 
-- autoridad por pareja;
-- Confirmar;
-- corrección y respuesta;
-- ventanas 3/10 días;
-- incidencia y resolución de identidad;
-- terminal `Jugador no identificado`;
-- Notificaciones;
-- refresh de Home/Historial/Nivel;
-- ausencia de regresiones importantes de Bloque 5.
+Los criterios de terminado de Bloque 6 están cubiertos con evidencia suficiente y sin bloqueos abiertos.
 
-Después de esa QA y cualquier corrección dirigida:
+**Backend Bloque 6 queda formalmente CERRADO en Staging.**
 
-1. limpieza de fixtures creados por navegador;
-2. cierre formal de Bloque 6;
-3. recién entonces iniciar Bloque 7.
+Siguiente bloque del roadmap:
 
-**No iniciar Bloque 7 todavía.**
+**Bloque 7 — Ranking real semanal.**
+
+No se inició Bloque 7 durante este cierre.
+
+### 7. Entornos
+
+- `staging`: tocado y validado;
+- `main`: NO tocado;
+- Production: NO tocada;
+- BRAMUlive: NO modificado por este cierre.
+

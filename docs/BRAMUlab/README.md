@@ -3,7 +3,7 @@
 **Estado del producto:** BRAMUlab **V04.10**  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 21 de septiembre de 2026
+**Actualización documental:** 22 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -38,7 +38,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 - `Backend_Infraestructura.md` — qué se decidió (arquitectura, modelo de datos, alcance por bloque).
 - `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` — qué se implementó, testeó y qué acción manual falta, bloque por bloque.
 
-**Bloque 1 (fundación de backend y entornos) está CERRADO**: verificado contra Supabase Staging y Vercel reales (health check y RLS deny-by-default confirmados en producción de Staging, 16/09/2026). El proyecto Supabase/Vercel de Production todavía no existe; se crea más adelante con el mismo procedimiento, sin bloquear Bloque 2.
+**Bloque 1 (fundación de backend y entornos) está CERRADO**: verificado contra Supabase Staging y Vercel reales (health check y RLS deny-by-default confirmados en producción de Staging, 16/09/2026). El proyecto Supabase de Production todavía no existe; en Vercel se usa un único proyecto `bramulab`, con Preview/Staging sobre la rama `staging` y Production sobre `main`, con variables separadas por Environment.
 
 **Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo.
 
@@ -50,7 +50,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 5 (Partidos e Historial) está CERRADO** (21/09/2026): modelo server-backed de partidos compartidos, create-or-attach, idempotencia/concurrencia, revisiones append-only, outbox/`sync_pending`, historial compartido, ocultamiento privado, nota privada, provisionales relacionadas y separación estricta entre partido visible y partido computable quedaron implementados y validados en Supabase/Vercel Staging real. La QA de navegador detectó y corrigió homónimos reales tratados como duplicados, `00:00` con hora desconocida, estado pendiente faltante en Último partido y copy Eliminar/Ocultar. Revalidación final dirigida: 4/4 PASS. Suite local final: **1448/1448**. Ver `Implementacion/Backend/Bloque_05/16_Cierre_Bloque_05.md`.
 
-**Bloque 6 (Validación y actualización oficial) tiene backend/Fase A VALIDADO y frontend/Fase B IMPLEMENTADO** (21/09/2026). Todavía **NO está cerrado**: falta QA real de navegador en Staging sobre el bundle `04.10-h16`. Evidencia backend: `Implementacion/Backend/Bloque_06/12_Validacion_Backend_Staging_ChatGPT.md`. Revisión central de Fase B: `15_Revision_Central_Fase_B_ChatGPT.md`.
+**Bloque 6 (Validación y actualización oficial) está CERRADO en Staging** (22/09/2026): backend/Fase A validado, frontend/Fase B conectado y QA real de navegador cerrada sobre `04.10-h19`. La revalidación final dio PASS en resolución de identidad, propuesta de corrección y regresión mínima; los fixtures de navegador fueron limpiados de Staging y los estados de Nivel afectados volvieron a su `initial_estimate`. Ver `Implementacion/Backend/Bloque_06/20_Cierre_Bloque_06.md`.
 
 ---
 
@@ -80,7 +80,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–5 CERRADOS en Staging. Bloque 6 con backend/Fase A VALIDADO y frontend/Fase B IMPLEMENTADO; falta QA real de navegador antes del cierre. Roadmap vigente: cerrar Bloque 6 → Bloque 7 → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Siguiente bloque: Ranking real semanal (Bloque 7) → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -210,7 +210,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–5 están cerrados en Staging. Bloque 6 ya tiene backend/Fase A validado y frontend/Fase B implementado; falta QA real de navegador antes del cierre.** Después continúan Ranking real semanal, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging.** Después continúan Ranking real semanal (Bloque 7), Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
 
 ---
 
