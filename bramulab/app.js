@@ -2561,9 +2561,12 @@
       </div>`).join('');
     $('#propose-correction-error').hidden = true;
     $('#propose-correction-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#propose-correction-scrim').classList.add('is-open'); });
   }
   function closeProposeCorrection() {
-    $('#propose-correction-scrim').hidden = true;
+    const scrim = $('#propose-correction-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
     b6CorrectionMatch = null;
   }
   async function submitProposeCorrection() {

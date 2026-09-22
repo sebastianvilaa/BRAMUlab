@@ -1,27 +1,32 @@
-# Backend Bloque 6 — Revalidación dirigida hotfix hoja "¿Quién jugó realmente?"
+# Backend Bloque 6 — Revalidación dirigida hotfix hojas "¿Quién jugó realmente?" / "Proponer corrección"
 
 **Fecha:** 22/09/2026
 **Rama:** `staging`
-**Base previa al hotfix:** `d4f51494fcad32734981bf6cd2d031e6aa29e80c`
-**Bundle esperado:** `04.10-h18`
+**Base previa a estos hotfixes:** `d4f51494fcad32734981bf6cd2d031e6aa29e80c`
+**Bundle esperado:** `04.10-h19`
 
 ## Objetivo
 
-Revalidar únicamente el Caso 2 (BLOQUEADO/FAIL) de `17_Validacion_Navegador_Work.md` / `18_Handoff_Revalidacion_Hotfix_Resumen_Work.md`: la hoja "¿Quién jugó realmente?" no se hacía visible al pulsar `RESOLVER`.
+Revalidar, en una sola ronda, los dos sheets de Bloque 6 que tenían el mismo bug visual (`.sheet-scrim` sin la clase `is-open`, quedaba invisible/fuera de pantalla):
 
-No repetir toda la QA de Bloque 6. No repetir el Caso 1 (ya PASS).
+1. `#identity-resolve-scrim` ("¿Quién jugó realmente?") — Caso 2 BLOQUEADO/FAIL de `17_Validacion_Navegador_Work.md` / `18_Handoff_Revalidacion_Hotfix_Resumen_Work.md`, corregido primero.
+2. `#propose-correction-scrim` ("Proponer corrección") — mismo patrón incompleto, encontrado por inspección de código durante el hotfix anterior (nunca reproducido en navegador porque el Caso 1 de esa ronda usa `Responder corrección`, que no abre este sheet).
+
+No repetir toda la QA de Bloque 6. No repetir el Caso 1 de `18_Handoff_Revalidacion_Hotfix_Resumen_Work.md` (corrección aceptada vía `Responder corrección`, ya PASS).
 
 ## Fixture
 
-Usar el mismo fixture ya existente (NO crear otro partido):
+Usar el mismo fixture ya existente para el Caso A (NO crear otro partido):
 
 - resultado: `6–2 / 6–4`;
 - estado: `IDENTIDAD CUESTIONADA`;
 - slot afectado: antes `sebastian test 3`, ahora `Por identificar`.
 
-## Pasos
+Para el Caso B alcanza con cualquier partido `pending_validation` o `validated` (dentro de la ventana de 3 días) donde el usuario pueda proponer una corrección; si no hay uno a mano, puede reutilizarse el mismo fixture del Caso A una vez resuelta la identidad (ya sin incidencia abierta).
 
-1. Confirmar el nuevo HEAD y bundle (`04.10-h18`, visible en el pie/consola de la app).
+## Caso A — Resolver identidad
+
+1. Confirmar el nuevo HEAD y bundle (`04.10-h19`, visible en el pie/consola de la app).
 2. Abrir el fixture existente.
 3. Pulsar `RESOLVER`.
 4. Confirmar que la hoja "¿Quién jugó realmente?" es visible e interactuable (no transparente, no desplazada fuera de pantalla).
@@ -31,8 +36,21 @@ Usar el mismo fixture ya existente (NO crear otro partido):
    - desaparece `IDENTIDAD CUESTIONADA`;
    - desaparece `Por identificar`;
    - aparece el jugador correcto.
-8. Confirmar que `OCULTAR PARTIDO` sigue siendo el copy del partido server-backed.
-9. Confirmar que no apareció un segundo partido.
+
+## Caso B — Proponer corrección
+
+1. Sobre un partido accionable, pulsar `PROPONER CORRECCIÓN`.
+2. Confirmar que la hoja de edición de sets es visible e interactuable (no transparente, no desplazada fuera de pantalla).
+3. Cargar un resultado válido y confirmar.
+4. Confirmar que la propuesta se registra una sola vez (el partido pasa a esperar respuesta de la otra pareja, o crea la nueva revisión según corresponda al estado previo).
+5. Confirmar que la hoja cierra correctamente (sin quedar un scrim residual bloqueando la pantalla).
+
+## Regresión mínima (ambos casos)
+
+- la operación se persiste una sola vez;
+- Notificaciones conserva el comportamiento validado;
+- no aparece un segundo partido;
+- `OCULTAR PARTIDO` sigue siendo el copy del partido server-backed.
 
 ## No hacer
 
@@ -41,15 +59,11 @@ Usar el mismo fixture ya existente (NO crear otro partido):
 - no tocar Supabase/migraciones/Edge Functions;
 - no tocar Vercel/configuración;
 - no tocar `main`, Production, BRAMUlive ni Bloque 7;
-- no repetir C-01…C-10 backend ni el Caso 1 de la ronda anterior.
+- no repetir C-01…C-10 backend ni el Caso 1 de `18_Handoff_Revalidacion_Hotfix_Resumen_Work.md`.
 
 ## Criterio
 
-Si el Caso 2 completa el ciclo (sheet visible → selección → resolución única → Resumen actualizado sin salir de la pantalla):
+Si ambos casos completan el ciclo (sheet visible → acción → resultado único → Resumen actualizado sin salir de la pantalla, sin scrim residual):
 
 **HOTFIX PASS — BLOQUE 6 APTO PARA CIERRE**
 (salvo la deuda de cobertura manual ya aceptada como no bloqueante, ver `18_Handoff_Revalidacion_Hotfix_Resumen_Work.md`).
-
-## Nota para la siguiente ronda (no bloquea esta revalidación)
-
-Durante este hotfix se encontró, por inspección de código (no reproducido en navegador todavía), que `#propose-correction-scrim` (hoja "Proponer corrección") tiene el mismo patrón incompleto que tenía `#identity-resolve-scrim`: alterna `hidden` pero nunca agrega/quita la clase `is-open`. El Caso 1 de la ronda anterior no lo ejercitó porque usa `Responder corrección` (aceptar/rechazar directo, sin abrir esa hoja), no `Proponer corrección`. Queda fuera de alcance de este hotfix (acotado exclusivamente a `identity-resolve-scrim`) — si se confirma en navegador, es el mismo fix de una línea aplicado acá, sobre `openProposeCorrection`/`closeProposeCorrection` en `bramulab/app.js`.
