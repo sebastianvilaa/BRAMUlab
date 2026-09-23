@@ -3,7 +3,7 @@
 **Fecha:** 22/09/2026  
 **Repositorio:** `sebastianvilaa/BRAMUlab`  
 **Rama activa:** `staging`  
-**HEAD funcional de entrada:** `e117a1823eccb72f90ce95b5af6ef58891369f48`  
+**HEAD funcional actualmente desplegado en BRAMUlab Preview:** `44727e61d9d50cedd29c30211fd3a6e43391666e`  
 **Estado general:** Backend Bloques 1–6 cerrados. Bloque 7 (Ranking real semanal) en tramo final: backend Fases 1–4 cerrado/aplicado; frontend Fase 5 implementado y corregido; falta QA real de navegador de Ranking y, si pasa, cierre formal de Bloque 7.
 
 ---
@@ -188,7 +188,7 @@ Bundle funcional final de B6:
 
 Backend Fases 1–4 cerrado/aplicado.
 
-Frontend Fase 5 implementado y corregido.
+Frontend Fase 5 implementado, corregido y con un último ajuste central del gate.
 
 Falta únicamente:
 
@@ -508,15 +508,28 @@ Contrato correcto:
 
 ---
 
-## 13. Fase 5 — corrección actual
+## 13. Fase 5 — corrección actual + ajuste central final
 
 Claude corrigió F5-C01/F5-C02 en:
 
 `e117a1823eccb72f90ce95b5af6ef58891369f48`
 
+Después central detectó una inconsistencia UX adicional: `AHORA NO` cerraba el overlay pero dejaba Ranking interactuable aunque todavía faltaran datos obligatorios. Se corrigió en:
+
+`44727e61d9d50cedd29c30211fd3a6e43391666e`
+
+Comportamiento final del gate:
+
+- Ranking se renderiza detrás;
+- overlay simple bloquea la pantalla;
+- `COMPLETAR DATOS` abre el formulario;
+- `VOLVER` vuelve al paso simple sin guardar;
+- `AHORA NO` sale de Ranking y vuelve a Home, por lo que nunca deja la clasificación accesible con datos incompletos;
+- guardado correcto cierra overlay y permanece en Ranking.
+
 Bundle actual:
 
-`04.10-h21`
+`04.10-h22`
 
 Tests:
 
@@ -572,30 +585,36 @@ Bump:
 
 `index.html` y `sw.js` en lockstep.
 
-### Vercel del HEAD actual
+### Vercel del HEAD funcional actual
 
-Para `e117a18...`:
+Para `44727e61...`:
 
 - bramulab: **Deployment has completed**;
 - bramulive: **Canceled by Ignored Build Step**.
 
 Pipeline correcto.
 
+Existe además el handoff específico para Work:
+
+`docs/BRAMUlab/Implementacion/Backend/Bloque_07/22_Handoff_QA_Final_Fase_5_Work.md`
+
 ---
 
 ## 14. Estado EXACTO al cambiar de chat
 
-HEAD funcional actual:
+HEAD funcional actualmente desplegado:
 
-`e117a1823eccb72f90ce95b5af6ef58891369f48`
+`44727e61d9d50cedd29c30211fd3a6e43391666e`
 
 Rama:
 
 `staging`
 
-Bundle:
+El HEAD de rama puede estar uno o más commits documentales por delante; esos commits deben quedar `Canceled by Ignored Build Step` y NO cambian el Preview funcional.
 
-`04.10-h21`
+Bundle esperado en Preview:
+
+`04.10-h22`
 
 Tests reportados por Claude:
 
@@ -608,7 +627,7 @@ Validación central ya hecha después del commit:
 - GeoRef preservado contra Supabase real con rollback:
   `B7_F5_GEOREF_PRESERVED_ROLLBACK_OK`.
 
-**Todavía NO se hizo la QA real completa de navegador contra Staging de Fase 5 corregida.**
+**Todavía NO se hizo la QA real completa de navegador contra Staging del bundle `04.10-h22`.**
 
 Ese es el próximo paso.
 
@@ -618,13 +637,17 @@ Ese es el próximo paso.
 
 No volver a Claude por defecto.
 
-Primero hacer **QA real dirigida de Ranking en navegador** sobre Staging/Preview del HEAD:
+Primero hacer **QA real dirigida de Ranking en navegador** sobre el Preview funcional del HEAD:
 
-`e117a1823eccb72f90ce95b5af6ef58891369f48`
+`44727e61d9d50cedd29c30211fd3a6e43391666e`
 
 Bundle esperado:
 
-`04.10-h21`
+`04.10-h22`
+
+Usar como guion operativo completo:
+
+`docs/BRAMUlab/Implementacion/Backend/Bloque_07/22_Handoff_QA_Final_Fase_5_Work.md`
 
 Preferencia:
 
@@ -713,4 +736,4 @@ La QA visual de Ranking debe evaluar eso además de funcionalidad.
 
 ## 18. Resumen en una línea
 
-**BRAMUlab está en Bloque 7 de 9; Ranking backend real semanal está cerrado hasta Fase 4, frontend real Fase 5 está implementado/corregido en `e117a18` / `04.10-h21`, GeoRef ya fue revalidado contra Supabase real y el próximo paso único es QA real de navegador para poder cerrar Bloque 7.**
+**BRAMUlab está en Bloque 7 de 9; Ranking backend real semanal está cerrado hasta Fase 4, frontend real Fase 5 está implementado/corregido en `44727e61` / `04.10-h22`, GeoRef ya fue revalidado contra Supabase real y el próximo paso único es QA real de navegador para poder cerrar Bloque 7.**
