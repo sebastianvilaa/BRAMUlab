@@ -35,13 +35,21 @@
 - Si aparece una decisión humana real, marcar `DECISIÓN ABIERTA` y continuar todo lo no bloqueado por ella.
 - No repetir investigaciones grandes ya realizadas.
 
+## Entrega entre agentes
+
+- Una ronda técnica **no se considera terminada** mientras el resultado no sea accesible remotamente para el siguiente agente.
+- Salvo que el handoff diga explícitamente `NO PUSH`, Claude Code debe terminar con: pruebas pertinentes → diff revisado → commit lógico → push a `origin/staging` → informe/resultado guardado en el repo.
+- Sebastián no debe transportar informes técnicos entre chats. Idealmente solo informa `terminó` y ChatGPT central lee directamente HEAD, diff y documentación desde el repo.
+- Si por una limitación real no puede hacerse push, el agente debe dejarlo explícito como bloqueo operativo antes de dar la tarea por terminada.
+
 ## Git / commits
 
 - Evitar commits intermedios directamente sobre `staging`.
 - Explorar, corregir y probar antes del push cuando sea posible.
 - Revisar el diff final antes de commitear.
 - Consolidar cada intervención en el menor número razonable de commits — idealmente uno solo, lógico y autocontenido.
-- No crear commits solo para "probar por las dudas".
+- Para una subfase funcional, apuntar a **un único push/deploy intencional**. Un segundo push solo se justifica por un bug real, una corrección necesaria o una evidencia nueva que obligue a cambiar el resultado.
+- No crear commits ni pushes solo para "probar por las dudas".
 - Cambios únicamente documentales no deben provocar deploys de `bramulab` ni `bramulive` (ver `bramulab/vercel.json`/`bramulive/vercel.json` — `ignoreCommand`). El comando vigente compara `HEAD^` contra `HEAD` dentro de cada Root Directory. **No usar `VERCEL_GIT_PREVIOUS_SHA`**: Vercel puede entregar un clon superficial donde ese SHA histórico no exista y el Ignored Build Step falla con `fatal: bad object`.
 
 ## Pruebas
@@ -55,7 +63,10 @@
 
 - Antes de una ronda técnica, considerar costo de contexto, créditos, commits y deploys.
 - No gastar Work o Claude para releer historia ya consolidada.
-- Evitar procesos que puedan alcanzar límites de Vercel u otras herramientas por actividad innecesaria.
+- Vercel tiene límites operativos reales y ya se alcanzó el tope diario durante desarrollo. Desde entonces, cada push que pueda disparar un deploy debe tratarse como un recurso a cuidar.
+- Evitar micro-pushes, deploys de prueba redundantes y rondas que podrían validarse localmente antes de subir.
+- Si el trabajo toca solo documentación o backend fuera de los Root Directory de las apps, conservar esos cambios fuera de `bramulab/` y `bramulive/` para que `ignoreCommand` pueda omitir los builds.
+- Si el cupo de Vercel está cerca del límite, posponer deploys no esenciales y reservarlos para validaciones que realmente necesiten Preview.
 - Los límites operativos (build-rate-limit, cuotas, etc.) forman parte del diseño del proceso, no un imprevisto externo.
 
 ## Entornos
