@@ -978,7 +978,62 @@ Suite A+B: **64/64 PASS**.
 
 Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/09_Validacion_Central_Fase_B.md`.
 
-### Notas vigentes para Fase C
+
+
+### Fase C — Relevancia y memoria editorial — CERRADA
+
+HEAD funcional revisado al cierre de C: `a08fb358f4b0e251810815ffd33106b1769f2efc`.
+
+Quedó implementado `bramulab/intelligence-editorial.js`, consumiendo Fase B por composición y sin reabrir A/B.
+
+Cierra:
+
+- puntaje editorial V1 con umbral 55/100;
+- prioridad determinística y desempate estable;
+- deduplicación semántica;
+- máximo 1 principal + hasta 2 secundarios;
+- cooldowns;
+- abstención;
+- memoria editorial serializable;
+- motivos auditables de selección/no selección.
+
+La revisión central detectó cinco bloqueantes y Claude los corrigió antes del cierre:
+
+1. ventana de “últimos 2 partidos” confundida con últimos 2 principales;
+2. racha simple de 4+ bloqueada aunque nunca se hubiese mostrado;
+3. deduplicación racha/forma incompleta y aplicada después del scoring;
+4. semantic key de primer encuentro basada en timestamp en vez de match ID;
+5. memoria/auditoría incompleta para cambios de mejor compañero y candidatos fuertes no seleccionados.
+
+Resultado final:
+
+- ventana editorial por partidos reales, incluyendo abstenciones;
+- racha simple gobernada por memoria de la racha vigente, no por un gate fijo de longitud;
+- caso explícito 4 seguidas + 4/5 deduplicado antes de score/cooldown;
+- identidad semántica de primer encuentro basada en el partido fuente;
+- memoria preparada para templates de Fase D;
+- cada candidato fuerte no seleccionado conserva motivo editorial final.
+
+Suite A+B+C: **94/94 PASS**.
+
+La tabla de subpuntajes por `insightType` queda aceptada como **parámetro V1 explícito/versionado**, sujeto a validación posterior con banco de casos y uso real; no es una decisión humana bloqueante.
+
+Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/14_Validacion_Central_Fase_C.md`.
+
+### Próximo paso
+
+**Fase D — Plantillas y UX**:
+
+- redacción determinística;
+- `templateId`;
+- principal/secundarios;
+- “Por qué aparece”;
+- aprendizaje/abstención/fallback;
+- conexión con la experiencia post-partido.
+
+No avanzar a E antes de revisión central y QA pertinente de D.
+
+### Notas vigentes después de Fase C
 
 - con exactamente 5 partidos existe la primera lectura de forma de 5; una comparación material contra “ventana anterior” solo puede evaluarse cuando esa ventana anterior también tenga 5 partidos;
 - `playedAtTimeKnown=false` nunca habilita una narrativa de secuencia horaria inventada;
