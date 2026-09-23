@@ -9413,7 +9413,12 @@
     // revela la pantalla Ranking que ya estaba renderizada detrás, tal cual haya quedado
     // (bloqueada por su propio estado "faltan datos" hasta que el usuario complete el gate). El
     // back real (`#ranking-back-btn`, siempre a Home) sigue disponible ahí debajo sin cambios.
-    $('#ranking-gate-dismiss-btn').addEventListener('click', closeRankingGateModal);
+    // La clasificación debe permanecer bloqueada mientras falten datos (Ranking_BRAMU.md
+    // §13.7.A). "AHORA NO" no desbloquea Ranking: sale de la pantalla y vuelve a Home.
+    $('#ranking-gate-dismiss-btn').addEventListener('click', () => {
+      closeRankingGateModal();
+      openPlayerHome();
+    });
     $('#ranking-gate-back-btn').addEventListener('click', () => showRankingGateStep('intro'));
     wireOptionGroup('ranking-gate-branch-options', (v) => { rankingGateBranch = v; });
     $('#ranking-gate-location-row').addEventListener('click', () => openProfileLocationSheet({
