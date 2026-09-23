@@ -909,3 +909,90 @@ Siguiente bloque del roadmap:
 **Bloque 8 — BRAMU Intelligence V1.**
 
 No se inició implementación de Bloque 8 durante este cierre.
+
+
+---
+
+## Bloque 8 — BRAMU Intelligence V1 — EN CURSO
+
+**Inicio:** 23 de septiembre de 2026.  
+**Estado actual:** **Fases A y B CERRADAS en Staging**.  
+**Siguiente:** **Fase C — Relevancia y memoria editorial**.
+
+### Fase A — Datos y derivados — CERRADA
+
+HEAD funcional revisado al cierre de A: `c950391c74501c819074803a584591645e09124d`.
+
+Quedó implementada y validada:
+
+- RPC autenticada `get_player_intelligence_history(...)`;
+- historia personal ordenada por fecha real;
+- normalización real PostgREST `snake_case → camelCase`;
+- perspectiva por jugador;
+- estructura de sets/margen;
+- rachas, forma reciente, hitos;
+- relaciones compañero/rival/pareja rival/cruce exacto;
+- inactividad excepcional;
+- separación historia personal / impacto oficial.
+
+La migración fue aplicada y validada en Supabase Staging real.  
+Suite final de Fase A: **29/29 PASS**.
+
+Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/05_Validacion_Central_Fase_A_Staging.md`.
+
+### Fase B — Claims y evidencia — CERRADA
+
+HEAD funcional revisado al cierre de B: `d4923d0f30a0b0bf0aac90fd3c59fdccc5943f01`.
+
+Quedó implementado `bramulab/intelligence-claims.js`, consumiendo Fase A por composición y sin reabrir contratos previos.
+
+Cubre las familias determinísticas V1 A–G necesarias antes de Nivel/Ranking:
+
+- estructura del resultado;
+- hitos, rachas, récords y cortes;
+- forma reciente;
+- compañeros;
+- rivales / pareja rival / cruce exacto;
+- score excepcional comparable;
+- contexto sin Nivel.
+
+Familia H — Nivel + Ranking — permanece correctamente diferida a Fase E.
+
+La revisión central detectó cuatro bloqueantes iniciales y Claude los corrigió antes del cierre:
+
+1. evidencia histórica incompleta en varios claims;
+2. ventana previa de forma reciente no móvil;
+3. empates semánticos en “mejor / el más”;
+4. pendientes rompiendo indebidamente la detección de primer triunfo.
+
+Resultado después de la corrección:
+
+- claims históricos/comparativos con `evidenceMatchIds` reconstruibles;
+- forma reciente válida desde 5 partidos, con ventana móvil previa correcta desde que existe;
+- empates explícitos, nunca resueltos semánticamente por IDs técnicos;
+- pendientes ignorados como resultado al buscar primer triunfo;
+- 0 claims afirmados sin evidencia;
+- sin cambios de Supabase/UI/Nivel/Ranking.
+
+Suite A+B: **64/64 PASS**.
+
+Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/09_Validacion_Central_Fase_B.md`.
+
+### Notas vigentes para Fase C
+
+- con exactamente 5 partidos existe la primera lectura de forma de 5; una comparación material contra “ventana anterior” solo puede evaluarse cuando esa ventana anterior también tenga 5 partidos;
+- `playedAtTimeKnown=false` nunca habilita una narrativa de secuencia horaria inventada;
+- la decisión sobre si un partido oculto puede alimentar Intelligence personal sigue abierta pero no bloquea C;
+- Fase C debe seleccionar y abstenerse; no puede reinterpretar evidencia ni inventar umbrales nuevos.
+
+### Próximo paso
+
+**Fase C — Relevancia y memoria editorial**:
+
+- puntaje V1;
+- deduplicación semántica;
+- cooldowns;
+- abstención;
+- selección de 1 principal + hasta 2 secundarios.
+
+No avanzar a D antes de revisión central de C.
