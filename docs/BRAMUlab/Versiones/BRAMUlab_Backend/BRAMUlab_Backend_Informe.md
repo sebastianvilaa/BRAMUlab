@@ -916,138 +916,164 @@ No se inició implementación de Bloque 8 durante este cierre.
 ## Bloque 8 — BRAMU Intelligence V1 — EN CURSO
 
 **Inicio:** 23 de septiembre de 2026.  
-**Estado actual:** **Fases A y B CERRADAS en Staging**.  
-**Siguiente:** **Fase C — Relevancia y memoria editorial**.
+**Estado actual:** **Fases A, B, C y D CERRADAS en Staging.**  
+**Siguiente:** **Fase E — Integración Nivel + Ranking.**  
+**Fase F — generación opcional:** no bloquea la primera salida productiva.
 
 ### Fase A — Datos y derivados — CERRADA
 
-HEAD funcional revisado al cierre de A: `c950391c74501c819074803a584591645e09124d`.
+HEAD funcional de cierre: `c950391c74501c819074803a584591645e09124d`.
 
-Quedó implementada y validada:
+Quedó implementada la capa real de datos/derivados:
 
 - RPC autenticada `get_player_intelligence_history(...)`;
-- historia personal ordenada por fecha real;
-- normalización real PostgREST `snake_case → camelCase`;
-- perspectiva por jugador;
-- estructura de sets/margen;
-- rachas, forma reciente, hitos;
-- relaciones compañero/rival/pareja rival/cruce exacto;
-- inactividad excepcional;
+- orden por fecha real jugada;
+- normalización PostgREST;
+- perspectiva estable del jugador;
+- rachas, forma, hitos, relaciones e inactividad;
 - separación historia personal / impacto oficial.
 
-La migración fue aplicada y validada en Supabase Staging real.  
-Suite final de Fase A: **29/29 PASS**.
+Migración aplicada y validada en Supabase Staging.  
+Suite final A: **29/29 PASS**.
 
-Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/05_Validacion_Central_Fase_A_Staging.md`.
+Cierre: `Implementacion/Backend/Bloque_08/05_Validacion_Central_Fase_A_Staging.md`.
 
 ### Fase B — Claims y evidencia — CERRADA
 
-HEAD funcional revisado al cierre de B: `d4923d0f30a0b0bf0aac90fd3c59fdccc5943f01`.
+HEAD funcional de cierre: `d4923d0f30a0b0bf0aac90fd3c59fdccc5943f01`.
 
-Quedó implementado `bramulab/intelligence-claims.js`, consumiendo Fase A por composición y sin reabrir contratos previos.
+Quedó implementada la generación estructurada de claims A–G con evidencia trazable, comparabilidad, muestras mínimas, alcance personal/oficial y descartes explícitos.
 
-Cubre las familias determinísticas V1 A–G necesarias antes de Nivel/Ranking:
+Correcciones cerradas antes del cierre:
 
-- estructura del resultado;
-- hitos, rachas, récords y cortes;
-- forma reciente;
-- compañeros;
-- rivales / pareja rival / cruce exacto;
-- score excepcional comparable;
-- contexto sin Nivel.
-
-Familia H — Nivel + Ranking — permanece correctamente diferida a Fase E.
-
-La revisión central detectó cuatro bloqueantes iniciales y Claude los corrigió antes del cierre:
-
-1. evidencia histórica incompleta en varios claims;
-2. ventana previa de forma reciente no móvil;
-3. empates semánticos en “mejor / el más”;
-4. pendientes rompiendo indebidamente la detección de primer triunfo.
-
-Resultado después de la corrección:
-
-- claims históricos/comparativos con `evidenceMatchIds` reconstruibles;
-- forma reciente válida desde 5 partidos, con ventana móvil previa correcta desde que existe;
-- empates explícitos, nunca resueltos semánticamente por IDs técnicos;
-- pendientes ignorados como resultado al buscar primer triunfo;
-- 0 claims afirmados sin evidencia;
-- sin cambios de Supabase/UI/Nivel/Ranking.
+- evidencia histórica completa;
+- forma reciente como ventana móvil;
+- empates semánticos;
+- pendientes no rompen secuencias decididas.
 
 Suite A+B: **64/64 PASS**.
 
-Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/09_Validacion_Central_Fase_B.md`.
-
-
+Cierre: `Implementacion/Backend/Bloque_08/09_Validacion_Central_Fase_B.md`.
 
 ### Fase C — Relevancia y memoria editorial — CERRADA
 
-HEAD funcional revisado al cierre de C: `a08fb358f4b0e251810815ffd33106b1769f2efc`.
+HEAD funcional de cierre: `a08fb358f4b0e251810815ffd33106b1769f2efc`.
 
-Quedó implementado `bramulab/intelligence-editorial.js`, consumiendo Fase B por composición y sin reabrir A/B.
+Quedó implementado `intelligence-editorial.js` con:
 
-Cierra:
-
-- puntaje editorial V1 con umbral 55/100;
-- prioridad determinística y desempate estable;
+- score V1;
+- umbral 55/100;
+- prioridad determinística;
 - deduplicación semántica;
-- máximo 1 principal + hasta 2 secundarios;
+- máximo 1 principal + 2 secundarios;
 - cooldowns;
 - abstención;
-- memoria editorial serializable;
+- memoria editorial;
 - motivos auditables de selección/no selección.
 
-La revisión central detectó cinco bloqueantes y Claude los corrigió antes del cierre:
-
-1. ventana de “últimos 2 partidos” confundida con últimos 2 principales;
-2. racha simple de 4+ bloqueada aunque nunca se hubiese mostrado;
-3. deduplicación racha/forma incompleta y aplicada después del scoring;
-4. semantic key de primer encuentro basada en timestamp en vez de match ID;
-5. memoria/auditoría incompleta para cambios de mejor compañero y candidatos fuertes no seleccionados.
-
-Resultado final:
-
-- ventana editorial por partidos reales, incluyendo abstenciones;
-- racha simple gobernada por memoria de la racha vigente, no por un gate fijo de longitud;
-- caso explícito 4 seguidas + 4/5 deduplicado antes de score/cooldown;
-- identidad semántica de primer encuentro basada en el partido fuente;
-- memoria preparada para templates de Fase D;
-- cada candidato fuerte no seleccionado conserva motivo editorial final.
+La tabla de subpuntajes por `insightType` queda aceptada como parámetro V1 explícito/versionado, recalibrable más adelante mediante nueva versión documentada.
 
 Suite A+B+C: **94/94 PASS**.
 
-La tabla de subpuntajes por `insightType` queda aceptada como **parámetro V1 explícito/versionado**, sujeto a validación posterior con banco de casos y uso real; no es una decisión humana bloqueante.
+Cierre: `Implementacion/Backend/Bloque_08/14_Validacion_Central_Fase_C.md`.
 
-Cierre: `docs/BRAMUlab/Implementacion/Backend/Bloque_08/14_Validacion_Central_Fase_C.md`.
+### Fase D — Plantillas, persistencia y UX — CERRADA
+
+HEAD funcional de cierre: `30b9fb8538cfb0f65f8e43c33d50f7541e4db425`.  
+Bundle: `04.10-h23`.
+
+Quedó implementado el camino real A→B→C→D:
+
+- templates determinísticos y versionados;
+- principal + hasta 2 secundarios;
+- “Por qué aparece” factual;
+- estados de aprendizaje/abstención;
+- memoria de templates;
+- H01: identidad abierta fuera de agregados relacionales;
+- replay cronológico por checkpoints;
+- fingerprint de historia con identidad/composición/formato/scoring/hora;
+- auditoría completa server-only;
+- integración en el Resumen real;
+- reemplazo del Intelligence legacy en el camino server-backed;
+- Edge Function autenticada `get-match-intelligence`;
+- persistencia `intelligence_match_outputs` con `output + memory_after + audit`.
+
+Correcciones centrales cerradas:
+
+- H01;
+- D01–D06.
+
+Suite A+B+C+D: **136/136 PASS**.
+
+#### Supabase Staging
+
+Migración aplicada:
+
+`bloque8_fased_intelligence_persistence`
+
+Seguridad comprobada:
+
+- RLS activo;
+- `anon`/ `authenticated` sin SELECT;
+- `service_role` con acceso;
+- 0 policies de cliente.
+
+Edge Function:
+
+`get-match-intelligence`
+
+- ACTIVE;
+- version 1;
+- JWT obligatorio;
+- `playerId` derivado desde sesión;
+- audit/memoria nunca enviados al navegador.
+
+#### QA real
+
+Se creó un único partido por UI:
+
+`4c8c3f8b-f2c4-4ef7-87c1-6b2cafdc33ba`
+
+Resultado real:
+
+- 1 POST `create-or-attach-match`: 200;
+- 6 POST `get-match-intelligence`: 6 × 200;
+- un único checkpoint persistido y reutilizado;
+- principal + 2 secundarios coherentes;
+- evidencia humana correcta;
+- sin claims prematuros de Nivel/Ranking.
+
+El informe de Work no quedó persistido originalmente; ChatGPT central recuperó la evidencia desde Staging real y la dejó consolidada en:
+
+`Implementacion/Backend/Bloque_08/23_Resultado_QA_Fase_D_Work.md`
+
+Cierre formal:
+
+`Implementacion/Backend/Bloque_08/24_Cierre_Fase_D.md`
+
+**Fase D queda CERRADA en Staging.**
+
+### Decisión abierta heredada
+
+Sigue abierta, sin bloquear la siguiente fase:
+
+**¿Un partido oculto del Historial puede alimentar BRAMU Intelligence personal?**
+
+Hasta resolverla se mantiene el comportamiento vigente: ocultos fuera de Intelligence personal.
 
 ### Próximo paso
 
-**Fase D — Plantillas y UX**:
+**Fase E — Integración Nivel + Ranking**
 
-- redacción determinística;
-- `templateId`;
-- principal/secundarios;
-- “Por qué aparece”;
-- aprendizaje/abstención/fallback;
-- conexión con la experiencia post-partido.
+Debe consumir, sin recalcular:
 
-No avanzar a E antes de revisión central y QA pertinente de D.
+- snapshots/reasonCodes de Nivel;
+- expectativa previa y fuerza de parejas;
+- confianza/calibración;
+- delta posterior;
+- elegibilidad oficial;
+- ediciones semanales publicadas de Ranking.
 
-### Notas vigentes después de Fase C
+Ranking no puede atribuir un movimiento semanal a un partido individual.
 
-- con exactamente 5 partidos existe la primera lectura de forma de 5; una comparación material contra “ventana anterior” solo puede evaluarse cuando esa ventana anterior también tenga 5 partidos;
-- `playedAtTimeKnown=false` nunca habilita una narrativa de secuencia horaria inventada;
-- la decisión sobre si un partido oculto puede alimentar Intelligence personal sigue abierta pero no bloquea C;
-- Fase C debe seleccionar y abstenerse; no puede reinterpretar evidencia ni inventar umbrales nuevos.
-
-### Próximo paso
-
-**Fase C — Relevancia y memoria editorial**:
-
-- puntaje V1;
-- deduplicación semántica;
-- cooldowns;
-- abstención;
-- selección de 1 principal + hasta 2 secundarios.
-
-No avanzar a D antes de revisión central de C.
+No avanzar automáticamente a F generativa.
