@@ -82,9 +82,9 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
-| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
+| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 EN CURSO en Staging: Fases A — Datos/derivados y B — Claims/evidencia CERRADAS; sigue C — Relevancia/memoria editorial. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–7 CERRADOS en Staging. Sigue Bloque 8 — BRAMU Intelligence V1 → Bloque 9 — endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–7 CERRADOS. Bloque 8 EN CURSO: A+B CERRADAS; sigue C → D → E. F generativa es opcional para salida. Después: pendientes pre-Production + Bloque 9 — endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
