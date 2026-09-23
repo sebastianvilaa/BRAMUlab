@@ -691,12 +691,15 @@ No se inició Bloque 7 durante este cierre.
 
 ---
 
-## Bloque 7 — Ranking real semanal — EN CURSO
+## Bloque 7 — Ranking real semanal — CERRADO EN STAGING
 
 **Inicio:** 22 de septiembre de 2026.  
-**Estado:** **Fase 1 aplicada y validada en Staging**.  
-**HEAD de código validado para Fase 1:** `7437452f37b527679f10e721b5799896669e6d40`.  
-**Evidencia central:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/07_Validacion_Central_Fase_1_Staging.md`.
+**Cierre:** 22 de septiembre de 2026.  
+**Estado:** **CERRADO en Staging**.  
+**HEAD funcional final validado:** `44727e61d9d50cedd29c30211fd3a6e43391666e`.  
+**Bundle final validado:** `04.10-h22`.  
+**Suite final:** **1478/1478**.  
+**Cierre formal:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/23_Cierre_Bloque_07.md`.
 
 ### Fase 1 — esquema y contratos mínimos
 
@@ -846,4 +849,63 @@ La primera prueba central detectó que el runner de Claude esperaba erróneament
 
 No quedó ninguna edición QA persistente.
 
-**Siguiente:** Fase 5 — frontend real de Ranking y retiro del prototipo simulado.
+### Fase 5 — frontend real y QA final
+
+**Estado:** **IMPLEMENTADA Y VALIDADA EN STAGING**.  
+**HEAD funcional final:** `44727e61d9d50cedd29c30211fd3a6e43391666e`.  
+**Bundle final:** `04.10-h22`.  
+**Suite final:** **1478/1478**.
+
+Fase 5 conectó Ranking a los RPCs reales y retiró el fallback productivo a datos simulados. Quedaron operativos:
+
+- ámbitos Local / Provincia / País / Global / Mi red;
+- selector de rama M/F;
+- filtro de Nivel server-side;
+- búsqueda;
+- Tu posición y movimiento semanal cuando existan datos;
+- Mi red con ocultar/restaurar;
+- Perfil propio/público y Home / TU MOMENTO;
+- gate de localidad/rama/`ranking_opt_in` al entrar a Ranking;
+- estados vacíos honestos cuando no existe una edición/masa elegible suficiente.
+
+Antes de la QA final se corrigieron dos incidencias detectadas por revisión central:
+
+1. preservación de IDs GeoRef al completar únicamente rama/opt-in, verificada contra Supabase Staging con rollback;
+2. contrato UX del gate: shell de Ranking detrás + overlay bloqueante; `AHORA NO` vuelve a Home y nunca deja la clasificación accesible con datos incompletos.
+
+QA real de navegador sobre el HEAD/bundle finales:
+
+- A — deploy correcto: **PASS**;
+- B — gate de datos: **PASS**;
+- C — guardado real: **PASS**;
+- D — Ranking server-backed: **PASS**;
+- E — regresiones mínimas: **PASS**.
+
+La cuenta de QA guardó rama Masculina, localidad canónica Bella Vista / Buenos Aires y participación activa. El estado persistió tras recargar, el gate no reapareció y Staging mostró el vacío real `0 jugadores elegibles`, sin nombres ni puestos mock.
+
+Consola/red: sin errores originados por BRAMUlab ni fallos RPC/red funcionales.
+
+### Limpieza al cierre
+
+No se crearon ediciones QA persistentes ni fixtures independientes durante la QA final de navegador. No hay datos sintéticos de Ranking que limpiar. La actualización del perfil de la cuenta de Staging se conserva porque es estado válido del propio flujo probado, no un fixture transitorio.
+
+### Decisión de cierre
+
+Los criterios de terminado de Backend Bloque 7 están cubiertos con evidencia suficiente:
+
+- snapshot semanal estable e inmutable;
+- elegibilidad server-side;
+- publicación automática;
+- lectura real por RPC;
+- frontend sin mocks;
+- gate de datos funcional;
+- estados vacíos honestos;
+- QA real A–E completa.
+
+**Backend Bloque 7 queda formalmente CERRADO en Staging.**
+
+Siguiente bloque del roadmap:
+
+**Bloque 8 — BRAMU Intelligence V1.**
+
+No se inició implementación de Bloque 8 durante este cierre.
