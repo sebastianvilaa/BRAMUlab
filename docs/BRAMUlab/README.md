@@ -54,7 +54,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 6 (Validación y actualización oficial) está CERRADO en Staging** (22/09/2026): backend/Fase A validado, frontend/Fase B conectado y QA real de navegador cerrada sobre `04.10-h19`. La revalidación final dio PASS en resolución de identidad, propuesta de corrección y regresión mínima; los fixtures de navegador fueron limpiados de Staging y los estados de Nivel afectados volvieron a su `initial_estimate`. Ver `Implementacion/Backend/Bloque_06/20_Cierre_Bloque_06.md`.
 
-**Bloque 7 (Ranking real semanal) está EN CURSO en Staging** (22/09/2026): Fases 1–4 quedaron aplicadas y validadas contra Supabase Staging real. Ya existen snapshot semanal, cálculo atómico/idempotente, auditoría as-of-cutoff, RPCs autenticadas de lectura y publicación automática semanal mediante `pg_cron`. El job `bramu_weekly_ranking_publish` quedó activo los lunes 00:05 de Buenos Aires. Todavía faltan frontend real y QA final. Siguiente paso: Fase 5 — conectar Ranking a datos reales y retirar el prototipo simulado. Ver `Implementacion/Backend/Bloque_07/18_Validacion_Central_Fase_4_Staging.md`.
+**Bloque 7 (Ranking real semanal) está CERRADO en Staging** (22/09/2026): Fases 1–4 backend quedaron aplicadas y validadas contra Supabase Staging real; Fase 5 conectó el frontend a los RPCs reales, retiró el fallback productivo a mocks y pasó QA real de navegador completa. HEAD funcional final validado: `44727e61d9d50cedd29c30211fd3a6e43391666e`; bundle: `04.10-h22`; suite: **1478/1478**. La QA A–E confirmó gate, guardado real, ámbitos/rama/filtro/búsqueda/Mi red/perfiles, estado vacío honesto sin edición y regresiones mínimas sin errores funcionales de consola/red. El job `bramu_weekly_ranking_publish` permanece activo los lunes 00:05 de Buenos Aires. Ver `Implementacion/Backend/Bloque_07/23_Cierre_Bloque_07.md`.
 
 ---
 
@@ -81,10 +81,10 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | Sistema | Fuente maestra / precedencia | Estado |
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
-| **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
+| **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Bloque 7 EN CURSO: Fases 1–4 aplicadas/validadas; sigue frontend real/QA → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–7 CERRADOS en Staging. Sigue Bloque 8 — BRAMU Intelligence V1 → Bloque 9 — endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -182,7 +182,7 @@ La definición vigente separa:
 - Nivel = capacidad estimada dinámica;
 - Ranking = posición semanal publicada dentro de un universo elegible.
 
-La UI actual de V03 es prototipo/simulación local y no debe confundirse con el Ranking productivo futuro con backend.
+El prototipo/simulación local de V03 fue retirado del camino real de Staging en Backend Bloque 7. Ranking consume RPCs server-backed, edición semanal publicada y estados vacíos honestos; no existe fallback productivo a mocks.
 
 ### BRAMU Intelligence
 
@@ -215,7 +215,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging y Bloque 7 está en curso con Fases 1–4 aplicadas/validadas.** Después siguen frontend/QA de Ranking, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–7 están cerrados en Staging.** El siguiente bloque es **Bloque 8 — BRAMU Intelligence V1**; después sigue Bloque 9 — endurecimiento/salida. No implementar desde antecedentes del Archivo.
 
 ---
 
