@@ -439,7 +439,14 @@
     const CL = global.PLIntelligenceClaims;
     const memory = priorMemory || emptyMemory();
     const { ctx, claims } = CL.buildClaimsForMatch(historyAsc, callerPlayerId);
-    if (!ctx) return { ctx: null, evaluated: [], principal: null, secondary: [], abstention: true, memoryUpdate: memory, rulesVersion: RULES_VERSION };
+    // D06 (Revisión Central Fase D, auditoría): `claims` es la lista COMPLETA de Fase B (tanto
+    // afirmados como descartados por evidencia/muestra insuficiente) — se conserva tal cual bajo
+    // `allClaims`, exclusivamente para que Fase D pueda construir un snapshot de auditoría
+    // completo sin recalcular nada. Extensión de CONTRATO únicamente: `evaluated`/`principal`/
+    // `secondary`/`abstention` siguen calculándose exactamente igual que antes, a partir de
+    // `affirmed` (más abajo) — `allClaims` nunca participa de ninguna decisión de puntaje/
+    // selección, solo se adjunta al final para quien quiera auditar.
+    if (!ctx) return { ctx: null, allClaims: claims, evaluated: [], principal: null, secondary: [], abstention: true, memoryUpdate: memory, rulesVersion: RULES_VERSION };
 
     // "0 claims sin evidencia": ningún candidato descartado por Fase B puede revivirse acá
     // (prueba mínima #13 del handoff) — se filtran ANTES de cualquier otra evaluación.
@@ -532,6 +539,7 @@
 
     return {
       ctx,
+      allClaims: claims, // D06: TODOS los candidatos de Fase B, afirmados Y descartados — solo para auditoría.
       evaluated, // TODOS los candidatos afirmados por Fase B, con status/editorialStatus/score/motivo — nunca omitidos.
       principal,
       secondary,

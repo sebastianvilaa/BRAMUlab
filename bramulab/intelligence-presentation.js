@@ -497,7 +497,100 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 8. REPLAY CRONOLÓGICO POR CHECKPOINTS (Revisión Central Fase D, D01) */
+  /* 8. AUDITORÍA SERVER-ONLY (Revisión Central Fase D — auditoría, D06)  */
+  /* ------------------------------------------------------------------ */
+
+  /** Copia explícita de UN claim de Fase B (afirmado o descartado) para el snapshot de
+   *  auditoría — nunca un spread ciego: cada campo se nombra a propósito, para que el contrato
+   *  de auditoría quede versionado y no arrastre silenciosamente algo que B agregue después sin
+   *  que se decida explícitamente incluirlo acá. */
+  function summarizeClaimForAudit(c) {
+    return {
+      insightType: c.insightType,
+      family: c.family,
+      perspectivePlayerId: c.perspectivePlayerId,
+      claim: c.claim,
+      evidenceMatchIds: (c.evidenceMatchIds || []).slice(),
+      comparisonScope: c.comparisonScope,
+      sampleSize: c.sampleSize,
+      minSampleRequired: c.minSampleRequired,
+      confidenceTier: c.confidenceTier,
+      officialScope: c.officialScope,
+      dataAsOf: c.dataAsOf,
+      rulesVersion: c.rulesVersion,
+      discarded: !!c.discarded,
+      discardReasonCodes: (c.discardReasonCodes || []).slice(),
+    };
+  }
+
+  /** Copia explícita de UNA entrada evaluada por Fase C (`decision.evaluated[i]`) — candidatos
+   *  afirmados por B que C llegó a puntuar o excluir por cooldown. Mismo criterio que
+   *  `summarizeClaimForAudit`: campos nombrados a propósito, nunca un spread ciego del objeto
+   *  interno de C (que además mezcla `candidate` + metadata de evaluación en un solo nivel). */
+  function summarizeEvaluatedForAudit(e) {
+    return {
+      insightType: e.candidate.insightType,
+      family: e.candidate.family,
+      semanticKey: e.semanticKey,
+      comparisonScope: e.candidate.comparisonScope,
+      evidenceMatchIds: (e.candidate.evidenceMatchIds || []).slice(),
+      status: e.status,
+      editorialStatus: e.editorialStatus,
+      excludedReason: e.excludedReason || null,
+      score: e.scored ? {
+        dimensions: Object.assign({}, e.scored.dimensions),
+        rawScore: e.scored.rawScore,
+        penalties: e.scored.penalties.slice(),
+        finalScore: e.scored.finalScore,
+      } : null,
+    };
+  }
+
+  /** Snapshot de auditoría INMUTABLE de un checkpoint — server-only, NUNCA se envía al cliente
+   *  (ver `publicOutputOf`, que es lo único que sale en la respuesta HTTP). Existe para poder
+   *  reconstruir por qué se tomó una decisión histórica sin volver a ejecutar las reglas
+   *  actuales sobre datos que pueden haber cambiado desde entonces (BRAMU_Intelligence.md §6.5).
+   *  Se construye ÚNICAMENTE a partir de lo que `decision` (Fase C, incluido el `allClaims` que
+   *  C ahora reenvía sin tocarlo — D06) y `rendered` (este mismo módulo) ya calcularon — nunca
+   *  recalcula ni re-deriva nada. `principal`/`secondary` acá abajo referencian el `templateId`
+   *  final tal cual lo asignó `renderInsight` (`rendered.principal`/`rendered.secondary`, en el
+   *  MISMO orden que `decision.principal`/`decision.secondary` — `renderIntelligence` los mapea
+   *  1 a 1, nunca los reordena). */
+  function buildAuditSnapshot(decision, rendered, callerPlayerId, fingerprint, rulesVersionCombined) {
+    const CL = global.PLIntelligenceClaims;
+    const ED = global.PLIntelligenceEditorial;
+    return {
+      matchId: decision.ctx.matchId,
+      perspectivePlayerId: callerPlayerId,
+      dataAsOf: decision.ctx.playedAt,
+      fingerprint,
+      rulesVersions: {
+        a: 'bramu_intelligence_context_v1',
+        b: CL.RULES_VERSION,
+        c: ED.RULES_VERSION,
+        d: RULES_VERSION,
+        combined: rulesVersionCombined,
+      },
+      claims: (decision.allClaims || []).map(summarizeClaimForAudit),
+      evaluated: (decision.evaluated || []).map(summarizeEvaluatedForAudit),
+      abstention: !!decision.abstention,
+      principal: decision.principal ? {
+        insightType: decision.principal.insightType,
+        semanticKey: decision.principal.semanticKey,
+        templateId: rendered.principal ? rendered.principal.templateId : null,
+      } : null,
+      secondary: (decision.secondary || []).map((c, i) => ({
+        insightType: c.insightType,
+        semanticKey: c.semanticKey,
+        templateId: (rendered.secondary && rendered.secondary[i]) ? rendered.secondary[i].templateId : null,
+      })),
+      learningMessage: rendered.learningMessage,
+      fallbackMessage: rendered.fallbackMessage,
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 9. REPLAY CRONOLÓGICO POR CHECKPOINTS (Revisión Central Fase D, D01) */
   /* ------------------------------------------------------------------ */
 
   /** Reemplaza el diseño original de Fase D (un solo blob global "memoria actual del jugador",
@@ -523,14 +616,19 @@
    *  separada; y un cambio de `rulesVersion` (nueva versión de reglas combinada A+B+C+D)
    *  invalida un checkpoint aunque su fingerprint de datos siga siendo idéntico.
    *
-   *  `existingCheckpoints`: `{ [matchId]: { sourceFingerprint, rulesVersion, output, memoryAfter } }`
-   *  — el llamador (la Edge Function) lo arma con UNA sola consulta a `intelligence_match_outputs`
-   *  por jugador (nunca N consultas, una por partido). `rulesVersion` es la combinada A+B+C+D
-   *  vigente, calculada por el llamador — este módulo nunca la hardcodea ni la recalcula.
+   *  `existingCheckpoints`: `{ [matchId]: { sourceFingerprint, rulesVersion, output, memoryAfter,
+   *  audit } }` — el llamador (la Edge Function) lo arma con UNA sola consulta a
+   *  `intelligence_match_outputs` por jugador (nunca N consultas, una por partido). `rulesVersion`
+   *  es la combinada A+B+C+D vigente, calculada por el llamador — este módulo nunca la
+   *  hardcodea ni la recalcula.
    *
    *  Devuelve `steps`, un array de longitud `targetIndex + 1` (uno por partido del prefijo),
-   *  cada uno `{matchId, fingerprint, reused, output, memoryAfter}`. El llamador persiste
-   *  (upsert) únicamente los pasos con `reused:false` y responde con `steps[targetIndex].output`. */
+   *  cada uno `{matchId, fingerprint, reused, output, memoryAfter, audit}`. El llamador persiste
+   *  (upsert) los TRES campos server-only (`output`/`memoryAfter`/`audit`) únicamente de los
+   *  pasos con `reused:false`, y responde al cliente con `steps[targetIndex].output` — nunca con
+   *  `audit` (D06: la auditoría completa queda exclusivamente server-side). Un checkpoint
+   *  reutilizado reutiliza también su `audit` EXACTO, tal cual quedó guardado — nunca se
+   *  regenera solo porque se reutiliza el resto. */
   function runIntelligenceReplay(historyAsc, targetIndex, callerPlayerId, existingCheckpoints, rulesVersion) {
     const ED = global.PLIntelligenceEditorial;
     const checkpoints = existingCheckpoints || {};
@@ -542,12 +640,13 @@
       const fingerprint = computeHistoryFingerprint(prefix);
       const existing = checkpoints[stepMatchId];
       if (existing && existing.sourceFingerprint === fingerprint && existing.rulesVersion === rulesVersion) {
-        steps.push({ matchId: stepMatchId, fingerprint, reused: true, output: existing.output, memoryAfter: existing.memoryAfter });
+        steps.push({ matchId: stepMatchId, fingerprint, reused: true, output: existing.output, memoryAfter: existing.memoryAfter, audit: existing.audit });
         memoryBefore = existing.memoryAfter;
       } else {
         const decision = ED.buildEditorialDecision(prefix, callerPlayerId, memoryBefore);
         const rendered = renderIntelligence(decision, prefix, memoryBefore);
-        steps.push({ matchId: stepMatchId, fingerprint, reused: false, output: publicOutputOf(rendered), memoryAfter: rendered.memoryUpdate });
+        const audit = buildAuditSnapshot(decision, rendered, callerPlayerId, fingerprint, rulesVersion);
+        steps.push({ matchId: stepMatchId, fingerprint, reused: false, output: publicOutputOf(rendered), memoryAfter: rendered.memoryUpdate, audit });
         memoryBefore = rendered.memoryUpdate;
       }
     }

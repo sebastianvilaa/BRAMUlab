@@ -13,6 +13,10 @@
 // D03.*/D04/D05 al final de este archivo, sobre `PLIntelligencePresentation.runIntelligenceReplay`
 // (checkpoints cronológicos, reemplaza el diseño de un solo blob global de memoria) y el
 // fingerprint extendido (identidad real de participantes/formato/scoring/conocimiento de hora).
+//
+// Auditoría persistida (docs/.../19_Revision_Central_Fase_D_Auditoria.md, D06): tests D06.*, sobre
+// el `audit` que ahora devuelve cada paso de `runIntelligenceReplay` — snapshot server-only,
+// nunca enviado al cliente (ver `output`, que sigue siendo exactamente lo que ya se probaba).
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -616,4 +620,128 @@ test('9 (D05): forma_reciente en la primera lectura no dice "comparada con los N
   const claimFullWindow = { current: { sampleSize: 5, wins: 3, losses: 2 }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } };
   const rendered2 = PR.renderIntelligence(fakeDecisionFor('forma_reciente', claimFullWindow), [], PR.emptyMemory());
   assert.ok(rendered2.principal.why.indexOf('comparada con los 5 inmediatamente anteriores') !== -1);
+});
+
+/* ==================================================================== */
+/* Corrección Revisión Central Fase D — auditoría persistida (D06)       */
+/* 19_Revision_Central_Fase_D_Auditoria.md §5                            */
+/* ==================================================================== */
+
+function allMatchIdsOf(historyAsc) {
+  return historyAsc.map((m) => m.matchId);
+}
+
+test('D06.1/D06.2: un checkpoint nuevo contiene audit, con claim estructurado + evidenceMatchIds + comparisonScope + sampleSize + confidence + officialScope', () => {
+  const rows = winSeries(4, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+
+  assert.ok(last.audit); // D06.1
+  assert.ok(Array.isArray(last.audit.claims));
+  assert.ok(last.audit.claims.length > 0);
+  const someClaim = last.audit.claims.find((c) => !c.discarded);
+  assert.ok(someClaim); // D06.2
+  assert.ok(someClaim.claim && typeof someClaim.claim === 'object');
+  assert.ok(Array.isArray(someClaim.evidenceMatchIds) && someClaim.evidenceMatchIds.length > 0);
+  assert.ok(typeof someClaim.comparisonScope === 'string');
+  assert.equal(typeof someClaim.sampleSize, 'number');
+  assert.ok(someClaim.confidenceTier);
+  assert.ok(someClaim.officialScope);
+});
+
+test('D06.3: un claim descartado por Fase B queda persistido en audit con discarded=true y discardReasonCodes', () => {
+  // companero_balance: con solo 3 partidos, Fase B lo descarta (umbral 4) — mismo fixture que el
+  // test #13 de intelligence-editorial.test.mjs.
+  const rows = [1, 2, 3].map((d) => row({ playedAt: dayIso(d), team1: PARTNER, sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+
+  const discarded = last.audit.claims.find((c) => c.insightType === 'companero_balance');
+  assert.ok(discarded);
+  assert.equal(discarded.discarded, true);
+  assert.ok(discarded.discardReasonCodes.length > 0);
+});
+
+test('D06.4: un candidato descartado/no seleccionado por Fase C conserva editorialStatus y razón/score en audit.evaluated', () => {
+  const rows = winSeries(10, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+
+  assert.ok(Array.isArray(last.audit.evaluated));
+  assert.ok(last.audit.evaluated.length > 0);
+  const notSelected = last.audit.evaluated.find((e) => e.editorialStatus !== 'selected_principal' && e.editorialStatus !== 'selected_secondary');
+  assert.ok(notSelected, 'se esperaba al menos un candidato evaluado que no terminó seleccionado');
+  assert.ok(notSelected.editorialStatus);
+  // O tiene un motivo de exclusión (cooldown), o tiene el desglose de score que explica por qué
+  // no ganó la selección — nunca ninguno de los dos a la vez que el otro esté ausente sin razón.
+  assert.ok(notSelected.excludedReason || notSelected.score);
+});
+
+test('D06.5: principal/secundarios de audit coinciden con templateId/semanticKey del output público', () => {
+  const rows = winSeries(4, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+
+  if (last.output.abstention) {
+    assert.equal(last.audit.principal, null);
+  } else {
+    assert.ok(last.audit.principal);
+    assert.equal(last.audit.principal.templateId, last.output.principal.templateId);
+    assert.equal(last.audit.principal.semanticKey, last.output.principal.semanticKey);
+    assert.equal(last.audit.secondary.length, last.output.secondary.length);
+    last.audit.secondary.forEach((s, i) => {
+      assert.equal(s.templateId, last.output.secondary[i].templateId);
+      assert.equal(s.semanticKey, last.output.secondary[i].semanticKey);
+    });
+  }
+});
+
+test('D06.6: un checkpoint reutilizado conserva EXACTAMENTE el mismo audit (nunca se regenera solo porque se reutiliza el resto)', () => {
+  const rows = winSeries(5, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps1 = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const existingCheckpoints = {};
+  steps1.forEach((s) => {
+    existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter, audit: s.audit };
+  });
+
+  const steps2 = PR.runIntelligenceReplay(history, history.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  steps2.forEach((s, i) => {
+    assert.equal(s.reused, true);
+    assert.equal(JSON.stringify(s.audit), JSON.stringify(steps1[i].audit));
+  });
+});
+
+test('D06.7: la respuesta al cliente (output) nunca contiene audit ni memoria interna', () => {
+  const rows = winSeries(4, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  steps.forEach((s) => {
+    assert.equal(Object.prototype.hasOwnProperty.call(s.output, 'audit'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(s.output, 'memoryUpdate'), false);
+  });
+});
+
+test('D06.8: la capa de auditoría no inventa claims/números/entidades — solo copia lo que A/B/C ya produjeron', () => {
+  const rows = winSeries(6, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const validMatchIds = allMatchIdsOf(history);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+
+  // El audit del último partido tiene tantos claims como Fase B produjo para ese mismo prefijo,
+  // ni uno más (se recalcula la decisión de forma independiente, con la MISMA memoria que ya
+  // quedó acumulada en el checkpoint anterior, y se compara la cantidad).
+  const independentDecision = ED.buildEditorialDecision(history, ME, steps[steps.length - 2].memoryAfter);
+  assert.equal(last.audit.claims.length, independentDecision.allClaims.length);
+  assert.equal(last.audit.evaluated.length, independentDecision.evaluated.length);
+
+  // Ningún evidenceMatchId referenciado es ajeno a esta misma historia.
+  last.audit.claims.forEach((c) => {
+    c.evidenceMatchIds.forEach((id) => assert.ok(validMatchIds.indexOf(id) !== -1, `evidenceMatchId ajeno a la historia: ${id}`));
+  });
 });

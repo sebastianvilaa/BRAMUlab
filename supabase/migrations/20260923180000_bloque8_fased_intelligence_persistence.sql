@@ -15,6 +15,12 @@
 --   - `output`: la salida visible ya renderizada (Fase D) — nunca incluye la memoria interna;
 --   - `memory_after`: la memoria editorial (Fase C) + de plantillas (Fase D) combinada,
 --     INMEDIATAMENTE DESPUÉS de este partido — el "checkpoint" real. Nunca se envía al cliente.
+--   - `audit`: snapshot de auditoría completo — TODOS los claims de Fase B (afirmados y
+--     descartados), la evaluación editorial de Fase C (score/subscores/penalizaciones/motivo de
+--     cada candidato) y a qué principal/secundarios/templateIds llegó la decisión final. Server-
+--     only, NUNCA se envía al cliente (Revisión Central Fase D — auditoría, D06). Existe para
+--     poder reconstruir por qué se tomó una decisión histórica sin volver a ejecutar las reglas
+--     actuales sobre datos que pueden haber cambiado desde entonces (BRAMU_Intelligence.md §6.5).
 --
 -- La Edge Function `get-match-intelligence` (Fase D) camina cronológicamente desde el primer
 -- partido de la historia del jugador hasta el partido pedido, reutilizando cada checkpoint cuyo
@@ -65,6 +71,12 @@ create table public.intelligence_match_outputs (
   -- este partido — el checkpoint real que D01 exige. Nunca se envía al cliente: solo lo lee la
   -- Edge Function como `memoryBefore` del SIGUIENTE partido en la caminata cronológica.
   memory_after        jsonb not null,
+  -- Snapshot de auditoría completo de la decisión de ESTE partido — ver la nota de cabecera de
+  -- este archivo y `PLIntelligencePresentation.buildAuditSnapshot`/`runIntelligenceReplay`
+  -- (bramulab/intelligence-presentation.js). Server-only: la Edge Function nunca la incluye en
+  -- su respuesta al cliente (`output` es lo único que se devuelve). Un checkpoint reutilizado
+  -- (mismo fingerprint + rules_version) reutiliza este campo tal cual, sin regenerarlo.
+  audit               jsonb not null,
   generated_at        timestamptz not null default now(),
 
   primary key (player_id, match_id)
@@ -73,12 +85,14 @@ create table public.intelligence_match_outputs (
 comment on table public.intelligence_match_outputs is
   'Un CHECKPOINT por (jugador, partido): la salida visible de BRAMU Intelligence ya renderizada
    (`output`) + la memoria editorial/de plantillas combinada inmediatamente después de ese
-   partido (`memory_after`, nunca expuesta al cliente) + su huella de historia y versión de
-   reglas (Bloque 8 Fase D, corrección D01). La Edge Function get-match-intelligence camina
-   cronológicamente por estos checkpoints — nunca usa un blob global de "memoria actual". Un
-   mismo match_id puede tener hasta 4 filas (una por jugador con perspectiva distinta) — nunca se
-   comparte entre jugadores. Escritura exclusiva de la Edge Function, service_role. No existe un
-   estado "invalidated": una fila que deja de coincidir en fingerprint/rules_version simplemente
+   partido (`memory_after`, nunca expuesta al cliente) + el snapshot completo de auditoría
+   (`audit`: claims de Fase B afirmados y descartados, evaluación editorial de Fase C con
+   scores/motivos, selección final — server-only, Bloque 8 Fase D, corrección D06) + su huella de
+   historia y versión de reglas (corrección D01/D02). La Edge Function get-match-intelligence
+   camina cronológicamente por estos checkpoints — nunca usa un blob global de "memoria actual".
+   Un mismo match_id puede tener hasta 4 filas (una por jugador con perspectiva distinta) — nunca
+   se comparte entre jugadores. Escritura exclusiva de la Edge Function, service_role. No existe
+   un estado "invalidated": una fila que deja de coincidir en fingerprint/rules_version simplemente
    se sobreescribe (upsert) la próxima vez que la caminata cronológica pasa por ese partido.';
 
 create index intelligence_match_outputs_match_id_idx on public.intelligence_match_outputs (match_id);
@@ -86,6 +100,6 @@ create index intelligence_match_outputs_match_id_idx on public.intelligence_matc
 alter table public.intelligence_match_outputs enable row level security;
 -- Deny-by-default deliberado, mismo criterio que match_level_results/ranking_rows — la Edge
 -- Function siempre devuelve `output` en la propia respuesta autenticada, nunca hace falta que el
--- cliente lea esta tabla por su cuenta (y `memory_after` nunca debe llegar al cliente).
+-- cliente lea esta tabla por su cuenta (y `memory_after`/`audit` nunca deben llegar al cliente).
 
 grant select, insert, update, delete on table public.intelligence_match_outputs to service_role;

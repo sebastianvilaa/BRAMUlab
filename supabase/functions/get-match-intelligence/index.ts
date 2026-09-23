@@ -1,8 +1,9 @@
 // BRAMUlab — Backend Bloque 8 (Fase D): BRAMU Intelligence server-side, real y persistente.
 //
-// Ver docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §9 y
-// 17_Revision_Central_Fase_D.md (corrección D01/D02/D03). Mismo patrón exacto que
-// officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que usa el navegador
+// Ver docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §9,
+// 17_Revision_Central_Fase_D.md (corrección D01/D02/D03) y
+// 19_Revision_Central_Fase_D_Auditoria.md (corrección D06 — auditoría persistida). Mismo patrón
+// exacto que officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que usa el navegador
 // (`intelligence-context.js`/`intelligence-claims.js`/`intelligence-editorial.js`/
 // `intelligence-presentation.js`), importado acá como side-effect import desde
 // supabase/functions/_shared/ — los 4 son SYMLINKS reales a bramulab/*.js, nunca una copia.
@@ -28,8 +29,10 @@
 //      fingerprint+rules_version siga vigente y regenerando (con la memoria del checkpoint
 //      INMEDIATAMENTE anterior, nunca con la de un partido posterior ni con la de sí mismo) los
 //      que falten o quedaron inválidos — ver el módulo puro para la garantía exacta;
-//   6) persistir (upsert) ÚNICAMENTE los checkpoints regenerados;
-//   7) devolver `output` del checkpoint del partido objetivo.
+//   6) persistir (upsert) ÚNICAMENTE los checkpoints regenerados — `output`, `memory_after` Y
+//      `audit` (D06: snapshot completo de auditoría, server-only);
+//   7) devolver ÚNICAMENTE `output` del checkpoint del partido objetivo — `audit` nunca sale en
+//      la respuesta al cliente.
 //
 // Por qué ya no existe un blob global "memoria actual del jugador" (`intelligence_player_memory`,
 // eliminada de la migración antes de aplicarla — D01): con esa memoria única, un partido viejo
@@ -136,10 +139,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, code: 'match_not_available' }, 404);
   }
 
-  // Checkpoints existentes del jugador — UNA sola consulta, nunca una por partido (D01).
+  // Checkpoints existentes del jugador — UNA sola consulta, nunca una por partido (D01). Incluye
+  // `audit` (D06, auditoría completa server-only) para que un checkpoint reutilizado reutilice
+  // también su audit exacto, sin regenerarlo.
   const { data: existingRows, error: existingError } = await serviceClient
     .from('intelligence_match_outputs')
-    .select('match_id, source_fingerprint, rules_version, output, memory_after')
+    .select('match_id, source_fingerprint, rules_version, output, memory_after, audit')
     .eq('player_id', callerPlayerId);
   if (existingError) {
     return jsonResponse({ ok: false, code: 'checkpoints_fetch_failed', detail: existingError.message }, 500);
@@ -153,13 +158,15 @@ Deno.serve(async (req) => {
       rulesVersion: r.rules_version,
       output: r.output,
       memoryAfter: r.memory_after,
+      audit: r.audit,
     };
   });
 
   // Camina cronológicamente desde el primer partido hasta el objetivo, reutilizando checkpoints
   // válidos y regenerando los que falten o quedaron inválidos — ver `runIntelligenceReplay` para
   // la garantía exacta de por qué esto nunca deja que un partido viejo reciba memoria del futuro
-  // ni que corregir el más reciente lo penalice contra sí mismo.
+  // ni que corregir el más reciente lo penalice contra sí mismo. Cada paso trae también `audit`
+  // (D06) — snapshot de auditoría completo, server-only.
   const steps = PR.runIntelligenceReplay(historyFull, targetIndex, callerPlayerId, existingCheckpoints, RULES_VERSION_COMBINED);
 
   // deno-lint-ignore no-explicit-any
@@ -173,6 +180,7 @@ Deno.serve(async (req) => {
       rules_version: RULES_VERSION_COMBINED,
       output: s.output,
       memory_after: s.memoryAfter,
+      audit: s.audit,
       generated_at: new Date().toISOString(),
     }));
     const { error: upsertError } = await serviceClient.from('intelligence_match_outputs').upsert(rows);
@@ -181,6 +189,7 @@ Deno.serve(async (req) => {
     }
   }
 
+  // `audit` NUNCA sale en la respuesta al cliente (D06) — solo `output`, igual que siempre.
   const targetStep = steps[targetIndex];
   return jsonResponse({ ok: true, output: targetStep.output, regenerated: !targetStep.reused });
 });

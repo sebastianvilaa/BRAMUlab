@@ -429,6 +429,19 @@ test('13. un candidato descartado por Fase B (discarded:true) nunca aparece entr
   assert.equal(findEvaluated(decision, 'companero_balance'), null); // nunca llega a Fase C
 });
 
+test('D06: allClaims conserva el candidato descartado por Fase B tal cual, para auditoría, sin que participe de ninguna decisión', () => {
+  const rows = [1, 2, 3].map((d) => row({ playedAt: dayIso(d), team1: PARTNER, sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const decision = ED.buildEditorialDecision(history, ME, ED.emptyMemory());
+  const discardedInAudit = decision.allClaims.find((c) => c.insightType === 'companero_balance');
+  assert.ok(discardedInAudit);
+  assert.equal(discardedInAudit.discarded, true);
+  assert.ok(discardedInAudit.discardReasonCodes.length > 0);
+  // Sigue sin aparecer entre los evaluados/seleccionados — allClaims es solo un adjunto de
+  // auditoría, nunca una segunda vía para que un descarte de B reviva en C.
+  assert.equal(findEvaluated(decision, 'companero_balance'), null);
+});
+
 /* ------------------------------------------------------------------ */
 /* 14. sin candidatos >55 => abstención                                  */
 /* ------------------------------------------------------------------ */
