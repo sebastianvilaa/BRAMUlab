@@ -1,0 +1,1 @@
+../../../bramulab/intelligence-editorial.js
