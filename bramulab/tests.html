@@ -6719,6 +6719,131 @@
   })();
 
   // ------------------------------------------------------------------
+  // BACKEND BLOQUE 7 (Fase 5) — wrappers RPC de Ranking real (ranking.js)
+  //
+  // auth.js/matches.js/match-validation.js no se cargan en este harness y no tienen suite
+  // propia (mismo criterio ya vigente en el repo — ver 20_Resultado_Fase_5_Claude.md): las
+  // funciones nuevas de app.js (computeRankingViewServerBacked, el gate, las tarjetas
+  // server-backed) tampoco se testean acá — app.js no tiene cobertura unitaria por diseño (ver
+  // Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md). Lo que SÍ es testeable sin backend
+  // real es exactamente lo de acá: que cada wrapper de ranking.js traduzca los parámetros
+  // correctos a la RPC correcta y devuelva la respuesta tal cual (nunca recalculada), que nunca
+  // rompa sin `PLAuth` presente, y las dos funciones puras nuevas (mapServerMovement/
+  // formatServerPeriodLabel).
+  // ------------------------------------------------------------------
+
+  // ---- Sin PLAuth cargado (entorno real de este harness): nunca lanza, nunca inventa datos ----
+  await (async function () {
+    assert('B7F5-RPC · isRemoteConfigured() es false sin PLAuth', RK.isRemoteConfigured() === false);
+    const calls = [
+      RK.getCurrentRankingEdition(),
+      RK.getRankingClassification('local', 'M', null, null, 50, 0),
+      RK.getMyRankingPosition('local', null),
+      RK.getRankingNetwork('M'),
+      RK.setRankingNetworkHidden('fake-id', true),
+      RK.getProfileRankingSummary('fake-id'),
+      RK.getHomeRankingInsight(),
+    ];
+    const results2 = await Promise.all(calls);
+    assert('B7F5-RPC · las 7 RPCs devuelven {ok:false, code:not_configured} sin PLAuth, nunca lanzan', results2.every((r) => r.ok === false && r.code === 'not_configured'));
+  })();
+
+  // ---- Con un cliente Supabase fabricado: mapeo de parámetros + passthrough de la respuesta ----
+  await (async function () {
+    const originalPLAuth = window.PLAuth;
+    function makeFakeClient(script) {
+      const calls = [];
+      return {
+        calls,
+        rpc(name, args) {
+          calls.push({ name, args });
+          const entry = script[name];
+          return Promise.resolve(typeof entry === 'function' ? entry(args) : (entry || { data: null, error: null }));
+        },
+      };
+    }
+    try {
+      const fakeClient = makeFakeClient({
+        get_current_ranking_edition: () => ({ data: { edition: { editionId: 'e1' } }, error: null }),
+        get_ranking_classification: () => ({ data: { total: 3, rows: [{ playerId: 'p1' }] }, error: null }),
+        get_my_ranking_position: () => ({ data: { hasPosition: true, position: 2 }, error: null }),
+        get_ranking_network: () => ({ data: { total: 1, rows: [] }, error: null }),
+        set_ranking_network_hidden: () => ({ data: true, error: null }),
+        get_profile_ranking_summary: () => ({ data: { local: null, provincial: null, pais: null }, error: null }),
+        get_home_ranking_insight: () => ({ data: { hasPosition: false }, error: null }),
+        invalid_scope_test: () => ({ data: null, error: { message: 'invalid_scope_type' } }),
+      });
+      window.PLAuth = { isConfigured: () => true, getClient: () => fakeClient };
+
+      const edition = await RK.getCurrentRankingEdition();
+      assert('B7F5-RPC · getCurrentRankingEdition llama get_current_ranking_edition sin argumentos', fakeClient.calls[0].name === 'get_current_ranking_edition');
+      assert('B7F5-RPC · getCurrentRankingEdition devuelve {ok:true,data} tal cual la RPC', edition.ok === true && edition.data.edition.editionId === 'e1');
+
+      const cls = await RK.getRankingClassification('local', 'M', 7, 'ana', 20, 10);
+      const clsCall = fakeClient.calls[1];
+      assert('B7F5-RPC · getRankingClassification mapea scope/rama/banda/búsqueda/límite/offset', clsCall.name === 'get_ranking_classification'
+        && clsCall.args.p_scope_type === 'local' && clsCall.args.p_competitive_branch === 'M' && clsCall.args.p_level_band === 7
+        && clsCall.args.p_search === 'ana' && clsCall.args.p_limit === 20 && clsCall.args.p_offset === 10);
+      assert('B7F5-RPC · getRankingClassification devuelve las filas tal cual, sin recalcular nada', cls.ok === true && cls.data.rows[0].playerId === 'p1');
+
+      await RK.getRankingClassification('global', 'F', null, null, 0, 0);
+      const clsDefaultsCall = fakeClient.calls[2];
+      assert('B7F5-RPC · getRankingClassification: banda null viaja como null (nunca 0/undefined) y limit=0 cae al default 50', clsDefaultsCall.args.p_level_band === null && clsDefaultsCall.args.p_limit === 50);
+
+      await RK.getMyRankingPosition('provincial', 5);
+      const posCall = fakeClient.calls[3];
+      assert('B7F5-RPC · getMyRankingPosition mapea scope/banda', posCall.name === 'get_my_ranking_position' && posCall.args.p_scope_type === 'provincial' && posCall.args.p_level_band === 5);
+
+      await RK.getRankingNetwork('F');
+      const netCall = fakeClient.calls[4];
+      assert('B7F5-RPC · getRankingNetwork envía la rama explícita (nunca infiere la del caller para esta pantalla)', netCall.args.p_competitive_branch === 'F');
+      await RK.getRankingNetwork(null);
+      assert('B7F5-RPC · getRankingNetwork con rama null la envía tal cual (selector "usar la mía")', fakeClient.calls[5].args.p_competitive_branch === null);
+
+      await RK.setRankingNetworkHidden('p9', true);
+      const hideCall = fakeClient.calls[6];
+      assert('B7F5-RPC · setRankingNetworkHidden mapea player id + flag', hideCall.name === 'set_ranking_network_hidden' && hideCall.args.p_hidden_player_id === 'p9' && hideCall.args.p_hidden === true);
+
+      await RK.getProfileRankingSummary('p9');
+      assert('B7F5-RPC · getProfileRankingSummary mapea p_player_id', fakeClient.calls[7].args.p_player_id === 'p9');
+
+      const home = await RK.getHomeRankingInsight();
+      assert('B7F5-RPC · getHomeRankingInsight llama get_home_ranking_insight y devuelve la data tal cual', fakeClient.calls[8].name === 'get_home_ranking_insight' && home.data.hasPosition === false);
+
+      // Error real de la RPC (excepción Postgres) -> {ok:false, code:<mensaje exacto>}, nunca
+      // {ok:true} con datos parciales ni un mensaje traducido/inventado en esta capa.
+      fakeClient.rpc = (name, args) => { fakeClient.calls.push({ name, args }); return Promise.resolve({ data: null, error: { message: 'invalid_scope_type' } }); };
+      const errored = await RK.getRankingClassification('bad-scope', 'M', null, null, 50, 0);
+      assert('B7F5-RPC · un error real de la RPC vuelve como {ok:false, code:<mensaje exacto>}', errored.ok === false && errored.code === 'invalid_scope_type');
+    } finally {
+      window.PLAuth = originalPLAuth;
+    }
+  })();
+
+  // ---- Funciones puras nuevas: movimiento server->UI y etiqueta de período ----
+  (function () {
+    const nuevo = RK.mapServerMovement({ status: 'nuevo', delta: null });
+    assert('B7F5-PURE · mapServerMovement(nuevo) -> {delta:null, label:"Nuevo"}', nuevo.delta === null && nuevo.label === 'Nuevo');
+    const sube = RK.mapServerMovement({ status: 'movimiento', delta: 4 });
+    assert('B7F5-PURE · mapServerMovement(+4) -> "↑ 4"', sube.delta === 4 && sube.label === '↑ 4');
+    const baja = RK.mapServerMovement({ status: 'movimiento', delta: -3 });
+    assert('B7F5-PURE · mapServerMovement(-3) -> "↓ 3" (nunca un signo pegado al número)', baja.delta === -3 && baja.label === '↓ 3');
+    const mismo = RK.mapServerMovement({ status: 'movimiento', delta: 0 });
+    assert('B7F5-PURE · mapServerMovement(0) -> "—" (nunca "Nuevo" ni "↑ 0")', mismo.label === '—');
+    assert('B7F5-PURE · mapServerMovement(null) -> Nuevo, nunca lanza', RK.mapServerMovement(null).label === 'Nuevo');
+
+    // Mismos instantes que usaría un cutoff real de compute_ranking_edition, comparados contra
+    // el formateador YA testeado (formatRankingWeekRangeLabel) — nunca una segunda fórmula de
+    // fechas para el caso server-backed.
+    const start = new Date('2026-08-31T03:00:00.000Z');
+    const end = new Date('2026-09-06T02:59:59.999Z');
+    const expected = RK.formatRankingWeekRangeLabel({ start, end });
+    const got = RK.formatServerPeriodLabel(start.toISOString(), end.toISOString());
+    assert('B7F5-PURE · formatServerPeriodLabel coincide con formatRankingWeekRangeLabel para el mismo período', got === expected, `${got} vs ${expected}`);
+    assert('B7F5-PURE · formatServerPeriodLabel sin fechas devuelve vacío, nunca "Invalid Date"', RK.formatServerPeriodLabel(null, null) === '');
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

@@ -186,6 +186,14 @@
       dominantHand: profile.dominant_hand || null,
       preferredSide: profile.preferred_side || null,
       competitiveBranch: profile.competitive_branch || null,
+      // Backend Bloque 7 (Fase 5) — gate "Completar datos para Ranking" (Ranking_BRAMU.md
+      // §13.7): estos dos campos ya viajaban en las mismas filas de arriba (`profiles.*` trae
+      // `ranking_opt_in`, el `select` de `locations` ya pedía `verified_for_ranking`) pero
+      // fetchOwnProfile nunca los copiaba al objeto cacheado — sin esto, app.js no tenía forma
+      // de saber si falta completar el gate sin depender de que ya exista una edición publicada
+      // (get_my_ranking_position solo devuelve reasonCodes cuando SÍ hay edición).
+      rankingOptIn: profile.ranking_opt_in === true,
+      locationVerifiedForRanking: location ? !!location.verified_for_ranking : false,
       // Backend Bloque 3 — Nivel BRAMU ya es productivo: declaredCategory viene de
       // level_states (única fuente, nunca un segundo campo independiente en profiles).
       declaredCategory: levelState ? levelState.declared_category || null : null,
@@ -364,6 +372,33 @@
     return { ok: true, player: { player_id: data.player_id } };
   }
 
+  /** Backend Bloque 7 (Fase 5) — única vía de escritura de localidad deportiva/rama
+   *  competitiva/`ranking_opt_in` (RPC `complete_ranking_profile_data`, ver
+   *  supabase/migrations/20260922140000_bloque7_fase2_ranking_calculation.sql). Nunca reutiliza
+   *  `completeProfile` (handoff Fase 5 §6: "No reutilizar complete_profile"). `location`: mismo
+   *  shape `{region, locality, provinceId, localityId}` que ya usa `completeProfile` — GeoRef
+   *  presente → ubicación verificada; ausente → manual (`verified_for_ranking=false`).
+   *  `{ok:false, code}` con el código de excepción tal cual lo levanta la RPC
+   *  (ranking_opt_in_required/competitive_branch_invalid/location_required/
+   *  location_change_cooldown/profile_incomplete/no_profile_for_player) para que app.js decida
+   *  el mensaje en español — mismo criterio que completeProfile. */
+  async function completeRankingProfileData(fields) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const location = fields.location || {};
+    const { data, error } = await c.rpc('complete_ranking_profile_data', {
+      p_competitive_branch: fields.competitiveBranch || null,
+      p_ranking_opt_in: fields.rankingOptIn === true,
+      p_location_country_code: 'AR',
+      p_location_province_label: location.region || null,
+      p_location_locality_label: location.locality || null,
+      p_location_georef_province_id: location.provinceId || null,
+      p_location_georef_locality_id: location.localityId || null,
+    });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, profile: data };
+  }
+
   global.PLAuth = {
     isConfigured, getClient,
     signUp, verifySignupOtp, resendSignupOtp,
@@ -371,6 +406,6 @@
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
-    createClaimLink, claimProvisionalPlayer,
+    createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -763,6 +763,145 @@
     return { position: current.position, total: current.total, territory: current.territory, isNew: false, delta };
   }
 
+  /* ======================================================================
+     BACKEND BLOQUE 7 (Fase 5) — RANKING BRAMU REAL, SERVER-BACKED
+     Único punto de contacto con las RPCs de lectura de Fase 3
+     (supabase/migrations/20260922150000_bloque7_fase3_read_rpcs.sql) y con el wrapper de
+     publicación semanal de Fase 4 (nunca invocado desde acá: pg_cron es exclusivamente
+     server-side). Mismo criterio que auth.js/matches.js/match-validation.js: `isConfigured()`
+     es la ÚNICA bisagra — sin backend real configurado, ninguna función de acá se llama nunca
+     (app.js decide, ver computeRankingView), así que todo lo de arriba (universo mock/orden/
+     movimiento local) sigue intacto para desarrollo sin backend. Con backend configurado
+     (Staging/Production), Ranking real NUNCA cae a un fallback simulado (handoff Fase 5 §9): si
+     una RPC falla, se devuelve `{ok:false, code}` y app.js muestra un estado de error real,
+     nunca datos inventados.
+
+     Todas las RPCs de acá devuelven `jsonb` ya armado en camelCase por el propio servidor (ver
+     la migración) — a diferencia de otros módulos (matches.js), no hace falta ninguna
+     traducción snake_case→camelCase en esta capa. */
+  function isRemoteConfigured() {
+    const Auth = global.PLAuth;
+    return !!(Auth && Auth.isConfigured());
+  }
+
+  function getRemoteClient() {
+    const Auth = global.PLAuth;
+    return Auth ? Auth.getClient() : null;
+  }
+
+  /** `get_current_ranking_edition()` — última edición publicada, o `{edition:null}` explícito
+   *  (handoff Fase 3 §3) si todavía no existe ninguna. Nunca inventa una edición. */
+  async function getCurrentRankingEdition() {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_current_ranking_edition');
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data: data || { edition: null } };
+  }
+
+  /** `get_ranking_classification(...)` — clasificación paginada/buscable de Local/Provincial/
+   *  País/Global (handoff Fase 3 §4/§5/§6/§11). `scope_key` SIEMPRE se resuelve server-side
+   *  desde la fila propia del caller — este wrapper nunca acepta ni envía un territorio propio,
+   *  solo `scopeType`. `band`/`search` `null` cuando no aplican (la RPC ya los trata como
+   *  "sin filtro"/"sin búsqueda" con sus propios defaults). */
+  async function getRankingClassification(scopeType, competitiveBranch, band, search, limit, offset) {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_ranking_classification', {
+      p_scope_type: scopeType,
+      p_competitive_branch: competitiveBranch,
+      p_level_band: band == null ? null : band,
+      p_search: search || null,
+      p_limit: limit || 50,
+      p_offset: offset || 0,
+    });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data };
+  }
+
+  /** `get_my_ranking_position(...)` — "Tu posición" real: puesto/total si existe, estado de
+   *  elegibilidad propio (`reasonCodes`), movimiento vs. edición anterior comparable, ventana de
+   *  contexto ±2 filas. Nunca inventa un puesto para un caller CALIBRANDO/sin ubicación/sin
+   *  rama (handoff Fase 3 §8). */
+  async function getMyRankingPosition(scopeType, band) {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_my_ranking_position', {
+      p_scope_type: scopeType,
+      p_level_band: band == null ? null : band,
+    });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data };
+  }
+
+  /** `get_ranking_network(...)` — "Mi red" real: propio + relaciones de partido computable de
+   *  los últimos 180 días ANTERIORES al cutoff de la edición (nunca `now()`), umbral 1-2 sin
+   *  puesto/3+ con puesto, excluye lo oculto. `competitiveBranch` explícito (`'F'`/`'M'`, nunca
+   *  `null`): el selector de Ranking siempre tiene un valor efectivo — dejar que la RPC infiera
+   *  la rama propia del caller es solo el comportamiento por defecto de la RPC para otros
+   *  consumidores, no el de esta pantalla. */
+  async function getRankingNetwork(competitiveBranch) {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_ranking_network', { p_competitive_branch: competitiveBranch || null });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data };
+  }
+
+  /** `set_ranking_network_hidden(...)` — ocultar/restaurar de Mi red (idempotente, presentación
+   *  personal pura). Nunca toca partidos/Nivel/Ranking oficial ni al otro jugador. */
+  async function setRankingNetworkHidden(hiddenPlayerId, hidden) {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { error } = await c.rpc('set_ranking_network_hidden', {
+      p_hidden_player_id: hiddenPlayerId,
+      p_hidden: !!hidden,
+    });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true };
+  }
+
+  /** `get_profile_ranking_summary(playerId)` — tarjeta territorial semanal de Perfil (propio o
+   *  público, misma fuente — Ranking_BRAMU.md §15.1). SIEMPRE los ámbitos del jugador OBJETIVO,
+   *  nunca de quien mira. */
+  async function getProfileRankingSummary(playerId) {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_profile_ranking_summary', { p_player_id: playerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data };
+  }
+
+  /** `get_home_ranking_insight()` — TU MOMENTO real, ámbito Local por defecto (idéntico
+   *  contrato que `getMyRankingPosition('local', null)`, la RPC del servidor literalmente lo
+   *  reusa — ver la migración). */
+  async function getHomeRankingInsight() {
+    const c = getRemoteClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_home_ranking_insight');
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, data };
+  }
+
+  /** Traduce el `{status:'nuevo'|'movimiento', delta}` de las RPCs de Fase 3 al mismo shape
+   *  `{delta, label}` que ya devuelve `computeWeeklyMovement` (local/mock) — así
+   *  `rankingMovementClass`/`rankingMovementLongLabel` (app.js) funcionan sin cambios sobre
+   *  cualquiera de las dos fuentes. */
+  function mapServerMovement(mv) {
+    if (!mv || mv.status === 'nuevo' || mv.delta == null) return { delta: null, label: 'Nuevo' };
+    const delta = mv.delta;
+    return { delta, label: delta === 0 ? '—' : (delta > 0 ? `↑ ${delta}` : `↓ ${Math.abs(delta)}`) };
+  }
+
+  /** "Lun 31 ago — Dom 06 sep" a partir de instantes REALES del servidor (`periodStartAt`/
+   *  `periodEndAt`, ISO) — reusa exactamente `formatRankingWeekRangeLabel` (arriba): esa función
+   *  ya es pura sobre instantes `Date`, sin importar si vinieron de un cálculo local o de la
+   *  edición real congelada por `compute_ranking_edition`. */
+  function formatServerPeriodLabel(periodStartAt, periodEndAt) {
+    if (!periodStartAt || !periodEndAt) return '';
+    return formatRankingWeekRangeLabel({ start: new Date(periodStartAt), end: new Date(periodEndAt) });
+  }
+
   global.PLRanking = {
     BLOCK_SIZE,
     RANKING_TIMEZONE,
@@ -794,5 +933,15 @@
     GLOBAL_UNLOCKED,
     computeProfileRankingSummary,
     computeHomeRankingInsight,
+    isRemoteConfigured,
+    getCurrentRankingEdition,
+    getRankingClassification,
+    getMyRankingPosition,
+    getRankingNetwork,
+    setRankingNetworkHidden,
+    getProfileRankingSummary,
+    getHomeRankingInsight,
+    mapServerMovement,
+    formatServerPeriodLabel,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

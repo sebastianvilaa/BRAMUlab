@@ -5779,8 +5779,28 @@
     // Nivel actual en vivo) como candidato más para TU MOMENTO, nunca una tarjeta territorial
     // completa nueva en Home. `null` cuando no hay cuenta/no es elegible/sin género/densidad
     // insuficiente — buildTuMomentoText ya sabe ignorarlo en ese caso.
-    const rankingInsight = RK.computeHomeRankingInsight(Store.getCurrentUser(), history, new Date());
-    $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), rankingInsight);
+    // Backend Bloque 7 (Fase 5) — cuenta serverBacked: pinta TU MOMENTO SIN el insight primero
+    // (nunca bloquear el resto del Home por una RPC, handoff §10 — mismo criterio que
+    // refreshB6Notifications arriba) y lo actualiza solo cuando get_home_ranking_insight
+    // resuelve. `territory` no viaja en esa RPC (siempre ámbito Local del propio caller): se
+    // usa la localidad ya cacheada de la cuenta, no un dato nuevo.
+    const homeUser = Store.getCurrentUser();
+    if (Auth.isConfigured() && homeUser && homeUser.serverBacked) {
+      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), null);
+      RK.getHomeRankingInsight().then((result) => {
+        if (!result.ok || !result.data || !result.data.hasPosition) return;
+        const pos = result.data;
+        const insight = {
+          position: pos.position, total: pos.total, territory: homeUser.locality || '',
+          isNew: !!(pos.movement && pos.movement.status === 'nuevo'),
+          delta: pos.movement ? pos.movement.delta : null,
+        };
+        $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), insight);
+      });
+    } else {
+      const rankingInsight = RK.computeHomeRankingInsight(homeUser, history, new Date());
+      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), rankingInsight);
+    }
     renderPlayerActivity(matches, shouldAnimate);
     renderPlayerEffectiveness(matches, shouldAnimate);
     renderPlayerWidgets(matches);
@@ -6478,6 +6498,16 @@
   let rankingLoadedBlocks = 1;
   let rankingSearchQuery = '';
   let rankingSearchOpen = false;
+  // Backend Bloque 7 (Fase 5) — `computeRankingView()` es async (RPCs reales); estos dos
+  // cubren carreras entre renders superpuestos (cambiar de filtro/ámbito antes de que la
+  // respuesta anterior vuelva — mismo criterio que renderPlayerSearchResultsServerBacked) y el
+  // debounce de búsqueda server-backed (evitar una llamada por tecla, §10 del handoff).
+  let rankingRequestToken = 0;
+  let rankingSearchDebounceTimer = null;
+  // Último `view` pintado — únicamente para que "Ocultos (N)" (Mi red server-backed) pueda leer
+  // `hiddenRows` sin una llamada de red aparte (get_ranking_network no tiene un RPC propio de
+  // "solo los ocultos"); nunca se usa como fuente de autoridad para volver a pintar la pantalla.
+  let rankingLastView = null;
 
   function renderRankingScopeTabs() {
     const wrap = $('#ranking-scope-tabs');
@@ -6573,6 +6603,157 @@
     return { name, status, level };
   }
 
+  /* ====================================================================
+     BACKEND BLOQUE 7 (Fase 5) — RANKING BRAMU REAL, SERVER-BACKED
+     computeRankingView() (más abajo) es el único punto que decide entre esta variante y la
+     local/mock (computeRankingViewLocal, renombrada de la función histórica sin tocar su
+     cuerpo) — mismo criterio que playerPublicPlayerId && Auth.isConfigured() en
+     renderPlayerPublicProfile: con backend real configurado Y una cuenta serverBacked, Ranking
+     NUNCA cae a datos simulados (handoff Fase 5 §9); sin backend configurado (desarrollo local
+     sin Supabase), computeRankingViewLocal sigue funcionando exactamente igual que siempre.
+     El navegador nunca recalcula posición/empate/denominador/densidad/movimiento acá — todo
+     sale tal cual de las RPCs de Fase 3 (RK.getRankingClassification/getMyRankingPosition/
+     getRankingNetwork); esta capa solo TRADUCE esas respuestas al mismo shape de `view` que ya
+     consumen renderRankingStateCard/renderRankingMyPosition/renderRankingClassification/
+     renderRankingUnrankedSections/renderRankingHiddenButton, para no duplicar ni tocar esas
+     funciones de render. ====================================================================== */
+
+  /** Traduce `reasonCodes`/`isEligible`/`levelStatus` de get_my_ranking_position al mismo
+   *  vocabulario de `status.key` que ya usa selfStatusCopy/RANKING_NON_BLOCKING_SELF_KEYS
+   *  (local). `competitive_branch_missing`/`ranking_opt_in_false`/`location_missing` no
+   *  deberían llegar hasta acá en la práctica — el gate de openRankingScreen ya los resuelve
+   *  ANTES de entrar a la pantalla — pero se cubren igual por si los datos cambian entre el
+   *  chequeo del gate y esta llamada (p. ej. otra pestaña). Sin `calib.progressText` numérico
+   *  (la RPC no expone partidos/rivales distintos, solo `reasonCodes`): el texto de calibrando
+   *  queda genérico acá, nunca un número inventado. */
+  function buildServerSelfStatus(pos) {
+    if (pos.isEligible) return { key: 'elegible' };
+    const codes = pos.reasonCodes || [];
+    if (codes.includes('account_inactive') || codes.includes('account_excluded')) return { key: 'perfil-privado' };
+    if (codes.includes('location_missing')) return { key: 'sin-ubicacion' };
+    if (codes.includes('inactive_180_days')) return { key: 'inactivo' };
+    if (codes.includes('level_not_calibrated') || codes.includes('recalibrating_without_consolidated')) {
+      return { key: 'calibrando', calib: { progressText: 'Todavía estás calibrando tu Nivel BRAMU.' } };
+    }
+    if (codes.includes('no_computable_activity') || !pos.levelPublic) {
+      return { key: 'sin-nivel', calib: { progressText: '' } };
+    }
+    // competitive_branch_missing/ranking_opt_in_false u otro motivo no mapeado explícitamente:
+    // nunca se inventa "elegible" — se trata como calibrando genérico (bloquea Tu posición,
+    // nunca la clasificación de terceros debajo).
+    return { key: 'calibrando', calib: { progressText: '' } };
+  }
+
+  /** Ámbitos territoriales (Local/Provincial/País/Global) server-backed. `get_ranking_classification`
+   *  ya resuelve `scope_key` server-side (nunca un parámetro propio, handoff Fase 3 §4) y ya
+   *  pagina/busca — este wrapper solo pide `rankingLoadedBlocks * BLOCK_SIZE` filas desde el
+   *  principio (mismo criterio que RK.paginate local: recortar de 0 en cada render, nunca
+   *  acumular estado de paginación aparte) o, con búsqueda activa, hasta el máximo que la RPC
+   *  acepta (100) — igual que el buscador local, que nunca pagina resultados de búsqueda. */
+  async function computeRankingViewServerBacked(user) {
+    const scope = rankingScopeFilter;
+    const isTerritorial = scope !== 'mi-red';
+    const branch = rankingGenderFilter === 'femenino' ? 'F' : 'M';
+
+    if (!isTerritorial) return computeRankingNetworkViewServerBacked(branch);
+
+    const searchTerm = rankingSearchQuery || null;
+    const limit = searchTerm ? 100 : rankingLoadedBlocks * RK.BLOCK_SIZE;
+    const [classResult, posResult] = await Promise.all([
+      RK.getRankingClassification(scope, branch, rankingBandFilter, searchTerm, limit, 0),
+      RK.getMyRankingPosition(scope, rankingBandFilter),
+    ]);
+    if (!classResult.ok || !posResult.ok) {
+      return { scope, isTerritorial, serverError: true, period: null, periodLabel: '' };
+    }
+    const cls = classResult.data;
+    const pos = posResult.data;
+
+    // Global bloqueado es DINÁMICO server-side (diversidad real de país), nunca la constante
+    // fija RK.GLOBAL_UNLOCKED del prototipo local — corta ACÁ, antes de armar ningún estado
+    // propio, mismo lugar que la rama local.
+    if (scope === 'global' && cls.densityStatus === 'locked') {
+      return { scope, isTerritorial, globalBlocked: true };
+    }
+
+    const myId = user.id;
+    const movementMap = new Map();
+    const ranked = (cls.rows || []).map((row) => {
+      movementMap.set(row.playerId, RK.mapServerMovement(row.movement));
+      return {
+        id: row.playerId, playerId: row.playerId, name: row.displayName,
+        username: row.username ? `@${row.username}` : null,
+        level: row.levelPublic, isMe: row.playerId === myId,
+        locality: scope !== 'local' ? row.location : null,
+        position: row.position,
+      };
+    });
+    if (pos.hasPosition) movementMap.set(myId, RK.mapServerMovement(pos.movement));
+
+    const totalEligible = cls.totalEligible || 0;
+    const density = { level: cls.densityStatus, missing: Math.max(0, 5 - totalEligible) };
+    const selfStatus = buildServerSelfStatus(pos);
+    const myEntry = pos.hasPosition ? { id: myId, level: pos.levelPublic, position: pos.position } : null;
+    const periodLabel = cls.edition ? RK.formatServerPeriodLabel(cls.edition.periodStartAt, cls.edition.periodEndAt) : '';
+
+    return {
+      scope, isTerritorial, selfStatus, density, ranked, movementMap, myEntry, myId,
+      totalCount: totalEligible, matchedTotal: cls.matchedTotal, period: cls.edition, periodLabel,
+      serverMode: true,
+    };
+  }
+
+  /** Mi red server-backed (`get_ranking_network`). La RPC no expone movimiento semanal por
+   *  miembro (contrato de Fase 3 — solo la clasificación territorial lo trae) ni el motivo por
+   *  el que un tercero no tiene puesto (privacidad, "no reason codes de terceros") — a
+   *  diferencia de la variante local, acá no se distingue CALIBRANDO de INACTIVO por persona:
+   *  todo miembro sin puesto (`row.position == null`) cae en un único bloque "SIN POSICIÓN",
+   *  nunca una razón inventada. Ver 20_Resultado_Fase_5_Claude.md — limitación real documentada,
+   *  no un bug de esta capa. */
+  async function computeRankingNetworkViewServerBacked(branch) {
+    const netResult = await RK.getRankingNetwork(branch);
+    if (!netResult.ok) return { scope: 'mi-red', isTerritorial: false, serverError: true, period: null, periodLabel: '' };
+    const net = netResult.data;
+    const myId = currentUserId;
+    const rows = net.rows || [];
+    const total = net.total || 0;
+    const densityLevel = total <= 0 ? 'empty' : (total <= 2 ? 'simple' : 'established');
+    const density = { level: densityLevel };
+    // §10.2 — 1-2 elegibles: "comparación simple", nunca "sin resultados" (position siempre
+    // null server-side para ese caso, ver get_ranking_network — no filtra por eso). 3+: solo
+    // las filas CON puesto van a `ranked`, el resto cae en `unpositioned` (sin distinguir
+    // calibrando/inactivo — ver comentario de más abajo).
+    const rankedSource = densityLevel === 'simple' ? rows : rows.filter((r) => r.position != null);
+    const ranked = rankedSource.map((row) => ({
+      id: row.playerId, playerId: row.playerId, name: row.displayName,
+      username: row.username ? `@${row.username}` : null, level: row.levelPublic,
+      isMe: !!row.isSelf, position: row.position,
+    }));
+    const unpositioned = densityLevel === 'simple' ? [] : rows.filter((r) => r.position == null && !r.isSelf).map((row) => ({
+      id: row.playerId, playerId: row.playerId, name: row.displayName,
+      username: row.username ? `@${row.username}` : null, level: row.levelPublic,
+    }));
+    const selfRow = rows.find((r) => r.isSelf) || null;
+    // La RPC nunca expone elegibilidad/reason codes para Mi red (self incluido, tratado como
+    // cualquier otro miembro) — sin puesto no hay forma honesta de distinguir calibrando de
+    // inactivo acá. `myEntry` queda null y `selfStatus` usa una key sin copy propio (ver
+    // selfStatusCopy/RANKING_NON_BLOCKING_SELF_KEYS): la tarjeta TU POSICIÓN simplemente no se
+    // muestra, nunca un estado inventado. `density.level === 'simple'` (1-2 elegibles) sigue
+    // mostrando a self dentro de la lista general (`ranked`), como a cualquier otro.
+    const hasPosition = !!selfRow && selfRow.position != null;
+    const myEntry = hasPosition ? { id: myId, level: selfRow.levelPublic, position: selfRow.position } : null;
+    const selfStatus = { key: hasPosition ? 'elegible' : 'sin-posicion-red' };
+    const periodLabel = net.edition ? RK.formatServerPeriodLabel(net.edition.periodStartAt, net.edition.periodEndAt) : '';
+
+    return {
+      scope: 'mi-red', isTerritorial: false, selfStatus, density, ranked, movementMap: new Map(), myEntry, myId,
+      totalCount: total, unrankedCalibrando: unpositioned, unrankedInactive: [],
+      hiddenCount: net.hiddenCount || 0, hiddenRows: net.hiddenRows || [],
+      period: net.edition, periodLabel, serverMode: true,
+      networkRowOpts: { showMovement: false },
+    };
+  }
+
   /** Bloque 2/3, refinado en V03.5.1 (§3/§4/§5) — universo/orden/movimiento de la combinación
    *  ámbito+género+banda ACTUALMENTE activa. El Nivel de CADA jugador —self incluido— es
    *  siempre PH.computeSimulatedJugadorLevel: Ranking nunca calcula ni modifica Nivel BRAMU,
@@ -6608,7 +6789,7 @@
    *     historial de cambios en este prototipo (no existe un `createdAt` de "cuándo cambiaste
    *     tu ubicación"): siguen leyéndose en vivo — versionarlos es una superficie nueva,
    *     explícitamente fuera de alcance de esta corrección (ver reporte, limitaciones). */
-  function computeRankingView() {
+  function computeRankingViewLocal() {
     const scope = rankingScopeFilter;
     const isTerritorial = scope !== 'mi-red';
 
@@ -6719,6 +6900,18 @@
       hiddenCount: hiddenNames.length,
       period, periodLabel,
     };
+  }
+
+  /** Backend Bloque 7 (Fase 5) — único punto que decide entre datos reales (RPCs de Fase 3) y
+   *  el prototipo local/mock: mismo criterio que `playerPublicPlayerId && Auth.isConfigured()`
+   *  en `renderPlayerPublicProfile` — con backend configurado y una cuenta `serverBacked`,
+   *  Ranking SIEMPRE consulta datos reales, nunca un fallback simulado (handoff Fase 5 §9). Sin
+   *  backend configurado (desarrollo local) o con una cuenta legacy/local, el comportamiento
+   *  histórico queda intacto. */
+  async function computeRankingView() {
+    const user = Store.getCurrentUser();
+    if (Auth.isConfigured() && user && user.serverBacked) return computeRankingViewServerBacked(user);
+    return computeRankingViewLocal();
   }
 
   function rankingContextLabel() {
@@ -6953,17 +7146,30 @@
    *  en sí (la tabla de Mis Grupos la sigue usando tal cual, sin cambios). */
   function buildRankingRowHTML(entry, movementMap, opts) {
     const showPosition = !opts || opts.showPosition !== false;
+    // Backend Bloque 7 (Fase 5) — showMovement:false (Mi red server-backed): get_ranking_network
+    // no expone movimiento semanal por miembro (contrato de Fase 3), así que la fila nunca debe
+    // mostrar un "—"/delta local que no viene de ningún cálculo real (ver
+    // computeRankingNetworkViewServerBacked). En cualquier otro caso (default true), sin cambios.
+    const showMovement = showPosition && (!opts || opts.showMovement !== false);
     const mv = (movementMap && movementMap.get(entry.id)) || { label: '—' };
-    const account = buildGroupRowAccount(entry.name);
-    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(entry.name);
+    // Backend Bloque 7 (Fase 5) — filas server-backed ya traen el @usuario REAL de
+    // get_ranking_classification/get_ranking_network (entry.username): nunca re-derivarlo de
+    // Store local (que ni siquiera tiene esa cuenta cacheada) ni del handle placeholder que sí
+    // corresponde al universo mock local.
+    const account = entry.username ? null : buildGroupRowAccount(entry.name);
+    const handle = entry.username || (account && account.username ? `@${account.username}` : buildPlayerHandle(entry.name));
     const caption = entry.locality ? `<span class="group-table__caption">${escapeHtml(entry.locality)}</span>` : '';
     const positionHTML = showPosition
       ? `<span class="group-table__position">${entry.position}</span>`
       : `<span class="group-table__position ranking-row__position--dash" aria-hidden="true">—</span>`;
+    // playerId real (Bloque 7) → abre el Perfil público server-backed por id, nunca por nombre
+    // (mismo criterio que search_players/get_public_profile en el resto de la app — ver
+    // wireRankingRowClicks). Ausente en filas del universo mock local, sin cambios ahí.
+    const playerIdAttr = entry.playerId ? ` data-player-id="${escapeHtml(entry.playerId)}"` : '';
     const hideHTML = (opts && opts.hideAction && !entry.isMe)
-      ? `<span class="ranking-row__hide-btn" data-name="${escapeHtml(entry.name)}" role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>`
+      ? `<span class="ranking-row__hide-btn" data-name="${escapeHtml(entry.name)}"${playerIdAttr} role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>`
       : '';
-    return `<button type="button" class="group-table__row ranking-row${entry.isMe ? ' is-me' : ''}" data-name="${escapeHtml(entry.name)}">
+    return `<button type="button" class="group-table__row ranking-row${entry.isMe ? ' is-me' : ''}" data-name="${escapeHtml(entry.name)}"${playerIdAttr}>
       ${positionHTML}
       ${buildGroupAvatarHTML(entry.name)}
       <span class="group-table__info">
@@ -6975,7 +7181,7 @@
         <span class="group-table__points-value">${entry.level.toFixed(1)}</span>
         <span class="group-table__points-label">NIVEL BRAMU</span>
       </span>
-      ${showPosition ? `<span class="ranking-row__movement ${rankingMovementClass(mv)}">${escapeHtml(mv.label)}</span>` : ''}
+      ${showMovement ? `<span class="ranking-row__movement ${rankingMovementClass(mv)}">${escapeHtml(mv.label)}</span>` : ''}
       ${hideHTML}
     </button>`;
   }
@@ -6984,15 +7190,22 @@
    *  como vínculo, nunca con puesto numérico. Nivel BRAMU solo si ya existe una estimación
    *  real (calibrando/inactivo) — 'sin-nivel' no muestra ningún número. */
   function buildUnrankedRowHTML(p) {
-    const account = buildGroupRowAccount(p.name);
-    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(p.name);
-    const badge = p.status.key === 'calibrando' ? (p.status.calib.progressText || 'CALIBRANDO')
+    // Backend Bloque 7 (Fase 5) — get_ranking_network nunca expone POR QUÉ un tercero no tiene
+    // puesto (privacidad: "sin reason codes de terceros", handoff Fase 3 §6): sin `p.status`
+    // (fila server-backed, ver computeRankingNetworkViewServerBacked), el badge queda genérico,
+    // nunca calibrando/inactivo inventado. Con `p.status` (universo local/mock), mismo criterio
+    // de siempre.
+    const account = p.username ? null : buildGroupRowAccount(p.name);
+    const handle = p.username || (account && account.username ? `@${account.username}` : buildPlayerHandle(p.name));
+    const badge = !p.status ? 'SIN POSICIÓN EN EL RANKING'
+      : p.status.key === 'calibrando' ? (p.status.calib.progressText || 'CALIBRANDO')
       : p.status.key === 'inactivo' ? 'SIN POSICIÓN POR INACTIVIDAD'
       : 'SIN NIVEL BRAMU';
     const levelHTML = p.level != null
       ? `<span class="group-table__points"><span class="group-table__points-value">${p.level.toFixed(1)}</span><span class="group-table__points-label">NIVEL BRAMU</span></span>`
       : '';
-    return `<button type="button" class="group-table__row ranking-row" data-name="${escapeHtml(p.name)}">
+    const playerIdAttr = p.playerId ? ` data-player-id="${escapeHtml(p.playerId)}"` : '';
+    return `<button type="button" class="group-table__row ranking-row" data-name="${escapeHtml(p.name)}"${playerIdAttr}>
       <span class="group-table__position ranking-row__position--dash" aria-hidden="true">—</span>
       ${buildGroupAvatarHTML(p.name)}
       <span class="group-table__info">
@@ -7001,7 +7214,7 @@
         <span class="group-table__caption ranking-row__status-badge">${escapeHtml(badge)}</span>
       </span>
       ${levelHTML}
-      <span class="ranking-row__hide-btn" data-name="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>
+      <span class="ranking-row__hide-btn" data-name="${escapeHtml(p.name)}"${playerIdAttr} role="button" tabindex="0" aria-label="Ocultar de Mi red"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.4 9.4 0 0 1 12 5c5 0 8.5 3.5 10 7-.6 1.3-1.5 2.6-2.6 3.7M6.3 6.3C4.2 7.7 2.6 9.6 2 12c.9 2 2.3 3.7 4 5"/></svg></span>
     </button>`;
   }
 
@@ -7013,23 +7226,31 @@
     $all(`#${containerId} .ranking-row`).forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.classList.contains('is-me')) { openProfileScreen('mi-perfil', 'ranking'); return; }
-        openPlayerPublicProfile(btn.dataset.name, 'ranking');
+        // Backend Bloque 7 (Fase 5) — con playerId real (fila server-backed), abre el Perfil
+        // público POR ID (mismo criterio que search_players/get_public_profile — nunca por
+        // nombre, que podría resolver a la cuenta equivocada u homónima). Sin playerId
+        // (universo mock local), comportamiento histórico sin cambios.
+        const playerId = btn.dataset.playerId;
+        openPlayerPublicProfile(playerId ? { name: btn.dataset.name, playerId } : btn.dataset.name, 'ranking');
       });
     });
     $all(`#${containerId} .ranking-row__hide-btn`).forEach((span) => {
-      span.addEventListener('click', (e) => { e.stopPropagation(); hideNetworkPlayerAction(span.dataset.name); });
+      const ref = span.dataset.playerId ? { name: span.dataset.name, playerId: span.dataset.playerId } : span.dataset.name;
+      span.addEventListener('click', (e) => { e.stopPropagation(); hideNetworkPlayerAction(ref); });
       span.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); hideNetworkPlayerAction(span.dataset.name); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); hideNetworkPlayerAction(ref); }
       });
     });
   }
 
   /** id → "@usuario" (cuenta real) o el handle provisional derivado — mismo criterio que el
    *  resto de la app (buildGroupRowAccount/buildPlayerHandle), armado acá porque RK.filterEntriesBySearch
-   *  es una función pura (sin Store) y necesita este mapa ya resuelto. */
+   *  es una función pura (sin Store) y necesita este mapa ya resuelto. Backend Bloque 7 (Fase 5)
+   *  — filas server-backed ya traen `entry.username` real, nunca se re-deriva de Store local. */
   function rankingUsernameMap(entries) {
     const map = new Map();
     entries.forEach((e) => {
+      if (e.username) { map.set(e.id, e.username); return; }
       const account = buildGroupRowAccount(e.name);
       map.set(e.id, account && account.username ? `@${account.username}` : buildPlayerHandle(e.name));
     });
@@ -7042,7 +7263,7 @@
    *  bloques de 50 (§12/§8.4). Mi red con 1-2 elegibles (§10.2): mismas filas, sin puesto. */
   function renderRankingClassification(view) {
     const showPosition = view.isTerritorial || view.density.level !== 'simple';
-    const rowOpts = { showPosition, hideAction: !view.isTerritorial };
+    const rowOpts = Object.assign({ showPosition, hideAction: !view.isTerritorial }, view.networkRowOpts || null);
     $('#ranking-universe-count').textContent = showPosition
       ? `${view.totalCount} ${view.totalCount === 1 ? 'jugador elegible' : 'jugadores elegibles'}`
       : `Comparación entre ${view.totalCount} jugadores`;
@@ -7086,7 +7307,13 @@
     const visible = RK.paginate(view.ranked, rankingLoadedBlocks);
     wrap.innerHTML = visible.map((e) => buildRankingRowHTML(e, view.movementMap, rowOpts)).join('');
     wireRankingRowClicks('ranking-list');
-    loadMoreBtn.hidden = visible.length >= view.ranked.length;
+    // Backend Bloque 7 (Fase 5) — comparar contra `view.totalCount` (denominador real), nunca
+    // `view.ranked.length`: en modo server-backed `ranked` YA es la página pedida al servidor
+    // (a lo sumo `rankingLoadedBlocks * BLOCK_SIZE` filas, ver computeRankingViewServerBacked),
+    // así que comparar contra su propio largo siempre daría "no hay más" aunque el servidor
+    // tenga más elegibles para la siguiente página. En modo local `totalCount` ya es
+    // exactamente `ranked.length` (sin cambios de comportamiento ahí).
+    loadMoreBtn.hidden = visible.length >= view.totalCount;
   }
 
   /** Bloque 3 — solo Mi red: secciones CALIBRANDO/INACTIVOS, siempre sin puesto (§10.2). En
@@ -7118,8 +7345,35 @@
     $('#ranking-hidden-count').textContent = String(count);
   }
 
-  function renderRankingContent() {
-    const view = computeRankingView();
+  /** Backend Bloque 7 (Fase 5) — `computeRankingView()` ahora es async (RPCs reales en modo
+   *  server-backed): `rankingRequestToken` descarta una respuesta tardía si el usuario ya
+   *  cambió de filtro/ámbito/búsqueda antes de que esta terminara (mismo criterio que
+   *  `renderPlayerSearchResultsServerBacked`) — nunca pinta un resultado viejo encima de un
+   *  filtro nuevo. `serverError` (RPC realmente falló, nunca "sin datos todavía") muestra un
+   *  estado real, nunca cae a mocks (handoff Fase 5 §9). */
+  /** RPC realmente fallida (red, rate limit, error inesperado) — nunca "todavía sin edición
+   *  publicada" (eso es un estado válido que resuelven view.density/view.selfStatus más abajo,
+   *  no un error). Pinta directo el estado, sin pasar por renderRankingStateCard: esa función
+   *  decide entre varios estados a partir de un `view` completo/coherente, y un error de red no
+   *  tiene ninguno de los datos que esa lógica necesita. */
+  function renderRankingErrorCard() {
+    $('#ranking-global-blocked').hidden = true;
+    $('#ranking-filters-row').hidden = false;
+    $('#ranking-search-toggle-btn').hidden = false;
+    $('#ranking-state-title').textContent = 'NO PUDIMOS CARGAR EL RANKING';
+    $('#ranking-state-text').textContent = 'Probá de nuevo en un momento.';
+    $('#ranking-state-cta').hidden = true;
+    rankingStateCtaAction = null;
+    $('#ranking-state-card').hidden = false;
+    $('#ranking-normal-content').hidden = true;
+  }
+
+  async function renderRankingContent() {
+    const myToken = ++rankingRequestToken;
+    const view = await computeRankingView();
+    if (myToken !== rankingRequestToken) return;
+    rankingLastView = view;
+    if (view.serverError) { renderRankingErrorCard(); return; }
     renderRankingStateCard(view);
     if (view.globalBlocked || $('#ranking-normal-content').hidden) return;
     renderRankingMyPosition(view);
@@ -7135,9 +7389,20 @@
     renderRankingContent();
   }
 
+  /** Backend Bloque 7 (Fase 5) — en modo server-backed, `p_search` viaja a
+   *  `get_ranking_classification` (búsqueda real, no solo sobre la página ya cargada); un
+   *  debounce de 300ms (mismo valor que `onProfileLocationSearchInput`) evita una llamada por
+   *  tecla. En modo local (mock/sin backend), sin cambios: sigue siendo instantáneo sobre datos
+   *  ya en memoria. */
   function onRankingSearchInput(value) {
     rankingSearchQuery = (value || '').trim();
-    renderRankingClassification(computeRankingView());
+    clearTimeout(rankingSearchDebounceTimer);
+    const user = Store.getCurrentUser();
+    if (Auth.isConfigured() && user && user.serverBacked) {
+      rankingSearchDebounceTimer = setTimeout(renderRankingContent, 300);
+      return;
+    }
+    renderRankingContent();
   }
 
   /** §8.2 — tocar la tarjeta TU POSICIÓN salta directo al bloque de 50 que contiene la
@@ -7146,12 +7411,15 @@
    *  activa — el objetivo es ubicarse en la clasificación completa, no en un recorte de
    *  resultados que podría ni incluirla. Reemplaza el botón VERME EN LA CLASIFICACIÓN y el
    *  bloque CERCA TUYO de V03.5, ambos eliminados. */
-  function locateMeInRanking() {
-    const view = computeRankingView();
+  async function locateMeInRanking() {
+    const view = rankingLastView || await computeRankingView();
     if (!view.myEntry) return;
     if (rankingSearchOpen) closeRankingSearch();
-    rankingLoadedBlocks = Math.max(rankingLoadedBlocks, RK.blockForPosition(view.myEntry.position));
-    renderRankingClassification(view);
+    const targetBlocks = RK.blockForPosition(view.myEntry.position);
+    if (targetBlocks > rankingLoadedBlocks) {
+      rankingLoadedBlocks = targetBlocks;
+      await renderRankingContent();
+    }
     requestAnimationFrame(() => {
       const el = $('#ranking-list .ranking-row.is-me');
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -7160,7 +7428,7 @@
 
   function loadMoreRanking() {
     rankingLoadedBlocks += 1;
-    renderRankingClassification(computeRankingView());
+    renderRankingContent();
   }
 
   /** V03.5.1 (§6.1) — la lupa del header abre/cierra el buscador (ya no un bloque permanente).
@@ -7178,25 +7446,68 @@
     $('#ranking-search-toggle-btn').classList.remove('is-active');
     rankingSearchQuery = '';
     $('#ranking-search-input').value = '';
-    renderRankingClassification(computeRankingView());
+    clearTimeout(rankingSearchDebounceTimer);
+    renderRankingContent();
   }
   function toggleRankingSearch() { if (rankingSearchOpen) closeRankingSearch(); else openRankingSearch(); }
 
-  /** V03.5.1 (§3.4/§3.5) — "Ocultar de Mi red": preferencia personal, nunca borra nada (ver
-   *  Store.hideNetworkPlayer). Mismo toast breve que agregar/quitar de JUGADORES. */
-  function hideNetworkPlayerAction(name) {
+  /** V03.5.1 (§3.4/§3.5) — "Ocultar de Mi red": preferencia personal, nunca borra nada. `ref`
+   *  acepta un nombre plano (universo local, `Store.hideNetworkPlayer`) o `{name, playerId}`
+   *  (Backend Bloque 7 Fase 5 — fila server-backed, `set_ranking_network_hidden`, mismo criterio
+   *  que `openPlayerPublicProfile`). Mismo toast breve que agregar/quitar de JUGADORES. */
+  async function hideNetworkPlayerAction(ref) {
+    const isRefObj = ref && typeof ref === 'object';
+    const playerId = isRefObj ? ref.playerId : null;
+    if (playerId && Auth.isConfigured()) {
+      const result = await RK.setRankingNetworkHidden(playerId, true);
+      if (!result.ok) { showToast('No pudimos ocultar a este jugador. Probá de nuevo.', 2600); return; }
+      showToast('Oculto de Mi red');
+      renderRankingContent();
+      return;
+    }
     const user = Store.getCurrentUser();
     if (!user) return;
-    Store.hideNetworkPlayer(user.id, name);
+    Store.hideNetworkPlayer(user.id, isRefObj ? ref.name : ref);
     showToast('Oculto de Mi red');
     renderRankingContent();
   }
 
+  /** Backend Bloque 7 (Fase 5) — en modo server-backed lee `rankingLastView.hiddenRows`
+   *  (get_ranking_network ya los trae, no existe un RPC propio de "solo los ocultos") en vez de
+   *  `Store.loadHiddenNetworkPlayers`; restaurar llama `set_ranking_network_hidden(id, false)`.
+   *  Modo local, sin cambios. */
   function renderRankingHiddenSheet() {
-    const user = Store.getCurrentUser();
-    const hidden = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
+    const serverBackedNetwork = rankingLastView && rankingLastView.serverMode && !rankingLastView.isTerritorial;
     const list = $('#ranking-hidden-list');
     const empty = $('#ranking-hidden-empty');
+
+    if (serverBackedNetwork) {
+      const hiddenRows = rankingLastView.hiddenRows || [];
+      if (!hiddenRows.length) { list.hidden = true; list.innerHTML = ''; empty.hidden = false; return; }
+      empty.hidden = true;
+      list.hidden = false;
+      list.innerHTML = hiddenRows.map((row) => `<div class="group-table__row ranking-row ranking-row--static">
+        ${buildGroupAvatarHTML(row.displayName)}
+        <span class="group-table__info">
+          <span class="group-table__name">${escapeHtml(row.displayName)}</span>
+          <span class="group-table__handle ranking-row__handle">${escapeHtml(row.username ? `@${row.username}` : buildPlayerHandle(row.displayName))}</span>
+        </span>
+        <button type="button" class="btn-mini ranking-restore-btn" data-player-id="${escapeHtml(row.playerId)}">MOSTRAR</button>
+      </div>`).join('');
+      $all('#ranking-hidden-list .ranking-restore-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const result = await RK.setRankingNetworkHidden(btn.dataset.playerId, false);
+          if (!result.ok) { showToast('No pudimos restaurar a este jugador. Probá de nuevo.', 2600); return; }
+          showToast('De vuelta en Mi red');
+          await renderRankingContent();
+          renderRankingHiddenSheet();
+        });
+      });
+      return;
+    }
+
+    const user = Store.getCurrentUser();
+    const hidden = user ? Store.loadHiddenNetworkPlayers(user.id) : [];
     if (!hidden.length) { list.hidden = true; list.innerHTML = ''; empty.hidden = false; return; }
     empty.hidden = true;
     list.hidden = false;
@@ -8370,6 +8681,12 @@
       setLevelValueText('player-public-level-value', levelText, false);
     }
     $('#player-public-level-sub').hidden = true;
+    // Backend Bloque 7 (Fase 5) — Ranking real ya existe (Fases 1-4 aplicadas/validadas en
+    // Staging): la tarjeta que hasta acá quedaba forzada `hidden=true` arriba (comentario de
+    // Bloque 4, "hasta Bloque 7") ya puede conectarse. Mismo guard de request obsoleta que el
+    // resto de esta función — si mientras esperaba la respuesta el usuario navegó a otro
+    // perfil, renderRankingCardForAccountServerBacked ni se llama.
+    renderRankingCardForAccountServerBacked('player-public-ranking', playerId);
   }
 
   /** BRAMUlab_V03.7 (parte B) — separador de miles simple ("1.380"), convención argentina; el
@@ -8383,7 +8700,11 @@
     const pos = $(`#${idPrefix}-${scopeKey}-pos`);
     const denom = $(`#${idPrefix}-${scopeKey}-denom`);
     const territory = $(`#${idPrefix}-${scopeKey}-territory`);
-    if (!scopeResult) { pos.textContent = '—'; denom.textContent = ''; territory.textContent = ''; return; }
+    // Backend Bloque 7 (Fase 5) — get_profile_ranking_summary puede devolver un objeto de
+    // ámbito NO null con `position: null` (fila congelada existe — p. ej. ubicación verificada
+    // — pero sin puesto por densidad insuficiente/no elegible ese corte): mismo "—" que la
+    // ausencia total de fila, nunca "#null".
+    if (!scopeResult || scopeResult.position == null) { pos.textContent = '—'; denom.textContent = ''; territory.textContent = ''; return; }
     pos.textContent = `#${scopeResult.position}`;
     denom.textContent = `de ${formatRankingDenominator(scopeResult.total)}`;
     territory.textContent = scopeResult.territory || '';
@@ -8434,7 +8755,34 @@
    *  ocurrir estando en Mi Perfil, pero `renderRankingCardForAccount` lo maneja igual: oculta la
    *  tarjeta). */
   function renderMiPerfilRankingCard(user, history) {
+    if (Auth.isConfigured() && user && user.serverBacked) { renderRankingCardForAccountServerBacked('mi-perfil-ranking', user.id); return; }
     renderRankingCardForAccount('mi-perfil-ranking', user, history);
+  }
+
+  /** Backend Bloque 7 (Fase 5) — misma tarjeta (Perfil público y Mi Perfil, Ranking_BRAMU.md
+   *  §15.1) sobre `get_profile_ranking_summary` real, para una cuenta `serverBacked`. Nunca
+   *  toca RK.computeProfileRankingSummary (local/mock) — es la variante server-backed
+   *  equivalente a `renderRankingCardForAccount`, reusa el mismo `renderRankingCardScopeCol`
+   *  de siempre. Oculta la tarjeta por completo si la RPC falla o no hay `playerId` — nunca un
+   *  estado inventado. */
+  async function renderRankingCardForAccountServerBacked(idPrefix, playerId) {
+    const card = $(`#${idPrefix}-card`);
+    if (!playerId) { card.hidden = true; return; }
+    const result = await RK.getProfileRankingSummary(playerId);
+    if (!result.ok) { card.hidden = true; return; }
+    const summary = result.data;
+    card.hidden = false;
+    const hasAnyScope = !!(summary.local || summary.provincial || summary.pais);
+    $(`#${idPrefix}-period`).textContent = (hasAnyScope && summary.edition)
+      ? RK.formatServerPeriodLabel(summary.edition.periodStartAt, summary.edition.periodEndAt) : '';
+    $(`#${idPrefix}-cols`).hidden = !hasAnyScope;
+    const statusEl = $(`#${idPrefix}-status`);
+    statusEl.hidden = hasAnyScope;
+    if (!hasAnyScope) { statusEl.textContent = 'Todavía sin posición oficial'; return; }
+    const mapScope = (s) => (s ? { position: s.position, total: s.total, territory: s.location } : null);
+    renderRankingCardScopeCol(idPrefix, 'local', mapScope(summary.local));
+    renderRankingCardScopeCol(idPrefix, 'provincial', mapScope(summary.provincial));
+    renderRankingCardScopeCol(idPrefix, 'pais', mapScope(summary.pais));
   }
 
   /** §10 — accesos: Buscar jugadores, tab JUGADORES, filas de Compañeros/Rivales. `origin`
@@ -8942,10 +9290,125 @@
     showView('profile');
   }
 
+  /** Backend Bloque 7 (Fase 5) — gate "Completar datos para Ranking" (Ranking_BRAMU.md §13.7.A):
+   *  para una cuenta real (`serverBacked`) con backend configurado, faltar localidad/rama
+   *  competitiva/`ranking_opt_in` bloquea la ENTRADA a Ranking con un modal, nunca la pantalla
+   *  por dentro (§13.7: "la entrada a Ranking sigue visible", nunca se oculta la función).
+   *  Cuentas locales/legacy o sin backend configurado no tienen este gate — siguen con el
+   *  estado `sin-ubicacion` histórico dentro de la propia pantalla (computeSelfStatus), que ya
+   *  cubre ese caso para ese modelo (sin rama/opt-in, que ahí no existen). */
+  function rankingGateMissingFields(user) {
+    const missing = [];
+    if (!user.competitiveBranch) missing.push('branch');
+    if (user.rankingOptIn !== true) missing.push('optIn');
+    if (!user.locality) missing.push('location');
+    return missing;
+  }
+
+  let rankingGateBranch = null;
+  let rankingGateOptIn = false;
+  let rankingGateLocation = null;
+
+  function updateRankingGateLocationRowDisplay() {
+    $('#ranking-gate-location-value').textContent = rankingGateLocation ? PLLocations.formatLocationLabel(rankingGateLocation) : '—';
+  }
+
+  /** Precarga con lo que la cuenta ya tenga (un usuario puede volver a este modal habiendo
+   *  completado 2 de los 3 campos en un intento anterior fallido, p. ej. por cooldown de
+   *  ubicación) — nunca arranca vacío si ya hay datos reales que reusar. */
+  function openRankingGateModal() {
+    const user = Store.getCurrentUser();
+    rankingGateBranch = (user && (user.competitiveBranch === 'F' || user.competitiveBranch === 'M')) ? user.competitiveBranch : null;
+    rankingGateOptIn = !!(user && user.rankingOptIn === true);
+    rankingGateLocation = (user && user.locality) ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+    resetOptionGroup('ranking-gate-branch-options');
+    if (rankingGateBranch) {
+      const btn = $(`#ranking-gate-branch-options .option-col[data-value="${rankingGateBranch}"]`);
+      if (btn) { btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true'); }
+    }
+    updateRankingGateLocationRowDisplay();
+    $('#ranking-gate-optin-toggle').classList.toggle('is-on', rankingGateOptIn);
+    $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
+    $('#ranking-gate-error').hidden = true;
+    $('#ranking-gate-modal-scrim').hidden = false;
+    requestAnimationFrame(() => $('#ranking-gate-modal-scrim').classList.add('is-open'));
+  }
+  function closeRankingGateModal() {
+    $('#ranking-gate-modal-scrim').classList.remove('is-open');
+    $('#ranking-gate-modal-scrim').hidden = true;
+  }
+
+  /** Códigos de excepción tal cual los levanta `complete_ranking_profile_data` (ver
+   *  supabase/migrations/20260922140000_bloque7_fase2_ranking_calculation.sql) — mismo criterio
+   *  que COMPLETE_PROFILE_ERROR_TEXT para complete_profile. */
+  const RANKING_GATE_ERROR_TEXT = {
+    ranking_opt_in_required: 'Elegí si querés participar del Ranking BRAMU.',
+    competitive_branch_invalid: 'Elegí tu rama competitiva.',
+    location_required: 'Elegí tu localidad principal de juego.',
+    location_change_cooldown: 'Ya cambiaste tu ubicación hace poco — vas a poder volver a cambiarla más adelante.',
+    profile_incomplete: 'Completá primero tu perfil (nombre y @usuario) antes de entrar al Ranking.',
+    no_profile_for_player: 'No pudimos encontrar tu perfil. Probá cerrar sesión y volver a entrar.',
+    no_player_for_session: 'Tu sesión expiró. Volvé a iniciar sesión.',
+    not_configured: 'No pudimos conectar con el servidor. Probá de nuevo.',
+    unknown: 'No pudimos guardar tus datos de Ranking. Probá de nuevo.',
+  };
+
+  async function submitRankingGateModal() {
+    const errorEl = $('#ranking-gate-error');
+    if (!rankingGateBranch) { errorEl.textContent = RANKING_GATE_ERROR_TEXT.competitive_branch_invalid; errorEl.hidden = false; return; }
+    if (!rankingGateLocation) { errorEl.textContent = RANKING_GATE_ERROR_TEXT.location_required; errorEl.hidden = false; return; }
+    const btn = $('#ranking-gate-save-btn');
+    btn.disabled = true;
+    const result = await Auth.completeRankingProfileData({
+      competitiveBranch: rankingGateBranch,
+      rankingOptIn: rankingGateOptIn,
+      location: rankingGateLocation,
+    });
+    btn.disabled = false;
+    if (!result.ok) {
+      errorEl.textContent = RANKING_GATE_ERROR_TEXT[result.code] || RANKING_GATE_ERROR_TEXT.unknown;
+      errorEl.hidden = false;
+      return;
+    }
+    // Mismo patrón que runOfficializeAndEnter/openProfileEditModal: recachear desde el servidor
+    // antes de seguir, para que Store.getCurrentUser() ya refleje branch/opt-in/ubicación
+    // recién guardados (rankingGateMissingFields ya no encuentra nada faltante en el próximo
+    // intento, sin necesitar un logout/login).
+    const serverUser = await Auth.fetchOwnProfile();
+    if (serverUser) Store.cacheServerUser(serverUser);
+    closeRankingGateModal();
+    renderRankingScreen();
+    showView('ranking');
+  }
+
+  function initRankingGateModal() {
+    wireOptionGroup('ranking-gate-branch-options', (v) => { rankingGateBranch = v; });
+    $('#ranking-gate-location-row').addEventListener('click', () => openProfileLocationSheet({
+      get: () => rankingGateLocation,
+      set: (loc) => { rankingGateLocation = loc; },
+      onSelect: updateRankingGateLocationRowDisplay,
+    }));
+    $('#ranking-gate-optin-toggle').addEventListener('click', () => {
+      rankingGateOptIn = !rankingGateOptIn;
+      $('#ranking-gate-optin-toggle').classList.toggle('is-on', rankingGateOptIn);
+      $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
+    });
+    $('#ranking-gate-save-btn').addEventListener('click', submitRankingGateModal);
+    // "VOLVER" — nunca deja al usuario sin salida: mismo destino que #ranking-back-btn (no hay
+    // Ranking detrás todavía, así que no tiene sentido volver "a la pantalla anterior" de este
+    // modal en particular). El gate se vuelve a evaluar la próxima vez que toque Ranking.
+    $('#ranking-gate-back-btn').addEventListener('click', () => { closeRankingGateModal(); openPlayerHome(); });
+  }
+
   /** V03.0.1 (§7) — mismo gate, Ranking no tenía wrapper propio (solo showView('ranking')
    *  inline en initBottomNav) ni gate. */
   function openRankingScreen() {
     if (!currentPlayerName) { openAccessFlow(); return; }
+    const user = Store.getCurrentUser();
+    if (Auth.isConfigured() && user && user.serverBacked && rankingGateMissingFields(user).length) {
+      openRankingGateModal();
+      return;
+    }
     renderRankingScreen();
     showView('ranking');
   }
@@ -9866,6 +10329,7 @@
     initManualLoadScreen();
     initPlayerHomeScreen();
     initRankingScreen();
+    initRankingGateModal();
     initGroupsScreen();
     initCreateGroupSheet();
     initGroupSettingsScreen();
