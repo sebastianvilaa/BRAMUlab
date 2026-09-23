@@ -5896,7 +5896,14 @@
         const milestoneKey = RK.buildRankingMilestoneKey(milestone);
         if (Store.hasSeenRankingMilestone(homeUser.id, milestoneKey)) return;
         insight.milestoneType = milestone.type;
-        $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), insight);
+        // Revisión Final Fase E, E07 — `buildTuMomentoText` tiene retornos tempranos (0/1/2
+        // partidos) que ignoran el insight de Ranking: si el texto con el hito es idéntico al
+        // texto sin él, el hito NO llegó a pintarse realmente, así que tampoco corresponde
+        // marcarlo como visto (contradiría E02: "visto solo después de pintarlo realmente").
+        const baseText = PH.buildTuMomentoText(matches, currentIdentity(), null);
+        const textWithInsight = PH.buildTuMomentoText(matches, currentIdentity(), insight);
+        if (textWithInsight === baseText) return;
+        $('#player-home-momento-text').textContent = textWithInsight;
         Store.markRankingMilestoneSeen(homeUser.id, milestoneKey);
       });
     } else {

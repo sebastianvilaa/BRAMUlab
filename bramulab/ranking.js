@@ -988,9 +988,12 @@
     // causalidad de un partido; se evalúa antes de los hitos de puesto porque no depende de
     // `isNew`/`delta` en absoluto. Ambas bandas deben venir de snapshots semanales PUBLICADOS
     // reales (la migración solo lee `ranking_editions.published_at is not null`) — nunca se
-    // recalcula desde el estado en vivo.
+    // recalcula desde el estado en vivo. Revisión Final Fase E, E09: además de las bandas, exige
+    // que ambos Niveles públicos (actual y anterior) sean numéricos — las columnas son nullable
+    // en el esquema real y el copy nunca debe poder renderizar "—" como si fuera un Nivel.
     if (Number.isFinite(insight.levelBand) && Number.isFinite(insight.previousLevelBand)
-      && insight.levelBand !== insight.previousLevelBand) {
+      && insight.levelBand !== insight.previousLevelBand
+      && Number.isFinite(insight.levelPublic) && Number.isFinite(insight.previousLevelPublic)) {
       return rankingMilestoneOf('cambio_de_banda', insight);
     }
 

@@ -179,6 +179,26 @@ test('13: el copy de cambio de banda usa Niveles BRAMU, nunca "categoría" ni pu
 });
 
 /* ------------------------------------------------------------------ */
+/* E09 (Revisión Final Fase E) — cambio de banda exige además que ambos  */
+/* Niveles públicos sean numéricos: nunca renderizar "—" como Nivel      */
+/* ------------------------------------------------------------------ */
+
+test('E09.1: bandas distintas pero levelPublic ausente -> nunca hito de cambio de banda', () => {
+  const insight = { position: 40, total: 100, isNew: false, delta: 0, levelBand: 7, previousLevelBand: 6, previousLevelPublic: 5.8 }; // levelPublic undefined
+  assert.equal(RK.classifyHomeRankingMilestone(insight), null);
+});
+
+test('E09.2: bandas distintas pero previousLevelPublic null -> nunca hito de cambio de banda', () => {
+  const insight = { position: 40, total: 100, isNew: false, delta: 0, levelBand: 7, previousLevelBand: 6, levelPublic: 6.1, previousLevelPublic: null };
+  assert.equal(RK.classifyHomeRankingMilestone(insight), null);
+});
+
+test('E09.3: bandas distintas + ambos Niveles públicos numéricos -> hito válido (contrato completo)', () => {
+  const insight = { position: 40, total: 100, isNew: false, delta: 0, levelBand: 7, previousLevelBand: 6, levelPublic: 6.1, previousLevelPublic: 5.8 };
+  assert.equal(RK.classifyHomeRankingMilestone(insight).type, 'cambio_de_banda');
+});
+
+/* ------------------------------------------------------------------ */
 /* Universo insuficiente aplica también al cambio de banda (E01, mismo   */
 /* gate para los 5 casos cerrados)                                       */
 /* ------------------------------------------------------------------ */
@@ -251,4 +271,47 @@ test('22: el texto de un ascenso material nunca atribuye el movimiento a un part
   const text = PH.buildTuMomentoText([{}, {}, {}], 'Sebastian', insight);
   assert.match(text, /#40 de 100 en Bella Vista/);
   assert.equal(/este partido|por este resultado|jugaste mejor/i.test(text), false);
+});
+
+/* ------------------------------------------------------------------ */
+/* E07 (Revisión Final Fase E) — un hito de Ranking solo se marca como   */
+/* "visto" si realmente modificó el texto visible de TU MOMENTO.         */
+/* Réplica exacta de la decisión que toma `app.js` (buildTuMomentoText   */
+/* con `null` vs con el insight; nunca marca si el texto es idéntico).   */
+/* app.js no tiene arnés propio por diseño — esta prueba fija el         */
+/* contrato entre `classifyHomeRankingMilestone`/`buildTuMomentoText`/   */
+/* `markRankingMilestoneSeen` que app.js consume tal cual.                */
+/* ------------------------------------------------------------------ */
+
+function simulateHomeMilestoneDecision(userId, matches, insight) {
+  const milestone = RK.classifyHomeRankingMilestone(insight);
+  if (!milestone) return { milestone: null, marked: false };
+  const milestoneKey = RK.buildRankingMilestoneKey(milestone);
+  if (Store.hasSeenRankingMilestone(userId, milestoneKey)) return { milestone, marked: false };
+  insight.milestoneType = milestone.type;
+  const baseText = PH.buildTuMomentoText(matches, 'Sebastian', null);
+  const textWithInsight = PH.buildTuMomentoText(matches, 'Sebastian', insight);
+  if (textWithInsight === baseText) return { milestone, marked: false, painted: false };
+  Store.markRankingMilestoneSeen(userId, milestoneKey);
+  return { milestone, marked: true, painted: true };
+}
+
+test('E07.1: con menos de 3 partidos, buildTuMomentoText ignora el insight -> el hito real NUNCA se marca como visto', () => {
+  const insight = { isNew: true, position: 8, total: 21, territory: 'Bella Vista', bestPositionBefore: null, editionId: 'ed-1', scopeType: 'local', scopeKey: 'bv' };
+  const matches = [{}, {}]; // 2 partidos: buildTuMomentoText tiene un retorno temprano que ignora rankingInsight
+  const result = simulateHomeMilestoneDecision('user-1', matches, insight);
+  assert.ok(result.milestone); // el hito SÍ es material según classifyHomeRankingMilestone
+  assert.equal(result.marked, false); // pero nunca llegó a pintarse -> nunca se marca como visto
+  const key = RK.buildRankingMilestoneKey(result.milestone);
+  assert.equal(Store.hasSeenRankingMilestone('user-1', key), false);
+});
+
+test('E07.2: con 3+ partidos y sin otras cláusulas que lo desplacen, el hito SÍ se incorpora al texto -> se marca como visto', () => {
+  const insight = { isNew: true, position: 8, total: 21, territory: 'Bella Vista', bestPositionBefore: null, editionId: 'ed-1', scopeType: 'local', scopeKey: 'bv' };
+  const matches = [{}, {}, {}];
+  const result = simulateHomeMilestoneDecision('user-1', matches, insight);
+  assert.ok(result.milestone);
+  assert.equal(result.marked, true);
+  const key = RK.buildRankingMilestoneKey(result.milestone);
+  assert.equal(Store.hasSeenRankingMilestone('user-1', key), true);
 });

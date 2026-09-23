@@ -888,6 +888,42 @@ test('E03b: callerCalibrating=true -> puede usar el mensaje cerrado de calibraci
 });
 
 /* ------------------------------------------------------------------ */
+/* E08 (Revisión Final Fase E) — el "why" de evidencia limitada nunca    */
+/* puede afirmar que la limitación es "de otro participante, no el       */
+/* tuyo" cuando eso no está garantizado por el claim (p.ej. caller       */
+/* CALIBRADO con confianza propia baja, o sin fila propia)               */
+/* ------------------------------------------------------------------ */
+
+test('E08.1: caller CALIBRADO con confianza propia baja (callerCalibrating=false) -> "why" genérico, jamás "de otro participante, no el tuyo"', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_evidencia_limitada', { knownLevelsCount: 4, anyCalibrating: false, minConfidence: 0.45, callerCalibrating: false }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.equal(/de otro participante, no el tuyo/i.test(rendered.principal.why), false);
+  assert.match(rendered.principal.why, /no ten[ií]an evidencia suficiente para clasificar la dificultad con confianza/i);
+});
+
+test('E08.2: callerCalibrating=false sin fila propia (evidencia incompleta) -> el copy sigue siendo factual, nunca atribuye a un tercero', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_evidencia_limitada', { knownLevelsCount: 2, anyCalibrating: false, minConfidence: 0.5, callerCalibrating: false }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.equal(/de otro participante, no el tuyo/i.test(rendered.principal.why), false);
+  assert.equal(/otro participante/i.test(rendered.principal.why), false);
+});
+
+test('E08.3: caller CALIBRANDO sigue con el mensaje cerrado ya aprobado (no lo toca E08)', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_evidencia_limitada', { knownLevelsCount: 2, anyCalibrating: true, callerCalibrating: true }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.match(rendered.principal.why, /Todavía no hay suficiente evidencia de tu propio Nivel BRAMU/);
+});
+
+/* ------------------------------------------------------------------ */
 /* E05: nivel_variacion combina contexto esperable + delta sin inventar */
 /* un umbral de "delta chico" ni duplicar la historia H                 */
 /* ------------------------------------------------------------------ */

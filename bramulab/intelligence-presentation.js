@@ -386,9 +386,13 @@
         ? 'Este partido suma evidencia; tu Nivel BRAMU sigue calibrando.'
         : 'Los Niveles disponibles todavía no alcanzan para clasificar con confianza la dificultad de este partido.'),
     }],
+    // Revisión Final Fase E, E08: cuando `callerCalibrating=false`, el claim no garantiza que la
+    // limitación venga de OTRO participante — puede ser la confianza propia del caller (p.ej. tras
+    // decay/inactividad) o una fila propia ausente. El copy queda genérico y factual, sin afirmar
+    // de quién es la evidencia limitada.
     why: (c) => (c.callerCalibrating
       ? 'Todavía no hay suficiente evidencia de tu propio Nivel BRAMU para clasificar la dificultad de este partido.'
-      : 'Uno o más Niveles BRAMU previos de este partido (de otro participante, no el tuyo) no tenían evidencia suficiente todavía.'),
+      : 'Uno o más Niveles BRAMU previos de este partido no tenían evidencia suficiente para clasificar la dificultad con confianza.'),
   });
   register('nivel_resultado_esperable', {
     // `genericScoreOnly` en Fase C (mismo criterio que sets_corridos/definicion_en_tres_sets):
