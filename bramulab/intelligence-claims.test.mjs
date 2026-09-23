@@ -208,6 +208,11 @@ test('Familia B: racha cortada trae la longitud/tipo anterior como evidencia est
   assert.equal(cut.claim.previousType, 'win');
   assert.equal(cut.claim.previousLength, 4);
   assert.equal(cut.claim.newType, 'loss');
+  // C01: la evidencia debe alcanzar para reconstruir "racha previa de 4 + partido que la corta"
+  // — los 4 partidos de la racha ganadora más el partido que la corta, nunca solo el último.
+  assert.equal(cut.evidenceMatchIds.length, 5);
+  const evidenceSet = new Set(cut.evidenceMatchIds);
+  history.forEach((m) => assert.ok(evidenceSet.has(m.matchId)));
 });
 
 test('Familia B: nuevo récord de racha exige al menos 10 partidos comparables — con 9 se descarta explícitamente', () => {
@@ -242,6 +247,11 @@ test('Familia B: nuevo récord de racha SÍ se afirma con al menos 10 partidos c
   assertClaimHasRealEvidence(record);
   assert.equal(record.sampleSize, 11);
   assert.equal(record.claim.length, 9);
+  // C01: el récord se demuestra contra TODO el universo comparable (los 11 decididos), no solo
+  // contra los 9 de la racha actual — de lo contrario no hay cómo probar que es un récord.
+  assert.equal(record.evidenceMatchIds.length, 11);
+  const evidenceSet = new Set(record.evidenceMatchIds);
+  history.forEach((m) => assert.ok(evidenceSet.has(m.matchId)));
 });
 
 test('Familia B: hito de victoria número 10 se marca exactamente en la 10ma', () => {
@@ -252,6 +262,8 @@ test('Familia B: hito de victoria número 10 se marca exactamente en la 10ma', (
   const claim10 = findClaim(CL.buildClaimsForMatch(history10, ME).claims, 'hito_de_victorias');
   assertClaimHasRealEvidence(claim10);
   assert.equal(claim10.claim.winCount, 10);
+  // C01: la evidencia debe cubrir las 10 victorias contadas, no un único matchId.
+  assert.equal(claim10.evidenceMatchIds.length, 10);
 });
 
 test('Familia B: primer partido de la historia y primera victoria coinciden en el debut', () => {
@@ -261,26 +273,63 @@ test('Familia B: primer partido de la historia y primera victoria coinciden en e
   assertClaimHasRealEvidence(findClaim(claims, 'primera_victoria_registrada'));
 });
 
+test('C01: primera victoria tras derrotas previas conserva TODO el historial decidido como evidencia (demuestra que no había victoria antes)', () => {
+  const rows = seriesRows(3, { win: false }).concat(row({ playedAt: dayIso(4), sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const claim = findClaim(claims, 'primera_victoria_registrada');
+  assertClaimHasRealEvidence(claim);
+  assert.equal(claim.evidenceMatchIds.length, 4);
+});
+
 /* ------------------------------------------------------------------ */
 /* Familia C — forma reciente, evidencia sin juicio de materialidad     */
 /* ------------------------------------------------------------------ */
 
-test('Familia C: forma reciente expone balance actual y de la ventana anterior sin afirmar "mejoró"', () => {
-  // 2 derrotas, luego 5 victorias: ventana actual 5-0, ventana anterior (las 2 previas) 0-2.
+test('C02: forma reciente con 4 partidos decididos queda descartada explícitamente (madurez de producto, "Forma de 5" desde 5)', () => {
+  const rows = [1, 2, 3, 4].map((d) => row({ playedAt: dayIso(d), sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const discarded = claims.find((c) => c.insightType === 'forma_reciente' && c.discarded);
+  assert.ok(discarded);
+  assert.equal(discarded.discardReasonCodes[0], 'muestra_insuficiente_para_forma_reciente');
+  assert.equal(claims.some((c) => c.insightType === 'forma_reciente' && !c.discarded), false);
+});
+
+test('C02: con exactamente 5 decididos existe la primera lectura de forma válida', () => {
+  const rows = [1, 2, 3, 4, 5].map((d) => row({ playedAt: dayIso(d), sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const form = findClaim(claims, 'forma_reciente');
+  assertClaimHasRealEvidence(form);
+  assert.equal(form.claim.current.sampleSize, 5);
+});
+
+test('C02: con 6 decididos, la ventana móvil correcta es actual=partidos 2-6 vs. anterior=partidos 1-5 (ejemplo literal de la revisión)', () => {
   const rows = [
-    row({ playedAt: dayIso(1), sets: straightSetsLoss('A') }),
-    row({ playedAt: dayIso(2), sets: straightSetsLoss('A') }),
-    ...[3, 4, 5, 6, 7].map((d) => row({ playedAt: dayIso(d), sets: straightSetsWin('A') })),
+    row({ playedAt: dayIso(1), sets: straightSetsLoss('A') }), // partido 1
+    row({ playedAt: dayIso(2), sets: straightSetsWin('A') }),  // partido 2
+    row({ playedAt: dayIso(3), sets: straightSetsWin('A') }),  // partido 3
+    row({ playedAt: dayIso(4), sets: straightSetsWin('A') }),  // partido 4
+    row({ playedAt: dayIso(5), sets: straightSetsWin('A') }),  // partido 5
+    row({ playedAt: dayIso(6), sets: straightSetsWin('A') }),  // partido 6 (actual)
   ];
   const history = IC.buildPersonalHistory(rows);
   const { claims } = CL.buildClaimsForMatch(history, ME);
   const form = findClaim(claims, 'forma_reciente');
   assertClaimHasRealEvidence(form);
+  // Actual: partidos 2-6 (5 victorias, 0 derrotas).
   assert.equal(form.claim.current.wins, 5);
   assert.equal(form.claim.current.losses, 0);
-  assert.equal(form.claim.previousWindow.wins, 0);
-  assert.equal(form.claim.previousWindow.losses, 2);
-  assert.equal(typeof form.claim.current, 'object');
+  assert.equal(form.claim.current.matchIds.length, 5);
+  // Anterior: partidos 1-5 (4 victorias, 1 derrota) — NUNCA "solo partido 1".
+  assert.equal(form.claim.previousWindow.wins, 4);
+  assert.equal(form.claim.previousWindow.losses, 1);
+  assert.equal(form.claim.previousWindow.sampleSize, 5);
+  // C01: evidencia cubre la UNIÓN de ambas ventanas (partidos 1-6, sin duplicar el 2-5 compartido).
+  assert.equal(form.evidenceMatchIds.length, 6);
+  const evidenceSet = new Set(form.evidenceMatchIds);
+  history.forEach((m) => assert.ok(evidenceSet.has(m.matchId)));
 });
 
 /* ------------------------------------------------------------------ */
@@ -338,6 +387,24 @@ test('Familia D: mejor balance entre compañeros compara solo a los que tienen a
   assertClaimHasRealEvidence(best);
   assert.equal(best.claim.companionPlayerId, PARTNER);
   assert.equal(best.claim.comparedAgainst, 2); // PARTNER y PARTNER_2, nunca el de 3 partidos
+  assert.equal(best.claim.isUnique, true); // 100% vs 40%, sin empate
+  // C01: la evidencia cubre a AMBOS candidatos comparados (5+5=10), no solo al elegido.
+  assert.equal(best.evidenceMatchIds.length, 10);
+});
+
+test('C03: mejor compañero empatado — nunca se afirma "el mejor" único cuando dos tienen la misma efectividad', () => {
+  const rows = [];
+  // Con PARTNER: 5 partidos, 3 victorias (60%).
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: PARTNER, sets: i < 3 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  // Con PARTNER_2: 5 partidos, 3 victorias (60%) — EMPATE real con PARTNER.
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: PARTNER_2, sets: i < 3 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const best = findClaim(claims, 'companero_mejor_balance');
+  assertClaimHasRealEvidence(best);
+  assert.equal(best.claim.isUnique, false);
+  assert.equal(best.claim.tiedWith.length, 1);
+  assert.equal(best.claim.candidates.length, 2);
 });
 
 /* ------------------------------------------------------------------ */
@@ -370,6 +437,33 @@ test('Familia E: primer triunfo tras al menos 2 derrotas previas frente al mismo
   const claim = claims.find((c) => c.insightType === 'rival_primer_triunfo_tras_derrotas' && c.claim.scopeKey === RIVAL_1);
   assertClaimHasRealEvidence(claim);
   assert.equal(claim.claim.priorLosses, 2);
+});
+
+test('C04: derrota + pendiente + derrota + victoria => primer triunfo válido (el pendiente se ignora, nunca corta la búsqueda)', () => {
+  const rows = [
+    row({ playedAt: dayIso(1), rivalA: RIVAL_1, rivalB: RIVAL_3, sets: straightSetsLoss('A') }),
+    row({ playedAt: dayIso(2), rivalA: RIVAL_1, rivalB: RIVAL_4, sets: [], status: 'pending_validation', officialEligible: false }),
+    row({ playedAt: dayIso(3), rivalA: RIVAL_1, rivalB: RIVAL_3, sets: straightSetsLoss('A') }),
+    row({ playedAt: dayIso(4), rivalA: RIVAL_1, rivalB: RIVAL_2, sets: straightSetsWin('A') }),
+  ];
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const claim = claims.find((c) => c.insightType === 'rival_primer_triunfo_tras_derrotas' && c.claim.scopeKey === RIVAL_1);
+  assertClaimHasRealEvidence(claim);
+  assert.equal(claim.claim.priorLosses, 2);
+  assert.equal(claim.evidenceMatchIds.length, 3); // 2 derrotas + el partido actual, el pendiente NUNCA es evidencia
+});
+
+test('C04: si ya existía una victoria previa en el mismo alcance, NO es "primer triunfo" aunque la racha inmediata sea de derrotas', () => {
+  const rows = [
+    row({ playedAt: dayIso(1), rivalA: RIVAL_1, rivalB: RIVAL_3, sets: straightSetsLoss('A') }),
+    row({ playedAt: dayIso(2), rivalA: RIVAL_1, rivalB: RIVAL_4, sets: straightSetsWin('A') }), // victoria previa real
+    row({ playedAt: dayIso(3), rivalA: RIVAL_1, rivalB: RIVAL_3, sets: straightSetsLoss('A') }),
+    row({ playedAt: dayIso(4), rivalA: RIVAL_1, rivalB: RIVAL_2, sets: straightSetsWin('A') }),
+  ];
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  assert.equal(claims.some((c) => c.insightType === 'rival_primer_triunfo_tras_derrotas' && c.claim && c.claim.scopeKey === RIVAL_1), false);
 });
 
 test('Familia E: pareja rival exacta no se confunde con enfrentar solo a uno de sus integrantes', () => {
@@ -427,6 +521,22 @@ test('Familia F: score excepcional de formato comparable exige al menos 10 parti
   assertClaimHasRealEvidence(extreme);
   assert.equal(extreme.claim.extreme, 'mas_ajustado');
   assert.equal(extreme.sampleSize, 10);
+  assert.equal(extreme.claim.isUnique, true);
+  assert.equal(extreme.claim.tiedCount, 1);
+});
+
+test('C03: score extremo empatado — nunca se afirma único cuando otro partido histórico comparte exactamente el mismo margen', () => {
+  const rows = [];
+  for (let i = 0; i < 9; i++) rows.push(row({ playedAt: dayIso(1 + i), sets: [[6, 1], [6, 1]] }));
+  rows.push(row({ playedAt: dayIso(10), sets: [[6, 4], [4, 6], [7, 6]] }));
+  // 11vo partido: MISMO score exacto que el 10mo -> mismo marginNormalized, empate real.
+  rows.push(row({ playedAt: dayIso(11), sets: [[6, 4], [4, 6], [7, 6]] }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const extreme = claims.find((c) => c.insightType === 'score_excepcional_formato_comparable' && !c.discarded);
+  assertClaimHasRealEvidence(extreme);
+  assert.equal(extreme.claim.isUnique, false);
+  assert.equal(extreme.claim.tiedCount, 2);
 });
 
 test('Familia F: balance histórico perdiendo el primer set, solo cuando el partido actual también lo perdió', () => {
@@ -482,7 +592,14 @@ test('Familia G: regreso tras inactividad excepcional', () => {
   rows.push(row({ playedAt: dayIso(1 + 6 * 3 + 45), sets: straightSetsWin('A') }));
   const history = IC.buildPersonalHistory(rows);
   const { claims } = CL.buildClaimsForMatch(history, ME);
-  assertClaimHasRealEvidence(findClaim(claims, 'contexto_regreso_tras_inactividad'));
+  const claim = findClaim(claims, 'contexto_regreso_tras_inactividad');
+  assertClaimHasRealEvidence(claim);
+  // C01: la evidencia debe cubrir el partido actual, el anterior y los antecedentes usados para
+  // la mediana/umbral (acá, los 8 partidos completos) — nunca solo `[ctx.matchId]`.
+  assert.equal(claim.evidenceMatchIds.length, 8);
+  assert.equal(claim.sampleSize, claim.evidenceMatchIds.length);
+  const evidenceSet = new Set(claim.evidenceMatchIds);
+  history.forEach((m) => assert.ok(evidenceSet.has(m.matchId)));
 });
 
 /* ------------------------------------------------------------------ */

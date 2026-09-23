@@ -79,6 +79,8 @@ Ninguna de estas ausencias es una **DECISIÓN ABIERTA**: son alcance explícitam
 
 `node --test bramulab/intelligence-context.test.mjs bramulab/intelligence-claims.test.mjs` — **57/57 PASS** (29 de Fase A, sin cambios, + 28 nuevos de Fase B).
 
+**Nota posterior:** la revisión central (`07_Revision_Central_Fase_B.md`) encontró 4 puntos bloqueantes de evidencia/contrato (C01–C04) sobre esta primera versión — corregidos en `08_Correccion_Fase_B_Claude.md` (64/64 tests tras la corrección). Este documento queda como registro de la primera entrega, no como el estado final de Fase B.
+
 Cobertura de Fase B, por criterio del handoff:
 
 - **0 claims sin evidencia**, verificado con un historial largo (18 partidos, compañeros/rivales variados) evaluado partido por partido: todo claim afirmado trae `evidenceMatchIds` real y no vacío; todo candidato descartado trae `discardReasonCodes`;

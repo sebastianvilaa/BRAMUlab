@@ -174,7 +174,11 @@
   /* B — HITOS, RACHAS Y RÉCORDS (§5.2/§5.3/§6.2)                         */
   /* ------------------------------------------------------------------ */
 
-  function buildMilestoneClaims(ctx, isOfficialEligible) {
+  /** C01 (07_Revision_Central_Fase_B.md §2): "primera victoria" y los hitos acumulativos no
+   *  quedan respaldados por un único `matchId` — necesitan el historial decidido completo (para
+   *  demostrar que no existía una victoria previa) o las victorias contadas (para el hito). Por
+   *  eso recibe `decidedSequence`, la misma secuencia que ya usa `buildStreakClaims`. */
+  function buildMilestoneClaims(ctx, decidedSequence, isOfficialEligible) {
     if (ctx.perspective.result === null) return [];
     const out = [];
     if (ctx.isFirstMatchEver) {
@@ -187,15 +191,16 @@
     if (ctx.milestones.isFirstWinEver) {
       out.push(makeClaim({
         insightType: 'primera_victoria_registrada', family: 'B', perspectivePlayerId: ctx.perspective.own.userId,
-        claim: {}, evidenceMatchIds: [ctx.matchId], comparisonScope: 'historial_completo',
+        claim: {}, evidenceMatchIds: decidedSequence.map((e) => e.match.matchId), comparisonScope: 'historial_completo',
         sampleSize: ctx.milestones.decidedMatches, minSampleRequired: 1, confidenceTier: 'primer_antecedente',
         dataAsOf: ctx.playedAt, isOfficialEligible,
       }));
     }
     if (ctx.milestones.winMilestoneReached) {
+      const winMatchIds = decidedSequence.filter((e) => e.perspective.result === 'win').map((e) => e.match.matchId);
       out.push(makeClaim({
         insightType: 'hito_de_victorias', family: 'B', perspectivePlayerId: ctx.perspective.own.userId,
-        claim: { winCount: ctx.milestones.winMilestoneReached }, evidenceMatchIds: [ctx.matchId],
+        claim: { winCount: ctx.milestones.winMilestoneReached }, evidenceMatchIds: winMatchIds,
         comparisonScope: 'historial_completo', sampleSize: ctx.milestones.decidedMatches,
         minSampleRequired: ctx.milestones.winMilestoneReached, confidenceTier: 'establecido',
         dataAsOf: ctx.playedAt, isOfficialEligible,
@@ -224,19 +229,24 @@
       }));
     }
     if (before && before.type !== after.type && before.length >= STREAK_SHOWABLE_MIN) {
+      // C01: la evidencia debe alcanzar para reconstruir "racha previa de N + partido que la
+      // corta" — la racha previa son los `before.length` partidos inmediatamente antes del
+      // actual, más el propio partido actual (after.length ya es 1, el corte).
       out.push(makeClaim({
         insightType: 'racha_cortada', family: 'B', perspectivePlayerId: ctx.perspective.own.userId,
         claim: { previousType: before.type, previousLength: before.length, newType: after.type },
-        evidenceMatchIds: [ctx.matchId], comparisonScope: 'racha_anterior', sampleSize: before.length,
+        evidenceMatchIds: lastN(before.length + 1), comparisonScope: 'racha_anterior', sampleSize: before.length,
         minSampleRequired: STREAK_SHOWABLE_MIN, confidenceTier: 'establecido', dataAsOf: ctx.playedAt, isOfficialEligible,
       }));
     }
     if ((isRecord || tiesRecord) && after.length >= STREAK_SHOWABLE_MIN) {
       const insightType = isRecord ? 'racha_nuevo_record_personal' : 'racha_iguala_record_personal';
       if (sampleSize >= RECORD_MIN_SAMPLE) {
+        // C01: "récord"/"empate de récord" se demuestra contra TODO el universo comparable
+        // (el historial decidido completo), no solo contra los partidos de la racha actual.
         out.push(makeClaim({
           insightType, family: 'B', perspectivePlayerId: ctx.perspective.own.userId,
-          claim: { type: after.type, length: after.length }, evidenceMatchIds: lastN(after.length),
+          claim: { type: after.type, length: after.length }, evidenceMatchIds: decidedSequence.map((e) => e.match.matchId),
           comparisonScope: 'historial_completo', sampleSize, minSampleRequired: RECORD_MIN_SAMPLE,
           confidenceTier: 'establecido', dataAsOf: ctx.playedAt, isOfficialEligible,
         }));
@@ -255,24 +265,42 @@
   /* C — FORMA RECIENTE, como evidencia pura (§5.3)                       */
   /* ------------------------------------------------------------------ */
 
+  const RECENT_FORM_MIN_SAMPLE = 5; // C02: madurez de producto — "Forma de 5" recién desde 5 previos (§8.1); no se afirma con 1-4.
+
   /** Expone el balance de los últimos 5 y el de la ventana inmediatamente anterior como HECHO
    *  comparativo — nunca afirma "mejoró"/"empeoró": el documento exige que esa diferencia sea
-   *  "material" sin fijar un número, así que decidir si lo es queda para Fase C (relevancia). */
+   *  "material" sin fijar un número, así que decidir si lo es queda para Fase C (relevancia).
+   *
+   *  C02 (07_Revision_Central_Fase_B.md §3): la "forma reciente es una ventana MÓVIL" — la
+   *  ventana inmediatamente anterior a los últimos 5 son los 5 partidos que terminan justo
+   *  ANTES del partido actual (corrida 1 partido hacia atrás), nunca un bloque no superpuesto de
+   *  5 partidos completos antes de la ventana actual. Con 6 decididos: actual = partidos 2-6,
+   *  anterior = partidos 1-5 (ejemplo literal de la revisión). Por debajo de 5 decididos, se
+   *  descarta explícitamente en vez de afirmarse con muestra insuficiente. */
   function buildRecentFormClaim(ctx, decidedSequence, isOfficialEligible) {
     if (!ctx.recentForm5) return null;
-    // Ventana inmediatamente anterior a los últimos 5 (los hasta 5 partidos previos a esa
-    // ventana, nunca más allá) — la comparación que pide §5.3, expuesta como dato, no como juicio.
-    const windowEnd = decidedSequence.length - ctx.recentForm5.sampleSize;
-    const priorWindow = decidedSequence.slice(Math.max(0, windowEnd - 5), windowEnd);
+    if (ctx.recentForm5.sampleSize < RECENT_FORM_MIN_SAMPLE) {
+      return makeDiscarded({
+        insightType: 'forma_reciente', family: 'C', perspectivePlayerId: ctx.perspective.own.userId,
+        comparisonScope: 'ultimos_5', sampleSize: ctx.recentForm5.sampleSize, minSampleRequired: RECENT_FORM_MIN_SAMPLE,
+        dataAsOf: ctx.playedAt, reasonCodes: ['muestra_insuficiente_para_forma_reciente'],
+      });
+    }
+    const n = decidedSequence.length;
+    const priorWindow = decidedSequence.slice(Math.max(0, n - 6), n - 1);
     const priorWins = priorWindow.filter((e) => e.perspective.result === 'win').length;
+    const priorMatchIds = priorWindow.map((e) => e.match.matchId);
+    // C01: si el claim compara ambas ventanas, la evidencia debe cubrir las DOS — unión sin
+    // duplicados (con exactamente 5 decididos, las ventanas se superponen casi por completo).
+    const evidenceMatchIds = Array.from(new Set(ctx.recentForm5.matchIds.concat(priorMatchIds)));
     return makeClaim({
       insightType: 'forma_reciente', family: 'C', perspectivePlayerId: ctx.perspective.own.userId,
       claim: {
-        current: { wins: ctx.recentForm5.wins, losses: ctx.recentForm5.losses, sampleSize: ctx.recentForm5.sampleSize },
-        previousWindow: { wins: priorWins, losses: priorWindow.length - priorWins, sampleSize: priorWindow.length },
+        current: { wins: ctx.recentForm5.wins, losses: ctx.recentForm5.losses, sampleSize: ctx.recentForm5.sampleSize, matchIds: ctx.recentForm5.matchIds },
+        previousWindow: { wins: priorWins, losses: priorWindow.length - priorWins, sampleSize: priorWindow.length, matchIds: priorMatchIds },
       },
-      evidenceMatchIds: ctx.recentForm5.matchIds, comparisonScope: 'ultimos_5', sampleSize: ctx.recentForm5.sampleSize,
-      minSampleRequired: 1, confidenceTier: ctx.recentForm5.sampleSize >= 5 ? 'establecido' : 'temprano',
+      evidenceMatchIds, comparisonScope: 'ultimos_5', sampleSize: ctx.recentForm5.sampleSize,
+      minSampleRequired: RECENT_FORM_MIN_SAMPLE, confidenceTier: 'establecido',
       dataAsOf: ctx.playedAt, isOfficialEligible,
     });
   }
@@ -353,14 +381,30 @@
         dataAsOf: currentMatch.playedAt, reasonCodes: ['menos_de_2_companeros_comparables'],
       });
     }
-    candidates.sort((a, b) => (
-      (b.summary.wins / b.summary.decidedMatches) - (a.summary.wins / a.summary.decidedMatches)
-    ) || (a.id < b.id ? -1 : 1));
+    const ratioOf = (c) => c.summary.wins / c.summary.decidedMatches;
+    // El orden por `id` es SOLO para que `candidates[]` tenga un orden técnico estable — nunca
+    // se usa para decidir "el mejor" cuando hay empate real (C03): eso lo decide `topRatio`.
+    candidates.sort((a, b) => (ratioOf(b) - ratioOf(a)) || (a.id < b.id ? -1 : 1));
+    const topRatio = ratioOf(candidates[0]);
+    const tiedAtTop = candidates.filter((c) => ratioOf(c) === topRatio);
+    const isUnique = tiedAtTop.length === 1;
     const best = candidates[0];
+    // C01: la evidencia debe permitir reconstruir el ranking comparativo completo, no solo los
+    // partidos del elegido — unión de TODOS los candidatos realmente comparados.
+    const evidenceMatchIds = Array.from(new Set(candidates.flatMap((c) => matchIdsOf(c.summary))));
     return makeClaim({
       insightType: 'companero_mejor_balance', family: 'D', perspectivePlayerId: callerPlayerId,
-      claim: { companionPlayerId: best.id, wins: best.summary.wins, losses: best.summary.losses, comparedAgainst: candidates.length },
-      evidenceMatchIds: matchIdsOf(best.summary), comparisonScope: 'todos_los_companeros',
+      claim: {
+        companionPlayerId: best.id, wins: best.summary.wins, losses: best.summary.losses,
+        comparedAgainst: candidates.length,
+        // C03: nunca se afirma "mejor" sin marcar si es único o empatado — Fase D decide si
+        // redacta "tu mejor balance" o "empatás tu mejor balance con...".
+        isUnique, tiedWith: isUnique ? [] : tiedAtTop.filter((c) => c.id !== best.id).map((c) => c.id),
+        candidates: candidates.map((c) => ({
+          companionPlayerId: c.id, wins: c.summary.wins, losses: c.summary.losses, sampleSize: c.summary.decidedMatches,
+        })),
+      },
+      evidenceMatchIds, comparisonScope: 'todos_los_companeros',
       sampleSize: best.summary.decidedMatches, minSampleRequired: COMPANION_COMPARISON_MIN_EACH,
       confidenceTier: 'establecido', dataAsOf: currentMatch.playedAt, isOfficialEligible,
     });
@@ -410,20 +454,28 @@
 
   /** `summary.matches` está en orden cronológico ascendente (Fase A) y, cuando el partido actual
    *  participa del alcance, es siempre el último elemento — se verifica explícitamente antes de
-   *  contar hacia atrás, para no atribuir la racha de derrotas de OTRO partido reciente. */
+   *  mirar hacia atrás, para no atribuir la evidencia de OTRO partido reciente.
+   *
+   *  C04 (07_Revision_Central_Fase_B.md §5): "primer triunfo" exige que NO exista ninguna
+   *  victoria decidida anterior en ese alcance — no solo una racha de derrotas INMEDIATAMENTE
+   *  anterior. Un partido sin resultado definido (pendiente) no es victoria ni derrota (mismo
+   *  principio de Fase A: no rompe ni extiende una secuencia decidida) y por lo tanto se
+   *  IGNORA al recorrer, nunca corta la búsqueda como si fuera una victoria. Por eso esta
+   *  versión filtra los previos por resultado en vez de recorrer con un `break` que confundía
+   *  "encontré un no-derrota" con "encontré una victoria". */
   function buildFirstWinAfterLossesClaim({ scopeLabel, scopeKey, summary, ctx, isOfficialEligible, family }) {
     if (ctx.perspective.result !== 'win') return null;
     const matches = summary.matches;
     if (!matches.length || matches[matches.length - 1].matchId !== ctx.matchId) return null;
-    let priorLosses = 0;
-    for (let i = matches.length - 2; i >= 0; i--) {
-      if (matches[i].result === 'loss') priorLosses += 1;
-      else break;
-    }
+    const priorMatches = matches.slice(0, -1); // toda la participación previa en el alcance, incluye pendientes (result:null)
+    const priorWins = priorMatches.filter((m) => m.result === 'win').length;
+    if (priorWins > 0) return null; // ya existía una victoria previa en este alcance: no es "primer triunfo"
+    const priorLossMatchIds = priorMatches.filter((m) => m.result === 'loss').map((m) => m.matchId);
+    const priorLosses = priorLossMatchIds.length;
     if (priorLosses < FIRST_WIN_AFTER_LOSSES_MIN) return null;
     return makeClaim({
       insightType: `${scopeLabel}_primer_triunfo_tras_derrotas`, family, perspectivePlayerId: ctx.perspective.own.userId,
-      claim: { scopeKey, priorLosses }, evidenceMatchIds: matches.slice(-(priorLosses + 1)).map((m) => m.matchId),
+      claim: { scopeKey, priorLosses }, evidenceMatchIds: priorLossMatchIds.concat([ctx.matchId]),
       comparisonScope: `${scopeLabel}:${scopeKey}`, sampleSize: priorLosses + 1,
       minSampleRequired: FIRST_WIN_AFTER_LOSSES_MIN + 1, confidenceTier: 'establecido', dataAsOf: ctx.playedAt, isOfficialEligible,
     });
@@ -491,8 +543,9 @@
     const max = Math.max.apply(null, margins);
     const current = ctx.formatFacts.marginNormalized;
     let extreme = null;
-    if (current === min) extreme = 'mas_ajustado';
-    else if (current === max) extreme = 'mas_amplio';
+    let tiedCount = null;
+    if (current === min) { extreme = 'mas_ajustado'; tiedCount = margins.filter((m) => m === min).length; }
+    else if (current === max) { extreme = 'mas_amplio'; tiedCount = margins.filter((m) => m === max).length; }
     if (!extreme) {
       return makeDiscarded({
         insightType: 'score_excepcional_formato_comparable', family: 'F', perspectivePlayerId: ctx.perspective.own.userId,
@@ -500,9 +553,14 @@
         minSampleRequired: RECORD_MIN_SAMPLE, dataAsOf: ctx.playedAt, reasonCodes: ['no_es_extremo_de_la_muestra'],
       });
     }
+    // C03: `tiedCount` incluye al propio partido actual — 1 significa único, ≥2 significa que
+    // comparte el extremo con al menos otro partido histórico. Fase D decide si redacta "el más
+    // ajustado" o "iguala tu marca más ajustada" — Fase B nunca inventa un desempate para volver
+    // único algo que no lo es.
     return makeClaim({
       insightType: 'score_excepcional_formato_comparable', family: 'F', perspectivePlayerId: ctx.perspective.own.userId,
-      claim: { extreme, marginNormalized: current }, evidenceMatchIds: comparable.map((e) => e.matchId),
+      claim: { extreme, marginNormalized: current, isUnique: tiedCount === 1, tiedCount },
+      evidenceMatchIds: comparable.map((e) => e.matchId),
       comparisonScope: `formato_comparable:${currentFormatKey}`, sampleSize: comparable.length,
       minSampleRequired: RECORD_MIN_SAMPLE, confidenceTier: 'establecido', dataAsOf: ctx.playedAt, isOfficialEligible,
     });
@@ -549,7 +607,7 @@
    *  infrecuente" y "dentro/fuera de forma reciente" quedan fuera de esta ronda (ver informe de
    *  resultado): el primero no tiene un umbral de "infrecuente" definido en la fuente, el
    *  segundo ya es exactamente `buildRecentFormClaim`. */
-  function buildContextClaims(ctx, isOfficialEligible) {
+  function buildContextClaims(ctx, historyAsc, isOfficialEligible) {
     const out = [];
     if (ctx.companion && ctx.companion.isFirstEncounter) {
       out.push(makeClaim({
@@ -578,10 +636,17 @@
       }
     });
     if (ctx.inactivity && ctx.inactivity.isExceptional) {
+      // C01: el umbral de inactividad depende del partido actual, el anterior y la mediana de
+      // separación de hasta los últimos 10 antecedentes (Fase A, `computeInactivityGap`) — la
+      // evidencia debe cubrir esos mismos partidos, replicando exactamente la misma ventana que
+      // Fase A usa internamente (sin tocar ni reabrir intelligence-context.js: Fase A no expone
+      // los matchIds que usó, así que Fase B los reconstruye con el mismo criterio de recorte).
+      const inactivityEvidence = (historyAsc || []).slice(Math.max(0, (historyAsc || []).length - 11)).map((m) => m.matchId);
       out.push(makeClaim({
         insightType: 'contexto_regreso_tras_inactividad', family: 'G', perspectivePlayerId: ctx.perspective.own.userId,
         claim: { daysSincePrevious: ctx.inactivity.daysSincePrevious, threshold: ctx.inactivity.threshold },
-        evidenceMatchIds: [ctx.matchId], comparisonScope: 'historial_completo', sampleSize: 1, minSampleRequired: 1,
+        evidenceMatchIds: inactivityEvidence, comparisonScope: 'historial_completo',
+        sampleSize: inactivityEvidence.length, minSampleRequired: 2,
         confidenceTier: 'establecido', dataAsOf: ctx.playedAt, isOfficialEligible,
       }));
     }
@@ -612,13 +677,13 @@
 
     const claims = [
       ...buildScoreStructureClaims(ctx, isOfficialEligible),
-      ...buildMilestoneClaims(ctx, isOfficialEligible),
+      ...buildMilestoneClaims(ctx, decidedSequence, isOfficialEligible),
       ...buildStreakClaims(ctx, decidedSequence, isOfficialEligible),
       ...buildCompanionClaims(ctx, isOfficialEligible),
       ...buildIndividualRivalClaims(ctx, isOfficialEligible),
       ...buildRivalPairClaims(ctx, isOfficialEligible),
       ...buildExactPairCrossingClaims(ctx, isOfficialEligible),
-      ...buildContextClaims(ctx, isOfficialEligible),
+      ...buildContextClaims(ctx, historyAsc, isOfficialEligible),
     ];
 
     const recentForm = buildRecentFormClaim(ctx, decidedSequence, isOfficialEligible);
