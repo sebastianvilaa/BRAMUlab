@@ -42,7 +42,7 @@
 - Revisar el diff final antes de commitear.
 - Consolidar cada intervención en el menor número razonable de commits — idealmente uno solo, lógico y autocontenido.
 - No crear commits solo para "probar por las dudas".
-- Cambios únicamente documentales no deben provocar deploys de `bramulab` ni `bramulive` (ver `bramulab/vercel.json`/`bramulive/vercel.json` — `ignoreCommand`).
+- Cambios únicamente documentales no deben provocar deploys de `bramulab` ni `bramulive` (ver `bramulab/vercel.json`/`bramulive/vercel.json` — `ignoreCommand`). El comando vigente compara `HEAD^` contra `HEAD` dentro de cada Root Directory. **No usar `VERCEL_GIT_PREVIOUS_SHA`**: Vercel puede entregar un clon superficial donde ese SHA histórico no exista y el Ignored Build Step falla con `fatal: bad object`.
 
 ## Pruebas
 

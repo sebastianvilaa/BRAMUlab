@@ -827,3 +827,23 @@ La revisión real detectó y corrigió antes de aplicar: error de sintaxis por `
 Migración y runner final pasaron con rollback, luego se aplicaron y revalidaron en Staging. El estado sin edición publicada también fue probado explícitamente. No quedaron fixtures.
 
 **Siguiente:** Fase 4 — publicación automática semanal con `pg_cron`.
+
+### Fase 4 — publicación automática semanal
+
+**Estado:** **APLICADA Y VALIDADA EN STAGING**.  
+**Evidencia:** `docs/BRAMUlab/Implementacion/Backend/Bloque_07/18_Validacion_Central_Fase_4_Staging.md`.
+
+Quedó instalado `pg_cron 1.6.4` y activo el job:
+
+- nombre: `bramu_weekly_ranking_publish`;
+- schedule: `5 3 * * 1` (lunes 00:05 Buenos Aires);
+- comando: `select public.publish_current_ranking_edition();`;
+- owner/runtime: `postgres`.
+
+El wrapper calcula el cutoff lógico del lunes 00:00 Buenos Aires y delega en `compute_ranking_edition`; no duplica lógica competitiva.
+
+La primera prueba central detectó que el runner de Claude esperaba erróneamente `period_start_at = cutoff`. El contrato real de Fase 2 publica la semana que terminó: `period_start_at = cutoff - 7 días`. Corregida solo esa expectativa, el runner completo pasó post-aplicación con rollback limpio.
+
+No quedó ninguna edición QA persistente.
+
+**Siguiente:** Fase 5 — frontend real de Ranking y retiro del prototipo simulado.

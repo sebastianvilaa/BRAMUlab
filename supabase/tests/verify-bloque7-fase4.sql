@@ -50,12 +50,16 @@ begin
   if v_edition_1.edition_id is null then
     raise exception 'publish_wrapper_returned_no_edition';
   end if;
-  if v_edition_1.period_start_at <> v_expected_cutoff then
-    raise exception 'publish_wrapper_cutoff_mismatch: got % expected %',
-      v_edition_1.period_start_at, v_expected_cutoff;
+  -- compute_ranking_edition(cutoff) publica la semana QUE TERMINÓ en ese cutoff:
+  -- period_start_at = cutoff - 7 días; period_end_at = cutoff - 1 microsegundo.
+  if v_edition_1.period_start_at <> v_expected_cutoff - interval '7 days'
+     or v_edition_1.period_end_at <> v_expected_cutoff - interval '1 microsecond' then
+    raise exception 'publish_wrapper_period_mismatch: got [% - %] expected [% - %]',
+      v_edition_1.period_start_at, v_edition_1.period_end_at,
+      v_expected_cutoff - interval '7 days', v_expected_cutoff - interval '1 microsecond';
   end if;
 
-  v_local_ts := v_edition_1.period_start_at at time zone 'America/Argentina/Buenos_Aires';
+  v_local_ts := v_expected_cutoff at time zone 'America/Argentina/Buenos_Aires';
   if extract(dow from v_local_ts) <> 1 or v_local_ts::time <> '00:00:00'::time then
     raise exception 'publish_wrapper_cutoff_not_monday_midnight: %', v_local_ts;
   end if;
@@ -67,7 +71,7 @@ begin
   if v_edition_2.edition_id <> v_edition_1.edition_id then
     raise exception 'publish_wrapper_duplicated_edition: % vs %', v_edition_1.edition_id, v_edition_2.edition_id;
   end if;
-  if (select count(*) from public.ranking_editions where period_start_at = v_expected_cutoff) <> 1 then
+  if (select count(*) from public.ranking_editions where period_start_at = v_expected_cutoff - interval '7 days') <> 1 then
     raise exception 'publish_wrapper_created_more_than_one_edition_for_cutoff';
   end if;
 
@@ -77,8 +81,8 @@ begin
   if not exists (
     select 1 from public.ranking_editions
     where edition_id = v_old_edition.edition_id
-      and period_start_at = v_old_cutoff
-      and period_end_at = v_old_edition.period_end_at
+      and period_start_at = v_old_cutoff - interval '7 days'
+      and period_end_at = v_old_cutoff - interval '1 microsecond'
   ) then
     raise exception 'publish_wrapper_altered_previous_edition';
   end if;

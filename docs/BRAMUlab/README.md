@@ -54,7 +54,7 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 6 (Validación y actualización oficial) está CERRADO en Staging** (22/09/2026): backend/Fase A validado, frontend/Fase B conectado y QA real de navegador cerrada sobre `04.10-h19`. La revalidación final dio PASS en resolución de identidad, propuesta de corrección y regresión mínima; los fixtures de navegador fueron limpiados de Staging y los estados de Nivel afectados volvieron a su `initial_estimate`. Ver `Implementacion/Backend/Bloque_06/20_Cierre_Bloque_06.md`.
 
-**Bloque 7 (Ranking real semanal) está EN CURSO en Staging** (22/09/2026): Fases 1–3 quedaron aplicadas y validadas contra Supabase Staging real. Ya existen snapshot semanal, cálculo atómico/idempotente, auditoría as-of-cutoff y RPCs autenticadas para clasificación, Tu posición, Mi red, Perfil y Home; la lectura server-side resuelve ámbitos propios, filtros de Nivel, ramas M/F y movimiento semanal sin exponer `level_internal`. Todavía faltan publicación automática, frontend real y QA final. Siguiente paso: Fase 4 — publicación automática semanal con `pg_cron`. Ver `Implementacion/Backend/Bloque_07/15_Validacion_Central_Fase_3_Staging.md`.
+**Bloque 7 (Ranking real semanal) está EN CURSO en Staging** (22/09/2026): Fases 1–4 quedaron aplicadas y validadas contra Supabase Staging real. Ya existen snapshot semanal, cálculo atómico/idempotente, auditoría as-of-cutoff, RPCs autenticadas de lectura y publicación automática semanal mediante `pg_cron`. El job `bramu_weekly_ranking_publish` quedó activo los lunes 00:05 de Buenos Aires. Todavía faltan frontend real y QA final. Siguiente paso: Fase 5 — conectar Ranking a datos reales y retirar el prototipo simulado. Ver `Implementacion/Backend/Bloque_07/18_Validacion_Central_Fase_4_Staging.md`.
 
 ---
 
@@ -84,7 +84,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX cerrada; implementación actual V03 es prototipo local/simulado |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 cerrada; implementación obligatoria antes de la primera salida productiva. Capa generativa opcional |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Bloque 7 EN CURSO: Fases 1–3 aplicadas/validadas; sigue publicación automática → frontend/QA → Intelligence V1 → endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–6 CERRADOS en Staging. Bloque 7 EN CURSO: Fases 1–4 aplicadas/validadas; sigue frontend real/QA → Intelligence V1 → endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -215,7 +215,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging y Bloque 7 está en curso con Fases 1–3 aplicadas/validadas.** Después siguen publicación automática, frontend/QA de Ranking, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–6 están cerrados en Staging y Bloque 7 está en curso con Fases 1–4 aplicadas/validadas.** Después siguen frontend/QA de Ranking, Intelligence V1 y endurecimiento/salida. No implementar desde antecedentes del Archivo.
 
 ---
 
