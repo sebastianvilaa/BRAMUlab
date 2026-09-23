@@ -8,6 +8,11 @@
 // Function no tiene arnés Node/Deno en este repo, mismo criterio que el resto de las funciones de
 // supabase/functions, y queda documentada por revisión de código en el informe de esta ronda) de
 // docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §13.
+//
+// Corrección Revisión Central Fase D (docs/.../17_Revision_Central_Fase_D.md): tests D01.*/D02.*/
+// D03.*/D04/D05 al final de este archivo, sobre `PLIntelligencePresentation.runIntelligenceReplay`
+// (checkpoints cronológicos, reemplaza el diseño de un solo blob global de memoria) y el
+// fingerprint extendido (identidad real de participantes/formato/scoring/conocimiento de hora).
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,9 +88,20 @@ function winSeries(n, opts = {}) {
 
 function renderFor(historyRows, memory) {
   const history = IC.buildPersonalHistory(historyRows);
-  const decision = ED.buildEditorialDecision(history, ME, memory || ED.emptyMemory());
-  return PR.renderIntelligence(decision, history, decision.memoryUpdate);
+  // D03 (Revisión Central Fase D): `decision.memoryUpdate` es SOLO lo que Fase C reenvía —
+  // nunca el `memoryBefore` real (C no conoce campos propios de D como `learningHitosShown`).
+  // El contrato correcto, igual que `runIntelligenceReplay`, es pasarle a AMBOS (C y D) el mismo
+  // `memoryBefore`.
+  const memoryBefore = memory || PR.emptyMemory();
+  const decision = ED.buildEditorialDecision(history, ME, memoryBefore);
+  return PR.renderIntelligence(decision, history, memoryBefore);
 }
+
+function usedTemplateIdsOf(output) {
+  return [output.principal].concat(output.secondary || []).filter(Boolean).map((i) => i.templateId);
+}
+
+const RULES_VERSION_COMBINED = 'bramu_intelligence_context_v1:test_claims:test_editorial:test_presentation';
 
 test('los módulos se cargan y PLIntelligencePresentation expone su API pública', () => {
   assert.ok(PR && typeof PR.renderIntelligence === 'function');
@@ -100,12 +116,12 @@ test('los módulos se cargan y PLIntelligencePresentation expone su API pública
 test('5/6/7: cada insightType A-G seleccionable produce un template sin placeholders sin resolver ni IDs técnicos', () => {
   // Historial rico: dispara docenas de insightTypes distintos a lo largo de la secuencia.
   const rows = winSeries(12, { team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2 });
-  let memory = ED.emptyMemory();
+  let memory = PR.emptyMemory();
   const seenInsightTypes = new Set();
   for (let i = 1; i <= rows.length; i++) {
     const history = IC.buildPersonalHistory(rows.slice(0, i));
     const decision = ED.buildEditorialDecision(history, ME, memory);
-    const rendered = PR.renderIntelligence(decision, history, decision.memoryUpdate);
+    const rendered = PR.renderIntelligence(decision, history, memory);
     memory = rendered.memoryUpdate;
     [rendered.principal].concat(rendered.secondary).filter(Boolean).forEach((insight) => {
       seenInsightTypes.add(insight.insightType);
@@ -192,11 +208,11 @@ test('12b: sin alternativa disponible, se usa el fallback estable de todos modos
 test('13: ningún template usa vocabulario prohibido (técnica/emoción/causalidad)', () => {
   const FORBIDDEN_WORDS = ['confianza', 'presión', 'nervios', 'winner', 'volea', 'saque', 'quiebre', 'porque jugó', 'gracias a su', 'mentalmente'];
   const rows = winSeries(12, { team1: PARTNER });
-  let memory = ED.emptyMemory();
+  let memory = PR.emptyMemory();
   for (let i = 1; i <= rows.length; i++) {
     const history = IC.buildPersonalHistory(rows.slice(0, i));
     const decision = ED.buildEditorialDecision(history, ME, memory);
-    const rendered = PR.renderIntelligence(decision, history, decision.memoryUpdate);
+    const rendered = PR.renderIntelligence(decision, history, memory);
     memory = rendered.memoryUpdate;
     [rendered.principal].concat(rendered.secondary).filter(Boolean).forEach((insight) => {
       const text = `${insight.title || ''} ${insight.body} ${insight.why}`.toLowerCase();
@@ -241,7 +257,7 @@ test('15: abstención nunca fuerza un insight — sin candidato fuerte, principa
   const decision = ED.buildEditorialDecision(history, ME, priorMemory);
   assert.equal(decision.abstention, true); // confirma el escenario antes de renderizarlo
 
-  const rendered = PR.renderIntelligence(decision, history, decision.memoryUpdate);
+  const rendered = PR.renderIntelligence(decision, history, priorMemory);
   assert.equal(rendered.abstention, true);
   assert.equal(rendered.principal, null);
   assert.ok(rendered.learningMessage || rendered.fallbackMessage);
@@ -377,4 +393,227 @@ test('27: el corte histórico de un partido viejo (mismo criterio que get-match-
   assert.equal(fpBefore, fpAfter);
   assert.equal(renderedBefore.abstention, renderedAfter.abstention);
   assert.equal(renderedBefore.principal ? renderedBefore.principal.templateId : null, renderedAfter.principal ? renderedAfter.principal.templateId : null);
+});
+
+/* ==================================================================== */
+/* Corrección Revisión Central Fase D — 17_Revision_Central_Fase_D.md    */
+/* ==================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* D01.1: un partido viejo nunca recibe memoria del futuro               */
+/* ------------------------------------------------------------------ */
+
+test('D01.1: el checkpoint de un partido viejo es EXACTAMENTE el mismo, calcule o no la historia más allá de él', () => {
+  const rows = winSeries(6, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+
+  // Se pide Intelligence SOLO hasta el partido 2 (índice 1) — nunca camina más allá.
+  const stepsShort = PR.runIntelligenceReplay(history, 1, ME, {}, RULES_VERSION_COMBINED);
+  // Se pide Intelligence del partido MÁS RECIENTE (índice 5) — camina toda la historia.
+  const stepsLong = PR.runIntelligenceReplay(history, 5, ME, {}, RULES_VERSION_COMBINED);
+
+  // El paso del partido viejo (índice 1) debe ser IDÉNTICO en ambos casos: caminar más allá de
+  // él (para atender un pedido de un partido más nuevo) nunca puede cambiar lo que ya se calculó
+  // para él.
+  assert.equal(stepsShort[1].fingerprint, stepsLong[1].fingerprint);
+  assert.equal(JSON.stringify(stepsShort[1].output), JSON.stringify(stepsLong[1].output));
+  assert.equal(JSON.stringify(stepsShort[1].memoryAfter), JSON.stringify(stepsLong[1].memoryAfter));
+});
+
+/* ------------------------------------------------------------------ */
+/* D01.2: corregir el partido MÁS RECIENTE no lo penaliza contra sí mismo */
+/* ------------------------------------------------------------------ */
+
+test('D01.2: regenerar el partido más reciente tras una corrección usa la memoria de partido-1, nunca la memoria que ya lo incluye a él mismo', () => {
+  // M (el más reciente) es la PRIMERA victoria registrada del jugador — un hito de una sola
+  // aparición (`shownMilestoneKeys`). Si la regeneración de M usara memoria que ya lo incluye a
+  // él mismo (el bug original), M se autopenalizaría: el hito ya figuraría como "mostrado" antes
+  // de siquiera evaluar M, y desaparecería de su propia salida al corregirlo.
+  const rows = [
+    row({ playedAt: dayIso(1), team1: PARTNER, sets: straightSetsLoss('A') }),
+    row({ playedAt: dayIso(2), team1: PARTNER, sets: straightSetsWin('A') }), // M: primera victoria
+  ];
+  // (Con compañero fijo en ambos partidos, "primera victoria registrada" y "primera victoria
+  // junto a este compañero" son ambos hitos legítimos de una sola aparición sobre M — cuál gana
+  // la selección de Fase C no es lo que prueba este test, así que se acepta cualquiera de los dos.)
+  const ONE_TIME_MILESTONE_TYPES = ['primera_victoria_registrada', 'companero_primera_victoria_juntos'];
+  const history1 = IC.buildPersonalHistory(rows);
+  const steps1 = PR.runIntelligenceReplay(history1, history1.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const original = steps1[steps1.length - 1];
+  assert.ok(original.output.principal);
+  assert.ok(ONE_TIME_MILESTONE_TYPES.indexOf(original.output.principal.insightType) !== -1, original.output.principal.insightType);
+
+  // Se "persisten" los checkpoints (simula lo que la Edge Function guardó tras la 1ra generación).
+  const existingCheckpoints = {};
+  steps1.forEach((s) => {
+    existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter };
+  });
+
+  // Corrección de M: sigue siendo una victoria, pero en 3 sets en vez de en 2 -> cambia su fingerprint.
+  const correctedRows = rows.slice();
+  correctedRows[1] = row({ playedAt: dayIso(2), team1: PARTNER, sets: [[6, 4], [4, 6], [6, 4]] });
+  const history2 = IC.buildPersonalHistory(correctedRows);
+
+  const steps2 = PR.runIntelligenceReplay(history2, history2.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  assert.equal(steps2[0].reused, true); // el partido 1 no cambió: se reutiliza tal cual
+  const regenerated = steps2[steps2.length - 1];
+  assert.equal(regenerated.reused, false); // el fingerprint de M cambió: se regenera
+
+  // La corrección de M nunca lo penaliza contra su propia salida anterior: el mismo hito de una
+  // sola aparición sigue disponible exactamente igual que la primera vez (nunca desaparece por
+  // encontrarse "ya mostrado" contra sí mismo).
+  assert.ok(regenerated.output.principal);
+  assert.equal(regenerated.output.principal.insightType, original.output.principal.insightType);
+});
+
+/* ------------------------------------------------------------------ */
+/* D01.3: una carga retroactiva invalida los checkpoints posteriores     */
+/* ------------------------------------------------------------------ */
+
+test('D01.3: insertar un partido retroactivo ANTES de todo invalida automáticamente todos los checkpoints posteriores (nunca queda uno stale reutilizado)', () => {
+  const rows = winSeries(3, { team1: PARTNER });
+  const history1 = IC.buildPersonalHistory(rows);
+  const steps1 = PR.runIntelligenceReplay(history1, history1.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const existingCheckpoints = {};
+  steps1.forEach((s) => {
+    existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter };
+  });
+
+  // Carga retroactiva: un partido nuevo que se jugó ANTES que todos los existentes.
+  const retroactive = row({ playedAt: new Date(Date.UTC(2025, 11, 31)).toISOString(), team1: PARTNER, sets: straightSetsLoss('A') });
+  const history2 = IC.buildPersonalHistory(rows.concat([retroactive]));
+  assert.equal(history2[0].matchId, retroactive.match_id); // el retroactivo pasa a ser el primero
+
+  const steps2 = PR.runIntelligenceReplay(history2, history2.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  // NINGÚN checkpoint viejo sigue siendo válido: los 3 partidos originales ahora tienen un
+  // prefijo distinto (incluyen al retroactivo delante), y el retroactivo mismo nunca existió.
+  steps2.forEach((s) => assert.equal(s.reused, false));
+});
+
+/* ------------------------------------------------------------------ */
+/* D02: el fingerprint incluye identidad real y formato                  */
+/* ------------------------------------------------------------------ */
+
+test('D02.1: reemplazar al compañero real por otra persona cambia el fingerprint aunque hasOpenIdentityIssue sea false antes y después', () => {
+  const OTHER_COMPANION = '66666666-6666-6666-6666-666666666666';
+  const rows = winSeries(2, { team1: PARTNER });
+  const history1 = IC.buildPersonalHistory(rows);
+  const fp1 = PR.computeHistoryFingerprint(history1);
+
+  const swappedRows = rows.slice();
+  swappedRows[0] = row({ playedAt: dayIso(1), team1: OTHER_COMPANION, sets: straightSetsWin('A'), hasOpenIdentityIssue: false });
+  const history2 = IC.buildPersonalHistory([swappedRows[0], rows[1]]);
+  const fp2 = PR.computeHistoryFingerprint(history2);
+
+  assert.notEqual(fp1, fp2);
+});
+
+test('D02.2: un cambio de formato cambia el fingerprint', () => {
+  const rows = winSeries(2, { team1: PARTNER });
+  const history1 = IC.buildPersonalHistory(rows);
+  const fp1 = PR.computeHistoryFingerprint(history1);
+
+  // Mismo resultado, mismo día, mismos jugadores -- únicamente cambia el formato del primer partido.
+  const changedRows = rows.slice();
+  const original = changedRows[0];
+  changedRows[0] = Object.assign({}, original, { format_id: 'americano' });
+  const history2 = IC.buildPersonalHistory([changedRows[0], rows[1]]);
+  const fp2 = PR.computeHistoryFingerprint(history2);
+
+  assert.notEqual(fp1, fp2);
+});
+
+/* ------------------------------------------------------------------ */
+/* D03: la memoria propia de D sobrevive el paso por Fase C              */
+/* ------------------------------------------------------------------ */
+
+test('D03.1: learningHitosShown sobrevive el paso por Fase C entre partidos reales consecutivos, aunque C no conozca ese campo', () => {
+  const memoryBefore = Object.assign({}, ED.emptyMemory(), { learningHitosShown: { 1: true, 3: true } });
+  const rows = winSeries(4, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const decision = ED.buildEditorialDecision(history, ME, memoryBefore);
+  // Fase C, tal cual está hoy, nunca declara `learningHitosShown` en su propio memoryUpdate.
+  assert.equal(Object.prototype.hasOwnProperty.call(decision.memoryUpdate, 'learningHitosShown'), false);
+
+  const rendered = PR.renderIntelligence(decision, history, memoryBefore);
+  // Pese a que C "lo perdió", D lo conserva intacto en la memoria final combinada.
+  assert.equal(rendered.memoryUpdate.learningHitosShown[1], true);
+  assert.equal(rendered.memoryUpdate.learningHitosShown[3], true);
+});
+
+test('D03.2: recentTemplateIds conserva continuidad cronológica a través del replay real (nunca se resetea partido a partido)', () => {
+  const rows = winSeries(6, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+
+  for (let i = 1; i < steps.length; i++) {
+    const before = steps[i - 1].memoryAfter.recentTemplateIds;
+    const usedThisStep = usedTemplateIdsOf(steps[i].output);
+    const expectedPresent = before.concat(usedThisStep);
+    const after = steps[i].memoryAfter.recentTemplateIds;
+    expectedPresent.forEach((id) => assert.ok(after.indexOf(id) !== -1, `templateId "${id}" se perdió entre el partido ${i - 1} y el ${i}`));
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* D01 (8): un checkpoint válido se reutiliza sin regenerar              */
+/* ------------------------------------------------------------------ */
+
+test('8 (D01): un checkpoint con el MISMO fingerprint y la MISMA rules_version se reutiliza sin regenerar', () => {
+  const rows = winSeries(4, { team1: PARTNER });
+  const history = IC.buildPersonalHistory(rows);
+  const steps1 = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const existingCheckpoints = {};
+  steps1.forEach((s) => {
+    existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter };
+  });
+
+  const steps2 = PR.runIntelligenceReplay(history, history.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  steps2.forEach((s, i) => {
+    assert.equal(s.reused, true);
+    assert.equal(s.fingerprint, steps1[i].fingerprint);
+    assert.equal(JSON.stringify(s.output), JSON.stringify(steps1[i].output));
+  });
+
+  // El `output` público nunca expone la memoria interna (vive aparte, en `memoryAfter`).
+  steps1.forEach((s) => assert.equal(Object.prototype.hasOwnProperty.call(s.output, 'memoryUpdate'), false));
+});
+
+/* ------------------------------------------------------------------ */
+/* D04/D05 (9): copy corregido                                          */
+/* ------------------------------------------------------------------ */
+
+function fakeDecisionFor(insightType, claim, memory) {
+  return {
+    ctx: { matchId: 'm-fake-1', playedAt: dayIso(1) },
+    principal: {
+      insightType, family: 'F', semanticKey: `test:${insightType}`,
+      officialScope: 'personal', confidenceTier: 'establecido',
+      evidenceMatchIds: ['m-fake-1'], claim, rulesVersion: 'bramu_intelligence_v1', scored: true,
+    },
+    secondary: [],
+    abstention: false,
+    memoryUpdate: memory || ED.emptyMemory(),
+    rulesVersion: ED.RULES_VERSION,
+  };
+}
+
+test('9 (D04): sets_corridos aclara explícitamente "en games" — nunca puede leerse como el marcador de un set', () => {
+  const claim = { setsPlayed: 2, gamesWonByWinner: 12, gamesTotal: 17, marginNormalized: 0.41 }; // 12-5 en games
+  const decision = fakeDecisionFor('sets_corridos', claim);
+  const rendered = PR.renderIntelligence(decision, [], PR.emptyMemory());
+  assert.ok(rendered.principal);
+  assert.match(rendered.principal.body, /en games/);
+  assert.ok(rendered.principal.body.indexOf('12-5') !== -1);
+});
+
+test('9 (D05): forma_reciente en la primera lectura no dice "comparada con los N anteriores" sin ventana previa completa de 5', () => {
+  const claimFirstTime = { current: { sampleSize: 5, wins: 3, losses: 2 }, previousWindow: { sampleSize: 4, wins: 2, losses: 2 } };
+  const rendered1 = PR.renderIntelligence(fakeDecisionFor('forma_reciente', claimFirstTime), [], PR.emptyMemory());
+  assert.equal(rendered1.principal.why.indexOf('comparada con los 4'), -1);
+  assert.match(rendered1.principal.why, /primera lectura/i);
+
+  const claimFullWindow = { current: { sampleSize: 5, wins: 3, losses: 2 }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } };
+  const rendered2 = PR.renderIntelligence(fakeDecisionFor('forma_reciente', claimFullWindow), [], PR.emptyMemory());
+  assert.ok(rendered2.principal.why.indexOf('comparada con los 5 inmediatamente anteriores') !== -1);
 });

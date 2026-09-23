@@ -84,19 +84,34 @@
   /** Hash NO criptográfico (FNV-1a de 32 bits) — alcanza para detectar "¿cambió algo de lo que
    *  ya usé?", no hace falta resistencia a colisión adversarial para esto. Determinístico: la
    *  MISMA secuencia de campos relevantes produce SIEMPRE el mismo fingerprint, sin importar
-   *  cuántas veces se calcule. Incluye exactamente los campos que, si cambian, invalidan una
-   *  salida ya generada: identidad de cada partido, su estado, si tuvo efecto oficial, si tiene
-   *  una incidencia de identidad abierta, y su score (una corrección cambia `sets`). Nunca
-   *  incluye `createdAt`/orden de carga — el fingerprint depende de la secuencia por
-   *  `playedAt`, que es como `historyAsc` ya llega ordenada (Fase A). */
+   *  cuántas veces se calcule. Nunca incluye `createdAt`/orden de carga — el fingerprint depende
+   *  de la secuencia por `playedAt`, que es como `historyAsc` ya llega ordenada (Fase A).
+   *
+   *  Revisión Central Fase D (D02): la versión anterior no incluía identidad real de
+   *  participantes ni formato/sistema de scoring/conocimiento de hora — una sustitución real de
+   *  jugador con `hasOpenIdentityIssue=false` antes Y después (por ejemplo, una identidad que se
+   *  resuelve señalando a otra persona distinta de la originalmente registrada) podía conservar
+   *  el mismo fingerprint. Ahora incluye, por cada partido del prefijo: identidad/estado/
+   *  oficialidad/incidencia de identidad/ocultamiento (igual que antes) + `timeKnown` (equivalente
+   *  local de `playedAtTimeKnown`) + `formatId` + `scoringSystem` + la composición ESTABLE de
+   *  participantes (`team`+`userId`, en el mismo orden ya estable por team/position que entrega
+   *  `PLMatchSync.translateServerMatchToLocalShape` — nunca se reordena acá) + el score derivado.
+   *  Cualquier cambio real en uno de estos campos, en CUALQUIER partido del prefijo, cambia el
+   *  fingerprint de ESE prefijo y de todos los prefijos posteriores que lo incluyan — es lo que
+   *  permite que D01 invalide checkpoints en cascada sin lógica especial (ver
+   *  `runIntelligenceReplay`). */
   function computeHistoryFingerprint(historyAsc) {
     const relevant = (historyAsc || []).map((m) => ({
       matchId: m.matchId,
       playedAt: m.playedAt,
+      timeKnown: !!m.timeKnown,
       status: m.status,
       officialEligible: !!m.officialEligible,
       hasOpenIdentityIssue: !!m.hasOpenIdentityIssue,
       hidden: !!m.hidden,
+      formatId: m.formatId || null,
+      scoringSystem: m.scoringSystem || null,
+      players: (m.players || []).map((p) => ({ team: p.team, userId: p.userId || null })),
       winnerTeam: m.winnerTeam || null,
       sets: (m.sets || []).map((s) => [s.gamesA, s.gamesB, s.tiebreak ? [s.tiebreak.a, s.tiebreak.b] : null]),
     }));
@@ -269,7 +284,15 @@
   // ---- Familia C/F: forma, score, patrón ----
   register('forma_reciente', {
     variants: [{ id: 'v1', title: () => 'Tu forma reciente', body: (c) => `En tus últimos ${c.current.sampleSize} partidos llevás ${c.current.wins} victorias y ${c.current.losses} derrotas.` }],
-    why: (claim) => `Ventana móvil de tus últimos ${claim.current.sampleSize} partidos decididos, comparada con los ${claim.previousWindow.sampleSize} inmediatamente anteriores.`,
+    // D05 (Revisión Central Fase D): con exactamente 5 partidos decididos, Fase B/C ya permiten
+    // la PRIMERA lectura válida de forma (`RECENT_FORM_MIN_SAMPLE=5`), pero la ventana previa
+    // todavía no llega a 5 partidos comparables (`previousWindow.sampleSize` da 4, nunca menos,
+    // ver `buildRecentFormClaim`) — decir "comparada con los 4 inmediatamente anteriores" es
+    // literal pero editorialmente engañoso, como si esa comparación fuera equivalente a la
+    // ventana móvil real de 5 que sí existe a partir del siguiente partido.
+    why: (claim) => (claim.previousWindow.sampleSize >= 5
+      ? `Ventana móvil de tus últimos ${claim.current.sampleSize} partidos decididos, comparada con los ${claim.previousWindow.sampleSize} inmediatamente anteriores.`
+      : `Primera lectura posible de tu forma reciente, sobre tus últimos ${claim.current.sampleSize} partidos decididos: todavía no existe una ventana anterior completa de 5 partidos para comparar.`),
   });
   register('score_excepcional_formato_comparable', {
     variants: [{
@@ -294,7 +317,11 @@
     why: () => 'Se revisó el orden de sets de este partido.',
   });
   register('sets_corridos', {
-    variants: [{ id: 'v1', title: () => (undefined), body: (c) => `El resultado se resolvió en dos sets, ${c.gamesWonByWinner}-${c.gamesTotal - c.gamesWonByWinner}.` }],
+    // D04 (Revisión Central Fase D): el número es el TOTAL agregado de games de todo el
+    // partido, no el marcador de un set — sin la aclaración explícita "en games" puede leerse
+    // como si fuera el score de un set puntual (forma segura de la fuente maestra: "…y con
+    // 12–4 en games").
+    variants: [{ id: 'v1', title: () => (undefined), body: (c) => `El resultado se resolvió en dos sets, con ${c.gamesWonByWinner}-${c.gamesTotal - c.gamesWonByWinner} en games.` }],
     why: () => 'Descripción directa del resultado.',
   });
   register('definicion_en_tres_sets', {
@@ -374,18 +401,44 @@
     return threshold ? { threshold, message: LEARNING_MESSAGES[threshold] } : null;
   }
 
+  /** Memoria combinada C+D vacía — el `memoryBefore` del primer partido de la historia de
+   *  cualquier jugador (checkpoint "cero", Revisión Central Fase D D01). Composición explícita
+   *  sobre `PLIntelligenceEditorial.emptyMemory()` en vez de un literal propio: nunca duplica el
+   *  contrato de memoria de C, solo le agrega el único campo que D conoce hoy
+   *  (`learningHitosShown`; `recentTemplateIds` ya vive en `ED.emptyMemory()` desde su propia
+   *  corrección C01). */
+  function emptyMemory() {
+    const ED = global.PLIntelligenceEditorial;
+    return Object.assign({}, ED.emptyMemory(), { learningHitosShown: {} });
+  }
+
   /* ------------------------------------------------------------------ */
-  /* 7. ORQUESTADOR                                                       */
+  /* 7. ORQUESTADOR (un solo partido)                                     */
   /* ------------------------------------------------------------------ */
 
-  /** `decision`: salida de `PLIntelligenceEditorial.buildEditorialDecision`. `historyAsc`:
-   *  la MISMA historia usada para construir `decision` (para resolver nombres y el
-   *  fingerprint — nunca para recalcular hechos). `priorMemory`: memoria combinada de C+D
-   *  (si no existe, se usa `decision.memoryUpdate` como base + un fragmento D vacío). Devuelve
-   *  el objeto de presentación completo + `memoryUpdate` final (C+D) para persistir. */
-  function renderIntelligence(decision, historyAsc, priorMemory) {
+  /** `decision`: salida de `PLIntelligenceEditorial.buildEditorialDecision`, construida con ESTE
+   *  MISMO `memoryBefore` como su `priorMemory` (nunca con otra memoria — ver `runIntelligenceReplay`,
+   *  que es quien garantiza esa correspondencia en el camino real). `historyAsc`: la MISMA
+   *  historia usada para construir `decision` (para resolver nombres y el fingerprint — nunca
+   *  para recalcular hechos). `memoryBefore`: la memoria combinada C+D **inmediatamente anterior**
+   *  a este partido — el checkpoint de partido−1, o `emptyMemory()` si este es el primero.
+   *
+   *  Revisión Central Fase D (D03): la versión anterior recibía la memoria previa bajo el nombre
+   *  `priorMemory` pero, si el llamador (la Edge Function original) le pasaba por error
+   *  `decision.memoryUpdate` en su lugar —exactamente lo que hacía—, cualquier campo que Fase C
+   *  no conoce (`learningHitosShown`) se perdía en cada partido, porque `decision.memoryUpdate`
+   *  es un objeto NUEVO que C construye con SOLO sus propios campos declarados. La corrección no
+   *  vive acá (el contrato de este parámetro siempre fue "la memoria previa real"): vive en
+   *  `runIntelligenceReplay`, que ahora es el ÚNICO lugar que decide qué memoria es "la
+   *  anterior" y SIEMPRE le pasa exactamente lo mismo a `ED.buildEditorialDecision` y a esta
+   *  función. Como refuerzo (defensa en profundidad, no como parche del síntoma), la memoria
+   *  final ahora parte de `memoryBefore` completo (`Object.assign({}, memoryBefore, ...)`) en vez
+   *  de partir únicamente de `decision.memoryUpdate`: cualquier campo propio de D que exista en
+   *  `memoryBefore` sobrevive por defecto aunque C nunca lo reenvíe, sin que C tenga que conocer
+   *  los campos de D uno por uno — D solo declara explícitamente los que él mismo actualiza. */
+  function renderIntelligence(decision, historyAsc, memoryBefore) {
     const resolveName = buildNameResolver(historyAsc);
-    const memory = priorMemory || decision.memoryUpdate;
+    const memory = memoryBefore || emptyMemory();
     const recentTemplateIds = memory.recentTemplateIds || [];
 
     const abstention = !!decision.abstention;
@@ -404,7 +457,9 @@
     }
 
     const usedTemplateIds = [principal].concat(secondary).filter(Boolean).map((i) => i.templateId);
-    const memoryUpdate = Object.assign({}, decision.memoryUpdate, {
+    // D03: base = memoria anterior COMPLETA (nunca solo lo que C reenvía) -> encima, los campos
+    // propios de C ya actualizados -> encima, los campos propios de D recalculados acá mismo.
+    const memoryUpdate = Object.assign({}, memory, decision.memoryUpdate, {
       recentTemplateIds: (memory.recentTemplateIds || []).concat(usedTemplateIds).slice(-TEMPLATE_RECENCY_WINDOW * 3),
       learningHitosShown: Object.assign({}, memory.learningHitosShown,
         (!abstention || !learningMessage) ? {} : { [LEARNING_THRESHOLDS.find((t) => LEARNING_MESSAGES[t] === learningMessage)]: true }),
@@ -423,11 +478,89 @@
     };
   }
 
+  /** Subconjunto de `renderIntelligence(...)` que es seguro exponer al cliente — nunca incluye
+   *  `memoryUpdate` (estado interno de continuidad editorial/de plantillas, jamás pensado para
+   *  el navegador: `recentMatches`/`shownSemanticKeys`/`shownMilestoneKeys`/`recentTemplateIds`/
+   *  `learningHitosShown`). El checkpoint persiste `memoryUpdate` por separado, en su propia
+   *  columna (`memory_after`, ver la migración) — nunca duplicado dentro de `output`. */
+  function publicOutputOf(rendered) {
+    return {
+      matchId: rendered.matchId,
+      playedAt: rendered.playedAt,
+      abstention: rendered.abstention,
+      learningMessage: rendered.learningMessage,
+      fallbackMessage: rendered.fallbackMessage,
+      principal: rendered.principal,
+      secondary: rendered.secondary,
+      rulesVersion: rendered.rulesVersion,
+    };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* 8. REPLAY CRONOLÓGICO POR CHECKPOINTS (Revisión Central Fase D, D01) */
+  /* ------------------------------------------------------------------ */
+
+  /** Reemplaza el diseño original de Fase D (un solo blob global "memoria actual del jugador",
+   *  reutilizado sin importar qué partido se pedía) — la fuente y el handoff exigen que la
+   *  memoria/generación siga `playedAt`, nunca el orden de apertura/carga. Este es el ÚNICO
+   *  punto de todo el módulo que decide, para un partido objetivo, qué memoria es "la anterior":
+   *  siempre la del checkpoint del partido INMEDIATAMENTE anterior en `historyAsc`, nunca un
+   *  snapshot global mutable. Dos propiedades quedan garantizadas por CONSTRUCCIÓN, no por casos
+   *  especiales:
+   *
+   *  - **un partido viejo nunca puede recibir memoria de partidos posteriores**: el bucle nunca
+   *    camina más allá de `targetIndex`, así que la memoria de un partido futuro simplemente no
+   *    existe todavía cuando se calcula uno anterior;
+   *  - **corregir el partido MÁS RECIENTE nunca lo penaliza contra su propia salida anterior**:
+   *    su `memoryBefore` es siempre el checkpoint de partido−1 (que nunca lo incluye a él mismo),
+   *    jamás "la memoria actual, que ya lo incluye" — un hito/cooldown que ese mismo partido
+   *    mostró la vez anterior no puede aparecer como "ya mostrado" al regenerarlo.
+   *
+   *  Además, como el fingerprint de cada paso se calcula sobre el PREFIJO completo (no solo
+   *  sobre el partido individual, ver `computeHistoryFingerprint`), una corrección o una carga
+   *  retroactiva en cualquier punto de la historia invalida automáticamente el fingerprint de
+   *  TODOS los prefijos posteriores que la incluyan — sin necesidad de lógica de cascada
+   *  separada; y un cambio de `rulesVersion` (nueva versión de reglas combinada A+B+C+D)
+   *  invalida un checkpoint aunque su fingerprint de datos siga siendo idéntico.
+   *
+   *  `existingCheckpoints`: `{ [matchId]: { sourceFingerprint, rulesVersion, output, memoryAfter } }`
+   *  — el llamador (la Edge Function) lo arma con UNA sola consulta a `intelligence_match_outputs`
+   *  por jugador (nunca N consultas, una por partido). `rulesVersion` es la combinada A+B+C+D
+   *  vigente, calculada por el llamador — este módulo nunca la hardcodea ni la recalcula.
+   *
+   *  Devuelve `steps`, un array de longitud `targetIndex + 1` (uno por partido del prefijo),
+   *  cada uno `{matchId, fingerprint, reused, output, memoryAfter}`. El llamador persiste
+   *  (upsert) únicamente los pasos con `reused:false` y responde con `steps[targetIndex].output`. */
+  function runIntelligenceReplay(historyAsc, targetIndex, callerPlayerId, existingCheckpoints, rulesVersion) {
+    const ED = global.PLIntelligenceEditorial;
+    const checkpoints = existingCheckpoints || {};
+    const steps = [];
+    let memoryBefore = emptyMemory();
+    for (let i = 0; i <= targetIndex; i++) {
+      const prefix = historyAsc.slice(0, i + 1);
+      const stepMatchId = historyAsc[i].matchId;
+      const fingerprint = computeHistoryFingerprint(prefix);
+      const existing = checkpoints[stepMatchId];
+      if (existing && existing.sourceFingerprint === fingerprint && existing.rulesVersion === rulesVersion) {
+        steps.push({ matchId: stepMatchId, fingerprint, reused: true, output: existing.output, memoryAfter: existing.memoryAfter });
+        memoryBefore = existing.memoryAfter;
+      } else {
+        const decision = ED.buildEditorialDecision(prefix, callerPlayerId, memoryBefore);
+        const rendered = renderIntelligence(decision, prefix, memoryBefore);
+        steps.push({ matchId: stepMatchId, fingerprint, reused: false, output: publicOutputOf(rendered), memoryAfter: rendered.memoryUpdate });
+        memoryBefore = rendered.memoryUpdate;
+      }
+    }
+    return steps;
+  }
+
   global.PLIntelligencePresentation = {
     RULES_VERSION,
     TEMPLATE_RECENCY_WINDOW,
     buildNameResolver,
     computeHistoryFingerprint,
+    emptyMemory,
     renderIntelligence,
+    runIntelligenceReplay,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

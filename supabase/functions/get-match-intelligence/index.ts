@@ -1,8 +1,9 @@
 // BRAMUlab — Backend Bloque 8 (Fase D): BRAMU Intelligence server-side, real y persistente.
 //
-// Ver docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §9. Mismo
-// patrón exacto que officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que
-// usa el navegador (`intelligence-context.js`/`intelligence-claims.js`/`intelligence-editorial.js`/
+// Ver docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §9 y
+// 17_Revision_Central_Fase_D.md (corrección D01/D02/D03). Mismo patrón exacto que
+// officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que usa el navegador
+// (`intelligence-context.js`/`intelligence-claims.js`/`intelligence-editorial.js`/
 // `intelligence-presentation.js`), importado acá como side-effect import desde
 // supabase/functions/_shared/ — los 4 son SYMLINKS reales a bramulab/*.js, nunca una copia.
 //
@@ -13,33 +14,30 @@
 // criterio que officialize-match/create-or-attach-match) — nunca se acepta un `playerId` del
 // body, ni siquiera para depuración.
 //
-// Flujo (handoff §8/§9):
+// Flujo (corrección D01 — reemplaza el diseño original de "un solo blob global de memoria"):
 //   1) resolver `callerPlayerId` desde el JWT;
 //   2) traer la historia personal REAL del caller vía la RPC de Fase A
 //      `get_player_intelligence_history`, llamada con el cliente DEL USUARIO (su propio JWT) —
 //      nunca con service role para esto: esa RPC ya resuelve `auth.uid()` sola, tal como lo
 //      haría el navegador si la llamara directo;
-//   3) truncar la historia (ya ordenada por `playedAt`, Fase A) hasta el `matchId` objetivo
-//      inclusive — "trunca por el partido objetivo según fecha jugada + desempate estable"
-//      (handoff §9), nunca por orden de llegada;
-//   4) calcular el fingerprint determinístico de ese prefijo
-//      (`PLIntelligencePresentation.computeHistoryFingerprint`);
-//   5) si ya existe una salida guardada para (jugador, partido) con el MISMO fingerprint y la
-//      MISMA versión de reglas combinada → devolverla tal cual, sin tocar memoria ni plantilla
-//      (idempotencia real, handoff §8: "no regenerarla al abrir una pantalla");
-//   6) si no, correr el pipeline A→B→C→D completo con la memoria actual del jugador, persistir
-//      la salida nueva y — SOLO si el partido objetivo es el más reciente de su historia — la
-//      memoria actualizada (ver nota "por qué no siempre" más abajo).
+//   3) localizar el partido objetivo en esa historia (ya ordenada por `playedAt`, Fase A);
+//   4) traer, en UNA sola consulta, todos los checkpoints existentes del jugador
+//      (`intelligence_match_outputs`) — nunca una consulta por partido;
+//   5) `PLIntelligencePresentation.runIntelligenceReplay` camina cronológicamente desde el
+//      primer partido de la historia hasta el objetivo, reutilizando cada checkpoint cuyo
+//      fingerprint+rules_version siga vigente y regenerando (con la memoria del checkpoint
+//      INMEDIATAMENTE anterior, nunca con la de un partido posterior ni con la de sí mismo) los
+//      que falten o quedaron inválidos — ver el módulo puro para la garantía exacta;
+//   6) persistir (upsert) ÚNICAMENTE los checkpoints regenerados;
+//   7) devolver `output` del checkpoint del partido objetivo.
 //
-// Por qué la memoria NO se actualiza si el partido objetivo no es el más reciente: la memoria
-// editorial/de plantillas es UN solo blob "como de ahora" (`intelligence_player_memory`, ver la
-// migración). Si un jugador reabre el Resumen de un partido VIEJO después de que partidos más
-// nuevos ya generaron su propia salida (y ya avanzaron la memoria), recalcular ese partido viejo
-// con la memoria ACTUAL y guardarla de nuevo REGRESARÍA la memoria del jugador a un estado
-// anterior a esos partidos más nuevos — un bug real, no una simplificación aceptable. La salida
-// de ESE partido viejo sí se calcula y persiste igual (usando la memoria actual como mejor
-// aproximación disponible, documentado como limitación V1 en el informe de esta ronda) — lo que
-// nunca se permite es que ese cálculo le pise la memoria vigente del jugador.
+// Por qué ya no existe un blob global "memoria actual del jugador" (`intelligence_player_memory`,
+// eliminada de la migración antes de aplicarla — D01): con esa memoria única, un partido viejo
+// podía terminar influido por partidos posteriores (si ya se había generado Intelligence para
+// ellos), y corregir el partido MÁS RECIENTE podía autopenalizarlo contra su propia salida
+// anterior (la memoria "actual" ya lo incluía a él mismo). El replay cronológico por checkpoints
+// resuelve ambos casos por construcción, no con lógica especial — ver el comentario de cabecera
+// de `runIntelligenceReplay` en intelligence-presentation.js.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import '../_shared/engine.js';
@@ -138,62 +136,51 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, code: 'match_not_available' }, 404);
   }
 
-  const truncated = historyFull.slice(0, targetIndex + 1);
-  const isLatestMatch = targetIndex === historyFull.length - 1;
-  const fingerprint = PR.computeHistoryFingerprint(truncated);
-
-  const { data: existingOutput } = await serviceClient
+  // Checkpoints existentes del jugador — UNA sola consulta, nunca una por partido (D01).
+  const { data: existingRows, error: existingError } = await serviceClient
     .from('intelligence_match_outputs')
-    .select('output, source_fingerprint, rules_version')
-    .eq('player_id', callerPlayerId)
-    .eq('match_id', matchId)
-    .maybeSingle();
-
-  if (existingOutput && existingOutput.source_fingerprint === fingerprint && existingOutput.rules_version === RULES_VERSION_COMBINED) {
-    // Idempotencia real: misma fuente + mismas versiones -> se devuelve exactamente lo guardado,
-    // sin elegir otra frase, sin cambiar template, sin tocar memoria (handoff §8).
-    return jsonResponse({ ok: true, output: existingOutput.output, regenerated: false });
+    .select('match_id, source_fingerprint, rules_version, output, memory_after')
+    .eq('player_id', callerPlayerId);
+  if (existingError) {
+    return jsonResponse({ ok: false, code: 'checkpoints_fetch_failed', detail: existingError.message }, 500);
   }
 
-  const { data: memoryRow } = await serviceClient
-    .from('intelligence_player_memory')
-    .select('memory')
-    .eq('player_id', callerPlayerId)
-    .maybeSingle();
-  const priorMemory = (memoryRow && memoryRow.memory) || ED.emptyMemory();
+  // deno-lint-ignore no-explicit-any
+  const existingCheckpoints: Record<string, any> = {};
+  (existingRows || []).forEach((r: any) => {
+    existingCheckpoints[r.match_id] = {
+      sourceFingerprint: r.source_fingerprint,
+      rulesVersion: r.rules_version,
+      output: r.output,
+      memoryAfter: r.memory_after,
+    };
+  });
 
-  const decision = ED.buildEditorialDecision(truncated, callerPlayerId, priorMemory);
-  const rendered = PR.renderIntelligence(decision, truncated, decision.memoryUpdate);
+  // Camina cronológicamente desde el primer partido hasta el objetivo, reutilizando checkpoints
+  // válidos y regenerando los que falten o quedaron inválidos — ver `runIntelligenceReplay` para
+  // la garantía exacta de por qué esto nunca deja que un partido viejo reciba memoria del futuro
+  // ni que corregir el más reciente lo penalice contra sí mismo.
+  const steps = PR.runIntelligenceReplay(historyFull, targetIndex, callerPlayerId, existingCheckpoints, RULES_VERSION_COMBINED);
 
-  const { error: upsertOutputError } = await serviceClient
-    .from('intelligence_match_outputs')
-    .upsert({
+  // deno-lint-ignore no-explicit-any
+  const toPersist = steps.filter((s: any) => !s.reused);
+  if (toPersist.length) {
+    // deno-lint-ignore no-explicit-any
+    const rows = toPersist.map((s: any) => ({
       player_id: callerPlayerId,
-      match_id: matchId,
-      source_fingerprint: fingerprint,
+      match_id: s.matchId,
+      source_fingerprint: s.fingerprint,
       rules_version: RULES_VERSION_COMBINED,
-      output: rendered,
+      output: s.output,
+      memory_after: s.memoryAfter,
       generated_at: new Date().toISOString(),
-    });
-  if (upsertOutputError) {
-    return jsonResponse({ ok: false, code: 'persist_output_failed', detail: upsertOutputError.message }, 500);
-  }
-
-  // Ver nota de cabecera: la memoria del jugador SOLO avanza cuando el partido objetivo es el
-  // más reciente de su historia — reabrir un partido viejo nunca regresa la memoria vigente.
-  if (isLatestMatch) {
-    const { error: upsertMemoryError } = await serviceClient
-      .from('intelligence_player_memory')
-      .upsert({
-        player_id: callerPlayerId,
-        memory: rendered.memoryUpdate,
-        rules_version: RULES_VERSION_COMBINED,
-        updated_at: new Date().toISOString(),
-      });
-    if (upsertMemoryError) {
-      return jsonResponse({ ok: false, code: 'persist_memory_failed', detail: upsertMemoryError.message }, 500);
+    }));
+    const { error: upsertError } = await serviceClient.from('intelligence_match_outputs').upsert(rows);
+    if (upsertError) {
+      return jsonResponse({ ok: false, code: 'persist_checkpoints_failed', detail: upsertError.message }, 500);
     }
   }
 
-  return jsonResponse({ ok: true, output: rendered, regenerated: true });
+  const targetStep = steps[targetIndex];
+  return jsonResponse({ ok: true, output: targetStep.output, regenerated: !targetStep.reused });
 });
