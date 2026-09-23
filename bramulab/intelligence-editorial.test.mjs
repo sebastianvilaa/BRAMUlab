@@ -24,6 +24,7 @@ function loadSharedEngine() {
   for (const relPath of [
     'engine.js', 'level.js', 'level-context.js', 'match-sync.js',
     'intelligence-context.js', 'intelligence-claims.js', 'intelligence-editorial.js',
+    'intelligence-official.js',
   ]) {
     const code = fs.readFileSync(path.join(__dirname, relPath), 'utf8');
     vm.runInContext(code, sandbox, { filename: relPath });
@@ -35,6 +36,7 @@ const sandbox = loadSharedEngine();
 const IC = sandbox.PLIntelligenceContext;
 const CL = sandbox.PLIntelligenceClaims;
 const ED = sandbox.PLIntelligenceEditorial;
+const IO = sandbox.PLIntelligenceOfficial;
 
 const ME = '11111111-1111-1111-1111-111111111111';
 const PARTNER = '22222222-2222-2222-2222-222222222222';
@@ -634,4 +636,61 @@ test('extra: el desglose de puntaje suma exactamente a finalScore (rawScore + pe
     const penaltySum = e.scored.penalties.reduce((s, p) => s + p.value, 0);
     assert.equal(e.scored.rawScore + penaltySum, e.scored.finalScore);
   });
+});
+
+/* ==================================================================== */
+/* Fase E — extraClaims (handoff Bloque_08/25_Handoff_Fase_E_Claude.md §5) */
+/* "C puede aceptar extraClaims/claims oficiales... manteniendo             */
+/* exactamente la misma lógica editorial. No crear un segundo selector      */
+/* paralelo."                                                               */
+/* ==================================================================== */
+
+test('E.1: sin extraClaims (llamada de 3 argumentos), el comportamiento es idéntico al de antes de Fase E', () => {
+  const history = IC.buildPersonalHistory(winSeries(4, { team1: PARTNER }));
+  const decision = ED.buildEditorialDecision(history, ME, ED.emptyMemory());
+  assert.ok(Array.isArray(decision.allClaims));
+  assert.equal(decision.allClaims.every((c) => c.family !== 'H'), true);
+});
+
+test('E.2: un extraClaim de Familia H con score suficiente puede quedar seleccionado como principal, con la MISMA lógica editorial (sin selector paralelo)', () => {
+  // Historia deliberadamente pobre en candidatos de Fase B (1 solo partido, formato/score
+  // genérico) para que el candidato oficial de Nivel sea, con su propio puntaje real, el único
+  // que supera el umbral de publicación.
+  const rows = [row({ playedAt: dayIso(1), team1: PARTNER, sets: [[6, 4], [6, 4]] })];
+  const history = IC.buildPersonalHistory(rows);
+  const match = history[history.length - 1];
+  const snapshot = IO.buildLevelSnapshot(
+    {
+      result_id: 'r1', match_id: match.matchId, algorithm_version: 'nivel_bramu_v1_0', eligible: true,
+      reason_codes: [], known_levels_count: 4, team_strength_a: 5.0, team_strength_b: 5.6,
+      expectation_a: 0.28, expectation_b: 0.72, rival_pair_confidence_avg_a: 0.8, rival_pair_confidence_avg_b: 0.8,
+      margin: 0.5, effect_status: 'applied',
+    },
+    [ME, PARTNER, RIVAL_1, RIVAL_2].map((id, i) => ({
+      player_id: id, team: i < 2 ? 'A' : 'B', formula_mu_before: 5.0, formula_confidence_before: 0.7,
+      formula_state: 'CALIBRADO', effective_level: 5.0, delta_raw: 0.06, delta_capped: 0.06, evidence_quality: 1,
+      mu_after: 5.06, confidence_after: 0.72,
+    })),
+  );
+  const extraClaims = IO.buildLevelClaims(snapshot, match, ME);
+  assert.ok(extraClaims.some((c) => c.insightType === 'nivel_por_encima_expectativa'));
+
+  const decision = ED.buildEditorialDecision(history, ME, ED.emptyMemory(), extraClaims);
+  assert.ok(decision.allClaims.some((c) => c.family === 'H'));
+  assert.ok(decision.principal, 'se esperaba un principal seleccionado');
+  assert.equal(decision.principal.insightType, 'nivel_por_encima_expectativa');
+});
+
+test('E.3: un extraClaim descartado (p. ej. expectativa equilibrada) aparece en allClaims para auditoría, pero nunca en evaluated/seleccionados', () => {
+  const rows = [row({ playedAt: dayIso(1), team1: PARTNER, sets: [[6, 4], [6, 4]] })];
+  const history = IC.buildPersonalHistory(rows);
+  const discardedExtra = {
+    discarded: true, insightType: 'nivel_pareja_equilibrada', family: 'H', perspectivePlayerId: ME,
+    claim: null, evidenceMatchIds: [], comparisonScope: 'nivel_oficial_partido_actual', sampleSize: 4,
+    minSampleRequired: 4, confidenceTier: null, officialScope: null, dataAsOf: rows[0].played_at,
+    rulesVersion: 'bramu_intelligence_official_v1', discardReasonCodes: ['expectativa_equilibrada_sin_insight'],
+  };
+  const decision = ED.buildEditorialDecision(history, ME, ED.emptyMemory(), [discardedExtra]);
+  assert.ok(decision.allClaims.some((c) => c.insightType === 'nivel_pareja_equilibrada' && c.discarded));
+  assert.equal(decision.evaluated.some((e) => e.candidate.insightType === 'nivel_pareja_equilibrada'), false);
 });

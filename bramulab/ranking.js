@@ -925,6 +925,65 @@
     };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Backend Bloque 8 (Fase E) — hitos materiales cerrados de Ranking     */
+  /* para TU MOMENTO (BRAMU_Intelligence.md §13.3, handoff Bloque_08/     */
+  /* 25_Handoff_Fase_E_Claude.md §8)                                      */
+  /* ------------------------------------------------------------------ */
+
+  // §13.3/§8 — universo mínimo, mejora mínima en puestos y "top" cerrados por la fuente.
+  const RANKING_MILESTONE_MIN_UNIVERSE = 15;
+  const RANKING_MILESTONE_MIN_IMPROVEMENT_PUESTOS = 3;
+  const RANKING_MILESTONE_TOP = 10;
+
+  function rankingAscentThreshold(total) {
+    return Math.max(RANKING_MILESTONE_MIN_IMPROVEMENT_PUESTOS, Math.ceil(total * 0.05));
+  }
+
+  /** ¿El movimiento semanal de ESTE jugador (ámbito Local, el único que usa TU MOMENTO) alcanza
+   *  alguno de los hitos materiales CERRADOS de la fuente? Reusa/ajusta el camino server-backed
+   *  ya existente (`getHomeRankingInsight`/`get_my_ranking_position`) — nunca crea una fuente
+   *  paralela ni recalcula la clasificación de Ranking (handoff §8: "reusar/ajustar ese camino
+   *  server-backed... sin recalcular la clasificación").
+   *
+   *  `insight`: el MISMO objeto `{position, total, territory, isNew, delta}` que ya arma
+   *  `renderPlayerHome` (app.js) a partir de `get_home_ranking_insight`, más un campo OPCIONAL
+   *  `bestPositionBefore` — la mejor posición histórica del jugador en este mismo ámbito antes de
+   *  la edición vigente. Ese campo requiere una extensión mínima de
+   *  `get_my_ranking_position`/`get_home_ranking_insight` que esta ronda deja PREPARADA pero NO
+   *  aplicada (handoff §5/§13: "preparar y testear localmente... ChatGPT central revisará y
+   *  aplicará después") — mientras no exista, `bestPositionBefore` llega `undefined` y el caso
+   *  "nueva mejor posición" simplemente nunca dispara, nunca se inventa un valor.
+   *
+   *  Ajusta, para este propósito puntual, la nota de UX más permisiva de Ranking_BRAMU.md §13.6
+   *  ("movimiento negativo, tono neutro, siempre visible dentro de la tarjeta territorial
+   *  completa de Ranking") — esa nota sigue vigente para la clasificación completa; lo que fija
+   *  esta función es específicamente qué cuenta como HITO dentro de TU MOMENTO/Home, según la
+   *  lista cerrada y más estricta de BRAMU_Intelligence.md §13.3. Ninguna caída de posición está
+   *  en esa lista (los 5 casos cerrados son todos MEJORAS) — nunca genera un hito, sin importar
+   *  la magnitud; cae al siguiente candidato de TU MOMENTO exactamente igual que "sin insight".
+   *  El 5to caso cerrado ("cambio de banda pública de Nivel") es un hito de NIVEL, no de Ranking
+   *  — queda fuera de este detector a propósito, documentado en el informe de esta ronda. */
+  function isHomeRankingMilestoneMaterial(insight) {
+    if (!insight) return false;
+    if (insight.isNew) return true; // 1. primera entrada a un ranking establecido — siempre material.
+    const total = insight.total;
+    if (!Number.isFinite(total) || total < RANKING_MILESTONE_MIN_UNIVERSE) return false; // universo insuficiente.
+    const delta = insight.delta;
+    if (!Number.isFinite(delta) || delta <= 0) return false; // solo mejoras cuentan como hito.
+    const position = insight.position;
+    const previousPosition = Number.isFinite(position) ? position + delta : null;
+    if (Number.isFinite(position) && position <= RANKING_MILESTONE_TOP && previousPosition != null && previousPosition > RANKING_MILESTONE_TOP) {
+      return true; // 2. entrada al top 10 de un universo establecido.
+    }
+    if (Number.isFinite(insight.bestPositionBefore) && Number.isFinite(position)
+      && position < insight.bestPositionBefore && (insight.bestPositionBefore - position) >= RANKING_MILESTONE_MIN_IMPROVEMENT_PUESTOS) {
+      return true; // 3. nueva mejor posición con mejora de al menos 3 puestos.
+    }
+    if (delta >= rankingAscentThreshold(total)) return true; // 4. ascenso material (máx(3, 5% del universo)).
+    return false;
+  }
+
   global.PLRanking = {
     BLOCK_SIZE,
     RANKING_TIMEZONE,
@@ -964,6 +1023,7 @@
     setRankingNetworkHidden,
     getProfileRankingSummary,
     getHomeRankingInsight,
+    isHomeRankingMilestoneMaterial,
     mapServerMovement,
     formatServerPeriodLabel,
     buildGateLocationFromUser,

@@ -5864,7 +5864,19 @@
           position: pos.position, total: pos.total, territory: homeUser.locality || '',
           isNew: !!(pos.movement && pos.movement.status === 'nuevo'),
           delta: pos.movement ? pos.movement.delta : null,
+          // Backend Bloque 8 (Fase E) — solo existe una vez aplicada la migración que lo agrega a
+          // get_my_ranking_position (ver supabase/migrations/20260923190000_...); hasta entonces
+          // llega `undefined` y RK.isHomeRankingMilestoneMaterial simplemente nunca dispara el
+          // caso "nueva mejor posición" por esa causa — nunca se inventa un valor.
+          bestPositionBefore: pos.bestPositionBefore,
         };
+        // Backend Bloque 8 (Fase E, BRAMU_Intelligence.md §13.3) — un movimiento semanal solo es
+        // HITO dentro de TU MOMENTO si es material y verificable (primera entrada/top 10/nueva
+        // mejor posición/ascenso ≥ máx(3, 5% del universo)) — nunca cualquier delta distinto de
+        // cero. Sin hito material, `insight` queda afuera y el texto conserva lo que ya pintó
+        // `buildTuMomentoText` más arriba (forma reciente/compañero/actividad, sin forzar un
+        // mensaje de Ranking solo para llenar espacio).
+        if (!RK.isHomeRankingMilestoneMaterial(insight)) return;
         $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), insight);
       });
     } else {

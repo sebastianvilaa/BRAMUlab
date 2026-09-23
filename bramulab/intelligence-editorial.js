@@ -75,8 +75,8 @@
    *  "repite el score visible sin comparación") — solo la descripción más genérica del score
    *  (§6.2 categoría 8) califica; `reversion_tras_perder_primer_set`/`alternancia_de_sets` SÍ
    *  comparan algo (el desarrollo de sets dentro del propio partido), así que no llevan esta
-   *  penalización. Categoría 2 (§6.2, expectativa de Nivel) queda reservada y vacía: Familia H
-   *  no existe todavía (Fase E). */
+   *  penalización. Categoría 2 (§6.2, expectativa de Nivel BRAMU) la ocupa Familia H (Fase E,
+   *  `bramulab/intelligence-official.js`) — ver las entradas `nivel_*` más abajo. */
   const EDITORIAL_PROFILE_BY_INSIGHT_TYPE = {
     // Categoría 1 — hito excepcional o quiebre de tendencia.
     racha_cortada: { priorityRank: 1, exceptionality: 'high', representsChange: true },
@@ -85,6 +85,22 @@
     hito_de_victorias: { priorityRank: 1, exceptionality: 'high', representsChange: true },
     primera_victoria_registrada: { priorityRank: 1, exceptionality: 'high', representsChange: true },
     primer_partido_de_la_historia: { priorityRank: 1, exceptionality: 'high', representsChange: true },
+    // Categoría 2 — resultado por encima/debajo de expectativa confiable de Nivel BRAMU (Fase E,
+    // Familia H). `nivel_por_encima_expectativa` es una sorpresa confiable real (excepcionalidad
+    // alta); `nivel_pareja_por_debajo`/`nivel_tres_niveles_pareja_por_debajo` narran lo mismo con
+    // menos certeza (3 niveles conocidos en vez de 4) — excepcionalidad media, nunca alta, para
+    // que la plantilla de Fase D pueda seguir el mandato de "lenguaje acotado, nunca sorpresa"
+    // sin depender de un texto que el score no respalda. `nivel_evidencia_limitada` nunca
+    // clasifica dificultad (§4.6) — es informativo, no un quiebre, por eso vive en la categoría 7
+    // (lectura particular) en vez de acá. `nivel_resultado_esperable`/`nivel_variacion` NUNCA
+    // pueden ser festejo principal por sí solos (§4.4/§4.7) — `genericScoreOnly` en el primero
+    // reutiliza la MISMA penalización −30 que ya protege `sets_corridos`/`definicion_en_tres_sets`
+    // (describir lo esperable sin comparación nueva), y el segundo queda en categoría 7 con
+    // excepcionalidad baja: un número que se informa siempre, nunca un titular por sí mismo.
+    nivel_por_encima_expectativa: { priorityRank: 2, exceptionality: 'high', representsChange: true },
+    nivel_pareja_por_debajo: { priorityRank: 2, exceptionality: 'medium', representsChange: true },
+    nivel_tres_niveles_pareja_por_debajo: { priorityRank: 2, exceptionality: 'medium', representsChange: false },
+    nivel_resultado_esperable: { priorityRank: 2, exceptionality: 'low', representsChange: false, genericScoreOnly: true },
     // Categoría 3 — récord o mejor marca personal.
     companero_mejor_balance: { priorityRank: 3, exceptionality: 'high', representsChange: false },
     score_excepcional_formato_comparable: { priorityRank: 3, exceptionality: 'high', representsChange: true },
@@ -121,6 +137,10 @@
     reversion_tras_perder_primer_set: { priorityRank: 7, exceptionality: 'medium', representsChange: true },
     alternancia_de_sets: { priorityRank: 7, exceptionality: 'low', representsChange: true },
     contexto_regreso_tras_inactividad: { priorityRank: 7, exceptionality: 'medium', representsChange: true },
+    // Fase E — informativos de Nivel BRAMU, nunca clasifican dificultad (§4.6/§4.7): evidencia
+    // limitada/calibración en curso, y la variación oficial exacta del jugador.
+    nivel_evidencia_limitada: { priorityRank: 7, exceptionality: 'low', representsChange: false },
+    nivel_variacion: { priorityRank: 7, exceptionality: 'low', representsChange: true },
     // Categoría 8 — descripción genérica del score.
     sets_corridos: { priorityRank: 8, exceptionality: 'low', representsChange: false, genericScoreOnly: true },
     definicion_en_tres_sets: { priorityRank: 8, exceptionality: 'low', representsChange: false, genericScoreOnly: true },
@@ -432,23 +452,33 @@
 
   /** `historyAsc`/`callerPlayerId`: mismo contrato de Fase A/B (historia personal truncada hasta
    *  el partido de interés inclusive). `priorMemory`: memoria editorial previa del jugador
-   *  (`emptyMemory()` si no existe todavía). Devuelve un objeto determinístico y auditable — ver
-   *  cabecera del archivo para el contrato completo. Nunca persiste nada: la actualización de
-   *  memoria se PROPONE (`memoryUpdate`), el llamador decide cuándo/si guardarla. */
-  function buildEditorialDecision(historyAsc, callerPlayerId, priorMemory) {
+   *  (`emptyMemory()` si no existe todavía). `extraClaims` (Fase E, handoff
+   *  Bloque_08/25_Handoff_Fase_E_Claude.md §5: "C puede aceptar extraClaims/claims oficiales como
+   *  entrada adicional, manteniendo exactamente la misma lógica editorial"): array OPCIONAL de
+   *  claims ya construidos con el MISMO contrato que devuelve `CL.buildClaimsForMatch` (hoy,
+   *  Familia H de `PLIntelligenceOfficial.buildLevelClaims`) — se concatenan con los de Fase B
+   *  ANTES de filtrar afirmados/descartados y participan de scoring/selección/cooldowns
+   *  IDÉNTICAMENTE a cualquier otro claim, nunca por un segundo selector paralelo. Este módulo
+   *  nunca los genera ni sabe de dónde vienen — los recibe ya armados, exactamente como recibe
+   *  los de Fase B. Devuelve un objeto determinístico y auditable — ver cabecera del archivo
+   *  para el contrato completo. Nunca persiste nada: la actualización de memoria se PROPONE
+   *  (`memoryUpdate`), el llamador decide cuándo/si guardarla. */
+  function buildEditorialDecision(historyAsc, callerPlayerId, priorMemory, extraClaims) {
     const CL = global.PLIntelligenceClaims;
     const memory = priorMemory || emptyMemory();
-    const { ctx, claims } = CL.buildClaimsForMatch(historyAsc, callerPlayerId);
-    // D06 (Revisión Central Fase D, auditoría): `claims` es la lista COMPLETA de Fase B (tanto
-    // afirmados como descartados por evidencia/muestra insuficiente) — se conserva tal cual bajo
-    // `allClaims`, exclusivamente para que Fase D pueda construir un snapshot de auditoría
-    // completo sin recalcular nada. Extensión de CONTRATO únicamente: `evaluated`/`principal`/
-    // `secondary`/`abstention` siguen calculándose exactamente igual que antes, a partir de
-    // `affirmed` (más abajo) — `allClaims` nunca participa de ninguna decisión de puntaje/
-    // selección, solo se adjunta al final para quien quiera auditar.
+    const { ctx, claims: claimsFromB } = CL.buildClaimsForMatch(historyAsc, callerPlayerId);
+    const claims = claimsFromB.concat(Array.isArray(extraClaims) ? extraClaims : []);
+    // D06 (Revisión Central Fase D, auditoría): `claims` es la lista COMPLETA de Fase B + los
+    // `extraClaims` oficiales de Fase E (tanto afirmados como descartados por evidencia/muestra
+    // insuficiente) — se conserva tal cual bajo `allClaims`, exclusivamente para que Fase D pueda
+    // construir un snapshot de auditoría completo sin recalcular nada. Extensión de CONTRATO
+    // únicamente: `evaluated`/`principal`/`secondary`/`abstention` siguen calculándose
+    // exactamente igual que antes, a partir de `affirmed` (más abajo) — `allClaims` nunca
+    // participa de ninguna decisión de puntaje/selección, solo se adjunta al final para quien
+    // quiera auditar.
     if (!ctx) return { ctx: null, allClaims: claims, evaluated: [], principal: null, secondary: [], abstention: true, memoryUpdate: memory, rulesVersion: RULES_VERSION };
 
-    // "0 claims sin evidencia": ningún candidato descartado por Fase B puede revivirse acá
+    // "0 claims sin evidencia": ningún candidato descartado por Fase B/E puede revivirse acá
     // (prueba mínima #13 del handoff) — se filtran ANTES de cualquier otra evaluación.
     const affirmed = claims.filter((c) => !c.discarded);
 

@@ -99,8 +99,19 @@
    *  Cualquier cambio real en uno de estos campos, en CUALQUIER partido del prefijo, cambia el
    *  fingerprint de ESE prefijo y de todos los prefijos posteriores que lo incluyan — es lo que
    *  permite que D01 invalide checkpoints en cascada sin lógica especial (ver
-   *  `runIntelligenceReplay`). */
+   *  `runIntelligenceReplay`).
+   *
+   *  Fase E (handoff §6): además de la historia personal, cada partido puede traer adjunto
+   *  `m.officialLevelSnapshot` (lo agrega el llamador — la Edge Function — DESPUÉS de
+   *  `IC.buildPersonalHistory`, nunca dentro de Fase A: ver `runIntelligenceReplay`) — el
+   *  snapshot oficial de Nivel BRAMU vigente para ESE partido, o `null` si todavía no existe un
+   *  resultado `applied`. `PLIntelligenceOfficial.fingerprintFieldsOf` devuelve el subconjunto
+   *  mínimo que debe entrar al hash (nunca el snapshot completo, nunca el estado EN VIVO del
+   *  jugador) — incluyendo un `hasOfficialSnapshot` explícito para que "sin snapshot todavía"
+   *  (`pending`) y "con snapshot vigente" (`validated`) sean SIEMPRE fingerprints distintos, sin
+   *  depender de que algún otro campo cambie por accidente. */
   function computeHistoryFingerprint(historyAsc) {
+    const IO = global.PLIntelligenceOfficial;
     const relevant = (historyAsc || []).map((m) => ({
       matchId: m.matchId,
       playedAt: m.playedAt,
@@ -114,6 +125,7 @@
       players: (m.players || []).map((p) => ({ team: p.team, userId: p.userId || null })),
       winnerTeam: m.winnerTeam || null,
       sets: (m.sets || []).map((s) => [s.gamesA, s.gamesB, s.tiebreak ? [s.tiebreak.a, s.tiebreak.b] : null]),
+      officialLevel: IO.fingerprintFieldsOf(m.officialLevelSnapshot || null),
     }));
     const canonical = JSON.stringify(relevant);
     let hash = 0x811c9dc5; // FNV offset basis
@@ -334,6 +346,48 @@
     why: (claim) => `Tu separación habitual entre partidos es de ${Math.round(claim.threshold)} días como máximo esperable; esta vez pasaron ${Math.round(claim.daysSincePrevious)}.`,
   });
 
+  // ---- Familia H: Nivel BRAMU y expectativa (Fase E, BRAMU_Intelligence.md §5.8) ----
+  // Regla dura de copy (handoff §4.1/§10): NUNCA mostrar el porcentaje de expectativa en la
+  // tarjeta principal (`body`) — solo puede aparecer en "Por qué aparece" (`why`). Nunca
+  // "BRAMU pensaba que perdías"/"batacazo"/psicología/técnica/causalidad no registrada. Las
+  // variantes de 3 niveles conocidos usan ÚNICAMENTE la frase cerrada de la fuente ("con los
+  // niveles disponibles, tu pareja partía por debajo") — nunca "sorpresa"/"triunfo de alto
+  // valor", precisamente porque la evidencia (`nivel_tres_niveles_pareja_por_debajo`) es un
+  // `insightType` DISTINTO del de 4 niveles conocidos: la plantilla nunca necesita "saber" cuál
+  // usar, cada una ya tiene la suya.
+  register('nivel_por_encima_expectativa', {
+    variants: [
+      { id: 'v1', title: () => 'Resultado por encima de lo esperado', body: () => 'Tu pareja partía por debajo según los Niveles BRAMU previos y terminó ganando.' },
+      { id: 'v2', title: () => 'Victoria por encima de la expectativa', body: () => 'Según los Niveles BRAMU previos de los cuatro jugadores, tu pareja no era la favorita y se quedó con el partido.' },
+    ],
+    why: (claim) => `Antes del partido, la expectativa de victoria de tu pareja era de ${Math.round(claim.expectationOwn * 100)}% según los Niveles BRAMU previos de los cuatro jugadores.`,
+  });
+  register('nivel_pareja_por_debajo', {
+    variants: [
+      { id: 'v1', title: () => 'Tu pareja partía por debajo', body: () => 'Según los Niveles BRAMU previos, tu pareja partía algo por debajo y terminó ganando.' },
+      { id: 'v2', title: () => 'Victoria con Niveles BRAMU parejos hacia abajo', body: () => 'Los Niveles BRAMU previos ponían a tu pareja un poco por debajo, y el partido se ganó igual.' },
+    ],
+    why: (claim) => `Antes del partido, la expectativa de victoria de tu pareja era de ${Math.round(claim.expectationOwn * 100)}% según los Niveles BRAMU previos de los cuatro jugadores.`,
+  });
+  register('nivel_tres_niveles_pareja_por_debajo', {
+    variants: [{ id: 'v1', title: () => 'Contexto de Niveles BRAMU', body: () => 'Con los niveles disponibles, tu pareja partía por debajo.' }],
+    why: () => 'Se compararon los Niveles BRAMU previos de 3 de los 4 jugadores; no alcanza para calcular una expectativa completa con los cuatro.',
+  });
+  register('nivel_evidencia_limitada', {
+    variants: [{ id: 'v1', title: () => 'Nivel BRAMU en calibración', body: () => 'Este partido suma evidencia; tu Nivel BRAMU sigue calibrando.' }],
+    why: () => 'Todavía no hay Niveles BRAMU confiables de los cuatro jugadores para clasificar la dificultad de este partido.',
+  });
+  register('nivel_resultado_esperable', {
+    // `genericScoreOnly` en Fase C (mismo criterio que sets_corridos/definicion_en_tres_sets):
+    // sin título propio, nunca festejo principal por sí solo (§4.4).
+    variants: [{ id: 'v1', title: () => (undefined), body: () => 'La victoria confirma tu nivel actual; el cambio fue pequeño porque la diferencia previa era favorable.' }],
+    why: (claim) => `La expectativa previa de victoria era alta (${Math.round(claim.expectationOwn * 100)}% según los Niveles BRAMU previos); un resultado esperado modifica poco el Nivel.`,
+  });
+  register('nivel_variacion', {
+    variants: [{ id: 'v1', title: () => 'Variación de Nivel BRAMU', body: (c) => `Tu Nivel BRAMU varió ${c.deltaCapped >= 0 ? '+' : ''}${c.deltaCapped.toFixed(2)} tras este partido.` }],
+    why: () => 'Variación oficial calculada a partir del resultado validado de este partido, según el snapshot de Nivel BRAMU vigente al momento — nunca contra tu Nivel actual en vivo.',
+  });
+
   const FALLBACK_TEMPLATE = {
     variants: [{ id: 'v1', title: () => 'BRAMU Intelligence', body: () => 'Este resultado todavía no tiene una lectura histórica destacable.' }],
     why: () => 'No se encontró un patrón con evidencia suficiente para destacar.',
@@ -394,11 +448,32 @@
     5: 'Tu forma reciente ya puede leerse sobre tus últimos 5.',
   };
   const FALLBACK_MESSAGE = 'Partido guardado. No apareció una conclusión histórica más relevante que el resultado.';
+  // Fase E (BRAMU_Intelligence.md §8.1 / handoff §4.6) — mensaje cerrado, textual, para cuando la
+  // abstención coincide con un partido cuyo Nivel BRAMU oficial todavía está CALIBRANDO. A
+  // diferencia de los hitos 1/3/5 (que son sobre profundidad de HISTORIA PERSONAL y se muestran
+  // una sola vez), este describe un ESTADO oficial en curso — puede volver a aparecer en más de
+  // un partido mientras el Nivel del jugador siga calibrando, y deja de aparecer solo cuando el
+  // Nivel oficial deja de estar en ese estado. Nunca clasifica dificultad (§4.6): es puramente
+  // informativo sobre el progreso de calibración.
+  const CALIBRATING_LEVEL_MESSAGE = 'Este partido suma evidencia; tu Nivel BRAMU sigue calibrando.';
 
   function pickLearningMessage(historyLength, memory) {
     const shown = memory.learningHitosShown || {};
     const threshold = LEARNING_THRESHOLDS.find((t) => historyLength === t && !shown[t]);
     return threshold ? { threshold, message: LEARNING_MESSAGES[threshold] } : null;
+  }
+
+  /** `true` si, para ESTE partido puntual (el evaluado ahora, último de `historyAsc`), el Nivel
+   *  BRAMU oficial del caller está `CALIBRANDO` según el snapshot vigente — nunca según el
+   *  estado EN VIVO del jugador. `false` sin snapshot todavía (partido pendiente) o sin `ctx`
+   *  (abstención por historia vacía, caso ya cubierto por el fallback genérico). */
+  function isCurrentMatchOfficialLevelCalibrating(historyAsc, decision) {
+    const IO = global.PLIntelligenceOfficial;
+    const currentMatch = historyAsc[historyAsc.length - 1];
+    const callerPlayerId = decision.ctx && decision.ctx.perspective && decision.ctx.perspective.own
+      ? decision.ctx.perspective.own.userId : null;
+    if (!currentMatch || !callerPlayerId) return false;
+    return IO.isCallerCalibratingIn(currentMatch.officialLevelSnapshot || null, callerPlayerId);
   }
 
   /** Memoria combinada C+D vacía — el `memoryBefore` del primer partido de la historia de
@@ -446,14 +521,24 @@
     let secondary = [];
     let learningMessage = null;
     let fallbackMessage = null;
+    // Solo los hitos 1/3/5 (profundidad de HISTORIA PERSONAL) se marcan como "ya mostrados" de
+    // forma permanente — el mensaje de calibración de Nivel oficial (más abajo) es un ESTADO,
+    // nunca un hito de una sola aparición, así que nunca toca `learningHitosShown`.
+    let learningThresholdReached = null;
 
     if (!abstention) {
       principal = renderInsight(decision.principal, true, resolveName, recentTemplateIds);
       secondary = decision.secondary.map((c) => renderInsight(c, false, resolveName, recentTemplateIds));
     } else {
       const learning = pickLearningMessage(historyAsc.length, memory);
-      if (learning) learningMessage = learning.message;
-      else fallbackMessage = FALLBACK_MESSAGE;
+      if (learning) {
+        learningMessage = learning.message;
+        learningThresholdReached = learning.threshold;
+      } else if (isCurrentMatchOfficialLevelCalibrating(historyAsc, decision)) {
+        learningMessage = CALIBRATING_LEVEL_MESSAGE;
+      } else {
+        fallbackMessage = FALLBACK_MESSAGE;
+      }
     }
 
     const usedTemplateIds = [principal].concat(secondary).filter(Boolean).map((i) => i.templateId);
@@ -462,7 +547,7 @@
     const memoryUpdate = Object.assign({}, memory, decision.memoryUpdate, {
       recentTemplateIds: (memory.recentTemplateIds || []).concat(usedTemplateIds).slice(-TEMPLATE_RECENCY_WINDOW * 3),
       learningHitosShown: Object.assign({}, memory.learningHitosShown,
-        (!abstention || !learningMessage) ? {} : { [LEARNING_THRESHOLDS.find((t) => LEARNING_MESSAGES[t] === learningMessage)]: true }),
+        learningThresholdReached ? { [learningThresholdReached]: true } : {}),
     });
 
     return {
@@ -559,6 +644,7 @@
   function buildAuditSnapshot(decision, rendered, callerPlayerId, fingerprint, rulesVersionCombined) {
     const CL = global.PLIntelligenceClaims;
     const ED = global.PLIntelligenceEditorial;
+    const IO = global.PLIntelligenceOfficial;
     return {
       matchId: decision.ctx.matchId,
       perspectivePlayerId: callerPlayerId,
@@ -569,6 +655,7 @@
         b: CL.RULES_VERSION,
         c: ED.RULES_VERSION,
         d: RULES_VERSION,
+        e: IO.RULES_VERSION,
         combined: rulesVersionCombined,
       },
       claims: (decision.allClaims || []).map(summarizeClaimForAudit),
@@ -631,19 +718,27 @@
    *  regenera solo porque se reutiliza el resto. */
   function runIntelligenceReplay(historyAsc, targetIndex, callerPlayerId, existingCheckpoints, rulesVersion) {
     const ED = global.PLIntelligenceEditorial;
+    const IO = global.PLIntelligenceOfficial;
     const checkpoints = existingCheckpoints || {};
     const steps = [];
     let memoryBefore = emptyMemory();
     for (let i = 0; i <= targetIndex; i++) {
       const prefix = historyAsc.slice(0, i + 1);
-      const stepMatchId = historyAsc[i].matchId;
+      const currentMatch = historyAsc[i];
+      const stepMatchId = currentMatch.matchId;
       const fingerprint = computeHistoryFingerprint(prefix);
       const existing = checkpoints[stepMatchId];
       if (existing && existing.sourceFingerprint === fingerprint && existing.rulesVersion === rulesVersion) {
         steps.push({ matchId: stepMatchId, fingerprint, reused: true, output: existing.output, memoryAfter: existing.memoryAfter, audit: existing.audit });
         memoryBefore = existing.memoryAfter;
       } else {
-        const decision = ED.buildEditorialDecision(prefix, callerPlayerId, memoryBefore);
+        // Fase E: `extraClaims` (Familia H, Nivel BRAMU oficial) se calculan para ESTE partido
+        // puntual — nunca para el prefijo completo — a partir del snapshot que el llamador ya
+        // adjuntó en `currentMatch.officialLevelSnapshot` (la Edge Function lo agrega DESPUÉS de
+        // `IC.buildPersonalHistory`, nunca dentro de Fase A). `null` sin snapshot todavía
+        // (partido pendiente) — `buildLevelClaims` ya devuelve `[]` en ese caso.
+        const extraClaims = IO.buildLevelClaims(currentMatch.officialLevelSnapshot || null, currentMatch, callerPlayerId);
+        const decision = ED.buildEditorialDecision(prefix, callerPlayerId, memoryBefore, extraClaims);
         const rendered = renderIntelligence(decision, prefix, memoryBefore);
         const audit = buildAuditSnapshot(decision, rendered, callerPlayerId, fingerprint, rulesVersion);
         steps.push({ matchId: stepMatchId, fingerprint, reused: false, output: publicOutputOf(rendered), memoryAfter: rendered.memoryUpdate, audit });

@@ -32,7 +32,8 @@ function loadSharedEngine() {
   vm.createContext(sandbox);
   for (const relPath of [
     'engine.js', 'level.js', 'level-context.js', 'match-sync.js',
-    'intelligence-context.js', 'intelligence-claims.js', 'intelligence-editorial.js', 'intelligence-presentation.js',
+    'intelligence-context.js', 'intelligence-claims.js', 'intelligence-editorial.js',
+    'intelligence-official.js', 'intelligence-presentation.js',
   ]) {
     const code = fs.readFileSync(path.join(__dirname, relPath), 'utf8');
     vm.runInContext(code, sandbox, { filename: relPath });
@@ -43,6 +44,7 @@ function loadSharedEngine() {
 const sandbox = loadSharedEngine();
 const IC = sandbox.PLIntelligenceContext;
 const ED = sandbox.PLIntelligenceEditorial;
+const IO = sandbox.PLIntelligenceOfficial;
 const PR = sandbox.PLIntelligencePresentation;
 
 const ME = '11111111-1111-1111-1111-111111111111';
@@ -744,4 +746,112 @@ test('D06.8: la capa de auditoría no inventa claims/números/entidades — solo
   last.audit.claims.forEach((c) => {
     c.evidenceMatchIds.forEach((id) => assert.ok(validMatchIds.indexOf(id) !== -1, `evidenceMatchId ajeno a la historia: ${id}`));
   });
+});
+
+/* ==================================================================== */
+/* Fase E — Integración Nivel + Ranking (handoff Bloque_08/                */
+/* 25_Handoff_Fase_E_Claude.md §12, puntos 11-15: fingerprint/checkpoint/   */
+/* audit integrados con el replay real). Los puntos 1-10 viven en          */
+/* intelligence-official.test.mjs (reglas de Familia H en aislamiento).    */
+/* ==================================================================== */
+
+function levelResultRow({ matchId, resultId = 'result-e2e', eligible = true, knownLevelsCount = 4, expectationA = 0.30, expectationB = 0.70, effectStatus = 'applied' } = {}) {
+  return {
+    result_id: resultId, match_id: matchId, algorithm_version: 'nivel_bramu_v1_0', eligible,
+    reason_codes: [], known_levels_count: knownLevelsCount, team_strength_a: 5.0, team_strength_b: 5.6,
+    expectation_a: expectationA, expectation_b: expectationB, rival_pair_confidence_avg_a: 0.8,
+    rival_pair_confidence_avg_b: 0.8, margin: 0.5, effect_status: effectStatus,
+  };
+}
+
+function levelPlayerRows({ confidence = 0.7, state = 'CALIBRADO', callerDelta = 0.06 } = {}) {
+  return [ME, PARTNER, RIVAL_1, RIVAL_2].map((id, i) => ({
+    player_id: id, team: i < 2 ? 'A' : 'B', formula_mu_before: 5.0, formula_confidence_before: confidence,
+    formula_state: state, effective_level: 5.0, delta_raw: id === ME ? callerDelta : 0.04,
+    delta_capped: id === ME ? callerDelta : 0.04, evidence_quality: 1,
+    mu_after: id === ME ? 5.0 + callerDelta : 5.04, confidence_after: Math.min(0.95, confidence + 0.02),
+  }));
+}
+
+function withOfficialSnapshot(history, index, resultRow, playerRows) {
+  const snapshot = IO.buildLevelSnapshot(resultRow, playerRows);
+  return history.map((m, i) => (i === index ? Object.assign({}, m, { officialLevelSnapshot: snapshot }) : m));
+}
+
+test('11: un cambio de resultado oficial (nueva fila applied) cambia el fingerprint del paso, aunque los datos del partido no cambien', () => {
+  const rows = winSeries(2, { team1: PARTNER });
+  const historyBase = IC.buildPersonalHistory(rows);
+  const matchId = historyBase[historyBase.length - 1].matchId;
+
+  const historyV1 = withOfficialSnapshot(historyBase, 1, levelResultRow({ matchId, resultId: 'r1', expectationA: 0.30 }), levelPlayerRows());
+  const historyV2 = withOfficialSnapshot(historyBase, 1, levelResultRow({ matchId, resultId: 'r2', expectationA: 0.45 }), levelPlayerRows());
+
+  const fp1 = PR.computeHistoryFingerprint(historyV1);
+  const fp2 = PR.computeHistoryFingerprint(historyV2);
+  assert.notEqual(fp1, fp2);
+});
+
+test('12: un partido pending (sin snapshot) y el MISMO partido ya validated (con snapshot) producen fingerprints distintos', () => {
+  const rows = winSeries(2, { team1: PARTNER });
+  const historyPending = IC.buildPersonalHistory(rows);
+  const matchId = historyPending[historyPending.length - 1].matchId;
+  const historyValidated = withOfficialSnapshot(historyPending, 1, levelResultRow({ matchId }), levelPlayerRows());
+
+  const fpPending = PR.computeHistoryFingerprint(historyPending);
+  const fpValidated = PR.computeHistoryFingerprint(historyValidated);
+  assert.notEqual(fpPending, fpValidated);
+
+  // Consecuencia real en el replay: el checkpoint calculado mientras estaba pending queda
+  // invalidado (reused:false) en cuanto aparece el snapshot oficial, sin lógica especial.
+  const stepsPending = PR.runIntelligenceReplay(historyPending, historyPending.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const existingCheckpoints = {};
+  stepsPending.forEach((s) => { existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter, audit: s.audit }; });
+  const stepsValidated = PR.runIntelligenceReplay(historyValidated, historyValidated.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  assert.equal(stepsValidated[stepsValidated.length - 1].reused, false);
+});
+
+test('13: reabrir con el MISMO snapshot oficial reutiliza el checkpoint sin regenerar', () => {
+  const rows = winSeries(2, { team1: PARTNER });
+  const historyBase = IC.buildPersonalHistory(rows);
+  const matchId = historyBase[historyBase.length - 1].matchId;
+  const history = withOfficialSnapshot(historyBase, 1, levelResultRow({ matchId }), levelPlayerRows());
+
+  const steps1 = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const existingCheckpoints = {};
+  steps1.forEach((s) => { existingCheckpoints[s.matchId] = { sourceFingerprint: s.fingerprint, rulesVersion: RULES_VERSION_COMBINED, output: s.output, memoryAfter: s.memoryAfter, audit: s.audit }; });
+  const steps2 = PR.runIntelligenceReplay(history, history.length - 1, ME, existingCheckpoints, RULES_VERSION_COMBINED);
+  steps2.forEach((s, i) => {
+    assert.equal(s.reused, true);
+    assert.equal(s.fingerprint, steps1[i].fingerprint);
+  });
+});
+
+test('14: el audit del checkpoint incluye los claims de Familia H y la versión de reglas de Fase E', () => {
+  const rows = [row({ playedAt: dayIso(1), team1: PARTNER, sets: [[6, 4], [6, 4]] })];
+  const historyBase = IC.buildPersonalHistory(rows);
+  const matchId = historyBase[historyBase.length - 1].matchId;
+  const history = withOfficialSnapshot(historyBase, 0, levelResultRow({ matchId, expectationA: 0.30 }), levelPlayerRows());
+
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const last = steps[steps.length - 1];
+  assert.ok(last.audit.claims.some((c) => c.family === 'H'));
+  assert.equal(last.audit.rulesVersions.e, 'bramu_intelligence_official_v1');
+  assert.ok(last.output.principal);
+  assert.equal(last.output.principal.insightType, 'nivel_por_encima_expectativa');
+});
+
+test('15: el template de nivel_por_encima_expectativa nunca muestra el porcentaje de expectativa en el body/title, solo en "why"', () => {
+  const rows = [row({ playedAt: dayIso(1), team1: PARTNER, sets: [[6, 4], [6, 4]] })];
+  const historyBase = IC.buildPersonalHistory(rows);
+  const matchId = historyBase[historyBase.length - 1].matchId;
+  const history = withOfficialSnapshot(historyBase, 0, levelResultRow({ matchId, expectationA: 0.30 }), levelPlayerRows());
+
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const principal = steps[steps.length - 1].output.principal;
+  assert.ok(principal);
+  assert.equal(principal.insightType, 'nivel_por_encima_expectativa');
+  assert.equal(/%|30\b/.test(principal.title || ''), false);
+  assert.equal(/%|30\b/.test(principal.body), false);
+  // El porcentaje SÍ puede (y debe) aparecer en "why" — nunca se esconde la evidencia completa.
+  assert.match(principal.why, /30%/);
 });

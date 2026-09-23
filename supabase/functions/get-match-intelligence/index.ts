@@ -1,12 +1,25 @@
-// BRAMUlab — Backend Bloque 8 (Fase D): BRAMU Intelligence server-side, real y persistente.
+// BRAMUlab — Backend Bloque 8 (Fases D+E): BRAMU Intelligence server-side, real y persistente.
 //
 // Ver docs/BRAMUlab/Implementacion/Backend/Bloque_08/15_Handoff_Fase_D_Claude.md §9,
-// 17_Revision_Central_Fase_D.md (corrección D01/D02/D03) y
-// 19_Revision_Central_Fase_D_Auditoria.md (corrección D06 — auditoría persistida). Mismo patrón
-// exacto que officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que usa el navegador
+// 17_Revision_Central_Fase_D.md (corrección D01/D02/D03),
+// 19_Revision_Central_Fase_D_Auditoria.md (corrección D06 — auditoría persistida) y
+// 25_Handoff_Fase_E_Claude.md (integración Nivel BRAMU — Familia H). Mismo patrón exacto que
+// officialize-match/create-or-attach-match: reutiliza el MISMO motor JS que usa el navegador
 // (`intelligence-context.js`/`intelligence-claims.js`/`intelligence-editorial.js`/
-// `intelligence-presentation.js`), importado acá como side-effect import desde
-// supabase/functions/_shared/ — los 4 son SYMLINKS reales a bramulab/*.js, nunca una copia.
+// `intelligence-official.js`/`intelligence-presentation.js`), importado acá como side-effect
+// import desde supabase/functions/_shared/ — los 5 son SYMLINKS reales a bramulab/*.js, nunca
+// una copia.
+//
+// Fase E (nuevo en esta ronda): además de la historia personal, se trae el snapshot OFICIAL de
+// Nivel BRAMU ya persistido (`match_level_results`/`match_level_result_players`, filtrado a
+// `effect_status='applied'`) para cada partido de la historia, en dos consultas batched — nunca
+// se recalcula Nivel, nunca se usa el estado EN VIVO del jugador. El snapshot viaja adjunto a
+// cada partido (`officialLevelSnapshot`) y `PLIntelligencePresentation.runIntelligenceReplay` lo
+// usa para generar los claims de Familia H (Nivel/expectativa) de ESE partido puntual, con la
+// MISMA lógica de selección/scoring/checkpoint/fingerprint que ya existía — nunca un camino
+// paralelo. Ranking BRAMU NO pasa por esta Edge Function: su integración (hitos materiales de
+// Ranking semanal en "TU MOMENTO"/Home) vive enteramente en `bramulab/ranking.js`/
+// `bramulab/player-home.js`, ver esos archivos y el informe de esta ronda.
 //
 // Body esperado (JSON), con el access token del usuario en el header Authorization:
 //   { matchId: string }
@@ -50,6 +63,7 @@ import '../_shared/match-sync.js';
 import '../_shared/intelligence-context.js';
 import '../_shared/intelligence-claims.js';
 import '../_shared/intelligence-editorial.js';
+import '../_shared/intelligence-official.js';
 import '../_shared/intelligence-presentation.js';
 
 // deno-lint-ignore no-explicit-any
@@ -57,13 +71,15 @@ const g = globalThis as any;
 const IC = g.PLIntelligenceContext;
 const CL = g.PLIntelligenceClaims;
 const ED = g.PLIntelligenceEditorial;
+const IO = g.PLIntelligenceOfficial;
 const PR = g.PLIntelligencePresentation;
 
 // Fase A no expone hoy una constante de versión propia (no tiene claims/reglas versionadas, solo
 // derivados) — se fija el literal acá, alineado con lo que intelligence-presentation.js ya
-// embebe internamente en `rulesVersions.a` de cada insight. B/C/D SÍ exponen su propia constante:
-// nunca se hardcodea su valor por separado, para que no puedan desincronizarse en silencio.
-const RULES_VERSION_COMBINED = ['bramu_intelligence_context_v1', CL.RULES_VERSION, ED.RULES_VERSION, PR.RULES_VERSION].join(':');
+// embebe internamente en `rulesVersions.a` de cada insight. B/C/D/E SÍ exponen su propia
+// constante: nunca se hardcodea su valor por separado, para que no puedan desincronizarse en
+// silencio.
+const RULES_VERSION_COMBINED = ['bramu_intelligence_context_v1', CL.RULES_VERSION, ED.RULES_VERSION, PR.RULES_VERSION, IO.RULES_VERSION].join(':');
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -139,6 +155,49 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, code: 'match_not_available' }, 404);
   }
 
+  // Fase E — snapshot oficial de Nivel BRAMU vigente por partido, en UNA sola consulta batched
+  // (nunca una por partido) directamente con `serviceClient` (mismo criterio que
+  // officialize-match: estas dos tablas son RLS deny-by-default, service_role únicamente).
+  // Solo filas `effect_status='applied'` — la vigente; una revertida nunca alimenta Intelligence.
+  // deno-lint-ignore no-explicit-any
+  const historyMatchIds = historyFull.map((m: any) => m.matchId);
+  const { data: levelResultRows, error: levelResultsError } = await serviceClient
+    .from('match_level_results')
+    .select('result_id, match_id, algorithm_version, eligible, reason_codes, known_levels_count, team_strength_a, team_strength_b, expectation_a, expectation_b, rival_pair_confidence_avg_a, rival_pair_confidence_avg_b, margin, effect_status')
+    .in('match_id', historyMatchIds)
+    .eq('effect_status', 'applied');
+  if (levelResultsError) {
+    return jsonResponse({ ok: false, code: 'level_results_fetch_failed', detail: levelResultsError.message }, 500);
+  }
+  // deno-lint-ignore no-explicit-any
+  const levelResultIds = (levelResultRows || []).map((r: any) => r.result_id);
+  // deno-lint-ignore no-explicit-any
+  let levelPlayerRows: any[] = [];
+  if (levelResultIds.length) {
+    const { data: playerRows, error: levelPlayersError } = await serviceClient
+      .from('match_level_result_players')
+      .select('result_id, player_id, team, formula_mu_before, formula_confidence_before, formula_state, effective_level, delta_raw, delta_capped, evidence_quality, mu_after, confidence_after')
+      .in('result_id', levelResultIds);
+    if (levelPlayersError) {
+      return jsonResponse({ ok: false, code: 'level_result_players_fetch_failed', detail: levelPlayersError.message }, 500);
+    }
+    levelPlayerRows = playerRows || [];
+  }
+  // deno-lint-ignore no-explicit-any
+  const levelPlayerRowsByResultId: Record<string, any[]> = {};
+  levelPlayerRows.forEach((p: any) => {
+    (levelPlayerRowsByResultId[p.result_id] = levelPlayerRowsByResultId[p.result_id] || []).push(p);
+  });
+  // deno-lint-ignore no-explicit-any
+  const officialSnapshotByMatchId: Record<string, any> = {};
+  (levelResultRows || []).forEach((r: any) => {
+    officialSnapshotByMatchId[r.match_id] = IO.buildLevelSnapshot(r, levelPlayerRowsByResultId[r.result_id] || []);
+  });
+  // Nunca se muta `historyFull` (Fase A cerrada) — se arma un array NUEVO con el campo agregado,
+  // exactamente el mismo criterio que D02 ya usaba para leer campos ya presentes en el partido.
+  // deno-lint-ignore no-explicit-any
+  const historyWithOfficial = historyFull.map((m: any) => Object.assign({}, m, { officialLevelSnapshot: officialSnapshotByMatchId[m.matchId] || null }));
+
   // Checkpoints existentes del jugador — UNA sola consulta, nunca una por partido (D01). Incluye
   // `audit` (D06, auditoría completa server-only) para que un checkpoint reutilizado reutilice
   // también su audit exacto, sin regenerarlo.
@@ -166,8 +225,9 @@ Deno.serve(async (req) => {
   // válidos y regenerando los que falten o quedaron inválidos — ver `runIntelligenceReplay` para
   // la garantía exacta de por qué esto nunca deja que un partido viejo reciba memoria del futuro
   // ni que corregir el más reciente lo penalice contra sí mismo. Cada paso trae también `audit`
-  // (D06) — snapshot de auditoría completo, server-only.
-  const steps = PR.runIntelligenceReplay(historyFull, targetIndex, callerPlayerId, existingCheckpoints, RULES_VERSION_COMBINED);
+  // (D06) — snapshot de auditoría completo, server-only. `historyWithOfficial` (Fase E) trae
+  // adjunto `officialLevelSnapshot` por partido — nunca `historyFull` a partir de aquí.
+  const steps = PR.runIntelligenceReplay(historyWithOfficial, targetIndex, callerPlayerId, existingCheckpoints, RULES_VERSION_COMBINED);
 
   // deno-lint-ignore no-explicit-any
   const toPersist = steps.filter((s: any) => !s.reused);
