@@ -9290,13 +9290,15 @@
     showView('profile');
   }
 
-  /** Backend Bloque 7 (Fase 5) — gate "Completar datos para Ranking" (Ranking_BRAMU.md §13.7.A):
-   *  para una cuenta real (`serverBacked`) con backend configurado, faltar localidad/rama
-   *  competitiva/`ranking_opt_in` bloquea la ENTRADA a Ranking con un modal, nunca la pantalla
-   *  por dentro (§13.7: "la entrada a Ranking sigue visible", nunca se oculta la función).
-   *  Cuentas locales/legacy o sin backend configurado no tienen este gate — siguen con el
-   *  estado `sin-ubicacion` histórico dentro de la propia pantalla (computeSelfStatus), que ya
-   *  cubre ese caso para ese modelo (sin rama/opt-in, que ahí no existen). */
+  /** Backend Bloque 7 (Fase 5, corrección F5-C02 — Ranking_BRAMU.md §13.7.A, corrige la
+   *  implementación original de Fase 5 que abría el modal ANTES de entrar a Ranking): para una
+   *  cuenta real (`serverBacked`) con backend configurado, faltar localidad/rama competitiva/
+   *  `ranking_opt_in` NUNCA oculta la entrada a Ranking — la pantalla se renderiza y se muestra
+   *  igual (ver `openRankingScreen`), y este overlay se superpone ENCIMA para atenuarla/
+   *  bloquearla, con un modal simple (copy + CTA) como primer paso. Cuentas locales/legacy o sin
+   *  backend configurado no tienen este gate — siguen con el estado `sin-ubicacion` histórico
+   *  dentro de la propia pantalla (computeSelfStatus), que ya cubre ese caso para ese modelo (sin
+   *  rama/opt-in, que ahí no existen). */
   function rankingGateMissingFields(user) {
     const missing = [];
     if (!user.competitiveBranch) missing.push('branch');
@@ -9313,14 +9315,34 @@
     $('#ranking-gate-location-value').textContent = rankingGateLocation ? PLLocations.formatLocationLabel(rankingGateLocation) : '—';
   }
 
+  /** Corrección F5-C02 — alterna entre los dos pasos del MISMO overlay (nunca una pantalla
+   *  nueva ni un segundo modal): `'intro'` es el estado simple obligatorio al abrir (copy + un
+   *  único CTA, sin controles todavía — Ranking_BRAMU.md §13.7.A: "por delante aparece un modal
+   *  simple"); `'form'` es el flujo de completado de los 3 datos, que el CTA de 'intro' revela. */
+  function showRankingGateStep(step) {
+    $('#ranking-gate-step-intro').hidden = step !== 'intro';
+    $('#ranking-gate-step-form').hidden = step !== 'form';
+  }
+
   /** Precarga con lo que la cuenta ya tenga (un usuario puede volver a este modal habiendo
    *  completado 2 de los 3 campos en un intento anterior fallido, p. ej. por cooldown de
-   *  ubicación) — nunca arranca vacío si ya hay datos reales que reusar. */
+   *  ubicación) — nunca arranca vacío si ya hay datos reales que reusar.
+   *  Corrección F5-C01 — bug real reproducido contra Staging con rollback
+   *  (B7_F5_GEOREF_ID_LOSS_REPRODUCED_ROLLBACK_OK, ver 21_Correccion_Fase_5_Claude.md): si la
+   *  cuenta ya tenía una ubicación GeoRef verificada, `rankingGateLocation` DEBE incluir
+   *  `provinceId`/`localityId` reales (ahora presentes en `Store.getCurrentUser()`, ver
+   *  auth.js/fetchOwnProfile) — sin esto, guardar sin tocar el campo de ubicación reenviaba la
+   *  misma localidad SIN los IDs GeoRef, y `complete_ranking_profile_data` la reinterpretaba
+   *  como `source='manual'`/`verified_for_ranking=false`, degradando una ubicación ya verificada
+   *  solo por completar rama/opt-in. */
   function openRankingGateModal() {
     const user = Store.getCurrentUser();
     rankingGateBranch = (user && (user.competitiveBranch === 'F' || user.competitiveBranch === 'M')) ? user.competitiveBranch : null;
     rankingGateOptIn = !!(user && user.rankingOptIn === true);
-    rankingGateLocation = (user && user.locality) ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+    // Corrección F5-C01 — construcción extraída a RK.buildGateLocationFromUser (pura,
+    // testeada): antes vivía inline acá SIN provinceId/localityId, ver su comentario en
+    // ranking.js para el bug real que esto corrige.
+    rankingGateLocation = RK.buildGateLocationFromUser(user);
     resetOptionGroup('ranking-gate-branch-options');
     if (rankingGateBranch) {
       const btn = $(`#ranking-gate-branch-options .option-col[data-value="${rankingGateBranch}"]`);
@@ -9330,6 +9352,7 @@
     $('#ranking-gate-optin-toggle').classList.toggle('is-on', rankingGateOptIn);
     $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
     $('#ranking-gate-error').hidden = true;
+    showRankingGateStep('intro');
     $('#ranking-gate-modal-scrim').hidden = false;
     requestAnimationFrame(() => $('#ranking-gate-modal-scrim').classList.add('is-open'));
   }
@@ -9377,11 +9400,21 @@
     const serverUser = await Auth.fetchOwnProfile();
     if (serverUser) Store.cacheServerUser(serverUser);
     closeRankingGateModal();
-    renderRankingScreen();
-    showView('ranking');
+    // Corrección F5-C02, punto 4 — Ranking ya estaba renderizado DETRÁS del overlay (nunca se
+    // "entra" recién acá): solo hace falta refrescar su contenido con los datos ya completos,
+    // nunca volver a llamar showView (ya estábamos en 'ranking').
+    renderRankingContent();
   }
 
   function initRankingGateModal() {
+    $('#ranking-gate-start-btn').addEventListener('click', () => showRankingGateStep('form'));
+    // "AHORA NO"/"VOLVER" — nunca guardan nada parcial (rankingGateBranch/OptIn/Location solo
+    // se envían al servidor dentro de submitRankingGateModal): cerrar el overlay simplemente
+    // revela la pantalla Ranking que ya estaba renderizada detrás, tal cual haya quedado
+    // (bloqueada por su propio estado "faltan datos" hasta que el usuario complete el gate). El
+    // back real (`#ranking-back-btn`, siempre a Home) sigue disponible ahí debajo sin cambios.
+    $('#ranking-gate-dismiss-btn').addEventListener('click', closeRankingGateModal);
+    $('#ranking-gate-back-btn').addEventListener('click', () => showRankingGateStep('intro'));
     wireOptionGroup('ranking-gate-branch-options', (v) => { rankingGateBranch = v; });
     $('#ranking-gate-location-row').addEventListener('click', () => openProfileLocationSheet({
       get: () => rankingGateLocation,
@@ -9394,23 +9427,22 @@
       $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
     });
     $('#ranking-gate-save-btn').addEventListener('click', submitRankingGateModal);
-    // "VOLVER" — nunca deja al usuario sin salida: mismo destino que #ranking-back-btn (no hay
-    // Ranking detrás todavía, así que no tiene sentido volver "a la pantalla anterior" de este
-    // modal en particular). El gate se vuelve a evaluar la próxima vez que toque Ranking.
-    $('#ranking-gate-back-btn').addEventListener('click', () => { closeRankingGateModal(); openPlayerHome(); });
   }
 
   /** V03.0.1 (§7) — mismo gate, Ranking no tenía wrapper propio (solo showView('ranking')
-   *  inline en initBottomNav) ni gate. */
+   *  inline en initBottomNav) ni gate.
+   *  Corrección F5-C02 (Ranking_BRAMU.md §13.7.A) — la pantalla SIEMPRE se renderiza y se
+   *  muestra primero (la entrada a Ranking permanece visible aunque falten datos, nunca se
+   *  reemplaza por el modal): el gate se evalúa DESPUÉS y, si corresponde, abre el overlay
+   *  encima de la pantalla ya visible — nunca antes, nunca en su lugar. */
   function openRankingScreen() {
     if (!currentPlayerName) { openAccessFlow(); return; }
+    renderRankingScreen();
+    showView('ranking');
     const user = Store.getCurrentUser();
     if (Auth.isConfigured() && user && user.serverBacked && rankingGateMissingFields(user).length) {
       openRankingGateModal();
-      return;
     }
-    renderRankingScreen();
-    showView('ranking');
   }
 
   /** V03.0.3 (§2/§5) — foto editable directamente desde MI PERFIL y MIS DATOS (affordance

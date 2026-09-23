@@ -34,6 +34,13 @@
 <script src="groups.js"></script>
 <script src="locations.js"></script>
 <script src="ranking.js"></script>
+<!-- Backend Bloque 7 (Fase 5, corrección F5-C01/F5-C02) — auth.js se carga acá para poder
+     testear completeRankingProfileData/fetchOwnProfile contra un cliente Supabase fabricado
+     (mismo mecanismo que los tests B7F5-RPC de ranking.js), sin necesitar Supabase real: sin
+     `window.__BRAMU_ENV__`/`window.supabase`, PLAuth.isConfigured() es simplemente `false` acá
+     (mismo comportamiento que en producción sin backend configurado), así que cargarlo no
+     afecta a ningún test existente. -->
+<script src="auth.js"></script>
 <!-- BRAMUlab_V04.1 (Etapa A) — level.js se carga SOLO acá, dentro del arnés de tests.
      No se agrega a index.html/sw.js: nada de la app productiva lo llama todavía (ver
      cabecera del propio archivo y BRAMUlab_V04_Informe.md). -->
@@ -54,6 +61,7 @@
   const PG = window.PLGroups; // BRAMUlab_V03.4 — Mis grupos
   const PLLoc = window.PLLocations; // BRAMUlab_V03.4.1 — dataset/búsqueda de localidades
   const RK = window.PLRanking; // BRAMUlab_V03.5 (Bloque 2) — Ranking BRAMU simulado
+  const Auth = window.PLAuth; // Backend Bloque 7 (Fase 5, corrección F5-C01/F5-C02)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado
   const LVX = window.PLLevelContext; // BRAMUlab_V04.2 (Etapa B) — elegibilidad/invitados/repetición/círculo
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración/recalibración
@@ -6841,6 +6849,88 @@
     const got = RK.formatServerPeriodLabel(start.toISOString(), end.toISOString());
     assert('B7F5-PURE · formatServerPeriodLabel coincide con formatRankingWeekRangeLabel para el mismo período', got === expected, `${got} vs ${expected}`);
     assert('B7F5-PURE · formatServerPeriodLabel sin fechas devuelve vacío, nunca "Invalid Date"', RK.formatServerPeriodLabel(null, null) === '');
+  })();
+
+  // ------------------------------------------------------------------
+  // BACKEND BLOQUE 7 (Fase 5) — CORRECCIÓN F5-C01/F5-C02 (21_Correccion_Fase_5_Claude.md)
+  //
+  // F5-C01 — bug real reproducido por ChatGPT central contra Supabase Staging con rollback
+  // (B7_F5_GEOREF_ID_LOSS_REPRODUCED_ROLLBACK_OK): una ubicación GeoRef ya verificada se
+  // degradaba a manual/no verificada al guardar el gate sin tocar el campo de ubicación, porque
+  // ni fetchOwnProfile() ni openRankingGateModal() conservaban provinceId/localityId. La
+  // corrección extrajo la reconstrucción a RK.buildGateLocationFromUser (pura) — acá se testea
+  // esa función Y el mapeo de parámetros real de Auth.completeRankingProfileData (auth.js,
+  // recién agregado a este arnés) con un cliente Supabase fabricado, mismo mecanismo que los
+  // B7F5-RPC de más arriba.
+  // ------------------------------------------------------------------
+
+  (function () {
+    const verifiedUser = {
+      locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+      locationGeorefProvinceId: 'prov-6', locationGeorefLocalityId: 'loc-123',
+    };
+    const withIds = RK.buildGateLocationFromUser(verifiedUser);
+    assert('B7F5-C01 · buildGateLocationFromUser conserva provinceId/localityId de una ubicación GeoRef ya verificada',
+      withIds.provinceId === 'prov-6' && withIds.localityId === 'loc-123' && withIds.locality === 'Bella Vista');
+
+    const manualUser = { locality: 'Algún Pueblo', region: 'Alguna Provincia', country: 'Argentina' };
+    const withoutIds = RK.buildGateLocationFromUser(manualUser);
+    assert('B7F5-C01 · buildGateLocationFromUser con ubicación manual (sin GeoRef) devuelve provinceId/localityId null, nunca undefined ni un string vacío',
+      withoutIds.provinceId === null && withoutIds.localityId === null);
+
+    assert('B7F5-C01 · buildGateLocationFromUser sin localidad cargada devuelve null, nunca inventa un objeto', RK.buildGateLocationFromUser({}) === null);
+    assert('B7F5-C01 · buildGateLocationFromUser sin cuenta devuelve null', RK.buildGateLocationFromUser(null) === null);
+  })();
+
+  await (async function () {
+    const originalPLAuth = window.PLAuth;
+    const originalEnv = window.__BRAMU_ENV__;
+    const originalSupabase = window.supabase;
+    function makeFakeClient(script) {
+      const calls = [];
+      return { calls, rpc(name, args) { calls.push({ name, args }); return Promise.resolve(script[name] ? script[name](args) : { data: null, error: null }); } };
+    }
+    try {
+      const fakeClient = makeFakeClient({
+        complete_ranking_profile_data: () => ({ data: { player_id: 'p1' }, error: null }),
+      });
+      // Auth.getClient() es un singleton lazy real (auth.js) — se fuerza acá vía
+      // window.__BRAMU_ENV__/window.supabase (mismo mecanismo que usa la app real), nunca
+      // reemplazando PLAuth entero, para ejercitar el wrapper REAL de auth.js, no un stub.
+      window.__BRAMU_ENV__ = { supabaseUrl: 'https://fake.test', supabaseAnonKey: 'fake-anon-key' };
+      window.supabase = { createClient: () => fakeClient };
+      window.PLAuth = originalPLAuth; // recargar el mismo módulo (ya definido), solo cambian sus globals de configuración
+
+      // Caso real del bug: cuenta con ubicación GeoRef ya verificada, el usuario solo cambia
+      // rama/opt-in en el gate y NO toca el campo de ubicación — rankingGateLocation llega tal
+      // cual la armó buildGateLocationFromUser en el test de arriba (CON provinceId/localityId).
+      const verifiedLocation = RK.buildGateLocationFromUser({
+        locality: 'Bella Vista', region: 'Buenos Aires', country: 'Argentina',
+        locationGeorefProvinceId: 'prov-6', locationGeorefLocalityId: 'loc-123',
+      });
+      await Auth.completeRankingProfileData({ competitiveBranch: 'M', rankingOptIn: true, location: verifiedLocation });
+      const call1 = fakeClient.calls[0];
+      assert('B7F5-C01 · completeRankingProfileData reenvía los IDs GeoRef originales al guardar solo rama/opt-in (nunca los pierde)',
+        call1.name === 'complete_ranking_profile_data'
+        && call1.args.p_location_georef_province_id === 'prov-6'
+        && call1.args.p_location_georef_locality_id === 'loc-123'
+        && call1.args.p_location_province_label === 'Buenos Aires'
+        && call1.args.p_location_locality_label === 'Bella Vista');
+
+      // Ubicación manual real (nunca tuvo GeoRef): los IDs deben seguir viajando `null` — el
+      // fix de F5-C01 no debe inventar unos donde nunca existieron.
+      const manualLocation = RK.buildGateLocationFromUser({ locality: 'Algún Pueblo', region: 'Alguna Provincia', country: 'Argentina' });
+      await Auth.completeRankingProfileData({ competitiveBranch: 'F', rankingOptIn: false, location: manualLocation });
+      const call2 = fakeClient.calls[1];
+      assert('B7F5-C01 · completeRankingProfileData con ubicación manual manda los IDs GeoRef en null (nunca inventa unos)',
+        call2.args.p_location_georef_province_id === null && call2.args.p_location_georef_locality_id === null);
+
+      assert('B7F5-C01 · completeRankingProfileData siempre manda p_location_country_code=\'AR\' (V1, mismo criterio que complete_profile)', call1.args.p_location_country_code === 'AR');
+    } finally {
+      window.PLAuth = originalPLAuth;
+      window.__BRAMU_ENV__ = originalEnv;
+      window.supabase = originalSupabase;
+    }
   })();
 
   // ------------------------------------------------------------------

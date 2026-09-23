@@ -164,7 +164,13 @@
     if (!c) return null;
     const [{ data: userData, error: userError }, { data: profileRows, error: profileError }, { data: levelRows, error: levelError }] = await Promise.all([
       c.auth.getUser(),
-      c.from('profiles').select('*, locations(province_label, locality_label, display_label, verified_for_ranking)'),
+      // Corrección F5-C01 (bug real reproducido contra Staging,
+      // B7_F5_GEOREF_ID_LOSS_REPRODUCED_ROLLBACK_OK — ver
+      // 21_Correccion_Fase_5_Claude.md): country_code/georef_province_id/georef_locality_id
+      // ahora viajan en el mismo `select` — sin esto, el gate de Ranking (openRankingGateModal)
+      // no tenía forma de reenviar los IDs GeoRef de una ubicación ya verificada al guardar solo
+      // rama/opt-in, y complete_ranking_profile_data la reinterpretaba como manual/no verificada.
+      c.from('profiles').select('*, locations(country_code, province_label, locality_label, display_label, verified_for_ranking, georef_province_id, georef_locality_id)'),
       c.from('level_states').select('*'),
     ]);
     if (userError || !userData || !userData.user) return null;
@@ -219,6 +225,13 @@
       locality: location ? location.locality_label : null,
       region: location ? location.province_label : null,
       country: location ? COUNTRY_LABELS.AR : null,
+      // Corrección F5-C01 — IDs GeoRef reales de la ubicación ya guardada (nunca reconstruidos
+      // a partir de los labels, que no alcanzan para identificar la misma fila de `locations`
+      // que ya existe server-side). `null` en una ubicación cargada manualmente (sin GeoRef
+      // detrás) — ahí `complete_ranking_profile_data` ya trata `source='manual'` correctamente.
+      locationCountryCode: location ? (location.country_code || null) : null,
+      locationGeorefProvinceId: location ? (location.georef_province_id || null) : null,
+      locationGeorefLocalityId: location ? (location.georef_locality_id || null) : null,
       rankingLocalZone: null,
       // Backend_Infraestructura.md §6.1 no define columnas de teléfono/
       // WhatsApp para `profiles` todavía — queda en null/false hasta que un

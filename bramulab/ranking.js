@@ -902,6 +902,29 @@
     return formatRankingWeekRangeLabel({ start: new Date(periodStartAt), end: new Date(periodEndAt) });
   }
 
+  /** Corrección F5-C01 de Fase 5 (bug real reproducido contra Staging con rollback,
+   *  B7_F5_GEOREF_ID_LOSS_REPRODUCED_ROLLBACK_OK — ver 21_Correccion_Fase_5_Claude.md) —
+   *  reconstruye el objeto de ubicación que el gate "Completar datos para Ranking"
+   *  (openRankingGateModal, app.js) precarga desde una cuenta `serverBacked` ya cacheada.
+   *  Extraída a una función pura y testeable (antes vivía inline en app.js, que no tiene
+   *  cobertura unitaria por diseño): el bug real era exactamente esto — armar el objeto SIN
+   *  `provinceId`/`localityId` cuando la cuenta ya tenía una ubicación GeoRef verificada, lo que
+   *  hacía que `complete_ranking_profile_data` la reinterpretara como manual/no verificada al
+   *  guardar solo rama/opt-in sin tocar el campo de ubicación. `user`: mismo shape que devuelve
+   *  `Auth.fetchOwnProfile()`/`Store.getCurrentUser()` (`locality`, `region`, `country`,
+   *  `locationGeorefProvinceId`, `locationGeorefLocalityId`). `null` sin ubicación cargada
+   *  todavía — nunca se inventa una. */
+  function buildGateLocationFromUser(user) {
+    if (!user || !user.locality) return null;
+    return {
+      locality: user.locality,
+      region: user.region || null,
+      country: user.country || null,
+      provinceId: user.locationGeorefProvinceId || null,
+      localityId: user.locationGeorefLocalityId || null,
+    };
+  }
+
   global.PLRanking = {
     BLOCK_SIZE,
     RANKING_TIMEZONE,
@@ -943,5 +966,6 @@
     getHomeRankingInsight,
     mapServerMovement,
     formatServerPeriodLabel,
+    buildGateLocationFromUser,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
