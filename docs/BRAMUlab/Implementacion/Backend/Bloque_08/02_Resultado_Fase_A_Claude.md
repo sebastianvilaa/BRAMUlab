@@ -17,7 +17,7 @@ Nueva migración `20260923100000_bloque8_fasea_intelligence_history_rpc.sql`, un
 
 - `get_player_intelligence_history(p_limit integer default 300, p_before_played_at timestamptz default null, p_include_hidden boolean default false)` — `SECURITY DEFINER`, `grant execute` únicamente a `authenticated` (mismo patrón deny-by-default que Bloque 5/6/7: ninguna de las tablas de partidos tiene policy para `authenticated`).
 - Devuelve la **historia personal completa** del caller (nunca de otro jugador — se resuelve por `auth.uid()`, igual que `get_my_matches`), ordenada por `played_at` **real** descendente (nunca por orden de carga — prioridad de prueba explícita del handoff §7), con desempate estable por `created_at`/`match_id`.
-- Misma forma jsonb (camelCase) que ya devuelve `get_my_matches`, para que `PLMatchSync.translateServerMatchToLocalShape` (Bloque 5) la traduzca sin ningún adaptador nuevo — **no se reimplementó ninguna traducción**.
+- `returns table (...)`, mismo tipo de retorno que `get_my_matches` — sus columnas top-level llegan de Supabase/PostgREST en **snake_case** (`match_id`, `played_at`, `official_eligible`, etc.), nunca camelCase. `bramulab/intelligence-context.js` normaliza esa forma real en su propia frontera (`normalizeIntelligenceHistoryRow`, ver §1.2 — corregido tras `03_Revision_Central_Fase_A.md` C01) antes de pasarla a `PLMatchSync.translateServerMatchToLocalShape` (Bloque 5) — **no se reimplementó ninguna traducción, ni se tocó `matches.js`**.
 - Agrega dos campos nuevos, exclusivos de Intelligence:
   - `hasOpenIdentityIssue` — mismo criterio exacto que la extensión de Bloque 6 a `get_my_matches`/`get_match_detail`.
   - `officialEligible` — mismo predicado exacto que usa `get_player_match_history_for_level_engine` (Bloque 6) para "tuvo efecto de Nivel aplicado", pero **sin la ventana de 180 días** de esa función: acá interesa si el partido tuvo impacto oficial en algún momento de su historia completa, no si sigue dentro de la ventana de repetición de Nivel.
@@ -34,7 +34,8 @@ Funciones expuestas y qué resuelven (todas puras, reciben la historia ya traíd
 
 | Función | Resuelve | Fuente normativa |
 |---|---|---|
-| `buildPersonalHistory(rows)` | Traduce filas servidor + ordena por `playedAt` real (único punto de orden del módulo) | §11.1 |
+| `normalizeIntelligenceHistoryRow(row)` | Traduce la fila real snake_case de la RPC a camelCase, en la frontera de Intelligence (nunca toca `matches.js`) | C01 |
+| `buildPersonalHistory(rows)` | Normaliza + traduce filas servidor + ordena por `playedAt` real (único punto de orden del módulo) | §11.1 |
 | `resolvePerspective(match, callerPlayerId)` | Compañero, rivales y resultado (`win`/`loss`/`null` si el partido no tiene ganador todavía) desde la perspectiva del caller | §11.1 |
 | `computeFormatFacts(match)` | Sets jugados, ganador por set, set decisivo, margen normalizado, `lostFirstSetWonMatch` (detector 1), alternancia (solo con exactamente 3 sets) | §5.1, Implementacion.md §7.1 |
 | `buildDecidedSequence` / `computeStreakTimeline` / `computeCurrentStreak` | Racha anterior/posterior por partido, récord estricto vs. empate de récord, sin fijar el umbral de "cuándo se muestra" (eso es Fase C) | §5.3, §6.2 |
@@ -65,7 +66,7 @@ Funciones expuestas y qué resuelven (todas puras, reciben la historia ya traíd
 
 ## 3. Tests y resultado
 
-`node --test bramulab/intelligence-context.test.mjs` — **27/27 PASS**.
+`node --test bramulab/intelligence-context.test.mjs` — **29/29 PASS** (27 originales + 2 de regresión C01, ver `04_Correccion_Fase_A_Claude.md`).
 
 Mismo criterio de arnés que `match-level-engine.test.mjs`: los módulos compartidos son scripts de navegador (IIFE sin `export`) y se cargan tal cual en un `vm.createContext` nuevo (`engine.js`, `level.js`, `level-context.js`, `match-sync.js`, `intelligence-context.js`), sin envolverlos en ningún formato de módulo distinto al que ya usa `index.html`/las Edge Functions.
 
@@ -79,7 +80,8 @@ Cobertura, alineada a las prioridades de prueba del handoff §7:
 - relaciones: balance con compañero, rival individual (con compañeros propios distintos), pareja rival exacta (no confundir con "uno de los dos repite"), cruce exacto de parejas (exige compañero Y pareja rival simultáneos), identidad no resuelta nunca cuenta como "esa pareja exacta";
 - partidos pendientes/sin resultado: no rompen ni extienden racha, no entran a forma reciente/hitos, pero sí aportan a `totalMatches`/participación de relaciones y a `computeInactivityGap`;
 - inactividad: muestra insuficiente (`<6` previos) nunca afirma excepcionalidad; regreso excepcional con separación habitual corta;
-- el orquestador (`buildMatchDerivedContext`) respeta `officialEligible`/`hidden`/`hasOpenIdentityIssue` tal cual llegan, sin recalcularlos.
+- el orquestador (`buildMatchDerivedContext`) respeta `officialEligible`/`hidden`/`hasOpenIdentityIssue` tal cual llegan, sin recalcularlos;
+- **C01:** la fila cruda de fixture (`row()`) tiene la forma real snake_case de `get_player_intelligence_history` (no una idealización camelCase) — los 27 tests originales corren sobre esa forma real, más 2 pruebas explícitas de `normalizeIntelligenceHistoryRow`/`translateForIntelligence`.
 
 No se corrió la batería de navegador (`bramulab/tests.html`, la que reporta "N/N" en las rondas anteriores): esta ronda no modificó ningún archivo existente que esa batería ya cubre, así que no hay riesgo concreto que justifique repetirla (`Metodo_Trabajo.md` — "no repetir baterías equivalentes si ya existe evidencia suficiente").
 

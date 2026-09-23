@@ -61,14 +61,45 @@
   /* 0. TRADUCCIÓN Y ORDEN — único punto de entrada desde filas servidor  */
   /* ------------------------------------------------------------------ */
 
-  /** Traduce una fila de get_player_intelligence_history a la MISMA forma local que ya usa
-   *  PLMatchSync.translateServerMatchToLocalShape (Bloque 5), agregando `officialEligible` —
-   *  el único campo que esa función no conoce todavía. No se modifica match-sync.js (Bloque 5
-   *  cerrado): se anota el resultado ya traducido, nunca se duplica la traducción. */
+  /** `get_player_intelligence_history` es `returns table (...)`: Supabase/PostgREST serializa
+   *  sus columnas TOP-LEVEL en snake_case (mismo comportamiento ya resuelto para `get_my_matches`
+   *  por `normalizeMyMatchesRow` en `bramulab/matches.js`, Revisión Central Fase A — C01). Esta
+   *  función replica esa normalización EN LA FRONTERA de Intelligence, sin tocar `matches.js`
+   *  (Bloque 5 cerrado): ningún otro archivo la necesita todavía porque no existe otro consumidor
+   *  de esta RPC. `participants`/`sets` NO se tocan acá — son objetos jsonb que la propia función
+   *  SQL arma con `jsonb_build_object('team', ..., 'playerId', ...)`, ya en camelCase, nunca
+   *  columnas top-level de la tabla de retorno. */
+  function normalizeIntelligenceHistoryRow(row) {
+    return {
+      matchId: row.match_id,
+      status: row.status,
+      playedAt: row.played_at,
+      playedAtTimeKnown: row.played_at_time_known,
+      formatId: row.format_id,
+      scoringSystem: row.scoring_system,
+      myTeam: row.my_team,
+      createdByPlayerId: row.created_by_player_id,
+      validatedAt: row.validated_at,
+      validationDeadlineAt: row.validation_deadline_at,
+      hidden: row.hidden,
+      hasOpenIdentityIssue: !!row.has_open_identity_issue,
+      officialEligible: !!row.official_eligible,
+      participants: row.participants,
+      sets: row.sets,
+    };
+  }
+
+  /** Traduce una fila REAL de get_player_intelligence_history a la MISMA forma local que ya usa
+   *  PLMatchSync.translateServerMatchToLocalShape (Bloque 5): primero normaliza snake_case ->
+   *  camelCase (ver `normalizeIntelligenceHistoryRow`), después traduce, y por último anota
+   *  `officialEligible` — el único campo que `translateServerMatchToLocalShape` no conoce
+   *  todavía. No se modifica match-sync.js (Bloque 5 cerrado): se anota el resultado ya
+   *  traducido, nunca se duplica la traducción. */
   function translateForIntelligence(row) {
     const MatchSync = global.PLMatchSync;
-    const local = MatchSync.translateServerMatchToLocalShape(row);
-    local.officialEligible = !!row.officialEligible;
+    const normalized = normalizeIntelligenceHistoryRow(row);
+    const local = MatchSync.translateServerMatchToLocalShape(normalized);
+    local.officialEligible = normalized.officialEligible;
     return local;
   }
 
@@ -417,6 +448,7 @@
 
   global.PLIntelligenceContext = {
     WIN_MILESTONES,
+    normalizeIntelligenceHistoryRow,
     translateForIntelligence,
     buildPersonalHistory,
     resolvePerspective,

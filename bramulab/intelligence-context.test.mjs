@@ -50,10 +50,13 @@ function matchId() {
   return `match-${String(seq).padStart(4, '0')}`;
 }
 
-/** Fila con la MISMA forma jsonb (camelCase) que get_player_intelligence_history — se
- *  construye a mano en vez de pegarle a Supabase, mismo criterio que match-level-engine.test.mjs
- *  con get_my_matches. `winnerTeam` NUNCA se pasa acá: se deriva de `sets` con el mismo Engine
- *  que la app real, igual que hace translateServerMatchToLocalShape. */
+/** Fila con la forma REAL que devuelve get_player_intelligence_history vía Supabase/PostgREST
+ *  (Revisión Central Fase A — C01): columnas TOP-LEVEL en snake_case, tal como serializa un RPC
+ *  `returns table (...)` — nunca la forma camelCase idealizada. `participants`/`sets` SÍ quedan
+ *  en camelCase porque son objetos jsonb que la propia función SQL arma con
+ *  `jsonb_build_object('playerId', ..., 'gamesA', ...)`, no columnas top-level de la tabla.
+ *  `winnerTeam` NUNCA se pasa acá: se deriva de `sets` con el mismo Engine que la app real,
+ *  igual que hace translateServerMatchToLocalShape. */
 function row({
   playedAt, team1 = PARTNER, rivalA = RIVAL_1, rivalB = RIVAL_2, sets,
   status = 'validated', officialEligible = true, hidden = false, hasOpenIdentityIssue = false,
@@ -73,19 +76,19 @@ function row({
         { team: 'A', position: 2, playerId: rivalB, displayName: 'Rival 2' },
       ];
   return {
-    matchId: matchId(),
+    match_id: matchId(),
     status,
-    playedAt,
-    playedAtTimeKnown: true,
-    formatId: 'classic',
-    scoringSystem: 'standard',
-    myTeam: ownTeam,
-    createdByPlayerId: ME,
-    validatedAt: status === 'validated' ? playedAt : null,
-    validationDeadlineAt: null,
+    played_at: playedAt,
+    played_at_time_known: true,
+    format_id: 'classic',
+    scoring_system: 'standard',
+    my_team: ownTeam,
+    created_by_player_id: ME,
+    validated_at: status === 'validated' ? playedAt : null,
+    validation_deadline_at: null,
     hidden,
-    officialEligible,
-    hasOpenIdentityIssue,
+    official_eligible: officialEligible,
+    has_open_identity_issue: hasOpenIdentityIssue,
     participants,
     sets: sets.map((s, i) => ({ setNumber: i + 1, gamesA: s[0], gamesB: s[1], tiebreakA: s[2] ?? null, tiebreakB: s[3] ?? null })),
   };
@@ -104,6 +107,54 @@ test('los módulos compartidos se cargan y PLIntelligenceContext expone su API p
   assert.ok(IC && typeof IC.buildMatchDerivedContext === 'function');
   assert.ok(typeof IC.buildPersonalHistory === 'function');
   assert.ok(typeof sandbox.PLMatchSync.translateServerMatchToLocalShape === 'function');
+});
+
+/* ------------------------------------------------------------------ */
+/* REGRESIÓN C01 (Revisión Central Fase A, 03_Revision_Central_Fase_A.md):     */
+/* get_player_intelligence_history es un RPC `returns table (...)` — Supabase/ */
+/* PostgREST serializa sus columnas TOP-LEVEL en snake_case, nunca camelCase.  */
+/* `row()` ya construye esa forma real (ver su comentario); esta prueba fija   */
+/* explícitamente que los 11 campos que la revisión pidió confirmar sobreviven */
+/* intactos a normalizeIntelligenceHistoryRow + translateServerMatchToLocalShape. */
+/* ------------------------------------------------------------------ */
+
+test('C01: normalizeIntelligenceHistoryRow traduce la forma real snake_case de la RPC a camelCase', () => {
+  const raw = row({
+    playedAt: '2026-01-01T00:00:00.000Z', team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2,
+    sets: straightSetsWin('A'), officialEligible: true, hidden: true, hasOpenIdentityIssue: true,
+  });
+  // La fila cruda de la RPC nunca tiene camelCase top-level — si esto fallara, sería la prueba
+  // en sí la que estaría mal construida, no el código bajo prueba.
+  assert.equal(raw.matchId, undefined);
+  assert.equal(raw.playedAt, undefined);
+
+  const normalized = IC.normalizeIntelligenceHistoryRow(raw);
+  assert.equal(normalized.matchId, raw.match_id);
+  assert.equal(normalized.playedAt, '2026-01-01T00:00:00.000Z');
+  assert.equal(normalized.playedAtTimeKnown, true);
+  assert.equal(normalized.formatId, 'classic');
+  assert.equal(normalized.scoringSystem, 'standard');
+  assert.equal(normalized.myTeam, 'A');
+  assert.equal(normalized.hidden, true);
+  assert.equal(normalized.hasOpenIdentityIssue, true);
+  assert.equal(normalized.officialEligible, true);
+  assert.equal(normalized.participants, raw.participants);
+  assert.equal(normalized.sets, raw.sets);
+});
+
+test('C01: translateForIntelligence (el punto de entrada real) también sobrevive la forma snake_case', () => {
+  const raw = row({
+    playedAt: '2026-01-01T00:00:00.000Z', team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2,
+    sets: straightSetsWin('A'), officialEligible: true,
+  });
+  const local = IC.translateForIntelligence(raw);
+  assert.equal(local.matchId, raw.match_id);
+  assert.equal(local.playedAt, '2026-01-01T00:00:00.000Z');
+  assert.equal(local.formatId, 'classic');
+  assert.equal(local.officialEligible, true);
+  assert.equal(local.winnerTeam, 'A'); // prueba que sets/formatId llegaron intactos al Engine
+  assert.equal(local.players.length, 4);
+  assert.equal(local.players.find((p) => p.userId === PARTNER).team, 'A');
 });
 
 /* ------------------------------------------------------------------ */
