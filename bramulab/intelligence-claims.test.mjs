@@ -641,3 +641,41 @@ test('un partido con playedAtTimeKnown=false sigue produciendo claims válidos p
   assertClaimHasRealEvidence(streak);
   assert.equal(streak.claim.length, 3); // el orden por fecha sigue siendo correcto y determinista
 });
+
+/* ------------------------------------------------------------------ */
+/* H01 (Backend Bloque 8, hardening previo a Fase D) — identidad estable */
+/* ------------------------------------------------------------------ */
+
+test('H01.2: el partido ACTUAL con identidad cuestionada no produce NINGÚN claim relacional', () => {
+  const rows = [
+    row({ playedAt: dayIso(1), team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2, sets: straightSetsWin('A') }),
+    row({ playedAt: dayIso(2), team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2, sets: straightSetsWin('A') }),
+    row({ playedAt: dayIso(3), team1: PARTNER, rivalA: RIVAL_1, rivalB: RIVAL_2, sets: straightSetsWin('A'), hasOpenIdentityIssue: true }),
+  ];
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  const relationalTypes = [
+    'companero_balance', 'companero_primer_partido_juntos', 'companero_primera_victoria_juntos', 'companero_mejor_balance',
+    'rival_balance', 'rival_primer_enfrentamiento', 'rival_primer_triunfo_tras_derrotas',
+    'pareja_rival_balance', 'pareja_rival_primer_enfrentamiento', 'pareja_rival_primer_triunfo_tras_derrotas',
+    'cruce_exacto_balance', 'cruce_exacto_primer_enfrentamiento', 'cruce_exacto_primer_triunfo_tras_derrotas',
+    'contexto_companero_nuevo', 'contexto_dificultad_previa_rival',
+  ];
+  relationalTypes.forEach((t) => assert.equal(findClaim(claims, t), null, `no debería existir ${t}`));
+});
+
+test('H01.3: con identidad cuestionada en el partido actual, los hechos NO relacionales siguen disponibles', () => {
+  const rows = [1, 2, 3].map((d) => row({ playedAt: dayIso(d), sets: straightSetsWin('A') }));
+  rows[2].has_open_identity_issue = true;
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  assertClaimHasRealEvidence(findClaim(claims, 'racha_de_victorias')); // racha propia
+  assertClaimHasRealEvidence(findClaim(claims, 'sets_corridos')); // estructura del resultado
+});
+
+test('H01.4: sin ninguna incidencia, el comportamiento relacional normal de Fase B sigue intacto', () => {
+  const rows = [1, 2, 3, 4].map((d) => row({ playedAt: dayIso(d), team1: PARTNER, sets: straightSetsWin('A') }));
+  const history = IC.buildPersonalHistory(rows);
+  const { claims } = CL.buildClaimsForMatch(history, ME);
+  assertClaimHasRealEvidence(findClaim(claims, 'companero_balance'));
+});

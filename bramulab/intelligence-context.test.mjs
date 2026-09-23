@@ -491,4 +491,35 @@ test('buildMatchDerivedContext respeta oficialidad/ocultamiento tal cual llegan,
   assert.equal(ctx.hasOpenIdentityIssue, true);
 });
 
+/* ------------------------------------------------------------------ */
+/* H01 (Backend Bloque 8, hardening previo a Fase D) — identidad estable */
+/* ------------------------------------------------------------------ */
+
+test('H01.1: un partido con hasOpenIdentityIssue=true nunca aporta evidencia a un agregado relacional', () => {
+  const rows = [
+    row({ playedAt: '2026-01-01T00:00:00.000Z', team1: PARTNER, sets: straightSetsWin('A') }),
+    row({ playedAt: '2026-01-02T00:00:00.000Z', team1: PARTNER, sets: straightSetsWin('A'), hasOpenIdentityIssue: true }),
+    row({ playedAt: '2026-01-03T00:00:00.000Z', team1: PARTNER, sets: straightSetsLoss('A') }),
+  ];
+  const history = IC.buildPersonalHistory(rows);
+  const summary = IC.computeRelationshipSummary(history, ME, IC.relationCompanion(PARTNER));
+  // Solo los 2 partidos SIN incidencia cuentan — el del medio (con incidencia) queda invisible
+  // para este agregado, nunca "eliminado" del historial general.
+  assert.equal(summary.totalMatches, 2);
+  assert.equal(summary.wins, 1);
+  assert.equal(summary.losses, 1);
+  assert.equal(summary.matches.some((m) => m.matchId === history[1].matchId), false);
+});
+
+test('H01.4: sin ninguna incidencia de identidad, el agregado relacional se comporta exactamente igual que antes', () => {
+  const rows = [
+    row({ playedAt: '2026-01-01T00:00:00.000Z', team1: PARTNER, sets: straightSetsWin('A') }),
+    row({ playedAt: '2026-01-02T00:00:00.000Z', team1: PARTNER, sets: straightSetsWin('A') }),
+  ];
+  const history = IC.buildPersonalHistory(rows);
+  const summary = IC.computeRelationshipSummary(history, ME, IC.relationCompanion(PARTNER));
+  assert.equal(summary.totalMatches, 2);
+  assert.equal(summary.wins, 2);
+});
+
 function round4(n) { return Math.round(n * 10000) / 10000; }

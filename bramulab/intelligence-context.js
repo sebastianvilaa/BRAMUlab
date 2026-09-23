@@ -303,12 +303,22 @@
    *  cuenta aunque siga pendiente) y agrega los partidos donde `matchesRelation` es cierto.
    *  Único agregador de relación: compañero, rival individual, pareja rival exacta y cruce
    *  exacto de parejas son la MISMA operación con un predicado distinto (ver los 4
-   *  constructores debajo) — nunca cuatro copias de este bucle. */
+   *  constructores debajo) — nunca cuatro copias de este bucle.
+   *
+   *  H01 (Backend Bloque 8, hardening previo a Fase D): un partido con `hasOpenIdentityIssue`
+   *  NUNCA aporta evidencia relacional — sin identidad estable de sus 4 participantes, no hay
+   *  forma de saber con certeza a QUIÉN corresponde ese compañero/rival (BRAMU_Intelligence.md
+   *  §11.1: "sin identidad estable, los insights de compañero y rival son frágiles"). Se excluye
+   *  aquí, en el único agregador compartido, en vez de en cada uno de los constructores de
+   *  relación — más seguro que confiar en que cada llamador lo recuerde por separado. Esto NO
+   *  elimina el partido de ningún otro lugar (Historial, hechos no relacionales de Fase B/C
+   *  siguen viéndolo) — solo lo vuelve invisible para ESTE agregado puntual. */
   function computeRelationshipSummary(historyAsc, callerPlayerId, matchesRelation) {
     const entries = [];
     let wins = 0;
     let losses = 0;
     (historyAsc || []).forEach((match) => {
+      if (match.hasOpenIdentityIssue) return;
       const perspective = resolvePerspective(match, callerPlayerId);
       if (!perspective || !matchesRelation(match, perspective)) return;
       if (perspective.result === 'win') wins += 1;

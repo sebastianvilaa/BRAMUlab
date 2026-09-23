@@ -691,6 +691,23 @@ input, select{ font-family: inherit; }
 }
 .analysis-subsection__title{ font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.03em; color: var(--paper-dim); margin: 14px 0 8px; }
 .intelligence-text p{ font-size: 14px; line-height: 1.6; color: var(--paper); margin: 0 0 10px; }
+/* Backend Bloque 8 (Fase D) — tarjeta de BRAMU Intelligence V1 real/server-backed: un insight
+   principal (con título) seguido de hasta 2 secundarios (sin título propio, separados por una
+   línea fina), cada uno con su "Por qué aparece" plegado por defecto (<details> nativo, sin
+   JS propio). Vive DENTRO de `.intelligence-text`/`.intelligence-card` ya existentes — no crea
+   una superficie nueva. */
+.intelligence-insight + .intelligence-insight{ margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.intelligence-insight__title{ font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 0.01em; color: var(--paper); margin: 0 0 4px; }
+.intelligence-insight__body{ margin-bottom: 6px; }
+.intelligence-insight:last-child .intelligence-insight__body{ margin-bottom: 0; }
+.intelligence-why{ margin-top: 2px; }
+.intelligence-why summary{ font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-faint); cursor: pointer; list-style: none; }
+.intelligence-why summary::-webkit-details-marker{ display:none; }
+.intelligence-why summary::before{ content: '+ '; }
+.intelligence-why[open] summary::before{ content: '– '; }
+.intelligence-why p{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); margin: 6px 0 0; font-style: italic; }
+.intelligence-state{ text-align:center; font-style: italic; color: var(--paper-faint); margin: 0; }
+.intelligence-state--loading{ opacity: 0.7; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }
 .coverage-note--center{ text-align:center; }
 

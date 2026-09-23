@@ -675,22 +675,42 @@
     };
     const decidedSequence = IC.buildDecidedSequence(historyAsc, callerPlayerId);
 
+    // H01 (hardening previo a Fase D, handoff Bloque_08/15): si el PARTIDO ACTUAL tiene una
+    // incidencia de identidad abierta, no se producen claims RELACIONALES sobre él — Fase A solo
+    // expone un booleano por partido (no por slot), así que ante la duda se es conservador antes
+    // que atribuir una relación a la persona incorrecta (BRAMU_Intelligence.md §11.1). Los
+    // hechos NO relacionales (estructura, racha propia, hitos, forma reciente, formato
+    // comparable, inactividad) siguen disponibles sin cambios: no se convierte una incidencia de
+    // identidad en la eliminación del partido. `computeRelationshipSummary` (Fase A) ya excluye,
+    // además, cualquier partido HISTÓRICO con la misma incidencia de los agregados relacionales
+    // — este `if` cubre específicamente el caso del partido evaluado ahora mismo.
     const claims = [
       ...buildScoreStructureClaims(ctx, isOfficialEligible),
       ...buildMilestoneClaims(ctx, decidedSequence, isOfficialEligible),
       ...buildStreakClaims(ctx, decidedSequence, isOfficialEligible),
-      ...buildCompanionClaims(ctx, isOfficialEligible),
-      ...buildIndividualRivalClaims(ctx, isOfficialEligible),
-      ...buildRivalPairClaims(ctx, isOfficialEligible),
-      ...buildExactPairCrossingClaims(ctx, isOfficialEligible),
-      ...buildContextClaims(ctx, historyAsc, isOfficialEligible),
     ];
+
+    if (!ctx.hasOpenIdentityIssue) {
+      claims.push(
+        ...buildCompanionClaims(ctx, isOfficialEligible),
+        ...buildIndividualRivalClaims(ctx, isOfficialEligible),
+        ...buildRivalPairClaims(ctx, isOfficialEligible),
+        ...buildExactPairCrossingClaims(ctx, isOfficialEligible),
+      );
+      const bestCompanion = buildBestCompanionClaim(historyAsc, callerPlayerId, ctx, isOfficialEligible);
+      if (bestCompanion) claims.push(bestCompanion);
+    }
+
+    // `buildContextClaims` mezcla hechos relacionales (compañero nuevo, dificultad previa frente
+    // a un rival) con uno que no lo es (regreso tras inactividad) — se filtra el resultado en vez
+    // de duplicar la función, para no reabrir su lógica interna.
+    const contextClaims = buildContextClaims(ctx, historyAsc, isOfficialEligible);
+    claims.push(...(ctx.hasOpenIdentityIssue
+      ? contextClaims.filter((c) => c.insightType === 'contexto_regreso_tras_inactividad')
+      : contextClaims));
 
     const recentForm = buildRecentFormClaim(ctx, decidedSequence, isOfficialEligible);
     if (recentForm) claims.push(recentForm);
-
-    const bestCompanion = buildBestCompanionClaim(historyAsc, callerPlayerId, ctx, isOfficialEligible);
-    if (bestCompanion) claims.push(bestCompanion);
 
     const comparableFormatExtreme = buildComparableFormatExtremeClaim(ctx, decidedSequence, isOfficialEligible);
     if (comparableFormatExtreme) claims.push(comparableFormatExtreme);

@@ -12,6 +12,7 @@
   const Matches = window.PLMatches; // Backend Bloque 5 — create_or_attach_match/get_my_matches/etc. (matches.js)
   const MSync = window.PLMatchSync; // Backend Bloque 5 — traducción servidor->local + separación historial/estadísticas (match-sync.js)
   const MV = window.PLMatchValidation; // Backend Bloque 6 (Fase B) — Confirmar/corrección/identidad/notificaciones (match-validation.js)
+  const IntelClient = window.PLIntelligenceClient; // Backend Bloque 8 (Fase D) — get-match-intelligence real y persistente (intelligence-client.js)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
   const $ = (sel) => document.querySelector(sel);
@@ -2670,6 +2671,75 @@
     $('#b6-propose-correction-btn').addEventListener('click', () => { if (analysisCurrent) openProposeCorrection(analysisCurrent); });
   }
 
+  /** Un insight ya renderizado por PLIntelligencePresentation (principal o secundario) a HTML —
+   *  "Por qué aparece" como `<details>` nativo (Backend Bloque 8 Fase D, handoff §7): factual,
+   *  desplegable, sin IDs/scores/reasonCodes — eso ya lo garantizó el propio módulo de
+   *  presentación, acá solo se pinta lo que llegó. */
+  function buildIntelligenceInsightHTML(insight, isPrincipal) {
+    const titleHTML = isPrincipal && insight.title
+      ? `<h4 class="intelligence-insight__title">${escapeHtml(insight.title)}</h4>` : '';
+    return `
+      <div class="intelligence-insight ${isPrincipal ? 'intelligence-insight--principal' : 'intelligence-insight--secondary'}">
+        ${titleHTML}
+        <p class="intelligence-insight__body">${escapeHtml(insight.body)}</p>
+        <details class="intelligence-why">
+          <summary>Por qué aparece</summary>
+          <p>${escapeHtml(insight.why)}</p>
+        </details>
+      </div>`;
+  }
+
+  /** `output` es la salida completa de `get-match-intelligence` (Backend Bloque 8 Fase D):
+   *  `{abstention, learningMessage, fallbackMessage, principal, secondary}`. Nunca redacta ni
+   *  recalcula nada acá — solo traduce a HTML lo que el servidor ya decidió y guardó. */
+  function buildIntelligenceCardHTML(output) {
+    if (!output) return '';
+    if (output.abstention) {
+      const message = output.learningMessage || output.fallbackMessage || 'Partido guardado.';
+      return `<p class="intelligence-state">${escapeHtml(message)}</p>`;
+    }
+    const principalHTML = output.principal ? buildIntelligenceInsightHTML(output.principal, true) : '';
+    const secondaryHTML = (output.secondary || []).map((i) => buildIntelligenceInsightHTML(i, false)).join('');
+    return principalHTML + secondaryHTML;
+  }
+
+  /** BRAMU Intelligence V1 real y persistente (Backend Bloque 8, Fases A-D) — REEMPLAZA el
+   *  contenido legacy `f.intelligence`/`S.generateManualIntelligence` como fuente de la tarjeta
+   *  en el camino server-backed real (handoff Bloque_08/15_Handoff_Fase_D_Claude.md §10:
+   *  "NO presentarlo como V1 en el camino real server-backed"). `f.intelligence` sigue
+   *  existiendo solo como compatibilidad descriptiva legacy para otros consumidores
+   *  (compartir/exportar) — nunca se mezcla con este camino.
+   *
+   *  Offline/outbox (§10): un partido todavía sin `matchId` real en el servidor
+   *  (`sync_pending`/`necesita_revision`) nunca finge Intelligence histórica — muestra un
+   *  estado breve y honesto hasta que la carga quede sincronizada.
+   *
+   *  Async seguro: mismo criterio exacto que `renderB6Actions` — tras el `await`, si el usuario
+   *  ya navegó a otro partido, la respuesta tardía se descarta sin pintar nada. */
+  async function renderIntelligenceCard(f) {
+    const container = $('#analysis-intelligence-text');
+    if (!f) { container.innerHTML = ''; return; }
+
+    if (!f.serverBacked || f.status === 'sync_pending' || f.status === 'necesita_revision') {
+      container.innerHTML = '<p class="intelligence-state">BRAMU Intelligence se completa cuando la carga quede sincronizada.</p>';
+      return;
+    }
+    if (!IntelClient || !IntelClient.isConfigured()) {
+      container.innerHTML = '<p class="intelligence-state">BRAMU Intelligence no está disponible en este momento.</p>';
+      return;
+    }
+
+    container.innerHTML = '<p class="intelligence-state intelligence-state--loading">Cargando BRAMU Intelligence…</p>';
+    const result = await IntelClient.getMatchIntelligence(f.matchId);
+    if (!analysisCurrent || analysisCurrent.matchId !== f.matchId) return; // se navegó a otro partido mientras se esperaba
+
+    if (!result || result.ok === false) {
+      container.innerHTML = '<p class="intelligence-state">BRAMU Intelligence no está disponible en este momento.</p>';
+      return;
+    }
+    container.innerHTML = buildIntelligenceCardHTML(result.output);
+  }
+
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
@@ -2680,7 +2750,7 @@
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
     // en paralelo con get_match_detail fresco (ver renderB6Actions).
     renderB6Actions(f);
-    $('#analysis-intelligence-text').innerHTML = f.intelligence.split('\n\n').map((p) => `<p>${p}</p>`).join('');
+    renderIntelligenceCard(f);
     const covNote = $('#analysis-coverage-note');
     const legalHTML = buildCoverageLegalHTML(f);
     if (legalHTML) { covNote.hidden = false; covNote.innerHTML = legalHTML; } else { covNote.hidden = true; covNote.innerHTML = ''; }
