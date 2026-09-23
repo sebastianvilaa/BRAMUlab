@@ -43,6 +43,7 @@ function loadSharedEngine() {
 
 const sandbox = loadSharedEngine();
 const IC = sandbox.PLIntelligenceContext;
+const CL = sandbox.PLIntelligenceClaims;
 const ED = sandbox.PLIntelligenceEditorial;
 const IO = sandbox.PLIntelligenceOfficial;
 const PR = sandbox.PLIntelligencePresentation;
@@ -854,4 +855,88 @@ test('15: el template de nivel_por_encima_expectativa nunca muestra el porcentaj
   assert.equal(/%|30\b/.test(principal.body), false);
   // El porcentaje SÍ puede (y debe) aparecer en "why" — nunca se esconde la evidencia completa.
   assert.match(principal.why, /30%/);
+});
+
+/* ==================================================================== */
+/* Corrección Revisión Central Fase E (docs/.../27_Revision_Central_     */
+/* Fase_E.md) — E03/E05/E06                                              */
+/* ==================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* E03: nivel_evidencia_limitada nunca dice "TU Nivel sigue calibrando"  */
+/* si la limitación viene de otro participante                          */
+/* ------------------------------------------------------------------ */
+
+test('E03: callerCalibrating=false -> copy factual de evidencia limitada, NUNCA "tu Nivel BRAMU sigue calibrando"', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_evidencia_limitada', { knownLevelsCount: 4, anyCalibrating: true, callerCalibrating: false }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.equal(/tu nivel bramu sigue calibrando/i.test(rendered.principal.body), false);
+  assert.match(rendered.principal.body, /todavía no alcanzan para clasificar/i);
+  assert.equal(/tu propio nivel/i.test(rendered.principal.why), false);
+});
+
+test('E03b: callerCalibrating=true -> puede usar el mensaje cerrado de calibración propia', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_evidencia_limitada', { knownLevelsCount: 2, anyCalibrating: true, callerCalibrating: true }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.match(rendered.principal.body, /Este partido suma evidencia; tu Nivel BRAMU sigue calibrando\./);
+});
+
+/* ------------------------------------------------------------------ */
+/* E05: nivel_variacion combina contexto esperable + delta sin inventar */
+/* un umbral de "delta chico" ni duplicar la historia H                 */
+/* ------------------------------------------------------------------ */
+
+test('E05: wasExpectedResult=true -> el copy visible combina el delta exacto con el contexto favorable previo, y el porcentaje solo aparece en "why"', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_variacion', { deltaCapped: 0.04, deltaRaw: 0.04, muAfter: 5.14, formulaState: 'CALIBRADO', wasExpectedResult: true, expectationOwn: 0.70 }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.match(rendered.principal.body, /\+0\.04/);
+  assert.match(rendered.principal.body, /diferencia favorable/i);
+  assert.equal(/%/.test(rendered.principal.body), false); // nunca porcentaje en el cuerpo principal
+  assert.match(rendered.principal.why, /70%/); // el porcentaje exacto sí puede aparecer en "why"
+});
+
+test('E05b: wasExpectedResult=false -> el copy sigue siendo el factual simple de siempre, sin mencionar contexto favorable', () => {
+  const rendered = PR.renderIntelligence(
+    fakeDecisionFor('nivel_variacion', { deltaCapped: -0.03, deltaRaw: -0.03, muAfter: 4.97, formulaState: 'CALIBRADO', wasExpectedResult: false, expectationOwn: null }),
+    [], PR.emptyMemory(),
+  );
+  assert.ok(rendered.principal);
+  assert.match(rendered.principal.body, /-0\.03/);
+  assert.equal(/diferencia favorable/i.test(rendered.principal.body), false);
+});
+
+/* ------------------------------------------------------------------ */
+/* E06: rulesVersions.b conserva Fase B; rulesVersions.e trae Fase E     */
+/* ------------------------------------------------------------------ */
+
+test('E06: un insight H persistido conserva rulesVersions.b === RULES_VERSION real de Fase B (nunca el de Fase E) y rulesVersions.e === RULES_VERSION de Fase E', () => {
+  const rows = [row({ playedAt: dayIso(1), team1: PARTNER, sets: [[6, 4], [6, 4]] })];
+  const historyBase = IC.buildPersonalHistory(rows);
+  const matchId = historyBase[historyBase.length - 1].matchId;
+  const history = withOfficialSnapshot(historyBase, 0, levelResultRow({ matchId, expectationA: 0.30 }), levelPlayerRows());
+
+  const steps = PR.runIntelligenceReplay(history, history.length - 1, ME, {}, RULES_VERSION_COMBINED);
+  const principal = steps[steps.length - 1].output.principal;
+  assert.ok(principal);
+  assert.equal(principal.insightType, 'nivel_por_encima_expectativa'); // es un insight de Familia H
+  assert.equal(principal.rulesVersions.b, CL.RULES_VERSION);
+  assert.notEqual(principal.rulesVersions.b, IO.RULES_VERSION); // nunca el de Fase E mal rotulado bajo `b`
+  assert.equal(principal.rulesVersions.e, IO.RULES_VERSION);
+});
+
+test('E06b: un insight A-G (no Familia H) TAMBIÉN trae rulesVersions.e — el pipeline combinado corre en versión E para cualquier familia, sin condicionar', () => {
+  const rendered = renderFor(winSeries(4, { team1: PARTNER }));
+  assert.ok(rendered.principal);
+  assert.notEqual(rendered.principal.family, 'H');
+  assert.equal(rendered.principal.rulesVersions.b, CL.RULES_VERSION);
+  assert.equal(rendered.principal.rulesVersions.e, IO.RULES_VERSION);
 });

@@ -219,9 +219,23 @@
    *  de `buildTuMomentoText`, a partir de `rankingInsight` (RK.computeHomeRankingInsight,
    *  siempre ámbito Local). `null` si no hay nada que valga la pena mostrar (sin movimiento
    *  real y no es "Nuevo") — Home nunca fuerza un mensaje de Ranking solo para llenar espacio.
-   *  Copy tal cual la normativa: las flechas son SIEMPRE puestos, nunca "jugó mejor". */
+   *  Copy tal cual la normativa: las flechas son SIEMPRE puestos, nunca "jugó mejor".
+   *
+   *  Backend Bloque 8 (Fase E, Revisión Central E04) — `insight.milestoneType` (calculado por
+   *  `RK.classifyHomeRankingMilestone`, nunca re-derivado acá) distingue explícitamente el 5to
+   *  hito cerrado, "cambio de banda pública de Nivel BRAMU": se expresa como cambio de NIVEL
+   *  (nunca "categoría"/puntos/causalidad de partido), con los mismos snapshots semanales
+   *  publicados que ya trae `insight` — nunca el Nivel en vivo. Los otros 4 tipos siguen el
+   *  mismo formato de siempre (puestos), sin cambios de texto. Formato numérico "X.X" (un
+   *  decimal, punto) — mismo criterio que el resto de la app (`row.level_public.toFixed(1)`,
+   *  app.js), no la coma del ejemplo en prosa de la fuente. */
   function buildRankingMomentoClause(insight) {
     if (!insight) return null;
+    if (insight.milestoneType === 'cambio_de_banda') {
+      const prev = Number.isFinite(insight.previousLevelPublic) ? insight.previousLevelPublic.toFixed(1) : '—';
+      const current = Number.isFinite(insight.levelPublic) ? insight.levelPublic.toFixed(1) : '—';
+      return `Tu Nivel BRAMU pasó de ${prev} a ${current} en el último corte semanal.`;
+    }
     if (insight.isNew) return `Entraste al Ranking de ${insight.territory}: #${insight.position} de ${insight.total}`;
     if (insight.delta > 0) return `#${insight.position} de ${insight.total} en ${insight.territory} · ↑ ${insight.delta} esta semana`;
     if (insight.delta < 0) return `#${insight.position} de ${insight.total} en ${insight.territory} · ↓ ${Math.abs(insight.delta)} esta semana`;

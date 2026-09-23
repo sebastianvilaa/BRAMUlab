@@ -373,19 +373,48 @@
     variants: [{ id: 'v1', title: () => 'Contexto de Niveles BRAMU', body: () => 'Con los niveles disponibles, tu pareja partía por debajo.' }],
     why: () => 'Se compararon los Niveles BRAMU previos de 3 de los 4 jugadores; no alcanza para calcular una expectativa completa con los cuatro.',
   });
+  // Revisión Central Fase E (E03): el copy ahora distingue `claim.callerCalibrating` —
+  // "tu Nivel sigue calibrando" SOLO si el propio caller es quien está calibrando; si la
+  // limitación viene de otro participante (rival/pareja calibrando, o confianza baja de un
+  // tercero) con el caller ya `CALIBRADO`, usa una formulación factual que nunca le atribuye la
+  // calibración al caller.
   register('nivel_evidencia_limitada', {
-    variants: [{ id: 'v1', title: () => 'Nivel BRAMU en calibración', body: () => 'Este partido suma evidencia; tu Nivel BRAMU sigue calibrando.' }],
-    why: () => 'Todavía no hay Niveles BRAMU confiables de los cuatro jugadores para clasificar la dificultad de este partido.',
+    variants: [{
+      id: 'v1',
+      title: (c) => (c.callerCalibrating ? 'Nivel BRAMU en calibración' : 'Evidencia de Nivel BRAMU limitada'),
+      body: (c) => (c.callerCalibrating
+        ? 'Este partido suma evidencia; tu Nivel BRAMU sigue calibrando.'
+        : 'Los Niveles disponibles todavía no alcanzan para clasificar con confianza la dificultad de este partido.'),
+    }],
+    why: (c) => (c.callerCalibrating
+      ? 'Todavía no hay suficiente evidencia de tu propio Nivel BRAMU para clasificar la dificultad de este partido.'
+      : 'Uno o más Niveles BRAMU previos de este partido (de otro participante, no el tuyo) no tenían evidencia suficiente todavía.'),
   });
   register('nivel_resultado_esperable', {
     // `genericScoreOnly` en Fase C (mismo criterio que sets_corridos/definicion_en_tres_sets):
-    // sin título propio, nunca festejo principal por sí solo (§4.4).
+    // sin título propio, nunca festejo principal por sí solo (§4.4). E05 (Revisión Central Fase
+    // E): este template en la práctica nunca gana la selección (su perfil editorial nunca
+    // supera el umbral solo) — sigue registrado para que el claim quede auditable/reconstruible
+    // si alguna vez se lo consulta directamente; la explicación visible real de "contexto
+    // esperable" vive en `nivel_variacion` (ver más abajo), que sí puede ganar.
     variants: [{ id: 'v1', title: () => (undefined), body: () => 'La victoria confirma tu nivel actual; el cambio fue pequeño porque la diferencia previa era favorable.' }],
     why: (claim) => `La expectativa previa de victoria era alta (${Math.round(claim.expectationOwn * 100)}% según los Niveles BRAMU previos); un resultado esperado modifica poco el Nivel.`,
   });
+  // E05 — cuando `claim.wasExpectedResult` (victoria + expectativa >=65%, MISMA condición ya
+  // cerrada que usa `nivel_resultado_esperable`, nunca un umbral nuevo de "delta chico"), el
+  // copy combina el delta exacto con el contexto favorable previo en una sola historia — nunca
+  // dos claims H visibles contando lo mismo.
   register('nivel_variacion', {
-    variants: [{ id: 'v1', title: () => 'Variación de Nivel BRAMU', body: (c) => `Tu Nivel BRAMU varió ${c.deltaCapped >= 0 ? '+' : ''}${c.deltaCapped.toFixed(2)} tras este partido.` }],
-    why: () => 'Variación oficial calculada a partir del resultado validado de este partido, según el snapshot de Nivel BRAMU vigente al momento — nunca contra tu Nivel actual en vivo.',
+    variants: [{
+      id: 'v1',
+      title: () => 'Variación de Nivel BRAMU',
+      body: (c) => (c.wasExpectedResult
+        ? `Tu Nivel BRAMU varió ${c.deltaCapped >= 0 ? '+' : ''}${c.deltaCapped.toFixed(2)}; los Niveles BRAMU previos marcaban una diferencia favorable para tu pareja.`
+        : `Tu Nivel BRAMU varió ${c.deltaCapped >= 0 ? '+' : ''}${c.deltaCapped.toFixed(2)} tras este partido.`),
+    }],
+    why: (c) => (c.wasExpectedResult
+      ? `Antes del partido, la expectativa de victoria de tu pareja era de ${Math.round(c.expectationOwn * 100)}% según los Niveles BRAMU previos — un resultado esperado modifica poco el Nivel. Variación calculada según el snapshot oficial de ese partido, nunca contra tu Nivel actual en vivo.`
+      : 'Variación oficial calculada a partir del resultado validado de este partido, según el snapshot de Nivel BRAMU vigente al momento — nunca contra tu Nivel actual en vivo.'),
   });
 
   const FALLBACK_TEMPLATE = {
@@ -408,6 +437,8 @@
   /* ------------------------------------------------------------------ */
 
   function renderInsight(candidate, isPrincipal, resolveName, recentTemplateIds) {
+    const CL = global.PLIntelligenceClaims;
+    const IO = global.PLIntelligenceOfficial;
     const def = TEMPLATES[candidate.insightType] || FALLBACK_TEMPLATE;
     const variant = pickVariant(candidate.insightType, def.variants, recentTemplateIds);
     const templateId = `${candidate.insightType}:${variant.id}`;
@@ -424,9 +455,15 @@
       officialScope: candidate.officialScope,
       confidenceTier: candidate.confidenceTier,
       evidenceMatchIds: candidate.evidenceMatchIds.slice(),
+      // Revisión Central Fase E (E06): `b` es SIEMPRE la versión real de Fase B (nunca
+      // `candidate.rulesVersion`, que para un claim de Familia H es
+      // `bramu_intelligence_official_v1` — antes terminaba guardado, mal rotulado, bajo `b`).
+      // `e` se agrega siempre (no solo para Familia H): el pipeline combinado ya corre en
+      // versión E para CUALQUIER insight, sin importar su familia — no hace falta condicionar.
       rulesVersions: {
-        a: 'bramu_intelligence_context_v1', b: candidate.rulesVersion || 'bramu_intelligence_v1',
+        a: 'bramu_intelligence_context_v1', b: CL.RULES_VERSION,
         c: candidate.scored ? 'bramu_intelligence_editorial_v1' : 'bramu_intelligence_editorial_v1', d: RULES_VERSION,
+        e: IO.RULES_VERSION,
       },
     };
   }

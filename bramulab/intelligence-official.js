@@ -236,6 +236,13 @@
     // formalmente CALIBRANDO, pero confianza mínima igual por debajo de 0,60" — esa combinación
     // no calzaba en ninguna rama y desaparecía en silencio en vez de caer en evidencia limitada.
     const fourKnownStrongEvidence = knownLevelsCount === 4 && minConfidence >= MIN_CONFIDENCE_FOR_STRONG_CLAIM && !anyCalibrating;
+    // Revisión Central Fase E (E03): `nivel_evidencia_limitada` NUNCA puede decir "tu Nivel
+    // sigue calibrando" cuando la limitación viene de OTRO participante (rival/pareja) con el
+    // caller ya `CALIBRADO` — eso sería factualmente falso para el jugador de perspectiva. El
+    // claim ahora declara explícitamente `callerCalibrating` (derivado del propio `callerRow`,
+    // nunca de `anyCalibrating`, que mezcla a los cuatro); la plantilla de Fase D decide el copy
+    // exacto según ESTE campo, nunca según si "alguien" está calibrando.
+    const callerCalibrating = !!(callerRow && callerRow.formulaState === 'CALIBRANDO');
     if (perspective.result === 'win' && expectationOwn != null) {
       if (knownLevelsCount === 4) {
         if (!fourKnownStrongEvidence) {
@@ -243,7 +250,7 @@
           // todavía CALIBRANDO): nunca clasifica dificultad, solo evidencia limitada.
           claims.push(makeOfficialClaim({
             insightType: 'nivel_evidencia_limitada', perspectivePlayerId: callerPlayerId, dataAsOf, evidenceMatchIds,
-            claim: { knownLevelsCount, anyCalibrating, minConfidence },
+            claim: { knownLevelsCount, anyCalibrating, minConfidence, callerCalibrating },
             comparisonScope: 'nivel_oficial_partido_actual', sampleSize: knownLevelsCount, minSampleRequired: 4,
             confidenceTier: confidenceTierFor(knownLevelsCount, minConfidence),
           }));
@@ -287,15 +294,26 @@
         // §4.6 — 2 niveles conocidos (o menos): nunca clasifica dificultad.
         claims.push(makeOfficialClaim({
           insightType: 'nivel_evidencia_limitada', perspectivePlayerId: callerPlayerId, dataAsOf, evidenceMatchIds,
-          claim: { knownLevelsCount, anyCalibrating, minConfidence },
+          claim: { knownLevelsCount, anyCalibrating, minConfidence, callerCalibrating },
           comparisonScope: 'nivel_oficial_partido_actual', sampleSize: knownLevelsCount, minSampleRequired: 4,
           confidenceTier: confidenceTierFor(knownLevelsCount, minConfidence),
         }));
       }
     }
 
-    // --- resultado_esperable (§4.4): explica delta chico, nunca festejo, cualquier knownLevelsCount ---
-    if (perspective.result === 'win' && expectationOwn != null && expectationOwn >= EXPECTED_RESULT_MIN_EXPECTATION) {
+    // Revisión Central Fase E (E05): expectativa >=65% + victoria — "resultado esperable".
+    // `nivel_resultado_esperable` sigue existiendo como claim AUDITABLE (queda en `allClaims`,
+    // reconstruible), pero su perfil editorial (`genericScoreOnly`, categoría 2 de baja
+    // excepcionalidad) hace que estructuralmente NUNCA supere el umbral de publicación por sí
+    // solo — nunca es "código muerto que decide la salida", es evidencia de auditoría que Fase C
+    // puede seguir viendo/puntuando igual. La pieza que SÍ puede ser visible es
+    // `nivel_variacion` (más abajo): se enriquece con `wasExpectedResult`/`expectationOwn` para
+    // que, cuando gane, su propia plantilla pueda explicar el contexto favorable previo sin
+    // depender de que `nivel_resultado_esperable` llegue a mostrarse — nunca dos historias H
+    // contando lo mismo (nunca ambas terminan visibles a la vez: son la MISMA familia H, y C ya
+    // limita a 1 principal + secundarios de familias distintas).
+    const wasExpectedResult = perspective.result === 'win' && expectationOwn != null && expectationOwn >= EXPECTED_RESULT_MIN_EXPECTATION;
+    if (wasExpectedResult) {
       claims.push(makeOfficialClaim({
         insightType: 'nivel_resultado_esperable', perspectivePlayerId: callerPlayerId, dataAsOf, evidenceMatchIds,
         claim: { expectationOwn, knownLevelsCount, deltaCapped: callerRow ? callerRow.deltaCapped : null },
@@ -308,7 +326,12 @@
     if (callerRow) {
       claims.push(makeOfficialClaim({
         insightType: 'nivel_variacion', perspectivePlayerId: callerPlayerId, dataAsOf, evidenceMatchIds,
-        claim: { deltaCapped: callerRow.deltaCapped, deltaRaw: callerRow.deltaRaw, muAfter: callerRow.muAfter, formulaState: callerRow.formulaState },
+        claim: {
+          deltaCapped: callerRow.deltaCapped, deltaRaw: callerRow.deltaRaw, muAfter: callerRow.muAfter, formulaState: callerRow.formulaState,
+          // E05 — nunca se inventa un umbral nuevo de "delta chico": se reusa LITERALMENTE la
+          // misma condición ya cerrada de "resultado esperable" (expectativa >=65% + victoria).
+          wasExpectedResult, expectationOwn: wasExpectedResult ? expectationOwn : null,
+        },
         comparisonScope: 'nivel_oficial_partido_actual', sampleSize: knownLevelsCount, minSampleRequired: 1,
         confidenceTier: confidenceTierFor(knownLevelsCount, minConfidence),
       }));

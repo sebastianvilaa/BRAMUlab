@@ -940,20 +940,30 @@
     return Math.max(RANKING_MILESTONE_MIN_IMPROVEMENT_PUESTOS, Math.ceil(total * 0.05));
   }
 
-  /** ¿El movimiento semanal de ESTE jugador (ámbito Local, el único que usa TU MOMENTO) alcanza
-   *  alguno de los hitos materiales CERRADOS de la fuente? Reusa/ajusta el camino server-backed
-   *  ya existente (`getHomeRankingInsight`/`get_my_ranking_position`) — nunca crea una fuente
+  /** Clasifica el movimiento semanal de ESTE jugador (ámbito Local, el único que usa TU MOMENTO)
+   *  contra los 5 hitos materiales CERRADOS de la fuente. Reusa/ajusta el camino server-backed ya
+   *  existente (`getHomeRankingInsight`/`get_my_ranking_position`) — nunca crea una fuente
    *  paralela ni recalcula la clasificación de Ranking (handoff §8: "reusar/ajustar ese camino
    *  server-backed... sin recalcular la clasificación").
    *
-   *  `insight`: el MISMO objeto `{position, total, territory, isNew, delta}` que ya arma
-   *  `renderPlayerHome` (app.js) a partir de `get_home_ranking_insight`, más un campo OPCIONAL
-   *  `bestPositionBefore` — la mejor posición histórica del jugador en este mismo ámbito antes de
-   *  la edición vigente. Ese campo requiere una extensión mínima de
-   *  `get_my_ranking_position`/`get_home_ranking_insight` que esta ronda deja PREPARADA pero NO
-   *  aplicada (handoff §5/§13: "preparar y testear localmente... ChatGPT central revisará y
-   *  aplicará después") — mientras no exista, `bestPositionBefore` llega `undefined` y el caso
-   *  "nueva mejor posición" simplemente nunca dispara, nunca se inventa un valor.
+   *  Revisión Central Fase E (E01): el universo mínimo (`total>=15`) corre ANTES de cualquier
+   *  hito, INCLUIDA la primera entrada — antes corría después de un `if (insight.isNew) return
+   *  true` que la saltaba por completo. Además, `movement.status==='nuevo'` (`insight.isNew`)
+   *  significa "sin edición anterior comparable" (Bloque 7), NUNCA "nunca estuviste en este
+   *  ranking" — puede ocurrir por reingreso tras inactividad o ruptura de comparabilidad. Por
+   *  eso "primera entrada" ya no se afirma solo con `isNew`: exige además
+   *  `bestPositionBefore === null` (el dato histórico agregado por la migración de Fase E dice
+   *  explícitamente "nunca hubo una posición previa elegible"). Si el campo llega ausente
+   *  (`undefined`, migración todavía no aplicada) o es un número real (sí hubo posición previa),
+   *  nunca se afirma primera entrada — nunca se inventa.
+   *
+   *  `insight`: el objeto que arma `renderPlayerHome` (app.js) a partir de
+   *  `get_home_ranking_insight` — `{position, total, territory, isNew, delta, bestPositionBefore,
+   *  editionId, scopeType, scopeKey, levelPublic, levelBand, previousLevelPublic,
+   *  previousLevelBand}`. `bestPositionBefore`/`levelBand`/`previousLevelPublic`/
+   *  `previousLevelBand` requieren la extensión de `get_my_ranking_position` que esta ronda deja
+   *  PREPARADA pero NO aplicada — mientras no exista, llegan `undefined` y los hitos que
+   *  dependen de ellos simplemente nunca disparan, nunca se inventa un valor.
    *
    *  Ajusta, para este propósito puntual, la nota de UX más permisiva de Ranking_BRAMU.md §13.6
    *  ("movimiento negativo, tono neutro, siempre visible dentro de la tarjeta territorial
@@ -962,26 +972,61 @@
    *  lista cerrada y más estricta de BRAMU_Intelligence.md §13.3. Ninguna caída de posición está
    *  en esa lista (los 5 casos cerrados son todos MEJORAS) — nunca genera un hito, sin importar
    *  la magnitud; cae al siguiente candidato de TU MOMENTO exactamente igual que "sin insight".
-   *  El 5to caso cerrado ("cambio de banda pública de Nivel") es un hito de NIVEL, no de Ranking
-   *  — queda fuera de este detector a propósito, documentado en el informe de esta ronda. */
-  function isHomeRankingMilestoneMaterial(insight) {
-    if (!insight) return false;
-    if (insight.isNew) return true; // 1. primera entrada a un ranking establecido — siempre material.
+   *
+   *  Devuelve `null` sin hito, o `{type, editionId, scopeType, scopeKey}` — `type` es uno de
+   *  `'cambio_de_banda' | 'primera_entrada' | 'top10' | 'nueva_mejor_posicion' |
+   *  'ascenso_material'`. Los 3 campos restantes son la clave de identidad del hito (Revisión
+   *  Central Fase E, E02: "el insight que llega al Home debe incluir al menos editionId/
+   *  scopeType/scopeKey/milestoneType") — `buildRankingMilestoneKey` los combina en la clave de
+   *  memoria de "ya mostrado" (ver más abajo). */
+  function classifyHomeRankingMilestone(insight) {
+    if (!insight) return null;
     const total = insight.total;
-    if (!Number.isFinite(total) || total < RANKING_MILESTONE_MIN_UNIVERSE) return false; // universo insuficiente.
+    if (!Number.isFinite(total) || total < RANKING_MILESTONE_MIN_UNIVERSE) return null; // universo insuficiente — aplica a TODOS los hitos, incluida la primera entrada.
+
+    // 5. cambio de banda pública de Nivel BRAMU (E04) — evento semanal de NIVEL, nunca
+    // causalidad de un partido; se evalúa antes de los hitos de puesto porque no depende de
+    // `isNew`/`delta` en absoluto. Ambas bandas deben venir de snapshots semanales PUBLICADOS
+    // reales (la migración solo lee `ranking_editions.published_at is not null`) — nunca se
+    // recalcula desde el estado en vivo.
+    if (Number.isFinite(insight.levelBand) && Number.isFinite(insight.previousLevelBand)
+      && insight.levelBand !== insight.previousLevelBand) {
+      return rankingMilestoneOf('cambio_de_banda', insight);
+    }
+
+    if (insight.isNew) {
+      // 1. primera entrada a un ranking establecido — SOLO si el histórico confirma que nunca
+      // hubo una posición previa elegible (nunca solo por `movement.status==='nuevo'`).
+      return insight.bestPositionBefore === null ? rankingMilestoneOf('primera_entrada', insight) : null;
+    }
     const delta = insight.delta;
-    if (!Number.isFinite(delta) || delta <= 0) return false; // solo mejoras cuentan como hito.
+    if (!Number.isFinite(delta) || delta <= 0) return null; // solo mejoras cuentan como hito.
     const position = insight.position;
     const previousPosition = Number.isFinite(position) ? position + delta : null;
     if (Number.isFinite(position) && position <= RANKING_MILESTONE_TOP && previousPosition != null && previousPosition > RANKING_MILESTONE_TOP) {
-      return true; // 2. entrada al top 10 de un universo establecido.
+      return rankingMilestoneOf('top10', insight); // 2. entrada al top 10 de un universo establecido.
     }
     if (Number.isFinite(insight.bestPositionBefore) && Number.isFinite(position)
       && position < insight.bestPositionBefore && (insight.bestPositionBefore - position) >= RANKING_MILESTONE_MIN_IMPROVEMENT_PUESTOS) {
-      return true; // 3. nueva mejor posición con mejora de al menos 3 puestos.
+      return rankingMilestoneOf('nueva_mejor_posicion', insight); // 3. nueva mejor posición, mejora >=3 puestos.
     }
-    if (delta >= rankingAscentThreshold(total)) return true; // 4. ascenso material (máx(3, 5% del universo)).
-    return false;
+    if (delta >= rankingAscentThreshold(total)) return rankingMilestoneOf('ascenso_material', insight); // 4. ascenso material (máx(3, 5% del universo)).
+    return null;
+  }
+
+  function rankingMilestoneOf(type, insight) {
+    return { type, editionId: insight.editionId || null, scopeType: insight.scopeType || 'local', scopeKey: insight.scopeKey || null };
+  }
+
+  /** Clave estable de "este hito ya se mostró" (Revisión Central Fase E, E02) —
+   *  `ranking:<editionId>:<scopeType>:<scopeKey>:<type>`. `null` sin milestone (nada que
+   *  recordar). Nunca incluye posición/nivel como verdad deportiva — es puramente un
+   *  identificador de presentación, nunca autoridad. El llamador (app.js) la combina con el
+   *  `userId` real antes de guardarla (`Store.markRankingMilestoneSeen`/`hasSeenRankingMilestone`)
+   *  para que dos cuentas en el mismo navegador nunca comparan el mismo "ya visto". */
+  function buildRankingMilestoneKey(milestone) {
+    if (!milestone) return null;
+    return `ranking:${milestone.editionId}:${milestone.scopeType}:${milestone.scopeKey}:${milestone.type}`;
   }
 
   global.PLRanking = {
@@ -1023,7 +1068,8 @@
     setRankingNetworkHidden,
     getProfileRankingSummary,
     getHomeRankingInsight,
-    isHomeRankingMilestoneMaterial,
+    classifyHomeRankingMilestone,
+    buildRankingMilestoneKey,
     mapServerMovement,
     formatServerPeriodLabel,
     buildGateLocationFromUser,

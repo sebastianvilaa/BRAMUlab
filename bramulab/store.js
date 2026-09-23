@@ -114,6 +114,12 @@
     // ya no visible del lado del servidor desaparezca también acá — nunca queda un residuo
     // local más "verdadero" que la última respuesta real del servidor.
     SERVER_MATCHES_CACHE: 'bramulab.serverMatchesCache.v1',
+    // Backend Bloque 8 (Fase E, Revisión Central E02) — memoria de PRESENTACIÓN pura: "este
+    // hito material de Ranking ya se mostró en TU MOMENTO" (nunca posición/nivel como verdad
+    // deportiva, solo el identificador). Separada por `userId` real dentro del mismo objeto
+    // (nunca una clave por cuenta) para que dos cuentas en el mismo navegador nunca comparen el
+    // mismo "ya visto" ni requieran migración de esquema si cambia la cantidad de cuentas.
+    RANKING_MILESTONE_SEEN: 'bramulab.rankingMilestoneSeen.v1',
   };
 
   function safeGet(key) {
@@ -947,6 +953,37 @@
     return { ok: true, group };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Backend Bloque 8 (Fase E, Revisión Central E02) — "ya se mostró este  */
+  /* hito material de Ranking en TU MOMENTO"                              */
+  /* ------------------------------------------------------------------ */
+
+  /** `userId`+`milestoneKey` (`PLRanking.buildRankingMilestoneKey`, forma
+   *  `ranking:<editionId>:<scopeType>:<scopeKey>:<type>`) combinados en UNA clave compuesta —
+   *  nunca un objeto anidado por `userId`, para no tener que migrar el esquema si en el futuro
+   *  se agrega otro tipo de hito editorial con la misma necesidad. `userId` vacío/nulo cae en
+   *  `'anon'` — nunca se comparte "ya visto" entre una cuenta real y ninguna. */
+  function rankingMilestoneSeenCompositeKey(userId, milestoneKey) {
+    return `${userId || 'anon'}::${milestoneKey}`;
+  }
+
+  /** `false` si no hay `milestoneKey` (nada que recordar) — nunca lanza. */
+  function hasSeenRankingMilestone(userId, milestoneKey) {
+    if (!milestoneKey) return false;
+    const seen = safeGet(KEYS.RANKING_MILESTONE_SEEN) || {};
+    return !!seen[rankingMilestoneSeenCompositeKey(userId, milestoneKey)];
+  }
+
+  /** El llamador (app.js) debe invocar esto SOLO después de pintar realmente el hito en TU
+   *  MOMENTO — nunca antes, y nunca si la RPC de Ranking falló (Revisión Central Fase E, E02).
+   *  Nunca guarda posición/nivel como verdad deportiva: solo el identificador de "ya mostrado". */
+  function markRankingMilestoneSeen(userId, milestoneKey) {
+    if (!milestoneKey) return false;
+    const seen = safeGet(KEYS.RANKING_MILESTONE_SEEN) || {};
+    seen[rankingMilestoneSeenCompositeKey(userId, milestoneKey)] = true;
+    return safeSet(KEYS.RANKING_MILESTONE_SEEN, seen);
+  }
+
   global.PLStore = {
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
@@ -979,5 +1016,7 @@
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,
+    // Backend Bloque 8 (Fase E) — memoria de presentación de hitos de Ranking en TU MOMENTO
+    hasSeenRankingMilestone, markRankingMilestoneSeen,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

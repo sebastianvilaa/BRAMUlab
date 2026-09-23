@@ -206,6 +206,43 @@ test('8c: confianza por debajo de 0.60 en alguno de los cuatro -> nivel_evidenci
 });
 
 /* ------------------------------------------------------------------ */
+/* E03 (Revisión Central Fase E) — nivel_evidencia_limitada nunca puede   */
+/* decir "TU Nivel sigue calibrando" si la limitación viene de otro       */
+/* participante con el caller ya CALIBRADO                                */
+/* ------------------------------------------------------------------ */
+
+test('E03.1: caller ya CALIBRADO + un tercero (pareja) todavía CALIBRANDO -> callerCalibrating=false (nunca se le atribuye al caller)', () => {
+  const rows = fourKnownPlayerRows(0.70, 'CALIBRADO');
+  rows[1] = playerRow({ playerId: PARTNER, team: 'A', confidence: 0.62, state: 'CALIBRANDO' }); // el TERCERO calibrando, no el caller
+  const snapshot = IO.buildLevelSnapshot(resultRow({ knownLevelsCount: 4, expectationA: 0.30, expectationB: 0.70 }), rows);
+  const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
+  const claim = claims.find((c) => c.insightType === 'nivel_evidencia_limitada');
+  assert.ok(claim);
+  assert.equal(claim.claim.callerCalibrating, false);
+  assert.equal(claim.claim.anyCalibrating, true); // sigue siendo cierto que ALGUIEN calibra, solo que no es el caller
+});
+
+test('E03.2: el caller MISMO todavía CALIBRANDO -> callerCalibrating=true (acá sí corresponde el mensaje de calibración propia)', () => {
+  const rows = fourKnownPlayerRows(0.70, 'CALIBRADO');
+  rows[0] = playerRow({ playerId: ME, team: 'A', confidence: 0.55, state: 'CALIBRANDO' }); // el CALLER calibrando
+  const snapshot = IO.buildLevelSnapshot(resultRow({ knownLevelsCount: 4, expectationA: 0.30, expectationB: 0.70 }), rows);
+  const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
+  const claim = claims.find((c) => c.insightType === 'nivel_evidencia_limitada');
+  assert.ok(claim);
+  assert.equal(claim.claim.callerCalibrating, true);
+});
+
+test('E03.3: baja confianza de un rival (nunca CALIBRANDO formalmente) con caller CALIBRADO -> sigue siendo callerCalibrating=false', () => {
+  const rows = fourKnownPlayerRows(0.70, 'CALIBRADO');
+  rows[3] = playerRow({ playerId: RIVAL_2, team: 'B', confidence: 0.35, state: 'CALIBRADO' }); // confianza baja, pero YA "CALIBRADO"
+  const snapshot = IO.buildLevelSnapshot(resultRow({ knownLevelsCount: 4, expectationA: 0.30, expectationB: 0.70 }), rows);
+  const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
+  const claim = claims.find((c) => c.insightType === 'nivel_evidencia_limitada');
+  assert.ok(claim);
+  assert.equal(claim.claim.callerCalibrating, false);
+});
+
+/* ------------------------------------------------------------------ */
 /* 9: delta exacto sale del snapshot oficial, no de Nivel live           */
 /* ------------------------------------------------------------------ */
 
@@ -225,6 +262,33 @@ test('9b: sin fila propia del caller en match_level_result_players (guest/no ide
   const snapshot = IO.buildLevelSnapshot(resultRow(), rows);
   const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
   assert.equal(claims.find((c) => c.insightType === 'nivel_variacion'), undefined);
+});
+
+/* ------------------------------------------------------------------ */
+/* E05 (Revisión Central Fase E) — nivel_variacion se enriquece con      */
+/* wasExpectedResult/expectationOwn para poder explicar el contexto      */
+/* esperable sin inventar un umbral nuevo de "delta chico"               */
+/* ------------------------------------------------------------------ */
+
+test('E05.1: victoria con expectativa >=65% -> nivel_variacion trae wasExpectedResult=true y expectationOwn (MISMA condición que nivel_resultado_esperable, ningún umbral nuevo)', () => {
+  const snapshot = IO.buildLevelSnapshot(resultRow({ expectationA: 0.70, expectationB: 0.30 }), fourKnownPlayerRows(0.70));
+  const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
+  const variacion = claims.find((c) => c.insightType === 'nivel_variacion');
+  const esperable = claims.find((c) => c.insightType === 'nivel_resultado_esperable');
+  assert.ok(variacion);
+  assert.ok(esperable, 'nivel_resultado_esperable sigue generándose para auditoría, aunque nunca gane la selección');
+  assert.equal(variacion.claim.wasExpectedResult, true);
+  assert.equal(variacion.claim.expectationOwn, 0.70);
+});
+
+test('E05.2: victoria con expectativa <65% -> nivel_variacion trae wasExpectedResult=false y expectationOwn=null (nunca dos historias H contando el contexto esperable a la vez)', () => {
+  const snapshot = IO.buildLevelSnapshot(resultRow({ expectationA: 0.50, expectationB: 0.50 }), fourKnownPlayerRows(0.70));
+  const claims = IO.buildLevelClaims(snapshot, match({ winnerTeam: 'A' }), ME);
+  const variacion = claims.find((c) => c.insightType === 'nivel_variacion');
+  assert.ok(variacion);
+  assert.equal(variacion.claim.wasExpectedResult, false);
+  assert.equal(variacion.claim.expectationOwn, null);
+  assert.equal(claims.find((c) => c.insightType === 'nivel_resultado_esperable'), undefined);
 });
 
 /* ------------------------------------------------------------------ */

@@ -5858,26 +5858,46 @@
     if (Auth.isConfigured() && homeUser && homeUser.serverBacked) {
       $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), null);
       RK.getHomeRankingInsight().then((result) => {
+        // Backend Bloque 8 (Fase E, Revisión Central E02): "no marcar como visto si la RPC
+        // falla" — con `!result.ok` no hay insight ni milestone que evaluar, así que ya no hay
+        // nada que marcar; el `return` temprano ya cumple ese requisito por construcción.
         if (!result.ok || !result.data || !result.data.hasPosition) return;
         const pos = result.data;
         const insight = {
           position: pos.position, total: pos.total, territory: homeUser.locality || '',
           isNew: !!(pos.movement && pos.movement.status === 'nuevo'),
           delta: pos.movement ? pos.movement.delta : null,
-          // Backend Bloque 8 (Fase E) — solo existe una vez aplicada la migración que lo agrega a
-          // get_my_ranking_position (ver supabase/migrations/20260923190000_...); hasta entonces
-          // llega `undefined` y RK.isHomeRankingMilestoneMaterial simplemente nunca dispara el
-          // caso "nueva mejor posición" por esa causa — nunca se inventa un valor.
+          // Backend Bloque 8 (Fase E) — todos estos campos solo existen una vez aplicada la
+          // migración que los agrega a get_my_ranking_position (ver supabase/migrations/
+          // 20260923190000_...); hasta entonces llegan `undefined` y
+          // RK.classifyHomeRankingMilestone simplemente nunca dispara los hitos que dependen de
+          // ellos ("primera entrada"/"nueva mejor posición"/"cambio de banda") — nunca se
+          // inventa un valor.
           bestPositionBefore: pos.bestPositionBefore,
+          // `pos.levelBand` es el ECO del filtro `p_level_band` que Home nunca pide (siempre
+          // `null`) — la banda PROPIA del jugador viaja en `ownLevelBand` (Revisión Central Fase
+          // E, E04/E08: se evita a propósito la ambigüedad de reusar el mismo nombre para dos
+          // cosas distintas).
+          levelPublic: pos.levelPublic, levelBand: pos.ownLevelBand,
+          previousLevelPublic: pos.previousLevelPublic, previousLevelBand: pos.previousLevelBand,
+          // Revisión Central Fase E, E02 — identidad del hito para la memoria de "ya mostrado"
+          // (nunca se guarda posición/nivel como verdad deportiva, solo estos identificadores).
+          editionId: pos.edition ? pos.edition.editionId : null,
+          scopeType: pos.scopeType || 'local', scopeKey: pos.scopeKey || null,
         };
-        // Backend Bloque 8 (Fase E, BRAMU_Intelligence.md §13.3) — un movimiento semanal solo es
-        // HITO dentro de TU MOMENTO si es material y verificable (primera entrada/top 10/nueva
-        // mejor posición/ascenso ≥ máx(3, 5% del universo)) — nunca cualquier delta distinto de
-        // cero. Sin hito material, `insight` queda afuera y el texto conserva lo que ya pintó
-        // `buildTuMomentoText` más arriba (forma reciente/compañero/actividad, sin forzar un
-        // mensaje de Ranking solo para llenar espacio).
-        if (!RK.isHomeRankingMilestoneMaterial(insight)) return;
+        // BRAMU_Intelligence.md §13.3 — un movimiento semanal (o un cambio de banda de Nivel)
+        // solo es HITO dentro de TU MOMENTO si es material y verificable. Sin hito, el texto
+        // conserva lo que ya pintó `buildTuMomentoText` más arriba (forma reciente/compañero/
+        // actividad) — nunca se fuerza un mensaje de Ranking solo para llenar espacio.
+        const milestone = RK.classifyHomeRankingMilestone(insight);
+        if (!milestone) return;
+        // E02 — el mismo hito (usuario + edición + scope + tipo) se muestra una sola vez: se
+        // marca como visto SOLO después de pintarlo realmente, nunca antes.
+        const milestoneKey = RK.buildRankingMilestoneKey(milestone);
+        if (Store.hasSeenRankingMilestone(homeUser.id, milestoneKey)) return;
+        insight.milestoneType = milestone.type;
         $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), insight);
+        Store.markRankingMilestoneSeen(homeUser.id, milestoneKey);
       });
     } else {
       const rankingInsight = RK.computeHomeRankingInsight(homeUser, history, new Date());
