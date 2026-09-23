@@ -172,9 +172,11 @@
       case 'pareja_rival_primer_enfrentamiento':
       case 'cruce_exacto_primer_enfrentamiento':
         // Handoff §7, ejemplo 3: los 3 alcances de rival narran el MISMO debut cuando coinciden
-        // en el mismo partido (agrupar por `dataAsOf`, que en Fase B es siempre el partido
-        // evaluado — nunca por scopeKey, que es distinto para cada alcance a propósito).
-        return `primer_encuentro_rival:${candidate.dataAsOf}`;
+        // en el mismo partido — agrupar por el `matchId` FUENTE (evidenceMatchIds[0], siempre el
+        // partido actual para este tipo de claim), nunca por `dataAsOf` (Revisión Central Fase C
+        // C04: dos partidos distintos pueden compartir el mismo `playedAt` técnico, sobre todo
+        // con `playedAtTimeKnown=false` — un timestamp nunca identifica un partido).
+        return `primer_encuentro_rival:${candidate.evidenceMatchIds[0]}`;
       case 'rival_balance':
       case 'contexto_dificultad_previa_rival':
         // Ambos narran "tu relación histórica con este rival concreto" — agrupados por el rival,
@@ -221,19 +223,39 @@
   function emptyMemory() {
     return {
       rulesVersion: RULES_VERSION,
-      // Últimos 5 principales (familia + matchId) — §7.1 pide la ventana de 5 completa; la
-      // penalización −15/novedad editorial solo miran los últimos 2, pero la memoria conserva 5
-      // para que Fase D/futuras rondas puedan usar el resto sin otra migración de estructura.
-      recentPrincipalFamilies: [],
+      // C01 (Revisión Central Fase C): ventana de hasta los últimos 5 PARTIDOS PROCESADOS (no
+      // solo los que tuvieron principal) — cada entrada es `{matchId, principalFamily}`, con
+      // `principalFamily:null` cuando ese partido fue abstención. La penalización −15 mira
+      // exactamente los 2 partidos reales anteriores; antes, un partido en abstención "desaparecía"
+      // de la ventana en vez de ocupar su lugar, dejando la penalización activa más partidos de
+      // los que corresponde.
+      recentMatches: [],
       // Por semanticKey: última aparición + firma de valor mostrada (para "cambió el balance").
       shownSemanticKeys: {},
       // Hitos permanentes ya mostrados alguna vez — nunca se borran (§7.3 "una sola aparición").
       shownMilestoneKeys: {},
+      // C02 (Revisión Central Fase C): ¿la racha SIMPLE (sin récord) de la racha vigente ya se
+      // mostró alguna vez durante esta misma racha continua? Se resetea a `false` en cuanto la
+      // racha se corta/reinicia (ver `buildEditorialDecision`) — nunca sobrevive a un quiebre.
+      rachaSimpleYaMostrada: false,
+      // C01: preparado para Fase D (penalización −10, "misma plantilla exacta de los últimos 5")
+      // — `templateId` todavía no existe en ningún candidato de esta ronda (handoff §8), así que
+      // esta ventana queda siempre vacía, pero el contrato de memoria ya la declara y preserva
+      // para que D no necesite reabrir este módulo solo para agregar el campo.
+      recentTemplateIds: [],
     };
   }
 
   function valueSignatureOf(candidate) {
     const c = candidate.claim || {};
+    // C05-A (Revisión Central Fase C): `companero_mejor_balance` usa un semanticKey GLOBAL
+    // ('todos_los_companeros', no por compañero) — si dos compañeros distintos llegan al mismo
+    // W-L, la firma genérica `wins-losses` los vería como "sin cambio" aunque el PROTAGONISTA
+    // cambió. La firma debe identificar quién es el mejor, no solo con qué marcador.
+    if (candidate.insightType === 'companero_mejor_balance') {
+      const tieState = c.isUnique ? 'unico' : `empatado:${(c.tiedWith || []).slice().sort().join(',')}`;
+      return `${c.companionPlayerId}:${c.wins || 0}-${c.losses || 0}:${tieState}`;
+    }
     if (typeof c.wins === 'number' || typeof c.losses === 'number') return `${c.wins || 0}-${c.losses || 0}`;
     if (typeof c.priorLosses === 'number') return `priorLosses:${c.priorLosses}`;
     if (typeof c.length === 'number') return `length:${c.length}`;
@@ -262,13 +284,17 @@
    *  excluirse. `historyAsc` se usa SOLO para medir "partidos transcurridos" por posición, nunca
    *  para recalcular evidencia (eso ya lo hizo Fase B). */
   function cooldownReason(candidate, semanticKey, memory, historyAsc) {
-    // Racha: "mostrar al llegar a 3... no necesariamente en cada extensión" — la variante SIMPLE
-    // (sin récord) solo es elegible exactamente en el umbral mostrable; extensiones posteriores
-    // sin récord quedan cubiertas por esta regla, nunca por "cambió el balance en 4 partidos"
-    // (que es la regla de hechos RELACIONALES, no de rachas).
+    // Racha: "mostrar al llegar a 3... no necesariamente en cada extensión" — C02 (Revisión
+    // Central Fase C): la variante SIMPLE (sin récord) es candidata desde longitud 3 en
+    // adelante; lo que la excluye NO es "no ser exactamente 3" (eso prohibía para siempre una
+    // racha de 4/5/6 si la de 3 nunca llegó a mostrarse), sino que esta MISMA racha continua ya
+    // se haya mostrado antes sin haberse cortado desde entonces (`memory.rachaSimpleYaMostrada`,
+    // reseteado en `buildEditorialDecision` apenas la racha se reinicia). Récord/empate de
+    // récord/corte siguen siendo eventos propios, sin este gate — cada uno tiene sus propias
+    // reglas de aparición (§7.3).
     if ((candidate.insightType === 'racha_de_victorias' || candidate.insightType === 'racha_de_derrotas')
-      && candidate.claim.length !== STREAK_SHOWABLE_MIN) {
-      return 'racha_no_en_cada_extension';
+      && candidate.claim.length >= STREAK_SHOWABLE_MIN && memory.rachaSimpleYaMostrada) {
+      return 'racha_simple_ya_mostrada_sin_evento_nuevo';
     }
 
     const milestoneKey = candidate.insightType === 'hito_de_victorias'
@@ -323,8 +349,11 @@
 
     const penalties = [];
     if (profile.genericScoreOnly) penalties.push({ code: 'repite_score_sin_comparacion', value: -30 });
-    const recentPrincipal = memory.recentPrincipalFamilies.slice(-SAME_FAMILY_PRINCIPAL_WINDOW);
-    if (recentPrincipal.some((p) => p.family === candidate.family)) {
+    // C01: ventana de los últimos 2 PARTIDOS REALES (no de los últimos 2 con principal) — una
+    // abstención ocupa su lugar en `recentMatches`, así que este slice ya refleja partidos
+    // reales transcurridos, nunca principales salteados.
+    const recentMatches = (memory.recentMatches || []).slice(-SAME_FAMILY_PRINCIPAL_WINDOW);
+    if (recentMatches.some((m) => m.principalFamily === candidate.family)) {
       penalties.push({ code: 'misma_familia_principal_ultimos_2', value: -15 });
     }
     // −10 "misma plantilla exacta de los últimos 5": Fase D todavía no asigna `templateId`
@@ -349,39 +378,52 @@
 
   function compareForSelection(a, b) {
     if (b.scored.finalScore !== a.scored.finalScore) return b.scored.finalScore - a.scored.finalScore;
-    const rankA = profileOf(a.insightType).priorityRank;
-    const rankB = profileOf(b.insightType).priorityRank;
+    const rankA = profileOf(a.candidate.insightType).priorityRank;
+    const rankB = profileOf(b.candidate.insightType).priorityRank;
     if (rankA !== rankB) return rankA - rankB;
-    const idA = stableId(a);
-    const idB = stableId(b);
+    const idA = stableId(a.candidate);
+    const idB = stableId(b.candidate);
     return idA < idB ? -1 : (idA > idB ? 1 : 0);
   }
 
   const STREAK_INSIGHT_TYPES = [
     'racha_de_victorias', 'racha_de_derrotas', 'racha_cortada', 'racha_nuevo_record_personal', 'racha_iguala_record_personal',
   ];
+  const SIMPLE_OR_RECORD_STREAK_TYPES = [
+    'racha_de_victorias', 'racha_de_derrotas', 'racha_nuevo_record_personal', 'racha_iguala_record_personal',
+  ];
 
   /** Handoff §7, ejemplo 1 literal: "racha de 4 victorias" + "4 victorias en los últimos 4/5"
-   *  como dos historias distintas debe impedirse. No hay un umbral numérico de la fuente para
-   *  "cuándo se solapan lo suficiente" — la condición elegida (documentada, no oculta) es
-   *  estructural y verificable: si la longitud de la racha vigente es AL MENOS tan larga como la
-   *  ventana de `forma_reciente` (5), la racha explica el 100% de esa ventana (todos los
-   *  partidos de los últimos 5 son parte de la misma racha activa) y ambas comparten
-   *  `semanticKey` — el puntaje decide cuál de las dos representaciones sobrevive. Si la racha
-   *  es más corta que la ventana, quedan como historias distintas — mismo criterio que separa
-   *  "racha" de "forma reciente" en `BRAMU_Intelligence.md` §5.3. Solo aplica a
-   *  `racha_de_victorias`/`racha_de_derrotas`/las variantes de récord (todas tienen `claim.length`
-   *  numérico) — `racha_cortada` no participa: su "racha vigente" es de longitud 1, nunca cubre
-   *  una ventana de 5. */
-  function mergeStreakAndRecentFormWhenFullyOverlapping(evaluated) {
-    const forma = evaluated.find((e) => e.candidate.insightType === 'forma_reciente' && e.scored);
-    const windowSize = forma && forma.candidate.claim.current && forma.candidate.claim.current.sampleSize;
-    if (!forma || !windowSize) return;
-    const streak = evaluated.find((e) => e.scored
-      && STREAK_INSIGHT_TYPES.indexOf(e.candidate.insightType) !== -1
-      && typeof e.candidate.claim.length === 'number'
-      && e.candidate.claim.length >= windowSize);
-    if (streak) forma.semanticKey = streak.semanticKey;
+   *  como dos historias distintas debe impedirse. C03 (Revisión Central Fase C): el umbral
+   *  anterior (`racha.length >= ventana.sampleSize`, típicamente 5+) NO cubría el ejemplo
+   *  LITERAL de la fuente (racha de 4 dentro de una ventana de 5) — corregido a la condición
+   *  estructural que la propia revisión sugiere, sin inventar un porcentaje de solapamiento:
+   *  la racha vigente tiene longitud ≥4, Y la cantidad de resultados de su mismo signo dentro de
+   *  la ventana actual de `forma_reciente` es exactamente `mín(longitud, tamañoVentana)` — es
+   *  decir, la racha explica TODOS los resultados de ese signo que hay en la ventana, no solo
+   *  "al menos algunos". Solo aplica a `racha_de_victorias`/`racha_de_derrotas`/las variantes de
+   *  récord (todas tienen `claim.length` y `claim.type` numérico/string) — `racha_cortada` no
+   *  participa (no tiene `claim.length`, su racha vigente es de longitud 1).
+   *
+   *  IMPORTANTE (C03, "orden de aplicación"): esta función debe correr ANTES de cooldown/score/
+   *  novedad — recibe `withKeys` (candidato + semanticKey inicial, SIN puntuar todavía) para que
+   *  la clave final ya esté resuelta cuando `cooldownReason`/`novedadEditorialScore` consulten la
+   *  memoria. Antes corría después de puntuar, así que `forma_reciente` podía recibir novedad
+   *  "10 (nunca mostrada)" bajo su clave propia y solo DESPUÉS heredar la clave de la racha —
+   *  permitiendo que una racha ya mostrada reapareciera disfrazada de forma reciente. */
+  function mergeStreakAndRecentFormWhenFullyOverlapping(withKeys) {
+    const forma = withKeys.find((e) => e.candidate.insightType === 'forma_reciente');
+    const current = forma && forma.candidate.claim.current;
+    if (!forma || !current || typeof current.sampleSize !== 'number') return;
+    const streakEntry = withKeys.find((e) => {
+      const c = e.candidate;
+      if (SIMPLE_OR_RECORD_STREAK_TYPES.indexOf(c.insightType) === -1) return false;
+      if (typeof c.claim.length !== 'number' || !c.claim.type) return false;
+      if (c.claim.length < 4) return false; // umbral literal de la fuente ("racha de 4")
+      const matchingCount = c.claim.type === 'win' ? current.wins : current.losses;
+      return matchingCount === Math.min(c.claim.length, current.sampleSize);
+    });
+    if (streakEntry) forma.semanticKey = streakEntry.semanticKey;
   }
 
   /* ------------------------------------------------------------------ */
@@ -403,39 +445,55 @@
     // (prueba mínima #13 del handoff) — se filtran ANTES de cualquier otra evaluación.
     const affirmed = claims.filter((c) => !c.discarded);
 
-    const evaluated = affirmed.map((candidate) => {
-      const semanticKey = semanticKeyOf(candidate);
-      const excludedBy = cooldownReason(candidate, semanticKey, memory, historyAsc);
-      if (excludedBy) {
-        return { candidate, semanticKey, status: 'excluded_by_cooldown', excludedReason: excludedBy, scored: null };
-      }
-      const scored = scoreCandidate(candidate, semanticKey, memory, historyAsc);
-      const status = scored.finalScore >= PUBLISH_THRESHOLD ? 'above_threshold' : 'below_threshold';
-      return { candidate, semanticKey, status, scored };
-    });
-    mergeStreakAndRecentFormWhenFullyOverlapping(evaluated);
+    // C03: la clave semántica final (incluida la fusión racha/forma reciente) se resuelve
+    // ANTES de cooldown/score/novedad — nunca después.
+    const withKeys = affirmed.map((candidate) => ({ candidate, semanticKey: semanticKeyOf(candidate) }));
+    mergeStreakAndRecentFormWhenFullyOverlapping(withKeys);
 
-    const eligible = evaluated.filter((e) => e.status === 'above_threshold')
-      .map((e) => Object.assign({}, e.candidate, { semanticKey: e.semanticKey, scored: e.scored }));
-    eligible.sort(compareForSelection);
+    // C02: si la racha se reinició este partido (no venía continuando la misma racha de antes),
+    // la memoria de "racha simple ya mostrada" no puede seguir aplicando a la racha NUEVA — se
+    // usa una memoria efectiva (copia superficial) solo para esta evaluación, nunca se muta la
+    // memoria de entrada.
+    const streak = ctx.streakForThisMatch;
+    const streakRestartedThisMatch = !!streak && (!streak.before || streak.before.type !== streak.after.type);
+    const effectiveMemory = streakRestartedThisMatch ? Object.assign({}, memory, { rachaSimpleYaMostrada: false }) : memory;
+
+    const evaluated = withKeys.map(({ candidate, semanticKey }) => {
+      const excludedBy = cooldownReason(candidate, semanticKey, effectiveMemory, historyAsc);
+      if (excludedBy) {
+        return { candidate, semanticKey, status: 'excluded_by_cooldown', editorialStatus: 'excluded_by_cooldown', excludedReason: excludedBy, scored: null };
+      }
+      const scored = scoreCandidate(candidate, semanticKey, effectiveMemory, historyAsc);
+      const status = scored.finalScore >= PUBLISH_THRESHOLD ? 'above_threshold' : 'below_threshold';
+      // C05-B: `editorialStatus` empieza igual a `status` — la selección de abajo lo refina a
+      // `selected_principal`/`selected_secondary`/`not_selected_*` para los candidatos elegibles.
+      return { candidate, semanticKey, status, editorialStatus: status, scored };
+    });
+
+    const eligibleEntries = evaluated.filter((e) => e.status === 'above_threshold');
+    eligibleEntries.sort(compareForSelection);
 
     let principal = null;
     const secondary = [];
     const usedSemanticKeys = new Set();
     const usedFamilies = new Set();
-    eligible.forEach((candidate) => {
-      if (usedSemanticKeys.has(candidate.semanticKey)) return; // §6.1 −20 operacionalizado: nunca 2 que cuenten la misma historia
+    eligibleEntries.forEach((entry) => {
+      // C05-B: todo candidato evaluado conserva un motivo editorial final reconstruible, nunca
+      // solo "above_threshold" sin decir por qué de todos modos no se mostró.
+      if (usedSemanticKeys.has(entry.semanticKey)) { entry.editorialStatus = 'not_selected_duplicate_semantic'; return; }
       if (!principal) {
-        principal = candidate;
-        usedSemanticKeys.add(candidate.semanticKey);
-        usedFamilies.add(candidate.family);
+        principal = Object.assign({}, entry.candidate, { semanticKey: entry.semanticKey, scored: entry.scored });
+        entry.editorialStatus = 'selected_principal';
+        usedSemanticKeys.add(entry.semanticKey);
+        usedFamilies.add(entry.candidate.family);
         return;
       }
-      if (secondary.length >= MAX_SECONDARY) return;
-      if (usedFamilies.has(candidate.family)) return; // §6.5 paso 7: familias diferentes
-      secondary.push(candidate);
-      usedSemanticKeys.add(candidate.semanticKey);
-      usedFamilies.add(candidate.family);
+      if (secondary.length >= MAX_SECONDARY) { entry.editorialStatus = 'not_selected_capacity'; return; }
+      if (usedFamilies.has(entry.candidate.family)) { entry.editorialStatus = 'not_selected_family_already_used'; return; } // §6.5 paso 7
+      secondary.push(Object.assign({}, entry.candidate, { semanticKey: entry.semanticKey, scored: entry.scored }));
+      entry.editorialStatus = 'selected_secondary';
+      usedSemanticKeys.add(entry.semanticKey);
+      usedFamilies.add(entry.candidate.family);
     });
 
     const abstention = !principal;
@@ -445,11 +503,20 @@
     const shown = principal ? [principal].concat(secondary) : [];
     const memoryUpdate = {
       rulesVersion: RULES_VERSION,
-      recentPrincipalFamilies: principal
-        ? memory.recentPrincipalFamilies.concat([{ family: principal.family, matchId: ctx.matchId }]).slice(-5)
-        : memory.recentPrincipalFamilies.slice(),
+      // C01: se agrega SIEMPRE una entrada por este partido, haya o no principal — una
+      // abstención ocupa su lugar en la ventana en vez de desaparecer de ella.
+      recentMatches: (memory.recentMatches || [])
+        .concat([{ matchId: ctx.matchId, principalFamily: principal ? principal.family : null }])
+        .slice(-5),
       shownSemanticKeys: Object.assign({}, memory.shownSemanticKeys),
       shownMilestoneKeys: Object.assign({}, memory.shownMilestoneKeys),
+      // C02: se muestra (principal o secundario) alguna variante simple/récord de la racha
+      // vigente → queda marcada; si no, se preserva el valor EFECTIVO (ya resuelto arriba,
+      // incluido el reinicio por corte) para el próximo partido.
+      rachaSimpleYaMostrada: shown.some((c) => SIMPLE_OR_RECORD_STREAK_TYPES.indexOf(c.insightType) !== -1)
+        || effectiveMemory.rachaSimpleYaMostrada,
+      // C01: preservada intacta — Fase C nunca asigna `templateId` (eso es Fase D).
+      recentTemplateIds: (memory.recentTemplateIds || []).slice(),
     };
     shown.forEach((candidate) => {
       memoryUpdate.shownSemanticKeys[candidate.semanticKey] = {
@@ -465,7 +532,7 @@
 
     return {
       ctx,
-      evaluated, // TODOS los candidatos afirmados por Fase B, con status/score/motivo — nunca omitidos.
+      evaluated, // TODOS los candidatos afirmados por Fase B, con status/editorialStatus/score/motivo — nunca omitidos.
       principal,
       secondary,
       abstention,
