@@ -87,6 +87,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
 | **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |
+| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Consolidado activo: Estado Cero/perfiles, legal-privacidad, eliminación de cuenta, decisiones abiertas de acceso/reingreso y hardening final |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -217,7 +218,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–8 están cerrados en Staging.** Antes de Bloque 9 corresponde consolidar los pendientes reales pre-Production ya definidos; después sigue **Bloque 9 — endurecimiento/salida**. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–8 están cerrados en Staging.** Los pendientes reales previos a Production quedaron consolidados en `Pre_Production.md`; cerrar primero sus P0 y después ejecutar **Bloque 9 — endurecimiento/salida**. No implementar desde antecedentes del Archivo.
 
 ---
 
