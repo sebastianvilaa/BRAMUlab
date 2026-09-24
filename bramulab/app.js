@@ -5212,6 +5212,9 @@
   // (PROFILE_PICKER_FIELDS.category lee sus keys de acá, sin lista propia).
   const CATEGORY_LABELS = { '1': '1ª', '2': '2ª', '3': '3ª', '4': '4ª', '5': '5ª', '6': '6ª', '7': '7ª', '8': '8ª', '9': '9ª', 'no-se': 'No estoy seguro', 'no-compito': 'No compito' };
   const GENDER_LABELS = { femenino: 'Femenino', masculino: 'Masculino', otro: 'Otro', 'prefiero-no-decir': 'Prefiero no decir' };
+  // Pre-Production P0.1C — mismos valores 'F'/'M' que ya usa el gate de Ranking
+  // (#ranking-gate-branch-options), acá como mapa reusable para PROFILE_PICKER_FIELDS.branch.
+  const BRANCH_LABELS = { F: 'Femenina', M: 'Masculina' };
   // BRAMUlab_V03.6 (§6) — mensaje prearmado único del deep link de WhatsApp: fijo, sin Nivel/
   // localidad/nombre completo/horario/cancha ni links extra (consolidado explícito).
   // BRAMUlab_V03.6 (corrección post-QA real, prioridad 6) — copy reemplazado a pedido: mismo
@@ -8818,9 +8821,19 @@
     const p = result.profile;
     const name = p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || fallbackName;
     playerPublicName = Store.normalizePlayerName(name);
-    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, name);
+    // Pre-Production P0.1C — avatar real (get_public_profile.avatar_url, mismo setAvatarPreview
+    // que el resto de la app: cualquier URL válida, no solo data: URLs).
+    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', p.avatar_url || null, name);
     $('#player-public-name').textContent = name;
     $('#player-public-username').textContent = p.username ? `@${p.username}` : buildPlayerHandle(name);
+
+    // Pre-Production P0.1C — whatsapp_phone ya viene filtrado server-side (get_public_profile
+    // solo lo devuelve con allow_whatsapp_contact=true); PLI.isValidWhatsAppPhone acá es defensa
+    // adicional, mismo criterio que el camino local (PLI.canContactViaWhatsApp), nunca una
+    // segunda regla de validación.
+    const canContact = PLI.isValidWhatsAppPhone(p.whatsapp_phone);
+    $('#player-public-whatsapp-btn').hidden = !canContact;
+    playerPublicWhatsappPhone = canContact ? p.whatsapp_phone : null;
 
     const hasHand = !!(p.dominant_hand && HAND_LABELS[p.dominant_hand]);
     const hasSide = !!(p.preferred_side && SIDE_LABELS[p.preferred_side]);
@@ -9711,6 +9724,7 @@
   let profileEditGender = null; // V03.0.1 (§2) — mismo criterio que hand/side: género pasó de <select> a option-row.
   let profileEditCategory = null; // BRAMUlab_V03.4.1 (§10) — reemplaza al <select> nativo.
   let profileEditLocation = null; // BRAMUlab_V03.4.1 (§9) — { locality, region, country } | null.
+  let profileEditBranch = null; // Pre-Production P0.1C — 'F' | 'M' | null, mismo criterio de reset que hand/side/gender.
   let profileEditAllowWhatsApp = false; // BRAMUlab_V03.6 (§3) — `false` por defecto, mismo criterio de reset que hand/side/gender.
 
   /** BRAMUlab_V03.4.1 (§10) — un único mapa para las 4 filas compactas de elección fija
@@ -9725,6 +9739,10 @@
     hand: { title: 'MANO DOMINANTE', labels: HAND_LABELS, rowValueId: 'profile-edit-hand-value', get: () => profileEditHand, set: (v) => { profileEditHand = v; } },
     side: { title: 'LADO HABITUAL', labels: SIDE_LABELS, rowValueId: 'profile-edit-side-value', get: () => profileEditSide, set: (v) => { profileEditSide = v; } },
     category: { title: 'CATEGORÍA ACTUAL', labels: CATEGORY_LABELS, rowValueId: 'profile-edit-category-value', get: () => profileEditCategory, set: (v) => { profileEditCategory = v; } },
+    // Pre-Production P0.1C — misma mecánica de hoja/fila que las 4 de arriba; el guardado real
+    // (junto con ubicación) pasa por complete_ranking_profile_data, nunca por complete_profile
+    // (ver submitServerBackedProfileEdit).
+    branch: { title: 'RAMA COMPETITIVA', labels: BRANCH_LABELS, rowValueId: 'profile-edit-branch-value', get: () => profileEditBranch, set: (v) => { profileEditBranch = v; } },
   };
 
   function updateProfileSelectRowDisplay(fieldKey) {
@@ -9758,6 +9776,7 @@
     profileEditGender = user.gender || null;
     profileEditCategory = user.declaredCategory || null;
     profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
+    profileEditBranch = user.competitiveBranch || null;
     profileEditAllowWhatsApp = !!user.allowWhatsAppContact;
     $('#profile-edit-phone').value = user.phone || '';
     $('#profile-edit-whatsapp-hint').hidden = true;
@@ -9774,20 +9793,21 @@
     updateProfileSelectRowDisplay('hand');
     updateProfileSelectRowDisplay('side');
     updateProfileSelectRowDisplay('category');
+    updateProfileSelectRowDisplay('branch');
     updateProfileLocationRowDisplay();
-    // Backend Bloque 2 — esta pantalla todavía escribe SOLO en el caché local
-    // (Store.updateUserAccount): para una cuenta real, guardar acá se vería como que funcionó
-    // pero se perdería en el próximo login/recarga (Auth.fetchOwnProfile pisa el caché con lo
-    // que de verdad hay en el servidor). Mejor bloquear el guardado con un aviso claro que
-    // dejar creer que el cambio quedó — wiring completo de esta pantalla queda para una ronda
-    // aparte (fuera del alcance de Bloque 2: varios campos de acá, como teléfono/WhatsApp o
-    // avatar, ni siquiera existen todavía en Backend_Infraestructura.md §6.1).
-    const editingDisabled = !!user.serverBacked;
-    $('#profile-edit-error').textContent = editingDisabled
-      ? 'La edición de perfil para cuentas reales todavía no está conectada al servidor — vuelve en una próxima actualización.'
-      : '';
-    $('#profile-edit-error').hidden = !editingDisabled;
-    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = editingDisabled; });
+    // Pre-Production P0.1C — reemplaza el bloqueo general de Bloque 2 (guardado real ahora
+    // conectado, ver submitServerBackedProfileEdit): para una cuenta server-backed, @usuario
+    // queda fijo (username_locked server-side, Backend_Infraestructura.md §5.2 — nunca se ofrece
+    // como editable si el servidor lo va a rechazar) y Categoría actual queda de solo lectura
+    // (level_states.declared_category se escribe una única vez en el onboarding — DECISIÓN
+    // ABIERTA no bloqueante, ver informe P0.1C §"Categoría declarada"). El resto de los campos
+    // queda editable de verdad.
+    const serverBacked = !!user.serverBacked;
+    $('#profile-edit-username').disabled = serverBacked;
+    $('#profile-edit-category-row').disabled = serverBacked;
+    $('#profile-edit-error').textContent = '';
+    $('#profile-edit-error').hidden = true;
+    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; btn.textContent = 'GUARDAR'; });
     showView('edit-data');
   }
 
@@ -9983,6 +10003,7 @@
     $('#profile-edit-hand-row').addEventListener('click', () => openProfilePickerSheet('hand'));
     $('#profile-edit-side-row').addEventListener('click', () => openProfilePickerSheet('side'));
     $('#profile-edit-category-row').addEventListener('click', () => openProfilePickerSheet('category'));
+    $('#profile-edit-branch-row').addEventListener('click', () => openProfilePickerSheet('branch'));
     $('#profile-picker-sheet-close').addEventListener('click', closeProfilePickerSheet);
     $('#profile-picker-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#profile-picker-sheet-scrim')) closeProfilePickerSheet(); });
 
@@ -10001,6 +10022,139 @@
       if (!$('#profile-picker-sheet-scrim').hidden) closeProfilePickerSheet();
       if (!$('#profile-location-sheet-scrim').hidden) closeProfileLocationSheet();
     });
+  }
+
+  /** Pre-Production P0.1C — errores de complete_contact_profile_data/update_profile_avatar en
+   *  español. `location_change_cooldown`/`competitive_branch_invalid`/`location_required` de
+   *  complete_ranking_profile_data reusan RANKING_GATE_ERROR_TEXT (mismos códigos exactos, ver
+   *  el gate de Ranking) — nunca un segundo texto para el mismo código. */
+  const PROFILE_CONTACT_AVATAR_ERROR_TEXT = {
+    whatsapp_phone_invalid: 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.',
+    avatar_path_invalid: 'No pudimos guardar la foto. Probá de nuevo.',
+    not_configured: 'No pudimos conectar con el servidor. Probá de nuevo.',
+    unknown: 'No pudimos guardar ese dato. Probá de nuevo.',
+  };
+
+  /** Pre-Production P0.1C — camino real de guardado para cuentas server-backed. Reutiliza los
+   *  contratos ya existentes (nunca un segundo sistema de Perfil):
+   *  - complete_profile (Bloque 2/3): nombre/apellido/nombre visible/fecha/género/mano/lado.
+   *    @usuario SIEMPRE se envía sin cambios (fijo, ver openProfileEditModal) — nunca dispara
+   *    username_locked.
+   *  - complete_ranking_profile_data (Bloque 7): rama + ubicación, SOLO si alguna de las dos
+   *    cambió — misma RPC exacta que ya usa el gate de Ranking, con su mismo cooldown de 30
+   *    días. Ambas viajan juntas porque la RPC siempre escribe las dos together (nunca una
+   *    actualización parcial) — si falta la otra, se avisa sin bloquear el resto del guardado.
+   *  - complete_contact_profile_data (NUEVA): teléfono + consentimiento WhatsApp, solo si alguno
+   *    cambió.
+   *  - Storage (avatars) + update_profile_avatar (NUEVA): solo si la foto cambió (nueva o
+   *    quitada) — sube/borra el archivo real ANTES de persistir la referencia.
+   *  Cada paso es independiente: un error en uno (p. ej. cooldown de ubicación) no impide que
+   *  el resto de los cambios se guarde — nunca "todo o nada" por un solo campo, consistente con
+   *  que cada RPC ya es su propia transacción atómica. Al final siempre se refresca el perfil
+   *  real desde el servidor (nunca se confía en un cache optimista como única verdad, handoff
+   *  §9). */
+  async function submitServerBackedProfileEdit(user) {
+    const displayName = normalizePlayerName($('#profile-edit-display-name').value);
+    const firstName = $('#profile-edit-first-name').value.trim();
+    const phone = $('#profile-edit-phone').value.trim();
+    const errorEl = $('#profile-edit-error');
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+
+    if (!firstName) { errorEl.textContent = 'Ingresá al menos tu nombre.'; errorEl.hidden = false; return; }
+    if (!displayName) { errorEl.textContent = 'El nombre visible no puede quedar vacío.'; errorEl.hidden = false; return; }
+    if (profileEditAllowWhatsApp && !PLI.isValidWhatsAppPhone(phone)) {
+      errorEl.textContent = 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.';
+      errorEl.hidden = false;
+      return;
+    }
+
+    const saveBtn = $all('#profile-edit-form button[type="submit"]')[0];
+    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = true; });
+    if (saveBtn) saveBtn.textContent = 'GUARDANDO…';
+
+    const partialErrors = [];
+
+    // 1) Núcleo de Perfil (complete_profile) — @usuario sin cambios, siempre.
+    const coreResult = await Auth.completeProfile({
+      username: user.username,
+      firstName,
+      lastName: $('#profile-edit-last-name').value.trim(),
+      displayName,
+      birthDate: $('#profile-edit-birthdate').value || null,
+      gender: profileEditGender,
+      dominantHand: profileEditHand,
+      preferredSide: profileEditSide,
+    });
+    if (!coreResult.ok) {
+      errorEl.textContent = COMPLETE_PROFILE_ERROR_TEXT[coreResult.code] || COMPLETE_PROFILE_ERROR_TEXT.unknown;
+      errorEl.hidden = false;
+      $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; });
+      if (saveBtn) saveBtn.textContent = 'GUARDAR';
+      return;
+    }
+
+    // 2) Rama + ubicación (complete_ranking_profile_data) — solo si alguna cambió.
+    const branchChanged = profileEditBranch !== (user.competitiveBranch || null);
+    const locationChanged = JSON.stringify(profileEditLocation) !== JSON.stringify(
+      user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null
+    );
+    if (branchChanged || locationChanged) {
+      if (!profileEditBranch || !profileEditLocation) {
+        partialErrors.push('Para cambiar rama competitiva o ubicación necesitás completar ambos datos (podés hacerlo también desde Ranking).');
+      } else {
+        const rankingResult = await Auth.completeRankingProfileData({ competitiveBranch: profileEditBranch, location: profileEditLocation });
+        if (!rankingResult.ok) partialErrors.push(RANKING_GATE_ERROR_TEXT[rankingResult.code] || RANKING_GATE_ERROR_TEXT.unknown);
+      }
+    }
+
+    // 3) Teléfono + consentimiento WhatsApp (complete_contact_profile_data) — solo si cambió.
+    const phoneChanged = (phone || null) !== (user.phone || null);
+    const whatsappChanged = profileEditAllowWhatsApp !== !!user.allowWhatsAppContact;
+    if (phoneChanged || whatsappChanged) {
+      const contactResult = await Auth.completeContactProfileData({ phone: phone || null, allowWhatsAppContact: profileEditAllowWhatsApp });
+      if (!contactResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[contactResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+    }
+
+    // 4) Avatar (Storage + update_profile_avatar) — solo si cambió (nueva foto o "quitar foto").
+    if (profileEditPhotoRemoved) {
+      const cleanup = await Auth.removeAvatarFiles(user.id);
+      if (cleanup.ok) {
+        const avatarResult = await Auth.updateProfileAvatar(null);
+        if (!avatarResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+      } else {
+        partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[cleanup.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+      }
+    } else if (profileEditPhotoDataUrl) {
+      try {
+        const blob = await (await fetch(profileEditPhotoDataUrl)).blob();
+        const uploadResult = await Auth.uploadAvatar(user.id, blob);
+        if (uploadResult.ok) {
+          const avatarResult = await Auth.updateProfileAvatar(uploadResult.url);
+          if (!avatarResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+        } else {
+          partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[uploadResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+        }
+      } catch (err) {
+        partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+      }
+    }
+
+    // Handoff §9 — "al éxito: refrescar perfil desde servidor" (siempre, haya habido errores
+    // parciales o no: lo que sí se guardó debe reflejarse igual).
+    const serverUser = await Auth.fetchOwnProfile();
+    if (serverUser) Store.cacheServerUser(serverUser);
+    syncCurrentIdentityFromStore();
+    Store.addNotification({
+      userId: user.id, type: 'profile_updated', category: 'info',
+      title: 'Perfil actualizado', body: 'Guardaste cambios en tus datos.', action: 'profile',
+    });
+    renderProfileView();
+    renderNotificationsBadge();
+    showView('profile');
+    $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; });
+    if (saveBtn) saveBtn.textContent = 'GUARDAR';
+    showToast(partialErrors.length ? partialErrors[0] : 'Datos guardados');
   }
 
   function initProfileEditModal() {
@@ -10042,14 +10196,14 @@
     });
 
     $('#profile-edit-cancel').addEventListener('click', () => showView('profile'));
-    $('#profile-edit-form').addEventListener('submit', (e) => {
+    $('#profile-edit-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
       if (!user) { showView('profile'); return; }
-      // Backend Bloque 2 — defensa en profundidad además del botón deshabilitado en
-      // openProfileEditModal: nunca escribir el caché local de una cuenta real con datos que el
-      // servidor no tiene (se perderían en el próximo Auth.fetchOwnProfile).
-      if (user.serverBacked) return;
+      // Pre-Production P0.1C — cuenta real: persistencia server-side de verdad, nunca el caché
+      // local (ver submitServerBackedProfileEdit). El resto de esta función (sin cambios) sigue
+      // siendo exclusivo del camino local/legacy.
+      if (user.serverBacked) { await submitServerBackedProfileEdit(user); return; }
       const username = $('#profile-edit-username').value.trim();
       const displayName = normalizePlayerName($('#profile-edit-display-name').value);
       const firstName = $('#profile-edit-first-name').value.trim();

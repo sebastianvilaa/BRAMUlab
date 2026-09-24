@@ -113,6 +113,8 @@ No reabrir fórmula de Ranking, densidad, publicación semanal, territorios ni N
 
 ## P0.1C — Perfil editable server-backed
 
+**Estado P0.1C al 24/09/2026:** IMPLEMENTADO por Claude Code (código + migración + test), **pendiente de aplicación en Supabase Staging real** (sin acceso desde esa sesión — ver `Implementacion/Pre_Production/10_Resultado_Perfil_Editable_ServerBacked_Claude.md` §11 para la acción manual exacta). Categoría declarada queda DECISIÓN ABIERTA (solo lectura, ver ese mismo informe §6) — no bloquea el resto.
+
 **Fuentes maestras:** `Backend_Infraestructura.md`, `Experiencia_Inicial.md`, definición de contacto de V03.6 y contratos actuales de Auth/Perfil.
 
 **Motivo:** la pantalla `Editar datos` existe, pero para cuentas reales/server-backed el guardado está deliberadamente bloqueado y varios datos opcionales todavía no tienen persistencia de backend. Esto impide probar correctamente Mi Perfil, Perfil público, foto y contacto por WhatsApp.

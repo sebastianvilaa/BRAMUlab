@@ -22,10 +22,12 @@
    player_id real de Supabase en vez de un id local `u_...`, pero para esos
    módulos sigue siendo un string opaco que identifica la cuenta.
 
-   Campos que Backend_Infraestructura.md §6.1 NO define para `profiles`
-   (teléfono/WhatsApp, avatar real, categoría declarada/Nivel) quedan en
-   null/false acá: no se inventa una columna que el documento maestro no
-   pidió. Ver el Informe de Bloque 2 para el detalle de qué falta y por qué. */
+   Pre-Production P0.1C (24/09/2026) — teléfono/WhatsApp/avatar ya tienen columna real
+   (`profiles.phone`/`allow_whatsapp_contact`/`avatar_url`, ver migración
+   20260924130000_preprod_p01c_profile_editable.sql) y viajan acá igual que cualquier otro campo
+   de `profiles` (el `select('*')` de abajo ya los trae). `declared_category` (Nivel) sigue
+   siendo de solo lectura — se escribe una única vez en `officialize_level_onboarding`, nunca
+   desde Perfil (ver esa misma migración para el detalle de por qué). */
 (function (global) {
   'use strict';
 
@@ -219,9 +221,9 @@
         questionnaireVersion: levelState.questionnaire_version,
         questionnaireMode: levelState.questionnaire_mode,
       } : null,
-      // Avatar real necesita Supabase Storage — no está en el alcance de
-      // Bloque 2 (Backend_Infraestructura.md §4.1 no lo incluye todavía).
-      profilePhoto: null,
+      // Pre-Production P0.1C — avatar_url real (Supabase Storage, bucket "avatars"), escrito
+      // exclusivamente por update_profile_avatar. `null` mientras no se subió ninguna foto.
+      profilePhoto: profile.avatar_url || null,
       locality: location ? location.locality_label : null,
       region: location ? location.province_label : null,
       country: location ? COUNTRY_LABELS.AR : null,
@@ -233,12 +235,12 @@
       locationGeorefProvinceId: location ? (location.georef_province_id || null) : null,
       locationGeorefLocalityId: location ? (location.georef_locality_id || null) : null,
       rankingLocalZone: null,
-      // Backend_Infraestructura.md §6.1 no define columnas de teléfono/
-      // WhatsApp para `profiles` todavía — queda en null/false hasta que un
-      // bloque futuro (o una actualización del documento maestro) las
-      // agregue; nunca se inventa una columna nueva sin esa decisión.
-      phone: null,
-      allowWhatsAppContact: false,
+      // Pre-Production P0.1C — reales, escritos exclusivamente por
+      // complete_contact_profile_data. phone privado (nunca expuesto a otro jugador salvo el
+      // caso filtrado de get_public_profile#whatsapp_phone); allowWhatsAppContact es el
+      // consentimiento explícito, `false` por defecto.
+      phone: profile.phone || null,
+      allowWhatsAppContact: profile.allow_whatsapp_contact === true,
       legacyMigrated: false,
       createdAt: profile.created_at || now,
       updatedAt: profile.updated_at || now,
@@ -412,6 +414,76 @@
     return { ok: true, profile: data };
   }
 
+  /** Pre-Production P0.1C — única vía de escritura de phone/allowWhatsAppContact (RPC
+   *  `complete_contact_profile_data`, ver migración 20260924130000_preprod_p01c_profile_
+   *  editable.sql). Mismo criterio de `{ok:false,code}` que completeProfile/
+   *  completeRankingProfileData — app.js decide el mensaje en español
+   *  (whatsapp_phone_invalid/no_profile_for_player/no_player_for_session). */
+  async function completeContactProfileData(fields) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('complete_contact_profile_data', {
+      p_phone: fields.phone || null,
+      p_allow_whatsapp_contact: fields.allowWhatsAppContact === true,
+    });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, profile: data };
+  }
+
+  /** Pre-Production P0.1C — persiste la referencia de avatar YA subida a Storage (RPC
+   *  `update_profile_avatar`). `avatarUrl: null` quita la foto. Nunca sube el archivo por acá —
+   *  ver `uploadAvatar`/`removeAvatarFiles` para la subida real. */
+  async function updateProfileAvatar(avatarUrl) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('update_profile_avatar', { p_avatar_url: avatarUrl || null });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, profile: data };
+  }
+
+  const AVATAR_BUCKET = 'avatars';
+
+  /** Pre-Production P0.1C — borra cualquier archivo YA subido en la carpeta propia
+   *  ({playerId}/*, bucket avatars) antes de subir uno nuevo o al quitar la foto — nunca se
+   *  acumulan archivos huérfanos de subidas anteriores. RLS de storage.objects ya restringe
+   *  list()/remove() a la carpeta propia (defensa real); acá solo se usa esa carpeta porque es
+   *  la única que la sesión puede listar. `{ok:true}` incluso si la carpeta ya estaba vacía. */
+  async function removeAvatarFiles(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data: existing, error: listError } = await c.storage.from(AVATAR_BUCKET).list(playerId);
+    if (listError) return { ok: false, code: listError.message || 'unknown' };
+    if (Array.isArray(existing) && existing.length) {
+      const paths = existing.map((f) => `${playerId}/${f.name}`);
+      const { error: removeError } = await c.storage.from(AVATAR_BUCKET).remove(paths);
+      if (removeError) return { ok: false, code: removeError.message || 'unknown' };
+    }
+    return { ok: true };
+  }
+
+  /** Pre-Production P0.1C — sube `blob` (siempre JPEG ya redimensionado por
+   *  downscaleImageFileToDataUrl, ver app.js) a `{playerId}/{timestamp}.jpg` dentro del bucket
+   *  avatars, después de limpiar cualquier archivo previo del mismo jugador (removeAvatarFiles).
+   *  Devuelve la URL pública real (`getPublicUrl`, siempre correcta para el entorno actual —
+   *  nunca un dominio hardcodeado) para persistir después vía `updateProfileAvatar`. La subida
+   *  en sí ya está protegida por la política RLS `avatars_insert_own` (carpeta = player_id
+   *  propio) — esta función nunca podría subir a la carpeta de otro jugador aunque quisiera. */
+  async function uploadAvatar(playerId, blob) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const cleanup = await removeAvatarFiles(playerId);
+    if (!cleanup.ok) return cleanup;
+    const path = `${playerId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await c.storage.from(AVATAR_BUCKET).upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
+    if (uploadError) return { ok: false, code: uploadError.message || 'unknown' };
+    const { data: urlData } = c.storage.from(AVATAR_BUCKET).getPublicUrl(path);
+    if (!urlData || !urlData.publicUrl) return { ok: false, code: 'unknown' };
+    return { ok: true, url: urlData.publicUrl };
+  }
+
   global.PLAuth = {
     isConfigured, getClient,
     signUp, verifySignupOtp, resendSignupOtp,
@@ -420,5 +492,6 @@
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
     createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
+    completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

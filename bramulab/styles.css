@@ -2837,6 +2837,11 @@ input, select{ font-family: inherit; }
 .profile-select-row__label{ font-size: 12px; color: var(--paper-dim); font-weight: 600; }
 .profile-select-row__value{ font-size: 14px; color: var(--paper); font-weight: 700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-select-row__chevron{ flex:none; margin-left: 10px; color: var(--paper-faint); font-size: 16px; }
+/* Pre-Production P0.1C — Categoría actual queda de solo lectura para cuentas server-backed
+   (ver openProfileEditModal en app.js); mismo criterio opacidad+cursor que .btn-start:disabled. */
+.profile-select-row:disabled{ opacity:0.4; cursor:not-allowed; }
+/* Pre-Production P0.1C — @usuario queda fijo para cuentas server-backed (username_locked). */
+.field__input:disabled{ opacity:0.5; cursor:not-allowed; }
 
 /* Hoja genérica de selección (§10) y hoja de ubicación (§9) — misma lista de filas simples. */
 .picker-sheet-list{ display:flex; flex-direction:column; max-height: 50vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
