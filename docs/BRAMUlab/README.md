@@ -56,6 +56,8 @@ Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido
 
 **Bloque 7 (Ranking real semanal) está CERRADO en Staging** (22/09/2026): Fases 1–4 backend quedaron aplicadas y validadas contra Supabase Staging real; Fase 5 conectó el frontend a los RPCs reales, retiró el fallback productivo a mocks y pasó QA real de navegador completa. HEAD funcional final validado: `44727e61d9d50cedd29c30211fd3a6e43391666e`; bundle: `04.10-h22`; suite: **1478/1478**. La QA A–E confirmó gate, guardado real, ámbitos/rama/filtro/búsqueda/Mi red/perfiles, estado vacío honesto sin edición y regresiones mínimas sin errores funcionales de consola/red. El job `bramu_weekly_ranking_publish` permanece activo los lunes 00:05 de Buenos Aires. Ver `Implementacion/Backend/Bloque_07/23_Cierre_Bloque_07.md`.
 
+**Bloque 8 (BRAMU Intelligence V1) está CERRADO en Staging** (23/09/2026): Fases A–E quedaron implementadas y validadas de punta a punta con datos reales, persistencia auditable, memoria editorial cronológica, integración de Nivel oficial y hitos semanales materiales de Ranking. HEAD funcional final: `ba3a0b9360e2e88730a0ab8a3a9532bb765293ec`; bundle: `04.10-h26`; Edge Function `get-match-intelligence` ACTIVE v2. La QA real validó pending → validación → oficialización → regeneración A+B+C+D+E sin datos inventados. F generativa queda opcional. Ver `Implementacion/Backend/Bloque_08/35_Cierre_Bloque_08.md`.
+
 ---
 
 ## 1.1 Testing y lanzamiento inicial — definición vigente
@@ -82,9 +84,9 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
-| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 EN CURSO en Staging: Fases A–D CERRADAS; sigue E — integración Nivel + Ranking. F generativa es opcional y no bloquea la primera salida productiva |
+| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–7 CERRADOS. Bloque 8 EN CURSO: A–D CERRADAS; sigue E — Nivel + Ranking. F generativa opcional. Después: pendientes pre-Production + Bloque 9 — endurecimiento/salida |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
@@ -215,7 +217,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 ### Backend / Infraestructura
 
-La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–7 están cerrados en Staging.** El siguiente bloque es **Bloque 8 — BRAMU Intelligence V1**; después sigue Bloque 9 — endurecimiento/salida. No implementar desde antecedentes del Archivo.
+La dirección vigente prevé una infraestructura real y permanente, con separación Development/Staging/Production y backend basado en Supabase/Vercel según el documento maestro. **Bloques 1–8 están cerrados en Staging.** Antes de Bloque 9 corresponde consolidar los pendientes reales pre-Production ya definidos; después sigue **Bloque 9 — endurecimiento/salida**. No implementar desde antecedentes del Archivo.
 
 ---
 
