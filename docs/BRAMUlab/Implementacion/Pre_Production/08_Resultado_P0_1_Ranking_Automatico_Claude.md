@@ -396,3 +396,32 @@ Queda únicamente **QA visual/funcional de navegador sobre Staging real** para c
 - Ranking sin opt-in.
 
 Esa QA debe aprovechar las cuentas sintéticas ya planificadas y no requiere otra ronda de implementación salvo regresión concreta.
+
+
+---
+
+## 14. Hotfix real detectado por Work — Perfil público server-backed (24/09/2026)
+
+Durante la QA sobre `04.10-h28`, Work encontró:
+
+- búsqueda de Seba correcta: `@seba_qa`, Nivel 5.9;
+- al abrir Perfil público: fallback `@seba`, Nivel vacío y toast `No pudimos cargar este perfil`.
+
+ChatGPT central reprodujo la RPC real en Staging con sesión autenticada simulada y encontró la causa exacta:
+
+`get_public_profile` declaraba `matches_played integer, matches_won integer`, pero `count(*)` devuelve `bigint`. PostgreSQL rechazaba el `RETURN QUERY` con:
+
+`structure of query does not match function result type — Returned type bigint does not match expected type integer in column 15`.
+
+Corrección aplicada:
+
+- nueva migración `preprod_public_profile_counts_cast`;
+- archivo: `supabase/migrations/20260924120000_preprod_public_profile_counts_cast.sql`;
+- cast explícito `count(*) -> integer` para ambos agregados;
+- aplicada en Supabase Staging;
+- llamada real de `get_public_profile` revalidada como usuario autenticado: **PASS**;
+- Seba devuelve correctamente `username=seba_qa`, `level_status=CALIBRANDO`, `level_public=5.9`, `matches_played=0`, `matches_won=0`.
+
+No hubo cambio de frontend ni bump de bundle: Staging sigue en `04.10-h28`.
+
+El bug quedó corregido en backend real; Work puede retomar desde el mismo punto y reintentar abrir el Perfil público de Seba.
