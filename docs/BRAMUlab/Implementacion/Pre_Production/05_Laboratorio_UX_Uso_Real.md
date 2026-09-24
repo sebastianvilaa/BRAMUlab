@@ -256,7 +256,7 @@ Para Staging se adopta un set fijo de ocho cuentas sintéticas controladas por B
 - Gusti
 - Esteban
 - Lucho
-- Jonah
+- Jona
 - Diego
 - Pablito
 
@@ -275,7 +275,7 @@ Set objetivo de emails:
 - `bramulab+gusti@gmail.com`
 - `bramulab+esteban@gmail.com`
 - `bramulab+lucho@gmail.com`
-- `bramulab+jonah@gmail.com`
+- `bramulab+jona@gmail.com`
 - `bramulab+diego@gmail.com`
 - `bramulab+pablito@gmail.com`
 
