@@ -99,19 +99,19 @@ La AAIP reconoce derechos de acceso, rectificación, actualización y supresión
 - conservar solo la mínima estructura deportiva/histórica que el criterio legal permita conservar;
 - representación prevista en interfaces compartidas: `Jugador eliminado`, sin conservar el nombre visible.
 
-### DECISIÓN ABIERTA
+### DECISIÓN CERRADA V1 — reingreso después de eliminación
 
-Qué ocurre si esa persona crea una cuenta nueva después de una eliminación.
+Si la persona vuelve a BRAMU después de eliminar su cuenta:
 
-Opciones de producto:
+- crea una identidad nueva desde cero;
+- no se recupera ni revincula la identidad deportiva eliminada;
+- no se implementa reingreso asistido;
+- no se implementa cooldown de 30 días;
+- no se retiene hash/HMAC de email ni otra huella antifraude específica para impedir el reingreso inmediato.
 
-A. **Nuevo comienzo real**  
-La cuenta eliminada queda anonimizada; una cuenta nueva es una identidad nueva y empieza Nivel/historial desde cero.
+Riesgo aceptado V1: una persona podría intentar reiniciar su carrera eliminando y recreando su cuenta.
 
-B. **Reingreso/revinculación asistida**  
-Soporte revisa el caso y, cuando corresponda, intenta recuperar la identidad deportiva anterior.
-
-No implementar mecanismos automáticos de huella/hash antifraude hasta cerrar esta decisión y revisar su impacto legal.
+Si aparece abuso real, recién entonces se evalúa una política anti-reset específica con revisión de privacidad/legal.
 
 ## 6. Retención
 
@@ -175,7 +175,7 @@ La edad exacta y redacción requieren revisión legal.
 
 ## 10. Próximo trabajo
 
-Después de cerrar la decisión de reingreso:
+Con la decisión de reingreso ya cerrada:
 
 1. redactar borrador completo de Política de Privacidad;
 2. redactar borrador completo de Términos;
