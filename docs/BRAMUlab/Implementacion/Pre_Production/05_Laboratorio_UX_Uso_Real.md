@@ -334,3 +334,20 @@ Con ocho cuentas controladas alcanza holgadamente para probar:
 - escenarios cruzados sin depender de cuentas personales.
 
 Las cuentas personales de Sebastián quedan fuera del set estándar de QA salvo que una prueba específica lo requiera.
+
+
+## 12. Secuencia del laboratorio — decisión vigente
+
+No es obligatorio crear las ocho cuentas ni ejecutar ahora el recorrido completo de QA.
+
+Se prioriza esta secuencia:
+
+1. cerrar primero las decisiones de producto/UX que ya pueden resolverse sin datos de prueba;
+2. implementar P0.1 Estado Cero / perfiles progresivos y el resto del paquete visual priorizado;
+3. recién entonces crear/preparar el set completo de ocho cuentas sintéticas si todavía es necesario;
+4. ejecutar un laboratorio integrado sobre una versión más cercana a la experiencia final;
+5. cerrar con QA final de punta a punta antes de Production.
+
+Motivo: evita gastar tiempo evaluando pantallas que ya sabemos que van a cambiar y permite que el testing posterior sea más representativo de la experiencia real.
+
+Las cuentas sintéticas siguen siendo el universo recomendado de QA, pero su creación puede diferirse hasta que aporte evidencia útil.
