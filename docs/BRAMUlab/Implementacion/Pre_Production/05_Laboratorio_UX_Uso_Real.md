@@ -243,3 +243,43 @@ Antes de resetear cuentas:
 La limpieza de cuentas/datos es destructiva y se hace solo con autorización explícita de Sebastián una vez identificadas las cuentas.
 
 Para probar calibración completa de Nivel, preparar después un escenario controlado específico; no mezclar esa necesidad con la limpieza inicial de UX.
+
+
+## 11. Cuentas sintéticas de QA — decisión confirmada
+
+Para las pruebas de Staging se prefiere usar cuentas controladas por BRAMU en lugar de depender de emails personales.
+
+Esquema recomendado:
+
+- `Seba QA`
+- `Matu QA`
+- `Agus QA`
+- `Guti QA`
+- `Esteban QA`
+
+Las cuentas pueden utilizar alias de la casilla de BRAMU mediante plus-addressing, por ejemplo:
+
+- `bramulab+seba@gmail.com`
+- `bramulab+matu@gmail.com`
+- etc.
+
+Reglas:
+
+- son cuentas sintéticas de Staging, no personas reales ni futuros usuarios;
+- usar nombres con sufijo `QA` / `Test` para no confundirlas con identidades reales o provisionales;
+- pueden compartir una misma contraseña **solo si es una contraseña exclusiva de testing**, nunca reutilizada de cuentas personales ni de Production;
+- la contraseña no se guarda en documentación ni se comparte por chat;
+- estas cuentas pueden resetearse/eliminarse libremente dentro de Staging cuando una prueba lo requiera;
+- Production nunca se siembra con estas cuentas.
+
+Con cinco cuentas controladas alcanza para probar:
+
+- validación por parejas;
+- correcciones;
+- `No participé`;
+- claims/provisionales;
+- diversidad de rivales para calibración de Nivel;
+- perfiles públicos;
+- Ranking/eligibilidad cuando corresponda.
+
+Las cuentas personales de Sebastián quedan fuera del set estándar de QA salvo que una prueba específica lo requiera.
