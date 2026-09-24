@@ -146,7 +146,7 @@ Durante el lanzamiento inicial, los perfiles deportivos son visibles únicamente
 
 El detalle completo de un partido es accesible para sus participantes y administración. El perfil público muestra resúmenes y estadísticas, no convierte todo el historial detallado en público.
 
-No habrá controles de privacidad campo por campo en el lanzamiento inicial. Ranking mantiene su consentimiento específico mediante `ranking_opt_in`; salir del Ranking no elimina el perfil deportivo ni el historial compartido.
+No habrá controles de privacidad campo por campo en el lanzamiento inicial. Ranking forma parte automática de la experiencia competitiva para jugadores elegibles; no existe opt-out ordinario. La visibilidad se limita a la información deportiva definida por producto y nunca expone email u otros datos privados.
 
 ### 5.2 `@usuario`
 
@@ -232,7 +232,7 @@ Los partidos, relaciones y estadísticas se vinculan con `player_id`, no directa
 - `competitive_branch`;
 - género personal privado y opcional;
 - `location_id`;
-- `ranking_opt_in`;
+- `ranking_opt_in` *(legacy de compatibilidad; no decide elegibilidad desde 24/09/2026)*;
 - estado/completitud del perfil;
 - timestamps.
 
@@ -575,12 +575,11 @@ No bloquean Nivel, Home ni el primer partido:
 - WhatsApp;
 - localidad deportiva;
 - rama competitiva;
-- `ranking_opt_in`;
 - mano/lado;
 - género personal opcional;
 - otros datos deportivos secundarios.
 
-Localidad, rama competitiva y `ranking_opt_in` continúan existiendo en el modelo y siguen siendo obligatorios para **participar oficialmente del Ranking**, pero se piden cuando el usuario intenta entrar a esa función, no antes de Nivel.
+Localidad y rama competitiva siguen siendo necesarias para **ubicar correctamente al jugador en Ranking**, pero se piden cuando el usuario intenta entrar a esa función, no antes de Nivel. `ranking_opt_in` permanece solo como compatibilidad histórica y deja de ser condición de elegibilidad: la participación es automática.
 
 El servidor continúa imponiendo formato/unicidad de username y validaciones de cada campo cuando corresponde.
 
@@ -916,7 +915,7 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - creación idempotente de `player/profile`;
 - identidad/perfil mínimo;
 - username único;
-- soporte persistente para rama competitiva, ubicación y `ranking_opt_in` como datos completables posteriormente;
+- soporte persistente para rama competitiva y ubicación como datos completables posteriormente; `ranking_opt_in` se conserva solo por compatibilidad histórica;
 - primeras métricas de alta.
 
 **Depende de:** Bloque 1.
@@ -952,7 +951,7 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 
 - el usuario puede completar Perfil mínimo + estimador antes de confirmar el email sin perder el progreso en ese dispositivo;
 - confirmar el email convierte de forma idempotente ese borrador en identidad + Nivel oficiales server-side;
-- localidad, rama y `ranking_opt_in` no bloquean Nivel ni Home;
+- localidad y rama no bloquean Nivel ni Home; `ranking_opt_in` no decide participación;
 - Nivel confirmado permanece entre dispositivos y sesiones;
 - el servidor es autoridad del resultado persistido;
 - rápido/completo generan los resultados esperados del motor probado;
@@ -1226,7 +1225,7 @@ Backend/Infraestructura está listo para el lanzamiento inicial cuando:
 
 - existen Development, Staging y Production realmente separados;
 - una cuenta puede registrarse, verificarse, recuperarse y usarse desde distintos dispositivos;
-- perfil, username y Nivel persisten server-side; ubicación/rama/`ranking_opt_in` persisten cuando el usuario los completa y no bloquean el onboarding inicial;
+- perfil, username y Nivel persisten server-side; ubicación/rama persisten cuando el usuario los completa y no bloquean el onboarding inicial; el campo legacy `ranking_opt_in` no decide elegibilidad;
 - búsqueda devuelve solo personas reales del entorno;
 - invitados tienen identidad persistente y claim básico;
 - un partido siempre nace pendiente;
