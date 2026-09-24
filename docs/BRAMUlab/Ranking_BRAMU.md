@@ -5,7 +5,8 @@
 **Fecha de actualización:** 18 de septiembre de 2026.  
 **Cambio normativo principal de la revisión del 11 de septiembre de 2026:** Ranking BRAMU pasa de continuo a **publicación semanal**. Nivel BRAMU continúa siendo dinámico y se actualiza partido a partido.  
 **Actualización del 13 de septiembre de 2026 (cierre UX, BRAMUlab V03.8):** no cambia ninguna regla de cálculo/elegibilidad/snapshot. Cierra cuatro decisiones UX: (1) `TU POSICIÓN` debe garantizar contexto cercano a la fila propia (§13.3); (2) la tarjeta territorial semanal es superficie oficial tanto en Perfil público como en Mi Perfil (§15.1); (3) en Home, Ranking solo puede aportar un insight puntual dentro de `TU MOMENTO`, nunca una tarjeta territorial duplicada (§13.6); (4) `Explorar rankings` queda definido conceptualmente como evolución futura, fuera de V1 (§8.6).
-**Actualización del 18 de septiembre de 2026 (experiencia inicial):** se define el acceso de usuarios que todavía no completaron los datos requeridos para Ranking y el comportamiento de quienes ya los completaron pero continúan `CALIBRANDO` (§13.7). No cambia la elegibilidad deportiva ni la lógica de snapshots.
+**Actualización del 18 de septiembre de 2026 (experiencia inicial):** se define el acceso de usuarios que todavía no completaron los datos requeridos para Ranking y el comportamiento de quienes ya los completaron pero continúan `CALIBRANDO` (§13.7).  
+**Actualización del 24 de septiembre de 2026 (participación automática):** Ranking deja de ser opt-in. Todo jugador activo entra automáticamente al universo de Ranking cuando cumple localidad, rama, Nivel/elegibilidad, actividad e integridad. No existe opt-out ordinario. `ranking_opt_in` queda como campo legacy de compatibilidad y deja de decidir elegibilidad.
 
 ---
 
@@ -227,7 +228,6 @@ Un universo es el conjunto de jugadores que cumplen simultáneamente:
 
 - mismo ámbito seleccionado;
 - filtros explícitos vigentes;
-- participación habilitada;
 - condiciones de elegibilidad;
 - actividad requerida.
 
@@ -235,11 +235,13 @@ Un jugador ocupa puesto territorial solo si:
 
 1. tiene cuenta activa e identidad estable;
 2. perfil público;
-3. opt-in de Ranking habilitado;
-4. ubicación estructurada completa;
+3. ubicación estructurada completa;
+4. rama competitiva definida;
 5. estado de Nivel `CALIBRADO`, o `RECALIBRANDO` con consolidado anterior;
 6. no superó 180 días sin partido computable validado;
 7. no está excluido por integridad/cuenta.
+
+La participación es **automática**: no existe opt-in/opt-out ordinario. Un jugador deja de ocupar posición únicamente por reglas objetivas de elegibilidad, actividad, ubicación/rama, integridad o estado de cuenta.
 
 ### 6.1 Calibración
 
@@ -541,7 +543,6 @@ Si el usuario todavía no completó alguno de estos datos:
 
 - localidad deportiva;
 - rama competitiva;
-- `ranking_opt_in`;
 
 al tocar Ranking:
 
@@ -701,7 +702,7 @@ El historial debe conservar fecha efectiva, fecha de procesamiento, revisión of
 ### 17.1 Estado de jugador
 
 - `player_id`
-- `ranking_opt_in`
+- `ranking_opt_in` *(legacy de compatibilidad; no decide elegibilidad desde 24/09/2026)*
 - `public_profile_enabled`
 - `ranking_integrity_status`
 - `country_code`
@@ -808,7 +809,7 @@ El domingo Seba cierra con Nivel público 6,0. En la edición del lunes deja `Ni
 
 Un jugador estimado en 8,2 pero calibrando no ocupa puesto territorial.
 
-Si ya completó localidad, rama competitiva y `ranking_opt_in`, puede explorar Ranking normalmente y ve un estado propio sin posición oficial.
+Si ya completó localidad y rama competitiva, puede explorar Ranking normalmente y ve un estado propio sin posición oficial.
 
 ### Caso 7 — Inactividad
 
@@ -824,7 +825,7 @@ Una localidad con cuatro elegibles no publica posiciones.
 
 ### Caso 10 — Usuario nuevo sin datos de Ranking
 
-Tiene cuenta y Nivel inicial, pero todavía no completó localidad, rama o `ranking_opt_in`.
+Tiene cuenta y Nivel inicial, pero todavía no completó localidad o rama.
 
 Al tocar Ranking ve la estructura de la sección atenuada y bloqueada, con un modal que lo lleva a completar únicamente esos datos. No se le inventa un ámbito Local antes de conocer su localidad.
 
@@ -867,8 +868,9 @@ Al tocar Ranking ve la estructura de la sección atenuada y bloqueada, con un mo
     insight puntual dentro de `TU MOMENTO`, con hechos del snapshot semanal.
 31. `Explorar rankings` (consulta de otro territorio sin cambiar la ubicación propia) es una
     evolución futura conceptual, fuera de V1.
-32. Si faltan localidad, rama competitiva o `ranking_opt_in`, la entrada a Ranking sigue visible pero la sección queda bloqueada por un modal que deriva al completado de esos datos.
+32. Si faltan localidad o rama competitiva, la entrada a Ranking sigue visible pero la sección queda bloqueada por un modal que deriva al completado de esos datos.
 33. Con esos datos completos y Nivel `CALIBRANDO`, Ranking es explorable aunque el usuario todavía no tenga posición oficial propia.
+34. La participación en Ranking es automática cuando el jugador cumple elegibilidad; no existe opt-in/opt-out ordinario.
 
 ---
 
@@ -949,10 +951,11 @@ Observar:
   misma fuente/lógica.
 - Home no duplica la clasificación territorial completa; Ranking puede aparecer como insight
   puntual dentro de `TU MOMENTO`.
-- La entrada a Ranking permanece visible aunque falten datos necesarios para participar.
-- Si faltan localidad, rama competitiva o `ranking_opt_in`, Ranking se presenta atenuado y bloqueado por un modal con CTA a completar los datos faltantes.
+- La entrada a Ranking permanece visible aunque falten datos necesarios para ubicar al jugador.
+- Si faltan localidad o rama competitiva, Ranking se presenta atenuado y bloqueado por un modal con CTA a completar los datos faltantes.
 - No se utiliza `perfil competitivo` como término de interfaz.
-- Con los datos requeridos completos y Nivel `CALIBRANDO`, Ranking puede explorarse normalmente aunque el jugador aún no tenga posición oficial propia.
+- Con localidad/rama completas y Nivel `CALIBRANDO`, Ranking puede explorarse normalmente aunque el jugador aún no tenga posición oficial propia.
+- La participación es automática para todo jugador elegible; no existe un control ordinario para entrar o salir del Ranking.
 
 ### Fuera de alcance V1
 
