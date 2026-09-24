@@ -115,7 +115,12 @@
 // completo los módulos estadísticos sin evidencia con 0 partidos oficiales (Estado Cero), y el
 // gate de Ranking retira el toggle de opt-in (participación automática). Toca app.js/index.html;
 // mismo criterio de siempre, `Store.VERSION`/`version.json` siguen en "BRAMUlab V04.10".
-const CACHE_NAME = 'bramulab-v04-10-h27';
+// Pre-Production P0.1 (revisión central 24/09/2026, ronda 2) — `-h28`: Perfil público
+// server-backed revela Efectividad/jugados-ganados con evidencia oficial real (matches_played/
+// matches_won nuevos en get_public_profile, ver migración 20260924110000_bloque6_public_
+// match_outcomes.sql) en vez de ocultarlos siempre. Toca solo app.js; mismo criterio de siempre,
+// `Store.VERSION`/`version.json` siguen en "BRAMUlab V04.10".
+const CACHE_NAME = 'bramulab-v04-10-h28';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -126,36 +131,36 @@ const CACHE_NAME = 'bramulab-v04-10-h27';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.10-h27',
-  './engine.js?v=04.10-h27',
-  './stats.js?v=04.10-h27',
-  './store.js?v=04.10-h27',
+  './styles.css?v=04.10-h28',
+  './engine.js?v=04.10-h28',
+  './stats.js?v=04.10-h28',
+  './store.js?v=04.10-h28',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.10-h27',
-  './level-context.js?v=04.10-h27',
-  './level-calibration.js?v=04.10-h27',
-  './player-home.js?v=04.10-h27',
-  './match-load.js?v=04.10-h27',
-  './player-identity.js?v=04.10-h27',
-  './groups.js?v=04.10-h27',
-  './locations.js?v=04.10-h27',
-  './ranking.js?v=04.10-h27',
+  './level.js?v=04.10-h28',
+  './level-context.js?v=04.10-h28',
+  './level-calibration.js?v=04.10-h28',
+  './player-home.js?v=04.10-h28',
+  './match-load.js?v=04.10-h28',
+  './player-identity.js?v=04.10-h28',
+  './groups.js?v=04.10-h28',
+  './locations.js?v=04.10-h28',
+  './ranking.js?v=04.10-h28',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.10-h27',
+  './auth.js?v=04.10-h28',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.10-h27',
-  './match-sync.js?v=04.10-h27',
-  './match-validation.js?v=04.10-h27',
+  './matches.js?v=04.10-h28',
+  './match-sync.js?v=04.10-h28',
+  './match-validation.js?v=04.10-h28',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.10-h27',
-  './app.js?v=04.10-h27',
+  './intelligence-client.js?v=04.10-h28',
+  './app.js?v=04.10-h28',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

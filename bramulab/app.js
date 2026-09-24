@@ -8771,18 +8771,25 @@
 
   /** Backend Bloque 4 (03_Revision_ChatGPT.md §6, hotfix §4 de
    *  05_Revision_Post_Implementacion_ChatGPT.md) — variante server-backed: identidad real
-   *  resuelta por `player_id` (`get_public_profile`), nunca por nombre local. Mientras Bloque 5
-   *  no aporte historial oficial, esta pantalla muestra SOLO identidad + @usuario + Nivel/
-   *  estado + mano/lado (si existen) — misma regla vigente que "con 0 partidos oficiales:
-   *  identidad + Nivel/estado, sin estadísticas agregadas, evolución ni módulos vacíos".
-   *  Se OCULTAN por completo (nunca un placeholder "—"): Edad (privada para otra persona real),
-   *  Efectividad/Partidos, Mejor racha, Mejor nivel BRAMU histórico (mostrar el Nivel actual
-   *  como "mejor" sería un máximo histórico no comprobado) y Ranking (hasta Bloque 7). También
-   *  se oculta AGREGAR JUGADOR: esa acción escribe la lista local histórica por NOMBRE
-   *  (Store.addPlayerToList), la misma identidad-por-nombre que esta rama acaba de resolver
-   *  correctamente por player_id — reintroducirla acá sería la misma regresión que Bloque 4
-   *  vino a corregir. El camino local/legacy (renderPlayerPublicProfile de arriba) conserva su
-   *  UI anterior sin ningún cambio. */
+   *  resuelta por `player_id` (`get_public_profile`), nunca por nombre local. Esta pantalla
+   *  muestra SIEMPRE identidad + @usuario + Nivel/estado + mano/lado (si existen) — misma regla
+   *  vigente que "con 0 partidos oficiales: identidad + Nivel/estado, sin estadísticas
+   *  agregadas, evolución ni módulos vacíos".
+   *  Pre-Production P0.1 (revisión central 24/09/2026) — Efectividad/jugados-ganados dejan de
+   *  ocultarse de forma incondicional: `get_public_profile` ahora agrega `matches_played`/
+   *  `matches_won` (partidos `status='validated'` con `winner_team` ya resuelto, ver migración
+   *  20260924110000_bloque6_public_match_outcomes.sql) y esta función revela esa tarjeta cuando
+   *  `matches_played>0`, igual que el camino local/legacy — nunca inventa datos ni muestra
+   *  "0%"/"—" como si fueran evidencia real. `renderPlayerPublicEffectivenessDonut` es la MISMA
+   *  función que ya usa esa rama local, nunca una segunda copia del donut.
+   *  Siguen OCULTOS por completo (nunca un placeholder "—", fuera de alcance de esta corrección
+   *  acotada — ver el informe): Edad (privada para otra persona real), Mejor racha/Mejor nivel
+   *  BRAMU histórico (`#player-public-performance-row` pediría un agregado nuevo aparte, no
+   *  cubierto por `matches_played`/`matches_won`). También se oculta AGREGAR JUGADOR: esa acción
+   *  escribe la lista local histórica por NOMBRE (Store.addPlayerToList), la misma identidad-por-
+   *  nombre que esta rama acaba de resolver correctamente por player_id — reintroducirla acá
+   *  sería la misma regresión que Bloque 4 vino a corregir. El camino local/legacy
+   *  (renderPlayerPublicProfile de arriba) conserva su UI anterior sin ningún cambio. */
   async function renderPlayerPublicProfileServerBacked(playerId, fallbackName) {
     setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, fallbackName);
     $('#player-public-name').textContent = fallbackName;
@@ -8794,7 +8801,7 @@
     $('#player-public-side').parentElement.hidden = true;
     $('#player-public-meta-grid').hidden = true; // se revela más abajo solo si hay mano/lado reales
     $('#player-public-effectiveness-card').hidden = true;
-    $('#player-public-performance-row').hidden = true;
+    $('#player-public-performance-row').hidden = true; // Mejor racha/Mejor nivel: fuera de alcance, ver comentario de arriba
     $('#player-public-ranking-card').hidden = true;
     $('#player-public-whatsapp-btn').hidden = true;
     playerPublicWhatsappPhone = null;
@@ -8830,6 +8837,21 @@
       setLevelValueText('player-public-level-value', levelText, false);
     }
     $('#player-public-level-sub').hidden = true;
+
+    // Pre-Production P0.1 (revisión central 24/09/2026) — Efectividad/jugados-ganados con
+    // evidencia oficial real (ver comentario de cabecera de esta función). `matchesPlayed`/
+    // `matchesWon` son enteros agregados server-side, nunca partidos individuales — el mismo
+    // cálculo de % que ya usa el camino local (Math.round(wins/considered*100), ver
+    // PH.computeEffectivenessTotal) para no tener una segunda fórmula de redondeo.
+    const matchesPlayed = Number.isFinite(p.matches_played) ? p.matches_played : 0;
+    const matchesWon = Number.isFinite(p.matches_won) ? p.matches_won : 0;
+    const hasOfficialMatches = matchesPlayed > 0;
+    $('#player-public-effectiveness-card').hidden = !hasOfficialMatches;
+    if (hasOfficialMatches) {
+      renderPlayerPublicEffectivenessDonut({ pct: Math.round((matchesWon / matchesPlayed) * 100) });
+      $('#player-public-played').textContent = String(matchesPlayed);
+      $('#player-public-won').textContent = String(matchesWon);
+    }
     // Backend Bloque 7 (Fase 5) — Ranking real ya existe (Fases 1-4 aplicadas/validadas en
     // Staging): la tarjeta que hasta acá quedaba forzada `hidden=true` arriba (comentario de
     // Bloque 4, "hasta Bloque 7") ya puede conectarse. Mismo guard de request obsoleta que el

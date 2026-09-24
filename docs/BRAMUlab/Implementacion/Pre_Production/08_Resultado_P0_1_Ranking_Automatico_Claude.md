@@ -180,3 +180,181 @@ Acción requerida antes de cerrar P0.1:
 - con evidencia oficial suficiente, mostrar únicamente los módulos respaldados por datos reales.
 
 No reabrir Ranking automático: esa parte queda validada en backend real.
+
+---
+
+## 12. Corrección acotada — Perfil público server-backed (24/09/2026, ronda 2)
+
+**No se tocó** Ranking automático, Nivel, BRAMU Intelligence, Auth (salvo lo estrictamente
+necesario, ver más abajo), `main`, Production ni BRAMUlive.
+
+### 12.1 Qué datos reales existían hoy (trazado antes de implementar)
+
+- `matches`/`match_participants`/`match_sets` (Bloque 5) tienen el resultado estructurado de cada
+  set, pero **nunca un "winner_team" persistido**: `deriveWinnerTeam` (`bramulab/match-sync.js`)
+  lo calcula siempre client-side, a propósito, "para no tener una TERCERA copia de la regla de
+  victoria" (comentario de cabecera de ese archivo). Reimplementar esa regla en SQL habría sido
+  exactamente esa tercera/cuarta copia — se descartó esa vía.
+- `match_level_results`/`match_level_result_players` (Bloque 6) sí tienen `margin`/
+  `team_strength_a/b`, pero son estrictamente de Nivel (RLS deny-all, service_role, "no se
+  reimplementa el motor acá"), excluyen partidos `eligible=false` (partido oficial sin efecto de
+  Nivel) y no tienen un booleano ganó/perdió directo — no son una fuente completa ni segura para
+  "partidos jugados/ganados" de rendimiento público.
+- `officialize_match_validation` (núcleo único de oficialización, Bloque 6) **sí recibe**
+  `localMatch.winnerTeam` ya calculado por el mismo motor compartido (`match-sync.js` vía symlink
+  real en la Edge Function, `supabase/functions/_shared/match-officialize-core.ts`) en cada
+  trigger, pero nunca lo persistía — se recalculaba y se descartaba en cada llamada.
+
+### 12.2 Solución elegida (mínima, sin duplicar la regla de victoria)
+
+Persistir ese mismo valor **ya calculado** en una columna nueva, escrita por el único lugar que
+ya lo calcula, y consumirlo con un agregado nuevo y seguro (dos enteros, nunca partidos
+individuales) en `get_public_profile`.
+
+**Migración nueva:** `supabase/migrations/20260924110000_bloque6_public_match_outcomes.sql`.
+
+1. `matches.winner_team` — columna nueva, nullable, `'A'|'B'`. NULL mientras el partido no está
+   `validated`.
+2. `officialize_match_validation` — `CREATE OR REPLACE` con un parámetro nuevo al final,
+   `p_winner_team text default null` (compatible: un caller que no lo pase deja
+   `matches.winner_team` intacto). Como Postgres identifica una función por su lista de TIPOS,
+   agregar un parámetro crea un overload nuevo en vez de reemplazar el existente — se hizo
+   `DROP FUNCTION` de la firma vieja (26 parámetros) primero, para no dejar dos versiones
+   coexistiendo con permisos propios. El cuerpo es **idéntico** al de
+   `20260921235700_bloque6_fix_applied_result_detection.sql` salvo dos inserciones puntuales
+   (verificado con `diff` línea por línea antes de escribir el informe): el parámetro nuevo, y un
+   `UPDATE public.matches SET winner_team = p_winner_team ...` que corre para los 4 triggers por
+   igual (initial, correction_accepted, identity_resolved, identity_unidentified) — importante
+   porque una corrección puede cambiar el resultado, así que `winner_team` se re-escribe siempre,
+   nunca solo en la oficialización inicial (eso habría dejado el ganador desactualizado tras una
+   corrección real).
+3. `get_public_profile` — `CREATE OR REPLACE` (mismo motivo de DROP primero: cambia el tipo de
+   retorno) agregando `matches_played integer, matches_won integer`: conteo de partidos
+   `status='validated'` con `winner_team` ya resuelto en los que participó el jugador consultado,
+   y cuántos ganó su equipo. Nunca devuelve `match_id`, fecha, rival ni ningún dato por partido —
+   solo los dos conteos.
+
+**Edge Function:** `supabase/functions/_shared/match-officialize-core.ts` — se agregó
+`p_winner_team: localMatch.winnerTeam` a los `rpcParams` que ya se enviaban a
+`officialize_match_validation`. Ningún otro archivo de Edge Functions se tocó.
+
+**Frontend:** `bramulab/app.js` → `renderPlayerPublicProfileServerBacked` deja de ocultar
+`#player-public-effectiveness-card` de forma incondicional: la revela cuando
+`p.matches_played > 0`, calcula el % con `Math.round(matchesWon/matchesPlayed*100)` (la MISMA
+fórmula que `PH.computeEffectivenessTotal`, nunca una segunda regla de redondeo) y reutiliza
+`renderPlayerPublicEffectivenessDonut` — la misma función que ya usa el camino local/legacy, sin
+segunda copia del donut. `bramulab/auth.js` no se tocó: `getPublicProfile` ya devolvía la fila
+completa de la RPC sin allowlist de campos, así que los dos campos nuevos llegan solos.
+
+### 12.3 Deliberadamente fuera de alcance (para mantener la corrección acotada)
+
+- **Backfill de `winner_team`** para partidos `validated` **antes** de esta migración:
+  reconstruirlo retroactivamente exigiría leer `match_sets` y aplicar el umbral de sets según
+  `formatId` (classic=2 de 3, americano=1 de 1) — la misma regla que se decidió no duplicar en
+  SQL, esta vez además como operación de datos. Esos partidos no cuentan todavía en
+  Efectividad/jugados-ganados público hasta que se corrijan/reapliquen (lo que sí pasa por este
+  camino nuevo) o hasta que se decida explícitamente un backfill aparte. Pre-Production: sin
+  usuarios reales todavía, impacto práctico nulo hoy.
+- **"Mejor racha"/"Mejor nivel BRAMU histórico"** en Perfil público server-backed: siguen ocultos
+  (`#player-public-performance-row` permanece `hidden=true`). "Mejor racha" pediría un agregado de
+  rachas más complejo sobre la misma fuente; "Mejor nivel BRAMU" (pico histórico) viviría en datos
+  de Nivel (`level_events.result->>'muAfter'`), que se prefirió no tocar en esta corrección
+  acotada. Ninguno de los dos estaba en el hallazgo original de la revisión central (que hablaba
+  específicamente de "Efectividad y rendimiento").
+- Edad, Mano/Lado ya seguían su propia regla (privados/reales) sin cambios.
+
+### 12.4 Cobertura de riesgos pedidos
+
+- **0 oficiales:** sin cambios de comportamiento — `matches_played=0` (columna nueva, agregado
+  siempre en 0 sin filas) mantiene `#player-public-effectiveness-card` oculta.
+- **1 oficial:** cubierto por el test nuevo (ver 12.5) y por el mecanismo — `matches_played=1`
+  revela la tarjeta con el % real de ese único partido.
+- **Varios oficiales:** cubierto por el test nuevo con 2 partidos + una corrección que cambia el
+  ganador del primero, verificando que el agregado se recalcula correctamente (2 jugados/1 ganado
+  para cada lado tras la corrección, no 2/2 y 2/0 desactualizados).
+- **Pendientes no cuentan:** un tercer partido queda deliberadamente `pending_validation` (nunca
+  oficializado) y el test verifica que el agregado sigue en 2, no en 3.
+- **Privacidad:** `get_public_profile` sigue devolviendo una fila de columnas escalares — los dos
+  campos nuevos son `integer`, nunca un array de partidos. Ningún `match_id`/fecha/rival de otro
+  jugador se expone por esta vía.
+- **Sin regresión en Ranking/Nivel/identidad:** el cuerpo de `officialize_match_validation` es
+  idéntico al vigente salvo las dos inserciones ya descritas (verificado por `diff`); no se tocó
+  ninguna columna, tabla ni regla de `level_states`/`level_events`/Ranking. Suite local completa
+  corrida después del cambio: **255/255** (`node --test`) + **1478/1478** (`tests.html`), sin
+  fallas nuevas. QA visual manual: el camino LOCAL/legacy de Perfil público (no tocado) se
+  verificó en el navegador después del cambio, mostrando Efectividad/jugados-ganados/Mejor racha
+  sin alteraciones (100%, 1/1, "1 victoria").
+
+### 12.5 Test nuevo — no ejecutado desde esta sesión (mismo bloqueo operativo de siempre)
+
+`supabase/tests/verify-bloque6-public-match-outcomes.sql` — transaccional (`BEGIN`/`ROLLBACK`),
+sin depender de ninguna cuenta real preexistente en Staging (fabrica sus propios 2 jugadores).
+Llama a `officialize_match_validation` **directamente por SQL** con parámetros nombrados
+(`p_eligible := false` para no tocar `level_states`/Nivel en absoluto) — no depende de la Edge
+Function ni de un JWT, porque esa RPC es `service_role`-only y no lee `auth.uid()`. Cubre:
+
+1. partido 1 oficializado (`trigger=initial`, `p_winner_team='A'`) → `matches.winner_team='A'`;
+2. partido 2 oficializado igual (mismos jugadores) → agregado A: jugó 2/ganó 2, B: jugó 2/ganó 0;
+3. partido 3 queda `pending_validation` (nunca oficializado) → el agregado sigue en 2, no en 3;
+4. corrección aceptada sobre el partido 1 (`trigger=correction_accepted`, `p_winner_team='B'`) →
+   `winner_team` se actualiza a `'B'`, `current_revision_id` avanza, `pending_correction_revision_id`
+   vuelve a NULL, y el agregado se recalcula correctamente (A: 2/1, B: 2/1) — prueba directamente
+   que una corrección no deja `winner_team` desactualizado;
+5. permisos/firmas: la firma vieja de 26 parámetros de `officialize_match_validation` ya no existe
+   (confirma que el `DROP FUNCTION` de la migración corrió, no quedó un overload huérfano); la
+   nueva de 27 sigue siendo exclusivamente `service_role`; `get_public_profile` sigue siendo
+   exclusivamente `authenticated`.
+
+**No cubierto por este archivo** (necesita sesión autenticada real): la llamada completa a
+`get_public_profile(uuid)` a través de su propia RPC pública (depende de `auth.uid()`). El test
+verifica la MISMA expresión de agregación que esa RPC usa —copiada literal del `LEFT JOIN
+LATERAL` de la migración, no reinventada— directamente contra las tablas como `service_role`, para
+no depender de fabricar una sesión/JWT ni de que ya exista una cuenta real en Staging. Sugerido
+para quien aplique la migración: además de correr este archivo, abrir el Perfil público real de
+una cuenta con 1+ partidos oficiales desde el navegador contra Staging, para confirmar visualmente
+que la tarjeta de Efectividad aparece con el % correcto.
+
+**Igual que la migración de la ronda 1 (§5): esta sesión no tiene `psql`/CLI/credenciales de
+Supabase.** La migración `20260924110000_bloque6_public_match_outcomes.sql` y este test quedan
+escritos, revisados por `diff` contra el código vigente y listos, pero **no se ejecutaron** contra
+Staging ni contra ningún Postgres real desde acá.
+
+**Acción manual pendiente para quien tenga acceso a Supabase Staging:**
+
+1. aplicar `20260924110000_bloque6_public_match_outcomes.sql`;
+2. correr `verify-bloque6-public-match-outcomes.sql` completo y confirmar que pasa entero;
+3. QA visual sugerida (no bloqueante): abrir un Perfil público real con partidos oficiales y
+   confirmar que Efectividad/jugados-ganados aparecen con datos reales, y que sigue oculta con 0
+   oficiales.
+
+No es una `DECISIÓN ABIERTA` — es la misma limitación de acceso técnico ya documentada en la
+ronda 1 y en Bloques anteriores.
+
+### 12.6 Archivos de esta ronda 2
+
+- `supabase/migrations/20260924110000_bloque6_public_match_outcomes.sql` (nuevo).
+- `supabase/functions/_shared/match-officialize-core.ts` (modificado, 1 línea + comentario).
+- `supabase/tests/verify-bloque6-public-match-outcomes.sql` (nuevo).
+- `bramulab/app.js` (modificado, `renderPlayerPublicProfileServerBacked`).
+- `bramulab/sw.js`/`bramulab/index.html` (bump de bundle, ver más abajo).
+- Este informe (§12).
+
+**Bundle:** `04.10-h28` (bump desde `04.10-h27` de la ronda 1 de esta misma intervención). `app.js`
+es un `CORE_ASSET` cacheado por el service worker — sin este bump, un cliente que ya tenía la PWA
+instalada seguiría sirviendo desde caché la versión que oculta Efectividad incondicionalmente,
+confundiendo cualquier QA inmediata de este cambio. `Store.VERSION`/`version.json` siguen en
+"BRAMUlab V04.10" (backend/infraestructura, no una ronda nueva de Nivel BRAMU).
+
+### 12.7 Condición de finalización de esta ronda 2
+
+- Trazado de datos reales existentes antes de implementar. ✅
+- Solución mínima elegida y justificada por escrito (sin duplicar la regla de victoria). ✅
+- Migración + Edge Function + frontend implementados. ✅
+- Test focalizado nuevo escrito y verificado por `diff`/lectura, pendiente de ejecución real por
+  quien tenga acceso a Supabase (bloqueo operativo explícito, no silencioso). ✅
+- Suite local completa sin regresiones: 255/255 + 1478/1478. ✅
+- QA visual del camino local no tocado, verificado en el navegador. ✅
+- Informe actualizado (mismo documento, §12). ✅
+- Commit único + push a `origin/staging`. ✅ (este commit — ver `git log -1` sobre
+  `origin/staging`).
+- Ranking automático: no reabierto, sin cambios sobre lo ya validado en Staging real. ✅

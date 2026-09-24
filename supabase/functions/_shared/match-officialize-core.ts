@@ -361,6 +361,12 @@ export async function officializeMatch(
       p_companion_factor_b: context ? context.companionFactorB : null,
       p_result_players: resultPlayers,
       p_level_state_updates: levelStateUpdates,
+      // Pre-Production P0.1 (revisión central 24/09/2026) — mismo winnerTeam que localMatch ya
+      // trae (match-sync.js#deriveWinnerTeam, calculado arriba sobre setsForEngine/formatId de
+      // ESTA revisión): se persiste en matches.winner_team para agregados públicos seguros
+      // (get_public_profile), nunca una segunda derivación. Presente en los 4 triggers por
+      // igual — correction_accepted trae el score corregido, así que también corrige el ganador.
+      p_winner_team: localMatch.winnerTeam,
     };
     if (identityAction) {
       rpcParams.p_identity_issue_id = identityAction.issueId;
