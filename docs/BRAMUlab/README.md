@@ -46,7 +46,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 3 (Nivel productivo y persistente) está CERRADO** (19/09/2026): onboarding real con confirmación diferida, perfil mínimo, `level_states`/`level_events`, Edge Function `officialize-onboarding`, RPC privada, estimador universal `nivel_inicial_v1_2`, confirmación final y anticipada, refresh/reanudación, caminos rápido/completo, idempotencia y paridad navegador/servidor quedaron validados contra Supabase/Vercel Staging real. La corrida final sobre HEAD funcional `7b24979a` dio **BLOQUE 2 OK**, **BLOQUE 3 OK** y **PARIDAD OK**. Ver `Implementacion/Backend/Bloque_03/12_Cierre_Bloque_03.md` y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 
-Localidad, rama y `ranking_opt_in` siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking (sin cambios sobre lo ya alineado).
+Localidad y rama siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking. Desde 24/09/2026 la participación en Ranking es automática al cumplir elegibilidad; `ranking_opt_in` queda como compatibilidad legacy.
 
 **Bloque 4 (Jugadores, búsqueda e invitados provisionales) está CERRADO** (20/09/2026): búsqueda real autenticada, Perfil público server-backed, provisionales persistentes, link/claim de identidad, rate limiting y hardening de tablas server-only quedaron aplicados y validados contra Supabase/Vercel Staging real. La prueba manual final confirmó que un alta desde claim conserva exactamente el `player_id` provisional, el link es de un solo uso y el alta normal sin claim permanece independiente. Ver `Implementacion/Backend/Bloque_04/08_Validacion_Final_Staging.md` y `09_Cierre_Bloque_04.md`.
 
@@ -201,7 +201,7 @@ Reglas de experiencia/ciclo cerradas al 18/09/2026:
 
 - confirmación de email diferida hasta después de Perfil mínimo + estimador;
 - Perfil mínimo antes de Nivel: nombre + apellido + `@usuario` + términos;
-- localidad, rama y `ranking_opt_in` se vuelven obligatorios al entrar a Ranking, no antes;
+- localidad y rama se solicitan al entrar a Ranking, no antes; la participación en Ranking es automática al cumplir elegibilidad;
 - BRAMUlab carga únicamente partidos propios ya jugados; no hay carga por espectador ni marcador en vivo dentro de esta app;
 - carga retroactiva máxima: 14 días;
 - pendiente nunca validado: 30 días desde la carga aceptada por servidor;
