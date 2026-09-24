@@ -110,6 +110,68 @@ No reabrir fórmula de Ranking, densidad, publicación semanal, territorios ni N
 
 ---
 
+
+## P0.1C — Perfil editable server-backed
+
+**Fuentes maestras:** `Backend_Infraestructura.md`, `Experiencia_Inicial.md`, definición de contacto de V03.6 y contratos actuales de Auth/Perfil.
+
+**Motivo:** la pantalla `Editar datos` existe, pero para cuentas reales/server-backed el guardado está deliberadamente bloqueado y varios datos opcionales todavía no tienen persistencia de backend. Esto impide probar correctamente Mi Perfil, Perfil público, foto y contacto por WhatsApp.
+
+### Decisión de producto vigente
+
+Un usuario real debe poder completar y editar desde Perfil / Mis datos, sin bloquear Home:
+
+- nombre y apellido;
+- nombre visible/apodo cuando corresponda;
+- fecha de nacimiento;
+- género personal opcional;
+- mano dominante;
+- lado habitual;
+- localidad;
+- rama competitiva;
+- teléfono/WhatsApp;
+- consentimiento explícito para contacto por WhatsApp;
+- foto/avatar.
+
+Reglas:
+
+- `@usuario` permanece fijo para V1 salvo corrección administrativa; no convertir esta ronda en un cambio de identidad;
+- teléfono es dato privado;
+- cargar teléfono **no** activa consentimiento;
+- `allow_whatsapp_contact=false` por defecto;
+- Perfil público muestra `CONTACTAR POR WHATSAPP` solo si hay teléfono válido + consentimiento;
+- el número no se muestra visualmente;
+- quitar consentimiento oculta inmediatamente el contacto público;
+- foto/avatar es opcional y debe persistir entre sesiones/dispositivos;
+- no guardar una imagen base64 en la tabla; usar Storage y persistir una referencia segura;
+- cambios de Perfil no recalculan libremente Nivel BRAMU ni reescriben snapshots de Ranking.
+
+### Categoría declarada
+
+La UI histórica permite editar categoría, pero el backend actual la toma de `level_states` y forma parte del contexto/auditoría del Nivel inicial.
+
+En esta ronda:
+
+- trazar primero el contrato vigente;
+- **NO** recalcular `mu`, confidence, evidence ni reescribir eventos históricos por una edición de Perfil;
+- si no existe una vía semánticamente segura y ya definida para editar categoría, mantenerla temporalmente solo lectura en cuentas server-backed y marcarla como `DECISIÓN ABIERTA` no bloqueante;
+- no impedir por ese punto que todo el resto del Perfil quede editable.
+
+### Criterio de cierre
+
+La ronda no se cierra solo porque el formulario permita tocar campos. Debe verificarse que:
+
+- guardar persiste realmente en Supabase;
+- recargar / cerrar sesión / volver a entrar conserva los cambios;
+- Mi Perfil refleja los cambios;
+- Perfil público refleja únicamente los campos públicos;
+- WhatsApp respeta consentimiento;
+- avatar real funciona;
+- no se filtran email, fecha de nacimiento, teléfono sin consentimiento ni otros datos privados.
+
+---
+
+
 ## P0.2 — Reemplazar el placeholder legal por documentos reales
 
 El frontend vigente todavía dice:
@@ -213,7 +275,7 @@ Permitir acceso por `@usuario` puede evaluarse después de validar el lanzamient
 
 ## P0.5 — Bloque 9: endurecimiento y salida
 
-Después de cerrar P0.1, P0.1B y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
+Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.
 
@@ -367,7 +429,7 @@ Corregir en Staging únicamente problemas reales encontrados por Sebastián, pro
 
 BRAMU está lista para los primeros usuarios reales cuando:
 
-- P0.1, P0.1B y P0.2–P0.5 están cerrados;
+- P0.1, P0.1B, P0.1C y P0.2–P0.5 están cerrados;
 - no existen placeholders legales;
 - Production está limpia y separada;
 - Sebastián puede completar el recorrido real desde cuenta nueva hasta partido/validación/Intelligence sin intervención técnica;
