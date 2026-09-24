@@ -8,6 +8,11 @@
 -- (declaraba Bella Vista con 2 elegibles y en el mismo fixture agregaba un tercer elegible real
 -- a esa misma localidad) y no probaba nada de F2-C01/C02/C03/C04/C05 — ver
 -- 10_Revision_Central_Fase_2.md §7.
+--
+-- Pre-Production P0.1B (24/09/2026) — participación automática de Ranking: el fixture
+-- `optout_1` (ranking_opt_in=false) ahora se espera ELEGIBLE (antes probaba lo contrario). Los
+-- denominadores de Bella Vista M (2→3) y Global M (26→27, 27→28) se ajustan en consecuencia.
+-- Requiere también la migración 20260924100000_bloque7_fase6_ranking_automatic_participation.sql.
 
 begin;
 
@@ -268,10 +273,12 @@ begin
   select * into v_edition1 from public.compute_ranking_edition(v_cutoff1);
   if v_edition1.period_start_at <> v_cutoff1 - interval '7 days' then raise exception 'period_start_wrong'; end if;
 
-  -- F2-C02: Bella Vista M y F, cada uno insuficiente CON SU PROPIO denominador de 2.
+  -- F2-C02: Bella Vista M y F, cada uno insuficiente con su propio denominador. M queda en 3
+  -- (bv_m1/bv_m2 + optout_1, que desde P0.1B/24-09-2026 participa igual que cualquier elegible —
+  -- ver el bloque "opt-out" más abajo); F sigue en 2, sin ningún fixture de opt-out propio.
   if not exists (
     select 1 from public.ranking_rows where edition_id = v_edition1.edition_id and scope_type = 'local'
-      and player_id = v_p_bv_m1 and is_eligible and position is null and total_eligible = 2
+      and player_id = v_p_bv_m1 and is_eligible and position is null and total_eligible = 3
       and density_status = 'insufficient' and competitive_branch = 'M'
   ) then raise exception 'bv_m_density_wrong'; end if;
   if not exists (
@@ -337,11 +344,16 @@ begin
       and player_id = v_p_inactive and not is_eligible and eligibility_reason_codes ? 'inactive_180_days'
   ) then raise exception 'inactive_180_wrong'; end if;
 
-  -- opt-out.
+  -- P0.1B (24/09/2026) — participación automática: una cuenta legacy con `ranking_opt_in=false`
+  -- que cumple el resto de la elegibilidad (rama, ubicación verificada, CALIBRADO, actividad
+  -- reciente) queda EXACTAMENTE igual que una con opt-in true — nunca 'ranking_opt_in_false',
+  -- nunca excluida por ese motivo. Antes de esta ronda este mismo fixture probaba lo contrario
+  -- (ver git history); se invierte a propósito para dejar cubierta la regla nueva.
   if not exists (
     select 1 from public.ranking_rows where edition_id = v_edition1.edition_id and scope_type = 'local'
-      and player_id = v_p_optout and not is_eligible and eligibility_reason_codes ? 'ranking_opt_in_false'
-  ) then raise exception 'optout_wrong'; end if;
+      and player_id = v_p_optout and is_eligible and jsonb_array_length(eligibility_reason_codes) = 0
+      and not (eligibility_reason_codes ? 'ranking_opt_in_false')
+  ) then raise exception 'optout_should_be_eligible_under_automatic_participation'; end if;
 
   -- Ubicación no verificada: NO existe fila local/provincial/pais pero SÍ la fila Global.
   if exists (
@@ -395,9 +407,10 @@ begin
   ) then raise exception 'branch_change_after_cutoff_leaked_into_past_edition'; end if;
 
   -- Global LOCKED para ambas ramas (todo AR) — F2-C05: total_eligible REAL, nunca 0.
+  -- 27 = 26 + optout_1 (elegible desde P0.1B, ver bloque "opt-out" más arriba).
   if not exists (
     select 1 from public.ranking_rows where edition_id = v_edition1.edition_id and scope_type = 'global'
-      and competitive_branch = 'M' and density_status = 'locked' and position is null and total_eligible = 26
+      and competitive_branch = 'M' and density_status = 'locked' and position is null and total_eligible = 27
   ) then raise exception 'global_m_should_be_locked_with_real_total'; end if;
   if not exists (
     select 1 from public.ranking_rows where edition_id = v_edition1.edition_id and scope_type = 'global'
@@ -446,9 +459,10 @@ begin
     select 1 from public.ranking_rows where edition_id = v_edition2.edition_id and scope_type = 'global'
       and competitive_branch = 'M' and density_status = 'locked'
   ) then raise exception 'global_m_still_locked_with_two_countries'; end if;
+  -- 28 = 27 (edición 1, ya con optout_1 elegible) + cl_m1 nuevo.
   if not exists (
     select 1 from public.ranking_rows where edition_id = v_edition2.edition_id and scope_type = 'global'
-      and player_id = v_p_cl_m1 and is_eligible and position is not null and total_eligible = 27
+      and player_id = v_p_cl_m1 and is_eligible and position is not null and total_eligible = 28
   ) then raise exception 'global_m_unlocked_but_cl_player_without_position_or_wrong_total'; end if;
 
   -- La rama F NO se desbloquea por el país nuevo de M (F2-C02: independencia total) — sigue

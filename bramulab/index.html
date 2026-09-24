@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.10-h26" />
+<link rel="stylesheet" href="styles.css?v=04.10-h27" />
 </head>
 <body>
 
@@ -627,7 +627,7 @@
            `pastilla--link`); Actividad y Partidos totales quedan sin acción ni apariencia de
            botón. -->
       <div class="player-home-metrics-row">
-        <div class="pastilla pastilla--activity">
+        <div class="pastilla pastilla--activity" id="player-home-activity-card">
           <div class="pastilla__title">ACTIVIDAD</div>
           <div class="activity-bars" id="player-home-activity-bars"></div>
           <!-- V02.4 (Bloque A, §2.5) — leyenda chica y discreta: nunca compite con el total de
@@ -667,7 +667,7 @@
           <div class="pastilla-widget__value" id="widget-streak-value">—</div>
           <div class="pastilla-widget__caption" id="widget-streak-caption"></div>
         </div>
-        <div class="pastilla pastilla--widget">
+        <div class="pastilla pastilla--widget" id="widget-total-card">
           <div class="pastilla__title-row"><div class="pastilla__microlabel">Partidos totales</div></div>
           <div class="pastilla-widget__value" id="widget-total-value">—</div>
           <div class="pastilla-widget__caption" id="widget-total-caption"></div>
@@ -867,12 +867,15 @@
        showView('ranking') primero) — este overlay solo se superpone encima para atenuarla/
        bloquearla, nunca la reemplaza ni se abre antes de ella. Dos pasos dentro del MISMO
        overlay (nunca una pantalla nueva): #ranking-gate-step-intro (copy simple + CTA, lo único
-       visible al abrir) y #ranking-gate-step-form (rama/ubicación/opt-in, solo tras tocar el
-       CTA) — reutiliza exactamente los mismos componentes ya existentes: radios de rama
-       (`.option-row`/`.option-col`, igual que #signup-branch-options), fila de ubicación
-       (`.profile-select-row`, misma hoja #profile-location-sheet que Editar Datos) y el switch
-       de WhatsApp (`.toggle-switch`) — nunca CSS nuevo. Persiste EXCLUSIVAMENTE vía
-       complete_ranking_profile_data (nunca complete_profile, handoff Fase 5 §6). -->
+       visible al abrir) y #ranking-gate-step-form (rama/ubicación, solo tras tocar el CTA) —
+       reutiliza exactamente los mismos componentes ya existentes: radios de rama
+       (`.option-row`/`.option-col`, igual que #signup-branch-options) y fila de ubicación
+       (`.profile-select-row`, misma hoja #profile-location-sheet que Editar Datos) — nunca CSS
+       nuevo. Persiste EXCLUSIVAMENTE vía complete_ranking_profile_data (nunca complete_profile,
+       handoff Fase 5 §6).
+       Pre-Production P0.1B (24/09/2026) — Ranking pasa a participación automática: se retira el
+       switch "Quiero participar del Ranking BRAMU" que vivía acá (nunca existe un opt-in/opt-out
+       ordinario; `ranking_opt_in` queda como campo legacy server-side, sin UI propia). -->
   <div id="ranking-gate-modal-scrim" class="overlay" hidden>
     <div class="overlay__card">
       <div id="ranking-gate-step-intro">
@@ -899,15 +902,6 @@
               <span class="profile-select-row__value" id="ranking-gate-location-value">—</span>
             </span>
             <span class="profile-select-row__chevron" aria-hidden="true">›</span>
-          </button>
-        </div>
-        <div class="profile-toggle-row">
-          <div class="profile-toggle-row__text">
-            <span class="profile-toggle-row__label">Quiero participar del Ranking BRAMU</span>
-            <span class="profile-toggle-row__hint">Podés desactivarlo cuando quieras desde Mis Datos — tu Nivel BRAMU no cambia.</span>
-          </div>
-          <button type="button" id="ranking-gate-optin-toggle" class="toggle-switch" role="switch" aria-checked="false" aria-label="Quiero participar del Ranking BRAMU">
-            <span class="toggle-switch__thumb" aria-hidden="true"></span>
           </button>
         </div>
         <p class="edit-error" id="ranking-gate-error" hidden></p>
@@ -2617,42 +2611,42 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.10-h26"></script>
-  <script src="stats.js?v=04.10-h26"></script>
-  <script src="store.js?v=04.10-h26"></script>
+  <script src="engine.js?v=04.10-h27"></script>
+  <script src="stats.js?v=04.10-h27"></script>
+  <script src="store.js?v=04.10-h27"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.10-h26"></script>
-  <script src="level-context.js?v=04.10-h26"></script>
-  <script src="level-calibration.js?v=04.10-h26"></script>
-  <script src="player-home.js?v=04.10-h26"></script>
-  <script src="match-load.js?v=04.10-h26"></script>
-  <script src="player-identity.js?v=04.10-h26"></script>
-  <script src="groups.js?v=04.10-h26"></script>
-  <script src="locations.js?v=04.10-h26"></script>
-  <script src="ranking.js?v=04.10-h26"></script>
+  <script src="level.js?v=04.10-h27"></script>
+  <script src="level-context.js?v=04.10-h27"></script>
+  <script src="level-calibration.js?v=04.10-h27"></script>
+  <script src="player-home.js?v=04.10-h27"></script>
+  <script src="match-load.js?v=04.10-h27"></script>
+  <script src="player-identity.js?v=04.10-h27"></script>
+  <script src="groups.js?v=04.10-h27"></script>
+  <script src="locations.js?v=04.10-h27"></script>
+  <script src="ranking.js?v=04.10-h27"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.10-h26"></script>
+  <script src="auth.js?v=04.10-h27"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.10-h26"></script>
-  <script src="match-sync.js?v=04.10-h26"></script>
+  <script src="matches.js?v=04.10-h27"></script>
+  <script src="match-sync.js?v=04.10-h27"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.10-h26"></script>
+  <script src="match-validation.js?v=04.10-h27"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.10-h26"></script>
-  <script src="app.js?v=04.10-h26"></script>
+  <script src="intelligence-client.js?v=04.10-h27"></script>
+  <script src="app.js?v=04.10-h27"></script>
 </body>
 </html>

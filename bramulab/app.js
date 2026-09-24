@@ -6170,6 +6170,13 @@
    *  (función pura, testeada con los 4 casos del §10.1.5: incluye 1 derrota/0 victorias, que
    *  sigue dando `lossPct: 100`, nunca 0% de alto). */
   function renderPlayerActivity(matches, shouldAnimate) {
+    const card = $('#player-home-activity-card');
+    // Pre-Production P0.1 (Experiencia_Inicial.md §3.3) — Estado Cero (0 partidos oficiales)
+    // oculta la tarjeta ENTERA, nunca un estado vacío tipo "Sin partidos en las últimas 4
+    // semanas": esa leyenda sigue existiendo para el caso real de un jugador con historial
+    // pero sin actividad reciente (matches.length>0), no para un jugador sin ningún partido.
+    if (!matches.length) { card.hidden = true; return; }
+    card.hidden = false;
     const activity = PH.computeActivityWeeks4(matches, currentIdentity());
     const wrap = $('#player-home-activity-bars');
     const maxCount = Math.max(1, ...activity.buckets.map((b) => b.count));
@@ -6237,6 +6244,11 @@
    *  V02.9 (§1) — vuelve a ser UN SOLO halo (V02.8.1-8.3 habían llegado a dos, que apilados
    *  leían como un aro difuso — ver styles.css). */
   function renderPlayerEffectiveness(matches, shouldAnimate) {
+    const card = $('#player-home-effectiveness-card');
+    // Pre-Production P0.1 — Estado Cero oculta la tarjeta entera en vez de mostrar el donut
+    // apagado + "Sin partidos considerados" (Experiencia_Inicial.md §3.3).
+    if (!matches.length) { card.hidden = true; return; }
+    card.hidden = false;
     const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
     const ring = $('#player-home-effectiveness-ring');
     const glow = $('#player-home-effectiveness-glow');
@@ -6318,22 +6330,41 @@
    *  compañero (mayor efectividad con muestra mínima de 3, no el más repetido) y Rival más
    *  enfrentado (sin cambios respecto a Etapa 2/3). */
   function renderPlayerWidgets(matches) {
-    const streak = PH.computeCurrentStreak(matches, currentIdentity());
-    const total = matches.length;
-    const partner = PH.computeBestPartner(matches, currentIdentity());
-    const rival = PH.computeMostFrequentRival(matches, currentIdentity());
+    const streakCard = $('#widget-streak-card');
+    const totalCard = $('#widget-total-card');
+    const partnerCard = $('#widget-partner-card');
+    const rivalCard = $('#widget-rival-card');
 
-    $('#widget-streak-value').textContent = streak.count > 0 ? String(streak.count) : '—';
-    $('#widget-streak-caption').textContent = streak.count > 0 ? (streak.count === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Sin racha en curso';
+    // Pre-Production P0.1 (Experiencia_Inicial.md §5.2/§5.4) — Racha + Partidos totales son
+    // pareja visual: 0 partidos oficiales oculta las DOS tarjetas (nunca "Sin racha en curso"
+    // sin ningún historial); desde el primer partido válido ambas aparecen juntas, incluida la
+    // racha en estado neutro "—" cuando corresponda (eso sí es un dato real, no un placeholder).
+    const showRachaTotal = matches.length > 0;
+    streakCard.hidden = !showRachaTotal;
+    totalCard.hidden = !showRachaTotal;
+    if (showRachaTotal) {
+      const streak = PH.computeCurrentStreak(matches, currentIdentity());
+      const total = matches.length;
+      $('#widget-streak-value').textContent = streak.count > 0 ? String(streak.count) : '—';
+      $('#widget-streak-caption').textContent = streak.count > 0 ? (streak.count === 1 ? 'victoria seguida' : 'victorias seguidas') : 'Sin racha en curso';
+      $('#widget-total-value').textContent = String(total);
+      $('#widget-total-caption').textContent = total === 1 ? 'partido registrado' : 'partidos registrados';
+    }
 
-    $('#widget-total-value').textContent = String(total);
-    $('#widget-total-caption').textContent = total === 1 ? 'partido registrado' : 'partidos registrados';
-
-    $('#widget-partner-value').textContent = partner ? partner.name : '—';
-    $('#widget-partner-caption').textContent = partner ? `${partner.pct}% · ${partner.count} ${partner.count === 1 ? 'partido' : 'partidos'}` : 'Sin datos suficientes';
-
-    $('#widget-rival-value').textContent = rival ? rival.name : '—';
-    $('#widget-rival-caption').textContent = rival ? `${rival.count} ${rival.count === 1 ? 'enfrentamiento' : 'enfrentamientos'}` : 'Sin datos suficientes';
+    // §5.3/§5.4 — Mejor compañero + Rival más enfrentado son pareja visual y solo aparecen
+    // cuando AMBAS tarjetas producen un resultado legítimo según su propia regla (muestra
+    // mínima, etc.): nunca una tarjeta huérfana ni "Sin datos suficientes" como placeholder.
+    const partner = matches.length ? PH.computeBestPartner(matches, currentIdentity()) : null;
+    const rival = matches.length ? PH.computeMostFrequentRival(matches, currentIdentity()) : null;
+    const showPartnerRival = !!partner && !!rival;
+    partnerCard.hidden = !showPartnerRival;
+    rivalCard.hidden = !showPartnerRival;
+    if (showPartnerRival) {
+      $('#widget-partner-value').textContent = partner.name;
+      $('#widget-partner-caption').textContent = `${partner.pct}% · ${partner.count} ${partner.count === 1 ? 'partido' : 'partidos'}`;
+      $('#widget-rival-value').textContent = rival.name;
+      $('#widget-rival-caption').textContent = `${rival.count} ${rival.count === 1 ? 'enfrentamiento' : 'enfrentamientos'}`;
+    }
   }
 
   /** §7 — toda la tarjeta de "Último partido" es tocable: un solo listener delegado (no uno
@@ -8660,15 +8691,24 @@
     $('#player-public-side').textContent = (account && SIDE_LABELS[account.preferredSide]) || '—';
 
     const matches = PH.filterMatchesForPlayer(history, identity);
-    const eff = PH.computeEffectivenessTotal(matches, identity);
-    renderPlayerPublicEffectivenessDonut(eff);
-    $('#player-public-played').textContent = String(matches.length);
-    $('#player-public-won').textContent = String(eff.wins);
+    // Pre-Production P0.1 (Experiencia_Inicial.md §6) — con 0 partidos oficiales, Perfil
+    // público oculta por completo Efectividad/jugados-ganados y la fila Mejor racha/Mejor
+    // nivel BRAMU (nunca "0"/"—" mostrado como si fuera un dato real); nunca inventa una
+    // posición de Ranking (eso ya lo garantiza renderRankingCardForAccount, sin cambios).
+    const hasOfficialMatches = matches.length > 0;
+    $('#player-public-effectiveness-card').hidden = !hasOfficialMatches;
+    $('#player-public-performance-row').hidden = !hasOfficialMatches;
+    if (hasOfficialMatches) {
+      const eff = PH.computeEffectivenessTotal(matches, identity);
+      renderPlayerPublicEffectivenessDonut(eff);
+      $('#player-public-played').textContent = String(matches.length);
+      $('#player-public-won').textContent = String(eff.wins);
 
-    const bestStreakRange = PH.computeBestWinStreakRange(matches, identity);
-    $('#player-public-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
-    $('#player-public-best-streak-range').hidden = !bestStreakRange;
-    if (bestStreakRange) $('#player-public-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
+      const bestStreakRange = PH.computeBestWinStreakRange(matches, identity);
+      $('#player-public-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
+      $('#player-public-best-streak-range').hidden = !bestStreakRange;
+      if (bestStreakRange) $('#player-public-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
+    }
 
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 2) — BUG REAL: una cuenta real (V03.0,
     // no legacy) sin partidos considerados todavía recibía acá un Nivel simulado por hash
@@ -8986,29 +9026,36 @@
     // #mi-perfil-played (bloque RENDIMIENTO, más abajo).
 
     // MI PERFIL — KPIs ya disponibles (misma fuente que el Home, nunca una segunda fórmula).
-    // V03.1 (§6/§7) — Efectividad pasa de texto a donut protagonista (mismo componente visual
-    // que la tarjeta de Efectividad del Home, ver renderProfileEffectivenessDonut); Partidos
-    // jugados/ganados se muestran aparte, así que acá nunca se repite "14/18".
-    const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
-    renderProfileEffectivenessDonut(eff);
-    // V03.1 (§8/§10) — "principio de datos positivos": nunca un texto sobre la derrota (ni
-    // siquiera "Sin racha en curso") — un simple "—" cuando no hay racha positiva en curso.
-    const streak = PH.computeCurrentStreak(matches, currentIdentity());
-    $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : '—';
+    // Pre-Production P0.1 (Experiencia_Inicial.md §5.6) — con 0 partidos oficiales, TODO el
+    // bloque RENDIMIENTO (Efectividad/jugados/ganados/racha/mejor racha) se oculta por completo
+    // en vez de mostrar ceros/"—" como si fueran datos reales; identidad/@usuario/Nivel inicial
+    // (fuera de #profile-kpis) nunca se ocultan.
+    $('#profile-kpis').hidden = matches.length === 0;
+    if (matches.length > 0) {
+      // V03.1 (§6/§7) — Efectividad pasa de texto a donut protagonista (mismo componente visual
+      // que la tarjeta de Efectividad del Home, ver renderProfileEffectivenessDonut); Partidos
+      // jugados/ganados se muestran aparte, así que acá nunca se repite "14/18".
+      const eff = PH.computeEffectivenessTotal(matches, currentIdentity());
+      renderProfileEffectivenessDonut(eff);
+      // V03.1 (§8/§10) — "principio de datos positivos": nunca un texto sobre la derrota (ni
+      // siquiera "Sin racha en curso") — un simple "—" cuando no hay racha positiva en curso.
+      const streak = PH.computeCurrentStreak(matches, currentIdentity());
+      $('#profile-kpi-streak').textContent = streak.count > 0 ? `${streak.count} ${streak.count === 1 ? 'victoria seguida' : 'victorias seguidas'}` : '—';
 
-    // V03.0.3 (§3) — "rendimiento ya calculable": jugados/ganados/mejor racha, misma fuente
-    // que el resto de la app (PH.computeEffectivenessTotal ya cuenta ganados; computeBestWinStreak
-    // ya existía —usado por Hitos— pero nunca se había expuesto en Perfil). Nunca una fórmula
-    // nueva.
-    $('#mi-perfil-played').textContent = String(matches.length);
-    $('#mi-perfil-won').textContent = String(eff.wins);
-    // V03.1 (§9) — "Mejor racha" suma contexto temporal breve (mes o rango de meses del tramo
-    // real que definió esa racha) vía PH.computeBestWinStreakRange — mismo dato de siempre
-    // (computeBestWinStreak), con su fecha real, nunca una fórmula nueva.
-    const bestStreakRange = PH.computeBestWinStreakRange(matches, currentIdentity());
-    $('#mi-perfil-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
-    $('#mi-perfil-best-streak-range').hidden = !bestStreakRange;
-    if (bestStreakRange) $('#mi-perfil-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
+      // V03.0.3 (§3) — "rendimiento ya calculable": jugados/ganados/mejor racha, misma fuente
+      // que el resto de la app (PH.computeEffectivenessTotal ya cuenta ganados; computeBestWinStreak
+      // ya existía —usado por Hitos— pero nunca se había expuesto en Perfil). Nunca una fórmula
+      // nueva.
+      $('#mi-perfil-played').textContent = String(matches.length);
+      $('#mi-perfil-won').textContent = String(eff.wins);
+      // V03.1 (§9) — "Mejor racha" suma contexto temporal breve (mes o rango de meses del tramo
+      // real que definió esa racha) vía PH.computeBestWinStreakRange — mismo dato de siempre
+      // (computeBestWinStreak), con su fecha real, nunca una fórmula nueva.
+      const bestStreakRange = PH.computeBestWinStreakRange(matches, currentIdentity());
+      $('#mi-perfil-best-streak').textContent = bestStreakRange ? `${bestStreakRange.count} ${bestStreakRange.count === 1 ? 'victoria' : 'victorias'}` : '—';
+      $('#mi-perfil-best-streak-range').hidden = !bestStreakRange;
+      if (bestStreakRange) $('#mi-perfil-best-streak-range').textContent = formatStreakRangeLabel(bestStreakRange.startDate, bestStreakRange.endDate);
+    }
 
     // MIS DATOS — Identidad (V03.1 §15: compacta, foto a la izquierda, nombre+apellido en UNA
     // línea — nombre y apellido siguen siendo 2 campos reales/editables por separado, ver
@@ -9401,23 +9448,25 @@
 
   /** Backend Bloque 7 (Fase 5, corrección F5-C02 — Ranking_BRAMU.md §13.7.A, corrige la
    *  implementación original de Fase 5 que abría el modal ANTES de entrar a Ranking): para una
-   *  cuenta real (`serverBacked`) con backend configurado, faltar localidad/rama competitiva/
-   *  `ranking_opt_in` NUNCA oculta la entrada a Ranking — la pantalla se renderiza y se muestra
-   *  igual (ver `openRankingScreen`), y este overlay se superpone ENCIMA para atenuarla/
-   *  bloquearla, con un modal simple (copy + CTA) como primer paso. Cuentas locales/legacy o sin
-   *  backend configurado no tienen este gate — siguen con el estado `sin-ubicacion` histórico
-   *  dentro de la propia pantalla (computeSelfStatus), que ya cubre ese caso para ese modelo (sin
-   *  rama/opt-in, que ahí no existen). */
+   *  cuenta real (`serverBacked`) con backend configurado, faltar localidad/rama competitiva
+   *  NUNCA oculta la entrada a Ranking — la pantalla se renderiza y se muestra igual (ver
+   *  `openRankingScreen`), y este overlay se superpone ENCIMA para atenuarla/bloquearla, con un
+   *  modal simple (copy + CTA) como primer paso. Cuentas locales/legacy o sin backend
+   *  configurado no tienen este gate — siguen con el estado `sin-ubicacion` histórico dentro de
+   *  la propia pantalla (computeSelfStatus), que ya cubre ese caso para ese modelo (sin rama,
+   *  que ahí no existe).
+   *  Pre-Production P0.1B (24/09/2026) — Ranking pasa a participación automática: el gate ya NO
+   *  pide `ranking_opt_in` (nunca existió un opt-in/opt-out ordinario en la UI real; el campo
+   *  queda como compatibilidad legacy server-side, ver Ranking_BRAMU.md §"Actualización del 24
+   *  de septiembre"). Solo rama y localidad son datos faltantes reales. */
   function rankingGateMissingFields(user) {
     const missing = [];
     if (!user.competitiveBranch) missing.push('branch');
-    if (user.rankingOptIn !== true) missing.push('optIn');
     if (!user.locality) missing.push('location');
     return missing;
   }
 
   let rankingGateBranch = null;
-  let rankingGateOptIn = false;
   let rankingGateLocation = null;
 
   function updateRankingGateLocationRowDisplay() {
@@ -9447,7 +9496,6 @@
   function openRankingGateModal() {
     const user = Store.getCurrentUser();
     rankingGateBranch = (user && (user.competitiveBranch === 'F' || user.competitiveBranch === 'M')) ? user.competitiveBranch : null;
-    rankingGateOptIn = !!(user && user.rankingOptIn === true);
     // Corrección F5-C01 — construcción extraída a RK.buildGateLocationFromUser (pura,
     // testeada): antes vivía inline acá SIN provinceId/localityId, ver su comentario en
     // ranking.js para el bug real que esto corrige.
@@ -9458,8 +9506,6 @@
       if (btn) { btn.classList.add('is-selected'); btn.setAttribute('aria-checked', 'true'); }
     }
     updateRankingGateLocationRowDisplay();
-    $('#ranking-gate-optin-toggle').classList.toggle('is-on', rankingGateOptIn);
-    $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
     $('#ranking-gate-error').hidden = true;
     showRankingGateStep('intro');
     $('#ranking-gate-modal-scrim').hidden = false;
@@ -9472,9 +9518,12 @@
 
   /** Códigos de excepción tal cual los levanta `complete_ranking_profile_data` (ver
    *  supabase/migrations/20260922140000_bloque7_fase2_ranking_calculation.sql) — mismo criterio
-   *  que COMPLETE_PROFILE_ERROR_TEXT para complete_profile. */
+   *  que COMPLETE_PROFILE_ERROR_TEXT para complete_profile.
+   *  Pre-Production P0.1B — `ranking_opt_in_required` nunca debería dispararse ya que
+   *  `submitRankingGateModal` siempre envía `rankingOptIn: true` (no hay más UI de opt-in);
+   *  el texto queda solo como fallback defensivo, igual que `no_player_for_session`/etc. */
   const RANKING_GATE_ERROR_TEXT = {
-    ranking_opt_in_required: 'Elegí si querés participar del Ranking BRAMU.',
+    ranking_opt_in_required: 'No pudimos guardar tus datos de Ranking. Probá de nuevo.',
     competitive_branch_invalid: 'Elegí tu rama competitiva.',
     location_required: 'Elegí tu localidad principal de juego.',
     location_change_cooldown: 'Ya cambiaste tu ubicación hace poco — vas a poder volver a cambiarla más adelante.',
@@ -9493,7 +9542,9 @@
     btn.disabled = true;
     const result = await Auth.completeRankingProfileData({
       competitiveBranch: rankingGateBranch,
-      rankingOptIn: rankingGateOptIn,
+      // Pre-Production P0.1B — participación automática: ya no existe un toggle de opt-in en
+      // la UI, se envía siempre `true` (ver rankingGateMissingFields/openRankingGateModal).
+      rankingOptIn: true,
       location: rankingGateLocation,
     });
     btn.disabled = false;
@@ -9517,8 +9568,8 @@
 
   function initRankingGateModal() {
     $('#ranking-gate-start-btn').addEventListener('click', () => showRankingGateStep('form'));
-    // "AHORA NO"/"VOLVER" — nunca guardan nada parcial (rankingGateBranch/OptIn/Location solo
-    // se envían al servidor dentro de submitRankingGateModal): cerrar el overlay simplemente
+    // "AHORA NO"/"VOLVER" — nunca guardan nada parcial (rankingGateBranch/Location solo se
+    // envían al servidor dentro de submitRankingGateModal): cerrar el overlay simplemente
     // revela la pantalla Ranking que ya estaba renderizada detrás, tal cual haya quedado
     // (bloqueada por su propio estado "faltan datos" hasta que el usuario complete el gate). El
     // back real (`#ranking-back-btn`, siempre a Home) sigue disponible ahí debajo sin cambios.
@@ -9535,11 +9586,6 @@
       set: (loc) => { rankingGateLocation = loc; },
       onSelect: updateRankingGateLocationRowDisplay,
     }));
-    $('#ranking-gate-optin-toggle').addEventListener('click', () => {
-      rankingGateOptIn = !rankingGateOptIn;
-      $('#ranking-gate-optin-toggle').classList.toggle('is-on', rankingGateOptIn);
-      $('#ranking-gate-optin-toggle').setAttribute('aria-checked', String(rankingGateOptIn));
-    });
     $('#ranking-gate-save-btn').addEventListener('click', submitRankingGateModal);
   }
 
