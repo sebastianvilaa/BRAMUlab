@@ -1,3 +1,5 @@
+> **REEMPLAZADO / NO EJECUTAR:** este handoff fue absorbido por `07_Handoff_P0_1_Ranking_Automatico_Claude.md` el 24/09/2026.
+
 # Pre-Production P0.1 — Handoff Estado Cero + perfiles progresivos — Claude Code
 
 **Fecha:** 23/09/2026  
