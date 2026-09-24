@@ -149,29 +149,18 @@ Para los primeros usuarios puede resolverse de forma asistida por soporte, pero 
 
 ---
 
-## P0.4 — Resolver contradicción de acceso: email vs. @usuario
+## P0.4 — Acceso V1 — DECISIÓN CERRADA
 
-La fuente maestra vigente todavía dice:
+Para la primera salida productiva:
 
-- método inicial: **email + contraseña**.
+- login: **email + contraseña**;
+- recuperación: email + flujo OTP vigente;
+- `@usuario`: identidad pública/buscable dentro de BRAMU, **no credencial de acceso V1**;
+- el email continúa siendo privado frente a otros jugadores.
 
-En una decisión de producto posterior se aceptó la dirección:
+No reabrir Auth antes de Production para agregar login por `@usuario`.
 
-- login/recuperación mediante `@usuario` sin tener que exponer el email como identificador visible.
-
-Esto **no está consolidado en la fuente maestra** y el código actual continúa basado en email.
-
-### DECISIÓN ABIERTA
-
-Antes de Production hay que elegir y documentar una sola regla:
-
-**A.** mantener email + contraseña como login V1; `@usuario` sigue siendo identidad pública/buscable;
-
-o
-
-**B.** permitir `@usuario` como identificador de acceso/recuperación, manteniendo el email privado por debajo.
-
-No modificar Auth hasta resolver esta contradicción.
+Permitir acceso por `@usuario` puede evaluarse después de validar el lanzamiento inicial, como mejora independiente y sin cambiar la identidad pública existente.
 
 ---
 
