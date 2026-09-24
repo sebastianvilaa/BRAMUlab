@@ -247,39 +247,60 @@ Para probar calibración completa de Nivel, preparar después un escenario contr
 
 ## 11. Cuentas sintéticas de QA — decisión confirmada
 
-Para las pruebas de Staging se prefiere usar cuentas controladas por BRAMU en lugar de depender de emails personales.
+**QA = Quality Assurance / control de calidad.** Es una etiqueta interna para distinguir estas cuentas sintéticas de personas reales. No es una función de la app ni tiene que aparecer en el producto final.
 
-Esquema recomendado:
+Para las pruebas de Staging se prefiere un set fijo de cuentas controladas por BRAMU, sin depender de emails personales.
 
-- `Seba QA`
-- `Matu QA`
-- `Agus QA`
-- `Guti QA`
-- `Esteban QA`
+Set estándar de 8 identidades sintéticas:
 
-Las cuentas pueden utilizar alias de la casilla de BRAMU mediante plus-addressing, por ejemplo:
+- Seba QA
+- Matu QA
+- Gusti QA
+- Esteban QA
+- Lucho QA
+- Jonah QA
+- Diego QA
+- Pablito QA
 
-- `bramulab+seba@gmail.com`
-- `bramulab+matu@gmail.com`
-- etc.
+Convención recomendada:
+
+- nombre visible: `Seba QA`, `Matu QA`, etc.;
+- @usuario: `@seba_qa`, `@matu_qa`, etc. (si alguno ya existe, usar una variante inequívoca y documentarla);
+- email: alias de la casilla de BRAMU mediante plus-addressing, por ejemplo `bramulab+sebaqa@gmail.com`, `bramulab+matuqa@gmail.com`, etc.
 
 Reglas:
 
 - son cuentas sintéticas de Staging, no personas reales ni futuros usuarios;
-- usar nombres con sufijo `QA` / `Test` para no confundirlas con identidades reales o provisionales;
+- no usar datos personales innecesarios de amigos reales;
 - pueden compartir una misma contraseña **solo si es una contraseña exclusiva de testing**, nunca reutilizada de cuentas personales ni de Production;
 - la contraseña no se guarda en documentación ni se comparte por chat;
 - estas cuentas pueden resetearse/eliminarse libremente dentro de Staging cuando una prueba lo requiera;
-- Production nunca se siembra con estas cuentas.
+- Production nunca se siembra con estas cuentas;
+- para Nivel se pueden usar respuestas sintéticas/controladas para producir distintos puntos de partida, siempre dejando claro que son fixtures de QA y no autoevaluaciones reales.
 
-Con cinco cuentas controladas alcanza para probar:
+Con ocho cuentas controladas alcanza holgadamente para probar:
 
+- partidos completos de dobles;
 - validación por parejas;
 - correcciones;
 - `No participé`;
-- claims/provisionales;
-- diversidad de rivales para calibración de Nivel;
+- identidades provisionales/claims;
+- diversidad de rivales suficiente para calibración de Nivel;
 - perfiles públicos;
-- Ranking/eligibilidad cuando corresponda.
+- Ranking/eligibilidad cuando corresponda;
+- escenarios cruzados sin depender de cuentas personales.
 
 Las cuentas personales de Sebastián quedan fuera del set estándar de QA salvo que una prueba específica lo requiera.
+
+### Creación
+
+Crear primero **una sola cuenta piloto** para confirmar que:
+
+- Supabase acepta el alias con `+`;
+- el OTP llega correctamente a la casilla central;
+- el onboarding rápido puede completarse;
+- la cuenta queda identificable y separada.
+
+Solo después crear las otras siete.
+
+La intervención debe agrupar cualquier dato que requiera Sebastián (por ejemplo atributos de Perfil o objetivo aproximado de Nivel) en una única consulta, no preguntar cuenta por cuenta.
