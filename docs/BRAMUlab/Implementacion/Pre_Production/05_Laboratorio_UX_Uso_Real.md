@@ -351,3 +351,56 @@ Se prioriza esta secuencia:
 Motivo: evita gastar tiempo evaluando pantallas que ya sabemos que van a cambiar y permite que el testing posterior sea más representativo de la experiencia real.
 
 Las cuentas sintéticas siguen siendo el universo recomendado de QA, pero su creación puede diferirse hasta que aporte evidencia útil.
+
+
+## 13. Hallazgos preliminares antes de la ronda de implementación — 24/09/2026
+
+### 13.1 Participación en Ranking
+
+**Clasificación:** PRODUCTO — posible cambio de una decisión vigente.
+
+Estado documental actual:
+
+- `Ranking_BRAMU.md` exige `ranking_opt_in` para ocupar posición;
+- `Experiencia_Inicial.md` lo trata como dato competitivo que se completa al entrar a Ranking;
+- la documentación vigente no lo identifica como una obligación legal específica: aparece como decisión de producto/privacidad.
+
+Nueva dirección propuesta por Sebastián:
+
+- un usuario de BRAMU no debería tener que elegir “participar sí/no” en Ranking;
+- Ranking sería una consecuencia normal de usar BRAMU cuando el jugador cumpla elegibilidad;
+- seguirían siendo necesarios los datos objetivos para ubicarlo correctamente, como localidad/rama y Nivel calibrado.
+
+**Estado:** PROPUESTA MUY AVANZADA, pendiente de confirmación explícita antes de modificar la fuente maestra de Ranking y el contrato backend.
+
+Si se confirma, no resolver solo visualmente: revisar `ranking_opt_in` en elegibilidad, gate, RPCs, schema/histórico y UI para retirar la pregunta sin romper snapshots existentes.
+
+### 13.2 Pantalla de validación/confirmación de partido
+
+**Clasificación:** UX / VISUAL.
+
+La lógica vigente ya define la jerarquía funcional:
+
+1. `Confirmar` — primaria;
+2. `Proponer corrección` — secundaria;
+3. `No participé` — excepcional y de menor jerarquía.
+
+Sebastián no cuestiona por ahora esa lógica, sino la composición visual actual: pantalla, distribución y botones no se sienten bien; imagina una solución más cercana a un modal/popup o una presentación más compacta.
+
+**Estado:** PENDIENTE DE EVALUACIÓN VISUAL.
+
+No rediseñar a ciegas. Revisar con captura/flujo real en Laboratorio UX antes de pasar una instrucción a implementación.
+
+### 13.3 Acción central `+` para cargar partido
+
+**Clasificación:** YA DEFINIDO / verificar posible regresión o entorno viejo.
+
+La decisión vigente ya es:
+
+- BRAMUlab registra solo partidos propios ya jugados;
+- BRAMUlive contiene el registro/marcador en vivo;
+- el acceso `+` de BRAMUlab debe ir directamente a `Cargar mi partido`, sin menú de dos opciones.
+
+Además, el código vigente de `staging` enlaza el FAB central directamente a `data-nav="manual-load"`.
+
+Si una instalación/pantalla todavía muestra dos botones, no reabrir producto: comprobar si corresponde a PWA/cache/deploy antiguo o una regresión concreta del entorno usado.
