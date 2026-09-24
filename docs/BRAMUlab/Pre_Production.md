@@ -135,17 +135,30 @@ Sí hace falta:
 - quién puede ejecutar la operación;
 - cómo se audita.
 
-### DECISIÓN ABIERTA real
+### Reingreso después de eliminación — DECISIÓN CERRADA V1
 
-**Reingreso después de eliminación / prevención de “reset competitivo”.**
+Para la primera salida:
 
-Ya está decidido que borrar y volver no debe convertirse en una carrera nueva desde cero.
+- eliminar la cuenta elimina/desactiva acceso, perfil e identificadores personales;
+- los partidos compartidos permanecen para no destruir la historia de terceros;
+- la participación histórica pasa a mostrarse como **`Jugador eliminado`**;
+- no se conserva el nombre visible de la persona eliminada en esas superficies;
+- la identidad deportiva eliminada **no se recupera ni se revincula**;
+- si la persona vuelve, incluso al día siguiente, crea una **identidad nueva desde cero**;
+- no se implementa cooldown de 30 días, hash/HMAC de email ni huella antifraude en V1.
 
-Todavía no existe una regla maestra consolidada sobre **cómo reconocer y resolver ese reingreso sin conservar información personal innecesaria**.
+Riesgo aceptado V1:
 
-No implementar huellas antifraude ni hashes de identidad personales por iniciativa técnica.
+- una persona podría intentar resetear su carrera creando una cuenta nueva después de eliminar la anterior.
 
-Para los primeros usuarios puede resolverse de forma asistida por soporte, pero la política exacta debe quedar cerrada antes de documentar el procedimiento final.
+Decisión de producto:
+
+- aceptar ese riesgo en la etapa inicial es preferible a introducir retención extra de identificadores o un sistema antiabuso no validado;
+- si aparece abuso real, se diseña después una política específica y se revisa su impacto legal/privacidad.
+
+Idea futura no bloqueante:
+
+- evaluar un período de espera (por ejemplo 30 días) u otra política anti-reset, solo si existe evidencia real de abuso y con criterio de privacidad explícito.
 
 ---
 
