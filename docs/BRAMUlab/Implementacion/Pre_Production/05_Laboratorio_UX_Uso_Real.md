@@ -247,36 +247,79 @@ Para probar calibración completa de Nivel, preparar después un escenario contr
 
 ## 11. Cuentas sintéticas de QA — decisión confirmada
 
-**QA = Quality Assurance / control de calidad.** Es una etiqueta interna para distinguir estas cuentas sintéticas de personas reales. No es una función de la app ni tiene que aparecer en el producto final.
+**QA = Quality Assurance / control de calidad.** Es una etiqueta interna para distinguir cuentas sintéticas de usuarios reales. No forma parte del producto final.
 
-Para las pruebas de Staging se prefiere un set fijo de cuentas controladas por BRAMU, sin depender de emails personales.
+Para Staging se adopta un set fijo de ocho cuentas sintéticas controladas por BRAMU:
 
-Set estándar de 8 identidades sintéticas:
+- Seba
+- Matu
+- Gusti
+- Esteban
+- Lucho
+- Jonah
+- Diego
+- Pablito
 
-- Seba QA
-- Matu QA
-- Gusti QA
-- Esteban QA
-- Lucho QA
-- Jonah QA
-- Diego QA
-- Pablito QA
+### Convención de identidad
 
-Convención recomendada:
+La experiencia visible debe parecer la de usuarios normales:
 
-- nombre visible: `Seba QA`, `Matu QA`, etc.;
-- @usuario: `@seba_qa`, `@matu_qa`, etc. (si alguno ya existe, usar una variante inequívoca y documentarla);
-- email: alias de la casilla de BRAMU mediante plus-addressing, por ejemplo `bramulab+sebaqa@gmail.com`, `bramulab+matuqa@gmail.com`, etc.
+- nombre visible: nombre habitual, sin sufijo QA;
+- @usuario: incluir `_qa` para distinguir inequívocamente la cuenta sintética, por ejemplo `@seba_qa`;
+- email: usar plus-addressing de la casilla central **sin agregar QA al alias**, por ejemplo `bramulab+seba@gmail.com`, `bramulab+matu@gmail.com`, etc.
 
-Reglas:
+Set objetivo de emails:
 
-- son cuentas sintéticas de Staging, no personas reales ni futuros usuarios;
-- no usar datos personales innecesarios de amigos reales;
-- pueden compartir una misma contraseña **solo si es una contraseña exclusiva de testing**, nunca reutilizada de cuentas personales ni de Production;
-- la contraseña no se guarda en documentación ni se comparte por chat;
-- estas cuentas pueden resetearse/eliminarse libremente dentro de Staging cuando una prueba lo requiera;
-- Production nunca se siembra con estas cuentas;
-- para Nivel se pueden usar respuestas sintéticas/controladas para producir distintos puntos de partida, siempre dejando claro que son fixtures de QA y no autoevaluaciones reales.
+- `bramulab+seba@gmail.com`
+- `bramulab+matu@gmail.com`
+- `bramulab+gusti@gmail.com`
+- `bramulab+esteban@gmail.com`
+- `bramulab+lucho@gmail.com`
+- `bramulab+jonah@gmail.com`
+- `bramulab+diego@gmail.com`
+- `bramulab+pablito@gmail.com`
+
+### Perfil de prueba
+
+Estas cuentas deben quedar lo más completas posible para que sirvan también para Perfil y recorridos posteriores.
+
+Antes de crearlas, Work debe hacer **una sola consulta agrupada** a Sebastián con todos los datos que falten para las ocho identidades, por ejemplo:
+
+- nombre y apellido;
+- fecha de nacimiento aproximada/sintética si se quiere probar edad;
+- mano dominante;
+- lado preferido;
+- cualquier otro dato de Perfil que la UI vigente permita completar;
+- objetivo aproximado de Nivel inicial o respuestas del cuestionario necesarias para generar niveles distintos.
+
+No preguntar cuenta por cuenta si puede resolverse en una sola tabla.
+
+Los datos pueden ser sintéticos o aproximados; no deben presentarse como datos reales de las personas cuyos nombres se usan como referencia.
+
+### Credencial de testing
+
+Las ocho cuentas pueden compartir la misma contraseña **solo en Staging**, siempre que sea una contraseña exclusiva de testing y no reutilizada en cuentas personales ni Production.
+
+Si Sebastián decide compartir esa contraseña con Work para automatizar el alta, Work puede usarla dentro de esa sesión operativa, pero:
+
+- no debe escribirla en el repositorio;
+- no debe incluirla en informes;
+- no debe persistirla en documentación;
+- no debe usarla fuera de Staging.
+
+### Creación
+
+Work puede crear las ocho cuentas en una sola ronda de trabajo, pero antes debe:
+
+1. confirmar que `bramulab+seba@gmail.com` recibe correctamente el primer OTP en la casilla central;
+2. si el alias funciona, continuar con las otras siete;
+3. completar onboarding/perfil según los datos acordados;
+4. verificar que cada cuenta tenga identidad separada y el @usuario correcto;
+5. dejar constancia de qué cuentas quedaron creadas y cualquier incidencia, sin registrar contraseñas.
+
+No crear usuarios directamente por SQL/Admin si el objetivo es validar también el flujo real de alta.
+
+### Uso
 
 Con ocho cuentas controladas alcanza holgadamente para probar:
 
@@ -291,16 +334,3 @@ Con ocho cuentas controladas alcanza holgadamente para probar:
 - escenarios cruzados sin depender de cuentas personales.
 
 Las cuentas personales de Sebastián quedan fuera del set estándar de QA salvo que una prueba específica lo requiera.
-
-### Creación
-
-Crear primero **una sola cuenta piloto** para confirmar que:
-
-- Supabase acepta el alias con `+`;
-- el OTP llega correctamente a la casilla central;
-- el onboarding rápido puede completarse;
-- la cuenta queda identificable y separada.
-
-Solo después crear las otras siete.
-
-La intervención debe agrupar cualquier dato que requiera Sebastián (por ejemplo atributos de Perfil o objetivo aproximado de Nivel) en una única consulta, no preguntar cuenta por cuenta.
