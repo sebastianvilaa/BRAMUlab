@@ -358,3 +358,41 @@ confundiendo cualquier QA inmediata de este cambio. `Store.VERSION`/`version.jso
 - Commit único + push a `origin/staging`. ✅ (este commit — ver `git log -1` sobre
   `origin/staging`).
 - Ranking automático: no reabierto, sin cambios sobre lo ya validado en Staging real. ✅
+
+
+---
+
+## 13. Revisión central final de backend — 24/09/2026
+
+ChatGPT central ejecutó en Supabase **bramulab-staging** lo que había quedado pendiente de la ronda 2:
+
+- migración `bloque6_public_match_outcomes` aplicada correctamente;
+- versión registrada por Supabase: `20260924202303`;
+- runner `verify-bloque6-public-match-outcomes.sql` ejecutado completo;
+- resultado: **PASS — rollback limpio**;
+- `matches.winner_team`, la nueva firma de `officialize_match_validation` y los agregados de `get_public_profile` quedaron verificados contra Staging real.
+
+Como `match-officialize-core.ts` es dependencia compartida, también se redeployaron en Staging todas las Edge Functions que la importan:
+
+- `officialize-match` → ACTIVE v2;
+- `create-or-attach-match` → ACTIVE v3;
+- `respond-match-correction` → ACTIVE v2;
+- `resolve-identity-issue` → ACTIVE v2;
+- `admin-resolve-identity-issue` → ACTIVE v2.
+
+Se conservaron sus configuraciones de JWT previas.
+
+El advisor de seguridad posterior no introdujo un aviso nuevo atribuible a esta migración; permanecen los advisories ya conocidos del proyecto.
+
+### Estado de P0.1
+
+Backend y contratos necesarios: **VALIDADOS EN STAGING**.
+
+Queda únicamente **QA visual/funcional de navegador sobre Staging real** para confirmar:
+
+- Estado Cero real;
+- Mi Perfil progresivo;
+- Perfil público real con 0 y con 1+ partidos;
+- Ranking sin opt-in.
+
+Esa QA debe aprovechar las cuentas sintéticas ya planificadas y no requiere otra ronda de implementación salvo regresión concreta.
