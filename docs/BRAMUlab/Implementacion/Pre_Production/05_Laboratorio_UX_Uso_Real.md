@@ -357,7 +357,7 @@ Las cuentas sintéticas siguen siendo el universo recomendado de QA, pero su cre
 
 ### 13.1 Participación en Ranking
 
-**Clasificación:** PRODUCTO — posible cambio de una decisión vigente.
+**Clasificación:** PRODUCTO — decisión confirmada.
 
 Estado documental actual:
 
@@ -371,9 +371,17 @@ Nueva dirección propuesta por Sebastián:
 - Ranking sería una consecuencia normal de usar BRAMU cuando el jugador cumpla elegibilidad;
 - seguirían siendo necesarios los datos objetivos para ubicarlo correctamente, como localidad/rama y Nivel calibrado.
 
-**Estado:** PROPUESTA MUY AVANZADA, pendiente de confirmación explícita antes de modificar la fuente maestra de Ranking y el contrato backend.
+**Estado:** CONFIRMADO — 24/09/2026.
 
-Si se confirma, no resolver solo visualmente: revisar `ranking_opt_in` en elegibilidad, gate, RPCs, schema/histórico y UI para retirar la pregunta sin romper snapshots existentes.
+Nueva regla vigente:
+
+- todo jugador activo participa automáticamente del Ranking cuando cumple elegibilidad;
+- no existe opt-in/opt-out ordinario;
+- al entrar a Ranking, si faltan localidad o rama, se solicitan esos datos;
+- mientras el Nivel esté `CALIBRANDO`, puede explorar Ranking pero no ocupa posición;
+- `ranking_opt_in` queda como compatibilidad histórica y debe dejar de decidir elegibilidad.
+
+Implementación: revisar gate, RPCs/cálculo, schema legacy y UI sin romper snapshots existentes.
 
 ### 13.2 Pantalla de validación/confirmación de partido
 
