@@ -129,7 +129,6 @@ No son obligatorios para terminar el alta deportiva inicial:
 - WhatsApp;
 - localidad deportiva;
 - rama competitiva;
-- `ranking_opt_in`;
 - mano/lado de juego;
 - género personal opcional;
 - apodo/nombre visible personalizado;
@@ -139,7 +138,7 @@ Pueden completarse posteriormente desde Perfil / Mis datos o mediante una invita
 
 #### Perfil competitivo y Ranking
 
-Localidad deportiva, rama competitiva y `ranking_opt_in` **siguen siendo necesarios para participar oficialmente del Ranking BRAMU**. La decisión nueva no elimina ni debilita esas reglas: solamente cambia el momento en que pasan a ser obligatorias.
+Localidad deportiva y rama competitiva **siguen siendo necesarias para ubicar correctamente al jugador en Ranking BRAMU**. La participación, en cambio, es automática cuando cumple la elegibilidad: no existe opt-in/opt-out ordinario.
 
 Un jugador puede, por lo tanto:
 
@@ -150,13 +149,13 @@ Un jugador puede, por lo tanto:
 5. completar más adelante su perfil competitivo;
 6. entrar al Ranking cuando además cumpla las reglas de elegibilidad vigentes.
 
-Esto es compatible con `Ranking_BRAMU.md`, que ya exige perfil/opt-in/ubicación y Nivel elegible para ocupar una posición oficial. No hace falta pedir esos datos antes de que produzcan valor real.
+Esto es compatible con `Ranking_BRAMU.md`: ubicación/rama y Nivel elegible determinan cuándo puede ocupar una posición oficial. No hace falta pedir esos datos antes de que produzcan valor real.
 
 #### Acceso al Ranking antes de completar los datos necesarios
 
 El acceso desde navegación permanece visible desde el inicio: BRAMU no oculta el icono/entrada a Ranking.
 
-Si el usuario intenta entrar y todavía le falta alguno de los datos necesarios para participar en Ranking —localidad deportiva, rama competitiva o `ranking_opt_in`—:
+Si el usuario intenta entrar y todavía le falta alguno de los datos necesarios para participar en Ranking —localidad deportiva o rama competitiva—:
 
 - se muestra la pantalla/estructura de Ranking detrás, atenuada;
 - la vista queda bloqueada: no se puede scrollear ni interactuar con la clasificación;
@@ -196,8 +195,9 @@ Criterio de producto:
 `Backend_Infraestructura.md` queda alineado con esta definición:
 
 - nombre + apellido + `@usuario` + términos son el único perfil mínimo que bloquea el acceso a Nivel;
-- localidad deportiva, rama competitiva y `ranking_opt_in` existen en el modelo, pero no bloquean Nivel, Home ni el primer partido;
-- esos datos pasan a ser obligatorios únicamente cuando el usuario quiere entrar oficialmente al Ranking;
+- localidad deportiva y rama competitiva no bloquean Nivel, Home ni el primer partido;
+- pasan a ser obligatorias cuando el usuario entra a Ranking para poder ubicarlo correctamente;
+- `ranking_opt_in` queda como dato legacy de compatibilidad y deja de decidir elegibilidad;
 - no se agrega un segundo campo obligatorio de nombre visible/apodo durante el alta.
 
 **Impacto en Bloque 3:** antes de conectar Nivel productivo, Desarrollo debe ajustar el recorrido vigente de Staging para que estos campos no funcionen como gate previo. Es una alineación de producto acotada, no una reapertura del Bloque 2 ni un rediseño de perfil.
@@ -1067,7 +1067,7 @@ Una vez completados nombre, apellido, `@usuario`, términos, Nivel inicial y con
 
 ### 17.1 Datos competitivos pendientes
 
-Localidad deportiva, rama competitiva y `ranking_opt_in` pueden permanecer incompletos sin bloquear:
+Localidad deportiva y rama competitiva pueden permanecer incompletas sin bloquear:
 
 - Home;
 - búsqueda de jugadores;
@@ -1281,11 +1281,11 @@ Solo un reclamo explícito puede vincularlo.
 ## 23. Decisiones confirmadas
 
 - El perfil mínimo previo al estimador se limita a nombre, apellido, `@usuario` y aceptación de términos.
-- Localidad deportiva, rama competitiva y `ranking_opt_in` no bloquean Nivel, Home ni el primer partido; pasan a ser obligatorios cuando el jugador quiere participar oficialmente del Ranking.
+- Localidad deportiva y rama competitiva no bloquean Nivel, Home ni el primer partido; se solicitan al entrar a Ranking para ubicar correctamente al jugador. La participación es automática al cumplir elegibilidad.
 - Foto, WhatsApp, mano/lado, género personal opcional y apodo/nombre visible personalizado no bloquean el alta.
 - No se pregunta un segundo `nombre visible/apodo` durante el onboarding; el nombre ya ingresado funciona como referencia inicial.
 - La entrada a Ranking permanece visible aunque falten datos competitivos.
-- Si faltan localidad deportiva, rama competitiva o `ranking_opt_in`, Ranking muestra su estructura atenuada y queda bloqueado por un modal con CTA a completar los datos faltantes.
+- Si faltan localidad deportiva o rama competitiva, Ranking muestra su estructura atenuada y queda bloqueado por un modal con CTA a completar los datos faltantes.
 - La interfaz no usa el término interno `perfil competitivo`; habla de completar datos para poder entrar al Ranking.
 - Con los datos de Ranking completos pero Nivel `CALIBRANDO`, el usuario puede explorar Ranking aunque todavía no tenga posición oficial propia.
 - Mi Perfil y Perfil público también se forman progresivamente: con 0 partidos oficiales muestran identidad + Nivel estimado/estado, pero ocultan módulos estadísticos sin evidencia.
