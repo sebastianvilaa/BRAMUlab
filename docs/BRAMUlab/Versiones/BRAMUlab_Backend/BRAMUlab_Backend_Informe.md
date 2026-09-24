@@ -913,167 +913,91 @@ No se inició implementación de Bloque 8 durante este cierre.
 
 ---
 
-## Bloque 8 — BRAMU Intelligence V1 — EN CURSO
+## Bloque 8 — BRAMU Intelligence V1 — CERRADO EN STAGING
 
 **Inicio:** 23 de septiembre de 2026.  
-**Estado actual:** **Fases A, B, C y D CERRADAS en Staging.**  
-**Siguiente:** **Fase E — Integración Nivel + Ranking.**  
-**Fase F — generación opcional:** no bloquea la primera salida productiva.
+**Cierre:** 23 de septiembre de 2026.  
+**HEAD funcional final:** `ba3a0b9360e2e88730a0ab8a3a9532bb765293ec`.  
+**Bundle final:** `04.10-h26`.  
+**Estado:** **CERRADO**.
 
-### Fase A — Datos y derivados — CERRADA
+Fases obligatorias:
 
-HEAD funcional de cierre: `c950391c74501c819074803a584591645e09124d`.
+- A — Datos y derivados: CERRADA;
+- B — Claims y evidencia: CERRADA;
+- C — Relevancia y memoria editorial: CERRADA;
+- D — Plantillas, persistencia y UX: CERRADA;
+- E — Integración Nivel + Ranking: CERRADA.
 
-Quedó implementada la capa real de datos/derivados:
+Fase F — generación opcional: no bloquea la primera salida productiva y no se implementa por defecto.
 
-- RPC autenticada `get_player_intelligence_history(...)`;
-- orden por fecha real jugada;
-- normalización PostgREST;
-- perspectiva estable del jugador;
-- rachas, forma, hitos, relaciones e inactividad;
-- separación historia personal / impacto oficial.
+### Resultado funcional
 
-Migración aplicada y validada en Supabase Staging.  
-Suite final A: **29/29 PASS**.
+BRAMU Intelligence V1 queda operativa en Staging con:
 
-Cierre: `Implementacion/Backend/Bloque_08/05_Validacion_Central_Fase_A_Staging.md`.
-
-### Fase B — Claims y evidencia — CERRADA
-
-HEAD funcional de cierre: `d4923d0f30a0b0bf0aac90fd3c59fdccc5943f01`.
-
-Quedó implementada la generación estructurada de claims A–G con evidencia trazable, comparabilidad, muestras mínimas, alcance personal/oficial y descartes explícitos.
-
-Correcciones cerradas antes del cierre:
-
-- evidencia histórica completa;
-- forma reciente como ventana móvil;
-- empates semánticos;
-- pendientes no rompen secuencias decididas.
-
-Suite A+B: **64/64 PASS**.
-
-Cierre: `Implementacion/Backend/Bloque_08/09_Validacion_Central_Fase_B.md`.
-
-### Fase C — Relevancia y memoria editorial — CERRADA
-
-HEAD funcional de cierre: `a08fb358f4b0e251810815ffd33106b1769f2efc`.
-
-Quedó implementado `intelligence-editorial.js` con:
-
-- score V1;
-- umbral 55/100;
-- prioridad determinística;
-- deduplicación semántica;
-- máximo 1 principal + 2 secundarios;
-- cooldowns;
-- abstención;
-- memoria editorial;
-- motivos auditables de selección/no selección.
-
-La tabla de subpuntajes por `insightType` queda aceptada como parámetro V1 explícito/versionado, recalibrable más adelante mediante nueva versión documentada.
-
-Suite A+B+C: **94/94 PASS**.
-
-Cierre: `Implementacion/Backend/Bloque_08/14_Validacion_Central_Fase_C.md`.
-
-### Fase D — Plantillas, persistencia y UX — CERRADA
-
-HEAD funcional de cierre: `30b9fb8538cfb0f65f8e43c33d50f7541e4db425`.  
-Bundle: `04.10-h23`.
-
-Quedó implementado el camino real A→B→C→D:
-
-- templates determinísticos y versionados;
-- principal + hasta 2 secundarios;
-- “Por qué aparece” factual;
-- estados de aprendizaje/abstención;
-- memoria de templates;
-- H01: identidad abierta fuera de agregados relacionales;
+- historia real por jugador y fecha jugada;
+- claims estructurados y evidencia trazable;
+- score, deduplicación, cooldowns y abstención;
+- templates determinísticos;
+- persistencia `output + memory_after + audit`;
 - replay cronológico por checkpoints;
-- fingerprint de historia con identidad/composición/formato/scoring/hora;
-- auditoría completa server-only;
-- integración en el Resumen real;
-- reemplazo del Intelligence legacy en el camino server-backed;
-- Edge Function autenticada `get-match-intelligence`;
-- persistencia `intelligence_match_outputs` con `output + memory_after + audit`.
+- invalidación por correcciones/identidad/autoridad oficial;
+- integración en Resumen;
+- Familia H usando snapshots oficiales de Nivel;
+- hitos semanales materiales de Ranking en TU MOMENTO;
+- ninguna causalidad de Ranking atribuida a un partido;
+- capa generativa no necesaria para V1.
 
-Correcciones centrales cerradas:
+### Backend aplicado
 
-- H01;
-- D01–D06.
+Supabase Staging:
 
-Suite A+B+C+D: **136/136 PASS**.
+- `get_player_intelligence_history`;
+- `intelligence_match_outputs`;
+- `bloque8_fasee_ranking_best_position`;
+- `get-match-intelligence` ACTIVE version 2, JWT obligatorio.
 
-#### Supabase Staging
+### QA real
 
-Migración aplicada:
-
-`bloque8_fased_intelligence_persistence`
-
-Seguridad comprobada:
-
-- RLS activo;
-- `anon`/ `authenticated` sin SELECT;
-- `service_role` con acceso;
-- 0 policies de cliente.
-
-Edge Function:
-
-`get-match-intelligence`
-
-- ACTIVE;
-- version 1;
-- JWT obligatorio;
-- `playerId` derivado desde sesión;
-- audit/memoria nunca enviados al navegador.
-
-#### QA real
-
-Se creó un único partido por UI:
+Partido real:
 
 `4c8c3f8b-f2c4-4ef7-87c1-6b2cafdc33ba`
 
-Resultado real:
+Se verificó:
 
-- 1 POST `create-or-attach-match`: 200;
-- 6 POST `get-match-intelligence`: 6 × 200;
-- un único checkpoint persistido y reutilizado;
-- principal + 2 secundarios coherentes;
-- evidencia humana correcta;
-- sin claims prematuros de Nivel/Ranking.
+- creación/carga real;
+- Intelligence pending;
+- validación real;
+- resultado de Nivel `applied`;
+- regeneración con versión A+B+C+D+E;
+- Familia H en audit;
+- evidencia baja sin claim fuerte falso;
+- salida visible estable;
+- Home sin hito falso de Ranking;
+- requests reales a Intelligence con HTTP 200.
 
-El informe de Work no quedó persistido originalmente; ChatGPT central recuperó la evidencia desde Staging real y la dejó consolidada en:
+Cierre detallado:
 
-`Implementacion/Backend/Bloque_08/23_Resultado_QA_Fase_D_Work.md`
+`Implementacion/Backend/Bloque_08/35_Cierre_Bloque_08.md`
 
-Cierre formal:
+### Decisión abierta no bloqueante
 
-`Implementacion/Backend/Bloque_08/24_Cierre_Fase_D.md`
+Permanece pendiente decidir si un partido oculto del Historial puede alimentar Intelligence personal.
 
-**Fase D queda CERRADA en Staging.**
+Comportamiento vigente:
 
-### Decisión abierta heredada
+`p_include_hidden=false`
 
-Sigue abierta, sin bloquear la siguiente fase:
+Los ocultos no alimentan Intelligence personal.
 
-**¿Un partido oculto del Historial puede alimentar BRAMU Intelligence personal?**
+### Siguiente paso
 
-Hasta resolverla se mantiene el comportamiento vigente: ocultos fuera de Intelligence personal.
+**No avanzar a F generativa por defecto.**
 
-### Próximo paso
+Antes de Bloque 9:
 
-**Fase E — Integración Nivel + Ranking**
+1. consolidar pendientes reales pre-Production ya definidos en documentación/decisiones previas;
+2. separar obligatorio antes de abrir Production / conveniente antes de amigos / futuro;
+3. después ejecutar **Bloque 9 — endurecimiento y salida**.
 
-Debe consumir, sin recalcular:
-
-- snapshots/reasonCodes de Nivel;
-- expectativa previa y fuerza de parejas;
-- confianza/calibración;
-- delta posterior;
-- elegibilidad oficial;
-- ediciones semanales publicadas de Ranking.
-
-Ranking no puede atribuir un movimiento semanal a un partido individual.
-
-No avanzar automáticamente a F generativa.
+No tocar main/Production sin autorización explícita.
