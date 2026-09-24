@@ -146,3 +146,37 @@ Un único commit lógico, autocontenido, incluye código + migración + test + e
 - Staging real: **no aplicable desde esta sesión** — migración SQL y test SQL escritos y revisados, pendientes de aplicación/ejecución por quien tenga acceso a Supabase (§5). Bloqueo operativo explícito, no un pendiente silencioso.
 - Commit final + push a `origin/staging`: ✅ (este commit).
 - `DECISIÓN ABIERTA` real que haya bloqueado algo: **ninguna**. Un solo juicio técnico propio (Opción A sobre `complete_ranking_profile_data`, §4) documentado para que pueda revisarse, sin bloquear el resto.
+
+
+---
+
+## 11. Revisión central posterior — 24/09/2026
+
+### Ranking automático — backend real
+
+ChatGPT central completó el pendiente operativo que Claude no podía ejecutar:
+
+- migración `bloque7_fase6_ranking_automatic_participation` aplicada correctamente en Supabase **bramulab-staging**;
+- registrada por Supabase como versión `20260924194826`;
+- `supabase/tests/verify-bloque7-fase2.sql` ejecutado completo contra Staging;
+- resultado: **PASS — `BLOQUE 7 FASE 2 (corrección F2-C01..F2-C07) OK — rollback limpio`**;
+- no hubo backfill ni limpieza de datos;
+- snapshots históricos permanecen intactos.
+
+El advisor de seguridad posterior no mostró una regresión atribuible a esta migración. Los avisos existentes corresponden al modelo deny-by-default/RPC ya conocido y a advisories previos de Auth/SECURITY DEFINER.
+
+### Hallazgo de revisión — Perfil público server-backed
+
+P0.1 **todavía no se considera completamente cerrado**.
+
+La rama real `renderPlayerPublicProfileServerBacked` sigue ocultando Efectividad y rendimiento de forma incondicional porque `get_public_profile` no entrega hoy el historial/agregados necesarios. Esto cumple Estado Cero, pero no cumple todavía la progresión definida para un jugador real con uno o más partidos oficiales.
+
+Acción requerida antes de cerrar P0.1:
+
+- resolver el camino server-backed con la mínima fuente real necesaria;
+- no inventar métricas;
+- no reconstruir estadísticas desde datos no autorizados;
+- preservar Estado Cero con 0 oficiales;
+- con evidencia oficial suficiente, mostrar únicamente los módulos respaldados por datos reales.
+
+No reabrir Ranking automático: esa parte queda validada en backend real.
