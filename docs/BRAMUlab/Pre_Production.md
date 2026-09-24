@@ -76,6 +76,36 @@ No crear una Home nueva.
 
 ---
 
+
+## P0.1B — Ranking con participación automática
+
+**Fuentes maestras:** `Ranking_BRAMU.md` + `Experiencia_Inicial.md`.
+
+Decisión cerrada el 24/09/2026:
+
+- todo jugador activo participa automáticamente del Ranking cuando cumple elegibilidad;
+- no existe opt-in / opt-out ordinario;
+- al entrar a Ranking, si faltan localidad deportiva o rama competitiva, se solicitan esos datos;
+- un jugador `CALIBRANDO` puede explorar Ranking pero todavía no ocupa posición;
+- al volverse elegible, entra automáticamente en la edición semanal que corresponda;
+- `ranking_opt_in` se conserva solo como compatibilidad histórica y deja de decidir elegibilidad.
+
+### Implementación esperada
+
+**FUSIONAR / REEMPLAZAR lógica, sin migración destructiva innecesaria:**
+
+- retirar la pregunta de participación de la UI;
+- retirar `ranking_opt_in` del gate de acceso;
+- retirar `ranking_opt_in` de la elegibilidad/cálculo server-side;
+- preservar snapshots semanales ya publicados;
+- mantener la columna/campo legacy si eliminarla agrega riesgo sin valor;
+- adaptar RPCs/contratos para que cuentas existentes con `ranking_opt_in=false` no queden excluidas por ese motivo;
+- cubrir con tests focalizados perfiles incompletos, calibrando, elegible y cuenta legacy con opt-in false.
+
+No reabrir fórmula de Ranking, densidad, publicación semanal, territorios ni Nivel.
+
+---
+
 ## P0.2 — Reemplazar el placeholder legal por documentos reales
 
 El frontend vigente todavía dice:
@@ -179,7 +209,7 @@ Permitir acceso por `@usuario` puede evaluarse después de validar el lanzamient
 
 ## P0.5 — Bloque 9: endurecimiento y salida
 
-Después de cerrar P0.1–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
+Después de cerrar P0.1, P0.1B y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.
 
@@ -333,7 +363,7 @@ Corregir en Staging únicamente problemas reales encontrados por Sebastián, pro
 
 BRAMU está lista para los primeros usuarios reales cuando:
 
-- P0.1–P0.5 están cerrados;
+- P0.1, P0.1B y P0.2–P0.5 están cerrados;
 - no existen placeholders legales;
 - Production está limpia y separada;
 - Sebastián puede completar el recorrido real desde cuenta nueva hasta partido/validación/Intelligence sin intervención técnica;
