@@ -28,6 +28,8 @@ El trabajo que sigue no es “agregar funciones”: es **terminar la experiencia
 
 ## P0.1 — Completar la implementación de Estado Cero y progresión temprana
 
+**Estado P0.1 al 24/09/2026:** IMPLEMENTADO + backend necesario validado en Staging. Pendiente únicamente QA visual/funcional real de navegador antes de marcar cierre final.
+
 **Fuente maestra:** `Experiencia_Inicial.md`.
 
 La definición está cerrada, pero el frontend vigente todavía no la cumple por completo.
@@ -78,6 +80,8 @@ No crear una Home nueva.
 
 
 ## P0.1B — Ranking con participación automática
+
+**Estado P0.1B al 24/09/2026:** IMPLEMENTADO Y VALIDADO EN STAGING. Falta solo comprobar visualmente en la QA integrada que la pregunta de opt-in no reaparezca.
 
 **Fuentes maestras:** `Ranking_BRAMU.md` + `Experiencia_Inicial.md`.
 
