@@ -913,6 +913,22 @@ No se inició implementación de Bloque 8 durante este cierre.
 
 ---
 
+
+### Post-cierre Bloque 7 — participación automática de Ranking (24/09/2026)
+
+Cambio de producto pre-Production aplicado sin reabrir la fórmula ni los snapshots históricos:
+
+- se retira `ranking_opt_in` como condición de elegibilidad;
+- el campo queda legacy por compatibilidad;
+- el gate de frontend pasa a requerir únicamente localidad + rama;
+- migración `bloque7_fase6_ranking_automatic_participation` aplicada en Supabase Staging;
+- versión registrada por Supabase: `20260924194826`;
+- runner completo `verify-bloque7-fase2.sql` ejecutado contra Staging: **PASS / rollback limpio**;
+- no hubo backfill, limpieza ni reescritura de ediciones publicadas.
+
+El resto de Bloque 7 permanece sin cambios.
+
+
 ## Bloque 8 — BRAMU Intelligence V1 — CERRADO EN STAGING
 
 **Inicio:** 23 de septiembre de 2026.  
