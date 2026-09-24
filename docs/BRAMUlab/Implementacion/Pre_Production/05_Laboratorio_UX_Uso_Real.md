@@ -412,3 +412,46 @@ La decisión vigente ya es:
 Además, el código vigente de `staging` enlaza el FAB central directamente a `data-nav="manual-load"`.
 
 Si una instalación/pantalla todavía muestra dos botones, no reabrir producto: comprobar si corresponde a PWA/cache/deploy antiguo o una regresión concreta del entorno usado.
+
+
+### 13.4 Responsive / ancho en escritorio
+
+**Clasificación:** UX / VISUAL.
+
+Observación preliminar en Staging:
+
+- gran parte de BRAMUlab se presenta en escritorio con un ancho que se siente más cercano a tablet;
+- Iniciar sesión y Crear cuenta se ven bastante más angostos, casi como celular;
+- no todas las pantallas parecen responder a una misma regla de ancho.
+
+**Estado:** PENDIENTE DE EVALUACIÓN VISUAL.
+
+No modificar ni normalizar todavía a ciegas. Cuando se retome el Laboratorio UX, comparar con capturas reales y definir una regla responsive consistente para BRAMUlab.
+
+Dirección preliminar a evaluar:
+
+- BRAMUlab sigue siendo mobile-first;
+- en escritorio no debería expandirse como un dashboard/tablet ancho;
+- debería existir una columna central consistente para las pantallas principales;
+- esa columna no necesariamente debe copiar exactamente el ancho físico de un celular;
+- Login/Signup pueden ser algo más angostos si funcionalmente conviene, pero deben sentirse parte del mismo sistema visual.
+
+Revisar especialmente:
+
+- Home;
+- Historial;
+- Ranking;
+- Mi Perfil;
+- Perfil público;
+- Cargar partido;
+- Login;
+- Signup.
+
+La revisión debe cerrar, antes de implementación, una regla coherente de:
+
+- ancho máximo / `max-width`;
+- gutters laterales;
+- relación entre viewport móvil, tablet y escritorio;
+- posibles excepciones justificadas por tipo de pantalla.
+
+No implementar hasta comparar visualmente las superficies anteriores sobre Staging.
