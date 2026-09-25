@@ -476,11 +476,96 @@ create policy "avatars_select_authenticated" on storage.objects
   using (bucket_id = 'avatars');
 
 -- ------------------------------------------------------------------
--- 8) get_public_profile — SIN CAMBIOS DE SQL en esta revisión (solo se actualiza el comentario:
---    `avatar_url` pasa a documentar que contiene una RUTA de Storage, nunca una URL pública — la
---    función en sí ya devolvía tal cual el contenido de profiles.avatar_url, sin importar su
---    formato, así que no hace falta tocar el cuerpo).
+-- 8) get_public_profile — P0.1C
+--
+-- IMPORTANTE: esta migración todavía no había sido aplicada cuando se hizo la revisión 2.
+-- Por eso debe incluir también el cambio SQL original de P0.1C (avatar_url + whatsapp_phone).
+-- La revisión 2 solo cambia la semántica de avatar_url: ahora contiene una RUTA de Storage del
+-- bucket privado, que el cliente resuelve a URL firmada; nunca una URL pública persistida.
 -- ------------------------------------------------------------------
+
+drop function if exists public.get_public_profile(uuid);
+
+create or replace function public.get_public_profile(p_player_id uuid)
+returns table (
+  player_id uuid,
+  username text,
+  display_name text,
+  first_name text,
+  last_name text,
+  competitive_branch text,
+  dominant_hand text,
+  preferred_side text,
+  locality_label text,
+  province_label text,
+  level_status text,
+  level_public numeric,
+  rated_matches integer,
+  distinct_opponents integer,
+  matches_played integer,
+  matches_won integer,
+  avatar_url text,
+  whatsapp_phone text
+)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_caller_player_id uuid;
+begin
+  select p.player_id into v_caller_player_id
+  from public.players p
+  where p.auth_user_id = auth.uid();
+
+  if v_caller_player_id is null then
+    raise exception 'no_player_for_session' using errcode = 'P0001';
+  end if;
+
+  if not public.consume_rate_limit(v_caller_player_id, 'get_public_profile', 30, 60) then
+    raise exception 'rate_limited' using errcode = 'P0001';
+  end if;
+
+  return query
+    select
+      pl.player_id,
+      pr.username,
+      pr.display_name,
+      pr.first_name,
+      pr.last_name,
+      pr.competitive_branch,
+      pr.dominant_hand,
+      pr.preferred_side,
+      loc.locality_label,
+      loc.province_label,
+      ls.status,
+      round(ls.mu, 1),
+      coalesce(ls.rated_matches, 0),
+      coalesce(ls.distinct_opponents, 0),
+      coalesce(pubstats.matches_played, 0)::integer,
+      coalesce(pubstats.matches_won, 0)::integer,
+      pr.avatar_url,
+      case when pr.allow_whatsapp_contact then pr.phone else null end
+    from public.players pl
+    join public.profiles pr on pr.player_id = pl.player_id
+    left join public.locations loc on loc.location_id = pr.location_id
+    left join public.level_states ls on ls.player_id = pl.player_id
+    left join lateral (
+      select
+        count(*) as matches_played,
+        count(*) filter (where m.winner_team = mp.team) as matches_won
+      from public.match_participants mp
+      join public.matches m on m.match_id = mp.match_id
+      where mp.player_id = pl.player_id
+        and m.status = 'validated'
+        and m.winner_team is not null
+    ) pubstats on true
+    where pl.type = 'registered'
+      and pl.is_active
+      and pl.player_id = p_player_id
+      and pr.username is not null;
+end;
+$;
 
 comment on function public.get_public_profile is
   'Perfil público de un player_id puntual, mismas columnas/exclusiones que search_players más
@@ -490,3 +575,6 @@ comment on function public.get_public_profile is
    (bramulab/auth.js#resolveAvatarUrl) antes de renderizarla. whatsapp_phone es NULL salvo
    allow_whatsapp_contact=true — nunca expone profiles.phone crudo. 0 filas para
    provisional/inexistente/perfil sin username todavía.';
+
+revoke all on function public.get_public_profile(uuid) from public;
+grant execute on function public.get_public_profile(uuid) to authenticated;
