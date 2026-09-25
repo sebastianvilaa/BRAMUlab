@@ -803,3 +803,28 @@ La UI actual abre:
 **Historial — navegación redundante detectada:** en el producto vigente BRAMUlab solo registra partidos propios; la categoría de partidos observados fue retirada. Por eso `Todos` y `Mis partidos` muestran hoy el mismo universo en el camino real y resultan redundantes. Revisar eliminación/simplificación de estas tabs en la ronda visual; conservar filtros contextuales solo cuando aporten una distinción real.
 
 **Estado Escenario 1A:** recorrido funcional principal completado desde carga rival → pendiente accionable → confirmación → partido oficial. Quedan hallazgos UX/visuales documentados para consolidación antes de la siguiente ronda de implementación.
+
+
+### 15.4 — Escenario 1B, lado autor antes de validación — 25/09/2026
+
+**Partido cargado por Seba:** Seba + Gusti vs Esteban + Jona, 6–3 / 6–4. Estado actual: `PENDIENTE DE VALIDACIÓN`.
+
+#### Cargar partido
+
+- **NO TOCAR en lo esencial:** composición general de Cargar partido, tarjetas Equipo A/B, carga de sets, `Resultado válido`, paso `CONTINUAR` y pantalla final `CONFIRMAR PARTIDO` se perciben coherentes y ya suficientemente validados para esta ronda.
+- **UX / IMPLEMENTACIÓN INCOMPLETA:** al elegir compañero/rivales en una sesión server-backed, el selector no muestra jugadores recientes pese a que Seba ya compartió un partido oficial con Lucho, Esteban y Matu. En el flujo local/legacy existía el patrón `RECIENTES`, pero el camino server-backed actual oculta esa sección y obliga a buscar por texto.
+- **DIRECCIÓN CONFIRMADA:** el selector debe aprovechar relaciones reales ya existentes para ofrecer jugadores recientes/frecuentes antes de obligar a buscar. Como mínimo, participantes de partidos previos del usuario que sean identidades registradas y válidas; sin duplicarlos luego en resultados de búsqueda.
+
+#### Resumen del autor mientras espera validación
+
+- **NO TOCAR en lo esencial:** el mensaje `Esperando que Esteban / Jona confirme este resultado.` se entiende y es apropiado para el lado que cargó el partido.
+- Los pendientes no alimentan estadísticas oficiales: Efectividad, Actividad, Racha, Partidos totales y calibración permanecen basados únicamente en partidos oficiales. Comportamiento correcto.
+
+#### Home / Historial con pendiente no accionable
+
+- **UX / VISUAL:** `PENDIENTE DE VALIDACIÓN` está correctamente presente, pero en Home queda demasiado pegado al badge de resultado (`VICTORIA`). Dirección a evaluar: separar visualmente resultado y estado del partido, llevando el estado a la zona de metadata/fecha o a una segunda línea clara.
+- Aplicar el mismo criterio en Historial: estado del partido separado del resultado, con tratamiento neutro para pendientes que esperan a la otra pareja.
+- **NO TOCAR:** tocar la tarjeta abre el Resumen correctamente.
+- **NO TOCAR:** el pendiente se ve en Home/Historial pero no altera estadísticas oficiales.
+
+**Estado del escenario:** falta revisar el mismo partido desde la cuenta rival Esteban y luego validar desde ese lado. No confirmar todavía desde Work hasta registrar primero Home / Notificaciones / Historial / Resumen de Esteban.
