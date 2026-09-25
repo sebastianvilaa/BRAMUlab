@@ -58,7 +58,14 @@
   // Nivel 5/5 sin píldora persistente, Evolución oculta sin serie real, Recientes server-backed.
   // Mismo criterio que `-h1`: APP_VERSION sigue en "BRAMUlab V04.11" a propósito, no abre una
   // ronda nueva de Nivel BRAMU.
-  const BUNDLE_VERSION = '04.11-h2';
+  //
+  // Ronda correctiva (revisión central, mismo día) — `-h3`: agrega el diff antes/después de una
+  // corrección (§G — get_match_detail.previousRevisionSets/pendingCorrectionSets, migración
+  // 20260925150000) y corrige que RECIENTES podía incluir invitados/provisionales (un player_id
+  // no null en el historial no distingue por sí solo una cuenta registrada de un invitado —
+  // match-sync.js#buildLocalPlayers estampa userId para ambos). Mismo criterio: APP_VERSION
+  // sigue en "BRAMUlab V04.11" a propósito.
+  const BUNDLE_VERSION = '04.11-h3';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

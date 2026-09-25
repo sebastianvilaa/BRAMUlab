@@ -2065,6 +2065,48 @@
     assert('ML · computeFormatChangeImpact limpia un Set 3 huérfano (partido ya 2-0)', impactOrphan.keptSets[2] === null, JSON.stringify(impactOrphan));
   })();
 
+  // ------------------------------------------------------------------
+  // Ronda correctiva (revisión central) — ML.buildCorrectionDiffLines: diff antes/después de una
+  // corrección (handoff 13 §G, "qué cambió"). Opera sobre la forma LOCAL de sets
+  // ({gamesA,gamesB,tiebreak,winner}, posicional — la MISMA que match-sync.js#buildLocalSets ya
+  // produce para f.sets/f.previousRevisionSets/f.pendingCorrectionSets).
+  // ------------------------------------------------------------------
+  (function () {
+    function s(gamesA, gamesB, tiebreak) { return { gamesA, gamesB, tiebreak: tiebreak || null, winner: gamesA > gamesB ? 'A' : 'B' }; }
+
+    // PRE-VALIDACIÓN: before = previousRevisionSets, after = sets (la revisión vigente).
+    const preBefore = [s(6, 3), s(6, 3)];
+    const preAfter = [s(6, 3), s(6, 4)];
+    assert('CORR-DIFF · pre-validación: cambio real en el Set 2 se reporta before → after',
+      JSON.stringify(ML.buildCorrectionDiffLines(preBefore, preAfter)) === JSON.stringify(['Set 2: 6–3 → 6–4']),
+      JSON.stringify(ML.buildCorrectionDiffLines(preBefore, preAfter)));
+
+    // POST-VALIDACIÓN: before = sets (oficial vigente), after = pendingCorrectionSets (propuesta
+    // todavía sin aceptar) — MISMA función, semántica distinta del lado del llamador (app.js).
+    const officialSets = [s(6, 4), s(6, 2)];
+    const pendingSets = [s(6, 4), s(7, 5)];
+    assert('CORR-DIFF · post-validación: official vs pending reporta el set que cambió',
+      JSON.stringify(ML.buildCorrectionDiffLines(officialSets, pendingSets)) === JSON.stringify(['Set 2: 6–2 → 7–5']),
+      JSON.stringify(ML.buildCorrectionDiffLines(officialSets, pendingSets)));
+
+    // Tercer set agregado/eliminado.
+    const twoSets = [s(6, 4), s(4, 6)];
+    const threeSets = [s(6, 4), s(4, 6), s(6, 2)];
+    assert('CORR-DIFF · tercer set agregado', JSON.stringify(ML.buildCorrectionDiffLines(twoSets, threeSets)) === JSON.stringify(['Set 3 agregado: 6–2']));
+    assert('CORR-DIFF · tercer set eliminado', JSON.stringify(ML.buildCorrectionDiffLines(threeSets, twoSets)) === JSON.stringify(['Set 3 eliminado']));
+
+    // Sin corrección real => no mostrar diff: mismos sets, o ambos lados vacíos/ausentes.
+    assert('CORR-DIFF · sin corrección (before === after set a set) => []', ML.buildCorrectionDiffLines(twoSets, [s(6, 4), s(4, 6)]).length === 0);
+    assert('CORR-DIFF · ambos vacíos => []', ML.buildCorrectionDiffLines([], []).length === 0);
+    assert('CORR-DIFF · ambos ausentes (null/undefined) => [] (nunca revienta)', ML.buildCorrectionDiffLines(null, undefined).length === 0);
+
+    // El tie break interno NUNCA es autoritativo (ver validateMatchSets) — un cambio SOLO ahí,
+    // sin cambiar games, no cuenta como diferencia real.
+    const tbBefore = [s(7, 6, { a: 7, b: 5 })];
+    const tbAfter = [s(7, 6, { a: 9, b: 7 })];
+    assert('CORR-DIFF · un cambio solo en el tie break interno (mismo score de games) no genera línea', ML.buildCorrectionDiffLines(tbBefore, tbAfter).length === 0);
+  })();
+
   // ==================================================================
   // ETAPA 4.2 (v2.2) — resolveActiveSetIndex: cuál set mostrar grande (en
   // edición) y cuáles pasan al marcador acumulado (confirmados).
@@ -2946,6 +2988,32 @@
     const homonymIds = homonymRecents.map((p) => p.playerId);
     assert('V25UX-N · protege homónimos: dos player_id distintos con el mismo nombre quedan como 2 filas separadas',
       homonymIds.indexOf('u_juan_1') !== -1 && homonymIds.indexOf('u_juan_2') !== -1, JSON.stringify(homonymRecents));
+
+    // Ronda correctiva (revisión central) — BUG documentado: match-sync.js#buildLocalPlayers
+    // estampa `userId` (= player_id real) tanto para participantes REGISTRADOS como
+    // PROVISIONALES — un invitado también tiene un player_id real, solo que type='provisional'
+    // del lado del servidor, un dato que esta función pura NUNCA recibe. Por diseño,
+    // computeRecentRealPlayers NO puede distinguir por sí sola un provisional de una cuenta
+    // registrada (documentado por el primer assert de abajo); la exclusión real ocurre en
+    // app.js#renderManualPlayerSheetContentServerBacked, que resuelve primero
+    // listRelatedProvisionalPlayers()/listMyProvisionalPlayers() y pasa esos player_id acá como
+    // `excludeIds` — el segundo assert prueba exactamente ese mecanismo (mismo `excludeIds` ya
+    // cubierto arriba, aplicado ahora al caso concreto de un invitado). Sin cobertura de app.js
+    // en sí (sin tests unitarios por diseño): la verificación de que ese mismo invitado sigue
+    // siendo seleccionable por INVITADOS se confirma por inspección de código, no acá —
+    // provisionalById (app.js) nunca se toca para construir esa lista.
+    const provisionalHistory = [
+      makeMatch('pv1', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Nacho', userId: 'u_nacho' },
+        { id: 2, team: 'B', name: 'Invitado de Nacho', userId: 'u_prov_1' }, { id: 3, team: 'B', name: 'Cruz', userId: 'u_cruz3' },
+      ], '2026-09-07T00:00:00.000Z'),
+    ];
+    const provisionalRecentsUnfiltered = PH.computeRecentRealPlayers(provisionalHistory, me, [], 12).map((p) => p.playerId);
+    assert('V25UX-N · BUG documentado: sin excludeIds, un invitado (player_id real, userId estampado igual que un registrado) aparece en el resultado crudo',
+      provisionalRecentsUnfiltered.indexOf('u_prov_1') !== -1, JSON.stringify(provisionalRecentsUnfiltered));
+    const provisionalRecentsFiltered = PH.computeRecentRealPlayers(provisionalHistory, me, ['u_prov_1'], 12).map((p) => p.playerId);
+    assert('V25UX-N · FIX: pasando el player_id del invitado en excludeIds (mismo mecanismo que app.js usa vía provisionalById), nunca aparece en RECIENTES',
+      provisionalRecentsFiltered.indexOf('u_prov_1') === -1 && provisionalRecentsFiltered.indexOf('u_nacho') !== -1, JSON.stringify(provisionalRecentsFiltered));
   })();
 
   // ------------------------------------------------------------------

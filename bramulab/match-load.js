@@ -335,10 +335,44 @@
     return { hasImpact, keptSets };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* RONDA CORRECTIVA (revisión central) — DIFF DE UNA CORRECCIÓN (§G)    */
+  /* ------------------------------------------------------------------ */
+
+  /** Handoff 13 §G ("qué cambió") — compara dos arrays de sets YA en forma LOCAL
+   *  (`{gamesA, gamesB, tiebreak, winner}`, posicional — la MISMA forma que `f.sets`
+   *  (match-sync.js#buildLocalSets), nunca la forma cruda de `get_match_detail`) y devuelve
+   *  líneas de texto compactas describiendo ÚNICAMENTE diferencias reales. Comparación
+   *  ESTRUCTURAL (`gamesA`/`gamesB`), nunca por string. El tie break interno NUNCA participa de
+   *  la comparación: no es autoritativo (ver el comentario de `validateMatchSets` más arriba —
+   *  "un valor plausible... nunca se narra en BRAMU Intelligence"), un cambio ahí solo, sin
+   *  cambiar games, no es una diferencia real de resultado para este diff.
+   *  `beforeSets`/`afterSets` ausentes, vacíos o iguales set a set → `[]` (nunca fuerza una línea
+   *  sin diferencia real — cubre el caso "sin corrección, no mostrar diff": ambos arrays iguales
+   *  o ambos vacíos siempre devuelven `[]`). */
+  function buildCorrectionDiffLines(beforeSets, afterSets) {
+    const before = Array.isArray(beforeSets) ? beforeSets : [];
+    const after = Array.isArray(afterSets) ? afterSets : [];
+    const maxLen = Math.max(before.length, after.length);
+    const lines = [];
+    for (let i = 0; i < maxLen; i++) {
+      const b = before[i] || null;
+      const a = after[i] || null;
+      const setNum = i + 1;
+      if (!b && a) { lines.push(`Set ${setNum} agregado: ${a.gamesA}–${a.gamesB}`); continue; }
+      if (b && !a) { lines.push(`Set ${setNum} eliminado`); continue; }
+      if (b && a && (b.gamesA !== a.gamesA || b.gamesB !== a.gamesB)) {
+        lines.push(`Set ${setNum}: ${b.gamesA}–${b.gamesB} → ${a.gamesA}–${a.gamesB}`);
+      }
+    }
+    return lines;
+  }
+
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
     buildJugadorDirectory,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchSets, validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
+    buildCorrectionDiffLines,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -194,6 +194,17 @@
       // el llamador debe tratar `null` como "todavía no se sabe", nunca como "no es corrección".
       currentRevisionNumber: Number.isFinite(row.currentRevisionNumber) ? row.currentRevisionNumber : null,
       revisionCount: Number.isFinite(row.revisionCount) ? row.revisionCount : null,
+      // Ronda correctiva (revisión central) — migración 20260925150000: solo get_match_detail
+      // las trae (get_my_matches no toca esta migración a propósito, mismo criterio que
+      // currentRevisionNumber arriba). Pasadas por el MISMO buildLocalSets que `sets` — misma
+      // forma exacta (gamesA/gamesB/tiebreak/winner, posicional), para que
+      // ML.buildCorrectionDiffLines pueda comparar los tres arrays sin traducir formas
+      // distintas. `buildLocalSets(null)` ya devuelve `[]` (nunca null) cuando el campo crudo no
+      // aplica (currentRevisionNumber=1 sin revisión anterior, o sin corrección pendiente) —
+      // buildCorrectionDiffLines interpreta un array vacío como "sin datos para comparar de ese
+      // lado", exactamente lo que corresponde.
+      previousRevisionSets: buildLocalSets(row.previousRevisionSets),
+      pendingCorrectionSets: buildLocalSets(row.pendingCorrectionSets),
     };
   }
 

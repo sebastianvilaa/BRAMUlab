@@ -772,26 +772,8 @@
     const excludedIds = manualExcludedPlayerIdsForSlot(slot);
     const trimmed = (query || '').trim();
 
-    // Ronda UX 25/09 (§N) — RECIENTES real, basado en relaciones/partidos reales ya existentes
-    // (getDisplayHistory: cualquier estado, compartir cancha ya alcanza), identidad por
-    // player_id. Solo mientras no se está buscando por texto — mismo criterio que el camino
-    // local/legacy (recientsSection arriba, resultados de búsqueda abajo, nunca los dos a la
-    // vez) — así nunca puede duplicarse con `search_players` más abajo: `realRows` ya queda
-    // vacío cuando `trimmed` está vacío (ver `searchResult` abajo).
-    const recentsSection = $('#load-player-sheet-recents-section');
-    const recentsWrap = $('#load-player-sheet-recents');
-    if (!trimmed) {
-      const recents = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), excludedIds, 12);
-      if (recents.length) {
-        recentsSection.hidden = false;
-        recentsWrap.innerHTML = recents.map(buildRecentRealPlayerRowHTML).join('');
-        $all('#load-player-sheet-recents .player-row').forEach((btn) => {
-          btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name, btn.dataset.playerId));
-        });
-      } else { recentsSection.hidden = true; recentsWrap.innerHTML = ''; }
-    } else {
-      recentsSection.hidden = true; recentsWrap.innerHTML = '';
-    }
+    $('#load-player-sheet-recents-section').hidden = true;
+    $('#load-player-sheet-recents').innerHTML = '';
     $('#load-player-sheet-list-label').hidden = true;
     const listWrap = $('#load-player-sheet-list');
 
@@ -808,6 +790,30 @@
     const provisionalById = new Map();
     (relatedResult.ok ? relatedResult.players : []).forEach((p) => provisionalById.set(p.player_id, p));
     (myProvResult.ok ? myProvResult.players : []).forEach((p) => { if (!provisionalById.has(p.player_id)) provisionalById.set(p.player_id, p); });
+
+    // Ronda correctiva (revisión central) — BUG conceptual: match-sync.js#buildLocalPlayers
+    // estampa `userId` desde `participant.playerId` tanto para participantes REGISTRADOS como
+    // PROVISIONALES (un invitado también tiene player_id real, solo que type='provisional' del
+    // lado del servidor) — `p.userId` truthy en el historial NUNCA alcanzó por sí solo para
+    // decidir "cuenta registrada". Reutiliza exactamente los mismos dos resultados que ya se
+    // pidieron arriba para INVITADOS (relatedResult/myProvResult vía provisionalById) — nunca
+    // una RPC nueva — para excluir esos player_id de RECIENTES: un invitado sigue viviendo
+    // exclusivamente en INVITADOS, nunca duplicado en RECIENTES. Calculado DESPUÉS de resolver
+    // provisionalById a propósito (antes ocurría primero, sin poder filtrar nada todavía).
+    const recentsSection = $('#load-player-sheet-recents-section');
+    const recentsWrap = $('#load-player-sheet-recents');
+    if (!trimmed) {
+      const recentExcludedIds = excludedIds.concat(Array.from(provisionalById.keys()));
+      const recents = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), recentExcludedIds, 12);
+      if (recents.length) {
+        recentsSection.hidden = false;
+        recentsWrap.innerHTML = recents.map(buildRecentRealPlayerRowHTML).join('');
+        $all('#load-player-sheet-recents .player-row').forEach((btn) => {
+          btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name, btn.dataset.playerId));
+        });
+      } else { recentsSection.hidden = true; recentsWrap.innerHTML = ''; }
+    }
+
     const queryLower = normalizePlayerName(trimmed).toLocaleLowerCase('es');
     const provisionals = Array.from(provisionalById.values())
       .filter((p) => !excludedIds.includes(p.player_id))
@@ -2387,6 +2393,17 @@
     paintB6Actions(detailed);
   }
 
+  /** Ronda correctiva (revisión central) — §G "qué cambió": pinta `elId` (una `<ul>`) con las
+   *  líneas de `ML.buildCorrectionDiffLines(beforeSets, afterSets)`, o la oculta si no hay
+   *  diferencias reales que mostrar (nunca una lista vacía visible). */
+  function renderCorrectionDiff(elId, beforeSets, afterSets) {
+    const el = $(`#${elId}`);
+    const lines = ML.buildCorrectionDiffLines(beforeSets, afterSets);
+    if (!lines.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
+  }
+
   function paintB6Actions(f) {
     b6ReportIdentityMatch = f;
     const banner = $('#b6-status-banner');
@@ -2405,6 +2422,10 @@
     proposeBlock.hidden = true;
     reportBlock.hidden = true;
     respondBlock.hidden = true;
+    // Ronda correctiva (revisión central) — default seguro para las dos listas de diff (§G): un
+    // render anterior para otro partido/estado nunca debe dejar líneas stale visibles.
+    $('#b6-status-banner-diff').hidden = true; $('#b6-status-banner-diff').innerHTML = '';
+    $('#b6-respond-correction-diff').hidden = true; $('#b6-respond-correction-diff').innerHTML = '';
 
     if (f.status === 'expired') {
       banner.hidden = false; banner.classList.add('b6-banner--waiting');
@@ -2449,6 +2470,11 @@
       // se sabe con certeza una vez que currentRevisionNumber llega con el detalle completo.
       const isCorrectionPending = Number.isFinite(f.currentRevisionNumber) && f.currentRevisionNumber > 1;
       const confirmBtn = $('#b6-confirm-btn');
+      // Ronda correctiva (revisión central) — §G "qué cambió", caso PRE-VALIDACIÓN: before =
+      // previousRevisionSets (revisión currentRevisionNumber-1), after = sets (la revisión
+      // vigente, ya propuesta). `[]` de cualquiera de los dos lados (currentRevisionNumber=1,
+      // snapshot de lista sin detalle todavía) da `buildCorrectionDiffLines([], ...) === []`, la
+      // `<ul>` queda oculta — nunca se muestra un diff inventado.
       if (f.isActionMine && !hasOpenIdentity) {
         banner.hidden = false;
         if (isCorrectionPending) {
@@ -2457,6 +2483,7 @@
             ? `${proposer} propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.`
             : 'Se propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.';
           confirmBtn.textContent = 'ACEPTAR CORRECCIÓN';
+          renderCorrectionDiff('b6-status-banner-diff', f.previousRevisionSets, f.sets);
         } else {
           bannerText.textContent = 'Te toca confirmar este resultado.';
           confirmBtn.textContent = 'CONFIRMAR PARTIDO';
@@ -2503,6 +2530,10 @@
         // arriba, resuelta ahora por actorPlayerId en vez de solo el equipo.
         const proposerName = b6RevisionProposerName(f) || S.teamLabel(f.players, proposedByTeam);
         respondText.textContent = `${proposerName} propuso una corrección del resultado. ¿La aceptás?`;
+        // Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN: before =
+        // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
+        // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar).
+        renderCorrectionDiff('b6-respond-correction-diff', f.sets, f.pendingCorrectionSets);
         proposeBlock.hidden = true;
       } else if (proposedByTeam) {
         banner.hidden = false;
