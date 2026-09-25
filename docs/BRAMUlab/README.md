@@ -1,9 +1,9 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.10**  
+**Estado del producto:** BRAMUlab **V04.11** (hotfix de mecanismo de actualización de la PWA — ver `Implementacion/Pre_Production/05_Laboratorio_UX_Uso_Real.md`; no es una ronda nueva de funciones de Nivel BRAMU)  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 22 de septiembre de 2026
+**Actualización documental:** 25 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 

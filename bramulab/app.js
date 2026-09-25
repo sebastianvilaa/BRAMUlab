@@ -10783,9 +10783,34 @@
   /* ------------------------------------------------------------------ */
   /* PWA                                                                  */
   /* ------------------------------------------------------------------ */
+  /** Laboratorio integrado — hotfix de actualización (25/09/2026): `updateViaCache:'none'` evita
+   *  que el propio navegador sirva una copia HTTP-cacheada de `sw.js` al chequear si cambió de
+   *  bytes (el archivo casi nunca lleva query string propia, a diferencia de los assets
+   *  versionados) — sin esto, un `sw.js` técnicamente nuevo podía seguir pareciendo "el mismo"
+   *  por un rato. `registration.update()` fuerza ese chequeo apenas arranca la app (mejor
+   *  esfuerzo, nunca bloquea nada si falla). El listener de `controllerchange` es el mecanismo
+   *  real que faltaba: `sw.js` ya llama `skipWaiting()`/`clients.claim()` en install/activate
+   *  (un SW nuevo toma control de las pestañas ya abiertas sin esperar), pero eso NUNCA hacía
+   *  que el documento YA CARGADO recargara para ejecutar los JS/CSS nuevos que ese SW nuevo ya
+   *  sirve — se quedaba corriendo el `app.js` viejo indefinidamente. Se recarga UNA sola vez
+   *  (guard local `reloaded`, nunca depende de `sessionStorage`: un `location.reload()` real
+   *  reinicia todo el script, así que una bandera en memoria alcanza) y SOLO si la pestaña ya
+   *  tenía un controller antes de este cambio (`navigator.serviceWorker.controller` truthy al
+   *  registrar) — el primer install de la PWA nunca tuvo un controller previo, así que nunca
+   *  dispara un recargo innecesario en la primera visita. */
   function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => { /* offline / file:// -> ignorar */ });
+    if (!('serviceWorker' in navigator)) return;
+    const hadControllerBeforeRegister = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((registration) => {
+      registration.update().catch(() => { /* mejor esfuerzo — nunca bloquea el resto de la app */ });
+    }).catch(() => { /* offline / file:// -> ignorar */ });
+    if (hadControllerBeforeRegister) {
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
     }
   }
 
@@ -10832,7 +10857,18 @@
    *  PRINCIPAL (esa queda como fallback manual, sin tocarla más — ver HERRAMIENTAS DE
    *  DESARROLLO más abajo). Se consulta `version.json` con `cache:'no-store'` — el service
    *  worker lo excluye explícitamente de su estrategia cache-first (ver sw.js) para que este
-   *  chequeo nunca vea una copia vieja del propio archivo que existe para detectar eso. */
+   *  chequeo nunca vea una copia vieja del propio archivo que existe para detectar eso.
+   *
+   *  Laboratorio integrado — hotfix de actualización (25/09/2026): antes de esta ronda, este
+   *  chequeo SOLO comparaba la versión pública (`Store.VERSION`) — pero esa versión venía fija
+   *  ("BRAMUlab V04.10") durante varias rondas de Backend/Infraestructura (README §6: esa
+   *  numeración es de Nivel BRAMU), así que ningún bump de bundle intermedio era detectable por
+   *  un cliente viejo (causa raíz real del iPhone atascado, ver 05_Laboratorio_UX_Uso_Real.md
+   *  §15). Ahora compara primero `bundle` (`Store.BUNDLE_VERSION` vs. `version.json#bundle`) —
+   *  más preciso, detecta un hotfix de bundle aunque la versión pública no se mueva — y solo cae
+   *  al criterio legacy por versión pública cuando el remoto no declara `bundle` (compatibilidad
+   *  con un `version.json` de un deploy viejo o transicional). El texto mostrado al usuario
+   *  sigue siendo SIEMPRE la versión pública, nunca la jerga interna del bundle. */
   /* ------------------------------------------------------------------ */
   async function checkForNewVersion() {
     try {
@@ -10840,9 +10876,14 @@
       if (!res.ok) return;
       const data = await res.json();
       const remoteVersion = data && data.version;
-      if (remoteVersion && remoteVersion !== Store.VERSION && remoteVersion !== dismissedUpdateVersion) {
-        $('#update-available-text').textContent = `${remoteVersion} está disponible.`;
-        $('#update-available-modal').dataset.version = remoteVersion;
+      const remoteBundle = data && data.bundle;
+      const hasUpdate = (remoteBundle && Store.BUNDLE_VERSION)
+        ? remoteBundle !== Store.BUNDLE_VERSION
+        : !!(remoteVersion && remoteVersion !== Store.VERSION);
+      const dismissKey = remoteBundle || remoteVersion;
+      if (hasUpdate && dismissKey && dismissKey !== dismissedUpdateVersion) {
+        $('#update-available-text').textContent = `${remoteVersion || Store.VERSION} está disponible.`;
+        $('#update-available-modal').dataset.version = dismissKey;
         $('#update-available-modal').hidden = false;
       }
     } catch (e) {
@@ -10980,6 +11021,13 @@
     }
     const title = $('#dev-tools-title');
     if (title) title.textContent = enabled ? 'HERRAMIENTAS · V04.6 PREVIEW' : 'HERRAMIENTAS';
+    // Laboratorio integrado — hotfix de actualización (25/09/2026): identificación discreta de
+    // versión pública + bundle técnico, SOLO acá (Herramientas ya está oculto en Production por
+    // `isProductionEnv()`, ver initDevTools) — el problema real que motivó esto fue que
+    // Sebastián no tenía forma de saber si el iPhone estaba ejecutando el bundle viejo o el
+    // nuevo. Nunca se muestra al usuario normal de Production.
+    const bundleInfo = $('#dev-tools-bundle-info');
+    if (bundleInfo) bundleInfo.textContent = `${Store.VERSION} · bundle ${Store.BUNDLE_VERSION}`;
     const toggleBtn = $('#dev-tools-toggle-nivel-v1');
     if (toggleBtn) toggleBtn.textContent = `Nivel BRAMU V1 (preview): ${enabled ? 'ON' : 'OFF'}`;
     // Backend Bloque 3 (03_Revision_ChatGPT.md §7) — "no permitir que Resetear Nivel modifique
@@ -11129,7 +11177,21 @@
    *  feedback de que el toque se había registrado (bug encontrado auditando el reporte de
    *  "el cartel vuelve a aparecer en loop" — no era la causa de ESE bug, pero es el mismo
    *  código y vale corregirlo de una vez). Ahora deshabilita cualquiera de los dos que exista
-   *  en el DOM en este momento. */
+   *  en el DOM en este momento.
+   *
+   *  Laboratorio integrado — hotfix de actualización (25/09/2026): reportado en un iPhone real
+   *  que este botón no mostraba NINGÚN efecto (ni "Actualizando…", ni recarga) — no se pudo
+   *  reproducir el caso exacto sin acceso al dispositivo, pero se identificó y corrigió un
+   *  riesgo real y suficiente para explicarlo: `registration.update()` sobre un service worker
+   *  YA ROTO/zombie puede quedar colgado indefinidamente en WebKit/iOS, y como el `for...of`
+   *  original lo esperaba (`await`) ANTES de desregistrar, una sola promesa colgada bloqueaba
+   *  TODO el resto (desregistro, borrado de caché, navegación) para siempre. Dos cambios:
+   *  (1) para un botón que literalmente se llama "Forzar actualización", no hace falta intentar
+   *  actualizar el worker viejo antes de eliminarlo — se pasa directo a `unregister()`;
+   *  (2) cada tramo de trabajo de Service Worker/Cache Storage queda protegido por un timeout
+   *  corto (`withTimeout`) que nunca deja la función colgada más de unos segundos, sea cual sea
+   *  la causa real. Sigue sin tocar `localStorage`/sesión/datos de usuario/Supabase — solo
+   *  Service Worker + Cache Storage. */
   async function forceUpdateApp() {
     ['#dev-tools-force-update', '#update-now-btn'].forEach((sel) => {
       const btn = $(sel);
@@ -11137,14 +11199,25 @@
       btn.disabled = true;
       btn.textContent = 'Actualizando…';
     });
+    // Nunca deja una sola promesa de SW/Cache Storage colgada para siempre — a los `ms` sigue
+    // adelante igual (mejor esfuerzo: si esa tarea puntual no llegó a tiempo, la navegación de
+    // abajo con `?_fu=` de todos modos fuerza un documento fresco).
+    const withTimeout = (promise, ms) => Promise.race([
+      promise,
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
     try {
       if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        for (const r of regs) { try { await r.update(); } catch (e) { /* noop */ } await r.unregister(); }
+        await withTimeout((async () => {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const r of regs) { try { await r.unregister(); } catch (e) { /* noop */ } }
+        })(), 3000);
       }
       if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
+        await withTimeout((async () => {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        })(), 3000);
       }
     } catch (e) {
       console.warn('[BRAMU LAB] Forzar actualización: algo falló al limpiar caché/SW, se recarga igual.', e);

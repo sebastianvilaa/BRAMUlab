@@ -27,7 +27,26 @@
   // producto pasa a ser un nombre, no un tag semver — los tags técnicos tipo "v2.2.1" quedan
   // como historial de BRAMUlab_V01 (ver git tags), separados del versionado del marcador
   // congelado (BRAMU Lab Partidos).
-  const APP_VERSION = 'BRAMUlab V04.10';
+  //
+  // Laboratorio integrado — hotfix de mecanismo de actualización (25/09/2026): V04.10 -> V04.11
+  // ES el fix, no una ronda de producto — un cliente V04.10 ya instalado en un iPhone quedó
+  // atascado sirviendo un shell viejo desde Cache Storage (ver 05_Laboratorio_UX_Uso_Real.md
+  // §15) porque su checkForNewVersion() legacy solo compara este string contra version.json, y
+  // Backend/Infraestructura venía manteniendo "V04.10" fijo a propósito en rondas anteriores
+  // (README §6: esa numeración es de Nivel BRAMU, Backend no la usa) — eso significa que NINGÚN
+  // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
+  // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
+  // mecanismo nuevo que evita depender de esto en el futuro.
+  const APP_VERSION = 'BRAMUlab V04.11';
+  // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
+  // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
+  // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
+  // checkForNewVersion(), que solo compara APP_VERSION. Con BUNDLE_VERSION, un futuro
+  // "04.11-h1" queda detectable por igual aunque APP_VERSION siga en "BRAMUlab V04.11" (ver
+  // checkForNewVersion en app.js). DEBE coincidir al byte con CACHE_NAME/CORE_ASSETS (sw.js) y
+  // con el campo "bundle" de version.json — mismo criterio de sincronía que ya exigía
+  // APP_VERSION/version.json/CACHE_NAME.
+  const BUNDLE_VERSION = '04.11';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -987,6 +1006,7 @@
   global.PLStore = {
     SCHEMA_VERSION,
     VERSION: APP_VERSION,
+    BUNDLE_VERSION,
     saveActiveMatch, loadActiveMatch, clearActiveMatch,
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry, patchHistoryEntry,
     loadPlayerNames, rememberPlayerNames,

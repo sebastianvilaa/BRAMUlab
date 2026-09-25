@@ -141,7 +141,26 @@
 // refreshServerMatches/refreshB6Notifications/Auth.fetchOwnProfile/renderPlayerHome/
 // renderHistory/renderNotificationsList ya existentes, sin RPCs nuevas. Toca solo app.js; mismo
 // criterio de siempre, `Store.VERSION`/`version.json` siguen en "BRAMUlab V04.10".
-const CACHE_NAME = 'bramulab-v04-10-h32';
+//
+// Laboratorio integrado — hotfix de mecanismo de actualización (25/09/2026, revisión central):
+// V04.10 -> V04.11 (versión nueva real, no un hotfix `-hN` — sufijo reiniciado, mismo criterio
+// que V03.7). El fix de frescura de `-h32` funcionaba correctamente (verificado en computadora),
+// pero un iPhone con la PWA instalada quedó atascado en un shell viejo (Estado Cero) incluso
+// después de reiniciar el teléfono y reabrir desde el ícono — causa raíz de arquitectura, no del
+// fix funcional: (1) `checkForNewVersion()` legacy solo comparaba `Store.VERSION`/`version.json`,
+// y esa versión pública venía fija en "BRAMUlab V04.10" desde varias rondas de Backend/
+// Infraestructura atrás (README §6: esa numeración es de Nivel BRAMU) — un cliente viejo NUNCA
+// podía detectar ningún bump de bundle intermedio; (2) el fetch handler de abajo aplicaba
+// cache-first también a la NAVEGACIÓN del documento principal, así que reabrir la PWA podía
+// seguir sirviendo el `index.html`/shell cacheado sin siquiera intentar la red primero. Se
+// corrige de fondo (ver comentarios puntuales más abajo: fetch handler navigate-first,
+// `registerServiceWorker`/`controllerchange` en app.js) y se fuerza el bump de versión pública
+// (deliberado y necesario: es la ÚNICA señal que el cliente V04.10 ya instalado puede leer para
+// salir de su propio estado atascado). Desde V04.11 la versión pública y la versión técnica de
+// bundle quedan separadas (`Store.BUNDLE_VERSION`/`version.json#bundle`, ver store.js) para que
+// un futuro bundle-only bump (`04.11-h1`) sea detectable sin depender de mover la versión
+// pública de nuevo.
+const CACHE_NAME = 'bramulab-v04-11';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -152,36 +171,36 @@ const CACHE_NAME = 'bramulab-v04-10-h32';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.10-h32',
-  './engine.js?v=04.10-h32',
-  './stats.js?v=04.10-h32',
-  './store.js?v=04.10-h32',
+  './styles.css?v=04.11',
+  './engine.js?v=04.11',
+  './stats.js?v=04.11',
+  './store.js?v=04.11',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.10-h32',
-  './level-context.js?v=04.10-h32',
-  './level-calibration.js?v=04.10-h32',
-  './player-home.js?v=04.10-h32',
-  './match-load.js?v=04.10-h32',
-  './player-identity.js?v=04.10-h32',
-  './groups.js?v=04.10-h32',
-  './locations.js?v=04.10-h32',
-  './ranking.js?v=04.10-h32',
+  './level.js?v=04.11',
+  './level-context.js?v=04.11',
+  './level-calibration.js?v=04.11',
+  './player-home.js?v=04.11',
+  './match-load.js?v=04.11',
+  './player-identity.js?v=04.11',
+  './groups.js?v=04.11',
+  './locations.js?v=04.11',
+  './ranking.js?v=04.11',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.10-h32',
+  './auth.js?v=04.11',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.10-h32',
-  './match-sync.js?v=04.10-h32',
-  './match-validation.js?v=04.10-h32',
+  './matches.js?v=04.11',
+  './match-sync.js?v=04.11',
+  './match-validation.js?v=04.11',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.10-h32',
-  './app.js?v=04.10-h32',
+  './intelligence-client.js?v=04.11',
+  './app.js?v=04.11',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -224,6 +243,27 @@ self.addEventListener('fetch', (event) => {
   // a CORE_ASSETS ni se guarda en `caches` por este mismo motivo.
   if (event.request.url.indexOf('/version.json') !== -1) {
     event.respondWith(fetch(event.request, { cache: 'no-store' }).catch(() => new Response('{}', { status: 504 })));
+    return;
+  }
+  // Laboratorio integrado — hotfix de actualización (25/09/2026): la NAVEGACIÓN del documento
+  // principal (abrir/reabrir la PWA, seguir un link, recargar) va SIEMPRE primero a la red —
+  // nunca cache-first como el resto de los assets. Sin esto, reabrir la PWA instalada podía
+  // seguir sirviendo el shell HTML viejo desde Cache Storage aunque ya hubiera un deploy nuevo
+  // (causa raíz real del iPhone atascado en Estado Cero, ver la nota junto a CACHE_NAME más
+  // arriba). Una red exitosa además refresca la copia offline en la MISMA `CACHE_NAME` (nunca
+  // reutiliza una respuesta vieja a propósito) — el fallback cacheado solo se usa si la red
+  // falla de verdad (offline real), y como último recurso cae a `./index.html` por si la
+  // request exacta (con query string propia, p. ej. el `?_fu=` de "Forzar actualización") no
+  // tuviera una entrada propia en caché. Los JS/CSS versionados de abajo conservan la estrategia
+  // cache-first de siempre — esto NO convierte toda la app en network-first.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      }).catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html')))
+    );
     return;
   }
   event.respondWith(
