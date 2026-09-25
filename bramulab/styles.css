@@ -3172,26 +3172,15 @@ input, select{ font-family: inherit; }
    leerse claramente secundario, nunca como una segunda acción del mismo peso. */
 #nivel-review-btn{ display:block; width:fit-content; margin: 16px auto 0; text-align:center; }
 
-/* Insignia CALIBRADO del Nivel BRAMU V1 (Home Player Card + MI PERFIL).
-   BRAMUlab_V04.7 — REEMPLAZA el punto ámbar/lima flotante (`__dot`, retirado — revisión visual:
-   "no ayuda"): píldora con fondo propio, el color YA es la señal gráfica (nunca solo texto),
-   mismo --gold "todavía no" / --brand-lime "listo" de siempre.
-   BRAMUlab_V04.9 (§10) — deja de usarse para CALIBRANDO (ver `.player-card__calibration` más
-   abajo): en la columna angosta de siempre (`.player-card__level-sub`, 46% de ancho) el texto
-   "CALIBRANDO · X / 5 PARTIDOS" se sentía como una píldora grande que alteraba la composición.
-   Sigue siendo la insignia de CALIBRADO tal cual (nunca cambia de posición ni de tamaño, esa
-   sí es la referencia buena de V04.8). */
-.level-v1-badge{
-  display:inline-block; font-size: 11px; font-weight: 800; letter-spacing:0.02em;
-  padding: 3px 10px; border-radius: var(--radius-pill);
-  background: rgba(255,201,61,0.12); border: 1px solid rgba(255,201,61,0.32); color: var(--gold);
-}
-.level-v1-badge--calibrated{ background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.35); color: var(--brand-lime); }
+/* Ronda UX 25/09 (§L) — REEMPLAZA la insignia `.level-v1-badge` (Home Player Card + MI PERFIL):
+   en uso real en iPhone seguía deformando el layout al pasar CALIBRANDO → CALIBRADO
+   (Laboratorio §15.21). Ya no hay ningún badge/píldora para el estado calibrado — la ausencia de
+   CALIBRANDO alcanza para comunicarlo (ver renderPlayerCard/renderProfileEvolution en app.js). */
 
 /* BRAMUlab_V04.9 (§11/§12) — estado CALIBRANDO compacto, en su propia fila de ancho completo
    (mismo lugar que ocupa `.player-card__bar` para cuentas legacy calibradas): label ámbar +
    barra fina de progreso 0→5, compartido tal cual por Home y MI PERFIL ("deben hablar el mismo
-   lenguaje"). Nunca convive con `.level-v1-badge` (son estados mutuamente excluyentes). */
+   lenguaje"). */
 .player-card__calibration{ flex-basis: 100%; margin-top: 10px; }
 .player-card__calibration-label{
   font-size: 11px; font-weight: 800; letter-spacing:0.02em; color: var(--gold);
@@ -3269,6 +3258,10 @@ input, select{ font-family: inherit; }
 /* ---- Proponer corrección: editor mínimo de games por set ---- */
 .b6-correction-sets{ display:flex; flex-direction:column; gap: 10px; padding: 12px 16px; }
 .b6-correction-set{ display:flex; align-items:center; gap: 10px; }
+/* Ronda UX 25/09 (§F) — Set 3 dinámico (updateProposeCorrectionThirdSetVisibility, app.js):
+   sin esta regla el `hidden` nativo pierde contra el `display:flex` de arriba, misma
+   especificidad de selector — el atributo nunca ocultaría nada en la práctica. */
+.b6-correction-set[hidden]{ display:none; }
 .b6-correction-set__label{ width: 56px; font-size: 12px; color: var(--text-dim); text-transform:uppercase; letter-spacing:.03em; }
 .b6-correction-set input{
   width: 56px; text-align:center; font-size: 18px; font-weight:700; color: var(--paper);

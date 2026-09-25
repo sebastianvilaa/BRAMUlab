@@ -2892,6 +2892,63 @@
   })();
 
   // ------------------------------------------------------------------
+  // Ronda UX 25/09 (§N) — PH.computeRecentRealPlayers: RECIENTES server-backed, identidad
+  // SIEMPRE por player_id (m.players[].userId), nunca por nombre — variante de
+  // ML.computeRecentPlayers (legacy, nombre) para el selector de Cargar partido server-backed.
+  // ------------------------------------------------------------------
+  (function () {
+    function makeMatch(matchId, players, playedAt) {
+      return { matchId, players, winnerTeam: null, finishedAt: playedAt, playedAt };
+    }
+    const me = { name: 'Seba', userId: 'u_seba' };
+    const history = [
+      makeMatch('rr1', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Matu', userId: 'u_matu' },
+        { id: 2, team: 'B', name: 'Lucho', userId: 'u_lucho' }, { id: 3, team: 'B', name: 'Diego', userId: 'u_diego' },
+      ], '2026-09-20T00:00:00.000Z'), // el más reciente de todos
+      makeMatch('rr2', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Gusti', userId: 'u_gusti' },
+        { id: 2, team: 'B', name: 'Matu', userId: 'u_matu' }, { id: 3, team: 'B', name: 'Pablito', userId: 'u_pablito' },
+      ], '2026-09-15T00:00:00.000Z'), // repite a Matu — no debe duplicarlo
+      makeMatch('rr3', [
+        { id: 0, team: 'A', name: 'Esteban', userId: 'u_esteban' }, { id: 1, team: 'A', name: 'Jona', userId: 'u_jona' },
+        { id: 2, team: 'B', name: 'Nico', userId: 'u_nico' }, { id: 3, team: 'B', name: 'Bea', userId: 'u_bea' },
+      ], '2026-09-25T00:00:00.000Z'), // Seba NO participa (aunque sea el más reciente en fecha) — nadie de acá debe aparecer
+      makeMatch('rr4', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Provisional sin cuenta', userId: null },
+        { id: 2, team: 'B', name: 'Por identificar', userId: null }, { id: 3, team: 'B', name: 'Cruz', userId: 'u_cruz' },
+      ], '2026-09-10T00:00:00.000Z'), // slots sin userId (provisional/por identificar) nunca son candidatos
+    ];
+    const recents = PH.computeRecentRealPlayers(history, me, [], 12);
+    const ids = recents.map((p) => p.playerId);
+    assert('V25UX-N · computeRecentRealPlayers ordena por partido más reciente primero', ids[0] === 'u_matu', JSON.stringify(ids));
+    assert('V25UX-N · computeRecentRealPlayers no duplica un player_id ya visto en un partido más reciente', ids.filter((id) => id === 'u_matu').length === 1, JSON.stringify(ids));
+    assert('V25UX-N · computeRecentRealPlayers nunca incluye al propio jugador (por userId)', ids.indexOf('u_seba') === -1, JSON.stringify(ids));
+    assert('V25UX-N · computeRecentRealPlayers ignora partidos donde el jugador no participó', ids.indexOf('u_esteban') === -1 && ids.indexOf('u_nico') === -1, JSON.stringify(ids));
+    assert('V25UX-N · computeRecentRealPlayers excluye slots sin userId (provisional/por identificar)', ids.indexOf(null) === -1 && recents.every((p) => !!p.playerId), JSON.stringify(ids));
+    assert('V25UX-N · computeRecentRealPlayers respeta excludeIds', PH.computeRecentRealPlayers(history, me, ['u_matu'], 12).map((p) => p.playerId).indexOf('u_matu') === -1);
+    assert('V25UX-N · computeRecentRealPlayers respeta el límite', PH.computeRecentRealPlayers(history, me, [], 2).length === 2);
+
+    // Homónimos: dos player_id DISTINTOS con el MISMO nombre visible — identidad por player_id
+    // nunca debe fusionarlos en una sola fila (a diferencia de ML.computeRecentPlayers, legacy,
+    // que sí dedupea por nombre normalizado).
+    const homonymHistory = [
+      makeMatch('hn1', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Juan Pérez', userId: 'u_juan_1' },
+        { id: 2, team: 'B', name: 'Ana', userId: 'u_ana' }, { id: 3, team: 'B', name: 'Bea', userId: 'u_bea2' },
+      ], '2026-09-05T00:00:00.000Z'),
+      makeMatch('hn2', [
+        { id: 0, team: 'A', name: 'Seba', userId: 'u_seba' }, { id: 1, team: 'A', name: 'Juan Pérez', userId: 'u_juan_2' },
+        { id: 2, team: 'B', name: 'Cruz', userId: 'u_cruz2' }, { id: 3, team: 'B', name: 'Dan', userId: 'u_dan2' },
+      ], '2026-09-06T00:00:00.000Z'),
+    ];
+    const homonymRecents = PH.computeRecentRealPlayers(homonymHistory, me, [], 12);
+    const homonymIds = homonymRecents.map((p) => p.playerId);
+    assert('V25UX-N · protege homónimos: dos player_id distintos con el mismo nombre quedan como 2 filas separadas',
+      homonymIds.indexOf('u_juan_1') !== -1 && homonymIds.indexOf('u_juan_2') !== -1, JSON.stringify(homonymRecents));
+  })();
+
+  // ------------------------------------------------------------------
   // V03.0 — Estampado de userId: nunca ambiguo (pura)
   // ------------------------------------------------------------------
   (function () {

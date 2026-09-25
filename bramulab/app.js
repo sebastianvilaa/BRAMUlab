@@ -285,6 +285,31 @@
     return parts.join(' · ') || 'sin sets';
   }
 
+  /** Ronda UX 25/09 (§A) — overlay de PRESENTACIÓN puro: reordena `sets`/`currentPartial` desde
+   *  la perspectiva de `team` para toda superficie PERSONAL compacta (Último partido, Historial
+   *  — nunca Resumen/Confirmar partido, que conservan el orden canónico A/B de
+   *  `buildScoreCardHTML`/`formatSetSegmentLabel` sin pasar por acá). Nunca toca el dato
+   *  guardado: arma copias nuevas de cada set con gamesA/gamesB/tiebreak.a/b/winner invertidos
+   *  cuando `team==='B'`. Bug real (Laboratorio §15.7): la tarjeta ya ponía la pareja del
+   *  usuario primero en el nombre pero seguía mostrando el score canónico sin invertir cuando
+   *  esa pareja era Team B — "Matu / Diego vs Seba / Pablito" junto a "4–6 · 4–6" en vez de
+   *  "6–4 · 6–4". Sin `team==='B'` (incluye `team` null/'A'/no participante), devuelve los
+   *  mismos datos sin copiar. */
+  function orientMatchForTeam(sets, currentPartial, team) {
+    if (team !== 'B') return { sets: sets || [], currentPartial: currentPartial || null };
+    const flipTeam = (t) => (t === 'A' ? 'B' : t === 'B' ? 'A' : t);
+    const flipSet = (s) => Object.assign({}, s, {
+      gamesA: s.gamesB,
+      gamesB: s.gamesA,
+      tiebreak: s.tiebreak ? { a: s.tiebreak.b, b: s.tiebreak.a } : s.tiebreak,
+      winner: flipTeam(s.winner),
+    });
+    return {
+      sets: (sets || []).map(flipSet),
+      currentPartial: currentPartial ? flipSet(currentPartial) : null,
+    };
+  }
+
   // Etapa 2 (Rama Jugador §4) — vistas donde la barra inferior debe estar presente. Fuera de
   // esta lista la barra se oculta para no competir con una tarea inmersiva en curso (carga de
   // resultados de sets, partido en vivo, edición activa, sheets/modales).
@@ -700,6 +725,24 @@
     if (canAdd) $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer(trimmed));
   }
 
+  /** Ronda UX 25/09 (§N) — fila de RECIENTES server-backed: jugador REAL (cuenta registrada)
+   *  con el que ya se compartió un partido (PH.computeRecentRealPlayers), identidad SIEMPRE por
+   *  `player_id`. Deliberadamente SIN línea de `@usuario`: a diferencia de
+   *  `buildPlayerRowHTMLFromServerRow` (resultados de `search_players`, que ya trae el username
+   *  real), acá solo se dispone del nombre visible que trajo el propio historial de partidos —
+   *  fabricar un handle desde el nombre es exactamente el antipatrón que BRAMUlab_V03.6 corrigió
+   *  para una cuenta real resoluble (ver comentario de `buildPlayerRowHTML`), así que esta fila
+   *  usa un subtítulo neutro en vez de inventar uno. */
+  function buildRecentRealPlayerRowHTML(p) {
+    return `<button type="button" class="player-row" data-name="${escapeHtml(p.name || 'Jugador')}" data-player-id="${escapeHtml(p.playerId)}">
+      <span class="player-row__avatar">${escapeHtml(playerInitials(p.name || 'Jugador'))}</span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(p.name || 'Jugador')}</span>
+        <span class="player-row__handle">Jugaron juntos antes</span>
+      </span>
+    </button>`;
+  }
+
   /** Backend Bloque 5 — fila de un invitado (identidad provisional) seleccionable en el sheet
    *  server-backed: creado por mí (`list_my_provisional_players`) o relacionado vía un partido
    *  compartido (`list_related_provisional_players`, Decisión #3 de 04_Revision_ChatGPT.md).
@@ -729,8 +772,26 @@
     const excludedIds = manualExcludedPlayerIdsForSlot(slot);
     const trimmed = (query || '').trim();
 
-    $('#load-player-sheet-recents-section').hidden = true;
-    $('#load-player-sheet-recents').innerHTML = '';
+    // Ronda UX 25/09 (§N) — RECIENTES real, basado en relaciones/partidos reales ya existentes
+    // (getDisplayHistory: cualquier estado, compartir cancha ya alcanza), identidad por
+    // player_id. Solo mientras no se está buscando por texto — mismo criterio que el camino
+    // local/legacy (recientsSection arriba, resultados de búsqueda abajo, nunca los dos a la
+    // vez) — así nunca puede duplicarse con `search_players` más abajo: `realRows` ya queda
+    // vacío cuando `trimmed` está vacío (ver `searchResult` abajo).
+    const recentsSection = $('#load-player-sheet-recents-section');
+    const recentsWrap = $('#load-player-sheet-recents');
+    if (!trimmed) {
+      const recents = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), excludedIds, 12);
+      if (recents.length) {
+        recentsSection.hidden = false;
+        recentsWrap.innerHTML = recents.map(buildRecentRealPlayerRowHTML).join('');
+        $all('#load-player-sheet-recents .player-row').forEach((btn) => {
+          btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name, btn.dataset.playerId));
+        });
+      } else { recentsSection.hidden = true; recentsWrap.innerHTML = ''; }
+    } else {
+      recentsSection.hidden = true; recentsWrap.innerHTML = '';
+    }
     $('#load-player-sheet-list-label').hidden = true;
     const listWrap = $('#load-player-sheet-list');
 
@@ -2148,7 +2209,6 @@
 
   // Proponer corrección — sheet activo.
   let b6CorrectionMatch = null; // f (forma local) del partido que se está corrigiendo
-  let b6CorrectionSetCount = 0;
   // No participé — partido activo (para armar los 4 lugares del picker).
   let b6ReportIdentityMatch = null;
   // Resolver identidad — issue/slot activos + exclusión de duplicados para el picker.
@@ -2165,6 +2225,24 @@
   }
   function b6PlayerAt(f, team, positionInTeam) {
     return b6PlayersOfTeam(f, team)[positionInTeam - 1] || null;
+  }
+  /** Ronda UX 25/09 (§G/§I) — nombre REAL de quien propuso la ÚLTIMA corrección de este partido
+   *  (nunca la pareja genérica, ver Backend_Infraestructura.md §6.4: match_actions.actor_player_id
+   *  es siempre el jugador real que actuó, no un concepto de equipo) — busca la última acción
+   *  'revision_proposed' en f.actionsRaw (get_match_detail; get_my_matches no la trae, ver
+   *  actionsRaw en match-sync.js) y resuelve la fila real por actorPlayerId. La RPC ya impide una
+   *  segunda propuesta mientras haya una pendiente (Bloque 6), así que la ÚLTIMA acción de ese
+   *  tipo siempre corresponde a la revisión vigente/pendiente actual. `null` si `actionsRaw`
+   *  todavía no llegó (primer pintado con snapshot de lista) o si nunca hubo una propuesta —
+   *  cada llamador decide su propio fallback (mismo criterio que el resto de este bloque: nunca
+   *  inventar un actor cuando no se puede resolver). */
+  function b6RevisionProposerName(f) {
+    if (!Array.isArray(f.actionsRaw)) return null;
+    const proposals = f.actionsRaw.filter((a) => a.actionType === 'revision_proposed');
+    if (!proposals.length) return null;
+    const last = proposals[proposals.length - 1];
+    const row = (f.players || []).find((p) => p && p.userId === last.actorPlayerId);
+    return (row && row.name) || S.teamLabel(f.players, last.actingSide) || null;
   }
   function b6AllSlots(f) {
     const slots = [];
@@ -2363,14 +2441,37 @@
     }
 
     if (f.status === 'pending_validation') {
+      // Ronda UX 25/09 (§G) — BUG: una corrección pre-validación (currentRevisionNumber > 1) se
+      // presentaba EXACTAMENTE igual que una carga nueva — mismo copy genérico "Te toca
+      // confirmar este resultado" + botón "CONFIRMAR PARTIDO" (Laboratorio §15.7: "no fue una
+      // nueva carga; fue una corrección propuesta"). `null`/`undefined` (snapshot de lista,
+      // detalle todavía sin llegar — ver match-sync.js) nunca se trata como corrección: recién
+      // se sabe con certeza una vez que currentRevisionNumber llega con el detalle completo.
+      const isCorrectionPending = Number.isFinite(f.currentRevisionNumber) && f.currentRevisionNumber > 1;
+      const confirmBtn = $('#b6-confirm-btn');
       if (f.isActionMine && !hasOpenIdentity) {
         banner.hidden = false;
-        bannerText.textContent = 'Te toca confirmar este resultado.';
+        if (isCorrectionPending) {
+          const proposer = b6RevisionProposerName(f);
+          bannerText.textContent = proposer
+            ? `${proposer} propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.`
+            : 'Se propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.';
+          confirmBtn.textContent = 'ACEPTAR CORRECCIÓN';
+        } else {
+          bannerText.textContent = 'Te toca confirmar este resultado.';
+          confirmBtn.textContent = 'CONFIRMAR PARTIDO';
+        }
         confirmBlock.hidden = false;
       } else if (f.actionSide && !hasOpenIdentity) {
+        // Waiting: sigue siendo la PAREJA rival (cualquiera de sus dos integrantes puede
+        // actuar), a diferencia de b6RevisionProposerName arriba que resuelve una PERSONA
+        // puntual — acá no hay "quién específico" todavía, por diseño (Backend_Infraestructura.md
+        // §8.6: alcanza una acción de cualquiera de los dos integrantes de la pareja).
         const waitingTeam = S.teamLabel(f.players, f.actionSide);
         banner.hidden = false; banner.classList.add('b6-banner--waiting');
-        bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
+        bannerText.textContent = isCorrectionPending
+          ? `Corrección enviada. Esperando que ${waitingTeam} la acepte.`
+          : `Esperando que ${waitingTeam} confirme este resultado.`;
       }
       reportBlock.hidden = !b6IdentityReportWindowOpen(f);
       proposeBlock.hidden = hasOpenIdentity; // sin los 4 IDs reales no hay revisión posible.
@@ -2397,7 +2498,11 @@
 
       if (proposedByTeam && f.myTeam && proposedByTeam !== f.myTeam) {
         respondBlock.hidden = false;
-        respondText.textContent = `${S.teamLabel(f.players, proposedByTeam)} propuso una corrección del resultado. ¿La aceptás?`;
+        // Ronda UX 25/09 (§G/§I) — actor PERSONA real (b6RevisionProposerName), nunca la pareja
+        // genérica: reusa exactamente la misma acción 'revision_proposed' que ya se filtró
+        // arriba, resuelta ahora por actorPlayerId en vez de solo el equipo.
+        const proposerName = b6RevisionProposerName(f) || S.teamLabel(f.players, proposedByTeam);
+        respondText.textContent = `${proposerName} propuso una corrección del resultado. ¿La aceptás?`;
         proposeBlock.hidden = true;
       } else if (proposedByTeam) {
         banner.hidden = false;
@@ -2549,17 +2654,59 @@
   }
 
   /* ---- Proponer corrección ---- */
+  // Ronda UX 25/09 (§F) — REEMPLAZA la hoja anterior (un input por cada set YA existente, sin
+  // poder convertir un partido de 2 sets en uno de 3): reutiliza la MISMA lógica/composición que
+  // Cargar partido usa para decidir cuántos sets corresponden (ML.isThirdSetVisible) y el MISMO
+  // validador central (ML.validateMatchSets) — nunca un validador ni una gramática de score
+  // propios (Laboratorio §15.2/§15.7). El Set 3 se muestra/oculta dinámicamente mientras se
+  // tipea, exactamente con el mismo criterio que la carga original: recién cuando el Set 1 y el
+  // Set 2 son ambos resultados completos y válidos y dejan el partido 1-1.
+
+  /** `{a,b}` numéricos del set `i` de la hoja de corrección, o `null` si la fila no existe (no
+   *  aplica a este formato) o todavía no está completa — misma forma que `manualSets` en Cargar
+   *  partido, para poder pasarla tal cual a `ML.validateMatchSets`/`ML.isThirdSetVisible`. */
+  function readCorrectionSetInput(i) {
+    const aInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="a"]`);
+    const bInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="b"]`);
+    if (!aInput || !bInput) return null;
+    const a = aInput.value === '' ? NaN : Number(aInput.value);
+    const b = bInput.value === '' ? NaN : Number(bInput.value);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return { a, b };
+  }
+  /** Muestra/oculta la fila del Set 3 según ML.isThirdSetVisible sobre los valores YA tipeados
+   *  de los Sets 1 y 2 — se llama en cada `input` (ver initProposeCorrectionSheet). Limpia el
+   *  Set 3 al ocultarlo (mismo criterio que ML.computeFormatChangeImpact: nunca deja un valor
+   *  huérfano invisible que igual se mandaría al validar). */
+  function updateProposeCorrectionThirdSetVisibility(format) {
+    const row3 = $('#propose-correction-sets [data-set-row="2"]');
+    if (!row3) return; // formato a un único set (ej. Americano): no existe Set 3
+    const visible = ML.isThirdSetVisible(readCorrectionSetInput(0), readCorrectionSetInput(1), format);
+    row3.hidden = !visible;
+    if (!visible) {
+      const aInput = $('#propose-correction-sets input[data-set="2"][data-side="a"]');
+      const bInput = $('#propose-correction-sets input[data-set="2"][data-side="b"]');
+      if (aInput) aInput.value = '';
+      if (bInput) bInput.value = '';
+    }
+  }
   function openProposeCorrection(f) {
     b6CorrectionMatch = f;
-    b6CorrectionSetCount = (f.sets || []).length || 1;
+    const format = E.FORMATS[f.formatId] || E.FORMATS.classic;
+    const existing = f.sets || [];
+    const maxSlots = format.bestOfSets === 1 ? 1 : 3;
     const wrap = $('#propose-correction-sets');
-    wrap.innerHTML = (f.sets || []).map((s, i) => `
-      <div class="b6-correction-set">
+    wrap.innerHTML = Array.from({ length: maxSlots }, (_, i) => {
+      const s = existing[i];
+      return `
+      <div class="b6-correction-set" data-set-row="${i}">
         <span class="b6-correction-set__label">SET ${i + 1}</span>
-        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="a" value="${Number.isFinite(s.gamesA) ? s.gamesA : ''}" />
+        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="a" value="${s && Number.isFinite(s.gamesA) ? s.gamesA : ''}" />
         <span class="b6-correction-set__sep">–</span>
-        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="b" value="${Number.isFinite(s.gamesB) ? s.gamesB : ''}" />
-      </div>`).join('');
+        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="b" value="${s && Number.isFinite(s.gamesB) ? s.gamesB : ''}" />
+      </div>`;
+    }).join('');
+    updateProposeCorrectionThirdSetVisibility(format);
     $('#propose-correction-error').hidden = true;
     $('#propose-correction-scrim').hidden = false;
     requestAnimationFrame(() => { $('#propose-correction-scrim').classList.add('is-open'); });
@@ -2578,20 +2725,23 @@
       $('#propose-correction-error').hidden = false;
       return;
     }
-    const format = E.FORMATS[f.formatId] || E.FORMATS.classic;
-    const sets = [];
-    for (let i = 0; i < b6CorrectionSetCount; i++) {
-      const aInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="a"]`);
-      const bInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="b"]`);
-      const gamesA = Number(aInput.value), gamesB = Number(bInput.value);
-      if (!Number.isFinite(gamesA) || !Number.isFinite(gamesB) || !E.isValidCompletedSetScore(gamesA, gamesB, format)) {
-        $('#propose-correction-error').textContent = `El Set ${i + 1} no tiene un resultado válido.`;
-        $('#propose-correction-error').hidden = false;
-        return;
-      }
-      sets.push({ gamesA, gamesB, tiebreakA: null, tiebreakB: null });
+    // Ronda UX 25/09 (§F) — MISMO validador central que Cargar partido (ML.validateMatchSets),
+    // nunca un chequeo campo por campo propio: decide sola cuántos sets corresponden (incluido
+    // "falta definir el tercer set" cuando 1-1 todavía no cerró un Set 3) y con qué mensaje
+    // (MANUAL_ERROR_MESSAGES — el mismo mapa que ya usa Cargar partido, nunca copys duplicados).
+    const rawSets = [readCorrectionSetInput(0), readCorrectionSetInput(1), readCorrectionSetInput(2)];
+    const validation = ML.validateMatchSets(rawSets, f.formatId);
+    if (!validation.ok) {
+      $('#propose-correction-error').textContent = MANUAL_ERROR_MESSAGES[validation.reason] || 'Revisá el resultado cargado.';
+      $('#propose-correction-error').hidden = false;
+      return;
     }
     $('#propose-correction-error').hidden = true;
+    const sets = validation.sets.map((s) => ({
+      gamesA: s.gamesA, gamesB: s.gamesB,
+      tiebreakA: s.tiebreak ? s.tiebreak.a : null,
+      tiebreakB: s.tiebreak ? s.tiebreak.b : null,
+    }));
     const btn = $('#propose-correction-submit');
     btn.disabled = true;
     let result;
@@ -2625,13 +2775,24 @@
       return;
     }
     closeProposeCorrection();
-    showToast('Corrección propuesta.');
+    // Ronda UX 25/09 (§F) — feedback inequívoco: el toast por defecto (1600ms) pasó inadvertido
+    // en uso real (Laboratorio §15.7) mientras el sheet cerraba y el Resumen se re-renderizaba a
+    // la vez. Duración más larga + copy que confirma explícitamente el estado siguiente.
+    showToast('Corrección enviada. Esperando confirmación de la otra pareja.', 3200);
     await afterB6Action(f.matchId);
   }
   function initProposeCorrectionSheet() {
     $('#propose-correction-close').addEventListener('click', closeProposeCorrection);
     $('#propose-correction-scrim').addEventListener('click', (e) => { if (e.target === $('#propose-correction-scrim')) closeProposeCorrection(); });
     $('#propose-correction-submit').addEventListener('click', submitProposeCorrection);
+    // Ronda UX 25/09 (§F) — recalcula la visibilidad del Set 3 en cada tecla, mismo criterio
+    // reactivo que Cargar partido (acá sin el teclado numérico dedicado: inputs planos, pero la
+    // MISMA función pura decide).
+    $('#propose-correction-sets').addEventListener('input', () => {
+      if (!b6CorrectionMatch) return;
+      const format = E.FORMATS[b6CorrectionMatch.formatId] || E.FORMATS.classic;
+      updateProposeCorrectionThirdSetVisibility(format);
+    });
   }
 
   /* ---- Responder corrección ---- */
@@ -3885,14 +4046,23 @@
     triggerHistoryContentAnim();
     if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
     list.forEach((m) => {
-      const nameA = S.teamLabel(m.players, 'A'), nameB = S.teamLabel(m.players, 'B');
+      // Ronda UX 25/09 (§A) — perspectiva personal: la pareja del usuario actual primero, el
+      // rival después, y el score orientado en ese mismo sentido (Laboratorio §15.7: antes
+      // Historial siempre mostraba Team A canónico primero, sin importar quién mira). Sin
+      // participante identificado (Observados/legacy, `myTeam` null), se conserva exactamente
+      // el orden canónico A/B de siempre.
+      const myTeam = PH.getPlayerTeam(m, currentIdentity());
+      const firstTeam = myTeam === 'B' ? 'B' : 'A';
+      const secondTeam = firstTeam === 'A' ? 'B' : 'A';
+      const nameFirst = S.teamLabel(m.players, firstTeam), nameSecond = S.teamLabel(m.players, secondTeam);
       // V8.2 (32): BUG de auditoría — antes usaba `sets.map(...).join(' · ') || currentPartial`,
       // así que en cuanto había AL MENOS un set terminado, el `||` nunca llegaba a mirar
       // `currentPartial` y el último set incompleto (partido finalizado manualmente a mitad
       // de un set) desaparecía del Historial. Ahora ambos se concatenan cuando corresponde:
       // sets terminados primero, y el set parcial al final marcado con "*".
       // V02.2 (Bloque D, §12) — mismo componente canónico que Confirmar partido/Último partido.
-      const scoreStr = buildCanonicalScoreLineHTML(m.sets, m.currentPartial);
+      const orientedHistory = orientMatchForTeam(m.sets, m.currentPartial, firstTeam);
+      const scoreStr = buildCanonicalScoreLineHTML(orientedHistory.sets, orientedHistory.currentPartial);
       // V02.9 (§4) — formato/sistema dejan de ir en una línea de subtítulo arriba (junto con el
       // modo de carga): se reubican como metadata inferior derecha, mismo criterio que Último
       // Partido (ver renderPlayerLastMatchCard) — Historial es su versión compacta, mismo
@@ -3919,15 +4089,15 @@
       // styles.css:.history-item__teams).
       const ownership = PH.classifyMatchOwnership(m, currentIdentity());
       let resultBadgeHTML = '';
-      let wonTagA = '', wonTagB = '';
+      let wonTagFirst = '', wonTagSecond = '';
       if (ownership === 'mine') {
         const resultKind = PH.matchResultForPlayer(m, currentIdentity());
         if (resultKind === 'win') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--win">VICTORIA</span>';
         else if (resultKind === 'loss') resultBadgeHTML = '<span class="history-item__result-badge history-item__result-badge--loss">DERROTA</span>';
-      } else if (m.winnerTeam === 'A') {
-        wonTagA = '<span class="history-item__won-tag">GANÓ</span>';
-      } else if (m.winnerTeam === 'B') {
-        wonTagB = '<span class="history-item__won-tag">GANÓ</span>';
+      } else if (m.winnerTeam === firstTeam) {
+        wonTagFirst = '<span class="history-item__won-tag">GANÓ</span>';
+      } else if (m.winnerTeam === secondTeam) {
+        wonTagSecond = '<span class="history-item__won-tag">GANÓ</span>';
       }
       // Etapa 3 (Fase 1) — fecha REAL jugada, no cuándo se guardó (PH.getPlayedAt: playedAt
       // → startedAt → finishedAt). Nunca leer m.finishedAt directo para esto.
@@ -3947,7 +4117,7 @@
         </div>
         <div class="history-item__score">${scoreStr}</div>
         <div class="history-item__bottom-row">
-          <div class="history-item__teams">${nameA}${wonTagA}<span class="vs-sep">vs</span>${nameB}${wonTagB}</div>
+          <div class="history-item__teams">${nameFirst}${wonTagFirst}<span class="vs-sep">vs</span>${nameSecond}${wonTagSecond}</div>
           ${(formatLabel || scoringLabel) ? `<div class="history-item__meta">
             ${formatLabel ? `<div class="history-item__meta-line">${formatLabel}</div>` : ''}
             ${scoringLabel ? `<div class="history-item__meta-line">${scoringLabel}</div>` : ''}
@@ -5611,17 +5781,6 @@
     return nivelOnboardingPending(user) ? user : null;
   }
 
-  /** Texto CALIBRANDO/CALIBRADO + progreso, reutilizado idéntico en Home y MI PERFIL — un
-   *  solo lugar que decide esta redacción (Consolidado §"estado calibrando").
-   *  BRAMUlab_V04.7 — el punto ámbar/lima flotante (`__dot`) se retira (revisión visual: "no
-   *  ayuda"): el badge pasa a ser una píldora con fondo propio (ver `.level-v1-badge` en
-   *  styles.css), el color de fondo ya comunica el estado sin necesitar un punto aparte. */
-  function levelV1BadgeHTML(state) {
-    const calibrated = state.state === LV.STATES.CALIBRATED;
-    const label = calibrated ? 'NIVEL CALIBRADO' : `CALIBRANDO · ${state.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
-    return `<span class="level-v1-badge${calibrated ? ' level-v1-badge--calibrated' : ''}">${label}</span>`;
-  }
-
   /** V03.0 (§3) — completar acceso (agregar email+contraseña a la MISMA cuenta, nunca crea
    *  una segunda). Reusado desde Perfil y desde la advertencia de "Cerrar sesión".
    *  V03.0.1 (§4) — pasa de modal a pantalla completa (#view-complete-access), mismo shell
@@ -5849,7 +6008,14 @@
       const m = pending[0];
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
       const rivalNames = S.teamLabel(m.players, rivalTeam);
-      $('#player-home-pending-banner-text').textContent = `${rivalNames || 'Tu rival'} registró un partido en el que participaste.`;
+      // Ronda UX 25/09 (§I) — BUG: "X registró un partido en el que participaste" es una
+      // atribución de CARGA que get_my_matches no puede confirmar acá (sin currentRevisionNumber/
+      // actionsRaw en esta lista liviana, nunca se sabe si el pendiente es una carga nueva, una
+      // corrección propuesta o una identidad recién resuelta — Laboratorio §15.7/§15.12: la
+      // misma frase se mostró para los tres casos, dos de ellos falsos). Copy neutro y siempre
+      // verdadero acá; la distinción real por tipo de evento vive en el Resumen (paintB6Actions),
+      // que sí tiene esos datos.
+      $('#player-home-pending-banner-text').textContent = `Tenés un partido pendiente con ${rivalNames || 'tu rival'}.`;
       $('#player-home-pending-banner-cta').textContent = 'REVISAR';
       banner.onclick = () => openCanonicalResumen(m, 'player-home');
     } else {
@@ -6043,15 +6209,16 @@
     if (levelV1) {
       barWrapEl.hidden = true;
       setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
-      // BRAMUlab_V04.9 (§10/§11) — CALIBRADO conserva la píldora chica de siempre en la columna
-      // angosta (`.player-card__level-sub`, referencia buena de V04.8, nunca se toca);
-      // CALIBRANDO pasa a la fila completa de abajo (`.player-card__calibration`) en vez de esa
-      // píldora, que ahí se sentía grande y alteraba la composición (revisión visual).
+      // Ronda UX 25/09 (§L) — REEMPLAZA la píldora `NIVEL CALIBRADO` de V04.9 (`levelV1BadgeHTML`
+      // en la columna angosta): en uso real en iPhone deformaba el layout de la tarjeta al pasar
+      // 4/5 → 5/5 (Laboratorio §15.21). Una vez calibrado, ningún badge — la ausencia de
+      // CALIBRANDO ya comunica el estado; identidad + Nivel BRAMU numérico quedan en su
+      // composición normal, sin nada en la columna angosta.
       const calibrated = levelV1.state === LV.STATES.CALIBRATED;
       const calibEl = $('#player-home-calibration');
       if (calibrated) {
-        levelSubEl.hidden = false;
-        levelSubEl.innerHTML = levelV1BadgeHTML(levelV1);
+        levelSubEl.hidden = true;
+        levelSubEl.innerHTML = '';
         calibEl.hidden = true;
       } else {
         levelSubEl.hidden = true;
@@ -6126,8 +6293,11 @@
     // V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML,
     // no el componente canónico compartido con Historial/Confirmar partido — ver comentario
     // en su definición).
-    const scoreStr = buildLastMatchScoreHTML(m.sets, m.currentPartial);
-    const scoreLabel = buildLastMatchScoreLabel(m.sets, m.currentPartial);
+    // Ronda UX 25/09 (§A) — orientado desde la perspectiva de myTeam (orientMatchForTeam):
+    // los nombres ya ponían a la pareja propia primero, pero el score seguía canónico A/B.
+    const oriented = orientMatchForTeam(m.sets, m.currentPartial, myTeam);
+    const scoreStr = buildLastMatchScoreHTML(oriented.sets, oriented.currentPartial);
+    const scoreLabel = buildLastMatchScoreLabel(oriented.sets, oriented.currentPartial);
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
     // V02.9 (§3) — vuelve a la palabra completa VICTORIA/DERROTA (el consolidado la da por
     // "mantenida" en esta tarjeta; §20/V02.5 la había abreviado a VIC/DER, mismo criterio que
@@ -6514,14 +6684,43 @@
     match_expired: { title: 'Partido vencido', body: 'Un partido venció sin validarse a tiempo.', category: 'error' },
     admin_action: { title: 'Acción administrativa', body: 'Un administrador realizó una acción sobre un partido tuyo.', category: 'info' },
   };
+  /** Ronda UX 25/09 (§I) — nombre real de `playerId`, buscado en el cache local de
+   *  `get_my_matches` (Store.loadServerMatchesCache — ya en memoria, sin ninguna llamada de red
+   *  nueva) en vez de un fetch dedicado: cualquier acción que produce una notificación para el
+   *  caller ocurre SIEMPRE dentro de un partido que el caller comparte con esa persona, así que
+   *  ya tiene que aparecer como participante en al menos una fila cacheada. `null` si el cache
+   *  todavía no llegó a incluir ese partido (nunca se inventa un nombre). */
+  function resolvePlayerNameFromMatchesCache(playerId) {
+    if (!playerId) return null;
+    const cache = Store.loadServerMatchesCache();
+    const matches = (cache && cache.matches) || [];
+    for (let i = 0; i < matches.length; i++) {
+      const rows = Array.isArray(matches[i].participants) ? matches[i].participants : [];
+      const hit = rows.find((p) => p && p.playerId === playerId);
+      if (hit && hit.displayName) return hit.displayName;
+    }
+    return null;
+  }
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
    *  caminos de render distintos. `source`/`type` extra: el click handler los usa para saber
-   *  qué RPC llamar al marcar como leída (nunca la del otro origen). */
+   *  qué RPC llamar al marcar como leída (nunca la del otro origen).
+   *  Ronda UX 25/09 (§I) — `correction_proposed` es, hoy, el ÚNICO tipo cuyo payload trae un
+   *  actor real (`proposedByPlayerId`, ver get_notifications en la migración de Bloque 6): se
+   *  arma un body dinámico con su nombre real en vez del genérico estático. El resto de los
+   *  tipos persistidos (match_validated/correction_accepted/identity_resolved/
+   *  identity_unidentified/admin_action) NO llevan un player_id de actor en su payload — mostrar
+   *  un nombre ahí exigiría una llamada adicional por notificación o un cambio de backend; queda
+   *  fuera de esta ronda (ver documento de resultado). */
   function mapB6Notification(n) {
     const copy = B6_NOTIF_COPY[n.type] || { title: 'Notificación', body: '', category: 'info' };
+    let body = copy.body;
+    if (n.type === 'correction_proposed' && n.payload && n.payload.proposedByPlayerId) {
+      const proposerName = resolvePlayerNameFromMatchesCache(n.payload.proposedByPlayerId);
+      if (proposerName) body = `${proposerName} propuso una corrección de resultado.`;
+    }
     return {
-      id: n.id, title: copy.title, body: copy.body, category: copy.category,
+      id: n.id, title: copy.title, body, category: copy.category,
       createdAt: n.createdAt, readAt: n.readAt, matchId: n.matchId,
       source: 'server', type: n.type,
     };
@@ -9392,25 +9591,23 @@
     // BRAMUlab_V04.9 (§12) — default seguro, mismo criterio que renderPlayerCard: solo el
     // branch V1 CALIBRANDO de abajo la muestra.
     $('#mi-perfil-calibration').hidden = true;
+    // Ronda UX 25/09 (§M) — default seguro: solo el branch V1 CALIBRADO de abajo lo oculta:
+    // ningún otro estado (legacy/simulado, o V1 todavía calibrando) debe heredar por accidente
+    // el `hidden` de un render anterior para otra cuenta.
+    $('#evolution-card').hidden = false;
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
-      $('#evolution-calibration').hidden = false;
       const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
-      $('#evolution-calibration-state').textContent = isCalibrated ? 'NIVEL CALIBRADO' : 'CALIBRANDO';
-      $('#evolution-calibration-progress').hidden = isCalibrated;
-      $('#evolution-calibration-progress').textContent = isCalibrated ? '' : `${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
-      // BRAMUlab_V04.4 — nunca la nota del simulado (contradiría el número real de arriba).
-      $('#evolution-calibration-note-simulado').hidden = true;
-      $('#evolution-calibration-note-v1').hidden = false;
       setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
-      // BRAMUlab_V04.9 (§10/§12) — mismo criterio que Home: CALIBRADO conserva la píldora chica
-      // de siempre (`#mi-perfil-level-sub`, columna angosta); CALIBRANDO pasa a la fila completa
-      // de calibración (`#mi-perfil-calibration`), nunca la píldora ahí.
+      // Ronda UX 25/09 (§L) — mismo criterio que Home (renderPlayerCard): una vez calibrado, sin
+      // píldora persistente `NIVEL CALIBRADO` — la desaparición de CALIBRANDO ya comunica el
+      // estado; identidad + Nivel BRAMU numérico quedan en su composición normal
+      // (Laboratorio §15.21: la píldora deformaba el layout de la cabecera).
       const calibEl = $('#mi-perfil-calibration');
       if (isCalibrated) {
-        $('#mi-perfil-level-sub').hidden = false;
-        $('#mi-perfil-level-sub').innerHTML = levelV1BadgeHTML(levelV1);
+        $('#mi-perfil-level-sub').hidden = true;
+        $('#mi-perfil-level-sub').innerHTML = '';
         calibEl.hidden = true;
       } else {
         $('#mi-perfil-level-sub').hidden = true;
@@ -9422,6 +9619,32 @@
       }
       $('#mi-perfil-level-delta').textContent = '';
       $('#mi-perfil-level-delta').className = 'player-card__level-delta player-card__level-delta--inline player-card__level-delta--flat';
+      // Ronda UX 25/09 (§M) — BUG: una vez calibrado, el módulo EVOLUCIÓN DEL NIVEL BRAMU seguía
+      // mostrando "Es una primera referencia... BRAMU la va a calibrar con partidos reales",
+      // falso después de completar calibración (Laboratorio §15.21). Se inspeccionó el camino
+      // server-backed real: hoy NO existe una serie real basada en level_events que este módulo
+      // pueda graficar para una cuenta V1 — el único gráfico de esta tarjeta (#evolution-chart-wrap
+      // más abajo) se alimenta EXCLUSIVAMENTE de PH.computeLevelEvolution, el motor simulado
+      // legacy, nunca de datos V1 reales. Mostrar ese gráfico simulado encima de un Nivel V1 real
+      // sería mezclar dos fuentes de verdad (Consolidado §7: "nunca conviven dos verdades a la
+      // vez") y el copy de calibración ya no aplica una vez calibrado — sin un camino real
+      // disponible, se oculta el módulo COMPLETO en vez de simular o dejar un copy falso.
+      // Mientras sigue CALIBRANDO, el módulo se conserva (el copy actual SÍ es verdadero: es una
+      // primera referencia todavía no calibrada con partidos reales).
+      $('#evolution-card').hidden = isCalibrated;
+      if (isCalibrated) {
+        // Estado limpio aunque el contenedor ya esté oculto: ningún consumidor futuro de estos
+        // ids debe heredar un `hidden=false` stale de una cuenta CALIBRANDO renderizada antes.
+        $('#evolution-calibration').hidden = true;
+      } else {
+        $('#evolution-calibration').hidden = false;
+        $('#evolution-calibration-state').textContent = 'CALIBRANDO';
+        $('#evolution-calibration-progress').hidden = false;
+        $('#evolution-calibration-progress').textContent = `${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+        // BRAMUlab_V04.4 — nunca la nota del simulado (contradiría el número real de arriba).
+        $('#evolution-calibration-note-simulado').hidden = true;
+        $('#evolution-calibration-note-v1').hidden = false;
+      }
       return;
     }
     $('#evolution-calibration-note-simulado').hidden = false;

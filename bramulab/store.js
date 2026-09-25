@@ -52,7 +52,13 @@
   // propósito (esto no es una ronda nueva de producto) — solo bumpea BUNDLE_VERSION, probando
   // que un cliente V04.11 detecta esta actualización por bundle sin que la versión pública se
   // mueva.
-  const BUNDLE_VERSION = '04.11-h1';
+  //
+  // Ronda UX 25/09 (paquete funcional/estado, handoff 13) — `-h2`: perspectiva personal de
+  // score/nombres, corrección de resultado con sets dinámicos, eventos/copies contextuales,
+  // Nivel 5/5 sin píldora persistente, Evolución oculta sin serie real, Recientes server-backed.
+  // Mismo criterio que `-h1`: APP_VERSION sigue en "BRAMUlab V04.11" a propósito, no abre una
+  // ronda nueva de Nivel BRAMU.
+  const BUNDLE_VERSION = '04.11-h2';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

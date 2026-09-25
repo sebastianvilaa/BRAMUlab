@@ -157,6 +157,36 @@
       .sort(comparePlayedAtDesc);
   }
 
+  /** Ronda UX 25/09 (§N) — variante SERVER-BACKED de "recientes": identidad SIEMPRE por
+   *  `player_id` real (`m.players[].userId` — `match-sync.js#buildLocalPlayers` ya mapea
+   *  `participant.playerId` → `userId` para todo partido server-backed, sea registrado o
+   *  provisional; acá se excluyen los slots sin `userId` — provisional sin cuenta o "Por
+   *  identificar" — porque no son una identidad seleccionable por esta vía). Recorre `history`
+   *  (recibir siempre `getDisplayHistory()`: cualquier estado, incluido pendiente — compartir
+   *  cancha ya alcanza, no hace falta que el partido esté validado) del más reciente al más
+   *  antiguo por fecha real jugada (reutiliza `filterMatchesForPlayer`, mismo criterio de
+   *  pertenencia userId-autoritativo que ya usa el resto de este archivo), sin duplicar por
+   *  `player_id`, sin el propio jugador ni nadie en `excludeIds` (ya elegido en otro lugar del
+   *  partido en curso, mismo criterio que `computeRecentPlayers` de `match-load.js` para el
+   *  camino local/legacy). Nunca toca `Store`/`localStorage` ni datos legacy: los candidatos
+   *  vienen exclusivamente del propio historial de partidos ya cargado del usuario. */
+  function computeRecentRealPlayers(history, playerRef, excludeIds, limit) {
+    const self = resolveIdentityRef(playerRef);
+    const excluded = new Set((excludeIds || []).filter(Boolean));
+    if (self.userId) excluded.add(self.userId);
+    const matches = filterMatchesForPlayer(history, playerRef);
+    const seen = new Set();
+    const result = [];
+    matches.forEach((m) => {
+      (m.players || []).forEach((p) => {
+        if (!p || !p.userId || excluded.has(p.userId) || seen.has(p.userId)) return;
+        seen.add(p.userId);
+        result.push({ playerId: p.userId, name: p.name });
+      });
+    });
+    return result.slice(0, limit || 12);
+  }
+
   /** `matches` ya viene ordenado del más reciente al más antiguo (ver arriba). */
   function computeRecentForm(matches, playerName, limit) {
     return (matches || []).slice(0, limit || 5).map((m) => ({
@@ -905,7 +935,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

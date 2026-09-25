@@ -185,6 +185,15 @@
       // quién propuso la corrección post-validación pendiente (último 'revision_proposed'),
       // ver paintB6Actions en app.js. `null` para cualquier fila que no la incluya.
       actionsRaw: Array.isArray(row.actions) ? row.actions : null,
+      // Ronda UX 25/09 (§G/§I) — solo get_match_detail las trae (get_my_matches no, mismo
+      // criterio que actionsRaw arriba): currentRevisionNumber > 1 distingue "la revisión
+      // vigente de este partido pendiente es una corrección" de "es la carga original" — sin
+      // esto, paintB6Actions no puede diferenciar ambos casos y el receptor de una corrección
+      // pre-validación veía el mismo copy genérico que una carga nueva (Laboratorio §15.7).
+      // `null` cuando la fila viene de get_my_matches (Historial/Home, sin detalle todavía) —
+      // el llamador debe tratar `null` como "todavía no se sabe", nunca como "no es corrección".
+      currentRevisionNumber: Number.isFinite(row.currentRevisionNumber) ? row.currentRevisionNumber : null,
+      revisionCount: Number.isFinite(row.revisionCount) ? row.revisionCount : null,
     };
   }
 
