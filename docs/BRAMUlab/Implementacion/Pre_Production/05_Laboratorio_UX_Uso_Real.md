@@ -1241,3 +1241,53 @@ La fuente vigente reservaba naranja/amarillo para `CALIBRANDO` y lima para pendi
 
 Seba tiene **dos partidos pendientes**, pero solo **uno requiere su confirmación**. La UI debe hacer esta diferencia inequívoca; no usar `pendiente` como sinónimo de `tu turno`.
 
+
+
+### 15.17 — Ajuste confirmado: carrusel de pendientes en Home + semántica de color — 25/09/2026
+
+A partir de la revisión visual con dos pendientes simultáneos en Seba, se corrige la dirección anterior de Home.
+
+#### Home — pendientes múltiples
+
+**CONFIRMADO / DIRECCIÓN DE DISEÑO:**
+- NO apilar varias tarjetas grandes una debajo de la otra.
+- El bloque superior de pendientes debe funcionar como **carrusel horizontal de tarjetas**.
+- La tarjeta actual debe reducir altura.
+- El CTA grande `REVISAR` se elimina como botón independiente; toda la tarjeta será tappable.
+- Si existe un solo pendiente, se muestra una sola tarjeta compacta.
+- Si existen varios, se navegan horizontalmente manteniendo el mismo componente.
+- La tarjeta debe diferenciar claramente si:
+  - **requiere acción del usuario**;
+  - **está esperando a la otra pareja**.
+- La Home no debe crecer verticalmente de forma proporcional a la cantidad de pendientes.
+
+#### Semántica de color — propuesta consolidada para prueba visual
+
+Se reabre la idea de reservar ámbar exclusivamente para `CALIBRANDO`.
+
+**Dirección recomendada:**
+- verde: resultado positivo / victoria;
+- rojo: resultado negativo / derrota;
+- lima: acción requerida por el usuario;
+- ámbar/naranja: estado todavía no final pero sin acción inmediata del usuario;
+- gris/neutro: información secundaria;
+- `VALIDADO`: no se muestra como badge persistente en estado normal.
+
+Bajo este sistema:
+- `CALIBRANDO` puede seguir en ámbar porque representa un estado incompleto/no consolidado;
+- un partido `PENDIENTE DE VALIDACIÓN` que espera a terceros también puede usar ámbar por compartir la misma semántica de “todavía no final”;
+- si el pendiente requiere acción del usuario, el acento principal pasa a lima.
+
+**A validar visualmente:** comprobar que compartir ámbar entre `CALIBRANDO` y pendientes no genere confusión en una misma pantalla. La hipótesis de diseño es que la semántica común de “en proceso / no final” aporta coherencia en lugar de conflicto.
+
+#### Historial — lectura observada
+
+Con dos pendientes simultáneos:
+- pendiente accionable: actualmente `TU TURNO: CONFIRMAR` en lima;
+- pendiente no accionable: actualmente `PENDIENTE DE VALIDACIÓN` en gris.
+
+Dirección ya acordada:
+- mantener `VICTORIA/DERROTA` como resultado;
+- separar el estado del partido en una segunda línea/zona;
+- no mostrar `VALIDADO` en partidos oficiales normales;
+- evaluar ámbar para pendiente no accionable y lima para pendiente accionable.
