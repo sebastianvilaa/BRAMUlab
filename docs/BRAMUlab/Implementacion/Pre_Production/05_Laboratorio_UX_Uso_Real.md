@@ -952,3 +952,46 @@ El escenario actual usa cuatro cuentas reales, por lo que no ejercita ese flujo.
 Separadamente, `Recordar por WhatsApp` con deep link a un partido pendiente sigue siendo una propuesta futura no cerrada.
 
 **Pendiente de Laboratorio:** crear más adelante un escenario específico con identidad provisional para revisar visualmente invitación/reclamo, sin mezclarlo con el flujo normal de corrección actual.
+
+
+### 15.8 — Escenario 1C completado + criterio de Notificaciones — 25/09/2026
+
+**Cierre funcional del escenario 1C**
+- Matu cargó Matu/Diego vs Seba/Pablito con 6–4 / 6–3.
+- Seba propuso corrección pre-validación: segundo set 6–4.
+- Matu confirmó la revisión corregida.
+- El partido quedó oficial con el resultado correcto.
+- Al volver a foreground en iPhone, Seba primero mostró brevemente el snapshot pendiente y luego convergió solo al estado oficial, actualizando Nivel/calibración/estadísticas.
+- Frescura server-backed: PASS nuevamente.
+
+**Resultado final observado en Seba**
+- calibración 3/5;
+- 3 partidos en historial;
+- Efectividad 33%;
+- Último partido 4–6 / 4–6 desde su perspectiva;
+- el resto de estadísticas oficiales se actualizó correctamente.
+
+#### Notificaciones — criterio de producto para revisar/implementar
+
+La prueba dejó tres tarjetas genéricas `Partido oficial · Tu partido ya quedó validado.`, que no permiten distinguir qué pasó ni quién actuó.
+
+**Confirmado por fuente vigente:**
+- una tarea pendiente accionable debe permanecer en Notificaciones hasta resolverse;
+- cuando otro integrante de la pareja resuelve esa tarea, debe desaparecer para ambos;
+- las notificaciones de acciones relevantes deben nombrar al actor.
+
+**Dirección UX confirmada para la ronda de implementación:**
+1. **Tareas accionables**: persisten aunque el usuario las haya leído, hasta que la tarea se resuelva. Leer no equivale a resolver.
+2. **Al resolverse una tarea**: desaparece la notificación-tarea. Si la resolución fue una acción remota relevante, puede quedar una notificación informativa contextual.
+3. **Acciones propias**: no generar una notificación informativa para el mismo actor.
+4. **Informativas leídas**: no borrarlas instantáneamente al abrir; conservarlas como historial reciente, pero sin badge y con menor jerarquía visual.
+5. **Contexto obligatorio**: evitar textos genéricos repetidos. Ejemplos conceptuales:
+   - `Esteban confirmó tu partido con Gusti.`
+   - `Matu aceptó la corrección del partido con Pablito.`
+   - `Seba propuso una corrección en el partido.`
+6. **Badge**: cuenta pendientes/no leídas vigentes, no tarjetas históricas ya leídas.
+7. **“Marcar todas como leídas”**: mantener solo si existen informativas no leídas; no debe esconder ni resolver tareas accionables.
+
+No se fija todavía una política temporal de borrado automático de informativas leídas (7/30 días, etc.); no es necesaria para validar la experiencia central.
+
+**Estado:** Escenario 1C COMPLETADO. Los problemas restantes de esta ronda son de UX/presentación/copy y quedan para consolidación; no bloquean continuar el Laboratorio.
