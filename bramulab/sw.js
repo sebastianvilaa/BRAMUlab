@@ -152,36 +152,36 @@ const CACHE_NAME = 'bramulab-v04-10-h32';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.10-h31',
-  './engine.js?v=04.10-h31',
-  './stats.js?v=04.10-h31',
-  './store.js?v=04.10-h31',
+  './styles.css?v=04.10-h32',
+  './engine.js?v=04.10-h32',
+  './stats.js?v=04.10-h32',
+  './store.js?v=04.10-h32',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.10-h31',
-  './level-context.js?v=04.10-h31',
-  './level-calibration.js?v=04.10-h31',
-  './player-home.js?v=04.10-h31',
-  './match-load.js?v=04.10-h31',
-  './player-identity.js?v=04.10-h31',
-  './groups.js?v=04.10-h31',
-  './locations.js?v=04.10-h31',
-  './ranking.js?v=04.10-h31',
+  './level.js?v=04.10-h32',
+  './level-context.js?v=04.10-h32',
+  './level-calibration.js?v=04.10-h32',
+  './player-home.js?v=04.10-h32',
+  './match-load.js?v=04.10-h32',
+  './player-identity.js?v=04.10-h32',
+  './groups.js?v=04.10-h32',
+  './locations.js?v=04.10-h32',
+  './ranking.js?v=04.10-h32',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.10-h31',
+  './auth.js?v=04.10-h32',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.10-h31',
-  './match-sync.js?v=04.10-h31',
-  './match-validation.js?v=04.10-h31',
+  './matches.js?v=04.10-h32',
+  './match-sync.js?v=04.10-h32',
+  './match-validation.js?v=04.10-h32',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.10-h31',
-  './app.js?v=04.10-h31',
+  './intelligence-client.js?v=04.10-h32',
+  './app.js?v=04.10-h32',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

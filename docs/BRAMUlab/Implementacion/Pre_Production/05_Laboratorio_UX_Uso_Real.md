@@ -624,3 +624,15 @@ Primero resolver/validar la frescura del cliente para que el pendiente aparezca 
   - **Notificaciones abiertas:** cubierto por el mismo mecanismo (`renderNotificationsList`/`renderNotificationsBadge`, condicionado a `!$('#view-notifications').hidden)`, mismo patrón ya usado por `afterB6Action`/`openNotificationsScreen`.
 
 **Estado del escenario tras esta corrección:** el fix de frescura queda implementado, testeado localmente y pusheado a `origin/staging`. **PENDIENTE DE VALIDACIÓN REAL EN IPHONE** — Sebastián debe comprobar físicamente, después del deploy, que volver del background con Home/Historial/Notificaciones ya abiertos muestra el partido pendiente de Esteban y el badge correspondiente sin necesitar recargar. **NO se marca el Escenario 1A como PASS** hasta esa comprobación física. **NO se avanza al siguiente escenario del laboratorio. NO se confirmó el partido actual** (Esteban + Matu vs Seba + Lucho, `pending_validation`, se conserva intacto en Supabase Staging).
+
+### Hotfix post-h32 — 25/09/2026 (revisión central)
+
+Dos correcciones puntuales encontradas por revisión central antes de habilitar la prueba física, ambas aplicadas sobre el mismo `04.10-h32` sin nuevo bump de `CACHE_NAME`:
+
+1. **`CORE_ASSETS` de `bramulab/sw.js` seguía precacheando con `?v=04.10-h31`** mientras `CACHE_NAME` e `index.html` ya estaban en `h32` — contradecía el propio comentario del archivo ("estas dos listas de URLs no coinciden AL BYTE... pierde el offline-first"). Corregido: las 19 entradas de `CORE_ASSETS` (JS/CSS propios) ahora apuntan a `?v=04.10-h32`, igual que `index.html`. Sin tocar `CACHE_NAME` de nuevo.
+
+2. **`refreshServerStateOnForeground()` hacía 2 lecturas de `get_notifications` en una sola vuelta a foreground cuando Home era la pantalla visible**: la propia función llamaba `refreshB6Notifications()` y después `renderPlayerHome()`, que YA refresca notificaciones por su cuenta (`refreshB6Notifications().then(renderNotificationsBadge)`, Bloque 6 Fase B, sin cambios). Corregido de la forma más simple posible: se calcula `homeVisible` al principio y la lectura explícita de notificaciones solo se hace `if (!homeVisible)` — cuando Home es la pantalla visible, se deja que `renderPlayerHome()` la haga sola (una sola lectura, badge igual de correcto). Cuando Historial/Notificaciones/ninguna pantalla relevante está visible, la lectura explícita sigue ocurriendo como antes (sin esa duplicación posible, porque `renderPlayerHome()` no se llama en esos casos). No se tocó `renderPlayerHome()`.
+
+**Verificación (navegador embebido, spies sobre el bundle real):** con Home forzado visible y una notificación fabricada, `PLMatchValidation.getNotifications` pasó de 2 llamadas a **exactamente 1** por vuelta de foreground, y el badge `#player-home-bell-badge` siguió pasando correctamente de oculto/"" a visible/"1". Con Historial visible, se confirmó que sigue habiendo exactamente 1 llamada (sin regresión). `node --test` 255/255, `tests.html` 1478/1478.
+
+Commit único de este hotfix pusheado a `origin/staging` sobre `ce7c020`. Sin tocar Supabase/`main`/Production/BRAMUlive. Partido de QA sin tocar.

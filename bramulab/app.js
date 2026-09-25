@@ -10886,6 +10886,12 @@
     if (now - lastForegroundRefreshAt < FOREGROUND_REFRESH_MIN_GAP_MS) return;
     foregroundRefreshInFlight = true;
     lastForegroundRefreshAt = now;
+    // Revisión central post-h32 — si Home es la pantalla visible, `renderPlayerHome()` YA
+    // refresca notificaciones por su cuenta (`refreshB6Notifications().then(renderNotificationsBadge)`,
+    // Backend Bloque 6 Fase B, sin cambios): pedir `refreshB6Notifications()` acá ADEMÁS
+    // hubiera significado 2 lecturas de `get_notifications` en la misma vuelta de foreground.
+    // Se calcula antes para decidir una única vez si esta ronda necesita pedirlas por su cuenta.
+    const homeVisible = !$('#view-player-home').hidden;
     try {
       // Cada llamada ya es "mejor esfuerzo" por sí sola en el caso normal (ver sus propios
       // comentarios: una falla de RPC deja el cache anterior intacto, nunca lo vacía, y resuelve
@@ -10894,7 +10900,9 @@
       // promesa) en una de las tres nunca impida intentar las otras dos — "fallas PARCIALES de
       // red" (plural), no "la primera falla cancela el resto".
       try { await refreshServerMatches(); } catch (e) { /* best-effort — ver comentario de arriba */ }
-      try { await refreshB6Notifications(); } catch (e) { /* best-effort — ver comentario de arriba */ }
+      if (!homeVisible) {
+        try { await refreshB6Notifications(); } catch (e) { /* best-effort — ver comentario de arriba */ }
+      }
       try {
         if (Auth && Auth.isConfigured()) {
           const profile = await Auth.fetchOwnProfile();
@@ -10903,9 +10911,9 @@
       } catch (e) { /* best-effort — ver comentario de arriba */ }
       // Repinta únicamente la superficie ACTUALMENTE visible — nunca una pantalla que el usuario
       // no está mirando. El badge de notificaciones vive dentro de #view-player-home (ver
-      // index.html), así que solo tiene sentido re-pintarlo cuando Home es la vista visible;
-      // renderPlayerHome ya lo hace como parte de su propio render.
-      if (!$('#view-player-home').hidden) renderPlayerHome();
+      // index.html): renderPlayerHome ya lo deja actualizado como parte de su propio refresco
+      // interno (ver el `if (!homeVisible)` de arriba).
+      if (homeVisible) renderPlayerHome();
       if (!$('#view-history').hidden) renderHistory();
       if (!$('#view-notifications').hidden) { renderNotificationsList(); renderNotificationsBadge(); }
     } finally {
