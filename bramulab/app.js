@@ -9647,15 +9647,13 @@
     }
   }
 
-  /** V03.0.3 (§2/§5) — foto editable directamente desde MI PERFIL y MIS DATOS (affordance
-   *  chico, sin abrir el formulario completo de Editar Datos): tocar el avatar o su badge
-   *  abre el selector de archivo, reusa exactamente `downscaleImageFileToDataUrl` (mismo
-   *  upload+compresión que ya usa Editar Datos) y guarda directo con
-   *  `Store.updateUserAccount` — un solo `profilePhoto` en toda la app, nunca una segunda
-   *  fuente. Ambos puntos de entrada terminan en el mismo `refreshAfterAvatarChange`, así
-   *  que MI PERFIL y MIS DATOS quedan sincronizados entre sí sin importar desde cuál se editó.
-   *  V03.0.3.1 (§5) — "Quitar foto" se retira de estos dos puntos (control redundante); la
-   *  foto sigue siendo reemplazable tocándola o vía el ícono cámara/lápiz. */
+  /** V03.0.3 (§2/§5) — foto editable directamente desde MI PERFIL y MIS DATOS.
+   *  Pre-Production P0.1C hotfix (24/09/2026): el camino inline histórico guardaba SIEMPRE
+   *  `profilePhoto` solo en Store/localStorage, incluso para cuentas server-backed. Por eso la
+   *  foto parecía correcta hasta recargar y después desaparecía: nunca había llegado a Storage
+   *  ni a profiles.avatar_url. Para cuentas reales, este mismo affordance ahora usa exactamente
+   *  el contrato persistente de P0.1C (Storage privado + update_profile_avatar + refresh real
+   *  desde servidor). El camino local/legacy conserva Store.updateUserAccount sin cambios. */
   function refreshAfterAvatarChange(toastMessage) {
     renderProfileView();
     showToast(toastMessage);
@@ -9672,10 +9670,42 @@
       if (!file) return;
       const user = Store.getCurrentUser();
       if (!user) return;
-      const dataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
-      Store.updateUserAccount(user.id, { profilePhoto: dataUrl });
-      fileInput.value = '';
-      refreshAfterAvatarChange('Foto actualizada');
+
+      try {
+        const dataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
+
+        if (user.serverBacked && Auth.isConfigured()) {
+          const blob = await (await fetch(dataUrl)).blob();
+          const uploadResult = await Auth.uploadAvatar(user.id, blob);
+          if (!uploadResult.ok) {
+            showToast('No pudimos guardar la foto. Probá de nuevo.');
+            return;
+          }
+
+          const avatarResult = await Auth.updateProfileAvatar(uploadResult.path);
+          if (!avatarResult.ok) {
+            showToast('No pudimos guardar la foto. Probá de nuevo.');
+            return;
+          }
+
+          const serverUser = await Auth.fetchOwnProfile();
+          if (!serverUser || !serverUser.profilePhoto) {
+            showToast('La foto se subió, pero no pudimos volver a cargarla. Probá de nuevo.');
+            return;
+          }
+          Store.cacheServerUser(serverUser);
+          syncCurrentIdentityFromStore();
+          refreshAfterAvatarChange('Foto actualizada');
+          return;
+        }
+
+        Store.updateUserAccount(user.id, { profilePhoto: dataUrl });
+        refreshAfterAvatarChange('Foto actualizada');
+      } catch (err) {
+        showToast('No pudimos guardar la foto. Probá de nuevo.');
+      } finally {
+        fileInput.value = '';
+      }
     });
   }
 
