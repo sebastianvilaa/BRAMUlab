@@ -594,3 +594,59 @@ tocada por esta revisión.
 
 Un único commit lógico adicional (migración corregida + Edge Function + frontend + test + este
 informe), push a `origin/staging`. Sin `main`, sin Production, sin BRAMUlive.
+
+
+---
+
+## 18. Revisión central final + aplicación en Staging real — 24/09/2026
+
+ChatGPT central revisó la migración antes de aplicarla y detectó una omisión concreta de la revisión 2:
+
+- la migración había conservado solo el comentario de `get_public_profile`, pero como P0.1C todavía no había sido aplicada, faltaba dentro del MISMO archivo el cambio SQL original que agrega `avatar_url` y `whatsapp_phone` al contrato de la RPC;
+- el test esperaba 18 columnas, por lo que aplicar la migración tal como estaba habría dejado frontend/backend desalineados.
+
+Se corrigió de forma quirúrgica en:
+
+`supabase/migrations/20260924130000_preprod_p01c_profile_editable.sql`
+
+sin modificar frontend ni producto.
+
+### Aplicación real
+
+La migración `preprod_p01c_profile_editable` fue aplicada correctamente en Supabase **bramulab-staging**.
+
+Versión registrada por Supabase:
+
+`20260925003222`
+
+Después se ejecutó completo:
+
+`supabase/tests/verify-preprod-p01c-profile-editable.sql`
+
+Resultado:
+
+**PASS — `PRE-PRODUCTION P0.1C revisión 2 (Perfil editable server-backed) OK — rollback limpio`**
+
+También se redeployó la Edge Function modificada:
+
+- `officialize-onboarding` → **ACTIVE v3**
+- `verify_jwt=true`
+
+El Security Advisor posterior no mostró una regresión nueva atribuible a P0.1C; permanecen los warnings ya conocidos del proyecto.
+
+### Estado técnico
+
+P0.1C queda:
+
+**IMPLEMENTADO + BACKEND APLICADO Y VALIDADO EN STAGING REAL.**
+
+Pendiente únicamente QA de navegador sobre la experiencia real:
+
+- guardar/recargar Perfil;
+- avatar propio y cruzado;
+- WhatsApp con/sin consentimiento;
+- categoría actual;
+- persistencia logout/login;
+- privacidad visual del Perfil público.
+
+No requiere otra ronda de implementación salvo regresión concreta encontrada en esa QA.
