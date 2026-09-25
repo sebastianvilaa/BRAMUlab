@@ -46,7 +46,13 @@
   // checkForNewVersion en app.js). DEBE coincidir al byte con CACHE_NAME/CORE_ASSETS (sw.js) y
   // con el campo "bundle" de version.json — mismo criterio de sincronía que ya exigía
   // APP_VERSION/version.json/CACHE_NAME.
-  const BUNDLE_VERSION = '04.11';
+  //
+  // Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026, revisión central) — `-h1`:
+  // primer uso real de este mecanismo nuevo. APP_VERSION se queda en "BRAMUlab V04.11" a
+  // propósito (esto no es una ronda nueva de producto) — solo bumpea BUNDLE_VERSION, probando
+  // que un cliente V04.11 detecta esta actualización por bundle sin que la versión pública se
+  // mueva.
+  const BUNDLE_VERSION = '04.11-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

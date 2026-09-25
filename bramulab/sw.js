@@ -160,7 +160,17 @@
 // bundle quedan separadas (`Store.BUNDLE_VERSION`/`version.json#bundle`, ver store.js) para que
 // un futuro bundle-only bump (`04.11-h1`) sea detectable sin depender de mover la versión
 // pública de nuevo.
-const CACHE_NAME = 'bramulab-v04-11';
+//
+// Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026, revisión central) — `-h1`:
+// primer uso real del mecanismo de bundle independiente de arriba. Corrige que una cuenta
+// `serverBacked` cacheada por `Store` podía seguir mostrándose como autenticada (nombre/Nivel/
+// avatar cacheados) después de que su sesión REAL de Supabase ya no existiera — evidencia real:
+// `get_my_matches`/`get_notifications`/`get_home_ranking_insight` devolviendo 401 en un iPhone
+// que igual mostraba Home "normal". `bootWithServerSession()`/`refreshServerStateOnForeground()`
+// (app.js) ahora verifican la sesión real antes de asumir login; `Store.VERSION`/`version.json`
+// siguen en "BRAMUlab V04.11" a propósito — esto no es una ronda nueva de producto, solo bump de
+// bundle.
+const CACHE_NAME = 'bramulab-v04-11-h1';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -171,36 +181,36 @@ const CACHE_NAME = 'bramulab-v04-11';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.11',
-  './engine.js?v=04.11',
-  './stats.js?v=04.11',
-  './store.js?v=04.11',
+  './styles.css?v=04.11-h1',
+  './engine.js?v=04.11-h1',
+  './stats.js?v=04.11-h1',
+  './store.js?v=04.11-h1',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.11',
-  './level-context.js?v=04.11',
-  './level-calibration.js?v=04.11',
-  './player-home.js?v=04.11',
-  './match-load.js?v=04.11',
-  './player-identity.js?v=04.11',
-  './groups.js?v=04.11',
-  './locations.js?v=04.11',
-  './ranking.js?v=04.11',
+  './level.js?v=04.11-h1',
+  './level-context.js?v=04.11-h1',
+  './level-calibration.js?v=04.11-h1',
+  './player-home.js?v=04.11-h1',
+  './match-load.js?v=04.11-h1',
+  './player-identity.js?v=04.11-h1',
+  './groups.js?v=04.11-h1',
+  './locations.js?v=04.11-h1',
+  './ranking.js?v=04.11-h1',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.11',
+  './auth.js?v=04.11-h1',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.11',
-  './match-sync.js?v=04.11',
-  './match-validation.js?v=04.11',
+  './matches.js?v=04.11-h1',
+  './match-sync.js?v=04.11-h1',
+  './match-validation.js?v=04.11-h1',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.11',
-  './app.js?v=04.11',
+  './intelligence-client.js?v=04.11-h1',
+  './app.js?v=04.11-h1',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

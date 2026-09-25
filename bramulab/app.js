@@ -4073,7 +4073,20 @@
   /* ------------------------------------------------------------------ */
 
   /** ¿La sesión activa es una cuenta real con backend configurado? Único gate — mismo criterio
-   *  que ya usan renderPlayerSearchResults/Bloque 4 (`Auth.isConfigured() && user.serverBacked`). */
+   *  que ya usan renderPlayerSearchResults/Bloque 4 (`Auth.isConfigured() && user.serverBacked`).
+   *
+   *  Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026): este gate es
+   *  DELIBERADAMENTE síncrono, basado solo en `Store` — nunca llama a `Auth.getSession()` acá
+   *  (eso obligaría a volver async media app). Su corrección depende de una PRECONDICIÓN que
+   *  ahora sí se garantiza en los dos puntos de entrada reales: `bootWithServerSession()` (al
+   *  arrancar la app) y `refreshServerStateOnForeground()` (al volver de background) verifican
+   *  la sesión REAL de Supabase antes de dejar avanzar cualquier lectura server-backed, y salen
+   *  con `exitGhostServerSession()` (ver `doLogout`/esa función más arriba) apenas detectan que
+   *  `Store` sigue marcando `serverBacked:true` sin sesión real detrás. Mientras esos dos puntos
+   *  sigan llamando a `exitGhostServerSession()` cuando corresponda, este gate puede confiar en
+   *  que un `user.serverBacked` cacheado por `Store` SIEMPRE tiene una sesión real viva —
+   *  cualquier código nuevo que agregue un tercer punto de entrada donde una sesión pueda morir
+   *  (otro trigger además de boot/foreground) debe repetir esa misma verificación ahí. */
   function isServerBackedSession() {
     const user = Store.getCurrentUser();
     return !!(Auth && Auth.isConfigured() && user && user.serverBacked);
@@ -5764,6 +5777,35 @@
     // alcanzables (bug reportado en uso real). Ahora vuelve directo a "BIENVENIDO A BRAMU".
     openAccessFlow();
   }
+
+  /** Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026, revisión central):
+   *  evidencia real confirmada por logs de Supabase — `get_my_matches`/`get_notifications`/
+   *  `get_home_ranking_insight` devolviendo 401 (sin JWT autenticado) mientras la PWA seguía
+   *  mostrando "Seba / @seba_qa / Nivel 5.9 / Home normal" con datos puramente cacheados
+   *  (avatar genérico, 0 partidos, sin pendiente, sin badge) — una cuenta `serverBacked`
+   *  cacheada por `Store` puede sobrevivir mucho más que la sesión REAL de Supabase (revocada,
+   *  expirada, o simplemente inexistente en este dispositivo/instalación); sin este chequeo, la
+   *  app seguía pintando esa identidad como autenticada y lanzando RPCs condenadas al 401.
+   *  Sale con EXACTAMENTE el mismo mecanismo ya usado por "Cerrar sesión" (`doLogout` arriba):
+   *  `Store.logoutSession()` borra ÚNICAMENTE el puntero de sesión activa + `CURRENT_PLAYER` —
+   *  nunca Historial/USERS/match cache/outbox/Nivel/foto/preferencias. Al volver a loguearse con
+   *  la MISMA cuenta, `Auth.fetchOwnProfile()`/`Store.cacheServerUser()` vuelven a vincular el
+   *  mismo `player_id` real y a recuperar todo lo server-backed sin crear una identidad nueva.
+   *  Deja precargado el email cacheado (ya público en este dispositivo, nunca la contraseña)
+   *  para minimizar fricción — nunca inicia sesión solo ni guarda credenciales. */
+  function exitGhostServerSession(cachedUser) {
+    if (Auth.isConfigured()) Auth.signOut();
+    Store.logoutSession();
+    currentPlayerName = null;
+    currentUserId = null;
+    afterIdentifyAction = null;
+    $('#login-email').value = (cachedUser && cachedUser.email) || '';
+    $('#login-password').value = '';
+    $('#login-error').textContent = 'Tu sesión venció. Volvé a ingresar para sincronizar tus datos.';
+    $('#login-error').hidden = false;
+    showView('login');
+  }
+
   function initLogoutWarningModal() {
     $('#logout-warning-cancel-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; });
     $('#logout-warning-complete-btn').addEventListener('click', () => { $('#logout-warning-modal').hidden = true; openCompleteAccessModal(); });
@@ -10725,8 +10767,26 @@
     if (!Auth.isConfigured()) { bootDefaultScreen(); return; }
     const savedDraft = Store.loadSignupDraft();
     if (savedDraft) signupDraft = savedDraft;
-    const session = await Auth.getSession();
+    // Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026): `sessionCheckFailed`
+    // distingue "Auth.getSession() confirmó que no hay sesión" de "no pudimos ni preguntar"
+    // (offline/transient al arrancar) — nunca confundir la segunda con una sesión vencida real.
+    let session = null;
+    let sessionCheckFailed = false;
+    try {
+      session = await Auth.getSession();
+    } catch (e) {
+      sessionCheckFailed = true;
+    }
     if (!session) {
+      // Solo mirar el cache de Store cuando estamos SEGUROS de que no hay sesión real (no un
+      // fallo de red) — si `Auth.getSession()` mismo falló, `cachedUser` queda `null` y el
+      // resto de esta rama sigue exactamente el camino "mejor esfuerzo"/offline-first de
+      // siempre, sin expulsar a nadie solo por no tener conexión en este instante.
+      const cachedUser = !sessionCheckFailed ? Store.getCurrentUser() : null;
+      if (cachedUser && cachedUser.serverBacked) {
+        exitGhostServerSession(cachedUser);
+        return;
+      }
       if (savedDraft && savedDraft.email) { await resumeDraftFlow(); return; }
       bootDefaultScreen();
       return;
@@ -10927,13 +10987,34 @@
     if (now - lastForegroundRefreshAt < FOREGROUND_REFRESH_MIN_GAP_MS) return;
     foregroundRefreshInFlight = true;
     lastForegroundRefreshAt = now;
-    // Revisión central post-h32 — si Home es la pantalla visible, `renderPlayerHome()` YA
-    // refresca notificaciones por su cuenta (`refreshB6Notifications().then(renderNotificationsBadge)`,
-    // Backend Bloque 6 Fase B, sin cambios): pedir `refreshB6Notifications()` acá ADEMÁS
-    // hubiera significado 2 lecturas de `get_notifications` en la misma vuelta de foreground.
-    // Se calcula antes para decidir una única vez si esta ronda necesita pedirlas por su cuenta.
-    const homeVisible = !$('#view-player-home').hidden;
     try {
+      // Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026): antes de disparar
+      // cualquier RPC server-backed, confirma que la sesión REAL de Supabase sigue viva — sin
+      // esto, una cuenta serverBacked cacheada por Store pero con la sesión ya muerta (revocada/
+      // expirada en otro momento) seguía lanzando get_my_matches/get_notifications/etc. a un
+      // loop silencioso de 401 cada vez que la app volvía a foreground, mostrando datos
+      // cacheados como si siguiera autenticada (evidencia real: Seba/@seba_qa/Nivel 5.9/Home
+      // "normal" pero avatar genérico, 0 partidos, sin pendiente, sin badge). Mismo criterio de
+      // `bootWithServerSession`: un `null` real (`sessionCheckFailed=false`) sale de la sesión
+      // fantasma; un fallo al chequear (offline/transient) NUNCA se confunde con sesión vencida
+      // — sigue el resto del refresco "mejor esfuerzo" de siempre.
+      let session = null;
+      let sessionCheckFailed = false;
+      try {
+        session = await Auth.getSession();
+      } catch (e) {
+        sessionCheckFailed = true;
+      }
+      if (!session && !sessionCheckFailed) {
+        exitGhostServerSession(Store.getCurrentUser());
+        return;
+      }
+      // Revisión central post-h32 — si Home es la pantalla visible, `renderPlayerHome()` YA
+      // refresca notificaciones por su cuenta (`refreshB6Notifications().then(renderNotificationsBadge)`,
+      // Backend Bloque 6 Fase B, sin cambios): pedir `refreshB6Notifications()` acá ADEMÁS
+      // hubiera significado 2 lecturas de `get_notifications` en la misma vuelta de foreground.
+      // Se calcula antes para decidir una única vez si esta ronda necesita pedirlas por su cuenta.
+      const homeVisible = !$('#view-player-home').hidden;
       // Cada llamada ya es "mejor esfuerzo" por sí sola en el caso normal (ver sus propios
       // comentarios: una falla de RPC deja el cache anterior intacto, nunca lo vacía, y resuelve
       // en vez de rechazar). Se aísla cada paso en su propio try/catch de todos modos, para que
