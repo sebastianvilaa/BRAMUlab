@@ -139,6 +139,7 @@ Durante el lanzamiento inicial, los perfiles deportivos son visibles únicamente
 - email;
 - fecha de nacimiento exacta;
 - género personal;
+- teléfono/WhatsApp como dato crudo;
 - identificadores de autenticación;
 - sesiones, tokens y datos de recuperación;
 - notas privadas;
@@ -147,6 +148,8 @@ Durante el lanzamiento inicial, los perfiles deportivos son visibles únicamente
 El detalle completo de un partido es accesible para sus participantes y administración. El perfil público muestra resúmenes y estadísticas, no convierte todo el historial detallado en público.
 
 No habrá controles de privacidad campo por campo en el lanzamiento inicial. Ranking forma parte automática de la experiencia competitiva para jugadores elegibles; no existe opt-out ordinario. La visibilidad se limita a la información deportiva definida por producto y nunca expone email u otros datos privados.
+
+El contacto por WhatsApp no publica el número como dato visible: el CTA solo existe cuando hay teléfono válido y consentimiento explícito. El avatar se almacena en un bucket privado y se sirve a usuarios autenticados mediante acceso temporal.
 
 ### 5.2 `@usuario`
 
@@ -233,6 +236,9 @@ Los partidos, relaciones y estadísticas se vinculan con `player_id`, no directa
 - género personal privado y opcional;
 - `location_id`;
 - `ranking_opt_in` *(legacy de compatibilidad; no decide elegibilidad desde 24/09/2026)*;
+- `phone` privado + `allow_whatsapp_contact` (consentimiento explícito, `false` por defecto);
+- `current_category` + `current_category_at` como declaración ACTUAL de Perfil, separada de `level_states.declared_category` histórico del onboarding;
+- `avatar_url` como ruta del bucket privado de Storage, resuelta temporalmente para usuarios autenticados;
 - estado/completitud del perfil;
 - timestamps.
 
