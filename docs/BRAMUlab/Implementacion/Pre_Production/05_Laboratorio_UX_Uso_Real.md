@@ -995,3 +995,17 @@ La prueba dejó tres tarjetas genéricas `Partido oficial · Tu partido ya qued�
 No se fija todavía una política temporal de borrado automático de informativas leídas (7/30 días, etc.); no es necesaria para validar la experiencia central.
 
 **Estado:** Escenario 1C COMPLETADO. Los problemas restantes de esta ronda son de UX/presentación/copy y quedan para consolidación; no bloquean continuar el Laboratorio.
+
+
+### 15.9 — Semántica visual de Último partido — propuesta de Laboratorio
+
+**UX / VISUAL — PROPUESTA:** el contorno destacado de la tarjeta `Último partido` no debería permanecer verde cuando el resultado oficial fue una derrota, porque entra en conflicto semántico con el badge `DERROTA`.
+
+Dirección a evaluar:
+- partido oficial ganado: contorno/acento verde sutil;
+- partido oficial perdido: contorno/acento rojo sutil;
+- pendiente accionable: el estado de acción prima sobre el resultado y puede conservar acento lima;
+- pendiente en espera: tratamiento más neutro;
+- evitar un glow rojo excesivo o punitivo: debe comunicar resultado, no dramatizarlo.
+
+Esta propuesta se revisará junto con la separación ya definida entre **resultado** y **estado del partido**.
