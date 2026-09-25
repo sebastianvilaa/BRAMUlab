@@ -1078,3 +1078,47 @@ La ausencia de actualización en vivo mientras una sesión permanece quieta sigu
 **NO PRIORITARIO para Pre-Production:** no incorporar Realtime/polling ahora solo por esta prueba. Revisar más adelante si la experiencia real demuestra que la espera visible entre dos usuarios simultáneos genera fricción material.
 
 **Estado del escenario:** falta confirmar la revisión desde Pablito o Diego para cerrar el flujo completo de identidad incorrecta.
+
+
+### 15.12 — Escenario 1D, lado reemplazo Pablito + confirmación final — 25/09/2026
+
+**Secuencia:** Matu reemplazó el slot cuestionado de Seba por Pablito. Pablito ingresó como cuenta real y recibió el partido pendiente con Diego vs Matu/Gusti, 2–6 / 2–6 desde su perspectiva. Pablito confirmó y el partido quedó oficial.
+
+#### Lado Pablito antes de confirmar
+
+- Home mostró el partido como pendiente accionable, resultado correcto desde la perspectiva del usuario y CTA de confirmación.
+- Historial también mostró correctamente a Pablito/Diego primero y el score 2–6 / 2–6.
+- Resumen permitió confirmar normalmente.
+
+**FUNCIONAL — PASS:** la identidad reemplazada entra al flujo normal de validación y, al confirmar, el partido se oficializa con la nueva identidad.
+
+#### Copy/evento incorrecto tras reemplazo de identidad
+
+Home mostró:
+`Matu / Gusti registró un partido en el que participaste.`
+
+Esto no describe lo ocurrido. Pablito no fue parte de la carga original: fue incorporado mediante una resolución de identidad cuestionada.
+
+**BUG / YA DEFINIDO INCOMPLETO:** las superficies de Home/Notificaciones deben distinguir:
+- carga original;
+- corrección de score/datos;
+- corrección/reemplazo de identidad.
+
+Dirección conceptual para este caso:
+- `Matu corrigió un participante en un partido y quedaste incluido.`
+- o equivalente más breve, siempre nombrando al actor real y evitando atribuir una “nueva carga”.
+
+#### Después de confirmar
+
+- feedback transitorio `Partido confirmado.`;
+- Resumen pasa a estado oficial;
+- Home de Pablito actualiza calibración 1/5 → 2/5;
+- Nivel observado 5.5 → 5.4;
+- Historial pasa a 2 partidos;
+- Efectividad/Actividad/Partidos totales se recalculan correctamente.
+
+**NO TOCAR en lo esencial:** la incorporación del reemplazo a estadísticas/Nivel una vez oficializado funciona.
+
+**UX ya documentado y reconfirmado:** `VALIDADO` / `Partido oficial` siguen siendo redundantes como estado persistente normal; mantener feedback transitorio y trazabilidad útil en detalle.
+
+**Estado del escenario:** falta una comprobación final en Seba: el partido corregido no debe reaparecer en Home/Historial ni modificar sus estadísticas, porque su identidad fue correctamente desacoplada antes de oficializarse.
