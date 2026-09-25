@@ -869,3 +869,48 @@ Work, con sesión estable Esteban/@esteban_qa, abrió BRAMUlab y el nuevo pendie
 - TU MOMENTO con dos partidos (`Tu historia empezó a construirse…`) funciona mejor que el copy anterior y no atribuye incorrectamente la carga al usuario.
 
 **Estado:** Escenario 1B COMPLETADO.
+
+
+### 15.7 — Escenario 1C, corrección pre-validación real — 25/09/2026
+
+**Partido:** Matu + Diego vs Seba + Pablito. Carga original intencional: 6–4 / 6–3 para Matu/Diego. Corrección propuesta desde Seba: segundo set 6–4 para Matu/Diego.
+
+#### Cargar partido — metadata
+- **UX / VISUAL — propuesta:** evaluar compactar formato + puntuación + fecha/hora y llevar esa metadata arriba de Equipo A, antes de cargar jugadores/sets. Hoy ocupa dos tarjetas anchas de baja densidad informativa. No cerrar layout exacto todavía; revisar dentro de la ronda visual de Cargar partido.
+
+#### Feedback al proponer corrección
+- En uso real, después de enviar la corrección el usuario no percibió una confirmación suficientemente clara de que la propuesta se hubiera enviado; el cambio principal visible fue pasar a “Esperando que Matu / Diego confirme este resultado”.
+- El código actual intenta mostrar un toast `Corrección propuesta.`, pero en la prueba real pasó inadvertido.
+- **UX / VISUAL:** reforzar feedback de éxito sin agregar una pantalla innecesaria. Debe quedar inequívoco que la corrección fue enviada y que ahora espera a la otra pareja.
+
+#### Copy/evento incorrecto tras una corrección
+- Del lado Matu, Home mostró `PARTIDO PENDIENTE — Seba / Pablito registró un partido en el que participaste.`
+- **BUG / YA DEFINIDO INCOMPLETO:** no fue una nueva carga; fue una corrección propuesta. El texto debe diferenciar creación de partido vs. propuesta de corrección y nombrar al actor real, no a la pareja genéricamente.
+
+#### BUG de perspectiva del score en tarjetas compactas
+Se verificó server-side en Staging, sin modificar datos:
+- revisión vigente = corrección propuesta;
+- Equipo A canónico: Seba/Pablito;
+- Equipo B canónico: Matu/Diego;
+- sets canónicos vigentes: 4–6 / 4–6.
+
+Eso equivale correctamente a 6–4 / 6–4 desde la perspectiva de Matu/Diego.
+
+Sin embargo, en Home de Matu la tarjeta compacta muestra:
+- nombres: `Matu / Diego vs Seba / Pablito`;
+- score: `4–6 · 4–6`.
+
+**Clasificación: BUG FUNCIONAL DE PRESENTACIÓN / ORIENTACIÓN**, no corrupción de backend. La tarjeta pone la pareja del usuario primero pero no invierte el score canónico cuando su pareja es Team B.
+
+El Resumen detallado sí muestra correctamente:
+- Seba/Pablito: 4, 4;
+- Matu/Diego: 6, 6.
+
+Revisar también Historial y cualquier otra superficie compacta que componga “mi pareja primero” + score line.
+
+#### UX de recibir una corrección
+- El Resumen de Matu vuelve a mostrar el flujo genérico `Te toca confirmar este resultado` + `CONFIRMAR PARTIDO`.
+- **PRODUCTO / UX:** cuando la revisión vigente proviene de una corrección, debe explicitarlo. Dirección preferida: `Seba propuso una corrección` y mostrar de forma compacta qué cambió (por ejemplo, Set 2: 6–3 → 6–4) antes de pedir confirmación.
+- No convertir la corrección en una edición silenciosa: preservar conversación entre parejas y trazabilidad append-only.
+
+**Estado del escenario:** NO confirmar todavía desde Matu hasta revisar la orientación en Historial y dejar registrado el bug. Backend vigente contiene la corrección correcta.
