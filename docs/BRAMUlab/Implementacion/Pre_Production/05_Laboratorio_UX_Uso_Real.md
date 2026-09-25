@@ -713,3 +713,67 @@ Commit único de este hotfix pusheado a `origin/staging` sobre `ce7c020`. Sin to
 **No verificado desde esta sesión** (requiere la MISMA limitación de sandbox de Service Worker ya documentada arriba, o acceso físico real): el camino completo de `bootWithServerSession()` contra un arranque en frío real con `env.generated.js`/Supabase real configurado — se verificó exhaustivamente el camino gemelo de `refreshServerStateOnForeground()` (misma lógica compartida, misma función `exitGhostServerSession`), y se trazó por lectura que `bootWithServerSession()` usa el patrón idéntico; y el re-login real de la misma cuenta recuperando `player_id`/match cache server-backed (comportamiento preexistente de `resumeServerSession`/`Store.cacheServerUser`, no tocado en esta ronda, verificado por trazado de código: `cacheServerUser` reemplaza por `id` en vez de duplicar).
 
 **Estado del escenario:** corrección de sesión fantasma pusheada a `origin/staging` (bundle `04.11-h1`, versión pública sin cambios). **El Escenario 1A sigue PENDIENTE** — se suma esta corrección a la lista de comportamientos a validar físicamente en el iPhone de Sebastián (además de la frescura de `-h32` y el mecanismo de actualización de V04.11): que al reabrir la PWA con la sesión real ya vencida, la app lleve a Login con el mensaje correcto en vez de mostrar un Home falso, y que un re-login real recupere todo el estado server-backed. **No se marca PASS. No se avanza a 1B. No se confirmó el partido actual** (Esteban + Matu vs Seba + Lucho, `pending_validation`, intacto). Sin tocar Supabase/schema/RPCs/`main`/Production/BRAMUlive/cuentas QA/Bloques Backend 1–8.
+
+
+### 15.2 — Revisión UX del pendiente accionable / Resumen / correcciones — 25/09/2026
+
+**Contexto:** Escenario 1A ya visible correctamente en iPhone tras resolver la sesión fantasma. Partido: Esteban + Matu vs Seba + Lucho, 6–4 / 6–3, `pending_validation`, acción del lado de Seba/Lucho.
+
+#### Hallazgos confirmados
+
+**Home con pendiente**
+- **NO TOCAR en lo esencial:** el destacado superior comunica bien que existe un partido pendiente y convive correctamente con la Home.
+- **UX / VISUAL:** el CTA grande `REVISAR` agranda demasiado la tarjeta. Dirección preferida: toda la tarjeta tappable y una indicación de acción mucho más discreta, sin convertir `Confirmar` en CTA directo porque antes debe revisarse el resultado.
+- **YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA:** la notificación debe nombrar al actor que cargó el partido; hoy el texto genérico no lo hace.
+- **UX / COPY:** con un partido pendiente ya existente, `0 partidos en tu historia` y `Tu historia empieza acá. Cargá tu primer partido...` resultan incoherentes. Debe distinguirse 0 partidos oficiales de existencia de actividad pendiente.
+
+**Headers / blur**
+- **UX / VISUAL / posible bug visual transversal:** en Home y especialmente en Cargar partido, el degradé/fade superior invade logo/títulos y produce un blur perceptible. Revisar como patrón global, no pantalla por pantalla.
+
+**Resumen del partido**
+- **YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA:** debe mostrar de forma sutil quién cargó el partido. Dirección visual preferida: metadata tipo `Cargado por Esteban · 24 SEP 26 · 21:30` y debajo formato (`Clásico · Punto de Oro`), en lugar de mezclar `TU TURNO: CONFIRMAR` con fecha/formato.
+- **UX / VISUAL:** eliminar el banner redundante `Te toca confirmar este resultado.` si el botón principal ya expresa claramente la acción.
+- **BUG VISUAL:** la fila inferior del score (Esteban / Matu + games) queda ópticamente corrida hacia arriba respecto de la fila Seba / Lucho. Revisar alineación vertical.
+- **COPY:** mantener `CONFIRMAR PARTIDO` como acción principal. El usuario confirma; BRAMU valida/oficializa.
+- **PRODUCTO / UX — propuesta fuerte del laboratorio:** reemplazar la acción secundaria visible `PROPONER CORRECCIÓN` por un concepto más natural tipo `HAY UN ERROR`, que luego pregunte qué está mal.
+
+**BRAMU Intelligence**
+- **NO TOCAR en contenido general:** las lecturas del primer partido se perciben útiles y coherentes.
+- **PRODUCTO / UX — propuesta:** evitar repetir `+ POR QUÉ APARECE` debajo de cada lectura. Evaluar un único acceso al final del bloque que agrupe la evidencia factual de todas las lecturas, preservando la transparencia definida en BRAMU Intelligence.
+
+**Ocultar partido**
+- **UX / VISUAL:** la acción al final del Resumen tiene demasiado protagonismo/ubicación poco natural. Evaluar moverla a una acción contextual del partido (p. ej. menú/ícono) sin decidir todavía el patrón exacto.
+
+**Historial**
+- **YA DEFINIDO + UX / VISUAL:** el estado debe comunicar `PENDIENTE DE VALIDACIÓN` (o equivalente) como estado del partido; la condición accionable debe resolverse mediante acento/jerarquía visual, no convertir el estado principal en `TU TURNO: CONFIRMAR`.
+- El acento lima/verde para pendiente accionable se mantiene alineado con la fuente vigente.
+
+#### Corrección de resultado — limitación detectada
+
+La hoja actual `PROPONER CORRECCIÓN`:
+- usa una composición visual distinta del flujo `Cargar partido`;
+- solo permite editar la cantidad de sets que ya existen;
+- en un partido cargado con 2 sets no permite proponer un tercer set.
+
+**Clasificación:** BUG FUNCIONAL / IMPLEMENTACIÓN INCOMPLETA + UX / VISUAL.
+
+La fuente vigente ya establece que mientras el partido está pendiente una corrección puede abarcar:
+- resultado/sets;
+- participantes;
+- fecha u otro dato editable cuando corresponda.
+
+**Dirección preferida:** reutilizar la lógica/composición ya aprendida en `Cargar partido` para editar el resultado, prellenada con los datos actuales y permitiendo agregar/quitar sets según las reglas del formato. No crear un segundo lenguaje de edición del score.
+
+#### Identidad incorrecta / `No participé`
+
+La UI actual abre:
+1. selector `¿Quién no participó?` con los cuatro lugares del partido;
+2. confirmación destructiva `¿Confirmás que no participó?`.
+
+**UX / VISUAL:** hoy el selector usa un modal central mientras `Proponer corrección` usa bottom sheet. La coherencia futura debe ser por tipo de tarea: selección/edición puede resolverse con un patrón común (preferentemente sheet); una confirmación final de una acción de alto impacto puede seguir usando diálogo/modal.
+
+**PRODUCTO / UX — propuesta fuerte:** integrar identidad incorrecta dentro del paraguas `HAY UN ERROR`. Desde ahí, ofrecer categorías del error (resultado / participante / otros datos editables cuando corresponda) y derivar al flujo específico.
+
+**DECISIÓN ABIERTA — autor del partido cuestionado:** la UI actual permite marcar como identidad incorrecta también al jugador que creó el partido. No cerrar aún una exclusión visual. La documentación vigente separa autoría y participación, y permite que cualquier participante detecte una identidad incorrecta. Debe definirse explícitamente el tratamiento del caso en que el autor original deja de ser participante tras una corrección, preservando trazabilidad y sin volver incorregible una carga errónea o fraudulenta.
+
+**Estado del escenario:** no se envió corrección ni incidencia de identidad. El partido sigue intacto y pendiente. No avanzar todavía a 1B hasta completar la decisión/recorrido de confirmación del Escenario 1A.
