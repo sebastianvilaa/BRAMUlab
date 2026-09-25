@@ -857,3 +857,15 @@ Work, con sesión estable Esteban/@esteban_qa, abrió BRAMUlab y el nuevo pendie
 - Sin cambios nuevos respecto de hallazgos ya documentados en 15.2.
 
 **Estado del escenario:** Esteban quedó detenido en el Resumen sin confirmar. Próximo paso: confirmar desde Esteban y validar en iPhone de Seba que el cambio remoto a oficial aparezca al volver a foreground, sin refresh manual.
+
+
+### 15.6 — Escenario 1B completado — 25/09/2026
+
+- Flujo probado: carga propia → pendiente → confirmación remota → regreso a foreground en iPhone.
+- PASS funcional: el iPhone actualizó el partido a oficial sin refresh manual y recalculó Home, Historial, Perfil, Nivel/calibración y estadísticas.
+- Frescura foreground: validada en caso real con acción remota desde otra cuenta.
+- Notificación remota: corresponde informar al usuario afectado, pero el copy actual `Partido oficial · Tu partido ya quedó validado` es demasiado genérico. Debe nombrar actor y dar contexto suficiente del partido.
+- Estado normal oficial: se confirma que `VALIDADO` / `Partido oficial` son redundantes como etiquetas persistentes en Home, Historial y Resumen. Mantener feedback transitorio y usar en detalle trazabilidad útil (`Cargado por…`, `Confirmado por…`).
+- TU MOMENTO con dos partidos (`Tu historia empezó a construirse…`) funciona mejor que el copy anterior y no atribuye incorrectamente la carga al usuario.
+
+**Estado:** Escenario 1B COMPLETADO.
