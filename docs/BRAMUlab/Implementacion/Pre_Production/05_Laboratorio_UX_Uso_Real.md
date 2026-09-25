@@ -777,3 +777,29 @@ La UI actual abre:
 **DECISIÓN ABIERTA — autor del partido cuestionado:** la UI actual permite marcar como identidad incorrecta también al jugador que creó el partido. No cerrar aún una exclusión visual. La documentación vigente separa autoría y participación, y permite que cualquier participante detecte una identidad incorrecta. Debe definirse explícitamente el tratamiento del caso en que el autor original deja de ser participante tras una corrección, preservando trazabilidad y sin volver incorregible una carga errónea o fraudulenta.
 
 **Estado del escenario:** no se envió corrección ni incidencia de identidad. El partido sigue intacto y pendiente. No avanzar todavía a 1B hasta completar la decisión/recorrido de confirmación del Escenario 1A.
+
+
+### 15.3 — Escenario 1A después de confirmar — 25/09/2026
+
+**Resultado funcional:** el partido Esteban + Matu vs Seba + Lucho pasó correctamente a oficial. En Seba:
+- Nivel 5.9 → 5.8;
+- calibración 0/5 → 1/5;
+- Historial pasó a 1 partido;
+- Home habilitó Actividad, Efectividad, Racha + Partidos totales;
+- Mi Perfil reflejó 1 partido y calibración 1/5.
+
+**NO TOCAR en lo esencial:** la progresión de Home y Mi Perfil después del primer partido válido funciona y se entiende.
+
+**UX / VISUAL — estado normal oficial:** no repetir `VALIDADO` / `Partido oficial` como badge o banner persistente en Último partido, Historial y Resumen. Una vez oficial, ese es el estado normal; reservar estados visibles para excepciones o tareas (pendiente, corrección, identidad cuestionada, expirado, etc.). Puede existir feedback transitorio al confirmar.
+
+**Resumen / trazabilidad:** reemplazar metadata redundante por trazabilidad útil. Dirección: mostrar de forma sutil quién cargó el partido y quién confirmó la versión que lo volvió oficial, además de fecha/hora y formato. Ejemplo conceptual: `Cargado por Esteban · 24 SEP 26 · 21:30` / `Clásico · Punto de Oro` / `Confirmado por Seba`.
+
+**Corrección post-validación:** mantener acceso mientras la ventana vigente lo permita, pero dentro del rediseño propuesto bajo una acción secundaria más natural. Naming preferido para evaluar: `REPORTAR UN ERROR`, que luego pregunta qué dato está mal; comunica mejor que `Proponer corrección` y mejor que el texto aislado `Hay un error`.
+
+**Notificaciones:** la notificación generada por la propia acción de Seba (`Partido oficial · Tu partido ya quedó validado`) se percibe redundante. Dirección: no notificar al actor por una acción que acaba de ejecutar. Sí conservar información para los demás participantes cuando una acción ajena cambia el estado, nombrando al actor y dando contexto suficiente del partido.
+
+**TU MOMENTO — copy incorrecto:** después de este partido dice `ya cargaste tu primer partido`, pero Seba no lo cargó; lo cargó Esteban. Debe hablar de historia/registro, no atribuir la carga al usuario. Dirección: `Tu primer partido ya forma parte de tu historia` o equivalente. No hace falta narrar la derrota aquí; TU MOMENTO sigue siendo una superficie liviana, distinta de BRAMU Intelligence.
+
+**Historial — navegación redundante detectada:** en el producto vigente BRAMUlab solo registra partidos propios; la categoría de partidos observados fue retirada. Por eso `Todos` y `Mis partidos` muestran hoy el mismo universo en el camino real y resultan redundantes. Revisar eliminación/simplificación de estas tabs en la ronda visual; conservar filtros contextuales solo cuando aporten una distinción real.
+
+**Estado Escenario 1A:** recorrido funcional principal completado desde carga rival → pendiente accionable → confirmación → partido oficial. Quedan hallazgos UX/visuales documentados para consolidación antes de la siguiente ronda de implementación.
