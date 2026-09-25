@@ -1009,3 +1009,25 @@ Dirección a evaluar:
 - evitar un glow rojo excesivo o punitivo: debe comunicar resultado, no dramatizarlo.
 
 Esta propuesta se revisará junto con la separación ya definida entre **resultado** y **estado del partido**.
+
+
+### 15.10 — Escenario 1D, identidad incorrecta: reporte desde el jugador afectado — 25/09/2026
+
+**Partido de prueba:** Matu + Gusti vs Seba + Diego, 6–2 / 6–2 para Matu/Gusti. En la simulación, Seba fue cargado por error y el jugador correcto será Pablito.
+
+#### Lado Seba — reporte `No participé`
+
+- El pendiente apareció correctamente en Home como accionable.
+- Seba abrió el partido, eligió `No participé`, seleccionó su propia identidad y confirmó.
+- La UI mostró feedback `Identidad cuestionada`.
+- Inmediatamente después, el partido dejó de aparecer en Home/Historial de Seba.
+- El contador de notificaciones bajó al resolverse su tarea.
+
+**CLASIFICACIÓN: COMPORTAMIENTO CORRECTO / YA DEFINIDO.**
+La fuente vigente establece que, una vez cuestionada una identidad, el partido no debe seguir pegado a la persona incorrecta. Como el partido todavía no era oficial, tampoco había afectado estadísticas/Nivel/calibración; esas métricas de Seba permanecieron en sus 3 partidos oficiales previos.
+
+**NO TOCAR en lo esencial:** que el partido desaparezca de las superficies personales de Seba después de declarar que no participó es coherente con la regla de identidad. El partido sigue existiendo para los participantes válidos y debe continuar pendiente hasta identificar el reemplazo correcto.
+
+**UX / feedback:** `Identidad cuestionada` se percibe como feedback breve y útil tras confirmar la incidencia. Revisar solo su coherencia visual con los demás toasts/modales de acciones sensibles.
+
+**Próximo paso:** revisar cómo recibe Matu la incidencia y cómo se presenta el reemplazo del slot cuestionado antes de actuar.
