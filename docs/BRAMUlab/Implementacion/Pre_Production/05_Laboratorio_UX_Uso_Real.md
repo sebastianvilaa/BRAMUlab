@@ -1031,3 +1031,50 @@ La fuente vigente establece que, una vez cuestionada una identidad, el partido n
 **UX / feedback:** `Identidad cuestionada` se percibe como feedback breve y útil tras confirmar la incidencia. Revisar solo su coherencia visual con los demás toasts/modales de acciones sensibles.
 
 **Próximo paso:** revisar cómo recibe Matu la incidencia y cómo se presenta el reemplazo del slot cuestionado antes de actuar.
+
+
+### 15.11 — Escenario 1D, resolución de identidad desde Matu — 25/09/2026
+
+**Estado previo:** Seba reportó `No participé` en Matu + Gusti vs Seba + Diego. El slot de Seba quedó cuestionado y el partido dejó de aparecer en las superficies personales de Seba.
+
+#### Home / Historial de Matu con identidad cuestionada
+
+- Historial mostró el partido con `IDENTIDAD CUESTIONADA` y el slot `Por identificar / Diego`.
+- Home mostró la misma incidencia en Último partido.
+- **UX / VISUAL — confirmado:** separar visualmente el resultado del estado del partido. `IDENTIDAD CUESTIONADA` no debe ir pegado al badge `VICTORIA`; debe ocupar una zona de estado propia, coherente con la misma decisión ya tomada para `PENDIENTE DE VALIDACIÓN`.
+- En Home, el estado puede convivir cerca de la metadata/fecha o en una línea secundaria clara.
+- En Historial, ubicar el estado debajo del resultado/badge principal, no mezclado con `VICTORIA/DERROTA`.
+
+#### Resumen — tarjeta de incidencia
+
+La tarjeta:
+- `Por identificar`
+- subtítulo `Identidad cuestionada`
+- CTA `RESOLVER`
+
+se percibió clara, compacta y útil.
+
+**NO TOCAR en lo esencial / patrón aprobado:** conservar este patrón de tarjeta de incidencia con texto + CTA visible. Puede reutilizarse como lenguaje para otras incidencias de baja complejidad.
+
+**UX / interacción:** hacer tappable toda la tarjeta además del botón `RESOLVER`, manteniendo el botón como affordance explícito.
+
+#### Resolver identidad
+
+Matu abrió `RESOLVER`, eligió a Pablito como reemplazo del slot cuestionado y el sistema dejó el partido esperando confirmación de la nueva pareja Pablito/Diego.
+
+**FUNCIONAL — PASS:** la acción pasó correctamente al lado de la pareja corregida y el partido siguió existiendo sin atribuirlo a Seba.
+
+**UX / selector de jugador — mejora confirmada:** al mostrar resultados para elegir quién jugó realmente, cada opción debe incluir al menos:
+- nombre visible;
+- `@username` debajo;
+- opcionalmente avatar si ya existe en el patrón.
+
+No mostrar solo el nombre cuando existen cuentas con nombres potencialmente repetidos.
+
+#### Realtime / polling
+
+La ausencia de actualización en vivo mientras una sesión permanece quieta sigue siendo esperada: hoy BRAMUlab no usa Realtime ni polling. El refresh al volver a foreground o al navegar ya fue validado.
+
+**NO PRIORITARIO para Pre-Production:** no incorporar Realtime/polling ahora solo por esta prueba. Revisar más adelante si la experiencia real demuestra que la espera visible entre dos usuarios simultáneos genera fricción material.
+
+**Estado del escenario:** falta confirmar la revisión desde Pablito o Diego para cerrar el flujo completo de identidad incorrecta.
