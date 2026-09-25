@@ -914,3 +914,41 @@ Revisar también Historial y cualquier otra superficie compacta que componga “
 - No convertir la corrección en una edición silenciosa: preservar conversación entre parejas y trazabilidad append-only.
 
 **Estado del escenario:** NO confirmar todavía desde Matu hasta revisar la orientación en Historial y dejar registrado el bug. Backend vigente contiene la corrección correcta.
+
+
+#### Resolución de perspectiva en tarjetas personales — CONFIRMADO
+
+Las superficies personales compactas de BRAMUlab deben presentar el partido desde la perspectiva del usuario actual.
+
+Aplicar al menos a:
+- Último partido en Home;
+- filas/tarjetas de Historial;
+- cualquier futura lista personal equivalente.
+
+Regla:
+- la pareja del usuario aparece primero;
+- el rival aparece segundo;
+- el score se orienta en el mismo sentido que ese orden.
+
+Ejemplo para Matu en el partido Matu/Diego vs Seba/Pablito:
+- correcto: `Matu / Diego vs Seba / Pablito` + `6–4 · 6–4`;
+- incorrecto: mostrar a Matu primero pero conservar score canónico `4–6 · 4–6`;
+- incorrecto también: dejar a Seba/Pablito primero en Historial solo porque son Team A canónico.
+
+El Resumen/detalle compartido puede conservar un orden canónico estable para trazabilidad; esta decisión se refiere a superficies personales compactas.
+
+**Clasificación:** PRODUCTO / UX confirmado + BUG DE PRESENTACIÓN en implementación actual.
+
+#### Reclamo / compartir — aclaración vigente
+
+El reclamo de actividad existe conceptualmente para identidades provisionales:
+- se realiza mediante link/token explícito asociado a la identidad provisional;
+- el link pertenece a la identidad, no a un partido aislado;
+- al reclamarla, la cuenta adopta ese `player_id` y recupera su historial asociado;
+- no existe matching automático por nombre.
+
+El escenario actual usa cuatro cuentas reales, por lo que no ejercita ese flujo.
+
+Separadamente, `Recordar por WhatsApp` con deep link a un partido pendiente sigue siendo una propuesta futura no cerrada.
+
+**Pendiente de Laboratorio:** crear más adelante un escenario específico con identidad provisional para revisar visualmente invitación/reclamo, sin mezclarlo con el flujo normal de corrección actual.
