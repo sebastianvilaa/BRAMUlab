@@ -704,3 +704,31 @@ Pendiente únicamente revalidación de navegador sobre h31:
 - avatar inline persiste tras reload;
 - avatar cruzado se ve desde otra cuenta;
 - luego continuar WhatsApp/privacidad.
+
+
+---
+
+## 20. QA real final P0.1C — PASS (24/09/2026)
+
+Work revalidó sobre Staging `04.10-h31` después del hotfix de avatar inline.
+
+Resultado:
+
+- avatar: **PASS**;
+- persiste tras recarga: **PASS**;
+- persiste tras logout/login: **PASS**;
+- avatar visible desde Perfil público de otra cuenta: **PASS**;
+- WhatsApp con consentimiento OFF: CTA oculto;
+- WhatsApp con consentimiento ON: CTA visible;
+- número de teléfono oculto como dato público;
+- privacidad de Perfil público: **PASS** — no se muestran email, fecha de nacimiento, género personal ni teléfono;
+- categoría actual persistente y sin alterar Nivel: ya validado en la ronda previa;
+- no se cargaron partidos durante esta QA.
+
+El navegador cloud intentó abrir el deep link de WhatsApp, pero no ofreció una pestaña/app nativa verificable. Esto se considera limitación del entorno de Work, no regresión funcional. Queda una comprobación humana simple en teléfono real antes de Production.
+
+### Estado final P0.1C
+
+**CERRADO EN STAGING.**
+
+Perfil editable server-backed queda implementado, persistente y validado en navegador real para el alcance V1.
