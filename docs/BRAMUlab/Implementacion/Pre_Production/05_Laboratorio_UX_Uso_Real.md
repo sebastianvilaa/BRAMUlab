@@ -1475,3 +1475,34 @@ Dirección para Producto/Desarrollo:
 **NO TOCAR EN ESTA RONDA.**
 Se confirma que `Mis grupos` merece una revisión propia de producto/UX y no debe resolverse como parche dentro del paquete actual. El usuario lo considera una superficie potencialmente central de BRAMU y quiere dedicarle una ronda específica con contexto y diseño suficiente.
 
+
+
+### 15.22 — Cierre de contradicciones de la ronda antes del handoff — 25/09/2026
+
+Esta sección fija precedencia sobre propuestas anteriores de §15 cuando hubo iteraciones durante la sesión.
+
+1. **Acción secundaria del Resumen**
+   - usar como dirección final `REPORTAR UN ERROR` (mejor que `PROPONER CORRECCIÓN` y más explícito que `HAY UN ERROR`);
+   - desde ahí derivar a tipos de error: resultado / participante / otros datos que el backend vigente permita corregir;
+   - `No participé` deja de competir como tercera acción principal aislada y vive dentro del flujo de participante incorrecto.
+
+2. **Autor del partido en identidad incorrecta**
+   - para una carga normal de BRAMUlab, el autor es un participante obligado por el propio flujo de carga;
+   - en la UI de `No participé / participante incorrecto`, NO ofrecer al autor original como candidato a ser removido del partido que él mismo cargó;
+   - conservar de todos modos la autoría como dato separado de la identidad deportiva para trazabilidad;
+   - la posibilidad de múltiples identidades incorrectas en un mismo partido no se amplía en esta ronda salvo que la implementación actual ya la soporte de forma segura.
+
+3. **Cambios externos en Historial**
+   - el indicador de “hay cambios que todavía no viste” se considera visto al **abrir Historial**;
+   - no exigir abrir cada partido individualmente para limpiar el badge;
+   - durante esa primera apertura pueden resaltarse sutilmente las filas que cambiaron, y luego retirar el tratamiento.
+
+4. **Pendiente no accionable / color**
+   - usar ámbar como hipótesis preferida en Staging para `PENDIENTE DE VALIDACIÓN` cuando el usuario está esperando a terceros;
+   - usar lima cuando requiere acción del usuario;
+   - revisar visualmente después del primer build; si compite demasiado con `CALIBRANDO`, ajustar tono/intensidad sin reabrir la semántica.
+
+5. **Mis grupos y responsive**
+   - siguen FUERA de esta ronda de implementación;
+   - requieren revisión específica posterior y no deben resolverse por arrastre en el paquete actual.
+
