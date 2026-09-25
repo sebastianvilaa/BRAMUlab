@@ -113,7 +113,7 @@ No reabrir fórmula de Ranking, densidad, publicación semanal, territorios ni N
 
 ## P0.1C — Perfil editable server-backed
 
-**Estado P0.1C al 24/09/2026:** IMPLEMENTADO + backend aplicado y validado en Supabase Staging real. Migración `preprod_p01c_profile_editable` registrada como `20260925003222`; runner SQL completo PASS/rollback limpio; `officialize-onboarding` ACTIVE v3. Pendiente únicamente QA de navegador real de persistencia, avatar privado, WhatsApp/consentimiento y categoría actual. Ver `Implementacion/Pre_Production/10_Resultado_Perfil_Editable_ServerBacked_Claude.md` §§17–18.
+**Estado P0.1C al 24/09/2026:** **CERRADO EN STAGING.** Migración `preprod_p01c_profile_editable` registrada como `20260925003222`; runner SQL PASS/rollback limpio; `officialize-onboarding` ACTIVE v3; QA real en `04.10-h31` PASS para edición persistente, avatar propio/cruzado, WhatsApp/consentimiento y privacidad pública. El deep link de WhatsApp queda solo para comprobación rápida en teléfono físico porque Work no puede verificar el handoff a una app nativa. Ver `Implementacion/Pre_Production/10_Resultado_Perfil_Editable_ServerBacked_Claude.md` §§17–20.
 
 **Fuentes maestras:** `Backend_Infraestructura.md`, `Experiencia_Inicial.md`, definición de contacto de V03.6 y contratos actuales de Auth/Perfil.
 
