@@ -1392,3 +1392,86 @@ La bandeja no debe ser una colección de estados genéricos indistinguibles.
 - el otro pendiente accionable permanece correctamente visible;
 - no se detectó regresión funcional nueva.
 
+
+
+### 15.21 — Transición 4/5 → 5/5 / Nivel calibrado — 25/09/2026
+
+Seba confirmó Matu + Diego vs Seba + Lucho (7–5 / 6–4 para Matu/Diego) y pasó correctamente de `CALIBRANDO · 4/5` a estado `CALIBRADO`.
+
+#### Funcional
+
+- `rated_matches` pasó a 5;
+- Home muestra 5 partidos en historial;
+- Nivel público observado: 5.8;
+- Efectividad: 40% (2 ganados / 5 jugados);
+- Mi Perfil actualiza 5 partidos / 2 ganados;
+- la transición de estado se produjo al quinto partido, sin esperar un sexto.
+
+**FUNCIONAL — PASS:** coincide con la regla maestra de Nivel: 5 partidos computables + 3 rivales distintos computables.
+
+#### Home — tarjeta de identidad/Nivel al calibrarse
+
+La transición visual actual rompe la composición de la tarjeta:
+- el Nivel deja de ocupar correctamente la columna derecha;
+- aparece una píldora grande `NIVEL CALIBRADO`;
+- desaparece la barra de progreso, pero el layout no recompone bien el espacio.
+
+**UX / VISUAL — CONFIRMADO:**
+- al finalizar calibración, eliminar la píldora persistente `NIVEL CALIBRADO` de Home;
+- volver a una tarjeta limpia de identidad + `NIVEL BRAMU` numérico en su posición normal;
+- la ausencia de `CALIBRANDO` ya comunica que el nivel está consolidado;
+- la finalización de calibración puede celebrarse con feedback transitorio/carrusel si se desea, pero no como badge permanente que deforme la tarjeta.
+
+**BUG VISUAL:** recomponer el layout responsive de la tarjeta inmediatamente al cambiar de calibrando → calibrado.
+
+#### Mi Perfil — cabecera
+
+Mismo criterio que Home:
+- eliminar la píldora persistente `NIVEL CALIBRADO`;
+- conservar Nivel BRAMU numérico en la composición normal;
+- no repetir un estado que ya es el estado ordinario del jugador calibrado.
+
+#### Mi Perfil — Evolución del Nivel BRAMU
+
+Estado observado:
+- título `EVOLUCIÓN DEL NIVEL BRAMU`;
+- contenido `NIVEL CALIBRADO`;
+- copy todavía afirma: `Es una primera referencia basada en tus respuestas — todavía no es una medición de tu juego. BRAMU la va a calibrar con partidos reales.`
+
+Ese copy es falso una vez completada la calibración.
+
+**BUG DE ESTADO/COPY + IMPLEMENTACIÓN INCOMPLETA:**
+- al pasar a calibrado, no mostrar el mensaje de estimación inicial/calibración futura;
+- si existen datos reales suficientes de `level_events` para renderizar evolución, usar únicamente esa evidencia real;
+- si la UI server-backed todavía no dispone de la serie necesaria, ocultar temporalmente el módulo antes que mostrar un gráfico/copy inventado o contradictorio;
+- no simular evolución ni reutilizar datos legacy.
+
+#### Ranking al terminar calibración
+
+Mi Perfil muestra `Todavía sin posición oficial`.
+
+**COMPORTAMIENTO ESPERABLE / NO BUG por sí solo:** Ranking es una edición semanal publicada. Terminar calibración durante la semana no crea retrospectivamente una posición en la edición ya publicada. La incorporación corresponde a una edición futura cuando cumpla las condiciones de elegibilidad de Ranking.
+
+No tocar Ranking solo por este estado sin revisar la edición semanal vigente.
+
+#### Buscar jugadores / Perfil público / JUGADORES
+
+En un Perfil público server-backed real no aparece `AGREGAR JUGADOR`.
+
+Revisión de código vigente:
+- el botón se oculta deliberadamente en `renderPlayerPublicProfileServerBacked`;
+- la razón documentada en código es que la lista histórica `JUGADORES` escribe localmente por nombre (`Store.addPlayerToList`) y reactivarla para identidades reales por `player_id` reintroduciría el problema de identidad que Backend Bloque 4 corrigió.
+
+**YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA, no bug accidental.**
+
+Dirección para Producto/Desarrollo:
+- NO volver a habilitar el botón legacy por nombre;
+- si se conserva `JUGADORES` como función real, debe migrarse a identidad server-backed por `player_id`;
+- no convertirlo ahora en sistema social/follow complejo;
+- si esa migración amplía demasiado esta ronda, ocultar temporalmente la promesa de `JUGADORES` en cuentas server-backed antes que ofrecer una función que no puede completarse.
+
+#### Mis grupos
+
+**NO TOCAR EN ESTA RONDA.**
+Se confirma que `Mis grupos` merece una revisión propia de producto/UX y no debe resolverse como parche dentro del paquete actual. El usuario lo considera una superficie potencialmente central de BRAMU y quiere dedicarle una ronda específica con contexto y diseño suficiente.
+
