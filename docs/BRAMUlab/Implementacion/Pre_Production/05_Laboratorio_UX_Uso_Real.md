@@ -1143,3 +1143,33 @@ Comprobación final en iPhone de Seba después de que Pablito confirmara el part
 7. la identidad originalmente errónea no conserva efectos deportivos ni históricos del partido.
 
 **Estado:** Escenario 1D COMPLETADO.
+
+
+### 15.14 — Escenario 1E, compañero del autor + partido a 3 sets — 25/09/2026
+
+**Partido:** Seba + Matu vs Esteban + Gusti, 6–4 / 3–6 / 6–2 para Seba/Matu. Cargado por Seba desde iPhone.
+
+#### Lado Matu — compañero del autor
+
+- El partido apareció correctamente en Home/Historial de Matu.
+- Estado: `PENDIENTE DE VALIDACIÓN`.
+- Matu NO recibe `TU TURNO: CONFIRMAR` ni acción pendiente.
+- Las estadísticas oficiales de Matu no incorporan todavía este partido.
+- Matu ve el mismo resultado/perspectiva de su pareja, sin necesidad de validar la versión enviada por Seba.
+
+**FUNCIONAL — PASS / NO TOCAR:** confirma la regla de representación por pareja: cuando un integrante carga una revisión, su compañero queda considerado conforme y la acción pasa exclusivamente a la pareja rival.
+
+#### Partido a 3 sets
+
+- La tarjeta compacta muestra correctamente los tres sets: `6–4 · 3–6 · 6–2`.
+- No se detectaron problemas funcionales nuevos en este formato durante esta pasada.
+
+#### Estado del escenario
+
+Se decide dejar este partido **pendiente a propósito** por ahora, sin validarlo desde Esteban/Gusti, para poder observar más adelante:
+- convivencia de múltiples pendientes;
+- diferencia entre pendientes accionables y no accionables;
+- priorización visual cuando haya más de uno;
+- eventual impacto del límite de pendientes accionables.
+
+No utilizar este pendiente para modificar estadísticas hasta que se decida cerrarlo.
