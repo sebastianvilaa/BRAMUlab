@@ -113,7 +113,7 @@ No reabrir fórmula de Ranking, densidad, publicación semanal, territorios ni N
 
 ## P0.1C — Perfil editable server-backed
 
-**Estado P0.1C al 24/09/2026:** IMPLEMENTADO por Claude Code (código + migración + test), **pendiente de aplicación en Supabase Staging real** (sin acceso desde esa sesión — ver `Implementacion/Pre_Production/10_Resultado_Perfil_Editable_ServerBacked_Claude.md` §11 para la acción manual exacta). Categoría declarada queda DECISIÓN ABIERTA (solo lectura, ver ese mismo informe §6) — no bloquea el resto.
+**Estado P0.1C al 24/09/2026 (revisión central 2):** IMPLEMENTADO por Claude Code (código + migración + test), **pendiente de aplicación en Supabase Staging real** (sin acceso desde esa sesión — ver `Implementacion/Pre_Production/10_Resultado_Perfil_Editable_ServerBacked_Claude.md` §17.6 para la acción manual exacta). La ronda 1 tenía un bucket de avatares público (corregido a privado + URLs firmadas, §17.1) y una validación de ruta débil (corregida a regex anclado, §17.2); la categoría se separó en histórica (`level_states.declared_category`, inmutable) y actual (`profiles.current_category`, editable desde Perfil, §17.3) — ya NO es de solo lectura. Ver §17 completo para el detalle.
 
 **Fuentes maestras:** `Backend_Infraestructura.md`, `Experiencia_Inicial.md`, definición de contacto de V03.6 y contratos actuales de Auth/Perfil.
 

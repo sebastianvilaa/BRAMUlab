@@ -119,8 +119,15 @@ Deno.serve(async (req) => {
     p_questionnaire_mode: mode,
     p_mu: mu,
     p_confidence: confidence,
-    p_declared_category: null,
-    p_category_context_key: null,
+    // Pre-Production P0.1C (revisión 2, 24/09/2026): reenvía el valor REAL del motor en vez de
+    // hardcodear null — pero el estimador universal V1.2 (confirmInitialLevelV1_2, ver
+    // level-calibration.js) construye a propósito un paso neutral (`computeCategoryStep(rawResult,
+    // null, null)`): el cuestionario actual no le pide categoría al usuario, así que estos dos
+    // campos van a seguir evaluando null en la práctica hasta que exista una decisión de producto
+    // aparte de reabrir esa pregunta en el onboarding (fuera de alcance acá). Este fix elimina el
+    // hardcode engañoso y deja el código correcto ante cualquier cambio futuro del motor.
+    p_declared_category: confirmResult.origin.declaredCategory,
+    p_category_context_key: confirmResult.origin.categoryContextKey,
     p_input_context: inputContext,
     p_result: confirmResult.origin,
   });

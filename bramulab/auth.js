@@ -25,9 +25,19 @@
    Pre-Production P0.1C (24/09/2026) — teléfono/WhatsApp/avatar ya tienen columna real
    (`profiles.phone`/`allow_whatsapp_contact`/`avatar_url`, ver migración
    20260924130000_preprod_p01c_profile_editable.sql) y viajan acá igual que cualquier otro campo
-   de `profiles` (el `select('*')` de abajo ya los trae). `declared_category` (Nivel) sigue
-   siendo de solo lectura — se escribe una única vez en `officialize_level_onboarding`, nunca
-   desde Perfil (ver esa misma migración para el detalle de por qué). */
+   de `profiles` (el `select('*')` de abajo ya los trae). `level_states.declared_category` (Nivel)
+   sigue siendo de solo lectura — se escribe una única vez en `officialize_level_onboarding`, nunca
+   desde Perfil.
+
+   Revisión 2 (misma fecha, antes de aplicar nada en Staging): el bucket "avatars" pasó a ser
+   PRIVADO (Backend_Infraestructura.md §5.1 — nunca un objeto público de Internet). `avatar_url`
+   ahora es una RUTA de Storage, no una URL: `resolveAvatarUrl()` la resuelve a una URL firmada
+   temporal (24h) con la sesión real del usuario, recién al necesitar renderizarla — nunca se
+   persiste esa URL firmada, se resuelve de nuevo en cada `fetchOwnProfile`/`getPublicProfile`.
+   También se separó la categoría en dos campos reales: `profiles.current_category` (declarativo,
+   editable libremente desde Perfil, sin ningún efecto sobre Nivel) vs.
+   `level_states.declared_category` (contexto histórico e inmutable del onboarding, sigue de solo
+   lectura acá). */
 (function (global) {
   'use strict';
 
@@ -202,8 +212,10 @@
       // (get_my_ranking_position solo devuelve reasonCodes cuando SÍ hay edición).
       rankingOptIn: profile.ranking_opt_in === true,
       locationVerifiedForRanking: location ? !!location.verified_for_ranking : false,
-      // Backend Bloque 3 — Nivel BRAMU ya es productivo: declaredCategory viene de
-      // level_states (única fuente, nunca un segundo campo independiente en profiles).
+      // Backend Bloque 3 — categoría HISTÓRICA e inmutable del onboarding de Nivel, viene de
+      // level_states (única fuente, nunca un segundo campo independiente en profiles). Solo
+      // lectura acá — nunca se reescribe desde Perfil (ver currentCategory más abajo para la
+      // categoría ACTUAL, esa sí editable).
       declaredCategory: levelState ? levelState.declared_category || null : null,
       declaredCategoryAt: levelState ? levelState.updated_at || null : null,
       // Backend Bloque 3 — estado oficial de Nivel BRAMU server-side. `null` únicamente en el
@@ -221,9 +233,17 @@
         questionnaireVersion: levelState.questionnaire_version,
         questionnaireMode: levelState.questionnaire_mode,
       } : null,
-      // Pre-Production P0.1C — avatar_url real (Supabase Storage, bucket "avatars"), escrito
-      // exclusivamente por update_profile_avatar. `null` mientras no se subió ninguna foto.
-      profilePhoto: profile.avatar_url || null,
+      // Pre-Production P0.1C (revisión 2) — profile.avatar_url guarda una RUTA de Storage
+      // (bucket privado "avatars"), escrita exclusivamente por update_profile_avatar. Se
+      // resuelve acá mismo a una URL firmada temporal (resolveAvatarUrl) para que Home/Mi
+      // Perfil/Editar Datos sigan renderizando `profilePhoto` de forma síncrona, sin cambios.
+      // `null` mientras no se subió ninguna foto (o si la resolución falla — no bloquea el login).
+      profilePhoto: await resolveAvatarUrl(profile.avatar_url),
+      // Pre-Production P0.1C (revisión 2) — categoría ACTUAL declarada en Perfil, separada a
+      // propósito de declaredCategory (arriba): esta SÍ es editable libremente desde Editar
+      // Datos (updateCurrentCategory) y nunca afecta a Nivel BRAMU.
+      currentCategory: profile.current_category || null,
+      currentCategoryAt: profile.current_category_at || null,
       locality: location ? location.locality_label : null,
       region: location ? location.province_label : null,
       country: location ? COUNTRY_LABELS.AR : null,
@@ -326,13 +346,17 @@
 
   /** Backend Bloque 4 — perfil público de un `player_id` puntual (RPC `get_public_profile`).
    *  `null` (nunca un objeto vacío) si la RPC no devolvió fila — provisional, inexistente o
-   *  perfil todavía sin completar, ver la migración. */
+   *  perfil todavía sin completar, ver la migración. Pre-Production P0.1C (revisión 2) — agrega
+   *  `avatar_signed_url` (URL firmada temporal, resuelta acá mismo a partir de la RUTA cruda
+   *  `row.avatar_url`) para que app.js pueda renderizar el avatar de OTRO jugador; nunca expone
+   *  la ruta cruda como si fuera una URL utilizable. */
   async function getPublicProfile(playerId) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
     const { data, error } = await c.rpc('get_public_profile', { p_player_id: playerId });
     if (error) return { ok: false, code: error.message || 'unknown' };
     const row = Array.isArray(data) && data.length ? data[0] : null;
+    if (row) row.avatar_signed_url = await resolveAvatarUrl(row.avatar_url);
     return { ok: true, profile: row };
   }
 
@@ -430,18 +454,46 @@
     return { ok: true, profile: data };
   }
 
-  /** Pre-Production P0.1C — persiste la referencia de avatar YA subida a Storage (RPC
-   *  `update_profile_avatar`). `avatarUrl: null` quita la foto. Nunca sube el archivo por acá —
-   *  ver `uploadAvatar`/`removeAvatarFiles` para la subida real. */
-  async function updateProfileAvatar(avatarUrl) {
+  /** Pre-Production P0.1C (revisión 2) — persiste la RUTA de avatar YA subida a Storage (RPC
+   *  `update_profile_avatar`). `avatarPath: null` quita la foto. Nunca sube el archivo por acá —
+   *  ver `uploadAvatar`/`removeAvatarFiles` para la subida real. El parámetro es una ruta pura
+   *  ("{playerId}/archivo.jpg"), nunca una URL — el bucket es privado, no existe URL pública. */
+  async function updateProfileAvatar(avatarPath) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
-    const { data, error } = await c.rpc('update_profile_avatar', { p_avatar_url: avatarUrl || null });
+    const { data, error } = await c.rpc('update_profile_avatar', { p_avatar_path: avatarPath || null });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, profile: data };
+  }
+
+  /** Pre-Production P0.1C (revisión 2) — única vía de escritura de la categoría ACTUAL de
+   *  Perfil (RPC `update_current_category`, ver migración). Nunca toca level_states/Nivel BRAMU
+   *  — deliberadamente separada de declaredCategory (solo lectura, ver fetchOwnProfile). */
+  async function updateCurrentCategory(currentCategory) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('update_current_category', { p_current_category: currentCategory || null });
     if (error) return { ok: false, code: error.message || 'unknown' };
     return { ok: true, profile: data };
   }
 
   const AVATAR_BUCKET = 'avatars';
+  const AVATAR_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24;
+
+  /** Pre-Production P0.1C (revisión 2) — resuelve una RUTA de Storage del bucket privado
+   *  "avatars" a una URL firmada temporal (24h) usando la sesión real de la cuenta activa
+   *  (`createSignedUrl` exige la policy `avatars_select_authenticated` — cualquier usuario
+   *  autenticado, nunca anónimo). `null` si no hay ruta, si no hay sesión configurada, o si la
+   *  resolución falla (nunca bloquea el resto del perfil por un avatar irresoluble). Nunca se
+   *  persiste el resultado — se vuelve a resolver en cada `fetchOwnProfile`/`getPublicProfile`. */
+  async function resolveAvatarUrl(avatarPath) {
+    if (!avatarPath) return null;
+    const c = getClient();
+    if (!c) return null;
+    const { data, error } = await c.storage.from(AVATAR_BUCKET).createSignedUrl(avatarPath, AVATAR_SIGNED_URL_TTL_SECONDS);
+    if (error || !data || !data.signedUrl) return null;
+    return data.signedUrl;
+  }
 
   /** Pre-Production P0.1C — borra cualquier archivo YA subido en la carpeta propia
    *  ({playerId}/*, bucket avatars) antes de subir uno nuevo o al quitar la foto — nunca se
@@ -461,13 +513,15 @@
     return { ok: true };
   }
 
-  /** Pre-Production P0.1C — sube `blob` (siempre JPEG ya redimensionado por
+  /** Pre-Production P0.1C (revisión 2) — sube `blob` (siempre JPEG ya redimensionado por
    *  downscaleImageFileToDataUrl, ver app.js) a `{playerId}/{timestamp}.jpg` dentro del bucket
-   *  avatars, después de limpiar cualquier archivo previo del mismo jugador (removeAvatarFiles).
-   *  Devuelve la URL pública real (`getPublicUrl`, siempre correcta para el entorno actual —
-   *  nunca un dominio hardcodeado) para persistir después vía `updateProfileAvatar`. La subida
-   *  en sí ya está protegida por la política RLS `avatars_insert_own` (carpeta = player_id
-   *  propio) — esta función nunca podría subir a la carpeta de otro jugador aunque quisiera. */
+   *  privado avatars, después de limpiar cualquier archivo previo del mismo jugador
+   *  (removeAvatarFiles). Devuelve la RUTA cruda (nunca una URL — el bucket es privado, no existe
+   *  `getPublicUrl` válida) para persistir después vía `updateProfileAvatar`; el llamador
+   *  (app.js) resuelve una vista previa con `resolveAvatarUrl` si necesita mostrarla antes de
+   *  guardar. La subida en sí ya está protegida por la política RLS `avatars_insert_own`
+   *  (carpeta = player_id propio) — esta función nunca podría subir a la carpeta de otro
+   *  jugador aunque quisiera. */
   async function uploadAvatar(playerId, blob) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
@@ -479,9 +533,7 @@
       upsert: true,
     });
     if (uploadError) return { ok: false, code: uploadError.message || 'unknown' };
-    const { data: urlData } = c.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-    if (!urlData || !urlData.publicUrl) return { ok: false, code: 'unknown' };
-    return { ok: true, url: urlData.publicUrl };
+    return { ok: true, path };
   }
 
   global.PLAuth = {
@@ -493,5 +545,6 @@
     searchPlayers, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
     createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
+    updateCurrentCategory, resolveAvatarUrl,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

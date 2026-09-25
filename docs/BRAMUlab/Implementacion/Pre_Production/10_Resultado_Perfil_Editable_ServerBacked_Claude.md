@@ -7,6 +7,14 @@
 ejecutar sin Supabase real) y pusheada a `origin/staging`. Sin `main`, Production ni BRAMUlive
 tocados. No se reabrió P0.1 ni Ranking automático.
 
+**⚠️ Revisión central 2 (misma fecha, ANTES de aplicar la migración en Staging) — ver §17.** La
+revisión central encontró dos problemas reales en esta primera versión: el bucket de avatares
+había quedado **público** (contradice Backend_Infraestructura.md §5.1) y la validación de ruta de
+avatar tenía un agujero real (aceptaba URLs de dominios externos). Además se separó la categoría
+"declarada"/"actual" en dos campos reales. **Las secciones §6/§7/§11/§13/§14 de abajo describen la
+ronda 1 y quedaron parcialmente desactualizadas — §17 tiene el estado final correcto y prevalece
+sobre cualquier contradicción con lo que sigue.**
+
 ---
 
 ## 1. Resumen de una línea
@@ -335,4 +343,254 @@ commit — revisar `git log -1` sobre `origin/staging`).
   explícito, no un pendiente silencioso.
 - Commit final + push a `origin/staging`: ✅ (este commit).
 - `DECISIÓN ABIERTA` real: **categoría declarada** (§6) — no bloqueó el resto de la ronda.
+  **Superada por §17**: se resolvió con la separación categoría histórica/actual.
 - P0.1/P0.1B: no reabiertos, sin cambios sobre lo ya validado en Staging real.
+
+---
+
+## 17. Revisión central 2 (24/09/2026) — corrección ANTES de aplicar nada en Staging
+
+La migración de la ronda 1 (§1-16) **nunca llegó a ejecutarse** contra ningún Supabase real — la
+revisión central la auditó todavía en ese estado y encontró dos problemas reales, ambos corregidos
+en el mismo archivo (sin ningún problema de compatibilidad de datos: no hay avatares ni categorías
+reales persistidas todavía). Alcance de esta revisión: **solo** lo que sigue — no se reabrió P0.1,
+P0.1B, Ranking automático, ni la fórmula de Nivel BRAMU.
+
+### 17.1 Problema 1 — bucket de avatares público (violación de privacidad real)
+
+**Lo que decía §7:** "Bucket `avatars`: público de LECTURA" — justificado en su momento por evitar
+reescribir ~6 call sites de `<img src>` a un flujo async.
+
+**Por qué estaba mal:** `Backend_Infraestructura.md §5.1` es explícito: los perfiles deportivos
+(avatar incluido) son visibles **únicamente para usuarios autenticados de BRAMU**, nunca objetos
+públicos de Internet accesibles sin sesión. Un bucket público de lectura significa que cualquiera
+con la URL —sin login, sin ser jugador de BRAMU— puede abrir el archivo directo. Eso contradice la
+fuente maestra de forma directa, no es un matiz de interpretación.
+
+**Corrección aplicada** (misma migración, `supabase/migrations/20260924130000_preprod_p01c_profile_
+editable.sql`):
+
+- Bucket `avatars` pasa a `public = false`.
+- La política de SELECT de `storage.objects` para esta bucket deja de estar scoped a la carpeta
+  propia (`avatars_select_own`, retirada) y pasa a ser amplia para **cualquier** rol
+  `authenticated` (`avatars_select_authenticated`, sin restricción de carpeta) — necesario para que
+  Perfil público pueda mostrar el avatar de OTRO jugador, no solo el propio. Las 3 políticas de
+  escritura (insert/update/delete) siguen exactamente igual: scoped a la carpeta `{player_id}`
+  propia, sin cambios.
+- `avatar_url` cambia de contrato semántico: pasa a guardar una **ruta** de Storage
+  (`"{player_id}/archivo.jpg"`), nunca una URL completa — con bucket privado no existe una "URL
+  pública" que tenga sentido persistir. El nombre de columna **no se cambió** a propósito: un
+  `RENAME COLUMN` no es rastreado por Postgres dentro de cuerpos `plpgsql`, y esa misma columna ya
+  la lee `get_ranking_classification` (Bloque 7 Fase 3, ya aplicado en Staging) — renombrarla
+  hubiera arriesgado romper esa RPC en tiempo de ejecución sin que ningún `DROP`/`CREATE` lo
+  advirtiera en el momento de aplicar la migración.
+- `bramulab/auth.js` agrega `resolveAvatarUrl(avatarPath)` — resuelve esa ruta a una **URL firmada
+  temporal** (`createSignedUrl`, 24h) usando la sesión real de quien la pide. Se resuelve de nuevo
+  en cada `fetchOwnProfile()`/`getPublicProfile()` — nunca se persiste la URL firmada en ningún
+  lado (ni en `profiles`, ni en `Store`, ni en caché). `fetchOwnProfile().profilePhoto` y
+  `getPublicProfile().profile.avatar_signed_url` ya llegan resueltos — ningún call site de
+  renderizado (`setAvatarPreview` en Home/Mi Perfil/Editar Datos/Perfil público) tuvo que cambiar
+  su forma de consumir el dato, solo qué propiedad lee.
+- `bramulab/auth.js#uploadAvatar` deja de llamar a `getPublicUrl` (no tiene sentido en un bucket
+  privado — devolvería una URL que un `GET` anónimo rechaza) y devuelve la ruta cruda
+  (`{ok:true, path}`), que `update_profile_avatar` persiste tal cual.
+
+**Lo que esto logra, punto por punto contra lo pedido:**
+
+- Bucket privado: ✅ (`public=false`, catálogo verificable).
+- Solo el dueño puede subir/reemplazar/borrar: ✅ (sin cambios — ya era así).
+- Cualquier usuario autenticado de BRAMU puede leer/resolver cualquier avatar: ✅
+  (`avatars_select_authenticated`, sin scope de carpeta, rol `authenticated` únicamente).
+- Un usuario NO autenticado no puede abrir el archivo directo: ✅ **estructuralmente** — ninguna de
+  las 4 políticas de esta bucket incluye los roles `anon`/`public`, y Postgres RLS deniega por
+  defecto cualquier acceso sin una política que lo permita explícitamente. (Lo que esta revisión
+  **no puede** verificar desde una sesión sin Supabase real: que un `GET` HTTP anónimo real
+  devuelva 400 — eso es comportamiento de la API REST de Storage, no alcanzable desde SQL ni desde
+  este entorno. Queda como QA manual pendiente, §17.6.)
+- Se evita persistir base64/data-URL en la tabla: ✅ (sin cambios — nunca se hizo así).
+- Límites de tamaño/MIME razonables: ✅ (sin cambios — 2MB, jpeg/png/webp).
+- Se corrige la validación de ruta débil: ✅ — ver 17.2.
+
+### 17.2 Problema 2 — validación de ruta de avatar con agujero real
+
+**Lo que hacía `update_profile_avatar` (ronda 1):**
+
+```sql
+if p_avatar_url is not null
+   and p_avatar_url not like ('%/avatars/' || v_player_id::text || '/%') then
+  raise exception 'avatar_path_invalid' ...
+```
+
+Es un chequeo de **substring**, no de origen: cualquier URL que **contenga** en algún punto
+`/avatars/{tu_propio_player_id}/` pasa el chequeo, sin importar el dominio real. Un valor como
+`https://dominio-ajeno.evil/avatars/{tu_player_id}/x.jpg` —un dominio arbitrario, no Supabase—
+hubiera sido aceptado igual, porque el `LIKE` solo mira si esa porción de texto aparece en algún
+lado de la cadena.
+
+**Corrección aplicada:** con el cambio de contrato a "ruta pura, nunca URL" (17.1), el chequeo pasa
+a ser un regex **anclado** de principio a fin:
+
+```sql
+if p_avatar_path is not null
+   and p_avatar_path !~ ('^' || v_player_id::text || '/[A-Za-z0-9._-]+$') then
+  raise exception 'avatar_path_invalid' ...
+```
+
+Esto rechaza estructuralmente, no por lista de casos: cualquier esquema/dominio (la cadena no
+empieza con el player_id propio → no matchea desde el carácter 1), cualquier carpeta ajena, y
+cualquier path traversal o segmento anidado (el segundo tramo no admite `/`). Verificado con 4
+casos reales en el test (§17.5): ruta propia válida, carpeta ajena, URL completa de dominio
+externo que contiene el propio player_id como substring (el caso exacto que la versión anterior
+aceptaba mal), y traversal dentro de la carpeta propia.
+
+### 17.3 Categoría — separación histórica (A) vs. actual (B)
+
+**El pedido:** separar "categoría del contexto histórico del Nivel inicial" (nunca debe cambiar
+retroactivamente) de "categoría actual de Perfil" (debe ser editable, sin tocar Nivel).
+
+**Lo que YA era cierto y se conservó sin tocar:** `level_states.declared_category` se escribe una
+única vez, dentro de `officialize_level_onboarding`, en la transición `PENDIENTE -> CALIBRANDO`.
+Ninguna oficialización de partido la vuelve a tocar. Sigue siendo así — **cero cambios** en esa
+garantía.
+
+**Lo nuevo — `profiles.current_category` / `profiles.current_category_at`:**
+
+- Dos columnas nuevas en `profiles`, con el mismo `CHECK` de valores permitidos que
+  `level_states.declared_category` conceptualmente usa (`'1'..'9','no-se','no-compito'`).
+- Nueva RPC `update_current_category(p_current_category text)` — única vía de escritura. No
+  referencia `level_states` en absoluto (verificable leyendo su cuerpo: no hay ningún `update
+  public.level_states` ni `select` sobre esa tabla) — estructuralmente no puede tocar
+  `mu`/`confidence`/`evidence_units`/eventos/Ranking.
+- `officialize_level_onboarding` (mismo `CREATE OR REPLACE`, misma firma exacta — conserva los
+  GRANTs existentes automáticamente) gana una única línea nueva: dentro del mismo bloque
+  idempotente que ya existía, inicializa `profiles.current_category`/`current_category_at` con el
+  mismo valor que se acaba de confirmar como `declared_category`. Se ejecuta como máximo una vez
+  por jugador (la guarda `status = 'PENDIENTE'` ya existente lo garantiza) — nunca se vuelve a
+  tocar desde ahí.
+- El timestamp `current_category_at` solo se re-estampa cuando el valor realmente cambia (mismo
+  criterio que ya usaba el camino local/legacy en `app.js`) — guardar el mismo valor de nuevo
+  conserva la fecha de declaración original.
+
+**Frontend (`bramulab/auth.js`/`app.js`):** `fetchOwnProfile()` ahora expone `currentCategory`/
+`currentCategoryAt` además de `declaredCategory`/`declaredCategoryAt` (que sigue de solo lectura).
+Mi Perfil → Mis Datos, el checklist de "perfil incompleto" y `openProfileEditModal()` pasan a leer
+`user.currentCategory` en vez de `user.declaredCategory` **solo para cuentas `serverBacked`** — las
+cuentas locales/legacy (sin este split) siguen leyendo `declaredCategory` exactamente como
+siempre, rama de código sin ningún cambio. La fila "Categoría actual" en Editar Datos, que la
+ronda 1 había dejado deshabilitada para `serverBacked` (§6/§5, ese `DECISIÓN ABIERTA`), **se
+reactivó**: `submitServerBackedProfileEdit` ahora llama a `Auth.updateCurrentCategory(...)` cuando
+el valor cambió, igual que el resto de los campos independientes de esa función.
+
+**Resultado de la separación A/B, punto por punto:**
+
+- Categoría inicial del Nivel (A): se persiste correctamente al oficializar (ver 17.4 para el
+  hallazgo relacionado del Edge Function), se conserva para auditoría, y no cambia jamás al editar
+  Perfil — verificado explícitamente en el test (§17.5, sección 5: edita `current_category` y
+  confirma que `level_states.declared_category` no se movió).
+- Categoría actual del Perfil (B): editable libremente desde Editar Datos, inicializada una vez
+  con el mismo valor de A al completar el onboarding, nunca reescribe `level_events` ni
+  recalibra Nivel ni toca Ranking — verificado explícitamente en el test (§17.5, sección 4: ninguna
+  escritura de `current_category` mueve `mu`/`confidence`/`evidence_units`/`status` de
+  `level_states`).
+
+**No se agregó** `current_category` al `RETURNS TABLE` de `get_public_profile` — el pedido fue
+explícito en no inventar una tarjeta visual nueva en Perfil público sin decisión de Laboratorio UX.
+Si más adelante se decide mostrar la categoría actual en el perfil público de otro jugador, agregar
+esa columna es un cambio aislado y de bajo riesgo (mismo patrón que `avatar_url`/`whatsapp_phone`
+ya usado dos veces) — queda documentado acá como **DECISIÓN ABIERTA de producto/diseño**, no
+técnica.
+
+### 17.4 Edge Function — `p_declared_category`/`p_category_context_key` dejan de hardcodearse
+
+`supabase/functions/officialize-onboarding/index.ts` mandaba `p_declared_category: null,
+p_category_context_key: null` hardcodeado, en vez de reenviar lo que el motor realmente calculó.
+Se corrigió a `confirmResult.origin.declaredCategory` / `confirmResult.origin.categoryContextKey`.
+
+**Caveat honesto, para no generar una falsa sensación de "gap cerrado":** el estimador universal
+V1.2 (`confirmInitialLevelV1_2`, `bramulab/level-calibration.js`) construye a propósito un paso
+neutral — llama internamente a `computeCategoryStep(rawResult, null, null)` — porque **el
+cuestionario de onboarding actual no le pide categoría al usuario en absoluto**. Es una decisión de
+producto ya cerrada y documentada (`README.md`: "V1.2 retira categoría local del onboarding/
+cálculo"), no un bug de este Edge Function. Como consecuencia, aunque el fix es correcto y
+necesario (elimina un hardcode engañoso y deja el código robusto ante cualquier cambio futuro del
+motor), **`level_states.declared_category` va a seguir en `NULL` para toda cuenta real** hasta que
+exista una decisión de producto aparte de reintroducir esa pregunta en el cuestionario — eso
+reabriría el onboarding de Nivel (Bloque 3), fuera de alcance de una corrección de "Perfil
+editable". Consecuencia práctica: `profiles.current_category` seguirá siendo, en la práctica, la
+**única** vía real hoy para que una cuenta declare y vea reflejada una categoría — que es
+exactamente por lo que la separación A/B de 17.3 importa aunque A quede vacío por ahora.
+
+**DECISIÓN ABIERTA de producto** (no bloqueante, para ChatGPT central/Sebastián): si/cuándo
+reintroducir una pregunta de categoría en el onboarding de Nivel V1.2/V1.3.
+
+### 17.5 Tests — reescritos
+
+`supabase/tests/verify-preprod-p01c-profile-editable.sql` fue reescrito por completo. Nuevas
+verificaciones agregadas (todo transaccional, `ROLLBACK` final, cero fixtures permanentes):
+
+1. `update_profile_avatar`: ruta propia aceptada; carpeta ajena rechazada; **URL completa de un
+   dominio externo que contiene el propio player_id como substring, rechazada** (el caso exacto
+   que motivó la corrección — con el chequeo viejo esto pasaba); traversal/segmento anidado
+   rechazado; `NULL` sigue quitando la foto sin el chequeo.
+2. `get_public_profile`: expone la ruta de avatar y filtra `whatsapp_phone` por consentimiento
+   (sin cambios de ronda 1) + **nueva** subverificación de visibilidad cruzada (un segundo usuario
+   autenticado puede resolver la ruta de avatar de otro jugador vía la RPC) — corre solo si el
+   entorno tiene una segunda cuenta real registrada disponible; si no, se saltea con
+   `RAISE NOTICE` explícito, nunca falla el script por eso.
+3. `update_current_category`: escritura válida; el timestamp NO se re-estampa si el valor no
+   cambió (usando un timestamp inyectado deliberadamente 10 días atrás como base, porque `now()`
+   queda fijo para toda la transacción en Postgres y no sirve para distinguir "se re-estampó" de
+   "no se re-estampó" comparando dos llamadas dentro del mismo script); SÍ se re-estampa si el
+   valor cambió; valor fuera del conjunto permitido rechazado; ninguna de estas escrituras toca
+   `level_states` (`mu`/`confidence`/`evidence_units`/`declared_category`/`status` comparados
+   antes/después, deben ser idénticos).
+4. `officialize_level_onboarding`: manipula `level_states.status` a `'PENDIENTE'` de forma
+   controlada y temporal (revertido por el `ROLLBACK` final) para poder ejercitar de verdad la
+   transición sin depender de que la cuenta elegida esté hoy, por casualidad, en ese estado exacto.
+   Verifica que `declared_category` llega y se persiste, que `profiles.current_category` se
+   inicializa con ese mismo valor, que una segunda llamada (idempotencia ya existente) no
+   sobrescribe nada, y que editar la categoría actual desde Perfil después NO mueve
+   `level_states.declared_category` (inmutabilidad real, no solo documentada).
+5. Storage: bucket `avatars` privado con los límites configurados; exactamente 4 políticas RLS
+   scoped a esa bucket; la política de SELECT ya no está scoped por carpeta (`ilike '%foldername%'`
+   ausente en su `qual`); ninguna de las 4 políticas incluye los roles `anon`/`public`.
+6. Permisos: `update_current_category` solo `authenticated` (ni `public` ni `anon`); resto de
+   funciones sin cambios de grants respecto de la ronda 1.
+
+**Lo que este test SQL no puede probar** (documentado con honestidad en su propia cabecera, no una
+omisión): que un `GET` HTTP anónimo real contra el objeto de Storage devuelva 400/403, y que
+`createSignedUrl` resuelva de verdad una URL utilizable cross-usuario en un navegador real — ambos
+son comportamiento de la API REST de Storage, no alcanzable desde una función SQL. Lo que el test
+SÍ verifica es el contrato de catálogo que estructuralmente implica ambas cosas (bucket privado +
+exactamente las políticas esperadas, sin `anon`/`public` en ningún rol). Queda como QA manual final
+contra Staging real (§17.6).
+
+### 17.6 QA manual pendiente contra Staging real (una vez aplicada la migración)
+
+1. Desde una cuenta real: subir avatar, confirmar que se ve en Home/Mi Perfil/Editar Datos.
+2. Desde una SEGUNDA cuenta real distinta: abrir el Perfil público de la primera y confirmar que
+   el avatar se ve (prueba real de `createSignedUrl` cross-usuario, no alcanzable desde este
+   entorno).
+3. Copiar la URL firmada resuelta (inspeccionar el `src` del `<img>`) y abrirla en una pestaña
+   sin sesión (o `curl` sin cookies/headers) — debe fallar (bucket privado). Esperar unos segundos
+   más allá de las 24h de vigencia (o simplemente confirmar que la URL trae un parámetro de
+   expiración) para confirmar que no queda accesible para siempre.
+4. Editar "Categoría actual" desde Editar Datos, guardar, recargar y confirmar que persiste — y
+   que el Nivel BRAMU (banda/estado) no se movió ni un poco.
+5. Confirmar que `officialize-onboarding` (cuestionario nuevo) sigue funcionando de punta a punta
+   sin errores tras el `CREATE OR REPLACE` y el cambio del Edge Function.
+
+### 17.7 Bundle y commit
+
+Bundle `04.10-h30` (bump desde `04.10-h29`, mismo criterio de siempre — `app.js`/`auth.js`
+cambiaron). `Store.VERSION`/`version.json` siguen en `"BRAMUlab V04.10"`.
+
+Regresión local corrida de nuevo tras esta revisión: `node --test` 255/255 PASS;
+`bramulab/tests.html` 1478/1478 PASS; QA manual en el navegador embebido con una cuenta
+local/legacy confirmando que la fila "Categoría actual" de Editar Datos sigue funcionando
+exactamente igual que antes (picker abre, selecciona, guarda, persiste con fecha) — la rama de
+código local (`declaredCategory`/`declaredCategoryAt`, líneas ~10248-10259 de `app.js`) no fue
+tocada por esta revisión.
+
+Un único commit lógico adicional (migración corregida + Edge Function + frontend + test + este
+informe), push a `origin/staging`. Sin `main`, sin Production, sin BRAMUlive.

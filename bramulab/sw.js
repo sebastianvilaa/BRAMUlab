@@ -125,7 +125,14 @@
 // pasan a persistir real (ver migración 20260924130000_preprod_p01c_profile_editable.sql).
 // Toca app.js/index.html/styles.css; mismo criterio de siempre, `Store.VERSION`/`version.json`
 // siguen en "BRAMUlab V04.10".
-const CACHE_NAME = 'bramulab-v04-10-h29';
+// Pre-Production P0.1C (revisión central 2, 24/09/2026) — `-h30`: corrige dos problemas reales de
+// `-h29` ANTES de aplicar esa migración en Staging (nunca se había ejecutado todavía) — bucket de
+// avatares pasa de público a PRIVADO (avatar_url ahora es una ruta, resuelta a URL firmada
+// client-side vía Auth.resolveAvatarUrl) y se separa la categoría en dos campos reales
+// (profiles.current_category, editable desde Perfil, vs. level_states.declared_category,
+// histórico e inmutable). Toca app.js/auth.js; mismo criterio de siempre, `Store.VERSION`/
+// `version.json` siguen en "BRAMUlab V04.10".
+const CACHE_NAME = 'bramulab-v04-10-h30';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si

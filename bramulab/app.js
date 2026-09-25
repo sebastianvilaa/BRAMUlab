@@ -8821,9 +8821,10 @@
     const p = result.profile;
     const name = p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || fallbackName;
     playerPublicName = Store.normalizePlayerName(name);
-    // Pre-Production P0.1C — avatar real (get_public_profile.avatar_url, mismo setAvatarPreview
-    // que el resto de la app: cualquier URL válida, no solo data: URLs).
-    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', p.avatar_url || null, name);
+    // Pre-Production P0.1C (revisión 2) — avatar_signed_url (URL firmada temporal, resuelta por
+    // Auth.getPublicProfile a partir de la RUTA privada get_public_profile.avatar_url; el bucket
+    // "avatars" es privado desde esta revisión, avatar_url ya no es una URL utilizable directo).
+    setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', p.avatar_signed_url || null, name);
     $('#player-public-name').textContent = name;
     $('#player-public-username').textContent = p.username ? `@${p.username}` : buildPlayerHandle(name);
 
@@ -9112,8 +9113,14 @@
     // DATOS (nunca en MI PERFIL, retirada de la ficha deportiva en §3), con su fecha real si
     // se conoce (cuentas ya existentes antes de esta ronda pueden tener categoría sin fecha —
     // se muestra solo la categoría en ese caso, nunca una fecha inventada).
-    const categoryLabel = user && CATEGORY_LABELS[user.declaredCategory];
-    const categoryDate = user && user.declaredCategoryAt ? formatDeclaredCategoryDate(user.declaredCategoryAt) : '';
+    // Pre-Production P0.1C (revisión 2) — para cuentas server-backed, "Categoría actual" muestra
+    // profiles.current_category (declarativo, editable desde Editar Datos), NUNCA
+    // level_states.declared_category (contexto histórico e inmutable de Nivel, ver auth.js). Las
+    // cuentas locales/legacy no tienen ese split: siguen leyendo declaredCategory como siempre.
+    const effectiveCategory = user && (user.serverBacked ? user.currentCategory : user.declaredCategory);
+    const effectiveCategoryAt = user && (user.serverBacked ? user.currentCategoryAt : user.declaredCategoryAt);
+    const categoryLabel = user && CATEGORY_LABELS[effectiveCategory];
+    const categoryDate = effectiveCategoryAt ? formatDeclaredCategoryDate(effectiveCategoryAt) : '';
     $('#profile-category').textContent = categoryLabel ? (categoryDate ? `${categoryLabel} · declarada el ${categoryDate}` : categoryLabel) : '—';
     // BRAMUlab_V03.4.1 (§9) — "Bella Vista, Buenos Aires", de solo lectura acá (se edita desde
     // Editar Datos). PLLocations.formatLocationLabel ya maneja el caso sin región.
@@ -9147,7 +9154,7 @@
       if (!user.gender) missing.push('género');
       if (!user.dominantHand) missing.push('mano dominante');
       if (!user.preferredSide) missing.push('lado habitual');
-      if (!user.declaredCategory) missing.push('categoría');
+      if (!(user.serverBacked ? user.currentCategory : user.declaredCategory)) missing.push('categoría');
     }
     $('#profile-incomplete-banner').hidden = missing.length === 0;
     if (missing.length) {
@@ -9774,7 +9781,10 @@
     profileEditHand = user.dominantHand || null;
     profileEditSide = user.preferredSide || null;
     profileEditGender = user.gender || null;
-    profileEditCategory = user.declaredCategory || null;
+    // Pre-Production P0.1C (revisión 2) — para server-backed, precarga profiles.current_category
+    // (editable, ver submitServerBackedProfileEdit); las cuentas locales/legacy siguen usando
+    // declaredCategory como siempre (sin ese split, ver auth.js).
+    profileEditCategory = (user.serverBacked ? user.currentCategory : user.declaredCategory) || null;
     profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
     profileEditBranch = user.competitiveBranch || null;
     profileEditAllowWhatsApp = !!user.allowWhatsAppContact;
@@ -9798,13 +9808,12 @@
     // Pre-Production P0.1C — reemplaza el bloqueo general de Bloque 2 (guardado real ahora
     // conectado, ver submitServerBackedProfileEdit): para una cuenta server-backed, @usuario
     // queda fijo (username_locked server-side, Backend_Infraestructura.md §5.2 — nunca se ofrece
-    // como editable si el servidor lo va a rechazar) y Categoría actual queda de solo lectura
-    // (level_states.declared_category se escribe una única vez en el onboarding — DECISIÓN
-    // ABIERTA no bloqueante, ver informe P0.1C §"Categoría declarada"). El resto de los campos
-    // queda editable de verdad.
+    // como editable si el servidor lo va a rechazar). Revisión 2 (24/09/2026) — Categoría actual
+    // deja de estar bloqueada: pasa a editar profiles.current_category (dato declarativo propio
+    // de Perfil, nunca level_states.declared_category — ver auth.js/submitServerBackedProfileEdit),
+    // así que ya no hay motivo para deshabilitar esa fila. El resto de los campos ya era editable.
     const serverBacked = !!user.serverBacked;
     $('#profile-edit-username').disabled = serverBacked;
-    $('#profile-edit-category-row').disabled = serverBacked;
     $('#profile-edit-error').textContent = '';
     $('#profile-edit-error').hidden = true;
     $all('#profile-edit-form button[type="submit"]').forEach((btn) => { btn.disabled = false; btn.textContent = 'GUARDAR'; });
@@ -10031,6 +10040,7 @@
   const PROFILE_CONTACT_AVATAR_ERROR_TEXT = {
     whatsapp_phone_invalid: 'Para permitir contacto por WhatsApp, cargá primero un número de WhatsApp válido.',
     avatar_path_invalid: 'No pudimos guardar la foto. Probá de nuevo.',
+    current_category_invalid: 'Esa categoría no es válida. Probá de nuevo.',
     not_configured: 'No pudimos conectar con el servidor. Probá de nuevo.',
     unknown: 'No pudimos guardar ese dato. Probá de nuevo.',
   };
@@ -10116,7 +10126,19 @@
       if (!contactResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[contactResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
     }
 
-    // 4) Avatar (Storage + update_profile_avatar) — solo si cambió (nueva foto o "quitar foto").
+    // 4) Categoría ACTUAL (update_current_category) — solo si cambió. Pre-Production P0.1C
+    // (revisión 2): dato puramente declarativo de Perfil, deliberadamente separado de
+    // level_states.declared_category (histórico/inmutable del onboarding, nunca se toca acá) —
+    // nunca afecta mu/confidence/evidence_units ni recalcula Nivel.
+    const categoryChanged = profileEditCategory !== (user.currentCategory || null);
+    if (categoryChanged) {
+      const categoryResult = await Auth.updateCurrentCategory(profileEditCategory);
+      if (!categoryResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[categoryResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
+    }
+
+    // 5) Avatar (Storage + update_profile_avatar) — solo si cambió (nueva foto o "quitar foto").
+    // Pre-Production P0.1C (revisión 2): uploadAvatar devuelve la RUTA cruda (bucket privado, no
+    // hay URL pública) — update_profile_avatar persiste esa ruta tal cual.
     if (profileEditPhotoRemoved) {
       const cleanup = await Auth.removeAvatarFiles(user.id);
       if (cleanup.ok) {
@@ -10130,7 +10152,7 @@
         const blob = await (await fetch(profileEditPhotoDataUrl)).blob();
         const uploadResult = await Auth.uploadAvatar(user.id, blob);
         if (uploadResult.ok) {
-          const avatarResult = await Auth.updateProfileAvatar(uploadResult.url);
+          const avatarResult = await Auth.updateProfileAvatar(uploadResult.path);
           if (!avatarResult.ok) partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[avatarResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
         } else {
           partialErrors.push(PROFILE_CONTACT_AVATAR_ERROR_TEXT[uploadResult.code] || PROFILE_CONTACT_AVATAR_ERROR_TEXT.unknown);
