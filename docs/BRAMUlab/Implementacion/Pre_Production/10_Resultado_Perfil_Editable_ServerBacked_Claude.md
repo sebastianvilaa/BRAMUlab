@@ -650,3 +650,57 @@ Pendiente únicamente QA de navegador sobre la experiencia real:
 - privacidad visual del Perfil público.
 
 No requiere otra ronda de implementación salvo regresión concreta encontrada en esa QA.
+
+
+---
+
+## 19. Hotfix QA real — avatar inline server-backed (24/09/2026)
+
+Work detectó una regresión real en `04.10-h30`:
+
+- seleccionar foto desde Mi Perfil/Mis Datos mostraba `Foto actualizada`;
+- la imagen se veía durante la sesión;
+- al recargar desaparecía;
+- en Supabase, `profiles.avatar_url` seguía `NULL` y no existía objeto en `storage.objects`.
+
+### Causa exacta
+
+`wireInlineAvatarEdit()` conservaba la implementación histórica V03 local-only:
+
+`Store.updateUserAccount(user.id, { profilePhoto: dataUrl })`
+
+sin bifurcar por `user.serverBacked`.
+
+Así, el affordance inline de avatar nunca llamaba:
+
+- `uploadAvatar`;
+- `update_profile_avatar`;
+- `fetchOwnProfile`.
+
+El formulario completo Editar Datos sí tenía el camino server-backed correcto, pero los accesos directos de Mi Perfil/Mis Datos no.
+
+### Corrección
+
+Para cuentas server-backed, `wireInlineAvatarEdit()` ahora:
+
+1. redimensiona la imagen;
+2. sube al bucket privado `avatars`;
+3. persiste la ruta mediante `update_profile_avatar`;
+4. vuelve a leer el Perfil real;
+5. actualiza Store recién con esa verdad de servidor.
+
+El camino local/legacy conserva su comportamiento anterior.
+
+Durante la revisión también se detectó que `sw.js` tenía `CACHE_NAME=h30` pero `CORE_ASSETS` todavía apuntaba a query strings `h29`. Se alineó todo el bundle a:
+
+`04.10-h31`
+
+para evitar servir assets mezclados desde caché.
+
+### Estado
+
+Pendiente únicamente revalidación de navegador sobre h31:
+
+- avatar inline persiste tras reload;
+- avatar cruzado se ve desde otra cuenta;
+- luego continuar WhatsApp/privacidad.
