@@ -1173,3 +1173,32 @@ Se decide dejar este partido **pendiente a propósito** por ahora, sin validarlo
 - eventual impacto del límite de pendientes accionables.
 
 No utilizar este pendiente para modificar estadísticas hasta que se decida cerrarlo.
+
+
+### 15.15 — Escenario 1F, convivencia de pendientes — inicio — 25/09/2026
+
+**Nuevo partido cargado por Matu:** Matu + Diego vs Seba + Lucho, 7–5 / 6–4 para Matu/Diego.
+
+Matu tiene ahora dos partidos pendientes no accionables en Historial:
+1. Matu + Diego vs Seba + Lucho, 7–5 / 6–4.
+2. Seba + Matu vs Esteban + Gusti, 6–4 / 3–6 / 6–2.
+
+**NO TOCAR / regla vigente:** ambos deben permanecer fuera de estadísticas oficiales hasta validarse.
+
+#### Estado visual de pendientes en Historial
+
+Se reconfirma la necesidad de separar **resultado** de **estado del partido**.
+
+**Dirección vigente:**
+- resultado (`VICTORIA` / `DERROTA`) en su propia zona;
+- debajo o en una segunda línea, estado del partido;
+- partido oficial normal: sin badge persistente `VALIDADO`;
+- pendiente no accionable (esperando a la otra pareja): estado neutro, sin competir con el resultado;
+- pendiente accionable para el usuario: acento lima/verde, porque requiere atención;
+- **NO usar naranja para pendientes**: naranja/amarillo queda reservado a `CALIBRANDO` según la regla visual vigente.
+
+El objetivo del 1F es comprobar en Seba la convivencia simultánea de:
+- un pendiente no accionable (Seba/Matu vs Esteban/Gusti);
+- un pendiente accionable (Matu/Diego vs Seba/Lucho);
+
+y evaluar priorización en Home, Historial y Notificaciones.
