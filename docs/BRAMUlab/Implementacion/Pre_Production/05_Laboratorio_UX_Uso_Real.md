@@ -1334,3 +1334,18 @@ Después de esos tres bloques, preparar un único consolidado para Desarrollo co
 - prioridad: antes de Production / conveniente / futuro.
 
 No probar de nuevo límites/ventanas ya cerrados (5 pendientes, 30 días, 10+7, etc.) salvo regresión concreta.
+
+
+### 15.19 — Transición hacia 5/5: primer pendiente cerrado — 25/09/2026
+
+**Partido:** Seba + Matu vs Esteban + Gusti, 6–4 / 3–6 / 6–2 para Seba/Matu.
+
+Esteban ingresó desde escritorio, recibió correctamente el pendiente como accionable y confirmó el partido. El partido pasó a oficial.
+
+**FUNCIONAL — PASS:** la pareja rival pudo validar; el compañero del autor no necesitó acción; el partido a 3 sets se oficializó sin incidencia.
+
+**Observación visual reconfirmada:** desde la perspectiva de Esteban el score compacto puede leerse de forma confusa porque la representación actual no siempre reordena visualmente el resultado poniendo al usuario/pareja propia como referencia principal. Este criterio ya fue detectado en Historial/Home y debe resolverse de forma consistente en la ronda de implementación.
+
+**Próximo control:** volver a Seba en iPhone y verificar transición 3/5 → 4/5 sin refresh manual. Luego usar el pendiente Matu + Diego vs Seba + Lucho para provocar deliberadamente 4/5 → 5/5 y revisar con especial atención Home, Mi Perfil, Perfil público y Ranking.
+
+**Método:** después de observar 5/5, pausar la generación de escenarios nuevos y hacer una auditoría/consolidación de las decisiones UX tomadas durante esta sesión antes de entregar un paquete a Desarrollo, para evitar contradicciones acumuladas por la longitud de la ronda.
