@@ -516,3 +516,74 @@ No acumular diez acciones de Work sin checkpoints humanos: el objetivo es observ
 9. Revisar BRAMU Intelligence únicamente después de que existan partidos oficiales reales suficientes.
 
 No forzar todos los casos en una sola sesión. Si un escenario descubre un bug bloqueante o una decisión de producto, se resuelve antes de contaminar los siguientes.
+
+
+## 15. Laboratorio integrado — Escenario 1A (Esteban carga / Seba recibe) — 25/09/2026
+
+### Estado creado
+
+Work, logueado como `Esteban / @esteban_qa`, cargó:
+
+- Esteban + Matu vs Seba + Lucho;
+- resultado 6-4, 6-3 para Esteban/Matu;
+- estado server-side: `pending_validation`.
+
+ChatGPT central verificó directamente en Supabase Staging que:
+
+- el partido existe;
+- Seba figura correctamente como participante;
+- `get_my_matches` para Seba devuelve el partido;
+- `is_action_mine=true`;
+- `get_notifications` para Seba devuelve una notificación derivada `pending_review` no leída.
+
+### Hallazgo 15.1 — Home/notificaciones quedan stale al volver a la app
+
+**Clasificación:** BUG FUNCIONAL + UX DE FRESCURA.
+
+Sebastián volvió al Home en iPhone y la app seguía mostrando Estado Cero:
+
+- `0 partidos en tu historia`;
+- `CARGAR PRIMER PARTIDO`;
+- sin badge/notificación visible;
+- ningún indicio de que existía un pendiente accionable.
+
+El backend sí tenía toda la información correcta. El problema es de sincronización/refresco del cliente.
+
+Revisión de código:
+
+- `openPlayerHome()` refresca partidos al ENTRAR a Home;
+- `openHistoryScreen()` refresca partidos al ENTRAR a Historial;
+- `openNotificationsScreen()` refresca notificaciones al ABRIR la bandeja;
+- al volver la PWA a foreground, el listener de `visibilitychange` solo chequea versión/Wake Lock;
+- no refresca partidos ni notificaciones;
+- si el usuario ya estaba parado en Home cuando otro participante carga un partido, la pantalla puede quedar desactualizada indefinidamente hasta navegar/recargar.
+
+### Dirección propuesta
+
+**OBLIGATORIO antes de Production:**
+
+Agregar un refresco liviano del estado server-backed cuando la app vuelve a foreground:
+
+- partidos;
+- notificaciones;
+- cualquier dato propio que haya podido cambiar por acciones remotas y afecte Home;
+- re-render únicamente de la vista actualmente abierta cuando corresponda;
+- con throttle simple para evitar llamadas duplicadas por cambios rápidos de visibilidad.
+
+No implementar polling continuo ni Realtime solo para resolver este caso.
+
+**UX propuesta para evaluar/implementar:**
+
+Agregar gesto de `pull-to-refresh` en superficies de lectura principales, como mecanismo manual reconocible:
+
+- Home;
+- Historial;
+- Notificaciones.
+
+El gesto manual es complemento, no sustituto del refresco automático al volver a foreground.
+
+### Estado del escenario
+
+NO confirmar todavía el partido.
+
+Primero resolver/validar la frescura del cliente para que el pendiente aparezca de forma natural; después continuar con la evaluación visual de la pantalla de validación.
