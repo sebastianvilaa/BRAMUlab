@@ -1349,3 +1349,46 @@ Esteban ingresó desde escritorio, recibió correctamente el pendiente como acci
 **Próximo control:** volver a Seba en iPhone y verificar transición 3/5 → 4/5 sin refresh manual. Luego usar el pendiente Matu + Diego vs Seba + Lucho para provocar deliberadamente 4/5 → 5/5 y revisar con especial atención Home, Mi Perfil, Perfil público y Ranking.
 
 **Método:** después de observar 5/5, pausar la generación de escenarios nuevos y hacer una auditoría/consolidación de las decisiones UX tomadas durante esta sesión antes de entregar un paquete a Desarrollo, para evitar contradicciones acumuladas por la longitud de la ronda.
+
+
+### 15.20 — Cambios externos: señal en Historial + contextualización de Notificaciones — 25/09/2026
+
+Durante la transición de Seba 3/5 → 4/5, un partido pendiente fue validado por Esteban desde otra sesión. Al volver a iPhone, Home y métricas se actualizaron correctamente, pero el usuario no tiene una señal clara de **qué elemento cambió desde la última vez que miró**.
+
+#### Historial — cambios no vistos
+
+**PRODUCTO / UX — dirección recomendada:**
+- cuando un partido cambia por una acción externa relevante (validación, corrección aceptada, identidad resuelta, etc.), marcar Historial como que contiene contenido nuevo/no visto;
+- mostrar un pequeño badge/punto en el acceso a Historial mientras exista al menos un cambio no visto;
+- al entrar a Historial, resaltar temporalmente la/s fila/s modificada/s con un tratamiento visual sutil;
+- una vez vista la fila, retirar el estado de “nuevo” de ese partido y, si no quedan otros, retirar el badge del acceso a Historial.
+
+**A probar visualmente:** badge rojo convencional vs. otro acento de sistema. Evitar que el resaltado del partido compita con los colores semánticos de victoria/derrota/pendiente. Preferir un borde o halo sutil y temporal antes que un contorno blanco fuerte permanente.
+
+Objetivo: que el usuario pueda responder rápidamente “¿qué cambió?” sin tener que comparar mentalmente toda la lista.
+
+#### Notificaciones — contexto insuficiente
+
+La bandeja sigue mostrando eventos genéricos como:
+- `Partido oficial · Tu partido ya quedó validado.`
+- `Partido pendiente · Tenés un partido esperando tu confirmación.`
+
+**YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA + UX:**
+las notificaciones de acciones relevantes deben nombrar al actor y dar contexto suficiente para identificar el partido.
+
+Dirección:
+- `Esteban confirmó tu partido con Matu.`
+- `Matu aceptó la corrección del partido con Pablito.`
+- `Seba propuso una corrección en el partido con Lucho.`
+- cada notificación debe abrir el partido correspondiente;
+- las acciones propias no deben generar informativa redundante para el mismo actor.
+
+La bandeja no debe ser una colección de estados genéricos indistinguibles.
+
+#### Estado funcional de esta pasada
+
+- Seba pasó correctamente de 3/5 a 4/5 tras la validación externa;
+- el partido validado entró a estadísticas oficiales;
+- el otro pendiente accionable permanece correctamente visible;
+- no se detectó regresión funcional nueva.
+
