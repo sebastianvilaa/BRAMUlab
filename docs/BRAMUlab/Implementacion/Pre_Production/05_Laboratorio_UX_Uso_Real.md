@@ -1122,3 +1122,24 @@ Dirección conceptual para este caso:
 **UX ya documentado y reconfirmado:** `VALIDADO` / `Partido oficial` siguen siendo redundantes como estado persistente normal; mantener feedback transitorio y trazabilidad útil en detalle.
 
 **Estado del escenario:** falta una comprobación final en Seba: el partido corregido no debe reaparecer en Home/Historial ni modificar sus estadísticas, porque su identidad fue correctamente desacoplada antes de oficializarse.
+
+
+### 15.13 — Escenario 1D cerrado: desacople definitivo de Seba — 25/09/2026
+
+Comprobación final en iPhone de Seba después de que Pablito confirmara el partido corregido:
+
+- Seba mantiene 3 partidos oficiales, no 4;
+- el partido Matu + Gusti vs Pablito + Diego no reaparece en Home ni Historial de Seba;
+- el último partido visible de Seba sigue siendo el partido anterior Seba + Pablito vs Matu + Diego, 4–6 / 4–6;
+- Nivel, calibración y estadísticas de Seba no incorporan el partido del que fue correctamente desacoplado.
+
+**FUNCIONAL — PASS:** el flujo completo de identidad incorrecta funciona de punta a punta:
+1. jugador incorrecto reporta `No participé`;
+2. el partido se desacopla de esa identidad;
+3. otro participante resuelve el slot;
+4. el reemplazo real recibe el partido;
+5. el reemplazo confirma;
+6. el partido queda oficial con la identidad correcta;
+7. la identidad originalmente errónea no conserva efectos deportivos ni históricos del partido.
+
+**Estado:** Escenario 1D COMPLETADO.
