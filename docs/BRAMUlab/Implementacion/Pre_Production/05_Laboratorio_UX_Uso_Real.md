@@ -1202,3 +1202,42 @@ El objetivo del 1F es comprobar en Seba la convivencia simultánea de:
 - un pendiente accionable (Matu/Diego vs Seba/Lucho);
 
 y evaluar priorización en Home, Historial y Notificaciones.
+
+
+### 15.16 — Escenario 1F, Home con pendientes simultáneos — 25/09/2026
+
+Seba tiene simultáneamente:
+1. un pendiente **accionable**: Matu + Diego vs Seba + Lucho, 7–5 / 6–4 para Matu/Diego;
+2. un pendiente **no accionable**: Seba + Matu vs Esteban + Gusti, 6–4 / 3–6 / 6–2, esperando a Esteban/Gusti.
+
+#### Hallazgo principal
+
+La Home actual muestra solamente un destacado superior para el pendiente accionable. El pendiente no accionable queda visible recién en Historial.
+
+**PRODUCTO / UX — propuesta fuerte:** la Home debería permitir entender que existen ambos estados sin convertir la parte superior en una lista larga de tarjetas grandes.
+
+Dirección a evaluar:
+- si existe un único pendiente relevante: mantener una tarjeta destacada;
+- si existen varios: usar un módulo compacto `PARTIDOS PENDIENTES` con prioridad:
+  1. accionables primero;
+  2. pendientes en espera después;
+- mostrar una fila/tarjeta compacta por pendiente y, si la cantidad crece, resumir el resto con `Ver todos`.
+- evitar apilar múltiples tarjetas grandes como la actual porque desplazaría demasiado la identidad/Nivel y el resto de Home.
+
+Ejemplo conceptual:
+- `REQUIERE TU ACCIÓN · Matu/Diego vs Seba/Lucho`
+- `ESPERANDO RIVALES · Seba/Matu vs Esteban/Gusti`
+
+#### Color de pendiente
+
+La fuente vigente reservaba naranja/amarillo para `CALIBRANDO` y lima para pendientes accionables. Durante el laboratorio el usuario plantea que `PENDIENTE DE VALIDACIÓN` comparte semántica de “proceso incompleto” y podría funcionar visualmente en naranja/ámbar.
+
+**DECISIÓN REABIERTA / A PROBAR VISUALMENTE:** no cambiar todavía la regla de color. Preparar comparativa visual más adelante:
+- opción A: lima accionable + gris no accionable (regla vigente);
+- opción B: ámbar para estado pendiente + lima adicional solo cuando requiere acción;
+- mantener separación clara respecto de `CALIBRANDO`.
+
+#### Aclaración de estado
+
+Seba tiene **dos partidos pendientes**, pero solo **uno requiere su confirmación**. La UI debe hacer esta diferencia inequívoca; no usar `pendiente` como sinónimo de `tu turno`.
+
