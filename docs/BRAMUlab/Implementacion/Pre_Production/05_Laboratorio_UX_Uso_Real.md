@@ -1506,3 +1506,66 @@ Esta sección fija precedencia sobre propuestas anteriores de §15 cuando hubo i
    - siguen FUERA de esta ronda de implementación;
    - requieren revisión específica posterior y no deben resolverse por arrastre en el paquete actual.
 
+
+
+### 15.23 — Observaciones posteriores al handoff, para próxima ronda — 25/09/2026
+
+Estas observaciones se registran **fuera del handoff 13 ya enviado a Desarrollo**. No deben ampliar la ronda técnica en curso salvo que Desarrollo las encuentre naturalmente dentro del mismo código y sean triviales de resolver. Se revisan en la próxima vuelta del Laboratorio.
+
+#### Buscar jugadores — avatar ausente en resultados
+
+Evidencia visual:
+- al buscar `Seba`, la fila server-backed muestra inicial `S` en lugar de la foto;
+- al abrir el Perfil de jugador, la foto sí carga correctamente.
+
+**CLASIFICACIÓN PROVISIONAL: UX / IMPLEMENTACIÓN INCOMPLETA.**
+No asumir todavía un fallo de almacenamiento de foto, porque el Perfil público demuestra que la imagen existe y puede resolverse.
+
+A revisar después:
+- si `search_players` expone una referencia segura de avatar;
+- si el resultado puede reutilizar el mismo mecanismo de URL firmada que Perfil público;
+- evitar agregar llamadas costosas por cada fila si no existe una solución simple.
+
+#### Perfil público — WhatsApp
+
+Se probó `CONTACTAR POR WHATSAPP` y abrió correctamente el contacto.
+
+**FUNCIONAL — PASS / NO TOCAR.**
+
+#### Perfil público — AGREGAR JUGADOR
+
+Sigue ausente en cuentas server-backed.
+
+**YA DOCUMENTADO:** no tratar como bug accidental ni reactivar el sistema legacy por nombre. Ver §15.21 y handoff 13.
+
+#### Datos de Perfil de las cuentas QA
+
+El usuario recuerda haber definido durante la creación de cuentas sintéticas datos como:
+- mano dominante;
+- lado habitual;
+- edad/fecha de nacimiento;
+- género;
+- ubicación/localidad.
+
+Observación actual:
+- en Perfil público de Seba se ven Mano dominante = Derecha y Lado habitual = Revés;
+- la edad no se muestra en Perfil público;
+- en algunas cuentas/propios perfiles el usuario percibe varios campos vacíos, con ubicación como uno de los pocos datos presentes.
+
+**CLASIFICACIÓN: PENDIENTE DE VERIFICACIÓN, NO cerrar como bug todavía.**
+
+Motivos:
+1. Perfil público oculta deliberadamente ciertos datos privados (por ejemplo edad), por lo que ausencia allí no prueba pérdida de datos.
+2. Hay que distinguir si los datos:
+   - nunca se persistieron al crear las cuentas QA;
+   - están persistidos pero la UI propia no los muestra;
+   - están persistidos en campos distintos;
+   - o realmente se perdieron.
+
+Próxima validación mínima:
+- elegir UNA cuenta QA;
+- comparar `Mi Perfil / Mis datos` contra el registro server-backed real;
+- si falta persistencia, corregir creación/perfil;
+- si los datos existen y no se muestran, clasificar como UI;
+- no repetir la comprobación cuenta por cuenta hasta entender la causa.
+
