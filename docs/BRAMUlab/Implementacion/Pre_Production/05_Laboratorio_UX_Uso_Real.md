@@ -1291,3 +1291,46 @@ Dirección ya acordada:
 - separar el estado del partido en una segunda línea/zona;
 - no mostrar `VALIDADO` en partidos oficiales normales;
 - evaluar ámbar para pendiente no accionable y lima para pendiente accionable.
+
+
+### 15.18 — Carrusel superior unificado + tramo final del Laboratorio — 25/09/2026
+
+#### Carrusel superior de Home
+
+**CONFIRMADO:** no crear un carrusel separado para pendientes.
+
+El carrusel superior existente debe funcionar como una única superficie horizontal para contenido temporal/relevante y admitir variantes de tarjeta:
+- pendientes accionables;
+- pendientes en espera;
+- tips / destacados informativos celestes;
+- otros destacados temporales ya previstos por producto.
+
+Orden de prioridad recomendado:
+1. pendientes que requieren acción del usuario;
+2. pendientes en espera;
+3. tips / destacados informativos.
+
+Las tarjetas pueden variar semánticamente en color y copy, pero comparten:
+- mismo carrusel horizontal;
+- altura compacta;
+- tarjeta completa tappable;
+- sin apilar módulos verticales equivalentes.
+
+#### Tramo final recomendado del Laboratorio antes del handoff a Desarrollo
+
+No seguir generando escenarios equivalentes.
+
+Quedan tres bloques de alto valor:
+1. **Transición CALIBRANDO → calibrado / 5 partidos:** aprovechar los pendientes ya existentes para llevar a Seba a 5/5 y revisar Home, Mi Perfil, Perfil público y Ranking al cambiar de estado.
+2. **Identidad provisional / claim:** un único recorrido end-to-end visual para verificar invitado → reclamo → recuperación de historial, sin reauditar backend ya cerrado.
+3. **Barrido visual final sin crear más datos:** Modificaciones, Mis grupos, Ranking, Perfil público y responsive escritorio (Home, Historial, Ranking, Mi Perfil, Perfil público, Cargar partido, Login y Signup).
+
+Después de esos tres bloques, preparar un único consolidado para Desarrollo con:
+- BUG;
+- YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA;
+- UX / VISUAL;
+- PRODUCTO;
+- NO TOCAR;
+- prioridad: antes de Production / conveniente / futuro.
+
+No probar de nuevo límites/ventanas ya cerrados (5 pendientes, 30 días, 10+7, etc.) salvo regresión concreta.
