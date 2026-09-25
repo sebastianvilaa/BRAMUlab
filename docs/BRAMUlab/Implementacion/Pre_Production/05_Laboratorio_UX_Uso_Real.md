@@ -828,3 +828,32 @@ La UI actual abre:
 - **NO TOCAR:** el pendiente se ve en Home/Historial pero no altera estadísticas oficiales.
 
 **Estado del escenario:** falta revisar el mismo partido desde la cuenta rival Esteban y luego validar desde ese lado. No confirmar todavía desde Work hasta registrar primero Home / Notificaciones / Historial / Resumen de Esteban.
+
+
+### 15.5 — Escenario 1B, lado rival accionable antes de confirmar — 25/09/2026
+
+Work, con sesión estable Esteban/@esteban_qa, abrió BRAMUlab y el nuevo pendiente apareció de forma natural, sin refresh manual.
+
+**Home**
+- Banner: `PARTIDO PENDIENTE — Seba / Gusti registró un partido en el que participaste. REVISAR`.
+- Último partido: derrota para Esteban/Jona, estado `TU TURNO: CONFIRMAR`.
+- **FRESCURA:** PASS en navegador/Work para aparición natural del pendiente.
+- **COPY:** revisar concordancia/naming del actor: `Seba / Gusti registró` mezcla una pareja con verbo singular y además no identifica necesariamente al autor real de la carga. La fuente vigente pide nombrar al actor que cargó el partido, no a la pareja genéricamente.
+
+**Notificaciones**
+- `Partido pendiente — Tenés un partido esperando tu confirmación.`
+- Badge total observado: 2.
+- **YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA:** sigue faltando nombrar al actor y dar contexto suficiente del partido.
+
+**Historial**
+- Partido visible como Seba/Gusti vs Esteban/Jona, 6–3 / 6–4.
+- Estado accionable `TU TURNO: CONFIRMAR`.
+- Se mantiene la dirección ya documentada: estado principal `PENDIENTE DE VALIDACIÓN` + jerarquía visual accionable, en vez de usar la acción como nombre de estado.
+
+**Resumen**
+- Ganadores Seba/Gusti, sets 2–0, games 12–7.
+- Mensaje `Te toca confirmar este resultado.`.
+- Acciones visibles: Confirmar / Proponer corrección / No participé.
+- Sin cambios nuevos respecto de hallazgos ya documentados en 15.2.
+
+**Estado del escenario:** Esteban quedó detenido en el Resumen sin confirmar. Próximo paso: confirmar desde Esteban y validar en iPhone de Seba que el cambio remoto a oficial aparezca al volver a foreground, sin refresh manual.
