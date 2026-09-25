@@ -455,3 +455,64 @@ La revisión debe cerrar, antes de implementación, una regla coherente de:
 - posibles excepciones justificadas por tipo de pantalla.
 
 No implementar hasta comparar visualmente las superficies anteriores sobre Staging.
+
+
+## 14. Método operativo del laboratorio integrado — decisión vigente 24/09/2026
+
+A partir de la disponibilidad de las ocho cuentas sintéticas y del cierre de P0.1/P0.1C, el laboratorio integrado se coordina desde el chat central de BRAMUlab, no desde un chat UX separado.
+
+Motivo:
+
+- Sebastián puede probar desde su celular como jugador real;
+- Work puede actuar como contraparte estable desde navegador;
+- ChatGPT central coordina escenario por escenario, recibe feedback, clasifica hallazgos y documenta;
+- evita pasar contexto entre chats durante una prueba interactiva.
+
+### Roles estables recomendados
+
+- **Sebastián / celular:** cuenta `Seba / @seba_qa`;
+- **Work / navegador cloud:** cuenta `Esteban / @esteban_qa`;
+- las otras seis cuentas quedan disponibles como compañeros/rivales sin necesidad de iniciar sesión en ellas salvo que un escenario lo exija.
+
+Work debe mantener la sesión de Esteban abierta entre escenarios y evitar logout/login innecesarios.
+
+### Forma de trabajo
+
+Se prueba **un escenario por vez**.
+
+Para cada escenario:
+
+1. ChatGPT central define el estado inicial y las acciones de Work;
+2. Work ejecuta solo hasta el punto acordado y se detiene;
+3. Sebastián ejecuta su parte desde el celular;
+4. Sebastián trae resultado, screenshots y sensaciones;
+5. ChatGPT central clasifica y documenta:
+   - PASS;
+   - BUG;
+   - UX / VISUAL;
+   - PRODUCTO;
+   - YA DEFINIDO / IMPLEMENTACIÓN INCOMPLETA;
+6. solo después se avanza al escenario siguiente.
+
+No acumular diez acciones de Work sin checkpoints humanos: el objetivo es observar la experiencia real, no solo completar una suite.
+
+### Mapa inicial de escenarios
+
+**Bloque A — circuito normal**
+1. Esteban carga / Seba confirma.
+2. Seba carga / Esteban confirma.
+
+**Bloque B — desacuerdo y corrección**
+3. Propuesta de corrección antes de oficializar.
+4. `No participé` + corrección de identidad.
+
+**Bloque C — identidad / duplicados / provisionales**
+5. Segunda carga coincidente del mismo encuentro.
+6. Participante provisional y posterior claim/reemplazo cuando corresponda.
+
+**Bloque D — progresión real**
+7. Construir varios partidos controlados para observar Home/Historial/perfiles/Nivel.
+8. Llegar a evidencia suficiente para calibración y revisar Ranking semanal.
+9. Revisar BRAMU Intelligence únicamente después de que existan partidos oficiales reales suficientes.
+
+No forzar todos los casos en una sola sesión. Si un escenario descubre un bug bloqueante o una decisión de producto, se resuelve antes de contaminar los siguientes.
