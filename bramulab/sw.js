@@ -132,7 +132,16 @@
 // (profiles.current_category, editable desde Perfil, vs. level_states.declared_category,
 // histórico e inmutable). Toca app.js/auth.js; mismo criterio de siempre, `Store.VERSION`/
 // `version.json` siguen en "BRAMUlab V04.10".
-const CACHE_NAME = 'bramulab-v04-10-h31';
+// Laboratorio integrado, Escenario 1A (25/09/2026) — `-h32`: corrige el bug de frescura
+// encontrado en 05_Laboratorio_UX_Uso_Real.md §15.1 — Home/Historial/Notificaciones podían
+// quedar mostrando datos viejos indefinidamente si la PWA volvía a foreground con esa pantalla
+// ya abierta (el único refresco existente ocurría al ENTRAR a cada pantalla, nunca al volver de
+// background). Se agrega un coordinador liviano (`refreshServerStateOnForeground`) enganchado al
+// MISMO listener `visibilitychange` que ya usa el chequeo de versión — reutiliza
+// refreshServerMatches/refreshB6Notifications/Auth.fetchOwnProfile/renderPlayerHome/
+// renderHistory/renderNotificationsList ya existentes, sin RPCs nuevas. Toca solo app.js; mismo
+// criterio de siempre, `Store.VERSION`/`version.json` siguen en "BRAMUlab V04.10".
+const CACHE_NAME = 'bramulab-v04-10-h32';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si

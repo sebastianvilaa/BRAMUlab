@@ -10851,6 +10851,68 @@
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Laboratorio integrado — Escenario 1A (05_Laboratorio_UX_Uso_Real.md §15.1): Home/Historial/
+   * Notificaciones podían quedar "stale" indefinidamente si la PWA volvía a foreground con una
+   * de esas pantallas ya abierta — el único refresco existente ocurría al ENTRAR a cada pantalla
+   * (openPlayerHome/openHistoryScreen/openNotificationsScreen vía refreshServerMatches, y
+   * openNotificationsScreen vía refreshB6Notifications), nunca al volver de background con la
+   * pantalla ya montada. El backend ya tenía el dato correcto (get_my_matches/get_notifications
+   * verificados server-side) — el problema era puramente de refresco del cliente.
+   *
+   * Reutiliza EXCLUSIVAMENTE los mecanismos ya existentes — mismas RPCs, mismos caches, mismas
+   * funciones de render que ya usa el resto de la app (refreshServerMatches/refreshB6Notifications/
+   * Auth.fetchOwnProfile/syncServerLevelState/renderPlayerHome/renderHistory/
+   * renderNotificationsList/renderNotificationsBadge, el mismo set que ya compone
+   * `afterB6Action` más arriba) — cero RPCs ni contratos nuevos. A diferencia de `afterB6Action`
+   * (que solo refresca notificaciones si la bandeja ya está abierta, porque su disparador es
+   * siempre una acción sobre UN partido puntual), acá se refrescan matches Y notificaciones
+   * siempre, sin condicionar a qué pantalla esté visible — el disparador es "la app volvió a
+   * primer plano", no una acción puntual, así que el badge de Home debe quedar correcto aunque
+   * el usuario esté parado en Historial cuando llega la notificación. */
+  /* ------------------------------------------------------------------ */
+  let foregroundRefreshInFlight = false;
+  let lastForegroundRefreshAt = 0;
+  // Colapsa únicamente dos eventos `visibilitychange` casi simultáneos (p. ej. el navegador
+  // disparándolo más de una vez en el mismo gesto) — nunca una ventana larga: el objetivo es
+  // evitar llamadas duplicadas, no retrasar ni ocultar una actualización remota real después de
+  // haber estado en background (ver la advertencia explícita del pedido de esta ronda).
+  const FOREGROUND_REFRESH_MIN_GAP_MS = 2000;
+
+  async function refreshServerStateOnForeground() {
+    if (!isServerBackedSession()) return;
+    if (foregroundRefreshInFlight) return;
+    const now = Date.now();
+    if (now - lastForegroundRefreshAt < FOREGROUND_REFRESH_MIN_GAP_MS) return;
+    foregroundRefreshInFlight = true;
+    lastForegroundRefreshAt = now;
+    try {
+      // Cada llamada ya es "mejor esfuerzo" por sí sola en el caso normal (ver sus propios
+      // comentarios: una falla de RPC deja el cache anterior intacto, nunca lo vacía, y resuelve
+      // en vez de rechazar). Se aísla cada paso en su propio try/catch de todos modos, para que
+      // una falla realmente excepcional (p. ej. un error de red que sí llegue a rechazar la
+      // promesa) en una de las tres nunca impida intentar las otras dos — "fallas PARCIALES de
+      // red" (plural), no "la primera falla cancela el resto".
+      try { await refreshServerMatches(); } catch (e) { /* best-effort — ver comentario de arriba */ }
+      try { await refreshB6Notifications(); } catch (e) { /* best-effort — ver comentario de arriba */ }
+      try {
+        if (Auth && Auth.isConfigured()) {
+          const profile = await Auth.fetchOwnProfile();
+          if (profile) { Store.cacheServerUser(profile); syncServerLevelState(profile); }
+        }
+      } catch (e) { /* best-effort — ver comentario de arriba */ }
+      // Repinta únicamente la superficie ACTUALMENTE visible — nunca una pantalla que el usuario
+      // no está mirando. El badge de notificaciones vive dentro de #view-player-home (ver
+      // index.html), así que solo tiene sentido re-pintarlo cuando Home es la vista visible;
+      // renderPlayerHome ya lo hace como parte de su propio render.
+      if (!$('#view-player-home').hidden) renderPlayerHome();
+      if (!$('#view-history').hidden) renderHistory();
+      if (!$('#view-notifications').hidden) { renderNotificationsList(); renderNotificationsBadge(); }
+    } finally {
+      foregroundRefreshInFlight = false;
+    }
+  }
+
   function initUpdateCheck() {
     checkForNewVersion(); // §2: "al abrir BRAMU"
     document.addEventListener('visibilitychange', () => {
@@ -10859,6 +10921,9 @@
       if (matchIsActive) requestWakeLock();
       // §2: "al volver a foreground" — nunca en cada render/click, ver arriba.
       checkForNewVersion();
+      // Laboratorio integrado §15.1 — mismo evento de vuelta a foreground: refresca el estado
+      // server-backed propio y repinta la pantalla que haya quedado abierta.
+      refreshServerStateOnForeground();
     });
     $('#update-later-btn').addEventListener('click', () => {
       dismissedUpdateVersion = $('#update-available-modal').dataset.version || null;

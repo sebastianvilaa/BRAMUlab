@@ -587,3 +587,40 @@ El gesto manual es complemento, no sustituto del refresco automático al volver 
 NO confirmar todavía el partido.
 
 Primero resolver/validar la frescura del cliente para que el pendiente aparezca de forma natural; después continuar con la evaluación visual de la pantalla de validación.
+
+### Corrección implementada — 25/09/2026 (Claude Code)
+
+**HEAD resultante:** rama `staging`, sobre `e91c3fe` (punto de partida de esta ronda). **Bundle:** `04.10-h32` (bump desde `04.10-h31`, solo `app.js`/`sw.js`/`index.html` tocados — `Store.VERSION`/`version.json` siguen en `"BRAMUlab V04.10"`, ronda de Backend/Infraestructura, no de Nivel).
+
+**Qué se agregó:** un coordinador liviano `refreshServerStateOnForeground()` (bramulab/app.js), enganchado al **mismo** listener `visibilitychange` que ya usaba `initUpdateCheck()` para `checkForNewVersion()`/Wake Lock — no se creó ningún listener nuevo ni polling. Reutiliza exclusivamente mecanismos ya existentes, sin ninguna RPC ni contrato nuevo:
+
+- `refreshServerMatches()` (cache de `get_my_matches`, ya usado por Home/Historial al entrar);
+- `refreshB6Notifications()` (cache de `get_notifications`, ya usado por la bandeja);
+- `Auth.fetchOwnProfile()` + `Store.cacheServerUser()` + `syncServerLevelState()` (mismo trío que ya usa `afterB6Action()` para refrescar perfil/Nivel propio);
+- repintado condicionado a la pantalla realmente visible: `renderPlayerHome()`/`renderHistory()`/`renderNotificationsList()+renderNotificationsBadge()` — nunca una pantalla que el usuario no está mirando, mismo patrón exacto que ya usa `afterB6Action()` (`!$('#view-X').hidden`).
+
+**Diferencia deliberada respecto de `afterB6Action()`:** ese helper solo refresca notificaciones si la bandeja ya está abierta (su disparador es siempre una acción sobre un partido puntual). Acá el disparador es "la app volvió a primer plano" — sin relación con ningún partido puntual — así que matches y notificaciones se refrescan siempre, sin condicionar a qué pantalla esté visible; de lo contrario el badge de Home podría seguir desactualizado si la notificación llegó mientras el usuario estaba parado en Historial.
+
+**Protección de duplicados/carreras:** un guard `in-flight` (booleano) más un throttle de **2000 ms** que solo colapsa dos eventos `visibilitychange` casi simultáneos — nunca una ventana larga que pudiera ocultar una actualización remota real después de un tiempo real en background (verificado explícitamente: un segundo evento genuino después de la ventana de 2s sí vuelve a refrescar).
+
+**Tolerancia a fallas parciales:** cada uno de los tres pasos de lectura (matches/notificaciones/perfil) queda aislado en su propio `try/catch` — una falla real en uno no impide intentar los otros dos, y ninguna falla vacía un cache existente (cada función interna ya es "mejor esfuerzo" por diseño: conserva el cache anterior si el pedido falla).
+
+**Pull-to-refresh:** NO implementado en esta ronda, según el pedido explícito — queda documentado como mejora UX complementaria, no sustituta.
+
+**DECISIÓN ABIERTA no bloqueante (hallazgo, no un bug de esta ronda):** `renderPlayerHome()` ya tenía, antes de esta ronda, una llamada interna `refreshB6Notifications().then(renderNotificationsBadge)` sin `.catch()` (best-effort de Bloque 6 Fase B). En el uso real esto nunca truena porque `refreshB6Notifications()` usa `c.rpc(...)` de supabase-js, que resuelve con `{data, error}` en vez de rechazar ante un fallo de RPC/red ordinario. Se detectó únicamente al forzar, desde consola, que esa llamada RECHAZARA de verdad (un caso límite no representativo de una falla real de Supabase) — en ese escenario extremo se ve un "Uncaught (in promise)" en consola, sin romper la app ni bloquear nada. No se tocó `renderPlayerHome()` en esta ronda (está fuera del alcance del bug reportado y es código ya validado de un Bloque cerrado); queda anotado acá por si conviene un `.catch()` defensivo en un futuro paso de hardening (Bloque 9).
+
+**Pruebas realizadas:**
+
+- `node --test bramulab/*.test.mjs bramulab/scripts/*.test.mjs` → **255/255 PASS** (regresión de control; ninguno de esos módulos fue tocado).
+- `bramulab/tests.html` (navegador local) → **1478/1478 PASS**, corrido después del bump de bundle y de nuevo tras el endurecimiento de los `try/catch`.
+- `app.js` no tiene cobertura de unit tests por diseño (orquestación de DOM/estado, ver README de rondas anteriores) — la verificación de este comportamiento específico se hizo con spies reales en el navegador embebido (consola, sin credenciales de Supabase, no destructivo — mismo criterio que otras rondas), monkey-parcheando `PLAuth.isConfigured`/`PLAuth.fetchOwnProfile`/`PLMatches.getMyMatches`/`PLMatchValidation.getNotifications` y disparando `visibilitychange` sintéticos contra el bundle real servido (`04.10-h32`). Resultados verificados uno por uno:
+  - **sesión local/no server-backed:** `Auth.isConfigured()` en `false` (estado real de este entorno sin `env.generated.js`) → el dispatch de `visibilitychange` no lanza ningún error y no hace ninguna llamada nueva (gate `isServerBackedSession()` correcto).
+  - **sesión server-backed + regreso a foreground:** con `isConfigured` forzado a `true` y una cuenta `serverBacked:true` fabricada vía `Store.cacheServerUser` (no destructivo, solo localStorage del navegador embebido), un `visibilitychange` dispara exactamente 1 llamada a cada uno de los 3 mecanismos (matches/notificaciones/perfil).
+  - **eventos duplicados cercanos:** 3 `visibilitychange` disparados casi simultáneamente colapsan en una única ronda de refresco (spies en 1/1/1, no 3/3/3).
+  - **throttle no oculta una actualización legítima:** pasados los 2000 ms, un nuevo `visibilitychange` vuelve a refrescar con normalidad (spies en 1/1/1 de nuevo, no en 0).
+  - **fallo de una lectura:** con `getMyMatches` devolviendo `{ok:false}` y `getNotifications` **lanzando** una excepción real, el cache de partidos existente (`Store.loadServerMatchesCache()`) quedó exactamente igual antes/después, y la app no se rompió ni bloqueó la navegación.
+  - **Home abierto se repinta:** forzando `#view-player-home` visible y una notificación `pending_review` no leída en el servidor fabricado, el badge `#player-home-bell-badge` pasó de oculto/"0" a visible/"1" tras el `visibilitychange` — reproduce exactamente el síntoma reportado por Sebastián ("sin badge/notificación visible") y confirma que se corrige.
+  - **Historial abierto se repinta:** forzando `#view-history` visible, el `visibilitychange` disparó `refreshServerMatches()` (spy de `getMyMatches` en 1) sin errores.
+  - **Notificaciones abiertas:** cubierto por el mismo mecanismo (`renderNotificationsList`/`renderNotificationsBadge`, condicionado a `!$('#view-notifications').hidden)`, mismo patrón ya usado por `afterB6Action`/`openNotificationsScreen`.
+
+**Estado del escenario tras esta corrección:** el fix de frescura queda implementado, testeado localmente y pusheado a `origin/staging`. **PENDIENTE DE VALIDACIÓN REAL EN IPHONE** — Sebastián debe comprobar físicamente, después del deploy, que volver del background con Home/Historial/Notificaciones ya abiertos muestra el partido pendiente de Esteban y el badge correspondiente sin necesitar recargar. **NO se marca el Escenario 1A como PASS** hasta esa comprobación física. **NO se avanza al siguiente escenario del laboratorio. NO se confirmó el partido actual** (Esteban + Matu vs Seba + Lucho, `pending_validation`, se conserva intacto en Supabase Staging).
