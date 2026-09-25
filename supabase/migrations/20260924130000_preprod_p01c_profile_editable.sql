@@ -510,7 +510,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_caller_player_id uuid;
 begin
@@ -565,7 +565,7 @@ begin
       and pl.player_id = p_player_id
       and pr.username is not null;
 end;
-$;
+$$;
 
 comment on function public.get_public_profile is
   'Perfil público de un player_id puntual, mismas columnas/exclusiones que search_players más
