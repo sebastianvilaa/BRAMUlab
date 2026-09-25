@@ -65,7 +65,14 @@
   // no null en el historial no distingue por sí solo una cuenta registrada de un invitado —
   // match-sync.js#buildLocalPlayers estampa userId para ambos). Mismo criterio: APP_VERSION
   // sigue en "BRAMUlab V04.11" a propósito.
-  const BUNDLE_VERSION = '04.11-h3';
+  //
+  // Revisión central final (mismo día) — `-h4`: currentRevisionNumber > 1 no distinguía una
+  // corrección de resultado de un reemplazo de identidad pre-validación (Laboratorio §15.12,
+  // ambos crean una nueva match_revision) — ML.classifyPendingRevisionEvent clasifica ahora por
+  // el último evento real en actionsRaw. Defensa chica: RECIENTES se oculta si falla la
+  // resolución de provisionales, nunca muestra un invitado como registrado por error. Mismo
+  // criterio: APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
+  const BUNDLE_VERSION = '04.11-h4';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

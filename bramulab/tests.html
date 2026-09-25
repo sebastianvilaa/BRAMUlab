@@ -2107,6 +2107,53 @@
     assert('CORR-DIFF · un cambio solo en el tie break interno (mismo score de games) no genera línea', ML.buildCorrectionDiffLines(tbBefore, tbAfter).length === 0);
   })();
 
+  // ------------------------------------------------------------------
+  // Revisión central final — ML.classifyPendingRevisionEvent: BUG real documentado en
+  // Laboratorio §15.12 — currentRevisionNumber > 1 NO distingue una corrección de resultado
+  // (revision_proposed) de un reemplazo de identidad (participant_replaced), porque el flujo de
+  // identidad incorrecta también crea una nueva match_revision pre-validación. Clasifica por el
+  // ÚLTIMO evento relevante en actionsRaw, nunca por el número de revisión.
+  // ------------------------------------------------------------------
+  (function () {
+    function mkAction(actionType) { return { actionType, actorPlayerId: 'u_x', actingSide: 'A', occurredAt: '2026-09-25T00:00:00.000Z' }; }
+
+    assert('EVT-CLASS · sin actionsRaw (snapshot de lista, detalle todavía sin llegar) => original (default seguro)',
+      ML.classifyPendingRevisionEvent(null) === 'original' && ML.classifyPendingRevisionEvent(undefined) === 'original');
+
+    assert('EVT-CLASS · carga original, ningún evento relevante todavía => original',
+      ML.classifyPendingRevisionEvent([mkAction('created')]) === 'original');
+
+    assert('EVT-CLASS · último evento relevante revision_proposed => result_correction',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('revision_proposed')]) === 'result_correction');
+
+    assert('EVT-CLASS · último evento relevante participant_replaced => identity_replacement',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('participant_replaced')]) === 'identity_replacement');
+
+    // Hubo una corrección de resultado vieja y DESPUÉS un reemplazo de identidad => gana el
+    // reemplazo (el más reciente es siempre el que decide, nunca "si alguna vez hubo X").
+    assert('EVT-CLASS · corrección vieja + reemplazo después => identity_replacement (gana el más reciente)',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('revision_proposed'), mkAction('participant_replaced')]) === 'identity_replacement');
+
+    // Hubo un reemplazo viejo y DESPUÉS una corrección de resultado => gana la corrección.
+    assert('EVT-CLASS · reemplazo viejo + corrección después => result_correction (gana el más reciente)',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('participant_replaced'), mkAction('revision_proposed')]) === 'result_correction');
+
+    // Acciones intermedias/posteriores NO relevantes nunca deben romper la clasificación.
+    assert('EVT-CLASS · acciones irrelevantes intercaladas no rompen la clasificación (result_correction)',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('revision_proposed'), mkAction('declared_again_same_side')]) === 'result_correction');
+    assert('EVT-CLASS · acciones irrelevantes intercaladas no rompen la clasificación (identity_replacement)',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('identity_questioned'), mkAction('participant_replaced'), mkAction('confirmed')]) === 'identity_replacement');
+
+    // Garantía que app.js#paintB6Actions consume directamente (verificada acá por inspección de
+    // código: solo pendingEventType==='result_correction' dispara CTA "ACEPTAR CORRECCIÓN" +
+    // diff; solo 'identity_replacement' dispara el copy de reemplazo con CTA "CONFIRMAR
+    // PARTIDO" — nunca el mismo caso produce el CTA del otro).
+    assert('EVT-CLASS · escenario Laboratorio §15.12 (reemplazo de identidad) nunca clasifica como result_correction',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('identity_questioned'), mkAction('participant_replaced')]) !== 'result_correction');
+    assert('EVT-CLASS · una corrección de resultado real nunca clasifica como identity_replacement',
+      ML.classifyPendingRevisionEvent([mkAction('created'), mkAction('revision_proposed')]) !== 'identity_replacement');
+  })();
+
   // ==================================================================
   // ETAPA 4.2 (v2.2) — resolveActiveSetIndex: cuál set mostrar grande (en
   // edición) y cuáles pasan al marcador acumulado (confirmados).

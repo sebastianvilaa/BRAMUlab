@@ -368,11 +368,38 @@
     return lines;
   }
 
+  /** Revisión central final — BUG: `currentRevisionNumber > 1` NO significa "corrección de
+   *  resultado". El flujo de identidad incorrecta (Laboratorio §15.12,
+   *  `resolve_identity_issue`/`admin_force_resolve_identity_issue` pre-validación) TAMBIÉN crea
+   *  una nueva `match_revision` (copia los mismos sets, reemplaza el participante, mueve
+   *  `current_revision_id`) — un reemplazo de identidad puede dejar `currentRevisionNumber > 1`
+   *  sin que exista ninguna corrección de resultado real. Clasifica el evento que originó la
+   *  revisión VIGENTE de un partido `pending_validation` mirando `actionsRaw` (ya llegan
+   *  ordenadas cronológicamente desde `get_match_detail`) desde el final — el ÚLTIMO evento
+   *  relevante gana, nunca el número de revisión. Acciones no relevantes intercaladas
+   *  (`created`, `confirmed`, `declared_again_same_side`, etc.) nunca rompen la clasificación,
+   *  se ignoran sin más. `actionsRaw` ausente (snapshot de `get_my_matches`, sin detalle
+   *  todavía — ver match-sync.js) devuelve `'original'`, el mismo default seguro que ya usa el
+   *  resto de `paintB6Actions` mientras se espera el refresco de detalle (nunca asume un tipo de
+   *  evento sin poder confirmarlo). Devuelve:
+   *   - `'original'`             — sin evento relevante (carga inicial, o detalle sin llegar);
+   *   - `'result_correction'`    — el último evento relevante es `'revision_proposed'`;
+   *   - `'identity_replacement'` — el último evento relevante es `'participant_replaced'`. */
+  function classifyPendingRevisionEvent(actionsRaw) {
+    if (!Array.isArray(actionsRaw)) return 'original';
+    for (let i = actionsRaw.length - 1; i >= 0; i--) {
+      const type = actionsRaw[i] && actionsRaw[i].actionType;
+      if (type === 'revision_proposed') return 'result_correction';
+      if (type === 'participant_replaced') return 'identity_replacement';
+    }
+    return 'original';
+  }
+
   global.PLMatchLoad = {
     computeRecentPlayers, computeAllKnownPlayers, filterPlayerCandidates, isDuplicatePlayerName,
     buildJugadorDirectory,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchSets, validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
-    buildCorrectionDiffLines,
+    buildCorrectionDiffLines, classifyPendingRevisionEvent,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

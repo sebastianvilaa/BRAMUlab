@@ -800,9 +800,16 @@
     // una RPC nueva — para excluir esos player_id de RECIENTES: un invitado sigue viviendo
     // exclusivamente en INVITADOS, nunca duplicado en RECIENTES. Calculado DESPUÉS de resolver
     // provisionalById a propósito (antes ocurría primero, sin poder filtrar nada todavía).
+    //
+    // Revisión central final — defensa pequeña: si CUALQUIERA de las dos llamadas de
+    // provisionales falló (relatedResult.ok/myProvResult.ok false), provisionalById queda
+    // incompleto — no hay forma confiable de saber qué player_id excluir. En vez de arriesgar
+    // mostrar un invitado como si fuera un jugador registrado, RECIENTES se oculta por completo
+    // en esta carga del sheet (INVITADOS/búsqueda ya manejan sus propios estados de error por su
+    // cuenta, sin cambios acá). Nunca un retry ni una RPC nueva.
     const recentsSection = $('#load-player-sheet-recents-section');
     const recentsWrap = $('#load-player-sheet-recents');
-    if (!trimmed) {
+    if (!trimmed && relatedResult.ok && myProvResult.ok) {
       const recentExcludedIds = excludedIds.concat(Array.from(provisionalById.keys()));
       const recents = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), recentExcludedIds, 12);
       if (recents.length) {
@@ -2250,6 +2257,22 @@
     const row = (f.players || []).find((p) => p && p.userId === last.actorPlayerId);
     return (row && row.name) || S.teamLabel(f.players, last.actingSide) || null;
   }
+  /** Revisión central final — nombre REAL de quien ejecutó el ÚLTIMO reemplazo de participante
+   *  ('participant_replaced') sobre este partido. Deliberadamente SIN el fallback a la pareja
+   *  genérica que sí tiene `b6RevisionProposerName`: un reemplazo de identidad trata justamente
+   *  de UNA persona puntual — mostrar la pareja en su lugar sería tan engañoso como el bug que
+   *  esta misma corrección soluciona (instrucción explícita: "si no puede resolverse con
+   *  certeza, usar copy neutro; nunca inventar actor"). `null` cuando `actionsRaw` todavía no
+   *  llegó, cuando nunca hubo un reemplazo, o cuando el actor ya no aparece en `f.players` —
+   *  cada llamador usa un copy sin nombrar a nadie en ese caso. */
+  function b6ParticipantReplacedActorName(f) {
+    if (!Array.isArray(f.actionsRaw)) return null;
+    const replacements = f.actionsRaw.filter((a) => a.actionType === 'participant_replaced');
+    if (!replacements.length) return null;
+    const last = replacements[replacements.length - 1];
+    const row = (f.players || []).find((p) => p && p.userId === last.actorPlayerId);
+    return (row && row.name) || null;
+  }
   function b6AllSlots(f) {
     const slots = [];
     ['A', 'B'].forEach((team) => {
@@ -2462,28 +2485,37 @@
     }
 
     if (f.status === 'pending_validation') {
-      // Ronda UX 25/09 (§G) — BUG: una corrección pre-validación (currentRevisionNumber > 1) se
-      // presentaba EXACTAMENTE igual que una carga nueva — mismo copy genérico "Te toca
-      // confirmar este resultado" + botón "CONFIRMAR PARTIDO" (Laboratorio §15.7: "no fue una
-      // nueva carga; fue una corrección propuesta"). `null`/`undefined` (snapshot de lista,
-      // detalle todavía sin llegar — ver match-sync.js) nunca se trata como corrección: recién
-      // se sabe con certeza una vez que currentRevisionNumber llega con el detalle completo.
-      const isCorrectionPending = Number.isFinite(f.currentRevisionNumber) && f.currentRevisionNumber > 1;
+      // Revisión central final — BUG: `currentRevisionNumber > 1` NO significa por sí solo
+      // "corrección de resultado" (Laboratorio §15.12): el flujo de identidad incorrecta
+      // (`resolve_identity_issue` pre-validación) TAMBIÉN crea una nueva revisión — copia los
+      // mismos sets, reemplaza participante, mueve `current_revision_id` — así que un reemplazo
+      // de identidad podía recibir falsamente "Se propuso una corrección" + CTA "ACEPTAR
+      // CORRECCIÓN". `ML.classifyPendingRevisionEvent` mira el ÚLTIMO evento relevante en
+      // `actionsRaw` en vez del número de revisión — ver su comentario en match-load.js para la
+      // clasificación completa (incluye correction→replacement y replacement→correction).
+      const pendingEventType = ML.classifyPendingRevisionEvent(f.actionsRaw);
       const confirmBtn = $('#b6-confirm-btn');
-      // Ronda correctiva (revisión central) — §G "qué cambió", caso PRE-VALIDACIÓN: before =
-      // previousRevisionSets (revisión currentRevisionNumber-1), after = sets (la revisión
-      // vigente, ya propuesta). `[]` de cualquiera de los dos lados (currentRevisionNumber=1,
-      // snapshot de lista sin detalle todavía) da `buildCorrectionDiffLines([], ...) === []`, la
-      // `<ul>` queda oculta — nunca se muestra un diff inventado.
       if (f.isActionMine && !hasOpenIdentity) {
         banner.hidden = false;
-        if (isCorrectionPending) {
+        if (pendingEventType === 'result_correction') {
           const proposer = b6RevisionProposerName(f);
           bannerText.textContent = proposer
             ? `${proposer} propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.`
             : 'Se propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.';
           confirmBtn.textContent = 'ACEPTAR CORRECCIÓN';
+          // Ronda correctiva — §G "qué cambió", caso PRE-VALIDACIÓN: before = previousRevisionSets
+          // (revisión anterior), after = sets (la vigente, ya propuesta). Únicamente para
+          // result_correction — un reemplazo de identidad copia los mismos sets, no hay nada que
+          // diffear ni corresponde mostrarlo acá (instrucción explícita: "NO diff de sets").
           renderCorrectionDiff('b6-status-banner-diff', f.previousRevisionSets, f.sets);
+        } else if (pendingEventType === 'identity_replacement') {
+          // Actor STRICTO (b6ParticipantReplacedActorName): nunca cae a la pareja genérica — si
+          // no se puede resolver con certeza, copy neutro sin nombrar a nadie.
+          const replacer = b6ParticipantReplacedActorName(f);
+          bannerText.textContent = replacer
+            ? `${replacer} corrigió un participante de este partido. Revisalo antes de confirmar.`
+            : 'Se corrigió un participante de este partido. Revisalo antes de confirmar.';
+          confirmBtn.textContent = 'CONFIRMAR PARTIDO';
         } else {
           bannerText.textContent = 'Te toca confirmar este resultado.';
           confirmBtn.textContent = 'CONFIRMAR PARTIDO';
@@ -2491,14 +2523,18 @@
         confirmBlock.hidden = false;
       } else if (f.actionSide && !hasOpenIdentity) {
         // Waiting: sigue siendo la PAREJA rival (cualquiera de sus dos integrantes puede
-        // actuar), a diferencia de b6RevisionProposerName arriba que resuelve una PERSONA
-        // puntual — acá no hay "quién específico" todavía, por diseño (Backend_Infraestructura.md
-        // §8.6: alcanza una acción de cualquiera de los dos integrantes de la pareja).
+        // actuar), a diferencia de los actores puntuales de arriba — acá no hay "quién
+        // específico" todavía, por diseño (Backend_Infraestructura.md §8.6: alcanza una acción
+        // de cualquiera de los dos integrantes de la pareja).
         const waitingTeam = S.teamLabel(f.players, f.actionSide);
         banner.hidden = false; banner.classList.add('b6-banner--waiting');
-        bannerText.textContent = isCorrectionPending
-          ? `Corrección enviada. Esperando que ${waitingTeam} la acepte.`
-          : `Esperando que ${waitingTeam} confirme este resultado.`;
+        if (pendingEventType === 'result_correction') {
+          bannerText.textContent = `Corrección enviada. Esperando que ${waitingTeam} la acepte.`;
+        } else if (pendingEventType === 'identity_replacement') {
+          bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
+        } else {
+          bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
+        }
       }
       reportBlock.hidden = !b6IdentityReportWindowOpen(f);
       proposeBlock.hidden = hasOpenIdentity; // sin los 4 IDs reales no hay revisión posible.
