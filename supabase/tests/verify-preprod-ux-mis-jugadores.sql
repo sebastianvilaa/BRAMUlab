@@ -155,7 +155,7 @@ end $$;
 --    will_go_inactive ya fue marcado is_active=false en el prep anterior, por contrato debe
 --    quedar filtrado desde ESTA lectura (F verifica además que la relación persiste en tabla).
 --    target2 fue agregado después de target1, por lo que debe aparecer primero.
-do $
+do $body$
 declare
   v_rows uuid[];
 begin
@@ -169,7 +169,7 @@ begin
   if array_length(v_rows, 1) <> 2 then
     raise exception 'E_FAILED_expected_exactly_2_visible_rows_got_%: %', array_length(v_rows, 1), v_rows;
   end if;
-end $;
+end $body$;
 
 -- F) list_saved_players excluye al inactivo, pero la relación SIGUE en la tabla (nunca se borra
 --    sola).
