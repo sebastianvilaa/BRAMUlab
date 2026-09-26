@@ -1995,3 +1995,24 @@ mejorar el circuito de validación y evitar cargas duplicadas o datos pendientes
 
 No implementar durante la ronda correctiva 26SEP en curso. Analizar e integrar después de cerrar la batería actual.
 
+## 15.27 — Gate técnico cerrado y retorno controlado al Laboratorio — 26/09/2026
+
+**Bundle:** `04.11-h10`
+
+Central revisó la entrega h10, aplicó la migración de precisión del optimistic lock en Supabase Staging, ejecutó el verify transaccional con PASS/rollback limpio, repitió la reproducción REAL del partido que antes quedaba trabado y obtuvo `ok:true`, y repitió además la rama real de identidad cuestionada con reemplazo dentro de BEGIN/ROLLBACK, también con `ok:true`.
+
+Las tres Edge Functions compartidas de validación/corrección/identidad quedaron redesplegadas en Staging con el motor h10. Vercel BRAMUlab está verde y los assets PWA están alineados.
+
+Antes del QA físico se creó la lista única de cambios a validar:
+
+`25_Checklist_Retorno_Laboratorio_26SEP.md`
+
+Ese documento es la guía vigente para la próxima revisión de Sebastián. Incluye:
+- qué pidió;
+- qué se implementó;
+- dónde verlo;
+- qué se espera;
+- qué puntos quedan explícitamente fuera/abiertos y por qué.
+
+No volver a usar h7/h8/h9 como base de QA.
+
