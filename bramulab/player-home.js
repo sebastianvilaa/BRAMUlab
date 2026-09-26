@@ -208,6 +208,23 @@
     return accionables.concat(espera);
   }
 
+  /** Corrección post-QA (Notificaciones históricas + contexto de partido) — "vs Rival1 + Rival2
+   *  · 6–3 · 6–4" desde `payload.matchContext` (get_notifications, migración
+   *  preprod_ux_notification_historical_context: `{myTeam, opponentNames, score}`, orientado al
+   *  caller server-side — nunca se re-orienta acá). Pura, sin Store/DOM, para poder testear el
+   *  hallazgo real de QA (5 notificaciones "Partido oficial" idénticas, sin forma de
+   *  distinguirlas) sin depender de una cuenta server-backed real. Nunca inventa: sin
+   *  `opponentNames` devuelve `''` (el llamador cae al copy genérico de siempre — contrato viejo
+   *  intacto); sin `score`, se omite esa parte sin fabricar un resultado. `opponentNames` ya
+   *  viene resuelto por el servidor vía `display_name_snapshot` — nunca necesita resolución de
+   *  identidad del lado del cliente. */
+  function computeMatchContextSuffix(matchContext) {
+    if (!matchContext || !Array.isArray(matchContext.opponentNames) || !matchContext.opponentNames.length) return '';
+    const rivalNames = matchContext.opponentNames.join(' + ');
+    const hasScore = Array.isArray(matchContext.score) && matchContext.score.length;
+    return hasScore ? ` vs ${rivalNames} · ${matchContext.score.join(' · ')}` : ` vs ${rivalNames}`;
+  }
+
   /** Ronda UX 25/09 (Ronda 2, §8) — "cambio externo no visto" de Historial, definición PURA y
    *  exacta: un `matchId` que YA existía en el snapshot anterior de `get_my_matches`
    *  (`prevRows`, filas normalizadas por matches.js#normalizeMyMatchesRow) y cuyo estado
@@ -994,7 +1011,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, computeExternalHistoryChanges, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

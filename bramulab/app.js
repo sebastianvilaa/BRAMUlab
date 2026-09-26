@@ -7032,43 +7032,68 @@
     }
     return null;
   }
+  /** Corrección post-QA — alias corto; la lógica pura vive en `PH.computeMatchContextSuffix`
+   *  (player-home.js) para poder testearla sin depender de Store/DOM/una cuenta server-backed
+   *  real, ver los tests `RONDA-UX-HIST ·` en tests.html. */
+  const b6MatchContextSuffix = PH.computeMatchContextSuffix;
   /** Ronda UX 25/09 (Ronda 2, §10) — copy dinámico para los tipos que `payload.actorPlayerId`
    *  puede traer desde la migración `preprod_ux_notification_actor_enrichment` (trigger
    *  BEFORE INSERT en `notifications`, ver esa migración): `admin_action` queda deliberadamente
    *  afuera (su actor real es texto libre en `payload.adminActorLabel`, nunca un player_id —
    *  mismo motivo por el que el trigger de backend tampoco lo toca). El frontend tolera AMBOS
    *  contratos a la vez: si `actorPlayerId` todavía no llegó (Staging sin la migración aplicada,
-   *  o una fila vieja anterior a ella), simplemente cae al copy genérico de B6_NOTIF_COPY. */
+   *  o una fila vieja anterior a ella), simplemente cae al copy genérico de B6_NOTIF_COPY.
+   *  Corrección post-QA — cada plantilla suma el `ctxSuffix` de `b6MatchContextSuffix` para que
+   *  dos notificaciones del mismo tipo dejen de verse idénticas (el hallazgo real de QA: 5
+   *  "Partido oficial" indistinguibles entre sí). */
   const B6_NOTIF_ACTOR_BODY = {
-    match_validated: (name) => `${name} confirmó el partido. Ya quedó oficial.`,
-    correction_accepted: (name) => `${name} aceptó la corrección de resultado.`,
-    identity_resolved: (name) => `${name} resolvió una identidad cuestionada en tu partido.`,
-    identity_unidentified: (name) => `${name} marcó un lugar como Jugador no identificado en tu partido — el resultado se conserva.`,
+    match_validated: (name, ctxSuffix) => `${name} confirmó tu partido${ctxSuffix}.`,
+    correction_accepted: (name, ctxSuffix) => `${name} aceptó la corrección de resultado${ctxSuffix}.`,
+    identity_resolved: (name, ctxSuffix) => `${name} resolvió una identidad cuestionada en tu partido${ctxSuffix}.`,
+    identity_unidentified: (name, ctxSuffix) => `${name} marcó un lugar como Jugador no identificado en tu partido${ctxSuffix} — el resultado se conserva.`,
+  };
+  /** Corrección post-QA — mismos 4 tipos que `B6_NOTIF_ACTOR_BODY`, para cuando hay
+   *  `matchContext` pero NINGÚN actor resoluble (ni real desde el backend, ni resuelto por
+   *  `resolvePlayerNameFromMatchesCache`): sigue siendo más específico que el copy genérico de
+   *  `B6_NOTIF_COPY`, sin nombrar a nadie que no se pueda confirmar. */
+  const B6_NOTIF_CONTEXT_ONLY_BODY = {
+    match_validated: (ctxSuffix) => `Tu partido${ctxSuffix} ya quedó oficial.`,
+    correction_accepted: (ctxSuffix) => `Se aceptó una corrección de resultado en tu partido${ctxSuffix}.`,
+    identity_resolved: (ctxSuffix) => `Se resolvió una identidad cuestionada en tu partido${ctxSuffix}.`,
+    identity_unidentified: (ctxSuffix) => `Un lugar quedó como Jugador no identificado en tu partido${ctxSuffix} — el resultado se conserva.`,
   };
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
    *  caminos de render distintos. `source`/`type` extra: el click handler los usa para saber
    *  qué RPC llamar al marcar como leída (nunca la del otro origen).
-   *  `selfCaused` (Ronda UX 25/09, Ronda 2, §9) — SOLO se puede afirmar cuando `actorPlayerId`
-   *  llegó y coincide con el propio jugador: "nunca una notificación informativa redundante
-   *  hacia el mismo actor que realizó la acción" (el toast de la propia acción ya lo cubrió).
-   *  Sin `actorPlayerId` (contrato viejo, fila anterior a la migración) queda `false` a
-   *  propósito — nunca se oculta algo que no se puede confirmar con certeza que es un eco
-   *  propio. `renderNotificationsList` es quien filtra usando este campo. */
+   *  `selfCaused` (Ronda UX 25/09, Ronda 2, §9; corrección post-QA extiende esto a filas
+   *  HISTÓRICAS) — SOLO se puede afirmar cuando `actorPlayerId` llegó y coincide con el propio
+   *  jugador: "nunca una notificación informativa redundante hacia el mismo actor que realizó la
+   *  acción" (el toast de la propia acción ya lo cubrió). `get_notifications` ahora reconstruye
+   *  `actorPlayerId` también para filas históricas con evidencia inequívoca en `match_actions`
+   *  (misma migración que agrega `matchContext`) — este campo sigue funcionando sin cambios acá,
+   *  simplemente ahora también puede venir reconstruido en vez de solo "recién enriquecido por
+   *  el trigger". Sin `actorPlayerId` (sin evidencia inequívoca) queda `false` a propósito —
+   *  nunca se oculta algo que no se puede confirmar con certeza que es un eco propio.
+   *  `renderNotificationsList` es quien filtra usando este campo. */
   function mapB6Notification(n) {
     const copy = B6_NOTIF_COPY[n.type] || { title: 'Notificación', body: '', category: 'info' };
     let body = copy.body;
     const me = Store.getCurrentUser();
     const myPlayerId = me && me.id;
+    const ctxSuffix = b6MatchContextSuffix(n.payload && n.payload.matchContext);
     if (n.type === 'correction_proposed' && n.payload && n.payload.proposedByPlayerId) {
       const proposerName = resolvePlayerNameFromMatchesCache(n.payload.proposedByPlayerId);
-      if (proposerName) body = `${proposerName} propuso una corrección de resultado.`;
+      if (proposerName) body = `${proposerName} propuso una corrección de resultado${ctxSuffix}.`;
     } else if (n.type === 'identity_questioned' && n.payload && n.payload.openedByPlayerId) {
       const openerName = resolvePlayerNameFromMatchesCache(n.payload.openedByPlayerId);
-      if (openerName) body = `${openerName} cuestionó una identidad en uno de tus partidos.`;
+      if (openerName) body = `${openerName} cuestionó una identidad en uno de tus partidos${ctxSuffix}.`;
     } else if (n.payload && n.payload.actorPlayerId && B6_NOTIF_ACTOR_BODY[n.type]) {
       const actorName = resolvePlayerNameFromMatchesCache(n.payload.actorPlayerId);
-      if (actorName) body = B6_NOTIF_ACTOR_BODY[n.type](actorName);
+      if (actorName) body = B6_NOTIF_ACTOR_BODY[n.type](actorName, ctxSuffix);
+      else if (B6_NOTIF_CONTEXT_ONLY_BODY[n.type]) body = B6_NOTIF_CONTEXT_ONLY_BODY[n.type](ctxSuffix);
+    } else if (ctxSuffix && B6_NOTIF_CONTEXT_ONLY_BODY[n.type]) {
+      body = B6_NOTIF_CONTEXT_ONLY_BODY[n.type](ctxSuffix);
     }
     return {
       id: n.id, title: copy.title, body, category: copy.category,

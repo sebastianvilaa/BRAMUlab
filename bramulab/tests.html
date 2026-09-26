@@ -3141,6 +3141,42 @@
   })();
 
   // ------------------------------------------------------------------
+  // RONDA-UX-HIST · PH.computeMatchContextSuffix (corrección post-QA, Notificaciones históricas
+  // + contexto de partido) — pura: hallazgo real de QA fue 5 notificaciones "Partido oficial"
+  // idénticas entre sí; esta función es lo que permite distinguirlas con rivales+score reales.
+  // ------------------------------------------------------------------
+  (function () {
+    // Dos matchContext DISTINTOS (rivales y score distintos) deben producir sufijos distintos —
+    // esto es literalmente el bug que QA encontró (5 tarjetas indistinguibles).
+    const ctxMatch1 = { myTeam: 'A', opponentNames: ['Esteban', 'Jona'], score: ['6–3', '6–4'] };
+    const ctxMatch2 = { myTeam: 'A', opponentNames: ['Matu', 'Diego'], score: ['4–6', '4–6'] };
+    const suffix1 = PH.computeMatchContextSuffix(ctxMatch1);
+    const suffix2 = PH.computeMatchContextSuffix(ctxMatch2);
+    assert('RONDA-UX-HIST · dos matchContext distintos producen sufijos distintos (rivales+score reales distinguen 2 match_validated)', suffix1 !== suffix2, JSON.stringify([suffix1, suffix2]));
+    assert('RONDA-UX-HIST · incluye ambos nombres de rivales unidos con "+"', suffix1.indexOf('Esteban + Jona') !== -1, suffix1);
+    assert('RONDA-UX-HIST · incluye el score completo unido con "·"', suffix1.indexOf('6–3 · 6–4') !== -1, suffix1);
+
+    // "Perspectiva caller": la función solo junta lo que el backend ya orientó — no reordena ni
+    // reinterpreta un score que ya viene en la perspectiva correcta (Team A o Team B).
+    const ctxTeamA = { myTeam: 'A', opponentNames: ['Rival Uno', 'Rival Dos'], score: ['6–3', '6–4'] };
+    const ctxTeamB = { myTeam: 'B', opponentNames: ['Rival Uno', 'Rival Dos'], score: ['5–7', '4–6'] };
+    assert('RONDA-UX-HIST · perspectiva Team A: usa el score tal cual llega orientado', PH.computeMatchContextSuffix(ctxTeamA).indexOf('6–3 · 6–4') !== -1);
+    assert('RONDA-UX-HIST · perspectiva Team B: usa el score tal cual llega orientado (ya invertido del lado del backend)', PH.computeMatchContextSuffix(ctxTeamB).indexOf('5–7 · 4–6') !== -1);
+
+    // Sin score (partido sin sets todavía) — rivales solamente, nunca un resultado inventado.
+    const ctxNoScore = { myTeam: 'A', opponentNames: ['Rival Uno', 'Rival Dos'], score: null };
+    const noScoreSuffix = PH.computeMatchContextSuffix(ctxNoScore);
+    assert('RONDA-UX-HIST · sin score: rivales solamente, nunca inventa un resultado', noScoreSuffix.indexOf('Rival Uno + Rival Dos') !== -1 && noScoreSuffix.indexOf('·') === -1, noScoreSuffix);
+
+    // Fallback viejo: sin matchContext (contrato anterior a esta migración) => '' — el llamador
+    // cae al copy genérico de siempre, nunca revienta.
+    assert('RONDA-UX-HIST · sin matchContext (undefined) => "" (fallback contrato viejo)', PH.computeMatchContextSuffix(undefined) === '');
+    assert('RONDA-UX-HIST · matchContext null => "" (fallback contrato viejo)', PH.computeMatchContextSuffix(null) === '');
+    assert('RONDA-UX-HIST · matchContext sin opponentNames => "" (nunca inventa rivales)', PH.computeMatchContextSuffix({ myTeam: 'A', score: ['6–3'] }) === '');
+    assert('RONDA-UX-HIST · opponentNames vacío => "" (nunca inventa rivales)', PH.computeMatchContextSuffix({ myTeam: 'A', opponentNames: [], score: ['6–3'] }) === '');
+  })();
+
+  // ------------------------------------------------------------------
   // V03.0 — Estampado de userId: nunca ambiguo (pura)
   // ------------------------------------------------------------------
   (function () {

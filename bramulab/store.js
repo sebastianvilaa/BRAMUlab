@@ -90,7 +90,12 @@
   // (nunca repetido por insight); JUGADORES se oculta para cuentas server-backed (seguía
   // resolviendo identidad por nombre, la misma regresión que Bloque 4 corrigió en el perfil
   // público). Mismo criterio: APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
-  const BUNDLE_VERSION = '04.11-h6';
+  // Corrección post-QA (26/09/2026) — `-h7`: Notificaciones históricas reconstruyen
+  // payload.actorPlayerId (evidencia inequívoca en match_actions) y ganan payload.matchContext
+  // ({myTeam, opponentNames, score}) vía get_notifications, para que dos "Partido oficial" ya no
+  // se vean idénticas y selfCaused funcione también sobre filas históricas. Mismo criterio:
+  // APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
+  const BUNDLE_VERSION = '04.11-h7';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
