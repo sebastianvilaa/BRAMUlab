@@ -108,6 +108,10 @@ begin
   insert into public.notifications (player_id, type, match_id, payload)
     values (v_a1, 'match_validated', v_match_id, '{}'::jsonb)
     returning notification_id into v_notif_id;
+  -- El trigger vigente de Ronda 2 enriquece TODO insert nuevo. Para simular de verdad una fila
+  -- histórica pre-trigger, se vacía el payload DESPUÉS del insert (el trigger es BEFORE INSERT,
+  -- no UPDATE). Sigue dentro de BEGIN/ROLLBACK: nunca deja datos reales modificados.
+  update public.notifications set payload = '{}'::jsonb where notification_id = v_notif_id;
 
   insert into _histctx_matches (k, v) values ('match_a', v_match_id);
   insert into _histctx_state (k, v) values ('notif_a', v_notif_id);
@@ -154,6 +158,7 @@ begin
   insert into public.notifications (player_id, type, match_id, payload)
     values (v_b1, 'match_validated', v_match_id, '{}'::jsonb)
     returning notification_id into v_notif_id;
+  update public.notifications set payload = '{}'::jsonb where notification_id = v_notif_id;
 
   insert into _histctx_matches (k, v) values ('match_c', v_match_id);
   insert into _histctx_state (k, v) values ('notif_c', v_notif_id);
@@ -200,6 +205,7 @@ begin
   insert into public.notifications (player_id, type, match_id, payload)
     values (v_a1, 'match_validated', v_match_id, '{}'::jsonb)
     returning notification_id into v_notif_id;
+  update public.notifications set payload = '{}'::jsonb where notification_id = v_notif_id;
 
   insert into _histctx_matches (k, v) values ('match_d', v_match_id);
   insert into _histctx_state (k, v) values ('notif_d', v_notif_id);
@@ -302,11 +308,13 @@ begin
   insert into public.notifications (player_id, type, match_id, payload)
     values (v_a1, 'correction_accepted', v_match_id, '{}'::jsonb)
     returning notification_id into v_notif_ambiguous;
+  update public.notifications set payload = '{}'::jsonb where notification_id = v_notif_ambiguous;
 
   -- Sin ningún match_actions 'participant_unidentified' para este match -> 0 evidencia.
   insert into public.notifications (player_id, type, match_id, payload)
     values (v_a1, 'identity_unidentified', v_match_id, '{}'::jsonb)
     returning notification_id into v_notif_no_evidence;
+  update public.notifications set payload = '{}'::jsonb where notification_id = v_notif_no_evidence;
 
   insert into _histctx_matches (k, v) values ('match_f', v_match_id);
   insert into _histctx_state (k, v) values ('notif_f_ambiguous', v_notif_ambiguous);
