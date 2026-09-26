@@ -71,7 +71,7 @@ end $$;
 select set_config('request.jwt.claim.sub', (select auth_user_id::text from _mj_caller), true);
 
 -- A) save_player agrega + idempotente.
-do $$
+do $a$
 declare
   v_result jsonb;
   v_count integer;
@@ -102,7 +102,7 @@ begin
     set created_at = now() - interval '1 second'
     where owner_player_id = (select player_id from _mj_caller)
       and saved_player_id = (select v from _mj_state where k = 'target2');
-end $;
+end $a$;
 
 -- B) auto-agregado rechazado.
 do $$
