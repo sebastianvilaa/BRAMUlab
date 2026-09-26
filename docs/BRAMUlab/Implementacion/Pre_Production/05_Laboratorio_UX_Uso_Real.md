@@ -1919,3 +1919,79 @@ Antes de pedirle otra revisión física amplia, Central debe confirmar que:
 4. Sebastián recibe una sola batería de validación suficientemente grande para justificar sentarse a revisar;
 5. no se le vuelve a pedir que descubra por segunda/tercera vez pendientes ya documentados.
 
+## 15.26 — Propuesta futura: aviso modal de evento importante al abrir BRAMU
+
+**Fecha:** 26/09/2026  
+**Estado:** PROPUESTA DE PRODUCTO CONFIRMADA PARA ANALIZAR DESPUÉS DE LA RONDA CORRECTIVA ACTUAL.
+
+### Problema que busca resolver
+
+Hay eventos que afectan directamente la validez del dato y que no deberían depender de que el usuario:
+- vea un badge;
+- entre a Notificaciones;
+- descubra manualmente una tarjeta pendiente en Home.
+
+Ejemplo claro:
+Sebastián termina de jugar y va a cargar el partido, pero Esteban ya llegó antes a su casa y lo cargó. Al abrir BRAMU, sería útil que Sebastián se entere inmediatamente de que el partido ya existe, evitando una carga redundante y llevándolo al circuito correcto.
+
+### Dirección conceptual
+
+Al abrir/retomar BRAMU, si existe un evento IMPORTANTE nuevo todavía no presentado al usuario, mostrar un modal/pop-up breve con contexto real del partido.
+
+No es una notificación genérica ni un modal para cualquier evento.
+
+Eventos de señal alta candidatos:
+- alguien cargó un partido en el que participás;
+- tenés que confirmar/validar un partido;
+- alguien propuso una corrección relevante;
+- existe una incidencia/cambio que requiere una acción tuya.
+
+No usar para:
+- “partido oficial” como información rutinaria;
+- estadísticas menores;
+- eventos sin impacto en la validez del dato.
+
+### CTA contextual según el rol
+
+El CTA NO debe ser siempre `REVISAR PARTIDO`.
+
+Debe depender de lo que realmente puede/debe hacer esa persona.
+
+Ejemplos conceptuales:
+
+**Si sos compañero / no te corresponde validar:**
+- título/contexto: `Esteban cargó un partido con vos`;
+- CTA: `VER RESUMEN` / `IR AL RESUMEN`.
+
+**Si sos quien debe confirmar:**
+- título/contexto: `Esteban cargó un partido con vos`;
+- CTA: `VALIDAR PARTIDO` o naming final equivalente.
+
+**Si existe una corrección que requiere tu decisión:**
+- CTA: `REVISAR CORRECCIÓN` / `ACEPTAR O REPORTAR` según el flujo vigente.
+
+La UI nunca debe prometer una acción que ese usuario no tiene disponible.
+
+### Comportamiento propuesto
+
+- aparece automáticamente solo ante un evento importante NUEVO;
+- tocar CTA abre el Resumen exacto del partido;
+- cerrar/tocar afuera NO resuelve la tarea;
+- la tarea sigue disponible en Home y Notificaciones;
+- no repetir el mismo modal en cada apertura si el usuario ya lo vio;
+- un evento nuevo sobre el mismo partido puede habilitar un nuevo modal;
+- no requiere Realtime para V1: puede evaluarse en la lectura server-backed de apertura/foreground.
+
+### Relación con la arquitectura actual
+
+Tres niveles complementarios:
+
+1. **Modal de entrada:** novedad importante inmediata.
+2. **Home:** tarea persistente mientras siga pendiente.
+3. **Notificaciones:** historial/contexto de lo ocurrido.
+
+Objetivo principal:
+mejorar el circuito de validación y evitar cargas duplicadas o datos pendientes, porque la calidad de BRAMU depende de que los partidos queden correctamente confirmados/corregidos.
+
+No implementar durante la ronda correctiva 26SEP en curso. Analizar e integrar después de cerrar la batería actual.
+
