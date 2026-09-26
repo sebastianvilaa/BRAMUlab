@@ -151,18 +151,25 @@ begin
   update public.players set is_active = false where player_id = (select v from _mj_state where k = 'will_go_inactive');
 end $$;
 
--- E) list_saved_players: más reciente primero (target2 después de target1; will_go_inactive
---    todavía cuenta como "más reciente" en este punto -- se filtra recién en F).
-do $$
+-- E) list_saved_players: más reciente primero entre las filas VISIBLES.
+--    will_go_inactive ya fue marcado is_active=false en el prep anterior, por contrato debe
+--    quedar filtrado desde ESTA lectura (F verifica además que la relación persiste en tabla).
+--    target2 fue agregado después de target1, por lo que debe aparecer primero.
+do $
 declare
   v_rows uuid[];
 begin
   select array_agg(player_id order by saved_at desc) into v_rows from public.list_saved_players();
-  -- El más reciente (will_go_inactive, agregado de nuevo recién arriba) debe ir primero.
-  if v_rows[1] is distinct from (select v from _mj_state where k = 'will_go_inactive') then
-    raise exception 'E_FAILED_expected_most_recent_first: %', v_rows;
+  if v_rows[1] is distinct from (select v from _mj_state where k = 'target2') then
+    raise exception 'E_FAILED_expected_target2_most_recent_visible_first: %', v_rows;
   end if;
-end $$;
+  if v_rows[2] is distinct from (select v from _mj_state where k = 'target1') then
+    raise exception 'E_FAILED_expected_target1_second_visible: %', v_rows;
+  end if;
+  if array_length(v_rows, 1) <> 2 then
+    raise exception 'E_FAILED_expected_exactly_2_visible_rows_got_%: %', array_length(v_rows, 1), v_rows;
+  end if;
+end $;
 
 -- F) list_saved_players excluye al inactivo, pero la relación SIGUE en la tabla (nunca se borra
 --    sola).
