@@ -1667,6 +1667,29 @@ Sebastián considera que el título aporta poco porque el estado oficial es el e
 
 Próxima ronda: usar un título que describa el evento/acción, no el estado genérico del partido. Mantener el contexto real ya implementado.
 
+
+
+#### Login — falso retorno al onboarding de Nivel
+
+Sebastián reporta que una cuenta YA existente/completa puede iniciar sesión y, en el primer intento, ser enviada erróneamente al onboarding de Nivel como si la cuenta estuviera incompleta. Al salir/reingresar, la misma cuenta entra correctamente.
+
+Central verificó sobre Staging que `@seba_qa` tiene perfil + `level_states` reales y estado de Nivel distinto de `PENDIENTE`; no corresponde pedir onboarding.
+
+Revisión de código vigente:
+- `Auth.fetchOwnProfile()` lee Auth + `profiles` + `level_states` en paralelo;
+- si la lectura de `level_states` falla, hoy igual devuelve un usuario válido pero con `levelState:null`;
+- `resumeServerSession()` interpreta `levelState:null` exactamente igual que “onboarding de Nivel no completado” y deriva a `resumeSignupProfileStep()/resumeDraftFlow()`.
+
+Ese camino puede producir exactamente el síntoma observado ante una falla parcial/transitoria de lectura, aunque el servidor tenga un Nivel válido.
+
+**Estado:** BUG FUNCIONAL P0 — REABIERTO.
+
+Dirección:
+- distinguir “no existe level_state real” de “falló la lectura”;
+- una falla parcial de red/RPC nunca debe convertir una cuenta completa en una cuenta nueva/incompleta;
+- no usar cache local para inventar que el onboarding está completo si el servidor realmente informa `PENDIENTE`;
+- probar login nuevo + restauración de sesión + falla simulada de `level_states` + cuenta realmente incompleta.
+
 ### D. Otras observaciones ya conocidas que siguen fuera / sin definición final
 
 - Acción `Ocultar partido` en Resumen: se había marcado con demasiado protagonismo/ubicación poco natural; no entró al handoff final porque no se cerró todavía un patrón contextual concreto (menú/ícono u otro).
