@@ -751,3 +751,126 @@ test('computeLevelStateUpdates: partido tras >60d de inactividad -> aplicar -> r
   const decayFromScratch = MLE.computeEffectiveConfidence(rawConfidence, originalLastRatedAt, nextMatchPlayedAt);
   assert.ok(Math.abs(decayOnRestored - decayFromScratch) < 1e-9);
 });
+
+/* ------------------------------------------------------------------ */
+/* Fix P0 precisión (handoff 23, 26/09/2026) — canonicalización a      */
+/* INTERNAL_DECIMALS=4 de finalConfidence/finalEvidenceUnits/valores   */
+/* de lock, para que officialize_match_validation (Postgres, redondeado */
+/* a 4 decimales tras la migración 20260927140000) nunca reciba un      */
+/* artefacto de representación IEEE-754 que difiera de lo persistido    */
+/* solo en un decimal invisible más allá de la precisión normativa.     */
+/* ------------------------------------------------------------------ */
+
+test('roundToInternalDecimals: colapsa un residuo de arrastre de aritmética JS al mismo valor de 4 decimales que un cálculo limpio', () => {
+  // 2.48 - 0.0003 + 0.0000000004 no da 2.4797 exacto en JS (arrastre binario real, no un
+  // ejemplo artificial) — reproduce la MISMA clase de artefacto que motivó el fix, aunque el
+  // valor puntual del handoff (2.4797000000000004 vs ...002) colapsa al mismo literal doble al
+  // escribirlo directo en el código fuente (ambos strings decimales redondean al mismo float64
+  // más cercano) y por eso no sirve como fixture reproducible acá.
+  const dirty = 2.48 - 0.0003 + 0.0000000004;
+  assert.notEqual(dirty, 2.4797, 'el fixture debe tener arrastre real, si no la prueba no prueba nada');
+  assert.equal(MLE.roundToInternalDecimals(dirty), 2.4797);
+  // El clásico 0.1+0.2 (documentado ampliamente como no-exacto en IEEE-754 double) también debe
+  // canonicalizar limpio.
+  assert.equal(MLE.roundToInternalDecimals(0.1 + 0.2), 0.3);
+});
+
+test('roundToInternalDecimals: valores no finitos pasan intactos (nunca NaN/undefined silenciado como 0)', () => {
+  assert.ok(Number.isNaN(MLE.roundToInternalDecimals(NaN)));
+  assert.equal(MLE.roundToInternalDecimals(undefined), undefined);
+});
+
+test('computeLevelStateUpdates: finalConfidence queda canonicalizado a INTERNAL_DECIMALS=4 (rama con newP)', () => {
+  const officialization = firstOfficialization();
+  // current.confidence con arrastre real de flotante ya en el estado LIVE de entrada (simula un
+  // valor que ya venía "sucio" desde level_states -> JSON -> JS, como el caso real del handoff).
+  const dirtyConfidence = 0.6 - 0.0000000001 + 0.0000000002;
+  const live = liveStates();
+  live.p1.confidence = dirtyConfidence;
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null,
+    engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds,
+    currentLevelStatesByPlayerId: live,
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  const expected = MLE.roundToInternalDecimals(p1Update.finalConfidence);
+  assert.equal(p1Update.finalConfidence, expected, 'finalConfidence debe salir YA canonicalizado, sin necesitar un redondeo externo adicional');
+});
+
+test('computeLevelStateUpdates: finalEvidenceUnits queda canonicalizado a INTERNAL_DECIMALS=4 (rama con newP)', () => {
+  const officialization = firstOfficialization();
+  const live = liveStates();
+  live.p1.evidenceUnits = 2.48 - 0.0003 + 0.0000000004; // mismo arrastre real que el test de roundToInternalDecimals
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null,
+    engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds,
+    currentLevelStatesByPlayerId: live,
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  assert.equal(p1Update.finalEvidenceUnits, MLE.roundToInternalDecimals(p1Update.finalEvidenceUnits));
+});
+
+test('computeLevelStateUpdates: finalConfidence/finalEvidenceUnits también canonicalizados en la rama de REVERSIÓN PURA (sin newP)', () => {
+  const oldAppliedResult = {
+    players: [{
+      playerId: 'p1', team: 'A',
+      originalLiveMuBefore: 5.0, muAfter: 5.5,
+      originalLiveConfidenceBefore: 0.6, confidenceAfter: 0.6244,
+      originalLiveEvidenceUnitsBefore: 3.0, evidenceQuality: 0.4,
+    }],
+  };
+  // Estado LIVE actual con arrastre real de flotante en confidence/evidenceUnits.
+  const live = { p1: { mu: 5.5, confidence: 0.6244 - 0.0000000001 + 0.0000000002, evidenceUnits: 3.4 + 0.0000000003 } };
+  const { levelStateUpdates } = MLE.computeLevelStateUpdates({
+    oldAppliedResult, engineOutput: null, guestPlayerIds: [], currentLevelStatesByPlayerId: live,
+  });
+  const p1Update = levelStateUpdates.find((u) => u.playerId === 'p1');
+  assert.equal(p1Update.finalConfidence, MLE.roundToInternalDecimals(p1Update.finalConfidence));
+  assert.equal(p1Update.finalEvidenceUnits, MLE.roundToInternalDecimals(p1Update.finalEvidenceUnits));
+});
+
+test('computeLevelStateUpdates: currentMuForLock/currentConfidenceForLock/currentEvidenceUnitsForLock quedan canonicalizados — dos snapshots LIVE que difieren solo en ruido IEEE-754 producen el MISMO payload de lock', () => {
+  const officialization = firstOfficialization();
+  const liveClean = liveStates();
+  const liveDirty = liveStates();
+  // Mismo valor de negocio (2.4797), dos representaciones JS con arrastre binario distinto —
+  // exactamente la clase de divergencia que antes hacía que officialize_match_validation
+  // rechazara con stale_level_snapshot un jugador que en realidad no había cambiado.
+  liveClean.p1.evidenceUnits = 2.4797;
+  liveDirty.p1.evidenceUnits = 2.48 - 0.0003 + 0.0000000004;
+  assert.notEqual(liveClean.p1.evidenceUnits, liveDirty.p1.evidenceUnits, 'el fixture debe divergir en JS puro, si no la prueba no prueba nada');
+
+  const cleanUpdates = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds, currentLevelStatesByPlayerId: liveClean,
+  }).levelStateUpdates.find((u) => u.playerId === 'p1');
+  const dirtyUpdates = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds, currentLevelStatesByPlayerId: liveDirty,
+  }).levelStateUpdates.find((u) => u.playerId === 'p1');
+
+  assert.equal(cleanUpdates.currentEvidenceUnitsForLock, dirtyUpdates.currentEvidenceUnitsForLock,
+    'dos valores LIVE que solo difieren en ruido de representación deben producir el MISMO currentEvidenceUnitsForLock — esto es lo que hace que officialize_match_validation (con su propio redondeo a 4 decimales) deje de ver un mismatch falso');
+});
+
+test('computeLevelStateUpdates: canonicalizar a 4 decimales NO cambia el resultado deportivo/fórmula — solo limpia ruido por debajo de la precisión normativa', () => {
+  const officialization = firstOfficialization();
+  const liveClean = liveStates();
+  const liveDirty = liveStates();
+  liveDirty.p1.confidence = liveClean.p1.confidence - 0.0000000001 + 0.0000000002; // ruido << 0.0001
+  const cleanUpdate = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds, currentLevelStatesByPlayerId: liveClean,
+  }).levelStateUpdates.find((u) => u.playerId === 'p1');
+  const dirtyUpdate = MLE.computeLevelStateUpdates({
+    oldAppliedResult: null, engineOutput: officialization.engineOutput,
+    guestPlayerIds: officialization.guestPlayerIds, currentLevelStatesByPlayerId: liveDirty,
+  }).levelStateUpdates.find((u) => u.playerId === 'p1');
+  // El resultado FINAL (lo que de verdad define el próximo Nivel del jugador) es idéntico —
+  // canonicalizar nunca altera qué delta/fórmula se aplicó, solo el ruido binario del snapshot
+  // de entrada usado para el lock.
+  assert.equal(cleanUpdate.finalConfidence, dirtyUpdate.finalConfidence);
+  assert.equal(cleanUpdate.finalMu, dirtyUpdate.finalMu);
+});

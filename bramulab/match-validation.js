@@ -30,6 +30,39 @@
     return Auth ? Auth.getClient() : null;
   }
 
+  /** Fix P0 precisión (handoff 23 §7, "segundo hallazgo") — único punto de invocación para las
+   *  Edge Functions B6 (mismo criterio "núcleo único" del resto de este archivo, nunca 4 parches
+   *  separados). Desde que match-officialize-core.ts empezó a devolver HTTP 409 para códigos de
+   *  negocio reales (Ronda correctiva QA 26SEP), `c.functions.invoke()` deja de traer el JSON de
+   *  negocio en `data` para CUALQUIER respuesta non-2xx: supabase-js v2 documenta que, ante una
+   *  `FunctionsHttpError`, el body real de la función solo se recupera con
+   *  `error.context.json()` (`error.context` es la Response cruda del fetch). Sin este fix, un
+   *  409 con `{ok:false, code:'match_expired'}` real se perdía y degradaba al string genérico
+   *  `error.message` ("Edge Function returned a non-2xx status code") — un código que
+   *  `B6_ERROR_MESSAGES` (app.js) no reconoce, así que el usuario veía siempre el mensaje
+   *  default en vez del real. `error.context.json()` puede fallar (error de RED/`FunctionsFetch
+   *  Error`, o de RELAY/`FunctionsRelayError`, sin body de negocio que leer, o un body que ya no
+   *  es JSON) — en ese caso cae al mismo fallback de siempre (`data && data.code`, luego
+   *  `error.message`), nunca se expone `detail`/`hint` internos (esos ya no viajan desde el
+   *  servidor, ver match-officialize-core.ts). El body de la función se lee UNA sola vez. */
+  async function invokeB6Function(c, functionName, body) {
+    const { data, error } = await c.functions.invoke(functionName, { body });
+    if (!error) {
+      if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+      return data;
+    }
+    if (error.context && typeof error.context.json === 'function') {
+      try {
+        const errorBody = await error.context.json();
+        if (errorBody && typeof errorBody === 'object' && errorBody.code) return errorBody;
+      } catch (_parseErr) {
+        // El body de la respuesta non-2xx no era JSON parseable (o ya se consumió) — cae al
+        // fallback genérico de abajo, nunca se propaga esta excepción de parseo al caller.
+      }
+    }
+    return { ok: false, code: (data && data.code) || error.message || 'unknown' };
+  }
+
   /** Confirmar (RPC B6 nativa `confirm_match_validation` vía la Edge Function
    *  `officialize-match`, C-02 de 10_Revision_Final_Pre_Staging_ChatGPT.md): exige autoridad
    *  real de pareja (action_side === equipo del caller) bajo lock — nunca un hack local, nunca
@@ -40,10 +73,7 @@
   async function officializeMatch(matchId) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
-    const { data, error } = await c.functions.invoke('officialize-match', { body: { matchId } });
-    if (error) return { ok: false, code: (data && data.code) || error.message || 'unknown' };
-    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
-    return data;
+    return invokeB6Function(c, 'officialize-match', { matchId });
   }
 
   /** Proponer corrección de RESULTADO (Edge Function `propose-match-correction`) — pre o
@@ -56,10 +86,7 @@
   async function proposeMatchCorrection(matchId, sets) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
-    const { data, error } = await c.functions.invoke('propose-match-correction', { body: { matchId, sets } });
-    if (error) return { ok: false, code: (data && data.code) || error.message || 'unknown' };
-    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
-    return data;
+    return invokeB6Function(c, 'propose-match-correction', { matchId, sets });
   }
 
   /** Responder una corrección post-validación pendiente (Edge Function
@@ -69,10 +96,7 @@
   async function respondMatchCorrection(matchId, accept) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
-    const { data, error } = await c.functions.invoke('respond-match-correction', { body: { matchId, accept: !!accept } });
-    if (error) return { ok: false, code: (data && data.code) || error.message || 'unknown' };
-    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
-    return data;
+    return invokeB6Function(c, 'respond-match-correction', { matchId, accept: !!accept });
   }
 
   /** "No participé" / identidad incorrecta (RPC `report_identity_issue`, alcanzable DIRECTO por
@@ -103,10 +127,7 @@
     const body = { issueId };
     if (o.forceUnidentified) body.forceUnidentified = true;
     else body.replacementPlayerId = o.replacementPlayerId;
-    const { data, error } = await c.functions.invoke('resolve-identity-issue', { body });
-    if (error) return { ok: false, code: (data && data.code) || error.message || 'unknown' };
-    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
-    return data;
+    return invokeB6Function(c, 'resolve-identity-issue', body);
   }
 
   /** Bandeja de notificaciones del caller (RPC `get_notifications`) — YA incluye, del lado del
@@ -161,5 +182,8 @@
     officializeMatch, proposeMatchCorrection, respondMatchCorrection,
     reportIdentityIssue, resolveIdentityIssue,
     getNotifications, markNotificationRead, markAllNotificationsRead,
+    // Expuesto para tests dirigidos (match-validation.test.mjs) — no es parte de la API de
+    // producto que consume app.js, que sigue llamando solo a las funciones de arriba.
+    invokeB6Function,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

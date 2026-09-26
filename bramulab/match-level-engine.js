@@ -377,6 +377,21 @@
    *  originalLiveMu?,originalLiveConfidence?,originalLiveEvidenceUnits?}}` LIVE actual (ahora
    *  mismo) — el llamador la arma leyendo `levelStates` de `get_match_officialization_snapshot`
    *  para cualquier player_id involucrado (viejo ∪ nuevo). */
+  /** Fix P0 precisión (handoff 23, 26/09/2026) — canonicaliza un número a la MISMA precisión
+   *  interna que toda la fórmula ya usa (`Level.PARAMS.INTERNAL_DECIMALS`, 4 decimales hoy;
+   *  nunca un valor hardcodeado acá, siempre leído de la fuente normativa). La aritmética JS de
+   *  abajo (resta/suma de efectos) puede dejar artefactos binarios IEEE-754 más allá de esa
+   *  precisión (ej. 2.4797000000000004) que `officialize_match_validation` (Postgres) compara
+   *  contra el valor ya redondeado a 4 decimales que trae `level_states` — sin canonicalizar acá
+   *  ambos lados podían divergir en un decimal invisible y el optimistic lock rechazaba un
+   *  jugador que en realidad no cambió (`stale_level_snapshot` falso). `finalMu` NO pasa por
+   *  este helper: ya se canonicaliza vía `Level.clampLevel`, que internamente redondea igual. */
+  function roundToInternalDecimals(n) {
+    if (!Number.isFinite(n)) return n;
+    const factor = Math.pow(10, Level.PARAMS.INTERNAL_DECIMALS);
+    return Math.round(n * factor) / factor;
+  }
+
   function computeLevelStateUpdates({ oldAppliedResult, engineOutput, guestPlayerIds, currentLevelStatesByPlayerId }) {
     const oldByPlayerId = {};
     ((oldAppliedResult && oldAppliedResult.players) || []).forEach((p) => {
@@ -424,12 +439,12 @@
         // incluye a este jugador.
         levelStateUpdates.push({
           playerId,
-          currentMuForLock: current.mu,
-          currentConfidenceForLock: current.confidence,
-          currentEvidenceUnitsForLock: current.evidenceUnits || 0,
+          currentMuForLock: roundToInternalDecimals(current.mu),
+          currentConfidenceForLock: roundToInternalDecimals(current.confidence),
+          currentEvidenceUnitsForLock: roundToInternalDecimals(current.evidenceUnits || 0),
           finalMu: Level.clampLevel(current.mu - oldMuEffect),
-          finalConfidence: current.confidence - oldConfidenceEffect,
-          finalEvidenceUnits: Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect),
+          finalConfidence: roundToInternalDecimals(current.confidence - oldConfidenceEffect),
+          finalEvidenceUnits: roundToInternalDecimals(Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect)),
         });
         return;
       }
@@ -443,14 +458,14 @@
       const newEvidenceEffect = newP.evidenceQuality;
 
       const finalMu = Level.clampLevel(current.mu - oldMuEffect + newMuEffect);
-      const finalConfidence = current.confidence - oldConfidenceEffect + newConfidenceEffect;
-      const finalEvidenceUnits = Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect + newEvidenceEffect);
+      const finalConfidence = roundToInternalDecimals(current.confidence - oldConfidenceEffect + newConfidenceEffect);
+      const finalEvidenceUnits = roundToInternalDecimals(Math.max(0, (current.evidenceUnits || 0) - oldEvidenceEffect + newEvidenceEffect));
 
       levelStateUpdates.push({
         playerId,
-        currentMuForLock: current.mu,
-        currentConfidenceForLock: current.confidence,
-        currentEvidenceUnitsForLock: current.evidenceUnits || 0,
+        currentMuForLock: roundToInternalDecimals(current.mu),
+        currentConfidenceForLock: roundToInternalDecimals(current.confidence),
+        currentEvidenceUnitsForLock: roundToInternalDecimals(current.evidenceUnits || 0),
         finalMu,
         finalConfidence,
         finalEvidenceUnits,
@@ -502,5 +517,6 @@
     computeOfficializationResult,
     computeOfficializationResultFrozenContext,
     computeLevelStateUpdates,
+    roundToInternalDecimals,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
