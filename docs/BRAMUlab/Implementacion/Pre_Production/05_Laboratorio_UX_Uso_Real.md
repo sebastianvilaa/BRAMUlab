@@ -1712,4 +1712,185 @@ Dirección:
 - notificaciones con actor/contexto real y filtrado self-caused;
 - headers/blur del paquete 25SEP.
 
+## 15.25 — Batería adicional observada en iPhone / escritorio mientras Claude ejecuta la corrección 26SEP
+
+**Fecha:** 26/09/2026  
+**Estado:** consolidado para incorporar DESPUÉS de la entrega actual de Claude, antes de volver a pedir una validación física amplia a Sebastián.
+
+Regla de proceso:
+- NO pedirle a Sebastián que vuelva a revisar `04.11-h7`;
+- terminar primero la ronda correctiva en curso;
+- Central revisa técnicamente esa entrega;
+- luego FUSIONAR estos puntos en una segunda corrección si no quedaron absorbidos naturalmente;
+- recién después hacer una validación física amplia de una batería significativa, evitando micro-iteraciones de una o dos cosas.
+
+### P0 funcional — acciones que hoy fallan
+
+#### Resolver identidad cuestionada
+
+Caso observado en iPhone:
+- Resumen muestra `Por identificar · Identidad cuestionada`;
+- Sebastián toca `RESOLVER`;
+- intenta asignar el participante correcto (ej. Esteban);
+- la app devuelve:
+  `No se pudo completar la acción. Probá de nuevo.`
+
+**Estado:** BUG FUNCIONAL P0.
+
+No confundir con UX del selector. Antes de volver a pedir QA:
+- reproducir contra Staging;
+- identificar RPC/error real;
+- corregir;
+- probar resolución completa de punta a punta;
+- verificar que el partido, notificaciones y trazabilidad queden coherentes.
+
+#### Proponer / aceptar corrección de resultado
+
+Caso observado también entre iPhone y cuenta abierta en computadora:
+- existe partido con corrección propuesta;
+- al intentar actuar sobre el flujo aparece el mismo toast genérico:
+  `No se pudo completar la acción. Probá de nuevo.`
+
+**Estado:** BUG FUNCIONAL P0 hasta aislar exactamente qué acción falla.
+
+La ronda actual ya toca el editor visual de corrección, pero eso NO alcanza si el submit/accept real falla.
+Antes de cierre:
+- reproducir propuesta y aceptación;
+- capturar error real;
+- verificar permisos/turno/estado;
+- no esconder una excepción de backend detrás del toast genérico;
+- mantener revisión append-only.
+
+### UX / UI confirmada por Sebastián
+
+#### Notificaciones — título debe describir la acción
+
+No usar `Partido oficial` como título ordinario.
+
+Preferencia conceptual reforzada:
+- el actor + acción puede ocupar el título, ej. `Esteban confirmó tu partido`;
+- debajo queda una descripción/contexto más claro del partido;
+- evitar duplicar exactamente la misma frase entre título y body;
+- mantener rivales + score + fecha de h7.
+
+La ronda correctiva actual ya contempla títulos por evento. En revisión central evaluar si el resultado queda suficientemente específico o si conviene actor+acción en el propio título.
+
+#### Header / degradé superior en iPhone
+
+Sebastián confirma que el fade/blur superior SIGUE percibiéndose en iPhone aunque en computadora se vea bien.
+
+**Estado:** REABIERTO SOLO EN iPhone.
+
+No seguir ajustando a ciegas desde desktop.
+Revisar safe-area/WebKit/iOS:
+- backdrop-filter;
+- pseudo-elementos;
+- altura del gradiente;
+- stacking;
+- overscroll/safe-area inset.
+
+Si en iPhone real el efecto sigue invadiendo título/logo, corregir.
+Si es una limitación visual menor propia de Safari/PWA y no afecta legibilidad, puede aceptarse, pero debe ser una decisión consciente tras verlo, no declararlo cerrado por desktop.
+
+#### Editor de corrección — claridad de quién gana / orientación
+
+Además de paridad visual con `Cargar partido`, Sebastián marca un problema conceptual:
+- el editor actual no deja suficientemente claro qué columna/equipo corresponde a quién;
+- con números solos puede no entenderse quién está ganando.
+
+La corrección debe mostrar de forma inequívoca:
+- Equipo/pareja A y B, o nombres de parejas;
+- orientación coherente con el Resumen y con Cargar partido;
+- quién corresponde a cada input de games;
+- score actual prellenado.
+
+No basta con copiar CSS de Cargar partido si se pierde la identidad de cada lado.
+
+#### Buscar jugadores — avatar
+
+Confirmación visual en iPhone:
+- búsqueda muestra nombre, `@username` y Nivel BRAMU;
+- avatar sigue en iniciales;
+- al entrar al Perfil público sí aparece la foto.
+
+La ronda correctiva actual ya contempla este punto. Se considera CERRADO solo cuando la fila de búsqueda muestre foto real cuando exista, sin N llamadas.
+
+#### Botón central `+` de Cargar partido
+
+Sebastián percibe el CTA central de carga:
+- con poca presencia;
+- algo pequeño;
+- ópticamente un poco caído / no perfectamente centrado.
+
+**Estado:** AJUSTE VISUAL.
+
+Objetivo:
+- más presencia sin volverse grotesco;
+- centrado óptico dentro de la barra inferior;
+- revisar especialmente iPhone/safe-area;
+- conservar jerarquía como acción principal de la app.
+
+#### Cargar partido — formato/puntuación/fecha arriba y más compactos
+
+Se refuerza una observación ya conocida y ahora pasa a ser PEDIDO CONCRETO:
+
+Hoy:
+- `Clásico · Punto de Oro` vive arriba como subtítulo;
+- el selector `Clásico · Mejor de 3 · Punto de Oro` y la fecha/hora quedan abajo, después del bloque de resultado.
+
+Problema:
+- el usuario puede empezar a cargar sets sin notar que el formato no corresponde al partido real;
+- ejemplo: un americano / un solo set podría quedar mal conceptualizado antes de llegar a modificar formato.
+
+Dirección:
+- poner la metadata crítica de partido ANTES del resultado;
+- idealmente en una línea/área compacta arriba:
+  formato + puntuación + fecha/hora;
+- debe ser visible/editable antes de empezar a cargar sets;
+- evitar duplicarla en dos lugares.
+
+**Estado:** UX A IMPLEMENTAR. Ya no queda como idea indefinida.
+
+#### Historial — ubicación de estados
+
+En cada tarjeta:
+- `VICTORIA` / `DERROTA` queda arriba a la derecha;
+- estados como `PENDIENTE DE VALIDACIÓN`, `IDENTIDAD CUESTIONADA`, etc. NO deberían quedar abajo a la izquierda mezclados con contenido secundario.
+
+Dirección:
+- estado debajo de VICTORIA/DERROTA;
+- alineado a la derecha;
+- jerarquía secundaria;
+- mantener resultado y estado como conceptos separados.
+
+#### Historial — indicador de cambios no vistos
+
+El punto/círculo de cambios externos funciona conceptualmente.
+
+Preferencia visual a evaluar:
+- probar rojo en vez de celeste para el indicador del ícono de Historial;
+- la marca/acento celeste dentro de la fila modificada puede mantenerse aunque no sea definitiva.
+
+No abrir una reestructuración; es ajuste visual.
+
+#### Home — tarjeta Último partido: ubicación del estado
+
+Actualmente `DERROTA` y `PENDIENTE DE VALIDACIÓN` aparecen lado a lado.
+
+Dirección:
+- resultado (VICTORIA/DERROTA) mantiene protagonismo;
+- estado debe ir debajo de la fecha/hora, alineado a la derecha;
+- evitar mezclar resultado y estado en la misma línea.
+
+Este criterio debe ser consistente con Historial.
+
+### Regla de cierre para la próxima devolución a Sebastián
+
+Antes de pedirle otra revisión física amplia, Central debe confirmar que:
+
+1. la entrega actual de Claude está técnicamente sana;
+2. los P0 de acciones fallidas (identidad/corrección) están resueltos o aislados con causa concreta;
+3. los puntos visuales anteriores están implementados o explícitamente marcados como DECISIÓN ABIERTA real;
+4. Sebastián recibe una sola batería de validación suficientemente grande para justificar sentarse a revisar;
+5. no se le vuelve a pedir que descubra por segunda/tercera vez pendientes ya documentados.
 
