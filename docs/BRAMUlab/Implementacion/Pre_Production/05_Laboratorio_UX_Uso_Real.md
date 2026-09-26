@@ -1569,3 +1569,124 @@ Próxima validación mínima:
 - si los datos existen y no se muestran, clasificar como UI;
 - no repetir la comprobación cuenta por cuenta hasta entender la causa.
 
+## 15.24 — Mapa de pendientes tras QA final 04.11-h7 — 26/09/2026
+
+Objetivo de esta sección: evitar que Sebastián tenga que volver a reportar observaciones ya conocidas durante la revisión física final. Separa lo que **debía haber quedado resuelto pero no quedó bien**, lo que fue **deliberadamente diferido** y lo que está **implementado y no hace falta volver a auditar salvo regresión**.
+
+### A. REABIERTO — debía estar resuelto en la ronda y la QA física demuestra que no quedó bien
+
+#### Resumen — alineación vertical de parejas + games
+
+El Laboratorio (§15.2) y el handoff 13 pidieron explícitamente alinear verticalmente las dos filas del score. Ronda 2 aplicó un ajuste CSS y lo dio por cubierto en navegador, pero Sebastián confirma en iPhone sobre 04.11-h7 que la desalineación óptica sigue visible.
+
+**Estado:** BUG VISUAL REABIERTO.
+
+No pedir una nueva descripción desde cero. La próxima corrección debe partir del hallazgo original: la fila inferior de nombres/games no queda ópticamente alineada con la superior.
+
+#### Corrección de resultado — paridad visual con Cargar partido
+
+El handoff 13 pidió **reutilizar composición/lógica** del editor de resultado de `Cargar partido`. Ronda 1 resolvió la parte funcional (sets dinámicos 2↔3 + validador compartido), pero la hoja de corrección conserva un lenguaje visual propio y Sebastián sigue percibiéndola como claramente distinta/peor que Cargar partido.
+
+**Estado:** IMPLEMENTACIÓN PARCIAL — funcional cerrado, UX/VISUAL REABIERTO.
+
+No volver a probar si permite agregar/quitar sets salvo regresión. La próxima tarea es unificar la experiencia visual/editorial con Cargar partido sin duplicar lógica.
+
+### B. DIFERIDO DELIBERADAMENTE — no volver a reportar como bug nuevo
+
+#### Buscar jugadores — avatar en resultados
+
+§15.23 ya documentó que la búsqueda server-backed muestra iniciales aunque el Perfil público sí pueda mostrar la foto.
+
+**Estado:** PENDIENTE DE PRÓXIMA RONDA.
+
+Investigar una solución segura sin N llamadas por fila: reutilizar referencia/avatar del contrato server-backed si existe o extenderlo mínimamente. No asumir pérdida de foto.
+
+#### AGREGAR JUGADOR + pestaña JUGADORES
+
+El botón `AGREGAR JUGADOR` y la pestaña `JUGADORES` se ocultaron deliberadamente para cuentas server-backed.
+
+Motivo:
+- la implementación legacy persiste jugadores por nombre;
+- la identidad real vigente usa `player_id`;
+- reactivar el flujo viejo reintroduciría errores de identidad.
+
+No se borró la función histórica ni sus datos locales: quedó oculta/reversible.
+
+**Estado:** DIFERIDO hasta construir una lista/relación server-backed mínima por `player_id`, sin convertirla automáticamente en un sistema social complejo.
+
+Por lo tanto, mientras esto siga así:
+- Buscar jugadores sirve para encontrar/abrir perfiles, no para “agregarlos”;
+- Mi Perfil muestra solo `MI PERFIL` + `MIS DATOS`;
+- la ausencia de `JUGADORES` es temporal e intencional, no una regresión accidental.
+
+#### Datos de Perfil QA
+
+Mano/lado/edad/género/ubicación quedaron pendientes de una validación dirigida de UNA cuenta contra el registro server-backed para separar dato no persistido vs. dato oculto/no renderizado.
+
+**Estado:** PENDIENTE DE VERIFICACIÓN. No repetir cuenta por cuenta.
+
+#### Subida de foto de perfil
+
+El fallo ocasional `No pudimos guardar la foto` quedó documentado pero no reproducido de manera suficiente para abrir una investigación grande dentro de la ronda UX.
+
+**Estado:** PENDIENTE DE REPRODUCCIÓN DIRIGIDA si vuelve a ocurrir.
+
+#### Mis grupos
+
+Fuera del paquete 25SEP por decisión explícita. Requiere una ronda propia de producto/UX; no resolver con parches.
+
+#### Responsive / ancho escritorio
+
+Fuera del paquete 25SEP. Queda para comparación visual específica posterior.
+
+#### Realtime / polling
+
+No agregar por ahora. El comportamiento vigente es refrescar al volver a foreground/navegar; ya fue validado. Solo reabrir si uso real demuestra fricción material.
+
+### C. NUEVO REFINAMIENTO CONFIRMADO EN QA FINAL — próximo paquete corto
+
+#### RECIENTES al elegir compañero/rival
+
+La sección RECIENTES server-backed ya funciona por `player_id`, pero hoy cada fila usa el subtítulo `Jugaron juntos antes`.
+
+Sebastián considera ese texto redundante: si la persona está en RECIENTES, esa relación ya es obvia. Prefiere usar ese espacio para información útil, idealmente:
+- `@username`;
+- Nivel BRAMU real.
+
+**Estado:** UX A MEJORAR.
+
+Restricción técnica vigente: el snapshot usado para RECIENTES hoy aporta nombre + `player_id`, pero no username/Nivel. No inventarlos desde el nombre. Resolver en una lectura server-backed/batch o ampliación mínima de contrato, evitando N llamadas por fila.
+
+#### Notificaciones — título genérico `Partido oficial`
+
+04.11-h7 resolvió correctamente contexto, actor, rivales, score y self-caused, pero el título de `match_validated` sigue siendo `Partido oficial`.
+
+Sebastián considera que el título aporta poco porque el estado oficial es el estado normal del producto.
+
+**Estado:** COPY/UX A MEJORAR.
+
+Próxima ronda: usar un título que describa el evento/acción, no el estado genérico del partido. Mantener el contexto real ya implementado.
+
+### D. Otras observaciones ya conocidas que siguen fuera / sin definición final
+
+- Acción `Ocultar partido` en Resumen: se había marcado con demasiado protagonismo/ubicación poco natural; no entró al handoff final porque no se cerró todavía un patrón contextual concreto (menú/ícono u otro).
+- Metadata de `Cargar partido` (formato/puntuación/fecha): se propuso compactarla/moverla arriba, pero no se cerró layout exacto y no se implementó.
+- Múltiples identidades incorrectas en un mismo partido: no ampliar si exige arquitectura nueva.
+- `Otros datos` dentro de `REPORTAR UN ERROR`: mostrar solo cuando exista un contrato vigente seguro para corregirlos; no inventar una opción vacía.
+
+### E. YA IMPLEMENTADO — no volver a auditar salvo que aparezca una regresión concreta
+
+- perspectiva personal de score en Home/Historial;
+- carrusel superior de pendientes;
+- separación VICTORIA/DERROTA vs. estado;
+- tabs redundantes de Historial retiradas;
+- trazabilidad `Cargado por` / `Confirmado por` (puede aparecer después del detalle asincrónico);
+- `REPORTAR UN ERROR` como acceso unificado;
+- clasificación carga/corrección/reemplazo de identidad;
+- Nivel 5/5 sin píldora persistente `NIVEL CALIBRADO`;
+- TU MOMENTO sin atribución falsa de carga;
+- Intelligence con un solo `POR QUÉ APARECEN ESTOS INSIGHTS`;
+- notificaciones con actor/contexto real y filtrado self-caused;
+- headers/blur del paquete 25SEP.
+
+
