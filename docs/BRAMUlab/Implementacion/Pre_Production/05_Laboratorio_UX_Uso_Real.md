@@ -1884,6 +1884,31 @@ Dirección:
 
 Este criterio debe ser consistente con Historial.
 
+
+
+### Regla de retorno a Laboratorio después de una ronda correctiva
+
+No volver a pedirle a Sebastián una revisión física amplia mientras exista una batería conocida de cambios que todavía no fue implementada, revisada o descartada explícitamente por una razón real.
+
+Antes de volver al Laboratorio, Central debe preparar una **lista de cambios a validar** que funcione como memoria de la ronda. Esa lista debe indicar, para cada punto:
+- qué pidió Sebastián;
+- qué se implementó finalmente;
+- dónde verlo;
+- qué comportamiento se espera;
+- si algo NO se implementó, por qué y con qué decisión explícita.
+
+No vale dejar pedidos conocidos “para después” de forma silenciosa y luego pedir otra revisión general.
+
+Si un pedido:
+- no es técnicamente posible en esta etapa;
+- implica una arquitectura desproporcionada;
+- requiere una decisión humana nueva;
+- o queda fuera por una razón de producto real;
+
+debe marcarse ANTES del próximo Laboratorio como **NO IMPLEMENTADO / DECISIÓN ABIERTA**, con motivo concreto. Todo lo demás debe llegar ya corregido.
+
+Objetivo operativo: que Sebastián se siente a revisar una batería sustancial de cambios una sola vez, y que su revisión sirva principalmente para validar si el resultado coincide con lo esperado o para aclarar una interpretación, no para volver a descubrir pendientes ya conocidos.
+
 ### Regla de cierre para la próxima devolución a Sebastián
 
 Antes de pedirle otra revisión física amplia, Central debe confirmar que:
