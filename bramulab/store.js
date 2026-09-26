@@ -95,7 +95,12 @@
   // ({myTeam, opponentNames, score}) vía get_notifications, para que dos "Partido oficial" ya no
   // se vean idénticas y selfCaused funcione también sobre filas históricas. Mismo criterio:
   // APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
-  const BUNDLE_VERSION = '04.11-h7';
+  // Ronda correctiva QA 26SEP — `-h8`: falso onboarding al login, alineación real de Resumen
+  // (grid único), paridad visual del editor de corrección con Cargar partido, fila compacta
+  // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
+  // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
+  // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
+  const BUNDLE_VERSION = '04.11-h8';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

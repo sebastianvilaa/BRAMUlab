@@ -7219,6 +7219,320 @@
   })();
 
   // ------------------------------------------------------------------
+  // RONDA CORRECTIVA QA 26SEP — §15.24 "Login — falso retorno al onboarding de Nivel"
+  //
+  // Auth.fetchOwnProfile() leía profiles + level_states en paralelo y, si SOLO la lectura de
+  // level_states fallaba (red/RPC transitoria), devolvía igual un usuario válido con
+  // `levelState:null` — exactamente la misma forma que una cuenta genuinamente sin Nivel.
+  // app.js#resumeServerSession interpretaba ambos casos igual y mandaba a una cuenta YA
+  // oficializada de vuelta al onboarding (resumeSignupProfileStep/resumeDraftFlow), pisando
+  // potencialmente signupDraft. La corrección agrega `levelStateReadFailed` (true SOLO cuando
+  // la query de level_states erroró) para que app.js pueda distinguir "no hay level_state"
+  // (fila realmente ausente, sin error) de "no pudimos leerlo" — resumeServerSession vive en
+  // app.js, que no tiene cobertura unitaria por diseño (ver nota B7F5 más abajo), así que acá
+  // se prueba el contrato real que app.js consume: fetchOwnProfile() con un cliente Supabase
+  // fabricado que reproduce ambos casos.
+  // ------------------------------------------------------------------
+  await (async function () {
+    const originalPLAuth = window.PLAuth;
+    const originalEnv = window.__BRAMU_ENV__;
+    const originalSupabase = window.supabase;
+    function makeFetchProfileFakeClient({ userError, profileRows, profileError, levelRows, levelError }) {
+      return {
+        auth: {
+          getUser: () => Promise.resolve({
+            data: userError ? null : { user: { id: 'u1', email: 'seba_qa@test.com' } },
+            error: userError || null,
+          }),
+        },
+        from(table) {
+          return {
+            select() {
+              if (table === 'profiles') return Promise.resolve({ data: profileRows, error: profileError || null });
+              if (table === 'level_states') return Promise.resolve({ data: levelRows, error: levelError || null });
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      };
+    }
+    const baseProfileRow = {
+      player_id: 'p_seba_qa', username: 'seba_qa', first_name: 'Seba', last_name: 'QA',
+      display_name: 'Seba QA', avatar_url: null, current_category: null, phone: null,
+      allow_whatsapp_contact: false, ranking_opt_in: false, locations: null,
+    };
+    const officialLevelRow = {
+      status: 'CALIBRADO', mu: 5.8, confidence: 0.9, rated_matches: 12, distinct_opponents: 6,
+      declared_category: 'C', category_context_key: 'ctx', algorithm_version: 'v1', updated_at: '2026-09-01T00:00:00Z',
+    };
+    try {
+      window.__BRAMU_ENV__ = { supabaseUrl: 'https://fake.test', supabaseAnonKey: 'fake-anon-key' };
+      window.PLAuth = originalPLAuth;
+
+      // Caso real de Central sobre Staging: @seba_qa YA tiene level_states oficial (CALIBRADO),
+      // pero la lectura de esa tabla falla de forma transitoria (RPC/red caída).
+      // Auth.__resetClientForTests() es obligatorio antes de CADA escenario: auth.js memoiza
+      // `client` como singleton lazy (correcto en producción), y el bloque B7F5-C01 de arriba
+      // ya lo dejó fijado a SU fake client (sin `.auth`/`.from`) — sin el reset, este bloque
+      // seguiría usando ese cliente viejo en vez del fabricado acá para cada caso.
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeFetchProfileFakeClient({
+        profileRows: [baseProfileRow], levelRows: null, levelError: { message: 'network error' },
+      }) };
+      const failedRead = await Auth.fetchOwnProfile();
+      assert('QA26SEP-LOGIN · lectura de level_states fallida: fetchOwnProfile NO devuelve null (el perfil sí se pudo leer)', failedRead !== null);
+      assert('QA26SEP-LOGIN · lectura de level_states fallida: levelStateReadFailed=true', failedRead && failedRead.levelStateReadFailed === true);
+      assert('QA26SEP-LOGIN · lectura de level_states fallida: levelState queda null igual (compatibilidad de forma), pero el flag la distingue', failedRead && failedRead.levelState === null);
+
+      // Caso "genuinamente ausente" (excepcional: el trigger no creó la fila) — SIN error, con
+      // 0 filas. Debe seguir viéndose como onboarding realmente incompleto, no como falla.
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeFetchProfileFakeClient({
+        profileRows: [baseProfileRow], levelRows: [], levelError: null,
+      }) };
+      const genuinelyAbsent = await Auth.fetchOwnProfile();
+      assert('QA26SEP-LOGIN · level_state genuinamente ausente (sin error, 0 filas): levelStateReadFailed=false', genuinelyAbsent && genuinelyAbsent.levelStateReadFailed === false);
+      assert('QA26SEP-LOGIN · level_state genuinamente ausente: levelState sigue null (no se inventa un estado)', genuinelyAbsent && genuinelyAbsent.levelState === null);
+
+      // Caso PENDIENTE real (onboarding sin terminar) — sin error, con fila.
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeFetchProfileFakeClient({
+        profileRows: [baseProfileRow], levelRows: [Object.assign({}, officialLevelRow, { status: 'PENDIENTE' })], levelError: null,
+      }) };
+      const pending = await Auth.fetchOwnProfile();
+      assert('QA26SEP-LOGIN · cuenta PENDIENTE real: levelStateReadFailed=false y levelState.status=PENDIENTE (onboarding sí debe retomarse)',
+        pending && pending.levelStateReadFailed === false && pending.levelState && pending.levelState.status === 'PENDIENTE');
+
+      // Caso normal (@seba_qa real): perfil + Nivel oficial, todo OK.
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeFetchProfileFakeClient({
+        profileRows: [baseProfileRow], levelRows: [officialLevelRow], levelError: null,
+      }) };
+      const ok = await Auth.fetchOwnProfile();
+      assert('QA26SEP-LOGIN · cuenta oficializada real: levelStateReadFailed=false y levelState.status=CALIBRADO', ok && ok.levelStateReadFailed === false && ok.levelState && ok.levelState.status === 'CALIBRADO');
+
+      // Falla total (perfil tampoco se pudo leer) — comportamiento previo intacto: fetchOwnProfile sigue devolviendo null.
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeFetchProfileFakeClient({
+        profileRows: null, profileError: { message: 'network error' }, levelRows: [officialLevelRow], levelError: null,
+      }) };
+      const totalFailure = await Auth.fetchOwnProfile();
+      assert('QA26SEP-LOGIN · falla de perfil (no solo de level_states): fetchOwnProfile sigue devolviendo null, sin cambios', totalFailure === null);
+    } finally {
+      Auth.__resetClientForTests();
+      window.PLAuth = originalPLAuth;
+      window.__BRAMU_ENV__ = originalEnv;
+      window.supabase = originalSupabase;
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // RONDA CORRECTIVA QA 26SEP — §15.24 "Fila compacta server-backed de jugador"
+  //
+  // search_players ahora suma avatar_url (migración preprod_ux_players_compact) y la nueva RPC
+  // batch get_players_compact resuelve username/Nivel/avatar de una lista de player_ids YA
+  // conocidos (RECIENTES) — ambas resuelven sus avatares con UNA sola llamada batch a Storage
+  // (resolveAvatarUrlsBatch/createSignedUrls), nunca una createSignedUrl por fila. Se prueba acá
+  // el contrato real que app.js consume, con un cliente Supabase fabricado que registra cuántas
+  // veces se llamó cada método — la prueba central de "nunca N llamadas" es justamente contar.
+  // ------------------------------------------------------------------
+  await (async function () {
+    const originalPLAuth = window.PLAuth;
+    const originalEnv = window.__BRAMU_ENV__;
+    const originalSupabase = window.supabase;
+    function makeCompactFakeClient({ searchRows, compactRows, signedUrlByPath }) {
+      const rpcCalls = [];
+      const storageCalls = [];
+      return {
+        rpc(name, args) {
+          rpcCalls.push({ name, args });
+          if (name === 'search_players') return Promise.resolve({ data: searchRows || [], error: null });
+          if (name === 'get_players_compact') return Promise.resolve({ data: compactRows || [], error: null });
+          return Promise.resolve({ data: null, error: null });
+        },
+        storage: {
+          from(bucket) {
+            return {
+              createSignedUrls(paths, ttl) {
+                storageCalls.push({ bucket, paths: paths.slice(), ttl });
+                const data = paths.map((p) => (signedUrlByPath && signedUrlByPath[p])
+                  ? { path: p, signedUrl: signedUrlByPath[p], error: null }
+                  : { path: p, signedUrl: null, error: { message: 'not found' } });
+                return Promise.resolve({ data, error: null });
+              },
+            };
+          },
+        },
+        rpcCalls, storageCalls,
+      };
+    }
+    try {
+      window.__BRAMU_ENV__ = { supabaseUrl: 'https://fake.test', supabaseAnonKey: 'fake-anon-key' };
+      window.PLAuth = originalPLAuth;
+
+      // ---- searchPlayers: avatar_signed_url resuelto en UNA sola llamada batch ----
+      Auth.__resetClientForTests();
+      const searchClient = makeCompactFakeClient({
+        searchRows: [
+          { player_id: 'p1', username: 'seba', display_name: 'Seba', level_status: 'CALIBRADO', level_public: 5.8, avatar_url: 'p1/foto.jpg' },
+          { player_id: 'p2', username: 'matu', display_name: 'Matu', level_status: 'PENDIENTE', level_public: null, avatar_url: null },
+        ],
+        signedUrlByPath: { 'p1/foto.jpg': 'https://signed.test/p1.jpg' },
+      });
+      window.supabase = { createClient: () => searchClient };
+      const searchRes = await Auth.searchPlayers('seba', 20);
+      assert('QA26SEP-PLAYERS · searchPlayers sigue devolviendo {ok:true, players:[...]}', searchRes.ok === true && Array.isArray(searchRes.players) && searchRes.players.length === 2);
+      assert('QA26SEP-PLAYERS · searchPlayers resuelve avatar_signed_url real para la fila con avatar_url', searchRes.players[0].avatar_signed_url === 'https://signed.test/p1.jpg');
+      assert('QA26SEP-PLAYERS · searchPlayers deja avatar_signed_url=null para la fila sin avatar_url (nunca inventa una URL)', searchRes.players[1].avatar_signed_url === null);
+      assert('QA26SEP-PLAYERS · searchPlayers firma los avatares en UNA sola llamada createSignedUrls (nunca una por fila)', searchClient.storageCalls.length === 1 && searchClient.storageCalls[0].paths.length === 1);
+
+      // ---- getPlayersCompact: forma real, dedupe, batch, exclusiones honestas ----
+      Auth.__resetClientForTests();
+      const compactClient = makeCompactFakeClient({
+        compactRows: [
+          { player_id: 'p1', username: 'seba', display_name: 'Seba', level_status: 'CALIBRADO', level_public: 5.8, avatar_url: 'p1/foto.jpg' },
+          { player_id: 'p2', username: 'matu', display_name: 'Matu', level_status: null, level_public: null, avatar_url: null },
+        ],
+        signedUrlByPath: { 'p1/foto.jpg': 'https://signed.test/p1.jpg' },
+      });
+      window.supabase = { createClient: () => compactClient };
+      const compactRes = await Auth.getPlayersCompact(['p1', 'p2', 'p1', 'p2']);
+      assert('QA26SEP-PLAYERS · getPlayersCompact devuelve {ok:true, players:Map}', compactRes.ok === true && compactRes.players instanceof Map);
+      assert('QA26SEP-PLAYERS · getPlayersCompact dedupea los player_id ANTES de llamar a la RPC (nunca manda duplicados)', compactClient.rpcCalls[0].args.p_player_ids.length === 2);
+      const p1 = compactRes.players.get('p1');
+      assert('QA26SEP-PLAYERS · getPlayersCompact: fila real trae username/displayName/Nivel/avatar reales', p1 && p1.username === 'seba' && p1.displayName === 'Seba' && p1.levelStatus === 'CALIBRADO' && p1.levelPublic === 5.8 && p1.avatarSignedUrl === 'https://signed.test/p1.jpg');
+      const p2 = compactRes.players.get('p2');
+      assert('QA26SEP-PLAYERS · getPlayersCompact: sin level_state/avatar reales, cada campo cae a null (nunca inventa un valor)', p2 && p2.levelStatus === null && p2.levelPublic === null && p2.avatarSignedUrl === null);
+      assert('QA26SEP-PLAYERS · getPlayersCompact resuelve TODOS los avatares del lote en UNA sola llamada createSignedUrls', compactClient.storageCalls.length === 1);
+      assert('QA26SEP-PLAYERS · getPlayersCompact llama get_players_compact UNA sola vez para todo el lote (nunca N)', compactClient.rpcCalls.filter((c) => c.name === 'get_players_compact').length === 1);
+
+      // ---- getPlayersCompact([]) — camino rápido, sin llamar a la RPC ----
+      Auth.__resetClientForTests();
+      const emptyClient = makeCompactFakeClient({});
+      window.supabase = { createClient: () => emptyClient };
+      const emptyRes = await Auth.getPlayersCompact([]);
+      assert('QA26SEP-PLAYERS · getPlayersCompact([]) devuelve un Map vacío sin llamar a la RPC', emptyRes.ok === true && emptyRes.players.size === 0 && emptyClient.rpcCalls.length === 0);
+
+      // ---- un player_id ausente en la respuesta de la RPC simplemente no entra al Map ----
+      Auth.__resetClientForTests();
+      const partialClient = makeCompactFakeClient({
+        compactRows: [{ player_id: 'p1', username: 'seba', display_name: 'Seba', level_status: 'CALIBRADO', level_public: 5.8, avatar_url: null }],
+      });
+      window.supabase = { createClient: () => partialClient };
+      const partialRes = await Auth.getPlayersCompact(['p1', 'p_provisional_o_dado_de_baja']);
+      assert('QA26SEP-PLAYERS · un player_id que la RPC no devolvió (provisional/inactivo/sin username) queda AUSENTE del Map, nunca con datos inventados', partialRes.players.has('p1') && !partialRes.players.has('p_provisional_o_dado_de_baja'));
+    } finally {
+      Auth.__resetClientForTests();
+      window.PLAuth = originalPLAuth;
+      window.__BRAMU_ENV__ = originalEnv;
+      window.supabase = originalSupabase;
+    }
+  })();
+
+  // ------------------------------------------------------------------
+  // RONDA CORRECTIVA QA 26SEP — §15.24 punto 5 "Mis Jugadores / Agregar Jugador — terminar
+  // migración server-backed"
+  //
+  // savePlayer/removeSavedPlayer/listSavedPlayers/isPlayerSaved (auth.js) contra un cliente
+  // Supabase fabricado — mismo mecanismo que los bloques QA26SEP anteriores. listSavedPlayers
+  // reutiliza el mismo batch de avatares que getPlayersCompact/searchPlayers (UNA sola llamada
+  // createSignedUrls para todo el lote).
+  // ------------------------------------------------------------------
+  await (async function () {
+    const originalPLAuth = window.PLAuth;
+    const originalEnv = window.__BRAMU_ENV__;
+    const originalSupabase = window.supabase;
+    function makeMisJugadoresFakeClient({ saveResult, removeResult, listRows, savedValue, signedUrlByPath }) {
+      const rpcCalls = [];
+      const storageCalls = [];
+      return {
+        rpc(name, args) {
+          rpcCalls.push({ name, args });
+          if (name === 'save_player') return Promise.resolve({ data: saveResult, error: null });
+          if (name === 'remove_saved_player') return Promise.resolve({ data: removeResult, error: null });
+          if (name === 'list_saved_players') return Promise.resolve({ data: listRows || [], error: null });
+          if (name === 'is_player_saved') return Promise.resolve({ data: !!savedValue, error: null });
+          return Promise.resolve({ data: null, error: null });
+        },
+        storage: {
+          from(bucket) {
+            return {
+              createSignedUrls(paths) {
+                storageCalls.push({ bucket, paths: paths.slice() });
+                const data = paths.map((p) => (signedUrlByPath && signedUrlByPath[p])
+                  ? { path: p, signedUrl: signedUrlByPath[p], error: null }
+                  : { path: p, signedUrl: null, error: { message: 'not found' } });
+                return Promise.resolve({ data, error: null });
+              },
+            };
+          },
+        },
+        rpcCalls, storageCalls,
+      };
+    }
+    try {
+      window.__BRAMU_ENV__ = { supabaseUrl: 'https://fake.test', supabaseAnonKey: 'fake-anon-key' };
+      window.PLAuth = originalPLAuth;
+
+      // ---- savePlayer: éxito ----
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ saveResult: { ok: true } }) };
+      const saveOk = await Auth.savePlayer('p1');
+      assert('QA26SEP-MISJUGADORES · savePlayer éxito devuelve {ok:true}', saveOk.ok === true);
+
+      // ---- savePlayer: código de negocio (cannot_save_self) nunca lanza ----
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ saveResult: { ok: false, code: 'cannot_save_self' } }) };
+      const saveSelf = await Auth.savePlayer('p_self');
+      assert('QA26SEP-MISJUGADORES · savePlayer propaga cannot_save_self como {ok:false, code}, nunca una excepción', saveSelf.ok === false && saveSelf.code === 'cannot_save_self');
+
+      // ---- savePlayer: player_not_found ----
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ saveResult: { ok: false, code: 'player_not_found' } }) };
+      const saveMissing = await Auth.savePlayer('p_provisional');
+      assert('QA26SEP-MISJUGADORES · savePlayer propaga player_not_found (provisional/inactivo/sin username)', saveMissing.ok === false && saveMissing.code === 'player_not_found');
+
+      // ---- removeSavedPlayer: siempre {ok:true} (idempotente) ----
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ removeResult: { ok: true } }) };
+      const removeRes = await Auth.removeSavedPlayer('p1');
+      assert('QA26SEP-MISJUGADORES · removeSavedPlayer devuelve {ok:true}', removeRes.ok === true);
+
+      // ---- listSavedPlayers: forma real + batch de avatares en UNA sola llamada ----
+      Auth.__resetClientForTests();
+      const listClient = makeMisJugadoresFakeClient({
+        listRows: [
+          { player_id: 'p1', username: 'seba', display_name: 'Seba', level_status: 'CALIBRADO', level_public: 5.8, avatar_url: 'p1/foto.jpg', saved_at: '2026-09-26T10:00:00Z' },
+          { player_id: 'p2', username: 'matu', display_name: 'Matu', level_status: null, level_public: null, avatar_url: null, saved_at: '2026-09-25T10:00:00Z' },
+        ],
+        signedUrlByPath: { 'p1/foto.jpg': 'https://signed.test/p1.jpg' },
+      });
+      window.supabase = { createClient: () => listClient };
+      const listRes = await Auth.listSavedPlayers();
+      assert('QA26SEP-MISJUGADORES · listSavedPlayers devuelve {ok:true, players:[...]} con 2 filas', listRes.ok === true && listRes.players.length === 2);
+      assert('QA26SEP-MISJUGADORES · listSavedPlayers resuelve avatarSignedUrl real para la fila con avatar', listRes.players[0].avatarSignedUrl === 'https://signed.test/p1.jpg');
+      assert('QA26SEP-MISJUGADORES · listSavedPlayers deja avatarSignedUrl=null para la fila sin avatar (nunca inventa una URL)', listRes.players[1].avatarSignedUrl === null);
+      assert('QA26SEP-MISJUGADORES · listSavedPlayers resuelve TODOS los avatares del lote en UNA sola llamada createSignedUrls', listClient.storageCalls.length === 1);
+
+      // ---- isPlayerSaved: true/false reales ----
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ savedValue: true }) };
+      const savedTrue = await Auth.isPlayerSaved('p1');
+      assert('QA26SEP-MISJUGADORES · isPlayerSaved({ok:true, saved:true}) cuando la RPC devuelve true', savedTrue.ok === true && savedTrue.saved === true);
+
+      Auth.__resetClientForTests();
+      window.supabase = { createClient: () => makeMisJugadoresFakeClient({ savedValue: false }) };
+      const savedFalse = await Auth.isPlayerSaved('p2');
+      assert('QA26SEP-MISJUGADORES · isPlayerSaved({ok:true, saved:false}) cuando la RPC devuelve false', savedFalse.ok === true && savedFalse.saved === false);
+    } finally {
+      Auth.__resetClientForTests();
+      window.PLAuth = originalPLAuth;
+      window.__BRAMU_ENV__ = originalEnv;
+      window.supabase = originalSupabase;
+    }
+  })();
+
+  // ------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------
   const passCount = results.filter((r) => r.ok).length;

@@ -623,19 +623,26 @@
     </button>`;
   }
 
-  /** Backend Bloque 4 — variante de buildPlayerRowHTML para una fila YA resuelta por el
-   *  servidor (`search_players`): nunca re-resuelve por nombre (`buildGroupRowAccount` solo
-   *  conoce cuentas locales de ESTE dispositivo — nunca iba a encontrar a otra persona real,
-   *  02_Analisis_Claude.md §5). `data-player-id` es lo que `openPlayerPublicProfile` necesita
-   *  para pedir el perfil real vía `get_public_profile`, nunca por nombre. Nivel se muestra tal
-   *  cual lo persiste Bloque 3 (número real desde el día 1, nunca "CALIBRANDO X/5" — ese
-   *  placeholder es exclusivo del Nivel simulado local, ver renderPlayerPublicProfile). */
-  function buildPlayerRowHTMLFromServerRow(row) {
-    const name = row.display_name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.username || 'Jugador';
-    const levelText = (row.level_status && row.level_status !== 'PENDIENTE' && Number.isFinite(row.level_public)) ? row.level_public.toFixed(1) : '—';
-    const handle = row.username ? `@${row.username}` : buildPlayerHandle(name);
-    return `<button type="button" class="player-row" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(row.player_id)}">
-      <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
+  /** Ronda correctiva QA 26SEP (§15.24 "Fila compacta server-backed de jugador") — ÚNICA fila
+   *  compacta de un jugador REGISTRADO real, identidad SIEMPRE por `player_id`: reemplaza a
+   *  `buildPlayerRowHTMLFromServerRow` (resultados de `search_players` — ya tenía username/Nivel
+   *  reales, nunca avatar) y a `buildRecentRealPlayerRowHTML` (RECIENTES — solo tenía nombre,
+   *  con el subtítulo redundante "Jugaron juntos antes"). Reutilizada por Buscar jugadores,
+   *  RECIENTES (Cargar partido) y, cuando exista, Mis Jugadores (handoff punto 5) — un solo
+   *  lugar que arma este HTML. `p`: `{playerId, name, username, levelStatus, levelPublic,
+   *  avatarUrl}`, la MISMA forma que devuelve `Auth.getPlayersCompact`/`Auth.searchPlayers`
+   *  (avatarUrl ya resuelto a firma temporal, batch — nunca N llamadas por fila). Nunca inventa
+   *  username/Nivel/avatar: sin dato real, cada campo cae a su estado honesto ("—", iniciales). */
+  function buildCompactPlayerRowHTML(p) {
+    const name = p.name || 'Jugador';
+    const levelText = (p.levelStatus && p.levelStatus !== 'PENDIENTE' && Number.isFinite(p.levelPublic)) ? p.levelPublic.toFixed(1) : '—';
+    const handle = p.username ? `@${p.username}` : '—';
+    const hasPhoto = !!p.avatarUrl;
+    return `<button type="button" class="player-row" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(p.playerId)}">
+      <span class="player-row__avatar" data-has-photo="${hasPhoto ? 'true' : 'false'}">
+        <span class="player-row__avatar-initials">${escapeHtml(playerInitials(name))}</span>
+        ${hasPhoto ? `<img class="player-row__avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" />` : ''}
+      </span>
       <span class="player-row__info">
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(handle)}</span>
@@ -645,6 +652,19 @@
         <span class="player-row__level-label">NIVEL BRAMU</span>
       </span>
     </button>`;
+  }
+
+  /** Backend Bloque 4 — variante de buildCompactPlayerRowHTML para una fila YA resuelta por el
+   *  servidor (`search_players`, incluye `avatar_signed_url` desde la ronda correctiva QA
+   *  26SEP): nunca re-resuelve por nombre. `data-player-id` es lo que `openPlayerPublicProfile`
+   *  necesita para pedir el perfil real vía `get_public_profile`, nunca por nombre. */
+  function buildPlayerRowHTMLFromServerRow(row) {
+    const name = row.display_name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.username || 'Jugador';
+    return buildCompactPlayerRowHTML({
+      playerId: row.player_id, name, username: row.username,
+      levelStatus: row.level_status, levelPublic: row.level_public,
+      avatarUrl: row.avatar_signed_url || null,
+    });
   }
 
   /** V02.9 (§2) — REEMPLAZA el CTA grande de "agregar sin cuenta" (`.sheet-option--primary`,
@@ -731,23 +751,6 @@
     if (canAdd) $('#load-player-sheet-add').addEventListener('click', () => selectManualPlayer(trimmed));
   }
 
-  /** Ronda UX 25/09 (§N) — fila de RECIENTES server-backed: jugador REAL (cuenta registrada)
-   *  con el que ya se compartió un partido (PH.computeRecentRealPlayers), identidad SIEMPRE por
-   *  `player_id`. Deliberadamente SIN línea de `@usuario`: a diferencia de
-   *  `buildPlayerRowHTMLFromServerRow` (resultados de `search_players`, que ya trae el username
-   *  real), acá solo se dispone del nombre visible que trajo el propio historial de partidos —
-   *  fabricar un handle desde el nombre es exactamente el antipatrón que BRAMUlab_V03.6 corrigió
-   *  para una cuenta real resoluble (ver comentario de `buildPlayerRowHTML`), así que esta fila
-   *  usa un subtítulo neutro en vez de inventar uno. */
-  function buildRecentRealPlayerRowHTML(p) {
-    return `<button type="button" class="player-row" data-name="${escapeHtml(p.name || 'Jugador')}" data-player-id="${escapeHtml(p.playerId)}">
-      <span class="player-row__avatar">${escapeHtml(playerInitials(p.name || 'Jugador'))}</span>
-      <span class="player-row__info">
-        <span class="player-row__name">${escapeHtml(p.name || 'Jugador')}</span>
-        <span class="player-row__handle">Jugaron juntos antes</span>
-      </span>
-    </button>`;
-  }
 
   /** Backend Bloque 5 — fila de un invitado (identidad provisional) seleccionable en el sheet
    *  server-backed: creado por mí (`list_my_provisional_players`) o relacionado vía un partido
@@ -819,8 +822,29 @@
       const recentExcludedIds = excludedIds.concat(Array.from(provisionalById.keys()));
       const recents = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), recentExcludedIds, 12);
       if (recents.length) {
+        // Ronda correctiva QA 26SEP (§15.24 "Fila compacta server-backed de jugador") — UNA sola
+        // llamada batch (Auth.getPlayersCompact) resuelve username/Nivel/avatar reales de los
+        // player_id que ya trae RECIENTES — nunca N get_public_profile por fila. Un player_id
+        // ausente del Map (cuenta dada de baja/inactiva desde ese partido) sigue mostrando el
+        // nombre que trae el historial local, sin inventar username/Nivel/avatar — mismo criterio
+        // de "estado honesto" del resto de esta fila.
+        const compactResult = await Auth.getPlayersCompact(recents.map((r) => r.playerId));
+        // Misma guarda de respuesta tardía que las 3 llamadas de arriba: el sheet puede haber
+        // cambiado de slot/texto mientras esta esperaba.
+        if (manualActiveSheetSlot !== slot || (($('#load-player-sheet-search').value || '').trim()) !== trimmed) return;
+        const compactById = compactResult.ok ? compactResult.players : new Map();
         recentsSection.hidden = false;
-        recentsWrap.innerHTML = recents.map(buildRecentRealPlayerRowHTML).join('');
+        recentsWrap.innerHTML = recents.map((r) => {
+          const c = compactById.get(r.playerId);
+          return buildCompactPlayerRowHTML({
+            playerId: r.playerId,
+            name: (c && c.displayName) || r.name,
+            username: c ? c.username : null,
+            levelStatus: c ? c.levelStatus : null,
+            levelPublic: c ? c.levelPublic : null,
+            avatarUrl: c ? c.avatarSignedUrl : null,
+          });
+        }).join('');
         $all('#load-player-sheet-recents .player-row').forEach((btn) => {
           btn.addEventListener('click', () => selectManualPlayer(btn.dataset.name, btn.dataset.playerId));
         });
@@ -2117,11 +2141,17 @@
     // exactamente el mismo HTML/clases, solo cambia dónde se inserta.
     const winnersHTML = opts.winnersHTML || '';
 
+    // Ronda correctiva QA 26SEP (§15.24) — las dos filas de equipo viven DENTRO de
+    // `.result-card__rows`, el único grid real que comparten (ver styles.css): antes cada
+    // `.result-card__row` era grid por sí sola, dos grids independientes que solo coincidían en
+    // Chromium por casualidad de contenido simétrico, nunca por estructura garantizada.
     return `<div class="result-card">
       ${winnersHTML}
       ${durationsHTML}
-      ${cellsForTeam('A')}
-      ${cellsForTeam('B')}
+      <div class="result-card__rows">
+        ${cellsForTeam('A')}
+        ${cellsForTeam('B')}
+      </div>
       ${footerHTML}
       ${statsBlockHTML}
       ${durLabel ? `<p class="result-card__duration-total">${durLabel}</p>` : ''}
@@ -2283,6 +2313,17 @@
 
   // Proponer corrección — sheet activo.
   let b6CorrectionMatch = null; // f (forma local) del partido que se está corrigiendo
+  // Ronda correctiva QA 26SEP (§15.24) — estado del editor de resultado, mismo esquema que
+  // manualSets/manualDraftSet/... de Cargar partido (ver §6.3 más arriba) pero namespaced e
+  // independiente: acá NO hay selección de jugadores/formato, esos ya están fijos por `f`.
+  let b6CorrectionFormat = null;
+  let b6CorrectionSets = [null, null, null]; // sets ya confirmados en este editor, {a,b}|null
+  let b6CorrectionDraftSet = { a: undefined, b: undefined };
+  let b6CorrectionActiveSetIndex = 0;
+  let b6CorrectionDraftActiveTeam = 'A';
+  let b6CorrectionKeypadOpen = false;
+  let b6CorrectionKeypadDigits = '';
+  let b6CorrectionDecided = false;
   // No participé — partido activo (para armar los 4 lugares del picker).
   let b6ReportIdentityMatch = null;
   // Resolver identidad — issue/slot activos + exclusión de duplicados para el picker.
@@ -2799,7 +2840,7 @@
    *  real (antes la línea de handle quedaba vacía para cuentas registradas — solo Invitado la
    *  usaba). `username` ya viene en `search_players` (Bloque 4), nunca se fabrica un handle
    *  falso (mismo criterio anti-patrón ya corregido en BRAMUlab_V03.6 — ver
-   *  buildPlayerRowHTML/buildRecentRealPlayerRowHTML): sin username real, la línea queda vacía
+   *  buildPlayerRowHTML/buildCompactPlayerRowHTML): sin username real, la línea queda vacía
    *  en vez de inventar uno. Avatar deliberadamente NO incluido acá — requeriría resolver una
    *  URL firmada por candidato (N requests), fuera de alcance de esta ronda. */
   function buildIdentityResolveRowHTML(displayName, playerId, kind, username) {
@@ -2866,60 +2907,217 @@
   }
 
   /* ---- Proponer corrección ---- */
-  // Ronda UX 25/09 (§F) — REEMPLAZA la hoja anterior (un input por cada set YA existente, sin
-  // poder convertir un partido de 2 sets en uno de 3): reutiliza la MISMA lógica/composición que
-  // Cargar partido usa para decidir cuántos sets corresponden (ML.isThirdSetVisible) y el MISMO
-  // validador central (ML.validateMatchSets) — nunca un validador ni una gramática de score
-  // propios (Laboratorio §15.2/§15.7). El Set 3 se muestra/oculta dinámicamente mientras se
-  // tipea, exactamente con el mismo criterio que la carga original: recién cuando el Set 1 y el
-  // Set 2 son ambos resultados completos y válidos y dejan el partido 1-1.
+  // Ronda correctiva QA 26SEP (§15.24 "Corrección de resultado — paridad visual con Cargar
+  // partido") — REEMPLAZA el editor de inputs planos de la Ronda UX 25/09 (§F): ese editor ya
+  // reutilizaba el MISMO validador central (ML.validateMatchSets) y el MISMO criterio de Set 3
+  // (ML.isThirdSetVisible) — eso NO cambia acá, sigue siendo la única fuente de verdad de la
+  // gramática de resultado. Lo que cambia es la INTERACCIÓN: en vez de una grilla de
+  // <input type=number>, reutiliza la misma composición visual de Cargar partido (marcador
+  // acumulado + set en edición con teclado numérico dedicado — mismas clases CSS que
+  // #view-manual-load, ver styles.css) porque la QA física (04.11-h7) confirmó que la versión
+  // anterior, aunque funcionalmente correcta, seguía sintiéndose como una herramienta distinta.
+  // El estado (b6Correction*, declarado más arriba junto a b6CorrectionMatch) es un espejo
+  // MÁS SIMPLE del de Cargar partido (manualSets/manualDraftSet/...): acá no hay selección de
+  // jugadores ni cambio de formato, así que no hay nada de esa parte que replicar.
 
-  /** `{a,b}` numéricos del set `i` de la hoja de corrección, o `null` si la fila no existe (no
-   *  aplica a este formato) o todavía no está completa — misma forma que `manualSets` en Cargar
-   *  partido, para poder pasarla tal cual a `ML.validateMatchSets`/`ML.isThirdSetVisible`. */
-  function readCorrectionSetInput(i) {
-    const aInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="a"]`);
-    const bInput = $(`#propose-correction-sets input[data-set="${i}"][data-side="b"]`);
-    if (!aInput || !bInput) return null;
-    const a = aInput.value === '' ? NaN : Number(aInput.value);
-    const b = bInput.value === '' ? NaN : Number(bInput.value);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-    return { a, b };
+  function b6CorrectionNeededSlots() {
+    const thirdVisible = ML.isThirdSetVisible(b6CorrectionSets[0], b6CorrectionSets[1], b6CorrectionFormat);
+    return b6CorrectionFormat.bestOfSets === 1 ? 1 : (thirdVisible ? 3 : 2);
   }
-  /** Muestra/oculta la fila del Set 3 según ML.isThirdSetVisible sobre los valores YA tipeados
-   *  de los Sets 1 y 2 — se llama en cada `input` (ver initProposeCorrectionSheet). Limpia el
-   *  Set 3 al ocultarlo (mismo criterio que ML.computeFormatChangeImpact: nunca deja un valor
-   *  huérfano invisible que igual se mandaría al validar). */
-  function updateProposeCorrectionThirdSetVisibility(format) {
-    const row3 = $('#propose-correction-sets [data-set-row="2"]');
-    if (!row3) return; // formato a un único set (ej. Americano): no existe Set 3
-    const visible = ML.isThirdSetVisible(readCorrectionSetInput(0), readCorrectionSetInput(1), format);
-    row3.hidden = !visible;
-    if (!visible) {
-      const aInput = $('#propose-correction-sets input[data-set="2"][data-side="a"]');
-      const bInput = $('#propose-correction-sets input[data-set="2"][data-side="b"]');
-      if (aInput) aInput.value = '';
-      if (bInput) bInput.value = '';
+  function b6CorrectionTeamName(team) {
+    const f = b6CorrectionMatch;
+    if (!f) return team === 'A' ? 'Equipo A' : 'Equipo B';
+    return S.teamLabel(f.players, team) || (team === 'A' ? 'Equipo A' : 'Equipo B');
+  }
+
+  /** Espejo de renderManualAccumulated (§6.2 más arriba): sets ya CONFIRMADOS en este editor,
+   *  tocables para reabrirlos. */
+  function renderProposeCorrectionAccumulated() {
+    const wrap = $('#propose-correction-accumulated');
+    const upTo = b6CorrectionDecided ? b6CorrectionNeededSlots() : b6CorrectionActiveSetIndex;
+    const items = [];
+    for (let i = 0; i < upTo; i++) {
+      const s = b6CorrectionSets[i];
+      if (!s || !Number.isFinite(s.a) || !Number.isFinite(s.b)) continue;
+      items.push(`<button type="button" class="court-accumulated__set" data-set-index="${i}" aria-label="Editar Set ${i + 1}, ${s.a} a ${s.b}"><span class="court-accumulated__set-label">SET ${i + 1}</span><span class="court-accumulated__set-score">${s.a}–${s.b}</span></button>`);
     }
+    wrap.innerHTML = items.join('');
+    wrap.hidden = items.length === 0;
+    $all('#propose-correction-accumulated .court-accumulated__set').forEach((btn) => {
+      btn.addEventListener('click', () => reopenProposeCorrectionSet(Number(btn.dataset.setIndex)));
+    });
   }
+  /** Espejo de renderManualCurrentSetEditor (§6.3 más arriba). */
+  function renderProposeCorrectionCurrentSet() {
+    const section = $('#propose-correction-current-set');
+    if (b6CorrectionDecided) { section.hidden = true; return; }
+    section.hidden = false;
+    $('#propose-correction-current-set-label').textContent = b6CorrectionFormat.bestOfSets === 1 ? 'RESULTADO' : `RESULTADO DEL SET ${b6CorrectionActiveSetIndex + 1}`;
+    $('#propose-correction-score-a-name').textContent = b6CorrectionTeamName('A');
+    $('#propose-correction-score-b-name').textContent = b6CorrectionTeamName('B');
+    const liveDigits = (side) => b6CorrectionKeypadOpen && b6CorrectionDraftActiveTeam === side && b6CorrectionKeypadDigits;
+    const aVal = liveDigits('A') ? b6CorrectionKeypadDigits : (Number.isFinite(b6CorrectionDraftSet.a) ? String(b6CorrectionDraftSet.a) : '–');
+    const bVal = liveDigits('B') ? b6CorrectionKeypadDigits : (Number.isFinite(b6CorrectionDraftSet.b) ? String(b6CorrectionDraftSet.b) : '–');
+    $('#propose-correction-score-a-value').textContent = aVal;
+    $('#propose-correction-score-b-value').textContent = bVal;
+    $('#propose-correction-score-a').classList.toggle('is-active', b6CorrectionKeypadOpen && b6CorrectionDraftActiveTeam === 'A');
+    $('#propose-correction-score-b').classList.toggle('is-active', b6CorrectionKeypadOpen && b6CorrectionDraftActiveTeam === 'B');
+    $('#propose-correction-score-a').classList.toggle('is-empty', aVal === '–');
+    $('#propose-correction-score-b').classList.toggle('is-empty', bVal === '–');
+  }
+  /** Espejo de updateManualContinueState: "Resultado válido" + habilita ENVIAR CORRECCIÓN
+   *  únicamente cuando el editor ya cerró un resultado completo y válido. */
+  function updateProposeCorrectionSubmitState() {
+    $('#propose-correction-hint').hidden = !b6CorrectionDecided;
+    $('#propose-correction-submit').disabled = !b6CorrectionDecided;
+  }
+  function renderProposeCorrectionScoreboard() {
+    renderProposeCorrectionAccumulated();
+    renderProposeCorrectionCurrentSet();
+    updateProposeCorrectionSubmitState();
+  }
+
+  /** Espejo de updateManualKeypadKeysState. */
+  function updateProposeCorrectionKeypadKeysState() {
+    const otherValue = b6CorrectionDraftActiveTeam === 'A' ? b6CorrectionDraftSet.b : b6CorrectionDraftSet.a;
+    const allowed = new Set(ML.computeValidNextDigits('', b6CorrectionFormat, otherValue));
+    $all('#propose-correction-keypad [data-key]').forEach((btn) => {
+      const key = btn.dataset.key;
+      if (key === 'del' || key === 'done') { btn.disabled = false; return; }
+      btn.disabled = !allowed.has(key);
+    });
+  }
+  function openProposeCorrectionKeypad(team) {
+    if (b6CorrectionKeypadOpen) commitProposeCorrectionDraftDigits();
+    b6CorrectionDraftActiveTeam = team;
+    b6CorrectionKeypadOpen = true;
+    b6CorrectionKeypadDigits = '';
+    $('#propose-correction-keypad').hidden = false;
+    updateProposeCorrectionKeypadKeysState();
+    renderProposeCorrectionScoreboard();
+  }
+  function closeProposeCorrectionKeypad() {
+    commitProposeCorrectionDraftDigits();
+    b6CorrectionKeypadOpen = false;
+    b6CorrectionKeypadDigits = '';
+    $('#propose-correction-keypad').hidden = true;
+  }
+  function commitProposeCorrectionDraftDigits() {
+    if (!b6CorrectionKeypadOpen || !b6CorrectionKeypadDigits) return;
+    b6CorrectionDraftSet[b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b'] = Number(b6CorrectionKeypadDigits);
+    b6CorrectionKeypadDigits = '';
+  }
+  /** Espejo de advanceDraftSide: A -> B del mismo set; al cerrar B, intenta confirmar el set. */
+  function advanceProposeCorrectionDraftSide() {
+    if (b6CorrectionDraftActiveTeam === 'A') { openProposeCorrectionKeypad('B'); return; }
+    closeProposeCorrectionKeypad();
+    commitProposeCorrectionSetIfValid();
+  }
+  /** Espejo de pruneOrphanThirdSet. */
+  function b6CorrectionPruneOrphanThirdSet() {
+    if (b6CorrectionFormat.bestOfSets === 1) { b6CorrectionSets[2] = null; return; }
+    const set1 = b6CorrectionSets[0], set2 = b6CorrectionSets[1];
+    const bothComplete = set1 && set2 && Number.isFinite(set1.a) && Number.isFinite(set1.b) && Number.isFinite(set2.a) && Number.isFinite(set2.b);
+    if (!bothComplete) return;
+    if (b6CorrectionSets[2] && !ML.isThirdSetVisible(set1, set2, b6CorrectionFormat)) b6CorrectionSets[2] = null;
+  }
+  /** Espejo de commitCurrentManualSetIfValid: confirma el set en edición y avanza solo al
+   *  siguiente (o deja el editor "decidido"), con la misma confirmación previa cuando eso deja
+   *  huérfano un Set 3 ya cargado. */
+  function commitProposeCorrectionSetIfValid() {
+    if (b6CorrectionDecided) return;
+    if (!Number.isFinite(b6CorrectionDraftSet.a) || !Number.isFinite(b6CorrectionDraftSet.b)) { renderProposeCorrectionScoreboard(); return; }
+    if (!E.isValidCompletedSetScore(b6CorrectionDraftSet.a, b6CorrectionDraftSet.b, b6CorrectionFormat)) { renderProposeCorrectionScoreboard(); return; }
+
+    const applyConfirm = () => {
+      b6CorrectionSets[b6CorrectionActiveSetIndex] = { a: b6CorrectionDraftSet.a, b: b6CorrectionDraftSet.b };
+      if (b6CorrectionActiveSetIndex === 0 || b6CorrectionActiveSetIndex === 1) b6CorrectionPruneOrphanThirdSet();
+      const next = ML.resolveActiveSetIndex(b6CorrectionSets, b6CorrectionFormat);
+      if (next === null) {
+        b6CorrectionDecided = true;
+        renderProposeCorrectionScoreboard();
+      } else {
+        b6CorrectionActiveSetIndex = next;
+        const existing = b6CorrectionSets[next];
+        b6CorrectionDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+        if (existing) {
+          b6CorrectionDraftActiveTeam = 'A';
+          renderProposeCorrectionScoreboard();
+        } else {
+          openProposeCorrectionKeypad('A');
+        }
+      }
+    };
+
+    const thirdWasConfirmed = b6CorrectionActiveSetIndex !== 2 && b6CorrectionSets[2] && Number.isFinite(b6CorrectionSets[2].a) && Number.isFinite(b6CorrectionSets[2].b);
+    if (thirdWasConfirmed) {
+      const projectedSet1 = b6CorrectionActiveSetIndex === 0 ? b6CorrectionDraftSet : b6CorrectionSets[0];
+      const projectedSet2 = b6CorrectionActiveSetIndex === 1 ? b6CorrectionDraftSet : b6CorrectionSets[1];
+      if (!ML.isThirdSetVisible(projectedSet1, projectedSet2, b6CorrectionFormat)) {
+        confirmAction(
+          'Este cambio ya no necesita un tercer set',
+          'El resultado que ya cargaste en el Set 3 se va a descartar.',
+          applyConfirm,
+          () => { renderProposeCorrectionScoreboard(); }
+        );
+        return;
+      }
+    }
+    applyConfirm();
+  }
+  /** Espejo de pressManualKeypadKey. */
+  function pressProposeCorrectionKeypadKey(key) {
+    if (!b6CorrectionKeypadOpen) return;
+    if (key === 'del') {
+      if (b6CorrectionKeypadDigits) { b6CorrectionKeypadDigits = b6CorrectionKeypadDigits.slice(0, -1); }
+      else { b6CorrectionDraftSet[b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b'] = undefined; }
+      renderProposeCorrectionScoreboard();
+      return;
+    }
+    if (key === 'done') {
+      closeProposeCorrectionKeypad();
+      commitProposeCorrectionSetIfValid();
+      return;
+    }
+    const otherValue = b6CorrectionDraftActiveTeam === 'A' ? b6CorrectionDraftSet.b : b6CorrectionDraftSet.a;
+    b6CorrectionKeypadDigits += key;
+    if (!ML.canExtendSetDigits(b6CorrectionKeypadDigits, b6CorrectionFormat, otherValue)) {
+      commitProposeCorrectionDraftDigits();
+      advanceProposeCorrectionDraftSide();
+      return;
+    }
+    renderProposeCorrectionScoreboard();
+  }
+  /** Espejo de reopenManualSet: tocar un set ya confirmado en el marcador acumulado lo reabre
+   *  como borrador editable. */
+  function reopenProposeCorrectionSet(i) {
+    if (b6CorrectionKeypadOpen) closeProposeCorrectionKeypad();
+    b6CorrectionDecided = false;
+    const s = b6CorrectionSets[i];
+    b6CorrectionDraftSet = s ? { a: s.a, b: s.b } : { a: undefined, b: undefined };
+    b6CorrectionActiveSetIndex = i;
+    b6CorrectionDraftActiveTeam = 'A';
+    renderProposeCorrectionScoreboard();
+  }
+
   function openProposeCorrection(f) {
     b6CorrectionMatch = f;
-    const format = E.FORMATS[f.formatId] || E.FORMATS.classic;
+    b6CorrectionFormat = E.FORMATS[f.formatId] || E.FORMATS.classic;
     const existing = f.sets || [];
-    const maxSlots = format.bestOfSets === 1 ? 1 : 3;
-    const wrap = $('#propose-correction-sets');
-    wrap.innerHTML = Array.from({ length: maxSlots }, (_, i) => {
+    b6CorrectionSets = [0, 1, 2].map((i) => {
       const s = existing[i];
-      return `
-      <div class="b6-correction-set" data-set-row="${i}">
-        <span class="b6-correction-set__label">SET ${i + 1}</span>
-        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="a" value="${s && Number.isFinite(s.gamesA) ? s.gamesA : ''}" />
-        <span class="b6-correction-set__sep">–</span>
-        <input type="number" min="0" max="30" inputmode="numeric" data-set="${i}" data-side="b" value="${s && Number.isFinite(s.gamesB) ? s.gamesB : ''}" />
-      </div>`;
-    }).join('');
-    updateProposeCorrectionThirdSetVisibility(format);
+      return (s && Number.isFinite(s.gamesA) && Number.isFinite(s.gamesB)) ? { a: s.gamesA, b: s.gamesB } : null;
+    });
+    if (b6CorrectionKeypadOpen) closeProposeCorrectionKeypad();
+    const next = ML.resolveActiveSetIndex(b6CorrectionSets, b6CorrectionFormat);
+    b6CorrectionDecided = next === null;
+    b6CorrectionActiveSetIndex = next === null ? Math.max(0, b6CorrectionNeededSlots() - 1) : next;
+    const activeExisting = b6CorrectionSets[b6CorrectionActiveSetIndex];
+    b6CorrectionDraftSet = activeExisting ? { a: activeExisting.a, b: activeExisting.b } : { a: undefined, b: undefined };
+    b6CorrectionDraftActiveTeam = 'A';
+    b6CorrectionKeypadDigits = '';
     $('#propose-correction-error').hidden = true;
+    renderProposeCorrectionScoreboard();
     $('#propose-correction-scrim').hidden = false;
     requestAnimationFrame(() => { $('#propose-correction-scrim').classList.add('is-open'); });
   }
@@ -2927,6 +3125,7 @@
     const scrim = $('#propose-correction-scrim');
     scrim.classList.remove('is-open');
     setTimeout(() => { scrim.hidden = true; }, 220);
+    if (b6CorrectionKeypadOpen) closeProposeCorrectionKeypad();
     b6CorrectionMatch = null;
   }
   async function submitProposeCorrection() {
@@ -2937,11 +3136,11 @@
       $('#propose-correction-error').hidden = false;
       return;
     }
-    // Ronda UX 25/09 (§F) — MISMO validador central que Cargar partido (ML.validateMatchSets),
-    // nunca un chequeo campo por campo propio: decide sola cuántos sets corresponden (incluido
-    // "falta definir el tercer set" cuando 1-1 todavía no cerró un Set 3) y con qué mensaje
-    // (MANUAL_ERROR_MESSAGES — el mismo mapa que ya usa Cargar partido, nunca copys duplicados).
-    const rawSets = [readCorrectionSetInput(0), readCorrectionSetInput(1), readCorrectionSetInput(2)];
+    // MISMO validador central que Cargar partido (ML.validateMatchSets), nunca un chequeo campo
+    // por campo propio: decide sola cuántos sets corresponden (incluido "falta definir el
+    // tercer set" cuando 1-1 todavía no cerró un Set 3) y con qué mensaje (MANUAL_ERROR_MESSAGES
+    // — el mismo mapa que ya usa Cargar partido, nunca copys duplicados).
+    const rawSets = [b6CorrectionSets[0], b6CorrectionSets[1], b6CorrectionSets[2]];
     const validation = ML.validateMatchSets(rawSets, f.formatId);
     if (!validation.ok) {
       $('#propose-correction-error').textContent = MANUAL_ERROR_MESSAGES[validation.reason] || 'Revisá el resultado cargado.';
@@ -2997,13 +3196,10 @@
     $('#propose-correction-close').addEventListener('click', closeProposeCorrection);
     $('#propose-correction-scrim').addEventListener('click', (e) => { if (e.target === $('#propose-correction-scrim')) closeProposeCorrection(); });
     $('#propose-correction-submit').addEventListener('click', submitProposeCorrection);
-    // Ronda UX 25/09 (§F) — recalcula la visibilidad del Set 3 en cada tecla, mismo criterio
-    // reactivo que Cargar partido (acá sin el teclado numérico dedicado: inputs planos, pero la
-    // MISMA función pura decide).
-    $('#propose-correction-sets').addEventListener('input', () => {
-      if (!b6CorrectionMatch) return;
-      const format = E.FORMATS[b6CorrectionMatch.formatId] || E.FORMATS.classic;
-      updateProposeCorrectionThirdSetVisibility(format);
+    $('#propose-correction-score-a').addEventListener('click', () => openProposeCorrectionKeypad('A'));
+    $('#propose-correction-score-b').addEventListener('click', () => openProposeCorrectionKeypad('B'));
+    $all('#propose-correction-keypad [data-key]').forEach((btn) => {
+      btn.addEventListener('click', () => pressProposeCorrectionKeypadKey(btn.dataset.key));
     });
   }
 
@@ -7004,14 +7200,23 @@
     if (result.ok) b6NotificationsCache = result.notifications;
   }
 
+  // Ronda correctiva QA 26SEP (§15.24 "Notificaciones — título genérico 'Partido oficial'") —
+  // 04.11-h7 ya resolvió actor/rivales/score/selfCaused/read-unread/click (ver mapB6Notification
+  // más abajo, sin tocar); lo único que cambia acá es el TÍTULO. Sebastián señaló que "oficial"
+  // no aporta porque ese es el estado NORMAL del producto, no lo que ocurrió — el título ahora
+  // nombra el EVENTO/ACCIÓN, nunca el estado genérico del partido (mismo criterio aplicado a los
+  // 2 títulos de identidad, que mezclaban "Identidad"/"Jugador" con el vocabulario ya unificado
+  // de "Participante" del resto de Bloque 6). pending_review/correction_proposed/
+  // correction_accepted/match_expired/admin_action ya describían el evento correctamente — sin
+  // cambios.
   const B6_NOTIF_COPY = {
     pending_review: { title: 'Partido pendiente', body: 'Tenés un partido esperando tu confirmación.', category: 'pending' },
     correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen una corrección de resultado.', category: 'pending' },
-    identity_questioned: { title: 'Identidad cuestionada', body: 'Hay una identidad cuestionada en uno de tus partidos.', category: 'pending' },
-    match_validated: { title: 'Partido oficial', body: 'Tu partido ya quedó validado.', category: 'positive' },
+    identity_questioned: { title: 'Participante cuestionado', body: 'Hay una identidad cuestionada en uno de tus partidos.', category: 'pending' },
+    match_validated: { title: 'Resultado confirmado', body: 'Tu partido ya quedó validado.', category: 'positive' },
     correction_accepted: { title: 'Corrección aceptada', body: 'Se aceptó una corrección de resultado.', category: 'info' },
-    identity_resolved: { title: 'Identidad resuelta', body: 'Se resolvió una identidad cuestionada.', category: 'info' },
-    identity_unidentified: { title: 'Jugador no identificado', body: 'Un lugar quedó como Jugador no identificado — el resultado se conserva.', category: 'info' },
+    identity_resolved: { title: 'Participante corregido', body: 'Se resolvió una identidad cuestionada.', category: 'info' },
+    identity_unidentified: { title: 'Participante no identificado', body: 'Un lugar quedó como Jugador no identificado — el resultado se conserva.', category: 'info' },
     match_expired: { title: 'Partido vencido', body: 'Un partido venció sin validarse a tiempo.', category: 'error' },
     admin_action: { title: 'Acción administrativa', body: 'Un administrador realizó una acción sobre un partido tuyo.', category: 'info' },
   };
@@ -9054,6 +9259,11 @@
    *  nada que buscar todavía, se mantiene el estado vacío de siempre. */
   function renderJugadoresTab() {
     const user = Store.getCurrentUser();
+    // Ronda correctiva QA 26SEP (§15.24 punto 5 "Mis Jugadores / Agregar Jugador — terminar
+    // migración server-backed") — camino real server-backed por player_id
+    // (player_saved_players/list_saved_players), completamente independiente del legacy local
+    // por nombre de abajo. Nunca se mezclan: una cuenta server-backed usa SIEMPRE este camino.
+    if (user && user.serverBacked) { renderJugadoresTabServerBacked(); return; }
     const allNames = user ? Store.loadAddedPlayers(user.id) : [];
     const hasAny = allNames.length > 0;
     $('#jugadores-search-wrap').hidden = !hasAny;
@@ -9070,6 +9280,7 @@
 
   function renderJugadoresList(query) {
     const user = Store.getCurrentUser();
+    if (user && user.serverBacked) { renderJugadoresListServerBacked(query); return; }
     const allNames = user ? Store.loadAddedPlayers(user.id) : [];
     const history = getComputableHistory();
     const filtered = ML.filterPlayerCandidates(allNames, query, []);
@@ -9080,6 +9291,47 @@
     wrap.innerHTML = filtered.map((n) => buildPlayerRowHTML(n, computePlayerRowLevel(history, n))).join('');
     $all('#jugadores-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile(btn.dataset.name, 'jugadores-tab'));
+    });
+  }
+
+  // Ronda correctiva QA 26SEP (§15.24 punto 5) — última lista compacta traída de
+  // list_saved_players, cacheada para que el buscador de esta pestaña filtre EN MEMORIA (mismo
+  // criterio que el buscador legacy: nunca una llamada de red por tecla).
+  let jugadoresServerBackedCache = [];
+
+  async function renderJugadoresTabServerBacked() {
+    const result = await Auth.listSavedPlayers();
+    jugadoresServerBackedCache = result.ok ? result.players : [];
+    const hasAny = jugadoresServerBackedCache.length > 0;
+    $('#jugadores-search-wrap').hidden = !hasAny;
+    $('#jugadores-empty').hidden = hasAny;
+    if (!hasAny) {
+      $('#jugadores-list').hidden = true;
+      $('#jugadores-list').innerHTML = '';
+      $('#jugadores-search-empty').hidden = true;
+      return;
+    }
+    $('#jugadores-search-input').value = '';
+    renderJugadoresListServerBacked('');
+  }
+
+  function renderJugadoresListServerBacked(query) {
+    const q = normalizePlayerName(query || '').toLocaleLowerCase('es');
+    const filtered = !q ? jugadoresServerBackedCache : jugadoresServerBackedCache.filter((p) => {
+      const name = (p.displayName || '').toLocaleLowerCase('es');
+      const username = (p.username || '').toLocaleLowerCase('es');
+      return name.includes(q) || username.includes(q);
+    });
+    const wrap = $('#jugadores-list');
+    const isEmpty = filtered.length === 0;
+    wrap.hidden = isEmpty;
+    $('#jugadores-search-empty').hidden = !isEmpty;
+    wrap.innerHTML = filtered.map((p) => buildCompactPlayerRowHTML({
+      playerId: p.playerId, name: p.displayName || 'Jugador', username: p.username,
+      levelStatus: p.levelStatus, levelPublic: p.levelPublic, avatarUrl: p.avatarSignedUrl,
+    })).join('');
+    $all('#jugadores-list .player-row').forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile({ name: btn.dataset.name, playerId: btn.dataset.playerId }, 'jugadores-tab'));
     });
   }
 
@@ -9252,6 +9504,20 @@
     btn.classList.toggle('analysis-delete-btn', added);
   }
 
+  /** Ronda correctiva QA 26SEP (§15.24 punto 5) — variante server-backed de
+   *  renderPlayerPublicAddButton: mismo texto/jerarquía visual (lima "AGREGAR JUGADOR" ↔ rojo
+   *  terciario "ELIMINAR DE JUGADORES"), estado real desde Auth.isPlayerSaved (nunca
+   *  Store.isPlayerAdded — esa lista es local/legacy por nombre, un sistema completamente
+   *  distinto). `saved === null` (todavía sin respuesta real) mantiene el botón oculto. */
+  function renderPlayerPublicAddButtonServerBacked(saved) {
+    const btn = $('#player-public-add-btn');
+    if (saved === null) { btn.hidden = true; return; }
+    btn.hidden = false;
+    btn.textContent = saved ? 'ELIMINAR DE JUGADORES' : 'AGREGAR JUGADOR';
+    btn.classList.toggle('btn-start', !saved);
+    btn.classList.toggle('analysis-delete-btn', saved);
+  }
+
   let playerPublicName = null;
   // Backend Bloque 4 — `player_id` real cuando el perfil se abrió desde un resultado
   // server-backed (search_players/get_public_profile); `null` para el camino local/legacy de
@@ -9259,6 +9525,11 @@
   let playerPublicPlayerId = null;
   let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
   let playerPublicWhatsappPhone = null; // BRAMUlab_V03.6 (§5) — teléfono a contactar, solo mientras el botón está visible
+  // Ronda correctiva QA 26SEP (§15.24 punto 5) — estado real de "¿ya está guardado?" para el
+  // camino server-backed (Auth.isPlayerSaved), independiente de Store.isPlayerAdded (legacy,
+  // local por nombre). `null` mientras no se sabe todavía (respuesta en vuelo) — el botón
+  // permanece oculto hasta tener una respuesta real, nunca asume un estado.
+  let playerPublicServerBackedSaved = null;
   // BRAMUlab_V03.5.1 (§10) — mismo criterio que playerPublicOrigin, pero para Mi Perfil/Mis
   // Datos: null (default) vuelve a Home como siempre; 'ranking' vuelve a Ranking.
   let profileScreenOrigin = null;
@@ -9414,11 +9685,14 @@
    *  Siguen OCULTOS por completo (nunca un placeholder "—", fuera de alcance de esta corrección
    *  acotada — ver el informe): Edad (privada para otra persona real), Mejor racha/Mejor nivel
    *  BRAMU histórico (`#player-public-performance-row` pediría un agregado nuevo aparte, no
-   *  cubierto por `matches_played`/`matches_won`). También se oculta AGREGAR JUGADOR: esa acción
-   *  escribe la lista local histórica por NOMBRE (Store.addPlayerToList), la misma identidad-por-
-   *  nombre que esta rama acaba de resolver correctamente por player_id — reintroducirla acá
-   *  sería la misma regresión que Bloque 4 vino a corregir. El camino local/legacy
-   *  (renderPlayerPublicProfile de arriba) conserva su UI anterior sin ningún cambio. */
+   *  cubierto por `matches_played`/`matches_won`).
+   *  Ronda correctiva QA 26SEP (§15.24 punto 5) — AGREGAR JUGADOR YA NO se oculta: existe un
+   *  camino real server-backed por player_id (player_saved_players/save_player/
+   *  remove_saved_player/is_player_saved), independiente de la lista local por nombre
+   *  (Store.addPlayerToList) que motivó ocultarlo en Bloque 4. `Auth.isPlayerSaved` se pide EN
+   *  PARALELO con `Auth.getPublicProfile` (mismo Promise.all, sin una segunda espera). El camino
+   *  local/legacy (renderPlayerPublicProfile de arriba) conserva su UI anterior sin ningún
+   *  cambio. */
   async function renderPlayerPublicProfileServerBacked(playerId, fallbackName) {
     setAvatarPreview('player-public-avatar-img', 'player-public-avatar-initials', null, fallbackName);
     $('#player-public-name').textContent = fallbackName;
@@ -9434,9 +9708,13 @@
     $('#player-public-ranking-card').hidden = true;
     $('#player-public-whatsapp-btn').hidden = true;
     playerPublicWhatsappPhone = null;
-    $('#player-public-add-btn').hidden = true;
+    playerPublicServerBackedSaved = null;
+    renderPlayerPublicAddButtonServerBacked(null);
 
-    const result = await Auth.getPublicProfile(playerId);
+    const [result, savedResult] = await Promise.all([
+      Auth.getPublicProfile(playerId),
+      Auth.isPlayerSaved(playerId),
+    ]);
     // Si mientras esperaba la respuesta el usuario ya navegó a otro perfil, no pisar esa
     // pantalla con una respuesta tardía de esta.
     if (playerPublicPlayerId !== playerId) return;
@@ -9444,6 +9722,8 @@
       showToast('No pudimos cargar este perfil.', 2600);
       return;
     }
+    playerPublicServerBackedSaved = savedResult.ok ? !!savedResult.saved : false;
+    renderPlayerPublicAddButtonServerBacked(playerPublicServerBackedSaved);
     const p = result.profile;
     const name = p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || fallbackName;
     playerPublicName = Store.normalizePlayerName(name);
@@ -9629,7 +9909,27 @@
     });
     // Microparche V03.3 (§4/§5) — feedback con el mismo toast chico de siempre, nunca un
     // modal: "Jugador agregado" (normal) / "Jugador eliminado" (variante roja, ver showToast).
-    $('#player-public-add-btn').addEventListener('click', () => {
+    // Ronda correctiva QA 26SEP (§15.24 punto 5) — con player_id real (perfil server-backed),
+    // usa save_player/remove_saved_player; sin él, el camino local/legacy de siempre
+    // (Store.isPlayerAdded/addPlayerToList/removePlayerFromList) queda intacto.
+    $('#player-public-add-btn').addEventListener('click', async () => {
+      if (playerPublicPlayerId && Auth.isConfigured()) {
+        const wasSaved = playerPublicServerBackedSaved;
+        const result = wasSaved
+          ? await Auth.removeSavedPlayer(playerPublicPlayerId)
+          : await Auth.savePlayer(playerPublicPlayerId);
+        if (!result.ok) {
+          const msg = result.code === 'cannot_save_self' ? 'No podés agregarte a vos mismo.'
+            : result.code === 'player_not_found' ? 'No pudimos encontrar a este jugador.'
+            : 'No pudimos actualizar tu lista. Probá de nuevo.';
+          showToast(msg, 2600);
+          return;
+        }
+        playerPublicServerBackedSaved = !wasSaved;
+        renderPlayerPublicAddButtonServerBacked(playerPublicServerBackedSaved);
+        showToast(wasSaved ? 'Jugador eliminado' : 'Jugador agregado', undefined, wasSaved ? 'danger' : undefined);
+        return;
+      }
       const user = Store.getCurrentUser();
       if (!user || !playerPublicName) return;
       if (Store.isPlayerAdded(user.id, playerPublicName)) {
@@ -9801,28 +10101,16 @@
     // nivel BRAMU" acá), misma fuente/lógica (RK.computeProfileRankingSummary vía
     // renderRankingCardForAccount) — nunca una segunda implementación de Ranking.
     renderMiPerfilRankingCard(user, getComputableHistory());
-    // Ronda UX 25/09 (Ronda 3, §4) — JUGADORES sigue usando identidad-por-NOMBRE de punta a
-    // punta (Store.loadAddedPlayers/addPlayerToList): tocar una fila llama
-    // openPlayerPublicProfile(name, 'jugadores-tab') SIN player_id, así que
-    // renderPlayerPublicProfile cae al camino LOCAL/legacy aunque el usuario actual sea
-    // server-backed — la misma identidad-por-nombre que Bloque 4 vino a corregir (mismo motivo
-    // por el que AGREGAR JUGADOR ya está oculto en el perfil público server-backed, ver
-    // renderPlayerPublicProfileServerBacked). No existe hoy una infraestructura server-backed
-    // mínima por player_id para "jugadores agregados" — crearla sería abrir un sistema social
-    // nuevo, fuera de alcance de esta ronda (handoff 13, §4: "no crear un sistema social/follow
-    // nuevo"). Mientras tanto, la pestaña entera se oculta para cuentas server-backed: nunca
-    // mostrarle a un usuario real una promesa que hoy BRAMU no puede cumplir correctamente. El
+    // Ronda correctiva QA 26SEP (§15.24 punto 5 "Mis Jugadores / Agregar Jugador — terminar
+    // migración server-backed") — JUGADORES ya no se oculta para cuentas server-backed: existe
+    // un camino real por player_id (player_saved_players, ver renderJugadoresTabServerBacked
+    // más arriba), independiente de la lista local por nombre (Store.loadAddedPlayers/
+    // addPlayerToList) que motivó ocultarla en la Ronda UX 25/09. La pestaña se renderiza
+    // siempre junto a las otras 2 (mismo criterio que ya usa esta función con MI PERFIL/MIS
+    // DATOS: las 3 se llenan al abrir Perfil, setProfileTab solo alterna cuál queda visible). El
     // camino local/legacy (cuentas sin backend/no serverBacked) sigue exactamente igual.
-    const hideJugadoresTab = !!(user && user.serverBacked);
-    $('#profile-tab-jugadores').hidden = hideJugadoresTab;
-    if (hideJugadoresTab) {
-      if (profileActiveTab === 'jugadores') setProfileTab('mi-perfil');
-    } else {
-      // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
-      // (mismo criterio que ya usa esta función con MI PERFIL/MIS DATOS: las 3 se llenan al
-      // abrir Perfil, setProfileTab solo alterna cuál queda visible).
-      renderJugadoresTab();
-    }
+    $('#profile-tab-jugadores').hidden = false;
+    renderJugadoresTab();
   }
 
   /* ------------------------------------------------------------------ */
@@ -11310,8 +11598,20 @@
    *  (Backend_Infraestructura.md §8.1: "el login acepta... entrar desde otro dispositivo"). */
   async function resumeServerSession(opts) {
     const options = opts || {};
-    const serverUser = await Auth.fetchOwnProfile();
-    if (!serverUser) {
+    let serverUser = await Auth.fetchOwnProfile();
+    // Ronda correctiva QA 26SEP (§15.24 "Login — falso retorno al onboarding de Nivel") — una
+    // falla parcial/transitoria de la lectura de level_states (`levelStateReadFailed`, ver
+    // auth.js#fetchOwnProfile) NUNCA debe interpretarse como "onboarding incompleto": antes de
+    // este fix, `serverUser.levelState` quedaba `null` igual que una cuenta genuinamente sin
+    // Nivel, y una cuenta ya oficializada terminaba en resumeSignupProfileStep/resumeDraftFlow
+    // como si fuera nueva. Un reintento inmediato alcanza para el caso típico (blip de red); si
+    // vuelve a fallar, se trata igual que "no pudimos leer el perfil" (mismo camino de abajo)
+    // en vez de tocar signupDraft — nunca se inventa que el onboarding está completo, tampoco
+    // se lo da por incompleto.
+    if (serverUser && serverUser.levelStateReadFailed) {
+      serverUser = await Auth.fetchOwnProfile();
+    }
+    if (!serverUser || serverUser.levelStateReadFailed) {
       if (options.afterLogin) {
         $('#login-error').textContent = LOGIN_ERROR_TEXT.unknown;
         $('#login-error').hidden = false;

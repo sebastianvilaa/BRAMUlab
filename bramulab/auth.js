@@ -48,6 +48,15 @@
     return !!(env && env.supabaseUrl && env.supabaseAnonKey && global.supabase && global.supabase.createClient);
   }
 
+  /** Solo para tests.html — `client` (abajo) es un singleton lazy real, correcto en producción
+   *  (una sola conexión Supabase por carga de página) pero un estorbo para un arnés que necesita
+   *  ejercitar el wrapper REAL de este archivo (no un stub de PLAuth entero) contra varios
+   *  clientes Supabase FABRICADOS distintos en la misma página (ronda correctiva QA 26SEP, tests
+   *  QA26SEP-LOGIN). Nunca se llama fuera de tests.html. */
+  function __resetClientForTests() {
+    client = null;
+  }
+
   function getClient() {
     if (client) return client;
     if (!isConfigured()) return null;
@@ -218,6 +227,14 @@
       // categoría ACTUAL, esa sí editable).
       declaredCategory: levelState ? levelState.declared_category || null : null,
       declaredCategoryAt: levelState ? levelState.updated_at || null : null,
+      // Ronda correctiva QA 26SEP — distingue "no hay level_state" (`levelError` falso, fila
+      // realmente ausente: caso excepcional del trigger, ver comentario de abajo) de "falló la
+      // LECTURA" (`levelError` truthy: red/RPC caída, nada dice que el server no tenga Nivel
+      // real). `levelState` queda `null` en AMBOS casos por compatibilidad con el resto de este
+      // objeto, pero solo este flag le permite a app.js#resumeServerSession no confundir una
+      // falla parcial/transitoria con una cuenta nueva — nunca debe derivar a onboarding por
+      // esto (§15.24 "Login — falso retorno al onboarding de Nivel").
+      levelStateReadFailed: !!levelError,
       // Backend Bloque 3 — estado oficial de Nivel BRAMU server-side. `null` únicamente en el
       // caso excepcional de que el trigger no haya podido crear la fila (nunca se inventa un
       // PENDIENTE local acá): app.js decide qué hacer con eso (retomar el borrador).
@@ -335,13 +352,115 @@
    *  con sesión real (mismo criterio que el resto de este archivo — `isConfigured()` es la
    *  única bisagra). Devuelve `{ok:true, players:[...]}` con la forma exacta que ya declara la
    *  RPC (snake_case tal cual, `app.js` traduce a la forma que usa la UI) o `{ok:false, code}`
-   *  con el código de excepción tal cual lo levanta la función (`rate_limited`, etc.). */
+   *  con el código de excepción tal cual lo levanta la función (`rate_limited`, etc.).
+   *  Ronda correctiva QA 26SEP (§15.24 "Fila compacta server-backed de jugador") — la RPC ahora
+   *  suma `avatar_url` (ver migración `20260927120000_preprod_ux_players_compact.sql`); acá se
+   *  agrega `avatar_signed_url` a cada fila con UNA sola llamada batch a Storage
+   *  (`resolveAvatarUrlsBatch`, nunca una `resolveAvatarUrl` por fila — el bug real reportado en
+   *  el Laboratorio era justo eso: la búsqueda mostraba inicial aunque el Perfil público de la
+   *  misma persona sí tuviera foto, porque esta RPC nunca traía `avatar_url` en absoluto). */
   async function searchPlayers(query, limit) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
     const { data, error } = await c.rpc('search_players', { p_query: query, p_limit: limit || 20 });
     if (error) return { ok: false, code: error.message || 'unknown' };
-    return { ok: true, players: Array.isArray(data) ? data : [] };
+    const players = Array.isArray(data) ? data : [];
+    const signedByPath = await resolveAvatarUrlsBatch(players.map((p) => p.avatar_url));
+    players.forEach((p) => { p.avatar_signed_url = p.avatar_url ? (signedByPath.get(p.avatar_url) || null) : null; });
+    return { ok: true, players };
+  }
+
+  /** Ronda correctiva QA 26SEP (§15.24 "Fila compacta server-backed de jugador") — batch de
+   *  identidad/Nivel/avatar por `player_id`s YA conocidos por el caller (RPC
+   *  `get_players_compact`, ver la migración `20260927120000_preprod_ux_players_compact.sql`).
+   *  NUNCA para descubrir jugadores nuevos por texto libre — eso sigue siendo `searchPlayers`.
+   *  Pensada para RECIENTES (hoy solo trae `{player_id, nombre}` del historial local, sin
+   *  username/Nivel/avatar — ver player-home.js#computeRecentRealPlayers) y reutilizable tal
+   *  cual para Mis Jugadores. UNA sola llamada de red + UNA sola llamada batch a Storage para
+   *  TODOS los avatares — nunca N `get_public_profile`/`resolveAvatarUrl` por fila (instrucción
+   *  explícita del handoff). Devuelve `{ok:true, players: Map<player_id, fila>}`: un `player_id`
+   *  ausente del Map significa que no es (ya) una cuenta registrada activa visible — el llamador
+   *  decide el fallback honesto, nunca se inventa username/Nivel para esa fila. */
+  async function getPlayersCompact(playerIds) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const ids = Array.from(new Set((playerIds || []).filter(Boolean)));
+    if (!ids.length) return { ok: true, players: new Map() };
+    const { data, error } = await c.rpc('get_players_compact', { p_player_ids: ids });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    const rows = Array.isArray(data) ? data : [];
+    const signedByPath = await resolveAvatarUrlsBatch(rows.map((r) => r.avatar_url));
+    const players = new Map();
+    rows.forEach((r) => {
+      players.set(r.player_id, {
+        playerId: r.player_id,
+        username: r.username || null,
+        displayName: r.display_name || null,
+        levelStatus: r.level_status || null,
+        levelPublic: Number.isFinite(r.level_public) ? r.level_public : null,
+        avatarSignedUrl: r.avatar_url ? (signedByPath.get(r.avatar_url) || null) : null,
+      });
+    });
+    return { ok: true, players };
+  }
+
+  /** Ronda correctiva QA 26SEP (§15.24 punto 5 "Mis Jugadores / Agregar Jugador — terminar
+   *  migración server-backed") — agrega `playerId` a la lista privada del caller (RPC
+   *  `save_player`, ver migración `20260927130000_preprod_ux_mis_jugadores.sql`). Idempotente.
+   *  `{ok:false, code}` con el código de negocio tal cual lo devuelve la RPC
+   *  (`cannot_save_self`/`player_not_found`) — nunca una excepción para estos casos esperables,
+   *  mismo criterio que `claimProvisionalPlayer`. */
+  async function savePlayer(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('save_player', { p_saved_player_id: playerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    if (!data.ok) return { ok: false, code: data.code || 'unknown' };
+    return { ok: true };
+  }
+
+  /** Ronda correctiva QA 26SEP — quita `playerId` de la lista privada del caller (RPC
+   *  `remove_saved_player`). Idempotente: `{ok:true}` incluso si no estaba guardado. */
+  async function removeSavedPlayer(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('remove_saved_player', { p_saved_player_id: playerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    if (!data || typeof data !== 'object' || !data.ok) return { ok: false, code: 'unknown' };
+    return { ok: true };
+  }
+
+  /** Ronda correctiva QA 26SEP — lista privada completa del caller (RPC `list_saved_players`,
+   *  más reciente primero), con los avatares resueltos en UNA sola llamada batch — mismo
+   *  criterio/forma que `getPlayersCompact`, nunca N llamadas por fila. `{ok:true, players:[...]}`
+   *  en el mismo orden que devuelve la RPC (ya viene ordenada server-side). */
+  async function listSavedPlayers() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('list_saved_players');
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    const rows = Array.isArray(data) ? data : [];
+    const signedByPath = await resolveAvatarUrlsBatch(rows.map((r) => r.avatar_url));
+    const players = rows.map((r) => ({
+      playerId: r.player_id,
+      username: r.username || null,
+      displayName: r.display_name || null,
+      levelStatus: r.level_status || null,
+      levelPublic: Number.isFinite(r.level_public) ? r.level_public : null,
+      avatarSignedUrl: r.avatar_url ? (signedByPath.get(r.avatar_url) || null) : null,
+    }));
+    return { ok: true, players };
+  }
+
+  /** Ronda correctiva QA 26SEP — `{ok:true, saved:boolean}` real (RPC `is_player_saved`) para que
+   *  Perfil público decida AGREGAR JUGADOR vs. la acción de quitar, sin traer la lista completa. */
+  async function isPlayerSaved(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('is_player_saved', { p_player_id: playerId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, saved: data === true };
   }
 
   /** Backend Bloque 4 — perfil público de un `player_id` puntual (RPC `get_public_profile`).
@@ -495,6 +614,27 @@
     return data.signedUrl;
   }
 
+  /** Ronda correctiva QA 26SEP (§15.24) — variante BATCH de `resolveAvatarUrl`: UNA sola llamada
+   *  `createSignedUrls` (plural, del SDK de Storage) para N rutas, en vez de N llamadas
+   *  `createSignedUrl` sueltas — usada por `searchPlayers`/`getPlayersCompact` para nunca firmar
+   *  avatares fila por fila. Devuelve un `Map<ruta, urlFirmada>`; una ruta que no pudo firmarse
+   *  (error puntual del SDK, fila sin `avatar_url`) simplemente no entra al Map — el llamador cae
+   *  al mismo fallback de iniciales que cualquier avatar ausente, nunca bloquea el resto del
+   *  lote. `[]`/`null`/sin sesión configurada -> Map vacío, nunca lanza. */
+  async function resolveAvatarUrlsBatch(avatarPaths) {
+    const map = new Map();
+    const uniquePaths = Array.from(new Set((avatarPaths || []).filter(Boolean)));
+    if (!uniquePaths.length) return map;
+    const c = getClient();
+    if (!c) return map;
+    const { data, error } = await c.storage.from(AVATAR_BUCKET).createSignedUrls(uniquePaths, AVATAR_SIGNED_URL_TTL_SECONDS);
+    if (error || !Array.isArray(data)) return map;
+    data.forEach((entry) => {
+      if (entry && entry.signedUrl && !entry.error) map.set(entry.path, entry.signedUrl);
+    });
+    return map;
+  }
+
   /** Pre-Production P0.1C — borra cualquier archivo YA subido en la carpeta propia
    *  ({playerId}/*, bucket avatars) antes de subir uno nuevo o al quitar la foto — nunca se
    *  acumulan archivos huérfanos de subidas anteriores. RLS de storage.objects ya restringe
@@ -537,14 +677,15 @@
   }
 
   global.PLAuth = {
-    isConfigured, getClient,
+    isConfigured, getClient, __resetClientForTests,
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, getSession,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
-    searchPlayers, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
+    searchPlayers, getPlayersCompact, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
     createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
-    updateCurrentCategory, resolveAvatarUrl,
+    updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
+    savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
