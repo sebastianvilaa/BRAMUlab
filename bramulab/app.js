@@ -3082,9 +3082,12 @@
   }
 
   /** Un insight ya renderizado por PLIntelligencePresentation (principal o secundario) a HTML —
-   *  "Por qué aparece" como `<details>` nativo (Backend Bloque 8 Fase D, handoff §7): factual,
-   *  desplegable, sin IDs/scores/reasonCodes — eso ya lo garantizó el propio módulo de
-   *  presentación, acá solo se pinta lo que llegó. */
+   *  factual, sin IDs/scores/reasonCodes (eso ya lo garantizó el propio módulo de presentación,
+   *  acá solo se pinta lo que llegó).
+   *  Ronda UX 25/09 (Ronda 3, §P) — BUG UX: "Por qué aparece" ya no se repite acá (un `<details>`
+   *  por insight, hasta 3 veces con principal + 2 secundarios, era el ruido visual reportado) —
+   *  se agrupa en un único acceso al final de la tarjeta, ver `buildIntelligenceWhyGroupHTML`.
+   *  Ningún claim/lógica/dato de Intelligence se toca, solo dónde vive el acceso a `insight.why`. */
   function buildIntelligenceInsightHTML(insight, isPrincipal) {
     const titleHTML = isPrincipal && insight.title
       ? `<h4 class="intelligence-insight__title">${escapeHtml(insight.title)}</h4>` : '';
@@ -3092,11 +3095,23 @@
       <div class="intelligence-insight ${isPrincipal ? 'intelligence-insight--principal' : 'intelligence-insight--secondary'}">
         ${titleHTML}
         <p class="intelligence-insight__body">${escapeHtml(insight.body)}</p>
-        <details class="intelligence-why">
-          <summary>Por qué aparece</summary>
-          <p>${escapeHtml(insight.why)}</p>
-        </details>
       </div>`;
+  }
+
+  /** Ronda UX 25/09 (Ronda 3, §P) — único acceso agrupado a la evidencia REAL (`insight.why`) de
+   *  todos los insights de esta tarjeta, reemplaza el "Por qué aparece" repetido bajo cada uno.
+   *  `insight.body` (SIEMPRE presente, a diferencia de `title` que solo trae el principal) hace
+   *  de etiqueta de cada evidencia — nunca se fabrica un texto nuevo, todo sale de lo que el
+   *  servidor ya calculó y devolvió (mismo `why` de siempre, un único `<details>` nativo). */
+  function buildIntelligenceWhyGroupHTML(insights) {
+    const withWhy = (insights || []).filter((i) => i && i.why);
+    if (!withWhy.length) return '';
+    const items = withWhy.map((i) => `<li><strong>${escapeHtml(i.body)}</strong>${escapeHtml(i.why)}</li>`).join('');
+    return `
+      <details class="intelligence-why intelligence-why--grouped">
+        <summary>Por qué aparecen estos insights</summary>
+        <ul class="intelligence-why__list">${items}</ul>
+      </details>`;
   }
 
   /** `output` es la salida completa de `get-match-intelligence` (Backend Bloque 8 Fase D):
@@ -3110,7 +3125,8 @@
     }
     const principalHTML = output.principal ? buildIntelligenceInsightHTML(output.principal, true) : '';
     const secondaryHTML = (output.secondary || []).map((i) => buildIntelligenceInsightHTML(i, false)).join('');
-    return principalHTML + secondaryHTML;
+    const allInsights = (output.principal ? [output.principal] : []).concat(output.secondary || []);
+    return principalHTML + secondaryHTML + buildIntelligenceWhyGroupHTML(allInsights);
   }
 
   /** BRAMU Intelligence V1 real y persistente (Backend Bloque 8, Fases A-D) — REEMPLAZA el
@@ -9760,10 +9776,28 @@
     // nivel BRAMU" acá), misma fuente/lógica (RK.computeProfileRankingSummary vía
     // renderRankingCardForAccount) — nunca una segunda implementación de Ranking.
     renderMiPerfilRankingCard(user, getComputableHistory());
-    // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
-    // (mismo criterio que ya usa este función con MI PERFIL/MIS DATOS: las 3 se llenan al
-    // abrir Perfil, setProfileTab solo alterna cuál queda visible).
-    renderJugadoresTab();
+    // Ronda UX 25/09 (Ronda 3, §4) — JUGADORES sigue usando identidad-por-NOMBRE de punta a
+    // punta (Store.loadAddedPlayers/addPlayerToList): tocar una fila llama
+    // openPlayerPublicProfile(name, 'jugadores-tab') SIN player_id, así que
+    // renderPlayerPublicProfile cae al camino LOCAL/legacy aunque el usuario actual sea
+    // server-backed — la misma identidad-por-nombre que Bloque 4 vino a corregir (mismo motivo
+    // por el que AGREGAR JUGADOR ya está oculto en el perfil público server-backed, ver
+    // renderPlayerPublicProfileServerBacked). No existe hoy una infraestructura server-backed
+    // mínima por player_id para "jugadores agregados" — crearla sería abrir un sistema social
+    // nuevo, fuera de alcance de esta ronda (handoff 13, §4: "no crear un sistema social/follow
+    // nuevo"). Mientras tanto, la pestaña entera se oculta para cuentas server-backed: nunca
+    // mostrarle a un usuario real una promesa que hoy BRAMU no puede cumplir correctamente. El
+    // camino local/legacy (cuentas sin backend/no serverBacked) sigue exactamente igual.
+    const hideJugadoresTab = !!(user && user.serverBacked);
+    $('#profile-tab-jugadores').hidden = hideJugadoresTab;
+    if (hideJugadoresTab) {
+      if (profileActiveTab === 'jugadores') setProfileTab('mi-perfil');
+    } else {
+      // BRAMUlab_V03.3 (§8) — JUGADORES: se renderiza siempre junto a las otras 2 pestañas
+      // (mismo criterio que ya usa esta función con MI PERFIL/MIS DATOS: las 3 se llenan al
+      // abrir Perfil, setProfileTab solo alterna cuál queda visible).
+      renderJugadoresTab();
+    }
   }
 
   /* ------------------------------------------------------------------ */

@@ -637,6 +637,26 @@ input, select{ font-family: inherit; }
    la app — `#view-player-home` conserva el suyo propio de todos modos porque un selector de
    ID siempre gana por especificidad sobre esta regla de clase, sin importar el orden. */
 .view--analysis, .view--history{ display:flex; flex-direction:column; height: 100vh; height:100dvh; background: var(--bg-gradient-app); }
+/* Ronda UX 25/09 (Ronda 3, §O) — patrón transversal, "constante de header" extendida: los 3
+   headers reales de la app (.analysis-header: Resumen/Historial/Perfil/Notificaciones/Ranking;
+   .player-home-header: Home; .court-header: Carga partido/Confirmar partido) no tenían FONDO
+   PROPIO — dejaban pasar el degradé de la vista entera (`--bg-gradient-app`/`.view--court`,
+   `--surface-1` en 0% → `--bg` en 40% de la altura TOTAL de la pantalla) por detrás de
+   logo/título. El header vive justo en el tramo donde ese degradé todavía está transicionando,
+   así que logo/título quedaban sobre una superficie cambiando de tono en vez de una placa
+   estable — reportado como "degradé/fade que invade logo/títulos, blur perceptible",
+   especialmente en Home y Carga partido (los 2 headers con más contenido/contraste en juego).
+   Fix: cada header pasa a tener SU PROPIO degradé corto, contenido enteramente dentro de su
+   propia altura (nunca se extiende al resto de la vista) + stacking explícito. Reutiliza
+   `--court-surface`/`--court-bg` (alias globales de `--surface-1`/`--bg`, ver :root más abajo)
+   en vez de hardcodear los tokens base: en pantallas `.view--court` esos alias ya resuelven un
+   escalón más claro (mismo criterio ya establecido ahí, sin pisarlo) — una sola regla sirve
+   para los 3 headers sin duplicar valores ni crear una paleta nueva. Padding/border-color de
+   cada header no se tocan (siguen intencionalmente distintos entre sí). */
+.analysis-header, .player-home-header, .court-header{
+  position: relative; z-index: 2;
+  background: linear-gradient(180deg, var(--court-surface) 0%, var(--court-bg) 100%);
+}
 /* V03.0.2 (§1) — "una constante de header para toda la app": mismos padding/altura que
    .player-home-header (Home es la referencia visual). Antes .analysis-header tenía su propio
    padding levemente distinto (12px/14px vs 14px/18px) — la diferencia se notaba al pasar de
@@ -711,6 +731,15 @@ input, select{ font-family: inherit; }
 .intelligence-why summary::before{ content: '+ '; }
 .intelligence-why[open] summary::before{ content: '– '; }
 .intelligence-why p{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); margin: 6px 0 0; font-style: italic; }
+/* Ronda UX 25/09 (Ronda 3, §P) — acceso ÚNICO y agrupado a la evidencia de todos los insights
+   (reemplaza un .intelligence-why por insight, ver buildIntelligenceWhyGroupHTML): vive DESPUÉS
+   de uno o más .intelligence-insight, nunca dentro de uno — necesita su propia separación clara
+   en vez de depender del margin-top:2px de .intelligence-why base. Mismo lenguaje visual
+   (+/– nativo vía .intelligence-why summary::before, itálica, tenue) que el resto de la app. */
+.intelligence-why--grouped{ margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.intelligence-why__list{ list-style:none; margin: 6px 0 0; padding: 0; display:flex; flex-direction:column; gap: 10px; }
+.intelligence-why__list li{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); font-style: italic; }
+.intelligence-why__list strong{ display:block; font-style: normal; font-weight: 700; color: var(--paper-dim); margin-bottom: 2px; }
 .intelligence-state{ text-align:center; font-style: italic; color: var(--paper-faint); margin: 0; }
 .intelligence-state--loading{ opacity: 0.7; }
 .coverage-note{ font-size: 11px; color: var(--paper-faint); margin-top: 8px; font-style: italic; }

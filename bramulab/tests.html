@@ -1683,8 +1683,14 @@
     assert('RJ · "Tu momento" sin partidos no inventa nada', PH.buildTuMomentoText([], 'Sebastián') ===
       'Tu historia empieza acá. Cargá tu primer partido para empezar a descubrir tu pádel.');
     const one = [mkHistoryMatch('u1', '2026-06-01T00:00:00.000Z', ['Sebastián', 'Martín', 'Cruz', 'Dan'], 'A')];
+    const oneText = PH.buildTuMomentoText(one, 'Sebastián');
     assert('RJ · "Tu momento" con 1 partido reconoce el inicio sin sacar conclusiones fuertes',
-      /primer partido/i.test(PH.buildTuMomentoText(one, 'Sebastián')));
+      /primer partido/i.test(oneText));
+    // Ronda UX 25/09 (Ronda 3, §Q) — BUG corregido: "ya cargaste" atribuía la carga al usuario
+    // sin evidencia (cualquiera de los 4 participantes pudo haber registrado el partido). Nunca
+    // más ese verbo en ningún texto de "Tu momento", con 1 partido o con N.
+    assert('RONDA-UX-PUL · "Tu momento" con 1 partido nunca atribuye la carga al usuario ("cargaste"/"cargó")',
+      !/cargaste|cargó/i.test(oneText), oneText);
   })();
 
   // Sin señal fuerte (compañero siempre distinto, sin resultados, fuera del mes actual):
@@ -1697,8 +1703,11 @@
       mkHistoryMatch('n2', pastMonth, ['Sebastián', 'X2', 'Cruz', 'Dan'], null),
       mkHistoryMatch('n3', pastMonth, ['Sebastián', 'X3', 'Cruz', 'Dan'], null),
     ];
+    const noSignalText = PH.buildTuMomentoText(noSignal, 'Sebastián');
     assert('RJ · "Tu momento" sin patrón valioso prioriza actividad/constancia, no inventa',
-      PH.buildTuMomentoText(noSignal, 'Sebastián') === 'Ya cargaste 3 partidos. Tu historia se sigue construyendo, partido a partido.');
+      noSignalText === 'Ya tenés 3 partidos en tu historia. Se sigue construyendo, partido a partido.');
+    assert('RONDA-UX-PUL · "Tu momento" sin patrón valioso nunca atribuye la carga al usuario ("cargaste"/"cargó")',
+      !/cargaste|cargó/i.test(noSignalText), noSignalText);
   })();
 
   // computeMatchesThisMonth — fechas relativas a "ahora" para no depender de cuándo corre el test.

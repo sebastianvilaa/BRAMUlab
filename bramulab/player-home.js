@@ -338,8 +338,13 @@
       return 'Tu historia empieza acá. Cargá tu primer partido para empezar a descubrir tu pádel.';
     }
     if (n < 3) {
+      // Ronda UX 25/09 (Ronda 3, §Q) — BUG: "ya cargaste tu primer partido" atribuye la CARGA al
+      // usuario, pero `matches` son los partidos donde participó (PH.filterMatchesForPlayer), no
+      // los que él mismo registró — en un partido server-backed cualquiera de los 4 participantes
+      // puede haber sido quien lo cargó. Lenguaje de HISTORIA ("ya forma parte de"), nunca de
+      // autoría de carga — funciona igual sin importar quién lo haya registrado.
       return n === 1
-        ? 'Tu historia recién empieza: ya cargaste tu primer partido. Seguí sumando resultados para descubrir patrones.'
+        ? 'Tu primer partido ya forma parte de tu historia. Seguí sumando resultados para descubrir patrones.'
         : 'Tu historia empezó a construirse. Seguí cargando partidos para que BRAMU pueda leer patrones reales.';
     }
     const clauses = [];
@@ -376,7 +381,11 @@
       if (month > 0) clauses.push(`jugaste ${month} ${month === 1 ? 'partido' : 'partidos'} este mes`);
     }
     if (!clauses.length) {
-      return `Ya cargaste ${n} partidos. Tu historia se sigue construyendo, partido a partido.`;
+      // Ronda UX 25/09 (Ronda 3, §Q) — mismo bug que arriba: "ya cargaste N partidos" atribuye
+      // la carga al usuario sin evidencia (cualquiera de los 4 participantes pudo haberlos
+      // registrado). "Ya tenés N partidos en tu historia" describe el ESTADO (participó, están
+      // en su historia), nunca la acción de carga.
+      return `Ya tenés ${n} partidos en tu historia. Se sigue construyendo, partido a partido.`;
     }
     return capitalizeFirst(clauses.join('. ')) + '.';
   }

@@ -83,7 +83,14 @@
   // (migración aditiva `preprod_ux_notification_actor_enrichment`, tolera el contrato viejo) y
   // deja de auto-notificarse a quien mismo hizo la acción. Mismo criterio: APP_VERSION sigue en
   // "BRAMUlab V04.11" a propósito.
-  const BUNDLE_VERSION = '04.11-h5';
+  // Ronda UX 25/09 (Ronda 3 — pulido final, handoff 13 §O/§P/§Q/§4) — `-h6`: patrón transversal
+  // de header/degradé contenido (Home/Carga partido/Historial/Resumen/Perfil/Notificaciones);
+  // TU MOMENTO ya no atribuye "cargaste" al usuario sin evidencia (lenguaje de historia);
+  // BRAMU Intelligence agrupa "Por qué aparece" en un único acceso al final de la tarjeta
+  // (nunca repetido por insight); JUGADORES se oculta para cuentas server-backed (seguía
+  // resolviendo identidad por nombre, la misma regresión que Bloque 4 corrigió en el perfil
+  // público). Mismo criterio: APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
+  const BUNDLE_VERSION = '04.11-h6';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
