@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h8" />
+<link rel="stylesheet" href="styles.css?v=04.11-h9" />
 </head>
 <body>
 
@@ -271,6 +271,24 @@
         </div>
       </div>
 
+      <!-- Segunda corrección QA 26SEP (§6) — formato/puntuación y fecha/hora/lugar pasan a un
+           área compacta ÚNICA, inmediatamente después de los equipos y SIEMPRE antes del primer
+           set (antes vivían después del marcador, lejos de donde el ojo arranca la carga y
+           mezclados visualmente con el resultado). Formato a la izquierda, fecha/hora a la
+           derecha si entra en el ancho — en iPhone angosto, `.court-meta-compact` los apila en
+           dos líneas (wrap limpio, nunca solapados). Cada botón sigue abriendo su misma hoja de
+           edición vigente (openManualFormatSheet/openManualMetaSheet, sin cambios de lógica). -->
+      <div class="court-meta-compact">
+        <button type="button" id="load-format-line" class="load-format-line">
+          <span id="load-format-line-text">Clásico · Mejor de 3 · Punto de Oro</span>
+          <span class="load-format-line__chevron" aria-hidden="true">›</span>
+        </button>
+        <button type="button" id="manual-meta-line" class="court-meta-line">
+          <span class="court-meta-line__text" id="manual-meta-line-text">Ahora · Hoy</span>
+          <span class="court-meta-line__action">Modificar</span>
+        </button>
+      </div>
+
       <!-- §6.2 — marcador acumulado: solo sets ya CONFIRMADOS (con CONTINUAR). Vacío al
            empezar un partido nuevo. Tocar un set ya confirmado lo reabre para editarlo
            (reopenManualSet en app.js) sin borrar los posteriores en silencio. -->
@@ -302,18 +320,6 @@
       <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
 
       <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
-
-      <button type="button" id="load-format-line" class="load-format-line">
-        <span id="load-format-line-text">Clásico · Mejor de 3 · Punto de Oro</span>
-        <span class="load-format-line__chevron" aria-hidden="true">›</span>
-      </button>
-
-      <!-- §9 — fecha/hora/lugar como metadato secundario; "Modificar" abre la hoja compacta
-           (fuera de esta pantalla, ver #manual-meta-sheet-scrim). -->
-      <button type="button" id="manual-meta-line" class="court-meta-line">
-        <span class="court-meta-line__text" id="manual-meta-line-text">Ahora · Hoy</span>
-        <span class="court-meta-line__action">Modificar</span>
-      </button>
 
     </div>
 
@@ -2463,6 +2469,18 @@
       </div>
       <div class="load-player-sheet__scroll">
         <p class="overlay__text" style="padding:0 16px;">Corregí el resultado (games por set). Los participantes y el formato no cambian por acá.</p>
+        <!-- Segunda corrección QA 26SEP (§9 "Editor de corrección — claridad de equipos") —
+             Sebastián: con la tarjeta de set en edición oculta (partido ya completo, caso más
+             común al abrir una corrección — ver renderProposeCorrectionCurrentSet en app.js), lo
+             único visible eran los chips de .court-accumulated ("SET 1  6–1"), sin ninguna
+             indicación de qué número es de qué pareja — "no obligar al usuario a deducir
+             izquierda=A/derecha=B". Referencia SIEMPRE visible (no solo mientras se edita un set
+             puntual), mismo orden/color que el resto de la app (team-dot lima=A/celeste=B, ver
+             #court-team-card más arriba) — nunca un componente nuevo. -->
+        <div class="b6-correction-teams" id="propose-correction-teams">
+          <span class="b6-correction-teams__row"><span class="team-dot team-dot--a" aria-hidden="true"></span><span id="propose-correction-teams-a"></span></span>
+          <span class="b6-correction-teams__row"><span class="team-dot team-dot--b" aria-hidden="true"></span><span id="propose-correction-teams-b"></span></span>
+        </div>
         <div id="propose-correction-accumulated" class="court-accumulated" role="group" aria-label="Sets confirmados" hidden></div>
         <div id="propose-correction-current-set" class="court-current-set">
           <div class="court-current-set__label" id="propose-correction-current-set-label">RESULTADO DEL SET 1</div>
@@ -2669,8 +2687,15 @@
       </span>
       <span>Historial</span>
     </button>
+    <!-- Segunda corrección QA 26SEP (§5 "CTA central + de Cargar partido") — Sebastián: poca
+         presencia, algo caído/no perfectamente centrado. Causa real de "no centrado": el único
+         ítem de esta barra que usaba un GLIFO DE TEXTO ("+", span) en vez de SVG como los otros
+         4 — el centrado óptico de un carácter depende de la métrica de la fuente (cap-height/
+         baseline), nunca es geométricamente exacto dentro de un círculo flex-centrado. Pasa a
+         SVG (mismo trazo redondeado que el resto del set de íconos de la app, ver
+         buildAddPlayerRowHTML en app.js), centrado real por viewBox. -->
     <button type="button" class="bottom-nav__item bottom-nav__item--fab" data-nav="manual-load" aria-label="Cargar partido">
-      <span aria-hidden="true">+</span>
+      <svg viewBox="0 0 24 24" class="bottom-nav__fab-icon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
     <!-- BRAMUlab_V03.4 (§1) — RANKING sale de la barra inferior, reemplazado por MIS GRUPOS
          (el Ranking BRAMU oficial se define/implementa por separado, más adelante). Ícono de
@@ -2703,42 +2728,42 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h8"></script>
-  <script src="stats.js?v=04.11-h8"></script>
-  <script src="store.js?v=04.11-h8"></script>
+  <script src="engine.js?v=04.11-h9"></script>
+  <script src="stats.js?v=04.11-h9"></script>
+  <script src="store.js?v=04.11-h9"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h8"></script>
-  <script src="level-context.js?v=04.11-h8"></script>
-  <script src="level-calibration.js?v=04.11-h8"></script>
-  <script src="player-home.js?v=04.11-h8"></script>
-  <script src="match-load.js?v=04.11-h8"></script>
-  <script src="player-identity.js?v=04.11-h8"></script>
-  <script src="groups.js?v=04.11-h8"></script>
-  <script src="locations.js?v=04.11-h8"></script>
-  <script src="ranking.js?v=04.11-h8"></script>
+  <script src="level.js?v=04.11-h9"></script>
+  <script src="level-context.js?v=04.11-h9"></script>
+  <script src="level-calibration.js?v=04.11-h9"></script>
+  <script src="player-home.js?v=04.11-h9"></script>
+  <script src="match-load.js?v=04.11-h9"></script>
+  <script src="player-identity.js?v=04.11-h9"></script>
+  <script src="groups.js?v=04.11-h9"></script>
+  <script src="locations.js?v=04.11-h9"></script>
+  <script src="ranking.js?v=04.11-h9"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h8"></script>
+  <script src="auth.js?v=04.11-h9"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h8"></script>
-  <script src="match-sync.js?v=04.11-h8"></script>
+  <script src="matches.js?v=04.11-h9"></script>
+  <script src="match-sync.js?v=04.11-h9"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h8"></script>
+  <script src="match-validation.js?v=04.11-h9"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h8"></script>
-  <script src="app.js?v=04.11-h8"></script>
+  <script src="intelligence-client.js?v=04.11-h9"></script>
+  <script src="app.js?v=04.11-h9"></script>
 </body>
 </html>

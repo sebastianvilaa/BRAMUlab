@@ -11,7 +11,7 @@
 // paralelas (04_Revision_ChatGPT.md §10).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { officializeMatch } from '../_shared/match-officialize-core.ts';
+import { officializeMatch, officializeErrorHttpStatus } from '../_shared/match-officialize-core.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -69,10 +69,19 @@ Deno.serve(async (req) => {
   });
 
   if (rpcError) {
-    return jsonResponse({ ok: false, code: 'persist_failed', detail: rpcError.message }, 500);
+    // Ronda correctiva QA 26SEP — mismo criterio que match-officialize-core.ts: el error real
+    // queda SOLO en los logs de la Edge Function, nunca en la respuesta al cliente.
+    console.error('[respond-match-correction] persist_failed', {
+      matchId, message: rpcError.message,
+      details: (rpcError as { details?: unknown }).details, code: (rpcError as { code?: unknown }).code,
+    });
+    return jsonResponse({ ok: false, code: 'persist_failed' }, 500);
   }
   if (!result || result.ok === false) {
-    return jsonResponse(result || { ok: false, code: 'unknown_error' });
+    // Ronda correctiva QA 26SEP (P0 oficialización compartida) — mismo mapeo compartido que
+    // officialize-match/resolve-identity-issue: un estado de negocio real (ventana vencida, ya
+    // hay una corrección pendiente) nunca debe leerse como "el servidor se rompió".
+    return jsonResponse(result || { ok: false, code: 'unknown_error' }, officializeErrorHttpStatus(result && result.code));
   }
 
   if (result.code === 'correction_authorized') {
@@ -98,7 +107,10 @@ Deno.serve(async (req) => {
       // Ni el puntero de revisión ni Nivel se movieron todavía (atómico dentro de la RPC) — el
       // partido sigue con pending_correction_revision_id intacto. El cliente puede reintentar
       // (mismo endpoint) sin ningún riesgo de doble efecto.
-      return jsonResponse({ ok: false, code: officialization.code || 'correction_recompute_failed', matchId });
+      return jsonResponse(
+        { ok: false, code: officialization.code || 'correction_recompute_failed', matchId },
+        officializeErrorHttpStatus(officialization.code),
+      );
     }
     return jsonResponse({ ok: true, code: 'correction_accepted', matchId, resultId: officialization.resultId, eligible: officialization.eligible });
   }

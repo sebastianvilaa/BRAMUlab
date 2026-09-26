@@ -26,7 +26,7 @@
 // confirmó mientras tanto (idempotente).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { officializeMatch } from '../_shared/match-officialize-core.ts';
+import { officializeMatch, officializeErrorHttpStatus } from '../_shared/match-officialize-core.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -141,7 +141,13 @@ Deno.serve(async (req) => {
       p_match_id: matchId,
     });
     if (confirmError) {
-      return jsonResponse({ ok: false, code: 'confirm_failed', detail: confirmError.message }, 500);
+      // Ronda correctiva QA 26SEP — mismo criterio que match-officialize-core.ts: el error real
+      // queda SOLO en los logs de la Edge Function, nunca en la respuesta al cliente.
+      console.error('[officialize-match] confirm_failed', {
+        matchId, message: confirmError.message,
+        details: (confirmError as { details?: unknown }).details, code: (confirmError as { code?: unknown }).code,
+      });
+      return jsonResponse({ ok: false, code: 'confirm_failed' }, 500);
     }
     if (!confirmResult || confirmResult.ok === false) {
       return jsonResponse(confirmResult || { ok: false, code: 'unknown_error' });
@@ -155,7 +161,10 @@ Deno.serve(async (req) => {
 
   const result = await officializeMatch(serviceClient, matchId, 'initial', callerPlayerId, null);
   if (!result.ok) {
-    return jsonResponse({ ok: false, code: result.code || 'officialize_failed' }, 500);
+    // Ronda correctiva QA 26SEP (P0 oficialización compartida) — antes: SIEMPRE 500, incluso
+    // para un estado de negocio esperable (ver officializeErrorHttpStatus en el núcleo
+    // compartido — nunca un parche local a esta sola función).
+    return jsonResponse({ ok: false, code: result.code || 'officialize_failed' }, officializeErrorHttpStatus(result.code));
   }
   return jsonResponse({ ok: true, code: 'officialized', matchId, resultId: result.resultId, eligible: result.eligible });
 });

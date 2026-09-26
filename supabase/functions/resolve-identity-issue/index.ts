@@ -14,7 +14,7 @@
 // una ventana donde la identidad ya cambió pero Nivel todavía no.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { officializeMatch } from '../_shared/match-officialize-core.ts';
+import { officializeMatch, officializeErrorHttpStatus } from '../_shared/match-officialize-core.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -74,10 +74,19 @@ Deno.serve(async (req) => {
   });
 
   if (rpcError) {
-    return jsonResponse({ ok: false, code: 'persist_failed', detail: rpcError.message }, 500);
+    // Ronda correctiva QA 26SEP — mismo criterio que match-officialize-core.ts: el error real
+    // queda SOLO en los logs de la Edge Function, nunca en la respuesta al cliente.
+    console.error('[resolve-identity-issue] persist_failed', {
+      issueId, message: rpcError.message,
+      details: (rpcError as { details?: unknown }).details, code: (rpcError as { code?: unknown }).code,
+    });
+    return jsonResponse({ ok: false, code: 'persist_failed' }, 500);
   }
   if (!result || result.ok === false) {
-    return jsonResponse(result || { ok: false, code: 'unknown_error' });
+    // Ronda correctiva QA 26SEP (P0 oficialización compartida) — antes: siempre 200 con
+    // ok:false, incluso para un estado de negocio real (ventana vencida, incidencia ya
+    // resuelta). Mismo mapeo compartido que officialize-match/respond-match-correction.
+    return jsonResponse(result || { ok: false, code: 'unknown_error' }, officializeErrorHttpStatus(result && result.code));
   }
 
   if (result.needsRecompute) {
@@ -106,7 +115,13 @@ Deno.serve(async (req) => {
       // B6-A-09: NADA se persistió todavía (ni la reasignación del slot ni el cierre de la
       // incidencia) — la incidencia sigue exactamente open. El cliente puede reintentar este
       // mismo endpoint sin ningún riesgo de estado a medias.
-      return jsonResponse({ ok: false, code: officialization.code || 'identity_recompute_failed', issueId, matchId: result.matchId });
+      // Ronda correctiva QA 26SEP (P0 oficialización compartida) — antes: siempre HTTP 200 con
+      // ok:false ("Log real: POST 200 ... pero la UI recibió ok:false", handoff §2) — mismo
+      // mapeo compartido que officialize-match/respond-match-correction.
+      return jsonResponse(
+        { ok: false, code: officialization.code || 'identity_recompute_failed', issueId, matchId: result.matchId },
+        officializeErrorHttpStatus(officialization.code),
+      );
     }
     return jsonResponse({
       ok: true,

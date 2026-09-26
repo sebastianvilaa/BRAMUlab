@@ -55,6 +55,34 @@ export interface OfficializeResult {
 
 const MAX_STALE_SNAPSHOT_RETRIES = 3;
 
+// Ronda correctiva QA 26SEP (P0 oficialización compartida, handoff §2) — BUG REAL encontrado
+// por lectura de código en las 3 Edge Functions que llaman a `officializeMatch`
+// (officialize-match/respond-match-correction/resolve-identity-issue): las tres trataban
+// CUALQUIER `!result.ok` como si fuera un error de servidor — officialize-match devolvía HTTP
+// 500 para TODOS los códigos por igual, y las otras dos devolvían HTTP 200 con `{ok:false}` (el
+// mismo toast genérico "No se pudo completar la acción" del lado del cliente en los dos casos).
+// Varios de estos códigos son ESTADOS DE NEGOCIO esperables (el partido venció, ya está
+// validado, hay una incidencia abierta, otra operación concurrente ganó la carrera del lock) —
+// nunca "el servidor se rompió". Único mapeo compartido código->status HTTP para los 3
+// callers, para no repetir el mismo criterio 3 veces ("nunca tres parches separados", handoff
+// §2). `already_validated` en trigger='initial' YA NO llega acá como código de error — ver el
+// manejo idempotente dentro de `officializeMatch` más abajo.
+const BUSINESS_STATE_CODES = new Set([
+  'already_validated', 'match_not_actionable', 'not_ready_for_validation', 'match_expired',
+  'identity_issue_open', 'stale_match_revision', 'stale_level_snapshot', 'identity_issue_not_open',
+  'no_pending_correction', 'no_current_revision', 'missing_validated_at_for_reapplication',
+  'match_not_found',
+]);
+
+/** HTTP status para un `code` de `OfficializeResult`/RPCs relacionadas: 409 (Conflict) para un
+ *  estado de negocio esperable que el cliente puede simplemente releer/reintentar, 500 SOLO
+ *  para una falla real (motor no disponible, snapshot/historial/persistencia ilegibles,
+ *  reintentos de concurrencia agotados, o cualquier código nuevo no reconocido — nunca se
+ *  asume benigno por default). */
+export function officializeErrorHttpStatus(code: string | null | undefined): number {
+  return code && BUSINESS_STATE_CODES.has(code) ? 409 : 500;
+}
+
 /** Núcleo único de oficialización. `serviceClient` ya debe estar creado con la service role key
  *  (el caller lo arma una sola vez y lo reutiliza). `matchId` + `trigger` determinan qué
  *  revisión/ventana temporal aplica. `identityAction` solo se pasa para trigger=
@@ -80,6 +108,16 @@ export async function officializeMatch(
       p_match_id: matchId,
     });
     if (snapshotError) {
+      // Ronda correctiva QA 26SEP (P0 oficialización compartida) — logging técnico real, SOLO
+      // en los logs de la Edge Function (nunca en la respuesta al cliente, que sigue recibiendo
+      // únicamente el código genérico `snapshot_fetch_failed`). Central lo necesita para
+      // diagnosticar sin depender de que el sandbox de Claude pueda reproducir contra Staging
+      // real (handoff §2: "hoy match-officialize-core.ts aplasta rpcError a persist_failed").
+      console.error('[officializeMatch] snapshot_fetch_failed', {
+        matchId, trigger, attempt,
+        message: snapshotError.message, details: (snapshotError as { details?: unknown }).details,
+        hint: (snapshotError as { hint?: unknown }).hint, code: (snapshotError as { code?: unknown }).code,
+      });
       return { ok: false, code: 'snapshot_fetch_failed' };
     }
     if (!snapshot) {
@@ -152,6 +190,11 @@ export async function officializeMatch(
         p_before_played_at: snapshot.playedAt,
       });
       if (error) {
+        console.error('[officializeMatch] history_fetch_failed', {
+          matchId, trigger, attempt, knownParticipantIds,
+          message: error.message, details: (error as { details?: unknown }).details,
+          hint: (error as { hint?: unknown }).hint, code: (error as { code?: unknown }).code,
+        });
         return { ok: false, code: 'history_fetch_failed' };
       }
       historyRows = data || [];
@@ -376,20 +419,58 @@ export async function officializeMatch(
     const { data: rpcResult, error: rpcError } = await serviceClient.rpc('officialize_match_validation', rpcParams);
 
     if (rpcError) {
+      // Ronda correctiva QA 26SEP (P0 oficialización compartida, handoff §2) — ESTE es el punto
+      // exacto que hoy "aplasta rpcError a persist_failed" sin dejar rastro técnico. El error
+      // REAL de Postgres (mensaje/código/detail/hint — típicamente una violación de constraint
+      // NOT NULL/CHECK si el payload calculado por el motor tiene un campo inesperado, o
+      // cualquier otra falla real de la transacción) queda SOLO en los logs de esta Edge
+      // Function, nunca en la respuesta al cliente (que sigue recibiendo únicamente
+      // `persist_failed`, sin datos sensibles). Loguea también el payload completo que se mandó
+      // — necesario para poder correlacionar el error real con la fila exacta que lo disparó,
+      // sin tener que reproducir el cálculo desde cero.
+      console.error('[officializeMatch] persist_failed — error real de officialize_match_validation', {
+        matchId, trigger, attempt,
+        message: rpcError.message, details: (rpcError as { details?: unknown }).details,
+        hint: (rpcError as { hint?: unknown }).hint, code: (rpcError as { code?: unknown }).code,
+        rpcParams,
+      });
       return { ok: false, code: 'persist_failed' };
     }
     if (rpcResult && rpcResult.ok === false && (rpcResult.code === 'stale_level_snapshot' || rpcResult.code === 'stale_match_revision')) {
       // Otra oficialización/corrección/identidad concurrente ya movió el estado primero — relee
       // el snapshot fresco y reintenta (acotado). Nunca se aplica un cálculo sobre datos que ya
       // cambiaron.
+      console.warn('[officializeMatch] snapshot desactualizado, reintentando', { matchId, trigger, attempt, code: rpcResult.code, playerId: rpcResult.playerId });
       continue;
     }
+    // Ronda correctiva QA 26SEP (P0 oficialización compartida) — carrera real detectada en
+    // Staging (handoff §2: "ocurrieron con Seba y con Esteban"): dos llamadas concurrentes
+    // (los dos integrantes de la pareja rival confirmando casi a la vez, o el reintento
+    // "self-healing" que el propio cliente dispara al leer readyForValidation=true —
+    // officialize-match/index.ts) pueden ganar la carrera del lock `for update` en distinto
+    // orden. La PRIMERA en llegar oficializa normalmente; la SEGUNDA, con trigger='initial',
+    // encuentra el partido YA validated y la RPC responde `already_validated` — un resultado
+    // de NEGOCIO esperable, nunca un error real. El resultado que esa segunda llamada buscaba
+    // (partido validated) YA es cierto en ese momento: se trata como éxito idempotente, releyendo
+    // el resultado recién aplicado, en vez de devolver un código de fallo que las 3 Edge
+    // Functions convertían en un toast de error (500 en officialize-match, 200 con ok:false en
+    // resolve-identity-issue/respond-match-correction) — exactamente el síntoma reportado.
+    if (rpcResult && rpcResult.ok === false && rpcResult.code === 'already_validated' && trigger === 'initial') {
+      console.warn('[officializeMatch] already_validated en trigger=initial: carrera real, se resuelve como éxito idempotente', { matchId, trigger, attempt });
+      const { data: freshSnapshot } = await serviceClient.rpc('get_match_officialization_snapshot', { p_match_id: matchId });
+      const applied = freshSnapshot && freshSnapshot.currentAppliedResult;
+      return { ok: true, resultId: applied ? applied.resultId : undefined, eligible: applied ? applied.eligible : undefined };
+    }
     if (rpcResult && rpcResult.ok === false) {
+      console.error('[officializeMatch] rechazado por officialize_match_validation', {
+        matchId, trigger, attempt, code: rpcResult.code, playerId: rpcResult.playerId,
+      });
       return { ok: false, code: rpcResult.code || 'unknown_error' };
     }
 
     return { ok: true, resultId: rpcResult && rpcResult.resultId, eligible: rpcResult && rpcResult.eligible };
   }
 
+  console.error('[officializeMatch] stale_snapshot_retries_exhausted', { matchId, trigger, retries: MAX_STALE_SNAPSHOT_RETRIES });
   return { ok: false, code: 'stale_snapshot_retries_exhausted' };
 }

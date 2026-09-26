@@ -2409,6 +2409,23 @@
     identity_issue_already_open: 'Ya hay una incidencia abierta para ese lugar.',
     identity_window_expired: 'La ventana de 10 días para cuestionar una identidad ya venció.',
     invalid_sets: 'El resultado cargado no es válido.',
+    // Ronda correctiva QA 26SEP (P0 oficialización compartida, handoff §2) — códigos que
+    // `officializeMatch` (match-officialize-core.ts) puede devolver cuando la oficialización/
+    // corrección/identidad falla DESPUÉS de la autorización — antes caían todos al genérico
+    // "No se pudo completar la acción", indistinguible de cualquier otro error. Mensajes
+    // honestos: "probá de nuevo" para lo transitorio real (snapshot/revisión que cambió,
+    // reintentos agotados), uno más claro para una falla real que conviene reportar.
+    confirm_failed: 'No pudimos registrar tu confirmación. Probá de nuevo en un momento.',
+    persist_failed: 'No pudimos guardar el resultado. Probá de nuevo en un momento — si se repite, avisanos.',
+    officialize_failed: 'No pudimos oficializar este partido. Probá de nuevo en un momento.',
+    identity_recompute_failed: 'No pudimos aplicar el cambio de identidad. Probá de nuevo en un momento.',
+    correction_recompute_failed: 'No pudimos aplicar la corrección. Probá de nuevo en un momento.',
+    stale_snapshot_retries_exhausted: 'El partido cambió mientras procesábamos la acción. Volvé a intentarlo.',
+    engine_unavailable: 'El servicio no está disponible en este momento. Probá de nuevo en un rato.',
+    snapshot_fetch_failed: 'No pudimos leer el estado del partido. Probá de nuevo en un momento.',
+    history_fetch_failed: 'No pudimos leer tu historial. Probá de nuevo en un momento.',
+    no_current_revision: 'Este partido no tiene un resultado cargado todavía.',
+    missing_validated_at_for_reapplication: 'No pudimos procesar este partido. Avisanos si se repite.',
   };
   function b6ErrorMessage(code) {
     return B6_ERROR_MESSAGES[code] || 'No se pudo completar la acción. Probá de nuevo.';
@@ -2939,7 +2956,17 @@
     for (let i = 0; i < upTo; i++) {
       const s = b6CorrectionSets[i];
       if (!s || !Number.isFinite(s.a) || !Number.isFinite(s.b)) continue;
-      items.push(`<button type="button" class="court-accumulated__set" data-set-index="${i}" aria-label="Editar Set ${i + 1}, ${s.a} a ${s.b}"><span class="court-accumulated__set-label">SET ${i + 1}</span><span class="court-accumulated__set-score">${s.a}–${s.b}</span></button>`);
+      // Segunda corrección QA 26SEP (§9) — "quién ganó cada set" debe ser inequívoco, y el chip
+      // solo mostraba "6–1" en un único color: sin la referencia de equipos de arriba memorizada,
+      // no se distinguía qué lado ganó. MISMO criterio de contraste que el Resumen (buildScoreCardHTML:
+      // "ganador 100% contraste, perdedor atenuado", .result-card__set--win/--lose) — nunca un
+      // componente nuevo, "orientación consistente con el Resumen" (handoff §9). Un set empatado
+      // en games (solo posible en el segmento extraordinario, sin ganador de games claro) no
+      // marca a ninguno de los dos como ganador. -->
+      const aCls = s.a === s.b ? '' : (s.a > s.b ? 'is-win' : 'is-lose');
+      const bCls = s.a === s.b ? '' : (s.b > s.a ? 'is-win' : 'is-lose');
+      const scoreHTML = `<span class="court-accumulated__set-num ${aCls}">${s.a}</span><span class="court-accumulated__set-sep">–</span><span class="court-accumulated__set-num ${bCls}">${s.b}</span>`;
+      items.push(`<button type="button" class="court-accumulated__set" data-set-index="${i}" aria-label="Editar Set ${i + 1}, ${b6CorrectionTeamName('A')} ${s.a}, ${b6CorrectionTeamName('B')} ${s.b}"><span class="court-accumulated__set-label">SET ${i + 1}</span><span class="court-accumulated__set-score">${scoreHTML}</span></button>`);
     }
     wrap.innerHTML = items.join('');
     wrap.hidden = items.length === 0;
@@ -3103,6 +3130,10 @@
   function openProposeCorrection(f) {
     b6CorrectionMatch = f;
     b6CorrectionFormat = E.FORMATS[f.formatId] || E.FORMATS.classic;
+    // Segunda corrección QA 26SEP (§9) — referencia de equipos SIEMPRE visible, se fija una sola
+    // vez al abrir (la composición de parejas no cambia durante una corrección de RESULTADO).
+    $('#propose-correction-teams-a').textContent = b6CorrectionTeamName('A');
+    $('#propose-correction-teams-b').textContent = b6CorrectionTeamName('B');
     const existing = f.sets || [];
     b6CorrectionSets = [0, 1, 2].map((i) => {
       const s = existing[i];
@@ -4587,10 +4618,21 @@
       const historyDateStr = formatRealDate(playedAt, m.timeZone);
       const historyTimeStr = m.timeKnown === false ? '' : formatRealTime(playedAt, m.timeZone).slice(0, 5);
       const historyDateTimeStr = [historyDateStr, historyTimeStr].filter(Boolean).join(' · ');
+      // Segunda corrección QA 26SEP (§7, feedback real) — el/los badge(s) de ESTADO (PENDIENTE
+      // DE VALIDACIÓN, IDENTIDAD CUESTIONADA, etc.) vivían sueltos al final de la tarjeta,
+      // alineados a la izquierda por default de bloque: quedaban lejos de VICTORIA/DERROTA (el
+      // otro dato de la misma naturaleza — "cómo terminó este partido") y sin relación visual
+      // clara con nada. Pasan a la MISMA columna de `resultBadgeHTML`, apilados debajo,
+      // alineados a la derecha (`.history-item__result-col`) — resultado y estado quedan
+      // juntos, y ninguno de los dos compite con la fila de participantes/formato de abajo.
+      const stateBadgesHTML = [
+        m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : '',
+        serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--${serverMatchStatusBadgeModifier(m)}">${serverMatchStatusLabel(m)}</span>` : '',
+      ].filter(Boolean).join('');
       item.innerHTML = `
         <div class="history-item__top-row">
           <div class="history-item__date">${historyDateTimeStr}</div>
-          ${resultBadgeHTML}
+          <div class="history-item__result-col">${resultBadgeHTML}${stateBadgesHTML}</div>
         </div>
         <div class="history-item__score">${scoreStr}</div>
         <div class="history-item__bottom-row">
@@ -4600,8 +4642,6 @@
             ${scoringLabel ? `<div class="history-item__meta-line">${scoringLabel}</div>` : ''}
           </div>` : ''}
         </div>
-        ${m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : ''}
-        ${serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--${serverMatchStatusBadgeModifier(m)}">${serverMatchStatusLabel(m)}</span>` : ''}
       `;
       item.addEventListener('click', () => openCanonicalResumen(m, 'history'));
       wrap.appendChild(item);
@@ -6875,15 +6915,22 @@
       <div class="player-home-lastmatch__top">
         <div class="player-home-lastmatch__row1">
           <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
+          <!-- Segunda corrección QA 26SEP (§8, feedback real) — mismo criterio que Historial
+               (§7): el estado (PENDIENTE DE VALIDACIÓN, IDENTIDAD CUESTIONADA, etc.) se muda de
+               row2 —donde compartía línea con VICTORIA/DERROTA, dos señales distintas
+               compitiendo por el mismo renglón angosto— a esta columna, debajo de fecha/hora,
+               alineado a la derecha. VICTORIA/DERROTA queda SOLO en row2, junto a la forma
+               reciente: el resultado sigue siendo el dato prominente de esa fila, nunca
+               comparte renglón con el estado. -->
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
             ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
+            ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${serverMatchStatusBadgeModifier(m) || 'status'}">${serverMatchStatusLabel(m)}</span>` : ''}
           </div>
         </div>
         <div class="player-home-lastmatch__row2">
           <div class="player-home-lastmatch__form">${formDotsHtml}</div>
           <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
-          ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${serverMatchStatusBadgeModifier(m) || 'status'}">${serverMatchStatusLabel(m)}</span>` : ''}
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
@@ -7241,31 +7288,21 @@
    *  (player-home.js) para poder testearla sin depender de Store/DOM/una cuenta server-backed
    *  real, ver los tests `RONDA-UX-HIST ·` en tests.html. */
   const b6MatchContextSuffix = PH.computeMatchContextSuffix;
-  /** Ronda UX 25/09 (Ronda 2, §10) — copy dinámico para los tipos que `payload.actorPlayerId`
-   *  puede traer desde la migración `preprod_ux_notification_actor_enrichment` (trigger
-   *  BEFORE INSERT en `notifications`, ver esa migración): `admin_action` queda deliberadamente
-   *  afuera (su actor real es texto libre en `payload.adminActorLabel`, nunca un player_id —
-   *  mismo motivo por el que el trigger de backend tampoco lo toca). El frontend tolera AMBOS
-   *  contratos a la vez: si `actorPlayerId` todavía no llegó (Staging sin la migración aplicada,
-   *  o una fila vieja anterior a ella), simplemente cae al copy genérico de B6_NOTIF_COPY.
-   *  Corrección post-QA — cada plantilla suma el `ctxSuffix` de `b6MatchContextSuffix` para que
-   *  dos notificaciones del mismo tipo dejen de verse idénticas (el hallazgo real de QA: 5
-   *  "Partido oficial" indistinguibles entre sí). */
-  const B6_NOTIF_ACTOR_BODY = {
-    match_validated: (name, ctxSuffix) => `${name} confirmó tu partido${ctxSuffix}.`,
-    correction_accepted: (name, ctxSuffix) => `${name} aceptó la corrección de resultado${ctxSuffix}.`,
-    identity_resolved: (name, ctxSuffix) => `${name} resolvió una identidad cuestionada en tu partido${ctxSuffix}.`,
-    identity_unidentified: (name, ctxSuffix) => `${name} marcó un lugar como Jugador no identificado en tu partido${ctxSuffix} — el resultado se conserva.`,
-  };
-  /** Corrección post-QA — mismos 4 tipos que `B6_NOTIF_ACTOR_BODY`, para cuando hay
-   *  `matchContext` pero NINGÚN actor resoluble (ni real desde el backend, ni resuelto por
-   *  `resolvePlayerNameFromMatchesCache`): sigue siendo más específico que el copy genérico de
-   *  `B6_NOTIF_COPY`, sin nombrar a nadie que no se pueda confirmar. */
-  const B6_NOTIF_CONTEXT_ONLY_BODY = {
-    match_validated: (ctxSuffix) => `Tu partido${ctxSuffix} ya quedó oficial.`,
-    correction_accepted: (ctxSuffix) => `Se aceptó una corrección de resultado en tu partido${ctxSuffix}.`,
-    identity_resolved: (ctxSuffix) => `Se resolvió una identidad cuestionada en tu partido${ctxSuffix}.`,
-    identity_unidentified: (ctxSuffix) => `Un lugar quedó como Jugador no identificado en tu partido${ctxSuffix} — el resultado se conserva.`,
+  /** Segunda corrección QA 26SEP (§3 "Notificaciones — título actor + acción") — REEMPLAZA
+   *  B6_NOTIF_ACTOR_BODY/B6_NOTIF_CONTEXT_ONLY_BODY (Ronda UX 25/09 Ronda 2 §10 + corrección
+   *  post-QA): el actor real ahora vive en el TÍTULO ("Esteban confirmó tu partido"), nunca
+   *  repetido en el body — el body pasa a ser SOLO el contexto que identifica el partido
+   *  ("vs Esteban + Gusti · 6–4 · 3–6 · 6–2", el mismo `ctxSuffix` de siempre, sin la frase de
+   *  acción). `admin_action` queda deliberadamente afuera (su actor real es texto libre en
+   *  `payload.adminActorLabel`, nunca un player_id). Sin actor resoluble, el título cae al
+   *  evento neutro de `B6_NOTIF_COPY` — nunca se inventa un actor. */
+  const B6_NOTIF_ACTOR_TITLE = {
+    match_validated: (name) => `${name} confirmó tu partido`,
+    correction_accepted: (name) => `${name} aceptó la corrección`,
+    identity_resolved: (name) => `${name} resolvió un participante`,
+    identity_unidentified: (name) => `${name} marcó un participante como no identificado`,
+    correction_proposed: (name) => `${name} propuso una corrección`,
+    identity_questioned: (name) => `${name} cuestionó un participante`,
   };
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
@@ -7283,25 +7320,26 @@
    *  `renderNotificationsList` es quien filtra usando este campo. */
   function mapB6Notification(n) {
     const copy = B6_NOTIF_COPY[n.type] || { title: 'Notificación', body: '', category: 'info' };
-    let body = copy.body;
     const me = Store.getCurrentUser();
     const myPlayerId = me && me.id;
     const ctxSuffix = b6MatchContextSuffix(n.payload && n.payload.matchContext);
-    if (n.type === 'correction_proposed' && n.payload && n.payload.proposedByPlayerId) {
-      const proposerName = resolvePlayerNameFromMatchesCache(n.payload.proposedByPlayerId);
-      if (proposerName) body = `${proposerName} propuso una corrección de resultado${ctxSuffix}.`;
-    } else if (n.type === 'identity_questioned' && n.payload && n.payload.openedByPlayerId) {
-      const openerName = resolvePlayerNameFromMatchesCache(n.payload.openedByPlayerId);
-      if (openerName) body = `${openerName} cuestionó una identidad en uno de tus partidos${ctxSuffix}.`;
-    } else if (n.payload && n.payload.actorPlayerId && B6_NOTIF_ACTOR_BODY[n.type]) {
-      const actorName = resolvePlayerNameFromMatchesCache(n.payload.actorPlayerId);
-      if (actorName) body = B6_NOTIF_ACTOR_BODY[n.type](actorName, ctxSuffix);
-      else if (B6_NOTIF_CONTEXT_ONLY_BODY[n.type]) body = B6_NOTIF_CONTEXT_ONLY_BODY[n.type](ctxSuffix);
-    } else if (ctxSuffix && B6_NOTIF_CONTEXT_ONLY_BODY[n.type]) {
-      body = B6_NOTIF_CONTEXT_ONLY_BODY[n.type](ctxSuffix);
-    }
+
+    // correction_proposed/identity_questioned traen su actor en un campo propio (nunca tuvieron
+    // actorPlayerId, Ronda UX 25/09 Ronda 2 §10); los demás 4 tipos usan actorPlayerId.
+    let actorId = null;
+    if (n.type === 'correction_proposed') actorId = n.payload && n.payload.proposedByPlayerId;
+    else if (n.type === 'identity_questioned') actorId = n.payload && n.payload.openedByPlayerId;
+    else actorId = n.payload && n.payload.actorPlayerId;
+    const actorName = actorId ? resolvePlayerNameFromMatchesCache(actorId) : null;
+    const titleBuilder = B6_NOTIF_ACTOR_TITLE[n.type];
+
+    const title = (actorName && titleBuilder) ? titleBuilder(actorName) : copy.title;
+    // Body = SOLO contexto ("vs Rivales · score"), nunca repite la acción que ya dice el título.
+    // Sin matchContext (contrato viejo/fila sin partido ligado): cae al body genérico de siempre.
+    const body = ctxSuffix ? ctxSuffix.trim() : copy.body;
+
     return {
-      id: n.id, title: copy.title, body, category: copy.category,
+      id: n.id, title, body, category: copy.category,
       createdAt: n.createdAt, readAt: n.readAt, matchId: n.matchId,
       source: 'server', type: n.type,
       selfCaused: !!(myPlayerId && n.payload && n.payload.actorPlayerId === myPlayerId),

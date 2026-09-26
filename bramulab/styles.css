@@ -179,6 +179,20 @@
 
 html,body{
   margin:0; padding:0; height:100%;
+  /* Segunda corrección QA 26SEP (§4 "Header / degradé — iPhone") — REABIERTO solo en iPhone
+     real después del fix de Ronda UX 25/09 (Ronda 3, §O, ver .analysis-header/
+     .player-home-header/.court-header más abajo: cada header ya tiene su propio degradé
+     contenido). `overscroll-behavior:none` (ya estaba) no alcanza por sí solo en Safari/iOS:
+     ese soporte es históricamente parcial para el scroller del DOCUMENTO (a diferencia de un
+     div interno con overflow propio) — el body puede seguir "rebotando" (elastic bounce) si su
+     contenido excede el viewport por cualquier motivo (redondeo de sub-píxel, notch/safe-area),
+     revelando por un instante el fondo PLANO de html/body (`--ink`) detrás del header durante
+     ese rebote — el "blur/degradé que invade logo/título" reportado. Cada vista real ya scrollea
+     internamente por su propio `.xxx-scroll` (`.analysis-scroll`/`.player-home-header` + sibling/
+     etc., flex:1 + overflow-y:auto) — el documento (html/body) nunca necesita scrollear por sí
+     mismo. `overflow:hidden` acá fuerza esa arquitectura ya vigente: nunca hay nada que
+     rebotar/revelar a nivel documento, en ningún motor. */
+  overflow: hidden;
   background: var(--ink);
   color: var(--paper);
   font-family: var(--font-body);
@@ -987,7 +1001,15 @@ input, select{ font-family: inherit; }
    lista larga. Badge de resultado: VICTORIA/DERROTA completo (era VIC/DER desde V02.1/§26,
    revertido acá porque el espacio ya alcanza — mismo criterio que Último Partido, §3). GANÓ
    (Observados) sigue como micro-tag pegado al nombre de la pareja ganadora. */
-.history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
+.history-item__top-row{ display:flex; align-items:flex-start; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
+/* Segunda corrección QA 26SEP (§7) — columna derecha del top-row: VICTORIA/DERROTA y el/los
+   badge(s) de estado (PENDIENTE DE VALIDACIÓN, IDENTIDAD CUESTIONADA, etc.) apilados, alineados
+   a la derecha. Antes el badge de estado vivía suelto al final de la tarjeta, pegado a la
+   izquierda — separado de VICTORIA/DERROTA pese a ser el mismo tipo de dato ("qué pasó con este
+   partido"). `.history-item__badge` conserva su `margin-top` para cuando aparece solo (fuera de
+   esta columna, ver Último Partido); acá el `gap` de la columna ya separa, así que se resetea. */
+.history-item__result-col{ flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.history-item__result-col .history-item__badge{ margin-top:0; }
 .history-item__result-badge{ flex:none; font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 7px; border-radius: 999px; text-transform:uppercase; }
 /* Ronda UX 25/09 (Ronda 2, §2) — RESULTADO vs ESTADO: victoria pasa a verde real
    (--confirm-green, ya reservado y sin uso hasta ahora) en vez de compartir el lima que ahora
@@ -1722,6 +1744,10 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__datetime{ text-align:right; flex:none; }
 .player-home-lastmatch__date{ font-family: var(--font-display); font-weight: 500; font-size: 12px; letter-spacing:0.03em; color: var(--court-text-dim); font-variant-numeric: tabular-nums; }
 .player-home-lastmatch__place{ font-size: 11px; font-weight: 500; color: var(--court-text-faint); margin-top: 2px; }
+/* Segunda corrección QA 26SEP (§8) — badge de ESTADO debajo de fecha/lugar, en la misma
+   columna alineada a la derecha (el badge es un <span> inline por defecto; `.player-home-
+   lastmatch__badge` sin este modificador no tiene su propio renglón — acá sí lo necesita). */
+.player-home-lastmatch__datetime .player-home-lastmatch__badge{ display:inline-block; margin-top: 4px; }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
@@ -2007,20 +2033,28 @@ input, select{ font-family: inherit; }
 .bottom-nav__icon-wrap{ position:relative; display:inline-flex; }
 .bottom-nav__unseen-dot{
   position:absolute; top:-2px; right:-3px; width:8px; height:8px; border-radius:50%;
-  /* Cian informativo (mismo token que .notif-item--info), nunca lima/ámbar/verde/rojo: este
-     punto es "hay una novedad", no un estado de resultado ni de acción requerida (§2). */
-  background: var(--accent-cyan);
+  /* Segunda corrección QA 26SEP (§7, feedback real) — pasa de cian a rojo: en el ícono chico de
+     la barra inferior el cian se perdía contra el fondo oscuro y no se leía como "necesita tu
+     atención". El acento cian de la FILA (.history-item--unseen, inset box-shadow) queda
+     intacto — es una señal distinta ("esta fila cambió"), no se toca ("no reestructurar el
+     sistema"). Este punto es el único que se movió a rojo. */
+  background: var(--danger);
 }
 /* V02.5 (Bloque A, §8) — único ícono de esta barra con manecillas visibles (ver comentario en
    index.html): trazo en vez de relleno sólido, mismo grosor que otros trazos del sistema. */
 .bottom-nav__icon--history{ fill:none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .bottom-nav__item.is-active{ color: var(--brand-lime); }
+/* Segunda corrección QA 26SEP (§5) — 52px→58px (más presencia sin volverse grotesco, "acción
+   primaria de la app"), `margin-top` reajustado a -24px para conservar la misma proporción de
+   elevación sobre la barra (antes 22/52≈42% de su propio alto por encima del borde superior de
+   los demás ítems; ahora 24/58≈41%, prácticamente idéntico) — nunca tapa contenido/nav. */
 .bottom-nav__item--fab{
-  flex: 0 0 auto; width:52px; height:52px; border-radius:50%; background: var(--brand-lime);
-  color:#1A1400; font-size:26px; font-weight:800; line-height:1; margin: 0 4px;
-  margin-top:-22px; box-shadow: 0 6px 16px rgba(149,255,25,0.4); border: 4px solid var(--ink);
+  flex: 0 0 auto; width:58px; height:58px; border-radius:50%; background: var(--brand-lime);
+  color:#1A1400; margin: 0 4px;
+  margin-top:-24px; box-shadow: 0 6px 16px rgba(149,255,25,0.4); border: 4px solid var(--ink);
   display:flex; align-items:center; justify-content:center;
 }
+.bottom-nav__fab-icon{ width:26px; height:26px; }
 .bottom-nav__item--fab:active{ transform: scale(0.95); }
 /* BRAMUlab_V03.2 (§11) — BUG REAL, latente hasta ahora: el FAB ya traía `data-nav="manual-load"`
    pero esa vista nunca había estado en BOTTOM_NAV_VIEWS (app.js), así que updateBottomNavActive
@@ -2298,6 +2332,13 @@ input, select{ font-family: inherit; }
 .court-accumulated__set-label{ font-size: 10px; font-weight:800; letter-spacing:0.06em; color: var(--court-text-faint); }
 .court-accumulated__set-score{ font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .court-accumulated__set:active{ border-color: var(--brand-lime); }
+/* Segunda corrección QA 26SEP (§9) — usado SOLO por el editor de corrección
+   (renderProposeCorrectionAccumulated): el chip de Cargar partido sigue con
+   `.court-accumulated__set-score` como texto plano, un solo color (sin cambios). Acá el número
+   pasa a dos <span> propios para poder aplicar el mismo contraste ganador/perdedor del Resumen. */
+.court-accumulated__set-num{ color: var(--court-text-faint); }
+.court-accumulated__set-num.is-win{ color: var(--paper); }
+.court-accumulated__set-sep{ color: var(--court-text-faint); margin: 0 1px; }
 
 /* §6.3 — set actual: el resultado como elemento DOMINANTE de la pantalla.
    BRAMUlab_V03.2.1 (§9) — QA en producción: el bloque se percibía chico para el ancho
@@ -2365,6 +2406,21 @@ input, select{ font-family: inherit; }
   font-size: 13px; color: var(--paper); cursor:pointer;
 }
 .load-format-line__chevron{ color: var(--court-text-dim); font-size: 16px; }
+
+/* Segunda corrección QA 26SEP (§6) — área compacta única para formato (izquierda) y fecha/
+   hora/lugar (derecha) en Carga manual, arriba del primer set. `flex-wrap` es lo que da el
+   "wrap limpio en iPhone": si el texto de alguna de las dos líneas no entra a mitad de ancho
+   (fecha/hora/lugar largo, formato con nombre extenso), esa fila pasa a ocupar el ancho
+   completo en su propia línea en vez de recortarse o solaparse — nunca overlap, nunca scroll
+   horizontal. Dentro de este contenedor ambos botones pierden su `margin` propio (lo pone el
+   `gap` del contenedor) y su `width:100%` pasa a repartirse vía `flex-basis`. */
+.court-meta-compact{
+  display:flex; flex-wrap:wrap; gap:8px; margin: 4px 0 10px;
+}
+.court-meta-compact .load-format-line,
+.court-meta-compact .court-meta-line{
+  flex: 1 1 140px; width:auto; margin: 0;
+}
 
 /* CONTINUAR — fijo, se ubica arriba del teclado cuando está abierto (positionManualContinueBar
    en app.js mide el panel real en vez de asumir un alto fijo — esa misma función ahora suma
@@ -3396,6 +3452,10 @@ input, select{ font-family: inherit; }
    genéricas) sin la posición fija de `.load-keypad`. */
 .b6-correction-keypad{ padding: 10px 16px 4px; }
 .b6-correction-keypad[hidden]{ display:none; }
+/* Segunda corrección QA 26SEP (§9) — referencia de equipos SIEMPRE visible (nunca solo mientras
+   se edita un set puntual), mismo team-dot lima/celeste que el resto de la app. */
+.b6-correction-teams{ display:flex; flex-direction:column; gap: 6px; padding: 2px 16px 14px; }
+.b6-correction-teams__row{ display:flex; align-items:center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--paper); }
 
 /* Ronda correctiva (revisión central) — §G "qué cambió": lista compacta debajo del banner/texto
    de corrección (#b6-status-banner-text/#b6-respond-correction-text), nunca protagonista —
