@@ -187,6 +187,56 @@
     return result.slice(0, limit || 12);
   }
 
+  /** Ronda UX 25/09 (Ronda 2, §3) — clasificación PURA de qué partidos entran al carrusel de
+   *  pendientes de Home y en qué orden: cada `pending_validation` server-backed es exactamente
+   *  UNA tarjeta, nunca un agregado ("tenés N partidos") — eso es trabajo del render en app.js,
+   *  que sí conoce nombres reales de rivales. `isActionMine` ⇒ `'accionable'` (me toca actuar);
+   *  si no me toca pero `actionSide` señala que ALGUIEN debe actuar (la pareja rival) ⇒
+   *  `'espera'` — antes esta categoría no se mostraba en ningún lado de Home. Nunca clasifica un
+   *  partido sin `actionSide` como espera: sin ese dato no hay forma honesta de decir "esperando
+   *  a X" (evita inventar estado). Accionables primero, después espera — dentro de cada grupo se
+   *  preserva el orden de `displayMatches` (ya viene del más reciente al más antiguo). */
+  function computeHomePendingCarouselItems(displayMatches) {
+    const list = Array.isArray(displayMatches) ? displayMatches : [];
+    const accionables = [];
+    const espera = [];
+    list.forEach((m) => {
+      if (!m || !m.serverBacked || m.status !== 'pending_validation') return;
+      if (m.isActionMine) { accionables.push({ matchId: m.matchId, kind: 'accionable' }); return; }
+      if (m.actionSide) { espera.push({ matchId: m.matchId, kind: 'espera' }); }
+    });
+    return accionables.concat(espera);
+  }
+
+  /** Ronda UX 25/09 (Ronda 2, §8) — "cambio externo no visto" de Historial, definición PURA y
+   *  exacta: un `matchId` que YA existía en el snapshot anterior de `get_my_matches`
+   *  (`prevRows`, filas normalizadas por matches.js#normalizeMyMatchesRow) y cuyo estado
+   *  observable cambió en el snapshot nuevo (`nextRows`) — nunca un partido recién aparecido
+   *  (eso no es un CAMBIO a algo que el usuario ya conocía; si además es accionable, el carrusel
+   *  de Home ya lo destaca con más fuerza, ver PH.computeHomePendingCarouselItems). `excludeIds`
+   *  saca los partidos que el propio usuario acaba de mutar en esta misma sesión (ver
+   *  app.js#afterB6Action) — su propio confirmar/corregir/resolver no es un cambio "externo".
+   *  El fingerprint compara únicamente campos que un tercero puede cambiar: status, quién tiene
+   *  la acción, si hay corrección/identidad pendiente, cuándo se validó, y los sets/participantes
+   *  (una corrección o un reemplazo de identidad los modifica sin tocar `status`). */
+  function computeExternalHistoryChanges(prevRows, nextRows, excludeIds) {
+    const excluded = new Set((excludeIds || []).filter(Boolean));
+    const prevById = new Map((prevRows || []).filter((r) => r && r.matchId).map((r) => [r.matchId, r]));
+    const fingerprint = (row) => [
+      row.status, row.isActionMine, row.actionSide, row.pendingCorrectionRevisionId || '',
+      row.hasOpenIdentityIssue, row.validatedAt || '', row.hidden,
+      JSON.stringify(row.sets || []), JSON.stringify(row.participants || []),
+    ].join('|');
+    const changed = [];
+    (nextRows || []).forEach((row) => {
+      if (!row || !row.matchId || excluded.has(row.matchId)) return;
+      const prev = prevById.get(row.matchId);
+      if (!prev) return;
+      if (fingerprint(prev) !== fingerprint(row)) changed.push(row.matchId);
+    });
+    return changed;
+  }
+
   /** `matches` ya viene ordenado del más reciente al más antiguo (ver arriba). */
   function computeRecentForm(matches, playerName, limit) {
     return (matches || []).slice(0, limit || 5).map((m) => ({
@@ -935,7 +985,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, computeExternalHistoryChanges, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

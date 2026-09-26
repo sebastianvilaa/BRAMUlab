@@ -72,7 +72,18 @@
   // el último evento real en actionsRaw. Defensa chica: RECIENTES se oculta si falla la
   // resolución de provisionales, nunca muestra un invitado como registrado por error. Mismo
   // criterio: APP_VERSION sigue en "BRAMUlab V04.11" a propósito.
-  const BUNDLE_VERSION = '04.11-h4';
+  //
+  // Ronda UX 25/09 (Ronda 2 — jerarquía visual, handoff 13 §B/§C/§D/§E/§H/§I/§J/§K) — `-h5`:
+  // resultado (victoria/derrota) separado de estado (accionable/espera/CALIBRANDO); banner único
+  // de Home reemplazado por un carrusel de tarjetas, una por partido real; VALIDADO deja de ser
+  // badge persistente (queda solo el toast transitorio); Resumen gana metadata de trazabilidad
+  // real (Cargado/Confirmado por) y unifica corrección/no-participé en "REPORTAR UN ERROR";
+  // Historial oculta las pestañas Todos/Mis partidos (redundantes hoy) y suma un indicador de
+  // cambios externos no vistos; Notificaciones usa actor real cuando el backend lo da
+  // (migración aditiva `preprod_ux_notification_actor_enrichment`, tolera el contrato viejo) y
+  // deja de auto-notificarse a quien mismo hizo la acción. Mismo criterio: APP_VERSION sigue en
+  // "BRAMUlab V04.11" a propósito.
+  const BUNDLE_VERSION = '04.11-h5';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -165,6 +176,13 @@
     // (nunca una clave por cuenta) para que dos cuentas en el mismo navegador nunca comparen el
     // mismo "ya visto" ni requieran migración de esquema si cambia la cantidad de cuentas.
     RANKING_MILESTONE_SEEN: 'bramulab.rankingMilestoneSeen.v1',
+    // Ronda UX 25/09 (Ronda 2, §8) — "cambios externos no vistos" de Historial: solo IDs de
+    // partido, nunca copy/actor (eso se resuelve en el momento del render, con datos frescos).
+    // Mismo criterio de alcance que SERVER_MATCHES_CACHE (de donde sale el diff que llena esto):
+    // dato del dispositivo, no separado por userId — un partido ya visto por una cuenta en este
+    // dispositivo no necesita re-marcarse al cambiar de cuenta, es una comodidad visual menor,
+    // no una fuente de verdad.
+    HISTORY_UNSEEN_CHANGES: 'bramulab.historyUnseenChanges.v1',
   };
 
   function safeGet(key) {
@@ -823,6 +841,26 @@
     safeSet(KEYS.SERVER_MATCHES_CACHE, { matches: Array.isArray(matches) ? matches : [], fetchedAt: new Date().toISOString() });
   }
 
+  /** Ronda UX 25/09 (Ronda 2, §8) — IDs de partido con un "cambio externo no visto" pendiente
+   *  de mostrarse en Historial (ver app.js#refreshServerMatches, que calcula el diff real vía
+   *  PH.computeExternalHistoryChanges y llama a addHistoryUnseenChanges). `addHistoryUnseenChanges`
+   *  mergea con lo que ya hubiera (nunca pisa lo anterior: pueden acumularse varios refrescos
+   *  antes de que el usuario abra Historial). `clearHistoryUnseenChanges` es lo que dispara
+   *  "abrir Historial = visto". */
+  function loadHistoryUnseenChanges() {
+    const ids = safeGet(KEYS.HISTORY_UNSEEN_CHANGES);
+    return Array.isArray(ids) ? ids : [];
+  }
+  function addHistoryUnseenChanges(newIds) {
+    const clean = (newIds || []).filter(Boolean);
+    if (!clean.length) return;
+    const merged = Array.from(new Set(loadHistoryUnseenChanges().concat(clean)));
+    safeSet(KEYS.HISTORY_UNSEEN_CHANGES, merged);
+  }
+  function clearHistoryUnseenChanges() {
+    safeSet(KEYS.HISTORY_UNSEEN_CHANGES, []);
+  }
+
   /* ------------------------------------------------------------------ */
   /* BRAMUlab_V03.4 (§4/§5/§6/§15) — GRUPOS ("MIS GRUPOS")                */
   /* CRUD + mutaciones de membresía/administradores. El cálculo de puntos, */
@@ -1059,6 +1097,7 @@
     // Backend Bloque 5 — outbox de cargas de partido server-backed
     loadMatchOutbox, getMatchOutboxEntry, saveMatchOutboxEntry, removeMatchOutboxEntry,
     loadServerMatchesCache, saveServerMatchesCache,
+    loadHistoryUnseenChanges, addHistoryUnseenChanges, clearHistoryUnseenChanges,
     // BRAMUlab_V03.4 — grupos ("MIS GRUPOS")
     loadGroups, getGroupById, createGroup, renameGroup, deleteGroup,
     addGroupMember, removeGroupMember, promoteGroupAdmin, demoteGroupAdmin,

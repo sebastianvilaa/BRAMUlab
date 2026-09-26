@@ -3064,6 +3064,74 @@
   })();
 
   // ------------------------------------------------------------------
+  // RONDA-UX-VIS · PH.computeHomePendingCarouselItems (Ronda UX 25/09, Ronda 2, §3) — pura:
+  // qué partidos entran al carrusel de Home y en qué orden (accionables primero, espera después).
+  // ------------------------------------------------------------------
+  (function () {
+    function m(matchId, overrides) {
+      return Object.assign({ matchId, serverBacked: true, status: 'pending_validation', isActionMine: false, actionSide: null }, overrides || {});
+    }
+    const mixed = [
+      m('acc1', { isActionMine: true }),
+      m('esp1', { actionSide: 'B' }),
+      m('acc2', { isActionMine: true }),
+      m('validated1', { status: 'validated', isActionMine: false }), // no pendiente — nunca entra
+      m('noaction', { isActionMine: false, actionSide: null }), // sin actionSide — nunca "espera" (evita inventar estado)
+      m('esp2', { actionSide: 'A' }),
+      m('local1', { serverBacked: false, isActionMine: true }), // legacy local — nunca server-backed
+    ];
+    const items = PH.computeHomePendingCarouselItems(mixed);
+    const ids = items.map((i) => i.matchId);
+    assert('RONDA-UX-VIS · solo entran server-backed pending_validation con isActionMine o actionSide', JSON.stringify(ids) === JSON.stringify(['acc1', 'acc2', 'esp1', 'esp2']), JSON.stringify(ids));
+    assert('RONDA-UX-VIS · accionables siempre antes que espera, orden interno preservado', items[0].kind === 'accionable' && items[1].kind === 'accionable' && items[2].kind === 'espera' && items[3].kind === 'espera');
+    assert('RONDA-UX-VIS · validated nunca entra al carrusel', ids.indexOf('validated1') === -1);
+    assert('RONDA-UX-VIS · pending sin isActionMine ni actionSide nunca se inventa como "espera"', ids.indexOf('noaction') === -1);
+    assert('RONDA-UX-VIS · partido local (no server-backed) nunca entra', ids.indexOf('local1') === -1);
+    assert('RONDA-UX-VIS · lista vacía => []', PH.computeHomePendingCarouselItems([]).length === 0);
+    assert('RONDA-UX-VIS · undefined => [] (nunca revienta)', PH.computeHomePendingCarouselItems(undefined).length === 0);
+  })();
+
+  // ------------------------------------------------------------------
+  // RONDA-UX-VIS · PH.computeExternalHistoryChanges (Ronda UX 25/09, Ronda 2, §8) — pura:
+  // qué matchId marcar como "cambio externo no visto" en Historial.
+  // ------------------------------------------------------------------
+  (function () {
+    function row(matchId, overrides) {
+      return Object.assign({
+        matchId, status: 'pending_validation', isActionMine: false, actionSide: 'A',
+        pendingCorrectionRevisionId: null, hasOpenIdentityIssue: false, validatedAt: null,
+        hidden: false, sets: [], participants: [],
+      }, overrides || {});
+    }
+    const prev = [row('m1'), row('m2'), row('m3', { status: 'validated', isActionMine: false })];
+    const next = [
+      row('m1'), // sin cambios
+      row('m2', { isActionMine: true, actionSide: null }), // cambió de lado: la otra pareja confirmó y ahora me toca a mí
+      row('m3', { status: 'validated', pendingCorrectionRevisionId: 'rev_x' }), // corrección propuesta post-validación
+      row('m4'), // partido nuevo — nunca es un "cambio" a algo ya conocido
+    ];
+    const changed = PH.computeExternalHistoryChanges(prev, next, []);
+    assert('RONDA-UX-VIS · detecta un cambio real de estado (isActionMine/actionSide)', changed.indexOf('m2') !== -1, JSON.stringify(changed));
+    assert('RONDA-UX-VIS · detecta una corrección propuesta post-validación (pendingCorrectionRevisionId) sin cambiar status', changed.indexOf('m3') !== -1, JSON.stringify(changed));
+    assert('RONDA-UX-VIS · sin cambios reales no se marca', changed.indexOf('m1') === -1, JSON.stringify(changed));
+    assert('RONDA-UX-VIS · un partido nuevo (no existía antes) nunca se marca como "cambio"', changed.indexOf('m4') === -1, JSON.stringify(changed));
+
+    const excluded = PH.computeExternalHistoryChanges(prev, next, ['m2']);
+    assert('RONDA-UX-VIS · excludeIds saca lo que el propio usuario acaba de mutar (afterB6Action)', excluded.indexOf('m2') === -1 && excluded.indexOf('m3') !== -1, JSON.stringify(excluded));
+
+    const setsChanged = [row('m5', { sets: [{ gamesA: 6, gamesB: 4 }] })];
+    const setsAfter = [row('m5', { status: 'validated', sets: [{ gamesA: 6, gamesB: 3 }] })];
+    assert('RONDA-UX-VIS · un cambio en sets (corrección aceptada) se detecta aunque status ya fuera validated en ambos', PH.computeExternalHistoryChanges(setsChanged.map((r) => Object.assign({}, r, { status: 'validated' })), setsAfter, []).length === 1);
+
+    const participantsChanged = [row('m6', { participants: [{ playerId: 'u1' }] })];
+    const participantsAfter = [row('m6', { participants: [{ playerId: 'u2' }] })];
+    assert('RONDA-UX-VIS · un cambio en participants (identidad reemplazada) se detecta', PH.computeExternalHistoryChanges(participantsChanged, participantsAfter, []).length === 1);
+
+    assert('RONDA-UX-VIS · ambos vacíos => []', PH.computeExternalHistoryChanges([], [], []).length === 0);
+    assert('RONDA-UX-VIS · undefined/undefined/undefined => [] (nunca revienta)', PH.computeExternalHistoryChanges(undefined, undefined, undefined).length === 0);
+  })();
+
+  // ------------------------------------------------------------------
   // V03.0 — Estampado de userId: nunca ambiguo (pura)
   // ------------------------------------------------------------------
   (function () {

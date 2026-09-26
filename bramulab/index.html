@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h4" />
+<link rel="stylesheet" href="styles.css?v=04.11-h5" />
 </head>
 <body>
 
@@ -56,7 +56,10 @@
            BRAMUlive (2026-09-18) — se retiran Deshacer/Reanudar: eran exclusivas del partido
            EN VIVO recién terminado, que se separó a BRAMUlive. Esta pantalla sigue siendo
            compartida por carga manual/Historial (ver renderAnalysis en app.js). -->
-      <p id="analysis-meta" class="analysis-meta"></p>
+      <!-- Ronda UX 25/09 (Ronda 2, §4) — pasa de <p> de una sola línea a <div> con hasta 3
+           líneas de trazabilidad real (Cargado por/fecha/hora, formato/sistema, Confirmado por)
+           — ver renderAnalysisMeta/buildAnalysisMetaLines en app.js. -->
+      <div id="analysis-meta" class="analysis-meta"></div>
       <section class="analysis-section" id="analysis-result"></section>
       <!-- Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer corrección/
            Responder corrección/No participé/identidad. Vive pegado al resultado, arriba de
@@ -84,11 +87,12 @@
         <div class="b6-action-block" id="b6-confirm-block" hidden>
           <button type="button" class="btn-start" id="b6-confirm-btn" style="width:100%">CONFIRMAR PARTIDO</button>
         </div>
-        <div class="b6-action-block" id="b6-propose-correction-block" hidden>
-          <button type="button" class="btn-secondary btn-secondary--accent" id="b6-propose-correction-btn" style="width:100%">PROPONER CORRECCIÓN</button>
-        </div>
-        <div class="b6-action-block" id="b6-report-identity-block" hidden>
-          <button type="button" class="link-btn" id="b6-report-identity-btn">No participé / una identidad cargada es incorrecta</button>
+        <!-- Ronda UX 25/09 (Ronda 2, §5) — REEMPLAZA los dos accesos separados anteriores
+             (#b6-propose-correction-block "PROPONER CORRECCIÓN" + #b6-report-identity-block "No
+             participé...") por un único punto de entrada secundario que abre un selector
+             (#report-error-scrim, ver más abajo) — ver openReportErrorPicker en app.js. -->
+        <div class="b6-action-block" id="b6-report-error-block" hidden>
+          <button type="button" class="btn-secondary" id="b6-report-error-btn" style="width:100%">REPORTAR UN ERROR</button>
         </div>
       </section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
@@ -532,16 +536,15 @@
     </div>
     <div class="analysis-scroll player-home-scroll">
 
-      <!-- Backend Bloque 6 (Fase B) — Experiencia_Inicial.md §9.1: cuando existe un pendiente
-           accionable, el carrusel superior es la superficie prioritaria. Acento lima/verde más
-           intenso que un destacado informativo común (nunca naranja: reservado a CALIBRANDO),
-           CTA claro hacia el partido. Toda la tarjeta es tocable — mismo patrón que
-           player-home-last-match-card. Oculta por completo sin pendientes accionables. -->
-      <div class="pastilla player-home-pending-banner" id="player-home-pending-banner" hidden role="button" tabindex="0">
-        <span class="player-home-pending-banner__title" id="player-home-pending-banner-title">PARTIDO PENDIENTE</span>
-        <p class="player-home-pending-banner__text" id="player-home-pending-banner-text"></p>
-        <span class="player-home-pending-banner__cta" id="player-home-pending-banner-cta">REVISAR</span>
-      </div>
+      <!-- Ronda UX 25/09 (Ronda 2, §3) — carrusel horizontal de pendientes: reemplaza el banner
+           único anterior. Cada tarjeta es UN partido real (nunca un agregado inventado), tocable
+           por completo, sin CTA suelto. Con un solo pendiente se ve como tarjeta estática; con
+           más de uno, scroll horizontal nativo con scroll-snap (sin librería nueva, ver §12).
+           Categoría "informativos/tips" del handoff queda soportada por la clase modificadora
+           `--info` pero SIN contenido todavía: no existe hoy una fuente real de tips temporales
+           en Home fuera de TU MOMENTO (NO TOCAR, §13) — inventar uno violaría "nunca inventar
+           actores/eventos". Oculto por completo sin ningún pendiente. -->
+      <div class="player-home-carousel" id="player-home-pending-carousel" hidden></div>
 
       <!-- §5 — Hitos personales: franja horizontal desplazable, solo con al menos un hito
            justificado por la historia real (PH.computeHitos). Oculta por completo si no hay
@@ -2362,12 +2365,40 @@
   </div>
 
   <!-- ============================================================
+       Ronda UX 25/09 (Ronda 2, §5) — "REPORTAR UN ERROR": único punto de entrada que reemplaza
+       los dos accesos separados anteriores. Pregunta qué está mal y deriva al flujo específico
+       ya existente (editor de corrección / selector de "No participé" de abajo) — ver
+       openReportErrorPicker en app.js. Sin opción "otros datos": no existe hoy ningún camino de
+       backend para editar otro dato del partido.
+       ============================================================ -->
+  <div id="report-error-scrim" class="sheet-scrim" hidden>
+    <div id="report-error-sheet" class="bottom-sheet" role="dialog" aria-modal="true" aria-label="Reportar un error">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">¿QUÉ ESTÁ MAL?</span>
+        <button type="button" id="report-error-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="load-player-sheet__scroll" style="padding: 4px 16px 16px;">
+        <button type="button" class="report-error-option" id="report-error-result-btn" hidden>
+          <span class="report-error-option__title">El resultado</span>
+          <span class="report-error-option__sub">Corregir el marcador de este partido</span>
+        </button>
+        <button type="button" class="report-error-option" id="report-error-participant-btn" hidden>
+          <span class="report-error-option__title">Un participante</span>
+          <span class="report-error-option__sub">Alguien cargado en este partido no participó</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        Backend Bloque 6 (Fase B) — "No participé": elegir CUÁL de los 4 lugares tiene la
        identidad incorrecta (Experiencia_Inicial.md §13: cualquier participante puede
        denunciarlo, no hace falta que sea el propio jugador mal asociado). Mismo patrón mínimo
        que #ambiguous-match-overlay — una lista de opciones dentro de .overlay__card. La
        confirmación final reutiliza #confirm-overlay (confirmAction), ver
-       openReportIdentityPicker en app.js.
+       openReportIdentityPicker en app.js. Se abre directo o vía "REPORTAR UN ERROR > Un
+       participante" (ver arriba).
        ============================================================ -->
   <div id="report-identity-overlay" class="overlay" hidden>
     <div class="overlay__card overlay__card--wide">
@@ -2594,7 +2625,13 @@
          sólidas) — necesaria acá porque un reloj CON manecillas visibles a este tamaño requiere
          contraste interno que un relleno sólido no puede dar. -->
     <button type="button" class="bottom-nav__item" data-nav="history" aria-label="Historial">
-      <svg viewBox="0 0 24 24" class="bottom-nav__icon bottom-nav__icon--history"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.2 1.9"/></svg>
+      <!-- Ronda UX 25/09 (Ronda 2, §8) — punto discreto de "cambios externos no vistos": sin
+           número (no es un contador tipo notif-badge, solo señala "algo cambió"), se apaga solo
+           al ABRIR Historial (ver renderHistory), nunca hace falta abrir cada partido. -->
+      <span class="bottom-nav__icon-wrap">
+        <svg viewBox="0 0 24 24" class="bottom-nav__icon bottom-nav__icon--history"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3.2 1.9"/></svg>
+        <span id="history-unseen-dot" class="bottom-nav__unseen-dot" hidden></span>
+      </span>
       <span>Historial</span>
     </button>
     <button type="button" class="bottom-nav__item bottom-nav__item--fab" data-nav="manual-load" aria-label="Cargar partido">
@@ -2631,42 +2668,42 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h4"></script>
-  <script src="stats.js?v=04.11-h4"></script>
-  <script src="store.js?v=04.11-h4"></script>
+  <script src="engine.js?v=04.11-h5"></script>
+  <script src="stats.js?v=04.11-h5"></script>
+  <script src="store.js?v=04.11-h5"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h4"></script>
-  <script src="level-context.js?v=04.11-h4"></script>
-  <script src="level-calibration.js?v=04.11-h4"></script>
-  <script src="player-home.js?v=04.11-h4"></script>
-  <script src="match-load.js?v=04.11-h4"></script>
-  <script src="player-identity.js?v=04.11-h4"></script>
-  <script src="groups.js?v=04.11-h4"></script>
-  <script src="locations.js?v=04.11-h4"></script>
-  <script src="ranking.js?v=04.11-h4"></script>
+  <script src="level.js?v=04.11-h5"></script>
+  <script src="level-context.js?v=04.11-h5"></script>
+  <script src="level-calibration.js?v=04.11-h5"></script>
+  <script src="player-home.js?v=04.11-h5"></script>
+  <script src="match-load.js?v=04.11-h5"></script>
+  <script src="player-identity.js?v=04.11-h5"></script>
+  <script src="groups.js?v=04.11-h5"></script>
+  <script src="locations.js?v=04.11-h5"></script>
+  <script src="ranking.js?v=04.11-h5"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h4"></script>
+  <script src="auth.js?v=04.11-h5"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h4"></script>
-  <script src="match-sync.js?v=04.11-h4"></script>
+  <script src="matches.js?v=04.11-h5"></script>
+  <script src="match-sync.js?v=04.11-h5"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h4"></script>
+  <script src="match-validation.js?v=04.11-h5"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h4"></script>
-  <script src="app.js?v=04.11-h4"></script>
+  <script src="intelligence-client.js?v=04.11-h5"></script>
+  <script src="app.js?v=04.11-h5"></script>
 </body>
 </html>

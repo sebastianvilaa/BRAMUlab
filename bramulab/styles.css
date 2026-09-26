@@ -557,6 +557,11 @@ input, select{ font-family: inherit; }
    4px era 6.5x menos que el ritmo entre bloques del resto de la pantalla. Sube a 14px
    (dentro del rango ~12-16px pedido por la auditoría), sin tocar tipografía/contenido. */
 .analysis-meta{ font-size: 11px; color: var(--paper-faint); letter-spacing:0.02em; margin: 0 0 14px; padding: 0 2px; text-align: center; }
+/* Ronda UX 25/09 (Ronda 2, §4) — hasta 3 líneas apiladas (Cargado por/fecha/hora, formato/
+   sistema, Confirmado por) en vez de una sola línea larga — misma tipografía que antes, la
+   primera línea (trazabilidad de carga) un toque más presente que el resto. */
+.analysis-meta__line{ line-height:1.5; }
+.analysis-meta__line:first-child{ color: var(--paper-dim); }
 
 /* Bloque M1: el ganador vive FUERA de la tarjeta de score. */
 .winners-banner{ text-align:center; margin-bottom: 14px; }
@@ -583,7 +588,7 @@ input, select{ font-family: inherit; }
 .result-card__name{ font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
-.result-card__sets{ display:grid; grid-auto-flow:column; grid-auto-columns: 28px; gap: 6px; justify-content:end; }
+.result-card__sets{ display:grid; grid-auto-flow:column; grid-auto-columns: 28px; gap: 6px; justify-content:end; align-items:center; }
 /* M3: mismo tamaño para ganador y perdedor de cada set; el ganador va a 100% de contraste,
    el perdedor se atenúa (55–65%) para que se entienda instantáneamente quién ganó cada set. */
 .result-card__set{ width: 28px; text-align:center; font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; font-size:18px; background: rgba(244,247,242,0.08); border-radius:6px; padding: 2px 4px; position:relative; color: var(--paper); opacity: 0.6; }
@@ -908,6 +913,12 @@ input, select{ font-family: inherit; }
    único bloque y un único blanco de toque (mismo padding a los 4 lados, ya no asimétrico para
    dejarle lugar a la X a la derecha). */
 .history-item{ background: var(--ink-soft); border-radius: 12px; padding: 14px 16px; cursor:pointer; }
+/* Ronda UX 25/09 (Ronda 2, §8) — "cambio externo no visto": un borde IZQUIERDO angosto (nunca
+   un borde completo blanco/genérico, que se leería como foco/selección) en el mismo cian
+   informativo que .bottom-nav__unseen-dot/.notif-item--info — nunca lima/ámbar/verde/rojo, que
+   ya significan accionable/espera/victoria/derrota en esta misma tarjeta. Temporal por diseño:
+   vive solo mientras dura la visita a Historial que lo reveló (ver historyUnseenSnapshot). */
+.history-item--unseen{ box-shadow: inset 3px 0 0 var(--accent-cyan); }
 
 /* V02.1 (§22) — vistas Compañeros/Rivales: mismo lenguaje visual que .history-item, sin
    acción de tocar (no navegan a ningún detalle en esta ronda). */
@@ -938,7 +949,11 @@ input, select{ font-family: inherit; }
    (Observados) sigue como micro-tag pegado al nombre de la pareja ganadora. */
 .history-item__top-row{ display:flex; align-items:center; justify-content:space-between; gap: 8px; margin-bottom: 8px; }
 .history-item__result-badge{ flex:none; font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 7px; border-radius: 999px; text-transform:uppercase; }
-.history-item__result-badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
+/* Ronda UX 25/09 (Ronda 2, §2) — RESULTADO vs ESTADO: victoria pasa a verde real
+   (--confirm-green, ya reservado y sin uso hasta ahora) en vez de compartir el lima que ahora
+   es EXCLUSIVO de "requiere tu acción" (ver .history-item__badge--action) — mostrar VICTORIA en
+   el mismo color que un pendiente accionable mezclaba dos semánticas distintas. */
+.history-item__result-badge--win{ background: rgba(46,204,113,0.14); color: var(--confirm-green); }
 .history-item__result-badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .history-item__won-tag{ font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime); margin: 0 6px 0 4px; vertical-align: middle; }
 .history-item__date{ font-size: 11px; color: var(--paper-dim); text-transform:uppercase; letter-spacing:0.06em; }
@@ -970,6 +985,11 @@ input, select{ font-family: inherit; }
    ese partido no aporta estadísticas oficiales todavía. Tratamiento mínimo, marcado como UX
    REVIEW: revisar con Sebastián si necesita un ícono o color propio más adelante. */
 .history-item__badge--pending{ color: var(--text-dim); background: rgba(154,167,181,0.12); }
+/* Ronda UX 25/09 (Ronda 2, §2) — ámbar reservado a "pendiente esperando a terceros" (mismo tono
+   que CALIBRANDO, --gold — decisión ya validada visualmente en Laboratorio §15.17/§15.22),
+   nunca el gris neutro genérico de arriba (reservado a estados técnicos/ya cerrados: sync
+   pending, necesita revisión, vencido, anulado). */
+.history-item__badge--waiting{ color: var(--gold); background: rgba(255,201,61,0.12); }
 
 /* ==========================================================================
    Etapa 4.1 (§3) — Historial: pestañas de pertenencia + chips de modo.
@@ -1587,12 +1607,20 @@ input, select{ font-family: inherit; }
    V02.4 (Bloque B, §4.1) — Surface 3 (más clara que el --surface-1 plano de las demás
    tarjetas) + borde COMPLETO de 1px lima (nunca condicionado al resultado — el badge VIC/DER
    ya es quien comunica eso); se retira la línea de acento vertical izquierda (antes un
-   ::before de 2px lima/coral según resultado, un segundo acento redundante con el badge). */
+   ::before de 2px lima/coral según resultado, un segundo acento redundante con el badge).
+   Ronda UX 25/09 (Ronda 2, §2) — REVIERTE esa decisión: handoff 13 pide expresamente que el
+   acento SÍ dependa del estado real (oficial ganado/perdido/pendiente accionable/en espera,
+   ver renderPlayerLastMatchCard en app.js). El color deja de ser un valor fijo y pasa a leerse
+   de `--lastmatch-accent`/`--lastmatch-accent-rgb` (custom properties, redefinidas por cada
+   modificador de estado más abajo) — el borde/glow/animación de esta regla base no cambian,
+   solo el color que consumen. */
 .player-home-lastmatch{
   position: relative; overflow: hidden;
   cursor:pointer; text-align:left; border-radius: var(--radius-hero);
   background: var(--surface-3);
-  border-color: var(--brand-lime);
+  --lastmatch-accent: var(--brand-lime);
+  --lastmatch-accent-rgb: 149,255,25;
+  border-color: var(--lastmatch-accent);
   /* V02.6 (§3.3): gana presencia con un glow muy leve en vez de engrosar el borde a 2px —
      "apenas encendido", nunca fosforescente.
      V02.7 (§7): suma un micro-pulso — solo la INTENSIDAD del glow respira entre los dos valores
@@ -1604,15 +1632,29 @@ input, select{ font-family: inherit; }
      V02.8.1 (§3): la prueba real mostró que V02.8 se pasó de intensidad (V02.7 era muy sutil,
      V02.8 quedó demasiado fuerte). Punto intermedio, mismo ciclo/easing/mecanismo — solo
      bajan los valores de reposo (20px/.16 → 18px/.12) y pico (30px/.32 → 25px/.24). */
-  box-shadow: 0 0 18px rgba(149,255,25,.12);
+  box-shadow: 0 0 18px rgba(var(--lastmatch-accent-rgb),.12);
   animation: lastMatchGlowPulse 3.6s ease-in-out infinite;
   padding: 22px 20px;
 }
 @keyframes lastMatchGlowPulse{
-  0%, 100%{ box-shadow: 0 0 18px rgba(149,255,25,.12); }
-  50%{ box-shadow: 0 0 25px rgba(149,255,25,.24); }
+  0%, 100%{ box-shadow: 0 0 18px rgba(var(--lastmatch-accent-rgb),.12); }
+  50%{ box-shadow: 0 0 25px rgba(var(--lastmatch-accent-rgb),.24); }
 }
 @media (prefers-reduced-motion: reduce){ .player-home-lastmatch{ animation: none; } }
+/* Ronda UX 25/09 (Ronda 2, §2) — modificadores de estado (renderPlayerLastMatchCard, app.js):
+   oficial ganado/perdido usan el mismo verde/rojo que los badges de resultado; pendiente
+   accionable/en espera usan lima/ámbar, mismo criterio que el badge de estado. `--loss` pierde
+   la animación de pulso y baja la intensidad de reposo ("evitar glow rojo agresivo" — un
+   partido perdido no necesita respirar/llamar la atención como uno pendiente). Sin ninguno de
+   estos modificadores (partido oficial sin resultado definido, o local/legacy), la tarjeta
+   conserva el lima de siempre. */
+.player-home-lastmatch--win{ --lastmatch-accent: var(--confirm-green); --lastmatch-accent-rgb: 46,204,113; }
+.player-home-lastmatch--loss{
+  --lastmatch-accent: var(--danger); --lastmatch-accent-rgb: 255,91,97;
+  animation: none; box-shadow: 0 0 12px rgba(255,91,97,.08);
+}
+.player-home-lastmatch--action{ --lastmatch-accent: var(--brand-lime); --lastmatch-accent-rgb: 149,255,25; }
+.player-home-lastmatch--waiting{ --lastmatch-accent: var(--gold); --lastmatch-accent-rgb: 255,201,61; }
 /* V02.9.1 (§2) — encabezado en 2 líneas apiladas (antes 2 columnas lado a lado: izquierda
    forma+título+badge, derecha fecha — el badge terminaba angosto/apretado contra el título en
    pantallas chicas). Línea 1: título + fecha/hora (misma jerarquía/alineación que antes, solo
@@ -1644,13 +1686,21 @@ input, select{ font-family: inherit; }
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
 .player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; }
-.player-home-lastmatch__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
+/* Ronda UX 25/09 (Ronda 2, §2) — mismo criterio que .history-item__result-badge--win: victoria
+   pasa a verde real, el lima queda exclusivo de "requiere tu acción". */
+.player-home-lastmatch__badge--win{ background: rgba(46,204,113,0.14); color: var(--confirm-green); }
 .player-home-lastmatch__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
 .player-home-lastmatch__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
 /* Backend Bloque 5 — estado operativo del partido, separado del resultado deportivo.
-   Neutral a propósito: PENDIENTE/EXPIRADO/SYNC no es logro ni error y nunca debe competir
-   con VICTORIA/DERROTA. */
+   Neutral a propósito: EXPIRADO/SYNC/NECESITA REVISIÓN no es logro ni error y nunca debe
+   competir con VICTORIA/DERROTA.
+   Ronda UX 25/09 (Ronda 2, §2) — se agregan las variantes accionable/en espera/identidad, mismo
+   criterio de color que Historial (.history-item__badge--action/--waiting/--identity): antes
+   esta tarjeta SIEMPRE usaba el mismo gris neutro sin importar el estado real. */
 .player-home-lastmatch__badge--status{ background: rgba(154,167,181,0.12); color: var(--court-text-dim); }
+.player-home-lastmatch__badge--action{ background: var(--brand-lime); color: var(--ink-soft); font-weight: 800; }
+.player-home-lastmatch__badge--waiting{ background: rgba(255,201,61,0.14); color: var(--gold); }
+.player-home-lastmatch__badge--identity{ background: rgba(255,91,97,0.12); color: var(--danger); }
 /* §11 — "resultado claramente protagonista y de mayor tamaño": el primer nivel de lectura de
    la tarjeta.
    V02.4 (Bloque B, §5) — marcador GRANDE exclusivo de esta tarjeta (buildLastMatchScoreHTML en
@@ -1910,6 +1960,17 @@ input, select{ font-family: inherit; }
   font-size: 10px; font-weight:700; padding:6px 2px; cursor:pointer;
 }
 .bottom-nav__icon{ width:21px; height:21px; fill: currentColor; }
+/* Ronda UX 25/09 (Ronda 2, §8) — punto de "cambio externo no visto": deliberadamente sin
+   número/pill (esto no cuenta cosas, solo señala "hay algo nuevo"), y sin el borde de --ink que
+   sí necesita .notif-badge sobre una campana con fondo propio — acá el ícono no tiene fondo
+   detrás así que un borde se vería como un halo suelto. */
+.bottom-nav__icon-wrap{ position:relative; display:inline-flex; }
+.bottom-nav__unseen-dot{
+  position:absolute; top:-2px; right:-3px; width:8px; height:8px; border-radius:50%;
+  /* Cian informativo (mismo token que .notif-item--info), nunca lima/ámbar/verde/rojo: este
+     punto es "hay una novedad", no un estado de resultado ni de acción requerida (§2). */
+  background: var(--accent-cyan);
+}
 /* V02.5 (Bloque A, §8) — único ícono de esta barra con manecillas visibles (ver comentario en
    index.html): trazo en vez de relleno sólido, mismo grosor que otros trazos del sistema. */
 .bottom-nav__icon--history{ fill:none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -3200,25 +3261,43 @@ input, select{ font-family: inherit; }
    .bottom-sheet) — ninguna paleta nueva.
    ========================================================================== */
 
-/* ---- Home: banner de pendiente accionable (§9.1) ---- */
-.player-home-pending-banner{
-  display:block; width:100%; text-align:left; cursor:pointer;
+/* ---- Home: carrusel de pendientes (Ronda UX 25/09, Ronda 2, §3/§12) ----
+   Reemplaza el banner único (`.player-home-pending-banner`, retirado). Track con scroll
+   horizontal nativo + scroll-snap (sin librería): cada tarjeta ocupa el 100% del ancho, así que
+   con 1 sola se ve estática (nada para desplazar) y con 2+ el usuario desliza. Altura reducida
+   a propósito frente al banner viejo: solo microlabel + una línea de copy, sin CTA aparte —
+   la tarjeta entera es el botón (mismo patrón táctil que player-home-last-match-card). */
+.player-home-carousel{
+  display:flex; gap: 10px; overflow-x:auto; scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch; margin-bottom: 12px; padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.player-home-carousel::-webkit-scrollbar{ display:none; }
+.player-home-carousel-card{
+  flex: 0 0 100%; scroll-snap-align:start; min-width:0; display:block; text-align:left;
+  cursor:pointer; border: 1px solid var(--line); border-radius: var(--radius-card);
+  background: var(--ink-soft); padding: 12px 14px;
+}
+.player-home-carousel-card--accionable{
   border-color: rgba(149,255,25,0.45);
   background: linear-gradient(180deg, rgba(149,255,25,0.10) 0%, var(--ink-soft) 70%);
 }
-.player-home-pending-banner__title{
-  display:block; font-family: var(--font-display); font-weight: 800; font-size: 12px;
-  letter-spacing: 0.04em; color: var(--brand-lime); text-transform: uppercase;
-  /* Latido breve/sutil (§9.1) — respeta prefers-reduced-motion más abajo. */
-  animation: b6PendingPulse 2.4s ease-in-out infinite;
+.player-home-carousel-card--espera{
+  border-color: rgba(255,201,61,0.4);
+  background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
 }
-.player-home-pending-banner__text{ font-size: 13px; color: var(--paper); margin: 6px 0 10px; line-height:1.4; }
-.player-home-pending-banner__cta{
-  display:inline-block; font-size: 11px; font-weight: 800; letter-spacing:0.04em;
-  color: var(--ink-soft); background: var(--brand-lime); padding: 6px 14px; border-radius: var(--radius-pill);
+.player-home-carousel-card__label{
+  display:block; font-family: var(--font-display); font-weight: 800; font-size: 11px;
+  letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px;
+  /* Latido breve/sutil solo en lo accionable (§9.1 original) — respeta prefers-reduced-motion. */
 }
+.player-home-carousel-card--accionable .player-home-carousel-card__label{
+  color: var(--brand-lime); animation: b6PendingPulse 2.4s ease-in-out infinite;
+}
+.player-home-carousel-card--espera .player-home-carousel-card__label{ color: var(--gold); }
+.player-home-carousel-card__text{ font-size: 13px; color: var(--paper); margin:0; line-height:1.4; }
 @keyframes b6PendingPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
-@media (prefers-reduced-motion: reduce){ .player-home-pending-banner__title{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .player-home-carousel-card--accionable .player-home-carousel-card__label{ animation:none; } }
 
 /* ---- Historial: badge accionable vs. en espera (§9.3) ---- */
 .history-item__badge--action{
@@ -3240,7 +3319,9 @@ input, select{ font-family: inherit; }
   border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
   border-radius: var(--radius-control); padding: 10px 12px;
 }
-.b6-identity-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 6px 0; }
+/* Ronda UX 25/09 (Ronda 2, §7) — MEJORA: toda la tarjeta es tappable (antes solo RESOLVER) —
+   cursor + área de toque completa, mismo criterio que .player-home-lastmatch/.history-item. */
+.b6-identity-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 6px 0; cursor: pointer; }
 .b6-identity-row + .b6-identity-row{ border-top: 1px solid rgba(255,91,97,0.18); }
 .b6-identity-row__label{ font-size: 13px; color: var(--paper); }
 .b6-identity-row__label small{ display:block; font-size: 11px; color: var(--text-dim); margin-top:2px; }
@@ -3275,3 +3356,15 @@ input, select{ font-family: inherit; }
    mismo criterio tipográfico que .coverage-note (texto secundario, --text-dim). */
 .b6-correction-diff{ list-style:none; margin: 6px 0 0; padding: 0; display:flex; flex-direction:column; gap: 2px; }
 .b6-correction-diff li{ font-size: 12px; color: var(--text-dim); }
+
+/* Ronda UX 25/09 (Ronda 2, §5) — opciones del selector "REPORTAR UN ERROR": mismo lenguaje
+   visual liviano que el resto de los sheets (fondo surface-2 + borde sutil), título + bajada
+   corta explicando qué hace cada una. */
+.report-error-option{
+  display:block; width:100%; text-align:left; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--radius-control);
+  padding: 12px 14px; margin-bottom: 10px;
+}
+.report-error-option:last-child{ margin-bottom: 0; }
+.report-error-option__title{ display:block; font-size: 14px; font-weight:700; color: var(--text); }
+.report-error-option__sub{ display:block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }

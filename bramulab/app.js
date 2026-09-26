@@ -402,6 +402,12 @@
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca.
     if (historyContextFilter) historyOwnershipFilter = 'mine';
+    // Ronda UX 25/09 (Ronda 2, §8) — "abrir Historial = visto": el snapshot se captura ANTES de
+    // limpiar el storage persistido, así el primer render todavía puede resaltar esas filas; el
+    // indicador del bottom-nav se apaga ya mismo, sin esperar a que el usuario abra cada partido.
+    historyUnseenSnapshot = new Set(Store.loadHistoryUnseenChanges());
+    Store.clearHistoryUnseenChanges();
+    updateHistoryUnseenDot();
     renderHistory();
     showView('history');
     // Backend Bloque 5 — refresco "mejor esfuerzo" en segundo plano: la lista ya se pintó con
@@ -1969,6 +1975,48 @@
     return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
   }
 
+  /** Ronda UX 25/09 (Ronda 2, §4) — REEMPLAZA la línea única "fecha · hora · formato · sistema ·
+   *  VALIDADO" (buildMatchMetaLine sigue existiendo, sin otros call sites — ver arriba) por
+   *  trazabilidad real: línea 1 "Cargado por X · fecha · hora", línea 2 "Formato · Sistema"
+   *  (+ modo/lugar cuando corresponda), línea 3 "Confirmado por Y" SOLO cuando ya se puede
+   *  resolver a una persona real (b6LastActorForActionType('validated') — requiere actionsRaw,
+   *  get_match_detail). Nunca ningún estado acá (ni VALIDADO ni TU TURNO: CONFIRMAR ni
+   *  PENDIENTE DE VALIDACIÓN): el estado/las acciones viven aparte en el bloque B6 (§1/§6).
+   *  `createdByPlayerId` ya viene en get_my_matches Y get_match_detail — "Cargado por" está
+   *  disponible desde el primer pintado; un partido local/legacy (sin ese campo) omite esa
+   *  cláusula por completo, no hay un actor distinto del propio dispositivo que trazar. */
+  function buildAnalysisMetaLines(f) {
+    const dateStr = formatRealDate(f.startedAt || f.createdAt, f.timeZone);
+    const timeStr = (f.mode === 'manual' && f.timeKnown === false) ? null : formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
+    const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label || '').toUpperCase();
+    const scoringLabel = HISTORY_SCORING_LABELS[f.scoringSystem] || '';
+    const modeLabel = f.mode === 'games' ? 'POR GAMES' : null;
+    const placeLabel = (f.location && f.location.name) ? f.location.name : null;
+
+    let loaderName = null;
+    if (f.serverBacked && f.createdByPlayerId) {
+      const row = (f.players || []).find((p) => p && p.userId === f.createdByPlayerId);
+      loaderName = row ? row.name : null;
+    }
+    const line1 = [loaderName ? `Cargado por ${loaderName}` : null, dateStr, timeStr].filter(Boolean).join(' · ');
+    const line2 = [formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
+    const lines = [line1];
+    if (line2) lines.push(line2);
+
+    if (f.serverBacked && f.status === 'validated') {
+      const confirmer = b6LastActorForActionType(f, 'validated');
+      if (confirmer && confirmer.name && confirmer.name !== loaderName) {
+        lines.push(`Confirmado por ${confirmer.name}`);
+      }
+    }
+    return lines.filter(Boolean);
+  }
+
+  function renderAnalysisMeta(f) {
+    $('#analysis-meta').innerHTML = buildAnalysisMetaLines(f)
+      .map((line) => `<div class="analysis-meta__line">${escapeHtml(line)}</div>`).join('');
+  }
+
   /** ¿Las ESTADÍSTICAS de este partido son parciales? (empezó tarde y/o tuvo ajustes manuales). Bloque N. */
   function isStatsCoveragePartial(f) { return !!(f.coverageStartLabel || (f.stats && f.stats.hasAdjustments)); }
 
@@ -2192,6 +2240,12 @@
    *  §9.3: "el tratamiento visual distingue pendiente accionable de pendiente en espera").
    *  `hasOpenIdentityIssue` siempre tiene prioridad — sin importar el estado del partido, una
    *  identidad cuestionada es lo primero que hay que resolver. */
+  /** Ronda UX 25/09 (Ronda 2, §1) — BUG/DECISIÓN: `VALIDADO` deja de ser un badge persistente —
+   *  el partido oficial normal es el estado ordinario, no necesita repetir su propia condición
+   *  (handoff 13 §B). `''` acá se traduce en el badge entero desapareciendo en los 3 lugares que
+   *  consumen esta función (Home/Historial/Resumen) — ninguno lo reemplaza por un badge
+   *  equivalente. El resto de los estados (pendiente, identidad, corrección, vencido, anulado)
+   *  sigue necesitando comunicarse: son excepciones/tareas, no el estado ordinario. */
   function serverMatchStatusLabel(f) {
     if (!f.serverBacked) return '';
     if (f.status === 'sync_pending') return 'PENDIENTE DE SINCRONIZACIÓN';
@@ -2199,18 +2253,25 @@
     if (f.status === 'expired') return 'VENCIDO — NO COMPUTA';
     if (f.status === 'annulled') return 'ANULADO';
     if (f.hasOpenIdentityIssue) return 'IDENTIDAD CUESTIONADA';
-    if (f.status === 'validated') return f.pendingCorrectionRevisionId ? 'CORRECCIÓN PROPUESTA' : 'VALIDADO';
+    if (f.status === 'validated') return f.pendingCorrectionRevisionId ? 'CORRECCIÓN PROPUESTA' : '';
     if (f.isActionMine) return 'TU TURNO: CONFIRMAR';
     return 'PENDIENTE DE VALIDACIÓN'; // pending_validation, esperando a la otra pareja
   }
 
-  /** Modificador de color del badge de Historial (§9.3): `action` (lima, mi pareja tiene que
-   *  responder), `identity` (identidad cuestionada), `pending` (neutro — espera a la otra
-   *  pareja, o un estado puramente informativo). Nunca naranja (reservado a CALIBRANDO). */
+  /** Ronda UX 25/09 (Ronda 2, §2) — semántica de color de ESTADO (nunca resultado, que vive
+   *  aparte en VICTORIA/DERROTA — ver `.history-item__result-badge`/`.player-home-lastmatch__
+   *  badge--win/--loss`, ahora verde/rojo real): `action` (lima, requiere MI acción), `waiting`
+   *  (ámbar, pendiente esperando a terceros — mismo tono que CALIBRANDO, decisión ya validada en
+   *  Laboratorio §15.17/§15.22), `identity` (rojo, identidad cuestionada), `pending` (neutro —
+   *  el resto: sync_pending/necesita_revision/expired/annulled, estados técnicos o ya cerrados,
+   *  no "alguien más tiene que actuar"). Nunca naranja/ámbar fuera de estos dos casos
+   *  explícitos. */
   function serverMatchStatusBadgeModifier(f) {
     if (!f.serverBacked) return '';
     if (f.hasOpenIdentityIssue) return 'identity';
     if (f.status === 'pending_validation' && f.isActionMine) return 'action';
+    if (f.status === 'pending_validation' && !f.isActionMine) return 'waiting';
+    if (f.status === 'validated' && f.pendingCorrectionRevisionId) return 'waiting';
     return 'pending';
   }
 
@@ -2239,39 +2300,42 @@
   function b6PlayerAt(f, team, positionInTeam) {
     return b6PlayersOfTeam(f, team)[positionInTeam - 1] || null;
   }
-  /** Ronda UX 25/09 (§G/§I) — nombre REAL de quien propuso la ÚLTIMA corrección de este partido
-   *  (nunca la pareja genérica, ver Backend_Infraestructura.md §6.4: match_actions.actor_player_id
-   *  es siempre el jugador real que actuó, no un concepto de equipo) — busca la última acción
-   *  'revision_proposed' en f.actionsRaw (get_match_detail; get_my_matches no la trae, ver
-   *  actionsRaw en match-sync.js) y resuelve la fila real por actorPlayerId. La RPC ya impide una
-   *  segunda propuesta mientras haya una pendiente (Bloque 6), así que la ÚLTIMA acción de ese
-   *  tipo siempre corresponde a la revisión vigente/pendiente actual. `null` si `actionsRaw`
-   *  todavía no llegó (primer pintado con snapshot de lista) o si nunca hubo una propuesta —
-   *  cada llamador decide su propio fallback (mismo criterio que el resto de este bloque: nunca
-   *  inventar un actor cuando no se puede resolver). */
-  function b6RevisionProposerName(f) {
+  /** Ronda UX 25/09 (Ronda 2, §4/§9/§11) — fuente ÚNICA de "nombre real de quien ejecutó la
+   *  ÚLTIMA acción de tipo `actionType`" — antes duplicada casi idéntica entre
+   *  b6RevisionProposerName/b6ParticipantReplacedActorName, ahora ambas + la resolución de
+   *  "Confirmado por" (buildAnalysisMetaLines) comparten esta misma búsqueda. Busca en
+   *  `f.actionsRaw` (get_match_detail; get_my_matches no la trae, ver actionsRaw en
+   *  match-sync.js) y resuelve la fila real por `actorPlayerId` contra `f.players`. `null` si
+   *  `actionsRaw` todavía no llegó (primer pintado con snapshot de lista), si nunca hubo una
+   *  acción de ese tipo, o si el actor ya no aparece en `f.players` — cada llamador decide su
+   *  propio fallback (nunca inventar un actor cuando no se puede resolver con certeza). */
+  function b6LastActorForActionType(f, actionType) {
     if (!Array.isArray(f.actionsRaw)) return null;
-    const proposals = f.actionsRaw.filter((a) => a.actionType === 'revision_proposed');
-    if (!proposals.length) return null;
-    const last = proposals[proposals.length - 1];
+    const matches = f.actionsRaw.filter((a) => a.actionType === actionType);
+    if (!matches.length) return null;
+    const last = matches[matches.length - 1];
     const row = (f.players || []).find((p) => p && p.userId === last.actorPlayerId);
-    return (row && row.name) || S.teamLabel(f.players, last.actingSide) || null;
+    return row ? { name: row.name, actingSide: last.actingSide } : { name: null, actingSide: last.actingSide };
+  }
+  /** Nombre REAL de quien propuso la ÚLTIMA corrección de este partido (nunca la pareja
+   *  genérica cuando se puede evitar, ver Backend_Infraestructura.md §6.4: actor_player_id es
+   *  siempre el jugador real que actuó) — si la fila ya no puede resolverse en `f.players`, cae
+   *  a la pareja como último recurso (a diferencia de `b6ParticipantReplacedActorName`, ver
+   *  ahí el motivo de esa diferencia deliberada). */
+  function b6RevisionProposerName(f) {
+    const actor = b6LastActorForActionType(f, 'revision_proposed');
+    if (!actor) return null;
+    return actor.name || S.teamLabel(f.players, actor.actingSide) || null;
   }
   /** Revisión central final — nombre REAL de quien ejecutó el ÚLTIMO reemplazo de participante
    *  ('participant_replaced') sobre este partido. Deliberadamente SIN el fallback a la pareja
    *  genérica que sí tiene `b6RevisionProposerName`: un reemplazo de identidad trata justamente
    *  de UNA persona puntual — mostrar la pareja en su lugar sería tan engañoso como el bug que
    *  esta misma corrección soluciona (instrucción explícita: "si no puede resolverse con
-   *  certeza, usar copy neutro; nunca inventar actor"). `null` cuando `actionsRaw` todavía no
-   *  llegó, cuando nunca hubo un reemplazo, o cuando el actor ya no aparece en `f.players` —
-   *  cada llamador usa un copy sin nombrar a nadie en ese caso. */
+   *  certeza, usar copy neutro; nunca inventar actor"). */
   function b6ParticipantReplacedActorName(f) {
-    if (!Array.isArray(f.actionsRaw)) return null;
-    const replacements = f.actionsRaw.filter((a) => a.actionType === 'participant_replaced');
-    if (!replacements.length) return null;
-    const last = replacements[replacements.length - 1];
-    const row = (f.players || []).find((p) => p && p.userId === last.actorPlayerId);
-    return (row && row.name) || null;
+    const actor = b6LastActorForActionType(f, 'participant_replaced');
+    return actor ? actor.name : null;
   }
   function b6AllSlots(f) {
     const slots = [];
@@ -2329,6 +2393,30 @@
     const t = new Date(issue.resolutionDeadlineAt).getTime();
     return Number.isFinite(t) && Date.now() > t;
   }
+  /** Ronda UX 25/09 (Ronda 2, §5) — fuente ÚNICA de qué sub-opciones de "REPORTAR UN ERROR" son
+   *  reales ahora mismo para `f`, reutilizada tanto por `paintB6Actions` (decide si mostrar el
+   *  botón) como por `openReportErrorPicker` (decide qué opciones ofrecer DENTRO del selector) —
+   *  nunca dos cálculos que puedan divergir. `result`: proponer corrección de resultado —
+   *  siempre disponible pre-validación (mismo mecanismo de create_or_attach_match, sin ventana
+   *  propia); post-validación exige la ventana de 3 días Y que no haya ya una corrección
+   *  pendiente (el servidor la rechazaría con `correction_already_pending`). `participant`:
+   *  cuestionar una identidad, mismas ventanas ya cerradas (pending_validation siempre abierta;
+   *  10 días post-validación). Ninguna de las dos si ya hay una identidad cuestionada abierta —
+   *  primero hay que resolver eso. */
+  function b6ReportErrorAvailability(f) {
+    if (!f) return { result: false, participant: false };
+    const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
+    if (!!f.hasOpenIdentityIssue || openIssues.length > 0) return { result: false, participant: false };
+    const participant = b6IdentityReportWindowOpen(f);
+    let result = false;
+    if (f.status === 'pending_validation') {
+      result = true;
+    } else if (f.status === 'validated') {
+      const activeCorrection = !!f.pendingCorrectionRevisionId && b6CorrectionWindowOpen(f);
+      result = b6CorrectionWindowOpen(f) && !activeCorrection;
+    }
+    return { result, participant };
+  }
 
   /** No hay cron para la ventana de 7 días de identidad: el estado terminal se materializa
    *  perezosamente al volver a abrir el partido. Es una transición automática del producto,
@@ -2349,16 +2437,28 @@
       }
     }
     if (!changed) return { match: f, changed: false };
+    // Ronda UX 25/09 (Ronda 2, §8) — esto es una transición automática disparada por ABRIR este
+    // mismo partido (ver comentario de la función), no una novedad de un tercero: el usuario ya
+    // lo está mirando. markSelfActedMatch evita que refreshServerMatches lo marque como "cambio
+    // externo no visto" en Historial.
+    markSelfActedMatch(f.matchId);
     await refreshServerMatches();
     const fresh = await Matches.getMatchDetail(f.matchId);
     if (!fresh.ok || !fresh.match) return { match: f, changed: true };
     return { match: MSync.translateServerMatchToLocalShape(fresh.match), changed: true };
   }
 
+  /** Ronda UX 25/09 (Ronda 2, §8) — guardia de un solo uso: `refreshServerMatches` la consume y
+   *  vacía en cada corrida, así que solo excluye el refresco INMEDIATO siguiente a la acción
+   *  propia — un cambio externo posterior real sobre el mismo partido sigue marcándose normal. */
+  const justActedMatchIds = new Set();
+  function markSelfActedMatch(matchId) { if (matchId) justActedMatchIds.add(matchId); }
+
   /** "Refresco coherente" tras cualquier acción B6 exitosa (13_Handoff_Fase_B_Claude.md §7):
    *  cache de partidos, Nivel propio, badge/lista de notificaciones y, si el Resumen de ESTE
    *  partido sigue abierto, su bloque de acciones — todo server-backed, nunca lógica local. */
   async function afterB6Action(matchId) {
+    markSelfActedMatch(matchId);
     await refreshServerMatches();
     if (Auth && Auth.isConfigured()) {
       const profile = await Auth.fetchOwnProfile();
@@ -2414,6 +2514,10 @@
       return;
     }
     paintB6Actions(detailed);
+    // Ronda UX 25/09 (Ronda 2, §4) — "Confirmado por Y" recién puede resolverse una vez que
+    // actionsRaw llega con el detalle completo (mismo motivo que el resto de este bloque) — se
+    // re-pinta la metadata acá para incorporarlo sin esperar a que el usuario reabra el Resumen.
+    renderAnalysisMeta(detailed);
   }
 
   /** Ronda correctiva (revisión central) — §G "qué cambió": pinta `elId` (una `<ul>`) con las
@@ -2434,16 +2538,18 @@
     const confirmBlock = $('#b6-confirm-block');
     const identityBlock = $('#b6-identity-block');
     const identityList = $('#b6-identity-list');
-    const proposeBlock = $('#b6-propose-correction-block');
-    const reportBlock = $('#b6-report-identity-block');
+    // Ronda UX 25/09 (Ronda 2, §5) — REEMPLAZA la dispersión anterior (#b6-propose-correction-block
+    // + #b6-report-identity-block como dos accesos separados) por un único punto de entrada
+    // "REPORTAR UN ERROR" que abre un selector (openReportErrorPicker) — ver ese selector para
+    // el detalle de qué opciones ofrece según el contrato real disponible.
+    const reportErrorBlock = $('#b6-report-error-block');
     const respondBlock = $('#b6-respond-correction-block');
     const respondText = $('#b6-respond-correction-text');
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting');
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
-    proposeBlock.hidden = true;
-    reportBlock.hidden = true;
+    reportErrorBlock.hidden = true;
     respondBlock.hidden = true;
     // Ronda correctiva (revisión central) — default seguro para las dos listas de diff (§G): un
     // render anterior para otro partido/estado nunca debe dejar líneas stale visibles.
@@ -2470,17 +2576,24 @@
       identityList.innerHTML = openIssues.map((issue) => {
         const slot = b6PlayerAt(f, issue.team, issue.positionInTeam);
         const label = slot && slot.userId ? (slot.name || 'Este lugar') : 'Por identificar';
+        // Ronda UX 25/09 (Ronda 2, §7) — MEJORA: toda la tarjeta es tappable (antes solo el botón
+        // RESOLVER) — un único listener en el contenedor (ver más abajo) hace innecesario un
+        // onclick propio en el botón: el click en el botón burbujea al mismo handler, con toda
+        // la data ya disponible en el dataset del contenedor. role="button"+tabindex para que
+        // siga funcionando por teclado (Ronda 2, §12).
         return `
-          <div class="b6-identity-row">
+          <div class="b6-identity-row" role="button" tabindex="0" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">
             <span class="b6-identity-row__label">${escapeHtml(label)}<small>Identidad cuestionada</small></span>
-            <button type="button" class="btn-mini" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">RESOLVER</button>
+            <button type="button" class="btn-mini" tabindex="-1">RESOLVER</button>
           </div>`;
       }).join('');
-      $all('#b6-identity-list [data-issue-id]').forEach((btn) => {
-        btn.onclick = () => openIdentityResolveSheet({
-          issueId: btn.dataset.issueId, matchId: f.matchId,
-          team: btn.dataset.team, positionInTeam: Number(btn.dataset.position),
+      $all('#b6-identity-list .b6-identity-row').forEach((row) => {
+        const open = () => openIdentityResolveSheet({
+          issueId: row.dataset.issueId, matchId: f.matchId,
+          team: row.dataset.team, positionInTeam: Number(row.dataset.position),
         }, f);
+        row.addEventListener('click', open);
+        row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
       });
     }
 
@@ -2493,11 +2606,21 @@
       // CORRECCIÓN". `ML.classifyPendingRevisionEvent` mira el ÚLTIMO evento relevante en
       // `actionsRaw` en vez del número de revisión — ver su comentario en match-load.js para la
       // clasificación completa (incluye correction→replacement y replacement→correction).
-      const pendingEventType = ML.classifyPendingRevisionEvent(f.actionsRaw);
+      // Ronda UX 25/09 (Ronda 2, §6) — BUG: `actionsRaw` no existe en el snapshot liviano de
+      // `get_my_matches` — durante ese intervalo (primer pintado, antes de que `renderB6Actions`
+      // reciba `get_match_detail`) NO se puede saber todavía si es carga normal/corrección/
+      // reemplazo. Antes se asumía "original" por default y ya se ofrecía CONFIRMAR PARTIDO
+      // como si el evento ya estuviera clasificado — un tap inmediato (antes de que llegara el
+      // detalle) confirmaba sin haber mostrado nunca el copy/CTA realmente correcto.
+      // `detailLoaded` corta eso: sin detalle todavía, banner neutro, SIN CTA.
+      const detailLoaded = Array.isArray(f.actionsRaw);
+      const pendingEventType = detailLoaded ? ML.classifyPendingRevisionEvent(f.actionsRaw) : null;
       const confirmBtn = $('#b6-confirm-btn');
       if (f.isActionMine && !hasOpenIdentity) {
         banner.hidden = false;
-        if (pendingEventType === 'result_correction') {
+        if (!detailLoaded) {
+          bannerText.textContent = 'Revisando este partido…';
+        } else if (pendingEventType === 'result_correction') {
           const proposer = b6RevisionProposerName(f);
           bannerText.textContent = proposer
             ? `${proposer} propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.`
@@ -2508,6 +2631,7 @@
           // result_correction — un reemplazo de identidad copia los mismos sets, no hay nada que
           // diffear ni corresponde mostrarlo acá (instrucción explícita: "NO diff de sets").
           renderCorrectionDiff('b6-status-banner-diff', f.previousRevisionSets, f.sets);
+          confirmBlock.hidden = false;
         } else if (pendingEventType === 'identity_replacement') {
           // Actor STRICTO (b6ParticipantReplacedActorName): nunca cae a la pareja genérica — si
           // no se puede resolver con certeza, copy neutro sin nombrar a nadie.
@@ -2516,11 +2640,16 @@
             ? `${replacer} corrigió un participante de este partido. Revisalo antes de confirmar.`
             : 'Se corrigió un participante de este partido. Revisalo antes de confirmar.';
           confirmBtn.textContent = 'CONFIRMAR PARTIDO';
+          confirmBlock.hidden = false;
         } else {
+          // Ronda UX 25/09 (Ronda 2, §1) — carga normal: sigue siendo el ÚNICO caso con banner
+          // + CTA a la vez (el resto del handoff pide QUITAR banners redundantes cuando el CTA
+          // ya comunica la acción, pero acá el banner explica POR QUÉ hay que actuar — "te toca
+          // confirmar" — algo que el botón solo no transmite).
           bannerText.textContent = 'Te toca confirmar este resultado.';
           confirmBtn.textContent = 'CONFIRMAR PARTIDO';
+          confirmBlock.hidden = false;
         }
-        confirmBlock.hidden = false;
       } else if (f.actionSide && !hasOpenIdentity) {
         // Waiting: sigue siendo la PAREJA rival (cualquiera de sus dos integrantes puede
         // actuar), a diferencia de los actores puntuales de arriba — acá no hay "quién
@@ -2528,7 +2657,9 @@
         // de cualquiera de los dos integrantes de la pareja).
         const waitingTeam = S.teamLabel(f.players, f.actionSide);
         banner.hidden = false; banner.classList.add('b6-banner--waiting');
-        if (pendingEventType === 'result_correction') {
+        if (!detailLoaded) {
+          bannerText.textContent = 'Esperando respuesta de la otra pareja.';
+        } else if (pendingEventType === 'result_correction') {
           bannerText.textContent = `Corrección enviada. Esperando que ${waitingTeam} la acepte.`;
         } else if (pendingEventType === 'identity_replacement') {
           bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
@@ -2536,13 +2667,14 @@
           bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
         }
       }
-      reportBlock.hidden = !b6IdentityReportWindowOpen(f);
-      proposeBlock.hidden = hasOpenIdentity; // sin los 4 IDs reales no hay revisión posible.
+      // "REPORTAR UN ERROR" (§5): disponible sin depender de `detailLoaded` — reportar un error
+      // es una acción neutra en sí misma, nunca afirma qué tipo de evento ya ocurrió.
+      const availPending = b6ReportErrorAvailability(f);
+      reportErrorBlock.hidden = !availPending.result && !availPending.participant;
       return;
     }
 
     if (f.status === 'validated') {
-      reportBlock.hidden = !b6IdentityReportWindowOpen(f);
       const correctionWindowOpen = b6CorrectionWindowOpen(f);
       // Un puntero físico puede seguir presente luego de los 3 días (C-10). Para UX solo existe
       // una corrección pendiente ACTIVA mientras la ventana siga vigente.
@@ -2570,22 +2702,20 @@
         // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
         // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar).
         renderCorrectionDiff('b6-respond-correction-diff', f.sets, f.pendingCorrectionSets);
-        proposeBlock.hidden = true;
       } else if (proposedByTeam) {
         banner.hidden = false;
         bannerText.textContent = 'Tu propuesta de corrección está esperando respuesta de la otra pareja.';
-        proposeBlock.hidden = true;
-      } else if (!hasActiveCorrection) {
-        if (!hasOpenIdentity) {
-          banner.hidden = false;
-          bannerText.textContent = 'Partido oficial.';
-        }
-        proposeBlock.hidden = hasOpenIdentity || !correctionWindowOpen;
-      } else {
-        // Existe una corrección ACTIVA pero `actionsRaw` todavía no llegó (primer pintado con
-        // snapshot de lista): no se muestra ningún botón hasta conocer qué pareja la propuso.
-        proposeBlock.hidden = true;
       }
+      // Ronda UX 25/09 (Ronda 2, §1) — QUITADO: banner permanente "Partido oficial." — el estado
+      // oficial normal (sin corrección pendiente, sin identidad cuestionada) ya no necesita
+      // ningún banner; el CTA "REPORTAR UN ERROR" de abajo sigue disponible y ya comunica que
+      // hay algo que se puede hacer si algo está mal, sin repetir "está todo bien" de forma
+      // permanente.
+      // Visible si CUALQUIERA de las dos sub-opciones sigue siendo real (b6ReportErrorAvailability,
+      // MISMO cálculo que usa openReportErrorPicker para decidir qué mostrar dentro del selector
+      // — nunca dos criterios que puedan divergir).
+      const availValidated = b6ReportErrorAvailability(f);
+      reportErrorBlock.hidden = !availValidated.result && !availValidated.participant;
     }
   }
 
@@ -2614,7 +2744,14 @@
     }
     const openIssues = Array.isArray(f.openIdentityIssues) ? f.openIdentityIssues : [];
     const blocked = new Set(openIssues.map((i) => `${i.team}:${i.positionInTeam}`));
-    const slots = b6AllSlots(f).filter((s) => !blocked.has(`${s.team}:${s.positionInTeam}`));
+    // Ronda UX 25/09 (Ronda 2, §7) — BUG/INSTRUCCIÓN: nunca ofrecer al autor original del
+    // partido como candidato a "no participó" — el propio flujo de carga ya lo obliga a ocupar
+    // un lugar (Backend_Infraestructura.md §8.5: el creador de un partido es siempre uno de los
+    // 4 participantes). La autoría sigue existiendo como dato de trazabilidad aparte
+    // (createdByPlayerId), nunca se toca acá — solo se excluye de ESTE selector puntual.
+    const slots = b6AllSlots(f)
+      .filter((s) => !blocked.has(`${s.team}:${s.positionInTeam}`))
+      .filter((s) => !f.createdByPlayerId || s.userId !== f.createdByPlayerId);
     if (!slots.length) { showToast('No hay ningún lugar disponible para cuestionar.', 2400); return; }
     $('#report-identity-list').innerHTML = slots.map((s) => `
       <button type="button" class="b6-slot-option" data-team="${escapeHtml(s.team)}" data-position="${s.positionInTeam}">
@@ -2658,12 +2795,20 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
     b6IdentityResolveIssue = null;
   }
-  function buildIdentityResolveRowHTML(displayName, playerId, kind) {
+  /** Ronda UX 25/09 (Ronda 2, §7) — MEJORA: nombre + `@username` como mínimo para un candidato
+   *  real (antes la línea de handle quedaba vacía para cuentas registradas — solo Invitado la
+   *  usaba). `username` ya viene en `search_players` (Bloque 4), nunca se fabrica un handle
+   *  falso (mismo criterio anti-patrón ya corregido en BRAMUlab_V03.6 — ver
+   *  buildPlayerRowHTML/buildRecentRealPlayerRowHTML): sin username real, la línea queda vacía
+   *  en vez de inventar uno. Avatar deliberadamente NO incluido acá — requeriría resolver una
+   *  URL firmada por candidato (N requests), fuera de alcance de esta ronda. */
+  function buildIdentityResolveRowHTML(displayName, playerId, kind, username) {
+    const handle = kind === 'provisional' ? 'Invitado' : (username ? `@${username}` : '');
     return `<button type="button" class="player-row" data-player-id="${escapeHtml(playerId)}" data-kind="${kind}">
       <span class="player-row__avatar">${escapeHtml(playerInitials(displayName))}</span>
       <span class="player-row__info">
         <span class="player-row__name">${escapeHtml(displayName)}</span>
-        <span class="player-row__handle">${kind === 'provisional' ? 'Invitado' : ''}</span>
+        <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
     </button>`;
   }
@@ -2688,7 +2833,7 @@
 
     let html = '';
     if (provisionals.length) html += provisionals.map((p) => buildIdentityResolveRowHTML(p.display_name || 'Invitado', p.player_id, 'provisional')).join('');
-    if (realRows.length) html += realRows.map((r) => buildIdentityResolveRowHTML(r.display_name || r.username || 'Jugador', r.player_id, 'registered')).join('');
+    if (realRows.length) html += realRows.map((r) => buildIdentityResolveRowHTML(r.display_name || r.username || 'Jugador', r.player_id, 'registered', r.username)).join('');
 
     $('#identity-resolve-list').innerHTML = html;
     $('#identity-resolve-empty').hidden = !!html;
@@ -2894,9 +3039,46 @@
     initB6RespondButtons();
     initIdentityResolveSheet();
     initProposeCorrectionSheet();
-    $('#b6-report-identity-btn').addEventListener('click', openReportIdentityPicker);
+    initReportErrorPicker();
     $('#report-identity-cancel').addEventListener('click', () => { $('#report-identity-overlay').hidden = true; });
-    $('#b6-propose-correction-btn').addEventListener('click', () => { if (analysisCurrent) openProposeCorrection(analysisCurrent); });
+  }
+
+  /* ---- Reportar un error (§5) — REEMPLAZA los dos accesos separados anteriores ---- */
+  /** Ronda UX 25/09 (Ronda 2, §5) — único punto de entrada "REPORTAR UN ERROR": pregunta qué
+   *  está mal y deriva al flujo específico ya existente (editor de corrección de Ronda 1 / "No
+   *  participé" ya cerrado, sin tocar su lógica). Ofrece SOLO las opciones reales ahora mismo
+   *  (b6ReportErrorAvailability, MISMO cálculo que ya decidió mostrar el botón — nunca una
+   *  opción que el contrato ya rechazaría). Sin opción C ("otros datos"): hoy no existe ningún
+   *  camino de backend para editar otro dato del partido — instrucción explícita de no crear
+   *  arquitectura nueva solo para ofrecerla. */
+  function openReportErrorPicker() {
+    const f = b6ReportIdentityMatch;
+    if (!f) return;
+    const avail = b6ReportErrorAvailability(f);
+    $('#report-error-result-btn').hidden = !avail.result;
+    $('#report-error-participant-btn').hidden = !avail.participant;
+    if (!avail.result && !avail.participant) return; // el botón ya debería estar oculto en este caso
+    $('#report-error-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#report-error-scrim').classList.add('is-open'); });
+  }
+  function closeReportErrorPicker() {
+    const scrim = $('#report-error-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+  function initReportErrorPicker() {
+    $('#b6-report-error-btn').addEventListener('click', openReportErrorPicker);
+    $('#report-error-close').addEventListener('click', closeReportErrorPicker);
+    $('#report-error-scrim').addEventListener('click', (e) => { if (e.target === $('#report-error-scrim')) closeReportErrorPicker(); });
+    $('#report-error-result-btn').addEventListener('click', () => {
+      const f = b6ReportIdentityMatch;
+      closeReportErrorPicker();
+      if (f) openProposeCorrection(f);
+    });
+    $('#report-error-participant-btn').addEventListener('click', () => {
+      closeReportErrorPicker();
+      openReportIdentityPicker();
+    });
   }
 
   /** Un insight ya renderizado por PLIntelligencePresentation (principal o secundario) a HTML —
@@ -2971,8 +3153,7 @@
   function renderAnalysis(f) {
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
-    const statusLabel = serverMatchStatusLabel(f);
-    $('#analysis-meta').textContent = buildMatchMetaLine(f) + (statusLabel ? ` · ${statusLabel}` : '');
+    renderAnalysisMeta(f);
     $('#analysis-result').innerHTML = buildResultBlockHTML(f);
     // Backend Bloque 6 (Fase B) — pendientes/Confirmar/corrección/identidad. Nunca bloquea el
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
@@ -4010,6 +4191,11 @@
   // no hay pedido de persistirlo entre reaperturas de la app.
   let historyOwnershipFilter = 'all'; // 'all' | 'mine'
   let historyModeFilter = 'all'; // 'all' | 'manual' | 'games' | 'complete'
+  // Ronda UX 25/09 (Ronda 2, §8) — snapshot en memoria de qué matchId resaltar como "cambio
+  // externo no visto" DURANTE esta visita a Historial (se captura una sola vez al abrir, en
+  // openHistoryScreen, antes de vaciar el storage persistido — así un cambio de pestaña/filtro
+  // dentro de la misma visita sigue resaltando lo mismo; recién la PRÓXIMA apertura lo pierde).
+  let historyUnseenSnapshot = new Set();
 
   const HISTORY_TABS = [
     { key: 'all', label: 'Todos' },
@@ -4042,6 +4228,14 @@
       // (mismo destino que "Quitar filtro" en la banda, ver más abajo).
       btn.addEventListener('click', () => { historyOwnershipFilter = btn.dataset.key; historyContextFilter = null; renderHistory(); });
     });
+    // Ronda UX 25/09 (Ronda 2, §8) — "Todos"/"Mis partidos" se retira de la vista (redundante
+    // en el BRAMUlab actual: casi nadie tiene partidos ajenos que valga la pena separar todavía)
+    // con el MISMO tratamiento que §25 ya le dio a los chips de modo abajo: se sigue pintando e
+    // instrumentando (por si hace falta reactivarlo) pero no se muestra, y `historyOwnershipFilter`
+    // queda fijo en 'all' porque no hay control para cambiarlo. `HISTORY_TABS`/
+    // `PH.filterHistoryCombined`/`PH.computeHistoryTabCounts` no se tocan — siguen protegiendo
+    // compatibilidad histórica igual que antes.
+    $('#history-tabs').hidden = true;
 
     // V02.1 (§25) — la fila de chips de modo se retira de la vista principal (competía con la
     // navegación por pestañas). La lógica de filtrado por modo se conserva intacta por si
@@ -4138,6 +4332,10 @@
       const scoringLabel = HISTORY_SCORING_LABELS[m.scoringSystem] || '';
       const item = document.createElement('div');
       item.className = 'history-item';
+      // Ronda UX 25/09 (Ronda 2, §8) — resalto suave y temporal (solo durante esta visita a
+      // Historial, ver historyUnseenSnapshot): nunca reemplaza ni compite con el color de
+      // resultado/estado de la propia fila, ver .history-item--unseen en styles.css.
+      if (historyUnseenSnapshot.has(m.matchId)) item.classList.add('history-item--unseen');
       // V02.1 (§26) — badge de resultado desde la perspectiva del jugador actual en partidos
       // propios; GANÓ junto al nombre de la pareja ganadora en Observados (nunca
       // VICTORIA/DERROTA ahí — el jugador actual no participa, no le corresponde).
@@ -4251,7 +4449,12 @@
     // V02.1 (§27) — "Quitar filtro": vuelve a las pestañas normales sin perder navegación
     // (se queda en Historial, solo se retira el recorte contextual).
     $('#history-context-filter-clear').addEventListener('click', () => { historyContextFilter = null; renderHistory(); });
-    initHistorySwipe();
+    // Ronda UX 25/09 (Ronda 2, §8) — con #history-tabs oculto, este swipe cambiaría
+    // historyOwnershipFilter sin ningún indicador visible de que cambió: una regresión directa
+    // de ocultar las pestañas, no algo que valga la pena mantener para un control invisible. La
+    // función se conserva (mismo criterio que HISTORY_TABS/historyModeFilter) por si las
+    // pestañas se reactivan más adelante; simplemente no se llama mientras estén ocultas.
+    // initHistorySwipe();
   }
 
   /* ------------------------------------------------------------------ */
@@ -4360,14 +4563,36 @@
    *  esfuerzo": una falla de red deja el cache anterior intacto (nunca lo vacía), consistente
    *  con Backend_Infraestructura.md §7.2 ("caché de lectura... nunca autoridad"). Se llama al
    *  entrar a Home/Historial y después de cualquier create-or-attach/hide/nota exitosos —
-   *  nunca en un intervalo de fondo (sin sobrearquitecturar). */
+   *  nunca en un intervalo de fondo (sin sobrearquitecturar).
+   *
+   *  Ronda UX 25/09 (Ronda 2, §8) — mismo choke point que ya actualiza el cache es el único
+   *  lugar que necesita conocer el snapshot ANTERIOR para detectar "cambios externos no
+   *  vistos" (PH.computeExternalHistoryChanges) — nunca un cálculo aparte con su propia
+   *  llamada de red. `justActedMatchIds` (ver markSelfActedMatch) excluye lo que el propio
+   *  usuario acaba de mutar; se vacía acá mismo porque es una guardia de un solo uso. */
   async function refreshServerMatches() {
     if (!isServerBackedSession() || !Matches) return;
+    const excludeIds = Array.from(justActedMatchIds);
+    justActedMatchIds.clear();
+    const prevRows = Store.loadServerMatchesCache().matches;
     // Pedimos también los ocultos para que un partido VALIDADO que el usuario esconda
     // siga alimentando sus efectos oficiales. La capa de display (match-sync.js) filtra
     // hidden para Home/Historial; la capa computable lo conserva.
     const result = await Matches.getMyMatches({ limit: 200, includeHidden: true });
-    if (result.ok) Store.saveServerMatchesCache(result.matches);
+    if (result.ok) {
+      const changedIds = PH.computeExternalHistoryChanges(prevRows, result.matches, excludeIds);
+      if (changedIds.length) Store.addHistoryUnseenChanges(changedIds);
+      Store.saveServerMatchesCache(result.matches);
+      updateHistoryUnseenDot();
+    }
+  }
+
+  /** Ronda UX 25/09 (Ronda 2, §8) — prende/apaga el puntito del ícono de Historial en el
+   *  bottom-nav según quede algo en Store.loadHistoryUnseenChanges(); se apaga explícitamente
+   *  al abrir Historial (ver openHistoryScreen), sin esperar a un refresh nuevo. */
+  function updateHistoryUnseenDot() {
+    const dot = $('#history-unseen-dot');
+    if (dot) dot.hidden = Store.loadHistoryUnseenChanges().length === 0;
   }
 
   /** Reintenta cada entrada `sync_pending` del outbox con su MISMA `submissionId` (idempotency
@@ -6062,34 +6287,47 @@
     return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
   }
 
-  /** Backend Bloque 6 (Fase B) — Experiencia_Inicial.md §9.1: superficie prioritaria cuando
-   *  existe AL MENOS un pendiente accionable (isActionMine, server-backed, pending_validation).
-   *  Un solo pendiente => copy puntual con el nombre de la pareja rival; más de uno => copy
-   *  genérico que lleva a Historial (nunca elige arbitrariamente cuál mostrar). */
+  /** Ronda UX 25/09 (Ronda 2, §3) — carrusel: reemplaza el banner único de Bloque 6 (Fase B).
+   *  `PH.computeHomePendingCarouselItems` decide QUÉ partidos entran y en qué orden (puro,
+   *  testeado); acá solo se arma una tarjeta por item con nombres reales y se cablea el tap.
+   *  Cada tarjeta es un partido real y específico — nunca un agregado tipo "tenés N partidos"
+   *  (ver nota histórica de §I más abajo, que sigue aplicando por partido individual). */
   function renderPlayerHomePendingBanner(displayMatches) {
-    const banner = $('#player-home-pending-banner');
-    const pending = (displayMatches || []).filter((m) => m.serverBacked && m.status === 'pending_validation' && m.isActionMine);
-    if (!pending.length) { banner.hidden = true; banner.onclick = null; return; }
-    banner.hidden = false;
-    if (pending.length === 1) {
-      const m = pending[0];
+    const track = $('#player-home-pending-carousel');
+    const items = PH.computeHomePendingCarouselItems(displayMatches || []);
+    if (!items.length) { track.hidden = true; track.innerHTML = ''; return; }
+    const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
+    track.innerHTML = items.map((item) => {
+      const m = byId.get(item.matchId);
+      if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
-      const rivalNames = S.teamLabel(m.players, rivalTeam);
-      // Ronda UX 25/09 (§I) — BUG: "X registró un partido en el que participaste" es una
-      // atribución de CARGA que get_my_matches no puede confirmar acá (sin currentRevisionNumber/
-      // actionsRaw en esta lista liviana, nunca se sabe si el pendiente es una carga nueva, una
-      // corrección propuesta o una identidad recién resuelta — Laboratorio §15.7/§15.12: la
-      // misma frase se mostró para los tres casos, dos de ellos falsos). Copy neutro y siempre
-      // verdadero acá; la distinción real por tipo de evento vive en el Resumen (paintB6Actions),
-      // que sí tiene esos datos.
-      $('#player-home-pending-banner-text').textContent = `Tenés un partido pendiente con ${rivalNames || 'tu rival'}.`;
-      $('#player-home-pending-banner-cta').textContent = 'REVISAR';
-      banner.onclick = () => openCanonicalResumen(m, 'player-home');
-    } else {
-      $('#player-home-pending-banner-text').textContent = `Tenés ${pending.length} partidos esperando tu confirmación.`;
-      $('#player-home-pending-banner-cta').textContent = 'VER PENDIENTES';
-      banner.onclick = () => openHistoryScreen('player-home');
-    }
+      const rivalNames = S.teamLabel(m.players, rivalTeam) || 'tu rival';
+      const isAccionable = item.kind === 'accionable';
+      // Ronda UX 25/09 (§I) — BUG histórico: "X registró un partido en el que participaste" es
+      // una atribución de CARGA que get_my_matches no puede confirmar acá (sin
+      // currentRevisionNumber/actionsRaw en esta lista liviana, nunca se sabe si el pendiente es
+      // una carga nueva, una corrección propuesta o una identidad recién resuelta — Laboratorio
+      // §15.7/§15.12: la misma frase se mostró para los tres casos, dos de ellos falsos). Copy
+      // neutro y siempre verdadero acá; la distinción real por tipo de evento vive en el Resumen
+      // (paintB6Actions), que sí tiene esos datos.
+      const label = isAccionable ? 'REQUIERE TU ACCIÓN' : 'ESPERANDO CONFIRMACIÓN';
+      const text = isAccionable
+        ? `Tenés un partido pendiente con ${rivalNames}.`
+        : `Tu resultado con ${rivalNames} está esperando que confirmen.`;
+      return `
+        <div class="player-home-carousel-card player-home-carousel-card--${isAccionable ? 'accionable' : 'espera'}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
+          <span class="player-home-carousel-card__label">${label}</span>
+          <p class="player-home-carousel-card__text">${escapeHtml(text)}</p>
+        </div>`;
+    }).join('');
+    track.hidden = false;
+    $all('#player-home-pending-carousel .player-home-carousel-card').forEach((card) => {
+      const m = byId.get(card.dataset.matchId);
+      if (!m) return;
+      const open = () => openCanonicalResumen(m, 'player-home');
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    });
   }
 
   function renderPlayerHome() {
@@ -6366,6 +6604,20 @@
     const scoreStr = buildLastMatchScoreHTML(oriented.sets, oriented.currentPartial);
     const scoreLabel = buildLastMatchScoreLabel(oriented.sets, oriented.currentPartial);
     const resultKind = !m.winnerTeam ? 'neutral' : (m.winnerTeam === myTeam ? 'win' : 'loss');
+    // Ronda UX 25/09 (Ronda 2, §2) — acento/borde de la tarjeta deja de ser SIEMPRE lima fijo
+    // (decisión V02.4 explícitamente revertida acá): oficial ganado -> verde sutil, oficial
+    // perdido -> rojo sutil (glow atenuado, "evitar glow agresivo"), pendiente accionable ->
+    // lima, pendiente esperando a la otra pareja -> ámbar. Un pendiente puede ya tener
+    // `winnerTeam` derivado del score (match-sync.js#deriveWinnerTeam corre sin importar el
+    // estado oficial) — por eso el estado pendiente tiene prioridad sobre resultKind acá: el
+    // resultado todavía no es oficial, el acento debe comunicar el ESTADO, no adelantar un
+    // resultado que la otra pareja todavía puede corregir.
+    card.classList.remove('player-home-lastmatch--win', 'player-home-lastmatch--loss', 'player-home-lastmatch--action', 'player-home-lastmatch--waiting');
+    if (m.serverBacked && m.status === 'pending_validation') {
+      card.classList.add(m.isActionMine ? 'player-home-lastmatch--action' : 'player-home-lastmatch--waiting');
+    } else if (resultKind === 'win' || resultKind === 'loss') {
+      card.classList.add(`player-home-lastmatch--${resultKind}`);
+    }
     // V02.9 (§3) — vuelve a la palabra completa VICTORIA/DERROTA (el consolidado la da por
     // "mantenida" en esta tarjeta; §20/V02.5 la había abreviado a VIC/DER, mismo criterio que
     // Historial — Historial vuelve también a la palabra completa en esta misma ronda, §4).
@@ -6419,7 +6671,7 @@
         <div class="player-home-lastmatch__row2">
           <div class="player-home-lastmatch__form">${formDotsHtml}</div>
           <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
-          ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--status">${serverMatchStatusLabel(m)}</span>` : ''}
+          ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${serverMatchStatusBadgeModifier(m) || 'status'}">${serverMatchStatusLabel(m)}</span>` : ''}
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
@@ -6687,13 +6939,9 @@
     // Configurar partido, un acceso oculto y redundante con el "+" central.
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
-    // Backend Bloque 6 (Fase B) — el onclick real se reasigna en cada render (depende de
-    // cuántos pendientes haya, ver renderPlayerHomePendingBanner); acá solo se cablea el
-    // teclado UNA vez, delegando al onclick vigente en el momento de la tecla.
-    const pendingBanner = $('#player-home-pending-banner');
-    pendingBanner.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (pendingBanner.onclick) pendingBanner.onclick(); }
-    });
+    // Ronda UX 25/09 (Ronda 2, §3) — el carrusel arma sus tarjetas (click + teclado) por
+    // completo dentro de renderPlayerHomePendingBanner en cada render, porque cambian de
+    // cantidad/contenido en cada carga; no hay nada fijo que cablear una sola vez acá.
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
@@ -6768,35 +7016,64 @@
     }
     return null;
   }
+  /** Ronda UX 25/09 (Ronda 2, §10) — copy dinámico para los tipos que `payload.actorPlayerId`
+   *  puede traer desde la migración `preprod_ux_notification_actor_enrichment` (trigger
+   *  BEFORE INSERT en `notifications`, ver esa migración): `admin_action` queda deliberadamente
+   *  afuera (su actor real es texto libre en `payload.adminActorLabel`, nunca un player_id —
+   *  mismo motivo por el que el trigger de backend tampoco lo toca). El frontend tolera AMBOS
+   *  contratos a la vez: si `actorPlayerId` todavía no llegó (Staging sin la migración aplicada,
+   *  o una fila vieja anterior a ella), simplemente cae al copy genérico de B6_NOTIF_COPY. */
+  const B6_NOTIF_ACTOR_BODY = {
+    match_validated: (name) => `${name} confirmó el partido. Ya quedó oficial.`,
+    correction_accepted: (name) => `${name} aceptó la corrección de resultado.`,
+    identity_resolved: (name) => `${name} resolvió una identidad cuestionada en tu partido.`,
+    identity_unidentified: (name) => `${name} marcó un lugar como Jugador no identificado en tu partido — el resultado se conserva.`,
+  };
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
    *  caminos de render distintos. `source`/`type` extra: el click handler los usa para saber
    *  qué RPC llamar al marcar como leída (nunca la del otro origen).
-   *  Ronda UX 25/09 (§I) — `correction_proposed` es, hoy, el ÚNICO tipo cuyo payload trae un
-   *  actor real (`proposedByPlayerId`, ver get_notifications en la migración de Bloque 6): se
-   *  arma un body dinámico con su nombre real en vez del genérico estático. El resto de los
-   *  tipos persistidos (match_validated/correction_accepted/identity_resolved/
-   *  identity_unidentified/admin_action) NO llevan un player_id de actor en su payload — mostrar
-   *  un nombre ahí exigiría una llamada adicional por notificación o un cambio de backend; queda
-   *  fuera de esta ronda (ver documento de resultado). */
+   *  `selfCaused` (Ronda UX 25/09, Ronda 2, §9) — SOLO se puede afirmar cuando `actorPlayerId`
+   *  llegó y coincide con el propio jugador: "nunca una notificación informativa redundante
+   *  hacia el mismo actor que realizó la acción" (el toast de la propia acción ya lo cubrió).
+   *  Sin `actorPlayerId` (contrato viejo, fila anterior a la migración) queda `false` a
+   *  propósito — nunca se oculta algo que no se puede confirmar con certeza que es un eco
+   *  propio. `renderNotificationsList` es quien filtra usando este campo. */
   function mapB6Notification(n) {
     const copy = B6_NOTIF_COPY[n.type] || { title: 'Notificación', body: '', category: 'info' };
     let body = copy.body;
+    const me = Store.getCurrentUser();
+    const myPlayerId = me && me.id;
     if (n.type === 'correction_proposed' && n.payload && n.payload.proposedByPlayerId) {
       const proposerName = resolvePlayerNameFromMatchesCache(n.payload.proposedByPlayerId);
       if (proposerName) body = `${proposerName} propuso una corrección de resultado.`;
+    } else if (n.type === 'identity_questioned' && n.payload && n.payload.openedByPlayerId) {
+      const openerName = resolvePlayerNameFromMatchesCache(n.payload.openedByPlayerId);
+      if (openerName) body = `${openerName} cuestionó una identidad en uno de tus partidos.`;
+    } else if (n.payload && n.payload.actorPlayerId && B6_NOTIF_ACTOR_BODY[n.type]) {
+      const actorName = resolvePlayerNameFromMatchesCache(n.payload.actorPlayerId);
+      if (actorName) body = B6_NOTIF_ACTOR_BODY[n.type](actorName);
     }
     return {
       id: n.id, title: copy.title, body, category: copy.category,
       createdAt: n.createdAt, readAt: n.readAt, matchId: n.matchId,
       source: 'server', type: n.type,
+      selfCaused: !!(myPlayerId && n.payload && n.payload.actorPlayerId === myPlayerId),
     };
+  }
+
+  /** Ronda UX 25/09 (Ronda 2, §9) — único punto que traduce+filtra `b6NotificationsCache`:
+   *  descarta las informativas que `mapB6Notification` pudo confirmar como eco de la propia
+   *  acción (`selfCaused`), para que el badge y la lista nunca diverjan sobre qué cuenta como
+   *  "notificación real para mostrar". */
+  function b6VisibleServerNotifications() {
+    return b6NotificationsCache.map(mapB6Notification).filter((n) => !n.selfCaused);
   }
 
   function renderNotificationsBadge() {
     const user = Store.getCurrentUser();
     const localCount = user ? Store.countUnreadNotifications(user.id) : 0;
-    const serverCount = b6NotificationsCache.filter((n) => !n.readAt).length;
+    const serverCount = b6VisibleServerNotifications().filter((n) => !n.readAt).length;
     const count = localCount + serverCount;
     const badge = $('#player-home-bell-badge');
     badge.hidden = count === 0;
@@ -6819,7 +7096,7 @@
     const localList = user ? Store.loadNotifications(user.id) : [];
     // Bloque 6 — se derivan/traducen y se mezclan por fecha real, más reciente primero, sin
     // importar el origen (local vs. servidor son invisibles para quien lee la bandeja).
-    const serverList = b6NotificationsCache.map(mapB6Notification);
+    const serverList = b6VisibleServerNotifications();
     const list = localList.concat(serverList).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     $('#notifications-empty').hidden = list.length > 0;
     if (!list.length) { $('#notifications-list').innerHTML = ''; return; }
