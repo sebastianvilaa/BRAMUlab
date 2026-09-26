@@ -89,10 +89,20 @@ begin
   if v_count <> 1 then raise exception 'A_FAILED_expected_exactly_1_row_got_%', v_count; end if;
 
   -- Segundo jugador real, agregado DESPUÉS (para el orden de E).
-  perform pg_sleep(0.01);
+  -- `now()` dentro de una misma transacción devuelve el timestamp de inicio de transacción,
+  -- así que pg_sleep NO diferencia created_at en este verify. Fijamos timestamps distintos de
+  -- forma explícita dentro del fixture para probar el ORDER BY real sin depender del reloj.
   v_result := public.save_player((select v from _mj_state where k = 'target2'));
   if (v_result->>'ok')::boolean is not true then raise exception 'A_FAILED_save_player_target2: %', v_result; end if;
-end $$;
+  update public.player_saved_players
+    set created_at = now() - interval '2 seconds'
+    where owner_player_id = (select player_id from _mj_caller)
+      and saved_player_id = (select v from _mj_state where k = 'target1');
+  update public.player_saved_players
+    set created_at = now() - interval '1 second'
+    where owner_player_id = (select player_id from _mj_caller)
+      and saved_player_id = (select v from _mj_state where k = 'target2');
+end $;
 
 -- B) auto-agregado rechazado.
 do $$
