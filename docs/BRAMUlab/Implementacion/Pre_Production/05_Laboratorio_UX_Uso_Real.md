@@ -2383,3 +2383,22 @@ No resolver esto con un parche cosmético: revisar inicialización del score del
 Con este bug ya existe evidencia suficiente para frenar el Laboratorio y pasar el paquete a Desarrollo.
 
 No repetir otro partido para demostrar el mismo problema salvo que Claude necesite un caso mínimo reproducible adicional.
+
+
+### 15.34 — Ronda correctiva técnica ejecutada sobre h11 (P1–P5) — 27/09/2026
+
+Baseline técnica: BRAMUlab V04.11 / bundle `04.11-h12`.
+
+**Estado: implementado y verificado técnicamente (suite completa + inspección de código/CSS real). PENDIENTE de validación física — ninguno de los puntos siguientes debe leerse como PASS de Laboratorio hasta que Sebastián lo vea en el dispositivo real.**
+
+Resumen objetivo de lo que cambió, sin repetir el detalle completo (ver `41_Resultado_Ronda_Correctiva_Laboratorio_h12_27SEP.md` para causa raíz/archivos/tests):
+
+- **P1 — identidad canónica de Matu:** causa raíz encontrada y corregida (Compañeros/Rivales resolvían por un helper local pre-backend y navegaban al perfil público por nombre plano en vez de `player_id`). Ninguna cuenta fue fusionada ni borrada.
+- **P2 — editor de sets:** los dos casos reportados (2–6→3–6 sin re-tocar el 6; 3–6→6–4 empezando por el lado que tenía el 3) quedaron cubiertos por 12 tests nuevos dinámicos/estáticos, además del mismo fix aplicado al editor mellizo de Cargar partido (mismo bug latente, nunca reportado ahí pero con idéntico patrón de código).
+- **P3 — corrección post-validación:** la semántica (última versión validada sigue oficial hasta aceptar) no cambió. La pantalla de respuesta ahora rotula "Resultado oficial actual" + "Corrección propuesta por [nombre]" con una tarjeta de resultado completa para la propuesta, delta como trazabilidad secundaria debajo.
+- **P4 — componente único de jugador + flujo de identidad:** el sheet de reemplazo de identidad pasa a mostrar avatar/Nivel reales (antes solo nombre + @usuario) y suma Recientes; confirmar una identidad incorrecta abre directo la búsqueda de reemplazo en el mismo flujo, sin volver a tocar RESOLVER; copy actualizado con el nombre real de la persona.
+- **P5 — visual:** barra bajo el Nivel calibrado recuperada (sin delta fabricado — ver nota de producto en el Resultado), padding de Último partido unificado a 16px, grilla del Resumen realineada (bug real de altura de celda encontrado), "Reportar un error" en copy normal + tratamiento secundario/rojo suave + opciones más livianas, trazo del + engrosado.
+
+No tocado (fuera de alcance de esta ronda, según el handoff): BRAMUlive, `main`, Production, Mis grupos, hotfix h11 de self-healing, fórmula de Nivel/Ranking/Intelligence.
+
+Batería física corta para la próxima pasada — ver el Resultado de esta ronda para el detalle agrupado en 5 bloques.

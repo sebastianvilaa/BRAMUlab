@@ -485,6 +485,15 @@
   let manualDecided = false;
   let manualKeypadOpen = false;
   let manualKeypadDigits = ''; // dígitos tecleados para el lado activo del borrador, todavía sin confirmar
+  // Ronda correctiva Laboratorio h11 (§P2) — mismo bug/mismo fix que `b6CorrectionSideEntered`
+  // (ver ese comentario), aplicado acá por ser el editor MELLIZO del que sí se reportó en el
+  // Laboratorio: reabrir desde el marcador acumulado un set YA confirmado (`reopenManualSet`)
+  // precargaba ambos lados como restricción dura entre sí, aunque el usuario todavía no hubiera
+  // reafirmado ninguno de los dos en esta pasada — mismo síntoma (dígito legítimo deshabilitado /
+  // CONTINUAR sin habilitar hasta re-tocar el lado sin cambios). `manualDraftSet` sigue siendo
+  // la ÚNICA fuente para lo que se pinta en pantalla; esto solo decide si el lado contrario
+  // cuenta como restricción para el teclado.
+  let manualSideEntered = { a: false, b: false };
   let manualPendingFormatId = 'classic'; // selección DENTRO de la hoja de formato, sin aplicar (§11)
 
   function escapeHtml(s) {
@@ -1064,6 +1073,7 @@
     manualDecided = false;
     const s = manualSets[i];
     manualDraftSet = s ? { a: s.a, b: s.b } : { a: undefined, b: undefined };
+    manualSideEntered = { a: false, b: false };
     manualActiveSetIndex = i;
     manualDraftActiveTeam = 'A';
     markManualLoadDirty();
@@ -1073,10 +1083,14 @@
   /** Hotfix v2.2.1 (§7.2) — qué teclas del lado activo son pulsables ANTES de que el usuario
    *  escriba nada, ya considerando el valor del lado opuesto si ya está confirmado (p.ej. con
    *  Equipo A ya en 2, del lado B solo debe quedar habilitado el 6 — único valor capaz de
-   *  cerrar un 2-6 válido). Reutiliza ML.computeValidNextDigits, nunca una lista propia. */
+   *  cerrar un 2-6 válido). Reutiliza ML.computeValidNextDigits, nunca una lista propia.
+   *  Ronda correctiva Laboratorio h11 (§P2) — el lado opuesto solo restringe si ya fue
+   *  reafirmado en esta pasada de edición (`manualSideEntered`, ver su declaración): un valor
+   *  precargado al reabrir un set (`reopenManualSet`) todavía no cuenta como tal. */
   function updateManualKeypadKeysState() {
     const format = E.FORMATS[manualSelectedFormatId];
-    const otherValue = manualDraftActiveTeam === 'A' ? manualDraftSet.b : manualDraftSet.a;
+    const otherSide = manualDraftActiveTeam === 'A' ? 'b' : 'a';
+    const otherValue = manualSideEntered[otherSide] ? manualDraftSet[otherSide] : undefined;
     const allowed = new Set(ML.computeValidNextDigits('', format, otherValue));
     $all('#load-keypad [data-key]').forEach((btn) => {
       const key = btn.dataset.key;
@@ -1122,6 +1136,7 @@
   function commitDraftDigits() {
     if (!manualKeypadOpen || !manualKeypadDigits) return;
     manualDraftSet[manualDraftActiveTeam === 'A' ? 'a' : 'b'] = Number(manualKeypadDigits);
+    manualSideEntered[manualDraftActiveTeam === 'A' ? 'a' : 'b'] = true;
     manualKeypadDigits = '';
   }
 
@@ -1131,9 +1146,17 @@
   /** V02.1 (§10) — al completar el lado B, ya no espera un toque explícito en CONTINUAR: si
    *  el par cierra un set válido, lo confirma y avanza solo. Si por algún motivo no cierra un
    *  set válido todavía (p.ej. quedó en un estado intermedio tras editar), simplemente
-   *  muestra el marcador tal cual — nunca fuerza un avance con datos incompletos. */
+   *  muestra el marcador tal cual — nunca fuerza un avance con datos incompletos.
+   *  Ronda correctiva Laboratorio h11 (§P2) — solo abre el teclado del otro lado cuando ESE
+   *  lado todavía no tiene ningún valor (alta nueva de cero, sin cambios); si ya tiene un valor
+   *  real (reapertura de un set ya cargado), intenta confirmar el par completo directamente en
+   *  vez de forzar igual su reingreso — mismo criterio que `advanceProposeCorrectionDraftSide`. */
   function advanceDraftSide() {
-    if (manualDraftActiveTeam === 'A') { openManualKeypad('B'); return; }
+    const otherSide = manualDraftActiveTeam === 'A' ? 'b' : 'a';
+    if (!Number.isFinite(manualDraftSet[otherSide])) {
+      openManualKeypad(otherSide === 'a' ? 'A' : 'B');
+      return;
+    }
     closeManualKeypadPanel();
     commitCurrentManualSetIfValid();
   }
@@ -1168,6 +1191,7 @@
         manualActiveSetIndex = next;
         const existing = manualSets[next];
         manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+        manualSideEntered = { a: false, b: false };
         if (existing) {
           // Ya había un valor cargado en este set (reapertura tras editar un set previo) —
           // no forzar el teclado, se muestra tal cual quedó.
@@ -1204,7 +1228,11 @@
     if (!manualKeypadOpen) return;
     if (key === 'del') {
       if (manualKeypadDigits) { manualKeypadDigits = manualKeypadDigits.slice(0, -1); }
-      else { manualDraftSet[manualDraftActiveTeam === 'A' ? 'a' : 'b'] = undefined; }
+      else {
+        const side = manualDraftActiveTeam === 'A' ? 'a' : 'b';
+        manualDraftSet[side] = undefined;
+        manualSideEntered[side] = false;
+      }
       markManualLoadDirty();
       renderManualScoreboard();
       return;
@@ -1218,7 +1246,8 @@
       return;
     }
     const format = E.FORMATS[manualSelectedFormatId];
-    const otherValue = manualDraftActiveTeam === 'A' ? manualDraftSet.b : manualDraftSet.a;
+    const otherSide = manualDraftActiveTeam === 'A' ? 'b' : 'a';
+    const otherValue = manualSideEntered[otherSide] ? manualDraftSet[otherSide] : undefined;
     manualKeypadDigits += key;
     markManualLoadDirty();
     if (!ML.canExtendSetDigits(manualKeypadDigits, format, otherValue)) {
@@ -1334,6 +1363,7 @@
       const existing = manualSets[next];
       manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
     }
+    manualSideEntered = { a: false, b: false };
     manualDraftActiveTeam = 'A';
     markManualLoadDirty();
     renderManualScoreboard();
@@ -1638,6 +1668,7 @@
       const existing = manualSets[initialActive];
       manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
     }
+    manualSideEntered = { a: false, b: false };
 
     $('#load-keypad').hidden = true;
     $('#manual-load-scroll').classList.remove('has-keypad');
@@ -2184,6 +2215,56 @@
     return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f) });
   }
 
+  /** Ronda correctiva Laboratorio h11 (§P3) — tarjeta REDUCIDA de resultado para comparar
+   *  "resultado oficial actual" vs. "corrección propuesta" en la respuesta a una corrección
+   *  post-validación (Experiencia_Inicial.md §12.3: la propuesta NO es oficial hasta que la otra
+   *  pareja acepta). Mismo lenguaje visual que `buildScoreCardHTML` (parejas + sets, ganador
+   *  100% contraste/perdedor atenuado, clases `.result-card__*` reales) pero sin duración/
+   *  estadísticas/finalización manual: una propuesta no tiene esos datos, no es un partido
+   *  jugado aparte. Deliberadamente NO reutiliza `buildScoreCardHTML` con un `f` fabricado —
+   *  esa función depende de `f.stats`/`f.mode`/`f.terminationType`/`f.currentPartial`, campos
+   *  que una propuesta nunca tiene y que un objeto simulado podría dejar inconsistente sin que
+   *  ningún test lo note. `sets` es la MISMA forma que `f.sets`/`f.pendingCorrectionSets`
+   *  (`{gamesA,gamesB,winner,tiebreak}[]`, ver match-sync.js#buildLocalSets) — nunca una
+   *  transformación nueva. */
+  /** Mismo criterio que match-sync.js#deriveWinnerTeam (nunca un campo que el servidor calcule o
+   *  envíe para una propuesta todavía sin aceptar): cuenta sets ganados por `.winner` y compara
+   *  contra los necesarios para el formato. `null` si, por algún motivo, la propuesta todavía no
+   *  es decisiva (no debería pasar — el editor ya exige un resultado válido para habilitar
+   *  ENVIAR CORRECCIÓN — pero `buildCorrectionPreviewCardHTML` ya maneja `winnerTeam:null` sin
+   *  romper, mostrando la tarjeta sin banner de ganadores). */
+  function deriveProposedWinnerTeam(sets, formatId) {
+    const format = E.FORMATS[formatId] || E.FORMATS.classic;
+    const need = Math.ceil(format.bestOfSets / 2);
+    const wonA = (sets || []).filter((s) => s.winner === 'A').length;
+    const wonB = (sets || []).filter((s) => s.winner === 'B').length;
+    return wonA >= need ? 'A' : (wonB >= need ? 'B' : null);
+  }
+  function buildCorrectionPreviewCardHTML(players, sets, winnerTeam) {
+    const nameA = S.teamLabel(players, 'A');
+    const nameB = S.teamLabel(players, 'B');
+    function cellsForTeam(team) {
+      const cells = (sets || []).map((s) => {
+        const mine = team === 'A' ? s.gamesA : s.gamesB;
+        const theirs = team === 'A' ? s.gamesB : s.gamesA;
+        const cls = mine === theirs ? '' : (mine > theirs ? 'result-card__set--win' : 'result-card__set--lose');
+        return `<span class="result-card__set ${cls}">${mine}</span>`;
+      }).join('');
+      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${escapeHtml(team === 'A' ? nameA : nameB)}</span><span class="result-card__sets">${cells}</span></div>`;
+    }
+    const winnerLabel = winnerTeam ? (winnerTeam === 'A' ? nameA : nameB) : null;
+    const winnersHTML = winnerLabel
+      ? `<div class="winners-banner"><div class="result-card__winners">Ganadores</div><div class="result-card__winners-names result-card__winners-names--${winnerTeam.toLowerCase()}">${escapeHtml(winnerLabel)}</div></div>`
+      : '';
+    return `<div class="result-card result-card--compact">
+      ${winnersHTML}
+      <div class="result-card__rows">
+        ${cellsForTeam('A')}
+        ${cellsForTeam('B')}
+      </div>
+    </div>`;
+  }
+
   /** Bloque N: legal de datos parciales — se muestra solo cuando corresponde (nunca en partido completo sin ajustes). */
   function buildCoverageLegalHTML(f) {
     // V02.5 (Bloque C, §16) — "Partido cargado manualmente: solo se conoce el resultado final
@@ -2325,6 +2406,19 @@
   let b6CorrectionKeypadOpen = false;
   let b6CorrectionKeypadDigits = '';
   let b6CorrectionDecided = false;
+  // Ronda correctiva Laboratorio h11 (§P2) — BUG REAL: al reabrir un set YA existente (ambos
+  // lados con valor real), `updateProposeCorrectionKeypadKeysState` usaba SIEMPRE el valor del
+  // lado contrario como restricción dura del teclado, aunque ese valor fuera el viejo (todavía
+  // no reafirmado en esta pasada de edición) — así "6" quedaba deshabilitado para un lado solo
+  // porque el otro lado, a punto de cambiarse también, seguía en un 6 stale. Y al confirmar un
+  // solo lado con el otro ya válido, `advanceProposeCorrectionDraftSide` forzaba igual el
+  // teclado del lado sin tocar en vez de dar por completo el set, así que ENVIAR CORRECCIÓN no
+  // habilitaba hasta re-tocar manualmente ese valor que ya era correcto. `b6CorrectionSideEntered`
+  // distingue "valor mostrado" (siempre `b6CorrectionDraftSet`, única fuente para UI y
+  // validación) de "¿el usuario ya reafirmó este lado EN ESTA edición?": solo un lado reafirmado
+  // esta sesión actúa como restricción dura del otro. Se reinicia en cada `reopenProposeCorrectionSet`
+  // y cada vez que el editor pasa a un set distinto (mismo criterio en los dos lugares).
+  let b6CorrectionSideEntered = { a: false, b: false };
   // No participé — partido activo (para armar los 4 lugares del picker).
   let b6ReportIdentityMatch = null;
   // Resolver identidad — issue/slot activos + exclusión de duplicados para el picker.
@@ -2611,12 +2705,14 @@
     const reportErrorBlock = $('#b6-report-error-block');
     const respondBlock = $('#b6-respond-correction-block');
     const respondText = $('#b6-respond-correction-text');
+    const officialLabel = $('#analysis-result-official-label');
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting');
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
     respondBlock.hidden = true;
+    officialLabel.hidden = true;
     // Ronda correctiva (revisión central) — default seguro para las dos listas de diff (§G): un
     // render anterior para otro partido/estado nunca debe dejar líneas stale visibles.
     $('#b6-status-banner-diff').hidden = true; $('#b6-status-banner-diff').innerHTML = '';
@@ -2763,7 +2859,17 @@
         // genérica: reusa exactamente la misma acción 'revision_proposed' que ya se filtró
         // arriba, resuelta ahora por actorPlayerId en vez de solo el equipo.
         const proposerName = b6RevisionProposerName(f) || S.teamLabel(f.players, proposedByTeam);
-        respondText.textContent = `${proposerName} propuso una corrección del resultado. ¿La aceptás?`;
+        // Ronda correctiva Laboratorio h11 (§P3) — REEMPLAZA la frase única "propuso una
+        // corrección. ¿La aceptás?" (§15.32: "queda demasiado chico y separado de la
+        // información relevante"): rotula la tarjeta oficial de arriba y muestra la propuesta
+        // COMPLETA (parejas + sets + ganador resultante) como bloque 2, con jerarquía
+        // comparable al oficial — el delta sigue disponible debajo como trazabilidad
+        // secundaria, nunca como sustituto.
+        officialLabel.hidden = false;
+        respondText.textContent = `${proposerName} propuso una corrección del resultado.`;
+        $('#b6-respond-proposed-label').textContent = `Corrección propuesta por ${proposerName}`;
+        const proposedWinner = deriveProposedWinnerTeam(f.pendingCorrectionSets, f.formatId);
+        $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner);
         // Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN: before =
         // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
         // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar).
@@ -2832,17 +2938,34 @@
     });
     $('#report-identity-overlay').hidden = false;
   }
+  /** Ronda correctiva Laboratorio h11 (§P4 "identidad incorrecta: copy + flujo continuo").
+   *  Copy — §15.31: `¿Confirmás que no participó?`/`Sí, no participó` "resulta lingüísticamente
+   *  extraño"; REEMPLAZA por una pregunta centrada en la persona con su nombre real dinámico
+   *  (nunca hardcodeado), acciones simples y no ambiguas.
+   *  Flujo — §15.31: hoy, después de confirmar, la UI muestra `Identidad cuestionada` y obliga a
+   *  salir y volver a tocar RESOLVER para recién ahí buscar el reemplazo. REEMPLAZA por un flujo
+   *  continuo: apenas se confirma, se abre DIRECTO el mismo sheet de reemplazo
+   *  (openIdentityResolveSheet) con el `issueId` que la propia RPC `report_identity_issue` ya
+   *  devuelve (`{ok:true, issueId}` — ver 20260921230000_bloque6_correction_and_identity_rpcs.sql),
+   *  nunca una segunda llamada. `afterB6Action` sigue corriendo antes para que Home/Historial/
+   *  Resumen (incluido `analysisCurrent`, la `f` que el sheet necesita para excluir a los otros
+   *  3 participantes reales) queden sincronizados con el estado recién persistido — mismo
+   *  criterio que ya usaba este flujo, solo que ahora no se detiene ahí. */
   function confirmReportIdentity(matchId, team, positionInTeam, name) {
     confirmAction(
-      '¿Confirmás que no participó?',
-      `Vas a indicar que la identidad cargada para ${name} en este partido es incorrecta. El partido sigue existiendo — se va a pedir corregir quién ocupaba ese lugar.`,
+      `¿Estás seguro de que no fue ${name}?`,
+      `La identidad cargada en este lugar del partido va a quedar marcada como incorrecta. El partido sigue existiendo — a continuación vas a poder indicar quién jugó realmente.`,
       async () => {
         const result = await MV.reportIdentityIssue(matchId, team, positionInTeam, null);
         if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
-        showToast('Identidad cuestionada.');
         await afterB6Action(matchId);
+        if (result.issueId && analysisCurrent && analysisCurrent.matchId === matchId) {
+          openIdentityResolveSheet({ issueId: result.issueId, matchId, team, positionInTeam }, analysisCurrent);
+        } else {
+          showToast('Identidad cuestionada.');
+        }
       },
-      null, 'Sí, no participó', 'Cancelar', true
+      null, 'Sí, no fue', 'Cancelar', true
     );
   }
 
@@ -2861,23 +2984,21 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
     b6IdentityResolveIssue = null;
   }
-  /** Ronda UX 25/09 (Ronda 2, §7) — MEJORA: nombre + `@username` como mínimo para un candidato
-   *  real (antes la línea de handle quedaba vacía para cuentas registradas — solo Invitado la
-   *  usaba). `username` ya viene en `search_players` (Bloque 4), nunca se fabrica un handle
-   *  falso (mismo criterio anti-patrón ya corregido en BRAMUlab_V03.6 — ver
-   *  buildPlayerRowHTML/buildCompactPlayerRowHTML): sin username real, la línea queda vacía
-   *  en vez de inventar uno. Avatar deliberadamente NO incluido acá — requeriría resolver una
-   *  URL firmada por candidato (N requests), fuera de alcance de esta ronda. */
-  function buildIdentityResolveRowHTML(displayName, playerId, kind, username) {
-    const handle = kind === 'provisional' ? 'Invitado' : (username ? `@${username}` : '');
-    return `<button type="button" class="player-row" data-player-id="${escapeHtml(playerId)}" data-kind="${kind}">
-      <span class="player-row__avatar">${escapeHtml(playerInitials(displayName))}</span>
-      <span class="player-row__info">
-        <span class="player-row__name">${escapeHtml(displayName)}</span>
-        <span class="player-row__handle">${escapeHtml(handle)}</span>
-      </span>
-    </button>`;
-  }
+  /** Ronda correctiva Laboratorio h11 (§P4 "componente único de jugador") — BUG REAL reportado
+   *  en el Laboratorio: este sheet mostraba nombre + `@username` correctos (únicos entre las
+   *  superficies de identidad de esa ronda) pero SIN avatar ni Nivel, porque `buildIdentityResolveRowHTML`
+   *  (retirada acá) era un componente de fila propio y deliberadamente recortado ("fuera de
+   *  alcance" en su momento). `search_players` ya trae `avatar_url`/`level_status`/`level_public`
+   *  reales desde la migración `20260927120000_preprod_ux_players_compact.sql` — ya no hace
+   *  falta esa limitación. Se reemplaza por los MISMOS componentes que ya arma correctamente
+   *  Buscar Jugadores/Elegir compañero-rival, nunca una copia nueva: `buildProvisionalRowHTML`
+   *  para invitados y `buildPlayerRowHTMLFromServerRow` (→ buildCompactPlayerRowHTML) para
+   *  cuentas reales — identidad SIEMPRE por `player_id`, la fila nunca decide nada por nombre. */
+  /** Ronda correctiva Laboratorio h11 (§P4 "Recientes") — con query vacía, además de los
+   *  invitados relacionados, agrega jugadores REALES con los que ya se compartió un partido
+   *  (mismo criterio/misma función que RECIENTES de Elegir compañero-rival:
+   *  PH.computeRecentRealPlayers + Auth.getPlayersCompact en un solo batch, ninguna llamada
+   *  nueva por fila) — nunca alfabético/hash/mock, extensión mínima del contrato ya existente. */
   async function renderIdentityResolveResults(query) {
     const requestId = ++b6IdentityResolveRequestId;
     const trimmed = (query || '').trim();
@@ -2897,13 +3018,40 @@
       .filter((p) => !queryLower || (p.display_name || '').toLocaleLowerCase('es').includes(queryLower));
     const realRows = (searchResult.ok ? searchResult.players : []).filter((r) => !excluded.includes(r.player_id));
 
+    const recentsSection = $('#identity-resolve-recents-section');
+    const recentsWrap = $('#identity-resolve-recents');
+    let hasRecents = false;
+    if (!trimmed && relatedResult.ok && myProvResult.ok) {
+      const recentExcludedIds = excluded.concat(Array.from(provisionalById.keys()));
+      const recents = PH.computeRecentRealPlayers(getComputableHistory(), currentIdentity(), recentExcludedIds, 8);
+      if (recents.length) {
+        const compactResult = await Auth.getPlayersCompact(recents.map((r) => r.playerId));
+        if (requestId !== b6IdentityResolveRequestId) return; // respuesta tardía, el sheet ya cambió
+        const compactById = compactResult.ok ? compactResult.players : new Map();
+        hasRecents = true;
+        recentsWrap.innerHTML = recents.map((r) => {
+          const c = compactById.get(r.playerId);
+          return buildCompactPlayerRowHTML({
+            playerId: r.playerId,
+            name: (c && c.displayName) || r.name,
+            username: c ? c.username : null,
+            levelStatus: c ? c.levelStatus : null,
+            levelPublic: c ? c.levelPublic : null,
+            avatarUrl: c ? c.avatarSignedUrl : null,
+          });
+        }).join('');
+      }
+    }
+    recentsSection.hidden = !hasRecents;
+    if (!hasRecents) recentsWrap.innerHTML = '';
+
     let html = '';
-    if (provisionals.length) html += provisionals.map((p) => buildIdentityResolveRowHTML(p.display_name || 'Invitado', p.player_id, 'provisional')).join('');
-    if (realRows.length) html += realRows.map((r) => buildIdentityResolveRowHTML(r.display_name || r.username || 'Jugador', r.player_id, 'registered', r.username)).join('');
+    if (provisionals.length) html += provisionals.map((p) => buildProvisionalRowHTML(p)).join('');
+    if (realRows.length) html += realRows.map((r) => buildPlayerRowHTMLFromServerRow(r)).join('');
 
     $('#identity-resolve-list').innerHTML = html;
-    $('#identity-resolve-empty').hidden = !!html;
-    $all('#identity-resolve-list .player-row').forEach((btn) => {
+    $('#identity-resolve-empty').hidden = !!html || hasRecents;
+    $all('#identity-resolve-list .player-row, #identity-resolve-recents .player-row').forEach((btn) => {
       btn.onclick = () => selectIdentityReplacement(btn.dataset.playerId, btn.querySelector('.player-row__name').textContent);
     });
   }
@@ -3012,9 +3160,14 @@
     updateProposeCorrectionSubmitState();
   }
 
-  /** Espejo de updateManualKeypadKeysState. */
+  /** Espejo de updateManualKeypadKeysState. Ronda correctiva Laboratorio h11 (§P2) — el lado
+   *  contrario solo restringe el teclado si YA fue reafirmado en esta misma pasada de edición
+   *  (`b6CorrectionSideEntered`); un valor preexistente todavía no retocado no debe bloquear
+   *  dígitos legítimos del lado que el usuario sí está editando ahora (ver comentario junto a la
+   *  declaración de `b6CorrectionSideEntered`). */
   function updateProposeCorrectionKeypadKeysState() {
-    const otherValue = b6CorrectionDraftActiveTeam === 'A' ? b6CorrectionDraftSet.b : b6CorrectionDraftSet.a;
+    const otherSide = b6CorrectionDraftActiveTeam === 'A' ? 'b' : 'a';
+    const otherValue = b6CorrectionSideEntered[otherSide] ? b6CorrectionDraftSet[otherSide] : undefined;
     const allowed = new Set(ML.computeValidNextDigits('', b6CorrectionFormat, otherValue));
     $all('#propose-correction-keypad [data-key]').forEach((btn) => {
       const key = btn.dataset.key;
@@ -3040,11 +3193,24 @@
   function commitProposeCorrectionDraftDigits() {
     if (!b6CorrectionKeypadOpen || !b6CorrectionKeypadDigits) return;
     b6CorrectionDraftSet[b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b'] = Number(b6CorrectionKeypadDigits);
+    b6CorrectionSideEntered[b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b'] = true;
     b6CorrectionKeypadDigits = '';
   }
-  /** Espejo de advanceDraftSide: A -> B del mismo set; al cerrar B, intenta confirmar el set. */
+  /** Espejo de advanceDraftSide, con una corrección: A -> B del mismo set SOLO cuando el otro
+   *  lado todavía no tiene ningún valor (entrada nueva de cero, comportamiento original sin
+   *  cambios); si el otro lado YA tiene un valor real (pre-existente al reabrir un set, o recién
+   *  cargado en esta misma sesión), intenta confirmar el par completo directamente en vez de
+   *  forzar igual la entrada del lado sin tocar — `commitProposeCorrectionSetIfValid` ya valida
+   *  el par completo y no hace nada si es inválido, dejando el editor abierto para seguir
+   *  corrigiendo cualquiera de los dos lados. Ronda correctiva Laboratorio h11 (§P2) — antes
+   *  esto solo miraba si el lado activo era 'A' (nunca si el otro lado ya estaba completo), por
+   *  eso ENVIAR CORRECCIÓN no habilitaba hasta re-tocar manualmente un valor que ya era correcto. */
   function advanceProposeCorrectionDraftSide() {
-    if (b6CorrectionDraftActiveTeam === 'A') { openProposeCorrectionKeypad('B'); return; }
+    const otherSide = b6CorrectionDraftActiveTeam === 'A' ? 'b' : 'a';
+    if (!Number.isFinite(b6CorrectionDraftSet[otherSide])) {
+      openProposeCorrectionKeypad(otherSide === 'a' ? 'A' : 'B');
+      return;
+    }
     closeProposeCorrectionKeypad();
     commitProposeCorrectionSetIfValid();
   }
@@ -3075,6 +3241,7 @@
         b6CorrectionActiveSetIndex = next;
         const existing = b6CorrectionSets[next];
         b6CorrectionDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+        b6CorrectionSideEntered = { a: false, b: false };
         if (existing) {
           b6CorrectionDraftActiveTeam = 'A';
           renderProposeCorrectionScoreboard();
@@ -3105,7 +3272,11 @@
     if (!b6CorrectionKeypadOpen) return;
     if (key === 'del') {
       if (b6CorrectionKeypadDigits) { b6CorrectionKeypadDigits = b6CorrectionKeypadDigits.slice(0, -1); }
-      else { b6CorrectionDraftSet[b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b'] = undefined; }
+      else {
+        const side = b6CorrectionDraftActiveTeam === 'A' ? 'a' : 'b';
+        b6CorrectionDraftSet[side] = undefined;
+        b6CorrectionSideEntered[side] = false;
+      }
       renderProposeCorrectionScoreboard();
       return;
     }
@@ -3114,7 +3285,8 @@
       commitProposeCorrectionSetIfValid();
       return;
     }
-    const otherValue = b6CorrectionDraftActiveTeam === 'A' ? b6CorrectionDraftSet.b : b6CorrectionDraftSet.a;
+    const otherSide = b6CorrectionDraftActiveTeam === 'A' ? 'b' : 'a';
+    const otherValue = b6CorrectionSideEntered[otherSide] ? b6CorrectionDraftSet[otherSide] : undefined;
     b6CorrectionKeypadDigits += key;
     if (!ML.canExtendSetDigits(b6CorrectionKeypadDigits, b6CorrectionFormat, otherValue)) {
       commitProposeCorrectionDraftDigits();
@@ -3130,6 +3302,11 @@
     b6CorrectionDecided = false;
     const s = b6CorrectionSets[i];
     b6CorrectionDraftSet = s ? { a: s.a, b: s.b } : { a: undefined, b: undefined };
+    // Ronda correctiva Laboratorio h11 (§P2) — reabrir un set YA cargado empieza una pasada de
+    // edición nueva: ninguno de los dos lados cuenta todavía como "reafirmado", aunque ambos
+    // sigan mostrando su valor real (ver `b6CorrectionSideEntered`) — así el usuario puede tocar
+    // cualquiera de los dos lados primero sin quedar bloqueado por el valor viejo del otro.
+    b6CorrectionSideEntered = { a: false, b: false };
     b6CorrectionActiveSetIndex = i;
     b6CorrectionDraftActiveTeam = 'A';
     renderProposeCorrectionScoreboard();
@@ -3153,6 +3330,7 @@
     b6CorrectionActiveSetIndex = next === null ? Math.max(0, b6CorrectionNeededSlots() - 1) : next;
     const activeExisting = b6CorrectionSets[b6CorrectionActiveSetIndex];
     b6CorrectionDraftSet = activeExisting ? { a: activeExisting.a, b: activeExisting.b } : { a: undefined, b: undefined };
+    b6CorrectionSideEntered = { a: false, b: false };
     b6CorrectionDraftActiveTeam = 'A';
     b6CorrectionKeypadDigits = '';
     $('#propose-correction-error').hidden = true;
@@ -6809,6 +6987,26 @@
         levelSubEl.hidden = true;
         levelSubEl.innerHTML = '';
         calibEl.hidden = true;
+        // Ronda correctiva Laboratorio h11 (§P5 "barra visual debajo del Nivel") — CORRECCIÓN DE
+        // INTERPRETACIÓN respecto de §15.29 (05_Laboratorio_UX_Uso_Real.md §15.31): recupera la
+        // barra SOLO como acompañamiento visual estable del bloque, nunca como "progreso lineal
+        // 5.9 → 6.0" (ese era justo el malentendido de la ronda anterior) ni como XP. Ya se
+        // investigó (Ronda UX 25/09 §M, ver renderMiPerfilLevelSection más abajo en este mismo
+        // archivo) que hoy NO existe una serie real basada en `level_events` que dé un delta
+        // reciente genuino para una cuenta V1 calibrada — fabricar uno acá violaría "no fabricar
+        // una lectura sin evidencia" (handoff §P5) y "no reabrir fórmula/fuente de Nivel". Por
+        // eso: barra visible (relleno fijo, sin semántica de porcentaje-hacia-el-próximo-nivel)
+        // + píldora de delta oculta (`--flat`, mismo modificador que ya usa Mi Perfil para este
+        // mismo caso, línea ~10566) en vez de inventar una dirección ↑/↓. Nota de producto para
+        // la próxima pasada física: si este tratamiento no es el esperado, es una decisión
+        // visual pendiente de validar con Sebastián, no un bug — ver Resultado de esta ronda.
+        barWrapEl.hidden = false;
+        const barEl = $('#player-home-level-bar');
+        barEl.style.width = '100%';
+        barEl.classList.remove('is-animating');
+        const deltaEl = $('#player-home-level-delta');
+        deltaEl.textContent = '';
+        deltaEl.className = 'player-card__level-delta player-card__level-delta--flat';
       } else {
         levelSubEl.hidden = true;
         levelSubEl.innerHTML = '';
@@ -9238,23 +9436,26 @@
     partners: { title: 'COMPAÑEROS', countLabel: (n) => n === 1 ? '1 partido juntos' : `${n} partidos juntos` },
     rivals: { title: 'RIVALES', countLabel: (n) => n === 1 ? '1 enfrentamiento' : `${n} enfrentamientos` },
   };
-  /** BRAMUlab_V03.10 (§2) — identidad segura para una fila de Compañeros/Rivales. `p.userId`
-   *  (agregado en player-home.js) es AUTORITATIVO Y EXCLUSIVO cuando existe (V03.0): resuelve
-   *  por `Store.getUserById` directo, nunca por nombre — así dos cuentas reales con el mismo
-   *  nombre visible jamás muestran el @username de la otra. Sin `userId` (registro legacy), cae
-   *  al fallback de nombre ya existente en el proyecto (mismo criterio que
-   *  `buildGroupRowAccount`), pero SOLO cuenta como resolución "segura" si hay EXACTAMENTE una
-   *  cuenta real con ese nombre visible — con dos o más, la identidad es ambigua y se prefiere
-   *  no mostrar nada antes que arriesgar el username equivocado (nunca inventa ni deriva un
-   *  `@username` del nombre, a diferencia de `buildPlayerHandle`, que sí lo hace y por eso NO se
-   *  usa acá). */
-  function resolvePersonAccount(p) {
-    if (p.userId) return Store.getUserById(p.userId);
-    const norm = Store.normalizePlayerName(p.name);
-    const candidates = Store.loadUsers().filter((u) => u && Store.normalizePlayerName(u.displayName) === norm);
-    return candidates.length === 1 ? candidates[0] : null;
-  }
-  function openPersonListScreen(kind) {
+  // Ronda correctiva Laboratorio h11 (§P1 "bug de identidad canónica") — guarda de respuesta
+  // tardía para `Auth.getPlayersCompact` (mismo patrón que `b6IdentityResolveRequestId`): si el
+  // usuario abre Compañeros y después Rivales (u otra pantalla) antes de que la llamada batch
+  // responda, esa respuesta vieja no debe pisar lo que ya se está mostrando ahora.
+  let companionsRequestId = 0;
+  /** BRAMUlab_V03.10 (§2) — CAUSA REAL del bug de identidad de Matu reportado en el Laboratorio
+   *  h11 (§15.31): esta pantalla resolvía la cuenta real vía `resolvePersonAccount` (retirada
+   *  acá), que llamaba a `Store.getUserById`/comparaba contra `Store.loadUsers()` — la lista
+   *  LOCAL de cuentas del prototipo previo al backend (V03.0), vacía o irrelevante para una
+   *  cuenta real de Supabase Staging. Por eso la fila nunca mostraba avatar real (siempre
+   *  iniciales) y, peor, tocarla pasaba `el.dataset.name` (string plano) a
+   *  `openPlayerPublicProfile`, que sin un `playerId` cae al mismo camino local/legacy por
+   *  nombre — de ahí que abrir a Matu desde Compañeros mostrara un `@matu` y un Nivel distintos
+   *  a los reales de `@matu_qa` que sí se ven desde Buscar Jugadores. `p.userId` (estampado en
+   *  match-sync.js#buildLocalPlayers desde `participant.playerId`) YA es el `player_id` real del
+   *  servidor — la fuente correcta es `Auth.getPlayersCompact` (misma RPC batch que ya usan
+   *  RECIENTES/identity-resolve, nunca N `get_public_profile` por fila), y el click debe pasar
+   *  ese mismo `player_id` a `openPlayerPublicProfile` en vez del nombre — así toma SIEMPRE el
+   *  camino server-backed real (mismo criterio que Buscar Jugadores), nunca el fallback local. */
+  async function openPersonListScreen(kind) {
     const cfg = PERSON_LIST_CONFIG[kind];
     $('#companions-title').textContent = cfg.title;
     const matches = PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity());
@@ -9263,20 +9464,35 @@
     const isEmpty = people.length === 0;
     $('#companions-empty').hidden = !isEmpty;
     wrap.hidden = isEmpty;
+    showView('companions');
+
+    const requestId = ++companionsRequestId;
+    let compactById = new Map();
+    if (Auth.isConfigured()) {
+      const ids = Array.from(new Set(people.map((p) => p.userId).filter(Boolean)));
+      const result = await Auth.getPlayersCompact(ids);
+      if (requestId !== companionsRequestId) return; // el usuario ya navegó a otra pantalla
+      compactById = result.ok ? result.players : new Map();
+    }
+
     // V02.2 (Bloque H, §21) — resumen explícito en palabras completas (nunca "9V 2D") y la
     // efectividad SIEMPRE con su label debajo: nunca un "78%" suelto sin decir qué mide.
     // BRAMUlab_V03.10 (§2) — `Nombre · @username` cuando hay cuenta real resoluble (mismos
     // tokens visuales que MIS GRUPOS: `.group-table__toprow`/`__name`/`__handle`, tomado como
     // referencia visual — sin rediseñar la tarjeta); solo el nombre cuando no la hay. Nunca un
-    // `@username` inventado.
+    // `@username` inventado. Avatar real (`avatarSignedUrl`) cuando existe, mismo token visual
+    // `.person-list__avatar--photo` que ya usa `buildGroupAvatarHTML` en MIS GRUPOS.
     wrap.innerHTML = people.map((p) => {
       const winsLabel = p.wins === 1 ? 'victoria' : 'victorias';
       const lossesLabel = p.losses === 1 ? 'derrota' : 'derrotas';
-      const account = resolvePersonAccount(p);
-      const handle = account && account.username ? `@${account.username}` : null;
+      const c = p.userId ? compactById.get(p.userId) : null;
+      const handle = c && c.username ? `@${c.username}` : null;
+      const avatarHTML = (c && c.avatarSignedUrl)
+        ? `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
+        : `<span class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</span>`;
       return `
-      <div class="person-list__item" data-name="${escapeHtml(p.name)}">
-        <div class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</div>
+      <div class="person-list__item" data-name="${escapeHtml(p.name)}" data-player-id="${escapeHtml(p.userId || '')}">
+        ${avatarHTML}
         <div class="person-list__info">
           <div class="group-table__toprow">
             <span class="group-table__name">${escapeHtml(p.name)}</span>
@@ -9293,11 +9509,16 @@
     }).join('');
     // BRAMUlab_V03.3 (§10) — acceso #3 al perfil público: cada fila ya individualiza a UN
     // jugador real (nombre + récord conjunto), a diferencia de las tarjetas del Home que solo
-    // muestran el mejor agregado — ver decisión documentada en el Informe.
+    // muestran el mejor agregado — ver decisión documentada en el Informe. Ronda correctiva
+    // Laboratorio h11 (§P1) — pasa `{name, playerId}` cuando hay `player_id` real (nunca el
+    // nombre plano solo): eso es lo que decide que `openPlayerPublicProfile` use el camino
+    // server-backed correcto en vez de la resolución local/legacy por nombre.
     $all('#companions-list .person-list__item').forEach((el) => {
-      el.addEventListener('click', () => openPlayerPublicProfile(el.dataset.name, 'companions'));
+      el.addEventListener('click', () => {
+        const playerId = el.dataset.playerId || null;
+        openPlayerPublicProfile(playerId ? { name: el.dataset.name, playerId } : el.dataset.name, 'companions');
+      });
     });
-    showView('companions');
   }
   function initCompanionsScreen() {
     $('#companions-back-btn').addEventListener('click', () => openPlayerHome());

@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h11" />
+<link rel="stylesheet" href="styles.css?v=04.11-h12" />
 </head>
 <body>
 
@@ -60,6 +60,12 @@
            líneas de trazabilidad real (Cargado por/fecha/hora, formato/sistema, Confirmado por)
            — ver renderAnalysisMeta/buildAnalysisMetaLines en app.js. -->
       <div id="analysis-meta" class="analysis-meta"></div>
+      <!-- Ronda correctiva Laboratorio h11 (§P3) — visible SOLO mientras esta pareja debe
+           responder a una corrección propuesta: "la primera gran tarjeta sigue mostrando
+           ganadores/resultado oficial sin etiquetarlo explícitamente como Resultado oficial
+           actual" (§15.32) — nunca duplica la tarjeta, solo la rotula cuando hace falta
+           distinguirla de la propuesta de abajo (ver paintB6Actions en app.js). -->
+      <p id="analysis-result-official-label" class="b6-correction-compare__label" hidden>Resultado oficial actual</p>
       <section class="analysis-section" id="analysis-result"></section>
       <!-- Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer corrección/
            Responder corrección/No participé/identidad. Vive pegado al resultado, arriba de
@@ -75,8 +81,19 @@
         <div class="b6-action-block b6-action-block--identity" id="b6-identity-block" hidden>
           <div id="b6-identity-list"></div>
         </div>
+        <!-- Ronda correctiva Laboratorio h11 (§P3) — REEMPLAZA la frase + delta suelto anterior:
+             la propuesta ahora se ve como un resultado completo, con la misma jerarquía visual
+             que el oficial vigente (mismo componente .result-card que #analysis-result, ver
+             buildCorrectionPreviewCardHTML en app.js) — "la propuesta no reemplaza a la verdad
+             oficial, pero mientras está abierta sí reemplaza al estado normal/cerrado del
+             partido" (§15.33). El delta (#b6-respond-correction-diff) baja a trazabilidad
+             secundaria debajo de las dos tarjetas, nunca sustituye a la propuesta completa. -->
         <div class="b6-action-block" id="b6-respond-correction-block" hidden>
           <p class="b6-banner__text" id="b6-respond-correction-text"></p>
+          <div class="b6-correction-compare">
+            <p class="b6-correction-compare__label b6-correction-compare__label--proposed" id="b6-respond-proposed-label">Corrección propuesta</p>
+            <div id="b6-respond-proposed-card"></div>
+          </div>
           <!-- Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN. -->
           <ul class="b6-correction-diff" id="b6-respond-correction-diff" hidden></ul>
           <div class="b6-action-row">
@@ -90,9 +107,13 @@
         <!-- Ronda UX 25/09 (Ronda 2, §5) — REEMPLAZA los dos accesos separados anteriores
              (#b6-propose-correction-block "PROPONER CORRECCIÓN" + #b6-report-identity-block "No
              participé...") por un único punto de entrada secundario que abre un selector
-             (#report-error-scrim, ver más abajo) — ver openReportErrorPicker en app.js. -->
+             (#report-error-scrim, ver más abajo) — ver openReportErrorPicker en app.js.
+             Ronda correctiva Laboratorio h11 (§P5) — copy en caja normal (mayúsculas resultaba
+             "demasiado pesado", §15.31) + `.btn-secondary--danger` (mismo rojo suave que ya usa
+             el resto de la app para acciones secundarias/destructivas, nunca un color nuevo):
+             nunca debe competir visualmente con un CTA principal. -->
         <div class="b6-action-block" id="b6-report-error-block" hidden>
-          <button type="button" class="btn-secondary" id="b6-report-error-btn" style="width:100%">REPORTAR UN ERROR</button>
+          <button type="button" class="btn-secondary btn-secondary--danger" id="b6-report-error-btn" style="width:100%">Reportar un error</button>
         </div>
       </section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
@@ -2439,6 +2460,10 @@
         <input id="identity-resolve-search" class="player-search-field__input" type="text" placeholder="Buscar jugador…" maxlength="18" autocomplete="off" />
       </div>
       <div class="load-player-sheet__scroll" id="identity-resolve-scroll">
+        <div id="identity-resolve-recents-section" class="player-recents-section" hidden>
+          <div class="load-player-sheet__section-label">Recientes</div>
+          <div id="identity-resolve-recents"></div>
+        </div>
         <div id="identity-resolve-list" class="load-player-sheet__list"></div>
         <p id="identity-resolve-empty" class="load-player-sheet__empty" hidden>Escribí al menos 2 caracteres para buscar, o elegí un invitado.</p>
       </div>
@@ -2694,8 +2719,12 @@
          baseline), nunca es geométricamente exacto dentro de un círculo flex-centrado. Pasa a
          SVG (mismo trazo redondeado que el resto del set de íconos de la app, ver
          buildAddPlayerRowHTML en app.js), centrado real por viewBox. -->
+    <!-- Ronda correctiva Laboratorio h11 (§P5) — trazo del "+" engrosado 2.5 → 3.2 (§15.31: poca
+         presencia); círculo/tamaño del botón intencionalmente intactos (.bottom-nav__item--fab/
+         .bottom-nav__fab-icon, sin cambios), la instrucción es explícita: no agrandar el círculo
+         de nuevo. -->
     <button type="button" class="bottom-nav__item bottom-nav__item--fab" data-nav="manual-load" aria-label="Cargar partido">
-      <svg viewBox="0 0 24 24" class="bottom-nav__fab-icon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      <svg viewBox="0 0 24 24" class="bottom-nav__fab-icon" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
     <!-- BRAMUlab_V03.4 (§1) — RANKING sale de la barra inferior, reemplazado por MIS GRUPOS
          (el Ranking BRAMU oficial se define/implementa por separado, más adelante). Ícono de
@@ -2728,47 +2757,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h11"></script>
-  <script src="stats.js?v=04.11-h11"></script>
-  <script src="store.js?v=04.11-h11"></script>
+  <script src="engine.js?v=04.11-h12"></script>
+  <script src="stats.js?v=04.11-h12"></script>
+  <script src="store.js?v=04.11-h12"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h11"></script>
-  <script src="level-context.js?v=04.11-h11"></script>
-  <script src="level-calibration.js?v=04.11-h11"></script>
-  <script src="player-home.js?v=04.11-h11"></script>
-  <script src="match-load.js?v=04.11-h11"></script>
-  <script src="player-identity.js?v=04.11-h11"></script>
-  <script src="groups.js?v=04.11-h11"></script>
-  <script src="locations.js?v=04.11-h11"></script>
-  <script src="ranking.js?v=04.11-h11"></script>
+  <script src="level.js?v=04.11-h12"></script>
+  <script src="level-context.js?v=04.11-h12"></script>
+  <script src="level-calibration.js?v=04.11-h12"></script>
+  <script src="player-home.js?v=04.11-h12"></script>
+  <script src="match-load.js?v=04.11-h12"></script>
+  <script src="player-identity.js?v=04.11-h12"></script>
+  <script src="groups.js?v=04.11-h12"></script>
+  <script src="locations.js?v=04.11-h12"></script>
+  <script src="ranking.js?v=04.11-h12"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h11"></script>
+  <script src="auth.js?v=04.11-h12"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h11"></script>
-  <script src="match-sync.js?v=04.11-h11"></script>
+  <script src="matches.js?v=04.11-h12"></script>
+  <script src="match-sync.js?v=04.11-h12"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h11"></script>
+  <script src="match-validation.js?v=04.11-h12"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h11"></script>
+  <script src="match-self-heal.js?v=04.11-h12"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h11"></script>
-  <script src="app.js?v=04.11-h11"></script>
+  <script src="intelligence-client.js?v=04.11-h12"></script>
+  <script src="app.js?v=04.11-h12"></script>
 </body>
 </html>

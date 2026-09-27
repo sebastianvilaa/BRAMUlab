@@ -607,9 +607,19 @@ input, select{ font-family: inherit; }
    `display:contents` (dos filas REALES dentro del único grid `.result-card__rows`, ver
    buildScoreCardHTML en app.js) — el padding/borde entre equipos se mueve a las celdas
    (nombre/sets) porque un elemento `display:contents` no genera caja propia. */
-.result-card__rows{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 12px; }
+/* Ronda correctiva Laboratorio h11 (§P5 "Resumen — grilla de nombres/sets/divisores") — BUG REAL
+   confirmado en iPhone (§15.31): `align-items:center` alineaba cada CELDA al centro de su fila,
+   pero `.result-card__name` (14px + 8px padding, ~33px de alto) y `.result-card__sets` (chips de
+   18px + 8px padding, ~42px de alto) tienen cajas de alto DISTINTO — el `border-top` del
+   Equipo B (línea 615, aplicado a cada celda por separado porque `.result-card__row` es
+   `display:contents` y no genera caja propia) quedaba a una altura distinta en cada columna, un
+   divisor "quebrado" en vez de una línea continua, y la fila se leía descentrada. `stretch` hace
+   que ambas celdas ocupen el alto REAL de la fila (el que define la celda más alta), así sus
+   bordes arrancan siempre a la misma altura; `.result-card__name` pasa a `flex`+`align-items:center`
+   para seguir centrando su texto DENTRO de esa caja ahora más alta (nunca pegado arriba). */
+.result-card__rows{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:stretch; column-gap: 12px; }
 .result-card__row{ display:contents; }
-.result-card__name{ font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding: 8px 0; }
+.result-card__name{ display:flex; align-items:center; font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding: 8px 0; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
 .result-card__row[data-team="B"] .result-card__name, .result-card__row[data-team="B"] .result-card__sets{ border-top: 1px solid var(--line); }
@@ -1696,7 +1706,11 @@ input, select{ font-family: inherit; }
      bajan los valores de reposo (20px/.16 → 18px/.12) y pico (30px/.32 → 25px/.24). */
   box-shadow: 0 0 18px rgba(var(--lastmatch-accent-rgb),.12);
   animation: lastMatchGlowPulse 3.6s ease-in-out infinite;
-  padding: 22px 20px;
+  /* Ronda correctiva Laboratorio h11 (§P5) — BUG VISUAL confirmado por Sebastián en CSS real
+     (§15.31): esta tarjeta quedó en ~22px/20px mientras el resto de los módulos comparables del
+     sistema (.result-card, .b6-action-block, etc.) usa 16px base. Unifica sin ninguna excepción
+     técnica real que lo impida. */
+  padding: 16px;
 }
 @keyframes lastMatchGlowPulse{
   0%, 100%{ box-shadow: 0 0 18px rgba(var(--lastmatch-accent-rgb),.12); }
@@ -3463,14 +3477,30 @@ input, select{ font-family: inherit; }
 .b6-correction-diff{ list-style:none; margin: 6px 0 0; padding: 0; display:flex; flex-direction:column; gap: 2px; }
 .b6-correction-diff li{ font-size: 12px; color: var(--text-dim); }
 
-/* Ronda UX 25/09 (Ronda 2, §5) — opciones del selector "REPORTAR UN ERROR": mismo lenguaje
-   visual liviano que el resto de los sheets (fondo surface-2 + borde sutil), título + bajada
-   corta explicando qué hace cada una. */
-.report-error-option{
-  display:block; width:100%; text-align:left; background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--radius-control);
-  padding: 12px 14px; margin-bottom: 10px;
+/* Ronda correctiva Laboratorio h11 (§P3) — "Resultado oficial actual" (rótulo de la tarjeta
+   #analysis-result cuando hay una corrección esperando respuesta) / "Corrección propuesta por
+   [nombre]" (rótulo de la tarjeta compacta dentro de #b6-respond-correction-block). Mismo
+   tratamiento tipográfico que .b6-correction-diff (texto de apoyo, nunca protagonista) — el
+   contraste real lo dan las propias tarjetas de resultado debajo, no el rótulo. El ámbar
+   (--gold) en el rótulo de la propuesta es el MISMO tono que ya usa el badge "waiting" de
+   Home/Historial para este estado (.history-item__badge--waiting) — nunca un color nuevo. */
+.b6-correction-compare__label{
+  font-size: 11px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-dim); margin: 0 0 6px;
 }
-.report-error-option:last-child{ margin-bottom: 0; }
+.b6-correction-compare__label--proposed{ color: var(--gold); }
+.b6-correction-compare .result-card,
+.result-card--compact{ padding: 12px 14px; }
+
+/* Ronda correctiva Laboratorio h11 (§P5) — REEMPLAZA la versión "dos tarjetas pesadas" de Ronda
+   UX 25/09 (§15.31: "se percibe demasiado comprimida por encerrar cada opción en una tarjeta
+   completa"): sin fondo/borde propio, mismo patrón liviano que `.b6-identity-row` (título +
+   bajada + divisor simple entre opciones consecutivas, nunca una card completa por opción) —
+   área táctil generosa (14px verticales) en vez de compensar con el peso visual de una tarjeta. */
+.report-error-option{
+  display:block; width:100%; text-align:left; background:none; border:none;
+  padding: 14px 2px;
+}
+.report-error-option + .report-error-option{ border-top: 1px solid var(--line); }
 .report-error-option__title{ display:block; font-size: 14px; font-weight:700; color: var(--text); }
 .report-error-option__sub{ display:block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
