@@ -2324,3 +2324,62 @@ Se mantiene lo ya definido en §15.31:
 - búsqueda de jugadores con patrón único (avatar + nombre + @usuario + Nivel).
 
 El problema de identidad canónica detectado en §15.31 sigue siendo PRIORIDAD ALTA y debe resolverse antes de considerar cerradas visualmente las superficies de búsqueda/perfil.
+
+
+### 15.33 — Corrección post-validación: prioridad visual de la propuesta + bug del editor de sets — 27/09/2026
+
+Baseline física: BRAMUlab V04.11 / bundle `04.11-h11`.
+
+Esta sección amplía §15.32 con dos precisiones observadas inmediatamente después.
+
+#### La propuesta sigue sin ser oficial, pero debe sentirse de primer nivel
+
+Se mantiene la regla de producto ya cerrada en `Experiencia_Inicial.md`: mientras la otra pareja no acepte, la última versión validada sigue siendo la versión oficial.
+
+Pero visualmente la corrección propuesta no puede quedar reducida a una píldora secundaria casi decorativa.
+
+Cuando existe una corrección activa sobre un partido oficial:
+- el resultado oficial sigue siendo la verdad vigente;
+- la propuesta pasa a ser el evento principal pendiente de resolución de ese partido;
+- en el Resumen debe tener jerarquía comparable al resultado oficial, con un antes/después claro;
+- para la pareja que debe decidir, el foco principal de la pantalla es entender qué cambiaría y aceptar/rechazar;
+- en Home/Historial puede mantenerse el resultado oficial, pero el estado de corrección debe ser suficientemente visible para que no parezca un partido cerrado sin novedad.
+
+Principio:
+> La propuesta no reemplaza a la verdad oficial, pero mientras está abierta sí reemplaza al estado “normal/cerrado” del partido.
+
+Esto refuerza la dirección de §15.32: mostrar `Resultado oficial actual` + `Corrección propuesta` como dos bloques claramente relacionados, sin hacer parecer que uno de ellos no importa.
+
+#### BUG — editor de corrección no inicializa/actualiza correctamente el par de games del set
+
+Se detectó un bug funcional concreto en el editor de corrección de resultado.
+
+Caso observado:
+- el set oficial visible era, por ejemplo, `2–6`;
+- Sebastián modifica solo el lado `2` a `3`;
+- el `6` contrario sigue visible en pantalla;
+- sin embargo, `Enviar corrección` no queda habilitado hasta volver a seleccionar manualmente ese mismo `6`.
+
+Segundo caso:
+- si el set actual es `3–6` y se quiere invertir a `6–4`;
+- al editar primero el lado que tenía `3`, el valor `6` aparece deshabilitado porque todavía está seleccionado en el lado contrario;
+- esto impide temporalmente cargar el nuevo resultado aunque la intención sea cambiar ambos lados del mismo set.
+
+**CLASIFICACIÓN: BUG / INTERACCIÓN — PRIORIDAD ALTA para este flujo.**
+
+Comportamiento esperado:
+- al abrir un set existente, ambos valores visibles deben estar cargados realmente en el estado interno del editor;
+- modificar un solo lado debe conservar el otro valor ya existente sin exigir re-seleccionarlo;
+- el CTA debe validar el par completo real que se ve en pantalla, no solo los valores tocados durante esa sesión;
+- al querer intercambiar ganador/perdedor del set, la restricción de valores no debe bloquear por el valor viejo del otro lado;
+- el usuario debe poder editar cualquiera de los dos lados en cualquier orden;
+- si por reglas de score hace falta limpiar automáticamente un valor incompatible, hacerlo de forma explícita y comprensible, no mediante botones aparentemente inválidos por estado stale;
+- la lógica visual y la lógica de validación deben leer la misma fuente de estado.
+
+No resolver esto con un parche cosmético: revisar inicialización del score del set y la lógica de habilitación/deshabilitación del keypad.
+
+#### Estado de esta ronda
+
+Con este bug ya existe evidencia suficiente para frenar el Laboratorio y pasar el paquete a Desarrollo.
+
+No repetir otro partido para demostrar el mismo problema salvo que Claude necesite un caso mínimo reproducible adicional.
