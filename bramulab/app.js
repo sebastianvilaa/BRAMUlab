@@ -2730,10 +2730,11 @@
     officialLabel.hidden = true;
     outboxActionBlock.hidden = true;
     outboxActionBtn.onclick = null;
-    // Ronda correctiva (revisión central) — default seguro para las dos listas de diff (§G): un
-    // render anterior para otro partido/estado nunca debe dejar líneas stale visibles.
+    // Ronda correctiva (revisión central) — default seguro para la lista de diff del banner
+    // PRE-validación (§G): un render anterior para otro partido/estado nunca debe dejar líneas
+    // stale visibles. El diff técnico del bloque POST-validación (#b6-respond-correction-diff)
+    // se retiró en h17 (doc 53, punto B) — ver el bloque `f.status === 'validated'` más abajo.
     $('#b6-status-banner-diff').hidden = true; $('#b6-status-banner-diff').innerHTML = '';
-    $('#b6-respond-correction-diff').hidden = true; $('#b6-respond-correction-diff').innerHTML = '';
 
     if (f.status === 'expired') {
       banner.hidden = false; banner.classList.add('b6-banner--waiting');
@@ -2937,25 +2938,31 @@
         // persona y se oculta la fila de acciones (quien propuso no acepta/rechaza su propia
         // propuesta).
         officialLabel.hidden = false;
-        respondText.textContent = isResponder
-          ? `${proposerName} propuso una corrección del resultado.`
-          : 'Esperando respuesta de la otra pareja.';
+        // Auditoría Central h16 -> h17 (doc 53, punto B "Resumen — bloque de corrección") —
+        // ELIMINA el texto introductorio "[Nombre] propuso una corrección del resultado." para
+        // quien debe responder: es redundante con el rótulo de abajo (#b6-respond-proposed-label,
+        // "Corrección propuesta por [Nombre]") + la explicación humana
+        // (#b6-respond-correction-summary), que ya cubren esa misma información como parte de
+        // UNA sola unidad visual. Para quien propuso (isResponder false) el texto sigue
+        // existiendo: no es redundante, informa un estado de espera que ningún otro elemento
+        // del bloque comunica.
+        respondText.hidden = isResponder;
+        respondText.textContent = isResponder ? '' : 'Esperando respuesta de la otra pareja.';
         $('#b6-respond-proposed-label').textContent = isResponder
           ? `Corrección propuesta por ${proposerName}`
           : 'Tu corrección propuesta';
         const proposedWinner = deriveProposedWinnerTeam(f.pendingCorrectionSets, f.formatId);
         $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner);
-        // Handoff cierre UX h13 (§4 "Explicación humana del cambio") — REEMPLAZA el delta
-        // técnico como lectura principal por una frase real; `rawProposerName` (nunca el
-        // fallback de equipo) para que, sin nombre resoluble, caiga en "La otra pareja indica…"
-        // en vez de nombrar un actor incierto — mismo criterio que el resto de la app: nunca
-        // inventar un actor.
+        // Handoff cierre UX h13 (§4 "Explicación humana del cambio") — frase en lenguaje humano,
+        // lectura PRINCIPAL de qué cambió; `rawProposerName` (nunca el fallback de equipo) para
+        // que, sin nombre resoluble, caiga en "La otra pareja indica…" en vez de nombrar un
+        // actor incierto — mismo criterio que el resto de la app: nunca inventar un actor.
+        // Auditoría Central h16 -> h17 (doc 53, punto B) — ELIMINA el diff técnico gris
+        // ("Set 2: 6–0 → 6–4") que vivía debajo como trazabilidad secundaria: junto al texto
+        // introductorio de arriba, era la segunda pieza redundante señalada por Sebastián — la
+        // explicación humana ya es la única lectura de qué cambió, sin duplicarla en otro
+        // formato técnico al lado.
         $('#b6-respond-correction-summary').textContent = ML.buildCorrectionHumanSummary(f.sets, f.pendingCorrectionSets, rawProposerName);
-        // Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN: before =
-        // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
-        // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar) — queda
-        // como trazabilidad secundaria debajo del resumen humano, nunca como la explicación.
-        renderCorrectionDiff('b6-respond-correction-diff', f.sets, f.pendingCorrectionSets);
       }
       // Ronda UX 25/09 (Ronda 2, §1) — QUITADO: banner permanente "Partido oficial." — el estado
       // oficial normal (sin corrección pendiente, sin identidad cuestionada) ya no necesita
@@ -7273,37 +7280,35 @@
     // en general — Historial/Resumen conservan "CORRECCIÓN PROPUESTA", sin ampliar alcance).
     const lastMatchStatusText = hasActiveCorrectionOnLastMatch ? 'CORRECCIÓN PENDIENTE' : serverMatchStatusLabel(m);
     const lastMatchStatusModifier = serverMatchStatusBadgeModifier(m) || 'status';
+    // Auditoría Central h16 -> h17 (doc 53, punto 2 / direccion visual final de Sebastian) — BUG
+    // REAL CONFIRMADO: el status vivia apilado DENTRO de .datetime (misma columna de row1 que
+    // fecha/lugar) con solo un min-height de reserva — si el copy real medía mas que eso, row1
+    // crecia y empujaba row2 (forma/VICTORIA-DERROTA) hacia abajo. Composicion nueva: el status
+    // se muda a su PROPIA columna dentro de row2 (nunca mas en row1/.datetime), a la derecha de
+    // forma+resultado — la altura de row2 queda gobernada por el badge de resultado, que esta
+    // SIEMPRE presente, asi que el status ya no puede modificarla tenga o no contenido.
+    // CORRECCION PENDIENTE deja de ser una pastilla y pasa a texto ambar liso, sin fondo/borde/
+    // radio propios; el resto de los estados de este slot (PENDIENTE DE VALIDACION, IDENTIDAD
+    // CUESTIONADA, etc.) conserva el badge existente, solo cambia de columna.
+    const lastMatchStatusHTML = !lastMatchStatusText ? '' : (hasActiveCorrectionOnLastMatch
+      ? `<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--correction">${lastMatchStatusText}</span>`
+      : `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${lastMatchStatusText}</span>`);
 
     body.innerHTML = `
-      <!-- V02.9.1 (§2) — encabezado pasa de 2 columnas (izquierda: forma+título+badge / derecha:
-           fecha) a 2 líneas apiladas: línea 1 título+fecha, línea 2 forma+badge — la ubicación
-           anterior del badge (compitiendo con el título en la misma fila angosta) no funcionaba. -->
       <div class="player-home-lastmatch__top">
         <div class="player-home-lastmatch__row1">
           <span class="player-home-lastmatch__title">ÚLTIMO PARTIDO</span>
-          <!-- Segunda corrección QA 26SEP (§8, feedback real) — mismo criterio que Historial
-               (§7): el estado (PENDIENTE DE VALIDACIÓN, IDENTIDAD CUESTIONADA, etc.) se muda de
-               row2 —donde compartía línea con VICTORIA/DERROTA, dos señales distintas
-               compitiendo por el mismo renglón angosto— a esta columna, debajo de fecha/hora,
-               alineado a la derecha. VICTORIA/DERROTA queda SOLO en row2, junto a la forma
-               reciente: el resultado sigue siendo el dato prominente de esa fila, nunca
-               comparte renglón con el estado.
-               Handoff cierre UX h13 (§2/§P0-B) — BUG REAL REABIERTO en QA físico: el estado
-               vivía apilado DENTRO de .datetime (fecha/lugar/badge, en columna) — al aparecer,
-               esa columna crecía y empujaba TODO lo de abajo (row2, forma, VICTORIA/DERROTA,
-               incluso el marcador). .player-home-lastmatch__badge-slot es un renglón PROPIO,
-               siempre presente (vacío o no) con una altura mínima reservada — invariancia
-               geométrica real: el badge nunca cambia cuánto mide .datetime, solo si ese
-               renglón ya reservado tiene o no contenido adentro. -->
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
             ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
-            <div class="player-home-lastmatch__badge-slot${m.status === 'validated' ? ' player-home-lastmatch__badge-slot--reserved' : ''}">${lastMatchStatusText ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${lastMatchStatusText}</span>` : ''}</div>
           </div>
         </div>
         <div class="player-home-lastmatch__row2">
-          <div class="player-home-lastmatch__form">${formDotsHtml}</div>
-          <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+          <div class="player-home-lastmatch__row2-left">
+            <div class="player-home-lastmatch__form">${formDotsHtml}</div>
+            <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
+          </div>
+          <div class="player-home-lastmatch__status-slot">${lastMatchStatusHTML}</div>
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>

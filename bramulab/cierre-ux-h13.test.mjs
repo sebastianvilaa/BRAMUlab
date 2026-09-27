@@ -37,16 +37,16 @@ test('P0-A: renderPlayerCard usa PH.levelProgressPct para la barra del Nivel V1 
   assert.doesNotMatch(body, /barEl\.style\.width = '100%'/, 'no debe volver al 100% fijo (bug reportado en QA físico h13: 6.0 se veía con la barra llena)');
 });
 
-/* ---- P0-B: Último partido con corrección activa, sin desplazar el layout ---- */
+/* ---- P0-B: Último partido con corrección activa, sin desplazar el layout ----
+   SUPERSEDIDO en h17 (docs/.../53_Auditoria_Central_Reapertura_h16_y_Plan_h17_27SEP.md, punto 2):
+   la implementación de h13/h14 (badge-slot con min-height:18px dentro de .datetime/row1) resultó
+   ser un FAIL VISUAL REAL en QA físico h16 — la reserva no alcanzaba cuando el copy real medía
+   más, row1 crecía y empujaba row2 hacia abajo. Estos dos tests quedan reemplazados por los de
+   h17-visual-regression.test.mjs (status-slot como segundo hijo de row2, sin badge-slot). */
 
-test('P0-B: renderPlayerLastMatchCard reserva un renglón de altura fija para el badge de estado (solo en partidos validated)', () => {
+test('P0-B: renderPlayerLastMatchCard calcula explícitamente si hay una corrección activa sobre ESTE último partido', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerLastMatchCard');
-  assert.match(body, /player-home-lastmatch__badge-slot/, 'el badge debe vivir en un renglón propio siempre presente');
   assert.match(body, /hasActiveCorrectionOnLastMatch/, 'debe calcular explícitamente si hay una corrección activa sobre ESTE último partido');
-});
-
-test('P0-B: .badge-slot--reserved tiene una altura mínima fija (invariancia geométrica real)', () => {
-  assert.match(stylesCss, /\.player-home-lastmatch__badge-slot--reserved\{[^}]*min-height:\s*18px/);
 });
 
 /* ---- P0-C: grilla canónica de resultado, fusionada entre oficial y propuesta ---- */
@@ -111,12 +111,13 @@ test('P0-D: sin diferencias reales, no fuerza ninguna frase', () => {
   assert.equal(ML.buildCorrectionHumanSummary([set(6, 3)], [set(6, 3)], 'Esteban'), '');
 });
 
-test('P0-D: paintB6Actions usa ML.buildCorrectionHumanSummary como lectura principal, el diff técnico sigue debajo como trazabilidad secundaria', () => {
+// SUPERSEDIDO en h17 (doc 53, punto B): el diff técnico de este bloque (renderCorrectionDiff
+// sobre 'b6-respond-correction-diff') se retiró por redundante con la explicación humana — ver
+// h17-visual-regression.test.mjs. ML.buildCorrectionHumanSummary sigue siendo la lectura
+// principal, ahora la ÚNICA de este bloque.
+test('P0-D: paintB6Actions usa ML.buildCorrectionHumanSummary como lectura principal del bloque de corrección', () => {
   const body = extractFunctionBody(appJs, 'paintB6Actions');
   assert.match(body, /ML\.buildCorrectionHumanSummary\(f\.sets, f\.pendingCorrectionSets, rawProposerName\)/);
-  const summaryIdx = body.indexOf('ML.buildCorrectionHumanSummary');
-  const diffIdx = body.indexOf("renderCorrectionDiff('b6-respond-correction-diff'");
-  assert.ok(summaryIdx !== -1 && diffIdx !== -1 && summaryIdx < diffIdx, 'el resumen humano debe calcularse ANTES que el diff técnico, reflejando que es la lectura principal');
 });
 
 test('P0-D: los rótulos de la comparación oficial/propuesta quedan centrados', () => {

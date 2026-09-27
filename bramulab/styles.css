@@ -1740,16 +1740,20 @@ input, select{ font-family: inherit; }
 }
 .player-home-lastmatch--action{ --lastmatch-accent: var(--brand-lime); --lastmatch-accent-rgb: 149,255,25; }
 .player-home-lastmatch--waiting{ --lastmatch-accent: var(--gold); --lastmatch-accent-rgb: 255,201,61; }
-/* V02.9.1 (§2) — encabezado en 2 líneas apiladas (antes 2 columnas lado a lado: izquierda
-   forma+título+badge, derecha fecha — el badge terminaba angosto/apretado contra el título en
-   pantallas chicas). Línea 1: título + fecha/hora (misma jerarquía/alineación que antes, solo
-   ahora es la fila entera). Línea 2: forma reciente + badge de resultado, agrupados a la
-   izquierda — se leen juntos porque son las dos señales de "cómo salió este partido". */
+/* V02.9.1 (§2) — encabezado en 2 líneas apiladas. Línea 1: título + fecha/hora. Línea 2: forma
+   reciente + resultado a la izquierda.
+   Auditoría Central h16 -> h17 (doc 53, punto 2 / dirección visual final de Sebastián) — el
+   status (CORRECCIÓN PENDIENTE / PENDIENTE DE VALIDACIÓN / etc., ver __status-slot más abajo)
+   se muda a su PROPIA columna dentro de la línea 2, a la derecha, en vez de vivir apilado en
+   .datetime (línea 1): row1 queda con altura fija (título + fecha/lugar, nunca cambia entre
+   estados), row2 queda gobernada por el badge de resultado (siempre presente) — el status ya
+   no puede empujar nada hacia abajo, tenga o no contenido. */
 .player-home-lastmatch__top{ margin-bottom: 16px; }
 /* V02.9.3 (feedback real, probado en vivo) — acerca la línea 1 (título+fecha) a la línea 2
    (forma+badge): 10px→3px. Se leen como un solo encabezado, no dos bloques separados. */
 .player-home-lastmatch__row1{ display:flex; align-items:flex-start; justify-content:space-between; gap: 10px; margin-bottom: 3px; }
-.player-home-lastmatch__row2{ display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
+.player-home-lastmatch__row2{ display:flex; align-items:center; justify-content:space-between; gap: 8px; flex-wrap:nowrap; }
+.player-home-lastmatch__row2-left{ display:flex; align-items:center; gap: 8px; flex-wrap:wrap; min-width:0; }
 .player-home-lastmatch__form{ display:flex; gap: 5px; flex:none; flex-wrap:wrap; }
 /* §11 — "indicadores más pequeños; no necesitan llevar letras adentro si la forma y el color
    ya son comprensibles con alternativa accesible" (aria-label en el propio elemento). */
@@ -1767,24 +1771,22 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__datetime{ text-align:right; flex:none; }
 .player-home-lastmatch__date{ font-family: var(--font-display); font-weight: 500; font-size: 12px; letter-spacing:0.03em; color: var(--court-text-dim); font-variant-numeric: tabular-nums; }
 .player-home-lastmatch__place{ font-size: 11px; font-weight: 500; color: var(--court-text-faint); margin-top: 2px; }
-/* Segunda corrección QA 26SEP (§8) — badge de ESTADO debajo de fecha/lugar, en la misma
-   columna alineada a la derecha (el badge es un <span> inline por defecto; `.player-home-
-   lastmatch__badge` sin este modificador no tiene su propio renglón — acá sí lo necesita).
-   Handoff cierre UX h13 (§2/§P0-B) — REEMPLAZA el `margin-top` puesto en el badge mismo:
-   `.badge-slot` es un renglón PROPIO siempre presente (con o sin badge adentro). Sin
-   `--reserved` (partidos NO `validated`: pending_validation/sync_pending/etc., que ya tienen
-   su propio badge permanente y nunca "togglean" entre con/sin badge para el mismo partido)
-   mantiene el alto natural de siempre, sin espacio vacío de más. Con `--reserved` (SOLO
-   partidos `validated`, donde SÍ puede alternar entre limpio y con corrección activa mientras
-   el resto de la tarjeta se ve igual) reserva una altura mínima fija — que aparezca o no la
-   corrección nunca cambia cuánto mide `.datetime`, así que nunca empuja `row2`/la forma/
-   VICTORIA-DERROTA hacia abajo. */
-.player-home-lastmatch__badge-slot{ display:flex; justify-content:flex-end; margin-top: 4px; }
-.player-home-lastmatch__badge-slot--reserved{ min-height: 18px; }
+/* Auditoría Central h16 -> h17 (doc 53, punto 2) — REEMPLAZA .badge-slot (vivía dentro de
+   .datetime, en row1): el status ahora es el segundo hijo de row2 (ver arriba), a la derecha de
+   .row2-left. No necesita altura mínima reservada — row2 ya queda gobernada por el badge de
+   resultado (VICTORIA/DERROTA/SIN DEFINICIÓN), siempre presente, así que el status nunca puede
+   agrandar el renglón, tenga o no contenido. */
+.player-home-lastmatch__status-slot{ flex:none; display:flex; align-items:center; }
+/* Dirección visual final de Sebastián para h17 — CORRECCIÓN PENDIENTE es texto ámbar discreto,
+   sin cápsula/píldora/contenedor propio (nunca .player-home-lastmatch__badge): compite por
+   espacio con forma+resultado en el mismo renglón, así que no puede wrappear en el ancho móvil
+   de referencia. */
+.player-home-lastmatch__status-text{ font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.player-home-lastmatch__status-text--correction{ color: var(--gold); }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
-.player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; }
+.player-home-lastmatch__badge{ font-size: 10px; font-weight:800; letter-spacing:0.05em; padding: 2px 8px; border-radius: 999px; text-transform:uppercase; white-space:nowrap; }
 /* Ronda UX 25/09 (Ronda 2, §2) — mismo criterio que .history-item__result-badge--win: victoria
    pasa a verde real, el lima queda exclusivo de "requiere tu acción". */
 .player-home-lastmatch__badge--win{ background: rgba(46,204,113,0.14); color: var(--confirm-green); }
@@ -3472,7 +3474,13 @@ input, select{ font-family: inherit; }
 .b6-banner--waiting{ border-color: var(--line); background: rgba(244,247,242,0.04); }
 .b6-banner__text{ font-size: 13px; color: var(--paper); line-height:1.4; margin:0; }
 .b6-action-block{ display:flex; flex-direction:column; gap: 8px; }
-.b6-action-row{ display:flex; gap: 10px; }
+/* Auditoría Central h16 -> h17 (doc 53, punto 4/C) — FAIL VISUAL REAL: lado a lado en móvil,
+   ACEPTAR CORRECCIÓN wrappeaba a 2 líneas mientras RECHAZAR quedaba en 1, altura exterior
+   distinta. Decisión cerrada de Sebastián: en móvil van APILADOS, ancho completo cada uno (el
+   ancho completo elimina la causa del wrap); en desktop pueden volver a horizontal porque hay
+   espacio real para que el label largo entre en una sola línea. */
+.b6-action-row{ display:flex; flex-direction:column; gap: 10px; }
+@media (min-width: 720px){ .b6-action-row{ flex-direction:row; } }
 .b6-action-block--identity{
   border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
   border-radius: var(--radius-control); padding: 10px 12px;
@@ -3534,15 +3542,27 @@ input, select{ font-family: inherit; }
 .b6-correction-compare__label--proposed{ color: var(--gold); }
 .b6-correction-compare .result-card,
 .result-card--compact{ padding: 12px 14px; }
+/* Auditoría Central h16 -> h17 (doc 53, punto B) — la tarjeta/grilla de resultado propuesto
+   lleva acento ámbar propio para reforzar que ES la propuesta (nunca el oficial), sin envolver
+   todo el bloque en una segunda caja: un solo nivel de borde, el mismo componente .result-card
+   que ya existía, no uno nuevo por encima. */
+.b6-correction-compare .result-card{ border-color: rgba(255,201,61,0.4); }
 /* Handoff cierre UX h13 (§4 "Explicación humana del cambio") — frase en lenguaje humano
-   (ML.buildCorrectionHumanSummary), lectura PRINCIPAL de qué cambió — el diff técnico
-   (.b6-correction-diff) queda debajo como trazabilidad secundaria, nunca al revés. */
+   (ML.buildCorrectionHumanSummary), lectura PRINCIPAL y ÚNICA de qué cambió desde h17 (doc 53,
+   punto B retira el diff técnico que vivía debajo como trazabilidad secundaria). */
 .b6-correction-summary{ font-size: 13px; color: var(--paper); line-height: 1.4; margin: 10px 0 0; text-align: center; }
 /* Handoff cierre UX h13 (§4 "Acciones") — clase compartida explícita para el par Aceptar/
    Rechazar: misma altura/composición ya venían del `min-height:48px` compartido de
    `.btn-start`/`.btn-secondary`, esto reemplaza el `style="flex:1"` inline duplicado en cada
-   botón por una única regla, sin cambiar el resultado visual. */
-.b6-action-row__btn{ flex: 1; }
+   botón por una única regla, sin cambiar el resultado visual.
+   Auditoría Central h16 -> h17 (doc 53, punto 4/C) — `margin-top:0` resetea el `margin-top:10px`
+   que `.btn-start` trae por defecto (pensado para vivir solo, debajo de otro contenido): dentro
+   de este par era la causa real de la composición despareja con `.btn-secondary` (que no trae
+   ese margen). `width:100%`/`flex:none` en móvil (apilados); en desktop vuelve a `flex:1` para
+   repartir el ancho horizontal por igual — ver el media query de `.b6-action-row` arriba. Scope
+   local a este par, el sistema global de botones no cambia. */
+.b6-action-row__btn{ flex: none; width: 100%; margin-top: 0; }
+@media (min-width: 720px){ .b6-action-row__btn{ flex: 1; width: auto; } }
 
 /* Ronda correctiva Laboratorio h11 (§P5) — REEMPLAZA la versión "dos tarjetas pesadas" de Ronda
    UX 25/09 (§15.31: "se percibe demasiado comprimida por encerrar cada opción en una tarjeta
