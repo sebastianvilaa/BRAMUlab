@@ -266,23 +266,139 @@ Nuevo gate: smoke visual corto de no regresión.
 
 ---
 
-# 2. Ronda única de implementación h17
+# 2. Dirección visual final confirmada por Sebastián para h17
 
-Claude debe corregir SOLO los dos FAIL confirmados:
+Después de §15.36, Sebastián revisó directamente h16 en iPhone y aportó capturas + dirección visual concreta. Esta sección REEMPLAZA cualquier ambigüedad previa sobre cómo deben resolverse los criterios 2 y 4.
+
+## A. Home — Último partido con corrección
+
+La composición deseada es explícita:
+
+### Renglón 1
+- izquierda: `ÚLTIMO PARTIDO`;
+- derecha: fecha/hora.
+
+### Renglón 2
+- izquierda: forma reciente (puntitos) + `VICTORIA` / `DERROTA`;
+- derecha: `CORRECCIÓN PENDIENTE`.
+
+### Tratamiento del estado
+- `CORRECCIÓN PENDIENTE` debe ser texto/label ámbar discreto;
+- **sin cápsula/píldora/contenedor visual propio**;
+- alineado a la derecha debajo de la fecha/hora;
+- no puede aumentar el alto del renglón ni mover forma/VICTORIA;
+- no wrappear en dos líneas en móvil de referencia;
+- no competir con score ni con resultado deportivo.
+
+La tarjeta puede conservar el acento/borde ámbar general para indicar que el partido tiene una novedad pendiente.
+
+**Aceptar solo si:** visualmente se leen dos renglones paralelos y estables; activar/desactivar la corrección no desplaza el segundo renglón.
+
+## B. Resumen — bloque de corrección como una sola unidad
+
+La captura física h16 muestra demasiadas piezas sueltas y texto redundante.
+
+### ELIMINAR
+- el texto blanco introductorio: `Esteban propuso una corrección del resultado.`;
+- el diff técnico gris: `Set 2: 6–0 → 6–4` (y equivalentes).
+
+La explicación humana ya cumple esa función:
+- ejemplo válido: `Esteban indica que el segundo set fue 6–4, no 6–0.`
+
+No mostrar simultáneamente explicación humana + diff técnico si ambos dicen lo mismo.
+
+### CONSERVAR / REFORZAR
+- rótulo amarillo `CORRECCIÓN PROPUESTA POR [NOMBRE]`;
+- resultado propuesto completo;
+- explicación humana;
+- acciones de aceptar/rechazar.
+
+### AGRUPAR
+Todo lo que pertenece a la propuesta debe sentirse como **una misma unidad visual**:
+1. rótulo de corrección;
+2. tarjeta/grilla del resultado propuesto;
+3. explicación humana;
+4. acciones.
+
+No deben parecer cuatro fragmentos independientes flotando en la pantalla.
+
+Dirección visual:
+- usar un contenedor/sección cohesiva de corrección;
+- el resultado propuesto puede usar borde/acento ámbar para reforzar que es la propuesta;
+- mantener la grilla canónica;
+- no convertir todo en una caja pesada dentro de otra caja;
+- `Reportar un error` queda FUERA de esta unidad: sigue siendo una acción secundaria global del partido, no parte de aceptar/rechazar la propuesta.
+
+## C. Acciones Aceptar / Rechazar — decisión móvil cerrada
+
+En móvil, dejar de intentar resolver los dos botones lado a lado.
+
+### Móvil
+- `ACEPTAR CORRECCIÓN`: ancho completo;
+- `RECHAZAR`: ancho completo debajo;
+- misma altura base, mismo radio y composición;
+- aceptar sigue siendo primario lima;
+- rechazar sigue siendo secundario;
+- sin wrap problemático;
+- separación vertical corta y consistente.
+
+### Desktop
+Puede conservar disposición horizontal si:
+- ambos tienen exactamente la misma altura/composición;
+- el texto no wrappea;
+- se ve equilibrado.
+
+Si no, usar también vertical. No forzar horizontal solo por aprovechar ancho.
+
+## D. Reportar un error
+
+No reabrir su copy ni tratamiento: h16 ya dio PASS visual real.
+
+Debe permanecer:
+- `Reportar un error` en sentence case;
+- secundario;
+- rojo suave;
+- separado conceptualmente de la unidad de corrección.
+
+## E. Mis grupos — IDEA CONFIRMADA, FUERA DE h17
+
+La pantalla vacía actual (`Todavía no creaste ningún grupo` + CTA) se siente insuficiente.
+
+Dirección futura:
+- crear una bienvenida/estado cero más explicativo;
+- contar en lenguaje simple para qué sirven los grupos;
+- explicar que permiten competir con amigos habituales;
+- explicar de forma breve cómo se suman puntos;
+- conservar CTA claro `Crear grupo`.
+
+**NO IMPLEMENTAR EN h17.** Mis grupos sigue fuera de alcance de esta ronda y queda registrado para el próximo bloque UX específico.
+
+---
+
+# 2.1 Ronda única de implementación h17
+
+Claude debe implementar únicamente las correcciones directamente ligadas a los FAIL de §15.36 y a la dirección visual final anterior:
 
 ### A. Último partido
-- reemplazar el status/pill actual por composición que garantice invariancia visual;
-- status ámbar discreto;
-- no mover forma/VICTORIA;
+- recomponer los dos renglones exactamente como se define arriba;
+- retirar la cápsula de `CORRECCIÓN PENDIENTE`;
+- garantizar invariancia geométrica;
 - no tocar lógica de resultado/corrección.
 
-### B. Aceptar/Rechazar
-- eliminar asimetría heredada de `.btn-start`;
-- evitar wrap que aumente altura exterior;
-- misma composición/altura real;
-- solo scope local.
+### B. Bloque de corrección
+- retirar copy blanco redundante;
+- retirar diff técnico gris redundante;
+- agrupar rótulo + propuesta + explicación + acciones como una misma unidad visual;
+- dar acento/borde ámbar a la propuesta sin sobrecargar;
+- conservar semántica oficial/propuesta vigente.
 
-No tocar los otros criterios salvo regresión causada por A/B.
+### C. Aceptar/Rechazar
+- móvil: apilados verticalmente, full width;
+- desktop: horizontal solo si queda realmente parejo;
+- eliminar asimetrías heredadas de `.btn-start`;
+- no tocar sistema global de botones.
+
+No tocar los otros criterios salvo regresión causada por A/B/C.
 
 ---
 
@@ -294,7 +410,11 @@ Tests técnicos necesarios, pero NO suficientes para PASS visual:
 - ausencia de pill pesada específica para `CORRECCIÓN PENDIENTE`;
 - status slot/áreas presentes en ambos estados;
 - acción row sin margen asimétrico;
-- dos botones en estructura simétrica;
+- móvil: botones apilados verticalmente y full width;
+- desktop: paridad real si se usa layout horizontal;
+- ausencia del texto blanco redundante de propuesta;
+- ausencia del diff técnico redundante;
+- presencia de una única unidad visual cohesiva para la corrección;
 - bundle/cache quartet;
 - suite Node completa;
 - `tests.html`;
@@ -342,7 +462,7 @@ Smoke visual real de no regresión.
 - main;
 - Production;
 - BRAMUlive;
-- Mis grupos;
+- Mis grupos (la idea de nueva bienvenida queda documentada para una ronda futura, no se implementa acá);
 - backend;
 - Supabase/migraciones;
 - fórmula de Nivel;
@@ -382,3 +502,18 @@ Si quedan NO VERIFICABLE:
 - se documentan como tales;
 - Central decide explícitamente si bloquean o si requieren fixture QA interno;
 - nunca se disfrazan de PASS.
+
+
+---
+
+# 8. Regla de traducción visual para esta ronda
+
+Las capturas y explicaciones directas de Sebastián que originaron esta actualización son la referencia de intención visual.
+
+Claude no debe reinterpretar:
+- `CORRECCIÓN PENDIENTE` como badge/pill;
+- la pareja Aceptar/Rechazar como obligación de layout horizontal en móvil;
+- el diff técnico como requisito de trazabilidad visible;
+- `Esteban propuso una corrección del resultado` como texto obligatorio.
+
+Si una decisión del código/documentación anterior contradice esta sección, prevalece esta dirección visual confirmada.

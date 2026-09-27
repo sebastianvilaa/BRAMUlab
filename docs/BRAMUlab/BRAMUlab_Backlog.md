@@ -110,6 +110,8 @@ La prioridad sigue siendo registrar un partido propio con la menor cantidad de a
 
 A evaluar después de tener usuarios reales:
 
+- **estado cero / bienvenida de Mis grupos**: reemplazar la pantalla vacía mínima por una introducción breve que explique para qué sirven los grupos, que permiten competir con amigos habituales y cómo se suman puntos, manteniendo un CTA claro `Crear grupo`. Idea confirmada visualmente el 27/09/2026, pero fuera de h17 y no autorizada todavía para implementación;
+
 - notificaciones reales de validación, invitaciones, cambios relevantes y actividad;
 - sistema de avisos no invasivo para perfil/datos incompletos cuando realmente aporte valor;
 - seguidores/amigos si `Mi red` no alcanza;

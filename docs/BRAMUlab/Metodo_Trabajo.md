@@ -80,3 +80,15 @@
 - No pedirle a Sebastián comandos, navegación o pruebas que los agentes puedan ejecutar.
 - Cuando su intervención sea necesaria, agruparla y reducirla al mínimo.
 - Idealmente Sebastián decide producto al inicio de una ronda y revisa el resultado al final.
+
+
+## Ajustes visuales finos
+
+Cuando el problema sea de composición, jerarquía, peso visual, espaciado o sensación de interfaz:
+
+- Sebastián entrega captura + explicación de intención directamente a ChatGPT central.
+- Central traduce esa evidencia a criterios concretos y los consolida en el repo.
+- Claude Code implementa desde ese documento; no decide por sí solo una reinterpretación visual.
+- Work valida el deploy real contra la intención/capturas.
+- Un test de DOM/CSS puede prevenir regresiones, pero no reemplaza un PASS visual cuando el criterio es visual.
+- Evitar chats intermedios de “Laboratorio” para traducir ajustes finos si agregan otra capa de interpretación.

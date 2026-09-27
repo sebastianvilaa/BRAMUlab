@@ -2594,3 +2594,69 @@ Antes de volver a Sebastián:
 5. entregar una nueva baseline solo después de esa auditoría.
 
 **Regla:** Sebastián no debe repetir pruebas ya hechas para descubrir incumplimientos que el gate interno podía detectar.
+
+
+### 15.37 — Dirección visual final antes de h17 — 27/09/2026
+
+Origen: revisión directa de Sebastián sobre iPhone físico, con capturas de Home, Resumen, Perfil y Mis grupos sobre `04.11-h16`.
+
+Esta sección complementa §15.36 y fija la intención visual exacta antes de implementar h17.
+
+#### Último partido — composición confirmada
+
+Dos renglones:
+
+1. `ÚLTIMO PARTIDO` izquierda + fecha/hora derecha.
+2. forma + VICTORIA/DERROTA izquierda + `CORRECCIÓN PENDIENTE` derecha.
+
+`CORRECCIÓN PENDIENTE`:
+- texto ámbar discreto;
+- sin cápsula/píldora;
+- no debe mover la línea de forma/resultado;
+- no debe wrappear en móvil.
+
+El borde/acento ámbar general de la tarjeta puede mantenerse.
+
+#### Corrección post-validación — simplificar y agrupar
+
+Eliminar por redundantes:
+- `Esteban propuso una corrección del resultado.`;
+- diff técnico gris tipo `Set 2: 6–0 → 6–4`.
+
+Conservar:
+- `CORRECCIÓN PROPUESTA POR ESTEBAN`;
+- resultado propuesto completo;
+- explicación humana tipo `Esteban indica que el segundo set fue 6–4, no 6–0.`.
+
+Agrupar rótulo + propuesta + explicación + aceptar/rechazar como una sola unidad visual de corrección. La propuesta puede usar borde/acento ámbar.
+
+`Reportar un error` queda afuera como acción secundaria general del partido.
+
+#### Acciones de corrección — móvil
+
+Decisión confirmada:
+- `ACEPTAR CORRECCIÓN` ancho completo;
+- `RECHAZAR` ancho completo debajo;
+- misma altura/base/radio;
+- aceptar primario, rechazar secundario.
+
+Desktop puede usar horizontal solo si mantiene paridad visual real.
+
+#### Mis grupos — estado cero futuro
+
+La pantalla vacía actual necesita una bienvenida más útil que explique:
+- para qué sirven los grupos;
+- competir con amigos habituales;
+- cómo se suman puntos;
+- CTA `Crear grupo`.
+
+**FUERA DE h17.** Registrar para próxima ronda UX de Mis grupos.
+
+#### Proceso para ajustes visuales finos
+
+A partir de esta evidencia:
+- Sebastián envía capturas + intención directamente a Central;
+- Central consolida la decisión en repo;
+- Claude implementa desde ese consolidado;
+- Work valida visualmente;
+- evitar un chat intermedio que vuelva a reinterpretar decisiones visuales finas.
