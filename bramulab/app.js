@@ -12,6 +12,7 @@
   const Matches = window.PLMatches; // Backend Bloque 5 — create_or_attach_match/get_my_matches/etc. (matches.js)
   const MSync = window.PLMatchSync; // Backend Bloque 5 — traducción servidor->local + separación historial/estadísticas (match-sync.js)
   const MV = window.PLMatchValidation; // Backend Bloque 6 (Fase B) — Confirmar/corrección/identidad/notificaciones (match-validation.js)
+  const SH = window.PLMatchSelfHeal; // Hotfix 27/09/2026 — self-healing de readyForValidation=true en refreshServerMatches (match-self-heal.js)
   const IntelClient = window.PLIntelligenceClient; // Backend Bloque 8 (Fase D) — get-match-intelligence real y persistente (intelligence-client.js)
   const LV = window.PLLevel; // BRAMUlab_V04.1 (Etapa A) — motor puro de Nivel BRAMU, apagado (NIVEL_BRAMU_V1_ENABLED=false)
   const LVC = window.PLLevelCalibration; // BRAMUlab_V04.3 (Etapa C) — cuestionario/ajuste/calibración, fuente única del cálculo
@@ -2512,6 +2513,13 @@
   const justActedMatchIds = new Set();
   function markSelfActedMatch(matchId) { if (matchId) justActedMatchIds.add(matchId); }
 
+  /** Hotfix 27/09/2026 (handoff 37, self-healing de readyForValidation) — guardia persistida
+   *  entre corridas de refreshServerMatches, MISMO criterio de "Set compartido por referencia"
+   *  que justActedMatchIds de arriba: evita que dos refrescos superpuestos intenten oficializar
+   *  el mismo partido a la vez (ver match-self-heal.js#runSelfHeal). Nunca se vacía manualmente
+   *  — cada intento se agrega y se quita a sí mismo dentro de su propio ciclo. */
+  const selfHealInFlightMatchIds = new Set();
+
   /** "Refresco coherente" tras cualquier acción B6 exitosa (13_Handoff_Fase_B_Claude.md §7):
    *  cache de partidos, Nivel propio, badge/lista de notificaciones y, si el Resumen de ESTE
    *  partido sigue abierto, su bloque de acciones — todo server-backed, nunca lógica local. */
@@ -4831,12 +4839,36 @@
     // siga alimentando sus efectos oficiales. La capa de display (match-sync.js) filtra
     // hidden para Home/Historial; la capa computable lo conserva.
     const result = await Matches.getMyMatches({ limit: 200, includeHidden: true });
-    if (result.ok) {
-      const changedIds = PH.computeExternalHistoryChanges(prevRows, result.matches, excludeIds);
-      if (changedIds.length) Store.addHistoryUnseenChanges(changedIds);
-      Store.saveServerMatchesCache(result.matches);
-      updateHistoryUnseenDot();
+    if (!result.ok) return;
+    let freshMatches = result.matches;
+
+    // Hotfix 27/09/2026 (handoff 37, Laboratorio físico 04.11-h10) — self-healing de
+    // readyForValidation=true: ESTA es la única lectura server-backed elegida como choke point
+    // (abre Home/Historial y corre tras cada acción B6, nunca un intervalo de fondo). Un
+    // partido puede quedar con ambas parejas ya confirmadas (readyForValidation=true) pero
+    // status siguiendo pending_validation si la oficialización inicial falló DESPUÉS de
+    // registrar la segunda conformidad — paintB6Actions no ofrece ningún CTA para ese estado
+    // (actionSide ya es null), así que sin esto el partido queda atascado sin vía de
+    // recuperación desde la UI. match-self-heal.js intenta como máximo UNA vez por partido por
+    // ciclo (guardia selfHealInFlightMatchIds contra refrescos superpuestos) y nunca lanza —
+    // un fallo queda solo en consola, sin toast, permitiendo un intento futuro en una lectura
+    // posterior. Si algo se oficializó, se hace UNA relectura canónica más abajo, sin volver a
+    // invocar el self-heal sobre ese resultado (nunca recursivo, nunca polling).
+    if (SH && MV) {
+      const healed = await SH.runSelfHeal(freshMatches, {
+        officializeMatch: (matchId) => MV.officializeMatch(matchId),
+        inFlightMatchIds: selfHealInFlightMatchIds,
+      });
+      if (healed.healedAny) {
+        const reread = await Matches.getMyMatches({ limit: 200, includeHidden: true });
+        if (reread.ok) freshMatches = reread.matches;
+      }
     }
+
+    const changedIds = PH.computeExternalHistoryChanges(prevRows, freshMatches, excludeIds);
+    if (changedIds.length) Store.addHistoryUnseenChanges(changedIds);
+    Store.saveServerMatchesCache(freshMatches);
+    updateHistoryUnseenDot();
   }
 
   /** Ronda UX 25/09 (Ronda 2, §8) — prende/apaga el puntito del ícono de Historial en el
