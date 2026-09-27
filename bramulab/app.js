@@ -7289,11 +7289,11 @@
                reciente: el resultado sigue siendo el dato prominente de esa fila, nunca
                comparte renglón con el estado.
                Handoff cierre UX h13 (§2/§P0-B) — BUG REAL REABIERTO en QA físico: el estado
-               vivía apilado DENTRO de `.datetime` (fecha/lugar/badge, en columna) — al aparecer,
+               vivía apilado DENTRO de .datetime (fecha/lugar/badge, en columna) — al aparecer,
                esa columna crecía y empujaba TODO lo de abajo (row2, forma, VICTORIA/DERROTA,
-               incluso el marcador). `.player-home-lastmatch__badge-slot` es un renglón PROPIO,
+               incluso el marcador). .player-home-lastmatch__badge-slot es un renglón PROPIO,
                siempre presente (vacío o no) con una altura mínima reservada — invariancia
-               geométrica real: el badge nunca cambia cuánto mide `.datetime`, solo si ese
+               geométrica real: el badge nunca cambia cuánto mide .datetime, solo si ese
                renglón ya reservado tiene o no contenido adentro. -->
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
