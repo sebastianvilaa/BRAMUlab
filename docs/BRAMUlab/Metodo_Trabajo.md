@@ -69,6 +69,20 @@
 - Si el cupo de Vercel está cerca del límite, posponer deploys no esenciales y reservarlos para validaciones que realmente necesiten Preview.
 - Los límites operativos (build-rate-limit, cuotas, etc.) forman parte del diseño del proceso, no un imprevisto externo.
 
+## Presupuesto de contexto y tokens
+
+El tiempo de lanzamiento y las cuotas de los agentes son recursos del proyecto. A partir de ahora:
+
+- un handoff consolidado debe ser autosuficiente; el prompt a Claude debe apuntar a ese handoff y **no repetir su contenido**;
+- por defecto Claude lee: README + una fuente maestra afectada + el handoff activo. No releer informes completos, Laboratorio completo ni cadenas de handoffs si el consolidado ya contiene lo necesario;
+- usar un chat nuevo por ronda coherente, no por microcorrección; acumular primero el feedback visual compatible y ejecutar una sola tanda;
+- para ajustes puramente visuales/CSS/markup usar esfuerzo normal de Claude; reservar esfuerzo Extra para backend, migraciones, identidad/datos, seguridad, debugging difícil o cambios transversales de lógica;
+- no pegar logs completos de tests cuando alcanza con total PASS/FAIL y detalle de los fallos;
+- ejecutar pruebas según riesgo: focales para cambios visuales/locales; suite completa cuando se toca lógica compartida o antes de un hito de salida;
+- una ronda visual consolidada recibe un gate visual completo una vez; los hotfix posteriores se retestean de forma dirigida, salvo evidencia de regresión transversal;
+- Central debe evitar volver a leer documentos extensos ya consolidados: usar secciones concretas o el handoff activo;
+- si una ronda empieza a consumir contexto de forma desproporcionada, detener expansión de alcance y terminar primero lo ya definido.
+
 ## Entornos
 
 - Desarrollo activo sobre `staging`.
