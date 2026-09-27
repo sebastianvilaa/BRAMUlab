@@ -2092,3 +2092,28 @@ El degradé/fade superior todavía se percibe en iPhone, mientras en escritorio 
 **UX / VISUAL — PARCIALMENTE NO CERRADO.**
 No bloquea la ronda, pero el punto I de la checklist no se da por PASS definitivo. Revisar nuevamente durante scroll/overscroll en iPhone antes de cerrar h10.
 
+
+
+### 15.30 — Baseline funcional h11 / hotfix de validación — 27/09/2026
+
+Durante el QA de `04.11-h10` se detectó un bug real: un partido podía permanecer en `pending_validation` aunque ambas parejas ya hubieran confirmado.
+
+Central diagnosticó la causa y Claude implementó un hotfix de self-healing.
+
+**Nueva baseline del Laboratorio:**
+- BRAMUlab V04.11
+- bundle `04.11-h11`
+
+Central verificó E2E en Supabase Staging con el mismo partido real que había quedado trabado (`aa41e8d9-6d16-4c47-8928-187c5fad5ccd`):
+- `officialize-match` respondió 200;
+- el partido pasó automáticamente a `validated`;
+- quedó con resultado de Nivel aplicado.
+
+**TÉCNICO — CERRADO.**
+No repetir el caso desde cero.
+
+Durante el resto del recorrido físico, solo comprobar si aparece naturalmente que:
+- el partido ya figure oficial/validado;
+- no exista una acción pendiente falsa.
+
+El resto del checklist continúa desde donde quedó, tomando `04.11-h11` como nueva baseline.
