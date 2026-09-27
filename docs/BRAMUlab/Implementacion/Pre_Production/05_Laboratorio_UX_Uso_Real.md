@@ -2052,3 +2052,43 @@ Evitar:
 - corrección aceptada;
 - identidad resuelta.
 
+
+
+### 15.29 — Retorno h10: Home calibrado — revisión física — 27/09/2026
+
+Evidencia: Home real en iPhone de Seba y Home escritorio de Esteban sobre `04.11-h10`.
+
+#### PASS visual
+- borde/acento de `ÚLTIMO PARTIDO` por resultado funciona bien:
+  - derrota → rojo;
+  - victoria → verde.
+- botón central `+` quedó mejor centrado y con mayor presencia general.
+- tarjeta calibrada volvió a una composición limpia de identidad + Nivel, sin píldora persistente `NIVEL CALIBRADO`.
+- Home general se considera visualmente aceptable para seguir la ronda.
+
+#### Botón central `+`
+**UX / VISUAL MENOR:** el SVG está centrado, pero el trazo del símbolo se percibe demasiado fino.
+Dirección: engrosar moderadamente el trazo sin aumentar nuevamente el diámetro del botón.
+
+#### Barra debajo del Nivel
+Sebastián propone recuperar una barra visual interpretada como “progreso dentro de 5.9”.
+
+**PRODUCTO — NO IMPLEMENTAR ASÍ.**
+La barra anterior correspondía a progreso de calibración/evidencia, no a una progresión lineal de 5.9 → 6.0. Nivel BRAMU no funciona como XP: puede subir o bajar en cada partido y el decimal público es una estimación redondeada.
+
+Si más adelante se desea una señal debajo del Nivel, solo podría representar una variable real registrada (por ejemplo confiabilidad/evidencia), con copy explícito y sin sugerir “te falta X para subir”. La fuente maestra permite describir confiabilidad como baja/media/alta, pero no obliga a exponerla en Home.
+
+Dirección actual para Home calibrado: **sin barra de progreso al siguiente nivel**.
+
+#### Padding de Último partido
+Sebastián percibe la tarjeta algo más aireada que módulos como `TU MOMENTO`.
+
+**UX / VISUAL — A AJUSTAR SOLO SI LA COMPARATIVA CSS CONFIRMA INCONSISTENCIA.**
+Preferir tokens/padding compartidos del sistema antes que un valor particular para Último partido. No reducir todavía por apreciación aislada si rompe la jerarquía de la tarjeta destacada.
+
+#### Header / degradé iPhone
+El degradé/fade superior todavía se percibe en iPhone, mientras en escritorio no.
+
+**UX / VISUAL — PARCIALMENTE NO CERRADO.**
+No bloquea la ronda, pero el punto I de la checklist no se da por PASS definitivo. Revisar nuevamente durante scroll/overscroll en iPhone antes de cerrar h10.
+
