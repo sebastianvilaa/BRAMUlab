@@ -206,6 +206,8 @@ No inventar texto jurídico como si fuera revisión legal profesional. El conten
 
 ## P0.3 — Consolidar eliminación de cuenta / anonimización
 
+**Estado P0.3 al 27/09/2026:** Fase A (capa de datos) IMPLEMENTADA en `staging`, migración `preprod_p03_fase_a_account_deletion` **NO aplicada aún** a Supabase Staging. Nueva función `admin_delete_player_account` (SECURITY DEFINER, service_role únicamente) anonimiza `players`/`profiles`/`match_participants.display_name_snapshot`, invalida `intelligence_match_outputs` regenerable, borra datos 100% privados (`match_user_state`, `notifications`) y relaciones personales (`player_saved_players`, `ranking_network_hidden`), preservando intacta toda la estructura deportiva/histórica de terceros (`matches`, `level_states`, `ranking_rows`, etc.). El procedimiento completo tiene un segundo paso — desactivar/borrar el acceso real en `auth.users` vía el Auth Admin API de Supabase — que queda **solo diseñado y documentado**, no implementado como código (requeriría una Edge Function nueva, fuera del alcance de esta fase). **NO marcar P0.3 como cerrado**: falta aplicar la migración, resolver el Paso 1 (Auth), UI/operación administrativa real y revisión central. Ver `Implementacion/Pre_Production/27_Resultado_P0_3_Fase_A_Eliminacion_Cuenta.md`.
+
 ### Decisiones de producto ya tomadas y todavía no fusionadas completamente a la fuente maestra
 
 Al eliminar una cuenta:
