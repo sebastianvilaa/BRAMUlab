@@ -2240,3 +2240,87 @@ Requerimiento:
 - no continuar diseñando encima de esta inconsistencia como si fuera solamente un problema de componente.
 
 Por tratarse de identidad/datos, este punto sí amerita intervención técnica durante el Laboratorio antes de seguir cerrando visualmente esas superficies.
+
+
+### 15.32 — Corrección post-validación: verdad oficial vs propuesta y UX de aceptación — 27/09/2026
+
+Baseline física: BRAMUlab V04.11 / bundle `04.11-h11`.
+
+Durante el Laboratorio se probó una corrección real sobre un partido YA validado: el resultado oficial vigente era Seba/Matu vs Esteban/Gusti y Seba propuso una corrección que agregaba un tercer set y cambiaba el ganador final.
+
+#### Semántica de producto — YA DEFINIDA / NO CAMBIAR
+
+La fuente maestra `Experiencia_Inicial.md` §12.3 define que, durante una corrección normal posterior a validación:
+
+- la última versión validada sigue siendo la versión oficial;
+- la propuesta NO reemplaza el resultado oficial mientras espera respuesta;
+- la otra pareja debe aceptarla para convertirla en nueva versión oficial;
+- recién al aceptar se recalculan de forma atómica los efectos dependientes del cambio.
+
+Por lo tanto, NO hacer que Home/Historial reemplacen silenciosamente el resultado oficial por el propuesto antes de aceptación.
+
+#### Problema UX observado
+
+Aunque la semántica actual es correcta, la presentación de h11 no explica suficientemente la coexistencia de dos versiones.
+
+En Home:
+- se mantiene el resultado oficial;
+- aparece una píldora pequeña `CORRECCIÓN PROPUESTA`;
+- no queda claro qué se propuso ni que el resultado visible sigue siendo el oficial anterior.
+
+En Resumen, para la pareja que debe responder:
+- la primera gran tarjeta sigue mostrando ganadores/resultado oficial sin etiquetarlo explícitamente como `Resultado oficial actual`;
+- el texto `Seba propuso una corrección del resultado. ¿La aceptás?` queda demasiado chico y separado de la información relevante;
+- los cambios concretos aparecen como texto secundario muy débil;
+- `ACEPTAR CORRECCIÓN` y `RECHAZAR` tienen tamaños/jerarquías inconsistentes;
+- si la propuesta cambia al ganador, la pantalla puede sentirse contradictoria porque arriba se ve un ganador y abajo se pide aceptar una propuesta que lo cambiaría.
+
+**CLASIFICACIÓN: UX / VISUAL — CONFIRMADO.**
+
+#### Dirección confirmada
+
+La pantalla de respuesta debe hacer explícito el antes/después.
+
+Propuesta de estructura:
+
+1. bloque principal etiquetado `Resultado oficial actual`;
+2. bloque inmediatamente asociado `Corrección propuesta por Seba`;
+3. mostrar la propuesta completa, no solo una frase delta:
+   - parejas;
+   - sets propuestos;
+   - ganador resultante;
+4. opcionalmente resumir debajo el delta concreto (`Set 2: 3–6 → 6–0`, `Set 3 agregado: 6–0`) como trazabilidad secundaria;
+5. botones `Aceptar corrección` y `Rechazar` con misma altura/alineación; aceptar primario y rechazar secundario.
+
+No presentar dos resultados sin rótulos claros.
+
+Para quien PROPUSO:
+- mantener el resultado oficial como verdad vigente;
+- mostrar un estado visible `Corrección propuesta` / `Esperando respuesta de la otra pareja`;
+- al abrir el Resumen, permitir ver claramente la propuesta completa enviada.
+
+Para Home/Historial:
+- conservar el resultado oficial hasta aceptación;
+- usar un estado visible de revisión (`CORRECCIÓN PROPUESTA`) separado de VICTORIA/DERROTA;
+- no cambiar el resultado ni la condición oficial antes de aceptación;
+- el estado debe llevar al Resumen donde se ve el antes/después.
+
+Cuando la otra pareja ACEPTA:
+- la propuesta pasa a ser la nueva versión oficial;
+- Home, Historial, Resumen, Nivel e Intelligence se actualizan sobre esa nueva verdad según las reglas vigentes.
+
+#### PASS funcional observado
+
+La nueva edición de resultado ya permite, en esta prueba, proponer un tercer set y cambiar el ganador final. Esa capacidad que antes faltaba sí aparece operativa en h11.
+
+No repetir este caso con otro partido solo para demostrar lo mismo salvo que aparezca una regresión nueva.
+
+#### Relación con `Reportar un error`
+
+Se mantiene lo ya definido en §15.31:
+- `Reportar un error` como CTA secundario, en caja normal y tratamiento visual suave;
+- selector `¿Qué está mal?` más liviano, no dos tarjetas pesadas;
+- flujo de identidad continuo;
+- búsqueda de jugadores con patrón único (avatar + nombre + @usuario + Nivel).
+
+El problema de identidad canónica detectado en §15.31 sigue siendo PRIORIDAD ALTA y debe resolverse antes de considerar cerradas visualmente las superficies de búsqueda/perfil.
