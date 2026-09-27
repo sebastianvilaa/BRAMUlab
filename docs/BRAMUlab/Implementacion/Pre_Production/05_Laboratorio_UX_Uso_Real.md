@@ -2660,3 +2660,131 @@ A partir de esta evidencia:
 - Claude implementa desde ese consolidado;
 - Work valida visualmente;
 - evitar un chat intermedio que vuelva a reinterpretar decisiones visuales finas.
+
+
+### 15.38 — Revisión visual directa h18: Home accionable + corrección + estados — 27/09/2026
+
+**Origen:** revisión directa de Sebastián sobre BRAMUlab V04.11 / bundle `04.11-h18`, con iPhone físico (sesión Seba) y escritorio (sesión Esteban).
+
+**Regla de proceso:** no volver a pasar estos ajustes por Laboratorio/Work como capa intermedia. Sebastián aporta captura + intención; Central consolida; Claude implementa una sola tanda al final.
+
+#### A. Último partido — CORRECCIÓN PENDIENTE
+
+**PASS VISUAL REAL.**
+
+La nueva composición de `CORRECCIÓN PENDIENTE` funciona:
+- renglón 1: Último partido / fecha-hora;
+- renglón 2: forma + Victoria/Derrota / Corrección pendiente;
+- sin píldora;
+- sin desplazar los puntitos.
+
+**No reabrir este caso puntual.**
+
+#### B. Último partido — otros estados operativos siguen rompiendo la misma composición
+
+**FAIL VISUAL REAL.**
+
+Al crear un partido nuevo:
+- en la cuenta de quien cargó aparece `PENDIENTE DE VALIDACIÓN` como badge/píldora debajo de fecha/hora;
+- en la cuenta que debe confirmar aparece `TU TURNO: CONFIRMAR` como badge/píldora;
+- ambos vuelven a romper la composición que h17/h18 corrigió para `CORRECCIÓN PENDIENTE`.
+
+**Dirección confirmada:**
+- los estados operativos del Último partido deben compartir el MISMO patrón geométrico que `CORRECCIÓN PENDIENTE`;
+- renglón 1: título + fecha/hora;
+- renglón 2: forma + resultado a la izquierda / estado a la derecha;
+- sin romper el renglón;
+- evitar pills pesadas;
+- color puede variar según estado (lima si requiere acción, ámbar si espera, etc.), pero la geometría debe ser única y estable.
+
+El hotfix h18 fue demasiado conservador al restaurar los otros estados a la ubicación previa. La evidencia física demuestra que el patrón correcto debe generalizarse a todos los estados operativos del Último partido.
+
+#### C. Home — acciones pendientes no deben apilarse como una segunda tarjeta vertical
+
+**FAIL VISUAL REAL / regresión de intención UX.**
+
+En Seba, al existir un partido que requiere confirmación:
+- aparece una tarjeta `REQUIERE TU ACCIÓN`;
+- debajo sigue apareciendo la tarjeta de insight `Ganaste 2 de tus últimos 3 con Matu`;
+- el Home crece verticalmente y la acción importante compite con el insight.
+
+La intención confirmada es recuperar el patrón de **un único espacio superior tipo carrusel/slot**:
+- acciones pendientes e insights comparten la misma zona;
+- no se apilan dos tarjetas grandes una debajo de otra;
+- si existe algo que requiere acción, debe tener prioridad visible;
+- el usuario puede recorrer el resto de mensajes/insights dentro del mismo carrusel/slot.
+
+**Copy:** evitar título genérico `REQUIERE TU ACCIÓN` si puede explicarse directamente qué pasó.
+Ejemplos de dirección (copy final todavía a cerrar):
+- `Esteban cargó un partido con vos`;
+- `Esteban propuso una corrección`;
+- `Tenés una corrección para revisar`.
+
+Debe ser obvio qué ocurrió y que tocar la tarjeta lleva a resolverlo.
+
+#### D. Resumen — jerarquía de tarjetas todavía incompleta
+
+**MEJORA REAL NECESARIA.**
+
+Dirección confirmada:
+- `RESULTADO OFICIAL ACTUAL` debe vivir **dentro** de la tarjeta oficial;
+- `TU CORRECCIÓN PROPUESTA` / `CORRECCIÓN PROPUESTA POR [NOMBRE]` debe vivir **dentro** de la tarjeta de corrección;
+- la corrección debe ser UNA tarjeta/unidad que contenga:
+  1. título;
+  2. grilla propuesta;
+  3. explicación humana;
+  4. acciones;
+- el texto humano tipo `Esteban indica que el segundo set fue 6–4, no 6–0.` queda;
+- no volver a mostrar diff técnico redundante.
+
+#### E. Acciones dentro de la tarjeta de corrección
+
+Dirección confirmada:
+- `Aceptar corrección` + `Rechazar` vuelven a estar **lado a lado**;
+- mismo tamaño/altura/jerarquía estructural;
+- sentence case;
+- usar lenguaje visual similar al selector de `Clásico / Americano`:
+  - aceptar: borde/acento verde + texto verde, fondo oscuro/transparente;
+  - rechazar: borde neutro + texto claro;
+- `Reportar un error` queda debajo, ancho completo, rojo suave;
+- las tres acciones viven **dentro de la tarjeta de corrección**.
+
+Esto reemplaza la decisión transitoria h17 de apilar Aceptar/Rechazar en móvil.
+
+#### F. Acento visual de corrección
+
+Confirmado:
+- conservar borde ámbar;
+- sumar halo/glow ámbar sutil;
+- puede haber pulso/respiración muy suave si no distrae;
+- no usar una animación fuerte o invasiva.
+
+#### G. Estado según quién mira la corrección
+
+Problema actual:
+- para quien propuso aparece `CORRECCIÓN PROPUESTA`, pero la información útil es que está esperando respuesta;
+- para quien debe responder aparece `NECESITA REVISIÓN`, demasiado genérico.
+
+Dirección:
+- copy actor-relativo y específico;
+- propuesta inicial de Central:
+  - quien envió: `CORRECCIÓN ENVIADA` / `ESPERANDO RESPUESTA`;
+  - quien debe responder: `CORRECCIÓN PENDIENTE`.
+- copy literal final todavía puede ajustarse antes de implementar.
+
+En Resumen, `Esperando respuesta de la otra pareja.` no debe quedar huérfano fuera de la jerarquía; debe integrarse dentro de la tarjeta de corrección para quien propuso.
+
+#### H. Barra de Nivel — posible regresión de animación
+
+Sebastián observa que la barra de progreso del Nivel ya no tiene la animación/progresión visual que tenía algunas versiones atrás, mientras Actividad/Efectividad sí conservan animaciones.
+
+**Estado:** PENDIENTE DE INVESTIGAR, no implementar todavía a ciegas.
+Primero localizar si la animación existía realmente en una baseline anterior y se perdió, o si era otro comportamiento visual.
+
+#### I. Mis grupos
+
+La nueva bienvenida/estado cero sigue pendiente y ya está registrada.
+
+**NO mezclar todavía con la corrección actual.**
+Abordarla después de cerrar Home + corrección, salvo decisión posterior de Sebastián.
+
