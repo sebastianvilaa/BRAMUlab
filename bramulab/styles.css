@@ -2268,6 +2268,15 @@ input, select{ font-family: inherit; }
    consistente en toda la app (Cerrar sesión, Descartar partido, Eliminar partido, Salir sin
    guardar). */
 .btn-secondary--danger{ background: rgba(255,91,84,0.10); border-color: rgba(255,91,84,0.45); color: var(--danger); }
+/* Gate visual h15 §5 — "Reportar un error" es una acción editorial/secundaria, no un CTA
+   destructivo global. El texto del DOM ya está en sentence case; .btn-secondary lo convertía
+   visualmente a mayúsculas con text-transform. Override deliberadamente LOCAL para no alterar
+   el sistema global de botones ni otras acciones destructivas. */
+#b6-report-error-btn{
+  text-transform: none;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
 
 /* ==========================================================================
    Etapa 4.2 — CARGAR MI PARTIDO JUGADO: marcador + teclado numérico BRAMU.
