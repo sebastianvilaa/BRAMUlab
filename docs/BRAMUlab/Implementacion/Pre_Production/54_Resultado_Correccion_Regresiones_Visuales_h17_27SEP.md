@@ -99,9 +99,9 @@ Cubierta por `h16-report-error-cta.test.mjs` (intacta en su aserción funcional)
 
 ## 5. Commit / deploy
 
-- **Commit:** un único commit lógico sobre `staging` (ver hash en el mensaje de commit real de este cambio).
-- **Push:** `origin/staging`.
-- **Deploy:** el push a `staging` dispara el `ignoreCommand` de `bramulab/vercel.json` (compara `HEAD^`↔`HEAD` dentro de `bramulab/`); como esta ronda modifica archivos de `bramulab/`, el deploy de BRAMUlab Staging se dispara — es el único deploy intencional de esta ronda.
+- **Commit:** `ddb4d7c` — único commit lógico sobre `staging` (rebaseado sobre `cce5473`, un commit documental ajeno llegado a `origin/staging` mientras se trabajaba esta ronda; sin conflicto, no toca ningún archivo de esta ronda).
+- **Push:** `origin/staging` (`cce5473..ddb4d7c`).
+- **Deploy:** el push a `staging` dispara el `ignoreCommand` de `bramulab/vercel.json` (compara `HEAD^`↔`HEAD` dentro de `bramulab/`); como esta ronda modifica archivos de `bramulab/`, el deploy de BRAMUlab Staging se dispara — es el único deploy intencional de esta ronda. **No se pudo confirmar el resultado del build en vivo desde acá**: el alias de Staging (`bramulab-git-staging-bramu-lab.vercel.app`) redirige a un login de Vercel (Deployment Protection), y este agente no tiene ni debe usar credenciales de Vercel del usuario. Confirmar el deploy verde queda para Central/Work, con acceso real al panel.
 
 ---
 
