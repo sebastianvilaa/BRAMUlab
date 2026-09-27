@@ -12,7 +12,7 @@
 
 BRAMUlab es una aplicación web para jugadores amateur de pádel: permite crear una cuenta, cargar y validar partidos jugados junto con otros jugadores, calcular una estimación de nivel de juego ("Nivel BRAMU"), participar de una clasificación semanal ("Ranking BRAMU") y recibir resúmenes/observaciones sobre los propios partidos ("BRAMU Intelligence").
 
-BRAMUlab **no** incluye marcador en vivo, no es una red social con mensajería, no tiene pagos ni compras dentro de la aplicación, y no muestra publicidad. El marcador en vivo es un producto **separado** (BRAMUlive), con su propia infraestructura y aplicación, y no comparte esta base de usuarios ni esta política.
+BRAMUlab **no** incluye marcador en vivo, no es una red social con mensajería, no tiene pagos ni compras dentro de la aplicación, y no muestra publicidad. El marcador y seguimiento en vivo pertenecen a BRAMUlive, un producto separado y fuera del alcance de BRAMUlab. `[DECISIÓN ABIERTA]` Todavía no está definida una política de cuentas/infraestructura/documentos legales compartidos o separados entre ambos productos — este documento no asume ninguna de las dos opciones.
 
 ---
 
@@ -54,9 +54,9 @@ El alta se hace exclusivamente con email y contraseña. La confirmación de la c
 | Fecha de nacimiento | No | **No** — privado |
 | Género personal | No | **No** — privado |
 | Mano dominante / lado de cancha preferido | No | Sí (si los completaste) |
-| Rama competitiva (femenino/masculino) | No (solo si querés participar del Ranking) | Sí |
-| Localidad deportiva | No (solo si querés participar del Ranking territorial) | Sí, como nombre de localidad (nunca coordenadas ni el identificador interno) |
-| Categoría declarada | No | Sí (si la completaste) |
+| Rama competitiva (femenino/masculino) | No (se pide cuando empieza a hacer falta para ubicarte correctamente en el Ranking, que es automático — ver §2.8) | Sí |
+| Localidad deportiva | No (se pide cuando empieza a hacer falta para el Ranking territorial, que es automático — ver §2.8) | Sí, como nombre de localidad (nunca coordenadas ni el identificador interno) |
+| Categoría actual (autoevaluación deportiva) | No | **No** — privada, solo vos la ves (vive en la sección "Mis datos" de tu perfil, nunca en tu Perfil público) |
 | Teléfono | No | **No**, salvo que actives el contacto por WhatsApp (ver §2.4) |
 | Nivel BRAMU (estimación de juego) | Se calcula automáticamente al validar partidos | Se muestra una versión redondeada + tu estado de calibración; el valor interno exacto es privado |
 | Estadísticas agregadas (partidos jugados, rivales distintos, partidos ganados) | Se calculan automáticamente | Sí |
@@ -65,7 +65,7 @@ El alta se hace exclusivamente con email y contraseña. La confirmación de la c
 
 ### 2.3 Ubicación
 
-La localidad que aparece en tu perfil es una localidad que **vos elegís por nombre** (buscada contra un directorio público de localidades de Argentina), nunca tu posición GPS. Completar la localidad es opcional y solo hace falta si querés participar del Ranking territorial (Local/Provincial/País) — no es necesaria para el resto de la app.
+La localidad que aparece en tu perfil es una localidad que **vos elegís por nombre** (buscada contra un directorio público de localidades de Argentina), nunca tu posición GPS. Completar la localidad no es necesaria para el resto de la app — se pide cuando empieza a hacer falta para ubicarte en el Ranking territorial (Local/Provincial/País), que es automático (ver §2.8).
 
 `[MATIZ IMPORTANTE]` Aparte de la localidad de perfil, existe un botón **opcional** dentro de la pantalla de carga de un partido ("Usar mi ubicación") que, si lo tocás y das permiso al navegador, adjunta la ubicación real de tu dispositivo (coordenadas) **a ese partido puntual** como referencia del lugar donde se jugó — nunca a tu perfil, nunca de forma continua ni en segundo plano. Esa información, si existe, es visible únicamente a los otros 3 participantes de ese partido específico, igual que el resto de los datos del partido (ver §2.6).
 
@@ -87,7 +87,9 @@ Nivel BRAMU es una estimación numérica interna de tu nivel de juego, calculada
 
 ### 2.8 Ranking BRAMU
 
-Si activás la participación en Ranking (opcional, desactivada por defecto), tu posición en la clasificación semanal correspondiente a tu ámbito (localidad/provincia/país) y rama competitiva es visible para otros jugadores autenticados que consulten ese mismo ámbito — es una clasificación pública dentro de BRAMU, no restringida a tus contactos. Podés ocultar individualmente a otros jugadores de tu vista de "Mi red" sin afectar su posición real.
+La participación en Ranking BRAMU es **automática**: no es una función que actives u ofrezcas activar. Cuando tu cuenta cumple los requisitos de elegibilidad (entre otros: localidad y rama competitiva cargadas, Nivel BRAMU suficientemente calibrado, actividad reciente), tu posición en la clasificación semanal correspondiente a tu ámbito (localidad/provincia/país) y rama competitiva pasa a ser visible para otros jugadores autenticados que consulten ese mismo ámbito — es una clasificación pública dentro de BRAMU, no restringida a tus contactos. No existe una opción ordinaria para optar por no participar mientras cumplas la elegibilidad; dejás de ocupar posición únicamente por reglas objetivas (por ejemplo, inactividad prolongada o dejar de cumplir algún requisito). Podés ocultar individualmente a otros jugadores de tu propia vista de "Mi red" sin afectar la posición real de nadie.
+
+Si tu Nivel BRAMU todavía está en calibración (evidencia insuficiente), podés explorar el Ranking, pero todavía no ocupás una posición propia.
 
 Cada edición semanal publicada queda fija: una corrección posterior de un partido no reescribe una posición ya publicada, se refleja recién en la siguiente edición.
 
@@ -112,7 +114,7 @@ Para prevenir abuso (por ejemplo, demasiados intentos de una misma acción en po
 - registrar y compartir partidos entre quienes los jugaron;
 - validar, confirmar y corregir la actividad deportiva registrada;
 - calcular y mostrar tu Nivel BRAMU;
-- publicar el Ranking BRAMU dentro del universo de jugadores elegibles, si elegís participar;
+- publicar el Ranking BRAMU entre los jugadores que cumplen los requisitos de elegibilidad vigentes (la participación es automática, no una función que actives — ver §2.8);
 - generar BRAMU Intelligence a partir de la evidencia que ya registraste;
 - prevenir duplicados y uso indebido básico del sistema;
 - brindarte soporte, recuperación de cuenta y seguridad;
@@ -126,16 +128,18 @@ Para prevenir abuso (por ejemplo, demasiados intentos de una misma acción en po
 
 ### 4.1 Dentro de BRAMU (otros jugadores)
 
-Ver las tablas de las secciones 2.2 a 2.9 — cada categoría de dato indica explícitamente si es visible a otros jugadores autenticados o privada. En términos generales: tu identidad deportiva pública (usuario, nombre, foto, localidad como texto, rama, Nivel redondeado, estadísticas agregadas, posición de Ranking si participás) es visible para cualquier otro jugador con cuenta en BRAMU. Tus datos privados (email, fecha de nacimiento, género, teléfono crudo, contenido de tus notas) nunca se muestran a otros jugadores.
+Ver las tablas de las secciones 2.2 a 2.9 — cada categoría de dato indica explícitamente si es visible a otros jugadores autenticados o privada. En términos generales: tu identidad deportiva pública (usuario, nombre, foto, localidad como texto, rama, Nivel redondeado, estadísticas agregadas, y tu posición de Ranking cuando cumplís los requisitos de elegibilidad — ver §2.8) es visible para cualquier otro jugador con cuenta en BRAMU. Tus datos privados (email, fecha de nacimiento, género, teléfono crudo, categoría actual, contenido de tus notas) nunca se muestran a otros jugadores.
 
 ### 4.2 Proveedores de infraestructura
 
 BRAMUlab funciona sobre servicios de infraestructura de terceros que actúan como encargados técnicos del tratamiento, nunca como destinatarios comerciales de tus datos:
 
-- **Supabase** — aloja la base de datos, gestiona la autenticación (incluyendo el envío de los correos de confirmación/recuperación de cuenta) y el almacenamiento de archivos (avatares).
+- **Supabase** — aloja la base de datos, gestiona la autenticación de tu cuenta (alta, confirmación y recuperación) y el almacenamiento de archivos (avatares). Los correos de confirmación y recuperación se envían a través de la infraestructura de email configurada para el servicio.
 - **Vercel** — aloja y publica la aplicación web.
 
-`[REVISIÓN LEGAL NECESARIA]` Confirmar el país/región donde estos proveedores procesan/almacenan los datos, y si corresponde declarar una transferencia internacional de datos bajo la normativa argentina vigente.
+`[DECISIÓN ABIERTA]` El proveedor de entrega de email (SMTP) concreto todavía no está definido de forma estable para Production — puede variar entre Staging y Production — así que este borrador no lo nombra. Si corresponde declararlo legalmente, debe confirmarse antes de publicar.
+
+`[REVISIÓN LEGAL NECESARIA]` Confirmar el país/región donde estos proveedores (incluido el de entrega de email, una vez definido) procesan/almacenan los datos, y si corresponde declarar una transferencia internacional de datos bajo la normativa argentina vigente.
 
 ### 4.3 Qué no hacemos
 

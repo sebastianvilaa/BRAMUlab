@@ -16,9 +16,9 @@ Al crear una cuenta en BRAMUlab aceptás estos Términos y Condiciones y nuestra
 
 ## 2. Qué es BRAMUlab
 
-BRAMUlab es una aplicación para jugadores amateur de pádel, pensada para cargar y validar partidos jugados junto a otras personas, obtener una estimación de nivel de juego ("Nivel BRAMU"), participar de una clasificación semanal ("Ranking BRAMU") si así lo elegís, y recibir observaciones automáticas sobre tu propia actividad ("BRAMU Intelligence").
+BRAMUlab es una aplicación para jugadores amateur de pádel, pensada para cargar y validar partidos jugados junto a otras personas, obtener una estimación de nivel de juego ("Nivel BRAMU"), participar de una clasificación semanal ("Ranking BRAMU") cuando cumplís los requisitos de elegibilidad, y recibir observaciones automáticas sobre tu propia actividad ("BRAMU Intelligence").
 
-BRAMUlab **no** incluye marcador en vivo. Esa función pertenece a un producto separado (BRAMUlive), con su propia app y sus propios términos — no forma parte de este servicio.
+El marcador y seguimiento en vivo pertenecen a BRAMUlive, un producto separado y fuera del alcance de BRAMUlab. `[DECISIÓN ABIERTA]` Todavía no está definida una política de cuentas/infraestructura/documentos legales compartidos o separados entre ambos productos — este documento no asume ninguna de las dos opciones.
 
 `[DECISIÓN ABIERTA]` Nombre legal del titular/operador del servicio, a completar junto con la Política de Privacidad §1.
 
@@ -69,7 +69,7 @@ Nivel BRAMU es una **estimación** de tu nivel de juego, calculada automáticame
 
 ## 7. Ranking BRAMU
 
-Si elegís activar tu participación (es opcional), tu posición dentro del Ranking BRAMU se calcula según reglas de elegibilidad y densidad de jugadores en tu ámbito, publicadas en ediciones semanales. Una edición ya publicada no se reescribe retroactivamente — una corrección posterior de un partido se refleja en la edición siguiente. El Ranking es una clasificación interna de BRAMU entre jugadores amateur, sin ningún valor federativo u oficial fuera de la aplicación.
+Tu participación en el Ranking BRAMU es **automática**, no una función que elijas activar: cuando tu cuenta cumple los requisitos de elegibilidad vigentes (localidad y rama competitiva cargadas, Nivel BRAMU suficientemente calibrado, actividad reciente, entre otros), tu posición dentro del Ranking BRAMU se calcula según esas reglas y la densidad de jugadores en tu ámbito, publicadas en ediciones semanales. No existe una opción ordinaria para optar por no participar mientras cumplas la elegibilidad. Una edición ya publicada no se reescribe retroactivamente — una corrección posterior de un partido se refleja en la edición siguiente. El Ranking es una clasificación interna de BRAMU entre jugadores amateur, sin ningún valor federativo u oficial fuera de la aplicación.
 
 ---
 
