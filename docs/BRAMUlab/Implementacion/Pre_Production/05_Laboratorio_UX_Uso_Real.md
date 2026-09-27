@@ -2535,3 +2535,62 @@ Regla para la próxima pasada:
 - observar los puntos parcialmente/no verificables únicamente si aparecen de forma natural;
 - cualquier nuevo FAIL debe registrarse como evidencia nueva y concreta;
 - no reabrir decisiones UX cerradas de esta sección sin una regresión real.
+
+
+### 15.36 — Reapertura por regresiones visuales reales sobre h16 — 27/09/2026
+
+Baseline física observada:
+- **BRAMUlab V04.11**
+- **bundle `04.11-h16`**
+- dispositivo: iPhone físico / uso real de Seba
+
+Esta evidencia reabre únicamente los puntos afectados del gate de §15.35. No es una reinterpretación de producto: son regresiones visibles contra decisiones ya cerradas.
+
+#### FAIL 1 — Último partido con corrección activa
+
+**Clasificación:** UX / VISUAL — REGRESIÓN REAL.
+
+Evidencia física:
+- `CORRECCIÓN PENDIENTE` sigue renderizada como una píldora/tarjeta visual dominante a la derecha;
+- al aparecer, altera la composición del bloque superior de Último partido;
+- la fila de forma + VICTORIA queda desplazada hacia abajo respecto del estado normal;
+- esto contradice el criterio cerrado de que la corrección activa no debe mover la geometría de Último partido.
+
+**Estado:** REABIERTO. El PASS de §15.35 punto 2 queda invalidado por esta evidencia.
+
+#### FAIL 2 — Aceptar / Rechazar corrección
+
+**Clasificación:** UX / VISUAL — REGRESIÓN REAL.
+
+Evidencia física:
+- `Aceptar corrección` y `Rechazar` siguen viéndose como componentes de tamaños/composición distintos;
+- el primario queda más alto por el wrap del texto y el secundario más bajo;
+- no se cumple la decisión cerrada: misma altura y composición equilibrada.
+
+**Estado:** REABIERTO. El PASS de §15.35 punto 4 queda invalidado por esta evidencia.
+
+#### Hallazgo de proceso — gate h16 produjo falsos positivos
+
+Las dos regresiones anteriores estaban expresamente cubiertas por:
+- `45_Handoff_Cierre_UX_h13_27SEP.md`;
+- los criterios de aceptación de §15.35.
+
+Sin embargo fueron declaradas PASS y devueltas a QA físico.
+
+**Conclusión operativa:** no pedir a Sebastián que siga comprobando visualmente el resto de la batería como si h16 fuera confiable. Antes de otra ronda humana, Central debe auditar el bundle real contra los criterios 1–11 y distinguir:
+- comprobación estructural/test automático;
+- comprobación visual real;
+- puntos no verificables.
+
+Ningún criterio visual debe declararse PASS por inferencia desde tests de estructura/CSS si el criterio pedía composición visual.
+
+#### Próximo gate obligatorio
+
+Antes de volver a Sebastián:
+1. corregir los dos FAIL anteriores;
+2. revisar de nuevo todos los puntos visuales del handoff 45 contra la implementación real de h16;
+3. no usar como evidencia suficiente tests que solo verifican presencia de clases, slots, helpers o reglas CSS;
+4. registrar explícitamente cualquier punto que no pueda validarse visualmente;
+5. entregar una nueva baseline solo después de esa auditoría.
+
+**Regla:** Sebastián no debe repetir pruebas ya hechas para descubrir incumplimientos que el gate interno podía detectar.
