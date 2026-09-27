@@ -1,0 +1,12 @@
+{
+  "name": "bramulab-admin-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Scripts administrativos server-side/repo-local para BRAMUlab (P0.3). Requiere `npm install` en este directorio antes de correr admin-delete-player-account.mjs. Nunca commitear credenciales — SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY se leen de variables de entorno.",
+  "scripts": {
+    "test": "node --test admin-delete-player-account.test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  }
+}

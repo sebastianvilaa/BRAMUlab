@@ -8,23 +8,32 @@
 -- mutación ocurre entre BEGIN/ROLLBACK, mismo criterio que
 -- verify-bloque6-public-match-outcomes.sql/verify-preprod-fix-officialize-precision-lock.sql.
 --
--- Cubre los 10 riesgos del handoff 26 §5:
+-- Corregido tras revisión central (handoff 28, 27/09/2026): firma de admin_delete_player_account
+-- sin p_admin_note; nuevo Caso 7 prueba la presentación anónima de Ranking (get_ranking_
+-- classification/get_my_ranking_position reales) sin tocar ranking_rows.
+--
+-- Cubre los 10 riesgos del handoff 26 §5 + los del handoff 28 §7:
 --   1) usuario eliminado no vuelve a autenticarse -> FUERA DE ALCANCE de este verify (depende
---      del Paso 1/Auth, no implementado en esta fase — ver el documento de resultado). Lo que SÍ
---      se prueba acá es la consecuencia del lado de datos: is_active=false + username=null
---      dejan al jugador estructuralmente inutilizable por cualquier RPC de sesión/búsqueda.
+--      de las Fases 2/3 de Auth, orquestadas por supabase/scripts/admin-delete-player-account.mjs,
+--      no ejecutables sin credenciales reales). Lo que SÍ se prueba acá es la consecuencia
+--      BRAMU-level, que es la garantía real e inmediata (handoff 28 §3.A): auth_user_id=null +
+--      is_active=false + username=null dejan al jugador estructuralmente irreconocible por
+--      CUALQUIER RPC de sesión/búsqueda, incluso con un JWT viejo todavía válido.
 --   2) nombre/email/teléfono/avatar/PII no quedan disponibles en superficies ordinarias
 --      (search_players/get_public_profile reales, con sesión simulada);
 --   3) partidos compartidos de B/C/D permanecen (matches/sets/revisiones intactos);
 --   4) participantes históricos siguen estructuralmente válidos (match_participants.player_id
 --      de A se PRESERVA, solo cambia el nombre);
+--   4b) Ranking publicado conserva puesto/snapshot pero muestra identidad anónima, sin tocar
+--       ranking_rows (Caso 7, handoff 28 §3.C/§7.4);
 --   5) Nivel/Ranking/Intelligence históricos de TERCEROS no se corrompen (level_states/
 --      level_events de B intactos; intelligence_match_outputs de B se invalida -- ver nota --
 --      pero eso es intencional y documentado, nunca corrompido);
 --   6) búsquedas no devuelven al jugador eliminado como jugador activo (search_players real);
 --   7) relaciones personales/listas dejan de tratarlo como activo (player_saved_players/
 --      ranking_network_hidden en ambas direcciones);
---   8) repetición de la operación no duplica ni rompe nada (idempotencia real, 2da llamada);
+--   8) repetición de la operación no duplica ni rompe nada (idempotencia real, 2da llamada, con
+--      authUserId recuperable desde pilot_events);
 --   9) usuario común no puede ejecutar la operación (permisos anon/authenticated);
 --  10) no quedan fixtures al terminar el verify (rollback limpio).
 
@@ -186,7 +195,7 @@ do $$
 declare
   v_result jsonb;
 begin
-  v_result := public.admin_delete_player_account(gen_random_uuid(), 'test');
+  v_result := public.admin_delete_player_account(gen_random_uuid());
   if v_result->>'code' <> 'player_not_found' then
     raise exception 'CASO_1_FAILED_esperaba_player_not_found: %', v_result;
   end if;
@@ -201,7 +210,7 @@ declare
   v_prov uuid := (select v from _p03_state where k = 'prov');
   v_result jsonb;
 begin
-  v_result := public.admin_delete_player_account(v_prov, 'test');
+  v_result := public.admin_delete_player_account(v_prov);
   if v_result->>'code' <> 'not_a_registered_account' then
     raise exception 'CASO_2_FAILED_esperaba_not_a_registered_account: %', v_result;
   end if;
@@ -221,7 +230,7 @@ declare
   v_count integer;
   v_snapshot text;
 begin
-  v_result := public.admin_delete_player_account(v_a, 'solicitud de prueba P03');
+  v_result := public.admin_delete_player_account(v_a);
   if not coalesce(v_result->>'ok', 'false')::boolean then
     raise exception 'CASO_3_FAILED_admin_delete_player_account: %', v_result;
   end if;
@@ -229,12 +238,19 @@ begin
     raise exception 'CASO_3_FAILED_alreadyDeleted_deberia_ser_false_la_primera_vez: %', v_result;
   end if;
 
-  -- players/profiles anonimizados.
+  -- players/profiles anonimizados. auth_user_id=null es el CORTE DE ACCESO BRAMU inmediato
+  -- (handoff 28 §3.A) — se verifica sin importar el valor previo (este fixture nunca tuvo un
+  -- auth_user_id real fabricado, por la FK real a auth.users; ver comentario más abajo sobre por
+  -- qué la mecánica de captura/auditoría se prueba igual, con un valor null consistente).
   if not exists (
     select 1 from public.players
-    where player_id = v_a and display_name = 'Jugador eliminado' and is_active = false and deleted_at is not null
+    where player_id = v_a and display_name = 'Jugador eliminado' and is_active = false
+      and deleted_at is not null and auth_user_id is null
   ) then
-    raise exception 'CASO_3_FAILED_players_no_quedo_anonimizado';
+    raise exception 'CASO_3_FAILED_players_no_quedo_anonimizado_o_auth_user_id_no_quedo_null';
+  end if;
+  if (v_result->>'authUserId') is distinct from null then
+    raise exception 'CASO_3_FAILED_authUserId_deberia_ser_null_en_este_fixture_sin_sesion_vinculada: %', v_result;
   end if;
   if exists (
     select 1 from public.profiles
@@ -298,12 +314,15 @@ begin
     raise exception 'CASO_3_FAILED_ranking_network_hidden_de_A_no_se_limpio';
   end if;
 
-  -- Auditoría mínima, sin PII en la nota.
+  -- Auditoría mínima ESTRUCTURADA (handoff 28 §4, nota sobre p_admin_note eliminado): un único
+  -- campo, authUserId, nunca texto libre. Se verifica que la clave existe en el jsonb (aunque su
+  -- valor sea null en este fixture) — confirma que el camino que la persiste corrió, distinto de
+  -- "la fila no existe en absoluto".
   if not exists (
     select 1 from public.pilot_events
-    where event_name = 'account_deleted' and player_id = v_a and properties->>'adminNote' = 'solicitud de prueba P03'
+    where event_name = 'account_deleted' and player_id = v_a and properties ? 'authUserId'
   ) then
-    raise exception 'CASO_3_FAILED_no_quedo_registro_de_auditoria_account_deleted';
+    raise exception 'CASO_3_FAILED_no_quedo_registro_estructurado_de_auditoria_account_deleted';
   end if;
 end $$;
 
@@ -360,12 +379,20 @@ declare
 begin
   select deleted_at into v_deleted_at_before from public.players where player_id = v_a;
 
-  v_result := public.admin_delete_player_account(v_a, 'segundo intento, deberia ser no-op');
+  v_result := public.admin_delete_player_account(v_a);
   if not coalesce(v_result->>'ok', 'false')::boolean then
     raise exception 'CASO_5_FAILED_segunda_llamada_deberia_seguir_devolviendo_ok_true: %', v_result;
   end if;
   if not coalesce((v_result->>'alreadyDeleted')::boolean, false) then
     raise exception 'CASO_5_FAILED_alreadyDeleted_deberia_ser_true_la_segunda_vez: %', v_result;
+  end if;
+  -- El authUserId sigue viniendo en el resultado del reintento (recuperado de pilot_events, ver
+  -- la migración) — necesario para que supabase/scripts/admin-delete-player-account.mjs pueda
+  -- completar las Fases 2/3 de Auth aunque reintente después de que players.auth_user_id ya
+  -- quedó null. En este fixture el valor es null (nunca hubo un auth_user_id real), pero la
+  -- CLAVE debe seguir presente en el resultado.
+  if not (v_result ? 'authUserId') then
+    raise exception 'CASO_5_FAILED_authUserId_deberia_seguir_presente_en_el_resultado_del_reintento: %', v_result;
   end if;
 
   select deleted_at into v_deleted_at_after from public.players where player_id = v_a;
@@ -386,17 +413,107 @@ end $$;
 
 do $$
 begin
-  if has_function_privilege('anon', 'public.admin_delete_player_account(uuid, text)', 'EXECUTE') then
+  if has_function_privilege('anon', 'public.admin_delete_player_account(uuid)', 'EXECUTE') then
     raise exception 'CASO_6_FAILED_anon_no_deberia_poder_ejecutar_admin_delete_player_account';
   end if;
-  if has_function_privilege('authenticated', 'public.admin_delete_player_account(uuid, text)', 'EXECUTE') then
+  if has_function_privilege('authenticated', 'public.admin_delete_player_account(uuid)', 'EXECUTE') then
     raise exception 'CASO_6_FAILED_authenticated_no_deberia_poder_ejecutar_admin_delete_player_account';
   end if;
-  if has_function_privilege('public', 'public.admin_delete_player_account(uuid, text)', 'EXECUTE') then
+  if has_function_privilege('public', 'public.admin_delete_player_account(uuid)', 'EXECUTE') then
     raise exception 'CASO_6_FAILED_public_no_deberia_poder_ejecutar_admin_delete_player_account';
   end if;
-  if not has_function_privilege('service_role', 'public.admin_delete_player_account(uuid, text)', 'EXECUTE') then
+  if not has_function_privilege('service_role', 'public.admin_delete_player_account(uuid)', 'EXECUTE') then
     raise exception 'CASO_6_FAILED_service_role_deberia_poder_ejecutar_admin_delete_player_account';
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------
+-- Caso 7 — riesgo #4b/handoff 28 §3.C: una fila de Ranking YA PUBLICADA con el player_id de A
+-- (eliminado) presenta identidad anónima (displayName='Jugador eliminado', username/avatarUrl
+-- null) SIN que ranking_rows se haya tocado — position/levelPublic siguen siendo el snapshot
+-- original. Ejercita get_ranking_classification/get_my_ranking_position REALES (RPCs reales,
+-- con la sesión de _p03_caller), no una réplica del JOIN. get_ranking_network se corrigió con el
+-- MISMO patrón exacto (ver 20260927160000_...sql) pero no se ejercita acá: requiere fixture
+-- adicional de match_level_result_players/matches dentro de la ventana de 180 días respecto al
+-- cutoff de la edición — documentado como riesgo residual en el documento de resultado.
+-- ------------------------------------------------------------------
+
+do $$
+declare
+  v_a uuid := (select v from _p03_state where k = 'a');
+  v_b uuid := (select v from _p03_state where k = 'b');
+  v_caller_auth uuid := (select auth_user_id from _p03_caller);
+  v_caller_player_id uuid;
+  v_edition_id uuid;
+  v_classification jsonb;
+  v_position_result jsonb;
+  v_a_row jsonb;
+  v_a_window jsonb;
+begin
+  select player_id into v_caller_player_id from public.players where auth_user_id = v_caller_auth;
+
+  -- Fechas de test bien distintivas (siglo XXII) para no colisionar con `period_start_at unique`
+  -- contra ninguna edición real ya publicada.
+  insert into public.ranking_editions (period_start_at, period_end_at, ranking_rules_version)
+    values ('2199-01-04T00:00:00-03:00', '2199-01-10T23:59:59.999-03:00', 'p03_test_v1')
+    returning edition_id into v_edition_id;
+
+  insert into public.ranking_rows (
+    edition_id, player_id, scope_type, scope_key, is_eligible, position, tie_group,
+    total_eligible, density_status, level_internal, level_public, level_band, level_status,
+    competitive_branch, ranking_rules_version
+  ) values
+    (v_edition_id, v_caller_player_id, 'global', 'GLOBAL', true, 1, 1, 3, 'established', 6.5, 6.5, 7, 'CALIBRADO', 'M', 'p03_test_v1'),
+    -- A: posición YA PUBLICADA de un jugador que DESPUÉS se elimina — el valor a preservar.
+    (v_edition_id, v_a, 'global', 'GLOBAL', true, 2, 2, 3, 'established', 6.0, 6.0, 6, 'CALIBRADO', 'M', 'p03_test_v1'),
+    (v_edition_id, v_b, 'global', 'GLOBAL', true, 3, 3, 3, 'established', 5.5, 5.5, 6, 'CALIBRADO', 'M', 'p03_test_v1');
+
+  perform set_config('request.jwt.claim.sub', v_caller_auth::text, true);
+
+  v_classification := public.get_ranking_classification('global', 'M', null, null, 50, 0);
+  select row_data into v_a_row
+    from jsonb_array_elements(v_classification->'rows') row_data
+    where (row_data->>'playerId')::uuid = v_a;
+
+  if v_a_row is null then
+    raise exception 'CASO_7_FAILED_get_ranking_classification_no_devolvio_la_fila_de_A: %', v_classification;
+  end if;
+  if v_a_row->>'displayName' <> 'Jugador eliminado' then
+    raise exception 'CASO_7_FAILED_get_ranking_classification_displayName_deberia_ser_Jugador_eliminado: %', v_a_row;
+  end if;
+  if (v_a_row->>'username') is not null or (v_a_row->>'avatarUrl') is not null then
+    raise exception 'CASO_7_FAILED_get_ranking_classification_no_debe_exponer_username_avatarUrl_de_A: %', v_a_row;
+  end if;
+  -- El snapshot competitivo NO cambió — misma posición/Nivel que se insertó arriba.
+  if (v_a_row->>'position')::integer <> 2 or (v_a_row->>'levelPublic')::numeric <> 6.0 then
+    raise exception 'CASO_7_FAILED_position_o_levelPublic_de_A_no_deberian_haber_cambiado: %', v_a_row;
+  end if;
+
+  v_position_result := public.get_my_ranking_position('global', null);
+  select row_data into v_a_window
+    from jsonb_array_elements(v_position_result->'contextWindow') row_data
+    where (row_data->>'playerId')::uuid = v_a;
+
+  if v_a_window is null then
+    raise exception 'CASO_7_FAILED_get_my_ranking_position_contextWindow_no_incluyo_a_A: %', v_position_result;
+  end if;
+  if v_a_window->>'displayName' <> 'Jugador eliminado' then
+    raise exception 'CASO_7_FAILED_get_my_ranking_position_displayName_deberia_ser_Jugador_eliminado: %', v_a_window;
+  end if;
+  if (v_a_window->>'username') is not null then
+    raise exception 'CASO_7_FAILED_get_my_ranking_position_no_debe_exponer_username_de_A: %', v_a_window;
+  end if;
+  if (v_a_window->>'position')::integer <> 2 then
+    raise exception 'CASO_7_FAILED_position_de_A_en_contextWindow_no_debia_cambiar: %', v_a_window;
+  end if;
+
+  -- Confirmación directa: ranking_rows de A sigue exactamente como se insertó — regla de
+  -- inmutabilidad semanal respetada, el fix es 100% de presentación en lectura.
+  if not exists (
+    select 1 from public.ranking_rows
+    where edition_id = v_edition_id and player_id = v_a and position = 2 and level_public = 6.0 and is_eligible
+  ) then
+    raise exception 'CASO_7_FAILED_ranking_rows_de_A_no_deberia_haberse_modificado';
   end if;
 end $$;
 
