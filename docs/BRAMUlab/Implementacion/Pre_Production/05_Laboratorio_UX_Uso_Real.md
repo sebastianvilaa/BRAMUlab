@@ -2788,3 +2788,44 @@ La nueva bienvenida/estado cero sigue pendiente y ya está registrada.
 **NO mezclar todavía con la corrección actual.**
 Abordarla después de cerrar Home + corrección, salvo decisión posterior de Sebastián.
 
+
+
+### 15.39 — Cierre del chat específico de Laboratorio UX y traspaso a Desarrollo — 27/09/2026
+
+**Decisión operativa de Sebastián:** cerrar el chat específico de Laboratorio UX y continuar la coordinación desde el chat de Desarrollo.
+
+Motivo:
+- la dinámica de múltiples vueltas, falsos PASS visuales y revalidaciones repetidas generó pérdida de tiempo y confianza;
+- Sebastián no quiere seguir actuando como gate manual de cosas que ya estaban documentadas y debían ser verificadas por los agentes.
+
+Este cierre del chat **no cierra el Laboratorio como fuente documental** ni borra decisiones de producto/UX. La continuidad queda en este documento y en las fuentes maestras vigentes.
+
+#### Regla de trabajo a partir de ahora
+
+Para ajustes visuales/UX:
+1. Sebastián aporta captura + intención cuando haga falta;
+2. ChatGPT central consolida la decisión en repo y controla precedencias;
+3. Claude implementa desde el consolidado;
+4. Work/Central valida visualmente antes de devolver la app a Sebastián;
+5. Sebastián revisa al final, no debe redescubrir incumplimientos ya escritos.
+
+No declarar PASS visual por:
+- existencia de clases CSS;
+- tests estructurales;
+- presencia de helpers/slots;
+- inspección de código sin comprobar la composición pedida.
+
+No repetir pruebas ya cubiertas salvo regresión concreta.
+
+#### Precedencia inmediata
+
+La última dirección visual vigente para Home/correcciones/estados es §15.38.
+
+En particular:
+- §15.38.E reemplaza la decisión transitoria de §15.37 sobre apilar Aceptar/Rechazar en móvil;
+- §15.38.A está PASS y no se reabre sin regresión;
+- §15.38.B–G contienen los ajustes visuales actualmente abiertos;
+- §15.38.H (animación de barra de Nivel) queda PENDIENTE DE INVESTIGAR, no implementar a ciegas;
+- Mis grupos conserva su ronda propia y no se mezcla con este cierre.
+
+El chat de Desarrollo debe usar este documento como continuidad y no depender del historial del chat UX que Sebastián va a cerrar.
