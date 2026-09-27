@@ -4,6 +4,12 @@
 **Estado:** **BORRADOR DE PRODUCTO — NO ES TEXTO LEGAL FINAL**  
 **Uso:** preparar Términos/Privacidad reales antes de Production y reducir decisiones abiertas. Requiere revisión legal adecuada antes de publicarse.
 
+> **Actualización 27/09/2026 (P0.2 Fase A):** este documento fue el análisis previo que preparó el terreno. Los borradores COMPLETOS de Política de Privacidad y Términos y Condiciones, redactados sobre una auditoría exhaustiva del código/esquema real, ya existen en:
+> - [`docs/BRAMUlab/Legal/Privacidad_Borrador_V1.md`](../../Legal/Privacidad_Borrador_V1.md)
+> - [`docs/BRAMUlab/Legal/Terminos_Borrador_V1.md`](../../Legal/Terminos_Borrador_V1.md)
+>
+> Ver el mapa de integración técnica, la matriz de decisiones abiertas y la auditoría de datos en [`34_Resultado_P0_2_Fase_A_Preparacion_Legal_27SEP.md`](34_Resultado_P0_2_Fase_A_Preparacion_Legal_27SEP.md). Este documento se conserva íntegro por trazabilidad (fuentes consultadas §1, decisión cerrada de reingreso §5) — no se duplicó su contenido en los borradores nuevos, se citó.
+
 ## 1. Fuentes oficiales consultadas
 
 Argentina:
