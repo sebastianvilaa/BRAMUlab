@@ -2404,3 +2404,134 @@ No tocado (fuera de alcance de esta ronda, según el handoff): BRAMUlive, `main`
 Batería física corta para la próxima pasada — ver el Resultado de esta ronda para el detalle agrupado en 5 bloques.
 
 **Addendum 27/09/2026 — bundle `04.11-h13`:** revisión de código de Central sobre h12 encontró 4 puntos del handoff 40 incompletos (quien propone una corrección no veía su propuesta completa; `CORRECCIÓN PROPUESTA` seguía demasiado secundaria en Home/Historial; Compañeros/Rivales no mostraban Nivel pese a ya tener el dato disponible; la salida "Por identificar" no era una acción explícita del sheet de identidad). Los 4 quedaron implementados — detalle completo en [`43_Resultado_Correccion_Central_h13_27SEP.md`](43_Resultado_Correccion_Central_h13_27SEP.md). Sigue pendiente la misma validación física original, ahora sobre `04.11-h13`.
+
+
+### 15.35 — Cierre de gate UX h16 tras validación real de Staging — 27/09/2026
+
+Baseline final revisada:
+- **BRAMUlab V04.11**
+- **bundle `04.11-h16`**
+
+Esta sección consolida y cierra la ronda iniciada por `45_Handoff_Cierre_UX_h13_27SEP.md`. Para estos puntos, esta sección prevalece sobre estados intermedios de §15.31–§15.34.
+
+#### Incidente bloqueante h14 → h15 — CERRADO
+
+Durante el gate visual real sobre h14 se detectó una regresión runtime:
+- Home mostraba 8 partidos pero `Último partido` quedaba falsamente en Estado Cero;
+- después de una recarga normal la app podía quedar negra;
+- consola: `TypeError: "...".datetime is not a function` dentro de `renderPlayerLastMatchCard`.
+
+Causa raíz confirmada: backticks crudos dentro de un comentario HTML incluido en un template literal JS cerraban el template y hacían interpretar `.datetime` como código.
+
+Hotfix `04.11-h15`: **PASS REAL**.
+Retest con sesión nueva de Seba / `@seba_qa`:
+- historial real visible;
+- Último partido real visible;
+- refresh server-backed estable;
+- recarga normal estable;
+- consola sin errores;
+- sin regresión de `renderPlayerLastMatchCard`.
+
+No volver a reabrir este incidente salvo regresión concreta.
+
+#### Gate visual del cierre UX — estado 1–11
+
+1. **Nivel BRAMU — CERRADO CON EVIDENCIA COMBINADA.**
+   - PASS visual real: Seba 6.0 muestra barra vacía/al inicio;
+   - PASS visual real: no aparece delta inventado;
+   - la variante decimal de Esteban 5.8 no pudo verse desde su Home sin cambiar de cuenta;
+   - comportamiento decimal queda cubierto por la misma función pura `PH.levelProgressPct` ya validada técnicamente.
+   - No reabrir por falta de una segunda cuenta salvo que aparezca una discrepancia visual real.
+
+2. **Último partido con corrección — PASS VISUAL REAL.**
+   - fecha/hora arriba a la derecha;
+   - `CORRECCIÓN PENDIENTE` debajo, en ámbar;
+   - forma + VICTORIA/DERROTA mantienen posición;
+   - score oficial permanece intacto mientras la corrección no es aceptada.
+
+3. **Grilla del Resumen — PASS DESKTOP / MÓVIL NO VERIFICABLE POR WORK.**
+   - PASS real en desktop con partidos de 2 y 3 sets;
+   - parejas/games alineados;
+   - divisor continuo;
+   - Work no pudo producir un viewport móvil real 390×844 sin simular/modificar el documento.
+   - No existe FAIL móvil observado en h16; si reaparece un defecto en iPhone durante uso natural, se reabre con esa evidencia concreta.
+
+4. **Oficial vs propuesta — PASS VISUAL REAL.**
+   - resultado oficial y propuesta se distinguen sin ambigüedad;
+   - copy humano del cambio;
+   - mismas grillas;
+   - aceptar/rechazar con composición equilibrada.
+
+5. **Reportar un error — PASS VISUAL REAL en h16.**
+   - h15 falló porque `.btn-secondary` forzaba mayúsculas pese a que el DOM ya decía `Reportar un error`;
+   - h16 agrega override local, sin tocar sistema global de botones;
+   - retest Work: **PASS VISUAL**;
+   - sentence case real;
+   - tratamiento secundario/rojo suave;
+   - selector `El resultado` / `Un participante` liviano.
+
+6. **Identidad incorrecta continua — PARCIAL REAL + TÉCNICO, NO BLOQUEANTE.**
+   - PASS visual real del copy `¿Seguro que no fue Matu?`;
+   - Work no ejecutó `SÍ, NO FUE` porque habría modificado identidad real;
+   - continuidad hacia búsqueda + `No sé · dejar Por identificar` queda respaldada por implementación/tests, pero no se fabrica una incidencia solo para obtener una captura.
+   - Revalidar únicamente si este flujo vuelve a usarse naturalmente en Laboratorio.
+
+7. **Patrón canónico de jugador — PASS VISUAL REAL.**
+   - Matu mantiene avatar, nombre, `@matu_qa`, Nivel y mismo Perfil público entre superficies observadas;
+   - identidad resuelta por `player_id`.
+
+8. **Mi Perfil → Jugadores — PASS VISUAL REAL.**
+   - buscador siempre visible;
+   - listado debajo;
+   - búsqueda global en el mismo panel;
+   - sin pantalla puente.
+
+9. **Cargar partido — PASS DESKTOP / MÓVIL NO VERIFICABLE POR WORK.**
+   - metadata real arriba de Equipo A/B;
+   - formato, sets, puntuación y fecha/hora visibles;
+   - sin duplicación;
+   - Work no pudo generar viewport móvil real sin simular.
+   - Si iPhone muestra solapamiento/orden incorrecto durante uso natural, reabrir con evidencia concreta; no repetir por defecto.
+
+10. **`sync_pending` / `necesita_revision` — NO VERIFICABLE VISUALMENTE, NO BLOQUEANTE.**
+    - no existían tarjetas reales con esos estados;
+    - generar el caso exigía fabricar/alterar outbox;
+    - se decidió NO inventar fixture ni corromper una carga solo para validar visualmente;
+    - implementación y comportamiento idempotente siguen cubiertos técnicamente.
+    - Revalidar cuando un estado real aparezca.
+
+11. **Notificaciones — PASS VISUAL REAL.**
+    - lenguaje humano;
+    - actor + rivales + score;
+    - sin vocabulario técnico;
+    - título y cuerpo no repiten la misma idea.
+
+#### Decisiones UX cerradas de esta ronda — NO dispersar / NO reinterpretar
+
+Quedan como dirección vigente:
+
+- barra de Nivel calibrado = fracción decimal del Nivel visible, nunca XP/progreso por cantidad de partidos;
+- delta de Nivel solo con evidencia real;
+- corrección activa no mueve la geometría de Último partido;
+- score oficial permanece oficial hasta aceptación de corrección;
+- `Resultado oficial actual` y `Corrección propuesta` se muestran como dos bloques de primer nivel relacionados;
+- grilla de resultado compartida/canónica para resultado oficial y propuesta;
+- `Reportar un error` siempre en sentence case y como acción secundaria;
+- identidad incorrecta debe continuar dentro del mismo flujo hacia reemplazo o `Por identificar`;
+- identidad de jugador en superficies server-backed siempre por `player_id`, con avatar/@usuario/Nivel coherentes;
+- Mi Perfil → Jugadores integra buscador y lista en el mismo espacio;
+- metadata de Cargar partido vive antes de Equipo A/B;
+- `sync_pending` y `necesita_revision` son estados distintos y deben explicarse de forma distinta;
+- notificaciones deben usar lenguaje humano/de pádel, no nombres técnicos del workflow.
+
+#### Veredicto de esta ronda
+
+**APTO PARA RETOMAR LABORATORIO FÍSICO sobre `04.11-h16`.**
+
+Esto NO significa que los estados no verificables hayan recibido PASS ficticio.
+
+Regla para la próxima pasada:
+- no repetir casos ya cerrados;
+- observar los puntos parcialmente/no verificables únicamente si aparecen de forma natural;
+- cualquier nuevo FAIL debe registrarse como evidencia nueva y concreta;
+- no reabrir decisiones UX cerradas de esta sección sin una regresión real.
