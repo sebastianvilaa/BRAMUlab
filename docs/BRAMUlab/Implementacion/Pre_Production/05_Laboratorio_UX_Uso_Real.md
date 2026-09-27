@@ -2402,3 +2402,5 @@ Resumen objetivo de lo que cambió, sin repetir el detalle completo (ver `41_Res
 No tocado (fuera de alcance de esta ronda, según el handoff): BRAMUlive, `main`, Production, Mis grupos, hotfix h11 de self-healing, fórmula de Nivel/Ranking/Intelligence.
 
 Batería física corta para la próxima pasada — ver el Resultado de esta ronda para el detalle agrupado en 5 bloques.
+
+**Addendum 27/09/2026 — bundle `04.11-h13`:** revisión de código de Central sobre h12 encontró 4 puntos del handoff 40 incompletos (quien propone una corrección no veía su propuesta completa; `CORRECCIÓN PROPUESTA` seguía demasiado secundaria en Home/Historial; Compañeros/Rivales no mostraban Nivel pese a ya tener el dato disponible; la salida "Por identificar" no era una acción explícita del sheet de identidad). Los 4 quedaron implementados — detalle completo en [`43_Resultado_Correccion_Central_h13_27SEP.md`](43_Resultado_Correccion_Central_h13_27SEP.md). Sigue pendiente la misma validación física original, ahora sobre `04.11-h13`.

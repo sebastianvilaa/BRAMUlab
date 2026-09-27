@@ -2383,7 +2383,13 @@
     if (f.hasOpenIdentityIssue) return 'identity';
     if (f.status === 'pending_validation' && f.isActionMine) return 'action';
     if (f.status === 'pending_validation' && !f.isActionMine) return 'waiting';
-    if (f.status === 'validated' && f.pendingCorrectionRevisionId) return 'waiting';
+    // Revisión central h12 (§B) — modificador PROPIO (`correction`, nunca `waiting`) para un
+    // partido ya oficial con una corrección activa: "la propuesta... mientras está abierta sí
+    // reemplaza al estado normal/cerrado del partido" (§15.33) es una condición distinta de
+    // "esperando que la otra pareja confirme un pendiente" — separarlo permite darle más peso
+    // visual (`--badge--correction`, ver styles.css) sin tocar el `--waiting` genérico que ya
+    // funcionaba bien para pending_validation.
+    if (f.status === 'validated' && f.pendingCorrectionRevisionId) return 'correction';
     return 'pending';
   }
 
@@ -2853,8 +2859,10 @@
         proposedByTeam = proposals.length ? proposals[proposals.length - 1].actingSide : null;
       }
 
-      if (proposedByTeam && f.myTeam && proposedByTeam !== f.myTeam) {
+      if (proposedByTeam && f.myTeam) {
         respondBlock.hidden = false;
+        const isResponder = proposedByTeam !== f.myTeam;
+        $('#b6-respond-action-row').hidden = !isResponder;
         // Ronda UX 25/09 (§G/§I) — actor PERSONA real (b6RevisionProposerName), nunca la pareja
         // genérica: reusa exactamente la misma acción 'revision_proposed' que ya se filtró
         // arriba, resuelta ahora por actorPlayerId en vez de solo el equipo.
@@ -2865,18 +2873,26 @@
         // COMPLETA (parejas + sets + ganador resultante) como bloque 2, con jerarquía
         // comparable al oficial — el delta sigue disponible debajo como trazabilidad
         // secundaria, nunca como sustituto.
+        // Revisión central h12 (§A) — BUG REAL: quien PROPUSO la corrección (isResponder=false)
+        // seguía viendo el banner genérico "Tu propuesta... esperando respuesta" sin la
+        // propuesta completa (handoff 40: "al abrir el Resumen, permitir ver claramente la
+        // propuesta completa enviada"). Mismo bloque/mismos datos reales que ya arma la rama
+        // del que responde — nunca una segunda representación — solo cambia el copy a 2da
+        // persona y se oculta la fila de acciones (quien propuso no acepta/rechaza su propia
+        // propuesta).
         officialLabel.hidden = false;
-        respondText.textContent = `${proposerName} propuso una corrección del resultado.`;
-        $('#b6-respond-proposed-label').textContent = `Corrección propuesta por ${proposerName}`;
+        respondText.textContent = isResponder
+          ? `${proposerName} propuso una corrección del resultado.`
+          : 'Esperando respuesta de la otra pareja.';
+        $('#b6-respond-proposed-label').textContent = isResponder
+          ? `Corrección propuesta por ${proposerName}`
+          : 'Tu corrección propuesta';
         const proposedWinner = deriveProposedWinnerTeam(f.pendingCorrectionSets, f.formatId);
         $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner);
         // Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN: before =
         // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
         // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar).
         renderCorrectionDiff('b6-respond-correction-diff', f.sets, f.pendingCorrectionSets);
-      } else if (proposedByTeam) {
-        banner.hidden = false;
-        bannerText.textContent = 'Tu propuesta de corrección está esperando respuesta de la otra pareja.';
       }
       // Ronda UX 25/09 (Ronda 2, §1) — QUITADO: banner permanente "Partido oficial." — el estado
       // oficial normal (sin corrección pendiente, sin identidad cuestionada) ya no necesita
@@ -2984,6 +3000,18 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
     b6IdentityResolveIssue = null;
   }
+  /** Revisión central h12 (§D) — bifurcación explícita "no sé quién jugó realmente": NO llama
+   *  ninguna RPC nueva — `report_identity_issue` (confirmReportIdentity) ya dejó el slot como
+   *  `Por identificar` en el servidor apenas se abrió esta incidencia (§13.4 de
+   *  Experiencia_Inicial.md: la incidencia sigue abierta dentro de su ventana de 7 días, se
+   *  puede completar después desde el mismo partido). Este botón solo confirma visualmente esa
+   *  decisión y cierra el sheet — mismo criterio que cerrar con la X, pero como acción
+   *  explícita en vez de un comportamiento que había que descubrir por accidente. */
+  function confirmIdentityUnresolved() {
+    if (!b6IdentityResolveIssue) return;
+    closeIdentityResolveSheet();
+    showToast('Este lugar queda como Por identificar.');
+  }
   /** Ronda correctiva Laboratorio h11 (§P4 "componente único de jugador") — BUG REAL reportado
    *  en el Laboratorio: este sheet mostraba nombre + `@username` correctos (únicos entre las
    *  superficies de identidad de esa ronda) pero SIN avatar ni Nivel, porque `buildIdentityResolveRowHTML`
@@ -3077,6 +3105,7 @@
       const value = e.target.value;
       b6IdentityResolveSearchTimer = setTimeout(() => renderIdentityResolveResults(value), 250);
     });
+    $('#identity-resolve-unidentified-btn').addEventListener('click', confirmIdentityUnresolved);
   }
 
   /* ---- Proponer corrección ---- */
@@ -7094,9 +7123,18 @@
     // estado oficial) — por eso el estado pendiente tiene prioridad sobre resultKind acá: el
     // resultado todavía no es oficial, el acento debe comunicar el ESTADO, no adelantar un
     // resultado que la otra pareja todavía puede corregir.
+    // Revisión central h12 (§B) — BUG REAL: un partido `validated` con una corrección activa
+    // seguía mostrando el acento win/loss normal, como si no tuviera nada pendiente ("la
+    // propuesta... mientras está abierta sí reemplaza al estado normal/cerrado del partido",
+    // §15.33). Mismo modificador ámbar `--waiting` que ya usa un pendiente esperando a la otra
+    // pareja — nunca un tono nuevo — POR ENCIMA del acento win/loss; VICTORIA/DERROTA (abajo)
+    // sigue mostrando el resultado oficial real, sin tocarlo.
+    const hasActiveCorrectionOnLastMatch = m.status === 'validated' && !!m.pendingCorrectionRevisionId && b6CorrectionWindowOpen(m);
     card.classList.remove('player-home-lastmatch--win', 'player-home-lastmatch--loss', 'player-home-lastmatch--action', 'player-home-lastmatch--waiting');
     if (m.serverBacked && m.status === 'pending_validation') {
       card.classList.add(m.isActionMine ? 'player-home-lastmatch--action' : 'player-home-lastmatch--waiting');
+    } else if (hasActiveCorrectionOnLastMatch) {
+      card.classList.add('player-home-lastmatch--waiting');
     } else if (resultKind === 'win' || resultKind === 'loss') {
       card.classList.add(`player-home-lastmatch--${resultKind}`);
     }
@@ -9482,11 +9520,19 @@
     // referencia visual — sin rediseñar la tarjeta); solo el nombre cuando no la hay. Nunca un
     // `@username` inventado. Avatar real (`avatarSignedUrl`) cuando existe, mismo token visual
     // `.person-list__avatar--photo` que ya usa `buildGroupAvatarHTML` en MIS GRUPOS.
+    // Revisión central h12 (§C) — BUG REAL: `compactById` ya se pedía para avatar/@username pero
+    // nunca se leía `levelStatus`/`levelPublic`, aunque el handoff 40 pedía explícitamente Nivel
+    // BRAMU vigente en Compañeros/Rivales. Mismo gate que ya usa `buildCompactPlayerRowHTML`
+    // ("distinto de PENDIENTE" — no solo CALIBRADO, nunca una segunda regla de validación) —
+    // sin dato real (sin cuenta resoluble, o cuenta todavía PENDIENTE), no se agrega nada; nunca
+    // un "—" que reemplace/empuje la efectividad ya existente, que sigue siendo el dato
+    // protagonista de esta pantalla.
     wrap.innerHTML = people.map((p) => {
       const winsLabel = p.wins === 1 ? 'victoria' : 'victorias';
       const lossesLabel = p.losses === 1 ? 'derrota' : 'derrotas';
       const c = p.userId ? compactById.get(p.userId) : null;
       const handle = c && c.username ? `@${c.username}` : null;
+      const levelText = (c && c.levelStatus && c.levelStatus !== 'PENDIENTE' && Number.isFinite(c.levelPublic)) ? c.levelPublic.toFixed(1) : null;
       const avatarHTML = (c && c.avatarSignedUrl)
         ? `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
         : `<span class="person-list__avatar">${escapeHtml(playerInitials(p.name))}</span>`;
@@ -9497,6 +9543,7 @@
           <div class="group-table__toprow">
             <span class="group-table__name">${escapeHtml(p.name)}</span>
             ${handle ? `<span class="group-table__handle">· ${escapeHtml(handle)}</span>` : ''}
+            ${levelText ? `<span class="group-table__handle">· Nivel BRAMU ${levelText}</span>` : ''}
           </div>
           <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins} ${winsLabel} · ${p.losses} ${lossesLabel}</div>
         </div>

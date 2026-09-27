@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h12" />
+<link rel="stylesheet" href="styles.css?v=04.11-h13" />
 </head>
 <body>
 
@@ -88,6 +88,12 @@
              oficial, pero mientras está abierta sí reemplaza al estado normal/cerrado del
              partido" (§15.33). El delta (#b6-respond-correction-diff) baja a trazabilidad
              secundaria debajo de las dos tarjetas, nunca sustituye a la propuesta completa. -->
+        <!-- Revisión central h12 (§A) — este MISMO bloque ahora sirve a las dos partes de una
+             corrección activa (nunca una representación paralela): para quien debe responder,
+             con fila de acciones visible; para quien la propuso, con la fila de acciones
+             oculta (id="b6-respond-action-row") y el texto/rótulo en 2da persona ("Tu
+             corrección propuesta" / "Esperando respuesta de la otra pareja") — ver
+             paintB6Actions en app.js. -->
         <div class="b6-action-block" id="b6-respond-correction-block" hidden>
           <p class="b6-banner__text" id="b6-respond-correction-text"></p>
           <div class="b6-correction-compare">
@@ -96,7 +102,7 @@
           </div>
           <!-- Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN. -->
           <ul class="b6-correction-diff" id="b6-respond-correction-diff" hidden></ul>
-          <div class="b6-action-row">
+          <div class="b6-action-row" id="b6-respond-action-row">
             <button type="button" class="btn-start" id="b6-respond-accept-btn" style="flex:1">ACEPTAR CORRECCIÓN</button>
             <button type="button" class="btn-secondary" id="b6-respond-reject-btn" style="flex:1">RECHAZAR</button>
           </div>
@@ -2452,7 +2458,9 @@
     <div id="identity-resolve-sheet" class="bottom-sheet bottom-sheet--tall load-player-sheet" role="dialog" aria-modal="true" aria-label="Elegir reemplazo">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
       <div class="bottom-sheet__header">
-        <span class="bottom-sheet__title">¿QUIÉN JUGÓ REALMENTE?</span>
+        <!-- Revisión central h12 (§D) — copy centrado en la pregunta real ("¿Sabés quién
+             jugó?"), no en un título genérico de búsqueda. -->
+        <span class="bottom-sheet__title">¿SABÉS QUIÉN JUGÓ?</span>
         <button type="button" id="identity-resolve-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="player-search-field">
@@ -2466,6 +2474,13 @@
         </div>
         <div id="identity-resolve-list" class="load-player-sheet__list"></div>
         <p id="identity-resolve-empty" class="load-player-sheet__empty" hidden>Escribí al menos 2 caracteres para buscar, o elegí un invitado.</p>
+        <!-- Revisión central h12 (§D) — bifurcación explícita "no sé quién jugó": antes la
+             ÚNICA forma de dejar el lugar `Por identificar` era descubrir por accidente que
+             cerrar con la X conservaba ese estado (ya creado por report_identity_issue al
+             abrir el sheet) — nunca una acción visible. Este botón NO llama ninguna RPC nueva:
+             solo confirma visualmente el estado ya persistido y cierra el sheet, ver
+             confirmIdentityUnresolved en app.js. -->
+        <button type="button" id="identity-resolve-unidentified-btn" class="link-btn identity-resolve-unidentified-btn">No sé · dejar Por identificar</button>
       </div>
     </div>
   </div>
@@ -2757,47 +2772,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h12"></script>
-  <script src="stats.js?v=04.11-h12"></script>
-  <script src="store.js?v=04.11-h12"></script>
+  <script src="engine.js?v=04.11-h13"></script>
+  <script src="stats.js?v=04.11-h13"></script>
+  <script src="store.js?v=04.11-h13"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h12"></script>
-  <script src="level-context.js?v=04.11-h12"></script>
-  <script src="level-calibration.js?v=04.11-h12"></script>
-  <script src="player-home.js?v=04.11-h12"></script>
-  <script src="match-load.js?v=04.11-h12"></script>
-  <script src="player-identity.js?v=04.11-h12"></script>
-  <script src="groups.js?v=04.11-h12"></script>
-  <script src="locations.js?v=04.11-h12"></script>
-  <script src="ranking.js?v=04.11-h12"></script>
+  <script src="level.js?v=04.11-h13"></script>
+  <script src="level-context.js?v=04.11-h13"></script>
+  <script src="level-calibration.js?v=04.11-h13"></script>
+  <script src="player-home.js?v=04.11-h13"></script>
+  <script src="match-load.js?v=04.11-h13"></script>
+  <script src="player-identity.js?v=04.11-h13"></script>
+  <script src="groups.js?v=04.11-h13"></script>
+  <script src="locations.js?v=04.11-h13"></script>
+  <script src="ranking.js?v=04.11-h13"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h12"></script>
+  <script src="auth.js?v=04.11-h13"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h12"></script>
-  <script src="match-sync.js?v=04.11-h12"></script>
+  <script src="matches.js?v=04.11-h13"></script>
+  <script src="match-sync.js?v=04.11-h13"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h12"></script>
+  <script src="match-validation.js?v=04.11-h13"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h12"></script>
+  <script src="match-self-heal.js?v=04.11-h13"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h12"></script>
-  <script src="app.js?v=04.11-h12"></script>
+  <script src="intelligence-client.js?v=04.11-h13"></script>
+  <script src="app.js?v=04.11-h13"></script>
 </body>
 </html>
