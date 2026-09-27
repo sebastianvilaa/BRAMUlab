@@ -32,19 +32,14 @@ function extractFunctionBody(source, name) {
 
 /* ---- Punto A: Último partido — estructura estable normal vs corrección ---- */
 
-test('h17-A: el status-slot vive DENTRO de row2 (nunca en .datetime/row1) — invariancia geométrica real', () => {
+test('h17-A/h18: CORRECCIÓN PENDIENTE vive en el status-slot de row2; otros estados no se mudan ahí', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerLastMatchCard');
-  const datetimeIdx = body.indexOf('player-home-lastmatch__datetime');
   const row2Idx = body.indexOf('player-home-lastmatch__row2"');
   const statusSlotIdx = body.indexOf('player-home-lastmatch__status-slot');
-  assert.ok(datetimeIdx !== -1 && row2Idx !== -1 && statusSlotIdx !== -1, 'deben existir los tres bloques');
-  assert.ok(row2Idx > datetimeIdx, 'row2 debe venir después de .datetime en el marcado');
-  assert.ok(statusSlotIdx > row2Idx, 'el status-slot debe vivir dentro de row2, nunca antes/dentro de .datetime');
-});
-
-test('h17-A: el viejo badge-slot reservado por altura mínima (causa real del FAIL h16) queda retirado', () => {
-  assert.doesNotMatch(appJs, /player-home-lastmatch__badge-slot/, 'app.js no debe seguir generando el badge-slot viejo');
-  assert.doesNotMatch(stylesCss, /player-home-lastmatch__badge-slot/, 'styles.css no debe conservar la regla del badge-slot viejo (dead code)');
+  assert.ok(row2Idx !== -1 && statusSlotIdx > row2Idx, 'el slot de CORRECCIÓN PENDIENTE debe vivir dentro de row2');
+  assert.match(body, /const correctionStatusHTML = hasActiveCorrectionOnLastMatch/);
+  assert.match(body, /const otherStatusText = hasActiveCorrectionOnLastMatch \? '' : serverMatchStatusLabel\(m\)/);
+  assert.match(body, /player-home-lastmatch__badge-slot/, 'los demás estados conservan su ubicación previa bajo fecha\/hora');
 });
 
 test('h17-A: row2 mantiene los dos grupos (forma+resultado / status) en el mismo renglón, sin wrap', () => {
@@ -119,7 +114,7 @@ test('h17: bundle/cache quartet queda alineado', () => {
   assert.match(indexHtml, /app\.js\?v=04\.11-h17/);
   assert.match(indexHtml, /styles\.css\?v=04\.11-h17/);
   assert.match(storeJs, /BUNDLE_VERSION = '04\.11-h17'/);
-  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-11-h17'/);
+  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-11-h18'/);
   assert.match(swJs, /app\.js\?v=04\.11-h17/);
   assert.match(swJs, /styles\.css\?v=04\.11-h17/);
   assert.match(versionJson, /"bundle":\s*"04\.11-h17"/);

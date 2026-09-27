@@ -179,7 +179,7 @@
 // (ML.classifyPendingRevisionEvent) — un reemplazo de identidad pre-validación ya no se muestra
 // como corrección de resultado. Defensa chica en RECIENTES si falla la resolución de
 // provisionales. Mismo criterio: solo bump de bundle.
-const CACHE_NAME = 'bramulab-v04-11-h17';
+const CACHE_NAME = 'bramulab-v04-11-h18';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -190,39 +190,39 @@ const CACHE_NAME = 'bramulab-v04-11-h17';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.11-h17',
-  './engine.js?v=04.11-h17',
-  './stats.js?v=04.11-h17',
-  './store.js?v=04.11-h17',
+  './styles.css?v=04.11-h18',
+  './engine.js?v=04.11-h18',
+  './stats.js?v=04.11-h18',
+  './store.js?v=04.11-h18',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.11-h17',
-  './level-context.js?v=04.11-h17',
-  './level-calibration.js?v=04.11-h17',
-  './player-home.js?v=04.11-h17',
-  './match-load.js?v=04.11-h17',
-  './player-identity.js?v=04.11-h17',
-  './groups.js?v=04.11-h17',
-  './locations.js?v=04.11-h17',
-  './ranking.js?v=04.11-h17',
+  './level.js?v=04.11-h18',
+  './level-context.js?v=04.11-h18',
+  './level-calibration.js?v=04.11-h18',
+  './player-home.js?v=04.11-h18',
+  './match-load.js?v=04.11-h18',
+  './player-identity.js?v=04.11-h18',
+  './groups.js?v=04.11-h18',
+  './locations.js?v=04.11-h18',
+  './ranking.js?v=04.11-h18',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.11-h17',
+  './auth.js?v=04.11-h18',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.11-h17',
-  './match-sync.js?v=04.11-h17',
-  './match-validation.js?v=04.11-h17',
+  './matches.js?v=04.11-h18',
+  './match-sync.js?v=04.11-h18',
+  './match-validation.js?v=04.11-h18',
   // Hotfix 27/09/2026 (handoff 37) — match-self-heal.js (nuevo). Mismo criterio: sin red/DOM
   // propios, pre-cacheado igual.
-  './match-self-heal.js?v=04.11-h17',
+  './match-self-heal.js?v=04.11-h18',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.11-h17',
-  './app.js?v=04.11-h17',
+  './intelligence-client.js?v=04.11-h18',
+  './app.js?v=04.11-h18',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

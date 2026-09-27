@@ -7278,21 +7278,19 @@
     // Handoff cierre UX h13 (§2 "Último partido con corrección activa", plan §P0-B) — copy corto
     // preferido "CORRECCIÓN PENDIENTE" en ESTA tarjeta puntual (nunca cambia serverMatchStatusLabel
     // en general — Historial/Resumen conservan "CORRECCIÓN PROPUESTA", sin ampliar alcance).
-    const lastMatchStatusText = hasActiveCorrectionOnLastMatch ? 'CORRECCIÓN PENDIENTE' : serverMatchStatusLabel(m);
     const lastMatchStatusModifier = serverMatchStatusBadgeModifier(m) || 'status';
-    // Auditoría Central h16 -> h17 (doc 53, punto 2 / direccion visual final de Sebastian) — BUG
-    // REAL CONFIRMADO: el status vivia apilado DENTRO de .datetime (misma columna de row1 que
-    // fecha/lugar) con solo un min-height de reserva — si el copy real medía mas que eso, row1
-    // crecia y empujaba row2 (forma/VICTORIA-DERROTA) hacia abajo. Composicion nueva: el status
-    // se muda a su PROPIA columna dentro de row2 (nunca mas en row1/.datetime), a la derecha de
-    // forma+resultado — la altura de row2 queda gobernada por el badge de resultado, que esta
-    // SIEMPRE presente, asi que el status ya no puede modificarla tenga o no contenido.
-    // CORRECCION PENDIENTE deja de ser una pastilla y pasa a texto ambar liso, sin fondo/borde/
-    // radio propios; el resto de los estados de este slot (PENDIENTE DE VALIDACION, IDENTIDAD
-    // CUESTIONADA, etc.) conserva el badge existente, solo cambia de columna.
-    const lastMatchStatusHTML = !lastMatchStatusText ? '' : (hasActiveCorrectionOnLastMatch
-      ? `<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--correction">${lastMatchStatusText}</span>`
-      : `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${lastMatchStatusText}</span>`);
+    // Hotfix Central h18 — h17 movió por accidente TODOS los estados server-backed al renglón 2.
+    // La decisión visual de Sebastián era puntual para CORRECCIÓN PENDIENTE. Para no ampliar
+    // alcance ni arriesgar textos largos (PENDIENTE DE VALIDACIÓN / IDENTIDAD CUESTIONADA),
+    // solo la corrección activa vive a la derecha de row2 como texto ámbar liso. Los demás
+    // estados conservan su ubicación previa bajo fecha/hora, con su badge habitual.
+    const correctionStatusHTML = hasActiveCorrectionOnLastMatch
+      ? '<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--correction">CORRECCIÓN PENDIENTE</span>'
+      : '';
+    const otherStatusText = hasActiveCorrectionOnLastMatch ? '' : serverMatchStatusLabel(m);
+    const otherStatusHTML = otherStatusText
+      ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${otherStatusText}</span>`
+      : '';
 
     body.innerHTML = `
       <div class="player-home-lastmatch__top">
@@ -7301,6 +7299,7 @@
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
             ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
+            ${otherStatusHTML ? `<div class="player-home-lastmatch__badge-slot">${otherStatusHTML}</div>` : ''}
           </div>
         </div>
         <div class="player-home-lastmatch__row2">
@@ -7308,7 +7307,7 @@
             <div class="player-home-lastmatch__form">${formDotsHtml}</div>
             <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
           </div>
-          <div class="player-home-lastmatch__status-slot">${lastMatchStatusHTML}</div>
+          <div class="player-home-lastmatch__status-slot">${correctionStatusHTML}</div>
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>

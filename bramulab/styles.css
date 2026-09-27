@@ -1776,6 +1776,9 @@ input, select{ font-family: inherit; }
    .row2-left. No necesita altura mínima reservada — row2 ya queda gobernada por el badge de
    resultado (VICTORIA/DERROTA/SIN DEFINICIÓN), siempre presente, así que el status nunca puede
    agrandar el renglón, tenga o no contenido. */
+/* Hotfix Central h18 — ubicación previa de los estados server-backed NO relacionados con una
+   corrección activa. Se restaura únicamente para no ampliar el cambio visual de h17. */
+.player-home-lastmatch__badge-slot{ display:flex; justify-content:flex-end; margin-top:4px; }
 .player-home-lastmatch__status-slot{ flex:none; display:flex; align-items:center; }
 /* Dirección visual final de Sebastián para h17 — CORRECCIÓN PENDIENTE es texto ámbar discreto,
    sin cápsula/píldora/contenedor propio (nunca .player-home-lastmatch__badge): compite por
