@@ -2016,3 +2016,39 @@ Ese documento es la guía vigente para la próxima revisión de Sebastián. Incl
 
 No volver a usar h7/h8/h9 como base de QA.
 
+
+
+### 15.28 — Nuevo evento externo: cómo advertir que “algo cambió” — 27/09/2026
+
+Durante el retorno al Laboratorio sobre `04.11-h10`, antes incluso de revisar la batería visual completa, Sebastián vuelve a detectar un problema de percepción:
+
+Cuando otra persona carga, valida o modifica un partido, el contenido server-backed puede actualizarse correctamente pero el usuario puede sentir que el cambio “apareció de golpe” y no entender qué fue lo nuevo. En especial, la tarjeta `ÚLTIMO PARTIDO` puede cambiar sin una señal suficientemente clara de que ese contenido acaba de entrar por una acción externa.
+
+**CLASIFICACIÓN: UX / PRODUCTO.**
+
+Esto NO es el bug de frescura ya corregido. Los datos llegan; el problema es comunicar el evento nuevo.
+
+#### Dirección a evaluar visualmente
+
+No resolver todavía con una sola solución rígida. La experiencia debería combinar, de forma no redundante:
+
+- **carrusel superior de eventos relevantes** para avisar qué pasó y quién lo provocó;
+- **señal temporal de “nuevo/cambió”** sobre la tarjeta de Último partido cuando ese cambio provino de afuera;
+- **badge en Historial + resaltado de la fila modificada**, ya definido en §15.20;
+- eventual **popup/hoja breve al abrir BRAMU** para eventos realmente importantes, punto ya confirmado para analizar después de la ronda h10.
+
+Principio:
+> Un cambio externo importante no debe obligar al usuario a comparar mentalmente la pantalla anterior con la actual para descubrir qué cambió.
+
+Evitar:
+- badges permanentes;
+- duplicar el mismo aviso en 3 lugares con igual peso;
+- convertir Home en un centro de alertas.
+
+**Pendiente de definición visual:** decidir qué combinación exacta usar según severidad del evento:
+- carga nueva que requiere acción;
+- carga nueva informativa;
+- validación;
+- corrección aceptada;
+- identidad resuelta.
+
