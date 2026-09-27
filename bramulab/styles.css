@@ -607,22 +607,25 @@ input, select{ font-family: inherit; }
    `display:contents` (dos filas REALES dentro del único grid `.result-card__rows`, ver
    buildScoreCardHTML en app.js) — el padding/borde entre equipos se mueve a las celdas
    (nombre/sets) porque un elemento `display:contents` no genera caja propia. */
-/* Ronda correctiva Laboratorio h11 (§P5 "Resumen — grilla de nombres/sets/divisores") — BUG REAL
-   confirmado en iPhone (§15.31): `align-items:center` alineaba cada CELDA al centro de su fila,
-   pero `.result-card__name` (14px + 8px padding, ~33px de alto) y `.result-card__sets` (chips de
-   18px + 8px padding, ~42px de alto) tienen cajas de alto DISTINTO — el `border-top` del
-   Equipo B (línea 615, aplicado a cada celda por separado porque `.result-card__row` es
-   `display:contents` y no genera caja propia) quedaba a una altura distinta en cada columna, un
-   divisor "quebrado" en vez de una línea continua, y la fila se leía descentrada. `stretch` hace
-   que ambas celdas ocupen el alto REAL de la fila (el que define la celda más alta), así sus
-   bordes arrancan siempre a la misma altura; `.result-card__name` pasa a `flex`+`align-items:center`
-   para seguir centrando su texto DENTRO de esa caja ahora más alta (nunca pegado arriba). */
+/* Ronda correctiva Laboratorio h11 (§P5 "Resumen — grilla de nombres/sets/divisores") — fix
+   parcial: `align-items:center` alineaba cada CELDA al centro de su fila, pero `.result-card__name`
+   y `.result-card__sets` tienen cajas de alto DISTINTO por naturaleza (texto vs. chips de score)
+   — `stretch` + `.result-card__name` en `flex`/`align-items:center` iguala esas dos alturas
+   dentro de cada fila y centra el texto.
+   Handoff cierre UX h13 (§3/§P0-C "grilla canónica de resultado") — BUG REAL REABIERTO en QA
+   físico: ese fix de altura NO alcanzaba porque el divisor entre parejas seguía siendo un
+   `border-top` puesto en CADA celda por separado (nombre y sets) — aunque las dos celdas
+   terminaran a la misma altura, sus bordes seguían siendo DOS segmentos independientes con el
+   `column-gap` de por medio en el medio, nunca una línea continua ("no se lee como una única
+   fila/grilla"). Se reemplaza por `.result-card__divider-row`: un elemento PROPIO (no
+   `display:contents`) que ocupa las DOS columnas del grid (`grid-column:1/-1`, ver
+   buildResultRowsHTML en app.js) — una única línea real que atraviesa todo el ancho útil. */
 .result-card__rows{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:stretch; column-gap: 12px; }
 .result-card__row{ display:contents; }
 .result-card__name{ display:flex; align-items:center; font-weight: 800; font-size: 14px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding: 8px 0; }
 .result-card__row[data-team="A"] .result-card__name{ color: var(--team-a); }
 .result-card__row[data-team="B"] .result-card__name{ color: var(--team-b); }
-.result-card__row[data-team="B"] .result-card__name, .result-card__row[data-team="B"] .result-card__sets{ border-top: 1px solid var(--line); }
+.result-card__divider-row{ grid-column: 1 / -1; height: 1px; background: var(--line); }
 .result-card__sets{ display:grid; grid-auto-flow:column; grid-auto-columns: 28px; gap: 6px; justify-content:end; align-items:center; padding: 8px 0; }
 /* M3: mismo tamaño para ganador y perdedor de cada set; el ganador va a 100% de contraste,
    el perdedor se atenúa (55–65%) para que se entienda instantáneamente quién ganó cada set. */
@@ -1766,8 +1769,18 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__place{ font-size: 11px; font-weight: 500; color: var(--court-text-faint); margin-top: 2px; }
 /* Segunda corrección QA 26SEP (§8) — badge de ESTADO debajo de fecha/lugar, en la misma
    columna alineada a la derecha (el badge es un <span> inline por defecto; `.player-home-
-   lastmatch__badge` sin este modificador no tiene su propio renglón — acá sí lo necesita). */
-.player-home-lastmatch__datetime .player-home-lastmatch__badge{ display:inline-block; margin-top: 4px; }
+   lastmatch__badge` sin este modificador no tiene su propio renglón — acá sí lo necesita).
+   Handoff cierre UX h13 (§2/§P0-B) — REEMPLAZA el `margin-top` puesto en el badge mismo:
+   `.badge-slot` es un renglón PROPIO siempre presente (con o sin badge adentro). Sin
+   `--reserved` (partidos NO `validated`: pending_validation/sync_pending/etc., que ya tienen
+   su propio badge permanente y nunca "togglean" entre con/sin badge para el mismo partido)
+   mantiene el alto natural de siempre, sin espacio vacío de más. Con `--reserved` (SOLO
+   partidos `validated`, donde SÍ puede alternar entre limpio y con corrección activa mientras
+   el resto de la tarjeta se ve igual) reserva una altura mínima fija — que aparezca o no la
+   corrección nunca cambia cuánto mide `.datetime`, así que nunca empuja `row2`/la forma/
+   VICTORIA-DERROTA hacia abajo. */
+.player-home-lastmatch__badge-slot{ display:flex; justify-content:flex-end; margin-top: 4px; }
+.player-home-lastmatch__badge-slot--reserved{ min-height: 18px; }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
@@ -2577,6 +2590,10 @@ input, select{ font-family: inherit; }
 .profile-location-manual{ display:flex; flex-direction:column; gap: 8px; margin-top: 10px; }
 .profile-location-manual .field + .field{ margin-top:0; }
 .player-row-list{ margin-top: 2px; }
+/* Handoff cierre UX h13 (§8 "Mi Perfil → Jugadores") — separación entre la lista de agregados
+   (o su estado vacío) y la sección "Resultados" de la búsqueda global, mismo criterio de
+   espaciado que el resto de las secciones con `.load-player-sheet__section-label`. */
+#jugadores-global-section{ margin-top: 14px; }
 /* BRAMUlab_V03.4 (§4) — variante de selección MÚLTIPLE de `.player-row` (crear grupo:
    elegir varios jugadores iniciales a la vez, a diferencia del resto de la app que siempre
    elige UNA persona). Se agrega la clase `group-picker-row` AL LADO de `player-row` (nunca
@@ -3498,13 +3515,25 @@ input, select{ font-family: inherit; }
    contraste real lo dan las propias tarjetas de resultado debajo, no el rótulo. El ámbar
    (--gold) en el rótulo de la propuesta es el MISMO tono que ya usa el badge "waiting" de
    Home/Historial para este estado (.history-item__badge--waiting) — nunca un color nuevo. */
+/* Handoff cierre UX h13 (§4 "Composición") — "centrar los rótulos RESULTADO OFICIAL ACTUAL y
+   CORRECCIÓN PROPUESTA": aplica a `#analysis-result-official-label` (mismo `.b6-correction-
+   compare__label` base) y al rótulo de la propuesta dentro de `.b6-correction-compare`. */
 .b6-correction-compare__label{
   font-size: 11px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
-  color: var(--text-dim); margin: 0 0 6px;
+  color: var(--text-dim); margin: 0 0 6px; text-align: center;
 }
 .b6-correction-compare__label--proposed{ color: var(--gold); }
 .b6-correction-compare .result-card,
 .result-card--compact{ padding: 12px 14px; }
+/* Handoff cierre UX h13 (§4 "Explicación humana del cambio") — frase en lenguaje humano
+   (ML.buildCorrectionHumanSummary), lectura PRINCIPAL de qué cambió — el diff técnico
+   (.b6-correction-diff) queda debajo como trazabilidad secundaria, nunca al revés. */
+.b6-correction-summary{ font-size: 13px; color: var(--paper); line-height: 1.4; margin: 10px 0 0; text-align: center; }
+/* Handoff cierre UX h13 (§4 "Acciones") — clase compartida explícita para el par Aceptar/
+   Rechazar: misma altura/composición ya venían del `min-height:48px` compartido de
+   `.btn-start`/`.btn-secondary`, esto reemplaza el `style="flex:1"` inline duplicado en cada
+   botón por una única regla, sin cambiar el resultado visual. */
+.b6-action-row__btn{ flex: 1; }
 
 /* Ronda correctiva Laboratorio h11 (§P5) — REEMPLAZA la versión "dos tarjetas pesadas" de Ronda
    UX 25/09 (§15.31: "se percibe demasiado comprimida por encerrar cada opción en una tarjeta

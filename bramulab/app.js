@@ -2104,18 +2104,25 @@
     return '';
   }
 
-  /** Bloque M2/M3/M4/M5: tarjeta tipo TV. Ganador de cada set a 100% de contraste, perdedor atenuado;
-   *  duración por set dentro del mismo componente; duración total/registrada al pie.
-   *  V6 (23): `opts.statsHTML`, si se pasa, fusiona las estadísticas rápidas DENTRO de esta
-   *  misma tarjeta (separadas por un divisor), en vez de vivir en un bloque aparte — usado
-   *  solo por el Resumen del partido (Análisis mantiene su propia sección de estadísticas). */
-  function buildScoreCardHTML(f, opts) {
-    opts = opts || {};
-    const nameA = S.teamLabel(f.players, 'A');
-    const nameB = S.teamLabel(f.players, 'B');
-
+  /** Handoff cierre UX h13 (§3/§4, plan §P0-C "grilla canónica de resultado") — FUSIONA lo que
+   *  antes eran dos copias casi idénticas de `cellsForTeam` (una dentro de `buildScoreCardHTML`,
+   *  otra dentro de `buildCorrectionPreviewCardHTML`): única fuente para "una pareja = una fila,
+   *  nombre a la izquierda, games de TODOS los sets a la derecha", consumida por el resultado
+   *  oficial Y por la vista previa de una corrección propuesta — nunca dos grillas que puedan
+   *  volver a divergir. `currentPartial` es opcional (solo lo pasa `buildScoreCardHTML`, para un
+   *  partido EN VIVO todavía sin terminar; una propuesta de corrección nunca lo tiene).
+   *  El divisor entre parejas (`.result-card__divider-row`) es un elemento PROPIO que ocupa las
+   *  DOS columnas del grid (`grid-column:1/-1`) — la causa real del bug reabierto en QA físico
+   *  h13 ("la línea divisoria no se lee como una única fila") era que la versión anterior ponía
+   *  un `border-top` en CADA celda por separado (nombre y sets): aunque las dos celdas
+   *  terminaron con la misma altura tras el fix de h11/h12 (`align-items:stretch`), sus bordes
+   *  seguían siendo DOS segmentos independientes con el `column-gap` de por medio en el medio —
+   *  nunca una línea continua. Un elemento propio que atraviesa las dos columnas sí lo es. */
+  function buildResultRowsHTML(players, sets, currentPartial) {
+    const nameA = S.teamLabel(players, 'A');
+    const nameB = S.teamLabel(players, 'B');
     function cellsForTeam(team) {
-      let cells = f.sets.map((s) => {
+      let cells = (sets || []).map((s) => {
         const mine = team === 'A' ? s.gamesA : s.gamesB;
         const theirs = team === 'A' ? s.gamesB : s.gamesA;
         // V12.2 (§2) — un segmento extraordinario (Resolver con Tie break) nunca tiene un
@@ -2135,15 +2142,25 @@
         }
         return gameCell;
       }).join('');
-      if (f.currentPartial) {
-        const mine = team === 'A' ? f.currentPartial.gamesA : f.currentPartial.gamesB;
-        const theirs = team === 'A' ? f.currentPartial.gamesB : f.currentPartial.gamesA;
+      if (currentPartial) {
+        const mine = team === 'A' ? currentPartial.gamesA : currentPartial.gamesB;
+        const theirs = team === 'A' ? currentPartial.gamesB : currentPartial.gamesA;
         const cls = mine > theirs ? 'result-card__set--win' : (mine < theirs ? 'result-card__set--lose' : '');
-        const tbTxt = f.currentPartial.tiebreak ? `<sub style="font-size:9px;">(${team === 'A' ? f.currentPartial.tiebreak.a : f.currentPartial.tiebreak.b})</sub>` : '';
+        const tbTxt = currentPartial.tiebreak ? `<sub style="font-size:9px;">(${team === 'A' ? currentPartial.tiebreak.a : currentPartial.tiebreak.b})</sub>` : '';
         cells += `<span class="result-card__set is-incomplete ${cls}">${mine}${tbTxt}</span>`;
       }
-      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${team === 'A' ? nameA : nameB}</span><span class="result-card__sets">${cells}</span></div>`;
+      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${escapeHtml(team === 'A' ? nameA : nameB)}</span><span class="result-card__sets">${cells}</span></div>`;
     }
+    return `${cellsForTeam('A')}<div class="result-card__divider-row" aria-hidden="true"></div>${cellsForTeam('B')}`;
+  }
+
+  /** Bloque M2/M3/M4/M5: tarjeta tipo TV. Ganador de cada set a 100% de contraste, perdedor atenuado;
+   *  duración por set dentro del mismo componente; duración total/registrada al pie.
+   *  V6 (23): `opts.statsHTML`, si se pasa, fusiona las estadísticas rápidas DENTRO de esta
+   *  misma tarjeta (separadas por un divisor), en vez de vivir en un bloque aparte — usado
+   *  solo por el Resumen del partido (Análisis mantiene su propia sección de estadísticas). */
+  function buildScoreCardHTML(f, opts) {
+    opts = opts || {};
 
     let durationsHTML = '';
     if (f.stats.setDurations && f.stats.setDurations.length) {
@@ -2173,16 +2190,15 @@
     // exactamente el mismo HTML/clases, solo cambia dónde se inserta.
     const winnersHTML = opts.winnersHTML || '';
 
-    // Ronda correctiva QA 26SEP (§15.24) — las dos filas de equipo viven DENTRO de
-    // `.result-card__rows`, el único grid real que comparten (ver styles.css): antes cada
-    // `.result-card__row` era grid por sí sola, dos grids independientes que solo coincidían en
-    // Chromium por casualidad de contenido simétrico, nunca por estructura garantizada.
+    // Ronda correctiva QA 26SEP (§15.24) / Handoff cierre UX h13 (§P0-C) — las dos filas de
+    // equipo viven DENTRO de `.result-card__rows`, el único grid real que comparten (ver
+    // styles.css), armadas por la primitiva ÚNICA `buildResultRowsHTML` — nunca dos grids/dos
+    // copias del armado de filas que puedan volver a divergir.
     return `<div class="result-card">
       ${winnersHTML}
       ${durationsHTML}
       <div class="result-card__rows">
-        ${cellsForTeam('A')}
-        ${cellsForTeam('B')}
+        ${buildResultRowsHTML(f.players, f.sets, f.currentPartial)}
       </div>
       ${footerHTML}
       ${statsBlockHTML}
@@ -2243,15 +2259,6 @@
   function buildCorrectionPreviewCardHTML(players, sets, winnerTeam) {
     const nameA = S.teamLabel(players, 'A');
     const nameB = S.teamLabel(players, 'B');
-    function cellsForTeam(team) {
-      const cells = (sets || []).map((s) => {
-        const mine = team === 'A' ? s.gamesA : s.gamesB;
-        const theirs = team === 'A' ? s.gamesB : s.gamesA;
-        const cls = mine === theirs ? '' : (mine > theirs ? 'result-card__set--win' : 'result-card__set--lose');
-        return `<span class="result-card__set ${cls}">${mine}</span>`;
-      }).join('');
-      return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${escapeHtml(team === 'A' ? nameA : nameB)}</span><span class="result-card__sets">${cells}</span></div>`;
-    }
     const winnerLabel = winnerTeam ? (winnerTeam === 'A' ? nameA : nameB) : null;
     const winnersHTML = winnerLabel
       ? `<div class="winners-banner"><div class="result-card__winners">Ganadores</div><div class="result-card__winners-names result-card__winners-names--${winnerTeam.toLowerCase()}">${escapeHtml(winnerLabel)}</div></div>`
@@ -2259,8 +2266,7 @@
     return `<div class="result-card result-card--compact">
       ${winnersHTML}
       <div class="result-card__rows">
-        ${cellsForTeam('A')}
-        ${cellsForTeam('B')}
+        ${buildResultRowsHTML(players, sets, null)}
       </div>
     </div>`;
   }
@@ -2713,12 +2719,17 @@
     const respondText = $('#b6-respond-correction-text');
     const officialLabel = $('#analysis-result-official-label');
 
+    const outboxActionBlock = $('#b6-outbox-action-block');
+    const outboxActionBtn = $('#b6-outbox-action-btn');
+
     banner.hidden = true; banner.classList.remove('b6-banner--waiting');
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
     respondBlock.hidden = true;
     officialLabel.hidden = true;
+    outboxActionBlock.hidden = true;
+    outboxActionBtn.onclick = null;
     // Ronda correctiva (revisión central) — default seguro para las dos listas de diff (§G): un
     // render anterior para otro partido/estado nunca debe dejar líneas stale visibles.
     $('#b6-status-banner-diff').hidden = true; $('#b6-status-banner-diff').innerHTML = '';
@@ -2732,6 +2743,50 @@
     if (f.status === 'annulled') {
       banner.hidden = false; banner.classList.add('b6-banner--waiting');
       bannerText.textContent = 'Este partido fue anulado administrativamente.';
+      return;
+    }
+    // Handoff cierre UX h13 (§10, plan §P0-F) — BUG REAL: un borrador de outbox (sync_pending/
+    // necesita_revision) tiene `f.serverBacked=true` (buildOutboxDisplayEntry, match-sync.js)
+    // así que esta sección SIEMPRE se mostraba (`renderB6Actions` solo mira `f.serverBacked`),
+    // pero ninguna rama de abajo lo contemplaba — quedaba vacía, sin explicar nada, exactamente
+    // el bug reportado ("no explica qué necesita revisión"). No se toca la semántica offline/
+    // idempotente vigente (sync_pending = transitorio con reintento automático silencioso ya
+    // existente vía retryMatchOutbox/window.online; necesita_revision = decisión explícita del
+    // usuario, nunca reintentada sola) — esto solo la hace VISIBLE y comprensible. "Corregir
+    // carga"/"Descartar carga" siguen siendo los botones ya existentes al pie del Resumen
+    // (#analysis-edit-btn/#analysis-delete-btn, sin cambios de lógica).
+    if (f.status === 'sync_pending') {
+      banner.hidden = false; banner.classList.add('b6-banner--waiting');
+      bannerText.textContent = 'Este partido todavía no se sincronizó con BRAMU. Se guardó en este dispositivo y BRAMU va a intentar enviarlo solo — también podés reintentar ahora.';
+      outboxActionBlock.hidden = false;
+      outboxActionBtn.textContent = 'Reintentar';
+      outboxActionBtn.onclick = async () => {
+        outboxActionBtn.disabled = true;
+        // Éxito: handleCreateOrAttachOutcome ya navega al Resumen server-backed nuevo. Fallo:
+        // ya repinta ESTA MISMA pantalla con el estado fresco del outbox (ver su comentario) —
+        // nada más que hacer acá en ningún caso.
+        await retryOneOutboxEntry(f.matchId, { silent: false });
+        outboxActionBtn.disabled = false;
+      };
+      return;
+    }
+    if (f.status === 'necesita_revision') {
+      banner.hidden = false; banner.classList.add('b6-banner--waiting');
+      const code = f.lastError && f.lastError.code;
+      if (code === 'ambiguous_candidates') {
+        bannerText.textContent = 'Este partido podría ser el mismo que ya cargó otro jugador — hace falta confirmar cuál es para poder sincronizarlo.';
+        outboxActionBlock.hidden = false;
+        outboxActionBtn.textContent = 'Elegir partido';
+        outboxActionBtn.onclick = () => {
+          const entry = Store.getMatchOutboxEntry(f.matchId);
+          if (!entry) return;
+          openAmbiguousMatchModal(entry, (f.lastError && f.lastError.candidates) || []);
+        };
+      } else {
+        bannerText.textContent = (code && MATCH_BUSINESS_ERROR_MESSAGES[code]) || 'Este partido necesita una corrección antes de poder sincronizarse con BRAMU.';
+        // Sin acción propia acá: "EDITAR PARTIDO" (pie del Resumen) ya reabre el mismo editor
+        // para corregir el contenido — nunca un segundo camino que pueda divergir del primero.
+      }
       return;
     }
 
@@ -2866,7 +2921,8 @@
         // Ronda UX 25/09 (§G/§I) — actor PERSONA real (b6RevisionProposerName), nunca la pareja
         // genérica: reusa exactamente la misma acción 'revision_proposed' que ya se filtró
         // arriba, resuelta ahora por actorPlayerId en vez de solo el equipo.
-        const proposerName = b6RevisionProposerName(f) || S.teamLabel(f.players, proposedByTeam);
+        const rawProposerName = b6RevisionProposerName(f);
+        const proposerName = rawProposerName || S.teamLabel(f.players, proposedByTeam);
         // Ronda correctiva Laboratorio h11 (§P3) — REEMPLAZA la frase única "propuso una
         // corrección. ¿La aceptás?" (§15.32: "queda demasiado chico y separado de la
         // información relevante"): rotula la tarjeta oficial de arriba y muestra la propuesta
@@ -2889,9 +2945,16 @@
           : 'Tu corrección propuesta';
         const proposedWinner = deriveProposedWinnerTeam(f.pendingCorrectionSets, f.formatId);
         $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner);
+        // Handoff cierre UX h13 (§4 "Explicación humana del cambio") — REEMPLAZA el delta
+        // técnico como lectura principal por una frase real; `rawProposerName` (nunca el
+        // fallback de equipo) para que, sin nombre resoluble, caiga en "La otra pareja indica…"
+        // en vez de nombrar un actor incierto — mismo criterio que el resto de la app: nunca
+        // inventar un actor.
+        $('#b6-respond-correction-summary').textContent = ML.buildCorrectionHumanSummary(f.sets, f.pendingCorrectionSets, rawProposerName);
         // Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN: before =
         // sets (la revisión OFICIAL vigente, current_revision_id nunca se mueve hasta aceptar),
-        // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar).
+        // after = pendingCorrectionSets (la corrección propuesta, todavía sin aceptar) — queda
+        // como trazabilidad secundaria debajo del resumen humano, nunca como la explicación.
         renderCorrectionDiff('b6-respond-correction-diff', f.sets, f.pendingCorrectionSets);
       }
       // Ronda UX 25/09 (Ronda 2, §1) — QUITADO: banner permanente "Partido oficial." — el estado
@@ -2968,8 +3031,10 @@
    *  3 participantes reales) queden sincronizados con el estado recién persistido — mismo
    *  criterio que ya usaba este flujo, solo que ahora no se detiene ahí. */
   function confirmReportIdentity(matchId, team, positionInTeam, name) {
+    // Handoff cierre UX h13 (§6, plan §P1-J) — copy preferido literal: "¿Seguro que no fue
+    // [Nombre]?" (más corto que "¿Estás seguro de que no fue...?" de la ronda anterior).
     confirmAction(
-      `¿Estás seguro de que no fue ${name}?`,
+      `¿Seguro que no fue ${name}?`,
       `La identidad cargada en este lugar del partido va a quedar marcada como incorrecta. El partido sigue existiendo — a continuación vas a poder indicar quién jugó realmente.`,
       async () => {
         const result = await MV.reportIdentityIssue(matchId, team, positionInTeam, null);
@@ -3674,7 +3739,10 @@
       if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
         confirmAction(
           '¿Descartar esta carga?',
-          'Todavía no se envió al servidor — se va a borrar de este dispositivo.',
+          // Handoff cierre UX h13 (§10) — "explicar que descartar elimina únicamente esa carga
+          // local pendiente": este partido nunca llegó a existir en el servidor, así que no hay
+          // nada compartido que se pierda para nadie más — solo se borra la copia local.
+          'Este partido todavía no se sincronizó con BRAMU — solo existe en este dispositivo. Vas a eliminar únicamente esta carga pendiente, nadie más la vio nunca.',
           () => {
             Store.removeMatchOutboxEntry(f.matchId);
             showToast('Carga descartada');
@@ -5086,19 +5154,33 @@
     if (dot) dot.hidden = Store.loadHistoryUnseenChanges().length === 0;
   }
 
+  /** Handoff cierre UX h13 (§10, plan §P0-F "Se puede extraer un helper de reintento de UNA
+   *  entrada a partir de retryMatchOutbox, sin cambiar la semántica automática existente") —
+   *  reintenta UNA entrada puntual del outbox con su MISMA `submissionId` (idempotency key,
+   *  igual criterio que el reintento automático de abajo), para el botón "Reintentar" del
+   *  Resumen (acción explícita del usuario, nunca automática). `opts` se reenvía tal cual a
+   *  `handleCreateOrAttachOutcome` (mismo contrato: `{silent}`). */
+  async function retryOneOutboxEntry(localDraftId, opts) {
+    if (!Matches) return { ok: false, code: 'not_configured' };
+    const entry = Store.getMatchOutboxEntry(localDraftId);
+    if (!entry) return { ok: false, code: 'not_found' };
+    const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: entry.submissionId }, entry.payload));
+    return handleCreateOrAttachOutcome(entry, result, opts);
+  }
+
   /** Reintenta cada entrada `sync_pending` del outbox con su MISMA `submissionId` (idempotency
    *  key) — nunca genera una nueva para un reintento automático (02_Analisis_Claude.md §7). Se
    *  llama al arrancar la app (si hay sesión server-backed) y al recuperar conexión
    *  (`window.online`). Una entrada `necesita_revision` (error de negocio/ambigüedad ya
-   *  informado) NO se reintenta sola — espera una decisión explícita del usuario. */
+   *  informado) NO se reintenta sola — espera una decisión explícita del usuario. Misma
+   *  semántica de siempre, ahora pasando por `retryOneOutboxEntry` para no duplicar la llamada
+   *  a `Matches.createOrAttach`/`handleCreateOrAttachOutcome`. */
   async function retryMatchOutbox() {
     if (!isServerBackedSession() || !Matches) return;
     const pending = Store.loadMatchOutbox().filter((e) => e && e.state === 'sync_pending');
     for (const entry of pending) {
       // eslint-disable-next-line no-await-in-loop
-      const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: entry.submissionId }, entry.payload));
-      // eslint-disable-next-line no-await-in-loop
-      await handleCreateOrAttachOutcome(entry, result, { silent: true });
+      await retryOneOutboxEntry(entry.localDraftId, { silent: true });
     }
   }
 
@@ -5147,25 +5229,36 @@
     }
 
     const code = (result && result.code) || 'unknown';
-    if (code === 'ambiguous_candidates') {
-      Store.saveMatchOutboxEntry(Object.assign({}, entry, {
-        state: 'necesita_revision',
-        lastError: { code, candidates: (result && result.candidates) || [] },
-      }));
-      if (!silent) openAmbiguousMatchModal(entry, (result && result.candidates) || []);
-      return { ok: false, code };
-    }
+    const outcome = (() => {
+      if (code === 'ambiguous_candidates') {
+        Store.saveMatchOutboxEntry(Object.assign({}, entry, {
+          state: 'necesita_revision',
+          lastError: { code, candidates: (result && result.candidates) || [] },
+        }));
+        if (!silent) openAmbiguousMatchModal(entry, (result && result.candidates) || []);
+        return { ok: false, code };
+      }
+      if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
+        Store.saveMatchOutboxEntry(Object.assign({}, entry, { state: 'necesita_revision', lastError: { code } }));
+        if (!silent) showToast(MATCH_BUSINESS_ERROR_MESSAGES[code] || 'No se pudo guardar el partido.', 3200);
+        return { ok: false, code };
+      }
+      // Transitorio (red/rate limit/error inesperado del servidor): la entrada sigue
+      // sync_pending tal cual estaba — nunca se le suma un error para que el usuario "corrija".
+      if (!silent) showToast('Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3200);
+      return { ok: false, code, transient: true };
+    })();
 
-    if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
-      Store.saveMatchOutboxEntry(Object.assign({}, entry, { state: 'necesita_revision', lastError: { code } }));
-      if (!silent) showToast(MATCH_BUSINESS_ERROR_MESSAGES[code] || 'No se pudo guardar el partido.', 3200);
-      return { ok: false, code };
+    // Handoff cierre UX h13 (§10 "Historial — Necesita revisión y carga no sincronizada", plan
+    // §P0-F) — si el Resumen de ESTE MISMO borrador sigue abierto (reintentado o resuelto desde
+    // ahí, nunca desde el reintento automático silencioso de fondo), repintarlo con el estado
+    // fresco del outbox en vez de dejarlo mostrando un estado ya viejo — mismo helper
+    // (MSync.buildOutboxDisplayEntry) que ya usa reabrir un borrador para editarlo.
+    if (!silent && MSync && analysisCurrent && analysisCurrent.matchId === entry.localDraftId) {
+      const freshEntry = Store.getMatchOutboxEntry(entry.localDraftId);
+      if (freshEntry) renderAnalysis(MSync.buildOutboxDisplayEntry(freshEntry));
     }
-
-    // Transitorio (red/rate limit/error inesperado del servidor): la entrada sigue
-    // sync_pending tal cual estaba — nunca se le suma un error para que el usuario "corrija".
-    if (!silent) showToast('Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3200);
-    return { ok: false, code, transient: true };
+    return outcome;
   }
 
   /** Abre el Resumen de un partido server-backed recién guardado/reconciliado — busca la fila
@@ -7016,22 +7109,22 @@
         levelSubEl.hidden = true;
         levelSubEl.innerHTML = '';
         calibEl.hidden = true;
-        // Ronda correctiva Laboratorio h11 (§P5 "barra visual debajo del Nivel") — CORRECCIÓN DE
-        // INTERPRETACIÓN respecto de §15.29 (05_Laboratorio_UX_Uso_Real.md §15.31): recupera la
-        // barra SOLO como acompañamiento visual estable del bloque, nunca como "progreso lineal
-        // 5.9 → 6.0" (ese era justo el malentendido de la ronda anterior) ni como XP. Ya se
-        // investigó (Ronda UX 25/09 §M, ver renderMiPerfilLevelSection más abajo en este mismo
-        // archivo) que hoy NO existe una serie real basada en `level_events` que dé un delta
-        // reciente genuino para una cuenta V1 calibrada — fabricar uno acá violaría "no fabricar
-        // una lectura sin evidencia" (handoff §P5) y "no reabrir fórmula/fuente de Nivel". Por
-        // eso: barra visible (relleno fijo, sin semántica de porcentaje-hacia-el-próximo-nivel)
-        // + píldora de delta oculta (`--flat`, mismo modificador que ya usa Mi Perfil para este
-        // mismo caso, línea ~10566) en vez de inventar una dirección ↑/↓. Nota de producto para
-        // la próxima pasada física: si este tratamiento no es el esperado, es una decisión
-        // visual pendiente de validar con Sebastián, no un bug — ver Resultado de esta ronda.
+        // Handoff cierre UX h13 (§1 "Nivel BRAMU — barra de progreso real") — BUG REAL: la
+        // ronda anterior (Laboratorio h11) dejó esta barra con un relleno FIJO al 100% por
+        // prudencia (sin evidencia de delta real, ver comentario retirado acá) — QA físico en
+        // el dispositivo confirmó que 6.0 se veía con la barra llena, y esta NO es "una barra
+        // de partidos": su contrato histórico (ver el branch legacy más abajo, sin cambios) es
+        // el progreso DECIMAL dentro del entero actual — 5.8→~80%, 6.0→0%, 6.1→~10%. `PH.
+        // levelProgressPct` YA calcula exactamente eso (tenths*10) — se reusa tal cual, la
+        // MISMA función pura que ya usa el camino legacy, nunca una fórmula nueva ni un cambio
+        // de motor de Nivel. El delta (↑/↓) sigue sin fabricarse: no existe hoy una serie real
+        // basada en `level_events` accesible del lado del cliente para una cuenta V1 calibrada
+        // (ya investigado dos veces — Ronda UX 25/09 §M y la ronda h11 anterior) — el chip
+        // queda oculto (`--flat`) hasta que exista esa fuente real.
+        const publicLevel = LV.roundPublicLevel(levelV1.mu);
         barWrapEl.hidden = false;
         const barEl = $('#player-home-level-bar');
-        barEl.style.width = '100%';
+        barEl.style.width = PH.levelProgressPct(publicLevel) + '%';
         barEl.classList.remove('is-animating');
         const deltaEl = $('#player-home-level-delta');
         deltaEl.textContent = '';
@@ -7175,6 +7268,11 @@
     // partido, no un texto fijo.
     const lastMatchFormatLabel = ((E.FORMATS[m.formatId] && E.FORMATS[m.formatId].label) || '').toUpperCase();
     const lastMatchScoringLabel = SCORING_SYSTEM_LABELS[m.scoringSystem] || '';
+    // Handoff cierre UX h13 (§2 "Último partido con corrección activa", plan §P0-B) — copy corto
+    // preferido "CORRECCIÓN PENDIENTE" en ESTA tarjeta puntual (nunca cambia serverMatchStatusLabel
+    // en general — Historial/Resumen conservan "CORRECCIÓN PROPUESTA", sin ampliar alcance).
+    const lastMatchStatusText = hasActiveCorrectionOnLastMatch ? 'CORRECCIÓN PENDIENTE' : serverMatchStatusLabel(m);
+    const lastMatchStatusModifier = serverMatchStatusBadgeModifier(m) || 'status';
 
     body.innerHTML = `
       <!-- V02.9.1 (§2) — encabezado pasa de 2 columnas (izquierda: forma+título+badge / derecha:
@@ -7189,11 +7287,18 @@
                compitiendo por el mismo renglón angosto— a esta columna, debajo de fecha/hora,
                alineado a la derecha. VICTORIA/DERROTA queda SOLO en row2, junto a la forma
                reciente: el resultado sigue siendo el dato prominente de esa fila, nunca
-               comparte renglón con el estado. -->
+               comparte renglón con el estado.
+               Handoff cierre UX h13 (§2/§P0-B) — BUG REAL REABIERTO en QA físico: el estado
+               vivía apilado DENTRO de `.datetime` (fecha/lugar/badge, en columna) — al aparecer,
+               esa columna crecía y empujaba TODO lo de abajo (row2, forma, VICTORIA/DERROTA,
+               incluso el marcador). `.player-home-lastmatch__badge-slot` es un renglón PROPIO,
+               siempre presente (vacío o no) con una altura mínima reservada — invariancia
+               geométrica real: el badge nunca cambia cuánto mide `.datetime`, solo si ese
+               renglón ya reservado tiene o no contenido adentro. -->
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
             ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
-            ${serverMatchStatusLabel(m) ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${serverMatchStatusBadgeModifier(m) || 'status'}">${serverMatchStatusLabel(m)}</span>` : ''}
+            <div class="player-home-lastmatch__badge-slot${m.status === 'validated' ? ' player-home-lastmatch__badge-slot--reserved' : ''}">${lastMatchStatusText ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${lastMatchStatusText}</span>` : ''}</div>
           </div>
         </div>
         <div class="player-home-lastmatch__row2">
@@ -7524,13 +7629,19 @@
   // de "Participante" del resto de Bloque 6). pending_review/correction_proposed/
   // correction_accepted/match_expired/admin_action ya describían el evento correctamente — sin
   // cambios.
+  // Handoff cierre UX h13 (§11 "Notificaciones — lenguaje de pádel, no lenguaje técnico", plan
+  // §P1-K) — REEMPLAZA el body genérico de varios tipos por lenguaje humano/de producto
+  // deportivo (nunca técnico tipo "validó"/"identidad cuestionada" como si fuera un log de
+  // sistema); mismo `actorPlayerId`/`matchContext`/`selfCaused`/read-unread/click de siempre
+  // (mapB6Notification, sin cambios) — esto solo cambia la REDACCIÓN. `pending_review`/
+  // `match_expired`/`admin_action` ya sonaban humanos, sin cambios.
   const B6_NOTIF_COPY = {
     pending_review: { title: 'Partido pendiente', body: 'Tenés un partido esperando tu confirmación.', category: 'pending' },
-    correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen una corrección de resultado.', category: 'pending' },
-    identity_questioned: { title: 'Participante cuestionado', body: 'Hay una identidad cuestionada en uno de tus partidos.', category: 'pending' },
-    match_validated: { title: 'Resultado confirmado', body: 'Tu partido ya quedó validado.', category: 'positive' },
-    correction_accepted: { title: 'Corrección aceptada', body: 'Se aceptó una corrección de resultado.', category: 'info' },
-    identity_resolved: { title: 'Participante corregido', body: 'Se resolvió una identidad cuestionada.', category: 'info' },
+    correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen un resultado distinto para este partido.', category: 'pending' },
+    identity_questioned: { title: 'Participante cuestionado', body: 'Alguien indicó que un jugador cargado no participó.', category: 'pending' },
+    match_validated: { title: 'Resultado confirmado', body: 'Tu partido ya quedó confirmado.', category: 'positive' },
+    correction_accepted: { title: 'Corrección aceptada', body: 'Se confirmó un nuevo resultado para este partido.', category: 'info' },
+    identity_resolved: { title: 'Participante corregido', body: 'Ya se indicó quién jugó realmente.', category: 'info' },
     identity_unidentified: { title: 'Participante no identificado', body: 'Un lugar quedó como Jugador no identificado — el resultado se conserva.', category: 'info' },
     match_expired: { title: 'Partido vencido', body: 'Un partido venció sin validarse a tiempo.', category: 'error' },
     admin_action: { title: 'Acción administrativa', body: 'Un administrador realizó una acción sobre un partido tuyo.', category: 'info' },
@@ -7564,13 +7675,23 @@
    *  acción). `admin_action` queda deliberadamente afuera (su actor real es texto libre en
    *  `payload.adminActorLabel`, nunca un player_id). Sin actor resoluble, el título cae al
    *  evento neutro de `B6_NOTIF_COPY` — nunca se inventa un actor. */
+  // Handoff cierre UX h13 (§11, plan §P1-K) — REEMPLAZA el vocabulario técnico del workflow
+  // ("propuso una corrección"/"resolvió un participante"/"cuestionó un participante") por
+  // lenguaje humano de pádel — mismo actor real, mismo contrato, solo cambia la redacción.
+  // `identity_questioned` NUNCA nombra al jugador cuestionado: el payload de esta notificación
+  // (`{issueId, team, positionInTeam, openedByPlayerId}`, ver migración
+  // 20260926120000_preprod_ux_notification_actor_enrichment.sql) solo trae POSICIÓN, no nombre
+  // — el `player_id` de ese lugar ya se puso en null en el servidor al abrir la incidencia
+  // (report_identity_issue), así que no hay ninguna evidencia real del nombre disponible acá.
+  // Handoff explícito: "si el nombre cuestionado NO está disponible con evidencia actual, no
+  // inventarlo — usar una formulación breve equivalente", nunca abrir backend solo por esto.
   const B6_NOTIF_ACTOR_TITLE = {
     match_validated: (name) => `${name} confirmó tu partido`,
-    correction_accepted: (name) => `${name} aceptó la corrección`,
-    identity_resolved: (name) => `${name} resolvió un participante`,
-    identity_unidentified: (name) => `${name} marcó un participante como no identificado`,
-    correction_proposed: (name) => `${name} propuso una corrección`,
-    identity_questioned: (name) => `${name} cuestionó un participante`,
+    correction_accepted: (name) => `${name} confirmó el nuevo resultado`,
+    identity_resolved: (name) => `${name} indicó quién jugó`,
+    identity_unidentified: (name) => `${name} indicó que ese lugar queda sin identificar`,
+    correction_proposed: (name) => `${name} quiere corregir el resultado`,
+    identity_questioned: (name) => `${name} indicó que un jugador cargado no participó`,
   };
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
@@ -9618,7 +9739,16 @@
 
   function renderJugadoresList(query) {
     const user = Store.getCurrentUser();
-    if (user && user.serverBacked) { renderJugadoresListServerBacked(query); return; }
+    if (user && user.serverBacked) {
+      // Handoff cierre UX h13 (§P1-H) — debounce SOLO en el camino server-backed (dispara una
+      // llamada de red por búsqueda global), mismo criterio/mismo valor (~300ms) que el resto
+      // de los buscadores server-backed de la app (renderManualPlayerSheetContent,
+      // renderPlayerSearchResultsServerBacked). El camino local/legacy de abajo sigue síncrono,
+      // sin ningún cambio.
+      clearTimeout(jugadoresSearchDebounceId);
+      jugadoresSearchDebounceId = setTimeout(() => renderJugadoresListServerBacked(query), query ? 300 : 0);
+      return;
+    }
     const allNames = user ? Store.loadAddedPlayers(user.id) : [];
     const history = getComputableHistory();
     const filtered = ML.filterPlayerCandidates(allNames, query, []);
@@ -9636,41 +9766,68 @@
   // list_saved_players, cacheada para que el buscador de esta pestaña filtre EN MEMORIA (mismo
   // criterio que el buscador legacy: nunca una llamada de red por tecla).
   let jugadoresServerBackedCache = [];
+  // Handoff cierre UX h13 (§8/§P1-H) — guarda de respuesta tardía para la búsqueda global
+  // (Auth.searchPlayers), mismo patrón que b6IdentityResolveRequestId/companionsRequestId: si
+  // el usuario sigue tipeando o cambia de pestaña antes de que responda, esa respuesta vieja no
+  // debe pisar lo que ya se está mostrando ahora.
+  let jugadoresSearchRequestId = 0;
+  let jugadoresSearchDebounceId = null;
 
   async function renderJugadoresTabServerBacked() {
     const result = await Auth.listSavedPlayers();
     jugadoresServerBackedCache = result.ok ? result.players : [];
-    const hasAny = jugadoresServerBackedCache.length > 0;
-    $('#jugadores-search-wrap').hidden = !hasAny;
-    $('#jugadores-empty').hidden = hasAny;
-    if (!hasAny) {
-      $('#jugadores-list').hidden = true;
-      $('#jugadores-list').innerHTML = '';
-      $('#jugadores-search-empty').hidden = true;
-      return;
-    }
     $('#jugadores-search-input').value = '';
-    renderJugadoresListServerBacked('');
+    await renderJugadoresListServerBacked('');
   }
 
-  function renderJugadoresListServerBacked(query) {
-    const q = normalizePlayerName(query || '').toLocaleLowerCase('es');
-    const filtered = !q ? jugadoresServerBackedCache : jugadoresServerBackedCache.filter((p) => {
+  /** Handoff cierre UX h13 (§8 "Mi Perfil → Jugadores", plan §P1-H) — REEMPLAZA el patrón
+   *  "pantalla vacía + BUSCAR JUGADORES lleva a otra pantalla": el mismo campo de esta pestaña
+   *  ahora busca en dos niveles — con query vacía, solo los agregados (como siempre); con 2+
+   *  caracteres, TAMBIÉN el universo global real vía `Auth.searchPlayers` (la MISMA RPC que ya
+   *  usa Buscar Jugadores, nunca una segunda lógica de búsqueda), en una sección "Resultados"
+   *  separada — así "distingue visualmente si ya está agregado" por AGRUPACIÓN (mismo criterio
+   *  que Recientes/Todos en otros sheets) en vez de un badge nuevo por fila: un jugador ya
+   *  agregado nunca aparece duplicado en "Resultados". Tocar cualquier fila abre el MISMO Perfil
+   *  público server-backed de siempre (por `player_id`, nunca por nombre) — agregar/quitar sigue
+   *  siendo la acción ya existente ahí (Auth.savePlayer/removeSavedPlayer), sin un segundo
+   *  camino que pueda divergir. */
+  async function renderJugadoresListServerBacked(query) {
+    const requestId = ++jugadoresSearchRequestId;
+    const trimmed = (query || '').trim();
+    const q = normalizePlayerName(trimmed).toLocaleLowerCase('es');
+    const savedMatches = !q ? jugadoresServerBackedCache : jugadoresServerBackedCache.filter((p) => {
       const name = (p.displayName || '').toLocaleLowerCase('es');
       const username = (p.username || '').toLocaleLowerCase('es');
       return name.includes(q) || username.includes(q);
     });
+
+    let globalResults = [];
+    if (trimmed.length >= 2) {
+      const savedIds = new Set(jugadoresServerBackedCache.map((p) => p.playerId));
+      const searchResult = await Auth.searchPlayers(trimmed);
+      if (requestId !== jugadoresSearchRequestId) return; // respuesta tardía, ya se tipeó otra cosa
+      if (searchResult.ok) globalResults = searchResult.players.filter((r) => !savedIds.has(r.player_id));
+    }
+
     const wrap = $('#jugadores-list');
-    const isEmpty = filtered.length === 0;
-    wrap.hidden = isEmpty;
-    $('#jugadores-search-empty').hidden = !isEmpty;
-    wrap.innerHTML = filtered.map((p) => buildCompactPlayerRowHTML({
+    wrap.innerHTML = savedMatches.map((p) => buildCompactPlayerRowHTML({
       playerId: p.playerId, name: p.displayName || 'Jugador', username: p.username,
       levelStatus: p.levelStatus, levelPublic: p.levelPublic, avatarUrl: p.avatarSignedUrl,
     })).join('');
     $all('#jugadores-list .player-row').forEach((btn) => {
       btn.addEventListener('click', () => openPlayerPublicProfile({ name: btn.dataset.name, playerId: btn.dataset.playerId }, 'jugadores-tab'));
     });
+
+    const globalSection = $('#jugadores-global-section');
+    globalSection.hidden = globalResults.length === 0;
+    $('#jugadores-global-list').innerHTML = globalResults.map(buildPlayerRowHTMLFromServerRow).join('');
+    $all('#jugadores-global-list .player-row').forEach((btn) => {
+      btn.addEventListener('click', () => openPlayerPublicProfile({ name: btn.dataset.name, playerId: btn.dataset.playerId }, 'jugadores-tab'));
+    });
+
+    const hasAnyResult = savedMatches.length > 0 || globalResults.length > 0;
+    $('#jugadores-empty-hint').hidden = !(!q && jugadoresServerBackedCache.length === 0);
+    $('#jugadores-search-empty').hidden = !q || hasAnyResult;
   }
 
   /** §5/§9 — universo completo de jugadores conocidos localmente (ML.buildJugadorDirectory,
@@ -11038,8 +11195,10 @@
     wireInlineAvatarEdit('profile-data-avatar', 'mis-datos-avatar-input', 'mis-datos-avatar-edit-btn');
     // V03.1 (§12) — sin puntos por partido, sin interacción por punto: el gráfico ya no tiene
     // nada tocable (ver buildLevelEvolutionSvgHTML), así que este listener se retira entero.
-    // BRAMUlab_V03.3 (§8) — estado vacío de JUGADORES: mismo patrón que #history-empty-action.
-    $('#jugadores-empty-action').addEventListener('click', openPlayerSearchScreen);
+    // Handoff cierre UX h13 (§8/§P1-H) — REEMPLAZA el botón "BUSCAR JUGADORES" del estado vacío
+    // (`#jugadores-empty-action`, retirado del DOM): ese patrón de "pantalla vacía + botón a
+    // otra pantalla" es justo lo que esta ronda saca — el buscador ya vive siempre visible
+    // arriba de la lista, ver renderJugadoresListServerBacked más abajo.
     // Microparche V03.3.3 — buscador propio de JUGADORES (filtra solo la lista agregada).
     $('#jugadores-search-input').addEventListener('input', (e) => renderJugadoresList(e.target.value));
   }

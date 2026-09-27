@@ -368,6 +368,49 @@
     return lines;
   }
 
+  /** Handoff cierre UX h13 (§4 "Explicación humana del cambio", plan §P0-D) — misma comparación
+   *  estructural que `buildCorrectionDiffLines` (nunca una segunda regla de diff — el cálculo de
+   *  QUÉ cambió es uno solo; esta función solo lo REDACTA distinto), pero devuelve una frase en
+   *  lenguaje humano en vez de un delta técnico tipo "Set 2: 6–0 → 6–4" como lectura PRINCIPAL
+   *  (el handoff pide reservar ese delta como trazabilidad secundaria, no como explicación).
+   *  `actorName`: nombre real de quien propuso, o `null`/`''` si no es resoluble con evidencia —
+   *  en ese caso usa "La otra pareja" (NUNCA inventa un nombre, mismo criterio que el resto de
+   *  la app). Sin ninguna diferencia real → `''` (nunca fuerza una frase sin cambio real). */
+  function buildCorrectionHumanSummary(beforeSets, afterSets, actorName) {
+    const ORDINAL = { 1: 'primer', 2: 'segundo', 3: 'tercer' };
+    const before = Array.isArray(beforeSets) ? beforeSets : [];
+    const after = Array.isArray(afterSets) ? afterSets : [];
+    const maxLen = Math.max(before.length, after.length);
+    const changes = [];
+    for (let i = 0; i < maxLen; i++) {
+      const b = before[i] || null;
+      const a = after[i] || null;
+      const setNum = i + 1;
+      const ordinal = ORDINAL[setNum] || `set ${setNum}`;
+      if (!b && a) { changes.push({ kind: 'added', ordinal, after: a }); continue; }
+      if (b && !a) { changes.push({ kind: 'removed', ordinal, before: b }); continue; }
+      if (b && a && (b.gamesA !== a.gamesA || b.gamesB !== a.gamesB)) {
+        changes.push({ kind: 'changed', ordinal, before: b, after: a });
+      }
+    }
+    if (!changes.length) return '';
+    const actor = (actorName || '').trim() || 'La otra pareja';
+
+    const describe = (c) => {
+      if (c.kind === 'added') return `agrega el ${c.ordinal} set (${c.after.gamesA}–${c.after.gamesB})`;
+      if (c.kind === 'removed') return `saca el ${c.ordinal} set`;
+      return `el ${c.ordinal} set fue ${c.after.gamesA}–${c.after.gamesB}, no ${c.before.gamesA}–${c.before.gamesB}`;
+    };
+
+    if (changes.length === 1) {
+      const c = changes[0];
+      if (c.kind === 'added') return `${actor} agrega el ${c.ordinal} set: ${c.after.gamesA}–${c.after.gamesB}.`;
+      if (c.kind === 'removed') return `${actor} indica que el ${c.ordinal} set no corresponde.`;
+      return `${actor} indica que ${describe(c)}.`;
+    }
+    return `${actor} indica varios cambios: ${changes.map(describe).join('; ')}.`;
+  }
+
   /** Revisión central final — BUG: `currentRevisionNumber > 1` NO significa "corrección de
    *  resultado". El flujo de identidad incorrecta (Laboratorio §15.12,
    *  `resolve_identity_issue`/`admin_force_resolve_identity_issue` pre-validación) TAMBIÉN crea
@@ -400,6 +443,6 @@
     buildJugadorDirectory,
     canExtendSetDigits, computeValidNextDigits, isMatchDecided, isThirdSetVisible, resolveActiveSetIndex,
     validateMatchSets, validateMatchDraft, computeFormatChangeImpact, buildPlayedAtFromLocalFields,
-    buildCorrectionDiffLines, classifyPendingRevisionEvent,
+    buildCorrectionDiffLines, buildCorrectionHumanSummary, classifyPendingRevisionEvent,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h13" />
+<link rel="stylesheet" href="styles.css?v=04.11-h14" />
 </head>
 <body>
 
@@ -78,6 +78,16 @@
           <!-- Ronda correctiva (revisión central) — §G "qué cambió", caso PRE-VALIDACIÓN. -->
           <ul class="b6-correction-diff" id="b6-status-banner-diff" hidden></ul>
         </div>
+        <!-- Handoff cierre UX h13 (§10 "Historial — Necesita revisión y carga no sincronizada",
+             plan §P0-F) — acción contextual para un borrador de outbox: "Reintentar" (sync_pending,
+             reusa retryOneOutboxEntry con la MISMA submissionId) o "Elegir partido" (necesita_revision
+             por ambigüedad, reabre el modal vigente #ambiguous-match-overlay). Comparte el banner
+             de arriba (#b6-status-banner) para el texto explicativo — nunca un segundo banner.
+             "Corregir carga"/"Descartar carga" ya existen al pie del Resumen
+             (#analysis-edit-btn/#analysis-delete-btn, sin cambios) — ver paintB6Actions en app.js. -->
+        <div class="b6-action-block" id="b6-outbox-action-block" hidden>
+          <button type="button" class="btn-start" id="b6-outbox-action-btn" style="width:100%"></button>
+        </div>
         <div class="b6-action-block b6-action-block--identity" id="b6-identity-block" hidden>
           <div id="b6-identity-list"></div>
         </div>
@@ -99,12 +109,18 @@
           <div class="b6-correction-compare">
             <p class="b6-correction-compare__label b6-correction-compare__label--proposed" id="b6-respond-proposed-label">Corrección propuesta</p>
             <div id="b6-respond-proposed-card"></div>
+            <!-- Handoff cierre UX h13 (§4 "Explicación humana del cambio") — REEMPLAZA el delta
+                 técnico como lectura principal por una frase real (ML.buildCorrectionHumanSummary,
+                 misma comparación estructural que ya usaba el diff, solo redactada distinto) —
+                 el diff técnico de abajo (#b6-respond-correction-diff) queda como trazabilidad
+                 secundaria, nunca como la explicación. -->
+            <p class="b6-correction-summary" id="b6-respond-correction-summary"></p>
           </div>
           <!-- Ronda correctiva (revisión central) — §G "qué cambió", caso POST-VALIDACIÓN. -->
           <ul class="b6-correction-diff" id="b6-respond-correction-diff" hidden></ul>
           <div class="b6-action-row" id="b6-respond-action-row">
-            <button type="button" class="btn-start" id="b6-respond-accept-btn" style="flex:1">ACEPTAR CORRECCIÓN</button>
-            <button type="button" class="btn-secondary" id="b6-respond-reject-btn" style="flex:1">RECHAZAR</button>
+            <button type="button" class="btn-start b6-action-row__btn" id="b6-respond-accept-btn">ACEPTAR CORRECCIÓN</button>
+            <button type="button" class="btn-secondary b6-action-row__btn" id="b6-respond-reject-btn">RECHAZAR</button>
           </div>
         </div>
         <div class="b6-action-block" id="b6-confirm-block" hidden>
@@ -268,6 +284,23 @@
     </div>
     <div class="court-scroll load-match-scroll" id="manual-load-scroll">
 
+      <!-- Handoff cierre UX h13 (§9 "Cargar partido — metadata arriba de los equipos") — REEMPLAZA
+           el orden de "Segunda corrección QA 26SEP §6" (formato/fecha DESPUÉS de los equipos):
+           QA físico h13 confirmó que debía quedar ANTES — la metadata (formato/sets/sistema/
+           fecha/hora) se define primero, los equipos después. Mismo bloque exacto, mismos
+           handlers (openManualFormatSheet/openManualMetaSheet), solo se mueve de lugar — no se
+           duplica metadata en ningún otro punto de la pantalla. -->
+      <div class="court-meta-compact">
+        <button type="button" id="load-format-line" class="load-format-line">
+          <span id="load-format-line-text">Clásico · Mejor de 3 · Punto de Oro</span>
+          <span class="load-format-line__chevron" aria-hidden="true">›</span>
+        </button>
+        <button type="button" id="manual-meta-line" class="court-meta-line">
+          <span class="court-meta-line__text" id="manual-meta-line-text">Ahora · Hoy</span>
+          <span class="court-meta-line__action">Modificar</span>
+        </button>
+      </div>
+
       <!-- V02.2 (Bloque C, §7) — tarjetas de equipo compactas, mismo lenguaje visual que la
            composición de equipos ya validada en la configuración en vivo (.team-block): borde
            general neutro + acento LATERAL de color (nunca solo una línea inferior), separador
@@ -296,24 +329,6 @@
             </button>
           </div>
         </div>
-      </div>
-
-      <!-- Segunda corrección QA 26SEP (§6) — formato/puntuación y fecha/hora/lugar pasan a un
-           área compacta ÚNICA, inmediatamente después de los equipos y SIEMPRE antes del primer
-           set (antes vivían después del marcador, lejos de donde el ojo arranca la carga y
-           mezclados visualmente con el resultado). Formato a la izquierda, fecha/hora a la
-           derecha si entra en el ancho — en iPhone angosto, `.court-meta-compact` los apila en
-           dos líneas (wrap limpio, nunca solapados). Cada botón sigue abriendo su misma hoja de
-           edición vigente (openManualFormatSheet/openManualMetaSheet, sin cambios de lógica). -->
-      <div class="court-meta-compact">
-        <button type="button" id="load-format-line" class="load-format-line">
-          <span id="load-format-line-text">Clásico · Mejor de 3 · Punto de Oro</span>
-          <span class="load-format-line__chevron" aria-hidden="true">›</span>
-        </button>
-        <button type="button" id="manual-meta-line" class="court-meta-line">
-          <span class="court-meta-line__text" id="manual-meta-line-text">Ahora · Hoy</span>
-          <span class="court-meta-line__action">Modificar</span>
-        </button>
       </div>
 
       <!-- §6.2 — marcador acumulado: solo sets ya CONFIRMADOS (con CONTINUAR). Vacío al
@@ -1446,23 +1461,28 @@
 
       <!-- BRAMUlab_V03.3 (§8) — JUGADORES: lista de agregados, mismo componente de fila único
            de §6 (ver buildPlayerRowHTML en app.js) que Buscar Jugadores/Elegir compañero-rival.
-           Estado vacío reutiliza el patrón ya existente de Historial (`.history-empty`).
            Microparche V03.3.3 — buscador PROPIO de esta lista (nunca el universo completo de
-           Buscar Jugadores): filtra solo entre los jugadores YA agregados, para poder
-           encontrar a alguien puntual el día que la lista crezca. Solo visible si hay al menos
-           un jugador agregado (nada que buscar todavía = sin buscador, mismo criterio que el
-           resto de la app). -->
+           Buscar Jugadores en el camino local/legacy, ver renderJugadoresList): filtra solo
+           entre los jugadores YA agregados. El camino server-backed de abajo (h13) amplió esto
+           a también buscar el universo global — ver el comentario siguiente. -->
+      <!-- Handoff cierre UX h13 (§8 "Mi Perfil → Jugadores", plan §P1-H) — REEMPLAZA el patrón
+           "pantalla vacía + botón BUSCAR JUGADORES que lleva a otra pantalla": el buscador vive
+           SIEMPRE visible arriba (nunca oculto por `hasAny`), la lista de agregados abajo, y
+           desde ese MISMO campo se puede buscar globalmente y agregar sin salir de acá — ver
+           renderJugadoresTabServerBacked/renderJugadoresListServerBacked en app.js. El camino
+           local/legacy (sin backend) sigue con el patrón anterior, sin cambios (renderJugadoresTab). -->
       <div id="profile-panel-jugadores" class="profile-panel" hidden>
-        <div class="player-search-field" id="jugadores-search-wrap" hidden>
+        <div class="player-search-field" id="jugadores-search-wrap">
           <svg class="player-search-field__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="jugadores-search-input" class="player-search-field__input" type="text" placeholder="Buscar en tus jugadores…" maxlength="40" autocomplete="off" />
         </div>
         <div id="jugadores-list" class="player-row-list"></div>
-        <p class="load-player-sheet__empty" id="jugadores-search-empty" hidden>Sin coincidencias.</p>
-        <div id="jugadores-empty" class="history-empty" hidden>
-          <p class="coverage-note">Todavía no agregaste jugadores.</p>
-          <button type="button" id="jugadores-empty-action" class="btn-mini">BUSCAR JUGADORES</button>
+        <p class="coverage-note" id="jugadores-empty-hint" hidden>Todavía no agregaste jugadores. Buscá arriba para encontrar y agregar uno.</p>
+        <div id="jugadores-global-section" hidden>
+          <div class="load-player-sheet__section-label">Resultados</div>
+          <div id="jugadores-global-list" class="player-row-list"></div>
         </div>
+        <p class="load-player-sheet__empty" id="jugadores-search-empty" hidden>Sin coincidencias.</p>
       </div>
     </div>
   </section>
@@ -2772,47 +2792,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h13"></script>
-  <script src="stats.js?v=04.11-h13"></script>
-  <script src="store.js?v=04.11-h13"></script>
+  <script src="engine.js?v=04.11-h14"></script>
+  <script src="stats.js?v=04.11-h14"></script>
+  <script src="store.js?v=04.11-h14"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h13"></script>
-  <script src="level-context.js?v=04.11-h13"></script>
-  <script src="level-calibration.js?v=04.11-h13"></script>
-  <script src="player-home.js?v=04.11-h13"></script>
-  <script src="match-load.js?v=04.11-h13"></script>
-  <script src="player-identity.js?v=04.11-h13"></script>
-  <script src="groups.js?v=04.11-h13"></script>
-  <script src="locations.js?v=04.11-h13"></script>
-  <script src="ranking.js?v=04.11-h13"></script>
+  <script src="level.js?v=04.11-h14"></script>
+  <script src="level-context.js?v=04.11-h14"></script>
+  <script src="level-calibration.js?v=04.11-h14"></script>
+  <script src="player-home.js?v=04.11-h14"></script>
+  <script src="match-load.js?v=04.11-h14"></script>
+  <script src="player-identity.js?v=04.11-h14"></script>
+  <script src="groups.js?v=04.11-h14"></script>
+  <script src="locations.js?v=04.11-h14"></script>
+  <script src="ranking.js?v=04.11-h14"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h13"></script>
+  <script src="auth.js?v=04.11-h14"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h13"></script>
-  <script src="match-sync.js?v=04.11-h13"></script>
+  <script src="matches.js?v=04.11-h14"></script>
+  <script src="match-sync.js?v=04.11-h14"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h13"></script>
+  <script src="match-validation.js?v=04.11-h14"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h13"></script>
+  <script src="match-self-heal.js?v=04.11-h14"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h13"></script>
-  <script src="app.js?v=04.11-h13"></script>
+  <script src="intelligence-client.js?v=04.11-h14"></script>
+  <script src="app.js?v=04.11-h14"></script>
 </body>
 </html>
