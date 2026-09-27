@@ -2117,3 +2117,126 @@ Durante el resto del recorrido físico, solo comprobar si aparece naturalmente q
 - no exista una acción pendiente falsa.
 
 El resto del checklist continúa desde donde quedó, tomando `04.11-h11` como nueva baseline.
+
+
+### 15.31 — Retorno h11: barra de Nivel, Resumen/Reportar error e inconsistencia de identidad — 27/09/2026
+
+Baseline física: BRAMUlab V04.11 / bundle `04.11-h11`.
+
+#### Home — barra visual debajo del Nivel
+
+**CORRECCIÓN DE INTERPRETACIÓN respecto de §15.29.**
+
+La barra que Sebastián pide recuperar NO debe interpretarse como “progreso lineal de 5.9 hacia 6.0”.
+
+Su función visual previa era acompañar el Nivel y comunicar evolución reciente, incluyendo si el Nivel venía subiendo o bajando (por ejemplo delta reciente), como parte estable de la identidad visual del bloque.
+
+**PRODUCTO / UX — CONFIRMADO: RECUPERAR.**
+
+Dirección:
+- recuperar la barra debajo del Nivel en estado calibrado;
+- no presentarla como XP ni porcentaje restante hasta el siguiente decimal;
+- conservar el indicador/delta reciente cuando exista dato real para mostrarlo;
+- si no existe evidencia suficiente para un delta reciente, no fabricar una lectura.
+
+#### Home — padding de Último partido
+
+Sebastián verificó visualmente/CSS que los módulos comparables usan 16 px y `Último partido` usa aproximadamente 22/20.
+
+**UX / VISUAL — CONFIRMADO.**
+
+Dirección:
+- unificar `Último partido` al padding base de 16 px del resto del sistema, salvo que una restricción técnica concreta lo impida.
+
+#### Resumen del partido — grilla de nombres / sets / divisores
+
+En h11 la composición del resultado sigue rota visualmente:
+- el renglón inferior de la pareja no queda centrado correctamente;
+- la separación entre nombres, cajas de sets y `result-card__divider` genera una lectura visual confusa;
+- en iPhone se percibe peor que en desktop.
+
+**UX / VISUAL — CONFIRMADO.**
+
+Dirección:
+- revisar la estructura de la grilla, no solo márgenes aislados;
+- alinear verticalmente cada pareja con sus boxes de sets;
+- separar claramente divisor de fila y divisor de bloque estadístico;
+- conservar nombres de parejas y resultado como una única unidad legible.
+
+#### Reportar un error — jerarquía
+
+El CTA `REPORTAR UN ERROR` en mayúsculas resulta demasiado pesado.
+
+**UX / VISUAL — PROPUESTA CONFIRMADA PARA IMPLEMENTAR.**
+
+Dirección:
+- copy en caja normal: `Reportar un error`;
+- tratamiento secundario/destructivo suave, preferentemente borde/texto rojo;
+- no competir visualmente con acciones positivas principales.
+
+La hoja `¿QUÉ ESTÁ MAL?` con `El resultado` y `Un participante` se percibe demasiado comprimida por encerrar cada opción en una tarjeta completa.
+
+Dirección:
+- probar opciones más livianas, con separación/divisor simple y suficiente área táctil;
+- mantener claridad de título + subtítulo sin convertir cada alternativa en una tarjeta pesada.
+
+#### Corrección de resultado
+
+**PASS PARCIAL.**
+La nueva hoja se entiende mejor que la versión anterior:
+- nombres de las dos parejas visibles;
+- color de equipo consistente;
+- sets visibles como unidades.
+
+Todavía requiere terminar de validar la interacción real de edición/aceptación cuando exista una corrección adecuada.
+
+#### Identidad cuestionada — copy y continuidad del flujo
+
+El copy actual `¿Confirmás que no participó?` / `Sí, no participó` resulta lingüísticamente extraño.
+
+**UX / COPY — CONFIRMADO.**
+
+Dirección conceptual:
+- formular la confirmación alrededor de la identidad concreta, por ejemplo `¿Estás seguro de que no fue Lucho?`;
+- botones simples y no ambiguos.
+
+Después de confirmar una identidad incorrecta, hoy se muestra `Identidad cuestionada` y el usuario debe volver a entrar a `Resolver`.
+
+**UX / PRODUCTO — CONFIRMADO.**
+
+Dirección:
+- si quien reporta ya sabe quién jugó realmente, ofrecer inmediatamente el siguiente paso `¿Sabés quién jugó?` / búsqueda de reemplazo dentro del mismo flujo;
+- mantener opción de dejar el slot `Por identificar` si no lo sabe;
+- no obligar a cerrar y reabrir el partido solo para continuar una corrección que acaba de iniciar.
+
+La búsqueda de reemplazo debe reutilizar el mismo patrón visual de búsqueda global y mostrar siempre:
+- avatar/foto si existe;
+- nombre visible;
+- `@usuario`;
+- Nivel BRAMU vigente.
+
+También debería mostrar `Recientes` cuando haya jugadores con relación/contexto útil y datos reales.
+
+#### BUG DE IDENTIDAD / FUENTE DE DATOS — mismo jugador cambia según la ruta
+
+Durante h11 se observó un caso materialmente más grave que un simple detalle visual.
+
+El mismo jugador `Matu` se representa de forma distinta según desde dónde se abra:
+- en `Buscar jugadores`: foto real, `@matu_qa`, Nivel 5.9 y perfil estadístico completo;
+- en el selector de reemplazo de identidad: nombre + `@matu_qa`, pero sin avatar ni Nivel;
+- en `Compañeros`: inicial `M` en vez de foto;
+- al abrir a Matu desde `Compañeros`: aparece otro perfil, con `@matu`, Nivel 6.3 y datos personales vacíos;
+- al abrirlo desde `Buscar jugadores`: aparece `@matu_qa`, Nivel 5.9, avatar y estadísticas correctas.
+
+**CLASIFICACIÓN: BUG / IDENTIDAD — PRIORIDAD ALTA.**
+
+Esto no debe tratarse como polish. Un mismo jugador no puede resolver a identidades/perfiles distintos según la superficie de entrada.
+
+Requerimiento:
+- identificar si algunas superficies están resolviendo por nombre/fixture/local cache/legacy id en vez de `player_id` real;
+- unificar todas las superficies sobre la misma identidad canónica;
+- avatar, `@usuario`, Nivel y estadísticas deben provenir del mismo jugador real;
+- NO hacer matching por nombre libre;
+- no continuar diseñando encima de esta inconsistencia como si fuera solamente un problema de componente.
+
+Por tratarse de identidad/datos, este punto sí amerita intervención técnica durante el Laboratorio antes de seguir cerrando visualmente esas superficies.
