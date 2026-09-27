@@ -9,8 +9,11 @@
 -- verify-bloque6-public-match-outcomes.sql/verify-preprod-fix-officialize-precision-lock.sql.
 --
 -- Corregido tras revisión central (handoff 28, 27/09/2026): firma de admin_delete_player_account
--- sin p_admin_note; nuevo Caso 7 prueba la presentación anónima de Ranking (get_ranking_
+-- sin p_admin_note; Caso 7 prueba la presentación anónima de Ranking (get_ranking_
 -- classification/get_my_ranking_position reales) sin tocar ranking_rows.
+-- Hardening final (handoff 30, 27/09/2026): nuevo Caso 8 prueba
+-- admin_finalize_player_account_deletion (purga authUserId de pilot_events.properties tras
+-- confirmar Auth cerrado, idempotente, rechaza jugador no eliminado/inexistente, permisos).
 --
 -- Cubre los 10 riesgos del handoff 26 §5 + los del handoff 28 §7:
 --   1) usuario eliminado no vuelve a autenticarse -> FUERA DE ALCANCE de este verify (depende
@@ -514,6 +517,79 @@ begin
     where edition_id = v_edition_id and player_id = v_a and position = 2 and level_public = 6.0 and is_eligible
   ) then
     raise exception 'CASO_7_FAILED_ranking_rows_de_A_no_deberia_haberse_modificado';
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------
+-- Caso 8 — hardening final (handoff 30 §2.A/§3.3/§3.8): admin_finalize_player_account_deletion
+-- purga pilot_events.properties.authUserId, es idempotente, rechaza un jugador no eliminado o
+-- inexistente, y solo service_role puede ejecutarla.
+-- ------------------------------------------------------------------
+
+do $$
+declare
+  v_a uuid := (select v from _p03_state where k = 'a');
+  v_b uuid := (select v from _p03_state where k = 'b');
+  v_result jsonb;
+begin
+  -- Antes de finalizar, la clave sigue presente (dejado por el Caso 3) — confirma que hay algo
+  -- real que purgar, no que "ya estaba vacío desde siempre".
+  if not exists (
+    select 1 from public.pilot_events
+    where event_name = 'account_deleted' and player_id = v_a and properties ? 'authUserId'
+  ) then
+    raise exception 'CASO_8_FAILED_precondicion_authUserId_deberia_seguir_presente_antes_de_finalizar';
+  end if;
+
+  v_result := public.admin_finalize_player_account_deletion(v_a);
+  if not coalesce(v_result->>'ok', 'false')::boolean then
+    raise exception 'CASO_8_FAILED_admin_finalize_player_account_deletion: %', v_result;
+  end if;
+
+  if exists (
+    select 1 from public.pilot_events
+    where event_name = 'account_deleted' and player_id = v_a and properties ? 'authUserId'
+  ) then
+    raise exception 'CASO_8_FAILED_authUserId_no_se_purgo_de_la_auditoria';
+  end if;
+  -- La fila de auditoría en sí SIGUE existiendo (event_name/player_id se conservan) — solo se
+  -- purgó la clave operativa, nunca se borró la evidencia mínima de que la eliminación ocurrió.
+  if not exists (select 1 from public.pilot_events where event_name = 'account_deleted' and player_id = v_a) then
+    raise exception 'CASO_8_FAILED_la_fila_de_auditoria_no_deberia_desaparecer_solo_la_clave';
+  end if;
+
+  -- Idempotencia: reintentar la finalización es un no-op seguro (ya no hay nada que purgar).
+  v_result := public.admin_finalize_player_account_deletion(v_a);
+  if not coalesce(v_result->>'ok', 'false')::boolean then
+    raise exception 'CASO_8_FAILED_finalizar_dos_veces_deberia_seguir_devolviendo_ok_true: %', v_result;
+  end if;
+
+  -- Un jugador que NUNCA pasó por admin_delete_player_account (B sigue activo) no puede
+  -- "finalizarse" — código de negocio explícito, nunca un no-op silencioso sobre datos vivos.
+  v_result := public.admin_finalize_player_account_deletion(v_b);
+  if v_result->>'code' <> 'not_yet_deleted' then
+    raise exception 'CASO_8_FAILED_esperaba_not_yet_deleted_para_un_jugador_no_eliminado: %', v_result;
+  end if;
+
+  v_result := public.admin_finalize_player_account_deletion(gen_random_uuid());
+  if v_result->>'code' <> 'player_not_found' then
+    raise exception 'CASO_8_FAILED_esperaba_player_not_found: %', v_result;
+  end if;
+end $$;
+
+do $$
+begin
+  if has_function_privilege('anon', 'public.admin_finalize_player_account_deletion(uuid)', 'EXECUTE') then
+    raise exception 'CASO_8_FAILED_anon_no_deberia_poder_ejecutar_admin_finalize_player_account_deletion';
+  end if;
+  if has_function_privilege('authenticated', 'public.admin_finalize_player_account_deletion(uuid)', 'EXECUTE') then
+    raise exception 'CASO_8_FAILED_authenticated_no_deberia_poder_ejecutar_admin_finalize_player_account_deletion';
+  end if;
+  if has_function_privilege('public', 'public.admin_finalize_player_account_deletion(uuid)', 'EXECUTE') then
+    raise exception 'CASO_8_FAILED_public_no_deberia_poder_ejecutar_admin_finalize_player_account_deletion';
+  end if;
+  if not has_function_privilege('service_role', 'public.admin_finalize_player_account_deletion(uuid)', 'EXECUTE') then
+    raise exception 'CASO_8_FAILED_service_role_deberia_poder_ejecutar_admin_finalize_player_account_deletion';
   end if;
 end $$;
 

@@ -277,3 +277,61 @@ revoke all on function public.admin_delete_player_account(uuid) from public;
 revoke all on function public.admin_delete_player_account(uuid) from anon;
 revoke all on function public.admin_delete_player_account(uuid) from authenticated;
 grant execute on function public.admin_delete_player_account(uuid) to service_role;
+
+-- ------------------------------------------------------------------
+-- 4) admin_finalize_player_account_deletion — hardening final (handoff 30 §2.A, 27/09/2026).
+--
+-- `pilot_events.properties.authUserId` es un dato OPERATIVO mínimo, necesario ÚNICAMENTE
+-- mientras el procedimiento sigue incompleto (para que el orquestador pueda recuperar las
+-- Fases 2/3 de Auth ante un fallo parcial, ver Corrección A de la migración anterior). Una vez
+-- confirmado que la cuenta Auth ya no existe, ya no corresponde conservarlo indefinidamente: es
+-- un identificador técnico de la identidad eliminada, y P0.3 ya decidió minimizar/eliminar
+-- identificadores personales. Esta función lo purga — el orquestador
+-- (supabase/scripts/admin-delete-player-account.mjs) la llama SOLO después de verificar con el
+-- Auth Admin API (`getUserById`) que la cuenta ya no existe, nunca antes.
+--
+-- SOLO service_role. Idempotente: si `properties` ya no tiene la clave `authUserId` (ya se
+-- purgó, o nunca la tuvo), el operador jsonb `-` es un no-op — no falla, no duplica nada. Si el
+-- jugador no existe o todavía no pasó por `admin_delete_player_account` (`deleted_at is null`),
+-- devuelve un código de negocio sin tocar nada. Conserva `event_name='account_deleted'` +
+-- `player_id` (estructura de auditoría mínima, nunca PII por nombre) — nunca reemplaza el
+-- identificador purgado por email/hash/HMAC ni ningún otro identificador persistente nuevo.
+-- ------------------------------------------------------------------
+
+create or replace function public.admin_finalize_player_account_deletion(p_player_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_player public.players;
+begin
+  select * into v_player from public.players where player_id = p_player_id for update;
+
+  if v_player is null then
+    return jsonb_build_object('ok', false, 'code', 'player_not_found');
+  end if;
+  if v_player.deleted_at is null then
+    return jsonb_build_object('ok', false, 'code', 'not_yet_deleted');
+  end if;
+
+  update public.pilot_events
+    set properties = properties - 'authUserId'
+    where event_name = 'account_deleted' and player_id = p_player_id;
+
+  return jsonb_build_object('ok', true, 'playerId', p_player_id);
+end;
+$$;
+
+comment on function public.admin_finalize_player_account_deletion is
+  'P0.3 hardening final (handoff 30 §2.A, 27/09/2026) — purga pilot_events.properties.authUserId
+   una vez que el orquestador confirmó vía Auth Admin API que la cuenta ya no existe. SOLO
+   service_role. Idempotente (jsonb - clave es no-op si ya no está). Nunca reemplaza el
+   identificador purgado por otro dato identificatorio — conserva únicamente event_name/
+   player_id/timestamps, la estructura mínima de auditoría que P0.3 ya decidió preservar.';
+
+revoke all on function public.admin_finalize_player_account_deletion(uuid) from public;
+revoke all on function public.admin_finalize_player_account_deletion(uuid) from anon;
+revoke all on function public.admin_finalize_player_account_deletion(uuid) from authenticated;
+grant execute on function public.admin_finalize_player_account_deletion(uuid) to service_role;
