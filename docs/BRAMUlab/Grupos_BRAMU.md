@@ -66,6 +66,22 @@ Un partido cuenta automáticamente para un grupo cuando:
 2. tiene fecha efectiva válida;
 3. al menos **3 de sus 4 jugadores** eran miembros activos del grupo en la fecha del partido.
 
+### Grupo todavía no competitivo
+
+**Un grupo puede existir con 1 o 2 miembros.** No bloquear su creación.
+
+Mientras tenga menos de 3 miembros activos:
+- el grupo puede abrirse, renombrarse y administrarse;
+- puede tener más de un admin;
+- puede agregar/quitar miembros;
+- **ningún partido suma puntos todavía**, porque es imposible cumplir la regla 3/4.
+
+La UX debe explicarlo en positivo, por ejemplo:
+
+**Necesitás al menos 3 jugadores en el grupo para empezar a sumar puntos.**
+
+Evitar presentar esto como error o impedir crear el grupo. Al llegar a 3 miembros activos, el grupo queda competitivo automáticamente, sin configuración adicional.
+
 No existe selector manual de “sumar a este grupo”.
 
 En Production/Staging server-backed, Grupos debe reutilizar la verdad oficial del partido. No debe crear una segunda validación paralela ni tomar un partido pendiente como resultado definitivo.
@@ -195,6 +211,16 @@ Reglas:
 ---
 
 # 10. Dirección UX — principio general
+
+### DECISIÓN ABIERTA — entrada a “Mis grupos”
+
+Antes de implementar la siguiente ronda visual, definir si la entrada a **Mis grupos** sigue abriendo directamente un grupo activo o evoluciona a una pantalla inicial propia donde:
+- se muestren los grupos del usuario como destinos;
+- el usuario elija a qué grupo entrar;
+- pueda existir una lectura breve y útil de cómo viene cada grupo, solo si surge de datos reales;
+- desde ahí también se pueda crear un grupo.
+
+Esta idea **no está aprobada todavía** y debe resolverse en la ronda de producto/UX de Grupos antes de B2. No implementarla por anticipación.
 
 La estructura actual de Grupos ya está bien resuelta y **no se rediseña de forma general**.
 
