@@ -176,7 +176,7 @@ La ronda no se cierra solo porque el formulario permita tocar campos. Debe verif
 
 ## P0.2 — Reemplazar el placeholder legal por documentos reales
 
-**Estado P0.2 al 28/09/2026:** **decisiones humanas de producto CERRADAS; frente legal todavía ABIERTO** por revisión jurídica profesional + implementación/verificación técnica.
+**Estado P0.2 al 28/09/2026:** **decisiones humanas de producto CERRADAS; sin revisión jurídica externa obligatoria.** P0.2 permanece abierto únicamente por redacción final, verificación interna contra fuentes oficiales/datos reales e implementación/QA.
 
 Fuente maestra vigente:
 
@@ -188,19 +188,17 @@ La consolidación final de producto confirmó, entre otras cosas:
 - acceso abierto sin geobloqueo a usuarios de otros países;
 - sin promoción deliberada dirigida a mercados extranjeros durante V1;
 - no quedan decisiones humanas relevantes abiertas del taller de producto;
-- la política de menores, identificación pública del responsable, AAIP, retención, transferencias internacionales y redacción jurídica final **requieren revisión profesional antes de cerrar P0.2 / abrir Production**.
+- menores, identificación pública del responsable, AAIP, retención, transferencias internacionales y redacción final deben verificarse internamente contra fuentes oficiales vigentes y los datos reales de infraestructura antes de cerrar P0.2.
 
 ### Corrección de estado anterior
 
-Quedan **superadas** las menciones previas que trataban:
-- una edad mínima 13+ como decisión cerrada;
-- la revisión jurídica externa como opcional/no bloqueante.
+Queda **superada** la mención previa de una edad mínima 13+ como decisión cerrada.
 
-La decisión de producto vigente es **no imponer por anticipado una edad mínima ni flujo parental especial**, pero esto **no es una conclusión jurídica**: debe validarlo un profesional y, si existe una obligación concreta por edad, se implementará el ajuste mínimo necesario antes de Production.
+La decisión de producto vigente es **no imponer por anticipado una edad mínima ni flujo parental especial**. Esto no equivale a una certificación jurídica: Central debe contrastarlo contra fuentes oficiales vigentes antes de Production y, solo si aparece una obligación concreta incompatible, implementar el ajuste mínimo necesario. **No hay revisión externa obligatoria como gate.**
 
 ### Datos identificatorios del responsable
 
-Los datos privados necesarios para revisión/trámites ya fueron definidos en la fuente privada del taller. **No copiarlos a este repositorio público.** El profesional debe determinar qué corresponde publicar en Términos/Privacidad y qué debe quedar únicamente en registros o trámites.
+Los datos privados necesarios para revisión/trámites ya fueron definidos en la fuente privada del taller. **No copiarlos a este repositorio público.** Antes de publicar, Central debe determinar con fuentes oficiales qué corresponde exponer en Términos/Privacidad y qué debe quedar únicamente en registros o trámites.
 
 ### Implementación pendiente
 
@@ -217,7 +215,7 @@ El frontend vigente todavía conserva el placeholder legal / versionado piloto. 
 - inventario real de proveedores/regiones/backups/logs/retención/transferencias;
 - requisitos públicos de eliminación/privacidad para futura publicación móvil.
 
-No redactar ni publicar texto jurídico definitivo como si ya estuviera profesionalmente validado.
+No presentar los textos como una certificación jurídica externa. Deben reflejar las decisiones cerradas, los datos reales y las fuentes oficiales vigentes.
 
 
 ---
