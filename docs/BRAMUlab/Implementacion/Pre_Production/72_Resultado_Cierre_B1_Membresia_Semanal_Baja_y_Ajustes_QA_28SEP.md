@@ -62,3 +62,28 @@ Central revisó el commit funcional `50230eb45863471757490071ea596fd121d705de` a
 - Advisors de Supabase revisados después del DDL: los avisos de Grupos son los ya esperados por el diseño server-only/RPC (RLS sin policies directas y SECURITY DEFINER autenticadas); no apareció un bloqueo nuevo atribuible a este hotfix.
 
 **Estado:** técnicamente listo para retest focal real. B1 sigue sin declararse cerrado hasta comprobar en navegador los casos afectados y C1-C4.
+
+
+## Retest real — actividad visible vs top 3
+
+PASS confirmados:
+- miembro eliminado desaparece en ambos dispositivos;
+- reingreso/alta vuelve a propagarse entre cuentas;
+- alta dentro de la semana trae correctamente puntos de esa misma semana;
+- Semana pasada queda vacía para un grupo creado esta semana, sin retroactividad a semanas previas.
+
+Nuevo ajuste de UX/lógica de presentación detectado:
+- la fila semanal mostraba `3 partidos · 3 V · 0 D` porque reutilizaba el subconjunto top 3 que computa puntos;
+- esto puede aparentar que un jugador está invicto cuando en realidad disputó y perdió más partidos.
+
+Comprobación sobre datos reales de Staging del grupo QA:
+- Seba: 10 partidos calificables, 6 V, 4 D;
+- Esteban: 10 partidos calificables, 4 V, 6 D.
+
+Decisión de producto:
+- **PUNTOS:** siguen saliendo únicamente de los 3 mejores partidos puntuables por semana;
+- **ACTIVIDAD VISIBLE:** debe mostrar todos los partidos calificables reales de la semana y su V/D real;
+- mismo principio para la línea secundaria de Race anual: puntos = suma semanal efectiva; actividad = partidos/V/D reales acumulados del período visible;
+- no cambia fórmula de puntos, 3/4, bonus, Nivel ni Ranking.
+
+B1 no se declara cerrado hasta aplicar este ajuste de presentación y completar el retest visual pendiente C1-C4.
