@@ -9815,7 +9815,11 @@
     }
     const fullHistory = server ? groupsServer.competition.get(group.id) : getComputableHistory();
     const now = new Date();
-    const weekStart = PH.startOfWeekMonday(now);
+    // B2a (handoff 77) — Grupos usa SIEMPRE la frontera semanal canónica de Buenos Aires
+    // (Grupos_BRAMU.md "Zona horaria canónica V1"), nunca el huso local del dispositivo —
+    // a diferencia de Actividad del Home (PH.startOfWeekMonday), que sí es intencionalmente
+    // local y queda fuera de este cambio.
+    const weekStart = PG.weekStartBA(now);
     const prevWeekStart = new Date(weekStart.getTime() - PG.WEEK_MS);
     const prevPrevWeekStart = new Date(prevWeekStart.getTime() - PG.WEEK_MS);
     const year = now.getFullYear();

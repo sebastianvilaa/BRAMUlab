@@ -71,19 +71,51 @@
     return ((group && group.members) || []).filter((m) => isMemberActiveAt(m, iso));
   }
 
-  /** Cierre B1 (handoff 71 §A, 28/09/2026) — PISO SEMANAL de un alta/reingreso: para el CÓMPUTO
-   *  DEPORTIVO de Grupos (qué partidos cuentan), la pertenencia de un período nuevo vale desde el
-   *  lunes 00:00 (hora local, `PH.startOfWeekMonday`) de la semana en que ocurrió `joinedAt` —
-   *  nunca desde una semana anterior, nunca solo desde el instante exacto. Ejemplo real QA:
+  /** B2a — microfix frontera semanal (handoff 77, 28/09/2026) — DECISIÓN DE PRODUCTO CERRADA
+   *  (`Grupos_BRAMU.md` §"Zona horaria canónica V1"): Grupos BRAMU V1 usa SIEMPRE
+   *  `America/Argentina/Buenos_Aires` (lunes 00:00 → domingo 23:59:59.999 de Buenos Aires) para
+   *  toda frontera semanal — Semana actual/pasada, piso de alta/reingreso, calificación 3/4 y
+   *  actividad del lobby — nunca el huso horario del dispositivo (a diferencia de
+   *  `PH.startOfWeekMonday`, usado por Actividad/Ranking/Home, que SÍ es intencionalmente local
+   *  a cada dispositivo y queda fuera de este cambio: es un producto distinto). Backend usa el
+   *  mismo criterio vía `_groups_week_start_ba` (SQL, migración B2a) — ambos deben coincidir
+   *  siempre, ver groups-b2a-frontera-semanal-ba.test.mjs.
+   *
+   *  Argentina no tiene horario de verano desde 2009 (America/Argentina/Buenos_Aires es UTC-3
+   *  fijo todo el año) — por eso alcanza con restar 3h fijas en vez de necesitar una librería de
+   *  zonas horarias completa; es matemáticamente equivalente a `AT TIME ZONE
+   *  'America/Argentina/Buenos_Aires'` en Postgres para cualquier fecha real de esta app. Si
+   *  Argentina alguna vez reintrodujera DST, este atajo dejaría de ser válido y habría que
+   *  reemplazarlo por una conversión de zona horaria real. */
+  const BA_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+  /** Lunes 00:00:00.000 de Buenos Aires de la semana que contiene `input` (string ISO o Date) —
+   *  SIEMPRE el mismo instante real sin importar el huso del dispositivo que lo calcula.
+   *  `null` si `input` no es una fecha válida. */
+  function weekStartBA(input) {
+    const t = new Date(input).getTime();
+    if (Number.isNaN(t)) return null;
+    // Se calcula sobre los componentes UTC del instante ya desplazado -3h — nunca sobre
+    // getDay()/getFullYear() "locales" del runtime, que dependen del huso del dispositivo.
+    const shifted = new Date(t - BA_UTC_OFFSET_MS);
+    const day = shifted.getUTCDay(); // 0=domingo..6=sábado
+    const back = day === 0 ? 6 : day - 1;
+    const mondayShiftedMs = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - back * 86400000;
+    return new Date(mondayShiftedMs + BA_UTC_OFFSET_MS);
+  }
+
+  /** Cierre B1 (handoff 71 §A) — PISO SEMANAL de un alta/reingreso: para el CÓMPUTO DEPORTIVO de
+   *  Grupos (qué partidos cuentan), la pertenencia de un período nuevo vale desde el lunes 00:00
+   *  de Buenos Aires (`weekStartBA`, ver arriba) de la semana en que ocurrió `joinedAt` — nunca
+   *  desde una semana anterior, nunca solo desde el instante exacto. Ejemplo real QA:
    *  Esteban+Matu vs Seba+Pablito ya era oficial y contaba 3/4 sin Pablito; al agregarse Pablito
    *  esa misma semana, el partido debe poder sumarle puntos A ÉL también aunque se jugó antes de
    *  su alta exacta. Se aplica SOLO al inicio de un período (`joinedAt`); `leftAt` sigue siendo
    *  el instante exacto — la baja no tiene piso semanal (regla B, más abajo). `null` si
    *  `joinedAt` es inválido. */
   function effectiveMembershipStartAt(joinedAtIso) {
-    const t = new Date(joinedAtIso).getTime();
-    if (Number.isNaN(t)) return null;
-    return PH.startOfWeekMonday(new Date(t)).getTime();
+    const start = weekStartBA(joinedAtIso);
+    return start === null ? null : start.getTime();
   }
 
   /** Como `isMemberActiveAt`, pero para USO DEPORTIVO (§A): aplica el piso semanal de arriba a
@@ -292,9 +324,9 @@
   const MAX_COUNTED_MATCHES_PER_WEEK = 3;
 
   /** Partidos de `fullHistory` que cuentan para `group` Y caen dentro de la semana que empieza
-   *  en `weekStart` (medianoche local del lunes, ver `PH.startOfWeekMonday`) — reutiliza esa
-   *  misma función en vez de reimplementar el criterio de "semana calendario" que ya usa
-   *  Actividad del Home (§4: "lunes 00:00 → domingo 23:59, según zona horaria local"). */
+   *  en `weekStart` — el llamador (app.js) debe construir ese límite con `PG.weekStartBA` (B2a,
+   *  handoff 77): Grupos usa SIEMPRE la frontera canónica de Buenos Aires, nunca el huso local
+   *  del dispositivo (a diferencia de Actividad del Home, que sí es intencionalmente local). */
   function computeMatchesForGroupInWeek(fullHistory, group, weekStart) {
     const weekEnd = new Date(weekStart.getTime() + WEEK_MS);
     return (fullHistory || []).filter((m) => {
@@ -427,8 +459,11 @@
       const t = new Date(played).getTime();
       return t >= yearStart.getTime() && t < yearEnd.getTime();
     });
+    // B2a — misma frontera BA que `effectiveMembershipStartAt` (nunca `PH.startOfWeekMonday`
+    // local): si difirieran, un partido podría agruparse en una semana para "qué cuenta" y en
+    // otra distinta para el Race, produciendo totales inconsistentes.
     const weekStartsMs = Array.from(new Set(
-      matchesInYear.map((m) => PH.startOfWeekMonday(new Date(PH.getPlayedAt(m))).getTime())
+      matchesInYear.map((m) => weekStartBA(PH.getPlayedAt(m)).getTime())
     ));
     const totals = {};
     weekStartsMs.forEach((ms) => {
@@ -646,7 +681,7 @@
 
   global.PLGroups = {
     isMemberActiveAt, isMemberActiveNow, activeMembersAt, findActiveMemberForPlayerRow,
-    effectiveMembershipStartAt, isMemberDeportivamenteActiveAt,
+    weekStartBA, effectiveMembershipStartAt, isMemberDeportivamenteActiveAt,
     isMatchValidForGroups, countActiveMembersInMatch, doesMatchCountForGroup,
     setWinnerTeam, computeBonusRemontada, computeBonusVictoriaClara,
     computeSimulatedLevelBeforeMatch, computeBonusSorpresa,

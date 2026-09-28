@@ -16,6 +16,14 @@
 --  T6  alta de semana posterior no habilita   T14 caller ajeno no obtiene el grupo
 --  T7  2/4 no produce actividad deportiva     T15 (ver nota arriba) T-consistencia con Fase A
 --  T8  3/4 sí produce actividad
+--
+-- + microfix frontera semanal (handoff 77, 28/09/2026) — "T-borde", antes de Permisos:
+-- _groups_week_start_ba contra instantes conocidos (mismos que groups-b2a-frontera-semanal-
+-- ba.test.mjs del lado JS); domingo anterior a la semana del alta NO califica (el bug real que
+-- corrige este handoff: antes usaba el umbral amplio de 7 días como si fuera exacto); mismo
+-- lunes antes de la hora exacta del alta SÍ califica; alta domingo + partido lunes de esa misma
+-- semana SÍ califica; validated/correction_accepted sobre el partido no calificable no mueven
+-- lastActivityAt; correction_accepted sobre el partido sí calificable sí lo mueve.
 
 begin;
 
@@ -283,6 +291,96 @@ begin
   perform pg_temp._assert(fromLobby = fromDetail, 'T15 mismo partido, MISMO JSON en lobby y en get_group_competition_data (refactor sin fork): ' || fromLobby::text || ' vs ' || fromDetail::text);
 end $$;
 
+-- ---------- T-borde (handoff 77) — frontera semanal canónica de Buenos Aires ----------
+-- Instantes FIJOS (no relativos a now()) para que el test no dependa del día en que se corre.
+-- Referencia ya usada en groups-b2a-frontera-semanal-ba.test.mjs (frontend): el lunes 00:00 de
+-- Buenos Aires de la semana que empieza el 2026-09-21 es EXACTAMENTE 2026-09-21T03:00:00Z.
+
+-- _groups_week_start_ba en sí — debe coincidir con PLGroups.weekStartBA (mismos instantes).
+do $$
+begin
+  perform pg_temp._assert(public._groups_week_start_ba('2026-09-20T23:59:00Z'::timestamptz) = '2026-09-14T03:00:00Z'::timestamptz,
+    'week_start_ba: domingo 23:59 UTC (20:59 BA) -> lunes de la semana ANTERIOR');
+  perform pg_temp._assert(public._groups_week_start_ba('2026-09-21T02:59:00Z'::timestamptz) = '2026-09-14T03:00:00Z'::timestamptz,
+    'week_start_ba: lunes 02:59 UTC = domingo 23:59 BA -> TODAVÍA la semana anterior (el caso trampa "ya es lunes en UTC pero no en BA")');
+  perform pg_temp._assert(public._groups_week_start_ba('2026-09-21T03:00:00Z'::timestamptz) = '2026-09-21T03:00:00Z'::timestamptz,
+    'week_start_ba: lunes 03:00 UTC = lunes 00:00 BA exacto -> el propio instante');
+  perform pg_temp._assert(public._groups_week_start_ba('2026-09-27T23:59:00Z'::timestamptz) = '2026-09-21T03:00:00Z'::timestamptz,
+    'week_start_ba: domingo de la MISMA semana (BA) -> el lunes con el que empezó');
+end $$;
+
+do $$
+declare v jsonb;
+begin
+  v := public.create_group('B2A Borde Lunes', array[pg_temp._id('B')]);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G4: ' || v);
+  insert into pg_temp._b2a values ('G4', (v->'group'->>'groupId')::uuid);
+  v := public.create_group('B2A Borde Domingo', array[pg_temp._id('B')]);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G5: ' || v);
+  insert into pg_temp._b2a values ('G5', (v->'group'->>'groupId')::uuid);
+  update public.group_memberships set joined_at = '2026-01-05T00:00:00Z'
+    where group_id in (pg_temp._id('G4'), pg_temp._id('G5'));
+  -- F entra a G4 el LUNES 15:00 UTC (lunes en cualquier huso); a G5 el DOMINGO 20:00 UTC (misma
+  -- semana BA que el lunes 2026-09-21).
+  perform public.add_group_member(pg_temp._id('G4'), pg_temp._id('F'));
+  update public.group_memberships set joined_at = '2026-09-21T15:00:00Z'
+    where group_id = pg_temp._id('G4') and player_id = pg_temp._id('F');
+  perform public.add_group_member(pg_temp._id('G5'), pg_temp._id('F'));
+  update public.group_memberships set joined_at = '2026-09-27T20:00:00Z'
+    where group_id = pg_temp._id('G5') and player_id = pg_temp._id('F');
+end $$;
+
+do $$
+begin
+  -- M4_sun: DOMINGO anterior a la semana del alta de F en G4 -> F NO cuenta (A,B=2) -> no califica.
+  perform pg_temp._mk_match('g4sun', 'A', 'B', 'F', 'D', '2026-09-20T20:00:00Z'::timestamptz, 'A');
+  -- M4_mon: mismo LUNES del alta de F, pero HORAS ANTES de su alta exacta (15:00) -> SÍ cuenta
+  -- (piso = lunes 00:00 BA = 03:00 UTC, y 05:00 UTC >= 03:00 UTC) -> A,B,F=3 -> califica.
+  perform pg_temp._mk_match('g4mon', 'A', 'B', 'F', 'D', '2026-09-21T05:00:00Z'::timestamptz, 'A');
+  -- M5_mon: mismo partido/horario que M4_mon, pero para G5 (F entró el DOMINGO de esa MISMA
+  -- semana BA) -> también debe calificar.
+  perform pg_temp._mk_match('g5mon', 'A', 'B', 'F', 'D', '2026-09-21T05:00:00Z'::timestamptz, 'A');
+end $$;
+
+select pg_temp._as('A');
+do $$
+declare weekFrom timestamptz; weekTo timestamptz; lobby jsonb; g4 jsonb; g5 jsonb;
+begin
+  weekFrom := '2026-09-21T03:00:00Z'::timestamptz; -- lunes 00:00 BA
+  weekTo := weekFrom + interval '7 days';
+  lobby := public.get_groups_lobby(weekFrom, weekTo);
+  select g into g4 from jsonb_array_elements(lobby->'groups') g where g->>'groupId' = pg_temp._id('G4')::text;
+  select g into g5 from jsonb_array_elements(lobby->'groups') g where g->>'groupId' = pg_temp._id('G5')::text;
+
+  -- weekMatches sigue con el umbral AMPLIO (nunca excluye de más) — M4_sun puede seguir
+  -- apareciendo acá como candidato de transporte; lo que NO puede pasar es que mueva actividad
+  -- (verificado abajo). Lo que sí debe cumplirse siempre: M4_mon/M5_mon están presentes.
+  perform pg_temp._assert(exists (select 1 from jsonb_array_elements(g4->'weekMatches') m where m->>'matchId' = pg_temp._id('M_g4mon')::text),
+    'T-borde: M4_mon (lunes, antes de la hora exacta del alta) es candidato de G4');
+  perform pg_temp._assert(exists (select 1 from jsonb_array_elements(g5->'weekMatches') m where m->>'matchId' = pg_temp._id('M_g5mon')::text),
+    'T-borde: M5_mon (alta domingo, partido lunes de la misma semana) es candidato de G5');
+
+  -- El bug real: antes del fix, _groups_last_activity_at usaba el umbral AMPLIO como si fuera
+  -- exacto — M4_sun (domingo ANTERIOR a la semana del alta) hubiera movido lastActivityAt. Con
+  -- el fix, un 'validated'/'correction_accepted' NUEVO sobre M4_sun no debe mover nada.
+  declare before4 timestamptz; after4 timestamptz; after4b timestamptz;
+  begin
+    select (g->>'lastActivityAt')::timestamptz into before4 from jsonb_array_elements(public.get_groups_lobby(null, null)->'groups') g where g->>'groupId' = pg_temp._id('G4')::text;
+    insert into public.match_actions (match_id, action_type, actor_player_id, occurred_at)
+      values (pg_temp._id('M_g4sun'), 'validated', pg_temp._id('A'), clock_timestamp());
+    insert into public.match_actions (match_id, action_type, actor_player_id, occurred_at)
+      values (pg_temp._id('M_g4sun'), 'correction_accepted', pg_temp._id('A'), clock_timestamp());
+    select (g->>'lastActivityAt')::timestamptz into after4 from jsonb_array_elements(public.get_groups_lobby(null, null)->'groups') g where g->>'groupId' = pg_temp._id('G4')::text;
+    perform pg_temp._assert(after4 = before4, 'T-borde: partido de la semana ANTERIOR a la efectiva del alta (M4_sun) NO mueve lastActivityAt, ni con validated ni con correction_accepted');
+
+    -- Control positivo: un 'correction_accepted' sobre M4_mon (SÍ calificable) sí mueve.
+    insert into public.match_actions (match_id, action_type, actor_player_id, occurred_at)
+      values (pg_temp._id('M_g4mon'), 'correction_accepted', pg_temp._id('A'), clock_timestamp());
+    select (g->>'lastActivityAt')::timestamptz into after4b from jsonb_array_elements(public.get_groups_lobby(null, null)->'groups') g where g->>'groupId' = pg_temp._id('G4')::text;
+    perform pg_temp._assert(after4b > after4, 'T-borde: correction_accepted sobre un partido SÍ calificable de la semana efectiva mueve lastActivityAt');
+  end;
+end $$;
+
 -- ---------- Permisos ----------
 do $$
 begin
@@ -297,7 +395,9 @@ begin
       'public._groups_match_players_json(uuid, uuid, timestamptz)',
       'public._groups_week_matches_json(uuid, timestamptz, timestamptz)',
       'public._groups_members_json(uuid)',
-      'public._groups_last_activity_at(uuid)'] loop
+      'public._groups_last_activity_at(uuid)',
+      'public._groups_week_start_ba(timestamptz)',
+      'public._groups_candidate_matches_exact(uuid, timestamptz, timestamptz)'] loop
       perform pg_temp._assert(not has_function_privilege('authenticated', f, 'execute'), 'helper interno no expuesto: ' || f);
       perform pg_temp._assert(not has_function_privilege('anon', f, 'execute'), 'helper interno no expuesto a anon: ' || f);
     end loop;

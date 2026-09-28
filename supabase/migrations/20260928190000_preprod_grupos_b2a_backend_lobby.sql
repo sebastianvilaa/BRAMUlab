@@ -33,10 +33,33 @@
 --      (nunca del caller): el máximo entre `group_events.occurred_at` (creación/rename/alta/
 --      baja/admin — TODOS los tipos que ya registra `_groups_log` desde Fase A, incluida la
 --      creación misma) y `match_actions.occurred_at` con `action_type in ('validated',
---      'correction_accepted')` SOLO de partidos que son candidatos del grupo
---      (`_groups_candidate_matches` sin acotar por fecha) — un partido que nunca calificó (2/4,
---      o candidato de OTRO grupo) nunca mueve el orden de este grupo. Foto queda reservada a
---      B2c (`photo_changed`, todavía no existe ese evento).
+--      'correction_accepted')` SOLO de partidos EXACTAMENTE calificables para el grupo (ver
+--      microfix de frontera semanal, abajo) — un partido que nunca calificó (2/4, o candidato de
+--      OTRO grupo) nunca mueve el orden de este grupo. Foto queda reservada a B2c
+--      (`photo_changed`, todavía no existe ese evento).
+--
+-- MICROFIX — frontera semanal canónica (handoff 77, 28/09/2026, revisión Central antes de
+-- aplicar): decisión de producto cerrada en `Grupos_BRAMU.md` §"Zona horaria canónica V1" —
+-- Grupos BRAMU V1 usa SIEMPRE `America/Argentina/Buenos_Aires` (lunes 00:00 → domingo
+-- 23:59:59.999 de Buenos Aires) para toda frontera semanal, nunca el huso del dispositivo ni de
+-- la sesión de Postgres. `_groups_candidate_matches` SIGUE usando el umbral ampliado de 7 días
+-- (cota segura de transporte — nunca excluye de más lo que `groups.js` podría aceptar; eso está
+-- bien para `weekMatches`, que el cliente vuelve a filtrar con el piso exacto). Pero
+-- `_groups_last_activity_at` NO tiene un filtrado posterior del lado del cliente — usaba ese
+-- mismo umbral ampliado como si fuera el criterio DEFINITIVO, así que un partido de la semana
+-- anterior (todavía dentro de la cota de 7 días) podía mover `lastActivityAt` con una acción
+-- posterior aunque no perteneciera a la semana deportiva efectiva del alta. Se agrega:
+--   8) `_groups_week_start_ba(at)` — lunes 00:00 de Buenos Aires de la semana que contiene `at`,
+--      vía `AT TIME ZONE 'America/Argentina/Buenos_Aires'` (determinístico; Argentina no tiene
+--      horario de verano desde 2009, así que esto equivale exactamente a restar 3h fijas —
+--      mismo criterio que el helper JS `PLGroups.weekStartBA`, groups.js).
+--   9) `_groups_candidate_matches_exact(group_id, from, to)` — mismo criterio de
+--      `_groups_candidate_matches` pero con el piso EXACTO (`_groups_week_start_ba`) en vez del
+--      umbral ampliado. Usada ÚNICAMENTE por `_groups_last_activity_at` — `weekMatches`/`matches`
+--      siguen usando la versión amplia (`_groups_candidate_matches`), sin cambios de contrato.
+-- `_groups_last_activity_at` pasa a unirse contra `_groups_candidate_matches_exact` en vez de la
+-- amplia — un partido que no es realmente candidato bajo el piso exacto nunca mueve la actividad,
+-- sin importar cuántos días de margen le diera el umbral de transporte.
 --
 -- `get_groups_lobby(p_week_from, p_week_to)` — nueva RPC pública (`authenticated` únicamente):
 -- por cada grupo activo donde el caller es miembro activo, devuelve groupId/name/createdAt/
@@ -302,7 +325,71 @@ revoke all on function public.get_group_competition_data(uuid, timestamptz, time
 grant execute on function public.get_group_competition_data(uuid, timestamptz, timestamptz) to authenticated;
 
 -- ------------------------------------------------------------------
--- 8) _groups_last_activity_at — actividad significativa AUTORITATIVA del grupo
+-- 8) _groups_week_start_ba / _groups_candidate_matches_exact — microfix frontera semanal (h77)
+-- ------------------------------------------------------------------
+
+create or replace function public._groups_week_start_ba(p_at timestamptz)
+returns timestamptz
+language sql
+stable
+as $$
+  -- Lunes 00:00:00.000 de Buenos Aires de la semana que contiene p_at. AT TIME ZONE con un
+  -- nombre de zona IANA convierte correctamente sin asumir un offset fijo "a mano" — Postgres
+  -- resuelve America/Argentina/Buenos_Aires con su propia tzdata (hoy UTC-3 todo el año, sin
+  -- DST desde 2009). Debe coincidir siempre con el helper JS PLGroups.weekStartBA (groups.js).
+  select date_trunc('week', p_at at time zone 'America/Argentina/Buenos_Aires')
+         at time zone 'America/Argentina/Buenos_Aires';
+$$;
+
+comment on function public._groups_week_start_ba(timestamptz) is
+  'Lunes 00:00 de Buenos Aires (America/Argentina/Buenos_Aires, decisión cerrada V1) de la
+   semana que contiene p_at. Fuente única de frontera semanal canónica del lado SQL — debe
+   coincidir siempre con PLGroups.weekStartBA (bramulab/groups.js) del lado del cliente.';
+
+-- Pura (sin tocar tablas, sin SECURITY DEFINER necesario) pero revocada igual, mismo criterio de
+-- mínimo privilegio que el resto de los helpers internos de este archivo.
+revoke all on function public._groups_week_start_ba(timestamptz) from public;
+
+create or replace function public._groups_candidate_matches_exact(
+  p_group_id uuid, p_from timestamptz, p_to timestamptz
+)
+returns table (match_id uuid)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  -- Mismo criterio que _groups_candidate_matches (>=3 miembros), pero con el piso semanal BA
+  -- EXACTO en vez del umbral ampliado de 7 días — únicamente para decidir actividad real
+  -- (_groups_last_activity_at). weekMatches/matches siguen usando la versión amplia sin cambios.
+  select m.match_id
+  from public.matches m
+  where m.status = 'validated'
+    and m.winner_team is not null
+    and m.current_revision_id is not null
+    and (p_from is null or m.played_at >= p_from)
+    and (p_to is null or m.played_at < p_to)
+    and (
+      select count(distinct mp.player_id)
+      from public.match_participants mp
+      join public.group_memberships gm
+        on gm.group_id = p_group_id
+       and gm.player_id = mp.player_id
+       and public._groups_week_start_ba(gm.joined_at) <= m.played_at
+       and (gm.left_at is null or m.played_at < gm.left_at)
+      where mp.match_id = m.match_id
+    ) >= 3;
+$$;
+
+revoke all on function public._groups_candidate_matches_exact(uuid, timestamptz, timestamptz) from public;
+
+comment on function public._groups_candidate_matches_exact(uuid, timestamptz, timestamptz) is
+  'Partidos REALMENTE calificables para un grupo bajo el piso semanal BA exacto (handoff 77) —
+   uso exclusivo de _groups_last_activity_at. Nunca usar para weekMatches/matches (esas siguen
+   con el umbral ampliado de _groups_candidate_matches, que el cliente vuelve a filtrar).';
+
+-- ------------------------------------------------------------------
+-- 9) _groups_last_activity_at — actividad significativa AUTORITATIVA del grupo
 -- ------------------------------------------------------------------
 
 create or replace function public._groups_last_activity_at(p_group_id uuid)
@@ -316,13 +403,14 @@ as $$
     -- Mutaciones del grupo: creación (siempre logueada, ver _groups_log en create_group),
     -- rename, alta/baja de miembro, promoción/democión de admin (handoff 75 §4, puntos 3-6).
     coalesce((select max(ge.occurred_at) from public.group_events ge where ge.group_id = p_group_id), '-infinity'::timestamptz),
-    -- Partido oficial validado O corrección oficial aceptada, SOLO si ese partido es candidato
-    -- de ESTE grupo (_groups_candidate_matches, sin acotar por fecha) — un partido que nunca
-    -- calificó (2/4, o candidato de otro grupo) nunca mueve el orden (handoff 75 §4, punto 1-2).
+    -- Partido oficial validado O corrección oficial aceptada, SOLO si ese partido es
+    -- REALMENTE candidato de ESTE grupo bajo el piso semanal BA exacto (handoff 77 — nunca el
+    -- umbral ampliado de transporte) — un partido que nunca calificó (2/4, semana anterior a la
+    -- efectiva del alta, o candidato de otro grupo) nunca mueve el orden.
     coalesce((
       select max(ma.occurred_at)
       from public.match_actions ma
-      join public._groups_candidate_matches(p_group_id, null, null) cm on cm.match_id = ma.match_id
+      join public._groups_candidate_matches_exact(p_group_id, null, null) cm on cm.match_id = ma.match_id
       where ma.action_type in ('validated', 'correction_accepted')
     ), '-infinity'::timestamptz)
   );
@@ -333,11 +421,13 @@ revoke all on function public._groups_last_activity_at(uuid) from public;
 comment on function public._groups_last_activity_at(uuid) is
   'Actividad significativa autoritativa del GRUPO (nunca del caller): máximo entre
    group_events.occurred_at (creación/rename/alta/baja/admin) y match_actions.occurred_at
-   (validated/correction_accepted) de partidos que califican para este grupo. Foto reservada a
-   B2c (photo_changed, todavía no existe). Usada para ordenar get_groups_lobby.';
+   (validated/correction_accepted) de partidos REALMENTE calificables bajo el piso semanal BA
+   exacto (_groups_candidate_matches_exact, handoff 77 — nunca el umbral ampliado de
+   _groups_candidate_matches). Foto reservada a B2c (photo_changed, todavía no existe). Usada
+   para ordenar get_groups_lobby.';
 
 -- ------------------------------------------------------------------
--- 9) get_groups_lobby — nueva RPC (handoff 75 §3)
+-- 10) get_groups_lobby — nueva RPC (handoff 75 §3)
 -- ------------------------------------------------------------------
 
 create or replace function public.get_groups_lobby(p_week_from timestamptz default null, p_week_to timestamptz default null)
