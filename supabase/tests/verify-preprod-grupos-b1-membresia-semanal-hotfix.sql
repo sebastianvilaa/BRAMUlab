@@ -100,9 +100,9 @@ begin
   -- Con el hotfix, SÍ debe serlo (A,B,C = 3) — es justo la ampliación que existe para nunca
   -- excluir de más lo que groups.js podría considerar válido según el piso semanal real.
   perform pg_temp._mk_match('before', now() - interval '4 days');
-  -- M_old: jugado hace 9 días — fuera incluso de la ventana ampliada de 7 días. Debe seguir
+  -- M_old: jugado hace 10 días — fuera incluso de la ventana ampliada de 7 días. Debe seguir
   -- excluido (control negativo: la ampliación tiene un límite, no es "todo cuenta siempre").
-  perform pg_temp._mk_match('old', now() - interval '9 days');
+  perform pg_temp._mk_match('old', now() - interval '10 days');
 end $$;
 
 do $$
