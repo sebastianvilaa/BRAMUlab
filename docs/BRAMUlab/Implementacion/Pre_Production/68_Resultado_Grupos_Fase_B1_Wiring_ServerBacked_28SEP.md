@@ -59,3 +59,34 @@ Hotfix aplicado primero en Supabase Staging y luego versionado en repo:
 Después del hotfix, la creación real de `QA Grupos` con Esteban + Seba quedó persistida correctamente en Staging.
 
 QA B1 sigue en curso: falta comprobar visibilidad compartida desde Seba, permisos, persistencia y coherencia de datos deportivos.
+
+
+
+## QA real multiusuario — avance y bug histórico detectado
+
+PASS reales confirmados con dos cuentas/dispositivos:
+- Esteban crea un grupo y Seba lo ve desde su cuenta;
+- altas de miembros, promoción a admin y cambio de nombre se propagan entre cuentas;
+- un partido oficial con solo 2/4 miembros no entra al grupo;
+- un partido oficial con 3/4 miembros sí entra;
+- tabla y Race coinciden en ambas cuentas;
+- fixture real: Esteban + Matu vencen a Seba + Pablito y el grupo muestra Esteban 5, Matu 5, Seba 0 en ambas cuentas;
+- BRAMU Intelligence grupal terminó coincidiendo en ambas cuentas después de reingresar a Mis grupos; se observó un render transitorio vacío en una primera entrada, no bloqueante por ahora.
+
+### BUG REAL — membresía individual retroactiva dentro de un partido que sí cuenta para el grupo
+
+Después de validar el fixture anterior, Pablito fue agregado al grupo. El partido ya calificaba correctamente para el grupo porque en la fecha del partido había 3 miembros activos: Esteban, Matu y Seba.
+
+Resultado observado: Pablito apareció con **0 puntos pero 1 partido / 0 V / 1 D**, aunque todavía no era miembro cuando se jugó.
+
+Esto viola la membresía histórica cerrada de Grupos. Un jugador agregado después de un partido puede aparecer en la tabla de la semana por ser miembro actual/relevante de esa semana, pero sus estadísticas personales deben considerar únicamente partidos jugados mientras él era miembro activo en `played_at`.
+
+Causa localizada en `groups.js#computeWeeklyTable`: `played` filtra por participación en los partidos que cuentan para el grupo, pero no exige que **ese miembro concreto** estuviera activo en la fecha de cada partido.
+
+**B1 NO se cierra hasta corregir esto.**
+
+Corrección esperada:
+- al calcular `played` para una fila, exigir además que el miembro esté activo en `played_at` según sus `periods`;
+- aplicar el mismo criterio a puntos, partidos contados, V/D, total jugado semanal y por derivación Race;
+- no cambiar la regla grupal 3/4: el partido puede seguir contando para el grupo aunque un cuarto participante se incorpore después;
+- agregar tests focales para alta posterior a derrota y alta posterior a victoria (cero retroactividad), reingreso y miembro activo normal.
