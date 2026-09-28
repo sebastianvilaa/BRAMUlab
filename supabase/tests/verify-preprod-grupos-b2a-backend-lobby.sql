@@ -61,15 +61,15 @@ do $$
 declare v jsonb;
 begin
   v := public.create_group('B2A Solo', '{}');
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G1: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G1: ' || v::text);
   insert into pg_temp._b2a values ('G1', (v->'group'->>'groupId')::uuid);
 
   v := public.create_group('B2A Dos', array[pg_temp._id('B')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G2: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G2: ' || v::text);
   insert into pg_temp._b2a values ('G2', (v->'group'->>'groupId')::uuid);
 
   v := public.create_group('B2A Tres', array[pg_temp._id('B'), pg_temp._id('C')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G3: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G3: ' || v::text);
   insert into pg_temp._b2a values ('G3', (v->'group'->>'groupId')::uuid);
 
   -- Membresías "de siempre" salvo donde el test necesite un alta puntual (T5/T6).
@@ -117,7 +117,7 @@ do $$
 declare lobby jsonb; ids text[];
 begin
   lobby := public.get_groups_lobby(null, null);
-  perform pg_temp._assert((lobby->>'ok')::boolean, 'T1 lobby ok: ' || lobby);
+  perform pg_temp._assert((lobby->>'ok')::boolean, 'T1 lobby ok: ' || lobby::text);
   select array_agg(g->>'groupId' order by g->>'groupId') into ids from jsonb_array_elements(lobby->'groups') g;
   perform pg_temp._assert(ids = (select array_agg(x::text order by x::text) from unnest(array[pg_temp._id('G1'), pg_temp._id('G2'), pg_temp._id('G3')]) x),
     'T1 A ve exactamente sus 3 grupos: ' || coalesce(ids::text, 'null'));
@@ -272,7 +272,7 @@ declare lobby jsonb;
 begin
   lobby := public.get_groups_lobby(null, null);
   perform pg_temp._assert((lobby->>'ok')::boolean, 'T14 lobby ok para F');
-  perform pg_temp._assert(jsonb_array_length(lobby->'groups') = 0, 'T14 F (ajeno) no ve ninguno de estos grupos: ' || lobby);
+  perform pg_temp._assert(jsonb_array_length(lobby->'groups') = 0, 'T14 F (ajeno) no ve ninguno de estos grupos: ' || lobby::text);
 end $$;
 
 -- ---------- T15 (consistencia) — get_groups_lobby.weekMatches == get_group_competition_data.matches ----------
@@ -313,10 +313,10 @@ do $$
 declare v jsonb;
 begin
   v := public.create_group('B2A Borde Lunes', array[pg_temp._id('B')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G4: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G4: ' || v::text);
   insert into pg_temp._b2a values ('G4', (v->'group'->>'groupId')::uuid);
   v := public.create_group('B2A Borde Domingo', array[pg_temp._id('B')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G5: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture G5: ' || v::text);
   insert into pg_temp._b2a values ('G5', (v->'group'->>'groupId')::uuid);
   update public.group_memberships set joined_at = '2026-01-05T00:00:00Z'
     where group_id in (pg_temp._id('G4'), pg_temp._id('G5'));
