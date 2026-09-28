@@ -83,3 +83,10 @@ Central revisó este análisis antes de autorizar implementación. Se corrigiero
 **Conclusión:** la arquitectura propuesta es viable. La dirección recomendada es una lectura resumida server-backed para el lobby, mismo motor `groups.js` para calcular la tabla semanal, `group_events` + bitácora oficial de partidos para ordenar actividad y bucket privado separado para fotos de grupo.
 
 **No implementar B2 todavía:** primero debe cerrarse el QA real multiusuario pendiente de B1. Después avanzar B2a → B2b → B2c.
+
+
+### Observación visual para B2 — validación del formulario Crear grupo
+
+QA real mostró que el error por nombre vacío aparece como texto rojo suelto al pie del listado, demasiado cerca del CTA y con jerarquía visual pobre.
+
+En B2, **FUSIONAR** esa validación con el propio campo `Nombre del grupo` (mensaje inline/estado de campo) o una solución equivalente del sistema visual vigente. No crear un sistema de errores nuevo ni tocar la lógica de validación; es solo presentación.
