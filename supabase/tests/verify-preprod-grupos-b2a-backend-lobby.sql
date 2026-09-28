@@ -108,7 +108,7 @@ do $$
 begin
   perform pg_temp._mk_match('g3', 'A', 'B', 'C', 'D', date_trunc('week', now()) + interval '1 day 10 hours', 'A');
   perform pg_temp._mk_match('g2', 'A', 'B', 'D', 'E', date_trunc('week', now()) + interval '1 day 11 hours', 'A');
-  perform pg_temp._mk_match('prev', 'A', 'B', 'C', 'D', date_trunc('week', now()) - interval '6 days 10 hours', 'A');
+  perform pg_temp._mk_match('prev', 'A', 'B', 'D', 'E', date_trunc('week', now()) - interval '6 days 10 hours', 'A');
 end $$;
 
 -- ---------- T1: solo mis grupos activos ----------
@@ -161,17 +161,26 @@ begin
   perform public.add_group_member(pg_temp._id('G3'), pg_temp._id('D'));
   lobby := public.get_groups_lobby(weekFrom, weekTo);
   select g into g3 from jsonb_array_elements(lobby->'groups') g where g->>'groupId' = pg_temp._id('G3')::text;
-  perform pg_temp._assert(jsonb_array_length(g3->'weekMatches') = 1, 'T5 sigue candidato tras alta de D esta semana');
+  perform pg_temp._assert(
+    jsonb_array_length(g3->'weekMatches') = 2
+    and exists (select 1 from jsonb_array_elements(g3->'weekMatches') m where m->>'matchId' = pg_temp._id('M_g3')::text)
+    and exists (select 1 from jsonb_array_elements(g3->'weekMatches') m where m->>'matchId' = pg_temp._id('M_g2')::text),
+    'T5 alta de D convierte M_g2 de 2/4 a 3/4 en ESTA semana y conserva M_g3'
+  );
   perform pg_temp._assert((
     select (p->>'isGroupMember')::boolean from jsonb_array_elements(
       (select m from jsonb_array_elements(g3->'weekMatches') m where m->>'matchId' = pg_temp._id('M_g3')::text)->'players'
     ) p where p->>'playerId' = pg_temp._id('D')::text
   ), 'T5 isGroupMember de D ahora true (piso semanal ampliado)');
 
-  -- T6: alta de D NO habilita la semana PASADA (M_prev, mismo elenco A,B,C,D).
-  lobby := public.get_groups_lobby(weekFrom - interval '7 days', weekFrom);
-  select g into g3 from jsonb_array_elements(lobby->'groups') g where g->>'groupId' = pg_temp._id('G3')::text;
-  perform pg_temp._assert(jsonb_array_length(g3->'weekMatches') = 0, 'T6 semana pasada sigue vacía (sin retroactividad)');
+  -- T6: el mismo alta de D NO vuelve calificable un 2/4 de la semana anterior.
+  -- weekMatches es deliberadamente un transporte AMPLIO y puede traer falsos positivos; la
+  -- afirmación deportiva exacta se prueba sobre el helper exacto que gobierna lastActivityAt.
+  perform pg_temp._assert(not exists (
+    select 1 from public._groups_candidate_matches_exact(
+      pg_temp._id('G3'), weekFrom - interval '7 days', weekFrom
+    ) cm where cm.match_id = pg_temp._id('M_prev')
+  ), 'T6 alta actual NO habilita M_prev de la semana anterior');
 end $$;
 
 -- ---------- T7 + T8: 2/4 no produce actividad; 3/4 sí ----------
