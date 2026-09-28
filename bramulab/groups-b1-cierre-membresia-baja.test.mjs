@@ -82,9 +82,9 @@ test('A1: alta posterior a DERROTA, misma semana → el jugador puede reflejar e
   const table = PG.computeWeeklyTable([m], group, THIS_MON);
   const c = table.find((r) => r.userId === 'c');
   assert.ok(c, 'C tiene fila en la tabla de esta semana');
-  assert.equal(c.matchesCounted, 1);
+  assert.equal(c.matchesPlayed, 1);
   assert.equal(c.losses, 1);
-  assert.equal(c.points, 0, 'perdió: 0 puntos, pero el partido SÍ se refleja (matchesCounted=1)');
+  assert.equal(c.points, 0, 'perdió: 0 puntos, pero el partido SÍ se refleja (matchesPlayed=1)');
 });
 
 test('A2: alta posterior a VICTORIA, misma semana → puede recibir puntos', () => {
@@ -202,7 +202,7 @@ test('B3: los puntos de los demás miembros permanecen exactamente iguales tras 
   const before = PG.computeWeeklyTable(history, activeGroup, THIS_MON).find((r) => r.userId === 'a');
   const after = PG.computeWeeklyTable(history, removedGroup, THIS_MON).find((r) => r.userId === 'a');
   assert.equal(after.points, before.points);
-  assert.equal(after.matchesCounted, before.matchesCounted);
+  assert.equal(after.matchesPlayed, before.matchesPlayed);
   assert.equal(after.wins, before.wins);
 });
 
@@ -240,6 +240,69 @@ test('B6: reingreso no revive automáticamente filas/puntos de una etapa elimina
   // Semana actual (etapa nueva, reingreso): C SÍ aparece normalmente.
   const currentTable = PG.computeWeeklyTable([newMatch], group, THIS_MON);
   assert.ok(currentTable.some((r) => r.userId === 'c'), 'la etapa nueva (reingreso) sí muestra a C');
+});
+
+/* ------------------------------------------------------------------ */
+/* Retest real (handoff 72) — actividad VISIBLE real, nunca el top 3    */
+/* ------------------------------------------------------------------ */
+
+/** Caso real del retest de Staging (handoff 72): 10 partidos calificables de C esta semana — 6
+ *  ganados (2 con Victoria clara = 6 pts, 4 lisos = 5 pts) y 4 perdidos (0 pts). Top 3 = los 2
+ *  claras + 1 lisa = 6+6+5 = 17, exactamente el ejemplo del handoff ("10 partidos · 6 V · 4 D ·
+ *  17 pts"). `levelsSource:'official'` sin `levelBefore` desactiva Sorpresa de forma
+ *  determinística (nunca None por azar del estimador simulado) — no es el objeto de este test. */
+function buildTenMatchScenario() {
+  const group = { id: 'g', members: [member('A', 'a', [period(LONG_AGO)]), member('B', 'b', [period(LONG_AGO)]), member('C', 'c', [period(LONG_AGO)])] };
+  const history = [];
+  const winMargins = [[6, 1], [6, 1], [6, 4], [6, 4], [6, 4], [6, 4]]; // 2 claras (6pts) + 4 lisas (5pts)
+  winMargins.forEach(([ga, gb], i) => {
+    const setPair = [{ gamesA: ga, gamesB: gb }, { gamesA: ga, gamesB: gb }];
+    const m = match(`win${i}`, iso(21 + i, 10), ['A_', 'C_'], ['B_', 'D_'], 'A', setPair);
+    m.levelsSource = 'official';
+    m.players[0].userId = 'a'; m.players[1].userId = 'c'; m.players[2].userId = 'b'; m.players[3].userId = 'd';
+    history.push(m);
+  });
+  // 4 derrotas de C (equipo B+C pierde) — nunca aportan puntos, pero SÍ deben contar como jugados.
+  for (let i = 0; i < 4; i++) {
+    const m = match(`loss${i}`, iso(27, 10 + i), ['A_', 'D_'], ['B_', 'C_'], 'A');
+    m.levelsSource = 'official';
+    m.players[0].userId = 'a'; m.players[1].userId = 'd'; m.players[2].userId = 'b'; m.players[3].userId = 'c';
+    history.push(m);
+  }
+  return { group, history };
+}
+
+test('retest 72: 10 partidos · 6 V · 4 D en la actividad visible, sin alterar que solo los 3 mejores aporten a los puntos', () => {
+  const { group, history } = buildTenMatchScenario();
+  const table = PG.computeWeeklyTable(history, group, THIS_MON);
+  const c = table.find((r) => r.userId === 'c');
+  assert.ok(c, 'C tiene fila');
+  // Actividad REAL: los 10 partidos calificables de la semana, con su V/D real — nunca el top 3.
+  assert.equal(c.matchesPlayed, 10, 'actividad visible = TODO lo jugado, no el top 3');
+  assert.equal(c.wins, 6);
+  assert.equal(c.losses, 4);
+  // Puntos: exactamente el ejemplo del handoff — 3 partidos aportaron, 17 puntos.
+  assert.equal(c.pointsMatchesCounted, 3, 'los puntos siguen saliendo de exactamente 3 partidos');
+  assert.equal(c.points, 17, '10 partidos · 6 V · 4 D · 17 pts (2 claras + 1 lisa, nunca las 6 victorias completas)');
+});
+
+test('retest 72: la Race anual acumula la MISMA distinción (puntos = top-3 semanal; actividad = real)', () => {
+  const { group, history } = buildTenMatchScenario();
+  const race = PG.computeRaceAnual(history, group, 2026);
+  const c = race.find((r) => r.userId === 'c');
+  assert.ok(c);
+  assert.equal(c.matchesPlayed, 10);
+  assert.equal(c.wins, 6);
+  assert.equal(c.losses, 4);
+  assert.equal(c.pointsMatchesCounted, 3);
+  assert.equal(c.points, 17);
+});
+
+test('retest 72: la fila de la tabla de Grupos (app.js) usa la actividad REAL, nunca pointsMatchesCounted', () => {
+  const appJsSrc = read('app.js');
+  const body = appJsSrc.slice(appJsSrc.indexOf('function buildGroupTableRowHTML'), appJsSrc.indexOf('function buildGroupTableRowHTML') + 900);
+  assert.match(body, /row\.matchesPlayed/);
+  assert.doesNotMatch(body, /row\.matchesCounted|row\.pointsMatchesCounted/);
 });
 
 /* ------------------------------------------------------------------ */

@@ -9721,10 +9721,17 @@
    *  ADMIN acá — §5 es tajante ("no mostrar privilegios administrativos como parte del ranking
    *  deportivo") y §5 mismo aclara que esa etiqueta discreta vive en Configuración, no en la
    *  tabla (ver renderGroupSettingsMembers). Tocar la fila abre el perfil público del jugador
-   *  (§11, salvo la propia fila — ver isOwnGroupTableRow). */
+   *  (§11, salvo la propia fila — ver isOwnGroupTableRow).
+   *
+   *  Cierre B1, retest real (handoff 72) — BUG REAL: esta línea mostraba `matchesCounted/wins/
+   *  losses` (el subconjunto top-3 que aporta a `points`), nunca el total jugado esa semana —
+   *  un jugador con 10 partidos calificables (6V/4D) pero solo 3 victorias entre sus 3 mejores
+   *  aparecía como "3 partidos · 3 V · 0 D" (lectura falsa de invicto). Usa `matchesPlayed`/
+   *  `wins`/`losses` REALES de `computeWeeklyTable`/`computeRaceAnual` — `points` sigue siendo
+   *  el top 3, sin cambios. */
   function buildGroupTableRowHTML(row) {
-    const captionParts = [`${row.matchesCounted} ${row.matchesCounted === 1 ? 'partido' : 'partidos'}`];
-    if (row.matchesCounted > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
+    const captionParts = [`${row.matchesPlayed} ${row.matchesPlayed === 1 ? 'partido' : 'partidos'}`];
+    if (row.matchesPlayed > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
     const ident = groupRowIdentity(row.name, row.userId);
     // Server-backed: solo @usuario REAL (nunca un handle fabricado desde el nombre).
     const handle = ident.username ? `@${ident.username}` : (ident.serverBacked ? null : buildPlayerHandle(row.name));

@@ -349,13 +349,24 @@
   }
 
   /** Regla central §8: para cada jugador cuentan sus 3 MEJORES partidos puntuables de la
-   *  semana (menos de 3 jugados → cuentan todos). `matchesCounted/wins/losses` de la segunda
-   *  línea de la tabla (§11) se calculan sobre ese mismo subconjunto de "los que cuentan",
-   *  nunca sobre el total jugado esa semana (que puede ser mayor). Orden de PANTALLA: puntos
-   *  desc, empate por victorias desc, empate final alfabético — mismo criterio determinístico
-   *  que `PH.computeBestPartner`, usado únicamente para decidir en qué orden se listan los
-   *  empatados (nunca para inventarles una posición distinta — ver `assignPositions`: dos
-   *  filas con el mismo puntaje comparten número de posición sin importar este desempate). */
+   *  semana (menos de 3 jugados → cuentan todos) — esto decide ÚNICAMENTE `points`.
+   *
+   *  Cierre B1, retest real (handoff 72, 28/09/2026) — BUG REAL confirmado en Staging: la
+   *  segunda línea de la tabla (§11, "actividad") mostraba `matchesCounted/wins/losses` del
+   *  mismo subconjunto top-3 que ya computó los puntos, nunca el total jugado esa semana —
+   *  un jugador con 10 partidos calificables (6V/4D) pero cuyos 3 mejores fueron 3 victorias
+   *  aparecía como "3 partidos · 3 V · 0 D", una lectura falsa de invicto. `points`/
+   *  `pointsMatchesCounted` (renombrado, mismo cálculo de siempre) siguen siendo el
+   *  subconjunto top-3; `matchesPlayed`/`wins`/`losses` (REALES, sobre TODO lo jugado esa
+   *  semana que calificó para el grupo) son ahora los que alimentan esa línea — ver
+   *  `buildGroupTableRowHTML` (app.js). La fórmula de puntos, el top 3, la regla 3/4 y la
+   *  membresía semanal no cambian: es exclusivamente una corrección de qué dato se MUESTRA.
+   *
+   *  Orden de PANTALLA: puntos desc, empate por victorias REALES desc, empate final alfabético
+   *  — mismo criterio determinístico que `PH.computeBestPartner`, usado únicamente para decidir
+   *  en qué orden se listan los empatados (nunca para inventarles una posición distinta — ver
+   *  `assignPositions`: dos filas con el mismo puntaje comparten número de posición sin importar
+   *  este desempate). */
   function computeWeeklyTable(fullHistory, group, weekStart) {
     const weekEnd = new Date(weekStart.getTime() + WEEK_MS);
     const matches = computeMatchesForGroupInWeek(fullHistory, group, weekStart);
@@ -371,16 +382,19 @@
         }))
         .sort((a, b) => b.points - a.points);
       const counted = scored.slice(0, MAX_COUNTED_MATCHES_PER_WEEK);
-      const wins = counted.filter((c) => c.won).length;
+      const realWins = scored.filter((s) => s.won).length;
       return {
         name: mem.name,
         userId: mem.userId || null,
         isAdmin: !!mem.isAdmin,
         points: counted.reduce((sum, c) => sum + c.points, 0),
-        matchesCounted: counted.length,
-        wins,
-        losses: counted.length - wins,
-        totalPlayedThisWeek: played.length,
+        // Actividad REAL — toda esta semana, no solo el top 3 que puntuó.
+        matchesPlayed: played.length,
+        wins: realWins,
+        losses: played.length - realWins,
+        // Top 3 que efectivamente aportó a `points` (informativo/tests; nunca para la UI de
+        // actividad — ver comentario de arriba).
+        pointsMatchesCounted: counted.length,
       };
     });
     rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
@@ -396,7 +410,13 @@
    *  criterio de los 3 mejores partidos por semana", nunca un top-3 sobre el año entero). Solo
    *  recorre las semanas que realmente tuvieron al menos un partido contable — evita recalcular
    *  semanas vacías del año. Nunca se resetea semanalmente (a diferencia de ACTUAL/ANTERIOR);
-   *  se reinicia únicamente al cambiar de año calendario, pasando otro `year`. */
+   *  se reinicia únicamente al cambiar de año calendario, pasando otro `year`.
+   *
+   *  Cierre B1, retest real (handoff 72) — `matchesPlayed`/`wins`/`losses` acumulan la
+   *  actividad REAL semana a semana (mismo campo ya corregido en `computeWeeklyTable`), nunca el
+   *  subconjunto top-3: la línea secundaria de Race debe reflejar la actividad real acumulada
+   *  del período visible del miembro, mientras `points` sigue siendo la suma de los puntos
+   *  semanales EFECTIVOS (top-3 por semana) — eso no cambia. */
   function computeRaceAnual(fullHistory, group, year) {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year + 1, 0, 1);
@@ -416,12 +436,13 @@
       table.forEach((row) => {
         const key = row.userId || Store.normalizePlayerName(row.name);
         if (!totals[key]) {
-          totals[key] = { name: row.name, userId: row.userId, isAdmin: row.isAdmin, points: 0, matchesCounted: 0, wins: 0, losses: 0 };
+          totals[key] = { name: row.name, userId: row.userId, isAdmin: row.isAdmin, points: 0, matchesPlayed: 0, wins: 0, losses: 0, pointsMatchesCounted: 0 };
         }
         totals[key].points += row.points;
-        totals[key].matchesCounted += row.matchesCounted;
+        totals[key].matchesPlayed += row.matchesPlayed;
         totals[key].wins += row.wins;
         totals[key].losses += row.losses;
+        totals[key].pointsMatchesCounted += row.pointsMatchesCounted;
         // Un admin puede haber dejado de serlo (o empezado a serlo) en otra semana del mismo
         // año — se queda con el estado de admin más reciente encontrado, sin que eso afecte
         // los puntos ya sumados (la Race es sobre resultados, el rol es solo una etiqueta).

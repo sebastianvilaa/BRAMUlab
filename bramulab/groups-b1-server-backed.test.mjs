@@ -180,9 +180,15 @@ test('B1-5: tabla semanal cuenta 3 mejores partidos, 3 de 4 miembros y comparte 
   const byId = Object.fromEntries(table.map((r) => [r.userId, r]));
   assert.equal(byId[ID.A].points, 19);
   assert.equal(byId[ID.B].points, 19);
-  assert.equal(byId[ID.A].matchesCounted, 3);
-  assert.equal(byId[ID.A].wins, 3);
+  // Cierre B1, retest real (handoff 72) — pointsMatchesCounted sigue siendo el top-3 que
+  // aportó a `points`; matchesPlayed/wins son la actividad REAL (los 5 partidos, todos ganados).
+  assert.equal(byId[ID.A].pointsMatchesCounted, 3);
+  assert.equal(byId[ID.A].matchesPlayed, 5);
+  assert.equal(byId[ID.A].wins, 5);
+  assert.equal(byId[ID.A].losses, 0);
   assert.equal(byId[ID.C].points, 0);
+  assert.equal(byId[ID.C].matchesPlayed, 5);
+  assert.equal(byId[ID.C].losses, 5, 'C perdió los 5, aunque points=0 (perder no puntúa)');
   assert.deepEqual(j(table.map((r) => r.position)), [1, 1, 3, 3]); // A,B empatan; C,D empatan en 0
 });
 
@@ -316,11 +322,11 @@ test('B1-7d: el camino server-backed no usa el Nivel simulado ni fabrica @usuari
 });
 
 test('B1-8: bundle consistente en los cuatro puntos', () => {
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.11-h30'/);
-  assert.match(read('version.json'), /"bundle":\s*"04\.11-h30"/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-11-h30'/);
-  assert.match(read('index.html'), /groups\.js\?v=04\.11-h30/);
-  assert.match(read('index.html'), /auth\.js\?v=04\.11-h30/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.11-h31'/);
+  assert.match(read('version.json'), /"bundle":\s*"04\.11-h31"/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-11-h31'/);
+  assert.match(read('index.html'), /groups\.js\?v=04\.11-h31/);
+  assert.match(read('index.html'), /auth\.js\?v=04\.11-h31/);
 });
 
 
