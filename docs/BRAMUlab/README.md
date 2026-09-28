@@ -84,6 +84,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
+| **Grupos BRAMU** | `Grupos_BRAMU.md` | Producto/UX V1 CERRADOS; pasa a alcance pre-Production y requiere productivización server-backed antes de abrir Production |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
 | **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |
@@ -119,6 +120,7 @@ Solo documentos que pueden ser necesarios para tomar decisiones actuales:
 - `Experiencia_Inicial.md`;
 - fuentes maestras de Nivel;
 - `Ranking_BRAMU.md`;
+- `Grupos_BRAMU.md`;
 - `BRAMU_Intelligence.md` y su implementación;
 - `Backend_Infraestructura.md`.
 
@@ -177,6 +179,10 @@ La reorganización documental del 15/09/2026 quedó registrada en:
 Implementado localmente detrás del flujo/preview vigente hasta V04.10 (motor matemático puro, elegibilidad/invitados/repetición/círculo competitivo, estimador inicial V1.1, onboarding rápido/completo, categoría contextual, presentación en Home/Perfil/Perfil público, laboratorio de prueba, 1408/1408 tests).
 
 **Backend Bloque 3 (19/09/2026, CERRADO)** agrega la persistencia server-side real: `level_states`/`level_events`, estado `PENDIENTE` explícito (creado por `handle_email_confirmed` apenas hay `player_id`, incluso si el email se confirma antes de terminar el resto del onboarding), y la oficialización atómica/idempotente vía la Edge Function `officialize-onboarding` + la RPC privada `officialize_level_onboarding` — el motor sigue siendo el mismo archivo JS que usa el navegador (symlink real, nunca una copia), nunca se reimplementó en SQL. El laboratorio de prueba queda oculto en Production (visible en Development/Staging). Detalle completo en `Implementacion/Backend/Bloque_03/`.
+
+### Grupos BRAMU
+
+La definición vigente vive en `Grupos_BRAMU.md`. La base V03.4 se conserva como implementación de referencia, pero Grupos deja de ser una función diferible: debe quedar server-backed y lista antes de abrir Production. La ronda no rediseña la experiencia ya resuelta; prioriza estado cero, ayuda, cierre de creación, identidad/avatar real y persistencia multiusuario.
 
 ### Ranking BRAMU
 
@@ -238,6 +244,7 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 
 - **“Seguir con Nivel BRAMU / V04”** → este README + `Nivel_BRAMU_Formula_V1.5.md` y, si corresponde, la última sección de `BRAMUlab_V04_Informe.md`.
 - **“Ranking”** → `Ranking_BRAMU.md` + Nivel V1.5 solo donde Ranking dependa de Nivel.
+- **“Grupos / Race privada / puntos de grupo”** → `Grupos_BRAMU.md`.
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
 - **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
