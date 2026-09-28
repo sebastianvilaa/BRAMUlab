@@ -279,16 +279,18 @@ Permitir acceso por `@usuario` puede evaluarse después de validar el lanzamient
 
 ---
 
-## P0.4B — Grupos BRAMU productivo — DECISIÓN CERRADA
+## P0.4B — Grupos BRAMU productivo — EN CURSO
 
 Desde 28/09/2026 Grupos BRAMU pasa a ser parte del producto requerido antes de abrir Production.
 
-Fuente maestra:
+**Estado al 28/09/2026:** **Fase A backend compartido CERRADA EN STAGING.** Migración `preprod_grupos_fase_a_backend_compartido` aplicada; verify transaccional integral **`GRUPOS_FASE_A_VERIFY_PASS`**. Existen tablas server-only `groups`, `group_memberships`, `group_events`; RPCs de lectura/mutación con autorización; guardrail server-side de último admin; períodos históricos; y `get_group_competition_data` como fuente deportiva compartida basada en partidos validados y Nivel histórico oficial. Sin cambios de frontend ni de la experiencia de grupo armado. Ver `Implementacion/Pre_Production/66_Resultado_Grupos_Fase_A_Backend_Compartido_28SEP.md`.
 
+**Pendiente:** Fase B — conectar la UI existente a estos contratos, preservar el motor y experiencia aprobados, y luego aplicar únicamente los cambios UX explícitos de la fuente maestra. No volver a usar localStorage como autoridad productiva.
+
+Fuente maestra:
 - `Grupos_BRAMU.md`
 
-Handoff activo:
-
+Handoff paraguas:
 - `Implementacion/Pre_Production/62_Handoff_Grupos_BRAMU_28SEP.md`
 
 Alcance:
@@ -299,7 +301,7 @@ Alcance:
 - mantener Nivel, Ranking y puntos de grupo separados;
 - cerrar todo primero en Staging.
 
-No pasar a Bloque 9/Production dejando Grupos como verdad local si va a formar parte de la salida inicial.
+No pasar a Bloque 9/Production hasta cerrar Fase B y QA multiusuario de Grupos.
 
 ---
 
