@@ -6952,10 +6952,12 @@
           : `Tenés un partido pendiente con ${rivalNames}. Revisalo y confirmá el resultado.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
-        label = 'CORRECCIÓN PENDIENTE';
-        // Sin actionsRaw a este nivel (get_my_matches liviano) no se puede saber quién propuso
-        // la corrección — mismo criterio de "nunca inventar un actor" que ML.buildCorrectionHumanSummary.
-        text = 'La otra pareja propuso una corrección. Revisá el resultado.';
+        // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
+        // Un copy actor-relativo acá podía mentirle al propio proponente ("La otra pareja...").
+        // Se usa wording neutral y verdadero para ambos lados; la distinción precisa sigue en
+        // Resumen, donde get_match_detail sí trae el actor real.
+        label = 'CORRECCIÓN ABIERTA';
+        text = 'Hay una corrección abierta en este partido. Revisá el detalle.';
       } else {
         kindClass = 'espera';
         label = 'ESPERANDO CONFIRMACIÓN';
