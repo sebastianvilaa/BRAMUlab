@@ -531,6 +531,8 @@ Autoridad mínima:
 - cálculo alimentado únicamente por partidos oficiales/computables y, para Sorpresa, Nivel oficial anterior al partido cuando exista evidencia suficiente;
 - trazabilidad suficiente para reconstruir puntos, bonus, semanas y Race.
 
+Implementación Fase A (28/09/2026): tablas `groups`, `group_memberships` (un período por fila), `group_events`; contratos RPC y lectura deportiva `get_group_competition_data` documentados en `Implementacion/Pre_Production/66_Resultado_Grupos_Fase_A_Backend_Compartido_28SEP.md`.
+
 ## 7. Autoridad server-side y estado local permitido
 
 ### 7.1 Autoridad exclusiva del servidor
