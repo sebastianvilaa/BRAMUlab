@@ -561,6 +561,19 @@ La foto del grupo es opcional y no se agrega como requisito del flujo inicial. E
 
 Crear un grupo debe seguir siendo una tarea rápida.
 
+### Validación del nombre
+
+Si el usuario intenta crear el grupo sin completar un nombre válido, evitar el error genérico al pie como única señal.
+
+**AGREGAR** feedback contextual sobre el propio campo:
+- label / línea / borde del campo en rojo;
+- mensaje breve junto al campo indicando que falta completar el nombre;
+- llevar foco visual al campo;
+- conservar el resto de la selección ya realizada;
+- no presentar esto como error de conexión o fallo técnico.
+
+El mensaje genérico inferior puede quedar como respaldo solo para fallos reales de red/servidor.
+
 ---
 
 ## 15. Estado posterior a la creación
