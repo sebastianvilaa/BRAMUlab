@@ -2189,12 +2189,19 @@
     // afuera, en su propio bloque — ver buildWinnersBannerHTML/buildResultBlockHTML). Reutiliza
     // exactamente el mismo HTML/clases, solo cambia dónde se inserta.
     const winnersHTML = opts.winnersHTML || '';
+    // Handoff ajuste visual final post-h18 (doc 57, punto C) — "RESULTADO OFICIAL ACTUAL" pasa
+    // de vivir afuera (rótulo hermano de `#analysis-result`, alternado por paintB6Actions) a ser
+    // el PRIMER hijo de la misma tarjeta: 1) título, 2) ganadores, 3) grilla, 4) sets/games —
+    // nunca una tarjeta extra alrededor. Opt-in vía `opts.officialLabelHTML` (solo el Resumen lo
+    // usa; Confirmar partido/compartir siguen sin él).
+    const officialLabelHTML = opts.officialLabelHTML || '';
 
     // Ronda correctiva QA 26SEP (§15.24) / Handoff cierre UX h13 (§P0-C) — las dos filas de
     // equipo viven DENTRO de `.result-card__rows`, el único grid real que comparten (ver
     // styles.css), armadas por la primitiva ÚNICA `buildResultRowsHTML` — nunca dos grids/dos
     // copias del armado de filas que puedan volver a divergir.
     return `<div class="result-card">
+      ${officialLabelHTML}
       ${winnersHTML}
       ${durationsHTML}
       <div class="result-card__rows">
@@ -2227,8 +2234,9 @@
    *  divisor y Sets/Games ganados, todo en el mismo componente — "las estadísticas deben
    *  quedar inmediatamente relacionadas con el resultado" (antes Ganadores vivía en un bloque
    *  aparte arriba, y Sets/Games ganados en la sección ESTADÍSTICAS, lejos del marcador). */
-  function buildResultBlockHTML(f) {
-    return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f) });
+  function buildResultBlockHTML(f, opts) {
+    opts = opts || {};
+    return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f), officialLabelHTML: opts.officialLabelHTML });
   }
 
   /** Ronda correctiva Laboratorio h11 (§P3) — tarjeta REDUCIDA de resultado para comparar
@@ -2717,7 +2725,6 @@
     const reportErrorBlock = $('#b6-report-error-block');
     const respondBlock = $('#b6-respond-correction-block');
     const respondText = $('#b6-respond-correction-text');
-    const officialLabel = $('#analysis-result-official-label');
 
     const outboxActionBlock = $('#b6-outbox-action-block');
     const outboxActionBtn = $('#b6-outbox-action-btn');
@@ -2727,9 +2734,15 @@
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
     respondBlock.hidden = true;
-    officialLabel.hidden = true;
     outboxActionBlock.hidden = true;
     outboxActionBtn.onclick = null;
+    // Handoff ajuste visual final post-h18 (doc 57, punto E) — "Reportar un error" vive DENTRO
+    // de la tarjeta de corrección mientras hay una activa; el resto del tiempo vuelve a su
+    // posición de siempre (justo después de #b6-confirm-block). Mismo elemento único, solo se
+    // reubica — nunca se duplica ni se recalcula su disponibilidad con una segunda lógica (ver
+    // más abajo, todavía usa b6ReportErrorAvailability). Reset acá, por defecto, en cada render;
+    // el bloque `f.status === 'validated'` de más abajo lo vuelve a mover si corresponde.
+    confirmBlock.after(reportErrorBlock);
     // Ronda correctiva (revisión central) — default seguro para la lista de diff del banner
     // PRE-validación (§G): un render anterior para otro partido/estado nunca debe dejar líneas
     // stale visibles. El diff técnico del bloque POST-validación (#b6-respond-correction-diff)
@@ -2917,6 +2930,12 @@
 
       if (proposedByTeam && f.myTeam) {
         respondBlock.hidden = false;
+        // Handoff ajuste visual final post-h18 (doc 57, punto E) — "Reportar un error" pasa a
+        // vivir DENTRO de la tarjeta de corrección (último hijo, debajo de Aceptar/Rechazar)
+        // mientras hay una corrección activa que me involucra — tanto para quien responde como
+        // para quien propuso (su disponibilidad real la sigue decidiendo únicamente
+        // b6ReportErrorAvailability más abajo, acá solo se decide DÓNDE vive el mismo elemento).
+        respondBlock.appendChild(reportErrorBlock);
         const isResponder = proposedByTeam !== f.myTeam;
         $('#b6-respond-action-row').hidden = !isResponder;
         // Ronda UX 25/09 (§G/§I) — actor PERSONA real (b6RevisionProposerName), nunca la pareja
@@ -2937,7 +2956,10 @@
         // del que responde — nunca una segunda representación — solo cambia el copy a 2da
         // persona y se oculta la fila de acciones (quien propuso no acepta/rechaza su propia
         // propuesta).
-        officialLabel.hidden = false;
+        // Handoff ajuste visual final post-h18 (doc 57, punto C) — "RESULTADO OFICIAL ACTUAL" ya
+        // no se toggla acá: renderAnalysis lo decide sincrónicamente y lo renderiza DENTRO de la
+        // tarjeta oficial (ver buildScoreCardHTML/opts.officialLabelHTML), sin depender de que
+        // este bloque post-detalle llegue a ejecutarse.
         // Auditoría Central h16 -> h17 (doc 53, punto B "Resumen — bloque de corrección") —
         // ELIMINA el texto introductorio "[Nombre] propuso una corrección del resultado." para
         // quien debe responder: es redundante con el rótulo de abajo (#b6-respond-proposed-label,
@@ -3684,7 +3706,16 @@
     analysisCurrent = f;
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
     renderAnalysisMeta(f);
-    $('#analysis-result').innerHTML = buildResultBlockHTML(f);
+    // Handoff ajuste visual final post-h18 (doc 57, punto C) — `pendingCorrectionRevisionId`/
+    // `validatedAt` ya vienen en el `f` liviano (get_my_matches), así que esto NUNCA necesita
+    // esperar a get_match_detail (a diferencia de `proposedByTeam`, que sí lo necesita para
+    // saber QUIÉN propuso — ver paintB6Actions más abajo): "hay una corrección activa" es
+    // suficiente para decidir si el rótulo aparece, sin importar todavía quién debe responder.
+    const hasActiveOfficialCorrection = f.serverBacked && f.status === 'validated' && !!f.pendingCorrectionRevisionId && b6CorrectionWindowOpen(f);
+    const officialLabelHTML = hasActiveOfficialCorrection
+      ? '<p class="b6-correction-compare__label">Resultado oficial actual</p>'
+      : '';
+    $('#analysis-result').innerHTML = buildResultBlockHTML(f, { officialLabelHTML });
     // Backend Bloque 6 (Fase B) — pendientes/Confirmar/corrección/identidad. Nunca bloquea el
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
     // en paralelo con get_match_detail fresco (ver renderB6Actions).
@@ -6882,37 +6913,78 @@
    *  `PH.computeHomePendingCarouselItems` decide QUÉ partidos entran y en qué orden (puro,
    *  testeado); acá solo se arma una tarjeta por item con nombres reales y se cablea el tap.
    *  Cada tarjeta es un partido real y específico — nunca un agregado tipo "tenés N partidos"
-   *  (ver nota histórica de §I más abajo, que sigue aplicando por partido individual). */
-  function renderPlayerHomePendingBanner(displayMatches) {
+   *  (ver nota histórica de §I más abajo, que sigue aplicando por partido individual).
+   *
+   *  Handoff ajuste visual final post-h18 (doc 57, punto B) — REEMPLAZA el par "tarjeta de
+   *  acción grande arriba + tarjeta TU MOMENTO grande más abajo" (dos bloques separados) por UN
+   *  único carrusel: acciones/correcciones/espera reales primero (si las hay), TU MOMENTO
+   *  siempre al final como una tarjeta más — nunca dos superficies separadas mostrando
+   *  información parecida. `momentoText` llega ya calculado por renderPlayerHome (mismo texto
+   *  base que antes se escribía directo en #player-home-momento-text); ese id se conserva
+   *  DENTRO de la tarjeta nueva para que el refresco asíncrono de Ranking (RK.getHomeRankingInsight,
+   *  ver renderPlayerHome) lo seguir actualizando in-place sin tocar este render. */
+  function renderPlayerHomeCarousel(displayMatches, momentoText) {
     const track = $('#player-home-pending-carousel');
-    const items = PH.computeHomePendingCarouselItems(displayMatches || []);
-    if (!items.length) { track.hidden = true; track.innerHTML = ''; return; }
+    const items = PH.computeHomePendingCarouselItems(displayMatches || [], new Date());
     const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
-    track.innerHTML = items.map((item) => {
+    const actionSlidesHTML = items.map((item) => {
       const m = byId.get(item.matchId);
       if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
       const rivalNames = S.teamLabel(m.players, rivalTeam) || 'tu rival';
-      const isAccionable = item.kind === 'accionable';
-      // Ronda UX 25/09 (§I) — BUG histórico: "X registró un partido en el que participaste" es
-      // una atribución de CARGA que get_my_matches no puede confirmar acá (sin
-      // currentRevisionNumber/actionsRaw en esta lista liviana, nunca se sabe si el pendiente es
-      // una carga nueva, una corrección propuesta o una identidad recién resuelta — Laboratorio
-      // §15.7/§15.12: la misma frase se mostró para los tres casos, dos de ellos falsos). Copy
-      // neutro y siempre verdadero acá; la distinción real por tipo de evento vive en el Resumen
-      // (paintB6Actions), que sí tiene esos datos.
-      const label = isAccionable ? 'REQUIERE TU ACCIÓN' : 'ESPERANDO CONFIRMACIÓN';
-      const text = isAccionable
-        ? `Tenés un partido pendiente con ${rivalNames}.`
-        : `Tu resultado con ${rivalNames} está esperando que confirmen.`;
+      // Handoff ajuste visual final post-h18 (doc 57, punto B) — "Cargado por X" es un dato de
+      // CREACIÓN del partido (createdByPlayerId, mismo campo/mismo criterio que
+      // buildAnalysisMetaLines más arriba), siempre verdadero sin importar si el pendiente
+      // actual es una carga nueva o una corrección — a diferencia del BUG histórico de §I (que
+      // atribuía el EVENTO pendiente, no la creación). Sin loader resoluble, cae al copy neutro
+      // de siempre — nunca inventa un nombre.
+      let loaderName = null;
+      if (m.createdByPlayerId) {
+        const row = (m.players || []).find((p) => p && p.userId === m.createdByPlayerId);
+        loaderName = row ? row.name : null;
+      }
+      let kindClass, label, text;
+      if (item.kind === 'accionable') {
+        kindClass = 'accionable';
+        label = 'PARTIDO POR CONFIRMAR';
+        text = loaderName
+          ? `${loaderName} cargó un partido con vos. Revisalo y confirmá el resultado.`
+          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y confirmá el resultado.`;
+      } else if (item.kind === 'correccion') {
+        kindClass = 'correccion';
+        label = 'CORRECCIÓN PENDIENTE';
+        // Sin actionsRaw a este nivel (get_my_matches liviano) no se puede saber quién propuso
+        // la corrección — mismo criterio de "nunca inventar un actor" que ML.buildCorrectionHumanSummary.
+        text = 'La otra pareja propuso una corrección. Revisá el resultado.';
+      } else {
+        kindClass = 'espera';
+        label = 'ESPERANDO CONFIRMACIÓN';
+        text = `Tu resultado con ${rivalNames} está esperando que confirmen.`;
+      }
       return `
-        <div class="player-home-carousel-card player-home-carousel-card--${isAccionable ? 'accionable' : 'espera'}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
+        <div class="player-home-carousel-card player-home-carousel-card--${kindClass}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
           <span class="player-home-carousel-card__label">${label}</span>
           <p class="player-home-carousel-card__text">${escapeHtml(text)}</p>
         </div>`;
     }).join('');
+    // Handoff ajuste visual final post-h18 (doc 57, punto B) — TU MOMENTO como última tarjeta,
+    // SIEMPRE presente (PH.buildTuMomentoText nunca devuelve vacío): "los demás mensajes/
+    // insights siguen disponibles en el mismo carrusel". No es tappable (no abre un caso
+    // puntual) — sin role/tabindex/listener, a diferencia de las tarjetas de arriba.
+    const insightSlideHTML = `
+      <div class="player-home-carousel-card player-home-carousel-card--insight">
+        <div class="pastilla__title-row">
+          <span class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" class="pastilla__icon-svg pastilla__icon-svg--momento"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg></span>
+          <div>
+            <div class="pastilla__title">TU MOMENTO</div>
+            <div class="pastilla__microlabel">BRAMU LEE TU HISTORIA</div>
+          </div>
+        </div>
+        <p class="pastilla-momento__text" id="player-home-momento-text">${escapeHtml(momentoText || '')}</p>
+      </div>`;
+    track.innerHTML = actionSlidesHTML + insightSlideHTML;
     track.hidden = false;
-    $all('#player-home-pending-carousel .player-home-carousel-card').forEach((card) => {
+    $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
       if (!m) return;
       const open = () => openCanonicalResumen(m, 'player-home');
@@ -6948,10 +7020,6 @@
     const prefersReducedMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
     const shouldAnimate = !prefersReducedMotion;
 
-    renderPlayerHomePendingBanner(displayMatches);
-    renderPlayerHitos(matches);
-    renderPlayerCard(matches, shouldAnimate);
-    renderPlayerLastMatchCard(displayMatches, matches);
     // BRAMUlab_V03.8 (Ranking_BRAMU.md §13.6) — insight de Ranking (siempre ámbito Local, nunca
     // Nivel actual en vivo) como candidato más para TU MOMENTO, nunca una tarjeta territorial
     // completa nueva en Home. `null` cuando no hay cuenta/no es elegible/sin género/densidad
@@ -6961,9 +7029,22 @@
     // refreshB6Notifications arriba) y lo actualiza solo cuando get_home_ranking_insight
     // resuelve. `territory` no viaja en esa RPC (siempre ámbito Local del propio caller): se
     // usa la localidad ya cacheada de la cuenta, no un dato nuevo.
+    // Handoff ajuste visual final post-h18 (doc 57, punto B) — el texto inicial de TU MOMENTO se
+    // calcula ACÁ (antes de pintar el carrusel único) para pasarlo como última tarjeta desde el
+    // primer render; el insight de Ranking asíncrono lo sigue actualizando in-place después,
+    // exactamente igual que antes (mismo id `#player-home-momento-text`, ahora dentro del
+    // carrusel en vez de en su propia tarjeta separada).
     const homeUser = Store.getCurrentUser();
-    if (Auth.isConfigured() && homeUser && homeUser.serverBacked) {
-      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), null);
+    const homeIsServerBackedWithAuth = Auth.isConfigured() && homeUser && homeUser.serverBacked;
+    const initialMomentoText = homeIsServerBackedWithAuth
+      ? PH.buildTuMomentoText(matches, currentIdentity(), null)
+      : PH.buildTuMomentoText(matches, currentIdentity(), RK.computeHomeRankingInsight(homeUser, history, new Date()));
+
+    renderPlayerHomeCarousel(displayMatches, initialMomentoText);
+    renderPlayerHitos(matches);
+    renderPlayerCard(matches, shouldAnimate);
+    renderPlayerLastMatchCard(displayMatches, matches);
+    if (homeIsServerBackedWithAuth) {
       RK.getHomeRankingInsight().then((result) => {
         // Backend Bloque 8 (Fase E, Revisión Central E02): "no marcar como visto si la RPC
         // falla" — con `!result.ok` no hay insight ni milestone que evaluar, así que ya no hay
@@ -7013,9 +7094,6 @@
         $('#player-home-momento-text').textContent = textWithInsight;
         Store.markRankingMilestoneSeen(homeUser.id, milestoneKey);
       });
-    } else {
-      const rankingInsight = RK.computeHomeRankingInsight(homeUser, history, new Date());
-      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), rankingInsight);
     }
     renderPlayerActivity(matches, shouldAnimate);
     renderPlayerEffectiveness(matches, shouldAnimate);
@@ -7132,7 +7210,19 @@
         barWrapEl.hidden = false;
         const barEl = $('#player-home-level-bar');
         barEl.style.width = PH.levelProgressPct(publicLevel) + '%';
+        // Handoff ajuste visual final post-h18 (doc 57, punto H) — REGRESIÓN CONFIRMADA (git
+        // show 301d3b3, el mismo commit "cierre UX h13" que arregló el relleno fijo al 100%):
+        // se sacó `is-animating` para poder fijar el ancho real, pero nunca se volvió a agregar
+        // — a diferencia del branch legacy de abajo, que sí hace el patrón completo (sacar +
+        // reflow + volver a agregar, ver su propio comentario). Esta es la animación de entrada
+        // que Sebastián recordaba y dejó de ver: la cuenta V1 calibrada (el camino vigente hoy
+        // para casi todas las cuentas reales) es la que perdía el retrigger, no la legacy. Mismo
+        // mecanismo exacto que el branch legacy — ninguna animación/intensidad nueva.
         barEl.classList.remove('is-animating');
+        if (shouldAnimate) {
+          void barEl.offsetWidth;
+          barEl.classList.add('is-animating');
+        }
         const deltaEl = $('#player-home-level-delta');
         deltaEl.textContent = '';
         deltaEl.className = 'player-card__level-delta player-card__level-delta--flat';
@@ -7278,19 +7368,27 @@
     // Handoff cierre UX h13 (§2 "Último partido con corrección activa", plan §P0-B) — copy corto
     // preferido "CORRECCIÓN PENDIENTE" en ESTA tarjeta puntual (nunca cambia serverMatchStatusLabel
     // en general — Historial/Resumen conservan "CORRECCIÓN PROPUESTA", sin ampliar alcance).
-    const lastMatchStatusModifier = serverMatchStatusBadgeModifier(m) || 'status';
-    // Hotfix Central h18 — h17 movió por accidente TODOS los estados server-backed al renglón 2.
-    // La decisión visual de Sebastián era puntual para CORRECCIÓN PENDIENTE. Para no ampliar
-    // alcance ni arriesgar textos largos (PENDIENTE DE VALIDACIÓN / IDENTIDAD CUESTIONADA),
-    // solo la corrección activa vive a la derecha de row2 como texto ámbar liso. Los demás
-    // estados conservan su ubicación previa bajo fecha/hora, con su badge habitual.
-    const correctionStatusHTML = hasActiveCorrectionOnLastMatch
-      ? '<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--correction">CORRECCIÓN PENDIENTE</span>'
-      : '';
-    const otherStatusText = hasActiveCorrectionOnLastMatch ? '' : serverMatchStatusLabel(m);
-    const otherStatusHTML = otherStatusText
-      ? `<span class="player-home-lastmatch__badge player-home-lastmatch__badge--${lastMatchStatusModifier}">${otherStatusText}</span>`
-      : '';
+    // Handoff ajuste visual final post-h18 (doc 57, punto A) — GENERALIZA el patrón que ya
+    // funcionaba visualmente para CORRECCIÓN PENDIENTE a TODOS los estados operativos reales de
+    // esta tarjeta: uno solo vive a la derecha de row2, como texto compacto (nunca pill/cápsula),
+    // color según semántica (mismos modificadores de serverMatchStatusBadgeModifier). Esto
+    // deshace el hotfix h18 (que había vuelto a poner PENDIENTE DE VALIDACIÓN/IDENTIDAD
+    // CUESTIONADA/etc. apilados bajo fecha/hora en row1) — la causa que motivó ese hotfix (texto
+    // largo rompiendo la geometría) queda cubierta acá con texto liso sin padding/pill (más
+    // compacto que un badge) + font-size reducido a 10px + white-space:nowrap.
+    // Copies específicos de ESTA tarjeta (nunca cambian serverMatchStatusLabel en general —
+    // Historial/Resumen conservan su propio wording): "TU TURNO: CONFIRMAR" -> "CONFIRMAR
+    // PARTIDO", "PENDIENTE DE VALIDACIÓN" -> "ESPERANDO VALIDACIÓN". El resto (identidad
+    // cuestionada, sync_pending, necesita_revision, expired, annulled) conserva el copy vigente
+    // tal cual serverMatchStatusLabel ya lo resuelve, con la misma prioridad de estados.
+    const generalStatusText = serverMatchStatusLabel(m);
+    const lastMatchStatusText = hasActiveCorrectionOnLastMatch
+      ? 'CORRECCIÓN PENDIENTE'
+      : (generalStatusText === 'TU TURNO: CONFIRMAR' ? 'CONFIRMAR PARTIDO'
+        : generalStatusText === 'PENDIENTE DE VALIDACIÓN' ? 'ESPERANDO VALIDACIÓN'
+        : generalStatusText);
+    const lastMatchStatusModifier = hasActiveCorrectionOnLastMatch ? 'correction' : (serverMatchStatusBadgeModifier(m) || 'status');
+    const lastMatchStatusHTML = !lastMatchStatusText ? '' : `<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--${lastMatchStatusModifier}">${lastMatchStatusText}</span>`;
 
     body.innerHTML = `
       <div class="player-home-lastmatch__top">
@@ -7299,7 +7397,6 @@
           <div class="player-home-lastmatch__datetime">
             ${dateTimeStr ? `<div class="player-home-lastmatch__date">${dateTimeStr}</div>` : ''}
             ${placeStr ? `<div class="player-home-lastmatch__place">${escapeHtml(placeStr)}</div>` : ''}
-            ${otherStatusHTML ? `<div class="player-home-lastmatch__badge-slot">${otherStatusHTML}</div>` : ''}
           </div>
         </div>
         <div class="player-home-lastmatch__row2">
@@ -7307,7 +7404,7 @@
             <div class="player-home-lastmatch__form">${formDotsHtml}</div>
             <span class="player-home-lastmatch__badge player-home-lastmatch__badge--${resultKind}">${resultLabel}</span>
           </div>
-          <div class="player-home-lastmatch__status-slot">${correctionStatusHTML}</div>
+          <div class="player-home-lastmatch__status-slot">${lastMatchStatusHTML}</div>
         </div>
       </div>
       <div class="player-home-lastmatch__score lastmatch-score" aria-label="${escapeHtml(scoreLabel)}">${scoreStr}</div>
@@ -7576,7 +7673,7 @@
     initPlayerHomeLastMatchCard();
     initPlayerHomeMetricsNav();
     // Ronda UX 25/09 (Ronda 2, §3) — el carrusel arma sus tarjetas (click + teclado) por
-    // completo dentro de renderPlayerHomePendingBanner en cada render, porque cambian de
+    // completo dentro de renderPlayerHomeCarousel en cada render, porque cambian de
     // cantidad/contenido en cada carga; no hay nada fijo que cablear una sola vez acá.
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.

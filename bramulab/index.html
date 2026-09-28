@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h18" />
+<link rel="stylesheet" href="styles.css?v=04.11-h19" />
 </head>
 <body>
 
@@ -64,8 +64,11 @@
            responder a una corrección propuesta: "la primera gran tarjeta sigue mostrando
            ganadores/resultado oficial sin etiquetarlo explícitamente como Resultado oficial
            actual" (§15.32) — nunca duplica la tarjeta, solo la rotula cuando hace falta
-           distinguirla de la propuesta de abajo (ver paintB6Actions en app.js). -->
-      <p id="analysis-result-official-label" class="b6-correction-compare__label" hidden>Resultado oficial actual</p>
+           distinguirla de la propuesta de abajo (ver paintB6Actions en app.js).
+           Handoff ajuste visual final post-h18 (doc 57, punto C) — el rótulo "Resultado oficial
+           actual" ya NO es un elemento propio acá: renderAnalysis lo genera DENTRO de la tarjeta
+           oficial (buildScoreCardHTML/opts.officialLabelHTML), como su primer hijo — nunca una
+           tarjeta extra alrededor. -->
       <section class="analysis-section" id="analysis-result"></section>
       <!-- Backend Bloque 6 (Fase B) — pendientes accionables/Confirmar/Proponer corrección/
            Responder corrección/No participé/identidad. Vive pegado al resultado, arriba de
@@ -97,23 +100,26 @@
              oculta (id="b6-respond-action-row") y el texto/rótulo en 2da persona ("Tu
              corrección propuesta" / "Esperando respuesta de la otra pareja") — ver
              paintB6Actions en app.js.
-             Auditoría Central h16 -> h17 (doc 53, punto B "Resumen — bloque de corrección") —
-             rótulo + tarjeta de resultado propuesto + explicación humana + acciones deben
-             sentirse como UNA sola unidad visual de corrección: se retiraron el texto
-             introductorio redundante para quien responde y el diff técnico gris
-             (#b6-respond-correction-diff ya no existe) — la tarjeta de la propuesta
-             (#b6-respond-proposed-card) queda con acento ámbar propio (ver styles.css) para
-             reforzar que ES la propuesta, sin envolver todo en una segunda caja pesada. -->
-        <div class="b6-action-block" id="b6-respond-correction-block" hidden>
-          <p class="b6-banner__text" id="b6-respond-correction-text"></p>
+             Handoff ajuste visual final post-h18 (doc 57, puntos D/E/F) — UNA única tarjeta con
+             borde/halo ámbar (.b6-correction-card) contiene, en orden: 1) rótulo+propuesta+
+             explicación (.b6-correction-compare), 2) estado de espera si corresponde
+             (#b6-respond-correction-text, ahora DESPUÉS de la propuesta, no antes), 3) acciones
+             (Aceptar/Rechazar lado a lado incluso en móvil, estilo outline inspirado en los
+             selectores Clásico/Americano de Cargar partido — nunca botón lima macizo). "Reportar
+             un error" (#b6-report-error-block) se reubica DENTRO de esta tarjeta vía JS
+             (paintB6Actions) solo mientras hay corrección activa — vive en su posición de
+             siempre (después de #b6-confirm-block) el resto del tiempo, mismo elemento único,
+             nunca duplicado. -->
+        <div class="b6-action-block b6-correction-card" id="b6-respond-correction-block" hidden>
           <div class="b6-correction-compare">
             <p class="b6-correction-compare__label b6-correction-compare__label--proposed" id="b6-respond-proposed-label">Corrección propuesta</p>
             <div id="b6-respond-proposed-card"></div>
             <p class="b6-correction-summary" id="b6-respond-correction-summary"></p>
           </div>
-          <div class="b6-action-row" id="b6-respond-action-row">
-            <button type="button" class="btn-start b6-action-row__btn" id="b6-respond-accept-btn">ACEPTAR CORRECCIÓN</button>
-            <button type="button" class="btn-secondary b6-action-row__btn" id="b6-respond-reject-btn">RECHAZAR</button>
+          <p class="b6-banner__text" id="b6-respond-correction-text"></p>
+          <div class="b6-correction-choices" id="b6-respond-action-row">
+            <button type="button" class="b6-correction-choice b6-correction-choice--accept" id="b6-respond-accept-btn">Aceptar corrección</button>
+            <button type="button" class="b6-correction-choice b6-correction-choice--reject" id="b6-respond-reject-btn">Rechazar</button>
           </div>
         </div>
         <div class="b6-action-block" id="b6-confirm-block" hidden>
@@ -579,12 +585,13 @@
 
       <!-- Ronda UX 25/09 (Ronda 2, §3) — carrusel horizontal de pendientes: reemplaza el banner
            único anterior. Cada tarjeta es UN partido real (nunca un agregado inventado), tocable
-           por completo, sin CTA suelto. Con un solo pendiente se ve como tarjeta estática; con
-           más de uno, scroll horizontal nativo con scroll-snap (sin librería nueva, ver §12).
-           Categoría "informativos/tips" del handoff queda soportada por la clase modificadora
-           `--info` pero SIN contenido todavía: no existe hoy una fuente real de tips temporales
-           en Home fuera de TU MOMENTO (NO TOCAR, §13) — inventar uno violaría "nunca inventar
-           actores/eventos". Oculto por completo sin ningún pendiente. -->
+           por completo, sin CTA suelto. Con una sola tarjeta se ve como tarjeta estática; con
+           más de una, scroll horizontal nativo con scroll-snap (sin librería nueva, ver §12).
+           Handoff ajuste visual final post-h18 (doc 57, punto B) — ÚNICO slot/carrusel superior
+           para acciones + insights (antes: esta tarjeta de acción + otra tarjeta TU MOMENTO
+           separada más abajo, dos bloques mostrando información parecida). TU MOMENTO ahora es
+           la última tarjeta de ESTE carrusel (ver renderPlayerHomeCarousel en app.js) — siempre
+           presente, así que ya no queda oculto sin partidos pendientes. -->
       <div class="player-home-carousel" id="player-home-pending-carousel" hidden></div>
 
       <!-- §5 — Hitos personales: franja horizontal desplazable, solo con al menos un hito
@@ -652,20 +659,6 @@
            el CTA visual del estado vacío sin anidar controles interactivos). -->
       <div class="pastilla pastilla--lastmatch player-home-lastmatch" id="player-home-last-match-card">
         <div id="player-home-last-match-body"></div>
-      </div>
-
-      <div class="pastilla pastilla--momento">
-        <div class="pastilla__title-row">
-          <!-- Ajuste visual de cierre 01 (§4) — sin estrella/chispa: pelota de pádel
-               simplificada, mismo lenguaje de trazo lineal (~1.8px) que el resto de la
-               iconografía SVG de la app, en vez del path relleno anterior. -->
-          <span class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" class="pastilla__icon-svg pastilla__icon-svg--momento"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg></span>
-          <div>
-            <div class="pastilla__title">TU MOMENTO</div>
-            <div class="pastilla__microlabel">BRAMU LEE TU HISTORIA</div>
-          </div>
-        </div>
-        <p class="pastilla-momento__text" id="player-home-momento-text"></p>
       </div>
 
       <!-- V02.1 (§21): dos grupos con encabezado propio ("Últimos 30 días"/"Tu historial").
@@ -2785,47 +2778,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h18"></script>
-  <script src="stats.js?v=04.11-h18"></script>
-  <script src="store.js?v=04.11-h18"></script>
+  <script src="engine.js?v=04.11-h19"></script>
+  <script src="stats.js?v=04.11-h19"></script>
+  <script src="store.js?v=04.11-h19"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h18"></script>
-  <script src="level-context.js?v=04.11-h18"></script>
-  <script src="level-calibration.js?v=04.11-h18"></script>
-  <script src="player-home.js?v=04.11-h18"></script>
-  <script src="match-load.js?v=04.11-h18"></script>
-  <script src="player-identity.js?v=04.11-h18"></script>
-  <script src="groups.js?v=04.11-h18"></script>
-  <script src="locations.js?v=04.11-h18"></script>
-  <script src="ranking.js?v=04.11-h18"></script>
+  <script src="level.js?v=04.11-h19"></script>
+  <script src="level-context.js?v=04.11-h19"></script>
+  <script src="level-calibration.js?v=04.11-h19"></script>
+  <script src="player-home.js?v=04.11-h19"></script>
+  <script src="match-load.js?v=04.11-h19"></script>
+  <script src="player-identity.js?v=04.11-h19"></script>
+  <script src="groups.js?v=04.11-h19"></script>
+  <script src="locations.js?v=04.11-h19"></script>
+  <script src="ranking.js?v=04.11-h19"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h18"></script>
+  <script src="auth.js?v=04.11-h19"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h18"></script>
-  <script src="match-sync.js?v=04.11-h18"></script>
+  <script src="matches.js?v=04.11-h19"></script>
+  <script src="match-sync.js?v=04.11-h19"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h18"></script>
+  <script src="match-validation.js?v=04.11-h19"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h18"></script>
+  <script src="match-self-heal.js?v=04.11-h19"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h18"></script>
-  <script src="app.js?v=04.11-h18"></script>
+  <script src="intelligence-client.js?v=04.11-h19"></script>
+  <script src="app.js?v=04.11-h19"></script>
 </body>
 </html>

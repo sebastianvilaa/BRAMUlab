@@ -3080,20 +3080,27 @@
     function m(matchId, overrides) {
       return Object.assign({ matchId, serverBacked: true, status: 'pending_validation', isActionMine: false, actionSide: null }, overrides || {});
     }
+    const now = new Date('2026-09-27T12:00:00.000Z');
     const mixed = [
       m('acc1', { isActionMine: true }),
       m('esp1', { actionSide: 'B' }),
       m('acc2', { isActionMine: true }),
-      m('validated1', { status: 'validated', isActionMine: false }), // no pendiente — nunca entra
+      m('validated1', { status: 'validated', isActionMine: false }), // validado sin corrección pendiente — nunca entra
       m('noaction', { isActionMine: false, actionSide: null }), // sin actionSide — nunca "espera" (evita inventar estado)
       m('esp2', { actionSide: 'A' }),
       m('local1', { serverBacked: false, isActionMine: true }), // legacy local — nunca server-backed
+      // Handoff ajuste visual final post-h18 (doc 57, punto B) — validado CON corrección activa
+      // (ventana de 3 días desde validatedAt, mismo criterio que b6CorrectionWindowOpen).
+      m('corr1', { status: 'validated', isActionMine: false, pendingCorrectionRevisionId: 'rev1', validatedAt: '2026-09-26T12:00:00.000Z' }),
+      // Corrección FUERA de la ventana de 3 días — nunca entra.
+      m('corrOld', { status: 'validated', isActionMine: false, pendingCorrectionRevisionId: 'rev2', validatedAt: '2026-09-01T12:00:00.000Z' }),
     ];
-    const items = PH.computeHomePendingCarouselItems(mixed);
+    const items = PH.computeHomePendingCarouselItems(mixed, now);
     const ids = items.map((i) => i.matchId);
-    assert('RONDA-UX-VIS · solo entran server-backed pending_validation con isActionMine o actionSide', JSON.stringify(ids) === JSON.stringify(['acc1', 'acc2', 'esp1', 'esp2']), JSON.stringify(ids));
-    assert('RONDA-UX-VIS · accionables siempre antes que espera, orden interno preservado', items[0].kind === 'accionable' && items[1].kind === 'accionable' && items[2].kind === 'espera' && items[3].kind === 'espera');
-    assert('RONDA-UX-VIS · validated nunca entra al carrusel', ids.indexOf('validated1') === -1);
+    assert('RONDA-UX-VIS · solo entran server-backed pending_validation con isActionMine/actionSide + validated con corrección activa', JSON.stringify(ids) === JSON.stringify(['acc1', 'acc2', 'corr1', 'esp1', 'esp2']), JSON.stringify(ids));
+    assert('RONDA-UX-VIS · accionables > correcciones > espera, orden interno preservado', items[0].kind === 'accionable' && items[1].kind === 'accionable' && items[2].kind === 'correccion' && items[3].kind === 'espera' && items[4].kind === 'espera');
+    assert('RONDA-UX-VIS · validated sin corrección pendiente nunca entra al carrusel', ids.indexOf('validated1') === -1);
+    assert('RONDA-UX-VIS · corrección fuera de la ventana de 3 días nunca entra', ids.indexOf('corrOld') === -1);
     assert('RONDA-UX-VIS · pending sin isActionMine ni actionSide nunca se inventa como "espera"', ids.indexOf('noaction') === -1);
     assert('RONDA-UX-VIS · partido local (no server-backed) nunca entra', ids.indexOf('local1') === -1);
     assert('RONDA-UX-VIS · lista vacía => []', PH.computeHomePendingCarouselItems([]).length === 0);

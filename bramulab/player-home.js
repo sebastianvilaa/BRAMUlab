@@ -194,18 +194,41 @@
    *  si no me toca pero `actionSide` señala que ALGUIEN debe actuar (la pareja rival) ⇒
    *  `'espera'` — antes esta categoría no se mostraba en ningún lado de Home. Nunca clasifica un
    *  partido sin `actionSide` como espera: sin ese dato no hay forma honesta de decir "esperando
-   *  a X" (evita inventar estado). Accionables primero, después espera — dentro de cada grupo se
-   *  preserva el orden de `displayMatches` (ya viene del más reciente al más antiguo). */
-  function computeHomePendingCarouselItems(displayMatches) {
+   *  a X" (evita inventar estado).
+   *
+   *  Handoff ajuste visual final post-h18 (doc 57, punto B) — suma `'correccion'`: un partido ya
+   *  VALIDADO con una corrección post-validación activa (mismo criterio de ventana de 3 días
+   *  desde `validatedAt` que ya usa app.js#b6CorrectionWindowOpen para la tarjeta de Último
+   *  partido). Nunca distingue proponente/respondedor acá — mismo criterio ya establecido en esa
+   *  misma tarjeta: la distinción real (acciones de aceptar/rechazar vs. estado de espera) solo
+   *  se resuelve al abrir el Resumen (paintB6Actions en app.js), que sí tiene el detalle
+   *  completo. `now` es inyectable para tests deterministas (mismo patrón que
+   *  RK.computeHomeRankingInsight); por defecto `new Date()`.
+   *
+   *  Orden: accionables > correcciones > espera (todas "requieren acción o atención" antes que
+   *  un estado puramente de espera) — dentro de cada grupo se preserva el orden de
+   *  `displayMatches` (ya viene del más reciente al más antiguo). */
+  function computeHomePendingCarouselItems(displayMatches, now) {
     const list = Array.isArray(displayMatches) ? displayMatches : [];
+    const nowMs = (now instanceof Date ? now : new Date()).getTime();
     const accionables = [];
+    const correcciones = [];
     const espera = [];
     list.forEach((m) => {
-      if (!m || !m.serverBacked || m.status !== 'pending_validation') return;
-      if (m.isActionMine) { accionables.push({ matchId: m.matchId, kind: 'accionable' }); return; }
-      if (m.actionSide) { espera.push({ matchId: m.matchId, kind: 'espera' }); }
+      if (!m || !m.serverBacked) return;
+      if (m.status === 'pending_validation') {
+        if (m.isActionMine) { accionables.push({ matchId: m.matchId, kind: 'accionable' }); return; }
+        if (m.actionSide) { espera.push({ matchId: m.matchId, kind: 'espera' }); }
+        return;
+      }
+      if (m.status === 'validated' && m.pendingCorrectionRevisionId && m.validatedAt) {
+        const validatedMs = new Date(m.validatedAt).getTime();
+        if (Number.isFinite(validatedMs) && nowMs <= validatedMs + 3 * 86400000) {
+          correcciones.push({ matchId: m.matchId, kind: 'correccion' });
+        }
+      }
     });
-    return accionables.concat(espera);
+    return accionables.concat(correcciones, espera);
   }
 
   /** Corrección post-QA (Notificaciones históricas + contexto de partido) — "vs Rival1 + Rival2

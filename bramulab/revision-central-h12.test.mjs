@@ -40,7 +40,10 @@ test('§A: paintB6Actions distingue isResponder y reutiliza el mismo bloque para
 });
 
 test('§A: la fila de acciones tiene su propio id en index.html para poder ocultarla sin tocar el resto del bloque', () => {
-  assert.match(indexHtml, /<div class="b6-action-row" id="b6-respond-action-row">/);
+  // Handoff ajuste visual final post-h18 (doc 57, punto E) — la clase visual de esta fila pasó
+  // de `.b6-action-row` (h17, apilada full-width) a `.b6-correction-choices` (grid 1fr 1fr, lado
+  // a lado incluso en móvil) — el id, que es lo que este test realmente verifica, no cambió.
+  assert.match(indexHtml, /<div class="b6-correction-choices" id="b6-respond-action-row">/);
 });
 
 /* ---- §B — CORRECCIÓN PROPUESTA elevada en Home/Historial, sin tocar VICTORIA/DERROTA oficial ---- */

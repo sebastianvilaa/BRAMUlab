@@ -1775,17 +1775,22 @@ input, select{ font-family: inherit; }
    .datetime, en row1): el status ahora es el segundo hijo de row2 (ver arriba), a la derecha de
    .row2-left. No necesita altura mínima reservada — row2 ya queda gobernada por el badge de
    resultado (VICTORIA/DERROTA/SIN DEFINICIÓN), siempre presente, así que el status nunca puede
-   agrandar el renglón, tenga o no contenido. */
-/* Hotfix Central h18 — ubicación previa de los estados server-backed NO relacionados con una
-   corrección activa. Se restaura únicamente para no ampliar el cambio visual de h17. */
-.player-home-lastmatch__badge-slot{ display:flex; justify-content:flex-end; margin-top:4px; }
+   agrandar el renglón, tenga o no contenido.
+   Handoff ajuste visual final post-h18 (doc 57, punto A) — GENERALIZA a TODOS los estados
+   operativos reales (antes solo corrección activa, h18 había vuelto a apilar el resto bajo
+   fecha/hora): un único texto compacto, sin pill/cápsula, color según semántica
+   (`--action`/`--waiting`/`--correction`/`--identity`/`--pending`/`--status`, mismos nombres que
+   serverMatchStatusBadgeModifier). `font-size:10px` (antes 11px) para que los copies más largos
+   (PENDIENTE DE SINCRONIZACIÓN, IDENTIDAD CUESTIONADA) entren sin wrappear junto a forma+
+   resultado en el mismo renglón — ajustar tipografía antes que romper la geometría. */
 .player-home-lastmatch__status-slot{ flex:none; display:flex; align-items:center; }
-/* Dirección visual final de Sebastián para h17 — CORRECCIÓN PENDIENTE es texto ámbar discreto,
-   sin cápsula/píldora/contenedor propio (nunca .player-home-lastmatch__badge): compite por
-   espacio con forma+resultado en el mismo renglón, así que no puede wrappear en el ancho móvil
-   de referencia. */
-.player-home-lastmatch__status-text{ font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
-.player-home-lastmatch__status-text--correction{ color: var(--gold); }
+.player-home-lastmatch__status-text{ font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.player-home-lastmatch__status-text--correction,
+.player-home-lastmatch__status-text--waiting{ color: var(--gold); }
+.player-home-lastmatch__status-text--action{ color: var(--brand-lime); }
+.player-home-lastmatch__status-text--identity{ color: var(--danger); }
+.player-home-lastmatch__status-text--status,
+.player-home-lastmatch__status-text--pending{ color: var(--court-text-dim); }
 /* §11 — título y badge quedan CLARAMENTE por debajo del resultado en peso/tamaño (§3: "no
    todos los títulos con el mismo tamaño/peso"). */
 .player-home-lastmatch__title{ font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: var(--court-text-dim); text-transform: uppercase; }
@@ -3449,6 +3454,19 @@ input, select{ font-family: inherit; }
   border-color: rgba(255,201,61,0.4);
   background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
 }
+/* Handoff ajuste visual final post-h18 (doc 57, punto B) — "Corrección pendiente" como tercer
+   tipo de tarjeta accionable del carrusel: mismo tratamiento ámbar que --espera (misma
+   semántica de "requiere atención pronto"), nunca un tono nuevo. */
+.player-home-carousel-card--correccion{
+  border-color: rgba(255,201,61,0.4);
+  background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
+}
+/* Handoff ajuste visual final post-h18 (doc 57, punto B) — TU MOMENTO como última tarjeta del
+   mismo carrusel: nunca tappable (sin `cursor:pointer` propio del resto de tarjetas, sin acento
+   de color — es lectura, no una acción pendiente). Reusa `.pastilla__title-row`/`.pastilla__icon`/
+   `.pastilla-momento__text` tal cual (misma tipografía que tenía en su tarjeta propia anterior). */
+.player-home-carousel-card--insight{ cursor:default; }
+.player-home-carousel-card--insight .pastilla__title-row{ margin-bottom: 8px; }
 .player-home-carousel-card__label{
   display:block; font-family: var(--font-display); font-weight: 800; font-size: 11px;
   letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px;
@@ -3457,7 +3475,8 @@ input, select{ font-family: inherit; }
 .player-home-carousel-card--accionable .player-home-carousel-card__label{
   color: var(--brand-lime); animation: b6PendingPulse 2.4s ease-in-out infinite;
 }
-.player-home-carousel-card--espera .player-home-carousel-card__label{ color: var(--gold); }
+.player-home-carousel-card--espera .player-home-carousel-card__label,
+.player-home-carousel-card--correccion .player-home-carousel-card__label{ color: var(--gold); }
 .player-home-carousel-card__text{ font-size: 13px; color: var(--paper); margin:0; line-height:1.4; }
 @keyframes b6PendingPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
 @media (prefers-reduced-motion: reduce){ .player-home-carousel-card--accionable .player-home-carousel-card__label{ animation:none; } }
@@ -3477,13 +3496,40 @@ input, select{ font-family: inherit; }
 .b6-banner--waiting{ border-color: var(--line); background: rgba(244,247,242,0.04); }
 .b6-banner__text{ font-size: 13px; color: var(--paper); line-height:1.4; margin:0; }
 .b6-action-block{ display:flex; flex-direction:column; gap: 8px; }
-/* Auditoría Central h16 -> h17 (doc 53, punto 4/C) — FAIL VISUAL REAL: lado a lado en móvil,
-   ACEPTAR CORRECCIÓN wrappeaba a 2 líneas mientras RECHAZAR quedaba en 1, altura exterior
-   distinta. Decisión cerrada de Sebastián: en móvil van APILADOS, ancho completo cada uno (el
-   ancho completo elimina la causa del wrap); en desktop pueden volver a horizontal porque hay
-   espacio real para que el label largo entre en una sola línea. */
-.b6-action-row{ display:flex; flex-direction:column; gap: 10px; }
-@media (min-width: 720px){ .b6-action-row{ flex-direction:row; } }
+/* Handoff ajuste visual final post-h18 (doc 57, punto F) — "la presencia visual sutil que ya usa
+   Último partido cuando requiere atención" (.player-home-lastmatch, ver arriba): MISMOS valores
+   de glow/ciclo ya tuneados por QA real (18px/.12 en reposo, 25px/.24 en el pico, 3.6s
+   ease-in-out) — nunca una intensidad nueva sin validar. UNA sola tarjeta con este acento
+   contiene rótulo+propuesta+explicación+estado de espera+acciones (puntos D/E): nunca una caja
+   nueva alrededor de otra ya existente — el `.result-card` de adentro pierde su propio borde/
+   fondo/padding (ver `.b6-correction-card .result-card` más abajo), un solo nivel de caja. */
+.b6-correction-card{
+  position: relative; border: 1px solid rgba(255,201,61,0.45); border-radius: var(--radius-card);
+  background: var(--ink-soft); padding: 16px;
+  box-shadow: 0 0 18px rgba(255,201,61,.12); animation: b6CorrectionGlowPulse 3.6s ease-in-out infinite;
+}
+@keyframes b6CorrectionGlowPulse{
+  0%, 100%{ box-shadow: 0 0 18px rgba(255,201,61,.12); }
+  50%{ box-shadow: 0 0 25px rgba(255,201,61,.24); }
+}
+@media (prefers-reduced-motion: reduce){ .b6-correction-card{ animation: none; } }
+/* Handoff ajuste visual final post-h18 (doc 57, punto E) — Aceptar/Rechazar lado a lado incluso
+   en móvil (grid de 2 columnas iguales, nunca flex-wrap): mismo lenguaje de grid `1fr 1fr` que ya
+   usa `.option-grid` (selectores Clásico/Americano de Cargar partido), la referencia visual
+   explícita de esta ronda. */
+.b6-correction-choices{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* "seleccionado/positivo pero NO botón lima macizo" / "fondo oscuro/transparente" — outline
+   ghost, nunca el sistema `.btn-start`/`.btn-secondary` (uppercase, sólido/tenue): sentence case
+   real (texto ya viene así en index.html, esta clase no fuerza mayúsculas), sin wrap. */
+.b6-correction-choice{
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  min-height: 48px; padding: 0 10px; border-radius: 14px; cursor:pointer;
+  background: transparent; font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  white-space: nowrap; transition: border-color .15s ease, background .15s ease, transform .1s ease;
+}
+.b6-correction-choice:active{ transform: scale(0.98); }
+.b6-correction-choice--accept{ border: 1.5px solid var(--confirm-green); color: var(--confirm-green); }
+.b6-correction-choice--reject{ border: 1.5px solid var(--line); color: var(--paper); }
 .b6-action-block--identity{
   border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
   border-radius: var(--radius-control); padding: 10px 12px;
@@ -3545,27 +3591,16 @@ input, select{ font-family: inherit; }
 .b6-correction-compare__label--proposed{ color: var(--gold); }
 .b6-correction-compare .result-card,
 .result-card--compact{ padding: 12px 14px; }
-/* Auditoría Central h16 -> h17 (doc 53, punto B) — la tarjeta/grilla de resultado propuesto
-   lleva acento ámbar propio para reforzar que ES la propuesta (nunca el oficial), sin envolver
-   todo el bloque en una segunda caja: un solo nivel de borde, el mismo componente .result-card
-   que ya existía, no uno nuevo por encima. */
-.b6-correction-compare .result-card{ border-color: rgba(255,201,61,0.4); }
+/* Handoff ajuste visual final post-h18 (doc 57, punto D/F) — REEMPLAZA el acento ámbar que h17
+   le había dado a ESTA tarjeta interna (border-color propio): el acento ahora lo lleva la
+   tarjeta entera (.b6-correction-card, ver arriba) — conservar un borde acá también sería
+   exactamente la "caja pesada dentro de otra caja" que se pide evitar. Conserva el padding de la
+   regla de arriba como aire interno, sin fondo/borde propios (un solo nivel de caja real). */
+.b6-correction-card .result-card{ border: none; background: transparent; }
 /* Handoff cierre UX h13 (§4 "Explicación humana del cambio") — frase en lenguaje humano
    (ML.buildCorrectionHumanSummary), lectura PRINCIPAL y ÚNICA de qué cambió desde h17 (doc 53,
    punto B retira el diff técnico que vivía debajo como trazabilidad secundaria). */
 .b6-correction-summary{ font-size: 13px; color: var(--paper); line-height: 1.4; margin: 10px 0 0; text-align: center; }
-/* Handoff cierre UX h13 (§4 "Acciones") — clase compartida explícita para el par Aceptar/
-   Rechazar: misma altura/composición ya venían del `min-height:48px` compartido de
-   `.btn-start`/`.btn-secondary`, esto reemplaza el `style="flex:1"` inline duplicado en cada
-   botón por una única regla, sin cambiar el resultado visual.
-   Auditoría Central h16 -> h17 (doc 53, punto 4/C) — `margin-top:0` resetea el `margin-top:10px`
-   que `.btn-start` trae por defecto (pensado para vivir solo, debajo de otro contenido): dentro
-   de este par era la causa real de la composición despareja con `.btn-secondary` (que no trae
-   ese margen). `width:100%`/`flex:none` en móvil (apilados); en desktop vuelve a `flex:1` para
-   repartir el ancho horizontal por igual — ver el media query de `.b6-action-row` arriba. Scope
-   local a este par, el sistema global de botones no cambia. */
-.b6-action-row__btn{ flex: none; width: 100%; margin-top: 0; }
-@media (min-width: 720px){ .b6-action-row__btn{ flex: 1; width: auto; } }
 
 /* Ronda correctiva Laboratorio h11 (§P5) — REEMPLAZA la versión "dos tarjetas pesadas" de Ronda
    UX 25/09 (§15.31: "se percibe demasiado comprimida por encerrar cada opción en una tarjeta
