@@ -299,7 +299,9 @@ Desde 28/09/2026 Grupos BRAMU pasa a ser parte del producto requerido antes de a
 
 **Estado al 28/09/2026:** **Fase A backend compartido CERRADA EN STAGING.** Migración `preprod_grupos_fase_a_backend_compartido` aplicada; verify transaccional integral **`GRUPOS_FASE_A_VERIFY_PASS`**. Existen tablas server-only `groups`, `group_memberships`, `group_events`; RPCs de lectura/mutación con autorización; guardrail server-side de último admin; períodos históricos; y `get_group_competition_data` como fuente deportiva compartida basada en partidos validados y Nivel histórico oficial. Sin cambios de frontend ni de la experiencia de grupo armado. Ver `Implementacion/Pre_Production/66_Resultado_Grupos_Fase_A_Backend_Compartido_28SEP.md`.
 
-**Pendiente:** Fase B — conectar la UI existente a estos contratos, preservar el motor y experiencia aprobados, y luego aplicar únicamente los cambios UX explícitos de la fuente maestra. No volver a usar localStorage como autoridad productiva.
+**Estado actualizado 28/09/2026:** **B1 server-backed CERRADO EN STAGING.** La UI existente quedó conectada a contratos reales y validada con QA multiusuario: creación/membresías/admin/rename compartidos, regla 2/4 vs 3/4, tabla/Race/Intelligence consistentes entre cuentas, alta/reingreso semanal, baja visible y actividad real separada del top 3 de puntos. Cierre: `Implementacion/Pre_Production/74_Cierre_Grupos_B1_28SEP.md`.
+
+**Siguiente:** B2a — backend del lobby de Grupos; luego B2b — lobby/estado cero/pulido UX + desglose de puntos; B2c — foto de grupo. No volver a usar localStorage como autoridad productiva.
 
 Fuente maestra:
 - `Grupos_BRAMU.md`
