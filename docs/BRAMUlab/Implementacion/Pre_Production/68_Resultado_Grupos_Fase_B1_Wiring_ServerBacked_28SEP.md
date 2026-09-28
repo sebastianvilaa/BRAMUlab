@@ -89,3 +89,18 @@ Pendiente técnico antes de cerrar B1:
 - usar pertenencia deportiva efectiva desde el lunes de la semana del alta;
 - conservar joined_at/left_at reales para auditoría;
 - cubrir alta posterior a victoria/derrota en la misma semana, alta que convierte 2/4 en 3/4, límite de semana anterior, baja y reingreso.
+
+
+## QA real multiusuario — decisión de baja / hallazgo Matu
+
+Producto simplificó la baja de miembros para V1: **eliminar significa eliminar del grupo**. No habrá dos modos de salida.
+
+Regla cerrada:
+- el miembro eliminado deja de aparecer en Semana actual, Semana pasada, Race anual y BRAMU Intelligence del grupo;
+- sus partidos reales de BRAMU no se borran;
+- Nivel y Ranking no se tocan;
+- los puntos/estadísticas ya obtenidos por los demás miembros se conservan; no se recalcula hacia atrás el grupo por haber quitado a alguien;
+- la membresía histórica real se conserva internamente para auditoría;
+- si reingresa, empieza una nueva etapa competitiva desde la semana de reingreso; no reaparecen automáticamente sus filas/puntos de etapas eliminadas anteriores.
+
+Hallazgo real: Matu fue eliminado del grupo durante QA y siguió apareciendo en Semana actual / Race. Bajo la decisión vigente, esto es una regresión funcional y debe corregirse antes de cerrar B1.
