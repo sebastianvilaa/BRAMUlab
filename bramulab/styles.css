@@ -1738,7 +1738,11 @@ input, select{ font-family: inherit; }
   --lastmatch-accent: var(--danger); --lastmatch-accent-rgb: 255,91,97;
   animation: none; box-shadow: 0 0 12px rgba(255,91,97,.08);
 }
-.player-home-lastmatch--action{ --lastmatch-accent: var(--brand-lime); --lastmatch-accent-rgb: 149,255,25; }
+/* Handoff sistema visual unificado h21 (doc 59, principio de sistema/punto 3) — "CONFIRMAR
+   PARTIDO debe verse ámbar, no verde [lima]": deja de tener acento propio distinto de --waiting,
+   mismo tono ámbar — sigue siendo un partido PENDIENTE (todavía no decidido), nunca una acción
+   ya positiva/cerrada. */
+.player-home-lastmatch--action,
 .player-home-lastmatch--waiting{ --lastmatch-accent: var(--gold); --lastmatch-accent-rgb: 255,201,61; }
 /* V02.9.1 (§2) — encabezado en 2 líneas apiladas. Línea 1: título + fecha/hora. Línea 2: forma
    reciente + resultado a la izquierda.
@@ -1785,9 +1789,13 @@ input, select{ font-family: inherit; }
    resultado en el mismo renglón — ajustar tipografía antes que romper la geometría. */
 .player-home-lastmatch__status-slot{ flex:none; display:flex; align-items:center; }
 .player-home-lastmatch__status-text{ font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+/* Handoff sistema visual unificado h21 (doc 59, punto 3) — "CONFIRMAR PARTIDO/ESPERANDO
+   VALIDACIÓN/CORRECCIÓN... ámbar": --action deja de ser lima (regla única del sistema, §12: el
+   resultado deportivo tiene su propio verde/rojo aparte, el estado operativo pendiente es
+   siempre ámbar, sin importar de quién sea el turno). */
 .player-home-lastmatch__status-text--correction,
-.player-home-lastmatch__status-text--waiting{ color: var(--gold); }
-.player-home-lastmatch__status-text--action{ color: var(--brand-lime); }
+.player-home-lastmatch__status-text--waiting,
+.player-home-lastmatch__status-text--action{ color: var(--gold); }
 .player-home-lastmatch__status-text--identity{ color: var(--danger); }
 .player-home-lastmatch__status-text--status,
 .player-home-lastmatch__status-text--pending{ color: var(--court-text-dim); }
@@ -2278,16 +2286,6 @@ input, select{ font-family: inherit; }
    consistente en toda la app (Cerrar sesión, Descartar partido, Eliminar partido, Salir sin
    guardar). */
 .btn-secondary--danger{ background: rgba(255,91,84,0.10); border-color: rgba(255,91,84,0.45); color: var(--danger); }
-/* Gate visual h15 §5 — "Reportar un error" es una acción editorial/secundaria, no un CTA
-   destructivo global. El texto del DOM ya está en sentence case; .btn-secondary lo convertía
-   visualmente a mayúsculas con text-transform. Override deliberadamente LOCAL para no alterar
-   el sistema global de botones ni otras acciones destructivas. */
-#b6-report-error-btn{
-  text-transform: none;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
 /* ==========================================================================
    Etapa 4.2 — CARGAR MI PARTIDO JUGADO: marcador + teclado numérico BRAMU.
    Jerarquía "cancha nocturna" (§3 del consolidado): resultado protagonista,
@@ -3430,60 +3428,52 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 
 /* ---- Home: carrusel de pendientes (Ronda UX 25/09, Ronda 2, §3/§12) ----
-   Reemplaza el banner único (`.player-home-pending-banner`, retirado). Track con scroll
-   horizontal nativo + scroll-snap (sin librería): cada tarjeta ocupa el 100% del ancho, así que
-   con 1 sola se ve estática (nada para desplazar) y con 2+ el usuario desliza. Altura reducida
-   a propósito frente al banner viejo: solo microlabel + una línea de copy, sin CTA aparte —
-   la tarjeta entera es el botón (mismo patrón táctil que player-home-last-match-card). */
+   Reemplaza el banner único (`.player-home-pending-banner`, retirado).
+   Handoff sistema visual unificado h21 (doc 59, punto 2) — tamaño de referencia EXACTA de
+   `.player-home-hitos__chip` (la tarjeta celeste histórica, ver esa regla más abajo): ancho
+   parcial (60% móvil / 40% ≥480px, nunca 100%) para dejar asomar la siguiente tarjeta y
+   comunicar que hay carrusel; `scroll-snap-type:x proximity` (suave, no mandatory) — mismo
+   criterio de swipe manual que ya usan los Hitos. Geometría idéntica entre tipos de tarjeta;
+   solo cambian acento/color/contenido (nunca el componente). */
 .player-home-carousel{
-  display:flex; gap: 10px; overflow-x:auto; scroll-snap-type:x mandatory;
+  display:flex; gap: 10px; overflow-x:auto; scroll-snap-type:x proximity;
   -webkit-overflow-scrolling:touch; margin-bottom: 12px; padding-bottom: 2px;
   scrollbar-width: none;
 }
 .player-home-carousel::-webkit-scrollbar{ display:none; }
 .player-home-carousel-card{
-  flex: 0 0 100%; scroll-snap-align:start; min-width:0; display:block; text-align:left;
+  flex: 0 0 60%; scroll-snap-align:start; min-width:0; display:block; text-align:left;
   cursor:pointer; border: 1px solid var(--line); border-radius: var(--radius-card);
-  background: var(--ink-soft); padding: 12px 14px;
+  background: var(--ink-soft); padding: 12px 14px; min-height: 2.8em;
 }
-.player-home-carousel-card--accionable{
-  border-color: rgba(149,255,25,0.45);
-  background: linear-gradient(180deg, rgba(149,255,25,0.10) 0%, var(--ink-soft) 70%);
-}
-.player-home-carousel-card--espera{
-  border-color: rgba(255,201,61,0.4);
-  background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
-}
-/* Handoff ajuste visual final post-h18 (doc 57, punto B) — "Corrección pendiente" como tercer
-   tipo de tarjeta accionable del carrusel: mismo tratamiento ámbar que --espera (misma
-   semántica de "requiere atención pronto"), nunca un tono nuevo. */
+@media (min-width: 480px){ .player-home-carousel-card{ flex-basis: 40%; } }
+/* Handoff sistema visual unificado h21 (doc 59, principio de sistema/punto 3/11/12) — "ámbar =
+   todavía pendiente/requiere resolución" es la regla única en TODA la app: esta tarjeta describe
+   un estado TODAVÍA no resuelto (falta que YO confirme), nunca una acción ya positiva — deja de
+   ser lima (que en esta ronda queda reservado a resultado/acción afirmativa real, ver
+   .b6-correction-choice--accept) y pasa a ámbar, igual que --espera/--correccion. */
+.player-home-carousel-card--accionable,
+.player-home-carousel-card--espera,
 .player-home-carousel-card--correccion{
   border-color: rgba(255,201,61,0.4);
   background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
 }
-/* Handoff ajuste visual final post-h18 (doc 57, punto B) — TU MOMENTO como última tarjeta del
-   mismo carrusel: nunca tappable (sin `cursor:pointer` propio del resto de tarjetas, sin acento
-   de color — es lectura, no una acción pendiente). Reusa `.pastilla__title-row`/`.pastilla__icon`/
-   `.pastilla-momento__text` tal cual (misma tipografía que tenía en su tarjeta propia anterior). */
-.player-home-carousel-card--insight{ cursor:default; }
-.player-home-carousel-card--insight .pastilla__title-row{ margin-bottom: 8px; }
 .player-home-carousel-card__label{
   display:block; font-family: var(--font-display); font-weight: 800; font-size: 11px;
   letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px;
-  /* Latido breve/sutil solo en lo accionable (§9.1 original) — respeta prefers-reduced-motion. */
+  color: var(--gold);
+  /* Latido breve/sutil (§9.1 original) — respeta prefers-reduced-motion. */
+  animation: b6PendingPulse 2.4s ease-in-out infinite;
 }
-.player-home-carousel-card--accionable .player-home-carousel-card__label{
-  color: var(--brand-lime); animation: b6PendingPulse 2.4s ease-in-out infinite;
-}
-.player-home-carousel-card--espera .player-home-carousel-card__label,
-.player-home-carousel-card--correccion .player-home-carousel-card__label{ color: var(--gold); }
 .player-home-carousel-card__text{ font-size: 13px; color: var(--paper); margin:0; line-height:1.4; }
 @keyframes b6PendingPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.55; } }
-@media (prefers-reduced-motion: reduce){ .player-home-carousel-card--accionable .player-home-carousel-card__label{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .player-home-carousel-card__label{ animation:none; } }
 
-/* ---- Historial: badge accionable vs. en espera (§9.3) ---- */
+/* ---- Historial: badge accionable vs. en espera (§9.3) ----
+   Handoff sistema visual unificado h21 (doc 59, punto 11) — "pendientes → ámbar": deja de ser
+   lima sólido (contradecía la regla única del sistema), mismo tratamiento que --waiting. */
 .history-item__badge--action{
-  color: var(--ink-soft); background: var(--brand-lime); font-weight: 800;
+  color: var(--gold); background: rgba(255,201,61,0.12); font-weight: 800;
 }
 .history-item__badge--identity{ color: var(--danger); background: rgba(255,91,97,0.12); }
 
@@ -3530,6 +3520,11 @@ input, select{ font-family: inherit; }
 .b6-correction-choice:active{ transform: scale(0.98); }
 .b6-correction-choice--accept{ border: 1.5px solid var(--confirm-green); color: var(--confirm-green); }
 .b6-correction-choice--reject{ border: 1.5px solid var(--line); color: var(--paper); }
+/* Handoff sistema visual unificado h21 (doc 59, puntos 6/7/8) — "Reportar un error": mismo
+   lenguaje outline, acento rojo discreto (--danger, nunca un rojo nuevo). Vive emparejado en
+   .b6-correction-choices (mitad de ancho, ver #b6-confirm-block) o solo con width:100% inline
+   (ver index.html) — la clase base ya soporta ambos casos sin reglas propias. */
+.b6-correction-choice--report{ border: 1.5px solid rgba(255,91,97,0.4); color: var(--danger); }
 .b6-action-block--identity{
   border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
   border-radius: var(--radius-control); padding: 10px 12px;

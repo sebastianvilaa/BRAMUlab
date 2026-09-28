@@ -187,6 +187,19 @@
     return result.slice(0, limit || 12);
   }
 
+  /** Handoff ajuste visual final post-h18 (doc 57, punto B) / sistema visual unificado h21
+   *  (doc 59, punto 9) — ventana de 3 días de una corrección post-validación ACTIVA, mismo
+   *  criterio de fecha que app.js#b6CorrectionWindowOpen (fuente de verdad real: el backend).
+   *  Extraída acá como fuente ÚNICA para que computeHomePendingCarouselItems y la taxonomía de
+   *  pestañas de Historial (§9) usen la MISMA fórmula, nunca dos copias que puedan divergir.
+   *  `now` inyectable para tests deterministas; por defecto `new Date()`. */
+  function hasActiveCorrectionWindow(m, now) {
+    if (!m || m.status !== 'validated' || !m.pendingCorrectionRevisionId || !m.validatedAt) return false;
+    const nowMs = (now instanceof Date ? now : new Date()).getTime();
+    const validatedMs = new Date(m.validatedAt).getTime();
+    return Number.isFinite(validatedMs) && nowMs <= validatedMs + 3 * 86400000;
+  }
+
   /** Ronda UX 25/09 (Ronda 2, §3) — clasificación PURA de qué partidos entran al carrusel de
    *  pendientes de Home y en qué orden: cada `pending_validation` server-backed es exactamente
    *  UNA tarjeta, nunca un agregado ("tenés N partidos") — eso es trabajo del render en app.js,
@@ -197,20 +210,18 @@
    *  a X" (evita inventar estado).
    *
    *  Handoff ajuste visual final post-h18 (doc 57, punto B) — suma `'correccion'`: un partido ya
-   *  VALIDADO con una corrección post-validación activa (mismo criterio de ventana de 3 días
-   *  desde `validatedAt` que ya usa app.js#b6CorrectionWindowOpen para la tarjeta de Último
-   *  partido). Nunca distingue proponente/respondedor acá — mismo criterio ya establecido en esa
-   *  misma tarjeta: la distinción real (acciones de aceptar/rechazar vs. estado de espera) solo
-   *  se resuelve al abrir el Resumen (paintB6Actions en app.js), que sí tiene el detalle
-   *  completo. `now` es inyectable para tests deterministas (mismo patrón que
-   *  RK.computeHomeRankingInsight); por defecto `new Date()`.
+   *  VALIDADO con una corrección post-validación activa (hasActiveCorrectionWindow, arriba).
+   *  Nunca distingue proponente/respondedor acá — mismo criterio ya establecido en esa misma
+   *  tarjeta: la distinción real (acciones de aceptar/rechazar vs. estado de espera) solo se
+   *  resuelve al abrir el Resumen (paintB6Actions en app.js), que sí tiene el detalle completo.
+   *  `now` es inyectable para tests deterministas (mismo patrón que RK.computeHomeRankingInsight);
+   *  por defecto `new Date()`.
    *
    *  Orden: accionables > correcciones > espera (todas "requieren acción o atención" antes que
    *  un estado puramente de espera) — dentro de cada grupo se preserva el orden de
    *  `displayMatches` (ya viene del más reciente al más antiguo). */
   function computeHomePendingCarouselItems(displayMatches, now) {
     const list = Array.isArray(displayMatches) ? displayMatches : [];
-    const nowMs = (now instanceof Date ? now : new Date()).getTime();
     const accionables = [];
     const correcciones = [];
     const espera = [];
@@ -221,11 +232,8 @@
         if (m.actionSide) { espera.push({ matchId: m.matchId, kind: 'espera' }); }
         return;
       }
-      if (m.status === 'validated' && m.pendingCorrectionRevisionId && m.validatedAt) {
-        const validatedMs = new Date(m.validatedAt).getTime();
-        if (Number.isFinite(validatedMs) && nowMs <= validatedMs + 3 * 86400000) {
-          correcciones.push({ matchId: m.matchId, kind: 'correccion' });
-        }
+      if (hasActiveCorrectionWindow(m, now)) {
+        correcciones.push({ matchId: m.matchId, kind: 'correccion' });
       }
     });
     return accionables.concat(correcciones, espera);
@@ -817,6 +825,56 @@
     };
   }
 
+  /** Handoff sistema visual unificado h21 (doc 59, punto 9) — nueva taxonomía de pestañas de
+   *  Historial: Todos/Pendientes/Victorias/Derrotas/Ocultos. Extiende el mismo mecanismo de
+   *  arriba (una dimensión de filtro MÁS, nunca una arquitectura paralela) componiendo
+   *  helpers ya existentes (getPlayerTeam, matchResultForPlayer, hasActiveCorrectionWindow) —
+   *  nunca reimplementa esa lógica.
+   *  'ocultos' es EXCLUSIVO: un partido oculto no cuenta para ninguna otra pestaña, ni siquiera
+   *  'todos' (coherente con que Todos nunca debe incluir ocultos, doc 59 §9 "Todos... NO incluye
+   *  ocultos"). 'pendientes' cubre pending_validation Y una corrección post-validación activa
+   *  (misma familia, doc 59 principio de sistema). 'victorias'/'derrotas' son EXCLUSIVAS de
+   *  partidos propios, oficiales/validados, con resultado real — nunca pendientes, nunca
+   *  Observados (getPlayerTeam null ahí). Un expired/annulled/sync_pending/necesita_revision
+   *  cae en 'todos' pero en NINGUNA de las otras 4 (no inventa un estado que la app no expone). */
+  function classifyHistoryStatusTab(m, playerRef, now) {
+    if (!m) return null;
+    if (m.hidden) return 'ocultos';
+    const isPendingValidation = !!(m.serverBacked && m.status === 'pending_validation');
+    if (isPendingValidation || hasActiveCorrectionWindow(m, now)) return 'pendientes';
+    if (m.serverBacked && m.status !== 'validated') return null;
+    if (!getPlayerTeam(m, playerRef)) return null;
+    const result = matchResultForPlayer(m, playerRef);
+    if (result === 'win') return 'victorias';
+    if (result === 'loss') return 'derrotas';
+    return null;
+  }
+
+  /** Aplicado DESPUÉS de filterHistoryCombined (mismo criterio que el filtro contextual de
+   *  Racha/Efectividad, ver renderHistory en app.js): 'todos' es simplemente "no oculto" (la
+   *  base visible de siempre), el resto delega en classifyHistoryStatusTab. */
+  function filterHistoryByStatusTab(history, playerRef, tab, now) {
+    const list = history || [];
+    if (!tab || tab === 'todos') return list.filter((m) => !(m && m.hidden));
+    return list.filter((m) => classifyHistoryStatusTab(m, playerRef, now) === tab);
+  }
+
+  /** Conteos reales para las 5 pestañas, sobre el historial COMPLETO incluyendo ocultos (a
+   *  diferencia de computeHistoryTabCounts/§3.1, que nunca los recibe) — mismo criterio de
+   *  "cada pestaña informa su propia dimensión" ya establecido arriba. */
+  function computeHistoryStatusTabCounts(history, playerRef, now) {
+    const list = history || [];
+    const counts = { todos: 0, pendientes: 0, victorias: 0, derrotas: 0, ocultos: 0 };
+    list.forEach((m) => {
+      if (!m) return;
+      if (m.hidden) { counts.ocultos += 1; return; }
+      counts.todos += 1;
+      const tab = classifyHistoryStatusTab(m, playerRef, now);
+      if (tab && tab !== 'ocultos') counts[tab] += 1;
+    });
+    return counts;
+  }
+
   /* ------------------------------------------------------------------ */
   /* ETAPA 4.1 (v2.1) — EVOLUCIÓN DEL NIVEL BRAMU (simulada, §4)
    *  Reemplaza el valor fijo `LEVEL_DEMO` de v2.0: el nivel ahora se DERIVA del
@@ -1034,7 +1092,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,
@@ -1046,6 +1104,7 @@
     computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithDefinedResult,
     classifyMatchOwnership, filterHistoryByOwnership, matchModeCanonical, filterHistoryByMode,
     filterHistoryCombined, computeHistoryTabCounts,
+    classifyHistoryStatusTab, filterHistoryByStatusTab, computeHistoryStatusTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
     computeLevelChangeLast30Days, computeBestWinStreakRange, computePeakLevel,
     LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,

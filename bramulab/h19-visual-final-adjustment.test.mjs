@@ -20,9 +20,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appJs = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
 const indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const stylesCss = fs.readFileSync(path.join(__dirname, 'styles.css'), 'utf8');
-const storeJs = fs.readFileSync(path.join(__dirname, 'store.js'), 'utf8');
-const swJs = fs.readFileSync(path.join(__dirname, 'sw.js'), 'utf8');
-const versionJson = fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8');
 
 function extractFunctionBody(source, name) {
   const startMatch = source.match(new RegExp(`\\n  (?:async )?function ${name}\\([^)]*\\) \\{\\n`));
@@ -62,18 +59,22 @@ test('h19-A: el status-slot es texto compacto (10px, nowrap), nunca una píldora
 
 /* ---- Punto B: slot/carrusel único del Home (acciones + insights) ---- */
 
-test('h19-B: renderPlayerHomeCarousel arma acciones + TU MOMENTO en el MISMO track, nunca dos bloques separados', () => {
+// SUPERSEDIDO en el sistema visual unificado h21 (doc 59, punto 2): Sebastián pidió
+// explícitamente deshacer la fusión con TU MOMENTO ("TU MOMENTO NO pertenece al carrusel. Debe
+// volver a su lugar anterior debajo de Último partido"). Ver h21-sistema-visual-unificado.test.mjs.
+test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones/espera (TU MOMENTO fuera)', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerHomeCarousel');
   assert.match(body, /PH\.computeHomePendingCarouselItems\(displayMatches \|\| \[\], new Date\(\)\)/);
-  assert.match(body, /player-home-carousel-card--insight/, 'TU MOMENTO debe pintarse como una tarjeta más del mismo carrusel');
-  assert.match(body, /id="player-home-momento-text"/, 'el id que el refresco asíncrono de Ranking sigue actualizando debe seguir existiendo');
+  assert.doesNotMatch(body, /player-home-carousel-card--insight/, 'TU MOMENTO ya no debe pintarse como tarjeta del carrusel');
   assert.match(body, /'PARTIDO POR CONFIRMAR'/);
-  assert.match(body, /'CORRECCIÓN PENDIENTE'/);
   assert.match(body, /'ESPERANDO CONFIRMACIÓN'/);
 });
 
-test('h19-B: ya no existe una tarjeta TU MOMENTO separada en index.html (una sola superficie)', () => {
-  assert.doesNotMatch(indexHtml, /pastilla--momento/, 'la tarjeta propia de TU MOMENTO debe haber sido retirada — ahora vive dentro del carrusel');
+test('h19-B/h21: TU MOMENTO vuelve a su tarjeta propia en index.html, debajo de Último partido', () => {
+  assert.match(indexHtml, /pastilla--momento/, 'la tarjeta propia de TU MOMENTO debe existir de nuevo');
+  const lastMatchIdx = indexHtml.indexOf('id="player-home-last-match-card"');
+  const momentoIdx = indexHtml.indexOf('pastilla--momento');
+  assert.ok(lastMatchIdx !== -1 && momentoIdx > lastMatchIdx, 'TU MOMENTO debe vivir DESPUÉS de Último partido en el DOM');
 });
 
 test('h19-B: computeHomePendingCarouselItems (player-home.js, pura) suma partidos validados con corrección activa, sin distinguir proponente/respondedor', () => {
@@ -121,7 +122,9 @@ test('h19-C: ya no existe el rótulo como elemento propio afuera de la tarjeta (
 
 test('h19-D: una única .b6-correction-card contiene propuesta + estado de espera + acciones, en ese orden', () => {
   assert.match(indexHtml, /<div class="b6-action-block b6-correction-card" id="b6-respond-correction-block" hidden>/);
-  const blockMatch = indexHtml.match(/<div class="b6-action-block b6-correction-card" id="b6-respond-correction-block" hidden>([\s\S]*?)\n        <\/div>\n        <div class="b6-action-block" id="b6-confirm-block"/);
+  // Handoff sistema visual unificado h21 — #b6-respond-correction-block es ahora el ÚLTIMO hijo
+  // de #analysis-b6-actions (ver index.html): el ancla de cierre pasa a ser </section>.
+  const blockMatch = indexHtml.match(/<div class="b6-action-block b6-correction-card" id="b6-respond-correction-block" hidden>([\s\S]*?)\n        <\/div>\n      <\/section>/);
   assert.ok(blockMatch, 'debe encontrarse el bloque completo de la tarjeta de corrección');
   const inner = blockMatch[1];
   const compareIdx = inner.indexOf('b6-correction-compare');
@@ -149,19 +152,24 @@ test('h19-E: Aceptar/Rechazar quedan lado a lado incluso en móvil (grid 1fr 1fr
   assert.doesNotMatch(stylesCss, /\.b6-action-row\{/, 'el viejo apilado full-width de h17/h18 no debe seguir existiendo');
 });
 
-test('h19-E: estilo outline (nunca botón lima macizo) — aceptar en verde, rechazar en borde neutro, sentence case real', () => {
+test('h19-E: estilo outline (nunca botón lima macizo) — aceptar en verde, mantener en borde neutro, sentence case real', () => {
   assert.match(stylesCss, /\.b6-correction-choice--accept\{\s*border:\s*1\.5px solid var\(--confirm-green\);\s*color:\s*var\(--confirm-green\);\s*\}/);
   assert.match(stylesCss, /\.b6-correction-choice--reject\{\s*border:\s*1\.5px solid var\(--line\);\s*color:\s*var\(--paper\);\s*\}/);
   const choiceRule = stylesCss.match(/\.b6-correction-choice\{([^}]*)\}/);
   assert.ok(choiceRule);
   assert.doesNotMatch(choiceRule[1], /text-transform/, 'no debe forzar mayúsculas — el sentence case real viene del texto fuente');
   assert.match(indexHtml, />Aceptar corrección<\/button>/, 'el texto fuente debe estar en sentence case, no en mayúsculas');
-  assert.match(indexHtml, />Rechazar<\/button>/);
+  // Handoff sistema visual unificado h21 (doc 59, punto 7) — "no usar Rechazar".
+  assert.match(indexHtml, />Mantener resultado actual<\/button>/);
+  assert.doesNotMatch(indexHtml, />Rechazar<\/button>/);
 });
 
-test('h19-E: "Reportar un error" se reubica DENTRO de la tarjeta de corrección solo mientras hay una activa (mismo elemento, nunca duplicado)', () => {
+test('h19-E/h21: "Reportar un error" es un único elemento reubicable en 3 posiciones posibles, nunca duplicado', () => {
   const body = extractFunctionBody(appJs, 'paintB6Actions');
-  assert.match(body, /confirmBlock\.after\(reportErrorBlock\)/, 'por defecto vuelve a su posición de siempre en cada render');
+  // Handoff sistema visual unificado h21 (doc 59, punto 8) — la posición de base pasa de "después
+  // de #b6-confirm-block" (h19/57) a "después de #analysis-share-section" (final del contenido).
+  assert.match(body, /\$\('#analysis-share-section'\)\.after\(reportErrorBlock\)/, 'por defecto vuelve al final del contenido en cada render');
+  assert.match(body, /confirmBlock\.prepend\(reportErrorBlock\)/, 'se empareja con Confirmar resultado mientras me toca confirmar un partido nuevo');
   assert.match(body, /respondBlock\.appendChild\(reportErrorBlock\)/, 'se muda a la tarjeta de corrección cuando hay una activa que me involucra');
   // Solo debe existir UN elemento con este id en todo el documento (nunca duplicado).
   const occurrences = (indexHtml.match(/id="b6-report-error-block"/g) || []).length;
@@ -188,12 +196,5 @@ test('h19-H: no se tocó la fórmula/porcentaje del Nivel (levelProgressPct sigu
 
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
-test('h19: bundle/cache quartet queda alineado', () => {
-  assert.match(indexHtml, /app\.js\?v=04\.11-h19/);
-  assert.match(indexHtml, /styles\.css\?v=04\.11-h19/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.11-h19'/);
-  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-11-h19'/);
-  assert.match(swJs, /app\.js\?v=04\.11-h19/);
-  assert.match(swJs, /styles\.css\?v=04\.11-h19/);
-  assert.match(versionJson, /"bundle":\s*"04\.11-h19"/);
-});
+// El quartet de bundle/cache hardcodeado a "04.11-h19" quedó superseded por el de la ronda
+// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h21.

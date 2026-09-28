@@ -91,9 +91,12 @@ test('h17-B: se retira el diff técnico redundante del bloque POST-validación, 
 
 /* ---- Regresión h16: Reportar un error (fuera de alcance, debe seguir intacto) ---- */
 
-test('h17: Reportar un error no se reabre (sigue en sentence case, secundario, rojo suave)', () => {
+// SUPERSEDIDO en el sistema visual unificado h21 (doc 59): el override puntual de
+// #b6-report-error-btn se retiró junto con `.btn-secondary` (ver h16-report-error-cta.test.mjs
+// para la guarda de sentence case vigente sobre `.b6-correction-choice`).
+test('h17/h21: Reportar un error sigue en sentence case, secundario, rojo suave', () => {
   assert.match(indexHtml, /id="b6-report-error-btn"[^>]*>Reportar un error<\/button>/);
-  assert.match(stylesCss, /#b6-report-error-btn\s*\{[^}]*text-transform:\s*none;[^}]*font-weight:\s*600;[^}]*letter-spacing:\s*0\.01em;/s);
+  assert.match(stylesCss, /\.b6-correction-choice--report\{[^}]*color:\s*var\(--danger\);?\s*\}/);
 });
 
 // El quartet de bundle/cache hardcodeado a "04.11-h17" quedó superseded por el de la ronda

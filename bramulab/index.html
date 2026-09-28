@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h20" />
+<link rel="stylesheet" href="styles.css?v=04.11-h21" />
 </head>
 <body>
 
@@ -76,10 +76,25 @@
            partido server-backed (13_Handoff_Fase_B_Claude.md — prioridad de UX). Oculta por
            completo para un partido local/outbox (ver renderB6Actions en app.js). -->
       <section class="analysis-section b6-actions" id="analysis-b6-actions" hidden>
-        <div class="b6-banner" id="b6-status-banner" hidden>
+        <!-- Handoff sistema visual unificado h21 (doc 59, punto 6) — "partido nuevo pendiente de
+             validación" y "corrección sobre partido oficial" son dos variantes de la MISMA
+             familia (decidir sobre un resultado, doc 59 principio de sistema): esta tarjeta
+             sigue el mismo patrón .b6-correction-card que #b6-respond-correction-block más abajo
+             — provisional, acento ámbar, nunca tratado como oficial cerrado. `.b6-correction-card`
+             se agrega/quita por JS SOLO para pending_validation (paintB6Actions) — expired/
+             annulled/sync_pending/necesita_revision (mismo elemento, casos ya existentes, fuera
+             de alcance de esta ronda) conservan `.b6-banner`/`.b6-banner--waiting` de siempre.
+             La fila de acciones (#b6-confirm-block) queda DENTRO, nunca como caja huérfana
+             aparte — "Reportar un error" (#b6-report-error-block) se reubica acá como primer
+             hijo (izquierda) solo mientras me toca confirmar; el resto del tiempo vive en su
+             posición de siempre, al final del contenido (ver más abajo). -->
+        <div class="b6-banner b6-action-block" id="b6-status-banner" hidden>
           <p class="b6-banner__text" id="b6-status-banner-text"></p>
           <!-- Ronda correctiva (revisión central) — §G "qué cambió", caso PRE-VALIDACIÓN. -->
           <ul class="b6-correction-diff" id="b6-status-banner-diff" hidden></ul>
+          <div class="b6-correction-choices" id="b6-confirm-block" hidden>
+            <button type="button" class="b6-correction-choice b6-correction-choice--accept" id="b6-confirm-btn">Confirmar resultado</button>
+          </div>
         </div>
         <!-- Handoff cierre UX h13 (§10 "Historial — Necesita revisión y carga no sincronizada",
              plan §P0-F) — acción contextual para un borrador de outbox: "Reintentar" (sync_pending,
@@ -100,16 +115,10 @@
              oculta (id="b6-respond-action-row") y el texto/rótulo en 2da persona ("Tu
              corrección propuesta" / "Esperando respuesta de la otra pareja") — ver
              paintB6Actions en app.js.
-             Handoff ajuste visual final post-h18 (doc 57, puntos D/E/F) — UNA única tarjeta con
-             borde/halo ámbar (.b6-correction-card) contiene, en orden: 1) rótulo+propuesta+
-             explicación (.b6-correction-compare), 2) estado de espera si corresponde
-             (#b6-respond-correction-text, ahora DESPUÉS de la propuesta, no antes), 3) acciones
-             (Aceptar/Rechazar lado a lado incluso en móvil, estilo outline inspirado en los
-             selectores Clásico/Americano de Cargar partido — nunca botón lima macizo). "Reportar
-             un error" (#b6-report-error-block) se reubica DENTRO de esta tarjeta vía JS
-             (paintB6Actions) solo mientras hay corrección activa — vive en su posición de
-             siempre (después de #b6-confirm-block) el resto del tiempo, mismo elemento único,
-             nunca duplicado. -->
+             Handoff sistema visual unificado h21 (doc 59, punto 7) — orden de acciones
+             INVERTIDO respecto de h19: izquierda `Mantener resultado actual` (nunca más
+             "Rechazar"), derecha `Aceptar corrección` — "aceptar a la derecha" es la regla
+             general del sistema (ver también punto 6, Confirmar a la derecha). -->
         <div class="b6-action-block b6-correction-card" id="b6-respond-correction-block" hidden>
           <div class="b6-correction-compare">
             <p class="b6-correction-compare__label b6-correction-compare__label--proposed" id="b6-respond-proposed-label">Corrección propuesta</p>
@@ -118,23 +127,9 @@
           </div>
           <p class="b6-banner__text" id="b6-respond-correction-text"></p>
           <div class="b6-correction-choices" id="b6-respond-action-row">
+            <button type="button" class="b6-correction-choice b6-correction-choice--reject" id="b6-respond-reject-btn">Mantener resultado actual</button>
             <button type="button" class="b6-correction-choice b6-correction-choice--accept" id="b6-respond-accept-btn">Aceptar corrección</button>
-            <button type="button" class="b6-correction-choice b6-correction-choice--reject" id="b6-respond-reject-btn">Rechazar</button>
           </div>
-        </div>
-        <div class="b6-action-block" id="b6-confirm-block" hidden>
-          <button type="button" class="btn-start" id="b6-confirm-btn" style="width:100%">CONFIRMAR PARTIDO</button>
-        </div>
-        <!-- Ronda UX 25/09 (Ronda 2, §5) — REEMPLAZA los dos accesos separados anteriores
-             (#b6-propose-correction-block "PROPONER CORRECCIÓN" + #b6-report-identity-block "No
-             participé...") por un único punto de entrada secundario que abre un selector
-             (#report-error-scrim, ver más abajo) — ver openReportErrorPicker en app.js.
-             Ronda correctiva Laboratorio h11 (§P5) — copy en caja normal (mayúsculas resultaba
-             "demasiado pesado", §15.31) + `.btn-secondary--danger` (mismo rojo suave que ya usa
-             el resto de la app para acciones secundarias/destructivas, nunca un color nuevo):
-             nunca debe competir visualmente con un CTA principal. -->
-        <div class="b6-action-block" id="b6-report-error-block" hidden>
-          <button type="button" class="btn-secondary btn-secondary--danger" id="b6-report-error-btn" style="width:100%">Reportar un error</button>
         </div>
       </section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
@@ -207,11 +202,10 @@
         <!-- BRAMUlab_V03.2 (§10) — "editar/modificar" es la familia SECUNDARIA FUNCIONAL del
              sistema de botones (§7): azul (--accent-cyan), no el gris neutro de "cancelar". -->
         <button id="analysis-edit-btn" class="btn-secondary btn-secondary--accent" type="button" style="width:100%" hidden>EDITAR PARTIDO</button>
-        <!-- V02.1 (§15 item 10) — "Volver al inicio" ahora vive siempre acá (antes solo
-             existía en el Resumen inmediato retirado, #view-summary), visible en las tres
-             procedencias: partido en vivo recién terminado, carga manual recién guardada,
-             y cualquier partido abierto desde Historial. -->
-        <button id="analysis-home-btn" class="btn-start" type="button" style="width:100%">VOLVER AL INICIO</button>
+        <!-- Handoff sistema visual unificado h21 (doc 59, punto 8) — "VOLVER AL INICIO" se
+             retira: redundante con la barra inferior (bottom nav), ya visible en esta misma
+             pantalla. `#analysis-home-btn` queda RETIRADO (nunca escondido con hidden: sin
+             callers, sin lógica muerta). -->
         <!-- V02.9 (§5) — "Eliminar partido" al final del Resumen: acción deliberada y
              secundaria (nunca un botón protagonista), alcanzable solo si se llega hasta acá.
              Reutiliza el modal de confirmación genérico (#confirm-overlay/confirmAction en
@@ -221,9 +215,23 @@
              BRAMUlab_V03.2.1 (§10) — vuelve a ser una acción TEXTUAL (sin fondo/pastilla — en
              producción el botón con relleno seguía compitiendo visualmente con EDITAR/VOLVER
              AL INICIO): rojo siempre visible, sin underline, notoriamente más chica que las
-             dos de arriba (ver .analysis-delete-btn en styles.css). -->
-        <button id="analysis-delete-btn" class="analysis-delete-btn" type="button">Eliminar partido</button>
+             dos de arriba (ver .analysis-delete-btn en styles.css).
+             Handoff sistema visual unificado h21 (doc 59, puntos 8/10) — "Ocultar partido" se
+             retira de Resumen (el mecanismo `hide_match_for_me` sigue existiendo, ahora
+             exclusivo del long press en Historial, ver renderHistory/§10 en app.js): este botón
+             queda oculto por completo para un partido server-backed YA aceptado (solo
+             DESCARTAR CARGA/ELIMINAR PARTIDO local siguen ofreciéndose acá, sin cambios de
+             lógica — ver renderAnalysis en app.js). -->
+        <button id="analysis-delete-btn" class="analysis-delete-btn" type="button" hidden>Eliminar partido</button>
       </section>
+      <!-- Handoff sistema visual unificado h21 (doc 59, punto 8) — posición DE BASE de "Reportar
+           un error": después de Notas privadas, antes del logo de cierre. paintB6Actions lo
+           reubica dentro de la tarjeta provisional o de la tarjeta de corrección cuando
+           corresponde (ver comentarios en #b6-status-banner/#b6-respond-correction-block más
+           arriba) — mismo elemento único, nunca duplicado. -->
+      <div class="b6-action-block" id="b6-report-error-block" hidden>
+        <button type="button" class="b6-correction-choice b6-correction-choice--report" id="b6-report-error-btn" style="width:100%">Reportar un error</button>
+      </div>
       <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
     </div>
   </section>
@@ -241,7 +249,10 @@
          renderHistoryFilters() en app.js con los conteos reales del historial. Sin
          "Pendientes" todavía (§3.1: no existe el modelo real de validación). -->
     <div class="history-filters">
-      <div id="history-tabs" class="history-tabs" role="tablist" aria-label="Filtrar por pertenencia"></div>
+      <!-- Handoff sistema visual unificado h21 (doc 59, punto 9) — pestañas VISIBLES de nuevo:
+           Todos/Pendientes/Victorias/Derrotas/Ocultos (antes Todos/Mis partidos, oculto por
+           irrelevante — ver renderHistoryFilters en app.js). -->
+      <div id="history-tabs" class="history-tabs" role="tablist" aria-label="Filtrar por estado"></div>
       <!-- V02.1 (§25) — la fila de chips de modo se retira de la navegación principal (quedó
            compitiendo con las pestañas). Lógica de filtrado conservada, ver renderHistoryFilters. -->
       <div id="history-mode-chips" class="history-mode-chips" role="tablist" aria-label="Filtrar por modo de registro" hidden></div>
@@ -585,13 +596,14 @@
 
       <!-- Ronda UX 25/09 (Ronda 2, §3) — carrusel horizontal de pendientes: reemplaza el banner
            único anterior. Cada tarjeta es UN partido real (nunca un agregado inventado), tocable
-           por completo, sin CTA suelto. Con una sola tarjeta se ve como tarjeta estática; con
-           más de una, scroll horizontal nativo con scroll-snap (sin librería nueva, ver §12).
-           Handoff ajuste visual final post-h18 (doc 57, punto B) — ÚNICO slot/carrusel superior
-           para acciones + insights (antes: esta tarjeta de acción + otra tarjeta TU MOMENTO
-           separada más abajo, dos bloques mostrando información parecida). TU MOMENTO ahora es
-           la última tarjeta de ESTE carrusel (ver renderPlayerHomeCarousel en app.js) — siempre
-           presente, así que ya no queda oculto sin partidos pendientes. -->
+           por completo, sin CTA suelto.
+           Handoff sistema visual unificado h21 (doc 59, punto 2) — SOLO acciones/correcciones/
+           esperas reales (TU MOMENTO vuelve a su tarjeta propia debajo de Último partido, ver
+           más abajo — nunca acá). Tamaño de referencia EXACTA de `.player-home-hitos__chip` (la
+           tarjeta celeste histórica): ancho parcial (60% móvil / 40% ≥480px, nunca 100%), deja
+           ver el borde de la siguiente para comunicar que hay carrusel — mismo criterio de
+           scroll-snap suave (`proximity`, no `mandatory`). Oculto por completo sin ningún item
+           (ver renderPlayerHomeCarousel en app.js). -->
       <div class="player-home-carousel" id="player-home-pending-carousel" hidden></div>
 
       <!-- §5 — Hitos personales: franja horizontal desplazable, solo con al menos un hito
@@ -659,6 +671,20 @@
            el CTA visual del estado vacío sin anidar controles interactivos). -->
       <div class="pastilla pastilla--lastmatch player-home-lastmatch" id="player-home-last-match-card">
         <div id="player-home-last-match-body"></div>
+      </div>
+
+      <!-- Handoff sistema visual unificado h21 (doc 59, punto 2) — TU MOMENTO vuelve a su lugar
+           de siempre, debajo de Último partido (reversión de la fusión con el carrusel de
+           acciones de h19/57: "TU MOMENTO NO pertenece al carrusel"). -->
+      <div class="pastilla pastilla--momento">
+        <div class="pastilla__title-row">
+          <span class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" class="pastilla__icon-svg pastilla__icon-svg--momento"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg></span>
+          <div>
+            <div class="pastilla__title">TU MOMENTO</div>
+            <div class="pastilla__microlabel">BRAMU LEE TU HISTORIA</div>
+          </div>
+        </div>
+        <p class="pastilla-momento__text" id="player-home-momento-text"></p>
       </div>
 
       <!-- V02.1 (§21): dos grupos con encabezado propio ("Últimos 30 días"/"Tu historial").
@@ -2778,47 +2804,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h20"></script>
-  <script src="stats.js?v=04.11-h20"></script>
-  <script src="store.js?v=04.11-h20"></script>
+  <script src="engine.js?v=04.11-h21"></script>
+  <script src="stats.js?v=04.11-h21"></script>
+  <script src="store.js?v=04.11-h21"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h20"></script>
-  <script src="level-context.js?v=04.11-h20"></script>
-  <script src="level-calibration.js?v=04.11-h20"></script>
-  <script src="player-home.js?v=04.11-h20"></script>
-  <script src="match-load.js?v=04.11-h20"></script>
-  <script src="player-identity.js?v=04.11-h20"></script>
-  <script src="groups.js?v=04.11-h20"></script>
-  <script src="locations.js?v=04.11-h20"></script>
-  <script src="ranking.js?v=04.11-h20"></script>
+  <script src="level.js?v=04.11-h21"></script>
+  <script src="level-context.js?v=04.11-h21"></script>
+  <script src="level-calibration.js?v=04.11-h21"></script>
+  <script src="player-home.js?v=04.11-h21"></script>
+  <script src="match-load.js?v=04.11-h21"></script>
+  <script src="player-identity.js?v=04.11-h21"></script>
+  <script src="groups.js?v=04.11-h21"></script>
+  <script src="locations.js?v=04.11-h21"></script>
+  <script src="ranking.js?v=04.11-h21"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h20"></script>
+  <script src="auth.js?v=04.11-h21"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h20"></script>
-  <script src="match-sync.js?v=04.11-h20"></script>
+  <script src="matches.js?v=04.11-h21"></script>
+  <script src="match-sync.js?v=04.11-h21"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h20"></script>
+  <script src="match-validation.js?v=04.11-h21"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h20"></script>
+  <script src="match-self-heal.js?v=04.11-h21"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h20"></script>
-  <script src="app.js?v=04.11-h20"></script>
+  <script src="intelligence-client.js?v=04.11-h21"></script>
+  <script src="app.js?v=04.11-h21"></script>
 </body>
 </html>

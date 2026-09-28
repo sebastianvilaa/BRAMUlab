@@ -328,12 +328,17 @@
    *  (cualquier estado) + outbox traducido — todo junto, ordenable/filtrable por las pantallas
    *  como ya hacen hoy con `Store.loadHistory()`. Nunca migra el legacy al servidor: solo se
    *  concatenan arrays en memoria, cada partido conserva su origen (`serverBacked`). */
-  function buildDisplayHistory({ localHistory, serverRows, outboxEntries }) {
+  function buildDisplayHistory({ localHistory, serverRows, outboxEntries, includeHidden }) {
     // hidden es una preferencia privada de visualización: jamás borra el partido ni sus
     // efectos oficiales, pero sí debe sacarlo de MI Historial/Home. Se filtra también acá
     // como defensa adicional aunque get_my_matches normalmente ya se pida sin ocultos.
+    // Handoff sistema visual unificado h21 (doc 59, punto 10) — `includeHidden` (opt-in,
+    // default false = comportamiento IDÉNTICO al de siempre) permite a Historial pedir la
+    // lista completa para poder armar la pestaña "Ocultos" (reutiliza el mismo includeHidden
+    // ya pedido a get_my_matches, ver Store.loadServerMatchesCache) sin crear una segunda
+    // función de armado de historial.
     const server = (Array.isArray(serverRows) ? serverRows : [])
-      .filter((row) => !row.hidden)
+      .filter((row) => includeHidden || !row.hidden)
       .map(translateServerMatchToLocalShape);
     const outbox = (Array.isArray(outboxEntries) ? outboxEntries : []).map(buildOutboxDisplayEntry).filter(Boolean);
     return sortByCreatedAtDesc((Array.isArray(localHistory) ? localHistory : []).concat(server, outbox));

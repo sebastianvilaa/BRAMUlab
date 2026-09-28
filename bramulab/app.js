@@ -156,6 +156,22 @@
       return COMPACT_MONTH_LABELS[month - 1];
     } catch (e) { return ''; }
   }
+  /** Handoff sistema visual unificado h21 (doc 59, punto 5) — "27 SEP 26": mismo patrón de
+   *  tabla propia que formatCompactPlayedDate/formatAxisDayMonth (Intl day/month puede variar
+   *  de largo según locale/navegador) + año en 2 dígitos, respetando la ZONA HORARIA DEL
+   *  PARTIDO (a diferencia de formatDeclaredCategoryDate, que usa la hora local del
+   *  dispositivo — no sirve acá por el mismo motivo que formatRealDate/formatCompactPlayedDate
+   *  ya documentan). */
+  function formatShortPlayedDate(isoString, timeZone) {
+    if (!isoString) return '';
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'numeric', year: '2-digit', timeZone: timeZone || undefined }).formatToParts(new Date(isoString));
+      const day = parts.find((p) => p.type === 'day').value;
+      const month = Number(parts.find((p) => p.type === 'month').value);
+      const year = parts.find((p) => p.type === 'year').value;
+      return `${day} ${COMPACT_MONTH_LABELS[month - 1]} ${year}`;
+    } catch (e) { return ''; }
+  }
   /** V03.1 (§4) — "Categoría declarada / 5ª · declarada el 08 SEP 26". */
   function formatDeclaredCategoryDate(isoString) {
     if (!isoString) return '';
@@ -383,6 +399,11 @@
 
   // V12 (§7): etiquetas del sistema de puntuación para el header de partido en vivo.
   const SCORING_SYSTEM_LABELS = { starpoint: 'STAR POINT', golden: 'PUNTO DE ORO', classic: 'CON VENTAJA' };
+  // Handoff sistema visual unificado h21 (doc 59, punto 5) — variante sentence/title case de lo
+  // de arriba, EXCLUSIVA de la línea 2 de metadata del Resumen (buildAnalysisMetaLines): "no
+  // todo en mayúsculas" ahí, a diferencia de Historial/Último partido, que sí siguen usando
+  // mayúscula sostenida (sin cambios en esos dos).
+  const SCORING_SYSTEM_LABELS_TITLE = { starpoint: 'Star Point', golden: 'Punto de Oro', classic: 'Con Ventaja' };
 
   // Etapa 4.1 (§2.1) — Historial tiene un único punto de entrada real ahora: la barra
   // inferior/Home. `historyOpenedFrom` queda fijo en 'player-home' (antes también podía venir
@@ -402,7 +423,16 @@
     historyContextFilter = contextFilter || null;
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca.
-    if (historyContextFilter) historyOwnershipFilter = 'mine';
+    if (historyContextFilter) {
+      historyOwnershipFilter = 'mine';
+      // Handoff sistema visual unificado h21 (doc 59, punto 9) — Racha/Efectividad son siempre
+      // partidos DECIDIDOS (nunca pendientes, nunca ocultos): si la pestaña de estado hubiera
+      // quedado en 'pendientes'/'ocultos' de una visita anterior, el filtro de estado (aplicado
+      // ANTES del contextual, ver renderHistory) podría vaciar por error una lista que en
+      // realidad sí tiene partidos — se fuerza 'todos' para que el recorte contextual sea el
+      // único criterio real.
+      historyStatusFilter = 'todos';
+    }
     // Ronda UX 25/09 (Ronda 2, §8) — "abrir Historial = visto": el snapshot se captura ANTES de
     // limpiar el storage persistido, así el primer render todavía puede resaltar esas filas; el
     // indicador del bottom-nav se apaga ya mismo, sin esperar a que el usuario abra cada partido.
@@ -2031,22 +2061,25 @@
     return [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
   }
 
-  /** Ronda UX 25/09 (Ronda 2, §4) — REEMPLAZA la línea única "fecha · hora · formato · sistema ·
-   *  VALIDADO" (buildMatchMetaLine sigue existiendo, sin otros call sites — ver arriba) por
-   *  trazabilidad real: línea 1 "Cargado por X · fecha · hora", línea 2 "Formato · Sistema"
-   *  (+ modo/lugar cuando corresponda), línea 3 "Confirmado por Y" SOLO cuando ya se puede
-   *  resolver a una persona real (b6LastActorForActionType('validated') — requiere actionsRaw,
-   *  get_match_detail). Nunca ningún estado acá (ni VALIDADO ni TU TURNO: CONFIRMAR ni
-   *  PENDIENTE DE VALIDACIÓN): el estado/las acciones viven aparte en el bloque B6 (§1/§6).
-   *  `createdByPlayerId` ya viene en get_my_matches Y get_match_detail — "Cargado por" está
-   *  disponible desde el primer pintado; un partido local/legacy (sin ese campo) omite esa
-   *  cláusula por completo, no hay un actor distinto del propio dispositivo que trazar. */
+  /** Handoff sistema visual unificado h21 (doc 59, punto 5) — cabecera en EXACTAMENTE dos
+   *  líneas, mismo lenguaje tipográfico para toda la línea 2 (nunca tres estilos distintos como
+   *  antes: fecha+hora en una línea, formato/sistema en otra, "Confirmado por" en una tercera
+   *  suelta).
+   *  Línea 1 (autoría/estado): "Cargado por X" + estado según corresponda —
+   *  "Confirmado por Y" (validado, actor real ya resuelto — requiere actionsRaw/
+   *  get_match_detail, igual que antes), "Por confirmar" (pendiente, no es mi turno) o
+   *  "Te toca confirmar" (pendiente, actor-relativo: SOY yo quien debe confirmar,
+   *  f.isActionMine ya viene en el f liviano). Nunca inventa un actor: sin loaderName
+   *  resoluble, la cláusula de "Cargado por" simplemente se omite.
+   *  Línea 2 (fecha + partido): "27 SEP 26 · 20:28 · Clásico · Punto de Oro" — fecha corta
+   *  DD MMM AA (formatShortPlayedDate), formato/sistema en sentence/title case (NUNCA
+   *  mayúscula sostenida, a diferencia de Historial/Último partido que sí usan mayúsculas). */
   function buildAnalysisMetaLines(f) {
-    const dateStr = formatRealDate(f.startedAt || f.createdAt, f.timeZone);
+    const dateStr = formatShortPlayedDate(f.startedAt || f.createdAt, f.timeZone);
     const timeStr = (f.mode === 'manual' && f.timeKnown === false) ? null : formatRealTime(f.startedAt || f.createdAt, f.timeZone).slice(0, 5);
-    const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label || '').toUpperCase();
-    const scoringLabel = HISTORY_SCORING_LABELS[f.scoringSystem] || '';
-    const modeLabel = f.mode === 'games' ? 'POR GAMES' : null;
+    const formatLabel = (E.FORMATS[f.formatId] && E.FORMATS[f.formatId].label) || '';
+    const scoringLabel = SCORING_SYSTEM_LABELS_TITLE[f.scoringSystem] || '';
+    const modeLabel = f.mode === 'games' ? 'Por games' : null;
     const placeLabel = (f.location && f.location.name) ? f.location.name : null;
 
     let loaderName = null;
@@ -2054,18 +2087,18 @@
       const row = (f.players || []).find((p) => p && p.userId === f.createdByPlayerId);
       loaderName = row ? row.name : null;
     }
-    const line1 = [loaderName ? `Cargado por ${loaderName}` : null, dateStr, timeStr].filter(Boolean).join(' · ');
-    const line2 = [formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
-    const lines = [line1];
-    if (line2) lines.push(line2);
-
+    let statusClause = null;
     if (f.serverBacked && f.status === 'validated') {
       const confirmer = b6LastActorForActionType(f, 'validated');
       if (confirmer && confirmer.name && confirmer.name !== loaderName) {
-        lines.push(`Confirmado por ${confirmer.name}`);
+        statusClause = `Confirmado por ${confirmer.name}`;
       }
+    } else if (f.serverBacked && f.status === 'pending_validation') {
+      statusClause = f.isActionMine ? 'Te toca confirmar' : 'Por confirmar';
     }
-    return lines.filter(Boolean);
+    const line1 = [loaderName ? `Cargado por ${loaderName}` : null, statusClause].filter(Boolean).join(' · ');
+    const line2 = [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
+    return [line1, line2].filter(Boolean);
   }
 
   function renderAnalysisMeta(f) {
@@ -2729,20 +2762,22 @@
     const outboxActionBlock = $('#b6-outbox-action-block');
     const outboxActionBtn = $('#b6-outbox-action-btn');
 
-    banner.hidden = true; banner.classList.remove('b6-banner--waiting');
+    banner.hidden = true; banner.classList.remove('b6-banner--waiting', 'b6-correction-card');
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
     respondBlock.hidden = true;
     outboxActionBlock.hidden = true;
     outboxActionBtn.onclick = null;
-    // Handoff ajuste visual final post-h18 (doc 57, punto E) — "Reportar un error" vive DENTRO
-    // de la tarjeta de corrección mientras hay una activa; el resto del tiempo vuelve a su
-    // posición de siempre (justo después de #b6-confirm-block). Mismo elemento único, solo se
-    // reubica — nunca se duplica ni se recalcula su disponibilidad con una segunda lógica (ver
-    // más abajo, todavía usa b6ReportErrorAvailability). Reset acá, por defecto, en cada render;
-    // el bloque `f.status === 'validated'` de más abajo lo vuelve a mover si corresponde.
-    confirmBlock.after(reportErrorBlock);
+    // Handoff sistema visual unificado h21 (doc 59, puntos 6/7/8) — "Reportar un error" vive
+    // DENTRO de la tarjeta que corresponda (provisional de confirmación o de corrección
+    // post-validación) mientras hay algo activo que me involucra; el resto del tiempo vuelve a
+    // su posición de base, al final del contenido principal (después de #analysis-share-section,
+    // antes del logo de cierre). Mismo elemento único, solo se reubica — nunca se duplica ni se
+    // recalcula su disponibilidad con una segunda lógica (ver más abajo, todavía usa
+    // b6ReportErrorAvailability). Reset acá por defecto en cada render; los bloques de abajo lo
+    // vuelven a mover si corresponde.
+    $('#analysis-share-section').after(reportErrorBlock);
     // Ronda correctiva (revisión central) — default seguro para la lista de diff del banner
     // PRE-validación (§G): un render anterior para otro partido/estado nunca debe dejar líneas
     // stale visibles. El diff técnico del bloque POST-validación (#b6-respond-correction-diff)
@@ -2852,9 +2887,17 @@
       // `detailLoaded` corta eso: sin detalle todavía, banner neutro, SIN CTA.
       const detailLoaded = Array.isArray(f.actionsRaw);
       const pendingEventType = detailLoaded ? ML.classifyPendingRevisionEvent(f.actionsRaw) : null;
-      const confirmBtn = $('#b6-confirm-btn');
       if (f.isActionMine && !hasOpenIdentity) {
-        banner.hidden = false;
+        // Handoff sistema visual unificado h21 (doc 59, punto 6) — "resultado todavía
+        // provisional: tarjeta con acento/borde ámbar" — mismo tratamiento .b6-correction-card
+        // que la corrección post-validación (doc 59 principio de sistema: son la misma familia).
+        // "Confirmar resultado" queda como texto FIJO en el HTML (sentence case, doc 59 punto 6)
+        // — deja de reescribirse por sub-caso (antes "ACEPTAR CORRECCIÓN"/"CONFIRMAR PARTIDO"):
+        // el banner de abajo ya explica el matiz de cada sub-caso, el botón es siempre la misma
+        // acción afirmativa. "Reportar un error" se empareja a la izquierda, dentro de la misma
+        // fila de dos botones.
+        banner.hidden = false; banner.classList.add('b6-correction-card');
+        confirmBlock.prepend(reportErrorBlock);
         if (!detailLoaded) {
           bannerText.textContent = 'Revisando este partido…';
         } else if (pendingEventType === 'result_correction') {
@@ -2862,7 +2905,6 @@
           bannerText.textContent = proposer
             ? `${proposer} propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.`
             : 'Se propuso una corrección en este partido. Revisá el resultado actualizado antes de aceptar.';
-          confirmBtn.textContent = 'ACEPTAR CORRECCIÓN';
           // Ronda correctiva — §G "qué cambió", caso PRE-VALIDACIÓN: before = previousRevisionSets
           // (revisión anterior), after = sets (la vigente, ya propuesta). Únicamente para
           // result_correction — un reemplazo de identidad copia los mismos sets, no hay nada que
@@ -2876,7 +2918,6 @@
           bannerText.textContent = replacer
             ? `${replacer} corrigió un participante de este partido. Revisalo antes de confirmar.`
             : 'Se corrigió un participante de este partido. Revisalo antes de confirmar.';
-          confirmBtn.textContent = 'CONFIRMAR PARTIDO';
           confirmBlock.hidden = false;
         } else {
           // Ronda UX 25/09 (Ronda 2, §1) — carga normal: sigue siendo el ÚNICO caso con banner
@@ -2884,7 +2925,6 @@
           // ya comunica la acción, pero acá el banner explica POR QUÉ hay que actuar — "te toca
           // confirmar" — algo que el botón solo no transmite).
           bannerText.textContent = 'Te toca confirmar este resultado.';
-          confirmBtn.textContent = 'CONFIRMAR PARTIDO';
           confirmBlock.hidden = false;
         }
       } else if (f.actionSide && !hasOpenIdentity) {
@@ -2892,8 +2932,12 @@
         // actuar), a diferencia de los actores puntuales de arriba — acá no hay "quién
         // específico" todavía, por diseño (Backend_Infraestructura.md §8.6: alcanza una acción
         // de cualquiera de los dos integrantes de la pareja).
+        // Handoff sistema visual unificado h21 (doc 59, punto 6) — "para quien cargó el
+        // partido... dentro de la misma tarjeta": mismo acento ámbar que el lado accionable de
+        // arriba (ambos son "resultado todavía provisional"), sin fila de acciones propia
+        // (confirmBlock queda hidden, sin tocar).
         const waitingTeam = S.teamLabel(f.players, f.actionSide);
-        banner.hidden = false; banner.classList.add('b6-banner--waiting');
+        banner.hidden = false; banner.classList.add('b6-correction-card');
         if (!detailLoaded) {
           bannerText.textContent = 'Esperando respuesta de la otra pareja.';
         } else if (pendingEventType === 'result_correction') {
@@ -3556,16 +3600,19 @@
     $('#b6-respond-reject-btn').addEventListener('click', () => {
       if (!analysisCurrent) return;
       const matchId = analysisCurrent.matchId;
+      // Handoff sistema visual unificado h21 (doc 59, punto 7) — "Mantener resultado actual":
+      // la RPC/semántica no cambia (respondMatchCorrection(matchId, false), el servidor sigue
+      // llamándolo rechazo), solo el copy orientado al usuario deja de decir "Rechazar".
       confirmAction(
-        '¿Rechazar la corrección?',
-        'El resultado oficial actual se mantiene sin cambios.',
+        '¿Mantener el resultado actual?',
+        'La corrección propuesta no se aplica — el resultado oficial actual se mantiene sin cambios.',
         async () => {
           const result = await MV.respondMatchCorrection(matchId, false);
           if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
-          showToast('Corrección rechazada.');
+          showToast('Se mantuvo el resultado actual.');
           await afterB6Action(matchId);
         },
-        null, 'Rechazar', 'Cancelar', true
+        null, 'Mantener', 'Cancelar', true
       );
     });
   }
@@ -3747,12 +3794,18 @@
     // guardada (eso reemplazaba la tarjeta entera por un link "+ Agregar nota" — ver
     // renderAnalysisNoteDisplay). Arranca siempre en modo LECTURA (textarea oculto) —
     // cambiar de partido nunca debe dejar el editor abierto del partido anterior.
+    // Handoff sistema visual unificado h21 (doc 59, puntos 8/10) — "Ocultar partido" se retira
+    // del Resumen (el mecanismo hide_match_for_me sigue existiendo, ahora exclusivo del long
+    // press en Historial, ver initHistoryListInteractions más abajo): un partido server-backed
+    // YA aceptado (ni outbox ni local) ya no ofrece ninguna acción de borrado/ocultado acá.
     const deleteBtn = $('#analysis-delete-btn');
     if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
+      deleteBtn.hidden = false;
       deleteBtn.textContent = 'DESCARTAR CARGA';
     } else if (f.serverBacked) {
-      deleteBtn.textContent = 'OCULTAR PARTIDO';
+      deleteBtn.hidden = true;
     } else {
+      deleteBtn.hidden = false;
       deleteBtn.textContent = 'ELIMINAR PARTIDO';
     }
 
@@ -3764,15 +3817,12 @@
       $('#analysis-note-display').hidden = false;
       renderAnalysisNoteDisplay(f.privateNote || '');
     }
-    // Hotfix v1.2.1 (§2-3.1) — "VOLVER AL INICIO" es siempre el Home del jugador, sin importar
-    // si este Análisis es el del partido recién cargado o uno viejo visto desde Historial.
-    $('#analysis-home-btn').onclick = () => { openPlayerHome(); };
     // V02.9 (§5) — "Eliminar partido": acción deliberada al final del Resumen, con
-    // confirmación. Backend Bloque 5 (punto 8 del wiring) bifurca en 3 caminos: local legacy
-    // sigue eliminando de verdad (sin cambios); un borrador de outbox todavía sin sincronizar
-    // se descarta (nunca llegó a existir en el servidor, no hay nada que "ocultar"); un
-    // partido server-backed YA aceptado usa `hide_match_for_me` — NUNCA borra el partido
-    // compartido, solo lo saca de MI vista (Backend_Infraestructura.md §8.8).
+    // confirmación. Backend Bloque 5 (punto 8 del wiring) — local legacy sigue eliminando de
+    // verdad (sin cambios); un borrador de outbox todavía sin sincronizar se descarta (nunca
+    // llegó a existir en el servidor). Handoff sistema visual unificado h21 (doc 59, punto 10) —
+    // el camino "ocultar" (server-backed ya aceptado) se retiró de acá: `deleteBtn` queda
+    // `hidden` para ese caso (ver arriba), así que este handler nunca necesita cubrirlo.
     $('#analysis-delete-btn').onclick = () => {
       if (f.serverBacked && (f.status === 'sync_pending' || f.status === 'necesita_revision')) {
         confirmAction(
@@ -3787,21 +3837,6 @@
             openPlayerHome();
           },
           null, 'Descartar', 'Cancelar', true
-        );
-        return;
-      }
-      if (f.serverBacked) {
-        confirmAction(
-          '¿Ocultar este partido de tu historial?',
-          'Solo lo vas a dejar de ver vos — sigue existiendo para los demás participantes y no se borra ni se altera.',
-          async () => {
-            const result = await Matches.hideMatchForMe(f.matchId, true);
-            if (!result || !result.ok) { showToast('No se pudo ocultar el partido — probá de nuevo.', 2800); return; }
-            await refreshServerMatches();
-            showToast('Partido oculto de tu historial');
-            openPlayerHome();
-          },
-          null, 'Ocultar', 'Cancelar', true
         );
         return;
       }
@@ -4753,14 +4788,21 @@
   // Estado de los filtros — vive en memoria durante la sesión (§3.3: "conservar el filtro" al
   // editar/eliminar ya sale gratis de no resetear esto en cada render), nunca en localStorage:
   // no hay pedido de persistirlo entre reaperturas de la app.
-  let historyOwnershipFilter = 'all'; // 'all' | 'mine'
+  let historyOwnershipFilter = 'all'; // 'all' | 'mine' — fijo en 'all', ver comentario más abajo.
   let historyModeFilter = 'all'; // 'all' | 'manual' | 'games' | 'complete'
+  // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestaña VISIBLE de Historial.
+  // Reemplaza la vieja Todos/Mis partidos (que quedaba oculta, ver HISTORY_TABS abajo) por la
+  // taxonomía nueva: Todos/Pendientes/Victorias/Derrotas/Ocultos.
+  let historyStatusFilter = 'todos'; // 'todos' | 'pendientes' | 'victorias' | 'derrotas' | 'ocultos'
   // Ronda UX 25/09 (Ronda 2, §8) — snapshot en memoria de qué matchId resaltar como "cambio
   // externo no visto" DURANTE esta visita a Historial (se captura una sola vez al abrir, en
   // openHistoryScreen, antes de vaciar el storage persistido — así un cambio de pestaña/filtro
   // dentro de la misma visita sigue resaltando lo mismo; recién la PRÓXIMA apertura lo pierde).
   let historyUnseenSnapshot = new Set();
 
+  // V02.1 (§25/§8) — "Todos"/"Mis partidos" quedó oculto (redundante en el BRAMUlab actual) y
+  // `historyOwnershipFilter` fijo en 'all': se conserva tal cual (nunca se pinta ni se ofrece
+  // control) — doc 59 §9 confirma "Todos... incluye propios y observados", mismo criterio.
   const HISTORY_TABS = [
     { key: 'all', label: 'Todos' },
     { key: 'mine', label: 'Mis partidos' },
@@ -4771,35 +4813,44 @@
     { key: 'games', label: 'Game por game' },
     { key: 'complete', label: 'Punto por punto' },
   ];
+  // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestañas VISIBLES: recupera el
+  // patrón de pestañas que BRAMU ya tuvo (#history-tabs, el mismo componente `.history-tab` de
+  // siempre), ahora con categorías útiles.
+  const HISTORY_STATUS_TABS = [
+    { key: 'todos', label: 'Todos' },
+    { key: 'pendientes', label: 'Pendientes' },
+    { key: 'victorias', label: 'Victorias' },
+    { key: 'derrotas', label: 'Derrotas' },
+    { key: 'ocultos', label: 'Ocultos' },
+  ];
   // Misma etiqueta que arriba, en minúscula, para componer el texto del estado vacío
   // ("No hay partidos en mis partidos · game por game todavía") sin repetir el mapeo.
   const HISTORY_TAB_LABELS_LOWER = { mine: 'mis partidos' };
+  const HISTORY_STATUS_TAB_LABELS_LOWER = { pendientes: 'pendientes', victorias: 'victorias', derrotas: 'derrotas', ocultos: 'ocultos' };
   const HISTORY_MODE_LABELS_LOWER = { manual: 'cargados', games: 'game por game', complete: 'punto por punto' };
 
   /** §3.1/§3.2 — pinta ambas filas de filtro con los conteos reales (los conteos de
    *  pertenencia SIEMPRE sobre el historial completo, sin aplicar el filtro de modo — cada
    *  fila informa su propia dimensión, no una intersección en vivo que confundiría cuando
-   *  ambos filtros combinados dan 0 sin que ninguno de los dos, por separado, esté vacío). */
+   *  ambos filtros combinados dan 0 sin que ninguno de los dos, por separado, esté vacío).
+   *  Handoff sistema visual unificado h21 (doc 59, punto 9) — `#history-tabs` vuelve a mostrarse,
+   *  ahora con PH.computeHistoryStatusTabCounts/HISTORY_STATUS_TABS (Todos/Pendientes/Victorias/
+   *  Derrotas/Ocultos) en vez de la vieja Todos/Mis partidos — mismo componente `.history-tab`,
+   *  mismo patrón de conteo y click, solo cambia la dimensión que filtran. `fullHistory` acá
+   *  YA incluye ocultos (ver renderHistory) para que el conteo de "Ocultos" sea real. */
   function renderHistoryFilters(fullHistory) {
-    const counts = PH.computeHistoryTabCounts(fullHistory, currentIdentity());
+    const counts = PH.computeHistoryStatusTabCounts(fullHistory, currentIdentity(), new Date());
     const tabsWrap = $('#history-tabs');
-    tabsWrap.innerHTML = HISTORY_TABS.map((t) => {
-      const active = historyOwnershipFilter === t.key;
+    tabsWrap.innerHTML = HISTORY_STATUS_TABS.map((t) => {
+      const active = historyStatusFilter === t.key;
       return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-key="${t.key}" role="tab" aria-selected="${active}">${t.label} <span class="history-tab__count">${counts[t.key]}</span></button>`;
     }).join('');
     $all('#history-tabs .history-tab').forEach((btn) => {
-      // V02.1 (§27) — tocar cualquiera de las 3 pestañas normales sale del filtro contextual
-      // (mismo destino que "Quitar filtro" en la banda, ver más abajo).
-      btn.addEventListener('click', () => { historyOwnershipFilter = btn.dataset.key; historyContextFilter = null; renderHistory(); });
+      // V02.1 (§27) — tocar cualquiera de las pestañas sale del filtro contextual (mismo
+      // destino que "Quitar filtro" en la banda, ver más abajo).
+      btn.addEventListener('click', () => { historyStatusFilter = btn.dataset.key; historyContextFilter = null; renderHistory(); });
     });
-    // Ronda UX 25/09 (Ronda 2, §8) — "Todos"/"Mis partidos" se retira de la vista (redundante
-    // en el BRAMUlab actual: casi nadie tiene partidos ajenos que valga la pena separar todavía)
-    // con el MISMO tratamiento que §25 ya le dio a los chips de modo abajo: se sigue pintando e
-    // instrumentando (por si hace falta reactivarlo) pero no se muestra, y `historyOwnershipFilter`
-    // queda fijo en 'all' porque no hay control para cambiarlo. `HISTORY_TABS`/
-    // `PH.filterHistoryCombined`/`PH.computeHistoryTabCounts` no se tocan — siguen protegiendo
-    // compatibilidad histórica igual que antes.
-    $('#history-tabs').hidden = true;
+    $('#history-tabs').hidden = false;
 
     // V02.1 (§25) — la fila de chips de modo se retira de la vista principal (competía con la
     // navegación por pestañas). La lógica de filtrado por modo se conserva intacta por si
@@ -4831,22 +4882,106 @@
       return;
     }
     const parts = [];
-    if (historyOwnershipFilter !== 'all') parts.push(HISTORY_TAB_LABELS_LOWER[historyOwnershipFilter]);
+    if (historyStatusFilter !== 'todos') parts.push(HISTORY_STATUS_TAB_LABELS_LOWER[historyStatusFilter]);
     if (historyModeFilter !== 'all') parts.push(HISTORY_MODE_LABELS_LOWER[historyModeFilter]);
     textEl.textContent = parts.length
       ? `No hay partidos en ${parts.join(' · ')} todavía.`
       : 'No hay partidos para mostrar.';
     actionEl.textContent = 'VER TODOS';
-    actionEl.onclick = () => { historyOwnershipFilter = 'all'; historyModeFilter = 'all'; renderHistory(); };
+    actionEl.onclick = () => { historyStatusFilter = 'todos'; historyModeFilter = 'all'; renderHistory(); };
+  }
+
+  /** Handoff sistema visual unificado h21 (doc 59, punto 10) — reutiliza EXACTAMENTE el mismo
+   *  mecanismo `hide_match_for_me` que ya usaba "Ocultar partido" en Resumen (retirado de ahí,
+   *  ver renderAnalysis) — nunca backend nuevo, nunca una segunda semántica. `hidden=true`
+   *  oculta (long press sobre un partido visible), `hidden=false` lo vuelve a mostrar (long
+   *  press sobre un partido de la pestaña Ocultos). Re-pinta Historial al terminar para que la
+   *  tarjeta desaparezca/reaparezca de la pestaña activa sin esperar a reabrir la pantalla. */
+  function confirmToggleMatchHidden(m, hidden) {
+    const title = hidden ? '¿Ocultar este partido de tu historial?' : '¿Volver a mostrar este partido?';
+    const body = hidden
+      ? 'Solo lo vas a dejar de ver vos — sigue existiendo para los demás participantes y no se borra ni se altera.'
+      : 'Vuelve a aparecer en tu historial junto con el resto de tus partidos.';
+    const acceptLabel = hidden ? 'Ocultar' : 'Mostrar';
+    const successMsg = hidden ? 'Partido oculto de tu historial' : 'Partido visible de nuevo';
+    const errorMsg = hidden ? 'No se pudo ocultar el partido — probá de nuevo.' : 'No se pudo volver a mostrar el partido — probá de nuevo.';
+    confirmAction(
+      title, body,
+      async () => {
+        const result = await Matches.hideMatchForMe(m.matchId, hidden);
+        if (!result || !result.ok) { showToast(errorMsg, 2800); return; }
+        await refreshServerMatches();
+        showToast(successMsg);
+        renderHistory();
+      },
+      null, acceptLabel, 'Cancelar', hidden
+    );
+  }
+
+  /** Handoff sistema visual unificado h21 (doc 59, punto 10) — tap corto sigue abriendo Resumen
+   *  como siempre; long press (o click derecho en desktop, "equivalente contextual simple sin
+   *  introducir una gran UI nueva") ofrece Ocultar/Volver a mostrar según `m.hidden`. Solo se
+   *  ofrece para partidos server-backed YA sincronizados (nunca un borrador de outbox — ahí no
+   *  existe todavía un match real del lado del servidor que `hide_match_for_me` pueda tocar,
+   *  mismo criterio que ya usaba el viejo botón de Resumen). Cancela el long press si el dedo se
+   *  desplaza (nunca interfiere con el scroll vertical de la lista) y suprime el click sintético
+   *  que sigue a un touchend después de un long press disparado (nunca abre Resumen por error). */
+  function wireHistoryItemInteractions(item, m) {
+    const canToggleHidden = !!(m.serverBacked && m.status !== 'sync_pending' && m.status !== 'necesita_revision');
+    let suppressNextClick = false;
+    item.addEventListener('click', () => {
+      if (suppressNextClick) { suppressNextClick = false; return; }
+      openCanonicalResumen(m, 'history');
+    });
+    if (!canToggleHidden) return;
+    const LONG_PRESS_MS = 550;
+    let pressTimer = null;
+    let startX = 0, startY = 0;
+    const clearPressTimer = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+    const onTouchMove = (e) => {
+      if (!pressTimer || !e.touches || !e.touches.length) return;
+      const dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearPressTimer();
+    };
+    const onTouchEnd = () => {
+      clearPressTimer();
+      item.removeEventListener('touchmove', onTouchMove);
+      item.removeEventListener('touchend', onTouchEnd);
+      item.removeEventListener('touchcancel', onTouchEnd);
+    };
+    item.addEventListener('touchstart', (e) => {
+      if (!e.touches || e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      clearPressTimer();
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        suppressNextClick = true;
+        confirmToggleMatchHidden(m, !m.hidden);
+      }, LONG_PRESS_MS);
+      item.addEventListener('touchmove', onTouchMove, { passive: true });
+      item.addEventListener('touchend', onTouchEnd, { passive: true });
+      item.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    }, { passive: true });
+    // Desktop — sin gesto de long press real: click derecho como equivalente contextual simple.
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      confirmToggleMatchHidden(m, !m.hidden);
+    });
   }
 
   function renderHistory() {
-    const fullHistory = getDisplayHistory();
+    // Handoff sistema visual unificado h21 (doc 59, punto 10) — `includeHidden:true` para que
+    // la pestaña "Ocultos" tenga datos reales; PH.filterHistoryByStatusTab (abajo) es quien
+    // decide qué pestaña deja pasar qué — 'todos' sigue excluyendo ocultos como siempre.
+    const fullHistory = getDisplayHistory({ includeHidden: true });
     renderHistoryFilters(fullHistory);
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
     // así que el orden se conserva sin importar qué combinación de pestaña/modo esté activa.
     let list = PH.filterHistoryCombined(fullHistory, currentIdentity(), historyOwnershipFilter, historyModeFilter);
+    // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestaña de estado, aplicada
+    // DESPUÉS de pertenencia/modo (mismo criterio de capas que el filtro contextual de abajo).
+    list = PH.filterHistoryByStatusTab(list, currentIdentity(), historyStatusFilter, new Date());
     // V02.1 (§27) — filtro contextual (Racha actual/Efectividad), aplicado DESPUÉS de las
     // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio recalculado
     // aparte que pudiera divergir del que ya muestran Home/Efectividad. V02.7 (§4): Efectividad
@@ -4964,7 +5099,7 @@
           </div>` : ''}
         </div>
       `;
-      item.addEventListener('click', () => openCanonicalResumen(m, 'history'));
+      wireHistoryItemInteractions(item, m);
       wrap.appendChild(item);
     });
   }
@@ -4980,11 +5115,16 @@
     });
   }
 
-  /** V02.2 (Bloque G, §18) — swipe horizontal entre las tres pestañas (Todos/Mis partidos/
-   *  Observados), sin interferir con el scroll vertical de la lista: se decide UNA sola vez
-   *  por gesto (el primer desplazamiento claro) si es horizontal o vertical, y solo se actúa
-   *  sobre los horizontales. Listeners pasivos (nunca preventDefault) — el scroll vertical
-   *  nativo sigue funcionando igual que siempre. */
+  /** V02.2 (Bloque G, §18) — swipe horizontal entre pestañas, sin interferir con el scroll
+   *  vertical de la lista: se decide UNA sola vez por gesto (el primer desplazamiento claro) si
+   *  es horizontal o vertical, y solo se actúa sobre los horizontales. Listeners pasivos (nunca
+   *  preventDefault) — el scroll vertical nativo sigue funcionando igual que siempre, y el long
+   *  press de wireHistoryItemInteractions (sobre cada .history-item, más abajo en el árbol)
+   *  sigue funcionando igual: cancela su propio timer apenas detecta el mismo desplazamiento.
+   *  Handoff sistema visual unificado h21 (doc 59, punto 9) — RE-HABILITADO junto con
+   *  #history-tabs (antes deshabilitado a propósito por cambiar un filtro sin ningún indicador
+   *  visible): ahora recorre HISTORY_STATUS_TABS/historyStatusFilter (Todos/Pendientes/
+   *  Victorias/Derrotas/Ocultos), nunca la vieja Todos/Mis partidos. */
   function initHistorySwipe() {
     const scrollEl = document.querySelector('#view-history .analysis-scroll');
     if (!scrollEl) return;
@@ -5005,10 +5145,10 @@
       if (axis !== 'h') return;
       const dx = e.changedTouches[0].clientX - startX;
       if (Math.abs(dx) < 60) return;
-      const idx = HISTORY_TABS.findIndex((t) => t.key === historyOwnershipFilter);
+      const idx = HISTORY_STATUS_TABS.findIndex((t) => t.key === historyStatusFilter);
       const nextIdx = idx + (dx < 0 ? 1 : -1); // swipe a la izquierda -> pestaña siguiente
-      if (nextIdx < 0 || nextIdx >= HISTORY_TABS.length) return;
-      historyOwnershipFilter = HISTORY_TABS[nextIdx].key;
+      if (nextIdx < 0 || nextIdx >= HISTORY_STATUS_TABS.length) return;
+      historyStatusFilter = HISTORY_STATUS_TABS[nextIdx].key;
       historyContextFilter = null;
       renderHistory();
     }, { passive: true });
@@ -5022,12 +5162,11 @@
     // V02.1 (§27) — "Quitar filtro": vuelve a las pestañas normales sin perder navegación
     // (se queda en Historial, solo se retira el recorte contextual).
     $('#history-context-filter-clear').addEventListener('click', () => { historyContextFilter = null; renderHistory(); });
-    // Ronda UX 25/09 (Ronda 2, §8) — con #history-tabs oculto, este swipe cambiaría
-    // historyOwnershipFilter sin ningún indicador visible de que cambió: una regresión directa
-    // de ocultar las pestañas, no algo que valga la pena mantener para un control invisible. La
-    // función se conserva (mismo criterio que HISTORY_TABS/historyModeFilter) por si las
-    // pestañas se reactivan más adelante; simplemente no se llama mientras estén ocultas.
-    // initHistorySwipe();
+    // Handoff sistema visual unificado h21 (doc 59, punto 9) — RE-HABILITADO: #history-tabs
+    // vuelve a mostrarse (Todos/Pendientes/Victorias/Derrotas/Ocultos), así que el swipe ya
+    // tiene un indicador visible de qué pestaña cambia (la razón por la que Ronda UX 25/09 lo
+    // había desactivado, comentario retirado, ya no aplica).
+    initHistorySwipe();
   }
 
   /* ------------------------------------------------------------------ */
@@ -5108,8 +5247,11 @@
   /** Historial para MOSTRAR (Historial, badges, Home "Último partido"): incluye partidos
    *  server-backed en CUALQUIER estado (pending_validation/expired/validated) más el outbox
    *  local todavía sin resolver. Para una cuenta sin backend, es exactamente
-   *  `Store.loadHistory()` de siempre — cero cambio de comportamiento. */
-  function getDisplayHistory() {
+   *  `Store.loadHistory()` de siempre — cero cambio de comportamiento.
+   *  Handoff sistema visual unificado h21 (doc 59, punto 10) — `opts.includeHidden` (opt-in,
+   *  default false) deja pasar también los ocultos para la pestaña "Ocultos" de Historial —
+   *  todo llamador existente (sin opts) conserva el comportamiento de siempre. */
+  function getDisplayHistory(opts) {
     const localHistory = Store.loadHistory();
     if (!isServerBackedSession() || !MSync) return localHistory;
     const cache = Store.loadServerMatchesCache();
@@ -5117,6 +5259,7 @@
       localHistory,
       serverRows: cache.matches,
       outboxEntries: Store.loadMatchOutbox(),
+      includeHidden: !!(opts && opts.includeHidden),
     });
   }
 
@@ -6915,19 +7058,17 @@
    *  Cada tarjeta es un partido real y específico — nunca un agregado tipo "tenés N partidos"
    *  (ver nota histórica de §I más abajo, que sigue aplicando por partido individual).
    *
-   *  Handoff ajuste visual final post-h18 (doc 57, punto B) — REEMPLAZA el par "tarjeta de
-   *  acción grande arriba + tarjeta TU MOMENTO grande más abajo" (dos bloques separados) por UN
-   *  único carrusel: acciones/correcciones/espera reales primero (si las hay), TU MOMENTO
-   *  siempre al final como una tarjeta más — nunca dos superficies separadas mostrando
-   *  información parecida. `momentoText` llega ya calculado por renderPlayerHome (mismo texto
-   *  base que antes se escribía directo en #player-home-momento-text); ese id se conserva
-   *  DENTRO de la tarjeta nueva para que el refresco asíncrono de Ranking (RK.getHomeRankingInsight,
-   *  ver renderPlayerHome) lo seguir actualizando in-place sin tocar este render. */
-  function renderPlayerHomeCarousel(displayMatches, momentoText) {
+   *  Handoff sistema visual unificado h21 (doc 59, punto 2) — REVIERTE la fusión de h19/57 (TU
+   *  MOMENTO como tarjeta del carrusel): "TU MOMENTO NO pertenece al carrusel. Debe volver a su
+   *  lugar anterior debajo de Último partido." Este carrusel vuelve a contener SOLO acciones/
+   *  correcciones/espera reales — oculto por completo sin ningún item, igual que antes de h19.
+   *  TU MOMENTO se pinta aparte, ver renderPlayerHomeMomento más abajo. */
+  function renderPlayerHomeCarousel(displayMatches) {
     const track = $('#player-home-pending-carousel');
     const items = PH.computeHomePendingCarouselItems(displayMatches || [], new Date());
+    if (!items.length) { track.hidden = true; track.innerHTML = ''; return; }
     const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
-    const actionSlidesHTML = items.map((item) => {
+    track.innerHTML = items.map((item) => {
       const m = byId.get(item.matchId);
       if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
@@ -6969,22 +7110,6 @@
           <p class="player-home-carousel-card__text">${escapeHtml(text)}</p>
         </div>`;
     }).join('');
-    // Handoff ajuste visual final post-h18 (doc 57, punto B) — TU MOMENTO como última tarjeta,
-    // SIEMPRE presente (PH.buildTuMomentoText nunca devuelve vacío): "los demás mensajes/
-    // insights siguen disponibles en el mismo carrusel". No es tappable (no abre un caso
-    // puntual) — sin role/tabindex/listener, a diferencia de las tarjetas de arriba.
-    const insightSlideHTML = `
-      <div class="player-home-carousel-card player-home-carousel-card--insight">
-        <div class="pastilla__title-row">
-          <span class="pastilla__icon" aria-hidden="true"><svg viewBox="0 0 24 24" class="pastilla__icon-svg pastilla__icon-svg--momento"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg></span>
-          <div>
-            <div class="pastilla__title">TU MOMENTO</div>
-            <div class="pastilla__microlabel">BRAMU LEE TU HISTORIA</div>
-          </div>
-        </div>
-        <p class="pastilla-momento__text" id="player-home-momento-text">${escapeHtml(momentoText || '')}</p>
-      </div>`;
-    track.innerHTML = actionSlidesHTML + insightSlideHTML;
     track.hidden = false;
     $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
@@ -7031,22 +7156,19 @@
     // refreshB6Notifications arriba) y lo actualiza solo cuando get_home_ranking_insight
     // resuelve. `territory` no viaja en esa RPC (siempre ámbito Local del propio caller): se
     // usa la localidad ya cacheada de la cuenta, no un dato nuevo.
-    // Handoff ajuste visual final post-h18 (doc 57, punto B) — el texto inicial de TU MOMENTO se
-    // calcula ACÁ (antes de pintar el carrusel único) para pasarlo como última tarjeta desde el
-    // primer render; el insight de Ranking asíncrono lo sigue actualizando in-place después,
-    // exactamente igual que antes (mismo id `#player-home-momento-text`, ahora dentro del
-    // carrusel en vez de en su propia tarjeta separada).
+    // Handoff sistema visual unificado h21 (doc 59, punto 2) — TU MOMENTO vuelve a pintarse
+    // aparte (nunca dentro del carrusel de acciones, ver renderPlayerHomeCarousel más arriba) —
+    // reversión de la fusión de h19/57. Mismo id `#player-home-momento-text`, en su propia
+    // tarjeta `.pastilla--momento` debajo de Último partido, como antes de h19.
     const homeUser = Store.getCurrentUser();
     const homeIsServerBackedWithAuth = Auth.isConfigured() && homeUser && homeUser.serverBacked;
-    const initialMomentoText = homeIsServerBackedWithAuth
-      ? PH.buildTuMomentoText(matches, currentIdentity(), null)
-      : PH.buildTuMomentoText(matches, currentIdentity(), RK.computeHomeRankingInsight(homeUser, history, new Date()));
 
-    renderPlayerHomeCarousel(displayMatches, initialMomentoText);
+    renderPlayerHomeCarousel(displayMatches);
     renderPlayerHitos(matches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(displayMatches, matches);
     if (homeIsServerBackedWithAuth) {
+      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), null);
       RK.getHomeRankingInsight().then((result) => {
         // Backend Bloque 8 (Fase E, Revisión Central E02): "no marcar como visto si la RPC
         // falla" — con `!result.ok` no hay insight ni milestone que evaluar, así que ya no hay
@@ -7096,6 +7218,9 @@
         $('#player-home-momento-text').textContent = textWithInsight;
         Store.markRankingMilestoneSeen(homeUser.id, milestoneKey);
       });
+    } else {
+      const rankingInsight = RK.computeHomeRankingInsight(homeUser, history, new Date());
+      $('#player-home-momento-text').textContent = PH.buildTuMomentoText(matches, currentIdentity(), rankingInsight);
     }
     renderPlayerActivity(matches, shouldAnimate);
     renderPlayerEffectiveness(matches, shouldAnimate);

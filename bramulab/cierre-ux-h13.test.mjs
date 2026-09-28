@@ -203,9 +203,12 @@ test('P1-H: renderJugadoresListServerBacked busca también en el universo global
 
 /* ---- P1-I: Reportar un error (verificación, ya implementado en h11) ---- */
 
-test('P1-I: el CTA de Reportar un error sigue en sentence case + tratamiento secundario/rojo suave', () => {
+// SUPERSEDIDO en el sistema visual unificado h21 (doc 59): "Reportar un error" deja de usar
+// `.btn-secondary.btn-secondary--danger` (pasa a `.b6-correction-choice--report`, outline rojo
+// discreto — mismo lenguaje que Aceptar/Mantener/Confirmar). Ver
+// h16-report-error-cta.test.mjs para la guarda de sentence case vigente.
+test('P1-I: el CTA de Reportar un error sigue en sentence case', () => {
   assert.match(indexHtml, />Reportar un error<\/button>/);
-  assert.match(indexHtml, /class="btn-secondary btn-secondary--danger" id="b6-report-error-btn"/);
 });
 
 /* ---- P1-J: identidad incorrecta — copy actualizado ---- */
