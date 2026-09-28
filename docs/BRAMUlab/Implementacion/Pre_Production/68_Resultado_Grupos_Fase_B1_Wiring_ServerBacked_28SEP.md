@@ -39,4 +39,4 @@ Central revisó commit B1 y detectó una condición visual transitoria: al cambi
 
 Se corrigió sin CSS ni rediseño: el nombre del grupo nuevo se actualiza de inmediato y los paneles deportivos anteriores se limpian/ocultan hasta que llegan los datos del grupo seleccionado. Se agregó guarda focal de regresión y se bumpó bundle a 04.11-h29.
 
-Estado técnico: wiring revisado; deploy y QA real multiusuario siguen siendo el gate para cerrar B1.
+Estado técnico: wiring revisado y deploy BRAMUlab SUCCESS en Vercel para `38a1420573c82bb64831ec0030d17c8d53373f39`. BRAMUlive quedó `Canceled by Ignored Build Step` como corresponde. Pendiente únicamente QA real multiusuario para cerrar B1.
