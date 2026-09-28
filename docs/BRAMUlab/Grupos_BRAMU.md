@@ -51,7 +51,7 @@ Consecuencias obligatorias:
 - Puede haber varios administradores.
 - El grupo nunca puede quedarse sin al menos un administrador activo.
 - La pertenencia debe conservar períodos históricos reales de entrada/salida para auditoría.
-- **Regla deportiva semanal de alta:** cuando un jugador entra o reingresa a un grupo, para el cómputo deportivo su pertenencia se considera vigente desde el **lunes de esa misma semana BRAMU**. Puede sumar por partidos anteriores a la hora/día exactos del alta, pero nunca por semanas anteriores.
+- **Regla deportiva semanal de alta:** cuando un jugador entra o reingresa a un grupo, para el cómputo deportivo su pertenencia se considera vigente desde el **lunes de esa misma semana BRAMU**, usando la frontera canónica de Buenos Aires definida en este documento. Puede sumar por partidos anteriores a la hora/día exactos del alta, pero nunca por semanas anteriores.
 - Esto también aplica al crear un grupo a mitad de semana: los partidos de esa misma semana pueden entrar retroactivamente si, con los miembros incorporados, cumplen las reglas del grupo.
 - **Eliminar/quitar un miembro significa sacarlo del grupo también a nivel visible:** deja de aparecer en Semana actual, Semana pasada, Race anual y BRAMU Intelligence del grupo. No ofrecer dos modos de baja en V1.
 - Eliminar un miembro **no borra ni modifica los partidos reales de BRAMU**, ni toca Nivel/Ranking.
@@ -169,6 +169,17 @@ No mostrar `3 partidos · 3 V · 0 D` solo porque esos fueron los tres resultado
 ## 7. Semana, tabla y empates
 
 La competencia semanal va de **lunes a domingo**.
+
+### Zona horaria canónica V1
+
+Para que todos los miembros de un grupo compartan exactamente la misma frontera semanal, **Grupos BRAMU V1 usa `America/Argentina/Buenos_Aires` como zona horaria canónica**:
+
+- semana: lunes 00:00 a domingo 23:59:59.999 de Buenos Aires;
+- esta frontera es autoritativa tanto para backend como para frontend;
+- no depende de la zona horaria/configuración del dispositivo;
+- no existe configuración de zona horaria por grupo en V1.
+
+Si BRAMU expande uso internacional de forma relevante, esta decisión puede revisarse más adelante sin cambiar la lógica deportiva base.
 
 La tabla semanal:
 
