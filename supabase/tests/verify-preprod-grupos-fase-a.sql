@@ -58,7 +58,7 @@ do $$
 declare v jsonb; g jsonb;
 begin
   v := public.create_group('  Grupo Test  ', array[pg_temp._id('B')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'T1 create_group ok: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'T1 create_group ok: ' || v::text);
   g := v->'group';
   perform pg_temp._assert(g->>'name' = 'Grupo Test', 'T1 nombre trimmeado');
   perform pg_temp._assert((g->>'isAdmin')::boolean, 'T1 creador es admin');
@@ -198,7 +198,7 @@ declare g uuid := pg_temp._id('G1'); v jsonb;
 begin
   -- T8: con dos admins, B (admin) puede quitar a A (admin).
   v := public.remove_group_member(g, pg_temp._id('A'));
-  perform pg_temp._assert((v->>'ok')::boolean and (v->>'changed')::boolean, 'T8 dos admins: se puede quitar uno: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean and (v->>'changed')::boolean, 'T8 dos admins: se puede quitar uno: ' || v::text);
   perform pg_temp._assert(public.remove_group_member(g, pg_temp._id('B'))->>'code' = 'last_admin', 'T8 ahora B es el único: no puede quitarse');
   perform pg_temp._assert(public.demote_group_admin(g, pg_temp._id('B'))->>'code' = 'last_admin', 'T8 ni demoverse');
 end $$;
