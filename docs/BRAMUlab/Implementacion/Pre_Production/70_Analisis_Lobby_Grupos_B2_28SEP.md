@@ -90,3 +90,35 @@ Central revisó este análisis antes de autorizar implementación. Se corrigiero
 QA real mostró que el error por nombre vacío aparece como texto rojo suelto al pie del listado, demasiado cerca del CTA y con jerarquía visual pobre.
 
 En B2, **FUSIONAR** esa validación con el propio campo `Nombre del grupo` (mensaje inline/estado de campo) o una solución equivalente del sistema visual vigente. No crear un sistema de errores nuevo ni tocar la lógica de validación; es solo presentación.
+
+
+## Ampliación B2b — transparencia del puntaje por jugador
+
+Decisión de Producto posterior al QA B1/h31: incorporar en el pulido UX de **B2b** un desglose de puntos desde las filas del detalle de Grupos.
+
+No es un cambio de fórmula ni requiere una nueva estadística. Reutiliza la verdad que ya produce `groups.js`: partidos calificables, puntos, top 3 y bonus.
+
+### Semana actual / Semana pasada
+
+- tocar fila del jugador → sheet/panel compacto de desglose;
+- encabezado conserva identidad + actividad y puntos totales a la derecha;
+- `Ver perfil` pasa a acción secundaria;
+- cuerpo con filas compactas, de altura cercana a la fila actual del ranking;
+- cada partido: fecha + pareja + rivales + resultado + puntos a la derecha;
+- distinguir los 3 que aportaron al total;
+- derrota: `0 pts`;
+- victoria puntuable desplazada del top 3: marcar `No entra en tus 3 mejores`;
+- bonus real visible de forma breve cuando exista.
+
+### Race anual
+
+- tocar fila → resumen compacto **semana por semana**;
+- una línea por semana con puntos efectivos a la derecha;
+- no anidar por defecto todos los partidos de todas las semanas en V1;
+- si luego se necesita detalle fino, puede navegarse al desglose semanal.
+
+### Impacto técnico esperado
+
+Puede resolverse en frontend/motor puro durante B2b si el payload de competencia ya contiene todos los partidos necesarios del período. Para Race, revisar el rango que B1 solicita hoy a `get_group_competition_data`: si no trae historia anual suficiente, ampliar la lectura de forma acotada sin duplicar fórmula ni crear snapshots nuevos solo para esta UX.
+
+No iniciar una pantalla nueva pesada ni un dashboard. Mantener sistema visual vigente y filas compactas.
