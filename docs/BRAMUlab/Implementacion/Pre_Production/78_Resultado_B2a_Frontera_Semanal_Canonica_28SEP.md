@@ -47,3 +47,41 @@ Re-corridos y en verde: `groups-b1-server-backed.test.mjs` (24), `groups-b1-cier
 5. Con eso en verde, recién ahí habilitar B2b.
 
 No se tocó `main`, Production ni BRAMUlive. No se inició B2b ni foto/Storage. No se abrió ninguna decisión de producto nueva.
+
+
+## Revisión Central y aplicación real en Staging
+
+Central revisó y aplicó B2a en Supabase Staging.
+
+### Correcciones detectadas durante aplicación real
+
+La ejecución contra Postgres real encontró defectos del SQL/verify que el parser local no había detectado:
+
+1. `get_groups_lobby` tenía un paréntesis faltante alrededor de `jsonb_build_object(...) ORDER BY ...`.
+2. El verify concatenaba `jsonb` con texto sin `::text` en varios mensajes.
+3. T5 asumía que agregar D no podía volver calificable otro partido de esa misma semana; en realidad M_g2 pasa correctamente de 2/4 a 3/4 para G3.
+4. T6 intentaba exigir exactitud sobre `weekMatches`, aunque ese payload es deliberadamente un conjunto amplio de transporte. Se movió la afirmación al helper exacto que gobierna actividad.
+5. Un `_assert` usaba firma de 4 argumentos inexistente.
+6. El uso de `WITH ORDINALITY` no tenía alias de columnas correcto.
+
+Estas correcciones quedaron limitadas a sintaxis/fixtures/expectativas del verify y al paréntesis real de la RPC; no cambian la decisión de producto ni la fórmula deportiva.
+
+### Estado real
+
+- Migración `preprod_grupos_b2a_backend_lobby`: **APLICADA en Supabase Staging**.
+- Versión registrada: `20260928235454`.
+- Verify B2a: **GRUPOS_B2A_BACKEND_LOBBY_VERIFY_PASS**.
+- Regresión B1: **GRUPOS_B1_MEMBRESIA_SEMANAL_HOTFIX_VERIFY_PASS**.
+- Regresión Fase A: **GRUPOS_FASE_A_VERIFY_PASS**.
+- Todos los runners terminan en rollback.
+- Security Advisor detectó un único warning nuevo `function_search_path_mutable` sobre `_groups_week_start_ba`; se corrigió con migración separada `preprod_grupos_b2a_week_start_search_path` fijando `search_path = pg_catalog`.
+- Advisor posterior: ese warning desapareció. Los warnings restantes son los ya conocidos/esperados (RPCs SECURITY DEFINER autenticadas, tablas server-only con RLS sin policy directa, leaked-password protection pendiente de Bloque 9).
+- No aparecieron hallazgos de performance nuevos atribuibles a B2a.
+
+### Deploy frontend h32
+
+El commit h32 toca `bramulab/` para alinear el motor cliente con la semana BA, pero Vercel respondió **Deployment rate limited — retry in 24 hours** para BRAMUlab y BRAMUlive. No se reintentó para no gastar cuota.
+
+Esto no bloquea el backend B2a aplicado: el contrato nuevo es backward-compatible. El código h32 queda en `staging` y deberá entrar en el próximo deploy disponible junto con la siguiente ronda frontend.
+
+**Conclusión Central: B2a backend queda CERRADO EN STAGING.**
