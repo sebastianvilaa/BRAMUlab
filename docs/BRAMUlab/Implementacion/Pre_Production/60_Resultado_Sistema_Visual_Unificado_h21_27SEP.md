@@ -56,10 +56,10 @@ Sin backend nuevo: se reutiliza `Matches.hideMatchForMe` (el mismo RPC `hide_mat
 
 ## 3. Commit / deploy
 
-- Se sincronizó `staging` con dos commits de Central llegados durante la ronda (`a1491fa` hotfix h20 de copy, `ad33421` cierre de decisiones legales V1) — ninguno con conflicto real contra este trabajo.
-- Commit único lógico sobre `staging` (ver hash real en el resultado final de esta ronda).
-- Push a `origin/staging`.
-- El push dispara el `ignoreCommand` de `bramulab/vercel.json` (compara `HEAD^`↔`HEAD` dentro de `bramulab/`); esta ronda modifica archivos de `bramulab/`, así que dispara el único deploy intencional de BRAMUlab Staging.
+- Se sincronizó `staging` con varios commits de Central llegados durante la ronda (`a1491fa` hotfix h20 de copy, `ad33421` cierre de decisiones legales V1, y una cadena documental de "Grupos BRAMU" hasta `fed7d3a`) — ninguno con conflicto real contra este trabajo (todos documentales o de copy, sin tocar los mismos archivos de código).
+- Commit único lógico sobre `staging`: `5d52bc5` (rebaseado sobre `fed7d3a`).
+- Push a `origin/staging` (`fed7d3a..5d52bc5`).
+- El push dispara el `ignoreCommand` de `bramulab/vercel.json` (compara `HEAD^`↔`HEAD` dentro de `bramulab/`); esta ronda modifica archivos de `bramulab/`, así que dispara el único deploy intencional de BRAMUlab Staging. **No se pudo confirmar el resultado del build en vivo desde acá** (mismo bloqueo ya documentado en la ronda anterior): el alias de Staging redirige a un login de Vercel (Deployment Protection), y este agente no tiene ni debe usar credenciales de Vercel del usuario. Confirmar el deploy verde queda para Central/Work.
 
 ---
 
