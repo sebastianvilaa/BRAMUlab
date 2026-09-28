@@ -212,27 +212,202 @@ Reglas:
 
 # 10. Dirección UX — principio general
 
-### DECISIÓN ABIERTA — entrada a “Mis grupos”
+### DECISIÓN CERRADA — “Mis grupos” pasa a tener lobby propio
 
-Antes de implementar la siguiente ronda visual, definir si la entrada a **Mis grupos** sigue abriendo directamente un grupo activo o evoluciona a una pantalla inicial propia donde:
-- se muestren los grupos del usuario como destinos;
-- el usuario elija a qué grupo entrar;
-- pueda existir una lectura breve y útil de cómo viene cada grupo, solo si surge de datos reales;
-- desde ahí también se pueda crear un grupo.
+La entrada desde la bottom-nav **Mis grupos** ya no debe abrir automáticamente el último grupo activo.
 
-Esta idea **no está aprobada todavía** y debe resolverse en la ronda de producto/UX de Grupos antes de B2. No implementarla por anticipación.
+Debe abrir una pantalla inicial propia de **GRUPOS BRAMU** que funcione como lobby de las competencias privadas del usuario.
 
-La estructura actual de Grupos ya está bien resuelta y **no se rediseña de forma general**.
+El lobby tiene dos estados:
+
+1. **sin grupos:** mini onboarding + ejemplo de lo que podría existir;
+2. **con uno o más grupos:** tarjetas reales de los grupos del usuario, ordenadas por actividad reciente.
+
+Esta pantalla debe existir incluso cuando el usuario tenga un solo grupo. La consistencia del producto y la lectura semanal valen más que ahorrar un tap.
+
+Tocar una tarjeta abre el grupo completo. Dentro del grupo se conserva la experiencia ya aprobada.
+
+### Navegación al detalle
+
+- bottom-nav **Mis grupos** → lobby;
+- tarjeta de grupo → detalle del grupo;
+- volver desde el detalle → lobby;
+- el selector de grupo existente **se conserva en esta primera versión** como acceso rápido entre grupos mientras se está dentro de uno.
+
+No retirar todavía el selector. Si el uso real demuestra que el lobby lo vuelve redundante, se evalúa después.
+
+La estructura actual del grupo armado ya está bien resuelta y **no se rediseña de forma general**.
 
 La ronda productiva debe concentrarse en:
 
-1. elevar el estado cero;
-2. explicar mejor cómo funciona el producto;
-3. cerrar visualmente la creación;
-4. unificar identidad/avatar server-backed;
-5. bajar la jerarquía del CTA administrativo “Agregar jugador”.
+1. construir el lobby;
+2. elevar el estado cero;
+3. explicar mejor cómo funciona el producto;
+4. cerrar visualmente la creación;
+5. unificar identidad/avatar server-backed;
+6. bajar la jerarquía del CTA administrativo “Agregar jugador”.
 
 La novedad debe venir de composición, jerarquía y relato de producto usando el sistema visual vigente de BRAMUlab. No crear una estética paralela.
+
+---
+
+## 10.1 Lobby con grupos — anatomía de tarjeta
+
+Cada grupo se representa con una tarjeta completa, tapeable.
+
+### Identidad
+
+Mostrar:
+
+- foto del grupo;
+- nombre;
+- cantidad de miembros activos.
+
+La foto es opcional y funciona con la lógica visual habitual de BRAMU:
+
+- si existe foto, mostrarla;
+- si no existe, usar iniciales del nombre del grupo como fallback.
+
+La foto puede ser una foto de los jugadores, un meme, un escudo o cualquier imagen que identifique al grupo. No imponer estética deportiva.
+
+Solo admins pueden cambiar la identidad del grupo. La foto **no debe ser obligatoria durante la creación**: el grupo puede nacer con iniciales y editarse después desde Configuración.
+
+### Lectura semanal
+
+La tarjeta responde una sola pregunta:
+
+> **¿Qué está pasando esta semana en este grupo?**
+
+No convertirla en dashboard.
+
+Cuando existe competencia semanal con puntos, mostrar hasta 3 posiciones visibles:
+
+- posición;
+- indicador visual de oro/plata/bronce cuando corresponda;
+- nombre;
+- puntos.
+
+Ejemplo:
+
+🥇 Seba · 18 pts  
+🥈 Matu · 13 pts  
+🥉 Lucho · 7 pts
+
+Si el usuario actual no está dentro de las filas visibles, agregar debajo una línea personal:
+
+**Vos · #5 · 5 pts**
+
+Si ya aparece en las filas visibles, no duplicarlo.
+
+No mostrar en la tarjeta:
+- Race anual;
+- BRAMU Intelligence completa;
+- Nivel;
+- estadísticas adicionales;
+- datos decorativos sin función.
+
+El objetivo es pantallazo + deseo de entrar.
+
+### Empates
+
+La tarjeta debe respetar exactamente la semántica real de posiciones del grupo.
+
+Ejemplo válido:
+
+🥇 Seba · 12 pts  
+🥇 Matu · 12 pts  
+🥉 Lucho · 7 pts
+
+Nunca convertir un empate en 1.º/2.º artificial para poder repartir medallas.
+
+Si un empate produce más filas de las que conviene mostrar en la tarjeta, comprimirlo sin inventar posiciones, por ejemplo:
+
+**4 jugadores comparten la punta · 12 pts**
+
+y dejar el detalle completo dentro del grupo.
+
+Las medallas acá son únicamente indicadores visuales de posición actual; **no son premios, badges coleccionables ni gamificación persistente**.
+
+---
+
+## 10.2 Estados contextuales de tarjeta
+
+Todas las tarjetas comparten la misma estructura general. El bloque semanal cambia según la verdad del grupo.
+
+### 3+ miembros y actividad semanal
+
+Mostrar top semanal + línea “Vos” solo cuando corresponda.
+
+No agregar una frase narrativa extra por defecto: el top ya cuenta la historia y evita ruido/redundancia.
+
+### 3+ miembros y todavía sin partidos contables esta semana
+
+Reemplazar el podio por una frase breve y descontracturada.
+
+Tono aprobado como referencia:
+
+**Esta semana están todos vagos 😴**  
+**¿Cuándo se arma partido?**
+
+La redacción puede pulirse visualmente, pero debe mantener el tono humano y no administrativo.
+
+### 2 miembros activos
+
+**Ya son 2. Falta uno para empezar a sumar.**  
+**Con 3 jugadores activos arranca la competencia.**
+
+### 1 miembro activo
+
+**El grupo ya existe. Ahora falta la banda.**  
+**Con 3 jugadores activos empieza la competencia.**
+
+Nunca usar:
+- “grupo incompleto”;
+- “error”;
+- “no cumple requisitos”;
+- bloqueo de acceso.
+
+### Menos de 3 jugadores con partidos externos
+
+No insinuar que esos partidos puntuaron. Hasta llegar a 3 miembros activos el grupo todavía no suma.
+
+---
+
+## 10.3 Orden de los grupos
+
+Las tarjetas se ordenan por **actividad significativa más reciente del grupo**, descendente.
+
+La actividad es del grupo, no del usuario actual: si otros miembros juegan o modifican el grupo, puede subir al primer lugar aunque el usuario no haya participado.
+
+Eventos que actualizan la actividad:
+
+1. un partido oficial/computable que entra al grupo o una corrección oficial que cambia sus puntos;
+2. alta/baja/reingreso de miembro;
+3. cambio de admin;
+4. cambio de nombre;
+5. cambio de foto;
+6. creación del grupo.
+
+No usar como actividad un partido que no cumple la regla del grupo.
+
+Resultado esperado:
+- los grupos con movimiento reciente quedan arriba;
+- los grupos inactivos van cayendo naturalmente al final;
+- no hace falta que el usuario ordene manualmente.
+
+En empate exacto de timestamp, usar un criterio estable y no visible.
+
+---
+
+## 10.4 Crear otro grupo desde el lobby
+
+Cuando ya existen grupos, crear uno nuevo sigue disponible pero deja de ser el protagonista.
+
+Usar una acción secundaria coherente con el sistema vigente, por ejemplo:
+
+**Crear otro grupo**
+
+No usar un CTA primario enorme por encima de las tarjetas existentes.
 
 ---
 
@@ -293,19 +468,27 @@ Usar componentes/tarjetas existentes de BRAMUlab. No crear un sistema visual nue
 
 ### Preview funcional
 
-Debajo de la explicación debe existir una mini preview de una tabla realista de grupo, claramente marcada como:
+Debajo de la explicación debe existir una preview claramente marcada como:
 
 **EJEMPLO**
 
+La preview debe reutilizar **la misma tarjeta de grupo del lobby con datos demostrativos**, no inventar un segundo componente.
+
 Puede mostrar:
 
-- nombre de grupo ficticio;
-- 3 jugadores;
-- posición;
-- puntos;
-- una referencia pequeña a Race.
+- identidad/foto o fallback de un grupo ficticio;
+- nombre del grupo;
+- cantidad de jugadores;
+- bloque **Esta semana**;
+- top 3 ilustrativo con puntos.
 
-Los datos de ejemplo son solo demostrativos y nunca deben mezclarse con datos reales del usuario.
+No necesita mostrar Race anual dentro de la tarjeta.
+
+Los datos son únicamente demostrativos y nunca deben mezclarse con datos reales del usuario.
+
+El concepto es:
+
+> **Sin grupos, te mostramos qué podría existir acá. Con grupos, ves lo que está pasando de verdad.**
 
 El objetivo es que antes de crear un grupo la persona entienda visualmente qué obtiene.
 
@@ -373,6 +556,8 @@ La hoja existente de creación se conserva como base:
 No agregar configuración de reglas, puntos, temporadas ni límites personalizados.
 
 BRAMU define las reglas; el usuario solo crea su grupo.
+
+La foto del grupo es opcional y no se agrega como requisito del flujo inicial. El grupo nace con fallback de iniciales y un admin puede cargar/cambiar la foto después desde Configuración.
 
 Crear un grupo debe seguir siendo una tarea rápida.
 
@@ -448,7 +633,7 @@ Motivo: es una acción administrativa secundaria y no debe competir con el conte
 
 Salvo regresión concreta, conservar:
 
-- selector de grupo activo;
+- selector de grupo activo dentro del detalle *(se conserva inicialmente como cambio rápido entre grupos)*;
 - sheet MIS GRUPOS;
 - cantidad de jugadores en el selector;
 - scroll horizontal de las tabs;
@@ -477,7 +662,7 @@ No rehacer estas superficies para “modernizarlas”.
 
 No agregar ahora:
 
-- medallas;
+- medallas/badges coleccionables o persistentes *(los indicadores oro/plata/bronce del lobby sí están permitidos como representación visual de la posición semanal actual)*;
 - monedas;
 - premios virtuales;
 - desafíos artificiales;
@@ -575,7 +760,17 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 17. los datos son server-backed y sobreviven sesión, dispositivo y deploy;
 18. dos usuarios miembros del mismo grupo ven la misma verdad compartida;
 19. permisos de admin y membresía se cumplen server-side;
-20. ningún dato simulado/local se presenta como verdad productiva.
+20. ningún dato simulado/local se presenta como verdad productiva;
+21. la bottom-nav Mis grupos abre el lobby incluso con un solo grupo;
+22. el lobby ordena grupos por actividad significativa más reciente, sin depender de que el usuario actual haya participado;
+23. cada tarjeta muestra identidad del grupo + lectura semanal y no se convierte en dashboard;
+24. foto de grupo real cuando existe; iniciales del nombre como fallback;
+25. estado semanal con top visible respeta empates reales;
+26. si el usuario queda fuera de las filas visibles, se muestra su posición sin duplicarlo cuando ya aparece;
+27. los grupos con 1 o 2 miembros se muestran de forma positiva y nunca como error;
+28. el estado cero reutiliza la misma tarjeta del lobby como EJEMPLO;
+29. el selector interno de grupo se conserva en esta primera versión;
+30. volver desde el detalle de un grupo lleva al lobby.
 
 ---
 
