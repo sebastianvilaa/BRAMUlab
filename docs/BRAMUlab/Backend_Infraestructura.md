@@ -35,6 +35,7 @@ La prioridad es construir primero la mínima verdad multiusuario y, sobre esa ba
 - Ranking BRAMU V1 está cerrado conceptualmente y en UX, pero su implementación actual es local/simulada.
 - BRAMU Intelligence V1 está definida y documentada, pero no implementada.
 - Cuentas, perfiles, partidos, historial, Nivel, grupos y Ranking continúan dependiendo total o parcialmente de `localStorage`, mocks o simulaciones.
+- Desde 28/09/2026, **Grupos BRAMU vuelve a formar parte del alcance previo a Production**. Su definición vigente está en `Grupos_BRAMU.md`; la base local V03.4 debe productivizarse sin rediseñar lo ya resuelto.
 - Nivel V1 continúa detrás de una herramienta/preview interno. Antes del lanzamiento inicial debe convertirse en el flujo normal, con autoridad server-side y sin controles de laboratorio visibles para usuarios comunes.
 
 No se migrarán a Producción los partidos, cuentas o rankings simulados actuales. Producción comenzará limpia.
@@ -93,12 +94,12 @@ Esta arquitectura es una base real, no provisional. Permite el lanzamiento inici
 18. Métricas mínimas del lanzamiento inicial.
 19. BRAMU Intelligence V1 determinística, con evidencia verificable, relevancia, plantillas y UX post-partido, apoyada sobre los datos oficiales ya persistidos.
 20. Datos y versiones suficientes para que BRAMU Intelligence pueda seguir mejorándose sin rehacer el historial.
+21. **Grupos BRAMU server-backed**: grupos, membresías históricas, admins, competencia semanal, puntos/bonuses, Race anual y lectura grupal sobre partidos/Nivel oficiales.
 
 ### 4.2 Expresamente fuera del lanzamiento inicial
 
 - IA generativa como requisito de salida (puede activarse más adelante si supera sus pruebas);
 - matchmaking;
-- rankings privados de grupos;
 - expansión de Ranking fuera del V1 vigente;
 - marcador en vivo dentro de BRAMUlab: pertenece a una aplicación/producto separado (**BRAMUlive**) y no forma parte del alcance de esta app;
 - push notifications;
@@ -498,6 +499,37 @@ El tiempo de validación se deriva de timestamps del partido. Los regresos a 1, 
 No se almacenan contraseñas, tokens, textos privados ni contenido innecesario dentro de métricas.
 
 ---
+
+### 6.9 Grupos BRAMU
+
+Modelo lógico mínimo; detalle de producto en `Grupos_BRAMU.md`.
+
+#### `groups`
+
+- `group_id`;
+- nombre;
+- creador;
+- estado activo/eliminado;
+- timestamps.
+
+#### `group_memberships`
+
+- `group_id`;
+- `player_id`;
+- rol/admin;
+- `joined_at`;
+- `left_at` opcional;
+- timestamps.
+
+Si una persona sale y vuelve a entrar deben poder conservarse múltiples períodos sin reescribir historia.
+
+Autoridad mínima:
+- identidad por `player_id`, nunca por nombre;
+- lectura solo para miembros autorizados;
+- mutaciones administrativas validadas server-side/RLS;
+- nunca dejar un grupo sin admin;
+- cálculo alimentado únicamente por partidos oficiales/computables y, para Sorpresa, Nivel oficial anterior al partido cuando exista evidencia suficiente;
+- trazabilidad suficiente para reconstruir puntos, bonus, semanas y Race.
 
 ## 7. Autoridad server-side y estado local permitido
 
@@ -1092,6 +1124,14 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - correcciones/anulaciones pueden invalidar o recomputar derivados cuando corresponda;
 - los fixtures cumplen 0 números incorrectos, 0 entidades inventadas, 0 acciones no registradas y 0 claims sin evidencia;
 - la UX post-partido muestra Intelligence sin depender de datos simulados.
+
+### Bloque P0-G — Grupos BRAMU productivo **(ANTES DE BLOQUE 9)**
+
+- Productivizar la base V03.4 sobre Supabase/Staging.
+- Aplicar `Grupos_BRAMU.md` y el handoff activo de Pre-Production.
+- No usar `localStorage` como autoridad.
+- Conservar la UI de grupo armado y hacer solo los cambios UX cerrados.
+- Cerrar persistencia multiusuario, permisos/RLS, puntos/bonus, top 3, Race, membresía histórica e identidad real.
 
 ### Bloque 9 — Endurecimiento y salida a primeros usuarios
 
