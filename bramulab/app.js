@@ -2783,12 +2783,12 @@
       const avail = b6ReportErrorAvailability(f);
       const canReport = avail.result || avail.participant;
       card.insertAdjacentHTML('afterbegin', '<p class="pv-title">PARTIDO POR VALIDAR</p>');
-      foot = `<div class="result-card__divider"></div><div class="pv-foot b6-correction-choices">
+      foot = `<div class="result-card__divider pv-divider"></div><div class="pv-foot b6-correction-choices">
         ${canReport ? '<button type="button" class="b6-correction-choice b6-correction-choice--report" data-pv="report">Reportar un error</button>' : '<span></span>'}
         <button type="button" class="b6-correction-choice b6-correction-choice--accept" data-pv="validate">Validar partido</button>
       </div>`;
     } else {
-      foot = `<div class="result-card__divider"></div><p class="pv-foot pv-foot--wait">El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.</p>`;
+      foot = `<div class="result-card__divider pv-divider"></div><p class="pv-foot pv-foot--wait">El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.</p>`;
     }
     card.insertAdjacentHTML('beforeend', foot);
     const validateBtn = card.querySelector('[data-pv="validate"]');
@@ -2817,7 +2817,7 @@
     const outboxActionBtn = $('#b6-outbox-action-btn');
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting', 'b6-correction-card');
-    $all('#analysis-result .pv-title, #analysis-result .pv-foot').forEach((el) => el.remove());
+    $all('#analysis-result .pv-title, #analysis-result .pv-foot, #analysis-result .pv-divider').forEach((el) => el.remove());
     const pvCard = $('#analysis-result .result-card');
     if (pvCard) pvCard.classList.remove('result-card--pending');
     bannerText.hidden = false;
