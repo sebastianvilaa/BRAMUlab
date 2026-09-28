@@ -2780,22 +2780,32 @@
   /** Fix h24 — partido pendiente en su flujo INICIAL de validación (no correcciones): título,
    *  separador y acciones/estado viven DENTRO de la tarjeta del resultado (una sola tarjeta con
    *  acento ámbar). Los botones delegan en los handlers ya existentes (#b6-confirm-btn y
-   *  #b6-report-error-btn) — nunca una segunda lógica. Devuelve false si no hay tarjeta. */
-  function paintPendingInResultCard(f, mode, waitingTeam) {
+   *  #b6-report-error-btn) — nunca una segunda lógica. Devuelve false si no hay tarjeta.
+   *
+   *  Handoff 71 (C3, cierre B1) — `opts.titleText`/`opts.waitText` (ambos opcionales, ya
+   *  escapados por el llamador) permiten reusar esta MISMA tarjeta fusionada para el estado
+   *  `identity_replacement` (antes fragmentado en un banner separado, contradiciendo h24): el
+   *  título reemplaza "PARTIDO POR VALIDAR" por el contexto real ("Fulano corrigió un
+   *  participante...") y el pie de espera reemplaza el texto genérico por el mismo contexto del
+   *  lado de quien espera — nunca una segunda card/banner. Sin `opts`, comportamiento idéntico a
+   *  antes. */
+  function paintPendingInResultCard(f, mode, waitingTeam, opts) {
     const card = $('#analysis-result .result-card');
     if (!card) return false;
+    const o = opts || {};
     card.classList.add('result-card--pending');
     let foot;
     if (mode === 'act') {
       const avail = b6ReportErrorAvailability(f);
       const canReport = avail.result || avail.participant;
-      card.insertAdjacentHTML('afterbegin', '<p class="pv-title">PARTIDO POR VALIDAR</p>');
+      card.insertAdjacentHTML('afterbegin', `<p class="pv-title">${o.titleText || 'PARTIDO POR VALIDAR'}</p>`);
       foot = `<div class="result-card__divider pv-divider"></div><div class="pv-foot b6-correction-choices">
         ${canReport ? '<button type="button" class="b6-correction-choice b6-correction-choice--report" data-pv="report">Reportar un error</button>' : '<span></span>'}
         <button type="button" class="b6-correction-choice b6-correction-choice--accept" data-pv="validate">Validar partido</button>
       </div>`;
     } else {
-      foot = `<div class="result-card__divider pv-divider"></div><p class="pv-foot pv-foot--wait">El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.</p>`;
+      const waitText = o.waitText || `El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.`;
+      foot = `<div class="result-card__divider pv-divider"></div><p class="pv-foot pv-foot--wait">${waitText}</p>`;
     }
     card.insertAdjacentHTML('beforeend', foot);
     const validateBtn = card.querySelector('[data-pv="validate"]');
@@ -2990,13 +3000,22 @@
           renderCorrectionDiff('b6-status-banner-diff', f.previousRevisionSets, f.sets);
           confirmBlock.hidden = false;
         } else if (pendingEventType === 'identity_replacement') {
+          // Handoff 71 (C3) — FUSIONA identity_replacement dentro de la misma
+          // .result-card--pending (contradecía h24, ver comentario de paintPendingInResultCard).
           // Actor STRICTO (b6ParticipantReplacedActorName): nunca cae a la pareja genérica — si
           // no se puede resolver con certeza, copy neutro sin nombrar a nadie.
           const replacer = b6ParticipantReplacedActorName(f);
-          bannerText.textContent = replacer
-            ? `${replacer} corrigió un participante de este partido. Revisalo antes de confirmar.`
+          const contextText = replacer
+            ? `${escapeHtml(replacer)} corrigió un participante de este partido. Revisalo antes de confirmar.`
             : 'Se corrigió un participante de este partido. Revisalo antes de confirmar.';
-          confirmBlock.hidden = false;
+          if (paintPendingInResultCard(f, 'act', null, { titleText: contextText })) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = replacer
+              ? `${replacer} corrigió un participante de este partido. Revisalo antes de confirmar.`
+              : 'Se corrigió un participante de este partido. Revisalo antes de confirmar.';
+            confirmBlock.hidden = false;
+          }
         } else {
           // Ronda UX 25/09 (Ronda 2, §1) — carga normal: sigue siendo el ÚNICO caso con banner
           // + CTA a la vez (el resto del handoff pide QUITAR banners redundantes cuando el CTA
@@ -3029,7 +3048,12 @@
         } else if (pendingEventType === 'result_correction') {
           bannerText.textContent = `Corrección enviada. Esperando que ${waitingTeam} la acepte.`;
         } else if (pendingEventType === 'identity_replacement') {
-          bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
+          // Handoff 71 (C3) — mismo criterio: fusiona dentro de la tarjeta, nunca un banner aparte.
+          if (paintPendingInResultCard(f, 'wait', waitingTeam, { waitText: `Participante corregido. Esperando que ${escapeHtml(waitingTeam)} confirme el partido.` })) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
+          }
         } else {
           if (paintPendingInResultCard(f, 'wait', waitingTeam)) {
             banner.hidden = true; banner.classList.remove('b6-correction-card');
@@ -7240,24 +7264,22 @@
       if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
       const rivalNames = S.teamLabel(m.players, rivalTeam) || 'tu rival';
-      // Handoff ajuste visual final post-h18 (doc 57, punto B) — "Cargado por X" es un dato de
-      // CREACIÓN del partido (createdByPlayerId, mismo campo/mismo criterio que
-      // buildAnalysisMetaLines más arriba), siempre verdadero sin importar si el pendiente
-      // actual es una carga nueva o una corrección — a diferencia del BUG histórico de §I (que
-      // atribuía el EVENTO pendiente, no la creación). Sin loader resoluble, cae al copy neutro
-      // de siempre — nunca inventa un nombre.
-      let loaderName = null;
-      if (m.createdByPlayerId) {
-        const row = (m.players || []).find((p) => p && p.userId === m.createdByPlayerId);
-        loaderName = row ? row.name : null;
-      }
+      // Handoff 71 (C4, cierre B1) — BUG REAL QA: el copy anterior atribuía SIEMPRE la CREACIÓN
+      // del partido (createdByPlayerId) como si fuera el evento accionable actual (p. ej.
+      // "Esteban [verbo de carga] un partido con vos"), aunque lo que realmente volvió a poner
+      // el partido en manos del usuario fuera una corrección de participante hecha por otra
+      // persona ("Seba corrigió un participante..."). `get_my_matches` (el snapshot que alimenta Home) NUNCA trae
+      // `currentRevisionNumber`/`actionsRaw` (solo `get_match_detail`, ver match-sync.js) — Home
+      // no tiene forma de certificar acá si el evento accionable es la carga original o una
+      // corrección posterior. Por eso, mientras esa distinción no llegue a Home con certeza, el
+      // copy es NEUTRO para todo accionable (nunca atribuye la carga original como si fuera el
+      // evento actual) — el copy actor-consciente real ("Fulano corrigió un participante...")
+      // sigue viviendo en Resumen (paintB6Actions), que sí tiene el detalle completo.
       let kindClass, label, text;
       if (item.kind === 'accionable') {
         kindClass = 'accionable';
         label = 'PARTIDO POR VALIDAR';
-        text = loaderName
-          ? `${loaderName} cargó un partido con vos.`
-          : `Partido con ${rivalNames}.`;
+        text = `Partido con ${rivalNames}.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
         // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
@@ -10013,6 +10035,23 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
   }
 
+  /** Handoff 71 (C1, cierre B1) — error CONTEXTUAL de "sin nombre" al crear grupo: label/borde
+   *  rojo + mensaje junto al campo (nunca el error genérico inferior, que queda reservado para
+   *  fallas de red/servidor — ver `groupErrorMessage`/`showErr` en submitCreateGroupServer). */
+  function setCreateGroupNameFieldError(msg) {
+    $('#create-group-name-field').classList.add('field--invalid');
+    const hint = $('#create-group-name-hint');
+    hint.textContent = msg;
+    hint.hidden = false;
+    $('#create-group-name-input').focus();
+  }
+  function clearCreateGroupNameFieldError() {
+    $('#create-group-name-field').classList.remove('field--invalid');
+    const hint = $('#create-group-name-hint');
+    hint.hidden = true;
+    hint.textContent = '';
+  }
+
   function openCreateGroupSheet() {
     createGroupSheetMode = 'create';
     createGroupSelectedNames = [];
@@ -10024,6 +10063,7 @@
     $('#create-group-name-input').value = '';
     $('#create-group-player-search').value = '';
     $('#create-group-error').hidden = true;
+    clearCreateGroupNameFieldError();
     renderCreateGroupPlayerList('');
     openCreateGroupSheetScrim();
   }
@@ -10041,6 +10081,7 @@
     $('#create-group-submit-btn').textContent = 'AGREGAR AL GRUPO';
     $('#create-group-player-search').value = '';
     $('#create-group-error').hidden = true;
+    clearCreateGroupNameFieldError();
     renderCreateGroupPlayerList('');
     openCreateGroupSheetScrim();
   }
@@ -10056,9 +10097,9 @@
     if (createGroupSheetMode === 'add-members') {
       if (!ids.length) { showErr('Elegí al menos un jugador.'); return; }
     } else if (!$('#create-group-name-input').value.trim()) {
-      showErr('Ingresá un nombre para el grupo.'); return;
+      setCreateGroupNameFieldError('Ingresá un nombre para el grupo.'); return;
     }
-    groupsBusy = true; btn.disabled = true; errEl.hidden = true;
+    groupsBusy = true; btn.disabled = true; errEl.hidden = true; clearCreateGroupNameFieldError();
     try {
       if (createGroupSheetMode === 'add-members') {
         const groupId = activeGroupId;
@@ -10103,10 +10144,10 @@
     }
     const name = $('#create-group-name-input').value.trim();
     if (!name) {
-      $('#create-group-error').textContent = 'Ingresá un nombre para el grupo.';
-      $('#create-group-error').hidden = false;
+      setCreateGroupNameFieldError('Ingresá un nombre para el grupo.');
       return;
     }
+    clearCreateGroupNameFieldError();
     const user = Store.getCurrentUser();
     const group = Store.createGroup({
       name, creatorName: currentPlayerName, creatorUserId: user ? user.id : null,
@@ -10133,6 +10174,7 @@
       const value = e.target.value;
       groupPickerDebounce = setTimeout(() => renderCreateGroupPlayerList(value), 250);
     });
+    $('#create-group-name-input').addEventListener('input', clearCreateGroupNameFieldError);
     $('#create-group-submit-btn').addEventListener('click', submitCreateGroup);
   }
 

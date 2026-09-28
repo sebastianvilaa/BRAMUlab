@@ -305,7 +305,13 @@ begin
   perform pg_temp._mk_match('m5', 'A', 'B', 'C', 'E', now() - interval '2 days', 'validated', 'A');
   -- M2: solo 1 miembro de G2 (A) -> no elegible.
   perform pg_temp._mk_match('m2', 'A', 'X', 'D', 'I', now() - interval '2 days', 'validated', 'A');
-  -- M4: jugado ANTES del ingreso de C a G2 (hace 8 días) -> en G2 solo A,B,E,... = 3? usa A,B,C,D: A,B miembros, C aún no -> 2 -> no elegible.
+  -- M4: jugado ANTES del ingreso "instantáneo" de C a G2 (hace 8 días, C entró hace 5).
+  -- Hotfix membresía semanal (handoff 71 §A, migración 20260928140000): el SQL ahora AMPLÍA el
+  -- umbral de candidatos (alta - 7 días, cota segura de "lunes de esa semana" en cualquier huso)
+  -- para nunca excluir de más — con esa ampliación, C SÍ cuenta acá (A,B,C = 3) y M4 pasa a ser
+  -- candidato en el SQL. El piso semanal EXACTO (si el lunes real de la semana de C cubre o no
+  -- este partido) sigue siendo autoridad exclusiva de groups.js — no verificable en SQL puro;
+  -- cubierto en bramulab/groups-b1-server-backed.test.mjs.
   perform pg_temp._mk_match('m4', 'A', 'B', 'C', 'D', now() - interval '8 days', 'validated', 'A');
   -- M6: pendiente -> nunca entra.
   perform pg_temp._mk_match('m6', 'A', 'B', 'C', 'E', now() - interval '1 day', 'pending_validation', null);
@@ -319,8 +325,10 @@ begin
   g2 := public.get_group_competition_data(pg_temp._id('G2'));
   perform pg_temp._assert((g2->>'ok')::boolean, 'T11 lectura G2 ok');
   select array_agg(m->>'matchId' order by m->>'matchId') into ids from jsonb_array_elements(g2->'matches') m;
-  perform pg_temp._assert(ids = (select array_agg(x::text order by x::text) from unnest(array[pg_temp._id('M_m1'), pg_temp._id('M_m5')]) x),
-    'T11 G2 solo devuelve M1 (3/4) y M5 (4/4): ' || coalesce(ids::text, 'null'));
+  -- Hotfix membresía semanal (handoff 71 §A) — M4 ahora también es candidato SQL (ver comentario
+  -- del fixture); M2 (1 solo miembro real) sigue excluido siempre, ninguna ampliación lo alcanza.
+  perform pg_temp._assert(ids = (select array_agg(x::text order by x::text) from unnest(array[pg_temp._id('M_m1'), pg_temp._id('M_m4'), pg_temp._id('M_m5')]) x),
+    'T11 G2 devuelve M1 (3/4), M4 (candidato ampliado) y M5 (4/4): ' || coalesce(ids::text, 'null'));
 
   select m into m1 from jsonb_array_elements(g2->'matches') m where m->>'matchId' = pg_temp._id('M_m1')::text;
   select m into m5 from jsonb_array_elements(g2->'matches') m where m->>'matchId' = pg_temp._id('M_m5')::text;
@@ -344,9 +352,10 @@ begin
   -- Periodos históricos incluidos para que el motor re-evalúe.
   perform pg_temp._assert(jsonb_array_length(g2->'group'->'members') = 4, 'T11 group.members con períodos');
 
-  -- Filtro temporal.
+  -- Filtro temporal. p_from: M1(-3d) queda antes del corte, M4(-8d) también -> solo M5 pasa.
   perform pg_temp._assert(jsonb_array_length(public.get_group_competition_data(pg_temp._id('G2'), now() - interval '2 days 12 hours', null)->'matches') = 1, 'T11 p_from filtra');
-  perform pg_temp._assert(jsonb_array_length(public.get_group_competition_data(pg_temp._id('G2'), null, now() - interval '5 days')->'matches') = 0, 'T11 p_to filtra (M4 no elegible igual)');
+  -- p_to: ahora M4 SÍ es candidato (hotfix §A) y su played_at(-8d) cae antes del corte -> 1, no 0.
+  perform pg_temp._assert(jsonb_array_length(public.get_group_competition_data(pg_temp._id('G2'), null, now() - interval '5 days')->'matches') = 1, 'T11 p_to filtra (deja pasar M4, candidato ampliado)');
 
   -- Mismo partido en más de un grupo: M1 también en G3 (B,C,D), vía B.
   perform pg_temp._as('B');

@@ -58,6 +58,9 @@ test('handoff 63: el banner del Resumen ofrece Revisar para el duplicado', () =>
 test('h27: cancelar o fallar una corrección no descarta el borrador y el carrusel usa copy corto', () => {
   const close = fnBody('closeProposeCorrection');
   assert.doesNotMatch(close, /removeMatchOutboxEntry/);
-  assert.ok(app.includes('${loaderName} cargó un partido con vos.'));
+  // Handoff 71 (C4, cierre B1) — el copy "X cargó un partido con vos" se retiró (atribuía la
+  // carga original como si fuera el evento accionable actual); el carrusel usa el copy corto
+  // neutro de siempre.
+  assert.ok(app.includes('`Partido con ${rivalNames}.`'));
   assert.doesNotMatch(app, /Revisalo y validá el partido\./);
 });

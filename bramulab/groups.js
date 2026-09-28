@@ -23,6 +23,15 @@
    los partidos que sí contaron durante su primera etapa como miembro. Con
    períodos, cada etapa de pertenencia queda registrada por separado y ningún
    partido pasado deja de contar. Ver Store.addGroupMember/removeGroupMember.
+
+   Cierre Grupos B1 (handoff 71, 28/09/2026) — dos reglas nuevas, ver sus funciones:
+   §A `isMemberDeportivamenteActiveAt`/`effectiveMembershipStartAt`: un alta/reingreso cuenta
+   deportivamente desde el LUNES de esa semana, nunca desde el instante exacto ni de semanas
+   anteriores — usada SOLO para decidir qué partidos cuentan (countActiveMembersInMatch).
+   §B `membersRelevantForWeek`: eliminar un miembro lo saca de TODAS las superficies visibles
+   (Semana actual/pasada/Race/Intelligence) de inmediato, sin excepción — solo se muestra a
+   quien sigue siendo miembro activo HOY. Nunca borra partidos reales ni recalcula puntos ya
+   obtenidos por otros (esos siguen mirando TODOS los períodos, abiertos y cerrados).
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -56,10 +65,45 @@
     return isMemberActiveAt(member, (nowDate || new Date()).toISOString());
   }
 
-  /** Miembros activos DE UN GRUPO en un instante dado — base de la tabla semanal (§8) y de la
-   *  detección de partidos válidos (§7). `nowDate` inyectable solo para tests deterministas. */
+  /** Miembros activos DE UN GRUPO en un instante dado — base de la detección de partidos válidos
+   *  (§7). `nowDate` inyectable solo para tests deterministas. */
   function activeMembersAt(group, iso) {
     return ((group && group.members) || []).filter((m) => isMemberActiveAt(m, iso));
+  }
+
+  /** Cierre B1 (handoff 71 §A, 28/09/2026) — PISO SEMANAL de un alta/reingreso: para el CÓMPUTO
+   *  DEPORTIVO de Grupos (qué partidos cuentan), la pertenencia de un período nuevo vale desde el
+   *  lunes 00:00 (hora local, `PH.startOfWeekMonday`) de la semana en que ocurrió `joinedAt` —
+   *  nunca desde una semana anterior, nunca solo desde el instante exacto. Ejemplo real QA:
+   *  Esteban+Matu vs Seba+Pablito ya era oficial y contaba 3/4 sin Pablito; al agregarse Pablito
+   *  esa misma semana, el partido debe poder sumarle puntos A ÉL también aunque se jugó antes de
+   *  su alta exacta. Se aplica SOLO al inicio de un período (`joinedAt`); `leftAt` sigue siendo
+   *  el instante exacto — la baja no tiene piso semanal (regla B, más abajo). `null` si
+   *  `joinedAt` es inválido. */
+  function effectiveMembershipStartAt(joinedAtIso) {
+    const t = new Date(joinedAtIso).getTime();
+    if (Number.isNaN(t)) return null;
+    return PH.startOfWeekMonday(new Date(t)).getTime();
+  }
+
+  /** Como `isMemberActiveAt`, pero para USO DEPORTIVO (§A): aplica el piso semanal de arriba a
+   *  CADA período del miembro, abierto o CERRADO — una baja nunca debe des-contar
+   *  retroactivamente un partido que ya contó para el grupo (§B: "no recalcular hacia atrás los
+   *  puntos de los demás"), así que esta función sigue mirando toda la historia de períodos tal
+   *  cual, nunca solo el actual. NUNCA usar esta variante para decidir si alguien es miembro
+   *  VISIBLE hoy (eso sigue siendo `isMemberActiveAt`/`isMemberActiveNow`/`membersRelevantForWeek`,
+   *  gobernadas por la regla B). */
+  function isMemberDeportivamenteActiveAt(member, iso) {
+    if (!member || !iso) return false;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return false;
+    return (member.periods || []).some((p) => {
+      if (!p || !p.joinedAt) return false;
+      const start = effectiveMembershipStartAt(p.joinedAt);
+      if (start === null) return false;
+      const end = p.leftAt ? new Date(p.leftAt).getTime() : Infinity;
+      return t >= start && t < end;
+    });
   }
 
   /** Único punto de "¿esta fila de `players[]` de un partido es ESTE miembro del grupo?" —
@@ -68,12 +112,17 @@
    *  exacto (nunca por coincidencia de nombre, para que dos personas con el mismo nombre
    *  visible no puedan "robarse" puntos entre sí); un miembro sin cuenta real detrás (solo un
    *  nombre conocido, igual que el resto del sistema de JUGADORES de V03.3) resuelve por
-   *  nombre normalizado. */
-  function findActiveMemberForPlayerRow(row, members, iso) {
+   *  nombre normalizado. `opts.effective` (§A) cambia el chequeo de pertenencia a
+   *  `isMemberDeportivamenteActiveAt` — usado únicamente por `countActiveMembersInMatch` (qué
+   *  partidos cuentan para el grupo); el resto de los llamadores (siempre con `iso = ahora`)
+   *  deja el parámetro sin pasar. */
+  function findActiveMemberForPlayerRow(row, members, iso, opts) {
     if (!row) return null;
+    const effective = !!(opts && opts.effective);
     const rowName = Store.normalizePlayerName(row.name);
     return (members || []).find((mem) => {
-      if (!isMemberActiveAt(mem, iso)) return false;
+      const active = effective ? isMemberDeportivamenteActiveAt(mem, iso) : isMemberActiveAt(mem, iso);
+      if (!active) return false;
       if (mem.userId) return !!row.userId && row.userId === mem.userId;
       return !!rowName && rowName === Store.normalizePlayerName(mem.name);
     }) || null;
@@ -99,7 +148,8 @@
   function countActiveMembersInMatch(match, members) {
     const iso = PH.getPlayedAt(match);
     if (!iso) return 0;
-    return ((match && match.players) || []).filter((row) => !!findActiveMemberForPlayerRow(row, members, iso)).length;
+    // §A — pertenencia DEPORTIVA (piso semanal), nunca el instante exacto de alta.
+    return ((match && match.players) || []).filter((row) => !!findActiveMemberForPlayerRow(row, members, iso, { effective: true })).length;
   }
 
   /** Regla central §7: cuenta para EL GRUPO si al menos 3 de los 4 jugadores eran miembros
@@ -256,18 +306,29 @@
     });
   }
 
-  /** Un miembro aparece en la tabla de una semana si estuvo activo en ALGÚN momento dentro de
-   *  esa semana (aunque no haya jugado ningún partido contable — la tabla es de posiciones,
-   *  no solo de quien ya tiene puntos). Nunca se filtra por "está activo HOY": una semana
-   *  ANTERIOR debe poder mostrar a alguien que ya no es miembro, exactamente como estaba esa
-   *  semana (§6/§10 — "resultados congelados"). */
+  /** Cierre B1 (handoff 71 §B, 28/09/2026) — REEMPLAZA la regla anterior ("estuvo activo en
+   *  algún momento de esa semana", con CUALQUIER período histórico). Producto simplificó V1:
+   *  "eliminar/quitar miembro = sacarlo del grupo también a nivel visible" — deja de aparecer en
+   *  Semana actual, Semana pasada Y Race, sin excepción, aunque haya sumado puntos reales en su
+   *  momento (hallazgo QA real: Matu, eliminado, seguía apareciendo). Por eso un miembro entra acá
+   *  SOLO si sigue siendo miembro ACTIVO ahora (tiene un período abierto, `leftAt: null`) — nunca
+   *  por un período YA CERRADO, ni siquiera si ese período cerrado cae dentro de la semana
+   *  pedida. Dentro de ESE único período abierto se aplica el mismo piso semanal de la regla A
+   *  (`effectiveMembershipStartAt`): la fila aparece desde el lunes de la semana de su alta/
+   *  reingreso en adelante, nunca antes — así un reingreso NUNCA "revive" automáticamente las
+   *  semanas de una etapa anterior ya eliminada (si reingresa, es una etapa nueva).
+   *
+   *  Esto NO afecta qué partidos cuentan para el grupo ni los puntos ya obtenidos por OTROS
+   *  miembros: eso sigue decidido por `countActiveMembersInMatch`/`doesMatchCountForGroup`, que
+   *  miran TODOS los períodos (abiertos y cerrados) vía `isMemberDeportivamenteActiveAt` — quitar
+   *  a alguien nunca des-cuenta retroactivamente un partido que ya calificó para el grupo. */
   function membersRelevantForWeek(group, weekStart, weekEnd) {
-    return ((group && group.members) || []).filter((mem) => (mem.periods || []).some((p) => {
-      if (!p || !p.joinedAt) return false;
-      const start = new Date(p.joinedAt).getTime();
-      const end = p.leftAt ? new Date(p.leftAt).getTime() : Infinity;
-      return start < weekEnd.getTime() && end > weekStart.getTime();
-    }));
+    return ((group && group.members) || []).filter((mem) => {
+      const openPeriod = (mem.periods || []).find((p) => p && p.joinedAt && !p.leftAt);
+      if (!openPeriod) return false;
+      const start = effectiveMembershipStartAt(openPeriod.joinedAt);
+      return start !== null && start < weekEnd.getTime();
+    });
   }
 
   /** BRAMUlab_V03.4.1 (§5) — bug real corregido: dos jugadores con el MISMO puntaje deben
@@ -440,13 +501,22 @@
 
   /** Prioridad Sorpresa > Remontada > Victoria clara — un único evento destacado por semana
    *  (§12: "no resolverlo con una sola frase pobre" no significa listar TODOS los bonuses, solo
-   *  que el conjunto completo de 2-3 insights sea rico; este es uno de esos insights). */
-  function insightBonusHighlight(matches, fullHistory) {
+   *  que el conjunto completo de 2-3 insights sea rico; este es uno de esos insights).
+   *
+   *  Cierre B1 (handoff 71 §B) — `activeMemberKeys` (Set de `userId`/nombre normalizado, ver
+   *  `buildGroupIntelligence`) evita nombrar en el texto a un miembro YA ELIMINADO: el partido
+   *  real sigue contando para el grupo (§B: nunca se recalcula), pero Intelligence no debe
+   *  mencionarlo — un partido con algún ganador ya eliminado del grupo simplemente no se
+   *  considera como candidato a destacar (el resto de los insights, ya basados en
+   *  currentTable/raceTable filtradas, quedan cubiertos sin este chequeo extra). */
+  function insightBonusHighlight(matches, fullHistory, activeMemberKeys) {
     let best = null;
     (matches || []).forEach((m) => {
       const b = computeMatchPointsBreakdown(m, fullHistory);
       if (!b) return;
-      const winners = (m.players || []).filter((p) => p.team === b.winnerTeam).map((p) => p.name).join(' y ');
+      const winnerRows = (m.players || []).filter((p) => p.team === b.winnerTeam);
+      if (activeMemberKeys && !winnerRows.every((p) => activeMemberKeys.has(p.userId || Store.normalizePlayerName(p.name)))) return;
+      const winners = winnerRows.map((p) => p.name).join(' y ');
       if (b.sorpresa) best = { rank: 3, text: `${winners} dieron la sorpresa de la semana, ganando con Nivel BRAMU más bajo que su rival.` };
       else if (b.remontada && (!best || best.rank < 2)) best = { rank: 2, text: `${winners} se dieron vuelta un partido después de perder el primer set.` };
       else if (b.claraVictoria && (!best || best.rank < 1)) best = { rank: 1, text: `${winners} se impusieron con autoridad esta semana.` };
@@ -485,9 +555,13 @@
    *  nunca se rellena con relleno genérico para forzar el mínimo). */
   function buildGroupIntelligence(ctx) {
     const c = ctx || {};
+    // §B — claves de miembros ACTUALMENTE activos (currentTable ya viene filtrada por
+    // membersRelevantForWeek: nunca incluye a un eliminado), para que insightBonusHighlight no
+    // nombre a nadie que ya no está en el grupo.
+    const activeMemberKeys = new Set((c.currentTable || []).map((r) => r.userId || Store.normalizePlayerName(r.name)));
     return [
       insightLeader(c.currentTable),
-      insightBonusHighlight(c.currentMatches, c.fullHistory),
+      insightBonusHighlight(c.currentMatches, c.fullHistory, activeMemberKeys),
       insightPreviousWeekComparison(c.currentTable, c.previousTable),
       insightGapOrParity(c.currentTable),
       insightRaceLeader(c.raceTable),
@@ -551,6 +625,7 @@
 
   global.PLGroups = {
     isMemberActiveAt, isMemberActiveNow, activeMembersAt, findActiveMemberForPlayerRow,
+    effectiveMembershipStartAt, isMemberDeportivamenteActiveAt,
     isMatchValidForGroups, countActiveMembersInMatch, doesMatchCountForGroup,
     setWinnerTeam, computeBonusRemontada, computeBonusVictoriaClara,
     computeSimulatedLevelBeforeMatch, computeBonusSorpresa,

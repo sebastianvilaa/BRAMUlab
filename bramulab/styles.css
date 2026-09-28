@@ -510,6 +510,14 @@ input, select{ font-family: inherit; }
 .stepper-btn:disabled{ opacity: 0.3; cursor:not-allowed; }
 .stepper-value{ min-width: 30px; text-align:center; font-family: var(--font-display); font-size: 20px; font-weight: 700; }
 .edit-error{ color: var(--danger); font-size: 12px; font-weight: 700; margin: -6px 0 12px; }
+
+/* Handoff 71 (C1, cierre B1) — error CONTEXTUAL de un campo (label/línea roja + mensaje junto al
+   propio campo), reutilizando `.field`/.field-label/.field__input ya existentes de todo
+   formulario BRAMU — nunca un componente nuevo. `.edit-error` (arriba) queda reservado para
+   fallas de red/servidor, no para "faltó completar este campo". */
+.field--invalid .field-label{ color: var(--danger); }
+.field--invalid .field__input{ border-bottom-color: var(--danger); }
+.field__hint--error{ color: var(--danger); font-size: 12px; font-weight: 700; margin: 6px 0 0; }
 .overlay__text--note{ color: var(--brand-lime); background: rgba(149,255,25,0.08); border: 1px solid rgba(149,255,25,0.25); border-radius: 10px; padding: 8px 10px; margin-top: -8px; }
 
 /* V5 (Bloque I) — selectores horizontales de puntos: 4 posiciones discretas, no un slider continuo. */
@@ -3620,8 +3628,13 @@ input, select{ font-family: inherit; }
 .report-error-option__title{ display:block; font-size: 14px; font-weight:700; color: var(--text); }
 .report-error-option__sub{ display:block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 
-/* Fix h24 — flujo inicial de validación: UNA sola tarjeta de resultado con acento ámbar. */
-.result-card.result-card--pending{ border-color: rgba(255,201,61,0.45); box-shadow: 0 0 18px rgba(255,201,61,.12); }
+/* Fix h24 — flujo inicial de validación: UNA sola tarjeta de resultado con acento ámbar.
+   Handoff 71 (C2, cierre B1) — BUG QA real: acá el ámbar quedaba semitransparente
+   (rgba(255,201,61,0.45)) mientras Home/Último partido (.player-home-lastmatch--waiting/
+   --action, border-color: var(--gold)) ya usan el ámbar PLENO — dos intensidades distintas para
+   el mismo estado "resultado todavía provisional". Se iguala al tono sólido; el glow/sombra se
+   conserva sin cambios. */
+.result-card.result-card--pending{ border-color: var(--gold); box-shadow: 0 0 18px rgba(255,201,61,.12); }
 .pv-title{ margin: 0 0 10px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; color: var(--gold); }
 .pv-foot{ margin-top: 12px; }
 .pv-foot .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; }
