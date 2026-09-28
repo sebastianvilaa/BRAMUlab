@@ -40,3 +40,22 @@ Central revisó commit B1 y detectó una condición visual transitoria: al cambi
 Se corrigió sin CSS ni rediseño: el nombre del grupo nuevo se actualiza de inmediato y los paneles deportivos anteriores se limpian/ocultan hasta que llegan los datos del grupo seleccionado. Se agregó guarda focal de regresión y se bumpó bundle a 04.11-h29.
 
 Estado técnico: wiring revisado y deploy BRAMUlab SUCCESS en Vercel para `38a1420573c82bb64831ec0030d17c8d53373f39`. BRAMUlive quedó `Canceled by Ignored Build Step` como corresponde. Pendiente únicamente QA real multiusuario para cerrar B1.
+
+
+## QA real multiusuario — hallazgo y hotfix de backend
+
+Durante la QA real Esteban + Seba, el primer intento de crear un grupo server-backed falló al confirmar la transacción. Los logs de Supabase Staging mostraron `permission denied for table groups` dentro de `_groups_assert_has_active_admin()` al ejecutarse el constraint trigger diferido en `COMMIT`.
+
+Causa: el trigger `DEFERRABLE INITIALLY DEFERRED` terminaba evaluando la función con privilegios del rol autenticado, mientras que las tablas `groups` / `group_memberships` están correctamente cerradas al cliente.
+
+Hotfix aplicado primero en Supabase Staging y luego versionado en repo:
+
+- migración aplicada: `20260928181407_preprod_grupos_fix_deferred_admin_trigger_security`;
+- archivo: `supabase/migrations/20260928181407_preprod_grupos_fix_deferred_admin_trigger_security.sql`;
+- cambio: `_groups_assert_has_active_admin()` pasa a `SECURITY DEFINER` con `search_path=public`, manteniendo `REVOKE ALL` sobre la función;
+- las tablas siguen sin acceso directo para `authenticated`;
+- prueba transaccional bajo rol `authenticated`: creación + listado PASS y `ROLLBACK` limpio.
+
+Después del hotfix, la creación real de `QA Grupos` con Esteban + Seba quedó persistida correctamente en Staging.
+
+QA B1 sigue en curso: falta comprobar visibilidad compartida desde Seba, permisos, persistencia y coherencia de datos deportivos.
