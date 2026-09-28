@@ -45,3 +45,20 @@
 3. Confirmar visualmente C1-C4 en Staging real.
 
 No se inició B2 (lobby). No se tocó `main`, Production ni BRAMUlive.
+
+
+## Revisión Central posterior
+
+Central revisó el commit funcional `50230eb45863471757490071ea596fd121d705de` antes del retest humano.
+
+- Vercel BRAMUlab para ese commit: **SUCCESS / Deployment has completed**.
+- BRAMUlive: **Canceled by Ignored Build Step**, como corresponde.
+- Migración `preprod_grupos_b1_membresia_semanal_hotfix` aplicada exclusivamente en Supabase Staging. Versión registrada por Supabase: `20260928223208`.
+- El runner SQL nuevo tenía tres defectos propios del test, no de la migración: dos concatenaciones text/jsonb sin cast explícito y un control negativo colocado exactamente en el límite de 7 días. Central corrigió solo el runner en commits `faf0282`, `d408aa7` y `39a6f68`.
+- Post-corrección:
+  - `verify-preprod-grupos-b1-membresia-semanal-hotfix.sql` → **GRUPOS_B1_MEMBRESIA_SEMANAL_HOTFIX_VERIFY_PASS**;
+  - `verify-preprod-grupos-fase-a.sql` actualizado → **GRUPOS_FASE_A_VERIFY_PASS**;
+  - ambos terminan en rollback, sin fixtures persistentes.
+- Advisors de Supabase revisados después del DDL: los avisos de Grupos son los ya esperados por el diseño server-only/RPC (RLS sin policies directas y SECURITY DEFINER autenticadas); no apareció un bloqueo nuevo atribuible a este hotfix.
+
+**Estado:** técnicamente listo para retest focal real. B1 sigue sin declararse cerrado hasta comprobar en navegador los casos afectados y C1-C4.
