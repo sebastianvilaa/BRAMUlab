@@ -375,7 +375,8 @@ Validar visualmente, sin rediseñar backend:
 - copy final de `PARTICIPACIÓN CUESTIONADA`;
 - representación de `Jugador no identificado`;
 - nivel exacto de detalle before/after en `Modificaciones`;
-- si mostrar autor en cada fila compacta de Historial o solo en detalle.
+- si mostrar autor en cada fila compacta de Historial o solo en detalle;
+- **consistencia visual del estado pendiente:** en Home, `Último partido` usa el borde ámbar pleno (`var(--gold)`), mientras que el `Resumen del partido` pendiente usa `rgba(255,201,61,0.45)`. En la próxima ronda visual, **REEMPLAZAR** únicamente el `border-color` de `.result-card.result-card--pending` para equipararlo al borde ámbar pleno de Último partido. Mantener el glow/sombra sutil actual salvo revisión visual posterior; no tocar lógica ni otros estados.
 
 Son mejoras de claridad; el dato y la lógica ya existen.
 
