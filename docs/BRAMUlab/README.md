@@ -88,7 +88,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
 | **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |
-| **Privacidad / Legal** | `Privacidad_Legal.md` → `Pre_Production.md` P0.2 | Decisiones humanas de producto cerradas; revisión legal profesional + implementación/verificación técnica pendientes antes de cerrar P0.2 |\n| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Consolidado activo: Grupos productivo, Legal/Privacidad, eliminación de cuenta y hardening final |
+| **Privacidad / Legal** | `Privacidad_Legal.md` → `Pre_Production.md` P0.2 | Decisiones humanas cerradas; sin revisión jurídica externa obligatoria; pendientes redacción final, verificación interna e implementación/QA |\n| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Consolidado activo: Grupos productivo, Legal/Privacidad, eliminación de cuenta y hardening final |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Precedencia de Nivel
