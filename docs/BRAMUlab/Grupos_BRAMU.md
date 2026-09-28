@@ -53,7 +53,11 @@ Consecuencias obligatorias:
 - La pertenencia debe conservar períodos históricos reales de entrada/salida para auditoría.
 - **Regla deportiva semanal de alta:** cuando un jugador entra o reingresa a un grupo, para el cómputo deportivo su pertenencia se considera vigente desde el **lunes de esa misma semana BRAMU**. Puede sumar por partidos anteriores a la hora/día exactos del alta, pero nunca por semanas anteriores.
 - Esto también aplica al crear un grupo a mitad de semana: los partidos de esa misma semana pueden entrar retroactivamente si, con los miembros incorporados, cumplen las reglas del grupo.
-- Salir o ser quitado del grupo no borra puntos históricos ya obtenidos ni reescribe semanas anteriores; desde la baja en adelante deja de sumar mientras no reingrese.
+- **Eliminar/quitar un miembro significa sacarlo del grupo también a nivel visible:** deja de aparecer en Semana actual, Semana pasada, Race anual y BRAMU Intelligence del grupo. No ofrecer dos modos de baja en V1.
+- Eliminar un miembro **no borra ni modifica los partidos reales de BRAMU**, ni toca Nivel/Ranking.
+- Los puntos/estadísticas de los demás miembros ya obtenidos por partidos que contaron para el grupo se conservan; quitar a una persona no debe hacer desaparecer ni recalcular hacia atrás los puntos de los demás.
+- La pertenencia histórica real se conserva internamente para auditoría y trazabilidad, aunque el miembro eliminado deje de ser visible en las superficies del grupo.
+- Si una persona eliminada vuelve a ser agregada más adelante, entra como una nueva etapa deportiva: para las superficies competitivas se toma su **último período de alta**, con la regla semanal vigente (efectivo desde el lunes de esa semana). No reaparecen automáticamente sus filas/puntos de períodos eliminados anteriores.
 - Un mismo partido puede contar para más de un grupo si cumple las reglas de cada uno.
 
 ---
@@ -184,7 +188,9 @@ No es un “top 3 anual”.
 La Race:
 
 - suma los puntos semanales efectivos;
-- conserva puntos históricos aunque un miembro luego salga del grupo;
+- muestra únicamente miembros actualmente activos del grupo;
+- si un miembro es eliminado, deja de aparecer en la Race aunque sus partidos reales sigan existiendo y los puntos ya obtenidos por otros miembros se conserven;
+- si un miembro eliminado reingresa, su nueva etapa competitiva arranca desde la semana de reingreso y no revive automáticamente su Race anterior;
 - se reinicia al cambiar de año calendario;
 - usa la misma regla de empate visible que la tabla semanal.
 
@@ -767,7 +773,7 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 9. con empate de puntos se comparte puesto;
 10. Race acumula los puntos semanales efectivos;
 11. un partido entra automáticamente con al menos 3/4 miembros válidos para esa semana BRAMU;
-12. un alta/reingreso puede hacer contar partidos de esa misma semana desde el lunes, pero nunca de semanas anteriores; una baja no borra puntos históricos ya obtenidos;
+12. un alta/reingreso puede hacer contar partidos de esa misma semana desde el lunes, pero nunca de semanas anteriores; al eliminar un miembro deja de aparecer en tablas/Race/Intelligence, sin borrar partidos reales ni recalcular los puntos históricos de los demás;
 13. avatar real aparece donde exista y las iniciales son fallback;
 14. el CTA Agregar jugador es secundario;
 15. Nivel y Ranking permanecen independientes;
