@@ -265,12 +265,13 @@ begin
   -- G1 acaba de recibir un reingreso -> también reciente; G2 sigue con su creación original,
   -- el más antiguo de los tres.
   lobby := public.get_groups_lobby(null, null);
-  select array_agg(g->>'groupId' order by ordinality) into ids
-  from jsonb_array_elements(lobby->'groups') with ordinality g;
+  select array_agg(item->>'groupId' order by ordinality) into ids
+  from jsonb_array_elements(lobby->'groups') with ordinality as g(item, ordinality);
   perform pg_temp._assert(ids[array_length(ids, 1)] = pg_temp._id('G2')::text, 'T13 G2 (sin actividad reciente) queda último: ' || ids::text);
   -- El orden es determinístico: repetir la llamada da EXACTAMENTE el mismo array (desempate estable).
   perform pg_temp._assert((
-    select array_agg(g->>'groupId' order by ordinality) from jsonb_array_elements(public.get_groups_lobby(null, null)->'groups') with ordinality g
+    select array_agg(item->>'groupId' order by ordinality)
+    from jsonb_array_elements(public.get_groups_lobby(null, null)->'groups') with ordinality as g(item, ordinality)
   ) = ids, 'T13 el orden es estable entre llamadas');
 end $$;
 
