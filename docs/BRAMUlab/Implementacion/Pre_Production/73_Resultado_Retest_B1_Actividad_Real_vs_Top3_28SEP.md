@@ -36,3 +36,18 @@ Suite general `node --test bramulab/*.test.mjs`: **409/410** — el único fallo
 No se probó en navegador (mismo límite de siempre en este sandbox: sin Supabase CLI/psql/sesión real). Sin PASS visual declarado — falta que Central/Sebastián confirmen en Staging que la fila de un grupo real (Seba/Esteban) muestra ahora `10 partidos · 6 V · 4 D · N pts` en vez de `3 partidos · 3 V · 0 D`.
 
 El push a `origin/staging` dispara el deploy automático de Vercel BRAMUlab Staging; no hay forma de confirmar su resultado desde este sandbox.
+
+
+## Revisión Central posterior
+
+Central revisó el commit funcional `033a49b552ff487636c7d46a56c3407efeabff43`.
+
+- Diff acotado al motor/UI de Grupos + tests/versionado.
+- No hay cambios de backend ni migraciones en esta ronda.
+- `points` conserva el top 3; `matchesPlayed/wins/losses` pasan a actividad real.
+- Race acumula la misma separación sin alterar puntos.
+- No quedaron referencias funcionales de UI a `matchesCounted`/semántica vieja.
+- Vercel BRAMUlab: **SUCCESS / Deployment has completed**.
+- BRAMUlive: **Canceled by Ignored Build Step**, correcto.
+
+**Estado:** listo para retest visual final. B1 todavía no se declara cerrado hasta confirmar en navegador la fila real y C1-C4.
