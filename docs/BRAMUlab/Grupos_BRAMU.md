@@ -638,6 +638,83 @@ La Race/tabla ya demuestra el patrón visual correcto; reutilizar esa lógica/co
 
 ---
 
+## 16.1 Desglose de puntos desde la tabla del grupo
+
+### DECISIÓN CERRADA — fila del ranking = explicación de puntos
+
+Dentro de **Semana actual** y **Semana pasada**, tocar la fila de un jugador ya no abre directamente su Perfil.
+
+En el contexto competitivo del grupo, la pregunta prioritaria es **cómo se formó ese puntaje**.
+
+Al tocar una fila abrir un sheet/panel de desglose del jugador para esa semana.
+
+### Jerarquía
+
+Mantener el lenguaje visual de la tabla actual:
+
+- avatar + nombre + @usuario;
+- actividad real del período;
+- **puntos totales alineados a la derecha, en la misma posición y jerarquía visual que hoy**;
+- acceso secundario y discreto **Ver perfil** para conservar el acceso al perfil público sin convertirlo en la acción principal.
+
+No crear una pantalla pesada ni una planilla deportiva.
+
+### Partidos — formato compacto
+
+El cuerpo muestra los partidos calificables del jugador **línea por línea**, con una altura cercana a la fila actual de jugadores.
+
+Cada línea debe permitir entender:
+
+- fecha;
+- pareja;
+- rivales;
+- resultado;
+- puntos aportados por ese partido, alineados a la derecha.
+
+Cuando corresponda, indicar de forma breve el bonus real que produjo el punto extra:
+- Sorpresa;
+- Remontada;
+- Victoria clara.
+
+La explicación debe salir del mismo motor/evidencia real que calcula Grupos. No reconstruir ni inventar motivos.
+
+### Qué aportó al total
+
+Los **3 partidos que efectivamente aportan al puntaje semanal** deben distinguirse visualmente de forma simple.
+
+Los demás partidos calificables de la semana también pueden mostrarse para explicar la actividad real, pero deben quedar claramente como:
+- `0 pts` si fueron derrota; o
+- **No entra en tus 3 mejores** si fue un resultado puntuable desplazado por otros tres mejores.
+
+No esconder partidos de la actividad real solo para que cierre la suma.
+
+### Race anual
+
+Tocar una fila de **Race anual** abre un resumen compacto del jugador **semana por semana**.
+
+Cada línea muestra, como mínimo:
+- semana/rango de fechas;
+- actividad resumida de esa semana cuando aporte contexto;
+- puntos efectivos de esa semana alineados a la derecha.
+
+V1 **no necesita desplegar dentro de Race todos los partidos de todas las semanas**. La lectura principal es una línea por semana para explicar cómo se construyó el acumulado anual.
+
+Si más adelante se necesita profundizar una semana concreta, puede navegarse al desglose semanal sin convertir Race en una vista enorme.
+
+### Navegación
+
+REEMPLAZAR la regla anterior:
+- ~~fila de tabla → Perfil público~~
+
+por:
+- **fila de Semana actual/pasada → desglose semanal del jugador**;
+- **fila de Race → acumulado semana por semana**;
+- **Ver perfil** queda como acción secundaria dentro de ese contexto.
+
+Esta transparencia forma parte de la confianza del sistema de Grupos: cualquier miembro debe poder comprobar qué partidos y qué bonus explican los puntos visibles.
+
+---
+
 ## 17. CTA “Agregar jugador”
 
 En la pantalla principal del grupo y en Configuración:
@@ -678,7 +755,7 @@ Salvo regresión concreta, conservar:
 - quitar miembro;
 - eliminar grupo;
 - lógica histórica de membresía;
-- acceso desde filas a perfiles;
+- acceso al Perfil público como acción secundaria desde el desglose de puntos; la fila competitiva ya no abre Perfil directamente;
 - sistema de colores, tarjetas, tipografía y shells generales de BRAMUlab;
 - bottom-nav Mis grupos.
 
@@ -799,6 +876,11 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 28. el estado cero reutiliza la misma tarjeta del lobby como EJEMPLO;
 29. el selector interno de grupo se conserva en esta primera versión;
 30. volver desde el detalle de un grupo lleva al lobby.
+31. tocar una fila semanal abre un desglose compacto y verificable de cómo se formaron sus puntos;
+32. el desglose semanal conserva puntos a la derecha y muestra fecha/pareja/rivales/resultado/puntos por partido sin convertirse en planilla;
+33. partidos fuera del top 3 siguen visibles como actividad, marcados como 0 pts o fuera de los 3 mejores;
+34. Race explica el acumulado con una línea compacta por semana;
+35. el Perfil público sigue accesible como acción secundaria desde el desglose.
 
 ---
 
