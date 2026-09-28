@@ -1,7 +1,7 @@
 # Resultado — Grupos BRAMU · Fase B1 · Wiring server-backed
 
 **Fecha:** 28/09/2026 · **Rama:** `staging` · **Handoff:** `67_Handoff_Grupos_Fase_B1_Wiring_ServerBacked_28SEP.md`
-**Bundle:** `04.11-h28` (cuarteto alineado: `Store.BUNDLE_VERSION`, `version.json`, `sw.js` CACHE_NAME + `?v=`, `index.html`). Sin cambios de CSS ni de markup (`index.html` solo cambió el `?v=`).
+**Bundle final:** `04.11-h29` (cuarteto alineado: `Store.BUNDLE_VERSION`, `version.json`, `sw.js` CACHE_NAME + `?v=`, `index.html`). Sin cambios de CSS ni de markup (`index.html` solo cambió el `?v=`).
 
 ## Qué se hizo
 
@@ -31,3 +31,12 @@
 - Agregar varios jugadores hace una llamada por jugador (el contrato de Fase A no tiene alta en lote); el rate limit (60/min) alcanza para el uso normal.
 - Un jugador no resoluble por `get_players_compact` (p. ej. cuenta eliminada) se muestra como "Jugador".
 - No se inició Fase B2 (estado cero, EJEMPLO, "Cómo funciona", "Tu grupo está listo", header, CTA).
+
+
+## Revisión Central — h29
+
+Central revisó commit B1 y detectó una condición visual transitoria: al cambiar del grupo A al B, mientras B esperaba su detalle/competencia server-backed podía quedar visible la tabla/Intelligence de A bajo el selector de B. No alteraba datos persistidos, pero sí podía mostrar momentáneamente una verdad incorrecta.
+
+Se corrigió sin CSS ni rediseño: el nombre del grupo nuevo se actualiza de inmediato y los paneles deportivos anteriores se limpian/ocultan hasta que llegan los datos del grupo seleccionado. Se agregó guarda focal de regresión y se bumpó bundle a 04.11-h29.
+
+Estado técnico: wiring revisado; deploy y QA real multiusuario siguen siendo el gate para cerrar B1.

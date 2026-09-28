@@ -322,3 +322,10 @@ test('B1-8: bundle 04.11-h28 consistente en los cuatro puntos', () => {
   assert.match(read('index.html'), /groups\.js\?v=04\.11-h28/);
   assert.match(read('index.html'), /auth\.js\?v=04\.11-h28/);
 });
+
+
+test('B1-h29: al cambiar a un grupo todavía no cargado se limpian los paneles anteriores', () => {
+  assert.match(appJs, /function clearGroupPanelsWhileLoading\(\)/);
+  assert.match(appJs, /if \(server && \(!group\.members \|\| !groupsServer\.competition\.has\(group\.id\)\)\) \{[\s\S]*clearGroupPanelsWhileLoading\(\);[\s\S]*return;/);
+  assert.match(appJs, /groups-intel-actual-title'\)\.textContent = group\.name/);
+});

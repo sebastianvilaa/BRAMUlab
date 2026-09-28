@@ -9760,13 +9760,30 @@
   /** Arma ACTUAL/ANTERIOR/RACE ANUAL del grupo seleccionado en un solo lugar — las 3 pestañas
    *  se calculan siempre juntas (barato para el volumen de datos de este prototipo) para que
    *  cambiar de pestaña sea instantáneo, sin recalcular nada al tocarlas (ver setGroupsTab). */
+  function clearGroupPanelsWhileLoading() {
+    ['groups-intel-actual-list', 'groups-table-actual', 'groups-intel-anterior-list', 'groups-table-anterior', 'groups-table-race'].forEach((id) => {
+      const el = $(`#${id}`); if (!el) return; el.innerHTML = ''; el.hidden = true;
+    });
+    ['groups-intel-actual-empty', 'groups-table-actual-empty', 'groups-intel-anterior-empty', 'groups-table-anterior-empty', 'groups-table-race-empty'].forEach((id) => {
+      const el = $(`#${id}`); if (el) el.hidden = true;
+    });
+  }
+
   function renderActiveGroupPanels() {
     const group = getGroupForUI(activeGroupId);
     if (!group) return;
+    // El nombre del grupo sí puede pintarse desde list_my_groups mientras llega el detalle.
+    $('#groups-intel-actual-title').textContent = group.name;
+    $('#groups-intel-anterior-title').textContent = group.name;
     // Fuente deportiva: server-backed = SOLO get_group_competition_data (verdad compartida),
-    // nunca el historial personal local. Sin datos cargados/miembros todavía, no se pinta.
+    // nunca el historial personal local. Si el usuario cambia de grupo y el nuevo todavía está
+    // cargando, limpiar explícitamente el contenido anterior: nunca mostrar la tabla del grupo A
+    // debajo del selector/título del grupo B.
     const server = groupsUseServer();
-    if (server && (!group.members || !groupsServer.competition.has(group.id))) return;
+    if (server && (!group.members || !groupsServer.competition.has(group.id))) {
+      clearGroupPanelsWhileLoading();
+      return;
+    }
     const fullHistory = server ? groupsServer.competition.get(group.id) : getComputableHistory();
     const now = new Date();
     const weekStart = PH.startOfWeekMonday(now);
