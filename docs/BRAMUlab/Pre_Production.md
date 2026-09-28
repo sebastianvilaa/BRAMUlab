@@ -176,33 +176,49 @@ La ronda no se cierra solo porque el formulario permita tocar campos. Debe verif
 
 ## P0.2 — Reemplazar el placeholder legal por documentos reales
 
-**Estado P0.2 al 27/09/2026 (actualización Central):** auditoría y borradores completos; se retira la revisión jurídica externa como dependencia obligatoria de lanzamiento. La revisión profesional queda **recomendada pero no bloqueante** salvo que aparezca una duda jurídica concreta que no pueda resolverse con suficiente respaldo oficial. Se cerraron decisiones de producto/compliance sobre: responsable como persona humana titular de BRAMUlab, edad mínima 13+, ley argentina/jurisdicción no abusiva, retención por finalidad, criterio de registro AAIP, transferencias internacionales sujetas a verificación de Production y redacción prudente de propiedad intelectual/responsabilidad. **P0.2 sigue ABIERTO solo por implementación y datos operativos reales:** completar nombre/domicilio/canal público del titular, realizar inscripción AAIP aplicable, confirmar regiones/proveedores de Production, integrar páginas/links/re-aceptación/edad mínima en frontend y hacer QA; recién entonces reemplazar `TERMS_VERSION`. Ambos borradores fueron corregidos el mismo día tras revisión central (4 contradicciones con fuentes maestras vigentes: Ranking no es opt-in desde el 24/09/2026, "Categoría actual" es privada, separación BRAMUlive no cerrada más allá de "productos separados", proveedor de email no confirmado). Ver `Implementacion/Pre_Production/34_Resultado_P0_2_Fase_A_Preparacion_Legal_27SEP.md` y `Implementacion/Pre_Production/36_Resultado_Correccion_P0_2_Fase_A_27SEP.md`.
+**Estado P0.2 al 28/09/2026:** **decisiones humanas de producto CERRADAS; frente legal todavía ABIERTO** por revisión jurídica profesional + implementación/verificación técnica.
 
-El frontend vigente todavía dice:
+Fuente maestra vigente:
 
-> `Acepto los Términos y Condiciones de BRAMU (versión piloto)`
+- `Privacidad_Legal.md`
 
-y el código documenta explícitamente:
+La consolidación final de producto confirmó, entre otras cosas:
 
-> `sin sistema legal todavía`
+- lanzamiento/comunicación inicial centrados en Argentina;
+- acceso abierto sin geobloqueo a usuarios de otros países;
+- sin promoción deliberada dirigida a mercados extranjeros durante V1;
+- no quedan decisiones humanas relevantes abiertas del taller de producto;
+- la política de menores, identificación pública del responsable, AAIP, retención, transferencias internacionales y redacción jurídica final **requieren revisión profesional antes de cerrar P0.2 / abrir Production**.
 
-con:
+### Corrección de estado anterior
 
-`TERMS_VERSION = 'piloto_v1'`
+Quedan **superadas** las menciones previas que trataban:
+- una edad mínima 13+ como decisión cerrada;
+- la revisión jurídica externa como opcional/no bloqueante.
 
-El soporte técnico de versionado ya existe (`terms_version` / `terms_accepted_at`), pero **no alcanza para Production**.
+La decisión de producto vigente es **no imponer por anticipado una edad mínima ni flujo parental especial**, pero esto **no es una conclusión jurídica**: debe validarlo un profesional y, si existe una obligación concreta por edad, se implementará el ajuste mínimo necesario antes de Production.
 
-Antes del primer usuario real deben existir como mínimo:
+### Datos identificatorios del responsable
 
-- Términos y Condiciones reales;
-- Política de Privacidad real;
-- versión explícita de los textos;
-- aceptación versionada + timestamp;
-- acceso visible a ambos textos desde el alta y desde la app;
-- canal de soporte/contacto para acceso, rectificación, supresión y problemas de cuenta;
-- política operativa de retención/eliminación coherente con el producto.
+Los datos privados necesarios para revisión/trámites ya fueron definidos en la fuente privada del taller. **No copiarlos a este repositorio público.** El profesional debe determinar qué corresponde publicar en Términos/Privacidad y qué debe quedar únicamente en registros o trámites.
 
-No inventar texto jurídico como si fuera revisión legal profesional. El contenido puede prepararse desde producto, pero debe pasar por revisión legal adecuada antes de abrir a usuarios reales.
+### Implementación pendiente
+
+El frontend vigente todavía conserva el placeholder legal / versionado piloto. Antes del primer usuario real deben quedar implementados y verificados, según `Privacidad_Legal.md`:
+
+- Términos y Política definitivos y versionados;
+- aceptación + timestamp + versión;
+- reaceptación ante cambios materiales;
+- acceso público a documentos y enlaces desde alta/Configuración;
+- canal de soporte/privacidad;
+- flujos de eliminación, email, contraseña y sesiones alineados;
+- altas abandonadas a 24 h;
+- informe estandarizado de acceso/copia;
+- inventario real de proveedores/regiones/backups/logs/retención/transferencias;
+- requisitos públicos de eliminación/privacidad para futura publicación móvil.
+
+No redactar ni publicar texto jurídico definitivo como si ya estuviera profesionalmente validado.
+
 
 ---
 
