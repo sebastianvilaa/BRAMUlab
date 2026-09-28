@@ -301,7 +301,9 @@ Desde 28/09/2026 Grupos BRAMU pasa a ser parte del producto requerido antes de a
 
 **Estado actualizado 28/09/2026:** **B1 server-backed CERRADO EN STAGING.** La UI existente quedó conectada a contratos reales y validada con QA multiusuario: creación/membresías/admin/rename compartidos, regla 2/4 vs 3/4, tabla/Race/Intelligence consistentes entre cuentas, alta/reingreso semanal, baja visible y actividad real separada del top 3 de puntos. Cierre: `Implementacion/Pre_Production/74_Cierre_Grupos_B1_28SEP.md`.
 
-**Siguiente:** B2a — backend del lobby de Grupos; luego B2b — lobby/estado cero/pulido UX + desglose de puntos; B2c — foto de grupo. No volver a usar localStorage como autoridad productiva.
+**Estado actualizado 28/09/2026:** **B2a backend del lobby CERRADO EN STAGING.** Nueva lectura resumida `get_groups_lobby`, orden por actividad significativa autoritativa y frontera semanal canónica `America/Argentina/Buenos_Aires`; migraciones aplicadas y verifies B2a/B1/Fase A en PASS. El commit frontend h32 quedó pendiente de deploy por rate limit de Vercel y entrará en el próximo deploy disponible.
+
+**Siguiente:** B2b — lobby/estado cero/pulido UX + desglose de puntos; después B2c — foto de grupo. No volver a usar localStorage como autoridad productiva.
 
 Fuente maestra:
 - `Grupos_BRAMU.md`
