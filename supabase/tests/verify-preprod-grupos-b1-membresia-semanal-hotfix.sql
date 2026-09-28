@@ -109,7 +109,7 @@ do $$
 declare res jsonb; ids text[];
 begin
   res := public.get_group_competition_data(pg_temp._id('G'));
-  perform pg_temp._assert((res->>'ok')::boolean, 'lectura ok: ' || res);
+  perform pg_temp._assert((res->>'ok')::boolean, 'lectura ok: ' || res::text);
   select array_agg(m->>'matchId' order by m->>'matchId') into ids from jsonb_array_elements(res->'matches') m;
   perform pg_temp._assert(ids = (select array_agg(x::text order by x::text) from unnest(array[pg_temp._id('M_recent'), pg_temp._id('M_before')]) x),
     'hotfix: M_recent y M_before candidatos, M_old fuera de la ventana ampliada: ' || coalesce(ids::text, 'null'));
