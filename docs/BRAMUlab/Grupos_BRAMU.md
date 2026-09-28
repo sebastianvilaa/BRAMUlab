@@ -50,10 +50,10 @@ Consecuencias obligatorias:
 - El creador del grupo queda como administrador.
 - Puede haber varios administradores.
 - El grupo nunca puede quedarse sin al menos un administrador activo.
-- Agregar o quitar miembros no reescribe retroactivamente qué partidos contaron mientras esa persona pertenecía al grupo.
-- La pertenencia debe conservar períodos históricos de entrada/salida.
-- Salir o ser quitado del grupo no borra puntos históricos ya obtenidos.
-- Entrar a un grupo no agrega retroactivamente partidos previos a la pertenencia.
+- La pertenencia debe conservar períodos históricos reales de entrada/salida para auditoría.
+- **Regla deportiva semanal de alta:** cuando un jugador entra o reingresa a un grupo, para el cómputo deportivo su pertenencia se considera vigente desde el **lunes de esa misma semana BRAMU**. Puede sumar por partidos anteriores a la hora/día exactos del alta, pero nunca por semanas anteriores.
+- Esto también aplica al crear un grupo a mitad de semana: los partidos de esa misma semana pueden entrar retroactivamente si, con los miembros incorporados, cumplen las reglas del grupo.
+- Salir o ser quitado del grupo no borra puntos históricos ya obtenidos ni reescribe semanas anteriores; desde la baja en adelante deja de sumar mientras no reingrese.
 - Un mismo partido puede contar para más de un grupo si cumple las reglas de cada uno.
 
 ---
@@ -64,7 +64,7 @@ Un partido cuenta automáticamente para un grupo cuando:
 
 1. es un partido oficial/computable bajo la verdad vigente de BRAMU;
 2. tiene fecha efectiva válida;
-3. al menos **3 de sus 4 jugadores** eran miembros activos del grupo en la fecha del partido.
+3. al menos **3 de sus 4 jugadores** pertenecen al grupo para esa **semana BRAMU**. Un alta realizada más tarde dentro de la misma semana vale retroactivamente desde el lunes de esa semana; nunca habilita partidos de semanas anteriores.
 
 ### Grupo todavía no competitivo
 
@@ -79,6 +79,8 @@ Mientras tenga menos de 3 miembros activos:
 La UX debe explicarlo en positivo, por ejemplo:
 
 **Necesitás al menos 3 jugadores en el grupo para empezar a sumar puntos.**
+
+Si el grupo llega a 3 o más miembros a mitad de semana, BRAMU puede incorporar automáticamente partidos oficiales de esa misma semana que pasen a cumplir la regla 3/4.
 
 Evitar presentar esto como error o impedir crear el grupo. Al llegar a 3 miembros activos, el grupo queda competitivo automáticamente, sin configuración adicional.
 
@@ -764,8 +766,8 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 8. cada jugador computa como máximo sus 3 mejores partidos semanales;
 9. con empate de puntos se comparte puesto;
 10. Race acumula los puntos semanales efectivos;
-11. un partido entra automáticamente con al menos 3/4 miembros activos en su fecha;
-12. entrar/salir del grupo no reescribe retroactivamente pertenencia histórica;
+11. un partido entra automáticamente con al menos 3/4 miembros válidos para esa semana BRAMU;
+12. un alta/reingreso puede hacer contar partidos de esa misma semana desde el lunes, pero nunca de semanas anteriores; una baja no borra puntos históricos ya obtenidos;
 13. avatar real aparece donde exista y las iniciales son fallback;
 14. el CTA Agregar jugador es secundario;
 15. Nivel y Ranking permanecen independientes;
