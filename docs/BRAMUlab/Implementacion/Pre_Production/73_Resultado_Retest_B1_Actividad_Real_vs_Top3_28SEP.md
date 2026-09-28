@@ -51,3 +51,15 @@ Central revisó el commit funcional `033a49b552ff487636c7d46a56c3407efeabff43`.
 - BRAMUlive: **Canceled by Ignored Build Step**, correcto.
 
 **Estado:** listo para retest visual final. B1 todavía no se declara cerrado hasta confirmar en navegador la fila real y C1-C4.
+
+
+## Retest visual real — PASS
+
+Sebastián confirmó en Staging real sobre `QA Grupos 2` que la fila ya separa correctamente actividad y puntaje:
+- Seba: **10 partidos · 6 V · 4 D — 17 pts**;
+- Esteban: **10 partidos · 4 V · 6 D — 16 pts**;
+- otros miembros muestran su actividad real correspondiente.
+
+La lectura falsa de invicto queda corregida visualmente.
+
+Durante esta revisión surgió una mejora de transparencia para B2b (no reabre B1): tocar la fila competitiva abrirá el desglose verificable de puntos del jugador, con acceso secundario al Perfil.
