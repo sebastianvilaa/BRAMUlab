@@ -1,6 +1,6 @@
 # Resultado — Posible partido duplicado (handoff 63)
 
-**Fecha:** 28/09/2026 · **Entorno:** staging · **Bundle:** 04.11-h26
+**Fecha:** 28/09/2026 · **Entorno:** staging · **Bundle final:** 04.11-h27
 
 ## Decisión técnica
 Solo frontend. `create_or_attach_match` ya devuelve `validated_match_needs_bloque6_correction` + `matchId` para el caso (mismos 4 + parejas + ±3 h + candidato validado + score distinto); no se tocó backend, ventana ni detección. No hubo migración/deploy de Supabase que aplicar.
@@ -16,3 +16,14 @@ Solo frontend. `create_or_attach_match` ya devuelve `validated_match_needs_bloqu
 `possible-duplicate-h26.test.mjs` (5 tests focales sobre label, outcome, modal, ramas de resolución, banner). Suite Node completa: 372/372 (bajo costo, se corrió por el bump del quartet). Los casos 1, 5 y 6 del handoff son comportamiento de servidor sin modificar.
 
 **Pendiente:** verificación visual/manual en Staging real por Sebastián (caso mismos 4 + otro marcador).
+
+
+## Revisión Central h27
+
+Central detectó y corrigió antes del QA real un riesgo de pérdida del borrador: h26 lo eliminaba al elegir **Es el mismo partido**, antes de que la corrección fuese enviada. En h27 el borrador permanece intacto si el usuario cancela, si la ventana de corrección venció, si ya existe otra corrección o si falla la carga del partido oficial. Se elimina únicamente después de que la propuesta de corrección devuelve éxito.
+
+También se acortó, sin tocar CSS, el copy del carrusel Home:
+- con autor conocido: `[Nombre] cargó un partido con vos.`
+- fallback: `Partido con [rivales].`
+
+Se retiró del árbol activo el handoff 63 ya consumido y se eliminó un `docs/identidad-visual/Logo.ai` agregado accidentalmente en el commit h26, ajeno a esta ronda.

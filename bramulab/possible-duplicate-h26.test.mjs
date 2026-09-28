@@ -33,9 +33,11 @@ test('handoff 63: el outcome abre el modal con un único candidato y conserva ma
 
 test('handoff 63: "Es el mismo partido" deriva a la corrección vigente sin crear partido; "Es otro partido" usa disambiguationForceNew', () => {
   const same = fnBody('resolveSameMatchAsCorrection');
-  assert.match(same, /removeMatchOutboxEntry/);
-  assert.match(same, /openProposeCorrection\(/);
+  assert.doesNotMatch(same, /removeMatchOutboxEntry/);
+  assert.match(same, /openProposeCorrection\([\s\S]*entry\.localDraftId\)/);
   assert.doesNotMatch(same, /createOrAttach/);
+  const submit = fnBody('submitProposeCorrection');
+  assert.match(submit, /sourceOutboxDraftId[\s\S]*removeMatchOutboxEntry\(sourceOutboxDraftId\)/);
   assert.match(fnBody('forceNewFromAmbiguous'), /disambiguationForceNew: true/);
   assert.match(app, /\$\('#ambiguous-match-force-new'\)\.addEventListener\('click', forceNewFromAmbiguous\)/);
 });
@@ -50,4 +52,12 @@ test('handoff 63: múltiples candidatos conserva el copy y flujo de desambiguaci
 
 test('handoff 63: el banner del Resumen ofrece Revisar para el duplicado', () => {
   assert.match(app, /outboxActionBtn\.textContent = 'Revisar';[\s\S]{0,300}openPossibleDuplicateModal/);
+});
+
+
+test('h27: cancelar o fallar una corrección no descarta el borrador y el carrusel usa copy corto', () => {
+  const close = fnBody('closeProposeCorrection');
+  assert.doesNotMatch(close, /removeMatchOutboxEntry/);
+  assert.ok(app.includes('${loaderName} cargó un partido con vos.'));
+  assert.doesNotMatch(app, /Revisalo y validá el partido\./);
 });

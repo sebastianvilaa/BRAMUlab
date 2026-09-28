@@ -1929,7 +1929,7 @@
 
     if (result && result.ok) return; // handleCreateOrAttachOutcome ya navegó al Resumen real.
     const code = result && result.code;
-    if (code === 'ambiguous_candidates') return; // el modal de desambiguación ya está abierto.
+    if (code === 'ambiguous_candidates' || code === 'validated_match_needs_bloque6_correction') return; // el modal de desambiguación ya está abierto.
     if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
       // Error de negocio real: el toast ya se mostró — volver al formulario para corregir,
       // nunca dejar el partido "perdido" (Experiencia_Inicial.md §6.4, NECESITA REVISIÓN).
@@ -2454,6 +2454,7 @@
 
   // Proponer corrección — sheet activo.
   let b6CorrectionMatch = null; // f (forma local) del partido que se está corrigiendo
+  let b6CorrectionSourceOutboxDraftId = null; // solo para POSIBLE PARTIDO DUPLICADO; se elimina recién tras enviar corrección
   // Ronda correctiva QA 26SEP (§15.24) — estado del editor de resultado, mismo esquema que
   // manualSets/manualDraftSet/... de Cargar partido (ver §6.3 más arriba) pero namespaced e
   // independiente: acá NO hay selección de jugadores/formato, esos ya están fijos por `f`.
@@ -3568,8 +3569,9 @@
     renderProposeCorrectionScoreboard();
   }
 
-  function openProposeCorrection(f) {
+  function openProposeCorrection(f, sourceOutboxDraftId) {
     b6CorrectionMatch = f;
+    b6CorrectionSourceOutboxDraftId = sourceOutboxDraftId || null;
     b6CorrectionFormat = E.FORMATS[f.formatId] || E.FORMATS.classic;
     // Segunda corrección QA 26SEP (§9) — referencia de equipos SIEMPRE visible, se fija una sola
     // vez al abrir (la composición de parejas no cambia durante una corrección de RESULTADO).
@@ -3600,9 +3602,11 @@
     setTimeout(() => { scrim.hidden = true; }, 220);
     if (b6CorrectionKeypadOpen) closeProposeCorrectionKeypad();
     b6CorrectionMatch = null;
+    b6CorrectionSourceOutboxDraftId = null;
   }
   async function submitProposeCorrection() {
     const f = b6CorrectionMatch;
+    const sourceOutboxDraftId = b6CorrectionSourceOutboxDraftId;
     if (!f) return;
     if (f.status === 'validated' && !b6CorrectionWindowOpen(f)) {
       $('#propose-correction-error').textContent = 'La ventana de 3 días para corregir el resultado ya venció.';
@@ -3658,6 +3662,7 @@
       $('#propose-correction-error').hidden = false;
       return;
     }
+    if (sourceOutboxDraftId) Store.removeMatchOutboxEntry(sourceOutboxDraftId);
     closeProposeCorrection();
     // Ronda UX 25/09 (§F) — feedback inequívoco: el toast por defecto (1600ms) pasó inadvertido
     // en uso real (Laboratorio §15.7) mientras el sheet cerraba y el Resumen se re-renderizaba a
@@ -5613,7 +5618,6 @@
     const entry = ambiguousMatchEntry;
     if (!entry) return;
     closeAmbiguousMatchModal();
-    Store.removeMatchOutboxEntry(entry.localDraftId);
     await refreshServerMatches();
     const row = (Store.loadServerMatchesCache().matches || []).find((m) => m.matchId === existingMatchId);
     if (!row || !MSync) { showToast('Ese partido ya no está disponible.', 3200); openPlayerHome(); return; }
@@ -5627,7 +5631,7 @@
     const teamAIds = b6PlayersOfTeam(f, 'A').map((pl) => pl && pl.userId);
     const pair1IsA = (p.pair1PlayerIds || []).every((id) => teamAIds.includes(id));
     const newSets = (p.rawSets || []).map((s) => (pair1IsA ? { gamesA: s.a, gamesB: s.b } : { gamesA: s.b, gamesB: s.a }));
-    openProposeCorrection(newSets.length ? Object.assign({}, f, { sets: newSets }) : f);
+    openProposeCorrection(newSets.length ? Object.assign({}, f, { sets: newSets }) : f, entry.localDraftId);
   }
 
   function openAmbiguousMatchModal(entry, candidates) {
@@ -7252,8 +7256,8 @@
         kindClass = 'accionable';
         label = 'PARTIDO POR VALIDAR';
         text = loaderName
-          ? `${loaderName} cargó un partido con vos. Revisalo y validá el partido.`
-          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y validá el partido.`;
+          ? `${loaderName} cargó un partido con vos.`
+          : `Partido con ${rivalNames}.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
         // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
