@@ -15,7 +15,7 @@ Solo frontend. `create_or_attach_match` ya devuelve `validated_match_needs_bloqu
 ## Pruebas
 `possible-duplicate-h26.test.mjs` (5 tests focales sobre label, outcome, modal, ramas de resolución, banner). Suite Node completa: 372/372 (bajo costo, se corrió por el bump del quartet). Los casos 1, 5 y 6 del handoff son comportamiento de servidor sin modificar.
 
-**Pendiente:** verificación visual/manual en Staging real por Sebastián (caso mismos 4 + otro marcador).
+**QA real Staging:** PASS — 28/09/2026. Seba cargó un segundo partido real con mismos 4 jugadores, mismas parejas y otro marcador dentro de la ventana temporal. BRAMU mostró `POSIBLE PARTIDO DUPLICADO`; al elegir **Es otro partido** creó un `match_id` nuevo y lo dejó `pending_validation` con acción del lado rival. Verificado además directamente en Supabase.
 
 
 ## Revisión Central h27
@@ -27,3 +27,8 @@ También se acortó, sin tocar CSS, el copy del carrusel Home:
 - fallback: `Partido con [rivales].`
 
 Se retiró del árbol activo el handoff 63 ya consumido y se eliminó un `docs/identidad-visual/Logo.ai` agregado accidentalmente en el commit h26, ajeno a esta ronda.
+
+
+### Nota de revisión — BRAMU Intelligence
+
+Durante el QA apareció BRAMU Intelligence en el Resumen del partido todavía pendiente. Se verificó contra `BRAMU_Intelligence.md` y contra los checkpoints reales: es comportamiento esperado para **historia personal registrada**. El copy visible usa alcance `partidos registrados`; el pendiente no produce por sí mismo impacto oficial de Nivel ni Ranking. No se abre corrección.
