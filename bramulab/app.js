@@ -2091,10 +2091,10 @@
     if (f.serverBacked && f.status === 'validated') {
       const confirmer = b6LastActorForActionType(f, 'validated');
       if (confirmer && confirmer.name && confirmer.name !== loaderName) {
-        statusClause = `Confirmado por ${confirmer.name}`;
+        statusClause = `Validado por ${confirmer.name}`;
       }
     } else if (f.serverBacked && f.status === 'pending_validation') {
-      statusClause = f.isActionMine ? 'Te toca confirmar' : 'Por confirmar';
+      statusClause = 'Pendiente de validación';
     }
     const line1 = [loaderName ? `Cargado por ${loaderName}` : null, statusClause].filter(Boolean).join(' · ');
     const line2 = [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
@@ -2790,6 +2790,7 @@
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting', 'b6-correction-card');
     bannerText.hidden = false;
+    $('#b6-status-title').hidden = true;
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
@@ -2955,7 +2956,9 @@
           // + CTA a la vez (el resto del handoff pide QUITAR banners redundantes cuando el CTA
           // ya comunica la acción, pero acá el banner explica POR QUÉ hay que actuar — "te toca
           // confirmar" — algo que el botón solo no transmite).
-          bannerText.textContent = 'Te toca confirmar este resultado.';
+          // Fix h23 — título centrado "PARTIDO POR VALIDAR" en vez de la frase redundante.
+          bannerText.hidden = true;
+          $('#b6-status-title').hidden = false;
           confirmBlock.hidden = false;
         }
       } else if (f.actionSide && !hasOpenIdentity) {
@@ -2978,7 +2981,7 @@
         } else if (pendingEventType === 'identity_replacement') {
           bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
         } else {
-          bannerText.textContent = `Esperando que ${waitingTeam} confirme este resultado.`;
+          bannerText.textContent = `Esperando que ${waitingTeam} valide este partido.`;
         }
       }
       // "REPORTAR UN ERROR" (§5): disponible sin depender de `detailLoaded` — reportar un error
@@ -7132,10 +7135,10 @@
       let kindClass, label, text;
       if (item.kind === 'accionable') {
         kindClass = 'accionable';
-        label = 'PARTIDO POR CONFIRMAR';
+        label = 'PARTIDO POR VALIDAR';
         text = loaderName
-          ? `${loaderName} cargó un partido con vos. Revisalo y confirmá el resultado.`
-          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y confirmá el resultado.`;
+          ? `${loaderName} cargó un partido con vos. Revisalo y validá el resultado.`
+          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y validá el resultado.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
         // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
@@ -7146,8 +7149,8 @@
         text = 'Hay una corrección abierta en este partido. Revisá el detalle.';
       } else {
         kindClass = 'espera';
-        label = 'ESPERANDO CONFIRMACIÓN';
-        text = `Tu resultado con ${rivalNames} está esperando que confirmen.`;
+        label = 'ESPERANDO VALIDACIÓN';
+        text = `Tu resultado con ${rivalNames} está esperando que validen.`;
       }
       return `
         <div class="player-home-carousel-card player-home-carousel-card--${kindClass}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
@@ -7545,7 +7548,7 @@
     const generalStatusText = serverMatchStatusLabel(m);
     const lastMatchStatusText = hasActiveCorrectionOnLastMatch
       ? 'CORRECCIÓN PENDIENTE'
-      : (generalStatusText === 'TU TURNO: CONFIRMAR' ? 'CONFIRMAR PARTIDO'
+      : (generalStatusText === 'TU TURNO: CONFIRMAR' ? 'VALIDAR PARTIDO'
         : generalStatusText === 'PENDIENTE DE VALIDACIÓN' ? 'ESPERANDO VALIDACIÓN'
         : generalStatusText);
     const lastMatchStatusModifier = hasActiveCorrectionOnLastMatch ? 'correction' : (serverMatchStatusBadgeModifier(m) || 'status');

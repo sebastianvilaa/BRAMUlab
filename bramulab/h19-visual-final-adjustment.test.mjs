@@ -45,7 +45,7 @@ test('h19-A: TODOS los estados operativos usan la misma columna de row2 (status-
   const body = extractFunctionBody(appJs, 'renderPlayerLastMatchCard');
   assert.doesNotMatch(body, /player-home-lastmatch__badge-slot/, 'el badge-slot bajo fecha/hora (reintroducido en h18) debe quedar retirado de nuevo');
   assert.match(body, /const generalStatusText = serverMatchStatusLabel\(m\)/, 'debe partir del mismo texto general compartido con Historial/Resumen');
-  assert.match(body, /'CONFIRMAR PARTIDO'/, 'quien debe confirmar ve un copy específico, nunca el genérico TU TURNO: CONFIRMAR');
+  assert.match(body, /'VALIDAR PARTIDO'/, 'quien debe confirmar ve un copy específico, nunca el genérico TU TURNO: CONFIRMAR');
   assert.match(body, /'ESPERANDO VALIDACIÓN'/, 'quien cargó y espera ve un copy específico, nunca el genérico PENDIENTE DE VALIDACIÓN');
 });
 
@@ -69,8 +69,8 @@ test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones/espera
   assert.match(body, /PH\.computeHitos\(/);
   assert.doesNotMatch(body, /player-home-momento/, 'TU MOMENTO ya no debe pintarse como tarjeta del carrusel');
   assert.doesNotMatch(indexHtml, /id="player-home-hitos"/, 'no debe quedar un segundo carrusel de hitos');
-  assert.match(body, /'PARTIDO POR CONFIRMAR'/);
-  assert.match(body, /'ESPERANDO CONFIRMACIÓN'/);
+  assert.match(body, /'PARTIDO POR VALIDAR'/);
+  assert.match(body, /'ESPERANDO VALIDACIÓN'/);
 });
 
 test('h19-B/h21: TU MOMENTO vuelve a su tarjeta propia en index.html, debajo de Último partido', () => {
@@ -200,7 +200,7 @@ test('h19-H: no se tocó la fórmula/porcentaje del Nivel (levelProgressPct sigu
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 // El quartet de bundle/cache hardcodeado a "04.11-h19" quedó superseded por el de la ronda
-// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h22.
+// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h23.
 
 test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRECCIÓN PROPUESTA (nunca reemplaza el base)', () => {
   const body = extractFunctionBody(appJs, 'paintPreValidationCorrection');
@@ -211,4 +211,13 @@ test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRE
   assert.match(indexHtml, /id="b6-pre-keep-btn"[^>]*>Mantener resultado cargado</);
   assert.match(indexHtml, /id="b6-pre-accept-btn"[^>]*>Aceptar corrección</);
   assert.match(stylesCss, /\.b6-correction-wait\{[^}]*text-align:\s*center/);
+});
+
+test('h23: flujo inicial dice VALIDAR (nunca confirmar) y Reportar/Validar son botones gemelos', () => {
+  assert.match(indexHtml, /id="b6-confirm-btn">Validar partido</);
+  assert.match(indexHtml, /id="b6-status-title"[^>]*>PARTIDO POR VALIDAR</);
+  assert.doesNotMatch(appJs, /Te toca confirmar este resultado/);
+  assert.match(appJs, /Pendiente de validación'/);
+  assert.match(appJs, /valide este partido/);
+  assert.match(stylesCss, /#b6-confirm-block \.b6-correction-choice--report\{[^}]*rgba\(255,91,97/);
 });

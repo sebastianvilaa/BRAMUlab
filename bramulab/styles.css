@@ -3529,6 +3529,10 @@ input, select{ font-family: inherit; }
    .b6-correction-choices (mitad de ancho, ver #b6-confirm-block) o solo con width:100% inline
    (ver index.html) — la clase base ya soporta ambos casos sin reglas propias. */
 .b6-correction-choice--report{ border: 1px solid rgba(255,91,97,0.25); color: var(--danger); min-height: 40px; font-size: 12px; font-weight: 600; opacity: .85; }
+.b6-pre-title{ margin: 0 0 12px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 13px; letter-spacing: 0.04em; color: var(--paper); }
+/* Fix h23 — Reportar/Validar gemelos en la tarjeta "partido por validar": mismo tamaño/radio/tipografía. */
+#b6-confirm-block .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; }
+#b6-confirm-block .b6-correction-choice--report{ border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); }
 .b6-correction-wait{ font-size: 13px; color: var(--text-dim); text-align: center; margin: 0 0 8px; line-height: 1.4; }
 #b6-pre-compare{ margin-bottom: 12px; }
 #b6-pre-actions{ margin-bottom: 8px; }
