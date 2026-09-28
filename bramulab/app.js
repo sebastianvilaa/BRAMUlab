@@ -2405,10 +2405,16 @@
    *  consumen esta función (Home/Historial/Resumen) — ninguno lo reemplaza por un badge
    *  equivalente. El resto de los estados (pendiente, identidad, corrección, vencido, anulado)
    *  sigue necesitando comunicarse: son excepciones/tareas, no el estado ordinario. */
+  /** Handoff 63 — un borrador de outbox frenado porque ya existe un partido VALIDADO con los
+   *  mismos 4 jugadores/parejas a horario cercano y otro marcador NO es un error de datos: es una
+   *  decisión pendiente (¿mismo partido o partido distinto?). Copy propio, nunca NECESITA REVISIÓN. */
+  function isPossibleDuplicateEntry(f) {
+    return !!(f && f.lastError && f.lastError.code === 'validated_match_needs_bloque6_correction');
+  }
   function serverMatchStatusLabel(f) {
     if (!f.serverBacked) return '';
     if (f.status === 'sync_pending') return 'PENDIENTE DE SINCRONIZACIÓN';
-    if (f.status === 'necesita_revision') return 'NECESITA REVISIÓN';
+    if (f.status === 'necesita_revision') return isPossibleDuplicateEntry(f) ? 'POSIBLE PARTIDO DUPLICADO' : 'NECESITA REVISIÓN';
     if (f.status === 'expired') return 'VENCIDO — NO COMPUTA';
     if (f.status === 'annulled') return 'ANULADO';
     if (f.hasOpenIdentityIssue) return 'IDENTIDAD CUESTIONADA';
@@ -2881,7 +2887,16 @@
     if (f.status === 'necesita_revision') {
       banner.hidden = false; banner.classList.add('b6-banner--waiting');
       const code = f.lastError && f.lastError.code;
-      if (code === 'ambiguous_candidates') {
+      if (code === 'validated_match_needs_bloque6_correction') {
+        bannerText.textContent = 'Ya existe un partido oficial con estos mismos jugadores y parejas a un horario cercano, pero con otro resultado. Confirmá si es el mismo partido o uno distinto.';
+        outboxActionBlock.hidden = false;
+        outboxActionBtn.textContent = 'Revisar';
+        outboxActionBtn.onclick = () => {
+          const entry = Store.getMatchOutboxEntry(f.matchId);
+          if (!entry) return;
+          openPossibleDuplicateModal(entry, f.lastError.matchId);
+        };
+      } else if (code === 'ambiguous_candidates') {
         bannerText.textContent = 'Este partido podría ser el mismo que ya cargó otro jugador — hace falta confirmar cuál es para poder sincronizarlo.';
         outboxActionBlock.hidden = false;
         outboxActionBtn.textContent = 'Elegir partido';
@@ -5502,6 +5517,12 @@
         if (!silent) openAmbiguousMatchModal(entry, (result && result.candidates) || []);
         return { ok: false, code };
       }
+      if (code === 'validated_match_needs_bloque6_correction') {
+        const existingMatchId = (result && result.matchId) || null;
+        Store.saveMatchOutboxEntry(Object.assign({}, entry, { state: 'necesita_revision', lastError: { code, matchId: existingMatchId } }));
+        if (!silent) openPossibleDuplicateModal(entry, existingMatchId);
+        return { ok: false, code };
+      }
       if (MATCH_BUSINESS_ERROR_CODES.has(code)) {
         Store.saveMatchOutboxEntry(Object.assign({}, entry, { state: 'necesita_revision', lastError: { code } }));
         if (!silent) showToast(MATCH_BUSINESS_ERROR_MESSAGES[code] || 'No se pudo guardar el partido.', 3200);
@@ -5550,13 +5571,69 @@
   /* ------------------------------------------------------------------ */
   let ambiguousMatchEntry = null;
 
+  const AMBIGUOUS_MODAL_COPY = {
+    multiple: {
+      title: '¿Es el mismo partido?',
+      text: 'Encontramos más de un partido posible con estos mismos jugadores. Elegí cuál es, o indicá que es otro partido distinto.',
+    },
+    duplicate: {
+      title: 'Posible partido duplicado',
+      text: 'Ya existe un partido oficial con estos mismos jugadores y parejas a un horario cercano, pero con otro resultado. ¿Es el mismo partido (se corrige su resultado) o es otro partido distinto?',
+    },
+  };
+
   function closeAmbiguousMatchModal() {
     $('#ambiguous-match-overlay').hidden = true;
     ambiguousMatchEntry = null;
   }
 
+  /** Handoff 63 — un ÚNICO candidato ya VALIDADO con otro marcador: reusa este mismo modal
+   *  (copy propio, un solo botón "Es el mismo partido"). "Es el mismo partido" deriva al flujo
+   *  de corrección vigente (sheet de propuesta de corrección); "Es otro partido" reusa
+   *  `forceNewFromAmbiguous` (disambiguationForceNew) sin cambios. */
+  function openPossibleDuplicateModal(entry, existingMatchId) {
+    ambiguousMatchEntry = entry;
+    $('#ambiguous-match-title').textContent = AMBIGUOUS_MODAL_COPY.duplicate.title;
+    $('#ambiguous-match-text').textContent = AMBIGUOUS_MODAL_COPY.duplicate.text;
+    const cached = (Store.loadServerMatchesCache().matches || []).find((m) => m.matchId === existingMatchId);
+    const playedAt = (cached && cached.playedAt) || (entry.payload && entry.payload.playedAtIso);
+    const fmtId = (cached && cached.formatId) || (entry.payload && entry.payload.formatId);
+    const when = playedAt ? `${formatRealDate(playedAt)} · ${formatRealTime(playedAt).slice(0, 5)} — ` : '';
+    const label = `${when}${(E.FORMATS[fmtId] && E.FORMATS[fmtId].label) || fmtId || 'Partido'}`;
+    const list = $('#ambiguous-match-list');
+    list.innerHTML = `<button type="button" class="btn-secondary" data-same-match="1" style="width:100%;text-align:left;">Es el mismo partido<br><small>${escapeHtml(label)}</small></button>`;
+    list.querySelector('button').addEventListener('click', () => resolveSameMatchAsCorrection(existingMatchId));
+    $('#ambiguous-match-overlay').hidden = false;
+  }
+
+  /** "Es el mismo partido": el borrador de outbox se descarta (no se crea un partido nuevo) y se
+   *  abre el Resumen del partido oficial con el editor de corrección ya vigente, precargado con
+   *  el marcador nuevo. Sin ventana de corrección abierta, solo se explica y se muestra el Resumen. */
+  async function resolveSameMatchAsCorrection(existingMatchId) {
+    const entry = ambiguousMatchEntry;
+    if (!entry) return;
+    closeAmbiguousMatchModal();
+    Store.removeMatchOutboxEntry(entry.localDraftId);
+    await refreshServerMatches();
+    const row = (Store.loadServerMatchesCache().matches || []).find((m) => m.matchId === existingMatchId);
+    if (!row || !MSync) { showToast('Ese partido ya no está disponible.', 3200); openPlayerHome(); return; }
+    const f = MSync.translateServerMatchToLocalShape(row);
+    openCanonicalResumen(f, 'player-home');
+    if (!b6CorrectionWindowOpen(f) || f.pendingCorrectionRevisionId) {
+      showToast(f.pendingCorrectionRevisionId ? b6ErrorMessage('correction_already_pending') : 'La ventana de 3 días para corregir el resultado ya venció.', 3600);
+      return;
+    }
+    const p = entry.payload || {};
+    const teamAIds = b6PlayersOfTeam(f, 'A').map((pl) => pl && pl.userId);
+    const pair1IsA = (p.pair1PlayerIds || []).every((id) => teamAIds.includes(id));
+    const newSets = (p.rawSets || []).map((s) => (pair1IsA ? { gamesA: s.a, gamesB: s.b } : { gamesA: s.b, gamesB: s.a }));
+    openProposeCorrection(newSets.length ? Object.assign({}, f, { sets: newSets }) : f);
+  }
+
   function openAmbiguousMatchModal(entry, candidates) {
     ambiguousMatchEntry = entry;
+    $('#ambiguous-match-title').textContent = AMBIGUOUS_MODAL_COPY.multiple.title;
+    $('#ambiguous-match-text').textContent = AMBIGUOUS_MODAL_COPY.multiple.text;
     const list = $('#ambiguous-match-list');
     list.innerHTML = (candidates || []).map((c) => {
       const label = `${formatRealDate(c.playedAt)} · ${formatRealTime(c.playedAt).slice(0, 5)} — ${(E.FORMATS[c.formatId] && E.FORMATS[c.formatId].label) || c.formatId}`;
