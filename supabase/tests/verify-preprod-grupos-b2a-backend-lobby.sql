@@ -205,7 +205,7 @@ begin
     values (pg_temp._id('M_g3'), 'validated', pg_temp._id('A'), clock_timestamp());
   lobby := public.get_groups_lobby(null, null);
   select (g->>'lastActivityAt')::timestamptz into after3 from jsonb_array_elements(lobby->'groups') g where g->>'groupId' = pg_temp._id('G3')::text;
-  perform pg_temp._assert(after3 > before3, 'T8/T9 partido 3/4 validated mueve lastActivityAt de G3: before=% after=%', before3, after3);
+  perform pg_temp._assert(after3 > before3, 'T8/T9 partido 3/4 validated mueve lastActivityAt de G3: before=' || before3::text || ' after=' || after3::text);
 end $$;
 
 -- ---------- T10 + T11: correction_accepted calificable mueve; no calificable no mueve ----------
