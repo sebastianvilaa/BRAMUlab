@@ -1,6 +1,6 @@
 # BRAMUlab — Privacidad / Legal V1
 
-**Estado:** decisiones humanas de producto CERRADAS · revisión legal profesional PENDIENTE · implementación/verificación técnica PENDIENTE  
+**Estado:** decisiones humanas de producto CERRADAS · sin revisión jurídica externa obligatoria · implementación/verificación técnica PENDIENTE  
 **Fecha de consolidación:** 28/09/2026  
 **Entorno de trabajo:** Staging hasta autorización explícita de Production.
 
@@ -10,7 +10,7 @@ No reabrir decisiones de producto cerradas salvo que:
 1. una revisión jurídica profesional determine que una obligación concreta exige un cambio; o
 2. aparezca una nueva función del producto con impacto legal/privacidad.
 
-Los datos identificatorios privados del responsable (por ejemplo domicilio completo, CUIT u otros datos personales) **no se copian a este repositorio público**. Existen en la fuente privada de trabajo y deben ser revisados por el profesional antes de decidir qué corresponde publicar en Términos/Privacidad o usar solo en trámites.
+Los datos identificatorios privados del responsable (por ejemplo domicilio completo, CUIT u otros datos personales) **no se copian a este repositorio público**. Existen en la fuente privada de trabajo y, antes de publicar documentos, debe definirse internamente qué corresponde exponer públicamente y qué usar solo en trámites, apoyándose en fuentes oficiales vigentes.
 
 ---
 
@@ -115,7 +115,7 @@ Los plazos reales de backups/logs deben documentarse desde infraestructura real 
 
 ## 6. Menores
 
-**Decisión de producto cerrada, sujeta a revisión jurídica profesional obligatoria antes de Production:**
+**Decisión de producto cerrada:**
 
 - BRAMUlab V1 no impone por decisión de producto una edad mínima específica;
 - el registro previsto es el mismo para mayores y menores;
@@ -125,15 +125,9 @@ Los plazos reales de backups/logs deben documentarse desde infraestructura real 
 
 ### Regla de implementación
 
-**NO implementar todavía un flujo parental o restricción por edad adicional** salvo que la revisión jurídica determine que es obligatoria.
+**NO implementar un flujo parental o restricción por edad adicional por anticipación.** Antes de Production, Central debe contrastar esta decisión contra fuentes oficiales vigentes y requisitos reales de Apple/Google si correspondieran. Si surge una obligación concreta incompatible con la decisión actual, se implementará el ajuste mínimo necesario y se marcará como decisión reabierta solo por esa obligación.
 
-La revisión profesional debe resolver especialmente:
-- si este enfoque puede mantenerse bajo normativa argentina vigente;
-- si existe una edad mínima jurídicamente necesaria;
-- qué ajuste mínimo sería obligatorio;
-- impacto en Apple App Store / Google Play si el servicio admite menores.
-
-No presentar la decisión de producto como conclusión jurídica.
+No presentar la decisión de producto como una certificación jurídica.
 
 ---
 
@@ -155,7 +149,7 @@ Términos y Privacidad deben:
 - estar disponibles en registro y Configuración;
 - mostrar versión y fecha de vigencia;
 - mostrar el canal de contacto;
-- tener redacción final revisada profesionalmente antes de Production.
+- tener redacción final coherente con las decisiones cerradas y contrastada contra fuentes oficiales vigentes antes de Production.
 
 Para futura publicación móvil, preparar además la URL pública de eliminación y los enlaces exigidos por tiendas.
 
@@ -170,7 +164,7 @@ Principios cerrados:
 - no reutilizar datos de backups;
 - no inventar plazos.
 
-Pendiente de revisión profesional:
+Pendiente de verificación interna contra infraestructura real y fuentes oficiales:
 - categorías de datos;
 - fundamento y plazos;
 - backups;
@@ -189,7 +183,7 @@ Desarrollo debe documentar el comportamiento real de infraestructura antes de ce
 - BRAMU puede corregir errores y modificar metodologías hacia adelante.
 - Ediciones históricas publicadas se conservan como registro del momento y solo se corrigen retrospectivamente ante errores técnicos, datos falsos o fraude comprobado.
 
-La redacción definitiva de estas aclaraciones/limitaciones requiere revisión jurídica profesional.
+La redacción definitiva de estas aclaraciones/limitaciones debe contrastarse internamente contra fuentes oficiales vigentes.
 
 ---
 
@@ -205,7 +199,7 @@ Decisiones de producto:
 - Está prohibido inventar partidos, participantes o resultados o manipular datos para alterar Nivel/Ranking/estadísticas/Intelligence.
 - BRAMU puede corregir, invalidar o excluir del cómputo un partido ante error, fraude, conflicto o información falsa, preservando trazabilidad.
 
-La licencia jurídica definitiva sobre contenido y las facultades de moderación/corrección deben revisarse profesionalmente.
+La redacción definitiva sobre contenido y las facultades de moderación/corrección debe contrastarse internamente contra fuentes oficiales vigentes.
 
 ---
 
@@ -226,7 +220,7 @@ La medida puede ser temporal o definitiva según gravedad. En casos graves puede
 
 El usuario puede pedir revisión por email, sin sistema formal de apelaciones/tickets V1.
 
-La redacción final debe revisarse para evitar facultades abusivas o arbitrarias.
+La redacción final debe revisarse internamente para evitar facultades abusivas o arbitrarias.
 
 ---
 
@@ -240,24 +234,26 @@ La redacción final debe revisarse para evitar facultades abusivas o arbitrarias
 
 ---
 
-## 13. Revisión legal profesional pendiente
+## 13. Cierre legal interno antes de Production
 
-Antes de cerrar P0.2 / abrir Production debe revisarse profesionalmente, como mínimo:
+**No existe una revisión jurídica externa obligatoria en el plan de BRAMUlab V1.** La ausencia de abogado externo no bloquea por sí sola Production.
 
-1. menores y necesidad de edad mínima / consentimiento parental;
-2. identificación pública del responsable y qué datos corresponde publicar;
-3. inscripción/obligaciones ante AAIP y bases reales operadas;
-4. política de retención, anonimización, backups y logs;
-5. plazos/contenido de respuestas de acceso/copia/rectificación;
-6. transferencias internacionales y contratos de tratamiento;
+Antes de cerrar P0.2, Central debe hacer una verificación final interna apoyada en fuentes oficiales vigentes y en los datos reales de la infraestructura, especialmente sobre:
+
+1. menores y cualquier obligación concreta por edad;
+2. identificación pública del responsable y datos que efectivamente deban publicarse;
+3. AAIP y bases reales operadas;
+4. retención, anonimización, backups y logs;
+5. solicitudes de acceso/copia/rectificación;
+6. transferencias internacionales y proveedores reales;
 7. redacción territorial Argentina + acceso internacional sin geobloqueo;
-8. Términos y Política de Privacidad definitivos;
+8. coherencia final de Términos y Política de Privacidad;
 9. suspensión/cierre de cuentas;
-10. limitaciones de Nivel/Ranking/Intelligence;
-11. licencia sobre contenido aportado por usuarios;
-12. correspondencia con Apple/Google antes de una publicación móvil.
+10. aclaraciones de Nivel/Ranking/Intelligence;
+11. licencia operativa sobre contenido aportado por usuarios;
+12. requisitos de Apple/Google solo si se publica en esas tiendas.
 
-La revisión profesional es **pendiente real**. No declarar Legal cerrado por tener las decisiones de producto resueltas.
+Si esa verificación detecta una obligación concreta que contradiga una decisión cerrada, se documenta la obligación y se reabre únicamente ese punto. No se mantiene una revisión externa genérica como gate.
 
 ---
 
@@ -294,9 +290,9 @@ Algunas piezas ya tienen trabajo previo en Staging (por ejemplo eliminación de 
 
 ### Pendiente
 
-- revisión legal profesional;
-- definición final/publicable de Términos y Política;
+- definición final/publicable de Términos y Política a partir de las decisiones ya cerradas;
+- verificación interna con fuentes oficiales vigentes;
 - implementación/verificación técnica;
 - datos operativos reales de infraestructura/proveedores.
 
-**Legal/Privacidad no está cerrado para Production todavía.**
+**No quedan decisiones humanas legales abiertas ni revisión externa obligatoria. P0.2 se cierra cuando estos pendientes de implementación/verificación estén completos.**
