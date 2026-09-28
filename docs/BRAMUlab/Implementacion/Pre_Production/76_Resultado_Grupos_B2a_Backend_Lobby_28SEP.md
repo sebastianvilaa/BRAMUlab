@@ -47,3 +47,23 @@ Mismo patrón Fase A/B1: todos los helpers nuevos son `SECURITY DEFINER` con `se
 5. Recién con eso en verde, habilitar B2b (frontend del lobby) — no iniciado en esta ronda.
 
 No se tocó `main`, Production ni BRAMUlive. No se rediseñó ni se tocó el detalle/selector/motor de puntos ya validados.
+
+
+## Revisión Central — bloqueo antes de aplicar en Staging
+
+Central revisó el SQL antes de aplicarlo y detectó un punto que el verify actual no cubre.
+
+`_groups_candidate_matches` usa deliberadamente la cota amplia `joined_at - 7 days` para **no excluir candidatos** que después `groups.js` decide con el lunes exacto de la semana. Eso es correcto para `weekMatches`/B1.
+
+Pero `_groups_last_activity_at` reutiliza ese conjunto amplio como si ya fueran partidos **calificables definitivos**. En un borde de semana puede ocurrir:
+
+- un jugador entra/reingresa esta semana;
+- existe un partido suyo de la semana anterior dentro de la ventana amplia de 7 días;
+- ese partido no debe contar para el grupo;
+- una `correction_accepted` posterior podría, sin embargo, mover `lastActivityAt` y ordenar el grupo como si el partido hubiera calificado.
+
+Esto contradice la regla cerrada de lobby: **un partido que no califica para el grupo no mueve la actividad**.
+
+El problema expone además una diferencia preexistente: la semana de Grupos se calcula hoy en hora local del dispositivo en `PH.startOfWeekMonday`, mientras que un orden autoritativo server-side necesita una frontera semanal única.
+
+**Estado:** B2a todavía NO se aplica en Supabase Staging. Primero hay que cerrar la frontera semanal autoritativa para Grupos V1 y corregir `_groups_last_activity_at` + verify de borde de semana. El resto del refactor/payload se mantiene.
