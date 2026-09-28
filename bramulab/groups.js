@@ -184,6 +184,20 @@
   function computeBonusSorpresa(match, fullHistory) {
     if (!isMatchValidForGroups(match)) return false;
     const players = match.players || [];
+    // Grupos B1 — camino server-backed: el partido trae el Nivel OFICIAL previo por jugador
+    // (`levelBefore`, de get_group_competition_data). Nunca se cae al estimador simulado: si falta
+    // el Nivel de cualquiera de los 4 (o hay un jugador sin identificar), no hay comparación
+    // válida y el bonus simplemente no se concede.
+    if (match.levelsSource === 'official') {
+      if (players.length !== 4) return false;
+      const winners = players.filter((p) => p && p.team === match.winnerTeam);
+      const losers = players.filter((p) => p && p.team !== match.winnerTeam);
+      if (winners.length !== 2 || losers.length !== 2) return false;
+      const all = winners.concat(losers);
+      if (!all.every((p) => typeof p.levelBefore === 'number' && Number.isFinite(p.levelBefore))) return false;
+      const avg = (rows) => rows.reduce((sum, p) => sum + p.levelBefore, 0) / rows.length;
+      return round2(avg(losers) - avg(winners)) >= SORPRESA_MIN_DIFF;
+    }
     const winners = players.filter((p) => p && p.team === match.winnerTeam).map((p) => p.name);
     const losers = players.filter((p) => p && p.team !== match.winnerTeam).map((p) => p.name);
     if (winners.length !== 2 || losers.length !== 2) return false;
@@ -481,6 +495,60 @@
     ].filter(Boolean).slice(0, 3);
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Grupos B1 — ADAPTADORES desde el contrato server-backed (Fase A)      */
+  /* Puros, sin storage: nunca se persiste su salida como autoridad local. */
+  /* `identityById`: Map<playerId, {displayName}> (get_players_compact);   */
+  /* un id sin identidad resuelta se muestra como "Jugador", nunca se      */
+  /* inventa un nombre.                                                    */
+  /* ------------------------------------------------------------------ */
+
+  function serverDisplayName(identityById, playerId) {
+    const c = identityById && typeof identityById.get === 'function' ? identityById.get(playerId) : null;
+    return (c && c.displayName) || 'Jugador';
+  }
+
+  /** `list_my_groups().groups[i]` / `get_group_detail().group` -> forma legacy que consume la UI
+   *  (`{id,name,createdAt,createdBy,members:[{name,userId,isAdmin,periods}]}`). `userId` es el
+   *  `player_id` (compatibilidad interna con la forma actual). `periods` se preservan tal cual.
+   *  Un item de lista (sin `members`) devuelve `members: null` + `activeMemberCount`. */
+  function adaptServerGroup(sg, identityById) {
+    if (!sg) return null;
+    const members = Array.isArray(sg.members)
+      ? sg.members.map((m) => ({
+        name: serverDisplayName(identityById, m.playerId),
+        userId: m.playerId,
+        isAdmin: !!m.isAdmin,
+        periods: (m.periods || []).map((p) => ({ joinedAt: p.joinedAt, leftAt: p.leftAt || null })),
+      }))
+      : null;
+    return {
+      id: sg.groupId, name: sg.name, createdAt: sg.createdAt, createdBy: sg.createdByPlayerId,
+      isAdmin: !!sg.isAdmin, activeMemberCount: sg.activeMemberCount != null ? sg.activeMemberCount : null,
+      members, serverBacked: true,
+    };
+  }
+
+  /** `get_group_competition_data().matches` -> historial con la forma que ya lee el motor
+   *  (`players[{team,name,userId}]`, `sets[{gamesA,gamesB}]`, `winnerTeam`, `playedAt`) +
+   *  `levelBefore` por jugador y `levelsSource:'official'` (activa el camino de Sorpresa sin
+   *  Nivel simulado). */
+  function adaptServerCompetitionMatches(serverMatches, identityById) {
+    return (serverMatches || []).map((m) => ({
+      matchId: m.matchId,
+      playedAt: m.playedAt,
+      winnerTeam: m.winnerTeam,
+      regulationCompleted: true,
+      levelsSource: 'official',
+      sets: (m.sets || []).map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })),
+      players: (m.players || []).map((p, i) => ({
+        id: i, team: p.team, userId: p.playerId,
+        name: serverDisplayName(identityById, p.playerId),
+        levelBefore: (typeof p.levelBefore === 'number' && Number.isFinite(p.levelBefore)) ? p.levelBefore : null,
+      })),
+    }));
+  }
+
   global.PLGroups = {
     isMemberActiveAt, isMemberActiveNow, activeMembersAt, findActiveMemberForPlayerRow,
     isMatchValidForGroups, countActiveMembersInMatch, doesMatchCountForGroup,
@@ -490,6 +558,7 @@
     computeMatchesForGroupInWeek, membersRelevantForWeek, assignPositions, computeWeeklyTable,
     computeRaceAnual,
     buildGroupIntelligence, topTiedNames, joinNamesEs,
+    adaptServerGroup, adaptServerCompetitionMatches,
     BASE_POINTS, BONUS_POINTS, SORPRESA_MIN_DIFF, WEEK_MS, MAX_COUNTED_MATCHES_PER_WEEK,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

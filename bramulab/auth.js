@@ -676,6 +676,35 @@
     return { ok: true, path };
   }
 
+  /* ---- Grupos BRAMU · Fase B1 — cliente server-backed (RPCs de la migración
+   *  20260928120000_preprod_grupos_fase_a_backend_compartido.sql). Sin lógica deportiva: solo
+   *  transporte. `{ok:true, ...payload}` con el payload de la RPC tal cual (camelCase ya lo trae
+   *  el servidor), o `{ok:false, code}` con el código de negocio (`group_not_found`, `not_admin`,
+   *  `last_admin`, `invalid_name`, `player_not_found`, `target_not_member`, `too_many_members`) o
+   *  el error de transporte/sesión (`rate_limited`, `no_player_for_session`, `network_error`...).
+   *  Nunca lanza. Nunca usa service-role (`getClient()` es siempre la sesión del usuario). ---- */
+  async function groupsRpc(name, params) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    let res;
+    try { res = await c.rpc(name, params || {}); } catch (e) { return { ok: false, code: 'network_error' }; }
+    if (res.error) return { ok: false, code: res.error.message || 'unknown' };
+    const data = res.data;
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    if (!data.ok) return { ok: false, code: data.code || 'unknown' };
+    return data;
+  }
+  const listMyGroups = () => groupsRpc('list_my_groups');
+  const getGroupDetail = (groupId) => groupsRpc('get_group_detail', { p_group_id: groupId });
+  const createGroup = (name, memberPlayerIds) => groupsRpc('create_group', { p_name: name, p_member_player_ids: memberPlayerIds || [] });
+  const renameGroup = (groupId, name) => groupsRpc('rename_group', { p_group_id: groupId, p_name: name });
+  const addGroupMember = (groupId, playerId) => groupsRpc('add_group_member', { p_group_id: groupId, p_player_id: playerId });
+  const removeGroupMember = (groupId, playerId) => groupsRpc('remove_group_member', { p_group_id: groupId, p_player_id: playerId });
+  const promoteGroupAdmin = (groupId, playerId) => groupsRpc('promote_group_admin', { p_group_id: groupId, p_player_id: playerId });
+  const demoteGroupAdmin = (groupId, playerId) => groupsRpc('demote_group_admin', { p_group_id: groupId, p_player_id: playerId });
+  const deleteGroup = (groupId) => groupsRpc('delete_group', { p_group_id: groupId });
+  const getGroupCompetitionData = (groupId, from, to) => groupsRpc('get_group_competition_data', { p_group_id: groupId, p_from: from || null, p_to: to || null });
+
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
     signUp, verifySignupOtp, resendSignupOtp,
@@ -687,5 +716,7 @@
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
+    listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
+    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, getGroupCompetitionData,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

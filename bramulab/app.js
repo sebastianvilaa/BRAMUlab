@@ -9410,41 +9410,172 @@
   let createGroupSelectedNames = []; // nombres normalizados elegidos en la hoja de selección
   let createGroupSheetMode = 'create'; // 'create' | 'add-members' (reutiliza la misma hoja)
 
+  /* Grupos B1 — cuentas server-backed: la verdad de los grupos vive en Supabase (Fase A). Este
+   * cache es EFÍMERO y descartable (solo memoria, nunca localStorage): se reconstruye desde el
+   * servidor en cada apertura. `Store.loadGroups()` (localStorage legacy) NO se lee en este
+   * camino — un grupo local viejo nunca aparece como verdad compartida. Las cuentas sin backend
+   * conservan el camino legacy exactamente como estaba. */
+  const groupsServer = { ownerId: null, loaded: false, list: [], details: new Map(), competition: new Map(), identities: new Map() };
+  let groupsListRequestId = 0;
+  let groupsBusy = false;
+
+  function groupsUseServer() { return isServerBackedSession() && !!(Auth && Auth.listMyGroups); }
+
+  function resetGroupsServerCache() {
+    groupsServer.ownerId = currentUserId;
+    groupsServer.loaded = false;
+    groupsServer.list = [];
+    groupsServer.details.clear();
+    groupsServer.competition.clear();
+    groupsServer.identities.clear();
+    groupsListRequestId++;
+  }
+
   /** "MIS GRUPOS" es literalmente el subconjunto de `Store.loadGroups()` (lista GLOBAL, ver
    *  store.js) donde la identidad activa resuelve como miembro ACTIVO ahora mismo — mismo
    *  criterio de resolución (`userId` autoritativo, nombre como fallback) que el resto de la
-   *  app usa para "es mío". */
+   *  app usa para "es mío". Server-backed: es directamente `list_my_groups` (el servidor ya
+   *  filtra por membresía activa). */
   function myActiveGroups() {
+    if (groupsUseServer()) return groupsServer.list;
     const ref = currentIdentity();
     const nowIso = new Date().toISOString();
     return Store.loadGroups().filter((g) => !!PG.findActiveMemberForPlayerRow(ref, g.members, nowIso));
   }
 
+  /** Grupo por id en la forma legacy que consume la UI (server-backed: detalle si ya cargó,
+   *  si no el item de la lista, con `members:null`). */
+  function getGroupForUI(id) {
+    if (!id) return null;
+    if (groupsUseServer()) return groupsServer.details.get(id) || groupsServer.list.find((g) => g.id === id) || null;
+    return Store.getGroupById(id);
+  }
+
   function currentMemberOfGroup(group) {
-    if (!group) return null;
+    if (!group || !group.members) return null;
     return PG.findActiveMemberForPlayerRow(currentIdentity(), group.members, new Date().toISOString());
   }
 
   function currentIsAdminOfGroup(group) {
+    if (!group) return false;
+    if (group.serverBacked) return !!group.isAdmin; // el servidor decide, nunca el cache local
     const mem = currentMemberOfGroup(group);
     return !!(mem && mem.isAdmin);
+  }
+
+  function groupActiveMemberCount(g) {
+    if (g.serverBacked && g.members === null) return g.activeMemberCount || 0;
+    const nowIso = new Date().toISOString();
+    return (g.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).length;
+  }
+
+  function groupErrorMessage(code) {
+    switch (code) {
+      case 'last_admin': return 'El grupo necesita al menos un administrador.';
+      case 'not_admin': return 'Solo los administradores pueden hacer este cambio.';
+      case 'group_not_found': return 'Este grupo ya no está disponible.';
+      case 'invalid_name': return 'Ingresá un nombre para el grupo.';
+      case 'player_not_found': return 'No pudimos agregar a uno de los jugadores.';
+      case 'too_many_members': return 'Elegiste demasiados jugadores.';
+      case 'rate_limited': return 'Demasiados intentos seguidos. Probá de nuevo en un momento.';
+      default: return 'No pudimos completar la acción. Revisá tu conexión e intentá de nuevo.';
+    }
+  }
+
+  /** Identidades (nombre/@usuario/avatar/Nivel) por `player_id`, en BATCH, hacia el cache
+   *  efímero. Nunca por nombre. Un id no resuelto queda ausente (el adaptador muestra "Jugador"). */
+  async function ensureGroupIdentities(ids) {
+    const missing = Array.from(new Set((ids || []).filter((id) => id && !groupsServer.identities.has(id))));
+    if (!missing.length) return;
+    const res = await Auth.getPlayersCompact(missing);
+    if (res.ok) res.players.forEach((c, id) => groupsServer.identities.set(id, c));
+  }
+
+  /** Detalle + datos deportivos compartidos + identidades de UN grupo, en paralelo. Escribe en
+   *  caches indexados por groupId: una respuesta tardía nunca pisa otro grupo; solo repinta si
+   *  ese grupo sigue siendo el activo y la cuenta no cambió (ver guardas abajo). */
+  async function loadGroupServerData(groupId) {
+    const ownerId = groupsServer.ownerId;
+    const [detailRes, compRes] = await Promise.all([Auth.getGroupDetail(groupId), Auth.getGroupCompetitionData(groupId)]);
+    if (ownerId !== groupsServer.ownerId) return null;
+    if (!detailRes.ok) return detailRes;
+    if (!compRes.ok) return compRes;
+    const ids = (detailRes.group.members || []).map((m) => m.playerId)
+      .concat(...(compRes.matches || []).map((m) => (m.players || []).map((p) => p.playerId)));
+    await ensureGroupIdentities(ids);
+    if (ownerId !== groupsServer.ownerId) return null;
+    groupsServer.details.set(groupId, PG.adaptServerGroup(detailRes.group, groupsServer.identities));
+    groupsServer.competition.set(groupId, PG.adaptServerCompetitionMatches(compRes.matches, groupsServer.identities));
+    return { ok: true };
+  }
+
+  function repaintGroupsIfVisible(groupId) {
+    if (groupId && groupId !== activeGroupId) return;
+    if ($('#view-groups') && !$('#view-groups').hidden) renderGroupsScreen();
+    if ($('#view-group-settings') && !$('#view-group-settings').hidden) {
+      const g = getGroupForUI(activeGroupId);
+      if (!g || (g.members && !currentIsAdminOfGroup(g))) { showView('groups'); renderGroupsScreen(); return; }
+      if (g.members) { $('#group-settings-name-display').textContent = g.name; renderGroupSettingsMembers(g); }
+    }
+  }
+
+  /** Lista + grupo activo. La lista usa un request id (gana la última); cada grupo se guarda por
+   *  su id. Devuelve `{ok}`; ante error de red conserva el cache anterior (pantalla estable). */
+  async function refreshGroupsFromServer(opts) {
+    if (!groupsUseServer()) return { ok: false };
+    if (groupsServer.ownerId !== currentUserId) resetGroupsServerCache();
+    const reqId = ++groupsListRequestId;
+    const ownerId = groupsServer.ownerId;
+    const listRes = await Auth.listMyGroups();
+    if (reqId !== groupsListRequestId || ownerId !== groupsServer.ownerId) return { ok: false, stale: true };
+    if (!listRes.ok) return listRes;
+    groupsServer.list = (listRes.groups || []).map((g) => PG.adaptServerGroup(g, groupsServer.identities));
+    const keep = opts && opts.keepActive === false ? false : groupsServer.list.some((g) => g.id === activeGroupId);
+    if (!keep) activeGroupId = groupsServer.list.length ? groupsServer.list[0].id : null;
+    // Los que dejaron de existir para este usuario salen del cache.
+    Array.from(groupsServer.details.keys()).forEach((id) => { if (!groupsServer.list.some((g) => g.id === id)) { groupsServer.details.delete(id); groupsServer.competition.delete(id); } });
+    groupsServer.loaded = true;
+    const targetId = activeGroupId;
+    if (targetId) {
+      const dataRes = await loadGroupServerData(targetId);
+      if (reqId !== groupsListRequestId) return { ok: false, stale: true };
+      if (dataRes && !dataRes.ok && dataRes.code === 'group_not_found') return refreshGroupsFromServer({ keepActive: false });
+    }
+    repaintGroupsIfVisible(targetId);
+    return { ok: true };
   }
 
   function openGroupsScreen() {
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
+    if (groupsUseServer()) {
+      if (groupsServer.ownerId !== currentUserId) resetGroupsServerCache();
+      renderGroupsScreen();
+      showView('groups');
+      // Siempre se reconstruye desde el servidor (el cache es solo para pintar rápido).
+      refreshGroupsFromServer().then((r) => { if (r && !r.ok && !r.stale && !groupsServer.loaded) showToast(groupErrorMessage(r.code)); });
+      return;
+    }
     renderGroupsScreen();
     showView('groups');
   }
 
   function renderGroupsScreen() {
+    // Server-backed sin primera respuesta todavía: ni estado vacío ni contenido (evita mostrar
+    // "sin grupos" por un instante antes de saber la verdad).
+    if (groupsUseServer() && !groupsServer.loaded) {
+      $('#groups-empty').hidden = true;
+      $('#groups-content').hidden = true;
+      $('#groups-settings-btn').hidden = true;
+      return;
+    }
     const groups = myActiveGroups();
     const isEmpty = groups.length === 0;
     $('#groups-empty').hidden = !isEmpty;
     $('#groups-content').hidden = isEmpty;
     if (isEmpty) { $('#groups-settings-btn').hidden = true; return; }
     if (!activeGroupId || !groups.some((g) => g.id === activeGroupId)) activeGroupId = groups[0].id;
-    const activeGroup = Store.getGroupById(activeGroupId);
+    const activeGroup = getGroupForUI(activeGroupId);
     // BRAMUlab_V03.4.2 (§1/§2) — un único selector "grupo activo ▾", siempre visible (incluso
     // con un solo grupo: también funciona como "acá estás parado"), reemplaza a los chips.
     $('#groups-current-selector-name').textContent = activeGroup ? activeGroup.name : '—';
@@ -9475,7 +9606,7 @@
     const nowIso = new Date().toISOString();
     const rows = groups.map((g) => {
       const active = g.id === activeGroupId;
-      const memberCount = (g.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).length;
+      const memberCount = groupActiveMemberCount(g);
       const memberLabel = memberCount === 1 ? '1 jugador' : `${memberCount} jugadores`;
       return `<button type="button" class="picker-sheet-option${active ? ' is-selected' : ''}" data-group-id="${escapeHtml(g.id)}">
         <span class="picker-sheet-option__text"><span class="picker-sheet-option__name">${escapeHtml(g.name)}</span><span class="picker-sheet-option__meta"> · ${memberLabel}</span></span>
@@ -9488,6 +9619,13 @@
         activeGroupId = btn.dataset.groupId;
         closeGroupsSwitchSheet();
         renderGroupsScreen();
+        if (groupsUseServer()) {
+          const switchedTo = activeGroupId;
+          loadGroupServerData(switchedTo).then((r) => {
+            if (r && !r.ok) { showToast(groupErrorMessage(r.code)); if (r.code === 'group_not_found') refreshGroupsFromServer({ keepActive: false }); return; }
+            repaintGroupsIfVisible(switchedTo);
+          });
+        }
       });
     });
     $('#groups-switch-create-btn').addEventListener('click', () => {
@@ -9513,9 +9651,12 @@
       btn.classList.toggle('is-active', active);
       btn.setAttribute('aria-selected', String(active));
     });
-    $('#groups-panel-actual').hidden = groupsActiveTab !== 'actual';
-    $('#groups-panel-anterior').hidden = groupsActiveTab !== 'anterior';
-    $('#groups-panel-race').hidden = groupsActiveTab !== 'race';
+    // Server-backed: mientras el grupo activo no tiene sus datos compartidos, ningún panel se
+    // muestra (nunca la tabla de otro grupo ni una tabla vacía que parezca real).
+    const panelsReady = !groupsUseServer() || groupsServer.competition.has(activeGroupId);
+    $('#groups-panel-actual').hidden = !panelsReady || groupsActiveTab !== 'actual';
+    $('#groups-panel-anterior').hidden = !panelsReady || groupsActiveTab !== 'anterior';
+    $('#groups-panel-race').hidden = !panelsReady || groupsActiveTab !== 'race';
   }
 
   function renderGroupIntelligenceInto(listId, emptyId, insights) {
@@ -9533,10 +9674,20 @@
   function buildGroupRowAccount(name) {
     return Store.loadUsers().find((u) => u && Store.normalizePlayerName(u.displayName) === Store.normalizePlayerName(name)) || null;
   }
-  function buildGroupAvatarHTML(name) {
+  /** Grupos B1 — identidad de una fila por `player_id` (server-backed: get_players_compact,
+   *  nunca por nombre) o por nombre (legacy). `{username, photo}`; sin dato real, nulls. */
+  function groupRowIdentity(name, userId) {
+    if (groupsUseServer()) {
+      const c = userId ? groupsServer.identities.get(userId) : null;
+      return { username: c ? c.username : null, photo: c ? c.avatarSignedUrl : null, serverBacked: true };
+    }
     const account = buildGroupRowAccount(name);
-    if (account && account.profilePhoto) {
-      return `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(account.profilePhoto)}" alt="" /></span>`;
+    return { username: account && account.username ? account.username : null, photo: account ? account.profilePhoto : null, serverBacked: false };
+  }
+  function buildGroupAvatarHTML(name, userId) {
+    const ident = groupRowIdentity(name, userId);
+    if (ident.photo) {
+      return `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(ident.photo)}" alt="" /></span>`;
     }
     return `<span class="person-list__avatar">${escapeHtml(playerInitials(name))}</span>`;
   }
@@ -9552,15 +9703,16 @@
   function buildGroupTableRowHTML(row) {
     const captionParts = [`${row.matchesCounted} ${row.matchesCounted === 1 ? 'partido' : 'partidos'}`];
     if (row.matchesCounted > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
-    const account = buildGroupRowAccount(row.name);
-    const handle = account && account.username ? `@${account.username}` : buildPlayerHandle(row.name);
+    const ident = groupRowIdentity(row.name, row.userId);
+    // Server-backed: solo @usuario REAL (nunca un handle fabricado desde el nombre).
+    const handle = ident.username ? `@${ident.username}` : (ident.serverBacked ? null : buildPlayerHandle(row.name));
     return `<button type="button" class="group-table__row${row.position === 1 && row.points > 0 ? ' group-table__row--top1' : ''}" data-name="${escapeHtml(row.name)}" data-user-id="${escapeHtml(row.userId || '')}">
       <span class="group-table__position">${row.position}</span>
-      ${buildGroupAvatarHTML(row.name)}
+      ${buildGroupAvatarHTML(row.name, row.userId)}
       <span class="group-table__info">
         <span class="group-table__toprow">
           <span class="group-table__name">${escapeHtml(row.name)}</span>
-          <span class="group-table__handle">· ${escapeHtml(handle)}</span>
+          ${handle ? `<span class="group-table__handle">· ${escapeHtml(handle)}</span>` : ''}
         </span>
         <span class="group-table__caption">${captionParts.join(' · ')}</span>
       </span>
@@ -9598,7 +9750,9 @@
     $all(`#${elId} .group-table__row`).forEach((btn) => {
       btn.addEventListener('click', () => {
         if (isOwnGroupTableRow(btn.dataset.name, btn.dataset.userId)) { openProfileScreen('mi-perfil'); return; }
-        openPlayerPublicProfile(btn.dataset.name, 'groups');
+        // Server-backed: por `player_id` (camino real de get_public_profile), nunca por nombre.
+        const playerId = btn.dataset.userId || null;
+        openPlayerPublicProfile(groupsUseServer() && playerId ? { name: btn.dataset.name, playerId } : btn.dataset.name, 'groups');
       });
     });
   }
@@ -9607,9 +9761,13 @@
    *  se calculan siempre juntas (barato para el volumen de datos de este prototipo) para que
    *  cambiar de pestaña sea instantáneo, sin recalcular nada al tocarlas (ver setGroupsTab). */
   function renderActiveGroupPanels() {
-    const group = Store.getGroupById(activeGroupId);
+    const group = getGroupForUI(activeGroupId);
     if (!group) return;
-    const fullHistory = getComputableHistory();
+    // Fuente deportiva: server-backed = SOLO get_group_competition_data (verdad compartida),
+    // nunca el historial personal local. Sin datos cargados/miembros todavía, no se pinta.
+    const server = groupsUseServer();
+    if (server && (!group.members || !groupsServer.competition.has(group.id))) return;
+    const fullHistory = server ? groupsServer.competition.get(group.id) : getComputableHistory();
     const now = new Date();
     const weekStart = PH.startOfWeekMonday(now);
     const prevWeekStart = new Date(weekStart.getTime() - PG.WEEK_MS);
@@ -9701,8 +9859,14 @@
     </button>`;
   }
 
+  // Grupos B1 — selección server-backed por `player_id` (nunca por nombre).
+  const createGroupSelected = new Map(); // playerId -> nombre visible (solo UI)
+  let groupPickerRows = [];
+  let groupPickerRequestId = 0;
+  let groupPickerDebounce = null;
+
   function updateCreateGroupSelectedCount() {
-    const n = createGroupSelectedNames.length;
+    const n = groupsUseServer() ? createGroupSelected.size : createGroupSelectedNames.length;
     $('#create-group-selected-count').textContent = n === 0
       ? 'Ningún jugador seleccionado todavía.'
       : `${n} ${n === 1 ? 'jugador seleccionado' : 'jugadores seleccionados'}.`;
@@ -9712,7 +9876,82 @@
    *  de JUGADORES de V03.3, nunca inventar una segunda fuente). En modo "agregar jugadores" a
    *  un grupo ya existente, se excluyen los que ya son miembros activos (no tiene sentido
    *  ofrecer agregar a alguien que ya está). */
+  function buildGroupMemberPickerRowServerHTML(p, selected) {
+    const checkSvg = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l5 5L11 17 20 6"/></svg>';
+    const name = p.name || 'Jugador';
+    const levelText = (p.levelStatus && p.levelStatus !== 'PENDIENTE' && Number.isFinite(p.levelPublic)) ? p.levelPublic.toFixed(1) : '—';
+    const handle = p.username ? `@${p.username}` : '—';
+    const hasPhoto = !!p.avatarUrl;
+    return `<button type="button" class="player-row group-picker-row${selected ? ' is-selected' : ''}" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(p.playerId)}">
+      <span class="group-picker-row__check" aria-hidden="true">${checkSvg}</span>
+      <span class="player-row__avatar" data-has-photo="${hasPhoto ? 'true' : 'false'}">
+        <span class="player-row__avatar-initials">${escapeHtml(playerInitials(name))}</span>
+        ${hasPhoto ? `<img class="player-row__avatar-img" src="${escapeHtml(p.avatarUrl)}" alt="" />` : ''}
+      </span>
+      <span class="player-row__info">
+        <span class="player-row__name">${escapeHtml(name)}</span>
+        <span class="player-row__handle">${escapeHtml(handle)}</span>
+      </span>
+      <span class="player-row__level">
+        <span class="player-row__level-value">${levelText}</span>
+        <span class="player-row__level-label">NIVEL BRAMU</span>
+      </span>
+    </button>`;
+  }
+
+  function paintGroupPickerRowsServer() {
+    const wrap = $('#create-group-player-list');
+    const isEmpty = groupPickerRows.length === 0;
+    wrap.hidden = isEmpty;
+    $('#create-group-player-empty').hidden = !isEmpty;
+    wrap.innerHTML = groupPickerRows.map((p) => buildGroupMemberPickerRowServerHTML(p, createGroupSelected.has(p.playerId))).join('');
+    $all('#create-group-player-list .group-picker-row').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.playerId;
+        if (createGroupSelected.has(id)) createGroupSelected.delete(id); else createGroupSelected.set(id, btn.dataset.name);
+        paintGroupPickerRowsServer();
+      });
+    });
+    updateCreateGroupSelectedCount();
+  }
+
+  /** Candidatos server-backed: con texto -> búsqueda real (`search_players`); sin texto -> Mis
+   *  jugadores + recientes del historial (ids reales, resueltos en batch). Excluye a uno mismo
+   *  y, en modo "agregar", a los miembros activos. Respuestas tardías (otra consulta ya en
+   *  curso, hoja cerrada) se descartan por `groupPickerRequestId`. */
+  async function renderCreateGroupPlayerListServer(query) {
+    const q = (query || '').trim();
+    const reqId = ++groupPickerRequestId;
+    let rows = [];
+    if (q) {
+      const res = await Auth.searchPlayers(q, 20);
+      if (reqId !== groupPickerRequestId) return;
+      rows = res.ok ? res.players.map((r) => ({
+        playerId: r.player_id,
+        name: r.display_name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.username || 'Jugador',
+        username: r.username, levelStatus: r.level_status, levelPublic: r.level_public, avatarUrl: r.avatar_signed_url || null,
+      })) : [];
+    } else {
+      const recent = PH.computeRecentRealPlayers(getDisplayHistory(), currentIdentity(), [], 12);
+      const [compactRes, savedRes] = await Promise.all([Auth.getPlayersCompact(recent.map((r) => r.playerId)), Auth.listSavedPlayers()]);
+      if (reqId !== groupPickerRequestId) return;
+      const seen = new Set();
+      const push = (c) => { if (!c || seen.has(c.playerId)) return; seen.add(c.playerId); rows.push({ playerId: c.playerId, name: c.displayName || 'Jugador', username: c.username, levelStatus: c.levelStatus, levelPublic: c.levelPublic, avatarUrl: c.avatarSignedUrl || null }); };
+      if (savedRes.ok) savedRes.players.forEach(push);
+      if (compactRes.ok) recent.forEach((r) => push(compactRes.players.get(r.playerId)));
+    }
+    const excluded = new Set([currentUserId]);
+    if (createGroupSheetMode === 'add-members') {
+      const group = getGroupForUI(activeGroupId);
+      const nowIso = new Date().toISOString();
+      ((group && group.members) || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).forEach((m) => excluded.add(m.userId));
+    }
+    groupPickerRows = rows.filter((r) => r.playerId && !excluded.has(r.playerId));
+    paintGroupPickerRowsServer();
+  }
+
   function renderCreateGroupPlayerList(query) {
+    if (groupsUseServer()) { renderCreateGroupPlayerListServer(query); return; }
     const history = getDisplayHistory();
     const pool = ML.buildJugadorDirectory(history, Store.loadPlayerNames(), currentPlayerName);
     let candidates = pool;
@@ -9751,6 +9990,7 @@
     $('#create-group-sheet-scroll').scrollTop = 0;
   }
   function closeCreateGroupSheet() {
+    groupPickerRequestId++; // descarta búsquedas en vuelo
     const scrim = $('#create-group-sheet-scrim');
     scrim.classList.remove('is-open');
     setTimeout(() => { scrim.hidden = true; }, 220);
@@ -9759,6 +9999,7 @@
   function openCreateGroupSheet() {
     createGroupSheetMode = 'create';
     createGroupSelectedNames = [];
+    createGroupSelected.clear();
     $('#create-group-name-field').hidden = false;
     $('#create-group-sheet-title').textContent = 'CREAR GRUPO';
     $('#create-group-players-label').textContent = 'Jugadores iniciales';
@@ -9776,6 +10017,7 @@
   function openAddMembersToGroupSheet() {
     createGroupSheetMode = 'add-members';
     createGroupSelectedNames = [];
+    createGroupSelected.clear();
     $('#create-group-name-field').hidden = true;
     $('#create-group-sheet-title').textContent = 'AGREGAR JUGADORES';
     $('#create-group-players-label').textContent = 'Jugadores';
@@ -9786,7 +10028,47 @@
     openCreateGroupSheetScrim();
   }
 
+  /** Crear/agregar contra el servidor. La UI no cambia nada localmente antes del éxito; un error
+   *  deja la hoja abierta con el mensaje en el mismo lugar de siempre (`#create-group-error`). */
+  async function submitCreateGroupServer() {
+    if (groupsBusy) return;
+    const errEl = $('#create-group-error');
+    const btn = $('#create-group-submit-btn');
+    const showErr = (msg) => { errEl.textContent = msg; errEl.hidden = false; };
+    const ids = Array.from(createGroupSelected.keys());
+    if (createGroupSheetMode === 'add-members') {
+      if (!ids.length) { showErr('Elegí al menos un jugador.'); return; }
+    } else if (!$('#create-group-name-input').value.trim()) {
+      showErr('Ingresá un nombre para el grupo.'); return;
+    }
+    groupsBusy = true; btn.disabled = true; errEl.hidden = true;
+    try {
+      if (createGroupSheetMode === 'add-members') {
+        const groupId = activeGroupId;
+        let firstFailure = null;
+        for (const id of ids) {
+          const r = await Auth.addGroupMember(groupId, id);
+          if (!r.ok) { firstFailure = firstFailure || r; if (r.code === 'group_not_found' || r.code === 'not_admin' || r.code === 'rate_limited') break; }
+        }
+        closeCreateGroupSheet();
+        await refreshGroupsFromServer();
+        showToast(firstFailure ? groupErrorMessage(firstFailure.code) : 'Jugadores agregados');
+        return;
+      }
+      const r = await Auth.createGroup($('#create-group-name-input').value.trim(), ids);
+      if (!r.ok) { showErr(groupErrorMessage(r.code)); return; }
+      closeCreateGroupSheet();
+      activeGroupId = r.group.groupId;
+      groupsActiveTab = 'actual';
+      await refreshGroupsFromServer();
+      showToast('Grupo creado');
+    } finally {
+      groupsBusy = false; btn.disabled = false;
+    }
+  }
+
   function submitCreateGroup() {
+    if (groupsUseServer()) { submitCreateGroupServer(); return; }
     if (createGroupSheetMode === 'add-members') {
       if (!createGroupSelectedNames.length) {
         $('#create-group-error').textContent = 'Elegí al menos un jugador.';
@@ -9828,15 +10110,20 @@
     $('#create-group-sheet-close').addEventListener('click', closeCreateGroupSheet);
     $('#create-group-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#create-group-sheet-scrim')) closeCreateGroupSheet(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#create-group-sheet-scrim').hidden) closeCreateGroupSheet(); });
-    $('#create-group-player-search').addEventListener('input', (e) => renderCreateGroupPlayerList(e.target.value));
+    $('#create-group-player-search').addEventListener('input', (e) => {
+      if (!groupsUseServer()) { renderCreateGroupPlayerList(e.target.value); return; }
+      clearTimeout(groupPickerDebounce);
+      const value = e.target.value;
+      groupPickerDebounce = setTimeout(() => renderCreateGroupPlayerList(value), 250);
+    });
     $('#create-group-submit-btn').addEventListener('click', submitCreateGroup);
   }
 
   /* ---- Configuración del grupo (§14) — solo admins llegan acá (gear oculto si no). ---- */
 
   function openGroupSettingsScreen() {
-    const group = Store.getGroupById(activeGroupId);
-    if (!group || !currentIsAdminOfGroup(group)) return;
+    const group = getGroupForUI(activeGroupId);
+    if (!group || !group.members || !currentIsAdminOfGroup(group)) return;
     $('#group-settings-name-display').textContent = group.name;
     $('#group-settings-name-display').hidden = false;
     $('#group-settings-name-input').hidden = true;
@@ -9849,7 +10136,7 @@
    *  Escape cancela sin guardar (nunca pierde el nombre real por un blur accidental — si el
    *  campo queda vacío o sin cambios, simplemente vuelve a mostrar el nombre que ya estaba). */
   function enterGroupNameEditMode() {
-    const group = Store.getGroupById(activeGroupId);
+    const group = getGroupForUI(activeGroupId);
     if (!group) return;
     $('#group-settings-name-display').hidden = true;
     const input = $('#group-settings-name-input');
@@ -9861,16 +10148,21 @@
   function exitGroupNameEditMode(save) {
     const input = $('#group-settings-name-input');
     if (input.hidden) return; // ya se cerró (blur + Escape pueden disparar los dos en el mismo tick)
-    const group = Store.getGroupById(activeGroupId);
+    const group = getGroupForUI(activeGroupId);
     if (save && group) {
       const nextName = input.value.trim();
       if (nextName && nextName !== group.name) {
-        Store.renameGroup(group.id, nextName);
-        renderGroupsScreen();
-        showToast('Nombre actualizado');
+        if (groupsUseServer()) {
+          // El nombre visible NO cambia hasta que el servidor confirma (ver refresh).
+          runGroupMutation(() => Auth.renameGroup(group.id, nextName), 'Nombre actualizado');
+        } else {
+          Store.renameGroup(group.id, nextName);
+          renderGroupsScreen();
+          showToast('Nombre actualizado');
+        }
       }
     }
-    const current = Store.getGroupById(activeGroupId);
+    const current = getGroupForUI(activeGroupId);
     $('#group-settings-name-display').textContent = current ? current.name : (group ? group.name : '—');
     $('#group-settings-name-display').hidden = false;
     input.hidden = true;
@@ -9880,13 +10172,40 @@
    *  saca al grupo de la lista, ver store.js) — vuelve a MIS GRUPOS, que se reacomoda solo
    *  (activeGroupId ya no matchea ningún grupo → renderGroupsScreen elige otro, o el estado
    *  vacío si no queda ninguno). */
+  /** Grupos B1 — una mutación server-backed: evita doble submit, no toca el cache antes del
+   *  éxito, ante error muestra el mensaje y conserva la pantalla; ante éxito refresca desde el
+   *  servidor (lista + grupo activo). Si tras refrescar ya no sos admin/miembro del grupo
+   *  activo, la pantalla de Configuración vuelve a MIS GRUPOS. */
+  async function runGroupMutation(call, successToast) {
+    if (groupsBusy) return { ok: false, code: 'busy' };
+    groupsBusy = true;
+    try {
+      const r = await call();
+      if (!r.ok) {
+        showToast(groupErrorMessage(r.code));
+        if (r.code === 'group_not_found' || r.code === 'not_admin') await refreshGroupsFromServer();
+        return r;
+      }
+      await refreshGroupsFromServer();
+      if (successToast) showToast(successToast);
+      return r;
+    } finally {
+      groupsBusy = false;
+    }
+  }
+
   function handleDeleteGroup() {
-    const group = Store.getGroupById(activeGroupId);
+    const group = getGroupForUI(activeGroupId);
     if (!group) return;
     confirmAction(
       '¿Eliminar este grupo?',
       'Se eliminará el grupo para todos sus miembros. Esta acción no elimina los partidos de sus historiales.',
-      () => {
+      async () => {
+        if (groupsUseServer()) {
+          const r = await runGroupMutation(() => Auth.deleteGroup(group.id), 'Grupo eliminado');
+          if (r && r.ok) { activeGroupId = null; showView('groups'); renderGroupsScreen(); }
+          return;
+        }
         Store.deleteGroup(group.id);
         activeGroupId = null;
         showView('groups');
@@ -9910,7 +10229,7 @@
     wrap.innerHTML = active.map((m) => {
       const isLastAdmin = m.isAdmin && activeAdmins === 1;
       const lastAdminAttrs = isLastAdmin ? ' disabled title="El grupo necesita al menos un administrador"' : '';
-      return `<div class="group-settings-member" data-name="${escapeHtml(m.name)}">
+      return `<div class="group-settings-member" data-name="${escapeHtml(m.name)}" data-player-id="${escapeHtml(m.userId || '')}">
         <span class="person-list__avatar">${escapeHtml(playerInitials(m.name))}</span>
         <span class="group-settings-member__info">
           <span class="group-settings-member__name">${escapeHtml(m.name)}${m.isAdmin ? '<span class="group-table__admin-tag">ADMIN</span>' : ''}</span>
@@ -9925,9 +10244,25 @@
     }).join('');
   }
 
-  function handleGroupSettingsAction(action, name) {
-    const group = Store.getGroupById(activeGroupId);
+  function handleGroupSettingsAction(action, name, playerId) {
+    const group = getGroupForUI(activeGroupId);
     if (!group) return;
+    if (groupsUseServer()) {
+      // El servidor decide (incluido "último admin"); el guardrail local solo deshabilita botones.
+      if (!playerId) return;
+      const call = action === 'remove' ? () => Auth.removeGroupMember(group.id, playerId)
+        : action === 'promote' ? () => Auth.promoteGroupAdmin(group.id, playerId)
+        : action === 'demote' ? () => Auth.demoteGroupAdmin(group.id, playerId) : null;
+      if (!call) return;
+      if (action !== 'remove') { runGroupMutation(call, null); return; }
+      confirmAction(
+        `¿Quitar a ${name} del grupo?`,
+        'Sus resultados de semanas anteriores no se pierden.',
+        () => { runGroupMutation(call, 'Jugador quitado del grupo'); },
+        null, 'Quitar del grupo', 'Cancelar', true
+      );
+      return;
+    }
     if (action === 'remove') {
       confirmAction(
         `¿Quitar a ${name} del grupo?`,
@@ -9964,7 +10299,7 @@
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;
       const row = e.target.closest('.group-settings-member');
-      handleGroupSettingsAction(btn.dataset.action, row.dataset.name);
+      handleGroupSettingsAction(btn.dataset.action, row.dataset.name, row.dataset.playerId || null);
     });
     $('#group-settings-delete-btn').addEventListener('click', handleDeleteGroup);
   }

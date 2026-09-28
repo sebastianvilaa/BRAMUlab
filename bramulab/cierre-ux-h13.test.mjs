@@ -164,18 +164,17 @@ test('P0-F: handleCreateOrAttachOutcome repinta el Resumen abierto tras un inten
 
 /* ---- P0-G: patrón canónico de jugador por player_id (guarda de regresión) ---- */
 
-test('P0-G: ninguna superficie server-backed navega al perfil público por nombre plano (Mis grupos y las ramas local/legacy ya auditadas quedan fuera de esta ronda a propósito)', () => {
+test('P0-G: ninguna superficie server-backed navega al perfil público por nombre plano (las ramas local/legacy ya auditadas quedan fuera de esta ronda a propósito; Mis grupos pasa por player_id desde Grupos B1)', () => {
   // Extrae cada línea de llamada real (line-based, más legible que parsear JS).
   const lines = appJs.split('\n').filter((l) => l.includes('openPlayerPublicProfile('));
   const bareNameLines = lines.filter((l) => !l.includes('{ name:') && !l.includes('playerId'));
-  // Únicas líneas de nombre-plano YA auditadas y legítimas: la propia declaración de la función,
-  // Mis Grupos (explícitamente fuera de alcance de esta ronda), y las 3 ramas LOCAL/LEGACY
+  // Únicas líneas de nombre-plano YA auditadas y legítimas: la propia declaración de la función
+  // (Mis Grupos ya no está en esta lista: desde Grupos B1 navega por player_id), y las 3 ramas LOCAL/LEGACY
   // (gateadas por `if (user && user.serverBacked) return;` antes de esta línea, ver openPersonListScreen
   // en la ronda h11/h12 y renderJugadoresList/renderPlayerSearchResults) — cualquier línea NUEVA
   // fuera de esta lista es una regresión real: una superficie server-backed navegando por nombre.
   const allowedSnippets = [
     'function openPlayerPublicProfile(nameOrRef, origin)',
-    "openPlayerPublicProfile(btn.dataset.name, 'groups')",
     "openPlayerPublicProfile(btn.dataset.name, 'jugadores-tab')",
     "openPlayerPublicProfile(btn.dataset.name, 'search')",
   ];
