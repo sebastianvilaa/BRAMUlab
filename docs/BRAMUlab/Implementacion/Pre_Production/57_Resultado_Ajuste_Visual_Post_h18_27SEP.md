@@ -45,8 +45,8 @@ Se investigó con `git log -S`/`git show` antes de tocar nada. Confirmado: `301d
 
 ## 3. Commit / deploy
 
-- Commit único lógico sobre `staging` (ver hash real del commit de esta ronda).
-- Push a `origin/staging`.
+- Commit único lógico sobre `staging`: `d8ea973`.
+- Push a `origin/staging` (`bd483c0..d8ea973`).
 - El push dispara el `ignoreCommand` de `bramulab/vercel.json` (compara `HEAD^`↔`HEAD` dentro de `bramulab/`); como esta ronda modifica archivos de `bramulab/`, dispara el único deploy intencional de BRAMUlab Staging.
 
 ---
