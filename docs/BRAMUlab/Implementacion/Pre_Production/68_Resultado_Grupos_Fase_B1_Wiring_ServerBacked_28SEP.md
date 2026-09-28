@@ -73,20 +73,19 @@ PASS reales confirmados con dos cuentas/dispositivos:
 - fixture real: Esteban + Matu vencen a Seba + Pablito y el grupo muestra Esteban 5, Matu 5, Seba 0 en ambas cuentas;
 - BRAMU Intelligence grupal terminó coincidiendo en ambas cuentas después de reingresar a Mis grupos; se observó un render transitorio vacío en una primera entrada, no bloqueante por ahora.
 
-### BUG REAL — membresía individual retroactiva dentro de un partido que sí cuenta para el grupo
+### DECISIÓN DE PRODUCTO NUEVA — retroactividad limitada a la semana vigente
 
-Después de validar el fixture anterior, Pablito fue agregado al grupo. El partido ya calificaba correctamente para el grupo porque en la fecha del partido había 3 miembros activos: Esteban, Matu y Seba.
+La observación de Pablito no se considera bug de producto. Producto cerró una regla más amigable: si un jugador entra o reingresa a un grupo durante una semana BRAMU (lunes-domingo), su pertenencia deportiva vale desde el lunes de esa misma semana. Nunca arrastra semanas anteriores.
 
-Resultado observado: Pablito apareció con **0 puntos pero 1 partido / 0 V / 1 D**, aunque todavía no era miembro cuando se jugó.
+Consecuencias:
+- Pablito agregado después del partido de hoy puede mostrar ese partido/derrota con 0 puntos;
+- si hubiera ganado un partido anterior de esta misma semana, puede recibir los puntos si el partido cumple la regla del grupo;
+- si el grupo se crea o llega a 3 miembros a mitad de semana, partidos oficiales anteriores de esa misma semana pueden empezar a contar si pasan a cumplir 3/4;
+- una baja no borra puntos ya obtenidos ni reescribe semanas anteriores.
 
-Esto viola la membresía histórica cerrada de Grupos. Un jugador agregado después de un partido puede aparecer en la tabla de la semana por ser miembro actual/relevante de esa semana, pero sus estadísticas personales deben considerar únicamente partidos jugados mientras él era miembro activo en `played_at`.
+B1 todavía debe alinear backend y motor con esta regla completa. El comportamiento actual coincide solo en parte: get_group_competition_data todavía exige joined_at <= played_at para formar el 3/4, por lo que puede excluir un partido anterior de la misma semana cuando el tercer miembro fue agregado después.
 
-Causa localizada en `groups.js#computeWeeklyTable`: `played` filtra por participación en los partidos que cuentan para el grupo, pero no exige que **ese miembro concreto** estuviera activo en la fecha de cada partido.
-
-**B1 NO se cierra hasta corregir esto.**
-
-Corrección esperada:
-- al calcular `played` para una fila, exigir además que el miembro esté activo en `played_at` según sus `periods`;
-- aplicar el mismo criterio a puntos, partidos contados, V/D, total jugado semanal y por derivación Race;
-- no cambiar la regla grupal 3/4: el partido puede seguir contando para el grupo aunque un cuarto participante se incorpore después;
-- agregar tests focales para alta posterior a derrota y alta posterior a victoria (cero retroactividad), reingreso y miembro activo normal.
+Pendiente técnico antes de cerrar B1:
+- usar pertenencia deportiva efectiva desde el lunes de la semana del alta;
+- conservar joined_at/left_at reales para auditoría;
+- cubrir alta posterior a victoria/derrota en la misma semana, alta que convierte 2/4 en 3/4, límite de semana anterior, baja y reingreso.
