@@ -279,6 +279,30 @@ Permitir acceso por `@usuario` puede evaluarse después de validar el lanzamient
 
 ---
 
+## P0.4B — Grupos BRAMU productivo — DECISIÓN CERRADA
+
+Desde 28/09/2026 Grupos BRAMU pasa a ser parte del producto requerido antes de abrir Production.
+
+Fuente maestra:
+
+- `Grupos_BRAMU.md`
+
+Handoff activo:
+
+- `Implementacion/Pre_Production/62_Handoff_Grupos_BRAMU_28SEP.md`
+
+Alcance:
+- conservar la experiencia actual de grupo armado;
+- elevar estado cero + explicación;
+- productivizar grupos/membresías/admins sobre backend real;
+- usar partidos e identidades oficiales;
+- mantener Nivel, Ranking y puntos de grupo separados;
+- cerrar todo primero en Staging.
+
+No pasar a Bloque 9/Production dejando Grupos como verdad local si va a formar parte de la salida inicial.
+
+---
+
 ## P0.5 — Bloque 9: endurecimiento y salida
 
 Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
