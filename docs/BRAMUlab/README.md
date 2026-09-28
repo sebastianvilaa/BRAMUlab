@@ -1,9 +1,9 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.11** (hotfix de mecanismo de actualización de la PWA — ver `Implementacion/Pre_Production/05_Laboratorio_UX_Uso_Real.md`; no es una ronda nueva de funciones de Nivel BRAMU)  
+**Estado del producto:** BRAMUlab **V04.11 / bundle 04.11-h21** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
 **Base estable anterior:** BRAMUlab **V03.10**  
-**Tests al cierre de V04.10:** **1400/1400**  
-**Actualización documental:** 25 de septiembre de 2026
+**Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
+**Actualización documental:** 28 de septiembre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -31,7 +31,7 @@ V03 está **cerrada en V03.10**. No se reabre salvo regresión concreta.
 - `Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md`
 - `Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md`
 
-Los documentos intermedios de V03 viven en `Archivo/BRAMUlab_V03/` y no son fuente activa.
+Los documentos históricos de V03 que todavía se conservan viven en `Archivo/BRAMUlab_V03/` y no son fuente activa. Los handoffs operativos consumidos se eliminan del árbol actual: Git conserva su historia.
 
 ### Backend / Infraestructura
 
@@ -109,6 +109,16 @@ Ranking BRAMU vigente es **semanal**. Nivel puede cambiar partido a partido, per
 ---
 
 ## 3. Cómo se organiza `docs/BRAMUlab`
+
+### Regla de poda documental
+
+- `Implementacion/` contiene únicamente trabajo **activo** o evidencia/cierres que una fuente vigente todavía referencia.
+- Un handoff, plan, revisión o hotfix consumido se elimina del árbol activo cuando su resultado ya quedó consolidado.
+- Git es la fuente de trazabilidad histórica de esos archivos eliminados; no duplicar la historia en `Backup/`.
+- `Archivo/` se reserva solo para antecedentes que todavía tengan valor documental concreto y nunca es autoridad normal.
+- Antes de leer una carpeta completa, consultar el índice local de `Implementacion/` y la fuente maestra correspondiente.
+
+
 
 ### Raíz
 

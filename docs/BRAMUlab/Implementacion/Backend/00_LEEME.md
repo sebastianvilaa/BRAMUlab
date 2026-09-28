@@ -1,46 +1,26 @@
-# Implementación — Backend BRAMUlab
+# Implementación Backend — índice mínimo
 
-Esta carpeta es el espacio operativo compartido entre Sebastián, ChatGPT y Claude Code para las rondas de implementación de Backend.
+Esta carpeta conserva **solo cierres y evidencias todavía referenciadas**.
 
-## Objetivo
+La autoridad de producto/arquitectura es:
+- `docs/BRAMUlab/README.md`
+- `docs/BRAMUlab/Backend_Infraestructura.md`
+- `docs/BRAMUlab/Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`
 
-Evitar copiar/pegar prompts e informes largos entre chats y reducir errores de traspaso.
+## Estado
 
-La documentación maestra de producto/arquitectura sigue viviendo en los archivos principales de `docs/BRAMUlab/`. Esta carpeta NO reemplaza esas fuentes: conserva el historial operativo de cada bloque.
+Bloques 1–8: **CERRADOS en Staging**.
 
-## Estructura
+Para entender el estado actual no leer carpetas completas. Usar el Informe Backend y, únicamente si hace falta evidencia puntual, el cierre final del bloque.
 
-Cada bloque usa su propia carpeta:
+Los handoffs, planes, revisiones y correcciones intermedias ya consumidos fueron retirados del árbol activo el 28/09/2026. Git conserva su historial.
 
-- `Bloque_01/`
-- `Bloque_02/`
-- `Bloque_03/`
-- etc.
+## Regla para Bloque 9
 
-Convención recomendada dentro de cada bloque:
+Cuando empiece Bloque 9:
+1. crear un único handoff activo;
+2. implementar;
+3. dejar un único resultado/cierre;
+4. eliminar el handoff consumido al consolidar el cierre.
 
-1. `01_Pedido.md` — instrucción inicial preparada por ChatGPT.
-2. `02_Plan_Claude.md` — análisis/plan que Claude deja antes de implementar cuando corresponda.
-3. `03_Revision_ChatGPT.md` — revisión, correcciones y autorización de ChatGPT.
-4. `04_Informe_Implementacion_Claude.md` — informe final de Claude tras implementar.
-5. `05_Cierre_ChatGPT.md` — revisión/cierre final si hace falta.
-
-No todos los bloques necesitan necesariamente los cinco archivos.
-
-## Flujo de trabajo
-
-1. ChatGPT prepara el archivo correspondiente dentro de esta carpeta.
-2. Sebastián le envía a Claude solamente una instrucción corta para actualizar `staging` y leer ese archivo.
-3. Claude trabaja sobre el repo y deja su plan/informe en la carpeta del bloque además de responder en el chat.
-4. Sebastián avisa a ChatGPT que Claude terminó.
-5. ChatGPT lee directamente el archivo desde Dropbox/GitHub y prepara la siguiente instrucción en esta misma estructura.
-
-## Criterio de eficiencia
-
-El objetivo no es obligar a Claude a releer documentación innecesaria. Cada handoff debe ser autocontenido, breve cuando sea posible y apuntar por nombre a las fuentes maestras relevantes.
-
-Mover tareas de dashboard, deploy, verificación web o documentación a ChatGPT/Work cuando no requieren edición profunda de código ayuda a reservar Claude Code para implementación, migraciones, tests y debugging de repo.
-
-## Regla
-
-No usar esta carpeta para redefinir producto silenciosamente. Si una decisión cambia una fuente maestra, la implementación debe actualizar también el documento maestro correspondiente.
+No volver al patrón de decenas de documentos por bloque.
