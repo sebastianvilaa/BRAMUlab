@@ -1,8 +1,8 @@
 # Política de Privacidad de BRAMUlab — Borrador V1
 
-> ## ⚠️ BORRADOR DE PRODUCTO — REQUIERE REVISIÓN LEGAL ANTES DE PUBLICARSE
+> ## ⚠️ BORRADOR DE PRODUCTO / COMPLIANCE — CANDIDATO V1
 >
-> Este documento fue preparado desde producto, a partir de una auditoría directa del código y el esquema de base de datos reales de BRAMUlab (no es una descripción aspiracional). **No es asesoramiento jurídico ni un texto legal definitivo.** No debe publicarse ni presentarse a usuarios reales sin revisión de un profesional en protección de datos/derecho del consumidor en Argentina. Los puntos que requieren esa revisión están marcados explícitamente como `[REVISIÓN LEGAL NECESARIA]`. Los puntos que dependen de una decisión de producto todavía no tomada están marcados como `[DECISIÓN ABIERTA]`.
+> Este documento fue preparado desde producto a partir de una auditoría directa del comportamiento real de BRAMUlab y de la normativa oficial argentina vigente. **No constituye asesoramiento jurídico profesional ni una certificación legal.** La revisión externa de un profesional queda recomendada como reducción adicional de riesgo, pero no se considera por sí sola un requisito técnico de publicación. Los únicos puntos todavía pendientes están marcados expresamente como `[DATO A COMPLETAR]` o `[VERIFICACIÓN OPERATIVA]`.
 >
 > **Versión de este borrador:** V1 — 27/09/2026. Corresponde a `TERMS_VERSION = 'piloto_v1'` en el código vigente (placeholder técnico, no versión legal real — ver §10).
 
@@ -18,14 +18,22 @@ BRAMUlab **no** incluye marcador en vivo, no es una red social con mensajería, 
 
 ## 1. Quiénes somos
 
-`[DECISIÓN ABIERTA]` — Este documento todavía no puede identificar formalmente al responsable del tratamiento de datos: no hay una razón social, domicilio legal, CUIT ni representante definidos en este momento del producto. Antes de publicar esta política, debe completarse:
+BRAMUlab es operado por una **persona humana titular del proyecto**, no por una sociedad o empresa separada. Esa persona es el responsable del tratamiento de los datos personales de BRAMUlab.
 
-- nombre legal del responsable (persona física o jurídica);
-- domicilio;
-- CUIT/identificación fiscal si corresponde;
-- forma de contacto legal (ver también §7).
+Antes de publicar esta política deben completarse únicamente los datos identificatorios reales del responsable:
 
-`[REVISIÓN LEGAL NECESARIA]` — Confirmar si, dado el tamaño y naturaleza actual del proyecto, corresponde inscripción ante la Agencia de Acceso a la Información Pública (AAIP) como responsable/base de datos, y cualquier otro requisito formal aplicable en Argentina antes del primer usuario real.
+- `[DATO A COMPLETAR]` nombre legal completo;
+- `[DATO A COMPLETAR]` domicilio del responsable a efectos de privacidad;
+- `[DATO A COMPLETAR]` CUIT/CUIL cuando corresponda informarlo en el trámite o registro;
+- `[DATO A COMPLETAR]` canal público de contacto legal/privacidad (ver §6 y §10).
+
+No hace falta inventar un cargo societario: para V1 la calidad correcta es **titular y responsable de BRAMUlab**.
+
+### Registro ante la AAIP
+
+La documentación oficial vigente de la AAIP indica que los responsables y las bases de datos personales alcanzadas deben inscribirse en el Registro Nacional de Bases de Datos Personales. La inscripción del responsable es previa al registro de la base, el trámite es online y gratuito.
+
+`[VERIFICACIÓN OPERATIVA]` Antes de abrir Production a usuarios reales, completar el trámite correspondiente en TAD con los datos reales del titular. No requiere crear una sociedad ni contratar un abogado para efectuar el trámite.
 
 ---
 
@@ -137,9 +145,9 @@ BRAMUlab funciona sobre servicios de infraestructura de terceros que actúan com
 - **Supabase** — aloja la base de datos, gestiona la autenticación de tu cuenta (alta, confirmación y recuperación) y el almacenamiento de archivos (avatares). Los correos de confirmación y recuperación se envían a través de la infraestructura de email configurada para el servicio.
 - **Vercel** — aloja y publica la aplicación web.
 
-`[DECISIÓN ABIERTA]` El proveedor de entrega de email (SMTP) concreto todavía no está definido de forma estable para Production — puede variar entre Staging y Production — así que este borrador no lo nombra. Si corresponde declararlo legalmente, debe confirmarse antes de publicar.
+`[VERIFICACIÓN OPERATIVA]` El proveedor SMTP concreto de Production y las regiones efectivas de procesamiento de Supabase/Vercel deben confirmarse en Bloque 9.
 
-`[REVISIÓN LEGAL NECESARIA]` Confirmar el país/región donde estos proveedores (incluido el de entrega de email, una vez definido) procesan/almacenan los datos, y si corresponde declarar una transferencia internacional de datos bajo la normativa argentina vigente.
+Cuando un proveedor procese datos fuera de Argentina, BRAMUlab informará esa circunstancia y usará las garantías exigidas por la normativa argentina para transferencias internacionales. Si el destino no es considerado adecuado por la AAIP, deberán utilizarse los mecanismos admitidos (por ejemplo, cláusulas contractuales modelo o la base legal que corresponda). No se inventa una región antes de conocer la configuración real de Production.
 
 ### 4.3 Qué no hacemos
 
@@ -165,7 +173,16 @@ Registramos internamente que la eliminación ocurrió (con qué cuenta técnica 
 
 **Si volvés a BRAMU después de eliminar tu cuenta, empezás de cero con una identidad nueva.** No recuperamos ni revinculamos tu historial anterior. Esto significa que, en teoría, una persona podría intentar "reiniciar" su historial eliminando y creando una cuenta nueva — es un riesgo que asumimos en esta primera versión del producto en lugar de retener información adicional (como un período de espera obligatorio o una huella técnica de tu email anterior) solo para impedirlo.
 
-Mientras tu cuenta está activa, conservamos tus datos durante el tiempo en que la usás. Los registros técnicos mínimos de seguridad se conservan por un período limitado y proporcional a su propósito. `[REVISIÓN LEGAL NECESARIA]` Los plazos exactos de conservación de cada categoría de dato deben cerrarse con revisión legal antes de publicar esta política con números concretos.
+Mientras tu cuenta está activa, conservamos los datos necesarios para prestar el servicio y mantener tu historia deportiva. Cuando un dato deja de ser necesario o pertinente para la finalidad que motivó su recolección, debe eliminarse o anonimizarse según corresponda.
+
+Para V1 se usa un **criterio de conservación por finalidad**, en vez de inventar plazos numéricos que el producto no aplica realmente:
+- datos de cuenta y perfil: mientras la cuenta permanezca activa;
+- al eliminar la cuenta: se aplica el procedimiento de anonimización/eliminación descrito arriba;
+- partidos compartidos y efectos deportivos históricos: se conservan con identidad anonimizada cuando sea necesario para no destruir la historia de terceros;
+- notas privadas, notificaciones y datos personales privados: se eliminan con la cuenta según el procedimiento vigente;
+- registros técnicos de seguridad/operación: únicamente mientras sean necesarios para seguridad, auditoría o diagnóstico, y no para reutilizarlos con fines incompatibles.
+
+`[VERIFICACIÓN OPERATIVA]` Bloque 9 debe comprobar que los mecanismos reales de logs/eventos respeten este criterio y que no exista una retención indefinida accidental.
 
 ---
 
@@ -180,7 +197,7 @@ Podés pedirnos, en cualquier momento:
 - ayuda con cualquier problema de tu cuenta;
 - información adicional sobre cómo tratamos tus datos.
 
-`[DECISIÓN ABIERTA]` Canal de contacto: todavía no existe un email o canal de soporte definido públicamente para este fin. Antes de publicar esta política debe existir un contacto real y accesible desde la aplicación.
+`[DATO A COMPLETAR]` Canal de contacto: antes de publicar esta política debe confirmarse un email real y público de BRAMUlab para consultas de privacidad, acceso, rectificación y supresión. Debe ser visible desde la aplicación.
 
 ---
 
@@ -192,19 +209,30 @@ Tomamos medidas técnicas razonables para proteger tus datos: tu contraseña nun
 
 ## 8. Menores de edad
 
-`[DECISIÓN ABIERTA]` `[REVISIÓN LEGAL NECESARIA]` BRAMUlab está pensado, en esta primera versión, para personas adultas. Todavía no está definida una edad mínima exacta ni un tratamiento específico para menores de edad. Hasta que eso se defina con revisión legal, no se ofrece deliberadamente el alta a menores, y esta política debe completarse con la edad mínima real antes de publicarse.
+La edad mínima de BRAMUlab V1 es **13 años**.
+
+Esta edad es una **regla de producto de BRAMUlab**, no una afirmación de que la legislación argentina vigente establezca un umbral digital automático de 13 años. La normativa vigente aplica el principio de autonomía progresiva: una persona menor puede prestar consentimiento informado según sus características, aptitudes y grado de desarrollo; si no cuenta con capacidad suficiente, el consentimiento debe provenir de quien ejerce la responsabilidad parental o tutela.
+
+Por eso BRAMUlab debe:
+- informar el tratamiento de datos en lenguaje simple y comprensible;
+- pedir una declaración expresa de que la persona tiene al menos 13 años;
+- no admitir deliberadamente cuentas de menores de 13 años;
+- permitir la intervención de la persona adulta responsable cuando, por edad o grado de madurez, corresponda;
+- no usar la condición de menor para ampliar la recolección de datos ni para publicidad.
+
+`[VERIFICACIÓN OPERATIVA]` Antes de Production, el alta debe incorporar de forma mínima y clara la declaración 13+ y el aviso específico de menores. Si en una revisión posterior se concluye que BRAMU necesita verificación parental adicional para determinados rangos de edad, se incorporará ese mecanismo sin reducir la protección vigente.
 
 ---
 
 ## 9. Cambios a esta política
 
-Cuando publiquemos una versión con validez legal, la vamos a identificar con un número de versión y la fecha en que entra en vigencia, visible desde la aplicación. Si un cambio es material, vamos a pedirte que vuelvas a aceptar la política actualizada antes de seguir usando BRAMUlab. `[REVISIÓN LEGAL NECESARIA]` El procedimiento exacto para notificar cambios materiales debe confirmarse con revisión legal.
+Cada versión publicada se identifica con un número de versión y su fecha de vigencia, visible desde la aplicación. Cuando un cambio modifique materialmente el tratamiento de datos o las condiciones aceptadas, BRAMUlab solicitará una nueva aceptación antes de continuar usando las funciones que dependan de ese consentimiento.
 
 ---
 
 ## 10. Contacto
 
-`[DECISIÓN ABIERTA]` — Pendiente de completar junto con §1 y §6.
+`[DATO A COMPLETAR]` — Email público de privacidad/soporte legal de BRAMUlab. Debe coincidir con el canal indicado en §1 y §6.
 
 ---
 

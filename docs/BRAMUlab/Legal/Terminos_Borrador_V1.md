@@ -1,8 +1,8 @@
 # Términos y Condiciones de BRAMUlab — Borrador V1
 
-> ## ⚠️ BORRADOR DE PRODUCTO — REQUIERE REVISIÓN LEGAL ANTES DE PUBLICARSE
+> ## ⚠️ BORRADOR DE PRODUCTO / COMPLIANCE — CANDIDATO V1
 >
-> Este documento fue preparado desde producto, reflejando únicamente funciones que BRAMUlab efectivamente tiene o tiene previstas para su primera versión (V1) — no es asesoramiento jurídico ni un texto legal definitivo. No debe publicarse ni presentarse a usuarios reales sin revisión de un profesional en derecho del consumidor/contratos en Argentina. Los puntos que requieren esa revisión están marcados como `[REVISIÓN LEGAL NECESARIA]`. Los puntos que dependen de una decisión de producto todavía no tomada están marcados como `[DECISIÓN ABIERTA]`.
+> Este documento refleja funciones reales de BRAMUlab y fue revisado contra normativa oficial argentina vigente. **No constituye asesoramiento jurídico profesional ni una certificación legal.** Una revisión externa posterior puede reducir riesgo, pero no se considera por sí sola un requisito de publicación. Los puntos todavía pendientes están marcados como `[DATO A COMPLETAR]` o `[VERIFICACIÓN OPERATIVA]`.
 >
 > **Versión de este borrador:** V1 — 27/09/2026. Corresponde a `TERMS_VERSION = 'piloto_v1'` en el código vigente (placeholder técnico, no versión legal real — ver §14).
 
@@ -20,7 +20,7 @@ BRAMUlab es una aplicación para jugadores amateur de pádel, pensada para carga
 
 El marcador y seguimiento en vivo pertenecen a BRAMUlive, un producto separado y fuera del alcance de BRAMUlab. `[DECISIÓN ABIERTA]` Todavía no está definida una política de cuentas/infraestructura/documentos legales compartidos o separados entre ambos productos — este documento no asume ninguna de las dos opciones.
 
-`[DECISIÓN ABIERTA]` Nombre legal del titular/operador del servicio, a completar junto con la Política de Privacidad §1.
+BRAMUlab es operado por una **persona humana titular del proyecto**. `[DATO A COMPLETAR]` Antes de publicar deben incorporarse el nombre legal y los datos de contacto del titular/responsable indicados en la Política de Privacidad.
 
 ---
 
@@ -28,7 +28,11 @@ El marcador y seguimiento en vivo pertenecen a BRAMUlive, un producto separado y
 
 ### 3.1 Elegibilidad
 
-`[REVISIÓN LEGAL NECESARIA]` `[DECISIÓN ABIERTA]` BRAMUlab está pensado, en esta primera versión, para personas adultas. La edad mínima exacta y su redacción contractual todavía no están definidas y requieren revisión legal antes de publicarse.
+La edad mínima para crear una cuenta en BRAMUlab V1 es **13 años**.
+
+Si tenés entre 13 y 17 años, debés comprender estas condiciones y la Política de Privacidad de acuerdo con tu edad y grado de madurez. Cuando corresponda por tu capacidad para prestar consentimiento informado, debés contar con la intervención o autorización de quien ejerza tu responsabilidad parental o tutela.
+
+Las personas menores de 13 años no pueden crear deliberadamente una cuenta en BRAMUlab.
 
 ### 3.2 Creación de cuenta
 
@@ -49,7 +53,7 @@ BRAMUlab registra partidos de pádel jugados realmente por vos y las otras perso
 - si alguien no reconoce a un participante indicado, puede cuestionar esa identidad dentro del plazo correspondiente;
 - un partido cargado fuera de los plazos vigentes, o que no llega a confirmarse a tiempo, puede quedar sin efecto para el cálculo de Nivel/Ranking, sin que eso implique ningún reclamo hacia BRAMUlab.
 
-`[REVISIÓN LEGAL NECESARIA]` Los plazos concretos (días de carga retroactiva, ventana de confirmación, ventana de corrección, ventana de identidad cuestionada) están definidos técnicamente en el producto y pueden citarse en la versión final, pero conviene que la redacción contractual exacta la revise un profesional.
+Las ventanas operativas de carga, validación, corrección e identidad son las que la aplicación informa en cada flujo y pueden actualizarse cuando el producto cambie, sin alterar retroactivamente un partido ya oficial salvo las correcciones expresamente permitidas por BRAMUlab.
 
 Sos responsable de que la información que cargás sobre un partido sea veraz. Cargar información falsa a sabiendas, o suplantar la identidad de otro jugador, es un uso indebido del servicio.
 
@@ -89,13 +93,13 @@ Al usar BRAMUlab te comprometés a:
 - no usar el servicio para ningún fin ilegal o que perjudique a otros usuarios;
 - no intentar vulnerar las medidas de seguridad del servicio (por ejemplo, intentando acceder directamente a la base de datos o sobrepasar los límites de uso previstos).
 
-`[REVISIÓN LEGAL NECESARIA]` Las consecuencias concretas de un incumplimiento (suspensión, eliminación de cuenta, u otras medidas) requieren redacción legal específica — este borrador no define sanciones ni penalidades porque todavía no hay un procedimiento administrativo cerrado más allá de la eliminación de cuenta ya definida en producto.
+Ante fraude deliberado, suplantación, abuso, intentos de acceso no autorizado o conductas que comprometan a otros usuarios o la seguridad del servicio, BRAMUlab puede limitar funciones, suspender temporalmente o cerrar una cuenta cuando resulte razonable y proporcional. Siempre que sea posible y no exista un riesgo de seguridad inmediato, se procurará informar el motivo al usuario. Estas medidas no eliminan partidos compartidos ni reescriben historia deportiva de terceros fuera de los mecanismos previstos por el producto.
 
 ---
 
 ## 10. Disponibilidad del servicio
 
-BRAMUlab es un producto en desarrollo activo. Podemos modificar, agregar o discontinuar funciones, y el servicio puede tener interrupciones (mantenimiento, incidentes técnicos, cambios de proveedor de infraestructura). No garantizamos disponibilidad ininterrumpida. `[REVISIÓN LEGAL NECESARIA]` Cualquier compromiso de nivel de servicio (SLA) formal no está definido y no debe inventarse en la versión final sin respaldo real.
+BRAMUlab es un producto en desarrollo activo. Podemos modificar, agregar o discontinuar funciones, y el servicio puede tener interrupciones por mantenimiento, incidentes técnicos o cambios de infraestructura. No ofrecemos un SLA ni garantizamos disponibilidad ininterrumpida. Esta cláusula no limita derechos que la legislación aplicable reconozca obligatoriamente a los usuarios.
 
 ---
 
@@ -107,19 +111,25 @@ Podés solicitar la eliminación de tu cuenta. El procedimiento vigente es asist
 
 ## 12. Propiedad intelectual
 
-El nombre BRAMUlab, su diseño y su software son propiedad de su operador. `[REVISIÓN LEGAL NECESARIA]` Esta sección se mantiene genérica a propósito: una redacción específica sobre licencias de uso, contenido generado por el usuario (por ejemplo, tu foto de perfil) y titularidad debe cerrarse con revisión legal antes de publicarse, en lugar de asumir cláusulas estándar no confirmadas para este producto.
+El software, diseño, identidad visual, marca y contenidos propios de BRAMUlab pertenecen a su titular o se utilizan con la autorización correspondiente.
+
+Vos conservás los derechos que te correspondan sobre el contenido que aportás, por ejemplo tu foto de perfil. Al cargarlo, autorizás a BRAMUlab a almacenarlo, procesarlo y mostrarlo únicamente en la medida necesaria para prestar las funciones que elegiste usar y conforme a la Política de Privacidad. Esa autorización termina cuando el contenido se elimina, salvo las copias técnicas transitorias o las obligaciones legítimas de conservación que correspondan.
 
 ---
 
-## 13. Limitación de responsabilidad
+## 13. Responsabilidad y alcance del servicio
 
-`[REVISIÓN LEGAL NECESARIA]` Esta sección deliberadamente no incluye cláusulas de limitación de responsabilidad, indemnidad ni exclusión de garantías específicas: redactarlas sin respaldo legal podría crear compromisos inválidos o insuficientes según la Ley de Defensa del Consumidor y normativa aplicable en Argentina. Debe completarse con asesoramiento profesional antes de publicarse.
+BRAMUlab brinda herramientas para registrar actividad deportiva amateur y producir estimaciones e información derivadas de esos registros. Nivel BRAMU, Ranking BRAMU e Intelligence son funciones internas del producto y no constituyen certificaciones federativas, garantías de rendimiento ni asesoramiento profesional.
+
+BRAMUlab adopta medidas razonables para operar el servicio de forma segura y coherente, pero pueden existir errores, interrupciones o datos incorrectos cargados por usuarios. Nada de estos Términos pretende excluir o limitar derechos irrenunciables ni responsabilidades que no puedan excluirse según la normativa argentina de defensa del consumidor u otra norma aplicable.
 
 ---
 
 ## 14. Ley aplicable y jurisdicción
 
-`[DECISIÓN ABIERTA]` `[REVISIÓN LEGAL NECESARIA]` No definido todavía. Requiere decisión sobre el domicilio/constitución legal del responsable (ver Política de Privacidad §1) y revisión legal formal.
+Estos Términos se interpretan conforme a las leyes de la República Argentina.
+
+Cualquier controversia se tramitará ante la autoridad o los tribunales que resulten competentes conforme a la normativa aplicable, incluyendo las reglas protectorias de consumidores y usuarios cuando correspondan. BRAMUlab no impone mediante estos Términos una renuncia anticipada a jurisdicciones o derechos que la ley reconozca al usuario.
 
 ---
 
@@ -131,7 +141,7 @@ Cuando publiquemos una versión con validez legal, la vamos a identificar con un
 
 ## 16. Contacto
 
-`[DECISIÓN ABIERTA]` — Mismo canal a definir que en la Política de Privacidad §6/§10.
+`[DATO A COMPLETAR]` — Email público de privacidad/soporte legal de BRAMUlab, coincidente con el indicado en la Política de Privacidad.
 
 ---
 
