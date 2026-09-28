@@ -83,6 +83,22 @@ El tiempo de lanzamiento y las cuotas de los agentes son recursos del proyecto. 
 - Central debe evitar volver a leer documentos extensos ya consolidados: usar secciones concretas o el handoff activo;
 - si una ronda empieza a consumir contexto de forma desproporcionada, detener expansión de alcance y terminar primero lo ya definido.
 
+## Patrón de ronda eficiente — preferido
+
+Este patrón viene reduciendo tiempo/contexto sin perder control y pasa a ser el default cuando el trabajo ya está bien definido:
+
+1. **Central consolida una sola vez** la decisión vigente en la fuente maestra y, si la ronda es mediana/grande, crea un handoff corto y acotado.
+2. El mensaje a Claude funciona como **puntero**, no como duplicado del handoff: objetivo + archivos a leer + límites + salida esperada.
+3. Claude **no reabre producto ni relee historia** si la fuente maestra/handoff ya resuelven la pregunta. Inspecciona únicamente el código afectado.
+4. Mantener el **mismo chat de Claude mientras la etapa sea una continuación directa y el contexto siga limpio**. Abrir uno nuevo cuando cambia el frente, el chat quedó cargado de ramas descartadas o apareció una investigación distinta; no por cada microajuste.
+5. Dividir cambios grandes en **subfases con frontera técnica real** (por ejemplo backend → frontend/UX → Storage), no en microtareas arbitrarias. Cada subfase debe dejar una salida usable por la siguiente.
+6. Claude termina en repo remoto con **un resultado corto**. Central lee HEAD/diff/resultado directamente; Sebastián idealmente solo necesita decir **“terminó”**.
+7. **Central absorbe aplicación/revisión que pueda hacer con herramientas propias** (por ejemplo Supabase Staging, verificación de migraciones, diff/status, documentación). No devolver esa operación a Sebastián ni volver a Claude si no aporta capacidad adicional.
+8. Una ronda backend/documental debe evitar tocar archivos de frontend si no es necesario, para permitir que Vercel omita builds y ahorrar deploys.
+9. Los informes de resultado deben registrar **qué cambió, qué pasó, qué falta y qué no se verificó**. No narrar toda la investigación ni pegar logs completos.
+
+La métrica práctica no es “usar menos tokens” por sí sola: es **evitar releer, reexplicar y reprobar lo ya consolidado** manteniendo la misma calidad de evidencia.
+
 ## Entornos
 
 - Desarrollo activo sobre `staging`.
