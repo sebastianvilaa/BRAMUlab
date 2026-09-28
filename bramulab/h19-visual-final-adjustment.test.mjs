@@ -65,7 +65,10 @@ test('h19-A: el status-slot es texto compacto (10px, nowrap), nunca una píldora
 test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones/espera (TU MOMENTO fuera)', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerHomeCarousel');
   assert.match(body, /PH\.computeHomePendingCarouselItems\(displayMatches \|\| \[\], new Date\(\)\)/);
-  assert.doesNotMatch(body, /player-home-carousel-card--insight/, 'TU MOMENTO ya no debe pintarse como tarjeta del carrusel');
+  // h22 — UN solo carrusel: acciones/esperas + insights (hitos). TU MOMENTO sigue fuera.
+  assert.match(body, /PH\.computeHitos\(/);
+  assert.doesNotMatch(body, /player-home-momento/, 'TU MOMENTO ya no debe pintarse como tarjeta del carrusel');
+  assert.doesNotMatch(indexHtml, /id="player-home-hitos"/, 'no debe quedar un segundo carrusel de hitos');
   assert.match(body, /'PARTIDO POR CONFIRMAR'/);
   assert.match(body, /'ESPERANDO CONFIRMACIÓN'/);
 });
@@ -153,14 +156,14 @@ test('h19-E: Aceptar/Rechazar quedan lado a lado incluso en móvil (grid 1fr 1fr
 });
 
 test('h19-E: estilo outline (nunca botón lima macizo) — aceptar en verde, mantener en borde neutro, sentence case real', () => {
-  assert.match(stylesCss, /\.b6-correction-choice--accept\{\s*border:\s*1\.5px solid var\(--confirm-green\);\s*color:\s*var\(--confirm-green\);\s*\}/);
+  assert.match(stylesCss, /\.b6-correction-choice--accept\{\s*border:\s*1\.5px solid var\(--brand-lime\);\s*color:\s*var\(--brand-lime\);\s*background:\s*rgba\(149,255,25,0\.09\);\s*\}/);
   assert.match(stylesCss, /\.b6-correction-choice--reject\{\s*border:\s*1\.5px solid var\(--line\);\s*color:\s*var\(--paper\);\s*\}/);
   const choiceRule = stylesCss.match(/\.b6-correction-choice\{([^}]*)\}/);
   assert.ok(choiceRule);
   assert.doesNotMatch(choiceRule[1], /text-transform/, 'no debe forzar mayúsculas — el sentence case real viene del texto fuente');
   assert.match(indexHtml, />Aceptar corrección<\/button>/, 'el texto fuente debe estar en sentence case, no en mayúsculas');
   // Handoff sistema visual unificado h21 (doc 59, punto 7) — "no usar Rechazar".
-  assert.match(indexHtml, />Mantener resultado actual<\/button>/);
+  assert.match(indexHtml, />Mantener resultado cargado<\/button>/);
   assert.doesNotMatch(indexHtml, />Rechazar<\/button>/);
 });
 
@@ -197,4 +200,15 @@ test('h19-H: no se tocó la fórmula/porcentaje del Nivel (levelProgressPct sigu
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 // El quartet de bundle/cache hardcodeado a "04.11-h19" quedó superseded por el de la ronda
-// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h21.
+// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h22.
+
+test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRECCIÓN PROPUESTA (nunca reemplaza el base)', () => {
+  const body = extractFunctionBody(appJs, 'paintPreValidationCorrection');
+  assert.match(body, /previousRevisionSets/);
+  assert.match(body, /Resultado cargado/);
+  assert.match(body, /buildCorrectionPreviewCardHTML\(f\.players, f\.sets/);
+  assert.match(body, /buildCorrectionHumanSummary/);
+  assert.match(indexHtml, /id="b6-pre-keep-btn"[^>]*>Mantener resultado cargado</);
+  assert.match(indexHtml, /id="b6-pre-accept-btn"[^>]*>Aceptar corrección</);
+  assert.match(stylesCss, /\.b6-correction-wait\{[^}]*text-align:\s*center/);
+});

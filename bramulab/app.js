@@ -2744,6 +2744,32 @@
     el.innerHTML = lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('');
   }
 
+  /** Fix h22 — corrección sobre un partido TODAVÍA pendiente (pending_validation +
+   *  result_correction). Mismo patrón que la corrección post-validación: el resultado cargado
+   *  (revisión anterior) queda en la tarjeta principal con rótulo "Resultado cargado" y la
+   *  propuesta vigente se muestra COMPLETA debajo, con explicación humana — nunca reemplaza el
+   *  resultado base hasta aceptar. Devuelve false (sin tocar nada) si no hay revisión anterior
+   *  con qué comparar: el llamador cae entonces al banner de siempre. */
+  function paintPreValidationCorrection(f, isResponder) {
+    const before = Array.isArray(f.previousRevisionSets) ? f.previousRevisionSets : [];
+    if (!before.length || !Array.isArray(f.sets) || !f.sets.length) return false;
+    const baseWinner = deriveProposedWinnerTeam(before, f.formatId);
+    $('#analysis-result').innerHTML = buildResultBlockHTML(
+      Object.assign({}, f, { sets: before, winnerTeam: baseWinner }),
+      { officialLabelHTML: '<p class="b6-correction-compare__label">Resultado cargado</p>' }
+    );
+    const rawProposer = b6RevisionProposerName(f);
+    $('#b6-pre-label').textContent = isResponder && rawProposer ? `Corrección propuesta por ${rawProposer}` : (isResponder ? 'Corrección propuesta' : 'Tu corrección propuesta');
+    $('#b6-pre-wait').hidden = isResponder;
+    $('#b6-pre-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.sets, deriveProposedWinnerTeam(f.sets, f.formatId));
+    $('#b6-pre-summary').textContent = ML.buildCorrectionHumanSummary(before, f.sets, rawProposer);
+    $('#b6-pre-compare').hidden = false;
+    $('#b6-pre-actions').hidden = !isResponder;
+    const reportBlock = $('#b6-report-error-block');
+    $('#b6-pre-actions').after(reportBlock);
+    return true;
+  }
+
   function paintB6Actions(f) {
     b6ReportIdentityMatch = f;
     const banner = $('#b6-status-banner');
@@ -2763,6 +2789,7 @@
     const outboxActionBtn = $('#b6-outbox-action-btn');
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting', 'b6-correction-card');
+    bannerText.hidden = false;
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
@@ -2783,6 +2810,7 @@
     // stale visibles. El diff técnico del bloque POST-validación (#b6-respond-correction-diff)
     // se retiró en h17 (doc 53, punto B) — ver el bloque `f.status === 'validated'` más abajo.
     $('#b6-status-banner-diff').hidden = true; $('#b6-status-banner-diff').innerHTML = '';
+    $('#b6-pre-compare').hidden = true; $('#b6-pre-actions').hidden = true;
 
     if (f.status === 'expired') {
       banner.hidden = false; banner.classList.add('b6-banner--waiting');
@@ -2900,6 +2928,9 @@
         confirmBlock.prepend(reportErrorBlock);
         if (!detailLoaded) {
           bannerText.textContent = 'Revisando este partido…';
+        } else if (pendingEventType === 'result_correction' && paintPreValidationCorrection(f, true)) {
+          // Fix h22 — resultado cargado arriba + corrección propuesta acá (ver helper).
+          bannerText.hidden = true;
         } else if (pendingEventType === 'result_correction') {
           const proposer = b6RevisionProposerName(f);
           bannerText.textContent = proposer
@@ -2940,6 +2971,8 @@
         banner.hidden = false; banner.classList.add('b6-correction-card');
         if (!detailLoaded) {
           bannerText.textContent = 'Esperando respuesta de la otra pareja.';
+        } else if (pendingEventType === 'result_correction' && paintPreValidationCorrection(f, false)) {
+          bannerText.hidden = true;
         } else if (pendingEventType === 'result_correction') {
           bannerText.textContent = `Corrección enviada. Esperando que ${waitingTeam} la acepte.`;
         } else if (pendingEventType === 'identity_replacement') {
@@ -3597,6 +3630,15 @@
       showToast('Corrección aceptada.');
       await afterB6Action(matchId);
     });
+    // Fix h22 — corrección sobre partido todavía pendiente: "Aceptar corrección" reusa exactamente
+    // la confirmación oficial ya existente (officializeMatch, la misma del botón Confirmar).
+    // "Mantener resultado cargado" no llama al backend (no existe rechazo pre-validación): deja
+    // el partido pendiente sin confirmar y vuelve al Home.
+    $('#b6-pre-accept-btn').addEventListener('click', () => $('#b6-confirm-btn').click());
+    $('#b6-pre-keep-btn').addEventListener('click', () => {
+      showToast('No confirmaste la corrección. El partido sigue pendiente.', 2800);
+      openPlayerHome();
+    });
     $('#b6-respond-reject-btn').addEventListener('click', () => {
       if (!analysisCurrent) return;
       const matchId = analysisCurrent.matchId;
@@ -3604,12 +3646,12 @@
       // la RPC/semántica no cambia (respondMatchCorrection(matchId, false), el servidor sigue
       // llamándolo rechazo), solo el copy orientado al usuario deja de decir "Rechazar".
       confirmAction(
-        '¿Mantener el resultado actual?',
-        'La corrección propuesta no se aplica — el resultado oficial actual se mantiene sin cambios.',
+        '¿Mantener el resultado cargado?',
+        'La corrección propuesta no se aplica — el resultado cargado se mantiene sin cambios.',
         async () => {
           const result = await MV.respondMatchCorrection(matchId, false);
           if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
-          showToast('Se mantuvo el resultado actual.');
+          showToast('Se mantuvo el resultado cargado.');
           await afterB6Action(matchId);
         },
         null, 'Mantener', 'Cancelar', true
@@ -7063,11 +7105,14 @@
    *  lugar anterior debajo de Último partido." Este carrusel vuelve a contener SOLO acciones/
    *  correcciones/espera reales — oculto por completo sin ningún item, igual que antes de h19.
    *  TU MOMENTO se pinta aparte, ver renderPlayerHomeMomento más abajo. */
-  function renderPlayerHomeCarousel(displayMatches) {
+  function renderPlayerHomeCarousel(displayMatches, matches) {
     const track = $('#player-home-pending-carousel');
     const items = PH.computeHomePendingCarouselItems(displayMatches || [], new Date());
-    if (!items.length) { track.hidden = true; track.innerHTML = ''; return; }
+    // Fix h22 — UN solo carrusel: acciones/esperas primero, insights (hitos) al final.
+    const hitos = PH.computeHitos(matches || [], currentIdentity());
+    if (!items.length && !hitos.length) { track.hidden = true; track.innerHTML = ''; return; }
     const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
+    const hitosHTML = hitos.map((h) => `<div class="player-home-carousel-card player-home-carousel-card--insight"><p class="player-home-carousel-card__text">${escapeHtml(h)}</p></div>`).join('');
     track.innerHTML = items.map((item) => {
       const m = byId.get(item.matchId);
       if (!m) return '';
@@ -7109,7 +7154,7 @@
           <span class="player-home-carousel-card__label">${label}</span>
           <p class="player-home-carousel-card__text">${escapeHtml(text)}</p>
         </div>`;
-    }).join('');
+    }).join('') + hitosHTML;
     track.hidden = false;
     $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
@@ -7163,8 +7208,7 @@
     const homeUser = Store.getCurrentUser();
     const homeIsServerBackedWithAuth = Auth.isConfigured() && homeUser && homeUser.serverBacked;
 
-    renderPlayerHomeCarousel(displayMatches);
-    renderPlayerHitos(matches);
+    renderPlayerHomeCarousel(displayMatches, matches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(displayMatches, matches);
     if (homeIsServerBackedWithAuth) {
@@ -7228,16 +7272,6 @@
     // V02.1 (§23) — pie de autoría, mudado acá desde Configurar partido (naming oficial
     // "BRAMUlab", sin espacio — antes decía "BRAMU Lab" en el único lugar que faltaba).
     $('#player-home-footer').textContent = `BRAMUlab · Concepto y diseño por Sebastián Vila · ${Store.VERSION}`;
-  }
-
-  /** §5 — Hitos personales: como máximo 2, ocultos por completo si no hay ninguno
-   *  justificado (PH.computeHitos ya decide eso; acá solo se pinta lo que devuelve). */
-  function renderPlayerHitos(matches) {
-    const hitos = PH.computeHitos(matches, currentIdentity());
-    const wrap = $('#player-home-hitos');
-    if (!hitos.length) { wrap.hidden = true; wrap.innerHTML = ''; return; }
-    wrap.hidden = false;
-    wrap.innerHTML = hitos.map((h) => `<span class="player-home-hitos__chip">${escapeHtml(h)}</span>`).join('');
   }
 
   /** §6 (Etapa 4) / §4.1 (Etapa 4.1) — Tarjeta de jugador: avatar/nombre/cantidad REAL de

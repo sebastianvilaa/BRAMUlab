@@ -96,7 +96,7 @@ test('h17-B: se retira el diff técnico redundante del bloque POST-validación, 
 // para la guarda de sentence case vigente sobre `.b6-correction-choice`).
 test('h17/h21: Reportar un error sigue en sentence case, secundario, rojo suave', () => {
   assert.match(indexHtml, /id="b6-report-error-btn"[^>]*>Reportar un error<\/button>/);
-  assert.match(stylesCss, /\.b6-correction-choice--report\{[^}]*color:\s*var\(--danger\);?\s*\}/);
+  assert.match(stylesCss, /\.b6-correction-choice--report\{[^}]*color:\s*var\(--danger\);[^}]*\}/);
 });
 
 // El quartet de bundle/cache hardcodeado a "04.11-h17" quedó superseded por el de la ronda

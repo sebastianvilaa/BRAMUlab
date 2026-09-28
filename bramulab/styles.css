@@ -3458,6 +3458,10 @@ input, select{ font-family: inherit; }
   border-color: rgba(255,201,61,0.4);
   background: linear-gradient(180deg, rgba(255,201,61,0.10) 0%, var(--ink-soft) 70%);
 }
+.player-home-carousel-card--insight{
+  background: var(--surface-2); border-color:#199FFF; box-shadow:0 0 5px rgba(25,159,255,0.5);
+  display:flex; align-items:center;
+}
 .player-home-carousel-card__label{
   display:block; font-family: var(--font-display); font-weight: 800; font-size: 11px;
   letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px;
@@ -3515,16 +3519,19 @@ input, select{ font-family: inherit; }
   display:flex; align-items:center; justify-content:center; text-align:center;
   min-height: 48px; padding: 0 10px; border-radius: 14px; cursor:pointer;
   background: transparent; font-family: var(--font-display); font-weight: 700; font-size: 13px;
-  white-space: nowrap; transition: border-color .15s ease, background .15s ease, transform .1s ease;
+  line-height: 1.15; white-space: normal; overflow-wrap: anywhere; min-width: 0; box-sizing: border-box; transition: border-color .15s ease, background .15s ease, transform .1s ease;
 }
 .b6-correction-choice:active{ transform: scale(0.98); }
-.b6-correction-choice--accept{ border: 1.5px solid var(--confirm-green); color: var(--confirm-green); }
+.b6-correction-choice--accept{ border: 1.5px solid var(--brand-lime); color: var(--brand-lime); background: rgba(149,255,25,0.09); }
 .b6-correction-choice--reject{ border: 1.5px solid var(--line); color: var(--paper); }
 /* Handoff sistema visual unificado h21 (doc 59, puntos 6/7/8) — "Reportar un error": mismo
    lenguaje outline, acento rojo discreto (--danger, nunca un rojo nuevo). Vive emparejado en
    .b6-correction-choices (mitad de ancho, ver #b6-confirm-block) o solo con width:100% inline
    (ver index.html) — la clase base ya soporta ambos casos sin reglas propias. */
-.b6-correction-choice--report{ border: 1.5px solid rgba(255,91,97,0.4); color: var(--danger); }
+.b6-correction-choice--report{ border: 1px solid rgba(255,91,97,0.25); color: var(--danger); min-height: 40px; font-size: 12px; font-weight: 600; opacity: .85; }
+.b6-correction-wait{ font-size: 13px; color: var(--text-dim); text-align: center; margin: 0 0 8px; line-height: 1.4; }
+#b6-pre-compare{ margin-bottom: 12px; }
+#b6-pre-actions{ margin-bottom: 8px; }
 .b6-action-block--identity{
   border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
   border-radius: var(--radius-control); padding: 10px 12px;
