@@ -62,7 +62,7 @@ do $$
 declare v jsonb;
 begin
   v := public.create_group('Hotfix G', array[pg_temp._id('B'), pg_temp._id('C')]);
-  perform pg_temp._assert((v->>'ok')::boolean, 'fixture create_group: ' || v);
+  perform pg_temp._assert((v->>'ok')::boolean, 'fixture create_group: ' || v::text);
   insert into pg_temp._h values ('G', (v->'group'->>'groupId')::uuid);
   -- A y B, miembros "de siempre"; C se agregó hace 2 días (alta reciente, PRE-hotfix el umbral
   -- exacto lo habría excluido de cualquier partido jugado antes de ese instante).
