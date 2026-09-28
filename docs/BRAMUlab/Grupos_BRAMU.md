@@ -156,7 +156,13 @@ Ejemplo:
 
 Puntaje semanal: **18 pts**.
 
-Las victorias/derrotas y partidos mostrados como “contados” en la tabla semanal corresponden al mismo subconjunto de hasta 3 partidos que computó para puntos.
+**La línea visible de actividad NO se limita al top 3.** Debe mostrar la actividad real del jugador dentro del grupo durante esa semana: total de partidos que calificaron para el grupo, victorias reales y derrotas reales. La regla de los 3 mejores afecta únicamente el puntaje.
+
+Ejemplo: si un jugador disputó 10 partidos calificables, ganó 6 y perdió 4, pero sus 3 mejores resultados suman 17 puntos, la fila debe mostrar:
+
+**10 partidos · 6 V · 4 D** — **17 pts**
+
+No mostrar `3 partidos · 3 V · 0 D` solo porque esos fueron los tres resultados que computaron para puntos: genera una lectura falsa de invicto.
 
 ---
 
@@ -188,6 +194,7 @@ No es un “top 3 anual”.
 La Race:
 
 - suma los puntos semanales efectivos;
+- en la línea secundaria muestra la actividad real acumulada del año dentro del grupo (partidos calificables, victorias y derrotas reales), no solo los partidos que aportaron puntos al top 3 semanal;
 - muestra únicamente miembros actualmente activos del grupo;
 - si un miembro es eliminado, deja de aparecer en la Race aunque sus partidos reales sigan existiendo y los puntos ya obtenidos por otros miembros se conserven;
 - si un miembro eliminado reingresa, su nueva etapa competitiva arranca desde la semana de reingreso y no revive automáticamente su Race anterior;
