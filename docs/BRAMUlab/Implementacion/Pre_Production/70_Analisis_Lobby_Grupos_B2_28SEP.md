@@ -16,15 +16,16 @@
 
 `groupId, name, activeMemberCount, isAdmin, lastActivityAt, members[{playerId,isActive,isAdmin,periods}]` + `weekMatches[]` con la **misma forma normalizada** que `get_group_competition_data` (sets, ganador, players con `levelBefore`) limitada a la semana.
 
-- La selección de partidos que califican (≥3 miembros activos en `played_at`, `validated`, revisión vigente) debe salir de **un único helper SQL interno** compartido con `get_group_competition_data` (evita dos criterios que diverjan). Refactorizar esa función existente obliga a re-correr su verify de Fase A; alternativa de menor riesgo: helper nuevo y dejar Fase A intacta hasta después.
-- **Actividad significativa** = `max(` `groups.created_at`, último momento oficial de un partido que **califica** al grupo, último `group_events` de tipo `member_added` `)`. Nada más (renombre, foto, admin y bajas **no** mueven el orden; un partido que no califica tampoco). Momento oficial del partido = `max(match_level_results.computed_at)` del resultado `applied` (cubre validación **y** corrección aceptada; se crea aun con `eligible=false`), con `matches.validated_at` de respaldo. No hace falta columna ni evento nuevo, pero hay que **probarlo** (ver riesgos). Desempate: `created_at` desc, luego `group_id`.
+- La selección de partidos que califican (≥3 miembros activos en `played_at`, `validated`, revisión vigente) debe salir de **un único helper SQL interno** compartido por `get_group_competition_data` y el lobby. No dejar dos copias de ese criterio. La implementación deberá refactorizar la lectura vigente preservando exactamente su contrato y volver a correr el verify de Fase A.
+- **Actividad significativa** respeta la decisión de producto ya cerrada en `Grupos_BRAMU.md`: partido oficial/computable que entra al grupo; corrección oficial aceptada que cambia su verdad/puntos; alta, baja o reingreso de miembro; promoción/democión de admin; cambio de nombre; cambio de foto; creación. Un partido que no califica para el grupo no mueve el orden.
+- Para mutaciones del grupo, reutilizar `group_events.occurred_at`: hoy ya existen `created`, `renamed`, `member_added`, `member_removed`, `admin_promoted` y `admin_demoted`; al incorporar foto, agregar un evento `photo_changed`. Para actividad deportiva, usar la bitácora oficial `match_actions.occurred_at` de `validated` y `correction_accepted`, verificando además que el partido califique para ese grupo. Esto evita acoplar el orden del lobby a `match_level_results`/Nivel. Desempate estable: `created_at` desc y luego `group_id`.
 - Costo: parte de `group_memberships`→`match_participants` (índice `player_id` existente) → `matches`; adecuado para el volumen del piloto (cientos de usuarios).
 
 ### Frontend — reutiliza casi todo
 - Nueva vista lobby; `openGroupsScreen` pasa a abrirla (siempre, incluso con 1 grupo); tarjeta → detalle actual (`renderGroupsScreen` intacto); volver del detalle → lobby. El selector actual no se toca.
 - Una función pura nueva en `groups.js` (`buildLobbyCardSummary(table, myPlayerId, memberCount)`) que **solo formatea** lo que ya devuelve `computeWeeklyTable`: filas visibles, medallas por **número de posición real** (1,1,3 → 🥇🥇🥉), compresión de empate en la punta, línea "Vos · #n · pts" solo si quedo fuera, y el estado. Identidades: un solo `get_players_compact` batch solo para las filas visibles + yo.
 - Reglas de la tarjeta (propuestas, consistentes con `Grupos_BRAMU.md` §10.1): solo filas con puntos > 0 compiten por el podio; si >3 filas comparten la punta → "N jugadores comparten la punta · X pts"; un 0 pts nunca se presenta como "punta".
-- **Estados** (dato importante): un partido cuenta con ≥3 de 4 miembros, así que un grupo de **1–2 miembros no puede sumar** por regla. Copy positivo y honesto: 1 miembro → "Sumá jugadores para empezar"; 2 → "Con 3 jugadores del grupo en un partido arranca la competencia"; ≥3 sin partidos → "Esta semana todavía no hay partidos". No prometer partidos que no pueden contar.
+- **Estados**: no son una decisión abierta; usar la dirección ya cerrada en `Grupos_BRAMU.md`. 1 miembro → **“El grupo ya existe. Ahora falta la banda.” / “Con 3 jugadores activos empieza la competencia.”** 2 miembros → **“Ya son 2. Falta uno para empezar a sumar.” / “Con 3 jugadores activos arranca la competencia.”** ≥3 sin partidos contables esta semana → **“Esta semana están todos vagos 😴” / “¿Cuándo se arma partido?”**. Nunca insinuar puntos con menos de 3 miembros.
 - El estado cero reutiliza la **misma tarjeta** con datos de ejemplo marcados EJEMPLO (nunca mezclados con reales).
 
 ### Foto (mínimo compatible con Storage)
@@ -44,7 +45,7 @@
 
 ## 4. Riesgos reales
 
-1. **Timestamp de corrección**: asumir que toda corrección oficial aceptada crea un `applied` nuevo; hay que demostrarlo en el verify (validación, corrección, partido que no califica no mueve).
+1. **Timestamp de actividad deportiva**: validar que `match_actions` emite `validated` y `correction_accepted` en todos los caminos oficiales relevantes y que el lobby solo los considera cuando el partido califica para ese grupo. Probar validación inicial, corrección aceptada y partido que no califica.
 2. **Semana/zona horaria**: el cliente manda el lunes local 00:00 (igual que el motor hoy); un desfase mueve partidos de borde entre semanas. Mismo criterio que B1, pero ahora en el servidor por filtro.
 3. **Divergencia de criterio** si el filtro "califica" se copia en vez de compartirse (por eso el helper único).
 4. **Foto**: conflicto con `removeAvatarFiles` si se reutilizara `avatars`; URLs firmadas vencen a 24 h (se resuelven en cada apertura, no se persisten); admin que sale deja archivos huérfanos (limpieza al subir/quitar).
@@ -62,6 +63,23 @@ Cada parte se puede cortar o posponer sin afectar a las otras.
 
 ## 6. Decisiones abiertas
 
-Ninguna bloqueante. Dos a confirmar por Producto (con recomendación ya incluida):
-- **Qué mueve el orden**: creación, partido/corrección oficial que califica y alta de miembro; **no** renombre, foto, admin ni bajas.
-- **Copy de grupos de 1–2 miembros**: el lobby debe reconocer que, por la regla 3 de 4, no pueden sumar todavía (redacción propuesta arriba).
+**Ninguna.**
+
+Producto ya cerró:
+- qué eventos mueven el orden del lobby;
+- estados y tono para 1 miembro, 2 miembros y semana sin partidos;
+- lobby incluso con un solo grupo;
+- foto opcional editable por admins;
+- selector actual conservado dentro del detalle;
+- detalle del grupo sin rediseño.
+
+Si durante implementación aparece una limitación técnica real que obligue a cambiar alguna de esas decisiones, detener únicamente ese punto y elevarlo a Central.
+
+
+## Revisión Central
+
+Central revisó este análisis antes de autorizar implementación. Se corrigieron dos reaperturas innecesarias de decisiones ya cerradas por Producto y se desacopló el criterio de actividad deportiva del sistema de Nivel.
+
+**Conclusión:** la arquitectura propuesta es viable. La dirección recomendada es una lectura resumida server-backed para el lobby, mismo motor `groups.js` para calcular la tabla semanal, `group_events` + bitácora oficial de partidos para ordenar actividad y bucket privado separado para fotos de grupo.
+
+**No implementar B2 todavía:** primero debe cerrarse el QA real multiusuario pendiente de B1. Después avanzar B2a → B2b → B2c.
