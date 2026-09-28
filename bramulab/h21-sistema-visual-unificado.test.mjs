@@ -196,11 +196,11 @@ test('h21-10: "Ocultar partido" ya no vive en Resumen — retirado, mecanismo ex
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 test('h21: bundle/cache quartet queda alineado', () => {
-  assert.match(indexHtml, /app\.js\?v=04\.11-h26/);
-  assert.match(indexHtml, /styles\.css\?v=04\.11-h26/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.11-h26'/);
+  assert.match(indexHtml, /app\.js\?v=04\.11-h27/);
+  assert.match(indexHtml, /styles\.css\?v=04\.11-h27/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.11-h27'/);
   assert.match(swJs, /CACHE_NAME = 'bramulab-v04-11-h27'/);
-  assert.match(swJs, /app\.js\?v=04\.11-h26/);
-  assert.match(swJs, /styles\.css\?v=04\.11-h26/);
-  assert.match(versionJson, /"bundle":\s*"04\.11-h26"/);
+  assert.match(swJs, /app\.js\?v=04\.11-h27/);
+  assert.match(swJs, /styles\.css\?v=04\.11-h27/);
+  assert.match(versionJson, /"bundle":\s*"04\.11-h27"/);
 });
