@@ -450,6 +450,7 @@ begin
              'lastActivityAt', la.last_activity_at,
              'members', public._groups_members_json(g.group_id),
              'weekMatches', public._groups_week_matches_json(g.group_id, p_week_from, p_week_to)
+           )
            -- Desempate estable y NUNCA visible (handoff 75 §4): lastActivityAt desc, createdAt
            -- desc, groupId — mismo criterio para todo caller, no depende de su propia actividad.
            order by la.last_activity_at desc, g.created_at desc, g.group_id)
