@@ -200,7 +200,7 @@ test('h19-H: no se tocó la fórmula/porcentaje del Nivel (levelProgressPct sigu
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 // El quartet de bundle/cache hardcodeado a "04.11-h19" quedó superseded por el de la ronda
-// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h23.
+// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h24.
 
 test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRECCIÓN PROPUESTA (nunca reemplaza el base)', () => {
   const body = extractFunctionBody(appJs, 'paintPreValidationCorrection');
@@ -215,9 +215,12 @@ test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRE
 
 test('h23: flujo inicial dice VALIDAR (nunca confirmar) y Reportar/Validar son botones gemelos', () => {
   assert.match(indexHtml, /id="b6-confirm-btn">Validar partido</);
-  assert.match(indexHtml, /id="b6-status-title"[^>]*>PARTIDO POR VALIDAR</);
+  assert.match(appJs, /PARTIDO POR VALIDAR<\/p>/);
+  assert.match(appJs, /está esperando validación\./);
+  assert.match(appJs, /Revisalo y validá el partido\./);
   assert.doesNotMatch(appJs, /Te toca confirmar este resultado/);
   assert.match(appJs, /Pendiente de validación'/);
   assert.match(appJs, /valide este partido/);
-  assert.match(stylesCss, /#b6-confirm-block \.b6-correction-choice--report\{[^}]*rgba\(255,91,97/);
+  assert.match(stylesCss, /\.pv-foot \.b6-correction-choice--report\{[^}]*rgba\(255,91,97/);
+  assert.match(stylesCss, /\.result-card\.result-card--pending\{/);
 });

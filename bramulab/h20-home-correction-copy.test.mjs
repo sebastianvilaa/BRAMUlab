@@ -14,4 +14,4 @@ test('h20: carrusel usa copy neutral para corrección cuando el actor no está d
 });
 
 // El quartet de bundle/cache hardcodeado a "04.11-h20" quedó superseded por el de la ronda
-// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h23.
+// vigente — ver h21-sistema-visual-unificado.test.mjs para el quartet de 04.11-h24.

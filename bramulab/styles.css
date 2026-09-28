@@ -3529,7 +3529,6 @@ input, select{ font-family: inherit; }
    .b6-correction-choices (mitad de ancho, ver #b6-confirm-block) o solo con width:100% inline
    (ver index.html) — la clase base ya soporta ambos casos sin reglas propias. */
 .b6-correction-choice--report{ border: 1px solid rgba(255,91,97,0.25); color: var(--danger); min-height: 40px; font-size: 12px; font-weight: 600; opacity: .85; }
-.b6-pre-title{ margin: 0 0 12px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 13px; letter-spacing: 0.04em; color: var(--paper); }
 /* Fix h23 — Reportar/Validar gemelos en la tarjeta "partido por validar": mismo tamaño/radio/tipografía. */
 #b6-confirm-block .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; }
 #b6-confirm-block .b6-correction-choice--report{ border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); }
@@ -3620,3 +3619,11 @@ input, select{ font-family: inherit; }
 .report-error-option + .report-error-option{ border-top: 1px solid var(--line); }
 .report-error-option__title{ display:block; font-size: 14px; font-weight:700; color: var(--text); }
 .report-error-option__sub{ display:block; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* Fix h24 — flujo inicial de validación: UNA sola tarjeta de resultado con acento ámbar. */
+.result-card.result-card--pending{ border-color: rgba(255,201,61,0.45); box-shadow: 0 0 18px rgba(255,201,61,.12); }
+.pv-title{ margin: 0 0 10px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; color: var(--gold); }
+.pv-foot{ margin-top: 12px; }
+.pv-foot .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; }
+.pv-foot .b6-correction-choice--report{ border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); }
+.pv-foot--wait{ font-size: 13px; color: var(--paper); text-align: center; line-height: 1.4; margin-bottom: 0; }

@@ -2770,6 +2770,34 @@
     return true;
   }
 
+  /** Fix h24 — partido pendiente en su flujo INICIAL de validación (no correcciones): título,
+   *  separador y acciones/estado viven DENTRO de la tarjeta del resultado (una sola tarjeta con
+   *  acento ámbar). Los botones delegan en los handlers ya existentes (#b6-confirm-btn y
+   *  #b6-report-error-btn) — nunca una segunda lógica. Devuelve false si no hay tarjeta. */
+  function paintPendingInResultCard(f, mode, waitingTeam) {
+    const card = $('#analysis-result .result-card');
+    if (!card) return false;
+    card.classList.add('result-card--pending');
+    let foot;
+    if (mode === 'act') {
+      const avail = b6ReportErrorAvailability(f);
+      const canReport = avail.result || avail.participant;
+      card.insertAdjacentHTML('afterbegin', '<p class="pv-title">PARTIDO POR VALIDAR</p>');
+      foot = `<div class="result-card__divider"></div><div class="pv-foot b6-correction-choices">
+        ${canReport ? '<button type="button" class="b6-correction-choice b6-correction-choice--report" data-pv="report">Reportar un error</button>' : '<span></span>'}
+        <button type="button" class="b6-correction-choice b6-correction-choice--accept" data-pv="validate">Validar partido</button>
+      </div>`;
+    } else {
+      foot = `<div class="result-card__divider"></div><p class="pv-foot pv-foot--wait">El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.</p>`;
+    }
+    card.insertAdjacentHTML('beforeend', foot);
+    const validateBtn = card.querySelector('[data-pv="validate"]');
+    if (validateBtn) validateBtn.addEventListener('click', () => $('#b6-confirm-btn').click());
+    const reportBtn = card.querySelector('[data-pv="report"]');
+    if (reportBtn) reportBtn.addEventListener('click', () => $('#b6-report-error-btn').click());
+    return true;
+  }
+
   function paintB6Actions(f) {
     b6ReportIdentityMatch = f;
     const banner = $('#b6-status-banner');
@@ -2789,8 +2817,10 @@
     const outboxActionBtn = $('#b6-outbox-action-btn');
 
     banner.hidden = true; banner.classList.remove('b6-banner--waiting', 'b6-correction-card');
+    $all('#analysis-result .pv-title, #analysis-result .pv-foot').forEach((el) => el.remove());
+    const pvCard = $('#analysis-result .result-card');
+    if (pvCard) pvCard.classList.remove('result-card--pending');
     bannerText.hidden = false;
-    $('#b6-status-title').hidden = true;
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
@@ -2956,10 +2986,14 @@
           // + CTA a la vez (el resto del handoff pide QUITAR banners redundantes cuando el CTA
           // ya comunica la acción, pero acá el banner explica POR QUÉ hay que actuar — "te toca
           // confirmar" — algo que el botón solo no transmite).
-          // Fix h23 — título centrado "PARTIDO POR VALIDAR" en vez de la frase redundante.
-          bannerText.hidden = true;
-          $('#b6-status-title').hidden = false;
-          confirmBlock.hidden = false;
+          // Fix h24 — UNA sola tarjeta: título + acciones viven dentro de la tarjeta del resultado.
+          // Sin tarjeta de resultado resoluble, cae al banner de siempre.
+          if (paintPendingInResultCard(f, 'act')) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = 'Te toca validar este partido.';
+            confirmBlock.hidden = false;
+          }
         }
       } else if (f.actionSide && !hasOpenIdentity) {
         // Waiting: sigue siendo la PAREJA rival (cualquiera de sus dos integrantes puede
@@ -2981,7 +3015,11 @@
         } else if (pendingEventType === 'identity_replacement') {
           bannerText.textContent = `Participante corregido. Esperando que ${waitingTeam} confirme el partido.`;
         } else {
-          bannerText.textContent = `Esperando que ${waitingTeam} valide este partido.`;
+          if (paintPendingInResultCard(f, 'wait', waitingTeam)) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = `Esperando que ${waitingTeam} valide este partido.`;
+          }
         }
       }
       // "REPORTAR UN ERROR" (§5): disponible sin depender de `detailLoaded` — reportar un error
@@ -7137,8 +7175,8 @@
         kindClass = 'accionable';
         label = 'PARTIDO POR VALIDAR';
         text = loaderName
-          ? `${loaderName} cargó un partido con vos. Revisalo y validá el resultado.`
-          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y validá el resultado.`;
+          ? `${loaderName} cargó un partido con vos. Revisalo y validá el partido.`
+          : `Tenés un partido pendiente con ${rivalNames}. Revisalo y validá el partido.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
         // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
@@ -7150,7 +7188,7 @@
       } else {
         kindClass = 'espera';
         label = 'ESPERANDO VALIDACIÓN';
-        text = `Tu resultado con ${rivalNames} está esperando que validen.`;
+        text = `El partido con ${rivalNames} está esperando validación.`;
       }
       return `
         <div class="player-home-carousel-card player-home-carousel-card--${kindClass}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
