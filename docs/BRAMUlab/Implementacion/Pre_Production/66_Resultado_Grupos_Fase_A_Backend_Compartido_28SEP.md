@@ -3,14 +3,13 @@
 **Fecha:** 28/09/2026 · **Rama:** `staging` · **Handoff:** `65_Handoff_Grupos_Fase_A_Backend_Compartido_28SEP.md`
 **Frontend:** sin cambios (0 archivos bajo `bramulab/`, bundle 04.11-h27 intacto).
 
-## Estado: escrita y con sintaxis validada — PENDIENTE de aplicar y correr el verify en Staging
+## Estado: CERRADA EN STAGING — migración aplicada + verify integral PASS
 
-Este sandbox no tiene Supabase CLI, `psql` ni credenciales (igual que las rondas anteriores; Central aplicó siempre). Por eso:
+Central aplicó la migración en Supabase Staging como `preprod_grupos_fase_a_backend_compartido` y ejecutó el verify transaccional completo. El primer intento del verify detectó únicamente un bug del propio test al concatenar `jsonb` en dos mensajes de aserción; se corrigió con cast explícito a texto en commit `40d85cdb82511b9f86aed53bc7576a0f6004f063` y se repitió el verify completo.
 
-- **NO está aplicada en Staging** y el verify **NO se ejecutó**. No declarar PASS todavía.
-- Lo que sí se hizo: ambos `.sql` parsean sin errores con el parser real de PostgreSQL (pglast) — migración 61 sentencias, verify 39 sentencias (+21 bloques PL/pgSQL del verify). El cuerpo PL/pgSQL del trigger `_groups_assert_has_active_admin` no pudo volcarse con pglast (limitación de la herramienta con `TG_OP`), sin evidencia de error.
+Resultado final de Staging: **`GRUPOS_FASE_A_VERIFY_PASS`**. Los fixtures terminaron en `ROLLBACK`, por lo que no dejaron grupos/jugadores de prueba persistidos.
 
-**Para cerrar la fase (Central):** aplicar `supabase/migrations/20260928120000_preprod_grupos_fase_a_backend_compartido.sql` en Staging y ejecutar `supabase/tests/verify-preprod-grupos-fase-a.sql`. Debe terminar con `GRUPOS_FASE_A_VERIFY_PASS`. El verify crea sus propios fixtures (`auth.users`+players) y termina en `ROLLBACK`; no necesita cuentas reales. Riesgo conocido: si `auth.users` exige otra columna NOT NULL en este proyecto, el fixture inicial fallará (error de fixture, no de contrato). Si el control de seguridad de la herramienta bloquea el script (como en P0.3), no se debe forzar.
+Advisors posteriores: sin hallazgo nuevo bloqueante de Grupos. Las tablas nuevas aparecen como `RLS enabled / no policy` de forma deliberada: no tienen grants directos a `anon`/`authenticated` y se consumen mediante RPCs `SECURITY DEFINER` con autorización propia. Los avisos de índices FK son de performance preventiva y no justifican sobrearquitectura en esta etapa.
 
 ## Qué se construyó
 
@@ -47,3 +46,8 @@ T1 creador miembro+admin · T2 agregar · T3 reingreso = período nuevo con el a
 ## Fuera de alcance respetado
 
 Sin frontend/UX, sin `groups.js`, sin migrar grupos locales, sin invitaciones/notificaciones, sin tocar Nivel/Ranking/main/Production/BRAMUlive. Fase B no iniciada.
+
+
+## Cierre Central
+
+Fase A aprobada para avanzar a Fase B. No se modificó frontend ni la lógica deportiva visual existente. Fase B debe limitarse a cablear la UI actual a estos contratos y adaptar el motor puro para `levelBefore`, preservando la experiencia de grupo armado aprobada.
