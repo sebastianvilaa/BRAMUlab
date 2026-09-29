@@ -85,3 +85,15 @@ El commit h32 toca `bramulab/` para alinear el motor cliente con la semana BA, p
 Esto no bloquea el backend B2a aplicado: el contrato nuevo es backward-compatible. El código h32 queda en `staging` y deberá entrar en el próximo deploy disponible junto con la siguiente ronda frontend.
 
 **Conclusión Central: B2a backend queda CERRADO EN STAGING.**
+
+
+### Sanity sobre datos reales existentes
+
+Central ejecutó una lectura transaccional con la identidad real de Seba sobre Staging, sin persistir cambios:
+- `get_groups_lobby` → `ok: true`;
+- 1 grupo visible: `QA Grupos 2`;
+- 6 miembros activos;
+- 10 partidos candidatos en la semana vigente;
+- `lastActivityAt` presente.
+
+La nueva RPC funciona también sobre el grupo real usado durante QA B1, no solo sobre fixtures del verify.
