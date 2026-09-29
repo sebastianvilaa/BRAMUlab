@@ -157,6 +157,31 @@ El método eficiente no se mide solo por tokens/contexto. También debe minimiza
 
 **Objetivo operativo:** que BRAMU nunca vuelva a perder una jornada de trabajo por una secuencia evitable de microcommits/deployments.
 
+## Continuidad entre chats / traspaso obligatorio
+
+Cuando un chat de Desarrollo/Central llegue al límite y haya que abrir uno nuevo, el nuevo chat **no debe depender de memoria conversacional informal** para recuperar el método de trabajo.
+
+El texto de arranque del nuevo chat debe exigir leer, como mínimo:
+
+- `docs/BRAMUlab/README.md`
+- `docs/BRAMUlab/Metodo_Trabajo.md`
+- `docs/BRAMUlab/Pre_Production.md`
+- la fuente maestra del sistema que se esté trabajando;
+- el último resultado/handoff vigente del bloque en curso.
+
+Además, el mensaje de traspaso debe recordar explícitamente estas reglas críticas:
+
+- desarrollo solo sobre `staging`;
+- no tocar `main`, Production ni BRAMUlive sin autorización;
+- evitar microcommits/micropushes;
+- una ronda = idealmente 1 push funcional de Claude + como máximo 1 push consolidado de Central;
+- no usar Ignored Build Step como supuesto ahorro de cuota;
+- no reintentar deploys cuando Vercel está rate-limited;
+- agrupar documentación/QA/correcciones menores en un solo push;
+- Sebastián no debe convertirse en operador técnico: idealmente solo comunica decisiones y confirma resultados finales.
+
+**Regla de continuidad:** cada vez que Central prepare el texto para abrir un chat nuevo, debe incluir o apuntar a estas instrucciones. Si el método cambia, se actualiza primero `Metodo_Trabajo.md`; el siguiente chat hereda la versión vigente desde el repo.
+
 ## Entornos
 
 - Desarrollo activo sobre `staging`.
