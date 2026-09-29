@@ -99,6 +99,89 @@ Este patrón viene reduciendo tiempo/contexto sin perder control y pasa a ser el
 
 La métrica práctica no es “usar menos tokens” por sí sola: es **evitar releer, reexplicar y reprobar lo ya consolidado** manteniendo la misma calidad de evidencia.
 
+## Presupuesto de deploys Vercel — regla operativa obligatoria
+
+Incidente real 28/09/2026: el trabajo quedó bloqueado por rate limit de Vercel después de una jornada con demasiados commits/pushes sobre `staging`. El problema no fue la cantidad de cambios funcionales sino la **cantidad de deployments creados por la integración Git**.
+
+### Regla principal
+
+**No usar un commit remoto como unidad de pensamiento. Usar la ronda de trabajo como unidad de push.**
+
+Default desde ahora:
+
+- **Claude:** 1 push funcional por ronda terminada.
+- **Central:** como máximo 1 push consolidado posterior por ronda, solo si realmente hace falta corregir/revisar algo.
+- documentación, README, PreProduction, resultados y pequeños ajustes relacionados deben **agruparse**; evitar un commit por archivo o por observación.
+- no hacer commits “de registro” mientras todavía se está investigando el mismo bloque; acumular las conclusiones y escribirlas juntas al final.
+- no hacer commits/no-op para forzar deploy.
+- un cambio backend/documental que no necesita frontend no debe generar un nuevo deploy por capricho; si la integración Git igualmente crea intentos, tratarlo como consumo real de cuota.
+
+### BRAMUlab + BRAMUlive en el mismo repo
+
+Un mismo push puede disparar intentos de deployment en más de un proyecto Vercel conectado al repositorio.
+
+**Importante:** un Ignored Build Step puede cancelar el build pero aun así consumir una creación de deployment/cuota. Por eso no alcanza con “que BRAMUlive se cancele” si cada push sigue creando un deployment.
+
+Hasta que se haga una configuración específica para evitarlo:
+
+- asumir conservadoramente que **cada push a staging puede consumir más de un deployment**;
+- no tocar BRAMUlive ni su configuración sin autorización explícita;
+- cuando exista autorización, ajustar únicamente la configuración de deploy para que cambios exclusivos de BRAMUlab no creen deployments de BRAMUlive.
+
+### Presupuesto práctico por jornada
+
+No perseguir el máximo del plan. Trabajar con margen.
+
+- objetivo normal: **muy pocos pushes por bloque**;
+- si una ronda necesita 5+ commits remotos para quedar bien, detenerse y consolidar antes de seguir;
+- Central debe preferir edición/batching local o entregar todas las correcciones juntas al siguiente agente antes que encadenar microcommits remotos;
+- antes de una ronda larga de UX con muchos retoques, concentrar cambios y hacer **un solo deploy visual relevante** al final de la ronda, salvo que exista un riesgo concreto que requiera validar antes.
+
+### Qué hacer si Vercel entra en rate limit
+
+- **NO** seguir reintentando deploys;
+- **NO** generar commits para “ver si entra”;
+- seguir trabajando en repo/tests/backend si no depende del deploy;
+- acumular el frontend y desplegar una sola vez el HEAD más reciente cuando se libere la cuota;
+- registrar el bloqueo una sola vez, no en múltiples commits.
+
+### Criterio de éxito
+
+El método eficiente no se mide solo por tokens/contexto. También debe minimizar:
+
+- pushes;
+- deployments;
+- builds;
+- revisiones repetidas;
+- esperas externas evitables.
+
+**Objetivo operativo:** que BRAMU nunca vuelva a perder una jornada de trabajo por una secuencia evitable de microcommits/deployments.
+
+## Continuidad entre chats / traspaso obligatorio
+
+Cuando un chat de Desarrollo/Central llegue al límite y haya que abrir uno nuevo, el nuevo chat **no debe depender de memoria conversacional informal** para recuperar el método de trabajo.
+
+El texto de arranque del nuevo chat debe exigir leer, como mínimo:
+
+- `docs/BRAMUlab/README.md`
+- `docs/BRAMUlab/Metodo_Trabajo.md`
+- `docs/BRAMUlab/Pre_Production.md`
+- la fuente maestra del sistema que se esté trabajando;
+- el último resultado/handoff vigente del bloque en curso.
+
+Además, el mensaje de traspaso debe recordar explícitamente estas reglas críticas:
+
+- desarrollo solo sobre `staging`;
+- no tocar `main`, Production ni BRAMUlive sin autorización;
+- evitar microcommits/micropushes;
+- una ronda = idealmente 1 push funcional de Claude + como máximo 1 push consolidado de Central;
+- no usar Ignored Build Step como supuesto ahorro de cuota;
+- no reintentar deploys cuando Vercel está rate-limited;
+- agrupar documentación/QA/correcciones menores en un solo push;
+- Sebastián no debe convertirse en operador técnico: idealmente solo comunica decisiones y confirma resultados finales.
+
+**Regla de continuidad:** cada vez que Central prepare el texto para abrir un chat nuevo, debe incluir o apuntar a estas instrucciones. Si el método cambia, se actualiza primero `Metodo_Trabajo.md`; el siguiente chat hereda la versión vigente desde el repo.
+
 ## Entornos
 
 - Desarrollo activo sobre `staging`.
