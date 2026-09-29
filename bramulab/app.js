@@ -353,7 +353,7 @@
   // que dependía del registro en vivo (configuración previa a un partido en vivo), separado
   // ahora a BRAMUlive. 'analysis'/'manual-load'/'match-saved' siguen acá: las usa la carga de
   // partido propio ya jugado.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved', 'player-search', 'player-public', 'groups', 'group-settings'];
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'match-saved', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings'];
 
   function showView(name) {
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
@@ -362,7 +362,7 @@
     // siguen acá — las usa la carga de partido propio ya jugado.
     ['analysis', 'history', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public', 'groups', 'group-settings',
+      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
@@ -9567,9 +9567,195 @@
     return { ok: true };
   }
 
-  function openGroupsScreen() {
+  /* ------------------------------------------------------------------ */
+  /* B2b — LOBBY DE GRUPOS (handoff 79)                                    */
+  /* Entrada única de bottom-nav "Mis grupos". Cache EFÍMERO propio        */
+  /* (nunca localStorage), reconstruido desde get_groups_lobby (B2a) — UN  */
+  /* solo viaje de red para TODAS las tarjetas, nunca N llamadas por       */
+  /* grupo. groups.js sigue siendo la única autoridad de puntos/top-3/     */
+  /* posiciones — esta pantalla solo pinta lo que PG.computeWeeklyTable/   */
+  /* PG.buildLobbyCardSummary ya calcularon.                               */
+  /* ------------------------------------------------------------------ */
+  const groupsLobby = { ownerId: null, loaded: false, entries: [] };
+  let groupsLobbyRequestId = 0;
+
+  function resetGroupsLobbyCache() {
+    groupsLobby.ownerId = currentUserId;
+    groupsLobby.loaded = false;
+    groupsLobby.entries = [];
+    groupsLobbyRequestId++;
+  }
+
+  /** Tarjetas para cuentas SIN backend (legacy/local) — mismo criterio que `myActiveGroups()`
+   *  ya usa para el resto del camino local: `Store.loadGroups()` + historial local. Sin
+   *  `lastActivityAt` real (no existe en el modelo local), se conserva el orden de siempre —
+   *  fuera del foco de B2, que es enteramente server-backed. */
+  function buildLegacyLobbyEntries() {
+    const groups = myActiveGroups();
+    const weekStart = PG.weekStartBA(new Date());
+    const fullHistory = getComputableHistory();
+    const identity = currentIdentity();
+    const callerKey = identity.userId || Store.normalizePlayerName(identity.name);
+    return groups.map((g) => {
+      const weeklyTable = PG.computeWeeklyTable(fullHistory, g, weekStart);
+      const memberCount = groupActiveMemberCount(g);
+      return { groupId: g.id, name: g.name, memberCount, summary: PG.buildLobbyCardSummary(weeklyTable, memberCount, callerKey) };
+    });
+  }
+
+  /** Un viaje de red (`get_groups_lobby`) para TODOS los grupos activos del caller — resuelve
+   *  identidades en batch (mismo cache efímero que ya usa el detalle) y arma, por grupo, la
+   *  MISMA tabla semanal que ya usa Semana actual (`PG.computeWeeklyTable` sobre el `weekMatches`
+   *  del payload) — nunca una segunda regla deportiva. El orden final es EXACTAMENTE el que
+   *  devuelve el backend (`lastActivityAt` ya ordenado server-side): nunca se reordena acá. */
+  async function refreshGroupsLobby() {
+    if (!groupsUseServer()) return { ok: false };
+    if (groupsLobby.ownerId !== currentUserId) resetGroupsLobbyCache();
+    const reqId = ++groupsLobbyRequestId;
+    const ownerId = groupsLobby.ownerId;
+    const weekStart = PG.weekStartBA(new Date());
+    const weekEnd = new Date(weekStart.getTime() + PG.WEEK_MS);
+    const res = await Auth.getGroupsLobby(weekStart.toISOString(), weekEnd.toISOString());
+    if (reqId !== groupsLobbyRequestId || ownerId !== groupsLobby.ownerId) return { ok: false, stale: true };
+    if (!res.ok) return res;
+    const ids = [];
+    (res.groups || []).forEach((g) => {
+      (g.members || []).forEach((m) => ids.push(m.playerId));
+      (g.weekMatches || []).forEach((m) => (m.players || []).forEach((p) => ids.push(p.playerId)));
+    });
+    await ensureGroupIdentities(ids); // batch — mismo cache efímero que ya usa el detalle
+    if (reqId !== groupsLobbyRequestId || ownerId !== groupsLobby.ownerId) return { ok: false, stale: true };
+    const callerKey = currentUserId;
+    groupsLobby.entries = (res.groups || []).map((g) => {
+      const adaptedGroup = PG.adaptServerGroup(g, groupsServer.identities);
+      const matches = PG.adaptServerCompetitionMatches(g.weekMatches, groupsServer.identities);
+      const weeklyTable = PG.computeWeeklyTable(matches, adaptedGroup, weekStart);
+      return {
+        groupId: g.groupId, name: g.name, memberCount: g.activeMemberCount,
+        summary: PG.buildLobbyCardSummary(weeklyTable, g.activeMemberCount, callerKey),
+      };
+    });
+    groupsLobby.loaded = true;
+    return { ok: true };
+  }
+
+  function groupInitials(name) {
+    const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  /** §B — copy cerrado de los 3 estados sin puntos. */
+  function buildLobbyCardStateHTML(state) {
+    const copy = {
+      one_member: ['El grupo ya existe. Ahora falta la banda.', 'Con 3 jugadores activos empieza la competencia.'],
+      two_members: ['Ya son 2. Falta uno para empezar a sumar.', 'Con 3 jugadores activos arranca la competencia.'],
+      no_activity: ['Esta semana están todos vagos 😴', '¿Cuándo se arma partido?'],
+    }[state];
+    if (!copy) return '';
+    return `<p class="lobby-card__state-title">${escapeHtml(copy[0])}</p><p class="lobby-card__state-sub">${escapeHtml(copy[1])}</p>`;
+  }
+
+  function buildLobbyCardRowHTML(row) {
+    return `<div class="lobby-card__row"><span class="lobby-card__row-pos">${row.position}</span><span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
+  }
+
+  /** §B — una misma tarjeta reusada por grupos reales Y por el EJEMPLO del estado cero (§C) —
+   *  `isExample` solo evita el `data-group-id`/wiring de click, nunca cambia el markup. */
+  function buildLobbyCardHTML(entry, isExample) {
+    const s = entry.summary;
+    let body;
+    if (s.state !== 'has_points') {
+      body = buildLobbyCardStateHTML(s.state);
+    } else {
+      const rowsHTML = s.compressedTie
+        ? `<div class="lobby-card__row lobby-card__row--tie"><span class="lobby-card__row-name">${s.compressedTie.count} jugadores comparten la punta</span><span class="lobby-card__row-pts">${s.compressedTie.points} pts</span></div>`
+        : s.visibleRows.map(buildLobbyCardRowHTML).join('');
+      const selfHTML = s.selfRow
+        ? `<div class="lobby-card__row lobby-card__row--self"><span class="lobby-card__row-pos">#${s.selfRow.position}</span><span class="lobby-card__row-name">Vos</span><span class="lobby-card__row-pts">${s.selfRow.points} pts</span></div>`
+        : '';
+      body = rowsHTML + selfHTML;
+    }
+    const memberLabel = entry.memberCount === 1 ? '1 jugador' : `${entry.memberCount} jugadores`;
+    return `<button type="button" class="lobby-card${isExample ? ' lobby-card--example' : ''}"${isExample ? '' : ` data-group-id="${escapeHtml(entry.groupId)}"`}>
+      <div class="lobby-card__head">
+        <span class="lobby-card__avatar">${escapeHtml(groupInitials(entry.name))}</span>
+        <span class="lobby-card__identity">
+          <span class="lobby-card__name">${escapeHtml(entry.name)}</span>
+          <span class="lobby-card__members">${escapeHtml(memberLabel)}</span>
+        </span>
+      </div>
+      <div class="lobby-card__body">${body}</div>
+    </button>`;
+  }
+
+  /** §C — dato completamente separado de verdad real, solo para ilustrar la tarjeta antes de
+   *  crear el primer grupo. Nunca se calcula con `groups.js` (no hay partidos/miembros reales
+   *  que calcular): es la MISMA forma que ya produce `buildLobbyCardSummary`, escrita a mano. */
+  const GROUPS_LOBBY_EXAMPLE_ENTRY = {
+    name: 'Los Fenómenos', memberCount: 4,
+    summary: {
+      state: 'has_points', compressedTie: null, selfRow: null,
+      visibleRows: [
+        { position: 1, name: 'Seba', points: 18 },
+        { position: 2, name: 'Matu', points: 13 },
+        { position: 3, name: 'Lucho', points: 7 },
+      ],
+    },
+  };
+
+  function renderGroupsLobbyScreen() {
+    if (groupsUseServer() && !groupsLobby.loaded) {
+      // Sin primera respuesta todavía: ni estado vacío ni lista (evita el parpadeo "sin
+      // grupos" antes de saber la verdad — mismo criterio que el detalle).
+      $('#groups-lobby-empty').hidden = true;
+      $('#groups-lobby-list-wrap').hidden = true;
+      return;
+    }
+    const entries = groupsUseServer() ? groupsLobby.entries : buildLegacyLobbyEntries();
+    const isEmpty = entries.length === 0;
+    $('#groups-lobby-empty').hidden = !isEmpty;
+    $('#groups-lobby-list-wrap').hidden = isEmpty;
+    if (isEmpty) {
+      $('#groups-lobby-example-card').innerHTML = buildLobbyCardHTML(GROUPS_LOBBY_EXAMPLE_ENTRY, true);
+      return;
+    }
+    $('#groups-lobby-list').innerHTML = entries.map((e) => buildLobbyCardHTML(e, false)).join('');
+    $all('#groups-lobby-list .lobby-card[data-group-id]').forEach((card) => {
+      card.addEventListener('click', () => openGroupsScreen(card.dataset.groupId));
+    });
+  }
+
+  function openGroupsLobbyScreen() {
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
+    if (groupsUseServer() && groupsLobby.ownerId !== currentUserId) resetGroupsLobbyCache();
+    renderGroupsLobbyScreen();
+    showView('groups-lobby');
+    if (!groupsUseServer()) return;
+    // Siempre se reconstruye desde el servidor — el cache solo pinta rápido mientras llega.
+    refreshGroupsLobby().then((r) => {
+      if (r && r.ok) { renderGroupsLobbyScreen(); return; }
+      if (r && !r.ok && !r.stale && !groupsLobby.loaded) showToast(groupErrorMessage(r.code));
+    });
+  }
+
+  function initGroupsLobbyScreen() {
+    $('#groups-lobby-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#groups-lobby-help-btn').addEventListener('click', openGroupPointsInfoSheet);
+    $('#groups-lobby-empty-help-btn').addEventListener('click', openGroupPointsInfoSheet);
+    $('#groups-lobby-empty-create-btn').addEventListener('click', openCreateGroupSheet);
+    $('#groups-lobby-create-other-btn').addEventListener('click', openCreateGroupSheet);
+  }
+
+  /** Detalle de UN grupo. B2b (handoff 79 §A) — ya no es el destino de bottom-nav (eso es
+   *  `openGroupsLobbyScreen`): se entra SIEMPRE desde una tarjeta del lobby, con `groupId`
+   *  explícito (si se omite, conserva el `activeGroupId` ya elegido — mismo comportamiento de
+   *  siempre para los llamadores internos: switch sheet, settings, etc.). */
+  function openGroupsScreen(groupId) {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    if (groupId) activeGroupId = groupId;
     if (groupsUseServer()) {
       if (groupsServer.ownerId !== currentUserId) resetGroupsServerCache();
       renderGroupsScreen();
@@ -9769,7 +9955,18 @@
     return Store.normalizePlayerName(name) === Store.normalizePlayerName(identity.name);
   }
 
-  function renderGroupTableInto(elId, emptyId, rows) {
+  /** Handoff 79 §G — desde `renderActiveGroupPanels`, con TODO lo que las hojas de desglose/
+   *  Race necesitan para no volver a pedir datos: mismo `group`/`fullHistory` ya cargados, y
+   *  los partidos ya filtrados de cada semana. Se pisa en cada render (nunca queda stale entre
+   *  grupos: `renderGroupTableInto` solo lee esto dentro del mismo ciclo de render). */
+  let groupsPanelsContext = null;
+
+  /** §G — reemplaza el tap directo a Perfil: `mode` decide qué hoja abre.
+   *  - `'current'`/`'previous'`: desglose de puntos de esa semana (§G "Semana actual/pasada").
+   *  - `'race'`: resumen Race semana por semana (§G "Race anual").
+   *  "Ver perfil" (acción secundaria dentro de cada hoja) es lo único que sigue abriendo
+   *  Perfil — nunca el tap de la fila en sí. */
+  function renderGroupTableInto(elId, emptyId, rows, mode) {
     const wrap = $(`#${elId}`);
     const empty = $(`#${emptyId}`);
     const isEmpty = rows.length === 0;
@@ -9778,10 +9975,13 @@
     wrap.innerHTML = rows.map(buildGroupTableRowHTML).join('');
     $all(`#${elId} .group-table__row`).forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (isOwnGroupTableRow(btn.dataset.name, btn.dataset.userId)) { openProfileScreen('mi-perfil'); return; }
-        // Server-backed: por `player_id` (camino real de get_public_profile), nunca por nombre.
-        const playerId = btn.dataset.userId || null;
-        openPlayerPublicProfile(groupsUseServer() && playerId ? { name: btn.dataset.name, playerId } : btn.dataset.name, 'groups');
+        const ctx = groupsPanelsContext;
+        if (!ctx) return;
+        const name = btn.dataset.name;
+        const userId = btn.dataset.userId || null;
+        if (mode === 'race') { openGroupRaceSummarySheet(name, userId, ctx.fullHistory, ctx.group, ctx.year); return; }
+        const matches = mode === 'previous' ? ctx.previousMatches : ctx.currentMatches;
+        openGroupBreakdownSheet(name, userId, matches, ctx.fullHistory);
       });
     });
   }
@@ -9830,6 +10030,8 @@
     const previousTable = PG.computeWeeklyTable(fullHistory, group, prevWeekStart);
     const beforePreviousTable = PG.computeWeeklyTable(fullHistory, group, prevPrevWeekStart);
     const raceTable = PG.computeRaceAnual(fullHistory, group, year);
+    // §G — contexto para las hojas de desglose/Race (ver renderGroupTableInto).
+    groupsPanelsContext = { group, fullHistory, currentMatches, previousMatches, year };
 
     // BRAMUlab_V03.4.2 (§4) — título fijo "BRAMU INTELLIGENCE" (en el HTML); acá solo se pinta
     // el nombre del grupo como segunda jerarquía, para que quede claro de QUÉ grupo está
@@ -9840,21 +10042,148 @@
     renderGroupIntelligenceInto('groups-intel-actual-list', 'groups-intel-actual-empty', PG.buildGroupIntelligence({
       currentTable, previousTable, raceTable, currentMatches, fullHistory,
     }));
-    renderGroupTableInto('groups-table-actual', 'groups-table-actual-empty', currentTable);
+    renderGroupTableInto('groups-table-actual', 'groups-table-actual-empty', currentTable, 'current');
 
     // ANTERIOR — misma función de BRAMU Intelligence, con el marco de la semana pasada como
     // "actual" (§12: "correspondiente a esa semana, si existe") y resultados ya congelados.
     renderGroupIntelligenceInto('groups-intel-anterior-list', 'groups-intel-anterior-empty', PG.buildGroupIntelligence({
       currentTable: previousTable, previousTable: beforePreviousTable, raceTable, currentMatches: previousMatches, fullHistory,
     }));
-    renderGroupTableInto('groups-table-anterior', 'groups-table-anterior-empty', previousTable);
+    renderGroupTableInto('groups-table-anterior', 'groups-table-anterior-empty', previousTable, 'previous');
 
     $('#groups-race-year-label').textContent = `RACE ANUAL ${year}`;
-    renderGroupTableInto('groups-table-race', 'groups-table-race-empty', raceTable);
+    renderGroupTableInto('groups-table-race', 'groups-table-race-empty', raceTable, 'race');
+  }
+
+  /** §G — a quién apunta "VER PERFIL" dentro de la hoja actualmente abierta (desglose o Race):
+   *  `{own:true}` para la propia fila (Mi Perfil), o `{name, playerId}` para otro jugador
+   *  (perfil público real por `player_id` cuando existe, nunca por nombre solo). Compartido por
+   *  ambas hojas porque nunca hay dos abiertas a la vez. */
+  let groupsSheetProfileTarget = null;
+
+  function bonusLabel(bonus) {
+    if (!bonus) return null;
+    if (bonus.sorpresa) return 'Sorpresa';
+    if (bonus.remontada) return 'Remontada';
+    if (bonus.claraVictoria) return 'Victoria clara';
+    return null;
+  }
+
+  /** §G — una fila de partido del desglose: fecha · compañero · rivales · resultado + bonus,
+   *  puntos alineados a la derecha. Un partido que no entró en el top 3 nunca se esconde: se
+   *  distingue con "No entra en tus 3 mejores" en vez del monto (`row.counted` viene de
+   *  `PG.buildPlayerWeeklyBreakdown`, MISMO subconjunto que `computeWeeklyTable`). */
+  function buildGroupBreakdownRowHTML(row) {
+    const partner = row.partnerName ? `con ${row.partnerName}` : '';
+    const rivals = (row.rivalNames && row.rivalNames.length) ? `vs ${row.rivalNames.join(' + ')}` : '';
+    const detail = [partner, rivals].filter(Boolean).join(' ');
+    const resultText = row.won ? 'Victoria' : 'Derrota';
+    const bonus = bonusLabel(row.bonus);
+    const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 3 mejores' : '0 pts');
+    return `<div class="group-breakdown-row${row.counted ? ' group-breakdown-row--counted' : ''}">
+      <div class="group-breakdown-row__main">
+        <span class="group-breakdown-row__date">${escapeHtml(formatShortPlayedDate(row.playedAt))}</span>
+        <span class="group-breakdown-row__detail">${escapeHtml(detail)}</span>
+        <span class="group-breakdown-row__result">${escapeHtml(resultText)}${bonus ? ` · ${escapeHtml(bonus)}` : ''}</span>
+      </div>
+      <span class="group-breakdown-row__pts">${escapeHtml(ptsText)}</span>
+    </div>`;
+  }
+
+  /** §G — sheet de desglose de puntos (Semana actual/pasada). `matches` YA viene filtrado a esa
+   *  semana (`groupsPanelsContext.currentMatches`/`.previousMatches`) — `PG.
+   *  buildPlayerWeeklyBreakdown` es el MISMO helper que alimenta la fila de la tabla
+   *  (`computePlayerScoredMatches` compartido), así que `total` siempre coincide con los
+   *  puntos de esa fila sin recalcular nada acá. */
+  function openGroupBreakdownSheet(name, userId, matches, fullHistory) {
+    const playerRef = userId ? { name, userId } : name;
+    const bd = PG.buildPlayerWeeklyBreakdown(matches, playerRef, fullHistory);
+    const ident = groupRowIdentity(name, userId);
+    const avatar = $('#group-breakdown-avatar');
+    avatar.classList.toggle('person-list__avatar--photo', !!ident.photo);
+    avatar.innerHTML = ident.photo ? `<img src="${escapeHtml(ident.photo)}" alt="" />` : escapeHtml(playerInitials(name));
+    $('#group-breakdown-name').textContent = name;
+    const handleEl = $('#group-breakdown-handle');
+    handleEl.hidden = !ident.username;
+    handleEl.textContent = ident.username ? `@${ident.username}` : '';
+    const wins = bd.rows.filter((r) => r.won).length;
+    const matchesLabel = bd.matchesPlayed === 1 ? '1 partido' : `${bd.matchesPlayed} partidos`;
+    $('#group-breakdown-activity').textContent = bd.matchesPlayed ? `${matchesLabel} · ${wins} V · ${bd.matchesPlayed - wins} D` : 'Sin partidos esta semana';
+    $('#group-breakdown-total').textContent = `${bd.total} pts`;
+    $('#group-breakdown-list').innerHTML = bd.rows.length
+      ? bd.rows.map(buildGroupBreakdownRowHTML).join('')
+      : '<p class="coverage-note">Sin partidos esta semana.</p>';
+    groupsSheetProfileTarget = isOwnGroupTableRow(name, userId) ? { own: true } : { name, playerId: userId || null };
+    $('#group-breakdown-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#group-breakdown-sheet-scrim').classList.add('is-open'); });
+  }
+  function closeGroupBreakdownSheet() {
+    const scrim = $('#group-breakdown-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+
+  function buildGroupRaceSummaryRowHTML(week) {
+    const from = formatShortPlayedDate(week.weekStart);
+    const to = formatShortPlayedDate(new Date(new Date(week.weekEnd).getTime() - 1).toISOString());
+    const activity = week.matchesPlayed
+      ? `${week.matchesPlayed} ${week.matchesPlayed === 1 ? 'partido' : 'partidos'} · ${week.wins} V · ${week.losses} D`
+      : 'Sin partidos';
+    return `<div class="group-breakdown-row">
+      <div class="group-breakdown-row__main">
+        <span class="group-breakdown-row__date">${escapeHtml(from)} – ${escapeHtml(to)}</span>
+        <span class="group-breakdown-row__result">${escapeHtml(activity)}</span>
+      </div>
+      <span class="group-breakdown-row__pts">${week.points} pts</span>
+    </div>`;
+  }
+
+  /** §G — resumen Race semana por semana. `PG.buildRaceWeeklySummary` recorre EXACTAMENTE las
+   *  mismas semanas que `computeRaceAnual` (misma fuente, `computeGroupYearWeekStarts`), así que
+   *  la suma de estas filas siempre coincide con la fila de Race del jugador. V1: sin desplegar
+   *  los partidos de cada semana (ver comentario del handoff en el markup). */
+  function openGroupRaceSummarySheet(name, userId, fullHistory, group, year) {
+    const playerRef = userId ? { name, userId } : name;
+    const weeks = PG.buildRaceWeeklySummary(fullHistory, group, year, playerRef);
+    $('#group-race-summary-title').textContent = `RACE — ${name.toUpperCase()}`;
+    $('#group-race-summary-list').innerHTML = weeks.length
+      ? weeks.map(buildGroupRaceSummaryRowHTML).join('')
+      : '<p class="coverage-note">Todavía no hay semanas con puntos este año.</p>';
+    groupsSheetProfileTarget = isOwnGroupTableRow(name, userId) ? { own: true } : { name, playerId: userId || null };
+    $('#group-race-summary-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#group-race-summary-sheet-scrim').classList.add('is-open'); });
+  }
+  function closeGroupRaceSummarySheet() {
+    const scrim = $('#group-race-summary-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+  }
+
+  /** §G — "VER PERFIL": único punto que sigue abriendo Perfil desde estas hojas. */
+  function openGroupsSheetProfileTarget() {
+    if (!groupsSheetProfileTarget) return;
+    if (groupsSheetProfileTarget.own) { openProfileScreen('mi-perfil'); return; }
+    const { name, playerId } = groupsSheetProfileTarget;
+    openPlayerPublicProfile(groupsUseServer() && playerId ? { name, playerId } : name, 'groups');
+  }
+
+  /** §E — cierre visual de la creación: "Tu grupo está listo" antes de entrar al detalle. */
+  function openGroupCreatedSheet(name, memberCount) {
+    $('#group-created-name').textContent = name;
+    $('#group-created-members').textContent = memberCount === 1 ? '1 jugador' : `${memberCount} jugadores`;
+    $('#group-created-sheet-scrim').hidden = false;
+    requestAnimationFrame(() => { $('#group-created-sheet-scrim').classList.add('is-open'); });
+  }
+  function closeGroupCreatedSheet() {
+    const scrim = $('#group-created-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
   }
 
   function initGroupsScreen() {
-    $('#groups-back-btn').addEventListener('click', () => openPlayerHome());
+    // Handoff 79 (B2b) — el detalle ya no se entra directo desde bottom-nav: back vuelve
+    // SIEMPRE al lobby (GRUPOS BRAMU), nunca a Home.
+    $('#groups-back-btn').addEventListener('click', () => openGroupsLobbyScreen());
     $('#groups-settings-btn').addEventListener('click', openGroupSettingsScreen);
     $('#groups-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
     $('#groups-current-selector-btn').addEventListener('click', openGroupsSwitchSheet);
@@ -9866,10 +10195,24 @@
     $('#groups-points-info-btn').addEventListener('click', openGroupPointsInfoSheet);
     $('#group-points-info-close').addEventListener('click', closeGroupPointsInfoSheet);
     $('#group-points-info-scrim').addEventListener('click', (e) => { if (e.target === $('#group-points-info-scrim')) closeGroupPointsInfoSheet(); });
+    // §G — hojas de desglose/Race (reemplazan el tap directo a Perfil, ver renderGroupTableInto).
+    $('#group-breakdown-sheet-close').addEventListener('click', closeGroupBreakdownSheet);
+    $('#group-breakdown-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#group-breakdown-sheet-scrim')) closeGroupBreakdownSheet(); });
+    $('#group-breakdown-view-profile-btn').addEventListener('click', () => { closeGroupBreakdownSheet(); openGroupsSheetProfileTarget(); });
+    $('#group-race-summary-close').addEventListener('click', closeGroupRaceSummarySheet);
+    $('#group-race-summary-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#group-race-summary-sheet-scrim')) closeGroupRaceSummarySheet(); });
+    $('#group-race-summary-view-profile-btn').addEventListener('click', () => { closeGroupRaceSummarySheet(); openGroupsSheetProfileTarget(); });
+    // §E — cierre de creación: "Ir al grupo" abre el detalle recién creado; cerrar sin esa
+    // acción (afuera/Escape) solo cierra la hoja, sin navegar — el grupo ya quedó creado.
+    $('#group-created-go-btn').addEventListener('click', () => { closeGroupCreatedSheet(); openGroupsScreen(activeGroupId); });
+    $('#group-created-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#group-created-sheet-scrim')) closeGroupCreatedSheet(); });
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!$('#group-points-info-scrim').hidden) closeGroupPointsInfoSheet();
       if (!$('#groups-switch-sheet-scrim').hidden) closeGroupsSwitchSheet();
+      if (!$('#group-breakdown-sheet-scrim').hidden) closeGroupBreakdownSheet();
+      if (!$('#group-race-summary-sheet-scrim').hidden) closeGroupRaceSummarySheet();
+      if (!$('#group-created-sheet-scrim').hidden) closeGroupCreatedSheet();
     });
   }
 
@@ -10130,7 +10473,8 @@
       activeGroupId = r.group.groupId;
       groupsActiveTab = 'actual';
       await refreshGroupsFromServer();
-      showToast('Grupo creado');
+      // §E — cierre visual de la creación ("Tu grupo está listo"), antes de entrar al detalle.
+      openGroupCreatedSheet(r.group.name, ids.length + 1);
     } finally {
       groupsBusy = false; btn.disabled = false;
     }
@@ -10167,8 +10511,8 @@
     closeCreateGroupSheet();
     activeGroupId = group.id;
     groupsActiveTab = 'actual';
-    renderGroupsScreen();
-    showToast('Grupo creado');
+    // §E — cierre visual de la creación ("Tu grupo está listo"), antes de entrar al detalle.
+    openGroupCreatedSheet(group.name, (group.members || []).length);
   }
 
   function initCreateGroupSheet() {
@@ -12577,15 +12921,18 @@
         if (target === 'player-home') openPlayerHome();
         else if (target === 'history') openHistoryScreen('player-home');
         else if (target === 'manual-load') openManualLoadScreen('player-home');
-        else if (target === 'groups') openGroupsScreen();
+        else if (target === 'groups') openGroupsLobbyScreen();
         else if (target === 'profile') openProfileScreen('mi-perfil');
       });
     });
   }
 
   function updateBottomNavActive(viewName) {
+    // B2b — el detalle del grupo (#view-groups) sigue marcando "Mis grupos" activo aunque ya
+    // no sea la vista de entrada (data-nav="groups" sin cambios).
+    const navName = viewName === 'groups-lobby' ? 'groups' : viewName;
     $all('.bottom-nav__item[data-nav]').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.dataset.nav === viewName);
+      btn.classList.toggle('is-active', btn.dataset.nav === navName);
     });
   }
 
@@ -13022,6 +13369,7 @@
     initPlayerHomeScreen();
     initRankingScreen();
     initRankingGateModal();
+    initGroupsLobbyScreen();
     initGroupsScreen();
     initCreateGroupSheet();
     initGroupSettingsScreen();

@@ -399,20 +399,31 @@
    *  en qué orden se listan los empatados (nunca para inventarles una posición distinta — ver
    *  `assignPositions`: dos filas con el mismo puntaje comparten número de posición sin importar
    *  este desempate). */
+  /** Handoff 79 §G — ÚNICO punto que decide, para UN jugador dentro de un conjunto de partidos
+   *  ya filtrados a una semana, cuáles son sus resultados reales (`scored`, TODOS, orden puntos
+   *  desc) — de acá sale tanto la fila de la tabla (`computeWeeklyTable`, top 3 de este mismo
+   *  array) como el desglose de puntos del sheet (`buildPlayerWeeklyBreakdown`). "No duplicar
+   *  lógica": ningún otro lugar vuelve a recorrer partidos para decidir puntos/top-3 de un
+   *  jugador — ambos consumidores llaman a esta función y cortan/leen el mismo array. */
+  function computePlayerScoredMatches(matches, playerRef, fullHistory) {
+    return (matches || [])
+      .filter((m) => !!PH.getPlayerTeam(m, playerRef))
+      .map((m) => ({
+        match: m,
+        matchId: m.matchId,
+        points: computePointsForPlayerInMatch(m, playerRef, fullHistory),
+        won: PH.matchResultForPlayer(m, playerRef) === 'win',
+      }))
+      .sort((a, b) => b.points - a.points);
+  }
+
   function computeWeeklyTable(fullHistory, group, weekStart) {
     const weekEnd = new Date(weekStart.getTime() + WEEK_MS);
     const matches = computeMatchesForGroupInWeek(fullHistory, group, weekStart);
     const relevantMembers = membersRelevantForWeek(group, weekStart, weekEnd);
     const rows = relevantMembers.map((mem) => {
       const ref = mem.userId ? { name: mem.name, userId: mem.userId } : mem.name;
-      const played = matches.filter((m) => !!PH.getPlayerTeam(m, ref));
-      const scored = played
-        .map((m) => ({
-          matchId: m.matchId,
-          points: computePointsForPlayerInMatch(m, ref, fullHistory),
-          won: PH.matchResultForPlayer(m, ref) === 'win',
-        }))
-        .sort((a, b) => b.points - a.points);
+      const scored = computePlayerScoredMatches(matches, ref, fullHistory);
       const counted = scored.slice(0, MAX_COUNTED_MATCHES_PER_WEEK);
       const realWins = scored.filter((s) => s.won).length;
       return {
@@ -421,9 +432,9 @@
         isAdmin: !!mem.isAdmin,
         points: counted.reduce((sum, c) => sum + c.points, 0),
         // Actividad REAL — toda esta semana, no solo el top 3 que puntuó.
-        matchesPlayed: played.length,
+        matchesPlayed: scored.length,
         wins: realWins,
-        losses: played.length - realWins,
+        losses: scored.length - realWins,
         // Top 3 que efectivamente aportó a `points` (informativo/tests; nunca para la UI de
         // actividad — ver comentario de arriba).
         pointsMatchesCounted: counted.length,
@@ -449,7 +460,12 @@
    *  subconjunto top-3: la línea secundaria de Race debe reflejar la actividad real acumulada
    *  del período visible del miembro, mientras `points` sigue siendo la suma de los puntos
    *  semanales EFECTIVOS (top-3 por semana) — eso no cambia. */
-  function computeRaceAnual(fullHistory, group, year) {
+
+  /** Semanas (lunes BA, orden ascendente) del año calendario que tuvieron al menos un partido
+   *  contable para `group` — extraído de `computeRaceAnual` (handoff 79 §G) para que el resumen
+   *  semana-por-semana del sheet de Race (`buildRaceWeeklySummary`) recorra EXACTAMENTE las
+   *  mismas semanas que el total anual, nunca una segunda enumeración que pueda divergir. */
+  function computeGroupYearWeekStarts(fullHistory, group, year) {
     const yearStart = new Date(year, 0, 1);
     const yearEnd = new Date(year + 1, 0, 1);
     const matchesInYear = (fullHistory || []).filter((m) => {
@@ -462,9 +478,13 @@
     // B2a — misma frontera BA que `effectiveMembershipStartAt` (nunca `PH.startOfWeekMonday`
     // local): si difirieran, un partido podría agruparse en una semana para "qué cuenta" y en
     // otra distinta para el Race, produciendo totales inconsistentes.
-    const weekStartsMs = Array.from(new Set(
+    return Array.from(new Set(
       matchesInYear.map((m) => weekStartBA(PH.getPlayedAt(m)).getTime())
-    ));
+    )).sort((a, b) => a - b);
+  }
+
+  function computeRaceAnual(fullHistory, group, year) {
+    const weekStartsMs = computeGroupYearWeekStarts(fullHistory, group, year);
     const totals = {};
     weekStartsMs.forEach((ms) => {
       const table = computeWeeklyTable(fullHistory, group, new Date(ms));
@@ -487,6 +507,123 @@
     const rows = Object.keys(totals).map((k) => totals[k]);
     rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
     return assignPositions(rows);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* B2b — LOBBY, DESGLOSE DE PUNTOS Y RESUMEN DE RACE (handoff 79)       */
+  /* Funciones puras de PRESENTACIÓN: toman una tabla/partidos ya         */
+  /* calculados por las funciones de arriba y solo deciden qué mostrar —  */
+  /* nunca recalculan puntos/top-3/posiciones con una segunda regla.      */
+  /* ------------------------------------------------------------------ */
+
+  function rowKey(row) { return row.userId || Store.normalizePlayerName(row.name); }
+
+  /** §B — tarjeta de un grupo en el lobby, a partir de `weeklyTable` YA calculada
+   *  (`computeWeeklyTable` sobre `weekMatches`/`group` del payload de `get_groups_lobby`, misma
+   *  función que ya usa Semana actual del detalle — nunca una segunda regla deportiva). Nunca
+   *  recalcula actividad ni decide el orden entre grupos: eso es `lastActivityAt`, autoritativo
+   *  del backend (ver app.js — la lista de tarjetas se ordena tal cual llega).
+   *
+   *  Estados sin puntos (§B, copy cerrado):
+   *  - `activeMemberCount<=1` → `one_member` ("el grupo ya existe, falta la banda" — por la
+   *    regla 3/4 un grupo de 1 nunca puede sumar);
+   *  - `activeMemberCount===2` → `two_members` (mismo motivo, falta 1);
+   *  - `activeMemberCount>=3` sin nadie con puntos → `no_activity`.
+   *
+   *  Con puntos: hasta 3 FILAS visibles agrupadas por posición real — un empate NUNCA se corta
+   *  a la mitad (§B/Grupos_BRAMU.md §10.1): si el primer grupo de posición ya tiene más de 3
+   *  integrantes, se comprime en una sola fila (`compressedTie`); si no, se muestran grupos
+   *  completos hasta llegar o quedar justo por debajo de 3 filas. `selfRow` solo aparece si
+   *  `callerKey` tiene una fila real en `weeklyTable` (aunque sea 0 pts) y NO quedó ya visible
+   *  individualmente (comprimido o fuera de las 3 filas) — nunca duplicado. */
+  function buildLobbyCardSummary(weeklyTable, activeMemberCount, callerKey) {
+    const rows = weeklyTable || [];
+    const hasPoints = rows.some((r) => r.points > 0);
+    if (!hasPoints) {
+      let state = 'no_activity';
+      if ((activeMemberCount || 0) <= 1) state = 'one_member';
+      else if (activeMemberCount === 2) state = 'two_members';
+      return { state, visibleRows: [], compressedTie: null, selfRow: null };
+    }
+    const scored = rows.filter((r) => r.points > 0);
+    const groups = [];
+    scored.forEach((r) => {
+      const last = groups[groups.length - 1];
+      if (last && last.position === r.position) last.rows.push(r); else groups.push({ position: r.position, rows: [r] });
+    });
+    let visibleRows = [];
+    let compressedTie = null;
+    if (groups[0].rows.length > 3) {
+      compressedTie = { count: groups[0].rows.length, points: groups[0].rows[0].points };
+    } else {
+      for (const g of groups) {
+        if (visibleRows.length + g.rows.length > 3) break;
+        visibleRows = visibleRows.concat(g.rows);
+      }
+    }
+    const shownKeys = new Set(visibleRows.map(rowKey));
+    let selfRow = null;
+    if (callerKey && !shownKeys.has(callerKey)) {
+      const mine = rows.find((r) => rowKey(r) === callerKey);
+      if (mine) selfRow = mine;
+    }
+    return { state: 'has_points', visibleRows, compressedTie, selfRow };
+  }
+
+  /** §G — desglose de puntos de UN jugador en una semana, para el sheet que reemplaza el tap a
+   *  Perfil desde Semana actual/pasada. Usa `computePlayerScoredMatches` — el MISMO array que
+   *  alimenta la fila de `computeWeeklyTable` — así que `total` es SIEMPRE exactamente la suma
+   *  de los partidos marcados `counted:true` (nunca puede haber una fila con más/menos puntos
+   *  que su propio desglose). `rows` trae TODOS los partidos calificables jugados esa semana
+   *  (no solo los 3 que puntuaron) para que una victoria fuera del top 3 sea visible como "no
+   *  entra en tus 3 mejores", nunca escondida. */
+  function buildPlayerWeeklyBreakdown(matches, playerRef, fullHistory) {
+    const scored = computePlayerScoredMatches(matches, playerRef, fullHistory);
+    const countedIds = new Set(scored.slice(0, MAX_COUNTED_MATCHES_PER_WEEK).map((s) => s.matchId));
+    const rows = scored.map((s) => {
+      const breakdown = computeMatchPointsBreakdown(s.match, fullHistory);
+      const partnerRow = PH.getPartnerRow(s.match, playerRef);
+      const rivalRows = PH.getOpponentRows(s.match, playerRef);
+      return {
+        matchId: s.matchId,
+        playedAt: PH.getPlayedAt(s.match),
+        partnerName: partnerRow ? partnerRow.name : null,
+        rivalNames: (rivalRows || []).map((r) => r.name),
+        won: s.won,
+        points: s.points,
+        counted: countedIds.has(s.matchId),
+        bonus: breakdown ? { sorpresa: breakdown.sorpresa, remontada: breakdown.remontada, claraVictoria: breakdown.claraVictoria } : null,
+      };
+    });
+    return {
+      rows,
+      total: scored.slice(0, MAX_COUNTED_MATCHES_PER_WEEK).reduce((sum, s) => sum + s.points, 0),
+      matchesPlayed: scored.length,
+    };
+  }
+
+  /** §G — resumen Race semana por semana de UN jugador: una fila por semana con partidos reales
+   *  del grupo, orden más-reciente-primero (V1: nunca despliega los partidos de cada semana acá
+   *  — eso ya lo cubre `buildPlayerWeeklyBreakdown` si en el futuro se navega a una semana
+   *  puntual). Recorre EXACTAMENTE `computeGroupYearWeekStarts` — las mismas semanas que suma
+   *  `computeRaceAnual` — así que la suma de `points` de este resumen coincide siempre con la
+   *  fila de Race del jugador. */
+  function buildRaceWeeklySummary(fullHistory, group, year, playerRef) {
+    const key = rowKey({ userId: playerRef && playerRef.userId, name: (playerRef && playerRef.name) || playerRef });
+    const weekStartsMs = computeGroupYearWeekStarts(fullHistory, group, year).slice().reverse(); // más reciente primero
+    return weekStartsMs.map((ms) => {
+      const weekStart = new Date(ms);
+      const table = computeWeeklyTable(fullHistory, group, weekStart);
+      const row = table.find((r) => rowKey(r) === key);
+      return {
+        weekStart: weekStart.toISOString(),
+        weekEnd: new Date(ms + WEEK_MS).toISOString(),
+        points: row ? row.points : 0,
+        matchesPlayed: row ? row.matchesPlayed : 0,
+        wins: row ? row.wins : 0,
+        losses: row ? row.losses : 0,
+      };
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -687,8 +824,9 @@
     computeSimulatedLevelBeforeMatch, computeBonusSorpresa,
     computeMatchPointsBreakdown, computePointsForPlayerInMatch,
     computeMatchesForGroupInWeek, membersRelevantForWeek, assignPositions, computeWeeklyTable,
-    computeRaceAnual,
+    computePlayerScoredMatches, computeGroupYearWeekStarts, computeRaceAnual,
     buildGroupIntelligence, topTiedNames, joinNamesEs,
+    buildLobbyCardSummary, buildPlayerWeeklyBreakdown, buildRaceWeeklySummary,
     adaptServerGroup, adaptServerCompetitionMatches,
     BASE_POINTS, BONUS_POINTS, SORPRESA_MIN_DIFF, WEEK_MS, MAX_COUNTED_MATCHES_PER_WEEK,
   };

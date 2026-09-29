@@ -192,7 +192,10 @@
 // pasada y Race de Grupos usan la frontera canonica de Buenos Aires (PG.weekStartBA), nunca el
 // huso local del dispositivo. Solo bump de bundle: Store.VERSION/version.json siguen en
 // "BRAMUlab V04.11" a proposito.
-const CACHE_NAME = 'bramulab-v04-11-h32';
+// Grupos B2b - lobby, cierre de creacion, desglose de puntos y resumen de Race (handoff 79,
+// 28/09/2026) - h33: nueva vista GRUPOS BRAMU (auth.js/groups.js/app.js/index.html/styles.css).
+// Store.VERSION/version.json siguen en "BRAMUlab V04.11" a proposito.
+const CACHE_NAME = 'bramulab-v04-11-h33';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -203,39 +206,39 @@ const CACHE_NAME = 'bramulab-v04-11-h32';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.11-h32',
-  './engine.js?v=04.11-h32',
-  './stats.js?v=04.11-h32',
-  './store.js?v=04.11-h32',
+  './styles.css?v=04.11-h33',
+  './engine.js?v=04.11-h33',
+  './stats.js?v=04.11-h33',
+  './store.js?v=04.11-h33',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level.js?v=04.11-h32',
-  './level-context.js?v=04.11-h32',
-  './level-calibration.js?v=04.11-h32',
-  './player-home.js?v=04.11-h32',
-  './match-load.js?v=04.11-h32',
-  './player-identity.js?v=04.11-h32',
-  './groups.js?v=04.11-h32',
-  './locations.js?v=04.11-h32',
-  './ranking.js?v=04.11-h32',
+  './level.js?v=04.11-h33',
+  './level-context.js?v=04.11-h33',
+  './level-calibration.js?v=04.11-h33',
+  './player-home.js?v=04.11-h33',
+  './match-load.js?v=04.11-h33',
+  './player-identity.js?v=04.11-h33',
+  './groups.js?v=04.11-h33',
+  './locations.js?v=04.11-h33',
+  './ranking.js?v=04.11-h33',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.11-h32',
+  './auth.js?v=04.11-h33',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.11-h32',
-  './match-sync.js?v=04.11-h32',
-  './match-validation.js?v=04.11-h32',
+  './matches.js?v=04.11-h33',
+  './match-sync.js?v=04.11-h33',
+  './match-validation.js?v=04.11-h33',
   // Hotfix 27/09/2026 (handoff 37) — match-self-heal.js (nuevo). Mismo criterio: sin red/DOM
   // propios, pre-cacheado igual.
-  './match-self-heal.js?v=04.11-h32',
+  './match-self-heal.js?v=04.11-h33',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.11-h32',
-  './app.js?v=04.11-h32',
+  './intelligence-client.js?v=04.11-h33',
+  './app.js?v=04.11-h33',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

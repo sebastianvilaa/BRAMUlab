@@ -135,12 +135,17 @@ test('app.js: renderActiveGroupPanels usa PG.weekStartBA, nunca PH.startOfWeekMo
   assert.doesNotMatch(codeOnly, /PH\.startOfWeekMonday/);
 });
 
-test('groups.js: computeRaceAnual agrupa por weekStartBA, nunca PH.startOfWeekMonday (misma frontera que effectiveMembershipStartAt)', () => {
+test('groups.js: computeRaceAnual (vía computeGroupYearWeekStarts, B2b) agrupa por weekStartBA, nunca PH.startOfWeekMonday', () => {
   const groupsJs = read('groups.js');
-  const body = groupsJs.slice(groupsJs.indexOf('function computeRaceAnual'), groupsJs.indexOf('function computeRaceAnual') + 1500);
-  assert.match(body, /const weekStartsMs = Array\.from\(new Set\(\s*\n\s*matchesInYear\.map\(\(m\) => weekStartBA\(PH\.getPlayedAt\(m\)\)\.getTime\(\)\)/);
+  // B2b (handoff 79) extrajo la enumeración de semanas a computeGroupYearWeekStarts (reusada
+  // también por buildRaceWeeklySummary) — el cálculo real vive ahí, no en computeRaceAnual.
+  const body = groupsJs.slice(groupsJs.indexOf('function computeGroupYearWeekStarts'), groupsJs.indexOf('function computeGroupYearWeekStarts') + 1200);
+  assert.match(body, /matchesInYear\.map\(\(m\) => weekStartBA\(PH\.getPlayedAt\(m\)\)\.getTime\(\)\)/);
   // El único "PH.startOfWeekMonday" permitido en la función es el que nombra en su propio
   // comentario explicativo por qué NO se usa acá — nunca en código ejecutable.
   const codeOnly = body.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(codeOnly, /PH\.startOfWeekMonday/);
+  // computeRaceAnual en sí ya no enumera semanas por su cuenta: delega en el helper de arriba.
+  const raceBody = groupsJs.slice(groupsJs.indexOf('function computeRaceAnual'), groupsJs.indexOf('function computeRaceAnual') + 300);
+  assert.match(raceBody, /computeGroupYearWeekStarts\(fullHistory, group, year\)/);
 });

@@ -704,6 +704,12 @@
   const demoteGroupAdmin = (groupId, playerId) => groupsRpc('demote_group_admin', { p_group_id: groupId, p_player_id: playerId });
   const deleteGroup = (groupId) => groupsRpc('delete_group', { p_group_id: groupId });
   const getGroupCompetitionData = (groupId, from, to) => groupsRpc('get_group_competition_data', { p_group_id: groupId, p_from: from || null, p_to: to || null });
+  /** B2b (handoff 79 §A) — RPC resumida del lobby (Fase B2a, `get_groups_lobby`): un solo
+   *  viaje de red para TODOS los grupos activos del caller, cada uno con members/weekMatches en
+   *  la MISMA forma que `getGroupDetail`/`getGroupCompetitionData` — nunca N llamadas por
+   *  grupo. `weekFrom`/`weekTo` deben construirse con `PG.weekStartBA` (B2a) del lado del
+   *  llamador, nunca con el huso local del dispositivo. */
+  const getGroupsLobby = (weekFrom, weekTo) => groupsRpc('get_groups_lobby', { p_week_from: weekFrom || null, p_week_to: weekTo || null });
 
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
@@ -717,6 +723,6 @@
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
     listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
-    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, getGroupCompetitionData,
+    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, getGroupCompetitionData, getGroupsLobby,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

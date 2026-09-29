@@ -3285,6 +3285,76 @@ input, select{ font-family: inherit; }
 .group-table__points-value{ display:block; font-family: var(--font-display); font-weight:800; font-size: 18px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .group-table__points-label{ display:block; font-size: 8px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-top: 1px; }
 
+/* ==========================================================================
+   B2b (handoff 79) — LOBBY DE GRUPOS BRAMU
+   Reutiliza tokens/radios/tipografía existentes (--ink-soft/--line/--radius-card de
+   .pastilla, --brand-lime/--gold de siempre) — sin estética paralela. ========================== */
+.groups-lobby-claim{ font-family: var(--font-display); font-weight: 800; font-size: 18px; color: var(--paper); margin: 4px 0 6px; line-height: 1.3; }
+.groups-lobby-pitch{ display:flex; flex-direction:column; gap: 10px; margin: 16px 0; }
+.groups-lobby-pitch__item{ display:block; background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 12px 14px; }
+.groups-lobby-pitch__title{ display:block; font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--brand-lime); }
+.groups-lobby-pitch__sub{ display:block; font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
+.groups-lobby-example-label{ font-size: 10px; font-weight:800; letter-spacing:0.08em; color: var(--paper-faint); text-transform:uppercase; margin: 4px 0 8px; text-align:center; }
+.groups-lobby-list{ display:flex; flex-direction:column; gap: 12px; }
+.groups-lobby-create-other-btn{ margin-top: 16px; width:100%; }
+
+/* Tarjeta de grupo — reusada tal cual en el lobby real y en el EJEMPLO del estado cero. */
+.lobby-card{
+  display:block; width:100%; text-align:left; background: var(--ink-soft); border: 1px solid var(--line);
+  border-radius: var(--radius-card); padding: 14px 16px; cursor:pointer; transition: background .12s ease;
+}
+.lobby-card:active{ background: rgba(149,255,25,0.06); }
+.lobby-card--example{ cursor:default; opacity: .92; }
+.lobby-card__head{ display:flex; align-items:center; gap: 12px; margin-bottom: 10px; }
+.lobby-card__avatar{
+  flex:none; width:40px; height:40px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 14px; color: var(--brand-lime);
+}
+.lobby-card__identity{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.lobby-card__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lobby-card__members{ font-size: 12px; color: var(--paper-dim); margin-top: 1px; }
+.lobby-card__body{ display:flex; flex-direction:column; gap: 6px; }
+.lobby-card__state-title{ font-size: 14px; font-weight:700; color: var(--paper); margin:0; }
+.lobby-card__state-sub{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 0; }
+.lobby-card__row{ display:flex; align-items:center; gap: 8px; }
+.lobby-card__row-pos{ flex:none; width:18px; text-align:center; font-family: var(--font-display); font-weight:800; font-size: 12px; color: var(--paper-faint); }
+.lobby-card__row-name{ flex:1; min-width:0; font-size: 13px; font-weight:600; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lobby-card__row-pts{ flex:none; font-family: var(--font-display); font-weight:800; font-size: 13px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.lobby-card__row--tie .lobby-card__row-name{ color: var(--gold); }
+.lobby-card__row--self{ border-top: 1px dashed var(--line); margin-top: 2px; padding-top: 6px; }
+.lobby-card__row--self .lobby-card__row-name{ color: var(--brand-lime); font-weight:700; }
+
+/* "Tu grupo está listo" — cierre visual de la creación (§E). */
+.group-created{ text-align:center; padding-bottom: 4px; }
+.group-created__title{ font-family: var(--font-display); font-weight: 800; font-size: 18px; color: var(--paper); margin: 4px 0 10px; }
+.group-created__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--brand-lime); margin: 0; }
+.group-created__members{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 12px; }
+.group-created .btn-start{ width:100%; }
+
+/* Desglose de puntos / resumen de Race — sheets compartidos (§G). */
+.group-breakdown-head{ display:flex; align-items:center; gap: 12px; margin-bottom: 12px; }
+.group-breakdown-head__info{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.group-breakdown-head__name{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-breakdown-head__handle{ font-size: 12px; color: var(--paper-dim); }
+.group-breakdown-head__activity{ font-size: 12px; color: var(--paper-dim); margin-top: 2px; }
+.group-breakdown-head__points{ flex:none; font-family: var(--font-display); font-weight:800; font-size: 20px; color: var(--paper); font-variant-numeric: tabular-nums; }
+.group-breakdown-list{ display:flex; flex-direction:column; gap: 4px; }
+/* Filas densas (altura cercana a la fila de tabla), pero legibles — sin tarjeta dentro de
+   tarjeta: solo un separador chico entre filas. */
+.group-breakdown-row{
+  display:flex; align-items:center; justify-content:space-between; gap: 10px;
+  padding: 8px 2px; border-bottom: 1px solid var(--line);
+}
+.group-breakdown-row:last-child{ border-bottom:none; }
+.group-breakdown-row__main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.group-breakdown-row__date{ font-size: 11px; font-weight:700; color: var(--paper-faint); text-transform:uppercase; letter-spacing:0.02em; }
+.group-breakdown-row__detail{ font-size: 13px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-breakdown-row__result{ font-size: 12px; color: var(--paper-dim); }
+.group-breakdown-row__pts{ flex:none; font-family: var(--font-display); font-weight:800; font-size: 13px; color: var(--paper-faint); font-variant-numeric: tabular-nums; text-align:right; max-width: 40%; }
+/* Solo los 3 que puntuaron destacan en lima — el resto (fuera del top 3, o derrota) queda en
+   el tono neutro de arriba, nunca escondido. */
+.group-breakdown-row--counted .group-breakdown-row__pts{ color: var(--brand-lime); }
+
 /* Configuración del grupo — lista de miembros con acciones inline de administrador. */
 .group-settings-members{ display:flex; flex-direction:column; margin-top: 6px; }
 .group-settings-member{ display:flex; align-items:center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
