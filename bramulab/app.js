@@ -5413,6 +5413,19 @@
    *  vistos" (PH.computeExternalHistoryChanges) — nunca un cálculo aparte con su propia
    *  llamada de red. `justActedMatchIds` (ver markSelfActedMatch) excluye lo que el propio
    *  usuario acaba de mutar; se vacía acá mismo porque es una guardia de un solo uso. */
+  /* V04.16 (Issue #7) — último cambio REAL de Nivel (get_my_last_level_delta: match_level_result_players
+     vigente), solo en memoria. NUNCA la evolución simulada legacy; sin evidencia => null => chip oculto. */
+  let lastLevelDeltaV1 = { userId: null, delta: null };
+  async function refreshLastLevelDelta() {
+    if (!isServerBackedSession() || !Auth || !Auth.getMyLastLevelDelta) return;
+    const user = Store.getCurrentUser();
+    if (!user) return;
+    try {
+      const r = await Auth.getMyLastLevelDelta();
+      if (r && r.ok) lastLevelDeltaV1 = { userId: user.id, delta: r.delta };
+    } catch (e) { /* best-effort: sin evidencia nueva se conserva la anterior */ }
+  }
+
   async function refreshServerMatches() {
     if (!isServerBackedSession() || !Matches) return;
     const excludeIds = Array.from(justActedMatchIds);
@@ -5452,6 +5465,7 @@
     if (changedIds.length) Store.addHistoryUnseenChanges(changedIds);
     Store.saveServerMatchesCache(freshMatches);
     updateHistoryUnseenDot();
+    await refreshLastLevelDelta();
   }
 
   /** Ronda UX 25/09 (Ronda 2, §8) — prende/apaga el puntito del ícono de Historial en el
@@ -7300,6 +7314,8 @@
         </div>`;
     }).join('') + hitosHTML;
     track.hidden = false;
+    // V04.16 (Issue #7) — UNA sola tarjeta (acción o insight) => ancho completo; 2+ => carrusel con asomo.
+    track.classList.toggle('player-home-carousel--single', track.querySelectorAll('.player-home-carousel-card').length === 1);
     $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
       if (!m) return;
@@ -7443,6 +7459,14 @@
     return !!(user && user.legacyMigrated);
   }
 
+  /** Delta real del último cambio de Nivel, redondeado a 1 decimal; 0/null => sin chip. */
+  function homeLevelDeltaValue() {
+    const user = Store.getCurrentUser();
+    if (!user || lastLevelDeltaV1.userId !== user.id || lastLevelDeltaV1.delta === null) return 0;
+    const rounded = Math.round(lastLevelDeltaV1.delta * 10) / 10;
+    return rounded === 0 ? 0 : rounded;
+  }
+
   function renderPlayerCard(matches, shouldAnimate) {
     $('#player-home-name').textContent = currentPlayerName;
     // Backend Bloque 4 — una cuenta real/server-backed ya tiene un @usuario canónico.
@@ -7528,9 +7552,19 @@
           void barEl.offsetWidth;
           barEl.classList.add('is-animating');
         }
+        // V04.16 (Issue #7) — chip ↑/↓ con el delta REAL del último cambio de Nivel; sin evidencia (o si
+        // redondea a 0.0) queda oculto: nunca se fabrica.
         const deltaEl = $('#player-home-level-delta');
-        deltaEl.textContent = '';
-        deltaEl.className = 'player-card__level-delta player-card__level-delta--flat';
+        const realDelta = homeLevelDeltaValue();
+        if (realDelta) {
+          const chip = formatLevelDelta(realDelta);
+          deltaEl.textContent = chip.label;
+          deltaEl.className = 'player-card__level-delta player-card__level-delta--' + chip.direction;
+          deltaEl.style.left = Math.min(94, Math.max(6, PH.levelProgressPct(publicLevel))) + '%';
+        } else {
+          deltaEl.textContent = '';
+          deltaEl.className = 'player-card__level-delta player-card__level-delta--flat';
+        }
       } else {
         levelSubEl.hidden = true;
         levelSubEl.innerHTML = '';
@@ -10036,6 +10070,11 @@
    *  se calculan siempre juntas (barato para el volumen de datos de este prototipo) para que
    *  cambiar de pestaña sea instantáneo, sin recalcular nada al tocarlas (ver setGroupsTab). */
   function clearGroupPanelsWhileLoading() {
+    ['actual', 'anterior', 'race'].forEach((key) => {
+      const box = $(`#groups-state-${key}`); const panel = $(`#groups-panel-${key}`);
+      if (box) { box.hidden = true; box.innerHTML = ''; }
+      if (panel) panel.classList.remove('is-below-three');
+    });
     ['groups-intel-actual-list', 'groups-table-actual', 'groups-intel-anterior-list', 'groups-table-anterior', 'groups-table-race'].forEach((id) => {
       const el = $(`#${id}`); if (!el) return; el.innerHTML = ''; el.hidden = true;
     });
@@ -10099,6 +10138,27 @@
 
     $('#groups-race-year-label').textContent = `RACE ANUAL ${year}`;
     renderGroupTableInto('groups-table-race', 'groups-table-race-empty', raceTable, 'race');
+    applyGroupBelowThreeState(group, { actual: currentTable, anterior: previousTable, race: raceTable });
+  }
+
+  /** V04.16 (Issue #6) — con 1–2 miembros ACTIVOS ningún partido suma (Grupos_BRAMU §4/§10.2): si además
+   *  no hay puntos reales, cada panel (Semana actual / pasada / Race anual) comunica el estado contextual
+   *  del lobby en vez de un ranking ficticio con 0 pts o un "no hay partidos". Con puntos reales (p. ej. el
+   *  grupo bajó a 2 después de tener 3) se conserva la tabla real. Al llegar a 3 miembros vuelve solo al
+   *  contenido competitivo (este render se repite en cada refresh). */
+  function applyGroupBelowThreeState(group, tables) {
+    const nowIso = new Date().toISOString();
+    const count = (group.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).length;
+    ['actual', 'anterior', 'race'].forEach((key) => {
+      const hasPoints = (tables[key] || []).some((r) => r.points > 0);
+      const state = (count < 3 && !hasPoints) ? (count <= 1 ? 'one_member' : 'two_members') : null;
+      const box = $(`#groups-state-${key}`);
+      const panel = $(`#groups-panel-${key}`);
+      if (!box || !panel) return;
+      panel.classList.toggle('is-below-three', !!state);
+      box.hidden = !state;
+      box.innerHTML = state ? buildLobbyCardStateHTML(state) : '';
+    });
   }
 
   /** §G — a quién apunta "VER PERFIL" dentro de la hoja actualmente abierta (desglose o Race):

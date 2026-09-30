@@ -1104,6 +1104,9 @@ input, select{ font-family: inherit; }
   letter-spacing: 0.02em; padding: 9px 14px 10px; cursor:pointer; white-space:nowrap;
   transition: background var(--motion-fast) ease, color var(--motion-fast) ease;
 }
+/* V04.16 — las 3 pestañas del detalle de grupo se reparten el ancho: "Race anual" completo en iPhone, sin scroll horizontal */
+#groups-view-tabs{ display:flex; }
+#groups-view-tabs .history-tab{ flex:1 1 0; min-width:0; padding: 9px 4px 10px; text-align:center; font-size: 12.5px; letter-spacing: 0; }
 .history-tab__count{ font-size: 11px; color: var(--paper-faint); font-weight: 600; }
 /* BRAMUlab_V03.5.1 (§11) — contraste activo/inactivo reforzado: color paper-dim→paper era una
    diferencia débil (gris apagado a blanco). Mismo patrón que YA usa .profile-tab.is-active
@@ -2780,6 +2783,15 @@ input, select{ font-family: inherit; }
 .access-scroll--with-bottom-nav{ padding-bottom: calc(90px + var(--safe-bottom)); }
 /* V04.15 h2 — QA real iPhone: Configuración del grupo podía crecer por miembros/acciones pero `.access-scroll` no tenía overflow propio; como html/body usan overflow:hidden, el final quedaba inaccesible. Scope solo a esta vista para no alterar la familia completa de acceso. */
 #view-group-settings .access-scroll{ overflow-y:auto; }
+/* V04.16 — el h2 no alcanzó: `.view` usa `min-height:100dvh`, así que la vista CRECÍA con el contenido y
+   el hijo nunca quedaba acotado al viewport (no había nada que scrollear). Se acota la vista al alto del
+   viewport (mismo patrón que `.view--history`) y el scroller interno ocupa el resto, reservando la
+   bottom-nav (--bottomnav-h, medida en runtime por showView()) para que "SALIR DEL GRUPO" sea alcanzable. */
+#view-group-settings{ height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden; }
+#view-group-settings .access-scroll{
+  flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding-bottom: calc(28px + var(--safe-bottom) + var(--bottomnav-h, 0px));
+}
 
 /* V03.0.3 (§9) — "dar más presencia y mejor ubicación al wordmark": Bienvenida es la única
    pantalla sin sesión que lo usa como elemento principal (consolidado §1), así que gana
@@ -3394,6 +3406,14 @@ input, select{ font-family: inherit; }
 .group-breakdown-row--counted .group-breakdown-row__pts{ color: var(--brand-lime); }
 
 /* B2c — foto del grupo en Configuración (identidad compacta centrada) */
+.groups-panel-state{
+  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 16px; margin-bottom: 12px;
+}
+/* V04.16 — grupo con 1–2 miembros sin puntos: nada de ranking ficticio con 0 pts ni "no hay partidos" */
+.groups-panel.is-below-three .groups-intel-card,
+.groups-panel.is-below-three .group-table,
+.groups-panel.is-below-three .groups-table-empty,
+.groups-panel.is-below-three .groups-race-title{ display:none !important; }
 .group-photo-edit{ display:flex; flex-direction:column; align-items:center; gap: 8px; margin: 4px 0 18px; }
 .group-photo-edit__wrap{ position:relative; flex:none; }
 .group-photo-edit__avatar{
@@ -3574,6 +3594,8 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); padding: 12px 14px; min-height: 2.8em;
 }
 @media (min-width: 480px){ .player-home-carousel-card{ flex-basis: 40%; } }
+/* V04.16 — UNA sola tarjeta en el carrusel => ancho completo (2+ conserva el asomo del carrusel). Más específico que los basis de arriba. */
+.player-home-carousel.player-home-carousel--single .player-home-carousel-card{ flex-basis: 100%; }
 /* Handoff sistema visual unificado h21 (doc 59, principio de sistema/punto 3/11/12) — "ámbar =
    todavía pendiente/requiere resolución" es la regla única en TODA la app: esta tarjeta describe
    un estado TODAVÍA no resuelto (falta que YO confirme), nunca una acción ya positiva — deja de

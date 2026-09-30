@@ -702,6 +702,16 @@
   const removeGroupMember = (groupId, playerId) => groupsRpc('remove_group_member', { p_group_id: groupId, p_player_id: playerId });
   const promoteGroupAdmin = (groupId, playerId) => groupsRpc('promote_group_admin', { p_group_id: groupId, p_player_id: playerId });
   const demoteGroupAdmin = (groupId, playerId) => groupsRpc('demote_group_admin', { p_group_id: groupId, p_player_id: playerId });
+  /** V04.16 (Issue #7) — último cambio REAL de Nivel del caller (match_level_result_players vigente). `delta:null` = sin evidencia. */
+  async function getMyLastLevelDelta() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    let res;
+    try { res = await c.rpc('get_my_last_level_delta'); } catch (e) { return { ok: false, code: 'network_error' }; }
+    if (res.error || !res.data || res.data.ok !== true) return { ok: false, code: (res.error && res.error.message) || 'unknown' };
+    const d = res.data.delta;
+    return { ok: true, delta: (d === null || d === undefined || !Number.isFinite(Number(d))) ? null : Number(d) };
+  }
   const deleteGroup = (groupId) => groupsRpc('delete_group', { p_group_id: groupId });
   /** §26.5 — "Salir del grupo" (cualquier miembro; guardrails de último admin/único miembro del lado servidor). */
   const leaveGroup = (groupId) => groupsRpc('leave_group', { p_group_id: groupId });
@@ -823,7 +833,7 @@
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
     listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
-    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getGroupCompetitionData, getGroupsLobby,
+    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getMyLastLevelDelta, getGroupCompetitionData, getGroupsLobby,
     GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
     uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
   };

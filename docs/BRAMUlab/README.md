@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.15 / bundle 04.15-h2** en Staging. Grupos B2c quedó cerrado con QA visual PASS; está activa la revisión final de producto/UX post-B2c antes del QA integral. Ver `Grupos_BRAMU.md` §26 e Issue #6.
+**Estado del producto:** BRAMUlab **V04.16 / bundle 04.16-h1** en Staging (ronda acumulada de cierre QA general: Issue #9). Ver `Grupos_BRAMU.md` §26 e Issue #6.
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 30 de septiembre de 2026
