@@ -943,3 +943,129 @@ Implementada en Staging-ready (migración `20260930120000_preprod_grupos_b2c_gro
 - **P0.3 ↔ Grupos (Issue #4, algoritmo cerrado):** `admin_delete_player_account` llama explícitamente a `_groups_account_deletion_cleanup` (service_role) en la misma transacción, antes de anonimizar: cierra **todas** las memberships abiertas de la persona (`left_at = greatest(clock_timestamp(), joined_at)`, fila histórica conservada); grupo activo con otros miembros se conserva y, si era el último admin, se promueve primero al sucesor determinístico (`joined_at ASC, membership_id ASC`); único miembro → borrado lógico + `photo_path = null`; grupo ya eliminado → solo se cierra el período. Auditoría con los eventos existentes (`admin_promoted` / `member_removed` / `deleted`) y `metadata.reason = "account_deletion"`. Cualquier falla revierte toda la Fase 1. El orquestador (`supabase/scripts/admin-delete-player-account.mjs`, Fase 2b) limpia `group-photos/{group_id}/*` de los grupos que la persona borró y la postcondición `groupStorageClean` lo verifica.
 - **UI:** lobby = foto/iniciales en el mismo contenedor de 50 px (sin cambiar la altura); Configuración = bloque compacto de foto centrado arriba del nombre (badge de cámara del Perfil, "Quitar foto" solo si existe); el detalle no suma un bloque fotográfico. Podio del lobby: `@usuario` secundario solo cuando existe realmente, y fallback de iniciales en verde (mismo tratamiento que el resto de las identidades sin foto).
 
+
+
+---
+
+## 26. Cierre de producto/UX post-B2c — decisiones vigentes (30/09/2026)
+
+Esta sección **REEMPLAZA** cualquier regla anterior de este documento que limite la pantalla de Configuración, el nombre o la foto del grupo únicamente a admins cuando exista contradicción.
+
+### 26.1 Estado cero — aprobado con ajustes
+
+Se conserva la composición actual:
+
+- claim: **Tu grupo de siempre. Una competencia nueva cada semana.**
+- bajada explicativa breve;
+- 3 bloques de valor;
+- tarjeta marcada como **EJEMPLO**;
+- CTA principal **CREAR MI GRUPO**;
+- acceso a **Cómo funciona**.
+
+Ajustes confirmados:
+
+- **REEMPLAZAR** “Tus 3 mejores cuentan” por **“Tus 3 mejores partidos cuentan”**.
+- **REEMPLAZAR** el link suelto “Cómo funciona” por un CTA secundario lima full-width, misma familia visual que **+ AGREGAR JUGADOR**: borde lima, texto lima, fondo oscuro con tinte verde muy sutil.
+- Tarjeta de ejemplo:
+  - nombre: **Pádel de los jueves**;
+  - usar una imagen genérica/neutral de cancha de pádel o un recurso original equivalente empaquetado con la app;
+  - **NO** depender de la foto privada de un grupo real ni de una referencia de terceros en runtime;
+  - borde/acento verde, no amarillo de pendiente;
+  - mantener claramente la etiqueta **EJEMPLO**.
+
+Los textos restantes del estado cero se consideran aprobados.
+
+### 26.2 Lobby cuando ya existen grupos
+
+La tarjeta B2b/B2c vigente se conserva.
+
+Para que la pantalla no quede vacía o sin contexto cuando existe uno solo (y siga funcionando con varios), **AGREGAR** arriba de la lista real una introducción compacta, no un onboarding completo:
+
+**Tu competencia semanal**  
+Cada semana empieza de nuevo. Cuentan tus 3 mejores partidos.
+
+No repetir los 3 bloques del estado cero.
+
+Mantener:
+- tarjetas ordenadas por actividad significativa reciente;
+- CTA **Nuevo grupo** al final;
+- tarjeta compacta, sin convertir el lobby en dashboard.
+
+### 26.3 Identidad en selector interno
+
+**FUSIONAR** foto real del grupo o fallback de iniciales en:
+
+- selector superior del grupo activo;
+- opciones del desplegable “Mis grupos”.
+
+Objetivo: continuidad de identidad entre lobby, detalle y Configuración.
+
+No agrandar el selector ni desplazar la competencia semanal.
+
+### 26.4 Configuración accesible para todos los miembros
+
+**REEMPLAZAR** la regla anterior “engranaje/configuración solo admin”.
+
+Todo miembro activo del grupo puede abrir Configuración.
+
+Todos los miembros activos pueden:
+- ver foto/fallback y nombre del grupo;
+- cambiar foto;
+- quitar foto;
+- cambiar nombre;
+- ver la lista completa de miembros;
+- usar **Salir del grupo**.
+
+Solo admins pueden:
+- agregar jugadores;
+- hacer admin;
+- quitar admin;
+- quitar a otra persona del grupo;
+- eliminar el grupo.
+
+La UI debe ocultar/no ofrecer acciones administrativas a quien no es admin, y backend/RLS debe imponer la misma regla server-side.
+
+### 26.5 Salir del grupo
+
+**AGREGAR** acción **Salir del grupo** al final de Configuración para cualquier miembro.
+
+Comportamiento:
+- cierre histórico de la membresía; nunca borrar la fila ni partidos reales;
+- confirmar antes de ejecutar;
+- no recalcular ni borrar puntos históricos de terceros;
+- el usuario deja de aparecer en tablas/Race/Intelligence según las reglas vigentes de membresía.
+
+Guardrails:
+- miembro no-admin: sale directamente tras confirmación;
+- admin cuando queda otro admin activo: sale normalmente;
+- **último admin con otros miembros activos:** antes de cerrar su membresía, promover automáticamente un sucesor determinístico por `joined_at ASC, membership_id ASC`;
+- **único miembro activo:** al salir, el grupo se elimina lógicamente;
+- el flujo debe ser atómico, idempotente y auditable, reutilizando el criterio ya validado en P0.3 ↔ Grupos.
+
+Copy de confirmación:
+- caso normal: explicar que dejará de formar parte del grupo;
+- último admin con otros miembros: aclarar que otro miembro pasará a ser admin para que el grupo continúe;
+- único miembro: aclarar que el grupo se eliminará.
+
+### 26.6 Permisos de nombre y foto
+
+La identidad del grupo pasa a ser colaborativa entre miembros activos.
+
+Por lo tanto:
+- RPC/policy de cambio de nombre: miembro activo, no solo admin;
+- RPC/policy de foto: miembro activo, no solo admin;
+- Storage de group-photos mantiene privacidad de lectura para miembros activos y debe permitir escritura/reemplazo a miembros activos;
+- limpieza post-delete mantiene sus reglas especiales;
+- no relajar ninguna acción administrativa por este cambio.
+
+### 26.7 Estado de la ronda
+
+Estas decisiones quedan cerradas para implementación.
+
+Antes del QA integral final de Grupos:
+1. implementar esta sección como una sola ronda;
+2. Central hace un único gate técnico, incluyendo Supabase Staging si Claude no puede ejecutar esa frontera;
+3. Sebastián revisa visualmente estado cero, lobby, selector y Configuración miembro/admin;
+4. recién después se ejecuta/cierra el QA integral de transiciones de Issue #6.
+
+No seguir agregando funciones nuevas fuera de este cierre.
