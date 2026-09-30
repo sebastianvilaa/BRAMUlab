@@ -7,6 +7,11 @@
 -- Esta corrección elimina el unschedule previo y usa la semántica nativa de nombre estable.
 -- Resultado: una o varias llamadas, incluso en la misma transacción, dejan exactamente un job.
 
+-- Las extensiones se aseguran UNA VEZ al aplicar esta migración. Repetir CREATE EXTENSION dentro
+-- de una función invocada dos veces en la misma transacción puede terminar la conexión.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
 create or replace function public.schedule_cleanup_abandoned_signups(p_function_url text)
 returns bigint
 language plpgsql
@@ -23,8 +28,6 @@ begin
   end if;
 
   perform public.ensure_cleanup_cron_secret();
-  create extension if not exists pg_cron;
-  create extension if not exists pg_net;
 
   v_command := format($cmd$
     select net.http_post(
