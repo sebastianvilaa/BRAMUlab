@@ -7,7 +7,7 @@
 --  L3  leave_group — miembro no-admin: sale, período cerrado con historia, sin tocar a terceros
 --  L4  leave_group — admin con OTRO admin: sale sin promoción
 --  L5  leave_group — ÚLTIMO admin con otros miembros: sucesor determinístico (joined_at, membership_id)
---  L6  leave_group — ÚNICO miembro: borrado lógico + photo_path null
+--  L6  leave_group — ÚNICO miembro: borrado lógico + photo_path null + cleanup post-commit seguro
 --  L7  retry / idempotencia (sin eventos duplicados), no-miembro -> group_not_found
 --  L8  constraint group_memberships_require_active_admin sigue PASS
 --  L9  reingreso tras salir: período nuevo, historia preservada
@@ -182,26 +182,48 @@ begin
 end $$;
 
 -- ---------- L6 ÚNICO miembro sale -> grupo eliminado lógicamente ----------
-do $$
-declare v jsonb; gs uuid;
+do $
+declare v jsonb; gs uuid; n int; obj text;
 begin
   perform pg_temp._as('SOLO');
   v := public.create_group('L26 Solo', '{}'); gs := (v->'group'->>'groupId')::uuid;
-  perform public.update_group_photo(gs, gs::text || '/1700000000200.jpg');
+  obj := gs::text || '/1700000000200.jpg';
+  perform public.update_group_photo(gs, obj);
+  insert into storage.objects (bucket_id, name) values ('group-photos', obj);
   insert into pg_temp._t values ('GS', gs);
   v := public.leave_group(gs);
   perform pg_temp._assert((v->>'ok')::boolean and (v->>'changed')::boolean and (v->>'groupDeleted')::boolean, 'L6 leave_group: ' || v::text);
   perform pg_temp._assert((select status = 'deleted' and photo_path is null and deleted_by_player_id = pg_temp._id('SOLO') from public.groups where group_id = gs), 'L6 deleted + photo_path null + deleted_by');
   perform pg_temp._assert(not exists (select 1 from public.group_memberships where group_id = gs and left_at is null), 'L6 período cerrado');
   perform pg_temp._assert(exists (select 1 from public.group_events where group_id = gs and event_type = 'deleted' and metadata->>'reason' = 'voluntary_leave'), 'L6 evento deleted');
+
+  -- La membership ya está cerrada: el actor que produjo el logical-delete conserva SOLO la
+  -- ventana de cleanup list/delete. No recupera lectura/firma del objeto.
+  perform pg_temp._as('SOLO');
+  perform pg_temp._assert(public._group_photo_can_cleanup(obj), 'L6 deleted_by conserva gate de cleanup');
+  perform set_config('storage.operation', 'object.list', true);
+  execute 'set local role authenticated';
+  select count(*) into n from storage.objects where bucket_id='group-photos' and name=obj;
+  execute 'reset role';
+  perform pg_temp._assert(n = 1, 'L6 deleted_by puede listar residuo para cleanup');
+  perform set_config('storage.operation', 'object.sign', true);
+  execute 'set local role authenticated';
+  select count(*) into n from storage.objects where bucket_id='group-photos' and name=obj;
+  execute 'reset role';
+  perform pg_temp._assert(n = 0, 'L6 deleted_by NO puede firmar/leer tras salir');
+  perform set_config('storage.operation', '', true);
+
+  perform pg_temp._as('OUT');
+  perform pg_temp._assert(not public._group_photo_can_cleanup(obj), 'L6 ajeno no obtiene cleanup');
+
+  perform pg_temp._as('SOLO');
   v := public.leave_group(gs);
   perform pg_temp._assert((v->>'ok')::boolean and not (v->>'changed')::boolean, 'L7 retry sobre grupo eliminado: idempotente');
   perform pg_temp._assert(not exists (select 1 from public.group_events where group_id = gs and event_type = 'deleted' and (select count(*) from public.group_events e2 where e2.group_id = gs and e2.event_type = 'deleted') > 1), 'L7 un solo evento deleted');
   set constraints group_memberships_require_active_admin immediate;
   set constraints group_memberships_require_active_admin deferred;
-  -- aparece en list_my_groups? no
   perform pg_temp._assert(not exists (select 1 from jsonb_array_elements(public.list_my_groups()->'groups') g where g->>'groupId' = gs::text), 'L6 ya no figura en list_my_groups');
-end $$;
+end $;
 
 -- ---------- L10 Storage: miembro activo escribe/reemplaza; ajenos NO; lectura privada ----------
 create or replace function pg_temp._storage(p_key text, p_sql text) returns text language plpgsql as $$

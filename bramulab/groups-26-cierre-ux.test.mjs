@@ -93,18 +93,18 @@ test('§26.4: los gates de admin del cliente en acciones sobre otros miembros si
 });
 
 /* ---------------- 26.5 Salir del grupo ---------------- */
-test('§26.5: "Salir del grupo" al final de Configuración, con los 3 textos de confirmación y limpieza previa de foto (único miembro)', () => {
+test('§26.5: "Salir del grupo" confirma primero la DB y recién después limpia foto si el grupo fue eliminado', () => {
   const html = indexHtml.slice(indexHtml.indexOf('id="view-group-settings"'));
   assert.ok(html.indexOf('id="group-settings-delete-btn"') < html.indexOf('id="group-settings-leave-btn"'), 'último elemento');
   assert.match(html, /id="group-settings-leave-btn"[^>]*>SALIR DEL GRUPO</);
   assert.match(appJs, /group-settings-leave-btn'\)\.addEventListener\('click', handleLeaveGroup\)/);
-  const leave = fnBody(appJs, 'function handleLeaveGroup', 3200);
+  const leave = fnBody(appJs, 'function handleLeaveGroup', 3400);
   assert.match(leave, /Dejarás de formar parte del grupo/);
   assert.match(leave, /otro miembro pasará a ser admin para que el grupo continúe/);
   assert.match(leave, /al salir, el grupo se eliminará/);
   assert.match(leave, /Auth\.leaveGroup\(group\.id\)/);
-  assert.match(leave, /scenario === 'sole' && group\.photoPath[\s\S]*removeGroupPhotoFiles\(group\.id\)/);
-  assert.ok(leave.indexOf('removeGroupPhotoFiles') < leave.indexOf('Auth.leaveGroup'), 'cleanup ANTES (después no habría permisos)');
+  assert.match(leave, /r\.groupDeleted && group\.photoPath[\s\S]*removeGroupPhotoFiles\(group\.id\)/);
+  assert.ok(leave.indexOf('Auth.leaveGroup') < leave.indexOf('removeGroupPhotoFiles'), 'cleanup DESPUÉS del commit lógico');
   assert.match(leave, /confirmAction\(/);
 });
 
@@ -134,7 +134,8 @@ test('§26: migración — nombre/foto miembro activo, admin-only intacto, leave
   assert.match(sql, /'voluntary_leave'/);
   assert.match(sql, /order by o\.joined_at asc, o\.membership_id asc/);
   assert.match(sql, /_groups_close_membership\(v_gid, p_player_id, 'account_deletion'\)/, 'P0.3 reutiliza el mismo helper');
-  // lectura de Storage NO se relaja: no se redefine can_read ni cleanup
+  // lectura normal NO se relaja; cleanup post-delete sí se amplía de forma acotada al actor
+  // deleted_by para poder borrar residuos después de cerrar su propia membership.
   assert.doesNotMatch(sql, /function public\._group_photo_can_read/);
-  assert.doesNotMatch(sql, /function public\._group_photo_can_cleanup/);
+  assert.match(sql, /function public\._group_photo_can_cleanup[\s\S]*deleted_by_player_id = pl\.player_id/);
 });

@@ -127,7 +127,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $$
+as $
   select exists (
     select 1
     from public.groups g
@@ -136,7 +136,38 @@ as $$
     where g.group_id = public._group_photo_folder_group_id(p_name)
       and pl.auth_user_id = auth.uid() and pl.is_active
   );
-$$;
+$;
+
+-- Si el ÚNICO miembro sale, leave_group cierra su membership en la misma transacción.
+-- Para conservar el orden seguro DB→Storage, el actor que dejó el grupo eliminado puede
+-- LISTAR/BORRAR residuos después del commit por ser deleted_by_player_id. La policy SELECT
+-- de B2c mantiene esta excepción acotada a object.list/object.delete; nunca habilita sign/get.
+create or replace function public._group_photo_can_cleanup(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $
+  select exists (
+    select 1
+    from public.groups g
+    join public.players pl on pl.auth_user_id = auth.uid() and pl.is_active
+    where g.group_id = public._group_photo_folder_group_id(p_name)
+      and g.status = 'deleted'
+      and (
+        g.deleted_by_player_id = pl.player_id
+        or exists (
+          select 1
+          from public.group_memberships gm
+          where gm.group_id = g.group_id
+            and gm.player_id = pl.player_id
+            and gm.left_at is null
+            and gm.is_admin
+        )
+      )
+  );
+$;
 
 -- ------------------------------------------------------------------
 -- 3) Cierre de membresía compartido (leave_group + eliminación de cuenta)

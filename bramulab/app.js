@@ -10867,10 +10867,15 @@
         if (groupsBusy) return;
         groupsBusy = true;
         try {
-          // Único miembro: el grupo se elimina y después nadie podría limpiar su foto => se limpia antes (best-effort).
-          if (scenario === 'sole' && group.photoPath) { try { await Auth.removeGroupPhotoFiles(group.id); } catch (e) { /* best-effort */ } }
+          // Orden seguro: primero confirmar leave_group. Si falla, la foto válida queda intacta.
+          // Cuando el único miembro sale, el backend marca deleted_by_player_id y conserva una
+          // ventana de cleanup SOLO list/delete para ese actor; recién con la RPC confirmada se
+          // elimina la carpeta best-effort.
           const r = await Auth.leaveGroup(group.id);
           if (!r.ok) { showToast(groupErrorMessage(r.code)); if (r.code === 'group_not_found') await refreshGroupsFromServer({ keepActive: false }); return; }
+          if (r.groupDeleted && group.photoPath) {
+            try { await Auth.removeGroupPhotoFiles(group.id); } catch (e) { /* best-effort: nunca revierte leave_group */ }
+          }
           activeGroupId = null; resetGroupsLobbyCache();
           await refreshGroupsFromServer({ keepActive: false });
           openGroupsLobbyScreen();
