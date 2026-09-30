@@ -10473,6 +10473,12 @@
       activeGroupId = r.group.groupId;
       groupsActiveTab = 'actual';
       await refreshGroupsFromServer();
+      // B2b — el lobby se repinta ANTES del success sheet: si se cierra por scrim/Escape, detrás
+      // ya está el grupo nuevo. Un fallo secundario del refresco no bloquea la creación.
+      try {
+        const lobbyRes = await refreshGroupsLobby();
+        if (lobbyRes && lobbyRes.ok) renderGroupsLobbyScreen();
+      } catch (_) { /* el detalle server-backed sigue siendo la verdad */ }
       // §E — cierre visual de la creación ("Tu grupo está listo"), antes de entrar al detalle.
       openGroupCreatedSheet(r.group.name, ids.length + 1);
     } finally {
@@ -10511,6 +10517,7 @@
     closeCreateGroupSheet();
     activeGroupId = group.id;
     groupsActiveTab = 'actual';
+    renderGroupsLobbyScreen(); // B2b — el lobby detrás del success sheet ya refleja el grupo nuevo
     // §E — cierre visual de la creación ("Tu grupo está listo"), antes de entrar al detalle.
     openGroupCreatedSheet(group.name, (group.members || []).length);
   }
@@ -10617,13 +10624,12 @@
       async () => {
         if (groupsUseServer()) {
           const r = await runGroupMutation(() => Auth.deleteGroup(group.id), 'Grupo eliminado');
-          if (r && r.ok) { activeGroupId = null; showView('groups'); renderGroupsScreen(); }
+          if (r && r.ok) { activeGroupId = null; resetGroupsLobbyCache(); openGroupsLobbyScreen(); }
           return;
         }
         Store.deleteGroup(group.id);
         activeGroupId = null;
-        showView('groups');
-        renderGroupsScreen();
+        openGroupsLobbyScreen();
         showToast('Grupo eliminado');
       },
       null, 'Eliminar grupo', 'Cancelar', true
@@ -12930,7 +12936,7 @@
   function updateBottomNavActive(viewName) {
     // B2b — el detalle del grupo (#view-groups) sigue marcando "Mis grupos" activo aunque ya
     // no sea la vista de entrada (data-nav="groups" sin cambios).
-    const navName = viewName === 'groups-lobby' ? 'groups' : viewName;
+    const navName = (viewName === 'groups-lobby' || viewName === 'group-settings') ? 'groups' : viewName;
     $all('.bottom-nav__item[data-nav]').forEach((btn) => {
       btn.classList.toggle('is-active', btn.dataset.nav === navName);
     });

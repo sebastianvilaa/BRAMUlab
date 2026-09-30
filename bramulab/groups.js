@@ -605,9 +605,10 @@
   /** §G — resumen Race semana por semana de UN jugador: una fila por semana con partidos reales
    *  del grupo, orden más-reciente-primero (V1: nunca despliega los partidos de cada semana acá
    *  — eso ya lo cubre `buildPlayerWeeklyBreakdown` si en el futuro se navega a una semana
-   *  puntual). Recorre EXACTAMENTE `computeGroupYearWeekStarts` — las mismas semanas que suma
-   *  `computeRaceAnual` — así que la suma de `points` de este resumen coincide siempre con la
-   *  fila de Race del jugador. */
+   *  puntual). Parte de EXACTAMENTE las mismas semanas de `computeGroupYearWeekStarts` que suma
+   *  `computeRaceAnual`, pero omite las semanas donde el jugador no tiene fila visible en su
+   *  etapa competitiva vigente (p. ej. anteriores a un reingreso): esas aportaban 0, así que la
+   *  suma de `points` de este resumen coincide siempre con la fila de Race del jugador. */
   function buildRaceWeeklySummary(fullHistory, group, year, playerRef) {
     const key = rowKey({ userId: playerRef && playerRef.userId, name: (playerRef && playerRef.name) || playerRef });
     const weekStartsMs = computeGroupYearWeekStarts(fullHistory, group, year).slice().reverse(); // más reciente primero
@@ -615,15 +616,16 @@
       const weekStart = new Date(ms);
       const table = computeWeeklyTable(fullHistory, group, weekStart);
       const row = table.find((r) => rowKey(r) === key);
+      if (!row) return null; // sin fila visible en su etapa competitiva vigente: no se fabrica "0 pts"
       return {
         weekStart: weekStart.toISOString(),
         weekEnd: new Date(ms + WEEK_MS).toISOString(),
-        points: row ? row.points : 0,
-        matchesPlayed: row ? row.matchesPlayed : 0,
-        wins: row ? row.wins : 0,
-        losses: row ? row.losses : 0,
+        points: row.points,
+        matchesPlayed: row.matchesPlayed,
+        wins: row.wins,
+        losses: row.losses,
       };
-    });
+    }).filter(Boolean);
   }
 
   /* ------------------------------------------------------------------ */

@@ -288,3 +288,60 @@ test('index.html: la ayuda de Grupos quedó fusionada en una sola hoja ("Cómo f
   assert.match(indexHtml, /CÓMO FUNCIONAN LOS GRUPOS BRAMU/);
   assert.doesNotMatch(indexHtml, /¿CÓMO SE SUMAN LOS PUNTOS\?/);
 });
+
+/* ------------------------------------------------------------------ */
+/* Issue #2 — ajustes Central pre-PASS visual                           */
+/* ------------------------------------------------------------------ */
+
+function fnBody(src, sig, len = 2500) { const i = src.indexOf(sig); assert.ok(i >= 0, sig); return src.slice(i, i + len); }
+
+test('create server: refreshGroupsLobby + renderGroupsLobbyScreen ocurren antes de openGroupCreatedSheet', () => {
+  const body = fnBody(appJs, 'async function submitCreateGroupServer');
+  const iSheet = body.indexOf('openGroupCreatedSheet(');
+  const iRefresh = body.indexOf('refreshGroupsLobby()');
+  const iRender = body.indexOf('renderGroupsLobbyScreen()');
+  assert.ok(iRefresh > 0 && iRender > 0 && iSheet > 0);
+  assert.ok(iRefresh < iSheet && iRender < iSheet);
+});
+
+test('create legacy: repinta el lobby antes del success sheet', () => {
+  const full = fnBody(appJs, '  function submitCreateGroup()');
+  const body = full.slice(full.indexOf('Store.createGroup('));
+  const iRender = body.indexOf('renderGroupsLobbyScreen()');
+  const iSheet = body.indexOf('openGroupCreatedSheet(');
+  assert.ok(iRender > 0 && iSheet > 0 && iRender < iSheet);
+});
+
+test('delete: vuelve al lobby nuevo (reset cache + openGroupsLobbyScreen), nunca a la vista legacy', () => {
+  const body = fnBody(appJs, 'function handleDeleteGroup', 1200);
+  assert.match(body, /resetGroupsLobbyCache\(\)/);
+  assert.match(body, /openGroupsLobbyScreen\(\)/);
+  assert.doesNotMatch(body, /showView\('groups'\)/);
+  assert.doesNotMatch(body, /renderGroupsScreen\(\)/);
+});
+
+test('race semanal: reingreso — no fabrica semanas 0 pts anteriores a la etapa visible vigente', () => {
+  const REJOIN = '2026-09-21T03:00:00.000Z';
+  const g = { id: 'g', members: [
+    member('A', 'a', [period(LONG_AGO)]), member('B', 'b', [period(LONG_AGO)]), member('D', 'd', [period(LONG_AGO)]),
+    member('C', 'c', [period('2026-01-05T00:00:00.000Z', '2026-03-01T00:00:00.000Z'), period(REJOIN)]),
+  ] };
+  const win = [{ gamesA: 6, gamesB: 4 }, { gamesA: 6, gamesB: 4 }];
+  const history = [
+    match('feb', '2026-02-03T10:00:00Z', 'A', win, 'official'),
+    match('now', '2026-09-22T10:00:00Z', 'A', win, 'official'),
+  ];
+  const starts = PG.computeGroupYearWeekStarts(history, g, 2026);
+  assert.equal(starts.length, 2, 'la semana de febrero sigue siendo del grupo');
+  const weeks = PG.buildRaceWeeklySummary(history, g, 2026, { name: 'C', userId: 'c' });
+  assert.ok(weeks.length >= 1);
+  weeks.forEach((w) => assert.ok(new Date(w.weekStart).getTime() >= new Date('2026-09-14').getTime(), 'sin semanas previas al reingreso'));
+  const rowC = PG.computeRaceAnual(history, g, 2026).find((r) => r.userId === 'c');
+  assert.equal(weeks.reduce((s, w) => s + w.points, 0), rowC ? rowC.points : 0);
+});
+
+test('bottom-nav: group-settings mantiene activa la sección groups', () => {
+  const body = fnBody(appJs, 'function updateBottomNavActive', 700);
+  assert.match(body, /viewName === 'group-settings'/);
+  assert.match(body, /\? 'groups'/);
+});
