@@ -42,6 +42,26 @@
 - Sebastián no debe transportar informes técnicos entre chats. Idealmente solo informa `terminó` y ChatGPT central lee directamente HEAD, diff y documentación desde el repo.
 - Si por una limitación real no puede hacerse push, el agente debe dejarlo explícito como bloqueo operativo antes de dar la tarea por terminada.
 
+## Prompt único para Claude Code
+
+Cuando una tarea corresponda a Claude Code, ChatGPT central debe entregar a Sebastián **un único prompt listo para copiar**, sin obligarlo a reconstruir instrucciones ni combinar mensajes anteriores.
+
+Ese prompt debe ser autosuficiente como orden de ejecución, pero **no duplicar documentación extensa** que ya exista en una fuente maestra o handoff vigente. Como mínimo debe incluir:
+
+- objetivo concreto de la ronda;
+- fuentes que Claude debe leer;
+- alcance expresado, cuando aplique, como **AGREGAR / FUSIONAR / REEMPLAZAR / NO TOCAR**;
+- pruebas necesarias según el riesgo real;
+- versionado/bundle si la ronda se distribuye;
+- reglas de Git, commit, push y deploy;
+- salida breve esperada al terminar.
+
+Si el detalle técnico ya está consolidado en un documento o Issue, el prompt debe apuntar a esa fuente en vez de copiarla completa.
+
+Claude debe ejecutar autónomamente todo lo técnico posible. Si aparece una decisión humana real, debe marcarla como **DECISIÓN ABIERTA** y continuar con todo lo que no dependa de ella.
+
+Sebastián no debe actuar como integrador entre agentes ni transportar informes técnicos extensos. Idealmente solo copia el prompt inicial, aporta una decisión humana cuando realmente hace falta y al final informa **“terminó”**. ChatGPT central revisa HEAD, diff, tests y documentación directamente antes de habilitar la siguiente etapa sensible.
+
 ## Git / commits
 
 - Evitar commits intermedios directamente sobre `staging`.
