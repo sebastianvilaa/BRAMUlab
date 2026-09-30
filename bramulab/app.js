@@ -2548,6 +2548,8 @@
    *  abajo (Bloque 5), acá en su propio mapa porque el vocabulario de códigos es distinto. */
   const B6_ERROR_MESSAGES = {
     not_actionable_for_caller: 'Todavía no es tu turno — la acción es de la otra pareja.',
+    stale_revision: 'El partido cambió mientras lo mirabas. Lo actualizamos para que lo revises de nuevo.',
+    nothing_to_sustain: 'No hay ninguna corrección para responder en este partido.',
     match_expired: 'Este partido venció sin validarse a tiempo.',
     identity_issue_open: 'Primero hay que resolver la identidad cuestionada.',
     not_a_participant: 'No participás de este partido.',
@@ -2999,6 +3001,20 @@
           // diffear ni corresponde mostrarlo acá (instrucción explícita: "NO diff de sets").
           renderCorrectionDiff('b6-status-banner-diff', f.previousRevisionSets, f.sets);
           confirmBlock.hidden = false;
+        } else if (pendingEventType === 'sustained_original') {
+          // V04.18 (Issue #12) — la otra pareja indicó que NO HAY ERROR en el resultado original: acá se
+          // reutilizan las acciones ya conocidas (VALIDAR PARTIDO / REPORTAR UN ERROR); el matiz vive en el mensaje.
+          const sustainer = b6LastActorForActionType(f, 'revision_sustained');
+          const who = (sustainer && (sustainer.name || S.teamLabel(f.players, sustainer.actingSide))) || null;
+          const noErrorText = who
+            ? `${escapeHtml(who)} indicó que no hay error en el resultado original.`
+            : 'La otra pareja indicó que no hay error en el resultado original.';
+          if (paintPendingInResultCard(f, 'act', null, { titleText: noErrorText })) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = noErrorText.replace(/&amp;/g, '&');
+            confirmBlock.hidden = false;
+          }
         } else if (pendingEventType === 'identity_replacement') {
           // Handoff 71 (C3) — FUSIONA identity_replacement dentro de la misma
           // .result-card--pending (contradecía h24, ver comentario de paintPendingInResultCard).
@@ -3047,6 +3063,13 @@
           bannerText.hidden = true;
         } else if (pendingEventType === 'result_correction') {
           bannerText.textContent = `Corrección enviada. Esperando que ${waitingTeam} la acepte.`;
+        } else if (pendingEventType === 'sustained_original') {
+          const sustainedText = 'Indicamos que el resultado original está bien. Esperando respuesta de la otra pareja.';
+          if (paintPendingInResultCard(f, 'wait', waitingTeam, { waitText: sustainedText })) {
+            banner.hidden = true; banner.classList.remove('b6-correction-card');
+          } else {
+            bannerText.textContent = sustainedText;
+          }
         } else if (pendingEventType === 'identity_replacement') {
           // Handoff 71 (C3) — mismo criterio: fusiona dentro de la tarjeta, nunca un banner aparte.
           if (paintPendingInResultCard(f, 'wait', waitingTeam, { waitText: `Participante corregido. Esperando que ${escapeHtml(waitingTeam)} confirme el partido.` })) {
@@ -3717,12 +3740,29 @@
     });
     // Fix h22 — corrección sobre partido todavía pendiente: "Aceptar corrección" reusa exactamente
     // la confirmación oficial ya existente (officializeMatch, la misma del botón Confirmar).
-    // "Mantener resultado cargado" no llama al backend (no existe rechazo pre-validación): deja
-    // el partido pendiente sin confirmar y vuelve al Home.
+    // V04.18 (Issue #12) — "NO HAY ERROR" ya NO es un simple "volver al Home": llama al backend
+    // (sustain_match_revision) que registra de forma auditable que esta pareja sostiene el resultado
+    // original y le pasa la acción a la pareja que propuso la corrección. NO valida unilateralmente.
     $('#b6-pre-accept-btn').addEventListener('click', () => $('#b6-confirm-btn').click());
     $('#b6-pre-keep-btn').addEventListener('click', () => {
-      showToast('No confirmaste la corrección. El partido sigue pendiente.', 2800);
-      openPlayerHome();
+      if (!analysisCurrent) return;
+      const matchId = analysisCurrent.matchId;
+      const revision = analysisCurrent.currentRevisionNumber;
+      confirmAction(
+        '¿Confirmás que no hay error?',
+        'Vas a indicar que el resultado original estaba bien cargado. La otra pareja tendrá que confirmarlo o proponer otro cambio.',
+        async () => {
+          const result = await MV.sustainMatchRevision(matchId, revision);
+          if (!result || result.ok === false) {
+            showToast(b6ErrorMessage(result && result.code), 2800);
+            if (result && (result.code === 'stale_revision' || result.code === 'not_actionable_for_caller')) await afterB6Action(matchId);
+            return;
+          }
+          showToast('Indicamos que el resultado original está bien. Esperando respuesta de la otra pareja.', 3200);
+          await afterB6Action(matchId);
+        },
+        null, 'No hay error', 'Cancelar'
+      );
     });
     $('#b6-respond-reject-btn').addEventListener('click', () => {
       if (!analysisCurrent) return;

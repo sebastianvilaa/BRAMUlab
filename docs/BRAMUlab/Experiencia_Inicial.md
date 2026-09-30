@@ -790,6 +790,15 @@ Ejemplo:
 
 No se fija un límite numérico de intercambios. La protección contra una discusión infinita es la ventana fija de 30 días.
 
+#### Responder a una corrección: ACEPTAR CORRECCIÓN o NO HAY ERROR (V04.18)
+
+La pareja que recibe una corrección pre-validación puede:
+
+- **ACEPTAR CORRECCIÓN** — confirma la revisión propuesta (circuito de siempre);
+- **NO HAY ERROR** — indica que el resultado original estaba bien cargado. Es la postura de esa pareja, no una conclusión de BRAMU: **no valida nada**. Server-side (`sustain_match_revision`) se crea una revisión nueva append-only que copia los sets de la última versión que esa pareja había propuesto, y la acción pasa a la pareja que había propuesto la corrección.
+
+La pareja que recupera la acción ve "[Nombre] indicó que no hay error en el resultado original" con el score original y las acciones de siempre: **VALIDAR PARTIDO** (oficializa esa revisión) o **REPORTAR UN ERROR** (nueva revisión, la acción vuelve al otro lado). No existe un estado `rejected`; las revisiones y acciones nunca se sobreescriben; una sola pareja tiene la acción; el deadline original no se reinicia y nada afecta Nivel/estadísticas hasta que una revisión se valide. Un doble tap es idempotente y una revisión desactualizada devuelve conflicto (el cliente refresca).
+
 ### 12.2 Revisión y concurrencia
 
 Cada modificación crea una **nueva revisión append-only**. Nunca se pisa silenciosamente la anterior.

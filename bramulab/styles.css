@@ -435,6 +435,11 @@ input, select{ font-family: inherit; }
    abierto sobre el Home — mismo nivel que .sheet-scrim (36), el otro sistema de superposición
    de pantalla completa de la app. */
 .overlay{ position: fixed; inset: 0; background: var(--scrim); display:flex; align-items:center; justify-content:center; z-index: 36; padding: 20px; }
+/* V04.18 (Issue #13) — RAÍZ del "Set 3 huérfano": #confirm-overlay y los bottom-sheets (.sheet-scrim) compartían
+   z-index 36 y el sheet va DESPUÉS en el DOM, así que el aviso "Este cambio ya no necesita un tercer set" se
+   abría DETRÁS del editor de corrección (invisible e intocable) y recién aparecía al cerrarlo. El modal de
+   confirmación genérico siempre debe quedar por encima de cualquier sheet. */
+#confirm-overlay{ z-index: 50; }
 .overlay__card{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: 20px; padding: 24px 22px; text-align:center; max-width: 380px; width: 100%; }
 .overlay__card--wide{ max-width: 460px; text-align:left; }
 .overlay__card--scroll{ max-height: 85vh; overflow-y: auto; }

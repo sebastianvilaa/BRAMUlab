@@ -163,7 +163,7 @@ test('h19-E: estilo outline (nunca botón lima macizo) — aceptar en verde, man
   assert.doesNotMatch(choiceRule[1], /text-transform/, 'no debe forzar mayúsculas — el sentence case real viene del texto fuente');
   assert.match(indexHtml, />Aceptar corrección<\/button>/, 'el texto fuente debe estar en sentence case, no en mayúsculas');
   // Handoff sistema visual unificado h21 (doc 59, punto 7) — "no usar Rechazar".
-  assert.match(indexHtml, />Mantener resultado cargado<\/button>/);
+  assert.match(indexHtml, />No hay error<\/button>/);
   assert.doesNotMatch(indexHtml, />Rechazar<\/button>/);
 });
 
@@ -208,7 +208,7 @@ test('h22: corrección sobre partido pendiente muestra RESULTADO CARGADO + CORRE
   assert.match(body, /Resultado cargado/);
   assert.match(body, /buildCorrectionPreviewCardHTML\(f\.players, f\.sets/);
   assert.match(body, /buildCorrectionHumanSummary/);
-  assert.match(indexHtml, /id="b6-pre-keep-btn"[^>]*>Mantener resultado cargado</);
+  assert.match(indexHtml, /id="b6-pre-keep-btn"[^>]*>No hay error</);
   assert.match(indexHtml, /id="b6-pre-accept-btn"[^>]*>Aceptar corrección</);
   assert.match(stylesCss, /\.b6-correction-wait\{[^}]*text-align:\s*center/);
 });

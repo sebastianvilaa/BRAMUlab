@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.17 / bundle 04.17-h1** en Staging (cierre correctivo final de QA general: Issue #11). Ver `Grupos_BRAMU.md` §26 e Issue #6.
+**Estado del producto:** BRAMUlab **V04.18 / bundle 04.18-h1** en Staging (cierre del circuito de validación/correcciones: Issues #12, #13 y #14). Ver `Grupos_BRAMU.md` §26 e Issue #6.
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 30 de septiembre de 2026

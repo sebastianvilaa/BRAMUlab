@@ -99,6 +99,21 @@
     return invokeB6Function(c, 'respond-match-correction', { matchId, accept: !!accept });
   }
 
+  /** V04.18 (Issue #12) — "NO HAY ERROR" (RPC `sustain_match_revision`, directo por `authenticated`): la pareja
+   *  con la acción sostiene la última revisión que ella misma había propuesto. NO valida nada: crea una revisión
+   *  nueva append-only con los mismos sets y le pasa la acción a la pareja que propuso la corrección.
+   *  `expectedRevisionNumber` = revisión vigente que el usuario estaba viendo (concurrencia: `stale_revision`).
+   *  Idempotente. Devuelve `{ok:true, changed, actionSide}` o `{ok:false, code}`. */
+  async function sustainMatchRevision(matchId, expectedRevisionNumber) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    let res;
+    try { res = await c.rpc('sustain_match_revision', { p_match_id: matchId, p_expected_revision_number: expectedRevisionNumber }); } catch (e) { return { ok: false, code: 'network_error' }; }
+    if (res.error) return { ok: false, code: res.error.message || 'unknown' };
+    if (!res.data || typeof res.data !== 'object') return { ok: false, code: 'unknown' };
+    return res.data;
+  }
+
   /** "No participé" / identidad incorrecta (RPC `report_identity_issue`, alcanzable DIRECTO por
    *  `authenticated` vía `auth.uid()` — sin Edge Function de por medio, no hay cálculo del motor
    *  involucrado en abrir la incidencia, ver la migración). Respeta la ventana vigente
@@ -179,7 +194,7 @@
 
   global.PLMatchValidation = {
     isConfigured, getClient,
-    officializeMatch, proposeMatchCorrection, respondMatchCorrection,
+    officializeMatch, proposeMatchCorrection, respondMatchCorrection, sustainMatchRevision,
     reportIdentityIssue, resolveIdentityIssue,
     getNotifications, markNotificationRead, markAllNotificationsRead,
     // Expuesto para tests dirigidos (match-validation.test.mjs) — no es parte de la API de

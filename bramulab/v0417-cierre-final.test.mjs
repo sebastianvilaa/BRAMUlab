@@ -125,27 +125,27 @@ test('Branding: iconos PWA referenciados existen, con tamaño correcto, y vienen
     assert.ok(fs.existsSync(path.join(__dirname, file)), file);
     const [w, h] = sizeOf(file);
     assert.equal(`${w}x${h}`, ic.sizes, file);
-    assert.match(ic.src, /\?v=04\.17-h1$/, 'cache-busting coherente con el bundle');
+    assert.match(ic.src, /\?v=04\.18-h1$/, 'cache-busting coherente con el bundle');
   });
   assert.deepEqual(manifest.icons.map((i) => i.purpose), ['any', 'any', 'maskable']);
   assert.deepEqual(sizeOf('icons/apple-touch-icon.png'), [180, 180]);
   assert.deepEqual(sizeOf('icons/favicon-64.png'), [64, 64]);
-  assert.match(indexHtml, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png\?v=04\.17-h1"/);
-  assert.match(indexHtml, /rel="icon" href="icons\/favicon-64\.png\?v=04\.17-h1"/);
+  assert.match(indexHtml, /rel="apple-touch-icon" href="icons\/apple-touch-icon\.png\?v=04\.18-h1"/);
+  assert.match(indexHtml, /rel="icon" href="icons\/favicon-64\.png\?v=04\.18-h1"/);
   // sw precachea exactamente las mismas URLs con ?v=
   const sw = read('sw.js');
   ['icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon-64.png'].forEach((n) => {
-    assert.match(sw, new RegExp(`'\\./icons/${n.replace('.', '\\.')}\\?v=04\\.17-h1'`), n);
+    assert.match(sw, new RegExp(`'\\./icons/${n.replace('.', '\\.')}\\?v=04\\.18-h1'`), n);
   });
   // la fuente aprobada está en el repo junto con el script reproducible
   assert.ok(fs.existsSync(path.join(__dirname, '../docs/identidad-visual/BRAMULab icono2.png')));
   assert.match(fs.readFileSync(path.join(__dirname, '../docs/identidad-visual/generar-iconos-pwa.py'), 'utf8'), /BRAMULab icono2\.png/);
 });
 
-test('Versión: V04.17 / 04.17-h1 coherentes y el modal muestra V04.17 (nunca h1)', () => {
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.17'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.17-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.17', bundle: '04.17-h1' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-17-h1'/);
+test('Versión: V04.18 / 04.18-h1 coherentes y el modal muestra V04.18 (nunca h1)', () => {
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.18'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.18-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.18', bundle: '04.18-h1' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-18-h1'/);
   assert.match(fnBody(appJs, 'async function checkForNewVersion', 1400), /`\$\{remoteVersion \|\| Store\.VERSION\} está disponible\.`/);
 });

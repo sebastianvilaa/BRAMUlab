@@ -427,12 +427,16 @@
    *  evento sin poder confirmarlo). Devuelve:
    *   - `'original'`             — sin evento relevante (carga inicial, o detalle sin llegar);
    *   - `'result_correction'`    — el último evento relevante es `'revision_proposed'`;
+   *   - `'sustained_original'`   — el último evento relevante es `'revision_sustained'` (V04.18: "No hay error");
    *   - `'identity_replacement'` — el último evento relevante es `'participant_replaced'`. */
   function classifyPendingRevisionEvent(actionsRaw) {
     if (!Array.isArray(actionsRaw)) return 'original';
     for (let i = actionsRaw.length - 1; i >= 0; i--) {
       const type = actionsRaw[i] && actionsRaw[i].actionType;
       if (type === 'revision_proposed') return 'result_correction';
+      // V04.18 (Issue #12) — "NO HAY ERROR": una pareja sostuvo el resultado original (revisión nueva que
+      // copia los sets de la original); la otra pareja vuelve a ver VALIDAR PARTIDO / REPORTAR UN ERROR.
+      if (type === 'revision_sustained') return 'sustained_original';
       if (type === 'participant_replaced') return 'identity_replacement';
     }
     return 'original';
