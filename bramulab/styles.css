@@ -3797,3 +3797,9 @@ input, select{ font-family: inherit; }
 .pv-foot .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; }
 .pv-foot .b6-correction-choice--report{ border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); }
 .pv-foot--wait{ font-size: 13px; color: var(--paper); text-align: center; line-height: 1.4; margin-bottom: 0; }
+
+/* L3 (V04.20) — Acceso y seguridad / flujo de cuenta */
+.profile-row-action--danger span:first-child{ color: var(--danger, #ff6b6b); }
+a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
+.account-flow-list{ margin: 10px 0 6px 18px; padding: 0; color: var(--paper-dim); font-size: 14px; line-height: 1.5; }
+.account-flow-list li{ margin: 4px 0; }

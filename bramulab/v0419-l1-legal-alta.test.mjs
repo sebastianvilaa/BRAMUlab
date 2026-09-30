@@ -316,8 +316,8 @@ test('Paso 1 en HTML: checkbox legal único, en el Paso 1 (no en el 2), con link
   const step2 = between(indexHtml, '<div class="signup-step" data-step="2" hidden>', '<button type="button" id="signup-continue-btn"');
   assert.match(step1, /id="signup-terms-checkbox"/);
   assert.ok(!/signup-terms-checkbox/.test(step2), 'el Paso 2 ya no repite el checkbox');
-  assert.match(step1, /href="legal\/terminos\/"[\s\S]*Términos y Condiciones/);
-  assert.match(step1, /href="legal\/privacidad\/"[\s\S]*Política de Privacidad/);
+  assert.match(step1, /href="terminos\/"[\s\S]*Términos y Condiciones/);
+  assert.match(step1, /href="privacidad\/"[\s\S]*Política de Privacidad/);
   assert.equal((indexHtml.match(/type="checkbox"/g) || []).filter(() => true).length >= 1, true);
   assert.ok(!/13 años|mayor de 13|autorizaci[oó]n parental|adulto responsable/i.test(step1 + step2 + appJs), 'NO se implementa restricción 13+ ni flujo parental');
 });
@@ -481,11 +481,11 @@ test('Regresión: el flujo de onboarding conserva sus pasos (verify último, run
   assert.ok(!/signupDraft\.termsVersion|signup-terms-checkbox'\)\.checked = !!signupDraft/.test(appJs));
 });
 
-test('Versión: V04.19 / 04.19-h1 coherentes entre store/version.json/sw/index/manifest', () => {
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.19'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.19-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.19', bundle: '04.19-h1' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-19-h1'/);
+test('Versión: V04.20 / 04.20-h1 coherentes entre store/version.json/sw/index/manifest', () => {
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.20'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h1' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h1'/);
   assert.ok(!/04\.18-h1/.test(read('sw.js') + indexHtml + read('manifest.webmanifest')));
 });
 
@@ -506,7 +506,8 @@ test('Migración L1: contrato append-only, versión server-side, fail-closed en 
   assert.ok(!/delete from auth\.users/i.test(sql), 'nunca DELETE directo sobre auth.users');
   assert.ok(!/13 años|parental/i.test(sql.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n')), 'sin restricción de edad/parental en el código SQL');
   const edge = fs.readFileSync(path.join(__dirname, '../supabase/functions/cleanup-abandoned-signups/index.ts'), 'utf8');
-  assert.match(edge, /token !== SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /token === SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edge, /verify_cleanup_cron_secret/);
   assert.match(edge, /auth\.admin\.deleteUser/);
   assert.ok(!/console\.(log|error)\([^)]*email/i.test(edge));
 });

@@ -37,7 +37,7 @@
   // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
   // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
   // mecanismo nuevo que evita depender de esto en el futuro.
-  const APP_VERSION = 'BRAMUlab V04.19';
+  const APP_VERSION = 'BRAMUlab V04.20';
   // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
   // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
   // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.19-h1';
+  const BUNDLE_VERSION = '04.20-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -180,13 +180,13 @@
     // cargó varios partidos seguido sin conexión. Cada entrada sale de esta lista recién cuando
     // create_or_attach_match devuelve un resultado FINAL (creado/adjuntado/confirmado/revisado/
     // ya validado) — nunca antes. Ver matches.js: PLMatches.createOrAttach.
-    MATCH_OUTBOX: 'bramulab.matchOutbox.v1',
+    MATCH_OUTBOX: 'bramulab.matchOutbox.v2', // L2 (V04.20): { [ownerId]: entries[] } — owner-scoped (ver scopedGet/scopedSet)
     // Backend Bloque 5 — cache de LECTURA de get_my_matches, nunca autoridad
     // (Backend_Infraestructura.md §7.2: "caché de lectura con fecha/versión"). Se sobrescribe
     // completa en cada refresco exitoso (nunca un merge parcial) para que un partido oculto/
     // ya no visible del lado del servidor desaparezca también acá — nunca queda un residuo
     // local más "verdadero" que la última respuesta real del servidor.
-    SERVER_MATCHES_CACHE: 'bramulab.serverMatchesCache.v1',
+    SERVER_MATCHES_CACHE: 'bramulab.serverMatchesCache.v2', // L2: { [ownerId]: {matches,fetchedAt} }
     // Backend Bloque 8 (Fase E, Revisión Central E02) — memoria de PRESENTACIÓN pura: "este
     // hito material de Ranking ya se mostró en TU MOMENTO" (nunca posición/nivel como verdad
     // deportiva, solo el identificador). Separada por `userId` real dentro del mismo objeto
@@ -199,8 +199,39 @@
     // dato del dispositivo, no separado por userId — un partido ya visto por una cuenta en este
     // dispositivo no necesita re-marcarse al cambiar de cuenta, es una comodidad visual menor,
     // no una fuente de verdad.
-    HISTORY_UNSEEN_CHANGES: 'bramulab.historyUnseenChanges.v1',
+    HISTORY_UNSEEN_CHANGES: 'bramulab.historyUnseenChanges.v2', // L2: { [ownerId]: ids[] }
   };
+
+  // L2 (V04.20) — los 3 stores de arriba dejaron de ser GLOBALES DEL DISPOSITIVO (v1, mezclaban cuentas):
+  // ahora son owner-scoped por identidad estable (player_id server-backed; id local en modo dev). Los
+  // formatos v1 se INVALIDAN y se borran al cargar (no se migran: atribuirlos a una cuenta sería adivinar).
+  const LEGACY_UNSCOPED_KEYS = ['bramulab.matchOutbox.v1', 'bramulab.serverMatchesCache.v1', 'bramulab.historyUnseenChanges.v1'];
+  try { LEGACY_UNSCOPED_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) { /* storage no disponible: noop */ }
+  // Sin sesión (tests, arranque antes de identificar) el dueño es un bucket fijo que ninguna cuenta real usa.
+  const NO_OWNER = '_no_session';
+  function currentOwnerId() {
+    const u = getCurrentUser();
+    return u && u.id ? String(u.id) : NO_OWNER;
+  }
+  function scopedAll(key) {
+    const all = safeGet(key);
+    return all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+  }
+  function scopedGet(key, fallback) {
+    const v = scopedAll(key)[currentOwnerId()];
+    return v === undefined ? fallback : v;
+  }
+  function scopedSet(key, value) {
+    const all = scopedAll(key);
+    all[currentOwnerId()] = value;
+    return safeSet(key, all);
+  }
+  function scopedClearOwner(key, ownerId) {
+    const all = scopedAll(key);
+    if (!(ownerId in all)) return;
+    delete all[ownerId];
+    safeSet(key, all);
+  }
 
   function safeGet(key) {
     try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; }
@@ -441,8 +472,48 @@
    *  activa y el CURRENT_PLAYER derivado. Nunca toca HISTORY/PLAYER_NAMES/ACTIVE_MATCH ni la
    *  lista de USERS — son datos globales del dispositivo, no de la sesión. */
   function logoutSession() {
+    // L2 (V04.20) — al cerrar sesión se purgan los datos privados RE-DESCARGABLES del dueño (cache de
+    // partidos del servidor, cambios no vistos). La outbox (cargas todavía NO enviadas) se conserva a
+    // propósito — es trabajo del usuario, está aislada por dueño y nunca se muestra a otra cuenta — y se
+    // purga solo al ELIMINAR la cuenta (purgeOwnerLocalData).
+    const owner = getCurrentUser();
+    if (owner && owner.id) purgeOwnerCaches(String(owner.id));
     clearSession();
     clearCurrentPlayerName();
+  }
+
+  function purgeOwnerCaches(ownerId) {
+    scopedClearOwner(KEYS.SERVER_MATCHES_CACHE, ownerId);
+    scopedClearOwner(KEYS.HISTORY_UNSEEN_CHANGES, ownerId);
+  }
+
+  /** L2/L3 — elimina TODO rastro local privado de una cuenta (eliminación de cuenta): outbox, caches,
+   *  cuenta cacheada, sesión, notificaciones, jugadores agregados/ocultos, Nivel local, hitos de Ranking,
+   *  partidos locales estampados con su userId y cualquier borrador/claim de alta. Nunca toca datos de
+   *  otra cuenta. */
+  function purgeOwnerLocalData(ownerId) {
+    if (!ownerId) return false;
+    const id = String(ownerId);
+    scopedClearOwner(KEYS.MATCH_OUTBOX, id);
+    purgeOwnerCaches(id);
+    scopedClearOwner(KEYS.MATCH_OUTBOX, NO_OWNER);
+    const dropKey = (key) => { const o = safeGet(key); if (o && typeof o === 'object' && !Array.isArray(o) && id in o) { delete o[id]; safeSet(key, o); } };
+    [KEYS.ADDED_PLAYERS, KEYS.HIDDEN_NETWORK_PLAYERS, KEYS.LEVEL_V1_STATE].forEach(dropKey);
+    const notifs = safeGet(KEYS.NOTIFICATIONS);
+    if (Array.isArray(notifs)) safeSet(KEYS.NOTIFICATIONS, notifs.filter((n) => !(n && n.userId === id)));
+    const seen = safeGet(KEYS.RANKING_MILESTONE_SEEN);
+    if (seen && typeof seen === 'object') {
+      Object.keys(seen).forEach((k) => { if (k.indexOf(id + '::') === 0) delete seen[k]; });
+      safeSet(KEYS.RANKING_MILESTONE_SEEN, seen);
+    }
+    safeSet(KEYS.USERS, (safeGet(KEYS.USERS) || []).filter((u) => !(u && u.id === id)));
+    const hist = safeGet(KEYS.HISTORY);
+    if (Array.isArray(hist)) safeSet(KEYS.HISTORY, hist.filter((m) => !(m && m.userId === id)));
+    const sess = safeGet(KEYS.SESSION);
+    if (sess === id || (sess && sess.userId === id)) { clearSession(); clearCurrentPlayerName(); }
+    safeRemove(KEYS.SIGNUP_DRAFT);
+    safeRemove(KEYS.CLAIM_TOKEN);
+    return true;
   }
 
   /** Backend Bloque 2 (auth.js) — guarda/actualiza, en la MISMA lista local de USERS, un
@@ -850,7 +921,7 @@
 
   function genLocalDraftId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
-  function loadMatchOutbox() { return safeGet(KEYS.MATCH_OUTBOX) || []; }
+  function loadMatchOutbox() { const l = scopedGet(KEYS.MATCH_OUTBOX, []); return Array.isArray(l) ? l : []; }
 
   function getMatchOutboxEntry(localDraftId) {
     if (!localDraftId) return null;
@@ -868,7 +939,7 @@
     const entry = Object.assign({ localDraftId: genLocalDraftId(), createdAt: new Date().toISOString() }, fields || {});
     const list = loadMatchOutbox().filter((e) => e && e.localDraftId !== entry.localDraftId);
     list.push(entry);
-    safeSet(KEYS.MATCH_OUTBOX, list);
+    scopedSet(KEYS.MATCH_OUTBOX, list);
     return entry;
   }
 
@@ -879,7 +950,7 @@
   function removeMatchOutboxEntry(localDraftId) {
     if (!localDraftId) return;
     const list = loadMatchOutbox().filter((e) => e && e.localDraftId !== localDraftId);
-    safeSet(KEYS.MATCH_OUTBOX, list);
+    scopedSet(KEYS.MATCH_OUTBOX, list);
   }
 
   /** Cache de lectura de get_my_matches (filas YA normalizadas a camelCase por matches.js —
@@ -890,11 +961,11 @@
    *  reemplaza el cache entero, y una llamada fallida simplemente deja el cache anterior
    *  intacto (mejor mostrar datos un poco viejos que nada, nunca inventar). */
   function loadServerMatchesCache() {
-    const snap = safeGet(KEYS.SERVER_MATCHES_CACHE);
+    const snap = scopedGet(KEYS.SERVER_MATCHES_CACHE, null);
     return snap && Array.isArray(snap.matches) ? snap : { matches: [], fetchedAt: null };
   }
   function saveServerMatchesCache(matches) {
-    safeSet(KEYS.SERVER_MATCHES_CACHE, { matches: Array.isArray(matches) ? matches : [], fetchedAt: new Date().toISOString() });
+    scopedSet(KEYS.SERVER_MATCHES_CACHE, { matches: Array.isArray(matches) ? matches : [], fetchedAt: new Date().toISOString() });
   }
 
   /** Ronda UX 25/09 (Ronda 2, §8) — IDs de partido con un "cambio externo no visto" pendiente
@@ -904,17 +975,17 @@
    *  antes de que el usuario abra Historial). `clearHistoryUnseenChanges` es lo que dispara
    *  "abrir Historial = visto". */
   function loadHistoryUnseenChanges() {
-    const ids = safeGet(KEYS.HISTORY_UNSEEN_CHANGES);
+    const ids = scopedGet(KEYS.HISTORY_UNSEEN_CHANGES, null);
     return Array.isArray(ids) ? ids : [];
   }
   function addHistoryUnseenChanges(newIds) {
     const clean = (newIds || []).filter(Boolean);
     if (!clean.length) return;
     const merged = Array.from(new Set(loadHistoryUnseenChanges().concat(clean)));
-    safeSet(KEYS.HISTORY_UNSEEN_CHANGES, merged);
+    scopedSet(KEYS.HISTORY_UNSEEN_CHANGES, merged);
   }
   function clearHistoryUnseenChanges() {
-    safeSet(KEYS.HISTORY_UNSEEN_CHANGES, []);
+    scopedSet(KEYS.HISTORY_UNSEEN_CHANGES, []);
   }
 
   /* ------------------------------------------------------------------ */
@@ -1147,6 +1218,7 @@
     // BRAMUlab_V04.4 (Etapa D, bloque 1) — Nivel BRAMU V1, prototipo local
     loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // Backend Bloque 3 — borrador local de alta (pre-confirmación de email)
+    purgeOwnerLocalData, purgeOwnerCaches, currentOwnerId,
     loadSignupDraft, saveSignupDraft, clearSignupDraft, isSignupDraftExpired, sanitizeSignupDraftForStorage,
     // Backend Bloque 4 — token de reclamo pendiente (`?claim=<token>`)
     loadClaimToken, saveClaimToken, clearClaimToken,

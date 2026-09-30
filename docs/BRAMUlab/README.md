@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.19 / bundle 04.19-h1** en Staging — Pre-Production **L1** (aceptación legal real antes de Auth signup, `legal_acceptances` append-only, contraseña fuera de localStorage, Staging/Production fail-closed, cleanup de altas abandonadas >24 h). Migración `20260930280000` + Edge Function `cleanup-abandoned-signups` PENDIENTES de aplicar/desplegar en Staging (Central). Ver `Privacidad_Legal.md` §16 e Issue #10. Etapa funcional previa: V04.18 (Issues #12–#14).
+**Estado del producto:** BRAMUlab **V04.20 / bundle 04.20-h1** en Staging — Pre-Production **L1 operativo + L2 + L3 técnico** (Issue #16): cron seguro de altas abandonadas sin secretos humanos, caches/outbox owner-scoped, WhatsApp on-demand, páginas legales públicas (`/terminos`, `/privacidad`, `/eliminar-cuenta`), Acceso y seguridad (cambio de email, cerrar todas las sesiones, acceso/copia), eliminación autoservicio (`delete-my-account`) reutilizando P0.3. Migraciones `20260930300000/310000/320000`, Edge Function `delete-my-account` y cron PENDIENTES de aplicar/desplegar por Central; E2E destructivo con OTP humano pendiente. Ver `Privacidad_Legal.md` §17. Anterior: V04.19 (L1).
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 30 de septiembre de 2026

@@ -208,12 +208,20 @@
     return { ok: true, session: data.session };
   }
 
-  async function signOut() {
+  /** L3 (V04.20) — supabase-js `signOut()` SIN argumento es scope GLOBAL (cierra TODAS las sesiones del
+   *  usuario). Bug latente de "Cerrar sesión": ahora el default es 'local' (solo esta sesión). Alcances:
+   *    'local'  → sesión actual (Cerrar sesión, ghost session)
+   *    'others' → todas las DEMÁS (tras cambio de contraseña/recuperación/email)
+   *    'global' → todas (Cerrar todas las sesiones) */
+  async function signOut(scope) {
     const c = getClient();
     if (!c) return { ok: true }; // nada que cerrar del lado del servidor
-    const { error } = await c.auth.signOut();
+    const { error } = await c.auth.signOut({ scope: scope === 'others' || scope === 'global' ? scope : 'local' });
     return { ok: !error };
   }
+  const signOutCurrent = () => signOut('local');
+  const signOutOthers = () => signOut('others');
+  const signOutAll = () => signOut('global');
 
   async function getSession() {
     const c = getClient();
@@ -249,6 +257,46 @@
     const { error } = await c.auth.updateUser({ password });
     if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
     return { ok: true };
+  }
+
+  /** L3 (V04.20) — cambio de email AUTOSERVICIO. Requiere una sesión recién verificada por OTP del email
+   *  ACTUAL (verifyRecoveryOtp). `updateUser({email})` hace que Supabase envíe la confirmación al email NUEVO
+   *  (y, con "Secure email change" activo en el proyecto, también al actual como aviso). El email NO cambia
+   *  hasta verificar el código con `verifyEmailChange`. */
+  async function requestEmailChange(newEmail) {
+    const c = getClient();
+    if (!c) return { ok: false, reason: 'not_configured' };
+    const { error } = await c.auth.updateUser({ email: newEmail });
+    if (error) {
+      const msg = String(error.message || '').toLowerCase();
+      if (msg.includes('already') && (msg.includes('registered') || msg.includes('exists') || msg.includes('been'))) return { ok: false, reason: 'email_taken' };
+      return { ok: false, reason: mapAuthError(error), raw: error.message };
+    }
+    return { ok: true };
+  }
+
+  async function verifyEmailChange(newEmail, token) {
+    const c = getClient();
+    if (!c) return { ok: false, reason: 'not_configured' };
+    const { error } = await c.auth.verifyOtp({ email: newEmail, token, type: 'email_change' });
+    if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
+    return { ok: true };
+  }
+
+  /** L3 (V04.20) — eliminación de cuenta AUTOSERVICIO: invoca la Edge Function `delete-my-account`
+   *  (JWT de la sesión ACTIVA; el body NUNCA lleva player_id/email). Requiere haber verificado un OTP del
+   *  email hace pocos minutos (verifyRecoveryOtp). `retryable` indica que el reintento es seguro. */
+  async function deleteMyAccount() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.functions.invoke('delete-my-account', { body: { confirm: true } });
+    let payload = data;
+    if (error && !payload && error.context && typeof error.context.json === 'function') {
+      try { payload = await error.context.json(); } catch (e) { payload = null; }
+    }
+    if (payload && payload.ok === true) return { ok: true, postconditions: payload.postconditions || {} };
+    const status = error && error.context && error.context.status;
+    return { ok: false, code: (payload && payload.code) || 'unknown', retryable: !!(payload && payload.retryable), status: status || null };
   }
 
   const COUNTRY_LABELS = { AR: 'Argentina' };
@@ -558,6 +606,17 @@
     const row = Array.isArray(data) && data.length ? data[0] : null;
     if (row) row.avatar_signed_url = await resolveAvatarUrl(row.avatar_url);
     return { ok: true, profile: row };
+  }
+
+  /** L2 (V04.20) — teléfono de WhatsApp de UN jugador, ON-DEMAND (RPC `get_whatsapp_contact`): solo si su
+   *  consentimiento sigue activo en este instante. El resultado NO se cachea ni se persiste acá. */
+  async function getWhatsAppContact(playerId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_whatsapp_contact', { p_player_id: playerId });
+    if (error) return { ok: false, code: String(error.message || '').includes('rate_limited') ? 'rate_limited' : 'unknown' };
+    if (!data || data.ok !== true || typeof data.phone !== 'string') return { ok: false, code: 'unavailable' };
+    return { ok: true, phone: data.phone };
   }
 
   /** Backend Bloque 4 — crea SIEMPRE una nueva identidad provisional (RPC
@@ -907,10 +966,11 @@
     resolveBackendMode, getBackendMode, isLocalDevFallbackAllowed, isBackendUnavailable,
     getCurrentLegalVersion, getMyLegalStatus, acceptLegalVersion,
     signUp, verifySignupOtp, resendSignupOtp,
-    signInWithPassword, signOut, getSession,
+    signInWithPassword, signOut, signOutCurrent, signOutOthers, signOutAll, getSession,
+    requestEmailChange, verifyEmailChange, deleteMyAccount,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
-    searchPlayers, getPlayersCompact, getPublicProfile, createProvisionalPlayer, listMyProvisionalPlayers,
+    searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
     createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,

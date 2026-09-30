@@ -1,8 +1,11 @@
 // BRAMUlab — V04.19 (L1): limpieza automática de altas abandonadas > 24 h (Privacidad_Legal.md §4).
 //
-// Server-only: EXIGE la service role key EXACTA en Authorization (mismo criterio que
-// admin-resolve-identity-issue) — nunca un JWT de usuario, nunca alcanzable desde el cliente. Pensada para
-// invocarse por Supabase Cron (pg_cron + pg_net) cada hora; ver supabase/scripts/schedule-cleanup-abandoned-signups.sql.
+// Server-only. Dos credenciales válidas, ninguna alcanzable desde el cliente:
+//   1) `Authorization: Bearer <service role key exacta>` (uso administrativo manual); o
+//   2) `x-cron-secret`: secreto aleatorio dedicado, generado server-side y guardado SOLO en Vault
+//      (migración 20260930310000). Lo usa pg_cron cada hora; valida la RPC verify_cleanup_cron_secret.
+// Se despliega con verify_jwt=false (el cron no tiene JWT): esta función se autentica ella misma y responde 403
+// si ninguna credencial coincide. Nunca un JWT de usuario.
 //
 // La selección y la liberación de @usuario viven en SQL (list_abandoned_signups / release_abandoned_signup_username);
 // el borrado del usuario Auth se hace SIEMPRE por la Auth Admin API (nunca DELETE directo sobre auth.users). La
@@ -24,11 +27,18 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ ok: false, code: 'method_not_allowed' }, 405);
 
   const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim();
-  if (!token || token !== SUPABASE_SERVICE_ROLE_KEY) return jsonResponse({ ok: false, code: 'forbidden' }, 403);
+  const cronSecret = (req.headers.get('x-cron-secret') || '').trim();
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  let authorized = !!token && token === SUPABASE_SERVICE_ROLE_KEY;
+  if (!authorized && cronSecret) {
+    const { data, error } = await admin.rpc('verify_cleanup_cron_secret', { p_secret: cronSecret });
+    authorized = !error && data === true;
+  }
+  if (!authorized) return jsonResponse({ ok: false, code: 'forbidden' }, 403);
 
   try {
     const summary = await cleanupAbandonedSignups({

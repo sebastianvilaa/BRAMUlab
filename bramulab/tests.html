@@ -6942,7 +6942,7 @@
 
   // ---- Outbox: sobrevive, reintento conserva idempotencyKey, éxito lo saca (§10 del wiring) ----
   (function () {
-    const AFFECTED_KEYS = ['bramulab.matchOutbox.v1'];
+    const AFFECTED_KEYS = ['bramulab.matchOutbox.v2'];
     const snapshot = {};
     AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
     function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }
@@ -6988,7 +6988,7 @@
 
   // ---- Ocultar un partido server-backed nunca borra nada local (§8 del wiring) ----
   (function () {
-    const AFFECTED_KEYS = ['bramulab.history.v1', 'bramulab.serverMatchesCache.v1'];
+    const AFFECTED_KEYS = ['bramulab.history.v1', 'bramulab.serverMatchesCache.v2'];
     const snapshot = {};
     AFFECTED_KEYS.forEach((k) => { snapshot[k] = localStorage.getItem(k); });
     function resetAffectedKeys() { AFFECTED_KEYS.forEach((k) => localStorage.removeItem(k)); }

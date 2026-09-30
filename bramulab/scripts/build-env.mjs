@@ -15,6 +15,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { validateEnv } from './env-guard.mjs';
+import { checkLegalPagesReadyForProduction } from './legal-guard.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BRAMULAB_DIR = path.resolve(__dirname, '..');
@@ -64,6 +65,18 @@ function main() {
   if (!result.ok) {
     console.error('[build-env] Build detenido: ' + result.reason);
     process.exit(1);
+  }
+
+  // L3 (V04.20) — Production NO puede publicar páginas legales con datos pendientes (placeholders
+  // `[[PENDIENTE_PRODUCCION:...]]`: responsable, AAIP, proveedores/regiones, backups, vigencia).
+  if (envName === 'production') {
+    const legal = checkLegalPagesReadyForProduction(BRAMULAB_DIR);
+    if (!legal.ok) {
+      console.error('[build-env] Build detenido: las páginas legales tienen datos pendientes para Production.');
+      legal.missingFiles.forEach((f) => console.error(`  - falta ${f}`));
+      Object.entries(legal.pending).forEach(([f, keys]) => console.error(`  - ${f}: ${keys.join(', ')}`));
+      process.exit(1);
+    }
   }
 
   const fileContents =

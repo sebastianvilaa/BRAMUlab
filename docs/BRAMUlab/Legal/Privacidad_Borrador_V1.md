@@ -1,3 +1,5 @@
+> **SUPERADO (V04.20):** el texto vigente vive en `bramulab/privacidad/index.html` (alineado con `Privacidad_Legal.md`). Este borrador conserva una restricción 13+ que NO está vigente (fuente maestra §6) y no debe usarse para publicar.
+
 # Política de Privacidad de BRAMUlab — Borrador V1
 
 > ## ⚠️ BORRADOR DE PRODUCTO / COMPLIANCE — CANDIDATO V1

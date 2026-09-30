@@ -362,7 +362,7 @@
     // siguen acá — las usa la carga de partido propio ya jugado.
     ['analysis', 'history', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate',
+      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate', 'account-flow', 'account-deleted',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
@@ -6095,6 +6095,8 @@
         $('#forgot-password-new-error').hidden = false;
         return;
       }
+      // L3 (V04.20) — la recuperación de contraseña es un evento sensible: cierra las DEMÁS sesiones.
+      Auth.signOutOthers();
       showToast('Contraseña actualizada');
       if (forgotPasswordOrigin === 'session') showView('profile');
       else await resumeServerSession({ afterLogin: true });
@@ -7292,6 +7294,8 @@
         $('#change-password-error').hidden = false;
         return;
       }
+      // L3 (V04.20) — evento sensible: se cierran las DEMÁS sesiones (la actual sigue). Best-effort.
+      Auth.signOutOthers();
       Store.addNotification({
         userId: user.id, type: 'password_updated', category: 'info',
         title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
@@ -7299,6 +7303,174 @@
       renderNotificationsBadge();
       showView('profile');
       showToast('Contraseña actualizada');
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* L3 (V04.20) — CAMBIAR EMAIL / ELIMINAR MI CUENTA / CERRAR TODAS LAS  */
+  /* SESIONES (Acceso y seguridad). Solo cuentas con backend real.        */
+  /* Verificación de identidad = código al email ACTUAL (mismo mecanismo  */
+  /* OTP/recovery vigente: Auth.sendRecoveryOtp/verifyRecoveryOtp).       */
+  /* Los textos/diseño de los emails son del proyecto de Comunicaciones.  */
+  /* ------------------------------------------------------------------ */
+  let accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false };
+
+  const ACCOUNT_FLOW_TITLES = { email: 'CAMBIAR EMAIL', delete: 'ELIMINAR MI CUENTA' };
+  const ACCOUNT_FLOW_ERRORS = {
+    code_invalid: 'Código incorrecto.',
+    code_expired: 'El código venció — pedí uno nuevo.',
+    rate_limited: 'Demasiados intentos. Probá de nuevo en unos minutos.',
+    email_taken: 'Ese email ya está en uso.',
+    same_email: 'Ese ya es tu email actual.',
+    invalid_email: 'Ingresá un email válido.',
+    not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
+    recent_reauth_required: 'Por seguridad, volvé a verificar tu código.',
+    unknown: 'No pudimos completar la acción. Probá de nuevo.',
+  };
+
+  function accountFlowShowError(reasonOrText) {
+    const el = $('#account-flow-error');
+    el.textContent = ACCOUNT_FLOW_ERRORS[reasonOrText] || reasonOrText || ACCOUNT_FLOW_ERRORS.unknown;
+    el.hidden = false;
+  }
+
+  function renderAccountFlowStep() {
+    $all('#account-flow-form .account-flow-step').forEach((el) => { el.hidden = el.dataset.step !== accountFlow.step; });
+    $('#account-flow-title').textContent = ACCOUNT_FLOW_TITLES[accountFlow.mode] || 'ACCESO Y SEGURIDAD';
+    $('#account-flow-error').hidden = true;
+    const btn = $('#account-flow-primary-btn');
+    const danger = accountFlow.step === 'confirm-delete';
+    btn.textContent = danger ? 'ELIMINAR MI CUENTA DEFINITIVAMENTE' : (accountFlow.step === 'email-code' ? 'CONFIRMAR NUEVO EMAIL' : 'CONTINUAR');
+    btn.classList.toggle('btn-secondary--danger', danger);
+    recomputeAccountFlowValidity();
+  }
+
+  function recomputeAccountFlowValidity() {
+    const step = accountFlow.step;
+    let ok = false;
+    if (step === 'code') ok = /^[0-9]{6}$/.test($('#account-flow-code').value.trim());
+    else if (step === 'new-email') ok = PLI.isValidEmail($('#account-flow-new-email').value.trim());
+    else if (step === 'email-code') ok = /^[0-9]{6}$/.test($('#account-flow-email-code').value.trim());
+    else if (step === 'confirm-delete') ok = true;
+    $('#account-flow-primary-btn').disabled = !ok;
+    return ok;
+  }
+
+  async function sendAccountFlowCode() {
+    const user = Store.getCurrentUser();
+    if (!user || !user.email) return;
+    const result = await Auth.sendRecoveryOtp(user.email);
+    showToast(result.ok ? 'Te enviamos un código a tu email' : (ACCOUNT_FLOW_ERRORS[result.reason] || ACCOUNT_FLOW_ERRORS.unknown));
+  }
+
+  function openAccountFlow(mode) {
+    const user = Store.getCurrentUser();
+    if (!user || !user.serverBacked || !user.email || !Auth.isConfigured()) { showToast('Disponible solo con una cuenta conectada.'); return; }
+    accountFlow = { mode, step: 'code', newEmail: null, deletionAttempted: false };
+    ['#account-flow-code', '#account-flow-new-email', '#account-flow-email-code'].forEach((sel) => { $(sel).value = ''; });
+    $('#account-flow-code-intro').textContent = mode === 'delete'
+      ? `Para eliminar tu cuenta, confirmá que sos vos. Te enviamos un código a ${user.email}.`
+      : `Para cambiar tu email, confirmá que sos vos. Te enviamos un código a ${user.email}.`;
+    renderAccountFlowStep();
+    showView('account-flow');
+    sendAccountFlowCode();
+  }
+
+  /** Cierre local tras una eliminación confirmada por el servidor: purga TODO rastro privado del dueño,
+   *  cierra la sesión y muestra la pantalla final neutra. */
+  function finishAccountDeletion(ownerId) {
+    Auth.signOutCurrent();
+    Store.purgeOwnerLocalData(ownerId);
+    Store.logoutSession();
+    currentPlayerName = null;
+    currentUserId = null;
+    afterIdentifyAction = null;
+    accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false };
+    showView('account-deleted');
+  }
+
+  async function onAccountFlowPrimary() {
+    if (!recomputeAccountFlowValidity()) return;
+    const user = Store.getCurrentUser();
+    if (!user) { showView('access'); return; }
+    const btn = $('#account-flow-primary-btn');
+    btn.disabled = true;
+    $('#account-flow-error').hidden = true;
+    try {
+      if (accountFlow.step === 'code') {
+        const r = await Auth.verifyRecoveryOtp(user.email, $('#account-flow-code').value.trim());
+        if (!r.ok) { accountFlowShowError(r.reason); return; }
+        accountFlow.step = accountFlow.mode === 'delete' ? 'confirm-delete' : 'new-email';
+        renderAccountFlowStep();
+        return;
+      }
+      if (accountFlow.step === 'new-email') {
+        const next = $('#account-flow-new-email').value.trim();
+        if (!PLI.isValidEmail(next)) { accountFlowShowError('invalid_email'); return; }
+        if (next.toLowerCase() === String(user.email).toLowerCase()) { accountFlowShowError('same_email'); return; }
+        const r = await Auth.requestEmailChange(next);
+        if (!r.ok) { accountFlowShowError(r.reason); return; }
+        accountFlow.newEmail = next;
+        accountFlow.step = 'email-code';
+        renderAccountFlowStep();
+        return;
+      }
+      if (accountFlow.step === 'email-code') {
+        const r = await Auth.verifyEmailChange(accountFlow.newEmail, $('#account-flow-email-code').value.trim());
+        if (!r.ok) { accountFlowShowError(r.reason); return; }
+        // Evento sensible: cierra las DEMÁS sesiones y refresca la cuenta cacheada con el email nuevo.
+        Auth.signOutOthers();
+        const fresh = await Auth.fetchOwnProfile();
+        if (fresh) { Store.cacheServerUser(fresh); syncCurrentIdentityFromStore(); }
+        openProfileScreen('mis-datos');
+        showToast('Email actualizado');
+        return;
+      }
+      if (accountFlow.step === 'confirm-delete') {
+        const ownerId = String(user.id);
+        const wasRetry = accountFlow.deletionAttempted;
+        accountFlow.deletionAttempted = true;
+        const r = await Auth.deleteMyAccount();
+        if (r.ok) { finishAccountDeletion(ownerId); return; }
+        // Reintento tras una respuesta perdida: si la cuenta ya no existe (401/404), la eliminación YA se cumplió.
+        if (wasRetry && (r.status === 401 || r.status === 404 || r.code === 'account_not_found' || r.code === 'invalid_session')) { finishAccountDeletion(ownerId); return; }
+        if (r.code === 'recent_reauth_required') {
+          accountFlow.step = 'code';
+          $('#account-flow-code').value = '';
+          renderAccountFlowStep();
+          accountFlowShowError('recent_reauth_required');
+          sendAccountFlowCode();
+          return;
+        }
+        accountFlowShowError(r.retryable ? 'No pudimos completar la eliminación. Es seguro reintentar: tocá de nuevo el botón.' : 'unknown');
+        return;
+      }
+    } finally {
+      if ($('#view-account-flow') && !$('#view-account-flow').hidden) recomputeAccountFlowValidity();
+    }
+  }
+
+  function initAccountFlow() {
+    $('#account-flow-back-btn').addEventListener('click', () => { showView('profile'); });
+    ['#account-flow-code', '#account-flow-new-email', '#account-flow-email-code'].forEach((sel) => $(sel).addEventListener('input', recomputeAccountFlowValidity));
+    $('#account-flow-resend-btn').addEventListener('click', sendAccountFlowCode);
+    $('#account-flow-primary-btn').addEventListener('click', onAccountFlowPrimary);
+    $('#account-deleted-home-btn').addEventListener('click', () => openAccessFlow());
+    $('#profile-change-email-btn').addEventListener('click', () => openAccountFlow('email'));
+    $('#profile-delete-account-btn').addEventListener('click', () => openAccountFlow('delete'));
+    $('#profile-logout-all-btn').addEventListener('click', () => {
+      confirmAction('Cerrar todas las sesiones', 'Se cerrará tu sesión en todos tus dispositivos, incluido este. Vas a tener que volver a iniciar sesión.', async () => {
+        await Auth.signOutAll();
+        doLogout();
+      }, null, 'Cerrar todas', 'Cancelar', true);
+    });
+    // Acceso/copia: solicitud por el canal único V1 (sin exportación autoservicio). Solo arma el mail: nada se envía solo.
+    $('#profile-request-copy-btn').addEventListener('click', () => {
+      const user = Store.getCurrentUser();
+      const handle = user && user.username ? `@${user.username}` : '';
+      const subject = encodeURIComponent('Solicitud de copia de mis datos — BRAMUlab');
+      const body = encodeURIComponent(`Hola, solicito una copia de los datos personales que BRAMUlab tiene sobre mi cuenta ${handle}.\n\nEscribo desde el email registrado en mi cuenta.`);
+      window.location.href = `mailto:bramulab@gmail.com?subject=${subject}&body=${body}`;
     });
   }
 
@@ -11653,7 +11825,10 @@
   // siempre (resolución por nombre, ver renderPlayerPublicProfile).
   let playerPublicPlayerId = null;
   let playerPublicOrigin = 'search'; // 'search' | 'jugadores-tab' | 'companions' — a dónde vuelve el back
-  let playerPublicWhatsappPhone = null; // BRAMUlab_V03.6 (§5) — teléfono a contactar, solo mientras el botón está visible
+  let playerPublicWhatsappPhone = null; // BRAMUlab_V03.6 (§5) — SOLO camino local/dev (cuenta local con teléfono en localStorage)
+  // L2 (V04.20) — camino server-backed: el perfil público NO trae el teléfono, solo si hay contacto
+  // disponible. El número se pide a get_whatsapp_contact recién al TOCAR el botón y no se guarda.
+  let playerPublicWhatsappTargetId = null;
   // Ronda correctiva QA 26SEP (§15.24 punto 5) — estado real de "¿ya está guardado?" para el
   // camino server-backed (Auth.isPlayerSaved), independiente de Store.isPlayerAdded (legacy,
   // local por nombre). `null` mientras no se sabe todavía (respuesta en vuelo) — el botón
@@ -11794,6 +11969,7 @@
     const canContact = PLI.canContactViaWhatsApp(account);
     $('#player-public-whatsapp-btn').hidden = !canContact;
     playerPublicWhatsappPhone = canContact ? account.phone : null;
+    playerPublicWhatsappTargetId = null;
 
     renderPlayerPublicRankingCard(account, history);
   }
@@ -11837,6 +12013,7 @@
     $('#player-public-ranking-card').hidden = true;
     $('#player-public-whatsapp-btn').hidden = true;
     playerPublicWhatsappPhone = null;
+    playerPublicWhatsappTargetId = null;
     playerPublicServerBackedSaved = null;
     renderPlayerPublicAddButtonServerBacked(null);
 
@@ -11867,9 +12044,12 @@
     // solo lo devuelve con allow_whatsapp_contact=true); PLI.isValidWhatsAppPhone acá es defensa
     // adicional, mismo criterio que el camino local (PLI.canContactViaWhatsApp), nunca una
     // segunda regla de validación.
-    const canContact = PLI.isValidWhatsAppPhone(p.whatsapp_phone);
+    // L2 (V04.20) — get_public_profile ya NO entrega el teléfono: solo `whatsapp_contact_available`. El número
+    // se resuelve on-demand al tocar el botón (ver el click handler) y nunca queda en memoria de la vista.
+    const canContact = p.whatsapp_contact_available === true;
     $('#player-public-whatsapp-btn').hidden = !canContact;
-    playerPublicWhatsappPhone = canContact ? p.whatsapp_phone : null;
+    playerPublicWhatsappPhone = null;
+    playerPublicWhatsappTargetId = canContact ? (p.player_id || playerPublicPlayerId) : null;
 
     const hasHand = !!(p.dominant_hand && HAND_LABELS[p.dominant_hand]);
     const hasSide = !!(p.preferred_side && SIDE_LABELS[p.preferred_side]);
@@ -12074,9 +12254,36 @@
     // modal de confirmación previo (consolidado §9: "después el contacto debe ser de un
     // toque"). `buildWhatsAppContactUrl` ya devuelve `null` si el teléfono no es válido —
     // defensivo, en la práctica el botón está oculto en ese caso.
-    $('#player-public-whatsapp-btn').addEventListener('click', () => {
-      const url = PLI.buildWhatsAppContactUrl(playerPublicWhatsappPhone, WHATSAPP_CONTACT_MESSAGE);
-      if (url) window.open(url, '_blank', 'noopener');
+    $('#player-public-whatsapp-btn').addEventListener('click', async () => {
+      // Camino local/dev: el teléfono ya vive en la cuenta local (prototipo sin backend).
+      if (playerPublicWhatsappPhone) {
+        const localUrl = PLI.buildWhatsAppContactUrl(playerPublicWhatsappPhone, WHATSAPP_CONTACT_MESSAGE);
+        if (localUrl) window.open(localUrl, '_blank', 'noopener');
+        return;
+      }
+      // L2 (V04.20) — server-backed: pide el número recién ahora (RPC con rate limit + consentimiento
+      // vigente). La ventana se abre de forma SÍNCRONA (gesto del usuario) para no ser bloqueada por el
+      // navegador tras el await; si no se pudo abrir, se navega en la misma pestaña.
+      const targetId = playerPublicWhatsappTargetId;
+      if (!targetId) return;
+      const btn = $('#player-public-whatsapp-btn');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      const popup = window.open('about:blank', '_blank');
+      const result = await Auth.getWhatsAppContact(targetId);
+      btn.disabled = false;
+      const url = result.ok ? PLI.buildWhatsAppContactUrl(result.phone, WHATSAPP_CONTACT_MESSAGE) : null;
+      if (!url) {
+        if (popup) popup.close();
+        if (result.code === 'rate_limited') showToast('Demasiados intentos. Probá de nuevo en un minuto.');
+        else {
+          showToast('Este jugador ya no tiene el contacto por WhatsApp disponible.');
+          btn.hidden = true;
+          playerPublicWhatsappTargetId = null;
+        }
+        return;
+      }
+      if (popup) popup.location.replace(url); else window.location.href = url;
     });
   }
 
@@ -12198,6 +12405,11 @@
     const accessPending = !user || !user.email;
     $('#profile-access-pending').hidden = !accessPending;
     $('#profile-change-password-btn').hidden = accessPending;
+    // L3 (V04.20) — solo cuentas con backend real y email (la verificación por código lo exige).
+    const serverAccess = !!(user && user.serverBacked && user.email && Auth.isConfigured());
+    $('#profile-change-email-btn').hidden = !serverAccess;
+    $('#profile-logout-all-btn').hidden = !serverAccess;
+    $('#profile-delete-account-btn').hidden = !serverAccess;
 
     // V03.0.1 (§1) — aviso discreto "Completá tus datos": chequeo de presencia simple, sin
     // nueva lógica de negocio (nunca reemplaza al banner de acceso pendiente, que es sobre
@@ -13901,6 +14113,7 @@
     initAccessScreen();
     initLoginScreen();
     initLegalGate();
+    initAccountFlow();
     initForgotPasswordScreen();
     initSignupWizard();
     initPlayerCardScreen();
