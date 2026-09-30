@@ -9656,8 +9656,16 @@
     return `<p class="lobby-card__state-title">${escapeHtml(copy[0])}</p><p class="lobby-card__state-sub">${escapeHtml(copy[1])}</p>`;
   }
 
+  /** Medalla por posición de competición real (1,1,3 => oro, oro, bronce; nunca se inventa plata). */
+  function lobbyMedalClass(position) {
+    return { 1: 'gold', 2: 'silver', 3: 'bronze' }[position] || 'plain';
+  }
   function buildLobbyCardRowHTML(row) {
-    return `<div class="lobby-card__row"><span class="lobby-card__row-pos">${row.position}</span><span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
+    const c = (groupsUseServer() && row.userId) ? groupsServer.identities.get(row.userId) : null;
+    const avatar = (c && c.avatarSignedUrl)
+      ? `<span class="lobby-card__row-avatar lobby-card__row-avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
+      : `<span class="lobby-card__row-avatar">${escapeHtml(playerInitials(row.name))}</span>`;
+    return `<div class="lobby-card__row"><span class="lobby-card__row-pos lobby-card__row-pos--${lobbyMedalClass(row.position)}">${row.position}</span>${avatar}<span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
   }
 
   /** §B — una misma tarjeta reusada por grupos reales Y por el EJEMPLO del estado cero (§C) —
@@ -9789,10 +9797,8 @@
     $('#groups-current-selector-name').textContent = activeGroup ? activeGroup.name : '—';
     const isAdmin = currentIsAdminOfGroup(activeGroup);
     $('#groups-settings-btn').hidden = !isAdmin;
-    // BRAMUlab_V03.4.1 (§7) — acción inequívoca "+ AGREGAR JUGADOR" al final del contenido
-    // principal del grupo (además de Configuración) — nunca el header, que ya no tiene "+"
-    // desde V03.4.2 (§2: esa acción se mudó entera al selector de arriba).
-    $('#groups-add-member-btn').hidden = !isAdmin;
+    // B2b — "Agregar jugador" vive SOLO en Configuración (es administración, no contenido
+    // deportivo); el detalle ya no tiene CTA de alta.
     renderActiveGroupPanels();
     setGroupsTab(groupsActiveTab);
   }
@@ -10068,23 +10074,28 @@
     if (bonus.claraVictoria) return 'Victoria clara';
     return null;
   }
+  /** Motivo real del partido: bonus si lo hay (misma prioridad de siempre), si no Victoria/Derrota. */
+  function breakdownReasonLabel(row) {
+    return bonusLabel(row.bonus) || (row.won ? 'Victoria' : 'Derrota');
+  }
 
   /** §G — una fila de partido del desglose: fecha · compañero · rivales · resultado + bonus,
    *  puntos alineados a la derecha. Un partido que no entró en el top 3 nunca se esconde: se
    *  distingue con "No entra en tus 3 mejores" en vez del monto (`row.counted` viene de
    *  `PG.buildPlayerWeeklyBreakdown`, MISMO subconjunto que `computeWeeklyTable`). */
   function buildGroupBreakdownRowHTML(row) {
-    const partner = row.partnerName ? `con ${row.partnerName}` : '';
-    const rivals = (row.rivalNames && row.rivalNames.length) ? `vs ${row.rivalNames.join(' + ')}` : '';
-    const detail = [partner, rivals].filter(Boolean).join(' ');
-    const resultText = row.won ? 'Victoria' : 'Derrota';
-    const bonus = bonusLabel(row.bonus);
+    // "Vos / Compañero vs Rival / Rival" — separador "/" (nunca "+"); el propio jugador es el
+    // titular del sheet, así que la pareja se nombra solo con su compañero.
+    const rivals = (row.rivalNames && row.rivalNames.length) ? row.rivalNames.join(' / ') : '';
+    const detail = [row.partnerName ? `con ${row.partnerName}` : '', rivals ? `vs ${rivals}` : ''].filter(Boolean).join(' ');
+    const setsText = (row.sets || []).map((s) => `${s[0]}–${s[1]}`).join(' · ');
+    const resultLine = [setsText, breakdownReasonLabel(row)].filter(Boolean).join(' · ');
     const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 3 mejores' : '0 pts');
     return `<div class="group-breakdown-row${row.counted ? ' group-breakdown-row--counted' : ''}">
       <div class="group-breakdown-row__main">
         <span class="group-breakdown-row__date">${escapeHtml(formatShortPlayedDate(row.playedAt))}</span>
         <span class="group-breakdown-row__detail">${escapeHtml(detail)}</span>
-        <span class="group-breakdown-row__result">${escapeHtml(resultText)}${bonus ? ` · ${escapeHtml(bonus)}` : ''}</span>
+        <span class="group-breakdown-row__result">${escapeHtml(resultLine)}</span>
       </div>
       <span class="group-breakdown-row__pts">${escapeHtml(ptsText)}</span>
     </div>`;
@@ -10114,6 +10125,7 @@
       ? bd.rows.map(buildGroupBreakdownRowHTML).join('')
       : '<p class="coverage-note">Sin partidos esta semana.</p>';
     groupsSheetProfileTarget = isOwnGroupTableRow(name, userId) ? { own: true } : { name, playerId: userId || null };
+    $('#group-breakdown-view-profile-btn').textContent = `Ver perfil de ${name} ›`;
     $('#group-breakdown-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#group-breakdown-sheet-scrim').classList.add('is-open'); });
   }
@@ -10150,6 +10162,7 @@
       ? weeks.map(buildGroupRaceSummaryRowHTML).join('')
       : '<p class="coverage-note">Todavía no hay semanas con puntos este año.</p>';
     groupsSheetProfileTarget = isOwnGroupTableRow(name, userId) ? { own: true } : { name, playerId: userId || null };
+    $('#group-race-summary-view-profile-btn').textContent = `Ver perfil de ${name} ›`;
     $('#group-race-summary-sheet-scrim').hidden = false;
     requestAnimationFrame(() => { $('#group-race-summary-sheet-scrim').classList.add('is-open'); });
   }
@@ -10185,14 +10198,13 @@
     // SIEMPRE al lobby (GRUPOS BRAMU), nunca a Home.
     $('#groups-back-btn').addEventListener('click', () => openGroupsLobbyScreen());
     $('#groups-settings-btn').addEventListener('click', openGroupSettingsScreen);
-    $('#groups-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
     $('#groups-current-selector-btn').addEventListener('click', openGroupsSwitchSheet);
     $('#groups-switch-sheet-close').addEventListener('click', closeGroupsSwitchSheet);
     $('#groups-switch-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#groups-switch-sheet-scrim')) closeGroupsSwitchSheet(); });
     $all('#groups-view-tabs .history-tab').forEach((btn) => {
       btn.addEventListener('click', () => setGroupsTab(btn.dataset.view));
     });
-    $('#groups-points-info-btn').addEventListener('click', openGroupPointsInfoSheet);
+    $('#groups-help-btn').addEventListener('click', openGroupPointsInfoSheet);
     $('#group-points-info-close').addEventListener('click', closeGroupPointsInfoSheet);
     $('#group-points-info-scrim').addEventListener('click', (e) => { if (e.target === $('#group-points-info-scrim')) closeGroupPointsInfoSheet(); });
     // §G — hojas de desglose/Race (reemplazan el tap directo a Perfil, ver renderGroupTableInto).

@@ -584,11 +584,18 @@
       const breakdown = computeMatchPointsBreakdown(s.match, fullHistory);
       const partnerRow = PH.getPartnerRow(s.match, playerRef);
       const rivalRows = PH.getOpponentRows(s.match, playerRef);
+      // Resultado real por set, desde la perspectiva del jugador (sus games primero). Solo sets
+      // con games cargados: nunca se inventa un score.
+      const ownTeam = PH.getPlayerTeam(s.match, playerRef);
+      const sets = (s.match.sets || [])
+        .filter((st) => st && Number.isFinite(st.gamesA) && Number.isFinite(st.gamesB))
+        .map((st) => (ownTeam === 'A' ? [st.gamesA, st.gamesB] : [st.gamesB, st.gamesA]));
       return {
         matchId: s.matchId,
         playedAt: PH.getPlayedAt(s.match),
         partnerName: partnerRow ? partnerRow.name : null,
         rivalNames: (rivalRows || []).map((r) => r.name),
+        sets,
         won: s.won,
         points: s.points,
         counted: countedIds.has(s.matchId),

@@ -277,9 +277,11 @@ test('index.html: el EJEMPLO del estado cero usa la misma clase de tarjeta que e
   assert.match(appJs, /class="lobby-card\$\{isExample/);
 });
 
-test('index.html: CTA "Agregar jugador" (detalle y configuración) usa la familia secundaria lima', () => {
-  assert.match(indexHtml, /id="groups-add-member-btn" class="btn-secondary btn-secondary--lime"/);
+test('index.html: "Agregar jugador" vive SOLO en Configuración (familia secundaria lima), no en el detalle', () => {
+  assert.doesNotMatch(indexHtml, /id="groups-add-member-btn"/);
+  assert.doesNotMatch(indexHtml, /id="groups-points-info-btn"/);
   assert.match(indexHtml, /id="group-settings-add-member-btn" class="btn-secondary btn-secondary--lime"/);
+  assert.doesNotMatch(appJs, /groups-add-member-btn|groups-points-info-btn/);
 });
 
 test('index.html: la ayuda de Grupos quedó fusionada en una sola hoja ("Cómo funcionan los Grupos BRAMU")', () => {
@@ -344,4 +346,65 @@ test('bottom-nav: group-settings mantiene activa la sección groups', () => {
   const body = fnBody(appJs, 'function updateBottomNavActive', 700);
   assert.match(body, /viewName === 'group-settings'/);
   assert.match(body, /\? 'groups'/);
+});
+
+/* ------------------------------------------------------------------ */
+/* Pulido visual final B2b (revisión real iPhone, h35)                  */
+/* ------------------------------------------------------------------ */
+
+test('detalle: un único "?" en el header junto al engranaje abre la ayuda existente', () => {
+  assert.match(indexHtml, /id="groups-help-btn"/);
+  assert.ok(indexHtml.indexOf('id="groups-help-btn"') < indexHtml.indexOf('id="groups-settings-btn"'));
+  assert.match(appJs, /#groups-help-btn'\)\.addEventListener\('click', openGroupPointsInfoSheet\)/);
+});
+
+test('lobby: "Crear otro grupo" pasa a "Nuevo grupo"', () => {
+  assert.doesNotMatch(indexHtml, /Crear otro grupo/);
+  assert.match(indexHtml, /groups-lobby-create-other-btn[^>]*>Nuevo grupo</);
+});
+
+test('lobby: medalla según posición de competición real (1,1,3 = oro, oro, bronce; sin plata inventada)', () => {
+  const body = fnBody(appJs, 'function lobbyMedalClass', 200);
+  assert.match(body, /1: 'gold', 2: 'silver', 3: 'bronze'/);
+  const summary = PG.buildLobbyCardSummary([
+    { name: 'A', userId: 'a', points: 10, position: 1 }, { name: 'B', userId: 'b', points: 10, position: 1 },
+    { name: 'C', userId: 'c', points: 5, position: 3 },
+  ], 3, null);
+  assert.deepEqual(j(summary.visibleRows).map((r) => r.position), [1, 1, 3]);
+  const row = fnBody(appJs, 'function buildLobbyCardRowHTML', 900);
+  assert.match(row, /lobby-card__row-pos--\$\{lobbyMedalClass\(row\.position\)\}/);
+  assert.match(row, /avatarSignedUrl/);
+  assert.match(row, /playerInitials\(row\.name\)/, 'iniciales como fallback');
+});
+
+test('desglose: cada partido trae sets reales desde la perspectiva del jugador (sin inventar)', () => {
+  const history = [
+    match('w', '2026-09-22T10:00:00Z', 'A', [{ gamesA: 6, gamesB: 4 }, { gamesA: 6, gamesB: 2 }], 'official'),
+    match('l', '2026-09-23T10:00:00Z', 'B', [{ gamesA: 3, gamesB: 6 }, { gamesA: 4, gamesB: 6 }], 'official'),
+  ];
+  const asA = j(PG.buildPlayerWeeklyBreakdown(history, { name: 'A', userId: 'a' }, history)).rows;
+  assert.deepEqual(asA.find((r) => r.matchId === 'w').sets, [[6, 4], [6, 2]]);
+  assert.deepEqual(asA.find((r) => r.matchId === 'l').sets, [[3, 6], [4, 6]]);
+  const asB = j(PG.buildPlayerWeeklyBreakdown(history, { name: 'B', userId: 'b' }, history)).rows;
+  assert.deepEqual(asB.find((r) => r.matchId === 'w').sets, [[4, 6], [2, 6]]);
+});
+
+test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto con "Ver perfil de X ›" discreto', () => {
+  const row = fnBody(appJs, 'function buildGroupBreakdownRowHTML', 1400);
+  assert.match(row, /join\(' \/ '\)/);
+  assert.doesNotMatch(row, /join\(' \+ '\)/);
+  assert.match(row, /setsText/);
+  assert.match(row, /breakdownReasonLabel\(row\)/);
+  assert.match(row, /No entra en tus 3 mejores/);
+  assert.match(indexHtml, /id="group-breakdown-sheet" class="bottom-sheet bottom-sheet--tall bottom-sheet--tall-xl"/);
+  assert.match(indexHtml, /id="group-breakdown-view-profile-btn" class="group-sheet-profile-link"/);
+  assert.doesNotMatch(indexHtml, />VER PERFIL</);
+  assert.match(appJs, /Ver perfil de \$\{name\} ›/);
+  assert.match(read('styles.css'), /\.bottom-sheet--tall-xl\{ height: clamp\(520px, 82dvh/);
+});
+
+test('ayuda: cubre 3/4, 5/0, bonus, máx 7, top 3, reinicio semanal + Race y que NO toca Nivel ni Ranking', () => {
+  const sheet = fnBody(indexHtml, 'id="group-points-info-sheet"', 3500);
+  ['3 de sus 4 jugadores', 'semana BRAMU', '5 puntos', '7 puntos', '3 mejores partidos', 'Race anual', 'no modifican', 'Nivel BRAMU', 'Ranking BRAMU']
+    .forEach((t) => assert.ok(sheet.includes(t), t));
 });

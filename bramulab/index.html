@@ -24,7 +24,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.11-h34" />
+<link rel="stylesheet" href="styles.css?v=04.11-h35" />
 </head>
 <body>
 
@@ -1031,7 +1031,7 @@
       <!-- Con grupos (§B) -->
       <div id="groups-lobby-list-wrap" hidden>
         <div id="groups-lobby-list" class="groups-lobby-list"></div>
-        <button type="button" id="groups-lobby-create-other-btn" class="btn-secondary btn-secondary--lime groups-lobby-create-other-btn">Crear otro grupo</button>
+        <button type="button" id="groups-lobby-create-other-btn" class="btn-secondary btn-secondary--lime groups-lobby-create-other-btn">Nuevo grupo</button>
       </div>
     </div>
   </section>
@@ -1063,7 +1063,7 @@
        computeWeeklyTable, nunca un top-3 reconstruido acá). "Ver perfil" queda como acción
        secundaria al pie. -->
   <div id="group-breakdown-sheet-scrim" class="sheet-scrim" hidden>
-    <div id="group-breakdown-sheet" class="bottom-sheet bottom-sheet--tall" role="dialog" aria-modal="true" aria-label="Desglose de puntos">
+    <div id="group-breakdown-sheet" class="bottom-sheet bottom-sheet--tall bottom-sheet--tall-xl" role="dialog" aria-modal="true" aria-label="Desglose de puntos">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
       <div class="bottom-sheet__header">
         <span class="bottom-sheet__title">DESGLOSE DE PUNTOS</span>
@@ -1081,7 +1081,7 @@
         </div>
         <div id="group-breakdown-list" class="group-breakdown-list"></div>
       </div>
-      <button type="button" id="group-breakdown-view-profile-btn" class="btn-secondary">VER PERFIL</button>
+      <button type="button" id="group-breakdown-view-profile-btn" class="group-sheet-profile-link">Ver perfil ›</button>
     </div>
   </div>
 
@@ -1092,7 +1092,7 @@
        de semanas que computeRaceAnual). V1: sin desplegar los partidos de cada semana, sin
        acordeones anidados. "Ver perfil" también disponible como acción secundaria. -->
   <div id="group-race-summary-sheet-scrim" class="sheet-scrim" hidden>
-    <div id="group-race-summary-sheet" class="bottom-sheet bottom-sheet--tall" role="dialog" aria-modal="true" aria-label="Resumen de Race">
+    <div id="group-race-summary-sheet" class="bottom-sheet bottom-sheet--tall bottom-sheet--tall-xl" role="dialog" aria-modal="true" aria-label="Resumen de Race">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
       <div class="bottom-sheet__header">
         <span class="bottom-sheet__title" id="group-race-summary-title">RACE — RESUMEN</span>
@@ -1101,7 +1101,7 @@
       <div class="load-player-sheet__scroll">
         <div id="group-race-summary-list" class="group-breakdown-list"></div>
       </div>
-      <button type="button" id="group-race-summary-view-profile-btn" class="btn-secondary">VER PERFIL</button>
+      <button type="button" id="group-race-summary-view-profile-btn" class="group-sheet-profile-link">Ver perfil ›</button>
     </div>
   </div>
 
@@ -1120,6 +1120,9 @@
            uno nuevo" — esa acción se mudó por completo al selector de abajo, ver
            #groups-current-selector-btn). Solo visible si la identidad activa es admin del
            grupo seleccionado. -->
+      <button id="groups-help-btn" class="icon-btn" type="button" aria-label="Cómo funcionan los Grupos BRAMU">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.8 1c0 1.7-2.3 2-2.3 3.5"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+      </button>
       <button id="groups-settings-btn" class="icon-btn" type="button" aria-label="Configuración del grupo" hidden>
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.4-2.3.9a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.4 2.4a7.6 7.6 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.4 2.3-.9c.5.4 1.1.7 1.7 1L11 21h4l.4-2.4c.6-.3 1.2-.6 1.7-1l2.3.9 2-3.4z"/></svg>
       </button>
@@ -1196,10 +1199,7 @@
           <p class="coverage-note groups-table-empty" id="groups-table-race-empty" hidden>Todavía no hay puntos acumulados este año.</p>
         </div>
 
-        <!-- BRAMUlab_V03.4.1 (§7) — acción inequívoca dentro del contenido principal del grupo
-             (solo admins). El "+" del header sigue siendo EXCLUSIVAMENTE "crear grupo nuevo". -->
-        <button type="button" id="groups-add-member-btn" class="btn-secondary btn-secondary--lime" hidden>+ AGREGAR JUGADOR</button>
-        <button type="button" id="groups-points-info-btn" class="link-btn groups-points-info-btn">¿Cómo funcionan los Grupos BRAMU?</button>
+        <!-- B2b — "Agregar jugador" vive solo en Configuración; la ayuda, en el "?" del header. -->
       </div>
     </div>
   </section>
@@ -2784,14 +2784,13 @@
           <button type="button" id="group-points-info-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
         <ul class="group-points-info-list">
-          <li>Un partido entra automáticamente cuando al menos <strong>3 de sus 4 jugadores</strong> son miembros del grupo.</li>
+          <li>Un partido entra cuando al menos <strong>3 de sus 4 jugadores</strong> son miembros del grupo esa semana BRAMU.</li>
           <li>Victoria = <strong>5 puntos</strong>. Derrota = 0.</li>
-          <li>+1 si tu pareja tenía un Nivel BRAMU bastante más bajo que la rival (sorpresa de nivel).</li>
-          <li>+1 si perdiste el primer set y remontaste el partido.</li>
-          <li>+1 si ganaste en 2 sets de forma clara.</li>
-          <li>Cada semana cuentan tus <strong>3 mejores partidos</strong> dentro del grupo.</li>
-          <li>La semana va de <strong>lunes a domingo</strong>.</li>
-          <li>La Race anual acumula los puntos semanales efectivos.</li>
+          <li>Bonus de <strong>+1</strong>: sorpresa de nivel (tu pareja tenía un Nivel BRAMU bastante más bajo), remontada (perdiste el primer set y ganaste) o victoria clara (ganaste en 2 sets con claridad).</li>
+          <li>El máximo por partido es <strong>7 puntos</strong>.</li>
+          <li>Cada semana cuentan tus <strong>3 mejores partidos</strong>.</li>
+          <li>La tabla vuelve a empezar cada semana (de lunes a domingo) y esos puntos alimentan la <strong>Race anual</strong>.</li>
+          <li>Los puntos de Grupos <strong>no modifican</strong> tu Nivel BRAMU ni el Ranking BRAMU.</li>
         </ul>
       </div>
     </div>
@@ -2936,47 +2935,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.11-h34"></script>
-  <script src="stats.js?v=04.11-h34"></script>
-  <script src="store.js?v=04.11-h34"></script>
+  <script src="engine.js?v=04.11-h35"></script>
+  <script src="stats.js?v=04.11-h35"></script>
+  <script src="store.js?v=04.11-h35"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.11-h34"></script>
-  <script src="level-context.js?v=04.11-h34"></script>
-  <script src="level-calibration.js?v=04.11-h34"></script>
-  <script src="player-home.js?v=04.11-h34"></script>
-  <script src="match-load.js?v=04.11-h34"></script>
-  <script src="player-identity.js?v=04.11-h34"></script>
-  <script src="groups.js?v=04.11-h34"></script>
-  <script src="locations.js?v=04.11-h34"></script>
-  <script src="ranking.js?v=04.11-h34"></script>
+  <script src="level.js?v=04.11-h35"></script>
+  <script src="level-context.js?v=04.11-h35"></script>
+  <script src="level-calibration.js?v=04.11-h35"></script>
+  <script src="player-home.js?v=04.11-h35"></script>
+  <script src="match-load.js?v=04.11-h35"></script>
+  <script src="player-identity.js?v=04.11-h35"></script>
+  <script src="groups.js?v=04.11-h35"></script>
+  <script src="locations.js?v=04.11-h35"></script>
+  <script src="ranking.js?v=04.11-h35"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.11-h34"></script>
+  <script src="auth.js?v=04.11-h35"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.11-h34"></script>
-  <script src="match-sync.js?v=04.11-h34"></script>
+  <script src="matches.js?v=04.11-h35"></script>
+  <script src="match-sync.js?v=04.11-h35"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.11-h34"></script>
+  <script src="match-validation.js?v=04.11-h35"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.11-h34"></script>
+  <script src="match-self-heal.js?v=04.11-h35"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.11-h34"></script>
-  <script src="app.js?v=04.11-h34"></script>
+  <script src="intelligence-client.js?v=04.11-h35"></script>
+  <script src="app.js?v=04.11-h35"></script>
 </body>
 </html>
