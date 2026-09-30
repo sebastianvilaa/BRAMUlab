@@ -119,6 +119,74 @@ Este patrón viene reduciendo tiempo/contexto sin perder control y pasa a ser el
 
 La métrica práctica no es “usar menos tokens” por sí sola: es **evitar releer, reexplicar y reprobar lo ya consolidado** manteniendo la misma calidad de evidencia.
 
+## Gate completo y reducción de ping-pong entre agentes
+
+El objetivo no es solo que cada agente haga bien su parte: la ronda debe requerir la menor cantidad posible de relevos manuales de Sebastián.
+
+### Gate completo antes de devolver trabajo
+
+Cuando Central revisa una entrega de Claude, debe ejecutar **todos los gates que ya sean evaluables en ese estado** antes de devolver una corrección.
+
+No debe:
+- detener la revisión al encontrar el primer problema;
+- devolver una corrección, retomar la revisión después y descubrir enseguida otros problemas que ya podían haberse detectado en la primera pasada;
+- usar frases como **“última corrección”**, **“cierre técnico”** o equivalentes mientras todavía queden gates disponibles sin ejecutar.
+
+Sí debe:
+- revisar el diff completo relevante;
+- contrastar contra las fuentes vigentes;
+- revisar tests/resultados;
+- validar entorno remoto cuando ya sea posible;
+- revisar permisos/seguridad si forman parte del riesgo;
+- revisar documentación/estado de deploy cuando corresponda;
+- consolidar **todos los hallazgos detectables** en una sola devolución a Claude.
+
+Si después aparece un problema que **solo se vuelve observable al superar un gate anterior** —por ejemplo, una migración que recién puede verificarse en Supabase Staging real—, esa nueva vuelta está justificada como **evidencia nueva**, no como revisión parcial. Central debe explicitarlo.
+
+### Fronteras externas — planificarlas antes
+
+Antes de mandar una ronda a Claude, Central debe identificar si existe algún gate que Claude probablemente no pueda ejecutar por sí mismo, por ejemplo:
+
+- Supabase Staging real;
+- navegador/GUI real;
+- Vercel;
+- OAuth/OTP/autorización humana;
+- cualquier entorno o credencial fuera del alcance del agente.
+
+Si existe una frontera externa:
+1. definir desde el inicio quién la ejecutará;
+2. ubicarla explícitamente dentro de la secuencia de la ronda;
+3. procurar que, una vez cruzada, Central haga **una revisión técnica completa** antes de volver a Claude;
+4. evitar descubrir restricciones previsibles recién al final por falta de planificación.
+
+### Presupuesto de handoffs
+
+Objetivo normal de una ronda:
+- Claude implementa y deja resultado remoto;
+- Central hace una revisión completa;
+- Sebastián recibe QA/decisión final.
+
+Una vuelta adicional Claude ↔ Central es válida cuando aparece un bug real o una evidencia que no podía observarse antes. No debe convertirse en el modo normal de trabajo.
+
+Cada vez que Central devuelva algo a Claude debe indicar también **qué gate queda después de esa corrección**.
+
+Ejemplo:
+“Después de este fix: verify Staging → revisión final Central → QA visual Sebastián.”
+
+Esto permite saber dónde termina realmente la ronda y evita una cadena abierta de “terminó → corregí esto → terminó → corregí aquello”.
+
+### Sebastián no es el scheduler
+
+Sebastián no debe quedar atado a la computadora actuando como botón humano entre agentes.
+
+Mientras no exista una automatización técnica completa entre Claude y Central:
+- minimizar al máximo los relevos que dependan de que Sebastián escriba “terminó”;
+- agrupar devoluciones;
+- evitar pedirle que retransmita resultados técnicos ya disponibles en el repo;
+- reservar su presencia para decisiones de producto, autorizaciones sensibles o QA final.
+
+La automatización futura del traspaso entre agentes es un problema de **orquestación**, separado de la calidad del método de revisión.
+
 ## Presupuesto de deploys Vercel — regla operativa obligatoria
 
 Incidente real 28/09/2026: el trabajo quedó bloqueado por rate limit de Vercel después de una jornada con demasiados commits/pushes sobre `staging`. El problema no fue la cantidad de cambios funcionales sino la **cantidad de deployments creados por la integración Git**.
