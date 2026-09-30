@@ -51,7 +51,7 @@ test('Grupos <3: estado contextual (1 o 2 miembros activos, sin puntos) en vez d
   });
   const PG = { isMemberActiveAt: (m) => !m.left };
   const run = (members, tables) => {
-    const fn = new Function('PG', '$', 'buildLobbyCardStateHTML', `${body}; return applyGroupBelowThreeState;`)(PG, (s) => els[s], (st) => `<state:${st}>`);
+    const fn = new Function('PG', '$', 'buildLobbyCardStateHTML', 'buildBelowThreeMembersHTML', `${body}; return applyGroupBelowThreeState;`)(PG, (s) => els[s], (st) => `<state:${st}>`, () => '');
     fn({ members }, tables);
   };
   const noPts = [{ points: 0 }, { points: 0 }];

@@ -3,14 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>BRAMU Lab</title>
+<title>BRAMUlab</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <!-- BRAMUlab_V03.2 (§2/§14) — #0B1211 era un verde-negro heredado ("verde inglés"), incoherente
      con el azul noche adoptado como base desde V02 (`--bg` en styles.css). El chrome del
      navegador/status bar de la PWA ahora usa el mismo tono. -->
 <meta name="theme-color" content="#050A12" />
-<link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png" />
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<meta name="application-name" content="BRAMUlab" />
+<meta name="apple-mobile-web-app-title" content="BRAMUlab" />
+<link rel="icon" href="icons/favicon-64.png?v=04.17-h1" sizes="64x64" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=04.17-h1" />
 <!-- V03.1.6 — "?v=X" en styles.css y en cada <script src> de abajo: bug real reportado en
      producción ("actualizo y me vuelve a pedir actualizar en loop"). Causa: `forceUpdateApp`
      (app.js) borra el Cache Storage del Service Worker y recarga, pero la petición del propio
@@ -24,7 +26,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.16-h1" />
+<link rel="stylesheet" href="styles.css?v=04.17-h1" />
 </head>
 <body>
 
@@ -36,7 +38,7 @@
        `icons/logo.png` (mismo asset ya usado en el header/footer del resto de la app), más
        grande y centrado. -->
   <div id="app-splash" aria-hidden="true">
-    <img class="app-splash__logo" src="icons/logo.png" alt="BRAMU Lab" />
+    <img class="app-splash__logo" src="icons/logo.png" alt="BRAMUlab" />
   </div>
 
   <!-- ============================================================
@@ -246,7 +248,7 @@
       <div class="b6-action-block" id="b6-report-error-block" hidden>
         <button type="button" class="b6-correction-choice b6-correction-choice--report" id="b6-report-error-btn" style="width:100%">Reportar un error</button>
       </div>
-      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--footer" src="icons/logo.png" alt="BRAMUlab" />
     </div>
   </section>
 
@@ -581,7 +583,7 @@
        ============================================================ -->
   <section id="view-player-home" class="view view--history" hidden>
     <div class="player-home-header">
-      <img id="player-home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMU Lab" />
+      <img id="player-home-logo" class="brand-logo brand-logo--header" src="icons/logo.png" alt="BRAMUlab" />
       <div class="player-home-header__actions">
         <!-- BRAMUlab_V04.5 — acceso directo (mouse Y touch, sin depender del long-press sobre
              el logo, que se conserva igual) para activar/desactivar el preview de Nivel BRAMU
@@ -1260,12 +1262,12 @@
 
       <button type="button" id="group-settings-add-member-btn" class="btn-secondary btn-secondary--lime groups-switch-create-btn">+ AGREGAR JUGADOR</button>
 
+      <!-- V04.17 (Issue #11 §3) — jerarquía del pie: AGREGAR (positiva, admin) · SALIR DEL GRUPO (destructiva
+           secundaria, todo miembro, separada) · ELIMINAR GRUPO (terciaria de texto, admin, más abajo). -->
+      <button type="button" id="group-settings-leave-btn" class="btn-secondary btn-secondary--danger group-settings-leave-btn">SALIR DEL GRUPO</button>
       <!-- BRAMUlab_V03.4.2 (§7) — mismo tratamiento destructivo de baja jerarquía que
-           "Eliminar partido" (`.analysis-delete-btn`), al final de la pantalla. Nunca borra
-           partidos (ver Store.deleteGroup) — solo saca al grupo de la lista. -->
-      <button type="button" id="group-settings-delete-btn" class="analysis-delete-btn">ELIMINAR GRUPO</button>
-      <!-- §26.5 — accesible a CUALQUIER miembro, al final de Configuración -->
-      <button type="button" id="group-settings-leave-btn" class="analysis-delete-btn group-settings-leave-btn">SALIR DEL GRUPO</button>
+           "Eliminar partido" (`.analysis-delete-btn`). Nunca borra partidos (ver Store.deleteGroup). -->
+      <button type="button" id="group-settings-delete-btn" class="analysis-delete-btn group-settings-delete-btn">ELIMINAR GRUPO</button>
     </div>
   </section>
 
@@ -1846,7 +1848,7 @@
        ============================================================ -->
   <section id="view-access" class="view view--access" hidden>
     <div class="access-scroll">
-      <img class="access-logo" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="access-logo" src="icons/logo.png" alt="BRAMUlab" />
       <!-- BRAMUlab_V03.2.1 (§3) — se retira el título "BIENVENIDO A BRAMU": el logo (ya
            protagonista arriba, ver .access-logo) comunica la marca por sí solo, repetirla en
            texto quedaba redundante. El subtítulo queda como única entrada, breve y sin volver
@@ -1884,7 +1886,7 @@
     <div class="access-scroll access-scroll--under-header">
       <!-- BRAMUlab_V03.2.1 (§4) — logo estable de la familia de acceso, centrado debajo de la
            barra de volver. -->
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
       <!-- V03.0.1 (§8) — pulido visual: labels persistentes + ojo mostrar/ocultar + CTA menos
           dominante + error pegado al formulario. Reglas de autenticación sin cambios
           (Store.loginWithEmail). -->
@@ -1915,7 +1917,7 @@
     <div class="access-scroll access-scroll--under-header">
       <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca que Login/Crear cuenta, sin
            excepciones locales dentro de la familia de acceso. -->
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
       <form id="forgot-password-form" class="access-form">
         <div class="forgot-password-step" data-step="1">
           <p class="access-subtitle">Ingresá el email de tu cuenta para recuperar el acceso.</p>
@@ -1977,7 +1979,7 @@
     </div>
     <div class="access-scroll access-scroll--under-header">
       <!-- BRAMUlab_V03.2.1 (§5) — mismo logo de marca que Login, mismo patrón. -->
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
 
       <form id="signup-form" class="access-form">
         <!-- BRAMUlab_V03.2 (§4/§13) — labels persistentes (antes placeholder-only, único paso
@@ -2147,7 +2149,7 @@
       <span class="analysis-header__title" id="player-card-title">TU PERFIL ESTÁ LISTO</span>
     </div>
     <div class="access-scroll access-scroll--under-header">
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
       <div class="ficha-deportiva player-card">
         <div class="player-card__avatar" id="player-card-avatar" data-has-photo="false" aria-hidden="true">
           <svg viewBox="0 0 24 24" class="player-card__avatar-icon"><circle cx="12" cy="8.2" r="3.4"/><path d="M5 19.5c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2"/></svg>
@@ -2192,7 +2194,7 @@
       <span class="analysis-header__title" id="nivel-onboarding-step-title">TU NIVEL BRAMU</span>
     </div>
     <div class="access-scroll access-scroll--under-header" id="nivel-onboarding-scroll">
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
 
       <div class="nivel-step" id="nivel-step-intro" data-step="intro">
         <p class="access-subtitle">Calculemos tu primer Nivel BRAMU. Elegí cómo preferís estimarlo — los dos caminos te dejan jugar hoy mismo.</p>
@@ -2437,7 +2439,7 @@
     </div>
     <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca, sin excepciones locales. -->
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
       <p class="access-subtitle">Agregá email y contraseña para poder volver a entrar a este jugador cuando quieras.</p>
       <form id="complete-access-form" class="access-form">
         <div class="field field--labeled"><label class="field-label" for="complete-access-email">Email</label><input id="complete-access-email" class="field__input" type="email" autocomplete="email" /></div>
@@ -2472,7 +2474,7 @@
     </div>
     <div class="access-scroll access-scroll--under-header access-scroll--with-bottom-nav">
       <!-- BRAMUlab_V03.2.1 (§6) — misma presencia de marca, sin excepciones locales. -->
-      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMU Lab" />
+      <img class="brand-logo brand-logo--access" src="icons/logo.png" alt="BRAMUlab" />
       <form id="change-password-form" class="access-form">
         <div class="field field--labeled">
           <label class="field-label" for="change-password-current">Contraseña actual</label>
@@ -2962,47 +2964,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.16-h1"></script>
-  <script src="stats.js?v=04.16-h1"></script>
-  <script src="store.js?v=04.16-h1"></script>
+  <script src="engine.js?v=04.17-h1"></script>
+  <script src="stats.js?v=04.17-h1"></script>
+  <script src="store.js?v=04.17-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.16-h1"></script>
-  <script src="level-context.js?v=04.16-h1"></script>
-  <script src="level-calibration.js?v=04.16-h1"></script>
-  <script src="player-home.js?v=04.16-h1"></script>
-  <script src="match-load.js?v=04.16-h1"></script>
-  <script src="player-identity.js?v=04.16-h1"></script>
-  <script src="groups.js?v=04.16-h1"></script>
-  <script src="locations.js?v=04.16-h1"></script>
-  <script src="ranking.js?v=04.16-h1"></script>
+  <script src="level.js?v=04.17-h1"></script>
+  <script src="level-context.js?v=04.17-h1"></script>
+  <script src="level-calibration.js?v=04.17-h1"></script>
+  <script src="player-home.js?v=04.17-h1"></script>
+  <script src="match-load.js?v=04.17-h1"></script>
+  <script src="player-identity.js?v=04.17-h1"></script>
+  <script src="groups.js?v=04.17-h1"></script>
+  <script src="locations.js?v=04.17-h1"></script>
+  <script src="ranking.js?v=04.17-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.16-h1"></script>
+  <script src="auth.js?v=04.17-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.16-h1"></script>
-  <script src="match-sync.js?v=04.16-h1"></script>
+  <script src="matches.js?v=04.17-h1"></script>
+  <script src="match-sync.js?v=04.17-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.16-h1"></script>
+  <script src="match-validation.js?v=04.17-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.16-h1"></script>
+  <script src="match-self-heal.js?v=04.17-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.16-h1"></script>
-  <script src="app.js?v=04.16-h1"></script>
+  <script src="intelligence-client.js?v=04.17-h1"></script>
+  <script src="app.js?v=04.17-h1"></script>
 </body>
 </html>

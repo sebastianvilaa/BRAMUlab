@@ -2787,6 +2787,10 @@ input, select{ font-family: inherit; }
    el hijo nunca quedaba acotado al viewport (no había nada que scrollear). Se acota la vista al alto del
    viewport (mismo patrón que `.view--history`) y el scroller interno ocupa el resto, reservando la
    bottom-nav (--bottomnav-h, medida en runtime por showView()) para que "SALIR DEL GRUPO" sea alcanzable. */
+/* V04.17 — pie de Configuración: Salir = botón destructivo secundario full-width, separado de Agregar;
+   Eliminar = acción terciaria de texto, todavía más abajo, sin competir con Salir. */
+#view-group-settings .group-settings-leave-btn{ width:100%; flex:none; margin-top: 32px; }
+#view-group-settings .group-settings-delete-btn{ margin-top: 28px; }
 #view-group-settings{ height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden; }
 #view-group-settings .access-scroll{
   flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
@@ -3406,6 +3410,12 @@ input, select{ font-family: inherit; }
 .group-breakdown-row--counted .group-breakdown-row__pts{ color: var(--brand-lime); }
 
 /* B2c — foto del grupo en Configuración (identidad compacta centrada) */
+.lobby-card__members-list{ display:flex; flex-direction:column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.groups-state-members{ display:flex; flex-direction:column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.groups-state-member{ display:flex; align-items:center; gap: 12px; }
+.groups-state-member__info{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.groups-state-member__name{ font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.groups-state-member__handle{ font-size: 12px; font-weight:600; color: var(--paper-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .groups-panel-state{
   background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 16px; margin-bottom: 12px;
 }

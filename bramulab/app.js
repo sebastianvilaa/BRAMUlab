@@ -9697,6 +9697,9 @@
       return {
         groupId: g.groupId, name: g.name, memberCount: g.activeMemberCount,
         photoUrl: g.photoPath ? (photoUrls.get(g.photoPath) || null) : null,
+        // V04.17 — integrantes reales (solo se pintan con 1–2 miembros, sin ranking); identidad ya cargada en batch.
+        members: (adaptedGroup.members || []).filter((m) => PG.isMemberActiveAt(m, new Date().toISOString()))
+          .map((m) => ({ name: m.name, userId: m.userId })),
         summary: PG.buildLobbyCardSummary(weeklyTable, g.activeMemberCount, callerKey),
       };
     });
@@ -9726,6 +9729,17 @@
   function lobbyMedal(position) {
     return { 1: '🥇', 2: '🥈', 3: '🥉' }[position] || String(position);
   }
+  /** V04.17 — integrante real (avatar/fallback + nombre + @usuario si existe) de un grupo con 1–2 miembros:
+   *  SIN posición, medalla ni puntos. Identidad por player_id ya cargada (sin RPC por fila). */
+  function buildLobbyMemberRowHTML(m) {
+    const c = (groupsUseServer() && m.userId) ? groupsServer.identities.get(m.userId) : null;
+    const avatar = (c && c.avatarSignedUrl)
+      ? `<span class="lobby-card__row-avatar lobby-card__row-avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
+      : `<span class="lobby-card__row-avatar">${escapeHtml(playerInitials(m.name))}</span>`;
+    const handle = (c && c.username) ? `<span class="lobby-card__row-handle">@${escapeHtml(c.username)}</span>` : '';
+    return `<div class="lobby-card__row lobby-card__row--member">${avatar}<span class="lobby-card__row-id"><span class="lobby-card__row-name">${escapeHtml(m.name)}</span>${handle}</span></div>`;
+  }
+
   function buildLobbyCardRowHTML(row) {
     const c = (groupsUseServer() && row.userId) ? groupsServer.identities.get(row.userId) : null;
     const avatar = (c && c.avatarSignedUrl)
@@ -9743,6 +9757,10 @@
     let body;
     if (s.state !== 'has_points') {
       body = buildLobbyCardStateHTML(s.state);
+      // V04.17 — con 1–2 miembros se ve QUIÉN integra el grupo (el ejemplo del estado cero no tiene miembros reales)
+      if ((s.state === 'one_member' || s.state === 'two_members') && Array.isArray(entry.members) && entry.members.length) {
+        body += `<div class="lobby-card__members-list">${entry.members.map(buildLobbyMemberRowHTML).join('')}</div>`;
+      }
     } else {
       const rowsHTML = s.compressedTie
         ? `<div class="lobby-card__row lobby-card__row--tie"><span class="lobby-card__row-name">${s.compressedTie.count} jugadores comparten la punta</span><span class="lobby-card__row-pts">${s.compressedTie.points} pts</span></div>`
@@ -10157,8 +10175,20 @@
       if (!box || !panel) return;
       panel.classList.toggle('is-below-three', !!state);
       box.hidden = !state;
-      box.innerHTML = state ? buildLobbyCardStateHTML(state) : '';
+      box.innerHTML = state ? buildLobbyCardStateHTML(state) + buildBelowThreeMembersHTML(group) : '';
     });
+  }
+
+  /** V04.17 — integrantes reales del grupo con 1–2 miembros (avatar/fallback + nombre + @usuario si existe),
+   *  sin ranking, posición, medalla ni puntos. Misma identidad canónica que la tabla/Configuración. */
+  function buildBelowThreeMembersHTML(group) {
+    const nowIso = new Date().toISOString();
+    const rows = (group.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso)).map((m) => {
+      const ident = groupRowIdentity(m.name, m.userId);
+      const handle = ident.username ? `@${ident.username}` : (ident.serverBacked ? null : buildPlayerHandle(m.name));
+      return `<div class="groups-state-member">${buildGroupAvatarHTML(m.name, m.userId)}<span class="groups-state-member__info"><span class="groups-state-member__name">${escapeHtml(m.name)}</span>${handle ? `<span class="groups-state-member__handle">${escapeHtml(handle)}</span>` : ''}</span></div>`;
+    }).join('');
+    return rows ? `<div class="groups-state-members">${rows}</div>` : '';
   }
 
   /** §G — a quién apunta "VER PERFIL" dentro de la hoja actualmente abierta (desglose o Race):
@@ -13419,7 +13449,7 @@
     const nameA = S.teamLabel(f.players, 'A'), nameB = S.teamLabel(f.players, 'B');
     const file = new File([blob], 'bramulab.png', { type: 'image/png' });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      navigator.share({ files: [file], title: 'BRAMU Lab', text: `${nameA} vs ${nameB}` }).catch(() => {});
+      navigator.share({ files: [file], title: 'BRAMUlab', text: `${nameA} vs ${nameB}` }).catch(() => {});
     } else {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

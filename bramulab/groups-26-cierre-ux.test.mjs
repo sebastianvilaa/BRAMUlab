@@ -95,7 +95,8 @@ test('§26.4: los gates de admin del cliente en acciones sobre otros miembros si
 /* ---------------- 26.5 Salir del grupo ---------------- */
 test('§26.5: "Salir del grupo" confirma primero la DB y recién después limpia foto si el grupo fue eliminado', () => {
   const html = indexHtml.slice(indexHtml.indexOf('id="view-group-settings"'));
-  assert.ok(html.indexOf('id="group-settings-delete-btn"') < html.indexOf('id="group-settings-leave-btn"'), 'último elemento');
+  // V04.17: jerarquía Agregar -> Salir -> Eliminar (Eliminar, admin-only, queda último)
+  assert.ok(html.indexOf('id="group-settings-leave-btn"') < html.indexOf('id="group-settings-delete-btn"'));
   assert.match(html, /id="group-settings-leave-btn"[^>]*>SALIR DEL GRUPO</);
   assert.match(appJs, /group-settings-leave-btn'\)\.addEventListener\('click', handleLeaveGroup\)/);
   const leave = fnBody(appJs, 'function handleLeaveGroup', 3400);
