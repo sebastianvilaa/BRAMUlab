@@ -104,6 +104,7 @@ create trigger legal_acceptances_append_only
 alter table public.legal_acceptances enable row level security;
 -- Deny-by-default: RLS sin políticas. La lectura propia pasa por get_my_legal_status (SECURITY DEFINER).
 revoke all on table public.legal_acceptances from anon, authenticated;
+revoke update, delete on table public.legal_acceptances from service_role;
 grant select, insert on table public.legal_acceptances to service_role;
 
 -- ------------------------------------------------------------------
