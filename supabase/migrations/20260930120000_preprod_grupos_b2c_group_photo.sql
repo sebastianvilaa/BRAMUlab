@@ -14,23 +14,32 @@
 --      forma, sin RPC nueva de lectura).
 --   5) Storage: bucket privado `group-photos` (2 MB, jpeg/png/webp) + políticas por membresía.
 --   6) delete_group limpia photo_path (borrado lógico; los objetos se limpian después, ver RLS).
---   7) P0.3: admin_delete_player_account borra lógicamente los grupos donde la persona eliminada
---      era el ÚNICO miembro activo y limpia su photo_path dentro de la MISMA transacción; el
---      orquestador (supabase/scripts/admin-delete-player-account.mjs) limpia
+--   7) P0.3: admin_delete_player_account sale de TODOS sus grupos (ver abajo) y borra
+--      lógicamente los grupos donde era el ÚNICO miembro activo, limpiando su photo_path, dentro
+--      de la MISMA transacción; el orquestador (supabase/scripts/admin-delete-player-account.mjs) limpia
 --      `group-photos/{group_id}/*` de esos grupos como parte de la postcondición.
 --
--- RLS de Storage (revisión técnica Central):
---   SELECT  : miembro con período ABIERTO y grupo `active`. Excepción deliberada (necesaria para
---             que el cleanup post-delete funcione: Storage hace `DELETE ... RETURNING`/`list`, y
---             Postgres exige que la fila también pase la política SELECT): un ADMIN abierto puede
---             leer los objetos de un grupo ya `deleted`. Un miembro removido, un no miembro y un
---             miembro común de un grupo eliminado NO pueden leer ni firmar.
+-- RLS de Storage (revisión técnica Central, corregida tras la revisión de d8d2763):
+--   SELECT  : miembro con período ABIERTO y grupo `active` (leer/firmar/listar). Tras el borrado
+--             lógico NADIE genera nuevas signed URLs ni lee el objeto. Única excepción, mínima:
+--             un ADMIN abierto de un grupo `deleted` puede LISTAR y BORRAR residuos, y solo
+--             mediante las operaciones de Storage `object.list`/`object.list_v2`/`object.delete`/
+--             `object.delete_many` (storage.allow_any_operation) — nunca `sign`/`get` (Postgres
+--             exige que la fila también pase SELECT para poder borrarla vía Storage).
 --   INSERT/UPDATE : admin abierto + grupo `active` + ruta `{group_id}/<archivo-seguro>`.
 --   DELETE  : admin abierto del mismo group_id, aunque el grupo ya esté `deleted` (el borrado
 --             lógico deja memberships abiertas), para poder limpiar el objeto después.
 --   Las políticas no leen las tablas de Grupos directamente (RLS deny-by-default para
 --   authenticated): usan helpers SECURITY DEFINER `_group_photo_can_*` con EXECUTE solo para
 --   authenticated.
+--
+-- P0.3 ↔ Grupos (Issue #4, algoritmo cerrado): `_groups_account_deletion_cleanup` (service_role)
+-- se llama explícitamente desde `admin_delete_player_account`, en la MISMA transacción, ANTES de
+-- anonimizar: cierra TODAS las memberships abiertas de la persona eliminada; grupo activo con
+-- otros miembros -> se conserva (si era el último admin, promueve primero al sucesor
+-- determinístico `joined_at, membership_id`); único miembro -> borrado lógico (+ photo_path
+-- null); grupo ya `deleted` -> solo cierra su período. Auditoría con los eventos existentes y
+-- metadata {"reason":"account_deletion"}. Cualquier falla revierte toda la Fase 1.
 --
 -- NO aplicada desde el sandbox del agente (sin Supabase CLI ni credenciales) — se aplica y verifica
 -- en Staging con supabase/tests/verify-preprod-grupos-b2c-group-photo.sql (BEGIN/ROLLBACK).
@@ -272,7 +281,27 @@ as $$
     join public.players pl on pl.player_id = gm.player_id
     where g.group_id = public._group_photo_folder_group_id(p_name)
       and pl.auth_user_id = auth.uid() and pl.is_active
-      and (g.status = 'active' or gm.is_admin)
+      and g.status = 'active'
+  );
+$$;
+
+-- Residuos de un grupo ya ELIMINADO: solo admins abiertos, y solo para listar/borrar (la policy
+-- exige además la operación de Storage; ver storage.allow_any_operation abajo).
+create or replace function public._group_photo_can_cleanup(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.groups g
+    join public.group_memberships gm on gm.group_id = g.group_id and gm.left_at is null and gm.is_admin
+    join public.players pl on pl.player_id = gm.player_id
+    where g.group_id = public._group_photo_folder_group_id(p_name)
+      and g.status = 'deleted'
+      and pl.auth_user_id = auth.uid() and pl.is_active
   );
 $$;
 
@@ -316,15 +345,26 @@ revoke all on function public._group_photo_folder_group_id(text) from public;
 revoke all on function public._group_photo_can_read(text) from public;
 revoke all on function public._group_photo_can_write(text) from public;
 revoke all on function public._group_photo_can_delete(text) from public;
+revoke all on function public._group_photo_can_cleanup(text) from public;
 grant execute on function public._group_photo_folder_group_id(text) to authenticated;
 grant execute on function public._group_photo_can_read(text) to authenticated;
 grant execute on function public._group_photo_can_write(text) to authenticated;
 grant execute on function public._group_photo_can_delete(text) to authenticated;
+grant execute on function public._group_photo_can_cleanup(text) to authenticated;
 
 drop policy if exists "group_photos_select_member" on storage.objects;
 create policy "group_photos_select_member" on storage.objects
   for select to authenticated
-  using (bucket_id = 'group-photos' and public._group_photo_can_read(name));
+  using (
+    bucket_id = 'group-photos'
+    and (
+      public._group_photo_can_read(name)
+      or (
+        public._group_photo_can_cleanup(name)
+        and storage.allow_any_operation(array['object.list', 'object.list_v2', 'object.delete', 'object.delete_many'])
+      )
+    )
+  );
 
 drop policy if exists "group_photos_insert_admin" on storage.objects;
 create policy "group_photos_insert_admin" on storage.objects
@@ -343,10 +383,77 @@ create policy "group_photos_delete_admin" on storage.objects
   using (bucket_id = 'group-photos' and public._group_photo_can_delete(name));
 
 -- ------------------------------------------------------------------
--- 7) P0.3: admin_delete_player_account + grupos donde la persona era el ÚNICO miembro activo
---    (idéntica a 20260927150000 salvo el bloque marcado "B2c/P0.3")
+-- 7) P0.3 ↔ Grupos — helper interno (service_role) + admin_delete_player_account
 -- ------------------------------------------------------------------
 
+create or replace function public._groups_account_deletion_cleanup(p_player_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_gid uuid;
+  v_status text;
+  v_mem public.group_memberships;
+  v_successor public.group_memberships;
+  v_reason jsonb := jsonb_build_object('reason', 'account_deletion');
+begin
+  -- Orden estable por group_id (evita deadlocks entre corridas concurrentes).
+  for v_gid in
+    select distinct gm.group_id from public.group_memberships gm
+    where gm.player_id = p_player_id and gm.left_at is null
+    order by gm.group_id
+  loop
+    -- 1) bloquear el grupo antes de mutar
+    select g.status into v_status from public.groups g where g.group_id = v_gid for update;
+    -- 2) período abierto de la persona (tolera reintentos: si ya se cerró, no-op)
+    select * into v_mem from public.group_memberships gm
+      where gm.group_id = v_gid and gm.player_id = p_player_id and gm.left_at is null for update;
+    if not found then continue; end if;
+
+    if v_status = 'active' then
+      if not exists (
+        select 1 from public.group_memberships o
+        where o.group_id = v_gid and o.left_at is null and o.player_id <> p_player_id
+      ) then
+        -- único miembro activo: borrado lógico (y foto fuera) ANTES de cerrar su período
+        update public.groups
+          set status = 'deleted', deleted_at = now(), deleted_by_player_id = p_player_id,
+              updated_at = now(), photo_path = null
+          where group_id = v_gid;
+        perform public._groups_log(v_gid, 'deleted', p_player_id, null, v_reason);
+      elsif v_mem.is_admin and not exists (
+        select 1 from public.group_memberships o
+        where o.group_id = v_gid and o.left_at is null and o.is_admin and o.player_id <> p_player_id
+      ) then
+        -- último admin con otros miembros: sucesor determinístico ANTES de cerrar su período
+        select * into v_successor from public.group_memberships o
+          where o.group_id = v_gid and o.left_at is null and o.player_id <> p_player_id
+          order by o.joined_at asc, o.membership_id asc
+          limit 1 for update;
+        update public.group_memberships set is_admin = true, updated_at = now()
+          where membership_id = v_successor.membership_id;
+        perform public._groups_log(v_gid, 'admin_promoted', p_player_id, v_successor.player_id, v_reason);
+      end if;
+    end if;
+
+    -- 3) cierre histórico (nunca se borra la fila)
+    update public.group_memberships
+      set left_at = greatest(clock_timestamp(), joined_at), removed_by_player_id = p_player_id, updated_at = now()
+      where membership_id = v_mem.membership_id;
+    perform public._groups_log(v_gid, 'member_removed', p_player_id, p_player_id, v_reason);
+  end loop;
+end;
+$$;
+
+revoke all on function public._groups_account_deletion_cleanup(uuid) from public;
+revoke all on function public._groups_account_deletion_cleanup(uuid) from anon;
+revoke all on function public._groups_account_deletion_cleanup(uuid) from authenticated;
+grant execute on function public._groups_account_deletion_cleanup(uuid) to service_role;
+
+-- Idéntica a 20260927150000 salvo la llamada explícita al helper (bloque "B2c/P0.3"), ANTES de
+-- anonimizar: si cualquier mutación de grupo falla, revierte TODA la Fase 1.
 create or replace function public.admin_delete_player_account(p_player_id uuid)
 returns jsonb
 language plpgsql
@@ -379,6 +486,9 @@ begin
   end if;
 
   v_captured_auth_user_id := v_player.auth_user_id;
+
+  -- ---- B2c/P0.3: salir de TODOS los grupos (Issue #4), en esta misma transacción. ----
+  perform public._groups_account_deletion_cleanup(p_player_id);
 
   update public.players set
     display_name = 'Jugador eliminado',
@@ -423,28 +533,6 @@ begin
     where owner_player_id = p_player_id or saved_player_id = p_player_id;
   delete from public.ranking_network_hidden
     where player_id = p_player_id or hidden_player_id = p_player_id;
-
-  -- ---- B2c/P0.3: grupos donde era el ÚNICO miembro activo -> borrado lógico + photo_path=null
-  --      en esta misma transacción. El orquestador limpia después group-photos/{group_id}/* de
-  --      los grupos `deleted` con deleted_by_player_id = este jugador. Grupos con OTROS miembros
-  --      activos no se tocan acá (sucesión de admin = decisión de producto abierta). ----
-  with solo as (
-    select gm.group_id
-    from public.group_memberships gm
-    join public.groups g on g.group_id = gm.group_id and g.status = 'active'
-    where gm.player_id = p_player_id and gm.left_at is null
-      and not exists (
-        select 1 from public.group_memberships o
-        where o.group_id = gm.group_id and o.left_at is null and o.player_id <> p_player_id)
-  ), del as (
-    update public.groups g
-      set status = 'deleted', deleted_at = now(), deleted_by_player_id = p_player_id,
-          updated_at = now(), photo_path = null
-      where g.group_id in (select group_id from solo)
-      returning g.group_id
-  )
-  insert into public.group_events (group_id, event_type, actor_player_id)
-  select d.group_id, 'deleted', p_player_id from del d;
 
   insert into public.pilot_events (event_name, player_id, properties)
   values ('account_deleted', p_player_id, jsonb_build_object('authUserId', v_captured_auth_user_id));
