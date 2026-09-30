@@ -182,7 +182,7 @@ begin
 end $$;
 
 -- ---------- L6 ÚNICO miembro sale -> grupo eliminado lógicamente ----------
-do $
+do $$
 declare v jsonb; gs uuid; n int; obj text;
 begin
   perform pg_temp._as('SOLO');
@@ -197,8 +197,6 @@ begin
   perform pg_temp._assert(not exists (select 1 from public.group_memberships where group_id = gs and left_at is null), 'L6 período cerrado');
   perform pg_temp._assert(exists (select 1 from public.group_events where group_id = gs and event_type = 'deleted' and metadata->>'reason' = 'voluntary_leave'), 'L6 evento deleted');
 
-  -- La membership ya está cerrada: el actor que produjo el logical-delete conserva SOLO la
-  -- ventana de cleanup list/delete. No recupera lectura/firma del objeto.
   perform pg_temp._as('SOLO');
   perform pg_temp._assert(public._group_photo_can_cleanup(obj), 'L6 deleted_by conserva gate de cleanup');
   perform set_config('storage.operation', 'object.list', true);
@@ -223,7 +221,7 @@ begin
   set constraints group_memberships_require_active_admin immediate;
   set constraints group_memberships_require_active_admin deferred;
   perform pg_temp._assert(not exists (select 1 from jsonb_array_elements(public.list_my_groups()->'groups') g where g->>'groupId' = gs::text), 'L6 ya no figura en list_my_groups');
-end $;
+end $$;
 
 -- ---------- L10 Storage: miembro activo escribe/reemplaza; ajenos NO; lectura privada ----------
 create or replace function pg_temp._storage(p_key text, p_sql text) returns text language plpgsql as $$

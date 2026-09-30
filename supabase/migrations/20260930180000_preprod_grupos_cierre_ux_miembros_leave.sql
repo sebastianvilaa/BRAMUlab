@@ -127,7 +127,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $$
   select exists (
     select 1
     from public.groups g
@@ -136,7 +136,7 @@ as $
     where g.group_id = public._group_photo_folder_group_id(p_name)
       and pl.auth_user_id = auth.uid() and pl.is_active
   );
-$;
+$$;
 
 -- Si el ÚNICO miembro sale, leave_group cierra su membership en la misma transacción.
 -- Para conservar el orden seguro DB→Storage, el actor que dejó el grupo eliminado puede
@@ -148,7 +148,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $$
   select exists (
     select 1
     from public.groups g
@@ -167,7 +167,7 @@ as $
         )
       )
   );
-$;
+$$;
 
 -- ------------------------------------------------------------------
 -- 3) Cierre de membresía compartido (leave_group + eliminación de cuenta)
