@@ -3106,6 +3106,8 @@ input, select{ font-family: inherit; }
    en `--paper-dim` (el "Paper Dim" del sistema) sin importar el estado — por eso el color se
    fija acá explícito en vez de dejarlo heredar. */
 .picker-sheet-option__text{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.picker-sheet-option__avatar{ margin-right: 10px; }
+.picker-sheet-option__avatar + .picker-sheet-option__text{ flex:1; }
 .picker-sheet-option__meta{ color: var(--paper-dim); font-weight: 600; }
 
 /* V03.0.1 (§2/§4/§5/§8) — label visible y persistente arriba de cada campo, reemplaza el
@@ -3224,7 +3226,12 @@ input, select{ font-family: inherit; }
   padding: 12px 14px; margin-bottom: 14px; cursor:pointer;
 }
 .groups-current-selector:active{ background: rgba(149,255,25,0.06); }
-.groups-current-selector__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.groups-current-selector__avatar{
+  flex:none; width:28px; height:28px; border-radius:50%; overflow:hidden; margin-right: 10px; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 11px; color: var(--brand-lime);
+}
+.groups-current-selector__avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.groups-current-selector__name{ flex:1; min-width:0; font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .groups-current-selector__chevron{ flex:none; margin-left: 10px; color: var(--paper-dim); }
 /* BRAMUlab_V03.4.3 (§2) — bug real: la tarjeta de BRAMU Intelligence quedaba pegada a la línea
    de `.history-filters` (esa línea no traía ningún margen propio). `margin-top` acá, mismo
@@ -3315,7 +3322,11 @@ input, select{ font-family: inherit; }
   border-radius: var(--radius-card); padding: 14px 16px; cursor:pointer; transition: background .12s ease;
 }
 .lobby-card:active{ background: rgba(149,255,25,0.06); }
-.lobby-card--example{ cursor:default; opacity: .92; }
+.lobby-card--example{ cursor:default; opacity: .92; border-color: rgba(149,255,25,0.45); }
+/* §26.2 — intro compacta del lobby con grupos */
+.groups-lobby-intro{ margin: 2px 0 14px; }
+.groups-lobby-intro__title{ font-family: var(--font-display); font-weight: 800; font-size: 16px; color: var(--paper); margin: 0 0 2px; }
+.groups-lobby-intro__sub{ font-size: 12px; color: var(--paper-dim); margin: 0; line-height: 1.4; }
 .lobby-card__head{ display:flex; align-items:center; gap: 12px; margin-bottom: 15px; }
 .lobby-card__avatar{
   flex:none; width:50px; height:50px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);

@@ -703,6 +703,8 @@
   const promoteGroupAdmin = (groupId, playerId) => groupsRpc('promote_group_admin', { p_group_id: groupId, p_player_id: playerId });
   const demoteGroupAdmin = (groupId, playerId) => groupsRpc('demote_group_admin', { p_group_id: groupId, p_player_id: playerId });
   const deleteGroup = (groupId) => groupsRpc('delete_group', { p_group_id: groupId });
+  /** §26.5 — "Salir del grupo" (cualquier miembro; guardrails de último admin/único miembro del lado servidor). */
+  const leaveGroup = (groupId) => groupsRpc('leave_group', { p_group_id: groupId });
   const getGroupCompetitionData = (groupId, from, to) => groupsRpc('get_group_competition_data', { p_group_id: groupId, p_from: from || null, p_to: to || null });
   /** B2b (handoff 79 §A) — RPC resumida del lobby (Fase B2a, `get_groups_lobby`): un solo
    *  viaje de red para TODOS los grupos activos del caller, cada uno con members/weekMatches en
@@ -821,7 +823,7 @@
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
     listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
-    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, getGroupCompetitionData, getGroupsLobby,
+    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getGroupCompetitionData, getGroupsLobby,
     GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
     uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
   };

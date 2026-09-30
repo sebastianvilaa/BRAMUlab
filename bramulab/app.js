@@ -9536,13 +9536,37 @@
     if ($('#view-groups') && !$('#view-groups').hidden) renderGroupsScreen();
     if ($('#view-group-settings') && !$('#view-group-settings').hidden) {
       const g = getGroupForUI(activeGroupId);
-      if (!g || (g.members && !currentIsAdminOfGroup(g))) { showView('groups'); renderGroupsScreen(); return; }
-      if (g.members) { $('#group-settings-name-display').textContent = g.name; renderGroupSettingsMembers(g); renderGroupSettingsPhoto(g); }
+      if (!g) { showView('groups'); renderGroupsScreen(); return; }
+      if (g.members) { $('#group-settings-name-display').textContent = g.name; renderGroupSettingsMembers(g); renderGroupSettingsPhoto(g); applyGroupSettingsRole(g); }
     }
   }
 
   /** Lista + grupo activo. La lista usa un request id (gana la última); cada grupo se guarda por
    *  su id. Devuelve `{ok}`; ante error de red conserva el cache anterior (pantalla estable). */
+  /* §26.3 — foto/fallback del grupo en el selector interno y en "Mis grupos". URLs firmadas
+     (TTL 10 min) en una sola llamada batch, SOLO en memoria (nunca persistidas); una URL casi
+     vencida se ignora y cae al fallback de iniciales. */
+  const groupPhotoUrlCache = new Map(); // photoPath -> { url, at }
+  const GROUP_PHOTO_URL_FRESH_MS = 8 * 60 * 1000;
+  async function ensureGroupListPhotoUrls() {
+    if (!groupsUseServer()) return;
+    const now = Date.now();
+    const stale = Array.from(new Set(groupsServer.list.map((g) => g.photoPath).filter(Boolean)))
+      .filter((p) => { const c = groupPhotoUrlCache.get(p); return !c || now - c.at > GROUP_PHOTO_URL_FRESH_MS; });
+    if (!stale.length) return;
+    const map = await Auth.resolveGroupPhotoUrlsBatch(stale);
+    map.forEach((url, path) => groupPhotoUrlCache.set(path, { url, at: Date.now() }));
+  }
+  function groupListPhotoUrl(photoPath) {
+    const c = photoPath ? groupPhotoUrlCache.get(photoPath) : null;
+    return (c && Date.now() - c.at <= GROUP_PHOTO_URL_FRESH_MS + 60 * 1000) ? c.url : null;
+  }
+  /** Contenido del avatar chico de un grupo (foto real o iniciales). */
+  function groupMiniAvatarInnerHTML(group) {
+    const url = groupListPhotoUrl(group && group.photoPath);
+    return url ? `<img src="${escapeHtml(url)}" alt="" />` : escapeHtml(groupInitials(group ? group.name : ''));
+  }
+
   async function refreshGroupsFromServer(opts) {
     if (!groupsUseServer()) return { ok: false };
     if (groupsServer.ownerId !== currentUserId) resetGroupsServerCache();
@@ -9557,6 +9581,7 @@
     // Los que dejaron de existir para este usuario salen del cache.
     Array.from(groupsServer.details.keys()).forEach((id) => { if (!groupsServer.list.some((g) => g.id === id)) { groupsServer.details.delete(id); groupsServer.competition.delete(id); } });
     groupsServer.loaded = true;
+    await ensureGroupListPhotoUrls();
     const targetId = activeGroupId;
     if (targetId) {
       const dataRes = await loadGroupServerData(targetId);
@@ -9712,7 +9737,8 @@
    *  crear el primer grupo. Nunca se calcula con `groups.js` (no hay partidos/miembros reales
    *  que calcular): es la MISMA forma que ya produce `buildLobbyCardSummary`, escrita a mano. */
   const GROUPS_LOBBY_EXAMPLE_ENTRY = {
-    name: 'Los Fenómenos', memberCount: 4,
+    name: 'Pádel de los jueves', memberCount: 4,
+    photoUrl: 'icons/padel-court-example.svg', // recurso original empaquetado con la app (§26.1)
     summary: {
       state: 'has_points', compressedTie: null, selfRow: null,
       visibleRows: [
@@ -9806,8 +9832,10 @@
     // BRAMUlab_V03.4.2 (§1/§2) — un único selector "grupo activo ▾", siempre visible (incluso
     // con un solo grupo: también funciona como "acá estás parado"), reemplaza a los chips.
     $('#groups-current-selector-name').textContent = activeGroup ? activeGroup.name : '—';
-    const isAdmin = currentIsAdminOfGroup(activeGroup);
-    $('#groups-settings-btn').hidden = !isAdmin;
+    $('#groups-current-selector-avatar').innerHTML = groupMiniAvatarInnerHTML(activeGroup);
+    // §26.4 — Configuración es accesible para TODO miembro activo (las acciones administrativas
+    // se ocultan adentro a quien no es admin, y el servidor impone la misma regla).
+    $('#groups-settings-btn').hidden = !activeGroup;
     // B2b — "Agregar jugador" vive SOLO en Configuración (es administración, no contenido
     // deportivo); el detalle ya no tiene CTA de alta.
     renderActiveGroupPanels();
@@ -9834,6 +9862,7 @@
       const memberCount = groupActiveMemberCount(g);
       const memberLabel = memberCount === 1 ? '1 jugador' : `${memberCount} jugadores`;
       return `<button type="button" class="picker-sheet-option${active ? ' is-selected' : ''}" data-group-id="${escapeHtml(g.id)}">
+        <span class="groups-current-selector__avatar picker-sheet-option__avatar" aria-hidden="true">${groupMiniAvatarInnerHTML(g)}</span>
         <span class="picker-sheet-option__text"><span class="picker-sheet-option__name">${escapeHtml(g.name)}</span><span class="picker-sheet-option__meta"> · ${memberLabel}</span></span>
         ${active ? '<span class="picker-sheet-option__check" aria-hidden="true">✓</span>' : ''}
       </button>`;
@@ -10568,12 +10597,13 @@
 
   function openGroupSettingsScreen() {
     const group = getGroupForUI(activeGroupId);
-    if (!group || !group.members || !currentIsAdminOfGroup(group)) return;
+    if (!group || !group.members) return; // §26.4: cualquier miembro activo (el grupo solo existe en su lista si lo es)
     $('#group-settings-name-display').textContent = group.name;
     $('#group-settings-name-display').hidden = false;
     $('#group-settings-name-input').hidden = true;
     renderGroupSettingsMembers(group);
     renderGroupSettingsPhoto(group);
+    applyGroupSettingsRole(group);
     showView('group-settings');
   }
 
@@ -10611,7 +10641,7 @@
 
   async function handleGroupPhotoSelected(file) {
     const group = getGroupForUI(activeGroupId);
-    if (!file || !group || !group.serverBacked || !currentIsAdminOfGroup(group) || groupsBusy) return;
+    if (!file || !group || !group.serverBacked || groupsBusy) return; // §26.6: miembro activo
     groupsBusy = true;
     try {
       const dataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
@@ -10628,7 +10658,7 @@
 
   async function handleGroupPhotoRemove() {
     const group = getGroupForUI(activeGroupId);
-    if (!group || !group.serverBacked || !currentIsAdminOfGroup(group) || groupsBusy) return;
+    if (!group || !group.serverBacked || groupsBusy) return; // §26.6: miembro activo
     groupsBusy = true;
     try {
       const r = await Auth.removeGroupPhoto(group.id);
@@ -10736,6 +10766,7 @@
    *  removeGroupMember, que devuelven `{ok:false}` igual si se intenta igual), esto es solo
    *  la señal visual para no dejar tocar un botón que de todos modos va a fallar. */
   function renderGroupSettingsMembers(group) {
+    const viewerIsAdmin = currentIsAdminOfGroup(group);
     const nowIso = new Date().toISOString();
     const active = (group.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso));
     const activeAdmins = active.filter((m) => m.isAdmin).length;
@@ -10754,12 +10785,12 @@
           <span class="group-settings-member__name">${escapeHtml(m.name)}${m.isAdmin ? '<span class="group-table__admin-tag">ADMIN</span>' : ''}</span>
           ${handle ? `<span class="group-settings-member__handle">${escapeHtml(handle)}</span>` : ''}
         </span>
-        <span class="group-settings-member__actions">
+        ${viewerIsAdmin ? `<span class="group-settings-member__actions">
           ${m.isAdmin
             ? `<button type="button" class="link-btn" data-action="demote"${lastAdminAttrs}>Quitar admin</button>`
             : '<button type="button" class="link-btn" data-action="promote">Hacer admin</button>'}
           <button type="button" class="link-btn link-btn--danger" data-action="remove"${lastAdminAttrs}>Quitar del grupo</button>
-        </span>
+        </span>` : ''}
       </div>`;
     }).join('');
   }
@@ -10805,7 +10836,63 @@
     renderGroupsScreen();
   }
 
+  /* §26.4 — acciones administrativas (agregar jugador, eliminar grupo) solo para admins; el
+     servidor impone lo mismo. Nombre, foto y "Salir del grupo" son de todo miembro. */
+  function applyGroupSettingsRole(group) {
+    const isAdmin = currentIsAdminOfGroup(group);
+    $('#group-settings-add-member-btn').hidden = !isAdmin;
+    $('#group-settings-delete-btn').hidden = !isAdmin;
+  }
+
+  /* §26.5 — Salir del grupo. Copy según el caso; el servidor aplica el mismo guardrail. */
+  function groupLeaveScenario(group) {
+    const nowIso = new Date().toISOString();
+    const active = (group.members || []).filter((m) => PG.isMemberActiveAt(m, nowIso));
+    const me = currentMemberOfGroup(group);
+    if (active.length <= 1) return 'sole';
+    const otherAdmins = active.filter((m) => m.isAdmin && m !== me).length;
+    return (me && me.isAdmin && otherAdmins === 0) ? 'last_admin' : 'normal';
+  }
+  function handleLeaveGroup() {
+    const group = getGroupForUI(activeGroupId);
+    if (!group || !group.members) return;
+    const scenario = groupLeaveScenario(group);
+    const body = {
+      normal: 'Dejarás de formar parte del grupo. Tus partidos y los resultados de semanas anteriores no se borran.',
+      last_admin: 'Sos el único administrador: otro miembro pasará a ser admin para que el grupo continúe. Dejarás de formar parte del grupo.',
+      sole: 'Sos el único miembro: al salir, el grupo se eliminará. Tus partidos no se borran.',
+    }[scenario];
+    confirmAction('¿Salir del grupo?', body, async () => {
+      if (groupsUseServer()) {
+        if (groupsBusy) return;
+        groupsBusy = true;
+        try {
+          // Único miembro: el grupo se elimina y después nadie podría limpiar su foto => se limpia antes (best-effort).
+          if (scenario === 'sole' && group.photoPath) { try { await Auth.removeGroupPhotoFiles(group.id); } catch (e) { /* best-effort */ } }
+          const r = await Auth.leaveGroup(group.id);
+          if (!r.ok) { showToast(groupErrorMessage(r.code)); if (r.code === 'group_not_found') await refreshGroupsFromServer({ keepActive: false }); return; }
+          activeGroupId = null; resetGroupsLobbyCache();
+          await refreshGroupsFromServer({ keepActive: false });
+          openGroupsLobbyScreen();
+          showToast(r.groupDeleted ? 'Saliste del grupo y se eliminó' : 'Saliste del grupo');
+        } finally {
+          groupsBusy = false;
+        }
+        return;
+      }
+      if (scenario === 'sole') Store.deleteGroup(group.id);
+      else {
+        const r = Store.removeGroupMember(group.id, currentPlayerName);
+        if (!r.ok) { showToast('El grupo necesita al menos un administrador.'); return; }
+      }
+      activeGroupId = null;
+      openGroupsLobbyScreen();
+      showToast('Saliste del grupo');
+    }, null, 'Salir del grupo', 'Cancelar', true);
+  }
+
   function initGroupSettingsScreen() {
+    $('#group-settings-leave-btn').addEventListener('click', handleLeaveGroup);
     $('#group-settings-back-btn').addEventListener('click', () => { renderGroupsScreen(); showView('groups'); });
     $('#group-settings-name-edit-btn').addEventListener('click', enterGroupNameEditMode);
     const nameInput = $('#group-settings-name-input');

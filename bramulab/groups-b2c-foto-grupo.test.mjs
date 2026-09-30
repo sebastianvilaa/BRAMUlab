@@ -236,7 +236,7 @@ test('B2c lobby: @usuario secundario solo si existe (identidad ya cargada, sin R
   assert.match(css, /\.lobby-card__avatar\{\s*flex:none; width:50px; height:50px;/, 'tamaño grupo 50');
 });
 
-test('B2c Configuración: editor de foto solo admin/server-backed, orden exacto y control "Quitar foto" condicional', () => {
+test('B2c Configuración: editor de foto (miembro activo, server-backed), orden exacto y control "Quitar foto" condicional', () => {
   const html = indexHtml.slice(indexHtml.indexOf('id="view-group-settings"'));
   const iPhoto = html.indexOf('id="group-settings-photo-block"');
   const iName = html.indexOf('class="group-name-edit"');
@@ -249,10 +249,10 @@ test('B2c Configuración: editor de foto solo admin/server-backed, orden exacto 
   const render = fnBody(appJs, 'function renderGroupSettingsPhoto', 1500);
   assert.match(render, /block\.hidden = !serverBacked/);
   assert.match(render, /remove-btn'\)\.hidden = !group\.photoPath/);
-  // La pantalla de Configuración ya solo abre para admins (openGroupSettingsScreen) y los handlers revalidan.
-  assert.match(fnBody(appJs, 'function openGroupSettingsScreen', 400), /!currentIsAdminOfGroup\(group\)\) return/);
-  assert.match(fnBody(appJs, 'async function handleGroupPhotoSelected', 500), /currentIsAdminOfGroup\(group\)/);
-  assert.match(fnBody(appJs, 'async function handleGroupPhotoRemove', 500), /currentIsAdminOfGroup\(group\)/);
+  // §26.4/§26.6: Configuración y la foto ya no son admin-only; el servidor impone "miembro activo".
+  assert.doesNotMatch(fnBody(appJs, 'function openGroupSettingsScreen', 500), /currentIsAdminOfGroup/);
+  assert.doesNotMatch(fnBody(appJs, 'async function handleGroupPhotoSelected', 500), /currentIsAdminOfGroup/);
+  assert.doesNotMatch(fnBody(appJs, 'async function handleGroupPhotoRemove', 500), /currentIsAdminOfGroup/);
 });
 
 test('B2c: reutiliza el pipeline de Perfil (downscale 256/0.7 JPEG, toast, input reseteado) y refresca lobby+detalle', () => {

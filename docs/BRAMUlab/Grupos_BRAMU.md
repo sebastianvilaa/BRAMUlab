@@ -1069,3 +1069,10 @@ Antes del QA integral final de Grupos:
 4. recién después se ejecuta/cierra el QA integral de transiciones de Issue #6.
 
 No seguir agregando funciones nuevas fuera de este cierre.
+
+### 26.8 Implementación (V04.15 / bundle 04.15-h1)
+
+- **Migración** `20260930180000_preprod_grupos_cierre_ux_miembros_leave.sql` (nueva, posterior a B2c): `rename_group` y `update_group_photo` exigen miembro activo; `_group_photo_can_write`/`_can_delete` pasan a miembro abierto (lectura/firma y cleanup post-delete sin cambios); `leave_group(group_id)`; helper compartido `_groups_close_membership` (mismo algoritmo validado en P0.3 ↔ Grupos, que ahora lo reutiliza). Las acciones administrativas (`add/remove_group_member`, `promote/demote_group_admin`, `delete_group`) no se tocaron. Verificación: `supabase/tests/verify-preprod-grupos-26-miembros-leave.sql` (+ ajustes a los verify de Fase A y B2c que asumían nombre/foto solo-admin).
+- **Cliente:** estado cero y lobby según §26.1–26.2 (ejemplo "Pádel de los jueves" con `icons/padel-court-example.svg`, recurso original empaquetado); foto/fallback en selector y "Mis grupos" (§26.3, URLs firmadas en batch y en memoria); Configuración para todo miembro con acciones administrativas ocultas a quien no es admin (§26.4); "Salir del grupo" con confirmación por caso (§26.5).
+- **Nota:** cuando el único miembro sale, el cliente borra primero los archivos de la foto (después ya no tendría permisos); si ese cleanup falla queda un residuo privado e inaccesible que el orquestador/Central puede limpiar.
+

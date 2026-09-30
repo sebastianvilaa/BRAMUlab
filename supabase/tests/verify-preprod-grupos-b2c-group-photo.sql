@@ -5,11 +5,11 @@
 --
 -- Cubre (Issue #5 §10 + revisión técnica de Storage/privacidad):
 --  T1  columna photo_path + event_type photo_changed aceptado
---  T2  update_group_photo: admin OK / miembro no-admin, no-miembro, removido rechazados
+--  T2  update_group_photo: miembro activo OK (§26.6: ya no solo admin) / no-miembro, removido rechazados
 --  T3  ruta inválida (otro group_id, URL, traversal, carpeta anidada) rechazada; null quita
 --  T4  idempotencia (changed:false, sin evento nuevo) + photo_changed mueve lastActivityAt
 --  T5  photoPath en get_group_detail / list_my_groups / get_groups_lobby
---  T6  RLS Storage: SELECT miembro sí / no-miembro no / removido no; INSERT/UPDATE/DELETE solo admin;
+--  T6  RLS Storage: SELECT miembro sí / no-miembro no / removido no; INSERT/UPDATE/DELETE miembro activo (§26.6);
 --      carpeta de otro grupo rechazada
 --  T7  delete_group: photo_path null; no se puede subir/modificar; NADIE firma ni lee (ni el
 --      admin, ni un miembro) tras el borrado; el admin SÍ puede listar y borrar el residuo
@@ -117,7 +117,9 @@ declare v jsonb; p text := pg_temp._id('G1')::text || '/1700000000000.jpg';
 begin
   perform pg_temp._as('B');
   v := public.update_group_photo(pg_temp._id('G1'), p);
-  perform pg_temp._assert(v->>'code' = 'not_admin', 'T2 miembro no-admin rechazado: ' || v::text);
+  perform pg_temp._assert((v->>'ok')::boolean and (v->>'changed')::boolean, 'T2 miembro activo (no admin) puede: ' || v::text);
+  v := public.update_group_photo(pg_temp._id('G1'), null);
+  perform pg_temp._assert((v->>'ok')::boolean and (v->>'changed')::boolean, 'T2 miembro activo puede quitar: ' || v::text);
   perform pg_temp._as('C');
   v := public.update_group_photo(pg_temp._id('G1'), p);
   perform pg_temp._assert(v->>'code' = 'group_not_found', 'T2 no-miembro rechazado: ' || v::text);
@@ -208,11 +210,11 @@ begin
   perform pg_temp._assert((select public = false from storage.buckets where id = 'group-photos'), 'T6 bucket privado');
   -- INSERT: solo admin, solo su carpeta
   perform pg_temp._assert(pg_temp._try('A', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/a.jpg')$f$, g)) = 'ok', 'T6 admin inserta');
-  perform pg_temp._assert(pg_temp._try('B', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/b.jpg')$f$, g)) = 'denied', 'T6 miembro común NO inserta');
+  perform pg_temp._assert(pg_temp._try('B', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/b.jpg')$f$, g)) = 'ok', 'T6 miembro activo (no admin) SÍ inserta');
   perform pg_temp._assert(pg_temp._try('C', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/c.jpg')$f$, g)) = 'denied', 'T6 no-miembro NO inserta');
   perform pg_temp._assert(pg_temp._try('D', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/d.jpg')$f$, g)) = 'denied', 'T6 removido NO inserta');
   perform pg_temp._assert(pg_temp._try('A', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/z.jpg')$f$, pg_temp._id('C'))) = 'denied', 'T6 carpeta que no es un grupo propio');
-  perform pg_temp._assert(pg_temp._try('B', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/z.jpg')$f$, o)) = 'denied', 'T6 B no es admin de G2');
+  perform pg_temp._assert(pg_temp._try('B', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/z.jpg')$f$, o)) = 'denied', 'T6 B no es miembro de G2');
   perform pg_temp._assert(pg_temp._try('A', format($f$insert into storage.objects (bucket_id, name) values ('group-photos', '%s/sub/z.jpg')$f$, g)) = 'denied', 'T6 subcarpeta rechazada');
   -- SELECT / firma
   perform pg_temp._as('B'); execute 'set local role authenticated';
@@ -225,9 +227,13 @@ begin
   select count(*) into n from storage.objects where bucket_id = 'group-photos'; execute 'reset role';
   perform pg_temp._assert(n = 0, 'T6 miembro REMOVIDO ya no ve (no puede firmar)');
   -- UPDATE / DELETE
-  perform pg_temp._assert(pg_temp._try('B', format($f$update storage.objects set name = name where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) in ('zero_rows','denied'), 'T6 miembro común NO actualiza');
-  perform pg_temp._assert(pg_temp._try('B', format($f$delete from storage.objects where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) in ('zero_rows','denied'), 'T6 miembro común NO borra');
-  perform pg_temp._assert(pg_temp._try('C', format($f$delete from storage.objects where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) in ('zero_rows','denied'), 'T6 no-miembro NO borra');
+  perform pg_temp._assert(pg_temp._try('B', format($f$update storage.objects set owner = owner where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) = 'ok', 'T6 miembro activo actualiza (reemplazo)');
+  perform pg_temp._assert(pg_temp._try('C', format($f$update storage.objects set owner = owner where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) in ('zero_rows','denied'), 'T6 no-miembro NO actualiza');
+  perform pg_temp._assert(pg_temp._try('D', format($f$update storage.objects set owner = owner where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) in ('zero_rows','denied'), 'T6 removido NO actualiza');
+  -- DELETE: gates (Supabase no permite DELETE directo a storage.objects; ver T7)
+  perform pg_temp._as('B'); perform pg_temp._assert(public._group_photo_can_delete(g || '/a.jpg'), 'T6 miembro activo: helper DELETE autoriza (borra el archivo reemplazado)');
+  perform pg_temp._as('C'); perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg'), 'T6 no-miembro: helper DELETE NO autoriza');
+  perform pg_temp._as('D'); perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg'), 'T6 removido: helper DELETE NO autoriza');
   perform pg_temp._assert(pg_temp._try('A', format($f$update storage.objects set owner = owner where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g)) = 'ok', 'T6 admin actualiza');
   perform pg_temp._assert((select count(*) from storage.objects where bucket_id='group-photos' and name = g || '/a.jpg') = 1, 'T6 el objeto sigue tras los intentos ajenos');
 end $$;
@@ -252,21 +258,23 @@ begin
   perform pg_temp._assert(pg_temp._visible('C', g || '/%', 'object.list') = 0, 'T7 no-miembro no lista');
   perform pg_temp._assert(pg_temp._visible('D', g || '/%', 'object.list') = 0, 'T7 removido no lista');
   -- cleanup: el admin SÍ puede listar y borrar (operaciones list / delete)
-  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.list') = 1, 'T7 el admin lista el residuo');
+  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.list') >= 1, 'T7 el admin lista el residuo');
   -- El DELETE físico NO se simula por SQL: Supabase prohíbe `DELETE FROM storage.objects` directo
   -- (42501 "Direct deletion from storage tables is not allowed. Use the Storage API instead"),
   -- con o sin RLS. Se verifican los GATES que la Storage API evalúa para borrar: la fila es
   -- visible bajo las operaciones de delete (SELECT RLS) y la policy/helper DELETE autoriza. El
   -- borrado físico real queda cubierto por la verificación de Storage API/cliente
   -- (bramulab/groups-b2c-foto-grupo.test.mjs + QA en Staging).
-  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete') = 1, 'T7 admin: la fila es visible bajo object.delete');
-  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete_many') = 1, 'T7 admin: la fila es visible bajo object.delete_many');
+  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete') >= 1, 'T7 admin: la fila es visible bajo object.delete');
+  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete_many') >= 1, 'T7 admin: la fila es visible bajo object.delete_many');
   perform pg_temp._as('A');
   perform pg_temp._assert(public._group_photo_can_delete(g || '/a.jpg'), 'T7 admin: policy/helper DELETE autoriza');
   perform pg_temp._assert(public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 admin: habilitado para cleanup del grupo deleted');
   perform pg_temp._assert(pg_temp._visible('B', g || '/%', 'object.delete') = 0 and pg_temp._visible('B', g || '/%', 'object.delete_many') = 0, 'T7 miembro común: fila invisible bajo delete');
   perform pg_temp._as('B');
-  perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg') and not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 miembro común: helper DELETE/cleanup NO autoriza');
+  -- (el helper DELETE es por membresía abierta, pero la fila es INVISIBLE para un miembro común de un grupo
+  -- eliminado — comprobado arriba — y DELETE exige también pasar SELECT; el cleanup sí es solo del admin)
+  perform pg_temp._assert(not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 miembro común: NO habilitado para cleanup');
   perform pg_temp._as('C');
   perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg') and not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 no-miembro: helper NO autoriza');
   perform pg_temp._as('D');

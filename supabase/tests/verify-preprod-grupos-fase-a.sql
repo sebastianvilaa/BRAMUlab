@@ -112,7 +112,9 @@ end $$;
 do $$
 declare g uuid := pg_temp._id('G1');
 begin
-  perform pg_temp._assert(public.rename_group(g, 'Hack')->>'code' = 'not_admin', 'T4 rename');
+  -- §26 (30/09/2026): renombrar dejó de ser admin-only (nombre/foto colaborativos entre miembros activos);
+  -- ver verify-preprod-grupos-26-miembros-leave.sql L1. Se verifica acá que lo demás sigue admin-only.
+  perform public.rename_group(g, 'Grupo Test');
   perform pg_temp._assert(public.add_group_member(g, pg_temp._id('C'))->>'code' = 'not_admin', 'T4 add');
   perform pg_temp._assert(public.remove_group_member(g, pg_temp._id('A'))->>'code' = 'not_admin', 'T4 remove');
   perform pg_temp._assert(public.promote_group_admin(g, pg_temp._id('B'))->>'code' = 'not_admin', 'T4 promote (auto-promoción)');
@@ -223,7 +225,7 @@ begin
   perform public.promote_group_admin(g, pg_temp._id('A'));
   v := public.demote_group_admin(g, pg_temp._id('B'));
   perform pg_temp._assert((v->>'ok')::boolean and not (v->'group'->>'isAdmin')::boolean, 'T8 B se demueve (hay otro admin)');
-  perform pg_temp._assert(public.rename_group(g, 'x')->>'code' = 'not_admin', 'T8 B ya no es admin');
+  perform pg_temp._assert(public.promote_group_admin(g, pg_temp._id('B'))->>'code' = 'not_admin', 'T8 B ya no es admin');
 end $$;
 
 -- ---------- Rename por admin + auditoría ----------
