@@ -363,18 +363,42 @@ test('lobby: "Crear otro grupo" pasa a "Nuevo grupo"', () => {
   assert.match(indexHtml, /groups-lobby-create-other-btn[^>]*>Nuevo grupo</);
 });
 
-test('lobby: medalla según posición de competición real (1,1,3 = oro, oro, bronce; sin plata inventada)', () => {
-  const body = fnBody(appJs, 'function lobbyMedalClass', 200);
-  assert.match(body, /1: 'gold', 2: 'silver', 3: 'bronze'/);
+test('lobby: medallas 🥇🥈🥉 según posición de competición real (1,1,3 = 🥇 🥇 🥉; sin plata inventada)', () => {
+  const body = fnBody(appJs, 'function lobbyMedal', 200);
+  assert.match(body, /1: '🥇', 2: '🥈', 3: '🥉'/);
   const summary = PG.buildLobbyCardSummary([
     { name: 'A', userId: 'a', points: 10, position: 1 }, { name: 'B', userId: 'b', points: 10, position: 1 },
     { name: 'C', userId: 'c', points: 5, position: 3 },
   ], 3, null);
   assert.deepEqual(j(summary.visibleRows).map((r) => r.position), [1, 1, 3]);
-  const row = fnBody(appJs, 'function buildLobbyCardRowHTML', 900);
-  assert.match(row, /lobby-card__row-pos--\$\{lobbyMedalClass\(row\.position\)\}/);
+  const row = fnBody(appJs, 'function buildLobbyCardRowHTML', 1000);
+  assert.match(row, /lobbyMedal\(row\.position\)/);
   assert.match(row, /avatarSignedUrl/);
   assert.match(row, /playerInitials\(row\.name\)/, 'iniciales como fallback');
+});
+
+test('lobby: avatar 50x50 y gap 10 del cuerpo de la tarjeta', () => {
+  const css = read('styles.css');
+  assert.match(css, /\.lobby-card__row-avatar\{\s*flex:none; width:50px; height:50px;/);
+  assert.match(css, /\.lobby-card__body\{[^}]*gap: 10px;/);
+});
+
+test('desglose: la pareja incluye al titular ("Seba / Lucho vs Steve / Pablito")', () => {
+  const row = fnBody(appJs, 'function buildGroupBreakdownRowHTML', 1500);
+  assert.match(row, /buildGroupBreakdownRowHTML\(row, ownerName\)|\[ownerName, row\.partnerName\]\.filter\(Boolean\)\.join\(' \/ '\)/);
+  assert.match(appJs, /buildGroupBreakdownRowHTML\(r, name\)/);
+  assert.doesNotMatch(row, /`con \$\{/);
+});
+
+test('scroll: reserva derecha en desglose/Race y bottom-nav despejada (--bottomnav-h, sin hardcodear)', () => {
+  const css = read('styles.css');
+  assert.match(css, /#group-breakdown-sheet \.load-player-sheet__scroll,\s*#group-race-summary-sheet \.load-player-sheet__scroll\{ padding-right: 12px; \}/);
+  assert.match(css, /\.analysis-scroll\{[^}]*var\(--bottomnav-h, 0px\)/);
+});
+
+test('configuración: Agregar jugador compacto (fit-content, centrado, ~42px) en familia lima', () => {
+  const css = read('styles.css');
+  assert.match(css, /#group-settings-add-member-btn\{[^}]*width:fit-content[^}]*min-height:42px[^}]*margin: 12px auto 0/);
 });
 
 test('desglose: cada partido trae sets reales desde la perspectiva del jugador (sin inventar)', () => {
@@ -390,7 +414,7 @@ test('desglose: cada partido trae sets reales desde la perspectiva del jugador (
 });
 
 test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto con "Ver perfil de X ›" discreto', () => {
-  const row = fnBody(appJs, 'function buildGroupBreakdownRowHTML', 1400);
+  const row = fnBody(appJs, 'function buildGroupBreakdownRowHTML', 1500);
   assert.match(row, /join\(' \/ '\)/);
   assert.doesNotMatch(row, /join\(' \+ '\)/);
   assert.match(row, /setsText/);

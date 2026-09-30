@@ -902,3 +902,18 @@ A partir del 28/09/2026, **Grupos BRAMU deja de considerarse una función diferi
 Esto modifica la planificación anterior que dejaba los rankings privados de grupos fuera del lanzamiento inicial.
 
 La prioridad no es sumar funciones nuevas: es productivizar la base ya existente y elevar su entrada/explicación sin romper lo que ya funciona.
+
+---
+
+## 18. Ajustes finales B2b tras QA real en iPhone (V04.12 / bundle 04.12-h1)
+
+Decisiones ya confirmadas e implementadas:
+
+- **Lobby — top de la tarjeta:** cada jugador visible lleva un avatar chico (50×50 px; foto real si existe, iniciales como fallback) con gap de 10 px entre filas; la tarjeta crece naturalmente. Máximo 3 posiciones visibles.
+- **Medallas:** `🥇 🥈 🥉` según la posición de competición real, respetando empates (`1,1,3` → `🥇 🥇 🥉`; nunca se fabrica plata). Son solo un indicador visual de la posición, no un premio ni un badge persistente.
+- **Botón del lobby:** "Nuevo grupo".
+- **Agregar jugador:** únicamente en Configuración (no en Semana actual/pasada/Race). Es una acción administrativa: CTA secundario lima, compacto (`fit-content`, ~42 px, centrado).
+- **Ayuda:** un único `?` en el header del detalle, junto al engranaje; sin link inferior.
+- **Desglose semanal — formato final por partido:** fecha; `Titular / Compañero vs Rival / Rival`; resultado real por set + motivo (`6–4 · 6–2 · Victoria clara`, o `Victoria` / `Derrota`); puntos a la derecha (o "No entra en tus 3 mejores"). Las parejas se separan con `/`, nunca con `+`. No se inventan scores ni bonus.
+- **Ver perfil:** link secundario discreto al final del sheet ("Ver perfil de {Nombre} ›"); sin card grande. El sheet ocupa ~82 % del viewport y reserva 12 px a la derecha para el indicador de scroll.
+- **Contenido sobre la bottom-nav:** `.analysis-scroll` suma `var(--bottomnav-h)` (medida en runtime por `showView()`, `0px` sin barra) para que la última fila de la tabla quede completamente visible.

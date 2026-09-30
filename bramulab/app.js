@@ -9656,16 +9656,17 @@
     return `<p class="lobby-card__state-title">${escapeHtml(copy[0])}</p><p class="lobby-card__state-sub">${escapeHtml(copy[1])}</p>`;
   }
 
-  /** Medalla por posición de competición real (1,1,3 => oro, oro, bronce; nunca se inventa plata). */
-  function lobbyMedalClass(position) {
-    return { 1: 'gold', 2: 'silver', 3: 'bronze' }[position] || 'plain';
+  /** Medalla por posición de competición real (1,1,3 => 🥇 🥇 🥉; nunca se inventa plata).
+   *  Solo indicador visual de la posición: no es un premio ni queda persistido. */
+  function lobbyMedal(position) {
+    return { 1: '🥇', 2: '🥈', 3: '🥉' }[position] || String(position);
   }
   function buildLobbyCardRowHTML(row) {
     const c = (groupsUseServer() && row.userId) ? groupsServer.identities.get(row.userId) : null;
     const avatar = (c && c.avatarSignedUrl)
       ? `<span class="lobby-card__row-avatar lobby-card__row-avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
       : `<span class="lobby-card__row-avatar">${escapeHtml(playerInitials(row.name))}</span>`;
-    return `<div class="lobby-card__row"><span class="lobby-card__row-pos lobby-card__row-pos--${lobbyMedalClass(row.position)}">${row.position}</span>${avatar}<span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
+    return `<div class="lobby-card__row"><span class="lobby-card__row-pos" aria-label="Posición ${row.position}">${lobbyMedal(row.position)}</span>${avatar}<span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
   }
 
   /** §B — una misma tarjeta reusada por grupos reales Y por el EJEMPLO del estado cero (§C) —
@@ -10083,11 +10084,12 @@
    *  puntos alineados a la derecha. Un partido que no entró en el top 3 nunca se esconde: se
    *  distingue con "No entra en tus 3 mejores" en vez del monto (`row.counted` viene de
    *  `PG.buildPlayerWeeklyBreakdown`, MISMO subconjunto que `computeWeeklyTable`). */
-  function buildGroupBreakdownRowHTML(row) {
+  function buildGroupBreakdownRowHTML(row, ownerName) {
     // "Vos / Compañero vs Rival / Rival" — separador "/" (nunca "+"); el propio jugador es el
     // titular del sheet, así que la pareja se nombra solo con su compañero.
+    const pair = [ownerName, row.partnerName].filter(Boolean).join(' / ');
     const rivals = (row.rivalNames && row.rivalNames.length) ? row.rivalNames.join(' / ') : '';
-    const detail = [row.partnerName ? `con ${row.partnerName}` : '', rivals ? `vs ${rivals}` : ''].filter(Boolean).join(' ');
+    const detail = [pair, rivals ? `vs ${rivals}` : ''].filter(Boolean).join(' ');
     const setsText = (row.sets || []).map((s) => `${s[0]}–${s[1]}`).join(' · ');
     const resultLine = [setsText, breakdownReasonLabel(row)].filter(Boolean).join(' · ');
     const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 3 mejores' : '0 pts');
@@ -10122,7 +10124,7 @@
     $('#group-breakdown-activity').textContent = bd.matchesPlayed ? `${matchesLabel} · ${wins} V · ${bd.matchesPlayed - wins} D` : 'Sin partidos esta semana';
     $('#group-breakdown-total').textContent = `${bd.total} pts`;
     $('#group-breakdown-list').innerHTML = bd.rows.length
-      ? bd.rows.map(buildGroupBreakdownRowHTML).join('')
+      ? bd.rows.map((r) => buildGroupBreakdownRowHTML(r, name)).join('')
       : '<p class="coverage-note">Sin partidos esta semana.</p>';
     groupsSheetProfileTarget = isOwnGroupTableRow(name, userId) ? { own: true } : { name, playerId: userId || null };
     $('#group-breakdown-view-profile-btn').textContent = `Ver perfil de ${name} ›`;

@@ -710,7 +710,10 @@ input, select{ font-family: inherit; }
 .analysis-header{ display:flex; align-items:center; gap: 12px; padding: calc(14px + var(--safe-top)) 18px 12px; border-bottom: 1px solid var(--line); }
 .analysis-header__title{ font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 0.03em; color: var(--paper-dim); flex: 1 1 auto; }
 .analysis-header__summary-btn{ flex: none; font-size: 11px; }
-.analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom)); }
+.analysis-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom) + var(--bottomnav-h, 0px)); }
+/* V04.12 — el último contenido no queda detrás de la bottom-nav fija (--bottomnav-h la mide
+   showView() en runtime y vale 0px sin barra). Las vistas que ya tienen su propio despeje
+   (regla `#view-history .analysis-scroll…` más abajo) lo conservan. */
 /* V02.8 (§7) — 26px parejo entre 8 secciones muy distintas (tarjeta grande, nota corta,
    grupo de botones) era el ritmo más probable detrás de "demasiado aire" que confirmó la
    auditoría. Baja a 12px como ritmo estándar entre bloques del mismo peso (Resultado→
@@ -2545,7 +2548,10 @@ input, select{ font-family: inherit; }
   flex:none; align-self:center; margin: 8px 0 4px; padding: 8px 12px; background:none; border:none; cursor:pointer;
   font-size: 13px; font-weight:600; color: var(--brand-lime);
 }
-#group-settings-add-member-btn{ min-height: 40px; font-size: 13px; }
+#group-settings-add-member-btn{ flex:none; display:flex; width:fit-content; min-width:0; min-height:42px; margin: 12px auto 0; padding: 0 22px; font-size: 12px; letter-spacing:0.04em; }
+/* V04.12 — reserva derecha para el indicador de scroll de iOS: no pisa los puntos alineados a la derecha */
+#group-breakdown-sheet .load-player-sheet__scroll,
+#group-race-summary-sheet .load-player-sheet__scroll{ padding-right: 12px; }
 .load-player-sheet__scroll{ flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 
 /* §12.2 — campo de búsqueda completo (antes una simple línea con `border-bottom`): contenedor
@@ -3319,24 +3325,19 @@ input, select{ font-family: inherit; }
 .lobby-card__identity{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .lobby-card__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lobby-card__members{ font-size: 12px; color: var(--paper-dim); margin-top: 1px; }
-.lobby-card__body{ display:flex; flex-direction:column; gap: 6px; }
+.lobby-card__body{ display:flex; flex-direction:column; gap: 10px; }
 .lobby-card__state-title{ font-size: 14px; font-weight:700; color: var(--paper); margin:0; }
 .lobby-card__state-sub{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 0; }
-.lobby-card__row{ display:flex; align-items:center; gap: 8px; min-height: 30px; }
+.lobby-card__row{ display:flex; align-items:center; gap: 10px; min-height: 50px; }
 /* B2b — avatar chico por jugador del top visible (foto real o iniciales) */
 .lobby-card__row-avatar{
-  flex:none; width:24px; height:24px; border-radius:50%; overflow:hidden; background: var(--ink-softer); border: 1px solid var(--line);
-  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 9px; color: var(--paper-dim);
+  flex:none; width:50px; height:50px; border-radius:50%; overflow:hidden; background: var(--ink-softer); border: 1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 16px; color: var(--paper-dim);
 }
 .lobby-card__row-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
 .lobby-card__row-pos{ flex:none; width:18px; text-align:center; font-family: var(--font-display); font-weight:800; font-size: 12px; color: var(--paper-faint); }
-/* Medallas por posición de competición real (1,1,3 => oro, oro, bronce; sin plata inventada) */
-.lobby-card__row-pos--gold, .lobby-card__row-pos--silver, .lobby-card__row-pos--bronze{
-  width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size: 11px; color: #14181f;
-}
-.lobby-card__row-pos--gold{ background: #f5c542; }
-.lobby-card__row-pos--silver{ background: #c5ccd6; }
-.lobby-card__row-pos--bronze{ background: #cd8a4b; }
+/* Medallas 🥇🥈🥉 por posición de competición real (1,1,3 => 🥇 🥇 🥉; sin plata inventada) */
+.lobby-card__row-pos{ width:26px; font-size: 20px; line-height:1; }
 .lobby-card__row-name{ flex:1; min-width:0; font-size: 13px; font-weight:600; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lobby-card__row-pts{ flex:none; font-family: var(--font-display); font-weight:800; font-size: 13px; color: var(--paper); font-variant-numeric: tabular-nums; }
 .lobby-card__row--tie .lobby-card__row-name{ color: var(--gold); }

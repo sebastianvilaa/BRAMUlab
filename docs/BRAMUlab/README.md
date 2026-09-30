@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.11 / bundle 04.11-h21** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
+**Estado del producto:** BRAMUlab **V04.12 / bundle 04.12-h1** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 28 de septiembre de 2026
@@ -245,6 +245,13 @@ Desde V04 la numeración de rondas es plana:
 `V04.1`, `V04.2`, `V04.3` ... `V04.9`, `V04.10`.
 
 No usar subversiones tipo `V04.9.1`.
+
+**Versión pública vs. bundle técnico (regla vigente desde V04.12):**
+
+- `APP_VERSION` (`store.js`) y `version.json.version` son la versión pública que ve el usuario en el aviso "BRAMUlab V04.x está disponible." Nunca se muestra el sufijo `hN`.
+- `BUNDLE_VERSION`, `version.json.bundle`, `CACHE_NAME` y todos los `?v=` (index.html y `CORE_ASSETS` de `sw.js`) llevan el bundle técnico `04.x-hN`.
+- **Toda ronda VISIBLE distribuida para instalación/revisión incrementa `V04.x`** y reinicia el sufijo (`04.12-h1`).
+- Un hotfix puramente técnico/invisible puede conservar `APP_VERSION` y mover solo `hN`.
 
 Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una ronda menor dentro de la misma versión no crea otra carpeta mayor.
 
