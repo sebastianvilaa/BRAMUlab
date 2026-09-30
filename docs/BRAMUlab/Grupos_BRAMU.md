@@ -905,15 +905,25 @@ La prioridad no es sumar funciones nuevas: es productivizar la base ya existente
 
 ---
 
-## 18. Ajustes finales B2b tras QA real en iPhone (V04.12 / bundle 04.12-h1)
+## 23. Ajustes finales B2b tras QA real en iPhone (V04.12 / bundle 04.12-h1)
 
 Decisiones ya confirmadas e implementadas:
 
-- **Lobby — top de la tarjeta:** cada jugador visible lleva un avatar chico (50×50 px; foto real si existe, iniciales como fallback) con gap de 10 px entre filas; la tarjeta crece naturalmente. Máximo 3 posiciones visibles.
+- **Lobby — top de la tarjeta:** cada jugador visible lleva un avatar chico (foto real si existe, iniciales como fallback); las medidas finales quedaron fijadas en §24; la tarjeta crece naturalmente. Máximo 3 posiciones visibles.
 - **Medallas:** `🥇 🥈 🥉` según la posición de competición real, respetando empates (`1,1,3` → `🥇 🥇 🥉`; nunca se fabrica plata). Son solo un indicador visual de la posición, no un premio ni un badge persistente.
 - **Botón del lobby:** "Nuevo grupo".
-- **Agregar jugador:** únicamente en Configuración (no en Semana actual/pasada/Race). Es una acción administrativa: CTA secundario lima, compacto (`fit-content`, ~42 px, centrado).
+- **Agregar jugador:** únicamente en Configuración (no en Semana actual/pasada/Race). Es una acción administrativa: CTA secundario lima (composición final en §24).
 - **Ayuda:** un único `?` en el header del detalle, junto al engranaje; sin link inferior.
 - **Desglose semanal — formato final por partido:** fecha; `Titular / Compañero vs Rival / Rival`; resultado real por set + motivo (`6–4 · 6–2 · Victoria clara`, o `Victoria` / `Derrota`); puntos a la derecha (o "No entra en tus 3 mejores"). Las parejas se separan con `/`, nunca con `+`. No se inventan scores ni bonus.
 - **Ver perfil:** link secundario discreto al final del sheet ("Ver perfil de {Nombre} ›"); sin card grande. El sheet ocupa ~82 % del viewport y reserva 12 px a la derecha para el indicador de scroll.
 - **Contenido sobre la bottom-nav:** `.analysis-scroll` suma `var(--bottomnav-h)` (medida en runtime por `showView()`, `0px` sin barra) para que la última fila de la tabla quede completamente visible.
+
+---
+
+## 24. Microcierre visual B2b (V04.13 / bundle 04.13-h1)
+
+Composición final probada por Sebastián en el inspector sobre la UI real:
+
+- **Lobby:** `.lobby-card__head` con `margin-bottom: 15px`; avatar del grupo (`.lobby-card__avatar`) de **50×50** (por ahora con iniciales; la foto real del grupo llega con B2c y reutilizará este mismo contenedor); avatar de cada jugador del top (`.lobby-card__row-avatar`) de **45×45**; `.lobby-card__body` con `gap: 6px`. Se mantienen medallas 🥇🥈🥉, semántica 1,1,3, foto real o iniciales, nombre, puntos y máximo 3 posiciones. Sin fondo celeste ni superficie nueva.
+- **Configuración — miembros:** mismo patrón de identidad que la tabla deportiva: avatar real (o iniciales), nombre, `@usuario` secundario solo si existe realmente y tag `ADMIN` donde corresponde. A la derecha, Hacer/Quitar admin y Quitar del grupo. No se muestran Nivel, partidos, V/D ni efectividad. Reutiliza `groupRowIdentity`/`buildGroupAvatarHTML` y `groupsServer.identities` (cargado por el detalle): sin RPC ni N+1 por fila, y sin resolver identidad por nombre en sesión server-backed.
+- **Configuración — Agregar jugador:** vuelve a la misma composición del CTA `CREAR GRUPO` del selector de grupos: ancho completo, `.btn-secondary--lime`, altura estándar (~48 px), texto `+ AGREGAR JUGADOR`. Se elimina el override compacto de V04.12. Sigue existiendo únicamente en Configuración.

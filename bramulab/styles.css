@@ -2548,7 +2548,6 @@ input, select{ font-family: inherit; }
   flex:none; align-self:center; margin: 8px 0 4px; padding: 8px 12px; background:none; border:none; cursor:pointer;
   font-size: 13px; font-weight:600; color: var(--brand-lime);
 }
-#group-settings-add-member-btn{ flex:none; display:flex; width:fit-content; min-width:0; min-height:42px; margin: 12px auto 0; padding: 0 22px; font-size: 12px; letter-spacing:0.04em; }
 /* V04.12 — reserva derecha para el indicador de scroll de iOS: no pisa los puntos alineados a la derecha */
 #group-breakdown-sheet .load-player-sheet__scroll,
 #group-race-summary-sheet .load-player-sheet__scroll{ padding-right: 12px; }
@@ -3317,21 +3316,21 @@ input, select{ font-family: inherit; }
 }
 .lobby-card:active{ background: rgba(149,255,25,0.06); }
 .lobby-card--example{ cursor:default; opacity: .92; }
-.lobby-card__head{ display:flex; align-items:center; gap: 12px; margin-bottom: 10px; }
+.lobby-card__head{ display:flex; align-items:center; gap: 12px; margin-bottom: 15px; }
 .lobby-card__avatar{
-  flex:none; width:40px; height:40px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
+  flex:none; width:50px; height:50px; border-radius:50%; background: var(--ink-softer); border: 1px solid var(--line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 14px; color: var(--brand-lime);
 }
 .lobby-card__identity{ flex:1; min-width:0; display:flex; flex-direction:column; }
 .lobby-card__name{ font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .lobby-card__members{ font-size: 12px; color: var(--paper-dim); margin-top: 1px; }
-.lobby-card__body{ display:flex; flex-direction:column; gap: 10px; }
+.lobby-card__body{ display:flex; flex-direction:column; gap: 6px; }
 .lobby-card__state-title{ font-size: 14px; font-weight:700; color: var(--paper); margin:0; }
 .lobby-card__state-sub{ font-size: 12px; color: var(--paper-dim); margin: 2px 0 0; }
-.lobby-card__row{ display:flex; align-items:center; gap: 10px; min-height: 50px; }
+.lobby-card__row{ display:flex; align-items:center; gap: 10px; min-height: 45px; }
 /* B2b — avatar chico por jugador del top visible (foto real o iniciales) */
 .lobby-card__row-avatar{
-  flex:none; width:50px; height:50px; border-radius:50%; overflow:hidden; background: var(--ink-softer); border: 1px solid var(--line);
+  flex:none; width:45px; height:45px; border-radius:50%; overflow:hidden; background: var(--ink-softer); border: 1px solid var(--line);
   display:flex; align-items:center; justify-content:center; font-family: var(--font-display); font-weight:700; font-size: 16px; color: var(--paper-dim);
 }
 .lobby-card__row-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -3381,6 +3380,7 @@ input, select{ font-family: inherit; }
 .group-settings-member:first-child{ border-top:none; }
 .group-settings-member__info{ flex:1; min-width:0; }
 .group-settings-member__name{ font-size: 14px; font-weight:700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.group-settings-member__handle{ display:block; font-size: 12px; font-weight:600; color: var(--paper-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .group-settings-member__actions{ display:flex; flex-direction:column; align-items:flex-end; gap: 4px; flex:none; }
 .group-settings-member__actions .link-btn{ font-size: 11px; }
 .group-settings-member__actions .link-btn:disabled{ opacity: .35; cursor:not-allowed; }

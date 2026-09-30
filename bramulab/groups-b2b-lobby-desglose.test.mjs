@@ -280,7 +280,7 @@ test('index.html: el EJEMPLO del estado cero usa la misma clase de tarjeta que e
 test('index.html: "Agregar jugador" vive SOLO en Configuración (familia secundaria lima), no en el detalle', () => {
   assert.doesNotMatch(indexHtml, /id="groups-add-member-btn"/);
   assert.doesNotMatch(indexHtml, /id="groups-points-info-btn"/);
-  assert.match(indexHtml, /id="group-settings-add-member-btn" class="btn-secondary btn-secondary--lime"/);
+  assert.match(indexHtml, /id="group-settings-add-member-btn" class="btn-secondary btn-secondary--lime[ "]/);
   assert.doesNotMatch(appJs, /groups-add-member-btn|groups-points-info-btn/);
 });
 
@@ -377,10 +377,26 @@ test('lobby: medallas 🥇🥈🥉 según posición de competición real (1,1,3 
   assert.match(row, /playerInitials\(row\.name\)/, 'iniciales como fallback');
 });
 
-test('lobby: avatar 50x50 y gap 10 del cuerpo de la tarjeta', () => {
+test('lobby: composición final 50 (grupo) / 45 (jugador) / gap 6 / separación del head 15', () => {
   const css = read('styles.css');
-  assert.match(css, /\.lobby-card__row-avatar\{\s*flex:none; width:50px; height:50px;/);
-  assert.match(css, /\.lobby-card__body\{[^}]*gap: 10px;/);
+  assert.match(css, /\.lobby-card__avatar\{\s*flex:none; width:50px; height:50px;/);
+  assert.match(css, /\.lobby-card__row-avatar\{\s*flex:none; width:45px; height:45px;/);
+  assert.match(css, /\.lobby-card__body\{[^}]*gap: 6px;/);
+  assert.match(css, /\.lobby-card__head\{[^}]*margin-bottom: 15px;/);
+  assert.match(css, /\.lobby-card__row\{[^}]*min-height: 45px;/);
+  // El avatar del grupo sigue con iniciales (B2c pondrá la foto real).
+  assert.match(appJs, /<span class="lobby-card__avatar">\$\{escapeHtml\(groupInitials\(entry\.name\)\)\}<\/span>/);
+});
+
+test('configuración: cada miembro reusa avatar + @usuario canónicos (sin RPC por fila)', () => {
+  const full = fnBody(appJs, 'function renderGroupSettingsMembers', 2600);
+  const body = full.slice(0, full.indexOf('function handleGroupSettingsAction'));
+  assert.match(body, /groupRowIdentity\(m\.name, m\.userId\)/);
+  assert.match(body, /buildGroupAvatarHTML\(m\.name, m\.userId\)/);
+  assert.match(body, /ident\.username \? `@\$\{ident\.username\}` : \(ident\.serverBacked \? null : buildPlayerHandle\(m\.name\)\)/);
+  assert.match(body, /group-table__admin-tag/);
+  assert.doesNotMatch(body, /Auth\.|await |fetch\(|ensureGroupIdentities/, 'sin requests por miembro');
+  assert.doesNotMatch(body, /matchesPlayed|wins|levelPublic|efectividad/i);
 });
 
 test('desglose: la pareja incluye al titular ("Seba / Lucho vs Steve / Pablito")', () => {
@@ -396,9 +412,11 @@ test('scroll: reserva derecha en desglose/Race y bottom-nav despejada (--bottomn
   assert.match(css, /\.analysis-scroll\{[^}]*var\(--bottomnav-h, 0px\)/);
 });
 
-test('configuración: Agregar jugador compacto (fit-content, centrado, ~42px) en familia lima', () => {
+test('configuración: Agregar jugador vuelve a ancho completo, secundario lima (misma composición que CREAR GRUPO)', () => {
+  assert.match(indexHtml, /id="group-settings-add-member-btn" class="btn-secondary btn-secondary--lime groups-switch-create-btn">\+ AGREGAR JUGADOR</);
   const css = read('styles.css');
-  assert.match(css, /#group-settings-add-member-btn\{[^}]*width:fit-content[^}]*min-height:42px[^}]*margin: 12px auto 0/);
+  assert.match(css, /\.groups-switch-create-btn\{ width:100%; flex:none;/);
+  assert.doesNotMatch(css, /#group-settings-add-member-btn\{/, 'sin override compacto de V04.12');
 });
 
 test('desglose: cada partido trae sets reales desde la perspectiva del jugador (sin inventar)', () => {

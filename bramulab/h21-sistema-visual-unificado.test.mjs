@@ -196,14 +196,14 @@ test('h21-10: "Ocultar partido" ya no vive en Resumen — retirado, mecanismo ex
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 test('h21: bundle/cache quartet queda alineado', () => {
-  assert.match(indexHtml, /app\.js\?v=04\.12-h1/);
-  assert.match(indexHtml, /styles\.css\?v=04\.12-h1/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.12-h1'/);
-  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-12-h1'/);
-  assert.match(swJs, /app\.js\?v=04\.12-h1/);
-  assert.match(swJs, /styles\.css\?v=04\.12-h1/);
-  assert.match(versionJson, /"bundle":\s*"04\.12-h1"/);
+  assert.match(indexHtml, /app\.js\?v=04\.13-h1/);
+  assert.match(indexHtml, /styles\.css\?v=04\.13-h1/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.13-h1'/);
+  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-13-h1'/);
+  assert.match(swJs, /app\.js\?v=04\.13-h1/);
+  assert.match(swJs, /styles\.css\?v=04\.13-h1/);
+  assert.match(versionJson, /"bundle":\s*"04\.13-h1"/);
   // V04.12 — ronda visible: la versión pública sube y el modal nunca muestra el sufijo hN.
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.12'/);
-  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.12"/);
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.13'/);
+  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.13"/);
 });

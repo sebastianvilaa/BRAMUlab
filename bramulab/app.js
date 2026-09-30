@@ -10663,10 +10663,16 @@
     wrap.innerHTML = active.map((m) => {
       const isLastAdmin = m.isAdmin && activeAdmins === 1;
       const lastAdminAttrs = isLastAdmin ? ' disabled title="El grupo necesita al menos un administrador"' : '';
+      // V04.13 — MISMO criterio de identidad que `buildGroupTableRowHTML` (avatar real o iniciales,
+      // @usuario REAL solo si existe): reusa `groupsServer.identities` ya cargado por el detalle,
+      // sin ninguna RPC extra por fila.
+      const ident = groupRowIdentity(m.name, m.userId);
+      const handle = ident.username ? `@${ident.username}` : (ident.serverBacked ? null : buildPlayerHandle(m.name));
       return `<div class="group-settings-member" data-name="${escapeHtml(m.name)}" data-player-id="${escapeHtml(m.userId || '')}">
-        <span class="person-list__avatar">${escapeHtml(playerInitials(m.name))}</span>
+        ${buildGroupAvatarHTML(m.name, m.userId)}
         <span class="group-settings-member__info">
           <span class="group-settings-member__name">${escapeHtml(m.name)}${m.isAdmin ? '<span class="group-table__admin-tag">ADMIN</span>' : ''}</span>
+          ${handle ? `<span class="group-settings-member__handle">${escapeHtml(handle)}</span>` : ''}
         </span>
         <span class="group-settings-member__actions">
           ${m.isAdmin

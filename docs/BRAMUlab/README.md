@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.12 / bundle 04.12-h1** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
+**Estado del producto:** BRAMUlab **V04.13 / bundle 04.13-h1** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 28 de septiembre de 2026
