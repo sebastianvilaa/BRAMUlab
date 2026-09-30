@@ -253,9 +253,25 @@ begin
   perform pg_temp._assert(pg_temp._visible('D', g || '/%', 'object.list') = 0, 'T7 removido no lista');
   -- cleanup: el admin SÍ puede listar y borrar (operaciones list / delete)
   perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.list') = 1, 'T7 el admin lista el residuo');
-  perform pg_temp._assert(pg_temp._try('B', format($f$delete from storage.objects where bucket_id='group-photos' and name = '%s/a.jpg'$f$, g), 'object.delete') in ('zero_rows','denied'), 'T7 miembro común NO borra');
-  perform pg_temp._assert(pg_temp._try('A', format($f$delete from storage.objects where bucket_id='group-photos' and name = '%s/a.jpg' returning name$f$, g), 'object.delete_many') = 'ok', 'T7 el admin SÍ limpia el objeto (delete_many)');
-  perform pg_temp._assert((select count(*) from storage.objects where bucket_id='group-photos' and name like g || '/%') = 0, 'T7 objeto borrado');
+  -- El DELETE físico NO se simula por SQL: Supabase prohíbe `DELETE FROM storage.objects` directo
+  -- (42501 "Direct deletion from storage tables is not allowed. Use the Storage API instead"),
+  -- con o sin RLS. Se verifican los GATES que la Storage API evalúa para borrar: la fila es
+  -- visible bajo las operaciones de delete (SELECT RLS) y la policy/helper DELETE autoriza. El
+  -- borrado físico real queda cubierto por la verificación de Storage API/cliente
+  -- (bramulab/groups-b2c-foto-grupo.test.mjs + QA en Staging).
+  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete') = 1, 'T7 admin: la fila es visible bajo object.delete');
+  perform pg_temp._assert(pg_temp._visible('A', g || '/%', 'object.delete_many') = 1, 'T7 admin: la fila es visible bajo object.delete_many');
+  perform pg_temp._as('A');
+  perform pg_temp._assert(public._group_photo_can_delete(g || '/a.jpg'), 'T7 admin: policy/helper DELETE autoriza');
+  perform pg_temp._assert(public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 admin: habilitado para cleanup del grupo deleted');
+  perform pg_temp._assert(pg_temp._visible('B', g || '/%', 'object.delete') = 0 and pg_temp._visible('B', g || '/%', 'object.delete_many') = 0, 'T7 miembro común: fila invisible bajo delete');
+  perform pg_temp._as('B');
+  perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg') and not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 miembro común: helper DELETE/cleanup NO autoriza');
+  perform pg_temp._as('C');
+  perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg') and not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 no-miembro: helper NO autoriza');
+  perform pg_temp._as('D');
+  perform pg_temp._assert(not public._group_photo_can_delete(g || '/a.jpg') and not public._group_photo_can_cleanup(g || '/a.jpg'), 'T7 removido: helper NO autoriza');
+  perform pg_temp._assert(pg_temp._visible('C', g || '/%', 'object.delete_many') = 0 and pg_temp._visible('D', g || '/%', 'object.delete_many') = 0, 'T7 no-miembro/removido: fila invisible bajo delete');
 end $$;
 
 -- ---------- T8 P0.3 ↔ Grupos: matriz A–I (Issue #4) ----------
