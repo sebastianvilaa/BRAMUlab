@@ -14,6 +14,11 @@
 //     (`{playerId}/*`), mismo patrón que bramulab/auth.js#removeAvatarFiles pero con el cliente
 //     service_role. Un usuario de Auth puede no poder eliminarse mientras siga siendo propietario
 //     de objetos en Storage — por eso esta fase corre ANTES de la Fase 3.
+//   FASE 2b (Storage API, B2c) — la Fase 1 borra lógicamente los grupos donde la persona era el
+//     ÚNICO miembro activo (photo_path=null en la misma transacción); acá se consultan los grupos
+//     `status='deleted'` con `deleted_by_player_id = playerId` y se limpia
+//     `group-photos/{group_id}/*` (mismo cliente service_role). Postcondición: ninguno de esos
+//     grupos conserva objetos en el bucket.
 //   FASE 3 (Auth Admin API) — banea inmediatamente la cuenta (defensa adicional mientras se
 //     completa el resto) y después la elimina. NUNCA se toca `auth.users`/`auth.sessions`/
 //     `auth.refresh_tokens` por SQL directo.
@@ -60,6 +65,7 @@
 import { pathToFileURL } from 'node:url';
 
 const AVATAR_BUCKET = 'avatars';
+const GROUP_PHOTO_BUCKET = 'group-photos';
 // ~100 años — "permanente en la práctica" mientras se completa el resto del procedimiento, sin
 // depender de una duración exacta arbitraria menor que pudiera vencer antes del borrado final.
 const BAN_DURATION = '876000h';
@@ -145,6 +151,14 @@ export async function runAccountDeletion(supabaseAdmin, playerId, opts) {
   }
   log(`[account-deletion] Fase 2 OK (${avatarFilesRemoved} objeto(s) de avatar borrados)`);
 
+  // ---- FASE 2b (B2c): fotos de los grupos que la Fase 1 borró lógicamente. ----
+  const groupCleanup = await cleanDeletedGroupPhotos(supabaseAdmin, playerId);
+  if (!groupCleanup.ok) {
+    return { ok: false, step: groupCleanup.step, error: groupCleanup.error, authUserId, avatarFilesRemoved };
+  }
+  const groupPhotoFilesRemoved = groupCleanup.removed;
+  log(`[account-deletion] Fase 2b OK (${groupPhotoFilesRemoved} objeto(s) de foto de grupo borrados)`);
+
   // Sin authUserId (cuenta que nunca tuvo sesión vinculada, o cuyo vínculo ya se perdió sin
   // auditoría recuperable): el acceso BRAMU YA está cortado por la Fase 1 — Fases 3/4 se omiten,
   // pero igual se intenta la Fase 5 (idempotente, no-op si no hay nada que purgar) para dejar el
@@ -197,6 +211,34 @@ export async function runAccountDeletion(supabaseAdmin, playerId, opts) {
   };
 }
 
+/** IDs de los grupos borrados lógicamente por esta persona (Fase 1: era el único miembro activo). */
+async function listDeletedGroupIds(supabaseAdmin, playerId) {
+  const { data, error } = await supabaseAdmin
+    .from('groups')
+    .select('group_id')
+    .eq('status', 'deleted')
+    .eq('deleted_by_player_id', playerId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, ids: (Array.isArray(data) ? data : []).map((g) => g.group_id) };
+}
+
+async function cleanDeletedGroupPhotos(supabaseAdmin, playerId) {
+  const groups = await listDeletedGroupIds(supabaseAdmin, playerId);
+  if (!groups.ok) return { ok: false, step: 'groups_query', error: groups.error };
+  let removed = 0;
+  for (const groupId of groups.ids) {
+    const { data: files, error: listError } = await supabaseAdmin.storage.from(GROUP_PHOTO_BUCKET).list(groupId);
+    if (listError) return { ok: false, step: 'group_storage_list', error: listError.message };
+    if (Array.isArray(files) && files.length) {
+      const paths = files.map((f) => `${groupId}/${f.name}`);
+      const { error: removeError } = await supabaseAdmin.storage.from(GROUP_PHOTO_BUCKET).remove(paths);
+      if (removeError) return { ok: false, step: 'group_storage_remove', error: removeError.message };
+      removed += paths.length;
+    }
+  }
+  return { ok: true, removed };
+}
+
 async function finalizeAudit(supabaseAdmin, playerId, log) {
   log('[account-deletion] Fase 5 (SQL): admin_finalize_player_account_deletion — purgando authUserId de la auditoría');
   const { data: finalizeResult, error: finalizeError } = await supabaseAdmin.rpc('admin_finalize_player_account_deletion', {
@@ -236,6 +278,16 @@ export async function verifyAccountDeleted(supabaseAdmin, playerId, authUserId) 
 
   const authCheck = await checkAuthUserGone(supabaseAdmin, authUserId || null);
 
+  // B2c — postcondición: ningún grupo borrado por esta persona conserva objetos de foto.
+  const deletedGroups = await listDeletedGroupIds(supabaseAdmin, playerId);
+  if (!deletedGroups.ok) return { ok: false, error: deletedGroups.error };
+  let groupStorageClean = true;
+  for (const groupId of deletedGroups.ids) {
+    const { data: gFiles, error: gListError } = await supabaseAdmin.storage.from(GROUP_PHOTO_BUCKET).list(groupId);
+    if (gListError) return { ok: false, error: gListError.message };
+    if (Array.isArray(gFiles) && gFiles.length) groupStorageClean = false;
+  }
+
   const { data: auditRows, error: auditError } = await supabaseAdmin
     .from('pilot_events')
     .select('properties')
@@ -254,8 +306,8 @@ export async function verifyAccountDeleted(supabaseAdmin, playerId, authUserId) 
   const authDeleted = !!authCheck.gone;
 
   return {
-    ok: anonymized && authUnlinked && inactiveInBramu && storageClean && authDeleted && auditPurged,
-    anonymized, authUnlinked, inactiveInBramu, storageClean, authDeleted, auditPurged,
+    ok: anonymized && authUnlinked && inactiveInBramu && storageClean && groupStorageClean && authDeleted && auditPurged,
+    anonymized, authUnlinked, inactiveInBramu, storageClean, groupStorageClean, authDeleted, auditPurged,
   };
 }
 

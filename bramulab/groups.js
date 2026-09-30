@@ -800,6 +800,7 @@
       : null;
     return {
       id: sg.groupId, name: sg.name, createdAt: sg.createdAt, createdBy: sg.createdByPlayerId,
+      photoPath: sg.photoPath || null, // ruta cruda de Storage; la URL firmada se resuelve en Auth/app.js
       isAdmin: !!sg.isAdmin, activeMemberCount: sg.activeMemberCount != null ? sg.activeMemberCount : null,
       members, serverBacked: true,
     };

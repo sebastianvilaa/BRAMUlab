@@ -9537,7 +9537,7 @@
     if ($('#view-group-settings') && !$('#view-group-settings').hidden) {
       const g = getGroupForUI(activeGroupId);
       if (!g || (g.members && !currentIsAdminOfGroup(g))) { showView('groups'); renderGroupsScreen(); return; }
-      if (g.members) { $('#group-settings-name-display').textContent = g.name; renderGroupSettingsMembers(g); }
+      if (g.members) { $('#group-settings-name-display').textContent = g.name; renderGroupSettingsMembers(g); renderGroupSettingsPhoto(g); }
     }
   }
 
@@ -9623,7 +9623,12 @@
       (g.members || []).forEach((m) => ids.push(m.playerId));
       (g.weekMatches || []).forEach((m) => (m.players || []).forEach((p) => ids.push(p.playerId)));
     });
-    await ensureGroupIdentities(ids); // batch — mismo cache efímero que ya usa el detalle
+    // batch — mismo cache efímero que ya usa el detalle; B2c: las fotos de grupo se firman en UNA
+    // sola llamada `createSignedUrls` (TTL corto, nunca persistidas), en paralelo a las identidades.
+    const [, photoUrls] = await Promise.all([
+      ensureGroupIdentities(ids),
+      Auth.resolveGroupPhotoUrlsBatch((res.groups || []).map((g) => g.photoPath)),
+    ]);
     if (reqId !== groupsLobbyRequestId || ownerId !== groupsLobby.ownerId) return { ok: false, stale: true };
     const callerKey = currentUserId;
     groupsLobby.entries = (res.groups || []).map((g) => {
@@ -9632,6 +9637,7 @@
       const weeklyTable = PG.computeWeeklyTable(matches, adaptedGroup, weekStart);
       return {
         groupId: g.groupId, name: g.name, memberCount: g.activeMemberCount,
+        photoUrl: g.photoPath ? (photoUrls.get(g.photoPath) || null) : null,
         summary: PG.buildLobbyCardSummary(weeklyTable, g.activeMemberCount, callerKey),
       };
     });
@@ -9666,7 +9672,9 @@
     const avatar = (c && c.avatarSignedUrl)
       ? `<span class="lobby-card__row-avatar lobby-card__row-avatar--photo"><img src="${escapeHtml(c.avatarSignedUrl)}" alt="" /></span>`
       : `<span class="lobby-card__row-avatar">${escapeHtml(playerInitials(row.name))}</span>`;
-    return `<div class="lobby-card__row"><span class="lobby-card__row-pos" aria-label="Posición ${row.position}">${lobbyMedal(row.position)}</span>${avatar}<span class="lobby-card__row-name">${escapeHtml(row.name)}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
+    // @usuario secundario SOLO si existe realmente (identidad ya cargada en batch, sin RPC extra).
+    const handle = (c && c.username) ? `<span class="lobby-card__row-handle">@${escapeHtml(c.username)}</span>` : '';
+    return `<div class="lobby-card__row"><span class="lobby-card__row-pos" aria-label="Posición ${row.position}">${lobbyMedal(row.position)}</span>${avatar}<span class="lobby-card__row-id"><span class="lobby-card__row-name">${escapeHtml(row.name)}</span>${handle}</span><span class="lobby-card__row-pts">${row.points} pts</span></div>`;
   }
 
   /** §B — una misma tarjeta reusada por grupos reales Y por el EJEMPLO del estado cero (§C) —
@@ -9688,7 +9696,9 @@
     const memberLabel = entry.memberCount === 1 ? '1 jugador' : `${entry.memberCount} jugadores`;
     return `<button type="button" class="lobby-card${isExample ? ' lobby-card--example' : ''}"${isExample ? '' : ` data-group-id="${escapeHtml(entry.groupId)}"`}>
       <div class="lobby-card__head">
-        <span class="lobby-card__avatar">${escapeHtml(groupInitials(entry.name))}</span>
+        ${entry.photoUrl
+    ? `<span class="lobby-card__avatar lobby-card__avatar--photo"><img src="${escapeHtml(entry.photoUrl)}" alt="" /></span>`
+    : `<span class="lobby-card__avatar">${escapeHtml(groupInitials(entry.name))}</span>`}
         <span class="lobby-card__identity">
           <span class="lobby-card__name">${escapeHtml(entry.name)}</span>
           <span class="lobby-card__members">${escapeHtml(memberLabel)}</span>
@@ -10563,7 +10573,72 @@
     $('#group-settings-name-display').hidden = false;
     $('#group-settings-name-input').hidden = true;
     renderGroupSettingsMembers(group);
+    renderGroupSettingsPhoto(group);
     showView('group-settings');
+  }
+
+  /* B2c — foto del grupo en Configuración (solo admin; solo cuentas server-backed). Iniciales
+     como fallback; "Quitar foto" solo si existe. La URL firmada se resuelve acá (TTL corto),
+     nunca se guarda. */
+  let groupSettingsPhotoReq = 0;
+  function renderGroupSettingsPhoto(group) {
+    const block = $('#group-settings-photo-block');
+    if (!block) return;
+    const serverBacked = !!(group && group.serverBacked);
+    block.hidden = !serverBacked;
+    if (!serverBacked) return;
+    const img = $('#group-settings-photo-img');
+    $('#group-settings-photo-initials').textContent = groupInitials(group.name);
+    $('#group-settings-photo-remove-btn').hidden = !group.photoPath;
+    const reqId = ++groupSettingsPhotoReq;
+    img.hidden = true; img.removeAttribute('src');
+    $('#group-settings-photo-initials').hidden = false;
+    if (!group.photoPath) return;
+    Auth.resolveGroupPhotoUrl(group.photoPath).then((url) => {
+      if (reqId !== groupSettingsPhotoReq || !url) return; // falla de firma => se queda en iniciales
+      img.src = url; img.hidden = false;
+      $('#group-settings-photo-initials').hidden = true;
+    });
+  }
+
+  async function afterGroupPhotoMutation(toastMessage) {
+    resetGroupsLobbyCache(); // el lobby se reconstruye (foto + orden por actividad) en la próxima apertura
+    await refreshGroupsFromServer();
+    const g = getGroupForUI(activeGroupId);
+    if (g) renderGroupSettingsPhoto(g);
+    showToast(toastMessage);
+  }
+
+  async function handleGroupPhotoSelected(file) {
+    const group = getGroupForUI(activeGroupId);
+    if (!file || !group || !group.serverBacked || !currentIsAdminOfGroup(group) || groupsBusy) return;
+    groupsBusy = true;
+    try {
+      const dataUrl = await downscaleImageFileToDataUrl(file, 256, 0.7);
+      const blob = await (await fetch(dataUrl)).blob();
+      const r = await Auth.changeGroupPhoto(group.id, blob, group.photoPath);
+      if (!r.ok) { showToast(r.code === 'not_admin' ? groupErrorMessage('not_admin') : 'No pudimos guardar la foto. Probá de nuevo.'); return; }
+      await afterGroupPhotoMutation('Foto del grupo actualizada');
+    } catch (err) {
+      showToast('No pudimos guardar la foto. Probá de nuevo.');
+    } finally {
+      groupsBusy = false;
+    }
+  }
+
+  async function handleGroupPhotoRemove() {
+    const group = getGroupForUI(activeGroupId);
+    if (!group || !group.serverBacked || !currentIsAdminOfGroup(group) || groupsBusy) return;
+    groupsBusy = true;
+    try {
+      const r = await Auth.removeGroupPhoto(group.id);
+      if (!r.ok) { showToast('No pudimos quitar la foto. Probá de nuevo.'); return; }
+      await afterGroupPhotoMutation('Foto del grupo quitada');
+    } catch (err) {
+      showToast('No pudimos quitar la foto. Probá de nuevo.');
+    } finally {
+      groupsBusy = false;
+    }
   }
 
   /** BRAMUlab_V03.4.2 (§6) — reemplaza el botón grande "GUARDAR NOMBRE": tocar el lápiz
@@ -10638,7 +10713,12 @@
       async () => {
         if (groupsUseServer()) {
           const r = await runGroupMutation(() => Auth.deleteGroup(group.id), 'Grupo eliminado');
-          if (r && r.ok) { activeGroupId = null; resetGroupsLobbyCache(); openGroupsLobbyScreen(); }
+          if (r && r.ok) {
+            activeGroupId = null; resetGroupsLobbyCache(); openGroupsLobbyScreen();
+            // B2c — el borrado lógico ya es definitivo; el cleanup del objeto de Storage es
+            // best-effort DESPUÉS (un fallo acá nunca lo revierte ni se le muestra al usuario).
+            if (group.photoPath) Auth.removeGroupPhotoFiles(group.id).catch(() => {});
+          }
           return;
         }
         Store.deleteGroup(group.id);
@@ -10735,6 +10815,15 @@
       else if (e.key === 'Escape') { exitGroupNameEditMode(false); }
     });
     $('#group-settings-add-member-btn').addEventListener('click', openAddMembersToGroupSheet);
+    const photoInput = $('#group-settings-photo-input');
+    const openPhotoPicker = () => photoInput.click();
+    $('#group-settings-photo-avatar').addEventListener('click', openPhotoPicker);
+    $('#group-settings-photo-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openPhotoPicker(); });
+    photoInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      try { await handleGroupPhotoSelected(file); } finally { photoInput.value = ''; }
+    });
+    $('#group-settings-photo-remove-btn').addEventListener('click', handleGroupPhotoRemove);
     $('#group-settings-members-list').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;

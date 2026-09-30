@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.13 / bundle 04.13-h1** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
+**Estado del producto:** BRAMUlab **V04.14 / bundle 04.14-h1** en Staging. Implementación técnica cerrada; pendiente revisión visual directa de Sebastián. Ver `Implementacion/Pre_Production/60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md`.  
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 28 de septiembre de 2026
@@ -84,7 +84,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
-| **Grupos BRAMU** | `Grupos_BRAMU.md` | Producto/UX V1 cerrados; Fase A + B1 + B2a backend lobby CERRADOS en Staging. Siguiente: B2b lobby/pulido/desglose → B2c foto |
+| **Grupos BRAMU** | `Grupos_BRAMU.md` | Producto/UX V1 cerrados; Fase A + B1 + B2a backend lobby + B2b CERRADOS en Staging. B2c (foto de grupo server-backed, V04.14) implementada: pendiente aplicar la migración `20260930120000` en Staging + revisión Central + QA visual |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
 | **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |

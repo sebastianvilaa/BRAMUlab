@@ -533,6 +533,8 @@ Autoridad mínima:
 
 Implementación Fase A (28/09/2026): tablas `groups`, `group_memberships` (un período por fila), `group_events`; contratos RPC y lectura deportiva `get_group_competition_data` documentados en `Implementacion/Pre_Production/66_Resultado_Grupos_Fase_A_Backend_Compartido_28SEP.md`.
 
+B2c (30/09/2026): `groups.photo_path`, evento `photo_changed`, RPC `update_group_photo`, bucket privado `group-photos` (RLS por membresía, URL firmada de 10 min) y limpieza de fotos en P0.3 — migración `20260930120000_preprod_grupos_b2c_group_photo.sql`; detalle en `Grupos_BRAMU.md` §25.
+
 ## 7. Autoridad server-side y estado local permitido
 
 ### 7.1 Autoridad exclusiva del servidor

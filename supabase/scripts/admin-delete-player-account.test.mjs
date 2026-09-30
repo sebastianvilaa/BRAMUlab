@@ -34,7 +34,7 @@ function makeQueryBuilder(resolver) {
  *  "nunca se llamó a X" o sobre el orden real de las fases. */
 function fakeSupabaseAdmin(state) {
   const calls = {
-    rpc: [], storageList: [], storageRemove: [], authUpdate: [], authDelete: [], authGetUserById: [],
+    rpc: [], storageList: [], storageRemove: [], groupStorageList: [], groupStorageRemove: [], authUpdate: [], authDelete: [], authGetUserById: [],
   };
 
   const admin = {
@@ -46,7 +46,12 @@ function fakeSupabaseAdmin(state) {
       return { data: null, error: { message: `unexpected_rpc:${name}` } };
     },
     storage: {
-      from: () => ({
+      // B2c: el fake distingue el bucket — `group-photos` va a sus propios contadores/estado, así
+      // los tests de avatar existentes no cambian.
+      from: (bucket) => (bucket === 'group-photos' ? {
+        list: async (prefix) => { calls.groupStorageList.push(prefix); return state.groupStorageList(prefix); },
+        remove: async (paths) => { calls.groupStorageRemove.push(paths); return state.groupStorageRemove(paths); },
+      } : {
         list: async (prefix) => { calls.storageList.push(prefix); return state.storageList(prefix); },
         remove: async (paths) => { calls.storageRemove.push(paths); return state.storageRemove(paths); },
       }),
@@ -73,6 +78,8 @@ function baseState(overrides) {
     rpcFinalizeResponse: (playerId) => ({ data: { ok: true, playerId }, error: null }),
     storageList: () => ({ data: [{ name: '1700000000000.jpg' }], error: null }),
     storageRemove: () => ({ data: {}, error: null }),
+    groupStorageList: () => ({ data: [], error: null }),
+    groupStorageRemove: () => ({ data: {}, error: null }),
     authUpdate: () => ({ data: {}, error: null }),
     authDelete: () => ({ data: {}, error: null }),
     authGetUserById: () => ({ data: null, error: { message: 'User not found', status: 404 } }),
@@ -256,7 +263,7 @@ test('verifyAccountDeleted (handoff 30 §2.B): post-condición COMPLETA solo si 
   const result = await verifyAccountDeleted(c, 'p14', 'auth-1');
   assert.deepEqual(result, {
     ok: true, anonymized: true, authUnlinked: true, inactiveInBramu: true,
-    storageClean: true, authDeleted: true, auditPurged: true,
+    storageClean: true, groupStorageClean: true, authDeleted: true, auditPurged: true,
   });
 });
 
@@ -318,4 +325,57 @@ test('verifyAccountDeleted: authUserId null (nunca hubo sesión, o ya purgado) s
   const result = await verifyAccountDeleted(c, 'p18', null);
   assert.equal(result.authDeleted, true);
   assert.equal(result.ok, true);
+});
+
+// ---------------------------------------------------------------------------------------------
+// B2c — fotos de grupo (Issue #5: "P0.3 sole-member group -> photo_path null + Storage limpio al
+// cerrar E2E"). La Fase 1 SQL ya borra lógicamente el grupo y nulifica photo_path (probado en
+// supabase/tests/verify-preprod-grupos-b2c-group-photo.sql, T8); el orquestador limpia los objetos.
+// ---------------------------------------------------------------------------------------------
+
+test('B2c: Fase 2b limpia group-photos/{group_id}/* de los grupos que esta persona borró (único miembro)', async () => {
+  const c = fakeSupabaseAdmin(baseState({
+    tableQuery: (table) => (table === 'groups' ? { data: [{ group_id: 'g1' }, { group_id: 'g2' }], error: null } : { data: [], error: null }),
+    groupStorageList: (prefix) => ({ data: prefix === 'g1' ? [{ name: 'a.jpg' }, { name: 'b.jpg' }] : [], error: null }),
+  }));
+  const result = await runAccountDeletion(c, 'p-b2c');
+  assert.equal(result.ok, true);
+  assert.deepEqual(c.calls.groupStorageList, ['g1', 'g2']);
+  assert.deepEqual(c.calls.groupStorageRemove, [['g1/a.jpg', 'g1/b.jpg']], 'solo borra donde hay objetos');
+});
+
+test('B2c: sin grupos borrados por la persona no se toca el bucket group-photos', async () => {
+  const c = fakeSupabaseAdmin(baseState());
+  const result = await runAccountDeletion(c, 'p-b2c-none');
+  assert.equal(result.ok, true);
+  assert.equal(c.calls.groupStorageList.length, 0);
+});
+
+test('B2c: un fallo al limpiar fotos de grupo detiene la operación (reintentable, nunca la declara cerrada)', async () => {
+  const c = fakeSupabaseAdmin(baseState({
+    tableQuery: (table) => (table === 'groups' ? { data: [{ group_id: 'g1' }], error: null } : { data: [], error: null }),
+    groupStorageList: () => ({ data: [{ name: 'a.jpg' }], error: null }),
+    groupStorageRemove: () => ({ data: null, error: { message: 'storage_down' } }),
+  }));
+  const result = await runAccountDeletion(c, 'p-b2c-fail');
+  assert.equal(result.ok, false);
+  assert.equal(result.step, 'group_storage_remove');
+  assert.equal(c.calls.authUpdate.length, 0, 'no avanza a Auth');
+});
+
+test('B2c: verifyAccountDeleted falla la postcondición si quedan objetos en group-photos de un grupo borrado', async () => {
+  const c = fakeSupabaseAdmin(baseState({
+    tableQuery: (table) => {
+      if (table === 'players') return { data: { deleted_at: '2026-09-30T00:00:00Z', auth_user_id: null, is_active: false }, error: null };
+      if (table === 'pilot_events') return { data: [{ properties: {} }], error: null };
+      if (table === 'groups') return { data: [{ group_id: 'g1' }], error: null };
+      return { data: null, error: null };
+    },
+    storageList: () => ({ data: [], error: null }),
+    groupStorageList: () => ({ data: [{ name: 'residual.jpg' }], error: null }),
+    authGetUserById: () => ({ data: null, error: { status: 404 } }),
+  }));
+  const result = await verifyAccountDeleted(c, 'p-b2c-post', 'auth-1');
+  assert.equal(result.groupStorageClean, false);
+  assert.equal(result.ok, false);
 });

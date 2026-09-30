@@ -711,6 +711,104 @@
    *  llamador, nunca con el huso local del dispositivo. */
   const getGroupsLobby = (weekFrom, weekTo) => groupsRpc('get_groups_lobby', { p_week_from: weekFrom || null, p_week_to: weekTo || null });
 
+  /* ---- Grupos BRAMU · B2c — foto de grupo server-backed (migración
+   *  20260930120000_preprod_grupos_b2c_group_photo.sql). Bucket PRIVADO `group-photos`, ruta
+   *  `{group_id}/{timestamp}.jpg`, RLS por membresía (solo miembros activos leen, solo admins
+   *  escriben). La URL firmada NUNCA se persiste (ni DB ni localStorage) y vive solo 10 minutos:
+   *  una URL ya emitida es un bearer URL que quitar a un miembro no puede revocar
+   *  retroactivamente, así que el TTL corto acota esa ventana (a propósito NO se copia el TTL de
+   *  24h del avatar, que es otro contrato). ---- */
+  const GROUP_PHOTO_BUCKET = 'group-photos';
+  const GROUP_PHOTO_SIGNED_URL_TTL_SECONDS = 60 * 10;
+
+  async function resolveGroupPhotoUrl(photoPath) {
+    if (!photoPath) return null;
+    const c = getClient();
+    if (!c) return null;
+    const { data, error } = await c.storage.from(GROUP_PHOTO_BUCKET).createSignedUrl(photoPath, GROUP_PHOTO_SIGNED_URL_TTL_SECONDS);
+    if (error || !data || !data.signedUrl) return null;
+    return data.signedUrl;
+  }
+
+  /** Variante BATCH (UNA llamada `createSignedUrls` para todas las tarjetas del lobby, nunca una
+   *  firma por grupo). `Map<ruta, urlFirmada>`; una ruta que no se pudo firmar simplemente no
+   *  entra al Map (el llamador cae al fallback de iniciales). Nunca lanza. */
+  async function resolveGroupPhotoUrlsBatch(photoPaths) {
+    const map = new Map();
+    const uniquePaths = Array.from(new Set((photoPaths || []).filter(Boolean)));
+    if (!uniquePaths.length) return map;
+    const c = getClient();
+    if (!c) return map;
+    let res;
+    try { res = await c.storage.from(GROUP_PHOTO_BUCKET).createSignedUrls(uniquePaths, GROUP_PHOTO_SIGNED_URL_TTL_SECONDS); } catch (e) { return map; }
+    if (!res || res.error || !Array.isArray(res.data)) return map;
+    res.data.forEach((entry) => {
+      if (entry && entry.signedUrl && !entry.error) map.set(entry.path, entry.signedUrl);
+    });
+    return map;
+  }
+
+  /** Borra los archivos de `{groupId}/` salvo `keepPath` (best-effort de quien llama: un fallo
+   *  de cleanup NUNCA revierte una mutación de DB ya confirmada). Sin `keepPath` limpia toda la
+   *  carpeta (quitar foto / grupo eliminado). `{ok:true}` incluso con la carpeta vacía. */
+  async function removeGroupPhotoFiles(groupId, keepPath) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data: existing, error: listError } = await c.storage.from(GROUP_PHOTO_BUCKET).list(groupId);
+    if (listError) return { ok: false, code: listError.message || 'unknown' };
+    const paths = (Array.isArray(existing) ? existing : []).map((f) => `${groupId}/${f.name}`).filter((p) => p !== keepPath);
+    if (paths.length) {
+      const { error: removeError } = await c.storage.from(GROUP_PHOTO_BUCKET).remove(paths);
+      if (removeError) return { ok: false, code: removeError.message || 'unknown' };
+    }
+    return { ok: true };
+  }
+
+  /** Sube `blob` (JPEG ya redimensionado) a una ruta NUEVA. NO borra nada: el orden seguro de
+   *  reemplazo lo orquesta `changeGroupPhoto` (a diferencia del avatar, que borra primero). */
+  async function uploadGroupPhoto(groupId, blob) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const path = `${groupId}/${Date.now()}.jpg`;
+    const { error: uploadError } = await c.storage.from(GROUP_PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+    if (uploadError) return { ok: false, code: uploadError.message || 'unknown' };
+    return { ok: true, path };
+  }
+
+  const updateGroupPhoto = (groupId, photoPath) => groupsRpc('update_group_photo', { p_group_id: groupId, p_photo_path: photoPath || null });
+
+  /** Reemplazo SEGURO (revisión técnica Central):
+   *   1) subir el archivo NUEVO a una ruta nueva — si falla, la foto vieja sigue intacta;
+   *   2) `update_group_photo(newPath)` — si falla, se borra el archivo nuevo (best-effort) y se
+   *      conserva la vieja;
+   *   3) recién con el RPC OK se borra el archivo viejo (best-effort: `cleanupOk:false` no
+   *      cambia `ok:true`, la DB y la foto nueva ya quedaron correctas). */
+  async function changeGroupPhoto(groupId, blob, oldPhotoPath) {
+    const up = await uploadGroupPhoto(groupId, blob);
+    if (!up.ok) return { ok: false, step: 'upload', code: up.code };
+    const upd = await updateGroupPhoto(groupId, up.path);
+    if (!upd.ok) {
+      const c = getClient();
+      if (c) { try { await c.storage.from(GROUP_PHOTO_BUCKET).remove([up.path]); } catch (e) { /* best-effort */ } }
+      return { ok: false, step: 'rpc', code: upd.code };
+    }
+    let cleanupOk = true;
+    if (oldPhotoPath && oldPhotoPath !== up.path) {
+      try { cleanupOk = (await removeGroupPhotoFiles(groupId, up.path)).ok; } catch (e) { cleanupOk = false; }
+    }
+    return { ok: true, path: up.path, group: upd.group, cleanupOk };
+  }
+
+  /** Quitar foto: RPC con null primero (la UI vuelve a iniciales de inmediato) y recién después
+   *  el cleanup best-effort de la carpeta. */
+  async function removeGroupPhoto(groupId) {
+    const upd = await updateGroupPhoto(groupId, null);
+    if (!upd.ok) return { ok: false, step: 'rpc', code: upd.code };
+    let cleanupOk = true;
+    try { cleanupOk = (await removeGroupPhotoFiles(groupId)).ok; } catch (e) { cleanupOk = false; }
+    return { ok: true, group: upd.group, cleanupOk };
+  }
+
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
     signUp, verifySignupOtp, resendSignupOtp,
@@ -724,5 +822,7 @@
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
     listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
     promoteGroupAdmin, demoteGroupAdmin, deleteGroup, getGroupCompetitionData, getGroupsLobby,
+    GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
+    uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
