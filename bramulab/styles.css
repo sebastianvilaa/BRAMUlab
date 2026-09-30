@@ -2778,6 +2778,9 @@ input, select{ font-family: inherit; }
    antes nunca la mostraban, así que este padding extra no hacía falta. Sin esto, el botón
    GUARDAR quedaba pegado/tapado detrás de la barra al hacer scroll hasta el final. */
 .access-scroll--with-bottom-nav{ padding-bottom: calc(90px + var(--safe-bottom)); }
+/* V04.15 h2 — QA real iPhone: Configuración del grupo podía crecer por miembros/acciones pero `.access-scroll` no tenía overflow propio; como html/body usan overflow:hidden, el final quedaba inaccesible. Scope solo a esta vista para no alterar la familia completa de acceso. */
+#view-group-settings .access-scroll{ overflow-y:auto; }
+
 /* V03.0.3 (§9) — "dar más presencia y mejor ubicación al wordmark": Bienvenida es la única
    pantalla sin sesión que lo usa como elemento principal (consolidado §1), así que gana
    tamaño y aire propio en vez del tratamiento chico de header que comparte con Home/Setup.
