@@ -296,3 +296,24 @@ Algunas piezas ya tienen trabajo previo en Staging (por ejemplo eliminación de 
 - datos operativos reales de infraestructura/proveedores.
 
 **No quedan decisiones humanas legales abiertas ni revisión externa obligatoria. P0.2 se cierra cuando estos pendientes de implementación/verificación estén completos.**
+
+---
+
+## 16. Implementación L1 (V04.19 / 04.19-h1, 30/09/2026)
+
+Primera de las rondas L1/L2/L3 de Pre-Production (Issue #10). **Sin restricción 13+ ni flujo parental** (§6).
+
+### Qué quedó implementado
+
+- **Aceptación ANTES de crear el usuario Auth.** El checkbox legal único está en el Paso 1 del alta; `Auth.signUp(email, password, legalVersion)` rechaza (sin tocar Supabase) cualquier llamada sin versión legal válida, y el handler no la invoca con el checkbox sin marcar. La versión se lee SIEMPRE del servidor (`app_config.legal_version`), nunca se hardcodea en el cliente.
+- **Evidencia server-side, append-only.** `legal_acceptances` (UNIQUE `player_id + legal_version`, trigger que rechaza UPDATE/DELETE, sin acceso directo del cliente). El `signUp` transporta `legal_version` como metadata (declaración del usuario, no autoridad); `handle_email_confirmed` registra la fila con `accepted_at = auth.users.created_at` (reloj del servidor). `complete_profile` exige una aceptación previa (`legal_acceptance_required`) y deriva el snapshot `profiles.terms_version/terms_accepted_at` de esa fila: un retry ya no mueve la fecha. No se guarda IP/User-Agent/texto de documentos.
+- **Reaceptación (base).** `get_my_legal_status()` + `accept_legal_version(p_version)`: solo acepta la versión VIGENTE, idempotente (devuelve el `accepted_at` original), append-only (una versión nueva = fila nueva). El cliente bloquea con una pantalla de aceptación en login/boot y al volver a foreground cuando `requiresAcceptance`; permite aceptar o cerrar sesión. Cambiar `app_config.legal_version` (previo alta en `legal_versions`) = cambio material; una errata editorial no la cambia. Las cuentas históricas de Staging sin fila NO se retro-inventan: pasan por reaceptación.
+- **Contraseña fuera del storage.** Vive solo en el DOM hasta `Auth.signUp` y se borra después; nunca entra a `signupDraft`. `Store.saveSignupDraft` filtra claves secretas y `loadSignupDraft` purga la contraseña de borradores legados. El borrador persiste solo datos no sensibles (email, versión legal, `startedAt`, `authSignUpDone`, perfil mínimo) y permite reanudar sin recuperar ninguna contraseña.
+- **Fail-closed.** `PLAuth.getBackendMode()`: `server` | `local-dev` (solo host local explícito sin env staging/production) | `unavailable`. En `unavailable` (host desplegado o env staging/production sin credenciales/librería) alta, login, recuperación y arranque frenan con aviso; nunca se crean ni continúan cuentas locales en silencio.
+- **Alta abandonada > 24 h.** Cliente: un borrador sin sesión con `startedAt` ≥ 24 h se descarta al arrancar (con sesión real nunca). Servidor: Edge Function `cleanup-abandoned-signups` (service role exacta, hourly por cron) + `list_abandoned_signups` / `release_abandoned_signup_username`. Candidato = usuario Auth sin email/teléfono confirmado, sin sesión, ≥ 24 h; **una cuenta con email confirmado jamás es candidata**. Revalida antes de borrar, borra por Auth Admin API (nunca DELETE SQL), idempotente, sin emails en logs. El @usuario no se reserva server-side antes de confirmar el email (`complete_profile` exige sesión confirmada); `release_abandoned_signup_username` lo libera igualmente si apareciera atado a un alta abandonada.
+
+### Pendiente (Central / rondas siguientes)
+
+- Aplicar la migración `20260930280000_preprod_l1_legal_acceptance_abandoned_signups.sql` en Staging, correr `supabase/tests/verify-preprod-l1-legal-cleanup.sql`, desplegar `cleanup-abandoned-signups` y programar el cron con `supabase/scripts/schedule-cleanup-abandoned-signups.sql` (service role key en Vault, nunca en el repo).
+- L2: WhatsApp on-demand y caches owner-scoped. L3: páginas legales públicas finales (`/legal/terminos/`, `/legal/privacidad/` — los links del alta ya apuntan ahí y no resuelven hasta L3), delete-my-account.
+- Los borradores `Legal/*_Borrador_V1.md` que mencionan 13 años están desfasados respecto de §6 y deben corregirse en el cierre legal publicable.

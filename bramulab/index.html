@@ -11,8 +11,8 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.18-h1" sizes="64x64" type="image/png" />
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=04.18-h1" />
+<link rel="icon" href="icons/favicon-64.png?v=04.19-h1" sizes="64x64" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=04.19-h1" />
 <!-- V03.1.6 — "?v=X" en styles.css y en cada <script src> de abajo: bug real reportado en
      producción ("actualizo y me vuelve a pedir actualizar en loop"). Causa: `forceUpdateApp`
      (app.js) borra el Cache Storage del Service Worker y recarga, pero la petición del propio
@@ -26,7 +26,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.18-h1" />
+<link rel="stylesheet" href="styles.css?v=04.19-h1" />
 </head>
 <body>
 
@@ -1861,6 +1861,10 @@
            a BRAMUlive como producto propio. BRAMUlab solo carga partidos propios ya jugados, y
            eso requiere una cuenta (ver Experiencia_Inicial.md §4.1/§13). Quedan las 2 acciones
            reales: iniciar sesión o crear cuenta. -->
+      <!-- L1 (V04.19) — fail-closed: sin backend configurado en un host desplegado (Staging/Production) NO
+           se ofrece ningún camino local; se informa y los botones quedan deshabilitados (ver
+           refreshBackendUnavailableNotice en app.js). Oculto siempre que Supabase responde. -->
+      <p class="edit-error" id="access-backend-unavailable" hidden>No pudimos conectar con el servidor. Probá de nuevo más tarde.</p>
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
         <button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA</button>
@@ -1873,6 +1877,28 @@
            temporal sin mail/contraseña y entra directo al onboarding para poder repetir el alta
            + Nivel BRAMU las veces que haga falta. -->
       <button type="button" id="access-create-test-user-btn" class="link-btn access-lab-action" hidden>CREAR USUARIO DE PRUEBA</button>
+    </div>
+  </section>
+
+  <!-- L1 (V04.19) — gate de (re)aceptación legal: se muestra cuando get_my_legal_status dice
+       requiresAcceptance (versión legal vigente distinta de la última aceptada, o cuenta histórica sin
+       aceptación registrada). Bloquea Home/partidos/perfil; solo permite aceptar o cerrar sesión. La
+       aceptación es un INSERT append-only server-side (accept_legal_version), nunca un overwrite. -->
+  <section id="view-legal-gate" class="view view--access" hidden>
+    <div class="access-scroll">
+      <img class="access-logo" src="icons/logo.png" alt="BRAMUlab" />
+      <p class="access-subtitle" id="legal-gate-subtitle">Para seguir usando BRAMUlab necesitamos que aceptes nuestros Términos y la Política de Privacidad vigentes.</p>
+      <form id="legal-gate-form" class="access-form">
+        <div class="field field--checkbox">
+          <label class="field-checkbox-label">
+            <input type="checkbox" id="legal-gate-checkbox" />
+            <span>Acepto los <a href="legal/terminos/" target="_blank" rel="noopener">Términos y Condiciones</a> y declaro haber leído la <a href="legal/privacidad/" target="_blank" rel="noopener">Política de Privacidad</a>.</span>
+          </label>
+        </div>
+        <p class="edit-error" id="legal-gate-error" hidden></p>
+        <button type="button" id="legal-gate-accept-btn" class="btn-start" disabled>ACEPTAR Y CONTINUAR</button>
+        <button type="button" id="legal-gate-logout-btn" class="link-btn">Cerrar sesión</button>
+      </form>
     </div>
   </section>
 
@@ -2002,6 +2028,15 @@
             <li data-rule="hasNumber">Un número</li>
             <li data-rule="hasSymbol">Un símbolo</li>
           </ul>
+          <!-- L1 (V04.19, Privacidad_Legal.md §7) — aceptación legal ÚNICA y obligatoria, ANTES de crear
+               la cuenta Auth: CONTINUAR no llama a Supabase mientras no esté marcada. Checkbox único,
+               sin mezclar marketing ni Ranking. Sin restricción de edad (Privacidad_Legal.md §6). -->
+          <div class="field field--checkbox">
+            <label class="field-checkbox-label">
+              <input type="checkbox" id="signup-terms-checkbox" />
+              <span>Acepto los <a href="legal/terminos/" target="_blank" rel="noopener" id="signup-terms-link">Términos y Condiciones</a> y declaro haber leído la <a href="legal/privacidad/" target="_blank" rel="noopener" id="signup-privacy-link">Política de Privacidad</a>.</span>
+            </label>
+          </div>
           <p class="edit-error" id="signup-step1-error" hidden></p>
         </div>
 
@@ -2106,16 +2141,6 @@
               </span>
               <span class="profile-select-row__chevron" aria-hidden="true">›</span>
             </button>
-          </div>
-          <!-- Backend Bloque 3 (03_Revision_ChatGPT.md §10) — soporte técnico de términos y
-               condiciones: terms_version/terms_accepted_at (ver la migración de Bloque 3). Sin
-               sistema legal todavía — el texto es un placeholder hasta que exista una versión
-               real que versionar. -->
-          <div class="field field--checkbox">
-            <label class="field-checkbox-label">
-              <input type="checkbox" id="signup-terms-checkbox" />
-              <span>Acepto los Términos y Condiciones de BRAMU (versión piloto)</span>
-            </label>
           </div>
           <p class="edit-error" id="signup-step2-error" hidden></p>
           <!-- Experiencia_Inicial.md §2.1 — acción secundaria para quien prefiere resolver el
@@ -2964,47 +2989,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.18-h1"></script>
-  <script src="stats.js?v=04.18-h1"></script>
-  <script src="store.js?v=04.18-h1"></script>
+  <script src="engine.js?v=04.19-h1"></script>
+  <script src="stats.js?v=04.19-h1"></script>
+  <script src="store.js?v=04.19-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.18-h1"></script>
-  <script src="level-context.js?v=04.18-h1"></script>
-  <script src="level-calibration.js?v=04.18-h1"></script>
-  <script src="player-home.js?v=04.18-h1"></script>
-  <script src="match-load.js?v=04.18-h1"></script>
-  <script src="player-identity.js?v=04.18-h1"></script>
-  <script src="groups.js?v=04.18-h1"></script>
-  <script src="locations.js?v=04.18-h1"></script>
-  <script src="ranking.js?v=04.18-h1"></script>
+  <script src="level.js?v=04.19-h1"></script>
+  <script src="level-context.js?v=04.19-h1"></script>
+  <script src="level-calibration.js?v=04.19-h1"></script>
+  <script src="player-home.js?v=04.19-h1"></script>
+  <script src="match-load.js?v=04.19-h1"></script>
+  <script src="player-identity.js?v=04.19-h1"></script>
+  <script src="groups.js?v=04.19-h1"></script>
+  <script src="locations.js?v=04.19-h1"></script>
+  <script src="ranking.js?v=04.19-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.18-h1"></script>
+  <script src="auth.js?v=04.19-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.18-h1"></script>
-  <script src="match-sync.js?v=04.18-h1"></script>
+  <script src="matches.js?v=04.19-h1"></script>
+  <script src="match-sync.js?v=04.19-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.18-h1"></script>
+  <script src="match-validation.js?v=04.19-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.18-h1"></script>
+  <script src="match-self-heal.js?v=04.19-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.18-h1"></script>
-  <script src="app.js?v=04.18-h1"></script>
+  <script src="intelligence-client.js?v=04.19-h1"></script>
+  <script src="app.js?v=04.19-h1"></script>
 </body>
 </html>

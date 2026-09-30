@@ -108,7 +108,7 @@ async function adminCreateConfirmedUser(email, password) {
   const res = await fetch(`${url}/auth/v1/admin/users`, {
     method: 'POST',
     headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, email_confirm: true }),
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { legal_version: 'legal_v1' } }),
   });
   if (!res.ok) throw new Error(`adminCreateConfirmedUser(${email}) -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();

@@ -362,10 +362,12 @@
     // siguen acá — las usa la carga de partido propio ya jugado.
     ['analysis', 'history', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings',
+      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
+    // L1 (V04.19) — fail-closed: el aviso "sin servidor" de Acceso se recalcula cada vez que se muestra.
+    if (name === 'access') refreshBackendUnavailableNotice();
     const nav = $('#bottom-nav');
     if (nav) {
       // V03.0.1 (§7) — mecanismo PRINCIPAL de "no exponer navegación personal sin sesión":
@@ -5850,6 +5852,12 @@
       const email = $('#login-email').value.trim();
       const password = $('#login-password').value;
       if (!Auth.isConfigured()) {
+        // L1 (V04.19) — fail-closed: sin backend en un host desplegado no hay login local.
+        if (Auth.isBackendUnavailable()) {
+          $('#login-error').textContent = LOGIN_ERROR_TEXT.not_configured;
+          $('#login-error').hidden = false;
+          return;
+        }
         const result = Store.loginWithEmail(email, password);
         if (!result.ok) { $('#login-error').hidden = false; return; }
         $('#login-error').hidden = true;
@@ -5967,6 +5975,13 @@
     $('#forgot-password-email-submit').addEventListener('click', async () => {
       const email = $('#forgot-password-email').value.trim();
       if (!Auth.isConfigured()) {
+        // L1 (V04.19) — fail-closed: sin backend en un host desplegado no hay recuperación local.
+        if (Auth.isBackendUnavailable()) {
+          $('#forgot-password-email-error').textContent = 'No se pudo conectar con el servidor. Probá de nuevo más tarde.';
+          $('#forgot-password-email-error').hidden = false;
+          $('#forgot-password-no-account').hidden = true;
+          return;
+        }
         const user = Store.getUserByEmail(email);
         // BRAMUlab_V03.6 (corrección post-QA real, prioridad 3) — antes este mensaje era un
         // callejón sin salida: "no encontramos una cuenta" sin ningún camino hacia adelante.
@@ -6124,11 +6139,10 @@
   const SIGNUP_STEP_TITLES = { 1: 'CREAR CUENTA', 2: 'TU PERFIL', verify: 'CONFIRMÁ TU EMAIL' };
   const SIGNUP_STEP_ORDER = [1, 2, 'verify'];
 
-  // Backend Bloque 3 (03_Revision_ChatGPT.md §10) — sin sistema legal todavía: un string de
-  // versión simple, alcanza para el soporte técnico pedido (terms_version/terms_accepted_at
-  // server-side). Cambiar este valor es la única acción necesaria el día que haya términos
-  // reales que versionar.
-  const TERMS_VERSION = 'piloto_v1';
+  // L1 (V04.19) — la versión legal NUNCA se hardcodea en el cliente (antes era un string fijo de piloto): sale de
+  // `app_config.legal_version` (Auth.getCurrentLegalVersion). `signupLegalVersion` es la versión que el
+  // usuario ve/acepta en el Paso 1; se vuelve a leer del servidor justo antes de Auth.signUp.
+  let signupLegalVersion = null;
 
   // Backend Bloque 3 — distingue las 2 formas de llegar a #view-nivel-onboarding:
   //  'draft'   → alta real en curso, TODAVÍA sin cuenta confirmada: opera sobre `signupDraft`
@@ -6142,6 +6156,7 @@
     signupStep = 1;
     signupDraft = {};
     signupPhotoDataUrl = null;
+    signupLegalVersion = null;
     $('#signup-form').reset();
     $('#signup-avatar-img').hidden = true;
     $('#signup-avatar-initials').hidden = false;
@@ -6162,6 +6177,7 @@
     // momento se vuelven a mostrar, no aportan ni estorban mientras estén hidden.
     $('#signup-location-value').textContent = 'Elegir ubicación';
     $('#signup-terms-checkbox').checked = false;
+    $('#signup-step1-error').hidden = true;
   }
 
   /** BRAMUlab_V03.6 — mismo patrón que updateProfileLocationRowDisplay, para la fila de
@@ -6170,10 +6186,36 @@
     $('#signup-location-value').textContent = signupDraft.location ? PLLocations.formatLocationLabel(signupDraft.location) : 'Elegir ubicación';
   }
 
+  /** L1 (V04.19) — FAIL-CLOSED: sin Supabase configurado en un host desplegado (Staging/Production) no se
+   *  crean ni continúan cuentas locales en silencio. Muestra el aviso en Acceso y deshabilita las acciones
+   *  de cuenta. `true` si el backend NO está disponible (el llamador debe frenar). */
+  function blockIfBackendUnavailable() {
+    if (!Auth.isBackendUnavailable()) return false;
+    refreshBackendUnavailableNotice();
+    return true;
+  }
+  function refreshBackendUnavailableNotice() {
+    const unavailable = Auth.isBackendUnavailable();
+    $('#access-backend-unavailable').hidden = !unavailable;
+    $('#access-login-btn').disabled = unavailable;
+    $('#access-signup-btn').disabled = unavailable;
+    if (unavailable) $('#access-create-test-user-btn').hidden = true;
+  }
+
   function openSignupWizard() {
+    if (blockIfBackendUnavailable()) { showView('access'); return; }
     resetSignupWizard();
     renderSignupStep();
     showView('signup');
+    prefetchSignupLegalVersion();
+  }
+
+  /** L1 — precarga la versión legal vigente del servidor para mostrarla/validarla en Paso 1. Un fallo acá
+   *  NO habilita nada: el click de CONTINUAR la vuelve a leer y, si no hay versión, no llama a Auth.signUp. */
+  async function prefetchSignupLegalVersion() {
+    if (!Auth.isConfigured()) return;
+    const r = await Auth.getCurrentLegalVersion();
+    signupLegalVersion = r.ok ? r.legalVersion : null;
   }
 
   function renderSignupStep() {
@@ -6213,7 +6255,10 @@
       // signUp (ver initSignupWizard: mapea 'email_taken'), no la lista local: esa lista local
       // solo tiene sentido en el camino sin backend (desarrollo local).
       const emailAvailable = Auth.isConfigured() || !PLI.isEmailTaken(email, Store.loadUsers());
-      ok = PLI.isValidEmail(email) && emailAvailable && strength.ok && PLI.passwordsMatch(password, repeat);
+      // L1 (V04.19) — la aceptación legal (checkbox único) es REQUISITO del Paso 1: sin ella no se habilita
+      // CONTINUAR y, por lo tanto, nunca se llama a Auth.signUp (ver también el guard del handler).
+      ok = PLI.isValidEmail(email) && emailAvailable && strength.ok && PLI.passwordsMatch(password, repeat)
+        && $('#signup-terms-checkbox').checked;
     } else if (signupStep === 'verify') {
       ok = /^[0-9]{6}$/.test($('#signup-verify-code').value.trim());
     } else if (signupStep === 2) {
@@ -6227,8 +6272,7 @@
       const username = $('#signup-username').value;
       const usernameAvailable = Auth.isConfigured() || !PLI.isUsernameTaken(username, Store.loadUsers());
       ok = !!$('#signup-first-name').value.trim() && !!$('#signup-last-name').value.trim()
-        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameReserved(username) && usernameAvailable
-        && $('#signup-terms-checkbox').checked;
+        && PLI.isValidUsernameFormat(username) && !PLI.isUsernameReserved(username) && usernameAvailable;
     }
     $('#signup-continue-btn').disabled = !ok;
     return ok;
@@ -6330,6 +6374,8 @@
   };
   const SIGNUP_STEP1_ERROR_TEXT = {
     email_taken: 'Ese email ya tiene una cuenta — iniciá sesión.',
+    legal_version_unavailable: 'No pudimos verificar la versión vigente de los Términos. Probá de nuevo en unos minutos.',
+    legal_acceptance_required: 'Para crear tu cuenta tenés que aceptar los Términos y la Política de Privacidad.',
     rate_limited: 'Demasiados intentos. Probá de nuevo en unos minutos.',
     not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
     unknown: 'No pudimos crear la cuenta. Probá de nuevo.',
@@ -6437,22 +6483,66 @@
       if (!recomputeSignupStepValidity()) return;
 
       if (signupStep === 1) {
-        signupDraft.email = $('#signup-email').value.trim();
-        signupDraft.password = $('#signup-password').value;
-        if (!Auth.isConfigured()) { signupStep = 2; renderSignupStep(); return; }
-        continueBtn.disabled = true;
-        const result = await Auth.signUp(signupDraft.email, signupDraft.password);
-        continueBtn.disabled = false;
-        if (!result.ok) {
-          $('#signup-step1-error').textContent = SIGNUP_STEP1_ERROR_TEXT[result.reason] || SIGNUP_STEP1_ERROR_TEXT.unknown;
-          $('#signup-step1-error').hidden = false;
+        const step1Error = $('#signup-step1-error');
+        // L1 (V04.19) — FAIL-CLOSED: sin Supabase configurado en un host desplegado NO hay alta local.
+        if (Auth.isBackendUnavailable()) {
+          step1Error.textContent = SIGNUP_STEP1_ERROR_TEXT.not_configured;
+          step1Error.hidden = false;
           return;
         }
-        $('#signup-step1-error').hidden = true;
-        // Backend Bloque 3 (Experiencia_Inicial.md §2.1) — el código ya se envió (Auth.signUp
-        // lo dispara), pero 'verify' pasa a ser el ÚLTIMO paso: se sigue directo a "TU
-        // PERFIL" sin pedirlo todavía. El borrador se persiste para sobrevivir un refresh
-        // antes de confirmar (caso A0).
+        // L1 (V04.19) — GUARD DURO (defensa además del botón deshabilitado): sin checkbox legal marcado no
+        // se llama a Auth.signUp bajo ninguna circunstancia.
+        if (!$('#signup-terms-checkbox').checked) {
+          step1Error.textContent = SIGNUP_STEP1_ERROR_TEXT.legal_acceptance_required;
+          step1Error.hidden = false;
+          return;
+        }
+        const email = $('#signup-email').value.trim();
+        // La contraseña vive SOLO en el DOM hasta Auth.signUp: nunca entra a `signupDraft` (que se persiste
+        // en localStorage), ni a sessionStorage, ni a ninguna variable de módulo.
+        if (!Auth.isConfigured()) {
+          // Camino local: SOLO desarrollo explícito (host local sin env staging/production).
+          signupDraft.email = email;
+          signupStep = 2;
+          renderSignupStep();
+          return;
+        }
+        // Si el alta ya se inició con ESTE mismo email (recarga/volver desde el Paso 2) el usuario Auth ya
+        // existe con su aceptación: no se vuelve a crear ni se necesita la contraseña (que no se persistió).
+        if (signupDraft.authSignUpDone && signupDraft.email && signupDraft.email.toLowerCase() === email.toLowerCase()) {
+          signupStep = 2;
+          Store.saveSignupDraft(signupDraft);
+          renderSignupStep();
+          return;
+        }
+        continueBtn.disabled = true;
+        // La versión que se acepta es la VIGENTE del servidor en este instante (nunca una inventada/cacheada).
+        const legal = await Auth.getCurrentLegalVersion();
+        if (!legal.ok) {
+          continueBtn.disabled = false;
+          step1Error.textContent = SIGNUP_STEP1_ERROR_TEXT.legal_version_unavailable;
+          step1Error.hidden = false;
+          return;
+        }
+        signupLegalVersion = legal.legalVersion;
+        const result = await Auth.signUp(email, $('#signup-password').value, legal.legalVersion);
+        continueBtn.disabled = false;
+        if (!result.ok) {
+          step1Error.textContent = SIGNUP_STEP1_ERROR_TEXT[result.reason] || SIGNUP_STEP1_ERROR_TEXT.unknown;
+          step1Error.hidden = false;
+          return;
+        }
+        step1Error.hidden = true;
+        // Descarta la contraseña del DOM apenas deja de hacer falta.
+        $('#signup-password').value = '';
+        $('#signup-password-repeat').value = '';
+        // Backend Bloque 3 (Experiencia_Inicial.md §2.1) — el código ya se envió (Auth.signUp lo dispara),
+        // pero 'verify' pasa a ser el ÚLTIMO paso: se sigue directo a "TU PERFIL". El borrador persiste SOLO
+        // datos no sensibles (email, versión legal aceptada, inicio del alta): sobrevive un refresh (caso A0)
+        // y permite retomar sin recuperar ninguna contraseña.
+        signupDraft.email = email;
+        signupDraft.legalVersion = legal.legalVersion;
+        signupDraft.authSignUpDone = true;
         signupStep = 2;
         Store.saveSignupDraft(signupDraft);
         renderSignupStep();
@@ -6490,10 +6580,11 @@
       // el nombre ya ingresado como referencia inicial") — createUserAccount/complete_profile
       // ya saben usar el nombre de pila cuando displayName llega vacío/repetido.
       signupDraft.displayName = signupDraft.firstName;
-      signupDraft.termsVersion = TERMS_VERSION;
 
       if (!Auth.isConfigured()) {
-        const user = Store.signUpAndLogin(signupDraft);
+        // L1 (V04.19) — fail-closed: nunca se crea una cuenta local en un host desplegado.
+        if (blockIfBackendUnavailable()) { showView('access'); return; }
+        const user = Store.signUpAndLogin(Object.assign({}, signupDraft, { password: $('#signup-password').value }));
         syncCurrentIdentityFromStore();
         openPlayerCardScreen(user);
         return;
@@ -6513,7 +6604,6 @@
     $('#signup-last-name').value = signupDraft.lastName || '';
     $('#signup-username').value = signupDraft.username || '';
     if (signupDraft.username) $('#signup-username').dataset.touched = '1';
-    $('#signup-terms-checkbox').checked = !!signupDraft.termsVersion;
     updateSignupAvatarInitials();
     if (signupDraft.username) renderUsernameFeedback('signup-username', 'signup-username-feedback');
   }
@@ -6600,8 +6690,14 @@
       firstName: signupDraft.firstName,
       lastName: signupDraft.lastName,
       displayName: signupDraft.displayName || signupDraft.firstName,
-      termsVersion: signupDraft.termsVersion,
     });
+    if (!completeResult.ok && String(completeResult.code || '').includes('legal_acceptance_required')) {
+      // L1 (V04.19) — el servidor NO tiene una aceptación legal registrada para esta cuenta (p. ej. alta
+      // iniciada con un bundle viejo, o versión declarada desconocida). Nunca se fabrica una aceptación:
+      // se pide de forma explícita y, al aceptar, se reintenta el alta completa (idempotente).
+      await enforceLegalGate(() => runOfficializeAndEnter(), { force: true });
+      return;
+    }
     if (!completeResult.ok) {
       signupStep = 2;
       prefillSignupStep2Fields();
@@ -7234,6 +7330,74 @@
     // la barra inferior reaparecía tras cerrar sesión y Historial/Ranking/Perfil quedaban
     // alcanzables (bug reportado en uso real). Ahora vuelve directo a "BIENVENIDO A BRAMU".
     openAccessFlow();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* L1 (V04.19) — GATE DE (RE)ACEPTACIÓN LEGAL                           */
+  /* La versión vigente y la última aceptada las decide el SERVIDOR        */
+  /* (get_my_legal_status). Aceptar = INSERT append-only                   */
+  /* (accept_legal_version), nunca un overwrite. Una lectura fallida NO    */
+  /* bloquea (la exigencia dura vive server-side en complete_profile).     */
+  /* ------------------------------------------------------------------ */
+  let legalGateVersion = null;
+  let legalGateContinuation = null;
+
+  function openLegalGate(version, onAccepted) {
+    legalGateVersion = version;
+    legalGateContinuation = onAccepted;
+    $('#legal-gate-checkbox').checked = false;
+    $('#legal-gate-accept-btn').disabled = true;
+    $('#legal-gate-error').hidden = true;
+    showView('legal-gate');
+  }
+
+  /** `true` si el gate quedó abierto (el llamador debe detenerse: `onAccepted` continúa el flujo tras
+   *  aceptar). `force` abre el gate aunque el estado no se pueda leer/no lo pida (caso: el servidor ya
+   *  rechazó con legal_acceptance_required). */
+  async function enforceLegalGate(onAccepted, opts) {
+    if (!Auth.isConfigured()) return false;
+    const status = await Auth.getMyLegalStatus();
+    if (status.ok && !status.requiresAcceptance && !(opts && opts.force)) return false;
+    let version = status.ok ? status.currentVersion : null;
+    if (!version) {
+      const cur = await Auth.getCurrentLegalVersion();
+      version = cur.ok ? cur.legalVersion : null;
+    }
+    if (!version) {
+      if (opts && opts.force) { showToast('No pudimos verificar los Términos vigentes. Probá de nuevo en unos minutos.', 3600); return true; }
+      return false;
+    }
+    openLegalGate(version, onAccepted);
+    return true;
+  }
+
+  function initLegalGate() {
+    $('#legal-gate-checkbox').addEventListener('change', (e) => { $('#legal-gate-accept-btn').disabled = !e.target.checked; });
+    $('#legal-gate-accept-btn').addEventListener('click', async () => {
+      if (!$('#legal-gate-checkbox').checked || !legalGateVersion) return;
+      const btn = $('#legal-gate-accept-btn');
+      btn.disabled = true;
+      const result = await Auth.acceptLegalVersion(legalGateVersion);
+      if (!result.ok) {
+        const notCurrent = String(result.code || '').includes('legal_version_not_current');
+        $('#legal-gate-error').textContent = notCurrent
+          ? 'Los Términos se actualizaron mientras tanto. Volvé a leerlos y aceptá de nuevo.'
+          : 'No pudimos registrar tu aceptación. Probá de nuevo.';
+        $('#legal-gate-error').hidden = false;
+        if (notCurrent) {
+          const cur = await Auth.getCurrentLegalVersion();
+          if (cur.ok) legalGateVersion = cur.legalVersion;
+          $('#legal-gate-checkbox').checked = false;
+        } else {
+          btn.disabled = false;
+        }
+        return;
+      }
+      const next = legalGateContinuation;
+      legalGateContinuation = null;
+      if (next) await next(); else bootDefaultScreen();
+    });
+    $('#legal-gate-logout-btn').addEventListener('click', doLogout);
   }
 
   /** Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026, revisión central):
@@ -13595,6 +13759,9 @@
     syncCurrentIdentityFromStore();
     const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
     if (!onboardingDone) { resumeSignupProfileStep(serverUser); return; }
+    // L1 (V04.19) — base de reaceptación: versión legal vigente distinta de la última aceptada (o cuenta
+    // histórica sin aceptación registrada) => pantalla bloqueante antes de Home/acciones privadas.
+    if (await enforceLegalGate(() => resumeServerSession(options))) return;
     // Backend Bloque 4 (03_Revision_ChatGPT.md §7) — una cuenta que YA terminó su onboarding
     // nunca llega a runOfficializeAndEnter() (único lugar donde se consume un claim), así que
     // un token pendiente acá quedaría inválido para siempre sin este aviso explícito: "una
@@ -13660,8 +13827,15 @@
    *  Backend_Infraestructura.md §15 Bloque 2. */
   async function bootWithServerSession() {
     captureClaimTokenFromUrl();
-    if (!Auth.isConfigured()) { bootDefaultScreen(); return; }
-    const savedDraft = Store.loadSignupDraft();
+    if (!Auth.isConfigured()) {
+      // L1 (V04.19) — FAIL-CLOSED: un host desplegado (Staging/Production) sin Supabase configurado NUNCA
+      // cae en el modo local en silencio: Acceso con aviso y acciones de cuenta deshabilitadas. El modo
+      // local queda solo para desarrollo explícito (localhost/file sin env staging/production).
+      if (Auth.isBackendUnavailable()) { openAccessFlow(); return; }
+      bootDefaultScreen();
+      return;
+    }
+    let savedDraft = Store.loadSignupDraft();
     if (savedDraft) signupDraft = savedDraft;
     // Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026): `sessionCheckFailed`
     // distingue "Auth.getSession() confirmó que no hay sesión" de "no pudimos ni preguntar"
@@ -13682,6 +13856,14 @@
       if (cachedUser && cachedUser.serverBacked) {
         exitGhostServerSession(cachedUser);
         return;
+      }
+      // L1 (V04.19) — alta abandonada: sin sesión confirmada y con >24 h desde el inicio, el borrador local
+      // se descarta (el servidor limpia el usuario Auth no confirmado con el mismo plazo). Con sesión real
+      // NUNCA se descarta: una cuenta confirmada/constituida no vence por inactividad.
+      if (savedDraft && Store.isSignupDraftExpired(savedDraft)) {
+        Store.clearSignupDraft();
+        signupDraft = {};
+        savedDraft = null;
       }
       if (savedDraft && savedDraft.email) { await resumeDraftFlow(); return; }
       bootDefaultScreen();
@@ -13718,6 +13900,7 @@
     initProfilePickerSheets();
     initAccessScreen();
     initLoginScreen();
+    initLegalGate();
     initForgotPasswordScreen();
     initSignupWizard();
     initPlayerCardScreen();
@@ -13928,6 +14111,14 @@
           if (profile) { Store.cacheServerUser(profile); syncServerLevelState(profile); }
         }
       } catch (e) { /* best-effort — ver comentario de arriba */ }
+      // L1 (V04.19) — la versión legal vigente pudo cambiar mientras la PWA estaba en background: misma
+      // regla del gate (best-effort; una lectura fallida no bloquea). Si ya está abierto, no se reabre.
+      try {
+        const midAltaOrGate = !$('#view-legal-gate').hidden || !$('#view-signup').hidden || !$('#view-nivel-onboarding').hidden;
+        if (!midAltaOrGate && Store.getCurrentUser() && Store.getCurrentUser().username) {
+          await enforceLegalGate(() => openPlayerHome());
+        }
+      } catch (e) { /* best-effort */ }
       // Repinta únicamente la superficie ACTUALMENTE visible — nunca una pantalla que el usuario
       // no está mirando. El badge de notificaciones vive dentro de #view-player-home (ver
       // index.html): renderPlayerHome ya lo deja actualizado como parte de su propio refresco
@@ -14048,6 +14239,7 @@
    *  initAccessScreen): el long-press sobre el logo de Home quedó descartado como mecanismo de
    *  acceso, esta función no cambió, solo desde dónde se llama. */
   function createLabTestUserAndOpenOnboarding() {
+    if (Auth.isBackendUnavailable()) return; // L1: fail-closed, nunca una cuenta local en un host desplegado
     labTestUserCounter += 1;
     const n = labTestUserCounter;
     const user = Store.createUserAccount({

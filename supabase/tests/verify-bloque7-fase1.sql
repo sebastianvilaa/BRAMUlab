@@ -107,6 +107,10 @@ begin
   end if;
 
   -- La RPC histórica complete_profile no puede volver a ser un bypass.
+  -- L1 (V04.19): complete_profile exige una aceptación legal previa — este fixture es una cuenta
+  -- histórica sin fila en legal_acceptances; se siembra dentro de la transacción (ROLLBACK).
+  insert into public.legal_acceptances (player_id, legal_version, accepted_at, source)
+  values (v_player_id, 'legal_v1', now(), 'signup') on conflict do nothing;
   perform public.complete_profile(
     v_before.username,
     coalesce(v_before.first_name,'Verify7'),

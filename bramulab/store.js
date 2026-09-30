@@ -37,7 +37,7 @@
   // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
   // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
   // mecanismo nuevo que evita depender de esto en el futuro.
-  const APP_VERSION = 'BRAMUlab V04.18';
+  const APP_VERSION = 'BRAMUlab V04.19';
   // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
   // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
   // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.18-h1';
+  const BUNDLE_VERSION = '04.19-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -758,8 +758,47 @@
   /* es la única fuente de verdad una vez que corre.                      */
   /* ------------------------------------------------------------------ */
 
-  function loadSignupDraft() { return safeGet(KEYS.SIGNUP_DRAFT) || null; }
-  function saveSignupDraft(draft) { return safeSet(KEYS.SIGNUP_DRAFT, draft || {}); }
+  // L1 (V04.19) — el borrador persistido NUNCA contiene secretos. La contraseña vive solo en el DOM
+  // hasta Auth.signUp (nunca en el objeto del borrador, nunca en localStorage/sessionStorage). Además,
+  // saveSignupDraft filtra por nombre de clave como defensa en profundidad, y loadSignupDraft purga
+  // cualquier contraseña que haya dejado un borrador legado de versiones anteriores.
+  const SIGNUP_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000; // Privacidad_Legal.md §4: alta abandonada = 24 h
+  const SIGNUP_DRAFT_SECRET_KEY_RE = /pass(word|wd)?|secret|token|otp/i;
+
+  function sanitizeSignupDraftForStorage(draft) {
+    const out = {};
+    if (!draft || typeof draft !== 'object') return out;
+    Object.keys(draft).forEach((k) => { if (!SIGNUP_DRAFT_SECRET_KEY_RE.test(k)) out[k] = draft[k]; });
+    return out;
+  }
+
+  /** `startedAt` (ms epoch) marca el INICIO del alta; vence a las 24 h (mismo contrato que el cleanup
+   *  server-side). Sin `startedAt` no se puede afirmar que venció. */
+  function isSignupDraftExpired(draft, nowMs) {
+    if (!draft || typeof draft !== 'object') return false;
+    const started = Number(draft.startedAt);
+    if (!Number.isFinite(started) || started <= 0) return false;
+    return (nowMs == null ? Date.now() : nowMs) - started >= SIGNUP_DRAFT_MAX_AGE_MS;
+  }
+
+  function loadSignupDraft() {
+    const raw = safeGet(KEYS.SIGNUP_DRAFT);
+    if (!raw || typeof raw !== 'object') return null;
+    const clean = sanitizeSignupDraftForStorage(raw);
+    let dirty = Object.keys(clean).length !== Object.keys(raw).length; // había un secreto legado
+    if (!(Number(clean.startedAt) > 0)) { clean.startedAt = Date.now(); dirty = true; } // borrador legado: arranca su reloj ahora
+    if (dirty) safeSet(KEYS.SIGNUP_DRAFT, clean);
+    return clean;
+  }
+  function saveSignupDraft(draft) {
+    const clean = sanitizeSignupDraftForStorage(draft || {});
+    if (!(Number(clean.startedAt) > 0)) {
+      const prev = safeGet(KEYS.SIGNUP_DRAFT);
+      clean.startedAt = (prev && Number(prev.startedAt) > 0) ? Number(prev.startedAt) : Date.now();
+    }
+    if (draft && typeof draft === 'object') draft.startedAt = clean.startedAt; // el borrador en memoria comparte el mismo reloj
+    return safeSet(KEYS.SIGNUP_DRAFT, clean);
+  }
   function clearSignupDraft() { return safeRemove(KEYS.SIGNUP_DRAFT); }
 
   /* ------------------------------------------------------------------ */
@@ -1108,7 +1147,7 @@
     // BRAMUlab_V04.4 (Etapa D, bloque 1) — Nivel BRAMU V1, prototipo local
     loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // Backend Bloque 3 — borrador local de alta (pre-confirmación de email)
-    loadSignupDraft, saveSignupDraft, clearSignupDraft,
+    loadSignupDraft, saveSignupDraft, clearSignupDraft, isSignupDraftExpired, sanitizeSignupDraftForStorage,
     // Backend Bloque 4 — token de reclamo pendiente (`?claim=<token>`)
     loadClaimToken, saveClaimToken, clearClaimToken,
     // Backend Bloque 5 — outbox de cargas de partido server-backed

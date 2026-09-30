@@ -48,6 +48,37 @@
     return !!(env && env.supabaseUrl && env.supabaseAnonKey && global.supabase && global.supabase.createClient);
   }
 
+  /** L1 (V04.19) — FAIL-CLOSED. Decide si la app puede operar contra Supabase, en modo local de
+   *  desarrollo explícito, o si el backend no está disponible.
+   *    'server'     → Auth/Supabase configurado (caso normal de Staging/Production).
+   *    'local-dev'  → SIN Supabase y SOLO en un host de desarrollo local (localhost/127.0.0.1/[::1]/
+   *                   *.localhost/*.test, o file://) y sin un entorno staging/production declarado. Es
+   *                   una herramienta explícita de desarrollo, nunca un fallback.
+   *    'unavailable'→ cualquier otro caso sin backend (host desplegado, o env staging/production
+   *                   declarado pero sin credenciales/librería): NO se crean ni continúan cuentas
+   *                   locales en silencio.
+   *  Pura (recibe todo por parámetro) para poder probarla sin DOM. */
+  function resolveBackendMode(env, hasSupabaseLib, hostname) {
+    const configured = !!(env && env.supabaseUrl && env.supabaseAnonKey && hasSupabaseLib);
+    if (configured) return 'server';
+    const envName = env && env.name ? String(env.name).toLowerCase() : '';
+    if (envName === 'staging' || envName === 'production') return 'unavailable';
+    const host = String(hostname || '').toLowerCase();
+    const isLocalHost = host === '' || host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1'
+      || host.endsWith('.localhost') || host.endsWith('.test');
+    return isLocalHost ? 'local-dev' : 'unavailable';
+  }
+
+  function getBackendMode() {
+    const hostname = global.location && global.location.hostname;
+    return resolveBackendMode(global.__BRAMU_ENV__, !!(global.supabase && global.supabase.createClient), hostname);
+  }
+
+  /** true → el código local (cuentas en localStorage) puede usarse: SOLO desarrollo local explícito. */
+  function isLocalDevFallbackAllowed() { return getBackendMode() === 'local-dev'; }
+  /** true → hay que frenar (alta/login/recuperación) y avisar; nunca continuar en local. */
+  function isBackendUnavailable() { return getBackendMode() === 'unavailable'; }
+
   /** Solo para tests.html — `client` (abajo) es un singleton lazy real, correcto en producción
    *  (una sola conexión Supabase por carga de página) pero un estorbo para un arnés que necesita
    *  ejercitar el wrapper REAL de este archivo (no un stub de PLAuth entero) contra varios
@@ -88,16 +119,66 @@
     return 'unknown';
   }
 
-  async function signUp(email, password) {
+  const LEGAL_VERSION_RE = /^[a-z0-9_.-]{1,40}$/;
+
+  /** L1 (V04.19) — lee la versión legal VIGENTE del servidor (`app_config.legal_version`, pública de
+   *  solo lectura). NUNCA se inventa en el frontend: si no se puede leer, `{ok:false}` y el alta no
+   *  avanza (no hay cómo aceptar "una versión" que el servidor no declaró). */
+  async function getCurrentLegalVersion() {
     const c = getClient();
     if (!c) return { ok: false, reason: 'not_configured' };
-    const { data, error } = await c.auth.signUp({ email, password });
+    try {
+      const { data, error } = await c.from('app_config').select('legal_version').eq('id', 1).maybeSingle();
+      if (error || !data || !LEGAL_VERSION_RE.test(String(data.legal_version || ''))) return { ok: false, reason: 'legal_version_unavailable' };
+      return { ok: true, legalVersion: data.legal_version };
+    } catch (e) {
+      return { ok: false, reason: 'legal_version_unavailable' };
+    }
+  }
+
+  /** L1 (V04.19) — `legalVersion` es OBLIGATORIO: sin una versión legal válida (la que el usuario
+   *  aceptó en pantalla) NO se llama a Supabase Auth, así que nunca nace un usuario Auth sin
+   *  aceptación previa. La versión viaja como metadata (`legal_version`); la evidencia autoritativa
+   *  la registra el servidor al confirmar el email (handle_email_confirmed). */
+  async function signUp(email, password, legalVersion) {
+    if (typeof legalVersion !== 'string' || !LEGAL_VERSION_RE.test(legalVersion)) {
+      return { ok: false, reason: 'legal_acceptance_required' };
+    }
+    const c = getClient();
+    if (!c) return { ok: false, reason: 'not_configured' };
+    const { data, error } = await c.auth.signUp({ email, password, options: { data: { legal_version: legalVersion } } });
     if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
     // Supabase puede devolver un user obfuscado sin error si el email ya existe.
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       return { ok: false, reason: 'email_taken' };
     }
     return { ok: true, user: data.user };
+  }
+
+  /** Estado legal del jugador autenticado (RPC get_my_legal_status). `{ok:false}` ante error de
+   *  red/servidor: el gate de reaceptación NO bloquea por una lectura fallida (la exigencia dura
+   *  vive server-side, en complete_profile). */
+  async function getMyLegalStatus() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_my_legal_status');
+    if (error || !data) return { ok: false, code: (error && error.message) || 'unknown' };
+    return {
+      ok: true,
+      currentVersion: data.currentVersion,
+      acceptedCurrent: !!data.acceptedCurrent,
+      latestAcceptedVersion: data.latestAcceptedVersion || null,
+      requiresAcceptance: !!data.requiresAcceptance,
+    };
+  }
+
+  /** Reaceptación explícita (RPC accept_legal_version) — solo la versión vigente, append-only. */
+  async function acceptLegalVersion(version) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('accept_legal_version', { p_version: version });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    return { ok: true, legalVersion: data.legalVersion, acceptedAt: data.acceptedAt, alreadyAccepted: !!data.alreadyAccepted };
   }
 
   /** Confirma el alta con el código de 6 dígitos del email ("Confirm signup"
@@ -320,10 +401,10 @@
       p_location_locality_label: location.locality || null,
       p_location_georef_province_id: location.provinceId || null,
       p_location_georef_locality_id: location.localityId || null,
-      // Backend Bloque 3 (03_Revision_ChatGPT.md §10) — solo se manda cuando el borrador
-      // realmente tiene una versión de términos aceptada; complete_profile conserva la
-      // anterior si no se manda ninguna (coalesce, ver la migración).
-      p_terms_version: fields.termsVersion || null,
+      // L1 (V04.19) — el servidor ya NO usa este valor: la evidencia legal sale de legal_acceptances
+      // (registrada al confirmar el email) y complete_profile exige que exista. Se mantiene el
+      // parámetro por compatibilidad de firma; el cliente no es autoridad de la versión aceptada.
+      p_terms_version: null,
     });
     if (error) return { ok: false, code: error.message || 'unknown' };
     return { ok: true, profile: data };
@@ -823,6 +904,8 @@
 
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
+    resolveBackendMode, getBackendMode, isLocalDevFallbackAllowed, isBackendUnavailable,
+    getCurrentLegalVersion, getMyLegalStatus, acceptLegalVersion,
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, getSession,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
