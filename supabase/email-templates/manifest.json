@@ -12,8 +12,7 @@
         "content": "mailer_templates_confirmation_content"
       },
       "variables": [
-        "{{ .Token }}",
-        "{{ .SiteURL }}"
+        "{{ .Token }}"
       ]
     },
     {
@@ -27,8 +26,7 @@
         "content": "mailer_templates_recovery_content"
       },
       "variables": [
-        "{{ .Token }}",
-        "{{ .SiteURL }}"
+        "{{ .Token }}"
       ]
     },
     {
@@ -42,8 +40,7 @@
         "content": "mailer_templates_email_change_content"
       },
       "variables": [
-        "{{ .Token }}",
-        "{{ .SiteURL }}"
+        "{{ .Token }}"
       ],
       "note": "Fallback de plataforma: el flujo BRAMU NO depende de este template (el cambio de email es server-side)."
     },
@@ -58,9 +55,7 @@
         "subject": "mailer_subjects_password_changed_notification",
         "content": "mailer_templates_password_changed_notification_content"
       },
-      "variables": [
-        "{{ .SiteURL }}"
-      ]
+      "variables": []
     }
   ],
   "custom": [
@@ -99,5 +94,9 @@
       "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
       "renderer": "renderEmail(id, { mode: \"custom\" })"
     }
-  ]
+  ],
+  "hostedStaging": {
+    "logoBase": "https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab",
+    "note": "Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte."
+  }
 }

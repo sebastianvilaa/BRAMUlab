@@ -7551,7 +7551,6 @@
     const user = Store.getCurrentUser();
     if (user && !user.email) { $('#logout-warning-modal').hidden = false; return; }
     $('#logout-all-confirm-btn').hidden = !settingsServerAccess();
-    $('#logout-all-confirm-btn').hidden = !settingsServerAccess();
     $('#logout-confirm-modal').hidden = false;
   }
 

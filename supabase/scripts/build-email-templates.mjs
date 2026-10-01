@@ -4,7 +4,7 @@
 //   node supabase/scripts/build-email-templates.mjs           # escribe auth/*.html, previews/*.html y manifest.json
 //   node supabase/scripts/build-email-templates.mjs --check   # exit 1 si lo versionado difiere de lo generado (drift)
 //
-// auth/*.html   -> HTML standalone de los emails NATIVOS de Supabase Auth (variables Go-template `{{ .Token }}`, `{{ .SiteURL }}`).
+// auth/*.html   -> HTML standalone de los emails NATIVOS de Supabase Auth (`{{ .Token }}` cuando corresponde; logo público versionado de Staging).
 // previews/*.html -> los 8 emails con código/emails de ejemplo, para revisar el render sin enviar nada (logo relativo al repo).
 // manifest.json -> template -> mecanismo, asunto, archivo, hash, claves de configuración hosted. Sin secretos ni hosts reales.
 
@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMAIL_TEMPLATES, renderEmail } from '../functions/_shared/email-templates.mjs';
+import { EMAIL_TEMPLATES, NATIVE_VARS, renderEmail } from '../functions/_shared/email-templates.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const OUT_DIR = path.resolve(HERE, '../email-templates');
@@ -33,7 +33,7 @@ export const HOSTED_KEYS = {
 /** Devuelve { relativePath: contenido } de TODO lo generado. */
 export function generate() {
   const files = {};
-  const manifest = { generatedFrom: 'supabase/functions/_shared/email-templates.mjs', native: [], custom: [] };
+  const manifest = { generatedFrom: 'supabase/functions/_shared/email-templates.mjs', hostedStaging: { logoBase: NATIVE_VARS.logoBase, note: 'Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte.' }, native: [], custom: [] };
   for (const tpl of Object.values(EMAIL_TEMPLATES)) {
     const nn = String(tpl.id).padStart(2, '0');
     files[`previews/${nn}-${tpl.key}.html`] = renderEmail(tpl.id, {
@@ -44,7 +44,7 @@ export function generate() {
       files[`auth/${tpl.native}.html`] = html;
       manifest.native.push({
         emailId: tpl.id, authTemplate: tpl.native, subject: tpl.subject, file: `auth/${tpl.native}.html`, sha256: sha(html),
-        hostedKeys: HOSTED_KEYS[tpl.native], variables: tpl.native === 'password_changed_notification' ? ['{{ .SiteURL }}'] : ['{{ .Token }}', '{{ .SiteURL }}'],
+        hostedKeys: HOSTED_KEYS[tpl.native], variables: tpl.native === 'password_changed_notification' ? [] : ['{{ .Token }}'],
         note: tpl.native === 'email_change'
           ? 'Fallback de plataforma: el flujo BRAMU NO depende de este template (el cambio de email es server-side).'
           : undefined,
