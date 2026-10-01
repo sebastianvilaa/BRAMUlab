@@ -40,7 +40,7 @@ test('Grants: las funciones de soporte nuevas (cron/export/borrado/limiter/métr
 });
 
 test('Grants: todo RPC de escritura de cuenta/partido que alcanza authenticated tiene rate limit (directo o por helper)', () => {
-  const sql = readRepo('supabase/migrations/20260930340000_preprod_prebloque9_hardening.sql');
+  const sql = readRepo('supabase/migrations/20260930350000_preprod_prebloque9_hardening.sql');
   ['report_identity_issue', 'set_match_private_note', 'update_profile_avatar', 'complete_contact_profile_data', 'update_current_category', 'hide_match_for_me', 'set_ranking_network_hidden'].forEach((n) => {
     assert.match(sql, new RegExp(`create or replace function public\\.${n}\\(`), n);
     assert.match(sql, new RegExp(`consume_auth_rate_limit\\(auth\\.uid\\(\\), '${n}'`), n);
@@ -49,7 +49,7 @@ test('Grants: todo RPC de escritura de cuenta/partido que alcanza authenticated 
 });
 
 test('Migración hardening: revoca triggers internos, limiter service_role, métricas sin datos sensibles', () => {
-  const code = stripSqlComments(readRepo('supabase/migrations/20260930340000_preprod_prebloque9_hardening.sql'));
+  const code = stripSqlComments(readRepo('supabase/migrations/20260930350000_preprod_prebloque9_hardening.sql'));
   ['_bloque6_enrich_notification_actor', '_groups_assert_has_active_admin', 'legal_acceptances_reject_mutation'].forEach((n) => assert.match(code, new RegExp(`revoke execute on function public\\.${n}\\(\\) from public, anon, authenticated`)));
   assert.match(code, /grant execute on function public\.consume_auth_rate_limit\(uuid, text, integer, integer\) to service_role/);
   assert.match(code, /grant execute on function public\.ops_health_snapshot\(\) to service_role/);
@@ -172,7 +172,7 @@ test('Métricas: ops_health_snapshot solo usa fuentes reales (eventos que el bac
   const dir = path.join(__dirname, '../supabase/migrations');
   for (const f of fs.readdirSync(dir)) for (const m of fs.readFileSync(path.join(dir, f), 'utf8').matchAll(/insert into public\.pilot_events[\s\S]{0,200}?values\s*\(\s*'([a-z_0-9]+)'/g)) emitted.add(m[1]);
   assert.ok(['signup_completed', 'match_created', 'match_validated', 'level_confirmed'].every((e) => emitted.has(e)), [...emitted].join());
-  const sql = readRepo('supabase/migrations/20260930340000_preprod_prebloque9_hardening.sql');
+  const sql = readRepo('supabase/migrations/20260930350000_preprod_prebloque9_hardening.sql');
   assert.ok(!/google|mixpanel|analytics\./i.test(stripSqlComments(sql)));
 });
 

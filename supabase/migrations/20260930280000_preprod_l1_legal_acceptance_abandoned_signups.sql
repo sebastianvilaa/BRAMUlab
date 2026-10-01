@@ -90,6 +90,7 @@ comment on table public.legal_acceptances is
 create or replace function public.legal_acceptances_reject_mutation()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   raise exception 'legal_acceptances_append_only' using errcode = 'P0001';
@@ -100,6 +101,10 @@ drop trigger if exists legal_acceptances_append_only on public.legal_acceptances
 create trigger legal_acceptances_append_only
   before update or delete on public.legal_acceptances
   for each row execute function public.legal_acceptances_reject_mutation();
+
+-- Índice de soporte para la FK legal_version (Advisor). Incluido acá —y no solo en 20260930232000— para que un REPLAY
+-- LIMPIO (orden por versión) lo cree: 20260930232000 ordena ANTES que esta migración.
+create index if not exists legal_acceptances_legal_version_idx on public.legal_acceptances (legal_version);
 
 alter table public.legal_acceptances enable row level security;
 -- Deny-by-default: RLS sin políticas. La lectura propia pasa por get_my_legal_status (SECURITY DEFINER).

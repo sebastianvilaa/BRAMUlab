@@ -14439,6 +14439,9 @@
   /** Activa/desactiva y sincroniza la UI en un solo lugar — usado tanto por el ícono nuevo del
    *  header (mouse/touch directo) como por el toggle de Herramientas (long-press, se conserva). */
   function setLevelV1Preview(enabled) {
+    // Bloque 9A — laboratorio fuera de Production también a nivel de HANDLER (no solo botón oculto): un flag
+    // persistido en localStorage no puede activar el preview en Production.
+    if (isProductionEnv()) { Store.setLevelV1PreviewEnabled(false); refreshLabPreviewUI(); return; }
     Store.setLevelV1PreviewEnabled(enabled);
     refreshLabPreviewUI();
   }
@@ -14455,6 +14458,7 @@
    *  initAccessScreen): el long-press sobre el logo de Home quedó descartado como mecanismo de
    *  acceso, esta función no cambió, solo desde dónde se llama. */
   function createLabTestUserAndOpenOnboarding() {
+    if (isProductionEnv()) return; // Bloque 9A: laboratorio/cuentas de prueba locales nunca en Production
     if (Auth.isBackendUnavailable()) return; // L1: fail-closed, nunca una cuenta local en un host desplegado
     labTestUserCounter += 1;
     const n = labTestUserCounter;
@@ -14478,6 +14482,7 @@
    *  ficticia acumulada — nunca migra silenciosamente un origen `nivel_inicial_v1_0`/V1.4
    *  viejo (§10 in fine del Handoff). */
   function resetLevelV1ForLabAccount() {
+    if (isProductionEnv()) return; // Bloque 9A
     const user = Store.getCurrentUser();
     $('#dev-tools-modal').hidden = true;
     if (!user) { showToast('Iniciá sesión para resetear Nivel BRAMU', 2200); return; }

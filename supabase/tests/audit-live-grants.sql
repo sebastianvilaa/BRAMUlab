@@ -38,3 +38,11 @@ select id, public from storage.buckets where public order by 1;
 
 -- 6) Cron jobs programados
 select jobname, schedule, active from cron.job order by 1;
+
+-- 7) (Bloque 9A) Funciones de public ejecutables por AUTHENTICATED en este proyecto. ANTES de aplicar
+--    20261001060000_bloque9a_baseline_privileges.sql comparar con las 58 funciones que esa migración re-concede: toda fila
+--    de ESTE resultado que no figure en esa lista dejaría de ser ejecutable por el cliente al aplicarla.
+select p.oid::regprocedure::text as authenticated_executable
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+ order by 1;

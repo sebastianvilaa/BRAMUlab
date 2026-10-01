@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.20-h2';
+  const BUNDLE_VERSION = '04.20-h3';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -817,7 +817,10 @@
     return safeSet(KEYS.LEVEL_V1_STATE, all);
   }
 
-  function isLevelV1PreviewEnabled() { return safeGet(KEYS.LEVEL_V1_PREVIEW) === true; }
+  // Bloque 9A — único punto de lectura del flag de laboratorio: en Production SIEMPRE false, aunque localStorage lo tenga
+  // en true (p. ej. un dispositivo que lo activó en otro entorno del mismo navegador/dominio de pruebas).
+  function isProductionBuild() { return !!(global.__BRAMU_ENV__ && global.__BRAMU_ENV__.name === 'production'); }
+  function isLevelV1PreviewEnabled() { return !isProductionBuild() && safeGet(KEYS.LEVEL_V1_PREVIEW) === true; }
   function setLevelV1PreviewEnabled(enabled) { return safeSet(KEYS.LEVEL_V1_PREVIEW, !!enabled); }
 
   /* ------------------------------------------------------------------ */

@@ -1,0 +1,445 @@
+{
+  "generatedBy": "release-check.mjs",
+  "migrations": [
+    {
+      "file": "20260916120000_bloque1_environment_guard_and_identity_seed.sql",
+      "sha256": "63b2805160edbaa9"
+    },
+    {
+      "file": "20260916150000_bloque1_grant_app_config_select.sql",
+      "sha256": "023d99e11e882cc3"
+    },
+    {
+      "file": "20260916180000_bloque2_auth_profile_username_location.sql",
+      "sha256": "7cb6728ca6e0fd4d"
+    },
+    {
+      "file": "20260918120000_bloque2_grant_service_role_access.sql",
+      "sha256": "3ba5e6b9ce864176"
+    },
+    {
+      "file": "20260919120000_bloque3_nivel_persistente.sql",
+      "sha256": "1f745bff26e01f4a"
+    },
+    {
+      "file": "20260919153500_bloque3_security_grants.sql",
+      "sha256": "32ac9fb4c9da84ac"
+    },
+    {
+      "file": "20260919154500_bloque3_backfill_level_states.sql",
+      "sha256": "d91fc4c602ef4291"
+    },
+    {
+      "file": "20260920120000_bloque4_jugadores_busqueda_provisional.sql",
+      "sha256": "e9abd437915d6358"
+    },
+    {
+      "file": "20260920170000_bloque4_server_only_table_grants.sql",
+      "sha256": "d92ee7d6d0036cf1"
+    },
+    {
+      "file": "20260920180000_bloque5_matches_core.sql",
+      "sha256": "73bf41a2f5f7dc3b"
+    },
+    {
+      "file": "20260920190000_bloque5_rpcs_read.sql",
+      "sha256": "2d5a12f570877343"
+    },
+    {
+      "file": "20260920200000_bloque5_create_or_attach_rpc.sql",
+      "sha256": "4887769c2d62fddb"
+    },
+    {
+      "file": "20260921003000_bloque5_defer_submission_fk.sql",
+      "sha256": "f6897cfa6266f27b"
+    },
+    {
+      "file": "20260921004000_bloque5_conformity_guard.sql",
+      "sha256": "37e8101abf45f09f"
+    },
+    {
+      "file": "20260921033000_bloque5_feed_metadata.sql",
+      "sha256": "f31d47dd17f012f2"
+    },
+    {
+      "file": "20260921200000_bloque6_level_state_evidence.sql",
+      "sha256": "0ff010a95dc57844"
+    },
+    {
+      "file": "20260921203000_bloque6_match_level_results.sql",
+      "sha256": "5f73675a46610c42"
+    },
+    {
+      "file": "20260921210000_bloque6_identity_and_matches_schema.sql",
+      "sha256": "f65004dd7b265240"
+    },
+    {
+      "file": "20260921213000_bloque6_notifications.sql",
+      "sha256": "86c6b628cff722e2"
+    },
+    {
+      "file": "20260921220000_bloque6_read_rpcs.sql",
+      "sha256": "86fe4f008321252f"
+    },
+    {
+      "file": "20260921223000_bloque6_officialize_rpc.sql",
+      "sha256": "fb9d0accbeae1de3"
+    },
+    {
+      "file": "20260921230000_bloque6_correction_and_identity_rpcs.sql",
+      "sha256": "b71d0a44a0a864b3"
+    },
+    {
+      "file": "20260921233000_bloque6_admin_rpcs.sql",
+      "sha256": "194b72d037546f33"
+    },
+    {
+      "file": "20260921234500_bloque6_reapply_create_or_attach_match.sql",
+      "sha256": "2f2787f8fe1174ee"
+    },
+    {
+      "file": "20260921235000_bloque6_internal_helper_grants.sql",
+      "sha256": "c9f92365a7906bdb"
+    },
+    {
+      "file": "20260921235500_bloque6_fix_notifications_ambiguity.sql",
+      "sha256": "c3e579488cb787e7"
+    },
+    {
+      "file": "20260921235700_bloque6_fix_applied_result_detection.sql",
+      "sha256": "b6be4c3912d45733"
+    },
+    {
+      "file": "20260921235800_bloque6_fix_fingerprint_uuid.sql",
+      "sha256": "d03192905e9809c2"
+    },
+    {
+      "file": "20260922100000_bloque7_ranking_schema.sql",
+      "sha256": "77d143c75fe54d46"
+    },
+    {
+      "file": "20260922110000_bloque7_ranking_profile_data.sql",
+      "sha256": "394b211a5a71be42"
+    },
+    {
+      "file": "20260922120000_bloque7_fase1_security_hardening.sql",
+      "sha256": "44987409e0f282dc"
+    },
+    {
+      "file": "20260922130000_bloque7_fase1_constraint_fixes.sql",
+      "sha256": "8391ade93f07393e"
+    },
+    {
+      "file": "20260922140000_bloque7_fase2_ranking_calculation.sql",
+      "sha256": "a1b19e2c88d26b14"
+    },
+    {
+      "file": "20260922150000_bloque7_fase3_read_rpcs.sql",
+      "sha256": "4be81b87995059d7"
+    },
+    {
+      "file": "20260922160000_bloque7_fase4_weekly_publication.sql",
+      "sha256": "673358b77e41e506"
+    },
+    {
+      "file": "20260923100000_bloque8_fasea_intelligence_history_rpc.sql",
+      "sha256": "2281b2ae737e3c5f"
+    },
+    {
+      "file": "20260923180000_bloque8_fased_intelligence_persistence.sql",
+      "sha256": "64eed43f2bf1e6b7"
+    },
+    {
+      "file": "20260923190000_bloque8_fasee_ranking_best_position.sql",
+      "sha256": "d4329e4d54f48341"
+    },
+    {
+      "file": "20260924100000_bloque7_fase6_ranking_automatic_participation.sql",
+      "sha256": "9a383f690b1b7242"
+    },
+    {
+      "file": "20260924110000_bloque6_public_match_outcomes.sql",
+      "sha256": "1da6e196f91a4cd5"
+    },
+    {
+      "file": "20260924120000_preprod_public_profile_counts_cast.sql",
+      "sha256": "dd6eba2e1080171a"
+    },
+    {
+      "file": "20260924130000_preprod_p01c_profile_editable.sql",
+      "sha256": "3881dd18de86dc86"
+    },
+    {
+      "file": "20260925150000_preprod_ux_correction_revision_diff.sql",
+      "sha256": "c4e712ba00eb664e"
+    },
+    {
+      "file": "20260926120000_preprod_ux_notification_actor_enrichment.sql",
+      "sha256": "e410ed604a7ce6a0"
+    },
+    {
+      "file": "20260927110000_preprod_ux_notification_historical_context.sql",
+      "sha256": "27f89f3dbfd4388d"
+    },
+    {
+      "file": "20260927120000_preprod_ux_players_compact.sql",
+      "sha256": "a79a9be7b0082ff7"
+    },
+    {
+      "file": "20260927130000_preprod_ux_mis_jugadores.sql",
+      "sha256": "fded152293b5bf3e"
+    },
+    {
+      "file": "20260927140000_preprod_fix_officialize_precision_lock.sql",
+      "sha256": "0b032fc0bd70108a"
+    },
+    {
+      "file": "20260927150000_preprod_p03_fase_a_account_deletion.sql",
+      "sha256": "7372f54a4126efe0"
+    },
+    {
+      "file": "20260927160000_preprod_p03_ranking_anonymous_presentation.sql",
+      "sha256": "558ebc18d8bd4d2a"
+    },
+    {
+      "file": "20260928120000_preprod_grupos_fase_a_backend_compartido.sql",
+      "sha256": "c25fe5a0aa2e7f70"
+    },
+    {
+      "file": "20260928140000_preprod_grupos_b1_membresia_semanal_hotfix.sql",
+      "sha256": "36af9725966c781f"
+    },
+    {
+      "file": "20260928181407_preprod_grupos_fix_deferred_admin_trigger_security.sql",
+      "sha256": "4ea12aed8ef2708e"
+    },
+    {
+      "file": "20260928190000_preprod_grupos_b2a_backend_lobby.sql",
+      "sha256": "7afebe46bd905e16"
+    },
+    {
+      "file": "20260928200000_preprod_grupos_b2a_week_start_search_path.sql",
+      "sha256": "c90ee01da9d6e155"
+    },
+    {
+      "file": "20260930120000_preprod_grupos_b2c_group_photo.sql",
+      "sha256": "5032e15cba0d0c8b"
+    },
+    {
+      "file": "20260930180000_preprod_grupos_cierre_ux_miembros_leave.sql",
+      "sha256": "fb42f7cc73abbed8"
+    },
+    {
+      "file": "20260930220000_preprod_v0416_identidad_nivel.sql",
+      "sha256": "bf644d4e9d7a4197"
+    },
+    {
+      "file": "20260930232000_preprod_l1_legal_acceptance_hardening.sql",
+      "sha256": "3a83d1713184e357"
+    },
+    {
+      "file": "20260930240000_preprod_v0417_delta_publico_nivel.sql",
+      "sha256": "e3aac2d9590673ca"
+    },
+    {
+      "file": "20260930260000_preprod_v0418_sustain_match_revision.sql",
+      "sha256": "a55da5e14ce87e1e"
+    },
+    {
+      "file": "20260930280000_preprod_l1_legal_acceptance_abandoned_signups.sql",
+      "sha256": "1e271cf28b658784"
+    },
+    {
+      "file": "20260930300000_preprod_v0420_whatsapp_on_demand.sql",
+      "sha256": "7e16cf6e6d2a9001"
+    },
+    {
+      "file": "20260930310000_preprod_v0420_cleanup_cron_secret.sql",
+      "sha256": "ad6e36a5fb1f20f7"
+    },
+    {
+      "file": "20260930320000_preprod_v0420_account_self_service.sql",
+      "sha256": "c1e24a0454e7bf15"
+    },
+    {
+      "file": "20260930330000_preprod_v0420_cleanup_cron_idempotency.sql",
+      "sha256": "8399e1d69ffaf248"
+    },
+    {
+      "file": "20260930340000_preprod_v0420_pg_net_schema_hardening.sql",
+      "sha256": "6f26ee696171511d"
+    },
+    {
+      "file": "20260930350000_preprod_prebloque9_hardening.sql",
+      "sha256": "c59592e2811d979a"
+    },
+    {
+      "file": "20261001034500_preprod_prebloque9_table_privileges_hardening.sql",
+      "sha256": "859b8d9fd1f9f68f"
+    },
+    {
+      "file": "20261001060000_bloque9a_baseline_privileges.sql",
+      "sha256": "c7a48cadfaedb29b"
+    }
+  ],
+  "edgeFunctions": [
+    {
+      "name": "admin-resolve-identity-issue",
+      "verifyJwt": true,
+      "bundleHash": "cb64ec506f2d7c3c",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-level-engine.js",
+        "supabase/functions/_shared/match-officialize-core.ts",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/admin-resolve-identity-issue/index.ts"
+      ]
+    },
+    {
+      "name": "cleanup-abandoned-signups",
+      "verifyJwt": false,
+      "bundleHash": "0708fdf971b70802",
+      "files": [
+        "supabase/functions/_shared/abandoned-signups-core.mjs",
+        "supabase/functions/cleanup-abandoned-signups/index.ts"
+      ]
+    },
+    {
+      "name": "create-or-attach-match",
+      "verifyJwt": true,
+      "bundleHash": "c8bd7b419a46da06",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-level-engine.js",
+        "supabase/functions/_shared/match-load.js",
+        "supabase/functions/_shared/match-officialize-core.ts",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/create-or-attach-match/index.ts"
+      ]
+    },
+    {
+      "name": "delete-my-account",
+      "verifyJwt": true,
+      "bundleHash": "0a990842fc784b38",
+      "files": [
+        "supabase/functions/_shared/account-deletion-core.mjs",
+        "supabase/functions/_shared/self-delete-core.mjs",
+        "supabase/functions/delete-my-account/index.ts"
+      ]
+    },
+    {
+      "name": "get-match-intelligence",
+      "verifyJwt": true,
+      "bundleHash": "925d2aee83e55230",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/intelligence-claims.js",
+        "supabase/functions/_shared/intelligence-context.js",
+        "supabase/functions/_shared/intelligence-editorial.js",
+        "supabase/functions/_shared/intelligence-official.js",
+        "supabase/functions/_shared/intelligence-presentation.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/get-match-intelligence/index.ts"
+      ]
+    },
+    {
+      "name": "officialize-match",
+      "verifyJwt": true,
+      "bundleHash": "943e5fb6bddea67d",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-level-engine.js",
+        "supabase/functions/_shared/match-officialize-core.ts",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/officialize-match/index.ts"
+      ]
+    },
+    {
+      "name": "officialize-onboarding",
+      "verifyJwt": true,
+      "bundleHash": "e94dba5bf9a790ee",
+      "files": [
+        "supabase/functions/_shared/level-calibration.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/officialize-onboarding/index.ts"
+      ]
+    },
+    {
+      "name": "propose-match-correction",
+      "verifyJwt": true,
+      "bundleHash": "ce0d8baca67c5495",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/match-load.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/propose-match-correction/index.ts"
+      ]
+    },
+    {
+      "name": "resolve-identity-issue",
+      "verifyJwt": true,
+      "bundleHash": "4a14c87e188a07f6",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-level-engine.js",
+        "supabase/functions/_shared/match-officialize-core.ts",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/resolve-identity-issue/index.ts"
+      ]
+    },
+    {
+      "name": "respond-match-correction",
+      "verifyJwt": true,
+      "bundleHash": "1daacada4759690b",
+      "files": [
+        "supabase/functions/_shared/engine.js",
+        "supabase/functions/_shared/level-context.js",
+        "supabase/functions/_shared/level.js",
+        "supabase/functions/_shared/match-level-engine.js",
+        "supabase/functions/_shared/match-officialize-core.ts",
+        "supabase/functions/_shared/match-sync.js",
+        "supabase/functions/_shared/rate-limit.ts",
+        "supabase/functions/respond-match-correction/index.ts"
+      ]
+    }
+  ],
+  "version": {
+    "version": "BRAMUlab V04.20",
+    "bundle": "04.20-h3"
+  },
+  "repoVerifiesOnCleanRoom": {
+    "passed": 14,
+    "needStagingData": [
+      "verify-bloque7-fase1.sql",
+      "verify-bloque7-fase3.sql",
+      "verify-preprod-p01c-profile-editable.sql",
+      "verify-preprod-p03-fase-a-account-deletion.sql",
+      "verify-preprod-ux-correction-revision-diff.sql",
+      "verify-preprod-ux-mis-jugadores.sql",
+      "verify-preprod-ux-notification-actor-enrichment.sql",
+      "verify-preprod-ux-notification-historical-context.sql",
+      "verify-preprod-ux-players-compact.sql"
+    ],
+    "notEvaluableInEngine": [
+      "verify-preprod-grupos-26-miembros-leave.sql",
+      "verify-preprod-grupos-b2a-backend-lobby.sql",
+      "verify-preprod-grupos-b2c-group-photo.sql"
+    ],
+    "failed": []
+  }
+}

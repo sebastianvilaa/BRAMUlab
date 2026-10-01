@@ -2,11 +2,17 @@
   "name": "bramulab-admin-scripts",
   "private": true,
   "type": "module",
-  "description": "Scripts administrativos server-side/repo-local para BRAMUlab (P0.3). Requiere `npm ci` en este directorio antes de correr admin-delete-player-account.mjs (handoff 30 §2.D: dependencia fijada + package-lock.json commiteado, para ejecución reproducible en un script administrativo destructivo). Nunca commitear credenciales — SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY se leen de variables de entorno.",
+  "description": "Scripts administrativos server-side/repo-local para BRAMUlab (P0.3). Requiere `npm ci` en este directorio antes de correr admin-delete-player-account.mjs (handoff 30 §2.D: dependencia fijada + package-lock.json commiteado, para ejecución reproducible en un script administrativo destructivo). Nunca commitear credenciales — SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY se leen de variables de entorno. Bloque 9A: `npm run release-check` (replay limpio en PGlite + hardcodes + Edge Functions + builds) no necesita credenciales.",
   "scripts": {
-    "test": "node --test admin-delete-player-account.test.mjs"
+    "test": "node --test admin-delete-player-account.test.mjs",
+    "replay": "node replay-migrations.mjs",
+    "clean-room": "node verify-clean-room.mjs",
+    "release-check": "node release-check.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }
