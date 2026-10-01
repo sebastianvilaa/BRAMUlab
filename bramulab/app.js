@@ -7520,7 +7520,7 @@
     $('#settings-email-row').hidden = !settingsServerAccess();
     $('#settings-password-row').hidden = !hasAccess;
     $('#settings-access-pending-note').hidden = hasAccess;
-    $('#settings-group-danger').hidden = !settingsServerAccess();
+    $('#settings-delete-row').hidden = !settingsServerAccess();
     showView('settings');
   }
 
@@ -7562,7 +7562,7 @@
     $('#settings-terms-row').addEventListener('click', () => openLegalDoc('terminos', 'settings'));
     $('#settings-privacy-row').addEventListener('click', () => openLegalDoc('privacidad', 'settings'));
     $('#settings-contact-row').addEventListener('click', () => showView('settings-contact'));
-    $('#settings-logout-row').addEventListener('click', openLogoutOptions);
+    $('#settings-logout-btn').addEventListener('click', openLogoutOptions);
     $('#settings-delete-row').addEventListener('click', () => showView('settings-delete'));
     ['email', 'delete', 'copy', 'contact'].forEach((k) => $(`#settings-${k}-back-btn`).addEventListener('click', openSettings));
     $('#legal-doc-back-btn').addEventListener('click', closeLegalDoc);

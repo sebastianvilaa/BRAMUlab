@@ -301,7 +301,7 @@ test('Configuración: filas sensibles solo para cuentas con backend real y email
   const i0 = appJs.indexOf('  function openSettings() {');
   const r = appJs.slice(i0, i0 + 900);
   assert.match(r, /settings-email-row'\)\.hidden = !settingsServerAccess\(\)/);
-  assert.match(r, /settings-group-danger'\)\.hidden = !settingsServerAccess\(\)/);
+  assert.match(r, /settings-delete-row'\)\.hidden = !settingsServerAccess\(\)/);
   assert.match(appJs, /user\.serverBacked && user\.email && Auth\.isConfigured\(\)/);
   assert.ok(!/dispositivos activos|lista de sesiones|IP de|ubicaci[oó]n de inicio/i.test(indexHtml), 'sin listado avanzado de dispositivos');
 });
@@ -522,9 +522,9 @@ test('Regresión: login/signup/recovery/onboarding conservan sus contratos (acep
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
 });
 
-test('Versión: V04.20 / 04.20-h5 coherentes', () => {
+test('Versión: V04.20 / 04.20-h6 coherentes', () => {
   assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.20'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h5'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h5' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h5'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h6'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h6' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h6'/);
 });

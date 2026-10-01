@@ -1,5 +1,9 @@
 {
   "generatedFrom": "supabase/functions/_shared/email-templates.mjs",
+  "hostedStaging": {
+    "logoBase": "https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab",
+    "note": "Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte."
+  },
   "native": [
     {
       "emailId": 1,
@@ -94,9 +98,5 @@
       "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
       "renderer": "renderEmail(id, { mode: \"custom\" })"
     }
-  ],
-  "hostedStaging": {
-    "logoBase": "https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab",
-    "note": "Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte."
-  }
+  ]
 }

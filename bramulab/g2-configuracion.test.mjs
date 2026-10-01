@@ -67,15 +67,22 @@ test('G2-2 · engranaje discreto en el header de Perfil abre Configuración; bac
 
 test('G2-3 · Configuración: orden, secciones, filas compactas centradas y zona destructiva aislada al final', () => {
   const v = section('view-settings');
-  const order = ['CUENTA Y SEGURIDAD', 'settings-email-row', 'settings-password-row', 'PRIVACIDAD Y DATOS', 'settings-copy-row', '>LEGAL<', 'settings-terms-row', 'settings-privacy-row', 'AYUDA', 'settings-contact-row', 'SESIÓN', 'settings-logout-row', 'ZONA DE CUENTA', 'settings-delete-row'];
+  assert.deepEqual([...v.matchAll(/settings-group__title">([^<]+)</g)].map((m) => m[1]), ['CUENTA Y SEGURIDAD', 'PRIVACIDAD Y CUENTA'], 'solo dos encabezados');
+  for (const gone of ['PRIVACIDAD Y DATOS', '>LEGAL<', 'AYUDA', '>SESIÓN<', 'ZONA DE CUENTA', 'settings-group--danger', 'settings-group--session', 'settings-logout-row']) assert.ok(!v.includes(gone), `ya no existe ${gone}`);
+  const order = ['settings-email-row', 'settings-password-row', 'PRIVACIDAD Y CUENTA', 'settings-terms-row', 'settings-privacy-row', 'settings-copy-row', 'settings-contact-row', 'settings-delete-row', 'settings-logout-btn'];
   let at = 0; for (const t of order) { const i = v.indexOf(t, at); assert.ok(i >= 0, `falta/desordenado: ${t}`); at = i; }
+  // Eliminar: fila danger DENTRO del mismo bloque (misma lista que Términos), sin borde rojo de bloque
+  const list = between(v, 'id="settings-group-privacy"', 'class="settings-logout"');
+  assert.ok(list.includes('settings-delete-row') && list.includes('settings-terms-row') && (list.match(/settings-list/g) || []).length === 1);
+  assert.ok(!/rgba\(255,91,97,0\.35\)/.test(css.slice(css.indexOf('G2 (Issue #22)'))), 'sin borde rojo de bloque');
+  // Cerrar sesión: botón grande separado, danger, ancho completo
+  assert.match(v, /<div class="settings-logout">\s*<button type="button" id="settings-logout-btn" class="btn-secondary btn-secondary--danger">CERRAR SESIÓN<\/button>/);
+  assert.match(css, /\.settings-logout \.btn-secondary\{ width:100%; min-height: 52px/);
   assert.ok(!/Cerrar todas las sesiones/.test(v), 'no hay fila permanente de cerrar todas');
   assert.match(v, /settings-row settings-row--danger/);
   assert.match(css, /\.settings-row\{[^}]*display:flex; align-items:center;[^}]*min-height: 46px/);
   assert.match(css, /\.settings-row__chevron\{[^}]*width: 12px; text-align:center/);
   assert.match(css, /\.settings-row:not\(\[hidden\]\) ~ \.settings-row:not\(\[hidden\]\)\{ border-top: 1px solid/);
-  // la fila de eliminación está en un grupo propio, después de Sesión
-  assert.ok(v.indexOf('settings-group--danger') > v.indexOf('settings-logout-row'));
   assert.ok(!/BOTTOM_NAV_VIEWS = \[[^\]]*'settings/.test(app), 'sin bottom nav en Configuración');
 });
 
@@ -128,14 +135,14 @@ test('G2-7 · Cerrar sesión: modal con sesión actual / todas / cancelar; el ta
   const order = ['logout-confirm-btn', 'logout-all-confirm-btn', 'logout-confirm-cancel-btn']; let at = 0;
   for (const t of order) { const i = modal.indexOf(t, at); assert.ok(i >= 0, t); at = i; }
   const h = harness();
-  click(h, '#settings-logout-row');
+  click(h, '#settings-logout-btn');
   assert.equal(h.els['#logout-confirm-modal'].hidden, false);
   assert.equal(h.els['#logout-all-confirm-btn'].hidden, false, 'cuenta server-backed: ofrece cerrar todas');
   assert.ok(!h.log.includes('signOutAll'));
   const noServer = harness({ user: { id: 'u', email: 'a@x.test' } });
-  click(noServer, '#settings-logout-row'); assert.equal(noServer.els['#logout-all-confirm-btn'].hidden, true);
+  click(noServer, '#settings-logout-btn'); assert.equal(noServer.els['#logout-all-confirm-btn'].hidden, true);
   const noMail = harness({ user: { id: 'u', email: null } });
-  click(noMail, '#settings-logout-row'); assert.equal(noMail.els['#logout-warning-modal'].hidden, false, 'cuenta sin acceso completo conserva el aviso fuerte');
+  click(noMail, '#settings-logout-btn'); assert.equal(noMail.els['#logout-warning-modal'].hidden, false, 'cuenta sin acceso completo conserva el aviso fuerte');
   assert.match(app, /logout-confirm-btn'\)\.addEventListener\('click', \(\) => \{ \$\('#logout-confirm-modal'\)\.hidden = true; doLogout\(\); \}\)/);
   assert.match(app, /logout-all-confirm-btn'\)\.addEventListener\('click', async \(\) => \{ \$\('#logout-confirm-modal'\)\.hidden = true; await Auth\.signOutAll\(\); doLogout\(\); \}\)/);
 });
@@ -186,7 +193,7 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.ok([2, 6].includes(colorType));
   const m = JSON.parse(read('manifest.webmanifest'));
   assert.equal(m.start_url, './index.html'); assert.equal(m.display, 'standalone');
-  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.20-h5$/); }
+  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.20-h6$/); }
   assert.ok(m.icons.some((i) => i.purpose === 'maskable') && m.icons.some((i) => i.sizes === '512x512' && i.purpose === 'any'));
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest" crossorigin="use-credentials" \/>/);
   const ati = html.match(/<link rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,([A-Za-z0-9+/=]+)" \/>/);
@@ -195,10 +202,10 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.equal((html.match(/rel="apple-touch-icon"/g) || []).length, 1);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="BRAMUlab" \/>/);
   assert.match(html, /<meta name="theme-color" content="#050A12" \/>/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-20-h5'/);
-  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.20-h5'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h5' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.20-h5'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-20-h6'/);
+  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.20-h6'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h6' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.20-h6'/);
   assert.ok(!/\?v=04\.20-h4/.test(html + sw + read('manifest.webmanifest')), 'sin restos del bundle anterior');
   assert.match(sw, /keys\.filter\(\(k\) => k\.startsWith\('bramulab-v'\) && k !== CACHE_NAME\)/, 'el SW nuevo borra las cachés viejas');
 });
