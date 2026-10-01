@@ -23,11 +23,15 @@ select c.relname as table_without_rls
  where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity
  order by 1;
 
--- 4) Privilegios de TABLA concedidos a anon/authenticated (esperado: app_config y legal_versions SELECT; el resto, vacío)
-select table_name, grantee, string_agg(privilege_type, ',' order by privilege_type) as privileges
+-- 4) Privilegios de TABLA peligrosos/directos para anon/authenticated.
+--    Esperado: VACÍO. SELECT puede existir de forma intencional sobre tablas públicas/RLS;
+--    INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER no son necesarios para el cliente.
+select table_name, grantee, privilege_type
   from information_schema.role_table_grants
- where table_schema = 'public' and grantee in ('anon', 'authenticated')
- group by 1, 2 order by 1, 2;
+ where table_schema = 'public'
+   and grantee in ('anon', 'authenticated')
+   and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
+ order by 1, 2, 3;
 
 -- 5) Buckets de Storage públicos (esperado: ninguno — avatars y group-photos son privados)
 select id, public from storage.buckets where public order by 1;

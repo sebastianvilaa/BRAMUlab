@@ -44,3 +44,13 @@ Migración nueva **sin aplicar** (la aplica Central): `20260930340000_preprod_pr
 
 ## 8. DECISIONES ABIERTAS
 Ninguna. (Nota informativa: ¿se quiere un límite adicional en gateway/WAF para `is_username_available` anónima? Hoy es riesgo aceptado/documentado, no bloquea.)
+
+
+## 9. Gate Central — hallazgos y cierre
+
+Central detectó dos puntos que solo podían observarse al cruzar el gate real de Staging:
+
+1. **Colisión de versión de migración.** El archivo original `20260930340000_preprod_prebloque9_hardening.sql` coincidía con una migración del gate V04.20 ya existente. Se renombró a `20260930350000_preprod_prebloque9_hardening.sql` antes de aplicarlo.
+2. **Privilegios de tabla heredados.** No existían grants directos `INSERT/UPDATE/DELETE`, pero `anon` y `authenticated` conservaban `TRUNCATE/REFERENCES/TRIGGER` en 27 tablas. No son necesarios para BRAMU y `TRUNCATE` no debe quedar como capacidad del cliente. Follow-up `preprod_prebloque9_table_privileges_hardening`: revoca esos privilegios actuales y por default para nuevas tablas del rol de migración.
+
+La auditoría viva se corrigió para distinguir SELECT intencional/RLS de privilegios directos peligrosos.
