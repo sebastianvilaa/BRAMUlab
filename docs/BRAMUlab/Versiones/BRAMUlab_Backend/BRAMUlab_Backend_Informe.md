@@ -1087,3 +1087,33 @@ Central corrigió únicamente una ambigüedad documental/tooling: Email #4 figur
 **Pendiente exclusivo de Work antes de cerrar G1:** cargar/verificar secrets de Edge sin exponerlos, sincronizar templates/config hosted de Supabase Auth en Staging, verificar sender/logo y ejecutar QA real de los 8 emails y de las secuencias críticas.
 
 Fuente: `docs/BRAMUlab/Implementacion/Pre_Production/91_Gate_Central_G1_Pre_Work_01OCT.md`.
+
+
+---
+
+## Pre-Production G1 — Emails/Auth V1 — CIERRE FINAL (01/10/2026)
+
+**Estado:** **CERRADO / PASS Central en Staging**.  
+**Issue:** #21.
+
+Evidencia consolidada:
+- migración `g1_emails_account_challenges` aplicada y verificada;
+- `account-challenge` ACTIVE, JWT obligatorio;
+- `delete-my-account` ACTIVE, JWT obligatorio;
+- secrets G1 configurados sin exponer valores;
+- Gmail SMTP reutilizado: `smtp.gmail.com:465`;
+- sender real observado: BRAMUlab <bramulab@gmail.com>;
+- Auth hosted: confirmation/recovery/email_change fallback/password_changed configurados; password_changed ON; email_changed nativo OFF; Secure Email Change ON; OTP 6 dígitos / 3600 s;
+- emails #1–#8 recibidos realmente;
+- recovery: #2 → cambio real → #6; otra sesión revocada;
+- cambio de email: #3 actual → #4 nuevo → cambio real → #5 al anterior, exactamente dos verificaciones y ningún tercer email inesperado;
+- eliminación: sin prueba específica bloquea; #7 contextual → challenge válido → eliminación real → postcondiciones → #8 único;
+- cuentas sintéticas de Work limpiadas mediante el flujo propio;
+- `account_challenges` sin residuos al gate final;
+- commit funcional h4 con Vercel SUCCESS.
+
+La QA de Work no completó toda la navegación visual de la app, mobile/email-client matrix ni captura exhaustiva de Network/logs. Esos puntos **no invalidan G1**, porque el sistema de comunicaciones y sus secuencias reales quedaron demostrados. Se trasladan al gate **G2 Acceso/Legal + browser**, junto con la corrección de la Site URL hosted observada en `http://localhost:3000` y los ajustes UX de Configuración que Sebastián quiere revisar antes de esa QA.
+
+Logo: Vercel Staging sigue protegido. Hosted y repo usan el logo real mediante asset público fijado al commit `0a639d67325f880a651418867ccb62b9e880b797`; no se usa GitHub como Site URL de Auth.
+
+Fuente final: `docs/BRAMUlab/Implementacion/Pre_Production/94_Gate_Central_G1_Final_01OCT.md`.

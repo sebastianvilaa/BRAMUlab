@@ -15,10 +15,10 @@ Fuente única del copy, asuntos y diseño **BRAMU Night Card** de los 8 emails d
 | 7 | Confirmar eliminación | Confirmá la eliminación de tu cuenta | **Edge Function** `account-challenge` (propósito `delete_account`) | `previews/07-…` |
 | 8 | Cuenta eliminada (comprobante) | Tu cuenta de BRAMUlab fue eliminada | **Edge Function** `delete-my-account`, solo tras postcondiciones OK | `previews/08-…` |
 
-- `auth/*.html`: HTML **standalone** con variables Go-template de Supabase Auth (`{{ .Token }}`, `{{ .SiteURL }}`). El logo real
-  (`bramulab/icons/logo.png`) se referencia como `{{ .SiteURL }}/icons/logo.png`: **Site URL de Auth debe ser el origen estable de BRAMUlab Staging, sin barra final**.
+- `auth/*.html`: HTML **standalone** con `{{ .Token }}` de Supabase Auth. En Staging, como Vercel permanece protegido, el logo real
+  (`bramulab/icons/logo.png`) usa el asset público fijado a commit `https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab/icons/logo.png`. Esto **no** cambia la Site URL ni los redirects de Auth. Antes de Production se reemplaza por el origen público definitivo si corresponde.
 - `previews/*.html`: los 8 emails renderizados con datos de ejemplo (código `123456`) para revisar el render sin enviar nada. Abrirlos desde el repo (el logo es relativo).
-- `manifest.json`: template → mecanismo, asunto, archivo, hash y claves de configuración hosted. **Email #4 aparece en `custom` (flujo BRAMU real) y también en `native` (fallback `email_change` de plataforma); no son dos envíos del flujo normal.**
+- `manifest.json`: template → mecanismo, asunto, archivo, hash y claves de configuración hosted. **Email #4 aparece en `custom` (flujo BRAMU real) y también en `native` (fallback `email_change` de plataforma); no son dos envíos del flujo normal.** El manifest registra también la base exacta del logo usada por hosted Staging.
 
 ## Sincronizar con Supabase hosted (Staging) — Work
 

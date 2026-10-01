@@ -6,7 +6,7 @@
       "authTemplate": "confirmation",
       "subject": "Confirmá tu cuenta en BRAMUlab",
       "file": "auth/confirmation.html",
-      "sha256": "c3b2f378a923e9336aae55fad2d421387caa26d0b0682f0085f1567c7bc88f8c",
+      "sha256": "2a0d41a592983e0da434e60c0fadc3ed4c6ed84547e3506c4536fa83b0e035b9",
       "hostedKeys": {
         "subject": "mailer_subjects_confirmation",
         "content": "mailer_templates_confirmation_content"
@@ -21,7 +21,7 @@
       "authTemplate": "recovery",
       "subject": "Recuperá tu contraseña en BRAMUlab",
       "file": "auth/recovery.html",
-      "sha256": "f74674657dad0470be36c92489c605d26e2c55b9d92daa56ba89cfad9ab466a5",
+      "sha256": "726689cd22e467ea75c7d48b374e8701aa7b9e739ab8667a5885cfc63da83146",
       "hostedKeys": {
         "subject": "mailer_subjects_recovery",
         "content": "mailer_templates_recovery_content"
@@ -36,7 +36,7 @@
       "authTemplate": "email_change",
       "subject": "Confirmá tu nuevo email en BRAMUlab",
       "file": "auth/email_change.html",
-      "sha256": "c9792190950c2c01d6c7f1941f2e121c7ee26e1f78ed2292d6e7c39c7a4d38ea",
+      "sha256": "52952dbf546d2e66ba53892d103f5682d76bcdced38f80af3584597f52b40242",
       "hostedKeys": {
         "subject": "mailer_subjects_email_change",
         "content": "mailer_templates_email_change_content"
@@ -52,7 +52,7 @@
       "authTemplate": "password_changed_notification",
       "subject": "La contraseña de tu cuenta fue cambiada",
       "file": "auth/password_changed_notification.html",
-      "sha256": "d43fdeceed0a86d325f6fe5275468fbeddc7483bc5e540eb31fa022f8859132a",
+      "sha256": "7eadd2da6699ddfec4bcfa62f6949ab15ac6092a17f248410c07d78a5b22e274",
       "hostedKeys": {
         "enabled": "mailer_notifications_password_changed_enabled",
         "subject": "mailer_subjects_password_changed_notification",
@@ -99,5 +99,9 @@
       "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
       "renderer": "renderEmail(id, { mode: \"custom\" })"
     }
-  ]
+  ],
+  "hostedStaging": {
+    "logoBase": "https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab",
+    "note": "Staging mantiene Vercel protegido. Los 4 templates Auth hosted usan este asset público fijado a commit solo para el logo; Site URL/Auth redirects se gestionan aparte."
+  }
 }

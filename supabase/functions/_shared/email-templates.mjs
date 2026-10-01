@@ -141,7 +141,8 @@ export const escapeHtml = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** Variables Go-template de Supabase Auth para el modo `native`. */
-export const NATIVE_VARS = { code: '{{ .Token }}', logoBase: '{{ .SiteURL }}' };
+// Staging: Vercel sigue protegido. Los templates Auth usan el asset REAL público fijado a commit para el logo.
+export const NATIVE_VARS = { code: '{{ .Token }}', logoBase: 'https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab' };
 
 function renderBlock(b, tpl, ctx) {
   const T = TOKENS;
@@ -186,7 +187,7 @@ function renderFooter(tpl) {
  * HTML completo de un email.
  * @param {number} id  1..8
  * @param {{mode?:'custom'|'native', code?:string, previousEmail?:string, newEmail?:string, baseUrl?:string}} [opts]
- *   native: usa `{{ .Token }}` y `{{ .SiteURL }}` (Go-template de Supabase Auth). custom: valores reales (escapados).
+ *   native: usa `{{ .Token }}` y el logo público versionado de Staging. custom: valores reales (escapados).
  */
 export function renderEmail(id, opts = {}) {
   const tpl = EMAIL_TEMPLATES[id];
