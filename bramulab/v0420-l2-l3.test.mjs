@@ -446,8 +446,12 @@ test('Acceso/copia: RPC solo service_role, datos propios, sin internals; script 
   assert.equal((await resolvePlayerRef(admin(null, { player_id: 'pid' }), '@Ana_01')).playerId, 'pid');
   assert.equal((await resolvePlayerRef(admin(null, null), '@ana_01')).code, 'player_not_found');
   assert.equal((await resolvePlayerRef(admin(), 'x; drop table')).code, 'invalid_reference');
-  const ok = await exportPlayerData(admin(() => ({ ok: true, account: {} }), null), '11111111-2222-3333-4444-555555555555');
+  const PID = '11111111-2222-3333-4444-555555555555';
+  const full = { ok: true, report: {}, account: { playerId: PID }, profile: {}, legalAcceptances: [], levelEvents: [], matches: [], ranking: [], groups: [], notifications: [], intelligence: [], purposesAndRecipients: {} };
+  const ok = await exportPlayerData(admin(() => full, null), PID);
   assert.equal(ok.ok, true);
+  const partial = await exportPlayerData(admin(() => ({ ok: true, account: {} }), null), PID);
+  assert.equal(partial.code, 'report_invalid', 'Bloque 9B: un informe incompleto es un fallo, no un resultado parcial');
   const gone = await exportPlayerData(admin(() => ({ ok: false, code: 'account_deleted' }), null), '11111111-2222-3333-4444-555555555555');
   assert.deepEqual({ ...gone }, { ok: false, code: 'account_deleted' });
 });

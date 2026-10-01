@@ -1,11 +1,14 @@
 // BRAMUlab — Bloque 9A: CHECK REPRODUCIBLE de release. Un solo comando, sin credenciales ni red, que recorre todo lo
 // automatizable antes de un deploy (Staging hoy, Production mañana) y emite un manifest derivado.
 //
-//   node supabase/scripts/release-check.mjs [--no-replay] [--manifest salida.json]      (exit 0 solo si TODO pasa)
+//   node supabase/scripts/release-check.mjs [--no-replay] [--no-ops] [--manifest salida.json] [--preflight-md salida.md]
+//   (exit 0 solo si TODO lo AUTOMÁTICO pasa; los gates externos se listan aparte como PENDIENTE y nunca se dan por cerrados)
 //
 // Secciones: nombres de migración · hardcodes prohibidos · Edge Functions (imports/verify_jwt) · bundle cliente
 // (service-role fuera, laboratorio) · guardas de build (Staging válido, Production corta por legal, credenciales cruzadas)
 // · versión/Service Worker · replay limpio en 3 escenarios de ACL (verify-clean-room.mjs).
+// Bloque 9B: + ensayo operativo (ops-rehearsal.mjs: exportación, eliminación con fallos/retry, anulación, cleanup, rate limits, backup
+// lógico) + regresiones PG17 MAINTAIN / Edge service-to-service + PREFLIGHT que separa PASS automático de gates externos.
 // Reutiliza: env-guard.mjs, legal-guard.mjs, audit-migration-grants.mjs, replay-migrations.mjs, verify-clean-room.mjs.
 
 import fs from 'node:fs';
@@ -45,19 +48,22 @@ export const FORBIDDEN = [
   { id: 'service-role-literal', re: /SERVICE_ROLE_KEY\s*[:=]\s*['"][^'"\s]{20,}['"]/, scope: 'all' },
   { id: 'vercel-host-in-source', re: /[a-z0-9-]+\.vercel\.app/, scope: 'source' },
   { id: 'github-pages-host', re: /[a-z0-9-]+\.github\.io/, scope: 'source' },
-  { id: 'staging-environment-seed', re: /insert\s+into\s+public\.app_config[^;]*'(staging|production)'/i, scope: 'source' },
+  { id: 'staging-environment-seed', re: /insert\s+into\s+public\.app_config[^;]*'(staging|production)'/i, scope: 'source', pathRe: /^supabase\/(migrations|functions)\// },
 ];
+/** Archivos cuyo PROPÓSITO es sembrar violaciones para probar este escáner: se excluyen de su propio escaneo. */
+export const SCANNER_FIXTURE_FILES = new Set(['bramulab/bloque9a-release.test.mjs', 'bramulab/bloque9b-ops.test.mjs']);
 const EMAIL_ALLOWED = /^(bramulab@gmail\.com)$|@example\.(test|com)$|@x\.test$|@test\.com$/i;
 export function scanHardcodes(files = trackedFiles(), root = REPO) {
   const findings = [];
   for (const f of files) {
-    if (isBinary(f) || f.startsWith('docs/') || f.startsWith('Referencias/') || f.startsWith('Temporales/')) continue;
+    if (isBinary(f) || SCANNER_FIXTURE_FILES.has(f) || f.startsWith('docs/') || f.startsWith('Referencias/') || f.startsWith('Temporales/')) continue;
     let txt; try { txt = fs.readFileSync(path.join(root, f), 'utf8'); } catch { continue; }
     const source = !isTestish(f);
     // Los hosts/seeds de entorno solo importan en CÓDIGO ejecutable: los comentarios históricos no cuentan.
     const code = txt.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '').split('\n').map((l) => l.replace(/(^|[^:'"\\])\/\/.*$/, '$1').replace(/^\s*--.*$/, '')).join('\n');
     for (const r of FORBIDDEN) {
       if (r.scope === 'source' && !source) continue;
+      if (r.pathRe && !r.pathRe.test(f)) continue;
       const m = (r.scope === 'source' ? code : txt).match(r.re);
       if (m) findings.push({ id: r.id, file: f, sample: m[0].slice(0, 60) });
     }
@@ -170,8 +176,40 @@ export function clientChecks(root = REPO) {
   return results;
 }
 
+/* ---------- 5. Edge service-to-service (regresión 9A) ---------- */
+export function edgeServiceAuthChecks(root = REPO) {
+  const read = (f) => fs.readFileSync(path.join(root, 'supabase/functions', f, 'index.ts'), 'utf8');
+  const results = []; const add = (name, ok, detail = '') => results.push({ name, ok: !!ok, detail });
+  const admin = read('admin-resolve-identity-issue');
+  add('admin-resolve-identity-issue: verify_jwt=false esperado y exige internamente la service role EXACTA (403 si no coincide)', EXPECTED_VERIFY_JWT['admin-resolve-identity-issue'] === false && /token !== SUPABASE_SERVICE_ROLE_KEY[\s\S]{0,80}403|!token \|\| token !== SUPABASE_SERVICE_ROLE_KEY/.test(admin));
+  const cleanup = read('cleanup-abandoned-signups');
+  add('cleanup-abandoned-signups: verify_jwt=false y autentica con service role exacta O secreto de Vault verificado por RPC; 403 en otro caso', EXPECTED_VERIFY_JWT['cleanup-abandoned-signups'] === false && /token === SUPABASE_SERVICE_ROLE_KEY/.test(cleanup) && /verify_cleanup_cron_secret/.test(cleanup) && /code: 'forbidden' \}, 403/.test(cleanup));
+  const userFns = Object.entries(EXPECTED_VERIFY_JWT).filter(([, v]) => v === true).map(([k]) => k);
+  add('las 8 funciones orientadas a usuario: verify_jwt=true y validan el JWT con getUser (nunca confían en el body)', userFns.length === 8 && userFns.every((f) => /auth\.getUser\(/.test(read(f))), userFns.join(','));
+  return results;
+}
+
+/* ---------- 6. gates externos (NUNCA se marcan como PASS automático) ---------- */
+export const EXTERNAL_GATES = [
+  { id: 'G1', name: 'Comunicaciones / Auth-email', owner: 'proyecto Comunicaciones + Central', pending: 'SMTP, plantillas, OTP y Secure email change reales; signup/verificación/reenvío/recuperación con email real.', automaticEvidence: 'Contratos de cliente y backend cubiertos por tests y replay; el ENVÍO real de emails no es verificable acá.', closesWith: 'Smoke de alta y recuperación con un email real en Staging, con los textos finales de Comunicaciones.' },
+  { id: 'G2', name: 'Browser / OTP humano', owner: 'Work (browser) + Sebastián (OTP de cuenta descartable)', pending: 'QA visual corto de Legal/Acceso y E2E destructivo real de eliminación.', automaticEvidence: 'Eliminación completa ensayada con fallos/retry sobre base efímera; harness e2e-delete-my-account.mjs (prepare/negatives automáticos) listo.', closesWith: 'send-otp → delete --otp → verify → cleanup sobre una cuenta descartable de Staging.' },
+  { id: 'G3', name: 'Autorización de Production', owner: 'Sebastián', pending: 'Crear proyecto Supabase Production, replay real, variables Vercel, Edge Functions, cron, smoke y apertura; datos legales reales ([[PENDIENTE_PRODUCCION:*]]), AAIP/RNBDP.', automaticEvidence: 'release-check completo, build Production bloqueado por placeholders, replay limpio ×3 ACL, checklist en Runbook Parte B.', closesWith: 'Autorización explícita de Sebastián + datos reales; luego Runbook Parte B paso a paso.' },
+  { id: 'G4', name: 'Plan real de backups de Supabase', owner: 'Sebastián (decisión de plan/región) + Central (prueba)', pending: 'Elegir plan/región/retención/PITR y probar una restauración GESTIONADA (incluye auth.*, storage.*, Vault).', automaticEvidence: 'Backup lógico de public ensayado (checksums, restauración sobre esquema limpio, resurrección de eliminaciones y su procedimiento). NO es un backup gestionado de Supabase.', closesWith: 'Decisión de plan + restauración de un backup gestionado a un proyecto efímero + re-aplicación del libro de eliminaciones.' },
+];
+
+export function buildPreflight(sections) {
+  const auto = sections.map((s) => ({ section: s.name, total: s.items.length, failed: s.items.filter((i) => !i.ok).length }));
+  const failed = auto.reduce((n, a) => n + a.failed, 0);
+  return { automatic: { ok: failed === 0, failedChecks: failed, totalChecks: auto.reduce((n, a) => n + a.total, 0), bySection: auto }, externalGates: EXTERNAL_GATES.map((g) => ({ ...g, status: 'PENDIENTE EXTERNO' })),
+    verdict: failed === 0 ? `AUTOMÁTICO: PASS · ${EXTERNAL_GATES.length} gates externos PENDIENTES (no bloquean la ronda técnica; bloquean abrir Production)` : `AUTOMÁTICO: FAIL (${failed} chequeos)` };
+}
+
+export function preflightMarkdown(pf) {
+  return ['# Preflight operativo', '', `**${pf.verdict}**`, '', '## Automático', '', '| sección | chequeos | fallan |', '|---|---|---|', ...pf.automatic.bySection.map((a) => `| ${a.section} | ${a.total} | ${a.failed} |`), '', '## Gates externos (no automatizables)', '', ...pf.externalGates.flatMap((g) => [`### ${g.id} — ${g.name} — ${g.status}`, `- Responsable: ${g.owner}`, `- Pendiente: ${g.pending}`, `- Evidencia automática disponible: ${g.automaticEvidence}`, `- Se cierra con: ${g.closesWith}`, ''])].join('\n');
+}
+
 /* ---------- orquestación ---------- */
-export async function runAll({ replay = true, log = console.log } = {}) {
+export async function runAll({ replay = true, ops = true, log = console.log } = {}) {
   const sections = []; const add = (name, items) => { sections.push({ name, items }); };
   const mig = listMigrations();
   add('migraciones', [{ name: `${mig.length} archivos, formato AAAAMMDDHHMMSS_nombre.sql, versiones únicas`, ok: checkMigrationNames(mig).length === 0, detail: checkMigrationNames(mig).join('; ') }]);
@@ -184,6 +222,7 @@ export async function runAll({ replay = true, log = console.log } = {}) {
   ]);
   add('cliente', clientChecks());
   add('guardas de build', buildGuards());
+  add('regresión 9A: Edge service-to-service', edgeServiceAuthChecks());
   let manifest = { generatedBy: 'release-check.mjs', migrations: mig.map((f) => ({ file: f, sha256: sha(fs.readFileSync(path.join(MIGRATIONS_DIR, f))) })), edgeFunctions: ef.map((f) => ({ name: f.name, verifyJwt: f.verifyJwtExpected, bundleHash: f.bundleHash, files: f.files })), version: JSON.parse(fs.readFileSync(path.join(REPO, 'bramulab/version.json'), 'utf8')) };
   if (replay) {
     const { ACL_SCENARIOS } = await import('./replay-migrations.mjs');
@@ -197,16 +236,27 @@ export async function runAll({ replay = true, log = console.log } = {}) {
     }
     add('replay limpio', items);
   }
+  if (ops) {
+    const { runOpsRehearsal } = await import('./ops-rehearsal.mjs');
+    const r = await runOpsRehearsal();
+    for (const sec of r.sections) add(`ensayo operativo ${sec.id} — ${sec.name}`, sec.items);
+  }
+  const preflight = buildPreflight(sections);
+  manifest = { ...manifest, preflight };
   let ok = true;
   for (const s of sections) {
     log(`\n== ${s.name}`);
     for (const i of s.items) { log(`  ${i.ok ? '✔' : '✖'} ${i.name}${i.ok || !i.detail ? '' : `\n      ${i.detail}`}`); if (!i.ok) ok = false; }
   }
-  return { ok, sections, manifest };
+  log(`\n== PREFLIGHT\n  ${preflight.verdict}`);
+  preflight.externalGates.forEach((g) => log(`  · ${g.id} ${g.name}: ${g.status} (${g.owner})`));
+  return { ok, sections, manifest, preflight };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const r = await runAll({ replay: !process.argv.includes('--no-replay') });
+  const r = await runAll({ replay: !process.argv.includes('--no-replay'), ops: !process.argv.includes('--no-ops') });
+  const pi = process.argv.indexOf('--preflight-md');
+  if (pi > 0) fs.writeFileSync(process.argv[pi + 1], preflightMarkdown(r.preflight) + '\n');
   const mi = process.argv.indexOf('--manifest');
   if (mi > 0) fs.writeFileSync(process.argv[mi + 1], JSON.stringify(r.manifest, null, 2) + '\n');
   console.log(r.ok ? '\n[release-check] PASS' : '\n[release-check] FAIL');

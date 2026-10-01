@@ -7,7 +7,8 @@
     "test": "node --test admin-delete-player-account.test.mjs",
     "replay": "node replay-migrations.mjs",
     "clean-room": "node verify-clean-room.mjs",
-    "release-check": "node release-check.mjs"
+    "release-check": "node release-check.mjs",
+    "ops-rehearsal": "node ops-rehearsal.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2"

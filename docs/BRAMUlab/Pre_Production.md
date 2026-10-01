@@ -335,6 +335,8 @@ Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `B
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.
 
+**Bloque 9B (01/10/2026):** procedimientos de exportación/operación/recuperación y backup lógico ensayados en base efímera; preflight reproducible con gates externos G1–G4 (ver `87_Resultado_Bloque_9B_Rehearsal_Operativo_01OCT.md`). El backup gestionado de Supabase NO está probado y depende del plan real.
+
 ### Gate mínimo de Bloque 9
 
 - prueba integral de recorridos críticos entre al menos dos cuentas/dispositivos;
