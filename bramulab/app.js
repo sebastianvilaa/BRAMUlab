@@ -363,6 +363,8 @@
     ['analysis', 'history', 'manual-load', 'match-saved', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
       'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate', 'account-flow', 'account-deleted',
+      // G2 — Configuración y pantallas intermedias (sin bottom nav)
+      'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
@@ -7458,7 +7460,7 @@
         await Auth.refreshSession();
         const fresh = await Auth.fetchOwnProfile();
         if (fresh) { Store.cacheServerUser(fresh); syncCurrentIdentityFromStore(); }
-        openProfileScreen('mis-datos');
+        openSettings();
         showToast('Email actualizado');
         return;
       }
@@ -7487,28 +7489,100 @@
   }
 
   function initAccountFlow() {
-    $('#account-flow-back-btn').addEventListener('click', () => { showView('profile'); });
+    $('#account-flow-back-btn').addEventListener('click', () => { openSettings(); });
     ['#account-flow-code', '#account-flow-new-email', '#account-flow-email-code'].forEach((sel) => $(sel).addEventListener('input', recomputeAccountFlowValidity));
     $('#account-flow-resend-btn').addEventListener('click', sendAccountFlowCode);
     $('#account-flow-resend-new-btn').addEventListener('click', sendAccountFlowCode);
     $('#account-flow-primary-btn').addEventListener('click', onAccountFlowPrimary);
     $('#account-deleted-home-btn').addEventListener('click', () => openAccessFlow());
-    $('#profile-change-email-btn').addEventListener('click', () => openAccountFlow('email'));
-    $('#profile-delete-account-btn').addEventListener('click', () => openAccountFlow('delete'));
-    $('#profile-logout-all-btn').addEventListener('click', () => {
-      confirmAction('Cerrar todas las sesiones', 'Se cerrará tu sesión en todos tus dispositivos, incluido este. Vas a tener que volver a iniciar sesión.', async () => {
-        await Auth.signOutAll();
-        doLogout();
-      }, null, 'Cerrar todas', 'Cancelar', true);
-    });
-    // Acceso/copia: solicitud por el canal único V1 (sin exportación autoservicio). Solo arma el mail: nada se envía solo.
-    $('#profile-request-copy-btn').addEventListener('click', () => {
+    initSettings();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* G2 (Issue #22) — CONFIGURACIÓN + pantallas intermedias + legal in-app  */
+  /* Tocar una fila SOLO navega. Los emails (#3 cambio de email, #7        */
+  /* eliminación) y el cliente de correo (copia, contacto) se disparan     */
+  /* recién con el CTA de la pantalla intermedia.                          */
+  /* ------------------------------------------------------------------ */
+  let legalDocOrigin = 'settings';
+  const LEGAL_DOCS = { terminos: { title: 'TÉRMINOS Y CONDICIONES', path: 'terminos/' }, privacidad: { title: 'POLÍTICA DE PRIVACIDAD', path: 'privacidad/' } };
+
+  function settingsServerAccess() {
+    const user = Store.getCurrentUser();
+    return !!(user && user.serverBacked && user.email && Auth.isConfigured());
+  }
+
+  function openSettings() {
+    const user = Store.getCurrentUser();
+    if (!user) { showView('access'); return; }
+    const hasAccess = !!user.email;
+    $('#settings-email-value').textContent = user.email || '—';
+    $('#settings-email-row').hidden = !settingsServerAccess();
+    $('#settings-password-row').hidden = !hasAccess;
+    $('#settings-access-pending-note').hidden = hasAccess;
+    $('#settings-group-danger').hidden = !settingsServerAccess();
+    showView('settings');
+  }
+
+  function openLegalDoc(doc, origin) {
+    const d = LEGAL_DOCS[doc];
+    if (!d) return;
+    legalDocOrigin = origin || 'settings';
+    $('#legal-doc-title').textContent = d.title;
+    $('#legal-doc-frame').src = d.path;
+    showView('legal-doc');
+  }
+
+  function closeLegalDoc() {
+    $('#legal-doc-frame').src = 'about:blank';
+    if (legalDocOrigin === 'legal-gate') showView('legal-gate');
+    else if (legalDocOrigin === 'signup') showView('signup');
+    else openSettings();
+  }
+
+  function openSettingsEmail() {
+    const user = Store.getCurrentUser();
+    $('#settings-email-current').textContent = (user && user.email) || '—';
+    showView('settings-email');
+  }
+
+  /** Cierre de sesión: opciones sesión actual / todas / cancelar. Cuenta SIN email: se conserva el aviso fuerte previo. */
+  function openLogoutOptions() {
+    const user = Store.getCurrentUser();
+    if (user && !user.email) { $('#logout-warning-modal').hidden = false; return; }
+    $('#logout-all-confirm-btn').hidden = !settingsServerAccess();
+    $('#logout-all-confirm-btn').hidden = !settingsServerAccess();
+    $('#logout-confirm-modal').hidden = false;
+  }
+
+  function initSettings() {
+    $('#settings-back-btn').addEventListener('click', () => showView('profile'));
+    $('#settings-email-row').addEventListener('click', openSettingsEmail);
+    $('#settings-password-row').addEventListener('click', openChangePasswordScreen);
+    $('#settings-copy-row').addEventListener('click', () => showView('settings-copy'));
+    $('#settings-terms-row').addEventListener('click', () => openLegalDoc('terminos', 'settings'));
+    $('#settings-privacy-row').addEventListener('click', () => openLegalDoc('privacidad', 'settings'));
+    $('#settings-contact-row').addEventListener('click', () => showView('settings-contact'));
+    $('#settings-logout-row').addEventListener('click', openLogoutOptions);
+    $('#settings-delete-row').addEventListener('click', () => showView('settings-delete'));
+    ['email', 'delete', 'copy', 'contact'].forEach((k) => $(`#settings-${k}-back-btn`).addEventListener('click', openSettings));
+    $('#legal-doc-back-btn').addEventListener('click', closeLegalDoc);
+    // CTA de las pantallas intermedias: recién acá se inicia el flujo G1 / se abre el correo.
+    $('#settings-email-cta').addEventListener('click', () => openAccountFlow('email'));
+    $('#settings-delete-cta').addEventListener('click', () => openAccountFlow('delete'));
+    $('#settings-copy-cta').addEventListener('click', () => {
       const user = Store.getCurrentUser();
       const handle = user && user.username ? `@${user.username}` : '';
       const subject = encodeURIComponent('Solicitud de copia de mis datos — BRAMUlab');
       const body = encodeURIComponent(`Hola, solicito una copia de los datos personales que BRAMUlab tiene sobre mi cuenta ${handle}.\n\nEscribo desde el email registrado en mi cuenta.`);
       window.location.href = `mailto:bramulab@gmail.com?subject=${subject}&body=${body}`;
     });
+    $('#settings-contact-cta').addEventListener('click', () => { window.location.href = 'mailto:bramulab@gmail.com'; });
+    // Links a Términos/Política en aceptación legal y alta: abren dentro del shell y vuelven a la vista de origen.
+    $all('a[data-legal-doc]').forEach((a) => a.addEventListener('click', (e) => {
+      e.preventDefault();
+      openLegalDoc(a.dataset.legalDoc, a.dataset.legalOrigin);
+    }));
   }
 
   /** V03.0 (§3) — "Cerrar sesión": borra ÚNICAMENTE la sesión activa (Store.logoutSession —
@@ -7521,11 +7595,7 @@
    *  toque; ahora pasa por una confirmación simple (#logout-confirm-modal) — "dejar de ser
    *  accidental" sin la estética de advertencia fuerte del caso de arriba (ese es un riesgo
    *  real de quedar afuera; este es solo evitar un toque de más). */
-  function requestLogout() {
-    const user = Store.getCurrentUser();
-    if (user && !user.email) { $('#logout-warning-modal').hidden = false; return; }
-    $('#logout-confirm-modal').hidden = false;
-  }
+  function requestLogout() { openLogoutOptions(); }
   function doLogout() {
     // Backend Bloque 2 — best-effort: invalida la sesión real en Supabase (revoca el refresh
     // token) sin bloquear la salida local, que sigue siendo instantánea como siempre. Si falla
@@ -7645,6 +7715,8 @@
   function initLogoutConfirmModal() {
     $('#logout-confirm-cancel-btn').addEventListener('click', () => { $('#logout-confirm-modal').hidden = true; });
     $('#logout-confirm-btn').addEventListener('click', () => { $('#logout-confirm-modal').hidden = true; doLogout(); });
+    // G2 — "Cerrar todas las sesiones" (scope global) vive dentro de las opciones de cierre de sesión.
+    $('#logout-all-confirm-btn').addEventListener('click', async () => { $('#logout-confirm-modal').hidden = true; await Auth.signOutAll(); doLogout(); });
   }
 
   /** BRAMUlab_V03.6 (cierre final, §4) — único punto que escribe el "Nivel BRAMU" grande de
@@ -12438,15 +12510,9 @@
     $('#mi-perfil-side').textContent = (user && SIDE_LABELS[user.preferredSide]) || '—';
 
     // MIS DATOS — Acceso y seguridad.
-    $('#profile-data-email').textContent = (user && user.email) || '—';
+    // G2 — solo queda acá el aviso de acceso incompleto; el resto de Acceso y seguridad vive en Configuración.
     const accessPending = !user || !user.email;
     $('#profile-access-pending').hidden = !accessPending;
-    $('#profile-change-password-btn').hidden = accessPending;
-    // L3 (V04.20) — solo cuentas con backend real y email (la verificación por código lo exige).
-    const serverAccess = !!(user && user.serverBacked && user.email && Auth.isConfigured());
-    $('#profile-change-email-btn').hidden = !serverAccess;
-    $('#profile-logout-all-btn').hidden = !serverAccess;
-    $('#profile-delete-account-btn').hidden = !serverAccess;
 
     // V03.0.1 (§1) — aviso discreto "Completá tus datos": chequeo de presencia simple, sin
     // nueva lógica de negocio (nunca reemplaza al banner de acceso pendiente, que es sobre
@@ -13060,9 +13126,8 @@
       if (origin === 'ranking') { showView('ranking'); return; }
       openPlayerHome();
     });
-    $('#profile-logout-btn').addEventListener('click', requestLogout);
     $('#profile-complete-access-btn').addEventListener('click', openCompleteAccessModal);
-    $('#profile-change-password-btn').addEventListener('click', openChangePasswordScreen);
+    $('#profile-settings-btn').addEventListener('click', openSettings);
     $('#profile-edit-btn').addEventListener('click', openProfileEditModal);
     // BRAMUlab_V03.6 (corrección post-QA real, prioridad 5) — DATOS PERSONALES/DEPORTIVOS y
     // CONTACTO pasan a ser tarjetas tappables completas (mismo destino que el lápiz de

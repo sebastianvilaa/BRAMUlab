@@ -99,9 +99,5 @@
       "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
       "renderer": "renderEmail(id, { mode: \"custom\" })"
     }
-  ],
-  "hostedStaging": {
-    "logoBase": "https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab",
-    "note": "Staging mantiene Vercel protegido. Los 4 templates Auth hosted usan este asset público fijado a commit solo para el logo; Site URL/Auth redirects se gestionan aparte."
-  }
+  ]
 }

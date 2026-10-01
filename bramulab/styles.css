@@ -3803,3 +3803,57 @@ input, select{ font-family: inherit; }
 a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .account-flow-list{ margin: 10px 0 6px 18px; padding: 0; color: var(--paper-dim); font-size: 14px; line-height: 1.5; }
 .account-flow-list li{ margin: 4px 0; }
+
+/* ==========================================================================
+   G2 (Issue #22) — CONFIGURACIÓN, pantallas intermedias, legal in-app y reaceptación legal.
+   Reusa el shell .view--access + .analysis-header. Lista compacta: UNA superficie por grupo (sin card dentro de card),
+   filas de 46px con label/valor/chevron centrados verticalmente (flex + align-items:center) y divisores uniformes.
+   ========================================================================== */
+#view-settings, #view-settings-email, #view-settings-delete, #view-settings-copy, #view-settings-contact, #view-legal-doc{
+  height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden;
+}
+#view-settings .access-scroll, #view-settings-email .access-scroll, #view-settings-delete .access-scroll,
+#view-settings-copy .access-scroll, #view-settings-contact .access-scroll{
+  flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding: 16px 18px calc(28px + var(--safe-bottom));
+}
+.settings-group{ margin-bottom: 20px; }
+.settings-group__title{ font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--paper-faint); margin: 0 4px 8px; text-transform: uppercase; }
+.settings-list{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); overflow:hidden; }
+.settings-row{
+  display:flex; align-items:center; gap: 12px; width:100%; min-height: 46px; padding: 0 16px; box-sizing: border-box;
+  background:none; border:none; border-top: 0; color: var(--paper); font: inherit; font-size: 14px; font-weight: 600;
+  text-align:left; cursor:pointer;
+}
+/* divisor SOLO entre filas visibles (la primera visible no lleva borde superior) */
+.settings-row:not([hidden]) ~ .settings-row:not([hidden]){ border-top: 1px solid var(--line); }
+.settings-row__label{ flex: 1 1 auto; line-height: 1.2; }
+.settings-row__value{ flex: 0 1 55%; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; color: var(--paper-dim); font-weight: 500; font-size: 13px; }
+.settings-row__chevron{ flex:none; width: 12px; text-align:center; color: var(--paper-faint); font-size: 18px; line-height: 1; }
+.settings-row--danger .settings-row__label{ color: var(--danger, #ff5b61); }
+.settings-group--danger{ margin-top: 28px; }
+.settings-group--danger .settings-list{ border-color: rgba(255,91,97,0.35); }
+.settings-note{ padding: 12px 16px; font-size: 13px; color: var(--paper-dim); line-height: 1.4; }
+/* pantallas intermedias: contenido arriba con aire, CTA al pie (margin-top:auto) sin quedar pegado al texto */
+.settings-info{ gap: 0; }
+.settings-info__text{ margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--paper); }
+.settings-info__text--dim{ color: var(--paper-dim); font-size: 13px; }
+.settings-info .account-flow-list{ margin: 0 0 16px 18px; }
+.settings-info__cta{ margin-top: auto; padding-top: 24px; }
+.settings-info__cta .btn-start, .settings-info__cta .btn-secondary{ width:100%; }
+.settings-kv{ display:flex; flex-direction:column; gap: 4px; background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 14px 16px; margin-bottom: 18px; }
+.settings-kv__label{ font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--paper-faint); font-weight: 700; }
+.settings-kv__value{ font-size: 15px; font-weight: 700; color: var(--paper); word-break: break-all; }
+/* Términos / Política in-app: el documento ocupa todo el alto bajo el header; sin bottom nav (la vista no está en BOTTOM_NAV_VIEWS). */
+.legal-doc-frame{ flex:1 1 auto; min-height:0; width:100%; border:0; background: var(--bg, #050A12); padding-bottom: var(--safe-bottom); }
+.profile-access-pending-card{ border-color: rgba(255,201,61,0.35); background: rgba(255,201,61,0.08); }
+/* Reaceptación legal: antes todo pegado arriba con vacío abajo. Bloque centrado verticalmente con aire entre logo, texto,
+   decisión y CTA; ancho de lectura acotado. Solo layout/jerarquía (contenido y obligación intactos). */
+#view-legal-gate .access-scroll{ justify-content:center; gap: 26px; width:100%; max-width: 420px; margin: 0 auto; }
+#view-legal-gate .access-logo{ margin: 0 auto; }
+#view-legal-gate .access-subtitle{ margin: 0; font-size: 15px; line-height: 1.5; color: var(--paper); }
+#view-legal-gate .access-form{ gap: 22px; }
+#view-legal-gate .field--checkbox{ padding: 14px 16px; background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); }
+#view-legal-gate .field--checkbox a{ text-decoration: underline; text-underline-offset: 2px; font-weight: 700; }
+#view-legal-gate #legal-gate-accept-btn{ margin-top: 6px; }
+#view-legal-gate #legal-gate-logout-btn{ align-self:center; margin-top: 4px; }

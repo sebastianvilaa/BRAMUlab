@@ -2,6 +2,7 @@
 // con la configuración HOSTED de un proyecto, vía Management API. Pensado para la pasada de Work en STAGING.
 //
 //   node supabase/scripts/sync-auth-email-templates.mjs                 # DRY-RUN (default): imprime qué cambiaría; no usa red
+//   (G2) BRAMU_SITE_URL=https://<origen estable de Staging> agrega site_url + uri_allow_list al payload.
 //   SUPABASE_ACCESS_TOKEN=... SUPABASE_PROJECT_REF=... \
 //     node supabase/scripts/sync-auth-email-templates.mjs --check       # GET y compara con lo versionado (no escribe)
 //   SUPABASE_ACCESS_TOKEN=... SUPABASE_PROJECT_REF=... \
@@ -21,7 +22,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 void HERE;
 
 /** Payload exacto del PATCH /v1/projects/{ref}/config/auth. */
-export function buildAuthConfigPayload(dir = OUT_DIR) {
+export function buildAuthConfigPayload(dir = OUT_DIR, env = process.env) {
   const payload = {};
   for (const tpl of Object.values(EMAIL_TEMPLATES)) {
     if (!tpl.native) continue;
@@ -34,6 +35,14 @@ export function buildAuthConfigPayload(dir = OUT_DIR) {
   payload.mailer_secure_email_change_enabled = true; // defensa del proyecto ante updateUser({email}) directo
   payload.mailer_otp_exp = 3600;
   payload.mailer_otp_length = 6;
+  // G2 — Site URL / redirects de Auth: SOLO si se pasa el origen estable de Staging por BRAMU_SITE_URL (https, sin barra final,
+  // jamás un host de repo/CDN). Hoy ningún flujo usa links (todo es OTP), pero Site URL no puede quedar en localhost.
+  if (env.BRAMU_SITE_URL) {
+    const origin = String(env.BRAMU_SITE_URL).replace(/\/+$/, '');
+    if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin) || /raw\.githubusercontent|github\.io|localhost/i.test(origin)) throw new Error('BRAMU_SITE_URL inválida: debe ser el origen https estable de Staging');
+    payload.site_url = origin;
+    payload.uri_allow_list = `${origin},${origin}/**`;
+  }
   return payload;
 }
 

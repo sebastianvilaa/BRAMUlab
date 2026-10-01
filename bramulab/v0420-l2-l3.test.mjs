@@ -270,10 +270,10 @@ test('Legal: los datos desconocidos usan SOLO el formato guardado [[PENDIENTE_PR
 });
 
 test('Legal: enlaces desde alta, gate de reaceptación, Acceso y seguridad y flujo de eliminación (sin login)', () => {
-  assert.equal((indexHtml.match(/href="terminos\/"/g) || []).length >= 3, true, 'alta + gate + Legal y privacidad');
-  assert.equal((indexHtml.match(/href="privacidad\/"/g) || []).length >= 3, true);
-  assert.match(indexHtml, /id="profile-legal-card"/);
-  assert.match(indexHtml, /id="profile-request-copy-btn"/);
+  assert.equal((indexHtml.match(/href="terminos\/"/g) || []).length >= 2, true, 'alta + gate (G2: en Configuración se abre in-app)');
+  assert.equal((indexHtml.match(/href="privacidad\/"/g) || []).length >= 2, true);
+  assert.match(indexHtml, /id="settings-terms-row"/);
+  assert.match(indexHtml, /id="settings-copy-row"/);
   assert.match(indexHtml, /href="eliminar-cuenta\/"/);
   const gate = between(indexHtml, 'id="view-legal-gate"', '</section>');
   assert.match(gate, /href="terminos\/"/); assert.match(gate, /href="privacidad\/"/);
@@ -294,17 +294,15 @@ test('Sesiones: eventos sensibles (cambio de contraseña, recuperación, cambio 
   const forgot = between(appJs, "$('#forgot-password-new-error').textContent = 'No pudimos actualizar la contraseña. Probá de nuevo.';", 'else await resumeServerSession({ afterLogin: true });');
   assert.match(forgot, /Auth\.signOutOthers\(\)/);
   assert.match(between(appJs, "if (accountFlow.step === 'email-code') {", "if (accountFlow.step === 'confirm-delete')"), /Auth\.signOutOthers\(\)/);
-  assert.match(between(appJs, "$('#profile-logout-all-btn').addEventListener", '// Acceso/copia'), /Auth\.signOutAll\(\)/);
+  assert.match(between(appJs, "$('#logout-all-confirm-btn').addEventListener", '\n'), /Auth\.signOutAll\(\)/);
 });
 
-test('Acceso y seguridad: filas nuevas solo para cuentas con backend real y email; sin listado de dispositivos', () => {
-  const i0 = appJs.indexOf('    const serverAccess = !!(user && user.serverBacked && user.email && Auth.isConfigured());');
-  assert.ok(i0 > 0);
-  const r = appJs.slice(i0, i0 + 600);
-  assert.match(r, /profile-change-email-btn'\)\.hidden = !serverAccess/);
-  assert.match(r, /profile-logout-all-btn'\)\.hidden = !serverAccess/);
-  assert.match(r, /profile-delete-account-btn'\)\.hidden = !serverAccess/);
-  ['profile-change-email-btn', 'profile-logout-all-btn', 'profile-delete-account-btn'].forEach((id) => assert.match(indexHtml, new RegExp(`id="${id}"[^>]*hidden`)));
+test('Configuración: filas sensibles solo para cuentas con backend real y email; sin listado de dispositivos', () => {
+  const i0 = appJs.indexOf('  function openSettings() {');
+  const r = appJs.slice(i0, i0 + 900);
+  assert.match(r, /settings-email-row'\)\.hidden = !settingsServerAccess\(\)/);
+  assert.match(r, /settings-group-danger'\)\.hidden = !settingsServerAccess\(\)/);
+  assert.match(appJs, /user\.serverBacked && user\.email && Auth\.isConfigured\(\)/);
   assert.ok(!/dispositivos activos|lista de sesiones|IP de|ubicaci[oó]n de inicio/i.test(indexHtml), 'sin listado avanzado de dispositivos');
 });
 
@@ -329,7 +327,7 @@ function runAccountFlow({ step, mode = 'email', values = {}, auth = {}, user = {
     accountFlowShowError: (m) => log.push(['error', m]), renderAccountFlowStep: () => log.push(['render', sb.accountFlow.step]),
     recomputeAccountFlowValidity: () => true, sendAccountFlowCode: () => log.push(['sendCode']),
     syncCurrentIdentityFromStore: () => {}, openProfileScreen: (t) => log.push(['profile', t]), showToast: (m) => log.push(['toast', m]), showView: (v) => log.push(['view', v]),
-    finishAccountDeletion: (id) => log.push(['finish', id]), console,
+    finishAccountDeletion: (id) => log.push(['finish', id]), openSettings: () => log.push(['profile', 'settings']), console,
   };
   vm.createContext(sb);
   vm.runInContext(src + '\nglobalThis.__go = onAccountFlowPrimary;', sb);
@@ -524,9 +522,9 @@ test('Regresión: login/signup/recovery/onboarding conservan sus contratos (acep
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
 });
 
-test('Versión: V04.20 / 04.20-h4 coherentes', () => {
+test('Versión: V04.20 / 04.20-h5 coherentes', () => {
   assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.20'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h4'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h4' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h4'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h5'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h5' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h5'/);
 });

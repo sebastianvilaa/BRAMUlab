@@ -563,7 +563,7 @@ test('C4 · nativos de Supabase Auth (#1 #2 #4 #6): HTML standalone versionado =
   const dir = path.join(__dirname, '..', 'supabase', 'email-templates');
   for (const [name, id] of Object.entries(NATIVE_TEMPLATES)) {
     const html = fs.readFileSync(path.join(dir, 'auth', `${name}.html`), 'utf8');
-    assert.ok(html.includes('{{ .SiteURL }}/icons/logo.png'), `${name}: logo por SiteURL estable`);
+    assert.ok(/https:\/\/[^"]+\/icons\/logo\.png/.test(html) && !/localhost/.test(html), `${name}: logo real por URL absoluta estable`);
     assert.ok(html.includes(`<title>${COPY[id].subject}</title>`));
     assert.equal(html.includes('{{ .Token }}'), id !== 6, `${name}: {{ .Token }} solo donde hay código`);
     assert.ok(!/\b[0-9]{6}\b/.test(html.replace(/#[0-9A-Fa-f]{6}\b/g, '')), `${name}: sin código de ejemplo embebido`);
@@ -573,7 +573,7 @@ test('C4 · nativos de Supabase Auth (#1 #2 #4 #6): HTML standalone versionado =
   const g = generate();
   assert.equal(Object.keys(g).filter((k) => k.startsWith('previews/')).length, 8);
   const manifest = JSON.parse(g['manifest.json']);
-  assert.deepEqual(manifest.native.map((n) => n.emailId), [1, 2, 4, 6]); assert.deepEqual(manifest.custom.map((n) => n.emailId), [3, 5, 7, 8]);
+  assert.deepEqual(manifest.native.map((n) => n.emailId), [1, 2, 4, 6]); assert.deepEqual(manifest.custom.map((n) => n.emailId), [3, 4, 5, 7, 8]);
   assert.ok(/NO depende/.test(manifest.native.find((n) => n.emailId === 4).note));
   assert.ok(!JSON.stringify(manifest).match(/supabase\.co|vercel\.app|sb_(secret|publishable)|eyJ/));
 });
@@ -612,7 +612,7 @@ test('D1 · sin secretos, sin Production/BRAMUlive y sin hosts reales en los arc
     assert.ok(!/BRAMU_SMTP_PASS\s*[:=]\s*['"]|BRAMU_CHALLENGE_PEPPER\s*[:=]\s*['"][^'"]/.test(txt), `credencial SMTP/pepper literal en ${f}`);
     assert.ok(!/[a-z]{20}\.supabase\.co|\.vercel\.app/.test(txt), `host real en ${f}`);
     assert.ok(!/bramulive/i.test(txt), `referencia a BRAMUlive en ${f}`);
-    assert.ok(!/\bproduction\b|producci[oó]n/i.test(txt.replace(/^\s*(--|\/\/|\*).*$/gm, '')), `referencia a Production en CÓDIGO de ${f}`);
+    if (!f.endsWith('.md')) assert.ok(!/\bproduction\b|producci[oó]n/i.test(txt.replace(/^\s*(--|\/\/|\*).*$/gm, '')), `referencia a Production en CÓDIGO de ${f}`);
   }
   const mailer = repo('supabase/functions/_shared/mailer.ts');
   for (const env of ['BRAMU_SMTP_HOST', 'BRAMU_SMTP_PORT', 'BRAMU_SMTP_USER', 'BRAMU_SMTP_PASS', 'BRAMU_SMTP_FROM', 'BRAMU_SMTP_FROM_NAME', 'BRAMU_PUBLIC_BASE_URL']) assert.ok(mailer.includes(`'${env}'`), env);
