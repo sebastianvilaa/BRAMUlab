@@ -1,16 +1,16 @@
 // BRAMUlab — V04.20 (L3): núcleo PURO de la eliminación AUTOSERVICIO (Edge Function `delete-my-account`).
 //
-// Reglas (Privacidad_Legal.md §3, Issue #16 §D):
+// Reglas (Privacidad_Legal.md §3, Issue #16 §D; G1 / handoff 89 §5.4):
 //   * la identidad sale SOLO del JWT de sesión (nunca del body: cualquier campo distinto de `confirm` => rechazo);
-//   * REAUTENTICACIÓN RECIENTE: el JWT debe provenir de un OTP/recovery de email verificado hace <= 10 minutos
-//     (claim `amr`), no de un login por contraseña ni de una sesión vieja;
+//   * PRUEBA ESPECÍFICA `delete_account` (G1): el usuario verificó, hace <= 10 minutos, el OTP del email #7 emitido para ESA acción
+//     (RPC `account_delete_proof_check`). Una reautenticación genérica (OTP de signup/recovery/magiclink/email_change, claim `amr`)
+//     YA NO alcanza: un recovery pedido para otra cosa no puede disparar la eliminación;
 //   * el player se resuelve server-side (resolve_player_for_account_deletion) — soporta el RETRY tras un fallo parcial;
 //   * la eliminación la hace el MOTOR P0.3 existente (runAccountDeletion), nunca un segundo motor;
 //   * la respuesta no contiene PII ni ids: solo estado y postcondiciones booleanas.
 
-export const REAUTH_MAX_AGE_SECONDS = 10 * 60;
-// Métodos de Supabase Auth que prueban CONTROL DEL EMAIL en ese instante (no "password").
-const EMAIL_PROOF_METHODS = new Set(['otp', 'recovery', 'magiclink', 'email_change']);
+// Antigüedad máxima de la prueba `delete_account` verificada (el reintento tras un fallo parcial la reutiliza mientras siga reciente).
+export const DELETE_PROOF_MAX_AGE_SECONDS = 10 * 60;
 
 export function decodeJwtPayload(jwt) {
   try {
@@ -23,14 +23,6 @@ export function decodeJwtPayload(jwt) {
   } catch (_e) {
     return null;
   }
-}
-
-/** true si el token trae una prueba de control del email (otp/recovery/...) con timestamp dentro de la ventana. */
-export function isRecentEmailReauth(payload, nowMs, maxAgeSeconds = REAUTH_MAX_AGE_SECONDS) {
-  if (!payload || !Array.isArray(payload.amr)) return false;
-  const nowSec = Math.floor(nowMs / 1000);
-  return payload.amr.some((a) => a && EMAIL_PROOF_METHODS.has(String(a.method)) && Number.isFinite(Number(a.timestamp))
-    && nowSec - Number(a.timestamp) >= -60 && nowSec - Number(a.timestamp) <= maxAgeSeconds);
 }
 
 /** El body solo puede ser `{}` o `{ confirm: true }` — cualquier otra clave (player_id, email, userId...) se rechaza. */
@@ -46,15 +38,15 @@ export function validateSelfDeleteBody(body) {
  * @param {object} deps
  * @param {string} deps.jwt                                   access token del caller (sin "Bearer")
  * @param {unknown} deps.body                                 body JSON parseado
- * @param {()=>number} [deps.now]
- * @param {(jwt:string)=>Promise<{id:string}|null>} deps.getUser     Auth getUser(jwt)
+ * @param {(jwt:string)=>Promise<{id:string,email?:string|null}|null>} deps.getUser     Auth getUser(jwt) — el email de destino del #8 se captura ACÁ, antes de borrar Auth
+ * @param {(authUserId:string)=>Promise<{ok:boolean,challengeId?:string}>} deps.checkDeleteProof   prueba `delete_account` verificada y reciente
+ * @param {(m:{authUserId:string,challengeId:string,email:string})=>Promise<'sent'|'failed'|'duplicate'|'skipped'>} [deps.finishReceipt]   claim + envío del #8 + purga (SOLO tras postcondiciones OK)
  * @param {(authUserId:string)=>Promise<{ok:boolean,playerId?:string,code?:string}>} deps.resolvePlayer
  * @param {(playerId:string)=>Promise<object>} deps.runDeletion        runAccountDeletion(admin, playerId)
  * @param {(playerId:string, authUserId:string|null)=>Promise<object>} deps.verifyDeletion  verifyAccountDeleted(...)
  * @returns {Promise<{status:number, body:object}>}
  */
 export async function handleSelfDeletion(deps) {
-  const now = deps.now || (() => Date.now());
   const v = validateSelfDeleteBody(deps.body);
   if (!v.ok) return { status: 400, body: { ok: false, code: v.code } };
 
@@ -62,9 +54,12 @@ export async function handleSelfDeletion(deps) {
   const user = await deps.getUser(deps.jwt);
   if (!user || !user.id) return { status: 401, body: { ok: false, code: 'invalid_session' } };
 
-  if (!isRecentEmailReauth(decodeJwtPayload(deps.jwt), now())) {
-    return { status: 403, body: { ok: false, code: 'recent_reauth_required' } };
+  const proof = await deps.checkDeleteProof(user.id);
+  if (!proof || proof.ok !== true || !proof.challengeId) {
+    return { status: 403, body: { ok: false, code: 'delete_challenge_required' } };
   }
+  // Email de destino del comprobante: se captura AHORA (después de borrar Auth ya no existe). Nunca viaja en la respuesta.
+  const receiptEmail = typeof user.email === 'string' ? user.email.trim().toLowerCase() : '';
 
   const resolved = await deps.resolvePlayer(user.id);
   if (!resolved || !resolved.ok || !resolved.playerId) {
@@ -80,7 +75,12 @@ export async function handleSelfDeletion(deps) {
   if (!post || !post.ok) {
     return { status: 500, body: { ok: false, code: 'postcondition_failed', retryable: true, postconditions: pickPost(post) } };
   }
-  return { status: 200, body: { ok: true, postconditions: pickPost(post) } };
+  // Email #8 SOLO ahora: eliminación + postcondiciones reales OK. Un fallo del envío NUNCA revierte ni falla la eliminación.
+  let receipt = 'skipped';
+  if (deps.finishReceipt) {
+    try { receipt = await deps.finishReceipt({ authUserId: user.id, challengeId: proof.challengeId, email: receiptEmail }); } catch (_e) { receipt = 'failed'; }
+  }
+  return { status: 200, body: { ok: true, postconditions: pickPost(post), receipt } };
 }
 
 function pickPost(post) {

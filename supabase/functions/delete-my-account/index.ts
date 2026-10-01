@@ -7,14 +7,18 @@
 // Contrato:
 //   POST  Authorization: Bearer <JWT de la sesión del usuario>   body: { "confirm": true }
 //   * el player se resuelve server-side desde el JWT; el body NUNCA elige player_id/email (otro campo => 400);
-//   * exige reautenticación RECIENTE por OTP/recovery de email (claim amr, <= 10 min) => 403 recent_reauth_required;
+//   * exige la prueba ESPECÍFICA `delete_account` (OTP del email #7 verificado hace <= 10 min, ver `account-challenge`)
+//     => 403 delete_challenge_required; una reautenticación genérica (recovery/otp/...) ya NO alcanza (G1, handoff 89 §5.4);
+//   * Email #8 (comprobante) SOLO tras las postcondiciones reales de la eliminación, con claim idempotente; un fallo del envío no revierte;
 //   * idempotente/reintentable: tras un fallo parcial el mismo JWT puede reintentar (se resuelve por la auditoría);
-//   * la respuesta solo trae estado y postcondiciones booleanas (sin PII).
+//   * la respuesta solo trae estado, postcondiciones booleanas y el estado del comprobante (sin PII).
 // Se despliega con verify_jwt=true (JWT de usuario válido requerido por el gateway); la función además lo valida.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { runAccountDeletion, verifyAccountDeleted } from '../_shared/account-deletion-core.mjs';
 import { handleSelfDeletion } from '../_shared/self-delete-core.mjs';
+import { finishDeletionReceipt } from '../_shared/account-challenge-core.mjs';
+import { sendBramuEmail } from '../_shared/mailer.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -45,8 +49,17 @@ Deno.serve(async (req) => {
       body,
       getUser: async (token: string) => {
         const { data, error } = await admin.auth.getUser(token);
-        return error || !data?.user ? null : { id: data.user.id };
+        return error || !data?.user ? null : { id: data.user.id, email: data.user.email ?? null };
       },
+      checkDeleteProof: async (authUserId: string) => {
+        const { data, error } = await admin.rpc('account_delete_proof_check', { p_auth_user_id: authUserId, p_max_age_seconds: 600 });
+        return error ? { ok: false } : data;
+      },
+      finishReceipt: ({ authUserId, challengeId, email }: { authUserId: string; challengeId: string; email: string }) =>
+        finishDeletionReceipt(
+          { rpc: (n: string, a: Record<string, unknown>) => admin.rpc(n, a), sendMail: sendBramuEmail, log: (c: string) => console.error(`[delete-my-account] ${c}`) },
+          { authUserId, challengeId, email },
+        ),
       resolvePlayer: async (authUserId: string) => {
         const { data, error } = await admin.rpc('resolve_player_for_account_deletion', { p_auth_user_id: authUserId });
         return error ? { ok: false } : data;

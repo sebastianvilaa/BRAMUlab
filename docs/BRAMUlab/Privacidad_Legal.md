@@ -356,3 +356,7 @@ El cron respondió **200** con secreto correcto y **403** con secreto inválido.
 
 Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo a Bloque 9** que no dependa de emails ni de Production. No cerrar P0.2 hasta completar esos tres gates.
 
+
+### G1 — Emails/Auth V1 (01/10/2026)
+- La eliminación de cuenta exige un desafío específico `delete_account` (OTP del email #7, 60 min, un uso, ≤ 10 min de antigüedad al eliminar); una reautenticación genérica ya no alcanza. El comprobante #8 se envía únicamente después de las postcondiciones reales de P0.3 y no ofrece recuperación ni soporte.
+- Datos temporales de los desafíos (`account_challenges`): solo hash HMAC del OTP; los emails (`target`/`previous`) se limpian al terminar el cambio, se podan a los 2 días y toda fila del usuario eliminado se purga con la eliminación. Sin acceso de cliente (RLS sin políticas, RPC `service_role`). Ver `Implementacion/Pre_Production/90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md`.

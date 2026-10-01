@@ -242,6 +242,13 @@
   const signOutOthers = () => signOut('others');
   const signOutAll = () => signOut('global');
 
+  /** G1 — tras un cambio de email hecho en el servidor, el JWT de ESTA sesión todavía trae el email viejo: se refresca (best-effort). */
+  async function refreshSession() {
+    const c = getClient();
+    if (!c || !c.auth || typeof c.auth.refreshSession !== 'function') return { ok: true };
+    try { const { error } = await c.auth.refreshSession(); return { ok: !error }; } catch (e) { return { ok: false }; }
+  }
+
   async function getSession() {
     const c = getClient();
     if (!c) return null;
@@ -278,33 +285,42 @@
     return { ok: true };
   }
 
-  /** L3 (V04.20) — cambio de email AUTOSERVICIO. Requiere una sesión recién verificada por OTP del email
-   *  ACTUAL (verifyRecoveryOtp). `updateUser({email})` hace que Supabase envíe la confirmación al email NUEVO
-   *  (y, con "Secure email change" activo en el proyecto, también al actual como aviso). El email NO cambia
-   *  hasta verificar el código con `verifyEmailChange`. */
-  async function requestEmailChange(newEmail) {
+  /** G1 (Emails V1) — desafíos sensibles SERVER-SIDE (Edge Function `account-challenge`, JWT de la sesión activa). El body NUNCA
+   *  lleva el email actual ni ids: el destino lo deriva el servidor desde Auth. Devuelve { ok:true, ...estado } o
+   *  { ok:false, reason, retryAfterSeconds?, retryable?, status }. `reason` usa los mismos códigos que el resto del cliente
+   *  (code_invalid, code_expired, rate_limited, email_taken, same_email, invalid_email, ...). */
+  async function invokeAccountChallenge(payload) {
     const c = getClient();
     if (!c) return { ok: false, reason: 'not_configured' };
-    const { error } = await c.auth.updateUser({ email: newEmail });
-    if (error) {
-      const msg = String(error.message || '').toLowerCase();
-      if (msg.includes('already') && (msg.includes('registered') || msg.includes('exists') || msg.includes('been'))) return { ok: false, reason: 'email_taken' };
-      return { ok: false, reason: mapAuthError(error), raw: error.message };
+    const { data, error } = await c.functions.invoke('account-challenge', { body: payload });
+    let out = data;
+    if (error && !out && error.context && typeof error.context.json === 'function') {
+      try { out = await error.context.json(); } catch (e) { out = null; }
     }
-    return { ok: true };
+    if (out && out.ok === true) return Object.assign({}, out);
+    const status = error && error.context && error.context.status;
+    const code = (out && out.code) || 'unknown';
+    // too_many_attempts / resend_too_soon / send_failed ... se pasan tal cual; la UI decide el texto.
+    return { ok: false, reason: code === 'invalid_payload' ? 'unknown' : code, retryAfterSeconds: (out && out.retryAfterSeconds) || null, retryable: !!(out && out.retryable), status: status || null };
   }
-
-  async function verifyEmailChange(newEmail, token) {
-    const c = getClient();
-    if (!c) return { ok: false, reason: 'not_configured' };
-    const { error } = await c.auth.verifyOtp({ email: newEmail, token, type: 'email_change' });
-    if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
-    return { ok: true };
+  /** purpose: 'change_email_current' | 'delete_account' | 'change_email_new' (este último con { newEmail }). */
+  function requestAccountChallenge(purpose, opts) {
+    const body = { action: 'request', purpose };
+    if (purpose === 'change_email_new') body.newEmail = opts && opts.newEmail;
+    return invokeAccountChallenge(body);
+  }
+  /** Verifica el código. Para 'change_email_new' el servidor, tras las DOS verificaciones, cambia el email y cierra las demás sesiones. */
+  function verifyAccountChallenge(purpose, code) {
+    return invokeAccountChallenge({ action: 'verify', purpose, code });
+  }
+  /** Reintento idempotente de un cambio de email que quedó a medias en el servidor. */
+  function completeEmailChange() {
+    return invokeAccountChallenge({ action: 'complete_email_change' });
   }
 
   /** L3 (V04.20) — eliminación de cuenta AUTOSERVICIO: invoca la Edge Function `delete-my-account`
    *  (JWT de la sesión ACTIVA; el body NUNCA lleva player_id/email). Requiere haber verificado un OTP del
-   *  email hace pocos minutos (verifyRecoveryOtp). `retryable` indica que el reintento es seguro. */
+   *  prueba específica `delete_account` (requestAccountChallenge + verifyAccountChallenge, G1). `retryable` indica que el reintento es seguro. */
   async function deleteMyAccount() {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
@@ -986,7 +1002,7 @@
     getCurrentLegalVersion, getMyLegalStatus, acceptLegalVersion,
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, signOutCurrent, signOutOthers, signOutAll, getSession,
-    requestEmailChange, verifyEmailChange, deleteMyAccount,
+    refreshSession, requestAccountChallenge, verifyAccountChallenge, completeEmailChange, deleteMyAccount,
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,

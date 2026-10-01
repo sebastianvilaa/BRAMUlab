@@ -867,6 +867,7 @@ Reglas:
 - Método inicial: email + contraseña.
 - Email verificado obligatorio para acciones oficiales.
 - Recuperación mediante OTP de seis dígitos, vigencia de 60 minutos, límite de intentos y respuestas que no permitan enumerar cuentas.
+- **G1 (01/10/2026):** signup, recuperación y aviso de contraseña cambiada siguen siendo emails **nativos** de Supabase Auth; cambio de email (2 verificaciones, #3/#4/#5) y eliminación (#7/#8) usan desafíos **server-side** por propósito (`account_challenges`, Edge `account-challenge`) con el mismo SMTP vía secrets `BRAMU_*`. Ver `Implementacion/Pre_Production/90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md`.
 - Las URLs de callback se permiten únicamente para los dominios correctos de Staging y Producción.
 - El remitente y proveedor SMTP deben verificarse antes de invitar al primer jugador.
 - Se prueban: alta, reenvío, expiración, recuperación, cambio de contraseña, cierre de sesiones y acceso desde segundo dispositivo.

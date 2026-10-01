@@ -73,6 +73,18 @@ export async function checkCleanState(db) {
   const svc = await q(`select has_function_privilege('service_role','public.admin_delete_player_account(uuid)','EXECUTE') a, has_function_privilege('service_role','public.ops_health_snapshot()','EXECUTE') b, has_function_privilege('service_role','public.consume_auth_rate_limit(uuid,text,integer,integer)','EXECUTE') c`);
   add('service_role conserva sus RPC administrativas', svc[0].a && svc[0].b && svc[0].c);
 
+  // --- G1 (Emails V1): desafíos sensibles server-only, en CUALQUIER escenario de ACL por defecto ---
+  const ac = (await q(`select c.relrowsecurity rls,
+      (select count(*)::int from pg_policies where schemaname='public' and tablename='account_challenges') pol,
+      has_table_privilege('anon', c.oid, 'SELECT') or has_table_privilege('authenticated', c.oid, 'SELECT') or has_table_privilege('anon', c.oid, 'INSERT') or has_table_privilege('authenticated', c.oid, 'INSERT')
+        or has_table_privilege('authenticated', c.oid, 'UPDATE') or has_table_privilege('authenticated', c.oid, 'DELETE') or has_table_privilege('anon', c.oid, 'MAINTAIN') or has_table_privilege('authenticated', c.oid, 'MAINTAIN') clientAccess
+    from pg_class c where c.oid = 'public.account_challenges'::regclass`))[0];
+  add('G1: account_challenges server-only (RLS sin políticas y cero privilegios para anon/authenticated)', ac.rls === true && ac.pol === 0 && ac.clientaccess === false, JSON.stringify(ac));
+  const g1Fns = fn.filter((f) => /^account_(challenge|challenges|email_change|delete_proof|receipt)/.test(f.proname));
+  add('G1: las 10 RPC de desafíos son SECURITY DEFINER y SOLO service_role (ni anon, ni authenticated, ni PUBLIC)', g1Fns.length === 10 && g1Fns.every((f) => f.prosecdef && !f.a && !f.u && !f.pub), g1Fns.map((f) => `${f.proname}:${f.a}/${f.u}/${f.pub}`).join(','));
+  const g1Svc = await q(`select bool_and(has_function_privilege('service_role', p.oid, 'EXECUTE')) ok from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname ~ '^account_(challenge|challenges|email_change|delete_proof|receipt)'`);
+  add('G1: service_role ejecuta las RPC de desafíos', g1Svc[0].ok === true);
+
   // --- triggers de Auth ---
   const trg = await q(`select tgname from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal order by 1`);
   add('triggers de alta presentes en auth.users', trg.length >= 2, trg.map((t) => t.tgname).join(','));

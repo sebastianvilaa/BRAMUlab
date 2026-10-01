@@ -2,7 +2,7 @@
 //
 // Todo lo que NO necesita a una persona se ejecuta solo (prepare / negatives / verify / cleanup). El ÚNICO paso
 // humano es el OTP: `send-otp` dispara el código al email de la cuenta descartable A y `delete --otp <código>` lo
-// consume (verifyOtp recovery => JWT con amr reciente => delete-my-account).
+// consume (G1: `account-challenge` verify delete_account => prueba específica => delete-my-account; el recibo #8 llega al inbox de A).
 //
 //   node e2e-delete-my-account.mjs prepare --email-a <inbox del gate humano>   # crea A (sujeto) y B (contraparte)
 //   node e2e-delete-my-account.mjs negatives                                    # 401/400/403 automáticos, sin OTP
@@ -96,12 +96,12 @@ export async function cmdNegatives({ makeAnon, env }) {
   // 1) sin Authorization
   const noAuth = await callDeleteFunction(env, null, { confirm: true });
   r.check('sin JWT => rechazado (401/403)', noAuth.status === 401 || noAuth.status === 403, noAuth.status);
-  // 2) sesión por CONTRASEÑA (amr=password) => no cuenta como reautenticación reciente
+  // 2) sesión por CONTRASEÑA sin desafío delete_account verificado => no alcanza (G1: tampoco alcanza un recovery genérico)
   const clientA = makeAnon();
   const { data: s } = await clientA.auth.signInWithPassword({ email: st.a.email, password: st.a.password });
   const token = s.session.access_token;
   const pwd = await callDeleteFunction(env, token, { confirm: true });
-  r.check('login por contraseña => 403 recent_reauth_required', pwd.status === 403 && pwd.json && pwd.json.code === 'recent_reauth_required', `${pwd.status} ${pwd.json && pwd.json.code}`);
+  r.check('sin prueba delete_account => 403 delete_challenge_required', pwd.status === 403 && pwd.json && pwd.json.code === 'delete_challenge_required', `${pwd.status} ${pwd.json && pwd.json.code}`);
   // 3) el body NUNCA elige player/email
   const tamper1 = await callDeleteFunction(env, token, { confirm: true, player_id: st.b.playerId });
   const tamper2 = await callDeleteFunction(env, token, { confirm: true, email: st.b.email });
@@ -112,10 +112,20 @@ export async function cmdNegatives({ makeAnon, env }) {
   return { ok: r.ok, checks: r.checks };
 }
 
-export async function cmdSendOtp({ makeAnon }) {
+async function callAccountChallenge(env, token, body) {
+  const res = await fetch(`${env.url}/functions/v1/account-challenge`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: env.anonKey, Authorization: `Bearer ${token}` }, body: JSON.stringify(body),
+  });
+  let json = null; try { json = await res.json(); } catch { json = null; }
+  return { status: res.status, json };
+}
+
+export async function cmdSendOtp({ makeAnon, env }) {
   const st = loadState(); if (!st) throw new Error('Sin estado: corré prepare.');
-  const { error } = await makeAnon().auth.resetPasswordForEmail(st.a.email);
-  return { ok: !error, detail: error ? error.message : 'Código enviado al email de la cuenta descartable A' };
+  const { data, error } = await makeAnon().auth.signInWithPassword({ email: st.a.email, password: st.a.password });
+  if (error) return { ok: false, detail: `signIn falló: ${error.message}` };
+  const r = await callAccountChallenge(env, data.session.access_token, { action: 'request', purpose: 'delete_account' });
+  return { ok: r.status === 200 && r.json && r.json.ok === true, detail: r.status === 200 ? 'Código #7 (delete_account) enviado al email de la cuenta descartable A' : `account-challenge ${r.status} ${r.json && r.json.code}` };
 }
 
 export async function verifyDeletedState({ admin, makeAnon, st }) {
@@ -162,12 +172,15 @@ export async function cmdDelete({ admin, makeAnon, env, otp }) {
   const st = loadState(); if (!st) throw new Error('Sin estado: corré prepare.');
   if (!/^[0-9]{6}$/.test(String(otp || ''))) throw new Error('Falta --otp (6 dígitos).');
   const clientA = makeAnon();
-  const v = await clientA.auth.verifyOtp({ email: st.a.email, token: String(otp), type: 'recovery' });
-  if (v.error) return { ok: false, detail: `verifyOtp falló: ${v.error.message}` };
+  const v = await clientA.auth.signInWithPassword({ email: st.a.email, password: st.a.password });
+  if (v.error) return { ok: false, detail: `signIn falló: ${v.error.message}` };
   const token = v.data.session.access_token;
   const r = makeReporter();
+  const ver = await callAccountChallenge(env, token, { action: 'verify', purpose: 'delete_account', code: String(otp) });
+  r.check('account-challenge verify delete_account => 200 (prueba específica)', ver.status === 200 && ver.json && ver.json.ok === true, `${ver.status} ${ver.json && ver.json.code}`);
+  if (!r.ok) return { ok: false, checks: r.checks };
   const res = await callDeleteFunction(env, token, { confirm: true });
-  r.check('delete-my-account => 200 ok', res.status === 200 && res.json && res.json.ok === true, `${res.status} ${JSON.stringify(res.json)}`);
+  r.check('delete-my-account => 200 ok (+ comprobante #8 en el inbox de A: verificación humana)', res.status === 200 && res.json && res.json.ok === true, `${res.status} ${JSON.stringify(res.json)}`);
   // Retry con el MISMO JWT: nunca debe fallar destructivamente (401/404 por cuenta inexistente o 200 idempotente).
   const retry = await callDeleteFunction(env, token, { confirm: true });
   r.check('retry con el mismo JWT es seguro (200/401/404, nunca 5xx destructivo)', [200, 401, 404].includes(retry.status), retry.status);
@@ -204,7 +217,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const cmds = {
     prepare: () => cmdPrepare({ admin, makeAnon, env, emailA: arg('email-a') }),
     negatives: () => cmdNegatives({ makeAnon, env }),
-    'send-otp': () => cmdSendOtp({ makeAnon }),
+    'send-otp': () => cmdSendOtp({ makeAnon, env }),
     delete: () => cmdDelete({ admin, makeAnon, env, otp: arg('otp') }),
     verify: () => cmdVerify({ admin, makeAnon }),
     cleanup: () => cmdCleanup({ admin }),

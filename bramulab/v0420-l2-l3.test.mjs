@@ -308,21 +308,24 @@ test('Acceso y seguridad: filas nuevas solo para cuentas con backend real y emai
   assert.ok(!/dispositivos activos|lista de sesiones|IP de|ubicaci[oó]n de inicio/i.test(indexHtml), 'sin listado avanzado de dispositivos');
 });
 
-function runAccountFlow({ step, mode = 'email', values = {}, auth = {}, user = { id: 'pA', email: 'a@x.test' }, deletionAttempted = false, newEmail = null }) {
-  const src = between(appJs, '  async function onAccountFlowPrimary() {', '  function initAccountFlow() {');
+function runAccountFlow({ step, mode = 'email', values = {}, auth = {}, user = { id: 'pA', email: 'a@x.test' }, deletionAttempted = false, newEmail = null, emailVerified = false }) {
+  const src = between(appJs, '  function accountFlowPurpose() {', '  async function sendAccountFlowCode() {') + between(appJs, '  async function onAccountFlowPrimary() {', '  function initAccountFlow() {');
   const els = {};
   const el = (k) => els[k] || (els[k] = { value: values[k] || '', hidden: true, disabled: false, textContent: '', classList: { toggle() {}, add() {}, remove() {} } });
   const log = [];
   const sb = {
     $: el, $all: () => [], PLI: { isValidEmail: (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) },
-    accountFlow: { mode, step, newEmail, deletionAttempted },
+    accountFlow: { mode, step, newEmail, deletionAttempted, emailVerified },
     Store: { getCurrentUser: () => user, cacheServerUser: (u) => log.push(['cache', u.email]) },
     Auth: Object.assign({
-      verifyRecoveryOtp: async () => ({ ok: true }), requestEmailChange: async () => ({ ok: true }), verifyEmailChange: async () => ({ ok: true }),
+      verifyAccountChallenge: async (p) => { log.push(['verify', p]); return { ok: true, othersSignedOut: true }; },
+      requestAccountChallenge: async (p, o) => { log.push(['request', p, o && o.newEmail]); return { ok: true }; },
+      completeEmailChange: async () => { log.push(['complete']); return { ok: true, othersSignedOut: true }; },
+      refreshSession: async () => ({ ok: true }),
       signOutOthers: () => log.push(['signOutOthers']), fetchOwnProfile: async () => ({ email: 'nuevo@x.test' }),
       deleteMyAccount: async () => ({ ok: true }),
     }, auth),
-    ACCOUNT_FLOW_ERRORS: { recent_reauth_required: 'RR' },
+    ACCOUNT_FLOW_ERRORS: { delete_challenge_required: 'DC' },
     accountFlowShowError: (m) => log.push(['error', m]), renderAccountFlowStep: () => log.push(['render', sb.accountFlow.step]),
     recomputeAccountFlowValidity: () => true, sendAccountFlowCode: () => log.push(['sendCode']),
     syncCurrentIdentityFromStore: () => {}, openProfileScreen: (t) => log.push(['profile', t]), showToast: (m) => log.push(['toast', m]), showView: (v) => log.push(['view', v]),
@@ -333,37 +336,62 @@ function runAccountFlow({ step, mode = 'email', values = {}, auth = {}, user = {
   return { go: () => sb.__go(), log, sb, els };
 }
 
-test('Cambiar email: código del email ACTUAL → email nuevo distinto → código del NUEVO; recién ahí cambia y cierra otras sesiones', async () => {
+test('Cambiar email (G1): DOS verificaciones server-side — código del email ACTUAL → email nuevo distinto → código del NUEVO; el servidor cambia y cierra otras sesiones', async () => {
   let t = runAccountFlow({ step: 'code', values: { '#account-flow-code': '123456' } });
   await t.go(); assert.equal(t.sb.accountFlow.step, 'new-email');
+  assert.deepEqual(t.log.filter((l) => l[0] === 'verify'), [['verify', 'change_email_current']], 'propósito del primer código = email ACTUAL');
   t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'a@x.test' } });
   await t.go(); assert.ok(t.log.some((l) => l[0] === 'error'), 'mismo email rechazado');
+  assert.ok(!t.log.some((l) => l[0] === 'request'), 'ni siquiera se pide el desafío');
   t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'invalido' } });
   await t.go(); assert.ok(t.log.some((l) => l[0] === 'error'));
-  let requested = null;
-  t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'nuevo@x.test' }, auth: { requestEmailChange: async (e) => { requested = e; return { ok: true }; } } });
-  await t.go(); assert.equal(requested, 'nuevo@x.test'); assert.equal(t.sb.accountFlow.step, 'email-code'); assert.equal(t.sb.accountFlow.newEmail, 'nuevo@x.test');
+  t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'nuevo@x.test' } });
+  await t.go();
+  assert.deepEqual(t.log.filter((l) => l[0] === 'request'), [['request', 'change_email_new', 'nuevo@x.test']]);
+  assert.equal(t.sb.accountFlow.step, 'email-code'); assert.equal(t.sb.accountFlow.newEmail, 'nuevo@x.test');
+  // el cliente NUNCA manda el email actual: solo purpose (+ newEmail del paso 2)
+  t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'nuevo@x.test' }, auth: { requestAccountChallenge: async (p, o) => { t.args = [p, Object.keys(o || {})]; return { ok: true }; } } });
+  await t.go(); assert.deepEqual(t.args, ['change_email_new', ['newEmail']]);
+  // paso 2 bloqueado por el servidor (primer código no verificado/vencido) => vuelve al primer código
+  t = runAccountFlow({ step: 'new-email', values: { '#account-flow-new-email': 'nuevo@x.test' }, auth: { requestAccountChallenge: async () => ({ ok: false, reason: 'current_verification_required' }) } });
+  await t.go(); assert.equal(t.sb.accountFlow.step, 'code');
+  // segundo código OK: el servidor ya cerró las otras sesiones => el cliente NO las cierra de nuevo; refresca cuenta
   t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', values: { '#account-flow-email-code': '654321' } });
   await t.go();
-  assert.deepEqual(t.log.filter((l) => ['signOutOthers', 'cache', 'profile'].includes(l[0])).map((l) => l[0]), ['signOutOthers', 'cache', 'profile']);
-  t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', values: { '#account-flow-email-code': '000000' }, auth: { verifyEmailChange: async () => ({ ok: false, reason: 'code_invalid' }) } });
+  assert.deepEqual(t.log.filter((l) => ['verify', 'cache', 'profile'].includes(l[0])).map((l) => l[0]), ['verify', 'cache', 'profile']);
+  assert.ok(!t.log.some((l) => l[0] === 'signOutOthers'));
+  // el servidor no pudo cerrar otras sesiones => fallback del cliente
+  t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', values: { '#account-flow-email-code': '654321' }, auth: { verifyAccountChallenge: async () => ({ ok: true, othersSignedOut: false }) } });
+  await t.go(); assert.ok(t.log.some((l) => l[0] === 'signOutOthers'));
+  // código inválido: nada cambia
+  t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', values: { '#account-flow-email-code': '000000' }, auth: { verifyAccountChallenge: async () => ({ ok: false, reason: 'code_invalid' }) } });
   await t.go();
-  assert.ok(!t.log.some((l) => l[0] === 'signOutOthers') && t.log.some((l) => l[0] === 'error'), 'código inválido: nada cambia');
-  t = runAccountFlow({ step: 'code', values: { '#account-flow-code': '111111' }, auth: { verifyRecoveryOtp: async () => ({ ok: false, reason: 'code_invalid' }) } });
+  assert.ok(!t.log.some((l) => ['signOutOthers', 'cache', 'profile'].includes(l[0])) && t.log.some((l) => l[0] === 'error'), 'código inválido: nada cambia');
+  // cambio a medias en el servidor: el reintento usa complete_email_change (sin volver a pedir el código)
+  t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', values: { '#account-flow-email-code': '654321' }, auth: { verifyAccountChallenge: async () => ({ ok: false, reason: 'change_incomplete', retryable: true }) } });
+  await t.go(); assert.equal(t.sb.accountFlow.emailVerified, true);
+  t = runAccountFlow({ step: 'email-code', newEmail: 'nuevo@x.test', emailVerified: true, values: {} });
+  await t.go(); assert.ok(t.log.some((l) => l[0] === 'complete')); assert.ok(t.log.some((l) => l[0] === 'profile'));
+  t = runAccountFlow({ step: 'code', values: { '#account-flow-code': '111111' }, auth: { verifyAccountChallenge: async () => ({ ok: false, reason: 'code_invalid' }) } });
   await t.go(); assert.equal(t.sb.accountFlow.step, 'code');
+  // propósito por paso
+  assert.equal(runAccountFlow({ step: 'email-code', mode: 'email' }).sb.accountFlowPurpose(), 'change_email_new');
+  assert.equal(runAccountFlow({ step: 'code', mode: 'email' }).sb.accountFlowPurpose(), 'change_email_current');
+  assert.equal(runAccountFlow({ step: 'code', mode: 'delete' }).sb.accountFlowPurpose(), 'delete_account');
 });
 
 test('Eliminar cuenta: exige verificar el código ANTES de habilitar la confirmación; el éxito purga y cierra; nunca por escribir "ELIMINAR"', async () => {
   let t = runAccountFlow({ mode: 'delete', step: 'code', values: { '#account-flow-code': '123456' } });
   await t.go(); assert.equal(t.sb.accountFlow.step, 'confirm-delete');
+  assert.deepEqual(t.log.filter((l) => l[0] === 'verify'), [['verify', 'delete_account']], 'desafío específico delete_account (no recovery)');
   t = runAccountFlow({ mode: 'delete', step: 'confirm-delete' });
   await t.go();
   assert.deepEqual(t.log.filter((l) => l[0] === 'finish'), [['finish', 'pA']]);
   assert.ok(!/escrib[ií] ["«“]?ELIMINAR/i.test(indexHtml + appJs), 'no se usa "escribí ELIMINAR"');
 });
 
-test('Eliminar cuenta: reauth vencida => vuelve al código; fallo parcial => mensaje de reintento seguro; reintento con cuenta ya inexistente => cierra como eliminada', async () => {
-  let t = runAccountFlow({ mode: 'delete', step: 'confirm-delete', auth: { deleteMyAccount: async () => ({ ok: false, code: 'recent_reauth_required' }) } });
+test('Eliminar cuenta: prueba delete_account faltante/vencida (o reauth legado) => vuelve al código; fallo parcial => mensaje de reintento seguro; reintento con cuenta ya inexistente => cierra como eliminada', async () => {
+  let t = runAccountFlow({ mode: 'delete', step: 'confirm-delete', auth: { deleteMyAccount: async () => ({ ok: false, code: 'delete_challenge_required' }) } });
   await t.go();
   assert.equal(t.sb.accountFlow.step, 'code'); assert.ok(t.log.some((l) => l[0] === 'sendCode')); assert.ok(!t.log.some((l) => l[0] === 'finish'));
   t = runAccountFlow({ mode: 'delete', step: 'confirm-delete', auth: { deleteMyAccount: async () => ({ ok: false, code: 'deletion_incomplete', retryable: true }) } });
@@ -400,20 +428,35 @@ test('Auth.deleteMyAccount: invoca la Edge Function con body {confirm:true} úni
   const mk = (resp) => loadAuth({ createClient: () => ({ functions: { invoke: async (name, opts) => { invoked.push([name, plain(opts)]); return resp; } } }) });
   assert.equal((await mk({ data: { ok: true, postconditions: { authDeleted: true } }, error: null }).deleteMyAccount()).ok, true);
   assert.deepEqual(invoked[0], ['delete-my-account', { body: { confirm: true } }]);
-  const fail = await mk({ data: null, error: { message: 'x', context: { status: 403, json: async () => ({ ok: false, code: 'recent_reauth_required' }) } } }).deleteMyAccount();
-  assert.deepEqual(plain(fail), { ok: false, code: 'recent_reauth_required', retryable: false, status: 403 });
+  const fail = await mk({ data: null, error: { message: 'x', context: { status: 403, json: async () => ({ ok: false, code: 'delete_challenge_required' }) } } }).deleteMyAccount();
+  assert.deepEqual(plain(fail), { ok: false, code: 'delete_challenge_required', retryable: false, status: 403 });
   const partial = await mk({ data: null, error: { message: 'x', context: { status: 500, json: async () => ({ ok: false, code: 'deletion_incomplete', retryable: true }) } } }).deleteMyAccount();
   assert.equal(partial.retryable, true);
 });
 
-test('Auth.requestEmailChange / verifyEmailChange: updateUser({email}) y verifyOtp type email_change', async () => {
-  const calls = [];
-  const Auth = loadAuth({ createClient: () => ({ auth: { updateUser: async (a) => { calls.push(['update', plain(a)]); return { error: null }; }, verifyOtp: async (a) => { calls.push(['verify', plain(a)]); return { error: null }; } } }) });
-  assert.equal((await Auth.requestEmailChange('n@x.test')).ok, true);
-  assert.equal((await Auth.verifyEmailChange('n@x.test', '123456')).ok, true);
-  assert.deepEqual(calls, [['update', { email: 'n@x.test' }], ['verify', { email: 'n@x.test', token: '123456', type: 'email_change' }]]);
-  const taken = loadAuth({ createClient: () => ({ auth: { updateUser: async () => ({ error: { message: 'A user with this email address has already been registered' } }) } }) });
-  assert.equal((await taken.requestEmailChange('n@x.test')).reason, 'email_taken');
+test('Auth (G1): requestAccountChallenge / verifyAccountChallenge / completeEmailChange invocan SOLO account-challenge; nunca mandan el email actual ni ids', async () => {
+  const invoked = [];
+  const mk = (resp) => loadAuth({ createClient: () => ({ functions: { invoke: async (name, opts) => { invoked.push([name, plain(opts)]); return resp; } } }) });
+  const ok = mk({ data: { ok: true, expiresInSeconds: 3600 }, error: null });
+  assert.equal((await ok.requestAccountChallenge('change_email_current')).ok, true);
+  assert.equal((await ok.requestAccountChallenge('change_email_new', { newEmail: 'n@x.test' })).ok, true);
+  assert.equal((await ok.requestAccountChallenge('delete_account', { newEmail: 'colado@x.test' })).ok, true);
+  assert.equal((await ok.verifyAccountChallenge('change_email_new', '123456')).ok, true);
+  assert.equal((await ok.completeEmailChange()).ok, true);
+  assert.deepEqual(invoked.map((i) => i[0]), Array(5).fill('account-challenge'));
+  assert.deepEqual(invoked.map((i) => i[1].body), [
+    { action: 'request', purpose: 'change_email_current' },
+    { action: 'request', purpose: 'change_email_new', newEmail: 'n@x.test' },
+    { action: 'request', purpose: 'delete_account' }, // newEmail ignorado fuera de change_email_new
+    { action: 'verify', purpose: 'change_email_new', code: '123456' },
+    { action: 'complete_email_change' },
+  ]);
+  const err = await mk({ data: null, error: { message: 'x', context: { status: 429, json: async () => ({ ok: false, code: 'resend_too_soon', retryAfterSeconds: 42 }) } } }).requestAccountChallenge('change_email_current');
+  assert.deepEqual(plain(err), { ok: false, reason: 'resend_too_soon', retryAfterSeconds: 42, retryable: false, status: 429 });
+  const taken = await mk({ data: null, error: { message: 'x', context: { status: 409, json: async () => ({ ok: false, code: 'email_taken' }) } } }).requestAccountChallenge('change_email_new', { newEmail: 'n@x.test' });
+  assert.equal(taken.reason, 'email_taken');
+  assert.ok(!/updateUser\(\{ ?email|verifyOtp\(\{[^}]*email_change/.test(read('auth.js')), 'el cliente ya no usa el flujo nativo updateUser({email})/email_change');
+  assert.ok(!/verifyRecoveryOtp|sendRecoveryOtp/.test(between(appJs, '  function accountFlowPurpose() {', '  function initAccountFlow() {')), 'cambio de email/eliminación ya no reutilizan recovery');
 });
 
 /* ================= L3 — Edge Function y acceso/copia ================= */
@@ -460,7 +503,7 @@ test('E2E harness: sin OTP automático, solo opera sobre cuentas e2e_*, negativo
   const src = readRepo('supabase/scripts/e2e-delete-my-account.mjs');
   assert.match(src, /acc\.username\.startsWith\('e2e_'\)/);
   assert.match(src, /'send-otp'/);
-  assert.match(src, /recent_reauth_required/);
+  assert.match(src, /delete_challenge_required/);
   assert.match(src, /invalid_payload/);
   assert.ok(!/SUPABASE_SERVICE_ROLE_KEY\s*=\s*['"]/.test(src), 'sin credenciales');
   const m = await import('../supabase/scripts/e2e-delete-my-account.mjs');
@@ -481,9 +524,9 @@ test('Regresión: login/signup/recovery/onboarding conservan sus contratos (acep
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
 });
 
-test('Versión: V04.20 / 04.20-h3 coherentes', () => {
+test('Versión: V04.20 / 04.20-h4 coherentes', () => {
   assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.20'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h3'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h3' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h3'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.20-h4'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.20', bundle: '04.20-h4' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-20-h4'/);
 });

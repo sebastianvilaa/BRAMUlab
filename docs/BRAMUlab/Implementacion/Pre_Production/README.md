@@ -11,6 +11,7 @@ Esta carpeta contiene únicamente documentos que siguen teniendo valor operativo
 - `34_Resultado_P0_2_Fase_A_Preparacion_Legal_27SEP.md`, `36_Resultado_Correccion_P0_2_Fase_A_27SEP.md`, `61_Cierre_Decisiones_Legales_Compliance_V1_27SEP.md` — soporte temporal del frente Legal. El chat Legal/Work debe consolidarlos y retirarlos cuando cree la fuente maestra final.
 - `60_Resultado_Sistema_Visual_Unificado_h21_27SEP.md` — baseline visual/técnica actual; pendiente revisión directa de Sebastián.
 - `62_Handoff_Grupos_BRAMU_28SEP.md` — handoff activo para productivización de Grupos.
+- `89_Handoff_G1_Emails_Implementacion_01OCT.md` + `90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md` — G1 Emails/Auth V1: contrato y resultado técnico (pendiente aplicar en Staging + QA real).
 
 ## Regla
 

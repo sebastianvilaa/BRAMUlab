@@ -7309,11 +7309,13 @@
   /* ------------------------------------------------------------------ */
   /* L3 (V04.20) — CAMBIAR EMAIL / ELIMINAR MI CUENTA / CERRAR TODAS LAS  */
   /* SESIONES (Acceso y seguridad). Solo cuentas con backend real.        */
-  /* Verificación de identidad = código al email ACTUAL (mismo mecanismo  */
-  /* OTP/recovery vigente: Auth.sendRecoveryOtp/verifyRecoveryOtp).       */
-  /* Los textos/diseño de los emails son del proyecto de Comunicaciones.  */
+  /* G1 (Emails V1): desafíos SERVER-SIDE por propósito (Edge Function     */
+  /* `account-challenge`). Cambio de email = DOS verificaciones visibles    */
+  /* (email actual -> email nuevo); eliminación = desafío `delete_account`. */
+  /* Ya no se reutiliza recovery/updateUser({email}). El destino de cada    */
+  /* código lo deriva el servidor desde Auth, nunca el cliente.             */
   /* ------------------------------------------------------------------ */
-  let accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false };
+  let accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false, emailVerified: false };
 
   const ACCOUNT_FLOW_TITLES = { email: 'CAMBIAR EMAIL', delete: 'ELIMINAR MI CUENTA' };
   const ACCOUNT_FLOW_ERRORS = {
@@ -7325,6 +7327,14 @@
     invalid_email: 'Ingresá un email válido.',
     not_configured: 'No se pudo conectar con el servidor. Probá de nuevo más tarde.',
     recent_reauth_required: 'Por seguridad, volvé a verificar tu código.',
+    delete_challenge_required: 'Por seguridad, volvé a verificar tu código.',
+    too_many_attempts: 'Demasiados intentos con este código. Pedí uno nuevo.',
+    resend_too_soon: 'Esperá un momento antes de pedir otro código.',
+    send_failed: 'No pudimos enviar el email. Probá de nuevo.',
+    mailer_not_configured: 'No pudimos enviar el email. Probá de nuevo más tarde.',
+    current_verification_required: 'Primero confirmá el código de tu email actual.',
+    new_verification_required: 'Pedí un código nuevo para tu nuevo email.',
+    change_incomplete: 'No pudimos completar el cambio. Es seguro reintentar: tocá de nuevo el botón.',
     unknown: 'No pudimos completar la acción. Probá de nuevo.',
   };
 
@@ -7356,17 +7366,26 @@
     return ok;
   }
 
+  /** Propósito del desafío según el paso: el primer código (email ACTUAL / eliminación) o el del email NUEVO. */
+  function accountFlowPurpose() {
+    if (accountFlow.step === 'email-code') return 'change_email_new';
+    return accountFlow.mode === 'delete' ? 'delete_account' : 'change_email_current';
+  }
+
   async function sendAccountFlowCode() {
     const user = Store.getCurrentUser();
     if (!user || !user.email) return;
-    const result = await Auth.sendRecoveryOtp(user.email);
-    showToast(result.ok ? 'Te enviamos un código a tu email' : (ACCOUNT_FLOW_ERRORS[result.reason] || ACCOUNT_FLOW_ERRORS.unknown));
+    const purpose = accountFlowPurpose();
+    const result = await Auth.requestAccountChallenge(purpose, purpose === 'change_email_new' ? { newEmail: accountFlow.newEmail } : undefined);
+    if (result.ok) { showToast(purpose === 'change_email_new' ? 'Te enviamos un código a tu nuevo email' : 'Te enviamos un código a tu email'); return; }
+    if (result.reason === 'resend_too_soon' && result.retryAfterSeconds) { showToast(`Esperá ${result.retryAfterSeconds} s para pedir otro código.`); return; }
+    showToast(ACCOUNT_FLOW_ERRORS[result.reason] || ACCOUNT_FLOW_ERRORS.unknown);
   }
 
   function openAccountFlow(mode) {
     const user = Store.getCurrentUser();
     if (!user || !user.serverBacked || !user.email || !Auth.isConfigured()) { showToast('Disponible solo con una cuenta conectada.'); return; }
-    accountFlow = { mode, step: 'code', newEmail: null, deletionAttempted: false };
+    accountFlow = { mode, step: 'code', newEmail: null, deletionAttempted: false, emailVerified: false };
     ['#account-flow-code', '#account-flow-new-email', '#account-flow-email-code'].forEach((sel) => { $(sel).value = ''; });
     $('#account-flow-code-intro').textContent = mode === 'delete'
       ? `Para eliminar tu cuenta, confirmá que sos vos. Te enviamos un código a ${user.email}.`
@@ -7385,7 +7404,7 @@
     currentPlayerName = null;
     currentUserId = null;
     afterIdentifyAction = null;
-    accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false };
+    accountFlow = { mode: null, step: null, newEmail: null, deletionAttempted: false, emailVerified: false };
     showView('account-deleted');
   }
 
@@ -7398,7 +7417,7 @@
     $('#account-flow-error').hidden = true;
     try {
       if (accountFlow.step === 'code') {
-        const r = await Auth.verifyRecoveryOtp(user.email, $('#account-flow-code').value.trim());
+        const r = await Auth.verifyAccountChallenge(accountFlowPurpose(), $('#account-flow-code').value.trim());
         if (!r.ok) { accountFlowShowError(r.reason); return; }
         accountFlow.step = accountFlow.mode === 'delete' ? 'confirm-delete' : 'new-email';
         renderAccountFlowStep();
@@ -7408,18 +7427,35 @@
         const next = $('#account-flow-new-email').value.trim();
         if (!PLI.isValidEmail(next)) { accountFlowShowError('invalid_email'); return; }
         if (next.toLowerCase() === String(user.email).toLowerCase()) { accountFlowShowError('same_email'); return; }
-        const r = await Auth.requestEmailChange(next);
-        if (!r.ok) { accountFlowShowError(r.reason); return; }
+        // El email ACTUAL no viaja: lo deriva el servidor. Solo se acepta si el primer código ya fue verificado.
+        const r = await Auth.requestAccountChallenge('change_email_new', { newEmail: next });
+        if (!r.ok) {
+          if (r.reason === 'current_verification_required') { accountFlow.step = 'code'; $('#account-flow-code').value = ''; renderAccountFlowStep(); }
+          accountFlowShowError(r.reason === 'resend_too_soon' && r.retryAfterSeconds ? `Esperá ${r.retryAfterSeconds} s para pedir otro código.` : r.reason);
+          return;
+        }
         accountFlow.newEmail = next;
+        accountFlow.emailVerified = false;
         accountFlow.step = 'email-code';
         renderAccountFlowStep();
         return;
       }
       if (accountFlow.step === 'email-code') {
-        const r = await Auth.verifyEmailChange(accountFlow.newEmail, $('#account-flow-email-code').value.trim());
-        if (!r.ok) { accountFlowShowError(r.reason); return; }
-        // Evento sensible: cierra las DEMÁS sesiones y refresca la cuenta cacheada con el email nuevo.
-        Auth.signOutOthers();
+        // Segunda verificación: el SERVIDOR cambia el email recién acá (y cierra las demás sesiones). Si el cambio quedó a medias
+        // (`change_incomplete`) el reintento usa complete_email_change: el código ya fue verificado y no se vuelve a pedir.
+        const r = accountFlow.emailVerified
+          ? await Auth.completeEmailChange()
+          : await Auth.verifyAccountChallenge('change_email_new', $('#account-flow-email-code').value.trim());
+        if (!r.ok) {
+          if (r.reason === 'change_incomplete') accountFlow.emailVerified = true;
+          if (r.reason === 'current_verification_required') { accountFlow.step = 'code'; $('#account-flow-code').value = ''; renderAccountFlowStep(); }
+          accountFlowShowError(r.reason);
+          return;
+        }
+        accountFlow.emailVerified = false;
+        // Evento sensible: el servidor ya cerró las DEMÁS sesiones; si no pudo, se intenta desde acá. Se refresca la sesión y la cuenta.
+        if (!r.othersSignedOut) Auth.signOutOthers();
+        await Auth.refreshSession();
         const fresh = await Auth.fetchOwnProfile();
         if (fresh) { Store.cacheServerUser(fresh); syncCurrentIdentityFromStore(); }
         openProfileScreen('mis-datos');
@@ -7434,11 +7470,11 @@
         if (r.ok) { finishAccountDeletion(ownerId); return; }
         // Reintento tras una respuesta perdida: si la cuenta ya no existe (401/404), la eliminación YA se cumplió.
         if (wasRetry && (r.status === 401 || r.status === 404 || r.code === 'account_not_found' || r.code === 'invalid_session')) { finishAccountDeletion(ownerId); return; }
-        if (r.code === 'recent_reauth_required') {
+        if (r.code === 'delete_challenge_required' || r.code === 'recent_reauth_required') {
           accountFlow.step = 'code';
           $('#account-flow-code').value = '';
           renderAccountFlowStep();
-          accountFlowShowError('recent_reauth_required');
+          accountFlowShowError('delete_challenge_required');
           sendAccountFlowCode();
           return;
         }
@@ -7454,6 +7490,7 @@
     $('#account-flow-back-btn').addEventListener('click', () => { showView('profile'); });
     ['#account-flow-code', '#account-flow-new-email', '#account-flow-email-code'].forEach((sel) => $(sel).addEventListener('input', recomputeAccountFlowValidity));
     $('#account-flow-resend-btn').addEventListener('click', sendAccountFlowCode);
+    $('#account-flow-resend-new-btn').addEventListener('click', sendAccountFlowCode);
     $('#account-flow-primary-btn').addEventListener('click', onAccountFlowPrimary);
     $('#account-deleted-home-btn').addEventListener('click', () => openAccessFlow());
     $('#profile-change-email-btn').addEventListener('click', () => openAccountFlow('email'));

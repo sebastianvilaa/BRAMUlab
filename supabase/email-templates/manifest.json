@@ -1,0 +1,96 @@
+{
+  "generatedFrom": "supabase/functions/_shared/email-templates.mjs",
+  "native": [
+    {
+      "emailId": 1,
+      "authTemplate": "confirmation",
+      "subject": "Confirmá tu cuenta en BRAMUlab",
+      "file": "auth/confirmation.html",
+      "sha256": "c3b2f378a923e9336aae55fad2d421387caa26d0b0682f0085f1567c7bc88f8c",
+      "hostedKeys": {
+        "subject": "mailer_subjects_confirmation",
+        "content": "mailer_templates_confirmation_content"
+      },
+      "variables": [
+        "{{ .Token }}",
+        "{{ .SiteURL }}"
+      ]
+    },
+    {
+      "emailId": 2,
+      "authTemplate": "recovery",
+      "subject": "Recuperá tu contraseña en BRAMUlab",
+      "file": "auth/recovery.html",
+      "sha256": "f74674657dad0470be36c92489c605d26e2c55b9d92daa56ba89cfad9ab466a5",
+      "hostedKeys": {
+        "subject": "mailer_subjects_recovery",
+        "content": "mailer_templates_recovery_content"
+      },
+      "variables": [
+        "{{ .Token }}",
+        "{{ .SiteURL }}"
+      ]
+    },
+    {
+      "emailId": 4,
+      "authTemplate": "email_change",
+      "subject": "Confirmá tu nuevo email en BRAMUlab",
+      "file": "auth/email_change.html",
+      "sha256": "c9792190950c2c01d6c7f1941f2e121c7ee26e1f78ed2292d6e7c39c7a4d38ea",
+      "hostedKeys": {
+        "subject": "mailer_subjects_email_change",
+        "content": "mailer_templates_email_change_content"
+      },
+      "variables": [
+        "{{ .Token }}",
+        "{{ .SiteURL }}"
+      ],
+      "note": "Fallback de plataforma: el flujo BRAMU NO depende de este template (el cambio de email es server-side)."
+    },
+    {
+      "emailId": 6,
+      "authTemplate": "password_changed_notification",
+      "subject": "La contraseña de tu cuenta fue cambiada",
+      "file": "auth/password_changed_notification.html",
+      "sha256": "d43fdeceed0a86d325f6fe5275468fbeddc7483bc5e540eb31fa022f8859132a",
+      "hostedKeys": {
+        "enabled": "mailer_notifications_password_changed_enabled",
+        "subject": "mailer_subjects_password_changed_notification",
+        "content": "mailer_templates_password_changed_notification_content"
+      },
+      "variables": [
+        "{{ .SiteURL }}"
+      ]
+    }
+  ],
+  "custom": [
+    {
+      "emailId": 3,
+      "key": "change_email_current",
+      "subject": "Confirmá el cambio de email en BRAMUlab",
+      "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
+      "renderer": "renderEmail(id, { mode: \"custom\" })"
+    },
+    {
+      "emailId": 5,
+      "key": "email_changed",
+      "subject": "El email de tu cuenta fue cambiado",
+      "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
+      "renderer": "renderEmail(id, { mode: \"custom\" })"
+    },
+    {
+      "emailId": 7,
+      "key": "delete_account",
+      "subject": "Confirmá la eliminación de tu cuenta",
+      "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
+      "renderer": "renderEmail(id, { mode: \"custom\" })"
+    },
+    {
+      "emailId": 8,
+      "key": "account_deleted",
+      "subject": "Tu cuenta de BRAMUlab fue eliminada",
+      "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
+      "renderer": "renderEmail(id, { mode: \"custom\" })"
+    }
+  ]
+}

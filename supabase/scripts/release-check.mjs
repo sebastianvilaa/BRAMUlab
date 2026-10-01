@@ -26,12 +26,12 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex').slice
 /** verify_jwt ESPERADO por Edge Function (se contrasta con el despliegue real en Staging/Production). */
 export const EXPECTED_VERIFY_JWT = {
   'officialize-onboarding': true, 'create-or-attach-match': true, 'officialize-match': true, 'propose-match-correction': true,
-  'respond-match-correction': true, 'resolve-identity-issue': true, 'get-match-intelligence': true, 'delete-my-account': true,
+  'respond-match-correction': true, 'resolve-identity-issue': true, 'get-match-intelligence': true, 'delete-my-account': true, 'account-challenge': true,
   // service-to-service: autenticación propia; el gateway no exige JWT de usuario.
   'admin-resolve-identity-issue': false, 'cleanup-abandoned-signups': false,
 };
-/** Únicos imports remotos permitidos en Edge Functions. */
-export const ALLOWED_REMOTE_IMPORTS = new Set(['https://esm.sh/@supabase/supabase-js@2']);
+/** Únicos imports remotos permitidos en Edge Functions (G1: + nodemailer con versión EXACTA, para el SMTP compartido). */
+export const ALLOWED_REMOTE_IMPORTS = new Set(['https://esm.sh/@supabase/supabase-js@2', 'npm:nodemailer@6.9.16']);
 
 function trackedFiles() {
   return execFileSync('git', ['ls-files'], { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean);
@@ -99,7 +99,7 @@ export function edgeFunctions(root = REPO) {
       if (/SERVICE_ROLE_KEY\s*=\s*['"]/.test(src) || /eyJ[A-Za-z0-9_-]{20,}/.test(src)) problems.push(`secreto literal en ${path.relative(root, file)}`);
       for (const m of src.matchAll(/^\s*(?:import|export)\s+(?:[^'"]*?from\s+)?['"]([^'"]+)['"]/gm)) {
         const spec = m[1];
-        if (/^https?:\/\//.test(spec)) { remote.add(spec); if (!ALLOWED_REMOTE_IMPORTS.has(spec)) problems.push(`import remoto no permitido: ${spec}`); continue; }
+        if (/^https?:\/\//.test(spec) || spec.startsWith('npm:')) { remote.add(spec); if (!ALLOWED_REMOTE_IMPORTS.has(spec)) problems.push(`import remoto no permitido: ${spec}`); continue; }
         if (spec.startsWith('.')) visit(path.resolve(path.dirname(file), spec));
         else if (!spec.startsWith('node:')) problems.push(`import no resuelto: ${spec}`);
       }
@@ -185,13 +185,13 @@ export function edgeServiceAuthChecks(root = REPO) {
   const cleanup = read('cleanup-abandoned-signups');
   add('cleanup-abandoned-signups: verify_jwt=false y autentica con service role exacta O secreto de Vault verificado por RPC; 403 en otro caso', EXPECTED_VERIFY_JWT['cleanup-abandoned-signups'] === false && /token === SUPABASE_SERVICE_ROLE_KEY/.test(cleanup) && /verify_cleanup_cron_secret/.test(cleanup) && /code: 'forbidden' \}, 403/.test(cleanup));
   const userFns = Object.entries(EXPECTED_VERIFY_JWT).filter(([, v]) => v === true).map(([k]) => k);
-  add('las 8 funciones orientadas a usuario: verify_jwt=true y validan el JWT con getUser (nunca confían en el body)', userFns.length === 8 && userFns.every((f) => /auth\.getUser\(/.test(read(f))), userFns.join(','));
+  add('las 9 funciones orientadas a usuario: verify_jwt=true y validan el JWT con getUser (nunca confían en el body)', userFns.length === 9 && userFns.every((f) => /auth\.getUser\(/.test(read(f))), userFns.join(','));
   return results;
 }
 
 /* ---------- 6. gates externos (NUNCA se marcan como PASS automático) ---------- */
 export const EXTERNAL_GATES = [
-  { id: 'G1', name: 'Comunicaciones / Auth-email', owner: 'proyecto Comunicaciones + Central', pending: 'SMTP, plantillas, OTP y Secure email change reales; signup/verificación/reenvío/recuperación con email real.', automaticEvidence: 'Contratos de cliente y backend cubiertos por tests y replay; el ENVÍO real de emails no es verificable acá.', closesWith: 'Smoke de alta y recuperación con un email real en Staging, con los textos finales de Comunicaciones.' },
+  { id: 'G1', name: 'Comunicaciones / Auth-email', owner: 'Central (aplicar migración + Edge Functions) + Work (config hosted, secrets, QA real)', pending: 'Aplicar la migración 20261001100000 y desplegar account-challenge + delete-my-account en Staging; sincronizar templates/switches nativos (sync-auth-email-templates.mjs); cargar secrets BRAMU_* sin revelarlos; recepción/render real de los 8 emails.', automaticEvidence: 'Implementación técnica completa con tests (desafíos server-side, 2 verificaciones, delete_account, #8 tras postcondiciones, templates exactos == generados, replay limpio ×3 ACL). El ENVÍO real por SMTP y el render en clientes de correo no son verificables acá.', closesWith: 'QA real en Staging con emails reales: signup, recovery, cambio de email (#3→#4→#5), password changed (#6), eliminación (#7→#8) con una cuenta descartable.' },
   { id: 'G2', name: 'Browser / OTP humano', owner: 'Work (browser) + Sebastián (OTP de cuenta descartable)', pending: 'QA visual corto de Legal/Acceso y E2E destructivo real de eliminación.', automaticEvidence: 'Eliminación completa ensayada con fallos/retry sobre base efímera; harness e2e-delete-my-account.mjs (prepare/negatives automáticos) listo.', closesWith: 'send-otp → delete --otp → verify → cleanup sobre una cuenta descartable de Staging.' },
   { id: 'G3', name: 'Autorización de Production', owner: 'Sebastián', pending: 'Crear proyecto Supabase Production, replay real, variables Vercel, Edge Functions, cron, smoke y apertura; datos legales reales ([[PENDIENTE_PRODUCCION:*]]), AAIP/RNBDP.', automaticEvidence: 'release-check completo, build Production bloqueado por placeholders, replay limpio ×3 ACL, checklist en Runbook Parte B.', closesWith: 'Autorización explícita de Sebastián + datos reales; luego Runbook Parte B paso a paso.' },
   { id: 'G4', name: 'Plan real de backups de Supabase', owner: 'Sebastián (decisión de plan/región) + Central (prueba)', pending: 'Elegir plan/región/retención/PITR y probar una restauración GESTIONADA (incluye auth.*, storage.*, Vault).', automaticEvidence: 'Backup lógico de public ensayado (checksums, restauración sobre esquema limpio, resurrección de eliminaciones y su procedimiento). NO es un backup gestionado de Supabase.', closesWith: 'Decisión de plan + restauración de un backup gestionado a un proyecto efímero + re-aplicación del libro de eliminaciones.' },
