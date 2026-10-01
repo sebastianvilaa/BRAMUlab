@@ -11,6 +11,7 @@
 // paralelas (04_Revision_ChatGPT.md §10).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { withinRateLimit } from '../_shared/rate-limit.ts';
 import { officializeMatch, officializeErrorHttpStatus } from '../_shared/match-officialize-core.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -45,6 +46,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, code: 'invalid_session' }, 401);
   }
   const authUserId = userData.user.id;
+
+  // Pre-Bloque 9 — límite por cuenta (anti-abuso; ver _shared/rate-limit.ts).
+  if (!(await withinRateLimit(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, authUserId, 'edge_respond_match_correction', 30, 60))) {
+    return jsonResponse({ ok: false, code: 'rate_limited' }, 429);
+  }
 
   // deno-lint-ignore no-explicit-any
   let payload: any;

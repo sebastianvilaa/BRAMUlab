@@ -56,6 +56,7 @@
 // de `runIntelligenceReplay` en intelligence-presentation.js.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { withinRateLimit } from '../_shared/rate-limit.ts';
 import '../_shared/engine.js';
 import '../_shared/level.js';
 import '../_shared/level-context.js';
@@ -116,6 +117,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, code: 'invalid_session' }, 401);
   }
   const authUserId = userData.user.id;
+
+  // Pre-Bloque 9 — límite por cuenta (anti-abuso; ver _shared/rate-limit.ts).
+  if (!(await withinRateLimit(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, authUserId, 'edge_get_match_intelligence', 30, 60))) {
+    return jsonResponse({ ok: false, code: 'rate_limited' }, 429);
+  }
 
   // deno-lint-ignore no-explicit-any
   let payload: any;

@@ -69,7 +69,26 @@
     return isLocalHost ? 'local-dev' : 'unavailable';
   }
 
+  // Pre-Bloque 9 — separación de entornos en runtime: `app_config.environment` (fila única que declara a qué
+  // proyecto Supabase pertenece la base) DEBE coincidir con `__BRAMU_ENV__.name` del build. Si no coincide
+  // (credenciales cruzadas, env.generated.js viejo/ajeno) el backend se trata como NO disponible (fail-closed).
+  let environmentMismatch = false;
+  async function verifyBackendEnvironment() {
+    const c = getClient();
+    const env = global.__BRAMU_ENV__;
+    if (!c || !env || !env.name) return { ok: true, skipped: true };
+    try {
+      const { data, error } = await c.from('app_config').select('environment').eq('id', 1).maybeSingle();
+      if (error || !data) return { ok: true, skipped: true }; // sin lectura no se puede afirmar nada: no bloquea
+      environmentMismatch = data.environment !== env.name;
+      return { ok: !environmentMismatch, declared: env.name, actual: data.environment };
+    } catch (e) {
+      return { ok: true, skipped: true };
+    }
+  }
+
   function getBackendMode() {
+    if (environmentMismatch) return 'unavailable';
     const hostname = global.location && global.location.hostname;
     return resolveBackendMode(global.__BRAMU_ENV__, !!(global.supabase && global.supabase.createClient), hostname);
   }
@@ -963,7 +982,7 @@
 
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
-    resolveBackendMode, getBackendMode, isLocalDevFallbackAllowed, isBackendUnavailable,
+    resolveBackendMode, getBackendMode, verifyBackendEnvironment, isLocalDevFallbackAllowed, isBackendUnavailable,
     getCurrentLegalVersion, getMyLegalStatus, acceptLegalVersion,
     signUp, verifySignupOtp, resendSignupOtp,
     signInWithPassword, signOut, signOutCurrent, signOutOthers, signOutAll, getSession,

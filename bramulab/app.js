@@ -14047,6 +14047,9 @@
       bootDefaultScreen();
       return;
     }
+    // Pre-Bloque 9 — credenciales cruzadas entre entornos => fail-closed (ver auth.js#verifyBackendEnvironment).
+    await Auth.verifyBackendEnvironment();
+    if (Auth.isBackendUnavailable()) { openAccessFlow(); return; }
     let savedDraft = Store.loadSignupDraft();
     if (savedDraft) signupDraft = savedDraft;
     // Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026): `sessionCheckFailed`
