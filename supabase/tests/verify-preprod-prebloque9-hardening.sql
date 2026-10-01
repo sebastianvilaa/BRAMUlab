@@ -80,11 +80,8 @@ begin
   begin perform public.purge_old_rate_limits(interval '1 hour'); exception when others then v_hit := sqlerrm like '%older_than_below_policy%'; end;
   perform pg_temp._assert(v_hit, 'H5 piso de 1 día');
   perform pg_temp._assert(not has_function_privilege('authenticated', 'public.purge_old_rate_limits(interval)', 'EXECUTE'), 'H5 permisos');
-end $$;
 
--- H6: el cliente nunca necesita privilegios PostgreSQL secundarios que saltean el modelo RPC/RLS.
-do $
-begin
+  -- H6: el cliente nunca necesita privilegios PostgreSQL secundarios que saltean el modelo RPC/RLS.
   perform pg_temp._assert(not exists (
     select 1
     from information_schema.role_table_grants
