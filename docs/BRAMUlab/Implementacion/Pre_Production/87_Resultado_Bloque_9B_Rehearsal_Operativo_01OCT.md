@@ -50,3 +50,16 @@ G1 Comunicaciones/Auth-email · G2 QA browser Legal/Acceso + E2E destructivo con
 
 ## DECISIONES ABIERTAS
 Ninguna que bloquee. (Dependiente de Sebastián, ya contemplada como G4: elegir plan/región/retención de backups de Production.)
+
+
+## Addendum — gate Central real de Staging
+
+El gate vivo **no aceptó el primer PASS local sin más**.
+
+1. Staging tenía **106 notificaciones** con `actorPlayerId` de un tercero: el defecto de 9B era real, no solo de fixture.
+2. Central aplicó `20261001080000_bloque9b_export_third_party_redaction.sql`.
+3. El primer retest real detectó una segunda vía: Intelligence persistía `player_id` de rivales/parejas dentro de strings `semanticKey`. Por eso el wrapper todavía podía contener un ID ajeno aunque `actorPlayerId` ya estuviera eliminado.
+4. Se agregó, sin editar la migración ya aplicada, el forward-fix `20261001090000_bloque9b_export_redaction_hardening.sql`: elimina `semanticKey`, redacta UUIDs embebidos solo cuando corresponden a identidades BRAMU ajenas y quita EXECUTE directo de `service_role` al generador raw/helper.
+5. Fixtures/tests quedaron ampliados para reproducir específicamente este caso.
+
+El cierre de 9B depende del retest real de Central posterior a esta corrección; ver `88_Gate_Central_Bloque_9B_01OCT.md`.

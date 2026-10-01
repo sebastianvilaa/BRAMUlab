@@ -15,7 +15,7 @@ import crypto from 'node:crypto';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REQUIRED_SECTIONS = { report: 'object', account: 'object', profile: 'object', legalAcceptances: 'array', levelEvents: 'array', matches: 'array', ranking: 'array', groups: 'array', notifications: 'array', intelligence: 'array', purposesAndRecipients: 'object' };
-const SECRET_KEY_RE = /(encrypted_?password|password|secret|token|memory_after|^audit$|service_?role|api_?key)/i;
+const SECRET_KEY_RE = /(encrypted_?password|password|secret|token|memory_after|^audit$|semantic_?key|service_?role|api_?key)/i;
 const THIRD_PARTY_KEY_RE = /(player_?ids?|user_?id|auth_?user_?id)$/i;
 
 /** Defensa en profundidad del lado cliente: aun si el backend fallara, NO se escribe un informe que (a) esté incompleto,

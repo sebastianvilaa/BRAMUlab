@@ -39,7 +39,7 @@ export async function rehearseExport() {
   for (const k of ['B', 'C', 'D']) { if (txt.includes(fx.pid[k]) || txt.includes(IDS[k])) leaks.push(`id de ${k}`); }
   add('redacción de terceros: ningún email/teléfono/nacimiento/username/player_id/auth id de B, C o D', leaks.length === 0, leaks.join(', '));
   add('terceros: solo aparece el NOMBRE mostrado en el partido compartido', /TerceroB/.test(txt) && /TerceroC/.test(txt) && !/tercero_b|tercero\.b/.test(txt));
-  add('sin secretos ni internals (hash de contraseña, memoria/auditoría de Intelligence, rate limits)', !/HASH_SECRETO|SECRETO_MEMORIA|SECRETO_AUDIT|encrypted_password|api_rate_limits/.test(txt));
+  add('sin secretos ni internals (hash, memoria/auditoría, semanticKey, rate limits) y sin UUIDs de terceros embebidos en strings', !/HASH_SECRETO|SECRETO_MEMORIA|SECRETO_AUDIT|encrypted_password|semanticKey|api_rate_limits/.test(txt) && !txt.includes(fx.pid.B) && !txt.includes(fx.pid.C));
   add('datos propios completos: email, teléfono, nacimiento, nota privada, aceptación legal, sets, grupos, notificaciones, Intelligence',
     res.ok && res.report.account.email === 'sujeto.a@example.test' && res.report.profile.phone === '+5491100000001' && res.report.profile.birth_date === '1990-01-01'
     && res.report.matches[0].myPrivateState.privateNote === 'nota privada de A' && res.report.legalAcceptances.length === 1 && res.report.matches[0].sets.length === 2
@@ -48,9 +48,9 @@ export async function rehearseExport() {
     res.ok && res.report.notifications[0].payload.matchContext.opponentNames.length === 2 && !('actorPlayerId' in res.report.notifications[0].payload));
 
   // defensa en profundidad: un informe manipulado/regresivo NO se escribe
-  const tampered = JSON.parse(JSON.stringify(res.report)); tampered.notifications[0].payload.actorPlayerId = fx.pid.B; tampered.profile.encrypted_password = 'x';
+  const tampered = JSON.parse(JSON.stringify(res.report)); tampered.notifications[0].payload.actorPlayerId = fx.pid.B; tampered.profile.encrypted_password = 'x'; tampered.intelligence[0].output.semanticKey = `rival_relacion:${fx.pid.B}`;
   const problems = validateReport(tampered, A);
-  add('validateReport rechaza ids de terceros y claves de secretos (barrera cliente aun si el backend regresionara)', problems.length >= 2, problems.join(' | '));
+  add('validateReport rechaza ids de terceros y claves internas/secretas (barrera cliente aun si el backend regresionara)', problems.length >= 3, problems.join(' | '));
   const fakeBad = { rpc: async () => ({ data: tampered, error: null }), from: client.from };
   const bad = await exportPlayerData(fakeBad, A);
   add('un informe inválido es FALLO (report_invalid), nunca un resultado parcial', bad.ok === false && bad.code === 'report_invalid');

@@ -37,8 +37,14 @@ export async function seedOpsFixtures(db) {
   await db.query(`insert into public.notifications (player_id, type, match_id, payload) values ($1,'match_validated',$2,$3::jsonb)`, [pid.A, m, JSON.stringify({ actorPlayerId: pid.B, matchContext: { opponentNames: ['TerceroC', 'TerceroD'], myTeam: 'A' }, note: 'x' })]);
   // listas personales
   await db.query(`insert into public.player_saved_players (owner_player_id, saved_player_id) values ($1,$2),($3,$1)`, [pid.A, pid.B, pid.C]);
-  // Intelligence: output visible + memoria/auditoría interna que NO debe exportarse
-  await db.query(`insert into public.intelligence_match_outputs (player_id, match_id, source_fingerprint, rules_version, output, memory_after, audit) values ($1,$2,'fp','rv','{"headline":"Ganaste"}'::jsonb,'{"SECRETO_MEMORIA":1}'::jsonb,'{"SECRETO_AUDIT":1}'::jsonb)`, [pid.A, m]);
+  // Intelligence: contenido visible + metadata interna. semanticKey reproduce el hallazgo REAL de Staging:
+  // player_id de un tercero embebido dentro de un string, fuera de una clave *PlayerId.
+  const intelligenceOutput = {
+    headline: 'Ganaste',
+    principal: { title: 'Buen partido', semanticKey: `rival_relacion:${pid.B}` },
+    debugReference: `relacion:${pid.C}`,
+  };
+  await db.query(`insert into public.intelligence_match_outputs (player_id, match_id, source_fingerprint, rules_version, output, memory_after, audit) values ($1,$2,'fp','rv',$3::jsonb,'{"SECRETO_MEMORIA":1}'::jsonb,'{"SECRETO_AUDIT":1}'::jsonb)`, [pid.A, m, JSON.stringify(intelligenceOutput)]);
   // grupos: compartido A+B y solo-de-A
   const g1 = (await db.query(`insert into public.groups (name, created_by_player_id) values ('Grupo compartido', $1) returning group_id`, [pid.A])).rows[0].group_id;
   await db.query(`insert into public.group_memberships (group_id, player_id, is_admin) values ($1,$2,true),($1,$3,false)`, [g1, pid.A, pid.B]);

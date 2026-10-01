@@ -36,8 +36,12 @@ test('A: el generador interno SIN envoltorio filtraba ids de terceros (por eso e
   assert.ok(!JSON.stringify(wrapped).includes(fx.pid.B));
   assert.equal(wrapped.account.playerId, fx.pid.A, 'el id del titular se conserva');
   const sql = readRepo('supabase/migrations/20261001080000_bloque9b_export_third_party_redaction.sql');
+  const hardening = readRepo('supabase/migrations/20261001090000_bloque9b_export_redaction_hardening.sql');
   assert.match(sql, /revoke all on function public\._admin_export_player_data_raw\(uuid\) from public, anon, authenticated/);
-  assert.match(sql, /grant execute on function public\.admin_export_player_data\(uuid\) to service_role/);
+  assert.match(hardening, /semantic_\?key/);
+  assert.match(hardening, /from public, anon, authenticated, service_role/);
+  assert.match(hardening, /grant execute on function public\.admin_export_player_data\(uuid\) to service_role/);
+  assert.ok(!JSON.stringify(wrapped).includes('semanticKey'));
 });
 
 test('C: el checksum no depende del orden de filas y detecta cualquier cambio', () => {

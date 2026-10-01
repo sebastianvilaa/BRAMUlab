@@ -28,7 +28,7 @@ Cada procedimiento fue **ensayado de punta a punta** sobre una base efímera con
 - *Previo:* solicitud por `bramulab@gmail.com` desde el email registrado; la cuenta existe y no está eliminada.
 - *Éxito:* exit 0 y mensaje "permisos 0600". El informe se **valida antes de escribirse** (secciones completas, titular correcto, sin claves de secretos ni ids de otras personas); si no valida, **no se escribe nada** (exit 1, `report_invalid`). Errores de red se reintentan 3 veces; los códigos de negocio (`account_deleted`, `player_not_found`, `not_a_registered_account`) son definitivos.
 - *Archivo:* escritura atómica (temporal 0600 + rename); **no pisa** un archivo existente salvo `--force` (que lo deja 0600). Enviarlo solo al email registrado y borrarlo local.
-- *Redacción:* de otros participantes solo el **nombre mostrado en el partido compartido**; los ids de terceros se eliminan recursivamente (`_export_redact_third_parties`; defecto real hallado en 9B: `notifications.payload.actorPlayerId`).
+- *Redacción:* de otros participantes solo el **nombre mostrado en el partido compartido**; ids de terceros se eliminan recursivamente tanto si vienen en claves `*PlayerId/*UserId` como embebidos dentro de strings internos. `Intelligence.semanticKey` no se exporta. El generador raw/helper no tiene EXECUTE directo para `service_role`: el camino operativo único es el wrapper seguro.
 
 **2. Cuenta problemática / abuso** — 1) (opcional) exportar evidencia (procedimiento 1); 2) `auth.admin.updateUserById(authUserId, { ban_duration: '876000h' })`; 3) si corresponde, procedimiento 3.
 - *Previo:* motivo documentado fuera del repo (sin PII en Issues). *Éxito:* `banned_until` ≈ +100 años y datos intactos hasta decidir. Revisión por email (Términos §8).

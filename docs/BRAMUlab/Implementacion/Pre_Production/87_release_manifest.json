@@ -284,6 +284,10 @@
     {
       "file": "20261001080000_bloque9b_export_third_party_redaction.sql",
       "sha256": "739eeeb600d9e791"
+    },
+    {
+      "file": "20261001090000_bloque9b_export_redaction_hardening.sql",
+      "sha256": "2beb46ce410a676a"
     }
   ],
   "edgeFunctions": [
