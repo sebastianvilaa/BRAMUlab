@@ -3859,3 +3859,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* G2 ajuste final (h6): Eliminar = última fila del bloque (sin tarjeta/borde/título propios); Cerrar sesión = botón grande separado. */
 .settings-logout{ margin-top: 28px; }
 .settings-logout .btn-secondary{ width:100%; min-height: 52px; font-weight: 800; }
+
+/* G2 final: el engranaje (mismo SVG en Perfil y Grupos) quedaba visualmente descentrado dentro de su área táctil. Solo estos dos botones. */
+#profile-settings-btn, #groups-settings-btn{ display:inline-flex; align-items:center; justify-content:center; padding:4px 8px; }
+#profile-settings-btn svg, #groups-settings-btn svg{ display:block; }

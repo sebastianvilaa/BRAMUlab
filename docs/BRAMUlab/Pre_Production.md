@@ -502,3 +502,5 @@ BRAMU está lista para los primeros usuarios reales cuando:
 - los puntos P1 que queden abiertos son únicamente pulido, no huecos de producto ni seguridad.
 
 No hace falta “terminar BRAMU”. Hace falta que el núcleo que ya construimos sea coherente, seguro, entendible y permanente desde el primer usuario.
+
+**G2 (01/10/2026):** Configuración/Acceso/Legal implementada y validada por Work; correcciones finales de QA de Sebastián en **V04.21** (versionado visible, engranaje, back de Cambiar contraseña, copy de Contacto). Ver `Implementacion/Pre_Production/103_Cierre_Correcciones_G2_V0421_01OCT.md`. Pendiente: visto bueno de Sebastián e icono iOS.

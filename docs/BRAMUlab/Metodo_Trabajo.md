@@ -293,3 +293,9 @@ Cuando el problema sea de composición, jerarquía, peso visual, espaciado o sen
 - Work valida el deploy real contra la intención/capturas.
 - Un test de DOM/CSS puede prevenir regresiones, pero no reemplaza un PASS visual cuando el criterio es visual.
 - Evitar chats intermedios de “Laboratorio” para traducir ajustes finos si agregan otra capa de interpretación.
+
+## Versión visible para QA (regla confirmada 01/10/2026)
+
+- Toda versión desplegada que Sebastián deba distinguir/revisar visualmente **incrementa la versión pública** `V04.xx`, secuencialmente: V04.21, V04.22, V04.23…
+- Los sufijos `-hN` del bundle quedan reservados para hotfixes técnicos internos que **no** requieren que Sebastián distinga una nueva versión de QA. Un `hN` nunca sustituye una versión visible cuando se le pide QA al usuario.
+- Al subir de versión pública el bundle reinicia en `-h1` y se sincronizan `APP_VERSION`, `BUNDLE_VERSION`, `version.json`, `CACHE_NAME`/`CORE_ASSETS` del Service Worker, query strings, manifest y tests de versionado — en el mismo commit, sin un segundo push solo por documentación.

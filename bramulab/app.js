@@ -6067,14 +6067,14 @@
 
       if (!Auth.isConfigured()) {
         const user = forgotPasswordUserId ? Store.getUserById(forgotPasswordUserId) : null;
-        if (!user) { showView(forgotPasswordOrigin === 'session' ? 'profile' : 'login'); return; }
+        if (!user) { if (forgotPasswordOrigin === 'session') openSettings(); else showView('login'); return; }
         // Regla crítica (§3) — un único campo cambia: `password`. userId/email/username/
         // displayName/foto/historial/notificaciones quedan intactos porque nunca se tocan.
         Store.updateUserAccount(user.id, { password: next });
         if (forgotPasswordOrigin === 'session') {
           // V03.0.3.2 (§3) — la sesión sigue siendo válida (mismo userId, nunca se toca
-          // SESSION/CURRENT_PLAYER): nunca se obliga a loguear de nuevo. Vuelve a MIS DATOS.
-          showView('profile');
+          // SESSION/CURRENT_PLAYER): nunca se obliga a loguear de nuevo. G2: vuelve a Configuración.
+          openSettings();
         } else {
           $('#login-email').value = forgotPasswordEmail;
           $('#login-password').value = '';
@@ -6100,7 +6100,7 @@
       // L3 (V04.20) — la recuperación de contraseña es un evento sensible: cierra las DEMÁS sesiones.
       Auth.signOutOthers();
       showToast('Contraseña actualizada');
-      if (forgotPasswordOrigin === 'session') showView('profile');
+      if (forgotPasswordOrigin === 'session') openSettings();
       else await resumeServerSession({ afterLogin: true });
     });
   }
@@ -7244,14 +7244,14 @@
     wirePasswordToggle('change-password-new', 'change-password-new-toggle');
     wirePasswordToggle('change-password-repeat', 'change-password-repeat-toggle');
     $('#change-password-new').addEventListener('input', (e) => updatePasswordRulesUI(e.target.value, 'change-password-rules'));
-    $('#change-password-cancel').addEventListener('click', () => showView('profile'));
+    $('#change-password-cancel').addEventListener('click', openSettings); // G2: Cambiar contraseña se abre solo desde Configuración
     // V03.0.3.2 (§1/§2) — camino B para quien no recuerda la actual: mismo wizard de
     // recuperación, arrancando directo en el código (sin pedir email de nuevo).
     $('#change-password-forgot-btn').addEventListener('click', openForgotPasswordFromSession);
     $('#change-password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const user = Store.getCurrentUser();
-      if (!user) { showView('profile'); return; }
+      if (!user) { openSettings(); return; }
       const current = $('#change-password-current').value;
       const next = $('#change-password-new').value;
       const repeat = $('#change-password-repeat').value;
@@ -7273,7 +7273,7 @@
           title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
         });
         renderNotificationsBadge();
-        showView('profile');
+        openSettings();
         showToast('Contraseña actualizada');
         return;
       }
