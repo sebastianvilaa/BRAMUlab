@@ -11,7 +11,7 @@ create or replace function pg_temp._id(p_key text) returns uuid language sql as 
 create or replace function pg_temp._assert(p_ok boolean, p_msg text) returns void language plpgsql as $$
 begin if p_ok is not true then raise exception 'ASSERT_FAILED: %', p_msg; end if; end $$;
 
-do $$
+do $bramu$
 declare
   v_uid uuid := gen_random_uuid(); v_pid uuid; v_i integer; v_hit boolean; v jsonb; v_n integer; v_txt text; fn text;
 begin
@@ -89,7 +89,7 @@ begin
       and grantee in ('anon','authenticated')
       and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
   ), 'H6 sin DML/DDL table grants directos para anon/authenticated');
-end $;
+end $bramu$;
 
 select 'PREBLOQUE9_VERIFY_OK' as result;
 rollback;
