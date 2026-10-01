@@ -329,13 +329,13 @@ No pasar a Bloque 9/Production hasta cerrar Fase B y QA multiusuario de Grupos.
 
 ## P0.5 — Bloque 9: endurecimiento y salida
 
-**Estado 01/10/2026:** Pre-Bloque 9 / Issue #17 y **Bloque 9A / Issue #19 están CERRADOS con PASS Central en Staging**. 9A demostró replay limpio desde cero; Central aplicó la línea base final de privilegios, detectó/corrigió PostgreSQL 17 `MAINTAIN` en roles cliente y confirmó la superficie RPC/Edge real. **Bloque 9B / Issue #20 está en gate Central final**: rehearsal operativo y backup lógico completos; el gate real encontró y corrigió una segunda fuga de ids de terceros dentro de `Intelligence.semanticKey`. Quedan únicamente los gates externos G1–G4 antes de abrir Production.
+**Estado 01/10/2026:** Pre-Bloque 9 / Issue #17, **Bloque 9A / Issue #19** y **Bloque 9B / Issue #20 están CERRADOS con PASS Central en Staging**. 9A cerró replay/ACL/PG17 `MAINTAIN`; 9B cerró rehearsal operativo, exportación segura y backup lógico. El gate real de 9B detectó dos vías de fuga de ids de terceros (notificaciones y `Intelligence.semanticKey`) y ambas quedaron corregidas/retesteadas en Staging. Quedan únicamente los gates externos G1–G4 antes de abrir Production.
 
 Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.
 
-**Bloque 9B (01/10/2026):** procedimientos de exportación/operación/recuperación y backup lógico ensayados en base efímera; preflight reproducible con gates externos G1–G4. Gate Central real detectó una fuga adicional de ids embebidos en `Intelligence.semanticKey` y la corrigió con forward-fix `20261001090000`. Ver `87_Resultado_Bloque_9B_Rehearsal_Operativo_01OCT.md` + `88_Gate_Central_Bloque_9B_01OCT.md`. El backup gestionado de Supabase NO está probado y depende del plan real.
+**Bloque 9B (01/10/2026): CERRADO / PASS Central.** Procedimientos de exportación/operación/recuperación y backup lógico ensayados; migraciones `20261001080000` + forward-fix `20261001090000` aplicadas y retesteadas en Staging; preflight reproducible con G1–G4. Ver `87_Resultado_Bloque_9B_Rehearsal_Operativo_01OCT.md` + `88_Gate_Central_Bloque_9B_01OCT.md`. El backup gestionado de Supabase NO está probado y depende del plan real.
 
 ### Gate mínimo de Bloque 9
 

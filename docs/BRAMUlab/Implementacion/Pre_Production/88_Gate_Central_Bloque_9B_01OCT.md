@@ -1,7 +1,7 @@
 # 88 — Gate Central Bloque 9B (Issue #20)
 
 **Fecha:** 01/10/2026  
-**Estado durante este commit:** corrección Central preparada; falta aplicar/retest final en Staging.  
+**Resultado final:** **PASS CENTRAL EN STAGING**.  
 **No se tocó:** main, Production, BRAMUlive, emails/Auth ni OTP destructivo.
 
 ## Entrada revisada
@@ -33,14 +33,46 @@ Sin editar la migración 080000 ya aplicada:
 - la validación cliente rechaza `semanticKey` si el backend alguna vez regresiona;
 - fixtures/tests reproducen el caso real.
 
-## Criterio de cierre
-Después de aplicar 090000 en Staging, Central debe comprobar:
-1. un caso real que antes filtraba: raw sí contiene el tercero, export seguro no;
-2. `semanticKey` ausente;
-3. ningún player/auth UUID ajeno embebido en strings;
-4. playerId del titular y matchIds legítimos preservados;
-5. wrapper solo service_role; raw/helper sin EXECUTE de service_role/anon/authenticated;
-6. migraciones registradas y Vercel del commit Central en SUCCESS;
-7. advisors sin hallazgo nuevo bloqueante.
+## Retest final de Central
 
-Si todo pasa: **Issue #20 = PASS Central**. No queda otra ronda técnica independiente útil antes de G1–G4.
+Aplicadas en Staging:
+- `bloque9b_export_third_party_redaction`;
+- `bloque9b_export_redaction_hardening`.
+
+Caso real que antes filtraba:
+- raw contiene el identificador ajeno: **sí** (confirma que el caso ejercitado es real);
+- export seguro conserva ese identificador: **no**;
+- `semanticKey`: **ausente**;
+- tokens UUID que corresponden a `player_id/auth_user_id` ajenos dentro de todo el JSON seguro: **0**;
+- `account.playerId` propio: preservado;
+- `matchId` legítimos: preservados.
+
+Permisos:
+- anon → export: **no**;
+- authenticated → export: **no**;
+- service_role → wrapper seguro: **sí**;
+- service_role → raw/helper: **no**.
+
+Regresión:
+- `PREBLOQUE9_VERIFY_OK`;
+- migraciones 08:00 y 09:00 registradas en Supabase Staging;
+- advisors sin hallazgo nuevo bloqueante;
+- commit funcional Central `76473a42ac35aecdec3a9f132a4fabef31f888a5`: Vercel SUCCESS.
+
+## Cierre
+
+**Bloque 9B / Issue #20: CERRADO con PASS Central.**
+
+Queda demostrado en esta etapa:
+- exportación segura y operable;
+- procedimientos de administración/recuperación ensayados;
+- backup lógico de `public` ensayado, incluida la protección contra “resucitar” cuentas eliminadas;
+- preflight automático reproducible.
+
+Siguen abiertos únicamente los gates externos definidos por el propio preflight:
+- **G1:** Comunicaciones/Auth-email;
+- **G2:** QA browser Legal/Acceso + E2E destructivo con OTP;
+- **G3:** autorización explícita y configuración de Production;
+- **G4:** plan/región/retención y restauración gestionada real de backups.
+
+No queda otra ronda técnica independiente útil que justifique seguir agregando trabajo antes de resolver G1/G2 o tomar las decisiones de G3/G4.
