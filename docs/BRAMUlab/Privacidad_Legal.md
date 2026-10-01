@@ -336,6 +336,23 @@ Primera de las rondas L1/L2/L3 de Pre-Production (Issue #10). **Sin restricción
 - **Eliminación autoservicio**: Edge Function `delete-my-account` (JWT de sesión; `{confirm:true}` únicamente; identidad resuelta server-side vía `resolve_player_for_account_deletion`; exige reautenticación reciente ≤10 min por OTP/recovery de email, claim `amr`) sobre el **mismo motor P0.3** (`_shared/account-deletion-core.mjs`, compartido con el script administrativo). UI en Acceso y seguridad → Eliminar mi cuenta: código al email → confirmación con consecuencias (sin «escribí ELIMINAR») → ejecución → purga local del dueño → pantalla final neutra. Idempotente/reintentable.
 - **E2E destructivo**: `supabase/scripts/e2e-delete-my-account.mjs` (cuentas descartables `e2e_*`): `prepare` → `negatives` (401/400/403 automáticos, sin OTP) → `send-otp` (**único gate humano**) → `delete --otp` → `verify` → `cleanup`.
 
-### Pendiente
-Central: aplicar migraciones, verifies, advisors, desplegar `delete-my-account` (verify_jwt=true) y `cleanup-abandoned-signups` (verify_jwt=false), programar el cron, validar el claim `amr` del OTP en una sesión real. Gate humano: QA visual corto de Legal/Acceso + OTP de la cuenta descartable.
+### Gate Central V04.20 — resultado
+
+**PASS técnico en Staging.** Central aplicó las migraciones V04.20, desplegó `delete-my-account` y `cleanup-abandoned-signups`, programó el cron real y ejecutó los verifies:
+
+- `V0420_WHATSAPP_VERIFY_OK`;
+- `V0420_SELF_SERVICE_VERIFY_OK`;
+- `V0420_CRON_SECRET_VERIFY_OK`;
+- `L1_VERIFY_OK`;
+- regresión `V0418_VERIFY_OK`.
+
+El cron respondió **200** con secreto correcto y **403** con secreto inválido. `delete-my-account` sin JWT respondió **401**. Durante el gate se corrigieron dos puntos de infraestructura: idempotencia transaccional del scheduler y `pg_net` fuera de `public`; el warning nuevo del advisor quedó eliminado.
+
+### Pendiente externo para cerrar P0.2
+
+- sistema de emails/configuración Auth coordinado con Comunicaciones, incluyendo distinguir correctamente el correo de una acción sensible como eliminación de cuenta;
+- QA browser corto de Legal + Acceso y seguridad;
+- E2E destructivo sobre cuenta descartable, con un único gate humano de OTP.
+
+Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo a Bloque 9** que no dependa de emails ni de Production. No cerrar P0.2 hasta completar esos tres gates.
 

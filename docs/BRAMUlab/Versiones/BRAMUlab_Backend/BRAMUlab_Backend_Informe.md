@@ -1017,3 +1017,22 @@ Antes de Bloque 9:
 3. después ejecutar **Bloque 9 — endurecimiento y salida**.
 
 No tocar main/Production sin autorización explícita.
+
+
+---
+
+## Pre-Production V04.20 — actualización 30/09/2026
+
+Central completó el gate técnico de V04.20 en Supabase Staging:
+
+- migraciones V04.20 aplicadas;
+- `delete-my-account` ACTIVE con JWT obligatorio;
+- `cleanup-abandoned-signups` ACTIVE;
+- cron horario real activo y autenticado desde Vault;
+- verifies V04.20, L1 y regresión V04.18 en PASS;
+- hardening adicional del scheduler y de `pg_net` aplicado;
+- Vercel SUCCESS.
+
+No queda bloqueo técnico de esta ronda. Antes de cerrar P0.2 faltan únicamente gates externos: sistema de emails/Auth coordinado con Comunicaciones, QA browser corto y E2E destructivo con cuenta descartable + OTP.
+
+Mientras esos gates esperan, queda habilitada una ronda acotada de **preparación de Bloque 9 en Staging** que no toque emails, main, Production ni BRAMUlive. Esta preparación no equivale a declarar Bloque 9 cerrado ni autoriza abrir Production.
