@@ -289,7 +289,7 @@ test('Sesiones: Cerrar sesión es LOCAL (bug latente: signOut() sin scope era GL
 });
 
 test('Sesiones: eventos sensibles (cambio de contraseña, recuperación, cambio de email) cierran las DEMÁS sesiones', () => {
-  const change = between(appJs, "const result = await Auth.updatePassword(next);\n      submitBtn.disabled = false;\n      if (!result.ok) {\n        $('#change-password-error')", "showView('profile');\n      showToast('Contraseña actualizada');");
+  const change = between(appJs, "const result = await Auth.updatePassword(next);\n      submitBtn.disabled = false;\n      if (!result.ok) {\n        $('#change-password-error')", "openSettings(); // G2: se llega desde Configuración\n      showToast('Contraseña actualizada');");
   assert.match(change, /Auth\.signOutOthers\(\)/);
   const forgot = between(appJs, "$('#forgot-password-new-error').textContent = 'No pudimos actualizar la contraseña. Probá de nuevo.';", 'else await resumeServerSession({ afterLogin: true });');
   assert.match(forgot, /Auth\.signOutOthers\(\)/);
@@ -522,9 +522,9 @@ test('Regresión: login/signup/recovery/onboarding conservan sus contratos (acep
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
 });
 
-test('Versión: V04.20 / 04.21-h1 coherentes', () => {
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.21'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.21-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.21', bundle: '04.21-h1' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-21-h1'/);
+test('Versión: V04.22 / 04.22-h1 coherentes', () => {
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.22'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.22-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.22', bundle: '04.22-h1' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-22-h1'/);
 });

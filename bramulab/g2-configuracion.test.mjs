@@ -193,7 +193,7 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.ok([2, 6].includes(colorType));
   const m = JSON.parse(read('manifest.webmanifest'));
   assert.equal(m.start_url, './index.html'); assert.equal(m.display, 'standalone');
-  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.21-h1$/); }
+  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.22-h1$/); }
   assert.ok(m.icons.some((i) => i.purpose === 'maskable') && m.icons.some((i) => i.sizes === '512x512' && i.purpose === 'any'));
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest" crossorigin="use-credentials" \/>/);
   const ati = html.match(/<link rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,([A-Za-z0-9+/=]+)" \/>/);
@@ -202,10 +202,10 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.equal((html.match(/rel="apple-touch-icon"/g) || []).length, 1);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="BRAMUlab" \/>/);
   assert.match(html, /<meta name="theme-color" content="#050A12" \/>/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-21-h1'/);
-  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.21-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.21', bundle: '04.21-h1' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.21-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-22-h1'/);
+  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.22-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.22', bundle: '04.22-h1' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.22-h1'/);
   assert.ok(!/\?v=04\.20-h4/.test(html + sw + read('manifest.webmanifest')), 'sin restos del bundle anterior');
   assert.match(sw, /keys\.filter\(\(k\) => k\.startsWith\('bramulab-v'\) && k !== CACHE_NAME\)/, 'el SW nuevo borra las cachés viejas');
 });
@@ -228,13 +228,13 @@ test('G2-13 · no regresión G1 ni alcance: backend de challenges/eliminación i
 });
 
 /* ---------- tanda final V04.21 ---------- */
-test('V0421-1 · versión visible BRAMUlab V04.21 y bundle/cache/version.json/SW/manifest coherentes', () => {
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.21'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.21-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.21', bundle: '04.21-h1' });
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-21-h1'/);
+test('V0421-1 · versión visible BRAMUlab V04.22 y bundle/cache/version.json/SW/manifest coherentes', () => {
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.22'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.22-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.22', bundle: '04.22-h1' });
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-22-h1'/);
   assert.ok(!/04\.20-h\d/.test(html + sw + read('manifest.webmanifest')), 'sin restos del bundle anterior');
-  assert.ok((html.match(/\?v=04\.21-h1/g) || []).length >= 10);
+  assert.ok((html.match(/\?v=04\.22-h1/g) || []).length >= 10);
   assert.match(fs.readFileSync(path.join(__dirname, '../docs/BRAMUlab/Metodo_Trabajo.md'), 'utf8'), /V04\.21, V04\.22/);
 });
 
@@ -245,15 +245,19 @@ test('V0421-2 · engranaje centrado en Perfil y Grupos con la misma regla acotad
   assert.match(css, /^\.icon-btn\{ background:none; border:none; color: var\(--paper-dim\); font-size: 20px; padding: 4px 8px; cursor:pointer; line-height:1; \}$/m, '.icon-btn global sin tocar');
 });
 
-test('V0421-3 · Cambiar contraseña: cancelar y éxito vuelven a Configuración; recovery desde sesión también', () => {
-  const cp = between(app, "$('#change-password-cancel')", "showToast('Contraseña actualizada')");
-  assert.match(cp, /#change-password-cancel'\)\.addEventListener\('click', openSettings\)/);
-  assert.ok(!/showView\('profile'\)/.test(cp), 'sin destino antiguo');
-  assert.match(cp, /openSettings\(\);\s*\n?\s*(showToast|$)|openSettings\(\)/);
+test('V0421-3 · Cambiar contraseña: cancelar y AMBOS caminos de éxito (local y server-backed) vuelven a Configuración; recovery desde sesión también', () => {
+  const init = between(app, '  function initChangePasswordScreen() {', '  /* ------------------------------------------------------------------ */\n  /* L3 (V04.20) — CAMBIAR EMAIL');
+  assert.ok(!/showView\('profile'\)/.test(init), 'ningún showView(profile) dentro de initChangePasswordScreen');
+  assert.match(init, /#change-password-cancel'\)\.addEventListener\('click', openSettings\)/);
+  const local = between(init, 'Store.updateUserAccount(user.id, { password: next });', "showToast('Contraseña actualizada')");
+  assert.match(local, /openSettings\(\)/);
+  const server = between(init, 'const result = await Auth.updatePassword(next);', "showToast('Contraseña actualizada')");
+  assert.match(server, /Auth\.signOutOthers\(\)/); assert.match(server, /renderNotificationsBadge\(\);\s*openSettings\(\)/);
+  assert.equal((init.match(/openSettings\(\)/g) || []).length >= 3, true, 'no-user, cancelar, local y server');
   const forgot = between(app, "if (forgotPasswordOrigin === 'session') {\n          // V03.0.3.2", "} else {\n          $('#login-email')");
   assert.match(forgot, /openSettings\(\)/);
   assert.match(app, /if \(forgotPasswordOrigin === 'session'\) openSettings\(\);\s*\n\s*else await resumeServerSession/);
-  assert.match(app, /else if \(forgotPasswordOrigin === 'session'\) showView\('change-password'\)/, 'volver dentro del wizard sigue yendo a Cambiar contraseña');
+  assert.match(app, /else if \(forgotPasswordOrigin === 'session'\) showView\('change-password'\)/);
 });
 
 test('V0421-4 · Contacto: copy exacto, misma dirección y CTA', () => {

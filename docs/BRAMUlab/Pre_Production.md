@@ -504,3 +504,4 @@ BRAMU está lista para los primeros usuarios reales cuando:
 No hace falta “terminar BRAMU”. Hace falta que el núcleo que ya construimos sea coherente, seguro, entendible y permanente desde el primer usuario.
 
 **G2 (01/10/2026):** Configuración/Acceso/Legal implementada y validada por Work; correcciones finales de QA de Sebastián en **V04.21** (versionado visible, engranaje, back de Cambiar contraseña, copy de Contacto). Ver `Implementacion/Pre_Production/103_Cierre_Correcciones_G2_V0421_01OCT.md`. Pendiente: visto bueno de Sebastián e icono iOS.
+**G2 fix V04.22 (01/10/2026):** el éxito de Cambiar contraseña (camino server-backed) volvía a Perfil; ahora vuelve a Configuración. Ver `Implementacion/Pre_Production/104_Fix_Back_Contrasena_V0422_01OCT.md`. Pendiente: gate Central → QA de Sebastián en iPhone → cierre #22.

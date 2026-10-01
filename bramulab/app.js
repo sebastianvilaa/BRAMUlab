@@ -7303,7 +7303,7 @@
         title: 'Contraseña actualizada', body: 'Tu contraseña se cambió correctamente.',
       });
       renderNotificationsBadge();
-      showView('profile');
+      openSettings(); // G2: se llega desde Configuración
       showToast('Contraseña actualizada');
     });
   }
