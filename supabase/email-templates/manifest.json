@@ -72,6 +72,13 @@
       "renderer": "renderEmail(id, { mode: \"custom\" })"
     },
     {
+      "emailId": 4,
+      "key": "change_email_new",
+      "subject": "Confirmá tu nuevo email en BRAMUlab",
+      "mechanism": "Edge Function + SMTP compartido (BRAMU_SMTP_*)",
+      "renderer": "renderEmail(id, { mode: \"custom\" })"
+    },
+    {
       "emailId": 5,
       "key": "email_changed",
       "subject": "El email de tu cuenta fue cambiado",

@@ -1056,3 +1056,34 @@ Gate Central:
 - advisors sin hallazgo nuevo bloqueante.
 
 No se abrió Production. Bloque 9 completo sigue condicionado al cierre de P0.2 (Comunicaciones/Auth, QA browser y E2E destructivo con OTP) y a autorización explícita para Production.
+
+
+---
+
+## Pre-Production G1 — Emails/Auth V1 — GATE CENTRAL PRE-WORK (01/10/2026)
+
+**Estado:** backend/versionado **PASS Central en Staging**; G1 completo sigue abierto hasta la pasada de Work + QA real.
+
+Entrega Claude:
+- commit `3c1999f441de007d6ab3c0892dd119c7c096b2cd`;
+- bundle `04.20-h4`;
+- desafíos server-side por propósito para cambio de email y eliminación;
+- templates Night Card versionados;
+- integración cliente sin reutilizar recovery para cambio/eliminación.
+
+Gate Central real:
+- migración `g1_emails_account_challenges` aplicada en Supabase Staging (versión registrada `20261001162823`);
+- verify G1 transaccional sin excepción y sin residuos;
+- `account_challenges`: RLS activo, 0 policies de cliente, 0 SELECT/MAINTAIN para anon/authenticated;
+- las 10 RPC G1: anon/authenticated sin EXECUTE, service_role con EXECUTE;
+- `account-challenge` ACTIVE v1, `verify_jwt=true`;
+- `delete-my-account` ACTIVE v2, `verify_jwt=true`;
+- `PREBLOQUE9_VERIFY_OK` después del cambio;
+- advisors sin hallazgo nuevo bloqueante;
+- Vercel del commit funcional: SUCCESS.
+
+Central corrigió únicamente una ambigüedad documental/tooling: Email #4 figura como **custom** en el flujo BRAMU y, simultáneamente, como template nativo `email_change` de fallback defensivo. Esto no agrega un tercer email al flujo normal.
+
+**Pendiente exclusivo de Work antes de cerrar G1:** cargar/verificar secrets de Edge sin exponerlos, sincronizar templates/config hosted de Supabase Auth en Staging, verificar sender/logo y ejecutar QA real de los 8 emails y de las secuencias críticas.
+
+Fuente: `docs/BRAMUlab/Implementacion/Pre_Production/91_Gate_Central_G1_Pre_Work_01OCT.md`.

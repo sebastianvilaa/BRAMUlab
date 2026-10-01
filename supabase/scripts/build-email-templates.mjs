@@ -49,7 +49,10 @@ export function generate() {
           ? 'Fallback de plataforma: el flujo BRAMU NO depende de este template (el cambio de email es server-side).'
           : undefined,
       });
-    } else {
+    }
+    // #4 vive en DOS planos a propósito: el flujo BRAMU lo envía por Edge+SMTP, mientras
+    // `email_change` queda versionado solo como fallback defensivo de la plataforma.
+    if ([3, 4, 5, 7, 8].includes(tpl.id)) {
       manifest.custom.push({ emailId: tpl.id, key: tpl.key, subject: tpl.subject, mechanism: 'Edge Function + SMTP compartido (BRAMU_SMTP_*)', renderer: 'renderEmail(id, { mode: "custom" })' });
     }
   }

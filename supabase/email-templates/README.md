@@ -18,7 +18,7 @@ Fuente única del copy, asuntos y diseño **BRAMU Night Card** de los 8 emails d
 - `auth/*.html`: HTML **standalone** con variables Go-template de Supabase Auth (`{{ .Token }}`, `{{ .SiteURL }}`). El logo real
   (`bramulab/icons/logo.png`) se referencia como `{{ .SiteURL }}/icons/logo.png`: **Site URL de Auth debe ser el origen estable de BRAMUlab Staging, sin barra final**.
 - `previews/*.html`: los 8 emails renderizados con datos de ejemplo (código `123456`) para revisar el render sin enviar nada. Abrirlos desde el repo (el logo es relativo).
-- `manifest.json`: template → mecanismo, asunto, archivo, hash y claves de configuración hosted.
+- `manifest.json`: template → mecanismo, asunto, archivo, hash y claves de configuración hosted. **Email #4 aparece en `custom` (flujo BRAMU real) y también en `native` (fallback `email_change` de plataforma); no son dos envíos del flujo normal.**
 
 ## Sincronizar con Supabase hosted (Staging) — Work
 
