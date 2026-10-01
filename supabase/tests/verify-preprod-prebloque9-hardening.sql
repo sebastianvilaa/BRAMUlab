@@ -83,13 +83,16 @@ begin
 end $$;
 
 -- H6: el cliente nunca necesita privilegios PostgreSQL secundarios que saltean el modelo RPC/RLS.
-perform pg_temp._assert(not exists (
-  select 1
-  from information_schema.role_table_grants
-  where table_schema = 'public'
-    and grantee in ('anon','authenticated')
-    and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
-), 'H6 sin DML/DDL table grants directos para anon/authenticated');
+do $
+begin
+  perform pg_temp._assert(not exists (
+    select 1
+    from information_schema.role_table_grants
+    where table_schema = 'public'
+      and grantee in ('anon','authenticated')
+      and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
+  ), 'H6 sin DML/DDL table grants directos para anon/authenticated');
+end $;
 
 select 'PREBLOQUE9_VERIFY_OK' as result;
 rollback;
