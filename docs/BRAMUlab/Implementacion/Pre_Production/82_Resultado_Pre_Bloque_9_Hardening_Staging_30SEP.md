@@ -1,7 +1,7 @@
 # 82 — Resultado Pre-Bloque 9: hardening de Staging (Issue #17)
 
 **Fecha:** 30/09/2026 · **Entorno:** solo Staging · **Versión:** V04.20, bundle `04.20-h2` (único cambio frontend: sw.js/auth.js/app.js).
-Migración nueva **sin aplicar** (la aplica Central): `20260930340000_preprod_prebloque9_hardening.sql`. No se tocó emails/SMTP/Secure Email Change, E2E con OTP, main, Production ni BRAMUlive, ni reglas deportivas.
+**Estado final: PASS en Staging.** Migración principal renombrada a `20260930350000_preprod_prebloque9_hardening.sql` y aplicada por Central; follow-up de privilegios de tabla `20261001034500_preprod_prebloque9_table_privileges_hardening.sql` también aplicado. No se tocó emails/SMTP/Secure Email Change, E2E con OTP, main, Production ni BRAMUlive, ni reglas deportivas.
 
 ## 1. Qué se auditó
 - **Permisos / RPC:** inventario estático de las 115 funciones de `public` (`supabase/scripts/audit-migration-grants.mjs`, convertido en test de regresión) + consulta viva para Central (`supabase/tests/audit-live-grants.sql`).
@@ -54,3 +54,21 @@ Central detectó dos puntos que solo podían observarse al cruzar el gate real d
 2. **Privilegios de tabla heredados.** No existían grants directos `INSERT/UPDATE/DELETE`, pero `anon` y `authenticated` conservaban `TRUNCATE/REFERENCES/TRIGGER` en 27 tablas. No son necesarios para BRAMU y `TRUNCATE` no debe quedar como capacidad del cliente. Follow-up `preprod_prebloque9_table_privileges_hardening`: revoca esos privilegios actuales y por default para nuevas tablas del rol de migración.
 
 La auditoría viva se corrigió para distinguir SELECT intencional/RLS de privilegios directos peligrosos.
+
+
+### Resultado final del gate Central
+
+- `PREBLOQUE9_VERIFY_OK`;
+- no quedan grants directos INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER para `anon` o `authenticated`;
+- única función SECURITY DEFINER anónima: `is_username_available` (intencional);
+- helpers internos authenticated visibles: únicamente `_group_photo_*` requeridos por Storage;
+- ninguna tabla `public` sin RLS;
+- ningún bucket público;
+- `app_config.environment = staging`;
+- 7 Edge Functions modificadas: ACTIVE, JWT obligatorio;
+- `ops_health_snapshot()` operativo y solo agregado;
+- cron de Ranking + cleanup de altas activos;
+- Vercel SUCCESS;
+- advisors restantes: warnings intencionales/conocidos o de optimización, no nuevos bloqueantes.
+
+Issue #17 puede cerrarse. No quedan decisiones humanas abiertas en este bloque.

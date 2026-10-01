@@ -1036,3 +1036,23 @@ Central completó el gate técnico de V04.20 en Supabase Staging:
 No queda bloqueo técnico de esta ronda. Antes de cerrar P0.2 faltan únicamente gates externos: sistema de emails/Auth coordinado con Comunicaciones, QA browser corto y E2E destructivo con cuenta descartable + OTP.
 
 Mientras esos gates esperan, queda habilitada una ronda acotada de **preparación de Bloque 9 en Staging** que no toque emails, main, Production ni BRAMUlive. Esta preparación no equivale a declarar Bloque 9 cerrado ni autoriza abrir Production.
+
+
+### Pre-Bloque 9 — hardening independiente de Comunicaciones — PASS (01/10/2026)
+
+Issue #17 cerrado en Staging. Se verificó y endureció:
+
+- grants/RLS/RPCs y revocación de privilegios de tabla innecesarios para `anon`/`authenticated`;
+- rate limits en RPCs sensibles y 7 Edge Functions de usuario;
+- aislamiento runtime de entornos y `env.generated.js` fuera de cache-first;
+- métrica agregada `ops_health_snapshot()`;
+- runbook de operación y checklist reproducible de salida.
+
+Gate Central:
+- `PREBLOQUE9_VERIFY_OK`;
+- grants directos peligrosos (INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER) = 0;
+- 7 Edge Functions modificadas ACTIVE con JWT;
+- Vercel SUCCESS;
+- advisors sin hallazgo nuevo bloqueante.
+
+No se abrió Production. Bloque 9 completo sigue condicionado al cierre de P0.2 (Comunicaciones/Auth, QA browser y E2E destructivo con OTP) y a autorización explícita para Production.
