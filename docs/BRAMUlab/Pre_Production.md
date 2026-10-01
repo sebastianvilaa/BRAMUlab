@@ -329,6 +329,8 @@ No pasar a Bloque 9/Production hasta cerrar Fase B y QA multiusuario de Grupos.
 
 ## P0.5 — Bloque 9: endurecimiento y salida
 
+**Estado 01/10/2026:** Pre-Bloque 9 / Issue #17 y **Bloque 9A / Issue #19 están CERRADOS con PASS Central en Staging**. 9A demostró replay limpio desde cero; Central aplicó la línea base final de privilegios, detectó/corrigió PostgreSQL 17 `MAINTAIN` en roles cliente y confirmó la superficie RPC/Edge real. Quedan gates externos de Comunicaciones/Auth, QA browser Legal/Acceso, E2E destructivo OTP y el rehearsal operativo/backup que no requiera abrir Production.
+
 Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.

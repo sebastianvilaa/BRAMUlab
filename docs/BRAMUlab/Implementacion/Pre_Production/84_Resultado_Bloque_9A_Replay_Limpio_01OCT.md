@@ -12,7 +12,7 @@ No hay Docker, Supabase CLI ni Postgres local. Se usó **PGlite** (Postgres 17 r
 | # | Hallazgo | Evidencia | Acción |
 |---|---|---|---|
 | 1 | **El replay limpio FALLABA**: `20260930232000_…legal_acceptance_hardening` ordena **antes** de `20260930280000_…`, que es la que crea `legal_acceptances` y `legal_acceptances_reject_mutation()` (`function … does not exist`). Habría roto cualquier proyecto nuevo (Production) o `db reset`. | replay | El estado final (search_path + índice) se incluye en `280000`; `232000` quedó **condicional** (no-op en base vacía, idéntico efecto en Staging, donde ya está aplicada: no se renombra). Test de regresión. |
-| 2 | **Los privilegios finales dependían de las ACL por defecto del proyecto.** Con defaults abiertos (peor caso) quedaban INSERT/UPDATE/DELETE/TRUNCATE en tablas para anon/authenticated y EXECUTE para anon y para authenticated sobre RPC administrativas/internas (`admin_annul_match`, `consume_rate_limit`, `_groups_*`…). Staging está bien por sus defaults; un proyecto Production nuevo puede traer otros. | `ACL=open` | Migración **`20261001060000_bloque9a_baseline_privileges.sql`** (idempotente, sin cambio de producto): tablas sin DML/TRUNCATE/REFERENCES/TRIGGER para anon/authenticated; anon solo SELECT de `app_config`/`legal_versions`; funciones: anon solo `is_username_available`, authenticated solo las **58** RPC/helpers de Storage re-concedidas explícitamente; default privileges revocados. Los 3 escenarios convergen al mismo estado final (chequeado) y un test prueba que **sin** la migración el escenario `open` falla. |
+| 2 | **Los privilegios finales dependían de las ACL por defecto del proyecto.** Con defaults abiertos (peor caso) quedaban INSERT/UPDATE/DELETE/TRUNCATE en tablas para anon/authenticated y EXECUTE para anon y para authenticated sobre RPC administrativas/internas (`admin_annul_match`, `consume_rate_limit`, `_groups_*`…). Staging está bien por sus defaults; un proyecto Production nuevo puede traer otros. | `ACL=open` | Migración **`20261001060000_bloque9a_baseline_privileges.sql`** (idempotente, sin cambio de producto): tablas sin DML/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN para anon/authenticated; anon solo SELECT de `app_config`/`legal_versions`; funciones: anon solo `is_username_available`, authenticated solo las **58** RPC/helpers de Storage re-concedidas explícitamente; default privileges revocados. Los 3 escenarios convergen al mismo estado final (chequeado) y un test prueba que **sin** la migración el escenario `open` falla. |
 | 3 | Laboratorio/Herramientas ocultos en Production solo por botón: el handler `createLabTestUserAndOpenOnboarding`/`setLevelV1Preview`/`resetLevelV1ForLabAccount` y el flag `LEVEL_V1_PREVIEW` (localStorage) seguían operativos. Impacto bajo (cuentas locales, no server-backed). | lectura de código | Guardas en handler + `Store.isLevelV1PreviewEnabled()` devuelve `false` en Production (cambio frontend, bundle `04.20-h3`). Test. |
 | 4 | `prebloque9-hardening.test.mjs` apuntaba a la migración renombrada por Central (`…340000` → `…350000`): 3 tests fallaban en HEAD. | node --test | Ruta corregida. |
 
@@ -39,7 +39,7 @@ Cada función resuelve **recursivamente** todos sus imports locales (incl. `_sha
 
 | función | verify_jwt | archivos | env |
 |---|---|---|---|
-| `admin-resolve-identity-issue` | true | 7 | – |
+| `admin-resolve-identity-issue` | **false** (service role exacta, auth propia) | 7 | – |
 | `cleanup-abandoned-signups` | **false** (se autentica sola: secreto de Vault o service role) | 2 | – |
 | `create-or-attach-match` | true | 9 | – |
 | `delete-my-account` | true | 3 | – |
@@ -56,9 +56,9 @@ Cada función resuelve **recursivamente** todos sus imports locales (incl. `_sha
 Staging válido (exit 0, `env.generated.js` solo con `name/supabaseUrl/supabaseAnonKey`, robots no-index) · **Production con los placeholders legales actuales FALLA a propósito** (exit 1, "las páginas legales tienen datos pendientes", lista `nombre_legal_responsable`, …) y no deja `env.generated.js` de Production · Vercel Production con credenciales de Staging FALLA · Vercel Preview con credenciales de Production FALLA · faltan `BRAMU_ENV_NAME`/`SUPABASE_URL`/`SUPABASE_ANON_KEY` FALLA · Production con páginas legales completas (simuladas en la copia) construye e indexa. Service role ausente de todo script cliente y del SW (código sin comentarios); único CDN = supabase-js; `env.generated.js` nunca cacheado por el SW; bundle coherente (`store.js` = `version.json` = `CACHE_NAME` = `?v=`).
 
 ## 7. Qué se cambió
-Migraciones: `20260930280000` (+ hardening incluido) y `20260930232000` (condicional) corregidas · **nueva** `20261001060000_bloque9a_baseline_privileges.sql` (**sin aplicar**; ver advertencia) · `app.js`/`store.js` (guardas de laboratorio) + bundle `04.20-h3` · `supabase/scripts/{replay-migrations,verify-clean-room,release-check}.mjs` (+ PGlite devDependency) · `supabase/tests/audit-live-grants.sql` (sección 7) · `bramulab/bloque9a-release.test.mjs` (13) · test de prebloque9 corregido · Runbook y README.
+Migraciones: `20260930280000` (+ hardening incluido) y `20260930232000` (condicional) corregidas · **nueva** `20261001060000_bloque9a_baseline_privileges.sql` (**aplicada por Central en Staging durante el gate**) · `app.js`/`store.js` (guardas de laboratorio) + bundle `04.20-h3` · `supabase/scripts/{replay-migrations,verify-clean-room,release-check}.mjs` (+ PGlite devDependency) · `supabase/tests/audit-live-grants.sql` (sección 7) · `bramulab/bloque9a-release.test.mjs` (13) · test de prebloque9 corregido · Runbook y README.
 
-**⚠ Advertencia para Central antes de aplicar `20261001060000` en Staging:** revoca y re-concede EXECUTE a `authenticated` de forma atómica. Correr primero la sección 7 de `audit-live-grants.sql` y comprobar que **ninguna** función ejecutable hoy por `authenticated` falta en las 58 re-concedidas (el test garantiza que la lista coincide con lo que dejan las migraciones del repo, no con el estado vivo de Staging). Luego correr los verifies de Staging.
+**Gate Central ejecutado:** las **58/58** funciones ejecutables por `authenticated` en Staging coincidieron exactamente con las 58 re-concedidas. Central detectó además que PostgreSQL 17 introduce el privilegio de tabla `MAINTAIN`, no visible en `information_schema.role_table_grants`: 27 tablas públicas lo heredaban para `anon/authenticated`. Se incorporó `MAINTAIN` a la revocación actual y por defecto antes de aplicar la migración. Post-aplicación: 0 tablas con `MAINTAIN` cliente, superficie RPC 58/58 intacta y `PREBLOQUE9_VERIFY_OK`.
 
 ## 8. Pruebas ejecutadas
 `release-check.mjs`: PASS (migraciones · hardcodes · 10 Edge Functions · cliente · 11 guardas de build · replay ×3 ACL). Verifies SQL del repo sobre la base replayada (escenario `observed`, con `app_config` sembrada): **14 OK**; **9 requieren cuentas reales de Staging** (`verify-bloque7-fase1/3`, `p01c`, `p03`, `ux-*`: fallan por diseño con `…requires_one_registered…`; se siguen corriendo en Staging); **3 no evaluables** acá (`grupos-26`, `grupos-b2a`, `grupos-b2c`: comparan `clock_timestamp()` consecutivos y el reloj de PGlite/WASM es grueso — medido: 6 valores distintos en 2000 inserts; PASS en Staging real según Central). Suite Node completa y `tests.html`: ver el commit (mismas fallas preexistentes de línea base: `h19-B`, `h21-9`, `h23`; 5 de calendario en `tests.html`).
@@ -67,9 +67,24 @@ Migraciones: `20260930280000` (+ hardening incluido) y `20260930232000` (condici
 GoTrue/Auth real (OTP, `email_change`, `amr`), Storage API real, runtime Deno y `functions deploy`, pg_cron/pg_net/Vault reales (solo shim), Vercel build real, Supabase Advisors, estado vivo de Staging (ACL por defecto reales, versiones de Edge Functions activas), `verify_jwt` realmente configurado, plan/región/backups. Ninguno bloquea 9A; los cubre el gate de Central.
 
 ## 10. Pendientes por responsable
-- **Central:** aplicar `20261001060000` (con la comprobación previa), correr `audit-live-grants.sql`, contrastar el manifest con Staging y los `verify_jwt` desplegados.
+- **Central:** **CERRADO/PASS**. Migración aplicada; permisos/RLS/cron/entorno/Edge Functions/advisors y Vercel contrastados contra Staging real.
 - **Comunicaciones / Work / OTP:** emails, SMTP, Secure Email Change, QA browser, E2E destructivo con OTP.
 - **Solo con autorización de Sebastián para Production:** todo el checklist B del Runbook (crear proyecto, replay real, variables Vercel, Edge Functions, cron, smoke, apertura), datos legales reales (`[[PENDIENTE_PRODUCCION:*]]`), AAIP/RNBDP, política de backups.
 
 ## 11. DECISIONES ABIERTAS
 Ninguna. (Informativo: los 9 verifies que dependen de cuentas de Staging podrían reescribirse con fixtures propios para correr también en una base limpia; no se hizo por no ser riesgo de salida.)
+
+
+## 12. Addendum — Gate Central real de Staging (01/10/2026)
+
+**PASS.** Baseline previo: `5caf15318a19eb4cd279825360312f979adbb2a5`; entrega Claude: `a5ef575fef493bcbce38447d387c10cd29a6f1da` (Vercel SUCCESS).
+
+- superficie `authenticated`: 58 funciones reales = 58 re-concedidas, sin faltantes/extras;
+- hallazgo Central: PostgreSQL 17 `MAINTAIN` heredado por `anon/authenticated` en 27 tablas; corregido antes de aplicar y agregado a auditorías/verifies;
+- `bloque9a_baseline_privileges` aplicada en Supabase Staging;
+- post: 0 tablas con `MAINTAIN` cliente; anon solo SELECT `app_config`/`legal_versions`; anon solo EXECUTE `is_username_available`; 58 RPC autenticadas intactas; 0 tablas public sin RLS; 0 buckets públicos;
+- `app_config.environment = staging`; cron Ranking + cleanup activos; `PREBLOQUE9_VERIFY_OK`;
+- Edge runtime: ocho funciones de usuario con `verify_jwt=true`; `admin-resolve-identity-issue` y `cleanup-abandoned-signups` con `false` y autenticación propia;
+- advisors: solo warnings conocidos/intencionales o de optimización; ninguno nuevo bloqueante.
+
+No se tocó main, Production, BRAMUlive ni Comunicaciones.

@@ -8,7 +8,7 @@
 -- comportamiento de producto: el cliente jamás escribe tablas de `public` directamente (todo pasa por RPC/Edge) y solo
 -- lee (con RLS) app_config, legal_versions, profiles, level_states y locations.
 --
---   * tablas: sin INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER para anon/authenticated; anon sin SELECT salvo las
+--   * tablas: sin INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN para anon/authenticated; anon sin SELECT salvo las
 --     dos lecturas públicas deliberadas (app_config, legal_versions). authenticated conserva SELECT (limitado por RLS).
 --   * funciones: anon sin EXECUTE salvo is_username_available (decisión de producto de Bloque 3); authenticated SOLO
 --     con las RPC de cliente conocidas (lista explícita de abajo, derivada del replay limpio: 58 funciones). Bajo defaults
@@ -18,14 +18,14 @@
 --     leer necesita un GRANT SELECT explícito en su propia migración — es el contrato ya documentado "GRANT + RLS").
 -- service_role no se toca.
 
-revoke insert, update, delete, truncate, references, trigger on all tables in schema public from anon, authenticated;
+revoke insert, update, delete, truncate, references, trigger, maintain on all tables in schema public from anon, authenticated;
 revoke select on all tables in schema public from anon;
 grant select on table public.app_config, public.legal_versions to anon;
 
 revoke execute on all functions in schema public from anon;
 grant execute on function public.is_username_available(text) to anon;
 
-alter default privileges in schema public revoke insert, update, delete, truncate, references, trigger on tables from anon, authenticated;
+alter default privileges in schema public revoke insert, update, delete, truncate, references, trigger, maintain on tables from anon, authenticated;
 alter default privileges in schema public revoke select on tables from anon;
 alter default privileges in schema public revoke execute on functions from anon;
 

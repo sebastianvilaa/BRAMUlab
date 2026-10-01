@@ -4,6 +4,7 @@
 --  H3 RPCs de escritura de authenticated con rate limit: exceder => rate_limited; los límites son por acción
 --  H4 ops_health_snapshot: forma, solo agregados (sin ids/emails), solo service_role
 --  H5 purge_old_rate_limits: purga lo viejo, conserva lo reciente, piso de 1 día
+--  H6 cliente sin DML/DDL ni MAINTAIN directo (PostgreSQL 17)
 begin;
 
 create temporary table _t (k text primary key, v uuid) on commit drop;
@@ -89,6 +90,17 @@ begin
       and grantee in ('anon','authenticated')
       and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
   ), 'H6 sin DML/DDL table grants directos para anon/authenticated');
+
+  -- PostgreSQL 17: MAINTAIN no aparece en information_schema.role_table_grants.
+  perform pg_temp._assert(not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relkind in ('r','p')
+      and (has_table_privilege('anon', c.oid, 'MAINTAIN')
+           or has_table_privilege('authenticated', c.oid, 'MAINTAIN'))
+  ), 'H6 sin MAINTAIN para anon/authenticated');
 end $bramu$;
 
 select 'PREBLOQUE9_VERIFY_OK' as result;

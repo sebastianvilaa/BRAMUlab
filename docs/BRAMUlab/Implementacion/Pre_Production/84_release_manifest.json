@@ -279,13 +279,13 @@
     },
     {
       "file": "20261001060000_bloque9a_baseline_privileges.sql",
-      "sha256": "c7a48cadfaedb29b"
+      "sha256": "87690a19c94fd8b4"
     }
   ],
   "edgeFunctions": [
     {
       "name": "admin-resolve-identity-issue",
-      "verifyJwt": true,
+      "verifyJwt": false,
       "bundleHash": "cb64ec506f2d7c3c",
       "files": [
         "supabase/functions/_shared/engine.js",

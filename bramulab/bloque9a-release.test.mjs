@@ -43,6 +43,7 @@ test('la línea base de privilegios TIENE DIENTES: sin ella, un proyecto con def
   assert.equal(r.ok, true);
   const bad = (await checkCleanState(r.db)).filter((c) => !c.ok).map((c) => c.name);
   assert.ok(bad.some((n) => /INSERT\/UPDATE\/DELETE/.test(n)), 'DML directo expuesto');
+  assert.ok(bad.some((n) => /MAINTAIN/.test(n)), 'MAINTAIN directo expuesto en PG17');
   assert.ok(bad.some((n) => /anon solo/.test(n)), 'anon expuesto');
   assert.ok(bad.some((n) => /administrativa|interna/.test(n)), 'RPC internas expuestas a authenticated');
 });
@@ -77,12 +78,15 @@ test('Edge Functions: imports resueltos recursivamente; falta de archivo, import
   assert.match(bad, /falta/); assert.match(bad, /import remoto no permitido/); assert.match(bad, /secreto literal/);
 });
 
-test('Edge Functions reales: cada una resuelve todos sus imports, sin remotos extra; verify_jwt declarado (cleanup = false, el resto = true)', () => {
+test('Edge Functions reales: imports resueltos; admin-resolve y cleanup usan auth propia (verify_jwt=false), las de usuario=true', () => {
   const ef = edgeFunctions();
   assert.deepEqual(ef.flatMap((f) => f.problems.map((p) => `${f.name}: ${p}`)), []);
   assert.deepEqual(ef.map((f) => f.name).sort(), Object.keys(EXPECTED_VERIFY_JWT).sort());
   assert.equal(EXPECTED_VERIFY_JWT['cleanup-abandoned-signups'], false);
-  assert.ok(Object.entries(EXPECTED_VERIFY_JWT).filter(([k]) => k !== 'cleanup-abandoned-signups').every(([, v]) => v === true));
+  assert.equal(EXPECTED_VERIFY_JWT['admin-resolve-identity-issue'], false);
+  assert.ok(Object.entries(EXPECTED_VERIFY_JWT)
+    .filter(([k]) => !['cleanup-abandoned-signups', 'admin-resolve-identity-issue'].includes(k))
+    .every(([, v]) => v === true));
   const dm = ef.find((f) => f.name === 'delete-my-account');
   assert.ok(dm.files.includes('supabase/functions/_shared/account-deletion-core.mjs') && dm.files.includes('supabase/functions/_shared/self-delete-core.mjs'));
 });

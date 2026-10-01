@@ -26,12 +26,26 @@ select c.relname as table_without_rls
 -- 4) Privilegios de TABLA peligrosos/directos para anon/authenticated.
 --    Esperado: VACÍO. SELECT puede existir de forma intencional sobre tablas públicas/RLS;
 --    INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER no son necesarios para el cliente.
+--    PostgreSQL 17 agregó MAINTAIN y information_schema.role_table_grants no lo expone: se audita aparte en 4b.
 select table_name, grantee, privilege_type
   from information_schema.role_table_grants
  where table_schema = 'public'
    and grantee in ('anon', 'authenticated')
    and privilege_type in ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
  order by 1, 2, 3;
+
+-- 4b) PostgreSQL 17: MAINTAIN permite operaciones de mantenimiento/lock y no corresponde al cliente.
+--     Esperado: VACÍO.
+select c.relname as table_with_client_maintain,
+       has_table_privilege('anon', c.oid, 'MAINTAIN') as anon_maintain,
+       has_table_privilege('authenticated', c.oid, 'MAINTAIN') as authenticated_maintain
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = 'public'
+   and c.relkind in ('r','p')
+   and (has_table_privilege('anon', c.oid, 'MAINTAIN')
+        or has_table_privilege('authenticated', c.oid, 'MAINTAIN'))
+ order by 1;
 
 -- 5) Buckets de Storage públicos (esperado: ninguno — avatars y group-photos son privados)
 select id, public from storage.buckets where public order by 1;

@@ -24,8 +24,8 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex').slice
 export const EXPECTED_VERIFY_JWT = {
   'officialize-onboarding': true, 'create-or-attach-match': true, 'officialize-match': true, 'propose-match-correction': true,
   'respond-match-correction': true, 'resolve-identity-issue': true, 'get-match-intelligence': true, 'delete-my-account': true,
-  // se autentican ellas mismas con la service role exacta (y, la de cron, con un secreto dedicado de Vault):
-  'admin-resolve-identity-issue': true, 'cleanup-abandoned-signups': false,
+  // service-to-service: autenticación propia; el gateway no exige JWT de usuario.
+  'admin-resolve-identity-issue': false, 'cleanup-abandoned-signups': false,
 };
 /** Únicos imports remotos permitidos en Edge Functions. */
 export const ALLOWED_REMOTE_IMPORTS = new Set(['https://esm.sh/@supabase/supabase-js@2']);

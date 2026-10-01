@@ -50,6 +50,14 @@ export async function checkCleanState(db) {
   const tg = await q(`select table_name, grantee, privilege_type from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated')`);
   const badDml = tg.filter((g) => ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'].includes(g.privilege_type));
   add('anon/authenticated sin INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER en ninguna tabla', badDml.length === 0, badDml.slice(0, 5).map((g) => `${g.table_name}:${g.grantee}:${g.privilege_type}`).join(', '));
+  // PG17: MAINTAIN no aparece en information_schema.role_table_grants.
+  const maintain = await q(`select c.relname t
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and c.relkind in ('r','p')
+      and (has_table_privilege('anon', c.oid, 'MAINTAIN')
+           or has_table_privilege('authenticated', c.oid, 'MAINTAIN'))
+    order by 1`);
+  add('anon/authenticated sin MAINTAIN en ninguna tabla (PostgreSQL 17)', maintain.length === 0, maintain.map((x) => x.t).join(','));
   const anonSel = [...new Set(tg.filter((g) => g.grantee === 'anon').map((g) => g.table_name))].sort();
   add(`anon solo lee ${ANON_SELECT_TABLES.join(' y ')}`, JSON.stringify(anonSel) === JSON.stringify([...ANON_SELECT_TABLES].sort()), anonSel.join(','));
 
