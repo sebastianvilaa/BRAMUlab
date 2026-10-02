@@ -1,51 +1,235 @@
 # Cargar partido
 
-**Rol:** fuente maestra vigente del flujo **Cargar partido** (cargar un partido YA jugado; no hay scoring en vivo en BRAMUlab).
-**Vigente desde:** V04.24 (Issue #24); §4 ajustado en V04.25 tras el QA humano. Solo documenta las decisiones actuales.
+**Rol:** fuente maestra vigente del flujo **Cargar partido** (cargar un partido YA jugado; no hay scoring en vivo en BRAMUlab).  
+**Vigente desde:** V04.24; dirección UX V04.26 cerrada por QA humano el 02/10/2026 (Issue #24). Solo documenta las decisiones actuales.
 
 ---
 
-## 1. Armado inicial (sin cambios)
+## 1. Estructura general — dos instancias
 
-Header `CARGAR PARTIDO` + subtítulo `Formato · Puntuación` (ej. “Clásico · Punto de Oro”); tarjeta Formato/Puntuación; línea Fecha/Hora/Lugar; Equipo A, VS, Equipo B con selección de compañero y rivales. Aprobado conceptualmente; no se rediseña.
+`Cargar partido` se organiza en **dos instancias consecutivas dentro del mismo flujo**:
 
-## 2. Selección de jugadores
+1. **Jugadores** — definir metadata y los cuatro participantes.
+2. **Resultado** — cargar sets sobre una representación tipo resumen y confirmar.
 
-Mismas hojas de siempre (recientes, búsqueda, alta sin cuenta). Al completar el roster sin score cargado se abre el teclado del Set 1.
+No debe sentirse como una app de marcador separada. La composición reutiliza componentes y lenguaje visual ya existentes en BRAMUlab.
 
-## 3. Formato y puntuación (no se toca)
+La transición es explícita:
+- mientras falten jugadores, `CARGAR RESULTADO` permanece visible pero deshabilitado;
+- con los cuatro jugadores completos, se habilita;
+- al entrar a Resultado no se abre automáticamente un paso intermedio de confirmación.
 
-- Formato: Clásico, Americano. Sistema: Star Point, Punto de Oro, Con ventaja.
+---
+
+## 2. Instancia Jugadores
+
+### 2.1 Metadata superior
+
+Se conserva la solución aprobada:
+
+- header `CARGAR PARTIDO` + subtítulo `Formato · Puntuación`;
+- Formato/Puntuación;
+- Fecha/Hora/Lugar;
+- mismas acciones para modificar;
+- Fecha/Hora/Lugar no se rediseñan en esta ronda.
+
+### 2.2 Equipo A / VS / Equipo B
+
+Debajo de la metadata:
+
+- **Equipo A**;
+- separador **VS** existente;
+- **Equipo B**.
+
+Cada equipo vive dentro de una **tarjeta grande BRAMU**, tomando el lenguaje visual de tarjetas existentes como Último partido:
+- fondo oscuro;
+- borde completo;
+- Equipo A con acento/borde verde;
+- Equipo B con acento/borde celeste;
+- no usar grandes fondos degradados nuevos como lenguaje principal.
+
+Dentro de cada tarjeta hay dos filas de jugador.
+
+Cada jugador reutiliza la presentación canónica existente de BRAMU:
+- foto/avatar o iniciales reales;
+- nombre;
+- `@usuario` cuando existe;
+- Nivel BRAMU real a la derecha, respetando `CALIBRANDO`/consolidado;
+- nunca inventar username, Nivel o foto.
+
+El jugador propio ya aparece completo. Los huecos de compañero/rivales se muestran como filas de acción claras (`+ Agregar compañero`, `+ Agregar rival` o copy equivalente) y al tocarlas abren las hojas de selección existentes (recientes, búsqueda, alta sin cuenta).
+
+La selección de jugadores mantiene los contratos vigentes de identidad. No se modifica backend.
+
+### 2.3 CTA
+
+`CARGAR RESULTADO`:
+- se muestra desde el inicio;
+- usa el botón primario global de BRAMU;
+- está **disabled** mientras falte cualquiera de los cuatro jugadores;
+- se habilita únicamente con roster completo;
+- al tocarlo pasa a la instancia Resultado.
+
+No autoavanzar al completar el cuarto jugador.
+
+---
+
+## 3. Formato y puntuación
+
+- Formato: Clásico, Americano.
+- Sistema: Star Point, Punto de Oro, Con ventaja.
 - Default: Clásico + Punto de Oro.
-- La limitación vigente sobre editar el formato después de guardado no cambia.
+- La limitación vigente sobre editar formato después de guardado no cambia.
+- Toda validación de score sigue usando el motor actual; no crear reglas paralelas.
 
-## 4. Modo resultado (V04.24)
+---
 
-Problema: en iPhone el teclado numérico tapaba el score que se estaba escribiendo.
+## 4. Instancia Resultado — el resumen es el formulario
 
-Mientras `manualKeypadOpen === true` la vista `#view-manual-load` pasa a `is-score-entry` (derivado en un único punto, `syncManualScoreEntryChrome`):
+Al entrar a Resultado:
 
-- se ocultan las tarjetas de Formato/Fecha y Equipo A / VS / Equipo B;
-- se mantiene el header y el subtítulo;
-- aparece el **result board** (V04.25): Equipo A (verde) arriba y Equipo B (celeste) abajo, bloques completos teñidos con su color, nombres grandes (18 px, hasta 2 líneas) y un VS entre ambos. Reemplaza los dos chips chicos de V04.24;
-- **fichas de sets** (SET 1 `6–3`, SET 2 `2–6`, SET 3 `— —`): confirmados tocables (`reopenManualSet`), el actual resaltado con su valor en vivo, pendientes apagados;
-- **resultado del set actual** siempre arriba del teclado: lado A verde, lado B celeste; el lado editable refuerza borde/glow sin unificar colores;
-- teclado BRAMU intacto (1–9, Borrar, 0, Listo) con la misma lógica (`computeValidNextDigits`, teclas deshabilitadas, avance A→B, autoconfirmación del set, auto-apertura del siguiente, reapertura/edición, poda del tercer set, Americano). No hay otra validación de score;
-- la **bottom nav se oculta** con el teclado abierto y se restaura al cerrarlo, al volver o al salir de la vista por cualquier camino (`showView` re-sincroniza); `positionManualContinueBar` solo suma la nav si está visible.
+- la metadata superior del partido permanece visible;
+- desaparece la UI de selección de jugadores;
+- aparece una composición basada en el **resultado/resumen canónico de BRAMU**;
+- no debe existir una tarjeta adicional `RESULTADO DEL SET X`.
 
-**Editar un set anterior (V04.25):** la unidad de edición es el **set completo**. Tocar una ficha confirmada reabre ese set directo en modo resultado con el teclado en el lado A; al terminar el primer lado el teclado pasa al otro lado del mismo set (nunca se cierra ni intenta confirmar un par a medio corregir; «Listo» confirma conservando el otro lado). Recién cuando el set vuelve a ser válido se retoma el flujo normal (set pendiente, o partido decidido). Las reglas de poda del tercer set (con confirmación) no cambian.
+### 4.1 Composición
 
-**Mensaje «falta definir el tercer set»:** bloque integrado al resultado (ancho completo, centrado, con aire, sin superponerse), en rojo semántico.
+Dos equipos, uno arriba del otro:
 
-Al quedar el partido decidido: se cierra el teclado, se sale del modo compacto, se muestran los sets completos, “Resultado válido” y **CONTINUAR**, y se restaura la nav. No se autoabre Confirmar partido (pausa deliberada).
+- nombres de los dos integrantes a la izquierda;
+- pueden ocupar dos renglones (un jugador por línea) para ganar altura y legibilidad;
+- columnas de Set 1 / Set 2 / Set 3 a la derecha;
+- los valores de los sets son **grandes y protagonistas**;
+- cada columna mantiene alineación vertical exacta entre Equipo A y Equipo B;
+- verde identifica A y celeste identifica B sin crear un lenguaje visual ajeno al resto de la app.
 
-## 5. Fecha, Hora y Lugar (V04.24)
+El componente debe derivar del lenguaje ya usado por `.result-card` / resumen de partido, adaptado a edición. No duplicar un segundo diseño de score.
 
-- Fecha y Hora comparten un solo shell (misma caja, altura y divisor).
-- **Hora = `<input type="time">` nativo** (selector del dispositivo, sin entradas inválidas). Valor interno siempre `HH:MM` 24 h o vacío (hora desconocida; se puede borrar con ×). Se eliminó la máscara manual. `buildPlayedAtFromLocalFields` sigue defendiendo ante datos inválidos.
-- **Lugar + “Usar ubicación”** en el mismo renglón; Lugar sigue opcional (60 caracteres); la geolocalización existente no cambia (sin permisos nuevos).
-- La misma hoja se reutiliza para editar desde Confirmar partido.
+### 4.2 Carga del set — selector tipo wheel/carrusel
 
-## 6. Cierre / confirmación
+V04.26 reemplaza el teclado numérico como interacción principal por un **selector vertical tipo wheel/carrusel**, inspirado en el selector horario del dispositivo pero integrado visualmente a BRAMU.
 
-CONTINUAR abre Confirmar partido; guardar sigue por el pipeline vigente (create-or-attach, validación compartida, correcciones). Sin cambios de backend ni de Nivel/Ranking.
+Al tocar una columna/set:
+- ese set pasa a estado editable;
+- se muestran dos selectores verticales, uno para **Equipo A** y otro para **Equipo B**;
+- los valores seleccionados se reflejan **en vivo** en la propia columna del resumen;
+- el set completo es la unidad de edición;
+- el usuario puede corregir ambos lados antes de cerrar la edición.
+
+Implementación:
+- usar un control web móvil robusto (wheel/scroll-snap o equivalente) que funcione bien en iPhone/PWA;
+- no hardcodear un universo de scores desconectado del formato;
+- derivar valores/opciones válidas de las validaciones/motor de score existentes;
+- si seleccionar un valor restringe válidamente el otro lado, reutilizar esa lógica existente;
+- no crear una segunda lógica deportiva.
+
+Si durante implementación aparece una limitación real de iOS/accesibilidad que vuelva este control frágil, marcarla como **DECISIÓN ABIERTA** y continuar todo lo demás; no reemplazar silenciosamente por otra UX.
+
+### 4.3 Edición de sets previos
+
+La corrección V04.25 se conserva conceptualmente:
+
+- tocar un set confirmado lo reabre;
+- la unidad de edición es el **set completo**;
+- cambiar un lado no cierra ni hace rebotar la pantalla;
+- después de completar el set se recalcula el estado del partido;
+- se conservan las reglas vigentes de poda del tercer set cuando deja de ser necesario.
+
+### 4.4 Volver / cambiar jugadores
+
+En esta instancia, volver al paso anterior significa **cambiar jugadores**.
+
+Debe existir una acción clara de retorno (`Cambiar jugadores` o equivalente) que:
+- vuelve a la instancia Jugadores;
+- conserva lo ya seleccionado;
+- permite corregir compañero/rivales;
+- no guarda ni descarta silenciosamente información.
+
+Si cambiar jugadores invalida el score cargado, usar una confirmación explícita antes de descartar/reiniciar lo necesario; no hacerlo en silencio.
+
+---
+
+## 5. Estado válido antes de confirmar
+
+Mientras se cargan los sets, la misma pantalla muestra progresivamente el resultado.
+
+Cuando el partido ya está decidido y el score es válido, mostrar en esa misma instancia:
+
+- **ganadores**;
+- **sets ganados** por equipo;
+- **games ganados** por equipo;
+- CTA **CONFIRMAR PARTIDO** habilitado.
+
+Mientras el partido no sea válido/completo:
+- el CTA permanece visible pero disabled;
+- no inventar mensajes de error si basta con mostrar que falta completar un set.
+
+Esta información usa cálculos que BRAMU ya tiene; no crear estadísticas nuevas.
+
+---
+
+## 6. Confirmación y post-partido
+
+Se **elimina el paso intermedio** de “Confirmar partido” que repetía un resumen antes del guardado.
+
+Nuevo recorrido:
+
+`Jugadores → Cargar resultado → Confirmar partido → Guardado → Resumen oficial`
+
+Al tocar `CONFIRMAR PARTIDO`:
+
+1. ejecutar el pipeline vigente de guardado/create-or-attach;
+2. mostrar el feedback/modal de **partido guardado** existente, incluyendo el estado de validación/espera que corresponda;
+3. abrir después el **Resumen oficial del partido existente**.
+
+El Resumen oficial post-partido **NO SE REDISEÑA en esta ronda**. Debe conservar tal cual:
+- BRAMU Intelligence;
+- nota privada;
+- estado/validación de rivales;
+- acciones y contenido ya existentes.
+
+Esta ronda toca únicamente la carga previa al guardado.
+
+---
+
+## 7. Fecha, Hora y Lugar
+
+Solución V04.24 aprobada y **NO TOCAR**:
+
+- Fecha y Hora comparten shell;
+- Hora usa `<input type="time">` nativo;
+- Lugar + `Usar ubicación` comparten fila;
+- Lugar sigue opcional;
+- no agregar permisos ni lógica de geolocalización nueva.
+
+---
+
+## 8. Límites de alcance V04.26
+
+**AGREGAR / REEMPLAZAR**
+- nueva composición de Equipo A / B en la instancia Jugadores;
+- CTA `CARGAR RESULTADO` disabled/enabled;
+- transición explícita a Resultado;
+- result-card editable;
+- selector wheel/carrusel para el set;
+- ganador + sets/games antes de confirmar;
+- confirmación directa desde Resultado.
+
+**FUSIONAR / REUTILIZAR**
+- `.result-card` / grilla canónica de score;
+- presentación de jugador `.player-row` / compacta server-backed;
+- separador `VS`;
+- sistema global de botones y disabled;
+- motor y validaciones actuales de score;
+- pipeline vigente de guardado y validación.
+
+**NO TOCAR**
+- backend/Supabase;
+- Nivel BRAMU, salvo leer su presentación real en filas de jugador;
+- Ranking;
+- Grupos;
+- BRAMU Intelligence;
+- Resumen oficial post-partido;
+- BRAMUlive;
+- main / Production.
