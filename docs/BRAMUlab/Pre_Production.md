@@ -488,6 +488,54 @@ Objetivo:
 
 Corregir en Staging únicamente problemas reales encontrados por Sebastián, promoverlos y recién entonces invitar amigos.
 
+
+## Etapa 5 — cierre documental y orden antes de abrir Production
+
+**Decisión registrada 02/10/2026.** Esta etapa ocurre **después de terminar la implementación/QA pre-Production y antes de que entre el primer usuario real**. No bloquea el trabajo UX actual ni obliga a refactorizar código mientras el producto todavía está cerrando detalles.
+
+Objetivo: que BRAMU llegue a Production con una estructura fácil de entender, mantener y retomar meses o años después, sin perder trazabilidad histórica.
+
+### GitHub — fuente de verdad activa
+
+Antes de abrir Production:
+
+- dejar `README.md` como mapa corto y vigente de autoridades;
+- asegurar que cada sistema estructural tenga una **fuente maestra autocontenida** que explique su lógica, estado y criterios actuales;
+- como mínimo, preservar fuentes maestras claras para **Nivel BRAMU, Ranking BRAMU, Grupos BRAMU, BRAMU Intelligence, Cargar partido, Backend/Infraestructura y Privacidad/Legal**;
+- podar del árbol activo handoffs, planes, revisiones y resultados intermedios ya consumidos;
+- no crear un gran `Backup/` dentro del repo duplicando historia: **Git conserva commits, diffs y archivos anteriores**;
+- usar `Archivo/` únicamente para antecedentes que todavía tengan valor documental concreto;
+- crear un **tag/referencia de release** para la primera versión que se abre a usuarios reales;
+- no hacer una reorganización masiva de código solo por estética si agrega riesgo inmediatamente antes de Production.
+
+La meta es que, por ejemplo, si dentro de un año hay que revisar Nivel BRAMU, alcance con entrar a su fuente maestra vigente para reconstruir qué significa, cómo funciona y qué versión está operando, sin leer chats ni handoffs históricos.
+
+### Dropbox — copia externa de resguardo
+
+Dropbox se usará como **backup externo y ordenado del estado de lanzamiento**, no como segunda fuente de verdad concurrente.
+
+Al cerrar la primera release productiva:
+
+- guardar una copia/snapshot del repositorio o release;
+- mantener una estructura espejo simple de la documentación maestra importante;
+- identificar claramente fecha, versión/tag y rama de origen;
+- no copiar secretos, credenciales, OTP, service-role keys ni datos sensibles;
+- si GitHub y Dropbox difieren, **GitHub + las fuentes maestras vigentes del repo prevalecen**.
+
+### Evolución posterior a Production
+
+Abrir Production **no congela** Nivel, Ranking, Grupos, Intelligence ni otros sistemas.
+
+Después del lanzamiento se podrán introducir nuevas versiones o ajustes, incluso mucho tiempo después, siempre que:
+
+- los datos reales históricos se conserven;
+- los cambios de algoritmo o reglas queden versionados y documentados;
+- cualquier migración/reinterpretación de datos sea explícita y auditable;
+- no se reescriba el pasado silenciosamente;
+- cada sistema pueda evolucionar sin obligar a rehacer los demás salvo dependencia real.
+
+Ejemplo: Nivel BRAMU puede pasar de una versión V1 a una V2 después de observar comportamiento real. La decisión de transición se toma en ese momento (continuidad desde una fecha, recálculo controlado u otra estrategia), conservando trazabilidad y sin tratar Production como base descartable.
+
 ---
 
 # 7. Criterio de salida
