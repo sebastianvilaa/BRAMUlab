@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.22-h1" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.23-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.22-h1" />
+<link rel="stylesheet" href="styles.css?v=04.23-h1" />
 </head>
 <body>
 
@@ -1014,14 +1014,14 @@
       <!-- Estado cero (§C) -->
       <div id="groups-lobby-empty" hidden>
         <p class="groups-lobby-claim">Tu grupo de siempre. Una competencia nueva cada semana.</p>
-        <p class="coverage-note">Creá un grupo con la gente con la que jugás. BRAMU detecta los partidos que corresponden, suma los puntos y arma la competencia automáticamente.</p>
+        <p class="coverage-note">Creá un grupo con la gente con la que jugás. Jugá como siempre: BRAMU detecta los partidos que corresponden, suma los puntos y arma la competencia automáticamente.</p>
         <div class="groups-lobby-pitch">
           <div class="groups-lobby-pitch__item">
-            <span class="groups-lobby-pitch__title">Ganá y sumá</span>
-            <span class="groups-lobby-pitch__sub">5 puntos por victoria + bonus por partidos especiales.</span>
+            <span class="groups-lobby-pitch__title">Jugá, ganá, sumá</span>
+            <span class="groups-lobby-pitch__sub">Cada victoria suma. Algunos resultados pueden darte puntos extra.</span>
           </div>
           <div class="groups-lobby-pitch__item">
-            <span class="groups-lobby-pitch__title">Tus 3 mejores partidos cuentan</span>
+            <span class="groups-lobby-pitch__title">Tus 2 mejores partidos cuentan</span>
             <span class="groups-lobby-pitch__sub">Así competir no depende simplemente de quién juega más.</span>
           </div>
           <div class="groups-lobby-pitch__item">
@@ -1039,7 +1039,7 @@
         <!-- §26.2 — intro compacta (no onboarding): mantiene contexto con 1 o varios grupos -->
         <div class="groups-lobby-intro">
           <p class="groups-lobby-intro__title">Tu competencia semanal</p>
-          <p class="groups-lobby-intro__sub">Cada semana empieza de nuevo. Cuentan tus 3 mejores partidos.</p>
+          <p class="groups-lobby-intro__sub">Cada semana empieza de nuevo. Cuentan tus 2 mejores partidos.</p>
         </div>
         <div id="groups-lobby-list" class="groups-lobby-list"></div>
         <button type="button" id="groups-lobby-create-other-btn" class="btn-secondary btn-secondary--lime groups-lobby-create-other-btn">Nuevo grupo</button>
@@ -2982,13 +2982,31 @@
           <span class="bottom-sheet__title">CÓMO FUNCIONAN LOS GRUPOS BRAMU</span>
           <button type="button" id="group-points-info-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>
+        <div class="group-help-hero">
+          <p class="group-help-hero__title">Jugá como siempre. BRAMU hace el resto.</p>
+          <p class="group-help-hero__sub">Cargá el resultado una sola vez. Si el partido corresponde a uno de tus grupos, BRAMU lo detecta y actualiza la competencia automáticamente.</p>
+        </div>
+        <div class="group-help-blocks">
+          <div class="group-help-block">
+            <span class="group-help-block__title">Entra solo</span>
+            <span class="group-help-block__sub">Con <strong>3 de los 4 jugadores</strong> dentro del grupo, el partido cuenta. No elegís un grupo ni cargás nada dos veces.</span>
+          </div>
+          <div class="group-help-block">
+            <span class="group-help-block__title">Tus 2 mejores cuentan</span>
+            <span class="group-help-block__sub">Cada semana, BRAMU toma los <strong>dos partidos que más puntos te dieron</strong>. El resto sigue formando parte de tu actividad.</span>
+          </div>
+          <div class="group-help-block">
+            <span class="group-help-block__title">Cada semana, una nueva pelea</span>
+            <span class="group-help-block__sub">La tabla empieza de nuevo cada lunes. Los puntos que sumaste alimentan la <strong>Race anual</strong>.</span>
+          </div>
+        </div>
+        <p class="group-help-sub-title">Cómo se suman los puntos</p>
         <ul class="group-points-info-list">
-          <li>Un partido entra cuando al menos <strong>3 de sus 4 jugadores</strong> son miembros del grupo esa semana BRAMU.</li>
-          <li>Victoria = <strong>5 puntos</strong>. Derrota = 0.</li>
-          <li>Bonus de <strong>+1</strong>: sorpresa de nivel (tu pareja tenía un Nivel BRAMU bastante más bajo), remontada (perdiste el primer set y ganaste) o victoria clara (ganaste en 2 sets con claridad).</li>
-          <li>El máximo por partido es <strong>7 puntos</strong>.</li>
-          <li>Cada semana cuentan tus <strong>3 mejores partidos</strong>.</li>
-          <li>La tabla vuelve a empezar cada semana (de lunes a domingo) y esos puntos alimentan la <strong>Race anual</strong>.</li>
+          <li><strong>Clásico:</strong> victoria = 5 puntos; con bonus puede llegar a 7.</li>
+          <li><strong>Americano:</strong> victoria = 3 puntos; con bonus puede llegar a 5.</li>
+          <li><strong>Sorpresa de nivel:</strong> +1 si ganás con una pareja de Nivel BRAMU más bajo (en Americano, la diferencia tiene que ser mayor).</li>
+          <li><strong>Remontada:</strong> +1 si perdiste el primer set y ganaste. No existe en Americano.</li>
+          <li><strong>Victoria clara:</strong> +1 si ganás con claridad.</li>
           <li>Los puntos de Grupos <strong>no modifican</strong> tu Nivel BRAMU ni el Ranking BRAMU.</li>
         </ul>
       </div>
@@ -3134,47 +3152,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.22-h1"></script>
-  <script src="stats.js?v=04.22-h1"></script>
-  <script src="store.js?v=04.22-h1"></script>
+  <script src="engine.js?v=04.23-h1"></script>
+  <script src="stats.js?v=04.23-h1"></script>
+  <script src="store.js?v=04.23-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.22-h1"></script>
-  <script src="level-context.js?v=04.22-h1"></script>
-  <script src="level-calibration.js?v=04.22-h1"></script>
-  <script src="player-home.js?v=04.22-h1"></script>
-  <script src="match-load.js?v=04.22-h1"></script>
-  <script src="player-identity.js?v=04.22-h1"></script>
-  <script src="groups.js?v=04.22-h1"></script>
-  <script src="locations.js?v=04.22-h1"></script>
-  <script src="ranking.js?v=04.22-h1"></script>
+  <script src="level.js?v=04.23-h1"></script>
+  <script src="level-context.js?v=04.23-h1"></script>
+  <script src="level-calibration.js?v=04.23-h1"></script>
+  <script src="player-home.js?v=04.23-h1"></script>
+  <script src="match-load.js?v=04.23-h1"></script>
+  <script src="player-identity.js?v=04.23-h1"></script>
+  <script src="groups.js?v=04.23-h1"></script>
+  <script src="locations.js?v=04.23-h1"></script>
+  <script src="ranking.js?v=04.23-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.22-h1"></script>
+  <script src="auth.js?v=04.23-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.22-h1"></script>
-  <script src="match-sync.js?v=04.22-h1"></script>
+  <script src="matches.js?v=04.23-h1"></script>
+  <script src="match-sync.js?v=04.23-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.22-h1"></script>
+  <script src="match-validation.js?v=04.23-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.22-h1"></script>
+  <script src="match-self-heal.js?v=04.23-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.22-h1"></script>
-  <script src="app.js?v=04.22-h1"></script>
+  <script src="intelligence-client.js?v=04.23-h1"></script>
+  <script src="app.js?v=04.23-h1"></script>
 </body>
 </html>

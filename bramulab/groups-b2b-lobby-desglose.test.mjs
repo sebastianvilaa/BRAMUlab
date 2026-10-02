@@ -150,16 +150,16 @@ function buildTenMatchHistory() {
   return history;
 }
 
-test('desglose: total visible = suma exacta de los 3 partidos marcados counted (10 partidos · 6V · 4D · 17 pts, sin esconder los otros 7)', () => {
+test('desglose: total visible = suma exacta de los 2 partidos marcados counted (10 partidos · 6V · 4D · 12 pts, sin esconder los otros 8)', () => {
   const history = buildTenMatchHistory();
   const matches = PG.computeMatchesForGroupInWeek(history, GROUP, THIS_MON);
   const bd = PG.buildPlayerWeeklyBreakdown(matches, { name: 'C', userId: 'c' }, history);
   assert.equal(bd.matchesPlayed, 10);
   assert.equal(bd.rows.length, 10, 'los 10 partidos están, ninguno escondido');
   const counted = bd.rows.filter((r) => r.counted);
-  assert.equal(counted.length, 3);
+  assert.equal(counted.length, 2);
   assert.equal(counted.reduce((s, r) => s + r.points, 0), bd.total, 'total = suma EXACTA de los counted');
-  assert.equal(bd.total, 17);
+  assert.equal(bd.total, 12);
   // Coincide con la fila real de la tabla (mismo helper compartido, computePlayerScoredMatches).
   const table = PG.computeWeeklyTable(history, GROUP, THIS_MON);
   const rowC = table.find((r) => r.userId === 'c');
@@ -167,7 +167,7 @@ test('desglose: total visible = suma exacta de los 3 partidos marcados counted (
   assert.equal(rowC.matchesPlayed, bd.matchesPlayed);
 });
 
-test('desglose: derrota = 0 pts; victoria fuera del top 3 = "no contada" (no oculta, marcada)', () => {
+test('desglose: derrota = 0 pts; victoria fuera del top 2 = "no contada" (no oculta, marcada)', () => {
   const history = buildTenMatchHistory();
   const matches = PG.computeMatchesForGroupInWeek(history, GROUP, THIS_MON);
   const bd = PG.buildPlayerWeeklyBreakdown(matches, { name: 'C', userId: 'c' }, history);
@@ -175,7 +175,7 @@ test('desglose: derrota = 0 pts; victoria fuera del top 3 = "no contada" (no ocu
   assert.ok(losses.length > 0);
   losses.forEach((r) => { assert.equal(r.points, 0); assert.equal(r.counted, false); });
   const uncountedWin = bd.rows.find((r) => r.won && !r.counted);
-  assert.ok(uncountedWin, 'hay al menos una victoria que no entró en el top 3');
+  assert.ok(uncountedWin, 'hay al menos una victoria que no entró en el top 2');
   assert.ok(uncountedWin.points > 0, 'sigue teniendo puntos propios (no se pisan a 0), solo no se suman al total');
 });
 
@@ -210,7 +210,7 @@ test('race semanal: suma al total anual de esa misma semana (misma fuente que co
   const history = buildTenMatchHistory();
   const weeks = PG.buildRaceWeeklySummary(history, GROUP, 2026, { name: 'C', userId: 'c' });
   assert.equal(weeks.length, 1);
-  assert.equal(weeks[0].points, 17);
+  assert.equal(weeks[0].points, 12);
   assert.equal(weeks[0].matchesPlayed, 10);
   assert.equal(weeks[0].wins, 6);
   assert.equal(weeks[0].losses, 4);
@@ -437,7 +437,7 @@ test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto c
   assert.doesNotMatch(row, /join\(' \+ '\)/);
   assert.match(row, /setsText/);
   assert.match(row, /breakdownReasonLabel\(row\)/);
-  assert.match(row, /No entra en tus 3 mejores/);
+  assert.match(row, /No entra en tus 2 mejores/);
   assert.match(indexHtml, /id="group-breakdown-sheet" class="bottom-sheet bottom-sheet--tall bottom-sheet--tall-xl"/);
   assert.match(indexHtml, /id="group-breakdown-view-profile-btn" class="group-sheet-profile-link"/);
   assert.doesNotMatch(indexHtml, />VER PERFIL</);
@@ -445,8 +445,8 @@ test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto c
   assert.match(read('styles.css'), /\.bottom-sheet--tall-xl\{ height: clamp\(520px, 82dvh/);
 });
 
-test('ayuda: cubre 3/4, 5/0, bonus, máx 7, top 3, reinicio semanal + Race y que NO toca Nivel ni Ranking', () => {
+test('ayuda: cubre automatización, 3/4, top 2, Clásico/Americano, reinicio semanal + Race y que NO toca Nivel ni Ranking', () => {
   const sheet = fnBody(indexHtml, 'id="group-points-info-sheet"', 3500);
-  ['3 de sus 4 jugadores', 'semana BRAMU', '5 puntos', '7 puntos', '3 mejores partidos', 'Race anual', 'no modifican', 'Nivel BRAMU', 'Ranking BRAMU']
+  ['Jugá como siempre. BRAMU hace el resto.', '3 de los 4 jugadores', 'Tus 2 mejores cuentan', 'Clásico', 'Americano', '5 puntos', '3 puntos', 'Remontada', 'lunes', 'Race anual', 'no modifican', 'Nivel BRAMU', 'Ranking BRAMU']
     .forEach((t) => assert.ok(sheet.includes(t), t));
 });

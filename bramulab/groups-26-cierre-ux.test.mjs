@@ -33,8 +33,8 @@ test('§26.5: Auth.leaveGroup llama a la RPC leave_group con el group_id', async
 });
 
 /* ---------------- 26.1 estado cero ---------------- */
-test('§26.1: estado cero — "Tus 3 mejores partidos cuentan", CTA secundario lima full-width, ejemplo "Pádel de los jueves" con recurso propio', () => {
-  assert.match(indexHtml, /Tus 3 mejores partidos cuentan/);
+test('§26.1: estado cero — "Tus 2 mejores partidos cuentan", CTA secundario lima full-width, ejemplo "Pádel de los jueves" con recurso propio', () => {
+  assert.match(indexHtml, /Tus 2 mejores partidos cuentan/);
   assert.doesNotMatch(indexHtml, /Tus 3 mejores cuentan/);
   assert.match(indexHtml, /id="groups-lobby-empty-help-btn" class="btn-secondary btn-secondary--lime groups-switch-create-btn">CÓMO FUNCIONA</);
   assert.ok(indexHtml.indexOf('id="groups-lobby-empty-create-btn"') < indexHtml.indexOf('id="groups-lobby-empty-help-btn"'), 'secundario debajo del primario');
@@ -55,7 +55,7 @@ test('§26.1: estado cero — "Tus 3 mejores partidos cuentan", CTA secundario l
 test('§26.2: lobby con grupos — intro compacta arriba de la lista, sin repetir los 3 bloques; Nuevo grupo al final', () => {
   const wrap = indexHtml.slice(indexHtml.indexOf('id="groups-lobby-list-wrap"'), indexHtml.indexOf('id="groups-lobby-list-wrap"') + 900);
   assert.match(wrap, /Tu competencia semanal/);
-  assert.match(wrap, /Cada semana empieza de nuevo\. Cuentan tus 3 mejores partidos\./);
+  assert.match(wrap, /Cada semana empieza de nuevo\. Cuentan tus 2 mejores partidos\./);
   assert.ok(wrap.indexOf('groups-lobby-intro') < wrap.indexOf('id="groups-lobby-list"'));
   assert.doesNotMatch(wrap, /groups-lobby-pitch/);
   assert.ok(indexHtml.indexOf('id="groups-lobby-list"') < indexHtml.indexOf('groups-lobby-create-other-btn'));

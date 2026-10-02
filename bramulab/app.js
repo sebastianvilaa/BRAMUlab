@@ -10493,10 +10493,10 @@
    *
    *  Cierre B1, retest real (handoff 72) — BUG REAL: esta línea mostraba `matchesCounted/wins/
    *  losses` (el subconjunto top-3 que aporta a `points`), nunca el total jugado esa semana —
-   *  un jugador con 10 partidos calificables (6V/4D) pero solo 3 victorias entre sus 3 mejores
+   *  un jugador con 10 partidos calificables (6V/4D) pero solo 2 victorias entre sus 2 mejores
    *  aparecía como "3 partidos · 3 V · 0 D" (lectura falsa de invicto). Usa `matchesPlayed`/
    *  `wins`/`losses` REALES de `computeWeeklyTable`/`computeRaceAnual` — `points` sigue siendo
-   *  el top 3, sin cambios. */
+   *  el top 2, sin cambios. */
   function buildGroupTableRowHTML(row) {
     const captionParts = [`${row.matchesPlayed} ${row.matchesPlayed === 1 ? 'partido' : 'partidos'}`];
     if (row.matchesPlayed > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
@@ -10694,8 +10694,8 @@
   }
 
   /** §G — una fila de partido del desglose: fecha · compañero · rivales · resultado + bonus,
-   *  puntos alineados a la derecha. Un partido que no entró en el top 3 nunca se esconde: se
-   *  distingue con "No entra en tus 3 mejores" en vez del monto (`row.counted` viene de
+   *  puntos alineados a la derecha. Un partido que no entró en el top 2 nunca se esconde: se
+   *  distingue con "No entra en tus 2 mejores" en vez del monto (`row.counted` viene de
    *  `PG.buildPlayerWeeklyBreakdown`, MISMO subconjunto que `computeWeeklyTable`). */
   function buildGroupBreakdownRowHTML(row, ownerName) {
     // "Vos / Compañero vs Rival / Rival" — separador "/" (nunca "+"); el propio jugador es el
@@ -10705,7 +10705,7 @@
     const detail = [pair, rivals ? `vs ${rivals}` : ''].filter(Boolean).join(' ');
     const setsText = (row.sets || []).map((s) => `${s[0]}–${s[1]}`).join(' · ');
     const resultLine = [setsText, breakdownReasonLabel(row)].filter(Boolean).join(' · ');
-    const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 3 mejores' : '0 pts');
+    const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 2 mejores' : '0 pts');
     return `<div class="group-breakdown-row${row.counted ? ' group-breakdown-row--counted' : ''}">
       <div class="group-breakdown-row__main">
         <span class="group-breakdown-row__date">${escapeHtml(formatShortPlayedDate(row.playedAt))}</span>

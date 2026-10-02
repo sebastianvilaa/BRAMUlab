@@ -160,14 +160,14 @@ test('B1-4: base 5, +1 por bonus, máximo 7; Remontada y Victoria clara nunca co
   }
 });
 
-/* ---------------- 5) top 3 / empates / Race con datos del servidor ---------------- */
+/* ---------------- 5) top 2 / empates / Race con datos del servidor ---------------- */
 function groupAndMatches(matchRows) {
   return { group: PG.adaptServerGroup(serverGroupDetail(), identities), history: adaptMatches(matchRows) };
 }
 
-test('B1-5: tabla semanal cuenta 3 mejores partidos, 3 de 4 miembros y comparte posición en empate (1,1,3)', () => {
+test('B1-5: tabla semanal cuenta 2 mejores partidos, 3 de 4 miembros y comparte posición en empate (1,1,3)', () => {
   const week = sb.PLPlayerHome.startOfWeekMonday(new Date(`${MON}T12:00:00`));
-  // 5 partidos de A+B vs C+D esa semana, ganan A+B: puntos 7,6,6,5,5 (Sorpresa/Clara/Remontada) -> cuentan 7+6+6 = 19
+  // 5 partidos de A+B vs C+D esa semana, ganan A+B: puntos 7,6,6,5,5 (Sorpresa/Clara/Remontada) -> cuentan 7+6 = 13
   const rows = [
     serverMatch({ id: 'w1', playedAt: at(22), sets: [[6, 1], [6, 2]], winnerTeam: 'A', levels: { A: 2, B: 2, C: 4, D: 4 } }), // 7
     serverMatch({ id: 'w2', playedAt: at(23), sets: [[4, 6], [6, 3], [6, 2]], winnerTeam: 'A' }), // 6
@@ -178,11 +178,11 @@ test('B1-5: tabla semanal cuenta 3 mejores partidos, 3 de 4 miembros y comparte 
   const { group, history } = groupAndMatches(rows);
   const table = PG.computeWeeklyTable(history, group, week);
   const byId = Object.fromEntries(table.map((r) => [r.userId, r]));
-  assert.equal(byId[ID.A].points, 19);
-  assert.equal(byId[ID.B].points, 19);
+  assert.equal(byId[ID.A].points, 13);
+  assert.equal(byId[ID.B].points, 13);
   // Cierre B1, retest real (handoff 72) — pointsMatchesCounted sigue siendo el top-3 que
   // aportó a `points`; matchesPlayed/wins son la actividad REAL (los 5 partidos, todos ganados).
-  assert.equal(byId[ID.A].pointsMatchesCounted, 3);
+  assert.equal(byId[ID.A].pointsMatchesCounted, 2);
   assert.equal(byId[ID.A].matchesPlayed, 5);
   assert.equal(byId[ID.A].wins, 5);
   assert.equal(byId[ID.A].losses, 0);
@@ -205,9 +205,9 @@ test('B1-5b: un partido con solo 2 miembros activos en su fecha no cuenta; los p
   assert.equal(PG.computeWeeklyTable([gap], g, week).every((r) => r.points === 0), true);
 });
 
-test('B1-5c: Race anual suma los puntos semanales efectivos (top 3 por semana) de datos del servidor', () => {
+test('B1-5c: Race anual suma los puntos semanales efectivos (top 2 por semana) de datos del servidor', () => {
   const rows = [];
-  // semana del 21: 4 victorias de A+B (7,6,6,5) -> efectivo 19; semana del 28: 1 victoria (5)
+  // semana del 21: 4 victorias de A+B (7,6,6,5) -> efectivo 13; semana del 28: 1 victoria (5)
   rows.push(serverMatch({ id: 'r1', playedAt: at(22), sets: [[6, 1], [6, 2]], winnerTeam: 'A', levels: { A: 2, B: 2, C: 4, D: 4 } }));
   rows.push(serverMatch({ id: 'r2', playedAt: at(23), sets: [[4, 6], [6, 3], [6, 2]], winnerTeam: 'A' }));
   rows.push(serverMatch({ id: 'r3', playedAt: at(24), sets: [[6, 1], [6, 2]], winnerTeam: 'A' }));
@@ -215,7 +215,7 @@ test('B1-5c: Race anual suma los puntos semanales efectivos (top 3 por semana) d
   rows.push(serverMatch({ id: 'r5', playedAt: '2026-09-29T12:00:00', sets: [[6, 4], [6, 4]], winnerTeam: 'A' }));
   const { group, history } = groupAndMatches(rows);
   const race = PG.computeRaceAnual(history, group, 2026);
-  assert.equal(race.find((r) => r.userId === ID.A).points, 19 + 5);
+  assert.equal(race.find((r) => r.userId === ID.A).points, 13 + 5);
   assert.equal(race[0].position, 1);
 });
 
@@ -322,11 +322,11 @@ test('B1-7d: el camino server-backed no usa el Nivel simulado ni fabrica @usuari
 });
 
 test('B1-8: bundle consistente en los cuatro puntos', () => {
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.22-h1'/);
-  assert.match(read('version.json'), /"bundle":\s*"04\.22-h1"/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-22-h1'/);
-  assert.match(read('index.html'), /groups\.js\?v=04\.22-h1/);
-  assert.match(read('index.html'), /auth\.js\?v=04\.22-h1/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.23-h1'/);
+  assert.match(read('version.json'), /"bundle":\s*"04\.23-h1"/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-23-h1'/);
+  assert.match(read('index.html'), /groups\.js\?v=04\.23-h1/);
+  assert.match(read('index.html'), /auth\.js\?v=04\.23-h1/);
 });
 
 

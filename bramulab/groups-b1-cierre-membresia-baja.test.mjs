@@ -243,11 +243,11 @@ test('B6: reingreso no revive automáticamente filas/puntos de una etapa elimina
 });
 
 /* ------------------------------------------------------------------ */
-/* Retest real (handoff 72) — actividad VISIBLE real, nunca el top 3    */
+/* Retest real (handoff 72) — actividad VISIBLE real, nunca el top 2    */
 /* ------------------------------------------------------------------ */
 
 /** Caso real del retest de Staging (handoff 72): 10 partidos calificables de C esta semana — 6
- *  ganados (2 con Victoria clara = 6 pts, 4 lisos = 5 pts) y 4 perdidos (0 pts). Top 3 = los 2
+ *  ganados (2 con Victoria clara = 6 pts, 4 lisos = 5 pts) y 4 perdidos (0 pts). Top 2 = los 2
  *  claras + 1 lisa = 6+6+5 = 17, exactamente el ejemplo del handoff ("10 partidos · 6 V · 4 D ·
  *  17 pts"). `levelsSource:'official'` sin `levelBefore` desactiva Sorpresa de forma
  *  determinística (nunca None por azar del estimador simulado) — no es el objeto de este test. */
@@ -272,21 +272,21 @@ function buildTenMatchScenario() {
   return { group, history };
 }
 
-test('retest 72: 10 partidos · 6 V · 4 D en la actividad visible, sin alterar que solo los 3 mejores aporten a los puntos', () => {
+test('retest 72: 10 partidos · 6 V · 4 D en la actividad visible, sin alterar que solo los 2 mejores aporten a los puntos', () => {
   const { group, history } = buildTenMatchScenario();
   const table = PG.computeWeeklyTable(history, group, THIS_MON);
   const c = table.find((r) => r.userId === 'c');
   assert.ok(c, 'C tiene fila');
-  // Actividad REAL: los 10 partidos calificables de la semana, con su V/D real — nunca el top 3.
-  assert.equal(c.matchesPlayed, 10, 'actividad visible = TODO lo jugado, no el top 3');
+  // Actividad REAL: los 10 partidos calificables de la semana, con su V/D real — nunca el top 2.
+  assert.equal(c.matchesPlayed, 10, 'actividad visible = TODO lo jugado, no el top 2');
   assert.equal(c.wins, 6);
   assert.equal(c.losses, 4);
-  // Puntos: exactamente el ejemplo del handoff — 3 partidos aportaron, 17 puntos.
-  assert.equal(c.pointsMatchesCounted, 3, 'los puntos siguen saliendo de exactamente 3 partidos');
-  assert.equal(c.points, 17, '10 partidos · 6 V · 4 D · 17 pts (2 claras + 1 lisa, nunca las 6 victorias completas)');
+  // Puntos: exactamente el ejemplo del handoff — 2 partidos aportaron, 12 puntos.
+  assert.equal(c.pointsMatchesCounted, 2, 'los puntos siguen saliendo de exactamente 2 partidos');
+  assert.equal(c.points, 12, '10 partidos · 6 V · 4 D · 12 pts (las 2 claras, nunca las 6 victorias completas)');
 });
 
-test('retest 72: la Race anual acumula la MISMA distinción (puntos = top-3 semanal; actividad = real)', () => {
+test('retest 72: la Race anual acumula la MISMA distinción (puntos = top-2 semanal; actividad = real)', () => {
   const { group, history } = buildTenMatchScenario();
   const race = PG.computeRaceAnual(history, group, 2026);
   const c = race.find((r) => r.userId === 'c');
@@ -294,8 +294,8 @@ test('retest 72: la Race anual acumula la MISMA distinción (puntos = top-3 sema
   assert.equal(c.matchesPlayed, 10);
   assert.equal(c.wins, 6);
   assert.equal(c.losses, 4);
-  assert.equal(c.pointsMatchesCounted, 3);
-  assert.equal(c.points, 17);
+  assert.equal(c.pointsMatchesCounted, 2);
+  assert.equal(c.points, 12);
 });
 
 test('retest 72: la fila de la tabla de Grupos (app.js) usa la actividad REAL, nunca pointsMatchesCounted', () => {

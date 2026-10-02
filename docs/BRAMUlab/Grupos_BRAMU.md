@@ -3,6 +3,7 @@
 **Estado:** producto y UX V1 cerrados para implementación productiva.  
 **Fecha:** 28 de septiembre de 2026.  
 **Rol:** fuente maestra vigente de Grupos BRAMU.  
+**Actualizado en V04.23 (Issue #23, 01/10/2026):** top semanal = 2 mejores; puntaje por formato (Clásico / Americano); ayuda reescrita (§ Ayuda). Si algo más abajo menciona “3 mejores” o puntaje único de 5/7, está superado por §5 y §6.  
 **Precedencia:** este documento reemplaza como autoridad de producto a la definición histórica de V03.4. La implementación existente de V03.4 sigue siendo la base a conservar, pero cualquier contradicción se resuelve a favor de este documento.
 
 ---
@@ -98,71 +99,53 @@ Si una corrección oficial cambia posteriormente la verdad del partido, Grupos d
 
 ## 5. Puntos por partido
 
-### Base
+> **Vigente desde V04.23 (Issue #23).** Dos perfiles de puntaje según el formato real del partido (`formatId`, ya entregado por `get_group_competition_data`; sin migración). Implementación única: `bramulab/groups.js` (`SCORING_PROFILES` / `getScoringProfile`). Solo `formatId === 'americano'` usa el perfil Americano; cualquier otro formato (incluido uno futuro de un set) usa Clásico.
 
-- Victoria: **5 puntos** para cada jugador de la pareja ganadora.
-- Derrota: **0 puntos**.
+Los puntos no se reparten entre compañeros: si una pareja gana 5 puntos, ambos ganadores reciben 5. Derrota: **0 puntos**. Cada bonus vale **+1**.
 
-Los puntos no se reparten entre compañeros: si una pareja gana 5 puntos, ambos ganadores reciben 5.
+### Perfil CLÁSICO
 
-### Bonus — máximo +2 combinables en un mismo partido
+- Victoria: **5 puntos**.
+- **Sorpresa de nivel:** +1 si la pareja ganadora tenía, antes del partido, un Nivel BRAMU promedio al menos **0,5 inferior** al de la rival.
+- **Remontada:** +1 si la pareja ganadora perdió el primer set y después ganó.
+- **Victoria clara:** +1 si gana 2-0 y el rival suma menos de la mitad de los games totales de la ganadora.
+- **Máximo real: 7 puntos.** Remontada y Victoria clara son incompatibles (perder el Set 1 vs. ganar 2-0); Sorpresa se combina con cualquiera de las dos.
 
-Cada bonus vale **+1 punto**.
+### Perfil AMERICANO
 
-#### Sorpresa de nivel
+Formato BRAMU vigente: 1 set, tie-break en 5-5.
 
-+1 si la pareja ganadora tenía, antes del partido, un Nivel BRAMU promedio al menos **0,5 inferior** al de la pareja rival.
+- Victoria: **3 puntos**.
+- **Sorpresa de nivel:** +1 SOLO si la pareja ganadora tenía un Nivel BRAMU promedio previo al menos **1,0 inferior** al rival (0,99 no suma).
+- **Victoria clara:** +1 si gana el único set 6-0, 6-1 o 6-2 (6-3, 6-4 y 6-5 no).
+- **Remontada: no aplica.**
+- **Máximo real: 5 puntos** (3 + Sorpresa + Clara).
 
-Para implementación productiva:
-- usar Nivel BRAMU oficial anterior al partido;
-- nunca usar un Nivel inventado o simulado;
-- si no existe evidencia suficiente para calcular el bonus, no se concede.
+### Fuente de Nivel para Sorpresa (sin cambios)
 
-#### Remontada
+- Server-backed: Nivel BRAMU **oficial** previo al partido (`levelBefore`).
+- Si falta evidencia suficiente de cualquiera de los 4 jugadores, no se concede el bonus. Nunca se inventa Nivel.
 
-+1 si la pareja ganadora perdió el primer set y después ganó el partido.
-
-#### Victoria clara
-
-+1 si la pareja gana **2-0** y la pareja rival suma menos de la mitad de los games totales de la ganadora.
-
-### Máximo real
-
-**Una victoria puede valer 5, 6 o 7 puntos. Nunca 8.**
-
-Remontada y Victoria clara son incompatibles:
-- para Remontada hay que perder el primer set;
-- para Victoria clara hay que ganar 2-0.
-
-Sorpresa sí puede combinarse con cualquiera de las dos.
+Los puntos de Grupos **no modifican** Nivel BRAMU ni Ranking BRAMU. (Nivel ya trata Americano/set único como formato reducido con factor 0,65; esas fórmulas no se tocaron.)
 
 ---
 
-## 6. Regla de los 3 mejores partidos
+## 6. Regla de los 2 mejores partidos
 
-La tabla semanal toma, para cada jugador, como máximo sus **3 mejores partidos puntuables de la semana**.
+> **Vigente desde V04.23.** Reemplaza la regla de los 3 mejores. Regla universal para todos los grupos; no es configurable por grupo.
 
-- Si jugó 1, 2 o 3, cuentan todos.
-- Si jugó más de 3, se conservan los 3 que más puntos le dieron.
+La tabla semanal toma, para cada jugador, como máximo sus **2 mejores partidos puntuables de la semana**.
+
+- Si jugó 1 o 2, cuentan todos.
+- Si jugó más de 2, se conservan los 2 que más puntos le dieron.
 - Jugar más cantidad de partidos no debe producir por sí solo una ventaja ilimitada.
+- Empate de puntos en el corte: sin criterio nuevo; el total semanal es idéntico sea cual sea el partido empatado que quede marcado como contado.
 
-Ejemplo:
+Ejemplo: partidos de 7, 6, 5, 5 y 0 pts → puntaje semanal **13 pts**.
 
-- partido A: 7 pts;
-- partido B: 6 pts;
-- partido C: 5 pts;
-- partido D: 5 pts;
-- partido E: 0 pts.
+**La línea visible de actividad NO se limita al top 2.** Debe mostrar la actividad real del jugador dentro del grupo durante esa semana: total de partidos que calificaron, victorias reales y derrotas reales (V/D reales nunca se recortan al top 2). La regla de los 2 mejores afecta únicamente el puntaje.
 
-Puntaje semanal: **18 pts**.
-
-**La línea visible de actividad NO se limita al top 3.** Debe mostrar la actividad real del jugador dentro del grupo durante esa semana: total de partidos que calificaron para el grupo, victorias reales y derrotas reales. La regla de los 3 mejores afecta únicamente el puntaje.
-
-Ejemplo: si un jugador disputó 10 partidos calificables, ganó 6 y perdió 4, pero sus 3 mejores resultados suman 17 puntos, la fila debe mostrar:
-
-**10 partidos · 6 V · 4 D** — **17 pts**
-
-No mostrar `3 partidos · 3 V · 0 D` solo porque esos fueron los tres resultados que computaron para puntos: genera una lectura falsa de invicto.
+Ejemplo: 10 partidos calificables, 6 ganados y 4 perdidos, con los 2 mejores resultados sumando 12 puntos → **10 partidos · 6 V · 4 D** — **12 pts**. Nunca `2 partidos · 2 V · 0 D`: sería una lectura falsa de invicto.
 
 ---
 
@@ -198,14 +181,14 @@ Las vistas vigentes se conservan:
 
 ## 8. Race anual
 
-La Race acumula durante el año calendario los puntos que efectivamente computaron semana a semana bajo la regla de los 3 mejores partidos.
+La Race acumula durante el año calendario los puntos que efectivamente computaron semana a semana bajo la regla de los 2 mejores partidos.
 
-No es un “top 3 anual”.
+No es un “top 2 anual”.
 
 La Race:
 
 - suma los puntos semanales efectivos;
-- en la línea secundaria muestra la actividad real acumulada del año dentro del grupo (partidos calificables, victorias y derrotas reales), no solo los partidos que aportaron puntos al top 3 semanal;
+- en la línea secundaria muestra la actividad real acumulada del año dentro del grupo (partidos calificables, victorias y derrotas reales), no solo los partidos que aportaron puntos al top 2 semanal;
 - muestra únicamente miembros actualmente activos del grupo;
 - si un miembro es eliminado, deja de aparecer en la Race aunque sus partidos reales sigan existiendo y los puntos ya obtenidos por otros miembros se conserven;
 - si un miembro eliminado reingresa, su nueva etapa competitiva arranca desde la semana de reingreso y no revive automáticamente su Race anterior;
@@ -481,10 +464,10 @@ La pantalla sin grupos no debe sentirse como un formulario vacío. Debe vender l
 
 #### Tres módulos compactos
 
-**Ganá y sumá**  
-5 puntos por victoria + bonus por partidos especiales.
+**Jugá, ganá, sumá**  
+Cada victoria suma. Algunos resultados pueden darte puntos extra.
 
-**Tus 3 mejores cuentan**  
+**Tus 2 mejores partidos cuentan**  
 Así competir no depende simplemente de quién juega más.
 
 **Cada semana vuelve a empezar**  
@@ -554,10 +537,10 @@ Para evitar duplicación visual, el enlace inferior “¿Cómo se suman los punt
 Un partido entra automáticamente cuando al menos 3 de los 4 jugadores pertenecían al grupo cuando se jugó.
 
 **¿Cómo sumás?**  
-Victoria: 5 puntos. Derrota: 0. Podés sumar +1 por Sorpresa de nivel, Remontada o Victoria clara. El máximo posible por partido es 7 puntos.
+Clásico: victoria 5 (hasta 7 con bonus). Americano: victoria 3 (hasta 5). Bonus +1 por Sorpresa de nivel, Remontada (no en Americano) o Victoria clara.
 
-**¿Por qué cuentan solo 3?**  
-Cada semana usamos tus 3 mejores partidos para que jugar más veces no sea una ventaja automática.
+**¿Por qué cuentan solo 2?**  
+Cada semana usamos tus 2 mejores partidos para que jugar más veces no sea una ventaja automática.
 
 **¿Qué pasa cada semana?**  
 La tabla semanal vuelve a empezar y los puntos que computaron siguen alimentando la Race anual.
@@ -695,7 +678,7 @@ Los **3 partidos que efectivamente aportan al puntaje semanal** deben distinguir
 
 Los demás partidos calificables de la semana también pueden mostrarse para explicar la actividad real, pero deben quedar claramente como:
 - `0 pts` si fueron derrota; o
-- **No entra en tus 3 mejores** si fue un resultado puntuable desplazado por otros tres mejores.
+- **No entra en tus 2 mejores** si fue un resultado puntuable desplazado por otros dos mejores.
 
 No esconder partidos de la actividad real solo para que cierre la suma.
 
@@ -864,7 +847,7 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 5. una victoria normal suma 5;
 6. bonus válidos llevan a 6 o 7, nunca 8;
 7. Remontada y Victoria clara nunca coinciden;
-8. cada jugador computa como máximo sus 3 mejores partidos semanales;
+8. cada jugador computa como máximo sus 2 mejores partidos semanales (V04.23);
 9. con empate de puntos se comparte puesto;
 10. Race acumula los puntos semanales efectivos;
 11. un partido entra automáticamente con al menos 3/4 miembros válidos para esa semana BRAMU;
@@ -889,7 +872,7 @@ Grupos BRAMU está listo para Production cuando puede demostrarse en Staging que
 30. volver desde el detalle de un grupo lleva al lobby.
 31. tocar una fila semanal abre un desglose compacto y verificable de cómo se formaron sus puntos;
 32. el desglose semanal conserva puntos a la derecha y muestra fecha/pareja/rivales/resultado/puntos por partido sin convertirse en planilla;
-33. partidos fuera del top 3 siguen visibles como actividad, marcados como 0 pts o fuera de los 3 mejores;
+33. partidos fuera del top 2 siguen visibles como actividad, marcados como 0 pts o fuera de los 2 mejores;
 34. Race explica el acumulado con una línea compacta por semana;
 35. el Perfil público sigue accesible como acción secundaria desde el desglose.
 
@@ -982,7 +965,7 @@ La tarjeta B2b/B2c vigente se conserva.
 Para que la pantalla no quede vacía o sin contexto cuando existe uno solo (y siga funcionando con varios), **AGREGAR** arriba de la lista real una introducción compacta, no un onboarding completo:
 
 **Tu competencia semanal**  
-Cada semana empieza de nuevo. Cuentan tus 3 mejores partidos.
+Cada semana empieza de nuevo. Cuentan tus 2 mejores partidos.
 
 No repetir los 3 bloques del estado cero.
 
@@ -1093,3 +1076,14 @@ No seguir agregando funciones nuevas fuera de este cierre.
 - **Home — chip de Nivel:** muestra el **último cambio REAL que movió el Nivel público visible a 1 decimal** (`get_my_last_level_delta()`: resultado vigente y elegible con `round(mu_before,1) <> round(mu_after,1)`; `delta` = diferencia de niveles públicos). Un microdelta que deja 5.9 → 5.9 no genera ±0.0 y no reemplaza al último cambio público real; si nunca hubo uno, el chip queda oculto. Migración `20260930240000_preprod_v0417_delta_publico_nivel.sql` (verify: `supabase/tests/verify-preprod-v0417-delta-publico.sql`).
 - **Branding PWA:** la marca es **BRAMUlab** (BRAMU en mayúsculas + lab en minúsculas, sin espacio) en manifest (`name`/`short_name`), `<title>`, `application-name`, `apple-mobile-web-app-title`, `alt` de logos y título del share. Los iconos (`apple-touch-icon`, 192, 512, maskable, favicon) se regeneran desde el asset aprobado `docs/identidad-visual/BRAMULab icono2.png` (el "ÍCONO APP" del Sistema Gráfico) con `docs/identidad-visual/generar-iconos-pwa.py`; no se redibuja el isotipo. `BRAMULab icono.png` (B recortada, con artefactos) no es el ícono de app. Los iconos llevan `?v=<bundle>` para romper caches; un ícono ya instalado en iOS puede requerir quitar/agregar la PWA al Home para verse.
 
+
+
+---
+
+## Ayuda "Cómo funcionan los Grupos BRAMU" — composición vigente (V04.23)
+
+Misma hoja `#group-points-info-sheet` (no hay otro sistema). Beneficio primero, mecánica después:
+
+- **Hero:** “Jugá como siempre. BRAMU hace el resto.” + bajada de automatización (cargás el resultado una vez; BRAMU detecta el grupo y actualiza la competencia).
+- **Tres bloques:** *Entra solo* (3 de 4 jugadores) · *Tus 2 mejores cuentan* · *Cada semana, una nueva pelea* (reinicio cada lunes + Race anual).
+- **Secundario “Cómo se suman los puntos”:** Clásico 5 (hasta 7), Americano 3 (hasta 5), Sorpresa, Remontada (no en Americano), Victoria clara y la aclaración de que no modifica Nivel ni Ranking BRAMU.

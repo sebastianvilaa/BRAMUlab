@@ -3,7 +3,7 @@
    Funciones puras de la competencia privada por grupos: pertenencia temporal
    de un miembro, detección automática de qué partidos cuentan para un grupo
    (3 de 4 jugadores activos), cálculo de puntos por partido (base + bonuses),
-   tabla semanal (top 3 mejores partidos por jugador), Race anual y BRAMU
+   tabla semanal (top 2 mejores partidos por jugador), Race anual y BRAMU
    Intelligence grupal. Sin DOM, sin localStorage — igual criterio que
    player-home.js/match-load.js: recibe siempre `fullHistory` (Store.loadHistory())
    y el `group` ya cargado (Store.loadGroups()), app.js hace toda la
@@ -197,9 +197,23 @@
   /* §9 — PUNTOS POR PARTIDO                                              */
   /* ------------------------------------------------------------------ */
 
-  const BASE_POINTS = 5;
   const BONUS_POINTS = 1;
-  const SORPRESA_MIN_DIFF = 0.5;
+
+  /** V04.23 — reglas de puntaje POR FORMATO (única fuente). Clásico conserva exactamente la
+   *  lógica vigente; Americano (1 set, tie-break en 5-5) tiene base 3, Sorpresa con diferencia
+   *  >= 1,0, Victoria clara = único set 6-0/6-1/6-2 y nunca Remontada. Se resuelve con
+   *  `formatId === 'americano'` explícito: un formato futuro de un set NO hereda estas reglas
+   *  (cae en Clásico, igual que antes). */
+  const SCORING_PROFILES = {
+    classic: { id: 'classic', basePoints: 5, sorpresaMinDiff: 0.5, remontada: true, claraMaxRivalGames: null },
+    americano: { id: 'americano', basePoints: 3, sorpresaMinDiff: 1.0, remontada: false, claraMaxRivalGames: 2 },
+  };
+  function getScoringProfile(match) {
+    return (match && match.formatId === 'americano') ? SCORING_PROFILES.americano : SCORING_PROFILES.classic;
+  }
+  // Alias del perfil Clásico (compatibilidad con consumidores/tests existentes).
+  const BASE_POINTS = SCORING_PROFILES.classic.basePoints;
+  const SORPRESA_MIN_DIFF = SCORING_PROFILES.classic.sorpresaMinDiff;
 
   /** Un set completo de pádel nunca termina en empate de games — determinar el ganador desde
    *  `gamesA/gamesB` directamente (nunca depender de un campo `winner` opcional que algún
@@ -218,6 +232,7 @@
    *  jugados (un Americano de 1 solo set nunca puede "perder el primero y remontar"). */
   function computeBonusRemontada(match) {
     if (!isMatchValidForGroups(match)) return false;
+    if (!getScoringProfile(match).remontada) return false;
     const sets = match.sets || [];
     if (sets.length < 2) return false;
     return setWinnerTeam(sets[0]) !== match.winnerTeam;
@@ -230,7 +245,14 @@
    *  necesidad de un chequeo extra que las excluya a mano. */
   function computeBonusVictoriaClara(match) {
     if (!isMatchValidForGroups(match)) return false;
+    const profile = getScoringProfile(match);
     const sets = match.sets || [];
+    if (profile.id === 'americano') {
+      // Americano: único set ganado por la pareja ganadora con el rival en 0, 1 o 2 games.
+      if (sets.length !== 1 || setWinnerTeam(sets[0]) !== match.winnerTeam) return false;
+      const rg = match.winnerTeam === 'A' ? sets[0].gamesB : sets[0].gamesA;
+      return rg <= profile.claraMaxRivalGames;
+    }
     if (sets.length !== 2) return false;
     if (!sets.every((s) => setWinnerTeam(s) === match.winnerTeam)) return false;
     let winnerGames = 0, rivalGames = 0;
@@ -265,6 +287,7 @@
    *  decimales (ver `round2`) para no perder el bonus por precisión flotante. */
   function computeBonusSorpresa(match, fullHistory) {
     if (!isMatchValidForGroups(match)) return false;
+    const minDiff = getScoringProfile(match).sorpresaMinDiff;
     const players = match.players || [];
     // Grupos B1 — camino server-backed: el partido trae el Nivel OFICIAL previo por jugador
     // (`levelBefore`, de get_group_competition_data). Nunca se cae al estimador simulado: si falta
@@ -278,14 +301,14 @@
       const all = winners.concat(losers);
       if (!all.every((p) => typeof p.levelBefore === 'number' && Number.isFinite(p.levelBefore))) return false;
       const avg = (rows) => rows.reduce((sum, p) => sum + p.levelBefore, 0) / rows.length;
-      return round2(avg(losers) - avg(winners)) >= SORPRESA_MIN_DIFF;
+      return round2(avg(losers) - avg(winners)) >= minDiff;
     }
     const winners = players.filter((p) => p && p.team === match.winnerTeam).map((p) => p.name);
     const losers = players.filter((p) => p && p.team !== match.winnerTeam).map((p) => p.name);
     if (winners.length !== 2 || losers.length !== 2) return false;
     const avgLevel = (names) => names.reduce((sum, n) => sum + computeSimulatedLevelBeforeMatch(fullHistory, n, match), 0) / names.length;
     const diff = round2(avgLevel(losers) - avgLevel(winners));
-    return diff >= SORPRESA_MIN_DIFF;
+    return diff >= minDiff;
   }
 
   /** Desglose completo de puntos de UN partido para el grupo — `null` si el partido no es
@@ -297,10 +320,11 @@
     const sorpresa = computeBonusSorpresa(match, fullHistory);
     const remontada = computeBonusRemontada(match);
     const claraVictoria = computeBonusVictoriaClara(match);
+    const profile = getScoringProfile(match);
     const bonusCount = (sorpresa ? 1 : 0) + (remontada ? 1 : 0) + (claraVictoria ? 1 : 0);
     return {
-      base: BASE_POINTS, sorpresa, remontada, claraVictoria,
-      total: BASE_POINTS + bonusCount * BONUS_POINTS,
+      base: profile.basePoints, sorpresa, remontada, claraVictoria,
+      total: profile.basePoints + bonusCount * BONUS_POINTS,
       winnerTeam: match.winnerTeam,
     };
   }
@@ -321,7 +345,7 @@
   /* ------------------------------------------------------------------ */
 
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-  const MAX_COUNTED_MATCHES_PER_WEEK = 3;
+  const MAX_COUNTED_MATCHES_PER_WEEK = 2;
 
   /** Partidos de `fullHistory` que cuentan para `group` Y caen dentro de la semana que empieza
    *  en `weekStart` — el llamador (app.js) debe construir ese límite con `PG.weekStartBA` (B2a,
@@ -380,8 +404,8 @@
     });
   }
 
-  /** Regla central §8: para cada jugador cuentan sus 3 MEJORES partidos puntuables de la
-   *  semana (menos de 3 jugados → cuentan todos) — esto decide ÚNICAMENTE `points`.
+  /** Regla central §8: para cada jugador cuentan sus 2 MEJORES partidos puntuables de la
+   *  semana (menos de 2 jugados → cuentan todos) — esto decide ÚNICAMENTE `points`.
    *
    *  Cierre B1, retest real (handoff 72, 28/09/2026) — BUG REAL confirmado en Staging: la
    *  segunda línea de la tabla (§11, "actividad") mostraba `matchesCounted/wins/losses` del
@@ -391,7 +415,7 @@
    *  `pointsMatchesCounted` (renombrado, mismo cálculo de siempre) siguen siendo el
    *  subconjunto top-3; `matchesPlayed`/`wins`/`losses` (REALES, sobre TODO lo jugado esa
    *  semana que calificó para el grupo) son ahora los que alimentan esa línea — ver
-   *  `buildGroupTableRowHTML` (app.js). La fórmula de puntos, el top 3, la regla 3/4 y la
+   *  `buildGroupTableRowHTML` (app.js). La fórmula de puntos, el top 2, la regla 3/4 y la
    *  membresía semanal no cambian: es exclusivamente una corrección de qué dato se MUESTRA.
    *
    *  Orden de PANTALLA: puntos desc, empate por victorias REALES desc, empate final alfabético
@@ -401,7 +425,7 @@
    *  este desempate). */
   /** Handoff 79 §G — ÚNICO punto que decide, para UN jugador dentro de un conjunto de partidos
    *  ya filtrados a una semana, cuáles son sus resultados reales (`scored`, TODOS, orden puntos
-   *  desc) — de acá sale tanto la fila de la tabla (`computeWeeklyTable`, top 3 de este mismo
+   *  desc) — de acá sale tanto la fila de la tabla (`computeWeeklyTable`, top 2 de este mismo
    *  array) como el desglose de puntos del sheet (`buildPlayerWeeklyBreakdown`). "No duplicar
    *  lógica": ningún otro lugar vuelve a recorrer partidos para decidir puntos/top-3 de un
    *  jugador — ambos consumidores llaman a esta función y cortan/leen el mismo array. */
@@ -431,11 +455,11 @@
         userId: mem.userId || null,
         isAdmin: !!mem.isAdmin,
         points: counted.reduce((sum, c) => sum + c.points, 0),
-        // Actividad REAL — toda esta semana, no solo el top 3 que puntuó.
+        // Actividad REAL — toda esta semana, no solo el top 2 que puntuó.
         matchesPlayed: scored.length,
         wins: realWins,
         losses: scored.length - realWins,
-        // Top 3 que efectivamente aportó a `points` (informativo/tests; nunca para la UI de
+        // Top 2 que efectivamente aportó a `points` (informativo/tests; nunca para la UI de
         // actividad — ver comentario de arriba).
         pointsMatchesCounted: counted.length,
       };
@@ -449,8 +473,8 @@
   /* ------------------------------------------------------------------ */
 
   /** Acumulado del año calendario: suma, semana por semana, los puntos EFECTIVOS de cada
-   *  jugador (ya recortados al top 3 de esa semana por `computeWeeklyTable` — §10: "respeta el
-   *  criterio de los 3 mejores partidos por semana", nunca un top-3 sobre el año entero). Solo
+   *  jugador (ya recortados al top 2 de esa semana por `computeWeeklyTable` — §10: "respeta el
+   *  criterio de los 2 mejores partidos por semana", nunca un top-3 sobre el año entero). Solo
    *  recorre las semanas que realmente tuvieron al menos un partido contable — evita recalcular
    *  semanas vacías del año. Nunca se resetea semanalmente (a diferencia de ACTUAL/ANTERIOR);
    *  se reinicia únicamente al cambiar de año calendario, pasando otro `year`.
@@ -575,8 +599,8 @@
    *  alimenta la fila de `computeWeeklyTable` — así que `total` es SIEMPRE exactamente la suma
    *  de los partidos marcados `counted:true` (nunca puede haber una fila con más/menos puntos
    *  que su propio desglose). `rows` trae TODOS los partidos calificables jugados esa semana
-   *  (no solo los 3 que puntuaron) para que una victoria fuera del top 3 sea visible como "no
-   *  entra en tus 3 mejores", nunca escondida. */
+   *  (no solo los 2 que puntuaron) para que una victoria fuera del top 2 sea visible como "no
+   *  entra en tus 2 mejores", nunca escondida. */
   function buildPlayerWeeklyBreakdown(matches, playerRef, fullHistory) {
     const scored = computePlayerScoredMatches(matches, playerRef, fullHistory);
     const countedIds = new Set(scored.slice(0, MAX_COUNTED_MATCHES_PER_WEEK).map((s) => s.matchId));
@@ -815,6 +839,7 @@
       matchId: m.matchId,
       playedAt: m.playedAt,
       winnerTeam: m.winnerTeam,
+      formatId: m.formatId || null,
       regulationCompleted: true,
       levelsSource: 'official',
       sets: (m.sets || []).map((s) => ({ gamesA: s.gamesA, gamesB: s.gamesB })),
@@ -838,6 +863,6 @@
     buildGroupIntelligence, topTiedNames, joinNamesEs,
     buildLobbyCardSummary, buildPlayerWeeklyBreakdown, buildRaceWeeklySummary,
     adaptServerGroup, adaptServerCompetitionMatches,
-    BASE_POINTS, BONUS_POINTS, SORPRESA_MIN_DIFF, WEEK_MS, MAX_COUNTED_MATCHES_PER_WEEK,
+    BASE_POINTS, BONUS_POINTS, SORPRESA_MIN_DIFF, SCORING_PROFILES, getScoringProfile, WEEK_MS, MAX_COUNTED_MATCHES_PER_WEEK,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

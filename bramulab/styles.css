@@ -2801,6 +2801,17 @@ input, select{ font-family: inherit; }
   flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
   padding-bottom: calc(28px + var(--safe-bottom) + var(--bottomnav-h, 0px));
 }
+/* V04.23 — BUG REAL iPhone/PWA: Perfil → Mis datos → Editar datos no scrolleaba (campos inferiores y
+   GUARDAR inalcanzables). Misma causa estructural que Configuración del grupo: html/body son overflow:hidden,
+   `.view` es min-height:100dvh (la vista CRECE con el contenido) y `.access-scroll` no tenía overflow propio.
+   Mismo patrón, acotado a las 3 vistas `.view--access` que usan `.access-scroll--with-bottom-nav` (Editar datos,
+   Completar acceso, Cambiar contraseña): vista = viewport, el scroller interno ocupa el resto y reserva
+   safe-area + bottom-nav real (--bottomnav-h). Sin tocar contenido ni diseño. */
+#view-edit-data, #view-complete-access, #view-change-password{ height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden; }
+#view-edit-data .access-scroll, #view-complete-access .access-scroll, #view-change-password .access-scroll{
+  flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding-bottom: calc(28px + var(--safe-bottom) + var(--bottomnav-h, 0px));
+}
 
 /* V03.0.3 (§9) — "dar más presencia y mejor ubicación al wordmark": Bienvenida es la única
    pantalla sin sesión que lo usa como elemento principal (consolidado §1), así que gana
@@ -3274,6 +3285,16 @@ input, select{ font-family: inherit; }
 .group-points-info-list li{ font-size: 13px; color: var(--paper-dim); line-height:1.5; padding-left: 14px; position:relative; }
 .group-points-info-list li::before{ content:''; position:absolute; left:0; top: 7px; width:5px; height:5px; border-radius:50%; background: var(--brand-lime); }
 .group-points-info-list strong{ color: var(--paper); }
+/* V04.23 — ayuda de Grupos: beneficio primero, mecánica después. */
+.group-help-hero{ margin: 2px 0 14px; }
+.group-help-hero__title{ margin:0; font-family: var(--font-display); font-weight: 700; font-size: 18px; line-height:1.25; color: var(--brand-lime); }
+.group-help-hero__sub{ margin: 6px 0 0; font-size: 13px; line-height:1.5; color: var(--paper-dim); }
+.group-help-blocks{ display:flex; flex-direction:column; gap: 8px; margin-bottom: 16px; }
+.group-help-block{ display:block; background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 10px 12px; }
+.group-help-block__title{ display:block; font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--paper); }
+.group-help-block__sub{ display:block; font-size: 12px; line-height:1.45; color: var(--paper-dim); margin-top: 2px; }
+.group-help-block__sub strong{ color: var(--paper); }
+.group-help-sub-title{ margin: 0 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--paper-dim); }
 
 /* BRAMUlab_V03.4.4 (§1) — "+ CREAR GRUPO" deja de ser una fila de texto lima (se leía "perdida"
    contra la lista de grupos) y pasa a botón real: mismo sistema que `.btn-secondary--accent`
@@ -3411,7 +3432,7 @@ input, select{ font-family: inherit; }
 .group-breakdown-row__detail{ font-size: 13px; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .group-breakdown-row__result{ font-size: 12px; color: var(--paper-dim); }
 .group-breakdown-row__pts{ flex:none; font-family: var(--font-display); font-weight:800; font-size: 13px; color: var(--paper-faint); font-variant-numeric: tabular-nums; text-align:right; max-width: 40%; }
-/* Solo los 3 que puntuaron destacan en lima — el resto (fuera del top 3, o derrota) queda en
+/* Solo los 2 que puntuaron destacan en lima — el resto (fuera del top 2, o derrota) queda en
    el tono neutro de arriba, nunca escondido. */
 .group-breakdown-row--counted .group-breakdown-row__pts{ color: var(--brand-lime); }
 
