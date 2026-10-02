@@ -646,6 +646,18 @@
     return PH.computeSimulatedJugadorLevel(history, account ? { name, userId: account.id } : name);
   }
 
+  /** V04.25 (Issue #26) — celda de Nivel de las filas compactas, jerarquía canónica:
+   *  NIVEL BRAMU (neutro, chico) → valor → estado opcional. CALIBRANDO: valor y texto en ámbar
+   *  (`--gold`); consolidado: valor blanco sin etiqueta extra. Solo se pasa `calibrating=true`
+   *  cuando hay Nivel server-backed con estado CALIBRANDO. */
+  function buildLevelCellHTML(levelText, calibrating) {
+    const cal = !!calibrating && levelText !== '—';
+    return `<span class="player-row__level">
+        <span class="player-row__level-label">NIVEL BRAMU</span>
+        <span class="player-row__level-value${cal ? ' is-calibrating' : ''}">${levelText}</span>${cal ? '\n        <span class="player-row__level-state">CALIBRANDO</span>' : ''}
+      </span>`;
+  }
+
   /** BRAMUlab_V03.6 (hotfix — bug real §2) — "Mis jugadores" (y toda fila que pasa por acá)
    *  mostraba un @usuario FABRICADO desde el nombre (`buildPlayerHandle`) aunque el jugador
    *  tuviera una cuenta real vinculada con un @usuario propio distinto — la misma persona se
@@ -662,10 +674,7 @@
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
-      <span class="player-row__level">
-        <span class="player-row__level-value">${levelText}</span>
-        <span class="player-row__level-label">NIVEL BRAMU</span>
-      </span>
+      ${buildLevelCellHTML(levelText, false)}
     </button>`;
   }
 
@@ -693,10 +702,7 @@
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
-      <span class="player-row__level">
-        <span class="player-row__level-value">${levelText}</span>
-        <span class="player-row__level-label">NIVEL BRAMU</span>
-      </span>
+      ${buildLevelCellHTML(levelText, p.levelStatus === 'CALIBRANDO')}
     </button>`;
   }
 
@@ -1172,7 +1178,9 @@
     manualActiveSetIndex = i;
     manualDraftActiveTeam = 'A';
     markManualLoadDirty();
-    renderManualScoreboard();
+    // V04.25 — la unidad de edición es el SET COMPLETO: se entra directo al modo resultado con el teclado
+    // en el lado A del set reabierto (antes quedaba cerrado y el primer cambio "rebotaba").
+    openManualKeypad('A');
   }
 
   /** Hotfix v2.2.1 (§7.2) — qué teclas del lado activo son pulsables ANTES de que el usuario
@@ -1250,7 +1258,10 @@
    *  vez de forzar igual su reingreso — mismo criterio que `advanceProposeCorrectionDraftSide`. */
   function advanceDraftSide() {
     const otherSide = manualDraftActiveTeam === 'A' ? 'b' : 'a';
-    if (!Number.isFinite(manualDraftSet[otherSide])) {
+    // V04.25 — el set se edita completo: mientras el otro lado no se haya (re)ingresado en esta pasada
+    // (vacío en un set nuevo, o con el valor viejo de un set reabierto) el teclado pasa a ese lado y NO
+    // se cierra ni se intenta confirmar un par a medio corregir. "Listo" confirma sin tocar el otro lado.
+    if (!manualSideEntered[otherSide]) {
       openManualKeypad(otherSide === 'a' ? 'A' : 'B');
       return;
     }
@@ -7767,10 +7778,12 @@
    *  `--text` (tamaño reducido + wrap), reservado a los 2 estados de calibración; el Nivel
    *  numérico (siempre corto) sigue exactamente igual que antes. Solo tamaño/wrap — ninguna
    *  lógica de Nivel nueva. */
-  function setLevelValueText(elId, text, isText) {
+  function setLevelValueText(elId, text, isText, calibrating) {
     const el = $(`#${elId}`);
     el.textContent = text;
     el.classList.toggle('player-card__level-value--text', !!isText);
+    // V04.25 (Issue #26) — CALIBRANDO se lee en ámbar (número o texto); consolidado queda blanco.
+    el.classList.toggle('player-card__level-value--calibrating', calibrating === undefined ? text === 'CALIBRANDO' : !!calibrating);
   }
 
   function playerInitials(name) {
@@ -8036,7 +8049,7 @@
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       barWrapEl.hidden = true;
-      setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
+      setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, levelV1.state !== LV.STATES.CALIBRATED);
       // Ronda UX 25/09 (§L) — REEMPLAZA la píldora `NIVEL CALIBRADO` de V04.9 (`levelV1BadgeHTML`
       // en la columna angosta): en uso real en iPhone deformaba el layout de la tarjeta al pasar
       // 4/5 → 5/5 (Laboratorio §15.21). Una vez calibrado, ningún badge — la ausencia de
@@ -10915,10 +10928,7 @@
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
-      <span class="player-row__level">
-        <span class="player-row__level-value">${levelText}</span>
-        <span class="player-row__level-label">NIVEL BRAMU</span>
-      </span>
+      ${buildLevelCellHTML(levelText, false)}
     </button>`;
   }
 
@@ -10955,10 +10965,7 @@
         <span class="player-row__name">${escapeHtml(name)}</span>
         <span class="player-row__handle">${escapeHtml(handle)}</span>
       </span>
-      <span class="player-row__level">
-        <span class="player-row__level-value">${levelText}</span>
-        <span class="player-row__level-label">NIVEL BRAMU</span>
-      </span>
+      ${buildLevelCellHTML(levelText, p.levelStatus === 'CALIBRANDO')}
     </button>`;
   }
 
@@ -11621,7 +11628,7 @@
           <div class="group-table__toprow">
             <span class="group-table__name">${escapeHtml(p.name)}</span>
             ${handle ? `<span class="group-table__handle">· ${escapeHtml(handle)}</span>` : ''}
-            ${levelText ? `<span class="group-table__handle">· Nivel BRAMU ${levelText}</span>` : ''}
+            ${levelText ? `<span class="group-table__handle">· Nivel BRAMU ${levelText}</span>` : ''}${levelText && c.levelStatus === 'CALIBRANDO' ? '<span class="group-table__handle level-calibrating-inline">· CALIBRANDO</span>' : ''}
           </div>
           <div class="person-list__caption">${cfg.countLabel(p.count)} · ${p.wins} ${winsLabel} · ${p.losses} ${lossesLabel}</div>
         </div>
@@ -12214,9 +12221,15 @@
       setLevelValueText('player-public-level-value', 'PENDIENTE', true);
     } else {
       const levelText = Number.isFinite(p.level_public) ? p.level_public.toFixed(1) : '—';
-      setLevelValueText('player-public-level-value', levelText, false);
+      const calibrating = p.level_status === 'CALIBRANDO' && levelText !== '—';
+      setLevelValueText('player-public-level-value', levelText, false, calibrating);
+      // V04.25 (Issue #26) — CALIBRANDO debajo del número, mismo ámbar; consolidado sin etiqueta.
+      const subEl = $('#player-public-level-sub');
+      subEl.classList.toggle('player-card__level-sub--calibrating', calibrating);
+      subEl.textContent = calibrating ? 'CALIBRANDO' : '';
+      subEl.hidden = !calibrating;
     }
-    $('#player-public-level-sub').hidden = true;
+    if (!p.level_status || p.level_status === 'PENDIENTE') $('#player-public-level-sub').hidden = true;
 
     // Pre-Production P0.1 (revisión central 24/09/2026) — Efectividad/jugados-ganados con
     // evidencia oficial real (ver comentario de cabecera de esta función). `matchesPlayed`/
@@ -12776,7 +12789,7 @@
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
       const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
-      setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false);
+      setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, !isCalibrated);
       // Ronda UX 25/09 (§L) — mismo criterio que Home (renderPlayerCard): una vez calibrado, sin
       // píldora persistente `NIVEL CALIBRADO` — la desaparición de CALIBRANDO ya comunica el
       // estado; identidad + Nivel BRAMU numérico quedan en su composición normal

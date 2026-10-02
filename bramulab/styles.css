@@ -2460,7 +2460,11 @@ input, select{ font-family: inherit; }
    (bloque de scroll, no barra fija). */
 .court-current-set__hint{ margin: -6px 0 14px; font-size: 13px; font-weight:700; color: var(--brand-lime); text-align:center; }
 
-.load-match-error{ color: var(--danger); margin: -6px 0 14px; }
+.load-match-error{
+  color: var(--danger); margin: 12px 0 14px; padding: 9px 14px; box-sizing: border-box; width: 100%;
+  text-align: center; font-style: normal; font-size: 12px; font-weight: 700; line-height: 1.4;
+  background: rgba(255,91,97,0.08); border: 1px solid rgba(255,91,97,0.28); border-radius: 12px;
+}
 
 /* §9 — línea de metadato (fecha/hora/lugar) + "Modificar".
    V02.5 (Bloque B, §10) — jerarquía EQUIVALENTE a `.load-format-line`: ambas son
@@ -2637,7 +2641,13 @@ input, select{ font-family: inherit; }
    alta nueva, no un jugador existente). */
 .player-row__level{ flex:none; text-align:right; }
 .player-row__level-value{ display:block; font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--paper); font-variant-numeric: tabular-nums; }
-.player-row__level-label{ display:block; font-size: 8px; letter-spacing: 0.04em; color: var(--paper-faint); font-weight: 800; text-transform: uppercase; margin-top: 1px; }
+.player-row__level-label{ display:block; font-size: 8px; letter-spacing: 0.04em; color: var(--paper-faint); font-weight: 800; text-transform: uppercase; margin-bottom: 1px; }
+/* V04.25 (Issue #26) — jerarquía canónica NIVEL BRAMU → valor → estado; CALIBRANDO en ámbar (--gold). */
+.player-row__level-value.is-calibrating{ color: var(--gold); }
+.player-row__level-state{ display:block; font-size: 8px; letter-spacing: 0.04em; color: var(--gold); font-weight: 800; text-transform: uppercase; margin-top: 1px; }
+.player-card__level-value--calibrating{ color: var(--gold); }
+.player-card__level-sub--calibrating{ color: var(--gold); font-weight: 800; letter-spacing: 0.04em; }
+.level-calibrating-inline{ color: var(--gold); font-weight: 700; }
 .load-player-sheet__empty{ padding: 14px 6px; font-size: 12px; color: var(--court-text-dim); }
 /* Revisión central h12 (§D) — mismo patrón que .profile-location-manual-trigger: acción
    secundaria discreta, centrada, separada de la lista por un divisor simple y suficiente
@@ -3912,15 +3922,21 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    tarjetas grandes de armado y queda: matchup compacto + fichas de sets + resultado del set actual,
    siempre por encima del teclado. Solo presentación; la lógica del marcador no cambia.
    ========================================================================== */
-.score-matchup{ display:flex; align-items:stretch; gap: 8px; margin-bottom: 12px; }
+/* V04.25 — marcador/result board: equipo A (verde) arriba, equipo B (celeste) abajo, bloque completo
+   teñido con su color (no solo un borde lateral), nombres grandes de hasta 2 líneas, VS entre ambos. */
+.score-matchup{ display:flex; flex-direction:column; gap: 0; margin-bottom: 12px; }
 .score-matchup__team{
-  flex:1; min-width:0; display:flex; align-items:center; padding: 9px 11px; border-radius: 12px;
-  background: var(--court-surface); border: 1px solid var(--court-line);
+  display:flex; align-items:center; min-height: 58px; padding: 10px 14px; border-radius: 14px; border: 1px solid transparent;
 }
-.score-matchup__team--a{ border-left: 3px solid var(--team-a); background: linear-gradient(90deg, rgba(149,255,25,0.07), var(--court-surface) 70%); }
-.score-matchup__team--b{ border-right: 3px solid var(--team-b); justify-content:flex-end; text-align:right; background: linear-gradient(270deg, rgba(25,159,255,0.08), var(--court-surface) 70%); }
-.score-matchup__names{ font-size: 13px; font-weight: 700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-.score-matchup__vs{ align-self:center; flex:none; font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: .08em; color: var(--court-text-faint); }
+.score-matchup__team--a{ background: linear-gradient(135deg, rgba(149,255,25,0.20), rgba(149,255,25,0.07)); border-color: rgba(149,255,25,0.45); }
+.score-matchup__team--b{ background: linear-gradient(135deg, rgba(25,159,255,0.22), rgba(25,159,255,0.07)); border-color: rgba(25,159,255,0.50); }
+.score-matchup__names{
+  font-family: var(--font-display); font-size: 18px; font-weight: 800; line-height: 1.2; color: var(--paper); min-width: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.score-matchup__vs{ align-self:center; margin: -7px 0; position: relative; z-index: 1; padding: 1px 10px; border-radius: 999px;
+  background: var(--court-surface); border: 1px solid var(--court-line); font-family: var(--font-display); font-weight: 800;
+  font-size: 10px; letter-spacing: .1em; color: var(--paper-dim); }
 .is-score-entry .court-meta-compact,
 .is-score-entry .court-team-cards{ display:none; }
 .is-score-entry .court-accumulated{ margin-bottom: 10px; }
@@ -3935,8 +3951,8 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .is-score-entry .court-score__name{ display:none; }
 /* Identidad por lado también en el resultado: A verde / B celeste; el lado activo refuerza borde y glow
    sin unificar los colores. */
-.is-score-entry .court-score--a{ border-color: rgba(149,255,25,0.35); }
-.is-score-entry .court-score--b{ border-color: rgba(25,159,255,0.40); }
+.is-score-entry .court-score--a{ border-color: rgba(149,255,25,0.45); background: rgba(149,255,25,0.07); }
+.is-score-entry .court-score--b{ border-color: rgba(25,159,255,0.50); background: rgba(25,159,255,0.08); }
 .is-score-entry .court-score--a.is-active{ border-color: var(--team-a); background: rgba(149,255,25,0.10); box-shadow: 0 0 16px rgba(149,255,25,0.22); }
 .is-score-entry .court-score--a.is-active .court-score__value{ color: var(--team-a); }
 .is-score-entry .court-score--b.is-active{ border-color: var(--team-b); background: rgba(25,159,255,0.12); box-shadow: 0 0 16px rgba(25,159,255,0.25); }

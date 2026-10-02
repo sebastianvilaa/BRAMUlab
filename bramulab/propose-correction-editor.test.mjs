@@ -51,7 +51,10 @@ for (const [prefix, sideEnteredVar] of [['Propose', 'b6CorrectionSideEntered'], 
 
   test(`${advanceFn} ya NO fuerza siempre abrir el otro lado tras completar el activo — solo cuando el otro lado no tiene valor`, () => {
     const body = extractFunctionBody(appJs, advanceFn);
-    assert.match(body, /if\s*\(!Number\.isFinite\(/, `${advanceFn} debe decidir según si el otro lado ya tiene un valor real, no según qué lado está activo`);
+    // Propose (corrección) conserva la regla h11 por valor real; Cargar partido pasa en V04.25 a "otro lado ya
+    // (re)ingresado en esta pasada" (la unidad de edición es el set completo).
+    const re = prefix ? /if\s*\(!Number\.isFinite\(/ : /if \(!manualSideEntered\[otherSide\]\)/;
+    assert.match(body, re, `${advanceFn} debe decidir según el estado del otro lado, no según qué lado está activo`);
     assert.doesNotMatch(body, /if\s*\(\w+ === 'A'\)\s*\{\s*open\w*Keypad\('B'\); return; \}/, `${advanceFn} no debe volver a la versión vieja (siempre abre B si el activo es A)`);
   });
 

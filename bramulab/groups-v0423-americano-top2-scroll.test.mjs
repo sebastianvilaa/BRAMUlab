@@ -1,4 +1,4 @@
-// BRAMUlab V04.24 — Grupos: Americano, top 2 semanal, ayuda/copies + scroll de Editar datos.
+// BRAMUlab V04.25 — Grupos: Americano, top 2 semanal, ayuda/copies + scroll de Editar datos.
 // Ejecutar con: node --test bramulab/groups-v0423-americano-top2-scroll.test.mjs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

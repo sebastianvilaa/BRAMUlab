@@ -1,4 +1,4 @@
-// BRAMUlab V04.24 — Cargar partido (modo resultado, Fecha/Hora/Lugar) + cierre visual de Grupos.
+// BRAMUlab V04.25 — Cargar partido (modo resultado, Fecha/Hora/Lugar) + cierre visual de Grupos.
 // Ejecutar con: node --test bramulab/v0424-cargar-partido-grupos.test.mjs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,9 +42,9 @@ test('modo resultado: tarjetas grandes ocultas SOLO bajo .is-score-entry; header
 test('matchup compacto: A verde / B celeste, nombres blancos, truncado con elipsis', () => {
   assert.match(html, /id="manual-score-matchup"[^>]*hidden/);
   assert.match(html, /score-matchup__team--a/); assert.match(html, /score-matchup__team--b/);
-  assert.match(css, /\.score-matchup__team--a\{[^}]*var\(--team-a\)/);
-  assert.match(css, /\.score-matchup__team--b\{[^}]*var\(--team-b\)/);
-  assert.match(css, /\.score-matchup__names\{[^}]*color: var\(--paper\)[^}]*text-overflow:ellipsis/);
+  assert.match(css, /\.score-matchup__team--a\{ background: linear-gradient\(135deg, rgba\(149,255,25/);
+  assert.match(css, /\.score-matchup__team--b\{ background: linear-gradient\(135deg, rgba\(25,159,255/);
+  assert.match(css, /\.score-matchup__names\{[^}]*color: var\(--paper\)[^}]*overflow: hidden/);
   const m = fn('function renderManualScoreMatchup', 400);
   assert.match(m, /manualPlayers\.a1, manualPlayers\.a2/); assert.match(m, /manualPlayers\.b1, manualPlayers\.b2/);
   assert.match(fn('function renderManualScoreboard', 1800), /renderManualScoreMatchup\(\);/);

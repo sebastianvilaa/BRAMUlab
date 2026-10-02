@@ -37,7 +37,7 @@
   // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
   // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
   // mecanismo nuevo que evita depender de esto en el futuro.
-  const APP_VERSION = 'BRAMUlab V04.24';
+  const APP_VERSION = 'BRAMUlab V04.25';
   // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
   // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
   // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.24-h1';
+  const BUNDLE_VERSION = '04.25-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',

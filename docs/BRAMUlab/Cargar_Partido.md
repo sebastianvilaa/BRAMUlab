@@ -1,7 +1,7 @@
 # Cargar partido
 
 **Rol:** fuente maestra vigente del flujo **Cargar partido** (cargar un partido YA jugado; no hay scoring en vivo en BRAMUlab).
-**Vigente desde:** V04.24 (Issue #24). Solo documenta las decisiones actuales.
+**Vigente desde:** V04.24 (Issue #24); §4 ajustado en V04.25 tras el QA humano. Solo documenta las decisiones actuales.
 
 ---
 
@@ -27,11 +27,15 @@ Mientras `manualKeypadOpen === true` la vista `#view-manual-load` pasa a `is-sco
 
 - se ocultan las tarjetas de Formato/Fecha y Equipo A / VS / Equipo B;
 - se mantiene el header y el subtítulo;
-- aparece el **matchup compacto** `[ Seba / Matu ] VS [ Diego / Esteban ]` — A con acento verde BRAMU, B con celeste/azul, nombres blancos, truncados con elipsis;
+- aparece el **result board** (V04.25): Equipo A (verde) arriba y Equipo B (celeste) abajo, bloques completos teñidos con su color, nombres grandes (18 px, hasta 2 líneas) y un VS entre ambos. Reemplaza los dos chips chicos de V04.24;
 - **fichas de sets** (SET 1 `6–3`, SET 2 `2–6`, SET 3 `— —`): confirmados tocables (`reopenManualSet`), el actual resaltado con su valor en vivo, pendientes apagados;
 - **resultado del set actual** siempre arriba del teclado: lado A verde, lado B celeste; el lado editable refuerza borde/glow sin unificar colores;
 - teclado BRAMU intacto (1–9, Borrar, 0, Listo) con la misma lógica (`computeValidNextDigits`, teclas deshabilitadas, avance A→B, autoconfirmación del set, auto-apertura del siguiente, reapertura/edición, poda del tercer set, Americano). No hay otra validación de score;
 - la **bottom nav se oculta** con el teclado abierto y se restaura al cerrarlo, al volver o al salir de la vista por cualquier camino (`showView` re-sincroniza); `positionManualContinueBar` solo suma la nav si está visible.
+
+**Editar un set anterior (V04.25):** la unidad de edición es el **set completo**. Tocar una ficha confirmada reabre ese set directo en modo resultado con el teclado en el lado A; al terminar el primer lado el teclado pasa al otro lado del mismo set (nunca se cierra ni intenta confirmar un par a medio corregir; «Listo» confirma conservando el otro lado). Recién cuando el set vuelve a ser válido se retoma el flujo normal (set pendiente, o partido decidido). Las reglas de poda del tercer set (con confirmación) no cambian.
+
+**Mensaje «falta definir el tercer set»:** bloque integrado al resultado (ancho completo, centrado, con aire, sin superponerse), en rojo semántico.
 
 Al quedar el partido decidido: se cierra el teclado, se sale del modo compacto, se muestran los sets completos, “Resultado válido” y **CONTINUAR**, y se restaura la nav. No se autoabre Confirmar partido (pausa deliberada).
 

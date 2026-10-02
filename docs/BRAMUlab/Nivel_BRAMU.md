@@ -528,3 +528,10 @@ Estos parámetros deben resolverse mediante simulación antes de desarrollo, sin
 4. Diseñar y comparar variantes matemáticas contra los comportamientos fijados.
 5. Validar la escala con jugadores reales de categorías diferentes.
 6. Recién entonces convertir la fórmula elegida en especificación técnica para desarrollo.
+
+
+---
+
+## Presentación del Nivel en superficies reales (Issue #26, V04.25)
+
+Jerarquía canónica en toda superficie con Nivel server-backed: `NIVEL BRAMU` (chico, neutro) → valor → estado opcional. **CALIBRANDO:** valor y la etiqueta `CALIBRANDO` en ámbar (`--gold`). **Consolidado (incl. RECALIBRANDO con Nivel consolidado):** valor blanco, sin etiqueta. En Home/Mi Perfil, que ya tienen el bloque `CALIBRANDO · X/5 PARTIDOS`, solo se tiñe el número (sin etiqueta duplicada). Solo cambia la presentación: fórmula, confianza y Ranking no se tocan.
