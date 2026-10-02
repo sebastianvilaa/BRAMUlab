@@ -3963,3 +3963,10 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .mw-col--a .mw-wheel-bar{ border-color: rgba(149,255,25,0.45); background: rgba(149,255,25,0.06); }
 .mw-col--b .mw-wheel-bar{ border-color: rgba(25,159,255,0.5); background: rgba(25,159,255,0.07); }
 @media (prefers-reduced-motion: reduce){ .mw-wheel{ scroll-behavior: auto; } }
+
+/* V04.27-h2 — modal "Tenés un partido sin terminar": acciones en vertical (CONTINUAR arriba lima, EMPEZAR DE NUEVO
+   debajo secundario), ancho completo, sin partir el texto. Solo con `.overlay--stacked-actions`; el resto de los
+   confirmAction conserva su layout. */
+#confirm-overlay.overlay--stacked-actions .overlay__actions{ flex-direction: column-reverse; gap: 12px; }
+#confirm-overlay.overlay--stacked-actions .overlay__actions .btn-start,
+#confirm-overlay.overlay--stacked-actions .overlay__actions .btn-secondary{ flex: none; width: 100%; margin: 0; white-space: nowrap; }

@@ -188,10 +188,10 @@ test('el teclado numérico ya no es la UX de Cargar partido', () => {
   assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /load-keypad|data-key=/);
   assert.doesNotMatch(app, /manualKeypad|openManualKeypad|manualSideEntered|manualDraftActiveTeam/);
 });
-test('versionado: V04.27 / 04.27-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.27', bundle: '04.27-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.27'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.27-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-27-h1'/); assert.match(html, /app\.js\?v=04\.27-h1/); assert.match(html, /styles\.css\?v=04\.27-h1/);
+test('versionado: V04.27 / 04.27-h2 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.27', bundle: '04.27-h2' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.27'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.27-h2'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-27-h2'/); assert.match(html, /app\.js\?v=04\.27-h2/); assert.match(html, /styles\.css\?v=04\.27-h2/);
 });
 
 /* ================= V04.27 ================= */
@@ -311,4 +311,44 @@ test('V04.27 · #26 RECALIBRANDO queda blanco; ámbar solo CALIBRANDO', () => {
   assert.match(app, /'player-home-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
   assert.match(app, /'mi-perfil-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
   assert.doesNotMatch(app, /levelV1\.state !== LV\.STATES\.CALIBRATED\)/);
+});
+
+/* ================= V04.27-h2 ================= */
+test('h2 · #26 presentación completa: RECALIBRANDO consolidado (blanco, sin bloque/copy/progreso CALIBRANDO) en Home y Mi Perfil', () => {
+  assert.match(app, /const calibrated = levelV1\.state !== LV\.STATES\.CALIBRATING;/);
+  assert.match(app, /const isCalibrated = levelV1\.state !== LV\.STATES\.CALIBRATING;/);
+  assert.doesNotMatch(app, /levelV1\.state === LV\.STATES\.CALIBRATED;/, 'ningún branch trata RECALIBRATING como calibración inicial');
+  // el único camino que escribe CALIBRANDO · X / 5 / progreso es el branch "no consolidado" (state === CALIBRATING)
+  const home = app.slice(app.indexOf('const calibrated = levelV1.state'), app.indexOf('const calibrated = levelV1.state') + 6000);
+  assert.match(home, /if \(calibrated\) \{\s*levelSubEl\.hidden = true;[\s\S]*calibEl\.hidden = true;/);
+  const perfil = app.slice(app.indexOf('const isCalibrated = levelV1.state'), app.indexOf('const isCalibrated = levelV1.state') + 4500);
+  assert.match(perfil, /if \(isCalibrated\) \{[\s\S]*calibEl\.hidden = true;[\s\S]*\} else \{[\s\S]*CALIBRANDO · \$\{levelV1\.ratedMatches\}/);
+  assert.match(perfil, /\$\('#evolution-card'\)\.hidden = isCalibrated/);
+  // semántica ejecutada: CALIBRATING es el único estado "no consolidado"
+  const LVsrc = read('level.js'); const c = { window: {} }; c.window = c; vm.createContext(c); vm.runInContext(LVsrc, c);
+  const ST = (c.PLLevel || c.PLLevelV1 || Object.values(c).find((v) => v && v.STATES)).STATES;
+  const consolidated = (st) => st !== ST.CALIBRATING; const amber = (st) => st === ST.CALIBRATING;
+  assert.deepEqual([amber(ST.CALIBRATING), consolidated(ST.CALIBRATING)], [true, false]);
+  assert.deepEqual([amber(ST.CALIBRATED), consolidated(ST.CALIBRATED)], [false, true]);
+  assert.deepEqual([amber(ST.RECALIBRATING), consolidated(ST.RECALIBRATING)], [false, true]);
+});
+test('h2 · modal "Tenés un partido sin terminar": acciones verticales solo en este caso; lógica del borrador intacta', () => {
+  assert.match(app, /'Continuar', 'Empezar de nuevo', false, true\);/);
+  assert.match(app, /toggle\('overlay--stacked-actions', !!stacked\)/);
+  assert.match(css, /#confirm-overlay\.overlay--stacked-actions \.overlay__actions\{ flex-direction: column-reverse; gap: 12px; \}/);
+  assert.match(css, /overlay--stacked-actions \.overlay__actions \.btn-secondary\{[^}]*width: 100%[^}]*white-space: nowrap/);
+  assert.match(css, /overlay--stacked-actions \.overlay__actions \.btn-start/);
+  // DOM: cancel antes que accept → column-reverse deja CONTINUAR (accept) arriba
+  assert.ok(html.indexOf('id="confirm-cancel"') < html.indexOf('id="confirm-accept"'));
+  const o = fnSource('openManualLoadScreen');
+  assert.match(o, /openManualLoadScreenInner\(origin, null, draft\)/); assert.match(o, /Store\.clearManualDraft\(\); openManualLoadScreenInner\(origin, null, null\)/);
+  // otros confirmAction no pasan el 8º argumento
+  const calls = app.match(/confirmAction\(/g).length; const stackedCalls = (app.match(/'Empezar de nuevo', false, true\)/g) || []).length;
+  assert.equal(stackedCalls, 1); assert.ok(calls > 5);
+  assert.match(fnSource('confirmAction'), /danger, stacked\)/);
+});
+test('h2 · versionado 04.27-h2 con APP_VERSION V04.27', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.27', bundle: '04.27-h2' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.27'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.27-h2'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-27-h2'/);
 });

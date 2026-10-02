@@ -1733,7 +1733,7 @@
         confirmAction('Tenés un partido sin terminar', 'Podés continuar donde lo dejaste o empezar una carga nueva.',
           () => openManualLoadScreenInner(origin, null, draft),
           () => { Store.clearManualDraft(); openManualLoadScreenInner(origin, null, null); },
-          'Continuar', 'Empezar de nuevo');
+          'Continuar', 'Empezar de nuevo', false, true);
         return;
       }
     }
@@ -2061,7 +2061,7 @@
   /* ------------------------------------------------------------------ */
   /* CONFIRMACIÓN GENÉRICA                                                */
   /* ------------------------------------------------------------------ */
-  function confirmAction(title, text, onAccept, onCancel, acceptLabel, cancelLabel, danger) {
+  function confirmAction(title, text, onAccept, onCancel, acceptLabel, cancelLabel, danger, stacked) {
     $('#confirm-title').textContent = title;
     $('#confirm-text').textContent = text;
     // V02.9 (§5) — "Eliminar partido" necesita que el botón de aceptar diga "Eliminar" (no el
@@ -2077,6 +2077,9 @@
     $('#confirm-accept').classList.toggle('btn-start', !danger);
     $('#confirm-accept').classList.toggle('btn-secondary', !!danger);
     $('#confirm-accept').classList.toggle('btn-secondary--danger', !!danger);
+    // V04.27-h2 — 8º parámetro opcional: acciones apiladas (aceptar arriba, cancelar abajo, ancho completo). Solo
+    // lo usa "Tenés un partido sin terminar"; el resto de los confirmAction no lo pasa y queda igual.
+    $('#confirm-overlay').classList.toggle('overlay--stacked-actions', !!stacked);
     pendingConfirmAccept = onAccept;
     // Etapa 4.2 (§6.2) — cancel opcional: hasta ahora ningún llamador lo necesitaba (cancelar
     // solo cerraba el modal); editar un set anterior que descartaría un Set 3 ya cargado sí
@@ -8059,7 +8062,9 @@
       // 4/5 → 5/5 (Laboratorio §15.21). Una vez calibrado, ningún badge — la ausencia de
       // CALIBRANDO ya comunica el estado; identidad + Nivel BRAMU numérico quedan en su
       // composición normal, sin nada en la columna angosta.
-      const calibrated = levelV1.state === LV.STATES.CALIBRATED;
+      // V04.27-h2 (#26) — "consolidado" = todo estado distinto de CALIBRANDO: RECALIBRANDO usa la misma
+      // presentación que CALIBRADO (Nivel blanco, sin progreso/copy CALIBRANDO).
+      const calibrated = levelV1.state !== LV.STATES.CALIBRATING;
       const calibEl = $('#player-home-calibration');
       if (calibrated) {
         levelSubEl.hidden = true;
@@ -12792,7 +12797,8 @@
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
-      const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
+      // V04.27-h2 (#26) — consolidado = distinto de CALIBRANDO (RECALIBRANDO incluido).
+      const isCalibrated = levelV1.state !== LV.STATES.CALIBRATING;
       // V04.27 (#26) — ámbar SOLO con CALIBRANDO; RECALIBRANDO conserva su Nivel consolidado en blanco.
       setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, levelV1.state === LV.STATES.CALIBRATING);
       // Ronda UX 25/09 (§L) — mismo criterio que Home (renderPlayerCard): una vez calibrado, sin
