@@ -258,4 +258,4 @@ El Nivel se pinta en ámbar **solo con `CALIBRANDO`**. `CALIBRADO` y `RECALIBRAN
 
 ## 11. Estado
 
-V04.27 / `04.27-h2` en Staging. Resultado y límites de verificación: `docs/BRAMUlab/Implementacion/Pre_Production/110_Resultado_V0427_Cargar_Partido_Pulido_02OCT.md` (handoff `109` consumido). Pendiente QA humano dirigido en iPhone.
+V04.27 / `04.27-h2` **CERRADO / PASS humano final en iPhone (02/10/2026)**. Se validó el recorrido 1–1 → Set 3, volver/cambiar jugadores, persistencia del borrador al navegar y al reabrir la app, `CONTINUAR`, `EMPEZAR DE NUEVO`, recuperación del resultado y confirmación final. Resultado: `docs/BRAMUlab/Implementacion/Pre_Production/110_Resultado_V0427_Cargar_Partido_Pulido_02OCT.md` (handoff `109` consumido). No seguir refinando este flujo sin una regresión o necesidad nueva concreta.
