@@ -1,6 +1,6 @@
 # 110 — V04.27: pulido de Cargar partido (#24) + residual RECALIBRANDO (#26)
 
-**Versión:** `BRAMUlab V04.27` · **Bundle:** `04.27-h1` · Base funcional V04.26 `ed8b589`. Handoff 109 consumido. #24 y #26 siguen abiertos (gate Central / QA humano).
+**Versión:** `BRAMUlab V04.27` · **Bundle vigente:** `04.27-h2` · Base funcional V04.26 `ed8b589`. Handoff 109 consumido. **Gate Central técnico: PASS sobre HEAD `60e23555`**. #24 y #26 siguen abiertos hasta QA humano dirigida.
 
 Cambios: ver `Cargar_Partido.md` §9. Archivos: `app.js`, `store.js` (borrador), `index.html`, `styles.css`, versionado, `v0427-cargar-partido-pulido.test.mjs` (reemplaza al v0426), ajustes en `v0425` (#26).
 
