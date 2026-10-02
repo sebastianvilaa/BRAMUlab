@@ -3461,42 +3461,44 @@ input, select{ font-family: inherit; }
    --brand-lime, --gold, --paper*) — ningún color ni tipografía nueva.
    ========================================================================== */
 
-/* Paso "intro": 2 tarjetas de camino (rápido/completo), RECOMENDADO destacado con el mismo
-   acento lima que ya usa el resto de la app para "elección preferida" (nunca un color nuevo). */
-.nivel-path-list{ display:flex; flex-direction:column; gap: 12px; }
-.nivel-path-card{
-  display:flex; flex-direction:column; align-items:flex-start; gap: 4px; text-align:left;
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
-  padding: 16px; cursor:pointer; font-family: inherit;
-}
-.nivel-path-card--recommended{ border-color: var(--brand-lime); box-shadow: 0 0 0 1px rgba(149,255,25,0.25); }
-.nivel-path-card__badge{
-  font-size: 9px; font-weight:800; letter-spacing:0.05em; color: var(--brand-lime);
-  text-transform: uppercase;
-}
-.nivel-path-card__title{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); }
-.nivel-path-card__desc{ font-size: 12px; color: var(--paper-dim); line-height:1.4; }
+/* V04.28 — intro del cuestionario V1.3 (sin tarjetas de camino: ya no existe camino rápido). */
+.nivel-intro-meta{ font-size: 11px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; text-align:center; margin: 0 0 20px; }
 
-/* Listas de respuestas (camino rápido y cuestionario completo) — filas verticales de texto
-   largo, a diferencia de `.option-row`/`.option-col` (pensado para 2-3 palabras en fila). */
-/* BRAMUlab_V04.9 (§6) — legibilidad: "chicas, demasiado bold, interlineado apretado, demasiado
-   juntas" (revisión visual, foco en 375px). Gap de la lista y el título de cada opción ganan
-   aire/tamaño; el peso baja de 700 a 500 (menos ruido en 7 preguntas seguidas), sin tocar
-   preguntas/respuestas ni el resto del sistema tipográfico de la app.
-   BRAMUlab_V04.10 (§6) — último ajuste, misma estructura/contenido: la descripción gana tamaño
-   (11px→13px) para acompañar el título ya agrandado en V04.9; peso normal (400, sin cambios —
-   nunca tuvo `font-weight` propio) y `line-height` un poco más suelto (1.35→1.4) para el texto
-   más grande. Gap/padding de V04.9 se conservan tal cual. */
-.nivel-answer-list{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 16px; }
-.nivel-answer-option{
-  display:block; width:100%; text-align:left; font-family: inherit;
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
-  padding: 13px 14px; cursor:pointer;
+/* V04.28 — componente de respuesta V1.3: cuatro descripciones completas + riel/slider discreto de
+   10 posiciones (0..9) sobre el MISMO valor. Azul BRAMU (`--accent-cyan`) como único estado
+   activo; sin gradiente bueno/malo (el Nivel no es una nota y verde/naranja/rojo ya significan
+   otras cosas en BRAMU). Los checkpoints/thumb los posiciona app.js a partir de la altura real
+   de cada tarjeta (los textos varían de largo), nunca con alturas fijas. */
+.nivel-slider-hint{ font-size: 12px; color: var(--paper-faint); line-height:1.4; margin: 0 0 14px; }
+.nivel-slider{ position:relative; display:flex; align-items:stretch; gap: 8px; margin-bottom: 16px; }
+.nivel-slider__rail{
+  position:relative; flex: 0 0 44px; width: 44px; cursor: pointer;
+  touch-action: none; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color: transparent;
+  border-radius: 12px; outline: none;
 }
-.nivel-answer-option__title{ display:block; font-size: 14px; font-weight:500; line-height:1.3; color: var(--paper); }
-.nivel-answer-option__desc{ display:block; font-size: 13px; font-weight:400; color: var(--paper-dim); margin-top: 3px; line-height:1.4; }
-.nivel-answer-option.is-selected{ border-color: var(--brand-lime); background: rgba(149,255,25,0.08); }
-.nivel-answer-option.is-selected .nivel-answer-option__title{ color: var(--brand-lime); }
+.nivel-slider__rail:focus-visible{ box-shadow: 0 0 0 2px rgba(25,159,255,0.55); }
+.nivel-slider__line{ position:absolute; left: 50%; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--line); }
+.nivel-slider__dot{
+  position:absolute; left: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  background: rgba(183,211,235,0.30); transition: background var(--motion-base) var(--motion-ease), transform var(--motion-base) var(--motion-ease);
+}
+.nivel-slider__dot--anchor{ width: 12px; height: 12px; margin: -6px 0 0 -6px; background: rgba(183,211,235,0.42); }
+.nivel-slider__dot.is-active{ background: var(--accent-cyan); }
+.nivel-slider__thumb{
+  position:absolute; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  background: var(--accent-cyan); border: 3px solid var(--paper); box-shadow: 0 0 0 4px rgba(25,159,255,0.25);
+  transition: top .14s ease; pointer-events:none;
+}
+.nivel-slider__thumb[hidden]{ display:none; }
+.nivel-slider__cards{ flex:1; min-width:0; display:flex; flex-direction:column; gap: 10px; }
+.nivel-slider__card{
+  display:block; width:100%; text-align:left; font-family: inherit; font-size: 14px; font-weight:400; line-height:1.4;
+  color: var(--paper); background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 13px 14px; cursor:pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--motion-base) var(--motion-ease), background var(--motion-base) var(--motion-ease);
+}
+.nivel-slider__card.is-near{ border-color: rgba(25,159,255,0.45); background: rgba(25,159,255,0.05); }
+.nivel-slider__card.is-selected{ border-color: var(--accent-cyan); background: rgba(25,159,255,0.12); }
 
 /* Progreso del cuestionario completo — barra simple, mismo radio/alto que el resto de barras
    de progreso de la app (.player-card__bar). */
@@ -3517,7 +3519,7 @@ input, select{ font-family: inherit; }
 .nivel-gauge-card__label{ font-size: 10px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; margin-bottom: 4px; }
 /* BRAMUlab_V04.9 (§8) — sin el marcador blanco hay más jerarquía disponible para el número:
    la categoría gana tamaño/presencia (13px→16px) para acompañarlo, sin tocar color/peso. */
-.nivel-gauge-card__category{ font-size: 16px; font-weight:700; color: var(--accent-cyan); margin-top: 4px; }
+.nivel-gauge-card__category{ font-size: 12px; font-weight:800; letter-spacing:0.05em; color: var(--gold); margin-top: 4px; }
 .nivel-gauge{ position:relative; max-width: 260px; margin: 0 auto; }
 .nivel-gauge__svg{ display:block; width:100%; height:auto; }
 .nivel-gauge__track{ fill:none; stroke: var(--line); stroke-width:14; stroke-linecap:round; }
@@ -3533,24 +3535,6 @@ input, select{ font-family: inherit; }
   font-family: var(--font-display); font-weight:800; font-size: 62px; color: var(--paper);
   line-height:1; font-variant-numeric: tabular-nums;
 }
-
-/* Pregunta final de categoría (§6 del Handoff V04.6) — grilla de chips, NINGUNO preseleccionado
-   ni destacado (ni siquiera visualmente): mismo trato para las 11 opciones, incluidas las 2
-   neutrales (No compito/No estoy seguro). `.is-selected` es el único estado que cambia, recién
-   después de que el jugador elige. */
-.nivel-category-step{ margin: 6px 0 18px; }
-/* BRAMUlab_V04.7 — "queda muy débil"/"la pregunta principal queda demasiado pegada" (revisión
-   visual): el volante gana tamaño/tracking y un margen propio respecto de la pregunta en vez de
-   apoyarse solo en line-height; la pregunta gana aire arriba y abajo antes de los chips. */
-.nivel-category-step__title{ font-size: 12px; font-weight:800; letter-spacing:0.04em; color: var(--paper-faint); text-transform:uppercase; text-align:center; margin-bottom: 6px; }
-.nivel-category-step__question{ font-family: var(--font-display); font-weight:700; font-size: 15px; color: var(--paper); text-align:center; margin: 0 0 16px; line-height:1.3; }
-.nivel-category-grid{ display:flex; flex-wrap:wrap; gap: 10px; justify-content:center; }
-.nivel-category-chip{
-  font-family: inherit; font-size: 13px; font-weight:700; color: var(--paper);
-  background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-pill);
-  padding: 10px 16px; cursor:pointer;
-}
-.nivel-category-chip.is-selected{ border-color: var(--accent-cyan); background: rgba(25,159,255,0.12); color: var(--accent-cyan); }
 
 /* Aviso de coherencia (§8 del Handoff V04.6) — nunca acusatorio, ofrece "Revisar respuestas"
    (mismo link de siempre, debajo del CTA) sin bloquear la confirmación. */

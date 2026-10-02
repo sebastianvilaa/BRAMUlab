@@ -53,10 +53,8 @@ function loadSharedEngine() {
 const { LV, LVC } = loadSharedEngine();
 
 function computeLocalOfficial(payload) {
-  const rawResult = payload.mode === 'quick'
-    ? LVC.computeQuickLevel(payload.quickSeedKey)
-    : LVC.computeFullEstimate(payload.quizAnswers);
-  const confirmResult = LVC.confirmInitialLevelV1_2(rawResult, new Date().toISOString());
+  const rawResult = LVC.computeInitialEstimateV13(payload.quizAnswers);
+  const confirmResult = LVC.confirmInitialLevelV13(rawResult, new Date().toISOString());
   return { mu: confirmResult.origin.confirmedLevel, confidence: confirmResult.origin.confidenceOrigin };
 }
 
@@ -110,17 +108,9 @@ async function serviceDelete(path) {
 // el símlink/import compartido realmente trajo el MISMO archivo a la Edge Function, así que
 // cualquier combinación fija y determinística alcanza.
 const CASES = [
-  { name: 'camino rápido', payload: { mode: 'quick', quickSeedKey: 'avanzado' } },
-  {
-    name: 'camino completo',
-    payload: {
-      mode: 'full',
-      quizAnswers: {
-        autoevaluacion: 'avanzado', anos: 'mas_5', entrenamiento: 'regular_actual',
-        frecuencia: 'tres_mas_semana', red: 'd', paredes: 'e',
-      },
-    },
-  },
+  { name: 'V1.3 posiciones 0 (mínimo)', payload: { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 0, ritmo: 0, ataque: 0, defensa: 0, decisiones: 0 } } },
+  { name: 'V1.3 mixto con cambio de rama', payload: { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 4, ritmo: 7, ataque: 5, defensa: 8, decisiones: 2 } } },
+  { name: 'V1.3 posiciones 9 (máximo)', payload: { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 9, ritmo: 9, ataque: 9, defensa: 9, decisiones: 9 } } },
 ];
 
 async function main() {

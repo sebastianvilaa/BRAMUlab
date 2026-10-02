@@ -183,7 +183,7 @@ async function createOnboardedAccount(tag, username) {
     p_location_country_code: null, p_location_province_label: null, p_location_locality_label: null,
     p_terms_version: 'piloto_v1',
   });
-  await callEdgeFunction(token, { mode: 'quick', quickSeedKey: 'intermedio' });
+  await callEdgeFunction(token, { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 3, ritmo: 3, ataque: 3, defensa: 3, decisiones: 3 } });
   return { authId: created.id, email, password, token, playerId, username };
 }
 
@@ -335,7 +335,7 @@ async function main() {
     p_location_province_label: null, p_location_locality_label: null, p_terms_version: 'piloto_v1',
   });
   report('claim feliz: complete_profile funciona después del claim, sin cambios', completeAfterClaim.res.ok, JSON.stringify(completeAfterClaim.json));
-  const officializeAfterClaim = await callEdgeFunction(accC.token, { mode: 'quick', quickSeedKey: 'intermedio' });
+  const officializeAfterClaim = await callEdgeFunction(accC.token, { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 3, ritmo: 3, ataque: 3, defensa: 3, decisiones: 3 } });
   const officializeAfterClaimOk = officializeAfterClaim.res.ok && officializeAfterClaim.json && officializeAfterClaim.json.ok && officializeAfterClaim.json.levelState && officializeAfterClaim.json.levelState.status === 'CALIBRANDO';
   report('claim feliz: officialize-onboarding funciona después del claim, sin cambios', officializeAfterClaimOk, JSON.stringify(officializeAfterClaim.json));
 

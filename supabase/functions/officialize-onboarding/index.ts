@@ -18,8 +18,12 @@
 // inyectar un mu/confidence arbitrario sin pasar antes por el motor real de acá.
 //
 // Body esperado (JSON), enviado con el access token del usuario en el header Authorization:
-//   { mode: 'quick'|'full', quickSeedKey?: string, quizAnswers?: object }
-// Nivel inicial V1.2: país/rama/categoría local NO forman parte del payload ni del cálculo.
+//   { mode: 'full', questionnaireVersion?: 'nivel_inicial_v1_3',
+//     quizAnswers: { panorama, ritmo, ataque, defensa, decisiones }  // enteros 0..9 (posición del slider) }
+// Nivel inicial V1.3 (BRAMUlab V04.28): único cuestionario adaptativo de 5 preguntas. No existe
+// camino rápido, ni autoetiqueta, años, frecuencia, entrenamiento, categoría o género en el payload
+// ni en el cálculo. `mode` se conserva como 'full' solo por compatibilidad con la restricción
+// quick|full de la base; el discriminador normativo es `questionnaire_version`.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { withinRateLimit } from '../_shared/rate-limit.ts';
@@ -88,50 +92,43 @@ Deno.serve(async (req) => {
 
   const mode = payload && payload.mode;
 
-  if (mode !== 'quick' && mode !== 'full') {
+  // V1.3: único modo admitido. 'quick' (y cualquier otro valor) se rechaza: el camino rápido ya
+  // no existe en ninguna capa.
+  if (mode !== LVC.QUESTIONNAIRE_MODE) {
     return jsonResponse({ ok: false, error: 'invalid_questionnaire_mode' }, 400);
   }
+  if (payload.questionnaireVersion != null && payload.questionnaireVersion !== LVC.QUESTIONNAIRE_VERSION) {
+    return jsonResponse({ ok: false, error: 'invalid_questionnaire_version' }, 400);
+  }
 
-  // Respuestas CRUDAS del cuestionario, nunca un Nivel ya calculado por el cliente — el motor
-  // corre acá de nuevo, sobre exactamente los mismos datos que el navegador usó para su vista
-  // previa local (Nivel_BRAMU_Formula_V1.5.md §3, sin cambios de fórmula).
-  const rawResult = mode === 'quick'
-    ? LVC.computeQuickLevel(payload.quickSeedKey)
-    : LVC.computeFullEstimate(payload.quizAnswers || {});
+  // Respuestas CRUDAS (posiciones 0..9 del slider), nunca un Nivel ya calculado por el cliente: el
+  // motor corre acá de nuevo, sobre exactamente los mismos datos que usó la vista previa local
+  // (handoff 111 §8). Las ramas se derivan acá de las respuestas — el cliente no las dicta.
+  const rawResult = LVC.computeInitialEstimateV13(payload.quizAnswers);
 
   if (!rawResult) {
     return jsonResponse({ ok: false, error: 'invalid_questionnaire_answers' }, 400);
   }
 
   const confirmedAt = new Date().toISOString();
-  // V1.2 — mismo estimador universal que el navegador: la categoría local no participa del
-  // alta ni del número oficial. La autoridad sigue siendo este recálculo server-side.
-  const confirmResult = LVC.confirmInitialLevelV1_2(rawResult, confirmedAt);
+  const confirmResult = LVC.confirmInitialLevelV13(rawResult, confirmedAt);
   if (!confirmResult || !confirmResult.ok) {
     return jsonResponse({ ok: false, error: 'engine_confirmation_failed' }, 400);
   }
 
   const mu = confirmResult.origin.confirmedLevel;
   const confidence = confirmResult.origin.confidenceOrigin;
-  const inputContext = mode === 'quick'
-    ? { quickSeedKey: payload.quickSeedKey }
-    : { quizAnswers: payload.quizAnswers };
+  const inputContext = { quizAnswers: rawResult.positions };
 
   const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const { data: levelState, error: rpcError } = await serviceClient.rpc('officialize_level_onboarding', {
     p_auth_user_id: authUserId,
     p_algorithm_version: LV.ALGORITHM_VERSION,
     p_questionnaire_version: LVC.QUESTIONNAIRE_VERSION,
-    p_questionnaire_mode: mode,
+    p_questionnaire_mode: LVC.QUESTIONNAIRE_MODE,
     p_mu: mu,
     p_confidence: confidence,
-    // Pre-Production P0.1C (revisión 2, 24/09/2026): reenvía el valor REAL del motor en vez de
-    // hardcodear null — pero el estimador universal V1.2 (confirmInitialLevelV1_2, ver
-    // level-calibration.js) construye a propósito un paso neutral (`computeCategoryStep(rawResult,
-    // null, null)`): el cuestionario actual no le pide categoría al usuario, así que estos dos
-    // campos van a seguir evaluando null en la práctica hasta que exista una decisión de producto
-    // aparte de reabrir esa pregunta en el onboarding (fuera de alcance acá). Este fix elimina el
-    // hardcode engañoso y deja el código correcto ante cualquier cambio futuro del motor.
+    // V1.3 no tiene categoría local: el motor devuelve siempre null en estos dos campos.
     p_declared_category: confirmResult.origin.declaredCategory,
     p_category_context_key: confirmResult.origin.categoryContextKey,
     p_input_context: inputContext,

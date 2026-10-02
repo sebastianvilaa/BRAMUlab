@@ -27,15 +27,15 @@
 //   §2/§9 — officialize_level_onboarding (RPC privada) NO es alcanzable con el token del
 //         propio usuario (solo service_role, vía la Edge Function) — un intento directo debe
 //         ser rechazado;
-//   §9  — oficialización vía Edge Function: camino rápido y completo producen level_states
+//   §9  — oficialización vía Edge Function: dos payloads V1.3 (posiciones 3 y 6) producen level_states
 //         CALIBRANDO con mu/confidence/versión coherentes; reintentar con el MISMO payload o
 //         con uno DISTINTO después de un éxito no recalcula ni duplica level_events (el
 //         índice único parcial + el guard de status lo garantizan);
 //   RLS — un usuario no puede leer level_states/level_events de otra cuenta.
 //
-// Fixtures de camino rápido usados acá (arbitrarios pero fijos, no son los nombrados de
+// Fixtures V1.3 usados acá (arbitrarios pero fijos, no son los nombrados de
 // Nivel_BRAMU_Implementacion.md §6 — la paridad exacta con esos fixtures ya la cubre
-// bramulab/tests.html + verify-nivel-parity.mjs): seedKey='intermedio', sin mapa de categoría
+// bramulab/tests.html + verify-nivel-parity.mjs): posiciones fijas del slider V1.3, sin mapa de categoría
 // (categoryContextKey=null, coherente con que el alta real ya no pide género/localidad — ver
 // Bloque 3 §D del informe), declaredCategory='4'.
 
@@ -139,14 +139,9 @@ const userA = { email: `bramu-verify-b3-a-${stamp}@example.com`, password: 'Veri
 const userB = { email: `bramu-verify-b3-b-${stamp}@example.com`, password: 'Verificar#Bloque3!' };
 const cleanup = { authIds: [], playerIds: [] };
 
-const QUICK_PAYLOAD_A = { mode: 'quick', quickSeedKey: 'intermedio' };
-const FULL_PAYLOAD_B = {
-  mode: 'full',
-  quizAnswers: {
-    autoevaluacion: 'intermedio_alto', anos: 'uno_a_cinco', entrenamiento: 'sin_continuidad',
-    frecuencia: 'una_dos_semana', red: 'c', paredes: 'c',
-  },
-};
+// V1.3 (BRAMUlab V04.28): único cuestionario adaptativo, payload = posiciones crudas 0..9 del slider.
+const QUICK_PAYLOAD_A = { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 3, ritmo: 3, ataque: 3, defensa: 3, decisiones: 3 } };
+const FULL_PAYLOAD_B = { mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 6, ritmo: 6, ataque: 6, defensa: 6, decisiones: 6 } };
 
 async function main() {
   // --- 1) crear cuenta A ya confirmada (dispara el trigger) ---
@@ -178,17 +173,17 @@ async function main() {
 
   // --- 4) §2/§9: la RPC de persistencia NO es alcanzable con el token del propio usuario ---
   const directRpcAttempt = await rpcAs(tokenA, anonKey, 'officialize_level_onboarding', {
-    p_auth_user_id: createdA.id, p_algorithm_version: 'nivel_bramu_v1_0', p_questionnaire_version: 'nivel_inicial_v1_2',
-    p_questionnaire_mode: 'quick', p_mu: 9.9, p_confidence: 0.9, p_declared_category: '1',
+    p_auth_user_id: createdA.id, p_algorithm_version: 'nivel_bramu_v1_0', p_questionnaire_version: 'nivel_inicial_v1_3',
+    p_questionnaire_mode: 'full', p_mu: 9.9, p_confidence: 0.9, p_declared_category: '1',
     p_category_context_key: null, p_input_context: {}, p_result: {},
   });
   const directRpcBlocked = !directRpcAttempt.res.ok && (directRpcAttempt.res.status === 401 || directRpcAttempt.res.status === 403 || directRpcAttempt.res.status === 404);
   report('seguridad: officialize_level_onboarding rechaza el token del propio usuario (solo service_role)', directRpcBlocked, `status ${directRpcAttempt.res.status} ${JSON.stringify(directRpcAttempt.json)}`);
 
-  // --- 5) oficialización real vía Edge Function (camino rápido) ---
+  // --- 5) oficialización real vía Edge Function (V1.3, posiciones 3) ---
   const officialize1 = await callEdgeFunction(tokenA, QUICK_PAYLOAD_A);
   const officialize1Ok = officialize1.res.ok && officialize1.json && officialize1.json.ok && officialize1.json.levelState && officialize1.json.levelState.status === 'CALIBRANDO';
-  report('officialize-onboarding (camino rápido): pasa a CALIBRANDO con mu/confidence', officialize1Ok, JSON.stringify(officialize1.json));
+  report('officialize-onboarding (V1.3, posiciones 3): pasa a CALIBRANDO con mu/confidence', officialize1Ok, JSON.stringify(officialize1.json));
   const muFirst = officialize1Ok ? officialize1.json.levelState.mu : null;
 
   // --- 6) idempotencia: mismo payload de nuevo -> mismo resultado, sin duplicar evento ---
@@ -197,9 +192,9 @@ async function main() {
   report('idempotencia: reintentar el mismo payload devuelve el mismo mu (no recalcula)', sameResult, JSON.stringify(officialize2.json));
 
   // --- 7) idempotencia: payload MUY DISTINTO después de oficializar -> NO sobrescribe.
-  // 'profesional' produciría un mu bien distinto a 'intermedio' si de verdad recalculara —
+  // todo-9 produciría un mu bien distinto a todo-3 si de verdad recalculara —
   // exactamente lo que este chequeo necesita para no pasar "por casualidad".
-  const officialize3 = await callEdgeFunction(tokenA, { ...QUICK_PAYLOAD_A, quickSeedKey: 'profesional' });
+  const officialize3 = await callEdgeFunction(tokenA, { ...QUICK_PAYLOAD_A, quizAnswers: { panorama: 9, ritmo: 9, ataque: 9, defensa: 9, decisiones: 9 } });
   const notOverwritten = officialize3.res.ok && officialize3.json && officialize3.json.ok && officialize3.json.levelState && officialize3.json.levelState.mu === muFirst;
   report('idempotencia: un payload MUY distinto tras oficializar NO sobrescribe el resultado oficial', notOverwritten, JSON.stringify(officialize3.json));
 

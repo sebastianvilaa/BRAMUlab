@@ -191,7 +191,7 @@ async function ensureFullOnboarding(accessToken, username) {
   const res = await fetch(`${url}/functions/v1/officialize-onboarding`, {
     method: 'POST',
     headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'quick', quickSeedKey: 'intermedio' }),
+    body: JSON.stringify({ mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 3, ritmo: 3, ataque: 3, defensa: 3, decisiones: 3 } }),
   });
   return res.ok;
 }

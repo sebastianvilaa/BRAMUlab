@@ -194,7 +194,7 @@ async function createOnboardedAccount(tag, username) {
   const res = await fetch(`${url}/functions/v1/officialize-onboarding`, {
     method: 'POST',
     headers: { apikey: anonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode: 'quick', quickSeedKey: 'intermedio' }),
+    body: JSON.stringify({ mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama: 3, ritmo: 3, ataque: 3, defensa: 3, decisiones: 3 } }),
   });
   await res.json().catch(() => null);
   return { authId: created.id, email, password, token, playerId, username };

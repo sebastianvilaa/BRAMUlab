@@ -37,7 +37,7 @@
   // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
   // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
   // mecanismo nuevo que evita depender de esto en el futuro.
-  const APP_VERSION = 'BRAMUlab V04.27';
+  const APP_VERSION = 'BRAMUlab V04.28';
   // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
   // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
   // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.27-h2';
+  const BUNDLE_VERSION = '04.28-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
@@ -169,6 +169,11 @@
     // indexar. Nunca se promete continuidad entre dispositivos — ver
     // Store.saveSignupDraft/loadSignupDraft/clearSignupDraft más abajo.
     SIGNUP_DRAFT: 'bramulab.signupDraft.v1',
+    // V04.28 — progreso VERSIONADO del cuestionario inicial de Nivel (nivel_inicial_v1_3): posiciones
+    // del slider ya confirmadas con CONTINUAR + la rama con la que se respondió cada una, para que
+    // un reload retome en la primera pregunta pendiente. Ranura única; nunca guarda el nivel
+    // calculado (el servidor es la autoridad). Se descarta junto con el borrador de alta.
+    NIVEL_PROGRESS: 'bramulab.nivelProgress.v13',
     // Backend Bloque 4 — token CRUDO de un link de reclamo (`?claim=<token>`) pendiente de
     // consumir en este dispositivo/navegador. Ranura única, mismo criterio que SIGNUP_DRAFT:
     // se lee al bootear la app (antes de que exista sesión) y se consume recién después de que
@@ -532,6 +537,7 @@
     const sess = safeGet(KEYS.SESSION);
     if (sess === id || (sess && sess.userId === id)) { clearSession(); clearCurrentPlayerName(); }
     safeRemove(KEYS.SIGNUP_DRAFT);
+    safeRemove(KEYS.NIVEL_PROGRESS);
     safeRemove(KEYS.CLAIM_TOKEN);
     return true;
   }
@@ -893,7 +899,17 @@
     if (draft && typeof draft === 'object') draft.startedAt = clean.startedAt; // el borrador en memoria comparte el mismo reloj
     return safeSet(KEYS.SIGNUP_DRAFT, clean);
   }
-  function clearSignupDraft() { return safeRemove(KEYS.SIGNUP_DRAFT); }
+  function clearSignupDraft() { safeRemove(KEYS.NIVEL_PROGRESS); return safeRemove(KEYS.SIGNUP_DRAFT); }
+
+  /** V04.28 — progreso del cuestionario Nivel V1.3. `context` ('draft'|'account') evita retomar el
+   *  progreso de un alta en otra cuenta. La validación de versión/ramas la hace el motor
+   *  (PLLevelCalibration.reconcileQuestionnaireState) al cargar. */
+  function saveNivelProgress(progress) { return safeSet(KEYS.NIVEL_PROGRESS, progress || null); }
+  function loadNivelProgress() {
+    const raw = safeGet(KEYS.NIVEL_PROGRESS);
+    return raw && typeof raw === 'object' ? raw : null;
+  }
+  function clearNivelProgress() { return safeRemove(KEYS.NIVEL_PROGRESS); }
 
   /* ------------------------------------------------------------------ */
   /* Backend Bloque 4 — TOKEN DE RECLAMO PENDIENTE (`?claim=<token>`)      */
@@ -1243,7 +1259,7 @@
     loadLevelV1State, saveLevelV1State, resetLevelV1State, isLevelV1PreviewEnabled, setLevelV1PreviewEnabled,
     // Backend Bloque 3 — borrador local de alta (pre-confirmación de email)
     purgeOwnerLocalData, purgeOwnerCaches, currentOwnerId,
-    loadSignupDraft, saveSignupDraft, clearSignupDraft, isSignupDraftExpired, sanitizeSignupDraftForStorage,
+    loadSignupDraft, saveSignupDraft, clearSignupDraft, saveNivelProgress, loadNivelProgress, clearNivelProgress, isSignupDraftExpired, sanitizeSignupDraftForStorage,
     // Backend Bloque 4 — token de reclamo pendiente (`?claim=<token>`)
     loadClaimToken, saveClaimToken, clearClaimToken,
     // Backend Bloque 5 — outbox de cargas de partido server-backed

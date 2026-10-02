@@ -1,32 +1,26 @@
 /* ==========================================================================
-   BRAMU Lab — level-calibration.js (BRAMUlab_V04.6, Etapa C — estimador
-   inicial V1.1 reemplaza al V1.4 de V04.3)
+   BRAMU Lab — level-calibration.js (BRAMUlab V04.28 — estimador inicial V1.3)
    Ciclo de vida puro del Nivel BRAMU de UN jugador: cuestionario inicial
-   (completo y rápido) con categoría como último paso, ajuste automático por
-   categoría, estado CALIBRANDO, transición a CALIBRADO, recalibración cada 90
-   días. Cero DOM, cero localStorage — mismo criterio que level.js/
-   level-context.js. Reutiliza `Level.STATES`, `Level.ALGORITHM_VERSION`,
-   `Level.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK` (§3.4: el camino
-   rápido sigue siendo 0.10, valor YA cerrado en level.js — nunca se duplica)
-   y `Level.clampLevel` — nunca duplica una fórmula ya cerrada en `level.js`.
+   universal adaptativo `nivel_inicial_v1_3` (5 preguntas, slider discreto de 10
+   posiciones), estado CALIBRANDO, transición a CALIBRADO y recalibración (90
+   días). Cero DOM, cero localStorage — mismo criterio que level.js/
+   level-context.js. Reutiliza `Level.STATES`, `Level.ALGORITHM_VERSION` y
+   `Level.clampLevel` — nunca duplica una fórmula ya cerrada en `level.js`.
 
-   ALCANCE DE V04.6 (autorización de Sebastián sobre V04.1-V04.5 ya
-   cerradas, ver Nivel_BRAMU_Handoff_Cuestionario_V1.5.md y
-   BRAMUlab_V04.6_Handoff.md): SUSTITUYE únicamente el estimador inicial
-   (cuestionario + ajuste) de V1.4 por V1.1. CONSERVA íntegro el resto de esta
-   Etapa C ya cerrado en V04.3: calibración (§5) y recalibración (§6) — ni una
-   fórmula, ni un umbral, ni una función de esos bloques cambia. NO conecta
-   con `store.js`, `app.js`, `player-home.js` ni `ranking.js` — quien integre
-   esto en producción decide de dónde vienen esos parámetros. NO diseña ni
-   conecta UI.
+   V1.3 REEMPLAZA al estimador V1.2 (autoevaluación + técnica + entrenamiento +
+   años/frecuencia + camino rápido + categoría). Ya no existe NINGUNA de esas
+   señales: ni en el cálculo, ni en las funciones exportadas. El motor posterior
+   de partidos sigue siendo `nivel_bramu_v1_0` (level.js, sin cambios): "V1.3"
+   versiona SOLO el cuestionario/estimador inicial.
 
-   FUENTES (en este orden de precedencia):
-   1. Nivel_BRAMU_Formula_V1.5.md §3 (estimador inicial V1.1), §11 (recalibración).
-   2. Nivel_BRAMU_Handoff_Cuestionario_V1.5.md
-   3. BRAMUlab_V04.6_Handoff.md
-   4. Nivel_BRAMU_Implementacion.md / Nivel_BRAMU.md, solo donde no contradicen.
-   Nivel_BRAMU_Formula_V1.4.md §§3.1-3.7 queda como antecedente histórico — NO
-   se usa para altas nuevas (ver BRAMUlab_V04_Consolidado.md).
+   Este archivo es COMPARTIDO por el navegador y por la Edge Function
+   `officialize-onboarding` (symlink en supabase/functions/_shared/): la fórmula
+   existe en un único lugar y el servidor la recalcula desde las posiciones
+   crudas del slider — el navegador nunca es autoridad.
+
+   FUENTE: docs/BRAMUlab/Implementacion/Pre_Production/111_Handoff_Implementacion_Nivel_V13_02OCT.md
+   (§7 banco de preguntas, §8 fórmula, §12 recalibración). Los textos del banco son
+   EXACTAMENTE los del handoff (generados desde el documento, no retipeados).
    ========================================================================== */
 (function (global) {
   'use strict';
@@ -37,35 +31,42 @@
 
   function round4(n) { return Math.round(n * 10000) / 10000; }
   function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
-  function findByKey(list, key) { return list.find((o) => o.key === key) || null; }
+  function deepFreeze(o) {
+    Object.keys(o).forEach((k) => { if (o[k] && typeof o[k] === 'object') deepFreeze(o[k]); });
+    return Object.freeze(o);
+  }
 
-  const QUESTIONNAIRE_VERSION = 'nivel_inicial_v1_2';
+  const QUESTIONNAIRE_VERSION = 'nivel_inicial_v1_3';
+  // Compatibilidad de persistencia: la base limita questionnaire_mode a quick|full. V1.3 tiene un
+  // ÚNICO cuestionario y se persiste siempre como 'full'; el discriminador normativo es
+  // `questionnaire_version`. No hay camino rápido (ni acá, ni en UI, ni en servidor).
+  const QUESTIONNAIRE_MODE = 'full';
 
   /* ------------------------------------------------------------------ */
-  /* PARÁMETROS — citan su sección de Nivel_BRAMU_Formula_V1.5.md.        */
+  /* PARÁMETROS (handoff 111 §8, §12 y calibración sin cambios).          */
   /* ------------------------------------------------------------------ */
   const PARAMS = Object.freeze({
-    // §3.7 — rango final del nivel inicial (antes y después del ajuste por categoría).
+    // §8 — rango final del nivel inicial.
     ADJUSTED_LEVEL_MIN: 1.0,
     ADJUSTED_LEVEL_MAX: 9.0,
-    // §3.3 — ajuste único permitido, automático (nunca manual desde V1.1).
+    // Primitiva acotada que reutiliza la recalibración (movimiento máx. del cuestionario).
     ADJUSTMENT_MAX_ABS: 0.5,
-    // §3.2 — pesos de nivel_base = 0.65×autoevaluación + 0.35×técnica.
-    BASE_WEIGHT_AUTOEVALUACION: 0.65,
-    BASE_WEIGHT_TECNICA: 0.35,
-    // §3.3 — peso de acercamiento hacia la referencia de categoría.
-    CATEGORY_ADJUSTMENT_WEIGHT: 0.70,
-    // §3.4 — brecha de coherencia a partir de la cual se ofrece revisión.
-    COHERENCE_GAP_THRESHOLD: 2.0,
-    // §10.2 — transición CALIBRANDO -> CALIBRADO (sin cambios desde V04.3).
+    // §8 — posiciones del slider y selección de rama.
+    SLIDER_POSITIONS: 10,
+    BRANCH_LOW_BELOW: 4.1,
+    BRANCH_HIGH_FROM: 6.4,
+    // §8 — confianza de origen según la dispersión entre dimensiones.
+    SPREAD_REVIEW_THRESHOLD: 2.0,
+    CONFIDENCE_ORIGIN_COHERENT: 0.15,
+    CONFIDENCE_ORIGIN_SPREAD: 0.10,
+    // Transición CALIBRANDO -> CALIBRADO (sin cambios).
     CALIBRATION_MIN_MATCHES: 5,
     CALIBRATION_MIN_DISTINCT_RIVALS: 3,
-    // §11.1/§11.3 — recalibración (sin cambios desde V04.3).
+    // Recalibración (sin cambios desde V04.3; handoff 111 §12).
     RECALIBRATION_COOLDOWN_DAYS: 90,
     RECALIBRATION_CLOSE_MIN_MATCHES: 3,
     RECALIBRATION_CLOSE_MIN_DISTINCT_RIVALS: 2,
     RECALIBRATION_WINDOW_MAX_DAYS: 120,
-    // §11.2 — ancla provisional y confianza provisional (sin cambios desde V04.3).
     RECALIBRATION_MU_WEIGHT_PREVIOUS: 0.75,
     RECALIBRATION_MU_WEIGHT_NEW: 0.25,
     RECALIBRATION_MU_MAX_SHIFT: 0.5,
@@ -75,292 +76,336 @@
   });
 
   /* ------------------------------------------------------------------ */
-  /* 1. ANCLAS Y MODIFICADORES DEL ESTIMADOR INICIAL (§3.2).               */
+  /* 1. BANCO DE PREGUNTAS V1.3 (§7) y ANCLAS (§8).                       */
   /* ------------------------------------------------------------------ */
 
-  // Autoevaluación general — compartida por el cuestionario completo (pregunta 1) y el
-  // camino rápido (única pregunta). La etiqueta superior es "Profesional" desde V1.1
-  // (V1.4 decía "Competición" — Consolidado §"V04.6").
-  const ANCHOR_AUTOEVALUACION = Object.freeze([
-    { key: 'iniciacion', label: 'Iniciación', value: 2.0 },
-    { key: 'intermedio', label: 'Intermedio', value: 4.0 },
-    { key: 'intermedio_alto', label: 'Intermedio alto', value: 5.5 },
-    { key: 'avanzado', label: 'Avanzado', value: 7.0 },
-    { key: 'profesional', label: 'Profesional', value: 8.5 },
-  ]);
+  // Orden fijo de las cinco dimensiones (20 % cada una). La pregunta 1 es común; las 2–5 tienen
+  // un texto por rama (baja/media/alta) que el jugador nunca ve nombrada.
+  const QUESTION_IDS = Object.freeze(['panorama', 'ritmo', 'ataque', 'defensa', 'decisiones']);
+  const BRANCHES = Object.freeze(['low', 'mid', 'high']);
 
-  // Escala técnica común de red/paredes — el usuario nunca ve estos valores, solo las
-  // descripciones de cada opción (ver app.js).
-  const ANCHOR_TECNICA = Object.freeze([
-    { key: 'a', value: 1.0 },
-    { key: 'b', value: 3.0 },
-    { key: 'c', value: 5.0 },
-    { key: 'd', value: 6.5 },
-    { key: 'e', value: 8.5 },
-  ]);
-
-  const TRAINING_MODIFIERS = Object.freeze([
-    { key: 'nunca', label: 'Nunca tomé clases', value: 0.00 },
-    { key: 'aisladas', label: 'Hice clases o clínicas aisladas', value: 0.02 },
-    { key: 'sin_continuidad', label: 'Tomo clases de vez en cuando, sin continuidad', value: 0.05 },
-    { key: 'regular_pasado', label: 'Entrené regularmente durante una etapa, aunque hoy no entreno', value: 0.08 },
-    { key: 'regular_actual', label: 'Entreno con regularidad actualmente', value: 0.10 },
-  ]);
-
-  // §3.3 — describe el rendimiento DENTRO de la categoría habitual, nunca de forma aislada.
-  const COMPETITION_MODIFIERS = Object.freeze([
-    { key: 'no_compito', label: 'No compito', value: 0.00 },
-    { key: 'sin_referencia', label: 'Competí pocas veces y no tengo una referencia clara', value: 0.00 },
-    { key: 'dificil', label: 'Suelo tener partidos difíciles o quedar eliminado en primeras rondas', value: -0.15 },
-    { key: 'parejo', label: 'Tengo partidos parejos y algunas veces avanzo', value: 0.10 },
-    { key: 'finales', label: 'Suelo llegar a cuartos, semifinales o finales', value: 0.20 },
-  ]);
-
-  // §3.4 — puntos de contexto que alimentan la confianza de origen del cuestionario completo.
-  const YEARS_POINTS = Object.freeze([
-    { key: 'menos_1', label: 'Menos de un año jugando', points: 0 },
-    { key: 'uno_a_cinco', label: 'Entre uno y cinco años', points: 1 },
-    { key: 'mas_5', label: 'Más de cinco años', points: 2 },
-  ]);
-  const FREQUENCY_POINTS = Object.freeze([
-    { key: 'esporadico', label: 'Juego esporádicamente o muy poco', points: 0 },
-    { key: 'una_a_tres_mes', label: 'Entre una y tres veces por mes', points: 1 },
-    { key: 'una_dos_semana', label: 'Una o dos veces por semana', points: 2 },
-    { key: 'tres_mas_semana', label: 'Tres veces por semana o más', points: 2 },
-  ]);
-  // §3.4 — 0-1 -> 0.12, 2-3 -> 0.15, 4-5 -> 0.18 (categoría con mapa compatible aporta +1).
-  const CONFIDENCE_ORIGIN_TIERS = Object.freeze([
-    { max: 1, value: 0.12 },
-    { max: 3, value: 0.15 },
-    { max: 5, value: 0.18 },
-  ]);
-  // §3.4/§3.6 — camino rápido conserva 0.10 SIEMPRE, con o sin categoría. Reutiliza el valor
-  // ya cerrado en level.js (nunca lo duplica como número suelto acá).
-  const CONFIDENCE_ORIGIN_QUICK = Level.PARAMS.CONFIDENCE_ORIGIN_QUESTIONNAIRE_QUICK;
-  // §3.4 — ante brecha de coherencia confirmada sin revisar, la confianza queda limitada acá.
-  const CONFIDENCE_ORIGIN_COHERENCE_REVIEWED = 0.10;
-
-  // §3.3 — configuración VERSIONADA de anclas locales de categoría. Activa por ahora solo el
-  // piloto argentino masculino ("ar_masculino_v1") — cualquier otro contexto queda sin mapa
-  // compatible (categoryAdjustment = 0, ver `computeCategoryAdjustment`). Claves = mismas 9
-  // categorías que ya usa `declaredCategory` en app.js (CATEGORY_LABELS).
-  const CATEGORY_CONTEXT_MAPS = Object.freeze({
-    ar_masculino_v1: Object.freeze({
-      '1': 8.4, '2': 7.7, '3': 6.9, '4': 6.1, '5': 5.5, '6': 4.8, '7': 3.8, '8': 2.8, '9': 2.0,
-    }),
+  // Anclas internas A/B/C/D por pregunta y rama (§8). `common` es la rama única de P1.
+  const ANCHORS = deepFreeze({
+    panorama: { common: [1.8, 3.8, 5.8, 7.2] },
+    ritmo: { low: [1.5, 2.8, 3.8, 4.6], mid: [3.3, 4.2, 5.2, 6.2], high: [5.7, 6.3, 7.0, 8.8] },
+    ataque: { low: [1.5, 2.8, 3.8, 4.6], mid: [3.3, 4.2, 5.2, 6.2], high: [5.7, 6.3, 7.0, 8.8] },
+    defensa: { low: [1.5, 2.8, 3.8, 4.6], mid: [3.3, 4.2, 5.2, 6.2], high: [5.7, 6.3, 7.0, 8.8] },
+    decisiones: { low: [1.5, 2.8, 3.8, 4.6], mid: [3.3, 4.2, 5.2, 6.2], high: [5.7, 6.3, 7.0, 8.8] },
   });
-  // Claves de categoría que NUNCA ajustan el nivel — mismos strings que ya usa el account
-  // schema ('no-se', ver CATEGORY_LABELS de app.js) más 'no-compito', nuevo en esta ronda.
-  const CATEGORY_NEUTRAL_KEYS = Object.freeze(['no-compito', 'no-se']);
 
-  /* ------------------------------------------------------------------ */
-  /* 2. ANCLA TÉCNICA Y NIVEL BASE (§3.2).                                 */
-  /* ------------------------------------------------------------------ */
-
-  /** ancla_tecnica = (ancla_red + ancla_paredes) / 2. `null` si falta alguna respuesta —
-   *  nunca inventa un promedio parcial. */
-  function computeTechnicalAnchor(redKey, paredesKey) {
-    const red = findByKey(ANCHOR_TECNICA, redKey);
-    const paredes = findByKey(ANCHOR_TECNICA, paredesKey);
-    if (!red || !paredes) return null;
-    return round4((red.value + paredes.value) / 2);
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* 3. ESTIMACIÓN INICIAL — CUESTIONARIO COMPLETO Y CAMINO RÁPIDO (§3.2/  */
-  /* §3.5/§3.6). Ninguno de los dos incluye todavía la categoría — V1.1    */
-  /* la pregunta DESPUÉS, como último paso compartido (§6 del handoff      */
-  /* V04.6) — ver `computeCategoryStep`.                                   */
-  /* ------------------------------------------------------------------ */
-
-  /** `answers`: {autoevaluacion, anos, entrenamiento, frecuencia, competicion, red, paredes} —
-   *  cada valor es la KEY de la opción elegida (nunca un índice posicional: a diferencia de
-   *  V1.4, V1.1 no pondera con pesos libres, así que una key explícita es más segura que un
-   *  índice que dependería del orden de un array). Devuelve `null` si falta alguna respuesta
-   *  obligatoria (autoevaluación/red/paredes/entrenamiento) — nunca inventa un valor medio. */
-  function computeFullEstimate(answers) {
-    const a = answers || {};
-    const autoeval = findByKey(ANCHOR_AUTOEVALUACION, a.autoevaluacion);
-    const technicalAnchor = computeTechnicalAnchor(a.red, a.paredes);
-    const training = findByKey(TRAINING_MODIFIERS, a.entrenamiento);
-    if (!autoeval || technicalAnchor == null || !training) return null;
-    const competition = findByKey(COMPETITION_MODIFIERS, a.competicion);
-    const baseLevel = round4(
-      PARAMS.BASE_WEIGHT_AUTOEVALUACION * autoeval.value +
-      PARAMS.BASE_WEIGHT_TECNICA * technicalAnchor +
-      training.value
-    );
-    return {
-      pathType: 'full',
-      raw: clamp(baseLevel, PARAMS.ADJUSTED_LEVEL_MIN, PARAMS.ADJUSTED_LEVEL_MAX),
-      baseLevel,
-      technicalAnchor,
-      trainingModifier: training.value,
-      competitionAnswer: competition ? competition.key : null,
-      autoevalAnchorValue: autoeval.value,
-      yearsKey: a.anos || null,
-      frequencyKey: a.frecuencia || null,
-    };
-  }
-
-  /** §3.6 — camino rápido: reutiliza las 5 anclas de autoevaluación tal cual, sin pregunta
-   *  competitiva (el modificador competitivo no aplica — nunca se inventa una respuesta que
-   *  no se formuló). */
-  function computeQuickLevel(seedKey) {
-    const seed = findByKey(ANCHOR_AUTOEVALUACION, seedKey);
-    if (!seed) return null;
-    return {
-      pathType: 'quick',
-      raw: seed.value,
-      baseLevel: seed.value,
-      technicalAnchor: null,
-      trainingModifier: 0,
-      competitionAnswer: null,
-      autoevalAnchorValue: seed.value,
-      yearsKey: null,
-      frequencyKey: null,
-      seedKey: seed.key,
-    };
-  }
-
-  // Anclas de autoevaluación expuestas como mapa simple key->valor — conveniencia para UI/
-  // tests, misma fuente que ANCHOR_AUTOEVALUACION (nunca un segundo valor suelto).
-  const QUICK_SEEDS = Object.freeze(
-    ANCHOR_AUTOEVALUACION.reduce((acc, a) => { acc[a.key] = a.value; return acc; }, {})
-  );
-
-  /* ------------------------------------------------------------------ */
-  /* 4. CATEGORÍA COMO ÚLTIMO PASO (§3.3) — ajuste automático ±0.5,        */
-  /* coherencia (§3.4) y confianza de origen variable (§3.4).              */
-  /* ------------------------------------------------------------------ */
-
-  /** §3.3 — referencia_categoria = ancla_categoria + modificador_competitivo;
-   *  ajuste_categoria = clamp(0.70×(referencia_categoria − nivel_base); ±0.5). Devuelve
-   *  ajuste 0 sin tocar el nivel si la categoría es neutral (`no-compito`/`no-se`) o si el
-   *  contexto no tiene mapa compatible — nunca inventa una equivalencia rígida. */
-  function computeCategoryAdjustment(input) {
-    const cfg = input || {};
-    const declaredCategory = cfg.declaredCategory || null;
-    if (!declaredCategory || CATEGORY_NEUTRAL_KEYS.indexOf(declaredCategory) !== -1) {
-      return { categoryReference: null, categoryAdjustment: 0, categoryApplied: false };
+  // Textos EXACTOS del handoff 111 §7 (menor → mayor dominio). El orden de las cuatro descripciones
+  // corresponde a las anclas A/B/C/D, pero ninguna letra ni valor sale nunca a la UI.
+  const QUESTION_BANK = deepFreeze({
+  "panorama": {
+    "dimension": "Panorama general",
+    "prompt": "¿Qué describe mejor tu juego durante un partido habitual?",
+    "texts": {
+      "common": [
+        "Estoy aprendiendo a ubicarme y a sostener varios golpes seguidos.",
+        "Sostengo intercambios cómodos; cuando aumenta el ritmo pierdo control u orden.",
+        "Construyo el punto y utilizo distintos recursos; bajo presión todavía me apuro o dejo una pelota fácil.",
+        "Sostengo un ritmo alto, buenas posiciones y decisiones; normalmente el rival debe construir el punto para superarme."
+      ]
     }
-    const map = cfg.categoryContextKey ? CATEGORY_CONTEXT_MAPS[cfg.categoryContextKey] : null;
-    const categoryAnchor = map ? map[declaredCategory] : undefined;
-    if (categoryAnchor === undefined) {
-      return { categoryReference: null, categoryAdjustment: 0, categoryApplied: false };
+  },
+  "ritmo": {
+    "dimension": "Control y ritmo",
+    "prompt": null,
+    "texts": {
+      "low": [
+        "Me cuesta devolver tres pelotas seguidas aunque lleguen cómodas.",
+        "Sostengo intercambios cortos a ritmo lento; al moverme o dirigir la pelota pierdo control.",
+        "Sostengo pelotas cómodas con dirección; la velocidad o profundidad me obliga a devolver fácil.",
+        "Resuelvo varias pelotas exigentes y recupero mi posición, todavía de manera irregular."
+      ],
+      "mid": [
+        "Controlo la pelota a ritmo cómodo; cuando aceleran llego tarde o dejo una pelota fácil.",
+        "Sostengo un ritmo medio y recupero la posición; si la presión continúa, pierdo dirección o profundidad.",
+        "Mantengo dirección y profundidad a ritmo alto en la mayoría de las jugadas; una pelota difícil todavía puede dejarme defendiendo.",
+        "A ritmo alto llego equilibrado, neutralizo la presión y puedo elegir la respuesta."
+      ],
+      "high": [
+        "Sostengo el ritmo alto, pero la presión repetida termina reduciendo mi profundidad o control.",
+        "Mantengo profundidad y posición a ritmo alto; una defensa extrema todavía puede dejar una oportunidad cómoda.",
+        "Absorbo cambios de velocidad, recupero la posición y obligo al rival a sostener la presión.",
+        "Frente al ritmo máximo anticipo, neutralizo y puedo transformar la defensa en iniciativa."
+      ]
     }
-    const competition = findByKey(COMPETITION_MODIFIERS, cfg.competitionKey) || COMPETITION_MODIFIERS[0];
-    const categoryReference = round4(categoryAnchor + competition.value);
-    const categoryAdjustment = round4(clamp(
-      PARAMS.CATEGORY_ADJUSTMENT_WEIGHT * (categoryReference - cfg.baseLevel),
-      -PARAMS.ADJUSTMENT_MAX_ABS, PARAMS.ADJUSTMENT_MAX_ABS
-    ));
-    return { categoryReference, categoryAdjustment, categoryApplied: true };
+  },
+  "ataque": {
+    "dimension": "Ataque y red",
+    "prompt": null,
+    "texts": {
+      "low": [
+        "Me cuesta ubicarme y controlar la volea, incluso con pelotas cómodas.",
+        "Devuelvo voleas simples, pero pierdo la posición o quedo superado por el globo.",
+        "Sostengo la red en intercambios lentos con mi compañero; la presión me obliga a retroceder o dejar una pelota fácil.",
+        "Utilizo la volea o la bandeja para conservar la red, todavía de manera irregular."
+      ],
+      "mid": [
+        "Controlo voleas cómodas; con velocidad o presión pierdo la posición.",
+        "Sostengo la red y uso la volea o la bandeja; a veces acelero desde una posición desfavorable.",
+        "Me coordino con mi compañero, conservo la red y elijo una pelota favorable para acelerar.",
+        "Varío dirección y ritmo, recupero la red después del globo y mantengo la iniciativa bajo presión."
+      ],
+      "high": [
+        "Controlo la posición; la presión sostenida todavía puede hacerme dejar una pelota cómoda o perder la red.",
+        "Uso la volea y la bandeja para sostener la posición y recupero la red después del globo; a veces me precipito al definir.",
+        "Varío direcciones y ritmos, elijo cuándo acelerar y mantengo la iniciativa bajo presión.",
+        "A velocidad máxima anticipo las respuestas y transformo situaciones difíciles en ataques controlados."
+      ]
+    }
+  },
+  "defensa": {
+    "dimension": "Defensa y paredes",
+    "prompt": null,
+    "texts": {
+      "low": [
+        "Intento jugar antes de la pared porque todavía no interpreto bien el rebote.",
+        "Resuelvo rebotes simples y lentos de fondo; suelo llegar tarde o calcular mal.",
+        "Utilizo la pared de fondo en situaciones habituales; la velocidad o los rebotes laterales me complican.",
+        "Utilizo paredes de fondo y laterales para continuar el punto; todavía pierdo control en rebotes complejos."
+      ],
+      "mid": [
+        "Resuelvo el rebote simple; una pelota rápida, profunda o lateral suele dejarme fuera de posición.",
+        "Utilizo las paredes de fondo y laterales en situaciones habituales; los rebotes complejos me obligan a devolver fácil.",
+        "Anticipo paredes simples y dobles, recupero la posición y normalmente mantengo una defensa neutral.",
+        "Uso las paredes para quitar velocidad, soportar la presión y convertir una defensa difícil en una pelota controlada."
+      ],
+      "high": [
+        "Controlo los rebotes habituales; una pelota muy profunda o compleja todavía puede dejarme defendiendo corto.",
+        "Anticipo paredes dobles y sostengo la defensa con velocidad; las situaciones extremas pueden hacerme perder control.",
+        "Uso las paredes para neutralizar la presión, recuperar la posición y convertir una defensa difícil en una pelota controlada.",
+        "A velocidad máxima resuelvo rebotes complejos y transformo defensas extremas en contraataques sin perder la posición."
+      ]
+    }
+  },
+  "decisiones": {
+    "dimension": "Decisiones y consistencia",
+    "prompt": null,
+    "texts": {
+      "low": [
+        "Me concentro en devolver la pelota, sin una idea clara de dónde jugar o cómo ubicarme.",
+        "Conozco ideas como subir a la red o tirar un globo; reacciono tarde o intento atacar una pelota desfavorable.",
+        "Intento construir el punto y moverme con mi compañero; cuando se prolonga pierdo el orden.",
+        "Reconozco cuándo defender, reconstruir o atacar; todavía me cuesta ejecutarlo durante todo el partido."
+      ],
+      "mid": [
+        "Entiendo la jugada, pero intento resolverla rápido y suelo entregar la iniciativa.",
+        "Alterno momentos ordenados con otros en los que ataco desde una posición desfavorable.",
+        "Construyo con paciencia y espero una pelota favorable; si la presión continúa, puedo perder el orden.",
+        "Mantengo el plan, recupero posiciones y adapto mis decisiones durante todo el partido."
+      ],
+      "high": [
+        "Construyo bien; la presión sostenida termina haciéndome perder profundidad, dirección o iniciativa.",
+        "Conservo el orden, elijo una respuesta segura y espero una pelota favorable; ocasionalmente dejo una oportunidad cómoda.",
+        "Administro ritmos y direcciones, anticipo la jugada y normalmente obligo al rival a construir para superarme.",
+        "Mantengo lectura y calidad frente a presión extrema durante todo el partido, neutralizando o aprovechando situaciones difíciles."
+      ]
+    }
+  }
+});
+
+  /* ------------------------------------------------------------------ */
+  /* 2. FÓRMULA V1.3 (§8) — funciones puras.                              */
+  /* ------------------------------------------------------------------ */
+
+  function isValidPosition(p) {
+    return typeof p === 'number' && Number.isInteger(p) && p >= 0 && p <= PARAMS.SLIDER_POSITIONS - 1;
   }
 
-  /** §3.4 — brecha_coherencia = max(|ancla_autoevaluacion − ancla_tecnica|; |nivel_base −
-   *  referencia_categoria| si existe). En camino rápido no hay una segunda medición técnica
-   *  independiente, así que ese término aporta 0 (nunca se inventa una brecha donde no hay
-   *  dos mediciones distintas). */
-  function computeCoherenceGap(autoevalAnchorValue, technicalAnchorForGap, baseLevel, categoryReference) {
-    const gaps = [Math.abs(autoevalAnchorValue - technicalAnchorForGap)];
-    if (categoryReference != null) gaps.push(Math.abs(baseLevel - categoryReference));
-    return round4(Math.max.apply(Math, gaps));
+  /** Interpolación del slider: p=9 -> D; si no, segmento = floor(p/3), fracción = (p mod 3)/3. */
+  function interpolateAnchor(anchors, p) {
+    if (!Array.isArray(anchors) || anchors.length !== 4 || !isValidPosition(p)) return null;
+    if (p === 9) return anchors[3];
+    const segment = Math.floor(p / 3);
+    const fraction = (p % 3) / 3;
+    return anchors[segment] + fraction * (anchors[segment + 1] - anchors[segment]);
   }
 
-  function sumContextPoints(yearsKey, frequencyKey, categoryApplied) {
-    const years = findByKey(YEARS_POINTS, yearsKey);
-    const freq = findByKey(FREQUENCY_POINTS, frequencyKey);
-    let points = (years ? years.points : 0) + (freq ? freq.points : 0);
-    if (categoryApplied) points += 1;
-    return points;
+  /** <4,1 baja; >=4,1 y <6,4 media; >=6,4 alta. El promedio se compara a 4 decimales (precisión
+   *  interna), así un 4,1 "exacto" nunca cae del lado equivocado por ruido de coma flotante. */
+  function branchForRunningMean(mean) {
+    const m = round4(mean);
+    if (m < PARAMS.BRANCH_LOW_BELOW) return 'low';
+    if (m < PARAMS.BRANCH_HIGH_FROM) return 'mid';
+    return 'high';
   }
 
-  function confidenceFromPoints(points) {
-    const tier = CONFIDENCE_ORIGIN_TIERS.find((t) => points <= t.max) || CONFIDENCE_ORIGIN_TIERS[CONFIDENCE_ORIGIN_TIERS.length - 1];
-    return tier.value;
+  function anchorsFor(index, branch) {
+    const id = QUESTION_IDS[index];
+    if (!id) return null;
+    return ANCHORS[id][index === 0 ? 'common' : branch] || null;
   }
 
-  /** Aplica la pregunta final de categoría (§6 del handoff V04.6, ambos caminos) sobre un
-   *  `rawResult` de `computeFullEstimate`/`computeQuickLevel`. Devuelve TODO lo necesario para
-   *  mostrar "Tu punto de partida en BRAMU" y para `confirmInitialLevelV1_1` — nunca muta
-   *  `rawResult`. */
-  function computeCategoryStep(rawResult, categoryContextKey, declaredCategory) {
-    const baseLevel = rawResult.baseLevel;
-    const cat = computeCategoryAdjustment({
-      categoryContextKey, declaredCategory, competitionKey: rawResult.competitionAnswer, baseLevel,
-    });
-    const adjustedLevel = round4(clamp(baseLevel + cat.categoryAdjustment, PARAMS.ADJUSTED_LEVEL_MIN, PARAMS.ADJUSTED_LEVEL_MAX));
-    const technicalForGap = rawResult.technicalAnchor != null ? rawResult.technicalAnchor : rawResult.autoevalAnchorValue;
-    const coherenceGap = computeCoherenceGap(rawResult.autoevalAnchorValue, technicalForGap, baseLevel, cat.categoryReference);
-    const coherenceFlag = coherenceGap >= PARAMS.COHERENCE_GAP_THRESHOLD;
-    const naturalConfidenceOrigin = rawResult.pathType === 'quick'
-      ? CONFIDENCE_ORIGIN_QUICK
-      : confidenceFromPoints(sumContextPoints(rawResult.yearsKey, rawResult.frequencyKey, cat.categoryApplied));
+  /** Rama de la pregunta `index` (1..4) a partir de las posiciones YA respondidas de las
+   *  preguntas anteriores. `null` si alguna anterior falta. La pregunta 0 siempre es 'common'. */
+  function branchForIndex(positions, index) {
+    if (index === 0) return 'common';
+    let sum = 0;
+    let branchSoFar = null;
+    for (let k = 0; k < index; k += 1) {
+      const p = positions ? positions[k] : null;
+      if (!isValidPosition(p)) return null;
+      const anchors = anchorsFor(k, k === 0 ? 'common' : branchSoFar);
+      sum += interpolateAnchor(anchors, p);
+      branchSoFar = branchForRunningMean(sum / (k + 1));
+    }
+    return branchSoFar;
+  }
+
+  /** Confianza de origen: dispersión < 2,0 -> 0,15; >= 2,0 -> 0,10. */
+  function computeOriginConfidence(spread) {
+    return round4(spread) >= PARAMS.SPREAD_REVIEW_THRESHOLD
+      ? PARAMS.CONFIDENCE_ORIGIN_SPREAD
+      : PARAMS.CONFIDENCE_ORIGIN_COHERENT;
+  }
+
+  /** Normaliza las posiciones a un array de 5 desde un array o un objeto {panorama, ritmo, ...}. */
+  function positionsToArray(positions) {
+    if (Array.isArray(positions)) return positions.slice(0, QUESTION_IDS.length);
+    if (positions && typeof positions === 'object') return QUESTION_IDS.map((id) => positions[id]);
+    return null;
+  }
+
+  /** Estimación inicial V1.3 a partir de las 5 posiciones crudas (enteros 0..9). `null` si falta
+   *  o es inválida alguna (nunca inventa un valor medio). Es EL cálculo que corre el servidor. */
+  function computeInitialEstimateV13(positions) {
+    const arr = positionsToArray(positions);
+    if (!arr || arr.length !== QUESTION_IDS.length || !arr.every(isValidPosition)) return null;
+    const values = [];
+    const branches = ['common'];
+    let sum = 0;
+    for (let k = 0; k < QUESTION_IDS.length; k += 1) {
+      if (k > 0) branches.push(branchForRunningMean(sum / k));
+      const v = interpolateAnchor(anchorsFor(k, branches[k]), arr[k]);
+      values.push(v);
+      sum += v;
+    }
+    const initialLevel = round4(clamp(sum / QUESTION_IDS.length, PARAMS.ADJUSTED_LEVEL_MIN, PARAMS.ADJUSTED_LEVEL_MAX));
+    const spread = round4(Math.max.apply(null, values) - Math.min.apply(null, values));
     return {
-      preCategoryLevel: baseLevel,
-      baseLevel,
-      technicalAnchor: rawResult.technicalAnchor,
-      trainingModifier: rawResult.trainingModifier,
-      competitionAnswer: rawResult.competitionAnswer,
-      categoryContextKey: categoryContextKey || null,
-      declaredCategory: declaredCategory || null,
-      categoryReference: cat.categoryReference,
-      categoryAdjustment: cat.categoryAdjustment,
-      adjustedLevel,
-      coherenceGap,
-      coherenceFlag,
-      naturalConfidenceOrigin,
+      questionnaireVersion: QUESTIONNAIRE_VERSION,
+      positions: QUESTION_IDS.reduce((acc, id, i) => { acc[id] = arr[i]; return acc; }, {}),
+      branches: QUESTION_IDS.reduce((acc, id, i) => { acc[id] = branches[i]; return acc; }, {}),
+      values: values.map(round4),
+      initialLevel,
+      // `raw` alias: la primitiva de recalibración (`confirmInitialLevel`) lee `rawResult.raw`.
+      raw: initialLevel,
+      spread,
+      originConfidence: computeOriginConfidence(spread),
+      // Dispersión >= 2,0: se OFRECE revisar respuestas; nunca bloquea y no se muestra como juicio.
+      reviewSuggested: spread >= PARAMS.SPREAD_REVIEW_THRESHOLD,
     };
   }
 
-  /** Confirma el nivel inicial V1.1 a partir de `computeCategoryStep`. `confirmDespiteCoherence`
-   *  SOLO importa cuando `coherenceFlag` es `true`: si el jugador revisó y confirmó igual sin
-   *  modificar respuestas, la confianza de origen queda limitada a 0.10 (§3.4) — el nivel
-   *  calculado NUNCA se penaliza, solo su confianza. Nunca muta `categoryStep`. */
-  function confirmInitialLevelV1_1(categoryStep, confirmDespiteCoherence, confirmedAt) {
-    const confidenceOrigin = (categoryStep.coherenceFlag && confirmDespiteCoherence)
-      ? CONFIDENCE_ORIGIN_COHERENCE_REVIEWED
-      : categoryStep.naturalConfidenceOrigin;
+  /** Confirma el nivel inicial V1.3. El nivel nunca se penaliza: la dispersión solo fija la
+   *  confianza de origen (ya calculada en la estimación). */
+  function confirmInitialLevelV13(estimate, confirmedAt) {
+    if (!estimate || estimate.questionnaireVersion !== QUESTIONNAIRE_VERSION) return null;
     return {
       ok: true,
       origin: {
         questionnaireVersion: QUESTIONNAIRE_VERSION,
-        confirmedLevel: categoryStep.adjustedLevel,
-        baseLevel: categoryStep.baseLevel,
-        technicalAnchor: categoryStep.technicalAnchor,
-        trainingModifier: categoryStep.trainingModifier,
-        categoryContextKey: categoryStep.categoryContextKey,
-        declaredCategory: categoryStep.declaredCategory,
-        competitionAnswer: categoryStep.competitionAnswer,
-        categoryReference: categoryStep.categoryReference,
-        categoryAdjustment: categoryStep.categoryAdjustment,
-        confidenceOrigin,
-        coherenceFlag: categoryStep.coherenceFlag,
+        confirmedLevel: estimate.initialLevel,
+        confidenceOrigin: estimate.originConfidence,
+        spread: estimate.spread,
+        coherenceFlag: estimate.reviewSuggested,
+        values: estimate.values,
+        positions: estimate.positions,
+        branches: estimate.branches,
+        // V1.3 no tiene categoría local: estas dos columnas se persisten siempre en NULL.
+        declaredCategory: null,
+        categoryContextKey: null,
         confirmedAt: confirmedAt || null,
       },
     };
   }
 
-  /** V1.2 — confirmación UNIVERSAL del estimador inicial.
-   *  La categoría local deja de formar parte del onboarding y del cálculo inicial: construye
-   *  deliberadamente el paso neutral (sin mapa ni categoría), conserva la coherencia entre
-   *  autoevaluación/técnica y reutiliza la misma confirmación auditada de V1.1. Las utilidades
-   *  de categoría quedan abajo como legado/futuro, pero ya no intervienen en el alta real. */
-  function confirmInitialLevelV1_2(rawResult, confirmedAt) {
-    if (!rawResult) return null;
-    const universalStep = computeCategoryStep(rawResult, null, null);
-    return confirmInitialLevelV1_1(universalStep, universalStep.coherenceFlag, confirmedAt);
+  /* ------------------------------------------------------------------ */
+  /* 3. PROGRESO DEL CUESTIONARIO (estado puro, versionado, adaptativo).  */
+  /* ------------------------------------------------------------------ */
+
+  function createQuestionnaireState() {
+    return { version: QUESTIONNAIRE_VERSION, positions: [null, null, null, null, null], branches: [null, null, null, null, null] };
+  }
+
+  /** Revalida un estado: recorre las preguntas en orden y, ante la primera respuesta cuya rama
+   *  YA no coincide con la rama con la que se respondió, descarta esa y TODAS las posteriores
+   *  (nunca reutiliza una posición del slider con textos de otra rama). Estado de otra versión
+   *  -> estado nuevo vacío. */
+  function reconcileQuestionnaireState(state) {
+    if (!state || state.version !== QUESTIONNAIRE_VERSION || !Array.isArray(state.positions)) return createQuestionnaireState();
+    const out = createQuestionnaireState();
+    for (let k = 0; k < QUESTION_IDS.length; k += 1) {
+      const p = state.positions[k];
+      if (!isValidPosition(p)) break;
+      const branch = branchForIndex(out.positions, k);
+      if (branch == null) break;
+      if (k > 0 && state.branches && state.branches[k] !== branch) break;
+      out.positions[k] = p;
+      out.branches[k] = branch;
+    }
+    return out;
+  }
+
+  /** Registra la respuesta `position` a la pregunta `index` y reconcilia las posteriores. Solo
+   *  se puede responder una pregunta si todas las anteriores están respondidas. */
+  function answerQuestion(state, index, position) {
+    const base = reconcileQuestionnaireState(state);
+    if (!isValidPosition(position) || index < 0 || index >= QUESTION_IDS.length) return base;
+    if (index > 0 && !isValidPosition(base.positions[index - 1])) return base;
+    const next = { version: QUESTIONNAIRE_VERSION, positions: base.positions.slice(), branches: base.branches.slice() };
+    next.positions[index] = position;
+    next.branches[index] = branchForIndex(next.positions, index);
+    return reconcileQuestionnaireState(next);
+  }
+
+  function isQuestionnaireComplete(state) {
+    const s = reconcileQuestionnaireState(state);
+    return s.positions.every(isValidPosition);
+  }
+
+  /** Índice de la primera pregunta sin responder (o el último índice si está completo). */
+  function firstUnansweredIndex(state) {
+    const s = reconcileQuestionnaireState(state);
+    const i = s.positions.findIndex((p) => !isValidPosition(p));
+    return i === -1 ? QUESTION_IDS.length - 1 : i;
+  }
+
+  /** Textos (4 descripciones, en orden de menor a mayor dominio) y título de la pregunta `index`
+   *  según la rama resultante de las respuestas anteriores. `null` si todavía no corresponde. */
+  function questionView(state, index) {
+    const id = QUESTION_IDS[index];
+    if (!id) return null;
+    const branch = branchForIndex(state ? state.positions : null, index);
+    if (branch == null) return null;
+    const entry = QUESTION_BANK[id];
+    return {
+      id, index, dimension: entry.dimension, prompt: entry.prompt || null,
+      texts: entry.texts[index === 0 ? 'common' : branch],
+      position: state && isValidPosition(state.positions[index]) ? state.positions[index] : null,
+    };
+  }
+
+  /** Borrador de alta heredado de V1.2 (o cualquier versión distinta): se descartan ÚNICAMENTE
+   *  las claves de Nivel; cuenta, email, perfil y username se conservan intactos. */
+  const LEGACY_DRAFT_NIVEL_KEYS = Object.freeze(['nivelPathType', 'nivelQuickSeedKey', 'nivelQuizAnswers', 'nivelState']);
+  function stripLegacyNivelDraft(draft) {
+    if (!draft || typeof draft !== 'object') return { draft, removed: false };
+    const v13 = draft.nivelQuestionnaireVersion === QUESTIONNAIRE_VERSION && draft.nivelAnswers && draft.nivelState;
+    const hasLegacy = LEGACY_DRAFT_NIVEL_KEYS.some((k) => draft[k] != null) || draft.nivelAnswers != null || draft.nivelQuestionnaireVersion != null;
+    if (v13 || !hasLegacy) return { draft, removed: false };
+    const clean = Object.assign({}, draft);
+    LEGACY_DRAFT_NIVEL_KEYS.concat(['nivelAnswers', 'nivelQuestionnaireVersion']).forEach((k) => { delete clean[k]; });
+    return { draft: clean, removed: true };
   }
 
   /* ------------------------------------------------------------------ */
-  /* 5. AJUSTE GENÉRICO (legado, §3.3/§11 recalibración) — primitiva            */
-  /* reutilizada EXCLUSIVAMENTE por la recalibración (§11.1: "repetir       */
-  /* cuestionario completo... permitir un ajuste acotado", mismo mecanismo  */
-  /* de siempre). El estimador inicial V1.1 YA NO la usa (su ajuste es      */
-  /* automático por categoría, no manual — ver `confirmInitialLevelV1_1`). */
-  /* Ya no exige múltiplos de 0.1: esa granularidad era del stepper manual  */
-  /* retirado en V04.6, nunca una regla matemática de la fórmula.           */
+  /* 4. AJUSTE ACOTADO — primitiva reutilizada EXCLUSIVAMENTE por la       */
+  /* recalibración (§12 del handoff 111: el cuestionario V1.3 aporta 25 % y */
+  /* el movimiento provisional queda limitado a ±0,5). El estimador inicial */
+  /* V1.3 NO la usa: no hay ajuste manual ni por categoría.                 */
   /* ------------------------------------------------------------------ */
 
   /** Valida un ajuste ANTES de aplicarlo — nunca clampea silenciosamente un valor fuera de
@@ -388,6 +433,7 @@
       ok: true,
       reasonCodes: ['ajuste_confirmado'],
       origin: {
+        questionnaireVersion: rawResult.questionnaireVersion || null,
         rawLevel: rawResult.raw,
         adjustment: round4(adjustment || 0),
         confirmedLevel,
@@ -397,16 +443,14 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 6. ESTADO INICIAL — al confirmar, arranca CALIBRANDO.                 */
+  /* 5. ESTADO INICIAL — al confirmar, arranca CALIBRANDO.                 */
   /* ------------------------------------------------------------------ */
 
-  /** `originType`: 'quick' | 'full'. `confirmResult` viene de `confirmInitialLevelV1_1` — su
-   *  `origin.confidenceOrigin` YA es la confianza correcta para ese camino (variable en
-   *  completo, 0.10 fijo en rápido, o 0.10 si hubo coherencia confirmada sin revisar): esta
-   *  función nunca vuelve a decidir confianza por tipo de camino, solo la propaga.
-   *  Las respuestas del cuestionario (si las hay) quedan SOLO dentro de
-   *  `origin.questionnaireAnswers`, como dato declarado — nunca se usan como si fueran un
-   *  hecho deportivo observado. */
+  /** `originType`: siempre 'full' en V1.3 (único cuestionario; ver QUESTIONNAIRE_MODE).
+   *  `confirmResult` viene de `confirmInitialLevelV13` — su `origin.confidenceOrigin` YA es la
+   *  confianza correcta (0,15 / 0,10 según la dispersión): esta función solo la propaga.
+   *  Las respuestas (posiciones del slider) quedan SOLO dentro de `origin.questionnaireAnswers`,
+   *  como dato declarado — nunca se usan como si fueran un hecho deportivo observado. */
   function buildInitialCalibrationState(originType, confirmResult, questionnaireAnswers) {
     if (!confirmResult || !confirmResult.ok) return null;
     return {
@@ -423,7 +467,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 7. CALIBRACIÓN (§10.2) — transición CALIBRANDO -> CALIBRADO           */
+  /* 6. CALIBRACIÓN (§10.2) — transición CALIBRANDO -> CALIBRADO           */
   /* SOLO con las 2 condiciones a la vez, nunca partidos solos.            */
   /* SIN CAMBIOS desde V04.3 — CONSERVAR (Handoff V04.6 §2).               */
   /* ------------------------------------------------------------------ */
@@ -447,7 +491,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 8. RECALIBRACIÓN (§11) — cooldown 90 días, ancla provisional,        */
+  /* 7. RECALIBRACIÓN (§11) — cooldown 90 días, ancla provisional,        */
   /* cierre 3 partidos/2 rivales, ventana máxima 120 días.                 */
   /* SIN CAMBIOS desde V04.3 — CONSERVAR (Handoff V04.6 §2).               */
   /* ------------------------------------------------------------------ */
@@ -485,9 +529,10 @@
     });
   }
 
-  /** El cuestionario de recalibración reutiliza EXACTAMENTE el mismo mecanismo de ajuste
-   *  acotado que ya existía (§11.1: "repetir cuestionario completo... permitir un ajuste
-   *  acotado") — nunca una segunda implementación de "confirmar+ajustar". */
+  /** El cuestionario de recalibración ES el V1.3 (`rawResult` = `computeInitialEstimateV13`) y
+   *  reutiliza EXACTAMENTE el mismo mecanismo de confirmación acotada que ya existía — nunca una
+   *  segunda implementación de "confirmar+ajustar". Su `confirmedLevel` es el `qNuevoConfirmed`
+   *  de `startRecalibration` (peso 25 %, movimiento provisional máx. ±0,5). */
   function confirmRecalibrationQuestionnaire(rawResult, adjustment, confirmedAt) {
     return confirmInitialLevel(rawResult, adjustment, false, confirmedAt);
   }
@@ -534,7 +579,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* 9. CATEGORÍAS DE COMUNICACIÓN (§3.7) — puramente de presentación (qué */
+  /* 8. CATEGORÍAS DE COMUNICACIÓN (legado) — puramente de presentación (qué */
   /* palabra usar para un número), no participa del cálculo. Cortes        */
   /* actualizados en V04.6 (V1.4 tenía 5.4/6.9/8.4; V1.5 corrige a          */
   /* 4.9/6.3/7.9) y la etiqueta superior pasa de "Competición" a            */
@@ -558,22 +603,25 @@
   global.PLLevelCalibration = {
     PARAMS,
     QUESTIONNAIRE_VERSION,
-    ANCHOR_AUTOEVALUACION,
-    ANCHOR_TECNICA,
-    TRAINING_MODIFIERS,
-    COMPETITION_MODIFIERS,
-    YEARS_POINTS,
-    FREQUENCY_POINTS,
-    CATEGORY_CONTEXT_MAPS,
-    CATEGORY_NEUTRAL_KEYS,
-    QUICK_SEEDS,
-    computeTechnicalAnchor,
-    computeFullEstimate,
-    computeQuickLevel,
-    computeCategoryAdjustment,
-    computeCategoryStep,
-    confirmInitialLevelV1_1,
-    confirmInitialLevelV1_2,
+    QUESTIONNAIRE_MODE,
+    QUESTION_IDS,
+    BRANCHES,
+    ANCHORS,
+    QUESTION_BANK,
+    isValidPosition,
+    interpolateAnchor,
+    branchForRunningMean,
+    branchForIndex,
+    computeOriginConfidence,
+    computeInitialEstimateV13,
+    confirmInitialLevelV13,
+    createQuestionnaireState,
+    reconcileQuestionnaireState,
+    answerQuestion,
+    isQuestionnaireComplete,
+    firstUnansweredIndex,
+    questionView,
+    stripLegacyNivelDraft,
     validateAdjustment,
     confirmInitialLevel,
     buildInitialCalibrationState,

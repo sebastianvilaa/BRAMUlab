@@ -6678,6 +6678,10 @@
    *  "Confirmar email ahora" adelantado) y al arrancar la app si queda un borrador sin
    *  terminar (bootWithServerSession/resumeServerSession). */
   async function resumeDraftFlow() {
+    // V04.28 — un borrador con Nivel V1.2 (incompleto o ya confirmado localmente pero sin oficializar)
+    // NUNCA se reutiliza: se descartan solo las respuestas/estado de Nivel; cuenta, email, perfil y
+    // @usuario se conservan y el jugador responde el cuestionario V1.3.
+    sanitizeLegacyNivelDraft();
     // `signupDraft.username` alcanza como criterio: solo se fija en el paso 2 después de que
     // recomputeSignupStepValidity ya exigió nombre/apellido/formato/términos (flujo normal), o
     // se siembra en resumeSignupProfileStep SOLO cuando el servidor confirma que complete_profile
@@ -6779,9 +6783,9 @@
     }
 
     const officialResult = await Auth.officializeLevel({
-      mode: signupDraft.nivelPathType,
-      quickSeedKey: signupDraft.nivelPathType === 'quick' ? signupDraft.nivelQuickSeedKey : undefined,
-      quizAnswers: signupDraft.nivelPathType === 'full' ? signupDraft.nivelQuizAnswers : undefined,
+      mode: LVC.QUESTIONNAIRE_MODE,
+      questionnaireVersion: LVC.QUESTIONNAIRE_VERSION,
+      quizAnswers: signupDraft.nivelAnswers,
     });
     if (!officialResult.ok) {
       // El borrador NO se toca: perfil mínimo ya quedó persistido (complete_profile es
@@ -6953,69 +6957,59 @@
      para el próximo bloque de Etapa D, ver Consolidado/Informe).
      ====================================================================== */
 
-  let nivelStep = 'intro'; // 'intro' | 'quick' | 'quiz' | 'result'
-  let nivelPathType = null; // 'quick' | 'full'
+  /* V04.28 — Nivel inicial V1.3: UN cuestionario adaptativo de 5 preguntas. Estado puro y
+     fórmula viven en level-calibration.js (LVC); acá solo orquestación de UI. */
+  let nivelStep = 'intro'; // 'intro' | 'quiz' | 'result'
   let nivelQuizIndex = 0;
-  let nivelQuizAnswers = {}; // {autoevaluacion, anos, entrenamiento, frecuencia, red, paredes} -> key
-  let nivelRawResult = null; // LVC.computeFullEstimate() | LVC.computeQuickLevel()
+  let nivelQuestionnaire = LVC.createQuestionnaireState(); // posiciones CONFIRMADAS con CONTINUAR + rama de cada una
+  let nivelDraftPosition = null; // posición activa de la pregunta en pantalla (0..9) o null = nada elegido
+  let nivelEstimate = null; // LVC.computeInitialEstimateV13() cuando el cuestionario está completo
 
-  const NIVEL_STEP_TITLES = { intro: 'TU NIVEL BRAMU', quick: 'ELEGÍ TU NIVEL', quiz: 'TU NIVEL BRAMU', result: 'TU NIVEL BRAMU' };
+  const NIVEL_STEP_TITLES = { intro: 'TU NIVEL BRAMU', quiz: 'TU NIVEL BRAMU', result: 'TU NIVEL BRAMU' };
 
-  // §3.2/§3.5 — mismas 5 anclas de autoevaluación de la fórmula normativa, reutilizadas tal
-  // cual para las descripciones de cada fila (nunca una segunda redacción suelta acá).
-  const NIVEL_QUICK_SEED_COPY = [
-    { key: 'iniciacion', title: 'Iniciación', desc: 'Estoy aprendiendo las reglas y los golpes básicos; me cuesta sostener el punto' },
-    { key: 'intermedio', title: 'Intermedio', desc: 'Sostengo intercambios y tengo algunos recursos, pero todavía cometo errores frecuentes' },
-    { key: 'intermedio_alto', title: 'Intermedio alto', desc: 'Construyo puntos y uso posiciones, paredes y juego en pareja, aunque bajo presión todavía cometo errores' },
-    { key: 'avanzado', title: 'Avanzado', desc: 'Manejo ritmos, posiciones y distintos recursos con consistencia' },
-    { key: 'profesional', title: 'Profesional', desc: 'Compito en categorías máximas o circuito profesional a alta velocidad y presión' },
-  ];
+  /** Progreso versionado para soportar reload (Store.NIVEL_PROGRESS). Solo posiciones+ramas
+   *  confirmadas — nunca el nivel calculado. */
+  function persistNivelProgress() {
+    Store.saveNivelProgress({
+      version: LVC.QUESTIONNAIRE_VERSION, context: nivelOnboardingContext,
+      positions: nivelQuestionnaire.positions, branches: nivelQuestionnaire.branches,
+    });
+  }
 
-  // Estimador inicial V1.2 — cuestionario completo de 6 preguntas. Se retira la pregunta
-  // competitiva ligada a categoría porque la categoría local ya no interviene en el cálculo
-  // inicial universal. Cada `id` sigue siendo una key explícita, nunca un índice posicional.
-  const NIVEL_FULL_QUESTIONS = [
-    { id: 'autoevaluacion', label: '¿Cómo describirías tu juego actual?', options: NIVEL_QUICK_SEED_COPY.map((o) => ({ key: o.key, title: o.title, desc: o.desc })) },
-    { id: 'anos', label: '¿Hace cuánto jugás al pádel?', options: [
-      { key: 'menos_1', title: 'Menos de un año' },
-      { key: 'uno_a_cinco', title: 'Entre uno y cinco años' },
-      { key: 'mas_5', title: 'Más de cinco años' },
-    ] },
-    { id: 'entrenamiento', label: '¿Qué experiencia tenés con clases o entrenamiento?', options: [
-      { key: 'nunca', title: 'Nunca tomé clases' },
-      { key: 'aisladas', title: 'Hice algunas clases o clínicas aisladas' },
-      { key: 'sin_continuidad', title: 'Tomo clases de vez en cuando, sin continuidad' },
-      { key: 'regular_pasado', title: 'Entrené regularmente durante una etapa, aunque actualmente no entreno' },
-      { key: 'regular_actual', title: 'Entreno con regularidad actualmente' },
-    ] },
-    { id: 'frecuencia', label: 'En tus últimos tres meses activos, ¿con qué frecuencia jugaste?', options: [
-      { key: 'esporadico', title: 'Juego esporádicamente o muy poco' },
-      { key: 'una_a_tres_mes', title: 'Juego entre una y tres veces por mes' },
-      { key: 'una_dos_semana', title: 'Juego una o dos veces por semana' },
-      { key: 'tres_mas_semana', title: 'Juego tres veces por semana o más' },
-    ] },
-    { id: 'red', label: 'Cuando estás en la red, ¿qué opción te representa mejor?', options: [
-      { key: 'a', title: 'Me cuesta subir, ubicarme y sostener la posición en la red' },
-      { key: 'b', title: 'Resuelvo voleas simples, pero pierdo la red fácilmente cuando me presionan o me superan con un globo' },
-      { key: 'c', title: 'Suelo sostener la red y ubicarme con mi compañero, aunque de vez en cuando me apuro y cometo errores no forzados' },
-      { key: 'd', title: 'Uso voleas y bandejas para conservar la posición, elijo cuándo acelerar y minimizo los errores no forzados' },
-      { key: 'e', title: 'Manejo distintos golpes, direcciones y ritmos incluso bajo presión; recupero la red con consistencia' },
-    ] },
-    { id: 'paredes', label: '¿Cómo te llevás con las paredes?', options: [
-      { key: 'a', title: 'Intento jugar la pelota antes de la pared porque todavía me cuesta interpretar el rebote' },
-      { key: 'b', title: 'Resuelvo rebotes simples de pared de fondo, pero a veces me ubico tarde o calculo mal la salida' },
-      { key: 'c', title: 'Uso pared de fondo y lateral con naturalidad en situaciones habituales, pero las pelotas rápidas o profundas todavía me generan errores' },
-      { key: 'd', title: 'Leo y resuelvo paredes simples y dobles, me ubico antes del rebote y mantengo el control incluso con velocidad' },
-      { key: 'e', title: 'Anticipo rebotes complejos y utilizo las paredes con consistencia bajo presión' },
-    ] },
-  ];
+  /** Retoma el progreso guardado si es V1.3 y del mismo contexto (alta en borrador vs cuenta). El
+   *  motor revalida versión y ramas: un estado de otra versión o inconsistente se descarta. */
+  function restoreNivelProgress() {
+    const saved = Store.loadNivelProgress();
+    if (!saved || saved.version !== LVC.QUESTIONNAIRE_VERSION || saved.context !== nivelOnboardingContext) return false;
+    const state = LVC.reconcileQuestionnaireState(saved);
+    if (!state.positions.some(LVC.isValidPosition)) return false;
+    nivelQuestionnaire = state;
+    return true;
+  }
+
+  function sanitizeLegacyNivelDraft() {
+    const r = LVC.stripLegacyNivelDraft(signupDraft);
+    if (!r.removed) return;
+    signupDraft = r.draft;
+    Store.saveSignupDraft(signupDraft);
+  }
 
   function openNivelOnboardingIntro() {
-    nivelStep = 'intro';
-    nivelPathType = null;
-    nivelQuizIndex = 0;
-    nivelQuizAnswers = {};
-    nivelRawResult = null;
+    nivelDraftPosition = null;
+    nivelEstimate = null;
+    nivelQuestionnaire = LVC.createQuestionnaireState();
+    if (restoreNivelProgress()) {
+      if (LVC.isQuestionnaireComplete(nivelQuestionnaire)) {
+        nivelEstimate = LVC.computeInitialEstimateV13(nivelQuestionnaire.positions);
+        nivelStep = 'result';
+      } else {
+        nivelQuizIndex = LVC.firstUnansweredIndex(nivelQuestionnaire);
+        nivelStep = 'quiz';
+      }
+    } else {
+      nivelStep = 'intro';
+      nivelQuizIndex = 0;
+    }
     renderNivelOnboardingStep();
     showView('nivel-onboarding');
   }
@@ -7023,57 +7017,147 @@
   function renderNivelOnboardingStep() {
     $('#nivel-onboarding-step-title').textContent = NIVEL_STEP_TITLES[nivelStep] || 'TU NIVEL BRAMU';
     $all('.nivel-step').forEach((el) => { el.hidden = el.dataset.step !== nivelStep; });
-    // BRAMUlab_V04.7 — "intro"/"quick" centraban verticalmente (`.access-scroll--centered`,
-    // retirada en V04.9 — "quedó demasiado centrada", revisión visual): todo el flujo de TU
-    // NIVEL BRAMU queda anclado arriba, igual que el resto de la familia de acceso.
-    if (nivelStep === 'quick') renderNivelQuickStep();
-    else if (nivelStep === 'quiz') renderNivelQuizStep();
+    if (nivelStep === 'quiz') renderNivelQuizStep();
     else if (nivelStep === 'result') renderNivelResultStep();
   }
 
-  function renderNivelQuickStep() {
-    const list = $('#nivel-quick-list');
-    list.innerHTML = NIVEL_QUICK_SEED_COPY.map((opt) => `
-      <button type="button" class="nivel-answer-option" data-seed="${opt.key}">
-        <span class="nivel-answer-option__title">${opt.title}</span>
-        <span class="nivel-answer-option__desc">${opt.desc}</span>
-      </button>
-    `).join('');
-    $all('#nivel-quick-list .nivel-answer-option').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const seed = LVC.computeQuickLevel(btn.dataset.seed);
-        if (!seed) return;
-        nivelPathType = 'quick';
-        nivelRawResult = seed;
-        nivelStep = 'result';
-        renderNivelOnboardingStep();
-      });
+  /* ---- Slider discreto de 10 posiciones + tap en descripción (misma posición) ---- */
+
+  const NIVEL_SLIDER_MAX = LVC.PARAMS.SLIDER_POSITIONS - 1; // 9
+
+  /** Centro vertical (px, relativo al contenedor) de cada una de las 4 tarjetas — la rejilla del
+   *  riel se arma a partir de la altura REAL de las descripciones, que varían de largo. */
+  function nivelSliderAnchorCenters() {
+    return $all('#nivel-slider-cards .nivel-slider__card').map((c) => c.offsetTop + c.offsetHeight / 2);
+  }
+  /** Posición (px) de cada uno de los 10 checkpoints: anclas en el centro de las tarjetas (0/3/6/9),
+   *  los dos intermedios repartidos a 1/3 y 2/3 entre anclas vecinas. */
+  function nivelSliderPositionsPx() {
+    const c = nivelSliderAnchorCenters();
+    if (c.length !== 4) return [];
+    const out = [];
+    for (let p = 0; p <= NIVEL_SLIDER_MAX; p += 1) {
+      if (p === NIVEL_SLIDER_MAX) { out.push(c[3]); continue; }
+      const seg = Math.floor(p / 3);
+      out.push(c[seg] + ((p % 3) / 3) * (c[seg + 1] - c[seg]));
+    }
+    return out;
+  }
+
+  function layoutNivelSlider() {
+    const rail = $('#nivel-slider-rail');
+    if (!rail) return;
+    const px = nivelSliderPositionsPx();
+    if (px.length !== 10) return;
+    const line = rail.querySelector('.nivel-slider__line');
+    if (line) { line.style.top = px[0] + 'px'; line.style.height = (px[9] - px[0]) + 'px'; }
+    rail.querySelectorAll('.nivel-slider__dot').forEach((dot) => { dot.style.top = px[Number(dot.dataset.pos)] + 'px'; });
+    const thumb = rail.querySelector('.nivel-slider__thumb');
+    if (thumb && nivelDraftPosition != null) thumb.style.top = px[nivelDraftPosition] + 'px';
+  }
+
+  /** Pinta el estado del valor activo: checkpoint activo, thumb, y énfasis de descripciones. */
+  function paintNivelSlider() {
+    const rail = $('#nivel-slider-rail');
+    const p = nivelDraftPosition;
+    const hasValue = p != null;
+    $('#nivel-slider').dataset.position = hasValue ? String(p) : '';
+    rail.querySelectorAll('.nivel-slider__dot').forEach((dot) => { dot.classList.toggle('is-active', hasValue && Number(dot.dataset.pos) === p); });
+    const thumb = rail.querySelector('.nivel-slider__thumb');
+    thumb.hidden = !hasValue;
+    if (hasValue) { const px = nivelSliderPositionsPx(); if (px.length === 10) thumb.style.top = px[p] + 'px'; }
+    $all('#nivel-slider-cards .nivel-slider__card').forEach((card, i) => {
+      const exact = hasValue && p % 3 === 0 && p / 3 === i;
+      const near = hasValue && p % 3 !== 0 && (Math.floor(p / 3) === i || Math.floor(p / 3) + 1 === i);
+      card.classList.toggle('is-selected', !!exact);
+      card.classList.toggle('is-near', !!near);
+      card.setAttribute('aria-pressed', exact ? 'true' : 'false');
     });
+    if (hasValue) {
+      rail.setAttribute('aria-valuenow', String(p));
+      rail.setAttribute('aria-valuetext', p % 3 === 0 ? `Descripción ${p / 3 + 1}` : `Entre la descripción ${Math.floor(p / 3) + 1} y la ${Math.floor(p / 3) + 2}`);
+    } else {
+      rail.removeAttribute('aria-valuenow');
+      rail.setAttribute('aria-valuetext', 'Sin elegir');
+    }
+    $('#nivel-quiz-continue-btn').disabled = !hasValue;
+  }
+
+  /** ÚNICO punto que cambia el valor activo: siempre un entero 0..9 (nunca continuo). */
+  function setNivelDraftPosition(p) {
+    if (!LVC.isValidPosition(p)) return;
+    nivelDraftPosition = p;
+    paintNivelSlider();
+  }
+
+  function nivelPositionFromClientY(clientY) {
+    const rail = $('#nivel-slider-rail');
+    const px = nivelSliderPositionsPx();
+    if (px.length !== 10) return null;
+    const y = clientY - rail.getBoundingClientRect().top;
+    let best = 0;
+    px.forEach((v, i) => { if (Math.abs(v - y) < Math.abs(px[best] - y)) best = i; });
+    return best;
   }
 
   function renderNivelQuizStep() {
-    const question = NIVEL_FULL_QUESTIONS[nivelQuizIndex];
-    const total = NIVEL_FULL_QUESTIONS.length;
+    const total = LVC.QUESTION_IDS.length;
+    const view = LVC.questionView(nivelQuestionnaire, nivelQuizIndex);
+    if (!view) { nivelQuizIndex = LVC.firstUnansweredIndex(nivelQuestionnaire); return renderNivelQuizStep(); }
+    nivelDraftPosition = view.position; // null si la pregunta aún no tiene respuesta confirmada
     $('#nivel-quiz-progress-bar').style.width = Math.round(((nivelQuizIndex + 1) / total) * 100) + '%';
     $('#nivel-quiz-progress-label').textContent = `Pregunta ${nivelQuizIndex + 1} de ${total}`;
-    $('#nivel-quiz-question-text').textContent = question.label;
-    const selectedKey = nivelQuizAnswers[question.id];
-    const list = $('#nivel-quiz-answer-list');
-    list.innerHTML = question.options.map((opt) => `
-      <button type="button" class="nivel-answer-option${opt.key === selectedKey ? ' is-selected' : ''}" data-key="${opt.key}">
-        <span class="nivel-answer-option__title">${opt.title}</span>
-        ${opt.desc ? `<span class="nivel-answer-option__desc">${opt.desc}</span>` : ''}
-      </button>
-    `).join('');
-    const continueBtn = $('#nivel-quiz-continue-btn');
-    continueBtn.disabled = !selectedKey;
-    continueBtn.textContent = nivelQuizIndex === total - 1 ? 'VER MI NIVEL' : 'CONTINUAR';
-    $all('#nivel-quiz-answer-list .nivel-answer-option').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        nivelQuizAnswers[question.id] = btn.dataset.key;
-        renderNivelQuizStep();
-      });
+    $('#nivel-quiz-question-text').textContent = view.prompt || view.dimension;
+    // Tarjetas: las cuatro descripciones completas, en orden. Sin letras, valores ni rama.
+    $('#nivel-slider-cards').innerHTML = view.texts.map((t, i) => `<button type="button" class="nivel-slider__card" data-anchor="${i}">${escapeHtml(t)}</button>`).join('');
+    let railHtml = '<span class="nivel-slider__line"></span>';
+    for (let p = 0; p <= NIVEL_SLIDER_MAX; p += 1) railHtml += `<span class="nivel-slider__dot${p % 3 === 0 ? ' nivel-slider__dot--anchor' : ''}" data-pos="${p}"></span>`;
+    railHtml += '<span class="nivel-slider__thumb" hidden></span>';
+    $('#nivel-slider-rail').innerHTML = railHtml;
+    $all('#nivel-slider-cards .nivel-slider__card').forEach((card) => {
+      card.addEventListener('click', () => setNivelDraftPosition(Number(card.dataset.anchor) * 3)); // 0/3/6/9
     });
+    $('#nivel-quiz-continue-btn').textContent = nivelQuizIndex === total - 1 ? 'VER MI NIVEL' : 'CONTINUAR';
+    layoutNivelSlider();
+    paintNivelSlider();
+    // El layout depende de la altura real de los textos: se recalcula tras el pintado (fuentes) y
+    // ante cambios de tamaño de pantalla.
+    requestAnimationFrame(() => { layoutNivelSlider(); paintNivelSlider(); });
+  }
+
+  function initNivelSlider() {
+    const rail = $('#nivel-slider-rail');
+    let dragging = false;
+    rail.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { rail.setPointerCapture(e.pointerId); } catch (err) { /* no soportado: el arrastre sigue por el propio riel */ }
+      const p = nivelPositionFromClientY(e.clientY);
+      if (p != null) setNivelDraftPosition(p);
+      e.preventDefault();
+    });
+    rail.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const p = nivelPositionFromClientY(e.clientY);
+      if (p != null && p !== nivelDraftPosition) setNivelDraftPosition(p);
+    });
+    const stop = () => { dragging = false; };
+    rail.addEventListener('pointerup', stop);
+    rail.addEventListener('pointercancel', stop);
+    rail.addEventListener('keydown', (e) => {
+      const inc = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+      const dec = e.key === 'ArrowUp' || e.key === 'ArrowLeft';
+      if (!inc && !dec && e.key !== 'Home' && e.key !== 'End') return;
+      e.preventDefault();
+      // Sin valor previo nunca se sugiere una posición media: incrementar entra por el 0, decrementar por el 9.
+      const cur = nivelDraftPosition;
+      let next;
+      if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = NIVEL_SLIDER_MAX;
+      else if (cur == null) next = inc ? 0 : NIVEL_SLIDER_MAX;
+      else next = Math.min(NIVEL_SLIDER_MAX, Math.max(0, cur + (inc ? 1 : -1)));
+      setNivelDraftPosition(next);
+    });
+    window.addEventListener('resize', () => { if (nivelStep === 'quiz') { layoutNivelSlider(); paintNivelSlider(); } });
   }
 
   // §7 del Handoff V04.6 — geometría del medidor semicircular 1-10 (compartida por el arco de
@@ -7093,46 +7177,36 @@
     return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} A ${NIVEL_GAUGE.r} ${NIVEL_GAUGE.r} 0 0 1 ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
   }
 
-  /** Único punto que mueve el arco del medidor — nunca redibuja `d` en otro lado. La transición
-   *  suave al afinar por categoría (§7: "mover suavemente... desde la estimación inicial al
-   *  valor afinado") la aporta la propia transición CSS de `.nivel-gauge__fill` (siempre activa).
-   *  BRAMUlab_V04.9 (§7) — se retira el tick blanco (`.nivel-gauge__marker` de V04.7, ver
-   *  index.html/styles.css): seguía sin funcionar y en valores altos salía del arco (revisión
-   *  visual). El propio extremo redondeado del arco (`stroke-linecap:round`) ya indica la
-   *  posición en la escala, sin agregar ningún reemplazo — el parámetro `animate` que solo
-   *  controlaba la transición del tick queda sin ningún efecto y se retira de la firma. */
+  /** Único punto que mueve el arco del medidor. V04.28: el resultado muestra SOLO el número (1
+   *  decimal) y el estado CALIBRANDO — sin categoría textual (ver index.html). */
   function setNivelGaugeValue(value) {
     const v = Math.min(NIVEL_GAUGE.max, Math.max(NIVEL_GAUGE.min, value));
     $('#nivel-gauge-value-arc').setAttribute('d', nivelGaugeArcPath(NIVEL_GAUGE.min, v));
     $('#nivel-gauge-value').textContent = LV.roundPublicLevel(v).toFixed(1);
-    $('#nivel-result-category').textContent = LVC.categorizeLevel(v).label;
   }
 
   function renderNivelResultStep() {
-    // V1.2 — el resultado inicial es universal: no depende de país/rama/categoría local.
-    // La coherencia sigue comparando autoevaluación vs. técnica en el camino completo.
-    const universalStep = LVC.computeCategoryStep(nivelRawResult, null, null);
     $('#nivel-result-label').textContent = 'TU PUNTO DE PARTIDA EN BRAMU';
-    $('#nivel-coherence-note').hidden = !universalStep.coherenceFlag;
-    $('#nivel-confirm-btn').disabled = false;
-    setNivelGaugeValue(universalStep.adjustedLevel);
+    // Dispersión >= 2,0: se OFRECE revisar las respuestas; nunca bloquea ni se presenta como juicio.
+    $('#nivel-coherence-note').hidden = !(nivelEstimate && nivelEstimate.reviewSuggested);
+    $('#nivel-confirm-btn').disabled = !nivelEstimate;
+    if (nivelEstimate) setNivelGaugeValue(nivelEstimate.initialLevel);
   }
 
-  /** Confirma el nivel inicial V1.2 universal. La categoría local ya no participa del alta
-   *  ni del número: el navegador guarda solo la vista previa y el servidor recalcula la misma
-   *  estimación desde las respuestas crudas antes de persistirla. */
+  /** Confirma el nivel inicial V1.3. El navegador guarda solo la vista previa y las posiciones
+   *  crudas; el servidor recalcula el mismo resultado desde esas posiciones antes de persistirlo. */
   async function confirmNivelOnboarding() {
-    if (!nivelRawResult) return;
+    if (!nivelEstimate) return;
     const confirmedAt = new Date().toISOString();
-    const confirmResult = LVC.confirmInitialLevelV1_2(nivelRawResult, confirmedAt);
-    const state = LVC.buildInitialCalibrationState(nivelPathType, confirmResult, nivelPathType === 'full' ? nivelQuizAnswers : null);
+    const confirmResult = LVC.confirmInitialLevelV13(nivelEstimate, confirmedAt);
+    const state = LVC.buildInitialCalibrationState(LVC.QUESTIONNAIRE_MODE, confirmResult, nivelEstimate.positions);
 
     if (nivelOnboardingContext === 'draft') {
-      signupDraft.nivelPathType = nivelPathType;
-      signupDraft.nivelQuickSeedKey = nivelPathType === 'quick' ? (nivelRawResult && nivelRawResult.seedKey) : null;
-      signupDraft.nivelQuizAnswers = nivelPathType === 'full' ? nivelQuizAnswers : null;
+      signupDraft.nivelQuestionnaireVersion = LVC.QUESTIONNAIRE_VERSION;
+      signupDraft.nivelAnswers = nivelEstimate.positions;
       signupDraft.nivelState = state; // vista previa local únicamente — nunca la autoridad
       Store.saveSignupDraft(signupDraft);
+      Store.clearNivelProgress();
 
       // Backend Bloque 3 — si el email ya se confirmó anticipadamente, Supabase dejó una
       // sesión persistida. En ese caso NO corresponde volver a pedir OTP: el borrador ya tiene
@@ -7158,17 +7232,19 @@
     const user = Store.getCurrentUser();
     if (!user) return;
     Store.saveLevelV1State(user.id, state);
+    Store.clearNivelProgress();
     completeIdentifyAction();
   }
 
   function initNivelOnboardingScreen() {
     $('#nivel-onboarding-back-btn').addEventListener('click', () => {
-      if (nivelStep === 'result') { nivelStep = nivelPathType === 'full' ? 'quiz' : 'quick'; renderNivelOnboardingStep(); return; }
+      // Volver atrás NUNCA toca respuestas ni confianza: solo cambia de pantalla/pregunta. Lo que se
+      // movió en la pregunta actual y no se confirmó con CONTINUAR se descarta.
+      if (nivelStep === 'result') { nivelQuizIndex = LVC.QUESTION_IDS.length - 1; nivelStep = 'quiz'; renderNivelOnboardingStep(); return; }
       if (nivelStep === 'quiz') {
         if (nivelQuizIndex > 0) { nivelQuizIndex -= 1; renderNivelOnboardingStep(); return; }
         nivelStep = 'intro'; renderNivelOnboardingStep(); return;
       }
-      if (nivelStep === 'quick') { nivelStep = 'intro'; renderNivelOnboardingStep(); return; }
       // BRAMUlab_V04.7 — bug real corregido: 'intro' volvía llamando completeIdentifyAction(),
       // que mandaba directo al Home como si el onboarding hubiera terminado — el Nivel BRAMU
       // obligatorio quedaba sin crear y la app se podía usar igual. Ahora vuelve a "TU PERFIL
@@ -7187,32 +7263,32 @@
       if (user) { openPlayerCardScreen(user); } else { completeIdentifyAction(); }
     });
 
-    $('#nivel-path-full-btn').addEventListener('click', () => {
-      nivelPathType = 'full';
-      nivelQuizIndex = 0;
-      nivelQuizAnswers = {};
+    $('#nivel-start-btn').addEventListener('click', () => {
+      nivelQuizIndex = LVC.firstUnansweredIndex(nivelQuestionnaire);
       nivelStep = 'quiz';
       renderNivelOnboardingStep();
     });
-    $('#nivel-path-quick-btn').addEventListener('click', () => {
-      nivelPathType = 'quick';
-      nivelStep = 'quick';
-      renderNivelOnboardingStep();
-    });
+
+    initNivelSlider();
 
     $('#nivel-quiz-continue-btn').addEventListener('click', () => {
-      const total = NIVEL_FULL_QUESTIONS.length;
+      if (nivelDraftPosition == null) return; // CONTINUAR solo existe tras una interacción real
+      const total = LVC.QUESTION_IDS.length;
+      // Confirma la respuesta; si cambió la rama de preguntas posteriores, el motor descarta esas
+      // respuestas (nunca reutiliza una posición con textos de otra rama) y se vuelven a preguntar.
+      nivelQuestionnaire = LVC.answerQuestion(nivelQuestionnaire, nivelQuizIndex, nivelDraftPosition);
+      persistNivelProgress();
       if (nivelQuizIndex < total - 1) { nivelQuizIndex += 1; renderNivelOnboardingStep(); return; }
-      nivelRawResult = LVC.computeFullEstimate(nivelQuizAnswers);
+      nivelEstimate = LVC.computeInitialEstimateV13(nivelQuestionnaire.positions);
+      if (!nivelEstimate) { nivelQuizIndex = LVC.firstUnansweredIndex(nivelQuestionnaire); renderNivelOnboardingStep(); return; }
       nivelStep = 'result';
       renderNivelOnboardingStep();
     });
 
     $('#nivel-confirm-btn').addEventListener('click', confirmNivelOnboarding);
-    // "Revisar respuestas" — vuelve a empezar la elección de camino (también es la acción que
-    // ofrece el aviso de coherencia, §8 del Handoff V04.6); esta primera versión no reconstruye
-    // las respuestas anteriores paso a paso.
-    $('#nivel-review-btn').addEventListener('click', () => { openNivelOnboardingIntro(); });
+    // "Revisar respuestas" — vuelve a la primera pregunta CONSERVANDO las respuestas ya dadas
+    // (cada una se puede cambiar; si cambia la rama, se vuelven a preguntar las siguientes).
+    $('#nivel-review-btn').addEventListener('click', () => { nivelQuizIndex = 0; nivelStep = 'quiz'; renderNivelOnboardingStep(); });
   }
 
   /** `null` sin sesión o sin estado guardado — único punto de lectura del prototipo local
