@@ -233,3 +233,9 @@ Solución V04.24 aprobada y **NO TOCAR**:
 - Resumen oficial post-partido;
 - BRAMUlive;
 - main / Production.
+
+---
+
+## 9. Estado de implementación
+
+V04.26 / `04.26-h1` implementada en Staging según este documento (detalle y límites de verificación en `Implementacion/Pre_Production/108_Resultado_V0426_Cargar_Partido_Dos_Instancias_02OCT.md`). Pendiente QA humano en iPhone; la UX no se da por cerrada.

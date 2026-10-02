@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.25-h1" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.26-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.25-h1" />
+<link rel="stylesheet" href="styles.css?v=04.26-h1" />
 </head>
 <body>
 
@@ -314,15 +314,6 @@
     </div>
     <div class="court-scroll load-match-scroll" id="manual-load-scroll">
 
-      <!-- V04.24 — MODO RESULTADO: visible solo mientras el teclado numérico está abierto
-           (`#view-manual-load.is-score-entry`). Resumen compacto de las dos parejas (A verde / B
-           celeste) para que el marcador siempre quede identificado sin las tarjetas grandes. -->
-      <div class="score-matchup" id="manual-score-matchup" role="group" aria-label="Parejas" hidden>
-        <div class="score-matchup__team score-matchup__team--a"><span class="score-matchup__names" id="score-matchup-a">—</span></div>
-        <span class="score-matchup__vs" aria-hidden="true">VS</span>
-        <div class="score-matchup__team score-matchup__team--b"><span class="score-matchup__names" id="score-matchup-b">—</span></div>
-      </div>
-
       <!-- Handoff cierre UX h13 (§9 "Cargar partido — metadata arriba de los equipos") — REEMPLAZA
            el orden de "Segunda corrección QA 26SEP §6" (formato/fecha DESPUÉS de los equipos):
            QA físico h13 confirmó que debía quedar ANTES — la metadata (formato/sets/sistema/
@@ -340,132 +331,57 @@
         </button>
       </div>
 
-      <!-- V02.2 (Bloque C, §7) — tarjetas de equipo compactas, mismo lenguaje visual que la
-           composición de equipos ya validada en la configuración en vivo (.team-block): borde
-           general neutro + acento LATERAL de color (nunca solo una línea inferior), separador
-           VS entre ambas. Reemplaza los cuatro pills sueltos anteriores. -->
-      <div class="court-team-cards" role="group" aria-label="Jugadores">
-        <div class="court-team-card court-team-card--a">
-          <div class="court-team-card__label"><span class="team-dot team-dot--a"></span>EQUIPO A</div>
-          <div class="court-team-card__row">
-            <button type="button" class="court-team-card__player court-team-card__player--fixed" id="load-player-a1" aria-label="Jugador 1 del Equipo A (vos)" disabled>
-              <span class="court-team-card__player-name" id="load-player-a1-name">—</span>
-            </button>
-            <button type="button" class="court-team-card__player" id="load-player-a2" data-slot="a2" aria-label="Elegir compañero">
-              <span class="court-team-card__player-name">+ Compañero</span>
-            </button>
+      <!-- V04.26 — INSTANCIA 1 · JUGADORES: dos tarjetas BRAMU (A verde / B celeste) con dos filas de
+           jugador cada una (`.player-row`, la presentación canónica; se renderizan en app.js ->
+           renderManualPlayers), separador VS existente y CARGAR RESULTADO (`.btn-start`, deshabilitado hasta
+           tener los cuatro jugadores; nunca avanza solo). -->
+      <div id="manual-step-players">
+        <div class="mp-teams" role="group" aria-label="Jugadores">
+          <div class="mp-team mp-team--a">
+            <div class="mp-team__label"><span class="team-dot team-dot--a"></span>EQUIPO A</div>
+            <div class="mp-slot mp-slot--fixed" id="mp-slot-a1" data-slot="a1"></div>
+            <div class="mp-slot" id="mp-slot-a2" data-slot="a2"></div>
+          </div>
+          <div class="vs-divider vs-divider--compact" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
+          <div class="mp-team mp-team--b">
+            <div class="mp-team__label"><span class="team-dot team-dot--b"></span>EQUIPO B</div>
+            <div class="mp-slot" id="mp-slot-b1" data-slot="b1"></div>
+            <div class="mp-slot" id="mp-slot-b2" data-slot="b2"></div>
           </div>
         </div>
-        <div class="vs-divider vs-divider--compact" aria-hidden="true"><span class="vs-divider__line"></span><span class="vs-divider__text">VS</span><span class="vs-divider__line"></span></div>
-        <div class="court-team-card court-team-card--b">
-          <div class="court-team-card__label"><span class="team-dot team-dot--b"></span>EQUIPO B</div>
-          <div class="court-team-card__row">
-            <button type="button" class="court-team-card__player" id="load-player-b1" data-slot="b1" aria-label="Elegir rival 1">
-              <span class="court-team-card__player-name">+ Rival 1</span>
-            </button>
-            <button type="button" class="court-team-card__player" id="load-player-b2" data-slot="b2" aria-label="Elegir rival 2">
-              <span class="court-team-card__player-name">+ Rival 2</span>
-            </button>
-          </div>
+        <button type="button" id="manual-go-result-btn" class="btn-start mp-cta" disabled>CARGAR RESULTADO</button>
+      </div>
+
+      <!-- V04.26 — INSTANCIA 2 · RESULTADO: el resumen ES el formulario. `#manual-result-card` es la
+           `.result-card` canónica en variante editable (nombres | SET 1 · SET 2 · SET 3); tocar un set lo
+           activa y abre el wheel A/B (#manual-wheel-panel). Con el partido decidido la misma tarjeta muestra
+           GANADORES + SETS/GAMES GANADOS y se habilita CONFIRMAR PARTIDO. No existe "RESULTADO DEL SET X". -->
+      <div id="manual-step-result" hidden>
+        <button type="button" id="manual-change-players-btn" class="mp-change-players">‹ CAMBIAR JUGADORES</button>
+        <div id="manual-result-card"></div>
+        <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
+        <button type="button" id="manual-confirm-btn" class="btn-start mp-cta" disabled>CONFIRMAR PARTIDO</button>
+      </div>
+
+    </div>
+
+    <!-- V04.26 — selector de score: un wheel vertical por equipo (scroll-snap). Valor activo centrado, el
+         valor que se mueve se ve en vivo en la result-card. LISTO cierra el set completo (A y B). -->
+    <div id="manual-wheel-panel" class="mw-panel" hidden>
+      <div class="mw-panel__head">
+        <span class="mw-panel__title" id="manual-wheel-title">SET 1</span>
+        <button type="button" id="manual-wheel-done" class="btn-start mw-panel__done" disabled>LISTO</button>
+      </div>
+      <div class="mw-panel__wheels">
+        <div class="mw-col mw-col--a">
+          <div class="mw-col__label"><span class="team-dot team-dot--a"></span>EQUIPO A</div>
+          <div class="mw-wheel-wrap"><div class="mw-wheel" id="mw-wheel-a" role="listbox" tabindex="0" aria-label="Games del Equipo A"></div><div class="mw-wheel-bar" aria-hidden="true"></div></div>
+        </div>
+        <div class="mw-col mw-col--b">
+          <div class="mw-col__label"><span class="team-dot team-dot--b"></span>EQUIPO B</div>
+          <div class="mw-wheel-wrap"><div class="mw-wheel" id="mw-wheel-b" role="listbox" tabindex="0" aria-label="Games del Equipo B"></div><div class="mw-wheel-bar" aria-hidden="true"></div></div>
         </div>
       </div>
-
-      <!-- §6.2 — marcador acumulado: solo sets ya CONFIRMADOS (con CONTINUAR). Vacío al
-           empezar un partido nuevo. Tocar un set ya confirmado lo reabre para editarlo
-           (reopenManualSet en app.js) sin borrar los posteriores en silencio. -->
-      <div class="court-accumulated" id="court-accumulated" role="group" aria-label="Sets confirmados" hidden></div>
-
-      <!-- §6.3 — set actual: números grandes, ambos tocables, lado activo marcado. -->
-      <div class="court-current-set">
-        <div class="court-current-set__label" id="court-current-set-label">RESULTADO DEL SET 1</div>
-        <div class="court-current-set__row">
-          <button type="button" class="court-score court-score--a" id="court-score-a" aria-label="Resultado, tu equipo, set actual">
-            <span class="court-score__value" id="court-score-a-value">–</span>
-            <span class="court-score__name" id="court-score-a-name">Vos</span>
-          </button>
-          <span class="court-score__sep" aria-hidden="true">–</span>
-          <button type="button" class="court-score court-score--b" id="court-score-b" aria-label="Resultado, rivales, set actual">
-            <span class="court-score__value" id="court-score-b-value">–</span>
-            <span class="court-score__name" id="court-score-b-name">Rival</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- BRAMUlab_V03.2.1 (§9) — "Resultado válido" vuelve a vivir junto al bloque de
-           resultado (antes quedaba a cientos de píxeles, dentro de la barra fija de CONTINUAR,
-           varias secciones más abajo). Sigue SIN ir adentro de `.court-current-set` (V02.3
-           §4: esa tarjeta se oculta por completo una vez decidido el partido, y el hint
-           JUSTO entonces necesita mostrarse — por eso vive como hermano inmediato, en el flujo
-           normal del scroll: cuando la tarjeta se oculta, el hint queda pegado debajo del
-           marcador acumulado, que es "el resultado" visible en ese momento). -->
-      <p class="court-current-set__hint" id="court-current-set-hint" hidden>Resultado válido</p>
-
-      <p class="coverage-note load-match-error" id="load-match-error" hidden></p>
-
-    </div>
-
-    <!-- CONTINUAR (§6.3/§7.1): confirma el set actual y avanza, o guarda el partido cuando ya
-         quedó decidido. Fijo inmediatamente arriba del teclado cuando está abierto.
-         BRAMUlab_V03.2.1 (§9) — "Resultado válido" se mudó junto al bloque de resultado (ver
-         arriba, dentro de .court-scroll) — acá solo queda el botón. -->
-    <div class="court-continue-wrap" id="court-continue-wrap">
-      <button type="button" id="manual-continue-btn" class="court-continue-btn" disabled>CONTINUAR</button>
-    </div>
-
-    <!-- §7 — teclado numérico propio BRAMU: panel fijo, sin scrim (el marcador sigue visible
-         arriba). Volver (header) lo cierra primero antes de salir de toda la pantalla. -->
-    <div id="load-keypad" class="load-keypad" hidden>
-      <div class="load-keypad__grid">
-        <button type="button" class="load-keypad__key" data-key="1">1</button>
-        <button type="button" class="load-keypad__key" data-key="2">2</button>
-        <button type="button" class="load-keypad__key" data-key="3">3</button>
-        <button type="button" class="load-keypad__key" data-key="4">4</button>
-        <button type="button" class="load-keypad__key" data-key="5">5</button>
-        <button type="button" class="load-keypad__key" data-key="6">6</button>
-        <button type="button" class="load-keypad__key" data-key="7">7</button>
-        <button type="button" class="load-keypad__key" data-key="8">8</button>
-        <button type="button" class="load-keypad__key" data-key="9">9</button>
-        <button type="button" class="load-keypad__key load-keypad__key--ghost" data-key="del">Borrar</button>
-        <button type="button" class="load-keypad__key" data-key="0">0</button>
-        <button type="button" class="load-keypad__key load-keypad__key--ghost" data-key="done">Listo</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       VISTA · CONFIRMAR PARTIDO — V02.1 (§13/§14)
-       Reemplaza a la vieja "Partido guardado": esta pantalla aparece ANTES de persistir el
-       partido (Set final ya cargado, todavía en borrador). "GUARDAR PARTIDO" es la única
-       persistencia real — de acá en más el flujo es directo a Resumen, sin pantallas
-       intermedias ni recorridos circulares (§13).
-       ============================================================ -->
-  <section id="view-match-saved" class="view view--court" hidden>
-    <div class="court-header court-header--saved">
-      <button id="match-saved-back-btn" class="icon-btn court-header__back" type="button" aria-label="Volver a corregir el resultado">←</button>
-      <span class="court-header__status court-header__status--saved" id="match-saved-status">CONFIRMAR PARTIDO</span>
-    </div>
-    <div class="court-scroll" id="match-saved-scroll">
-      <div class="court-saved-result">
-        <div class="court-saved-result__badge" id="match-saved-badge">VICTORIA</div>
-      </div>
-
-      <!-- V02.3 (Bloque B, §5) — reemplaza el resultado grande suelto (badge + marcador + línea
-           de equipos) por la misma tarjeta deportiva del Resumen (buildScoreCardHTML +
-           buildWinnersBannerHTML, ver openConfirmMatchScreen en app.js): GANADORES + fila por
-           equipo en celeste/magenta, SIN Sets/Games ganados (eso es propio del Resumen, nunca
-           de esta confirmación). Números de set levemente más grandes vía .court-saved-result-card
-           para que el marcador conserve protagonismo. -->
-      <div class="court-saved-result-card" id="match-saved-result-card"></div>
-
-      <button type="button" id="match-saved-meta-line" class="court-meta-line">
-        <span class="court-meta-line__text" id="match-saved-meta-text">Hoy</span>
-        <span class="court-meta-line__action">Modificar</span>
-      </button>
-
-      <!-- V02.5 (Bloque C, §14) — Notas ya NO vive acá: guardar el resultado no debe obligar a
-           pasar por notas. Se escribe (opcional) desde el Resumen, después de guardar — ver
-           #analysis-note-display/renderAnalysisNoteDisplay. -->
-      <button type="button" id="match-saved-view-summary" class="court-continue-btn">GUARDAR PARTIDO</button>
     </div>
   </section>
 
@@ -3164,47 +3080,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.25-h1"></script>
-  <script src="stats.js?v=04.25-h1"></script>
-  <script src="store.js?v=04.25-h1"></script>
+  <script src="engine.js?v=04.26-h1"></script>
+  <script src="stats.js?v=04.26-h1"></script>
+  <script src="store.js?v=04.26-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.25-h1"></script>
-  <script src="level-context.js?v=04.25-h1"></script>
-  <script src="level-calibration.js?v=04.25-h1"></script>
-  <script src="player-home.js?v=04.25-h1"></script>
-  <script src="match-load.js?v=04.25-h1"></script>
-  <script src="player-identity.js?v=04.25-h1"></script>
-  <script src="groups.js?v=04.25-h1"></script>
-  <script src="locations.js?v=04.25-h1"></script>
-  <script src="ranking.js?v=04.25-h1"></script>
+  <script src="level.js?v=04.26-h1"></script>
+  <script src="level-context.js?v=04.26-h1"></script>
+  <script src="level-calibration.js?v=04.26-h1"></script>
+  <script src="player-home.js?v=04.26-h1"></script>
+  <script src="match-load.js?v=04.26-h1"></script>
+  <script src="player-identity.js?v=04.26-h1"></script>
+  <script src="groups.js?v=04.26-h1"></script>
+  <script src="locations.js?v=04.26-h1"></script>
+  <script src="ranking.js?v=04.26-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.25-h1"></script>
+  <script src="auth.js?v=04.26-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.25-h1"></script>
-  <script src="match-sync.js?v=04.25-h1"></script>
+  <script src="matches.js?v=04.26-h1"></script>
+  <script src="match-sync.js?v=04.26-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.25-h1"></script>
+  <script src="match-validation.js?v=04.26-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.25-h1"></script>
+  <script src="match-self-heal.js?v=04.26-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.25-h1"></script>
-  <script src="app.js?v=04.25-h1"></script>
+  <script src="intelligence-client.js?v=04.26-h1"></script>
+  <script src="app.js?v=04.26-h1"></script>
 </body>
 </html>

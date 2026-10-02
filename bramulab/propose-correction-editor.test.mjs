@@ -44,7 +44,8 @@ function extractFunctionBody(source, name) {
 
 /* ---- Capa 1: guarda estática sobre app.js (Proponer corrección + Cargar partido, mellizas) ---- */
 
-for (const [prefix, sideEnteredVar] of [['Propose', 'b6CorrectionSideEntered'], ['', 'manualSideEntered']]) {
+// V04.26 — Cargar partido ya no usa teclado (wheel); esta guarda sigue valiendo para el editor de Proponer corrección.
+for (const [prefix, sideEnteredVar] of [['Propose', 'b6CorrectionSideEntered']]) {
   const advanceFn = prefix ? 'advanceProposeCorrectionDraftSide' : 'advanceDraftSide';
   const keysFn = prefix ? 'updateProposeCorrectionKeypadKeysState' : 'updateManualKeypadKeysState';
   const commitDigitsFn = prefix ? 'commitProposeCorrectionDraftDigits' : 'commitDraftDigits';
@@ -72,11 +73,6 @@ for (const [prefix, sideEnteredVar] of [['Propose', 'b6CorrectionSideEntered'], 
 test('reopenProposeCorrectionSet resetea b6CorrectionSideEntered al reabrir un set ya cargado', () => {
   const body = extractFunctionBody(appJs, 'reopenProposeCorrectionSet');
   assert.match(body, /b6CorrectionSideEntered = \{ a: false, b: false \}/, 'reabrir un set debe tratar ambos lados como "todavía no reafirmados en esta pasada"');
-});
-
-test('reopenManualSet resetea manualSideEntered al reabrir un set ya cargado', () => {
-  const body = extractFunctionBody(appJs, 'reopenManualSet');
-  assert.match(body, /manualSideEntered = \{ a: false, b: false \}/, 'reabrir un set debe tratar ambos lados como "todavía no reafirmados en esta pasada"');
 });
 
 /* ---- Capa 2: simulación dinámica contra las funciones puras REALES de match-load.js/engine.js ---- */

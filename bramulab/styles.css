@@ -1344,7 +1344,7 @@ input, select{ font-family: inherit; }
      punta a punta del viewport en tablet/escritorio. Mismo ancho máximo que `.view--court`
      acá arriba, centrados igual. En celular (`<720px`, fuera de este media query) siguen
      ocupando todo el ancho disponible, sin cambios. */
-  .load-keypad, .court-continue-wrap{ max-width: 768px; margin: 0 auto; }
+  .load-keypad, .court-continue-wrap, .mw-panel{ max-width: 768px; margin: 0 auto; }
 }
 
 /* V11.11 probó un tercer escalón de 1100px para Análisis/Historial en escritorio grande
@@ -2350,7 +2350,6 @@ input, select{ font-family: inherit; }
    no cambia en ese caso. */
 .court-scroll{ flex:1; overflow-y:auto; padding: 16px 18px calc(30px + var(--safe-bottom) + var(--bottomnav-h)); }
 .load-match-scroll{ padding-bottom: 24px; transition: padding-bottom var(--sheet-duration-enter, 260ms) var(--sheet-ease, ease); }
-.load-match-scroll.has-keypad{ padding-bottom: calc(220px + var(--bottomnav-h)); }
 
 /* §6.1 — cabecera compacta: menor jerarquía que el resultado, nunca una tarjeta grande. */
 .court-header{
@@ -2370,36 +2369,12 @@ input, select{ font-family: inherit; }
    El color lima tampoco correspondía: ningún otro título de header (`.court-header__status`,
    `.analysis-header__title`) usa color de marca — pasa a heredar exactamente la misma
    tipografía que `.court-header__status`, sin reglas propias de tamaño/color/tracking. */
-.court-header--saved{ position:relative; }
-.court-header__status--saved{ position:absolute; left:0; right:0; text-align:center; pointer-events:none; }
 
 /* V02.2 (Bloque C, §7) — composición de equipos: mismo lenguaje visual que la configuración
    en vivo (.team-block: superficie + acento LATERAL de color), variante COMPACTA para no
    ocupar toda la pantalla. Reemplaza los cuatro pills sueltos (borde solo abajo) anteriores.
    Cada jugador conserva un área táctil mínima de 52px; el color identifica equipo, nunca
    reemplaza el contraste del nombre (blanco/alto contraste, placeholder gris secundario). */
-.court-team-cards{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 18px; }
-.court-team-card{
-  background: var(--court-surface); border: 1px solid var(--court-line); border-left: 3px solid var(--team-a);
-  border-radius: 14px; padding: 12px 12px 11px;
-}
-.court-team-card--b{ border-left-color: var(--team-b); }
-.court-team-card__label{
-  display:flex; align-items:center; gap:7px; font-size: 10px; font-weight: 800; letter-spacing: 0.03em;
-  text-transform: uppercase; color: var(--paper-dim); margin-bottom: 9px;
-}
-.court-team-card__row{ display:flex; gap: 8px; }
-.court-team-card__player{
-  flex:1; min-width:0; min-height: 52px; display:flex; align-items:center; justify-content:center; text-align:center;
-  background: var(--court-surface-2); border: 1px solid var(--court-line); border-radius: 12px; padding: 8px 10px;
-  font-family: var(--font-body); font-weight: 700; font-size: 13px; color: var(--paper);
-  cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.court-team-card__player:active{ transform: scale(0.98); border-color: var(--brand-lime); }
-.court-team-card__player--fixed{ background: rgba(149,255,25,0.12); border-color: rgba(149,255,25,0.3); color: var(--team-a); cursor: default; }
-.court-team-card__player--fixed:active{ transform:none; border-color: rgba(149,255,25,0.3); }
-.court-team-card__player.is-empty{ background: transparent; }
-.court-team-card__player.is-empty .court-team-card__player-name{ color: var(--court-text-dim); font-weight: 600; }
 /* Separador VS compacto entre las dos tarjetas apiladas (mismo componente que Configurar
    partido, .vs-divider, con menos margen vertical propio de esta variante). */
 .vs-divider--compact{ margin: -4px 0; }
@@ -2686,27 +2661,6 @@ input, select{ font-family: inherit; }
    chico (`.sheet-add-player-dot`) ahora tiñe ese ícono. */
 .player-row__avatar--add{ color: var(--team-a); }
 .load-player-sheet.is-context-rival .player-row__avatar--add{ color: var(--team-b); }
-
-/* ==========================================================================
-   Etapa 4.2 (§8.2) — PARTIDO GUARDADO
-   ========================================================================== */
-/* Microparche visual (post V03.2.1) — 4→14px de padding inferior: la pill VICTORIA quedaba
-   casi pegada a la tarjeta de ganadores de abajo. */
-.court-saved-result{ text-align:center; padding: 10px 0 14px; }
-.court-saved-result__badge{ display:inline-block; font-size: 11px; font-weight:800; letter-spacing:0.08em; padding: 3px 10px; border-radius: 999px; text-transform:uppercase; }
-.court-saved-result__badge--win{ background: rgba(149,255,25,0.14); color: var(--brand-lime); }
-.court-saved-result__badge--loss{ background: rgba(255,91,84,0.14); color: var(--danger); }
-.court-saved-result__badge--neutral{ background: rgba(223,231,245,0.08); color: var(--court-text-dim); }
-.court-saved-home-link{ display:block; text-align:center; margin-top: 14px; color: var(--court-text-dim); }
-/* V02.3 (Bloque B, §5) — misma .result-card del Resumen (ver buildScoreCardHTML), con el
-   marcador con un poco más de protagonismo acá: números de set levemente más grandes.
-   V02.6 (§11): el track de la grilla (`.result-card__sets`) tiene que agrandarse junto con
-   la celda — si solo se agranda `.result-card__set` con `min-width` mientras el track de
-   `grid-auto-columns` sigue en 28px, la celda desborda su propia columna y la grilla estable
-   deja de servir de nada acá mismo. */
-.court-saved-result-card{ margin-bottom: 14px; }
-.court-saved-result-card .result-card__sets{ grid-auto-columns: 32px; }
-.court-saved-result-card .result-card__set{ font-size: 21px; width: 32px; }
 
 /* Etapa 4.2 (§10) — nota privada: "Solo vos", nunca en superficies públicas. Reutilizada por
    Partido guardado y por el detalle en Análisis.
@@ -3917,45 +3871,92 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 
 
 /* ==========================================================================
-   V04.24 — CARGAR PARTIDO · MODO RESULTADO (`#view-manual-load.is-score-entry`, ver
-   syncManualScoreEntryChrome en app.js). Mientras el teclado numérico está abierto se ocultan las
-   tarjetas grandes de armado y queda: matchup compacto + fichas de sets + resultado del set actual,
-   siempre por encima del teclado. Solo presentación; la lógica del marcador no cambia.
+   V04.26 — CARGAR PARTIDO · dos instancias (JUGADORES → RESULTADO).
+   Solo composición: REUTILIZA `.player-row`, `.vs-divider`, `.btn-start` (+ `:disabled`), `.result-card` y su
+   grilla (`.result-card__rows`), `buildWinnersBannerHTML`/`buildSetsGamesSummaryHTML` del Resumen. Lo único
+   nuevo es lo que no existía: las tarjetas de equipo con borde de acento, la variante editable de la
+   result-card y el wheel (`.mw-*`).
    ========================================================================== */
-/* V04.25 — marcador/result board: equipo A (verde) arriba, equipo B (celeste) abajo, bloque completo
-   teñido con su color (no solo un borde lateral), nombres grandes de hasta 2 líneas, VS entre ambos. */
-.score-matchup{ display:flex; flex-direction:column; gap: 0; margin-bottom: 12px; }
-.score-matchup__team{
-  display:flex; align-items:center; min-height: 58px; padding: 10px 14px; border-radius: 14px; border: 1px solid transparent;
+.load-match-scroll.has-wheel{ padding-bottom: calc(292px + var(--bottomnav-h)); }
+
+/* Instancia JUGADORES — tarjeta por equipo, misma familia visual que Último partido (fondo oscuro,
+   borde completo, radio vigente). A = verde, B = celeste. */
+.mp-teams{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 14px; }
+.mp-team{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 12px 14px 4px; }
+.mp-team--a{ border-color: rgba(149,255,25,0.5); }
+.mp-team--b{ border-color: rgba(25,159,255,0.55); }
+.mp-team__label{ display:flex; align-items:center; gap:7px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 2px; }
+.mp-slot + .mp-slot{ border-top: 1px solid var(--line); }
+.mp-slot .player-row{ padding: 10px 2px; min-height: 66px; }
+.mp-slot--fixed .player-row{ cursor: default; pointer-events: none; }
+.mp-team--b .player-row__avatar--add{ color: var(--team-b); }
+.player-row--slot .player-row__name{ color: var(--paper-dim); }
+.mp-teams .vs-divider{ margin: -4px 0; }
+.mp-cta{ width: 100%; margin-top: 4px; }
+
+/* Instancia RESULTADO */
+.mp-change-players{
+  display:block; margin: 0 0 12px; padding: 8px 2px; background:none; border:none; cursor:pointer;
+  font-family: var(--font-body); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim);
 }
-.score-matchup__team--a{ background: linear-gradient(135deg, rgba(149,255,25,0.20), rgba(149,255,25,0.07)); border-color: rgba(149,255,25,0.45); }
-.score-matchup__team--b{ background: linear-gradient(135deg, rgba(25,159,255,0.22), rgba(25,159,255,0.07)); border-color: rgba(25,159,255,0.50); }
-.score-matchup__names{
-  font-family: var(--font-display); font-size: 18px; font-weight: 800; line-height: 1.2; color: var(--paper); min-width: 0;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+.mp-change-players:active{ color: var(--paper); }
+#manual-result-card{ margin-bottom: 14px; }
+/* result-card editable: nombres a la izquierda (un jugador por renglón), columnas SET 1/2/3 a la derecha con
+   números grandes. Mismas dos columnas del grid canónico (`minmax(0,1fr) auto`) → A y B alinean exacto. */
+.result-card--editable{ --rc-col: 52px; padding: 14px 14px 12px; }
+.result-card--editable .result-card__sets{ grid-auto-columns: var(--rc-col); gap: 6px; padding: 10px 0; }
+.result-card--editable .result-card__name{ flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; white-space: normal; padding: 10px 0; font-size: 16px; line-height: 1.2; }
+.result-card--editable .result-card__name-line{ display:block; max-width: 100%; overflow:hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result-card__row--head .result-card__sets{ padding: 0 0 6px; }
+.result-card__row--head .result-card__name{ padding: 0; }
+.result-card__setlabel{
+  width: var(--rc-col); padding: 6px 0; background:none; border:none; cursor:pointer; text-align:center;
+  font-family: var(--font-body); font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-faint);
 }
-.score-matchup__vs{ align-self:center; margin: -7px 0; position: relative; z-index: 1; padding: 1px 10px; border-radius: 999px;
-  background: var(--court-surface); border: 1px solid var(--court-line); font-family: var(--font-display); font-weight: 800;
-  font-size: 10px; letter-spacing: .1em; color: var(--paper-dim); }
-.is-score-entry .court-meta-compact,
-.is-score-entry .court-team-cards{ display:none; }
-.is-score-entry .court-accumulated{ margin-bottom: 10px; }
-.is-score-entry .court-accumulated__set{ min-width: 64px; min-height: 44px; padding: 5px 12px; }
-.court-accumulated__set.is-current{ border-color: var(--brand-lime); cursor: default; }
-.court-accumulated__set.is-pending{ cursor: default; opacity: .55; }
-.court-accumulated__set.is-pending .court-accumulated__set-score{ color: var(--court-text-faint); }
-.is-score-entry .court-current-set{ padding: 12px 14px 12px; margin-bottom: 0; }
-.is-score-entry .court-current-set__label{ margin-bottom: 8px; }
-.is-score-entry .court-score{ padding: 10px 6px; }
-.is-score-entry .court-score__value{ font-size: 52px; }
-.is-score-entry .court-score__name{ display:none; }
-/* Identidad por lado también en el resultado: A verde / B celeste; el lado activo refuerza borde y glow
-   sin unificar los colores. */
-.is-score-entry .court-score--a{ border-color: rgba(149,255,25,0.45); background: rgba(149,255,25,0.07); }
-.is-score-entry .court-score--b{ border-color: rgba(25,159,255,0.50); background: rgba(25,159,255,0.08); }
-.is-score-entry .court-score--a.is-active{ border-color: var(--team-a); background: rgba(149,255,25,0.10); box-shadow: 0 0 16px rgba(149,255,25,0.22); }
-.is-score-entry .court-score--a.is-active .court-score__value{ color: var(--team-a); }
-.is-score-entry .court-score--b.is-active{ border-color: var(--team-b); background: rgba(25,159,255,0.12); box-shadow: 0 0 16px rgba(25,159,255,0.25); }
-.is-score-entry .court-score--b.is-active .court-score__value{ color: var(--team-b); }
-.is-score-entry .load-keypad__key{ padding: 11px 0; }
-.is-score-entry .load-match-scroll.has-keypad, .load-match-scroll.has-keypad{ padding-bottom: calc(250px + var(--bottomnav-h)); }
+.result-card__setlabel.is-active{ color: var(--brand-lime); }
+.result-card__set--edit{
+  width: var(--rc-col); height: 60px; padding: 0; border: 1px solid transparent; cursor: pointer; opacity: 1;
+  font-size: 34px; line-height: 1; border-radius: 10px; background: rgba(244,247,242,0.08); color: var(--paper);
+  display:flex; align-items:center; justify-content:center;
+}
+.result-card__set--edit.result-card__set--win{ background: rgba(244,247,242,0.14); }
+.result-card__set--edit.result-card__set--lose{ color: var(--paper-dim); }
+.result-card__set--edit.is-empty{ color: var(--paper-faint); }
+.result-card__row[data-team="A"] .result-card__set--edit.is-active{ border-color: var(--team-a); color: var(--team-a); background: rgba(149,255,25,0.10); box-shadow: 0 0 14px rgba(149,255,25,0.2); }
+.result-card__row[data-team="B"] .result-card__set--edit.is-active{ border-color: var(--team-b); color: var(--team-b); background: rgba(25,159,255,0.12); box-shadow: 0 0 14px rgba(25,159,255,0.22); }
+.result-card--editable .winners-banner{ margin-bottom: 10px; }
+
+/* Wheel A/B — panel fijo inferior (sin scrim: la result-card sigue visible y se actualiza en vivo). */
+.mw-panel{
+  --mw-item-h: 40px;
+  position: fixed; left:0; right:0; bottom: var(--bottomnav-h); z-index: 32;
+  background: var(--court-surface); border-top: 1px solid var(--court-line);
+  padding: 10px 18px calc(12px + var(--safe-bottom));
+}
+.mw-panel__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px; }
+.mw-panel__title{ font-family: var(--font-display); font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--paper); }
+.mw-panel__done{ margin: 0; min-height: 40px; padding: 0 22px; box-shadow: none; }
+.mw-panel__wheels{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 360px; margin: 0 auto; }
+.mw-col__label{ display:flex; align-items:center; justify-content:center; gap:6px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 2px; }
+.mw-wheel-wrap{ position: relative; height: calc(var(--mw-item-h) * 5); }
+.mw-wheel{
+  height: 100%; overflow-y: auto; overscroll-behavior: contain; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; touch-action: pan-y; outline: none;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 28%, #000 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 28%, #000 72%, transparent 100%);
+}
+.mw-wheel::-webkit-scrollbar{ display:none; }
+.mw-wheel__pad{ display:block; height: calc(var(--mw-item-h) * 2); }
+.mw-wheel__item{
+  display:flex; align-items:center; justify-content:center; width:100%; height: var(--mw-item-h); padding:0; border:none; background:none;
+  scroll-snap-align: center; font-family: var(--font-display); font-weight: 700; font-size: 24px; color: var(--paper-faint); cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.mw-wheel__item.is-selected{ color: var(--paper); font-size: 30px; font-weight: 800; }
+.mw-col--a .mw-wheel__item.is-selected{ color: var(--team-a); }
+.mw-col--b .mw-wheel__item.is-selected{ color: var(--team-b); }
+.mw-wheel:focus-visible{ box-shadow: 0 0 0 2px var(--brand-lime); border-radius: 10px; }
+.mw-wheel-bar{ position:absolute; left:0; right:0; top: calc(var(--mw-item-h) * 2); height: var(--mw-item-h); pointer-events:none; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 8px; }
+.mw-col--a .mw-wheel-bar{ border-color: rgba(149,255,25,0.45); background: rgba(149,255,25,0.06); }
+.mw-col--b .mw-wheel-bar{ border-color: rgba(25,159,255,0.5); background: rgba(25,159,255,0.07); }
+@media (prefers-reduced-motion: reduce){ .mw-wheel{ scroll-behavior: auto; } }

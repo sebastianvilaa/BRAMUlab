@@ -126,9 +126,9 @@ test('P0-D: los rótulos de la comparación oficial/propuesta quedan centrados',
 
 /* ---- P0-E: metadata de Cargar partido ANTES de los equipos ---- */
 
-test('P0-E: .court-meta-compact aparece ANTES que .court-team-cards en el DOM (nunca duplicado)', () => {
+test('P0-E: .court-meta-compact aparece ANTES que .mp-teams (V04.26) en el DOM (nunca duplicado)', () => {
   const metaIdx = indexHtml.indexOf('class="court-meta-compact"');
-  const teamsIdx = indexHtml.indexOf('class="court-team-cards"');
+  const teamsIdx = indexHtml.indexOf('class="mp-teams"');
   assert.ok(metaIdx !== -1 && teamsIdx !== -1, 'ambos bloques deben seguir existiendo');
   assert.ok(metaIdx < teamsIdx, 'la metadata (formato/fecha) debe quedar ANTES que Equipo A/B en el documento');
   const metaCount = indexHtml.split('class="court-meta-compact"').length - 1;
