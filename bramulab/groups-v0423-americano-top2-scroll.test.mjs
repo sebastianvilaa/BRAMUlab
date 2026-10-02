@@ -1,4 +1,4 @@
-// BRAMUlab V04.23 — Grupos: Americano, top 2 semanal, ayuda/copies + scroll de Editar datos.
+// BRAMUlab V04.24 — Grupos: Americano, top 2 semanal, ayuda/copies + scroll de Editar datos.
 // Ejecutar con: node --test bramulab/groups-v0423-americano-top2-scroll.test.mjs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,9 +141,9 @@ test('copy: ningún "3 mejores" visible; ayuda + estado cero + lobby coherentes'
   assert.match(html, /Cada victoria suma\. Algunos resultados pueden darte puntos extra\./);
   assert.match(html, /Cuentan tus 2 mejores partidos\./);
   assert.doesNotMatch(html, /Ganá y sumá/);
-  assert.match(app, /No entra en tus 2 mejores/);
+  assert.doesNotMatch(app, /No entra en tus 2 mejores/);
   const sheet = html.slice(html.indexOf('id="group-points-info-sheet"'), html.indexOf('id="profile-picker-sheet-scrim"'));
-  ['Jugá como siempre. BRAMU hace el resto.', 'Entra solo', 'Tus 2 mejores cuentan', 'Cada semana, una nueva pelea', 'Cómo se suman los puntos', 'Clásico', 'Americano', 'No existe en Americano'].forEach((t) => assert.ok(sheet.includes(t), t));
+  ['Jugá como siempre. BRAMU hace el resto.', 'BRAMU detecta los partidos', 'Cada semana cuentan tus 2 mejores partidos', 'Nueva semana, nueva tabla', 'Cómo sumás puntos', 'Clásico', 'Americano', 'No aplica en Americano'].forEach((t) => assert.ok(sheet.includes(t), t));
 });
 
 /* ---------------- EDITAR DATOS: scroll ---------------- */

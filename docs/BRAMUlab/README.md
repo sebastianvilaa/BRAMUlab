@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.23 / bundle 04.23-h1** en Staging — Pre-Production **L1 operativo + L2 + L3 técnico con gate Central PASS**. **Pre-Bloque 9 / #17, 9A / #19, 9B / #20 y G1 Emails/Auth / #21: PASS Central**. **G2 Configuración + Acceso/Legal / #22: CERRADO / PASS final**. **Issue #23 (Grupos: top 2 + puntaje Americano + ayuda; bug de scroll en Editar datos) implementado en V04.23 — pendiente gate Central / QA humano** (ver `Implementacion/Pre_Production/105_…`) — Work confirmó Privacidad sin overflow, Legal in-app, Site URL/redirects y fronteras sensibles; Claude aplicó el ajuste visual final aprobado: dos bloques (`Cuenta y seguridad` + `Privacidad y cuenta`), eliminación como última fila secundaria y `Cerrar sesión` como botón grande separado. Ver `Implementacion/Pre_Production/102_Ajuste_Final_UX_Configuracion_G2_01OCT.md`.
+**Estado del producto:** BRAMUlab **V04.24 / bundle 04.24-h1** en Staging — Pre-Production **L1 operativo + L2 + L3 técnico con gate Central PASS**. **Pre-Bloque 9 / #17, 9A / #19, 9B / #20 y G1 Emails/Auth / #21: PASS Central**. **G2 Configuración + Acceso/Legal / #22: CERRADO / PASS final**. **Issue #23 (Grupos: top 2 + puntaje Americano + scroll Editar datos) técnicamente implementado, pendiente cierre humano junto con V04.24**; **Issue #24 (UX Cargar partido: modo resultado, Fecha/Hora/Lugar + cierre visual de Grupos) implementado en V04.24 — pendiente gate Central / QA humano** (ver `Implementacion/Pre_Production/106_…` y la fuente maestra nueva `Cargar_Partido.md`) — Work confirmó Privacidad sin overflow, Legal in-app, Site URL/redirects y fronteras sensibles; Claude aplicó el ajuste visual final aprobado: dos bloques (`Cuenta y seguridad` + `Privacidad y cuenta`), eliminación como última fila secundaria y `Cerrar sesión` como botón grande separado. Ver `Implementacion/Pre_Production/102_Ajuste_Final_UX_Configuracion_G2_01OCT.md`.
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
 **Actualización documental:** 1 de octubre de 2026
@@ -84,6 +84,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 |---|---|---|
 | **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
+| **Cargar partido** | `Cargar_Partido.md` | Fuente maestra del flujo (V04.24: modo resultado, Fecha/Hora/Lugar). |
 | **Grupos BRAMU** | `Grupos_BRAMU.md` | B2c (foto server-backed V04.14) CERRADO en Staging con QA visual PASS. En curso: cierre de producto/UX post-B2c (§26) antes del QA integral final (Issue #6). |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
@@ -262,6 +263,7 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“Seguir con Nivel BRAMU / V04”** → este README + `Nivel_BRAMU_Formula_V1.5.md` y, si corresponde, la última sección de `BRAMUlab_V04_Informe.md`.
 - **“Ranking”** → `Ranking_BRAMU.md` + Nivel V1.5 solo donde Ranking dependa de Nivel.
 - **“Grupos / Race privada / puntos de grupo”** → `Grupos_BRAMU.md`.
+- **“Cargar partido / ingreso de resultado / Fecha-Hora-Lugar”** → `Cargar_Partido.md`.
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
 - **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.

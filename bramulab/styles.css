@@ -367,8 +367,8 @@ input, select{ font-family: inherit; }
    Fecha y Hora: mismo componente para las dos, nunca un ícono ad hoc por campo. */
 .manual-field-label{ display:flex; align-items:center; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 4px; }
 .manual-field-icon{ flex:none; color: var(--paper-dim); }
-.manual-datetime-row{ display:flex; flex-wrap: wrap; gap: 14px; }
-.manual-datetime-row .field{ flex: 1; min-width: 130px; }
+.manual-datetime-row{ display:flex; flex-wrap: nowrap; gap: 0; }
+.manual-datetime-row .field{ flex: 1; min-width: 0; }
 /* V02.5 (Bloque B, §11) — bug real encontrado: `.field + .field{ margin-top: 8px }` (pensada
    para campos apilados VERTICALMENTE, ver más abajo en este archivo) también alcanzaba a este
    par por el selector de hermano adyacente — aunque visualmente están lado a lado en una fila
@@ -380,13 +380,29 @@ input, select{ font-family: inherit; }
    ya heredados — pero se fuerza una altura explícita idéntica para neutralizar cualquier
    diferencia de caja que el navegador agregue por su cuenta al <input type="date"> nativo. */
 .manual-datetime-row .field__input{ box-sizing: border-box; height: 38px; }
+/* V04.24 — Fecha y Hora comparten UN shell (misma caja, misma altura, mismo borde/divisor): dos mitades de
+   una sola pastilla; el label vive arriba de cada mitad y ambos inputs nativos se normalizan igual
+   (appearance:none, sin fondo propio, alineados a la izquierda, misma baseline). */
+.manual-datetime-row{ border: 1px solid var(--court-line); border-radius: 12px; background: var(--court-surface-2); padding: 8px 12px 6px; }
+.manual-datetime-row .field + .field{ border-left: 1px solid var(--court-line); padding-left: 12px; margin-left: 12px; }
+.manual-datetime-row .manual-field-label{ margin-bottom: 2px; }
+.manual-datetime-row .field__input{
+  -webkit-appearance: none; appearance: none; border: none; background: transparent; padding: 0; margin: 0;
+  width: 100%; min-width: 0; text-align: left; line-height: 38px; color: var(--paper); font-variant-numeric: tabular-nums;
+}
+.manual-datetime-row .field__input::-webkit-date-and-time-value{ text-align: left; min-height: 38px; margin: 0; }
+.manual-datetime-row .field__input:focus{ outline: none; box-shadow: none; }
+.manual-datetime-row:focus-within{ border-color: var(--brand-lime); }
+.manual-place-row{ display:flex; align-items:center; gap: 8px; }
+.manual-place-row .field__input{ flex:1; min-width:0; }
+.manual-place-row .manual-location-btn{ margin-top: 0; flex:none; white-space:nowrap; }
 .manual-field--time{ position: relative; }
 /* "Borrar hora" pasa de link de bloque (estiraba la columna Hora más que la de Fecha, rompiendo
    la altura pareja de la fila) a un ícono terciario discreto, superpuesto DENTRO del propio
    campo — nunca agrega una línea nueva. Solo visible con hora cargada, ver
    updateManualTimeClearVisibility en app.js. */
 .manual-time-clear-icon{
-  position:absolute; right: 2px; bottom: 6px; background:none; border:none; color: var(--paper-dim);
+  position:absolute; right: -4px; bottom: 6px; background:none; border:none; color: var(--paper-dim);
   font-size: 16px; line-height:1; padding: 4px 6px; cursor:pointer;
 }
 .manual-time-clear-icon:active{ color: var(--paper); }
@@ -407,7 +423,6 @@ input, select{ font-family: inherit; }
 #manual-meta-sheet .manual-field-label{ font-size: 10px; margin-bottom: 6px; }
 #manual-meta-sheet .field__input{ font-size: 14px; }
 #manual-meta-sheet .manual-datetime-row{ margin-bottom: 16px; }
-#manual-meta-sheet .manual-location-btn{ margin-top: 14px; }
 
 
 /* Toast */
@@ -3294,6 +3309,11 @@ input, select{ font-family: inherit; }
 .group-help-block__title{ display:block; font-family: var(--font-display); font-weight: 700; font-size: 13px; color: var(--paper); }
 .group-help-block__sub{ display:block; font-size: 12px; line-height:1.45; color: var(--paper-dim); margin-top: 2px; }
 .group-help-block__sub strong{ color: var(--paper); }
+.group-help-sheet{ display:flex; flex-direction:column; height:auto; max-height: min(85dvh, 720px); padding-bottom: 0; }
+.group-help-sheet .bottom-sheet__header{ flex:none; margin-bottom: 12px; }
+.group-help-body{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; touch-action: pan-y; padding-bottom: calc(26px + var(--safe-bottom)); }
+.group-help-footnote{ margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--paper-dim); }
+.group-breakdown-note{ margin: 0 0 10px; font-size: 12px; color: var(--paper-dim); }
 .group-help-sub-title{ margin: 0 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--paper-dim); }
 
 /* BRAMUlab_V03.4.4 (§1) — "+ CREAR GRUPO" deja de ser una fila de texto lima (se leía "perdida"
@@ -3884,3 +3904,42 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* G2 final: el engranaje (mismo SVG en Perfil y Grupos) quedaba visualmente descentrado dentro de su área táctil. Solo estos dos botones. */
 #profile-settings-btn, #groups-settings-btn{ display:inline-flex; align-items:center; justify-content:center; padding:4px 8px; }
 #profile-settings-btn svg, #groups-settings-btn svg{ display:block; }
+
+
+/* ==========================================================================
+   V04.24 — CARGAR PARTIDO · MODO RESULTADO (`#view-manual-load.is-score-entry`, ver
+   syncManualScoreEntryChrome en app.js). Mientras el teclado numérico está abierto se ocultan las
+   tarjetas grandes de armado y queda: matchup compacto + fichas de sets + resultado del set actual,
+   siempre por encima del teclado. Solo presentación; la lógica del marcador no cambia.
+   ========================================================================== */
+.score-matchup{ display:flex; align-items:stretch; gap: 8px; margin-bottom: 12px; }
+.score-matchup__team{
+  flex:1; min-width:0; display:flex; align-items:center; padding: 9px 11px; border-radius: 12px;
+  background: var(--court-surface); border: 1px solid var(--court-line);
+}
+.score-matchup__team--a{ border-left: 3px solid var(--team-a); background: linear-gradient(90deg, rgba(149,255,25,0.07), var(--court-surface) 70%); }
+.score-matchup__team--b{ border-right: 3px solid var(--team-b); justify-content:flex-end; text-align:right; background: linear-gradient(270deg, rgba(25,159,255,0.08), var(--court-surface) 70%); }
+.score-matchup__names{ font-size: 13px; font-weight: 700; color: var(--paper); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.score-matchup__vs{ align-self:center; flex:none; font-family: var(--font-display); font-weight: 800; font-size: 11px; letter-spacing: .08em; color: var(--court-text-faint); }
+.is-score-entry .court-meta-compact,
+.is-score-entry .court-team-cards{ display:none; }
+.is-score-entry .court-accumulated{ margin-bottom: 10px; }
+.is-score-entry .court-accumulated__set{ min-width: 64px; min-height: 44px; padding: 5px 12px; }
+.court-accumulated__set.is-current{ border-color: var(--brand-lime); cursor: default; }
+.court-accumulated__set.is-pending{ cursor: default; opacity: .55; }
+.court-accumulated__set.is-pending .court-accumulated__set-score{ color: var(--court-text-faint); }
+.is-score-entry .court-current-set{ padding: 12px 14px 12px; margin-bottom: 0; }
+.is-score-entry .court-current-set__label{ margin-bottom: 8px; }
+.is-score-entry .court-score{ padding: 10px 6px; }
+.is-score-entry .court-score__value{ font-size: 52px; }
+.is-score-entry .court-score__name{ display:none; }
+/* Identidad por lado también en el resultado: A verde / B celeste; el lado activo refuerza borde y glow
+   sin unificar los colores. */
+.is-score-entry .court-score--a{ border-color: rgba(149,255,25,0.35); }
+.is-score-entry .court-score--b{ border-color: rgba(25,159,255,0.40); }
+.is-score-entry .court-score--a.is-active{ border-color: var(--team-a); background: rgba(149,255,25,0.10); box-shadow: 0 0 16px rgba(149,255,25,0.22); }
+.is-score-entry .court-score--a.is-active .court-score__value{ color: var(--team-a); }
+.is-score-entry .court-score--b.is-active{ border-color: var(--team-b); background: rgba(25,159,255,0.12); box-shadow: 0 0 16px rgba(25,159,255,0.25); }
+.is-score-entry .court-score--b.is-active .court-score__value{ color: var(--team-b); }
+.is-score-entry .load-keypad__key{ padding: 11px 0; }
+.is-score-entry .load-match-scroll.has-keypad, .load-match-scroll.has-keypad{ padding-bottom: calc(250px + var(--bottomnav-h)); }

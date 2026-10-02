@@ -3,7 +3,7 @@
 **Estado:** producto y UX V1 cerrados para implementación productiva.  
 **Fecha:** 28 de septiembre de 2026.  
 **Rol:** fuente maestra vigente de Grupos BRAMU.  
-**Actualizado en V04.23 (Issue #23, 01/10/2026):** top semanal = 2 mejores; puntaje por formato (Clásico / Americano); ayuda reescrita (§ Ayuda). Si algo más abajo menciona “3 mejores” o puntaje único de 5/7, está superado por §5 y §6.  
+**Actualizado en V04.23 (Issue #23) y V04.24 (ayuda/desglose finales, 02/10/2026):** top semanal = 2 mejores; puntaje por formato (Clásico / Americano); ayuda reescrita (§ Ayuda). Si algo más abajo menciona “3 mejores” o puntaje único de 5/7, está superado por §5 y §6.  
 **Precedencia:** este documento reemplaza como autoridad de producto a la definición histórica de V03.4. La implementación existente de V03.4 sigue siendo la base a conservar, pero cualquier contradicción se resuelve a favor de este documento.
 
 ---
@@ -489,7 +489,7 @@ Puede mostrar:
 - nombre del grupo;
 - cantidad de jugadores;
 - bloque **Esta semana**;
-- top 3 ilustrativo con puntos.
+- top 3 de la tabla (ilustrativo, con puntos; es el podio de la tabla, no la regla de partidos).
 
 No necesita mostrar Race anual dentro de la tarjeta.
 
@@ -674,13 +674,13 @@ La explicación debe salir del mismo motor/evidencia real que calcula Grupos. No
 
 ### Qué aportó al total
 
-Los **3 partidos que efectivamente aportan al puntaje semanal** deben distinguirse visualmente de forma simple.
+**Vigente desde V04.24.** Bajo el título **DESGLOSE DE PUNTOS** va la aclaración *“Cuentan tus 2 mejores partidos de la semana”*. Cada partido muestra SIEMPRE su valor real (`6 pts`, `5 pts`, `0 pts`…):
 
-Los demás partidos calificables de la semana también pueden mostrarse para explicar la actividad real, pero deben quedar claramente como:
-- `0 pts` si fueron derrota; o
-- **No entra en tus 2 mejores** si fue un resultado puntuable desplazado por otros dos mejores.
+- los **2 partidos que efectivamente aportan al puntaje semanal** (`counted && points > 0`) van en **lima**;
+- una victoria puntuable desplazada del top 2 muestra su mismo valor real, en **gris/apagado**;
+- una derrota muestra `0 pts` en gris — también cuando es `counted` por haber menos de 2 partidos (lima solo si `counted && points > 0`).
 
-No esconder partidos de la actividad real solo para que cierre la suma.
+Ya no existe el texto “No entra en tus 2 mejores” por fila. No esconder partidos de la actividad real solo para que cierre la suma.
 
 ### Race anual
 
@@ -897,7 +897,7 @@ Decisiones ya confirmadas e implementadas:
 - **Botón del lobby:** "Nuevo grupo".
 - **Agregar jugador:** únicamente en Configuración (no en Semana actual/pasada/Race). Es una acción administrativa: CTA secundario lima (composición final en §24).
 - **Ayuda:** un único `?` en el header del detalle, junto al engranaje; sin link inferior.
-- **Desglose semanal — formato final por partido:** fecha; `Titular / Compañero vs Rival / Rival`; resultado real por set + motivo (`6–4 · 6–2 · Victoria clara`, o `Victoria` / `Derrota`); puntos a la derecha (o "No entra en tus 3 mejores"). Las parejas se separan con `/`, nunca con `+`. No se inventan scores ni bonus.
+- **Desglose semanal — formato final por partido:** fecha; `Titular / Compañero vs Rival / Rival`; resultado real por set + motivo (`6–4 · 6–2 · Victoria clara`, o `Victoria` / `Derrota`); puntos reales a la derecha — desde V04.24 siempre el valor real, lima si suma al top 2 y gris si no. Las parejas se separan con `/`, nunca con `+`. No se inventan scores ni bonus.
 - **Ver perfil:** link secundario discreto al final del sheet ("Ver perfil de {Nombre} ›"); sin card grande. El sheet ocupa ~82 % del viewport y reserva 12 px a la derecha para el indicador de scroll.
 - **Contenido sobre la bottom-nav:** `.analysis-scroll` suma `var(--bottomnav-h)` (medida en runtime por `showView()`, `0px` sin barra) para que la última fila de la tabla quede completamente visible.
 
@@ -947,7 +947,7 @@ Se conserva la composición actual:
 
 Ajustes confirmados:
 
-- **REEMPLAZAR** “Tus 3 mejores cuentan” por **“Tus 3 mejores partidos cuentan”**.
+- **REEMPLAZAR** el título del estado cero por **“Tus 2 mejores partidos cuentan”** (V04.23; antes decía 3).
 - **REEMPLAZAR** el link suelto “Cómo funciona” por un CTA secundario lima full-width, misma familia visual que **+ AGREGAR JUGADOR**: borde lima, texto lima, fondo oscuro con tinte verde muy sutil.
 - Tarjeta de ejemplo:
   - nombre: **Pádel de los jueves**;
@@ -1080,10 +1080,13 @@ No seguir agregando funciones nuevas fuera de este cierre.
 
 ---
 
-## Ayuda "Cómo funcionan los Grupos BRAMU" — composición vigente (V04.23)
+## Ayuda "Cómo funcionan los Grupos BRAMU" — composición vigente (V04.24)
 
-Misma hoja `#group-points-info-sheet` (no hay otro sistema). Beneficio primero, mecánica después:
+Misma hoja `#group-points-info-sheet`, siempre **bottom sheet** (~85dvh con tope): grabber y header (título + X) fijos, body interno scrolleable con safe area. Tocar afuera, Escape y X cierran.
 
-- **Hero:** “Jugá como siempre. BRAMU hace el resto.” + bajada de automatización (cargás el resultado una vez; BRAMU detecta el grupo y actualiza la competencia).
-- **Tres bloques:** *Entra solo* (3 de 4 jugadores) · *Tus 2 mejores cuentan* · *Cada semana, una nueva pelea* (reinicio cada lunes + Race anual).
-- **Secundario “Cómo se suman los puntos”:** Clásico 5 (hasta 7), Americano 3 (hasta 5), Sorpresa, Remontada (no en Americano), Victoria clara y la aclaración de que no modifica Nivel ni Ranking BRAMU.
+- **Hero:** “Jugá como siempre. BRAMU hace el resto.” + “BRAMU detecta automáticamente qué partidos corresponden a cada grupo y actualiza la competencia. Para el grupo, no tenés que hacer nada extra.”
+- **Bloque 1 — BRAMU detecta los partidos:** “Si al menos 3 de los 4 jugadores pertenecen al grupo, el partido entra automáticamente.”
+- **Bloque 2 — Cada semana cuentan tus 2 mejores partidos:** “Si jugás más de dos, BRAMU toma los que más puntos te dieron. Todos siguen apareciendo en tu actividad.”
+- **Bloque 3 — Nueva semana, nueva tabla:** “Cada lunes la tabla vuelve a empezar. Los puntos que sumaste siguen acumulándose en la Race anual.”
+- **Secundario “Cómo sumás puntos”:** Clásico 5 pts · hasta 7 con bonus; Americano 3 pts · hasta 5 con bonus; Sorpresa de nivel (+1 por vencer a una pareja claramente superior); Remontada (+1, no aplica en Americano); Victoria clara (+1 por ganar con claridad). Cierre: “Los puntos de Grupos son propios de esta competencia. No modifican tu Nivel BRAMU ni tu Ranking BRAMU.”
+- La ayuda NO muestra umbrales técnicos (0,5 / 1,0) ni reglas de score (6-0/6-1/6-2): siguen documentados en §5 y testeados.

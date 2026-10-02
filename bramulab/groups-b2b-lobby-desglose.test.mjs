@@ -437,7 +437,8 @@ test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto c
   assert.doesNotMatch(row, /join\(' \+ '\)/);
   assert.match(row, /setsText/);
   assert.match(row, /breakdownReasonLabel\(row\)/);
-  assert.match(row, /No entra en tus 2 mejores/);
+  assert.doesNotMatch(row, /No entra en tus 2 mejores/);
+  assert.match(row, /\$\{row\.points\} pts/);
   assert.match(indexHtml, /id="group-breakdown-sheet" class="bottom-sheet bottom-sheet--tall bottom-sheet--tall-xl"/);
   assert.match(indexHtml, /id="group-breakdown-view-profile-btn" class="group-sheet-profile-link"/);
   assert.doesNotMatch(indexHtml, />VER PERFIL</);
@@ -447,6 +448,6 @@ test('desglose: fila con "/" (nunca "+"), resultado + motivo y sheet más alto c
 
 test('ayuda: cubre automatización, 3/4, top 2, Clásico/Americano, reinicio semanal + Race y que NO toca Nivel ni Ranking', () => {
   const sheet = fnBody(indexHtml, 'id="group-points-info-sheet"', 3500);
-  ['Jugá como siempre. BRAMU hace el resto.', '3 de los 4 jugadores', 'Tus 2 mejores cuentan', 'Clásico', 'Americano', '5 puntos', '3 puntos', 'Remontada', 'lunes', 'Race anual', 'no modifican', 'Nivel BRAMU', 'Ranking BRAMU']
+  ['Jugá como siempre. BRAMU hace el resto.', '3 de los 4 jugadores', 'Cada semana cuentan tus 2 mejores partidos', 'Clásico', 'Americano', '5 pts', '3 pts', 'Remontada', 'Cada lunes', 'Race anual', 'No modifican', 'Nivel BRAMU', 'Ranking BRAMU']
     .forEach((t) => assert.ok(sheet.includes(t), t));
 });

@@ -377,7 +377,8 @@
       // solo en vistas fuera de BOTTOM_NAV_VIEWS. Se usa Store.getCurrentUser() (lectura
       // fresca) y NO la variable de módulo `currentPlayerName`: esa var solo se sincroniza en
       // puntos puntuales (openPlayerHome/openManualLoadScreen/renderPlayerHome/post-login).
-      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser();
+      // V04.24 — con el teclado numérico abierto en Cargar partido (modo resultado) la nav queda oculta.
+      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser() && !(name === 'manual-load' && manualKeypadOpen);
       nav.hidden = !showNav;
       if (showNav) updateBottomNavActive(name);
       // V03.2 (§11) — alto real de la barra, medido en vivo (nunca adivinado): lo consumen
@@ -386,6 +387,7 @@
       document.documentElement.style.setProperty('--bottomnav-h', showNav ? `${nav.offsetHeight}px` : '0px');
       if (name === 'manual-load') positionManualContinueBar();
     }
+    syncManualScoreEntryChrome();
   }
 
   /* ------------------------------------------------------------------ */
@@ -1024,6 +1026,7 @@
    *  de nuevo (§6.2 del consolidado: "no borra los posteriores en silencio"). */
   function renderManualAccumulated(format) {
     const wrap = $('#court-accumulated');
+    if (manualKeypadOpen && !manualDecided) { renderManualScoreEntryChips(format, wrap); return; }
     const upTo = manualDecided ? manualNeededSlots(format) : manualActiveSetIndex;
     const items = [];
     for (let i = 0; i < upTo; i++) {
@@ -1036,6 +1039,63 @@
     $all('#court-accumulated .court-accumulated__set').forEach((btn) => {
       btn.addEventListener('click', () => reopenManualSet(Number(btn.dataset.setIndex)));
     });
+  }
+
+  /** V04.24 — MODO RESULTADO: con el teclado abierto, una ficha por set (confirmados tocables para
+   *  reabrir vía reopenManualSet, el actual resaltado con su valor en vivo, los pendientes "— —").
+   *  Solo presentación: lee `manualSets`/`manualActiveSetIndex`/`manualDraftSet`, no tiene estado propio. */
+  function renderManualScoreEntryChips(format, wrap) {
+    const slots = manualNeededSlots(format);
+    const live = (side) => (manualKeypadDigits && manualDraftActiveTeam === side)
+      ? manualKeypadDigits : (Number.isFinite(manualDraftSet[side.toLowerCase()]) ? String(manualDraftSet[side.toLowerCase()]) : '—');
+    const items = [];
+    for (let i = 0; i < slots; i++) {
+      const s = manualSets[i];
+      const confirmed = s && Number.isFinite(s.a) && Number.isFinite(s.b);
+      const label = format.bestOfSets === 1 ? 'SET' : `SET ${i + 1}`;
+      if (i === manualActiveSetIndex) {
+        items.push(`<div class="court-accumulated__set is-current" aria-current="true"><span class="court-accumulated__set-label">${label}</span><span class="court-accumulated__set-score">${live('A')}–${live('B')}</span></div>`);
+      } else if (confirmed) {
+        items.push(`<button type="button" class="court-accumulated__set" data-set-index="${i}" aria-label="Editar Set ${i + 1}, ${s.a} a ${s.b}"><span class="court-accumulated__set-label">${label}</span><span class="court-accumulated__set-score">${s.a}–${s.b}</span></button>`);
+      } else {
+        items.push(`<div class="court-accumulated__set is-pending"><span class="court-accumulated__set-label">${label}</span><span class="court-accumulated__set-score">— —</span></div>`);
+      }
+    }
+    wrap.innerHTML = items.join('');
+    wrap.hidden = items.length === 0;
+    $all('#court-accumulated .court-accumulated__set[data-set-index]').forEach((btn) => {
+      btn.addEventListener('click', () => reopenManualSet(Number(btn.dataset.setIndex)));
+    });
+  }
+
+  /** V04.24 — resumen compacto de las dos parejas para el modo resultado. */
+  function renderManualScoreMatchup() {
+    const a = $('#score-matchup-a'), b = $('#score-matchup-b');
+    if (a) a.textContent = manualTeamShortLabel([manualPlayers.a1, manualPlayers.a2]);
+    if (b) b.textContent = manualTeamShortLabel([manualPlayers.b1, manualPlayers.b2]);
+  }
+
+  /** V04.24 — ÚNICO punto que deriva el "modo resultado" del estado real (`manualKeypadOpen` + vista
+   *  visible): clase `is-score-entry` en la vista y bottom-nav oculta/restaurada. Se llama desde
+   *  showView (cualquier salida de la vista lo apaga), openManualKeypad y closeManualKeypadPanel,
+   *  así que nunca queda una clase ni una nav oculta huérfanas. */
+  function syncManualScoreEntryChrome() {
+    const view = $('#view-manual-load');
+    if (!view) return;
+    const active = !view.hidden && manualKeypadOpen;
+    view.classList.toggle('is-score-entry', active);
+    const matchup = $('#manual-score-matchup');
+    if (matchup) matchup.hidden = !active;
+    const nav = $('#bottom-nav');
+    if (!nav) return;
+    if (active) {
+      nav.hidden = true;
+      document.documentElement.style.setProperty('--bottomnav-h', '0px');
+    } else if (!view.hidden && Store.getCurrentUser()) {
+      nav.hidden = false;
+      document.documentElement.style.setProperty('--bottomnav-h', `${nav.offsetHeight}px`);
+    }
+    positionManualContinueBar();
   }
 
   /** §6.3 — números grandes del set en edición; oculto una vez que el partido quedó decidido
@@ -1094,6 +1154,7 @@
     $('#manual-load-format-mini').textContent = `${format.label} · ${scoringLabel}`;
     $('#load-format-line-text').textContent = `${format.label} · ${bestOfLabel} · ${scoringLabel}`;
 
+    renderManualScoreMatchup();
     renderManualAccumulated(format);
     renderManualCurrentSetEditor(format);
     updateManualContinueState(format);
@@ -1155,6 +1216,7 @@
     manualKeypadDigits = '';
     $('#load-keypad').hidden = false;
     $('#manual-load-scroll').classList.add('has-keypad');
+    syncManualScoreEntryChrome();
     updateManualKeypadKeysState();
     renderManualScoreboard();
   }
@@ -1165,6 +1227,7 @@
     manualKeypadDigits = '';
     $('#load-keypad').hidden = true;
     $('#manual-load-scroll').classList.remove('has-keypad');
+    syncManualScoreEntryChrome();
   }
 
   function commitDraftDigits() {
@@ -1492,28 +1555,10 @@
     if (btn) btn.hidden = !$('#manual-time-input').value;
   }
 
-  /** V02.3 (Bloque B, §6) — Hora deja de ser un <input type="time"> nativo: su presentación
-   *  depende del idioma/región del dispositivo (puede mostrar "2:50 p. m." aunque el valor
-   *  interno ya fuera 24h) — la causa real detrás de "formato de 24 horas en toda la app".
-   *  Enmascara mientras se tipea (inserta ':' después de 2 dígitos), sin validar todavía —
-   *  el clamp final ocurre en blur (normalizeManualTimeOnBlur). */
-  function maskManualTimeInput(raw) {
-    const digits = raw.replace(/\D/g, '').slice(0, 4);
-    if (digits.length <= 2) return digits;
-    return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-  }
-
-  /** Al perder foco: HH:MM completo (3-4 dígitos) se recorta a rangos válidos (00-23/00-59) y
-   *  se rellena con ceros; incompleto (0-2 dígitos) se limpia — nunca deja a medio escribir.
-   *  Vacío ya es un estado soportado (equivalente a "Borrar hora": hora desconocida). */
-  function normalizeManualTimeOnBlur() {
-    const input = $('#manual-time-input');
-    const digits = input.value.replace(/\D/g, '').slice(0, 4);
-    if (digits.length < 3) { input.value = ''; return; }
-    const h = Math.min(23, Number(digits.slice(0, digits.length - 2)));
-    const m = Math.min(59, Number(digits.slice(-2)));
-    input.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }
+  /** V04.24 — Hora vuelve a ser un <input type="time"> nativo (selector del dispositivo; el valor
+   *  interno es siempre "HH:MM" 24h o '' si se borró). Ya no hay máscara/normalización manual: el
+   *  navegador no permite horas inválidas, y buildPlayedAtFromLocalFields (match-load.js) sigue
+   *  defendiendo ante datos inválidos. */
 
   function openManualMetaSheet() {
     $('#manual-meta-sheet-scrim').hidden = false;
@@ -1568,12 +1613,8 @@
 
   function initManualDateTimeFields() {
     $('#manual-date-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); recomputeManualValidation(); });
-    $('#manual-time-input').addEventListener('input', (e) => {
-      e.target.value = maskManualTimeInput(e.target.value);
-      markManualLoadDirty();
-      renderManualMetaLine();
-    });
-    $('#manual-time-input').addEventListener('blur', () => { normalizeManualTimeOnBlur(); renderManualMetaLine(); });
+    $('#manual-time-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
+    $('#manual-time-input').addEventListener('change', () => { markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-time-clear-btn').addEventListener('click', () => { $('#manual-time-input').value = ''; markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-place-input').addEventListener('input', () => { markManualLoadDirty(); renderManualMetaLine(); });
     $('#manual-location-btn').addEventListener('click', requestManualLocation);
@@ -1720,7 +1761,7 @@
       } catch (e) { $('#manual-date-input').value = localDateInputValue(baseDateObj); }
       const timeKnown = editMatch.timeKnown !== false;
       if (timeKnown) {
-        try { $('#manual-time-input').value = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(baseDateObj); }
+        try { $('#manual-time-input').value = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone }).format(baseDateObj).replace(/^24/, '00'); }
         catch (e) { $('#manual-time-input').value = localTimeInputValue(baseDateObj); }
       } else {
         $('#manual-time-input').value = '';
@@ -10695,7 +10736,7 @@
 
   /** §G — una fila de partido del desglose: fecha · compañero · rivales · resultado + bonus,
    *  puntos alineados a la derecha. Un partido que no entró en el top 2 nunca se esconde: se
-   *  distingue con "No entra en tus 2 mejores" en vez del monto (`row.counted` viene de
+   *  muestra su valor real en gris (solo `counted && points > 0` va en lima) (`row.counted` viene de
    *  `PG.buildPlayerWeeklyBreakdown`, MISMO subconjunto que `computeWeeklyTable`). */
   function buildGroupBreakdownRowHTML(row, ownerName) {
     // "Vos / Compañero vs Rival / Rival" — separador "/" (nunca "+"); el propio jugador es el
@@ -10705,8 +10746,10 @@
     const detail = [pair, rivals ? `vs ${rivals}` : ''].filter(Boolean).join(' ');
     const setsText = (row.sets || []).map((s) => `${s[0]}–${s[1]}`).join(' · ');
     const resultLine = [setsText, breakdownReasonLabel(row)].filter(Boolean).join(' · ');
-    const ptsText = row.counted ? `${row.points} pts` : (row.won ? 'No entra en tus 2 mejores' : '0 pts');
-    return `<div class="group-breakdown-row${row.counted ? ' group-breakdown-row--counted' : ''}">
+    // V04.24 — el valor real del partido se muestra SIEMPRE; solo suma en lima lo que aportó al total
+    // (`counted && points > 0`): victorias desplazadas del top 2 y derrotas quedan en gris.
+    const ptsText = `${row.points} pts`;
+    return `<div class="group-breakdown-row${(row.counted && row.points > 0) ? ' group-breakdown-row--counted' : ''}">
       <div class="group-breakdown-row__main">
         <span class="group-breakdown-row__date">${escapeHtml(formatShortPlayedDate(row.playedAt))}</span>
         <span class="group-breakdown-row__detail">${escapeHtml(detail)}</span>

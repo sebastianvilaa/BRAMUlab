@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.23-h1" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.24-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.23-h1" />
+<link rel="stylesheet" href="styles.css?v=04.24-h1" />
 </head>
 <body>
 
@@ -314,6 +314,15 @@
     </div>
     <div class="court-scroll load-match-scroll" id="manual-load-scroll">
 
+      <!-- V04.24 — MODO RESULTADO: visible solo mientras el teclado numérico está abierto
+           (`#view-manual-load.is-score-entry`). Resumen compacto de las dos parejas (A verde / B
+           celeste) para que el marcador siempre quede identificado sin las tarjetas grandes. -->
+      <div class="score-matchup" id="manual-score-matchup" role="group" aria-label="Parejas" hidden>
+        <div class="score-matchup__team score-matchup__team--a"><span class="score-matchup__names" id="score-matchup-a">—</span></div>
+        <span class="score-matchup__vs" aria-hidden="true">VS</span>
+        <div class="score-matchup__team score-matchup__team--b"><span class="score-matchup__names" id="score-matchup-b">—</span></div>
+      </div>
+
       <!-- Handoff cierre UX h13 (§9 "Cargar partido — metadata arriba de los equipos") — REEMPLAZA
            el orden de "Segunda corrección QA 26SEP §6" (formato/fecha DESPUÉS de los equipos):
            QA físico h13 confirmó que debía quedar ANTES — la metadata (formato/sets/sistema/
@@ -481,6 +490,9 @@
            causa real detrás de "Fecha y Hora se ven distintas" — pasa a ser un campo de texto
            enmascarado (HH:MM, 24h siempre, ver initManualDateTimeFields/normalizeManualTimeText
            en app.js) que además iguala pixel a pixel el cuerpo visual del campo Fecha. -->
+      <!-- V04.24 — Fecha y Hora: mismo shell (una sola fila con divisor, misma altura/baseline); la Hora es
+           un <input type="time"> nativo (selector del dispositivo, valor interno siempre HH:MM, sin
+           entradas inválidas tipo 22:89). Lugar + "Usar ubicación" comparten renglón. -->
       <div class="manual-datetime-row">
         <div class="field">
           <label class="manual-field-label" for="manual-date-input"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Fecha</label>
@@ -488,18 +500,17 @@
         </div>
         <div class="field manual-field--time">
           <label class="manual-field-label" for="manual-time-input"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Hora</label>
-          <input id="manual-time-input" class="field__input" type="text" inputmode="numeric" placeholder="14:50" maxlength="5" autocomplete="off" />
+          <input id="manual-time-input" class="field__input" type="time" step="60" />
           <button type="button" id="manual-time-clear-btn" class="manual-time-clear-icon" aria-label="Borrar hora" hidden>×</button>
         </div>
       </div>
       <div class="field">
         <label class="manual-field-label" for="manual-place-input">Lugar</label>
-        <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar o club (opcional)" maxlength="60" />
+        <div class="manual-place-row">
+          <input id="manual-place-input" class="field__input" type="text" placeholder="Nombre del lugar o club (opcional)" maxlength="60" />
+          <button type="button" id="manual-location-btn" class="manual-location-btn" aria-label="Usar mi ubicación"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.5-7-11a7 7 0 1 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Usar ubicación</button>
+        </div>
       </div>
-      <!-- V02.3 (Bloque B, §6) — "Usar mi ubicación" pasa de acción lima protagonista a
-           acción secundaria compacta con ícono (ya no compite con LISTO por el mismo peso
-           visual). -->
-      <button type="button" id="manual-location-btn" class="manual-location-btn"><svg class="manual-field-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.5-7-11a7 7 0 1 1 14 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>Usar mi ubicación</button>
       <p class="coverage-note" id="manual-location-status" hidden></p>
       <button type="button" id="manual-meta-sheet-done" class="court-continue-btn manual-meta-sheet-done">LISTO</button>
     </div>
@@ -1090,6 +1101,7 @@
           </div>
           <span class="group-breakdown-head__points" id="group-breakdown-total">— pts</span>
         </div>
+        <p class="group-breakdown-note">Cuentan tus 2 mejores partidos de la semana</p>
         <div id="group-breakdown-list" class="group-breakdown-list"></div>
       </div>
       <button type="button" id="group-breakdown-view-profile-btn" class="group-sheet-profile-link">Ver perfil ›</button>
@@ -2975,40 +2987,40 @@
        de calificación (3/4) y semana, no solo puntos. Accesible desde el `?` del header del
        lobby y, equivalente, desde el link al pie del detalle del grupo. -->
   <div id="group-points-info-scrim" class="sheet-scrim" hidden>
-    <div id="group-points-info-sheet" class="bottom-sheet bottom-sheet--compact" role="dialog" aria-modal="true" aria-label="Cómo funcionan los Grupos BRAMU">
+    <div id="group-points-info-sheet" class="bottom-sheet group-help-sheet" role="dialog" aria-modal="true" aria-label="Cómo funcionan los Grupos BRAMU">
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
-      <div class="bottom-sheet__level">
-        <div class="bottom-sheet__header">
-          <span class="bottom-sheet__title">CÓMO FUNCIONAN LOS GRUPOS BRAMU</span>
-          <button type="button" id="group-points-info-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-        </div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title">CÓMO FUNCIONAN LOS GRUPOS BRAMU</span>
+        <button type="button" id="group-points-info-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="group-help-body">
         <div class="group-help-hero">
           <p class="group-help-hero__title">Jugá como siempre. BRAMU hace el resto.</p>
-          <p class="group-help-hero__sub">Cargá el resultado una sola vez. Si el partido corresponde a uno de tus grupos, BRAMU lo detecta y actualiza la competencia automáticamente.</p>
+          <p class="group-help-hero__sub">BRAMU detecta automáticamente qué partidos corresponden a cada grupo y actualiza la competencia. Para el grupo, no tenés que hacer nada extra.</p>
         </div>
         <div class="group-help-blocks">
           <div class="group-help-block">
-            <span class="group-help-block__title">Entra solo</span>
-            <span class="group-help-block__sub">Con <strong>3 de los 4 jugadores</strong> dentro del grupo, el partido cuenta. No elegís un grupo ni cargás nada dos veces.</span>
+            <span class="group-help-block__title">BRAMU detecta los partidos</span>
+            <span class="group-help-block__sub">Si al menos <strong>3 de los 4 jugadores</strong> pertenecen al grupo, el partido entra automáticamente.</span>
           </div>
           <div class="group-help-block">
-            <span class="group-help-block__title">Tus 2 mejores cuentan</span>
-            <span class="group-help-block__sub">Cada semana, BRAMU toma los <strong>dos partidos que más puntos te dieron</strong>. El resto sigue formando parte de tu actividad.</span>
+            <span class="group-help-block__title">Cada semana cuentan tus 2 mejores partidos</span>
+            <span class="group-help-block__sub">Si jugás más de dos, BRAMU toma los que más puntos te dieron. Todos siguen apareciendo en tu actividad.</span>
           </div>
           <div class="group-help-block">
-            <span class="group-help-block__title">Cada semana, una nueva pelea</span>
-            <span class="group-help-block__sub">La tabla empieza de nuevo cada lunes. Los puntos que sumaste alimentan la <strong>Race anual</strong>.</span>
+            <span class="group-help-block__title">Nueva semana, nueva tabla</span>
+            <span class="group-help-block__sub">Cada lunes la tabla vuelve a empezar. Los puntos que sumaste siguen acumulándose en la <strong>Race anual</strong>.</span>
           </div>
         </div>
-        <p class="group-help-sub-title">Cómo se suman los puntos</p>
+        <p class="group-help-sub-title">Cómo sumás puntos</p>
         <ul class="group-points-info-list">
-          <li><strong>Clásico:</strong> victoria = 5 puntos; con bonus puede llegar a 7.</li>
-          <li><strong>Americano:</strong> victoria = 3 puntos; con bonus puede llegar a 5.</li>
-          <li><strong>Sorpresa de nivel:</strong> +1 si ganás con una pareja de Nivel BRAMU más bajo (en Americano, la diferencia tiene que ser mayor).</li>
-          <li><strong>Remontada:</strong> +1 si perdiste el primer set y ganaste. No existe en Americano.</li>
-          <li><strong>Victoria clara:</strong> +1 si ganás con claridad.</li>
-          <li>Los puntos de Grupos <strong>no modifican</strong> tu Nivel BRAMU ni el Ranking BRAMU.</li>
+          <li><strong>Clásico</strong> — 5 pts por victoria · hasta 7 con bonus.</li>
+          <li><strong>Americano</strong> — 3 pts por victoria · hasta 5 con bonus.</li>
+          <li><strong>Sorpresa de nivel</strong> — +1 por vencer a una pareja claramente superior.</li>
+          <li><strong>Remontada</strong> — +1 si perdés el primer set y ganás el partido. No aplica en Americano.</li>
+          <li><strong>Victoria clara</strong> — +1 por ganar con claridad.</li>
         </ul>
+        <p class="group-help-footnote">Los puntos de Grupos son propios de esta competencia. No modifican tu Nivel BRAMU ni tu Ranking BRAMU.</p>
       </div>
     </div>
   </div>
@@ -3152,47 +3164,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.23-h1"></script>
-  <script src="stats.js?v=04.23-h1"></script>
-  <script src="store.js?v=04.23-h1"></script>
+  <script src="engine.js?v=04.24-h1"></script>
+  <script src="stats.js?v=04.24-h1"></script>
+  <script src="store.js?v=04.24-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.23-h1"></script>
-  <script src="level-context.js?v=04.23-h1"></script>
-  <script src="level-calibration.js?v=04.23-h1"></script>
-  <script src="player-home.js?v=04.23-h1"></script>
-  <script src="match-load.js?v=04.23-h1"></script>
-  <script src="player-identity.js?v=04.23-h1"></script>
-  <script src="groups.js?v=04.23-h1"></script>
-  <script src="locations.js?v=04.23-h1"></script>
-  <script src="ranking.js?v=04.23-h1"></script>
+  <script src="level.js?v=04.24-h1"></script>
+  <script src="level-context.js?v=04.24-h1"></script>
+  <script src="level-calibration.js?v=04.24-h1"></script>
+  <script src="player-home.js?v=04.24-h1"></script>
+  <script src="match-load.js?v=04.24-h1"></script>
+  <script src="player-identity.js?v=04.24-h1"></script>
+  <script src="groups.js?v=04.24-h1"></script>
+  <script src="locations.js?v=04.24-h1"></script>
+  <script src="ranking.js?v=04.24-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.23-h1"></script>
+  <script src="auth.js?v=04.24-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.23-h1"></script>
-  <script src="match-sync.js?v=04.23-h1"></script>
+  <script src="matches.js?v=04.24-h1"></script>
+  <script src="match-sync.js?v=04.24-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.23-h1"></script>
+  <script src="match-validation.js?v=04.24-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.23-h1"></script>
+  <script src="match-self-heal.js?v=04.24-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.23-h1"></script>
-  <script src="app.js?v=04.23-h1"></script>
+  <script src="intelligence-client.js?v=04.24-h1"></script>
+  <script src="app.js?v=04.24-h1"></script>
 </body>
 </html>
