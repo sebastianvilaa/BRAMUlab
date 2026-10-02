@@ -6969,9 +6969,26 @@
 
   /** Progreso versionado para soportar reload (Store.NIVEL_PROGRESS). Solo posiciones+ramas
    *  confirmadas — nunca el nivel calculado. */
+  /** Identidad estable y NO secreta a la que pertenece el progreso: la alta en curso (id aleatorio
+   *  generado una vez y persistido en el borrador) o la cuenta actual. `null` = sin identidad → no
+   *  se guarda ni se restaura nada (nunca se mezcla progreso entre altas/cuentas). */
+  function nivelProgressScopeKey() {
+    if (nivelOnboardingContext === 'draft') {
+      if (!signupDraft.nivelProgressScope) {
+        signupDraft.nivelProgressScope = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `d${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+        Store.saveSignupDraft(signupDraft);
+      }
+      return `draft:${signupDraft.nivelProgressScope}`;
+    }
+    const user = Store.getCurrentUser();
+    return user && user.id ? `account:${user.id}` : null;
+  }
+
   function persistNivelProgress() {
+    const scopeKey = nivelProgressScopeKey();
+    if (!scopeKey) return;
     Store.saveNivelProgress({
-      version: LVC.QUESTIONNAIRE_VERSION, context: nivelOnboardingContext,
+      version: LVC.QUESTIONNAIRE_VERSION, context: nivelOnboardingContext, scopeKey,
       positions: nivelQuestionnaire.positions, branches: nivelQuestionnaire.branches,
     });
   }
@@ -6980,7 +6997,9 @@
    *  motor revalida versión y ramas: un estado de otra versión o inconsistente se descarta. */
   function restoreNivelProgress() {
     const saved = Store.loadNivelProgress();
-    if (!saved || saved.version !== LVC.QUESTIONNAIRE_VERSION || saved.context !== nivelOnboardingContext) return false;
+    const scopeKey = nivelProgressScopeKey();
+    if (!saved || saved.version !== LVC.QUESTIONNAIRE_VERSION || saved.context !== nivelOnboardingContext
+      || !scopeKey || saved.scopeKey !== scopeKey) return false;
     const state = LVC.reconcileQuestionnaireState(saved);
     if (!state.positions.some(LVC.isValidPosition)) return false;
     nivelQuestionnaire = state;

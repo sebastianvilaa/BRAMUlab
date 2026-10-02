@@ -188,10 +188,10 @@ test('el teclado numérico ya no es la UX de Cargar partido', () => {
   assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /load-keypad|data-key=/);
   assert.doesNotMatch(app, /manualKeypad|openManualKeypad|manualSideEntered|manualDraftActiveTeam/);
 });
-test('versionado: V04.28 / 04.28-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-28-h1'/); assert.match(html, /app\.js\?v=04\.28-h1/); assert.match(html, /styles\.css\?v=04\.28-h1/);
+test('versionado: V04.28 / 04.28-h2 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h2' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h2'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-28-h2'/); assert.match(html, /app\.js\?v=04\.28-h2/); assert.match(html, /styles\.css\?v=04\.28-h2/);
 });
 
 /* ================= V04.27 ================= */
@@ -313,7 +313,7 @@ test('V04.27 · #26 RECALIBRANDO queda blanco; ámbar solo CALIBRANDO', () => {
   assert.doesNotMatch(app, /levelV1\.state !== LV\.STATES\.CALIBRATED\)/);
 });
 
-/* ================= V04.28-h1 ================= */
+/* ================= V04.28-h2 ================= */
 test('h2 · #26 presentación completa: RECALIBRANDO consolidado (blanco, sin bloque/copy/progreso CALIBRANDO) en Home y Mi Perfil', () => {
   assert.match(app, /const calibrated = levelV1\.state !== LV\.STATES\.CALIBRATING;/);
   assert.match(app, /const isCalibrated = levelV1\.state !== LV\.STATES\.CALIBRATING;/);
@@ -347,8 +347,8 @@ test('h2 · modal "Tenés un partido sin terminar": acciones verticales solo en 
   assert.equal(stackedCalls, 1); assert.ok(calls > 5);
   assert.match(fnSource('confirmAction'), /danger, stacked\)/);
 });
-test('h2 · versionado 04.28-h1 con APP_VERSION V04.28', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-28-h1'/);
+test('h2 · versionado 04.28-h2 con APP_VERSION V04.28', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h2' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h2'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-28-h2'/);
 });

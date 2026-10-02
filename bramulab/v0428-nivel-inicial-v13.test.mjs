@@ -514,11 +514,80 @@ test('contrafactuales: perfiles representativos (desidentificados) mantienen el 
   assert.ok(Math.abs(step - base) < 0.2);
 });
 
-test('versionado V04.28 / 04.28-h1 coherente (store, version.json, sw, index, manifest)', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h1'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h1'/);
-  assert.match(html, /level-calibration\.js\?v=04\.28-h1/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h1/);
-  assert.match(read('manifest.webmanifest'), /v=04\.28-h1/);
+test('versionado V04.28 / 04.28-h2 coherente (store, version.json, sw, index, manifest)', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h2' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h2'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h2'/);
+  assert.match(html, /level-calibration\.js\?v=04\.28-h2/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h2/);
+  assert.match(read('manifest.webmanifest'), /v=04\.28-h2/);
   assert.doesNotMatch(read('sw.js') + html + read('manifest.webmanifest'), /04\.27-h/);
+});
+
+/* ======================= V04.28-h2 — progreso aislado por alta/cuenta ======================= */
+function makeProgressHarness(store) {
+  const sb = loadEngine(['level.js', 'level-calibration.js', 'store.js'], { localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } });
+  const ctx = { Store: sb.PLStore, LVC: sb.PLLevelCalibration, window: { crypto: { randomUUID: (() => { let n = 0; return () => `uuid-${++n}-${Math.random()}`; })() } }, crypto: undefined };
+  ctx.crypto = ctx.window.crypto;
+  vm.createContext(ctx);
+  vm.runInContext(`
+    var nivelOnboardingContext = 'draft'; var signupDraft = {}; var currentUser = null;
+    var nivelQuestionnaire = LVC.createQuestionnaireState();
+    Store = Object.assign({}, Store, { getCurrentUser: () => currentUser });
+    ${fnSource('nivelProgressScopeKey')}
+    ${fnSource('persistNivelProgress')}
+    ${fnSource('restoreNivelProgress')}
+  `, ctx);
+  const run = (c) => vm.runInContext(c, ctx);
+  return { run, answer: (ps) => run(`nivelQuestionnaire = LVC.createQuestionnaireState(); ${JSON.stringify(ps)}.forEach((p, i) => { nivelQuestionnaire = LVC.answerQuestion(nivelQuestionnaire, i, p); }); persistNivelProgress();`),
+    restore: () => { run('nivelQuestionnaire = LVC.createQuestionnaireState()'); const ok = run('restoreNivelProgress()'); return { ok, positions: plain(run('nivelQuestionnaire.positions')) }; } };
+}
+
+test('h2-1/2/3) draft A guarda y restaura tras reload; un draft B distinto NO hereda el progreso de A', () => {
+  const store = {};
+  const a = makeProgressHarness(store);
+  a.run("signupDraft = { email: 'a@x.com' }"); a.answer([6, 5, 4]);
+  assert.match(plain(JSON.parse(store['bramulab.nivelProgress.v13'])).scopeKey, /^draft:/);
+  assert.ok(a.run('signupDraft.nivelProgressScope'), 'el scope vive en el borrador persistido (sin secretos)');
+  const savedDraft = a.run('JSON.stringify(signupDraft)');
+  // reload de A: mismo borrador (rehidratado) → restaura
+  const reloadA = makeProgressHarness(store); reloadA.run(`signupDraft = ${savedDraft}`);
+  assert.deepEqual(reloadA.restore(), { ok: true, positions: [6, 5, 4, null, null] });
+  // alta B nueva (borrador vacío → scope propio) → no restaura
+  const b = makeProgressHarness(store); b.run("signupDraft = { email: 'b@x.com' }");
+  assert.deepEqual(b.restore(), { ok: false, positions: [null, null, null, null, null] });
+  // mismo email pero otro borrador/alta → tampoco
+  const b2 = makeProgressHarness(store); b2.run("signupDraft = { email: 'a@x.com' }");
+  assert.equal(b2.restore().ok, false);
+});
+
+test('h2-4/5/6) account A guarda y restaura tras reload; account B NO hereda el progreso de A', () => {
+  const store = {};
+  const a = makeProgressHarness(store);
+  a.run("nivelOnboardingContext = 'account'; currentUser = { id: 'user-A' }"); a.answer([8, 6]);
+  const reload = makeProgressHarness(store); reload.run("nivelOnboardingContext = 'account'; currentUser = { id: 'user-A' }");
+  assert.deepEqual(reload.restore(), { ok: true, positions: [8, 6, null, null, null] });
+  const b = makeProgressHarness(store); b.run("nivelOnboardingContext = 'account'; currentUser = { id: 'user-B' }");
+  assert.equal(b.restore().ok, false);
+  const none = makeProgressHarness(store); none.run("nivelOnboardingContext = 'account'; currentUser = null");
+  assert.equal(none.restore().ok, false);
+  // un progreso 'account' tampoco se restaura en contexto 'draft' y viceversa
+  const cross = makeProgressHarness(store); cross.run("signupDraft = {}");
+  assert.equal(cross.restore().ok, false);
+  // sin scopeKey (progreso de h1) no se restaura
+  store['bramulab.nivelProgress.v13'] = JSON.stringify({ version: 'nivel_inicial_v1_3', context: 'account', positions: [8, 6, null, null, null], branches: ['common', 'high', null, null, null] });
+  assert.equal(reload.restore().ok, false);
+});
+
+test('h2-7/8) limpiar el borrador y completar Nivel limpian el progreso', () => {
+  const store = {};
+  const a = makeProgressHarness(store); a.run("signupDraft = {}"); a.answer([6, 6]);
+  assert.ok(store['bramulab.nivelProgress.v13']);
+  a.run('Store.clearSignupDraft()'); assert.equal(store['bramulab.nivelProgress.v13'], undefined);
+  a.answer([6, 6]); assert.ok(store['bramulab.nivelProgress.v13']);
+  a.run('Store.clearNivelProgress()'); assert.equal(store['bramulab.nivelProgress.v13'], undefined);
+  // la app limpia el progreso al confirmar (ambos contextos)
+  const confirm = fnSource('confirmNivelOnboarding');
+  assert.equal((confirm.match(/Store\.clearNivelProgress\(\)/g) || []).length, 2);
+  // borrar una cuenta local limpia lo correspondiente
+  assert.match(read('store.js'), /safeRemove\(KEYS\.SIGNUP_DRAFT\);\s*safeRemove\(KEYS\.NIVEL_PROGRESS\);/);
 });
