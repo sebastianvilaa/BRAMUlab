@@ -347,10 +347,10 @@ test('27) A/B/C/D, valores internos, rama y categorías NUNCA son visibles en el
   assert.doesNotMatch(app, /categorizeLevel\(/);
   // Copy aprobado, sin mensajes dinámicos de selección y sin gradiente verde→naranja→rojo.
   assert.match(section, /Pensá en cómo jugás habitualmente, no en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida\./);
-  assert.match(section, /Tocá una descripción para elegirla directamente o mové el control para ubicarte entre dos\./);
+  assert.match(section, /Tocá una descripción\. Si estás entre dos opciones, usá el control para ajustar tu respuesta\./);
   assert.doesNotMatch(app, /Elegiste una de las descripciones|quedó entre dos descripciones/);
   const slider = css.slice(css.indexOf('.nivel-slider-hint'), css.indexOf('/* Progreso del cuestionario completo'));
-  assert.doesNotMatch(slider, /gradient|#ff|--gold|--brand-lime|--red|--green|--orange|--danger/i);
+  assert.doesNotMatch(slider.replace(/linear-gradient\(rgba\(25,159,255,[^;]*?\), var\(--ink-soft\)/g, ''), /gradient|#ff|--gold|--brand-lime|--red|--green|--orange|--danger/i);
   assert.match(slider, /--accent-cyan/);
   // Cuatro tarjetas con texto completo (sin truncar) y en orden de menor a mayor dominio.
   assert.doesNotMatch(slider, /text-overflow|line-clamp|white-space:\s*nowrap/);
@@ -514,16 +514,16 @@ test('contrafactuales: perfiles representativos (desidentificados) mantienen el 
   assert.ok(Math.abs(step - base) < 0.2);
 });
 
-test('versionado V04.28 / 04.28-h2 coherente (store, version.json, sw, index, manifest)', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h2'/);
-  assert.match(html, /level-calibration\.js\?v=04\.28-h2/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h2/);
-  assert.match(read('manifest.webmanifest'), /v=04\.28-h2/);
+test('versionado V04.28 / 04.28-h3 coherente (store, version.json, sw, index, manifest)', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h3' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h3'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h3'/);
+  assert.match(html, /level-calibration\.js\?v=04\.28-h3/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h3/);
+  assert.match(read('manifest.webmanifest'), /v=04\.28-h3/);
   assert.doesNotMatch(read('sw.js') + html + read('manifest.webmanifest'), /04\.27-h/);
 });
 
-/* ======================= V04.28-h2 — progreso aislado por alta/cuenta ======================= */
+/* ======================= V04.28-h3 — progreso aislado por alta/cuenta ======================= */
 function makeProgressHarness(store) {
   const sb = loadEngine(['level.js', 'level-calibration.js', 'store.js'], { localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } });
   const ctx = { Store: sb.PLStore, LVC: sb.PLLevelCalibration, window: { crypto: { randomUUID: (() => { let n = 0; return () => `uuid-${++n}-${Math.random()}`; })() } }, crypto: undefined };
@@ -590,4 +590,127 @@ test('h2-7/8) limpiar el borrador y completar Nivel limpian el progreso', () => 
   assert.equal((confirm.match(/Store\.clearNivelProgress\(\)/g) || []).length, 2);
   // borrar una cuenta local limpia lo correspondiente
   assert.match(read('store.js'), /safeRemove\(KEYS\.SIGNUP_DRAFT\);\s*safeRemove\(KEYS\.NIVEL_PROGRESS\);/);
+});
+
+/* ======================= V04.28-h3 — pulido post-QA ======================= */
+const css3 = read('styles.css');
+const fn3 = (n) => fnSource(n);
+
+test('h3-1/2/3) intro: copy intacto, más legible (casi blanco, 16px, interlineado), sin estructura nueva', () => {
+  const intro = html.slice(html.indexOf('id="nivel-step-intro"'), html.indexOf('id="nivel-step-quiz"'));
+  assert.match(intro, /Pensá en cómo jugás habitualmente, no en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida\./);
+  assert.match(css3, /#nivel-step-intro \.access-subtitle\{ color: var\(--paper\); font-size: 16px; line-height: 1\.6;/);
+  assert.match(css3, /\.nivel-intro-meta\{ font-size: 13px;[^}]*color: var\(--paper-dim\)/);
+  assert.equal((intro.match(/<(p|button)\b/g) || []).length, 3); // subtítulo + meta + EMPEZAR: sin elementos nuevos
+});
+
+test('h3-4..12) slider: vertical, 10 posiciones funcionales, 4 anclas visibles, thumb con pico y táctil intacto, nada preseleccionado', () => {
+  assert.match(html, /Tocá una descripción\. Si estás entre dos opciones, usá el control para ajustar tu respuesta\./);
+  assert.match(html, /aria-orientation="vertical"/);
+  assert.match(css3, /\.nivel-slider__dot:not\(\.nivel-slider__dot--anchor\)\{ visibility:hidden; \}/);
+  assert.match(fn3('renderNivelQuizStep'), /for \(let p = 0; p <= NIVEL_SLIDER_MAX; p \+= 1\) railHtml/); // los 10 siguen en el DOM
+  assert.match(css3, /\.nivel-slider__thumb::after\{[^}]*left: 100%[^}]*border-left-color|\.nivel-slider__thumb::after\{[^}]*border-color: transparent transparent transparent var\(--accent-cyan\)/);
+  assert.match(css3, /\.nivel-slider__rail\{[^}]*width: 44px;/); // hit area intacta
+  assert.match(css3, /\.nivel-slider__thumb\{[^}]*width: 26px; height: 26px;/);
+  assert.match(fn3('renderNivelQuizStep'), /setNivelDraftPosition\(Number\(card\.dataset\.anchor\) \* 3\)/);
+  assert.match(app, /let nivelDraftPosition = null/);
+  assert.match(html, /id="nivel-quiz-continue-btn" disabled/);
+  const rail = css3.slice(css3.indexOf('.nivel-slider__line'), css3.indexOf('.nivel-slider__cards'));
+  assert.doesNotMatch(rail, /gradient|--brand-lime|--gold/);
+});
+
+function paintWeights(p) {
+  const out = [];
+  const ctx = { $: () => ({ dataset: {}, querySelectorAll: () => [], querySelector: () => ({ hidden: false, style: {} }), setAttribute() {}, removeAttribute() {}, style: {}, disabled: false }), LVC: L,
+    $all: (sel) => (sel === '#nivel-slider-cards .nivel-slider__card' ? [0, 1, 2, 3].map((i) => ({ style: { setProperty: (k, v) => { out[i] = Number(v); } }, classList: { toggle() {} }, setAttribute() {} })) : []),
+    nivelSliderPositionsPx: () => [] };
+  vm.createContext(ctx);
+  vm.runInContext(`var nivelDraftPosition = ${p};\n${fn3('paintNivelSlider')}\npaintNivelSlider();`, ctx);
+  return out;
+}
+test('h3-13..16) intermedios: énfasis ponderado 100/0, 67/33, 33/67, 0/100 sin tocar la opacidad del texto', () => {
+  const r = (a) => a.map((x) => Math.round(x * 100));
+  assert.deepEqual(r(paintWeights(0)), [100, 0, 0, 0]);
+  assert.deepEqual(r(paintWeights(1)), [67, 33, 0, 0]);   // primer intermedio: más la izquierda
+  assert.deepEqual(r(paintWeights(2)), [33, 67, 0, 0]);   // segundo intermedio: más la derecha
+  assert.deepEqual(r(paintWeights(3)), [0, 100, 0, 0]);
+  assert.deepEqual(r(paintWeights(7)), [0, 0, 67, 33]);
+  assert.deepEqual(r(paintWeights(8)), [0, 0, 33, 67]);
+  assert.deepEqual(r(paintWeights(9)), [0, 0, 0, 100]);
+  assert.deepEqual(r(paintWeights(null)), [0, 0, 0, 0]);
+  assert.match(css3, /\.nivel-slider__card\{ background: linear-gradient\(rgba\(25,159,255,calc\(var\(--w, 0\) \* 0\.16\)\)/);
+  const cardRules = css3.slice(css3.indexOf('.nivel-slider__card{'), css3.indexOf('/* Progreso del cuestionario completo'));
+  assert.doesNotMatch(cardRules, /opacity/);
+  assert.match(fn3('paintNivelSlider'), /card\.classList\.toggle\('is-selected', exact\)/);
+});
+
+test('h3-17..20) adaptatividad intacta (P1 común, ramas, invalidación, sin reutilizar otra rama)', () => {
+  let s = L.createQuestionnaireState();
+  [6, 6, 6, 6, 6].forEach((p, i) => { s = L.answerQuestion(s, i, p); });
+  assert.equal(plain(L.branchForIndex([6], 1)), 'mid');
+  assert.deepEqual(plain(L.answerQuestion(s, 0, 0).positions), [0, null, null, null, null]);
+  assert.equal(est([6, 6, 6, 6, 6]).initialLevel, 5.32);
+});
+
+test('h3-21..23) resultado: número ámbar mientras CALIBRANDO, arco azul, valor sin cambios', () => {
+  assert.match(css3, /\.nivel-gauge__value\{[^}]*color: var\(--gold\)/);
+  assert.match(css3, /\.nivel-gauge__fill\{[^}]*stroke: var\(--accent-cyan\)/);
+  assert.match(css3, /\.nivel-gauge-card__category\{[^}]*color: var\(--gold\)/);
+  assert.equal(est([6, 6, 6, 6, 6]).initialLevel, 5.32);
+});
+
+test('h3-24..33) volver desde OTP: el Nivel ya confirmado en el borrador se recupera sin repetir las 5 preguntas', () => {
+  const answers = est([6, 6, 6, 6, 6]).positions;
+  const store = {};
+  const sb = loadEngine(['level.js', 'level-calibration.js', 'store.js'], { localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } });
+  const ctx = { Store: sb.PLStore, LVC: sb.PLLevelCalibration, window: {}, crypto: undefined, rendered: 0, $: () => ({}), $all: () => [], showView() {}, renderNivelOnboardingStep() { ctx.rendered += 1; } };
+  vm.createContext(ctx);
+  vm.runInContext(`
+    var nivelOnboardingContext = 'draft'; var nivelStep = 'intro'; var nivelQuizIndex = 0; var nivelDraftPosition = null; var nivelEstimate = null;
+    var nivelQuestionnaire = LVC.createQuestionnaireState();
+    var signupDraft = { email: 'a@x.com', username: 'ana', nivelQuestionnaireVersion: 'nivel_inicial_v1_3', nivelAnswers: ${JSON.stringify(answers)}, nivelState: { mu: 5.32 } };
+    ${fn3('nivelProgressScopeKey')}\n${fn3('restoreNivelProgress')}\n${fn3('confirmedDraftNivelAnswers')}\n${fn3('openNivelOnboardingIntro')}
+  `, ctx);
+  // NIVEL_PROGRESS limpio (como tras CONFIRMAR MI NIVEL) → igual muestra el resultado
+  vm.runInContext('openNivelOnboardingIntro()', ctx);
+  assert.equal(vm.runInContext('nivelStep', ctx), 'result');
+  assert.equal(vm.runInContext('nivelEstimate.initialLevel', ctx), 5.32);
+  assert.deepEqual(plain(vm.runInContext('nivelQuestionnaire.positions', ctx)), [6, 6, 6, 6, 6]);
+  // Revisar respuestas: pregunta 1 con respuestas conservadas; cambiar rama usa la invalidación vigente
+  const st = vm.runInContext('nivelQuestionnaire', ctx);
+  assert.deepEqual(plain(L.answerQuestion(st, 0, 0).positions), [0, null, null, null, null]);
+  assert.deepEqual(plain(L.answerQuestion(st, 2, 5).positions), [6, 6, 5, 6, 6]);
+  // sin Nivel confirmado en el borrador → comportamiento anterior (intro); borrador V1.2 → no se reutiliza
+  vm.runInContext("signupDraft = { email: 'a@x.com', nivelState: { mu: 5 } }; openNivelOnboardingIntro();", ctx);
+  assert.equal(vm.runInContext('nivelStep', ctx), 'intro');
+  vm.runInContext("nivelOnboardingContext = 'account'; signupDraft = { nivelQuestionnaireVersion: 'nivel_inicial_v1_3', nivelAnswers: " + JSON.stringify(answers) + ", nivelState: {} }; openNivelOnboardingIntro();", ctx);
+  assert.equal(vm.runInContext('nivelStep', ctx), 'intro', 'solo aplica al contexto draft');
+  // oficialización final limpia borrador + progreso como antes
+  assert.match(fnSource('runOfficializeAndEnter'), /Store\.clearSignupDraft\(\);\s*signupDraft = \{\};/);
+  assert.match(read('store.js'), /function clearSignupDraft\(\) \{ safeRemove\(KEYS\.NIVEL_PROGRESS\);/);
+  // Auth/OTP intactos: el flujo sigue usando el mismo verify/resend
+  assert.match(app, /Auth\.verifySignupOtp\(signupDraft\.email/);
+});
+
+test('h3-34..39) Home Estado Cero: tarjeta aprobada solo sin partidos; con partido real se muestra el partido', () => {
+  const fn = fnSource('renderPlayerLastMatchCard');
+  const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
+  assert.match(empty, /if \(!matches\.length\)/);
+  ['PRIMER PARTIDO', 'CARGÁ TU PRIMER PARTIDO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\.', 'CARGAR PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
+  assert.match(empty, /<button type="button" class="btn-start player-home-lastmatch__empty-cta">/);
+  assert.doesNotMatch(fn.slice(fn.indexOf("card.classList.remove('is-empty')")), /CARGÁ TU PRIMER PARTIDO|empty-cta/);
+  // el click de la tarjeta abre Cargar partido solo sin partidos; con partido abre el Resumen
+  assert.match(fnSource('initPlayerHomeLastMatchCard'), /if \(!matches\.length\) \{ openManualLoadScreen\('player-home'\); return; \}\s*openCanonicalResumen\(matches\[0\]/);
+  // TU MOMENTO / Buscar jugadores / Nivel no se tocan en esta ronda
+  assert.match(css3, /\.player-home-lastmatch__empty-cta\{ width:100%; \}/);
+});
+
+test('h3-40..42) V1.3 persiste la versión correcta, motor posterior sin cambios, versionado h3', () => {
+  assert.equal(L.QUESTIONNAIRE_VERSION, 'nivel_inicial_v1_3');
+  const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, f))).digest('hex');
+  assert.equal(h('level.js'), '12aa1dbe49deae59642ed185767af2e0dda5a01c18e33cc5728c82148fff6050');
+  assert.equal(h('match-level-engine.js'), 'a5677f73e73af9adf6cd5231953d4364422ca24254243d0fe9101d854c6bda74');
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h3' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h3'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h3'/);
 });

@@ -7013,11 +7013,25 @@
     Store.saveSignupDraft(signupDraft);
   }
 
+  /** Posiciones (array de 5) del Nivel V1.3 ya confirmado en el borrador de alta, o `null`. */
+  function confirmedDraftNivelAnswers() {
+    if (nivelOnboardingContext !== 'draft' || !signupDraft || signupDraft.nivelQuestionnaireVersion !== LVC.QUESTIONNAIRE_VERSION || !signupDraft.nivelState) return null;
+    const e = LVC.computeInitialEstimateV13(signupDraft.nivelAnswers);
+    return e ? LVC.QUESTION_IDS.map((id) => e.positions[id]) : null;
+  }
+
   function openNivelOnboardingIntro() {
     nivelDraftPosition = null;
     nivelEstimate = null;
     nivelQuestionnaire = LVC.createQuestionnaireState();
-    if (restoreNivelProgress()) {
+    const confirmedAnswers = confirmedDraftNivelAnswers();
+    if (confirmedAnswers) {
+      // Alta todavía sin oficializar con el Nivel V1.3 YA confirmado localmente (p. ej. volvió desde OTP):
+      // el borrador es la ÚNICA fuente — se reconstruye el estado y se muestra el resultado ya calculado.
+      confirmedAnswers.forEach((p, i) => { nivelQuestionnaire = LVC.answerQuestion(nivelQuestionnaire, i, p); });
+      nivelEstimate = LVC.computeInitialEstimateV13(nivelQuestionnaire.positions);
+      nivelStep = 'result';
+    } else if (restoreNivelProgress()) {
       if (LVC.isQuestionnaireComplete(nivelQuestionnaire)) {
         nivelEstimate = LVC.computeInitialEstimateV13(nivelQuestionnaire.positions);
         nivelStep = 'result';
@@ -7085,11 +7099,16 @@
     const thumb = rail.querySelector('.nivel-slider__thumb');
     thumb.hidden = !hasValue;
     if (hasValue) { const px = nivelSliderPositionsPx(); if (px.length === 10) thumb.style.top = px[p] + 'px'; }
+    // Énfasis ponderado por cercanía (guía visual, nunca un dato): ancla 100/0, 1.er intermedio 67/33,
+    // 2.º intermedio 33/67, ancla siguiente 0/100. Se aplica por --w (0..1) en CSS.
+    const seg = hasValue ? Math.floor(p / 3) : -1;
+    const frac = hasValue ? (p % 3) / 3 : 0;
     $all('#nivel-slider-cards .nivel-slider__card').forEach((card, i) => {
-      const exact = hasValue && p % 3 === 0 && p / 3 === i;
-      const near = hasValue && p % 3 !== 0 && (Math.floor(p / 3) === i || Math.floor(p / 3) + 1 === i);
-      card.classList.toggle('is-selected', !!exact);
-      card.classList.toggle('is-near', !!near);
+      const w = !hasValue ? 0 : (i === seg ? 1 - frac : (i === seg + 1 ? frac : 0));
+      const exact = hasValue && w === 1;
+      card.style.setProperty('--w', w.toFixed(3));
+      card.classList.toggle('is-selected', exact);
+      card.classList.toggle('is-near', w > 0 && !exact);
       card.setAttribute('aria-pressed', exact ? 'true' : 'false');
     });
     if (hasValue) {
@@ -8266,9 +8285,10 @@
     if (!matches.length) {
       card.classList.add('is-empty');
       body.innerHTML = `
-        <div class="player-home-lastmatch__title">ÚLTIMO PARTIDO</div>
-        <p class="coverage-note">Tu historia empieza con tu primer partido</p>
-        <span class="player-home-lastmatch__cta">+ CARGAR PRIMER PARTIDO</span>
+        <div class="player-home-lastmatch__title">PRIMER PARTIDO</div>
+        <div class="player-home-lastmatch__empty-title">CARGÁ TU PRIMER PARTIDO</div>
+        <p class="player-home-lastmatch__empty-desc">Registrá el resultado y empezá a construir tu historial en BRAMU.</p>
+        <button type="button" class="btn-start player-home-lastmatch__empty-cta">CARGAR PARTIDO</button>
       `;
       return;
     }

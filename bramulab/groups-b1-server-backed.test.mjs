@@ -322,11 +322,11 @@ test('B1-7d: el camino server-backed no usa el Nivel simulado ni fabrica @usuari
 });
 
 test('B1-8: bundle consistente en los cuatro puntos', () => {
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h2'/);
-  assert.match(read('version.json'), /"bundle":\s*"04\.28-h2"/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h2'/);
-  assert.match(read('index.html'), /groups\.js\?v=04\.28-h2/);
-  assert.match(read('index.html'), /auth\.js\?v=04\.28-h2/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h3'/);
+  assert.match(read('version.json'), /"bundle":\s*"04\.28-h3"/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h3'/);
+  assert.match(read('index.html'), /groups\.js\?v=04\.28-h3/);
+  assert.match(read('index.html'), /auth\.js\?v=04\.28-h3/);
 });
 
 

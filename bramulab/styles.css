@@ -1895,6 +1895,9 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__meta{ flex:none; text-align:right; }
 .player-home-lastmatch__meta-line{ font-size: 10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color: var(--court-text-faint); line-height:1.4; }
 .player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
+.player-home-lastmatch__empty-title{ font-family: var(--font-display); font-weight:800; font-size: 22px; line-height:1.15; color: var(--paper); margin-top: 8px; }
+.player-home-lastmatch__empty-desc{ font-size: 14px; line-height:1.45; color: var(--paper-dim); margin: 8px 0 16px; }
+.player-home-lastmatch__empty-cta{ width:100%; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
 
 /* ==========================================================================
@@ -3462,7 +3465,9 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 
 /* V04.28 — intro del cuestionario V1.3 (sin tarjetas de camino: ya no existe camino rápido). */
-.nivel-intro-meta{ font-size: 11px; font-weight:800; letter-spacing:0.05em; color: var(--paper-faint); text-transform:uppercase; text-align:center; margin: 0 0 20px; }
+.nivel-intro-meta{ font-size: 13px; font-weight:800; letter-spacing:0.05em; color: var(--paper-dim); text-transform:uppercase; text-align:center; margin: 0 0 24px; }
+/* V04.28-h3 — legibilidad de la intro: más contraste (casi blanco), tamaño e interlineado mayores. */
+#nivel-step-intro .access-subtitle{ color: var(--paper); font-size: 16px; line-height: 1.6; margin: 4px 0 20px; }
 
 /* V04.28 — componente de respuesta V1.3: cuatro descripciones completas + riel/slider discreto de
    10 posiciones (0..9) sobre el MISMO valor. Azul BRAMU (`--accent-cyan`) como único estado
@@ -3483,22 +3488,24 @@ input, select{ font-family: inherit; }
   background: rgba(183,211,235,0.30); transition: background var(--motion-base) var(--motion-ease), transform var(--motion-base) var(--motion-ease);
 }
 .nivel-slider__dot--anchor{ width: 12px; height: 12px; margin: -6px 0 0 -6px; background: rgba(183,211,235,0.42); }
+.nivel-slider__dot:not(.nivel-slider__dot--anchor){ visibility:hidden; } /* las 10 posiciones siguen existiendo; solo se dibujan las 4 anclas */
 .nivel-slider__dot.is-active{ background: var(--accent-cyan); }
 .nivel-slider__thumb{
   position:absolute; left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
   background: var(--accent-cyan); border: 3px solid var(--paper); box-shadow: 0 0 0 4px rgba(25,159,255,0.25);
   transition: top .14s ease; pointer-events:none;
 }
+.nivel-slider__thumb::after{ content:''; position:absolute; left: 100%; top: 50%; margin: -6px 0 0 3px; border-style: solid; border-width: 6px 0 6px 9px; border-color: transparent transparent transparent var(--accent-cyan); }
 .nivel-slider__thumb[hidden]{ display:none; }
 .nivel-slider__cards{ flex:1; min-width:0; display:flex; flex-direction:column; gap: 10px; }
 .nivel-slider__card{
   display:block; width:100%; text-align:left; font-family: inherit; font-size: 14px; font-weight:400; line-height:1.4;
   color: var(--paper); background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card);
   padding: 13px 14px; cursor:pointer; -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--motion-base) var(--motion-ease), background var(--motion-base) var(--motion-ease);
+  transition: box-shadow var(--motion-base) var(--motion-ease);
 }
-.nivel-slider__card.is-near{ border-color: rgba(25,159,255,0.45); background: rgba(25,159,255,0.05); }
-.nivel-slider__card.is-selected{ border-color: var(--accent-cyan); background: rgba(25,159,255,0.12); }
+/* Énfasis ponderado (--w 0..1 lo fija app.js): borde, fondo azul y glow crecen con la cercanía; el texto nunca baja de opacidad. */
+.nivel-slider__card{ background: linear-gradient(rgba(25,159,255,calc(var(--w, 0) * 0.16)), rgba(25,159,255,calc(var(--w, 0) * 0.16))), var(--ink-soft); box-shadow: inset 0 0 0 1px rgba(25,159,255,calc(var(--w, 0) * 0.95)), 0 0 calc(var(--w, 0) * 12px) rgba(25,159,255,calc(var(--w, 0) * 0.22)); }
 
 /* Progreso del cuestionario completo — barra simple, mismo radio/alto que el resto de barras
    de progreso de la app (.player-card__bar). */
@@ -3532,7 +3539,7 @@ input, select{ font-family: inherit; }
    el `top` no cambia, ya dejaba margen de sobra al arco en la parte superior). */
 .nivel-gauge__value{
   position:absolute; left:50%; top: 60%; transform: translate(-50%, -50%);
-  font-family: var(--font-display); font-weight:800; font-size: 62px; color: var(--paper);
+  font-family: var(--font-display); font-weight:800; font-size: 62px; color: var(--gold);
   line-height:1; font-variant-numeric: tabular-nums;
 }
 
