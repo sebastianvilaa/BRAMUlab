@@ -694,3 +694,58 @@ Este apéndice NO cambia ninguna decisión de producto del handoff anterior. Sol
 ## Recalibración
 
 El handoff confirma que la recalibración sigue existiendo en V1.3 y reutiliza el cuestionario adaptativo. Esta implementación debe preservar su matemática/eligibilidad vigente. La representación visual específica de `RECALIBRANDO` se revisará después del bloque V1.3 si hace falta; no inventar una UX nueva durante esta implementación.
+
+
+---
+
+## APÉNDICE UX — componente de respuesta confirmado con Sebastián (02/10/2026)
+
+Este apéndice cierra la dirección visual/interactiva del slider V1.3 antes de implementar. No cambia la fórmula ni las ramas.
+
+### Dirección aprobada
+
+Cada pregunta muestra las **cuatro descripciones completas** en orden de menor a mayor dominio. El jugador nunca ve letras A/B/C/D, valores internos, rama baja/media/alta ni categorías de nivel.
+
+La respuesta admite **doble entrada sobre el mismo valor discreto**:
+
+1. **Tap directo sobre una descripción**
+   - descripción 1 → posición 0;
+   - descripción 2 → posición 3;
+   - descripción 3 → posición 6;
+   - descripción 4 → posición 9.
+   - el thumb/checkpoint salta exactamente a ese ancla.
+
+2. **Slider discreto**
+   - siempre diez posiciones: 0…9;
+   - entre cada par de descripciones existen exactamente dos posiciones intermedias;
+   - el control encastra/snappea en cada checkpoint;
+   - puede empezar por drag/tap sobre el rail sin elegir antes una tarjeta.
+
+### Estado inicial
+
+- **Nada preseleccionado.**
+- Sin thumb/valor activo al entrar a la pregunta.
+- Rail/checkpoints en estado neutro.
+- `CONTINUAR` disabled hasta la primera interacción válida.
+- Nunca sugerir por defecto una posición media.
+
+### Feedback visual
+
+- Usar lenguaje BRAMU existente: superficies oscuras + azul BRAMU/cyan como estado activo.
+- Los cuatro checkpoints-ancla pueden ser sutilmente más grandes que los intermedios.
+- Al seleccionar una descripción exacta, esa descripción recibe énfasis visual sutil y el thumb queda en su ancla.
+- En una posición intermedia, pueden enfatizarse suavemente las dos descripciones vecinas; sin crear un nuevo código semántico.
+- **NO** usar gradiente verde→naranja→rojo ni escala multicolor: el Nivel no es una nota bueno/malo y esos colores ya tienen otros significados en BRAMU.
+- **NO** mostrar mensajes dinámicos del tipo “Elegiste una de las descripciones” / “Tu respuesta quedó entre dos descripciones”. El propio control debe explicar la interacción.
+- Copy auxiliar aprobado como dirección: “Tocá una descripción para elegirla directamente o mové el control para ubicarte entre dos.”
+
+### Mobile / accesibilidad
+
+- Área táctil del thumb y del rail suficientemente grande para iPhone.
+- Las tarjetas/descripciones son tappables completas.
+- Mantener soporte de teclado/accesibilidad equivalente donde aplique.
+- El slider debe ser discreto; no permitir valores continuos fuera de 0…9.
+
+### Alcance visual
+
+No se exige pixel-perfect en el primer commit. Implementar esta dirección reutilizando la familia visual actual del onboarding de Nivel. La QA humana posterior puede ajustar espaciados/tamaños, pero no debe volver a abrir la interacción base salvo que aparezca un problema real.
