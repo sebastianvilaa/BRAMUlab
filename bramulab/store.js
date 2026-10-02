@@ -37,7 +37,7 @@
   // bump de bundle hasta ahora era detectable por esa comparación. Cambiar este string es lo
   // único que un cliente V04.10 legacy puede detectar; ver BUNDLE_VERSION más abajo para el
   // mecanismo nuevo que evita depender de esto en el futuro.
-  const APP_VERSION = 'BRAMUlab V04.26';
+  const APP_VERSION = 'BRAMUlab V04.27';
   // NUEVO — versión TÉCNICA de bundle, independiente de la versión pública de arriba. Antes de
   // esta ronda, un bump de bundle sin cambio de producto (Backend/Infraestructura, hotfixes)
   // solo se reflejaba en CACHE_NAME/CORE_ASSETS de sw.js (sufijo `-hN`) — invisible para
@@ -100,11 +100,14 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.26-h1';
+  const BUNDLE_VERSION = '04.27-h1';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
     PLAYER_NAMES: 'bramulab.playerNames.v1',
+    // V04.27 — borrador local TEMPORAL de Cargar partido (15 min desde la última modificación). No es outbox,
+    // ni Historial, ni partido oficial: nunca sale del dispositivo.
+    MANUAL_DRAFT: 'bramulab.manualDraft.v1',
     // Última selección de modo de registro (Completo / Por games), recordada para la
     // próxima vez que se abre Home. No forma parte del schemaVersion del partido en curso:
     // es una preferencia de Home, no datos de un partido.
@@ -241,6 +244,23 @@
     try { localStorage.setItem(key, JSON.stringify(value)); return true; }
     catch (e) { console.warn('PLStore: no se pudo guardar', key, e); return false; }
   }
+  const MANUAL_DRAFT_TTL_MS = 15 * 60 * 1000;
+  /** Borrador vigente del usuario (o null). Vencido (>15 min desde `updatedAt`) o de otra cuenta → se limpia/ignora. */
+  function loadManualDraft(userId, nowMs) {
+    const d = safeGet(KEYS.MANUAL_DRAFT);
+    if (!d || typeof d !== 'object') return null;
+    const age = (Number.isFinite(nowMs) ? nowMs : Date.now()) - Number(d.updatedAt);
+    if (!Number.isFinite(age) || age < 0 || age > MANUAL_DRAFT_TTL_MS) { safeRemove(KEYS.MANUAL_DRAFT); return null; }
+    if (!userId || d.userId !== userId) return null;
+    return d;
+  }
+  /** Guarda el borrador renovando `updatedAt` (cada cambio relevante extiende el TTL). */
+  function saveManualDraft(userId, data, nowMs) {
+    if (!userId) return false;
+    return safeSet(KEYS.MANUAL_DRAFT, Object.assign({}, data, { userId, updatedAt: Number.isFinite(nowMs) ? nowMs : Date.now() }));
+  }
+  function clearManualDraft() { safeRemove(KEYS.MANUAL_DRAFT); }
+
   function safeRemove(key) { try { localStorage.removeItem(key); } catch (e) { /* noop */ } }
 
   function saveActiveMatch(snapshot) {
@@ -1204,6 +1224,7 @@
     saveActiveMatch, loadActiveMatch, clearActiveMatch,
     loadHistory, upsertHistory, removeFromHistory, getHistoryEntry, patchHistoryEntry,
     loadPlayerNames, rememberPlayerNames,
+    loadManualDraft, saveManualDraft, clearManualDraft, MANUAL_DRAFT_TTL_MS,
     loadRecordingMode, saveRecordingMode,
     normalizePlayerName, isPlaceholderPlayerName, loadCurrentPlayerName, saveCurrentPlayerName, clearCurrentPlayerName,
     // V03.0 — cuentas locales

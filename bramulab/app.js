@@ -376,7 +376,7 @@
       // fresca) y NO la variable de módulo `currentPlayerName`: esa var solo se sincroniza en
       // puntos puntuales (openPlayerHome/openManualLoadScreen/renderPlayerHome/post-login).
       // V04.26 — con el wheel de resultado abierto en Cargar partido la nav queda oculta.
-      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser() && !(name === 'manual-load' && manualWheelOpen);
+      const showNav = BOTTOM_NAV_VIEWS.indexOf(name) !== -1 && !!Store.getCurrentUser() && !(name === 'manual-load' && manualWheelOpen && manualStep === 'result');
       nav.hidden = !showNav;
       if (showNav) updateBottomNavActive(name);
       // V03.2 (§11) — alto real de la barra, medido en vivo (nunca adivinado): lo consumen
@@ -516,12 +516,10 @@
   let manualDecided = false;
   // V04.26 — dos instancias: 'players' (armado) → 'result' (el resumen ES el formulario). El selector
   // de score es un wheel por equipo (`manualWheelOpen` = panel visible para `manualActiveSetIndex`).
-  // `manualWheelAnchor` = último lado editado del set en curso: el lado CONTRARIO queda restringido por
-  // ese valor (opciones salidas de ML.computeValidNextDigits) y, si su valor previo deja de ser válido
-  // en el par, se vacía — nunca puede quedar un par inválido en el borrador.
+  // V04.27 — los dos wheels son INDEPENDIENTES (0–7): mover uno nunca toca el otro; un par temporal inválido
+  // puede verse mientras se edita y simplemente deshabilita SIGUIENTE (la validez la decide el motor).
   let manualStep = 'players';
   let manualWheelOpen = false;
-  let manualWheelAnchor = null; // null | 'a' | 'b'
   let manualPlayerCompact = new Map(); // playerId → {username, levelStatus, levelPublic, avatarSignedUrl, displayName}
   let manualPendingFormatId = 'classic'; // selección DENTRO de la hoja de formato, sin aplicar (§11)
 
@@ -542,7 +540,7 @@
   // Razones que se muestran apenas aparecen (se descubren "en vivo" mientras se carga el
   // resultado); el resto (todavía falta completar algo) solo se explica si ya se intentó
   // guardar — para no llenar de texto rojo una pantalla recién abierta.
-  const MANUAL_INLINE_REASONS = new Set(['players-duplicate', 'set-invalid', 'third-set-missing']);
+  const MANUAL_INLINE_REASONS = new Set(['players-duplicate', 'set-invalid']);
 
   /* ---- Jugadores ---- */
 
@@ -1003,10 +1001,6 @@
         return;
       }
     }
-    const previous = manualPlayers[slot];
-    const sameAsBefore = manualServerBacked && playerId
-      ? !!(manualPlayerIds[slot] && manualPlayerIds[slot].playerId === playerId)
-      : previous === norm;
     const apply = () => {
       if (manualServerBacked && playerId) manualPlayerIds[slot] = { playerId, kind: kind || 'registered' };
       manualPlayers[slot] = norm;
@@ -1018,13 +1012,7 @@
       advanceManualSelectionSequence(slot);
     };
     closeManualPlayerSheet();
-    // V04.26 — cambiar a un participante YA elegido cuando existe un resultado cargado obliga a volver
-    // a cargarlo: nunca se descarta en silencio.
-    if (previous && !sameAsBefore && manualHasLoadedResult()) {
-      confirmAction('Cambiar jugador', 'El resultado ya cargado se va a descartar y vas a tener que cargarlo de nuevo.',
-        () => { discardManualResult(); apply(); }, null, 'Cambiar jugador', 'Cancelar', true);
-      return;
-    }
+    // V04.27 — cambiar un participante NO toca el score (pertenece a los lados Equipo A / B).
     apply();
   }
 
@@ -1052,11 +1040,6 @@
         renderManualScoreboard();
       };
       closeManualPlayerSheet();
-      if (manualHasLoadedResult()) {
-        confirmAction('Quitar jugador', 'El resultado ya cargado se va a descartar y vas a tener que cargarlo de nuevo.',
-          () => { discardManualResult(); apply(); }, null, 'Quitar jugador', 'Cancelar', true);
-        return;
-      }
       apply();
     });
     // V04.26 — las filas se re-renderizan: un solo listener delegado sobre el armado (el propio jugador, a1, es fijo).
@@ -1087,55 +1070,38 @@
     return !!(s && Number.isFinite(s.a) && Number.isFinite(s.b));
   }
 
-  /** ¿Hay algún resultado (set confirmado o valor en el borrador) que se perdería al cambiar jugadores? */
-  function manualHasLoadedResult() {
-    return [0, 1, 2].some(manualSetIsConfirmed) || Number.isFinite(manualDraftSet.a) || Number.isFinite(manualDraftSet.b);
-  }
-
-  /** Descarta el resultado cargado (solo tras una confirmación explícita del usuario). */
-  function discardManualResult() {
-    manualSets = [null, null, null];
-    manualActiveSetIndex = 0;
-    manualDraftSet = { a: undefined, b: undefined };
-    manualDecided = false;
-    manualWheelOpen = false;
-    manualWheelAnchor = null;
-    markManualLoadDirty();
-  }
-
   function loadManualDraftFromSet(i) {
     const existing = manualSets[i];
     manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
-    manualWheelAnchor = null;
   }
 
-  /** Jugadores → Resultado. NO se invoca solo: solo el toque explícito en CARGAR RESULTADO. */
+  /** Jugadores → Resultado. NO se invoca solo: solo el toque explícito en CARGAR RESULTADO. Si ya había una carga en
+   *  curso (sets, set parcial, set activo — p. ej. tras CAMBIAR JUGADORES) se retoma tal cual. */
   function goToManualResultStep() {
     if (!manualRosterComplete()) return;
     const format = E.FORMATS[manualSelectedFormatId];
     manualStep = 'result';
-    const next = ML.resolveActiveSetIndex(manualSets, format);
-    if (next === null) {
-      manualDecided = true;
-      manualWheelOpen = false;
-      manualDraftSet = { a: undefined, b: undefined };
-    } else {
-      manualDecided = false;
-      manualActiveSetIndex = next;
-      loadManualDraftFromSet(next);
-      manualWheelOpen = true;
+    if (!manualWheelOpen && !manualDecided) {
+      const next = ML.resolveActiveSetIndex(manualSets, format);
+      if (next === null) {
+        manualDecided = true;
+        manualDraftSet = { a: undefined, b: undefined };
+      } else {
+        manualActiveSetIndex = next;
+        loadManualDraftFromSet(next);
+        manualWheelOpen = true;
+      }
     }
+    markManualLoadDirty();
     renderManualScoreboard();
     const scroll = $('#manual-load-scroll'); if (scroll) scroll.scrollTop = 0;
   }
 
-  /** Resultado → Jugadores (CAMBIAR JUGADORES / flecha ←): conserva jugadores, metadata y sets confirmados.
-   *  Solo se suelta el borrador sin confirmar del set en edición (nunca un set ya confirmado). */
+  /** Resultado → Jugadores (CAMBIAR JUGADORES / flecha ←): conserva TODO — jugadores, metadata, sets confirmados,
+   *  set parcial en edición y set activo. El score pertenece a los lados Equipo A / Equipo B. */
   function changeManualPlayers() {
     manualStep = 'players';
-    manualWheelOpen = false;
-    manualWheelAnchor = null;
-    manualDraftSet = { a: undefined, b: undefined };
+    markManualLoadDirty();
     renderManualPlayers();
     renderManualScoreboard();
     const scroll = $('#manual-load-scroll'); if (scroll) scroll.scrollTop = 0;
@@ -1225,14 +1191,10 @@
 
   /* -- Wheels -- */
 
-  /** Opciones (números) de un lado: salen de ML.computeValidNextDigits. El lado CONTRARIO al último editado
-   *  queda restringido por el valor de ese último (`manualWheelAnchor`); el lado recién editado y los sets
-   *  recién reabiertos (anchor null) muestran el universo completo del formato. */
-  function manualWheelOptions(side) {
-    const format = E.FORMATS[manualSelectedFormatId];
-    const other = side === 'a' ? 'b' : 'a';
-    const constrained = manualWheelAnchor === other && Number.isFinite(manualDraftSet[other]);
-    return ML.computeValidNextDigits('', format, constrained ? manualDraftSet[other] : undefined).map(Number);
+  /** Opciones de un lado: el universo del formato salido del motor (ML.computeValidNextDigits sin lado contrario →
+   *  0–7 en los formatos actuales). Independiente del otro lado. */
+  function manualWheelOptions() {
+    return ML.computeValidNextDigits('', E.FORMATS[manualSelectedFormatId], undefined).map(Number);
   }
 
   /** (Re)arma un wheel solo si cambió su lista de opciones (nunca durante un scroll del usuario) y lo
@@ -1240,7 +1202,7 @@
   function renderManualWheel(side) {
     const el = $(`#mw-wheel-${side}`);
     if (!el) return;
-    const opts = manualWheelOptions(side);
+    const opts = manualWheelOptions();
     const sig = opts.join(',');
     if (el.dataset.sig !== sig) {
       const pad = '<span class="mw-wheel__pad" aria-hidden="true"></span>';
@@ -1274,8 +1236,8 @@
   function renderManualWheels(format) {
     const title = $('#manual-wheel-title');
     if (title) title.textContent = format.bestOfSets === 1 ? 'RESULTADO' : `SET ${manualActiveSetIndex + 1}`;
-    const done = $('#manual-wheel-done');
-    if (done) done.disabled = !(Number.isFinite(manualDraftSet.a) && Number.isFinite(manualDraftSet.b) && E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format));
+    const next = $('#manual-wheel-next');
+    if (next) next.disabled = !(Number.isFinite(manualDraftSet.a) && Number.isFinite(manualDraftSet.b) && E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format));
     if (!manualWheelOpen || manualStep !== 'result') return;
     renderManualWheel('a');
     renderManualWheel('b');
@@ -1288,18 +1250,12 @@
     if (c) { c.textContent = Number.isFinite(value) ? String(value) : '–'; c.classList.toggle('is-empty', !Number.isFinite(value)); }
   }
 
-  /** Un wheel se asentó en `value`. Si ese valor deja inválido el par con el otro lado (ya no puede
-   *  formar un set completo del formato), el otro lado se vacía: un par inválido nunca queda en el borrador. */
+  /** Un wheel se asentó en `value`: se conserva lo que el usuario eligió, sin tocar el otro lado. SIGUIENTE se
+   *  habilita solo si el motor valida el par completo (ver renderManualWheels). */
   function setManualWheelValue(side, value) {
     if (!manualWheelOpen) return;
     if (manualDraftSet[side] === value) return;
-    const format = E.FORMATS[manualSelectedFormatId];
-    const other = side === 'a' ? 'b' : 'a';
     manualDraftSet[side] = value;
-    manualWheelAnchor = Number.isFinite(value) ? side : null;
-    if (Number.isFinite(value) && Number.isFinite(manualDraftSet[other]) && !E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b, format)) {
-      manualDraftSet[other] = undefined;
-    }
     markManualLoadDirty();
     renderManualScoreboard();
   }
@@ -1335,7 +1291,7 @@
         el.scrollTo({ top: (manualWheelIndexFromScroll(el) + (e.key === 'ArrowDown' ? 1 : -1)) * MANUAL_WHEEL_ITEM_H, behavior: 'smooth' });
       });
     });
-    $('#manual-wheel-done').addEventListener('click', () => commitCurrentManualSetIfValid());
+    $('#manual-wheel-next').addEventListener('click', () => commitCurrentManualSetIfValid());
     // Tocar un set (cabecera o cualquiera de sus dos valores) lo activa para editarlo completo.
     $('#manual-result-card').addEventListener('click', (e) => {
       const t = e.target.closest('[data-set-index]');
@@ -1381,7 +1337,7 @@
     renderManualScoreboard();
   }
 
-  /** LISTO — confirma el set en edición (con confirmación previa si eso deja huérfano un Set 3 ya cargado —
+  /** SIGUIENTE — confirma el set en edición (con confirmación previa si eso deja huérfano un Set 3 ya cargado —
    *  §6.2) y avanza al siguiente set pendiente, o deja el partido "decidido" (resultado válido + CONFIRMAR
    *  PARTIDO) cuando ya no queda ningún set más que pedir. No hace nada si el borrador no cierra un set
    *  completo y válido. Devuelve 'confirm' si abrió el modal de confirmación. */
@@ -1400,8 +1356,7 @@
         manualDecided = true;
         manualWheelOpen = false;
         manualDraftSet = { a: undefined, b: undefined };
-        manualWheelAnchor = null;
-      } else {
+          } else {
         manualActiveSetIndex = next;
         loadManualDraftFromSet(next);
         manualWheelOpen = true;
@@ -1510,7 +1465,6 @@
     manualSets = impact.keptSets;
     const format = E.FORMATS[newFormatId];
     const next = ML.resolveActiveSetIndex(manualSets, format);
-    manualWheelAnchor = null;
     if (next === null) {
       manualDecided = true;
       manualWheelOpen = false;
@@ -1680,7 +1634,56 @@
 
   /* ---- Apertura / salida / guardado (§8/§13-§16) ---- */
 
-  function markManualLoadDirty() { manualLoadDirty = true; }
+  function markManualLoadDirty() {
+    manualLoadDirty = true;
+    // V04.27 — borrador local: se guarda DESPUÉS de que el handler terminó de actualizar el estado.
+    if (!manualDraftSuspended) queueMicrotask(persistManualDraft);
+  }
+
+  /* ---- Borrador local temporal (V04.27) — 15 min desde la última modificación ----
+   *  Solo para cargas NUEVAS (no ediciones). No es outbox/Historial/oficial y nunca va al servidor. Se limpia al
+   *  guardar, al EMPEZAR DE NUEVO o al vencer (Store.loadManualDraft). Navegar a otra pantalla no lo toca. */
+  let manualDraftSuspended = false;
+  function buildManualDraftData() {
+    return {
+      formatId: manualSelectedFormatId, scoring: manualSelectedScoring,
+      date: $('#manual-date-input').value, time: $('#manual-time-input').value, place: $('#manual-place-input').value,
+      coords: manualCoords,
+      serverBacked: manualServerBacked,
+      players: Object.assign({}, manualPlayers),
+      playerIds: manualServerBacked ? JSON.parse(JSON.stringify(manualPlayerIds)) : null,
+      submissionId: manualSubmissionId,
+      step: manualStep, sets: manualSets, activeSetIndex: manualActiveSetIndex,
+      draftSet: { a: Number.isFinite(manualDraftSet.a) ? manualDraftSet.a : null, b: Number.isFinite(manualDraftSet.b) ? manualDraftSet.b : null },
+      decided: manualDecided, wheelOpen: manualWheelOpen,
+    };
+  }
+  function persistManualDraft() {
+    if (manualDraftSuspended || !manualIsNewLoad || !currentUserId) return;
+    Store.saveManualDraft(currentUserId, buildManualDraftData());
+  }
+  function discardManualDraft() { manualDraftSuspended = true; Store.clearManualDraft(); }
+  /** Restaura exactamente el formulario guardado (se llama dentro de openManualLoadScreen, antes del primer render). */
+  function applyManualDraft(d) {
+    manualSelectedFormatId = E.FORMATS[d.formatId] ? d.formatId : 'classic';
+    manualSelectedScoring = d.scoring || 'golden';
+    $('#manual-date-input').value = d.date || '';
+    $('#manual-time-input').value = d.time || '';
+    $('#manual-place-input').value = d.place || '';
+    manualCoords = d.coords && Number.isFinite(d.coords.lat) ? d.coords : null;
+    manualPlayers = Object.assign({ a1: currentPlayerName, a2: null, b1: null, b2: null }, d.players, { a1: currentPlayerName });
+    if (manualServerBacked && d.serverBacked && d.playerIds) {
+      manualPlayerIds = Object.assign({ a1: null, a2: null, b1: null, b2: null }, d.playerIds, { a1: { playerId: currentUserId, kind: 'registered' } });
+      manualSubmissionId = d.submissionId || manualSubmissionId;
+    }
+    manualSets = [0, 1, 2].map((i) => (d.sets && d.sets[i] && Number.isFinite(d.sets[i].a) && Number.isFinite(d.sets[i].b)) ? { a: d.sets[i].a, b: d.sets[i].b } : null);
+    manualActiveSetIndex = Number.isFinite(d.activeSetIndex) ? d.activeSetIndex : 0;
+    manualDraftSet = { a: Number.isFinite(d.draftSet && d.draftSet.a) ? d.draftSet.a : undefined, b: Number.isFinite(d.draftSet && d.draftSet.b) ? d.draftSet.b : undefined };
+    manualDecided = !!d.decided;
+    manualWheelOpen = !!d.wheelOpen;
+    manualStep = d.step === 'result' && manualRosterComplete() ? 'result' : 'players';
+    manualLoadDirty = true;
+  }
 
   /** §16: Volver cierra primero cualquier capa abierta (hoja de jugador, hoja de
    *  formato, hoja de fecha/hora/lugar) antes de intentar salir de toda la pantalla. Devuelve
@@ -1707,7 +1710,7 @@
     // V04.26 — en la instancia Resultado, volver = CAMBIAR JUGADORES (nunca salir de la pantalla de golpe).
     if (manualStep === 'result') { changeManualPlayers(); return; }
     const goBack = () => { if (manualLoadOrigin === 'player-home') openPlayerHome(); else showView('setup'); };
-    if (!manualLoadDirty) { goBack(); return; }
+    if (!manualLoadDirty || manualIsNewLoad) { goBack(); return; } // V04.27: una carga nueva queda en el borrador local, sin preguntar
     // V03.2 (§9) — caso canónico "Salir sin guardar" del consolidado: botones exactos
     // CANCELAR/SALIR SIN GUARDAR (nunca "Confirmar" genérico), acción de aceptar en rojo
     // (pérdida real de lo cargado hasta ahora).
@@ -1723,6 +1726,22 @@
     manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(() => openManualLoadScreen(origin, editMatch)); return; }
+    // V04.27 — con un borrador vigente (<15 min) tocar "Cargar partido" no reinicia la carga: se ofrece continuar.
+    if (!editMatch && currentUserId) {
+      const draft = Store.loadManualDraft(currentUserId);
+      if (draft) {
+        confirmAction('Tenés un partido sin terminar', 'Podés continuar donde lo dejaste o empezar una carga nueva.',
+          () => openManualLoadScreenInner(origin, null, draft),
+          () => { Store.clearManualDraft(); openManualLoadScreenInner(origin, null, null); },
+          'Continuar', 'Empezar de nuevo');
+        return;
+      }
+    }
+    openManualLoadScreenInner(origin, editMatch, null);
+  }
+
+  function openManualLoadScreenInner(origin, editMatch, restoreDraft) {
+    manualDraftSuspended = false;
 
     manualIsNewLoad = !editMatch;
     manualEditingMatchId = editMatch ? editMatch.matchId : null;
@@ -1735,7 +1754,6 @@
     manualSaveAttempted = false;
     manualStep = 'players';
     manualWheelOpen = false;
-    manualWheelAnchor = null;
     manualPlayerCompact = new Map();
     manualDecided = false;
 
@@ -1832,6 +1850,7 @@
     }
     manualDefaultDateVal = $('#manual-date-input').value;
     manualDefaultTimeVal = $('#manual-time-input').value;
+    if (restoreDraft) applyManualDraft(restoreDraft);
 
     renderManualPlayers();
     renderManualScoreboard();
@@ -1864,6 +1883,7 @@
         return;
       }
       persistManualSnapshot(snapshot);
+      discardManualDraft();
       if (wasNew) showToast('Partido guardado');
       openCanonicalResumen(snapshot, 'player-home');
     } finally {
@@ -2003,6 +2023,7 @@
     if (manualOutboxDraftId) entryFields.localDraftId = manualOutboxDraftId;
     const entry = Store.saveMatchOutboxEntry(entryFields);
     manualOutboxDraftId = entry.localDraftId;
+    discardManualDraft(); // el partido ya está a salvo en el outbox: el borrador temporal deja de existir
 
     const result = await Matches.createOrAttach(Object.assign({ idempotencyKey: manualSubmissionId }, payload));
     await handleCreateOrAttachOutcome(entry, result, { silent: false });
@@ -8032,7 +8053,7 @@
     const levelV1 = currentLevelV1State();
     if (levelV1) {
       barWrapEl.hidden = true;
-      setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, levelV1.state !== LV.STATES.CALIBRATED);
+      setLevelValueText('player-home-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, levelV1.state === LV.STATES.CALIBRATING);
       // Ronda UX 25/09 (§L) — REEMPLAZA la píldora `NIVEL CALIBRADO` de V04.9 (`levelV1BadgeHTML`
       // en la columna angosta): en uso real en iPhone deformaba el layout de la tarjeta al pasar
       // 4/5 → 5/5 (Laboratorio §15.21). Una vez calibrado, ningún badge — la ausencia de
@@ -12772,7 +12793,8 @@
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
       const isCalibrated = levelV1.state === LV.STATES.CALIBRATED;
-      setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, !isCalibrated);
+      // V04.27 (#26) — ámbar SOLO con CALIBRANDO; RECALIBRANDO conserva su Nivel consolidado en blanco.
+      setLevelValueText('mi-perfil-level-value', LV.roundPublicLevel(levelV1.mu).toFixed(1), false, levelV1.state === LV.STATES.CALIBRATING);
       // Ronda UX 25/09 (§L) — mismo criterio que Home (renderPlayerCard): una vez calibrado, sin
       // píldora persistente `NIVEL CALIBRADO` — la desaparición de CALIBRANDO ya comunica el
       // estado; identidad + Nivel BRAMU numérico quedan en su composición normal

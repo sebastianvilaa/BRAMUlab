@@ -1,6 +1,6 @@
-// BRAMUlab V04.26 — Cargar partido en dos instancias (Jugadores → Resultado) con wheel A/B.
+// BRAMUlab V04.27 — Cargar partido en dos instancias (Jugadores → Resultado) con wheel A/B.
 // Ejecuta las funciones REALES de app.js en un sandbox con DOM stub + motor real (engine/stats/match-load).
-// Ejecutar con: node --test bramulab/v0426-cargar-partido-dos-instancias.test.mjs
+// Ejecutar con: node --test bramulab/v0427-cargar-partido-pulido.test.mjs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -21,7 +21,7 @@ function fnSource(name) {
   let i = app.indexOf(`  function ${name}(`); if (i < 0) i = app.indexOf(`  async function ${name}(`); assert.ok(i >= 0, name);
   const j = app.indexOf('\n  }\n', i); return app.slice(i, j + 5);
 }
-const NAMES = ['manualRosterComplete', 'manualNeededSlots', 'manualSetIsConfirmed', 'manualHasLoadedResult', 'discardManualResult',
+const NAMES = ['manualRosterComplete', 'manualNeededSlots', 'manualSetIsConfirmed',
   'loadManualDraftFromSet', 'goToManualResultStep', 'changeManualPlayers', 'syncManualResultChrome', 'renderManualResultCard',
   'manualWheelOptions', 'renderManualWheel', 'paintManualWheelSelection', 'renderManualWheels', 'setManualWheelValue',
   'reopenManualSet', 'commitCurrentManualSetIfValid', 'pruneOrphanThirdSet', 'renderManualScoreboard', 'recomputeManualValidation',
@@ -37,13 +37,13 @@ function makeApp(formatId = 'classic', players = ['Seba', 'Gusti', 'Esteban', 'D
   vm.createContext(ctx);
   vm.runInContext(`
     var manualSets = [null, null, null], manualActiveSetIndex = 0, manualDraftSet = { a: undefined, b: undefined },
-      manualDecided = false, manualStep = 'players', manualWheelOpen = false, manualWheelAnchor = null,
+      manualDecided = false, manualStep = 'players', manualWheelOpen = false,
       manualSelectedFormatId = '${formatId}', manualSelectedScoring = 'golden', manualServerBacked = false, manualSaveAttempted = false,
       manualSaveInFlight = false, MANUAL_WHEEL_ITEM_H = 40,
       manualPlayers = { a1: '${players[0] || ''}', a2: '${players[1] || ''}', b1: '${players[2] || ''}', b2: '${players[3] || ''}' },
       manualPlayerIds = { a1: null, a2: null, b1: null, b2: null };
     var MANUAL_SCORING_LINE_LABELS = { golden: 'Punto de Oro' };
-    var MANUAL_ERROR_MESSAGES = {}; var MANUAL_INLINE_REASONS = new Set(['third-set-missing']);
+    var MANUAL_ERROR_MESSAGES = {}; var MANUAL_INLINE_REASONS = new Set(['players-duplicate']);
     function manualPlayerNamesArray() { return [manualPlayers.a1, manualPlayers.a2, manualPlayers.b1, manualPlayers.b2]; }
     function markManualLoadDirty() {}
     function renderManualPlayers() {}
@@ -59,8 +59,8 @@ function makeApp(formatId = 'classic', players = ['Seba', 'Gusti', 'Esteban', 'D
     go: () => run('goToManualResultStep()'),
     reopen: (i) => run(`reopenManualSet(${i})`),
     state: () => JSON.parse(JSON.stringify({ sets: get('manualSets').map((s) => s && [s.a, s.b]), active: get('manualActiveSetIndex'), open: get('manualWheelOpen'),
-      decided: get('manualDecided'), step: get('manualStep'), draft: [get('manualDraftSet').a, get('manualDraftSet').b], anchor: get('manualWheelAnchor') })),
-    opts: (side) => JSON.parse(JSON.stringify(run(`manualWheelOptions('${side}')`))),
+      decided: get('manualDecided'), step: get('manualStep'), draft: [get('manualDraftSet').a, get('manualDraftSet').b], })),
+    opts: () => JSON.parse(JSON.stringify(run('manualWheelOptions()'))),
   };
 }
 
@@ -121,21 +121,6 @@ test('7) el wheel refleja el valor en la result-card en vivo (render + preview d
   assert.match(h.els['#manual-result-card'].innerHTML, /result-card__set--edit is-active"[^>]*data-set-index="0" data-side="a"[^>]*>6</);
   const prev = fnSource('previewManualWheel'); assert.match(prev, /\.is-active\[data-side=/); assert.match(app, /previewManualWheel\(side, manualWheelValueAt\(el, idx\)\)/);
 });
-test('8) reglas inválidas no pueden producir un score inválido: opciones del motor + el otro lado se vacía si el par deja de ser válido', () => {
-  const fmt = E.FORMATS.classic;
-  const h = makeApp(); h.go();
-  const J = (v) => JSON.parse(JSON.stringify(v));
-  assert.deepEqual(h.opts('a'), J(ML.computeValidNextDigits('', fmt, undefined).map(Number)));
-  h.wheel('a', 6);
-  assert.deepEqual(h.opts('b'), J(ML.computeValidNextDigits('', fmt, 6).map(Number)), 'B queda restringido por A (motor)');
-  assert.ok(!h.opts('b').includes(6) && h.opts('b').every((v) => E.isValidCompletedSetScore(6, v, fmt)));
-  h.wheel('b', 3); assert.deepEqual(h.state().draft, [6, 3]);
-  h.wheel('a', 3);                                       // 3-3 no es un set completo válido
-  assert.deepEqual(h.state().draft, [3, undefined].map((v) => v === undefined ? null : v), 'B se vacía: nunca queda un par inválido');
-  assert.equal(h.run('E.isValidCompletedSetScore(manualDraftSet.a, manualDraftSet.b || 0, E.FORMATS.classic)'), false);
-  const done = fnSource('renderManualWheels'); assert.match(done, /isValidCompletedSetScore/);
-  assert.equal(h.els['#manual-wheel-done'].disabled, true, 'LISTO deshabilitado con el par incompleto');
-});
 test('9) reabrir Set 1 completo con Set 3 pendiente: modificar A y B NO cierra la edición ni pisa el set confirmado', () => {
   const h = makeApp(); h.go(); h.enter(2, 6); h.enter(6, 3);       // 2-6, 6-3, set 3 pendiente
   h.reopen(0);
@@ -169,26 +154,6 @@ test('Americano: un solo set, wheel y decisión', () => {
 });
 
 /* ---------------- Cambiar jugadores / protección ---------------- */
-test('11) CAMBIAR JUGADORES conserva jugadores, metadata y sets confirmados; el borrador sin confirmar se suelta', () => {
-  const h = makeApp(); h.go(); h.enter(6, 3); h.wheel('a', 5);
-  h.run('changeManualPlayers()');
-  const s = h.state(); assert.equal(s.step, 'players'); assert.equal(s.open, false); assert.deepEqual(s.sets[0], [6, 3]);
-  assert.equal(h.run('manualPlayers.b2'), 'Diego');
-  h.go(); assert.equal(h.state().active, 1, 'al volver, retoma el set pendiente');
-  assert.match(fnSource('exitManualLoadScreen'), /manualStep === 'result'\) \{ changeManualPlayers\(\); return; \}/);
-  assert.match(html, /id="manual-change-players-btn"[^>]*>‹ CAMBIAR JUGADORES</);
-});
-test('12) protección: cambiar un participante con score cargado pide confirmación explícita y descarta SOLO si acepta', () => {
-  const h = makeApp(); h.go(); h.enter(6, 3);
-  assert.equal(h.run('manualHasLoadedResult()'), true);
-  const sel = fnSource('selectManualPlayer');
-  assert.match(sel, /previous && !sameAsBefore && manualHasLoadedResult\(\)[\s\S]*confirmAction\('Cambiar jugador', 'El resultado ya cargado se va a descartar y vas a tener que cargarlo de nuevo\.'/);
-  assert.match(sel, /discardManualResult\(\); apply\(\)/);
-  assert.match(app, /confirmAction\('Quitar jugador', 'El resultado ya cargado se va a descartar/);
-  h.run('discardManualResult()'); assert.equal(h.run('manualHasLoadedResult()'), false);
-});
-
-/* ---------------- Partido completo / confirmar ---------------- */
 test('13) partido válido: GANADORES + nombres + sets y games ganados en la misma tarjeta; CONFIRMAR habilitado solo entonces', () => {
   const h = makeApp(); h.go();
   assert.equal(h.els['#manual-confirm-btn'].disabled, true, 'visible y deshabilitado mientras no hay partido decidido');
@@ -218,28 +183,132 @@ test('15) CONFIRMAR PARTIDO guarda directo con el pipeline vigente y abre el Res
 });
 
 /* ---------------- Wheel / responsive ---------------- */
-test('16) wheel: scroll-snap vertical, ítem 40px sincronizado JS↔CSS, A/B alineados con las columnas de la result-card', () => {
-  assert.match(css, /\.mw-wheel\{[^}]*scroll-snap-type: y mandatory/); assert.match(css, /\.mw-wheel__item\{[^}]*scroll-snap-align: center/);
-  assert.match(css, /\.mw-panel\{\s*--mw-item-h: 40px;/); assert.match(app, /MANUAL_WHEEL_ITEM_H = 40;/);
-  assert.match(css, /\.mw-panel__wheels\{[^}]*grid-template-columns: 1fr 1fr/);
-  assert.match(css, /\.result-card--editable\{ --rc-col: 52px;/);
-  assert.match(css, /\.result-card--editable \.result-card__sets\{ grid-auto-columns: var\(--rc-col\)/);
-  assert.match(css, /\.result-card__setlabel\{\s*width: var\(--rc-col\)/); assert.match(css, /\.result-card__set--edit\{\s*width: var\(--rc-col\)/);
-  assert.match(css, /\.load-match-scroll\.has-wheel\{ padding-bottom: calc\(292px/);
-  assert.match(css, /\.load-keypad, \.court-continue-wrap, \.mw-panel\{ max-width: 768px/);
-});
-test('wheel: nav oculta solo con el wheel abierto, restaurada al cerrar/salir (único punto de sync)', () => {
-  const sync = fnSource('syncManualResultChrome');
-  assert.match(sync, /active = !view\.hidden && inResult && manualWheelOpen/); assert.match(sync, /nav\.hidden = true/); assert.match(sync, /nav\.hidden = false/);
-  assert.match(app, /!\(name === 'manual-load' && manualWheelOpen\)/);
-});
 test('el teclado numérico ya no es la UX de Cargar partido', () => {
   const view = html.slice(html.indexOf('id="view-manual-load"'), html.indexOf('</section>', html.indexOf('id="view-manual-load"')));
   assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /load-keypad|data-key=/);
   assert.doesNotMatch(app, /manualKeypad|openManualKeypad|manualSideEntered|manualDraftActiveTeam/);
 });
-test('versionado: V04.26 / 04.26-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.26', bundle: '04.26-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.26'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.26-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-26-h1'/); assert.match(html, /app\.js\?v=04\.26-h1/); assert.match(html, /styles\.css\?v=04\.26-h1/);
+test('versionado: V04.27 / 04.27-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.27', bundle: '04.27-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.27'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.27-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-27-h1'/); assert.match(html, /app\.js\?v=04\.27-h1/); assert.match(html, /styles\.css\?v=04\.27-h1/);
+});
+
+/* ================= V04.27 ================= */
+test('V04.27 · labels EQUIPO A/B FUERA de la tarjeta; la tarjeta solo tiene las dos filas; VS sin cápsula', () => {
+  const v = html.slice(html.indexOf('id="manual-step-players"'), html.indexOf('id="manual-go-result-btn"'));
+  assert.match(v, /<div class="mp-team-wrap">\s*<div class="mp-team__label"><span class="team-dot team-dot--a"><\/span>EQUIPO A<\/div>\s*<div class="mp-team mp-team--a">\s*<div class="mp-slot mp-slot--fixed"/);
+  assert.match(v, /<div class="mp-team__label"><span class="team-dot team-dot--b"><\/span>EQUIPO B<\/div>\s*<div class="mp-team mp-team--b">/);
+  assert.doesNotMatch(v.replace(/<div class="mp-team mp-team--[ab]">[\s\S]*?<\/div>\s*<\/div>/g, ''), /mp-team__label[^>]*>(?=[\s\S]*mp-slot)[\s\S]{0}x/);
+  assert.match(css, /\.mp-teams \.vs-divider__text\{ background: none; border: none;/);
+  assert.match(html, /vs-divider__line/);
+});
+test('V04.27 · wheels independientes 0–7: mover uno nunca toca el otro; par inválido permitido mientras se edita', () => {
+  const h = makeApp(); h.go();
+  assert.deepEqual(h.opts(), [0, 1, 2, 3, 4, 5, 6, 7]);
+  h.wheel('a', 4); h.wheel('b', 4);
+  assert.deepEqual(h.state().draft, [4, 4], 'A=4 B=4 se muestra');
+  h.wheel('a', 6); assert.deepEqual(h.state().draft, [6, 4]);
+  h.wheel('b', 6); assert.deepEqual(h.state().draft, [6, 6], 'cambiar B no borra A aunque el par sea inválido');
+  h.wheel('a', undefined); assert.deepEqual(h.state().draft, [null, 6]);
+  h.wheel('b', 2); h.wheel('a', 6); assert.deepEqual(h.state().draft, [6, 2]);
+  assert.doesNotMatch(fnSource('setManualWheelValue'), /manualDraftSet\[other\]|isValidCompletedSetScore/);
+});
+test('V04.27 · SIGUIENTE: disabled con par inválido/incompleto, habilitado con par válido; sin toast ni mensaje', () => {
+  assert.match(html, /id="manual-wheel-next" class="btn-start mw-panel__next" disabled>SIGUIENTE</);
+  assert.doesNotMatch(html, /manual-wheel-done/);
+  const h = makeApp(); h.go();
+  assert.equal(h.els['#manual-wheel-next'].disabled, true);
+  h.wheel('a', 4); assert.equal(h.els['#manual-wheel-next'].disabled, true, 'incompleto');
+  h.wheel('b', 4); assert.equal(h.els['#manual-wheel-next'].disabled, true, '4-4 inválido');
+  h.wheel('b', 6); assert.equal(h.els['#manual-wheel-next'].disabled, false, '4-6 válido');
+  assert.doesNotMatch(fnSource('renderManualWheels'), /showToast/);
+  assert.match(css, /\.mw-panel__head\{[^}]*justify-content:center/); assert.match(css, /\.mw-panel__next\{ width: 100%/);
+  assert.ok(html.indexOf('mw-panel__wheels') < html.indexOf('manual-wheel-next'), 'SIGUIENTE al pie del panel');
+});
+test('V04.27 · avance: 2–0 decide tras SIGUIENTE; 1–1 abre Set 3 sin error rojo; Americano decide', () => {
+  const h = makeApp(); h.go(); h.enter(6, 3); h.enter(6, 4);
+  assert.equal(h.state().decided, true); assert.equal(h.state().open, false);
+  const g = makeApp(); g.go(); g.enter(2, 6); g.enter(6, 3);
+  assert.equal(g.state().active, 2); assert.equal(g.state().open, true);
+  assert.equal(g.els['#load-match-error'].hidden, true, 'sin mensaje rojo del tercer set');
+  assert.doesNotMatch(app.slice(app.indexOf('const MANUAL_INLINE_REASONS'), app.indexOf('const MANUAL_INLINE_REASONS') + 120), /third-set-missing/);
+  const a = makeApp('americano'); a.go(); a.enter(6, 2); assert.equal(a.state().decided, true);
+});
+test('V04.27 · editar set previo conserva ambos lados sin autoborrar; Set 3 ya confirmado conserva su confirmación', () => {
+  const h = makeApp(); h.go(); h.enter(2, 6); h.enter(6, 3); h.enter(6, 4);
+  h.reopen(0); h.wheel('a', 6); assert.deepEqual(h.state().draft, [6, 6], 'B conserva su 6');
+  h.wheel('b', 2); h.run('commitCurrentManualSetIfValid()');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.ctx.confirms)), ['Este cambio ya no necesita un tercer set']);
+});
+test('V04.27 · CAMBIAR JUGADORES conserva sets confirmados, set parcial y set activo', () => {
+  const h = makeApp(); h.go(); h.enter(6, 3); h.wheel('a', 5);
+  h.run('changeManualPlayers()');
+  let s = h.state(); assert.equal(s.step, 'players'); assert.deepEqual(s.sets[0], [6, 3]); assert.deepEqual(s.draft, [5, null]); assert.equal(s.active, 1); assert.equal(s.open, true);
+  h.go(); s = h.state(); assert.equal(s.step, 'result'); assert.deepEqual(s.draft, [5, null]); assert.equal(s.active, 1); assert.equal(s.open, true);
+  assert.match(app, /!\(name === 'manual-load' && manualWheelOpen && manualStep === 'result'\)/);
+});
+test('V04.27 · cambiar/quitar jugador NO descarta el score; slot vacío bloquea avanzar sin borrarlo', () => {
+  const sel = fnSource('selectManualPlayer'), rem = app.slice(app.indexOf("$('#load-player-sheet-remove').addEventListener"), app.indexOf("$('#manual-step-players').addEventListener"));
+  for (const b of [sel, rem]) assert.doesNotMatch(b, /discardManualResult|manualSets = |se va a descartar|confirmAction/);
+  assert.doesNotMatch(app, /El resultado ya cargado se va a descartar y vas/);
+  const h = makeApp(); h.go(); h.enter(6, 3); h.enter(6, 4);
+  h.run("manualPlayers.a2 = null; manualStep = 'players'");
+  assert.equal(h.run('manualRosterComplete()'), false);
+  assert.deepEqual(h.state().sets.slice(0, 2), [[6, 3], [6, 4]], 'score intacto');
+  h.run("manualPlayers.a2 = 'Lucho'");
+  assert.equal(h.run('manualRosterComplete()'), true); h.go(); assert.equal(h.state().decided, true);
+  h.els['#manual-confirm-btn'].disabled = true; h.run('renderManualScoreboard()'); assert.equal(h.els['#manual-confirm-btn'].disabled, false);
+});
+test('V04.27 · wheel: scroll-snap, ítem 40px JS↔CSS, columnas alineadas, nav oculta solo con wheel abierto en Resultado', () => {
+  assert.match(css, /\.mw-wheel\{[^}]*scroll-snap-type: y mandatory/); assert.match(css, /\.mw-panel\{\s*--mw-item-h: 40px;/); assert.match(app, /MANUAL_WHEEL_ITEM_H = 40;/);
+  assert.match(css, /\.result-card--editable\{ --rc-col: 52px;/);
+  assert.match(css, /\.load-match-scroll\.has-wheel\{ padding-bottom: calc\(352px/);
+  const sync = fnSource('syncManualResultChrome');
+  assert.match(sync, /active = !view\.hidden && inResult && manualWheelOpen/); assert.match(sync, /nav\.hidden = true/);
+});
+
+/* ---- Borrador local 15 min (Store real) ---- */
+function makeStore() {
+  const mem = {}; const ctx = { window: {}, localStorage: { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: (k) => { delete mem[k]; } } };
+  ctx.window = ctx; vm.createContext(ctx); vm.runInContext(read('store.js'), ctx, { filename: 'store.js' }); return { S: ctx.PLStore, mem };
+}
+test('V04.27 · borrador: guarda, renueva TTL con cada cambio, vence a los 15 min y es por usuario', () => {
+  const { S, mem } = makeStore(); const t0 = 1_000_000_000_000;
+  assert.equal(S.loadManualDraft('u1', t0), null);
+  S.saveManualDraft('u1', { step: 'result', sets: [{ a: 6, b: 3 }, null, null], draftSet: { a: 5, b: null } }, t0);
+  const d = S.loadManualDraft('u1', t0 + 14 * 60000); assert.equal(d.step, 'result'); assert.deepEqual(JSON.parse(JSON.stringify(d.draftSet)), { a: 5, b: null });
+  S.saveManualDraft('u1', { step: 'result' }, t0 + 14 * 60000);               // cambio relevante → renueva
+  assert.ok(S.loadManualDraft('u1', t0 + 28 * 60000), 'vigente 14 min después de la última modificación');
+  assert.equal(S.loadManualDraft('u2', t0 + 28 * 60000), null, 'no se muestra a otra cuenta');
+  assert.equal(S.loadManualDraft('u1', t0 + 14 * 60000 + 15 * 60000 + 1), null, 'vencido');
+  assert.equal(mem['bramulab.manualDraft.v1'], undefined, 'el vencido se limpia');
+  S.saveManualDraft('u1', { x: 1 }); S.clearManualDraft(); assert.equal(S.loadManualDraft('u1'), null);
+  assert.equal(Object.keys(mem).some((k) => /history|outbox/i.test(k)), false, 'no toca Historial ni outbox');
+});
+test('V04.27 · borrador: contenido, restauración exacta e invitado con su referencia', () => {
+  const b = fnSource('buildManualDraftData');
+  for (const k of ['formatId', 'scoring', 'date', 'time', 'place', 'coords', 'players', 'playerIds', 'step', 'sets', 'activeSetIndex', 'draftSet', 'decided', 'wheelOpen']) assert.match(b, new RegExp(k + ':'), k);
+  assert.match(b, /playerIds: manualServerBacked \? JSON\.parse\(JSON\.stringify\(manualPlayerIds\)\)/, 'conserva {playerId, kind:provisional}');
+  const a = fnSource('applyManualDraft');
+  assert.match(a, /manualPlayerIds = Object\.assign\([^;]*d\.playerIds/); assert.match(a, /manualStep = d\.step === 'result' && manualRosterComplete\(\)/);
+  assert.match(a, /manualDraftSet = /); assert.match(a, /manualActiveSetIndex = /);
+});
+test('V04.27 · borrador: navegar no lo borra; "+" ofrece CONTINUAR / EMPEZAR DE NUEVO; se limpia solo al guardar/empezar de nuevo', () => {
+  const o = fnSource('openManualLoadScreen');
+  assert.match(o, /Store\.loadManualDraft\(currentUserId\)/);
+  assert.match(o, /confirmAction\('Tenés un partido sin terminar'[\s\S]*openManualLoadScreenInner\(origin, null, draft\)[\s\S]*Store\.clearManualDraft\(\); openManualLoadScreenInner\(origin, null, null\)[\s\S]*'Continuar', 'Empezar de nuevo'/);
+  assert.match(fnSource('exitManualLoadScreen'), /manualIsNewLoad\) \{ goBack\(\)/, 'salir sin preguntar');
+  const clears = app.match(/Store\.clearManualDraft\(\)|discardManualDraft\(\)/g) || [];
+  assert.ok(clears.length >= 4);
+  const exitSrc = fnSource('exitManualLoadScreen') + fnSource('showView');
+  assert.doesNotMatch(exitSrc, /clearManualDraft|discardManualDraft/);
+  assert.match(fnSource('confirmManualMatch'), /persistManualSnapshot\(snapshot\);\s*discardManualDraft\(\)/);
+  assert.match(app, /manualOutboxDraftId = entry\.localDraftId;\s*discardManualDraft\(\)/);
+  assert.doesNotMatch(fnSource('persistManualDraft') + fnSource('buildManualDraftData'), /Auth\.|Matches\.|saveMatchOutboxEntry|upsertHistory/);
+});
+test('V04.27 · #26 RECALIBRANDO queda blanco; ámbar solo CALIBRANDO', () => {
+  assert.match(app, /'player-home-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
+  assert.match(app, /'mi-perfil-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
+  assert.doesNotMatch(app, /levelV1\.state !== LV\.STATES\.CALIBRATED\)/);
 });

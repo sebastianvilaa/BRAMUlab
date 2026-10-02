@@ -3877,21 +3877,24 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    nuevo es lo que no existía: las tarjetas de equipo con borde de acento, la variante editable de la
    result-card y el wheel (`.mw-*`).
    ========================================================================== */
-.load-match-scroll.has-wheel{ padding-bottom: calc(292px + var(--bottomnav-h)); }
+.load-match-scroll.has-wheel{ padding-bottom: calc(352px + var(--bottomnav-h)); }
 
 /* Instancia JUGADORES — tarjeta por equipo, misma familia visual que Último partido (fondo oscuro,
    borde completo, radio vigente). A = verde, B = celeste. */
 .mp-teams{ display:flex; flex-direction:column; gap: 10px; margin-bottom: 14px; }
-.mp-team{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 12px 14px 4px; }
+.mp-team{ background: var(--ink-soft); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 4px 14px; }
+.mp-team-wrap{ display:flex; flex-direction:column; gap: 6px; }
 .mp-team--a{ border-color: rgba(149,255,25,0.5); }
 .mp-team--b{ border-color: rgba(25,159,255,0.55); }
-.mp-team__label{ display:flex; align-items:center; gap:7px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-dim); margin-bottom: 2px; }
+.mp-team__label{ display:flex; align-items:center; gap:7px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-dim); padding-left: 4px; }
 .mp-slot + .mp-slot{ border-top: 1px solid var(--line); }
 .mp-slot .player-row{ padding: 10px 2px; min-height: 66px; }
 .mp-slot--fixed .player-row{ cursor: default; pointer-events: none; }
 .mp-team--b .player-row__avatar--add{ color: var(--team-b); }
 .player-row--slot .player-row__name{ color: var(--paper-dim); }
-.mp-teams .vs-divider{ margin: -4px 0; }
+.mp-teams .vs-divider{ margin: 0; }
+/* V04.27 — VS liviano: solo texto entre las líneas (sin fondo/borde/cápsula). */
+.mp-teams .vs-divider__text{ background: none; border: none; padding: 0 4px; }
 .mp-cta{ width: 100%; margin-top: 4px; }
 
 /* Instancia RESULTADO */
@@ -3933,9 +3936,9 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   background: var(--court-surface); border-top: 1px solid var(--court-line);
   padding: 10px 18px calc(12px + var(--safe-bottom));
 }
-.mw-panel__head{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 6px; }
+.mw-panel__head{ display:flex; align-items:center; justify-content:center; margin-bottom: 6px; }
 .mw-panel__title{ font-family: var(--font-display); font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--paper); }
-.mw-panel__done{ margin: 0; min-height: 40px; padding: 0 22px; box-shadow: none; }
+.mw-panel__next{ width: 100%; margin: 12px 0 0; }
 .mw-panel__wheels{ display:grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 360px; margin: 0 auto; }
 .mw-col__label{ display:flex; align-items:center; justify-content:center; gap:6px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); margin-bottom: 2px; }
 .mw-wheel-wrap{ position: relative; height: calc(var(--mw-item-h) * 5); }

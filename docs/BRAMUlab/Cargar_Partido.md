@@ -236,6 +236,13 @@ Solución V04.24 aprobada y **NO TOCAR**:
 
 ---
 
-## 9. Estado de implementación
+## 9. Ajustes V04.27 (QA humano de V04.26) — vigentes
 
-V04.26 / `04.26-h1` implementada en Staging según este documento (detalle y límites de verificación en `Implementacion/Pre_Production/108_Resultado_V0426_Cargar_Partido_Dos_Instancias_02OCT.md`). Pendiente QA humano en iPhone; la UX no se da por cerrada.
+- **Jugadores:** `EQUIPO A` / `EQUIPO B` son encabezados fuera de las tarjetas (la tarjeta contiene solo las dos filas); `VS` solo texto + líneas, sin cápsula.
+- **Wheels independientes 0–7** (opciones del motor, `ML.computeValidNextDigits` sin lado contrario): mover uno nunca toca el otro; un par temporal inválido puede verse. La validez la decide `E.isValidCompletedSetScore`.
+- **Panel del wheel:** título `SET n` centrado y CTA `SIGUIENTE` al pie (disabled sin set válido, sin toast/mensaje). Set válido + SIGUIENTE confirma y avanza: 2–0 → decidido; 1–1 → abre Set 3 directo (ya no hay mensaje rojo del tercer set); Americano → decidido. Se mantiene la confirmación solo cuando editar Set 1/2 deja huérfano un Set 3 ya confirmado.
+- **Cambiar jugadores:** conserva participantes, metadata, sets confirmados, set parcial y set activo. Cambiar/quitar un participante **no** descarta el score (pertenece a los lados A/B); con un slot vacío no se puede cargar resultado/confirmar hasta completar los cuatro.
+- **Borrador local temporal (15 min desde la última modificación relevante):** `Store.loadManualDraft/saveManualDraft/clearManualDraft` (`bramulab.manualDraft.v1`, por cuenta). Solo cargas nuevas; no es outbox ni Historial ni va al servidor. Navegar no lo borra ni pregunta. Tocar `+` con borrador vigente muestra `Tenés un partido sin terminar` → `CONTINUAR` (restaura exacto, incl. paso, set parcial e invitados con su `playerId/kind`) / `EMPEZAR DE NUEVO`. Se limpia al guardar, al empezar de nuevo y al vencer.
+- **#26:** Nivel ámbar solo con `CALIBRANDO`; `RECALIBRANDO` queda blanco.
+
+Implementación y límites de verificación: `Implementacion/Pre_Production/110_Resultado_V0427_Cargar_Partido_Pulido_02OCT.md`. Handoff `109` consumido. Pendiente QA humano dirigido en iPhone.

@@ -52,8 +52,8 @@ test('#26 filas server-backed pasan levelStatus === CALIBRANDO; las locales nunc
   assert.doesNotMatch(app, /<span class="player-row__level-value">\$\{levelText\}<\/span>\s*<span class="player-row__level-label">/, 'jerarquía vieja eliminada');
 });
 test('#26 Home / Mi Perfil / Perfil público: número ámbar solo si CALIBRANDO', () => {
-  assert.match(app, /setLevelValueText\('player-home-level-value', [^;]*, false, levelV1\.state !== LV\.STATES\.CALIBRATED\)/);
-  assert.match(app, /setLevelValueText\('mi-perfil-level-value', [^;]*, false, !isCalibrated\)/);
+  assert.match(app, /setLevelValueText\('player-home-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
+  assert.match(app, /setLevelValueText\('mi-perfil-level-value', [^;]*, false, levelV1\.state === LV\.STATES\.CALIBRATING\)/);
   assert.match(app, /const calibrating = p\.level_status === 'CALIBRANDO'/);
   assert.match(app, /classList\.toggle\('player-card__level-value--calibrating'/);
   assert.match(css, /\.player-card__level-value--calibrating\{ color: var\(--gold\)/);
