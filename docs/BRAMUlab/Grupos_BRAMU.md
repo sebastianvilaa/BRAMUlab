@@ -169,7 +169,9 @@ La tabla semanal:
 - ordena por puntos descendentes;
 - si dos jugadores tienen el mismo puntaje, comparten posición;
 - usa ranking de competición: **1, 1, 3**;
-- los criterios secundarios pueden ordenar visualmente filas empatadas, pero nunca romper el empate visible de posición.
+- a igualdad de puntos, el orden visual entre filas empatadas se define por **efectividad**: victorias reales / partidos reales del período, de mayor a menor;
+- si también empatan en efectividad, se usa orden alfabético como último criterio determinístico;
+- estos criterios secundarios ordenan únicamente la pantalla y **nunca rompen el empate visible de posición**.
 
 Las vistas vigentes se conservan:
 
