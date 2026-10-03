@@ -1895,7 +1895,18 @@ input, select{ font-family: inherit; }
 .player-home-lastmatch__meta{ flex:none; text-align:right; }
 .player-home-lastmatch__meta-line{ font-size: 10px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color: var(--court-text-faint); line-height:1.4; }
 .player-home-lastmatch__chevron{ flex:none; color: var(--court-text-faint); font-size: 18px; }
-.player-home-lastmatch__empty-title{ font-family: var(--font-display); font-weight:800; font-size: 22px; line-height:1.15; color: var(--paper); margin-top: 8px; }
+.player-home-lastmatch.is-empty{
+  /* V04.28-h4 — Estado Cero: foto de cancha azul nocturna como ATMÓSFERA. Se integra con overlays (azul/negro, más oscuro detrás del
+     texto y a la izquierda; la pelota, arriba a la derecha, queda visible). Copia web optimizada de la referencia (original intacto). */
+  background:
+    linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
+    linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
+    linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
+    url('assets/home-primer-partido.jpg?v=04.28-h4') 100% 30% / cover no-repeat,
+    var(--surface-3);
+  background-blend-mode: normal, normal, normal, normal, normal;
+}
+.player-home-lastmatch__empty-title{ font-family: var(--font-display); font-weight:800; font-size: 22px; line-height:1.15; color: var(--paper); margin-top: 8px; text-shadow: 0 1px 10px rgba(5,12,22,.7); }
 .player-home-lastmatch__empty-desc{ font-size: 14px; line-height:1.45; color: var(--paper-dim); margin: 8px 0 16px; }
 .player-home-lastmatch__empty-cta{ width:100%; }
 .player-home-lastmatch__cta{ display:inline-block; margin-top: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; color: var(--brand-lime); }
