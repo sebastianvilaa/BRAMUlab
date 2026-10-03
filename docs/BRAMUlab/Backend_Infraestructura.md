@@ -220,8 +220,8 @@ Identidad deportiva estable:
 - `player_id` UUID;
 - tipo: `registered` o `provisional`;
 - `auth_user_id` opcional y único cuando hay cuenta;
-- `canonical_player_id` opcional para una unificación administrativa futura;
 - nombre para mostrar;
+- estado de recuperación/vinculación cuando corresponda mediante contratos específicos de identidad; **no existe hoy una columna física `canonical_player_id` y no debe introducirse como atajo genérico de fusión**;
 - creador y timestamps;
 - estado activo/archivado.
 
@@ -243,17 +243,38 @@ Los partidos, relaciones y estadísticas se vinculan con `player_id`, no directa
 - estado/completitud del perfil;
 - timestamps.
 
-### 6.2 Identidad provisional e invitación
+### 6.2 Identidad provisional, invitación y recuperación
 
 #### `provisional_claims`
 
 - `claim_id`;
 - `provisional_player_id`;
 - hash de token de alta entropía;
-- estado, creador, creación, vencimiento y uso;
+- estado, invitador/creador, creación, vencimiento y uso;
 - `claimed_by_player_id` cuando corresponda.
 
-El link pertenece a la identidad provisional, no a un partido. Varias superficies pueden compartir el mismo link.
+Decisiones vigentes:
+
+- el link pertenece a una identidad provisional, no a un partido;
+- pueden coexistir varios links válidos para la misma provisional **si fueron generados por distintos jugadores relacionados**;
+- existe como máximo un link pendiente por `(provisional_player_id, invitador)`; regenerar desde el mismo invitador rota solo su link anterior;
+- el primer vínculo exitoso gana y, en la misma transacción, revoca los demás links pendientes de esa provisional;
+- el token crudo nunca se persiste; solo su hash;
+- un jugador puede generar un link únicamente si creó esa provisional o compartió con ella un partido real; nunca basta conocer un `player_id` ajeno.
+
+#### Recuperación de identidad
+
+La recuperación de una provisional por una cuenta ya existente es una operación de identidad acotada, no una fusión genérica de cuentas registradas.
+
+La implementación debe conservar una relación de auditoría estable entre:
+
+- identidad provisional de origen;
+- cuenta/jugador registrado de destino;
+- claim/link que autorizó la vinculación;
+- actor y timestamps;
+- estado de procesamiento deportivo y de posibles duplicados.
+
+El mecanismo físico puede ser una tabla específica de recuperación y reasignación controlada de referencias vigentes. **No** asumir ni crear una capa genérica de `canonical_player_id` para resolver este caso. La identidad provisional de origen puede quedar inactiva para uso futuro, pero debe seguir siendo trazable en auditoría.
 
 ### 6.3 Ubicación
 
@@ -769,39 +790,147 @@ No existe arbitraje automático sobre cuál pareja “dice la verdad”: si un p
 
 ---
 
-## 9. Invitados e identidades provisionales en el lanzamiento inicial
+## 9. Invitados, invitación y recuperación de identidad
 
-### 9.1 Comportamiento incluido
+> **Decisión cerrada de producto (03/10/2026).** Esta sección supera el claim básico anterior de “un link por identidad / solo creador / segunda identidad manual / cuenta existente manual / sin evidencia recuperada”. La implementación nueva se realiza primero en Staging.
+
+### 9.1 Identidad provisional
 
 - Un invitado es un `player` provisional persistente con UUID propio, no texto dentro del partido.
 - Puede reutilizarse en múltiples partidos y aparecer en recientes, red, compañeros y rivales de usuarios relacionados.
-- Puede acumular historial y estadísticas derivadas, pero no Nivel permanente ni posición competitiva hasta tener cuenta y cumplir elegibilidad.
+- Mientras siga siendo provisional puede acumular historial y estadísticas derivadas, pero **no tiene Nivel propio permanente ni posición de Ranking**.
 - No se pide teléfono, email, DNI ni apellido para crearlo.
-- Tiene un único link de invitación/reclamo por identidad, compartible mediante el sistema normal del dispositivo.
-- Al registrarse desde el link, la nueva cuenta reclama ese `player_id` y obtiene todos los partidos ya vinculados a ese ID.
-- BRAMU nunca fusiona personas automáticamente por coincidencia de nombre o apodo.
+- BRAMU nunca vincula ni fusiona personas automáticamente por nombre/apodo.
 
-### 9.2 Reclamo simplificado
+### 9.2 Quién puede invitar y múltiples links
 
-- El link contiene un token aleatorio de alta entropía; en base se guarda su hash.
-- La persona debe registrarse o iniciar sesión para consumirlo.
-- El reclamo de una identidad no reclamada es atómico y de un solo uso.
-- Si una cuenta necesita reclamar una segunda identidad, o existen duplicados, se resuelve manualmente por administración durante el lanzamiento inicial.
-- No se construye todavía una interfaz general de fusiones, pruebas de identidad o matching entre redes.
+Puede generar una invitación cualquier jugador registrado que esté realmente relacionado con la provisional:
 
-### 9.3 Efecto sobre Nivel y Ranking
+1. la creó; **o**
+2. compartió con ella al menos un partido real mediante `match_participants`.
 
-- Reclamar una identidad no recalcula retroactivamente deltas ya procesados.
-- Un partido todavía pendiente y dentro de sus 30 días puede continuar su ciclo después del reclamo; el nuevo usuario adquiere capacidad de actuar por la pareja correspondiente.
-- Un partido vencido sigue siendo historial y no se reactiva automáticamente.
-- Un partido ya validado tampoco se reabre por el solo hecho del claim; aplican las mismas ventanas post-validación que para cualquier participante.
-- El jugador reclamado empieza a construir su Nivel y elegibilidad según las reglas vigentes desde las acciones oficiales que correspondan; no hereda automáticamente un Nivel permanente estimado por terceros.
+No existe búsqueda global de provisionales ni permiso por simple conocimiento de un UUID.
 
-### 9.4 Red y Ranking
+Para una misma provisional:
 
-Una identidad provisional puede aparecer en recientes o en la red personal como relación derivada de partidos, pero nunca ocupa una posición competitiva de Ranking. Esto concilia la utilidad social del invitado con la exigencia de identidad elegible de Ranking.
+- varios jugadores relacionados pueden mantener links válidos en paralelo;
+- cada invitador tiene como máximo un link pendiente;
+- regenerar desde el mismo invitador revoca/rota únicamente su link anterior;
+- todos mantienen vencimiento de 30 días, token de alta entropía y hash server-side;
+- el **primer vínculo exitoso** se serializa sobre la identidad provisional, consume el link ganador y revoca todos los demás links pendientes en la misma transacción.
 
----
+La UI habla de **invitar / vincular / recuperar partidos**. “Claim” queda como término interno técnico.
+
+### 9.3 Confirmación del receptor
+
+El link es un bearer token: no agrega verificación social, DNI, teléfono ni prueba de identidad externa.
+
+Con sesión autenticada, antes de consumirlo se muestra:
+
+- `¿Sos {nombre}?`
+- `Hay partidos registrados con esta identidad. Si sos vos, podés vincularlos a tu cuenta.`
+- `SOY YO`
+- `NO SOY YO`
+
+`NO SOY YO` limpia únicamente la intención local de ese dispositivo/sesión. **No consume ni invalida globalmente el link.**
+
+Sin sesión, BRAMU conserva la intención, muestra el acceso normal y permite crear cuenta o usar `Ya tengo cuenta`. Después de autenticarse vuelve automáticamente a la invitación. No existe una segunda puerta manual por token en Perfil.
+
+### 9.4 Cuenta nueva
+
+Para una cuenta nueva se preserva la estrategia segura vigente:
+
+- el bootstrap temporal todavía no tiene perfil/Nivel oficial;
+- al confirmar `SOY YO`, adopta la identidad provisional antes de `complete_profile` y antes de oficializar Nivel;
+- el `player_id` provisional puede convertirse en el `player_id` estable de esa cuenta;
+- después continúa el onboarding normal.
+
+Una vez confirmado el Nivel inicial, se procesa de forma idempotente la evidencia deportiva histórica recuperable (§9.6).
+
+### 9.5 Cuenta existente y múltiples provisionales
+
+Una cuenta BRAMU ya completa **sí puede** vincular una provisional mediante un link válido y confirmación explícita.
+
+- La cuenta/jugador registrado existente sigue siendo la identidad principal de destino.
+- La provisional deja de funcionar como identidad independiente activa.
+- Sus partidos vigentes se reasocian a la identidad registrada de forma controlada y auditable.
+- Una misma cuenta puede recuperar luego otra provisional distinta, una por una, siempre con otro link válido y otro `SOY YO`.
+- Nunca se vincula por similitud de nombre.
+- No se crea una UI genérica de fusión entre dos cuentas registradas.
+
+Antes de reasignar se valida que el jugador destino no ocupe ya otro slot del mismo partido. Si ocurriría la misma persona en dos slots, la operación falla de forma estructurada y **no modifica nada parcialmente**; ese partido debe resolverse como conflicto de identidad/deduplicación.
+
+### 9.6 Evidencia recuperada para Nivel y calibración
+
+La vinculación de identidad puede recuperar **evidencia**, no un Nivel inventado por terceros.
+
+Un partido histórico recuperado puede aportar al jugador vinculado si:
+
+- es oficial/validado;
+- cumplió las ventanas y reglas temporales vigentes;
+- no está anulado, pendiente, fuera de término ni descartado como duplicado;
+- existen snapshots/evidencia históricos suficientes para ejecutar el motor sin fabricar datos.
+
+Procesamiento:
+
+- se toman los partidos elegibles por `played_at` ascendente;
+- para el jugador recuperado se parte de su Nivel actual/base al iniciar la recuperación y se aplican en orden;
+- compañero/rivales usan **snapshots históricos reales** disponibles para ese partido; nunca sus niveles actuales;
+- se reutiliza el motor `nivel_bramu_v1_0`, no una fórmula paralela;
+- no se recalculan ni reescriben los deltas históricos de terceros;
+- no se reescriben ediciones de Ranking ya publicadas.
+
+Sí pueden cambiar para el jugador recuperado: `mu` actual, confianza/evidencia, `rated_matches`, rivales distintos y estado de calibración. La regla de cierre sigue siendo 5 partidos computables + 3 rivales distintos. Una cuenta ya CALIBRADA no se “descalibra” por recuperar historia.
+
+El replay debe ser append-only/auditable e idempotente por recuperación + partido. Si faltan snapshots suficientes, el partido queda documentado como no utilizable para Nivel sin inventar evidencia.
+
+### 9.7 Historia, estadísticas, Grupos e Intelligence
+
+Una recuperación confirmada es retroactiva a nivel de **identidad real**:
+
+- Historial y estadísticas derivadas pasan a reconocer los partidos recuperados.
+- Compañeros/rivales, actividad, rachas y demás derivados se recalculan solo desde datos realmente registrados.
+- Grupos consume la identidad corregida. Si el jugador destino ya pertenecía al grupo en la semana real del partido y la corrección hace que se cumpla 3/4, el partido puede pasar a contar. **No** se inventa membresía retroactiva.
+- BRAMU Intelligence invalida/regenera checkpoints cuando cambia la identidad/historia usando su fingerprint vigente; conserva snapshots históricos de Nivel/expectativa y nunca usa niveles actuales para reescribir el pasado.
+
+### 9.8 Duplicados descubiertos después de vincular identidad
+
+Al reasociar una provisional pueden aparecer dos `match_id` que ahora parecen representar el mismo encuentro.
+
+BRAMU:
+
+- **no los fusiona automáticamente**;
+- **no deriva el caso a soporte como camino normal**;
+- muestra una resolución explícita:
+  - `Encontramos dos partidos que podrían ser el mismo`
+  - `SÍ, ES EL MISMO`
+  - `NO, SON DOS PARTIDOS DISTINTOS`.
+
+La comparación usa identidad/parejas ya corregidas, fecha/hora, formato, score y ubicación cuando exista. Debe reutilizar la lógica estructural de deduplicación ya vigente en create-or-attach, no matching por nombre.
+
+Si el usuario confirma que son distintos, se registra esa resolución y ambos permanecen.
+
+Si confirma que son el mismo:
+
+- queda un solo encuentro deportivo efectivo;
+- se preservan submissions, revisiones, acciones y trazabilidad de ambos;
+- diferencias de score/revisión se resuelven reutilizando el ciclo existente de corrección/validación;
+- si ambos ya produjeron efecto deportivo, se revierte **solo el efecto duplicado** de manera idempotente, conservando los efectos posteriores de otros partidos;
+- estadísticas y Grupos dejan de contar dos veces;
+- Intelligence invalida/regenera derivados;
+- Ranking publicado no se reescribe; la siguiente edición toma el Nivel vigente corregido.
+
+La reconciliación es atómica: nunca deja referencias a medio mover ni un duplicado parcialmente anulado.
+
+### 9.9 Seguridad, atomicidad y auditoría
+
+- RLS sigue deny-by-default; tablas de tokens, recuperaciones, snapshots y efectos no se exponen por SELECT directo al cliente.
+- Los comandos públicos son RPC/Edge acotados y validan JWT, relación entre invitador y provisional, payloads y estado.
+- Claims, preview y recuperación tienen rate limits e idempotencia.
+- El consumo de links concurrentes serializa por provisional, no solo por fila de claim.
+- El primer éxito revoca los demás pendientes dentro de la misma transacción.
+- Toda mutación conserva actor, origen, destino, link/claim, timestamps y resultado.
+- No se borra evidencia append-only para “hacer desaparecer” un error: se revierte/supersede con trazabilidad.
 
 ## 10. Permisos y seguridad mínima
 
@@ -1008,9 +1137,9 @@ Cada bloque debe ser pequeño, desplegable en Staging y verificable antes de com
 - búsqueda real;
 - creación/reutilización de `player` provisional;
 - recientes/red relacionada;
-- link y claim básico de una sola identidad;
-- al reclamar una identidad todavía vinculada a un partido pendiente, habilitación inmediata para actuar por la pareja correspondiente;
-- administración manual de duplicados excepcionales.
+- base de link/claim de identidad provisional;
+- al vincular una identidad todavía relacionada con un partido pendiente, habilitación para actuar por la pareja correspondiente;
+- **extensión pre-Production vigente:** links paralelos por invitadores relacionados, recuperación autoservicio sobre cuenta nueva o existente, múltiples provisionales por cuenta, evidencia recuperada de Nivel y resolución explícita de duplicados post-vinculación.
 
 **Depende de:** Bloque 2; consume Nivel público del Bloque 3.
 
@@ -1278,7 +1407,7 @@ Backend/Infraestructura está listo para el lanzamiento inicial cuando:
 - una cuenta puede registrarse, verificarse, recuperarse y usarse desde distintos dispositivos;
 - perfil, username y Nivel persisten server-side; ubicación/rama persisten cuando el usuario los completa y no bloquean el onboarding inicial; el campo legacy `ranking_opt_in` no decide elegibilidad;
 - búsqueda devuelve solo personas reales del entorno;
-- invitados tienen identidad persistente y claim básico;
+- invitados tienen identidad persistente, invitación/vinculación autoservicio segura y recuperación auditable de historial/evidencia;
 - un partido siempre nace pendiente;
 - la pareja contraria puede confirmar o proponer corrección y cualquier participante puede señalar una identidad incorrecta dentro de las ventanas vigentes;
 - la validación actualiza atómicamente historial, Nivel, calibración, snapshots, `reasonCodes` y estadísticas;
