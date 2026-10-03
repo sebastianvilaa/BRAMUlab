@@ -1,6 +1,6 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.28 / bundle 04.28-h7** en `staging`. **Nivel BRAMU V1.3 está cerrado en Staging**: estimador inicial `nivel_inicial_v1_3` (cuestionario adaptativo de 5 preguntas con slider discreto, sin camino rápido), motor posterior de partidos `nivel_bramu_v1_0`, Edge Function `officialize-onboarding` ACTIVE v13 (JWT ON), QA técnico y QA humano en iPhone completados (03/10/2026). No está desplegado en Production. **`Nivel_BRAMU.md` es la única fuente maestra de Nivel.**
+**Estado del producto:** BRAMUlab **V04.29 / bundle 04.29-h2** en `staging`. **Nivel BRAMU V1.3 está cerrado en Staging**: estimador inicial `nivel_inicial_v1_3` (cuestionario adaptativo de 5 preguntas con slider discreto, sin camino rápido), motor posterior de partidos `nivel_bramu_v1_0`, Edge Function `officialize-onboarding` ACTIVE v13 (JWT ON), QA técnico y QA humano en iPhone completados (03/10/2026). La ronda V04.29 de Invitados / Identidad / Recuperación ya tiene implementación y gate técnico de Central PASS en Staging; queda únicamente la comprobación visual/browser del flujo de duplicados con score distinto antes de declarar el bloque completamente cerrado. No está desplegado en Production. **`Nivel_BRAMU.md` es la única fuente maestra de Nivel.**
 
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
@@ -10,7 +10,7 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 
 `Metodo_Trabajo.md` es la guía operativa vigente para coordinación de agentes, commits, pruebas y deploys — leerla antes de coordinar una ronda de trabajo, no solo antes de programar.
 
-**Ronda activa pre-Production — invitados/identidad (03/10/2026):** decisiones de producto cerradas y fuentes maestras alineadas para invitación, múltiples links, cuenta existente, recuperación de evidencia, duplicados post-vinculación y derivados. **Implementación todavía pendiente** y siempre primero en Staging. Handoff técnico de ejecución: `Implementacion/Pre_Production/116_Handoff_Implementacion_Invitados_Identidad_Recuperacion_03OCT.md`.
+**Ronda activa pre-Production — invitados/identidad (03/10/2026):** implementación **V04.29 / 04.29-h2** en `staging`, con G3 + corrección forward-only G3b aplicadas en Supabase Staging, `process-identity-recovery` ACTIVE v1 y gate técnico de Central PASS. El flujo recupera identidades provisionales hacia cuentas registradas, incorpora evidencia histórica válida al Nivel del jugador recuperado y resuelve duplicados sin reescribir Ranking publicado ni deltas históricos de terceros. **Pendiente único de esta ronda:** QA visual/browser del caso de duplicado con score distinto usando la UX existente de corrección/confirmación. Evidencia: `Implementacion/Pre_Production/119_Resultado_Correccion_Gate_Invitados_V0429_h2_03OCT.md` y `Implementacion/Pre_Production/120_Gate_Central_Tecnico_Invitados_V0429_h2_03OCT.md`.
 
 ---
 
@@ -18,7 +18,7 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 
 ### BRAMUlab V04 — Nivel BRAMU
 
-Nivel BRAMU V1.3 está **cerrado en Staging sobre BRAMUlab V04.28 / bundle 04.28-h7**.
+Nivel BRAMU V1.3 está **cerrado en Staging sobre BRAMUlab V04.29 / bundle 04.29-h2**.
 
 Fuente maestra vigente:
 

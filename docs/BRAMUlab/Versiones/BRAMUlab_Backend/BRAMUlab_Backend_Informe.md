@@ -1117,3 +1117,39 @@ La QA de Work no completó toda la navegación visual de la app, mobile/email-cl
 Logo: Vercel Staging sigue protegido. Hosted y repo usan el logo real mediante asset público fijado al commit `0a639d67325f880a651418867ccb62b9e880b797`; no se usa GitHub como Site URL de Auth.
 
 Fuente final: `docs/BRAMUlab/Implementacion/Pre_Production/94_Gate_Central_G1_Final_01OCT.md`.
+
+
+---
+
+## Pre-Production G3 — Invitados / Identidad / Recuperación — GATE CENTRAL TÉCNICO PASS (03/10/2026)
+
+**Estado:** **PASS técnico Central en Staging** sobre BRAMUlab **V04.29 / bundle 04.29-h2**. Falta únicamente QA visual/browser del flujo de duplicado con score distinto antes del cierre completo de la ronda.
+
+Implementación revisada:
+- commit funcional Claude: `50675a8331a12eb1db8f6ca4055097990d36d9df`;
+- migraciones G3 base ya presentes en Staging;
+- corrección forward-only `g3b_duplicate_score_confirmation_counts_locks` aplicada por Central en Supabase Staging, registrada como versión `20261003162527`;
+- `process-identity-recovery` permanece **ACTIVE v1**, JWT obligatorio; no cambió y no requirió redeploy;
+- Vercel del commit funcional: **SUCCESS**.
+
+Gate remoto de Central:
+- preflight antes de G3b: 0 doble-slot, 0 recoveries, 0 candidatos de duplicado;
+- `verify-g3-identity-recovery.sql` ejecutado contra Staging real dentro de transacción + ROLLBACK: PASS;
+- ACL verificados: helpers nuevos sin EXECUTE de cliente; `get_my_matches`, `get_match_detail`, `get_notifications` y `resolve_duplicate_match_candidate` solo authenticated, no anon;
+- constraint de candidatos incluye `awaiting_confirmation`;
+- índice único `match_participants_one_slot_per_player` instalado; 0 violaciones;
+- prueba remota con rollback: duplicado histórico validated+validated con score distinto → SAME deja ambos intactos y espera confirmación; **rechazo** de la pareja contraria conserva score actual y recién entonces anula el secundario: PASS;
+- prueba remota con rollback: mismo caso → **aceptación** promueve la revisión alternativa y recién entonces anula el secundario: PASS;
+- ambas pruebas funcionaron con partidos fuera de la ventana ordinaria de 3 días, mientras la corrección normal conserva su ventana;
+- prueba remota con rollback de contadores: un partido `applied+eligible` sin fila propia del target NO suma `rated_matches` ni rivales a `distinct_opponents`: PASS;
+- después de los verifies, Staging sigue con 0 recoveries y 0 candidatos reales de esta ronda; no quedaron fixtures;
+- advisors: ningún hallazgo nuevo bloqueante. Los INFO de RLS sin policies son intencionales para tablas server-only; los WARN de RPC `SECURITY DEFINER` corresponden a endpoints autenticados deliberados; índices G3b recién creados aparecen aún sin uso, esperable.
+
+Concurrencia:
+- Central revisó la jerarquía provisional → target → matches y la defensa UNIQUE;
+- Claude ejecutó el arnés de Postgres real con varias conexiones (6/6 escenarios, 40 iteraciones por corrida, dos corridas) y demostró que 5/6 fallan si se excluye G3b;
+- no se repitió una segunda batería equivalente sobre Staging porque requeriría ensuciar auditoría real y ya existe evidencia suficiente de la carrera + defensa estructural.
+
+**Pendiente único:** QA visual/browser sobre el deploy protegido para confirmar el copy y la continuidad UX al pasar de “SÍ, ES EL MISMO” a corrección pendiente y luego aceptar/rechazar. El conector Vercel disponible a Central no tiene autorización sobre el scope protegido `bramu-lab`; no se convierte a Sebastián en operador técnico por este punto.
+
+Fuente de detalle: `docs/BRAMUlab/Implementacion/Pre_Production/120_Gate_Central_Tecnico_Invitados_V0429_h2_03OCT.md`.
