@@ -514,16 +514,16 @@ test('contrafactuales: perfiles representativos (desidentificados) mantienen el 
   assert.ok(Math.abs(step - base) < 0.2);
 });
 
-test('versionado V04.28 / 04.28-h4 coherente (store, version.json, sw, index, manifest)', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h4' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h4'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h4'/);
-  assert.match(html, /level-calibration\.js\?v=04\.28-h4/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h4/);
-  assert.match(read('manifest.webmanifest'), /v=04\.28-h4/);
+test('versionado V04.28 / 04.28-h5 coherente (store, version.json, sw, index, manifest)', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h5' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h5'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h5'/);
+  assert.match(html, /level-calibration\.js\?v=04\.28-h5/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h5/);
+  assert.match(read('manifest.webmanifest'), /v=04\.28-h5/);
   assert.doesNotMatch(read('sw.js') + html + read('manifest.webmanifest'), /04\.27-h/);
 });
 
-/* ======================= V04.28-h4 — progreso aislado por alta/cuenta ======================= */
+/* ======================= V04.28-h5 — progreso aislado por alta/cuenta ======================= */
 function makeProgressHarness(store) {
   const sb = loadEngine(['level.js', 'level-calibration.js', 'store.js'], { localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } });
   const ctx = { Store: sb.PLStore, LVC: sb.PLLevelCalibration, window: { crypto: { randomUUID: (() => { let n = 0; return () => `uuid-${++n}-${Math.random()}`; })() } }, crypto: undefined };
@@ -592,7 +592,7 @@ test('h2-7/8) limpiar el borrador y completar Nivel limpian el progreso', () => 
   assert.match(read('store.js'), /safeRemove\(KEYS\.SIGNUP_DRAFT\);\s*safeRemove\(KEYS\.NIVEL_PROGRESS\);/);
 });
 
-/* ======================= V04.28-h4 — pulido post-QA ======================= */
+/* ======================= V04.28-h5 — pulido post-QA ======================= */
 const css3 = read('styles.css');
 const fn3 = (n) => fnSource(n);
 
@@ -696,9 +696,9 @@ test('h3-34..39) Home Estado Cero: tarjeta aprobada solo sin partidos; con parti
   const fn = fnSource('renderPlayerLastMatchCard');
   const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
   assert.match(empty, /if \(!matches\.length\)/);
-  ['PRIMER PARTIDO', 'CARGÁ TU PRIMER PARTIDO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\.', 'CARGAR PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
+  ['TU PRIMER PARTIDO', 'TU PRIMER RESULTADO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\.', 'CARGAR MI PRIMER PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
   assert.match(empty, /<button type="button" class="btn-start player-home-lastmatch__empty-cta">/);
-  assert.doesNotMatch(fn.slice(fn.indexOf("card.classList.remove('is-empty')")), /CARGÁ TU PRIMER PARTIDO|empty-cta/);
+  assert.doesNotMatch(fn.slice(fn.indexOf("card.classList.remove('is-empty')")), /TU PRIMER RESULTADO|empty-cta/);
   // el click de la tarjeta abre Cargar partido solo sin partidos; con partido abre el Resumen
   assert.match(fnSource('initPlayerHomeLastMatchCard'), /if \(!matches\.length\) \{ openManualLoadScreen\('player-home'\); return; \}\s*openCanonicalResumen\(matches\[0\]/);
   // TU MOMENTO / Buscar jugadores / Nivel no se tocan en esta ronda
@@ -710,12 +710,12 @@ test('h3-40..42) V1.3 persiste la versión correcta, motor posterior sin cambios
   const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, f))).digest('hex');
   assert.equal(h('level.js'), '12aa1dbe49deae59642ed185767af2e0dda5a01c18e33cc5728c82148fff6050');
   assert.equal(h('match-level-engine.js'), 'a5677f73e73af9adf6cd5231953d4364422ca24254243d0fe9101d854c6bda74');
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h4' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h4'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h4'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h5' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h5'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h5'/);
 });
 
-/* ======================= V04.28-h4 — tarjeta Estado Cero con foto ======================= */
+/* ======================= V04.28-h5 — tarjeta Estado Cero con foto ======================= */
 test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy exacto, CTA abre Cargar partido', () => {
   const css4 = read('styles.css');
   const jpg = fs.readFileSync(path.join(__dirname, 'assets', 'home-primer-partido.jpg'));
@@ -724,14 +724,16 @@ test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy 
   // es la copia optimizada de "Pelota en cancha azul dramática" (original intacto en docs/identidad-visual)
   const orig = path.join(__dirname, '..', 'docs', 'identidad-visual', 'referencias-premier-padel', 'Pelota en cancha azul dramática.png');
   if (fs.existsSync(orig)) assert.ok(fs.statSync(orig).size > 2 * 1024 * 1024);
-  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.28-h4'\) 100% 30% \/ cover no-repeat/);
+  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.28-h5'\) 100% 30% \/ cover no-repeat/);
   assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*linear-gradient\(180deg, rgba\(5,12,22/); // oscurece detrás del texto
-  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.28-h4'/);
+  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.28-h5'/);
   const fn = fnSource('renderPlayerLastMatchCard');
   const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
-  ['PRIMER PARTIDO', 'CARGÁ TU PRIMER PARTIDO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\\.', 'CARGAR PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
-  assert.doesNotMatch(empty, /Todo empieza acá|Primer resultado|Empezá tu historia|Resultados reales/);
-  assert.equal((empty.match(/<(div|p|button)\b/g) || []).length, 4); // eyebrow + título + bajada + CTA, nada más
+  ['TU PRIMER PARTIDO', 'TODO EMPIEZA CON', 'TU PRIMER RESULTADO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\\.', 'CARGAR MI PRIMER PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
+  assert.match(empty, /empty-accent">TU PRIMER RESULTADO/); assert.match(empty, /<svg[^>]*player-home-lastmatch__pill-icon/);
+  assert.match(read('styles.css'), /\.player-home-lastmatch__empty-accent\{ display:block; color: var\(--brand-lime\); \}/);
+  assert.doesNotMatch(empty, /CARGÁ TU PRIMER PARTIDO|emoji|🎾/);
+  assert.equal((empty.match(/<(div|p|button)\b/g) || []).length, 4); // pill + título + bajada + CTA, nada más
   // sin handlers nuevos: el CTA reutiliza el click de la tarjeta (openManualLoadScreen)
   assert.match(fnSource('initPlayerHomeLastMatchCard'), /if \(!matches\.length\) \{ openManualLoadScreen\('player-home'\); return; \}/);
   assert.doesNotMatch(empty, /addEventListener|onclick/);
@@ -740,7 +742,7 @@ test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy 
 test('h4-5..9) con partido (pendiente u oficial) NO aparece la tarjeta; el resto de Home intacto', () => {
   const fn = fnSource('renderPlayerLastMatchCard');
   const after = fn.slice(fn.indexOf("card.classList.remove('is-empty')"));
-  assert.doesNotMatch(after, /empty-cta|CARGÁ TU PRIMER PARTIDO/);
+  assert.doesNotMatch(after, /empty-cta|TU PRIMER RESULTADO/);
   assert.match(fn, /card\.classList\.remove\('is-empty'\)/); // el fondo con foto solo existe bajo .is-empty
   assert.doesNotMatch(read('styles.css').replace(/\.player-home-lastmatch\.is-empty\{[\s\S]*?\n\}/, ''), /home-primer-partido\.jpg/);
   assert.match(html, /id="player-home-last-match-card"/);
@@ -750,7 +752,7 @@ test('h4-10..12) layout móvil sin overflow, legibilidad y versionado h4', () =>
   const css4 = read('styles.css');
   assert.match(css4, /\.player-home-lastmatch__empty-cta\{ width:100%; \}/);
   assert.match(css4, /\.player-home-lastmatch__empty-title\{[^}]*text-shadow/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h4' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h4'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h4'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h5' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h5'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h5'/);
 });

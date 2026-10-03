@@ -8285,10 +8285,10 @@
     if (!matches.length) {
       card.classList.add('is-empty');
       body.innerHTML = `
-        <div class="player-home-lastmatch__title">PRIMER PARTIDO</div>
-        <div class="player-home-lastmatch__empty-title">CARGÁ TU PRIMER PARTIDO</div>
+        <div class="player-home-lastmatch__pill"><svg viewBox="0 0 24 24" class="player-home-lastmatch__pill-icon" aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg>TU PRIMER PARTIDO</div>
+        <div class="player-home-lastmatch__empty-title">TODO EMPIEZA CON<span class="player-home-lastmatch__empty-accent">TU PRIMER RESULTADO</span></div>
         <p class="player-home-lastmatch__empty-desc">Registrá el resultado y empezá a construir tu historial en BRAMU.</p>
-        <button type="button" class="btn-start player-home-lastmatch__empty-cta">CARGAR PARTIDO</button>
+        <button type="button" class="btn-start player-home-lastmatch__empty-cta">CARGAR MI PRIMER PARTIDO</button>
       `;
       return;
     }
