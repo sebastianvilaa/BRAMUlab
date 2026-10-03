@@ -95,7 +95,22 @@ En Production/Staging server-backed, Grupos debe reutilizar la verdad oficial de
 
 Si una corrección oficial cambia posteriormente la verdad del partido, Grupos debe consumir esa verdad oficial; no mantener una copia divergente.
 
+### Recuperación de identidad
+
+Una vinculación confirmada de una identidad provisional corrige **quién jugó realmente**. Grupos consume esa identidad corregida igual que cualquier otra verdad oficial del partido.
+
+Consecuencias:
+
+- no se crea membresía retroactiva por el solo hecho de recuperar identidad;
+- se evalúan los períodos reales de `group_memberships` que ya existían para el jugador registrado en la semana del partido;
+- si antes el partido tenía 2/4 miembros conocidos y, después de corregir la identidad, pasa legítimamente a 3/4 porque el jugador destino **ya era miembro esa semana**, el partido puede pasar a contar;
+- si el jugador no pertenecía al grupo en esa semana, la recuperación no lo hace miembro “hacia atrás”;
+- una reconciliación confirmada de dos registros del mismo encuentro debe dejar un solo partido efectivo para puntos/actividad; nunca se duplica puntaje;
+- si se revierte un duplicado que ya había producido efecto, Grupos deriva nuevamente sus tablas desde la verdad oficial vigente, sin mantener una copia divergente.
+
 ---
+
+
 
 ## 5. Puntos por partido
 
