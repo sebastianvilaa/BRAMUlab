@@ -43,6 +43,12 @@
 //               rechazados explícitamente (código estructurado), nunca fusión automática;
 //   §7        — dos reclamos simultáneos del mismo token: solo uno gana (concurrencia real).
 //
+// ⚠ V04.29 (contrato SUPERADO en las secciones de claim): la vinculación ya NO adopta el player_id de la provisional ni borra el
+// bootstrap de la cuenta — la cuenta destino conserva SIEMPRE su player_id y la provisional se REASOCIA hacia ella (tombstone). Una cuenta
+// completa YA puede vincular (account_already_registered dejó de existir) y varias provisionales pueden vincularse a la misma cuenta.
+// Las secciones 5 y 8 de abajo se actualizaron a ese contrato; la cobertura nueva (multi-link, preview, conflicto de slots, legal,
+// recuperación de Nivel, duplicados, carrera real) vive en verify-g3-identity-recovery.sql / .mjs e identity-recovery-core.test.mjs.
+//
 // Hotfix §2 (claim transitorio no debe dejar avanzar a complete_profile/officializeLevel) es
 // lógica de `bramulab/app.js` (orquestación del flujo de signup), no de estas RPCs — este
 // script no lo ejercita: app.js no tiene cobertura de tests automatizados en este proyecto (por
@@ -312,17 +318,19 @@ async function main() {
   // Hotfix §3 — claim_provisional_player ahora devuelve jsonb {ok, code, player_id} en vez de
   // la fila de players + raise exception (ver la migración).
   const claimHappy = await rpcAs(accC.token, anonKey, 'claim_provisional_player', { p_token: token2 });
-  const claimHappyOk = claimHappy.res.ok && claimHappy.json && claimHappy.json.ok === true && claimHappy.json.player_id === prov1Id;
-  report('claim feliz: adopta el MISMO player_id de la provisional (nunca uno nuevo)', claimHappyOk, JSON.stringify(claimHappy.json));
+  const claimHappyOk = claimHappy.res.ok && claimHappy.json && claimHappy.json.ok === true && claimHappy.json.code === 'recovered' && claimHappy.json.targetPlayerId === originalPlayerIdC;
+  report('claim feliz (V04.29): la cuenta CONSERVA su player_id como destino y recibe un recoveryId', claimHappyOk, JSON.stringify(claimHappy.json));
 
-  const oldP2Gone = await serviceGet(`players?select=player_id&player_id=eq.${originalPlayerIdC}`);
-  report('claim feliz: el player_id original de la cuenta nueva (P2) fue eliminado', Array.isArray(oldP2Gone) && oldP2Gone.length === 0, JSON.stringify(oldP2Gone));
+  const stillThere = await serviceGet(`players?select=player_id,auth_user_id&player_id=eq.${originalPlayerIdC}`);
+  report('claim feliz (V04.29): el player_id de la cuenta NO se elimina (se evita borrar su legal_acceptances append-only)', Array.isArray(stillThere) && stillThere.length === 1 && !!stillThere[0].auth_user_id, JSON.stringify(stillThere));
+  const tomb = await serviceGet(`players?select=is_active,recovered_into_player_id&player_id=eq.${prov1Id}`);
+  report('claim feliz (V04.29): la provisional queda como tombstone inactivo apuntando a la cuenta', Array.isArray(tomb) && tomb[0] && tomb[0].is_active === false && tomb[0].recovered_into_player_id === originalPlayerIdC, JSON.stringify(tomb));
 
-  const pilotEventsAfterClaim = await serviceGet(`pilot_events?select=event_name&player_id=eq.${prov1Id}`);
+  const pilotEventsAfterClaim = await serviceGet(`pilot_events?select=event_name&player_id=eq.${originalPlayerIdC}`);
   const preservedSignup = Array.isArray(pilotEventsAfterClaim) && pilotEventsAfterClaim.some((e) => e.event_name === 'signup_completed');
   const gotProvisionalClaimed = Array.isArray(pilotEventsAfterClaim) && pilotEventsAfterClaim.some((e) => e.event_name === 'provisional_claimed');
-  report('claim feliz: signup_completed se PRESERVA (reasignado, nunca borrado)', preservedSignup, JSON.stringify(pilotEventsAfterClaim));
-  report('claim feliz: se registra provisional_claimed sobre el player_id adoptado', gotProvisionalClaimed, JSON.stringify(pilotEventsAfterClaim));
+  report('claim feliz: signup_completed se PRESERVA (nunca se reasigna ni se borra)', preservedSignup, JSON.stringify(pilotEventsAfterClaim));
+  report('claim feliz: se registra provisional_claimed sobre el player_id de la cuenta', gotProvisionalClaimed, JSON.stringify(pilotEventsAfterClaim));
 
   // Onboarding normal DESPUÉS del claim, sin ningún cambio de código — complete_profile/
   // officialize-onboarding resuelven player_id dinámicamente desde auth.uid(), que ahora
@@ -341,9 +349,9 @@ async function main() {
 
   const finalProfileC = await restAuthed('profiles?select=player_id,username', accC.token);
   const finalProfileCRows = finalProfileC.ok ? await finalProfileC.json() : null;
-  const finalPlayerIdMatchesAdopted = Array.isArray(finalProfileCRows) && finalProfileCRows[0] && finalProfileCRows[0].player_id === prov1Id;
-  report('claim feliz: el perfil terminado de C vive sobre el player_id ADOPTADO (prov1), no uno nuevo', finalPlayerIdMatchesAdopted, JSON.stringify(finalProfileCRows));
-  cleanup.playerIds.push(prov1Id); // limpiar acá (adoptado por C) en vez de bajo su nombre original
+  const finalPlayerIdMatchesAdopted = Array.isArray(finalProfileCRows) && finalProfileCRows[0] && finalProfileCRows[0].player_id === originalPlayerIdC;
+  report('claim feliz (V04.29): el perfil terminado de C vive sobre SU player_id original', finalPlayerIdMatchesAdopted, JSON.stringify(finalProfileCRows));
+  cleanup.playerIds.push(prov1Id, originalPlayerIdC);
 
   // --- 6) token ya usado: reintentar el MISMO token2 debe rechazarse ---
   const accD = await createFreshUnfinishedAccount('d');
@@ -374,8 +382,8 @@ async function main() {
   const token4 = link4.res.ok ? link4.json : null;
   // userB YA tiene perfil completo (creado en el paso 0) — intenta reclamar de todos modos.
   const claimByAlreadyRegistered = await rpcAs(userB.token, anonKey, 'claim_provisional_player', { p_token: token4 });
-  const claimByAlreadyRegisteredRejected = claimByAlreadyRegistered.res.ok && claimByAlreadyRegistered.json && claimByAlreadyRegistered.json.ok === false && claimByAlreadyRegistered.json.code === 'account_already_registered';
-  report('claim: una cuenta YA con perfil completo no puede reclamar automáticamente (account_already_registered)', claimByAlreadyRegisteredRejected, JSON.stringify(claimByAlreadyRegistered.json));
+  const claimByAlreadyRegisteredOk = claimByAlreadyRegistered.res.ok && claimByAlreadyRegistered.json && claimByAlreadyRegistered.json.ok === true && claimByAlreadyRegistered.json.code === 'recovered';
+  report('claim (V04.29): una cuenta YA con perfil completo SÍ puede vincular una provisional con su invitación válida (ya no hay resolución manual)', claimByAlreadyRegisteredOk, JSON.stringify(claimByAlreadyRegistered.json));
 
   // --- 9) concurrencia: dos reclamos simultáneos del MISMO token, solo uno gana ---
   const prov4 = await rpcAs(userA.token, anonKey, 'create_provisional_player', { p_display_name: `Invitado Concurrencia ${stamp}` });
@@ -394,15 +402,9 @@ async function main() {
   const raceGWon = raceG.res.ok && raceG.json && raceG.json.ok === true;
   const winners = [raceFWon, raceGWon].filter(Boolean);
   report('concurrencia: dos reclamos simultáneos del mismo token -> exactamente uno gana', winners.length === 1, `F=${JSON.stringify(raceF.json)} G=${JSON.stringify(raceG.json)}`);
-  if (winners.length === 1) {
-    cleanup.playerIds.push(prov4Id); // el ganador adoptó prov4Id
-    const loserAcc = raceFWon ? accG : accF;
-    if (loserAcc.playerId) cleanup.playerIds.push(loserAcc.playerId); // el perdedor sigue en su P2 original
-  } else {
-    if (prov4Id) cleanup.playerIds.push(prov4Id);
-    if (accF.playerId) cleanup.playerIds.push(accF.playerId);
-    if (accG.playerId) cleanup.playerIds.push(accG.playerId);
-  }
+  if (prov4Id) cleanup.playerIds.push(prov4Id);
+  if (accF.playerId) cleanup.playerIds.push(accF.playerId);
+  if (accG.playerId) cleanup.playerIds.push(accG.playerId);
 
   // --- 10) rate limiting real: search_players (30 req/60s por jugador, ver la revisión §4) ---
   const rateLimitCalls = await Promise.all(
@@ -442,6 +444,9 @@ async function main() {
 
 async function cleanupAll() {
   console.log('\nLimpiando cuentas y filas de prueba...');
+  // V04.29: player_identity_recoveries/match_duplicate_candidates/level_recovery_effects son AUDITORÍA server-only (service_role sin DELETE) y
+  // referencian players/provisional_claims sin cascada: los borrados de abajo de las cuentas/provisionales que participaron de una recuperación
+  // fallan a propósito y quedan como filas auditables (nombres 'Invitado …'/emails example.com); limpiar por SQL editor si molestan.
   const uniquePlayerIds = [...new Set(cleanup.playerIds.filter(Boolean))];
   let cleanupOk = true;
 

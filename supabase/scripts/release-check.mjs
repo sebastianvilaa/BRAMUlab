@@ -27,6 +27,8 @@ const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex').slice
 export const EXPECTED_VERIFY_JWT = {
   'officialize-onboarding': true, 'create-or-attach-match': true, 'officialize-match': true, 'propose-match-correction': true,
   'respond-match-correction': true, 'resolve-identity-issue': true, 'get-match-intelligence': true, 'delete-my-account': true, 'account-challenge': true,
+  // V04.29 — replay de Nivel de una recuperación de identidad (JWT del usuario; el target siempre es el player de la sesión).
+  'process-identity-recovery': true,
   // service-to-service: autenticación propia; el gateway no exige JWT de usuario.
   'admin-resolve-identity-issue': false, 'cleanup-abandoned-signups': false,
 };
@@ -185,7 +187,7 @@ export function edgeServiceAuthChecks(root = REPO) {
   const cleanup = read('cleanup-abandoned-signups');
   add('cleanup-abandoned-signups: verify_jwt=false y autentica con service role exacta O secreto de Vault verificado por RPC; 403 en otro caso', EXPECTED_VERIFY_JWT['cleanup-abandoned-signups'] === false && /token === SUPABASE_SERVICE_ROLE_KEY/.test(cleanup) && /verify_cleanup_cron_secret/.test(cleanup) && /code: 'forbidden' \}, 403/.test(cleanup));
   const userFns = Object.entries(EXPECTED_VERIFY_JWT).filter(([, v]) => v === true).map(([k]) => k);
-  add('las 9 funciones orientadas a usuario: verify_jwt=true y validan el JWT con getUser (nunca confían en el body)', userFns.length === 9 && userFns.every((f) => /auth\.getUser\(/.test(read(f))), userFns.join(','));
+  add('las 10 funciones orientadas a usuario: verify_jwt=true y validan el JWT con getUser (nunca confían en el body)', userFns.length === 10 && userFns.every((f) => /auth\.getUser\(/.test(read(f))), userFns.join(','));
   return results;
 }
 
