@@ -327,11 +327,47 @@ No pasar a Bloque 9/Production hasta cerrar Fase B y QA multiusuario de Grupos.
 
 ---
 
+## P0.4C — Invitados, vinculación y recuperación de identidad — DECISIÓN CERRADA / IMPLEMENTACIÓN PENDIENTE
+
+**Decisión de producto cerrada el 02–03/10/2026.** Fuente maestra técnica: `Backend_Infraestructura.md` §9. Fuentes derivadas: `Nivel_BRAMU.md`, `Ranking_BRAMU.md`, `Grupos_BRAMU.md` y `BRAMU_Intelligence.md`.
+
+Esta ronda reemplaza el claim básico limitado de Bloque 4 sin reabrir identidad por nombre ni construir fusiones genéricas de cuentas registradas.
+
+Alcance requerido antes de considerar cerrada la experiencia de invitados:
+
+- CTA `INVITAR` sobre provisionales relacionadas;
+- links paralelos por distintos jugadores relacionados, uno pendiente por invitador;
+- primer vínculo exitoso atómico + revocación de los demás links;
+- confirmación explícita `¿Sos {nombre}?` / `SOY YO` / `NO SOY YO`;
+- alta nueva conservando el `player_id` provisional cuando corresponda;
+- cuenta existente recuperando una o varias provisionales, una por una, sin matching por nombre;
+- recuperación de historial/estadísticas;
+- replay idempotente de evidencia elegible para Nivel solo sobre el jugador recuperado;
+- Ranking publicado inmutable; cambios solo hacia la siguiente edición;
+- Grupos derivados de identidad/membresía real;
+- Intelligence regenerable por fingerprint;
+- detección y resolución autoservicio de duplicados revelados por la vinculación;
+- reversión del doble efecto deportivo si dos registros confirmados eran el mismo encuentro;
+- conflicto de una misma persona en dos slots: fail-closed, sin mutación parcial;
+- RLS deny-by-default, rate limits, idempotencia, locks/atomicidad y auditoría.
+
+**Fronteras técnicas de ejecución:** backend de identidad/links → frontend/UX → duplicados + derivados. Se puede resolver en una sola ronda coordinada de Claude con checkpoints internos, pero todo queda primero en Staging y requiere gate Central antes de cualquier promoción.
+
+No incluye:
+
+- fusión genérica entre dos cuentas registradas;
+- matching por nombre/apodo;
+- soporte manual como flujo normal;
+- reescritura de rankings publicados;
+- cascada de recálculo histórico de terceros.
+
+---
+
 ## P0.5 — Bloque 9: endurecimiento y salida
 
 **Estado 01/10/2026:** Pre-Bloque 9 / Issue #17, **Bloque 9A / Issue #19** y **Bloque 9B / Issue #20 están CERRADOS con PASS Central en Staging**. 9A cerró replay/ACL/PG17 `MAINTAIN`; 9B cerró rehearsal operativo, exportación segura y backup lógico. El gate real de 9B detectó dos vías de fuga de ids de terceros (notificaciones y `Intelligence.semanticKey`) y ambas quedaron corregidas/retesteadas en Staging. Quedan únicamente los gates externos G1–G4 antes de abrir Production.
 
-Después de cerrar P0.1, P0.1B, P0.1C y P0.2–P0.4, ejecutar Bloque 9 según `Backend_Infraestructura.md`.
+Después de cerrar P0.1, P0.1B, P0.1C y los P0.2–P0.4C vigentes, ejecutar/promover únicamente los gates que sigan pendientes según `Backend_Infraestructura.md`.
 
 No repetir QA exhaustiva de Bloques 1–8. Probar únicamente riesgos de salida.
 
@@ -416,8 +452,8 @@ Mantener fuera del tramo pre-Production salvo nueva decisión explícita:
 - `Recordar por WhatsApp` con deep link;
 - recordatorios de datos incompletos;
 - apodo/nombre visible personalizado;
-- interfaz autoservicio de fusiones/duplicados;
-- reclamo múltiple de identidades;
+- interfaz genérica de fusión entre **dos cuentas registradas** no relacionada con una provisional confirmada;
+- matching automático/social de identidades sin link válido;
 - notificaciones push;
 - amigos/seguidores;
 - social login/passkeys;
@@ -440,7 +476,7 @@ No reabrir sin regresión concreta:
 - Nivel BRAMU;
 - Ranking V1;
 - BRAMU Intelligence V1 A–E;
-- claim básico de provisional;
+- base técnica de provisionales/claim del Bloque 4;
 - búsqueda real;
 - create-or-attach;
 - historial compartido;
