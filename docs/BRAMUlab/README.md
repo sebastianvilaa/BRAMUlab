@@ -10,6 +10,8 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 
 `Metodo_Trabajo.md` es la guía operativa vigente para coordinación de agentes, commits, pruebas y deploys — leerla antes de coordinar una ronda de trabajo, no solo antes de programar.
 
+**Ronda activa pre-Production — invitados/identidad (03/10/2026):** decisiones de producto cerradas y fuentes maestras alineadas para invitación, múltiples links, cuenta existente, recuperación de evidencia, duplicados post-vinculación y derivados. **Implementación todavía pendiente** y siempre primero en Staging. Handoff técnico de ejecución: `Implementacion/Pre_Production/116_Handoff_Implementacion_Invitados_Identidad_Recuperacion_03OCT.md`.
+
 ---
 
 ## 1. Qué está activo hoy
