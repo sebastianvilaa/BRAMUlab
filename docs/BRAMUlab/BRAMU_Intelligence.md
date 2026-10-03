@@ -778,6 +778,24 @@ La segunda opción debe probarse en UX: es honesta, pero quizá convenga omitir 
 
 Sin identidad estable, los insights de compañero y rival son frágiles. El nombre visible solo puede ser fallback legacy; cambiar `displayName` no debe romper el historial.
 
+### 11.1.1 Recuperación/corrección de identidad
+
+> **Decisión vigente de producto; implementación pre-Production pendiente en Staging.**
+
+Cuando una identidad provisional se vincula correctamente a una cuenta registrada, la historia personal puede cambiar retroactivamente porque partidos que antes pertenecían a la provisional pasan a pertenecer a la persona real.
+
+BRAMU Intelligence debe:
+
+- consumir la identidad oficial vigente del partido, nunca conservar una relación paralela propia;
+- permitir que historial, compañero, rivales, rachas y demás derivados reconozcan los partidos recuperados;
+- invalidar/regenerar los checkpoints cuyo prefijo histórico cambió;
+- reutilizar el fingerprint existente, que ya incluye `team + playerId/userId` de cada participante y por lo tanto cambia ante una sustitución real de identidad;
+- conservar los snapshots históricos de Nivel/expectativa/evidencia asociados a cada partido; **nunca** recalcular un partido pasado con los niveles actuales de terceros;
+- si una deduplicación confirmada elimina un segundo registro del mismo encuentro, dejar de contarlo dos veces y regenerar los derivados afectados;
+- preservar auditoría y versión de reglas.
+
+La recuperación de identidad no habilita ninguna inferencia nueva: siguen vigentes los mismos límites de evidencia y abstención.
+
 ### 11.2 Derivados que conviene precalcular
 
 - resultado desde la perspectiva de cada jugador;
