@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.28-h7" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.29-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.28-h7" />
+<link rel="stylesheet" href="styles.css?v=04.29-h1" />
 </head>
 <body>
 
@@ -151,6 +151,14 @@
             <button type="button" class="b6-correction-choice b6-correction-choice--accept" id="b6-respond-accept-btn">Aceptar corrección</button>
           </div>
         </div>
+      </section>
+      <!-- V04.29 — JUGADORES SIN CUENTA: invitados (identidades provisionales) de ESTE partido que el usuario puede
+           invitar a BRAMU (creó la identidad o compartió un partido real con ella — regla única server-side). Solo partidos
+           server-backed; nunca un borrador local. Cada fila: nombre + INVITAR (abre #invite-sheet-scrim). No rediseña el
+           Resumen: sección chica, oculta si no hay invitados (ver renderAnalysisGuests en app.js). -->
+      <section class="analysis-section guests-section" id="analysis-guests" hidden>
+        <h3 class="analysis-section__title">JUGADORES SIN CUENTA</h3>
+        <div id="analysis-guests-list" class="guests-list"></div>
       </section>
       <!-- V02.2 (Bloque F, §15) — nota de cobertura de datos (partido cargado a mano / ajustes
            manuales) pegada al resultado, nunca colgando lejos bajo Intelligence. -->
@@ -2653,6 +2661,61 @@
        se disparan estando ya adentro del partido. Fase 2 la reutiliza para "¿Salir sin guardar?"
        en Cargar partido jugado, alcanzable también fuera de #view-match, así que hacía falta
        corregirlo. Comportamiento y call sites existentes: sin cambios. -->
+  <!-- ============================================================
+       V04.29 — INVITAR A UN JUGADOR SIN CUENTA (hoja inferior).
+       "Invitá a {NOMBRE} a BRAMU": el enlace es personal (create_claim_link rota solo el link propio del invitador) y se
+       copia al portapapeles — sin botón de WhatsApp específico (sirve para cualquier app). El texto NUNCA dice
+       "reclamar": invitar / vincular / recuperar partidos. ============================================================ -->
+  <div id="invite-sheet-scrim" class="sheet-scrim" hidden>
+    <div id="invite-sheet" class="bottom-sheet bottom-sheet--compact" role="dialog" aria-modal="true" aria-labelledby="invite-sheet-title">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+      <div class="bottom-sheet__header">
+        <span class="bottom-sheet__title" id="invite-sheet-title">INVITÁ A UN JUGADOR A BRAMU</span>
+        <button type="button" id="invite-sheet-close" class="bottom-sheet__close" aria-label="Cerrar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="bottom-sheet__level invite-sheet__body">
+        <p class="invite-sheet__text" id="invite-sheet-text"></p>
+        <input type="text" id="invite-sheet-link" class="invite-sheet__link" readonly hidden aria-label="Enlace de invitación" />
+        <p class="invite-sheet__feedback" id="invite-sheet-feedback" role="status" aria-live="polite" hidden></p>
+        <button type="button" id="invite-sheet-copy-btn" class="btn-start btn-save">COPIAR ENLACE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       V04.29 — RECEPTOR DE UNA INVITACIÓN: "¿Sos {NOMBRE}?" (SOY YO / NO SOY YO).
+       Se muestra con sesión real, después de leer una vista previa SEGURA (preview_claim_link, no consume). SOY YO vincula
+       (claim_provisional_player); NO SOY YO solo limpia la intención local — no consume ni revoca el link para nadie más.
+       ============================================================ -->
+  <div id="invitation-confirm-overlay" class="overlay" hidden>
+    <div class="overlay__card" role="dialog" aria-modal="true" aria-labelledby="invitation-confirm-title">
+      <div class="overlay__title" id="invitation-confirm-title">¿SOS ESTE JUGADOR?</div>
+      <p class="overlay__text" id="invitation-confirm-text">Hay partidos registrados con esta identidad. Si sos vos, podés vincularlos a tu cuenta.</p>
+      <p class="overlay__text overlay__text--error" id="invitation-confirm-error" role="alert" hidden></p>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button id="invitation-confirm-yes" class="btn-start btn-start--overlay" type="button">SOY YO</button>
+        <button id="invitation-confirm-no" class="btn-secondary" type="button">NO SOY YO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       V04.29 — POSIBLE PARTIDO DUPLICADO revelado por una vinculación de identidad. Solo lo ve la persona recuperada.
+       "SÍ, ES EL MISMO" reconcilia en un único encuentro (sin borrar historia ni tocar Ranking publicado); "NO, SON DOS
+       PARTIDOS DISTINTOS" conserva ambos y no vuelve a preguntar. ============================================================ -->
+  <div id="duplicate-match-overlay" class="overlay" hidden>
+    <div class="overlay__card overlay__card--wide overlay__card--scroll" role="dialog" aria-modal="true" aria-labelledby="duplicate-match-title">
+      <div class="overlay__title" id="duplicate-match-title">ENCONTRAMOS DOS PARTIDOS QUE PODRÍAN SER EL MISMO</div>
+      <div id="duplicate-match-list" class="duplicate-match-list"></div>
+      <p class="overlay__text overlay__text--error" id="duplicate-match-error" role="alert" hidden></p>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button id="duplicate-match-same-btn" class="btn-start btn-start--overlay" type="button">SÍ, ES EL MISMO</button>
+        <button id="duplicate-match-different-btn" class="btn-secondary" type="button">NO, SON DOS PARTIDOS DISTINTOS</button>
+        <button id="duplicate-match-later-btn" class="link-btn" type="button" hidden>Decidir después</button>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm-overlay" class="overlay" hidden>
     <div class="overlay__card">
       <div class="overlay__title" id="confirm-title">¿Confirmar?</div>
@@ -3083,47 +3146,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.28-h7"></script>
-  <script src="stats.js?v=04.28-h7"></script>
-  <script src="store.js?v=04.28-h7"></script>
+  <script src="engine.js?v=04.29-h1"></script>
+  <script src="stats.js?v=04.29-h1"></script>
+  <script src="store.js?v=04.29-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.28-h7"></script>
-  <script src="level-context.js?v=04.28-h7"></script>
-  <script src="level-calibration.js?v=04.28-h7"></script>
-  <script src="player-home.js?v=04.28-h7"></script>
-  <script src="match-load.js?v=04.28-h7"></script>
-  <script src="player-identity.js?v=04.28-h7"></script>
-  <script src="groups.js?v=04.28-h7"></script>
-  <script src="locations.js?v=04.28-h7"></script>
-  <script src="ranking.js?v=04.28-h7"></script>
+  <script src="level.js?v=04.29-h1"></script>
+  <script src="level-context.js?v=04.29-h1"></script>
+  <script src="level-calibration.js?v=04.29-h1"></script>
+  <script src="player-home.js?v=04.29-h1"></script>
+  <script src="match-load.js?v=04.29-h1"></script>
+  <script src="player-identity.js?v=04.29-h1"></script>
+  <script src="groups.js?v=04.29-h1"></script>
+  <script src="locations.js?v=04.29-h1"></script>
+  <script src="ranking.js?v=04.29-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.28-h7"></script>
+  <script src="auth.js?v=04.29-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.28-h7"></script>
-  <script src="match-sync.js?v=04.28-h7"></script>
+  <script src="matches.js?v=04.29-h1"></script>
+  <script src="match-sync.js?v=04.29-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.28-h7"></script>
+  <script src="match-validation.js?v=04.29-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.28-h7"></script>
+  <script src="match-self-heal.js?v=04.29-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.28-h7"></script>
-  <script src="app.js?v=04.28-h7"></script>
+  <script src="intelligence-client.js?v=04.29-h1"></script>
+  <script src="app.js?v=04.29-h1"></script>
 </body>
 </html>

@@ -130,7 +130,11 @@ test('la lista explícita de authenticated de la migración baseline coincide EX
   const listed = [...sql.matchAll(/^grant execute on function (public\.[a-z0-9_]+\([^)]*\)) to authenticated;$/gm)].map((m) => m[1].replace(/\s/g, '')).sort();
   assert.ok(listed.length >= 58);
   assert.equal(new Set(listed).size, listed.length, 'sin duplicados');
-  const r = await replay({ acl: 'observed', exclude: ['bloque9a_baseline_privileges'] });
+  // La baseline fija la superficie que dejan las migraciones ANTERIORES a ella; toda RPC de cliente posterior trae su propio
+  // GRANT EXECUTE ... TO authenticated (contrato documentado en la cabecera de la baseline) y no entra en esta lista.
+  const baselineFile = '20261001060000_bloque9a_baseline_privileges.sql';
+  const later = fs.readdirSync(path.join(__dirname, '../supabase/migrations')).filter((f) => f.endsWith('.sql') && f > baselineFile);
+  const r = await replay({ acl: 'observed', exclude: ['bloque9a_baseline_privileges', ...later] });
   const rows = (await r.db.query(`select p.oid::regprocedure::text sig from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prokind='f' and has_function_privilege('authenticated',p.oid,'EXECUTE')`)).rows;
   const live = rows.map((x) => `public.${x.sig}`.replace(/^public\.public\./, 'public.').replace(/\s/g, '')).sort();
   assert.deepEqual(listed, live);

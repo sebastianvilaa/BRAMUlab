@@ -687,22 +687,75 @@
     return { ok: true, token: data };
   }
 
-  /** Backend Bloque 4 — consume un token de reclamo (RPC `claim_provisional_player`). Debe
-   *  llamarse con sesión real ya activa, ANTES de `completeProfile`/`officializeLevel` para esa
-   *  misma cuenta (03_Revision_ChatGPT.md §2/Decisión 2 — ver `app.js runOfficializeAndEnter`).
-   *  Hotfix (05_Revision_Post_Implementacion_ChatGPT.md §3) — la RPC cambió de contrato: ahora
-   *  devuelve `jsonb` (`{ok, code, player_id}`) para los errores de negocio ESPERABLES en vez
-   *  de levantar una excepción (eso revertía el incremento del rate limiter). `error` acá
-   *  significa un fallo REALMENTE inesperado (red, `no_player_for_session`, etc.) — se mapea
-   *  igual a `{ok:false, code}` para que `app.js` no necesite distinguir el origen. */
+  /** V04.29 — "SOY YO": vincula la identidad provisional del link a la cuenta de la sesión (RPC `claim_provisional_player`,
+   *  alta nueva O cuenta ya completa). La cuenta CONSERVA su player_id (la provisional se reasocia hacia ella; ver
+   *  `20261003110000_g3_identity_recovery_core.sql`). Contrato jsonb: `{ok:true, recoveryId, matchCount, levelPending,
+   *  duplicateCandidates, idempotentReturn?}` o `{ok:false, code, conflicts?}` (`claim_invalid`/`claim_expired`/`claim_revoked`/
+   *  `claim_already_used`/`identity_conflict`/`rate_limited`/`account_not_eligible`). Un `error` real (red, sesión) se mapea a
+   *  `{ok:false, code}` igual — app.js decide si es definitivo o transitorio. */
   async function claimProvisionalPlayer(token) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
     const { data, error } = await c.rpc('claim_provisional_player', { p_token: token });
     if (error) return { ok: false, code: error.message || 'unknown' };
     if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    if (!data.ok) return { ok: false, code: data.code || 'unknown', conflicts: Array.isArray(data.conflicts) ? data.conflicts : [] };
+    return {
+      ok: true, recoveryId: data.recoveryId, matchCount: Number(data.matchCount) || 0, levelPending: data.levelPending === true,
+      duplicateCandidates: Number(data.duplicateCandidates) || 0, idempotentReturn: data.idempotentReturn === true,
+    };
+  }
+
+  /** V04.29 — vista previa de una invitación SIN consumirla (RPC `preview_claim_link`): `{ok:true, displayName}` o
+   *  `{ok:false, code}`. Solo con sesión real. Es lo que alimenta "¿Sos {nombre}?" — NO SOY YO nunca llama a nada más. */
+  async function previewClaimLink(token) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('preview_claim_link', { p_token: token });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
     if (!data.ok) return { ok: false, code: data.code || 'unknown' };
-    return { ok: true, player: { player_id: data.player_id } };
+    return { ok: true, displayName: data.displayName || 'Jugador' };
+  }
+
+  /** V04.29 — contadores mínimos del caller (RPC `get_my_identity_recovery_status`): recuperaciones con Nivel pendiente y
+   *  posibles partidos duplicados abiertos. */
+  async function getIdentityRecoveryStatus() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_my_identity_recovery_status');
+    if (error || !data || typeof data !== 'object') return { ok: false, code: (error && error.message) || 'unknown' };
+    return { ok: true, pendingLevelRecoveries: Number(data.pendingLevelRecoveries) || 0, openDuplicateCandidates: Number(data.openDuplicateCandidates) || 0 };
+  }
+
+  /** V04.29 — pide a la Edge `process-identity-recovery` que aplique el Nivel recuperado (idempotente/reanudable; el servidor
+   *  decide el jugador desde el JWT). `{ok:true, results:[{status}]}`; status `pending_level` = todavía sin Nivel base. */
+  async function processIdentityRecovery() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.functions.invoke('process-identity-recovery', { body: {} });
+    if (error || !data || data.ok === false) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+    return { ok: true, results: Array.isArray(data.results) ? data.results : [] };
+  }
+
+  /** V04.29 — posibles partidos duplicados abiertos para la persona recuperada (RPC `list_my_duplicate_match_candidates`). */
+  async function listDuplicateMatchCandidates() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('list_my_duplicate_match_candidates');
+    if (error || !data || typeof data !== 'object' || data.ok === false) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+    return { ok: true, candidates: Array.isArray(data.candidates) ? data.candidates : [] };
+  }
+
+  /** V04.29 — "SÍ, ES EL MISMO" (`same`) / "NO, SON DOS PARTIDOS DISTINTOS" (`different`) (RPC `resolve_duplicate_match_candidate`).
+   *  `{ok:true, ...resolution}` o `{ok:false, code}` (`candidate_not_found`/`candidate_stale`/`already_resolved`/`rate_limited`). */
+  async function resolveDuplicateMatchCandidate(candidateId, decision) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('resolve_duplicate_match_candidate', { p_candidate_id: candidateId, p_decision: decision });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    return data;
   }
 
   /** Backend Bloque 7 (Fase 5) — única vía de escritura de localidad deportiva/rama
@@ -1006,7 +1059,8 @@
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
-    createClaimLink, claimProvisionalPlayer, completeRankingProfileData,
+    createClaimLink, claimProvisionalPlayer, previewClaimLink, getIdentityRecoveryStatus, processIdentityRecovery,
+    listDuplicateMatchCandidates, resolveDuplicateMatchCandidate, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,

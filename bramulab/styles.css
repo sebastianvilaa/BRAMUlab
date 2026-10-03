@@ -1902,7 +1902,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.28-h7') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.29-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3979,3 +3979,32 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 #confirm-overlay.overlay--stacked-actions .overlay__actions{ flex-direction: column-reverse; gap: 12px; }
 #confirm-overlay.overlay--stacked-actions .overlay__actions .btn-start,
 #confirm-overlay.overlay--stacked-actions .overlay__actions .btn-secondary{ flex: none; width: 100%; margin: 0; white-space: nowrap; }
+
+/* ==========================================================================
+   V04.29 — Invitados / vinculación de identidad / posibles duplicados.
+   Superficie chica: sección "Jugadores sin cuenta" del Resumen, hoja "Invitá a {nombre} a BRAMU", modal "¿Sos {nombre}?" y modal
+   de posible duplicado. Reusa tokens y componentes existentes (.sheet-scrim/.bottom-sheet, .overlay, .btn-start, .btn-secondary).
+   ========================================================================== */
+.guests-list{ display:flex; flex-direction:column; }
+.guests-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 12px 2px; }
+.guests-row + .guests-row{ border-top: 1px solid var(--line); }
+.guests-row__name{ min-width:0; flex:1; font-size:14px; font-weight:700; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.guests-row__btn{ flex:none; width:auto; min-height:36px; padding: 0 16px; font-size:12px; }
+
+.invite-sheet__body{ padding: 4px 16px 16px; gap: 14px; }
+.invite-sheet__text{ margin:0; font-size:14px; line-height:1.5; color: var(--paper); }
+.invite-sheet__link{
+  width:100%; box-sizing:border-box; min-height:44px; padding: 0 12px; border-radius: 12px;
+  background: var(--ink-softer); color: var(--paper); border: 1px solid var(--line); font-size: 12px;
+}
+.invite-sheet__feedback{ margin:0; font-size:13px; line-height:1.4; color: var(--brand-lime); text-align:center; }
+.invite-sheet__feedback--error{ color: var(--danger); }
+.invite-sheet__body .btn-start{ width:100%; }
+
+.overlay__text--error{ color: var(--danger); }
+
+.duplicate-match-list{ display:flex; flex-direction:column; gap:12px; margin: 8px 0 14px; }
+.duplicate-match-card{ border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--ink-softer); }
+.duplicate-match-card__players{ margin:0 0 4px; font-size:14px; font-weight:700; color: var(--text); }
+.duplicate-match-card__score{ margin:0 0 4px; font-family: var(--font-display); font-size:20px; font-weight:800; color: var(--paper); letter-spacing: 0.02em; }
+.duplicate-match-card__meta{ margin:0; font-size:12px; color: var(--text-dim); line-height:1.4; }

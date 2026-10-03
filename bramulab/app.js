@@ -3997,6 +3997,8 @@
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
     // en paralelo con get_match_detail fresco (ver renderB6Actions).
     renderB6Actions(f);
+    // V04.29 — "JUGADORES SIN CUENTA" (invitar): async, nunca bloquea el resto del Resumen.
+    renderAnalysisGuests(f);
     renderIntelligenceCard(f);
     const covNote = $('#analysis-coverage-note');
     const legalHTML = buildCoverageLegalHTML(f);
@@ -6709,46 +6711,18 @@
    *  03_Revision_ChatGPT.md §6), complete_profile revierte toda su transacción sin tocar
    *  Nivel: se conserva TODO el resto del borrador y solo se vuelve a pedir el @usuario. */
   async function runOfficializeAndEnter() {
-    // Backend Bloque 4 (03_Revision_ChatGPT.md §2/Decisión 2) — "antes de complete_profile y
-    // de oficializar Nivel, consumir el claim": este es el único punto donde una cuenta nueva
-    // que llegó desde un link de reclamo (?claim=<token>, ver captureClaimTokenFromUrl) todavía
-    // no tiene perfil oficializado, así que es el momento correcto (y el único) para intentar
-    // adoptar la identidad provisional. Éxito o fracaso, el alta sigue su curso normal después
-    // (nunca bloquea la creación de la cuenta por un token roto).
-    const pendingClaimToken = Store.loadClaimToken();
-    if (pendingClaimToken) {
-      const claimResult = await Auth.claimProvisionalPlayer(pendingClaimToken);
-      if (claimResult.ok) {
-        Store.clearClaimToken();
-        showToast('Reclamaste la invitación — tu historial ya quedó vinculado a tu cuenta.', 3200);
-      } else if (claimResult.code !== 'not_configured') {
-        // Códigos definitivos (03_Revision_ChatGPT.md §7 — nunca fusión automática): el token
-        // no aplica más, reintentarlo no cambiaría nada — se limpia y el alta sigue su curso
-        // normal SIN reclamo.
-        const DEFINITIVE_CODES = ['claim_invalid', 'claim_expired', 'claim_already_used', 'account_already_registered', 'account_already_claimed_identity'];
-        if (DEFINITIVE_CODES.includes(claimResult.code)) {
-          Store.clearClaimToken();
-          showToast('No pudimos vincular esa invitación. Tu cuenta se crea igual, normalmente.', 3600);
-        } else {
-          // Backend Bloque 4 hotfix (05_Revision_Post_Implementacion_ChatGPT.md §2) —
-          // CORRECCIÓN OBLIGATORIA: un fallo TRANSITORIO (red, rate_limited, etc.) NUNCA puede
-          // dejar avanzar a complete_profile/officializeLevel. Antes de este fix, el código
-          // seguía de largo igual: terminaba de registrar la cuenta (P2), y en el próximo
-          // intento el claim ya no podía adoptarse (account_already_registered) — conservar el
-          // token no alcanzaba si el resto del flujo lo volvía inservible de todos modos. Acá
-          // se corta ANTES de tocar perfil/Nivel: el token y el borrador quedan intactos.
-          // Vía de reintento sin pedir un OTP nuevo: la sesión YA es válida en este punto
-          // (nunca se llega hasta acá sin sesión), así que alcanza con volver a pasar por este
-          // mismo flujo — el botón CONFIRMAR MI NIVEL/CONFIRMAR CÓDIGO de la pantalla a la que
-          // se vuelve detecta la sesión ya activa y reintenta runOfficializeAndEnter()
-          // directamente, sin consumir OTP (ver el chequeo de sesión agregado en el handler de
-          // signup-continue-btn más abajo).
-          showToast('No pudimos procesar tu invitación pendiente. Volvé a intentarlo en un momento (no hace falta un código nuevo).', 4000);
-          signupStep = 'verify';
-          renderSignupStep();
-          showView('signup');
-          return;
-        }
+    // V04.29 — invitación pendiente (?claim=<token>): con la sesión ya válida se muestra "¿Sos {nombre}?" (SOY YO / NO SOY YO) ANTES
+    // de complete_profile/Nivel. La vinculación conserva el player_id de esta cuenta (la provisional se reasocia hacia ella), así
+    // que no hay ventana de "cuenta sin perfil" que cuidar; igual conviene resolverla antes de oficializar. Éxito, rechazo o enlace
+    // inválido: el alta sigue su curso normal. Un fallo TRANSITORIO (red) conserva el token y NO avanza (mismo criterio del hotfix
+    // de Bloque 4): se vuelve al paso de confirmar código, que reintenta sin pedir un OTP nuevo porque la sesión ya existe.
+    if (Store.loadClaimToken()) {
+      const invitation = await handlePendingInvitation({ onboardingDone: false });
+      if (invitation.outcome === 'transient') {
+        signupStep = 'verify';
+        renderSignupStep();
+        showView('signup');
+        return;
       }
     }
 
@@ -6805,6 +6779,8 @@
     syncServerLevelState(serverUser);
     syncCurrentIdentityFromStore();
     completeIdentifyAction();
+    // V04.29 — ahora que la cuenta tiene Nivel base, procesa (idempotente) el Nivel de las identidades que vinculó en el alta.
+    syncIdentityRecovery();
   }
 
   /** Backend Bloque 3 — cachea `user.levelState` (autoridad server-side) en la MISMA forma
@@ -14253,31 +14229,34 @@
     syncServerLevelState(serverUser);
     syncCurrentIdentityFromStore();
     const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
-    if (!onboardingDone) { resumeSignupProfileStep(serverUser); return; }
+    if (!onboardingDone) {
+      resumeSignupProfileStep(serverUser);
+      // V04.29 — una cuenta que vuelve con sesión pero todavía armando su perfil/Nivel también ve "¿Sos {nombre}?" si trae una invitación.
+      if (Store.loadClaimToken()) handlePendingInvitation({ onboardingDone: false });
+      return;
+    }
     // L1 (V04.19) — base de reaceptación: versión legal vigente distinta de la última aceptada (o cuenta
     // histórica sin aceptación registrada) => pantalla bloqueante antes de Home/acciones privadas.
     if (await enforceLegalGate(() => resumeServerSession(options))) return;
-    // Backend Bloque 4 (03_Revision_ChatGPT.md §7) — una cuenta que YA terminó su onboarding
-    // nunca llega a runOfficializeAndEnter() (único lugar donde se consume un claim), así que
-    // un token pendiente acá quedaría inválido para siempre sin este aviso explícito: "una
-    // cuenta ya completa que intenta reclamar otra identidad no se fusiona automáticamente" —
-    // se resuelve a mano durante el piloto, nunca en silencio.
-    if (Store.loadClaimToken()) {
-      Store.clearClaimToken();
-      showToast('Esta cuenta ya tiene perfil — reclamar otra identidad se resuelve manualmente durante el piloto.', 3600);
-    }
     // Backend Bloque 5 — reintento de outbox en segundo plano (nunca bloquea la navegación):
     // cubre tanto "recién logueado" como "recarga con sesión ya persistida" (ambos casos pasan
     // por acá), que es exactamente cuándo hace falta reconciliar cargas sync_pending que hayan
     // sobrevivido a un refresh/cierre de la app (02_Analisis_Claude.md §7).
     retryMatchOutbox();
     if (options.afterLogin) completeIdentifyAction(); else bootDefaultScreen();
+    // V04.29 — invitación pendiente (una cuenta completa PUEDE vincular una identidad provisional: ya no hay resolución manual) y,
+    // en segundo plano, Nivel recuperado pendiente / posibles duplicados abiertos. Nunca bloquea el arranque.
+    (async () => {
+      if (Store.loadClaimToken()) await handlePendingInvitation({ onboardingDone: true });
+      await syncIdentityRecovery();
+    })();
   }
 
   /** Backend Bloque 4 — captura `?claim=<token>` de la URL de entrada (link de invitación/
-   *  reclamo, Backend_Infraestructura.md §6.2/§9). Ranura única en este dispositivo/navegador
-   *  (Store.saveClaimToken, mismo criterio que signupDraft) — se consume recién en
-   *  runOfficializeAndEnter(), nunca acá. Se limpia de la URL con `history.replaceState` para
+   *  reclamo, Backend_Infraestructura.md §6.2/§9). V04.29: la intención se conserva hasta que la persona confirma
+   *  SOY YO / NO SOY YO con sesión real (handlePendingInvitation) — nunca se consume acá.
+   *  Ranura única en este dispositivo/navegador
+   *  (Store.saveClaimToken, mismo criterio que signupDraft). Se limpia de la URL con `history.replaceState` para
    *  no reprocesarlo en cada refresh (mismo motivo que ya evita eso el propio flujo de OTP).
    *  Esta PWA no tiene router: se lee una sola vez, al boot, antes de cualquier otra decisión
    *  de arranque. Sin backend configurado (desarrollo local sin Supabase) no hay nada que
@@ -14299,7 +14278,6 @@
     // una copia volátil para esta misma página, pero si la persistencia falló NO limpiamos el
     // query param: así un reload no convierte una intención de claim en un alta normal.
     const persisted = Store.saveClaimToken(cleanToken);
-    showToast('Vas a reclamar una invitación — iniciá sesión o creá tu cuenta para continuar.', 3600);
     if (!persisted) {
       console.warn('[BRAMU LAB] El claim quedó solo en memoria; se conserva ?claim= en la URL para no perderlo al recargar.');
       return;
@@ -14310,6 +14288,340 @@
       url.searchParams.delete('claim');
       window.history.replaceState(null, '', url.pathname + url.search + url.hash);
     } catch (e) { /* noop — navegador sin History API real (poco probable) */ }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V04.29 — INVITADOS · VINCULACIÓN DE IDENTIDAD · POSIBLES DUPLICADOS     */
+  /* Ver docs/BRAMUlab/Implementacion/Pre_Production/113_* y 116_*. Copy visible: invitar /
+   *  vincular / recuperar partidos — nunca "reclamar" ni "fusionar". El backend decide todo (quién
+   *  puede invitar, qué se vincula, qué cuenta para Nivel); acá solo se orquesta la UI. */
+  /* ------------------------------------------------------------------ */
+
+  const INVITATION_ERROR_TEXT = {
+    claim_invalid: 'Este enlace de invitación no es válido.',
+    claim_expired: 'Este enlace de invitación venció. Pedile a quien te invitó que genere uno nuevo.',
+    claim_revoked: 'Este enlace de invitación ya no está activo. Pedile a quien te invitó que genere uno nuevo.',
+    claim_already_used: 'Esta invitación ya fue utilizada.',
+    account_not_eligible: 'Tu cuenta no puede vincular esta invitación.',
+  };
+  const INVITATION_DEFINITIVE_CODES = ['claim_invalid', 'claim_expired', 'claim_revoked', 'claim_already_used', 'account_not_eligible'];
+  let pendingInvitationFlow = null;
+  let identityRecoverySyncing = false;
+  let duplicatePromptOpen = false;
+  let guestsRenderSeq = 0;
+  let inviteSheetCurrent = null;
+
+  /** B1 — "JUGADORES SIN CUENTA" en el Resumen: invitados del partido que el usuario puede invitar (el servidor ya aplica la
+   *  regla única creador/partido compartido en list_related_provisional_players). Solo partidos server-backed ya aceptados;
+   *  nunca un borrador local/outbox. Oculta si no hay ninguno. No rediseña el Resumen. */
+  async function renderAnalysisGuests(f) {
+    const section = $('#analysis-guests');
+    const list = $('#analysis-guests-list');
+    section.hidden = true;
+    list.innerHTML = '';
+    if (!f || !f.serverBacked || f.status === 'sync_pending' || f.status === 'necesita_revision' || f.status === 'annulled') return;
+    if (!Matches || !Matches.isConfigured()) return;
+    const participants = (f.players || []).filter((p) => p && p.userId);
+    if (!participants.length) return;
+    const seq = ++guestsRenderSeq;
+    const res = await Matches.listRelatedProvisionalPlayers();
+    if (seq !== guestsRenderSeq || !analysisCurrent || analysisCurrent.matchId !== f.matchId || !res.ok) return;
+    const invitable = new Map(res.players.map((pl) => [pl.player_id, pl]));
+    const rows = participants.filter((p) => invitable.has(p.userId));
+    if (!rows.length) return;
+    list.innerHTML = rows.map((p) => {
+      const name = (invitable.get(p.userId).display_name || p.name || 'Jugador');
+      return `<div class="guests-row"><span class="guests-row__name">${escapeHtml(name)}</span>`
+        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}">INVITAR</button></div>`;
+    }).join('');
+    list.querySelectorAll('[data-guest-id]').forEach((btn) => {
+      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName));
+    });
+    section.hidden = false;
+  }
+
+  /** B2 — hoja "Invitá a {nombre} a BRAMU". El enlace se genera al tocar COPIAR ENLACE (rota solo el link propio del invitador). */
+  function openInviteSheet(playerId, name) {
+    const cleanName = String(name || 'este jugador').trim() || 'este jugador';
+    inviteSheetCurrent = { playerId, name: cleanName, busy: false };
+    $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMU`;
+    $('#invite-sheet-text').textContent = `Compartile este enlace para que pueda sumarse a BRAMU y recuperar sus partidos. El enlace es personal: envíaselo solo a ${cleanName}.`;
+    const feedback = $('#invite-sheet-feedback');
+    feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('invite-sheet__feedback--error');
+    const linkInput = $('#invite-sheet-link');
+    linkInput.hidden = true; linkInput.value = '';
+    $('#invite-sheet-copy-btn').disabled = false;
+    const scrim = $('#invite-sheet-scrim');
+    scrim.hidden = false;
+    requestAnimationFrame(() => { scrim.classList.add('is-open'); });
+  }
+  function closeInviteSheet() {
+    const scrim = $('#invite-sheet-scrim');
+    scrim.classList.remove('is-open');
+    setTimeout(() => { scrim.hidden = true; }, 220);
+    inviteSheetCurrent = null;
+  }
+  const INVITE_LINK_ERROR_TEXT = {
+    rate_limited: 'Generaste muchos enlaces seguidos. Probá de nuevo en un rato.',
+    provisional_not_found: 'Este jugador ya no está disponible para invitar.',
+  };
+  /** Genera el enlace personal. Devuelve `{ok, url}` o `{ok:false, code}`. */
+  async function createInviteUrl(playerId) {
+    const created = await Auth.createClaimLink(playerId);
+    if (!created.ok || !created.token) return { ok: false, code: created.code || 'unknown' };
+    return { ok: true, url: `${window.location.origin}${window.location.pathname}?claim=${created.token}` };
+  }
+  async function copyInviteLink() {
+    const cur = inviteSheetCurrent;
+    if (!cur || cur.busy) return;
+    cur.busy = true;
+    const btn = $('#invite-sheet-copy-btn');
+    const feedback = $('#invite-sheet-feedback');
+    const linkInput = $('#invite-sheet-link');
+    btn.disabled = true;
+    feedback.hidden = true; feedback.classList.remove('invite-sheet__feedback--error');
+    linkInput.hidden = true;
+    // El permiso de portapapeles de iOS/Safari vence si se espera la red ANTES de escribir: se entrega un ClipboardItem con
+    // una promesa para conservar el gesto del usuario; si no existe/falla, se cae a writeText y, por último, a copia manual.
+    const linkPromise = createInviteUrl(cur.playerId);
+    let copied = false;
+    try {
+      if (navigator.clipboard && typeof window.ClipboardItem === 'function') {
+        const blobPromise = linkPromise.then((r) => {
+          if (!r.ok) throw new Error('create_failed');
+          return new Blob([r.url], { type: 'text/plain' });
+        });
+        await navigator.clipboard.write([new window.ClipboardItem({ 'text/plain': blobPromise })]);
+        copied = true;
+      }
+    } catch (e) { copied = false; }
+    const link = await linkPromise;
+    if (!link.ok) {
+      feedback.textContent = INVITE_LINK_ERROR_TEXT[link.code] || 'No pudimos generar el enlace. Probá de nuevo.';
+      feedback.classList.add('invite-sheet__feedback--error');
+      feedback.hidden = false;
+      btn.disabled = false; cur.busy = false;
+      return;
+    }
+    if (!copied) {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(link.url); copied = true; }
+      } catch (e) { copied = false; }
+    }
+    if (copied) {
+      feedback.textContent = `Enlace copiado. Enviáselo a ${cur.name}.`;
+    } else {
+      linkInput.value = link.url;
+      linkInput.hidden = false;
+      try { linkInput.focus(); linkInput.select(); } catch (e) { /* noop */ }
+      feedback.textContent = `Copiá el enlace y enviáselo a ${cur.name}.`;
+    }
+    feedback.hidden = false;
+    btn.disabled = false; cur.busy = false;
+  }
+
+  /** B3/B4 — punto único de entrada de una invitación pendiente (token guardado en este dispositivo). Con sesión real lee la
+   *  vista previa SEGURA (no consume) y muestra "¿Sos {nombre}?". `opts.onboardingDone`: false si la cuenta todavía está
+   *  armando su perfil/Nivel (alta nueva) — ahí no se refrescan partidos/Nivel hasta oficializar. Devuelve `{outcome}`:
+   *  'none' | 'linked' | 'declined' | 'invalid' | 'transient'. Nunca lanza. */
+  function handlePendingInvitation(opts) {
+    if (pendingInvitationFlow) return pendingInvitationFlow;
+    pendingInvitationFlow = (async () => {
+      try {
+        const token = Store.loadClaimToken();
+        if (!token || !Auth.isConfigured()) return { outcome: 'none' };
+        const preview = await Auth.previewClaimLink(token);
+        if (!preview.ok) {
+          if (INVITATION_DEFINITIVE_CODES.includes(preview.code)) {
+            Store.clearClaimToken();
+            showToast(INVITATION_ERROR_TEXT[preview.code] || INVITATION_ERROR_TEXT.claim_invalid, 4200);
+            return { outcome: 'invalid' };
+          }
+          showToast('No pudimos abrir la invitación ahora. Volvé a intentarlo en un momento.', 3800);
+          return { outcome: 'transient' };
+        }
+        const answer = await askInvitationConfirmation(preview.displayName, token);
+        if (answer.outcome === 'linked') {
+          // La vinculación YA ocurrió: un fallo de refresco posterior nunca la convierte en "transitorio" (el token ya no existe).
+          try { await afterIdentityLinked(answer.result, opts || {}); } catch (e) { console.warn('[BRAMU LAB] refresco posterior a vincular falló', e); }
+        }
+        return answer;
+      } catch (e) {
+        console.warn('[BRAMU LAB] invitación pendiente: error inesperado', e);
+        return { outcome: 'transient' };
+      } finally {
+        pendingInvitationFlow = null;
+      }
+    })();
+    return pendingInvitationFlow;
+  }
+
+  /** Modal "¿Sos {nombre}?". SOY YO ejecuta la vinculación (errores dentro del modal, con reintento); NO SOY YO solo limpia la
+   *  intención local — nunca consume ni revoca el enlace para nadie más. */
+  function askInvitationConfirmation(displayName, token) {
+    return new Promise((resolve) => {
+      const overlay = $('#invitation-confirm-overlay');
+      const yes = $('#invitation-confirm-yes');
+      const no = $('#invitation-confirm-no');
+      const err = $('#invitation-confirm-error');
+      $('#invitation-confirm-title').textContent = `¿SOS ${String(displayName || 'este jugador').toLocaleUpperCase('es-AR')}?`;
+      err.hidden = true; err.textContent = '';
+      yes.disabled = false; no.disabled = false;
+      overlay.hidden = false;
+      const close = () => { overlay.hidden = true; yes.onclick = null; no.onclick = null; };
+      no.onclick = () => { Store.clearClaimToken(); close(); resolve({ outcome: 'declined' }); };
+      yes.onclick = async () => {
+        yes.disabled = true; no.disabled = true; err.hidden = true;
+        const r = await Auth.claimProvisionalPlayer(token);
+        if (r.ok) { Store.clearClaimToken(); close(); resolve({ outcome: 'linked', result: r }); return; }
+        if (INVITATION_DEFINITIVE_CODES.includes(r.code)) {
+          Store.clearClaimToken(); close();
+          showToast(INVITATION_ERROR_TEXT[r.code] || INVITATION_ERROR_TEXT.claim_invalid, 4200);
+          resolve({ outcome: 'invalid' });
+          return;
+        }
+        if (r.code === 'identity_conflict') {
+          // La misma persona no puede ocupar dos lugares de un partido: no se movió nada y el enlace sigue sin consumirse.
+          const n = (r.conflicts || []).length || 1;
+          err.textContent = n === 1
+            ? 'Ya figurás con tu cuenta en uno de los partidos de este jugador. Abrí ese partido, tocá "Reportar un error" > "Un participante" para corregir quién figura y volvé a abrir el enlace.'
+            : `Ya figurás con tu cuenta en ${n} partidos de este jugador. Abrí esos partidos, tocá "Reportar un error" > "Un participante" para corregir quién figura y volvé a abrir el enlace.`;
+        } else if (r.code === 'rate_limited') {
+          err.textContent = 'Hiciste demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.';
+        } else {
+          err.textContent = 'No pudimos vincular tus partidos ahora. Probá de nuevo en un momento.';
+        }
+        err.hidden = false;
+        yes.disabled = false; no.disabled = false;
+      };
+    });
+  }
+
+  /** Tras un SOY YO exitoso: avisa y, si la cuenta ya terminó su alta, trae los partidos recuperados, procesa el Nivel
+   *  recuperado y ofrece resolver posibles duplicados. En un alta nueva (sin Nivel todavía) eso pasa al oficializar el Nivel. */
+  async function afterIdentityLinked(result, opts) {
+    const n = result && result.matchCount;
+    showToast(n ? 'Listo. Vinculamos tus partidos a tu cuenta.' : 'Listo. Tu cuenta quedó vinculada.', 3600);
+    if (opts && opts.onboardingDone === false) return;
+    await refreshAfterIdentityChange();
+    await syncIdentityRecovery();
+  }
+
+  /** Relectura coherente tras un cambio de identidad/partidos: partidos del servidor (el self-heal oficializa lo que quedó listo),
+   *  Nivel propio y las pantallas visibles. */
+  async function refreshAfterIdentityChange() {
+    await refreshServerMatches();
+    const profile = await Auth.fetchOwnProfile();
+    if (profile && !profile.levelStateReadFailed) { Store.cacheServerUser(profile); syncServerLevelState(profile); }
+    if (!$('#view-player-home').hidden) renderPlayerHome();
+    if (!$('#view-history').hidden) renderHistory();
+  }
+
+  /** Procesa (idempotente) el Nivel recuperado pendiente y ofrece los posibles duplicados abiertos. Seguro de llamar muchas
+   *  veces: el servidor decide si hay algo que hacer; un fallo transitorio nunca pierde la identidad ni duplica efectos. */
+  async function syncIdentityRecovery() {
+    if (identityRecoverySyncing || !Auth || !Auth.isConfigured() || !isServerBackedSession()) return;
+    identityRecoverySyncing = true;
+    try {
+      let status = await Auth.getIdentityRecoveryStatus();
+      if (!status.ok) return;
+      if (status.pendingLevelRecoveries > 0) {
+        const r = await Auth.processIdentityRecovery();
+        const progressed = r.ok && r.results.some((x) => x.status === 'completed' && !x.idempotentReturn);
+        if (progressed) {
+          await refreshAfterIdentityChange();
+          if (r.results.some((x) => (x.applied || 0) > 0)) showToast('Sumamos tus partidos recuperados a tu Nivel.', 3600);
+        }
+        status = await Auth.getIdentityRecoveryStatus();
+      }
+      if (status.ok && status.openDuplicateCandidates > 0) await promptDuplicateCandidates();
+    } catch (e) {
+      console.warn('[BRAMU LAB] recuperación de identidad: error inesperado', e);
+    } finally {
+      identityRecoverySyncing = false;
+    }
+  }
+
+  /** C2 — datos útiles de UN partido para la pregunta de duplicado: jugadores, resultado, fecha/hora y lugar si existe. */
+  function buildDuplicateMatchCardHTML(m) {
+    const byTeam = { A: [], B: [] };
+    (m.participants || []).forEach((p) => { if (byTeam[p.team]) byTeam[p.team].push(p.displayName || 'Jugador'); });
+    const players = `${escapeHtml(byTeam.A.join(' y '))} vs ${escapeHtml(byTeam.B.join(' y '))}`;
+    const score = (m.sets || []).map((s) => `${s.gamesA}-${s.gamesB}`).join('  ·  ');
+    let when = '';
+    try {
+      const dateStr = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(m.playedAt));
+      const timeStr = m.playedAtTimeKnown === false ? '' : ` · ${new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(m.playedAt))}`;
+      when = dateStr + timeStr;
+    } catch (e) { when = ''; }
+    const place = m.locationName ? ` · ${escapeHtml(m.locationName)}` : '';
+    return `<div class="duplicate-match-card"><p class="duplicate-match-card__players">${players}</p>`
+      + (score ? `<p class="duplicate-match-card__score">${escapeHtml(score)}</p>` : '')
+      + `<p class="duplicate-match-card__meta">${escapeHtml(when)}${place}</p></div>`;
+  }
+
+  /** C2/C3/C4 — pregunta uno por uno los posibles duplicados abiertos. */
+  async function promptDuplicateCandidates() {
+    if (duplicatePromptOpen) return;
+    duplicatePromptOpen = true;
+    try {
+      for (let i = 0; i < 6; i += 1) {
+        const res = await Auth.listDuplicateMatchCandidates();
+        if (!res.ok || !res.candidates.length) break;
+        const outcome = await askDuplicateDecision(res.candidates[0]);
+        if (outcome === 'later') break;
+      }
+    } finally {
+      duplicatePromptOpen = false;
+    }
+  }
+
+  function askDuplicateDecision(candidate) {
+    return new Promise((resolve) => {
+      const overlay = $('#duplicate-match-overlay');
+      const same = $('#duplicate-match-same-btn');
+      const different = $('#duplicate-match-different-btn');
+      const later = $('#duplicate-match-later-btn');
+      const err = $('#duplicate-match-error');
+      $('#duplicate-match-list').innerHTML = (candidate.matches || []).map(buildDuplicateMatchCardHTML).join('');
+      err.hidden = true; later.hidden = true;
+      same.disabled = false; different.disabled = false;
+      overlay.hidden = false;
+      const close = () => { overlay.hidden = true; same.onclick = null; different.onclick = null; later.onclick = null; };
+      later.onclick = () => { close(); resolve('later'); };
+      const decide = async (decision) => {
+        same.disabled = true; different.disabled = true; err.hidden = true;
+        const r = await Auth.resolveDuplicateMatchCandidate(candidate.candidateId, decision);
+        if (r && r.ok) {
+          close();
+          if (decision === 'same') {
+            await refreshAfterIdentityChange(); // el self-heal oficializa un partido que quedó listo para validar
+            showToast('Listo. Unificamos los dos partidos en uno.', 3600);
+          } else {
+            showToast('Listo. Conservamos los dos partidos.', 3000);
+          }
+          resolve(decision);
+          return;
+        }
+        if (r && (r.code === 'candidate_stale' || r.code === 'already_resolved' || r.code === 'candidate_not_found')) {
+          close(); resolve('stale'); return;
+        }
+        err.textContent = r && r.code === 'rate_limited'
+          ? 'Hiciste demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.'
+          : 'No pudimos guardar tu respuesta. Probá de nuevo en un momento.';
+        err.hidden = false;
+        later.hidden = false;
+        same.disabled = false; different.disabled = false;
+      };
+      same.onclick = () => decide('same');
+      different.onclick = () => decide('different');
+    });
+  }
+
+  function initInvitationFlow() {
+    $('#invite-sheet-close').addEventListener('click', closeInviteSheet);
+    $('#invite-sheet-scrim').addEventListener('click', (e) => { if (e.target === $('#invite-sheet-scrim')) closeInviteSheet(); });
+    $('#invite-sheet-copy-btn').addEventListener('click', copyInviteLink);
   }
 
   /** Único punto de entrada al arranque (reemplaza el `bootDefaultScreen()` directo de antes):
@@ -14363,6 +14675,9 @@
         signupDraft = {};
         savedDraft = null;
       }
+      // V04.29 — invitación pendiente sin sesión: se conserva la intención y se muestra el acceso normal (crear cuenta / Ya tengo
+      // cuenta); al autenticarse se vuelve automáticamente a "¿Sos {nombre}?" (resumeServerSession/runOfficializeAndEnter).
+      if (Store.loadClaimToken()) showToast('Para sumarte a BRAMU, creá tu cuenta o iniciá sesión. Después volvés a esta invitación.', 4200);
       if (savedDraft && savedDraft.email) { await resumeDraftFlow(); return; }
       bootDefaultScreen();
       return;
@@ -14380,6 +14695,7 @@
     initConfirmModal();
     initAmbiguousMatchModal();
     initB6ActionsSection();
+    initInvitationFlow();
     initAnalysisScreen();
     initHistoryScreen();
     initManualLoadScreen();
