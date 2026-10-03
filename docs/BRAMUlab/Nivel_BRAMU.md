@@ -361,7 +361,30 @@ Se puede cargar un compañero o rival sin cuenta (participación provisional, re
 | 2 de 4, uno por pareja | ambos invitados toman el promedio de los 2 efectivos | 0,60 |
 | 2 en la misma pareja; 1 o 0 en la rival | el partido **no computa** | — |
 
-El nivel imputado no crea perfil, no se guarda ni recibe variaciones; solo se actualizan jugadores reales con Nivel. Nunca se pide ni guarda una estimación de terceros sobre un invitado. La reducción por dato ausente vive en `disponibilidad` y no se aplica dos veces en `confianza_pareja_rival`.
+El nivel imputado no crea perfil, no se guarda ni recibe variaciones; mientras la identidad siga siendo provisional no existe un Nivel propio que actualizar. Nunca se pide ni guarda una estimación de terceros sobre un invitado. La reducción por dato ausente vive en `disponibilidad` y no se aplica dos veces en `confianza_pareja_rival`.
+
+### 9.2 Recuperación posterior de evidencia al vincular identidad
+
+> **Decisión vigente de producto; implementación pre-Production pendiente en Staging.** La regla anterior “un invitado nunca recibe efecto” describe únicamente el momento en que todavía es provisional. No impide recuperar evidencia después de que la persona confirme explícitamente que esa identidad era suya.
+
+Al vincular una provisional con una cuenta registrada:
+
+- no se hereda un “Nivel del invitado” ni un valor estimado por terceros;
+- se recuperan únicamente partidos realmente asociados a esa identidad y que cumplan las reglas de elegibilidad de esta sección;
+- para una cuenta nueva, primero se confirma su Nivel inicial V1.3 y después se procesa la evidencia recuperable;
+- para una cuenta existente, el replay parte de su Nivel actual al comenzar la recuperación;
+- los partidos se procesan por `played_at` ascendente;
+- compañero y rivales se reconstruyen con los **snapshots históricos reales** disponibles en el partido original; nunca con sus niveles actuales;
+- se reutiliza `nivel_bramu_v1_0`; no existe una fórmula especial de “Nivel recuperado”;
+- el efecto nuevo se aplica **solo al jugador recuperado**. No se recalculan ni reescriben los deltas históricos de compañeros o rivales;
+- cada aplicación/omisión deja trazabilidad append-only y una clave idempotente por recuperación + partido;
+- si faltan snapshots/evidencia suficiente, el partido puede quedar en Historial/estadísticas pero no se fabrica un efecto de Nivel.
+
+La recuperación sí puede modificar el estado actual del jugador: `mu`, confianza, `evidence_units`, `rated_matches`, `distinct_opponents` y progreso de CALIBRANDO. La condición de cierre sigue siendo **5 partidos computables + 3 rivales distintos**.
+
+Un jugador ya CALIBRADO puede sumar evidencia recuperada y ajustar su Nivel vigente, pero la recuperación no “descalibra” retroactivamente su historia.
+
+Si una vinculación revela dos registros del mismo encuentro y el usuario confirma que efectivamente son duplicados, **solo uno puede conservar efecto deportivo**. La reversión del efecto duplicado debe ser idempotente y preservar los efectos de otros partidos posteriores. Las ediciones de Ranking ya publicadas nunca se reescriben; la siguiente usa el Nivel actual corregido.
 
 ## 10. Persistencia, autoridad backend y versionado
 
