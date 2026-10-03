@@ -991,41 +991,75 @@ Una identidad provisional:
 
 Por eso **Buscar jugadores no se convierte en `Recuperar actividad`**.
 
-### 15.3 Reclamo explícito
+### 15.3 Invitación y vinculación explícitas
 
 La asociación nunca se realiza porque nombre y apellido coincidan.
 
-El reclamo se produce mediante una acción explícita, inicialmente mediante el link/token de invitación/reclamo asociado a esa identidad provisional.
+Desde un partido relacionado, una identidad provisional puede mostrar `INVITAR`. Puede generar el link cualquier jugador registrado que la haya creado **o que haya compartido con ella un partido real**.
 
-El link pertenece a la identidad provisional, no a un partido aislado.
+Sheet de invitación:
 
-Al reclamarla correctamente:
+> **Invitá a {nombre} a BRAMU**  
+> Compartile este enlace para que pueda sumarse a BRAMU y recuperar sus partidos. El enlace es personal: envíaselo solo a {nombre}.
 
-- la cuenta toma ese `player_id`;
-- obtiene los partidos históricos ya vinculados a esa identidad;
-- si un partido sigue pendiente y dentro de su ventana, el nuevo usuario adquiere capacidad de actuar por su pareja;
-- los partidos ya vencidos permanecen como historial y no se reactivan automáticamente;
-- un partido ya oficial no se reabre por el solo hecho del claim: aplican las mismas ventanas post-validación que para cualquier participante.
+CTA: `COPIAR ENLACE`  
+Feedback: `Enlace copiado. Enviáselo a {nombre}.`
 
-### 15.4 Cuenta nueva creada sin link de reclamo
+No agregar botón especial de WhatsApp en esta ronda.
 
-BRAMU no debe detectar automáticamente una identidad provisional porque el nombre sea parecido.
+Puede haber varios links simultáneamente válidos para una misma identidad si los generaron distintos jugadores relacionados. El primer vínculo exitoso gana y revoca los demás; regenerar desde el mismo invitador rota solo su link.
 
-Por lo tanto, una cuenta recién creada normalmente **no recibe mágicamente un partido para reclamar** solo porque exista un provisional con el mismo nombre.
+### 15.4 Experiencia del receptor
 
-Para relacionarlos debe existir una acción explícita de reclamo/invitación.
+Con sesión:
 
-### 15.5 Duplicados durante el lanzamiento inicial
+> **¿Sos {nombre}?**  
+> Hay partidos registrados con esta identidad. Si sos vos, podés vincularlos a tu cuenta.
 
-Si una cuenta necesita reclamar una segunda identidad provisional o existen duplicados de la misma persona, durante el lanzamiento inicial puede resolverse administrativamente.
+CTAs:
 
-No se construye todavía una interfaz autoservicio compleja de fusiones de identidades.
+- `SOY YO`
+- `NO SOY YO`
 
-### 15.6 Regla temporal
+`NO SOY YO` solo descarta la intención en ese dispositivo/sesión. No consume ni invalida el link para otras personas/dispositivos.
 
-La participación provisional respeta el deadline propio de cada partido.
+Sin sesión, BRAMU conserva la intención y ofrece el acceso normal:
 
-Un reclamo posterior puede recuperar el historial de esa identidad, pero **no reactiva automáticamente partidos ya expirados**.
+- crear cuenta;
+- `Ya tengo cuenta`.
+
+Después de autenticarse vuelve automáticamente a la invitación. No existe un campo manual de token en Perfil.
+
+La interfaz evita “reclamar”; habla de **invitar, vincular y recuperar partidos**.
+
+### 15.5 Cuenta nueva, cuenta existente y varias provisionales
+
+**Cuenta nueva:** la vinculación se resuelve antes de completar Perfil/Nivel oficial. El historial de la provisional queda asociado a la cuenta y después continúa el onboarding normal.
+
+**Cuenta existente:** también puede usar `SOY YO`. Conserva su cuenta/identidad registrada y recupera los partidos de la provisional mediante una vinculación controlada y auditable.
+
+Una misma cuenta puede repetir el proceso con otra identidad provisional diferente, siempre una por una y con un link válido. No existe matching automático por nombre ni una pantalla genérica de “fusionar cuentas”.
+
+Si la vinculación provocaría que la misma persona ocupe dos slots del mismo partido, BRAMU no completa silenciosamente la operación: se bloquea de forma segura y ese conflicto debe resolverse sin dejar un estado parcial.
+
+### 15.6 Historia, evidencia y duplicados posteriores
+
+Una vinculación válida recupera historial/estadísticas de la identidad confirmada. Los partidos que ya expiraron o no cumplen reglas deportivas siguen sin volverse computables por el solo hecho de vincular identidad.
+
+Para Nivel, los partidos históricos elegibles pueden convertirse en evidencia del jugador recuperado según `Nivel_BRAMU.md`; nunca se inventa un Nivel del invitado ni se recalculan históricos de terceros.
+
+Si después de vincular aparecen dos partidos que podrían ser el mismo, BRAMU no auto-fusiona ni manda el caso a soporte por defecto. Muestra:
+
+> **Encontramos dos partidos que podrían ser el mismo**
+
+con la evidencia disponible (jugadores, fecha/hora, score, lugar) y dos acciones:
+
+- `SÍ, ES EL MISMO`
+- `NO, SON DOS PARTIDOS DISTINTOS`
+
+Si son distintos, ambos permanecen. Si son el mismo, queda un único encuentro deportivo efectivo, preservando submissions/revisiones/auditoría y quitando cualquier doble efecto en Nivel/estadísticas/Grupos/Intelligence de forma idempotente.
+
+El Ranking semanal ya publicado nunca se reescribe por una vinculación o deduplicación posterior.
 
 ---
 
@@ -1376,7 +1410,7 @@ Solo un reclamo explícito puede vincularlo.
 - copy, nombre final y ubicación exacta del futuro campo opcional `Apodo / cómo querés que aparezca`;
 - recordatorio de datos incompletos mediante Notificaciones;
 - `Recordar por WhatsApp` con deep link;
-- tratamiento administrativo de duplicados/reclamo de segunda identidad durante el lanzamiento inicial, más allá de la resolución manual ya prevista.
+- fusión genérica entre dos cuentas registradas sin una identidad provisional/link válido; el flujo autoservicio de provisionales ya está cerrado y no pertenece a esta lista.
 
 Ninguno de estos puntos modifica la arquitectura general ni reabre las reglas 14/30/3/10/7 ya confirmadas.
 
