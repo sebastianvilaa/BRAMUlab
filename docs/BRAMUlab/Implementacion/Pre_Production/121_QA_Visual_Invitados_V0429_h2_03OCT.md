@@ -3,7 +3,7 @@
 **Fecha:** 03/10/2026
 **Rama:** `staging`
 **HEAD funcional:** `50675a8331a12eb1db8f6ca4055097990d36d9df`
-**Resultado:** PARCIAL / BLOQUEADO EN ACCESO DE LA PAREJA CONTRARIA. No declarar PASS completo ni FAIL del flujo de duplicados. Gate técnico 120 permanece PASS; gate visual pendiente.
+**Resultado:** PASS DEL FLUJO VISUAL (pasos 1–11, evidencia combinada Work + QA humano). Gate técnico 120 permanece PASS. Gate completo solicitado aún tiene límites de cobertura: consola/red no verificadas y dispositivo iPhone no confirmado. No declarar cierre completo de la ronda mientras esos criterios requeridos no estén verificados o Central acepte explícitamente esa limitación.
 
 ## Entorno y avance
 
@@ -23,7 +23,7 @@ Preparado en Supabase `bramulab-staging` (`serxtivkfnptzurnvewg`), tras comproba
 - Lugar: `QA visual 121 · Cancha Central`.
 - Scores: `6–3 / 6–4` y `6–4 / 6–4`.
 - Dos partidos validated y candidate open, sembrados exclusivamente para el seam visual. recovery_id NULL (admitido por esquema); no simula un claim ni reevalúa recuperación de identidad. Participantes/fingerprint/revisiones/sets/acción created completos.
-- Sin ledger de Nivel ni efectos de Ranking/grupos creados. Se planeó rechazo para preservar el score vigente.
+- Sin ledger de Nivel ni efectos de Ranking/grupos creados. Se recorrió rechazo para preservar el score vigente.
 
 ## Pasos realmente recorridos: 1–6
 
@@ -36,26 +36,50 @@ Preparado en Supabase `bramulab-staging` (`serxtivkfnptzurnvewg`), tras comproba
 
 Corroboración puntual de fixture: candidate `awaiting_confirmation`, ancla validated, pending revision `1501efaf-b761-4eaf-a0eb-526dd2548a10`. No se resolvió por SQL.
 
-## Evidencia visual y límites
+## Pasos 7–11: QA humano desde la cuenta de Matu
 
-El modal fue observado en screenshot: tarjetas separadas, scores destacados, metadatos legibles y CTA principal verde. Se guardó captura temporal `bramu-qa121-01-duplicado.jpg`. Su guardado persistente falló (transfer_failed); no depender de ese archivo para continuar.
+Ante la lentitud y el bloqueo del Cloud Browser, Sebastián continuó en su navegador y declaró estar en la cuenta de Matu. Work revisó las capturas y corroboró únicamente el fixture por SQL; la resolución se ejecutó desde la UI, no desde SQL.
 
-La captura posterior y la lectura de consola fueron impedidas por la protección nativa de documentos con credenciales. El estado posterior se obtuvo del árbol accesible sanitizado. No se intentó eludir esa protección.
+7–9. Matu encontró el partido pendiente y abrió el Resumen del fixture del 26/09, 18:00, con ubicación QA visual 121 · Cancha Central. Una corrección originada por duplicado se pudo responder después de más de 3 días.
+10. La pantalla existente presentó:
+- `RESULTADO OFICIAL ACTUAL`: Seba/Gusti 6–3 / 6–4 contra Matu/Esteban.
+- `CORRECCIÓN PROPUESTA POR SEBA`: 6–4 / 6–4.
+- Explicación: `Seba indica que el primer set fue 6–4, no 6–3.`.
+- Acciones: `Mantener resultado cargado`, `Aceptar corrección` y `Reportar un error`.
+- Sin terminología técnica de recovery/duplicate ni pantalla nueva de arbitraje.
 
-Viewport móvil/iPhone: NO verificado. Consola/red funcional: NO verificadas; no afirmar ausencia de errores ni de 4xx/5xx.
+11. Se recorrió UNA rama, rechazo:
+- Sebastián tocó Mantener resultado cargado.
+- El modal existente explicó que la corrección propuesta no se aplica y el resultado cargado se mantiene sin cambios.
+- Confirmó MANTENER.
+- Resumen final: 6–3 / 6–4, sin tarjeta de corrección.
+- Ante la instrucción de recargar y abrir Historial, aportó captura del historial con `Pendientes 0` y un solo registro del fixture el 26/09, 18:00, `3–6 · 4–6` desde la perspectiva de Matu. No hay modal de duplicado visible ni estado contradictorio en esa captura.
+- No se pidió aceptación adicional: ya está cubierta técnicamente en 120.
 
-## Bloqueo actual: paso 7
+Corroboración puntual posterior: candidate `resolved_same`, `chosenScore=current`, `finalizedBy=rejected`; ancla validated y secundario annulled; ambos pending_correction_revision_id NULL. Ledger reverted 0, consistente con un fixture sin efectos de Nivel.
 
-Se cerró únicamente la sesión local de Seba mediante Configuración → Cerrar sesión; no se cerraron todas las sesiones.
+## Evidencia visual
 
-La pareja contraria requiere la cuenta de Matu o Esteban. Los intentos mediante browserAuth devolvieron `No pudimos iniciar sesión. Probá de nuevo.`; un formulario intermedio fue declined y no se reintentó hasta petición expresa. Sebastián reportó lentitud que impedía escribir en el control manual y pidió reabrir el modo seguro. El último formulario seguro fue submitted, pero la app siguió en login con el mismo error genérico.
+- Modal inicial observado por Work: tarjetas separadas, scores destacados, metadatos legibles y CTA principal verde.
+- Mensaje pendiente verificado por árbol accesible visible de Work; no se pudo guardar captura posterior por protección nativa de credenciales.
+- Capturas humanas revisadas en este chat:
+  - `image(20261003-173018).png` — Resumen con actual/propuesto/acciones. Referencia: `libfile_a784d19303588191bc3f9e0a288585bc`.
+  - `image(20261003-173127).png` — modal de confirmación de rechazo. Referencia: `libfile_c9332dac4ab881919760d89589548a3a`.
+  - `image(20261003-173228).png` — Resumen después del rechazo, sin propuesta. Referencia: `libfile_b32f59d54be08191858476c2fcf54ebd`.
+  - `image(20261003-173709).png` — Historial final, Pendientes 0 y un partido efectivo. Referencia: `libfile_b21120f4418c81918ab832cfa2bf9b16`.
 
-**Esperado:** Home autenticado de la otra pareja.
-**Obtenido:** login con error genérico.
-**Clasificación:** bloqueo funcional de acceso del navegador QA, causa no determinada. No atribuirlo a contraseña ni afirmar regresión de duplicados.
+Las capturas tienen composición estrecha (área de app aproximada 390 px), con scores/acciones/metadatos legibles, sin solapamiento en el flujo observado. No prueban por sí solas que se ejecutó en un dispositivo iPhone; no atribuirles ese alcance.
 
-## Pendiente y continuación
+## Consola/red y bloqueo del navegador Work
 
-No crear otro fixture ni repetir pasos 1–6. Resolver acceso a Esteban o Matu y continuar pasos 7–11: localizar la corrección histórica, verificar score actual/propuesto y acciones existentes, rechazar UNA vez y comprobar cierre sin fantasmas, modal repetido ni segundo partido efectivo. Completar evidencia de consola/red y viewport móvil cuando el navegador lo permita.
+Consola y requests del recorrido no pudieron verificarse. La protección nativa de documentos con credenciales bloqueó screenshot/consola y después incluso cierre/navegación de la pestaña. No se intentó eludirla. No afirmar cero errores de consola ni ausencia de 4xx/5xx.
 
-El fixture permanece en Staging con corrección pendiente para esa continuación. No se cambió código, migraciones, main, Production ni BRAMUlive. Supabase se tocó exclusivamente para insertar el fixture. La documentación de estado general permanece abierta.
+La app del Cloud Browser mostró repetidamente `No pudimos iniciar sesión. Probá de nuevo.` mediante acceso seguro. Sebastián reportó lag severo en control manual. Clasificación: bloqueo funcional del entorno de QA/acceso, causa no determinada; no demuestra regresión de duplicados ni error de contraseña. En su navegador pudo recorrer el fixture como Matu.
+
+## Estado final y alcance
+
+**Flujo visual PASS**, con ejecución de pasos 1–6 por Work y pasos 7–11 por Sebastián, capturas revisadas por Work y corroboración dirigida del fixture real en Staging.
+
+**No cubierto:** inspección funcional de consola/red y prueba específica en iPhone. El bloque no se marca completamente cerrado sin resolver o aceptar explícitamente esos límites. No repetir el recorrido funcional ni la otra rama solo por costumbre.
+
+Fixture resuelto y conservado como evidencia en Staging: un partido validated efectivo y secundario annulled, sin corrección fantasma. No se cambió código, migraciones, main, Production ni BRAMUlive. Supabase se tocó exclusivamente para sembrar el fixture y hacer consultas dirigidas de evidencia.
