@@ -16,14 +16,13 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 
 ### BRAMUlab V04 — Nivel BRAMU
 
-V04 está implementada hasta **V04.10** sobre la base cerrada V03.10.
+Nivel BRAMU V1.3 está **cerrado en Staging sobre BRAMUlab V04.28 / bundle 04.28-h7**.
 
-Documentación de implementación:
+Fuente maestra vigente:
 
-- `Versiones/BRAMUlab_V04/BRAMUlab_V04_Consolidado.md` — qué se pidió/decidió durante V04.
-- `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md` — qué se implementó, testeó y corrigió realmente.
+- `Nivel_BRAMU.md` — definición funcional, fórmula vigente, estados, calibración/recalibración, motor de partidos, backend, UX y evidencia de cierre.
 
-Para continuar desarrollo de V04 no leer el Informe completo por defecto: consultar la sección de la última ronda necesaria.
+`Versiones/BRAMUlab_V04/` queda únicamente como trazabilidad histórica de las rondas de implementación. No es autoridad vigente para decidir cómo funciona Nivel.
 
 ### V03
 
