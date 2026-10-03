@@ -1,5 +1,5 @@
 // BRAMUlab V04.28 — Nivel BRAMU inicial V1.3 (`nivel_inicial_v1_3`, motor posterior `nivel_bramu_v1_0` sin cambios).
-// Fuente: docs/BRAMUlab/Implementacion/Pre_Production/111_Handoff_Implementacion_Nivel_V13_02OCT.md
+// Fuente: docs/BRAMUlab/Nivel_BRAMU.md
 // Ejecutar con: node --test bramulab/v0428-nivel-inicial-v13.test.mjs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +39,7 @@ test('1) fórmula exacta: anclas del handoff 111 §8 y banco de textos EXACTOS (
     assert.deepEqual(JSON.parse(JSON.stringify(L.ANCHORS[id].high)), [5.7, 6.3, 7.0, 8.8]);
   });
   // Cada pregunta/rama trae EXACTAMENTE 4 textos; el banco es el del documento (se re-extrae del .md).
-  const md = fs.readFileSync(path.join(__dirname, '..', 'docs/BRAMUlab/Implementacion/Pre_Production/111_Handoff_Implementacion_Nivel_V13_02OCT.md'), 'utf8');
+  const md = fs.readFileSync(path.join(__dirname, '..', 'docs/BRAMUlab/Nivel_BRAMU.md'), 'utf8');
   let count = 0;
   L.QUESTION_IDS.forEach((id) => Object.values(L.QUESTION_BANK[id].texts).forEach((arr) => {
     assert.equal(arr.length, 4);

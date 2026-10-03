@@ -12,9 +12,7 @@
 
 La revisión de consistencia se realizó contra la documentación actual y antecedentes relevantes:
 
-- `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.5.md`
 - `docs/BRAMUlab/Nivel_BRAMU.md`
-- `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md`
 - `docs/BRAMUlab/Ranking_BRAMU.md`
 - `docs/BRAMUlab/BRAMU_Intelligence.md`
 - `docs/BRAMUlab/Backend_Infraestructura.md`

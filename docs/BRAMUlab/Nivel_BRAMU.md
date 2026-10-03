@@ -1,537 +1,567 @@
-# Nivel BRAMU — Consolidado base de definición de producto
+# Nivel BRAMU — Fuente maestra
 
-**Estado:** contexto funcional vigente. El motor y el estimador inicial están cerrados para el lanzamiento inicial en `Nivel_BRAMU_Formula_V1.5.md`.
+**Estado:** única fuente maestra vigente de Nivel BRAMU. Todo lo que no esté acá (o en el código que acá se cita) no es normativo.
+**Cierre:** Nivel BRAMU **V1.3** cerrado en **Staging** (BRAMUlab **V04.28 / bundle `04.28-h7`**, 03/10/2026) con QA técnico y QA humano en iPhone aprobados. **No está desplegado en Production.**
+**Versionado (dos ejes independientes):**
 
-**Nota de precedencia:** `Nivel_BRAMU_Formula_V1.5.md` reemplaza a V1.4 como fuente normativa. Conserva `nivel_bramu_v1_0` para el motor de partidos e incorpora `nivel_inicial_v1_2` para el cuestionario universal (sin ajuste por categoría local en el alta). Toda mención histórica a parámetros pendientes, pesos 30/15/10/10/15/10/10 o ajuste manual ±0,5 queda superada por V1.5.
-
-**Fecha de consolidación:** 10 de septiembre de 2026.  
-**Actualización UX:** 18 de septiembre de 2026 — se explicita la progresión temprana de Mi Perfil y Perfil público sin modificar fórmula, estados ni criterios de calibración.
-
-## 1. Propósito
-
-El Nivel BRAMU es la estimación individual de capacidad competitiva de cada jugador dentro de BRAMU Lab.
-
-Debe servir para:
-
-- representar el nivel actual del jugador con una escala común;
-- facilitar comparaciones razonables entre jugadores;
-- aportar contexto a partidos, perfiles, grupos, rankings y BRAMU Intelligence;
-- evolucionar a partir de partidos reales y validados;
-- expresar no solo qué nivel estima BRAMU, sino también cuánta evidencia sostiene esa estimación.
-
-El Nivel BRAMU no es lo mismo que el Ranking BRAMU:
-
-- **Nivel BRAMU:** capacidad estimada individual. Es universal y acompaña al jugador.
-- **Ranking BRAMU:** posición relativa dentro de un universo filtrado por territorio, categoría u otros criterios.
-
-Un jugador puede conservar su nivel y cambiar de posición en el ranking aunque no haya jugado, porque otros jugadores pueden superarlo.
-
-## 2. Principios rectores
-
-1. **Mayor número significa mejor nivel.**
-2. **El nivel pertenece al jugador, no a la pareja.**
-3. **Todo nivel inicial es una estimación, no una verdad.**
-4. **Nivel y confiabilidad son conceptos separados.**
-5. **Los partidos validados son la principal fuente de evidencia.**
-6. **El usuario puede participar de la estimación, pero no editar libremente un nivel consolidado.**
-7. **El historial nunca se borra por recalibrar.**
-8. **Cada variación debe poder explicarse con datos reales.**
-9. **El sistema no debe premiar la repetición artificial de rivales fáciles.**
-10. **BRAMU nunca debe presentar como observado algo que solamente fue declarado en un cuestionario.**
-
-## 3. Escala y precisión
-
-- Escala pública propuesta: **1,0 a 10,0**.
-- Dirección: cuanto más alto, mejor.
-- Presentación habitual: **un decimal** para evitar falsa precisión.
-- Cálculo interno: hasta **cuatro decimales**.
-- Ordenamiento de rankings y cálculos: utiliza el valor interno, no el redondeo visible.
-- No mostrar variaciones `+0,0` o `−0,0`.
-
-Categorías de comunicación vigentes:
-
-| Nivel | Categoría |
-|---:|---|
-| 1,0–2,4 | Iniciación |
-| 2,5–3,9 | Recreativo |
-| 4,0–4,9 | Intermedio |
-| 5,0–6,3 | Intermedio alto |
-| 6,4–7,9 | Avanzado |
-| 8,0–10,0 | Profesional |
-
-La relación entre número, categoría descriptiva y categorías competitivas reales deberá validarse con jugadores de distintos niveles antes del lanzamiento. La categoría declarada por el usuario no reemplaza al Nivel BRAMU.
-
-## 4. Estados del nivel
-
-### 4.1 Sin estimación
-
-La persona todavía no completó el cuestionario inicial.
-
-- No tiene Nivel BRAMU visible.
-- Debe mostrarse una invitación clara a completar la evaluación.
-- Sus partidos pueden guardarse, pero el sistema todavía no puede contextualizarlos mediante nivel.
-
-### 4.2 Calibrando
-
-Comienza al confirmar el cuestionario inicial.
-
-- Se muestra inmediatamente un **Nivel BRAMU estimado**.
-- Se identifica siempre con la etiqueta **CALIBRANDO**.
-- Se muestra el progreso `X / 5 PARTIDOS`.
-- El nivel puede variar con mayor sensibilidad porque existe poca evidencia.
-- El estado público debe diferenciarse visualmente mediante color ámbar/naranja, etiqueta e icono. El color nunca debe ser la única señal.
-
-Ejemplo:
-
-> **Nivel BRAMU estimado: 4,5**  
-> CALIBRANDO · 0 / 5 PARTIDOS  
-> Este es tu punto de partida. Puede variar mientras BRAMU te conoce.
-
-### 4.3 Calibrado
-
-Se alcanza cuando existen:
-
-- **5 partidos computables**, y
-- al menos **3 rivales diferentes** dentro de esos partidos.
-
-Al completarse:
-
-- el nivel deja de presentarse como estimado;
-- aparece como **NIVEL CALIBRADO**;
-- se utiliza color lima/verde BRAMU y un check;
-- las variaciones futuras son más estables que durante la calibración.
-
-“Calibrado” significa que existe evidencia mínima suficiente. No significa que el nivel sea permanente ni infalible.
-
-### 4.4 Recalibrando
-
-Estado temporal iniciado voluntariamente por un jugador que considera que su nivel dejó de representarlo.
-
-- Conserva íntegramente historial, eventos y nivel consolidado anterior.
-- No transforma las nuevas respuestas en una verdad automática.
-- Abre un período de sensibilidad controlada para que resultados posteriores confirmen o corrijan la nueva referencia.
-- El detalle del nivel puede mostrar la nueva referencia provisional.
-- Rankings y comparaciones oficiales continúan utilizando el último nivel consolidado hasta completar la recalibración.
-
-La cantidad exacta de partidos requerida para cerrar una recalibración deberá probarse. Recomendación inicial: **3 partidos computables frente a al menos 2 rivales diferentes**.
-
-## 5. Cuestionario inicial
-
-### 5.1 Experiencia
-
-El onboarding debe ofrecer dos caminos:
-
-- **Estimación rápida:** elección de una descripción general de nivel.
-- **Evaluación completa:** cuestionario corto, de una respuesta por pantalla y aproximadamente dos minutos.
-
-La evaluación completa es la recomendada, pero no debe convertirse en una barrera de entrada.
-
-### 5.2 Dimensiones del cuestionario completo
-
-1. Autoevaluación general.
-2. Tiempo practicando pádel.
-3. Formación o clases recibidas.
-4. Frecuencia reciente de juego.
-5. Experiencia competitiva.
-6. Desempeño declarado en la red.
-7. Lectura y uso declarado de rebotes.
-
-La capacidad inicial se estima principalmente mediante autoevaluación, red y paredes. La formación aporta una corrección mínima. Tiempo jugando y frecuencia reciente sirven para estimar cuán informada y vigente es la respuesta, pero no suben directamente el nivel: jugar hace muchos años o jugar muchas veces por semana no implica jugar mejor.
-
-La experiencia competitiva describe el rendimiento dentro de la categoría habitual. La categoría concreta se pregunta al final y solo se utiliza cuando existe un mapa local compatible y versionado.
-
-Las preguntas técnicas deben ser pocas y discriminantes. El cuestionario no intenta observar toda la técnica del jugador.
-
-### 5.3 Resultado y participación del jugador
-
-Al terminar:
-
-1. BRAMU calcula y muestra una estimación previa.
-2. Formula una última pregunta neutral: **¿En qué categoría suelen ser parejos tus partidos?**
-3. No destaca ni recomienda una categoría.
-4. Si existe un mapa compatible, aplica automáticamente una corrección máxima de **±0,5**.
-5. Muestra **Tu punto de partida en BRAMU**, número y categoría descriptiva.
-6. El jugador confirma o revisa respuestas y comienza el estado CALIBRANDO.
-
-No existe un stepper para mover libremente el número. Deben guardarse separadamente:
-
-- resultado base del cuestionario;
-- categoría y contexto declarados;
-- categoría local fuera del cálculo inicial; queda como contexto competitivo posterior;
-- resultado inicial confirmado;
-- `questionnaire_version = nivel_inicial_v1_2`;
-- confianza de origen y bandera de coherencia;
-- fecha y hora de confirmación.
-
-Las respuestas sirven para estimar el punto de partida. Nunca autorizan a BRAMU Intelligence a afirmar que una volea, un rebote, un smash u otra acción técnica ocurrió en un partido.
-
-## 6. Recalibración autoservicio
-
-### 6.1 Disponibilidad
-
-- Disponible como máximo **una vez cada 90 días corridos**.
-- El plazo comienza en la fecha de confirmación de la última calibración o recalibración.
-- No existe atención manual al cliente como parte de la primera versión.
-- La opción debe ubicarse de forma secundaria y discreta en `Perfil > Mis datos > Nivel BRAMU > Recalibrar nivel`.
-- No debe mostrarse como CTA promocional ni como acción frecuente.
-- Antes de comenzar debe verse la próxima fecha disponible.
-
-### 6.2 Funcionamiento recomendado
-
-1. Explicar que la recalibración no borra partidos ni garantiza una suba.
-2. Repetir el cuestionario completo vigente.
-3. Confirmar o actualizar la categoría contextual.
-4. Mostrar la referencia universal calculada y permitir confirmarla o revisar respuestas.
-5. Cambiar el estado a RECALIBRANDO.
-6. Dar mayor sensibilidad temporal a los próximos partidos computables.
-7. Consolidar el nuevo nivel solamente después de obtener evidencia de juego.
-
-El cuestionario de recalibración no debe reemplazar instantáneamente el nivel utilizado en rankings. Esto evita que una persona gane posición contestando estratégicamente cada 90 días.
-
-### 6.3 Límites contra abuso
-
-- Cooldown obligatorio de 90 días.
-- Sin reinicio anticipado aunque el jugador abandone el flujo después de confirmarlo.
-- Historial completo y procedencia visibles para el sistema.
-- El nivel anterior queda preservado como evento.
-- No se pueden encadenar recalibraciones.
-- Los partidos disputados durante la recalibración siguen sujetos a validación y diversidad de rivales.
-- El algoritmo puede ignorar patrones anómalos o resultados repetidos contra el mismo grupo, sin acusar públicamente al jugador.
-
-## 7. Partidos computables
-
-Un partido puede existir en el historial sin modificar el Nivel BRAMU.
-
-Para computar debe cumplir todas estas condiciones:
-
-- formato de dobles: dos parejas y cuatro participantes;
-- el jugador evaluado participó realmente;
-- resultado final válido por sets, incluido el tie-break cuando corresponda;
-- fecha real del partido;
-- al menos un usuario registrado por pareja;
-- resultado validado por, como mínimo, un usuario registrado de la pareja rival;
-- estado oficial/validado;
-- haber sido cargado por uno de los participantes registrados del encuentro;
-- no estar disputado, anulado ni pendiente;
-- no ser un duplicado del mismo encuentro.
-
-### 7.1 Invitados
-
-- Puede cargarse un compañero o rival sin cuenta.
-- El invitado queda como participación pendiente de reclamar.
-- Debe existir un plazo de **30 días** para vincular esa participación con una cuenta real.
-- Si al vencer el plazo no se cumple el mínimo de un usuario registrado por pareja, el partido permanece en el historial pero no computa para Nivel BRAMU ni Ranking BRAMU.
-- La asociación futura nunca se realiza por simple coincidencia de nombre; requiere una acción explícita.
-
-### 7.2 Datos que pueden afectar el nivel
-
-- identidad de los cuatro participantes;
-- nivel y confiabilidad de cada jugador al momento del partido;
-- composición de las parejas;
-- ganador y perdedor;
-- resultado por sets;
-- games ganados y perdidos;
-- formato y sistema de puntuación;
-- fecha real;
-- estado de validación;
-- repetición reciente de compañeros y rivales.
-
-BRAMUlab V1 trabaja con la carga posterior del resultado del partido propio. No registra puntos, quiebres, winners, errores ni eventos en vivo dentro de esta aplicación. El Nivel no exige esos datos adicionales: el resultado estructurado disponible debe ser suficiente para aplicar el motor vigente.
-
-## 8. Criterios de cálculo ya decididos
-
-*(Superado por `Nivel_BRAMU_Formula_V1.5.md` — la frase siguiente es contenido histórico: la fórmula exacta ya fue diseñada, simulada y cerrada para V1. Ver ese documento para la fórmula real.)*
-~~La fórmula exacta todavía debe diseñarse y simularse.~~ Estos comportamientos sí quedan fijados:
-
-### 8.1 Fuerza del partido
-
-- La fuerza de cada pareja surge de los niveles individuales de sus integrantes.
-- No debe utilizarse un promedio ingenuo como única señal: la diferencia interna entre compañeros también puede ser relevante.
-- La variación final pertenece a cada jugador y puede ser distinta de la de su compañero por nivel previo y confiabilidad.
-
-### 8.2 Resultado y dificultad
-
-- Ganar frente a rivales más fuertes debe aportar más que ganar frente a rivales más débiles.
-- Ganar un partido que el sistema esperaba con claridad debe aportar poco o incluso mantener el nivel.
-- Una derrota puede reducir o mantener el nivel, pero no subirlo por tratarse de una “buena derrota”.
-- Perder frente a rivales muy superiores debe tener un impacto atenuado.
-- El margen por sets y games puede modular la magnitud, siempre dentro de límites para evitar cambios desproporcionados.
-- Un score amplio no autoriza inferencias técnicas o emocionales.
-
-### 8.3 Repetición
-
-- Repetir victorias contra los mismos rivales débiles produce rendimiento decreciente.
-- La diversidad de rivales aumenta la calidad de la evidencia.
-- Jugar repetidamente con el mismo compañero no invalida los partidos, pero ofrece menos información para separar el aporte estimado de cada integrante.
-
-### 8.4 Confiabilidad
-
-- Con baja confiabilidad, el nivel puede moverse más.
-- Con alta confiabilidad, necesita evidencia más consistente para cambiar en la misma magnitud.
-- La confiabilidad crece con partidos válidos, diversidad de rivales y continuidad.
-- La confiabilidad disminuye gradualmente con inactividad; el nivel no baja por no jugar.
-- Después de aproximadamente 60–90 días sin actividad debe mostrarse una advertencia suave y aumentar la sensibilidad de los próximos resultados.
-
-### 8.5 Momento de actualización
-
-Recomendación para primera versión: actualizar inmediatamente cuando el partido alcanza estado validado. La explicación causal es más comprensible si aparece vinculada al partido que produjo el cambio.
-
-## 9. UX y representación visual
-
-### 9.1 Sistema visual de estados
-
-| Estado | Tratamiento principal | Señal textual |
+| Eje | Valor vigente | Qué versiona |
 |---|---|---|
-| Sin estimación | Neutro | Completá tu evaluación |
-| Calibrando | Ámbar/naranja + progreso | CALIBRANDO · X/5 |
-| Calibrado | Lima BRAMU + check | NIVEL CALIBRADO |
-| Recalibrando | Ámbar diferenciado + icono de actualización | RECALIBRANDO |
-| Confiabilidad afectada por inactividad | Tono atenuado + aviso | Volvé a jugar para actualizar tu nivel |
+| `questionnaire_version` | `nivel_inicial_v1_3` (`questionnaire_mode = full`) | Estimador inicial / cuestionario de alta y de recalibración |
+| `algorithm_version` | `nivel_bramu_v1_0` | Motor posterior de partidos (sin cambios desde V04) |
 
-El color debe acompañar, nunca reemplazar, texto e iconografía accesible.
+"V1.3" versiona **solo** el estimador inicial. Cualquier cambio de parámetros del cuestionario o del motor exige una versión nueva explícita; nunca se editan los valores de una versión ya usada por registros existentes.
 
-### 9.2 Superficies
+**Código que implementa este documento** (si hay discrepancia matemática entre código y texto, es un bug a reportar, no una decisión a reinterpretar):
 
-**Onboarding**
+- `bramulab/level-calibration.js` — estimador V1.3, estado del cuestionario adaptativo, calibración/recalibración. Compartido con la Edge Function `officialize-onboarding` por symlink (una sola fórmula; el servidor recalcula desde las posiciones crudas).
+- `bramulab/level.js` y `bramulab/match-level-engine.js` — motor de partidos `nivel_bramu_v1_0`.
+- Tests de reglas: `bramulab/v0428-nivel-inicial-v13.test.mjs` (estimador V1.3; el banco de preguntas del Anexo A se verifica literalmente contra este documento), `bramulab/match-level-engine.test.mjs` y la batería de `bramulab/tests.html`.
 
-- cuestionario rápido o completo;
-- devolución inmediata;
-- sin pregunta final de categoría ni ajuste local en el onboarding inicial;
-- sin edición libre del número;
-- explicación breve de calibración.
+---
 
-**Home / Player Card**
+## 1. Propósito y principios
 
-- nivel visible;
-- estado;
-- progreso de calibración cuando corresponda;
-- sin explicación extensa.
+El Nivel BRAMU es la estimación individual de capacidad competitiva de cada jugador en BRAMUlab, sobre **una única escala universal**.
 
-**Perfil propio**
+- **Nivel BRAMU:** capacidad estimada individual, dinámica, universal; acompaña al jugador.
+- **Ranking BRAMU:** posición **semanal** publicada dentro de un universo filtrado (ver `Ranking_BRAMU.md`). Ranking consume el Nivel **consolidado**; nunca lo calcula. Un jugador puede cambiar de posición sin haber jugado.
 
-- siempre puede mostrar identidad, Nivel actual y estado;
-- con 0 partidos oficiales: Nivel estimado + `CALIBRANDO · 0/5`, sin Evolución vacía, Efectividad vacía, compañeros/rivales vacíos ni gráficos sin evidencia;
-- los partidos pendientes pueden existir en Historial/partido, pero no alimentan estadísticas oficiales del Perfil;
-- a medida que aparecen partidos oficiales, los módulos se incorporan progresivamente cuando tienen datos legítimos;
-- estado y confiabilidad;
-- evolución cuando exista evidencia suficiente;
-- partidos que sostienen la estimación cuando existan;
-- explicación de variaciones cuando haya una variación real;
-- acceso secundario a recalibración.
+Principios:
 
-**Perfil público**
+1. Mayor número = mejor nivel.
+2. El nivel pertenece al jugador, no a la pareja.
+3. Todo nivel inicial es una estimación, no una verdad.
+4. Nivel y confiabilidad son conceptos separados.
+5. Los partidos computables son la principal fuente de evidencia.
+6. El usuario participa de la estimación inicial respondiendo el cuestionario, pero no edita libremente ningún número.
+7. El historial nunca se borra por recalibrar.
+8. Cada variación debe poder explicarse con datos reales.
+9. No se premia la repetición artificial de rivales ni de compañeros.
+10. **Escala universal:** un Nivel 5,4 significa lo mismo para cualquier persona. No hay Nivel separado por género, ni ajustes hombre/mujer, ni ajuste por categoría competitiva local, país o circuito.
+11. Lo declarado en un cuestionario nunca se presenta como observado en un partido.
 
-- nivel visible;
-- estado `CALIBRANDO` o check de calibración;
-- con 0 partidos oficiales: identidad + Nivel estimado/estado, sin estadísticas agregadas, evolución ni módulos vacíos;
-- no exponer respuestas del cuestionario;
-- incorporar información deportiva progresivamente solo cuando exista evidencia oficial suficiente;
-- nunca inventar posición de Ranking: si todavía no corresponde, usar el estado definido por `Ranking_BRAMU.md`.
+## 2. Escala y precisión
 
-Criterio común para ambos perfiles:
+- Escala pública: **1,0 a 10,0** (el estimador inicial produce valores dentro de 1,0–9,0; el motor limita a 1,0–10,0).
+- Presentación: **un decimal**. Cálculo interno: **cuatro decimales**. Ranking y cálculos usan el valor interno.
+- No se muestran variaciones `+0,0` / `−0,0`.
+- **No hay categoría textual del Nivel** (ni "Intermedio", ni "Avanzado", etc.) en el alta ni en el resultado: se muestra el número y el estado. La categoría competitiva local del jugador no forma parte del cálculo ni de la comunicación del Nivel.
 
-> **Perfil también se construye con evidencia real.**
+## 3. Estados
 
-**Ranking**
+### 3.1 PENDIENTE (sin estimación)
 
-- utilizar el nivel consolidado como dato de orden;
-- identificar visualmente a quienes siguen calibrando;
-- evitar que una estimación inicial parezca equivalente a un nivel con mucha evidencia;
-- definir por separado si una persona aún calibrando participa de posiciones oficiales.
+El jugador todavía no confirmó el cuestionario. No tiene Nivel visible y nunca se muestra un Nivel inventado. El estado `PENDIENTE` existe server-side desde que hay `player_id` (incluso si el email se confirma antes de terminar el alta). Es el único estado desde el cual el alta puede oficializar un Nivel inicial.
 
-## 10. Explicación de variaciones
+### 3.2 CALIBRANDO
 
-BRAMU no necesita revelar la fórmula completa, pero sí el motivo principal de cada cambio.
+Comienza al confirmar el cuestionario V1.3.
 
-Ejemplos válidos:
+- Se muestra de inmediato el Nivel estimado y el progreso `X / 5 PARTIDOS`.
+- El Nivel es visible **desde el inicio**; no se reescribe historial al consolidar.
+- Mayor sensibilidad a los partidos (confianza baja, tope ±0,50 por partido).
+- Tratamiento visual: **número y etiqueta `CALIBRANDO` en ámbar** (`--gold`); el arco del medidor puede ser cian/azul. El color nunca es la única señal.
 
-> Tu nivel subió porque vencieron a una pareja de mayor Nivel BRAMU promedio. El impacto fue mayor porque todavía estás calibrando.
+Resultado típico del alta: `5,3` + `CALIBRANDO · 0 / 5 PARTIDOS`.
 
-> Tu nivel se mantuvo: era un resultado esperable frente a esta pareja y ya existe bastante evidencia sobre tu nivel.
+### 3.3 CALIBRADO
 
-> La derrota tuvo un impacto reducido porque la pareja rival tenía una dificultad claramente superior.
+Se alcanza con **5 partidos computables y al menos 3 rivales distintos**. Se presenta como `NIVEL CALIBRADO` (lima BRAMU + check). Significa evidencia mínima suficiente, no permanencia. Tope ±0,35 por partido.
 
-Evitar:
+### 3.4 RECALIBRANDO
 
-- “Jugaste mejor de lo esperado”.
-- “Te sobrepusiste mentalmente”.
-- “Tu volea fue determinante”.
-- “BRAMU pensaba que ibas a perder”.
+Estado temporal iniciado voluntariamente (ver §6). Mientras dura, el **Nivel consolidado anterior sigue siendo el oficial** para Ranking y comparaciones. Con Nivel consolidado se presenta como consolidado (valor blanco, sin etiqueta ámbar).
 
-Las explicaciones deben ser deportivas, claras y neutrales. No deben sonar como juicio sobre la identidad del jugador.
+### 3.5 Inactividad
 
-## 11. Integración con BRAMU Intelligence
+Afecta la confiabilidad, no el Nivel ni el estado (§8.3). Tratamiento atenuado + aviso "Volvé a jugar para actualizar tu nivel" después de ~60–90 días sin partidos computables.
 
-BRAMU Intelligence puede utilizar el Nivel BRAMU para contextualizar un partido solamente cuando existan niveles y snapshots válidos.
+| Estado | Señal textual | Tratamiento |
+|---|---|---|
+| PENDIENTE | Completá tu evaluación | Neutro |
+| CALIBRANDO | `CALIBRANDO · X/5` | Ámbar |
+| CALIBRADO | `NIVEL CALIBRADO` | Lima + check |
+| RECALIBRANDO | `RECALIBRANDO` | Ámbar diferenciado + ícono de actualización |
 
-Ejemplos recomendados:
+## 4. Onboarding de Nivel V1.3 (UX vigente)
 
-> **Triunfo de alto valor**  
-> Superaron a una pareja con mayor Nivel BRAMU promedio.
+Único camino. **No existe camino rápido** (ni por UI, URL, estado previo ni función interna; el servidor rechaza `mode: quick` y cualquier versión distinta de `nivel_inicial_v1_3`).
 
-> **Respondieron ante un desafío mayor**  
-> Es su mejor resultado juntos frente a rivales de esta dificultad.
+**Qué NO entra al cálculo ni a la UI del alta:** autoetiquetas de nivel, años jugando, frecuencia, entrenamiento/clases, categoría competitiva local, género, pregunta de resultados competitivos, stepper o ajuste manual del número.
 
-> **Impacto reducido**  
-> La diferencia de nivel previa atenúa el efecto de esta derrota.
+### 4.1 Intro (card de bienvenida)
 
-Reglas:
+Card propia de BRAMU (oscura/azulada, borde sutil, título 24 px, cuerpo 16 px, sin imagen ni paso extra) con un único CTA:
 
-- utilizar lenguaje factual y no humillante;
-- no decir que BRAMU “esperaba que perdieras”;
-- no usar respuestas técnicas del cuestionario como evidencia de un partido;
-- no narrar punto a punto cuando solo existe resultado por sets;
-- no forzar una lectura de nivel si existe una conclusión histórica más interesante;
-- si los niveles todavía son poco confiables, explicitarlo o reducir la fuerza de la afirmación.
+- kicker `ANTES DE EMPEZAR`
+- título `PENSÁ EN TU JUEGO HABITUAL`
+- `No en tu mejor ni en tu peor partido. Cuanto más realista seas, mejor será tu punto de partida en BRAMU.`
+- `Después, tus partidos lo van ajustando.`
+- `5 PREGUNTAS · CERCA DE 2 MINUTOS`
+- CTA `EMPEZAR`
 
-## 12. Relación con Ranking BRAMU
+### 4.2 Pregunta y componente de respuesta
 
-El Nivel BRAMU será una entrada del Ranking BRAMU, pero no lo reemplaza.
+Cinco preguntas, una por pantalla, cada una con **cuatro descripciones completas** de menor a mayor dominio. El jugador nunca ve letras A/B/C/D, valores internos, rama baja/media/alta ni categorías.
 
-Dirección ya definida para Ranking:
+Doble entrada sobre el **mismo valor discreto** `p ∈ {0…9}`:
 
-- vistas nacional, provincial, ciudad/local y Mis jugadores;
-- acceso al perfil público desde cada jugador;
-- categorías competitivas como filtro;
-- desempates mediante criterios adicionales, entre ellos efectividad, a definir en el consolidado específico de Ranking;
-- ninguna persona administra o elimina manualmente jugadores del ranking general.
-
-La fórmula de puntos de ranking debe permanecer separada del algoritmo de nivel.
-
-## 13. Contrato mínimo para backend
-
-La infraestructura debe quedar preparada desde el inicio para conservar:
+1. **Tap en una descripción:** descripción 1/2/3/4 → posición 0/3/6/9 (el thumb salta al ancla).
+2. **Slider vertical discreto de 10 posiciones.** Entre cada par de descripciones hay exactamente dos posiciones intermedias. Snap en cada posición; nunca valores continuos.
 
-### 13.1 Estado actual del jugador
+Reglas de UI:
 
-- valor interno del Nivel BRAMU;
-- valor público redondeado;
-- estado: sin estimación, calibrando, calibrado o recalibrando;
-- confiabilidad interna;
-- cantidad de partidos computables;
-- cantidad de rivales diferentes;
-- fecha de última actividad computable;
-- fecha de última calibración/recalibración;
-- próxima fecha habilitada para recalibrar;
-- versión vigente del algoritmo.
-
-### 13.2 Cuestionarios
-
-- versión del cuestionario;
-- respuestas;
-- cálculo bruto;
-- ajuste del usuario;
-- resultado confirmado;
-- tipo: inicial o recalibración;
-- fecha y hora.
-
-### 13.3 Historial de nivel
-
-Cada modificación debe ser un evento inmutable con:
-
-- nivel anterior y nuevo;
-- confiabilidad anterior y nueva;
-- causa principal;
-- partido o recalibración de origen;
-- fecha;
-- versión del algoritmo;
-- procedencia automática o iniciada por el jugador.
-
-### 13.4 Snapshot por partido
-
-Al validarse un partido deben conservarse el nivel y la confiabilidad de los cuatro jugadores en ese momento.
-
-Este snapshot es obligatorio. Evita reinterpretar partidos antiguos con los niveles actuales y permite que BRAMU Intelligence explique qué significó realmente el encuentro cuando ocurrió.
-
-## 14. Benchmark Playtomic: aprendizajes incorporados
-
-Referencias visuales guardadas en:
-
-`/Otros Trabajos/BRAMUlab/BRAMUlab/Referencias/Benchmark/Playtomic`
-
-Principios adoptados:
-
-- doble camino rápido/completo;
-- cuestionario breve;
-- resultado inmediato;
-- participación mediante categoría contextual y revisión de respuestas;
-- corrección automática limitada a ±0,5;
-- separación entre nivel y confiabilidad;
-- evolución posterior mediante partidos;
-- explicación accesible de variaciones;
-- trazabilidad de ajustes.
-
-Aspectos que BRAMU adapta:
-
-- no usar edad como predictor de habilidad;
-- evitar precisión pública excesiva durante la estimación inicial;
-- no depender de soporte manual;
-- no permitir que una recalibración autoservicio reemplace evidencia consolidada;
-- separar claramente nivel, ranking, matchmaking e Intelligence.
-
-No se incorpora matchmaking en la primera etapa. Solo tendrá sentido cuando exista suficiente densidad real de jugadores por ubicación, horario y nivel.
-
-## 15. Decisiones cerradas en este documento
-
-- Escala 1,0–10,0; mayor es mejor.
-- Nivel individual, distinto de ranking.
-- Mostrar inmediatamente el nivel estimado tras el cuestionario.
-- Etiqueta CALIBRANDO y tratamiento ámbar/naranja.
-- Cinco partidos computables y tres rivales diferentes para calibración inicial.
-- Check y tratamiento lima/verde al calibrar.
-- Cuestionario rápido o completo.
-- Cuestionario completo sin edad y con frecuencia reciente.
-- Ajuste inicial único de ±0,5.
-- Recalibración autoservicio cada 90 días como máximo.
-- Acceso a recalibración secundario dentro de Perfil/Mis datos.
-- Recalibrar no borra historial ni altera instantáneamente el ranking.
-- Un usuario registrado por pareja y validación rival para computar.
-- La carga dentro de BRAMUlab corresponde siempre a un partido propio ya jugado; no existen partidos cargados por espectadores como fuente del Nivel.
-- Invitados reclamables durante 30 días.
-- Resultado por sets y games como evidencia suficiente.
-- Los datos punto a punto no dan ventaja matemática para nivel.
-- Diversidad de rivales y rendimiento decreciente por repetición.
-- Inactividad reduce confiabilidad, no nivel.
-- Guardar snapshots históricos de nivel y confiabilidad.
-- BRAMU Intelligence puede interpretar dificultad, pero nunca inventar acciones técnicas.
-- Mi Perfil y Perfil público se forman progresivamente y no muestran módulos estadísticos vacíos por falta de evidencia.
-- Los partidos pendientes pueden ser visibles como actividad, pero no alimentan estadísticas oficiales de Perfil hasta validarse.
-
-## 16. Parámetros todavía pendientes de simulación *(superado por `Nivel_BRAMU_Formula_V1.5.md`)*
-
-**Nota vigente:** esta sección completa es contenido histórico. Los parámetros del motor quedaron resueltos en V1.4 y la estimación inicial fue corregida en `Nivel_BRAMU_Formula_V1.5.md`. Se conserva la lista para trazabilidad, no como trabajo pendiente.
-
-No son dudas conceptuales; requieren diseñar la fórmula y probarla con casos sintéticos y datos reales:
-
-1. límites exactos de cada categoría descriptiva dentro de 1,0–10,0;
-2. pesos de cada respuesta del cuestionario;
-3. composición matemática de la fuerza de pareja;
-4. magnitud base de una variación;
-5. topes por partido y por período;
-6. peso limitado de sets y games;
-7. curva de confiabilidad;
-8. penalización decreciente por repetición;
-9. sensibilidad exacta tras inactividad;
-10. cantidad definitiva de partidos para cerrar una recalibración;
-11. participación o no de jugadores CALIBRANDO en rankings oficiales;
-12. mapeo entre Nivel BRAMU y categorías competitivas reales.
-
-Estos parámetros deben resolverse mediante simulación antes de desarrollo, sin reabrir las decisiones de producto ya cerradas.
-
-## 17. Próximo paso recomendado *(superado por `Nivel_BRAMU_Formula_V1.5.md` y `Nivel_BRAMU_Implementacion.md`)*
-
-**Nota vigente:** los pasos siguientes describían el camino hacia una fórmula todavía no diseñada. Ese camino ya se recorrió; la fuente normativa actual es `Nivel_BRAMU_Formula_V1.5.md` y la próxima tarea técnica está definida en `Nivel_BRAMU_Implementacion.md`.
-
-1. Revisar este consolidado como fuente única de definición del Nivel BRAMU.
-2. Cruzar el contrato de datos con el consolidado de backend V04.
-3. Crear una batería de perfiles y partidos sintéticos representativos.
-4. Diseñar y comparar variantes matemáticas contra los comportamientos fijados.
-5. Validar la escala con jugadores reales de categorías diferentes.
-6. Recién entonces convertir la fórmula elegida en especificación técnica para desarrollo.
+- Nada preseleccionado; `CONTINUAR` deshabilitado hasta la primera interacción válida.
+- Orientación vertical, rail neutro/oscuro (no escala verde ni multicolor: el Nivel no es una nota bueno/malo).
+- Solo se dibujan los **4 puntos-ancla**; las 10 posiciones siguen siendo funcionales.
+- Thumb azul/cian BRAMU con indicador (pico) hacia la derecha; área táctil sin reducir.
+- Posición intermedia: las dos tarjetas vecinas se enfatizan **ponderadas por cercanía** — 100/0 (ancla), 67/33, 33/67, 0/100 — vía fondo/borde/glow; **nunca** bajando la opacidad del texto.
+- Helper vigente: `Tocá una descripción. Si estás entre dos opciones, usá el control para ajustar tu respuesta.`
+- Sin mensajes dinámicos tipo "elegiste una de las descripciones".
+- Accesible por touch, mouse y teclado; foco y labels.
+
+### 4.3 Adaptatividad
+
+- P1 es común. Antes de cada pregunta 2–5 se calcula la **media acumulada** de los valores ya respondidos y se elige la rama: `<4,1` baja · `4,1 ≤ m < 6,4` media · `≥6,4` alta (comparación a 4 decimales, sin ruido de coma flotante).
+- La rama es técnica e interna; nunca se comunica.
+- Volver atrás sin cambiar de rama conserva las respuestas posteriores. **Si el cambio altera la rama, se descartan las respuestas posteriores afectadas y se vuelven a preguntar**; nunca se reutiliza una posición con textos de otra rama.
+- Volver atrás o cambiar una respuesta no reduce la confianza.
+
+### 4.4 Resultado y confirmación
+
+Pantalla `TU PUNTO DE PARTIDA EN BRAMU`: número (ámbar) + `CALIBRANDO` + explicación breve; sin categoría textual. Acciones: `CONFIRMAR MI NIVEL` y `Revisar respuestas` (conserva respuestas; aplica la invalidación adaptativa vigente). Si la dispersión es ≥ 2,0 se sugiere revisar las respuestas, **sin bloquear** la confirmación.
+
+### 4.5 Persistencia local y reanudación del alta
+
+- Progreso local versionado `bramulab.nivelProgress.v13`, **aislado por `scopeKey`** (alta en curso: identificador aleatorio persistido en `signupDraft`; cuenta existente: `player_id`). No hay restauración cruzada entre altas/cuentas; el progreso sin scope se descarta. Se limpia al confirmar y al limpiar el alta.
+- Tras `CONFIRMAR MI NIVEL`, hasta que la cuenta quede oficializada, la única fuente es `signupDraft.nivelState/nivelAnswers`. Volver desde OTP/confirmación de email y reentrar a Nivel **reconstruye el resultado ya calculado** (no obliga a repetir las 5 preguntas) y `Revisar respuestas` vuelve a P1 con las respuestas. Al oficializar con éxito se limpian borrador y progreso.
+- Un cuestionario V1.2 incompleto persistido localmente se reinicia bajo V1.3 descartando **solo** las claves de Nivel; cuenta, email, perfil y username quedan intactos.
+
+## 5. Fórmula inicial V1.3 (`nivel_inicial_v1_3`)
+
+### 5.1 Dimensiones (20 % cada una)
+
+`panorama` (P1, común) · `ritmo` (P2) · `ataque` (P3) · `defensa` (P4) · `decisiones` (P5). El texto exacto de cada pregunta y rama está en el **Anexo A**.
+
+### 5.2 Anclas internas
+
+| Rama | A | B | C | D |
+|---|---:|---:|---:|---:|
+| P1 común | 1,8 | 3,8 | 5,8 | 7,2 |
+| P2–P5 baja | 1,5 | 2,8 | 3,8 | 4,6 |
+| P2–P5 media | 3,3 | 4,2 | 5,2 | 6,2 |
+| P2–P5 alta | 5,7 | 6,3 | 7,0 | 8,8 |
+
+(A–D = descripciones 1–4 en orden; notación interna.)
+
+### 5.3 Interpolación del slider
+
+Para `p ∈ {0…9}` y anclas `a = [A,B,C,D]`:
+
+```text
+si p = 9: value = D
+si no:    segment = floor(p / 3); fraction = (p mod 3) / 3
+          value = a[segment] + fraction × (a[segment + 1] − a[segment])
+```
+
+### 5.4 Resultado
+
+```text
+initial_level = clamp((v1 + v2 + v3 + v4 + v5) / 5, 1,0, 9,0)
+```
+
+Precisión interna de 4 decimales; presentación a 1 decimal. Sin modificadores por género, entrenamiento, frecuencia, años ni categoría. Un paso intermedio del slider mueve el resultado final entre ≈ 0,04 y 0,13 según rama y segmento: ninguna respuesta aislada puede mover casi un punto.
+
+### 5.5 Confianza de origen
+
+```text
+spread = max(v1…v5) − min(v1…v5)
+spread < 2,0  → origin_confidence = 0,15
+spread ≥ 2,0  → origin_confidence = 0,10
+```
+
+`spread ≥ 2,0` solo **sugiere revisar respuestas**; no altera el Nivel. La confianza no se muestra al usuario como juicio: solo controla cuánto puede corregir el motor después.
+
+### 5.6 Por qué existe V1.3 (decisión de diseño que no debe revertirse)
+
+El estimador anterior (V1.2) pesaba 65 % una autoetiqueta relativa al entorno del jugador ("Intermedio alto" significa cosas distintas en distintos grupos); un salto de etiqueta movía ≈ 0,975 mientras una respuesta técnica movía 0,35. Años, frecuencia y entrenamiento miden exposición, no ejecución. V1.3 reemplaza todo por señales observables de juego (ritmo/presión, red, defensa/paredes, decisiones) con peso igual y respuestas adaptativas. Bajar la confianza inicial **no** corrige un mal anclaje (primer partido perdido: −0,1965 con 0,10 vs −0,1857 con 0,18), por eso la solución es el punto inicial y no la volatilidad ni alargar la calibración.
+
+Perfiles de validación del prototipo (referencia humana aproximada → V1.3): Principiante 3,0–3,5 → 2,98 · caso que disparó el Issue #25 ~4,5 → 4,72 · desarrollo medio 4,9–5,0 → 5,05 · intermedio competitivo ~5,7–5,8 → 5,65 · ~5,9–6,0 → 5,95 · avanzado amateur ~6,9–7,0 → 6,81. Orden relativo preservado. Son referencias humanas, no niveles verdaderos registrados.
+
+## 6. Calibración y recalibración
+
+### 6.1 Calibración inicial
+
+Empieza en CALIBRANDO al confirmar el cuestionario; se consolida con **5 partidos computables + ≥ 3 rivales distintos** (cierre independiente de V1.3; el motor no cambia). La confiabilidad puede variar según la calidad real de esa evidencia. No se reescribe historial.
+
+### 6.2 Recalibración (autoservicio)
+
+- Usa **el mismo cuestionario V1.3 vigente**; no se puede ingresar manualmente un Nivel, categoría ni nivel del grupo habitual.
+- **Cooldown 90 días corridos** contados desde la confirmación del último cuestionario (inicial o de recalibración); no se reinicia anticipadamente aunque se abandone el flujo; no se encadenan.
+- Acceso secundario y discreto (`Perfil > Mis datos > Nivel BRAMU`), con la próxima fecha disponible visible. No es un CTA promocional.
+- Sea `mu_actual` el Nivel consolidado y `q_nuevo` el resultado del cuestionario:
+
+```text
+mu_provisional = clamp(0,75 × mu_actual + 0,25 × q_nuevo; mu_actual − 0,5; mu_actual + 0,5)
+confidence_provisional = max(0,30; min(0,70; 0,75 × confidence_actual))
+```
+
+  El cuestionario pesa 25 % y mueve la referencia provisional **a lo sumo ±0,5**.
+- **Cierre:** 3 partidos computables + ≥ 2 rivales distintos; **ventana máxima 120 días**. Si vence, la referencia provisional expira y continúa el consolidado anterior.
+- Mientras tanto, Ranking y comparaciones usan el Nivel consolidado previo; el detalle privado puede mostrar la referencia provisional. Historial y eventos previos se preservan.
+- Estado de implementación: motor y tests listos; la app **todavía no tiene UI de recalibración** (la representación visual de `RECALIBRANDO` se define cuando se construya). No se creó ninguna regla nueva de elegibilidad (por ejemplo "después de 20 partidos"): fuera de alcance hasta que haya evidencia de abuso o necesidad real.
+
+## 7. Motor de partidos (`nivel_bramu_v1_0`)
+
+Arquitectura: expectativa tipo Elo + incertidumbre explícita (Glicko/TrueSkill como inspiración) + fuerza de pareja por promedio + influencia acotada del score + variación individual gobernada por la confiabilidad. Los parámetros son iniciales, coherentes en simulación y **no calibrados con datos reales**; cualquier cambio crea una versión nueva del algoritmo.
+
+### 7.1 Estado por jugador
+
+| Variable | Rango | Significado |
+|---|---:|---|
+| `mu` | 1,0000–10,0000 | Mejor estimación actual |
+| `confidence` | 0,00–0,95 | Cuánta evidencia sostiene `mu` |
+| `evidence_units` | ≥ 0 | Evidencia acumulada ponderada |
+| `state` | enum | PENDIENTE / CALIBRANDO / CALIBRADO / RECALIBRANDO |
+| `rated_matches`, `distinct_opponents` | enteros | Contadores de calibración |
+| `last_rated_at` | fecha | Última actividad computable |
+| `algorithm_version` | texto | Versión que produjo el estado |
+
+Bandas de confiabilidad (describen evidencia, no calidad de juego): baja `< 0,45` · media `0,45–0,74` · alta `≥ 0,75`.
+
+### 7.2 Fuerza de pareja
+
+```text
+mu_efectivo_i = 5 + confidence_i × (mu_i − 5)
+fuerza_pareja = (mu_efectivo_1 + mu_efectivo_2) / 2
+```
+
+Promedio simple; sin penalización por pareja despareja ni suposición de quién "cargó" a quién. No cambia el Nivel público.
+
+### 7.3 Expectativa
+
+```text
+P(A) = 1 / (1 + 10 ^ (−(fuerza_A − fuerza_B) / 1,5))
+```
+
+Con confiabilidad alta: diferencia 0,5 → 68 % · 1,0 → 82 % · 2,0 → 96 % · 3,0 → 99 %.
+
+### 7.4 Score
+
+El resultado define el signo (una victoria nunca baja el Nivel; una derrota nunca lo sube); el score solo modula la magnitud.
+
+```text
+share_sets  = sets_ganados / sets_jugados
+share_games = games_ganados / games_totales      (el match tie-break no cuenta como games)
+dominio     = 0,45 × share_sets + 0,55 × share_games
+multiplicador_margen = 0,90 + 0,25 × clamp((dominio − 0,55) / 0,35; 0; 1)    → 0,90 … 1,15
+```
+
+### 7.5 Peso del formato
+
+| Formato válido | Factor |
+|---|---:|
+| Mejor de tres sets completos | 1,00 |
+| Dos sets completos + match tie-break | 0,90 |
+| Mini sets a cuatro games | 0,80 |
+| Set único / pro set corto | 0,65 |
+| Incompleto, abandono o walkover | 0,00 |
+
+Ventaja, punto de oro o Star Point no cambian el peso (BRAMU no conoce los puntos internos).
+
+### 7.6 Repetición (ventana de 180 días previos)
+
+```text
+factor_repeticion = max(0,45; 1 − 0,10 × n_pair − 0,025 × (n_r1 + n_r2))
+factor_companero  = max(0,60; 1 − 0,05 × n_companero)
+```
+
+Misma pareja rival: 1,00 · 0,85 · 0,70 · 0,55 · 0,45 (desde el 5.º). Mismo compañero: 1,00 · 0,95 · … · 0,80 (5.º) · 0,60 (desde el 9.º). Una pareja fija sigue aportando evidencia, nunca llega a cero.
+
+### 7.7 Círculo competitivo cerrado
+
+Para un jugador **ya calibrado**, en los últimos 180 días: ≥ 20 partidos computables; ≥ 80 % concentrado en un grupo de hasta 12 personas (≤ 11 coparticipantes habituales); amplitud de niveles del grupo ≤ 1,5; y el partido actual se juega íntegro dentro del círculo sin que la pareja rival supere a la propia en 0,75 o más. Entonces `factor_circulo = 0,45`; en los demás casos `1,00`. No impone techo ni bloquea bajas: reduce cuánto puede afirmarse desde una red poco conectada. Un jugador externo o una pareja claramente superior devuelven peso completo.
+
+### 7.8 Variación individual
+
+```text
+K_i = 0,10 + 0,30 × (1 − confidence_i)
+factor_oponente = 0,55 + 0,45 × confianza_pareja_rival
+delta_i = K_i × (resultado − expectativa) × margen × formato × repeticion
+              × factor_companero × factor_circulo × disponibilidad × factor_oponente
+```
+
+`resultado` = 1 si ganó, 0 si perdió; `confidence_i` es la efectiva inmediatamente anterior al partido (incluida la reducción por inactividad); `confianza_pareja_rival` es el promedio de sus integrantes (con invitado, solo los que tienen Nivel). **Topes:** CALIBRANDO/RECALIBRANDO ±0,50 · CALIBRADO ±0,35 · Nivel final en 1,0–10,0. Delta guardado a 4 decimales; la UI lo muestra a 1 decimal y omite `±0,0`. Compañeros con igual confiabilidad reciben el mismo cambio; con distinta, pueden cambiar distinto. No se asignan variaciones por "quién jugó mejor".
+
+### 7.9 Momento y correcciones
+
+- El Nivel cambia **inmediatamente** cuando el partido se vuelve oficial/computable, para vincular la explicación a ese partido.
+- **Corrección posterior** de un resultado ya computado: se registra un evento que revierte exactamente la variación anterior, se recalcula el partido corregido con los **mismos snapshots previos** y se aplica solo la diferencia neta, conservando ambas versiones y la causa. No se recalcula en cascada todo el perfil; no se reescribe un Ranking ya publicado.
+
+## 8. Confiabilidad, evidencia e inactividad
+
+### 8.1 Evidencia por partido
+
+```text
+calidad_evidencia = formato × repeticion × factor_companero × factor_circulo
+                    × disponibilidad × (0,55 + 0,45 × confianza_pareja_rival)
+evidence_units_nuevo = evidence_units_anterior + calidad_evidencia
+```
+
+### 8.2 Conversión a confiabilidad
+
+Con `b` = confianza de origen (0,15 o 0,10 según §5.5):
+
+```text
+confidence = b + (0,95 − b) × (1 − exp(−evidence_units / 5,5))
+confidence_post = confidence_pre + (0,95 − confidence_pre) × (1 − exp(−calidad_evidencia / 5,5))   (forma incremental)
+```
+
+Techo común 0,95. Referencia con `b = 0,15` y rivales confiables y diversos: 0 partidos 15 % · 1 → 28 % · 3 → 49 % · 5 → 63 % · 10 → 82 % · 15 → 90 %.
+
+### 8.3 Inactividad
+
+Primeros 60 días sin partidos computables: sin cambio. Después:
+
+```text
+confidence_efectiva = max(0,15; confidence × 2 ^ (−(dias_inactivo − 60) / 240))
+```
+
+El Nivel **no baja** por inactividad; al volver, la menor confianza aumenta moderadamente la sensibilidad. La confianza efectiva es la base del siguiente partido (no se recupera de golpe); `evidence_units` conserva el total histórico para auditoría. El reloj de inactividad arranca en el onboarding.
+
+## 9. Elegibilidad, invitados y disponibilidad de evidencia
+
+Un partido puede existir en el historial sin tocar el Nivel. **Computa** solo si cumple todo:
+
+- dobles: dos parejas, cuatro participantes; el jugador evaluado participó;
+- resultado final válido por sets (incluido tie-break); fecha real de juego;
+- al menos **un jugador con Nivel por pareja**;
+- oficial/validado según el ciclo de `Experiencia_Inicial.md` (validación por parejas, pendientes, correcciones); no disputado, anulado, pendiente ni duplicado;
+- **validado dentro de los 30 días posteriores a `played_at`** (`validated_at − played_at ≤ 30 días`; si falta cualquiera de las dos fechas se considera fuera de ventana). Fuera de ventana: historial y estadísticas oficiales sí, Nivel no;
+- cargado por un participante registrado del encuentro. BRAMUlab carga únicamente partidos propios ya jugados; no hay partidos de espectador como fuente de Nivel.
+
+| Caso | Historial | Nivel |
+|---|---|---|
+| Completo y oficial | Sí | Sí |
+| Pendiente de rival / disputado / observado | Sí | No (todavía / no) |
+| Walkover, abandono o resultado incompleto | Sí | No en V1 |
+| Score inválido | Sí, con advertencia | No |
+| Fuera de ventana de 30 días | Sí | No |
+| Duplicado | Una sola identidad de partido | Una sola vez |
+| Formato corto o match tie-break válido | Sí | Sí, con menor peso |
+
+### 9.1 Invitados e imputación neutral
+
+Se puede cargar un compañero o rival sin cuenta (participación provisional, reclamable por acción explícita; **nunca** se vincula por coincidencia de nombre; plazos de reclamo en `Experiencia_Inicial.md`/`Backend_Infraestructura.md`). Cuando faltan niveles:
+
+| Niveles conocidos | Imputación | `disponibilidad` |
+|---|---|---:|
+| 4 de 4 | ninguna | 1,00 |
+| 3 de 4 | el invitado toma, solo para ese partido, el promedio de los 3 efectivos conocidos | 0,80 |
+| 2 de 4, uno por pareja | ambos invitados toman el promedio de los 2 efectivos | 0,60 |
+| 2 en la misma pareja; 1 o 0 en la rival | el partido **no computa** | — |
+
+El nivel imputado no crea perfil, no se guarda ni recibe variaciones; solo se actualizan jugadores reales con Nivel. Nunca se pide ni guarda una estimación de terceros sobre un invitado. La reducción por dato ausente vive en `disponibilidad` y no se aplica dos veces en `confianza_pareja_rival`.
+
+## 10. Persistencia, autoridad backend y versionado
+
+**Autoridad:** el servidor es la autoridad de toda operación oficial. El navegador nunca es autoridad: la oficialización la ejecuta la Edge Function `officialize-onboarding` (JWT activo) sobre el **mismo archivo JS** de la fórmula (symlink, nunca reimplementado en SQL), vía la RPC privada `officialize_level_onboarding` (atómica e idempotente, solo desde PENDIENTE, un único `initial_estimate` por jugador).
+
+- **Payload V1.3:** `{ mode: 'full', questionnaireVersion: 'nivel_inicial_v1_3', quizAnswers: { panorama, ritmo, ataque, defensa, decisiones } }`, enteros 0…9. El servidor rechaza `quick`, otra versión y valores inválidos, recalcula y persiste `questionnaire_mode = 'full'` + versión V1.3. La restricción de DB `quick|full` no obligó a migrar.
+- **Estado actual del jugador:** `level_states` (valor interno y público, estado, confiabilidad, `evidence_units`, contadores, última actividad, cooldown de recalibración, consolidado y provisional separados, `algorithm_version`, `questionnaire_version/mode`).
+- **Cuestionarios:** versión, respuestas crudas, cálculo bruto, resultado confirmado, tipo (inicial o recalibración), fecha y hora, confianza de origen y bandera de dispersión.
+- **Historial:** `level_events` inmutables (nivel y confiabilidad anterior/nuevo, causa principal, partido o recalibración de origen, fecha, versión, procedencia automática o iniciada por el jugador; reversiones y correcciones; inicio/cierre/expiración de recalibración).
+- **Snapshot por partido (obligatorio):** nivel y confiabilidad de los cuatro jugadores al momento del partido, expectativa previa, factores aplicados, niveles conocidos/imputados, `disponibilidad`, delta individual sin redondear y códigos de explicación. Evita reinterpretar partidos antiguos con niveles actuales.
+- **Contrato que debe preservarse:** cálculo puro, determinista y versionado; la UI no duplica reglas matemáticas; correcciones y anulaciones idempotentes con reversión/reproceso determinista; la precisión interna se guarda separada del valor público; Ranking consume Nivel consolidado; BRAMU Intelligence consume snapshots y códigos guardados y nunca recalcula la expectativa histórica con niveles actuales.
+- **Versionado de la app:** ver regla de versión pública vs. bundle en `README.md` §6.
+
+## 11. UX visible vigente por superficie
+
+Jerarquía canónica con Nivel server-backed: `NIVEL BRAMU` (chico, neutro) → valor → estado opcional. CALIBRANDO: valor y etiqueta en ámbar; en Home y Mi Perfil, que ya tienen el bloque `CALIBRANDO · X/5 PARTIDOS`, solo se tiñe el número (sin etiqueta duplicada). Consolidado (incluido RECALIBRANDO con Nivel consolidado): valor blanco, sin etiqueta.
+
+- **Home / Player Card:** Nivel, estado y progreso; sin explicación extensa. Home **Estado Cero** (0 partidos): tarjeta de primer partido con pill `TU PRIMER PARTIDO`, titular y CTA `CARGAR MI PRIMER PARTIDO`; con un partido real (incluso pendiente) se muestra ese partido y nunca la CTA de primer partido.
+- **Mi Perfil:** identidad, Nivel y estado siempre; con 0 partidos oficiales, Nivel estimado + `CALIBRANDO · 0/5` sin Evolución, Efectividad, compañeros/rivales ni gráficos vacíos. Los módulos se incorporan cuando existe evidencia oficial legítima. Los partidos pendientes aparecen en Historial pero no alimentan estadísticas oficiales. Acceso secundario a recalibración (cuando exista la UI).
+- **Perfil público:** Nivel y estado (`CALIBRANDO` o check); no expone respuestas del cuestionario; nunca inventa posición de Ranking (usar el estado de `Ranking_BRAMU.md`); `PENDIENTE` antes de confirmar. Criterio común: **el perfil también se construye con evidencia real.**
+- **Ranking:** usa el Nivel consolidado como dato de orden e identifica a quienes siguen calibrando; las reglas de participación y posición viven en `Ranking_BRAMU.md`.
+
+## 12. Explicación de variaciones y BRAMU Intelligence
+
+Cada actualización conserva códigos de razón y traduce solo los más relevantes, en este orden: sorpresa por dificultad · calibración/baja confiabilidad · margen especialmente amplio o cerrado · formato reducido · repetición · inactividad previa. Lenguaje deportivo, neutral y factual:
+
+> **Triunfo de alto valor** — Superaron a una pareja con mayor Nivel BRAMU. Como todavía estás calibrando, este resultado aporta más información.
+> **Resultado esperado** — La victoria confirma tu nivel actual. El cambio fue pequeño porque la diferencia previa era favorable.
+> **Evidencia limitada** — Este encuentro aporta menos porque ya enfrentaste varias veces a la misma pareja.
+> **Regreso con mayor sensibilidad** — Tu nivel se mantiene, pero tras un período sin actividad los próximos partidos pueden ajustarlo más rápido.
+
+Evitar fórmulas, porcentajes de expectativa, "BRAMU pensaba que perdías", "jugaste mejor de lo esperado", "te sobrepusiste mentalmente", "tu volea fue determinante". Intelligence puede contextualizar con Nivel solo cuando existan snapshots válidos, nunca usa respuestas del cuestionario como evidencia de un partido, no narra punto a punto cuando solo hay resultado por sets y atenúa afirmaciones si los niveles son poco confiables. Detalle en `BRAMU_Intelligence.md`.
+
+## 13. Cuentas existentes y migraciones
+
+- **No se recalcularon ni resetearon** niveles existentes V1.1/V1.2. CALIBRANDO/CALIBRADO existentes conservan exactamente su estado y Nivel; no se reescriben niveles históricos ni rankings publicados. Se preserva `questionnaire_version` de cada registro.
+- Verificado en Staging: snapshot read-only de `level_states` antes/después del deploy V1.3 — 22 filas y misma huella (`664bc4c5f85522210192223484ea5f73`).
+- V1.3 solo oficializa a un jugador que siga en PENDIENTE y complete un cuestionario nuevo. Las cuentas existentes usarán V1.3 únicamente si hacen una recalibración voluntaria futura.
+- Un cuestionario V1.2 incompleto (estado local no oficial) se reinicia bajo V1.3 sin tocar el resto del alta (§4.5).
+- No hubo migración de datos ni de esquema para V1.3.
+
+## 14. Evidencia de cierre (Staging)
+
+- **Backend:** `officialize-onboarding` ACTIVE v13, JWT ON; alta real V1.3 server-backed verificada (`@sebastian_vila`: CALIBRANDO, `mu` 5,32 → UI 5,3, confianza 0,15, 0 partidos, `nivel_inicial_v1_3`, `full`, `nivel_bramu_v1_0`, `initial_estimate` persistido).
+- **Tests:** batería V1.3 (`v0428-nivel-inicial-v13.test.mjs`) cubre fórmula exacta y banco de textos, interpolación de las 10 posiciones, monotonicidad por pregunta, umbrales 4,1/6,4 con vectores reales, mínimos/máximos, clamp sobre las 10⁵ combinaciones sin NaN, spread 1,9999/2,0, irrelevancia de años/frecuencia/entrenamiento/género/categoría, ausencia de camino rápido, adaptatividad/volver atrás/invalidación, reload, paridad cliente–servidor, versionado, regresión del motor con fixture pineado, borradores V1.2, recalibración, aislamiento por `scopeKey` y reconstrucción desde `signupDraft`. Resultado del último ciclo funcional: Node 785/788 (3 fallos **preexistentes**, ajenos a Nivel: h19-B, h21-9, h23).
+- **Contrafactuales obligatorios** (deben seguir vigentes ante cualquier cambio): mover P1 un paso con las otras fijas (cambio acotado); recorrer cada pregunta por los 10 puntos (monotonicidad); umbrales exactos 4,1 y 6,4; cambio de rama invalida respuestas posteriores; todos mínimos/máximos; spread 1,9999 vs 2,0; irrelevancia de datos no incluidos; inexistencia del camino rápido.
+- **QA humano en iPhone (aprobado):** adaptatividad PASS; slider vertical y pulido h3 PASS; resultado CALIBRANDO (número ámbar) PASS; volver desde OTP PASS; Home Estado Cero PASS; intro final h7 PASS.
+- **Límites de la evidencia:** los vectores de los perfiles de §5.6 en los tests son arquetipos coherentes, no las respuestas originales; el touch real se validó en iPhone por QA humano.
+
+## 15. Límites conocidos y decisiones futuras (NO vigentes)
+
+Nada de esta sección es regla activa.
+
+1. **Círculos cerrados mal anclados:** los resultados internos identifican diferencias relativas, no el desplazamiento absoluto de un grupo; limitación estructural conocida. El motor corrige errores unilaterales con evidencia diversa, pero no necesariamente antes del cierre de calibración y más lento con repetición o resultados mixtos.
+2. **Parámetros sin validar con datos reales** (pendientes de validación retrospectiva con partidos propios, y cualquier cambio solo como versión nueva): equivalencia diferencia 1,0 ≈ 72–82 %; velocidad de `K`; margen 0,90–1,15; curva de confiabilidad; necesidad de corrección por desequilibrio en la pareja. Método: entrenar con parte de los partidos, predecir una muestra no usada, medir acierto y calibración por nivel y cantidad de partidos.
+3. **Distribución madura:** compararla con la pirámide competitiva argentina (concentrada en categorías bajas y medias) como control de realidad, no como cuota. Una concentración inesperada en 8–10 es señal para revisar cuestionario/calibración/inflación, no para bajar niveles automáticamente.
+4. **Recalibración:** falta UI (incluida la representación de `RECALIBRANDO`); no definir nuevas reglas de elegibilidad sin evidencia de abuso o necesidad.
+5. **Producción:** Nivel V1.3 no fue promovido a Production; requiere autorización explícita posterior.
+6. **Matchmaking:** fuera de alcance hasta tener densidad real de jugadores por ubicación, horario y nivel.
+
+## 16. Trazabilidad histórica mínima
+
+- V1.1 (cuestionario con autoevaluación 65 %, red/paredes, entrenamiento, años/frecuencia, categoría local con ajuste ±0,5, camino rápido) y V1.2 (V1.1 sin categoría local, 6 preguntas) quedaron **retiradas como estimador vigente**; sus cuentas conservan su Nivel y su `questionnaire_version`.
+- Decisión 19/09/2026: la categoría local sale del onboarding y del cálculo. Decisión 02/10/2026 (Issue #25): estimador V1.3. Cierre QA humano: 03/10/2026.
+- Detalle histórico completo en Git (documentos retirados en el cierre documental de V1.3), en `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md` y en el Issue #25 de `sebastianvilaa/BRAMUlab`.
+
+---
+
+## Anexo A — Banco de preguntas V1.3 (texto exacto)
+
+Orden de las descripciones: de menor a mayor dominio (A→D). Las letras son notación interna del documento y **no se muestran** al usuario. Los tests verifican cada texto de este anexo literalmente contra `level-calibration.js`; editar un texto exige actualizar ambos y cuenta como cambio de producto.
+
+
+### P1 — Panorama general (común)
+
+**Pregunta:** ¿Qué describe mejor tu juego durante un partido habitual?
+
+- **A:** Estoy aprendiendo a ubicarme y a sostener varios golpes seguidos.
+- **B:** Sostengo intercambios cómodos; cuando aumenta el ritmo pierdo control u orden.
+- **C:** Construyo el punto y utilizo distintos recursos; bajo presión todavía me apuro o dejo una pelota fácil.
+- **D:** Sostengo un ritmo alto, buenas posiciones y decisiones; normalmente el rival debe construir el punto para superarme.
+
+### P2 — Control y ritmo
+
+#### Rama baja
+
+- **A:** Me cuesta devolver tres pelotas seguidas aunque lleguen cómodas.
+- **B:** Sostengo intercambios cortos a ritmo lento; al moverme o dirigir la pelota pierdo control.
+- **C:** Sostengo pelotas cómodas con dirección; la velocidad o profundidad me obliga a devolver fácil.
+- **D:** Resuelvo varias pelotas exigentes y recupero mi posición, todavía de manera irregular.
+
+#### Rama media
+
+- **A:** Controlo la pelota a ritmo cómodo; cuando aceleran llego tarde o dejo una pelota fácil.
+- **B:** Sostengo un ritmo medio y recupero la posición; si la presión continúa, pierdo dirección o profundidad.
+- **C:** Mantengo dirección y profundidad a ritmo alto en la mayoría de las jugadas; una pelota difícil todavía puede dejarme defendiendo.
+- **D:** A ritmo alto llego equilibrado, neutralizo la presión y puedo elegir la respuesta.
+
+#### Rama alta
+
+- **A:** Sostengo el ritmo alto, pero la presión repetida termina reduciendo mi profundidad o control.
+- **B:** Mantengo profundidad y posición a ritmo alto; una defensa extrema todavía puede dejar una oportunidad cómoda.
+- **C:** Absorbo cambios de velocidad, recupero la posición y obligo al rival a sostener la presión.
+- **D:** Frente al ritmo máximo anticipo, neutralizo y puedo transformar la defensa en iniciativa.
+
+### P3 — Ataque y red
+
+#### Rama baja
+
+- **A:** Me cuesta ubicarme y controlar la volea, incluso con pelotas cómodas.
+- **B:** Devuelvo voleas simples, pero pierdo la posición o quedo superado por el globo.
+- **C:** Sostengo la red en intercambios lentos con mi compañero; la presión me obliga a retroceder o dejar una pelota fácil.
+- **D:** Utilizo la volea o la bandeja para conservar la red, todavía de manera irregular.
+
+#### Rama media
+
+- **A:** Controlo voleas cómodas; con velocidad o presión pierdo la posición.
+- **B:** Sostengo la red y uso la volea o la bandeja; a veces acelero desde una posición desfavorable.
+- **C:** Me coordino con mi compañero, conservo la red y elijo una pelota favorable para acelerar.
+- **D:** Varío dirección y ritmo, recupero la red después del globo y mantengo la iniciativa bajo presión.
+
+#### Rama alta
+
+- **A:** Controlo la posición; la presión sostenida todavía puede hacerme dejar una pelota cómoda o perder la red.
+- **B:** Uso la volea y la bandeja para sostener la posición y recupero la red después del globo; a veces me precipito al definir.
+- **C:** Varío direcciones y ritmos, elijo cuándo acelerar y mantengo la iniciativa bajo presión.
+- **D:** A velocidad máxima anticipo las respuestas y transformo situaciones difíciles en ataques controlados.
+
+### P4 — Defensa y paredes
+
+#### Rama baja
+
+- **A:** Intento jugar antes de la pared porque todavía no interpreto bien el rebote.
+- **B:** Resuelvo rebotes simples y lentos de fondo; suelo llegar tarde o calcular mal.
+- **C:** Utilizo la pared de fondo en situaciones habituales; la velocidad o los rebotes laterales me complican.
+- **D:** Utilizo paredes de fondo y laterales para continuar el punto; todavía pierdo control en rebotes complejos.
+
+#### Rama media
+
+- **A:** Resuelvo el rebote simple; una pelota rápida, profunda o lateral suele dejarme fuera de posición.
+- **B:** Utilizo las paredes de fondo y laterales en situaciones habituales; los rebotes complejos me obligan a devolver fácil.
+- **C:** Anticipo paredes simples y dobles, recupero la posición y normalmente mantengo una defensa neutral.
+- **D:** Uso las paredes para quitar velocidad, soportar la presión y convertir una defensa difícil en una pelota controlada.
+
+#### Rama alta
+
+- **A:** Controlo los rebotes habituales; una pelota muy profunda o compleja todavía puede dejarme defendiendo corto.
+- **B:** Anticipo paredes dobles y sostengo la defensa con velocidad; las situaciones extremas pueden hacerme perder control.
+- **C:** Uso las paredes para neutralizar la presión, recuperar la posición y convertir una defensa difícil en una pelota controlada.
+- **D:** A velocidad máxima resuelvo rebotes complejos y transformo defensas extremas en contraataques sin perder la posición.
+
+### P5 — Decisiones y consistencia
+
+#### Rama baja
+
+- **A:** Me concentro en devolver la pelota, sin una idea clara de dónde jugar o cómo ubicarme.
+- **B:** Conozco ideas como subir a la red o tirar un globo; reacciono tarde o intento atacar una pelota desfavorable.
+- **C:** Intento construir el punto y moverme con mi compañero; cuando se prolonga pierdo el orden.
+- **D:** Reconozco cuándo defender, reconstruir o atacar; todavía me cuesta ejecutarlo durante todo el partido.
+
+#### Rama media
+
+- **A:** Entiendo la jugada, pero intento resolverla rápido y suelo entregar la iniciativa.
+- **B:** Alterno momentos ordenados con otros en los que ataco desde una posición desfavorable.
+- **C:** Construyo con paciencia y espero una pelota favorable; si la presión continúa, puedo perder el orden.
+- **D:** Mantengo el plan, recupero posiciones y adapto mis decisiones durante todo el partido.
+
+#### Rama alta
+
+- **A:** Construyo bien; la presión sostenida termina haciéndome perder profundidad, dirección o iniciativa.
+- **B:** Conservo el orden, elijo una respuesta segura y espero una pelota favorable; ocasionalmente dejo una oportunidad cómoda.
+- **C:** Administro ritmos y direcciones, anticipo la jugada y normalmente obligo al rival a construir para superarme.
+- **D:** Mantengo lectura y calidad frente a presión extrema durante todo el partido, neutralizando o aprovechando situaciones difíciles.
 
 
 ---
 
-## Presentación del Nivel en superficies reales (Issue #26, V04.25)
+## Anexo B — Simulaciones de referencia del motor `nivel_bramu_v1_0`
 
-Jerarquía canónica en toda superficie con Nivel server-backed: `NIVEL BRAMU` (chico, neutro) → valor → estado opcional. **CALIBRANDO:** valor y la etiqueta `CALIBRANDO` en ámbar (`--gold`). **Consolidado (incl. RECALIBRANDO con Nivel consolidado):** valor blanco, sin etiqueta. En Home/Mi Perfil, que ya tienen el bloque `CALIBRANDO · X/5 PARTIDOS`, solo se tiñe el número (sin etiqueta duplicada). Solo cambia la presentación: fórmula, confianza y Ranking no se tocan.
+Referencia de comportamiento (valores internos antes del redondeo público; "A" es la pareja ganadora, confiabilidad estable salvo indicación). Sirven para detectar regresiones del motor.
+
+| Caso | Score de A | P(A) previa | Cambio A | Cambio B |
+|---|---|---:|---:|---:|
+| Parejas 5,0 estables, partido cerrado | 6-4, 4-6, 7-6 | 50 % | +0,07 | −0,07 |
+| Parejas 5,0 estables, dos sets | 6-4, 6-4 | 50 % | +0,08 | −0,08 |
+| 5,0 vence a 6,0 | 6-4, 6-4 | 23 % | +0,12 | −0,12 |
+| 6,0 vence a 5,0 | 6-4, 6-4 | 77 % | +0,04 | −0,04 |
+| 4,5 vence a 6,5 | 6-4, 6-4 | 8 % | +0,14 | −0,14 |
+| 6,5 vence a 4,5 | 6-4, 6-4 | 92 % | +0,01 | −0,01 |
+| Pareja 7,0+3,0 vence a 5,0+5,0 | 6-4, 6-4 | 50 % | +0,08 ambos | −0,08 ambos |
+| Nuevos 5,0 vencen a 5,0 estables | 6-4, 6-4 | 50 % | +0,17 | −0,05 |
+| Segunda / cuarta victoria ante la misma pareja | 6-4, 6-4 | 50 % | +0,07 / +0,04 | — |
+| Mini sets entre pares 5,0 | 4-2, 4-2 | 50 % | +0,06 | −0,06 |
+| Super tie-break entre pares 5,0 | 6-4, 4-6, 10-8 | 50 % | +0,06 | −0,06 |
+| Compañeros 5,0 con confianza 20 % y 90 % | 6-4, 6-4 | 50 % | +0,17 / +0,06 | — |
+
+Trayectorias: subestimado 4,5 que vence cinco veces a rivales 5,5 confiables → `4,50 → 4,73 → 4,94 → 5,12 → 5,28 → 5,42`; sobreestimado 6,0 que pierde cinco veces ante 5,0 → `6,00 → 5,81 → 5,63 → 5,46 → 5,32 → 5,19`; resultados alternados contra equivalentes → converge alrededor del punto de partida; farming (6,0 vence diez veces a la misma pareja 4,0) → `6,00 → … → 6,05`. Grupo cerrado de 10–12 jugadores con rotación, 200 partidos/año: efectividad 60 % → +0,42/+0,45 · 65 % → +0,55/+0,59 · 70 % → +0,70/+0,74; el líder se separa pero no cambia una categoría completa solo con resultados internos.
+
+Simulaciones del Issue #25 con el motor vigente desde un 5,405 sobreestimado: cinco derrotas claras con evidencia diversa → `5,405 → 5,215 → 5,045 → 4,894 → 4,759 → 4,639`; mismos compañeros y rivales repetidos → 4,864 a 5 derrotas; dos jugadoras sobreestimadas en lados opuestos con diez partidos alternados quedan en ≈ 5,42 / 5,39 con confianza 0,78; un círculo de ocho jugadores con 20 partidos internos no se mueve (5,300 → 5,302). Es la base de la limitación §15.1.
+
+## Fuentes de diseño
+
+Glicko (Glickman); TrueSkill (Herbrich, Minka, Graepel, 2007); UTR (algoritmo y dobles); DUPR (How It Works); Playtomic (sistema de nivel, 2026); reglas FIP 2026; padrón público de Pádel Argentino y Circuito Regional de Pádel de Villa María (control de realidad de la pirámide de categorías, septiembre 2026). Se adoptó la arquitectura (expectativa + incertidumbre + equipos + score acotado) y no ninguna fórmula ajena literal.

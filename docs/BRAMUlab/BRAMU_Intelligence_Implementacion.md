@@ -15,7 +15,7 @@ Este documento reemplaza el handoff anterior que quedó desactualizado en sus re
 Desarrollo debe usar, en este orden:
 
 1. `BRAMU_Intelligence.md` — definición normativa de producto, evidencia, taxonomía, relevancia, UX y ejemplos.
-2. `Nivel_BRAMU_Formula_V1.5.md` — autoridad vigente para Nivel, expectativa, confianza, elegibilidad, snapshots y delta.
+2. `Nivel_BRAMU.md` — autoridad vigente para Nivel, expectativa, confianza, elegibilidad, snapshots y delta.
 3. `Ranking_BRAMU.md` — autoridad vigente para Ranking semanal, universos, elegibilidad, densidad y movimiento publicado.
 4. `Backend_Infraestructura.md` — autoridad para persistencia, identidad, seguridad, server-side y entornos.
 5. `Referencias/BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md` — proveedor, costos, privacidad y contingencia de la capa generativa.

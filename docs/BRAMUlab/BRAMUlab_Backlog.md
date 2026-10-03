@@ -10,7 +10,7 @@
 
 No volver a tratar como idea futura abierta:
 
-- **Nivel BRAMU V1** → `Nivel_BRAMU_Formula_V1.5.md`, `Nivel_BRAMU_Implementacion.md`, `Nivel_BRAMU.md` y V04.
+- **Nivel BRAMU V1** → `Nivel_BRAMU.md` y V04.
 - **Ranking BRAMU V1** → `Ranking_BRAMU.md`.
 - **BRAMU Intelligence V1** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **Experiencia inicial / validación por parejas / correcciones / pendientes** → `Experiencia_Inicial.md` + contrato técnico en `Backend_Infraestructura.md`.

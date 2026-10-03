@@ -40,11 +40,9 @@ La publicación semanal toma como referencia el patrón deportivo habitual de ra
 
 Ranking BRAMU depende de la normativa vigente de Nivel BRAMU:
 
-1. `Nivel_BRAMU_Formula_V1.5.md` — fórmula y parámetros.
-2. `Nivel_BRAMU_Implementacion.md` — contrato de implementación y versionado.
-3. `Nivel_BRAMU.md` — contexto funcional y estados.
-4. `Experiencia_Inicial.md` — reglas de entrada temprana y progresión del usuario.
-5. `BRAMUlab_Backlog.md` — validación de partidos y decisiones futuras relacionadas.
+1. `Nivel_BRAMU.md` — fuente maestra única de Nivel (fórmula, motor, estados, contrato de implementación y versionado).
+2. `Experiencia_Inicial.md` — reglas de entrada temprana y progresión del usuario.
+3. `BRAMUlab_Backlog.md` — validación de partidos y decisiones futuras relacionadas.
 
 Ranking no modifica la fórmula de Nivel BRAMU.
 

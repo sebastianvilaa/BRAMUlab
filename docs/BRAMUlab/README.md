@@ -1,10 +1,10 @@
 # BRAMUlab — documentación activa
 
-**Estado del producto:** BRAMUlab **V04.28 / bundle 04.28-h3** en `staging`. Nivel inicial **V1.3** (`nivel_inicial_v1_3`) está implementado con cuestionario adaptativo de 5 preguntas y slider discreto; el motor posterior sigue siendo `nivel_bramu_v1_0`. Central ya desplegó `officialize-onboarding` en Staging (**ACTIVE v13, JWT ON**), verificó que las cuentas V1.1/V1.2 existentes no cambiaron y confirmó una alta real V1.3 server-backed. La primera QA humana en iPhone pasó la lógica/adaptatividad y originó el pulido h3 (intro legible, slider con 4 anclas visibles + pico + énfasis ponderado, número ámbar en CALIBRANDO, fix de volver desde OTP y tarjeta Estado Cero). **Pendiente únicamente QA humano final de h3 y, después del PASS, consolidación de `Nivel_BRAMU.md` como fuente maestra única y cierre de Issue #25.** Ver `Implementacion/Pre_Production/113_Handoff_V0428_h3_QA_Humano_02OCT.md` y `114_Resultado_V0428_h3_Pulido_QA_02OCT.md`.
+**Estado del producto:** BRAMUlab **V04.28 / bundle 04.28-h7** en `staging`. **Nivel BRAMU V1.3 está cerrado en Staging**: estimador inicial `nivel_inicial_v1_3` (cuestionario adaptativo de 5 preguntas con slider discreto, sin camino rápido), motor posterior de partidos `nivel_bramu_v1_0`, Edge Function `officialize-onboarding` ACTIVE v13 (JWT ON), QA técnico y QA humano en iPhone completados (03/10/2026). No está desplegado en Production. **`Nivel_BRAMU.md` es la única fuente maestra de Nivel.**
 
 **Base estable anterior:** BRAMUlab **V03.10**  
 **Suite técnica h21:** **365/365 Node + 1565/1565 tests.html**  
-**Actualización documental:** 2 de octubre de 2026
+**Actualización documental:** 3 de octubre de 2026
 
 Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, desarrollo debe empezar acá y leer solo la fuente maestra del sistema involucrado.
 
@@ -45,7 +45,7 @@ Implementación en curso, por bloques, sobre `Backend_Infraestructura.md` (fuent
 
 **Bloque 2 (Auth, perfil, username, ubicación, recuperación) está CERRADO** (18/09/2026): validado de punta a punta contra Supabase Staging real y la app real de Staging, con una cuenta real — migración, RLS, trigger, RPCs, signup/confirmación, logout/login, segunda sesión limpia, recuperación de contraseña y username duplicado. Pusheado únicamente a la rama `staging`, nunca a `main`. Ver la sección "Bloque 2" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` para el detalle completo.
 
-**Bloque 3 (Nivel productivo y persistente) está CERRADO** (19/09/2026): onboarding real con confirmación diferida, perfil mínimo, `level_states`/`level_events`, Edge Function `officialize-onboarding`, RPC privada, estimador universal `nivel_inicial_v1_2`, confirmación final y anticipada, refresh/reanudación, caminos rápido/completo, idempotencia y paridad navegador/servidor quedaron validados contra Supabase/Vercel Staging real. La corrida final sobre HEAD funcional `7b24979a` dio **BLOQUE 2 OK**, **BLOQUE 3 OK** y **PARIDAD OK**. Ver `Implementacion/Backend/Bloque_03/12_Cierre_Bloque_03.md` y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
+**Bloque 3 (Nivel productivo y persistente) está CERRADO** (19/09/2026): onboarding real con confirmación diferida, perfil mínimo, `level_states`/`level_events`, Edge Function `officialize-onboarding`, RPC privada, estimador inicial (entonces `nivel_inicial_v1_2`, reemplazado luego por `nivel_inicial_v1_3`: ver `Nivel_BRAMU.md`), confirmación final y anticipada, refresh/reanudación, idempotencia y paridad navegador/servidor quedaron validados contra Supabase/Vercel Staging real. La corrida final sobre HEAD funcional `7b24979a` dio **BLOQUE 2 OK**, **BLOQUE 3 OK** y **PARIDAD OK**. Ver `Implementacion/Backend/Bloque_03/12_Cierre_Bloque_03.md` y la sección "Bloque 3" de `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
 
 Localidad y rama siguen sin bloquear Nivel/Home/primer partido y se piden recién al entrar a Ranking. Desde 24/09/2026 la participación en Ranking es automática al cumplir elegibilidad; `ranking_opt_in` queda como compatibilidad legacy.
 
@@ -83,7 +83,7 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 
 | Sistema | Fuente maestra / precedencia | Estado |
 |---|---|---|
-| **Nivel BRAMU** | `Nivel_BRAMU_Formula_V1.5.md` → `Nivel_BRAMU_Implementacion.md` → `Nivel_BRAMU.md` | Motor + estimador implementados en V04; pendiente validación real/integración posterior |
+| **Nivel BRAMU** | `Nivel_BRAMU.md` (única fuente maestra) | V1.3 CERRADO en Staging (V04.28 / 04.28-h7); pendiente de promoción a Production |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
 | **Cargar partido** | `Cargar_Partido.md` | Fuente maestra del flujo (V04.24: modo resultado, Fecha/Hora/Lugar). |
 | **Grupos BRAMU** | `Grupos_BRAMU.md` | B2c (foto server-backed V04.14) CERRADO en Staging con QA visual PASS. En curso: cierre de producto/UX post-B2c (§26) antes del QA integral final (Issue #6). |
@@ -93,16 +93,14 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **Privacidad / Legal** | `Privacidad_Legal.md` → `Pre_Production.md` P0.2 | Decisiones humanas cerradas; sin revisión jurídica externa obligatoria; pendientes redacción final, verificación interna e implementación/QA |\n| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Consolidado activo: Grupos productivo, Legal/Privacidad, eliminación de cuenta y hardening final |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
-### Precedencia de Nivel
+### Nivel BRAMU — fuente única
 
-`Nivel_BRAMU_Formula_V1.5.md` es la **fuente normativa vigente**.
+`Nivel_BRAMU.md` contiene toda la definición vigente: escala y estados, onboarding V1.3, fórmula inicial, calibración y recalibración, motor de partidos, confiabilidad, invitados, persistencia/versionado, UX, tratamiento de cuentas existentes y evidencia de cierre. No hay documentos de fórmula ni de implementación aparte.
 
-- Motor de partidos: `nivel_bramu_v1_0` — conservado sin cambios.
-- Estimador inicial: `nivel_inicial_v1_3` (V04.28, implementado en `staging`, pendiente QA humano) — cuestionario universal adaptativo de 5 preguntas; reemplaza a `nivel_inicial_v1_2` (que las cuentas ya creadas conservan sin recalcular). Handoff 111 = referencia temporal hasta la consolidación en `Nivel_BRAMU.md`.
-- `Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico y vive en `Archivo/Nivel_BRAMU/`.
-- Los handoffs del cuestionario V1.5 ya fueron consumidos y también viven en Archivo.
-
-Si un documento vigente anterior todavía menciona V1.4 como autoridad, **no reabrir la definición**: aplicar V1.5 como precedencia. Las referencias a V1.4 describen el motor heredado que V1.5 conserva, no un cuestionario vigente.
+- Estimador inicial: `nivel_inicial_v1_3` (`questionnaire_mode = full`).
+- Motor de partidos: `nivel_bramu_v1_0`, sin cambios.
+- Las cuentas V1.1/V1.2 existentes conservaron su Nivel; no se recalcularon.
+- Los documentos de Nivel anteriores y los handoffs de V1.3 fueron retirados del árbol; su historia vive en Git.
 
 ### Ranking semanal
 
@@ -130,7 +128,7 @@ Solo documentos que pueden ser necesarios para tomar decisiones actuales:
 - `Metodo_Trabajo.md` — guía operativa de coordinación de agentes, commits, pruebas y deploys;
 - `BRAMUlab_Backlog.md`;
 - `Experiencia_Inicial.md`;
-- fuentes maestras de Nivel;
+- `Nivel_BRAMU.md` (fuente maestra de Nivel);
 - `Ranking_BRAMU.md`;
 - `Grupos_BRAMU.md`;
 - `BRAMU_Intelligence.md` y su implementación;
@@ -188,9 +186,7 @@ La reorganización documental del 15/09/2026 quedó registrada en:
 
 ### Nivel BRAMU
 
-Implementado localmente detrás del flujo/preview vigente hasta V04.10 (motor matemático puro, elegibilidad/invitados/repetición/círculo competitivo, estimador inicial V1.1, onboarding rápido/completo, categoría contextual, presentación en Home/Perfil/Perfil público, laboratorio de prueba, 1408/1408 tests).
-
-**Backend Bloque 3 (19/09/2026, CERRADO)** agrega la persistencia server-side real: `level_states`/`level_events`, estado `PENDIENTE` explícito (creado por `handle_email_confirmed` apenas hay `player_id`, incluso si el email se confirma antes de terminar el resto del onboarding), y la oficialización atómica/idempotente vía la Edge Function `officialize-onboarding` + la RPC privada `officialize_level_onboarding` — el motor sigue siendo el mismo archivo JS que usa el navegador (symlink real, nunca una copia), nunca se reimplementó en SQL. El laboratorio de prueba queda oculto en Production (visible en Development/Staging). Detalle completo en `Implementacion/Backend/Bloque_03/`.
+**V1.3 cerrado en Staging.** Estimador inicial universal (`nivel_inicial_v1_3`): cinco preguntas adaptativas (panorama, ritmo, ataque, defensa, decisiones), slider discreto de 10 posiciones, resultado numérico + `CALIBRANDO`, sin camino rápido ni categoría local. Motor de partidos `nivel_bramu_v1_0` (expectativa, confiabilidad, repetición, círculo competitivo, invitados). Persistencia server-side (`level_states`/`level_events`) y oficialización atómica e idempotente vía la Edge Function `officialize-onboarding` + RPC privada, sobre el mismo archivo JS que usa el navegador. Validación de partidos, actualización partido a partido y correcciones cerradas en Backend Bloques 5–6. Pendiente: UI de recalibración y promoción a Production. Todo el detalle está en `Nivel_BRAMU.md`.
 
 ### Grupos BRAMU
 
@@ -261,8 +257,8 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 
 ## 7. Qué leer según el pedido
 
-- **“Seguir con Nivel BRAMU / V04”** → este README + `Nivel_BRAMU_Formula_V1.5.md` y, si corresponde, la última sección de `BRAMUlab_V04_Informe.md`.
-- **“Ranking”** → `Ranking_BRAMU.md` + Nivel V1.5 solo donde Ranking dependa de Nivel.
+- **“Nivel BRAMU”** → este README + `Nivel_BRAMU.md` (y, solo si hace falta trazabilidad de una ronda, la sección concreta de `BRAMUlab_V04_Informe.md`).
+- **“Ranking”** → `Ranking_BRAMU.md` + `Nivel_BRAMU.md` solo donde Ranking dependa de Nivel.
 - **“Grupos / Race privada / puntos de grupo”** → `Grupos_BRAMU.md`.
 - **“Cargar partido / ingreso de resultado / Fecha-Hora-Lugar”** → `Cargar_Partido.md`.
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
