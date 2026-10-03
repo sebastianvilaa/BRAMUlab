@@ -327,9 +327,11 @@ No pasar a Bloque 9/Production hasta cerrar Fase B y QA multiusuario de Grupos.
 
 ---
 
-## P0.4C — Invitados, vinculación y recuperación de identidad — DECISIÓN CERRADA / IMPLEMENTACIÓN PENDIENTE
+## P0.4C — Invitados, vinculación y recuperación de identidad — CERRADO EN STAGING
 
 **Decisión de producto cerrada el 02–03/10/2026.** Fuente maestra técnica: `Backend_Infraestructura.md` §9. Fuentes derivadas: `Nivel_BRAMU.md`, `Ranking_BRAMU.md`, `Grupos_BRAMU.md` y `BRAMU_Intelligence.md`.
+
+**Estado al 03/10/2026:** **IMPLEMENTACIÓN + GATE TÉCNICO + QA VISUAL CERRADOS EN STAGING** sobre BRAMUlab V04.29 / `04.29-h2`. Central acepta como no bloqueantes los límites del QA 121 (sin inspección de consola/red y sin iPhone físico específico), porque el lifecycle real quedó verificado técnicamente en Staging y el flujo visual completo cerró con un único partido efectivo, `Pendientes 0` y sin corrección fantasma. No repetir el recorrido por esos límites. Evidencia: `Implementacion/Pre_Production/119_Resultado_Correccion_Gate_Invitados_V0429_h2_03OCT.md`, `120_Gate_Central_Tecnico_Invitados_V0429_h2_03OCT.md`, `121_QA_Visual_Invitados_V0429_h2_03OCT.md` y `122_Cierre_Central_Invitados_V0429_h2_03OCT.md`.
 
 Esta ronda reemplaza el claim básico limitado de Bloque 4 sin reabrir identidad por nombre ni construir fusiones genéricas de cuentas registradas.
 
