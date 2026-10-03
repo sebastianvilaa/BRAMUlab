@@ -71,11 +71,14 @@ Esto se registra como **smoke humano adicional**, no como sustituto de los gates
 4. Recién después decidir G3/G4.
 5. Production arranca limpia y primero la usa Sebastián; no se invita a terceros hasta smoke real de Production.
 
-## Limpieza de tracking
+## Tracking después de la consolidación
 
-- Issue #27: cerrar después de incorporar la rotación preventiva a `Metodo_Trabajo.md`.
-- Issue #16: V04.20 técnico está consumido por G1/G2 posteriores; cerrar.
-- Issue #18: duplicado/superado por #19, que ya cerró 9A; cerrar como duplicado.
-- Issues #4/#10: son áreas de trabajo temporales/desfasadas. Mantener como referencia solo hasta crear un tracking único de G3/G4/P0.2; no usarlos como fuente maestra.
-- Issue #23 permanece abierto hasta PASS humano final.
-- Issue #15 permanece como backlog menor no bloqueante; el residual del icono iOS ya fue verificado OK en G2, por lo que solo queda evaluar a futuro el atajo de Agregar jugador con grupo <3.
+Ejecutado el 03/10/2026:
+
+- **#28 — Pre-Production final — residuales QA + G3/G4:** nuevo tracking único vigente para la salida.
+- **#27:** cerrado completed después de incorporar rotación preventiva a `Metodo_Trabajo.md`.
+- **#16:** cerrado completed; V04.20 quedó consumido por G1/G2 posteriores.
+- **#18:** cerrado duplicate; #19 ya cerró 9A.
+- **#4 y #10:** cerrados como tracking histórico/superado; **esto no significa P0.2 publicable cerrado**. El remanente Legal vive en fuente maestra + #28.
+- **#23:** permanece abierto hasta PASS humano final de ayuda/desglose V04.24.
+- **#15:** permanece abierto únicamente como backlog P1 no bloqueante del atajo `+ AGREGAR JUGADOR` con grupo <3; el icono iOS ya fue PASS en G2.
