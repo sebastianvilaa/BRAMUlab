@@ -2659,7 +2659,9 @@
     return Number.isFinite(t) && Date.now() <= t + days * 86400000;
   }
   function b6CorrectionWindowOpen(f) {
-    return !!(f && f.status === 'validated' && b6WindowStillOpen(f.validatedAt, 3));
+    // V04.29-h2 — una corrección de origen duplicado (reconciliación tras vincular una identidad) puede ser de un partido histórico: no vence a
+    // los 3 días. La ventana ordinaria de correcciones normales queda exactamente igual (el servidor es la autoridad).
+    return !!(f && f.status === 'validated' && (b6WindowStillOpen(f.validatedAt, 3) || (f.pendingCorrectionOrigin === 'duplicate' && !!f.pendingCorrectionRevisionId)));
   }
   function b6IdentityReportWindowOpen(f) {
     if (!f) return false;
@@ -14596,7 +14598,10 @@
           close();
           if (decision === 'same') {
             await refreshAfterIdentityChange(); // el self-heal oficializa un partido que quedó listo para validar
-            showToast('Listo. Unificamos los dos partidos en uno.', 3600);
+            // V04.29-h2 — el backend distingue "terminado" de "esperando a la otra pareja" (scores distintos): nunca afirmar que se unificó si no.
+            showToast(r.code === 'merge_pending_confirmation'
+              ? 'Listo. El resultado quedó pendiente de confirmación de la otra pareja.'
+              : 'Listo. Unificamos los dos partidos en uno.', 4200);
           } else {
             showToast('Listo. Conservamos los dos partidos.', 3000);
           }
@@ -14608,7 +14613,9 @@
         }
         err.textContent = r && r.code === 'rate_limited'
           ? 'Hiciste demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.'
-          : 'No pudimos guardar tu respuesta. Probá de nuevo en un momento.';
+          : (r && (r.code === 'correction_already_pending' || r.code === 'identity_issue_open'))
+            ? 'Uno de los partidos tiene una corrección o una identidad pendiente. Resolvela primero y volvé a intentar.'
+            : 'No pudimos guardar tu respuesta. Probá de nuevo en un momento.';
         err.hidden = false;
         later.hidden = false;
         same.disabled = false; different.disabled = false;

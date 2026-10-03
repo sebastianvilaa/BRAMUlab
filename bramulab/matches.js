@@ -118,6 +118,8 @@
       // Claude.md, ver 20260921220000_bloque6_read_rpcs.sql): distingue "corrección propuesta"/
       // "identidad cuestionada" de un pendiente accionable normal, sin tocar ningún campo previo.
       pendingCorrectionRevisionId: row.pending_correction_revision_id || null,
+      // V04.29-h2 — 'duplicate' = la corrección pendiente nació de reconciliar un posible duplicado tras vincular una identidad: no vence a los 3 días.
+      pendingCorrectionOrigin: row.pending_correction_origin || null,
       hasOpenIdentityIssue: !!row.has_open_identity_issue,
     };
   }

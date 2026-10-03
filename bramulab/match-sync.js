@@ -179,6 +179,7 @@
       // se deriva el booleano desde el array cuando está disponible, nunca al revés (el array
       // nunca se inventa desde el booleano). `pendingCorrectionRevisionId` viene igual de ambas.
       pendingCorrectionRevisionId: row.pendingCorrectionRevisionId || null,
+      pendingCorrectionOrigin: row.pendingCorrectionOrigin || null,
       openIdentityIssues,
       hasOpenIdentityIssue: openIdentityIssues ? openIdentityIssues.length > 0 : !!row.hasOpenIdentityIssue,
       // Solo get_match_detail la trae (get_my_matches no) — se usa para derivar client-side

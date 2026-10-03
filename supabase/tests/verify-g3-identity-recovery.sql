@@ -216,7 +216,10 @@ begin
   foreach v_fn in array array[
     'public._can_invite_provisional(uuid,uuid)', 'public._detect_duplicate_candidates(uuid,uuid,uuid)',
     'public._fold_pending_match_into(uuid,uuid,uuid)', 'public._duplicate_candidate_match_json(uuid,uuid)',
-    'public._level_recovery_counts(uuid)', 'public._redetect_duplicate_candidates_for_player(uuid)', 'public._match_time_window_equivalent(timestamptz,boolean,timestamptz,boolean)',
+    'public._level_recovery_counts(uuid)', 'public._redetect_duplicate_candidates_for_player(uuid)',
+    'public._level_evidence_counts(uuid,uuid)', 'public._lock_provisional_for_assignment(uuid)', 'public._lock_provisionals_for_assignment(uuid[])',
+    'public._pending_correction_is_duplicate_origin(uuid)', 'public._secondary_sets_oriented(uuid,uuid)', 'public._duplicate_scores_differ(uuid,uuid)',
+    'public._annul_match_as_duplicate(uuid,uuid,uuid,uuid)', 'public._finalize_duplicate_reconciliation(uuid,uuid,text)', 'public._match_time_window_equivalent(timestamptz,boolean,timestamptz,boolean)',
     'public._match_is_live_for_dedupe(text,timestamptz)',
     'public.get_identity_recovery_level_input(uuid)', 'public.list_identity_recoveries_pending_level(uuid)',
     'public.acquire_identity_recovery_level_lease(uuid,integer)', 'public.release_identity_recovery_level_lease(uuid,uuid,text)',
@@ -238,7 +241,7 @@ begin
   foreach v_fn in array array[
     'public.create_claim_link(uuid)', 'public.preview_claim_link(text)', 'public.claim_provisional_player(text)',
     'public.get_my_identity_recovery_status()', 'public.list_my_duplicate_match_candidates()', 'public.resolve_duplicate_match_candidate(uuid,text)',
-    'public.list_my_provisional_players()', 'public.list_related_provisional_players()'
+    'public.list_my_provisional_players()', 'public.list_related_provisional_players()', 'public.get_my_matches(integer,boolean)', 'public.get_match_detail(uuid)', 'public.get_notifications(integer,boolean)'
   ] loop
     perform pg_temp._assert(has_function_privilege('authenticated', v_fn, 'EXECUTE') and not has_function_privilege('anon', v_fn, 'EXECUTE'), 'L11 RPC de cliente solo authenticated: ' || v_fn);
   end loop;
@@ -253,6 +256,8 @@ begin
   perform pg_temp._assert(not exists (select 1 from pg_indexes where indexname = 'provisional_claims_one_pending_per_player'), 'L11 el índice viejo (un pending por provisional) ya no existe');
   perform pg_temp._assert(exists (select 1 from pg_indexes where indexname = 'player_identity_recoveries_one_completed_per_source'), 'L11 una sola recuperación exitosa por provisional');
   perform pg_temp._assert((select count(*) from pg_constraint where conrelid = 'public.level_recovery_effects'::regclass and conname = 'level_recovery_effects_recovery_match_key') = 1, 'L11 UNIQUE (recovery_id, match_id)');
+  perform pg_temp._assert(exists (select 1 from pg_indexes where indexname = 'match_participants_one_slot_per_player'), 'L11 H3 unicidad (match_id, player_id) como defensa en profundidad');
+  perform pg_temp._assert(pg_get_constraintdef((select oid from pg_constraint where conname = 'match_duplicate_candidates_status_check')) like '%awaiting_confirmation%', 'L11 H1 estado awaiting_confirmation');
 end $$;
 
 -- ================================ L12 : rate limits ================================

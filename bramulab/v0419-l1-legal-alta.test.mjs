@@ -481,11 +481,11 @@ test('Regresión: el flujo de onboarding conserva sus pasos (verify último, run
   assert.ok(!/signupDraft\.termsVersion|signup-terms-checkbox'\)\.checked = !!signupDraft/.test(appJs));
 });
 
-test('Versión: V04.29 / 04.29-h1 coherentes entre store/version.json/sw/index/manifest', () => {
+test('Versión: V04.29 / 04.29-h2 coherentes entre store/version.json/sw/index/manifest', () => {
   assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.29'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.29-h1'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.29', bundle: '04.29-h1' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-29-h1'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.29-h2'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.29', bundle: '04.29-h2' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-29-h2'/);
   assert.ok(!/04\.18-h1/.test(read('sw.js') + indexHtml + read('manifest.webmanifest')));
 });
 

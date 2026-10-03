@@ -196,6 +196,7 @@
   function hasActiveCorrectionWindow(m, now) {
     if (!m || m.status !== 'validated' || !m.pendingCorrectionRevisionId || !m.validatedAt) return false;
     const nowMs = (now instanceof Date ? now : new Date()).getTime();
+    if (m.pendingCorrectionOrigin === 'duplicate') return true; // V04.29-h2: reconciliación de duplicado, sin vencimiento de 3 días
     const validatedMs = new Date(m.validatedAt).getTime();
     return Number.isFinite(validatedMs) && nowMs <= validatedMs + 3 * 86400000;
   }

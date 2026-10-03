@@ -376,3 +376,60 @@ test('Resumen y arranque: renderAnalysis pinta Jugadores sin cuenta; initInvitat
   assert.match(appJs, /initB6ActionsSection\(\);\n    initInvitationFlow\(\);/);
   assert.match(cssText, /\.guests-row__btn\{/);
 });
+
+/* ================= 5. V04.29-h2 — duplicados con score distinto ================= */
+test('h2 · SÍ con score distinto NO afirma "Unificamos": avisa que el resultado quedó pendiente de la otra pareja; con merged sí unifica', async () => {
+  const cand = { candidateId: 'c1', matches: [{ matchId: 'm1', playedAt: '2026-09-20T22:30:00.000Z', participants: [], sets: [] }, { matchId: 'm2', playedAt: '2026-09-20T22:45:00.000Z', participants: [], sets: [] }] };
+  for (const [code, re, notRe] of [['merge_pending_confirmation', /pendiente de confirmación de la otra pareja/, /Unificamos/], ['merged', /Unificamos los dos partidos en uno/, /pendiente de confirmación/]]) {
+    const queue = [[cand], []];
+    const env = makeEnv({ auth: {
+      getIdentityRecoveryStatus: async () => ({ ok: true, pendingLevelRecoveries: 0, openDuplicateCandidates: 1 }),
+      listDuplicateMatchCandidates: async () => ({ ok: true, candidates: queue.shift() || [] }),
+      resolveDuplicateMatchCandidate: async () => ({ ok: true, code }),
+    } });
+    const p = env.fns.syncIdentityRecovery();
+    await new Promise((r) => setTimeout(r, 5));
+    await env.$('#duplicate-match-same-btn').onclick();
+    await p;
+    const toast = env.log.toasts.join(' | ');
+    assert.match(toast, re); assert.doesNotMatch(toast, notRe);
+  }
+});
+
+test('h2 · errores de negocio del ancla (corrección/identidad pendiente) se explican y dejan "Decidir después"', async () => {
+  const cand = { candidateId: 'c1', matches: [] };
+  const env = makeEnv({ auth: {
+    getIdentityRecoveryStatus: async () => ({ ok: true, pendingLevelRecoveries: 0, openDuplicateCandidates: 1 }),
+    listDuplicateMatchCandidates: async () => ({ ok: true, candidates: [cand] }),
+    resolveDuplicateMatchCandidate: async () => ({ ok: false, code: 'correction_already_pending' }),
+  } });
+  const p = env.fns.syncIdentityRecovery();
+  await new Promise((r) => setTimeout(r, 5));
+  await env.$('#duplicate-match-same-btn').onclick();
+  assert.match(env.$('#duplicate-match-error').textContent, /corrección o una identidad pendiente/);
+  assert.equal(env.$('#duplicate-match-later-btn').hidden, false);
+  env.$('#duplicate-match-later-btn').onclick();
+  await p;
+});
+
+test('h2 · una corrección de origen duplicado no vence a los 3 días (cliente) y la ordinaria conserva exactamente la ventana', () => {
+  const win = between(appJs, '  function b6CorrectionWindowOpen(f) {', '  function b6IdentityReportWindowOpen');
+  assert.match(win, /b6WindowStillOpen\(f\.validatedAt, 3\)/);
+  assert.match(win, /pendingCorrectionOrigin === 'duplicate' && !!f\.pendingCorrectionRevisionId/);
+  const sandbox = { window: {}, console };
+  sandbox.window = sandbox; sandbox.globalThis = sandbox;
+  sandbox.PLStore = {}; sandbox.PLEngine = {};
+  vm.createContext(sandbox);
+  vm.runInContext(read('player-home.js'), sandbox);
+  const PH = sandbox.PLPlayerHome;
+  const old = new Date(Date.now() - 20 * 86400000).toISOString();
+  assert.equal(PH.hasActiveCorrectionWindow({ status: 'validated', pendingCorrectionRevisionId: 'r', validatedAt: old, pendingCorrectionOrigin: 'duplicate' }), true);
+  assert.equal(PH.hasActiveCorrectionWindow({ status: 'validated', pendingCorrectionRevisionId: 'r', validatedAt: old, pendingCorrectionOrigin: null }), false);
+  assert.equal(PH.hasActiveCorrectionWindow({ status: 'validated', pendingCorrectionRevisionId: 'r', validatedAt: new Date().toISOString() }), true);
+});
+
+test('h2 · matches.js y match-sync.js propagan pendingCorrectionOrigin desde get_my_matches y get_match_detail', () => {
+  assert.match(read('matches.js'), /pendingCorrectionOrigin: row\.pending_correction_origin \|\| null/);
+  assert.match(read('match-sync.js'), /pendingCorrectionOrigin: row\.pendingCorrectionOrigin \|\| null/);
+  assert.match(read('version.json'), /04\.29-h2/);
+});

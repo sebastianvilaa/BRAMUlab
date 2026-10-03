@@ -644,3 +644,213 @@ scenario('carrera create-or-attach vs vínculo: un partido nacido con la huella 
   assert.equal((await rpcAs(t.uid, 'get_my_identity_recovery_status')).openDuplicateCandidates, 1, 'idempotente: no duplica candidatos');
   assert.equal((await q(`select count(*)::int n from public.match_duplicate_candidates`))[0].n, 1);
 });
+
+// ================================================================== V04.29-h2 — gate de Central (118)
+async function dupWorld({ s1 = [[6, 4], [6, 3]], s2 = [[6, 2], [6, 2]], v1 = true, v2 = true, days = 9 } = {}) {
+  const w = await world({ matches: 0 });
+  const t = await mkUser('DupT', { status: 'CALIBRANDO', mu: 4.0, confidence: 0.5 });
+  const m1 = await mkMatch({ creator: w.seba, slots: [w.seba.pid, w.pedro, w.matu.pid, w.lucho.pid], names: ['Seba', 'Pedro', 'Matu', 'Lucho'], daysAgo: days, validated: v1, validatedAfterDays: 1, sets: s1,
+    result: v1 ? { priors: priors([w.seba.pid, 5.5, 0.8], [w.matu.pid, 5.0, 0.75], [w.lucho.pid, 4.5, 0.7]) } : null });
+  const m2 = await mkMatch({ creator: t, slots: [w.seba.pid, t.pid, w.matu.pid, w.lucho.pid], names: ['Seba', 'DupT', 'Matu', 'Lucho'], daysAgo: days, validated: v2, validatedAfterDays: 2, sets: s2,
+    result: v2 ? { priors: priors([w.seba.pid, 5.5, 0.8], [t.pid, 4.0, 0.5, 'CALIBRANDO'], [w.matu.pid, 5.0, 0.75], [w.lucho.pid, 4.5, 0.7]) } : null });
+  const r = await claim(t, await inviteToken(w.seba, w.pedro));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  await processIdentityRecoveryLevel(svc, r.recoveryId);
+  const cands = await rpcAs(t.uid, 'list_my_duplicate_match_candidates');
+  assert.equal(cands.candidates.length, 1);
+  return { w, t, m1, m2, r, cid: cands.candidates[0].candidateId };
+}
+const appliedCount = async (matchIds, pid) => (await one(`select count(distinct mlr.match_id)::int n from public.match_level_result_players mlrp join public.match_level_results mlr on mlr.result_id = mlrp.result_id
+   where mlrp.player_id = $1 and mlr.effect_status = 'applied' and mlr.eligible and mlr.match_id = any($2::uuid[])`, [pid, matchIds])).n;
+const levelSnap = async (...pids) => JSON.stringify(await q(`select player_id, status, mu::text, confidence::text, evidence_units::text, rated_matches, distinct_opponents from public.level_states where player_id = any($1::uuid[]) order by player_id`, [pids]));
+
+scenario('H1·1 validated + validated, MISMO score: SÍ => merge inmediato (code merged), un único efecto, idempotente', async () => {
+  const { w, t, m1, m2, cid } = await dupWorld({ s2: [[6, 4], [6, 3]] });
+  const res = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(res.ok, true); assert.equal(res.code, 'merged');
+  assert.equal((await one(`select status from public.matches where match_id = $1`, [m2.match_id])).status, 'annulled');
+  for (const pid of [w.seba.pid, w.matu.pid, w.lucho.pid, t.pid]) assert.equal(await appliedCount([m1.match_id, m2.match_id], pid), 1, 'un único efecto por jugador');
+  const again = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(again.idempotentReturn, true); assert.equal(again.code, 'merged');
+});
+
+scenario('H1·2 validated + validated, score DISTINTO: SÍ NO anula ni revierte nada; queda esperando a la pareja contraria y no vuelve a preguntar', async () => {
+  const { w, t, m1, m2, cid } = await dupWorld();
+  const before = await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid);
+  const res = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(res.ok, true, JSON.stringify(res)); assert.equal(res.code, 'merge_pending_confirmation');
+  assert.equal(res.canonicalMatchId, m1.match_id, 'ancla técnica = validado más antiguo (NO implica que su score sea la verdad)');
+  assert.equal((await one(`select status from public.matches where match_id = $1`, [m2.match_id])).status, 'validated', 'el secundario NO se anula todavía');
+  assert.equal((await q(`select count(*)::int n from public.match_level_results where match_id in ($1,$2) and effect_status = 'applied'`, [m1.match_id, m2.match_id]))[0].n, 2, 'ningún efecto revertido todavía');
+  assert.equal(await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid), before, 'ningún Nivel se tocó');
+  const pend = await one(`select pending_correction_revision_id, current_revision_id from public.matches where match_id = $1`, [m1.match_id]);
+  assert.ok(pend.pending_correction_revision_id && pend.pending_correction_revision_id !== pend.current_revision_id, 'corrección propuesta sobre el ancla');
+  const sets = await q(`select games_a, games_b from public.match_sets ms join public.match_revisions r on r.match_id = ms.match_id and r.revision_number = ms.revision_number where r.revision_id = $1 order by set_number`, [pend.pending_correction_revision_id]);
+  assert.deepEqual(sets.map((s) => [s.games_a, s.games_b]), [[6, 2], [6, 2]], 'el score del otro registro viaja como revisión alternativa');
+  assert.equal((await rpcAs(t.uid, 'list_my_duplicate_match_candidates')).candidates.length, 0, 'el modal SÍ/NO no vuelve al iniciador');
+  assert.equal((await rpcAs(t.uid, 'get_my_identity_recovery_status')).openDuplicateCandidates, 0);
+  const again = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(again.idempotentReturn, true); assert.equal(again.code, 'merge_pending_confirmation');
+  assert.equal((await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'different'])).code, 'already_resolved');
+  // la propuesta es de MI pareja: yo no puedo responderla; la contraria sí la ve (partido histórico > 3 días)
+  const own = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: t.uid, p_match_id: m1.match_id, p_accept: true })).data;
+  assert.equal(own.code, 'cannot_respond_to_own_proposal');
+  const notif = await rpcAs(w.matu.uid, 'get_notifications', [50, false]).catch(async () => (await db.query(`select * from public.get_notifications(50,false)`)).rows);
+  void notif;
+  await asUser(w.matu.uid);
+  const rows = (await db.query(`select type, match_id from public.get_notifications(50, false)`)).rows;
+  assert.ok(rows.some((n) => n.type === 'correction_proposed' && n.match_id === m1.match_id), 'la pareja contraria recibe la tarea aunque el partido sea histórico');
+});
+
+scenario('H1·3 validated + validated distinto + la pareja contraria ACEPTA: queda el score alternativo, recién ahí se anula el secundario, un solo efecto, retry idempotente', async () => {
+  const { w, t, m1, m2, cid } = await dupWorld();
+  const unrelated = await mkMatch({ creator: w.seba, slots: [w.seba.pid, w.nico.pid, w.matu.pid, w.lucho.pid], names: ['Seba', 'Nico', 'Matu', 'Lucho'], daysAgo: 20, result: { priors: priors([w.seba.pid], [w.nico.pid, 6.0, 0.7], [w.matu.pid], [w.lucho.pid]) } });
+  const unrelatedRows = JSON.stringify(await q(`select player_id, mu_after::text, delta_capped::text from public.match_level_result_players where result_id = $1 order by player_id`, [unrelated.resultId]));
+  assert.equal((await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same'])).code, 'merge_pending_confirmation');
+  const resp = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.matu.uid, p_match_id: m1.match_id, p_accept: true })).data;
+  assert.equal(resp.ok, true, JSON.stringify(resp));
+  const off = await officializeMatch(svc, m1.match_id, 'correction_accepted', w.matu.pid, null);
+  assert.equal(off.ok, true, JSON.stringify(off));
+  const cur = await q(`select ms.games_a, ms.games_b from public.matches m join public.match_revisions r on r.revision_id = m.current_revision_id join public.match_sets ms on ms.match_id = m.match_id and ms.revision_number = r.revision_number where m.match_id = $1 order by ms.set_number`, [m1.match_id]);
+  assert.deepEqual(cur.map((s) => [s.games_a, s.games_b]), [[6, 2], [6, 2]], 'quedó el score alternativo');
+  assert.equal((await one(`select status from public.matches where match_id = $1`, [m2.match_id])).status, 'annulled', 'recién ahora se anula el secundario');
+  assert.equal((await one(`select effect_status from public.match_level_results where result_id = $1`, [m2.resultId])).effect_status, 'reverted');
+  for (const pid of [w.seba.pid, w.matu.pid, w.lucho.pid, t.pid]) assert.equal(await appliedCount([m1.match_id, m2.match_id], pid), 1, 'un solo efecto deportivo por jugador');
+  const c = await one(`select status, resolution from public.match_duplicate_candidates where candidate_id = $1`, [cid]);
+  assert.equal(c.status, 'resolved_same'); assert.equal(c.resolution.finalizedBy, 'accepted'); assert.equal(c.resolution.chosenScore, 'alternative');
+  assert.equal(JSON.stringify(await q(`select player_id, mu_after::text, delta_capped::text from public.match_level_result_players where result_id = $1 order by player_id`, [unrelated.resultId])), unrelatedRows, 'partidos ajenos intactos (sin cascada)');
+  // retry idempotente
+  const retry = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.matu.uid, p_match_id: m1.match_id, p_accept: true })).data;
+  assert.equal(retry.ok, true); assert.equal(retry.idempotentReturn, true);
+  const off2 = await officializeMatch(svc, m1.match_id, 'correction_accepted', w.matu.pid, null);
+  assert.equal(off2.ok, false, 'sin corrección pendiente no reaplica');
+  const lv = await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid);
+  const again = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(again.idempotentReturn, true); assert.equal(again.code, 'merged');
+  assert.equal(await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid), lv);
+});
+
+scenario('H1·4 validated + validated distinto + la pareja contraria RECHAZA: se conserva el score vigente, recién ahí se anula el secundario, un solo efecto', async () => {
+  const { w, t, m1, m2, cid } = await dupWorld();
+  await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  const resp = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.lucho.uid, p_match_id: m1.match_id, p_accept: false })).data;
+  assert.equal(resp.ok, true); assert.equal(resp.code, 'correction_rejected');
+  const cur = await q(`select ms.games_a, ms.games_b from public.matches m join public.match_revisions r on r.revision_id = m.current_revision_id join public.match_sets ms on ms.match_id = m.match_id and ms.revision_number = r.revision_number where m.match_id = $1 order by ms.set_number`, [m1.match_id]);
+  assert.deepEqual(cur.map((s) => [s.games_a, s.games_b]), [[6, 4], [6, 3]], 'se mantiene el score canónico');
+  assert.equal((await one(`select status from public.matches where match_id = $1`, [m2.match_id])).status, 'annulled');
+  for (const pid of [w.seba.pid, w.matu.pid, w.lucho.pid, t.pid]) assert.equal(await appliedCount([m1.match_id, m2.match_id], pid), 1);
+  const c = await one(`select status, resolution from public.match_duplicate_candidates where candidate_id = $1`, [cid]);
+  assert.equal(c.status, 'resolved_same'); assert.equal(c.resolution.finalizedBy, 'rejected'); assert.equal(c.resolution.chosenScore, 'current');
+  const lv = await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid);
+  const again = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(again.idempotentReturn, true); assert.equal(again.code, 'merged');
+  assert.equal(await levelSnap(w.seba.pid, w.matu.pid, w.lucho.pid, t.pid), lv);
+});
+
+scenario('H1·5 validated + pending con score distinto: la declaración pending NO se pierde (queda como corrección pendiente) y finaliza tras la respuesta', async () => {
+  const { w, t, m1, m2, cid } = await dupWorld({ v2: false });
+  const res = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(res.code, 'merge_pending_confirmation');
+  assert.equal((await one(`select status from public.matches where match_id = $1`, [m2.match_id])).status, 'annulled', 'el pending (sin efecto) se anula: su score ya viajó en la revisión');
+  const pend = await one(`select pending_correction_revision_id from public.matches where match_id = $1`, [m1.match_id]);
+  assert.ok(pend.pending_correction_revision_id);
+  assert.equal((await one(`select effect_status from public.match_level_results where result_id = $1`, [m1.resultId])).effect_status, 'applied', 'el efecto del validado sigue');
+  assert.equal((await one(`select status from public.match_duplicate_candidates where candidate_id = $1`, [cid])).status, 'awaiting_confirmation');
+  const resp = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.matu.uid, p_match_id: m1.match_id, p_accept: true })).data;
+  assert.equal(resp.ok, true);
+  assert.equal((await officializeMatch(svc, m1.match_id, 'correction_accepted', w.matu.pid, null)).ok, true);
+  assert.equal((await one(`select status from public.match_duplicate_candidates where candidate_id = $1`, [cid])).status, 'resolved_same');
+  assert.equal((await q(`select count(*)::int n from public.match_level_results where match_id = $1 and effect_status = 'applied'`, [m1.match_id]))[0].n, 1);
+  void m2;
+});
+
+scenario('H1·6 pending + pending con score distinto: se conserva la regresión vigente (pliegue como revisión propuesta, code merged)', async () => {
+  const { t, cid } = await dupWorld({ v1: false, v2: false });
+  const res = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(res.ok, true, JSON.stringify(res)); assert.equal(res.code, 'merged'); assert.equal(res.fold.outcome, 'revised');
+});
+
+scenario('H1·7 histórico > 3 días: la corrección de origen duplicado se responde; la corrección ORDINARIA vencida sigue respetando 3 días', async () => {
+  const { w, t, m1, cid } = await dupWorld({ days: 30 });
+  await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  const ok = (await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.matu.uid, p_match_id: m1.match_id, p_accept: false })).data;
+  assert.equal(ok.code, 'correction_rejected', 'responde aunque validated_at tenga 29 días');
+  // ordinaria: proponer fuera de ventana se rechaza
+  const w2 = await world({ matches: 0 });
+  const old = await mkMatch({ creator: w2.seba, slots: [w2.seba.pid, w2.nico.pid, w2.matu.pid, w2.lucho.pid], names: ['Seba', 'Nico', 'Matu', 'Lucho'], daysAgo: 10, validatedAfterDays: 1,
+    result: { priors: priors([w2.seba.pid], [w2.nico.pid, 6.0, 0.7], [w2.matu.pid], [w2.lucho.pid]) } });
+  const sets = [{ gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }, { gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }];
+  assert.equal((await svc.rpc('propose_post_validation_correction', { p_auth_user_id: w2.seba.uid, p_match_id: old.match_id, p_sets: sets })).data.code, 'correction_window_expired');
+  // una ordinaria que quedó pendiente y venció: responder la limpia y devuelve window_expired; get_notifications no la muestra
+  const rev = (await one(`insert into public.match_revisions (match_id, revision_number, proposed_by_player_id, proposed_by_team, source, played_at) values ($1, 2, $2, 'A', 'proposed_correction', now()) returning revision_id`, [old.match_id, w2.seba.pid])).revision_id;
+  await q(`update public.matches set pending_correction_revision_id = $2 where match_id = $1`, [old.match_id, rev]);
+  await asUser(w2.matu.uid);
+  assert.ok(!(await db.query(`select type, match_id from public.get_notifications(50, false)`)).rows.some((n) => n.type === 'correction_proposed'), 'la ordinaria vencida NO aparece');
+  assert.equal((await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w2.matu.uid, p_match_id: old.match_id, p_accept: true })).data.code, 'correction_window_expired');
+});
+
+scenario('H1·8 ancla con corrección ordinaria pendiente o incidencia abierta: SÍ responde un estado de negocio y no muta nada', async () => {
+  const { w, t, m1, cid } = await dupWorld({ days: 2 });
+  const sets = [{ gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }, { gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }];
+  assert.equal((await svc.rpc('propose_post_validation_correction', { p_auth_user_id: w.seba.uid, p_match_id: m1.match_id, p_sets: sets })).data.ok, true);
+  const res = await rpcAs(t.uid, 'resolve_duplicate_match_candidate', [cid, 'same']);
+  assert.equal(res.ok, false); assert.equal(res.code, 'correction_already_pending');
+  assert.equal((await one(`select status from public.match_duplicate_candidates where candidate_id = $1`, [cid])).status, 'open');
+});
+
+// ---- H2
+scenario('H2 los partidos recuperados SIN efecto de Nivel no aportan rated_matches ni rivales a distinct_opponents; 5+3 solo con partidos realmente computables', async () => {
+  const w = await world({ matches: 0 });
+  const t = await mkUser('Cnt', { status: 'CALIBRANDO', mu: 4.0, confidence: 0.5 });
+  const x = await mkUser('RivalX', { status: 'CALIBRADO', mu: 5, confidence: 0.7 });
+  const y = await mkUser('RivalY', { status: 'CALIBRADO', mu: 5, confidence: 0.7 });
+  // 5 partidos PROPIOS del target (ya computables, siempre contra Matu+Lucho): rated 5 pero solo 2 rivales distintos => CALIBRANDO.
+  const own = [];
+  for (let i = 0; i < 5; i += 1) {
+    own.push(await mkMatch({ creator: t, slots: [t.pid, w.seba.pid, w.matu.pid, w.lucho.pid], names: ['Cnt', 'Seba', 'Matu', 'Lucho'], daysAgo: 25 - i,
+      result: { priors: priors([t.pid, 4.0, 0.5, 'CALIBRANDO'], [w.seba.pid], [w.matu.pid], [w.lucho.pid]) } }));
+  }
+  await q(`update public.level_states set rated_matches = 5, distinct_opponents = 2 where player_id = $1`, [t.pid]);
+  // Recuperado con efecto (rivales Matu/Lucho) + recuperado FUERA DE VENTANA aunque su resultado quedó elegible (rivales exclusivos X/Y).
+  const ok = await mkMatch({ creator: w.seba, slots: [w.seba.pid, w.pedro, w.matu.pid, w.lucho.pid], names: ['Seba', 'Pedro', 'Matu', 'Lucho'], daysAgo: 6,
+    result: { priors: priors([w.seba.pid], [w.matu.pid], [w.lucho.pid]) } });
+  const pedro2 = await mkProvisional(w.seba, 'Pedro2');
+  const skipped = await mkMatch({ creator: w.seba, slots: [w.seba.pid, pedro2, x.pid, y.pid], names: ['Seba', 'Pedro2', 'RivalX', 'RivalY'], daysAgo: 70, validatedAfterDays: 45,
+    result: { priors: priors([w.seba.pid], [x.pid], [y.pid]) } });
+  const r1 = await claim(t, await inviteToken(w.seba, w.pedro));
+  const r2 = await claim(t, await inviteToken(w.seba, pedro2));
+  assert.equal((await processIdentityRecoveryLevel(svc, r1.recoveryId)).status, 'completed');
+  assert.equal((await processIdentityRecoveryLevel(svc, r2.recoveryId)).status, 'completed');
+  const eff = Object.fromEntries((await q(`select match_id, status from public.level_recovery_effects`)).map((e) => [e.match_id, e.status]));
+  assert.equal(eff[ok.match_id], 'applied');
+  assert.equal(eff[skipped.match_id], 'skipped_ineligible');
+  const stored = await levelOf(t.pid);
+  const truth = await one(`select rated_matches, distinct_opponents from public._level_evidence_counts($1, null)`, [t.pid]);
+  assert.equal(stored.rated_matches, 6, '5 propios + 1 recuperado con efecto');
+  assert.equal(truth.rated_matches, 6);
+  assert.equal(truth.distinct_opponents, 2, 'los rivales exclusivos del partido sin efecto (X/Y) NO cuentan');
+  // El mismo número sale de los tres caminos que recalculan contadores.
+  await q(`select public._bloque6_revert_applied_result($1)`, [own[4].match_id]); // reversión
+  let s = await levelOf(t.pid);
+  let tr = await one(`select rated_matches, distinct_opponents from public._level_evidence_counts($1, null)`, [t.pid]);
+  assert.deepEqual([s.rated_matches, s.distinct_opponents], [tr.rated_matches, tr.distinct_opponents]);
+  assert.deepEqual([s.rated_matches, s.distinct_opponents], [5, 2], 'tras revertir: 4 propios + 1 recuperado; X/Y siguen sin sumar');
+  assert.equal(s.status, 'CALIBRANDO', '5 partidos pero solo 2 rivales: no cierra');
+  const sets = [{ gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }, { gamesA: 3, gamesB: 6, tiebreakA: null, tiebreakB: null }];
+  await q(`update public.matches set validated_at = now() - interval '1 day' where match_id = $1`, [own[0].match_id]);
+  assert.equal((await svc.rpc('propose_post_validation_correction', { p_auth_user_id: t.uid, p_match_id: own[0].match_id, p_sets: sets })).data.ok, true);
+  assert.equal((await svc.rpc('respond_post_validation_correction', { p_auth_user_id: w.matu.uid, p_match_id: own[0].match_id, p_accept: true })).data.ok, true);
+  assert.equal((await officializeMatch(svc, own[0].match_id, 'correction_accepted', w.matu.pid, null)).ok, true);
+  s = await levelOf(t.pid);
+  tr = await one(`select rated_matches, distinct_opponents from public._level_evidence_counts($1, null)`, [t.pid]);
+  assert.deepEqual([s.rated_matches, s.distinct_opponents], [tr.rated_matches, tr.distinct_opponents], 'oficialización/corrección = misma verdad');
+  assert.equal(s.distinct_opponents, 2);
+  // recovery: un tercer partido computable contra RivalX+RivalY completa los 3+ rivales => ahí sí cierra 5+3.
+  const pedro3 = await mkProvisional(w.seba, 'Pedro3');
+  await mkMatch({ creator: w.seba, slots: [w.seba.pid, pedro3, x.pid, y.pid], names: ['Seba', 'Pedro3', 'RivalX', 'RivalY'], daysAgo: 4, result: { priors: priors([w.seba.pid], [x.pid], [y.pid]) } });
+  const r3 = await claim(t, await inviteToken(w.seba, pedro3));
+  assert.equal((await processIdentityRecoveryLevel(svc, r3.recoveryId)).status, 'completed');
+  s = await levelOf(t.pid);
+  assert.ok(s.distinct_opponents >= 3 && s.rated_matches >= 5);
+  assert.equal(s.status, 'CALIBRADO', '5+3 reales (partidos computables y sus rivales)');
+});
