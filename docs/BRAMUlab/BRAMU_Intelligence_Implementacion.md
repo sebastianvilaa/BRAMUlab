@@ -20,7 +20,7 @@ Desarrollo debe usar, en este orden:
 4. `Backend_Infraestructura.md` — autoridad para persistencia, identidad, seguridad, server-side y entornos.
 5. `Referencias/BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md` — proveedor, costos, privacidad y contingencia de la capa generativa.
 
-`Nivel_BRAMU_Formula_V1.4.md` es antecedente histórico. El motor de partidos que Intelligence consume sigue siendo `nivel_bramu_v1_0`, pero la fuente normativa vigente es V1.5.
+`Nivel_BRAMU.md` es la única fuente normativa vigente de Nivel. El motor de partidos que Intelligence consume sigue siendo `nivel_bramu_v1_0`; documentos de fórmulas anteriores son solo historia de Git y no autoridad activa.
 
 ---
 
@@ -186,6 +186,8 @@ Siempre debe existir fallback inmediato a plantillas. Apagar IA no apaga BRAMU I
 ### A — Datos y derivados
 
 Identidad estable, partido, fecha real, formato/score, historia personal vs oficial, rachas/forma/relaciones.
+
+La recuperación de una identidad provisional reutiliza este mismo contrato: al cambiar la identidad oficial de participantes, el fingerprint del prefijo cambia y fuerza replay de los checkpoints afectados. No crear una tabla paralela de “Intelligence recuperada”. Los snapshots históricos de Nivel/expectativa siguen siendo los originales del partido; solo cambia la pertenencia de esa historia a la identidad confirmada.
 
 ### B — Claims y evidencia
 
