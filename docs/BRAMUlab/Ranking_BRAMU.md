@@ -257,6 +257,19 @@ Mientras un jugador está recalibrando:
 - conserva su último Nivel consolidado válido para Ranking;
 - el nuevo valor provisional no altera su puesto hasta consolidarse y llegar al siguiente corte semanal.
 
+### 6.3 Recuperación de identidad e historial
+
+Una vinculación confirmada de una identidad provisional puede incorporar partidos/evidencia al jugador registrado y, según `Nivel_BRAMU.md`, modificar su **Nivel vigente** o completar calibración.
+
+Para Ranking:
+
+- una identidad provisional nunca ocupa posición por sí misma;
+- una recuperación no modifica ninguna `ranking_rows` de ediciones ya publicadas;
+- la edición publicada conserva exactamente el `player_id`, Nivel de corte, posición y universo que tenía al momento de publicación;
+- cualquier cambio de Nivel/elegibilidad producido por evidencia recuperada entra únicamente en el **siguiente corte semanal** que corresponda;
+- si una reconciliación posterior elimina un doble efecto deportivo, también impacta hacia adelante en el siguiente corte;
+- nunca se reconstruye una flecha histórica ni una posición pasada para “hacer como si” la recuperación hubiese ocurrido antes.
+
 ---
 
 ## 7. Inactividad
@@ -868,6 +881,7 @@ Al tocar Ranking ve la estructura de la sección atenuada y bloqueada, con un mo
     evolución futura conceptual, fuera de V1.
 32. Si faltan localidad o rama competitiva, la entrada a Ranking sigue visible pero la sección queda bloqueada por un modal que deriva al completado de esos datos.
 33. Con esos datos completos y Nivel `CALIBRANDO`, Ranking es explorable aunque el usuario todavía no tenga posición oficial propia.
+34. Una recuperación de identidad o deduplicación posterior nunca reescribe una edición ya publicada; el siguiente corte usa el Nivel/elegibilidad vigentes.
 34. La participación en Ranking es automática cuando el jugador cumple elegibilidad; no existe opt-in/opt-out ordinario.
 
 ---
