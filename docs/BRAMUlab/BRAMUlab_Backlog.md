@@ -1,7 +1,7 @@
 # BRAMUlab — Backlog vigente
 
 **Estado:** ideas y funciones futuras todavía no autorizadas para implementar.  
-**Actualización documental:** 18 de septiembre de 2026.  
+**Actualización documental:** 3 de octubre de 2026.  
 **Regla:** este archivo contiene solo futuro real. Lo ya definido o implementado vive en su fuente maestra correspondiente.
 
 ---
@@ -26,8 +26,8 @@ Si una idea de este backlog entra en desarrollo, primero debe pasar a un documen
 
 La arquitectura general y el ciclo básico de partido ya están definidos en `Backend_Infraestructura.md` y `Experiencia_Inicial.md`. Lo que sigue realmente pendiente incluye:
 
-- verificación reforzada de reclamo de identidades provisionales si el claim básico del lanzamiento inicial demuestra fricción;
-- detección y resolución de identidades provisionales duplicadas;
+- verificación reforzada adicional de identidad (más allá del bearer link + confirmación explícita vigente) solo si aparece evidencia real de abuso;
+- fusión genérica entre **dos cuentas registradas** o recuperación sin link válido; no forma parte de la ronda autoservicio de provisionales ya promovida a Pre-Production;
 - política de conflictos entre dispositivos y retención de cola offline;
 - privacidad exacta de perfiles y relación con datos públicos/buscables;
 - matriz final de permisos/RLS;
@@ -115,7 +115,7 @@ A evaluar después de tener usuarios reales:
 - notificaciones reales de validación, invitaciones, cambios relevantes y actividad;
 - sistema de avisos no invasivo para perfil/datos incompletos cuando realmente aporte valor;
 - seguidores/amigos si `Mi red` no alcanza;
-- invitaciones más ricas a jugadores provisionales;
+- evoluciones sociales de invitación posteriores al flujo V1 ya definido (p. ej. recordatorios o canales adicionales), solo si aportan valor real;
 - herramientas sociales alrededor de grupos sin convertir BRAMU en una red social genérica.
 
 ---
