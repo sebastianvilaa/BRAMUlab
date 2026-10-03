@@ -245,9 +245,31 @@ El método eficiente no se mide solo por tokens/contexto. También debe minimiza
 
 **Objetivo operativo:** que BRAMU nunca vuelva a perder una jornada de trabajo por una secuencia evitable de microcommits/deployments.
 
+
+## Rotación preventiva del chat Central
+
+No esperar a que el chat llegue al mensaje de longitud máxima.
+
+Abrir un chat Central nuevo cuando:
+- se cierra una ronda grande y empieza otro frente;
+- antes de una ronda técnica transversal si el chat actual ya acumuló implementación + gate extensos;
+- el contexto quedó cargado de caminos descartados, logs o handoffs consumidos aunque todavía permita seguir escribiendo.
+
+Antes de migrar:
+1. dejar un **único handoff de continuidad** en `docs/BRAMUlab/Implementacion/Pre_Production/`;
+2. registrar HEAD exacto, estado del gate, qué ya fue verificado, qué falta y decisiones humanas cerradas;
+3. el nuevo chat lee por defecto solo **README + Metodo_Trabajo + handoff activo + fuentes maestras indicadas por ese handoff**;
+4. no reconstruir la conversación anterior ni releer cadenas completas de handoffs consumidos;
+5. los prompts a Claude/Work funcionan como punteros al handoff, no como duplicados extensos;
+6. Sebastián no transporta contexto técnico: idealmente abre el chat con un texto corto que apunte al handoff.
+
+Central debe pedir a las herramientas salidas focalizadas (rangos, archivos, hallazgos) y evitar volcar informes/logs completos cuando no aportan a la decisión.
+
+La rotación es **preventiva**: si una ronda ya está cerrada y documentada, se prefiere chat nuevo para el siguiente frente aunque el chat anterior todavía tenga espacio.
+
 ## Continuidad entre chats / traspaso obligatorio
 
-Cuando un chat de Desarrollo/Central llegue al límite y haya que abrir uno nuevo, el nuevo chat **no debe depender de memoria conversacional informal** para recuperar el método de trabajo.
+Cuando corresponda rotar un chat de Desarrollo/Central —preventivamente o por límite de contexto—, el nuevo chat **no debe depender de memoria conversacional informal** para recuperar el método de trabajo.
 
 El texto de arranque del nuevo chat debe exigir leer, como mínimo:
 

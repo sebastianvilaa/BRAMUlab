@@ -6,6 +6,41 @@
 
 > Regla de lanzamiento vigente: cuando entra el primer usuario real en Production, BRAMU ya empezó. Production no es un piloto descartable.
 
+
+## Corte de estado consolidado — 03/10/2026
+
+> **Esta sección prevalece sobre estados intermedios más antiguos que permanezcan más abajo por trazabilidad.** No usar una frase histórica de este documento para reabrir trabajo que tenga evidencia posterior de cierre.
+
+### Estado real antes de Production
+
+| Frente | Estado real |
+|---|---|
+| **P0.1 — Estado cero / progresión temprana** | **IMPLEMENTADO.** El código vigente oculta módulos sin evidencia en Home/Perfil y usa estados vacíos honestos. Falta únicamente un **QA integrado corto de navegador** para formalizar el cierre documental de 0 partidos / primer partido / Perfil público. |
+| **P0.1B — Ranking automático** | **IMPLEMENTADO Y VALIDADO.** En el mismo QA integrado de P0.1 confirmar solo que no reaparezca ningún opt-in legacy. |
+| **P0.1C — Perfil editable** | **CERRADO EN STAGING.** |
+| **P0.2 — Legal / Privacidad** | **NÚCLEO TÉCNICO CERRADO EN STAGING**: aceptación/reaceptación, páginas, acceso/seguridad, emails G1 y QA G2 están cerrados. **P0.2 no se cierra publicablemente todavía** porque las páginas conservan placeholders que dependen de la Production real: responsable/domicilio publicables, fecha de vigencia, AAIP/RNBDP, proveedores/regiones/transferencias y ciclos reales de backups/logs. El build de Production falla de forma segura mientras quede un placeholder. |
+| **P0.3 — Eliminación de cuenta** | **CERRADO EN STAGING.** El E2E destructivo real se completó durante G1: challenge específico, OTP, eliminación efectiva, postcondiciones y email #8 posterior. No repetir salvo regresión concreta. |
+| **P0.4 — Acceso V1** | **CERRADO.** Email + contraseña, OTP/recovery y Configuración G2 validados. |
+| **P0.4B — Grupos BRAMU** | Backend/server-backed y QA integral base **CERRADOS** (Issue #6). La lógica V04.23 de top 2 + Americano está implementada; queda **Issue #23 abierto solo por QA humana final del ajuste V04.24 de ayuda/desglose**. No es un gap de backend ni de modelo deportivo. |
+| **P0.4C — Invitados / identidad / recuperación** | **CERRADO EN STAGING / PASS CENTRAL** en V04.29 / 04.29-h2. |
+| **P0.5 — Hardening / salida** | Pre-Bloque 9, 9A, 9B, **G1 y G2 CERRADOS**. Después de los dos QA residuales anteriores, quedan **G3** (autorización explícita + creación/configuración de Production) y **G4** (plan/región/retención/backups/restauración real de Production). |
+
+### Qué NO corresponde hacer ahora
+
+- no abrir otra feature;
+- no repetir gates G1/G2/P0.3/Invitados ya cerrados;
+- no tocar `main`, Production ni BRAMUlive;
+- no completar placeholders legales con supuestos de Staging;
+- no crear Production sin autorización explícita de Sebastián.
+
+### Orden real siguiente
+
+1. QA breve de Invitados por uso exploratorio de Sebastián (no reabre el gate técnico; solo buscar fricciones reales).
+2. Cerrar los dos residuales de QA pre-Production que todavía carecen de evidencia formal: P0.1/P0.1B integrado y Issue #23 de Grupos.
+3. Recién después pedir decisión/autorización de **G3/G4** y completar los datos legales que dependen de la Production real.
+4. Crear Production limpia y hacer smoke inicial solo con Sebastián antes de invitar a terceros.
+
+
 ---
 
 ## 1. Punto de partida confirmado

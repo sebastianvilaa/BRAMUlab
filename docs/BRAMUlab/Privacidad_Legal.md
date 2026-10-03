@@ -1,10 +1,31 @@
 # BRAMUlab — Privacidad / Legal V1
 
-**Estado:** decisiones humanas de producto CERRADAS · sin revisión jurídica externa obligatoria · implementación/verificación técnica PENDIENTE  
+**Estado:** decisiones humanas CERRADAS · implementación técnica/G1/G2/P0.3 CERRADOS EN STAGING · cierre publicable pendiente de datos reales de Production/AAIP  
 **Fecha de consolidación:** 28/09/2026  
 **Entorno de trabajo:** Staging hasta autorización explícita de Production.
 
 Este documento es la **fuente maestra vigente** de Privacidad / Legal para BRAMUlab.
+
+
+## Estado operativo consolidado — 03/10/2026
+
+La implementación técnica que este documento pedía ya fue realizada y gateada en Staging:
+
+- aceptación legal previa al alta + evidencia append-only + reaceptación;
+- cleanup de altas abandonadas;
+- aislamiento owner-scoped y WhatsApp on-demand;
+- páginas públicas y guard de build;
+- Configuración / Acceso y seguridad;
+- G1 Emails/Auth V1 **PASS final**;
+- G2 Configuración/Acceso/Legal **PASS final con QA humana en iPhone**;
+- eliminación autoservicio **E2E real PASS** con challenge específico, OTP, postcondiciones y comprobante posterior.
+
+Por lo tanto, **P0.3 queda cerrado en Staging** y no debe seguir apareciendo como “falta E2E destructivo”.
+
+P0.2 permanece abierto únicamente porque los textos públicos contienen datos que no pueden inventarse antes de crear/configurar Production: identidad/domicilio publicables del responsable, fecha de vigencia, constancia AAIP/RNBDP, proveedores/regiones y mecanismo real de transferencias, y ciclos reales de backups/logs. `scripts/legal-guard.mjs` impide construir Production mientras quede un `[[PENDIENTE_PRODUCCION:*]]`.
+
+No completar esos campos usando datos de Staging como sustituto de Production.
+
 
 No reabrir decisiones de producto cerradas salvo que:
 1. una revisión jurídica profesional determine que una obligación concreta exige un cambio; o
@@ -257,9 +278,9 @@ Si esa verificación detecta una obligación concreta que contradiga una decisi�
 
 ---
 
-## 14. Implementación técnica pendiente
+## 14. Implementación técnica — cerrada en Staging / pendientes de salida
 
-Desarrollo deberá implementar/verificar, según prioridad de Pre-Production:
+Los siguientes puntos fueron la lista de implementación de Pre-Production y **ya están implementados/verificados en Staging** salvo los datos operativos que dependen de Production:
 
 - flujo autoservicio de eliminación con OTP y revocación de sesiones;
 - generación estandarizada del informe de acceso/copia;
@@ -290,12 +311,13 @@ Algunas piezas ya tienen trabajo previo en Staging (por ejemplo eliminación de 
 
 ### Pendiente
 
-- definición final/publicable de Términos y Política a partir de las decisiones ya cerradas;
-- verificación interna con fuentes oficiales vigentes;
-- implementación/verificación técnica;
-- datos operativos reales de infraestructura/proveedores.
+- reemplazar todos los `[[PENDIENTE_PRODUCCION:*]]` con datos reales de salida, nunca supuestos;
+- completar identificación/domicilio publicables del responsable desde la fuente privada correspondiente;
+- completar/registrar AAIP/RNBDP cuando corresponda a la configuración real de salida;
+- fijar proveedores, región, transferencias y ciclos reales de backups/logs de Production;
+- definir la fecha de vigencia real de `legal_v1` y ejecutar el guard final de Production.
 
-**No quedan decisiones humanas legales abiertas ni revisión externa obligatoria. P0.2 se cierra cuando estos pendientes de implementación/verificación estén completos.**
+**No quedan decisiones humanas legales de producto abiertas ni revisión externa obligatoria. P0.2 se cierra con G3/G4 y la sustitución verificable de estos datos reales de Production.**
 
 ---
 

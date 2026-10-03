@@ -11,6 +11,8 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 `Metodo_Trabajo.md` es la guía operativa vigente para coordinación de agentes, commits, pruebas y deploys — leerla antes de coordinar una ronda de trabajo, no solo antes de programar.
 
 **Ronda cerrada pre-Production — invitados/identidad (03/10/2026):** **V04.29 / 04.29-h2 CERRADA EN STAGING**. G3 + corrección forward-only G3b están aplicadas en Supabase Staging, `process-identity-recovery` ACTIVE v1, gate técnico Central PASS y flujo visual PASS para duplicado histórico con score distinto → SAME → corrección pendiente → rechazo desde la otra pareja → un partido efectivo y sin corrección pendiente. Los límites de consola/red e iPhone físico del QA 121 fueron aceptados explícitamente por Central como no bloqueantes para esta ronda; no implican cobertura que no existió y quedan documentados para trazabilidad. Evidencia: `Implementacion/Pre_Production/119_Resultado_Correccion_Gate_Invitados_V0429_h2_03OCT.md`, `120_Gate_Central_Tecnico_Invitados_V0429_h2_03OCT.md`, `121_QA_Visual_Invitados_V0429_h2_03OCT.md` y `122_Cierre_Central_Invitados_V0429_h2_03OCT.md`.
+**Corte consolidado de Pre-Production (03/10/2026):** el estado vigente está resumido en `Pre_Production.md` y en `Implementacion/Pre_Production/123_Corte_Estado_PreProduction_03OCT.md`. G1, G2, P0.3 e Invitados están cerrados en Staging. No hay otro módulo grande para construir antes de Production. Quedan dos QA residuales acotados (P0.1/P0.1B integrado y cierre humano de Grupos Issue #23) y, después, G3/G4 con datos legales dependientes de la Production real. No crear Production sin autorización explícita.
+
 
 ---
 
@@ -87,11 +89,11 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 | **Nivel BRAMU** | `Nivel_BRAMU.md` (única fuente maestra) | V1.3 CERRADO en Staging (V04.28 / 04.28-h7); pendiente de promoción a Production |
 | **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real CERRADOS en Staging; snapshot semanal server-backed, sin fallback a mocks |
 | **Cargar partido** | `Cargar_Partido.md` | Fuente maestra del flujo (V04.24: modo resultado, Fecha/Hora/Lugar). |
-| **Grupos BRAMU** | `Grupos_BRAMU.md` | B2c (foto server-backed V04.14) CERRADO en Staging con QA visual PASS. En curso: cierre de producto/UX post-B2c (§26) antes del QA integral final (Issue #6). |
+| **Grupos BRAMU** | `Grupos_BRAMU.md` | Server-backed + QA integral base CERRADOS (Issue #6). V04.23 top 2/Americano implementado; queda únicamente QA humana final de ayuda/desglose V04.24 en Issue #23. |
 | **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | Bloque 8 CERRADO en Staging: Fases A–E cerradas. Núcleo determinístico V1 completo; F generativa opcional y no bloqueante |
 | **Experiencia inicial / ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` para contrato técnico | Experiencia inicial cerrada; impacto inmediato en Bloque 3 y luego en Bloques 4–6 |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 CERRADOS en Staging. Siguiente: consolidar pendientes reales pre-Production y luego Bloque 9 — endurecimiento/salida |
-| **Privacidad / Legal** | `Privacidad_Legal.md` → `Pre_Production.md` P0.2 | Decisiones humanas cerradas; sin revisión jurídica externa obligatoria; pendientes redacción final, verificación interna e implementación/QA |\n| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Consolidado activo: Grupos productivo, Legal/Privacidad, eliminación de cuenta y hardening final |
+| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 + Pre-Bloque 9 + 9A/9B CERRADOS en Staging; G1/G2 cerrados. Restan G3/G4 después de los QA residuales. |
+| **Privacidad / Legal** | `Privacidad_Legal.md` → `Pre_Production.md` P0.2 | Núcleo técnico, G1/G2 y eliminación real cerrados en Staging. Pendiente cierre publicable con datos reales de Production/AAIP; el build de Production bloquea placeholders. |\n| **Pre-Production / salida** | `Pre_Production.md` → `Backend_Infraestructura.md` Bloque 9 | Corte vigente 03/10: QA residual P0.1/P0.1B + Issue #23; luego G3/G4 y cierre de placeholders legales dependientes de Production. |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas realmente futuras/no autorizadas |
 
 ### Nivel BRAMU — fuente única

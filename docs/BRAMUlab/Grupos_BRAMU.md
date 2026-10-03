@@ -1,10 +1,12 @@
 # Grupos BRAMU
 
-**Estado:** producto y UX V1 cerrados para implementación productiva.  
+**Estado:** producto/UX + backend server-backed implementados en Staging; QA integral base CERRADA (Issue #6). Residual abierto: QA humana final de ayuda/desglose V04.24 del Issue #23.  
 **Fecha:** 28 de septiembre de 2026.  
 **Rol:** fuente maestra vigente de Grupos BRAMU.  
 **Actualizado en V04.23 (Issue #23) y V04.24 (ayuda/desglose finales, 02/10/2026):** top semanal = 2 mejores; puntaje por formato (Clásico / Americano); ayuda reescrita (§ Ayuda). Si algo más abajo menciona “3 mejores” o puntaje único de 5/7, está superado por §5 y §6.  
 **Precedencia:** este documento reemplaza como autoridad de producto a la definición histórica de V03.4. La implementación existente de V03.4 sigue siendo la base a conservar, pero cualquier contradicción se resuelve a favor de este documento.
+
+**Corte de cierre 03/10/2026:** la productivización server-backed, membresías/admins, lobby/estado cero, foto, permisos, salida/reingreso y QA integral de transiciones del Issue #6 están cerradas. V04.23 implementó top 2 + Americano y V04.24 corrigió la ayuda/desglose; el Issue #23 permanece abierto únicamente porque falta registrar el PASS humano final de esa última superficie. No reabrir backend, fórmula ni QA integral base por ese residual.
 
 ---
 
