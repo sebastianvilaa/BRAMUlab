@@ -346,7 +346,7 @@ test('27) A/B/C/D, valores internos, rama y categorías NUNCA son visibles en el
   assert.match(section, /id="nivel-result-category">CALIBRANDO</);
   assert.doesNotMatch(app, /categorizeLevel\(/);
   // Copy aprobado, sin mensajes dinámicos de selección y sin gradiente verde→naranja→rojo.
-  assert.match(section, /Pensá en cómo jugás habitualmente, no en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida\./);
+  assert.match(section, /No en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida en BRAMU\./);
   assert.match(section, /Tocá una descripción\. Si estás entre dos opciones, usá el control para ajustar tu respuesta\./);
   assert.doesNotMatch(app, /Elegiste una de las descripciones|quedó entre dos descripciones/);
   const slider = css.slice(css.indexOf('.nivel-slider-hint'), css.indexOf('/* Progreso del cuestionario completo'));
@@ -514,16 +514,16 @@ test('contrafactuales: perfiles representativos (desidentificados) mantienen el 
   assert.ok(Math.abs(step - base) < 0.2);
 });
 
-test('versionado V04.28 / 04.28-h6 coherente (store, version.json, sw, index, manifest)', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h6' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h6'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h6'/);
-  assert.match(html, /level-calibration\.js\?v=04\.28-h6/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h6/);
-  assert.match(read('manifest.webmanifest'), /v=04\.28-h6/);
+test('versionado V04.28 / 04.28-h7 coherente (store, version.json, sw, index, manifest)', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h7' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h7'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h7'/);
+  assert.match(html, /level-calibration\.js\?v=04\.28-h7/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.28-h7/);
+  assert.match(read('manifest.webmanifest'), /v=04\.28-h7/);
   assert.doesNotMatch(read('sw.js') + html + read('manifest.webmanifest'), /04\.27-h/);
 });
 
-/* ======================= V04.28-h6 — progreso aislado por alta/cuenta ======================= */
+/* ======================= V04.28-h7 — progreso aislado por alta/cuenta ======================= */
 function makeProgressHarness(store) {
   const sb = loadEngine(['level.js', 'level-calibration.js', 'store.js'], { localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } } });
   const ctx = { Store: sb.PLStore, LVC: sb.PLLevelCalibration, window: { crypto: { randomUUID: (() => { let n = 0; return () => `uuid-${++n}-${Math.random()}`; })() } }, crypto: undefined };
@@ -592,16 +592,19 @@ test('h2-7/8) limpiar el borrador y completar Nivel limpian el progreso', () => 
   assert.match(read('store.js'), /safeRemove\(KEYS\.SIGNUP_DRAFT\);\s*safeRemove\(KEYS\.NIVEL_PROGRESS\);/);
 });
 
-/* ======================= V04.28-h6 — pulido post-QA ======================= */
+/* ======================= V04.28-h7 — pulido post-QA ======================= */
 const css3 = read('styles.css');
 const fn3 = (n) => fnSource(n);
 
 test('h3-1/2/3) intro: copy intacto, más legible (casi blanco, 16px, interlineado), sin estructura nueva', () => {
   const intro = html.slice(html.indexOf('id="nivel-step-intro"'), html.indexOf('id="nivel-step-quiz"'));
-  assert.match(intro, /Pensá en cómo jugás habitualmente, no en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida\./);
-  assert.match(css3, /#nivel-step-intro \.access-subtitle\{ color: var\(--paper\); font-size: 16px; line-height: 1\.6;/);
-  assert.match(css3, /\.nivel-intro-meta\{ font-size: 13px;[^}]*color: var\(--paper-dim\)/);
-  assert.equal((intro.match(/<(p|button)\b/g) || []).length, 3); // subtítulo + meta + EMPEZAR: sin elementos nuevos
+  assert.match(intro, /No en tu mejor ni en tu peor partido\. Cuanto más realista seas, mejor será tu punto de partida en BRAMU\./);
+  ['ANTES DE EMPEZAR', 'PENSÁ EN TU JUEGO HABITUAL', '5 PREGUNTAS · CERCA DE 2 MINUTOS', 'EMPEZAR<'].forEach((x) => assert.ok(intro.includes(x), x));
+  assert.match(intro, /class="nivel-intro-card"/);
+  assert.match(css3, /\.nivel-intro-card__text\{ font-size: 16px; line-height:1\.55; color: var\(--paper\)/);
+  assert.match(css3, /\.nivel-intro-card__title\{[^}]*font-weight:800/);
+  assert.equal((intro.match(/<button\b/g) || []).length, 1); // sigue habiendo un solo CTA, sin pasos nuevos
+  assert.match(html, /id="nivel-start-btn"/);
 });
 
 test('h3-4..12) slider: vertical, 10 posiciones funcionales, 4 anclas visibles, thumb con pico y táctil intacto, nada preseleccionado', () => {
@@ -710,12 +713,12 @@ test('h3-40..42) V1.3 persiste la versión correcta, motor posterior sin cambios
   const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, f))).digest('hex');
   assert.equal(h('level.js'), '12aa1dbe49deae59642ed185767af2e0dda5a01c18e33cc5728c82148fff6050');
   assert.equal(h('match-level-engine.js'), 'a5677f73e73af9adf6cd5231953d4364422ca24254243d0fe9101d854c6bda74');
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h6' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h6'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h6'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h7' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.28'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h7'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h7'/);
 });
 
-/* ======================= V04.28-h6 — tarjeta Estado Cero con foto ======================= */
+/* ======================= V04.28-h7 — tarjeta Estado Cero con foto ======================= */
 test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy exacto, CTA abre Cargar partido', () => {
   const css4 = read('styles.css');
   const jpg = fs.readFileSync(path.join(__dirname, 'assets', 'home-primer-partido.jpg'));
@@ -724,9 +727,9 @@ test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy 
   // es la copia optimizada de "Pelota en cancha azul dramática" (original intacto en docs/identidad-visual)
   const orig = path.join(__dirname, '..', 'docs', 'identidad-visual', 'referencias-premier-padel', 'Pelota en cancha azul dramática.png');
   if (fs.existsSync(orig)) assert.ok(fs.statSync(orig).size > 2 * 1024 * 1024);
-  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.28-h6'\) 100% 30% \/ cover no-repeat/);
+  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.28-h7'\) 100% 30% \/ cover no-repeat/);
   assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*linear-gradient\(180deg, rgba\(5,12,22/); // oscurece detrás del texto
-  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.28-h6'/);
+  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.28-h7'/);
   const fn = fnSource('renderPlayerLastMatchCard');
   const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
   ['TU PRIMER PARTIDO', 'TODO EMPIEZA CON', 'TU PRIMER RESULTADO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\\.', 'CARGAR MI PRIMER PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
@@ -752,7 +755,7 @@ test('h4-10..12) layout móvil sin overflow, legibilidad y versionado h4', () =>
   const css4 = read('styles.css');
   assert.match(css4, /\.player-home-lastmatch__empty-cta\{ width:100%; \}/);
   assert.match(css4, /\.player-home-lastmatch__empty-title\{[^}]*text-shadow/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h6' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h6'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h6'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.28', bundle: '04.28-h7' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.28-h7'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-28-h7'/);
 });

@@ -1902,7 +1902,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.28-h6') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.28-h7') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3479,9 +3479,13 @@ input, select{ font-family: inherit; }
    ========================================================================== */
 
 /* V04.28 — intro del cuestionario V1.3 (sin tarjetas de camino: ya no existe camino rápido). */
-.nivel-intro-meta{ font-size: 13px; font-weight:800; letter-spacing:0.05em; color: var(--paper-dim); text-transform:uppercase; text-align:center; margin: 0 0 24px; }
-/* V04.28-h3 — legibilidad de la intro: más contraste (casi blanco), tamaño e interlineado mayores. */
-#nivel-step-intro .access-subtitle{ color: var(--paper); font-size: 16px; line-height: 1.6; margin: 4px 0 20px; }
+/* V04.28-h7 — intro del cuestionario como card de bienvenida (kicker + título + apoyo + metadata). */
+.nivel-intro-card{ background: linear-gradient(180deg, var(--surface-2), var(--surface-1)); border: 1px solid var(--line-strong); border-radius: var(--radius-hero); padding: 24px 20px 20px; margin: 4px 0 20px; box-shadow: 0 0 24px rgba(25,159,255,.08); }
+.nivel-intro-card__kicker{ font-size: 11px; font-weight:800; letter-spacing:0.08em; color: var(--accent-cyan); }
+.nivel-intro-card__title{ font-family: var(--font-display); font-weight:800; font-size: 24px; line-height:1.12; color: var(--paper); margin: 10px 0 14px; }
+.nivel-intro-card__text{ font-size: 16px; line-height:1.55; color: var(--paper); margin: 0 0 10px; }
+.nivel-intro-card__note{ font-size: 14px; line-height:1.45; color: var(--paper-dim); margin: 0; }
+.nivel-intro-meta{ font-size: 12px; font-weight:800; letter-spacing:0.05em; color: var(--paper-dim); text-transform:uppercase; margin: 18px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
 
 /* V04.28 — componente de respuesta V1.3: cuatro descripciones completas + riel/slider discreto de
    10 posiciones (0..9) sobre el MISMO valor. Azul BRAMU (`--accent-cyan`) como único estado
