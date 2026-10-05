@@ -122,7 +122,7 @@ test('h21-9: filterHistoryByStatusTab("todos") excluye ocultos; computeHistorySt
 test('h21-9: renderHistoryFilters pinta HISTORY_STATUS_TABS y desoculta #history-tabs (antes quedaba forzado a hidden=true)', () => {
   const body = extractFunctionBody(appJs, 'renderHistoryFilters');
   assert.match(body, /PH\.computeHistoryStatusTabCounts\(fullHistory, currentIdentity\(\), new Date\(\)\)/);
-  assert.match(body, /HISTORY_STATUS_TABS\.map/);
+  assert.match(body, /getHistoryTabs\(\)\.map/, 'V04.33: HISTORY_STATUS_TABS + la pestaña temporal Recuperados (getHistoryTabs)');
   assert.match(body, /historyStatusFilter = btn\.dataset\.key/);
   assert.match(body, /\$\('#history-tabs'\)\.hidden = false/);
 });
@@ -137,7 +137,7 @@ test('h21-9: HISTORY_STATUS_TABS son exactamente Todos/Pendientes/Victorias/Derr
 test('h21-9: renderHistory pide includeHidden:true y aplica PH.filterHistoryByStatusTab', () => {
   const body = extractFunctionBody(appJs, 'renderHistory');
   assert.match(body, /getDisplayHistory\(\{\s*includeHidden:\s*true\s*\}\)/);
-  assert.match(body, /PH\.filterHistoryByStatusTab\(list, currentIdentity\(\), historyStatusFilter, new Date\(\)\)/);
+  assert.match(body, /PH\.filterHistoryByStatusTab\(list, currentIdentity\(\), historyStatusFilter === 'recuperados' \? 'todos' : historyStatusFilter, new Date\(\)\)/);
 });
 
 test('h21-9: getDisplayHistory/buildDisplayHistory soportan includeHidden sin romper el default (opt-in)', () => {
@@ -149,8 +149,9 @@ test('h21-9: getDisplayHistory/buildDisplayHistory soportan includeHidden sin ro
 
 test('h21-9: initHistorySwipe recorre HISTORY_STATUS_TABS/historyStatusFilter (nunca la vieja HISTORY_TABS/historyOwnershipFilter) y está RE-HABILITADO', () => {
   const swipeBody = extractFunctionBody(appJs, 'initHistorySwipe');
-  assert.match(swipeBody, /HISTORY_STATUS_TABS\.findIndex/);
-  assert.match(swipeBody, /historyStatusFilter = HISTORY_STATUS_TABS\[nextIdx\]\.key/);
+  assert.match(swipeBody, /getHistoryTabs\(\)/);
+  assert.match(swipeBody, /tabs\.findIndex/);
+  assert.match(swipeBody, /historyStatusFilter = tabs\[nextIdx\]\.key/);
   const screenBody = extractFunctionBody(appJs, 'initHistoryScreen');
   assert.match(screenBody, /initHistorySwipe\(\);/, 'debe volver a llamarse (antes comentado porque las pestañas estaban ocultas)');
 });
@@ -196,14 +197,14 @@ test('h21-10: "Ocultar partido" ya no vive en Resumen — retirado, mecanismo ex
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 test('h21: bundle/cache quartet queda alineado', () => {
-  assert.match(indexHtml, /app\.js\?v=04\.32-h1/);
-  assert.match(indexHtml, /styles\.css\?v=04\.32-h1/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.32-h1'/);
-  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-32-h1'/);
-  assert.match(swJs, /app\.js\?v=04\.32-h1/);
-  assert.match(swJs, /styles\.css\?v=04\.32-h1/);
-  assert.match(versionJson, /"bundle":\s*"04\.32-h1"/);
+  assert.match(indexHtml, /app\.js\?v=04\.33-h1/);
+  assert.match(indexHtml, /styles\.css\?v=04\.33-h1/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.33-h1'/);
+  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-33-h1'/);
+  assert.match(swJs, /app\.js\?v=04\.33-h1/);
+  assert.match(swJs, /styles\.css\?v=04\.33-h1/);
+  assert.match(versionJson, /"bundle":\s*"04\.33-h1"/);
   // V04.12 — ronda visible: la versión pública sube y el modal nunca muestra el sufijo hN.
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.32'/);
-  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.32"/);
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.33'/);
+  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.33"/);
 });

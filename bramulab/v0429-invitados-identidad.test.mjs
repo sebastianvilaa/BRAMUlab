@@ -40,7 +40,7 @@ test('Hoja de invitar: título "INVITÁ A {NOMBRE} A BRAMU", texto aprobado, CTA
   const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
   assert.match(sheet, />COPIAR INVITACIÓN</);
   assert.doesNotMatch(sheet, /whatsapp/i, 'sin botón específico de WhatsApp');
-  const open = between(appJs, '  function openInviteSheet(playerId, name) {', '  function closeInviteSheet() {');
+  const open = between(appJs, '  function openInviteSheet(playerId, name, sourceMatchId) {', '  function closeInviteSheet() {');
   assert.match(open, /INVITÁ A \$\{cleanName\.toLocaleUpperCase\('es-AR'\)\} A BRAMU/);
   assert.match(open, /Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos\. La invitación es personal: enviásela solo a \$\{cleanName\}\./);
   assert.match(appJs, /Invitación copiada\. Enviásela a \$\{cur\.name\}\./);
@@ -342,7 +342,7 @@ test('auth.js: previewClaimLink/claimProvisionalPlayer/status/process/duplicados
       default: return { data: null, error: { message: 'boom' } };
     }
   }, async (name) => (name === 'process-identity-recovery' ? { data: { ok: true, results: [{ status: 'completed' }] }, error: null } : { data: null, error: { message: 'x' } }));
-  assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('ok'))), { ok: true, displayName: 'Pedro', matchCount: 0, sourceMatch: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('ok'))), { ok: true, displayName: 'Pedro', matchCount: 0, sourceIsOrigin: false, sourceMatch: null });
   assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('bad'))), { ok: false, code: 'claim_expired' });
   const ok = JSON.parse(JSON.stringify(await A.claimProvisionalPlayer('ok')));
   assert.deepEqual(ok, { ok: true, recoveryId: 'r1', matchCount: 3, levelPending: true, duplicateCandidates: 1, idempotentReturn: false });
@@ -436,5 +436,5 @@ test('h2 · una corrección de origen duplicado no vence a los 3 días (cliente)
 test('h2 · matches.js y match-sync.js propagan pendingCorrectionOrigin desde get_my_matches y get_match_detail', () => {
   assert.match(read('matches.js'), /pendingCorrectionOrigin: row\.pending_correction_origin \|\| null/);
   assert.match(read('match-sync.js'), /pendingCorrectionOrigin: row\.pendingCorrectionOrigin \|\| null/);
-  assert.match(read('version.json'), /04\.32-h1/);
+  assert.match(read('version.json'), /04\.33-h1/);
 });

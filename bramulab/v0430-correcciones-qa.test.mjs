@@ -162,7 +162,8 @@ test('Gate pendientes · antes del formulario; 3/4 con VER PARTIDOS PENDIENTES +
   assert.match(appJs, /pending_action_limit_reached: 'Tenés 5 partidos pendientes/, 'el rechazo server-side se conserva');
   assert.match(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261004100000_v0430_create_or_attach_idempotent_replay.sql'), 'utf8'), /pending_action_limit_reached/);
   // Historial prioriza accionables
-  assert.match(appJs, /if \(historyStatusFilter === 'pendientes'\) list = PH\.sortPendingActionableFirst\(list\)/);
+  // V04.33: Historial > Pendientes se arma en tres secciones (POR VALIDAR / POR RESOLVER / ESPERANDO VALIDACIÓN) con accionables primero
+  assert.match(appJs, /if \(historyStatusFilter === 'pendientes'\) \{ renderPendingSections\(wrap, list\); return; \}/);
   const mix = [{ matchId: 'wait', status: 'pending_validation', isActionMine: false }, { matchId: 'corr', status: 'validated', pendingCorrectionRevisionId: 'r' }, { matchId: 'act', status: 'pending_validation', isActionMine: true }, { matchId: 'act2', status: 'pending_validation', isActionMine: true }];
   assert.deepEqual(PH.sortPendingActionableFirst(mix).map((m) => m.matchId), ['act', 'act2', 'corr', 'wait']);
 });
@@ -188,29 +189,16 @@ test('Notificación · self-report en primera persona; destino sigue siendo el R
 });
 
 /* ================= Pantalla de partidos recuperados (UX refinada en V04.31) ================= */
-test('Post-claim · superficie persistente: vista propia + cards de Historial; NO LO JUGUÉ reutiliza el self-report', () => {
-  assert.match(indexHtml, /<section id="view-recovered" class="view view--history" hidden>[\s\S]*?PARTIDOS RECUPERADOS[\s\S]*?id="recovered-list"/);
-  assert.match(appJs, /'recovered'\]\s*\n?\s*\.forEach/);
-  const code = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function refreshRecoveredRows() {');
-  assert.match(code, /buildHistoryItemElement\(f, \{ omitStateBadges: true \}\)/, 'misma tarjeta que Historial');
-  assert.match(code, /confirmReportIdentity\(row\.matchId, mine\.team, mine\.position[\s\S]{0,120}isSelf: true/);
-  assert.match(code, /openCanonicalResumen\(f, 'recovered'\)/);
-  const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.31 · Partidos recuperados');
-  assert.match(link, /saveRecoveredReview\(/);
-  assert.match(link, /onboardingDone === false\) return;/, 'en un alta nueva se difiere hasta terminar el onboarding');
-  assert.match(appJs, /maybeOpenRecoveredReview\(\)\)\) syncIdentityRecovery\(\)/);
-  assert.match(read('auth.js'), /getRecoveredMatchIds/);
-});
-
 /* ================= Entrada de invitación ================= */
 test('Invitación · card contextual en Acceso (antes de auth) y "¿SOS {nombre}?" con el partido fuente', () => {
   assert.match(indexHtml, /id="access-invitation-card"[\s\S]*?Te invitaron a BRAMU/);
   assert.match(appJs, /if \(name === 'access'\) \{ refreshBackendUnavailableNotice\(\); renderAccessInvitationCard\(\); \}/);
   assert.match(indexHtml, /id="invitation-confirm-source"/);
   const fn = between(appJs, '  function askInvitationConfirmation(displayName, token, preview) {', '      const yes = $');
-  assert.match(fn, /registró este partido con ese nombre/);
-  assert.match(fn, /buildDuplicateMatchCardHTML\(src\)/);
-  assert.match(fn, /partido\$\{more === 1 \? '' : 's'\} más/);
+  assert.match(fn, /buildInvitationContextHTML\(src, preview, displayName\)/);
+  const ctx = between(appJs, '  function buildInvitationContextHTML(', '  /** Reemplaza las iniciales');
+  assert.match(ctx, /registró este partido con ese nombre/);
+  assert.match(ctx, /partido\$\{more === 1 \? '' : 's'\} más asociado/);
   assert.match(appJs, /askInvitationConfirmation\(preview\.displayName, token, preview\)/);
   // NO SOY YO sigue sin consumir el link (solo limpia la intención local)
   const no = between(appJs, 'no.onclick = () =>', 'yes.onclick');
@@ -270,12 +258,12 @@ test('Intelligence · el insight de un partido pendiente aclara que puede cambia
   assert.match(appJs, /pueden cambiar cuando se valide/);
 });
 
-test('Versionado V04.30 / 04.32-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.32', bundle: '04.32-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.32'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.32-h1'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-32-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.32-h1/);
+test('Versionado V04.30 / 04.33-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.33', bundle: '04.33-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.33'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.33-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-33-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.33-h1/);
 });
 
 /* ================= C1 / C2 (gate Central) ================= */
@@ -295,10 +283,3 @@ test('C1 · una respuesta HTTP conocida (429 rate_limited / 401 invalid_session)
   assert.doesNotMatch(biz, /rate_limited/);
 });
 
-test('C2 · LISTO solo con todas las cards respondidas; mientras falten: Revisar después y LISTO oculto, y nunca borra la revisión', () => {
-  const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
-  assert.match(fn, /\$\('#recovered-later-btn'\)\.hidden = allAnswered;/);
-  assert.match(fn, /\$\('#recovered-done-btn'\)\.hidden = !allAnswered;/);
-  const close = between(appJs, '  async function closeRecoveredScreen(markDone) {', '  function initRecoveredScreen() {');
-  assert.match(close, /if \(st && allAnswered\) clearRecoveredReview\(\);\s*else if \(st\) \{ st\.rev\.dismissed = true;/);
-});

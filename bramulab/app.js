@@ -351,7 +351,7 @@
   // que dependía del registro en vivo (configuración previa a un partido en vivo), separado
   // ahora a BRAMUlive. 'analysis'/'manual-load' siguen acá: las usa la carga de
   // partido propio ya jugado.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'recovered'];
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings'];
 
   function showView(name) {
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
@@ -425,7 +425,7 @@
     if (!currentPlayerName) { openAccessFlow(); return; }
     historyOpenedFrom = 'player-home';
     historyContextFilter = contextFilter || null;
-    if (statusTab && HISTORY_STATUS_TABS.some((t) => t.key === statusTab)) { historyStatusFilter = statusTab; historyOwnershipFilter = 'all'; }
+    if (statusTab && getHistoryTabs().some((t) => t.key === statusTab)) { historyStatusFilter = statusTab; historyOwnershipFilter = 'all'; }
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca.
     if (historyContextFilter) {
@@ -2211,7 +2211,7 @@
         statusClause = `Validado por ${confirmer.name}`;
       }
     } else if (f.serverBacked && f.status === 'pending_validation') {
-      statusClause = 'Pendiente de validación';
+      statusClause = f.isActionMine ? 'Por validar' : 'Esperando validación';
     }
     const line1 = [loaderName ? `Cargado por ${loaderName}` : null, statusClause].filter(Boolean).join(' · ');
     const line2 = [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
@@ -2487,6 +2487,8 @@
    *  manualmente recién guardado ('player-home'), o cualquier partido abierto desde Historial
    *  ('history'). Reemplaza al viejo par Resumen inmediato/Análisis + su navegación circular. */
   function openCanonicalResumen(f, openedFrom) {
+    // V04.33 — al volver a la lista de la que se salió (Historial/Pendientes/Recuperados) se restaura la posición de scroll.
+    if (openedFrom === 'history') { const sc = document.querySelector('#view-history .analysis-scroll'); if (sc) historyScrollTop = sc.scrollTop; }
     analysisOpenedFrom = openedFrom;
     renderAnalysis(f);
     showView('analysis');
@@ -2534,10 +2536,12 @@
     if (f.status === 'necesita_revision') return isPossibleDuplicateEntry(f) ? 'POSIBLE PARTIDO DUPLICADO' : 'NECESITA REVISIÓN';
     if (f.status === 'expired') return 'VENCIDO — NO COMPUTA';
     if (f.status === 'annulled') return 'ANULADO';
-    if (f.hasOpenIdentityIssue) return 'IDENTIDAD CUESTIONADA';
+    // V04.33 (handoff 129 §10) — lenguaje unificado: POR VALIDAR (depende de mí) / ESPERANDO VALIDACIÓN (depende del otro lado) /
+    // JUGADOR POR IDENTIFICAR (copy humano de la incidencia de identidad). Los estados internos/backend conservan sus nombres.
+    if (f.hasOpenIdentityIssue) return 'JUGADOR POR IDENTIFICAR';
     if (f.status === 'validated') return f.pendingCorrectionRevisionId ? 'CORRECCIÓN PROPUESTA' : '';
-    if (f.isActionMine) return 'TU TURNO: CONFIRMAR';
-    return 'PENDIENTE DE VALIDACIÓN'; // pending_validation, esperando a la otra pareja
+    if (f.isActionMine) return 'POR VALIDAR';
+    return 'ESPERANDO VALIDACIÓN'; // pending_validation, esperando a la otra pareja
   }
 
   /** Ronda UX 25/09 (Ronda 2, §2) — semántica de color de ESTADO (nunca resultado, que vive
@@ -2668,7 +2672,7 @@
     stale_revision: 'El partido cambió mientras lo mirabas. Lo actualizamos para que lo revises de nuevo.',
     nothing_to_sustain: 'No hay ninguna corrección para responder en este partido.',
     match_expired: 'Este partido venció sin validarse a tiempo.',
-    identity_issue_open: 'Primero hay que resolver la identidad cuestionada.',
+    identity_issue_open: 'Primero hay que identificar al jugador de este partido.',
     not_a_participant: 'No participás de este partido.',
     match_not_actionable: 'Este partido ya no admite esta acción.',
     correction_window_expired: 'La ventana para responder esta corrección ya venció.',
@@ -3063,7 +3067,7 @@
         // siga funcionando por teclado (Ronda 2, §12).
         return `
           <div class="b6-identity-row" role="button" tabindex="0" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">
-            <span class="b6-identity-row__label">${escapeHtml(label)}<small>Identidad cuestionada</small></span>
+            <span class="b6-identity-row__label">${escapeHtml(label)}<small>Jugador por identificar</small></span>
             <button type="button" class="btn-mini" tabindex="-1">RESOLVER</button>
           </div>`;
       }).join('');
@@ -3392,7 +3396,7 @@
         if (result.issueId && analysisCurrent && analysisCurrent.matchId === matchId) {
           openIdentityResolveSheet({ issueId: result.issueId, matchId, team, positionInTeam }, analysisCurrent);
         } else {
-          showToast('Identidad cuestionada.');
+          showToast('Jugador por identificar.');
         }
       },
       null, 'Sí, no fue', 'Cancelar', true
@@ -5082,14 +5086,18 @@
     // la pantalla canónica única, así que "←" siempre sale hacia la procedencia real (nunca
     // hacia el marcador — un partido recién terminado no tiene a dónde volver ahí).
     $('#analysis-back-btn').addEventListener('click', () => {
-      if (analysisOpenedFrom === 'history') { renderHistory(); showView('history'); }
+      if (analysisOpenedFrom === 'history') {
+        renderHistory(); showView('history');
+        const sc = document.querySelector('#view-history .analysis-scroll');
+        if (sc) { sc.scrollTop = historyScrollTop; requestAnimationFrame(() => { sc.scrollTop = historyScrollTop; }); }
+      }
       // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home, o
       // un partido cargado manualmente recién guardado.
       else if (analysisOpenedFrom === 'player-home') { renderPlayerHome(); showView('player-home'); }
-      // V04.30 — vuelve a la pantalla de partidos recuperados (refrescada: pudo validarse/corregirse/reportarse desde el Resumen).
+      // V04.33 — vuelve a la pantalla post-claim (refrescada: pudo validarse/corregirse/reportarse desde el Resumen).
       else if (analysisOpenedFrom === 'recovered' && recoveredScreenState) {
-        refreshRecoveredRows();
         renderRecoveredMatchesScreen(); showView('recovered');
+        refreshServerMatches().then(() => { if (recoveredScreenState && !$('#view-recovered').hidden) renderRecoveredMatchesScreen(); });
       }
       else openPlayerHome(); // 'live' o cualquier otro caso legado: siempre es seguro ir al Home
     });
@@ -5151,7 +5159,7 @@
   // Misma etiqueta que arriba, en minúscula, para componer el texto del estado vacío
   // ("No hay partidos en mis partidos · game por game todavía") sin repetir el mapeo.
   const HISTORY_TAB_LABELS_LOWER = { mine: 'mis partidos' };
-  const HISTORY_STATUS_TAB_LABELS_LOWER = { pendientes: 'pendientes', victorias: 'victorias', derrotas: 'derrotas', ocultos: 'ocultos' };
+  const HISTORY_STATUS_TAB_LABELS_LOWER = { pendientes: 'pendientes', recuperados: 'recuperados', victorias: 'victorias', derrotas: 'derrotas', ocultos: 'ocultos' };
   const HISTORY_MODE_LABELS_LOWER = { manual: 'cargados', games: 'game por game', complete: 'punto por punto' };
 
   /** §3.1/§3.2 — pinta ambas filas de filtro con los conteos reales (los conteos de
@@ -5165,8 +5173,11 @@
    *  YA incluye ocultos (ver renderHistory) para que el conteo de "Ocultos" sea real. */
   function renderHistoryFilters(fullHistory) {
     const counts = PH.computeHistoryStatusTabCounts(fullHistory, currentIdentity(), new Date());
+    // V04.33 — Recuperados: pestaña temporal (30 días desde la recuperación, ventana fijada por el servidor); cuenta los partidos del lote.
+    const recIds = recoveredMatchIdSet();
+    counts.recuperados = recIds.size ? fullHistory.filter((m) => m && !m.hidden && recIds.has(m.matchId)).length : 0;
     const tabsWrap = $('#history-tabs');
-    tabsWrap.innerHTML = HISTORY_STATUS_TABS.map((t) => {
+    tabsWrap.innerHTML = getHistoryTabs().map((t) => {
       const active = historyStatusFilter === t.key;
       return `<button type="button" class="history-tab${active ? ' is-active' : ''}" data-key="${t.key}" role="tab" aria-selected="${active}">${t.label} <span class="history-tab__count">${counts[t.key]}</span></button>`;
     }).join('');
@@ -5207,6 +5218,12 @@
     if (totalCount === 0) {
       $('#history-empty-first-body').innerHTML = buildFirstResultCardHTML();
       $('#history-empty-first-body .player-home-lastmatch__empty-cta').addEventListener('click', () => openManualLoadScreen('player-home'));
+      return;
+    }
+    if (historyStatusFilter === 'pendientes' && historyModeFilter === 'all') {
+      textEl.textContent = 'No tenés partidos pendientes.';
+      actionEl.textContent = 'VER TODOS';
+      actionEl.onclick = () => { historyStatusFilter = 'todos'; renderHistory(); };
       return;
     }
     const parts = [];
@@ -5302,6 +5319,8 @@
     // la pestaña "Ocultos" tenga datos reales; PH.filterHistoryByStatusTab (abajo) es quien
     // decide qué pestaña deja pasar qué — 'todos' sigue excluyendo ocultos como siempre.
     const fullHistory = getDisplayHistory({ includeHidden: true });
+    // V04.33 — si la ventana de Recuperados venció (o nunca existió), la pestaña no existe y la selección vuelve a Todos.
+    if (historyStatusFilter === 'recuperados' && !hasRecoveredTab()) historyStatusFilter = 'todos';
     renderHistoryFilters(fullHistory);
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
@@ -5309,9 +5328,9 @@
     let list = PH.filterHistoryCombined(fullHistory, currentIdentity(), historyOwnershipFilter, historyModeFilter);
     // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestaña de estado, aplicada
     // DESPUÉS de pertenencia/modo (mismo criterio de capas que el filtro contextual de abajo).
-    list = PH.filterHistoryByStatusTab(list, currentIdentity(), historyStatusFilter, new Date());
-    // V04.31 — Pendientes: primero lo accionable (reutiliza Historial, no hay bandeja paralela).
-    if (historyStatusFilter === 'pendientes') list = PH.sortPendingActionableFirst(list);
+    // V04.33 — 'recuperados' es un filtro de ORIGEN (lote del claim), no de estado: parte de los visibles ('todos') y recorta por ids.
+    list = PH.filterHistoryByStatusTab(list, currentIdentity(), historyStatusFilter === 'recuperados' ? 'todos' : historyStatusFilter, new Date());
+    if (historyStatusFilter === 'recuperados') { const recIds = recoveredMatchIdSet(); list = list.filter((m) => recIds.has(m.matchId)); }
     // V02.1 (§27) — filtro contextual (Racha actual/Efectividad), aplicado DESPUÉS de las
     // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio recalculado
     // aparte que pudiera divergir del que ya muestran Home/Efectividad. V02.7 (§4): Efectividad
@@ -5335,11 +5354,238 @@
     // slide+fade), tanto para la lista como para el estado vacío.
     triggerHistoryContentAnim();
     if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
+    if (historyStatusFilter === 'pendientes') { renderPendingSections(wrap, list); return; } // POR VALIDAR / POR RESOLVER / ESPERANDO VALIDACIÓN
+    if (historyStatusFilter === 'recuperados') { renderRecoveredTabList(wrap, list); return; }
     list.forEach((m) => {
       const item = buildHistoryItemElement(m);
       wireHistoryItemInteractions(item, m);
       wrap.appendChild(item);
     });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V04.33 — VALIDACIÓN RÁPIDA · PARTIDOS PENDIENTES · RECUPERADOS        */
+  /* Handoff 129. Una sola derivación (PH.classifyPendingCategory/computePendingBuckets) alimenta la card de Home, las secciones de       */
+  /* Historial > Pendientes y el gate; un solo componente (buildQuickMatchCard) sirve a Pendientes, Recuperados y la pantalla post-claim. */
+  /* ------------------------------------------------------------------ */
+  const QV_DONE_MS = 900; // ✓ PARTIDO VALIDADO visible ~0,8–1 s antes de contraer la card
+  const qvBusyIds = new Set(); // anti doble tap (un partido a la vez en vuelo)
+  const QV_SECTIONS = [
+    { key: 'porValidar', cat: 'por_validar', title: 'POR VALIDAR', mod: 'validar' },
+    { key: 'porResolver', cat: 'por_resolver', title: 'POR RESOLVER', mod: 'resolver' },
+    { key: 'esperando', cat: 'esperando', title: 'ESPERANDO VALIDACIÓN', mod: 'esperando' },
+  ];
+  let historyScrollTop = 0; // posición de scroll de la lista de Historial al abrir un Resumen (se restaura al volver)
+  function qvSleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+  function qvReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+
+  /** Badge de estado contextual de una card: el que depende de la categoría (POR VALIDAR / ESPERANDO VALIDACIÓN) o el real del partido. */
+  function qvStateBadge(m, category) {
+    if (category === 'por_validar') return { label: 'POR VALIDAR', mod: 'action' };
+    if (category === 'esperando') return { label: 'ESPERANDO VALIDACIÓN', mod: 'waiting' };
+    const label = serverMatchStatusLabel(m);
+    return label ? { label, mod: serverMatchStatusBadgeModifier(m) } : null;
+  }
+
+  /** Abre el Resumen completo desde una lista (con `report`, además abre el selector "Reportar un error" del propio Resumen — nada
+   *  paralelo). `origin`: 'history' | 'recovered' (vuelve a la lista de la que salió). */
+  function qvOpenResumen(m, origin, report) {
+    openCanonicalResumen(m, origin);
+    if (report && !$('#b6-report-error-btn').hidden) $('#b6-report-error-btn').click();
+  }
+
+  /** Refresco liviano tras validar desde una card: partidos + Nivel propio + badge. NO repinta la lista (la card se contrae sola). */
+  async function qvRefreshAfterValidate(matchId) {
+    markSelfActedMatch(matchId);
+    await refreshServerMatches();
+    if (Auth && Auth.isConfigured()) {
+      const profile = await Auth.fetchOwnProfile();
+      if (profile && !profile.levelStateReadFailed) { Store.cacheServerUser(profile); syncServerLevelState(profile); }
+    }
+    renderNotificationsBadge();
+  }
+
+  /** Contrae la card (altura + fade) y la quita; las demás suben. Con `prefers-reduced-motion` la quita directo. */
+  function qvCollapse(wrap) {
+    return new Promise((resolve) => {
+      if (qvReducedMotion()) { wrap.remove(); resolve(); return; }
+      wrap.style.maxHeight = `${wrap.offsetHeight}px`;
+      void wrap.offsetHeight; // reflow: fija el alto inicial antes de animar a 0
+      wrap.classList.add('is-leaving');
+      let done = false;
+      const finish = () => { if (done) return; done = true; wrap.remove(); resolve(); };
+      wrap.addEventListener('transitionend', (e) => { if (e.target === wrap && e.propertyName === 'max-height') finish(); });
+      setTimeout(finish, 520);
+    });
+  }
+
+  /** VALIDAR PARTIDO desde la card: misma acción que el Resumen (officialize-match, autoridad de pareja server-side). Sin modal de éxito:
+   *  al confirmar el servidor, las acciones se reemplazan por `✓ PARTIDO VALIDADO` (~0,9 s) y la card se contrae. Un error real conserva
+   *  la card con el motivo — nunca se finge éxito. */
+  async function qvValidate(m, wrap, o) {
+    if (qvBusyIds.has(m.matchId)) return;
+    qvBusyIds.add(m.matchId);
+    const actions = wrap.querySelector('.qv-card__actions');
+    const buttons = actions ? Array.from(actions.querySelectorAll('button')) : [];
+    buttons.forEach((b) => { b.disabled = true; });
+    let result;
+    try { result = await MV.officializeMatch(m.matchId); } catch (e) { result = { ok: false, code: 'network_error' }; }
+    if (!result || result.ok === false) {
+      qvBusyIds.delete(m.matchId);
+      buttons.forEach((b) => { b.disabled = false; });
+      showToast(b6ErrorMessage(result && result.code), 2800);
+      return;
+    }
+    if (result.code === 'confirmed_not_ready') {
+      // Tu confirmación quedó registrada pero el partido todavía no terminó de oficializarse: se refresca la lista (no se finge "validado").
+      qvBusyIds.delete(m.matchId);
+      showToast('Registramos tu confirmación. Estamos terminando de procesar el partido.', 3200);
+      await qvRefreshAfterValidate(m.matchId);
+      if (o.onChanged) o.onChanged(wrap, m, 'refresh');
+      return;
+    }
+    if (actions) { actions.className = 'qv-card__actions qv-card__actions--done'; actions.innerHTML = '<div class="qv-card__done" role="status">✓ PARTIDO VALIDADO</div>'; }
+    const stateBadge = wrap.querySelector('.qv-card__state .history-item__badge');
+    if (stateBadge) stateBadge.remove();
+    await Promise.all([qvSleep(QV_DONE_MS), qvRefreshAfterValidate(m.matchId)]);
+    qvBusyIds.delete(m.matchId);
+    if (!wrap.isConnected) return; // el usuario ya salió de la pantalla: nada que animar
+    if (o.mode === 'replace') { if (o.onChanged) o.onChanged(wrap, m, 'replace'); return; }
+    await qvCollapse(wrap);
+    if (o.onChanged) o.onChanged(wrap, m, 'collapsed');
+  }
+
+  /** Card de VALIDACIÓN RÁPIDA — componente único. Estructura: la card de Historial (fecha, resultado prominente, parejas, formato) +
+   *  estado contextual + acciones en la base cuando el usuario puede responder. `o.category`: 'por_validar' (REPORTAR UN ERROR / VALIDAR
+   *  PARTIDO), 'por_resolver' (RESOLVER, abre el Resumen con los flujos existentes) o 'esperando' (informativa, sin acciones).
+   *  `o.origin`: de dónde se abrió el Resumen. `o.mode`: 'collapse' (default) o 'replace' (la card queda, ya sin acciones).
+   *  Tocar el cuerpo/resultado abre el Resumen completo. */
+  function buildQuickMatchCard(m, o) {
+    const cat = o.category || PH.classifyPendingCategory(m, new Date());
+    const wrap = document.createElement('div');
+    wrap.className = 'qv-card';
+    wrap.dataset.matchId = m.matchId;
+    const item = buildHistoryItemElement(m, { omitStateBadges: true });
+    wrap.appendChild(item);
+    const badge = cat ? qvStateBadge(m, cat) : null;
+    const stateHTML = badge ? `<div class="qv-card__state"><span class="history-item__badge history-item__badge--${badge.mod}">${badge.label}</span></div>` : '';
+    let hintHTML = '';
+    if (cat === 'por_resolver') {
+      hintHTML = `<p class="qv-card__hint">${m.hasOpenIdentityIssue ? 'Revisá este partido para confirmar quién jugó.' : 'Hay una corrección abierta en este partido. Revisá el detalle.'}</p>`;
+    }
+    let actionsHTML = '';
+    if (cat === 'por_validar') {
+      actionsHTML = '<div class="qv-card__actions"><button type="button" class="qv-card__report" data-qv="report">REPORTAR UN ERROR</button>'
+        + '<button type="button" class="btn-start" data-qv="validate">VALIDAR PARTIDO</button></div>';
+    } else if (cat === 'por_resolver') {
+      actionsHTML = '<div class="qv-card__actions qv-card__actions--single"><button type="button" class="btn-secondary btn-secondary--accent" data-qv="open">RESOLVER</button></div>';
+    }
+    item.insertAdjacentHTML('beforeend', stateHTML + hintHTML + actionsHTML);
+    item.addEventListener('click', (e) => { if (!e.target.closest('[data-qv]')) qvOpenResumen(m, o.origin, false); });
+    wrap.querySelectorAll('[data-qv]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const act = btn.dataset.qv;
+        if (act === 'validate') qvValidate(m, wrap, o);
+        else qvOpenResumen(m, o.origin, act === 'report');
+      });
+    });
+    return wrap;
+  }
+
+  /** Historial > Pendientes: tres secciones en este orden — POR VALIDAR, POR RESOLVER, ESPERANDO VALIDACIÓN. Las dos primeras son accionables. */
+  function renderPendingSections(wrap, list) {
+    const buckets = PH.computePendingBuckets(list, new Date());
+    QV_SECTIONS.forEach((sec) => {
+      const items = buckets[sec.key];
+      if (!items.length) return;
+      const section = document.createElement('section');
+      section.className = 'pending-section';
+      section.dataset.section = sec.key;
+      section.innerHTML = `<div class="pending-section__head"><h2 class="pending-section__title pending-section__title--${sec.mod}">${sec.title}</h2><span class="pending-section__count">${items.length}</span></div><div class="pending-section__list"></div>`;
+      const lst = section.querySelector('.pending-section__list');
+      items.forEach((m) => lst.appendChild(buildQuickMatchCard(m, { category: sec.cat, origin: 'history', mode: 'collapse', onChanged: syncPendingListChrome })));
+      wrap.appendChild(section);
+    });
+  }
+
+  /** Tras contraerse una card: cuenta/oculta secciones, actualiza los contadores de las pestañas y el estado vacío (sin repintar la lista). */
+  function syncPendingListChrome(wrap, m, kind) {
+    if (kind === 'refresh') { renderHistory(); return; }
+    const listEl = $('#history-list');
+    listEl.querySelectorAll('.pending-section').forEach((sec) => {
+      const n = sec.querySelectorAll('.qv-card').length;
+      if (!n) sec.remove(); else sec.querySelector('.pending-section__count').textContent = String(n);
+    });
+    const full = getDisplayHistory({ includeHidden: true });
+    renderHistoryFilters(full);
+    if (!listEl.children.length) { $('#history-empty').hidden = false; renderHistoryEmptyState(full.length); }
+  }
+
+  /** Pestaña Recuperados: los pendientes accionables siguen usando la validación rápida; el resto, la card normal de Historial. */
+  function renderRecoveredTabList(wrap, list) {
+    const ids = recoveredMatchIdSet();
+    const names = Array.from(new Set(recentRecoveries.map((r) => r.sourceName).filter(Boolean)));
+    const note = document.createElement('p');
+    note.className = 'recovered-tab-note';
+    note.textContent = `Partidos que llegaron a tu cuenta al vincular ${names.length ? names.join(' y ') : 'tu identidad'}. Esta pestaña se muestra durante 30 días; los partidos siguen en tu historial. Si alguno no es tuyo, abrilo y usá "Reportar un error".`;
+    wrap.appendChild(note);
+    const now = new Date();
+    list.filter((m) => ids.has(m.matchId)).forEach((m) => {
+      if (PH.classifyPendingCategory(m, now) === 'por_validar') {
+        wrap.appendChild(buildQuickMatchCard(m, { category: 'por_validar', origin: 'history', mode: 'replace', onChanged: replaceRecoveredCardAfterValidate }));
+        return;
+      }
+      const item = buildHistoryItemElement(m);
+      wireHistoryItemInteractions(item, m);
+      wrap.appendChild(item);
+    });
+  }
+  /** En Recuperados la card validada NO desaparece (sigue siendo un partido recuperado): pasa a la card normal ya sin acciones. */
+  function replaceRecoveredCardAfterValidate(wrap, m, kind) {
+    const fresh = getDisplayHistory({ includeHidden: true });
+    const m2 = fresh.find((x) => x.matchId === m.matchId);
+    if (m2) { const item = buildHistoryItemElement(m2); wireHistoryItemInteractions(item, m2); wrap.replaceWith(item); }
+    renderHistoryFilters(fresh);
+  }
+
+  /* ---- Lotes recuperados recientes (ventana especial de visibilidad: la fija el servidor, 30 días) ---- */
+  let recentRecoveries = []; // [{recoveryId, sourceName, matchIds:[], recoveredAt}]
+  let recentRecoveriesFetchedAt = 0;
+  let recentRecoveriesUserId = null;
+  function recoveredMatchIdSet() {
+    const ids = new Set();
+    recentRecoveries.forEach((r) => (r.matchIds || []).forEach((id) => ids.add(id)));
+    return ids;
+  }
+  /** La pestaña existe SOLO mientras haya partidos recuperados dentro de la ventana (y visibles en el historial). */
+  function hasRecoveredTab() {
+    if (!recentRecoveries.length) return false;
+    const ids = recoveredMatchIdSet();
+    return getDisplayHistory({ includeHidden: true }).some((m) => ids.has(m.matchId) && !m.hidden);
+  }
+  function getHistoryTabs() {
+    if (!hasRecoveredTab()) return HISTORY_STATUS_TABS;
+    const tabs = HISTORY_STATUS_TABS.slice();
+    tabs.splice(1, 0, { key: 'recuperados', label: 'Recuperados' }); // después de Todos
+    return tabs;
+  }
+  async function refreshRecentRecoveries(force) {
+    if (!Auth || !Auth.isConfigured() || !isServerBackedSession()) { recentRecoveries = []; return; }
+    if (recentRecoveriesUserId !== currentUserId) { recentRecoveries = []; recentRecoveriesFetchedAt = 0; recentRecoveriesUserId = currentUserId; }
+    if (!force && Date.now() - recentRecoveriesFetchedAt < 60000) return;
+    const r = await Auth.getMyRecentRecoveries(30);
+    if (!r.ok) return; // sin red: se conserva lo último conocido
+    recentRecoveriesFetchedAt = Date.now();
+    const prev = recentRecoveries.map((x) => `${x.recoveryId}:${x.matchIds.length}`).join('|');
+    recentRecoveries = r.recoveries;
+    const next = recentRecoveries.map((x) => `${x.recoveryId}:${x.matchIds.length}`).join('|');
+    if (prev !== next && !$('#view-history').hidden) renderHistory();
+  }
+  /** Abre Historial > Recuperados (notificación, CTA de la pantalla post-claim). */
+  async function openRecoveredHistory() {
+    await refreshRecentRecoveries(true);
+    openHistoryScreen('player-home', null, 'recuperados');
   }
 
   /** V04.30 — ids de identidades SIN CUENTA (provisionales) visibles para el usuario; se refresca junto con los partidos del servidor. */
@@ -5505,10 +5751,11 @@
       if (axis !== 'h') return;
       const dx = e.changedTouches[0].clientX - startX;
       if (Math.abs(dx) < 60) return;
-      const idx = HISTORY_STATUS_TABS.findIndex((t) => t.key === historyStatusFilter);
+      const tabs = getHistoryTabs();
+      const idx = tabs.findIndex((t) => t.key === historyStatusFilter);
       const nextIdx = idx + (dx < 0 ? 1 : -1); // swipe a la izquierda -> pestaña siguiente
-      if (nextIdx < 0 || nextIdx >= HISTORY_STATUS_TABS.length) return;
-      historyStatusFilter = HISTORY_STATUS_TABS[nextIdx].key;
+      if (nextIdx < 0 || nextIdx >= tabs.length) return;
+      historyStatusFilter = tabs[nextIdx].key;
       historyContextFilter = null;
       renderHistory();
     }, { passive: true });
@@ -5700,6 +5947,8 @@
     await refreshProvisionalIdSet();
     updateHistoryUnseenDot();
     await refreshLastLevelDelta();
+    // V04.33 — ventana especial de Historial > Recuperados (la fija el servidor; best-effort, nunca bloquea).
+    try { await refreshRecentRecoveries(false); } catch (e) { /* sin red: se conserva lo último conocido */ }
   }
 
   /** Ronda UX 25/09 (Ronda 2, §8) — prende/apaga el puntito del ícono de Historial en el
@@ -8070,20 +8319,28 @@
    *  lugar anterior debajo de Último partido." Este carrusel vuelve a contener SOLO acciones/
    *  correcciones/espera reales — oculto por completo sin ningún item, igual que antes de h19.
    *  TU MOMENTO se pinta aparte, ver renderPlayerHomeMomento más abajo. */
+  /** V04.33 (handoff 129 §8.2) — card ancha PARTIDOS PENDIENTES con 3 contadores. Misma derivación que Historial > Pendientes
+   *  (PH.computePendingBuckets). Con total 0 no se muestra. Tocarla abre Historial > Pendientes. */
+  function renderPlayerHomePendingCard(displayMatches) {
+    const card = $('#player-home-pending-card');
+    const counts = PH.computePendingBuckets(displayMatches || [], new Date()).counts;
+    card.hidden = counts.total === 0;
+    if (counts.total === 0) return;
+    $('#player-home-pending-validar').textContent = String(counts.porValidar);
+    $('#player-home-pending-esperando').textContent = String(counts.esperando);
+    $('#player-home-pending-resolver').textContent = String(counts.porResolver);
+    card.setAttribute('aria-label', `Partidos pendientes: ${counts.porValidar} por validar, ${counts.esperando} esperando, ${counts.porResolver} por resolver`);
+  }
+
   function renderPlayerHomeCarousel(displayMatches, matches) {
     const track = $('#player-home-pending-carousel');
     const items = PH.computeHomePendingCarouselItems(displayMatches || [], new Date());
     // Fix h22 — UN solo carrusel: acciones/esperas primero, insights (hitos) al final.
     const hitos = PH.computeHitos(matches || [], currentIdentity());
-    // V04.31 — mientras queden participaciones recuperadas sin revisar, la primera tarjeta lleva de vuelta a PARTIDOS RECUPERADOS.
-    const recoveredPending = isRecoveredReviewPending();
-    if (!items.length && !hitos.length && !recoveredPending) { track.hidden = true; track.innerHTML = ''; return; }
+    if (!items.length && !hitos.length) { track.hidden = true; track.innerHTML = ''; return; }
     const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
     const hitosHTML = hitos.map((h) => `<div class="player-home-carousel-card player-home-carousel-card--insight"><p class="player-home-carousel-card__text">${escapeHtml(h)}</p></div>`).join('');
-    const recoveredHTML = recoveredPending
-      ? '<div class="player-home-carousel-card player-home-carousel-card--accionable" role="button" tabindex="0" data-recovered="1"><span class="player-home-carousel-card__label">REVISÁ TUS PARTIDOS RECUPERADOS</span><p class="player-home-carousel-card__text">Confirmá en cuáles jugaste.</p></div>'
-      : '';
-    track.innerHTML = recoveredHTML + items.map((item) => {
+    track.innerHTML = items.map((item) => {
       const m = byId.get(item.matchId);
       if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
@@ -8104,18 +8361,21 @@
         kindClass = 'accionable';
         label = 'PARTIDO POR VALIDAR';
         text = `Partido con ${rivalNames}.`;
+      } else if (item.kind === 'identidad') {
+        // V04.33 — copy humano (sin acusar a nadie): incidencia de identidad = POR RESOLVER.
+        kindClass = 'accionable';
+        label = 'JUGADOR POR IDENTIFICAR';
+        text = `Partido con ${rivalNames}. Revisá este partido para confirmar quién jugó.`;
       } else if (item.kind === 'correccion') {
         kindClass = 'correccion';
         // Hotfix Central h20 — get_my_matches no expone quién propuso una corrección ya validada.
         // Un copy actor-relativo acá podía mentirle al propio proponente ("La otra pareja...").
         // Se usa wording neutral y verdadero para ambos lados; la distinción precisa sigue en
         // Resumen, donde get_match_detail sí trae el actor real.
-        label = 'CORRECCIÓN ABIERTA';
+        label = 'POR RESOLVER';
         text = 'Hay una corrección abierta en este partido. Revisá el detalle.';
       } else {
-        kindClass = 'espera';
-        label = 'ESPERANDO VALIDACIÓN';
-        text = `El partido con ${rivalNames} está esperando validación.`;
+        return ''; // V04.33 — `ESPERANDO VALIDACIÓN` ya no se destaca arriba (el usuario no puede hacer nada): vive en PARTIDOS PENDIENTES.
       }
       return `
         <div class="player-home-carousel-card player-home-carousel-card--${kindClass}" role="button" tabindex="0" data-match-id="${escapeHtml(item.matchId)}">
@@ -8126,12 +8386,6 @@
     track.hidden = false;
     // V04.16 (Issue #7) — UNA sola tarjeta (acción o insight) => ancho completo; 2+ => carrusel con asomo.
     track.classList.toggle('player-home-carousel--single', track.querySelectorAll('.player-home-carousel-card').length === 1);
-    const recCard = track.querySelector('.player-home-carousel-card[data-recovered]');
-    if (recCard) {
-      const openRec = () => { openRecoveredMatchesScreen(); };
-      recCard.addEventListener('click', openRec);
-      recCard.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRec(); } });
-    }
     $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
       if (!m) return;
@@ -8185,6 +8439,7 @@
     const homeIsServerBackedWithAuth = Auth.isConfigured() && homeUser && homeUser.serverBacked;
 
     renderPlayerHomeCarousel(displayMatches, matches);
+    renderPlayerHomePendingCard(displayMatches);
     renderPlayerCard(matches, shouldAnimate);
     renderPlayerLastMatchCard(displayMatches, matches);
     if (homeIsServerBackedWithAuth) {
@@ -8539,17 +8794,11 @@
     // CUESTIONADA/etc. apilados bajo fecha/hora en row1) — la causa que motivó ese hotfix (texto
     // largo rompiendo la geometría) queda cubierta acá con texto liso sin padding/pill (más
     // compacto que un badge) + font-size reducido a 10px + white-space:nowrap.
-    // Copies específicos de ESTA tarjeta (nunca cambian serverMatchStatusLabel en general —
-    // Historial/Resumen conservan su propio wording): "TU TURNO: CONFIRMAR" -> "CONFIRMAR
-    // PARTIDO", "PENDIENTE DE VALIDACIÓN" -> "ESPERANDO VALIDACIÓN". El resto (identidad
-    // cuestionada, sync_pending, necesita_revision, expired, annulled) conserva el copy vigente
-    // tal cual serverMatchStatusLabel ya lo resuelve, con la misma prioridad de estados.
+    // V04.33 — el texto de estado sale de serverMatchStatusLabel (lenguaje unificado: POR VALIDAR / ESPERANDO VALIDACIÓN / JUGADOR POR
+    // IDENTIFICAR) con la misma prioridad de estados que Historial/Resumen; solo la corrección activa tiene copy propio acá.
     const generalStatusText = serverMatchStatusLabel(m);
-    const lastMatchStatusText = hasActiveCorrectionOnLastMatch
-      ? 'CORRECCIÓN PENDIENTE'
-      : (generalStatusText === 'TU TURNO: CONFIRMAR' ? 'VALIDAR PARTIDO'
-        : generalStatusText === 'PENDIENTE DE VALIDACIÓN' ? 'ESPERANDO VALIDACIÓN'
-        : generalStatusText);
+    // V04.33 — serverMatchStatusLabel ya habla el lenguaje unificado (POR VALIDAR / ESPERANDO VALIDACIÓN / JUGADOR POR IDENTIFICAR).
+    const lastMatchStatusText = hasActiveCorrectionOnLastMatch ? 'CORRECCIÓN PENDIENTE' : generalStatusText;
     const lastMatchStatusModifier = hasActiveCorrectionOnLastMatch ? 'correction' : (serverMatchStatusBadgeModifier(m) || 'status');
     const lastMatchStatusHTML = !lastMatchStatusText ? '' : `<span class="player-home-lastmatch__status-text player-home-lastmatch__status-text--${lastMatchStatusModifier}">${lastMatchStatusText}</span>`;
 
@@ -8863,6 +9112,10 @@
     $('#player-home-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToProfile(); } });
     // BRAMUlab_V03.3 (§4) — "BUSCAR JUGADORES", al final del contenido principal del Home.
     $('#player-home-search-players-card').addEventListener('click', openPlayerSearchScreen);
+    // V04.33 — card PARTIDOS PENDIENTES → Historial > Pendientes (la pantalla canónica de resolución).
+    const openPending = () => openHistoryScreen('player-home', null, 'pendientes');
+    $('#player-home-pending-card').addEventListener('click', openPending);
+    $('#player-home-pending-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPending(); } });
   }
 
   /** V03.0.2 (§12) — Notificaciones: pantalla completa (reemplaza el popup "todavía no hay
@@ -8903,7 +9156,9 @@
     pending_review: { title: 'PARTIDO POR VALIDAR', body: 'Tenés un partido esperando tu validación.', category: 'pending' },
     identity_claimed: { title: 'Nueva cuenta vinculada', body: 'Una persona que invitaste ya se sumó a BRAMU y recuperó sus partidos.', category: 'positive' },
     correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen un resultado distinto para este partido.', category: 'pending' },
-    identity_questioned: { title: 'Participante cuestionado', body: 'Alguien indicó que un jugador cargado no participó.', category: 'pending' },
+    identity_questioned: { title: 'Jugador por identificar', body: 'Alguien indicó que un jugador cargado no participó.', category: 'pending' },
+    // V04.33 — para el propio reclamante (distinta de identity_claimed, que le llega a quien invitó).
+    identity_recovered: { title: 'RECUPERAMOS TUS PARTIDOS', body: 'Los partidos que estaban registrados con tu nombre ya están en tu historial.', category: 'positive' },
     match_validated: { title: 'Resultado confirmado', body: 'Tu partido ya quedó confirmado.', category: 'positive' },
     correction_accepted: { title: 'Corrección aceptada', body: 'Se confirmó un nuevo resultado para este partido.', category: 'info' },
     identity_resolved: { title: 'Participante corregido', body: 'Ya se indicó quién jugó realmente.', category: 'info' },
@@ -9012,6 +9267,14 @@
       const who = n.payload && n.payload.claimedByName;
       titleOverride = who ? `${who} ya se sumó a BRAMU y recuperó sus partidos.` : copy.title;
       body = '';
+    }
+
+    // V04.33 — recuperación propia: `RECUPERAMOS 18 PARTIDOS` + a qué nombre correspondían; al tocar abre Historial > Recuperados.
+    if (n.type === 'identity_recovered') {
+      const cnt = Number(n.payload && n.payload.matchCount) || 0;
+      const src = n.payload && n.payload.sourceName;
+      titleOverride = cnt ? `RECUPERAMOS ${cnt} PARTIDO${cnt === 1 ? '' : 'S'}` : copy.title;
+      body = src ? (cnt === 1 ? `El partido que estaba registrado como ${src} ya está en tu historial.` : `Los partidos que estaban registrados como ${src} ya están en tu historial.`) : copy.body;
     }
 
     return {
@@ -9142,6 +9405,7 @@
         if (cached) cached.readAt = cached.readAt || new Date().toISOString();
         item.classList.remove('is-unread');
         renderNotificationsBadge();
+        if (cached && cached.type === 'identity_recovered') { await openRecoveredHistory(); return; } // V04.33 — abre Historial > Recuperados
         if (matchId) { await openMatchById(matchId); return; }
         return;
       }
@@ -14550,18 +14814,19 @@
     list.innerHTML = rows.map((p) => {
       const name = (invitable.get(p.userId).display_name || p.name || 'Jugador');
       return `<div class="guests-row"><div class="guests-row__head">${warnIcon}<span class="guests-row__name">${escapeHtml(name)}</span><span class="guests-row__tag">Sin cuenta</span></div>`
-        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
+        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}" data-source-match-id="${escapeHtml(f.matchId || '')}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
     }).join('');
     list.querySelectorAll('[data-guest-id]').forEach((btn) => {
-      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName));
+      btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName, btn.dataset.sourceMatchId));
     });
     section.hidden = false;
   }
 
   /** B2 — hoja "Invitá a {nombre} a BRAMU". El enlace se genera al tocar COPIAR INVITACIÓN (rota solo el link propio del invitador). */
-  function openInviteSheet(playerId, name) {
+  function openInviteSheet(playerId, name, sourceMatchId) {
     const cleanName = String(name || 'este jugador').trim() || 'este jugador';
-    inviteSheetCurrent = { playerId, name: cleanName, busy: false };
+    // V04.33 — `sourceMatchId`: el partido desde el que se invita; el link lo recuerda para mostrarlo en "¿Sos X?".
+    inviteSheetCurrent = { playerId, name: cleanName, sourceMatchId: sourceMatchId || null, busy: false };
     $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMU`;
     $('#invite-sheet-text').textContent = `Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos. La invitación es personal: enviásela solo a ${cleanName}.`;
     const feedback = $('#invite-sheet-feedback');
@@ -14585,8 +14850,8 @@
     provisional_not_found: 'Este jugador ya no está disponible para invitar.',
   };
   /** Genera el enlace personal. Devuelve `{ok, url}` o `{ok:false, code}`. */
-  async function createInviteUrl(playerId) {
-    const created = await Auth.createClaimLink(playerId);
+  async function createInviteUrl(playerId, sourceMatchId) {
+    const created = await Auth.createClaimLink(playerId, sourceMatchId);
     if (!created.ok || !created.token) return { ok: false, code: created.code || 'unknown' };
     return { ok: true, url: `${window.location.origin}${window.location.pathname}?claim=${created.token}` };
   }
@@ -14602,7 +14867,7 @@
     linkInput.hidden = true;
     // El permiso de portapapeles de iOS/Safari vence si se espera la red ANTES de escribir: se entrega un ClipboardItem con
     // una promesa para conservar el gesto del usuario; si no existe/falla, se cae a writeText y, por último, a copia manual.
-    const linkPromise = createInviteUrl(cur.playerId);
+    const linkPromise = createInviteUrl(cur.playerId, cur.sourceMatchId);
     let copied = false;
     try {
       if (navigator.clipboard && typeof window.ClipboardItem === 'function') {
@@ -14676,20 +14941,67 @@
     return pendingInvitationFlow;
   }
 
+  /** V04.33 — representación COMPACTA de las dos parejas del partido de la invitación: avatar (foto si existe, iniciales si no), nombre y
+   *  @usuario secundario. La identidad invitada (sin cuenta) va resaltada y su pareja primero. Sin cuatro fichas de perfil. */
+  function buildInvitationContextHTML(src, preview, displayName) {
+    const parts = Array.isArray(src.participants) ? src.participants : [];
+    const invitee = parts.find((p) => p && p.isInvitee);
+    const firstTeam = invitee && invitee.team === 'B' ? 'B' : 'A';
+    const teams = [firstTeam, firstTeam === 'A' ? 'B' : 'A'];
+    const playerHTML = (p) => {
+      const name = p.displayName || 'Jugador';
+      const avatar = p.avatarPath
+        ? `<span class="invite-ctx__avatar" data-avatar-path="${escapeHtml(p.avatarPath)}">${escapeHtml(playerInitials(name))}</span>`
+        : `<span class="invite-ctx__avatar">${escapeHtml(playerInitials(name))}</span>`;
+      return `<div class="invite-ctx__player">${avatar}<span class="invite-ctx__who"><span class="invite-ctx__name${p.isInvitee ? ' invite-ctx__name--invitee' : ''}">${escapeHtml(name)}</span>`
+        + (p.username ? `<span class="invite-ctx__handle">@${escapeHtml(p.username)}</span>` : '') + '</span></div>';
+    };
+    const teamHTML = (t) => `<div class="invite-ctx__team">${parts.filter((p) => p.team === t).sort((a, b) => (a.position || 0) - (b.position || 0)).map(playerHTML).join('')}</div>`;
+    const flip = firstTeam === 'B';
+    const score = (src.sets || []).map((st) => (flip ? `${st.gamesB}-${st.gamesA}` : `${st.gamesA}-${st.gamesB}`)).join('  ·  ');
+    let when = '';
+    try {
+      const dateStr = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(src.playedAt));
+      const timeStr = src.playedAtTimeKnown === false ? '' : ` · ${new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(src.playedAt))}`;
+      when = dateStr + timeStr;
+    } catch (e) { when = ''; }
+    const label = preview && preview.sourceIsOrigin ? 'Te invitaron desde este partido:' : `${src.loaderName || 'Alguien'} registró este partido con ese nombre:`;
+    const more = Math.max(0, ((preview && preview.matchCount) || 0) - 1);
+    const who = String(displayName || 'esta identidad');
+    return `<div class="invite-ctx"><p class="invite-ctx__meta">${escapeHtml(label)}${when ? ` ${escapeHtml(when)}` : ''}</p>`
+      + `<div class="invite-ctx__teams">${teamHTML(teams[0])}<span class="invite-ctx__vs">vs</span>${teamHTML(teams[1])}</div>`
+      + (score ? `<p class="invite-ctx__score">${escapeHtml(score)}</p>` : '')
+      + (more ? `<p class="invite-ctx__more">+ ${more} partido${more === 1 ? '' : 's'} más asociado${more === 1 ? '' : 's'} a ${escapeHtml(who)}</p>` : '')
+      + '</div>';
+  }
+  /** Reemplaza las iniciales por la foto cuando se resuelve la URL firmada (UNA llamada batch); sin foto/sin red queda el fallback de iniciales. */
+  function hydrateInvitationAvatars(container) {
+    const nodes = Array.from(container.querySelectorAll('[data-avatar-path]'));
+    if (!nodes.length || !Auth || !Auth.resolveAvatarUrlsBatch) return;
+    Auth.resolveAvatarUrlsBatch(nodes.map((n) => n.dataset.avatarPath)).then((map) => {
+      nodes.forEach((n) => {
+        const url = map.get(n.dataset.avatarPath);
+        if (!url || !n.isConnected) return;
+        const img = document.createElement('img');
+        img.className = 'invite-ctx__avatar'; img.alt = ''; img.src = url;
+        n.replaceWith(img);
+      });
+    }).catch(() => { /* fallback de iniciales */ });
+  }
+
   /** Modal "¿Sos {nombre}?". SOY YO ejecuta la vinculación (errores dentro del modal, con reintento); NO SOY YO solo limpia la
    *  intención local — nunca consume ni revoca el enlace para nadie más. */
   function askInvitationConfirmation(displayName, token, preview) {
     return new Promise((resolve) => {
       const overlay = $('#invitation-confirm-overlay');
-      // V04.30 — contexto del partido fuente (quién lo cargó, parejas, score, fecha) para reducir errores humanos al confirmar identidad.
+      // V04.33 — el partido que ORIGINÓ esta invitación (si el link lo recuerda; si no, el más reciente), con identidad visual compacta de las
+      // dos parejas (foto/@usuario) + cuántos partidos más tiene asociados la identidad.
       const sourceEl = $('#invitation-confirm-source');
       const src = preview && preview.sourceMatch;
       if (src) {
-        const more = Math.max(0, (preview.matchCount || 0) - 1);
-        sourceEl.innerHTML = `<p class="invitation-source__label">${escapeHtml(src.loaderName || 'Alguien')} registró este partido con ese nombre:</p>`
-          + buildDuplicateMatchCardHTML(src)
-          + (more ? `<p class="invitation-source__more">y ${more} partido${more === 1 ? '' : 's'} más</p>` : '');
+        sourceEl.innerHTML = buildInvitationContextHTML(src, preview, displayName);
         sourceEl.hidden = false;
+        hydrateInvitationAvatars(sourceEl);
       } else { sourceEl.innerHTML = ''; sourceEl.hidden = true; }
       const yes = $('#invitation-confirm-yes');
       const no = $('#invitation-confirm-no');
@@ -14742,20 +15054,22 @@
   async function afterIdentityLinked(result, opts) {
     const n = result && result.matchCount;
     showToast(n ? 'Listo. Vinculamos tus partidos a tu cuenta.' : 'Listo. Tu cuenta quedó vinculada.', 3600);
-    // V04.30 — superficie persistente de partidos recuperados (no depende del toast). Se recuerda hasta que la persona la cierre.
-    if (n && result.recoveryId) saveRecoveredReview({ recoveryId: result.recoveryId, answers: {}, dismissed: false });
+    // V04.33 — pantalla completa RECUPERAMOS N PARTIDOS (no depende del toast). Se recuerda hasta que se muestre.
+    if (n && result.recoveryId) saveRecoveredReview({ recoveryId: result.recoveryId });
     if (opts && opts.onboardingDone === false) return; // alta nueva: se abre al terminar el onboarding (maybeOpenRecoveredReview)
     await refreshAfterIdentityChange();
     if (n && await openRecoveredMatchesScreen()) return; // los duplicados/Nivel pendientes se ofrecen al salir de la pantalla
     await syncIdentityRecovery();
   }
 
-  /* ---- V04.31 · Partidos recuperados (post "SÍ, SOY YO") ---- */
+  /* ---- V04.33 · RECUPERAMOS N PARTIDOS (post "SÍ, SOY YO") ---- */
+  // El claim recupera AUTOMÁTICAMENTE todos los partidos de la identidad: no hay checklist de participación. Solo se recuerda que falta
+  // MOSTRAR la pantalla (alta nueva: el claim ocurre antes de terminar el onboarding). Se limpia al salir de ella.
   const RECOVERED_REVIEW_KEY = 'bramu_recovered_review_v1';
   let recoveredReviewMemory = null;
-  /** La revisión pendiente de la última vinculación. BUG 1 (QA 05/10): en un ALTA NUEVA el claim ocurre antes de que exista
-   *  `currentUserId` (se guardaba con otro id/undefined y después no se encontraba); ahora se guarda SIN dueño (`userId: null`) y se
-   *  adopta la cuenta que la abre — el servidor (`get_my_recovered_match_ids`) solo entrega los ids al TARGET real de la recuperación. */
+  /** La pantalla post-claim pendiente de mostrar. En un ALTA NUEVA el claim ocurre antes de que exista `currentUserId`: se guarda SIN
+   *  dueño (`userId: null`) y se adopta la cuenta que la abre — el servidor (`get_my_recovered_match_ids`) solo entrega los ids al
+   *  TARGET real de la recuperación. */
   function loadRecoveredReview() {
     let v = null;
     try { v = JSON.parse(localStorage.getItem(RECOVERED_REVIEW_KEY) || 'null'); } catch (e) { v = recoveredReviewMemory; }
@@ -14764,8 +15078,7 @@
     return v;
   }
   function saveRecoveredReview(review) {
-    const v = Object.assign({}, review);
-    v.userId = review.userId || currentUserId || null;
+    const v = { recoveryId: review.recoveryId, userId: review.userId || currentUserId || null };
     recoveredReviewMemory = v;
     try { localStorage.setItem(RECOVERED_REVIEW_KEY, JSON.stringify(v)); } catch (e) { /* queda en memoria de esta sesión */ }
   }
@@ -14773,167 +15086,86 @@
     recoveredReviewMemory = null;
     try { localStorage.removeItem(RECOVERED_REVIEW_KEY); } catch (e) { /* noop */ }
   }
-  /** Respuesta de participación de UN partido recuperado: la guardada, o derivada (si el usuario ya no figura => 'no'; si tocó
-   *  "Reportar un error"/validó y ya no le toca actuar => 'yes'). `null` = todavía sin revisar. */
-  function recoveredAnswerOf(rev, row) {
-    const stored = (rev.answers || {})[row.matchId];
-    if (stored) return stored;
-    const me = (row.participants || []).find((p) => p && p.playerId === currentUserId);
-    if (!me) return 'no';
-    const stillMine = row.status === 'pending_validation' && row.isActionMine;
-    if (((rev.reported || []).includes(row.matchId)) && !stillMine) return 'yes';
-    return null;
-  }
-  /** ¿Quedan participaciones recuperadas sin revisar? (alimenta la tarjeta del carrusel de Home). */
-  function isRecoveredReviewPending() {
-    const rev = loadRecoveredReview();
-    if (!rev) return false;
-    if (!rev.matchIds) return true; // todavía no se abrió la pantalla: hay algo por revisar
-    const cache = Store.loadServerMatchesCache().matches || [];
-    return rev.matchIds.some((id) => {
-      const row = cache.find((m) => m.matchId === id);
-      return !!row && row.status !== 'annulled' && !recoveredAnswerOf(rev, row);
-    });
-  }
-  /** Al arrancar con sesión (o al terminar un alta nueva): si quedó una revisión sin cerrar ni postergada, se vuelve a abrir. */
+  /** Al arrancar con sesión (o al terminar un alta nueva): si quedó una pantalla post-claim sin mostrar, se abre. */
   async function maybeOpenRecoveredReview() {
     const rev = loadRecoveredReview();
-    if (!rev || rev.dismissed) return false;
+    if (!rev) return false;
     return openRecoveredMatchesScreen();
   }
-  /** Abre la pantalla con los partidos de la última vinculación pendiente. Devuelve true si se mostró. */
+  let recoveredScreenState = null; // { recoveryId, sourceName, total, matchIds, rows(display shape) }
+  /** Abre la pantalla completa con el lote de la última vinculación. Devuelve true si se mostró. */
   async function openRecoveredMatchesScreen() {
     const rev = loadRecoveredReview();
     if (!rev || !MSync) return false;
     const ids = await Auth.getRecoveredMatchIds(rev.recoveryId);
     if (!ids.ok || !ids.matchIds.length) { clearRecoveredReview(); return false; }
     await refreshServerMatches();
-    const cache = Store.loadServerMatchesCache().matches || [];
-    const rows = ids.matchIds.map((id) => cache.find((m) => m.matchId === id)).filter((m) => m && m.status !== 'annulled');
-    if (!rows.length) { clearRecoveredReview(); return false; }
-    if (!rev.matchIds) {
-      rev.matchIds = rows.map((r) => r.matchId);
-      rev.answers = rev.answers || {};
-    }
-    rev.dismissed = false;
-    saveRecoveredReview(rev);
-    recoveredScreenState = { rev, rows, sourceName: ids.sourceName };
+    // El lote entra a la ventana especial de visibilidad (Historial > Recuperados) sin esperar al próximo refresco.
+    recentRecoveriesUserId = currentUserId;
+    recentRecoveries = [{ recoveryId: rev.recoveryId, sourceName: ids.sourceName, matchIds: ids.matchIds, recoveredAt: new Date().toISOString() }]
+      .concat(recentRecoveries.filter((r) => r.recoveryId !== rev.recoveryId));
+    refreshRecentRecoveries(true);
+    recoveredScreenState = { recoveryId: rev.recoveryId, sourceName: ids.sourceName, total: ids.matchIds.length, matchIds: ids.matchIds };
     renderRecoveredMatchesScreen();
     showView('recovered');
     return true;
   }
-  let recoveredScreenState = null;
-  /** Estado contextual de UN recuperado (V04.32): un pendiente donde YO no tengo nada que responder se rotula `ESPERANDO VALIDACIÓN`
-   *  (como en Home). Solo copy: el estado real del partido no cambia. */
-  function recoveredStatusBadge(row, f) {
-    if (row.status === 'pending_validation' && !row.isActionMine && !f.hasOpenIdentityIssue) return { label: 'ESPERANDO VALIDACIÓN', mod: 'waiting' };
-    const label = serverMatchStatusLabel(f);
-    return label ? { label, mod: serverMatchStatusBadgeModifier(f) } : null;
+  /** Partidos del lote que HOY esperan la respuesta del recuperado (POR VALIDAR), tal como los entrega el servidor. */
+  function recoveredActionableRows() {
+    const st = recoveredScreenState;
+    if (!st) return [];
+    const cache = Store.loadServerMatchesCache().matches || [];
+    const now = new Date();
+    return st.matchIds
+      .map((id) => cache.find((m) => m.matchId === id))
+      .filter(Boolean)
+      .map((row) => MSync.translateServerMatchToLocalShape(row))
+      .filter((f) => PH.classifyPendingCategory(f, now) === 'por_validar');
   }
   function renderRecoveredMatchesScreen() {
     const st = recoveredScreenState;
     if (!st) return;
-    const rev = st.rev;
-    $('#recovered-intro').textContent = `Vinculamos a tu cuenta los partidos que se habían registrado como ${st.sourceName}. Confirmá en cuáles jugaste.`;
+    const n = st.total;
+    $('#recovered-title').textContent = `RECUPERAMOS ${n} PARTIDO${n === 1 ? '' : 'S'}`;
+    $('#recovered-text').textContent = n === 1 ? 'Ya forma parte de tu historial.' : 'Ya forman parte de tu historial.';
+    $('#recovered-view-btn').textContent = n === 1 ? 'VER EL PARTIDO RECUPERADO' : `VER LOS ${n} RECUPERADOS`;
+    const rows = recoveredActionableRows();
+    const needs = $('#recovered-needs');
     const list = $('#recovered-list');
     list.innerHTML = '';
-    st.rows.forEach((row) => {
-      const f = MSync.translateServerMatchToLocalShape(row);
-      // Una sola card: fecha/resultado/parejas arriba (sin badge de estado, que movía el ritmo vertical) y, DENTRO de la misma card,
-      // estado + acciones.
-      const wrap = document.createElement('div');
-      wrap.className = 'recovered-card';
-      const item = buildHistoryItemElement(f, { omitStateBadges: true });
-      wrap.appendChild(item);
-      const answered = recoveredAnswerOf(rev, row);
-      const actionable = row.status === 'pending_validation' && row.isActionMine;
-      const badge = recoveredStatusBadge(row, f);
-      const validatedHere = (rev.validatedHere || []).includes(row.matchId) && row.status === 'validated';
-      let confirmHTML = '';
-      if (answered === 'yes') confirmHTML = validatedHere ? '✓ Partido validado' : '✓ Participación confirmada';
-      else if (answered === 'no') confirmHTML = 'Indicaste que no jugaste este partido';
-      const actions = document.createElement('div');
-      actions.className = 'recovered-card__actions';
-      let html = `<div class="recovered-card__status-row">${badge ? `<span class="history-item__badge history-item__badge--${badge.mod}">${badge.label}</span>` : '<span></span>'}`
-        + (confirmHTML ? `<span class="recovered-card__status${answered === 'no' ? ' recovered-card__status--no' : ''}">${confirmHTML}</span>` : '') + '</div>';
-      if (!answered) {
-        // Negativo a la izquierda (outline rojo), positivo a la derecha (verde), misma altura. Un pendiente accionable usa las acciones canónicas
-        // (VALIDAR PARTIDO implica que jugó y que el resultado está bien; REPORTAR UN ERROR = mismo estilo que en el Resumen).
-        html += `<div class="recovered-card__row"><button type="button" class="btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ</button>`
-          + (actionable ? '<button type="button" class="btn-start" data-act="validate">VALIDAR PARTIDO</button>' : '<button type="button" class="btn-start" data-act="yes">SÍ, LO JUGUÉ</button>')
-          + '</div>'
-          + (actionable ? '<button type="button" class="b6-correction-choice b6-correction-choice--report" data-act="report">Reportar un error</button>' : '');
-      }
-      if (answered !== 'no') html += '<button type="button" class="link-btn recovered-card__open" data-act="open">Ver partido</button>';
-      actions.innerHTML = html;
-      actions.querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => onRecoveredAction(row, btn.dataset.act)));
-      item.appendChild(actions);
-      list.appendChild(wrap);
-    });
-    // TERMINAR REVISIÓN (cierre global) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después".
-    const allAnswered = st.rows.every((r) => recoveredAnswerOf(rev, r));
-    $('#recovered-later-btn').hidden = allAnswered;
-    $('#recovered-done-btn').hidden = !allAnswered;
-  }
-  async function onRecoveredAction(row, act) {
-    const st = recoveredScreenState;
-    if (!st) return;
-    const f = MSync.translateServerMatchToLocalShape(row);
-    const mark = (answer) => { st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: answer }); saveRecoveredReview(st.rev); };
-    if (act === 'open' || act === 'report') {
-      if (act === 'report') { st.rev.reported = Array.from(new Set([...(st.rev.reported || []), row.matchId])); saveRecoveredReview(st.rev); }
-      openCanonicalResumen(f, 'recovered');
-      // El selector "Reportar un error" es el del Resumen existente (nada paralelo).
-      if (act === 'report' && !$('#b6-report-error-btn').hidden) $('#b6-report-error-btn').click();
-      return;
+    needs.hidden = rows.length === 0;
+    if (rows.length) {
+      $('#recovered-needs-title').textContent = `${rows.length} PARTIDO${rows.length === 1 ? ' NECESITA' : 'S NECESITAN'} TU RESPUESTA`;
+      // TODOS los accionables, en scroll (sin tope artificial).
+      rows.forEach((f) => list.appendChild(buildQuickMatchCard(f, { category: 'por_validar', origin: 'recovered', mode: 'collapse', onChanged: onRecoveredCardChanged })));
     }
-    if (act === 'yes') { mark('yes'); renderRecoveredMatchesScreen(); return; }
-    if (act === 'validate') {
-      // Misma acción que "VALIDAR PARTIDO" del Resumen (officialize-match, autoridad de pareja server-side). Validar implica que jugó.
-      const result = await MV.officializeMatch(row.matchId);
-      if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
-      showToast('Partido validado.');
-      st.rev.validatedHere = Array.from(new Set([...(st.rev.validatedHere || []), row.matchId]));
-      mark('yes');
-      await afterB6Action(row.matchId);
-      await refreshRecoveredRows();
-      return;
-    }
-    // NO, NO LO JUGUÉ — misma incidencia de identidad que "No participé" en Resumen (el lugar queda "Por identificar").
-    if (!b6IdentityReportWindowOpen(f)) { showToast('La ventana para corregir la identidad de este partido ya venció.', 3000); return; }
-    const mine = (row.participants || []).find((p) => p && p.playerId === currentUserId);
-    if (!mine) { showToast('No encontramos tu lugar en este partido.', 2600); return; }
-    confirmReportIdentity(row.matchId, mine.team, mine.position, mine.displayName || 'vos', {
-      isSelf: true,
-      onDone: async () => {
-        mark('no');
-        await refreshRecoveredRows();
-      },
-    });
+    syncRecoveredFooter();
   }
-  async function refreshRecoveredRows() {
-    const st = recoveredScreenState;
-    if (!st) return;
-    await refreshServerMatches();
-    const fresh = Store.loadServerMatchesCache().matches || [];
-    st.rows = st.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
-    if (!$('#view-recovered').hidden) renderRecoveredMatchesScreen();
+  /** `OMITIR` solo mientras queden accionables; sin ellos, la salida pasa a `ENTRAR A BRAMU`. */
+  function syncRecoveredFooter() {
+    const pendingCards = $('#recovered-list').querySelectorAll('.qv-card').length;
+    $('#recovered-skip-btn').hidden = pendingCards === 0;
+    $('#recovered-enter-btn').hidden = pendingCards !== 0;
+    if (pendingCards === 0) $('#recovered-needs').hidden = true;
+    else $('#recovered-needs-title').textContent = `${pendingCards} PARTIDO${pendingCards === 1 ? ' NECESITA' : 'S NECESITAN'} TU RESPUESTA`;
   }
-  async function closeRecoveredScreen(markDone) {
-    const st = recoveredScreenState;
+  function onRecoveredCardChanged(wrap, m, kind) {
+    if (kind === 'refresh') { renderRecoveredMatchesScreen(); return; }
+    syncRecoveredFooter();
+  }
+  /** Sale de la pantalla (ENTRAR / OMITIR / ver recuperados): la intención queda cumplida y nunca se vuelve a abrir sola. */
+  async function closeRecoveredScreen(destination) {
     recoveredScreenState = null;
-    const allAnswered = !!st && st.rows.every((r) => recoveredAnswerOf(st.rev, r));
-    // Nunca se cierra definitivamente con participaciones sin revisar; con todas revisadas la revisión se da por terminada.
-    if (st && allAnswered) clearRecoveredReview();
-    else if (st) { st.rev.dismissed = true; saveRecoveredReview(st.rev); }
-    openPlayerHome();
+    clearRecoveredReview();
+    if (destination === 'recuperados') await openRecoveredHistory();
+    else openPlayerHome();
     // Ahora sí: Nivel recuperado pendiente y posibles duplicados (serializados, después de esta pantalla).
     syncIdentityRecovery();
   }
   function initRecoveredScreen() {
-    $('#recovered-back-btn').addEventListener('click', () => closeRecoveredScreen(false));
-    $('#recovered-later-btn').addEventListener('click', () => closeRecoveredScreen(false));
-    $('#recovered-done-btn').addEventListener('click', () => closeRecoveredScreen(true));
+    $('#recovered-enter-btn').addEventListener('click', () => closeRecoveredScreen('home'));
+    $('#recovered-skip-btn').addEventListener('click', () => closeRecoveredScreen('home'));
+    $('#recovered-view-btn').addEventListener('click', () => closeRecoveredScreen('recuperados'));
   }
 
   /** Relectura coherente tras un cambio de identidad/partidos: partidos del servidor (el self-heal oficializa lo que quedó listo),

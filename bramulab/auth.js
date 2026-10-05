@@ -679,10 +679,18 @@
   /** Backend Bloque 4 — genera/rota el link de reclamo de una provisional propia (RPC
    *  `create_claim_link`). Devuelve el token CRUDO una sola vez (`{ok:true, token}`) — nunca
    *  más recuperable después de esta llamada (la base solo guarda su hash). */
-  async function createClaimLink(provisionalPlayerId) {
+  async function createClaimLink(provisionalPlayerId, sourceMatchId) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
-    const { data, error } = await c.rpc('create_claim_link', { p_provisional_player_id: provisionalPlayerId });
+    // V04.33 — `sourceMatchId` (opcional): el partido desde el que se invita; el servidor lo valida y, si no es coherente, lo ignora.
+    const args = { p_provisional_player_id: provisionalPlayerId };
+    if (sourceMatchId) args.p_source_match_id = sourceMatchId;
+    let { data, error } = await c.rpc('create_claim_link', args);
+    // Orden de despliegue: si el servidor todavía no tiene la firma con `p_source_match_id` (migración V04.33 sin aplicar), se reintenta SIN el
+    // contexto — el origen es solo informativo y nunca debe impedir generar la invitación.
+    if (error && sourceMatchId && /could not find the function|PGRST202|p_source_match_id/i.test(`${error.code || ''} ${error.message || ''}`)) {
+      ({ data, error } = await c.rpc('create_claim_link', { p_provisional_player_id: provisionalPlayerId }));
+    }
     if (error) return { ok: false, code: error.message || 'unknown' };
     return { ok: true, token: data };
   }
@@ -719,8 +727,26 @@
     return {
       ok: true, displayName: data.displayName || 'Jugador',
       matchCount: Number(data.matchCount) || 0,
+      // V04.33 — `sourceIsOrigin`: el partido mostrado es el que originó la invitación (no el más reciente); sus participantes traen
+      // `username`/`avatarPath` (ruta de Storage) de las cuentas registradas.
+      sourceIsOrigin: !!data.sourceIsOrigin,
       sourceMatch: data.sourceMatch && typeof data.sourceMatch === 'object' ? data.sourceMatch : null,
     };
+  }
+
+  /** V04.33 — lotes de recuperación COMPLETADOS del propio caller dentro de la ventana especial de visibilidad (RPC
+   *  `get_my_recent_recoveries`, 30 días por defecto). El servidor es la única autoridad de la ventana: vencida, el lote deja de
+   *  listarse (los partidos NO salen del historial). `{ok:true, recoveries:[{recoveryId, sourceName, matchIds, recoveredAt}]}`. */
+  async function getMyRecentRecoveries(days) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_my_recent_recoveries', { p_days: days || 30 });
+    if (error || !data || typeof data !== 'object' || !data.ok) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+    const recoveries = (Array.isArray(data.recoveries) ? data.recoveries : []).map((r) => ({
+      recoveryId: r.recoveryId, sourceName: r.sourceName || 'Jugador',
+      matchIds: Array.isArray(r.matchIds) ? r.matchIds : [], recoveredAt: r.recoveredAt || null,
+    }));
+    return { ok: true, recoveries };
   }
 
   /** V04.30 — ids de los partidos que recuperó UNA vinculación propia (RPC `get_my_recovered_match_ids`, solo el target la lee). */
@@ -1073,7 +1099,7 @@
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
-    createClaimLink, claimProvisionalPlayer, previewClaimLink, getRecoveredMatchIds, getIdentityRecoveryStatus, processIdentityRecovery,
+    createClaimLink, claimProvisionalPlayer, previewClaimLink, getRecoveredMatchIds, getMyRecentRecoveries, getIdentityRecoveryStatus, processIdentityRecovery,
     listDuplicateMatchCandidates, resolveDuplicateMatchCandidate, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,

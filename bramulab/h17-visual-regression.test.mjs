@@ -50,7 +50,7 @@ test('h17-A: row2 mantiene los dos grupos (forma+resultado / status) en el mismo
 
 test('h17-A: CORRECCIÓN PENDIENTE se pinta como texto ámbar liso, nunca como .player-home-lastmatch__badge (píldora)', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerLastMatchCard');
-  assert.match(body, /hasActiveCorrectionOnLastMatch\s*\n\s*\? 'CORRECCIÓN PENDIENTE'/, 'el caso de corrección activa debe seguir generando el texto CORRECCIÓN PENDIENTE');
+  assert.match(body, /hasActiveCorrectionOnLastMatch \? 'CORRECCIÓN PENDIENTE' : generalStatusText/, 'el caso de corrección activa debe seguir generando el texto CORRECCIÓN PENDIENTE');
   assert.match(body, /player-home-lastmatch__status-text player-home-lastmatch__status-text--\$\{lastMatchStatusModifier\}/, 'el status-slot debe usar la clase de texto plano, no el badge compartido');
 });
 

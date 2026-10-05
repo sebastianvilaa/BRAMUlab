@@ -195,7 +195,8 @@
    *  `now` inyectable para tests deterministas; por defecto `new Date()`. */
   function hasActiveCorrectionWindow(m, now) {
     if (!m || m.status !== 'validated' || !m.pendingCorrectionRevisionId || !m.validatedAt) return false;
-    const nowMs = (now instanceof Date ? now : new Date()).getTime();
+    // Duck-typing (no `instanceof Date`): un `now` creado en otro realm/contexto (tests vm, iframes) seguía cayendo al reloj real.
+    const nowMs = (now && typeof now.getTime === 'function' ? now : new Date()).getTime();
     if (m.pendingCorrectionOrigin === 'duplicate') return true; // V04.29-h2: reconciliación de duplicado, sin vencimiento de 3 días
     const validatedMs = new Date(m.validatedAt).getTime();
     return Number.isFinite(validatedMs) && nowMs <= validatedMs + 3 * 86400000;
@@ -224,20 +225,49 @@
   function computeHomePendingCarouselItems(displayMatches, now) {
     const list = Array.isArray(displayMatches) ? displayMatches : [];
     const accionables = [];
+    const identidades = [];
     const correcciones = [];
-    const espera = [];
     list.forEach((m) => {
-      if (!m || !m.serverBacked) return;
-      if (m.status === 'pending_validation') {
-        if (m.isActionMine) { accionables.push({ matchId: m.matchId, kind: 'accionable' }); return; }
-        if (m.actionSide) { espera.push({ matchId: m.matchId, kind: 'espera' }); }
-        return;
-      }
-      if (hasActiveCorrectionWindow(m, now)) {
-        correcciones.push({ matchId: m.matchId, kind: 'correccion' });
-      }
+      // V04.33 (handoff 129 §8.1) — arriba SOLO lo que exige acción del usuario: POR VALIDAR y POR RESOLVER. `ESPERANDO VALIDACIÓN`
+      // (depende del otro lado) ya no se destaca: vive en la card PARTIDOS PENDIENTES y en Historial > Pendientes.
+      const cat = classifyPendingCategory(m, now);
+      if (cat === 'por_validar') { accionables.push({ matchId: m.matchId, kind: 'accionable' }); return; }
+      if (cat !== 'por_resolver') return;
+      if (m.hasOpenIdentityIssue) identidades.push({ matchId: m.matchId, kind: 'identidad' });
+      else correcciones.push({ matchId: m.matchId, kind: 'correccion' });
     });
-    return accionables.concat(correcciones, espera);
+    return accionables.concat(identidades, correcciones);
+  }
+
+  /** V04.33 (handoff 129 §6) — categoría ÚNICA de "Partidos pendientes", DERIVADA de la autoridad server-side ya presente en la fila
+   *  de `get_my_matches` (nunca un estado duplicado):
+   *    'por_validar'  — depende de mi pareja y puedo actuar ahora (pending_validation + isActionMine);
+   *    'por_resolver' — hay una incidencia que pide algo distinto de validar (identidad abierta o corrección activa);
+   *    'esperando'    — depende de la otra pareja: no puedo actuar.
+   *  `null` = no es una tarea (validado normal, vencido, anulado, oculto, borrador local). Prioridad: identidad abierta > estado del partido
+   *  (mismo orden que serverMatchStatusLabel). Es la fuente de la card de Home, de las secciones de Historial > Pendientes y del gate. */
+  function classifyPendingCategory(m, now) {
+    if (!m || !m.serverBacked || m.hidden) return null;
+    if (m.status === 'annulled' || m.status === 'expired' || m.status === 'sync_pending' || m.status === 'necesita_revision') return null;
+    if (m.hasOpenIdentityIssue) return 'por_resolver';
+    if (m.status === 'pending_validation') return m.isActionMine ? 'por_validar' : 'esperando';
+    if (hasActiveCorrectionWindow(m, now)) return 'por_resolver';
+    return null;
+  }
+
+  /** V04.33 — agrupa en las 3 secciones de Partidos pendientes (orden de pantalla: POR VALIDAR, POR RESOLVER, ESPERANDO VALIDACIÓN),
+   *  conservando el orden recibido dentro de cada una, + contadores para la card de Home. */
+  function computePendingBuckets(matches, now) {
+    const out = { porValidar: [], porResolver: [], esperando: [] };
+    (Array.isArray(matches) ? matches : []).forEach((m) => {
+      const cat = classifyPendingCategory(m, now);
+      if (cat === 'por_validar') out.porValidar.push(m);
+      else if (cat === 'por_resolver') out.porResolver.push(m);
+      else if (cat === 'esperando') out.esperando.push(m);
+    });
+    out.counts = { porValidar: out.porValidar.length, porResolver: out.porResolver.length, esperando: out.esperando.length };
+    out.counts.total = out.counts.porValidar + out.counts.porResolver + out.counts.esperando;
+    return out;
   }
 
   /** V04.30 — límite de pendientes accionables personales (Experiencia_Inicial.md §10); mismo valor que
@@ -874,8 +904,8 @@
   function classifyHistoryStatusTab(m, playerRef, now) {
     if (!m) return null;
     if (m.hidden) return 'ocultos';
-    const isPendingValidation = !!(m.serverBacked && m.status === 'pending_validation');
-    if (isPendingValidation || hasActiveCorrectionWindow(m, now)) return 'pendientes';
+    // V04.33 — 'pendientes' = cualquier categoría de Partidos pendientes (POR VALIDAR / POR RESOLVER / ESPERANDO): una sola derivación.
+    if (classifyPendingCategory(m, now)) return 'pendientes';
     if (m.serverBacked && m.status !== 'validated') return null;
     if (!getPlayerTeam(m, playerRef)) return null;
     const result = matchResultForPlayer(m, playerRef);
@@ -1137,7 +1167,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, countActionablePending, pendingGateLevel, sortPendingActionableFirst, describeProvisionalContext, PENDING_ACTION_LIMIT, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, classifyPendingCategory, computePendingBuckets, countActionablePending, pendingGateLevel, sortPendingActionableFirst, describeProvisionalContext, PENDING_ACTION_LIMIT, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
 
 test('h20: carrusel usa copy neutral para corrección cuando el actor no está disponible', () => {
-  assert.match(app, /label = 'CORRECCIÓN ABIERTA'/);
+  assert.match(app, /label = 'POR RESOLVER'/);
   assert.match(app, /Hay una corrección abierta en este partido\. Revisá el detalle\./);
   assert.doesNotMatch(app, /La otra pareja propuso una corrección\. Revisá el resultado\./);
 });

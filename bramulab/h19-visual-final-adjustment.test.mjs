@@ -45,8 +45,12 @@ test('h19-A: TODOS los estados operativos usan la misma columna de row2 (status-
   const body = extractFunctionBody(appJs, 'renderPlayerLastMatchCard');
   assert.doesNotMatch(body, /player-home-lastmatch__badge-slot/, 'el badge-slot bajo fecha/hora (reintroducido en h18) debe quedar retirado de nuevo');
   assert.match(body, /const generalStatusText = serverMatchStatusLabel\(m\)/, 'debe partir del mismo texto general compartido con Historial/Resumen');
-  assert.match(body, /'VALIDAR PARTIDO'/, 'quien debe confirmar ve un copy específico, nunca el genérico TU TURNO: CONFIRMAR');
-  assert.match(body, /'ESPERANDO VALIDACIÓN'/, 'quien cargó y espera ve un copy específico, nunca el genérico PENDIENTE DE VALIDACIÓN');
+  // V04.33 (handoff 129 §10): el lenguaje unificado vive en serverMatchStatusLabel (POR VALIDAR / ESPERANDO VALIDACIÓN) y esta tarjeta lo usa tal cual.
+  assert.doesNotMatch(body.replace(/^\s*\/\/.*$/gm, ''), /TU TURNO: CONFIRMAR|PENDIENTE DE VALIDACIÓN/, 'sin los copies viejos/ambiguos (en código; los comentarios históricos no cuentan)');
+  const label = extractFunctionBody(appJs, 'serverMatchStatusLabel');
+  assert.match(label, /return 'POR VALIDAR'/);
+  assert.match(label, /return 'ESPERANDO VALIDACIÓN'/);
+  assert.match(label, /return 'JUGADOR POR IDENTIFICAR'/);
 });
 
 test('h19-A: el status-slot es texto compacto (10px, nowrap), nunca una píldora con fondo/borde/padding', () => {
@@ -62,7 +66,7 @@ test('h19-A: el status-slot es texto compacto (10px, nowrap), nunca una píldora
 // SUPERSEDIDO en el sistema visual unificado h21 (doc 59, punto 2): Sebastián pidió
 // explícitamente deshacer la fusión con TU MOMENTO ("TU MOMENTO NO pertenece al carrusel. Debe
 // volver a su lugar anterior debajo de Último partido"). Ver h21-sistema-visual-unificado.test.mjs.
-test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones/espera (TU MOMENTO fuera)', () => {
+test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones (sin espera: V04.33; TU MOMENTO fuera)', () => {
   const body = extractFunctionBody(appJs, 'renderPlayerHomeCarousel');
   assert.match(body, /PH\.computeHomePendingCarouselItems\(displayMatches \|\| \[\], new Date\(\)\)/);
   // h22 — UN solo carrusel: acciones/esperas + insights (hitos). TU MOMENTO sigue fuera.
@@ -70,7 +74,8 @@ test('h19-B/h21: renderPlayerHomeCarousel arma SOLO acciones/correcciones/espera
   assert.doesNotMatch(body, /player-home-momento/, 'TU MOMENTO ya no debe pintarse como tarjeta del carrusel');
   assert.doesNotMatch(indexHtml, /id="player-home-hitos"/, 'no debe quedar un segundo carrusel de hitos');
   assert.match(body, /'PARTIDO POR VALIDAR'/);
-  assert.match(body, /'ESPERANDO VALIDACIÓN'/);
+  assert.match(body, /'JUGADOR POR IDENTIFICAR'/);
+  assert.doesNotMatch(body, /label = 'ESPERANDO VALIDACIÓN'/, 'ESPERANDO VALIDACIÓN ya no se destaca arriba (V04.33 §8.1)');
 });
 
 test('h19-B/h21: TU MOMENTO vuelve a su tarjeta propia en index.html, debajo de Último partido', () => {
@@ -93,7 +98,8 @@ test('h19-B: computeHomePendingCarouselItems (player-home.js, pura) suma partido
   // arrays de realms distintos aunque el contenido sea idéntico (gotcha real de Node, mismo
   // motivo por el que cierre-ux-h13.test.mjs compara strings, nunca arrays, de sus módulos vm).
   const ids = items.map((i) => i.matchId);
-  assert.equal(JSON.stringify(ids), JSON.stringify(['a', 'c', 'e']), 'orden accionable > correccion > espera; corrección vencida (>3 días) nunca entra');
+  // V04.33: la espera ya no entra al carrusel superior (solo acciones del usuario).
+  assert.equal(JSON.stringify(ids), JSON.stringify(['a', 'c']), 'orden accionable > corrección; espera fuera; corrección vencida (>3 días) nunca entra');
   assert.equal(items[1].kind, 'correccion');
 });
 

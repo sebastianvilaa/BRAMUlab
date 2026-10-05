@@ -33,12 +33,12 @@ function makeReviewEnv(initialUser) {
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; }, removeItem: (k) => { delete store[k]; } },
     Store: { loadServerMatchesCache: () => ({ matches: state.cache }) }, JSON, Object, Array, Set,
   };
-  const f = new Function('state', ...Object.keys(sb), `${code.replace(/currentUserId/g, 'state.currentUserId')}\nreturn { loadRecoveredReview, saveRecoveredReview, clearRecoveredReview, recoveredAnswerOf, isRecoveredReviewPending };`)(state, ...Object.values(sb));
+  const f = new Function('state', ...Object.keys(sb), `${code.replace(/currentUserId/g, 'state.currentUserId')}\nreturn { loadRecoveredReview, saveRecoveredReview, clearRecoveredReview };`)(state, ...Object.values(sb));
   return { f, state, store };
 }
 test('BUG 1 · el claim de un ALTA NUEVA (sin currentUserId todavía) se guarda sin dueño y la cuenta que termina el alta la encuentra', () => {
   const { f, state } = makeReviewEnv(undefined); // durante el alta no hay identidad local resuelta
-  f.saveRecoveredReview({ recoveryId: 'rec-1', answers: {}, dismissed: false });
+  f.saveRecoveredReview({ recoveryId: 'rec-1' });
   assert.equal(f.loadRecoveredReview().recoveryId, 'rec-1');
   state.currentUserId = 'player-nuevo'; // al terminar el onboarding ya hay identidad canónica
   const rev = f.loadRecoveredReview();
@@ -50,64 +50,15 @@ test('BUG 1 · el claim de un ALTA NUEVA (sin currentUserId todavía) se guarda 
   f.clearRecoveredReview();
 });
 test('BUG 1 · el flujo de alta nueva abre la pantalla tras el onboarding y no duplica el recovery (un solo recoveryId)', () => {
-  const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.31 · Partidos recuperados');
-  assert.match(link, /saveRecoveredReview\(\{ recoveryId: result\.recoveryId, answers: \{\}, dismissed: false \}\)/);
+  const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.33 · RECUPERAMOS');
+  assert.match(link, /saveRecoveredReview\(\{ recoveryId: result\.recoveryId \}\)/);
   assert.match(link, /onboardingDone === false\) return;/);
   assert.match(appJs, /\(async \(\) => \{ if \(!\(await maybeOpenRecoveredReview\(\)\)\) syncIdentityRecovery\(\); \}\)\(\);/);
   const rev = between(appJs, '  function saveRecoveredReview(review) {', '  function clearRecoveredReview()');
-  assert.match(rev, /v\.userId = review\.userId \|\| currentUserId \|\| null/);
+  assert.match(rev, /userId: review\.userId \|\| currentUserId \|\| null/);
 });
 
 /* ============ Respuestas, carrusel y UX de PARTIDOS RECUPERADOS ============ */
-test('Recuperados · respuesta derivada y pendiente para el carrusel (validado + pendiente accionable)', () => {
-  const { f, state } = makeReviewEnv('me');
-  const rowVal = { matchId: 'v1', status: 'validated', isActionMine: false, participants: [{ playerId: 'me', team: 'A', position: 1 }] };
-  const rowPend = { matchId: 'p1', status: 'pending_validation', isActionMine: true, participants: [{ playerId: 'me', team: 'A', position: 1 }] };
-  state.cache = [rowVal, rowPend];
-  f.saveRecoveredReview({ recoveryId: 'r', answers: {}, matchIds: ['v1', 'p1'], dismissed: false });
-  assert.equal(f.isRecoveredReviewPending(), true);
-  let rev = f.loadRecoveredReview();
-  rev.answers = { v1: 'yes' }; f.saveRecoveredReview(rev);
-  assert.equal(f.isRecoveredReviewPending(), true, 'falta el pendiente');
-  // Reportar un error sobre el pendiente y que ya no le toque actuar => derivado "yes"
-  rev = f.loadRecoveredReview(); rev.reported = ['p1']; f.saveRecoveredReview(rev);
-  assert.equal(f.isRecoveredReviewPending(), true, 'sigue siendo suyo: no está resuelto');
-  state.cache = [rowVal, { ...rowPend, isActionMine: false }];
-  assert.equal(f.isRecoveredReviewPending(), false, 'sin participaciones por revisar el carrusel lo oculta');
-  // Si ya no figura en el partido (self-report) cuenta como respondido 'no'
-  state.cache = [rowVal, { ...rowPend, participants: [] }];
-  rev = f.loadRecoveredReview(); rev.reported = []; f.saveRecoveredReview(rev);
-  assert.equal(f.isRecoveredReviewPending(), false);
-  // Revisión sin abrir todavía (sin matchIds) => hay algo por revisar
-  f.saveRecoveredReview({ recoveryId: 'r2', answers: {}, dismissed: true });
-  assert.equal(f.isRecoveredReviewPending(), true);
-  assert.equal(f.recoveredAnswerOf({ answers: { a: 'no' } }, { matchId: 'a', participants: [{ playerId: 'me' }] }), 'no');
-});
-test('Recuperados · acciones: validado = NO(izq, rojo) / SÍ(der, verde); pendiente accionable = NO + VALIDAR PARTIDO + REPORTAR UN ERROR (sin paso "participación confirmada" intermedio)', () => {
-  const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
-  const row = fn.slice(fn.indexOf('html += `<div class="recovered-card__row">'));
-  assert.ok(row.indexOf('btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ') < row.indexOf('data-act="yes">SÍ, LO JUGUÉ'), 'negativo a la izquierda');
-  assert.ok(row.indexOf('btn-secondary btn-secondary--danger" data-act="no"') < row.indexOf('data-act="validate">VALIDAR PARTIDO'));
-  assert.match(row, /b6-correction-choice b6-correction-choice--report" data-act="report">Reportar un error/);
-  assert.match(fn, /✓ Participación confirmada/);
-  assert.doesNotMatch(fn, /CONFIRMAR O CORREGIR EL RESULTADO/);
-  const act = between(appJs, '  async function onRecoveredAction(row, act) {', '  async function refreshRecoveredRows() {');
-  assert.match(act, /MV\.officializeMatch\(row\.matchId\)/, 'VALIDAR reutiliza la validación canónica');
-  assert.match(act, /mark\('yes'\)/, 'validar implica que jugó');
-  assert.match(act, /\$\('#b6-report-error-btn'\)\.click\(\)/, 'REPORTAR abre el selector existente del Resumen');
-  const yes = between(act, "if (act === 'yes') {", "if (act === 'validate')");
-  assert.doesNotMatch(yes, /officializeMatch/, 'SÍ, LO JUGUÉ en un validado NO revalida el resultado');
-  assert.match(indexHtml, /id="recovered-done-btn" class="btn-start" hidden>TERMINAR REVISIÓN/, 'cierre global inequívoco');
-});
-test('Carrusel de Home · tarjeta REVISÁ TUS PARTIDOS RECUPERADOS mientras falten participaciones; abre la pantalla', () => {
-  const fn = between(appJs, '  function renderPlayerHomeCarousel(displayMatches, matches) {', '  function renderPlayerHome() {');
-  assert.match(fn, /const recoveredPending = isRecoveredReviewPending\(\)/);
-  assert.match(fn, /!items\.length && !hitos\.length && !recoveredPending/);
-  assert.match(fn, /REVISÁ TUS PARTIDOS RECUPERADOS/);
-  assert.match(fn, /openRecoveredMatchesScreen\(\)/);
-  assert.ok(fn.indexOf('recoveredHTML + items.map') > 0, 'va primero en el carrusel');
-});
-
 /* ============ ¿SOS X? / invitación ============ */
 test('¿SOS X? · SÍ, SOY YO verde / NO, NO SOY YO outline rojo; conflicto con estado corto; COPIAR INVITACIÓN', () => {
   assert.match(indexHtml, /id="invitation-confirm-yes" class="btn-start btn-start--overlay" type="button">SÍ, SOY YO</);
@@ -206,11 +157,11 @@ test('1 cuenta + 3 sin cuenta: ninguna regla del cliente exige una cuenta por pa
   assert.doesNotMatch(v, /registered|cuenta|provisional/i);
 });
 
-test('Versionado V04.31 / 04.32-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.32', bundle: '04.32-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.32'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-32-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.32-h1/);
+test('Versionado V04.31 / 04.33-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.33', bundle: '04.33-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.33'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-33-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.33-h1/);
 });
 
 /* ============ V04.32 — ajustes visuales post QA (handoff 128) ============ */
@@ -231,26 +182,7 @@ test('V04.32 · "mi equipo verde": solo se alterna una clase de presentación; l
   assert.equal(PH.getPlayerTeam(f, { userId: 'me', name: 'Yo' }), 'B');
   assert.equal(PH.getPlayerTeam(f, { userId: 'x', name: 'X' }), 'A');
 });
-test('V04.32 · recuperados: ESPERANDO VALIDACIÓN cuando no hay acción propia sobre el resultado (solo copy), estado integrado y "✓ Partido validado" tras validar', () => {
-  const badge = between(appJs, '  function recoveredStatusBadge(row, f) {', '  function renderRecoveredMatchesScreen() {');
-  assert.match(badge, /row\.status === 'pending_validation' && !row\.isActionMine && !f\.hasOpenIdentityIssue\) return \{ label: 'ESPERANDO VALIDACIÓN', mod: 'waiting' \}/);
-  const sb = { serverMatchStatusLabel: () => 'PENDIENTE DE VALIDACIÓN', serverMatchStatusBadgeModifier: () => 'waiting' };
-  const fn = new Function(...Object.keys(sb), `${badge}\nreturn recoveredStatusBadge;`)(...Object.values(sb));
-  assert.equal(fn({ status: 'pending_validation', isActionMine: false }, {}).label, 'ESPERANDO VALIDACIÓN');
-  assert.equal(fn({ status: 'pending_validation', isActionMine: true }, {}).label, 'PENDIENTE DE VALIDACIÓN', 'si me toca, el estado real');
-  const render = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
-  assert.match(render, /item\.appendChild\(actions\)/, 'estado y acciones DENTRO de la card');
-  assert.match(render, /✓ Partido validado/); assert.match(render, /✓ Participación confirmada/);
-  assert.match(render, /validatedHere = \(rev\.validatedHere \|\| \[\]\)\.includes\(row\.matchId\) && row\.status === 'validated'/);
-  assert.match(appJs, /st\.rev\.validatedHere = Array\.from\(new Set/);
-  assert.match(cssText, /\.recovered-card__row > button\{ flex:1 1 0; min-height: 48px;/, 'alturas iguales');
-  assert.match(cssText, /\.recovered-card \.b6-correction-choice--report\{[^}]*border: 1\.5px solid var\(--danger\)/, 'REPORTAR UN ERROR como en Resumen');
-  const hist = between(appJs, '  function buildHistoryItemElement(m, opts) {', '      const stateBadgesHTML');
-  assert.ok(hist.length > 0);
-  assert.match(appJs, /const stateBadgesHTML = \(opts && opts\.omitStateBadges\) \? ''/);
-});
 test('V04.32 · @usuario: ícono en círculo en el campo; cierre global TERMINAR REVISIÓN', () => {
   assert.match(cssText, /\.field__input\.is-valid\{ background-image: url\("data:image\/svg\+xml[^"]*circle/);
   assert.match(cssText, /background-position: right 12px center; background-size: 20px 20px/);
-  assert.match(indexHtml, /id="recovered-done-btn" class="btn-start" hidden>TERMINAR REVISIÓN/);
 });

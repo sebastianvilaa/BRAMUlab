@@ -3097,8 +3097,10 @@
     ];
     const items = PH.computeHomePendingCarouselItems(mixed, now);
     const ids = items.map((i) => i.matchId);
-    assert('RONDA-UX-VIS · solo entran server-backed pending_validation con isActionMine/actionSide + validated con corrección activa', JSON.stringify(ids) === JSON.stringify(['acc1', 'acc2', 'corr1', 'esp1', 'esp2']), JSON.stringify(ids));
-    assert('RONDA-UX-VIS · accionables > correcciones > espera, orden interno preservado', items[0].kind === 'accionable' && items[1].kind === 'accionable' && items[2].kind === 'correccion' && items[3].kind === 'espera' && items[4].kind === 'espera');
+    // V04.33 (handoff 129 §8.1): el carrusel superior muestra SOLO lo accionable (POR VALIDAR + corrección/identidad); la espera ya no se destaca.
+    assert('RONDA-UX-VIS · solo entran server-backed pending_validation accionables + validated con corrección activa (la espera queda fuera)', JSON.stringify(ids) === JSON.stringify(['acc1', 'acc2', 'corr1']), JSON.stringify(ids));
+    assert('RONDA-UX-VIS · accionables > correcciones, orden interno preservado; sin kind espera', items[0].kind === 'accionable' && items[1].kind === 'accionable' && items[2].kind === 'correccion' && !items.some((i) => i.kind === 'espera'));
+    assert('RONDA-UX-VIS · ESPERANDO VALIDACIÓN nunca entra al carrusel superior', ids.indexOf('esp1') === -1 && ids.indexOf('esp2') === -1);
     assert('RONDA-UX-VIS · validated sin corrección pendiente nunca entra al carrusel', ids.indexOf('validated1') === -1);
     assert('RONDA-UX-VIS · corrección fuera de la ventana de 3 días nunca entra', ids.indexOf('corrOld') === -1);
     assert('RONDA-UX-VIS · pending sin isActionMine ni actionSide nunca se inventa como "espera"', ids.indexOf('noaction') === -1);
