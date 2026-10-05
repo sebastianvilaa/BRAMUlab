@@ -245,6 +245,12 @@
   const PENDING_ACTION_LIMIT = 5;
   /** V04.30 — conteo LOCAL (fallback offline del gate del "+"): partidos `pending_validation` donde me toca actuar. Una
    *  corrección post-validación o una incidencia de identidad abiertas después de oficial NO cuentan (§10). */
+  /** V04.31 — progresión del gate del "+": 1–2 sin aviso, 3–4 aviso (omitible), 5+ bloqueo. */
+  function pendingGateLevel(count, limit) {
+    const lim = Number.isFinite(limit) ? limit : PENDING_ACTION_LIMIT;
+    if (count >= lim) return 'block';
+    return count >= lim - 2 ? 'warn' : 'none';
+  }
   function countActionablePending(matches) {
     return (Array.isArray(matches) ? matches : []).filter((m) => m && m.status === 'pending_validation' && m.isActionMine && !m.hidden).length;
   }
@@ -887,6 +893,17 @@
     return list.filter((m) => classifyHistoryStatusTab(m, playerRef, now) === tab);
   }
 
+  /** V04.31 — en la pestaña Pendientes, primero lo que REQUIERE una acción del usuario (pendiente accionable, luego corrección abierta)
+   *  y recién después lo que está esperando al otro lado. Orden estable: dentro de cada grupo se conserva el orden recibido (más reciente primero). */
+  function sortPendingActionableFirst(list) {
+    const rank = (m) => {
+      if (m && m.status === 'pending_validation' && m.isActionMine) return 0;
+      if (m && m.status === 'validated' && m.pendingCorrectionRevisionId) return 1;
+      return 2;
+    };
+    return (list || []).map((m, i) => ({ m, i, r: rank(m) })).sort((a, b) => (a.r - b.r) || (a.i - b.i)).map((x) => x.m);
+  }
+
   /** Conteos reales para las 5 pestañas, sobre el historial COMPLETO incluyendo ocultos (a
    *  diferencia de computeHistoryTabCounts/§3.1, que nunca los recibe) — mismo criterio de
    *  "cada pestaña informa su propia dimensión" ya establecido arriba. */
@@ -1120,7 +1137,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, countActionablePending, describeProvisionalContext, PENDING_ACTION_LIMIT, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, countActionablePending, pendingGateLevel, sortPendingActionableFirst, describeProvisionalContext, PENDING_ACTION_LIMIT, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

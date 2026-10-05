@@ -1736,24 +1736,35 @@
    *  pantalla requiere identidad — Jugador 1 del Equipo A siempre es `currentPlayerName`, fijo,
    *  sin importar desde dónde se abrió. Si falta identidad, se resuelve primero y se retoma el
    *  flujo sin perder contexto. */
-  /** V04.30 — gate FRONTEND del límite de 5 pendientes accionables: bloquea ANTES del formulario (el servidor sigue siendo la
-   *  última barrera en create_or_attach_match). Fuente: RPC get_pending_action_count; sin red, cae al conteo local de la caché
-   *  de partidos. Solo aplica a una CARGA NUEVA server-backed (editar un borrador del outbox o corregir no es "iniciar otra"). */
-  async function isNewLoadBlockedByPendingLimit() {
-    if (!isServerBackedSession() || !Matches) return false;
+  /** V04.31 — gate FRONTEND con progresión sobre los pendientes accionables (la pareja del usuario debe responder): 1–2 no avisa;
+   *  3–4 avisa (con OMITIR); 5 bloquea ANTES del formulario. El servidor sigue siendo la última barrera en create_or_attach_match.
+   *  Fuente: RPC get_pending_action_count; sin red, cae al conteo local de la caché. Solo aplica a una CARGA NUEVA server-backed.
+   *  Devuelve `{ level: 'none'|'warn'|'block', count }`. */
+  async function getPendingGateState() {
+    if (!isServerBackedSession() || !Matches) return { level: 'none', count: 0 };
+    let count = null; let limit = PH.PENDING_ACTION_LIMIT;
     try {
       const r = await Matches.getPendingActionCount();
-      if (r && r.ok) return !!r.blocked || (Number.isFinite(r.count) && Number.isFinite(r.limit) && r.count >= r.limit);
+      if (r && r.ok && Number.isFinite(r.count)) { count = r.count; if (Number.isFinite(r.limit)) limit = r.limit; if (r.blocked) count = Math.max(count, limit); }
     } catch (e) { /* cae al conteo local */ }
-    const cached = (Store.loadServerMatchesCache().matches || []);
-    return PH.countActionablePending(cached) >= PH.PENDING_ACTION_LIMIT;
+    if (count === null) count = PH.countActionablePending(Store.loadServerMatchesCache().matches || []);
+    return { level: PH.pendingGateLevel(count, limit), count };
   }
-  function showPendingLimitGate() {
+  function showPendingLimitGate(state, onSkip) {
+    const n = state.count;
+    const goToPending = () => openHistoryScreen('player-home', null, 'pendientes');
+    if (state.level === 'block') {
+      confirmAction(
+        'Resolvé al menos uno para continuar',
+        `Tenés ${n} partidos que esperan una respuesta tuya. Resolvé al menos uno antes de cargar otro.`,
+        goToPending, null, 'VER PARTIDOS PENDIENTES', 'Cerrar', false, true
+      );
+      return;
+    }
     confirmAction(
-      'Tenés 5 partidos pendientes',
-      'Resolvé alguno de los partidos que te esperan (confirmar, corregir o indicar que no participaste) antes de cargar uno nuevo.',
-      () => openHistoryScreen('player-home', null, 'pendientes'),
-      null, 'VER PARTIDOS PENDIENTES', 'Cerrar', false, true
+      `Tenés ${n} partidos pendientes`,
+      `Tenés ${n} partidos que esperan una respuesta tuya.`,
+      goToPending, onSkip, 'VER PARTIDOS PENDIENTES', 'OMITIR', false, true
     );
   }
 
@@ -1761,11 +1772,11 @@
     manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(() => openManualLoadScreen(origin, editMatch)); return; }
-    // V04.30 — gate del límite de pendientes ANTES de cualquier formulario/borrador (solo carga nueva server-backed).
+    // V04.31 — gate (progresión 3/4 aviso, 5 bloqueo) ANTES de cualquier formulario/borrador (solo carga nueva server-backed).
     if (!editMatch && !gatePassed && isServerBackedSession() && Matches) {
-      isNewLoadBlockedByPendingLimit().then((blocked) => {
-        if (blocked) showPendingLimitGate();
-        else openManualLoadScreen(origin, editMatch, true);
+      getPendingGateState().then((state) => {
+        if (state.level === 'none') openManualLoadScreen(origin, editMatch, true);
+        else showPendingLimitGate(state, () => openManualLoadScreen(origin, editMatch, true));
       });
       return;
     }
@@ -4047,7 +4058,7 @@
     }
     // V04.30 — un partido PENDIENTE aún no está validado: sus insights se basan en lo cargado y pueden cambiar al validar.
     const pendingNote = f.status === 'pending_validation'
-      ? '<p class="intelligence-state">Este partido todavía está pendiente: estos insights se basan en lo cargado y pueden cambiar cuando se valide.</p>'
+      ? '<p class="intelligence-frame intelligence-frame--pending">Este partido todavía está pendiente: estos insights se basan en lo cargado y pueden cambiar cuando se valide.</p>'
       : '';
     container.innerHTML = buildIntelligenceCardHTML(result.output) + pendingNote;
   }
@@ -5073,11 +5084,7 @@
       else if (analysisOpenedFrom === 'player-home') { renderPlayerHome(); showView('player-home'); }
       // V04.30 — vuelve a la pantalla de partidos recuperados (refrescada: pudo validarse/corregirse/reportarse desde el Resumen).
       else if (analysisOpenedFrom === 'recovered' && recoveredScreenState) {
-        refreshServerMatches().then(() => {
-          const fresh = Store.loadServerMatchesCache().matches || [];
-          recoveredScreenState.rows = recoveredScreenState.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
-          renderRecoveredMatchesScreen();
-        });
+        refreshRecoveredRows();
         renderRecoveredMatchesScreen(); showView('recovered');
       }
       else openPlayerHome(); // 'live' o cualquier otro caso legado: siempre es seguro ir al Home
@@ -5189,10 +5196,13 @@
   function renderHistoryEmptyState(totalCount) {
     const textEl = $('#history-empty-text');
     const actionEl = $('#history-empty-action');
+    const firstCard = $('#history-empty-first-card');
+    // V04.31 — Historial con 0 partidos reutiliza la card de Home "TODO EMPIEZA CON TU PRIMER RESULTADO" (misma fuente/CTA).
+    firstCard.hidden = totalCount !== 0;
+    textEl.hidden = totalCount === 0; actionEl.hidden = totalCount === 0;
     if (totalCount === 0) {
-      textEl.textContent = 'Todavía no tenés partidos.';
-      actionEl.textContent = 'CARGAR PRIMER PARTIDO';
-      actionEl.onclick = () => openManualLoadScreen('player-home');
+      $('#history-empty-first-body').innerHTML = buildFirstResultCardHTML();
+      $('#history-empty-first-body .player-home-lastmatch__empty-cta').addEventListener('click', () => openManualLoadScreen('player-home'));
       return;
     }
     const parts = [];
@@ -5296,6 +5306,8 @@
     // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestaña de estado, aplicada
     // DESPUÉS de pertenencia/modo (mismo criterio de capas que el filtro contextual de abajo).
     list = PH.filterHistoryByStatusTab(list, currentIdentity(), historyStatusFilter, new Date());
+    // V04.31 — Pendientes: primero lo accionable (reutiliza Historial, no hay bandeja paralela).
+    if (historyStatusFilter === 'pendientes') list = PH.sortPendingActionableFirst(list);
     // V02.1 (§27) — filtro contextual (Racha actual/Efectividad), aplicado DESPUÉS de las
     // pestañas normales, sobre el mismo conjunto ya ordenado — nunca un criterio recalculado
     // aparte que pudiera divergir del que ya muestran Home/Efectividad. V02.7 (§4): Efectividad
@@ -6482,25 +6494,33 @@
   let usernameFeedbackToken = 0;
 
   function renderUsernameFeedback(inputId, feedbackId, excludeUserId) {
-    const username = $(`#${inputId}`).value.trim();
+    const input = $(`#${inputId}`);
+    const username = input.value.trim();
     const el = $(`#${feedbackId}`);
     usernameFeedbackToken += 1;
-    if (!username) { el.textContent = ''; el.classList.remove('is-taken'); return; }
-    if (!PLI.isValidUsernameFormat(username)) { el.textContent = 'Entre 3 y 24 caracteres: minúsculas, números, punto o guion bajo.'; el.classList.add('is-taken'); return; }
-    if (PLI.isUsernameReserved(username)) { el.textContent = '! Ese @usuario no está disponible'; el.classList.add('is-taken'); return; }
+    // V04.31 — válido: ✓ verde compacto DENTRO del campo (sin texto "Disponible" pegado a la línea); inválido: ✕ roja en el campo + explicación
+    // debajo con más aire. Solo cambia la presentación: las reglas reales (formato/reservados/disponibilidad) siguen siendo las mismas.
+    const paint = (state, message) => {
+      el.textContent = state === 'bad' ? message : '';
+      el.classList.toggle('is-taken', state === 'bad');
+      input.classList.toggle('is-valid', state === 'ok');
+      input.classList.toggle('is-invalid', state === 'bad');
+      if (state === 'ok') input.setAttribute('aria-description', 'Disponible'); else input.removeAttribute('aria-description');
+    };
+    if (!username) { paint('none'); return; }
+    if (!PLI.isValidUsernameFormat(username)) { paint('bad', 'Entre 3 y 24 caracteres: minúsculas, números, punto o guion bajo.'); return; }
+    if (PLI.isUsernameReserved(username)) { paint('bad', 'Ese @usuario no está disponible.'); return; }
     // Backend Bloque 2 — con backend real y sesión activa, la lista local (Store.loadUsers())
     // nunca tiene cuentas reales: el chequeo que importa es el del servidor (is_username_available,
     // ver más abajo). Sin sesión (paso 1/verify del alta todavía no terminaron) ni backend
     // configurado, sigue el chequeo local de siempre.
     const taken = PLI.isUsernameTaken(username, Store.loadUsers(), excludeUserId);
-    el.textContent = taken ? '! Ya está en uso' : '✓ Disponible';
-    el.classList.toggle('is-taken', taken);
+    paint(taken ? 'bad' : 'ok', 'Ese @usuario ya está en uso.');
     if (!taken && Auth.isConfigured()) {
       const token = usernameFeedbackToken;
       Auth.isUsernameAvailable(username).then((available) => {
         if (token !== usernameFeedbackToken || available === null) return; // hay una consulta más nueva, o falló la red
-        el.textContent = available ? '✓ Disponible' : '! Ya está en uso';
-        el.classList.toggle('is-taken', !available);
+        paint(available ? 'ok' : 'bad', 'Ese @usuario ya está en uso.');
       });
     }
   }
@@ -8051,10 +8071,15 @@
     const items = PH.computeHomePendingCarouselItems(displayMatches || [], new Date());
     // Fix h22 — UN solo carrusel: acciones/esperas primero, insights (hitos) al final.
     const hitos = PH.computeHitos(matches || [], currentIdentity());
-    if (!items.length && !hitos.length) { track.hidden = true; track.innerHTML = ''; return; }
+    // V04.31 — mientras queden participaciones recuperadas sin revisar, la primera tarjeta lleva de vuelta a PARTIDOS RECUPERADOS.
+    const recoveredPending = isRecoveredReviewPending();
+    if (!items.length && !hitos.length && !recoveredPending) { track.hidden = true; track.innerHTML = ''; return; }
     const byId = new Map((displayMatches || []).map((m) => [m.matchId, m]));
     const hitosHTML = hitos.map((h) => `<div class="player-home-carousel-card player-home-carousel-card--insight"><p class="player-home-carousel-card__text">${escapeHtml(h)}</p></div>`).join('');
-    track.innerHTML = items.map((item) => {
+    const recoveredHTML = recoveredPending
+      ? '<div class="player-home-carousel-card player-home-carousel-card--accionable" role="button" tabindex="0" data-recovered="1"><span class="player-home-carousel-card__label">REVISÁ TUS PARTIDOS RECUPERADOS</span><p class="player-home-carousel-card__text">Confirmá en cuáles jugaste.</p></div>'
+      : '';
+    track.innerHTML = recoveredHTML + items.map((item) => {
       const m = byId.get(item.matchId);
       if (!m) return '';
       const rivalTeam = m.myTeam === 'A' ? 'B' : 'A';
@@ -8097,6 +8122,12 @@
     track.hidden = false;
     // V04.16 (Issue #7) — UNA sola tarjeta (acción o insight) => ancho completo; 2+ => carrusel con asomo.
     track.classList.toggle('player-home-carousel--single', track.querySelectorAll('.player-home-carousel-card').length === 1);
+    const recCard = track.querySelector('.player-home-carousel-card[data-recovered]');
+    if (recCard) {
+      const openRec = () => { openRecoveredMatchesScreen(); };
+      recCard.addEventListener('click', openRec);
+      recCard.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRec(); } });
+    }
     $all('#player-home-pending-carousel .player-home-carousel-card[data-match-id]').forEach((card) => {
       const m = byId.get(card.dataset.matchId);
       if (!m) return;
@@ -8401,17 +8432,22 @@
    *  parejas en secundario. Estado vacío: mismo flujo del botón central "+". El click de
    *  toda la tarjeta se resuelve en initPlayerHomeScreen() (ver más abajo), no acá — así no
    *  hace falta reasignar un listener nuevo en cada render. */
-  function renderPlayerLastMatchCard(matches, computableMatches) {
-    const card = $('#player-home-last-match-card');
-    const body = $('#player-home-last-match-body');
-    if (!matches.length) {
-      card.classList.add('is-empty');
-      body.innerHTML = `
+  /** Estado Cero: "TODO EMPIEZA CON TU PRIMER RESULTADO" — una sola fuente para Home (Último partido) e Historial con 0 partidos (V04.31). */
+  function buildFirstResultCardHTML() {
+    return `
         <div class="player-home-lastmatch__pill"><svg viewBox="0 0 24 24" class="player-home-lastmatch__pill-icon" aria-hidden="true"><circle cx="12" cy="12" r="8.4"/><path d="M6.6 6.4c2.6 2.3 2.6 9 0 11.3M17.4 6.4c-2.6 2.3-2.6 9 0 11.3"/></svg>TU PRIMER PARTIDO</div>
         <div class="player-home-lastmatch__empty-title">TODO EMPIEZA CON<span class="player-home-lastmatch__empty-accent">TU PRIMER RESULTADO</span></div>
         <p class="player-home-lastmatch__empty-desc">Registrá el resultado y empezá a construir tu historial en BRAMU.</p>
         <button type="button" class="btn-start player-home-lastmatch__empty-cta">CARGAR MI PRIMER PARTIDO</button>
       `;
+  }
+
+  function renderPlayerLastMatchCard(matches, computableMatches) {
+    const card = $('#player-home-last-match-card');
+    const body = $('#player-home-last-match-body');
+    if (!matches.length) {
+      card.classList.add('is-empty');
+      body.innerHTML = buildFirstResultCardHTML();
       return;
     }
     card.classList.remove('is-empty');
@@ -8860,7 +8896,8 @@
   // (mapB6Notification, sin cambios) — esto solo cambia la REDACCIÓN. `pending_review`/
   // `match_expired`/`admin_action` ya sonaban humanos, sin cambios.
   const B6_NOTIF_COPY = {
-    pending_review: { title: 'Partido pendiente', body: 'Tenés un partido esperando tu confirmación.', category: 'pending' },
+    pending_review: { title: 'PARTIDO POR VALIDAR', body: 'Tenés un partido esperando tu validación.', category: 'pending' },
+    identity_claimed: { title: 'Nueva cuenta vinculada', body: 'Una persona que invitaste ya se sumó a BRAMU y recuperó sus partidos.', category: 'positive' },
     correction_proposed: { title: 'Corrección propuesta', body: 'Te proponen un resultado distinto para este partido.', category: 'pending' },
     identity_questioned: { title: 'Participante cuestionado', body: 'Alguien indicó que un jugador cargado no participó.', category: 'pending' },
     match_validated: { title: 'Resultado confirmado', body: 'Tu partido ya quedó confirmado.', category: 'positive' },
@@ -8945,7 +8982,9 @@
     if (n.type === 'correction_proposed') actorId = n.payload && n.payload.proposedByPlayerId;
     else if (n.type === 'identity_questioned') actorId = n.payload && n.payload.openedByPlayerId;
     else actorId = n.payload && n.payload.actorPlayerId;
-    const actorName = actorId ? resolvePlayerNameFromMatchesCache(actorId) : null;
+    // V04.31 — el actor de un self-report ya no figura en el partido (su lugar quedó "Por identificar"): el servidor entrega su nombre
+    // (`openedByName`) para no caer en "Alguien".
+    const actorName = (actorId ? resolvePlayerNameFromMatchesCache(actorId) : null) || (n.type === 'identity_questioned' && n.payload && n.payload.openedByName) || null;
     const titleBuilder = B6_NOTIF_ACTOR_TITLE[n.type];
 
     const selfReported = n.type === 'identity_questioned' && !!(n.payload && n.payload.selfReported);
@@ -8954,10 +8993,25 @@
       : (selfReported ? 'Alguien indicó que no participó en este partido' : copy.title);
     // Body = SOLO contexto ("vs Rivales · score"), nunca repite la acción que ya dice el título.
     // Sin matchContext (contrato viejo/fila sin partido ligado): cae al body genérico de siempre.
-    const body = ctxSuffix ? ctxSuffix.trim() : copy.body;
+    let body = ctxSuffix ? ctxSuffix.trim() : copy.body;
+    // V04.31 — pendiente: "POR VALIDAR" (me toca) vs "ESPERANDO VALIDACIÓN" (espero a la otra pareja), alineado con Home.
+    let titleOverride = null;
+    if (n.type === 'pending_review') {
+      const row = ((Store.loadServerMatchesCache() || {}).matches || []).find((m) => m.matchId === n.matchId);
+      if (row && row.status === 'pending_validation' && !row.isActionMine) {
+        titleOverride = 'ESPERANDO VALIDACIÓN';
+        if (!ctxSuffix) body = 'Estás esperando que la otra pareja valide este partido.';
+      }
+    }
+    // V04.31 — identidad vinculada: cierra el loop con quien generó la invitación.
+    if (n.type === 'identity_claimed') {
+      const who = n.payload && n.payload.claimedByName;
+      titleOverride = who ? `${who} ya se sumó a BRAMU y recuperó sus partidos.` : copy.title;
+      body = '';
+    }
 
     return {
-      id: n.id, title, body, category: copy.category,
+      id: n.id, title: titleOverride || title, body, category: copy.category,
       createdAt: n.createdAt, readAt: n.readAt, matchId: n.matchId,
       source: 'server', type: n.type,
       selfCaused: !!(myPlayerId && n.payload && n.payload.actorPlayerId === myPlayerId),
@@ -14500,17 +14554,18 @@
     section.hidden = false;
   }
 
-  /** B2 — hoja "Invitá a {nombre} a BRAMU". El enlace se genera al tocar COPIAR ENLACE (rota solo el link propio del invitador). */
+  /** B2 — hoja "Invitá a {nombre} a BRAMU". El enlace se genera al tocar COPIAR INVITACIÓN (rota solo el link propio del invitador). */
   function openInviteSheet(playerId, name) {
     const cleanName = String(name || 'este jugador').trim() || 'este jugador';
     inviteSheetCurrent = { playerId, name: cleanName, busy: false };
     $('#invite-sheet-title').textContent = `INVITÁ A ${cleanName.toLocaleUpperCase('es-AR')} A BRAMU`;
-    $('#invite-sheet-text').textContent = `Compartile este enlace para que pueda sumarse a BRAMU y recuperar sus partidos. El enlace es personal: envíaselo solo a ${cleanName}.`;
+    $('#invite-sheet-text').textContent = `Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos. La invitación es personal: enviásela solo a ${cleanName}.`;
     const feedback = $('#invite-sheet-feedback');
     feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('invite-sheet__feedback--error');
     const linkInput = $('#invite-sheet-link');
     linkInput.hidden = true; linkInput.value = '';
     $('#invite-sheet-copy-btn').disabled = false;
+    $('#invite-sheet-copy-btn').textContent = 'COPIAR INVITACIÓN';
     const scrim = $('#invite-sheet-scrim');
     scrim.hidden = false;
     requestAnimationFrame(() => { scrim.classList.add('is-open'); });
@@ -14522,7 +14577,7 @@
     inviteSheetCurrent = null;
   }
   const INVITE_LINK_ERROR_TEXT = {
-    rate_limited: 'Generaste muchos enlaces seguidos. Probá de nuevo en un rato.',
+    rate_limited: 'Generaste muchas invitaciones seguidas. Probá de nuevo en un rato.',
     provisional_not_found: 'Este jugador ya no está disponible para invitar.',
   };
   /** Genera el enlace personal. Devuelve `{ok, url}` o `{ok:false, code}`. */
@@ -14557,10 +14612,11 @@
     } catch (e) { copied = false; }
     const link = await linkPromise;
     if (!link.ok) {
-      feedback.textContent = INVITE_LINK_ERROR_TEXT[link.code] || 'No pudimos generar el enlace. Probá de nuevo.';
+      feedback.textContent = INVITE_LINK_ERROR_TEXT[link.code] || 'No pudimos generar la invitación. Probá de nuevo.';
       feedback.classList.add('invite-sheet__feedback--error');
       feedback.hidden = false;
-      btn.disabled = false; cur.busy = false;
+      // V04.31 — si la identidad ya no está disponible para invitar, no queda una CTA activa que parezca válida.
+      btn.disabled = link.code === 'provisional_not_found'; cur.busy = false;
       return;
     }
     if (!copied) {
@@ -14569,12 +14625,12 @@
       } catch (e) { copied = false; }
     }
     if (copied) {
-      feedback.textContent = `Enlace copiado. Enviáselo a ${cur.name}.`;
+      feedback.textContent = `Invitación copiada. Enviásela a ${cur.name}.`;
     } else {
       linkInput.value = link.url;
       linkInput.hidden = false;
       try { linkInput.focus(); linkInput.select(); } catch (e) { /* noop */ }
-      feedback.textContent = `Copiá el enlace y enviáselo a ${cur.name}.`;
+      feedback.textContent = `Copiá la invitación y enviásela a ${cur.name}.`;
     }
     feedback.hidden = false;
     btn.disabled = false; cur.busy = false;
@@ -14636,6 +14692,8 @@
       const err = $('#invitation-confirm-error');
       $('#invitation-confirm-title').textContent = `¿SOS ${String(displayName || 'este jugador').toLocaleUpperCase('es-AR')}?`;
       err.hidden = true; err.textContent = '';
+      $('#invitation-confirm-actions').hidden = false;
+      $('#invitation-confirm-conflict-actions').hidden = true;
       yes.disabled = false; no.disabled = false;
       overlay.hidden = false;
       const close = () => { overlay.hidden = true; yes.onclick = null; no.onclick = null; };
@@ -14651,11 +14709,19 @@
           return;
         }
         if (r.code === 'identity_conflict') {
-          // La misma persona no puede ocupar dos lugares de un partido: no se movió nada y el enlace sigue sin consumirse.
-          const n = (r.conflicts || []).length || 1;
-          err.textContent = n === 1
-            ? 'Ya figurás con tu cuenta en uno de los partidos de este jugador. Abrí ese partido, tocá "Reportar un error" > "Un participante" para corregir quién figura y volvé a abrir el enlace.'
-            : `Ya figurás con tu cuenta en ${n} partidos de este jugador. Abrí esos partidos, tocá "Reportar un error" > "Un participante" para corregir quién figura y volvé a abrir el enlace.`;
+          // V04.31 — la misma persona no puede ocupar dos lugares de un partido: no se movió nada y el enlace sigue sin consumirse.
+          // Estado corto (sin SÍ/NO): la intención local se limpia; la invitación puede reabrirse tras corregir quién figura.
+          $('#invitation-confirm-actions').hidden = true;
+          $('#invitation-confirm-conflict-actions').hidden = false;
+          $('#invitation-confirm-source').hidden = true;
+          err.textContent = 'No podés vincular esta identidad porque ya figurás en uno de sus partidos. Corregí quién figura desde "Reportar un error" > "Un participante" y volvé a abrir la invitación.';
+          err.hidden = false;
+          $('#invitation-confirm-conflict-ok').onclick = () => {
+            $('#invitation-confirm-actions').hidden = false;
+            $('#invitation-confirm-conflict-actions').hidden = true;
+            Store.clearClaimToken(); close(); resolve({ outcome: 'conflict' });
+          };
+          return;
         } else if (r.code === 'rate_limited') {
           err.textContent = 'Hiciste demasiados intentos seguidos. Esperá unos minutos y probá de nuevo.';
         } else {
@@ -14680,23 +14746,50 @@
     await syncIdentityRecovery();
   }
 
-  /* ---- V04.30 · Partidos recuperados (post SOY YO) ---- */
+  /* ---- V04.31 · Partidos recuperados (post "SÍ, SOY YO") ---- */
   const RECOVERED_REVIEW_KEY = 'bramu_recovered_review_v1';
-  function loadRecoveredReview() {
-    try {
-      const v = JSON.parse(localStorage.getItem(RECOVERED_REVIEW_KEY) || 'null');
-      return v && v.userId === currentUserId && v.recoveryId ? v : null;
-    } catch (e) { return recoveredReviewMemory && recoveredReviewMemory.userId === currentUserId ? recoveredReviewMemory : null; }
-  }
   let recoveredReviewMemory = null;
+  /** La revisión pendiente de la última vinculación. BUG 1 (QA 05/10): en un ALTA NUEVA el claim ocurre antes de que exista
+   *  `currentUserId` (se guardaba con otro id/undefined y después no se encontraba); ahora se guarda SIN dueño (`userId: null`) y se
+   *  adopta la cuenta que la abre — el servidor (`get_my_recovered_match_ids`) solo entrega los ids al TARGET real de la recuperación. */
+  function loadRecoveredReview() {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(RECOVERED_REVIEW_KEY) || 'null'); } catch (e) { v = recoveredReviewMemory; }
+    if (!v || !v.recoveryId) return null;
+    if (v.userId && currentUserId && v.userId !== currentUserId) return null;
+    return v;
+  }
   function saveRecoveredReview(review) {
-    const v = Object.assign({ userId: currentUserId }, review);
+    const v = Object.assign({}, review);
+    v.userId = review.userId || currentUserId || null;
     recoveredReviewMemory = v;
     try { localStorage.setItem(RECOVERED_REVIEW_KEY, JSON.stringify(v)); } catch (e) { /* queda en memoria de esta sesión */ }
   }
   function clearRecoveredReview() {
     recoveredReviewMemory = null;
     try { localStorage.removeItem(RECOVERED_REVIEW_KEY); } catch (e) { /* noop */ }
+  }
+  /** Respuesta de participación de UN partido recuperado: la guardada, o derivada (si el usuario ya no figura => 'no'; si tocó
+   *  "Reportar un error"/validó y ya no le toca actuar => 'yes'). `null` = todavía sin revisar. */
+  function recoveredAnswerOf(rev, row) {
+    const stored = (rev.answers || {})[row.matchId];
+    if (stored) return stored;
+    const me = (row.participants || []).find((p) => p && p.playerId === currentUserId);
+    if (!me) return 'no';
+    const stillMine = row.status === 'pending_validation' && row.isActionMine;
+    if (((rev.reported || []).includes(row.matchId)) && !stillMine) return 'yes';
+    return null;
+  }
+  /** ¿Quedan participaciones recuperadas sin revisar? (alimenta la tarjeta del carrusel de Home). */
+  function isRecoveredReviewPending() {
+    const rev = loadRecoveredReview();
+    if (!rev) return false;
+    if (!rev.matchIds) return true; // todavía no se abrió la pantalla: hay algo por revisar
+    const cache = Store.loadServerMatchesCache().matches || [];
+    return rev.matchIds.some((id) => {
+      const row = cache.find((m) => m.matchId === id);
+      return !!row && row.status !== 'annulled' && !recoveredAnswerOf(rev, row);
+    });
   }
   /** Al arrancar con sesión (o al terminar un alta nueva): si quedó una revisión sin cerrar ni postergada, se vuelve a abrir. */
   async function maybeOpenRecoveredReview() {
@@ -14714,6 +14807,12 @@
     const cache = Store.loadServerMatchesCache().matches || [];
     const rows = ids.matchIds.map((id) => cache.find((m) => m.matchId === id)).filter((m) => m && m.status !== 'annulled');
     if (!rows.length) { clearRecoveredReview(); return false; }
+    if (!rev.matchIds) {
+      rev.matchIds = rows.map((r) => r.matchId);
+      rev.answers = rev.answers || {};
+    }
+    rev.dismissed = false;
+    saveRecoveredReview(rev);
     recoveredScreenState = { rev, rows, sourceName: ids.sourceName };
     renderRecoveredMatchesScreen();
     showView('recovered');
@@ -14723,8 +14822,8 @@
   function renderRecoveredMatchesScreen() {
     const st = recoveredScreenState;
     if (!st) return;
-    const answers = st.rev.answers || {};
-    $('#recovered-intro').textContent = `Vinculamos a tu cuenta los partidos que se habían registrado como ${st.sourceName}. Confirmá en cuáles jugaste: eso no valida resultados por vos.`;
+    const rev = st.rev;
+    $('#recovered-intro').textContent = `Vinculamos a tu cuenta los partidos que se habían registrado como ${st.sourceName}. Confirmá en cuáles jugaste.`;
     const list = $('#recovered-list');
     list.innerHTML = '';
     st.rows.forEach((row) => {
@@ -14732,38 +14831,53 @@
       const wrap = document.createElement('div');
       wrap.className = 'recovered-card';
       wrap.appendChild(buildHistoryItemElement(f));
-      const answered = answers[row.matchId];
+      const answered = recoveredAnswerOf(rev, row);
       const actionable = row.status === 'pending_validation' && row.isActionMine;
       const actions = document.createElement('div');
       actions.className = 'recovered-card__actions';
-      if (answered === 'yes') actions.innerHTML = '<p class="recovered-card__status">Participación confirmada</p>';
-      else if (answered === 'no') actions.innerHTML = '<p class="recovered-card__status recovered-card__status--no">Indicaste que no jugaste este partido</p>';
-      else actions.innerHTML = '<div class="recovered-card__row"><button type="button" class="btn-start" data-act="yes">SÍ, LO JUGUÉ</button><button type="button" class="btn-secondary" data-act="no">NO, NO LO JUGUÉ</button></div>';
-      if (answered !== 'no') {
-        actions.insertAdjacentHTML('beforeend', `<button type="button" class="btn-secondary" data-act="open">${actionable ? 'CONFIRMAR O CORREGIR EL RESULTADO' : 'VER PARTIDO / HAY OTRO ERROR'}</button>`);
+      if (answered === 'yes') {
+        actions.innerHTML = '<p class="recovered-card__status">✓ Participación confirmada</p>';
+      } else if (answered === 'no') {
+        actions.innerHTML = '<p class="recovered-card__status recovered-card__status--no">Indicaste que no jugaste este partido</p>';
+      } else {
+        // Negativo a la izquierda (outline rojo), positivo a la derecha (verde). Un pendiente accionable usa las acciones canónicas
+        // (VALIDAR PARTIDO implica que jugó y que el resultado está bien; REPORTAR UN ERROR abre el flujo existente).
+        actions.innerHTML = `<div class="recovered-card__row"><button type="button" class="btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ</button>`
+          + (actionable ? '<button type="button" class="btn-start" data-act="validate">VALIDAR PARTIDO</button>' : '<button type="button" class="btn-start" data-act="yes">SÍ, LO JUGUÉ</button>')
+          + '</div>'
+          + (actionable ? '<button type="button" class="btn-secondary" data-act="report">REPORTAR UN ERROR</button>' : '');
       }
+      if (answered !== 'no') actions.insertAdjacentHTML('beforeend', '<button type="button" class="link-btn recovered-card__open" data-act="open">Ver partido</button>');
       actions.querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => onRecoveredAction(row, btn.dataset.act)));
       wrap.appendChild(actions);
       list.appendChild(wrap);
     });
-    // V04.30 (C2) — LISTO (cierre definitivo) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después".
-    const allAnswered = st.rows.every((r) => answers[r.matchId]);
+    // LISTO (cierre) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después". Discreto, no compite con las acciones.
+    const allAnswered = st.rows.every((r) => recoveredAnswerOf(rev, r));
     $('#recovered-later-btn').hidden = allAnswered;
     $('#recovered-done-btn').hidden = !allAnswered;
   }
-  function onRecoveredAction(row, act) {
+  async function onRecoveredAction(row, act) {
     const st = recoveredScreenState;
     if (!st) return;
     const f = MSync.translateServerMatchToLocalShape(row);
-    if (act === 'open') {
-      // Validar/corregir/reportar otro error: el Resumen ya trae esos flujos (nada paralelo). Al volver, esta pantalla sigue pendiente.
+    const mark = (answer) => { st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: answer }); saveRecoveredReview(st.rev); };
+    if (act === 'open' || act === 'report') {
+      if (act === 'report') { st.rev.reported = Array.from(new Set([...(st.rev.reported || []), row.matchId])); saveRecoveredReview(st.rev); }
       openCanonicalResumen(f, 'recovered');
+      // El selector "Reportar un error" es el del Resumen existente (nada paralelo).
+      if (act === 'report' && !$('#b6-report-error-btn').hidden) $('#b6-report-error-btn').click();
       return;
     }
-    if (act === 'yes') {
-      st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: 'yes' });
-      saveRecoveredReview(st.rev);
-      renderRecoveredMatchesScreen();
+    if (act === 'yes') { mark('yes'); renderRecoveredMatchesScreen(); return; }
+    if (act === 'validate') {
+      // Misma acción que "VALIDAR PARTIDO" del Resumen (officialize-match, autoridad de pareja server-side). Validar implica que jugó.
+      const result = await MV.officializeMatch(row.matchId);
+      if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+      showToast('Partido validado.');
+      mark('yes');
+      await afterB6Action(row.matchId);
+      await refreshRecoveredRows();
       return;
     }
     // NO, NO LO JUGUÉ — misma incidencia de identidad que "No participé" en Resumen (el lugar queda "Por identificar").
@@ -14773,21 +14887,25 @@
     confirmReportIdentity(row.matchId, mine.team, mine.position, mine.displayName || 'vos', {
       isSelf: true,
       onDone: async () => {
-        await refreshServerMatches();
-        const fresh = (Store.loadServerMatchesCache().matches || []);
-        st.rows = st.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
-        st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: 'no' });
-        saveRecoveredReview(st.rev);
-        if (!$('#view-recovered').hidden) renderRecoveredMatchesScreen();
+        mark('no');
+        await refreshRecoveredRows();
       },
     });
   }
+  async function refreshRecoveredRows() {
+    const st = recoveredScreenState;
+    if (!st) return;
+    await refreshServerMatches();
+    const fresh = Store.loadServerMatchesCache().matches || [];
+    st.rows = st.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
+    if (!$('#view-recovered').hidden) renderRecoveredMatchesScreen();
+  }
   async function closeRecoveredScreen(markDone) {
     const st = recoveredScreenState;
-    // Defensa: nunca se cierra definitivamente con cards sin responder.
-    if (markDone && st && !st.rows.every((r) => (st.rev.answers || {})[r.matchId])) markDone = false;
     recoveredScreenState = null;
-    if (markDone) clearRecoveredReview();
+    const allAnswered = !!st && st.rows.every((r) => recoveredAnswerOf(st.rev, r));
+    // Nunca se cierra definitivamente con participaciones sin revisar; con todas revisadas la revisión se da por terminada.
+    if (st && allAnswered) clearRecoveredReview();
     else if (st) { st.rev.dismissed = true; saveRecoveredReview(st.rev); }
     openPlayerHome();
     // Ahora sí: Nivel recuperado pendiente y posibles duplicados (serializados, después de esta pantalla).

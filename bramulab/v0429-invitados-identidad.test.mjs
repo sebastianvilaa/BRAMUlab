@@ -36,20 +36,20 @@ test('Resumen: sección JUGADORES SIN CUENTA con fila + INVITAR (oculta por defe
   assert.match(fn, /listRelatedProvisionalPlayers/);
 });
 
-test('Hoja de invitar: título "INVITÁ A {NOMBRE} A BRAMU", texto aprobado, CTA COPIAR ENLACE, sin botón de WhatsApp', () => {
+test('Hoja de invitar: título "INVITÁ A {NOMBRE} A BRAMU", texto aprobado, CTA COPIAR INVITACIÓN, sin botón de WhatsApp', () => {
   const sheet = between(indexHtml, '<div id="invite-sheet-scrim"', 'V04.29 — RECEPTOR DE UNA INVITACIÓN');
-  assert.match(sheet, />COPIAR ENLACE</);
+  assert.match(sheet, />COPIAR INVITACIÓN</);
   assert.doesNotMatch(sheet, /whatsapp/i, 'sin botón específico de WhatsApp');
   const open = between(appJs, '  function openInviteSheet(playerId, name) {', '  function closeInviteSheet() {');
   assert.match(open, /INVITÁ A \$\{cleanName\.toLocaleUpperCase\('es-AR'\)\} A BRAMU/);
-  assert.match(open, /Compartile este enlace para que pueda sumarse a BRAMU y recuperar sus partidos\. El enlace es personal: envíaselo solo a \$\{cleanName\}\./);
-  assert.match(appJs, /Enlace copiado\. Enviáselo a \$\{cur\.name\}\./);
+  assert.match(open, /Compartile esta invitación para que pueda sumarse a BRAMU y recuperar sus partidos\. La invitación es personal: enviásela solo a \$\{cleanName\}\./);
+  assert.match(appJs, /Invitación copiada\. Enviásela a \$\{cur\.name\}\./);
 });
 
 test('Receptor: "¿SOS {NOMBRE}?" con SOY YO / NO SOY YO y el texto aprobado; duplicados con los dos CTA aprobados', () => {
   const recv = between(indexHtml, '<div id="invitation-confirm-overlay"', 'V04.29 — POSIBLE PARTIDO DUPLICADO');
-  assert.match(recv, />SOY YO</);
-  assert.match(recv, />NO SOY YO</);
+  assert.match(recv, />SÍ, SOY YO</);
+  assert.match(recv, />NO, NO SOY YO</);
   assert.match(recv, /Hay partidos registrados con esta identidad\. Si sos vos, podés vincularlos a tu cuenta\./);
   assert.match(appJs, /`¿SOS \$\{String\(displayName \|\| 'este jugador'\)\.toLocaleUpperCase\('es-AR'\)\}\?`/);
   const dup = between(indexHtml, '<div id="duplicate-match-overlay"', 'id="confirm-overlay"');
@@ -130,7 +130,7 @@ test('JUGADORES SIN CUENTA: lista solo a los invitados invitables de ESTE partid
   assert.equal(none.$('#analysis-guests').hidden, true, 'sin invitados relacionados no se muestra nada');
 });
 
-test('INVITAR: abre la hoja con el nombre en mayúsculas; COPIAR ENLACE genera el link personal, lo copia y confirma por nombre', async () => {
+test('INVITAR: abre la hoja con el nombre en mayúsculas; COPIAR INVITACIÓN genera el link personal, lo copia y confirma por nombre', async () => {
   const written = [];
   const env = makeEnv();
   env.sb.navigator.clipboard = { write: async (items) => { written.push(await items[0]._p); }, writeText: async (t) => written.push(t) };
@@ -138,10 +138,10 @@ test('INVITAR: abre la hoja con el nombre en mayúsculas; COPIAR ENLACE genera e
   // El código usa window.ClipboardItem: se prueba primero el camino writeText.
   env.fns.openInviteSheet('prov1', 'Pedro');
   assert.equal(env.$('#invite-sheet-title').textContent, 'INVITÁ A PEDRO A BRAMU');
-  assert.match(env.$('#invite-sheet-text').textContent, /envíaselo solo a Pedro\.$/);
+  assert.match(env.$('#invite-sheet-text').textContent, /enviásela solo a Pedro\.$/);
   await env.fns.copyInviteLink();
   assert.deepEqual(written, ['https://app.test/bramulab/?claim=tok123']);
-  assert.equal(env.$('#invite-sheet-feedback').textContent, 'Enlace copiado. Enviáselo a Pedro.');
+  assert.equal(env.$('#invite-sheet-feedback').textContent, 'Invitación copiada. Enviásela a Pedro.');
   assert.equal(env.$('#invite-sheet-feedback').hidden, false);
   assert.equal(env.$('#invite-sheet-link').hidden, true);
 });
@@ -152,14 +152,15 @@ test('COPIAR ENLACE: sin portapapeles muestra el enlace para copia manual; error
   await manual.fns.copyInviteLink();
   assert.equal(manual.$('#invite-sheet-link').hidden, false);
   assert.equal(manual.$('#invite-sheet-link').value, 'https://app.test/bramulab/?claim=tok123');
-  assert.match(manual.$('#invite-sheet-feedback').textContent, /Copiá el enlace y enviáselo a Pedro\./);
+  assert.match(manual.$('#invite-sheet-feedback').textContent, /Copiá la invitación y enviásela a Pedro\./);
 
-  for (const [code, re] of [['rate_limited', /muchos enlaces seguidos/], ['provisional_not_found', /ya no está disponible/], ['unknown', /No pudimos generar el enlace/]]) {
+  for (const [code, re] of [['rate_limited', /muchas invitaciones seguidas/], ['provisional_not_found', /ya no está disponible/], ['unknown', /No pudimos generar la invitación/]]) {
     const env = makeEnv({ auth: { createClaimLink: async () => ({ ok: false, code }) } });
     env.fns.openInviteSheet('prov1', 'Pedro');
     await env.fns.copyInviteLink();
     assert.match(env.$('#invite-sheet-feedback').textContent, re);
-    assert.equal(env.$('#invite-sheet-copy-btn').disabled, false, 'se puede reintentar');
+    // V04.31: si la identidad ya no está disponible, la CTA queda deshabilitada (no parece válida); el resto permite reintentar.
+    assert.equal(env.$('#invite-sheet-copy-btn').disabled, code === 'provisional_not_found');
   }
 });
 
@@ -219,17 +220,19 @@ test('SOY YO en un alta nueva (onboardingDone:false): vincula sin refrescar part
   assert.ok(!env.log.calls.includes('refreshServerMatches'));
 });
 
-test('SOY YO con identity_conflict: no se pierde el enlace, se explica cómo resolverlo y se puede reintentar o descartar', async () => {
+test('SOY YO con identity_conflict (V04.31): estado corto "No podés vincular…" con ENTENDIDO — el modal ya no queda atrapado en SÍ/NO; la intención local se limpia', async () => {
   const env = makeEnv({ auth: { claimProvisionalPlayer: async () => ({ ok: false, code: 'identity_conflict', conflicts: [{ matchId: 'm1' }] }) } });
   const p = env.fns.handlePendingInvitation({ onboardingDone: true });
   await new Promise((r) => setTimeout(r, 0));
   await env.$('#invitation-confirm-yes').onclick();
   assert.equal(env.$('#invitation-confirm-error').hidden, false);
-  assert.match(env.$('#invitation-confirm-error').textContent, /Reportar un error/);
-  assert.equal(env.Store._token, 'a'.repeat(64), 'el enlace NO se consumió ni se limpió');
-  assert.equal(env.$('#invitation-confirm-yes').disabled, false);
-  env.$('#invitation-confirm-no').onclick();
-  assert.equal((await p).outcome, 'declined');
+  assert.match(env.$('#invitation-confirm-error').textContent, /No podés vincular esta identidad porque ya figurás en uno de sus partidos\./);
+  assert.equal(env.$('#invitation-confirm-actions').hidden, true, 'SÍ/NO desaparecen');
+  assert.equal(env.$('#invitation-confirm-conflict-actions').hidden, false, 'queda ENTENDIDO');
+  assert.equal(env.Store._token, 'a'.repeat(64), 'hasta tocar ENTENDIDO no se tocó nada');
+  env.$('#invitation-confirm-conflict-ok').onclick();
+  assert.equal((await p).outcome, 'conflict');
+  assert.equal(env.Store._token, null);
 });
 
 test('SOY YO con error definitivo (usado/vencido) limpia y avisa; con error transitorio deja reintentar dentro del modal', async () => {
@@ -433,5 +436,5 @@ test('h2 · una corrección de origen duplicado no vence a los 3 días (cliente)
 test('h2 · matches.js y match-sync.js propagan pendingCorrectionOrigin desde get_my_matches y get_match_detail', () => {
   assert.match(read('matches.js'), /pendingCorrectionOrigin: row\.pending_correction_origin \|\| null/);
   assert.match(read('match-sync.js'), /pendingCorrectionOrigin: row\.pendingCorrectionOrigin \|\| null/);
-  assert.match(read('version.json'), /04\.30-h2/);
+  assert.match(read('version.json'), /04\.31-h1/);
 });

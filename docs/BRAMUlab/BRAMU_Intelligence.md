@@ -789,7 +789,7 @@ BRAMU Intelligence debe:
 - consumir la identidad oficial vigente del partido, nunca conservar una relación paralela propia;
 - permitir que historial, compañero, rivales, rachas y demás derivados reconozcan los partidos recuperados;
 - invalidar/regenerar los checkpoints cuyo prefijo histórico cambió;
-- reutilizar el fingerprint existente, que ya incluye `team + playerId/userId` de cada participante y por lo tanto cambia ante una sustitución real de identidad;
+- reutilizar el fingerprint existente, que ya incluye `team + playerId/userId` de cada participante y por lo tanto cambia ante una sustitución real de identidad (**V04.31:** además incluye el **nombre visible canónico** de cada participante: tras vincular/resolver una identidad provisional el nombre cambia aunque el partido siga igual, y los checkpoints persistidos con nombres viejos se regeneran; la historia server-side `get_player_intelligence_history` entrega el nombre canónico actual —misma regla que `get_my_matches`— y no el `display_name_snapshot` crudo);
 - conservar los snapshots históricos de Nivel/expectativa/evidencia asociados a cada partido; **nunca** recalcular un partido pasado con los niveles actuales de terceros;
 - si una deduplicación confirmada elimina un segundo registro del mismo encuentro, dejar de contarlo dos veces y regenerar los derivados afectados;
 - preservar auditoría y versión de reglas.

@@ -122,7 +122,8 @@
       hidden: !!m.hidden,
       formatId: m.formatId || null,
       scoringSystem: m.scoringSystem || null,
-      players: (m.players || []).map((p) => ({ team: p.team, userId: p.userId || null })),
+      // V04.31 — el NOMBRE también entra al fingerprint: una identidad provisional resuelta/vinculada cambia el nombre visible aunque el partido siga igual.
+      players: (m.players || []).map((p) => ({ team: p.team, userId: p.userId || null, name: p.name || null })),
       winnerTeam: m.winnerTeam || null,
       sets: (m.sets || []).map((s) => [s.gamesA, s.gamesB, s.tiebreak ? [s.tiebreak.a, s.tiebreak.b] : null]),
       officialLevel: IO.fingerprintFieldsOf(m.officialLevelSnapshot || null),

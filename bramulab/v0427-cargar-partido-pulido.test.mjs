@@ -188,10 +188,10 @@ test('el teclado numérico ya no es la UX de Cargar partido', () => {
   assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /load-keypad|data-key=/);
   assert.doesNotMatch(app, /manualKeypad|openManualKeypad|manualSideEntered|manualDraftActiveTeam/);
 });
-test('versionado: V04.30 / 04.30-h2 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-30-h2'/); assert.match(html, /app\.js\?v=04\.30-h2/); assert.match(html, /styles\.css\?v=04\.30-h2/);
+test('versionado: V04.30 / 04.31-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-31-h1'/); assert.match(html, /app\.js\?v=04\.31-h1/); assert.match(html, /styles\.css\?v=04\.31-h1/);
 });
 
 /* ================= V04.27 ================= */
@@ -347,8 +347,8 @@ test('h2 · modal "Tenés un partido sin terminar": acciones verticales solo en 
   assert.equal(stackedCalls, 1); assert.ok(calls > 5);
   assert.match(fnSource('confirmAction'), /danger, stacked\)/);
 });
-test('h2 · versionado 04.30-h2 con APP_VERSION V04.30', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-30-h2'/);
+test('h2 · versionado 04.31-h1 con APP_VERSION V04.31', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-31-h1'/);
 });

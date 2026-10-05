@@ -119,39 +119,52 @@ test('B3 · tras NO SOY YO / enlace inválido / transitorio NO se encadena syncI
   assert.ok(rs.indexOf("outcome !== 'none') return;") < rs.indexOf('await syncIdentityRecovery();'));
 });
 
-/* ================= Gate de 5 pendientes ================= */
+/* ================= Gate de pendientes (V04.31: progresión 3/4 aviso, 5 bloqueo) ================= */
 function makeGateEnv({ rpc, cache }) {
-  const code = between(appJs, '  async function isNewLoadBlockedByPendingLimit() {', '  function showPendingLimitGate() {');
+  const code = between(appJs, '  async function getPendingGateState() {', '  function showPendingLimitGate(');
   const sb = {
     isServerBackedSession: () => true, Matches: { getPendingActionCount: rpc }, PH,
     Store: { loadServerMatchesCache: () => ({ matches: cache || [] }) },
   };
-  return new Function(...Object.keys(sb), `${code}\nreturn isNewLoadBlockedByPendingLimit;`)(...Object.values(sb));
+  return new Function(...Object.keys(sb), `${code}\nreturn getPendingGateState;`)(...Object.values(sb));
 }
-test('Gate pendientes · 4 accionables: el "+" abre; 5: bloquea (RPC)', async () => {
-  assert.equal(await makeGateEnv({ rpc: async () => ({ ok: true, count: 4, limit: 5, blocked: false }) })(), false);
-  assert.equal(await makeGateEnv({ rpc: async () => ({ ok: true, count: 5, limit: 5, blocked: true }) })(), true);
+test('Gate pendientes · progresión: 1-2 nada, 3 y 4 avisan (omitible), 5 bloquea (RPC)', async () => {
+  const lvl = async (count) => (await makeGateEnv({ rpc: async () => ({ ok: true, count, limit: 5, blocked: count >= 5 }) })()).level;
+  assert.equal(await lvl(0), 'none'); assert.equal(await lvl(2), 'none');
+  assert.equal(await lvl(3), 'warn'); assert.equal(await lvl(4), 'warn');
+  assert.equal(await lvl(5), 'block'); assert.equal(await lvl(6), 'block');
+  assert.equal(PH.pendingGateLevel(3, 5), 'warn');
 });
-test('Gate pendientes · sin red cae al conteo local de la caché (4 abre, 5 bloquea)', async () => {
+test('Gate pendientes · sin red cae al conteo local de la caché (2 nada, 3/4 aviso, 5 bloquea)', async () => {
   const pend = (n) => Array.from({ length: n }, (_, i) => ({ matchId: `m${i}`, status: 'pending_validation', isActionMine: true, hidden: false }));
   const offline = async () => ({ ok: false, code: 'network_error' });
-  assert.equal(await makeGateEnv({ rpc: offline, cache: pend(4) })(), false);
-  assert.equal(await makeGateEnv({ rpc: offline, cache: pend(5) })(), true);
+  assert.equal((await makeGateEnv({ rpc: offline, cache: pend(2) })()).level, 'none');
+  assert.equal((await makeGateEnv({ rpc: offline, cache: pend(3) })()).level, 'warn');
+  assert.equal((await makeGateEnv({ rpc: offline, cache: pend(5) })()).level, 'block');
   const throwing = async () => { throw new Error('boom'); };
-  assert.equal(await makeGateEnv({ rpc: throwing, cache: pend(5) })(), true);
+  assert.equal((await makeGateEnv({ rpc: throwing, cache: pend(5) })()).level, 'block');
   // lo que no me toca / corrección post-validación / ocultos NO cuentan
   const noCount = [...pend(4), { matchId: 'x', status: 'pending_validation', isActionMine: false }, { matchId: 'y', status: 'validated', isActionMine: true }, { matchId: 'z', status: 'pending_validation', isActionMine: true, hidden: true }];
   assert.equal(PH.countActionablePending(noCount), 4);
 });
-test('Gate pendientes · se aplica ANTES del formulario/borrador y ofrece VER PARTIDOS PENDIENTES -> Historial > Pendientes; el servidor sigue siendo la última barrera', () => {
+test('Gate pendientes · antes del formulario; 3/4 con VER PARTIDOS PENDIENTES + OMITIR; 5 con RESOLVÉ AL MENOS UNO PARA CONTINUAR sin omitir; lleva a Historial > Pendientes accionables primero', () => {
   const fn = between(appJs, '  function openManualLoadScreen(origin, editMatch, gatePassed) {', '  function openManualLoadScreenInner(');
-  assert.ok(fn.indexOf('isNewLoadBlockedByPendingLimit') < fn.indexOf('loadManualDraft'), 'gate antes del borrador');
+  assert.ok(fn.indexOf('getPendingGateState') < fn.indexOf('loadManualDraft'), 'gate antes del borrador');
   assert.match(fn, /!editMatch && !gatePassed/);
-  const gate = between(appJs, '  function showPendingLimitGate() {', '  function openManualLoadScreen(');
-  assert.match(gate, /VER PARTIDOS PENDIENTES/);
+  assert.match(fn, /showPendingLimitGate\(state, \(\) => openManualLoadScreen\(origin, editMatch, true\)\)/, 'OMITIR continúa la carga');
+  const gate = between(appJs, '  function showPendingLimitGate(state, onSkip) {', '  function openManualLoadScreen(');
+  assert.match(gate, /Resolvé al menos uno para continuar/);
+  assert.match(gate, /Tenés \$\{n\} partidos que esperan una respuesta tuya\./);
+  const block = gate.slice(0, gate.indexOf('confirmAction(\n      `Tenés'));
+  assert.doesNotMatch(block, /OMITIR/, 'el bloqueo no se omite');
+  assert.match(gate, /'VER PARTIDOS PENDIENTES', 'OMITIR'/);
   assert.match(gate, /openHistoryScreen\('player-home', null, 'pendientes'\)/);
   assert.match(appJs, /pending_action_limit_reached: 'Tenés 5 partidos pendientes/, 'el rechazo server-side se conserva');
   assert.match(fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261004100000_v0430_create_or_attach_idempotent_replay.sql'), 'utf8'), /pending_action_limit_reached/);
+  // Historial prioriza accionables
+  assert.match(appJs, /if \(historyStatusFilter === 'pendientes'\) list = PH\.sortPendingActionableFirst\(list\)/);
+  const mix = [{ matchId: 'wait', status: 'pending_validation', isActionMine: false }, { matchId: 'corr', status: 'validated', pendingCorrectionRevisionId: 'r' }, { matchId: 'act', status: 'pending_validation', isActionMine: true }, { matchId: 'act2', status: 'pending_validation', isActionMine: true }];
+  assert.deepEqual(PH.sortPendingActionableFirst(mix).map((m) => m.matchId), ['act', 'act2', 'corr', 'wait']);
 });
 
 /* ================= Self-report: NO PARTICIPÉ ================= */
@@ -174,41 +187,19 @@ test('Notificación · self-report en primera persona; destino sigue siendo el R
   assert.match(appJs, /identity_questioned: \(name\) => `\$\{name\} indicó que un jugador cargado no participó`/, 'el copy de tercera persona sigue para el resto');
 });
 
-/* ================= Pantalla de partidos recuperados ================= */
-test('Post-claim · superficie persistente: vista propia + cards de Historial + acciones SÍ/NO; NO LO JUGUÉ reutiliza el self-report', () => {
+/* ================= Pantalla de partidos recuperados (UX refinada en V04.31) ================= */
+test('Post-claim · superficie persistente: vista propia + cards de Historial; NO LO JUGUÉ reutiliza el self-report', () => {
   assert.match(indexHtml, /<section id="view-recovered" class="view view--history" hidden>[\s\S]*?PARTIDOS RECUPERADOS[\s\S]*?id="recovered-list"/);
   assert.match(appJs, /'recovered'\]\s*\n?\s*\.forEach/);
-  const code = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function closeRecoveredScreen(markDone) {');
+  const code = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function refreshRecoveredRows() {');
   assert.match(code, /buildHistoryItemElement\(f\)/, 'misma tarjeta que Historial');
-  assert.match(code, /SÍ, LO JUGUÉ/); assert.match(code, /NO, NO LO JUGUÉ/);
-  assert.match(code, /CONFIRMAR O CORREGIR EL RESULTADO/, 'pendiente accionable valida/corrige desde su Resumen');
   assert.match(code, /confirmReportIdentity\(row\.matchId, mine\.team, mine\.position[\s\S]{0,120}isSelf: true/);
   assert.match(code, /openCanonicalResumen\(f, 'recovered'\)/);
-  // un partido validado solo confirma participación: "yes" no llama a ninguna acción de validación
-  const yes = between(code, "if (act === 'yes') {", '// NO, NO LO JUGUÉ');
-  assert.doesNotMatch(yes, /officializeMatch|MV\./);
-  const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.30 · Partidos recuperados');
+  const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.31 · Partidos recuperados');
   assert.match(link, /saveRecoveredReview\(/);
   assert.match(link, /onboardingDone === false\) return;/, 'en un alta nueva se difiere hasta terminar el onboarding');
   assert.match(appJs, /maybeOpenRecoveredReview\(\)\)\) syncIdentityRecovery\(\)/);
   assert.match(read('auth.js'), /getRecoveredMatchIds/);
-});
-
-test('Post-claim · la revisión sobrevive recargas (localStorage por usuario) y "Revisar después" no la pierde', () => {
-  const store = {};
-  const sb = {
-    currentUserId: 'u1', localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; }, removeItem: (k) => { delete store[k]; } },
-    JSON, Object,
-  };
-  const code = between(appJs, '  const RECOVERED_REVIEW_KEY', '  /** Al arrancar con sesión');
-  const f = new Function(...Object.keys(sb), `${code}\nreturn { loadRecoveredReview, saveRecoveredReview, clearRecoveredReview, set(u){ currentUserId = u; } };`)(...Object.values(sb));
-  assert.equal(f.loadRecoveredReview(), null);
-  f.saveRecoveredReview({ recoveryId: 'r1', answers: { m1: 'yes' }, dismissed: true });
-  assert.equal(f.loadRecoveredReview().answers.m1, 'yes');
-  f.set('otra-cuenta');
-  assert.equal(f.loadRecoveredReview(), null, 'otra cuenta en el mismo dispositivo no la ve');
-  f.set('u1'); f.clearRecoveredReview();
-  assert.equal(f.loadRecoveredReview(), null);
 });
 
 /* ================= Entrada de invitación ================= */
@@ -279,12 +270,12 @@ test('Intelligence · el insight de un partido pendiente aclara que puede cambia
   assert.match(appJs, /pueden cambiar cuando se valide/);
 });
 
-test('Versionado V04.30 / 04.30-h2 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h2'/);
-  assert.match(indexHtml, /app\.js\?v=04\.30-h2/);
+test('Versionado V04.30 / 04.31-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.31-h1/);
 });
 
 /* ================= C1 / C2 (gate Central) ================= */
@@ -305,10 +296,9 @@ test('C1 · una respuesta HTTP conocida (429 rate_limited / 401 invalid_session)
 });
 
 test('C2 · LISTO solo con todas las cards respondidas; mientras falten: Revisar después y LISTO oculto, y nunca borra la revisión', () => {
-  const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  function onRecoveredAction(');
+  const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
   assert.match(fn, /\$\('#recovered-later-btn'\)\.hidden = allAnswered;/);
   assert.match(fn, /\$\('#recovered-done-btn'\)\.hidden = !allAnswered;/);
   const close = between(appJs, '  async function closeRecoveredScreen(markDone) {', '  function initRecoveredScreen() {');
-  assert.match(close, /if \(markDone && st && !st\.rows\.every/);
-  assert.ok(close.indexOf('markDone = false') < close.indexOf('clearRecoveredReview()'));
+  assert.match(close, /if \(st && allAnswered\) clearRecoveredReview\(\);\s*else if \(st\) \{ st\.rev\.dismissed = true;/);
 });

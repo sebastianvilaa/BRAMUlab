@@ -718,6 +718,10 @@ El límite no bloquea la cuenta ni impide recibir nuevos partidos creados por ot
 
 Si en una pareja solo existe un usuario registrado y el compañero es provisional/invitado, ese usuario es quien puede actuar por su lado. Si el provisional reclama luego su identidad mientras el partido sigue pendiente, también adquiere capacidad de responder por esa pareja.
 
+**Decisión de producto V04.31 (05/10/2026) — mínimo: 1 cuenta por partido.** Ya no se exige una cuenta registrada por pareja. Un partido puede cargarse con **una sola cuenta registrada en total + tres personas sin cuenta** (p. ej. Esteban + provisional A vs provisional B + provisional C). Queda **pendiente** y **nunca se auto-valida**: la acción es de la pareja contraria (solo provisionales), así que nadie puede confirmarlo hasta que exista una contraparte válida — por ejemplo cuando una de esas identidades se vincula a una cuenta, que entonces adquiere la acción por su lado y puede validar/corregir. Quien cargó queda en `ESPERANDO VALIDACIÓN` y ese partido no cuenta para su límite de pendientes accionables. El servidor ya admitía este caso (no existía una restricción técnica); la regla vieja era solo documental.
+
+**Progresión del límite (V04.31).** Con 1–2 pendientes accionables no se avisa; con 3 y 4 el `+` muestra `Tenés N partidos que esperan una respuesta tuya.` con `VER PARTIDOS PENDIENTES` y `OMITIR`; con 5 se bloquea (`Resolvé al menos uno para continuar`, sin omitir). Solo cuentan los partidos donde la pareja del usuario debe responder. El CTA abre Historial > Pendientes con lo accionable primero.
+
 La resolución debe ser extremadamente simple y rápida. La regla existe para ordenar tareas, no para castigar el uso frecuente de BRAMU.
 
 ---
@@ -1039,6 +1043,17 @@ La interfaz evita “reclamar”; habla de **invitar, vincular y recuperar parti
 - **Entrada de invitación.** Card contextual en Acceso antes de autenticar; `¿SOS {nombre}?` muestra el partido fuente (cargador, parejas, score, fecha, cantidad de partidos). Los datos concretos no se muestran sin sesión (DECISIÓN ABIERTA, informe 125).
 - **Límite de 5 pendientes.** El `+` se bloquea **antes** del formulario con `VER PARTIDOS PENDIENTES` (Historial > Pendientes); el servidor sigue siendo la última barrera.
 - Nombres sin cuenta en amarillo en Historial; selector con secciones `Sin cuenta` / `Jugadores`; la referencia de homónimos usa solo relaciones ya visibles. Sin implementar (DECISIÓN ABIERTA): notificación al invitador cuando el invitado se une y aviso de `NO SOY YO`.
+
+**Refinamientos V04.31 (05/10/2026, post QA humano) — PARTIDOS RECUPERADOS:**
+
+- Un partido **validado**: `NO, NO LO JUGUÉ` (outline rojo, izquierda) / `SÍ, LO JUGUÉ` (verde, derecha); confirmar participación no revalida el resultado.
+- Un partido **pendiente y accionable** usa las acciones canónicas, sin pasos intermedios: `NO, NO LO JUGUÉ` (self-report), `REPORTAR UN ERROR` (flujo existente) y `VALIDAR PARTIDO` (implica que jugó y que el resultado está bien). `✓ Participación confirmada` se integra discreto en la card; `LISTO` es secundario y solo aparece con todo respondido.
+- Mientras queden participaciones sin revisar, el carrusel de Home muestra `REVISÁ TUS PARTIDOS RECUPERADOS`; al terminar desaparece y las validaciones pendientes siguen el circuito normal (Home/Historial/Notificaciones).
+- Una **alta nueva** desde una invitación abre la misma pantalla al terminar el onboarding (bug corregido: la revisión pendiente se guardaba con un identificador que todavía no existía).
+- `¿SOS X?`: `SÍ, SOY YO` (verde) / `NO, NO SOY YO` (outline rojo); si la cuenta ya figura en un partido de esa identidad se muestra un estado corto (`No podés vincular esta identidad porque ya figurás en uno de sus partidos.` + `ENTENDIDO`).
+- `COPIAR INVITACIÓN` / `Invitación copiada. Enviásela a X.`; si la identidad ya no está disponible la CTA queda deshabilitada.
+- Notificaciones: el self-report nombra al actor (el servidor entrega `openedByName`); `PARTIDO POR VALIDAR` (me toca) vs `ESPERANDO VALIDACIÓN`; `X ya se sumó a BRAMU y recuperó sus partidos.` para quien generó el link ganador (trigger sobre `provisional_claims`). El aviso de `NO SOY YO` **no** se implementa (el rechazo no prueba identidad y el link puede circular).
+- Historial con 0 partidos reutiliza la card `TODO EMPIEZA CON TU PRIMER RESULTADO`.
 
 ### 15.5 Cuenta nueva, cuenta existente y varias provisionales
 

@@ -514,12 +514,12 @@ test('contrafactuales: perfiles representativos (desidentificados) mantienen el 
   assert.ok(Math.abs(step - base) < 0.2);
 });
 
-test('versionado V04.30 / 04.30-h2 coherente (store, version.json, sw, index, manifest)', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h2'/);
-  assert.match(html, /level-calibration\.js\?v=04\.30-h2/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.30-h2/);
-  assert.match(read('manifest.webmanifest'), /v=04\.30-h2/);
+test('versionado V04.30 / 04.31-h1 coherente (store, version.json, sw, index, manifest)', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
+  assert.match(html, /level-calibration\.js\?v=04\.31-h1/); assert.match(read('sw.js'), /level-calibration\.js\?v=04\.31-h1/);
+  assert.match(read('manifest.webmanifest'), /v=04\.31-h1/);
   assert.doesNotMatch(read('sw.js') + html + read('manifest.webmanifest'), /04\.27-h/);
 });
 
@@ -697,8 +697,10 @@ test('h3-24..33) volver desde OTP: el Nivel ya confirmado en el borrador se recu
 
 test('h3-34..39) Home Estado Cero: tarjeta aprobada solo sin partidos; con partido real se muestra el partido', () => {
   const fn = fnSource('renderPlayerLastMatchCard');
-  const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
-  assert.match(empty, /if \(!matches\.length\)/);
+  const emptyBranch = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
+  assert.match(emptyBranch, /if \(!matches\.length\)/);
+  assert.match(emptyBranch, /buildFirstResultCardHTML\(\)/); // V04.31: misma fuente para Home e Historial en estado cero
+  const empty = fnSource('buildFirstResultCardHTML');
   ['TU PRIMER PARTIDO', 'TU PRIMER RESULTADO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\.', 'CARGAR MI PRIMER PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
   assert.match(empty, /<button type="button" class="btn-start player-home-lastmatch__empty-cta">/);
   assert.doesNotMatch(fn.slice(fn.indexOf("card.classList.remove('is-empty')")), /TU PRIMER RESULTADO|empty-cta/);
@@ -713,9 +715,9 @@ test('h3-40..42) V1.3 persiste la versión correcta, motor posterior sin cambios
   const h = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, f))).digest('hex');
   assert.equal(h('level.js'), '12aa1dbe49deae59642ed185767af2e0dda5a01c18e33cc5728c82148fff6050');
   assert.equal(h('match-level-engine.js'), 'a5677f73e73af9adf6cd5231953d4364422ca24254243d0fe9101d854c6bda74');
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h2'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
 });
 
 /* ======================= V04.28-h7 — tarjeta Estado Cero con foto ======================= */
@@ -727,11 +729,11 @@ test('h4-1..4) tarjeta Estado Cero: asset correcto (copia web optimizada), copy 
   // es la copia optimizada de "Pelota en cancha azul dramática" (original intacto en docs/identidad-visual)
   const orig = path.join(__dirname, '..', 'docs', 'identidad-visual', 'referencias-premier-padel', 'Pelota en cancha azul dramática.png');
   if (fs.existsSync(orig)) assert.ok(fs.statSync(orig).size > 2 * 1024 * 1024);
-  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.30-h2'\) 100% 30% \/ cover no-repeat/);
+  assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*url\('assets\/home-primer-partido\.jpg\?v=04\.31-h1'\) 100% 30% \/ cover no-repeat/);
   assert.match(css4, /\.player-home-lastmatch\.is-empty\{[\s\S]*linear-gradient\(180deg, rgba\(5,12,22/); // oscurece detrás del texto
-  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.30-h2'/);
+  assert.match(read('sw.js'), /'\.\/assets\/home-primer-partido\.jpg\?v=04\.31-h1'/);
   const fn = fnSource('renderPlayerLastMatchCard');
-  const empty = fn.slice(0, fn.indexOf("card.classList.remove('is-empty')"));
+  const empty = fnSource('buildFirstResultCardHTML'); // V04.31: el markup vive en un helper compartido con Historial estado cero
   ['TU PRIMER PARTIDO', 'TODO EMPIEZA CON', 'TU PRIMER RESULTADO', 'Registrá el resultado y empezá a construir tu historial en BRAMU\\.', 'CARGAR MI PRIMER PARTIDO'].forEach((t) => assert.match(empty, new RegExp(t)));
   assert.match(empty, /empty-accent">TU PRIMER RESULTADO/); assert.match(empty, /<svg[^>]*player-home-lastmatch__pill-icon/);
   assert.match(read('styles.css'), /\.player-home-lastmatch__empty-accent\{ display:block; color: var\(--brand-lime\); \}/);
@@ -755,7 +757,7 @@ test('h4-10..12) layout móvil sin overflow, legibilidad y versionado h4', () =>
   const css4 = read('styles.css');
   assert.match(css4, /\.player-home-lastmatch__empty-cta\{ width:100%; \}/);
   assert.match(css4, /\.player-home-lastmatch__empty-title\{[^}]*text-shadow/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h2'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
 });

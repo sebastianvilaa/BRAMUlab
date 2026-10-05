@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.30-h2') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.31-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -2892,7 +2892,7 @@ input, select{ font-family: inherit; }
 .password-rules li.is-met{ color: var(--brand-lime); }
 .password-rules li.is-met::before{ content:'●'; }
 
-.signup-username-feedback{ font-size: 11.5px; color: var(--paper-dim); margin: -4px 0 4px; min-height: 14px; }
+.signup-username-feedback{ font-size: 11.5px; color: var(--paper-dim); margin: 6px 0 4px; min-height: 14px; }
 .signup-username-feedback.is-taken{ color: var(--danger); }
 
 /* Avatar circular con lapicito de edición — reusado por el signup (Paso 2) y por la edición
@@ -4036,9 +4036,18 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .recovered-card .history-item{ margin: 0; }
 .recovered-card__actions{ display:flex; flex-direction:column; gap: 8px; margin-top: 8px; }
 .recovered-card__actions .btn-secondary, .recovered-card__actions .btn-start{ width:100%; min-height: 42px; font-size: 12px; }
-.recovered-card__row{ display:flex; gap: 8px; }
+.recovered-card__row{ display:flex; gap: 8px; align-items: stretch; }
 .recovered-card__row > button{ flex:1; }
 .recovered-card__status{ margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--brand-lime); }
 .recovered-card__status--no{ color: var(--gold); }
 .recovered-footer{ display:flex; flex-direction:column; align-items:center; gap: 10px; padding: 18px 16px calc(24px + var(--safe-bottom)); }
-.recovered-footer .btn-start{ width:100%; }
+.recovered-footer .btn-secondary{ width:100%; min-height: 40px; font-size: 12px; }
+.recovered-card__open{ align-self:center; font-size: 12px; }
+
+/* V04.31 — disponibilidad de @usuario: ícono compacto asociado al campo (✓ verde / ✕ rojo) en vez de texto pegado a la línea. */
+.field__input.is-valid, .field__input.is-invalid{ padding-right: 40px; background-repeat: no-repeat; background-position: right 14px center; background-size: 16px 16px; }
+.field__input.is-valid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2395FF19' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
+.field__input.is-invalid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FF5B61' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E"); }
+
+/* V04.31 — aclaración de partido pendiente en Intelligence: misma jerarquía sutil que el subtítulo "Una lectura objetiva…" y más aire tras "+ POR QUÉ APARECEN ESTOS INSIGHTS". */
+.intelligence-frame--pending{ margin: 18px 0 0; }
