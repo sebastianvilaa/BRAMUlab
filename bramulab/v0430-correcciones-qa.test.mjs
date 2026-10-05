@@ -192,7 +192,7 @@ test('Post-claim · superficie persistente: vista propia + cards de Historial; N
   assert.match(indexHtml, /<section id="view-recovered" class="view view--history" hidden>[\s\S]*?PARTIDOS RECUPERADOS[\s\S]*?id="recovered-list"/);
   assert.match(appJs, /'recovered'\]\s*\n?\s*\.forEach/);
   const code = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function refreshRecoveredRows() {');
-  assert.match(code, /buildHistoryItemElement\(f\)/, 'misma tarjeta que Historial');
+  assert.match(code, /buildHistoryItemElement\(f, \{ omitStateBadges: true \}\)/, 'misma tarjeta que Historial');
   assert.match(code, /confirmReportIdentity\(row\.matchId, mine\.team, mine\.position[\s\S]{0,120}isSelf: true/);
   assert.match(code, /openCanonicalResumen\(f, 'recovered'\)/);
   const link = between(appJs, '  async function afterIdentityLinked(result, opts) {', '  /* ---- V04.31 · Partidos recuperados');
@@ -270,12 +270,12 @@ test('Intelligence · el insight de un partido pendiente aclara que puede cambia
   assert.match(appJs, /pueden cambiar cuando se valide/);
 });
 
-test('Versionado V04.30 / 04.31-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.31-h1'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.31-h1/);
+test('Versionado V04.30 / 04.32-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.32', bundle: '04.32-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.32'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.32-h1'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-32-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.32-h1/);
 });
 
 /* ================= C1 / C2 (gate Central) ================= */

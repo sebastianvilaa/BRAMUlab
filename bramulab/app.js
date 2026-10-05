@@ -4065,6 +4065,10 @@
 
   function renderAnalysis(f) {
     analysisCurrent = f;
+    // V04.32 — SOLO presentación: si el usuario autenticado es Team B (orden canónico del backend), el Resumen invierte los COLORES de equipo
+    // (su pareja en verde, la rival en azul) intercambiando las variables --team-a/--team-b dentro de #view-analysis. No se toca el orden de
+    // filas, los scores, winnerTeam ni ningún dato: A/B siguen siendo los canónicos.
+    $('#view-analysis').classList.toggle('team-mine-b', !!(f && f.players && PH.getPlayerTeam(f, currentIdentity()) === 'B'));
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
     renderAnalysisMeta(f);
     // Handoff ajuste visual final post-h18 (doc 57, punto C) — `pendingCorrectionRevisionId`/
@@ -5361,7 +5365,7 @@
 
   /** V04.30 — arma UNA tarjeta de Historial (la misma que usa la lista) para reutilizarla, p. ej. en la pantalla de partidos
    *  recuperados tras vincular una identidad. Devuelve el elemento sin cablear interacciones ni insertarlo. */
-  function buildHistoryItemElement(m) {
+  function buildHistoryItemElement(m, opts) {
     {
       // Ronda UX 25/09 (§A) — perspectiva personal: la pareja del usuario actual primero, el
       // rival después, y el score orientado en ese mismo sentido (Laboratorio §15.7: antes
@@ -5438,7 +5442,7 @@
       // clara con nada. Pasan a la MISMA columna de `resultBadgeHTML`, apilados debajo,
       // alineados a la derecha (`.history-item__result-col`) — resultado y estado quedan
       // juntos, y ninguno de los dos compite con la fila de participantes/formato de abajo.
-      const stateBadgesHTML = [
+      const stateBadgesHTML = (opts && opts.omitStateBadges) ? '' : [
         m.terminationType === 'manual' ? `<span class="history-item__badge">${m.terminationReasonLabel}</span>` : '',
         serverMatchStatusLabel(m) ? `<span class="history-item__badge history-item__badge--${serverMatchStatusBadgeModifier(m)}">${serverMatchStatusLabel(m)}</span>` : '',
       ].filter(Boolean).join('');
@@ -14819,6 +14823,13 @@
     return true;
   }
   let recoveredScreenState = null;
+  /** Estado contextual de UN recuperado (V04.32): un pendiente donde YO no tengo nada que responder se rotula `ESPERANDO VALIDACIÓN`
+   *  (como en Home). Solo copy: el estado real del partido no cambia. */
+  function recoveredStatusBadge(row, f) {
+    if (row.status === 'pending_validation' && !row.isActionMine && !f.hasOpenIdentityIssue) return { label: 'ESPERANDO VALIDACIÓN', mod: 'waiting' };
+    const label = serverMatchStatusLabel(f);
+    return label ? { label, mod: serverMatchStatusBadgeModifier(f) } : null;
+  }
   function renderRecoveredMatchesScreen() {
     const st = recoveredScreenState;
     if (!st) return;
@@ -14828,31 +14839,38 @@
     list.innerHTML = '';
     st.rows.forEach((row) => {
       const f = MSync.translateServerMatchToLocalShape(row);
+      // Una sola card: fecha/resultado/parejas arriba (sin badge de estado, que movía el ritmo vertical) y, DENTRO de la misma card,
+      // estado + acciones.
       const wrap = document.createElement('div');
       wrap.className = 'recovered-card';
-      wrap.appendChild(buildHistoryItemElement(f));
+      const item = buildHistoryItemElement(f, { omitStateBadges: true });
+      wrap.appendChild(item);
       const answered = recoveredAnswerOf(rev, row);
       const actionable = row.status === 'pending_validation' && row.isActionMine;
+      const badge = recoveredStatusBadge(row, f);
+      const validatedHere = (rev.validatedHere || []).includes(row.matchId) && row.status === 'validated';
+      let confirmHTML = '';
+      if (answered === 'yes') confirmHTML = validatedHere ? '✓ Partido validado' : '✓ Participación confirmada';
+      else if (answered === 'no') confirmHTML = 'Indicaste que no jugaste este partido';
       const actions = document.createElement('div');
       actions.className = 'recovered-card__actions';
-      if (answered === 'yes') {
-        actions.innerHTML = '<p class="recovered-card__status">✓ Participación confirmada</p>';
-      } else if (answered === 'no') {
-        actions.innerHTML = '<p class="recovered-card__status recovered-card__status--no">Indicaste que no jugaste este partido</p>';
-      } else {
-        // Negativo a la izquierda (outline rojo), positivo a la derecha (verde). Un pendiente accionable usa las acciones canónicas
-        // (VALIDAR PARTIDO implica que jugó y que el resultado está bien; REPORTAR UN ERROR abre el flujo existente).
-        actions.innerHTML = `<div class="recovered-card__row"><button type="button" class="btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ</button>`
+      let html = `<div class="recovered-card__status-row">${badge ? `<span class="history-item__badge history-item__badge--${badge.mod}">${badge.label}</span>` : '<span></span>'}`
+        + (confirmHTML ? `<span class="recovered-card__status${answered === 'no' ? ' recovered-card__status--no' : ''}">${confirmHTML}</span>` : '') + '</div>';
+      if (!answered) {
+        // Negativo a la izquierda (outline rojo), positivo a la derecha (verde), misma altura. Un pendiente accionable usa las acciones canónicas
+        // (VALIDAR PARTIDO implica que jugó y que el resultado está bien; REPORTAR UN ERROR = mismo estilo que en el Resumen).
+        html += `<div class="recovered-card__row"><button type="button" class="btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ</button>`
           + (actionable ? '<button type="button" class="btn-start" data-act="validate">VALIDAR PARTIDO</button>' : '<button type="button" class="btn-start" data-act="yes">SÍ, LO JUGUÉ</button>')
           + '</div>'
-          + (actionable ? '<button type="button" class="btn-secondary" data-act="report">REPORTAR UN ERROR</button>' : '');
+          + (actionable ? '<button type="button" class="b6-correction-choice b6-correction-choice--report" data-act="report">Reportar un error</button>' : '');
       }
-      if (answered !== 'no') actions.insertAdjacentHTML('beforeend', '<button type="button" class="link-btn recovered-card__open" data-act="open">Ver partido</button>');
+      if (answered !== 'no') html += '<button type="button" class="link-btn recovered-card__open" data-act="open">Ver partido</button>';
+      actions.innerHTML = html;
       actions.querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => onRecoveredAction(row, btn.dataset.act)));
-      wrap.appendChild(actions);
+      item.appendChild(actions);
       list.appendChild(wrap);
     });
-    // LISTO (cierre) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después". Discreto, no compite con las acciones.
+    // TERMINAR REVISIÓN (cierre global) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después".
     const allAnswered = st.rows.every((r) => recoveredAnswerOf(rev, r));
     $('#recovered-later-btn').hidden = allAnswered;
     $('#recovered-done-btn').hidden = !allAnswered;
@@ -14875,6 +14893,7 @@
       const result = await MV.officializeMatch(row.matchId);
       if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
       showToast('Partido validado.');
+      st.rev.validatedHere = Array.from(new Set([...(st.rev.validatedHere || []), row.matchId]));
       mark('yes');
       await afterB6Action(row.matchId);
       await refreshRecoveredRows();

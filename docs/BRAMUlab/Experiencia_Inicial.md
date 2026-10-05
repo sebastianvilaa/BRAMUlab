@@ -1055,6 +1055,8 @@ La interfaz evita “reclamar”; habla de **invitar, vincular y recuperar parti
 - Notificaciones: el self-report nombra al actor (el servidor entrega `openedByName`); `PARTIDO POR VALIDAR` (me toca) vs `ESPERANDO VALIDACIÓN`; `X ya se sumó a BRAMU y recuperó sus partidos.` para quien generó el link ganador (trigger sobre `provisional_claims`). El aviso de `NO SOY YO` **no** se implementa (el rechazo no prueba identidad y el link puede circular).
 - Historial con 0 partidos reutiliza la card `TODO EMPIEZA CON TU PRIMER RESULTADO`.
 
+**Ajustes visuales V04.32 (05/10/2026, post QA de Recuperados):** en el Resumen **mi pareja se ve en verde y la rival en azul** según el usuario autenticado (solo presentación: se intercambian los colores de equipo; Team A/Team B, scores, winner y revisiones siguen siendo los canónicos). En `PARTIDOS RECUPERADOS`: un pendiente donde el recuperado no tiene acción sobre el resultado muestra `ESPERANDO VALIDACIÓN` (solo copy); estado y acciones viven **dentro** de la card (`✓ Participación confirmada` / `✓ Partido validado` si validó desde ahí); botones hermanos de igual altura, `REPORTAR UN ERROR` con la misma jerarquía que en el Resumen (outline rojo); el cierre global pasa a `TERMINAR REVISIÓN` (solo con todo respondido).
+
 ### 15.5 Cuenta nueva, cuenta existente y varias provisionales
 
 **Cuenta nueva:** la vinculación se resuelve antes de completar Perfil/Nivel oficial. El historial de la provisional queda asociado a la cuenta y después continúa el onboarding normal.

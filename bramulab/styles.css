@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.31-h1') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.32-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -4033,21 +4033,29 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* V04.30 — pantalla de partidos recuperados (post SOY YO): card de Historial + acciones de participación por partido. */
 .recovered-intro{ margin: 4px 16px 14px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
 .recovered-list{ display:flex; flex-direction:column; gap: 14px; padding: 0 16px; }
-.recovered-card .history-item{ margin: 0; }
-.recovered-card__actions{ display:flex; flex-direction:column; gap: 8px; margin-top: 8px; }
-.recovered-card__actions .btn-secondary, .recovered-card__actions .btn-start{ width:100%; min-height: 42px; font-size: 12px; }
+.recovered-card .history-item{ margin: 0; cursor: default; }
+/* V04.32 — estado + acciones DENTRO de la misma card, separados por un divisor sutil. */
+.recovered-card__actions{ display:flex; flex-direction:column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.recovered-card__status-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: 6px 8px; min-height: 22px; }
+.recovered-card__status-row .history-item__badge{ white-space: nowrap; }
 .recovered-card__row{ display:flex; gap: 8px; align-items: stretch; }
-.recovered-card__row > button{ flex:1; }
-.recovered-card__status{ margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--brand-lime); }
+/* Acciones hermanas: misma altura/padding/baseline (el texto de dos líneas ya no desparejaba la fila). */
+.recovered-card__row > button{ flex:1 1 0; min-height: 48px; padding: 0 10px; margin: 0; font-size: 12px; line-height: 1.15; display:flex; align-items:center; justify-content:center; text-align:center; }
+/* REPORTAR UN ERROR: misma jerarquía que en el Resumen (outline rojo), sin competir con el CTA principal. */
+.recovered-card .b6-correction-choice--report{ width:100%; min-height: 40px; border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); opacity: 1; }
+.recovered-card__status{ font-size: 12px; font-weight: 700; color: var(--brand-lime); white-space: nowrap; margin-left:auto; }
 .recovered-card__status--no{ color: var(--gold); }
 .recovered-footer{ display:flex; flex-direction:column; align-items:center; gap: 10px; padding: 18px 16px calc(24px + var(--safe-bottom)); }
-.recovered-footer .btn-secondary{ width:100%; min-height: 40px; font-size: 12px; }
+.recovered-footer .btn-start{ width:100%; min-height: 48px; }
 .recovered-card__open{ align-self:center; font-size: 12px; }
 
 /* V04.31 — disponibilidad de @usuario: ícono compacto asociado al campo (✓ verde / ✕ rojo) en vez de texto pegado a la línea. */
-.field__input.is-valid, .field__input.is-invalid{ padding-right: 40px; background-repeat: no-repeat; background-position: right 14px center; background-size: 16px 16px; }
-.field__input.is-valid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2395FF19' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); }
-.field__input.is-invalid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FF5B61' stroke-width='2.6' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E"); }
+.field__input.is-valid, .field__input.is-invalid{ padding-right: 40px; background-repeat: no-repeat; background-position: right 12px center; background-size: 20px 20px; }
+.field__input.is-valid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='11' fill='%2395FF19' fill-opacity='0.18'/%3E%3Cpath d='M7 12.5l3.2 3.2L17 8.8' stroke='%2395FF19' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.field__input.is-invalid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23FF5B61' fill-opacity='0.18'/%3E%3Cpath d='M8.5 8.5l7 7M15.5 8.5l-7 7' stroke='%23FF5B61' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"); }
 
 /* V04.31 — aclaración de partido pendiente en Intelligence: misma jerarquía sutil que el subtítulo "Una lectura objetiva…" y más aire tras "+ POR QUÉ APARECEN ESTOS INSIGHTS". */
 .intelligence-frame--pending{ margin: 18px 0 0; }
+
+/* V04.32 — "mi equipo en verde": si el usuario autenticado es Team B (orden canónico), el Resumen intercambia los COLORES de equipo. Solo presentación. */
+#view-analysis.team-mine-b{ --team-a: var(--accent-cyan); --team-a-deep: #0D6FCC; --team-b: var(--brand-lime); --team-b-deep: var(--brand-lime-deep); }

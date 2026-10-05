@@ -85,10 +85,10 @@ test('Recuperados · respuesta derivada y pendiente para el carrusel (validado +
 });
 test('Recuperados · acciones: validado = NO(izq, rojo) / SÍ(der, verde); pendiente accionable = NO + VALIDAR PARTIDO + REPORTAR UN ERROR (sin paso "participación confirmada" intermedio)', () => {
   const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
-  const row = fn.slice(fn.indexOf('actions.innerHTML = `<div class="recovered-card__row">'));
+  const row = fn.slice(fn.indexOf('html += `<div class="recovered-card__row">'));
   assert.ok(row.indexOf('btn-secondary btn-secondary--danger" data-act="no">NO, NO LO JUGUÉ') < row.indexOf('data-act="yes">SÍ, LO JUGUÉ'), 'negativo a la izquierda');
   assert.ok(row.indexOf('btn-secondary btn-secondary--danger" data-act="no"') < row.indexOf('data-act="validate">VALIDAR PARTIDO'));
-  assert.match(row, /data-act="report">REPORTAR UN ERROR/);
+  assert.match(row, /b6-correction-choice b6-correction-choice--report" data-act="report">Reportar un error/);
   assert.match(fn, /✓ Participación confirmada/);
   assert.doesNotMatch(fn, /CONFIRMAR O CORREGIR EL RESULTADO/);
   const act = between(appJs, '  async function onRecoveredAction(row, act) {', '  async function refreshRecoveredRows() {');
@@ -97,7 +97,7 @@ test('Recuperados · acciones: validado = NO(izq, rojo) / SÍ(der, verde); pendi
   assert.match(act, /\$\('#b6-report-error-btn'\)\.click\(\)/, 'REPORTAR abre el selector existente del Resumen');
   const yes = between(act, "if (act === 'yes') {", "if (act === 'validate')");
   assert.doesNotMatch(yes, /officializeMatch/, 'SÍ, LO JUGUÉ en un validado NO revalida el resultado');
-  assert.match(indexHtml, /id="recovered-done-btn" class="btn-secondary" hidden>LISTO/, 'LISTO discreto');
+  assert.match(indexHtml, /id="recovered-done-btn" class="btn-start" hidden>TERMINAR REVISIÓN/, 'cierre global inequívoco');
 });
 test('Carrusel de Home · tarjeta REVISÁ TUS PARTIDOS RECUPERADOS mientras falten participaciones; abre la pantalla', () => {
   const fn = between(appJs, '  function renderPlayerHomeCarousel(displayMatches, matches) {', '  function renderPlayerHome() {');
@@ -206,9 +206,51 @@ test('1 cuenta + 3 sin cuenta: ninguna regla del cliente exige una cuenta por pa
   assert.doesNotMatch(v, /registered|cuenta|provisional/i);
 });
 
-test('Versionado V04.31 / 04.31-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.31', bundle: '04.31-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.31'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-31-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.31-h1/);
+test('Versionado V04.31 / 04.32-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.32', bundle: '04.32-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.32'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-32-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.32-h1/);
+});
+
+/* ============ V04.32 — ajustes visuales post QA (handoff 128) ============ */
+test('V04.32 · "mi equipo verde": solo se alterna una clase de presentación; los datos canónicos A/B no se tocan', () => {
+  const fn = between(appJs, '  function renderAnalysis(f) {', '    analysisSetFilter');
+  assert.match(fn, /classList\.toggle\('team-mine-b', !!\(f && f\.players && PH\.getPlayerTeam\(f, currentIdentity\(\)\) === 'B'\)\)/);
+  // no hay ninguna inversión de datos en las primitivas del resultado: siguen leyendo gamesA/gamesB y team A/B canónicos
+  const rows = between(appJs, '  function buildResultRowsHTML(players, sets, currentPartial) {', '  /** Bloque M2/M3/M4/M5');
+  assert.match(rows, /team === 'A' \? s\.gamesA : s\.gamesB/);
+  assert.match(rows, /return `\$\{cellsForTeam\('A'\)\}<div class="result-card__divider-row" aria-hidden="true"><\/div>\$\{cellsForTeam\('B'\)\}`/);
+  assert.match(cssText, /#view-analysis\.team-mine-b\{ --team-a: var\(--accent-cyan\); --team-a-deep: #0D6FCC; --team-b: var\(--brand-lime\); --team-b-deep: var\(--brand-lime-deep\); \}/);
+  // el color de cada pareja sale SOLO de las variables --team-a/--team-b (por eso el intercambio alcanza)
+  assert.match(cssText, /\.result-card__row\[data-team="A"\] \.result-card__name\{ color: var\(--team-a\); \}/);
+  assert.match(cssText, /\.result-card__row\[data-team="B"\] \.result-card__name\{ color: var\(--team-b\); \}/);
+  // Team A del usuario: sin clase; Team B: con clase (misma función pura que el resto de la app)
+  const PH = loadModule('player-home.js', { PLStore: { normalizePlayerName: (r) => String(r || '').trim().toLowerCase() } }).PLPlayerHome;
+  const f = { players: [{ team: 'A', userId: 'x', name: 'X' }, { team: 'B', userId: 'me', name: 'Yo' }] };
+  assert.equal(PH.getPlayerTeam(f, { userId: 'me', name: 'Yo' }), 'B');
+  assert.equal(PH.getPlayerTeam(f, { userId: 'x', name: 'X' }), 'A');
+});
+test('V04.32 · recuperados: ESPERANDO VALIDACIÓN cuando no hay acción propia sobre el resultado (solo copy), estado integrado y "✓ Partido validado" tras validar', () => {
+  const badge = between(appJs, '  function recoveredStatusBadge(row, f) {', '  function renderRecoveredMatchesScreen() {');
+  assert.match(badge, /row\.status === 'pending_validation' && !row\.isActionMine && !f\.hasOpenIdentityIssue\) return \{ label: 'ESPERANDO VALIDACIÓN', mod: 'waiting' \}/);
+  const sb = { serverMatchStatusLabel: () => 'PENDIENTE DE VALIDACIÓN', serverMatchStatusBadgeModifier: () => 'waiting' };
+  const fn = new Function(...Object.keys(sb), `${badge}\nreturn recoveredStatusBadge;`)(...Object.values(sb));
+  assert.equal(fn({ status: 'pending_validation', isActionMine: false }, {}).label, 'ESPERANDO VALIDACIÓN');
+  assert.equal(fn({ status: 'pending_validation', isActionMine: true }, {}).label, 'PENDIENTE DE VALIDACIÓN', 'si me toca, el estado real');
+  const render = between(appJs, '  function renderRecoveredMatchesScreen() {', '  async function onRecoveredAction(');
+  assert.match(render, /item\.appendChild\(actions\)/, 'estado y acciones DENTRO de la card');
+  assert.match(render, /✓ Partido validado/); assert.match(render, /✓ Participación confirmada/);
+  assert.match(render, /validatedHere = \(rev\.validatedHere \|\| \[\]\)\.includes\(row\.matchId\) && row\.status === 'validated'/);
+  assert.match(appJs, /st\.rev\.validatedHere = Array\.from\(new Set/);
+  assert.match(cssText, /\.recovered-card__row > button\{ flex:1 1 0; min-height: 48px;/, 'alturas iguales');
+  assert.match(cssText, /\.recovered-card \.b6-correction-choice--report\{[^}]*border: 1\.5px solid var\(--danger\)/, 'REPORTAR UN ERROR como en Resumen');
+  const hist = between(appJs, '  function buildHistoryItemElement(m, opts) {', '      const stateBadgesHTML');
+  assert.ok(hist.length > 0);
+  assert.match(appJs, /const stateBadgesHTML = \(opts && opts\.omitStateBadges\) \? ''/);
+});
+test('V04.32 · @usuario: ícono en círculo en el campo; cierre global TERMINAR REVISIÓN', () => {
+  assert.match(cssText, /\.field__input\.is-valid\{ background-image: url\("data:image\/svg\+xml[^"]*circle/);
+  assert.match(cssText, /background-position: right 12px center; background-size: 20px 20px/);
+  assert.match(indexHtml, /id="recovered-done-btn" class="btn-start" hidden>TERMINAR REVISIÓN/);
 });
