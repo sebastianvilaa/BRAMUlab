@@ -1,11 +1,11 @@
 # 125 — Resultado · Correcciones QA Invitados / Identidad / Pendientes (V04.30)
 
 **Fecha:** 04/10/2026 · **Rama:** `staging` · **Versión:** BRAMUlab **V04.30** · bundle **04.30-h2** (h1 en el primer push; h2 = correcciones C1/C2 del gate Central)
-**HEAD base:** `79e489e` · **Commits previos:** `b2df2b3` (funcional), `8fd26be`, `ed36adb` (docs; gate Central posterior sobre `ed36adb`) · **HEAD final:** el commit único de C1/C2 + esta actualización (`git log -1`; el hash se informa al cerrar la ronda).
+**HEAD base:** `79e489e` · **Commits previos:** `b2df2b3` (funcional), `8fd26be`, `ed36adb` (docs; gate Central posterior sobre `ed36adb`) · **HEAD funcional final V04.30/h2:** `5ab2606565239e54c6475ab7d0b75a466bc24bd8`.
 **Fuente de alcance:** GitHub Issue #29 + `124_Handoff_QA_Humano_Invitados_04OCT.md`.
-**Estado:** el gate Central (04/10) **aplicó la migración en Staging** y verificó B1/B2/B3 en Staging real (PASS), Vercel SUCCESS y ACLs/advisors. Esta actualización cierra los hallazgos C1 y C2 de ese gate. Ninguna Edge Function cambió.
+**Estado:** Central **aplicó la migración en Staging**, verificó B1/B2/B3 en Staging real (PASS), revisó ACLs/advisors y luego revisó el diff C1/C2 de `04.30-h2`: **gate técnico Central PASS**. Vercel del HEAD funcional está SUCCESS. Ninguna Edge Function cambió. Queda únicamente el QA humano corto autenticado antes de cerrar Issue #29.
 
-## Migración (forward-only, solo local)
+## Migración (forward-only, aplicada en Supabase Staging por Central)
 `supabase/migrations/20261004100000_v0430_create_or_attach_idempotent_replay.sql` — `CREATE OR REPLACE` de funciones existentes (grants conservados), sin cambios de esquema:
 
 | Función | Cambio |
@@ -32,8 +32,8 @@
 ## Tests
 | Suite | Resultado |
 |---|---|
-| `node --test bramulab supabase` completo | **922 tests · 913 pass · 3 fail · 6 skipped**. Los 3 fallos son los **mismos preexistentes** de 117/119 (h19-B, h21-9, h23). Los 6 skipped son la concurrencia real sin los paquetes. Pasó de 898 a 922 (+24). |
-| `bramulab/v0430-correcciones-qa.test.mjs` (nuevo) | 23/23 — B1/B2/B3, gate 4/5 (RPC y offline), self-report, recuperados (persistencia por usuario), invitación, selector, sin cuenta amarillo, contraseña, versión |
+| `node --test bramulab supabase` completo | Primer push h1: **922 tests · 913 pass · 3 fail · 6 skipped**. Final h2 tras C1/C2: **924 tests · 915 pass · 3 fail · 6 skipped**. Los 3 fallos son los **mismos preexistentes** de 117/119 (h19-B, h21-9, h23). |
+| `bramulab/v0430-correcciones-qa.test.mjs` (nuevo) | h1: 23/23. h2 suma 2 focales C1/C2: 429/401 nunca se rotulan como “Sin conexión” y `LISTO` no puede cerrar recuperados incompletos. |
 | `supabase/functions/_shared/v0430-correcciones.test.mjs` (nuevo, Postgres real PGlite, todas las migraciones) | 6/6 — B2 replay (**falla con 23505 sin la migración**, verificado), idempotencia válida, B3 stale, preview + recuperados + privacidad entre cuentas, `selfReported`, **B1 con dos partidos de los mismos 4 jugadores** (ambiguo sin `matchId`; con `matchId`: partido correcto, +1 revisión, deadline intacto, el homónimo sin tocar) |
 | `v0429-invitados-identidad`, `verify-g3-identity-recovery.sql`, replay limpio ×3 ACL, `release-check` | PASS (tests de V04.29 actualizados donde cambió el contrato: `INVITAR A …`, `matchCount`/`sourceMatch`, card en lugar de toast) |
 | `tests.html` (navegador) | 1495/1503: **idénticos a la base** `79e489e` (8 fallos `V034-*` de Grupos/Race dependientes de fecha; `groups.js` no se tocó) |
@@ -54,10 +54,15 @@ No se tocó `main`, Production, BRAMUlive, fórmula de Nivel, Ranking publicado,
 3. `SÍ, LO JUGUÉ` se recuerda **localmente** (no hay evento server-side de "participación confirmada" y no se inventó un sistema paralelo). Si se necesita auditoría de la confirmación de participación, hay que definirla en backend.
 4. El self-report sigue excluyendo del selector al **creador** del partido (regla previa); el creador no puede declararse "no participé".
 
-## Qué NO se verificó
-- **Staging real**: la migración **no está aplicada** y no se probó contra Supabase Staging (sin credenciales/CLI). Central/Work deben aplicarla (forward-only) y re-verificar B2 (mismo `idempotency_key` con `pending_action_limit_reached` ⇒ mismo resultado, sin 500) y B3 (candidato stale) en Staging.
-- **Flujo visual autenticado** (pantalla de recuperados, `¿SOS?` con partido, gate del `+`, self-report) en navegador/iPhone real: no hay sesión Supabase aquí; se probó por tests con entorno falso + Postgres real, no por QA visual.
-- Deploy de Vercel y comportamiento del Service Worker (el bundle subió a `04.30-h1`).
-- QA humano corto posterior (claim + pantalla, `No lo jugué` propio, límite de 5, B1, link consumido).
+## Qué NO se verificó todavía
+- **QA humano corto autenticado de V04.30/h2**: claim + pantalla de recuperados, `No lo jugué` propio, gate visual del límite de 5, corrección B1 desde UI y link consumido.
+- **Ciclo visual real del Service Worker/PWA** después del bump `04.30-h2` no se volvió a recorrer en un dispositivo físico; Vercel sí está SUCCESS y el versionado/cache-busting fue cubierto por tests.
+
+## Gate Central final
+- Migración aplicada en **Supabase Staging**.
+- B1/B2/B3 verificados por Central sobre backend real: **PASS**.
+- C1/C2 revisados sobre el diff final: **PASS**.
+- Vercel del HEAD funcional `5ab2606565239e54c6475ab7d0b75a466bc24bd8`: **SUCCESS**.
+- Issue #29 permanece abierto **solo** hasta completar el QA humano corto.
 
 **No se declara cierre de Pre-Production ni se habilita Production.**
