@@ -1,9 +1,9 @@
 # 125 — Resultado · Correcciones QA Invitados / Identidad / Pendientes (V04.30)
 
-**Fecha:** 04/10/2026 · **Rama:** `staging` · **Versión:** BRAMUlab **V04.30** · bundle **04.30-h1**
-**HEAD base:** `79e489e` · **Commit funcional:** `b2df2b3` · **HEAD final:** el commit de documentación inmediatamente posterior (mismo push; ver `git log -2`).
+**Fecha:** 04/10/2026 · **Rama:** `staging` · **Versión:** BRAMUlab **V04.30** · bundle **04.30-h2** (h1 en el primer push; h2 = correcciones C1/C2 del gate Central)
+**HEAD base:** `79e489e` · **Commits previos:** `b2df2b3` (funcional), `8fd26be`, `ed36adb` (docs; gate Central posterior sobre `ed36adb`) · **HEAD final:** el commit único de C1/C2 + esta actualización (`git log -1`; el hash se informa al cerrar la ronda).
 **Fuente de alcance:** GitHub Issue #29 + `124_Handoff_QA_Humano_Invitados_04OCT.md`.
-**Estado:** implementado y probado **localmente**. **Nada se aplicó a Supabase Staging ni se desplegó ninguna Edge Function** (no hay credenciales/CLI en este entorno): ver "Qué NO se verificó".
+**Estado:** el gate Central (04/10) **aplicó la migración en Staging** y verificó B1/B2/B3 en Staging real (PASS), Vercel SUCCESS y ACLs/advisors. Esta actualización cierra los hallazgos C1 y C2 de ese gate. Ninguna Edge Function cambió.
 
 ## Migración (forward-only, solo local)
 `supabase/migrations/20261004100000_v0430_create_or_attach_idempotent_replay.sql` — `CREATE OR REPLACE` de funciones existentes (grants conservados), sin cambios de esquema:
@@ -38,6 +38,12 @@
 | `v0429-invitados-identidad`, `verify-g3-identity-recovery.sql`, replay limpio ×3 ACL, `release-check` | PASS (tests de V04.29 actualizados donde cambió el contrato: `INVITAR A …`, `matchCount`/`sourceMatch`, card en lugar de toast) |
 | `tests.html` (navegador) | 1495/1503: **idénticos a la base** `79e489e` (8 fallos `V034-*` de Grupos/Race dependientes de fecha; `groups.js` no se tocó) |
 | Humo en navegador | Acceso con card de invitación + toast largo envuelto, a 375 px; sin errores de consola propios |
+
+## Gate Central — C1 y C2 (bundle 04.30-h2)
+- **C1 — falso "Sin conexión" ante 4xx conocidos.** `createOrAttach` conserva el body de toda respuesta HTTP con `code` y le suma `httpStatus`; "Sin conexión" se muestra **solo si `result.offline === true`** (sin respuesta del servidor). Copy específico para `rate_limited` (429, "Hiciste muchos intentos seguidos…") y `invalid_session` (401); cualquier otra respuesta HTTP/`unknown` usa el copy genérico de servidor. Semántica de retry intacta: no son errores de negocio ⇒ la entrada sigue `sync_pending` y se reintenta (`rate_limited` explícitamente fuera de `MATCH_BUSINESS_ERROR_CODES`). Helper `transientMatchSaveCopy`.
+- **C2 — `LISTO` en PARTIDOS RECUPERADOS.** Mientras quede ≥1 card sin responder: `LISTO` oculto y `Revisar después` visible; con todas respondidas: `LISTO` visible y `Revisar después` oculto. Defensa adicional en `closeRecoveredScreen`: `markDone` se fuerza a `false` si falta alguna respuesta, así nunca se borra la revisión persistente incompleta.
+- **Tests:** 2 nuevos focalizados en `v0430-correcciones-qa.test.mjs` (429 ⇒ no "Sin conexión" + offline sí; C2 visibilidad y defensa de cierre). Suite `node --test bramulab supabase`: **924 tests · 915 pass · 3 fail · 6 skipped**; los 3 fallos son los mismos preexistentes (h19-B, h21-9, h23). Bump 04.30-h1→h2 con tests de versión actualizados.
+- No se tocó B1/B2/B3 ni nada fuera de C1/C2. Sigue sin verificarse el flujo visual autenticado (QA humano corto pendiente). Issue #29 queda abierto.
 
 ## Alcance respetado
 No se tocó `main`, Production, BRAMUlive, fórmula de Nivel, Ranking publicado, Grupos ni Legal. La deduplicación V04.29 (SAME/DISTINCT/score distinto) no se modificó; solo se filtran candidatos stale.

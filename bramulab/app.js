@@ -5752,6 +5752,13 @@
     validated_match_needs_bloque6_correction: 'Ese partido ya quedó oficial — la corrección todavía no está disponible.',
   };
 
+  function transientMatchSaveCopy(result) {
+    if (result && result.offline === true) return 'Sin conexión — el partido quedó guardado y se va a sincronizar solo.';
+    if (result && result.code === 'rate_limited') return 'Hiciste muchos intentos seguidos — el partido quedó guardado en este dispositivo y se va a reintentar en un rato.';
+    if (result && result.code === 'invalid_session') return 'Tu sesión venció — el partido quedó guardado en este dispositivo. Volvé a iniciar sesión para sincronizarlo.';
+    return 'Hubo un problema al guardar en BRAMU — el partido quedó guardado en este dispositivo y vamos a reintentar.';
+  }
+
   /** Punto único de interpretación de la respuesta de `Matches.createOrAttach` (Bloque 5),
    *  compartido por el guardado interactivo y por `retryMatchOutbox` (reintento en segundo
    *  plano) — misma lógica, sin duplicarla. `opts.silent=true` (reintento automático) nunca
@@ -5793,9 +5800,9 @@
       // para que el usuario "corrija". V04.30 (B2): "Sin conexión" SOLO si realmente no hubo
       // respuesta del servidor (`offline`); un 5xx/error inesperado es un problema del servidor.
       if (!silent) {
-        showToast(result && result.serverError
-          ? 'Hubo un problema al guardar en BRAMU — el partido quedó guardado en este dispositivo y vamos a reintentar.'
-          : 'Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3600);
+        // V04.30 (C1) — "Sin conexión" SOLO si realmente no hubo respuesta (`offline === true`); cualquier respuesta HTTP conocida
+        // del servidor (429 rate_limited, 401 invalid_session, 5xx...) tiene su propio copy. La entrada sigue sync_pending y se reintenta.
+        showToast(transientMatchSaveCopy(result), 3600);
       }
       return { ok: false, code, transient: true };
     })();
@@ -14739,8 +14746,10 @@
       wrap.appendChild(actions);
       list.appendChild(wrap);
     });
+    // V04.30 (C2) — LISTO (cierre definitivo) solo cuando TODAS las cards tienen respuesta; mientras falten, solo "Revisar después".
     const allAnswered = st.rows.every((r) => answers[r.matchId]);
     $('#recovered-later-btn').hidden = allAnswered;
+    $('#recovered-done-btn').hidden = !allAnswered;
   }
   function onRecoveredAction(row, act) {
     const st = recoveredScreenState;
@@ -14775,6 +14784,8 @@
   }
   async function closeRecoveredScreen(markDone) {
     const st = recoveredScreenState;
+    // Defensa: nunca se cierra definitivamente con cards sin responder.
+    if (markDone && st && !st.rows.every((r) => (st.rev.answers || {})[r.matchId])) markDone = false;
     recoveredScreenState = null;
     if (markDone) clearRecoveredReview();
     else if (st) { st.rev.dismissed = true; saveRecoveredReview(st.rev); }

@@ -75,10 +75,11 @@ test('B2 · un ID local de outbox (m_...) nunca viaja a una RPC que espera UUID'
 test('B2 · handleCreateOrAttachOutcome: negocio => necesita_revision (sin outbox sync_pending); 5xx NO dice "Sin conexión"; red real sí', () => {
   const fn = between(appJs, '  async function handleCreateOrAttachOutcome(entry, result, opts) {', '  /** Abre el Resumen de un partido server-backed recién guardado');
   assert.match(fn, /MATCH_BUSINESS_ERROR_CODES\.has\(code\)[\s\S]{0,260}state: 'necesita_revision'/);
-  assert.match(fn, /result && result\.serverError[\s\S]{0,200}Hubo un problema al guardar en BRAMU/);
-  assert.match(fn, /'Sin conexión — el partido quedó guardado y se va a sincronizar solo\.'/);
+  assert.match(fn, /showToast\(transientMatchSaveCopy\(result\), 3600\)/);
+  assert.match(appJs, /result && result\.offline === true\) return 'Sin conexión — el partido quedó guardado y se va a sincronizar solo\.'/);
+  assert.match(appJs, /Hubo un problema al guardar en BRAMU/);
   const biz = fn.indexOf("MATCH_BUSINESS_ERROR_CODES.has(code)");
-  const trans = fn.indexOf('Hubo un problema al guardar en BRAMU');
+  const trans = fn.indexOf('transientMatchSaveCopy');
   assert.ok(biz < trans, 'el negocio se resuelve ANTES del camino transitorio');
 });
 
@@ -278,10 +279,36 @@ test('Intelligence · el insight de un partido pendiente aclara que puede cambia
   assert.match(appJs, /pueden cambiar cuando se valide/);
 });
 
-test('Versionado V04.30 / 04.30-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h1' });
+test('Versionado V04.30 / 04.30-h2 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h2' });
   assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h1'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.30-h1/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h2'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-30-h2'/);
+  assert.match(indexHtml, /app\.js\?v=04\.30-h2/);
+});
+
+/* ================= C1 / C2 (gate Central) ================= */
+test('C1 · una respuesta HTTP conocida (429 rate_limited / 401 invalid_session) NO se rotula "Sin conexión"; solo offline===true', async () => {
+  const mk = (res) => loadMatches({ functions: { invoke: async () => res } });
+  const r429 = await mk({ data: null, error: httpError(429, { ok: false, code: 'rate_limited' }) }).createOrAttach(basePayload);
+  assert.equal(r429.code, 'rate_limited'); assert.notEqual(r429.offline, true); assert.equal(r429.httpStatus, 429);
+  const code = between(appJs, '  function transientMatchSaveCopy(result) {', '  /** Punto único de interpretación');
+  const copy = new Function(`${code}\nreturn transientMatchSaveCopy;`)();
+  assert.match(copy(r429), /muchos intentos/); assert.doesNotMatch(copy(r429), /Sin conexión/);
+  assert.doesNotMatch(copy({ ok: false, code: 'invalid_session', httpStatus: 401 }), /Sin conexión/);
+  assert.doesNotMatch(copy({ ok: false, code: 'persist_failed', serverError: true }), /Sin conexión/);
+  assert.doesNotMatch(copy({ ok: false, code: 'unknown' }), /Sin conexión/);
+  assert.match(copy({ ok: false, code: 'network_error', offline: true }), /^Sin conexión/);
+  // semántica de retry intacta: rate_limited no es error de negocio => sigue sync_pending
+  const biz = between(appJs, '  const MATCH_BUSINESS_ERROR_CODES = new Set([', ']);');
+  assert.doesNotMatch(biz, /rate_limited/);
+});
+
+test('C2 · LISTO solo con todas las cards respondidas; mientras falten: Revisar después y LISTO oculto, y nunca borra la revisión', () => {
+  const fn = between(appJs, '  function renderRecoveredMatchesScreen() {', '  function onRecoveredAction(');
+  assert.match(fn, /\$\('#recovered-later-btn'\)\.hidden = allAnswered;/);
+  assert.match(fn, /\$\('#recovered-done-btn'\)\.hidden = !allAnswered;/);
+  const close = between(appJs, '  async function closeRecoveredScreen(markDone) {', '  function initRecoveredScreen() {');
+  assert.match(close, /if \(markDone && st && !st\.rows\.every/);
+  assert.ok(close.indexOf('markDone = false') < close.indexOf('clearRecoveredReview()'));
 });

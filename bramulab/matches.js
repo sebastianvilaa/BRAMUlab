@@ -101,7 +101,7 @@
       try { body = await ctx.json(); } catch (_e) { body = null; }
       const code = (body && typeof body === 'object' && body.code) || (data && data.code) || null;
       if (status !== null && status >= 500) return { ok: false, code: code || 'server_error', serverError: true };
-      if (code) return body && typeof body === 'object' ? body : { ok: false, code };
+      if (code) return Object.assign({}, body && typeof body === 'object' ? body : { ok: false, code }, { httpStatus: status });
       return { ok: false, code: 'server_error', serverError: true };
     }
     if (data && data.code) return { ok: false, code: data.code };
