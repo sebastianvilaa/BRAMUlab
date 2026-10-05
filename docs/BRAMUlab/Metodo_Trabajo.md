@@ -19,12 +19,51 @@
 
 ## Brainstorming / producto
 
-- Una idea nueva **no** se convierte automáticamente en desarrollo.
-- Distinguir siempre entre:
-  1. decisión ya confirmada;
-  2. fricción encontrada;
-  3. idea futura.
+El chat de **Brainstorming** es una superficie estable de trabajo de producto, complementaria al chat Central/Desarrollo. Su función es pensar sin convertir cada idea en una tarea técnica inmediata.
+
+### Qué puede vivir en Brainstorming
+
+Cada idea debe terminar clasificada, cuando sea posible, en uno de estos estados:
+
+1. **EN PROCESO / DUDA ABIERTA** — todavía se está pensando; no autoriza implementación.
+2. **CONFIRMADA** — la decisión de producto quedó cerrada y puede pasar a Desarrollo cuando corresponda.
+3. **DESCARTADA** — se evaluó y se decidió no hacerla. Debe conservarse el motivo para no reabrirla meses después sin evidencia nueva.
+4. **FUTURA / DIFERIDA** — la idea sigue siendo válida, pero no corresponde implementarla ahora. Debe quedar claro qué tendría que ocurrir para retomarla cuando sea posible.
+
+Una idea nueva **no** se convierte automáticamente en desarrollo. Una fricción observada tampoco obliga por sí sola a crear una función nueva.
+
+### Trazabilidad de decisiones de Brainstorming
+
+Cuando una idea queda **CONFIRMADA**, **DESCARTADA** o **FUTURA / DIFERIDA**, conservar suficiente contexto para poder responder en el futuro:
+
+- qué problema o posibilidad se discutió;
+- qué decisión se tomó;
+- por qué se tomó;
+- cuándo se tomó, si la fecha aporta trazabilidad;
+- qué evidencia nueva justificaría reabrirla, si corresponde.
+
+Las ideas descartadas forman parte de la historia de producto. No eliminarlas simplemente porque no se implementen.
+
+### Traspaso de Brainstorming a Desarrollo
+
+Sebastián decide cuándo hacer el corte diciendo, por ejemplo, **“preparame el traspaso para Desarrollo”**.
+
+En ese momento ChatGPT debe:
+
+1. revisar el Brainstorming acumulado hasta ese corte;
+2. contrastarlo con `README.md` y las fuentes maestras vigentes para no transferir ideas ya implementadas, superadas o contradictorias;
+3. crear **un único documento de handoff en el repo** con las conclusiones maduras;
+4. incluir decisiones **CONFIRMADAS**, ideas **DESCARTADAS** con su motivo y decisiones **FUTURAS / DIFERIDAS** que convenga preservar;
+5. no presentar una **DUDA ABIERTA** como decisión ni como autorización de implementación; si sigue realmente abierta, permanece en Brainstorming salvo que sea contexto imprescindible, en cuyo caso debe etiquetarse explícitamente como `DECISIÓN ABIERTA`;
+6. entregar a Sebastián un mensaje corto, listo para copiar al chat de Desarrollo, que apunte a ese documento en vez de duplicar todo su contenido;
+7. a partir de ese punto, Desarrollo decide la secuencia técnica: qué entra antes de Production, qué durante la preparación de salida y qué queda para después, respetando las prioridades vigentes.
+
+Después del traspaso, Brainstorming vuelve a quedar libre para ideas nuevas. El handoff y las fuentes maestras conservan la memoria de lo ya delegado.
+
+### Límites
+
 - No abrir frentes de implementación mientras un bloque dependiente sigue sin cerrar.
+- No usar Brainstorming como segunda fuente maestra permanente: las decisiones que pasan a ejecución deben terminar consolidadas en la documentación vigente del sistema afectado.
 - Al cerrar una etapa relevante, tomar primero una "foto real del producto" antes de rediseñar pantallas que dependan de ella.
 
 ## Tareas medianas / grandes
