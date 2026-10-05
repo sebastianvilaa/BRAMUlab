@@ -240,6 +240,33 @@
     return accionables.concat(correcciones, espera);
   }
 
+  /** V04.30 — límite de pendientes accionables personales (Experiencia_Inicial.md §10); mismo valor que
+   *  compute_pending_action_count/create_or_attach_match en el servidor. */
+  const PENDING_ACTION_LIMIT = 5;
+  /** V04.30 — conteo LOCAL (fallback offline del gate del "+"): partidos `pending_validation` donde me toca actuar. Una
+   *  corrección post-validación o una incidencia de identidad abiertas después de oficial NO cuentan (§10). */
+  function countActionablePending(matches) {
+    return (Array.isArray(matches) ? matches : []).filter((m) => m && m.status === 'pending_validation' && m.isActionMine && !m.hidden).length;
+  }
+
+  /** V04.30 — referencia breve para distinguir homónimos SIN CUENTA ("jugó con X · fecha"), calculada SOLO con partidos que el
+   *  usuario ya ve (caché de get_my_matches) — nunca expone actividad fuera de relaciones visibles. Toma el partido más reciente
+   *  donde juega `playerId`; el compañero es quien comparte pareja (si es el propio usuario, "vos"). Sin partidos visibles: null. */
+  function describeProvisionalContext(matches, playerId, myPlayerId) {
+    if (!playerId) return null;
+    let best = null;
+    (Array.isArray(matches) ? matches : []).forEach((m) => {
+      const parts = Array.isArray(m && m.participants) ? m.participants : [];
+      const me = parts.find((p) => p && p.playerId === playerId);
+      if (!me) return;
+      if (!best || new Date(m.playedAt).getTime() > new Date(best.m.playedAt).getTime()) best = { m, me, parts };
+    });
+    if (!best) return null;
+    const mate = best.parts.find((p) => p && p.team === best.me.team && p.playerId !== playerId);
+    const mateName = mate ? ((myPlayerId && mate.playerId === myPlayerId) ? 'vos' : (mate.displayName || null)) : null;
+    return { companionName: mateName, playedAt: best.m.playedAt || null };
+  }
+
   /** Corrección post-QA (Notificaciones históricas + contexto de partido) — "vs Rival1 + Rival2
    *  · 6–3 · 6–4" desde `payload.matchContext` (get_notifications, migración
    *  preprod_ux_notification_historical_context: `{myTeam, opponentNames, score}`, orientado al
@@ -1093,7 +1120,7 @@
     getPlayedAt, comparePlayedAtDesc,
     resolveIdentityRef, findPlayerRow,
     getPlayerTeam, getPartnerName, getOpponentNames, getPartnerRow, getOpponentRows, matchResultForPlayer,
-    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
+    filterMatchesForPlayer, computeRecentRealPlayers, computeHomePendingCarouselItems, countActionablePending, describeProvisionalContext, PENDING_ACTION_LIMIT, hasActiveCorrectionWindow, computeExternalHistoryChanges, computeMatchContextSuffix, computeRecentForm, computeMatchesThisMonth,
     buildCalibrationStatus, CALIBRATION_THRESHOLD, isCalibratingRealAccount,
     computeBestWinStreak, computeMostFrequentPartner, computeMostFrequentRival,
     buildTuMomentoText,

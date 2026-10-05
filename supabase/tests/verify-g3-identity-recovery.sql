@@ -120,8 +120,10 @@ declare v jsonb; v_status text;
 begin
   perform pg_temp._as('TGT');
   v := public.preview_claim_link(current_setting('g3.matu_tok'));
-  perform pg_temp._assert(v = jsonb_build_object('ok', true, 'code', 'claim_valid', 'displayName', 'Pedro'), 'L5 preview devuelve solo ok/code/displayName: ' || v::text);
+  -- V04.30: el preview suma matchCount + sourceMatch (partido fuente compacto, SIN ids de partido/jugador).
+  perform pg_temp._assert((v - 'matchCount' - 'sourceMatch') = jsonb_build_object('ok', true, 'code', 'claim_valid', 'displayName', 'Pedro'), 'L5 preview devuelve ok/code/displayName + contexto: ' || v::text);
   perform pg_temp._assert(not (v::text ~* '(token|hash|player|created|uuid|[0-9a-f]{8}-[0-9a-f]{4})'), 'L5 sin ids/hash/creador');
+  perform pg_temp._assert(not (coalesce(v->'sourceMatch', '{}'::jsonb) ? 'matchId'), 'L5 el partido fuente no expone su id');
   select status into v_status from public.provisional_claims where token_hash = encode(extensions.digest(current_setting('g3.matu_tok'), 'sha256'), 'hex');
   perform pg_temp._assert(v_status = 'pending', 'L5/L8 NO SOY YO (solo preview) no consume ni invalida');
   perform pg_temp._assert((public.preview_claim_link(repeat('a', 64)))->>'code' = 'claim_invalid', 'L5 token desconocido');

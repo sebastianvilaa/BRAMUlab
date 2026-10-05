@@ -351,7 +351,7 @@
   // que dependía del registro en vivo (configuración previa a un partido en vivo), separado
   // ahora a BRAMUlive. 'analysis'/'manual-load' siguen acá: las usa la carga de
   // partido propio ya jugado.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings'];
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'recovered'];
 
   function showView(name) {
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
@@ -364,10 +364,12 @@
       // G2 — Configuración y pantallas intermedias (sin bottom nav)
       'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
-      'nivel-onboarding']
+      'nivel-onboarding',
+      // V04.30 — partidos recuperados tras vincular una identidad.
+      'recovered']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     // L1 (V04.19) — fail-closed: el aviso "sin servidor" de Acceso se recalcula cada vez que se muestra.
-    if (name === 'access') refreshBackendUnavailableNotice();
+    if (name === 'access') { refreshBackendUnavailableNotice(); renderAccessInvitationCard(); }
     const nav = $('#bottom-nav');
     if (nav) {
       // V03.0.1 (§7) — mecanismo PRINCIPAL de "no exponer navegación personal sin sesión":
@@ -415,7 +417,7 @@
   // { type:'streak', matchIds:Set, label } | { type:'last30', label }. Vive en memoria de
   // sesión, igual criterio que el resto de los filtros de Historial (§3.3 de Etapa 4.1).
   let historyContextFilter = null;
-  function openHistoryScreen(origin, contextFilter) {
+  function openHistoryScreen(origin, contextFilter, statusTab) {
     // V03.0.1 (§7) — gate interno (protección adicional, no sustituye el ocultamiento visual
     // de la barra inferior en showView): Historial es una pantalla personal, nunca debe
     // abrirse sin sesión. Mismo patrón que ya usan openPlayerHome/openManualLoadScreen.
@@ -423,6 +425,7 @@
     if (!currentPlayerName) { openAccessFlow(); return; }
     historyOpenedFrom = 'player-home';
     historyContextFilter = contextFilter || null;
+    if (statusTab && HISTORY_STATUS_TABS.some((t) => t.key === statusTab)) { historyStatusFilter = statusTab; historyOwnershipFilter = 'all'; }
     // Ambos filtros contextuales son sobre partidos PROPIOS del jugador actual — forzar la
     // pestaña "Mis partidos" para que la lista mostrada sea inequívoca.
     if (historyContextFilter) {
@@ -845,11 +848,17 @@
    *  tiene ninguno de los dos). */
   function buildProvisionalRowHTML(p) {
     const name = p.display_name || 'Invitado';
+    // V04.30 — "Sin cuenta · jugó con X · fecha": distingue homónimos con datos que el usuario ya ve (caché de sus partidos).
+    let ref = 'Sin cuenta';
+    try {
+      const ctx = PH.describeProvisionalContext((Store.loadServerMatchesCache().matches || []), p.player_id, currentUserId);
+      if (ctx) ref += `${ctx.companionName ? ` · jugó con ${ctx.companionName}` : ''}${ctx.playedAt ? ` · ${formatRealDate(ctx.playedAt)}` : ''}`;
+    } catch (e) { /* referencia opcional */ }
     return `<button type="button" class="player-row" data-name="${escapeHtml(name)}" data-player-id="${escapeHtml(p.player_id)}" data-kind="provisional">
       <span class="player-row__avatar">${escapeHtml(playerInitials(name))}</span>
       <span class="player-row__info">
-        <span class="player-row__name">${escapeHtml(name)}</span>
-        <span class="player-row__handle">Invitado</span>
+        <span class="player-row__name player-name--pending">${escapeHtml(name)}</span>
+        <span class="player-row__handle">${escapeHtml(ref)}</span>
       </span>
     </button>`;
   }
@@ -951,11 +960,16 @@
     }));
 
     let html = '';
+    // V04.30 — cada grupo bajo SU heading: una cuenta real NUNCA aparece bajo el heading de jugadores sin cuenta. Mismo estilo de
+    // heading que RECIENTES (.load-player-sheet__section-label).
     if (provisionals.length) {
-      html += '<div class="load-player-sheet__list-label">INVITADOS</div>';
+      html += '<div class="load-player-sheet__section-label">Sin cuenta</div>';
       html += provisionals.map(buildProvisionalRowHTML).join('');
     }
-    if (realRows.length) html += realRows.map(buildPlayerRowHTMLFromServerRow).join('');
+    if (realRows.length) {
+      if (provisionals.length) html += '<div class="load-player-sheet__section-label" style="margin-top:12px;">Jugadores</div>';
+      html += realRows.map(buildPlayerRowHTMLFromServerRow).join('');
+    }
     const alreadyOffered = (n) => provisionals.some((p) => normalizePlayerName(p.display_name || '') === n)
       || realRows.some((r) => normalizePlayerName(r.display_name || '') === n);
     const canAdd = trimmed.length >= 2 && !alreadyOffered(normalizePlayerName(trimmed));
@@ -1722,10 +1736,39 @@
    *  pantalla requiere identidad — Jugador 1 del Equipo A siempre es `currentPlayerName`, fijo,
    *  sin importar desde dónde se abrió. Si falta identidad, se resuelve primero y se retoma el
    *  flujo sin perder contexto. */
-  function openManualLoadScreen(origin, editMatch) {
+  /** V04.30 — gate FRONTEND del límite de 5 pendientes accionables: bloquea ANTES del formulario (el servidor sigue siendo la
+   *  última barrera en create_or_attach_match). Fuente: RPC get_pending_action_count; sin red, cae al conteo local de la caché
+   *  de partidos. Solo aplica a una CARGA NUEVA server-backed (editar un borrador del outbox o corregir no es "iniciar otra"). */
+  async function isNewLoadBlockedByPendingLimit() {
+    if (!isServerBackedSession() || !Matches) return false;
+    try {
+      const r = await Matches.getPendingActionCount();
+      if (r && r.ok) return !!r.blocked || (Number.isFinite(r.count) && Number.isFinite(r.limit) && r.count >= r.limit);
+    } catch (e) { /* cae al conteo local */ }
+    const cached = (Store.loadServerMatchesCache().matches || []);
+    return PH.countActionablePending(cached) >= PH.PENDING_ACTION_LIMIT;
+  }
+  function showPendingLimitGate() {
+    confirmAction(
+      'Tenés 5 partidos pendientes',
+      'Resolvé alguno de los partidos que te esperan (confirmar, corregir o indicar que no participaste) antes de cargar uno nuevo.',
+      () => openHistoryScreen('player-home', null, 'pendientes'),
+      null, 'VER PARTIDOS PENDIENTES', 'Cerrar', false, true
+    );
+  }
+
+  function openManualLoadScreen(origin, editMatch, gatePassed) {
     manualLoadOrigin = origin === 'setup' ? 'setup' : 'player-home';
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(() => openManualLoadScreen(origin, editMatch)); return; }
+    // V04.30 — gate del límite de pendientes ANTES de cualquier formulario/borrador (solo carga nueva server-backed).
+    if (!editMatch && !gatePassed && isServerBackedSession() && Matches) {
+      isNewLoadBlockedByPendingLimit().then((blocked) => {
+        if (blocked) showPendingLimitGate();
+        else openManualLoadScreen(origin, editMatch, true);
+      });
+      return;
+    }
     // V04.27 — con un borrador vigente (<15 min) tocar "Cargar partido" no reinicia la carga: se ofrece continuar.
     if (!editMatch && currentUserId) {
       const draft = Store.loadManualDraft(currentUserId);
@@ -2786,6 +2829,8 @@
     section.hidden = false;
     paintB6Actions(f);
     if (!Matches || !Matches.isConfigured()) return;
+    // V04.30 (B2) — un borrador de outbox (`m_...`) no existe en el servidor: nunca se le pide detalle.
+    if (!Matches.isServerMatchId(f.matchId)) return;
     const result = await Matches.getMatchDetail(f.matchId);
     if (!result.ok || !result.match) return;
     // Pudo haberse navegado a otro partido mientras se esperaba esta respuesta.
@@ -3287,7 +3332,8 @@
     $all('#report-identity-list .b6-slot-option').forEach((btn) => {
       btn.onclick = () => {
         $('#report-identity-overlay').hidden = true;
-        confirmReportIdentity(f.matchId, btn.dataset.team, Number(btn.dataset.position), btn.querySelector('span').textContent);
+        const slot = slots.find((x) => x.team === btn.dataset.team && String(x.positionInTeam) === btn.dataset.position);
+        confirmReportIdentity(f.matchId, btn.dataset.team, Number(btn.dataset.position), btn.querySelector('span').textContent, { isSelf: !!(slot && slot.userId && slot.userId === currentUserId) });
       };
     });
     $('#report-identity-overlay').hidden = false;
@@ -3305,7 +3351,24 @@
    *  Resumen (incluido `analysisCurrent`, la `f` que el sheet necesita para excluir a los otros
    *  3 participantes reales) queden sincronizados con el estado recién persistido — mismo
    *  criterio que ya usaba este flujo, solo que ahora no se detiene ahí. */
-  function confirmReportIdentity(matchId, team, positionInTeam, name) {
+  function confirmReportIdentity(matchId, team, positionInTeam, name, opts) {
+    // V04.30 — SELF-REPORT: si la persona marca SU PROPIO lugar, se confirma en primera persona, el lugar queda `Por identificar`
+    // y se avisa a los demás participantes para que lo resuelvan: nunca se le pregunta "¿Sabés quién jugó?" a quien dice que no estuvo.
+    if (opts && opts.isSelf) {
+      confirmAction(
+        '¿Confirmás que no jugaste este partido?',
+        'Tu lugar va a quedar como "Por identificar" y vamos a avisar a los demás jugadores para que indiquen quién jugó. El partido sigue existiendo.',
+        async () => {
+          const result = await MV.reportIdentityIssue(matchId, team, positionInTeam, null);
+          if (!result || result.ok === false) { showToast(b6ErrorMessage(result && result.code), 2800); return; }
+          await afterB6Action(matchId);
+          showToast('Listo. Tu lugar quedó como "Por identificar" y avisamos a los demás jugadores.', 3600);
+          if (opts.onDone) await opts.onDone();
+        },
+        null, 'NO PARTICIPÉ', 'Cancelar', true
+      );
+      return;
+    }
     // Handoff cierre UX h13 (§6, plan §P1-J) — copy preferido literal: "¿Seguro que no fue
     // [Nombre]?" (más corto que "¿Estás seguro de que no fue...?" de la ronda anterior).
     confirmAction(
@@ -3766,6 +3829,10 @@
         locationName: f.location && f.location.name,
         locationLat: f.location && f.location.lat,
         locationLng: f.location && f.location.lng,
+        // V04.30 (B1) — corrección sobre un partido CONOCIDO: apunta inequívocamente a ESTE match_id
+        // (nunca a discovery por huella, que con dos partidos de los mismos 4 jugadores devolvía
+        // `ambiguous_candidates` y dejaba la corrección sin enviar o sobre el partido equivocado).
+        disambiguationMatchId: f.matchId,
       });
     }
     btn.disabled = false;
@@ -3978,7 +4045,11 @@
       container.innerHTML = '<p class="intelligence-state">BRAMU Intelligence no está disponible en este momento.</p>';
       return;
     }
-    container.innerHTML = buildIntelligenceCardHTML(result.output);
+    // V04.30 — un partido PENDIENTE aún no está validado: sus insights se basan en lo cargado y pueden cambiar al validar.
+    const pendingNote = f.status === 'pending_validation'
+      ? '<p class="intelligence-state">Este partido todavía está pendiente: estos insights se basan en lo cargado y pueden cambiar cuando se valide.</p>'
+      : '';
+    container.innerHTML = buildIntelligenceCardHTML(result.output) + pendingNote;
   }
 
   function renderAnalysis(f) {
@@ -5000,6 +5071,15 @@
       // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home, o
       // un partido cargado manualmente recién guardado.
       else if (analysisOpenedFrom === 'player-home') { renderPlayerHome(); showView('player-home'); }
+      // V04.30 — vuelve a la pantalla de partidos recuperados (refrescada: pudo validarse/corregirse/reportarse desde el Resumen).
+      else if (analysisOpenedFrom === 'recovered' && recoveredScreenState) {
+        refreshServerMatches().then(() => {
+          const fresh = Store.loadServerMatchesCache().matches || [];
+          recoveredScreenState.rows = recoveredScreenState.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
+          renderRecoveredMatchesScreen();
+        });
+        renderRecoveredMatchesScreen(); showView('recovered');
+      }
       else openPlayerHome(); // 'live' o cualquier otro caso legado: siempre es seguro ir al Home
     });
   }
@@ -5240,6 +5320,37 @@
     triggerHistoryContentAnim();
     if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
     list.forEach((m) => {
+      const item = buildHistoryItemElement(m);
+      wireHistoryItemInteractions(item, m);
+      wrap.appendChild(item);
+    });
+  }
+
+  /** V04.30 — ids de identidades SIN CUENTA (provisionales) visibles para el usuario; se refresca junto con los partidos del servidor. */
+  let provisionalIdSet = new Set();
+  async function refreshProvisionalIdSet() {
+    if (!Matches || !isServerBackedSession()) return;
+    try {
+      const res = await Matches.listRelatedProvisionalPlayers();
+      if (!res || !res.ok) return;
+      const next = new Set((res.players || []).map((pl) => pl.player_id));
+      const changed = next.size !== provisionalIdSet.size || Array.from(next).some((id) => !provisionalIdSet.has(id));
+      provisionalIdSet = next;
+      if (changed && !$('#view-history').hidden) renderHistory();
+    } catch (e) { /* sin red: el estilo normal es el fallback honesto */ }
+  }
+  /** Nombres de una pareja; un nombre SIN CUENTA se marca con semántica de pendiente (amarillo). Tras vincular, vuelve a lo normal. */
+  function buildTeamLabelHTML(players, team) {
+    return (players || []).filter((pl) => pl.team === team).map((pl) => {
+      const name = escapeHtml(pl.name || '');
+      return (pl.userId && provisionalIdSet.has(pl.userId)) ? `<span class="player-name--pending" title="Sin cuenta">${name}</span>` : name;
+    }).join(' / ');
+  }
+
+  /** V04.30 — arma UNA tarjeta de Historial (la misma que usa la lista) para reutilizarla, p. ej. en la pantalla de partidos
+   *  recuperados tras vincular una identidad. Devuelve el elemento sin cablear interacciones ni insertarlo. */
+  function buildHistoryItemElement(m) {
+    {
       // Ronda UX 25/09 (§A) — perspectiva personal: la pareja del usuario actual primero, el
       // rival después, y el score orientado en ese mismo sentido (Laboratorio §15.7: antes
       // Historial siempre mostraba Team A canónico primero, sin importar quién mira). Sin
@@ -5248,7 +5359,7 @@
       const myTeam = PH.getPlayerTeam(m, currentIdentity());
       const firstTeam = myTeam === 'B' ? 'B' : 'A';
       const secondTeam = firstTeam === 'A' ? 'B' : 'A';
-      const nameFirst = S.teamLabel(m.players, firstTeam), nameSecond = S.teamLabel(m.players, secondTeam);
+      const nameFirst = buildTeamLabelHTML(m.players, firstTeam), nameSecond = buildTeamLabelHTML(m.players, secondTeam);
       // V8.2 (32): BUG de auditoría — antes usaba `sets.map(...).join(' · ') || currentPartial`,
       // así que en cuanto había AL MENOS un set terminado, el `||` nunca llegaba a mirar
       // `currentPartial` y el último set incompleto (partido finalizado manualmente a mitad
@@ -5333,9 +5444,8 @@
           </div>` : ''}
         </div>
       `;
-      wireHistoryItemInteractions(item, m);
-      wrap.appendChild(item);
-    });
+      return item;
+    }
   }
 
   /** V02.2 (Bloque G, §18) — retriggerea la animación de entrada (`requestAnimationFrame` +
@@ -5571,6 +5681,7 @@
     const changedIds = PH.computeExternalHistoryChanges(prevRows, freshMatches, excludeIds);
     if (changedIds.length) Store.addHistoryUnseenChanges(changedIds);
     Store.saveServerMatchesCache(freshMatches);
+    await refreshProvisionalIdSet();
     updateHistoryUnseenDot();
     await refreshLastLevelDelta();
   }
@@ -5678,9 +5789,14 @@
         if (!silent) showToast(MATCH_BUSINESS_ERROR_MESSAGES[code] || 'No se pudo guardar el partido.', 3200);
         return { ok: false, code };
       }
-      // Transitorio (red/rate limit/error inesperado del servidor): la entrada sigue
-      // sync_pending tal cual estaba — nunca se le suma un error para que el usuario "corrija".
-      if (!silent) showToast('Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3200);
+      // Transitorio: la entrada sigue sync_pending tal cual estaba — nunca se le suma un error
+      // para que el usuario "corrija". V04.30 (B2): "Sin conexión" SOLO si realmente no hubo
+      // respuesta del servidor (`offline`); un 5xx/error inesperado es un problema del servidor.
+      if (!silent) {
+        showToast(result && result.serverError
+          ? 'Hubo un problema al guardar en BRAMU — el partido quedó guardado en este dispositivo y vamos a reintentar.'
+          : 'Sin conexión — el partido quedó guardado y se va a sincronizar solo.', 3600);
+      }
       return { ok: false, code, transient: true };
     })();
 
@@ -5865,6 +5981,12 @@
   /* #view-access en vez del modal viejo — `afterIdentifyAction` se sigue  */
   /* usando igual para retomar el flujo original tras loguearse.           */
   /* ------------------------------------------------------------------ */
+
+  /** V04.30 — card de invitación en Acceso cuando el dispositivo trae una intención ?claim= pendiente. */
+  function renderAccessInvitationCard() {
+    const card = $('#access-invitation-card');
+    if (card) card.hidden = !(Store.loadClaimToken && Store.loadClaimToken());
+  }
 
   function openAccessFlow(afterAction) {
     afterIdentifyAction = afterAction || null;
@@ -6466,6 +6588,19 @@
     ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
     });
+    // V04.30 — feedback en tiempo real de coincidencia (no cambia ninguna regla de Auth).
+    const refreshPasswordMatch = () => {
+      const repeat = $('#signup-password-repeat').value;
+      const el = $('#signup-password-match');
+      if (!repeat) { el.hidden = true; return; }
+      const ok = repeat === $('#signup-password').value;
+      el.hidden = false;
+      el.classList.toggle('is-match', ok);
+      el.classList.toggle('is-mismatch', !ok);
+      el.textContent = ok ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden';
+    };
+    $('#signup-password').addEventListener('input', refreshPasswordMatch);
+    $('#signup-password-repeat').addEventListener('input', refreshPasswordMatch);
     $('#signup-verify-code').addEventListener('input', recomputeSignupStepValidity);
     $('#signup-verify-resend-btn').addEventListener('click', async () => {
       const result = await Auth.resendSignupOtp(signupDraft.email);
@@ -6603,6 +6738,7 @@
         // Descarta la contraseña del DOM apenas deja de hacer falta.
         $('#signup-password').value = '';
         $('#signup-password-repeat').value = '';
+        { const pm = $('#signup-password-match'); if (pm) pm.hidden = true; }
         // Backend Bloque 3 (Experiencia_Inicial.md §2.1) — el código ya se envió (Auth.signUp lo dispara),
         // pero 'verify' pasa a ser el ÚLTIMO paso: se sigue directo a "TU PERFIL". El borrador persiste SOLO
         // datos no sensibles (email, versión legal aceptada, inicio del alta): sobrevive un refresh (caso A0)
@@ -6782,7 +6918,8 @@
     syncCurrentIdentityFromStore();
     completeIdentifyAction();
     // V04.29 — ahora que la cuenta tiene Nivel base, procesa (idempotente) el Nivel de las identidades que vinculó en el alta.
-    syncIdentityRecovery();
+    // V04.30 — si el alta vino de una invitación, primero se muestra la pantalla de partidos recuperados (los duplicados/Nivel se ofrecen al salir de ella).
+    (async () => { if (!(await maybeOpenRecoveredReview())) syncIdentityRecovery(); })();
   }
 
   /** Backend Bloque 3 — cachea `user.levelState` (autoridad server-side) en la MISMA forma
@@ -8773,6 +8910,8 @@
     correction_proposed: (name) => `${name} quiere corregir el resultado`,
     identity_questioned: (name) => `${name} indicó que un jugador cargado no participó`,
   };
+  // V04.30 — self-report ("No participé" sobre el propio lugar): primera persona del actor, mismo destino (Resumen con RESOLVER).
+  const B6_NOTIF_SELF_REPORT_TITLE = (name) => `${name} indicó que no participó en este partido`;
   /** Notificación server-backed (get_notifications) -> MISMA forma que un item local
    *  (Store.loadNotifications), para que renderNotificationsList/badge no necesiten dos
    *  caminos de render distintos. `source`/`type` extra: el click handler los usa para saber
@@ -8802,7 +8941,10 @@
     const actorName = actorId ? resolvePlayerNameFromMatchesCache(actorId) : null;
     const titleBuilder = B6_NOTIF_ACTOR_TITLE[n.type];
 
-    const title = (actorName && titleBuilder) ? titleBuilder(actorName) : copy.title;
+    const selfReported = n.type === 'identity_questioned' && !!(n.payload && n.payload.selfReported);
+    const title = (actorName && titleBuilder)
+      ? (selfReported ? B6_NOTIF_SELF_REPORT_TITLE(actorName) : titleBuilder(actorName))
+      : (selfReported ? 'Alguien indicó que no participó en este partido' : copy.title);
     // Body = SOLO contexto ("vs Rivales · score"), nunca repite la acción que ya dice el título.
     // Sin matchContext (contrato viejo/fila sin partido ligado): cae al body genérico de siempre.
     const body = ctxSuffix ? ctxSuffix.trim() : copy.body;
@@ -14249,7 +14391,14 @@
     // V04.29 — invitación pendiente (una cuenta completa PUEDE vincular una identidad provisional: ya no hay resolución manual) y,
     // en segundo plano, Nivel recuperado pendiente / posibles duplicados abiertos. Nunca bloquea el arranque.
     (async () => {
-      if (Store.loadClaimToken()) await handlePendingInvitation({ onboardingDone: true });
+      if (Store.loadClaimToken()) {
+        const invitation = await handlePendingInvitation({ onboardingDone: true });
+        // V04.30 (B3) — prompts SERIALIZADOS: tras NO SOY YO (o un enlace inválido/transitorio) la invitación termina limpia y NO se
+        // encadena en el mismo instante el modal de posibles duplicados (que no tiene relación con ella). Tras vincular,
+        // afterIdentityLinked ya corrió syncIdentityRecovery; los duplicados pendientes se ofrecen en la próxima apertura.
+        if (invitation && invitation.outcome !== 'none') return;
+      }
+      if (await maybeOpenRecoveredReview()) return;
       await syncIdentityRecovery();
     })();
   }
@@ -14331,10 +14480,12 @@
     const invitable = new Map(res.players.map((pl) => [pl.player_id, pl]));
     const rows = participants.filter((p) => invitable.has(p.userId));
     if (!rows.length) return;
+    // V04.30 — bloque consistente: ícono de identidad pendiente + nombre + CTA "INVITAR A {NOMBRE}" (sin la distancia entre nombre y acción).
+    const warnIcon = '<svg class="guests-row__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 4v3.5M19 10h.01" stroke-width="2.2"/></svg>';
     list.innerHTML = rows.map((p) => {
       const name = (invitable.get(p.userId).display_name || p.name || 'Jugador');
-      return `<div class="guests-row"><span class="guests-row__name">${escapeHtml(name)}</span>`
-        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}">INVITAR</button></div>`;
+      return `<div class="guests-row"><div class="guests-row__head">${warnIcon}<span class="guests-row__name">${escapeHtml(name)}</span><span class="guests-row__tag">Sin cuenta</span></div>`
+        + `<button type="button" class="btn-secondary btn-secondary--accent guests-row__btn" data-guest-id="${escapeHtml(p.userId)}" data-guest-name="${escapeHtml(name)}">INVITAR A ${escapeHtml(name.toLocaleUpperCase('es-AR'))}</button></div>`;
     }).join('');
     list.querySelectorAll('[data-guest-id]').forEach((btn) => {
       btn.addEventListener('click', () => openInviteSheet(btn.dataset.guestId, btn.dataset.guestName));
@@ -14442,7 +14593,7 @@
           showToast('No pudimos abrir la invitación ahora. Volvé a intentarlo en un momento.', 3800);
           return { outcome: 'transient' };
         }
-        const answer = await askInvitationConfirmation(preview.displayName, token);
+        const answer = await askInvitationConfirmation(preview.displayName, token, preview);
         if (answer.outcome === 'linked') {
           // La vinculación YA ocurrió: un fallo de refresco posterior nunca la convierte en "transitorio" (el token ya no existe).
           try { await afterIdentityLinked(answer.result, opts || {}); } catch (e) { console.warn('[BRAMU LAB] refresco posterior a vincular falló', e); }
@@ -14460,9 +14611,19 @@
 
   /** Modal "¿Sos {nombre}?". SOY YO ejecuta la vinculación (errores dentro del modal, con reintento); NO SOY YO solo limpia la
    *  intención local — nunca consume ni revoca el enlace para nadie más. */
-  function askInvitationConfirmation(displayName, token) {
+  function askInvitationConfirmation(displayName, token, preview) {
     return new Promise((resolve) => {
       const overlay = $('#invitation-confirm-overlay');
+      // V04.30 — contexto del partido fuente (quién lo cargó, parejas, score, fecha) para reducir errores humanos al confirmar identidad.
+      const sourceEl = $('#invitation-confirm-source');
+      const src = preview && preview.sourceMatch;
+      if (src) {
+        const more = Math.max(0, (preview.matchCount || 0) - 1);
+        sourceEl.innerHTML = `<p class="invitation-source__label">${escapeHtml(src.loaderName || 'Alguien')} registró este partido con ese nombre:</p>`
+          + buildDuplicateMatchCardHTML(src)
+          + (more ? `<p class="invitation-source__more">y ${more} partido${more === 1 ? '' : 's'} más</p>` : '');
+        sourceEl.hidden = false;
+      } else { sourceEl.innerHTML = ''; sourceEl.hidden = true; }
       const yes = $('#invitation-confirm-yes');
       const no = $('#invitation-confirm-no');
       const err = $('#invitation-confirm-error');
@@ -14504,9 +14665,127 @@
   async function afterIdentityLinked(result, opts) {
     const n = result && result.matchCount;
     showToast(n ? 'Listo. Vinculamos tus partidos a tu cuenta.' : 'Listo. Tu cuenta quedó vinculada.', 3600);
-    if (opts && opts.onboardingDone === false) return;
+    // V04.30 — superficie persistente de partidos recuperados (no depende del toast). Se recuerda hasta que la persona la cierre.
+    if (n && result.recoveryId) saveRecoveredReview({ recoveryId: result.recoveryId, answers: {}, dismissed: false });
+    if (opts && opts.onboardingDone === false) return; // alta nueva: se abre al terminar el onboarding (maybeOpenRecoveredReview)
     await refreshAfterIdentityChange();
+    if (n && await openRecoveredMatchesScreen()) return; // los duplicados/Nivel pendientes se ofrecen al salir de la pantalla
     await syncIdentityRecovery();
+  }
+
+  /* ---- V04.30 · Partidos recuperados (post SOY YO) ---- */
+  const RECOVERED_REVIEW_KEY = 'bramu_recovered_review_v1';
+  function loadRecoveredReview() {
+    try {
+      const v = JSON.parse(localStorage.getItem(RECOVERED_REVIEW_KEY) || 'null');
+      return v && v.userId === currentUserId && v.recoveryId ? v : null;
+    } catch (e) { return recoveredReviewMemory && recoveredReviewMemory.userId === currentUserId ? recoveredReviewMemory : null; }
+  }
+  let recoveredReviewMemory = null;
+  function saveRecoveredReview(review) {
+    const v = Object.assign({ userId: currentUserId }, review);
+    recoveredReviewMemory = v;
+    try { localStorage.setItem(RECOVERED_REVIEW_KEY, JSON.stringify(v)); } catch (e) { /* queda en memoria de esta sesión */ }
+  }
+  function clearRecoveredReview() {
+    recoveredReviewMemory = null;
+    try { localStorage.removeItem(RECOVERED_REVIEW_KEY); } catch (e) { /* noop */ }
+  }
+  /** Al arrancar con sesión (o al terminar un alta nueva): si quedó una revisión sin cerrar ni postergada, se vuelve a abrir. */
+  async function maybeOpenRecoveredReview() {
+    const rev = loadRecoveredReview();
+    if (!rev || rev.dismissed) return false;
+    return openRecoveredMatchesScreen();
+  }
+  /** Abre la pantalla con los partidos de la última vinculación pendiente. Devuelve true si se mostró. */
+  async function openRecoveredMatchesScreen() {
+    const rev = loadRecoveredReview();
+    if (!rev || !MSync) return false;
+    const ids = await Auth.getRecoveredMatchIds(rev.recoveryId);
+    if (!ids.ok || !ids.matchIds.length) { clearRecoveredReview(); return false; }
+    await refreshServerMatches();
+    const cache = Store.loadServerMatchesCache().matches || [];
+    const rows = ids.matchIds.map((id) => cache.find((m) => m.matchId === id)).filter((m) => m && m.status !== 'annulled');
+    if (!rows.length) { clearRecoveredReview(); return false; }
+    recoveredScreenState = { rev, rows, sourceName: ids.sourceName };
+    renderRecoveredMatchesScreen();
+    showView('recovered');
+    return true;
+  }
+  let recoveredScreenState = null;
+  function renderRecoveredMatchesScreen() {
+    const st = recoveredScreenState;
+    if (!st) return;
+    const answers = st.rev.answers || {};
+    $('#recovered-intro').textContent = `Vinculamos a tu cuenta los partidos que se habían registrado como ${st.sourceName}. Confirmá en cuáles jugaste: eso no valida resultados por vos.`;
+    const list = $('#recovered-list');
+    list.innerHTML = '';
+    st.rows.forEach((row) => {
+      const f = MSync.translateServerMatchToLocalShape(row);
+      const wrap = document.createElement('div');
+      wrap.className = 'recovered-card';
+      wrap.appendChild(buildHistoryItemElement(f));
+      const answered = answers[row.matchId];
+      const actionable = row.status === 'pending_validation' && row.isActionMine;
+      const actions = document.createElement('div');
+      actions.className = 'recovered-card__actions';
+      if (answered === 'yes') actions.innerHTML = '<p class="recovered-card__status">Participación confirmada</p>';
+      else if (answered === 'no') actions.innerHTML = '<p class="recovered-card__status recovered-card__status--no">Indicaste que no jugaste este partido</p>';
+      else actions.innerHTML = '<div class="recovered-card__row"><button type="button" class="btn-start" data-act="yes">SÍ, LO JUGUÉ</button><button type="button" class="btn-secondary" data-act="no">NO, NO LO JUGUÉ</button></div>';
+      if (answered !== 'no') {
+        actions.insertAdjacentHTML('beforeend', `<button type="button" class="btn-secondary" data-act="open">${actionable ? 'CONFIRMAR O CORREGIR EL RESULTADO' : 'VER PARTIDO / HAY OTRO ERROR'}</button>`);
+      }
+      actions.querySelectorAll('[data-act]').forEach((btn) => btn.addEventListener('click', () => onRecoveredAction(row, btn.dataset.act)));
+      wrap.appendChild(actions);
+      list.appendChild(wrap);
+    });
+    const allAnswered = st.rows.every((r) => answers[r.matchId]);
+    $('#recovered-later-btn').hidden = allAnswered;
+  }
+  function onRecoveredAction(row, act) {
+    const st = recoveredScreenState;
+    if (!st) return;
+    const f = MSync.translateServerMatchToLocalShape(row);
+    if (act === 'open') {
+      // Validar/corregir/reportar otro error: el Resumen ya trae esos flujos (nada paralelo). Al volver, esta pantalla sigue pendiente.
+      openCanonicalResumen(f, 'recovered');
+      return;
+    }
+    if (act === 'yes') {
+      st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: 'yes' });
+      saveRecoveredReview(st.rev);
+      renderRecoveredMatchesScreen();
+      return;
+    }
+    // NO, NO LO JUGUÉ — misma incidencia de identidad que "No participé" en Resumen (el lugar queda "Por identificar").
+    if (!b6IdentityReportWindowOpen(f)) { showToast('La ventana para corregir la identidad de este partido ya venció.', 3000); return; }
+    const mine = (row.participants || []).find((p) => p && p.playerId === currentUserId);
+    if (!mine) { showToast('No encontramos tu lugar en este partido.', 2600); return; }
+    confirmReportIdentity(row.matchId, mine.team, mine.position, mine.displayName || 'vos', {
+      isSelf: true,
+      onDone: async () => {
+        await refreshServerMatches();
+        const fresh = (Store.loadServerMatchesCache().matches || []);
+        st.rows = st.rows.map((r) => fresh.find((m) => m.matchId === r.matchId) || r);
+        st.rev.answers = Object.assign({}, st.rev.answers, { [row.matchId]: 'no' });
+        saveRecoveredReview(st.rev);
+        if (!$('#view-recovered').hidden) renderRecoveredMatchesScreen();
+      },
+    });
+  }
+  async function closeRecoveredScreen(markDone) {
+    const st = recoveredScreenState;
+    recoveredScreenState = null;
+    if (markDone) clearRecoveredReview();
+    else if (st) { st.rev.dismissed = true; saveRecoveredReview(st.rev); }
+    openPlayerHome();
+    // Ahora sí: Nivel recuperado pendiente y posibles duplicados (serializados, después de esta pantalla).
+    syncIdentityRecovery();
+  }
+  function initRecoveredScreen() {
+    $('#recovered-back-btn').addEventListener('click', () => closeRecoveredScreen(false));
+    $('#recovered-later-btn').addEventListener('click', () => closeRecoveredScreen(false));
+    $('#recovered-done-btn').addEventListener('click', () => closeRecoveredScreen(true));
   }
 
   /** Relectura coherente tras un cambio de identidad/partidos: partidos del servidor (el self-heal oficializa lo que quedó listo),
@@ -14684,7 +14963,6 @@
       }
       // V04.29 — invitación pendiente sin sesión: se conserva la intención y se muestra el acceso normal (crear cuenta / Ya tengo
       // cuenta); al autenticarse se vuelve automáticamente a "¿Sos {nombre}?" (resumeServerSession/runOfficializeAndEnter).
-      if (Store.loadClaimToken()) showToast('Para sumarte a BRAMU, creá tu cuenta o iniciá sesión. Después volvés a esta invitación.', 4200);
       if (savedDraft && savedDraft.email) { await resumeDraftFlow(); return; }
       bootDefaultScreen();
       return;
@@ -14703,6 +14981,7 @@
     initAmbiguousMatchModal();
     initB6ActionsSection();
     initInvitationFlow();
+    initRecoveredScreen();
     initAnalysisScreen();
     initHistoryScreen();
     initManualLoadScreen();

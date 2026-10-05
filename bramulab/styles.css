@@ -429,7 +429,9 @@ input, select{ font-family: inherit; }
 .toast{
   position: fixed; left: 50%; bottom: calc(96px + var(--safe-bottom)); transform: translate(-50%, 12px);
   background: var(--paper); color: var(--ink); font-weight: 800; font-size: 13px; padding: 10px 18px;
-  border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 40; white-space: nowrap;
+  border-radius: 18px; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 40;
+  /* V04.30 — los mensajes largos envuelven dentro del viewport en vez de cortarse. */
+  width: max-content; max-width: calc(100vw - 32px); white-space: normal; text-align: center; line-height: 1.35;
   display:flex; align-items:center; gap: 12px;
 }
 .toast.is-visible{ opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
@@ -1902,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.29-h2') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.30-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3986,10 +3988,14 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    de posible duplicado. Reusa tokens y componentes existentes (.sheet-scrim/.bottom-sheet, .overlay, .btn-start, .btn-secondary).
    ========================================================================== */
 .guests-list{ display:flex; flex-direction:column; }
-.guests-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 12px 2px; }
-.guests-row + .guests-row{ border-top: 1px solid var(--line); }
-.guests-row__name{ min-width:0; flex:1; font-size:14px; font-weight:700; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.guests-row__btn{ flex:none; width:auto; min-height:36px; padding: 0 16px; font-size:12px; }
+/* V04.30 — bloque consistente: card con ícono de identidad pendiente, nombre y CTA pegados (antes nombre a la izquierda y botón lejos a la derecha). */
+.guests-row{ display:flex; flex-direction:column; align-items:stretch; gap:10px; padding: 12px 14px; background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-card); }
+.guests-row + .guests-row{ margin-top: 8px; }
+.guests-row__head{ display:flex; align-items:center; gap:8px; min-width:0; }
+.guests-row__icon{ flex:none; color: var(--gold); }
+.guests-row__name{ min-width:0; font-size:14px; font-weight:700; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.guests-row__tag{ flex:none; font-size:11px; font-weight:700; color: var(--gold); background: rgba(255,201,61,0.12); border-radius: var(--radius-pill); padding: 2px 8px; }
+.guests-row__btn{ width:100%; min-height:40px; padding: 0 16px; font-size:12px; }
 
 .invite-sheet__body{ padding: 4px 16px 16px; gap: 14px; }
 .invite-sheet__text{ margin:0; font-size:14px; line-height:1.5; color: var(--paper); }
@@ -4008,3 +4014,31 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .duplicate-match-card__players{ margin:0 0 4px; font-size:14px; font-weight:700; color: var(--text); }
 .duplicate-match-card__score{ margin:0 0 4px; font-family: var(--font-display); font-size:20px; font-weight:800; color: var(--paper); letter-spacing: 0.02em; }
 .duplicate-match-card__meta{ margin:0; font-size:12px; color: var(--text-dim); line-height:1.4; }
+
+/* V04.30 — nombre SIN CUENTA (identidad provisional) en Historial: semántica de pendiente (--gold, mismo criterio que .history-item__badge--waiting).
+   Tras vincular la identidad, el jugador vuelve al estilo normal y usa su nombre real. */
+.player-name--pending{ color: var(--gold); }
+
+/* V04.30 — contexto de invitación: card pre-auth en Acceso, bloque del partido fuente en "¿Sos {nombre}?" y feedback de coincidencia de contraseñas. */
+.invitation-card{ margin: 0 0 16px; padding: 14px 16px; background: var(--surface-1); border: 1px solid var(--line-strong); border-radius: var(--radius-card); text-align:left; }
+.invitation-card__title{ font-size: 14px; font-weight: 800; color: var(--brand-lime); margin-bottom: 6px; }
+.invitation-card__text{ margin:0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.invitation-source{ margin: 4px 0 12px; text-align:left; }
+.invitation-source__label{ margin: 0 0 6px; font-size: 12px; color: var(--text-dim); }
+.invitation-source__more{ margin: 6px 0 0; font-size: 12px; color: var(--text-dim); }
+.password-match{ margin: 2px 0 6px; font-size: 12px; font-weight: 700; }
+.password-match.is-match{ color: var(--brand-lime); }
+.password-match.is-mismatch{ color: var(--danger); }
+
+/* V04.30 — pantalla de partidos recuperados (post SOY YO): card de Historial + acciones de participación por partido. */
+.recovered-intro{ margin: 4px 16px 14px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.recovered-list{ display:flex; flex-direction:column; gap: 14px; padding: 0 16px; }
+.recovered-card .history-item{ margin: 0; }
+.recovered-card__actions{ display:flex; flex-direction:column; gap: 8px; margin-top: 8px; }
+.recovered-card__actions .btn-secondary, .recovered-card__actions .btn-start{ width:100%; min-height: 42px; font-size: 12px; }
+.recovered-card__row{ display:flex; gap: 8px; }
+.recovered-card__row > button{ flex:1; }
+.recovered-card__status{ margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--brand-lime); }
+.recovered-card__status--no{ color: var(--gold); }
+.recovered-footer{ display:flex; flex-direction:column; align-items:center; gap: 10px; padding: 18px 16px calc(24px + var(--safe-bottom)); }
+.recovered-footer .btn-start{ width:100%; }

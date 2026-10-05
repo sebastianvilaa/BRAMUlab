@@ -715,7 +715,21 @@
     if (error) return { ok: false, code: error.message || 'unknown' };
     if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
     if (!data.ok) return { ok: false, code: data.code || 'unknown' };
-    return { ok: true, displayName: data.displayName || 'Jugador' };
+    // V04.30 — contexto para "¿Sos {nombre}?": cantidad de partidos y UN partido fuente compacto (cargador, parejas, score, fecha).
+    return {
+      ok: true, displayName: data.displayName || 'Jugador',
+      matchCount: Number(data.matchCount) || 0,
+      sourceMatch: data.sourceMatch && typeof data.sourceMatch === 'object' ? data.sourceMatch : null,
+    };
+  }
+
+  /** V04.30 — ids de los partidos que recuperó UNA vinculación propia (RPC `get_my_recovered_match_ids`, solo el target la lee). */
+  async function getRecoveredMatchIds(recoveryId) {
+    const c = getClient();
+    if (!c || !recoveryId) return { ok: false, code: 'not_configured' };
+    const { data, error } = await c.rpc('get_my_recovered_match_ids', { p_recovery_id: recoveryId });
+    if (error || !data || typeof data !== 'object' || !data.ok) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+    return { ok: true, matchIds: Array.isArray(data.matchIds) ? data.matchIds : [], sourceName: data.sourceName || 'Jugador' };
   }
 
   /** V04.29 — contadores mínimos del caller (RPC `get_my_identity_recovery_status`): recuperaciones con Nivel pendiente y
@@ -1059,7 +1073,7 @@
     sendRecoveryOtp, verifyRecoveryOtp, updatePassword,
     fetchOwnProfile, isUsernameAvailable, completeProfile, officializeLevel,
     searchPlayers, getPlayersCompact, getPublicProfile, getWhatsAppContact, createProvisionalPlayer, listMyProvisionalPlayers,
-    createClaimLink, claimProvisionalPlayer, previewClaimLink, getIdentityRecoveryStatus, processIdentityRecovery,
+    createClaimLink, claimProvisionalPlayer, previewClaimLink, getRecoveredMatchIds, getIdentityRecoveryStatus, processIdentityRecovery,
     listDuplicateMatchCandidates, resolveDuplicateMatchCandidate, completeRankingProfileData,
     completeContactProfileData, updateProfileAvatar, uploadAvatar, removeAvatarFiles,
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,

@@ -193,7 +193,7 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.ok([2, 6].includes(colorType));
   const m = JSON.parse(read('manifest.webmanifest'));
   assert.equal(m.start_url, './index.html'); assert.equal(m.display, 'standalone');
-  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.29-h2$/); }
+  for (const ic of m.icons) { const f = ic.src.split('?')[0]; assert.ok(fs.existsSync(path.join(__dirname, f)), f); const [iw, ih] = sizeOf(f); assert.equal(`${iw}x${ih}`, ic.sizes); assert.match(ic.src, /\?v=04\.30-h1$/); }
   assert.ok(m.icons.some((i) => i.purpose === 'maskable') && m.icons.some((i) => i.sizes === '512x512' && i.purpose === 'any'));
   assert.match(html, /<link rel="manifest" href="manifest\.webmanifest" crossorigin="use-credentials" \/>/);
   const ati = html.match(/<link rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,([A-Za-z0-9+/=]+)" \/>/);
@@ -202,10 +202,10 @@ test('G2-11 · ícono instalado: PNG reales y opacos, manifest/head válidos, ap
   assert.equal((html.match(/rel="apple-touch-icon"/g) || []).length, 1);
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="BRAMUlab" \/>/);
   assert.match(html, /<meta name="theme-color" content="#050A12" \/>/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-29-h2'/);
-  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.29-h2'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.29', bundle: '04.29-h2' });
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.29-h2'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-30-h1'/);
+  assert.match(sw, /'\.\/icons\/apple-touch-icon\.png\?v=04\.30-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h1' });
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h1'/);
   assert.ok(!/\?v=04\.20-h4/.test(html + sw + read('manifest.webmanifest')), 'sin restos del bundle anterior');
   assert.match(sw, /keys\.filter\(\(k\) => k\.startsWith\('bramulab-v'\) && k !== CACHE_NAME\)/, 'el SW nuevo borra las cachés viejas');
 });
@@ -229,12 +229,12 @@ test('G2-13 · no regresión G1 ni alcance: backend de challenges/eliminación i
 
 /* ---------- tanda final V04.21 ---------- */
 test('V0421-1 · versión visible BRAMUlab V04.28 y bundle/cache/version.json/SW/manifest coherentes', () => {
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.29'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.29-h2'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.29', bundle: '04.29-h2' });
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-29-h2'/);
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.30'/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.30-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.30', bundle: '04.30-h1' });
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-30-h1'/);
   assert.ok(!/04\.20-h\d/.test(html + sw + read('manifest.webmanifest')), 'sin restos del bundle anterior');
-  assert.ok((html.match(/\?v=04\.29-h2/g) || []).length >= 10);
+  assert.ok((html.match(/\?v=04\.30-h1/g) || []).length >= 10);
   assert.match(fs.readFileSync(path.join(__dirname, '../docs/BRAMUlab/Metodo_Trabajo.md'), 'utf8'), /V04\.21, V04\.22/);
 });
 

@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.29-h2" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.30-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.29-h2" />
+<link rel="stylesheet" href="styles.css?v=04.30-h1" />
 </head>
 <body>
 
@@ -1794,6 +1794,13 @@
       <!-- L1 (V04.19) — fail-closed: sin backend configurado en un host desplegado (Staging/Production) NO
            se ofrece ningún camino local; se informa y los botones quedan deshabilitados (ver
            refreshBackendUnavailableNotice en app.js). Oculto siempre que Supabase responde. -->
+      <!-- V04.30 — card contextual de invitación (visible ANTES de autenticar cuando el dispositivo trae un enlace ?claim=): explica que hay
+           actividad registrada y qué hacer. Los datos concretos (identidad + partido fuente) se muestran recién con sesión, en "¿Sos {nombre}?":
+           mostrarlos sin autenticar exigiría exponer datos de terceros a cualquiera con el enlace (ver DECISIÓN ABIERTA, informe 125). -->
+      <div class="invitation-card" id="access-invitation-card" hidden>
+        <div class="invitation-card__title">Te invitaron a BRAMU</div>
+        <p class="invitation-card__text">Alguien registró partidos con una identidad que podrías ser vos. Creá tu cuenta o iniciá sesión y confirmá si sos esa persona para recuperar tus partidos y tu historial.</p>
+      </div>
       <p class="edit-error" id="access-backend-unavailable" hidden>No pudimos conectar con el servidor. Probá de nuevo más tarde.</p>
       <div class="access-actions">
         <button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN</button>
@@ -1951,6 +1958,7 @@
             <label class="field-label" for="signup-password-repeat">Repetir contraseña</label>
             <div class="field-with-toggle"><input id="signup-password-repeat" class="field__input" type="password" autocomplete="new-password" /><button type="button" class="password-toggle-btn" id="signup-password-repeat-toggle" aria-label="Mostrar contraseña"><svg viewBox="0 0 24 24" class="eye-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><g class="eye-icon__open"><path d="M2 12s3.7-7 10-7 10 7 10 7-3.7 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></g><g class="eye-icon__off" hidden><path d="M3 3l18 18"/><path d="M10.6 5.2A11 11 0 0 1 12 5c6.3 0 10 7 10 7a18 18 0 0 1-3.4 4.6M7.4 7.4C4.2 9.3 2 12 2 12s3.7 7 10 7c1.5 0 2.9-.3 4.1-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></g></svg></button></div>
           </div>
+          <p class="password-match" id="signup-password-match" role="status" hidden></p>
           <ul class="password-rules" id="signup-password-rules">
             <li data-rule="hasMinLength">Al menos 8 caracteres</li>
             <li data-rule="hasUpper">Una mayúscula</li>
@@ -2636,6 +2644,27 @@
     </div>
   </div>
 
+  <!-- ============================================================
+       V04.30 — PARTIDOS RECUPERADOS (post "SOY YO"). Superficie PERSISTENTE (no un toast): tras vincular una identidad se listan los
+       partidos recuperados con tarjetas del mismo lenguaje que Historial. Identidad ≠ participación ≠ validación: "SOY YO" confirma la
+       identidad; acá se confirma la participación partido por partido (SÍ, LO JUGUÉ / NO, NO LO JUGUÉ). Un partido ya validado solo
+       confirma participación (no revalida el resultado); uno pendiente y accionable se valida/corrige desde su Resumen. "NO LO JUGUÉ"
+       reutiliza la incidencia de identidad existente (el lugar queda "Por identificar"). ============================================================ -->
+  <section id="view-recovered" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="recovered-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">PARTIDOS RECUPERADOS</span>
+    </div>
+    <div class="analysis-scroll">
+      <p class="recovered-intro" id="recovered-intro"></p>
+      <div id="recovered-list" class="recovered-list"></div>
+      <div class="recovered-footer">
+        <button type="button" id="recovered-done-btn" class="btn-start">LISTO</button>
+        <button type="button" id="recovered-later-btn" class="link-btn" hidden>Revisar después</button>
+      </div>
+    </div>
+  </section>
+
   <!-- V03.0.2 (§12) — Notificaciones deja de ser un popup chico: pantalla completa, mismo
        header secundario (volver + título) que Editar Datos/Cambiar contraseña. Con bottom nav
        si hay sesión (siempre la hay: la campana solo vive en el Home, que ya está gateado). -->
@@ -2691,6 +2720,7 @@
     <div class="overlay__card" role="dialog" aria-modal="true" aria-labelledby="invitation-confirm-title">
       <div class="overlay__title" id="invitation-confirm-title">¿SOS ESTE JUGADOR?</div>
       <p class="overlay__text" id="invitation-confirm-text">Hay partidos registrados con esta identidad. Si sos vos, podés vincularlos a tu cuenta.</p>
+      <div class="invitation-source" id="invitation-confirm-source" hidden></div>
       <p class="overlay__text overlay__text--error" id="invitation-confirm-error" role="alert" hidden></p>
       <div class="overlay__actions overlay__actions--stacked">
         <button id="invitation-confirm-yes" class="btn-start btn-start--overlay" type="button">SOY YO</button>
@@ -3146,47 +3176,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.29-h2"></script>
-  <script src="stats.js?v=04.29-h2"></script>
-  <script src="store.js?v=04.29-h2"></script>
+  <script src="engine.js?v=04.30-h1"></script>
+  <script src="stats.js?v=04.30-h1"></script>
+  <script src="store.js?v=04.30-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.29-h2"></script>
-  <script src="level-context.js?v=04.29-h2"></script>
-  <script src="level-calibration.js?v=04.29-h2"></script>
-  <script src="player-home.js?v=04.29-h2"></script>
-  <script src="match-load.js?v=04.29-h2"></script>
-  <script src="player-identity.js?v=04.29-h2"></script>
-  <script src="groups.js?v=04.29-h2"></script>
-  <script src="locations.js?v=04.29-h2"></script>
-  <script src="ranking.js?v=04.29-h2"></script>
+  <script src="level.js?v=04.30-h1"></script>
+  <script src="level-context.js?v=04.30-h1"></script>
+  <script src="level-calibration.js?v=04.30-h1"></script>
+  <script src="player-home.js?v=04.30-h1"></script>
+  <script src="match-load.js?v=04.30-h1"></script>
+  <script src="player-identity.js?v=04.30-h1"></script>
+  <script src="groups.js?v=04.30-h1"></script>
+  <script src="locations.js?v=04.30-h1"></script>
+  <script src="ranking.js?v=04.30-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.29-h2"></script>
+  <script src="auth.js?v=04.30-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.29-h2"></script>
-  <script src="match-sync.js?v=04.29-h2"></script>
+  <script src="matches.js?v=04.30-h1"></script>
+  <script src="match-sync.js?v=04.30-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.29-h2"></script>
+  <script src="match-validation.js?v=04.30-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.29-h2"></script>
+  <script src="match-self-heal.js?v=04.30-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.29-h2"></script>
-  <script src="app.js?v=04.29-h2"></script>
+  <script src="intelligence-client.js?v=04.30-h1"></script>
+  <script src="app.js?v=04.30-h1"></script>
 </body>
 </html>

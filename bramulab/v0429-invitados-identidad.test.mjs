@@ -98,7 +98,7 @@ function makeEnv({ token = 'a'.repeat(64), auth = {}, store = {}, matches = {}, 
     refreshServerMatches: async () => { log.calls.push('refreshServerMatches'); },
     renderPlayerHome() { log.calls.push('renderPlayerHome'); }, renderHistory() { log.calls.push('renderHistory'); },
     syncServerLevelState() { log.calls.push('syncServerLevelState'); },
-    isServerBackedSession: () => serverBacked, analysisCurrent: null,
+    isServerBackedSession: () => serverBacked, analysisCurrent: null, currentUserId: 'me', MSync: null,
     window: { location: { origin: 'https://app.test', pathname: '/bramulab/' } },
     navigator: {}, requestAnimationFrame: (f) => f(), setTimeout, Promise, Map, Set, String, Array, Intl, Date, Blob, JSON, Math,
   };
@@ -117,7 +117,7 @@ test('JUGADORES SIN CUENTA: lista solo a los invitados invitables de ESTE partid
   await env.fns.renderAnalysisGuests(f);
   assert.equal(env.$('#analysis-guests').hidden, false);
   const html = env.$('#analysis-guests-list').innerHTML;
-  assert.match(html, /Pedro/); assert.match(html, />INVITAR</);
+  assert.match(html, /Pedro/); assert.match(html, />INVITAR A PEDRO</);
   assert.doesNotMatch(html, /Seba|Otro/);
   for (const bad of [{ ...f, serverBacked: false }, { ...f, status: 'sync_pending' }, { ...f, status: 'necesita_revision' }]) {
     env.fns.setAnalysis(bad);
@@ -339,7 +339,7 @@ test('auth.js: previewClaimLink/claimProvisionalPlayer/status/process/duplicados
       default: return { data: null, error: { message: 'boom' } };
     }
   }, async (name) => (name === 'process-identity-recovery' ? { data: { ok: true, results: [{ status: 'completed' }] }, error: null } : { data: null, error: { message: 'x' } }));
-  assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('ok'))), { ok: true, displayName: 'Pedro' });
+  assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('ok'))), { ok: true, displayName: 'Pedro', matchCount: 0, sourceMatch: null });
   assert.deepEqual(JSON.parse(JSON.stringify(await A.previewClaimLink('bad'))), { ok: false, code: 'claim_expired' });
   const ok = JSON.parse(JSON.stringify(await A.claimProvisionalPlayer('ok')));
   assert.deepEqual(ok, { ok: true, recoveryId: 'r1', matchCount: 3, levelPending: true, duplicateCandidates: 1, idempotentReturn: false });
@@ -365,7 +365,9 @@ test('Auth y retorno: la invitación se confirma con sesión real DESPUÉS de au
   assert.match(run, /outcome === 'transient'[\s\S]{0,120}signupStep = 'verify'[\s\S]{0,120}return;/, 'un fallo transitorio no avanza (conserva token y borrador)');
   assert.ok(run.indexOf('syncIdentityRecovery()') > run.indexOf('Auth.officializeLevel'), 'el Nivel recuperado se procesa DESPUÉS del Nivel base');
   const boot = between(appJs, '  async function bootWithServerSession() {', '  document.addEventListener(\'DOMContentLoaded\'');
-  assert.match(boot, /Para sumarte a BRAMU, creá tu cuenta o iniciá sesión\. Después volvés a esta invitación\./);
+  // V04.30 — el aviso fugaz se reemplazó por una card contextual persistente en Acceso (renderAccessInvitationCard).
+  assert.match(appJs, /function renderAccessInvitationCard\(\)/);
+  assert.match(indexHtml, /id="access-invitation-card"/);
   assert.doesNotMatch(boot, /NO agregar campo manual/);
   // no hay campo manual de token en Perfil
   assert.doesNotMatch(indexHtml, /id="[a-z-]*claim[a-z-]*-input"/);
@@ -431,5 +433,5 @@ test('h2 · una corrección de origen duplicado no vence a los 3 días (cliente)
 test('h2 · matches.js y match-sync.js propagan pendingCorrectionOrigin desde get_my_matches y get_match_detail', () => {
   assert.match(read('matches.js'), /pendingCorrectionOrigin: row\.pending_correction_origin \|\| null/);
   assert.match(read('match-sync.js'), /pendingCorrectionOrigin: row\.pendingCorrectionOrigin \|\| null/);
-  assert.match(read('version.json'), /04\.29-h2/);
+  assert.match(read('version.json'), /04\.30-h1/);
 });

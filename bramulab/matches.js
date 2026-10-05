@@ -81,10 +81,37 @@
       disambiguationForceNew: !!p.disambiguationForceNew,
     };
     const { data, error } = await c.functions.invoke('create-or-attach-match', { body });
-    if (error) return { ok: false, code: (data && data.code) || error.message || 'unknown' };
+    if (error) return classifyInvokeError(data, error);
     if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
     return data;
   }
+
+  /** V04.30 (B2) — distingue los tres orígenes de un fallo de `functions.invoke`, que antes se
+   *  colapsaban en "Sin conexión":
+   *   - negocio (HTTP 4xx/409 con `{code}` en el body, ej. `invalid_sets`): se devuelve el body tal cual;
+   *   - servidor (HTTP 5xx, ej. `persist_failed`): `{ok:false, code, serverError:true}` — el servidor
+   *     respondió, así que NO es "sin conexión";
+   *   - red real (`FunctionsFetchError`, sin Response): `{ok:false, code:'network_error', offline:true}`.
+   *  supabase-js v2 solo expone el body de una respuesta non-2xx vía `error.context.json()`. */
+  async function classifyInvokeError(data, error) {
+    const ctx = error && error.context;
+    const status = ctx && typeof ctx.status === 'number' ? ctx.status : null;
+    if (ctx && typeof ctx.json === 'function') {
+      let body = null;
+      try { body = await ctx.json(); } catch (_e) { body = null; }
+      const code = (body && typeof body === 'object' && body.code) || (data && data.code) || null;
+      if (status !== null && status >= 500) return { ok: false, code: code || 'server_error', serverError: true };
+      if (code) return body && typeof body === 'object' ? body : { ok: false, code };
+      return { ok: false, code: 'server_error', serverError: true };
+    }
+    if (data && data.code) return { ok: false, code: data.code };
+    return { ok: false, code: 'network_error', offline: true };
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  /** V04.30 (B2) — un borrador local de outbox (`m_...`) NO es un match_id del servidor: nunca debe
+   *  viajar a una RPC que espera UUID (22P02). */
+  function isServerMatchId(id) { return typeof id === 'string' && UUID_RE.test(id); }
 
   /** `get_my_matches` es `returns table(...)`: PostgREST devuelve sus columnas en snake_case
    *  (`match_id`, `played_at`, ...), a diferencia de `get_match_detail` (un único `jsonb` que
@@ -145,6 +172,7 @@
   async function getMatchDetail(matchId) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
+    if (!isServerMatchId(matchId)) return { ok: false, code: 'invalid_match_id' };
     const { data, error } = await c.rpc('get_match_detail', { p_match_id: matchId });
     if (error) return { ok: false, code: error.message || 'unknown' };
     return { ok: true, match: data || null };
@@ -155,6 +183,7 @@
   async function hideMatchForMe(matchId, hidden) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
+    if (!isServerMatchId(matchId)) return { ok: false, code: 'invalid_match_id' };
     const { data, error } = await c.rpc('hide_match_for_me', { p_match_id: matchId, p_hidden: hidden !== false });
     if (error) return { ok: false, code: error.message || 'unknown' };
     if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
@@ -166,6 +195,7 @@
   async function setMatchPrivateNote(matchId, note) {
     const c = getClient();
     if (!c) return { ok: false, code: 'not_configured' };
+    if (!isServerMatchId(matchId)) return { ok: false, code: 'invalid_match_id' };
     const { data, error } = await c.rpc('set_match_private_note', { p_match_id: matchId, p_note: note || null });
     if (error) return { ok: false, code: error.message || 'unknown' };
     if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
@@ -199,7 +229,7 @@
 
   global.PLMatches = {
     isConfigured, getClient, genUuid,
-    createOrAttach, getMyMatches, getMatchDetail,
+    createOrAttach, getMyMatches, getMatchDetail, isServerMatchId,
     hideMatchForMe, setMatchPrivateNote,
     getPendingActionCount, listRelatedProvisionalPlayers,
   };
