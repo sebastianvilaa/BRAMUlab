@@ -1032,6 +1032,14 @@ Después de autenticarse vuelve automáticamente a la invitación. No existe un 
 
 La interfaz evita “reclamar”; habla de **invitar, vincular y recuperar partidos**.
 
+**Ajustes V04.30 (04/10/2026, QA humano; implementados, pendientes de verificación en Staging — ver `Implementacion/Pre_Production/125_*`):**
+
+- **Identidad ≠ participación ≠ validación.** `SOY YO` confirma solo la identidad. Después se muestra una pantalla persistente de **partidos recuperados** (tarjetas como Historial) donde la persona confirma su participación partido por partido (`SÍ, LO JUGUÉ` / `NO, NO LO JUGUÉ`). Un partido ya validado solo confirma participación (no revalida el resultado); uno pendiente y accionable se valida/corrige desde su Resumen existente. `NO LO JUGUÉ` reutiliza la incidencia de identidad.
+- **Self-report.** Si el actor marca su **propio** lugar: `¿Confirmás que no jugaste este partido?` → `NO PARTICIPÉ`; el lugar queda `Por identificar` y se avisa a los demás participantes; no se le pregunta quién jugó. Si denuncia a **otro** participante, se conserva `¿Sabés quién jugó?`. La notificación dice `X indicó que no participó en este partido`.
+- **Entrada de invitación.** Card contextual en Acceso antes de autenticar; `¿SOS {nombre}?` muestra el partido fuente (cargador, parejas, score, fecha, cantidad de partidos). Los datos concretos no se muestran sin sesión (DECISIÓN ABIERTA, informe 125).
+- **Límite de 5 pendientes.** El `+` se bloquea **antes** del formulario con `VER PARTIDOS PENDIENTES` (Historial > Pendientes); el servidor sigue siendo la última barrera.
+- Nombres sin cuenta en amarillo en Historial; selector con secciones `Sin cuenta` / `Jugadores`; la referencia de homónimos usa solo relaciones ya visibles. Sin implementar (DECISIÓN ABIERTA): notificación al invitador cuando el invitado se une y aviso de `NO SOY YO`.
+
 ### 15.5 Cuenta nueva, cuenta existente y varias provisionales
 
 **Cuenta nueva:** la vinculación se resuelve antes de completar Perfil/Nivel oficial. El historial de la provisional queda asociado a la cuenta y después continúa el onboarding normal.
