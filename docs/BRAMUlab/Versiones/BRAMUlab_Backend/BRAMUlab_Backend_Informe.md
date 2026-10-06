@@ -1178,3 +1178,8 @@ Gate Central real:
 - sin cambios en main, Production ni BRAMUlive.
 
 Pendiente único para cierre de V04.36: QA humano dirigido de marca + flujo exitoso de `Anular carga` sobre fixture específico `QA · Anular carga`. Los escenarios negativos no se repiten manualmente porque ya tienen cobertura suficiente.
+
+
+### V04.36-h2 — ajuste visual posterior al QA
+
+Sin cambios de backend. `Anular carga` conserva el contrato ya verificado y pasa a usar el mismo tratamiento visual outline rojo de `Reportar un error`. Bundle técnico: `04.36-h2`.

@@ -127,3 +127,8 @@ QA humano mínimo:
 5. anular y comprobar que desaparece y vuelve a Home.
 
 No hace falta repetir escenarios de bloqueo con una segunda cuenta: ya quedaron cubiertos por tests + Postgres real de Central.
+
+
+### Ajuste visual QA h2
+
+QA humano confirmó el modal de `Anular carga` y detectó que el CTA suelto se percibía débil/inconsistente. Decisión de producto: `Anular carga` usa el **mismo tratamiento visual outline rojo** de `Reportar un error`, manteniéndose inmediatamente debajo. Cambio cosmético únicamente; no altera elegibilidad ni backend. Bundle técnico: `04.36-h2`.

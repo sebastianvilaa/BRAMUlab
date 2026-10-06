@@ -127,9 +127,9 @@ test('V0436-5) logo nuevo (SVG) en splash, acceso, headers y footer; ningún <im
   const ati = html.match(/rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,([A-Za-z0-9+/=]+)"/);
   assert.ok(ati && Buffer.from(ati[1], 'base64').equals(fs.readFileSync(path.join(__dirname, 'icons', 'apple-touch-icon.png'))), 'apple-touch incrustado == archivo nuevo');
   assert.match(html, /rel="icon" href="icons\/favicon-64\.png\?v=04\.36-h1"/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.36', bundle: '04.36-h1' });
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.36', bundle: '04.36-h2' });
   assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.36'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.36-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-36-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-36-h2'/);
 });
 
 test('V0436-6) el logo SVG se dimensiona por altura/ancho en cada superficie (CSS existente) y el splash sigue protagonista', () => {

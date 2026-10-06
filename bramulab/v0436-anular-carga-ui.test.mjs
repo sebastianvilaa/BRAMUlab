@@ -51,16 +51,15 @@ test('UI-2) match-sync traduce canAnnulSubmission SOLO cuando el servidor lo man
   assert.equal(S.translateServerMatchToLocalShape({ ...base, canAnnulSubmission: 'true' }).canAnnulSubmission, false);
 });
 
-test('UI-3) markup: "Anular carga" vive DEBAJO de "Reportar un error", con menor jerarquía (texto destructivo rojo, sin botón lleno) y oculto por defecto', () => {
+test('UI-3) markup: "Anular carga" vive DEBAJO de "Reportar un error" y usa el MISMO tratamiento outline rojo', () => {
   const iReport = html.indexOf('id="b6-report-error-block"'); const iAnnul = html.indexOf('id="b6-annul-block"');
   assert.ok(iReport > 0 && iAnnul > iReport, 'el bloque de anular viene justo después del de reportar');
-  assert.match(html, /<div class="b6-annul-block" id="b6-annul-block" hidden>\s*<button type="button" class="b6-annul-btn" id="b6-annul-btn">Anular carga<\/button>\s*<\/div>/);
-  assert.match(html, /id="b6-report-error-btn" style="width:100%">Reportar un error<\/button>/); // se mantiene
+  assert.match(html, /<div class="b6-annul-block" id="b6-annul-block" hidden>\s*<button type="button" class="b6-correction-choice b6-correction-choice--report b6-annul-btn" id="b6-annul-btn">Anular carga<\/button>\s*<\/div>/);
+  assert.match(html, /id="b6-report-error-btn" style="width:100%">Reportar un error<\/button>/);
   assert.match(css, /\.b6-annul-block\[hidden\]\{ display:none; \}/);
-  assert.match(css, /\.b6-annul-btn\{[^}]*background:none;[^}]*border:none;[^}]*color: var\(--danger\);[^}]*font-size: 13px;/);
-  assert.doesNotMatch(css, /\.b6-annul-btn\{[^}]*(background: ?var|border: ?1px)/);
+  assert.match(css, /\.b6-annul-btn\{ width:100%; \}/);
+  assert.match(css, /\.b6-correction-choice--report\{[^}]*border: 1\.5px solid var\(--danger\);[^}]*color: var\(--danger\);/);
 });
-
 test('UI-4) paintB6Actions: el botón solo se ofrece en el pending con canAnnulSubmission (servidor) y siempre se reubica debajo de Reportar un error', () => {
   const paint = app.slice(app.indexOf('function paintB6Actions(f)'), app.indexOf("if (f.status === 'validated') {", app.indexOf('function paintB6Actions(f)')));
   assert.match(paint, /const annulBlock = \$\('#b6-annul-block'\);/);
