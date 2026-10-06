@@ -15,13 +15,13 @@
 
 | Frente | Estado real |
 |---|---|
-| **P0.1 — Estado cero / progresión temprana** | **IMPLEMENTADO.** El código vigente oculta módulos sin evidencia en Home/Perfil y usa estados vacíos honestos. Falta únicamente un **QA integrado corto de navegador** para formalizar el cierre documental de 0 partidos / primer partido / Perfil público. |
-| **P0.1B — Ranking automático** | **IMPLEMENTADO Y VALIDADO.** En el mismo QA integrado de P0.1 confirmar solo que no reaparezca ningún opt-in legacy. |
+| **P0.1 — Estado cero / progresión temprana** | **CERRADO EN STAGING / PASS CENTRAL (06/10).** Cierre formal con evidencia real de cuenta 0 (`sebastian_vila`) + cuenta con 1 partido oficial (`camilo_test`) + inspección de gates de Home/Historial/Mi Perfil/Perfil público. No hizo falta pedir un login extra. Ver `Implementacion/Pre_Production/146_Cierre_R1_Estado_Cero_Primer_Partido_06OCT.md`. |
+| **P0.1B — Ranking automático** | **CERRADO / PASS CENTRAL (06/10).** QA humano no mostró opt-in legacy; el gate vigente solo pide rama/localidad y una cuenta real con `ranking_opt_in=false` no recibe ese reason code. |
 | **P0.1C — Perfil editable** | **CERRADO EN STAGING.** |
 | **P0.2 — Legal / Privacidad** | **NÚCLEO TÉCNICO CERRADO EN STAGING**: aceptación/reaceptación, páginas, acceso/seguridad, emails G1 y QA G2 están cerrados. **P0.2 no se cierra publicablemente todavía** porque las páginas conservan placeholders que dependen de la Production real: responsable/domicilio publicables, fecha de vigencia, AAIP/RNBDP, proveedores/regiones/transferencias y ciclos reales de backups/logs. El build de Production falla de forma segura mientras quede un placeholder. |
 | **P0.3 — Eliminación de cuenta** | **CERRADO EN STAGING.** El E2E destructivo real se completó durante G1: challenge específico, OTP, eliminación efectiva, postcondiciones y email #8 posterior. No repetir salvo regresión concreta. |
 | **P0.4 — Acceso V1** | **CERRADO.** Email + contraseña, OTP/recovery y Configuración G2 validados. |
-| **P0.4B — Grupos BRAMU** | Backend/server-backed y QA integral base **CERRADOS** (Issue #6). La lógica V04.23 de top 2 + Americano está implementada; queda **Issue #23 abierto solo por QA humana final del ajuste V04.24 de ayuda/desglose**. No es un gap de backend ni de modelo deportivo. |
+| **P0.4B — Grupos BRAMU** | **CERRADO EN STAGING / PASS HUMANO.** Backend/server-backed, top 2, Americano y QA integral estaban cerrados; el residual visual de ayuda/desglose V04.24 también pasó y Issue #23 quedó cerrado el 06/10. |
 | **P0.4C — Invitados / identidad / recuperación** | V04.29 / 04.29-h2 fue **PASS CENTRAL en Staging**, pero el **QA humano del 04/10** abrió la ronda **V04.30 / 04.30-h1** (B1/B2/B3 + UX de recuperados, `NO PARTICIPÉ`, gate de 5 pendientes). **Implementada y probada en local (commit `b2df2b3`); migración `20261004100000` aplicada y B1/B2/B3 verificados en Staging por Central; C1/C2 corregidos en 04.30-h2; gate final Central PASS; pendiente únicamente QA humano corto.** Ver `Implementacion/Pre_Production/125_Resultado_Correcciones_QA_Invitados_04OCT.md` (incluye DECISIONES ABIERTAS). | **Ronda post QA humano V04.31 / 04.31-h1 (05/10): implementada y probada en local; migración `20261005100000` pendiente de aplicar en Staging, Edge `get-match-intelligence` a redeployar, gate Central y QA humano mínimo** (informe `127_Resultado_Post_QA_Humano_V0431_05OCT.md`).
 | **P0.5 — Hardening / salida** | Pre-Bloque 9, 9A, 9B, **G1 y G2 CERRADOS**. Después de los dos QA residuales anteriores, quedan **G3** (autorización explícita + creación/configuración de Production) y **G4** (plan/región/retención/backups/restauración real de Production). |
 
@@ -36,9 +36,9 @@
 ### Orden real siguiente
 
 1. QA breve de Invitados por uso exploratorio de Sebastián (no reabre el gate técnico; solo buscar fricciones reales).
-2. Cerrar los dos residuales de QA pre-Production que todavía carecen de evidencia formal: P0.1/P0.1B integrado y Issue #23 de Grupos.
-3. Recién después pedir decisión/autorización de **G3/G4** y completar los datos legales que dependen de la Production real.
-4. Crear Production limpia y hacer smoke inicial solo con Sebastián antes de invitar a terceros.
+2. **R1 y R2 ya están cerrados.** No repetirlos salvo regresión concreta.
+3. Pedir decisión/autorización explícita de **G3** y, si se autoriza, crear/configurar Production limpia, resolver origen estable, assets de emails y dependencias de repo privado según la secuencia 137.
+4. Completar G4/datos legales dependientes de la Production real y hacer smoke inicial solo con Sebastián antes de invitar a terceros.
 
 
 ---
@@ -63,7 +63,7 @@ El trabajo que sigue no es “agregar funciones”: es **terminar la experiencia
 
 ## P0.1 — Completar la implementación de Estado Cero y progresión temprana
 
-**Estado P0.1 al 24/09/2026:** IMPLEMENTADO + backend necesario validado en Staging. Pendiente únicamente QA visual/funcional real de navegador antes de marcar cierre final.
+**Estado P0.1 al 06/10/2026:** **CERRADO EN STAGING / PASS CENTRAL.** La implementación ya estaba hecha; el cierre formal se completó con evidencia real de una cuenta con 0 partidos y otra con 1 partido oficial, más el QA humano previo de Mi Perfil/Perfil público. Ver `Implementacion/Pre_Production/146_Cierre_R1_Estado_Cero_Primer_Partido_06OCT.md`.
 
 **Fuente maestra:** `Experiencia_Inicial.md`.
 
@@ -91,19 +91,19 @@ Debe ocultar completamente:
 - Intelligence sin evidencia;
 - tarjetas grises/locks/placeholders.
 
-**Gap verificado en código actual:** Home todavía renderiza, entre otros, `Sin partidos considerados`, `Sin racha en curso`, `Sin datos suficientes` y widgets vacíos.
+**Cierre vigente:** el render actual oculta Actividad, Efectividad y los widgets de estadísticas con 0 partidos oficiales; Último partido reutiliza el estado `TU PRIMER PARTIDO` y TU MOMENTO usa copy específico de inicio.
 
 ### Mi Perfil con 0 partidos oficiales
 
 Debe mostrar identidad, `@usuario`, Nivel inicial y estado de calibración, pero ocultar módulos estadísticos sin evidencia.
 
-**Gap verificado:** el render vigente todavía pinta métricas/valores `0` / `—` en varias superficies.
+**Cierre vigente:** `#profile-kpis` queda oculto con 0 partidos oficiales y la Evolución real responde `available=false/no_results`; identidad + Nivel inicial permanecen visibles.
 
 ### Perfil público con 0 partidos oficiales
 
 Debe mostrar identidad + Nivel/calibración y ocultar rendimiento inexistente.
 
-**Gap verificado:** el camino vigente puede revelar tarjetas de efectividad/rendimiento y valores `0` / `—` aunque no existan partidos oficiales.
+**Cierre vigente:** `get_public_profile` devuelve `matches_played=0` para la cuenta Estado Cero y el frontend oculta Efectividad/rendimiento hasta que `matches_played>0`.
 
 ### Alcance
 
@@ -116,7 +116,7 @@ No crear una Home nueva.
 
 ## P0.1B — Ranking con participación automática
 
-**Estado P0.1B al 24/09/2026:** IMPLEMENTADO Y VALIDADO EN STAGING. Falta solo comprobar visualmente en la QA integrada que la pregunta de opt-in no reaparezca.
+**Estado P0.1B al 06/10/2026:** **CERRADO / PASS CENTRAL.** La QA humana de Ranking no mostró ningún opt-in legacy; `rankingGateMissingFields()` solo considera rama/localidad y el backend no devuelve `ranking_opt_in_false` como bloqueo para una cuenta legacy con el campo en false.
 
 **Fuentes maestras:** `Ranking_BRAMU.md` + `Experiencia_Inicial.md`.
 

@@ -1240,3 +1240,46 @@ QA humano real:
 La forma todavía “serruchada” de algunos tramos de Evolución refleja oscilaciones reales muy frecuentes de la serie. No se aplica suavizado de tendencia que deje de pasar por cada valor, para no convertir evidencia en aproximación visual.
 
 Sin cambios en main, Production ni BRAMUlive.
+
+
+---
+
+## Pre-Production R1 — Estado Cero / primer partido / Perfil progresivo / Ranking automático — CIERRE (06/10/2026)
+
+**Estado: CERRADO / PASS Central en Staging.**
+
+No se pidió un nuevo login manual. Se cerró con evidencia combinada de Staging real + frontend vigente + QA humano previo.
+
+### Cuenta 0 partidos real: `sebastian_vila`
+
+- registrada y autenticable;
+- `level_states.status = CALIBRANDO`;
+- `rated_matches = 0`, `distinct_opponents = 0`;
+- `get_my_matches(50,false) = []`;
+- `get_my_level_evolution() = { available:false, reason:'no_results' }`;
+- `get_public_profile`: Nivel público 5.3, `matches_played=0`, `matches_won=0`;
+- `ranking_opt_in=false`, pero `get_my_ranking_position('local')` devuelve como bloqueos solo rama/localidad/Nivel no calibrado, **no** `ranking_opt_in_false`.
+
+### Cuenta con primer partido oficial real: `camilo_test`
+
+- exactamente 1 partido `validated`;
+- `rated_matches=1`, estado `CALIBRANDO`;
+- `get_my_matches` devuelve ese único partido oficial;
+- `get_public_profile`: `matches_played=1`, `matches_won=0`;
+- Evolución oficial disponible y anclada al estado real.
+
+### Frontend verificado
+
+- Home usa solo historial computable para métricas;
+- 0 partidos: Actividad y Efectividad ocultas; Racha/Partidos totales ocultos; Mejor compañero/Rival ocultos; Último partido se reemplaza por CTA `CARGAR MI PRIMER PARTIDO`; TU MOMENTO usa copy de inicio;
+- Historial 0 reutiliza la misma card de primer resultado;
+- Mi Perfil 0 oculta el bloque completo de KPIs;
+- Perfil público server-backed muestra Efectividad solo si `matches_played>0`;
+- desde el primer partido oficial aparecen Actividad/Efectividad/Racha+Total según reglas reales, sin desbloquear artificialmente compañero/rival;
+- gate de Ranking no pregunta participación: solo rama/localidad; al guardar, la participación queda automática.
+
+QA humano previo del 06/10 ya había confirmado Mi Perfil/Perfil público con datos reales y ausencia visual del opt-in viejo.
+
+Fuente completa: `docs/BRAMUlab/Implementacion/Pre_Production/146_Cierre_R1_Estado_Cero_Primer_Partido_06OCT.md`.
+
+Con R2/Issue #23 también cerrado, no quedan residuales R1/R2 antes del gate de autorización G3.
