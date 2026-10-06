@@ -1016,3 +1016,56 @@ test('V04.35 selección: caso del QA — el mejor compañero histórico que NO j
   const forced = PR.renderIntelligence(fakeDecisionFor('companero_mejor_balance', ev.candidate.claim), history2, PR.emptyMemory());
   assert.match(forced.principal.body, /ganaste 5 de 5 partidos registrados\./);
 });
+
+/* ------------------------------------------------------------------ */
+/* V04.35 (addendum): concordancia singular/plural de victorias/derrotas */
+/* ------------------------------------------------------------------ */
+
+test('singular/plural: ninguna plantilla produce "1 victorias" / "1 derrotas" (ni "N victoria" con N>1) para 0, 1 y plural', () => {
+  const all = (type, claim) => {
+    const out = PR.renderIntelligence(fakeDecisionFor(type, claim), [], PR.emptyMemory());
+    return [out.principal.title || '', out.principal.body || '', out.principal.why || ''].join(' | ');
+  };
+  const BAD = /\b1 (victorias|derrotas)\b|\b(0|[2-9]|\d{2,}) (victoria|derrota)\b(?!\s+(seguida|consecutiva))|\b(0|[2-9]|\d{2,}) (victoria|derrota) (seguida|consecutiva)\b/;
+  const cases = [];
+  for (const [w, l] of [[0, 3], [1, 2], [2, 1], [3, 0], [8, 3], [1, 1]]) {
+    cases.push(['companero_balance', { companionPlayerId: PARTNER, wins: w, losses: l }]);
+    cases.push(['rival_balance', { scopeKey: RIVAL_1, wins: w, losses: l }]);
+    cases.push(['balance_perdiendo_primer_set', { wins: w, losses: l }]);
+    cases.push(['contexto_dificultad_previa_rival', { rivalPlayerId: RIVAL_1, priorWins: w, priorLosses: l, neverWonBefore: true }]);
+    cases.push(['forma_reciente', { current: { sampleSize: w + l, wins: w, losses: l }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } }]);
+  }
+  for (const n of [1, 2, 5]) {
+    cases.push(['racha_de_victorias', { length: n }]);
+    cases.push(['racha_de_derrotas', { length: n }]);
+    cases.push(['hito_de_victorias', { winCount: n }]);
+    cases.push(['racha_cortada', { previousType: 'win', previousLength: n }]);
+    cases.push(['racha_cortada', { previousType: 'loss', previousLength: n }]);
+    cases.push(['racha_nuevo_record_personal', { type: 'win', length: n }]);
+    cases.push(['racha_iguala_record_personal', { type: 'loss', length: n }]);
+    cases.push(['rival_primer_triunfo_tras_derrotas', { scopeKey: RIVAL_1, priorLosses: n }]);
+  }
+  cases.forEach(([type, claim]) => {
+    let text; try { text = all(type, claim); } catch (e) { return; } // plantilla no registrada con ese nombre en este alcance: no aplica
+    assert.doesNotMatch(text, BAD, `${type} ${JSON.stringify(claim)} → ${text}`);
+  });
+  assert.ok(cases.length > 40);
+});
+
+test('singular/plural: los ejemplos reales del QA y las frases pedidas se redactan exactamente', () => {
+  const body = (type, claim) => PR.renderIntelligence(fakeDecisionFor(type, claim), [], PR.emptyMemory()).principal.body;
+  const variants = (type, claim) => { const outs = new Set(); for (let i = 0; i < 12; i++) { try { const m = PR.emptyMemory(); outs.add(PR.renderIntelligence(fakeDecisionFor(type, claim, ED.emptyMemory()), [], Object.assign(m, { recentTemplateIds: [`${type}:v${(i % 2) + 1}`] })).principal.body); } catch (e) { /* noop */ } } return [...outs]; };
+  const bals = [].concat(variants('companero_balance', { companionPlayerId: PARTNER, wins: 2, losses: 1 }), variants('companero_balance', { companionPlayerId: PARTNER, wins: 1, losses: 2 }));
+  assert.ok(bals.some((b) => /2 victorias y 1 derrota\b/.test(b)) || bals.some((b) => /llevás 2 victorias en 3 partidos registrados\./.test(b)), JSON.stringify(bals));
+  assert.ok(bals.some((b) => /1 victoria y 2 derrotas\b/.test(b)) || bals.some((b) => /llevás 1 victoria en 3 partidos registrados\./.test(b)), JSON.stringify(bals));
+  assert.ok(!bals.some((b) => /1 victorias|1 derrotas/.test(b)));
+  assert.match(body('companero_balance', { companionPlayerId: PARTNER, wins: 1, losses: 2 }), /1 victoria (y 2 derrotas|en 3 partidos registrados)/);
+  assert.match(body('companero_balance', { companionPlayerId: PARTNER, wins: 2, losses: 1 }), /2 victorias (y 1 derrota|en 3 partidos registrados)/);
+  assert.match(body('forma_reciente', { current: { sampleSize: 5, wins: 1, losses: 4 }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } }), /llevás 1 victoria y 4 derrotas\./);
+  assert.match(body('forma_reciente', { current: { sampleSize: 5, wins: 4, losses: 1 }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } }), /llevás 4 victorias y 1 derrota\./);
+  assert.match(body('forma_reciente', { current: { sampleSize: 5, wins: 5, losses: 0 }, previousWindow: { sampleSize: 5, wins: 2, losses: 3 } }), /5 victorias y 0 derrotas\./, 'cero va en plural');
+  assert.match(body('balance_perdiendo_primer_set', { wins: 1, losses: 3 }), /1 victoria y 3 derrotas\./);
+  assert.match(body('racha_de_victorias', { length: 1 }), /1 victoria seguida\./);
+  assert.match(body('racha_de_derrotas', { length: 3 }), /3 derrotas seguidas\./);
+  assert.match(body('companero_mejor_balance', { companionPlayerId: PARTNER, wins: 8, losses: 3, isUnique: true, tiedWith: [], comparedAgainst: 3 }), /ganaste 8 de 11 partidos registrados\./);
+});

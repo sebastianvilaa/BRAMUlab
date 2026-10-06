@@ -146,6 +146,11 @@
     return n === 1 ? `partido ${noun}` : `partidos ${noun}s`;
   }
 
+  /** V04.35 — cantidades con concordancia singular/plural correcta ("1 victoria", "2 victorias", "0 derrotas"): nunca "1 victorias". */
+  function countOf(n, singular, plural) { return `${n} ${n === 1 ? singular : plural}`; }
+  function winsLabel(n) { return countOf(n, 'victoria', 'victorias'); }
+  function lossesLabel(n) { return countOf(n, 'derrota', 'derrotas'); }
+
   function nameOr(resolveName, playerId, fallback) {
     return (playerId && resolveName(playerId)) || fallback;
   }
@@ -193,39 +198,40 @@
   });
   register('hito_de_victorias', {
     variants: [
-      { id: 'v1', title: (c) => `Victoria número ${c.winCount}`, body: (c, ctx) => `Llegaste a ${c.winCount} victorias en tus ${matchWord(ctx.officialScope, c.winCount)}.` },
-      { id: 'v2', title: (c) => `${c.winCount} victorias en tu historia`, body: (c, ctx) => `Esta victoria es la número ${c.winCount} de tu historia BRAMU.` },
+      { id: 'v1', title: (c) => `Victoria número ${c.winCount}`, body: (c, ctx) => `Llegaste a ${winsLabel(c.winCount)} en tus ${matchWord(ctx.officialScope, c.winCount)}.` },
+      { id: 'v2', title: (c) => `${winsLabel(c.winCount)} en tu historia`, body: (c, ctx) => `Esta victoria es la número ${c.winCount} de tu historia BRAMU.` },
     ],
     why: (claim, ctx) => `Se contaron tus victorias en ${matchWord(ctx.officialScope, 2)}, ordenadas por fecha jugada, hasta llegar a ${claim.winCount}.`,
   });
 
   // ---- Familia B: rachas ----
-  function streakNoun(type) { return type === 'win' ? 'victorias' : 'derrotas'; }
+  function streakLabel(n, type) { return type === 'win' ? winsLabel(n) : lossesLabel(n); }
+  function streakSeguidas(n, type) { return type === 'win' ? countOf(n, 'victoria seguida', 'victorias seguidas') : countOf(n, 'derrota seguida', 'derrotas seguidas'); }
   register('racha_de_victorias', {
     variants: [
-      { id: 'v1', title: (c) => `Racha de ${c.length} victorias`, body: (c) => `Llevás ${c.length} victorias seguidas.` },
-      { id: 'v2', title: (c) => `${c.length} triunfos seguidos`, body: (c) => `Encadenaste ${c.length} victorias consecutivas.` },
+      { id: 'v1', title: (c) => `Racha de ${winsLabel(c.length)}`, body: (c) => `Llevás ${countOf(c.length, 'victoria seguida', 'victorias seguidas')}.` },
+      { id: 'v2', title: (c) => `${c.length} triunfos seguidos`, body: (c) => `Encadenaste ${countOf(c.length, 'victoria consecutiva', 'victorias consecutivas')}.` },
     ],
     why: () => 'Se consideró tu racha de resultados consecutivos, ordenada por fecha jugada.',
   });
   register('racha_de_derrotas', {
-    variants: [{ id: 'v1', title: (c) => `Racha de ${c.length} derrotas`, body: (c) => `Llevás ${c.length} derrotas seguidas.` }],
+    variants: [{ id: 'v1', title: (c) => `Racha de ${lossesLabel(c.length)}`, body: (c) => `Llevás ${countOf(c.length, 'derrota seguida', 'derrotas seguidas')}.` }],
     why: () => 'Se consideró tu racha de resultados consecutivos, ordenada por fecha jugada.',
   });
   register('racha_cortada', {
     variants: [{
       id: 'v1',
       title: (c) => (c.previousType === 'win' ? 'Racha ganadora cortada' : 'Racha de derrotas cortada'),
-      body: (c) => `Este resultado terminó una racha de ${c.previousLength} ${streakNoun(c.previousType)} seguidas.`,
+      body: (c) => `Este resultado terminó una racha de ${streakSeguidas(c.previousLength, c.previousType)}.`,
     }],
     why: () => 'Se comparó el resultado de este partido contra la racha inmediatamente anterior.',
   });
   register('racha_nuevo_record_personal', {
-    variants: [{ id: 'v1', title: () => 'Nuevo récord de racha', body: (c) => `Tu racha de ${c.length} ${streakNoun(c.type)} es tu nuevo récord personal.` }],
+    variants: [{ id: 'v1', title: () => 'Nuevo récord de racha', body: (c) => `Tu racha de ${streakLabel(c.length, c.type)} es tu nuevo récord personal.` }],
     why: (claim, ctx) => `Se comparó contra los ${matchWord(ctx.officialScope, 2)} decididos de tu historial completo.`,
   });
   register('racha_iguala_record_personal', {
-    variants: [{ id: 'v1', title: () => 'Igualaste tu récord', body: (c) => `Tu racha de ${c.length} ${streakNoun(c.type)} iguala tu récord personal.` }],
+    variants: [{ id: 'v1', title: () => 'Igualaste tu récord', body: (c) => `Tu racha de ${streakLabel(c.length, c.type)} iguala tu récord personal.` }],
     why: (claim, ctx) => `Se comparó contra los ${matchWord(ctx.officialScope, 2)} decididos de tu historial completo.`,
   });
 
@@ -244,8 +250,8 @@
   });
   register('companero_balance', {
     variants: [
-      { id: 'v1', title: () => 'Balance con tu compañero', body: (c, ctx) => `Con ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')} llevás ${c.wins} victorias en ${c.wins + c.losses} ${matchWord(ctx.officialScope, c.wins + c.losses)}.` },
-      { id: 'v2', title: () => 'Tu historial con este compañero', body: (c, ctx) => `${c.wins} victorias y ${c.losses} derrotas junto a ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')}.` },
+      { id: 'v1', title: () => 'Balance con tu compañero', body: (c, ctx) => `Con ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')} llevás ${winsLabel(c.wins)} en ${c.wins + c.losses} ${matchWord(ctx.officialScope, c.wins + c.losses)}.` },
+      { id: 'v2', title: () => 'Tu historial con este compañero', body: (c, ctx) => `${winsLabel(c.wins)} y ${lossesLabel(c.losses)} junto a ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')}.` },
     ],
     why: (claim, ctx) => `Se consideraron los ${claim.wins + claim.losses} ${matchWord(ctx.officialScope, claim.wins + claim.losses)} decididos junto a este compañero.`,
   });
@@ -262,14 +268,14 @@
     });
     register(`${insightType}_balance`, {
       variants: [
-        { id: 'v1', title: () => `Balance frente a ${nounSingular}`, body: (c, ctx) => `Frente a ${scopeLabel(c, ctx)} llevás ${c.wins} victorias en ${c.wins + c.losses} ${matchWord(ctx.officialScope, c.wins + c.losses)}.` },
-        { id: 'v2', title: () => `Tu historial frente a ${nounSingular}`, body: (c, ctx) => `${c.wins} victorias y ${c.losses} derrotas frente a ${scopeLabel(c, ctx)}.` },
+        { id: 'v1', title: () => `Balance frente a ${nounSingular}`, body: (c, ctx) => `Frente a ${scopeLabel(c, ctx)} llevás ${winsLabel(c.wins)} en ${c.wins + c.losses} ${matchWord(ctx.officialScope, c.wins + c.losses)}.` },
+        { id: 'v2', title: () => `Tu historial frente a ${nounSingular}`, body: (c, ctx) => `${winsLabel(c.wins)} y ${lossesLabel(c.losses)} frente a ${scopeLabel(c, ctx)}.` },
       ],
       why: (claim, ctx) => `Se consideraron los ${claim.wins + claim.losses} ${matchWord(ctx.officialScope, claim.wins + claim.losses)} decididos en este alcance.`,
     });
     register(`${insightType}_primer_triunfo_tras_derrotas`, {
-      variants: [{ id: 'v1', title: () => `Primer triunfo frente a ${nounSingular}`, body: (c, ctx) => `Ganaste después de ${c.priorLosses} derrotas seguidas frente a ${scopeLabel(c, ctx)}.` }],
-      why: (claim) => `Se revisaron las ${claim.priorLosses} derrotas inmediatamente anteriores en este alcance, sin ninguna victoria entre ellas.`,
+      variants: [{ id: 'v1', title: () => `Primer triunfo frente a ${nounSingular}`, body: (c, ctx) => `Ganaste después de ${countOf(c.priorLosses, 'derrota seguida', 'derrotas seguidas')} frente a ${scopeLabel(c, ctx)}.` }],
+      why: (claim) => `${claim.priorLosses === 1 ? 'Se revisó la derrota inmediatamente anterior' : `Se revisaron las ${claim.priorLosses} derrotas inmediatamente anteriores`} en este alcance, sin ninguna victoria entre ellas.`,
     });
   }
   rivalGroup('rival', (c, ctx) => nameOr(ctx.resolveName, c.scopeKey, 'ese rival'), 'un rival');
@@ -289,14 +295,14 @@
     variants: [{
       id: 'v1',
       title: () => 'Contexto frente a este rival',
-      body: (c, ctx) => `Antes de este partido no le habías ganado a ${nameOr(ctx.resolveName, c.rivalPlayerId, 'este rival')}: ${c.priorWins} victorias en ${c.priorWins + c.priorLosses} ${matchWord(ctx.officialScope, c.priorWins + c.priorLosses)}.`,
+      body: (c, ctx) => `Antes de este partido no le habías ganado a ${nameOr(ctx.resolveName, c.rivalPlayerId, 'este rival')}: ${winsLabel(c.priorWins)} en ${c.priorWins + c.priorLosses} ${matchWord(ctx.officialScope, c.priorWins + c.priorLosses)}.`,
     }],
-    why: (claim, ctx) => `Antes de este partido, tu balance frente a este rival era ${claim.priorWins} victorias y ${claim.priorLosses} derrotas.`,
+    why: (claim, ctx) => `Antes de este partido, tu balance frente a este rival era ${winsLabel(claim.priorWins)} y ${lossesLabel(claim.priorLosses)}.`,
   });
 
   // ---- Familia C/F: forma, score, patrón ----
   register('forma_reciente', {
-    variants: [{ id: 'v1', title: () => 'Tu forma reciente', body: (c) => `En tus últimos ${c.current.sampleSize} partidos llevás ${c.current.wins} victorias y ${c.current.losses} derrotas.` }],
+    variants: [{ id: 'v1', title: () => 'Tu forma reciente', body: (c) => `En tus últimos ${c.current.sampleSize} partidos llevás ${winsLabel(c.current.wins)} y ${lossesLabel(c.current.losses)}.` }],
     // D05 (Revisión Central Fase D): con exactamente 5 partidos decididos, Fase B/C ya permiten
     // la PRIMERA lectura válida de forma (`RECENT_FORM_MIN_SAMPLE=5`), pero la ventana previa
     // todavía no llega a 5 partidos comparables (`previousWindow.sampleSize` da 4, nunca menos,
@@ -318,7 +324,7 @@
     why: () => 'Se comparó el margen de este partido contra tu historial de partidos de formato comparable.',
   });
   register('balance_perdiendo_primer_set', {
-    variants: [{ id: 'v1', title: () => 'Perdiendo el primer set', body: (c) => `Cuando perdés el primer set, tu balance es ${c.wins} victorias y ${c.losses} derrotas.` }],
+    variants: [{ id: 'v1', title: () => 'Perdiendo el primer set', body: (c) => `Cuando perdés el primer set, tu balance es ${winsLabel(c.wins)} y ${lossesLabel(c.losses)}.` }],
     why: () => 'Se consideraron los partidos en los que perdiste el primer set.',
   });
   register('reversion_tras_perder_primer_set', {
