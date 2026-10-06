@@ -132,3 +132,21 @@ No hace falta repetir escenarios de bloqueo con una segunda cuenta: ya quedaron 
 ### Ajuste visual QA h2
 
 QA humano confirmó el modal de `Anular carga` y detectó que el CTA suelto se percibía débil/inconsistente. Decisión de producto: `Anular carga` usa el **mismo tratamiento visual outline rojo** de `Reportar un error`, manteniéndose inmediatamente debajo. Cambio cosmético únicamente; no altera elegibilidad ni backend. Bundle técnico: `04.36-h2`.
+
+
+---
+
+## 8. Cierre humano final — 06/10/2026
+
+**V04.36 queda CERRADA EN STAGING / PASS CENTRAL.**
+
+QA humano real de Sebastián:
+- logo/identidad nueva visible correctamente en la app;
+- `Anular carga` aparece únicamente donde corresponde, debajo de `Reportar un error`;
+- modal `¿Anular esta carga?` + copy + acciones `Cancelar / Anular carga`: aprobado;
+- ajuste `04.36-h2`: `Anular carga` con el mismo tratamiento outline rojo de `Reportar un error`: confirmado visualmente en Historial;
+- no fue necesario anular un partido real: la ejecución completa, idempotencia, invisibilidad y reglas negativas ya habían sido verificadas por tests + Postgres Staging real.
+
+Durante el QA se detectó además un residuo de datos de prueba de Invitados/Identidad: una recuperación falsa `Bruno → seba_qa`. Central la revirtió en Staging y verificó que `seba_qa` quedó con 0 recuperaciones activas y que el slot del partido volvió a apuntar a la provisional Bruno. Esto fue limpieza de fixture/QA, no cambio de producto.
+
+No queda ninguna acción manual pendiente de V04.36. Próximo gate general: residuales R1 (P0.1/P0.1B integrado) y R2 (QA humana final de Grupos) del Issue #28.

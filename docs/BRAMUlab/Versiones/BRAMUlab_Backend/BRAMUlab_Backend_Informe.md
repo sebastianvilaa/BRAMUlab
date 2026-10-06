@@ -1183,3 +1183,18 @@ Pendiente único para cierre de V04.36: QA humano dirigido de marca + flujo exit
 ### V04.36-h2 — ajuste visual posterior al QA
 
 Sin cambios de backend. `Anular carga` conserva el contrato ya verificado y pasa a usar el mismo tratamiento visual outline rojo de `Reportar un error`. Bundle técnico: `04.36-h2`.
+
+
+---
+
+## V04.36 — cierre humano final (06/10/2026)
+
+**Estado: CERRADO / PASS Central en Staging sobre bundle `04.36-h2`.**
+
+QA visual/funcional humano:
+- identidad nueva visible;
+- `Anular carga` en el Resumen elegible;
+- modal/copy aprobado;
+- ajuste h2 con mismo tratamiento outline rojo que `Reportar un error` confirmado.
+
+La ejecución destructiva sobre un partido real no se repitió porque backend, idempotencia, ACL, invisibilidad y efectos deportivos ya habían pasado tests y Postgres Staging real. V04.36 no deja gate pendiente.
