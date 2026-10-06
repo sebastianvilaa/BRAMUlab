@@ -1,4 +1,4 @@
-// BRAMUlab V04.37 / 04.37-h1 — Hardening de exposición/IP (handoff 138 §5.4 + hallazgo Central de Issue #28).
+// BRAMUlab V04.37 / 04.37-h2 — Hardening de exposición/IP (handoff 138 §5.4 + hallazgo Central de Issue #28).
 // Qué prueba: (1) el navegador ya no recibe el motor dinámico de Nivel; (2) `level-public.js` no puede divergir de `level.js`;
 // (3) el motor sigue disponible para server/Edge/tests sin cambios; (4) `dist/` = solo allowlist, sin comentarios internos;
 // (5) el stripper no rompe código; (6) logo de emails configurable sin cambiar el default; (7) supabase-js fijado con SRI.
@@ -57,8 +57,8 @@ test('A1) index.html ya no carga level.js / level-context.js / match-level-engin
 test('A2) el SW tampoco precachea el motor: CORE_ASSETS tiene level-public.js y level-calibration.js, no level.js ni level-context.js', () => {
   const sw = read('sw.js');
   const block = sw.slice(sw.indexOf('CORE_ASSETS = ['), sw.indexOf('];', sw.indexOf('CORE_ASSETS = [')));
-  assert.match(block, /'\.\/level-public\.js\?v=04\.37-h1'/);
-  assert.match(block, /'\.\/level-calibration\.js\?v=04\.37-h1'/);
+  assert.match(block, /'\.\/level-public\.js\?v=04\.37-h2'/);
+  assert.match(block, /'\.\/level-calibration\.js\?v=04\.37-h2'/);
   assert.doesNotMatch(block, /level\.js|level-context\.js|match-level-engine/);
 });
 
@@ -177,14 +177,14 @@ test('B4) todo JS de dist/ es sintácticamente válido y todo lo que index.html/
 test('B5) versionado coherente dentro de dist/: store.js = version.json = CACHE_NAME = ?v= de index.html y CORE_ASSETS', () => {
   const d = (f) => fs.readFileSync(path.join(distDir, f), 'utf8');
   const ver = JSON.parse(d('version.json'));
-  assert.deepEqual(ver, { version: 'BRAMUlab V04.37', bundle: '04.37-h1' });
-  assert.match(d('store.js'), /BUNDLE_VERSION = '04\.37-h1'/);
+  assert.deepEqual(ver, { version: 'BRAMUlab V04.37', bundle: '04.37-h2' });
+  assert.match(d('store.js'), /BUNDLE_VERSION = '04\.37-h2'/);
   assert.match(d('store.js'), /APP_VERSION = 'BRAMUlab V04\.37'/);
-  assert.match(d('sw.js'), /CACHE_NAME = 'bramulab-v04-37-h1'/);
+  assert.match(d('sw.js'), /CACHE_NAME = 'bramulab-v04-37-h2'/);
   const versions = new Set([...d('index.html').matchAll(/\?v=([0-9.]+-h\d+)/g)].map((m) => m[1]));
   const swV = new Set([...d('sw.js').matchAll(/\?v=([0-9.]+-h\d+)/g)].map((m) => m[1]));
   const manV = new Set([...d('manifest.webmanifest').matchAll(/\?v=([0-9.]+-h\d+)/g)].map((m) => m[1]));
-  for (const s of [versions, swV, manV]) assert.deepEqual([...s], ['04.37-h1']);
+  for (const s of [versions, swV, manV]) assert.deepEqual([...s], ['04.37-h2']);
   assert.equal(JSON.stringify(Object.keys(ver)), '["version","bundle"]');
 });
 

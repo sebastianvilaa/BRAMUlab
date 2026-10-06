@@ -10359,7 +10359,7 @@
       : '';
     return `<button type="button" class="group-table__row ranking-row${entry.isMe ? ' is-me' : ''}" data-name="${escapeHtml(entry.name)}"${playerIdAttr}>
       ${positionHTML}
-      ${buildGroupAvatarHTML(entry.name)}
+      ${buildRankingAvatarHTML(entry.name, entry.playerId)}
       <span class="group-table__info">
         <span class="group-table__name">${escapeHtml(entry.name)}</span>
         <span class="group-table__handle ranking-row__handle">${escapeHtml(handle)}</span>
@@ -10395,7 +10395,7 @@
     const playerIdAttr = p.playerId ? ` data-player-id="${escapeHtml(p.playerId)}"` : '';
     return `<button type="button" class="group-table__row ranking-row" data-name="${escapeHtml(p.name)}"${playerIdAttr}>
       <span class="group-table__position ranking-row__position--dash" aria-hidden="true">—</span>
-      ${buildGroupAvatarHTML(p.name)}
+      ${buildRankingAvatarHTML(p.name, p.playerId)}
       <span class="group-table__info">
         <span class="group-table__name">${escapeHtml(p.name)}</span>
         <span class="group-table__handle ranking-row__handle">${escapeHtml(handle)}</span>
@@ -10410,7 +10410,59 @@
    *  abre MI PERFIL, cualquier otra abre el Perfil público existente — nunca una ficha nueva.
    *  V03.5.1 (§10) — origen 'ranking' para que el back de Mi Perfil vuelva acá. El ícono de
    *  "ocultar" corta la propagación para no disparar también el click de la fila entera. */
+  /* ------------------------------------------------------------------ */
+  /* V04.37-h2 — avatares reales en Ranking server-backed.
+   *  Las filas de Ranking vienen por `playerId` (get_ranking_classification/get_ranking_network) y NO traen foto. Antes llamaban
+   *  `buildGroupAvatarHTML(name)` sin identidad (siempre iniciales). Ahora la foto se resuelve por `playerId` con UN batch
+   *  (`Auth.getPlayersCompact`, mismo contrato que Grupos/Compañeros) hacia un cache propio — nunca N+1, y sin depender de haber
+   *  visitado Mis Grupos. Sin foto real → iniciales (fallback real). No toca posición, Nivel, movimiento ni filtros. */
+  /* ------------------------------------------------------------------ */
+  const RANKING_AVATAR_TTL_MS = 30 * 60 * 1000; // las URLs firmadas duran 24 h: se refrescan mucho antes
+  const rankingAvatars = { ownerId: null, byId: new Map() }; // playerId -> { url|null, at }
+  let rankingAvatarResolving = false;
+  function rankingAvatarCache() {
+    if (rankingAvatars.ownerId !== currentUserId) { rankingAvatars.ownerId = currentUserId; rankingAvatars.byId = new Map(); }
+    return rankingAvatars.byId;
+  }
+  function rankingAvatarUrl(playerId) {
+    const hit = playerId ? rankingAvatarCache().get(playerId) : null;
+    return hit && hit.url && (Date.now() - hit.at) < RANKING_AVATAR_TTL_MS ? hit.url : null;
+  }
+  /** Avatar de una fila de Ranking: foto firmada real si el cache la tiene; si no, iniciales. */
+  function buildRankingAvatarHTML(name, playerId) {
+    const url = rankingAvatarUrl(playerId);
+    if (url) return `<span class="person-list__avatar person-list__avatar--photo"><img src="${escapeHtml(url)}" alt="" /></span>`;
+    return `<span class="person-list__avatar">${escapeHtml(playerInitials(name))}</span>`;
+  }
+  /** UN batch para todos los `playerId` de filas ya pintadas que no estén en cache (o vencidos); luego reemplaza SOLO el avatar de esas
+   *  filas en el DOM (nunca vuelve a renderizar la lista, así que no hay parpadeo ni se pisa búsqueda/paginación). */
+  async function resolveRankingAvatars() {
+    if (rankingAvatarResolving || !isServerBackedSession() || !Auth || !Auth.getPlayersCompact) return;
+    const cache = rankingAvatarCache();
+    const rows = $all('#ranking-list .ranking-row[data-player-id], #ranking-calibrando-list .ranking-row[data-player-id], #ranking-inactive-list .ranking-row[data-player-id]');
+    const now = Date.now();
+    const missing = Array.from(new Set(rows.map((r) => r.dataset.playerId).filter((id) => {
+      const hit = cache.get(id);
+      return !hit || (hit.url && (now - hit.at) >= RANKING_AVATAR_TTL_MS);
+    })));
+    if (missing.length) {
+      rankingAvatarResolving = true;
+      try {
+        const res = await Auth.getPlayersCompact(missing);
+        if (res && res.ok) missing.forEach((id) => { const c = res.players.get(id); cache.set(id, { url: c && c.avatarSignedUrl ? c.avatarSignedUrl : null, at: Date.now() }); });
+      } finally { rankingAvatarResolving = false; }
+    }
+    $all('#ranking-list .ranking-row[data-player-id], #ranking-calibrando-list .ranking-row[data-player-id], #ranking-inactive-list .ranking-row[data-player-id]').forEach((row) => {
+      const url = rankingAvatarUrl(row.dataset.playerId);
+      const av = row.querySelector('.person-list__avatar');
+      if (!url || !av || av.classList.contains('person-list__avatar--photo')) return;
+      av.outerHTML = buildRankingAvatarHTML(row.dataset.name, row.dataset.playerId);
+    });
+  }
+
   function wireRankingRowClicks(containerId) {
+    // V04.37-h2 — cada vez que se pinta una lista de Ranking se resuelven (en un solo batch) las fotos de sus `playerId`.
+    resolveRankingAvatars();
     $all(`#${containerId} .ranking-row`).forEach((btn) => {
       btn.addEventListener('click', () => {
         if (btn.classList.contains('is-me')) { openProfileScreen('mi-perfil', 'ranking'); return; }
@@ -13506,6 +13558,32 @@
    *  renderProfileEvolution) reemplaza la constante fija: el viewBox pasa a coincidir con el
    *  ancho renderizado real, así que la escala queda siempre ~1:1 y el texto no crece — el
    *  gráfico sí gana ancho real (más espacio entre puntos), la altura del viewBox no cambia. */
+  /** V04.37-h2 — trazo SUAVIZADO que pasa EXACTAMENTE por cada punto real y nunca se sale del rango de sus vecinos: spline cúbico de
+   *  Hermite con tangentes monotónicas (Fritsch–Carlson / PCHIP). No inventa máximos ni mínimos (sin overshoot); en tramos planos o
+   *  en un pico/valle real la tangente es 0. No cambia puntos, ejes ni datos: solo la forma del path. 2 puntos → recta. */
+  function buildSmoothLinePath(coords) {
+    const n = coords.length;
+    const f = (v) => v.toFixed(1);
+    if (n < 3) return 'M ' + coords.map(([x, y]) => `${f(x)},${f(y)}`).join(' L ');
+    const dx = []; const m = [];
+    for (let i = 0; i < n - 1; i += 1) { dx.push(coords[i + 1][0] - coords[i][0]); m.push((coords[i + 1][1] - coords[i][1]) / dx[i]); }
+    const t = new Array(n).fill(0);
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i += 1) t[i] = (m[i - 1] * m[i] <= 0) ? 0 : (2 * m[i - 1] * m[i]) / (m[i - 1] + m[i]);
+    // Fritsch–Carlson: limita las tangentes para garantizar monotonía por tramo (α²+β² ≤ 9).
+    for (let i = 0; i < n - 1; i += 1) {
+      if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+      const a = t[i] / m[i]; const b = t[i + 1] / m[i]; const h = Math.hypot(a, b);
+      if (h > 3) { const k = 3 / h; t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+    }
+    let d = `M ${f(coords[0][0])},${f(coords[0][1])}`;
+    for (let i = 0; i < n - 1; i += 1) {
+      const h = dx[i];
+      d += ` C ${f(coords[i][0] + h / 3)},${f(coords[i][1] + (t[i] * h) / 3)} ${f(coords[i + 1][0] - h / 3)},${f(coords[i + 1][1] - (t[i + 1] * h) / 3)} ${f(coords[i + 1][0])},${f(coords[i + 1][1])}`;
+    }
+    return d;
+  }
+
   function buildLevelEvolutionSvgHTML(evolution, chartWidth) {
     const points = evolution.points;
     if (!points.length) return '';
@@ -13550,7 +13628,7 @@
     }).join('');
 
     const coords = points.map((p, i) => [xAt(i), yAt(p.level)]);
-    const pathD = coords.length > 1 ? 'M ' + coords.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ') : '';
+    const pathD = coords.length > 1 ? buildSmoothLinePath(coords) : '';
     const lineHTML = pathD ? `<path d="${pathD}" class="evolution-chart__line" fill="none" />` : '';
 
     return `<svg viewBox="0 0 ${width} ${LEVEL_CHART_HEIGHT}" class="evolution-chart__svg" preserveAspectRatio="xMidYMid meet">${gridHTML}${xLabelsHTML}${lineHTML}</svg>`;

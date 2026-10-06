@@ -258,12 +258,12 @@ test('Intelligence · el insight de un partido pendiente aclara que puede cambia
   assert.match(appJs, /pueden cambiar cuando se valide/);
 });
 
-test('Versionado V04.30 / 04.37-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.37', bundle: '04.37-h1' });
+test('Versionado V04.30 / 04.37-h2 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.37', bundle: '04.37-h2' });
   assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.37'/);
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h1'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-37-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.37-h1/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h2'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-37-h2'/);
+  assert.match(indexHtml, /app\.js\?v=04\.37-h2/);
 });
 
 /* ================= C1 / C2 (gate Central) ================= */

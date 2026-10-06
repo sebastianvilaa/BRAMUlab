@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.37-h1') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.37-h2') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -2752,7 +2752,7 @@ input, select{ font-family: inherit; }
 .evolution-chart__grid{ stroke: rgba(244,247,242,0.08); stroke-width: 1; }
 /* V03.0.2 (§6) — referencias numéricas reales en Y (Nivel BRAMU) y fechas reales en X. */
 .evolution-chart__axis-label{ font-size: 9px; fill: var(--paper-faint); font-weight: 600; }
-.evolution-chart__line{ stroke: var(--brand-lime); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.evolution-chart__line{ stroke: var(--accent-cyan); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 /* V03.1 (§12) — "línea limpia, sin puntos, sin markers, sin tooltip por partido": se retiran
    .evolution-chart__dot* (círculos por punto + su pulso) y .evolution-detail (el texto que
    aparecía al tocar uno) — ninguno de los dos vuelve a emitirse desde buildLevelEvolutionSvgHTML/
@@ -3677,7 +3677,7 @@ input, select{ font-family: inherit; }
 .b6-banner--waiting{ border-color: var(--line); background: rgba(244,247,242,0.04); }
 .b6-banner__text{ font-size: 13px; color: var(--paper); line-height:1.4; margin:0; }
 .b6-action-block{ display:flex; flex-direction:column; gap: 8px; }
-/* V04.37-h1 — QA visual: "Anular carga" usa el MISMO tratamiento de botón outline rojo que "Reportar un error". */
+/* V04.37-h2 — QA visual: "Anular carga" usa el MISMO tratamiento de botón outline rojo que "Reportar un error". */
 .b6-annul-block{ display:flex; flex-direction:column; gap:8px; margin-top: 8px; }
 .b6-annul-block[hidden]{ display:none; }
 .b6-annul-btn{ width:100%; }

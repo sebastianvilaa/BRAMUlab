@@ -436,5 +436,5 @@ test('h2 · una corrección de origen duplicado no vence a los 3 días (cliente)
 test('h2 · matches.js y match-sync.js propagan pendingCorrectionOrigin desde get_my_matches y get_match_detail', () => {
   assert.match(read('matches.js'), /pendingCorrectionOrigin: row\.pending_correction_origin \|\| null/);
   assert.match(read('match-sync.js'), /pendingCorrectionOrigin: row\.pendingCorrectionOrigin \|\| null/);
-  assert.match(read('version.json'), /04\.37-h1/);
+  assert.match(read('version.json'), /04\.37-h2/);
 });
