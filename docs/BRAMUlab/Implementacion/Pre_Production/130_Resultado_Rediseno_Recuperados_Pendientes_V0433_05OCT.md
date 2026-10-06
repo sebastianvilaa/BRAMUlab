@@ -84,3 +84,23 @@ Migración **forward-only y aditiva** `supabase/migrations/20261005200000_v0433_
 5. `Historial > Pendientes`: secciones y copies; gate de 5 → validar uno → vuelve a 4.
 6. `Historial > Recuperados` visible + notificación abre Recuperados.
 7. Humo móvil de scroll/animación.
+
+
+## 8. Gate Central en Staging — 05/10/2026
+
+Central revisó la entrega y completó el backend pendiente sobre **Supabase Staging**:
+
+- migración `20261005200000_v0433_recuperados_pendientes.sql` aplicada con éxito;
+- migration history registra `v0433_recuperados_pendientes`;
+- verificación transaccional `verify-v0433-recuperados-pendientes.sql`: **PASS / V04.33 verify OK**;
+- verificados en Staging real:
+  - `provisional_claims.source_match_id`;
+  - `create_claim_link(uuid, uuid)`;
+  - `get_my_recent_recoveries(integer)`;
+  - trigger `player_identity_recoveries_notify_target`;
+  - constraint de notificaciones con `identity_recovered`.
+- deploy Vercel del commit funcional `3c7d80ad32ba4831aadc1b860dee7dde907706ee`: **SUCCESS**.
+
+**Gate técnico Central: PASS.** No se detectó un bloqueo técnico nuevo en la revisión. Resta únicamente el QA humano corto definido en §7; no repetir la batería histórica de Invitados.
+
+Production sigue prohibida.
