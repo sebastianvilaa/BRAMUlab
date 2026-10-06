@@ -115,3 +115,23 @@ Hecho (simple, sin dependencias nuevas): `index.html` carga `…/npm/@supabase/s
 1. **¿Separar también la lógica de recalibración/transición de `level-calibration.js` a un módulo server-only?** (§2) — ronda propia con paridad de `officialize-onboarding`.
 2. **¿Fijar `esm.sh` de las Edge Functions?** (§5) — acoplado a un redeploy de Edge.
 3. Las ya abiertas en 138: origen/dominio estable (§4), Pages y repo privado.
+
+
+## 10. Gate Central / QA real de Staging
+
+**CERRADO — PASS CENTRAL (06/10/2026).**
+
+Validación real sobre el alias protegido de Staging `bramulab-git-staging-bramu-lab.vercel.app`, con Sebastián autenticado en dos navegadores:
+
+- app principal carga normalmente en Chrome (Esteban) y Safari (Seba); versión visible V04.35;
+- `/version.json` devuelve `bundle: 04.35-h2`;
+- `/level.js` devuelve página inexistente / error: el motor dinámico ya no se sirve;
+- `/tests.html` devuelve página inexistente / error: el laboratorio ya no se publica;
+- `/api/health` responde `ok: true`, `environment: staging`, `supabase: reachable`;
+- `/robots.txt` devuelve `User-agent: *` + `Disallow: /`.
+
+La ausencia de otros archivos excluidos (`level-context.js`, `match-level-engine.js`, `vercel.json`, tests adicionales) queda cubierta por la allowlist de `dist/` y por los tests automáticos de esta ronda; no se repitieron manualmente rutas equivalentes para evitar QA redundante.
+
+Vercel confirmó además deployment `READY` del commit funcional `f3a2dc87fba317a59075e0915029069208151e50` sobre la rama `staging`.
+
+**Conclusión:** hardening 139 cerrado en Staging. No habilita Production ni autoriza todavía privatizar el repo; siguen pendientes las dependencias externas ya documentadas: origen público estable para logos/emails, GitHub Pages y verificación final de integraciones antes del cambio de visibilidad.
