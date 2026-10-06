@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.33-h1') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.34-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3625,6 +3625,10 @@ input, select{ font-family: inherit; }
   cursor:pointer; border: 1px solid var(--line); border-radius: var(--radius-card);
   background: var(--ink-soft); padding: 12px 14px; min-height: 2.8em;
 }
+/* V04.34 — altura CONSISTENTE: título 1 línea + cuerpo máx. 2 líneas con ellipsis; un copy largo no hace crecer la tarjeta (el detalle se ve al tocar). */
+.player-home-carousel-card--accionable, .player-home-carousel-card--correccion{ height: 84px; box-sizing: border-box; overflow: hidden; }
+.player-home-carousel-card--accionable .player-home-carousel-card__label, .player-home-carousel-card--correccion .player-home-carousel-card__label{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-home-carousel-card--accionable .player-home-carousel-card__text, .player-home-carousel-card--correccion .player-home-carousel-card__text{ display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (min-width: 480px){ .player-home-carousel-card{ flex-basis: 40%; } }
 /* V04.16 — UNA sola tarjeta en el carrusel => ancho completo (2+ conserva el asomo del carrusel). Más específico que los basis de arriba. */
 .player-home-carousel.player-home-carousel--single .player-home-carousel-card{ flex-basis: 100%; }
@@ -3717,9 +3721,15 @@ input, select{ font-family: inherit; }
 #b6-pre-compare{ margin-bottom: 12px; }
 #b6-pre-actions{ margin-bottom: 8px; }
 .b6-action-block--identity{
-  border: 1px solid rgba(255,91,97,0.35); background: rgba(255,91,97,0.06);
-  border-radius: var(--radius-control); padding: 10px 12px;
+  /* V04.34 — semántica de ATENCIÓN/pendiente (ámbar), no error grave (rojo); la acción es azul (revisar), no verde. */
+  border: 1px solid rgba(255,201,61,0.40); background: rgba(255,201,61,0.07);
+  border-radius: var(--radius-control); padding: 12px 14px;
 }
+.b6-identity__title{ margin: 0 0 4px; font-family: var(--font-display); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; color: var(--gold); text-align: center; }
+.b6-identity__text{ margin: 0 0 12px; font-size: 13px; line-height: 1.4; color: var(--paper); text-align: center; }
+.b6-identity-cta{ width: 100%; flex-direction: column; gap: 2px; text-transform: uppercase; letter-spacing: 0.03em; }
+.b6-identity-cta + .b6-identity-cta{ margin-top: 8px; }
+.b6-identity-cta small{ font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; opacity: .85; }
 /* Ronda UX 25/09 (Ronda 2, §7) — MEJORA: toda la tarjeta es tappable (antes solo RESOLVER) —
    cursor + área de toque completa, mismo criterio que .player-home-lastmatch/.history-item. */
 .b6-identity-row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; padding: 6px 0; cursor: pointer; }
@@ -4050,12 +4060,16 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .qv-card__state{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap: 6px 8px; margin-top: 10px; min-height: 22px; }
 .qv-card__state .history-item__badge{ white-space: nowrap; }
 .qv-card__hint{ margin: 8px 0 0; font-size: 12px; line-height: 1.4; color: var(--text-dim); }
-.qv-card__actions{ display:flex; gap: 8px; align-items: stretch; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-/* Acciones hermanas: misma altura/padding/baseline. Izquierda: REPORTAR UN ERROR (outline rojo, como en el Resumen); derecha: VALIDAR PARTIDO (verde). */
-.qv-card__actions > button{ flex:1 1 0; min-height: 48px; padding: 0 10px; margin: 0; font-size: 12px; line-height: 1.15; display:flex; align-items:center; justify-content:center; text-align:center; }
-.qv-card__actions--single > button{ flex-basis: 100%; }
-.qv-card__report{ letter-spacing: 0.02em; border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); border-radius: var(--radius-btn, 12px); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; cursor:pointer; }
-.qv-card__done{ width:100%; min-height: 48px; display:flex; align-items:center; justify-content:center; gap: 8px; border-radius: var(--radius-btn, 12px); font-size: 13px; font-weight: 800; letter-spacing: 0.05em; color: var(--brand-lime); background: rgba(149,255,25,0.10); animation: qv-done-in .22s ease; }
+.qv-card__actions{ margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.qv-card__actions.b6-correction-choices{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qv-card__actions--single{ display:grid; grid-template-columns: 1fr; }
+/* V04.34 — MISMO lenguaje que el Resumen (.pv-foot): clases `.b6-correction-choice*`, sentence case, 48px, 13px/700. Verde y rojo OUTLINE; el verde
+   macizo queda reservado al feedback transitorio `✓ PARTIDO VALIDADO` (.qv-card__done). */
+.qv-card__actions .b6-correction-choice{ width: 100%; min-height: 48px; font-size: 13px; font-weight: 700; opacity: 1; margin: 0; }
+.qv-card__actions .b6-correction-choice--report{ border: 1.5px solid var(--danger); color: var(--danger); background: rgba(255,91,97,0.10); }
+.b6-correction-choice--review{ border: 1.5px solid var(--accent-cyan); color: var(--accent-cyan); background: rgba(25,159,255,0.10); }
+.qv-card__done{ width:100%; min-height: 48px; display:flex; align-items:center; justify-content:center; gap: 8px; border-radius: 14px; font-size: 13px; font-weight: 800; letter-spacing: 0.05em; color: var(--ink-soft, #050A12); background: var(--brand-lime); animation: qv-done-in .22s ease; }
+.pv-foot > .qv-card__done{ margin-top: 0; }
 @keyframes qv-done-in{ from{ opacity:0; transform: scale(0.97); } to{ opacity:1; transform: none; } }
 @media (prefers-reduced-motion: reduce){ .qv-card, .qv-card__done{ transition:none; animation:none; } }
 
@@ -4070,30 +4084,40 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .pending-section__list{ display:flex; flex-direction:column; }
 
 /* Home: card PARTIDOS PENDIENTES (3 columnas, mismo patrón que RANKING BRAMU; icono de atención ámbar). */
-.pending-matches-card{ margin-top: 10px; }
+.pending-matches-card{ margin-top: 10px; border-color: rgba(255,201,61,0.35); }
+.pending-matches-card .pastilla__title{ color: var(--gold); }
 .pending-matches-card__icon{ width: 20px; height: 20px; flex:none; fill: none; stroke: var(--gold); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pending-matches-card__cols{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
 .pending-matches-card__col{ display:flex; flex-direction:column; gap: 2px; min-width: 0; }
+/* V04.34 — los tres son subtipos de UN mismo universo pendiente (no un semáforo): números en ámbar, labels en gris claro. */
 .pending-matches-card__label{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; white-space: nowrap; }
-.pending-matches-card__num{ font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--paper); font-variant-numeric: tabular-nums; }
-.pending-matches-card__num--validar{ color: var(--brand-lime); }
-.pending-matches-card__num--resolver{ color: var(--gold); }
+.pending-matches-card__num{ font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--gold); font-variant-numeric: tabular-nums; }
 
 /* "¿SOS X?" — el partido que ORIGINÓ la invitación, con identidad visual compacta de las dos parejas (sin cuatro fichas de perfil). */
 #invitation-confirm-overlay .overlay__card{ max-height: calc(100dvh - 32px); overflow-y: auto; }
 .invite-ctx{ background: var(--ink-soft); border-radius: 12px; padding: 12px; }
-.invite-ctx__meta{ margin: 0 0 10px; font-size: 12px; color: var(--text-dim); }
-.invite-ctx__teams{ display:flex; flex-direction:column; gap: 6px; }
-.invite-ctx__team{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.03); }
-.invite-ctx__vs{ align-self:center; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--paper-faint); text-transform: uppercase; }
-.invite-ctx__player{ display:flex; align-items:center; gap: 7px; min-width: 0; }
-.invite-ctx__avatar{ width: 26px; height: 26px; flex:none; border-radius: 50%; background: var(--surface-1); border: 1px solid var(--line-strong); object-fit: cover; display:flex; align-items:center; justify-content:center; font-size: 10px; font-weight: 800; color: var(--paper-dim); overflow:hidden; }
-.invite-ctx__who{ display:flex; flex-direction:column; min-width: 0; line-height: 1.2; }
-.invite-ctx__name{ font-size: 13px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
-.invite-ctx__name--invitee{ color: var(--gold); }
-.invite-ctx__handle{ font-size: 11px; color: var(--paper-faint); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
-.invite-ctx__score{ margin: 10px 0 0; font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--paper); letter-spacing: 0.02em; text-align: center; }
-.invite-ctx__more{ margin: 8px 0 0; font-size: 12px; color: var(--text-dim); text-align: center; }
+.invite-ctx__meta{ margin: 0 0 10px; font-size: 12px; color: var(--text-dim); text-align: left; }
+.invite-ctx__more{ margin: 10px 0 0; font-size: 12px; color: var(--text-dim); text-align: center; }
+/* V04.34 — MINI-PARTIDO compacto (invitación `¿SOS X?` y posible duplicado): dos filas de pareja (mía/la invitada primero, verde; rival segunda, azul),
+   jugadores apilados con avatar chico + nombre + @usuario secundario, score por set alineado a la derecha como el Resumen. Soporta 3 sets y nombres largos. */
+.mini-match{ display:flex; flex-direction:column; text-align:left; }
+.mini-match__team{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 10px; padding: 6px 0; }
+.mini-match__team--first{ --mm-color: var(--brand-lime); }
+.mini-match__team--second{ --mm-color: var(--accent-cyan); }
+.mini-match__players{ display:flex; flex-direction:column; gap: 6px; min-width: 0; padding-left: 8px; border-left: 3px solid var(--mm-color); }
+.mini-match__player{ display:flex; align-items:center; gap: 8px; min-width: 0; }
+.mini-match__avatar{ width: 22px; height: 22px; flex:none; border-radius: 50%; background: var(--surface-1); border: 1px solid var(--line-strong); object-fit: cover; display:flex; align-items:center; justify-content:center; font-size: 9px; font-weight: 800; color: var(--paper-dim); overflow:hidden; }
+.mini-match__who{ display:flex; flex-direction:column; min-width: 0; line-height: 1.15; }
+.mini-match__name{ font-size: 13px; font-weight: 700; color: var(--mm-color); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.mini-match__name--invitee{ text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
+.mini-match__handle{ font-size: 10.5px; color: var(--paper-faint); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.mini-match__sets{ display:flex; gap: 6px; align-items:center; }
+.mini-match__set{ min-width: 20px; text-align:center; font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.mini-match__set--win{ color: var(--paper); }
+.mini-match__divider{ height: 1px; background: var(--line); margin: 2px 0; }
+.dup-card .invite-ctx{ margin: 12px 0 14px; }
+.dup-meta{ margin: 0 0 8px; font-size: 12px; color: var(--text-dim); text-align:left; }
+#ambiguous-match-overlay .overlay__card{ max-height: calc(100dvh - 32px); overflow-y: auto; }
 
 /* V04.31 — disponibilidad de @usuario: ícono compacto asociado al campo (✓ verde / ✕ rojo) en vez de texto pegado a la línea. */
 .field__input.is-valid, .field__input.is-invalid{ padding-right: 40px; background-repeat: no-repeat; background-position: right 12px center; background-size: 20px 20px; }
@@ -4101,7 +4125,8 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .field__input.is-invalid{ background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23FF5B61' fill-opacity='0.18'/%3E%3Cpath d='M8.5 8.5l7 7M15.5 8.5l-7 7' stroke='%23FF5B61' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"); }
 
 /* V04.31 — aclaración de partido pendiente en Intelligence: misma jerarquía sutil que el subtítulo "Una lectura objetiva…" y más aire tras "+ POR QUÉ APARECEN ESTOS INSIGHTS". */
-.intelligence-frame--pending{ margin: 18px 0 0; }
+/* V04.34 — mismo tamaño/peso/color/itálica que el subtítulo `.intelligence-frame`: `.intelligence-text p` (14px, color pleno) ganaba por especificidad. */
+.intelligence-text p.intelligence-frame--pending, .intelligence-frame--pending{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); font-style: italic; font-weight: 400; margin: 22px 0 0; }
 
 /* V04.32 — "mi equipo en verde": si el usuario autenticado es Team B (orden canónico), el Resumen intercambia los COLORES de equipo. Solo presentación. */
 #view-analysis.team-mine-b{ --team-a: var(--accent-cyan); --team-a-deep: #0D6FCC; --team-b: var(--brand-lime); --team-b-deep: var(--brand-lime-deep); }

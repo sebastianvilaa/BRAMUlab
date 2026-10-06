@@ -351,7 +351,7 @@
   // que dependía del registro en vivo (configuración previa a un partido en vivo), separado
   // ahora a BRAMUlive. 'analysis'/'manual-load' siguen acá: las usa la carga de
   // partido propio ya jugado.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings'];
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'pending'];
 
   function showView(name) {
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
@@ -365,8 +365,8 @@
       'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding',
-      // V04.30 — partidos recuperados tras vincular una identidad.
-      'recovered']
+      // V04.30 — partidos recuperados tras vincular una identidad. V04.34 — pantalla propia de Partidos pendientes.
+      'recovered', 'pending']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     // L1 (V04.19) — fail-closed: el aviso "sin servidor" de Acceso se recalcula cada vez que se muestra.
     if (name === 'access') { refreshBackendUnavailableNotice(); renderAccessInvitationCard(); }
@@ -503,6 +503,7 @@
   // el usuario reabre y edita ANTES de que el servidor la haya aceptado genera una key nueva
   // (es, de verdad, un intento lógico distinto — 02_Analisis_Claude.md §5.5/§7).
   let manualSubmissionId = null;
+  let manualForceNewKey = null; // V04.34 — plantel (4 ids) para el que el usuario ya eligió explícitamente `ES OTRO PARTIDO` en el pre-check
   // localDraftId del outbox cuando se reabre un borrador todavía sync_pending/necesita_revision
   // para editarlo — null para una carga nueva o para un partido ya aceptado por el servidor.
   let manualOutboxDraftId = null;
@@ -1062,7 +1063,7 @@
       if (!slotEl || slotEl.dataset.slot === 'a1') return;
       openManualPlayerSheet(slotEl.dataset.slot);
     });
-    $('#manual-go-result-btn').addEventListener('click', goToManualResultStep);
+    $('#manual-go-result-btn').addEventListener('click', onManualGoResult);
   }
 
   /* ---- Instancia RESULTADO (V04.26) — el resumen ES el formulario ----
@@ -1087,6 +1088,53 @@
   function loadManualDraftFromSet(i) {
     const existing = manualSets[i];
     manualDraftSet = existing ? { a: existing.a, b: existing.b } : { a: undefined, b: undefined };
+  }
+
+  /** V04.34 — plantel actual (4 ids reales, en orden de slot) como clave: una decisión de pre-check solo vale para ESE plantel. */
+  function manualRosterKey() {
+    return ['a1', 'a2', 'b1', 'b2'].map((sl) => (manualPlayerIds[sl] && manualPlayerIds[sl].playerId) || '').join('|');
+  }
+  /** V04.34 — PRE-CHECK temprano de posible duplicado, ANTES de que el usuario cargue el resultado: con los 4 jugadores/parejas ya elegidos se
+   *  busca (en lo que ya ve el usuario) un partido vivo con la misma composición en la ventana temporal. Sin candidato sigue normal; con
+   *  candidato abre la decisión `ES ESTE PARTIDO` / `ES OTRO PARTIDO`. Es UX anticipada: el gate final de `create_or_attach_match` NO se quita
+   *  (carreras: dos personas cargando a la vez, partido que aparece después del pre-check). Devuelve true si se puede seguir al resultado. */
+  async function manualDuplicatePrecheck() {
+    if (!manualServerBacked || manualEditingMatchId || !MSync || !Matches || !isServerBackedSession()) return true;
+    const ids = ['a1', 'a2', 'b1', 'b2'].map((sl) => manualPlayerIds[sl] && manualPlayerIds[sl].playerId);
+    if (ids.some((id) => !id)) return true;
+    if (manualForceNewKey && manualForceNewKey === manualRosterKey()) return true; // ya decidió "es otro partido" para este plantel
+    const built = ML.buildPlayedAtFromLocalFields($('#manual-date-input').value, $('#manual-time-input').value);
+    if (!built) return true;
+    // Caché fresca si hay red (acotada: nunca traba la carga); sin red se usa lo último conocido.
+    try { await Promise.race([refreshServerMatches(), qvSleep(1500)]); } catch (e) { /* offline */ }
+    const cands = MSync.findPossibleDuplicateCandidates(Store.loadServerMatchesCache().matches || [], {
+      pair1PlayerIds: [ids[0], ids[1]], pair2PlayerIds: [ids[2], ids[3]],
+      playedAtIso: built.iso, playedAtTimeKnown: built.timeKnown, formatId: manualSelectedFormatId,
+    }, new Date());
+    if (!cands.length) return true;
+    return new Promise((resolve) => {
+      openDuplicateDecisionModal({
+        existingMatchId: cands[0].matchId,
+        onSame: async () => {
+          // ES ESTE PARTIDO: se abre el existente (validar si me toca, ESPERANDO VALIDACIÓN si ya hice mi parte, o simplemente verlo si ya está
+          // validado). No se inventa una corrección ni se pierde nada: la carga nueva se descarta porque ya existe el encuentro.
+          closeAmbiguousMatchModal();
+          discardManualDraft();
+          resolve(false);
+          await openServerMatchResumen(cands[0].matchId);
+        },
+        onOther: () => { closeAmbiguousMatchModal(); manualForceNewKey = manualRosterKey(); resolve(true); },
+        onCancel: () => { closeAmbiguousMatchModal(); resolve(false); },
+      });
+    });
+  }
+  async function onManualGoResult() {
+    if (!manualRosterComplete()) return;
+    const btn = $('#manual-go-result-btn');
+    if (btn.dataset.busy === '1') return;
+    btn.dataset.busy = '1';
+    try { if (!(await manualDuplicatePrecheck())) return; } finally { btn.dataset.busy = '0'; }
+    goToManualResultStep();
   }
 
   /** Jugadores → Resultado. NO se invoca solo: solo el toque explícito en CARGAR RESULTADO. Si ya había una carga en
@@ -1752,7 +1800,7 @@
   }
   function showPendingLimitGate(state, onSkip) {
     const n = state.count;
-    const goToPending = () => openHistoryScreen('player-home', null, 'pendientes');
+    const goToPending = () => openPendingScreen();
     if (state.level === 'block') {
       confirmAction(
         'Resolvé al menos uno para continuar',
@@ -1837,6 +1885,7 @@
       manualPlayerIds = { a1: { playerId: currentUserId, kind: 'registered' }, a2: null, b1: null, b2: null };
       manualOutboxDraftId = null;
       manualSubmissionId = Matches.genUuid();
+      manualForceNewKey = null;
     } else {
       manualPlayerIds = { a1: null, a2: null, b1: null, b2: null };
       manualOutboxDraftId = null;
@@ -2062,6 +2111,9 @@
       locationLat: location && Number.isFinite(location.lat) ? location.lat : null,
       locationLng: location && Number.isFinite(location.lng) ? location.lng : null,
     };
+    // V04.34 — el usuario ya respondió `ES OTRO PARTIDO` en el pre-check para ESTE plantel: se envía como desambiguación explícita, y el servidor
+    // persiste esa decisión (el par no reaparece como duplicado tras un claim).
+    if (manualForceNewKey && manualForceNewKey === manualRosterKey()) payload.disambiguationForceNew = true;
     const participantNames = {};
     ids.forEach((id, i) => { participantNames[id] = [manualPlayers.a1, manualPlayers.a2, manualPlayers.b1, manualPlayers.b2][i]; });
 
@@ -2210,9 +2262,8 @@
       if (confirmer && confirmer.name && confirmer.name !== loaderName) {
         statusClause = `Validado por ${confirmer.name}`;
       }
-    } else if (f.serverBacked && f.status === 'pending_validation') {
-      statusClause = f.isActionMine ? 'Por validar' : 'Esperando validación';
     }
+    // V04.34 — un partido pendiente NO repite su estado en la línea meta: ya lo dice el título principal (PARTIDO POR VALIDAR / ESPERANDO VALIDACIÓN).
     const line1 = [loaderName ? `Cargado por ${loaderName}` : null, statusClause].filter(Boolean).join(' · ');
     const line2 = [dateStr, timeStr, formatLabel, scoringLabel, modeLabel, placeLabel].filter(Boolean).join(' · ');
     return [line1, line2].filter(Boolean);
@@ -2268,7 +2319,7 @@
    *  terminaron con la misma altura tras el fix de h11/h12 (`align-items:stretch`), sus bordes
    *  seguían siendo DOS segmentos independientes con el `column-gap` de por medio en el medio —
    *  nunca una línea continua. Un elemento propio que atraviesa las dos columnas sí lo es. */
-  function buildResultRowsHTML(players, sets, currentPartial) {
+  function buildResultRowsHTML(players, sets, currentPartial, firstTeam) {
     const nameA = S.teamLabel(players, 'A');
     const nameB = S.teamLabel(players, 'B');
     function cellsForTeam(team) {
@@ -2301,7 +2352,10 @@
       }
       return `<div class="result-card__row" data-team="${team}"><span class="result-card__name">${escapeHtml(team === 'A' ? nameA : nameB)}</span><span class="result-card__sets">${cells}</span></div>`;
     }
-    return `${cellsForTeam('A')}<div class="result-card__divider-row" aria-hidden="true"></div>${cellsForTeam('B')}`;
+    // V04.34 — SOLO presentación: `firstTeam` ('B') pone mi pareja ARRIBA cuando soy Team B; los datos canónicos A/B no se tocan.
+    return firstTeam === 'B'
+      ? `${cellsForTeam('B')}<div class="result-card__divider-row" aria-hidden="true"></div>${cellsForTeam('A')}`
+      : `${cellsForTeam('A')}<div class="result-card__divider-row" aria-hidden="true"></div>${cellsForTeam('B')}`;
   }
 
   /** Bloque M2/M3/M4/M5: tarjeta tipo TV. Ganador de cada set a 100% de contraste, perdedor atenuado;
@@ -2355,7 +2409,7 @@
       ${winnersHTML}
       ${durationsHTML}
       <div class="result-card__rows">
-        ${buildResultRowsHTML(f.players, f.sets, f.currentPartial)}
+        ${buildResultRowsHTML(f.players, f.sets, f.currentPartial, opts.firstTeam)}
       </div>
       ${footerHTML}
       ${statsBlockHTML}
@@ -2384,9 +2438,14 @@
    *  divisor y Sets/Games ganados, todo en el mismo componente — "las estadísticas deben
    *  quedar inmediatamente relacionadas con el resultado" (antes Ganadores vivía en un bloque
    *  aparte arriba, y Sets/Games ganados en la sección ESTADÍSTICAS, lejos del marcador). */
+  /** V04.34 — pareja que se muestra ARRIBA en el Resumen: la mía (`'B'` solo si soy Team B; cualquier otro caso conserva el orden canónico). */
+  function presentationFirstTeam(f) {
+    return (f && f.players && PH.getPlayerTeam(f, currentIdentity()) === 'B') ? 'B' : 'A';
+  }
   function buildResultBlockHTML(f, opts) {
     opts = opts || {};
-    return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f), officialLabelHTML: opts.officialLabelHTML });
+    // V04.34 — `mineFirst` (solo el Resumen): mi pareja siempre arriba (y verde, ver `.team-mine-b`). `GANADORES` sigue mostrando la pareja ganadora real.
+    return buildScoreCardHTML(f, { winnersHTML: buildWinnersBannerHTML(f), statsHTML: buildSetsGamesSummaryHTML(f), officialLabelHTML: opts.officialLabelHTML, firstTeam: opts.mineFirst ? presentationFirstTeam(f) : null });
   }
 
   /** Ronda correctiva Laboratorio h11 (§P3) — tarjeta REDUCIDA de resultado para comparar
@@ -2414,7 +2473,7 @@
     const wonB = (sets || []).filter((s) => s.winner === 'B').length;
     return wonA >= need ? 'A' : (wonB >= need ? 'B' : null);
   }
-  function buildCorrectionPreviewCardHTML(players, sets, winnerTeam) {
+  function buildCorrectionPreviewCardHTML(players, sets, winnerTeam, firstTeam) {
     const nameA = S.teamLabel(players, 'A');
     const nameB = S.teamLabel(players, 'B');
     const winnerLabel = winnerTeam ? (winnerTeam === 'A' ? nameA : nameB) : null;
@@ -2424,7 +2483,7 @@
     return `<div class="result-card result-card--compact">
       ${winnersHTML}
       <div class="result-card__rows">
-        ${buildResultRowsHTML(players, sets, null)}
+        ${buildResultRowsHTML(players, sets, null, firstTeam)}
       </div>
     </div>`;
   }
@@ -2488,7 +2547,7 @@
    *  ('history'). Reemplaza al viejo par Resumen inmediato/Análisis + su navegación circular. */
   function openCanonicalResumen(f, openedFrom) {
     // V04.33 — al volver a la lista de la que se salió (Historial/Pendientes/Recuperados) se restaura la posición de scroll.
-    if (openedFrom === 'history') { const sc = document.querySelector('#view-history .analysis-scroll'); if (sc) historyScrollTop = sc.scrollTop; }
+    if (openedFrom === 'history' || openedFrom === 'pending') { const sc = document.querySelector(`#view-${openedFrom} .analysis-scroll`); if (sc) listScrollTops[openedFrom] = sc.scrollTop; }
     analysisOpenedFrom = openedFrom;
     renderAnalysis(f);
     showView('analysis');
@@ -2890,12 +2949,12 @@
     const baseWinner = deriveProposedWinnerTeam(before, f.formatId);
     $('#analysis-result').innerHTML = buildResultBlockHTML(
       Object.assign({}, f, { sets: before, winnerTeam: baseWinner }),
-      { officialLabelHTML: '<p class="b6-correction-compare__label">Resultado cargado</p>' }
+      { officialLabelHTML: '<p class="b6-correction-compare__label">Resultado cargado</p>', mineFirst: true }
     );
     const rawProposer = b6RevisionProposerName(f);
     $('#b6-pre-label').textContent = isResponder && rawProposer ? `Corrección propuesta por ${rawProposer}` : (isResponder ? 'Corrección propuesta' : 'Tu corrección propuesta');
     $('#b6-pre-wait').hidden = isResponder;
-    $('#b6-pre-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.sets, deriveProposedWinnerTeam(f.sets, f.formatId));
+    $('#b6-pre-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.sets, deriveProposedWinnerTeam(f.sets, f.formatId), presentationFirstTeam(f));
     $('#b6-pre-summary').textContent = ML.buildCorrectionHumanSummary(before, f.sets, rawProposer);
     $('#b6-pre-compare').hidden = false;
     $('#b6-pre-actions').hidden = !isResponder;
@@ -2931,12 +2990,15 @@
         <button type="button" class="b6-correction-choice b6-correction-choice--accept" data-pv="validate">Validar partido</button>
       </div>`;
     } else {
-      const waitText = o.waitText || `El partido con ${escapeHtml(waitingTeam || 'tu rival')} está esperando validación.`;
-      foot = `<div class="result-card__divider pv-divider"></div><p class="pv-foot pv-foot--wait">${waitText}</p>`;
+      // V04.34 — mismo lugar jerárquico que PARTIDO POR VALIDAR: el título ESPERANDO VALIDACIÓN ya dice quién debe actuar, así que el párrafo
+      // genérico "El partido con X está esperando validación." desaparece; solo se conserva un texto de contexto específico (`o.waitText`).
+      card.insertAdjacentHTML('afterbegin', `<p class="pv-title">${o.titleText || 'ESPERANDO VALIDACIÓN'}</p>`);
+      foot = o.waitText ? `<div class="result-card__divider pv-divider"></div><p class="pv-foot pv-foot--wait">${o.waitText}</p>` : '';
     }
     card.insertAdjacentHTML('beforeend', foot);
     const validateBtn = card.querySelector('[data-pv="validate"]');
-    if (validateBtn) validateBtn.addEventListener('click', () => $('#b6-confirm-btn').click());
+    // V04.34 — la validación del Resumen usa el MISMO feedback inline que la validación rápida (sin modal ni toast de éxito).
+    if (validateBtn) validateBtn.addEventListener('click', () => resumenValidateInline());
     const reportBtn = card.querySelector('[data-pv="report"]');
     if (reportBtn) reportBtn.addEventListener('click', () => $('#b6-report-error-btn').click());
     return true;
@@ -3057,27 +3119,19 @@
     const hasOpenIdentity = !!f.hasOpenIdentityIssue || openIssues.length > 0;
     if (openIssues.length) {
       identityBlock.hidden = false;
-      identityList.innerHTML = openIssues.map((issue) => {
+      // V04.34 — bloque humano y único: descriptor JUGADOR POR IDENTIFICAR + texto breve + CTA específico IDENTIFICAR JUGADOR (azul). Semántica de
+      // atención/pendiente (ámbar), no de error grave. Con más de una incidencia, un CTA por lugar (con el nombre del lugar si lo hay).
+      const identityRows = openIssues.map((issue) => {
         const slot = b6PlayerAt(f, issue.team, issue.positionInTeam);
-        const label = slot && slot.userId ? (slot.name || 'Este lugar') : 'Por identificar';
-        // Ronda UX 25/09 (Ronda 2, §7) — MEJORA: toda la tarjeta es tappable (antes solo el botón
-        // RESOLVER) — un único listener en el contenedor (ver más abajo) hace innecesario un
-        // onclick propio en el botón: el click en el botón burbujea al mismo handler, con toda
-        // la data ya disponible en el dataset del contenedor. role="button"+tabindex para que
-        // siga funcionando por teclado (Ronda 2, §12).
-        return `
-          <div class="b6-identity-row" role="button" tabindex="0" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">
-            <span class="b6-identity-row__label">${escapeHtml(label)}<small>Jugador por identificar</small></span>
-            <button type="button" class="btn-mini" tabindex="-1">RESOLVER</button>
-          </div>`;
+        const slotName = slot && slot.userId ? (slot.name || '') : '';
+        return `<button type="button" class="b6-correction-choice b6-correction-choice--review b6-identity-cta" data-issue-id="${escapeHtml(issue.issueId)}" data-team="${escapeHtml(issue.team)}" data-position="${issue.positionInTeam}">IDENTIFICAR JUGADOR${openIssues.length > 1 && slotName ? `<small>${escapeHtml(slotName)}</small>` : ''}</button>`;
       }).join('');
-      $all('#b6-identity-list .b6-identity-row').forEach((row) => {
-        const open = () => openIdentityResolveSheet({
-          issueId: row.dataset.issueId, matchId: f.matchId,
-          team: row.dataset.team, positionInTeam: Number(row.dataset.position),
-        }, f);
-        row.addEventListener('click', open);
-        row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+      identityList.innerHTML = '<p class="b6-identity__title">JUGADOR POR IDENTIFICAR</p><p class="b6-identity__text">Revisá este partido para confirmar quién jugó.</p>' + identityRows;
+      $all('#b6-identity-list .b6-identity-cta').forEach((btn) => {
+        btn.addEventListener('click', () => openIdentityResolveSheet({
+          issueId: btn.dataset.issueId, matchId: f.matchId,
+          team: btn.dataset.team, positionInTeam: Number(btn.dataset.position),
+        }, f));
       });
     }
 
@@ -3280,7 +3334,7 @@
           ? `Corrección propuesta por ${proposerName}`
           : 'Tu corrección propuesta';
         const proposedWinner = deriveProposedWinnerTeam(f.pendingCorrectionSets, f.formatId);
-        $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner);
+        $('#b6-respond-proposed-card').innerHTML = buildCorrectionPreviewCardHTML(f.players, f.pendingCorrectionSets, proposedWinner, presentationFirstTeam(f));
         // Handoff cierre UX h13 (§4 "Explicación humana del cambio") — frase en lenguaje humano,
         // lectura PRINCIPAL de qué cambió; `rawProposerName` (nunca el fallback de equipo) para
         // que, sin nombre resoluble, caiga en "La otra pareja indica…" en vez de nombrar un
@@ -3306,6 +3360,37 @@
   }
 
   /* ---- Confirmar ---- */
+  /** V04.34 — VALIDAR PARTIDO desde el Resumen con el patrón aprobado de validación rápida: botones → franja `✓ PARTIDO VALIDADO` (~0,9 s) →
+   *  el bloque de acciones desaparece y el Resumen queda actualizado como partido validado. Sin modal/toast de éxito. Un error real (o
+   *  `confirmed_not_ready`) NO finge éxito: se conservan las acciones / se refresca con el estado real. */
+  let resumenValidating = false;
+  async function resumenValidateInline() {
+    if (!analysisCurrent || resumenValidating) return;
+    const matchId = analysisCurrent.matchId;
+    const foot = document.querySelector('#analysis-result .pv-foot.b6-correction-choices');
+    const buttons = foot ? Array.from(foot.querySelectorAll('button')) : [];
+    resumenValidating = true;
+    buttons.forEach((b) => { b.disabled = true; });
+    let result;
+    try { result = await MV.officializeMatch(matchId); } catch (e) { result = { ok: false, code: 'network_error' }; }
+    if (!result || result.ok === false) {
+      resumenValidating = false;
+      buttons.forEach((b) => { b.disabled = false; });
+      showToast(b6ErrorMessage(result && result.code), 2800);
+      return;
+    }
+    if (result.code === 'confirmed_not_ready') {
+      resumenValidating = false;
+      showToast('Registramos tu confirmación. Estamos terminando de procesar el partido.', 3200);
+      await afterB6Action(matchId);
+      return;
+    }
+    if (foot && foot.isConnected) { foot.className = 'pv-foot'; foot.innerHTML = '<div class="qv-card__done" role="status">✓ PARTIDO VALIDADO</div>'; }
+    await qvSleep(qvReducedMotion() ? 300 : QV_DONE_MS);
+    resumenValidating = false;
+    await afterB6Action(matchId); // relee y repinta el Resumen ya como partido validado (el bloque de acciones desaparece)
+  }
+
   function initB6ConfirmButton() {
     $('#b6-confirm-btn').addEventListener('click', async () => {
       if (!analysisCurrent) return;
@@ -4070,8 +4155,8 @@
   function renderAnalysis(f) {
     analysisCurrent = f;
     // V04.32 — SOLO presentación: si el usuario autenticado es Team B (orden canónico del backend), el Resumen invierte los COLORES de equipo
-    // (su pareja en verde, la rival en azul) intercambiando las variables --team-a/--team-b dentro de #view-analysis. No se toca el orden de
-    // filas, los scores, winnerTeam ni ningún dato: A/B siguen siendo los canónicos.
+    // (su pareja en verde, la rival en azul) intercambiando las variables --team-a/--team-b dentro de #view-analysis. V04.34: además mi pareja va ARRIBA (presentationFirstTeam).
+    // No se tocan los scores, winnerTeam ni ningún dato: A/B siguen siendo los canónicos.
     $('#view-analysis').classList.toggle('team-mine-b', !!(f && f.players && PH.getPlayerTeam(f, currentIdentity()) === 'B'));
     analysisSetFilter = 'match'; // Bloque S2/V5: siempre arranca en PARTIDO al abrir/cambiar de partido
     renderAnalysisMeta(f);
@@ -4084,7 +4169,7 @@
     const officialLabelHTML = hasActiveOfficialCorrection
       ? '<p class="b6-correction-compare__label">Resultado oficial actual</p>'
       : '';
-    $('#analysis-result').innerHTML = buildResultBlockHTML(f, { officialLabelHTML });
+    $('#analysis-result').innerHTML = buildResultBlockHTML(f, { officialLabelHTML, mineFirst: true });
     // Backend Bloque 6 (Fase B) — pendientes/Confirmar/corrección/identidad. Nunca bloquea el
     // resto del Resumen (stats/intelligence siguen con `f`): pinta lo que ya se tiene y refina
     // en paralelo con get_match_detail fresco (ver renderB6Actions).
@@ -5086,10 +5171,13 @@
     // la pantalla canónica única, así que "←" siempre sale hacia la procedencia real (nunca
     // hacia el marcador — un partido recién terminado no tiene a dónde volver ahí).
     $('#analysis-back-btn').addEventListener('click', () => {
-      if (analysisOpenedFrom === 'history') {
-        renderHistory(); showView('history');
-        const sc = document.querySelector('#view-history .analysis-scroll');
-        if (sc) { sc.scrollTop = historyScrollTop; requestAnimationFrame(() => { sc.scrollTop = historyScrollTop; }); }
+      if (analysisOpenedFrom === 'history' || analysisOpenedFrom === 'pending') {
+        // V04.34 — vuelve a la MISMA lista de la que salió (Historial o la pantalla propia de Partidos pendientes) con su scroll.
+        const from = analysisOpenedFrom;
+        if (from === 'pending') renderPendingScreen(); else renderHistory();
+        showView(from);
+        const sc = document.querySelector(`#view-${from} .analysis-scroll`);
+        if (sc) { sc.scrollTop = listScrollTops[from]; requestAnimationFrame(() => { sc.scrollTop = listScrollTops[from]; }); }
       }
       // Etapa 2 (Rama Jugador) — "Ver detalle" desde la tarjeta Último Partido del Home, o
       // un partido cargado manualmente recién guardado.
@@ -5126,7 +5214,7 @@
   // Handoff sistema visual unificado h21 (doc 59, punto 9) — pestaña VISIBLE de Historial.
   // Reemplaza la vieja Todos/Mis partidos (que quedaba oculta, ver HISTORY_TABS abajo) por la
   // taxonomía nueva: Todos/Pendientes/Victorias/Derrotas/Ocultos.
-  let historyStatusFilter = 'todos'; // 'todos' | 'pendientes' | 'victorias' | 'derrotas' | 'ocultos'
+  let historyStatusFilter = 'todos'; // 'todos' | 'recuperados' | 'victorias' | 'derrotas' | 'ocultos' (V04.34: Pendientes ya no es una pestaña: pantalla propia)
   // Ronda UX 25/09 (Ronda 2, §8) — snapshot en memoria de qué matchId resaltar como "cambio
   // externo no visto" DURANTE esta visita a Historial (se captura una sola vez al abrir, en
   // openHistoryScreen, antes de vaciar el storage persistido — así un cambio de pestaña/filtro
@@ -5151,7 +5239,6 @@
   // siempre), ahora con categorías útiles.
   const HISTORY_STATUS_TABS = [
     { key: 'todos', label: 'Todos' },
-    { key: 'pendientes', label: 'Pendientes' },
     { key: 'victorias', label: 'Victorias' },
     { key: 'derrotas', label: 'Derrotas' },
     { key: 'ocultos', label: 'Ocultos' },
@@ -5159,7 +5246,7 @@
   // Misma etiqueta que arriba, en minúscula, para componer el texto del estado vacío
   // ("No hay partidos en mis partidos · game por game todavía") sin repetir el mapeo.
   const HISTORY_TAB_LABELS_LOWER = { mine: 'mis partidos' };
-  const HISTORY_STATUS_TAB_LABELS_LOWER = { pendientes: 'pendientes', recuperados: 'recuperados', victorias: 'victorias', derrotas: 'derrotas', ocultos: 'ocultos' };
+  const HISTORY_STATUS_TAB_LABELS_LOWER = { recuperados: 'recuperados', victorias: 'victorias', derrotas: 'derrotas', ocultos: 'ocultos' };
   const HISTORY_MODE_LABELS_LOWER = { manual: 'cargados', games: 'game por game', complete: 'punto por punto' };
 
   /** §3.1/§3.2 — pinta ambas filas de filtro con los conteos reales (los conteos de
@@ -5218,12 +5305,6 @@
     if (totalCount === 0) {
       $('#history-empty-first-body').innerHTML = buildFirstResultCardHTML();
       $('#history-empty-first-body .player-home-lastmatch__empty-cta').addEventListener('click', () => openManualLoadScreen('player-home'));
-      return;
-    }
-    if (historyStatusFilter === 'pendientes' && historyModeFilter === 'all') {
-      textEl.textContent = 'No tenés partidos pendientes.';
-      actionEl.textContent = 'VER TODOS';
-      actionEl.onclick = () => { historyStatusFilter = 'todos'; renderHistory(); };
       return;
     }
     const parts = [];
@@ -5320,7 +5401,7 @@
     // decide qué pestaña deja pasar qué — 'todos' sigue excluyendo ocultos como siempre.
     const fullHistory = getDisplayHistory({ includeHidden: true });
     // V04.33 — si la ventana de Recuperados venció (o nunca existió), la pestaña no existe y la selección vuelve a Todos.
-    if (historyStatusFilter === 'recuperados' && !hasRecoveredTab()) historyStatusFilter = 'todos';
+    if (historyStatusFilter === 'pendientes' || (historyStatusFilter === 'recuperados' && !hasRecoveredTab())) historyStatusFilter = 'todos';
     renderHistoryFilters(fullHistory);
     // Etapa 3 (Fase 1) — el Historial global también ordena por fecha REAL jugada, no por
     // orden de guardado. Etapa 4.1 (§3.3) — se ordena DESPUÉS de filtrar (mismo comparador),
@@ -5354,7 +5435,6 @@
     // slide+fade), tanto para la lista como para el estado vacío.
     triggerHistoryContentAnim();
     if (isEmpty) { renderHistoryEmptyState(fullHistory.length); return; }
-    if (historyStatusFilter === 'pendientes') { renderPendingSections(wrap, list); return; } // POR VALIDAR / POR RESOLVER / ESPERANDO VALIDACIÓN
     if (historyStatusFilter === 'recuperados') { renderRecoveredTabList(wrap, list); return; }
     list.forEach((m) => {
       const item = buildHistoryItemElement(m);
@@ -5375,7 +5455,7 @@
     { key: 'porResolver', cat: 'por_resolver', title: 'POR RESOLVER', mod: 'resolver' },
     { key: 'esperando', cat: 'esperando', title: 'ESPERANDO VALIDACIÓN', mod: 'esperando' },
   ];
-  let historyScrollTop = 0; // posición de scroll de la lista de Historial al abrir un Resumen (se restaura al volver)
+  const listScrollTops = { history: 0, pending: 0 }; // posición de scroll de la lista de origen (Historial / Partidos pendientes) al abrir un Resumen (se restaura al volver)
   function qvSleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
   function qvReducedMotion() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
 
@@ -5467,18 +5547,23 @@
     wrap.dataset.matchId = m.matchId;
     const item = buildHistoryItemElement(m, { omitStateBadges: true });
     wrap.appendChild(item);
-    const badge = cat ? qvStateBadge(m, cat) : null;
+    // V04.34 — dentro de una sección/pantalla que ya dice POR VALIDAR / ESPERANDO VALIDACIÓN el badge es redundante (`o.hideBadge`); en POR
+    // RESOLVER se conserva el descriptor específico (p. ej. JUGADOR POR IDENTIFICAR).
+    const badge = cat && !(o.hideBadge && cat !== 'por_resolver') ? qvStateBadge(m, cat) : null;
     const stateHTML = badge ? `<div class="qv-card__state"><span class="history-item__badge history-item__badge--${badge.mod}">${badge.label}</span></div>` : '';
     let hintHTML = '';
     if (cat === 'por_resolver') {
       hintHTML = `<p class="qv-card__hint">${m.hasOpenIdentityIssue ? 'Revisá este partido para confirmar quién jugó.' : 'Hay una corrección abierta en este partido. Revisá el detalle.'}</p>`;
     }
+    // V04.34 — mismos botones que el Resumen (clases/casing/altura): `Reportar un error` (rojo outline) / `Validar partido` (verde outline, sin
+    // mayúsculas integrales). El verde macizo queda reservado al feedback transitorio `✓ PARTIDO VALIDADO`. `Revisar partido` (azul) es el CTA
+    // general de POR RESOLVER: la lista no promete una acción específica (la incidencia puede ser de identidad, corrección u otra).
     let actionsHTML = '';
     if (cat === 'por_validar') {
-      actionsHTML = '<div class="qv-card__actions"><button type="button" class="qv-card__report" data-qv="report">REPORTAR UN ERROR</button>'
-        + '<button type="button" class="btn-start" data-qv="validate">VALIDAR PARTIDO</button></div>';
+      actionsHTML = '<div class="qv-card__actions b6-correction-choices"><button type="button" class="b6-correction-choice b6-correction-choice--report" data-qv="report">Reportar un error</button>'
+        + '<button type="button" class="b6-correction-choice b6-correction-choice--accept" data-qv="validate">Validar partido</button></div>';
     } else if (cat === 'por_resolver') {
-      actionsHTML = '<div class="qv-card__actions qv-card__actions--single"><button type="button" class="btn-secondary btn-secondary--accent" data-qv="open">RESOLVER</button></div>';
+      actionsHTML = '<div class="qv-card__actions qv-card__actions--single"><button type="button" class="b6-correction-choice b6-correction-choice--review" data-qv="open">Revisar partido</button></div>';
     }
     item.insertAdjacentHTML('beforeend', stateHTML + hintHTML + actionsHTML);
     item.addEventListener('click', (e) => { if (!e.target.closest('[data-qv]')) qvOpenResumen(m, o.origin, false); });
@@ -5493,8 +5578,8 @@
     return wrap;
   }
 
-  /** Historial > Pendientes: tres secciones en este orden — POR VALIDAR, POR RESOLVER, ESPERANDO VALIDACIÓN. Las dos primeras son accionables. */
-  function renderPendingSections(wrap, list) {
+  /** Partidos pendientes: tres secciones en este orden — POR VALIDAR, POR RESOLVER, ESPERANDO VALIDACIÓN. Las dos primeras son accionables. */
+  function renderPendingSections(wrap, list, origin) {
     const buckets = PH.computePendingBuckets(list, new Date());
     QV_SECTIONS.forEach((sec) => {
       const items = buckets[sec.key];
@@ -5504,22 +5589,41 @@
       section.dataset.section = sec.key;
       section.innerHTML = `<div class="pending-section__head"><h2 class="pending-section__title pending-section__title--${sec.mod}">${sec.title}</h2><span class="pending-section__count">${items.length}</span></div><div class="pending-section__list"></div>`;
       const lst = section.querySelector('.pending-section__list');
-      items.forEach((m) => lst.appendChild(buildQuickMatchCard(m, { category: sec.cat, origin: 'history', mode: 'collapse', onChanged: syncPendingListChrome })));
+      items.forEach((m) => lst.appendChild(buildQuickMatchCard(m, { category: sec.cat, origin: origin || 'pending', mode: 'collapse', hideBadge: true, onChanged: syncPendingListChrome })));
       wrap.appendChild(section);
     });
   }
 
-  /** Tras contraerse una card: cuenta/oculta secciones, actualiza los contadores de las pestañas y el estado vacío (sin repintar la lista). */
+  /** Pantalla PROPIA de Partidos pendientes (V04.34): superficie de tareas, separada de Historial. */
+  function renderPendingScreen() {
+    const wrap = $('#pending-list');
+    wrap.innerHTML = '';
+    renderPendingSections(wrap, PH.filterMatchesForPlayer(getDisplayHistory(), currentIdentity()), 'pending');
+    $('#pending-empty').hidden = wrap.children.length !== 0;
+  }
+  function openPendingScreen() {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    renderPendingScreen();
+    showView('pending');
+    $('#view-pending .analysis-scroll').scrollTop = 0;
+    // Refresco best-effort: la pantalla ya se pintó con la caché; si llega algo nuevo se repinta (sin pisar una validación en curso).
+    if (isServerBackedSession()) refreshServerMatches().then(() => { if (!$('#view-pending').hidden && qvBusyIds.size === 0) renderPendingScreen(); });
+  }
+  function initPendingScreen() {
+    $('#pending-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#pending-empty-action').addEventListener('click', () => openPlayerHome());
+  }
+
+  /** Tras contraerse una card: cuenta/oculta secciones y actualiza el estado vacío (sin repintar la lista). */
   function syncPendingListChrome(wrap, m, kind) {
-    if (kind === 'refresh') { renderHistory(); return; }
-    const listEl = $('#history-list');
+    if (kind === 'refresh') { renderPendingScreen(); return; }
+    const listEl = $('#pending-list');
     listEl.querySelectorAll('.pending-section').forEach((sec) => {
       const n = sec.querySelectorAll('.qv-card').length;
       if (!n) sec.remove(); else sec.querySelector('.pending-section__count').textContent = String(n);
     });
-    const full = getDisplayHistory({ includeHidden: true });
-    renderHistoryFilters(full);
-    if (!listEl.children.length) { $('#history-empty').hidden = false; renderHistoryEmptyState(full.length); }
+    $('#pending-empty').hidden = listEl.children.length !== 0;
   }
 
   /** Pestaña Recuperados: los pendientes accionables siguen usando la validación rápida; el resto, la card normal de Historial. */
@@ -5528,7 +5632,7 @@
     const names = Array.from(new Set(recentRecoveries.map((r) => r.sourceName).filter(Boolean)));
     const note = document.createElement('p');
     note.className = 'recovered-tab-note';
-    note.textContent = `Partidos que llegaron a tu cuenta al vincular ${names.length ? names.join(' y ') : 'tu identidad'}. Esta pestaña se muestra durante 30 días; los partidos siguen en tu historial. Si alguno no es tuyo, abrilo y usá "Reportar un error".`;
+    note.textContent = `Estos partidos llegaron a tu cuenta al vincular a ${names.length ? names.join(' y ') : 'tu identidad'}. Esta pestaña estará disponible durante 30 días.`;
     wrap.appendChild(note);
     const now = new Date();
     list.filter((m) => ids.has(m.matchId)).forEach((m) => {
@@ -6115,33 +6219,49 @@
       text: 'Encontramos más de un partido posible con estos mismos jugadores. Elegí cuál es, o indicá que es otro partido distinto.',
     },
     duplicate: {
-      title: 'Posible partido duplicado',
-      text: 'Ya existe un partido oficial con estos mismos jugadores y parejas a un horario cercano, pero con otro resultado. ¿Es el mismo partido (se corrige su resultado) o es otro partido distinto?',
+      title: 'POSIBLE PARTIDO DUPLICADO',
+      text: 'Ya hay un partido cargado con estos jugadores y parejas. ¿Es este mismo partido?',
     },
   };
 
+  let dupDecision = null; // { onSame, onOther, onCancel } de la decisión abierta (pre-check o guardado)
   function closeAmbiguousMatchModal() {
     $('#ambiguous-match-overlay').hidden = true;
     ambiguousMatchEntry = null;
+    dupDecision = null;
   }
 
-  /** Handoff 63 — un ÚNICO candidato ya VALIDADO con otro marcador: reusa este mismo modal
-   *  (copy propio, un solo botón "Es el mismo partido"). "Es el mismo partido" deriva al flujo
-   *  de corrección vigente (sheet de propuesta de corrección); "Es otro partido" reusa
-   *  `forceNewFromAmbiguous` (disambiguationForceNew) sin cambios. */
-  function openPossibleDuplicateModal(entry, existingMatchId) {
-    ambiguousMatchEntry = entry;
+  /** V04.34 — modal de POSIBLE PARTIDO DUPLICADO (pre-check temprano y rechazo del servidor al guardar): copy corto, el partido existente como
+   *  mini-partido (parejas, score, fecha/hora, formato) y dos decisiones principales (`ES ESTE PARTIDO` / `ES OTRO PARTIDO`); `CANCELAR` terciario.
+   *  `o.existingMatchId` se busca en la caché de partidos del usuario. */
+  function openDuplicateDecisionModal(o) {
+    dupDecision = o;
     $('#ambiguous-match-title').textContent = AMBIGUOUS_MODAL_COPY.duplicate.title;
     $('#ambiguous-match-text').textContent = AMBIGUOUS_MODAL_COPY.duplicate.text;
-    const cached = (Store.loadServerMatchesCache().matches || []).find((m) => m.matchId === existingMatchId);
-    const playedAt = (cached && cached.playedAt) || (entry.payload && entry.payload.playedAtIso);
-    const fmtId = (cached && cached.formatId) || (entry.payload && entry.payload.formatId);
-    const when = playedAt ? `${formatRealDate(playedAt)} · ${formatRealTime(playedAt).slice(0, 5)} — ` : '';
-    const label = `${when}${(E.FORMATS[fmtId] && E.FORMATS[fmtId].label) || fmtId || 'Partido'}`;
-    const list = $('#ambiguous-match-list');
-    list.innerHTML = `<button type="button" class="btn-secondary" data-same-match="1" style="width:100%;text-align:left;">Es el mismo partido<br><small>${escapeHtml(label)}</small></button>`;
-    list.querySelector('button').addEventListener('click', () => resolveSameMatchAsCorrection(existingMatchId));
+    const row = (Store.loadServerMatchesCache().matches || []).find((m) => m.matchId === o.existingMatchId);
+    const summary = $('#ambiguous-match-summary');
+    if (row) {
+      const fmt = ((E.FORMATS[row.formatId] && E.FORMATS[row.formatId].label) || '').toUpperCase();
+      const when = formatMatchWhenBA(row.playedAt, row.playedAtTimeKnown);
+      summary.innerHTML = `<div class="invite-ctx"><p class="dup-meta">${escapeHtml([when, fmt].filter(Boolean).join(' · '))}</p>${buildMiniMatchHTML(row, row.myTeam === 'B' ? 'B' : 'A')}</div>`;
+      summary.hidden = false;
+    } else { summary.innerHTML = ''; summary.hidden = true; }
+    $('#ambiguous-match-list').innerHTML = '';
+    $('#ambiguous-match-same').hidden = false;
     $('#ambiguous-match-overlay').hidden = false;
+  }
+
+  /** Handoff 63 — un ÚNICO candidato ya VALIDADO con otro marcador (rechazo del servidor al guardar): misma decisión que el pre-check.
+   *  `ES ESTE PARTIDO` deriva al flujo de corrección vigente (propuesta de corrección: NUNCA se sobrescribe en silencio); `ES OTRO PARTIDO`
+   *  reusa `forceNewFromAmbiguous` (disambiguationForceNew; el servidor persiste la decisión). */
+  function openPossibleDuplicateModal(entry, existingMatchId) {
+    ambiguousMatchEntry = entry;
+    openDuplicateDecisionModal({
+      existingMatchId,
+      onSame: () => resolveSameMatchAsCorrection(existingMatchId),
+      onOther: () => forceNewFromAmbiguous(),
+      onCancel: () => closeAmbiguousMatchModal(),
+    });
   }
 
   /** "Es el mismo partido": el borrador de outbox se descarta (no se crea un partido nuevo) y se
@@ -6171,6 +6291,9 @@
     ambiguousMatchEntry = entry;
     $('#ambiguous-match-title').textContent = AMBIGUOUS_MODAL_COPY.multiple.title;
     $('#ambiguous-match-text').textContent = AMBIGUOUS_MODAL_COPY.multiple.text;
+    dupDecision = { onOther: () => forceNewFromAmbiguous(), onCancel: () => closeAmbiguousMatchModal() };
+    $('#ambiguous-match-summary').hidden = true;
+    $('#ambiguous-match-same').hidden = true;
     const list = $('#ambiguous-match-list');
     list.innerHTML = (candidates || []).map((c) => {
       const label = `${formatRealDate(c.playedAt)} · ${formatRealTime(c.playedAt).slice(0, 5)} — ${(E.FORMATS[c.formatId] && E.FORMATS[c.formatId].label) || c.formatId}`;
@@ -6208,8 +6331,9 @@
   }
 
   function initAmbiguousMatchModal() {
-    $('#ambiguous-match-cancel').addEventListener('click', closeAmbiguousMatchModal);
-    $('#ambiguous-match-force-new').addEventListener('click', forceNewFromAmbiguous);
+    $('#ambiguous-match-cancel').addEventListener('click', () => { const d = dupDecision; if (d && d.onCancel) d.onCancel(); else closeAmbiguousMatchModal(); });
+    $('#ambiguous-match-force-new').addEventListener('click', () => { const d = dupDecision; if (d && d.onOther) d.onOther(); else forceNewFromAmbiguous(); });
+    $('#ambiguous-match-same').addEventListener('click', () => { const d = dupDecision; if (d && d.onSame) d.onSame(); });
   }
 
   // Etapa 4.1 (§4): el Nivel BRAMU dejó de ser un valor fijo — ahora se DERIVA de
@@ -9112,8 +9236,8 @@
     $('#player-home-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToProfile(); } });
     // BRAMUlab_V03.3 (§4) — "BUSCAR JUGADORES", al final del contenido principal del Home.
     $('#player-home-search-players-card').addEventListener('click', openPlayerSearchScreen);
-    // V04.33 — card PARTIDOS PENDIENTES → Historial > Pendientes (la pantalla canónica de resolución).
-    const openPending = () => openHistoryScreen('player-home', null, 'pendientes');
+    // V04.34 — card PARTIDOS PENDIENTES → pantalla propia de Partidos pendientes (ya no Historial).
+    const openPending = () => openPendingScreen();
     $('#player-home-pending-card').addEventListener('click', openPending);
     $('#player-home-pending-card').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPending(); } });
   }
@@ -14941,36 +15065,56 @@
     return pendingInvitationFlow;
   }
 
-  /** V04.33 — representación COMPACTA de las dos parejas del partido de la invitación: avatar (foto si existe, iniciales si no), nombre y
-   *  @usuario secundario. La identidad invitada (sin cuenta) va resaltada y su pareja primero. Sin cuatro fichas de perfil. */
+  /** V04.34 — fecha/hora legible (zona de Buenos Aires) de un partido del servidor; `''` si no hay fecha válida. */
+  function formatMatchWhenBA(playedAt, timeKnown) {
+    try {
+      const dateStr = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(playedAt));
+      const timeStr = timeKnown === false ? '' : ` · ${new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(playedAt))}`;
+      return dateStr + timeStr;
+    } catch (e) { return ''; }
+  }
+
+  /** V04.34 — MINI-PARTIDO compacto reutilizable (invitación `¿SOS X?` y posible duplicado): dos filas de pareja con los jugadores apilados
+   *  (avatar chico + nombre + @usuario secundario cuando exista) y el score por set alineado a la derecha, como el Resumen. `m`:
+   *  `{ participants:[{team,position,displayName,username?,avatarPath?,isInvitee?}], sets:[{setNumber?,gamesA,gamesB}] }`. `firstTeam` ('A'|'B')
+   *  decide qué pareja va arriba (verde); la otra, abajo (azul). Solo presentación: el score se orienta desde la pareja de arriba. */
+  function buildMiniMatchHTML(m, firstTeam) {
+    const parts = Array.isArray(m && m.participants) ? m.participants : [];
+    const first = firstTeam === 'B' ? 'B' : 'A';
+    const sets = (Array.isArray(m && m.sets) ? m.sets.slice() : []).sort((a, b) => (a.setNumber || 0) - (b.setNumber || 0));
+    const playerHTML = (p) => {
+      const name = p.displayName || 'Jugador';
+      const avatar = p.avatarPath
+        ? `<span class="mini-match__avatar" data-avatar-path="${escapeHtml(p.avatarPath)}">${escapeHtml(playerInitials(name))}</span>`
+        : `<span class="mini-match__avatar">${escapeHtml(playerInitials(name))}</span>`;
+      return `<div class="mini-match__player">${avatar}<span class="mini-match__who"><span class="mini-match__name${p.isInvitee ? ' mini-match__name--invitee' : ''}">${escapeHtml(name)}</span>`
+        + (p.username ? `<span class="mini-match__handle">@${escapeHtml(p.username)}</span>` : '') + '</span></div>';
+    };
+    const teamHTML = (t, idx) => {
+      const mine = t === first;
+      const cells = sets.map((st) => {
+        const g = t === 'A' ? st.gamesA : st.gamesB; const o = t === 'A' ? st.gamesB : st.gamesA;
+        return `<span class="mini-match__set${g > o ? ' mini-match__set--win' : ''}">${escapeHtml(g)}</span>`;
+      }).join('');
+      const players = parts.filter((p) => p.team === t).sort((a, b) => (a.position || 0) - (b.position || 0)).map(playerHTML).join('');
+      return `<div class="mini-match__team mini-match__team--${mine ? 'first' : 'second'}"><div class="mini-match__players">${players}</div><div class="mini-match__sets">${cells}</div></div>`;
+    };
+    const second = first === 'A' ? 'B' : 'A';
+    return `<div class="mini-match">${teamHTML(first)}<div class="mini-match__divider"></div>${teamHTML(second)}</div>`;
+  }
+
+  /** V04.34 — contexto de `¿SOS X?`: el partido que ORIGINÓ la invitación como mini-partido (pareja de la identidad invitada primero) +
+   *  cuántos partidos más tiene asociados. */
   function buildInvitationContextHTML(src, preview, displayName) {
     const parts = Array.isArray(src.participants) ? src.participants : [];
     const invitee = parts.find((p) => p && p.isInvitee);
     const firstTeam = invitee && invitee.team === 'B' ? 'B' : 'A';
-    const teams = [firstTeam, firstTeam === 'A' ? 'B' : 'A'];
-    const playerHTML = (p) => {
-      const name = p.displayName || 'Jugador';
-      const avatar = p.avatarPath
-        ? `<span class="invite-ctx__avatar" data-avatar-path="${escapeHtml(p.avatarPath)}">${escapeHtml(playerInitials(name))}</span>`
-        : `<span class="invite-ctx__avatar">${escapeHtml(playerInitials(name))}</span>`;
-      return `<div class="invite-ctx__player">${avatar}<span class="invite-ctx__who"><span class="invite-ctx__name${p.isInvitee ? ' invite-ctx__name--invitee' : ''}">${escapeHtml(name)}</span>`
-        + (p.username ? `<span class="invite-ctx__handle">@${escapeHtml(p.username)}</span>` : '') + '</span></div>';
-    };
-    const teamHTML = (t) => `<div class="invite-ctx__team">${parts.filter((p) => p.team === t).sort((a, b) => (a.position || 0) - (b.position || 0)).map(playerHTML).join('')}</div>`;
-    const flip = firstTeam === 'B';
-    const score = (src.sets || []).map((st) => (flip ? `${st.gamesB}-${st.gamesA}` : `${st.gamesA}-${st.gamesB}`)).join('  ·  ');
-    let when = '';
-    try {
-      const dateStr = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(src.playedAt));
-      const timeStr = src.playedAtTimeKnown === false ? '' : ` · ${new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(src.playedAt))}`;
-      when = dateStr + timeStr;
-    } catch (e) { when = ''; }
-    const label = preview && preview.sourceIsOrigin ? 'Te invitaron desde este partido:' : `${src.loaderName || 'Alguien'} registró este partido con ese nombre:`;
+    const when = formatMatchWhenBA(src.playedAt, src.playedAtTimeKnown);
+    const label = preview && preview.sourceIsOrigin ? 'Te invitaron desde este partido' : `${src.loaderName || 'Alguien'} registró este partido con ese nombre`;
     const more = Math.max(0, ((preview && preview.matchCount) || 0) - 1);
     const who = String(displayName || 'esta identidad');
-    return `<div class="invite-ctx"><p class="invite-ctx__meta">${escapeHtml(label)}${when ? ` ${escapeHtml(when)}` : ''}</p>`
-      + `<div class="invite-ctx__teams">${teamHTML(teams[0])}<span class="invite-ctx__vs">vs</span>${teamHTML(teams[1])}</div>`
-      + (score ? `<p class="invite-ctx__score">${escapeHtml(score)}</p>` : '')
+    return `<div class="invite-ctx"><p class="invite-ctx__meta">${escapeHtml(label)}${when ? ` · ${escapeHtml(when)}` : ''}</p>`
+      + buildMiniMatchHTML(src, firstTeam)
       + (more ? `<p class="invite-ctx__more">+ ${more} partido${more === 1 ? '' : 's'} más asociado${more === 1 ? '' : 's'} a ${escapeHtml(who)}</p>` : '')
       + '</div>';
   }
@@ -14983,7 +15127,7 @@
         const url = map.get(n.dataset.avatarPath);
         if (!url || !n.isConnected) return;
         const img = document.createElement('img');
-        img.className = 'invite-ctx__avatar'; img.alt = ''; img.src = url;
+        img.className = 'mini-match__avatar'; img.alt = ''; img.src = url;
         n.replaceWith(img);
       });
     }).catch(() => { /* fallback de iniciales */ });
@@ -15137,7 +15281,7 @@
     if (rows.length) {
       $('#recovered-needs-title').textContent = `${rows.length} PARTIDO${rows.length === 1 ? ' NECESITA' : 'S NECESITAN'} TU RESPUESTA`;
       // TODOS los accionables, en scroll (sin tope artificial).
-      rows.forEach((f) => list.appendChild(buildQuickMatchCard(f, { category: 'por_validar', origin: 'recovered', mode: 'collapse', onChanged: onRecoveredCardChanged })));
+      rows.forEach((f) => list.appendChild(buildQuickMatchCard(f, { category: 'por_validar', origin: 'recovered', mode: 'collapse', hideBadge: true, onChanged: onRecoveredCardChanged })));
     }
     syncRecoveredFooter();
   }
@@ -15364,6 +15508,7 @@
     initRecoveredScreen();
     initAnalysisScreen();
     initHistoryScreen();
+    initPendingScreen();
     initManualLoadScreen();
     initPlayerHomeScreen();
     initRankingScreen();

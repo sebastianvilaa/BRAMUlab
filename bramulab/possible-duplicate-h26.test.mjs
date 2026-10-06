@@ -39,7 +39,9 @@ test('handoff 63: "Es el mismo partido" deriva a la corrección vigente sin crea
   const submit = fnBody('submitProposeCorrection');
   assert.match(submit, /sourceOutboxDraftId[\s\S]*removeMatchOutboxEntry\(sourceOutboxDraftId\)/);
   assert.match(fnBody('forceNewFromAmbiguous'), /disambiguationForceNew: true/);
-  assert.match(app, /\$\('#ambiguous-match-force-new'\)\.addEventListener\('click', forceNewFromAmbiguous\)/);
+  // V04.34: la decisión se enruta por dupDecision (pre-check o guardado); el botón sigue cayendo en forceNewFromAmbiguous por defecto.
+  assert.match(app, /\$\('#ambiguous-match-force-new'\)\.addEventListener\('click', \(\) => \{ const d = dupDecision; if \(d && d\.onOther\) d\.onOther\(\); else forceNewFromAmbiguous\(\); \}\)/);
+  assert.match(fnBody('openPossibleDuplicateModal'), /onOther: \(\) => forceNewFromAmbiguous\(\)/);
 });
 
 test('handoff 63: múltiples candidatos conserva el copy y flujo de desambiguación existente', () => {

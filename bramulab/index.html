@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.33-h1" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.34-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +30,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.33-h1" />
+<link rel="stylesheet" href="styles.css?v=04.34-h1" />
 </head>
 <body>
 
@@ -297,6 +297,24 @@
         <div class="pastilla pastilla--lastmatch player-home-lastmatch is-empty" id="history-empty-first-card" hidden><div id="history-empty-first-body"></div></div>
         <p class="coverage-note" id="history-empty-text"></p>
         <button type="button" id="history-empty-action" class="btn-mini"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       V04.34 — PARTIDOS PENDIENTES: pantalla PROPIA (superficie de tareas), ya no una pestaña de Historial. La abren la card de Home, el gate
+       de 5 y cualquier CTA `VER PARTIDOS PENDIENTES`. Secciones: POR VALIDAR → POR RESOLVER → ESPERANDO VALIDACIÓN (misma derivación y mismo
+       componente de validación rápida que el resto). ============================================================ -->
+  <section id="view-pending" class="view view--history" hidden>
+    <div class="analysis-header">
+      <button id="pending-back-btn" class="icon-btn" type="button" aria-label="Volver">←</button>
+      <span class="analysis-header__title">PARTIDOS PENDIENTES</span>
+    </div>
+    <div class="analysis-scroll">
+      <div id="pending-list" class="history-list"></div>
+      <div id="pending-empty" class="history-empty" hidden>
+        <p class="coverage-note">No tenés partidos pendientes.</p>
+        <button type="button" id="pending-empty-action" class="btn-mini">VOLVER AL INICIO</button>
       </div>
     </div>
   </section>
@@ -2794,13 +2812,15 @@
        ronda, no un rediseño visual grande). Nunca fusiona sola: siempre requiere una
        elección explícita del usuario (un candidato puntual, o "Es otro partido"). ============================================================ -->
   <div id="ambiguous-match-overlay" class="overlay" hidden>
-    <div class="overlay__card">
-      <div id="ambiguous-match-title" class="overlay__title">¿Es el mismo partido?</div>
-      <p id="ambiguous-match-text" class="overlay__text">Encontramos más de un partido posible con estos mismos jugadores. Elegí cuál es, o indicá que es otro partido distinto.</p>
+    <div class="overlay__card dup-card">
+      <div id="ambiguous-match-title" class="overlay__title">POSIBLE PARTIDO DUPLICADO</div>
+      <p id="ambiguous-match-text" class="overlay__text">Ya hay un partido cargado con estos jugadores y parejas. ¿Es este mismo partido?</p>
+      <div id="ambiguous-match-summary" hidden></div>
       <div id="ambiguous-match-list" style="display:flex;flex-direction:column;gap:8px;margin:12px 0;"></div>
-      <div class="overlay__actions">
-        <button id="ambiguous-match-cancel" class="btn-secondary" type="button">Cancelar</button>
-        <button id="ambiguous-match-force-new" class="btn-secondary" type="button">Es otro partido</button>
+      <div class="overlay__actions overlay__actions--stacked">
+        <button id="ambiguous-match-same" class="btn-start btn-start--overlay" type="button" hidden>ES ESTE PARTIDO</button>
+        <button id="ambiguous-match-force-new" class="btn-secondary" type="button">ES OTRO PARTIDO</button>
+        <button id="ambiguous-match-cancel" class="link-btn" type="button">CANCELAR</button>
       </div>
     </div>
   </div>
@@ -3203,47 +3223,47 @@
        acá ni a ningún archivo que llegue al navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.33-h1"></script>
-  <script src="stats.js?v=04.33-h1"></script>
-  <script src="store.js?v=04.33-h1"></script>
+  <script src="engine.js?v=04.34-h1"></script>
+  <script src="stats.js?v=04.34-h1"></script>
+  <script src="store.js?v=04.34-h1"></script>
   <!-- BRAMUlab_V04.4 (Etapa D, bloque 1) — level.js/level-context.js/level-calibration.js se
        agregan a la app productiva por primera vez, pero permanecen INERTES para cualquier
        usuario real: NIVEL_BRAMU_V1_ENABLED sigue en false (constante de código, level.js) y el
        onboarding nuevo de app.js solo se dispara si Store.isLevelV1PreviewEnabled() está
        prendido (apagado por defecto — ver Herramientas de desarrollo, mantener presionado el
        logo del Home). No se tocó sw.js/version.json/CACHE_NAME: no hay release pública nueva. -->
-  <script src="level.js?v=04.33-h1"></script>
-  <script src="level-context.js?v=04.33-h1"></script>
-  <script src="level-calibration.js?v=04.33-h1"></script>
-  <script src="player-home.js?v=04.33-h1"></script>
-  <script src="match-load.js?v=04.33-h1"></script>
-  <script src="player-identity.js?v=04.33-h1"></script>
-  <script src="groups.js?v=04.33-h1"></script>
-  <script src="locations.js?v=04.33-h1"></script>
-  <script src="ranking.js?v=04.33-h1"></script>
+  <script src="level.js?v=04.34-h1"></script>
+  <script src="level-context.js?v=04.34-h1"></script>
+  <script src="level-calibration.js?v=04.34-h1"></script>
+  <script src="player-home.js?v=04.34-h1"></script>
+  <script src="match-load.js?v=04.34-h1"></script>
+  <script src="player-identity.js?v=04.34-h1"></script>
+  <script src="groups.js?v=04.34-h1"></script>
+  <script src="locations.js?v=04.34-h1"></script>
+  <script src="ranking.js?v=04.34-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.33-h1"></script>
+  <script src="auth.js?v=04.34-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.33-h1"></script>
-  <script src="match-sync.js?v=04.33-h1"></script>
+  <script src="matches.js?v=04.34-h1"></script>
+  <script src="match-sync.js?v=04.34-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.33-h1"></script>
+  <script src="match-validation.js?v=04.34-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.33-h1"></script>
+  <script src="match-self-heal.js?v=04.34-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.33-h1"></script>
-  <script src="app.js?v=04.33-h1"></script>
+  <script src="intelligence-client.js?v=04.34-h1"></script>
+  <script src="app.js?v=04.34-h1"></script>
 </body>
 </html>

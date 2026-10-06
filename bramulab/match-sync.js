@@ -353,8 +353,42 @@
     return sortByCreatedAtDesc((Array.isArray(localHistory) ? localHistory : []).concat(server));
   }
 
+  /** V04.34 — PRE-CHECK temprano de posible duplicado (UX anticipada; el gate final sigue siendo `create_or_attach_match`). Misma semántica
+   *  estructural que el servidor: mismas 4 personas con las MISMAS parejas (en cualquier orden/lado), mismo formato, partido "vivo"
+   *  (validated, o pending_validation con deadline vigente) y ventana temporal (±3 h si ambas horas son conocidas; si no, mismo día en Buenos Aires).
+   *  Se calcula SOLO con las filas ya visibles del usuario (`get_my_matches`): quien carga un partido siempre participa, así que cualquier
+   *  candidato real ya figura en su caché. `draft`: `{ pair1PlayerIds, pair2PlayerIds, playedAtIso, playedAtTimeKnown, formatId }`.
+   *  Devuelve las filas candidatas (más reciente primero). Pura: sin red ni DOM. */
+  function findPossibleDuplicateCandidates(serverRows, draft, now) {
+    const d = draft || {};
+    const p1 = (d.pair1PlayerIds || []).filter(Boolean);
+    const p2 = (d.pair2PlayerIds || []).filter(Boolean);
+    if (p1.length !== 2 || p2.length !== 2 || new Set(p1.concat(p2)).size !== 4 || !d.playedAtIso) return [];
+    const key = (ids) => ids.slice().sort().join(':');
+    const want = [key(p1), key(p2)].sort().join('|');
+    const nowMs = (now && typeof now.getTime === 'function' ? now : new Date()).getTime();
+    const draftAt = new Date(d.playedAtIso).getTime();
+    if (!Number.isFinite(draftAt)) return [];
+    const draftKnown = d.playedAtTimeKnown !== false;
+    const baDay = (ms) => { try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms)); } catch (e) { return new Date(ms).toISOString().slice(0, 10); } };
+    return (Array.isArray(serverRows) ? serverRows : []).filter((row) => {
+      if (!row || !Array.isArray(row.participants) || row.participants.length !== 4) return false;
+      if (row.formatId !== d.formatId) return false;
+      const live = row.status === 'validated' || (row.status === 'pending_validation' && new Date(row.validationDeadlineAt).getTime() > nowMs);
+      if (!live) return false;
+      const ids = row.participants.map((p) => p && p.playerId);
+      if (ids.some((id) => !id)) return false; // slot "Por identificar": el servidor usa una huella centinela distinta
+      const teamKey = (t) => key(row.participants.filter((p) => p.team === t).map((p) => p.playerId));
+      if ([teamKey('A'), teamKey('B')].sort().join('|') !== want) return false;
+      const at = new Date(row.playedAt).getTime();
+      if (!Number.isFinite(at)) return false;
+      if (draftKnown && row.playedAtTimeKnown !== false) return Math.abs(at - draftAt) <= 3 * 3600 * 1000;
+      return baDay(at) === baDay(draftAt);
+    }).sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime());
+  }
+
   global.PLMatchSync = {
     translateServerMatchToLocalShape, refreshOpenAnalysisSnapshot, buildOutboxDisplayEntry,
-    isComputableMatch, buildDisplayHistory, buildComputableHistory,
+    isComputableMatch, buildDisplayHistory, buildComputableHistory, findPossibleDuplicateCandidates,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

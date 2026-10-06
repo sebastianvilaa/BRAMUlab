@@ -79,7 +79,9 @@ test('2) completar el cuarto jugador NO pasa a Resultado: solo el toque en CARGA
   for (const n of ['selectManualPlayer', 'advanceManualSelectionSequence', 'renderManualPlayers', 'ensureManualPlayerCompact']) {
     assert.doesNotMatch(fnSource(n), /goToManualResultStep|manualStep = 'result'|openManualKeypad/, n);
   }
-  assert.match(app, /\$\('#manual-go-result-btn'\)\.addEventListener\('click', goToManualResultStep\)/);
+  // V04.34: el toque pasa primero por el pre-check de duplicado (onManualGoResult) y recién entonces va a Resultado.
+  assert.match(app, /\$\('#manual-go-result-btn'\)\.addEventListener\('click', onManualGoResult\)/);
+  assert.match(fnSource('onManualGoResult'), /manualDuplicatePrecheck\(\)[\s\S]*goToManualResultStep\(\)/);
 });
 test('tarjetas de equipo: borde completo A verde / B celeste, VS existente, filas = .player-row canónico', () => {
   assert.match(css, /\.mp-team\{[^}]*border: 1px solid var\(--line\)[^}]*border-radius: var\(--radius-card\)/);
@@ -188,10 +190,10 @@ test('el teclado numérico ya no es la UX de Cargar partido', () => {
   assert.doesNotMatch(view.replace(/<!--[\s\S]*?-->/g, ''), /load-keypad|data-key=/);
   assert.doesNotMatch(app, /manualKeypad|openManualKeypad|manualSideEntered|manualDraftActiveTeam/);
 });
-test('versionado: V04.30 / 04.33-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.33', bundle: '04.33-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.33'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.33-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-33-h1'/); assert.match(html, /app\.js\?v=04\.33-h1/); assert.match(html, /styles\.css\?v=04\.33-h1/);
+test('versionado: V04.30 / 04.34-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.34', bundle: '04.34-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.34'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.34-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-34-h1'/); assert.match(html, /app\.js\?v=04\.34-h1/); assert.match(html, /styles\.css\?v=04\.34-h1/);
 });
 
 /* ================= V04.27 ================= */
@@ -347,8 +349,8 @@ test('h2 · modal "Tenés un partido sin terminar": acciones verticales solo en 
   assert.equal(stackedCalls, 1); assert.ok(calls > 5);
   assert.match(fnSource('confirmAction'), /danger, stacked\)/);
 });
-test('h2 · versionado 04.33-h1 con APP_VERSION V04.33', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.33', bundle: '04.33-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.33'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.33-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-33-h1'/);
+test('h2 · versionado 04.34-h1 con APP_VERSION V04.34', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.34', bundle: '04.34-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.34'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.34-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-34-h1'/);
 });

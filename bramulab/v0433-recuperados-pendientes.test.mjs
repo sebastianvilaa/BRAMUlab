@@ -113,7 +113,8 @@ test('Home · card PARTIDOS PENDIENTES: 3 columnas (POR VALIDAR / ESPERANDO / PO
   assert.equal(els['#player-home-pending-resolver'].textContent, '1');
   new Function('$', 'PH', `${render}\nrenderPlayerHomePendingCard([]);`)($, PH);
   assert.equal(els['#player-home-pending-card'].hidden, true, 'total 0: no se muestra');
-  assert.match(appJs, /openHistoryScreen\('player-home', null, 'pendientes'\);\s*\n\s*\$\('#player-home-pending-card'\)\.addEventListener\('click', openPending\)/);
+  // V04.34: abre la pantalla PROPIA de Partidos pendientes (ya no Historial)
+  assert.match(appJs, /const openPending = \(\) => openPendingScreen\(\);\s*\n\s*\$\('#player-home-pending-card'\)\.addEventListener\('click', openPending\)/);
 });
 
 /* ============ Lenguaje unificado de estados ============ */
@@ -125,7 +126,7 @@ test('Copy · POR VALIDAR / ESPERANDO VALIDACIÓN / JUGADOR POR IDENTIFICAR reem
   assert.equal(lbl({ serverBacked: true, status: 'pending_validation', hasOpenIdentityIssue: true }), 'JUGADOR POR IDENTIFICAR');
   assert.equal(lbl({ serverBacked: true, status: 'validated', pendingCorrectionRevisionId: 'r' }), 'CORRECCIÓN PROPUESTA');
   assert.doesNotMatch(appJs.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n'), /'TU TURNO: CONFIRMAR'|'IDENTIDAD CUESTIONADA'|'PENDIENTE DE VALIDACIÓN'/);
-  assert.match(appJs, /<small>Jugador por identificar<\/small>/);
+  assert.match(appJs, /JUGADOR POR IDENTIFICAR<\/p><p class="b6-identity__text">Revisá este partido/);
 });
 
 /* ============ VALIDACIÓN RÁPIDA (componente reutilizable) ============ */
@@ -194,7 +195,10 @@ test('Validación rápida · un error REAL conserva la card (botones habilitados
 });
 test('Validación rápida · anatomía: REPORTAR UN ERROR (outline rojo, izquierda) / VALIDAR PARTIDO (verde, derecha); sin SÍ, LO JUGUÉ; borde nunca verde; cuerpo abre el Resumen', () => {
   const card = fnSrc('buildQuickMatchCard');
-  assert.ok(card.indexOf('data-qv="report">REPORTAR UN ERROR') < card.indexOf('btn-start" data-qv="validate">VALIDAR PARTIDO'), 'rojo a la izquierda, verde a la derecha');
+  // V04.34: mismos botones y casing que el Resumen (sentence case, clases .b6-correction-choice*)
+  assert.ok(card.indexOf('b6-correction-choice--report" data-qv="report">Reportar un error') < card.indexOf('b6-correction-choice--accept" data-qv="validate">Validar partido'), 'rojo a la izquierda, verde a la derecha');
+  assert.doesNotMatch(card, /REPORTAR UN ERROR|VALIDAR PARTIDO/, 'sin mayúsculas integrales en estos CTAs');
+  assert.match(card, /b6-correction-choice--review" data-qv="open">Revisar partido/, 'CTA general de POR RESOLVER: azul, no verde');
   assert.doesNotMatch(card, /SÍ, LO JUGUÉ|NO, NO LO JUGUÉ/, 'no hay tercera capa de participación en esta superficie');
   assert.match(card, /buildHistoryItemElement\(m, \{ omitStateBadges: true \}\)/, 'misma card de Historial');
   assert.match(card, /qvOpenResumen\(m, o\.origin, false\)/, 'tocar el cuerpo abre el Resumen completo');
@@ -202,7 +206,7 @@ test('Validación rápida · anatomía: REPORTAR UN ERROR (outline rojo, izquier
   // ESPERANDO: informativa, sin botones ni párrafo redundante
   assert.doesNotMatch(card, /está esperando validación/);
   assert.match(card, /if \(cat === 'por_validar'\)[\s\S]*else if \(cat === 'por_resolver'\)/, 'solo POR VALIDAR y POR RESOLVER llevan acciones');
-  assert.match(cssText, /\.qv-card__report\{[^}]*border: 1\.5px solid var\(--danger\)/);
+  assert.match(cssText, /\.qv-card__actions \.b6-correction-choice--report\{[^}]*border: 1\.5px solid var\(--danger\)/);
   assert.doesNotMatch(cssText.slice(cssText.indexOf('.qv-card{'), cssText.indexOf('/* Historial > Pendientes: secciones')), /border:[^;]*(brand-lime|green)/, 'nunca se pinta el borde de la card de verde');
   const open = fnSrc('qvOpenResumen');
   assert.match(open, /openCanonicalResumen\(m, origin\)/);
@@ -211,9 +215,10 @@ test('Validación rápida · anatomía: REPORTAR UN ERROR (outline rojo, izquier
 });
 test('Validación rápida · navegación Resumen ↔ lista: vuelve a la lista de origen y restaura el scroll', () => {
   const resumen = fnSrc('openCanonicalResumen');
-  assert.match(resumen, /openedFrom === 'history'[\s\S]*historyScrollTop = sc\.scrollTop/);
+  assert.match(resumen, /openedFrom === 'history' \|\| openedFrom === 'pending'[\s\S]*listScrollTops\[openedFrom\] = sc\.scrollTop/);
   const back = between(appJs, "$('#analysis-back-btn').addEventListener('click'", "else openPlayerHome(); // 'live'");
-  assert.match(back, /analysisOpenedFrom === 'history'[\s\S]*sc\.scrollTop = historyScrollTop/);
+  assert.match(back, /analysisOpenedFrom === 'history' \|\| analysisOpenedFrom === 'pending'[\s\S]*sc\.scrollTop = listScrollTops\[from\]/);
+  assert.match(back, /if \(from === 'pending'\) renderPendingScreen\(\); else renderHistory\(\)/);
   assert.match(back, /analysisOpenedFrom === 'recovered' && recoveredScreenState[\s\S]*renderRecoveredMatchesScreen\(\); showView\('recovered'\)/);
   // el estado de pestaña (Pendientes/Recuperados) persiste mientras se mira el Resumen: se vuelve a la MISMA lista
   assert.match(appJs, /let historyStatusFilter = 'todos'/);
@@ -226,9 +231,10 @@ test('Historial > Pendientes · tres secciones POR VALIDAR → POR RESOLVER → 
   const sections = fnSrc('renderPendingSections');
   assert.match(sections, /PH\.computePendingBuckets\(list, new Date\(\)\)/, 'misma derivación que la card de Home');
   assert.match(sections, /buildQuickMatchCard\(m, \{ category: sec\.cat/);
-  assert.match(fnSrc('renderHistory'), /historyStatusFilter === 'pendientes'\) \{ renderPendingSections\(wrap, list\); return; \}/);
+  assert.match(fnSrc('renderPendingScreen'), /renderPendingSections\(wrap, PH\.filterMatchesForPlayer\(getDisplayHistory\(\), currentIdentity\(\)\), 'pending'\)/);
+  assert.doesNotMatch(appJs.match(/const HISTORY_STATUS_TABS = \[[\s\S]*?\];/)[0], /pendientes/, 'Pendientes ya no es una pestaña de Historial');
   const gate = between(appJs, '  function showPendingLimitGate(state, onSkip) {', '  function openManualLoadScreen(');
-  assert.match(gate, /openHistoryScreen\('player-home', null, 'pendientes'\)/, 'VER PARTIDOS PENDIENTES abre la misma experiencia');
+  assert.match(gate, /const goToPending = \(\) => openPendingScreen\(\)/, 'VER PARTIDOS PENDIENTES abre la pantalla propia de Partidos pendientes');
   // 5 → bloquea; validar uno → 4 → solo avisa y puede cargar
   assert.equal(PH.pendingGateLevel(5, 5), 'block');
   const five = Array.from({ length: 5 }, (_, i) => row(`p${i}`, { status: 'pending_validation', isActionMine: true }));
@@ -242,8 +248,7 @@ test('Historial > Pendientes · tres secciones POR VALIDAR → POR RESOLVER → 
   assert.doesNotMatch(claim, /getPendingGateState|showPendingLimitGate/);
   // tras validar, secciones y contadores se actualizan sin repintar toda la lista
   const sync = fnSrc('syncPendingListChrome');
-  assert.match(sync, /sec\.remove\(\)/); assert.match(sync, /renderHistoryFilters\(full\)/);
-  assert.match(sync, /renderHistoryEmptyState\(full\.length\)/);
+  assert.match(sync, /sec\.remove\(\)/); assert.match(sync, /\$\('#pending-empty'\)\.hidden = listEl\.children\.length !== 0/);
 });
 test('Historial · pestaña temporal Recuperados: existe solo con lote dentro de la ventana; los partidos NO salen del historial al vencer', () => {
   const env = (recoveries, history) => {
@@ -265,10 +270,9 @@ test('Historial · pestaña temporal Recuperados: existe solo con lote dentro de
   assert.equal(env([{ recoveryId: 'r', matchIds: ['a'] }], [{ matchId: 'a', hidden: true }]).hasRecoveredTab(), false);
   // render: filtro de ORIGEN sobre el historial visible; no es un estado nuevo
   const rh = fnSrc('renderHistory');
-  assert.match(rh, /historyStatusFilter === 'recuperados' && !hasRecoveredTab\(\)\) historyStatusFilter = 'todos'/);
+  assert.match(rh, /historyStatusFilter === 'recuperados' && !hasRecoveredTab\(\)\)\) historyStatusFilter = 'todos'/);
   assert.match(rh, /renderRecoveredTabList\(wrap, list\)/);
-  assert.match(fnSrc('renderRecoveredTabList'), /30 días; los partidos siguen en tu historial/);
-  assert.match(fnSrc('renderRecoveredTabList'), /Reportar un error/, 'el derecho a reportar no vence a los 30 días: se remite al circuito existente');
+  assert.match(fnSrc('renderRecoveredTabList'), /Esta pestaña estará disponible durante 30 días\./, 'texto corto (V04.34)');
   // el servidor fija la ventana (30 días) — no hay reloj local
   assert.match(fnSrc('refreshRecentRecoveries'), /Auth\.getMyRecentRecoveries\(30\)/);
   assert.match(fnSrc('refreshServerMatches'), /refreshRecentRecoveries\(false\)/);
@@ -325,32 +329,39 @@ test('Claim · SÍ, SOY YO recupera todo sin checklist; las ramas de recuperaci�
 });
 
 /* ============ ¿SOS X? con el partido que originó la invitación ============ */
-test('¿SOS X? · muestra el partido de ORIGEN con foto/nombre/@usuario de las dos parejas, y "+ N partidos más asociados"', () => {
+test('¿SOS X? · muestra el partido de ORIGEN como MINI-PARTIDO (parejas con foto/nombre/@usuario, score a la derecha) y "+ N partidos más asociados"', () => {
   const sb = { escapeHtml: (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;'), playerInitials: (n) => String(n).slice(0, 2).toUpperCase() };
-  const build = new Function(...Object.keys(sb), `${fnSrc('buildInvitationContextHTML')}\nreturn buildInvitationContextHTML;`)(...Object.values(sb));
+  const build = new Function(...Object.keys(sb), `${fnSrc('formatMatchWhenBA')}\n${fnSrc('buildMiniMatchHTML')}\n${fnSrc('buildInvitationContextHTML')}\nreturn buildInvitationContextHTML;`)(...Object.values(sb));
   const src = {
-    playedAt: '2026-10-01T22:00:00Z', playedAtTimeKnown: true, sets: [{ gamesA: 3, gamesB: 6 }, { gamesA: 4, gamesB: 6 }],
+    playedAt: '2026-10-01T22:00:00Z', playedAtTimeKnown: true, sets: [{ setNumber: 1, gamesA: 3, gamesB: 6 }, { setNumber: 2, gamesA: 4, gamesB: 6 }, { setNumber: 3, gamesA: 7, gamesB: 6 }],
     participants: [
       { team: 'A', position: 1, displayName: 'Seba', username: 'seba', avatarPath: 'u1/a.png' },
-      { team: 'A', position: 2, displayName: 'Matu', username: 'matu', avatarPath: null },
+      { team: 'A', position: 2, displayName: 'Matu con un nombre muy largo para probar', username: 'matu', avatarPath: null },
       { team: 'B', position: 1, displayName: 'Mariano', username: null, avatarPath: null, isInvitee: true },
       { team: 'B', position: 2, displayName: 'Lucho', username: 'lucho', avatarPath: null },
     ],
   };
   const html = build(src, { sourceIsOrigin: true, matchCount: 18 }, 'Mariano');
-  assert.match(html, /Te invitaron desde este partido:/);
+  assert.match(html, /Te invitaron desde este partido · 01\/10\/2026/);
   assert.match(html, /\+ 17 partidos más asociados a Mariano/);
   assert.match(html, /@seba/); assert.match(html, /@matu/); assert.match(html, /@lucho/);
   assert.match(html, /data-avatar-path="u1\/a\.png"/, 'foto si existe (ruta de Storage, se firma en lote)');
-  assert.match(html, /invite-ctx__name--invitee">Mariano/, 'el lugar de la identidad invitada va resaltado');
-  assert.ok(html.indexOf('Mariano') < html.indexOf('Seba'), 'la pareja de la identidad invitada va primero');
-  assert.match(html, /6-3  ·  6-4/, 'el score se orienta desde la pareja de la identidad invitada');
+  assert.match(html, /mini-match__name mini-match__name--invitee">Mariano/, 'el lugar de la identidad invitada va resaltado');
+  assert.ok(html.indexOf('Mariano') < html.indexOf('Seba'), 'la pareja de la identidad invitada va primero (arriba, verde)');
+  assert.match(html, /mini-match__team--first[\s\S]*mini-match__divider[\s\S]*mini-match__team--second/, 'dos filas de pareja con divisor, sin VS grande ni cuatro cajas');
+  // score por set alineado a la derecha, orientado desde la pareja de arriba (B): 6-3, 6-4, 6-7 → ganó 2 sets
+  const firstRow = html.slice(html.indexOf('mini-match__team--first'), html.indexOf('mini-match__divider'));
+  assert.deepEqual([...firstRow.matchAll(/mini-match__set(?: mini-match__set--win)?">(\d)/g)].map((m) => m[1]), ['6', '6', '6']);
+  assert.equal([...firstRow.matchAll(/mini-match__set--win/g)].length, 2, 'ganó 2 de 3 sets');
   assert.doesNotMatch(html, /@Mariano|@null|@undefined/, 'sin @usuario para quien no tiene cuenta (fallback normal)');
+  assert.doesNotMatch(html, /invite-ctx__vs|VS/, 'sin VS grande');
   // sin origen (link viejo): copy anterior, y sin partidos extra no hay línea "+ N"
   const old = build(src, { sourceIsOrigin: false, matchCount: 1 }, 'Mariano');
-  assert.match(old, /registró este partido con ese nombre:/); assert.doesNotMatch(old, /más asociado/);
+  assert.match(old, /registró este partido con ese nombre/); assert.doesNotMatch(old, /más asociado/);
   assert.match(build(src, { sourceIsOrigin: true, matchCount: 2 }, 'X'), /\+ 1 partido más asociado a X/);
-  // el modal sigue exponiendo SÍ / NO como antes
+  // el layout soporta nombres largos (ellipsis) y 3 sets
+  assert.match(cssText, /\.mini-match__name\{[^}]*text-overflow: ellipsis/);
+  assert.match(cssText, /\.mini-match__team\{[^}]*grid-template-columns: minmax\(0,1fr\) auto/);
   assert.match(indexHtml, />SÍ, SOY YO</); assert.match(indexHtml, />NO, NO SOY YO</);
   assert.match(fnSrc('askInvitationConfirmation'), /buildInvitationContextHTML\(src, preview, displayName\)/);
 });

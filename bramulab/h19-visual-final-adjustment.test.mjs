@@ -108,7 +108,7 @@ test('h19-B: computeHomePendingCarouselItems (player-home.js, pura) suma partido
 test('h19-C: el rótulo se calcula sincrónicamente en renderAnalysis (nunca depende de get_match_detail) y se pasa a la tarjeta oficial', () => {
   const body = extractFunctionBody(appJs, 'renderAnalysis');
   assert.match(body, /f\.status === 'validated' && !!f\.pendingCorrectionRevisionId && b6CorrectionWindowOpen\(f\)/, 'debe bastar con datos ya disponibles en el f liviano, sin esperar actionsRaw');
-  assert.match(body, /buildResultBlockHTML\(f, \{ officialLabelHTML \}\)/);
+  assert.match(body, /buildResultBlockHTML\(f, \{ officialLabelHTML, mineFirst: true \}\)/);
 });
 
 test('h19-C: buildScoreCardHTML pinta el rótulo como PRIMER hijo de .result-card (antes de ganadores/grilla)', () => {

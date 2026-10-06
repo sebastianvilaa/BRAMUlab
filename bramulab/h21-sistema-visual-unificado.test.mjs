@@ -127,11 +127,11 @@ test('h21-9: renderHistoryFilters pinta HISTORY_STATUS_TABS y desoculta #history
   assert.match(body, /\$\('#history-tabs'\)\.hidden = false/);
 });
 
-test('h21-9: HISTORY_STATUS_TABS son exactamente Todos/Pendientes/Victorias/Derrotas/Ocultos, en ese orden', () => {
+test('h21-9 (V04.34): HISTORY_STATUS_TABS son exactamente Todos/Victorias/Derrotas/Ocultos — Pendientes salió de Historial (pantalla propia)', () => {
   const match = appJs.match(/const HISTORY_STATUS_TABS = \[([\s\S]*?)\];/);
   assert.ok(match, 'debe existir HISTORY_STATUS_TABS');
   const keys = [...match[1].matchAll(/key:\s*'([a-z]+)'/g)].map((m2) => m2[1]);
-  assert.deepEqual(keys, ['todos', 'pendientes', 'victorias', 'derrotas', 'ocultos']);
+  assert.deepEqual(keys, ['todos', 'victorias', 'derrotas', 'ocultos']);
 });
 
 test('h21-9: renderHistory pide includeHidden:true y aplica PH.filterHistoryByStatusTab', () => {
@@ -197,14 +197,14 @@ test('h21-10: "Ocultar partido" ya no vive en Resumen — retirado, mecanismo ex
 /* ---- Bundle/cache quartet de esta ronda ---- */
 
 test('h21: bundle/cache quartet queda alineado', () => {
-  assert.match(indexHtml, /app\.js\?v=04\.33-h1/);
-  assert.match(indexHtml, /styles\.css\?v=04\.33-h1/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.33-h1'/);
-  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-33-h1'/);
-  assert.match(swJs, /app\.js\?v=04\.33-h1/);
-  assert.match(swJs, /styles\.css\?v=04\.33-h1/);
-  assert.match(versionJson, /"bundle":\s*"04\.33-h1"/);
+  assert.match(indexHtml, /app\.js\?v=04\.34-h1/);
+  assert.match(indexHtml, /styles\.css\?v=04\.34-h1/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.34-h1'/);
+  assert.match(swJs, /CACHE_NAME = 'bramulab-v04-34-h1'/);
+  assert.match(swJs, /app\.js\?v=04\.34-h1/);
+  assert.match(swJs, /styles\.css\?v=04\.34-h1/);
+  assert.match(versionJson, /"bundle":\s*"04\.34-h1"/);
   // V04.12 — ronda visible: la versión pública sube y el modal nunca muestra el sufijo hN.
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.33'/);
-  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.33"/);
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.34'/);
+  assert.match(versionJson, /"version":\s*"BRAMUlab V04\.34"/);
 });

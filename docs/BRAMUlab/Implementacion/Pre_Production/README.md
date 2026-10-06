@@ -13,6 +13,7 @@ Esta carpeta contiene únicamente documentos que siguen teniendo valor operativo
 - `62_Handoff_Grupos_BRAMU_28SEP.md` — handoff activo para productivización de Grupos.
 - `89_Handoff_G1_Emails_Implementacion_01OCT.md` + `90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md` — G1 Emails/Auth V1: contrato y resultado técnico (pendiente aplicar en Staging + QA real).
 - `129_Handoff_Rediseno_Recuperados_Pendientes_V0433_05OCT.md` + `130_Resultado_Rediseno_Recuperados_Pendientes_V0433_05OCT.md` — V04.33: Recuperados automático + validación rápida + Partidos pendientes (Issue #29); migración `20261005200000` pendiente de aplicar en Staging.
+- `131_Handoff_Cierre_QA_V0433_Correccion_Final_V0434_06OCT.md` + `132_Resultado_Cierre_QA_V0434_06OCT.md` — V04.34: cierre post-QA humano (Partidos pendientes como pantalla propia, unificación visual, pre-check y decisión durable de `ES OTRO PARTIDO`); migración `20261006100000` pendiente de aplicar en Staging.
 
 ## Regla
 

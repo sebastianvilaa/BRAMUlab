@@ -36,7 +36,7 @@ test('§A: paintB6Actions distingue isResponder y reutiliza el mismo bloque para
   assert.match(body, /b6-respond-action-row['"]\)\.hidden = !isResponder/, 'la fila de Aceptar/Rechazar solo debe mostrarse para quien responde, nunca para quien propuso');
   assert.match(body, /Tu corrección propuesta/, 'quien propuso debe ver un rótulo en 2da persona, no "Corrección propuesta por <su propio nombre>" únicamente');
   assert.match(body, /Esperando respuesta de la otra pareja/, 'quien propuso debe ver el estado de espera junto a la propuesta completa');
-  assert.match(body, /buildCorrectionPreviewCardHTML\(f\.players, f\.pendingCorrectionSets, proposedWinner\)/, 'la tarjeta completa debe construirse UNA sola vez y reutilizarse para ambos casos');
+  assert.match(body, /buildCorrectionPreviewCardHTML\(f\.players, f\.pendingCorrectionSets, proposedWinner, presentationFirstTeam\(f\)\)/, 'la tarjeta completa debe construirse UNA sola vez y reutilizarse para ambos casos');
 });
 
 test('§A: la fila de acciones tiene su propio id en index.html para poder ocultarla sin tocar el resto del bloque', () => {

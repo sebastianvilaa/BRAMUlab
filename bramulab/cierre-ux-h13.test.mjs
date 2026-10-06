@@ -54,8 +54,8 @@ test('P0-B: renderPlayerLastMatchCard calcula explícitamente si hay una correcc
 test('P0-C: buildScoreCardHTML y buildCorrectionPreviewCardHTML comparten la MISMA primitiva de filas (buildResultRowsHTML)', () => {
   const scoreCardBody = extractFunctionBody(appJs, 'buildScoreCardHTML');
   const previewBody = extractFunctionBody(appJs, 'buildCorrectionPreviewCardHTML');
-  assert.match(scoreCardBody, /buildResultRowsHTML\(f\.players, f\.sets, f\.currentPartial\)/, 'el resultado oficial debe armar sus filas con la primitiva compartida');
-  assert.match(previewBody, /buildResultRowsHTML\(players, sets, null\)/, 'la propuesta debe armar sus filas con la MISMA primitiva compartida, nunca una copia');
+  assert.match(scoreCardBody, /buildResultRowsHTML\(f\.players, f\.sets, f\.currentPartial, opts\.firstTeam\)/, 'el resultado oficial debe armar sus filas con la primitiva compartida');
+  assert.match(previewBody, /buildResultRowsHTML\(players, sets, null, firstTeam\)/, 'la propuesta debe armar sus filas con la MISMA primitiva compartida, nunca una copia');
   assert.doesNotMatch(scoreCardBody, /function cellsForTeam/, 'buildScoreCardHTML ya no debe tener su propia copia de cellsForTeam');
   assert.doesNotMatch(previewBody, /function cellsForTeam/, 'buildCorrectionPreviewCardHTML ya no debe tener su propia copia de cellsForTeam');
 });
