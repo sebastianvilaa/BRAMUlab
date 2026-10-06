@@ -1153,3 +1153,28 @@ Concurrencia:
 **Pendiente único:** QA visual/browser sobre el deploy protegido para confirmar el copy y la continuidad UX al pasar de “SÍ, ES EL MISMO” a corrección pendiente y luego aceptar/rechazar. El conector Vercel disponible a Central no tiene autorización sobre el scope protegido `bramu-lab`; no se convierte a Sebastián en operador técnico por este punto.
 
 Fuente de detalle: `docs/BRAMUlab/Implementacion/Pre_Production/120_Gate_Central_Tecnico_Invitados_V0429_h2_03OCT.md`.
+
+
+---
+
+## Pre-Production V04.36 — Anular carga + identidad visual — GATE TÉCNICO CENTRAL PASS (06/10/2026)
+
+**Estado:** **PASS técnico en Staging; pendiente QA humano mínimo.**
+
+Entrega funcional:
+- commit `f24ef53d399c3ba1021aa0dc33c607628b0aacb5`;
+- BRAMUlab V04.36 / bundle `04.36-h1`;
+- nueva RPC authenticated `annul_my_match_submission`;
+- identidad visual final aplicada desde masters SVG y derivados PWA;
+- identidad histórica retirada del árbol activo.
+
+Gate Central real:
+- migración `v0436_annul_own_submission` aplicada en Supabase Staging, versión registrada `20261006203501`;
+- permisos reales verificados: anon sin EXECUTE, authenticated con EXECUTE, helpers internos no expuestos;
+- pruebas transaccionales en Postgres Staging real: `identity_questioned` de tercero no bloquea, acción propia no bloquea, `confirmed` de tercero sí bloquea, idempotencia PASS, detalle/feed invisibles tras anulación;
+- pendiente real de `seba_qa`: `canAnnulSubmission=true`;
+- advisors sin hallazgo nuevo bloqueante;
+- Vercel/GitHub status: SUCCESS para el commit funcional;
+- sin cambios en main, Production ni BRAMUlive.
+
+Pendiente único para cierre de V04.36: QA humano dirigido de marca + flujo exitoso de `Anular carga` sobre fixture específico `QA · Anular carga`. Los escenarios negativos no se repiten manualmente porque ya tienen cobertura suficiente.

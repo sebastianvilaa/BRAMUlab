@@ -76,3 +76,54 @@ La única falla es **preexistente e ajena** (`h23: flujo inicial dice VALIDAR…
 
 - Una notificación persistida `identity_recovered` conserva su contador "N partidos" aunque uno haya sido retirado por su autor después (las listas ya lo excluyen). Caso muy improbable.
 - Un reintento *idempotente* de `create_or_attach_match` con la misma clave tras anular devolvería el resultado original guardado; el partido no aparece en ninguna lectura. No se modificó esa función (31 KB) por riesgo/beneficio.
+
+
+---
+
+## 7. Gate Central posterior a la entrega — 06/10/2026
+
+**Estado:** **PASS TÉCNICO CENTRAL EN STAGING.** Queda únicamente QA humano mínimo visual/funcional.
+
+Central revisó el diff completo `62c3f5d → f24ef53`: un único commit funcional, sin cambios en `main`, Production ni archivos de BRAMUlive.
+
+### Backend real
+
+- Migración `v0436_annul_own_submission` aplicada correctamente a `bramulab-staging`.
+- Versión registrada por Supabase: `20261006203501`.
+- ACL real:
+  - `anon` NO puede ejecutar `annul_my_match_submission`;
+  - `authenticated` SÍ;
+  - helper interno `_annul_submission_block_reason` NO queda expuesto a authenticated;
+  - `get_match_detail` queda authenticated y no anon.
+- Smoke transaccional en Postgres Staging real:
+  - `No participé` de otra persona → **NO bloquea**;
+  - acción del propio autor → **NO bloquea**;
+  - `confirmed` por otra persona → **bloquea** con `recognized_by_other`;
+  - doble anulación → retorno idempotente `already_annulled`;
+  - tras anular, detalle y feed quedan invisibles incluso con `include_hidden`.
+- Sobre un pendiente real de `seba_qa`, `get_match_detail` devuelve `canAnnulSubmission=true`.
+- Advisors posteriores: sin hallazgo nuevo bloqueante. El warning de `SECURITY DEFINER` para la nueva RPC es esperado: es un endpoint authenticated deliberado con controles internos; helpers siguen revocados.
+
+### Deploy
+
+GitHub/Vercel reporta **SUCCESS · Deployment has completed** para el commit funcional `f24ef53d399c3ba1021aa0dc33c607628b0aacb5`.
+
+El conector de Central no puede atravesar la protección del Preview para inspección visual directa (403 en bypass), por lo que no se duplica trabajo ni se pide cambio de permisos de Vercel.
+
+### Decisiones abiertas de 141
+
+1. **Pendiente vencido:** se acepta el comportamiento actual. Al vencer la ventana deja de ser una carga pendiente accionable; `Anular carga` no se ofrece. No requiere cambio.
+2. **Recorte de `viewBox` del logo runtime:** no modifica paths, proporciones, colores ni geometría; se acepta como adaptación técnica para conservar el tamaño visual histórico. Queda sujeto únicamente al QA visual humano del deploy.
+
+### QA restante
+
+Central dejó un fixture específico y descartable en Staging para `seba_qa`, identificado visualmente por el lugar **`QA · Anular carga`**, score 6–3 / 6–4 y elegibilidad `canAnnulSubmission=true`.
+
+QA humano mínimo:
+1. confirmar logo nuevo / aspecto general en Staging;
+2. abrir ese partido;
+3. comprobar `Anular carga` bajo `Reportar un error`;
+4. confirmar modal/copy;
+5. anular y comprobar que desaparece y vuelve a Home.
+
+No hace falta repetir escenarios de bloqueo con una segunda cuenta: ya quedaron cubiertos por tests + Postgres real de Central.
