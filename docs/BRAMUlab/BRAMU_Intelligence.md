@@ -1145,3 +1145,26 @@ La ventaja competitiva de BRAMU Intelligence no debería ser “escribe como una
 [^11]: BRAMU Lab. `Nivel_BRAMU_Formula_V1.4.md`. Documento normativo interno, 10 de septiembre de 2026.
 [^12]: BRAMU Lab. `BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md`. Evaluación interna de proveedores, costos, privacidad y arquitectura, septiembre de 2026.
 [^13]: BRAMU Lab. `Ranking_BRAMU.md`. Definición V1 cerrada, 11 de septiembre de 2026.
+
+
+---
+
+## 18. V04.37 — lectura longitudinal de Evolución del Nivel
+
+Se agrega una superficie longitudinal mínima dentro de **Mi Perfil > Evolución del Nivel BRAMU**.
+
+No es análisis post-partido y no reutiliza candidatos relacionales de un partido. Su única evidencia es la serie oficial real de Nivel del propio jugador.
+
+Reglas V1:
+- describir solo cambios observables del valor público;
+- ventana principal: últimos 30 días;
+- cambio material: diferencia visible a la precisión pública vigente;
+- estabilidad solo puede afirmarse si hubo al menos 3 eventos computables y todos conservaron el mismo valor público;
+- si hay oscilaciones que terminan en el mismo valor, no decir “se mantuvo”;
+- si falta evidencia, abstenerse.
+
+Ejemplos:
+- `En los últimos 30 días tu Nivel pasó de 5,8 a 6,0 (+0,2).`
+- `Tu Nivel se mantuvo en 6,0 durante tus últimos 4 partidos computables.`
+
+No explicar causas salvo que una futura versión defina y valide una lectura específica a partir de códigos oficiales. No usar respuestas del cuestionario ni inferencias técnicas.

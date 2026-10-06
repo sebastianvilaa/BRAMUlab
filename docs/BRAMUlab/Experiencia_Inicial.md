@@ -1510,3 +1510,39 @@ Prioridad:
 5. probar la experiencia con usuarios reales antes de sumar funciones adicionales.
 
 > La mejor primera experiencia no es la que explica todo BRAMU. Es la que hace que el usuario entienda dónde está, qué puede hacer ahora y empiece a generar datos reales sin sentir que entró a una aplicación vacía.
+
+
+---
+
+## 27. V04.37 — detalle histórico de Actividad
+
+Decisión cerrada tras QA humano del 06/10/2026.
+
+La tarjeta **ACTIVIDAD** del Home mantiene su resumen actual de las últimas 4 semanas y pasa a ser tocable.
+
+Al tocarla abre una pantalla simple **ACTIVIDAD**, pensada para lectura histórica y scroll vertical. No es una pantalla de análisis profesional ni reemplaza Historial.
+
+### Contenido
+
+Cada fila representa una semana con actividad oficial real y muestra:
+
+- rango lunes–domingo en formato humano, por ejemplo `5 OCT — 11 OCT`;
+- partidos jugados esa semana;
+- partidos ganados;
+- partidos perdidos;
+- efectividad semanal = ganados / jugados.
+
+No usar “Semana 40”, “Semana 41” como lectura principal. El rango de fechas es más directo para un jugador amateur.
+
+### Fuente y reglas
+
+- usar exactamente la misma verdad deportiva que ya alimenta **ACTIVIDAD** en Home;
+- conservar la misma frontera semanal/helper vigente de esa superficie; no introducir un segundo calendario;
+- ordenar de más reciente a más antigua;
+- acumular histórico desde la primera semana con actividad disponible;
+- no inventar estadísticas para semanas sin evidencia;
+- no mostrar semanas vacías únicamente para rellenar continuidad visual;
+- pending/no oficiales no alimentan el detalle;
+- si no hay actividad oficial, la tarjeta sigue las reglas de Estado Cero existentes y no abre un detalle vacío.
+
+La pantalla puede reutilizar el lenguaje visual de las barras del Home, pero debe priorizar lectura clara de fechas + jugados/ganados/perdidos + efectividad.

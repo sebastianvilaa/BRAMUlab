@@ -588,3 +588,55 @@ Simulaciones del Issue #25 con el motor vigente desde un 5,405 sobreestimado: ci
 ## Fuentes de diseño
 
 Glicko (Glickman); TrueSkill (Herbrich, Minka, Graepel, 2007); UTR (algoritmo y dobles); DUPR (How It Works); Playtomic (sistema de nivel, 2026); reglas FIP 2026; padrón público de Pádel Argentino y Circuito Regional de Pádel de Villa María (control de realidad de la pirámide de categorías, septiembre 2026). Se adoptó la arquitectura (expectativa + incertidumbre + equipos + score acotado) y no ninguna fórmula ajena literal.
+
+
+---
+
+## 16. V04.37 — Evolución real del Nivel en Mi Perfil
+
+Decisión cerrada tras QA humano del 06/10/2026.
+
+La tarjeta **EVOLUCIÓN DEL NIVEL BRAMU** vuelve a **Mi Perfil** para cuentas server-backed con evidencia real.
+
+### Regla de verdad
+
+NO reactivar `PH.computeLevelEvolution` ni ninguna serie simulada/legacy para una cuenta V1 real.
+
+La evolución visible debe provenir exclusivamente del backend oficial de Nivel. La implementación debe usar una lectura autenticada y acotada que exponga solo lo necesario para UI pública/personal, nunca parámetros internos del motor.
+
+La fuente canónica debe respetar el estado vigente de resultados:
+- incluir únicamente efectos oficiales actualmente aplicados;
+- reflejar correcciones y anulaciones sin dejar dobles puntos o “blips” de resultados ya revertidos;
+- preservar el orden deportivo real del historial;
+- partir del valor inicial oficial cuando corresponda;
+- mostrar valores públicos redondeados con la misma precisión vigente de Nivel;
+- no exponer `k`, factores, confianza cruda, expectativa interna ni fórmulas del motor.
+
+Si el backend actual no tiene una RPC apropiada, crear una RPC self-only como `get_my_level_evolution()` o equivalente, con autenticación y contrato mínimo.
+
+### UX
+
+Reutilizar, en lo posible, la tarjeta/gráfico histórico que ya existía para Evolución, adaptándolo a la nueva fuente real.
+
+Debe permitir entender:
+- Nivel actual;
+- recorrido real del Nivel a través de los partidos computables;
+- cambio material reciente cuando exista;
+- mejor Nivel real, si la evidencia canónica permite calcularlo sin reinterpretar el pasado.
+
+No mostrar el módulo si todavía no existe evidencia real suficiente para una evolución útil.
+
+### BRAMU Intelligence dentro de Evolución
+
+Debajo del gráfico puede aparecer una lectura breve y determinística, con datos de la misma serie.
+
+Prioridad V1:
+1. si en los últimos 30 días el valor público cambió materialmente:  
+   `En los últimos 30 días tu Nivel pasó de X a Y (↑/↓ Z).`
+2. si hubo al menos 3 eventos computables en el período y **todos** conservaron el mismo valor público:  
+   `Tu Nivel se mantuvo en X durante tus últimos N partidos computables.`
+3. en cualquier otro caso: abstención; no forzar texto.
+
+No atribuir causas, técnica, confianza, mentalidad ni “mejora de juego”. La lectura describe únicamente la evolución registrada.
+
+Mi Perfil con 0 partidos oficiales conserva la regla existente: identidad + Nivel/estado, sin Evolución vacía.

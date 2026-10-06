@@ -1109,3 +1109,31 @@ Misma hoja `#group-points-info-sheet`, siempre **bottom sheet** (~85dvh con tope
 - **Bloque 3 — Nueva semana, nueva tabla:** “Cada lunes la tabla vuelve a empezar. Los puntos que sumaste siguen acumulándose en la Race anual.”
 - **Secundario “Cómo sumás puntos”:** Clásico 5 pts · hasta 7 con bonus; Americano 3 pts · hasta 5 con bonus; Sorpresa de nivel (+1 por vencer a una pareja claramente superior); Remontada (+1, no aplica en Americano); Victoria clara (+1 por ganar con claridad). Cierre: “Los puntos de Grupos son propios de esta competencia. No modifican tu Nivel BRAMU ni tu Ranking BRAMU.”
 - La ayuda NO muestra umbrales técnicos (0,5 / 1,0) ni reglas de score (6-0/6-1/6-2): siguen documentados en §5 y testeados.
+
+
+---
+
+## 29. V04.37 — movimiento de posiciones en Race anual
+
+Decisión cerrada tras QA humano del 06/10/2026.
+
+La tabla **Race anual** suma un indicador de movimiento por jugador usando el mismo lenguaje visual del Ranking BRAMU:
+
+- `↑ N` cuando subió N puestos;
+- `↓ N` cuando bajó N puestos;
+- sin indicador si conserva la misma posición;
+- sin indicador si no existe una posición previa comparable (primera semana del año, alta/reingreso sin comparación válida, etc.).
+
+### Comparación
+
+La referencia es la posición de la Race **al cierre de la semana BRAMU anterior**, contra la posición de la Race actual incluyendo los puntos acumulados hasta la semana vigente.
+
+Debe respetar:
+- empate visible por ranking de competición `1,1,3`;
+- pertenencia activa y reglas históricas de alta/reingreso ya vigentes;
+- misma frontera semanal canónica de Buenos Aires usada por Grupos;
+- ninguna modificación en puntos, top 2, bonuses ni fórmula de Race.
+
+El indicador es presentación/contexto; no es un nuevo sistema de ranking ni modifica BRAMU Intelligence grupal.
+
+Cuando solo existe una semana comparable —como en el QA del 06/10/2026— no debe aparecer ninguna flecha.
