@@ -72,3 +72,23 @@ Staging real (migración sin aplicar; por eso el caso real del QA de punta a pun
 2. Resumen: mi equipo arriba y verde, título `POR VALIDAR`/`ESPERANDO`, feedback inline.
 3. Duplicado: un único caso `ES OTRO PARTIDO` (con el pre-check) y comprobar que, tras un claim (puede usarse el partido pendiente con **Leo**), el par **no** reaparece.
 4. Solo si hace falta: `¿SOS X?` con 2/3 sets.
+
+
+## 9. Gate Central en Staging — 06/10/2026
+
+Central completó la revisión de V04.34 sobre **Supabase Staging**.
+
+- Migración `20261006100000_v0434_persist_different_duplicate_decision.sql`: **APLICADA**.
+- Deploy Vercel del commit funcional `ffaab1c0b55d19ae4491f13666cc33c7c79e580a`: **SUCCESS**.
+- La RPC `create_or_attach_match(...)` conserva ACL server-only y contiene el bloque durable de `resolved_different`.
+- Prueba transaccional real `BEGIN/ROLLBACK` sobre Seba/Leo vs Esteban/Gaston:
+  - force-new creó el encuentro de prueba dentro de la transacción;
+  - se verificaron 2 relaciones `resolved_different` contra los 2 encuentros equivalentes;
+  - se verificaron 0 candidatos `open` para el encuentro de prueba;
+  - `ROLLBACK` dejó Staging sin fixtures de esa prueba.
+- Resultado: **V04.34 staging durable-different PASS**.
+- El par real usado en el QA humano ya figura como `resolved_different`.
+
+**Gate técnico Central: PASS.** Resta únicamente QA humano visual/focal. No repetir batería histórica.
+
+Production sigue prohibida.
