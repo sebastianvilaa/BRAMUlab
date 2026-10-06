@@ -23,5 +23,14 @@
 
 Única falla: `h23` (preexistente y ajena).
 
-## 4. No verificado
-- QA visual real (una captura de Mi Perfil > Evolución y Ranking con las fotos de Seba/Matu/Gusti): requiere sesión de Staging. La resolución se probó con un `Auth.getPlayersCompact` simulado; el contrato real es el mismo que usan Grupos/Compañeros.
+## 4. QA humano real — PASS
+
+Captura real de Staging posterior al deploy h2:
+- **Evolución:** línea celeste BRAMU visible; trazo suavizado aplicado; datos/Intelligence sin cambios.
+- **Ranking:** avatares reales visibles para Seba, Esteban, Matu y Gusti; Pablito/Jona conservan iniciales como fallback donde no hay foto.
+- **Race anual:** movimiento ↑/↓ ya había sido validado en la pasada anterior.
+- **Actividad histórica:** validada en la pasada anterior.
+
+**V04.37 queda CERRADA EN STAGING / PASS CENTRAL.**
+
+Nota visual: la serie real de Nivel tiene oscilaciones frecuentes entre valores cercanos; por eso, aun con spline suave, conserva una silueta con muchos picos reales. Suavizar más exigiría dejar de pasar por cada valor registrado y convertir la línea en una tendencia aproximada, decisión que no se adopta en esta ronda para no distorsionar evidencia.

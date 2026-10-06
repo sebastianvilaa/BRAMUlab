@@ -1223,3 +1223,20 @@ Gate Central:
 - main, Production y BRAMUlive intactos.
 
 Pendiente de V04.37: QA humano visual mínimo de Actividad, Evolución y ausencia/coherencia de movement en Race.
+
+
+---
+
+## V04.37 — cierre humano final (06/10/2026)
+
+**Estado: CERRADO / PASS Central en Staging sobre bundle `04.37-h2`.**
+
+QA humano real:
+- Actividad histórica: PASS;
+- Evolución del Nivel: datos reales + BRAMU Intelligence + línea celeste/suavizada: PASS;
+- Race anual: movimiento ↑/↓: PASS;
+- Ranking server-backed: avatares reales por playerId visibles en filas con foto: PASS; fallback a iniciales donde corresponde.
+
+La forma todavía “serruchada” de algunos tramos de Evolución refleja oscilaciones reales muy frecuentes de la serie. No se aplica suavizado de tendencia que deje de pasar por cada valor, para no convertir evidencia en aproximación visual.
+
+Sin cambios en main, Production ni BRAMUlive.
