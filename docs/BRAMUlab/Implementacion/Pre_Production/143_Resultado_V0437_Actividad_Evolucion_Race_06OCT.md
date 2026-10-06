@@ -2,7 +2,7 @@
 
 **Fecha:** 06/10/2026 · **Rama:** `staging` · **Base:** `f8e03b3` · **Versión:** BRAMUlab **V04.37 / bundle 04.37-h1**  
 **SHA final:** el del commit que contiene este archivo (se informa al cerrar la ronda).  
-**Migración PENDIENTE de aplicar en Supabase Staging (la aplica/verifica Central):** `supabase/migrations/20261006300000_v0437_level_evolution.sql` (solo agrega una función de lectura; sin cambios de tablas ni de datos).  
+**Migración APLICADA y verificada en Supabase Staging por Central:** `supabase/migrations/20261006300000_v0437_level_evolution.sql` (versión remota `20261006231546`; solo agrega una función de lectura; sin cambios de tablas ni de datos).  
 **No tocado:** `main`, Production, BRAMUlive, fórmulas/motor de Nivel, `PH.computeLevelEvolution` (sigue siendo solo legacy), Ranking BRAMU, puntuación/top 2/bonus/Americano de Grupos, Anular carga, identidad visual, Auth. Hardening 139 intacto (el navegador sigue sin motor de Nivel).
 
 ---
@@ -51,3 +51,59 @@
 ## 5. DECISIONES ABIERTAS
 1. **CALIBRANDO con resultados reales:** hoy, si ya existe ≥ 1 resultado vigente, Mi Perfil muestra el gráfico real **junto con** el progreso de calibración (sin la nota de "primera referencia"). Alternativa: ocultar el gráfico hasta calibrar. El handoff pide ocultar "con evidencia insuficiente", no define CALIBRANDO.
 2. **Formato de decimales en la lectura de Intelligence:** se usa punto (`5.8`, `↑ 0.2`) por coherencia con todo el Nivel de la app y con el copy existente de Intelligence; los ejemplos de `BRAMU_Intelligence.md` §18 usan coma. Cambiarlo es una línea en `PH.buildRealLevelEvolution`.
+
+
+---
+
+## 6. Gate técnico Central — 06/10/2026
+
+**Estado:** PASS TÉCNICO EN STAGING. Queda únicamente QA humano mínimo.
+
+Central revisó el diff completo `f8e03b3 → b8029fe`: un único commit funcional, sin cambios en `main`, Production ni BRAMUlive.
+
+### Backend real
+
+- Migración `v0437_level_evolution` aplicada correctamente a `bramulab-staging`.
+- Versión registrada por Supabase: `20261006231546`.
+- ACL real:
+  - `anon`: sin EXECUTE;
+  - `public`: sin EXECUTE;
+  - `authenticated`: con EXECUTE.
+- Cuenta real `seba_qa`:
+  - `currentLevel = 6.0`;
+  - serie disponible;
+  - punto inicial público 5.9;
+  - último punto público 6.0;
+  - 52 resultados vigentes aplicados;
+  - la suma de efectos vigentes reconstruye exactamente el estado actual.
+- Cuenta real `sebastian_vila`, CALIBRANDO con 0 partidos:
+  - `available=false`;
+  - reason `no_results`;
+  - no se fabrica Evolución vacía.
+- Advisors posteriores a la migración: no apareció un hallazgo nuevo bloqueante. La advertencia genérica de SECURITY DEFINER para endpoints authenticated es esperada para esta arquitectura; la ACL explícita de la RPC nueva quedó verificada.
+
+### Deploy
+
+GitHub/Vercel reporta **SUCCESS · Deployment has completed** para el commit funcional `b8029fefa38673c9e1846bbfd033517e468f7120`.
+
+### Revisión de alcance
+
+- Actividad comparte helper/fuente con las 4 barras y conserva el resumen.
+- Evolución real no reactiva `PH.computeLevelEvolution`.
+- La RPC entrega solo fecha, nivel público y match id; no devuelve fórmulas/factores/confianza.
+- Race agrega presentación de movimiento sin tocar puntos/top 2/bonuses/Intelligence.
+- Se detectó una modificación accidental de comentario en la migración histórica V04.36 (`V04.36` → `V04.37`) causada por el bump global. Central la restaura documentalmente al encabezado original; no hay cambio SQL ni cambio remoto.
+
+### Decisiones abiertas de 143 — resueltas por coherencia con fuentes vigentes
+
+1. **CALIBRANDO con resultados reales:** se conserva el gráfico real junto al progreso de calibración desde que existe al menos un resultado oficial computable. Con 0 resultados sigue oculto. Esto respeta la progresión de Perfil definida en `Experiencia_Inicial.md`.
+2. **Decimales de Intelligence:** se conserva punto decimal (`5.8`, `6.0`) porque es el formato visual vigente de Nivel en la app. No abrir una inconsistencia nueva solo por el ejemplo redactado con coma en documentación.
+
+### QA humano restante
+
+Solo:
+1. Home → tocar **Actividad** y revisar que el detalle semanal se sienta correcto;
+2. Mi Perfil → revisar **Evolución del Nivel** y su lectura;
+3. Race anual → comprobar que no aparezca una flecha falsa si la posición no cambió / no existe comparación.
+
+No crear fixtures para forzar movimiento de Race: subidas/bajadas/empates ya están cubiertos por tests determinísticos.

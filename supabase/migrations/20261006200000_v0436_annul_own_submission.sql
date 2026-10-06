@@ -1,4 +1,4 @@
--- BRAMUlab V04.37 — Anular carga (autoservicio del AUTOR original sobre su propia carga pendiente).
+-- BRAMUlab V04.36 — Anular carga (autoservicio del AUTOR original sobre su propia carga pendiente).
 --
 -- Decisión de producto CERRADA (136 §D3 / 140 §B): el autor puede retirar su carga mientras NADIE más haya reconocido el
 -- encuentro. Efecto: el partido queda `annulled` (se conserva internamente, nunca se borra) con kind='author_retracted',

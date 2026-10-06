@@ -1198,3 +1198,28 @@ QA visual/funcional humano:
 - ajuste h2 con mismo tratamiento outline rojo que `Reportar un error` confirmado.
 
 La ejecución destructiva sobre un partido real no se repitió porque backend, idempotencia, ACL, invisibilidad y efectos deportivos ya habían pasado tests y Postgres Staging real. V04.36 no deja gate pendiente.
+
+
+---
+
+## Pre-Production V04.37 — Actividad + Evolución real + movimiento Race — GATE TÉCNICO CENTRAL PASS (06/10/2026)
+
+**Estado:** PASS técnico en Staging; pendiente QA humano mínimo.
+
+Entrega funcional:
+- commit `b8029fefa38673c9e1846bbfd033517e468f7120`;
+- BRAMUlab V04.37 / bundle `04.37-h1`;
+- detalle histórico semanal de Actividad;
+- RPC self-only `get_my_level_evolution()` + Evolución real/Intelligence longitudinal;
+- movimiento de posiciones en Race anual.
+
+Gate Central:
+- migración `v0437_level_evolution` aplicada en Supabase Staging; versión remota `20261006231546`;
+- ACL: authenticated sí, anon/public no;
+- `seba_qa`: serie real disponible, 5.9 inicial → 6.0 actual, último punto = Nivel público actual;
+- `sebastian_vila` con 0 partidos: `available=false/no_results`;
+- Vercel SUCCESS para `b8029fe`;
+- sin hallazgo nuevo bloqueante en advisors;
+- main, Production y BRAMUlive intactos.
+
+Pendiente de V04.37: QA humano visual mínimo de Actividad, Evolución y ausencia/coherencia de movement en Race.
