@@ -60,7 +60,9 @@
 (function (global) {
   'use strict';
 
-  const RULES_VERSION = 'bramu_intelligence_v1';
+  // V04.35: 'bramu_intelligence_v1.1' — regla de relevancia relacional de `companero_mejor_balance` (solo el compañero de ESTE partido). El cambio
+  // invalida los checkpoints guardados (get-match-intelligence compara rules_version) y se regeneran con la regla nueva.
+  const RULES_VERSION = 'bramu_intelligence_v1.1';
 
   // Umbrales cerrados en BRAMU_Intelligence.md §5 — ver comentario de cada builder para la cita exacta.
   const STREAK_SHOWABLE_MIN = 3; // §5.3
@@ -388,7 +390,18 @@
     const topRatio = ratioOf(candidates[0]);
     const tiedAtTop = candidates.filter((c) => ratioOf(c) === topRatio);
     const isUnique = tiedAtTop.length === 1;
-    const best = candidates[0];
+    // V04.35 — RELEVANCIA: un insight de compañero de UN partido solo puede hablar del compañero de ESE partido. Si el "mejor compañero" global no
+    // participa (o el compañero actual no está entre los mejores), el candidato queda fuera — sin reemplazo débil: se muestran menos insights.
+    const currentTeammateId = currentMatch && currentMatch.perspective && currentMatch.perspective.teammate && currentMatch.perspective.teammate.userId;
+    const currentIsTop = !!currentTeammateId && tiedAtTop.some((c) => c.id === currentTeammateId);
+    if (!currentIsTop) {
+      return makeDiscarded({
+        insightType: 'companero_mejor_balance', family: 'D', perspectivePlayerId: callerPlayerId,
+        comparisonScope: 'todos_los_companeros', sampleSize: candidates.length, minSampleRequired: 2,
+        dataAsOf: currentMatch.playedAt, reasonCodes: ['mejor_companero_no_participa_en_este_partido'],
+      });
+    }
+    const best = candidates.find((c) => c.id === currentTeammateId); // el compañero de este partido (único o empatado en el tope)
     // C01: la evidencia debe permitir reconstruir el ranking comparativo completo, no solo los
     // partidos del elegido — unión de TODOS los candidatos realmente comparados.
     const evidenceMatchIds = Array.from(new Set(candidates.flatMap((c) => matchIdsOf(c.summary))));
@@ -398,7 +411,7 @@
         companionPlayerId: best.id, wins: best.summary.wins, losses: best.summary.losses,
         comparedAgainst: candidates.length,
         // C03: nunca se afirma "mejor" sin marcar si es único o empatado — Fase D decide si
-        // redacta "tu mejor balance" o "empatás tu mejor balance con...".
+        // redacta el balance solo o también que empata el mejor.
         isUnique, tiedWith: isUnique ? [] : tiedAtTop.filter((c) => c.id !== best.id).map((c) => c.id),
         candidates: candidates.map((c) => ({
           companionPlayerId: c.id, wins: c.summary.wins, losses: c.summary.losses, sampleSize: c.summary.decidedMatches,

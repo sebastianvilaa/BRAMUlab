@@ -976,3 +976,43 @@ test('E06b: un insight A-G (no Familia H) TAMBIÉN trae rulesVersions.e — el p
   assert.equal(rendered.principal.rulesVersions.b, CL.RULES_VERSION);
   assert.equal(rendered.principal.rulesVersions.e, IO.RULES_VERSION);
 });
+
+/* ------------------------------------------------------------------ */
+/* V04.35: relevancia relacional + copy explícito de "mejor compañero"   */
+/* ------------------------------------------------------------------ */
+
+test('V04.35 copy: el balance con el compañero actual se redacta explícito ("ganaste 8 de 11 partidos registrados"), nunca "8 en 11"', () => {
+  const resolveNameDecision = (claim) => PR.renderIntelligence(fakeDecisionFor('companero_mejor_balance', Object.assign({ companionPlayerId: PARTNER, comparedAgainst: 3 }, claim)), [], PR.emptyMemory());
+  const unique = resolveNameDecision({ wins: 8, losses: 3, isUnique: true, tiedWith: [] });
+  assert.equal(unique.principal.title, 'Tu mejor compañero');
+  assert.match(unique.principal.body, /^Con .+ ganaste 8 de 11 partidos registrados\.$/);
+  assert.doesNotMatch(unique.principal.body, /8 en 11|Tu mejor balance es con/);
+  const tied = resolveNameDecision({ wins: 3, losses: 2, isUnique: false, tiedWith: ['x'] });
+  assert.match(tied.principal.body, /^Con .+ ganaste 3 de 5 partidos registrados: empatás tu mejor balance\.$/);
+  const one = resolveNameDecision({ wins: 1, losses: 0, isUnique: true, tiedWith: [] });
+  assert.match(one.principal.body, /ganaste 1 de 1 partido registrado\./, 'singular correcto');
+});
+
+test('V04.35 selección: caso del QA — el mejor compañero histórico que NO juega este partido NO aparece; el compañero actual elegible SÍ puede aparecer; sin candidato suficiente se muestran menos insights', () => {
+  const GUSTI = PARTNER; const ACTUAL = '77777777-7777-7777-7777-777777777777';
+  const texts = (rows) => { const out = renderFor(rows); return [out.principal].concat(out.secondary).filter(Boolean); };
+  // GUSTI: 5 de 5 (mejor), ACTUAL: 2 de 5. El partido más reciente es con ACTUAL.
+  const rows = [];
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: GUSTI, sets: straightSetsWin('A') }));
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: ACTUAL, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  const shown = texts(rows);
+  assert.ok(!shown.some((i) => i.insightType === 'companero_mejor_balance'), 'nunca un "mejor compañero" que no participa');
+  assert.ok(!shown.some((i) => /Tu mejor balance|8 en 11|5 en 5/.test(i.body)));
+  // Fallback: no se fuerza un reemplazo débil (el servidor/cliente muestran lo que supera el umbral; puede ser menos)
+  assert.ok(shown.length <= 3);
+  // Compañero actual elegible: ahora ACTUAL es el mejor y juega el partido más reciente.
+  const rows2 = [];
+  for (let i = 0; i < 5; i++) rows2.push(row({ playedAt: dayIso(1 + i), team1: GUSTI, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  for (let i = 0; i < 5; i++) rows2.push(row({ playedAt: dayIso(10 + i), team1: ACTUAL, sets: straightSetsWin('A') }));
+  const history2 = IC.buildPersonalHistory(rows2);
+  const decision2 = ED.buildEditorialDecision(history2, ME, PR.emptyMemory());
+  const ev = decision2.evaluated.find((e) => e.candidate.insightType === 'companero_mejor_balance');
+  assert.ok(ev && ev.candidate && ev.candidate.claim.companionPlayerId === ACTUAL, 'el compañero actual sigue siendo candidato elegible');
+  const forced = PR.renderIntelligence(fakeDecisionFor('companero_mejor_balance', ev.candidate.claim), history2, PR.emptyMemory());
+  assert.match(forced.principal.body, /ganaste 5 de 5 partidos registrados\./);
+});

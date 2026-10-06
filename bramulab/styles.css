@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.34-h1') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.35-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3626,7 +3626,9 @@ input, select{ font-family: inherit; }
   background: var(--ink-soft); padding: 12px 14px; min-height: 2.8em;
 }
 /* V04.34 — altura CONSISTENTE: título 1 línea + cuerpo máx. 2 líneas con ellipsis; un copy largo no hace crecer la tarjeta (el detalle se ve al tocar). */
-.player-home-carousel-card--accionable, .player-home-carousel-card--correccion{ height: 84px; box-sizing: border-box; overflow: hidden; }
+/* V04.35: la altura COMÚN solo aplica con 2+ tarjetas; con una sola, alto compacto según contenido (se mantienen los límites de título/cuerpo). */
+.player-home-carousel:not(.player-home-carousel--single) .player-home-carousel-card--accionable, .player-home-carousel:not(.player-home-carousel--single) .player-home-carousel-card--correccion{ height: 84px; box-sizing: border-box; overflow: hidden; }
+.player-home-carousel--single .player-home-carousel-card--accionable, .player-home-carousel--single .player-home-carousel-card--correccion{ height: auto; overflow: hidden; }
 .player-home-carousel-card--accionable .player-home-carousel-card__label, .player-home-carousel-card--correccion .player-home-carousel-card__label{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .player-home-carousel-card--accionable .player-home-carousel-card__text, .player-home-carousel-card--correccion .player-home-carousel-card__text{ display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (min-width: 480px){ .player-home-carousel-card{ flex-basis: 40%; } }
@@ -4074,13 +4076,13 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 @media (prefers-reduced-motion: reduce){ .qv-card, .qv-card__done{ transition:none; animation:none; } }
 
 /* Historial > Pendientes: secciones POR VALIDAR / POR RESOLVER / ESPERANDO VALIDACIÓN. */
-.pending-section{ margin: 0 0 6px; }
-.pending-section__head{ display:flex; align-items:baseline; justify-content:space-between; gap: 8px; margin: 14px 2px 8px; }
+.pending-section{ margin: 0 0 2px; }
+.pending-section__head{ display:flex; align-items:baseline; gap: 8px; margin: 8px 2px 8px; }
 .pending-section:first-child .pending-section__head{ margin-top: 4px; }
 .pending-section__title{ margin:0; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-dim); }
 .pending-section__title--validar{ color: var(--brand-lime); }
 .pending-section__title--resolver, .pending-section__title--esperando{ color: var(--gold); }
-.pending-section__count{ font-size: 12px; font-weight: 700; color: var(--paper-faint); font-variant-numeric: tabular-nums; }
+.pending-section__count{ font: inherit; color: inherit; letter-spacing: inherit; font-variant-numeric: tabular-nums; } /* V04.35: `TÍTULO · N` se lee como una unidad */
 .pending-section__list{ display:flex; flex-direction:column; }
 
 /* Home: card PARTIDOS PENDIENTES (3 columnas, mismo patrón que RANKING BRAMU; icono de atención ámbar). */
@@ -4089,9 +4091,9 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .pending-matches-card__icon{ width: 20px; height: 20px; flex:none; fill: none; stroke: var(--gold); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pending-matches-card__cols{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
 .pending-matches-card__col{ display:flex; flex-direction:column; gap: 2px; min-width: 0; }
-/* V04.34 — los tres son subtipos de UN mismo universo pendiente (no un semáforo): números en ámbar, labels en gris claro. */
-.pending-matches-card__label{ font-size: 10px; letter-spacing: 0.03em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; white-space: nowrap; }
-.pending-matches-card__num{ font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--gold); font-variant-numeric: tabular-nums; }
+/* V04.35 — los tres son subtipos de UN mismo universo pendiente (no un semáforo): números en blanco/neutro (el acento ámbar vive en icono/título/borde), labels con más presencia. */
+.pending-matches-card__label{ font-size: 11px; letter-spacing: 0.04em; color: var(--paper-dim); text-transform: uppercase; font-weight: 700; white-space: nowrap; }
+.pending-matches-card__num{ font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; color: var(--paper); font-variant-numeric: tabular-nums; }
 
 /* "¿SOS X?" — el partido que ORIGINÓ la invitación, con identidad visual compacta de las dos parejas (sin cuatro fichas de perfil). */
 #invitation-confirm-overlay .overlay__card{ max-height: calc(100dvh - 32px); overflow-y: auto; }
@@ -4101,16 +4103,16 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* V04.34 — MINI-PARTIDO compacto (invitación `¿SOS X?` y posible duplicado): dos filas de pareja (mía/la invitada primero, verde; rival segunda, azul),
    jugadores apilados con avatar chico + nombre + @usuario secundario, score por set alineado a la derecha como el Resumen. Soporta 3 sets y nombres largos. */
 .mini-match{ display:flex; flex-direction:column; text-align:left; }
-.mini-match__team{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 10px; padding: 6px 0; }
+.mini-match__team{ display:grid; grid-template-columns: minmax(0,1fr) auto; align-items:center; column-gap: 10px; padding: 9px 0; }
 .mini-match__team--first{ --mm-color: var(--brand-lime); }
 .mini-match__team--second{ --mm-color: var(--accent-cyan); }
-.mini-match__players{ display:flex; flex-direction:column; gap: 6px; min-width: 0; padding-left: 8px; border-left: 3px solid var(--mm-color); }
+.mini-match__players{ display:flex; flex-direction:column; gap: 9px; min-width: 0; padding-left: 10px; border-left: 3px solid var(--mm-color); }
 .mini-match__player{ display:flex; align-items:center; gap: 8px; min-width: 0; }
-.mini-match__avatar{ width: 22px; height: 22px; flex:none; border-radius: 50%; background: var(--surface-1); border: 1px solid var(--line-strong); object-fit: cover; display:flex; align-items:center; justify-content:center; font-size: 9px; font-weight: 800; color: var(--paper-dim); overflow:hidden; }
+.mini-match__avatar{ width: 28px; height: 28px; flex:none; border-radius: 50%; background: var(--surface-1); border: 1px solid var(--line-strong); object-fit: cover; display:flex; align-items:center; justify-content:center; font-size: 10px; font-weight: 800; color: var(--paper-dim); overflow:hidden; }
 .mini-match__who{ display:flex; flex-direction:column; min-width: 0; line-height: 1.15; }
-.mini-match__name{ font-size: 13px; font-weight: 700; color: var(--mm-color); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.mini-match__name{ font-size: 14px; font-weight: 700; color: var(--paper); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
 .mini-match__name--invitee{ text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px; }
-.mini-match__handle{ font-size: 10.5px; color: var(--paper-faint); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.mini-match__handle{ font-size: 11px; color: var(--paper-faint); white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
 .mini-match__sets{ display:flex; gap: 6px; align-items:center; }
 .mini-match__set{ min-width: 20px; text-align:center; font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
 .mini-match__set--win{ color: var(--paper); }
@@ -4126,7 +4128,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 
 /* V04.31 — aclaración de partido pendiente en Intelligence: misma jerarquía sutil que el subtítulo "Una lectura objetiva…" y más aire tras "+ POR QUÉ APARECEN ESTOS INSIGHTS". */
 /* V04.34 — mismo tamaño/peso/color/itálica que el subtítulo `.intelligence-frame`: `.intelligence-text p` (14px, color pleno) ganaba por especificidad. */
-.intelligence-text p.intelligence-frame--pending, .intelligence-frame--pending{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); font-style: italic; font-weight: 400; margin: 22px 0 0; }
+.intelligence-text p.intelligence-frame--pending, .intelligence-frame--pending{ font-size: 12px; line-height: 1.5; color: var(--paper-faint); font-style: italic; font-weight: 400; margin: 5px 0 0; }
 
 /* V04.32 — "mi equipo en verde": si el usuario autenticado es Team B (orden canónico), el Resumen intercambia los COLORES de equipo. Solo presentación. */
 #view-analysis.team-mine-b{ --team-a: var(--accent-cyan); --team-a-deep: #0D6FCC; --team-b: var(--brand-lime); --team-b-deep: var(--brand-lime-deep); }

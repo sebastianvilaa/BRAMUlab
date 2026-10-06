@@ -554,8 +554,9 @@ test('C04 (§8.8): dos partidos DISTINTOS con el mismo playedAt no comparten mil
 
 test('C05-A (§8.9): un cambio de protagonista de "mejor compañero" con el MISMO W-L se considera un cambio real', () => {
   const rowsPartnerBest = [];
-  for (let i = 0; i < 5; i++) rowsPartnerBest.push(row({ playedAt: dayIso(1 + i), team1: PARTNER, sets: straightSetsWin('A') }));
-  for (let i = 0; i < 5; i++) rowsPartnerBest.push(row({ playedAt: dayIso(10 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  // V04.35: el "mejor compañero" solo aplica si es el compañero de ESTE partido → PARTNER juega el partido más reciente.
+  for (let i = 0; i < 5; i++) rowsPartnerBest.push(row({ playedAt: dayIso(10 + i), team1: PARTNER, sets: straightSetsWin('A') }));
+  for (let i = 0; i < 5; i++) rowsPartnerBest.push(row({ playedAt: dayIso(1 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
   const historyPartnerBest = IC.buildPersonalHistory(rowsPartnerBest);
   const decisionPartnerBest = ED.buildEditorialDecision(historyPartnerBest, ME, ED.emptyMemory());
   const bestPartner = findEvaluated(decisionPartnerBest, 'companero_mejor_balance');

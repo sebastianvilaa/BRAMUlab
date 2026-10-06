@@ -250,7 +250,7 @@
     why: (claim, ctx) => `Se consideraron los ${claim.wins + claim.losses} ${matchWord(ctx.officialScope, claim.wins + claim.losses)} decididos junto a este compañero.`,
   });
   register('companero_mejor_balance', {
-    variants: [{ id: 'v1', title: () => 'Tu mejor compañero', body: (c, ctx) => `${c.isUnique ? 'Tu mejor balance es con' : 'Empatás tu mejor balance con'} ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')}: ${c.wins} en ${c.wins + c.losses}.` }],
+    variants: [{ id: 'v1', title: () => 'Tu mejor compañero', body: (c, ctx) => `Con ${nameOr(ctx.resolveName, c.companionPlayerId, 'este compañero')} ganaste ${c.wins} de ${c.wins + c.losses} ${matchWord(ctx.officialScope, c.wins + c.losses)}${c.isUnique ? '' : ': empatás tu mejor balance'}.` }],
     why: (claim, ctx) => `Se comparó tu balance con los ${claim.comparedAgainst} compañeros con al menos 5 ${matchWord(ctx.officialScope, 5)} cada uno.`,
   });
 

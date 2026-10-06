@@ -142,8 +142,8 @@ test('Intelligence · el fingerprint incluye el NOMBRE (invalida checkpoints con
   assert.notEqual(PR.computeHistoryFingerprint(m('Bruno')), PR.computeHistoryFingerprint(m('Seba')));
   assert.equal(PR.computeHistoryFingerprint(m('Seba')), PR.computeHistoryFingerprint(m('Seba')));
   assert.match(appJs, /class="intelligence-frame intelligence-frame--pending"/);
-  // V04.34: `.intelligence-text p` ganaba por especificidad; la regla explícita iguala tamaño/color/itálica del subtítulo y da más aire
-  assert.match(cssText, /\.intelligence-text p\.intelligence-frame--pending[^{]*\{[^}]*font-size: 12px[^}]*margin: 22px 0 0/);
+  // V04.35 (margen 5px): `.intelligence-text p` ganaba por especificidad; la regla explícita iguala tamaño/color/itálica del subtítulo y da más aire
+  assert.match(cssText, /\.intelligence-text p\.intelligence-frame--pending[^{]*\{[^}]*font-size: 12px[^}]*margin: 5px 0 0/);
 });
 
 /* ============ 1 cuenta + 3 sin cuenta (decisión de producto) ============ */
@@ -158,11 +158,11 @@ test('1 cuenta + 3 sin cuenta: ninguna regla del cliente exige una cuenta por pa
   assert.doesNotMatch(v, /registered|cuenta|provisional/i);
 });
 
-test('Versionado V04.31 / 04.34-h1 coherente', () => {
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.34', bundle: '04.34-h1' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.34'/);
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-34-h1'/);
-  assert.match(indexHtml, /app\.js\?v=04\.34-h1/);
+test('Versionado V04.31 / 04.35-h1 coherente', () => {
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.35', bundle: '04.35-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.35'/);
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-35-h1'/);
+  assert.match(indexHtml, /app\.js\?v=04\.35-h1/);
 });
 
 /* ============ V04.32 — ajustes visuales post QA (handoff 128) ============ */

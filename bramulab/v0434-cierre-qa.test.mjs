@@ -175,15 +175,51 @@ test('Resumen · incidencia de identidad: JUGADOR POR IDENTIFICAR + texto breve 
 });
 
 /* ============ 6. Home ============ */
-test('Home · carrusel con altura fija (título 1 línea, cuerpo máx. 2 con ellipsis); card PARTIDOS PENDIENTES ámbar unificada', () => {
-  assert.match(cssText, /\.player-home-carousel-card--accionable, \.player-home-carousel-card--correccion\{ height: 84px; box-sizing: border-box; overflow: hidden; \}/);
+test('Home · carrusel: altura común SOLO con 2+ tarjetas (1 sola = compacta); límites de título/cuerpo conservados; card PARTIDOS PENDIENTES: acento ámbar en icono/título/borde y números neutros (V04.35)', () => {
+  assert.match(cssText, /\.player-home-carousel:not\(\.player-home-carousel--single\) \.player-home-carousel-card--accionable[^{]*\{ height: 84px; box-sizing: border-box; overflow: hidden; \}/);
+  assert.match(cssText, /\.player-home-carousel--single \.player-home-carousel-card--accionable[^{]*\{ height: auto; overflow: hidden; \}/);
   assert.match(cssText, /carousel-card__label\{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/);
   assert.match(cssText, /-webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;/);
+  assert.match(fnSrc('renderPlayerHomeCarousel'), /player-home-carousel--single', track\.querySelectorAll\('\.player-home-carousel-card'\)\.length === 1/);
   assert.match(cssText, /\.pending-matches-card \.pastilla__title\{ color: var\(--gold\); \}/);
-  assert.match(cssText, /\.pending-matches-card__num\{[^}]*color: var\(--gold\)/, 'los tres números ámbar');
+  assert.match(cssText, /\.pending-matches-card__icon\{[^}]*stroke: var\(--gold\)/);
+  assert.match(cssText, /\.pending-matches-card__num\{[^}]*color: var\(--paper\)/, 'los tres números en blanco/neutro');
   assert.doesNotMatch(cssText, /pending-matches-card__num--(validar|resolver)/, 'sin semáforo');
-  assert.match(cssText, /\.pending-matches-card__label\{[^}]*color: var\(--paper-dim\)/, 'labels en gris claro');
+  assert.match(cssText, /\.pending-matches-card__label\{[^}]*font-size: 11px[^}]*color: var\(--paper-dim\)/, 'labels con más presencia');
   assert.match(cssText, /\.pending-matches-card\{[^}]*border-color: rgba\(255,201,61/);
+});
+
+test('Pendientes · headings "TÍTULO · N" (cantidad junto al título) y menos aire entre secciones', () => {
+  assert.match(fnSrc('renderPendingSections'), /\$\{sec\.title\} · <span class="pending-section__count">\$\{items\.length\}<\/span><\/h2>/);
+  assert.doesNotMatch(cssText.match(/\.pending-section__head\{[^}]*\}/)[0], /justify-content:\s*space-between/, 'el número ya no queda aislado a la derecha');
+  assert.match(cssText, /\.pending-section__head\{[^}]*margin: 8px 2px 8px/);
+  assert.match(cssText, /\.pending-section__count\{ font: inherit; color: inherit;/);
+  // syncPendingListChrome sigue actualizando el número tras contraer una card
+  assert.match(fnSrc('syncPendingListChrome'), /querySelector\('\.pending-section__count'\)\.textContent = String\(n\)/);
+});
+
+test('Mini-partido (duplicado/¿SOS X?) · filas más altas, avatares más grandes, nombres neutros con acento verde/azul solo en la línea lateral, @usuario sin inventar', async () => {
+  assert.match(cssText, /\.mini-match__avatar\{ width: 28px; height: 28px;/);
+  assert.match(cssText, /\.mini-match__team\{[^}]*padding: 9px 0/);
+  assert.match(cssText, /\.mini-match__name\{[^}]*color: var\(--paper\)/, 'nombres en blanco/neutro');
+  assert.match(cssText, /\.mini-match__players\{[^}]*border-left: 3px solid var\(--mm-color\)/, 'verde/azul solo en la línea lateral');
+  assert.match(cssText, /\.mini-match__team--first\{ --mm-color: var\(--brand-lime\); \}[\s\S]*\.mini-match__team--second\{ --mm-color: var\(--accent-cyan\); \}/);
+  // hidratación con el RPC batch EXISTENTE; los provisionales (ausentes del Map) quedan sin @usuario
+  const mkNode = (id) => {
+    const who = { handle: null, querySelector: (sel) => (sel === '.mini-match__handle' ? who.handle : null), appendChild(h) { who.handle = h; } };
+    return { dataset: { playerId: id }, isConnected: true, who, querySelector: (sel) => (sel === '.mini-match__who' ? who : sel === '.mini-match__avatar' ? { tagName: 'SPAN', replaceWith() {} } : null) };
+  };
+  const nodes = [mkNode('u1'), mkNode('prov')];
+  const sb = {
+    Auth: { getPlayersCompact: async () => ({ ok: true, players: new Map([['u1', { username: 'matu', avatarSignedUrl: null }]]) }), isConfigured: () => true },
+    document: { createElement: () => ({}) },
+  };
+  new Function(...Object.keys(sb), 'container', `${fnSrc('hydrateMiniMatchPlayers')}\nhydrateMiniMatchPlayers(container);`)(...Object.values(sb), { querySelectorAll: () => nodes });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(nodes[0].who.handle.textContent, '@matu', 'cuenta registrada: @usuario debajo del nombre');
+  assert.equal(nodes[1].who.handle, null, 'provisional/sin cuenta: no se inventa @usuario');
+  assert.match(fnSrc('openDuplicateDecisionModal'), /hydrateMiniMatchPlayers\(summary\)/);
+  assert.match(fnSrc('buildMiniMatchHTML'), /data-player-id/);
 });
 
 /* ============ 7. Recuperados / Intelligence ============ */

@@ -5587,7 +5587,7 @@
       const section = document.createElement('section');
       section.className = 'pending-section';
       section.dataset.section = sec.key;
-      section.innerHTML = `<div class="pending-section__head"><h2 class="pending-section__title pending-section__title--${sec.mod}">${sec.title}</h2><span class="pending-section__count">${items.length}</span></div><div class="pending-section__list"></div>`;
+      section.innerHTML = `<div class="pending-section__head"><h2 class="pending-section__title pending-section__title--${sec.mod}">${sec.title} · <span class="pending-section__count">${items.length}</span></h2></div><div class="pending-section__list"></div>`;
       const lst = section.querySelector('.pending-section__list');
       items.forEach((m) => lst.appendChild(buildQuickMatchCard(m, { category: sec.cat, origin: origin || 'pending', mode: 'collapse', hideBadge: true, onChanged: syncPendingListChrome })));
       wrap.appendChild(section);
@@ -6245,6 +6245,7 @@
       const when = formatMatchWhenBA(row.playedAt, row.playedAtTimeKnown);
       summary.innerHTML = `<div class="invite-ctx"><p class="dup-meta">${escapeHtml([when, fmt].filter(Boolean).join(' · '))}</p>${buildMiniMatchHTML(row, row.myTeam === 'B' ? 'B' : 'A')}</div>`;
       summary.hidden = false;
+      hydrateMiniMatchPlayers(summary);
     } else { summary.innerHTML = ''; summary.hidden = true; }
     $('#ambiguous-match-list').innerHTML = '';
     $('#ambiguous-match-same').hidden = false;
@@ -15087,7 +15088,7 @@
       const avatar = p.avatarPath
         ? `<span class="mini-match__avatar" data-avatar-path="${escapeHtml(p.avatarPath)}">${escapeHtml(playerInitials(name))}</span>`
         : `<span class="mini-match__avatar">${escapeHtml(playerInitials(name))}</span>`;
-      return `<div class="mini-match__player">${avatar}<span class="mini-match__who"><span class="mini-match__name${p.isInvitee ? ' mini-match__name--invitee' : ''}">${escapeHtml(name)}</span>`
+      return `<div class="mini-match__player"${p.playerId ? ` data-player-id="${escapeHtml(p.playerId)}"` : ''}>${avatar}<span class="mini-match__who"><span class="mini-match__name${p.isInvitee ? ' mini-match__name--invitee' : ''}">${escapeHtml(name)}</span>`
         + (p.username ? `<span class="mini-match__handle">@${escapeHtml(p.username)}</span>` : '') + '</span></div>';
     };
     const teamHTML = (t, idx) => {
@@ -15101,6 +15102,29 @@
     };
     const second = first === 'A' ? 'B' : 'A';
     return `<div class="mini-match">${teamHTML(first)}<div class="mini-match__divider"></div>${teamHTML(second)}</div>`;
+  }
+
+  /** V04.35 — completa el mini-partido de la caché (que solo trae nombres) con `@usuario` y foto de las CUENTAS registradas, reutilizando el RPC
+   *  batch existente `get_players_compact` (una sola llamada). Una identidad sin cuenta (provisional) no vuelve en el Map: queda sin `@usuario` y con
+   *  iniciales — nunca se inventa. Sin red/error queda el mini-partido básico. */
+  function hydrateMiniMatchPlayers(container) {
+    const nodes = Array.from(container.querySelectorAll('.mini-match__player[data-player-id]'));
+    if (!nodes.length || !Auth || !Auth.getPlayersCompact || !Auth.isConfigured()) return;
+    Auth.getPlayersCompact(nodes.map((n) => n.dataset.playerId)).then((res) => {
+      if (!res || !res.ok) return;
+      nodes.forEach((n) => {
+        const info = res.players.get(n.dataset.playerId);
+        if (!info || !n.isConnected) return;
+        const who = n.querySelector('.mini-match__who');
+        if (info.username && who && !who.querySelector('.mini-match__handle')) {
+          const h = document.createElement('span'); h.className = 'mini-match__handle'; h.textContent = `@${info.username}`; who.appendChild(h);
+        }
+        const av = n.querySelector('.mini-match__avatar');
+        if (info.avatarSignedUrl && av && av.tagName !== 'IMG') {
+          const img = document.createElement('img'); img.className = 'mini-match__avatar'; img.alt = ''; img.src = info.avatarSignedUrl; av.replaceWith(img);
+        }
+      });
+    }).catch(() => { /* mini-partido básico */ });
   }
 
   /** V04.34 — contexto de `¿SOS X?`: el partido que ORIGINÓ la invitación como mini-partido (pareja de la identidad invitada primero) +

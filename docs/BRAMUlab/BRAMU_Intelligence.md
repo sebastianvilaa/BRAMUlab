@@ -296,11 +296,14 @@ Umbrales:
 - “compañero habitual”: al menos 4 partidos juntos;
 - comparación de efectividad entre compañeros: al menos 5 partidos con cada compañero comparado;
 - “mejor balance”: al menos 5 partidos juntos y mostrar siempre la muestra;
-- un 2–0 o 3–0 puede describirse exactamente, pero no etiquetarse como “sociedad ideal”.
+- un 2–0 o 3–0 puede describirse exactamente, pero no etiquetarse como “sociedad ideal”;
+- **regla de relevancia (V04.35, confirmada tras QA humano):** en BRAMU Intelligence **de un partido**, un insight relacional (compañero, rival o cruce) solo puede referirse a jugadores o relaciones que **participan en ese partido**. El “mejor balance” se sigue calculando comparando a todos los compañeros con muestra suficiente, pero **solo se muestra si el compañero de ESTE partido es el mejor (o empata el tope)** — y entonces el insight nombra a ese compañero. Si el mejor compañero global no juega el partido analizado, el candidato queda **descartado** (`mejor_companero_no_participa_en_este_partido`) y **no se fuerza un reemplazo débil**: se muestran menos insights. Un “mejor compañero histórico” global es longitudinal y pertenece a una superficie como `Tu momento`, no al análisis post-partido (mover/crear esa superficie queda fuera de esta regla).
+- la muestra se redacta de forma explícita: “Con Lucía ganaste 8 de 11 partidos registrados.” (con empate en el tope: “… : empatás tu mejor balance.”); nunca “Tu mejor balance es con Lucía: 8 en 11.”.
 
 Lenguaje correcto:
 
 - “Con Lucía llevás 5 victorias en 7 partidos registrados.”
+- “Con Lucía ganaste 8 de 11 partidos registrados.”
 - “Es la primera victoria de los 3 partidos que jugaste con Martín.”
 
 Lenguaje incorrecto:

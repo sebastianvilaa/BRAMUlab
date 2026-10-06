@@ -374,13 +374,13 @@ test('Familia D: balance con compañero se descarta explícitamente por debajo d
 
 test('Familia D: mejor balance entre compañeros compara solo a los que tienen al menos 5 partidos cada uno', () => {
   const rows = [];
-  // Con PARTNER: 5 partidos, 5 victorias (100%).
-  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: PARTNER, sets: straightSetsWin('A') }));
-  // Con PARTNER_2: 5 partidos, 2 victorias (40%).
-  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  // Con PARTNER_2: 5 partidos, 2 victorias (40%) — los más antiguos.
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
   // Con un tercer compañero, solo 3 partidos (no comparable, no debe ni entrar a la comparación).
   const RIVAL_5 = '88888888-8888-8888-8888-888888888888';
-  for (let i = 0; i < 3; i++) rows.push(row({ playedAt: dayIso(20 + i), team1: RIVAL_5, sets: straightSetsWin('A') }));
+  for (let i = 0; i < 3; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: RIVAL_5, sets: straightSetsWin('A') }));
+  // Con PARTNER: 5 partidos, 5 victorias (100%) — incluye el partido ACTUAL (el más reciente).
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(20 + i), team1: PARTNER, sets: straightSetsWin('A') }));
   const history = IC.buildPersonalHistory(rows);
   const { claims } = CL.buildClaimsForMatch(history, ME);
   const best = findClaim(claims, 'companero_mejor_balance');
@@ -390,6 +390,40 @@ test('Familia D: mejor balance entre compañeros compara solo a los que tienen a
   assert.equal(best.claim.isUnique, true); // 100% vs 40%, sin empate
   // C01: la evidencia cubre a AMBOS candidatos comparados (5+5=10), no solo al elegido.
   assert.equal(best.evidenceMatchIds.length, 10);
+});
+
+test('V04.35 relevancia: el "mejor compañero" global que NO participa en el partido actual queda fuera (sin reemplazo débil)', () => {
+  const rows = [];
+  // GUSTI (PARTNER) es el mejor balance global (5/5), pero el partido ACTUAL es con PARTNER_2 (compañero distinto, 40%).
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: PARTNER, sets: straightSetsWin('A') }));
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  const { claims } = CL.buildClaimsForMatch(IC.buildPersonalHistory(rows), ME);
+  const best = findClaim(claims, 'companero_mejor_balance');
+  assert.equal(best.discarded, true, 'no se afirma un "mejor compañero" ajeno al partido');
+  assert.equal(JSON.stringify(best.discardReasonCodes), JSON.stringify(['mejor_companero_no_participa_en_este_partido']));
+  assert.equal(best.claim, null);
+  assert.equal(claims.filter((c) => c.insightType === 'companero_mejor_balance' && !c.discarded).length, 0);
+});
+
+test('V04.35 relevancia: el compañero ACTUAL sigue siendo elegible si es el mejor, y también si empata el tope (el claim nombra a ESE compañero)', () => {
+  // Único mejor = compañero actual.
+  const rows = [];
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(1 + i), team1: PARTNER_2, sets: i < 2 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  for (let i = 0; i < 5; i++) rows.push(row({ playedAt: dayIso(10 + i), team1: PARTNER, sets: straightSetsWin('A') }));
+  const unique = findClaim(CL.buildClaimsForMatch(IC.buildPersonalHistory(rows), ME).claims, 'companero_mejor_balance');
+  assert.equal(unique.discarded, false); assert.equal(unique.claim.companionPlayerId, PARTNER); assert.equal(unique.claim.isUnique, true);
+  // Empate en el tope: cualquiera de los dos podría haber sido "best" por id, pero se nombra al compañero del partido actual.
+  const tie = [];
+  for (let i = 0; i < 5; i++) tie.push(row({ playedAt: dayIso(1 + i), team1: PARTNER, sets: i < 3 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  for (let i = 0; i < 5; i++) tie.push(row({ playedAt: dayIso(10 + i), team1: PARTNER_2, sets: i < 3 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  const tied = findClaim(CL.buildClaimsForMatch(IC.buildPersonalHistory(tie), ME).claims, 'companero_mejor_balance');
+  assert.equal(tied.discarded, false); assert.equal(tied.claim.companionPlayerId, PARTNER_2); assert.equal(tied.claim.isUnique, false);
+  assert.equal(JSON.stringify(tied.claim.tiedWith), JSON.stringify([PARTNER]));
+  // Compañero actual presente pero NO en el tope → también fuera.
+  const notTop = [];
+  for (let i = 0; i < 5; i++) notTop.push(row({ playedAt: dayIso(1 + i), team1: PARTNER_2, sets: straightSetsWin('A') }));
+  for (let i = 0; i < 5; i++) notTop.push(row({ playedAt: dayIso(10 + i), team1: PARTNER, sets: i < 1 ? straightSetsWin('A') : straightSetsLoss('A') }));
+  assert.equal(findClaim(CL.buildClaimsForMatch(IC.buildPersonalHistory(notTop), ME).claims, 'companero_mejor_balance').discarded, true);
 });
 
 test('C03: mejor compañero empatado — nunca se afirma "el mejor" único cuando dos tienen la misma efectividad', () => {
