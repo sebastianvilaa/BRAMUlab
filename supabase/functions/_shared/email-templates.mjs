@@ -142,7 +142,35 @@ export const escapeHtml = (s) => String(s == null ? '' : s)
 
 /** Variables Go-template de Supabase Auth para el modo `native`. */
 // Staging: Vercel sigue protegido. Los templates Auth usan el asset REAL público fijado a commit para el logo.
-export const NATIVE_VARS = { code: '{{ .Token }}', logoBase: 'https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab' };
+// Hardening 139: ese default es una dependencia de repo PÚBLICO (se rompe al privatizarlo). NO se cambia acá: se
+// sobreescribe al GENERAR las plantillas con BRAMU_EMAIL_LOGO_BASE (ver resolveNativeLogoBase / build-email-templates.mjs)
+// cuando Central configure un origen público estable. Mientras tanto, el comportamiento vigente de Staging no cambia.
+export const DEFAULT_NATIVE_LOGO_BASE = 'https://raw.githubusercontent.com/sebastianvilaa/BRAMUlab/0a639d67325f880a651418867ccb62b9e880b797/bramulab';
+export const NATIVE_VARS = { code: '{{ .Token }}', logoBase: DEFAULT_NATIVE_LOGO_BASE };
+
+/** Hosts que NO sirven como origen del logo: dependen del repo (se rompen al privatizarlo) o no son públicos. */
+const FORBIDDEN_LOGO_HOST = /(^|\.)(raw\.githubusercontent\.com|githubusercontent\.com|github\.com|github\.io|localhost)$|^127\.|^0\.0\.0\.0$|^\[::1\]$/i;
+
+/**
+ * Valida el origen público del logo de los emails Auth NATIVOS (BRAMU_EMAIL_LOGO_BASE).
+ * Debe ser solo un origen `https://host[:puerto]` (el logo se pide en `${origen}/icons/logo.png`, que `dist/` ya sirve).
+ * Sin valor => devuelve el default vigente (no inventa dominios). Valor inválido => lanza.
+ * @param {string|undefined|null} raw
+ * @returns {string}
+ */
+export function resolveNativeLogoBase(raw) {
+  const v = String(raw == null ? '' : raw).trim().replace(/\/+$/, '');
+  if (!v) return DEFAULT_NATIVE_LOGO_BASE;
+  let u;
+  try { u = new URL(v); } catch (e) { throw new Error('BRAMU_EMAIL_LOGO_BASE inválida: no es una URL.'); }
+  if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash || (u.pathname && u.pathname !== '/')) {
+    throw new Error('BRAMU_EMAIL_LOGO_BASE inválida: debe ser solo un origen https://host[:puerto], sin ruta, query ni credenciales.');
+  }
+  if (FORBIDDEN_LOGO_HOST.test(u.hostname)) {
+    throw new Error('BRAMU_EMAIL_LOGO_BASE inválida: no puede depender del repo/GitHub ni de localhost; usar el origen público estable de la app.');
+  }
+  return u.origin;
+}
 
 function renderBlock(b, tpl, ctx) {
   const T = TOKENS;
@@ -186,15 +214,15 @@ function renderFooter(tpl) {
 /**
  * HTML completo de un email.
  * @param {number} id  1..8
- * @param {{mode?:'custom'|'native', code?:string, previousEmail?:string, newEmail?:string, baseUrl?:string}} [opts]
- *   native: usa `{{ .Token }}` y el logo público versionado de Staging. custom: valores reales (escapados).
+ * @param {{mode?:'custom'|'native', code?:string, previousEmail?:string, newEmail?:string, baseUrl?:string, logoBase?:string}} [opts]
+ *   native: usa `{{ .Token }}` y el logo público versionado de Staging (o `opts.logoBase`, origen https validado). custom: valores reales (escapados).
  */
 export function renderEmail(id, opts = {}) {
   const tpl = EMAIL_TEMPLATES[id];
   if (!tpl) throw new Error(`template de email desconocido: ${id}`);
   const T = TOKENS;
   const mode = opts.mode === 'native' ? 'native' : 'custom';
-  const base = mode === 'native' ? NATIVE_VARS.logoBase : String(opts.baseUrl || '').replace(/\/+$/, '');
+  const base = mode === 'native' ? resolveNativeLogoBase(opts.logoBase) : String(opts.baseUrl || '').replace(/\/+$/, '');
   const ctx = {
     code: mode === 'native' ? NATIVE_VARS.code : escapeHtml(opts.code),
     previousEmail: opts.previousEmail, newEmail: opts.newEmail,

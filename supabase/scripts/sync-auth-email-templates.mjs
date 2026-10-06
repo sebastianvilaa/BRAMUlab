@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OUT_DIR, HOSTED_KEYS } from './build-email-templates.mjs';
-import { EMAIL_TEMPLATES } from '../functions/_shared/email-templates.mjs';
+import { EMAIL_TEMPLATES, resolveNativeLogoBase } from '../functions/_shared/email-templates.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 void HERE;
@@ -30,6 +30,13 @@ export function buildAuthConfigPayload(dir = OUT_DIR, env = process.env) {
     payload[keys.subject] = tpl.subject;
     payload[keys.content] = fs.readFileSync(path.join(dir, 'auth', `${tpl.native}.html`), 'utf8');
     if (keys.enabled) payload[keys.enabled] = true;
+  }
+  // Hardening 139 — si se declara el origen del logo, las plantillas VERSIONADAS tienen que haberse generado con él
+  // (si no, se sincronizaría un logo viejo mientras se cree que ya cambió).
+  if (env.BRAMU_EMAIL_LOGO_BASE) {
+    const logoUrl = `${resolveNativeLogoBase(env.BRAMU_EMAIL_LOGO_BASE)}/icons/logo.png`;
+    const stale = Object.entries(payload).filter(([k, v]) => /^mailer_templates_.*_content$/.test(k) && !String(v).includes(logoUrl)).map(([k]) => k);
+    if (stale.length) throw new Error(`Plantillas versionadas desactualizadas respecto de BRAMU_EMAIL_LOGO_BASE (${stale.join(', ')}): correr build-email-templates.mjs con la misma variable y commitear antes de sincronizar.`);
   }
   payload.mailer_notifications_email_changed_enabled = false; // el aviso #5 lo envía la Edge Function (no duplicar)
   payload.mailer_secure_email_change_enabled = true; // defensa del proyecto ante updateUser({email}) directo

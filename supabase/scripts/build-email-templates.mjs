@@ -3,6 +3,8 @@
 //
 //   node supabase/scripts/build-email-templates.mjs           # escribe auth/*.html, previews/*.html y manifest.json
 //   node supabase/scripts/build-email-templates.mjs --check   # exit 1 si lo versionado difiere de lo generado (drift)
+//   BRAMU_EMAIL_LOGO_BASE=https://<origen público estable> node supabase/scripts/build-email-templates.mjs   # regenera con otro origen de logo
+//   (sin esa variable se conserva el logo vigente de Staging; el logo se pide en <origen>/icons/logo.png, ya incluido en bramulab/dist)
 //
 // auth/*.html   -> HTML standalone de los emails NATIVOS de Supabase Auth (`{{ .Token }}` cuando corresponde; logo público versionado de Staging).
 // previews/*.html -> los 8 emails con código/emails de ejemplo, para revisar el render sin enviar nada (logo relativo al repo).
@@ -12,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMAIL_TEMPLATES, NATIVE_VARS, renderEmail } from '../functions/_shared/email-templates.mjs';
+import { EMAIL_TEMPLATES, DEFAULT_NATIVE_LOGO_BASE, renderEmail, resolveNativeLogoBase } from '../functions/_shared/email-templates.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const OUT_DIR = path.resolve(HERE, '../email-templates');
@@ -30,17 +32,22 @@ export const HOSTED_KEYS = {
   },
 };
 
-/** Devuelve { relativePath: contenido } de TODO lo generado. */
-export function generate() {
+/**
+ * Devuelve { relativePath: contenido } de TODO lo generado.
+ * `logoBase` (origen https validado) sale de BRAMU_EMAIL_LOGO_BASE; sin valor => el default vigente de Staging (hardening 139).
+ */
+export function generate(env = process.env) {
   const files = {};
-  const manifest = { generatedFrom: 'supabase/functions/_shared/email-templates.mjs', hostedStaging: { logoBase: NATIVE_VARS.logoBase, note: 'Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte.' }, native: [], custom: [] };
+  const logoBase = resolveNativeLogoBase(env.BRAMU_EMAIL_LOGO_BASE);
+  const isDefault = logoBase === DEFAULT_NATIVE_LOGO_BASE;
+  const manifest = { generatedFrom: 'supabase/functions/_shared/email-templates.mjs', hostedStaging: { logoBase, note: isDefault ? 'Logo real público fijado a commit; Site URL/Auth redirects se configuran aparte.' : 'Logo servido desde el origen público estable configurado (BRAMU_EMAIL_LOGO_BASE); Site URL/Auth redirects se configuran aparte.' }, native: [], custom: [] };
   for (const tpl of Object.values(EMAIL_TEMPLATES)) {
     const nn = String(tpl.id).padStart(2, '0');
     files[`previews/${nn}-${tpl.key}.html`] = renderEmail(tpl.id, {
       mode: 'custom', code: '123456', previousEmail: 'anterior@example.test', newEmail: 'nuevo@example.test', baseUrl: '../../../bramulab',
     });
     if (tpl.native) {
-      const html = renderEmail(tpl.id, { mode: 'native' });
+      const html = renderEmail(tpl.id, { mode: 'native', logoBase: env.BRAMU_EMAIL_LOGO_BASE });
       files[`auth/${tpl.native}.html`] = html;
       manifest.native.push({
         emailId: tpl.id, authTemplate: tpl.native, subject: tpl.subject, file: `auth/${tpl.native}.html`, sha256: sha(html),
@@ -60,8 +67,8 @@ export function generate() {
   return files;
 }
 
-export function writeAll(dir = OUT_DIR) {
-  const files = generate();
+export function writeAll(dir = OUT_DIR, env = process.env) {
+  const files = generate(env);
   for (const [rel, content] of Object.entries(files)) {
     const abs = path.join(dir, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
@@ -70,9 +77,9 @@ export function writeAll(dir = OUT_DIR) {
   return Object.keys(files);
 }
 
-export function checkAll(dir = OUT_DIR) {
+export function checkAll(dir = OUT_DIR, env = process.env) {
   const problems = [];
-  const files = generate();
+  const files = generate(env);
   for (const [rel, content] of Object.entries(files)) {
     const abs = path.join(dir, rel);
     if (!fs.existsSync(abs)) problems.push(`falta ${rel}`);

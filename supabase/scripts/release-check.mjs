@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listMigrations, checkMigrationNames, MIGRATIONS_DIR } from './replay-migrations.mjs';
+import { buildDist, DIST_FILES, DIST_DIRS } from '../../bramulab/scripts/build-dist.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
@@ -166,7 +167,16 @@ export function clientChecks(root = REPO) {
     if (/service_role|SERVICE_ROLE|sb_secret|SUPABASE_SERVICE/.test(code)) leaks.push(s);
   }
   add('la service role no aparece en ningún script cliente ni en el SW (código, sin comentarios)', leaks.length === 0, leaks.join(','));
-  add('el único CDN externo es supabase-js (anon)', (html.match(/<script src="https?:[^"]+"/g) || []).length === 1 && /cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@2/.test(html));
+  const cdnTags = html.match(/<script src="https?:[^"]+"[^>]*>/g) || [];
+  add('el único CDN externo es supabase-js (anon), con versión EXACTA y SRI (hardening 139)', cdnTags.length === 1 && /cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@\d+\.\d+\.\d+\/dist\/umd\/supabase\.js"/.test(cdnTags[0]) && /integrity="sha384-[A-Za-z0-9+/]{64}"/.test(cdnTags[0]) && /crossorigin="anonymous"/.test(cdnTags[0]), cdnTags[0] || '');
+  add('el navegador NO carga el motor dinámico de Nivel (ni level.js, ni level-context.js, ni match-level-engine.js; sí level-public.js)', !/<script src="(level|level-context|match-level-engine)\.js/.test(html) && /<script src="level-public\.js/.test(html));
+  const distTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bramu-dist-'));
+  const dist = buildDist({ srcDir: dir, outDir: path.join(distTmp, 'dist'), requireGenerated: false });
+  const leaked = dist.files.filter((f) => /\.test\.mjs$|^tests\.html$|^scripts\/|^api\/|^\.env|^vercel\.json$|^level(-context)?\.js$|^match-level-engine\.js$|^intelligence-(context|claims|editorial|official|presentation)\.js$/.test(f));
+  const allowed = new Set([...DIST_FILES, 'env.generated.js', 'robots.generated.txt']);
+  const outsideAllowlist = dist.files.filter((f) => !allowed.has(f) && !DIST_DIRS.some((d) => f.startsWith(d + '/')));
+  add('dist/ se arma solo por allowlist, sin tests/scripts/.env.example/motor de Nivel y con todo lo referenciado', dist.problems.length === 0 && leaked.length === 0 && outsideAllowlist.length === 0, [...dist.problems, ...leaked, ...outsideAllowlist].join(','));
+  fs.rmSync(distTmp, { recursive: true, force: true });
   const sw = fs.readFileSync(path.join(dir, 'sw.js'), 'utf8'); const store = fs.readFileSync(path.join(dir, 'store.js'), 'utf8');
   const ver = JSON.parse(fs.readFileSync(path.join(dir, 'version.json'), 'utf8'));
   const bundle = (store.match(/BUNDLE_VERSION = '([^']+)'/) || [])[1];
@@ -195,7 +205,7 @@ export function edgeServiceAuthChecks(root = REPO) {
 export const EXTERNAL_GATES = [
   { id: 'G1', name: 'Comunicaciones / Auth-email', owner: 'Central (aplicar migración + Edge Functions) + Work (config hosted, secrets, QA real)', pending: 'Aplicar la migración 20261001100000 y desplegar account-challenge + delete-my-account en Staging; sincronizar templates/switches nativos (sync-auth-email-templates.mjs); cargar secrets BRAMU_* sin revelarlos; recepción/render real de los 8 emails.', automaticEvidence: 'Implementación técnica completa con tests (desafíos server-side, 2 verificaciones, delete_account, #8 tras postcondiciones, templates exactos == generados, replay limpio ×3 ACL). El ENVÍO real por SMTP y el render en clientes de correo no son verificables acá.', closesWith: 'QA real en Staging con emails reales: signup, recovery, cambio de email (#3→#4→#5), password changed (#6), eliminación (#7→#8) con una cuenta descartable.' },
   { id: 'G2', name: 'Browser / OTP humano', owner: 'Work (browser) + Sebastián (OTP de cuenta descartable)', pending: 'QA visual corto de Legal/Acceso y E2E destructivo real de eliminación.', automaticEvidence: 'Eliminación completa ensayada con fallos/retry sobre base efímera; harness e2e-delete-my-account.mjs (prepare/negatives automáticos) listo.', closesWith: 'send-otp → delete --otp → verify → cleanup sobre una cuenta descartable de Staging.' },
-  { id: 'G3', name: 'Autorización de Production', owner: 'Sebastián', pending: 'Crear proyecto Supabase Production, replay real, variables Vercel, Edge Functions, cron, smoke y apertura; datos legales reales ([[PENDIENTE_PRODUCCION:*]]), AAIP/RNBDP.', automaticEvidence: 'release-check completo, build Production bloqueado por placeholders, replay limpio ×3 ACL, checklist en Runbook Parte B.', closesWith: 'Autorización explícita de Sebastián + datos reales; luego Runbook Parte B paso a paso.' },
+  { id: 'G3', name: 'Autorización de Production', owner: 'Sebastián', pending: 'Crear proyecto Supabase Production, replay real, variables Vercel, Edge Functions, cron, smoke y apertura; datos legales reales ([[PENDIENTE_PRODUCCION:*]]), AAIP/RNBDP; origen público estable de la app y, con él, BRAMU_EMAIL_LOGO_BASE (logo de emails Auth fuera de raw.githubusercontent) + BRAMU_PUBLIC_BASE_URL de las Edge (hardening 139).', automaticEvidence: 'release-check completo, build Production bloqueado por placeholders, replay limpio ×3 ACL, checklist en Runbook Parte B.', closesWith: 'Autorización explícita de Sebastián + datos reales; luego Runbook Parte B paso a paso.' },
   { id: 'G4', name: 'Plan real de backups de Supabase', owner: 'Sebastián (decisión de plan/región) + Central (prueba)', pending: 'Elegir plan/región/retención/PITR y probar una restauración GESTIONADA (incluye auth.*, storage.*, Vault).', automaticEvidence: 'Backup lógico de public ensayado (checksums, restauración sobre esquema limpio, resurrección de eliminaciones y su procedimiento). NO es un backup gestionado de Supabase.', closesWith: 'Decisión de plan + restauración de un backup gestionado a un proyecto efímero + re-aplicación del libro de eliminaciones.' },
 ];
 

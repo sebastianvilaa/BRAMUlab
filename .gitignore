@@ -3,6 +3,9 @@ Temporales/
 
 # BRAMUlab — Bloque 1: config por entorno, nunca commitear valores reales.
 bramulab/env.generated.js
+bramulab/robots.generated.txt
+# Hardening 139: salida publicada por Vercel (scripts/build-dist.mjs); nunca se commitea.
+bramulab/dist/
 bramulab/.env
 bramulab/.env.*
 !bramulab/.env.example

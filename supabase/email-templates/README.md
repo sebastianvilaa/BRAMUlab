@@ -20,6 +20,18 @@ Fuente única del copy, asuntos y diseño **BRAMU Night Card** de los 8 emails d
 - `previews/*.html`: los 8 emails renderizados con datos de ejemplo (código `123456`) para revisar el render sin enviar nada. Abrirlos desde el repo (el logo es relativo).
 - `manifest.json`: template → mecanismo, asunto, archivo, hash y claves de configuración hosted. **Email #4 aparece en `custom` (flujo BRAMU real) y también en `native` (fallback `email_change` de plataforma); no son dos envíos del flujo normal.** El manifest registra también la base exacta del logo usada por hosted Staging.
 
+## Origen público del logo (hardening 139 — preparado, NO aplicado)
+
+El default vigente depende de `raw.githubusercontent.com` (repo público). Para dejar de depender de GitHub **sin tocar nada hasta que exista el origen**:
+
+1. Central define el origen público estable de la app (p. ej. el de Production: sirve `/icons/logo.png`, que `bramulab/dist/` ya incluye).
+2. `BRAMU_EMAIL_LOGO_BASE=https://<origen> node supabase/scripts/build-email-templates.mjs` regenera `auth/*.html`, `previews/*` y `manifest.json`; commitear.
+3. `BRAMU_EMAIL_LOGO_BASE=https://<origen> node supabase/scripts/sync-auth-email-templates.mjs --check` / `--apply --env staging` (el script se niega a sincronizar si las plantillas versionadas no se generaron con ese origen).
+4. Los emails **custom** (Edge: #3, #4, #5, #7, #8) ya usan `BRAMU_PUBLIC_BASE_URL` (secret de la Edge Function): apuntarlo al mismo origen.
+5. Enviar un email real a una cuenta descartable y confirmar que el logo carga **antes** de privatizar el repo.
+
+Reglas del valor: solo `https://host[:puerto]` (sin ruta/query/credenciales); se rechaza `raw.githubusercontent.com`, `github.com`, `*.github.io` y `localhost`. Sin la variable, todo queda exactamente como está hoy.
+
 ## Sincronizar con Supabase hosted (Staging) — Work
 
 ```bash
