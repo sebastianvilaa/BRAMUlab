@@ -190,6 +190,20 @@
     return data;
   }
 
+  /** V04.36 — "Anular carga": el AUTOR retira su carga pendiente (RPC `annul_my_match_submission`). El servidor decide la
+   *  elegibilidad (autor + pending + nadie más la reconoció) y es idempotente; NUNCA se infiere en cliente. Devuelve
+   *  `{ok:true, code:'annulled'|'already_annulled'}` o `{ok:false, code}` (`not_author`, `not_pending`, `recognized_by_other`,
+   *  `match_not_found`). No genera notificaciones ni efectos deportivos. */
+  async function annulMySubmission(matchId) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    if (!isServerMatchId(matchId)) return { ok: false, code: 'invalid_match_id' };
+    const { data, error } = await c.rpc('annul_my_match_submission', { p_match_id: matchId });
+    if (error) return { ok: false, code: error.message || 'unknown' };
+    if (!data || typeof data !== 'object') return { ok: false, code: 'unknown' };
+    return data;
+  }
+
   /** Nota privada por partido (RPC `set_match_private_note`) — dato privado, nunca compartido
    *  con los demás participantes. */
   async function setMatchPrivateNote(matchId, note) {
@@ -230,7 +244,7 @@
   global.PLMatches = {
     isConfigured, getClient, genUuid,
     createOrAttach, getMyMatches, getMatchDetail, isServerMatchId,
-    hideMatchForMe, setMatchPrivateNote,
+    hideMatchForMe, annulMySubmission, setMatchPrivateNote,
     getPendingActionCount, listRelatedProvisionalPlayers,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>BRAMUlab — generar derivados de marca</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 15px/1.5 -apple-system, "Inter", sans-serif; background:#050A12; color:#F8FAFC; margin:0; padding:24px; }
+  h1 { font-size:18px; margin:0 0 4px; } p { color:#9AA7B5; max-width:760px; }
+  button, a.btn { background:#95FF19; color:#050A12; border:0; border-radius:10px; padding:10px 16px; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; margin:4px 8px 4px 0; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; margin-top:16px; } figure { margin:0; text-align:center; font-size:12px; color:#9AA7B5; }
+  canvas, img { background:#09131F; border:1px solid #152B43; max-width:220px; height:auto; image-rendering:auto; }
+  code { color:#95FF19; }
+</style>
+</head>
+<body>
+<h1>BRAMUlab — derivados técnicos de marca</h1>
+<p>Genera los PNG que necesitan la PWA y los emails <strong>a partir de los SVG maestros de esta carpeta</strong> (<code>BRAMUlab-IconoApp.svg</code>,
+<code>BRAMUlab-Logo.svg</code>). No redibuja ni edita la marca: solo rasteriza, recorta el lienzo y escala. Abrir esta página con un servidor
+estático en esta carpeta (los SVG se leen por <code>fetch</code>), tocar <em>Generar</em> y copiar los archivos a <code>bramulab/icons/</code>.
+Ver <code>README.md</code>.</p>
+<button id="go">Generar</button><button id="all" disabled>Descargar todo</button>
+<div class="row" id="out"></div>
+<script>
+'use strict';
+/* Parámetros (documentados en README.md). Cambiarlos es una decisión de marca/QA, no de esta herramienta. */
+const BG = '#050A12';              // azul noche BRAMU: fondo opaco de los iconos (iOS rellena la transparencia de negro)
+const FAVICON_CROP = 780;          // lado del recorte (sobre el lienzo 1080) alrededor de la B para el favicon de 64 px
+const MASKABLE_INNER = 0.80;       // la B queda dentro del círculo de safe area (80 %) del icono maskable
+const MASKABLE_FEATHER = 14;       // borde suave del recorte interno (px sobre 512)
+const LOGO_RATIO = 915 / 139;      // proporción histórica de logo.png (los emails fijan height y max-width: no se deforma)
+const LOGO_PAD_X = 0.0085;         // aire horizontal alrededor del trazo, relativo al ancho del trazo
+const LOGO_PNG_SCALE = 1.5;        // px por unidad de viewBox del logo recortado
+
+const text = async (u) => (await fetch(u)).text();
+const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const svgUrl = (svg) => URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+const toBlob = (c) => new Promise((res) => c.toBlob(res, 'image/png'));
+const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h || w; return c; };
+
+/** Caja del trazo del logo (en unidades del viewBox original) + viewBox recortado a la proporción histórica de logo.png. */
+async function logoCrop(svgText) {
+  const host = document.createElement('div');
+  host.style.cssText = 'position:absolute;left:-9999px;top:0;width:1080px;height:250px';
+  host.innerHTML = svgText.replace(/<\?xml[^>]*\?>/, '');
+  document.body.appendChild(host);
+  const bb = host.querySelector('svg').getBBox();
+  host.remove();
+  const w = bb.width * (1 + 2 * LOGO_PAD_X);
+  const h = w / LOGO_RATIO;
+  const cx = bb.x + bb.width / 2; const cy = bb.y + bb.height / 2;
+  return { bbox: { x: bb.x, y: bb.y, w: bb.width, h: bb.height }, viewBox: [cx - w / 2, cy - h / 2, w, h].map((n) => +n.toFixed(2)) };
+}
+/** Mismo SVG, solo con `viewBox` recortado + tamaño intrínseco `width`/`height` (para que ningún navegador lo trate como 300×150).
+ *  Ningún path/color/filtro cambia. Es el `bramulab/icons/logo.svg` de la app. */
+const croppedLogoSvg = (svgText, vb) => svgText.replace(/viewBox="[^"]*"/, `viewBox="${vb.join(' ')}" width="${Math.round(vb[2])}" height="${Math.round(vb[3])}"`);
+
+async function buildAll() {
+  const files = [];
+  const iconSvg = await text('BRAMUlab-IconoApp.svg');
+  const logoSvg = await text('BRAMUlab-Logo.svg');
+  const icon = await loadImg(svgUrl(iconSvg));
+  const full = (size) => { const c = canvas(size); const x = c.getContext('2d'); x.fillStyle = BG; x.fillRect(0, 0, size, size); x.drawImage(icon, 0, 0, size, size); return c; };
+
+  files.push({ name: 'icon-192.png', blob: await toBlob(full(192)) });
+  files.push({ name: 'icon-512.png', blob: await toBlob(full(512)) });
+  files.push({ name: 'apple-touch-icon.png', blob: await toBlob(full(180)) });
+
+  // favicon: recorte centrado alrededor de la B (a 64 px el lienzo completo la deja muy chica).
+  const big = full(1080); const fav = canvas(64); const fx = fav.getContext('2d');
+  const o = (1080 - FAVICON_CROP) / 2; fx.imageSmoothingQuality = 'high';
+  fx.drawImage(big, o, o, FAVICON_CROP, FAVICON_CROP, 0, 0, 64, 64);
+  files.push({ name: 'favicon-64.png', blob: await toBlob(fav) });
+
+  // maskable: mismo master a sangre completa de fondo + el master reducido (safe area) con borde suave encima.
+  const S = 512; const base = full(S); const mx = base.getContext('2d');
+  const inner = Math.round(S * MASKABLE_INNER); const off = Math.round((S - inner) / 2);
+  const layer = canvas(S); const lx = layer.getContext('2d');
+  lx.imageSmoothingQuality = 'high'; lx.drawImage(full(S), off, off, inner, inner);
+  const mask = canvas(S); const kx = mask.getContext('2d');
+  kx.filter = `blur(${MASKABLE_FEATHER / 2}px)`; kx.fillStyle = '#fff';
+  kx.fillRect(off + MASKABLE_FEATHER, off + MASKABLE_FEATHER, inner - 2 * MASKABLE_FEATHER, inner - 2 * MASKABLE_FEATHER);
+  lx.globalCompositeOperation = 'destination-in'; lx.drawImage(mask, 0, 0);
+  mx.drawImage(layer, 0, 0);
+  files.push({ name: 'icon-512-maskable.png', blob: await toBlob(base) });
+
+  // logo: SVG de la app (viewBox recortado) y PNG derivado SOLO por compatibilidad de emails (fondo transparente).
+  const crop = await logoCrop(logoSvg);
+  const appLogoSvg = croppedLogoSvg(logoSvg, crop.viewBox);
+  const [, , vw, vh] = crop.viewBox;
+  const lw = Math.round(vw * LOGO_PNG_SCALE); const lh = Math.round(vh * LOGO_PNG_SCALE);
+  const lc = canvas(lw, lh); lc.getContext('2d').drawImage(await loadImg(svgUrl(appLogoSvg)), 0, 0, lw, lh);
+  files.push({ name: 'logo.png', blob: await toBlob(lc) });
+  files.push({ name: 'logo.svg', blob: new Blob([appLogoSvg], { type: 'image/svg+xml' }) });
+  return { files, crop };
+}
+
+window.BRAMU_MARCA = { buildAll, logoCrop };
+
+document.getElementById('go').addEventListener('click', async () => {
+  const out = document.getElementById('out'); out.innerHTML = '';
+  const { files } = await buildAll();
+  window.__files = files;
+  for (const f of files) {
+    const url = URL.createObjectURL(f.blob);
+    const fig = document.createElement('figure');
+    const img = document.createElement('img'); img.src = url; img.alt = f.name;
+    const a = document.createElement('a'); a.className = 'btn'; a.href = url; a.download = f.name; a.textContent = f.name;
+    fig.append(img, document.createElement('br'), a); out.append(fig);
+  }
+  document.getElementById('all').disabled = false;
+});
+document.getElementById('all').addEventListener('click', () => {
+  (window.__files || []).forEach((f, i) => setTimeout(() => { const a = document.createElement('a'); a.href = URL.createObjectURL(f.blob); a.download = f.name; a.click(); }, i * 250));
+});
+</script>
+</body>
+</html>

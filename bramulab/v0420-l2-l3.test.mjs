@@ -522,9 +522,9 @@ test('Regresión: login/signup/recovery/onboarding conservan sus contratos (acep
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
 });
 
-test('Versión: V04.30 / 04.35-h2 coherentes', () => {
-  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.35'/);
-  assert.match(storeJs, /BUNDLE_VERSION = '04\.35-h2'/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.35', bundle: '04.35-h2' });
-  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-35-h2'/);
+test('Versión: V04.30 / 04.36-h1 coherentes', () => {
+  assert.match(storeJs, /APP_VERSION = 'BRAMUlab V04\.36'/);
+  assert.match(storeJs, /BUNDLE_VERSION = '04\.36-h1'/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.36', bundle: '04.36-h1' });
+  assert.match(read('sw.js'), /CACHE_NAME = 'bramulab-v04-36-h1'/);
 });

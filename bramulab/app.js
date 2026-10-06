@@ -3016,6 +3016,8 @@
     // "REPORTAR UN ERROR" que abre un selector (openReportErrorPicker) — ver ese selector para
     // el detalle de qué opciones ofrece según el contrato real disponible.
     const reportErrorBlock = $('#b6-report-error-block');
+    // V04.36 — "Anular carga" (autor, pending elegible): siempre inmediatamente DEBAJO de "Reportar un error", donde sea que esté.
+    const annulBlock = $('#b6-annul-block');
     const respondBlock = $('#b6-respond-correction-block');
     const respondText = $('#b6-respond-correction-text');
 
@@ -3030,6 +3032,7 @@
     confirmBlock.hidden = true;
     identityBlock.hidden = true;
     reportErrorBlock.hidden = true;
+    annulBlock.hidden = true;
     respondBlock.hidden = true;
     outboxActionBlock.hidden = true;
     outboxActionBtn.onclick = null;
@@ -3042,6 +3045,7 @@
     // b6ReportErrorAvailability). Reset acá por defecto en cada render; los bloques de abajo lo
     // vuelven a mover si corresponde.
     $('#analysis-share-section').after(reportErrorBlock);
+    reportErrorBlock.after(annulBlock);
     // Ronda correctiva (revisión central) — default seguro para la lista de diff del banner
     // PRE-validación (§G): un render anterior para otro partido/estado nunca debe dejar líneas
     // stale visibles. El diff técnico del bloque POST-validación (#b6-respond-correction-diff)
@@ -3268,6 +3272,10 @@
       // es una acción neutra en sí misma, nunca afirma qué tipo de evento ya ocurrió.
       const availPending = b6ReportErrorAvailability(f);
       reportErrorBlock.hidden = !availPending.result && !availPending.participant;
+      // V04.36 — "Anular carga": SOLO si el servidor (get_match_detail) dice que el autor es elegible; `detailLoaded` implícito
+      // (la lista no trae `canAnnulSubmission`). Se reubica siempre debajo de "Reportar un error", incluso si éste vive dentro de otra tarjeta.
+      annulBlock.hidden = !(f.canAnnulSubmission === true && f.serverBacked && Matches && Matches.isServerMatchId(f.matchId));
+      reportErrorBlock.after(annulBlock);
       return;
     }
 
@@ -4025,6 +4033,41 @@
     $('#report-identity-cancel').addEventListener('click', () => { $('#report-identity-overlay').hidden = true; });
   }
 
+  /* ---- Anular carga (V04.36) — el AUTOR retira su carga pendiente ---- */
+  /** El servidor decide todo (autor + pending + nadie más la reconoció): acá solo se confirma y se refleja el resultado. Éxito → se
+   *  refresca el feed (la carga desaparece de Historial/Pendientes/Home/notificaciones) y se sale al Home. Un rechazo por
+   *  `recognized_by_other`/`not_pending` significa que el estado cambió mientras se miraba: se explica y se relee el detalle. */
+  let annulInFlight = false;
+  function openAnnulSubmissionConfirm() {
+    const f = analysisCurrent;
+    if (!f || !f.serverBacked || !Matches || !Matches.isServerMatchId(f.matchId) || annulInFlight) return;
+    confirmAction(
+      '¿Anular esta carga?',
+      'El partido dejará de estar pendiente y no tendrá efectos en BRAMU.',
+      async () => {
+        if (annulInFlight) return;
+        annulInFlight = true;
+        let result;
+        try { result = await Matches.annulMySubmission(f.matchId); } finally { annulInFlight = false; }
+        if (result && result.ok) {
+          markSelfActedMatch(f.matchId);
+          await refreshServerMatches();
+          showToast('Carga anulada');
+          openPlayerHome();
+          return;
+        }
+        const code = result && result.code;
+        if (code === 'recognized_by_other' || code === 'not_pending' || code === 'not_author') {
+          showToast('Ya no se puede anular esta carga');
+          await afterB6Action(f.matchId);
+          return;
+        }
+        showToast('No se pudo anular la carga. Probá de nuevo.');
+      },
+      null, 'Anular carga', 'Cancelar', true
+    );
+  }
+
   /* ---- Reportar un error (§5) — REEMPLAZA los dos accesos separados anteriores ---- */
   /** Ronda UX 25/09 (Ronda 2, §5) — único punto de entrada "REPORTAR UN ERROR": pregunta qué
    *  está mal y deriva al flujo específico ya existente (editor de corrección de Ronda 1 / "No
@@ -4050,6 +4093,7 @@
   }
   function initReportErrorPicker() {
     $('#b6-report-error-btn').addEventListener('click', openReportErrorPicker);
+    $('#b6-annul-btn').addEventListener('click', openAnnulSubmissionConfirm);
     $('#report-error-close').addEventListener('click', closeReportErrorPicker);
     $('#report-error-scrim').addEventListener('click', (e) => { if (e.target === $('#report-error-scrim')) closeReportErrorPicker(); });
     $('#report-error-result-btn').addEventListener('click', () => {

@@ -231,6 +231,13 @@ Para emails puede mantenerse un PNG derivado por compatibilidad. Tampoco es fuen
 
 ---
 
+### Implementación en el repo (V04.36)
+
+- Masters: `docs/BRAMUlab/Marca/` (SVG aprobados, con el bloque `<metadata>` de Adobe/C2PA retirado; geometría y colores idénticos al export). Procedimiento y herramienta de derivados: `docs/BRAMUlab/Marca/README.md` + `generar-derivados.html`.
+- La app usa `bramulab/icons/logo.svg`: el mismo SVG del logo con el `viewBox` recortado al trazo (más `width`/`height` intrínsecos) para conservar las proporciones de layout vigentes (header 24 px, acceso 30 px, footer 18 px). Ningún path, color ni filtro cambia.
+- `bramulab/icons/logo.png` queda **solo** por compatibilidad de emails (`/icons/logo.png`); se deriva de `logo.svg` (fondo transparente).
+- Iconos PWA/apple-touch/favicon: derivados de `BRAMUlab-IconoApp.svg` (192, 512, 512 maskable al 80 %, 180 opaco, favicon recortado alrededor de la B).
+
 ## 11. Usos prohibidos
 
 No:
@@ -269,4 +276,4 @@ Cuando una tarea afecte identidad:
 4. no recuperar assets antiguos desde Git salvo trazabilidad específica;
 5. no usar documentación visual histórica como autoridad.
 
-La carpeta histórica `docs/identidad-visual/` queda obsoleta y se retira durante V04.36 una vez reemplazadas y verificadas todas sus referencias activas.
+La carpeta histórica `docs/identidad-visual/` se retiró en V04.36 (sin referencias activas; los masters vigentes están en `docs/BRAMUlab/Marca/`).

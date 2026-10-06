@@ -1904,7 +1904,7 @@ input, select{ font-family: inherit; }
     linear-gradient(180deg, rgba(5,12,22,.05) 0%, rgba(5,12,22,.42) 42%, rgba(5,12,22,.84) 100%),
     linear-gradient(90deg, rgba(5,12,22,.58) 0%, rgba(5,12,22,.22) 62%, rgba(5,12,22,.05) 100%),
     linear-gradient(rgba(9,19,31,.12), rgba(9,19,31,.12)),
-    url('assets/home-primer-partido.jpg?v=04.35-h2') 100% 30% / cover no-repeat,
+    url('assets/home-primer-partido.jpg?v=04.36-h1') 100% 30% / cover no-repeat,
     var(--surface-3);
   background-blend-mode: normal, normal, normal, normal, normal;
 }
@@ -3677,6 +3677,11 @@ input, select{ font-family: inherit; }
 .b6-banner--waiting{ border-color: var(--line); background: rgba(244,247,242,0.04); }
 .b6-banner__text{ font-size: 13px; color: var(--paper); line-height:1.4; margin:0; }
 .b6-action-block{ display:flex; flex-direction:column; gap: 8px; }
+/* V04.36 — "Anular carga": acción destructiva de MENOR jerarquía que "Reportar un error" (texto rojo, sin fondo ni borde). */
+.b6-annul-block{ display:flex; justify-content:center; margin-top: 4px; }
+.b6-annul-block[hidden]{ display:none; }
+.b6-annul-btn{ background:none; border:none; padding: 10px 16px; color: var(--danger); font-family: inherit; font-size: 13px; font-weight: 600; text-align:center; cursor:pointer; }
+.b6-annul-btn:active{ opacity: 0.7; }
 /* Handoff ajuste visual final post-h18 (doc 57, punto F) — "la presencia visual sutil que ya usa
    Último partido cuando requiere atención" (.player-home-lastmatch, ver arriba): MISMOS valores
    de glow/ciclo ya tuneados por QA real (18px/.12 en reposo, 25px/.24 en el pico, 3.6s

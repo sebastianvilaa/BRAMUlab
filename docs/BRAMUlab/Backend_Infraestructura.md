@@ -317,6 +317,8 @@ Estados server-side mínimos:
 
 No se necesita un estado `rejected` para representar una simple disconformidad rival: `Proponer corrección` mantiene el partido pendiente y `No participé` abre una incidencia de identidad. Un rechazo administrativo excepcional puede modelarse como motivo/acción sin convertirlo en la interacción normal de V1.
 
+`annulled` tiene dos orígenes de usuario/sistema además de la anulación administrativa: **duplicado** (`annulment_reason.kind='duplicate'`, auditable con “mostrar ocultos”) y **carga retirada por su autor** (`kind='author_retracted'`, V04.36: invisible para todos en cualquier lectura; ver `Experiencia_Inicial.md` §14.1 y `annul_my_match_submission`). Las lecturas de usuario (`get_my_matches`, `get_match_detail`, `get_notifications`, ids de recuperados) excluyen `author_retracted` vía `_match_is_author_retracted`.
+
 `draft` y `sync_pending` son estados locales de interfaz, no estados oficiales del partido.
 
 Un partido nuevo se crea siempre como `pending_validation`. La ausencia de estado nunca significa validado.

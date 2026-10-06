@@ -180,6 +180,8 @@
       // nunca se inventa desde el booleano). `pendingCorrectionRevisionId` viene igual de ambas.
       pendingCorrectionRevisionId: row.pendingCorrectionRevisionId || null,
       pendingCorrectionOrigin: row.pendingCorrectionOrigin || null,
+      // V04.36 — solo get_match_detail lo trae (el servidor decide si el AUTOR puede "Anular carga"); en filas de lista queda false.
+      canAnnulSubmission: row.canAnnulSubmission === true,
       openIdentityIssues,
       hasOpenIdentityIssue: openIdentityIssues ? openIdentityIssues.length > 0 : !!row.hasOpenIdentityIssue,
       // Solo get_match_detail la trae (get_my_matches no) — se usa para derivar client-side

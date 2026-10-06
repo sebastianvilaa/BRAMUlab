@@ -965,6 +965,16 @@ Ejemplos de notificación:
 - `Lucho propuso una corrección en el partido.`
 - `Agus indicó que un participante no corresponde.`
 
+### 14.1 `Anular carga` (V04.36 — decisión cerrada, implementada)
+
+El **autor original** puede retirar su propia carga mientras siga `pending_validation` (ventana vigente) y **ninguna otra persona haya reconocido el encuentro**.
+
+- **Bloquean** (acción de otra persona): confirmar/validar, proponer o sostener una corrección, declarar de nuevo desde el mismo lado (un compañero), reemplazar un participante afirmando quién sí jugó, o evidencia equivalente.
+- **No bloquean:** `No participé` de otra persona (la incidencia deja de ser accionable junto con el partido) ni ninguna acción del propio autor.
+- **Efecto:** el partido queda `annulled` (kind `author_retracted`, con fecha/actor/auditoría; no se borra físicamente); desaparece de Historial, Pendientes, Home y notificaciones para **todos** los participantes (también con “mostrar ocultos”); **no** se crea ninguna notificación y **no** hay efectos en Nivel, Ranking, Grupos, Intelligence, estadísticas ni contadores. El mismo encuentro puede volver a cargarse (crea un partido nuevo).
+- **UX:** en el Resumen del pendiente elegible, debajo de `Reportar un error` y con menor jerarquía, texto destructivo rojo `Anular carga`; modal `¿Anular esta carga?` / `El partido dejará de estar pendiente y no tendrá efectos en BRAMU.`; tras éxito se sale al Home y se refresca. La elegibilidad la decide **siempre el servidor** (`get_match_detail.canAnnulSubmission`).
+- Contrato técnico: RPC `annul_my_match_submission` (migración `20261006200000_v0436_annul_own_submission.sql`). No reutiliza `admin_annul_match` (genera notificaciones `admin_action`).
+
 ---
 
 ## 15. Invitados, identidades provisionales y reclamo de actividad
