@@ -1,4 +1,4 @@
-// BRAMUlab V04.36 — identidad visual final: masters SVG aprobados, derivados coherentes, limpieza de la identidad anterior.
+// BRAMUlab V04.37 — identidad visual final: masters SVG aprobados, derivados coherentes, limpieza de la identidad anterior.
 // Fuente: docs/BRAMUlab/Identidad_Visual.md. Ejecutar con: node --test bramulab/v0436-identidad-visual.test.mjs
 import path from 'node:path';
 import os from 'node:os';
@@ -119,17 +119,17 @@ test('V0436-5) logo nuevo (SVG) en splash, acceso, headers y footer; ningún <im
   for (const cls of ['access-logo', 'brand-logo brand-logo--access', 'brand-logo brand-logo--header', 'brand-logo brand-logo--footer']) assert.ok(html.includes(`class="${cls}" src="icons/logo.svg"`) || html.includes(`id="player-home-logo" class="${cls}" src="icons/logo.svg"`), cls);
   const sw = read('sw.js');
   const block = sw.slice(sw.indexOf('CORE_ASSETS = ['), sw.indexOf('];', sw.indexOf('CORE_ASSETS = [')));
-  assert.match(block, /'\.\/icons\/logo\.svg\?v=04\.36-h1'/);
+  assert.match(block, /'\.\/icons\/logo\.svg\?v=04\.37-h1'/);
   assert.doesNotMatch(block, /logo\.png|splash-b/);
   const m = JSON.parse(read('manifest.webmanifest'));
   assert.deepEqual(m.icons.map((i) => [i.src.split('?')[0], i.sizes, i.purpose]), [['icons/icon-192.png', '192x192', 'any'], ['icons/icon-512.png', '512x512', 'any'], ['icons/icon-512-maskable.png', '512x512', 'maskable']]);
   assert.equal(m.background_color, '#050A12'); assert.equal(m.theme_color, '#050A12');
   const ati = html.match(/rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,([A-Za-z0-9+/=]+)"/);
   assert.ok(ati && Buffer.from(ati[1], 'base64').equals(fs.readFileSync(path.join(__dirname, 'icons', 'apple-touch-icon.png'))), 'apple-touch incrustado == archivo nuevo');
-  assert.match(html, /rel="icon" href="icons\/favicon-64\.png\?v=04\.36-h1"/);
-  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.36', bundle: '04.36-h2' });
-  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.36'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.36-h1'/);
-  assert.match(sw, /CACHE_NAME = 'bramulab-v04-36-h2'/);
+  assert.match(html, /rel="icon" href="icons\/favicon-64\.png\?v=04\.37-h1"/);
+  assert.deepEqual(JSON.parse(read('version.json')), { version: 'BRAMUlab V04.37', bundle: '04.37-h1' });
+  assert.match(read('store.js'), /APP_VERSION = 'BRAMUlab V04\.37'/); assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h1'/);
+  assert.match(sw, /CACHE_NAME = 'bramulab-v04-37-h1'/);
 });
 
 test('V0436-6) el logo SVG se dimensiona por altura/ancho en cada superficie (CSS existente) y el splash sigue protagonista', () => {
@@ -180,7 +180,7 @@ test('V0436-10) hardening 139 no retrocede: dist sigue siendo la salida, el moto
   assert.equal(v.outputDirectory, 'dist'); assert.match(v.buildCommand, /build-env\.mjs && node scripts\/build-dist\.mjs/);
   const html = read('index.html');
   assert.doesNotMatch(html, /<script src="(level|level-context|match-level-engine)\.js/);
-  assert.match(html, /<script src="level-public\.js\?v=04\.36-h1"><\/script>/);
+  assert.match(html, /<script src="level-public\.js\?v=04\.37-h1"><\/script>/);
   assert.match(html, /supabase-js@\d+\.\d+\.\d+\/dist\/umd\/supabase\.js" integrity="sha384-[A-Za-z0-9+/]{64}" crossorigin="anonymous"/);
   assert.equal(execFileSync('git', ['ls-files', 'bramulab/dist'], { cwd: REPO, encoding: 'utf8' }).trim(), '');
 });

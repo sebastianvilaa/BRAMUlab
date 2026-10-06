@@ -1,4 +1,4 @@
-// BRAMUlab V04.36 — "Anular carga" (cliente): wrapper de red, traducción de `canAnnulSubmission`, markup, copy y flujo del modal.
+// BRAMUlab V04.37 — "Anular carga" (cliente): wrapper de red, traducción de `canAnnulSubmission`, markup, copy y flujo del modal.
 // El contrato server-side (elegibilidad, invisibilidad, idempotencia, sin notificaciones) lo prueba
 // supabase/functions/_shared/v0436-anular-carga.test.mjs sobre Postgres real (PGlite). Ejecutar con: node --test bramulab/v0436-anular-carga-ui.test.mjs
 import path from 'node:path';

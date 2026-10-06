@@ -980,6 +980,23 @@
     const d = res.data.delta;
     return { ok: true, delta: (d === null || d === undefined || !Number.isFinite(Number(d))) ? null : Number(d) };
   }
+  /** V04.37 — evolución OFICIAL del Nivel del caller (`get_my_level_evolution`, self-only): serie de valores PÚBLICOS (1 decimal)
+   *  anclada al Nivel actual, sin puntos de resultados revertidos. `available:false` = sin evidencia suficiente (la UI oculta el módulo).
+   *  Nunca expone internals del motor (el servidor solo manda fecha, valor público y matchId propio). */
+  async function getMyLevelEvolution() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    let res;
+    try { res = await c.rpc('get_my_level_evolution'); } catch (e) { return { ok: false, code: 'network_error' }; }
+    if (res.error || !res.data || res.data.ok !== true) return { ok: false, code: (res.error && res.error.message) || 'unknown' };
+    const d = res.data;
+    if (d.available !== true || !Array.isArray(d.points)) return { ok: true, available: false, points: [] };
+    const points = d.points
+      .map((p) => ({ at: p && p.at, level: Number(p && p.level), matchId: (p && p.matchId) || null }))
+      .filter((p) => p.at && Number.isFinite(p.level));
+    if (points.length < 2 || !Number.isFinite(Number(d.currentLevel))) return { ok: true, available: false, points: [] };
+    return { ok: true, available: true, currentLevel: Number(d.currentLevel), points };
+  }
   const deleteGroup = (groupId) => groupsRpc('delete_group', { p_group_id: groupId });
   /** §26.5 — "Salir del grupo" (cualquier miembro; guardrails de último admin/único miembro del lado servidor). */
   const leaveGroup = (groupId) => groupsRpc('leave_group', { p_group_id: groupId });
@@ -1105,7 +1122,7 @@
     updateCurrentCategory, resolveAvatarUrl, resolveAvatarUrlsBatch,
     savePlayer, removeSavedPlayer, listSavedPlayers, isPlayerSaved,
     listMyGroups, getGroupDetail, createGroup, renameGroup, addGroupMember, removeGroupMember,
-    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getMyLastLevelDelta, getGroupCompetitionData, getGroupsLobby,
+    promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getMyLastLevelDelta, getMyLevelEvolution, getGroupCompetitionData, getGroupsLobby,
     GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
     uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
   };

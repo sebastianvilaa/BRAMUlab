@@ -351,7 +351,7 @@
   // que dependía del registro en vivo (configuración previa a un partido en vivo), separado
   // ahora a BRAMUlive. 'analysis'/'manual-load' siguen acá: las usa la carga de
   // partido propio ya jugado.
-  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'pending'];
+  const BOTTOM_NAV_VIEWS = ['player-home', 'history', 'analysis', 'companions', 'ranking', 'profile', 'edit-data', 'complete-access', 'change-password', 'notifications', 'manual-load', 'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'pending', 'activity'];
 
   function showView(name) {
     // BRAMUlive (2026-09-18) — se retiran 'setup'/'match'/'timeline': eran las tres vistas
@@ -361,6 +361,8 @@
     ['analysis', 'history', 'manual-load', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
       'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate', 'account-flow', 'account-deleted',
+      // V04.37 — detalle histórico de Actividad (abierto desde la tarjeta ACTIVIDAD del Home).
+      'activity',
       // G2 — Configuración y pantallas intermedias (sin bottom nav)
       'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
@@ -6054,6 +6056,31 @@
     } catch (e) { /* best-effort: sin evidencia nueva se conserva la anterior */ }
   }
 
+  /* V04.37 (Nivel_BRAMU.md §16) — Evolución REAL del Nivel: serie oficial server-backed (`get_my_level_evolution`), solo en memoria.
+     NUNCA PH.computeLevelEvolution (simulación legacy) para una cuenta V1 real. `raw:null` = sin evidencia suficiente => módulo oculto. */
+  let levelEvolutionV1 = { userId: null, raw: null };
+  /** Relee la serie oficial. Devuelve true si hubo respuesta válida (aunque sea "sin evidencia"); el llamador repinta Mi Perfil si cambió algo. */
+  async function refreshLevelEvolution() {
+    if (!isServerBackedSession() || !Auth || !Auth.getMyLevelEvolution) return false;
+    const user = Store.getCurrentUser();
+    if (!user) return false;
+    try {
+      const r = await Auth.getMyLevelEvolution();
+      if (!r || !r.ok) return false;
+      levelEvolutionV1 = { userId: user.id, raw: r.available ? r : null };
+      return true;
+    } catch (e) { return false; }
+  }
+  /** Evolución lista para pintar (puntos/actual/cambio 30 días/mejor Nivel/insight) o `null`. Exige que el ÚLTIMO punto coincida con
+   *  el Nivel público que muestra el resto de la app (`levelV1.mu`): si el perfil cacheado está desfasado del servidor, no se mezcla. */
+  function currentRealLevelEvolution(levelV1) {
+    const user = Store.getCurrentUser();
+    if (!user || !levelV1 || levelEvolutionV1.userId !== user.id || !levelEvolutionV1.raw) return null;
+    const built = PH.buildRealLevelEvolution(levelEvolutionV1.raw, new Date());
+    if (!built || Math.round(built.current * 10) !== Math.round(LV.roundPublicLevel(levelV1.mu) * 10)) return null;
+    return built;
+  }
+
   async function refreshServerMatches() {
     if (!isServerBackedSession() || !Matches) return;
     const excludeIds = Array.from(justActedMatchIds);
@@ -9054,6 +9081,45 @@
       : 'Sin partidos en las últimas 4 semanas';
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V04.37 — ACTIVIDAD: detalle histórico semanal (Experiencia_Inicial.md §27)
+   *  Misma verdad que las 4 barras del Home: los partidos COMPUTABLES del jugador (`getHomeComputableMatches`, el mismo
+   *  conjunto que recibe `renderPlayerActivity`) y el mismo helper de semanas (PH.classifyMatchForActivity vía
+   *  PH.computeActivityWeeksHistory). Solo semanas con actividad oficial real, de la más reciente a la más antigua. */
+  /* ------------------------------------------------------------------ */
+  function getHomeComputableMatches() {
+    return PH.filterMatchesForPlayer(getComputableHistory(), currentIdentity());
+  }
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  /** Una fila de semana: rango humano + jugados/ganados/perdidos + efectividad semanal (ganados/jugados) + barra apilada. */
+  function buildActivityWeekRowHTML(w) {
+    const segs = PH.computeActivityBarSegments(w.count, w.wins, w.losses);
+    return `<div class="activity-week">
+      <div class="activity-week__main">
+        <span class="activity-week__range">${escapeHtml(w.rangeLabel)}</span>
+        <span class="activity-week__counts">${plural(w.count, 'jugado', 'jugados')} · ${plural(w.wins, 'ganado', 'ganados')} · ${plural(w.losses, 'perdido', 'perdidos')}</span>
+        <span class="activity-week__bar" aria-hidden="true"><span class="activity-week__bar-win" style="width:${segs.winPct}%"></span><span class="activity-week__bar-loss" style="width:${segs.lossPct}%"></span></span>
+      </div>
+      <div class="activity-week__eff"><span class="activity-week__eff-value">${w.pct}%</span><span class="activity-week__eff-label">EFECTIVIDAD</span></div>
+    </div>`;
+  }
+  function openActivityScreen() {
+    syncCurrentIdentityFromStore();
+    if (!currentPlayerName) { openAccessFlow(); return; }
+    const weeks = PH.computeActivityWeeksHistory(getHomeComputableMatches(), currentIdentity(), new Date());
+    if (!weeks.length) return; // Estado Cero / sin actividad oficial: la tarjeta no se muestra, nunca se abre un detalle vacío
+    $('#activity-week-list').innerHTML = weeks.map(buildActivityWeekRowHTML).join('');
+    showView('activity');
+    const scroller = $('#view-activity .analysis-scroll');
+    if (scroller) scroller.scrollTop = 0;
+  }
+  function initActivityScreen() {
+    const card = $('#player-home-activity-card');
+    card.addEventListener('click', openActivityScreen);
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openActivityScreen(); } });
+    $('#activity-back-btn').addEventListener('click', () => openPlayerHome());
+  }
+
   // V02.8.1 (§1.3) — duración de la animación de Efectividad como constante JS: Web Animations
   // API pide un número en ms, no una variable CSS (a diferencia de Nivel/Actividad, que siguen
   // animándose por CSS y sí pueden leer un token). Dentro del rango 900-1000ms pedido.
@@ -9244,6 +9310,7 @@
     $('#player-home-effectiveness-card').addEventListener('click', () => {
       openHistoryScreen('player-home', { type: 'effectiveness', label: 'Efectividad' });
     });
+    initActivityScreen();
     $('#widget-partner-card').addEventListener('click', () => openPersonListScreen('partners'));
     $('#widget-rival-card').addEventListener('click', () => openPersonListScreen('rivals'));
   }
@@ -11293,6 +11360,17 @@
    *  aparecía como "3 partidos · 3 V · 0 D" (lectura falsa de invicto). Usa `matchesPlayed`/
    *  `wins`/`losses` REALES de `computeWeeklyTable`/`computeRaceAnual` — `points` sigue siendo
    *  el top 2, sin cambios. */
+  /** V04.37 — movimiento de la Race anual, MISMO lenguaje visual que Ranking (`.ranking-row__movement` + is-up/is-down: `↑ N`
+   *  lima / `↓ N` rojo). Solo existe en filas de Race cuando alguna fila se movió (`movementSlot`); la columna queda vacía
+   *  (misma anchura) para quien no tiene movimiento — nunca "—", nunca un indicador sin posición previa comparable. */
+  function buildGroupRaceMovementHTML(row) {
+    if (!row.movementSlot) return '';
+    const d = row.movement && row.movement.delta;
+    if (!d) return '<span class="ranking-row__movement group-table__movement" aria-hidden="true"></span>';
+    const label = d > 0 ? `↑ ${d}` : `↓ ${Math.abs(d)}`;
+    return `<span class="ranking-row__movement group-table__movement ${d > 0 ? 'is-up' : 'is-down'}" aria-label="${d > 0 ? 'Subió' : 'Bajó'} ${Math.abs(d)} ${Math.abs(d) === 1 ? 'puesto' : 'puestos'}">${label}</span>`;
+  }
+
   function buildGroupTableRowHTML(row) {
     const captionParts = [`${row.matchesPlayed} ${row.matchesPlayed === 1 ? 'partido' : 'partidos'}`];
     if (row.matchesPlayed > 0) captionParts.push(`${row.wins} V`, `${row.losses} D`);
@@ -11313,6 +11391,7 @@
         <span class="group-table__points-value">${row.points}</span>
         <span class="group-table__points-label">PTS</span>
       </span>
+      ${buildGroupRaceMovementHTML(row)}
     </button>`;
   }
 
@@ -11412,7 +11491,10 @@
     const previousMatches = PG.computeMatchesForGroupInWeek(fullHistory, group, prevWeekStart);
     const previousTable = PG.computeWeeklyTable(fullHistory, group, prevWeekStart);
     const beforePreviousTable = PG.computeWeeklyTable(fullHistory, group, prevPrevWeekStart);
-    const raceTable = PG.computeRaceAnual(fullHistory, group, year);
+    const raceTableBase = PG.computeRaceAnual(fullHistory, group, year);
+    // V04.37 (Grupos_BRAMU.md §29) — movimiento respecto del cierre de la semana BRAMU anterior (misma frontera BA `weekStart`).
+    // Solo agrega `movement` a las filas: los puntos/posiciones de `raceTableBase` no se tocan (Intelligence usa la base).
+    const raceTable = PG.annotateRaceMovement(raceTableBase, PG.computeRaceAnual(fullHistory, group, year, { beforeWeekStartMs: weekStart.getTime() }));
     // §G — contexto para las hojas de desglose/Race (ver renderGroupTableInto).
     groupsPanelsContext = { group, fullHistory, currentMatches, previousMatches, year };
 
@@ -11423,14 +11505,14 @@
     $('#groups-intel-anterior-title').textContent = group.name;
 
     renderGroupIntelligenceInto('groups-intel-actual-list', 'groups-intel-actual-empty', PG.buildGroupIntelligence({
-      currentTable, previousTable, raceTable, currentMatches, fullHistory,
+      currentTable, previousTable, raceTable: raceTableBase, currentMatches, fullHistory,
     }));
     renderGroupTableInto('groups-table-actual', 'groups-table-actual-empty', currentTable, 'current');
 
     // ANTERIOR — misma función de BRAMU Intelligence, con el marco de la semana pasada como
     // "actual" (§12: "correspondiente a esa semana, si existe") y resultados ya congelados.
     renderGroupIntelligenceInto('groups-intel-anterior-list', 'groups-intel-anterior-empty', PG.buildGroupIntelligence({
-      currentTable: previousTable, previousTable: beforePreviousTable, raceTable, currentMatches: previousMatches, fullHistory,
+      currentTable: previousTable, previousTable: beforePreviousTable, raceTable: raceTableBase, currentMatches: previousMatches, fullHistory,
     }));
     renderGroupTableInto('groups-table-anterior', 'groups-table-anterior-empty', previousTable, 'previous');
 
@@ -13510,6 +13592,31 @@
     } catch (e) { return ''; }
   }
 
+  /** V04.37 — pinta la tarjeta con la serie OFICIAL ya construida por `PH.buildRealLevelEvolution` (misma tarjeta/gráfico de siempre:
+   *  Nivel actual, Cambio últimos 30 días, Mejor nivel, línea; más la lectura de BRAMU Intelligence debajo, o nada si se abstiene). */
+  function paintRealLevelEvolution(evo) {
+    $('#evolution-numeric').hidden = false;
+    $('#evolution-badge').hidden = true;
+    $('#evolution-empty').hidden = true;
+    $('#evolution-footnote').textContent = 'Tu Nivel BRAMU oficial, según tus partidos computables.';
+    $('#evolution-current-value').textContent = evo.current.toFixed(1);
+    const change = evo.change30 ? formatLevelDelta(evo.change30.delta) : null;
+    $('#evolution-change-value').textContent = change ? change.label : '—';
+    $('#evolution-change-label').textContent = change ? 'Cambio últimos 30 días' : 'sin cambios en los últimos 30 días';
+    $('#mi-perfil-peak-level').textContent = evo.peak.value.toFixed(1);
+    $('#mi-perfil-peak-level-context').textContent = evo.peak.isCurrent ? 'ACT' : formatPeakLevelDate(evo.peak.date);
+    const insight = $('#evolution-insight');
+    insight.hidden = !evo.insight;
+    $('#evolution-insight-text').textContent = evo.insight || '';
+    const wrap = $('#evolution-chart-wrap');
+    const paintChart = () => {
+      const measuredWidth = Math.round(wrap.getBoundingClientRect().width);
+      wrap.innerHTML = buildLevelEvolutionSvgHTML({ points: evo.points, current: evo.current }, measuredWidth || LEVEL_CHART_WIDTH);
+      animateEvolutionLine(wrap.querySelector('.evolution-chart__line'));
+    };
+    if (wrap.getBoundingClientRect().width > 0) paintChart(); else requestAnimationFrame(paintChart);
+  }
+
   /** §4.1 — resumen numérico + gráfico, simplificado (V03.1 §11): Nivel actual y cambio en
    *  los ÚLTIMOS 30 DÍAS (ya no "cambio acumulado desde la base", ni partidos considerados/
    *  mejor nivel — esos 2 últimos se retiran de esta cabecera por el pedido explícito de
@@ -13527,7 +13634,13 @@
     // ningún otro estado (legacy/simulado, o V1 todavía calibrando) debe heredar por accidente
     // el `hidden` de un render anterior para otra cuenta.
     $('#evolution-card').hidden = false;
+    // V04.37 — defaults del camino legacy/simulado (badge BETA + nota de "regla de prueba"); solo el camino V1 con serie OFICIAL los cambia.
+    $('#evolution-badge').hidden = false;
+    $('#evolution-footnote').hidden = false;
+    $('#evolution-footnote').textContent = 'Regla de prueba, no el algoritmo oficial. Los datos viven en este dispositivo.';
+    $('#evolution-insight').hidden = true;
     const levelV1 = currentLevelV1State();
+    const realEvolution = levelV1 ? currentRealLevelEvolution(levelV1) : null;
     if (levelV1) {
       $('#evolution-numeric').hidden = true;
       // V04.27-h2 (#26) — consolidado = distinto de CALIBRANDO (RECALIBRANDO incluido).
@@ -13565,8 +13678,20 @@
       // disponible, se oculta el módulo COMPLETO en vez de simular o dejar un copy falso.
       // Mientras sigue CALIBRANDO, el módulo se conserva (el copy actual SÍ es verdadero: es una
       // primera referencia todavía no calibrada con partidos reales).
-      $('#evolution-card').hidden = isCalibrated;
-      if (isCalibrated) {
+      $('#evolution-card').hidden = isCalibrated && !realEvolution;
+      if (realEvolution) {
+        // V04.37 — hay serie OFICIAL real: se reutiliza la tarjeta (cabecera + gráfico) con esa fuente. Mientras siga CALIBRANDO se
+        // conserva el progreso (sin la nota de "primera referencia", que contradiría al gráfico real).
+        paintRealLevelEvolution(realEvolution);
+        $('#evolution-calibration').hidden = isCalibrated;
+        if (!isCalibrated) {
+          $('#evolution-calibration-state').textContent = 'CALIBRANDO';
+          $('#evolution-calibration-progress').hidden = false;
+          $('#evolution-calibration-progress').textContent = `${levelV1.ratedMatches} / ${LVC.PARAMS.CALIBRATION_MIN_MATCHES} PARTIDOS`;
+          $('#evolution-calibration-note-simulado').hidden = true;
+          $('#evolution-calibration-note-v1').hidden = true;
+        }
+      } else if (isCalibrated) {
         // Estado limpio aunque el contenedor ya esté oculto: ningún consumidor futuro de estos
         // ids debe heredar un `hidden=false` stale de una cuenta CALIBRANDO renderizada antes.
         $('#evolution-calibration').hidden = true;
@@ -13685,6 +13810,8 @@
     setProfileTab(tab || 'mi-perfil');
     renderProfileView();
     showView('profile');
+    // V04.37 — la serie real se relee en cada apertura (un partido nuevo/corregido/anulado cambia la trayectoria) y repinta solo si sigue en Perfil.
+    refreshLevelEvolution().then((ok) => { if (ok && !$('#view-profile').hidden) renderProfileEvolution(Store.getCurrentUser()); });
   }
 
   /** Backend Bloque 7 (Fase 5, corrección F5-C02 — Ranking_BRAMU.md §13.7.A, corrige la

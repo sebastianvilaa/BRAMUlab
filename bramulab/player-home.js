@@ -711,18 +711,65 @@
     const raw = weekStarts.map(() => ({ count: 0, wins: 0, losses: 0 }));
     let total = 0;
     (matches || []).forEach((m) => {
-      const t = parseTimeOrNull(getPlayedAt(m));
-      if (t === null) return;
-      const matchWeekStartMs = startOfWeekMonday(new Date(t)).getTime();
-      const idx = weekStarts.findIndex((ws) => ws.getTime() === matchWeekStartMs);
+      const c = classifyMatchForActivity(m, playerName);
+      if (!c) return;
+      const idx = weekStarts.findIndex((ws) => ws.getTime() === c.weekStartMs);
       if (idx === -1) return;
       total += 1;
       raw[idx].count += 1;
-      const res = matchResultForPlayer(m, playerName);
-      if (res === 'win') raw[idx].wins += 1;
-      else if (res === 'loss') raw[idx].losses += 1;
+      if (c.res === 'win') raw[idx].wins += 1;
+      else if (c.res === 'loss') raw[idx].losses += 1;
     });
     return { total, buckets: raw };
+  }
+
+  /** V04.37 — ÚNICO punto que decide a qué semana (lunes local, `startOfWeekMonday`) pertenece un partido y con qué
+   *  resultado cuenta para `playerName`. Lo comparten `computeActivityWeeks4` (resumen de 4 barras del Home) y
+   *  `computeActivityWeeksHistory` (detalle histórico): resumen y detalle nunca pueden divergir. `null` = sin fecha real válida. */
+  function classifyMatchForActivity(m, playerName) {
+    const t = parseTimeOrNull(getPlayedAt(m));
+    if (t === null) return null;
+    return { weekStartMs: startOfWeekMonday(new Date(t)).getTime(), res: matchResultForPlayer(m, playerName) };
+  }
+
+  const ACTIVITY_MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+  /** "5 OCT — 11 OCT" (lunes–domingo, día sin cero a la izquierda, mes de 3 letras de tabla propia: nunca Intl, que varía de
+   *  largo según locale). Si la semana no es del año de `nowDate` o cruza de año, agrega el año al final ("29 DIC — 4 ENE 2026"). */
+  function formatActivityWeekRange(weekStart, weekEnd, nowDate) {
+    const lbl = (d) => `${d.getDate()} ${ACTIVITY_MONTHS[d.getMonth()]}`;
+    const nowYear = (nowDate || new Date()).getFullYear();
+    const needsYear = weekStart.getFullYear() !== nowYear || weekEnd.getFullYear() !== nowYear;
+    return `${lbl(weekStart)} — ${lbl(weekEnd)}${needsYear ? ' ' + weekEnd.getFullYear() : ''}`;
+  }
+
+  /** V04.37 (Experiencia_Inicial.md §27) — detalle histórico de Actividad: una fila por semana CON actividad oficial real, de la
+   *  más reciente a la más antigua, desde la primera semana con datos hasta la semana en curso (incluida, aunque no haya
+   *  terminado). Misma fuente (los `matches` computables que recibe el Home) y misma frontera semanal que `computeActivityWeeks4`.
+   *  Sin semanas vacías de relleno; partidos con fecha futura (semana posterior a la actual) o sin fecha válida no cuentan.
+   *  `pct` = ganados / jugados (redondeado), con `count` > 0 siempre. */
+  function computeActivityWeeksHistory(matches, playerName, nowDate) {
+    const now = nowDate || new Date();
+    const currentWeekStartMs = startOfWeekMonday(now).getTime();
+    const byWeek = new Map();
+    (matches || []).forEach((m) => {
+      const c = classifyMatchForActivity(m, playerName);
+      if (!c || c.weekStartMs > currentWeekStartMs) return;
+      if (!byWeek.has(c.weekStartMs)) byWeek.set(c.weekStartMs, { count: 0, wins: 0, losses: 0 });
+      const b = byWeek.get(c.weekStartMs);
+      b.count += 1;
+      if (c.res === 'win') b.wins += 1;
+      else if (c.res === 'loss') b.losses += 1;
+    });
+    return Array.from(byWeek.keys()).sort((a, b) => b - a).map((ms) => {
+      const b = byWeek.get(ms);
+      const weekStart = new Date(ms);
+      const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+      return {
+        weekStart, weekEnd, count: b.count, wins: b.wins, losses: b.losses,
+        pct: Math.round((b.wins / b.count) * 100),
+        rangeLabel: formatActivityWeekRange(weekStart, weekEnd, now),
+      };
+    });
   }
 
   /** V02.4 (Bloque A, §2.3) — segmentos APILADOS (victorias/derrotas) de UN período de
@@ -1062,6 +1109,57 @@
     return { value: peak, isCurrent, date: isCurrent ? null : peakDate };
   }
 
+  /* ------------------------------------------------------------------ */
+  /* V04.37 — EVOLUCIÓN REAL DEL NIVEL (Nivel_BRAMU.md §16 / BRAMU_Intelligence.md §18)  */
+  /* Función pura sobre la serie OFICIAL que devuelve `get_my_level_evolution`           */
+  /* (valores públicos, un decimal). Nunca reemplaza ni reactiva a                        */
+  /* `computeLevelEvolution` (simulación legacy): esa NO se usa para cuentas V1 reales.   */
+  /* ------------------------------------------------------------------ */
+  const LEVEL_EVOLUTION_WINDOW_DAYS = 30;
+  const tenths = (n) => Math.round(n * 10);
+
+  /** `raw = { points: [{ at: ISO, level: número público (1 decimal) , matchId? }, ...] }` en orden cronológico (el primero es
+   *  el punto inicial oficial). Devuelve `null` si no hay evidencia para una evolución útil (menos de 2 puntos: el módulo se oculta
+   *  por completo). Si no: `{ points:[{level, playedAt}], current, change30, peak, insight }` con la forma que ya consume el gráfico.
+   *  - `change30`: Nivel actual vs. Nivel al cierre del día-30 (último punto con fecha ≤ ahora−30d; si todo es más reciente,
+   *    el punto inicial). `null` si el valor público no cambió.
+   *  - `insight` (determinístico, sin causas): (1) cambio en 30 días → "En los últimos 30 días tu Nivel pasó de X a Y (↑/↓ Z).";
+   *    (2) ≥ 3 eventos computables en la ventana y TODOS los valores públicos (incluido el de partida) iguales →
+   *    "Tu Nivel se mantuvo en X durante tus últimos N partidos computables."; (3) si no, `null` (abstención). Oscilaciones que
+   *    terminan en el mismo valor NO cuentan como estabilidad. */
+  function buildRealLevelEvolution(raw, nowDate) {
+    const src = (raw && Array.isArray(raw.points)) ? raw.points : [];
+    const pts = src
+      .map((p) => ({ level: Number(p.level), playedAt: p.at || p.playedAt, matchId: p.matchId || null, t: Date.parse(p.at || p.playedAt) }))
+      .filter((p) => Number.isFinite(p.level) && Number.isFinite(p.t));
+    if (pts.length < 2) return null;
+    const nowMs = (nowDate || new Date()).getTime();
+    const cutoffMs = nowMs - LEVEL_EVOLUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const current = pts[pts.length - 1].level;
+
+    let peak = pts[0].level; let peakDate = pts[0].playedAt;
+    pts.forEach((p) => { if (p.level >= peak) { peak = p.level; peakDate = p.playedAt; } });
+    const peakInfo = { value: peak, isCurrent: tenths(peak) === tenths(current), date: tenths(peak) === tenths(current) ? null : peakDate };
+
+    let startIdx = 0;
+    pts.forEach((p, i) => { if (p.t <= cutoffMs) startIdx = i; });
+    const from = pts[startIdx].level;
+    const windowEvents = pts.slice(startIdx + 1).filter((p) => p.t > cutoffMs);
+    const deltaTenths = tenths(current) - tenths(from);
+    const change30 = deltaTenths !== 0 ? { from, to: current, delta: deltaTenths / 10 } : null;
+
+    let insight = null;
+    if (change30) {
+      insight = `En los últimos ${LEVEL_EVOLUTION_WINDOW_DAYS} días tu Nivel pasó de ${from.toFixed(1)} a ${current.toFixed(1)} (${change30.delta > 0 ? '↑' : '↓'} ${Math.abs(change30.delta).toFixed(1)}).`;
+    } else if (windowEvents.length >= 3 && windowEvents.every((p) => tenths(p.level) === tenths(from))) {
+      insight = `Tu Nivel se mantuvo en ${from.toFixed(1)} durante tus últimos ${windowEvents.length} partidos computables.`;
+    }
+    return {
+      points: pts.map((p) => ({ level: p.level, playedAt: p.playedAt, matchId: p.matchId })),
+      current, change30, peak: peakInfo, insight,
+    };
+  }
+
   /** V03.1 (§9) — igual que computeBestWinStreak, pero además devuelve el rango de fechas
    *  (primer/último partido) del tramo ganador que definió esa mejor racha histórica, para
    *  mostrar contexto temporal breve ("SEP 26" / "SEP–OCT 26"). `null` si nunca hubo racha
@@ -1173,7 +1271,7 @@
     buildTuMomentoText,
     buildRankingMomentoClause,
     registerModeLabel, formatLiveScoreLabel, summarizeActiveMatchSnapshot,
-    computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivityWeeks4, computeEffectivenessTotal,
+    computeCurrentStreak, computeCurrentStreakMatches, computeBestPartner, computeActivityWeeks4, computeActivityWeeksHistory, formatActivityWeekRange, computeEffectivenessTotal,
     startOfWeekMonday, computeActivityBarSegments, levelProgressPct,
     computeTeammateBreakdown, computeRivalBreakdown,
     computeThirtyDayPeriodCounts, computeHitos, filterMatchesWithDefinedResult,
@@ -1181,7 +1279,7 @@
     filterHistoryCombined, computeHistoryTabCounts,
     classifyHistoryStatusTab, filterHistoryByStatusTab, computeHistoryStatusTabCounts,
     isMatchConsideredForLevel, computeLevelDeltaForMatch, computeLevelEvolution,
-    computeLevelChangeLast30Days, computeBestWinStreakRange, computePeakLevel,
+    computeLevelChangeLast30Days, computeBestWinStreakRange, computePeakLevel, buildRealLevelEvolution,
     LEVEL_BASE, LEVEL_MIN, LEVEL_MAX,
     computeSimulatedJugadorLevel, SIM_LEVEL_MIN, SIM_LEVEL_MAX,
   };

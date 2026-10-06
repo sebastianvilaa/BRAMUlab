@@ -507,8 +507,12 @@
     )).sort((a, b) => a - b);
   }
 
-  function computeRaceAnual(fullHistory, group, year) {
-    const weekStartsMs = computeGroupYearWeekStarts(fullHistory, group, year);
+  /** V04.37 — `opts.beforeWeekStartMs` (opcional): Race del AÑO hasta el cierre de la semana BRAMU anterior a esa
+   *  frontera, es decir solo semanas con lunes BA < `beforeWeekStartMs`. Sin `opts` el cálculo es el de siempre,
+   *  byte a byte (nadie más pasa ese parámetro): puntos, top 2, bonus y membresía no cambian. */
+  function computeRaceAnual(fullHistory, group, year, opts) {
+    const limitMs = opts && Number.isFinite(opts.beforeWeekStartMs) ? opts.beforeWeekStartMs : null;
+    const weekStartsMs = computeGroupYearWeekStarts(fullHistory, group, year).filter((ms) => limitMs === null || ms < limitMs);
     const totals = {};
     weekStartsMs.forEach((ms) => {
       const table = computeWeeklyTable(fullHistory, group, new Date(ms));
@@ -531,6 +535,25 @@
     const rows = Object.keys(totals).map((k) => totals[k]);
     rows.sort((a, b) => b.points - a.points || b.wins - a.wins || a.name.localeCompare(b.name, 'es'));
     return assignPositions(rows);
+  }
+
+  /** V04.37 (Grupos_BRAMU.md §29) — movimiento de puestos de la Race anual respecto del cierre de la semana BRAMU
+   *  anterior. Función pura de PRESENTACIÓN: recibe las dos tablas ya calculadas por `computeRaceAnual` (actual y
+   *  `beforeWeekStartMs`) y NUNCA toca puntos, top 2, bonus ni posiciones: solo agrega `movement` a cada fila.
+   *  - `movement = { delta }` con delta = puesto previo − puesto actual (> 0 sube, < 0 baja), SOLO si el jugador tenía fila
+   *    en la Race previa (alta/reingreso sin comparación válida, o primera semana del año → sin `movement`) y el puesto cambió;
+   *  - los puestos son los de competición `1,1,3` que ya trae `position` (empates comparten número);
+   *  - `movementSlot: true` en TODAS las filas cuando al menos una tiene movimiento (reserva la columna para que la tabla no
+   *    se desalinee); sin ningún movimiento no se agrega nada (la tabla queda exactamente igual que antes). */
+  function annotateRaceMovement(raceRows, previousRaceRows) {
+    const prior = new Map((previousRaceRows || []).map((r) => [rowKey(r), r.position]));
+    const withMv = (raceRows || []).map((r) => {
+      const prev = prior.get(rowKey(r));
+      const delta = prev == null ? null : prev - r.position;
+      return delta ? Object.assign({}, r, { movement: { delta } }) : r;
+    });
+    const any = withMv.some((r) => r.movement);
+    return any ? withMv.map((r) => Object.assign({}, r, { movementSlot: true })) : withMv;
   }
 
   /* ------------------------------------------------------------------ */
@@ -859,7 +882,7 @@
     computeSimulatedLevelBeforeMatch, computeBonusSorpresa,
     computeMatchPointsBreakdown, computePointsForPlayerInMatch,
     computeMatchesForGroupInWeek, membersRelevantForWeek, assignPositions, computeWeeklyTable,
-    computePlayerScoredMatches, computeGroupYearWeekStarts, computeRaceAnual,
+    computePlayerScoredMatches, computeGroupYearWeekStarts, computeRaceAnual, annotateRaceMovement,
     buildGroupIntelligence, topTiedNames, joinNamesEs,
     buildLobbyCardSummary, buildPlayerWeeklyBreakdown, buildRaceWeeklySummary,
     adaptServerGroup, adaptServerCompetitionMatches,
