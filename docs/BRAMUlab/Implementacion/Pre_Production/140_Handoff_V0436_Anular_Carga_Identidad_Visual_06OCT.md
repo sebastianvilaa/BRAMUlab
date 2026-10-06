@@ -9,9 +9,10 @@
 ## Leer
 1. `docs/BRAMUlab/README.md`
 2. `docs/BRAMUlab/Metodo_Trabajo.md`
-3. este handoff
-4. `136_Handoff_Brainstorming_Pre_Salida_06OCT.md` §D3
-5. `137_Evaluacion_Central_Brainstorming_Secuencia_Pre_Salida_06OCT.md` §4
+3. `docs/BRAMUlab/Identidad_Visual.md`
+4. este handoff
+5. `136_Handoff_Brainstorming_Pre_Salida_06OCT.md` §D3
+6. `137_Evaluacion_Central_Brainstorming_Secuencia_Pre_Salida_06OCT.md` §4
 
 Hardening 138–139 está cerrado. No reabrirlo.
 
@@ -28,7 +29,7 @@ Si esa ruta externa no es accesible: NO redibujar ni improvisar; continuar lo no
 
 ### AGREGAR
 - `docs/BRAMUlab/Marca/` con los 3 SVG maestros.
-- `docs/BRAMUlab/Identidad_Visual.md` corto y operativo: assets maestros, paleta, Inter, derivados técnicos y regla de splash.
+- `Identidad_Visual.md` YA EXISTE y es la fuente maestra visual. No reemplazarlo por un brand book generado ni reabrir sus decisiones; actualizarlo solo si la implementación descubre una necesidad técnica real.
 
 ### REEMPLAZAR / FUSIONAR
 - nuevo logo SVG en splash, acceso, headers y footer;
@@ -41,10 +42,9 @@ Si esa ruta externa no es accesible: NO redibujar ni improvisar; continuar lo no
 Retirar la vieja `docs/identidad-visual/`: 4 PNG históricos + generador viejo + assets reemplazados.  
 `bramulab/icons/splash-b.png` también sale si no tiene referencias.
 
-Las 18 referencias Premier Padel son moodboard histórico, no runtime. Antes de quitarlas:
-- copiar/verificar a `/Otros Trabajos/BRAMUlab/Sistema grafico/Referencias/Premier-Padel/`;
-- luego borrar la copia del repo.
-Si no hay acceso externo, NO borrarlas todavía.
+Las 18 referencias Premier Padel ya fueron archivadas por Central en `/Otros Trabajos/BRAMUlab/Sistema grafico/Referencias/Premier-Padel/` y verificadas (18/18). La copia versionada del repo debe eliminarse en esta ronda.
+
+Las referencias Playtomic locales también fueron movidas por Central a `/Otros Trabajos/BRAMUlab/Sistema grafico/Referencias/Playtomic/` y verificadas (25/25). No son fuente de verdad ni deben volver al repo.
 
 ### NO TOCAR
 - `bramulab/icons/padel-court-example.svg`
@@ -136,4 +136,4 @@ Por tocar backend/lecturas: focales + suite Node completa + `release-check`.
 4. G3/G4 + smoke final;
 5. primeros usuarios.
 
-El manual de sistema gráfico puede avanzar en paralelo y no bloquea V04.36.
+No existe otro manual de sistema gráfico aprobado que bloquee esta ronda. `docs/BRAMUlab/Identidad_Visual.md` es la autoridad visual vigente. Cualquier documento externo futuro deberá respetarlo o ser aprobado explícitamente antes de reemplazarlo.
