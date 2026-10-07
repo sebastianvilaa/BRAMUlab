@@ -5143,3 +5143,32 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   align-self:center;
   transform:translateY(-1px);
 }
+
+
+
+/* ==========================================================================
+   07OCT26 h15 — segunda pantalla PWA únicamente.
+   Recupera pasos sobrios y corrige la alineación real de los iconos inline.
+   La primera pantalla queda congelada.
+   ========================================================================== */
+#install-prompt-ios-guide .install-prompt__step-num{
+  background:rgba(118,118,128,.24);
+  color:#fff;
+}
+#install-prompt-ios-guide .install-prompt__step strong.install-prompt__share-title,
+#install-prompt-ios-guide .install-prompt__step strong.install-prompt__add-home-title{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  line-height:1.25;
+}
+#install-prompt-ios-guide .install-prompt__step strong.install-prompt__share-title .install-prompt__share-icon,
+#install-prompt-ios-guide .install-prompt__step strong.install-prompt__add-home-title .install-prompt__add-home-icon{
+  width:19px;
+  height:19px;
+  display:block;
+  flex:0 0 19px;
+  align-self:center;
+  transform:none;
+  vertical-align:middle;
+}
