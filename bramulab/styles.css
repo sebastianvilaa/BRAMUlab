@@ -1347,6 +1347,71 @@ input, select{ font-family: inherit; }
      acá arriba, centrados igual. En celular (`<720px`, fuera de este media query) siguen
      ocupando todo el ancho disponible, sin cambios. */
   .load-keypad, .court-continue-wrap, .mw-panel{ max-width: 768px; margin: 0 auto; }
+
+  /* 07OCT26 — shell responsive post-Production.
+     En tablet/desktop el FONDO de BRAMUlab pertenece al viewport completo; lo que conserva
+     ancho de app es el CONTENIDO. Evita revelar visualmente una “columna mobile” por cambios
+     de tono en Home, Configuración, Login/Alta, headers y bottom-nav.
+     - vistas de lectura/app: contenido máx. 768px;
+     - familia de acceso/configuración: contenido máx. 460px;
+     - celular (<720px): sin cambios.
+     No modifica tamaños internos, lógica ni jerarquías. */
+  .view--analysis,
+  .view--history,
+  .view--access{
+    max-width:none;
+    width:100%;
+    margin:0;
+    box-shadow:none;
+  }
+
+  /* Home/Historial/Ranking/Perfil/Resumen: lienzo full-width, contenido 768px. */
+  .view--analysis > .analysis-scroll,
+  .view--history > .analysis-scroll{
+    width:100%;
+    max-width:768px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  .view--analysis > .analysis-header,
+  .view--history > .analysis-header,
+  #view-player-home > .player-home-header{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding-left:max(18px, calc((100% - 768px) / 2 + 18px));
+    padding-right:max(18px, calc((100% - 768px) / 2 + 18px));
+  }
+
+  /* Acceso/Configuración y sus subflujos: lienzo full-width, contenido 460px. */
+  .view--access > .access-scroll{
+    width:100%;
+    max-width:460px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  .view--access > .analysis-header{
+    width:100%;
+    max-width:none;
+    margin:0;
+    padding-left:max(18px, calc((100% - 460px) / 2 + 18px));
+    padding-right:max(18px, calc((100% - 460px) / 2 + 18px));
+  }
+  /* Documento legal embebido: lectura algo más ancha sin hacerse “web de escritorio”. */
+  .view--access > .legal-doc-frame{
+    width:100%;
+    max-width:768px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+
+  /* Barra inferior: superficie/borde full-width, navegación concentrada en 768px. */
+  .bottom-nav{
+    max-width:none;
+    margin:0;
+    padding-left:max(4px, calc((100% - 768px) / 2 + 4px));
+    padding-right:max(4px, calc((100% - 768px) / 2 + 4px));
+  }
 }
 
 /* V11.11 probó un tercer escalón de 1100px para Análisis/Historial en escritorio grande
@@ -2827,22 +2892,7 @@ input, select{ font-family: inherit; }
    logo de ~14px de alto ya no tiene ese rol). Centrado vertical scoped a Bienvenida (nunca al
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
-/* 07OCT26 — acceso público desktop: el fondo pertenece a la pantalla completa, no a la
-   columna mobile. Bienvenida, Login y Crear cuenta comparten el mismo lienzo continuo,
-   mientras contenido y header conservan el ancho compacto de 460px. Así desaparecen las
-   bandas laterales sin convertir BRAMUlab en una interfaz desktop ancha. */
-#view-access, #view-login, #view-signup{ max-width:none; }
-#view-access .access-scroll,
-#view-login .access-scroll,
-#view-signup .access-scroll{
-  width:100%; max-width:460px; margin-left:auto; margin-right:auto;
-}
-#view-login .analysis-header,
-#view-signup .analysis-header{
-  width:100%; max-width:none; margin:0;
-  padding-left:max(18px, calc((100% - 460px) / 2 + 18px));
-  padding-right:max(18px, calc((100% - 460px) / 2 + 18px));
-}
+
 /* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, para los pasos "intro"/"quick" de TU
    NIVEL BRAMU (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep).
    BRAMUlab_V04.8 — REVIERTE el mismo criterio aplicado a TU PERFIL ESTÁ LISTO (V04.7): "todo el
