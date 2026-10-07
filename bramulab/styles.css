@@ -4288,3 +4288,113 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
     margin-right:auto;
   }
 }
+
+
+/* ==========================================================================
+   07OCT26 — INVITACIÓN DE INSTALACIÓN PWA
+   Capa opcional previa al alta. Reutiliza sheet/scrim y botones del sistema;
+   solo agrega la composición específica del mensaje y la guía iOS.
+   ========================================================================== */
+.install-prompt-scrim{ z-index: 80; }
+.install-prompt-sheet{
+  max-width:420px;
+  touch-action:auto;
+  padding:16px 20px calc(24px + var(--safe-bottom));
+}
+@media (min-width:720px){
+  .install-prompt-sheet{ max-width:420px; }
+}
+.install-prompt__panel{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+}
+.install-prompt__icon{
+  width:72px;
+  height:72px;
+  display:block;
+  border-radius:18px;
+  margin:4px auto 14px;
+  box-shadow:0 12px 30px rgba(0,0,0,.28);
+}
+.install-prompt__eyebrow{
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.08em;
+  color:var(--brand-lime);
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.install-prompt__title{
+  margin:0;
+  max-width:320px;
+  font-family:var(--font-display);
+  font-size:20px;
+  line-height:1.12;
+  letter-spacing:.01em;
+  color:var(--paper);
+}
+.install-prompt__text{
+  margin:10px auto 4px;
+  max-width:340px;
+  font-size:14px;
+  line-height:1.45;
+  color:var(--paper-dim);
+}
+.install-prompt__primary{
+  width:100%;
+  margin-top:18px;
+  flex:none;
+}
+.install-prompt__later{
+  margin-top:14px;
+  color:var(--paper-dim);
+}
+.install-prompt__steps{
+  width:100%;
+  list-style:none;
+  margin:18px 0 0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  text-align:left;
+}
+.install-prompt__step{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:var(--radius-card);
+  background:var(--ink-soft);
+  color:var(--paper);
+}
+.install-prompt__step-num{
+  flex:none;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:rgba(149,255,25,.12);
+  border:1px solid rgba(149,255,25,.34);
+  color:var(--brand-lime);
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:800;
+}
+.install-prompt__step strong{
+  display:block;
+  font-size:13px;
+  line-height:1.25;
+}
+.install-prompt__step small{
+  display:block;
+  margin-top:3px;
+  font-size:11px;
+  line-height:1.35;
+  color:var(--paper-dim);
+}
