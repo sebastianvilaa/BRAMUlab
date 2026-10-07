@@ -72,7 +72,13 @@ Reglas:
 - nunca bloquea `Iniciar sesión` ni `Crear cuenta`;
 - no aparece si BRAMUlab ya se está ejecutando en modo instalado/standalone;
 - no interrumpe una invitación pendiente ni un alta ya empezada;
-- si el usuario elige seguir en el navegador, la invitación se oculta durante esa carga/sesión, pero vuelve a mostrarse en una nueva carga mientras BRAMUlab siga ejecutándose en navegador;
+- en el punto cero público, la invitación puede aparecer como máximo **2 veces por visita**: al llegar y, si el usuario entró por error a `Iniciar sesión` o `Crear cuenta`, una segunda vez al volver explícitamente al punto cero;
+- esas apariciones previas al acceso **no cuentan como negativas reales**;
+- al completar login o alta y llegar al Home real en navegador móvil, la misma invitación vuelve a mostrarse si el dispositivo sigue sin estar instalado;
+- si el usuario elige `Seguir en el navegador` desde Home, esa es la **1.ª negativa real** del dispositivo: no se vuelve a interrumpir durante esa visita y el próximo recordatorio queda habilitado 24 horas después;
+- la 2.ª negativa real vuelve a esperar 24 horas; desde la **3.ª negativa real** la frecuencia baja a una vez cada 7 días;
+- el estado de recurrencia vive localmente en ese navegador/dispositivo, no en la cuenta: cambiar de cuenta en un dispositivo ya instalado no vuelve a pedir instalación;
+- mientras exista un plazo de 24 h / 7 días activo, tampoco se vuelve a mostrar la invitación en el punto cero de ese mismo navegador;
 - en Android/Chromium, cuando el navegador expone el prompt nativo de instalación, el CTA propio de BRAMUlab lo dispara;
 - en iPhone/iPad, donde el navegador no ofrece un prompt programático equivalente, BRAMUlab muestra una guía breve para `Compartir → Agregar a Inicio → Abrir como app web → Agregar`;
 - al abrir desde el icono instalado, la aplicación debe ejecutarse como PWA standalone, sin chrome normal del navegador.

@@ -374,7 +374,7 @@
     if (name === 'access') {
       refreshBackendUnavailableNotice();
       renderAccessInvitationCard();
-      window.setTimeout(maybeShowInstallPrompt, 450);
+      window.setTimeout(maybeShowInstallPromptAtAccess, 450);
     }
     const nav = $('#bottom-nav');
     if (nav) {
@@ -6440,6 +6440,7 @@
     if (pendingUser) { openPlayerCardScreen(pendingUser); return; }
     renderPlayerHome();
     showView('player-home');
+    maybeShowInstallPromptAtHome();
     // Backend Bloque 5 — mismo criterio "mejor esfuerzo" que openHistoryScreen: el Home ya se
     // pintó con el cache local, un refresco en segundo plano lo actualiza si hay novedades
     // (Último partido, pendientes) sin bloquear la navegación esperando la red.
@@ -6458,7 +6459,15 @@
   /* 07OCT26 — INSTALACIÓN PWA PREVIA OPCIONAL                           */
   /* ------------------------------------------------------------------ */
   let deferredInstallPrompt = null;
-  let installPromptShownThisSession = false;
+  let installPromptContext = null; // 'access' | 'home'
+  let installPromptPreloginShowsThisVisit = 0;
+  let installPromptHomeShownThisVisit = false;
+  let installPromptAccessReturnOverride = false;
+
+  const INSTALL_PROMPT_REMINDER_KEY = 'bramulab_install_prompt_reminder_v1';
+  const INSTALL_PROMPT_PRELOGIN_MAX = 2;
+  const INSTALL_PROMPT_DAY_MS = 24 * 60 * 60 * 1000;
+  const INSTALL_PROMPT_WEEK_MS = 7 * INSTALL_PROMPT_DAY_MS;
 
   function isIOSInstallDevice() {
     const ua = navigator.userAgent || '';
@@ -6482,22 +6491,56 @@
       && window.innerWidth <= 1024;
   }
 
+  function loadInstallReminderState() {
+    try {
+      const raw = window.localStorage.getItem(INSTALL_PROMPT_REMINDER_KEY);
+      if (!raw) return { dismissals: 0, nextEligibleAt: 0 };
+      const parsed = JSON.parse(raw);
+      return {
+        dismissals: Math.max(0, Number(parsed.dismissals) || 0),
+        nextEligibleAt: Math.max(0, Number(parsed.nextEligibleAt) || 0),
+      };
+    } catch (e) {
+      return { dismissals: 0, nextEligibleAt: 0 };
+    }
+  }
+
+  function saveInstallReminderState(state) {
+    try {
+      window.localStorage.setItem(INSTALL_PROMPT_REMINDER_KEY, JSON.stringify(state));
+    } catch (e) {
+      /* Si el navegador bloquea storage, la invitación sigue funcionando en la visita actual. */
+    }
+  }
+
+  function clearInstallReminderState() {
+    try { window.localStorage.removeItem(INSTALL_PROMPT_REMINDER_KEY); } catch (e) { /* noop */ }
+  }
+
+  function recordHomeInstallDismissal() {
+    const current = loadInstallReminderState();
+    const dismissals = current.dismissals + 1;
+    // 1.ª y 2.ª negativas reales: recordar al día siguiente.
+    // Desde la 3.ª negativa: bajar la frecuencia a una vez cada 7 días.
+    const delay = dismissals >= 3 ? INSTALL_PROMPT_WEEK_MS : INSTALL_PROMPT_DAY_MS;
+    saveInstallReminderState({ dismissals, nextEligibleAt: Date.now() + delay });
+  }
+
+  function isInstallReminderEligibleNow() {
+    const state = loadInstallReminderState();
+    return !state.nextEligibleAt || Date.now() >= state.nextEligibleAt;
+  }
+
   function resetInstallPromptContent() {
     const intro = $('#install-prompt-intro');
     const guide = $('#install-prompt-ios-guide');
     if (intro) intro.hidden = false;
     if (guide) guide.hidden = true;
-    const introText = $('#install-prompt-intro-text');
-    if (introText) {
-      const ua = navigator.userAgent || '';
-      const device = /iPad/.test(ua) ? 'iPad' : isIOSInstallDevice() ? 'iPhone' : 'celular';
-      introText.textContent = 'Tené BRAMUlab siempre a mano en tu ' + device + '.';
-    }
   }
 
-  // 07OCT26 h16 — Safari/iOS usa `theme-color` para teñir parte del chrome del navegador.
-  // Mientras la invitación de instalación está abierta, acompañar el sheet negro con negro pleno;
-  // al cerrarlo, restaurar el azul noche normal de BRAMUlab. No altera el modo standalone.
+  // Safari/iOS usa theme-color para teñir parte del chrome del navegador.
+  // Mientras la invitación está abierta, acompañar el sheet negro con negro pleno;
+  // al cerrarlo, restaurar el azul noche normal de BRAMUlab.
   function setInstallPromptBrowserTheme(isOpen) {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) return;
@@ -6512,13 +6555,15 @@
     delete meta.dataset.installPreviousColor;
   }
 
-  function openInstallPromptSheet() {
+  function openInstallPromptSheet(context) {
     const scrim = $('#install-prompt-scrim');
-    if (!scrim || !scrim.hidden) return;
+    if (!scrim || !scrim.hidden) return false;
+    installPromptContext = context || 'access';
     resetInstallPromptContent();
     setInstallPromptBrowserTheme(true);
     scrim.hidden = false;
     window.requestAnimationFrame(() => scrim.classList.add('is-open'));
+    return true;
   }
 
   function closeInstallPromptSheet() {
@@ -6529,7 +6574,13 @@
       scrim.hidden = true;
       resetInstallPromptContent();
       setInstallPromptBrowserTheme(false);
+      installPromptContext = null;
     }, 380);
+  }
+
+  function dismissInstallPromptSheet() {
+    if (installPromptContext === 'home') recordHomeInstallDismissal();
+    closeInstallPromptSheet();
   }
 
   function forceInstallPromptForStagingQA() {
@@ -6541,22 +6592,56 @@
     }
   }
 
-  function maybeShowInstallPrompt() {
+  function browserCanOfferInstallPrompt() {
+    // iOS/iPadOS usa nuestra guía; Android/Chromium necesita beforeinstallprompt real.
+    return isIOSInstallDevice() || !!deferredInstallPrompt;
+  }
+
+  function maybeShowInstallPromptAtAccess() {
     const forceForQA = forceInstallPromptForStagingQA();
-    if (!forceForQA && installPromptShownThisSession) return;
     if (!isMobileInstallSurface() || isStandaloneApp()) return;
     if (!forceForQA && Store.getCurrentUser()) return;
-    if (!forceForQA && Store.loadSignupDraft && Store.loadSignupDraft()) return;
     if (!forceForQA && Store.loadClaimToken && Store.loadClaimToken()) return;
+    if (!forceForQA && !isInstallReminderEligibleNow()) return;
+
     const accessView = $('#view-access');
     if (!accessView || accessView.hidden) return;
+    if (!browserCanOfferInstallPrompt()) return;
 
-    // En iOS no existe beforeinstallprompt: la guía propia es el camino real.
-    // En Android/Chromium solo se ofrece si el navegador confirmó que puede instalar.
-    if (!isIOSInstallDevice() && !deferredInstallPrompt) return;
+    // Un alta ya empezada no se interrumpe por defecto. La única excepción es volver
+    // explícitamente al punto cero: ahí existe una segunda oportunidad pre-login.
+    if (!forceForQA && Store.loadSignupDraft && Store.loadSignupDraft() && !installPromptAccessReturnOverride) return;
 
-    installPromptShownThisSession = true;
-    openInstallPromptSheet();
+    if (!forceForQA && installPromptPreloginShowsThisVisit >= INSTALL_PROMPT_PRELOGIN_MAX) {
+      installPromptAccessReturnOverride = false;
+      return;
+    }
+
+    if (openInstallPromptSheet('access') && !forceForQA) {
+      installPromptPreloginShowsThisVisit += 1;
+    }
+    installPromptAccessReturnOverride = false;
+  }
+
+  function maybeShowInstallPromptAtHome() {
+    if (!isMobileInstallSurface() || isStandaloneApp()) return;
+    if (!Store.getCurrentUser()) return;
+    if (!browserCanOfferInstallPrompt()) return;
+    if (installPromptHomeShownThisVisit) return;
+    if (!isInstallReminderEligibleNow()) return;
+
+    installPromptHomeShownThisVisit = true;
+    window.setTimeout(() => {
+      const home = $('#view-player-home');
+      if (home && !home.hidden) openInstallPromptSheet('home');
+    }, 350);
+  }
+
+  // Volver desde Login/Crear cuenta al punto cero habilita una segunda invitación pre-login.
+  // Sigue limitada a 2 apariciones por visita y NO suma al contador 24 h / 7 días.
+  function returnToAccessRootForInstallPrompt() {
+    installPromptAccessReturnOverride = true;
+    showView('access');
   }
 
   async function handleInstallPromptPrimary() {
@@ -6574,8 +6659,11 @@
     try {
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
+      if (choice && choice.outcome === 'dismissed' && installPromptContext === 'home') {
+        recordHomeInstallDismissal();
+      }
     } catch (e) {
-      /* Si el navegador rechaza el prompt, cerrar sin romper la experiencia. */
+      /* Un error del prompt nativo cierra sin penalizar al usuario. */
     }
     closeInstallPromptSheet();
   }
@@ -6588,13 +6676,13 @@
     if (!scrim || !primary || !later || !guideDone) return;
 
     primary.addEventListener('click', handleInstallPromptPrimary);
-    later.addEventListener('click', () => closeInstallPromptSheet());
-    guideDone.addEventListener('click', () => closeInstallPromptSheet());
+    later.addEventListener('click', dismissInstallPromptSheet);
+    guideDone.addEventListener('click', dismissInstallPromptSheet);
     scrim.addEventListener('click', (e) => {
-      if (e.target === scrim) closeInstallPromptSheet();
+      if (e.target === scrim) dismissInstallPromptSheet();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !scrim.hidden) closeInstallPromptSheet();
+      if (e.key === 'Escape' && !scrim.hidden) dismissInstallPromptSheet();
     });
   }
 
@@ -6602,11 +6690,17 @@
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    window.setTimeout(maybeShowInstallPrompt, 250);
+    const accessView = $('#view-access');
+    if (accessView && !accessView.hidden) window.setTimeout(maybeShowInstallPromptAtAccess, 250);
+    else {
+      const home = $('#view-player-home');
+      if (home && !home.hidden) window.setTimeout(maybeShowInstallPromptAtHome, 250);
+    }
   });
 
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
+    clearInstallReminderState();
     closeInstallPromptSheet();
   });
 
@@ -6660,7 +6754,7 @@
    *  nunca terminó "TU PERFIL"), retoma ese paso en vez de entrar al Home. Sin backend
    *  configurado (desarrollo local), sigue el camino 100% local de siempre. */
   function initLoginScreen() {
-    $('#login-back-btn').addEventListener('click', () => showView('access'));
+    $('#login-back-btn').addEventListener('click', returnToAccessRootForInstallPrompt);
     wirePasswordToggle('login-password', 'login-password-toggle');
     $('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -7219,7 +7313,7 @@
   function initSignupWizard() {
     $('#signup-back-btn').addEventListener('click', () => {
       const idx = SIGNUP_STEP_ORDER.indexOf(signupStep);
-      if (idx > 0) { signupStep = SIGNUP_STEP_ORDER[idx - 1]; renderSignupStep(); } else showView('access');
+      if (idx > 0) { signupStep = SIGNUP_STEP_ORDER[idx - 1]; renderSignupStep(); } else returnToAccessRootForInstallPrompt();
     });
     ['signup-email', 'signup-password', 'signup-password-repeat'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
