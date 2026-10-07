@@ -6457,8 +6457,6 @@
   /* ------------------------------------------------------------------ */
   /* 07OCT26 — INSTALACIÓN PWA PREVIA OPCIONAL                           */
   /* ------------------------------------------------------------------ */
-  const INSTALL_PROMPT_DISMISS_KEY = 'bramulab.installPromptDismissedAt.v1';
-  const INSTALL_PROMPT_DISMISS_MS = 30 * 24 * 60 * 60 * 1000; // no insistir en cada visita
   let deferredInstallPrompt = null;
   let installPromptShownThisSession = false;
 
@@ -6484,22 +6482,6 @@
       && window.innerWidth <= 1024;
   }
 
-  function installPromptWasDismissedRecently() {
-    try {
-      const raw = window.localStorage.getItem(INSTALL_PROMPT_DISMISS_KEY);
-      if (!raw) return false;
-      const at = Number(raw);
-      return Number.isFinite(at) && (Date.now() - at) < INSTALL_PROMPT_DISMISS_MS;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  function rememberInstallPromptDismissal() {
-    try { window.localStorage.setItem(INSTALL_PROMPT_DISMISS_KEY, String(Date.now())); }
-    catch (e) { /* storage privado/bloqueado: nunca romper la app */ }
-  }
-
   function resetInstallPromptContent() {
     const intro = $('#install-prompt-intro');
     const guide = $('#install-prompt-ios-guide');
@@ -6515,10 +6497,9 @@
     window.requestAnimationFrame(() => scrim.classList.add('is-open'));
   }
 
-  function closeInstallPromptSheet(remember) {
+  function closeInstallPromptSheet() {
     const scrim = $('#install-prompt-scrim');
     if (!scrim || scrim.hidden) return;
-    if (remember) rememberInstallPromptDismissal();
     scrim.classList.remove('is-open');
     window.setTimeout(() => { scrim.hidden = true; resetInstallPromptContent(); }, 280);
   }
@@ -6536,7 +6517,6 @@
     const forceForQA = forceInstallPromptForStagingQA();
     if (!forceForQA && installPromptShownThisSession) return;
     if (!isMobileInstallSurface() || isStandaloneApp()) return;
-    if (!forceForQA && installPromptWasDismissedRecently()) return;
     if (!forceForQA && Store.getCurrentUser()) return;
     if (!forceForQA && Store.loadSignupDraft && Store.loadSignupDraft()) return;
     if (!forceForQA && Store.loadClaimToken && Store.loadClaimToken()) return;
@@ -6558,7 +6538,7 @@
       return;
     }
     if (!deferredInstallPrompt) {
-      closeInstallPromptSheet(false);
+      closeInstallPromptSheet();
       return;
     }
     const promptEvent = deferredInstallPrompt;
@@ -6566,12 +6546,10 @@
     try {
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
-      if (choice && choice.outcome === 'accepted') rememberInstallPromptDismissal();
-      else rememberInstallPromptDismissal();
     } catch (e) {
       /* Si el navegador rechaza el prompt, cerrar sin romper la experiencia. */
     }
-    closeInstallPromptSheet(false);
+    closeInstallPromptSheet();
   }
 
   function initInstallPrompt() {
@@ -6582,13 +6560,13 @@
     if (!scrim || !primary || !later || !guideDone) return;
 
     primary.addEventListener('click', handleInstallPromptPrimary);
-    later.addEventListener('click', () => closeInstallPromptSheet(true));
-    guideDone.addEventListener('click', () => closeInstallPromptSheet(true));
+    later.addEventListener('click', () => closeInstallPromptSheet());
+    guideDone.addEventListener('click', () => closeInstallPromptSheet());
     scrim.addEventListener('click', (e) => {
-      if (e.target === scrim) closeInstallPromptSheet(true);
+      if (e.target === scrim) closeInstallPromptSheet();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !scrim.hidden) closeInstallPromptSheet(true);
+      if (e.key === 'Escape' && !scrim.hidden) closeInstallPromptSheet();
     });
   }
 
@@ -6601,8 +6579,7 @@
 
   window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
-    rememberInstallPromptDismissal();
-    closeInstallPromptSheet(false);
+    closeInstallPromptSheet();
   });
 
   /** V04.30 — card de invitación en Acceso cuando el dispositivo trae una intención ?claim= pendiente. */
