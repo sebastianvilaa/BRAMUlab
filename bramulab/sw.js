@@ -198,7 +198,7 @@
 // Grupos B2b - lobby, cierre de creacion, desglose de puntos y resumen de Race (handoff 79,
 // 28/09/2026) - h33: nueva vista GRUPOS BRAMU (auth.js/groups.js/app.js/index.html/styles.css).
 // Store.VERSION/version.json siguen en "BRAMUlab V04.11" a proposito.
-const CACHE_NAME = 'bramulab-v04-37-h2';
+const CACHE_NAME = 'bramulab-v04-37-h7';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
