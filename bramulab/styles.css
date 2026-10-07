@@ -4238,7 +4238,8 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    No cambia tipografía ni tamaño de iconos.
    ========================================================================== */
 .analysis-header,
-.player-home-header{
+.player-home-header,
+.court-header{
   box-sizing:border-box;
   height:calc(55px + var(--safe-top));
   min-height:calc(55px + var(--safe-top));
