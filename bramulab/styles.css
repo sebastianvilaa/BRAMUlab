@@ -2827,6 +2827,12 @@ input, select{ font-family: inherit; }
    logo de ~14px de alto ya no tiene ese rol). Centrado vertical scoped a Bienvenida (nunca al
    resto de la familia de acceso, que sí tiene header + formulario y se compone mejor arriba). */
 #view-access .access-scroll{ justify-content: center; }
+/* 07OCT26 — bienvenida desktop: el fondo pertenece a la pantalla completa, no a la
+   columna mobile. Mantiene intacto el ancho de lectura/CTAs (460px) pero evita que, al
+   terminar el splash fullscreen, aparezcan dos bandas laterales que revelan el ancho
+   interno de la app. Scope solo a Bienvenida; Login/alta y demás vistas no cambian. */
+#view-access{ max-width:none; }
+#view-access .access-scroll{ width:100%; max-width:460px; margin:0 auto; }
 /* BRAMUlab_V04.7 — mismo criterio que Bienvenida arriba, para los pasos "intro"/"quick" de TU
    NIVEL BRAMU (`.access-scroll--centered`, alternado por JS en renderNivelOnboardingStep).
    BRAMUlab_V04.8 — REVIERTE el mismo criterio aplicado a TU PERFIL ESTÁ LISTO (V04.7): "todo el
