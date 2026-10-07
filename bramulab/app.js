@@ -7705,6 +7705,14 @@
   // Pre-Production P0.1C — mismos valores 'F'/'M' que ya usa el gate de Ranking
   // (#ranking-gate-branch-options), acá como mapa reusable para PROFILE_PICKER_FIELDS.branch.
   const BRANCH_LABELS = { F: 'Femenina', M: 'Masculina' };
+
+  // 07OCT26 post-lanzamiento — género y rama siguen siendo campos distintos.
+  // La inferencia evita preguntar dos veces lo mismo y nunca pisa una rama ya guardada.
+  function inferCompetitiveBranchFromGender(gender) {
+    if (gender === 'femenino') return 'F';
+    if (gender === 'masculino') return 'M';
+    return null;
+  }
   // BRAMUlab_V03.6 (§6) — mensaje prearmado único del deep link de WhatsApp: fijo, sin Nivel/
   // localidad/nombre completo/horario/cancha ni links extra (consolidado explícito).
   // BRAMUlab_V03.6 (corrección post-QA real, prioridad 6) — copy reemplazado a pedido: mismo
@@ -9783,9 +9791,19 @@
     return b6NotificationsCache.map(mapB6Notification).filter((n) => !n.selfCaused);
   }
 
+  function visibleLocalNotifications(user) {
+    if (!user) return [];
+    const missing = getProfileMissingFields(user);
+    return Store.loadNotifications(user.id).map((n) => {
+      if (!n || n.type !== 'profile_incomplete') return n;
+      if (!missing.length) return null;
+      return Object.assign({}, n, { body: `Todavía falta: ${missing.join(', ')}.` });
+    }).filter(Boolean);
+  }
+
   function renderNotificationsBadge() {
     const user = Store.getCurrentUser();
-    const localCount = user ? Store.countUnreadNotifications(user.id) : 0;
+    const localCount = visibleLocalNotifications(user).filter((n) => !n.readAt).length;
     const serverCount = b6VisibleServerNotifications().filter((n) => !n.readAt).length;
     const count = localCount + serverCount;
     const badge = $('#player-home-bell-badge');
@@ -9806,7 +9824,7 @@
 
   function renderNotificationsList() {
     const user = Store.getCurrentUser();
-    const localList = user ? Store.loadNotifications(user.id) : [];
+    const localList = visibleLocalNotifications(user);
     // Bloque 6 — se derivan/traducen y se mezclan por fecha real, más reciente primero, sin
     // importar el origen (local vs. servidor son invisibles para quien lee la bandeja).
     const serverList = b6VisibleServerNotifications();
@@ -13606,6 +13624,17 @@
    *  seguridad). Toda la edición sigue viviendo en Editar Datos (nunca inline) — acá todo es
    *  de solo lectura. Nivel BRAMU/ranking/partidos/victorias/efectividad no son editables
    *  (consolidado §5 de V03.0, sin cambios). */
+  function getProfileMissingFields(user) {
+    const missing = [];
+    if (!user) return missing;
+    if (!user.firstName) missing.push('nombre');
+    if (!user.birthDate) missing.push('fecha de nacimiento');
+    if (!user.gender) missing.push('género');
+    if (!user.dominantHand) missing.push('mano dominante');
+    if (!user.preferredSide) missing.push('lado habitual');
+    return missing;
+  }
+
   function renderProfileView() {
     const user = Store.getCurrentUser();
     const name = Store.loadCurrentPlayerName();
@@ -13702,15 +13731,7 @@
     // V03.0.1 (§1) — aviso discreto "Completá tus datos": chequeo de presencia simple, sin
     // nueva lógica de negocio (nunca reemplaza al banner de acceso pendiente, que es sobre
     // email/contraseña, no sobre estos campos).
-    const missing = [];
-    if (user) {
-      if (!user.firstName) missing.push('nombre');
-      if (!user.birthDate) missing.push('fecha de nacimiento');
-      if (!user.gender) missing.push('género');
-      if (!user.dominantHand) missing.push('mano dominante');
-      if (!user.preferredSide) missing.push('lado habitual');
-      if (!(user.serverBacked ? user.currentCategory : user.declaredCategory)) missing.push('categoría');
-    }
+    const missing = getProfileMissingFields(user);
     $('#profile-incomplete-banner').hidden = missing.length === 0;
     if (missing.length) {
       $('#profile-incomplete-text').textContent = `Todavía falta: ${missing.join(', ')}.`;
@@ -14195,7 +14216,11 @@
    *  solo por completar rama/opt-in. */
   function openRankingGateModal() {
     const user = Store.getCurrentUser();
-    rankingGateBranch = (user && (user.competitiveBranch === 'F' || user.competitiveBranch === 'M')) ? user.competitiveBranch : null;
+    const storedBranch = (user && (user.competitiveBranch === 'F' || user.competitiveBranch === 'M')) ? user.competitiveBranch : null;
+    const inferredBranch = inferCompetitiveBranchFromGender(user && user.gender);
+    rankingGateBranch = storedBranch || inferredBranch;
+    const branchSection = $('#ranking-gate-branch-section');
+    if (branchSection) branchSection.hidden = !!rankingGateBranch;
     // Corrección F5-C01 — construcción extraída a RK.buildGateLocationFromUser (pura,
     // testeada): antes vivía inline acá SIN provinceId/localityId, ver su comentario en
     // ranking.js para el bug real que esto corrige.
@@ -14421,6 +14446,7 @@
   let profileEditCategory = null; // BRAMUlab_V03.4.1 (§10) — reemplaza al <select> nativo.
   let profileEditLocation = null; // BRAMUlab_V03.4.1 (§9) — { locality, region, country } | null.
   let profileEditBranch = null; // Pre-Production P0.1C — 'F' | 'M' | null, mismo criterio de reset que hand/side/gender.
+  let profileEditStoredBranch = null;
   let profileEditAllowWhatsApp = false; // BRAMUlab_V03.6 (§3) — `false` por defecto, mismo criterio de reset que hand/side/gender.
 
   /** BRAMUlab_V03.4.1 (§10) — un único mapa para las 4 filas compactas de elección fija
@@ -14431,7 +14457,7 @@
    *  módulo de arriba (nunca se migran a un objeto: mínimo cambio de superficie, el resto de
    *  esta función ya las usa por nombre). */
   const PROFILE_PICKER_FIELDS = {
-    gender: { title: 'GÉNERO', labels: GENDER_LABELS, rowValueId: 'profile-edit-gender-value', get: () => profileEditGender, set: (v) => { profileEditGender = v; } },
+    gender: { title: 'GÉNERO', labels: GENDER_LABELS, rowValueId: 'profile-edit-gender-value', get: () => profileEditGender, set: (v) => { profileEditGender = v; syncProfileBranchFromGender(); } },
     hand: { title: 'MANO DOMINANTE', labels: HAND_LABELS, rowValueId: 'profile-edit-hand-value', get: () => profileEditHand, set: (v) => { profileEditHand = v; } },
     side: { title: 'LADO HABITUAL', labels: SIDE_LABELS, rowValueId: 'profile-edit-side-value', get: () => profileEditSide, set: (v) => { profileEditSide = v; } },
     category: { title: 'CATEGORÍA ACTUAL', labels: CATEGORY_LABELS, rowValueId: 'profile-edit-category-value', get: () => profileEditCategory, set: (v) => { profileEditCategory = v; } },
@@ -14445,6 +14471,15 @@
     const field = PROFILE_PICKER_FIELDS[fieldKey];
     const value = field.get();
     $(`#${field.rowValueId}`).textContent = value ? field.labels[value] : '—';
+  }
+
+  function syncProfileBranchFromGender() {
+    const inferred = inferCompetitiveBranchFromGender(profileEditGender);
+    if (inferred && !profileEditStoredBranch) profileEditBranch = inferred;
+    if (!inferred && !profileEditStoredBranch) profileEditBranch = null;
+    const row = $('#profile-edit-branch-row');
+    if (row) row.hidden = !!inferred;
+    updateProfileSelectRowDisplay('branch');
   }
 
   function updateProfileLocationRowDisplay() {
@@ -14475,7 +14510,8 @@
     // declaredCategory como siempre (sin ese split, ver auth.js).
     profileEditCategory = (user.serverBacked ? user.currentCategory : user.declaredCategory) || null;
     profileEditLocation = user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null;
-    profileEditBranch = user.competitiveBranch || null;
+    profileEditStoredBranch = user.competitiveBranch || null;
+    profileEditBranch = profileEditStoredBranch || inferCompetitiveBranchFromGender(profileEditGender);
     profileEditAllowWhatsApp = !!user.allowWhatsAppContact;
     $('#profile-edit-phone').value = user.phone || '';
     $('#profile-edit-whatsapp-hint').hidden = true;
@@ -14492,7 +14528,7 @@
     updateProfileSelectRowDisplay('hand');
     updateProfileSelectRowDisplay('side');
     updateProfileSelectRowDisplay('category');
-    updateProfileSelectRowDisplay('branch');
+    syncProfileBranchFromGender();
     updateProfileLocationRowDisplay();
     // Pre-Production P0.1C — reemplaza el bloqueo general de Bloque 2 (guardado real ahora
     // conectado, ver submitServerBackedProfileEdit): para una cuenta server-backed, @usuario
@@ -14798,7 +14834,13 @@
     const locationChanged = JSON.stringify(profileEditLocation) !== JSON.stringify(
       user.locality ? { locality: user.locality, region: user.region || null, country: user.country || null } : null
     );
-    if (branchChanged || locationChanged) {
+    const inferredBranch = inferCompetitiveBranchFromGender(profileEditGender);
+    const deferInferredBranch = branchChanged
+      && !locationChanged
+      && !profileEditLocation
+      && !user.competitiveBranch
+      && inferredBranch === profileEditBranch;
+    if ((branchChanged || locationChanged) && !deferInferredBranch) {
       if (!profileEditBranch || !profileEditLocation) {
         partialErrors.push('Para cambiar rama competitiva o ubicación necesitás completar ambos datos (podés hacerlo también desde Ranking).');
       } else {

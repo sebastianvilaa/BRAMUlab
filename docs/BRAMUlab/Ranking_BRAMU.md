@@ -430,7 +430,9 @@ La UI vigente del prototipo separa Ranking:
 
 El selector es compacto y por defecto usa la rama/género deportivo correspondiente al usuario.
 
-Para backend real, conviene guardar la **rama competitiva declarada** como dato específico de competición, separado de otros datos personales.
+Para no preguntar dos veces lo mismo, cuando todavía no existe una rama competitiva guardada la UI toma `Masculino → M` y `Femenino → F` como default y no vuelve a pedir ese dato. Con género `Otro`, `Prefiero no decir` o sin género informado, la UI sí solicita `Femenina / Masculina` cuando Ranking necesita definir el universo. Si ya existe una rama explícita, se respeta y nunca se sobrescribe por inferencia.
+
+Para backend real, la **rama competitiva** sigue guardándose como dato específico de competición, separado del género personal.
 
 `Mi red` puede contener personas de ambas ramas; el selector determina qué clasificación se muestra.
 

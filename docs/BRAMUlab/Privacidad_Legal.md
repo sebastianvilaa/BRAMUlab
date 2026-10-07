@@ -156,9 +156,10 @@ No presentar la decisión de producto como una certificación jurídica.
 
 En alta:
 
-**Acepto los Términos y Condiciones y declaro haber leído la Política de Privacidad.**
+**Acepto los Términos y Condiciones, declaro haber leído la Política de Privacidad y autorizo el tratamiento de mis datos por proveedores fuera de Argentina.**
 
 - checkbox obligatorio único;
+- la autorización sobre proveedores fuera de Argentina forma parte de la misma aceptación; el detalle de proveedores, finalidades y destinos se explica en la Política de Privacidad, no se recarga el checkbox con jerga técnica;
 - Términos y Privacidad enlazados;
 - registrar fecha, hora y versión aceptada;
 - nueva aceptación solo ante cambios relevantes/materiales;

@@ -164,6 +164,8 @@ Pueden completarse posteriormente desde Perfil / Mis datos o mediante una invita
 
 Localidad deportiva y rama competitiva **siguen siendo necesarias para ubicar correctamente al jugador en Ranking BRAMU**. La participación, en cambio, es automática cuando cumple la elegibilidad: no existe opt-in/opt-out ordinario.
 
+Para evitar pedir dos veces lo mismo, cuando todavía no existe una rama competitiva explícita la UI toma el género personal como **default**: `Masculino → Masculina` y `Femenino → Femenina`. Con `Otro`, `Prefiero no decir` o género sin informar, BRAMU sí pregunta `Femenina / Masculina` cuando la rama empieza a ser necesaria. Género y rama siguen siendo campos distintos y una rama explícita ya guardada prevalece sobre la inferencia.
+
 Un jugador puede, por lo tanto:
 
 1. crear su identidad básica;
@@ -1210,6 +1212,8 @@ Una vez completos esos datos, Ranking deja de estar bloqueado aunque el Nivel co
 ### 17.2 Datos secundarios/opcionales
 
 Foto, WhatsApp, mano/lado, género personal opcional y apodo/nombre visible personalizado viven en Perfil / Mis datos y no bloquean la experiencia inicial.
+
+**Categoría actual** deja de formar parte de la experiencia activa de Perfil: no se pide, no se muestra, no se edita y no genera avisos de perfil incompleto. El campo técnico puede conservarse dormido para no destruir datos históricos. Esto no modifica la pregunta/categoría que utilice el estimador de Nivel BRAMU: son usos distintos.
 
 El apodo no se pregunta durante el alta. El nombre ya ingresado funciona como referencia inicial; más adelante puede evaluarse un campo opcional con un concepto tipo `Apodo / cómo querés que aparezca`, sin duplicar la pregunta al comienzo.
 
