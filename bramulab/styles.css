@@ -5365,3 +5365,43 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   overscroll-behavior:contain;
   padding-bottom:calc(28px + var(--safe-bottom));
 }
+
+
+/* ==========================================================================
+   07OCT26 h25 — REVISIÓN PREVENTIVA DE SCROLL (misma causa raíz que Editar datos, Configuración del grupo
+   y Nivel h24). html/body son overflow:hidden y `.view` es min-height:100dvh, o sea CRECE con el contenido:
+   sin un scroller interno acotado al viewport, lo que excede la altura queda recortado e inalcanzable.
+   Medido en 375×520 / 375×300 sobre el DOM real: Crear cuenta (588px de alto, CREAR CUENTA tapado), Login,
+   Recuperar contraseña, Reaceptación legal y TU PERFIL ESTÁ LISTO (ENTRAR A BRAMU) se cortaban; Acceso y el
+   flujo de código/eliminar cuenta (lista larga + CONTINUAR) dependían de que el contenido entrara.
+   Mismo patrón ya validado: vista = viewport, el `.access-scroll` interno scrollea. Sin tocar contenido.
+   ========================================================================== */
+#view-access, #view-legal-gate, #view-login, #view-forgot-password, #view-signup,
+#view-player-card, #view-account-flow, #view-account-deleted{
+  height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden;
+}
+#view-access .access-scroll, #view-legal-gate .access-scroll, #view-login .access-scroll,
+#view-forgot-password .access-scroll, #view-signup .access-scroll, #view-player-card .access-scroll,
+#view-account-flow .access-scroll, #view-account-deleted .access-scroll{
+  flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+}
+/* Acceso y Reaceptación legal centraban con `justify-content:center`: dentro de un contenedor que scrollea,
+   el centrado flex recorta el borde SUPERIOR (inalcanzable). Se centra con márgenes automáticos, que colapsan a 0
+   cuando el contenido no entra y dejan scrollear completo. */
+#view-access .access-scroll, #view-legal-gate .access-scroll{ justify-content:flex-start; }
+#view-access .access-scroll::before, #view-access .access-scroll::after{ content:""; flex:1 1 0; min-height:0; }
+#view-legal-gate .access-logo{ margin-top:auto; }
+#view-legal-gate #legal-gate-form{ margin-bottom:auto; }
+
+/* Hojas inferiores y modales: ninguna tenía tope de alto propio (salvo 4 excepciones), así que en pantallas bajas
+   (iPhone SE en Safari, horizontal, ventana reducida) el encabezado con ✕ de `.bottom-sheet--tall` (alto mínimo 480px)
+   o el pie de un modal quedaban fuera del viewport sin forma de cerrarlos. Tope genérico (`:where`, especificidad 0: cualquier tope
+   propio ya existente —ayudas de grupo, modales de invitación/duplicado— sigue ganando): nunca más altos que la
+   pantalla y con scroll propio si hace falta. `touch-action:pan-y` porque la base la deshabilita (`none`) y eso
+   bloquearía también este scroll. Las hojas con lista interna (Elegir jugador, ayudas) siguen scrolleando la lista. */
+:where(.bottom-sheet){ max-height: calc(100dvh - 12px - var(--safe-top, 0px)); overflow-y:auto; overscroll-behavior:contain; }
+.bottom-sheet{ touch-action:pan-y; }
+:where(.overlay__card){ max-height: calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain; }
+/* La ficha de instalación (h9+) fija `overflow:hidden` por sus esquinas redondeadas: en pantallas bajas (<~420px, p. ej.
+   iPhone en horizontal) "Más tarde"/"Entendido" quedaban cortados. Solo el eje vertical pasa a scrollear. */
+#install-prompt-sheet{ overflow-x:hidden; overflow-y:auto; }

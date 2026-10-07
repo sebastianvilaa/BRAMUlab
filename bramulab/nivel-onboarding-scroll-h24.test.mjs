@@ -1,4 +1,4 @@
-// BRAMUlab — h24: scroll del onboarding de Nivel
+// BRAMUlab — h24: scroll del onboarding de Nivel (+ guarda el bundle vigente)
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
@@ -17,8 +17,8 @@ test('Nivel queda acotado al viewport y su contenido scrollea',()=>{
   assert.match(css,/#view-nivel-onboarding \.access-scroll\{[\s\S]*overflow-y:auto;[\s\S]*-webkit-overflow-scrolling:touch;/);
 });
 test('bundle h24 queda sincronizado',()=>{
-  assert.match(html,/styles\.css\?v=04\.37-h24/);
-  assert.match(store,/BUNDLE_VERSION = '04\.37-h24'/);
-  assert.equal(version.bundle,'04.37-h24');
-  assert.match(sw,/bramulab-v04-37-h24/);
+  assert.match(html,/styles\.css\?v=04\.37-h25/);
+  assert.match(store,/BUNDLE_VERSION = '04\.37-h25'/);
+  assert.equal(version.bundle,'04.37-h25');
+  assert.match(sw,/bramulab-v04-37-h25/);
 });
