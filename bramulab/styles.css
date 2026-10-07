@@ -5102,3 +5102,44 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 #install-prompt-intro .install-prompt__later{
   margin-top:10px !important;
 }
+
+
+/* ==========================================================================
+   07OCT26 h14 — cierre visual PWA.
+   Mayor contraste tipográfico en features + refinamiento de guía iOS/iPadOS.
+   ========================================================================== */
+#install-prompt-intro .install-prompt__feature-name{
+  font-weight:700;
+}
+#install-prompt-intro .install-prompt__feature-copy{
+  font-weight:300;
+}
+#install-prompt-ios-guide .install-prompt__ios-head{
+  grid-template-columns:80px minmax(0,1fr);
+  gap:16px;
+}
+#install-prompt-ios-guide .install-prompt__ios-icon{
+  width:80px;
+  height:80px;
+  border-radius:18px;
+}
+#install-prompt-ios-guide .install-prompt__step-num{
+  background:#0A84FF;
+  color:#fff;
+}
+#install-prompt-ios-guide .install-prompt__share-title,
+#install-prompt-ios-guide .install-prompt__add-home-title{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  line-height:1.2;
+}
+#install-prompt-ios-guide .install-prompt__share-icon,
+#install-prompt-ios-guide .install-prompt__add-home-icon{
+  width:19px;
+  height:19px;
+  display:block;
+  flex:none;
+  align-self:center;
+  transform:translateY(-1px);
+}
