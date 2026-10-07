@@ -5086,3 +5086,19 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
     font-size:9px;
   }
 }
+
+
+/* ==========================================================================
+   07OCT26 h13 — microajuste final de franja PWA.
+   Títulos vuelven a dos líneas; ritmo vertical 5/5 y enlace más cerca.
+   ========================================================================== */
+#install-prompt-intro .install-prompt__feature-name{
+  margin-bottom:5px;
+  white-space:normal;
+}
+#install-prompt-intro .install-prompt__feature-icon{
+  margin-bottom:5px;
+}
+#install-prompt-intro .install-prompt__later{
+  margin-top:10px !important;
+}
