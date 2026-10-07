@@ -6495,10 +6495,28 @@
     }
   }
 
+  // 07OCT26 h16 — Safari/iOS usa `theme-color` para teñir parte del chrome del navegador.
+  // Mientras la invitación de instalación está abierta, acompañar el sheet negro con negro pleno;
+  // al cerrarlo, restaurar el azul noche normal de BRAMUlab. No altera el modo standalone.
+  function setInstallPromptBrowserTheme(isOpen) {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    if (isOpen) {
+      if (!meta.dataset.installPreviousColor) {
+        meta.dataset.installPreviousColor = meta.getAttribute('content') || '#050A12';
+      }
+      meta.setAttribute('content', '#000000');
+      return;
+    }
+    meta.setAttribute('content', meta.dataset.installPreviousColor || '#050A12');
+    delete meta.dataset.installPreviousColor;
+  }
+
   function openInstallPromptSheet() {
     const scrim = $('#install-prompt-scrim');
     if (!scrim || !scrim.hidden) return;
     resetInstallPromptContent();
+    setInstallPromptBrowserTheme(true);
     scrim.hidden = false;
     window.requestAnimationFrame(() => scrim.classList.add('is-open'));
   }
@@ -6507,7 +6525,11 @@
     const scrim = $('#install-prompt-scrim');
     if (!scrim || scrim.hidden) return;
     scrim.classList.remove('is-open');
-    window.setTimeout(() => { scrim.hidden = true; resetInstallPromptContent(); }, 280);
+    window.setTimeout(() => {
+      scrim.hidden = true;
+      resetInstallPromptContent();
+      setInstallPromptBrowserTheme(false);
+    }, 380);
   }
 
   function forceInstallPromptForStagingQA() {
