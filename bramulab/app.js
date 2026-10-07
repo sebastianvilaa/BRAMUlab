@@ -7310,6 +7310,24 @@
     unknown: 'No pudimos guardar tu perfil. Probá de nuevo.',
   };
 
+  /** h26 — Fecha de nacimiento en Android (reporte real: Samsung Galaxy S25 Ultra, "toco el día, queda marcado y no
+   *  aparece teclado"). En iPhone el `type="date"` ya abre su selector y NO se toca. En Android el campo nativo puede
+   *  mostrarse segmentado (día/mes/año): tocar un segmento solo lo selecciona y el teclado no se despliega, así que el
+   *  usuario no tiene cómo elegir la fecha. `showPicker()` (Chrome/Samsung Internet recientes) abre el calendario nativo
+   *  desde el mismo toque. No cambia el valor, la validación ni el almacenamiento: sigue siendo "YYYY-MM-DD". Sin soporte
+   *  o sin gesto válido, falla en silencio y el campo queda como antes. */
+  function wireAndroidNativeDatePicker(ids) {
+    if (!/Android/i.test(navigator.userAgent || '')) return;
+    if (typeof HTMLInputElement === 'undefined' || !('showPicker' in HTMLInputElement.prototype)) return;
+    ids.forEach((id) => {
+      const el = $(`#${id}`);
+      if (!el) return;
+      el.addEventListener('click', () => {
+        try { el.showPicker(); } catch (e) { /* sin soporte / sin gesto: el campo nativo sigue funcionando igual */ }
+      });
+    });
+  }
+
   function initSignupWizard() {
     $('#signup-back-btn').addEventListener('click', () => {
       const idx = SIGNUP_STEP_ORDER.indexOf(signupStep);
@@ -7348,6 +7366,7 @@
       recomputeSignupStepValidity();
     });
     $('#signup-display-name').addEventListener('input', recomputeSignupStepValidity);
+    wireAndroidNativeDatePicker(['signup-birthdate', 'profile-edit-birthdate']);
     ['signup-birthdate', 'signup-gender'].forEach((id) => {
       $(`#${id}`).addEventListener('input', recomputeSignupStepValidity);
     });
