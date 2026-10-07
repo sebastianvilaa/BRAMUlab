@@ -4398,3 +4398,22 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   line-height:1.35;
   color:var(--paper-dim);
 }
+
+
+/* 07OCT26 — primera pantalla de instalación: tratamiento deliberadamente corto y comercial.
+   La marca ya está presente en el fondo de acceso; no repetir isotipo/eyebrow dentro del sheet. */
+#install-prompt-intro{
+  padding-top:14px;
+}
+#install-prompt-intro .install-prompt__title{
+  max-width:320px;
+  font-size:24px;
+}
+#install-prompt-intro .install-prompt__text{
+  max-width:300px;
+  margin-top:12px;
+  font-size:15px;
+}
+#install-prompt-intro .install-prompt__primary{
+  margin-top:22px;
+}
