@@ -2254,9 +2254,16 @@ input, select{ font-family: inherit; }
      sin el conflicto. Se retira también el `border-radius`: a 768px de viewport (iPad Mini) el
      ancho de contenido coincide con el viewport, así que la barra queda de punta a punta —
      esquinas redondeadas ahí se verían como un recorte roto contra el borde de la pantalla. */
-  /* 07OCT26 — la superficie de la bottom-nav es full-bleed; el alineado de sus
-     controles a 768px lo resuelve el padding del shell responsive, no un max-width. */
-  .bottom-nav{ max-width:none; left:0; right:0; margin:0; }
+  /* 07OCT26 — superficie full-bleed, navegación con la geometría anterior.
+     El fondo/borde ocupan todo el viewport, pero el ancho útil de los 5 controles queda
+     exactamente igual al viejo shell de 768px (760px internos tras 4px+4px de padding).
+     Esta regla vive acá —después de la base .bottom-nav— para que el shorthand histórico
+     de padding no vuelva a pisar el centrado. */
+  .bottom-nav{
+    max-width:none; left:0; right:0; margin:0;
+    padding-left:max(4px, calc((100% - 768px) / 2 + 4px));
+    padding-right:max(4px, calc((100% - 768px) / 2 + 4px));
+  }
   /* Etapa 4.1 (§2.2) — el ancho de tablet/escritorio de las hojas inferiores vive junto a la
      definición BASE de `.bottom-sheet` (más abajo en este archivo), nunca acá: un hallazgo
      externo de v2.0 detectó que esta regla, aunque más específica en intención, quedaba
