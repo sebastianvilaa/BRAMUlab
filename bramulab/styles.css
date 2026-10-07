@@ -5316,3 +5316,21 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
     border-radius:22px;
   }
 }
+
+
+/* ==========================================================================
+   07OCT26 h22 — alta/perfil post primer usuario real.
+   - consentimiento legal con la misma jerarquía visual que las reglas de contraseña;
+   - Categoría actual fuera de la UX;
+   - Rama competitiva sin flash/duplicación: oculta por defecto y JS la muestra solo
+     cuando género no permite inferir F/M.
+   ========================================================================== */
+#view-signup .field-checkbox-label,
+#view-legal-gate .field-checkbox-label{
+  font-size:11.5px;
+  line-height:1.38;
+}
+#profile-category-row,
+#profile-edit-category-row{
+  display:none !important;
+}
