@@ -371,7 +371,11 @@
       'recovered', 'pending']
       .forEach((v) => { $(`#view-${v}`).hidden = v !== name; });
     // L1 (V04.19) — fail-closed: el aviso "sin servidor" de Acceso se recalcula cada vez que se muestra.
-    if (name === 'access') { refreshBackendUnavailableNotice(); renderAccessInvitationCard(); }
+    if (name === 'access') {
+      refreshBackendUnavailableNotice();
+      renderAccessInvitationCard();
+      window.setTimeout(maybeShowInstallPrompt, 450);
+    }
     const nav = $('#bottom-nav');
     if (nav) {
       // V03.0.1 (§7) — mecanismo PRINCIPAL de "no exponer navegación personal sin sesión":
@@ -6449,6 +6453,147 @@
   /* #view-access en vez del modal viejo — `afterIdentifyAction` se sigue  */
   /* usando igual para retomar el flujo original tras loguearse.           */
   /* ------------------------------------------------------------------ */
+
+  /* ------------------------------------------------------------------ */
+  /* 07OCT26 — INSTALACIÓN PWA PREVIA OPCIONAL                           */
+  /* ------------------------------------------------------------------ */
+  const INSTALL_PROMPT_DISMISS_KEY = 'bramulab.installPromptDismissedAt.v1';
+  const INSTALL_PROMPT_DISMISS_MS = 30 * 24 * 60 * 60 * 1000; // no insistir en cada visita
+  let deferredInstallPrompt = null;
+  let installPromptShownThisSession = false;
+
+  function isIOSInstallDevice() {
+    const ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function isAndroidInstallDevice() {
+    return /Android/i.test(navigator.userAgent || '');
+  }
+
+  function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  }
+
+  function isMobileInstallSurface() {
+    if (isIOSInstallDevice() || isAndroidInstallDevice()) return true;
+    return navigator.maxTouchPoints > 0
+      && window.matchMedia('(pointer: coarse)').matches
+      && window.innerWidth <= 1024;
+  }
+
+  function installPromptWasDismissedRecently() {
+    try {
+      const raw = window.localStorage.getItem(INSTALL_PROMPT_DISMISS_KEY);
+      if (!raw) return false;
+      const at = Number(raw);
+      return Number.isFinite(at) && (Date.now() - at) < INSTALL_PROMPT_DISMISS_MS;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function rememberInstallPromptDismissal() {
+    try { window.localStorage.setItem(INSTALL_PROMPT_DISMISS_KEY, String(Date.now())); }
+    catch (e) { /* storage privado/bloqueado: nunca romper la app */ }
+  }
+
+  function resetInstallPromptContent() {
+    const intro = $('#install-prompt-intro');
+    const guide = $('#install-prompt-ios-guide');
+    if (intro) intro.hidden = false;
+    if (guide) guide.hidden = true;
+  }
+
+  function openInstallPromptSheet() {
+    const scrim = $('#install-prompt-scrim');
+    if (!scrim || !scrim.hidden) return;
+    resetInstallPromptContent();
+    scrim.hidden = false;
+    window.requestAnimationFrame(() => scrim.classList.add('is-open'));
+  }
+
+  function closeInstallPromptSheet(remember) {
+    const scrim = $('#install-prompt-scrim');
+    if (!scrim || scrim.hidden) return;
+    if (remember) rememberInstallPromptDismissal();
+    scrim.classList.remove('is-open');
+    window.setTimeout(() => { scrim.hidden = true; resetInstallPromptContent(); }, 280);
+  }
+
+  function maybeShowInstallPrompt() {
+    if (installPromptShownThisSession) return;
+    if (!isMobileInstallSurface() || isStandaloneApp()) return;
+    if (installPromptWasDismissedRecently()) return;
+    if (Store.getCurrentUser()) return;
+    if (Store.loadSignupDraft && Store.loadSignupDraft()) return;
+    if (Store.loadClaimToken && Store.loadClaimToken()) return;
+    const accessView = $('#view-access');
+    if (!accessView || accessView.hidden) return;
+
+    // En iOS no existe beforeinstallprompt: la guía propia es el camino real.
+    // En Android/Chromium solo se ofrece si el navegador confirmó que puede instalar.
+    if (!isIOSInstallDevice() && !deferredInstallPrompt) return;
+
+    installPromptShownThisSession = true;
+    openInstallPromptSheet();
+  }
+
+  async function handleInstallPromptPrimary() {
+    if (isIOSInstallDevice()) {
+      $('#install-prompt-intro').hidden = true;
+      $('#install-prompt-ios-guide').hidden = false;
+      return;
+    }
+    if (!deferredInstallPrompt) {
+      closeInstallPromptSheet(false);
+      return;
+    }
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    try {
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      if (choice && choice.outcome === 'accepted') rememberInstallPromptDismissal();
+      else rememberInstallPromptDismissal();
+    } catch (e) {
+      /* Si el navegador rechaza el prompt, cerrar sin romper la experiencia. */
+    }
+    closeInstallPromptSheet(false);
+  }
+
+  function initInstallPrompt() {
+    const scrim = $('#install-prompt-scrim');
+    const primary = $('#install-prompt-primary');
+    const later = $('#install-prompt-later');
+    const guideDone = $('#install-prompt-guide-done');
+    if (!scrim || !primary || !later || !guideDone) return;
+
+    primary.addEventListener('click', handleInstallPromptPrimary);
+    later.addEventListener('click', () => closeInstallPromptSheet(true));
+    guideDone.addEventListener('click', () => closeInstallPromptSheet(true));
+    scrim.addEventListener('click', (e) => {
+      if (e.target === scrim) closeInstallPromptSheet(true);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !scrim.hidden) closeInstallPromptSheet(true);
+    });
+  }
+
+  // Chrome/Android: guardar el evento para que el CTA propio dispare el instalador nativo.
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    window.setTimeout(maybeShowInstallPrompt, 250);
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    rememberInstallPromptDismissal();
+    closeInstallPromptSheet(false);
+  });
 
   /** V04.30 — card de invitación en Acceso cuando el dispositivo trae una intención ?claim= pendiente. */
   function renderAccessInvitationCard() {
@@ -15797,6 +15942,7 @@
     initProfileEditModal();
     initProfilePickerSheets();
     initAccessScreen();
+    initInstallPrompt();
     initLoginScreen();
     initLegalGate();
     initAccountFlow();
