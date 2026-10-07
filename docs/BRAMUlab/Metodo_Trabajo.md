@@ -101,6 +101,77 @@ Claude debe ejecutar autónomamente todo lo técnico posible. Si aparece una dec
 
 Sebastián no debe actuar como integrador entre agentes ni transportar informes técnicos extensos. Idealmente solo copia el prompt inicial, aporta una decisión humana cuando realmente hace falta y al final informa **“terminó”**. ChatGPT central revisa HEAD, diff, tests y documentación directamente antes de habilitar la siguiente etapa sensible.
 
+## Flujo normal Staging → aprobación → Production
+
+Esta regla es el **default permanente de BRAMUlab** una vez que existe Production.
+
+### 1. Todo cambio nace en Staging
+
+Cuando Sebastián pide cambiar, corregir, probar o explorar algo de BRAMUlab, se entiende por defecto que el trabajo se hace **en Staging**.
+
+Esto aplica también si el problema fue detectado mirando Production: salvo incidente crítico que requiera un hotfix explícitamente autorizado, la corrección se reproduce, implementa y valida primero en Staging.
+
+Production **no se modifica automáticamente** por el solo hecho de que un cambio haya quedado implementado o técnicamente correcto.
+
+### 2. Toda revisión de Sebastián ocurre primero en Staging
+
+Cuando Central pide a Sebastián que mire o pruebe un cambio:
+- debe referirse explícitamente a **Staging**;
+- debe darle el link directo vigente para evitar ambigüedad;
+- debe indicarle qué mirar, de forma breve y focalizada;
+- no debe pedirle que compare innecesariamente toda la app si el riesgo es local.
+
+URL operativa actual de Staging:
+`https://bramulab-git-staging-bramu-lab.vercel.app`
+
+La URL puede cambiar en el futuro; si cambia, actualizar esta guía y usar siempre el enlace vigente.
+
+### 3. Acumular feedback compatible antes de promover
+
+Si Sebastián encuentra varias correcciones chicas o relacionadas durante la misma revisión:
+- mantenerlas en Staging;
+- resolverlas allí;
+- agruparlas en una sola ronda visual cuando sea razonable;
+- evitar promover cada microajuste individualmente a Production.
+
+La intención es reducir deploys, smoke tests y pasadas redundantes.
+
+### 4. Aprobación humana antes de Production
+
+Cuando el bloque queda bien en Staging, Central debe cerrar la revisión con una pregunta simple, por ejemplo:
+
+> “¿Lo pasamos a Production o querés revisar/cambiar algo más antes?”
+
+También vale una autorización espontánea de Sebastián como:
+- “pasalo a producción”;
+- “sí, quedó bien, publicalo”;
+- equivalente inequívoco.
+
+Sin esa aprobación, el cambio **queda en Staging**.
+
+### 5. Promotion controlada
+
+Una vez aprobado:
+- promover únicamente la versión/cambio validado;
+- no arrastrar cambios no relacionados;
+- mantener BRAMUlive fuera del alcance;
+- no usar un fast-forward global de `main` mientras esa estrategia pueda arrastrar trabajo ajeno a BRAMUlab;
+- verificar entorno/aliases antes de dar por terminado el deploy.
+
+### 6. Smoke corto en Production
+
+Después de promover:
+- hacer un smoke **dirigido al riesgo del cambio**;
+- usar la cuenta real de Production cuando corresponda;
+- no repetir la suite completa ni revalidar áreas no relacionadas;
+- si aparece una regresión, volver a Staging para corregirla salvo emergencia explícita.
+
+La secuencia normal queda:
+
+**definir → implementar en Staging → probar en Staging → aprobación de Sebastián → promover a Production → smoke corto.**
+
+Production es el producto real. Staging es el taller.
+
 ## Git / commits
 
 - Evitar commits intermedios directamente sobre `staging`.
