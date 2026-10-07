@@ -6523,13 +6523,23 @@
     window.setTimeout(() => { scrim.hidden = true; resetInstallPromptContent(); }, 280);
   }
 
+  function forceInstallPromptForStagingQA() {
+    try {
+      return window.location.hostname === 'bramulab-git-staging-bramu-lab.vercel.app'
+        && new URLSearchParams(window.location.search).get('install') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
   function maybeShowInstallPrompt() {
-    if (installPromptShownThisSession) return;
+    const forceForQA = forceInstallPromptForStagingQA();
+    if (!forceForQA && installPromptShownThisSession) return;
     if (!isMobileInstallSurface() || isStandaloneApp()) return;
-    if (installPromptWasDismissedRecently()) return;
-    if (Store.getCurrentUser()) return;
-    if (Store.loadSignupDraft && Store.loadSignupDraft()) return;
-    if (Store.loadClaimToken && Store.loadClaimToken()) return;
+    if (!forceForQA && installPromptWasDismissedRecently()) return;
+    if (!forceForQA && Store.getCurrentUser()) return;
+    if (!forceForQA && Store.loadSignupDraft && Store.loadSignupDraft()) return;
+    if (!forceForQA && Store.loadClaimToken && Store.loadClaimToken()) return;
     const accessView = $('#view-access');
     if (!accessView || accessView.hidden) return;
 
