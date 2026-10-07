@@ -72,7 +72,7 @@ Reglas:
 - nunca bloquea `Iniciar sesión` ni `Crear cuenta`;
 - no aparece si BRAMUlab ya se está ejecutando en modo instalado/standalone;
 - no interrumpe una invitación pendiente ni un alta ya empezada;
-- si el usuario la descarta, no debe reaparecer en cada visita;
+- si el usuario elige seguir en el navegador, la invitación se oculta durante esa carga/sesión, pero vuelve a mostrarse en una nueva carga mientras BRAMUlab siga ejecutándose en navegador;
 - en Android/Chromium, cuando el navegador expone el prompt nativo de instalación, el CTA propio de BRAMUlab lo dispara;
 - en iPhone/iPad, donde el navegador no ofrece un prompt programático equivalente, BRAMUlab muestra una guía breve para `Compartir → Agregar a Inicio → Abrir como app web → Agregar`;
 - al abrir desde el icono instalado, la aplicación debe ejecutarse como PWA standalone, sin chrome normal del navegador.
