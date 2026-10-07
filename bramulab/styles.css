@@ -3230,7 +3230,7 @@ input, select{ font-family: inherit; }
 .field--checkbox{ padding: 6px 2px; }
 .field-checkbox-label{ display:flex; align-items:flex-start; gap:10px; font-size:13px; color: var(--paper-dim); cursor:pointer; }
 .field-checkbox-label input[type="checkbox"]{ accent-color: var(--brand-lime); width:18px; height:18px; flex-shrink:0; margin-top:1px; }
-.field-checkbox-label a{ color: var(--brand-lime); text-decoration: underline; text-underline-offset: 2px; }
+.field-checkbox-label a{ color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .option-row--2col{ grid-template-columns: 1fr 1fr; }
 
 /* BRAMUlab_V03.6 (§4) — fila de consentimiento (permitir contacto por WhatsApp): mismo patrón
@@ -5333,4 +5333,11 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 #profile-category-row,
 #profile-edit-category-row{
   display:none !important;
+}
+
+
+/* 07OCT26 h23 — links legales mantienen subrayado pero no compiten visualmente con el copy. */
+#view-signup .field-checkbox-label a,
+#view-legal-gate .field-checkbox-label a{
+  color:inherit;
 }
