@@ -12,7 +12,7 @@
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<link rel="icon" href="icons/favicon-64.png?v=04.37-h8" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.37-h9" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -31,7 +31,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.37-h8" />
+<link rel="stylesheet" href="styles.css?v=04.37-h9" />
 </head>
 <body>
 
@@ -1892,24 +1892,70 @@
       <div class="bottom-sheet__grabber" aria-hidden="true"></div>
 
       <div id="install-prompt-intro" class="install-prompt__panel">
-        <!-- Ficha compacta tipo fila de App Store: ícono + nombre/subtítulo + botón pill. -->
+        <!-- 07OCT26 h9 — ficha superior inspirada en el patrón visual de una ficha de app,
+             sin simular App Store: identidad BRAMUlab + capacidades reales del producto. -->
         <div class="install-prompt__app">
-          <img class="install-prompt__app-icon" src="icons/apple-touch-icon.png?v=04.37-h8" alt="" width="104" height="104" />
+          <img class="install-prompt__app-icon" src="icons/apple-touch-icon.png?v=04.37-h9" alt="" width="104" height="104" />
           <div class="install-prompt__app-meta">
             <h2 class="install-prompt__app-name" id="install-prompt-title">BRAMUlab</h2>
             <p class="install-prompt__app-sub">Dónde vive tu pádel</p>
             <button type="button" id="install-prompt-primary" class="install-prompt__get">Obtener</button>
           </div>
         </div>
+
         <div class="install-prompt__divider" aria-hidden="true"></div>
-        <p class="install-prompt__text" id="install-prompt-intro-text">Tené BRAMUlab siempre a mano en tu iPhone.</p>
+
+        <div class="install-prompt__features" role="list" aria-label="Funciones destacadas de BRAMUlab">
+          <div class="install-prompt__feature" role="listitem">
+            <span class="install-prompt__feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 18 9 9l5 4 7-9"/>
+                <circle cx="3" cy="18" r="1.7" fill="currentColor" stroke="none"/>
+                <circle cx="14" cy="13" r="1.7" fill="currentColor" stroke="none"/>
+                <circle cx="21" cy="4" r="1.7" fill="currentColor" stroke="none"/>
+              </svg>
+            </span>
+            <span class="install-prompt__feature-name">NIVEL BRAMU</span>
+            <span class="install-prompt__feature-copy">Tu nivel evoluciona</span>
+          </div>
+
+          <div class="install-prompt__feature" role="listitem">
+            <span class="install-prompt__feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="8.5" cy="7.5" r="3"/>
+                <path d="M8.5 11.5c-3.6 0-6.5 2.4-6.5 5.4V19h7.9c-.15-.45-.24-.93-.24-1.43 0-1.98.86-3.75 2.24-5.03-1.03-.63-2.18-.97-3.4-.97z"/>
+                <circle cx="15.5" cy="9" r="3.4"/>
+                <path d="M15.5 13c-3.9 0-7 2.6-7 5.9V21h14v-2.1c0-3.3-3.1-5.9-7-5.9z"/>
+              </svg>
+            </span>
+            <span class="install-prompt__feature-name">GRUPOS BRAMU</span>
+            <span class="install-prompt__feature-copy">Competí con tus amigos</span>
+          </div>
+
+          <div class="install-prompt__feature" role="listitem">
+            <span class="install-prompt__feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>
+                <circle cx="12" cy="12" r="4"/>
+              </svg>
+            </span>
+            <span class="install-prompt__feature-name">BRAMU INTELLIGENCE</span>
+            <span class="install-prompt__feature-copy">Entendé tu juego</span>
+          </div>
+        </div>
+
         <button type="button" id="install-prompt-later" class="install-prompt__later">Seguir en el navegador</button>
       </div>
 
       <div id="install-prompt-ios-guide" class="install-prompt__panel" hidden>
-        <div class="install-prompt__eyebrow">EN IPHONE</div>
-        <h2 class="install-prompt__title">AGREGÁ BRAMUlab A INICIO</h2>
-        <p class="install-prompt__text">Son tres pasos y después se abre como una app independiente.</p>
+        <div class="install-prompt__ios-head">
+          <img class="install-prompt__ios-icon" src="icons/apple-touch-icon.png?v=04.37-h9" alt="" width="58" height="58" />
+          <div>
+            <div class="install-prompt__eyebrow">EN IPHONE</div>
+            <h2 class="install-prompt__title">Agregá BRAMUlab a Inicio</h2>
+            <p class="install-prompt__text">Hacelo desde las opciones de Safari.</p>
+          </div>
+        </div>
         <ol class="install-prompt__steps">
           <li class="install-prompt__step">
             <span class="install-prompt__step-num">1</span>
@@ -1924,7 +1970,7 @@
             <span><strong>Activá “Abrir como app web” y agregá</strong><small>Después abrí BRAMUlab desde el ícono de tu pantalla de inicio.</small></span>
           </li>
         </ol>
-        <button type="button" id="install-prompt-guide-done" class="btn-secondary install-prompt__primary">SEGUIR EN EL NAVEGADOR</button>
+        <button type="button" id="install-prompt-guide-done" class="install-prompt__later install-prompt__later--guide">Seguir en el navegador</button>
       </div>
     </div>
   </div>
@@ -3304,45 +3350,45 @@
        cambiar versión+hash JUNTOS (los tests verifican que el pin tenga la forma exacta y que haya integrity). -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.37-h8"></script>
-  <script src="stats.js?v=04.37-h8"></script>
-  <script src="store.js?v=04.37-h8"></script>
+  <script src="engine.js?v=04.37-h9"></script>
+  <script src="stats.js?v=04.37-h9"></script>
+  <script src="store.js?v=04.37-h9"></script>
   <!-- Hardening V04.37-h8 (exposición/IP) — el navegador YA NO carga `level.js` ni `level-context.js`: el motor
        dinámico de Nivel (expectativa, margen, K, repetición, círculo, confianza, inactividad) corre solo en las
        Edge Functions y en tests. `level-public.js` expone únicamente lo que la app usa de `PLLevel`
        (STATES, ALGORITHM_VERSION, roundPublicLevel, clampLevel). `level-calibration.js` (cuestionario/estimador
        inicial V1.3) sigue siendo client-side a propósito. Ver docs/.../139_Resultado_Hardening_Exposicion_IP_06OCT.md. -->
-  <script src="level-public.js?v=04.37-h8"></script>
-  <script src="level-calibration.js?v=04.37-h8"></script>
-  <script src="player-home.js?v=04.37-h8"></script>
-  <script src="match-load.js?v=04.37-h8"></script>
-  <script src="player-identity.js?v=04.37-h8"></script>
-  <script src="groups.js?v=04.37-h8"></script>
-  <script src="locations.js?v=04.37-h8"></script>
-  <script src="ranking.js?v=04.37-h8"></script>
+  <script src="level-public.js?v=04.37-h9"></script>
+  <script src="level-calibration.js?v=04.37-h9"></script>
+  <script src="player-home.js?v=04.37-h9"></script>
+  <script src="match-load.js?v=04.37-h9"></script>
+  <script src="player-identity.js?v=04.37-h9"></script>
+  <script src="groups.js?v=04.37-h9"></script>
+  <script src="locations.js?v=04.37-h9"></script>
+  <script src="ranking.js?v=04.37-h9"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.37-h8"></script>
+  <script src="auth.js?v=04.37-h9"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.37-h8"></script>
-  <script src="match-sync.js?v=04.37-h8"></script>
+  <script src="matches.js?v=04.37-h9"></script>
+  <script src="match-sync.js?v=04.37-h9"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.37-h8"></script>
+  <script src="match-validation.js?v=04.37-h9"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.37-h8"></script>
+  <script src="match-self-heal.js?v=04.37-h9"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.37-h8"></script>
-  <script src="app.js?v=04.37-h8"></script>
+  <script src="intelligence-client.js?v=04.37-h9"></script>
+  <script src="app.js?v=04.37-h9"></script>
 </body>
 </html>

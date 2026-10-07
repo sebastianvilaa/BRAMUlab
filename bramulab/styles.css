@@ -4634,3 +4634,275 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   text-decoration:none !important;
   text-transform:none !important;
 }
+
+
+/* ==========================================================================
+   07OCT26 h9 — PWA / ficha de instalación.
+   Scope estricto al prompt: fondo negro, tipografía nativa del dispositivo,
+   franja de 3 capacidades reales y guía iOS plana. No toca otros sheets.
+   ========================================================================== */
+#install-prompt-scrim{ background:#000; }
+#install-prompt-sheet{
+  max-width:430px;
+  background:#000;
+  border:0;
+  border-radius:0;
+  padding:18px 22px calc(22px + var(--safe-bottom));
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+#install-prompt-sheet > .bottom-sheet__grabber{ display:none; }
+#install-prompt-intro{ display:block; width:100%; padding-top:2px; text-align:left; }
+#install-prompt-intro .install-prompt__app{
+  display:grid;
+  grid-template-columns:112px minmax(0,1fr);
+  align-items:start;
+  column-gap:18px;
+  width:100%;
+}
+#install-prompt-intro .install-prompt__app-icon{
+  grid-column:1;
+  width:112px;
+  height:112px;
+  max-width:none;
+  margin:0;
+  border-radius:24px;
+  object-fit:cover;
+  box-shadow:0 0 0 .5px rgba(255,255,255,.14);
+}
+#install-prompt-intro .install-prompt__app-meta{
+  grid-column:2;
+  min-width:0;
+  min-height:112px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  padding-top:5px;
+}
+#install-prompt-intro .install-prompt__app-name{
+  margin:0;
+  font-family:inherit;
+  font-size:21px;
+  font-weight:650;
+  line-height:1.15;
+  letter-spacing:-.025em;
+  color:#fff;
+}
+#install-prompt-intro .install-prompt__app-sub{
+  margin:5px 0 0;
+  font-family:inherit;
+  font-size:15px;
+  font-weight:400;
+  line-height:1.25;
+  letter-spacing:-.012em;
+  color:rgba(235,235,245,.52);
+}
+#install-prompt-intro .install-prompt__get{
+  -webkit-appearance:none !important;
+  appearance:none !important;
+  display:inline-flex !important;
+  align-items:center;
+  justify-content:center;
+  width:auto !important;
+  min-width:80px !important;
+  height:32px !important;
+  min-height:32px !important;
+  margin:auto 0 0 !important;
+  padding:0 18px !important;
+  border:0 !important;
+  border-radius:999px !important;
+  background:#0A84FF !important;
+  box-shadow:none !important;
+  color:#fff !important;
+  font-family:inherit !important;
+  font-size:15px !important;
+  font-weight:700 !important;
+  line-height:32px !important;
+  letter-spacing:-.01em !important;
+  text-transform:none !important;
+}
+#install-prompt-intro .install-prompt__divider{
+  width:100%;
+  height:1px;
+  margin:20px 0 0;
+  background:rgba(84,84,88,.46);
+}
+#install-prompt-intro .install-prompt__features{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  width:100%;
+  margin:0;
+  padding:17px 0 0;
+}
+#install-prompt-intro .install-prompt__feature{
+  min-width:0;
+  min-height:103px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  padding:0 10px;
+  text-align:center;
+}
+#install-prompt-intro .install-prompt__feature + .install-prompt__feature{
+  border-left:1px solid rgba(84,84,88,.46);
+}
+#install-prompt-intro .install-prompt__feature-icon{
+  width:27px;
+  height:27px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin:0 0 8px;
+  color:rgba(235,235,245,.62);
+}
+#install-prompt-intro .install-prompt__feature-icon svg{ width:24px; height:24px; display:block; }
+#install-prompt-intro .install-prompt__feature-icon svg:not([fill="none"]){ fill:currentColor; }
+#install-prompt-intro .install-prompt__feature-name{
+  display:block;
+  min-height:24px;
+  font-family:inherit;
+  font-size:10px;
+  font-weight:650;
+  line-height:1.16;
+  letter-spacing:.025em;
+  color:rgba(235,235,245,.48);
+}
+#install-prompt-intro .install-prompt__feature-copy{
+  display:block;
+  margin-top:6px;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:400;
+  line-height:1.24;
+  color:rgba(235,235,245,.72);
+}
+#install-prompt-intro .install-prompt__later,
+#install-prompt-ios-guide .install-prompt__later--guide{
+  -webkit-appearance:none !important;
+  appearance:none !important;
+  display:block !important;
+  width:auto !important;
+  min-height:0 !important;
+  margin:20px auto 0 !important;
+  padding:5px 8px !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  color:rgba(235,235,245,.46) !important;
+  font-family:inherit !important;
+  font-size:12px !important;
+  font-weight:400 !important;
+  line-height:1.2 !important;
+  letter-spacing:0 !important;
+  text-align:center !important;
+  text-decoration:none !important;
+  text-transform:none !important;
+}
+#install-prompt-ios-guide{
+  width:100%;
+  align-items:stretch;
+  text-align:left;
+  font-family:inherit;
+}
+#install-prompt-ios-guide .install-prompt__ios-head{
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+  width:100%;
+  padding:2px 0 16px;
+  border-bottom:1px solid rgba(84,84,88,.46);
+}
+#install-prompt-ios-guide .install-prompt__ios-icon{
+  width:58px;
+  height:58px;
+  border-radius:13px;
+  display:block;
+  box-shadow:0 0 0 .5px rgba(255,255,255,.14);
+}
+#install-prompt-ios-guide .install-prompt__eyebrow{
+  margin:1px 0 4px;
+  font-family:inherit;
+  font-size:10px;
+  font-weight:650;
+  line-height:1.2;
+  letter-spacing:.055em;
+  color:rgba(235,235,245,.48);
+}
+#install-prompt-ios-guide .install-prompt__title{
+  max-width:none;
+  margin:0;
+  font-family:inherit;
+  font-size:20px;
+  font-weight:650;
+  line-height:1.15;
+  letter-spacing:-.022em;
+  color:#fff;
+  text-transform:none;
+}
+#install-prompt-ios-guide .install-prompt__text{
+  max-width:none;
+  margin:5px 0 0;
+  font-family:inherit;
+  font-size:13px;
+  font-weight:400;
+  line-height:1.3;
+  color:rgba(235,235,245,.52);
+  text-align:left;
+}
+#install-prompt-ios-guide .install-prompt__steps{
+  width:100%;
+  margin:0;
+  padding:0;
+  gap:0;
+}
+#install-prompt-ios-guide .install-prompt__step{
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+  min-height:66px;
+  padding:12px 0;
+  border:0;
+  border-bottom:1px solid rgba(84,84,88,.46);
+  border-radius:0;
+  background:transparent;
+  color:#fff;
+}
+#install-prompt-ios-guide .install-prompt__step-num{
+  width:26px;
+  height:26px;
+  border:0;
+  background:rgba(118,118,128,.24);
+  color:#fff;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:650;
+}
+#install-prompt-ios-guide .install-prompt__step strong{
+  display:block;
+  font-family:inherit;
+  font-size:14px;
+  font-weight:600;
+  line-height:1.25;
+  color:#fff;
+}
+#install-prompt-ios-guide .install-prompt__step small{
+  display:block;
+  margin-top:3px;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:400;
+  line-height:1.3;
+  color:rgba(235,235,245,.52);
+}
+@media (max-width:360px){
+  #install-prompt-sheet{ padding-left:18px; padding-right:18px; }
+  #install-prompt-intro .install-prompt__app{ grid-template-columns:102px minmax(0,1fr); column-gap:15px; }
+  #install-prompt-intro .install-prompt__app-icon{ width:102px; height:102px; border-radius:22px; }
+  #install-prompt-intro .install-prompt__app-meta{ min-height:102px; }
+  #install-prompt-intro .install-prompt__feature{ padding-left:6px; padding-right:6px; }
+  #install-prompt-intro .install-prompt__feature-name{ font-size:9px; }
+  #install-prompt-intro .install-prompt__feature-copy{ font-size:11px; }
+}
