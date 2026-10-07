@@ -5341,3 +5341,27 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 #view-legal-gate .field-checkbox-label a{
   color:inherit;
 }
+
+
+/* ==========================================================================
+   07OCT26 h24 — HOTFIX bloqueo real de alta en móviles bajos.
+   Nivel onboarding comparte .view--access, pero su .access-scroll nunca tuvo overflow propio.
+   Con html/body overflow:hidden, una pregunta que supera el viewport deja CONTINUAR inaccesible.
+   Mismo patrón ya validado en Editar datos / Configuración de grupo: acotar la vista al
+   viewport y hacer scrollear únicamente su contenedor interno. No toca slider, preguntas ni Nivel.
+   ========================================================================== */
+#view-nivel-onboarding{
+  height:100vh;
+  height:100dvh;
+  min-height:0;
+  max-height:100dvh;
+  overflow:hidden;
+}
+#view-nivel-onboarding .access-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding-bottom:calc(28px + var(--safe-bottom));
+}
