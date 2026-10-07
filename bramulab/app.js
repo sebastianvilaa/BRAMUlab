@@ -6487,6 +6487,12 @@
     const guide = $('#install-prompt-ios-guide');
     if (intro) intro.hidden = false;
     if (guide) guide.hidden = true;
+    const introText = $('#install-prompt-intro-text');
+    if (introText) {
+      const ua = navigator.userAgent || '';
+      const device = /iPad/.test(ua) ? 'iPad' : isIOSInstallDevice() ? 'iPhone' : 'celular';
+      introText.textContent = 'Tené BRAMUlab siempre a mano en tu ' + device + '.';
+    }
   }
 
   function openInstallPromptSheet() {

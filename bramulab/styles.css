@@ -4400,20 +4400,99 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 }
 
 
-/* 07OCT26 — primera pantalla de instalación: tratamiento deliberadamente corto y comercial.
-   La marca ya está presente en el fondo de acceso; no repetir isotipo/eyebrow dentro del sheet. */
+/* 07OCT26 (h7) — primera pantalla de instalación: ficha compacta con proporciones de la fila de App Store en iPhone
+   (ícono 64px con radio continuo ~22%, título 17/600, subtítulo gris 14, botón pill 30px alto / 15px bold).
+   Sin copiar literal: ícono y acento son de BRAMUlab, el sheet es el del sistema. */
 #install-prompt-intro{
-  padding-top:14px;
+  align-items:stretch;
+  text-align:left;
+  padding-top:10px;
 }
-#install-prompt-intro .install-prompt__title{
-  max-width:320px;
-  font-size:24px;
+.install-prompt__app{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.install-prompt__app-icon{
+  flex:none;
+  width:64px;
+  height:64px;
+  border-radius:14.3px;
+  display:block;
+  box-shadow:0 0 0 .5px rgba(255,255,255,.14);
+}
+.install-prompt__app-meta{
+  flex:1 1 auto;
+  min-width:0;
+}
+.install-prompt__app-name{
+  margin:0;
+  font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-body);
+  font-size:17px;
+  font-weight:600;
+  line-height:1.2;
+  letter-spacing:-.022em;
+  color:var(--paper);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.install-prompt__app-sub{
+  margin:2px 0 0;
+  font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-body);
+  font-size:14px;
+  font-weight:400;
+  line-height:1.25;
+  letter-spacing:-.01em;
+  color:var(--paper-dim);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.install-prompt__get{
+  flex:none;
+  min-width:74px;
+  height:30px;
+  padding:0 18px;
+  border:0;
+  border-radius:var(--radius-pill);
+  background:rgba(120,130,150,.30);
+  color:var(--accent-cyan);
+  font-family:-apple-system, BlinkMacSystemFont, 'SF Pro Text', var(--font-body);
+  font-size:15px;
+  font-weight:700;
+  line-height:30px;
+  letter-spacing:-.01em;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:background .15s ease, transform .15s ease;
+}
+.install-prompt__get:active{
+  background:rgba(120,130,150,.46);
+  transform:scale(.97);
+}
+.install-prompt__get:focus-visible{
+  outline:2px solid var(--accent-cyan);
+  outline-offset:2px;
 }
 #install-prompt-intro .install-prompt__text{
-  max-width:300px;
-  margin-top:12px;
+  max-width:none;
+  margin:18px 0 0;
   font-size:15px;
+  line-height:1.4;
 }
-#install-prompt-intro .install-prompt__primary{
-  margin-top:22px;
+.install-prompt__later{
+  align-self:flex-start;
+  margin:10px 0 0;
+  padding:6px 0;
+  border:0;
+  background:none;
+  font-family:inherit;
+  font-size:14px;
+  line-height:1.2;
+  color:var(--paper-faint);
+  text-decoration:none;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
+.install-prompt__later:active{ color:var(--paper-dim); }
