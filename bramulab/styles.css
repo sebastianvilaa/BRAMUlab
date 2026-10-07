@@ -2254,7 +2254,9 @@ input, select{ font-family: inherit; }
      sin el conflicto. Se retira también el `border-radius`: a 768px de viewport (iPad Mini) el
      ancho de contenido coincide con el viewport, así que la barra queda de punta a punta —
      esquinas redondeadas ahí se verían como un recorte roto contra el borde de la pantalla. */
-  .bottom-nav{ max-width: 768px; left:0; right:0; margin: 0 auto; }
+  /* 07OCT26 — la superficie de la bottom-nav es full-bleed; el alineado de sus
+     controles a 768px lo resuelve el padding del shell responsive, no un max-width. */
+  .bottom-nav{ max-width:none; left:0; right:0; margin:0; }
   /* Etapa 4.1 (§2.2) — el ancho de tablet/escritorio de las hojas inferiores vive junto a la
      definición BASE de `.bottom-sheet` (más abajo en este archivo), nunca acá: un hallazgo
      externo de v2.0 detectó que esta regla, aunque más específica en intención, quedaba
@@ -4226,3 +4228,19 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 
 /* Movimiento en la Race anual: reutiliza `.ranking-row__movement` (+ is-up / is-down) de Ranking; acá solo el aire junto a PTS. */
 .group-table__movement{ margin-left: 10px; }
+
+
+/* ==========================================================================
+   07OCT26 — CONSTANTE FINAL DE HEADER BRAMUlab
+   Inicio es la referencia de altura. Historial, Grupos, Perfil, Ranking, Resumen,
+   Configuración y la familia de acceso usan la misma altura real aunque cambie la cantidad
+   de acciones del header. Evita saltos verticales entre pantallas en desktop/tablet y móvil.
+   No cambia tipografía ni tamaño de iconos.
+   ========================================================================== */
+.analysis-header,
+.player-home-header{
+  box-sizing:border-box;
+  height:calc(55px + var(--safe-top));
+  min-height:calc(55px + var(--safe-top));
+  max-height:calc(55px + var(--safe-top));
+}
