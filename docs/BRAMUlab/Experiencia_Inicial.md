@@ -59,6 +59,26 @@ Criterio de producto:
 
 > **Personalizada para el caso del jugador, no recortada.**
 
+### 2.0 Instalación opcional antes del alta
+
+En la primera llegada desde un dispositivo móvil o tablet, BRAMUlab puede invitar al usuario a agregar la aplicación a su pantalla de inicio **antes de crear la cuenta**, siempre como acción opcional.
+
+Objetivo de producto:
+
+> **Que la primera experiencia se sienta como instalar BRAMUlab, no como guardar una página web.**
+
+Reglas:
+
+- nunca bloquea `Iniciar sesión` ni `Crear cuenta`;
+- no aparece si BRAMUlab ya se está ejecutando en modo instalado/standalone;
+- no interrumpe una invitación pendiente ni un alta ya empezada;
+- si el usuario la descarta, no debe reaparecer en cada visita;
+- en Android/Chromium, cuando el navegador expone el prompt nativo de instalación, el CTA propio de BRAMUlab lo dispara;
+- en iPhone/iPad, donde el navegador no ofrece un prompt programático equivalente, BRAMUlab muestra una guía breve para `Compartir → Agregar a Inicio → Abrir como app web → Agregar`;
+- al abrir desde el icono instalado, la aplicación debe ejecutarse como PWA standalone, sin chrome normal del navegador.
+
+La invitación reutiliza el lenguaje visual de BRAMUlab y se presenta como una capa/hoja breve sobre la pantalla pública de acceso. No es un tutorial general ni una nueva etapa del onboarding deportivo.
+
 ### 2.1 Confirmación de email diferida durante el alta
 
 La verificación del email sigue siendo obligatoria antes de entrar a la Home real y utilizar BRAMU normalmente, pero **no debe interrumpir el inicio del alta apenas el usuario crea la cuenta**.
