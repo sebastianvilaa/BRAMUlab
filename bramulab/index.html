@@ -11,7 +11,8 @@
 <meta name="theme-color" content="#050A12" />
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
-<link rel="icon" href="icons/favicon-64.png?v=04.37-h2" sizes="64x64" type="image/png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<link rel="icon" href="icons/favicon-64.png?v=04.37-h3" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -30,7 +31,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.37-h2" />
+<link rel="stylesheet" href="styles.css?v=04.37-h3" />
 </head>
 <body>
 
@@ -258,7 +259,7 @@
       <div class="b6-action-block" id="b6-report-error-block" hidden>
         <button type="button" class="b6-correction-choice b6-correction-choice--report" id="b6-report-error-btn" style="width:100%">Reportar un error</button>
       </div>
-      <!-- V04.37-h2 — "Anular carga": mismo tratamiento visual que "Reportar un error", SIEMPRE debajo (paintB6Actions lo reubica
+      <!-- V04.37-h3 — "Anular carga": mismo tratamiento visual que "Reportar un error", SIEMPRE debajo (paintB6Actions lo reubica
            junto a él). Visible solo si get_match_detail dice `canAnnulSubmission` (autor + pending + nadie más reconoció el partido). -->
       <div class="b6-annul-block" id="b6-annul-block" hidden>
         <button type="button" class="b6-correction-choice b6-correction-choice--report b6-annul-btn" id="b6-annul-btn">Anular carga</button>
@@ -1882,6 +1883,46 @@
     </div>
   </section>
 
+  <!-- 07OCT26 — instalación PWA previa opcional.
+       Se muestra solo en dispositivo móvil/tablet, sin sesión, sin draft de alta y fuera de
+       modo standalone. Android usa beforeinstallprompt cuando el navegador lo ofrece; iOS
+       muestra la guía corta de "Agregar a Inicio". Nunca bloquea crear cuenta/iniciar sesión. -->
+  <div id="install-prompt-scrim" class="sheet-scrim install-prompt-scrim" hidden>
+    <div id="install-prompt-sheet" class="bottom-sheet install-prompt-sheet" role="dialog" aria-modal="true" aria-labelledby="install-prompt-title">
+      <div class="bottom-sheet__grabber" aria-hidden="true"></div>
+
+      <div id="install-prompt-intro" class="install-prompt__panel">
+        <img class="install-prompt__icon" src="icons/icon-192.png?v=04.37-h3" alt="" aria-hidden="true" />
+        <div class="install-prompt__eyebrow">BRAMULAB EN TU CELU</div>
+        <h2 class="install-prompt__title" id="install-prompt-title">TENÉ BRAMUlab SIEMPRE A MANO</h2>
+        <p class="install-prompt__text">Agregala a tu pantalla de inicio y usala como una app, sin navegador.</p>
+        <button type="button" id="install-prompt-primary" class="btn-start install-prompt__primary">AGREGAR BRAMULAB</button>
+        <button type="button" id="install-prompt-later" class="link-btn install-prompt__later">Ahora no</button>
+      </div>
+
+      <div id="install-prompt-ios-guide" class="install-prompt__panel" hidden>
+        <div class="install-prompt__eyebrow">EN IPHONE</div>
+        <h2 class="install-prompt__title">AGREGÁ BRAMUlab A INICIO</h2>
+        <p class="install-prompt__text">Son tres pasos y después se abre como una app independiente.</p>
+        <ol class="install-prompt__steps">
+          <li class="install-prompt__step">
+            <span class="install-prompt__step-num">1</span>
+            <span><strong>Tocá Compartir</strong><small>Usá el botón de compartir del navegador.</small></span>
+          </li>
+          <li class="install-prompt__step">
+            <span class="install-prompt__step-num">2</span>
+            <span><strong>Elegí “Agregar a Inicio”</strong><small>Puede aparecer más abajo en la lista de acciones.</small></span>
+          </li>
+          <li class="install-prompt__step">
+            <span class="install-prompt__step-num">3</span>
+            <span><strong>Activá “Abrir como app web” y agregá</strong><small>Después abrí BRAMUlab desde el ícono de tu pantalla de inicio.</small></span>
+          </li>
+        </ol>
+        <button type="button" id="install-prompt-guide-done" class="btn-secondary install-prompt__primary">LO HAGO DESPUÉS</button>
+      </div>
+    </div>
+  </div>
+
   <!-- L1 (V04.19) — gate de (re)aceptación legal: se muestra cuando get_my_legal_status dice
        requiresAcceptance (versión legal vigente distinta de la última aceptada, o cuenta histórica sin
        aceptación registrada). Bloquea Home/partidos/perfil; solo permite aceptar o cerrar sesión. La
@@ -3250,52 +3291,52 @@
        404 y auth.js queda "no configurado" sin romper nada (mismo criterio que ya usa health.js:
        nunca falla la app entera por faltar backend). Nunca se agrega SUPABASE_SERVICE_ROLE_KEY
        acá ni a ningún archivo que llegue al navegador. -->
-  <!-- Hardening V04.37-h2 — supabase-js FIJADO a una versión exacta (antes `@2` flotante) + SRI: el archivo
+  <!-- Hardening V04.37-h3 — supabase-js FIJADO a una versión exacta (antes `@2` flotante) + SRI: el archivo
        servido por el CDN tiene que coincidir byte a byte con el hash o el navegador no lo ejecuta. El hash es el
        sha384 de `dist/umd/supabase.js` del tarball oficial de npm (mismo contenido que sirve jsDelivr, inmutable).
        Para actualizar: elegir versión, recalcular el SRI desde el tarball de npm, probar login/alta en Staging y
        cambiar versión+hash JUNTOS (los tests verifican que el pin tenga la forma exacta y que haya integrity). -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.37-h2"></script>
-  <script src="stats.js?v=04.37-h2"></script>
-  <script src="store.js?v=04.37-h2"></script>
-  <!-- Hardening V04.37-h2 (exposición/IP) — el navegador YA NO carga `level.js` ni `level-context.js`: el motor
+  <script src="engine.js?v=04.37-h3"></script>
+  <script src="stats.js?v=04.37-h3"></script>
+  <script src="store.js?v=04.37-h3"></script>
+  <!-- Hardening V04.37-h3 (exposición/IP) — el navegador YA NO carga `level.js` ni `level-context.js`: el motor
        dinámico de Nivel (expectativa, margen, K, repetición, círculo, confianza, inactividad) corre solo en las
        Edge Functions y en tests. `level-public.js` expone únicamente lo que la app usa de `PLLevel`
        (STATES, ALGORITHM_VERSION, roundPublicLevel, clampLevel). `level-calibration.js` (cuestionario/estimador
        inicial V1.3) sigue siendo client-side a propósito. Ver docs/.../139_Resultado_Hardening_Exposicion_IP_06OCT.md. -->
-  <script src="level-public.js?v=04.37-h2"></script>
-  <script src="level-calibration.js?v=04.37-h2"></script>
-  <script src="player-home.js?v=04.37-h2"></script>
-  <script src="match-load.js?v=04.37-h2"></script>
-  <script src="player-identity.js?v=04.37-h2"></script>
-  <script src="groups.js?v=04.37-h2"></script>
-  <script src="locations.js?v=04.37-h2"></script>
-  <script src="ranking.js?v=04.37-h2"></script>
+  <script src="level-public.js?v=04.37-h3"></script>
+  <script src="level-calibration.js?v=04.37-h3"></script>
+  <script src="player-home.js?v=04.37-h3"></script>
+  <script src="match-load.js?v=04.37-h3"></script>
+  <script src="player-identity.js?v=04.37-h3"></script>
+  <script src="groups.js?v=04.37-h3"></script>
+  <script src="locations.js?v=04.37-h3"></script>
+  <script src="ranking.js?v=04.37-h3"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.37-h2"></script>
+  <script src="auth.js?v=04.37-h3"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.37-h2"></script>
-  <script src="match-sync.js?v=04.37-h2"></script>
+  <script src="matches.js?v=04.37-h3"></script>
+  <script src="match-sync.js?v=04.37-h3"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.37-h2"></script>
+  <script src="match-validation.js?v=04.37-h3"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.37-h2"></script>
+  <script src="match-self-heal.js?v=04.37-h3"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.37-h2"></script>
-  <script src="app.js?v=04.37-h2"></script>
+  <script src="intelligence-client.js?v=04.37-h3"></script>
+  <script src="app.js?v=04.37-h3"></script>
 </body>
 </html>
