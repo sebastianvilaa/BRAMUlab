@@ -5204,3 +5204,30 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   position:relative;
   z-index:1;
 }
+
+
+
+/* ==========================================================================
+   07OCT26 h18 — micro-bisel tipo App Store en iconos del flujo PWA.
+   Opción B: relieve sutil, más visible arriba/abajo, sin glow.
+   ========================================================================== */
+#install-prompt-intro .install-prompt__app-icon,
+#install-prompt-ios-guide .install-prompt__ios-icon{
+  position:relative;
+  overflow:hidden;
+  box-shadow:
+    0 9px 22px rgba(0,0,0,.34),
+    inset 0 1px 0 rgba(255,255,255,.11),
+    inset 0 -1px 0 rgba(255,255,255,.085);
+}
+
+/* El img no admite ::after; usamos filter/drop-shadow + outline óptico sobre el propio asset.
+   La profundidad se refuerza con un contorno sutil y luces superior/inferior simuladas. */
+#install-prompt-intro .install-prompt__app-icon,
+#install-prompt-ios-guide .install-prompt__ios-icon{
+  outline:1px solid rgba(255,255,255,.055);
+  outline-offset:-1px;
+  filter:
+    drop-shadow(0 -1px 0 rgba(255,255,255,.055))
+    drop-shadow(0 1px 0 rgba(255,255,255,.045));
+}
