@@ -357,5 +357,5 @@ Explorar (cliente, solo <select>)  ──►  Edge admin-metrics  ──►  met
 ### 12.2 Fuera de V1 (decisiones abiertas D9–D11 en `149_…` §10.5)
 Rama competitiva, series de WAU/MAU y de saldos, cruces de filtros, rango personalizado, drill-down por persona, SQL libre.
 
-### 12.3 Consentimiento de la actividad (09/10/2026)
+### 12.3 Consentimiento de la actividad (08/10/2026)
 La captura de presencia pasó a depender de un **consentimiento informado, opcional y revocable** (V04.38, migración `20261008150000`, **medición apagada por defecto**). DAU/WAU/MAU y retención miden **solo a quienes consintieron**; la consola muestra la cobertura (k=5). Detalle y pruebas: `149_…` §14; textos y orden: `Operacion/Privacidad_Legal.md` §18.

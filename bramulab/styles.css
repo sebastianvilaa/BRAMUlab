@@ -5415,3 +5415,6 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
 #view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
 #view-activity-consent .access-scroll--under-header{ padding-top: 12px; }
+/* V04.38-h2 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
+#settings-activity-row .settings-row__label{ white-space:nowrap; }
+#settings-activity-row .settings-row__value{ flex:0 0 auto; max-width:45%; }

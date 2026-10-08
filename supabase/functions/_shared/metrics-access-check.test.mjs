@@ -66,6 +66,7 @@ test('servidor correcto (Edge real + SQL real): todas las comprobaciones aprueba
   const s = summarize(results);
   assert.equal(s.fail, 0, JSON.stringify(results.filter((r) => r.status === 'FALLA')));
   assert.equal(by(results, '4c').status, 'OMITIDA');
+  assert.equal(by(results, '4d').status, 'OK'); assert.equal(by(results, '4e').status, 'OK');
   assert.ok(s.ok >= 18, `OK=${s.ok}`);
   assert.equal(by(results, '2a').status, 'OK'); assert.equal(by(results, '3a').status, 'OK'); assert.equal(by(results, '3f').status, 'OK');
 });
@@ -98,6 +99,7 @@ test('DETECTA que una cuenta común pueda leer (todos admin) y que el servidor f
 test('DETECTA PostgREST abierto, sitio sin noindex y fixture de QA publicado en Production; entorno equivocado', async () => {
   let r = await runChecks({ fetch: makeFetch({ restOpen: true }), env, target: 'staging' });
   assert.ok(r.filter((x) => x.name.startsWith('4') && x.status === 'FALLA').length >= 2);
+  assert.equal(by(r, '4d').status, 'FALLA', 'consentimiento accesible sin sesión'); assert.equal(by(r, '4e').status, 'FALLA', 'funciones internas de consentimiento ejecutables');
   r = await runChecks({ fetch: makeFetch({ noIndexMissing: true }), env, target: 'staging' });
   assert.equal(by(r, '5b').status, 'FALLA');
   r = await runChecks({ fetch: makeFetch({ fixturePublished: true }), env, target: 'production' });

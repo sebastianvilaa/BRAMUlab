@@ -380,9 +380,9 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 | ID | Decisión | Recomendación |
 |---|---|---|
 | **D3-a** | ¿La actividad diaria es un cambio **material** de la Política (re-aceptación de todos) o una **aclaración**? | **ABIERTA, SIN CONCLUSIÓN:** Sebastián prefiere no pedir nueva aceptación *solo si la revisión legal lo confirma*; el análisis (`Privacidad_Legal.md` §18.2) **no lo confirma** (dato y finalidad nuevos; Términos §13 no prevé un cambio informativo). Requiere la verificación interna por escrito de Central; si no se confirma, opción B (barata hoy: ≈ 6 cuentas). |
-| **D3-b** | Al eliminar una cuenta: ¿se conserva anonimizada la actividad o se borra? | **CONFIRMADA por Sebastián (09/10): solo se conserva si queda realmente anonimizada; no se puede garantizar ⇒ se ELIMINA** (migración `20261008140000`, §13). |
+| **D3-b** | Al eliminar una cuenta: ¿se conserva anonimizada la actividad o se borra? | **CONFIRMADA por Sebastián (08/10): solo se conserva si queda realmente anonimizada; no se puede garantizar ⇒ se ELIMINA** (migración `20261008140000`, §13). |
 | **AAIP** | ¿El registro presentado describe «datos de uso/actividad»? Si no, modificarlo. | Verificar antes de publicar (fuente privada). |
-| **D4** | **¿Qué cuenta de Production** es la administradora? | **CONFIRMADA (09/10): `@seba`**, identidad comprobada por Central; alta con `supabase/scripts/metrics-grant-admin.sql`. |
+| **D4** | **¿Qué cuenta de Production** es la administradora? | **CONFIRMADA (08/10): `@seba`**, identidad comprobada por Central; alta con `supabase/scripts/metrics-grant-admin.sql`. |
 | **D2** | **¿Qué cuentas son internas/de prueba** (propias y de amigos) para excluirlas por defecto? | Marcar las del equipo antes de mirar cifras. |
 | **D6** | ¿MFA para la cuenta administradora? | Diferir; no bloqueante. |
 | **D7** | Confirmar umbral **k = 5**. | Confirmar. |
@@ -397,7 +397,7 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 
 ---
 
-## 13. Cierre de seguridad y privacidad antes de Production — decisión D3-b (09/10/2026)
+## 13. Cierre de seguridad y privacidad antes de Production — decisión D3-b (08/10/2026)
 
 **Decisión CONFIRMADA por Sebastián:** los datos históricos de actividad solo pueden conservarse si quedan realmente anonimizados; si no se puede garantizar, deben eliminarse. **Resultado:** no se puede garantizar ⇒ **la actividad diaria se elimina junto con la cuenta.** Texto de privacidad revisado (sin publicar): `Operacion/Privacidad_Legal.md` §18. Coordinación de la ronda: `Trabajo en curso/Frente_Metrics.md` (fuera de Git).
 
@@ -413,7 +413,7 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 
 ---
 
-## 14. Consentimiento informado de la actividad (V04.38 / `04.38-h1`, 09/10/2026) — SOLO Staging, nada publicado
+## 14. Consentimiento informado de la actividad (V04.38 / `04.38-h1`, 08/10/2026) — SOLO Staging, nada publicado
 
 **Decisión CONFIRMADA por Sebastián (reemplaza la preferencia D3-a de evitar la nueva aceptación):** actualizar la Política y pedir una **aceptación informada, opcional** del registro de actividad. Existentes: **una** pantalla breve; nuevos: dentro del alta, sin segunda pantalla; **no se registra ninguna apertura antes del consentimiento**; quien no consiente no se mide y usa la app igual; evidencia conservada; **sin reconstrucción**. Diseño completo, textos y orden: `Operacion/Privacidad_Legal.md` §18. **No se tocó Production, `main`, BRAMUlive ni las páginas legales publicadas.**
 
@@ -427,3 +427,10 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 | **Verificación visual** | Pantalla de consentimiento y casilla del alta revisadas a 375 px (HTML/CSS real). **Sin sesión real de Supabase** en esta ronda: el flujo completo contra Staging queda para Central (abajo). |
 
 **Qué falta para publicar (quién):** (1) **Verificación interna escrita** del diseño (¿sin reaceptación de `legal_v1`? ¿consentimiento válido? ¿guardar el texto además de la versión?) — Central/Sebastián, `Privacidad_Legal.md` §18.6. (2) **Constancia AAIP** — Sebastián/Central, §18.5. (3) Central: aplicar `20261008150000` en Staging, fijar `activity_consent_version='activity_v1'` solo en Staging y correr QA con sesiones reales (existente → pantalla; alta nueva → casilla; declinar → 0 filas y app usable; retirar → se borra; eliminar cuenta → evidencia conservada; `metrics-access-check.mjs --target staging`). (4) Publicar la Política y «Eliminar cuenta» **dentro del SHA a promover**. (5) Preflight de Production y autorización de Sebastián con SHA. (6) Recién después, encender la medición en Production (Runbook D.3 paso 5b).
+
+### 14.1 Ronda h2 (08/10/2026, tras aplicar Central `20261008150000` en Staging)
+- **Textos implementados en Staging:** `privacidad/` (nueva subsección «Actividad básica de uso (solo si lo aceptás)» con ancla, §3 «Medición de uso», §6, §7 con retiro, «Historial de cambios») y `eliminar-cuenta/` (actividad eliminada; solo queda la constancia técnica de la decisión). `legal_v1` y `terminos/` intactos. **Production no se tocó.**
+- **Recorrido verificado en el navegador** (app real con **servidor Supabase simulado**, 375 px; no hay credenciales ni acceso a Staging desde esta herramienta): existente → pantalla única → ACEPTAR (decisión `prompt`, 1 presencia, Home) / NO, GRACIAS (0 filas, Home); no se vuelve a preguntar; Configuración → «Medición de uso» → DESACTIVAR (actividad a 0) / ACTIVAR; alta con casilla sin marcar → metadata `declined`; alta con medición apagada → sin casilla, sin pantalla, fila oculta, 0 presencia; enlace de la pantalla abre la Política en la sección correcta.
+- **Defectos concretos corregidos (V04.38-h2):** la fila «Medición de uso» partía su rótulo en dos líneas; desde Configuración se ofrecía «ACTIVAR» estando ya activada (ahora solo la acción opuesta).
+- **Verificador de acceso** (`metrics-access-check.mjs`): nuevas comprobaciones 4d/4e (consentimiento sin sesión denegado; funciones internas y tabla de evidencia no accesibles a una cuenta común) y 4c informa el motivo si no registró (sin consentimiento).
+- **No verificado:** activación real de `activity_consent_version` en Staging (Central), sesiones reales, celular real.

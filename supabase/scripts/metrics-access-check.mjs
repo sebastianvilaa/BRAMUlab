@@ -116,9 +116,20 @@ export async function runChecks({ fetch: f = globalThis.fetch, env, target, allo
   {
     const r = await rest(null, 'POST', 'rpc/register_app_presence', { p_display_mode: 'browser', p_platform: 'ios', p_app_bundle: null });
     add('4b register_app_presence sin sesión (anon) → denegado', r.status !== 200 ? 'OK' : 'FALLA', `HTTP ${r.status}`);
+    // Consentimiento de medición: las funciones del jugador exigen sesión y las internas (que escriben evidencia con una fecha arbitraria) no son ejecutables por nadie vía PostgREST.
+    const cs = await rest(null, 'POST', 'rpc/get_my_activity_consent', {});
+    const cw = await rest(null, 'POST', 'rpc/set_my_activity_consent', { p_version: 'activity_v1', p_granted: true, p_source: 'prompt' });
+    add('4d consentimiento de medición sin sesión (anon) → denegado', cs.status !== 200 && cw.status !== 200 ? 'OK' : 'FALLA', `get HTTP ${cs.status} · set HTTP ${cw.status}`);
+    if (common) {
+      const ri = await rest(common, 'POST', 'rpc/_record_activity_consent', { p_player: '00000000-0000-0000-0000-000000000000', p_version: 'activity_v1', p_decision: 'granted', p_source: 'prompt', p_at: '2026-01-01T00:00:00Z' });
+      const st = await rest(common, 'POST', 'rpc/_activity_consent_status', { p_player: '00000000-0000-0000-0000-000000000000' });
+      const tb = await rest(common, 'GET', 'activity_consents?select=*&limit=1');
+      add('4e consentimiento: funciones internas no ejecutables y tabla de evidencia ilegible para una cuenta común', ri.status !== 200 && st.status !== 200 && !(tb.status === 200 && Array.isArray(tb.json) && tb.json.length > 0) ? 'OK' : 'FALLA', `_record HTTP ${ri.status} · _status HTTP ${st.status} · tabla HTTP ${tb.status}`);
+    } else add('4e consentimiento: funciones internas y tabla de evidencia (cuenta común)', 'OMITIDA', 'sin sesión de cuenta común');
     if (allowPresenceWrite && common) {
       const w = await rest(common, 'POST', 'rpc/register_app_presence', { p_display_mode: 'browser', p_platform: 'desktop', p_app_bundle: null });
-      add('4c register_app_presence con sesión → ok (escribe SOLO la fila propia)', w.status === 200 && w.json && w.json.ok === true ? 'OK' : 'FALLA', `HTTP ${w.status}`);
+      // Con la medición de consentimiento, `ok:true` también cubre `recorded:false` (apagada o sin consentimiento): se informa cuál fue.
+      add('4c register_app_presence con sesión → ok (escribe SOLO la fila propia, y solo con consentimiento vigente)', w.status === 200 && w.json && w.json.ok === true ? 'OK' : 'FALLA', `HTTP ${w.status}${w.json && w.json.recorded === false ? ` · no registró: ${w.json.reason || 'sin motivo'}` : ''}`);
     } else add('4c register_app_presence con sesión (escritura)', 'OMITIDA', 'requiere --allow-presence-write');
   }
 

@@ -83,9 +83,9 @@ test('ST-4) build de Staging: iconos PWA/favicon/apple-touch ST, URLs del manife
 
 test('ST-5) bundle sincronizado (h1 vigente) (cache-busting de iconos para instalaciones existentes)', () => {
   const html = rd(__dirname, 'index.html').toString('utf8');
-  assert.match(html, /icons\/favicon-64\.png\?v=04\.38-h1/);
-  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.38-h1');
-  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-38-h1/);
+  assert.match(html, /icons\/favicon-64\.png\?v=04\.38-h2/);
+  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.38-h2');
+  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-38-h2/);
 });
 
 /* ======================= Selección por ENTORNO (lo que decide Vercel), no por commit ======================= */

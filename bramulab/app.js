@@ -8785,6 +8785,9 @@
     if (fromSettings) cur.textContent = `Hoy: ${(ACTIVITY_STATUS_LABEL[currentStatus] || 'Sin decidir').toLowerCase()}.`;
     $('#activity-consent-accept-btn').textContent = fromSettings ? 'ACTIVAR' : 'ACEPTAR';
     $('#activity-consent-decline-btn').textContent = fromSettings ? 'DESACTIVAR' : 'NO, GRACIAS';
+    // Desde Configuración solo se ofrece la acción OPUESTA al estado actual (no tiene sentido «ACTIVAR» si ya está activada); en la pantalla inicial, las dos.
+    $('#activity-consent-accept-btn').hidden = fromSettings && currentStatus === 'granted';
+    $('#activity-consent-decline-btn').hidden = fromSettings && currentStatus !== 'granted';
     $('#activity-consent-accept-btn').disabled = false;
     $('#activity-consent-decline-btn').disabled = false;
     $('#activity-consent-error').hidden = true;

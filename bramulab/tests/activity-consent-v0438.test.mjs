@@ -121,9 +121,30 @@ test('app.js: el consentimiento se resuelve DESPUÉS del gate legal, nunca bloqu
   assert.match(appJs, /Auth\.signUp\(email, \$\('#signup-password'\)\.value, legal\.legalVersion, activityChoice\)/);
 });
 
-test('versionado en cuarteto consistente (V04.38 / 04.38-h1)', () => {
+test('versionado en cuarteto consistente (V04.38 / 04.38-h2)', () => {
   const v = JSON.parse(read('version.json'));
   assert.match(String(v.bundle || v.version || JSON.stringify(v)), /04\.38-h\d+/);
   assert.match(read('store.js'), /BRAMUlab V04\.38/);
   assert.match(read('sw.js'), /bramulab-v04-38-h\d+/);
+});
+
+test('Política y «Eliminar mi cuenta» (V04.38-h2): describen la medición como OPCIONAL, con retiro, eliminación y constancia; ancla para el enlace; legal_v1 intacta', () => {
+  const pol = read('privacidad/index.html'); const del = read('eliminar-cuenta/index.html');
+  assert.match(pol, /<h3 id="actividad-de-uso">Actividad básica de uso \(solo si lo aceptás\)<\/h3>/, 'ancla que usan la casilla y la pantalla de consentimiento');
+  for (const re of [/es opcional/i, /no registramos esta actividad y usás BRAMUlab exactamente igual/, /Perfil → Configuración → Medición de uso/, /constancia de tu decisión/, /Medición de uso \(solo con tu consentimiento\)/, /no la conservamos anonimizada ni seudonimizada/, /Historial de cambios/, /no hacemos seguimiento individual/i, /no elaboramos fichas, listados ni rankings de uso por persona/]) assert.match(pol, re, String(re));
+  assert.match(pol, /data-legal-version="legal_v1"/); assert.match(del, /data-legal-version="legal_v1"/);
+  assert.match(pol, /No integramos analítica ni publicidad de terceros/, 'la promesa sobre terceros sigue siendo verdadera y se mantiene');
+  assert.ok(!/(sin posibilidad de oposición|no existe un interruptor)/i.test(pol));
+  assert.match(del, /registro de actividad básica de uso/); assert.match(del, /constancia técnica/); assert.match(del, /no contiene datos de actividad/);
+  for (const [name, h] of [['Política', pol], ['Eliminar cuenta', del]]) assert.ok(!/\[\[PENDIENTE_PRODUCCION/.test(h), `${name}: sin marcadores de Production nuevos`);
+  const idx = html.match(/data-legal-hash="([^"]+)"/g) || [];
+  assert.ok(idx.length >= 2 && idx.every((x) => x === 'data-legal-hash="actividad-de-uso"'), 'todos los enlaces apuntan al ancla existente');
+});
+
+test('Configuración → Medición de uso: ofrece solo la acción OPUESTA al estado actual y la fila no parte su rótulo', () => {
+  const fn = appJs.slice(appJs.indexOf('function openActivityConsent'), appJs.indexOf('async function decideActivityConsent'));
+  assert.match(fn, /accept-btn'\)\.hidden = fromSettings && currentStatus === 'granted'/);
+  assert.match(fn, /decline-btn'\)\.hidden = fromSettings && currentStatus !== 'granted'/);
+  const css = read('styles.css');
+  assert.match(css, /#settings-activity-row \.settings-row__label\{ white-space:nowrap; \}/);
 });
