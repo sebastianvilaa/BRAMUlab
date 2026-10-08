@@ -74,3 +74,29 @@ El agente ejecutor debe leer `docs/BRAMUlab/README.md`, `Metodo_Trabajo.md`, `Ba
 - Definiciones vigentes que concretan §3 y §5: activo = **presencia** (apertura real autenticada, 1 fila por jugador y día BA), nunca el último login; umbral de privacidad **k = 5** (n ≥ 10 calibrados para distribución de Nivel); comparación contra el período anterior por defecto y desactivable; cohortes de activación **maduras desde 7 días**; retención semanal W1/W4 como lectura principal (D1/D7/D30 secundarias).
 - **D8 CONFIRMADA (Sebastián, 08/10/2026): comparaciones con días completos, hasta ayer.** Los períodos terminan a las 00:00 de hoy (BA) y el anterior mide lo mismo; la actividad de hoy se muestra aparte como «parcial» y no entra en comparaciones. Detalle en `BRAMU_Metrics_Comparaciones_V1.md`.
 - **F4** (Activación, Comunidad —Grupos · Nivel · Ranking, separados—, Uso y retención): **implementada en el repo y probada localmente (08/10/2026)**; falta que Central aplique la migración `20261008120000` en Staging y verifique (`149_…` §8). Alcance y criterios en `148_…` §11. Distingue lo ya disponible (31 de 49 KPIs), lo derivable con SQL aditivo sin captura nueva y lo que exige empezar a recopilar (presencia en Production; pantallas/funciones). **La presencia aún no se captura en Production**: su promoción (D1, previa D3 de privacidad) es lo más urgente porque los días sin registro no se recuperan.
+
+
+## 11. Siguiente bloque de producto — Explorar (F6, diseño de ejecución confirmado, 08/10/2026)
+
+**Propósito:** además de las seis secciones preparadas, Sebastián quiere explorar por sí mismo cualquier métrica medida y entender su evolución. Debe sentirse como una herramienta visual de descubrimiento, **no** una interfaz SQL ni una planilla.
+
+### Recorrido principal
+1. Pestaña **Explorar** en la consola existente, con selector de indicador agrupado por Usuarios, Partidos, Activación, Comunidad y Uso. Partir del catálogo verificado (actualmente 55 KPI después de F4); no inventar consultas ni agregar métricas ficticias.
+2. Controles de período **7 / 30 / 90 días / Histórico** y **comparación anterior activada por defecto**, coherentes con las otras pantallas. D8 vigente: días completos hasta ayer, hoy parcial separado.
+3. Al elegir un indicador, mostrar **valor, unidad, definición, población y disponibilidad**; variación solamente donde tenga base válida. Permitir ver **gráfico temporal** si existen hechos históricos y serie implementada. Si no se puede construir serie auténtica, mostrar el KPI y explicar “Evolución temporal no disponible” (nunca una línea inventada).
+4. **Filtros contextuales y progresivos**, solo sobre métricas para las que se haya validado la población y la semántica. Opciones candidatas: localidad (usuarios/partidos, si procede), estado del partido, rama competitiva y estado de Nivel. Un filtro no válido para una métrica no se ofrece. Al cambiar de métrica se limpian filtros incompatibles. **No prometer todos los cruces en V1.**
+5. La selección de métrica, fecha y filtros debe ser simple también en celular; escritorio puede tener controles laterales. Reutilizar estética oscura deportiva y componentes F3/F4; el panel preparado nunca se modifica para acomodar el Explorador.
+
+### Requisitos de datos y seguridad
+- La API del Explorador utiliza **catálogo cerrado y consultas declaradas**; nunca recibe ni ejecuta SQL o nombres de tablas/columnas proporcionados arbitrariamente por el cliente.
+- Misma autorización administrativa en cada solicitud que `admin-metrics` y mismos permisos cerrados de base; no exponer datos personales ni vistas por jugador.
+- Aplicar la supresión **k = 5** y reglas de muestra mínima **en SQL** antes de entregar cada filtro/desglose, evitando inferencia por diferencias de totales, filtros cruzados o series con celdas pequeñas. Testear específicamente inferencia por sustracción, no solo ocultar una etiqueta.
+- Definiciones idénticas a los paneles preparados: registrar/validar catálogo, numerador, denominador, fechas, exclusión de internas, período anterior y estados antes de exponer cualquier nuevo filtro.
+- Priorizar pocos filtros realmente confiables frente a una colección amplia pero equívoca; no instrumentar eventos nuevos ni hacer backfill imaginario.
+
+### Secuencia de ejecución
+- Claude implementa **F6 solo en Staging**, apoyándose en la base F4 ya aprobada, con tests dirigidos de permisos, contrato, umbrales y UX responsive. Si un filtro es riesgoso o costoso de verificar, documentar **DECISIÓN ABIERTA** y dejarlo fuera de V1, avanzando con el Explorador y los demás indicadores.
+- Central revisa migraciones adicionales, aplica exclusivamente en Supabase Staging y verifica los contratos, luego QA visual con Sebastián. **Ningún cambio en Production, main o BRAMUlive sin autorización específica.**
+- Antes de considerar Production siguen pendientes las pruebas reales de sesión administrativa, denegación a usuarios comunes y política de privacidad del registro de presencia.
+
+**Estado al 08/10:** F4 implementada y su migración aplicada y verificada por Central en Supabase Staging; Vercel h30 READY. Explorador aún NO implementado.
