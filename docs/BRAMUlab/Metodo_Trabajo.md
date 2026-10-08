@@ -466,12 +466,14 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 
 ### Dropbox (originales y material no versionado)
 
-Hay **dos carpetas visibles** en `/Otros Trabajos/` (mapa completo en `BRAMU/LEEME.md`; sin carpetas ocultas ni accesos directos):
+Una única carpeta principal visible, `/Otros Trabajos/BRAMU/` (mapa en su `LEEME.md`; sin carpetas ocultas ni accesos directos):
 
-- **`BRAMU/`** — todo lo que no es código: `Sistema grafico/` (originales de Illustrator, identidad visual, exportaciones y `Referencias/`; **intocable**: no renombrar, reemplazar ni reconstruir nada de adentro), `Documentos privados/` (material sensible no versionado, p. ej. las decisiones legales con datos personales del titular; nunca va al repositorio público) y `Archivo histórico/` (dos zips sin copia en Git, explicados en su `LEEME.md`).
-- **`BRAMUlab/BRAMUlab/`** — la copia de trabajo del repositorio (GitHub es la fuente de verdad), con los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. **No se mueve ni se renombra** mientras la memoria, el historial de sesiones, `.claude/launch.json` y los worktrees de Claude Code dependan de esa ruta exacta. Unificarla bajo `BRAMU/` requiere migrar esos registros con la app cerrada y copia de seguridad (DECISIÓN ABIERTA en el Issue #31). Nunca guardar acá algo irrecuperable que no esté en Git.
+- **`Desarrollo/`** — la copia de trabajo del repositorio (GitHub es la fuente de verdad) con los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. Es una copia limpia (`git clone`) creada el 08/10/2026; **no se mueve ni se renombra** mientras haya sesiones de Claude Code/Git sobre esa ruta (la memoria y el historial de cada proyecto se asocian a la ruta). Nunca guardar acá algo irrecuperable que no esté en Git; `.claude/launch.json` lleva rutas absolutas de esta carpeta.
+- **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/`. **Intocable**: no renombrar, reemplazar ni reconstruir nada de adentro.
+- **`Documentos privados/`** — material sensible no versionado (p. ej. las decisiones legales con datos personales del titular); nunca va al repositorio público.
+- **`Archivo histórico/`** — dos zips sin copia en Git, explicados en su `LEEME.md`. Nada «por las dudas».
 
-Todo material nuevo se guarda en la sección que le corresponde; nada suelto en `Otros Trabajos`. Nada «por las dudas» en `Archivo histórico/`: solo material sin copia en Git ni fuente maestra, con su motivo en el `LEEME.md` de esa carpeta.
+El historial de las sesiones anteriores a la migración sigue consultable desde la app (`list_events`, `search_session_transcripts`) aunque su carpeta original ya no exista. Todo material nuevo se guarda en la sección que le corresponde; nada suelto en `Otros Trabajos`.
 
 No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no es un entregable ni se versiona; la copia local de `supabase/scripts/node_modules` existe solo porque los tests de `bramulab/` importan PGlite desde ahí (si falta: `cd supabase/scripts && npm ci`).
 
