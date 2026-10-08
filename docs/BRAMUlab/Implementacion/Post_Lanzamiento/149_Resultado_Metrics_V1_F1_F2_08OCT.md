@@ -305,3 +305,25 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 | **D10** | **Serie móvil de WAU/MAU** y **saldos reconstruidos** (cuentas registradas en el tiempo): derivables pero con supuestos (`is_active` no tiene historia). Hoy dicen «Evolución temporal no disponible». | ABIERTA — se retoma si Sebastián los necesita |
 | **D11** | **Cruces de dos filtros** y **rango personalizado**: excluidos a propósito (inferencia por celdas e intersecciones). Cualquier ampliación exige revisión de privacidad y pruebas de sustracción nuevas. | ABIERTA — no recomendada para V1 |
 | D3 / D1 | Sin cambios: texto de privacidad de la presencia → promoción de la presencia a Production. Siguen siendo previos a cualquier promoción de la consola. | ABIERTAS |
+
+
+---
+
+## 11. Central — Explorador conectado y comprobado en Staging (08/10/2026)
+
+**Autorización explícita de Sebastián:** instalación y verificación de F6 exclusivamente en Staging.
+
+**Ejecutado en Supabase Staging** `serxtivkfnptzurnvewg`:
+- Aplicada correctamente la migración aditiva `20261008130000_metrics_f6_explorar.sql` con `apply_migration` (`success=true`).
+- Redespĺegada `admin-metrics` **versión 2 ACTIVE, `verify_jwt=true`**, con las tres fuentes actuales de GitHub `staging` (`admin-metrics/index.ts`, `_shared/admin-metrics-core.mjs`, `_shared/rate-limit.ts`). No se alteraron otras Edge Functions.
+- Vercel Staging `04.37-h31`, commit `740df7f31faa`, deploy `dpl_As9Mr8ZL5Pr7fSNVgTUkXRSt7XQM` **READY** en `https://bramulab-7ongfsl21-bramu-lab.vercel.app/admin/metrics/`.
+
+**Consultas vivas de verificación:**
+- Funciones nuevas = **7**; permisos directos para `anon`/`authenticated` = **0**; funciones ejecutables por `service_role` = **2** (catálogo y consulta). Los helpers permanecen cerrados.
+- Catálogo real = **55** indicadores; **10** con serie; **7** con filtros; tipos de filtro = `level_status`, `location`, `match_status`, `platform`.
+- Concordancia KPI del Explorador vs. KPI del panel: **5 de 5 coinciden** (`users.signups`, `matches.created`, `activation.fifth_match`, `community.groups_created`, `usage.wau`). Todos los payloads consultados dan `ok=true`, sin UUID en las respuestas.
+- `matches.created` filtrado por `match_status=validated` devuelve 63 partidos en esta fotografía de Staging; indicador con serie disponible. Filtro de localidad desconocida devuelve valor nulo, sin datos identificativos. Métrica inexistente devuelve `invalid_metric` y no entrega registros; `usage.wau` con plataforma sin muestra suficiente queda sin valor visible. **Estos son datos de prueba de Staging, no Production.**
+
+**Pendiente de validación (no declarar completamente cerrado):** sesión real de `@seba_qa` recorriendo las siete pestañas, especialmente selector y filtros del Explorador; respuesta real HTTP 403 con cuenta común, comprobación de pestañas en móvil físico y otras verificaciones vivas ya listadas en §7.4 y §10.4. Esta ronda verificó el motor SQL real y la implementación ACTIVE de la función, **no una sesión de navegador con permisos de administrador**.
+
+**Límites:** no se tocó Production, `main` ni BRAMUlive. Cualquier promoción futura requiere revisión previa de privacidad y autorización explícita específica.
