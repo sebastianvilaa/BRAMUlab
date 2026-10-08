@@ -472,7 +472,7 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 - **`Archivo histórico/`** — material retirado de otras ubicaciones, conservado por precaución; no es fuente de nada.
 - **`LEEME.md`** — este mapa, en una página.
 
-No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no se guarda como entregable.
+No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no es un entregable ni se versiona; la copia local de `supabase/scripts/node_modules` existe solo porque los tests de `bramulab/` importan PGlite desde ahí (si falta: `cd supabase/scripts && npm ci`).
 
 ### Mantenimiento
 
