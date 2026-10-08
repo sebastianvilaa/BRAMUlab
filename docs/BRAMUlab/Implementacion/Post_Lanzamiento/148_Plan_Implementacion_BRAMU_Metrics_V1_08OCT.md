@@ -236,6 +236,8 @@ Presupuesto de deploys (`Metodo_Trabajo.md`): **1 push funcional por fase**; las
 | **F6 — Explorar v1** (post-F4, incremental) | Pantalla Explorar: métrica del catálogo + rango + comparación, serie/barras, definición y denominador; filtros por localidad, estado de partido, rama y estado de Nivel **solo** donde el catálogo los declare y con umbral k=5; sin SQL libre | Sí | Claude | Mismos gates; revisión de privacidad de cada filtro nuevo |
 | **F5 — Cierre y salida** | Gate integral (seguridad + regresión de la app), documentación en `README`/`Runbook`, checklist de promoción | No | Central | **Autorización explícita de Sebastián** para tocar Production (migraciones aditivas, función, fila de admin, promoción del bundle, smoke de riesgo) |
 
+> **F5 — estado 08/10/2026:** preparada, **NO ejecutada**. Procedimiento, retiro y verificadores: `Operacion/Runbook_Operacion_y_Salida.md` Parte D; evidencia, riesgos y decisiones: `149_…` §12; texto de privacidad (sin publicar): `Operacion/Privacidad_Legal.md` §18.
+
 Orden de numeración vs. de ejecución: F5 (cierre/salida) es el gate de Production y puede ejecutarse sobre el alcance ya construido; F6 no bloquea la salida de V1 y se construye después, sobre métricas ya confiables.
 
 Orden recomendado para minimizar dato perdido: **F1 antes que F3** (F2 y F1 pueden ir en paralelo; ambos tocan archivos distintos). La retención útil necesita semanas de presencia: por eso F4 puede construirse antes de que haya cohortes maduras y mostrarlas como «Todavía no medible, desde dd/mm».

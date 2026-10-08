@@ -1,6 +1,6 @@
 # 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
 
-> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026); §9 = verificación de F4 por Central; **§10 = F6 Explorar (implementación del 08/10/2026)**.
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026); §9 = verificación de F4 por Central; §10 = F6 Explorar (implementación del 08/10/2026); §11 = verificación de F6 por Central; **§12 = preparación de la publicación privada en Production (08/10/2026)**.
 
 **Estado (actualizado 08/10/2026):** implementado en el repo y probado localmente (PGlite = Postgres real + Node). F1/F2 **aplicados en Supabase Staging** y `admin-metrics` **desplegada** por Central; F3 (`04.37-h29`) desplegada en Staging. Estado del cierre de F3: §7. (Los §1–§5 describen lo entregado en la ronda original; sus «pendientes de Central» ya se ejecutaron salvo lo que §7 deja abierto.) Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
@@ -327,3 +327,69 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 **Pendiente de validación (no declarar completamente cerrado):** sesión real de `@seba_qa` recorriendo las siete pestañas, especialmente selector y filtros del Explorador; respuesta real HTTP 403 con cuenta común, comprobación de pestañas en móvil físico y otras verificaciones vivas ya listadas en §7.4 y §10.4. Esta ronda verificó el motor SQL real y la implementación ACTIVE de la función, **no una sesión de navegador con permisos de administrador**.
 
 **Límites:** no se tocó Production, `main` ni BRAMUlive. Cualquier promoción futura requiere revisión previa de privacidad y autorización explícita específica.
+
+
+---
+
+## 12. Preparación de la publicación privada en Production (08/10/2026) — NADA publicado
+
+**Alcance de la ronda:** solo cerrar seguridad, privacidad y procedimiento; ninguna función nueva de Metrics. No se tocó Production, `main` ni BRAMUlive, y no se modificó ningún texto legal publicado. Procedimiento operativo paso a paso: `Operacion/Runbook_Operacion_y_Salida.md` **Parte D**. Texto de privacidad propuesto: `Operacion/Privacidad_Legal.md` §18.
+
+### 12.1 Respuestas
+| Pregunta | Respuesta |
+|---|---|
+| **¿Cómo garantizamos que solo la cuenta real de Sebastián en Production acceda?** | Cuatro capas independientes: (1) la Edge exige JWT válido (`verify_jwt` + `auth.getUser`); (2) la autorización es una **lista de UUID** (`metrics_admins`) que **las migraciones no siembran**: Production arranca con **0 administradores = nadie accede**; Central inserta **una** fila a mano con el UUID de la cuenta real; (3) el SQL de métricas solo lo ejecuta `service_role` y las tablas tienen RLS sin políticas (probado con roles reales); (4) la página no decide nada y el 403 es idéntico para cuenta común, revocada o inexistente. Ni @usuario, ni email, ni metadatos conceden acceso. Apagado inmediato: `revoked_at`. |
+| **¿Qué pruebas de acceso/denegación faltan realmente?** | Las que exigen **sesiones reales**: cuenta común → 403 (catálogo, secciones, Explorador, cuerpo inválido), administradora → 200 en 6 secciones × 4 períodos + 55 indicadores, PostgREST directo con token real, y headers/robots del sitio **ya publicado**. Quedan empaquetadas en **un comando** (`supabase/scripts/metrics-access-check.mjs`), con credenciales por variables de entorno (nunca en chat) y lo no ejecutado figura «OMITIDA». Ejecutado hoy sin credenciales: 401 sin `Authorization` y 401 con token malformado contra la Edge de Staging (§7.4 filas 1 y 3); el resto del acceso a nivel SQL ya lo verificó Central (§9, §11) y el ensayo de hoy. |
+| **¿Qué cambios de privacidad requiere la actividad diaria, incluida la eliminación de cuentas?** | Una aclaración en la Política (§2 datos técnicos, §3 finalidades, §6 conservación, §7 acceso), **propuesta pero NO publicada** (`Privacidad_Legal.md` §18), la decisión de si es cambio material (**D3-a**, recomendado: no) y qué pasa al eliminar (**D3-b**, recomendado: la fila queda anonimizada y solo cuenta en agregados; verificado: no hay IP/ubicación/pantallas y el informe de acceso la incluye). Revisar además si el registro AAIP describe «datos de uso». |
+| **¿Qué migraciones, funciones y cambios visuales llegan a Production y en qué orden?** | Base: `20261008100000` → `…110000` → `…120000` → `…130000`. Edge: `admin-metrics` (3 archivos). Frontend: nueva pestaña/consola `/admin/metrics/` y la captura de presencia. Orden: **base → administrador → Edge → pruebas de acceso → frontend → humo → primer uso** (Runbook D.3). |
+| **¿Se puede promocionar sin arrastrar cambios ajenos de Staging?** | **Sí, verificado.** Production se publica desde un SHA elegido. `promotion-surface.mjs` compara el `dist/` de Production de h26 contra HEAD: cambian solo `app.js` y `auth.js` (presencia), `sw.js` (1 línea `/admin/` → red), 3 archivos de versión y los 3 de `admin/metrics/`. El icono azul de Staging, el fixture de QA, los tests y la documentación **no llegan**. Las páginas legales son idénticas. |
+| **¿Cómo comprobamos que no afecta a jugadores ni al funcionamiento actual?** | (1) Ensayo sobre una base tipo Production con datos: **ninguna fila, permiso, política, trigger, índice ni función existente cambia**, salvo el informe de acceso (gana `activityDays`; el resto del informe es idéntico); reintento seguro. (2) Superficie del frontend acotada (arriba). (3) La presencia es best-effort: si falla, no hay efecto visible. (4) Humo posterior con conteos antes/después (Runbook D.3 paso 6). |
+| **¿Cómo se revierte sin riesgo para datos reales?** | Por niveles, ensayado (Runbook D.5, `metrics-rollback.sql`): reasignar el alias al deployment anterior (no toca la base) → revocar al administrador → retirar la Edge → retirar el motor (conserva la presencia) → retiro total solo por decisión de Sebastián. Tras los niveles 2 y 3 el esquema y las funciones quedan **idénticos** a los de antes y los datos de jugadores no cambian. |
+
+### 12.2 Evidencia ejecutada en esta ronda
+| Prueba | Resultado |
+|---|---|
+| `metrics-promotion-rehearsal.test.mjs` (PGlite, base tipo Production con 6 cuentas, localidad, Nivel, grupo, partidos, invitación y Ranking) | **12/12**: migraciones aplican sin alterar nada existente; solo cambia `admin_export_player_data`; reintento seguro; informe de acceso idéntico + `activityDays`; sin funciones ejecutables por clientes; 0 administradores sembrados; 6 secciones y 55 indicadores en `production` sin UUID/emails/nombres y sin actividad inventada; presencia escribe solo la fila propia (día BA del servidor); eliminación de cuenta con presencia; retiro nivel 1 reversible y niveles 2–3 devuelven el esquema idéntico; el script no ejecuta nada si se corre entero. |
+| `metrics-access-check.test.mjs` | **5/5**: el verificador aprueba un servidor correcto (Edge real + SQL real) y **detecta** cada defecto (cuenta común que lee, fuga de emails, falta de no-store, PostgREST abierto, sitio sin noindex, fixture publicado, entorno equivocado); no imprime ni reenvía credenciales; cierra sesiones. |
+| `promotion-surface.mjs` h26 → HEAD (`f1ad7d1b…` → `da3a328`) + `bramulab/tests/promotion-surface.test.mjs` | «OK: solo cambia lo esperado» (9 archivos: 3 nuevos de `admin/metrics`, `app.js`, `auth.js`, `sw.js`, y `index.html`/`store.js`/`version.json` solo por versión); herramienta 3/3. |
+| Gate legal del build de Production sobre el repo | `checkLegalPagesReadyForProduction` → OK, sin placeholders; `privacidad/`, `terminos/`, `eliminar-cuenta/` sin cambios desde h26. |
+| Suites previas de Metrics y `release-check` | sin regresión (ver §12.6). |
+| Defectos hallados | **Ninguno** que requiera corregir código. Se revisó el disparo de presencia (solo con sesión real confirmada) y el Service Worker anterior (h26: la navegación a `/admin/` va a la red; no sirve un shell viejo). |
+
+### 12.3 Qué falta realmente (y quién)
+1. **Pruebas con sesión real** (Central/Sebastián, un comando): `metrics-access-check.mjs --target staging` con administradora + una cuenta común y QA visual en celular real (§7.4/§11). **Sin eso no se recomienda publicar.**
+2. **Decisiones de Sebastián** (12.5) y **autorización explícita con el SHA**.
+3. **Verificar Production en solo lectura** antes de aplicar nada: migración vigente `20261006300000` sin deriva, 12 funciones, `app_config = production`, conteos de referencia (Runbook D.2.3). No pude hacerlo (sin credenciales de Production).
+4. Publicar el texto de privacidad (o decidir D3) **antes o junto con** la promoción; revisar el registro AAIP.
+5. Ejecutar el procedimiento D.3 y el humo D.3.6.
+
+### 12.4 Riesgos que quedan
+| Riesgo | Mitigación / estado |
+|---|---|
+| **Sin backup gestionado en Production (G4 abierto, plan Free)** | Migraciones aditivas ensayadas + retiro ensayado; no se promete restauración. Decisión recomendada: elegir plan de backups, no bloqueante. |
+| **La consola protege con la sesión de la cuenta** (sin MFA, D6) | Contraseña fuerte y única; apagado inmediato por `revoked_at`; MFA recomendado más adelante, no bloqueante. |
+| **La captura de presencia empieza el día de la publicación** y es **inseparable** de la consola (mismo build): no hay forma de publicar Metrics sin empezar a registrar actividad | Por eso D3 va antes. Cada día de demora es un día de actividad irrecuperable. |
+| **Subconteo inicial de DAU/WAU** hasta que los jugadores actualicen el bundle (solo cuentan quienes abrieron la versión nueva) | Se ve en Uso → «Versión de la app»; se normaliza en días. |
+| **Actualización de bundle para todos los jugadores** (cambia el nombre de caché del Service Worker, como en rondas previas) | Sin cambio visible (`APP_VERSION` igual); humo D.3.6. |
+| Volumen real bajo (≈ 6 cuentas el 08/10): casi todo desglose «muestra insuficiente» y los totales son de pocas personas | Es lo correcto; las cuentas del propio equipo deben marcarse **internas** (D2) o contaminarán las cifras. |
+| La ruta `/admin/metrics/` existe y es visible a cualquiera (solo muestra «Iniciá sesión» o «Acceso no autorizado»; no tiene datos) | `noindex`, `no-store`, `Disallow: /admin/`; ruta oculta no es control de acceso (lo es la Edge). |
+| k = 5 se aplica **por consulta** (restar entre períodos distintos no está cubierto) | Riesgo residual anotado (§10.3); el administrador es el responsable del dato. |
+| Menores del Edge (O2 error transitorio → 403, O3 CORS `*`) | Sin cambios; agrupar con la próxima ronda que toque la Edge. |
+
+### 12.5 Decisiones que necesita Sebastián (**DECISIÓN ABIERTA**)
+| ID | Decisión | Recomendación |
+|---|---|---|
+| **D3-a** | ¿La actividad diaria es un cambio **material** de la Política (re-aceptación de todos) o una **aclaración**? | Aclaración (opción A, `Privacidad_Legal.md` §18). Cierra Central con verificación interna. |
+| **D3-b** | Al eliminar una cuenta: ¿se **conserva anonimizada** la actividad o se **borra**? | Conservar anonimizada (no toca la función de eliminación; ya verificado). |
+| **AAIP** | ¿El registro presentado describe «datos de uso/actividad»? Si no, modificarlo. | Verificar antes de publicar (fuente privada). |
+| **D4** | **¿Qué cuenta de Production** es la administradora? | La cuenta real y habitual de Sebastián (Central ubica el UUID una vez). |
+| **D2** | **¿Qué cuentas son internas/de prueba** (propias y de amigos) para excluirlas por defecto? | Marcar las del equipo antes de mirar cifras. |
+| **D6** | ¿MFA para la cuenta administradora? | Diferir; no bloqueante. |
+| **D7** | Confirmar umbral **k = 5**. | Confirmar. |
+| **G4** | Plan de backups gestionados de Supabase Production. | Decidirlo; no bloquea esta publicación. |
+| **D1 + autorización** | **Publicar Metrics en Production** (incluye empezar la captura de presencia), con el SHA exacto, en horario de baja actividad. | Sí, una vez cumplidos los puntos 1–4 de 12.3. |
+| D9–D11 | Sin cambios (rama competitiva, series WAU/MAU, cruces de filtros): no son requisito de la salida. | — |
+
+### 12.6 Regresión (resultado de esta ronda)
+- `bramulab/tests/*` + `bramulab/*.test.mjs`: 1021 tests, **990 pass / 31 fail = línea base** (las mismas 31 de rondas viejas; 0 nuevas). `supabase/functions/_shared/*.test.mjs`: **186/186** (antes 169; +17 de ensayo y verificador). `check-docs`: OK.
+- `release-check`: replay limpio de 88 migraciones ×3 ACL ✔ y `admin-metrics verify_jwt=true` ✔; **los mismos 3 chequeos rojos de siempre, ninguno de Metrics**: (1) el host de Staging nombrado en `app.js` (rama de detección de entorno ya presente en el h26 publicado), (2) y (3) la guarda «el build de Production FALLA a propósito con placeholders legales», obsoleta desde que las páginas legales quedaron sin placeholders (el gate real, `checkLegalPagesReadyForProduction`, da OK). No bloquean la promoción; conviene actualizar esas expectativas en una ronda de mantenimiento.

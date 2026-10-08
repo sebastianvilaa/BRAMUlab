@@ -390,3 +390,34 @@ Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo
 ### G1 — Emails/Auth V1 (01/10/2026)
 - La eliminación de cuenta exige un desafío específico `delete_account` (OTP del email #7, 60 min, un uso, ≤ 10 min de antigüedad al eliminar); una reautenticación genérica ya no alcanza. El comprobante #8 se envía únicamente después de las postcondiciones reales de P0.3 y no ofrece recuperación ni soporte.
 - Datos temporales de los desafíos (`account_challenges`): solo hash HMAC del OTP; los emails (`target`/`previous`) se limpian al terminar el cambio, se podan a los 2 días y toda fila del usuario eliminado se purga con la eliminación. Sin acceso de cliente (RLS sin políticas, RPC `service_role`). Ver `Implementacion/Pre_Production/90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md`.
+
+---
+
+## 18. Registro diario de actividad (BRAMU Metrics) — propuesta de texto, SIN publicar (08/10/2026)
+
+**Estado:** `privacidad/index.html` y `terminos/index.html` **no se tocaron** (siguen en `legal_v1`, vigencia 07/10/2026). Esta sección es el borrador para decisión de Sebastián (**D3**) y verificación interna de Central (§13). Production **todavía no captura** actividad: el registro empieza recién cuando se publique el build con Metrics.
+
+### Qué se registra (verificado en código y en el ensayo `metrics-promotion-rehearsal.test.mjs`)
+- **Una fila por cuenta y por día** (hora de Buenos Aires, la fija el servidor): fecha, primera y última apertura, cantidad de aperturas (máx. 999), modo (navegador o app instalada), plataforma gruesa (`ios`/`android`/`desktop`/`other`) y versión pública de la app.
+- **Solo cuentas registradas y no eliminadas**, con sesión real (no se registra al refrescar el token ni por temporizadores). La cuenta sale siempre de la sesión: el cliente no puede escribir la actividad de otra persona.
+- **No** se guarda IP, user-agent, modelo de dispositivo, ubicación, pantallas visitadas, contenido ni nada deportivo. La tabla no es legible por clientes; solo el administrador autorizado ve **conteos agregados** (sin fichas ni rankings por persona; mínimo 5 personas por segmento).
+- **Sin histórico previo:** los días anteriores al inicio de la captura **no existen** y la consola no los estima («Captura desde dd/mm»).
+- El **informe de acceso/copia** del titular incluye ahora sus días de actividad (`activityDays`).
+
+### Eliminación de cuenta (decisión D3-b)
+Al eliminar la cuenta, el jugador queda anonimizado («Jugador eliminado», sin vínculo con Auth ni datos de perfil). Las filas de actividad **se conservan asociadas a ese identificador anónimo** (fecha, modo, plataforma, versión) y dejan de ser datos personales; las poblaciones «actuales» de Metrics excluyen a las cuentas eliminadas. Es el mismo criterio con que ya se conservan los partidos compartidos y las posiciones de Ranking (§3, §8). **Recomendado: opción A (conservar anonimizado)**, porque no requiere tocar `admin_delete_player_account` (función crítica ya en uso) y no reescribe retroactivamente las métricas. **Opción B (borrar las filas al eliminar):** más simple de explicar pero exige modificar esa función y borra historia de uso agregada; solo si Sebastián o la verificación interna lo prefieren.
+
+### Texto propuesto (no publicado)
+- **§2 «Datos técnicos»** — reemplazar por: «Contadores anti-abuso y un conjunto mínimo de eventos internos de producto, sin contraseñas, tokens ni contenido de notas. **Actividad diaria:** por cada día en que abrís BRAMUlab con tu cuenta (hora de Buenos Aires) guardamos la fecha, si la usaste desde el navegador o como app instalada, una clasificación general del dispositivo (iPhone/iPad, Android, computadora u otro), la versión de la app y cuántas veces la abriste ese día. Este registro no incluye tu dirección IP, tu ubicación, el modelo de tu dispositivo ni las pantallas que visitás.»
+- **§3 «Para qué los usamos»** — agregar al final: «También medimos, solo en conteos agregados, cuánta gente usa BRAMUlab y cómo evoluciona ese uso para decidir qué mejorar; no elaboramos fichas, listados ni rankings de uso por persona.»
+- **§6 «Conservación y eliminación»** — agregar: «El registro de actividad diaria se conserva mientras tu cuenta esté activa. Si eliminás tu cuenta, queda asociado únicamente a la identidad anónima «Jugador eliminado» y solo se usa en conteos agregados.»
+- **§7 «Acceso y copia»** — agregar: «El informe incluye tus días de actividad.»
+- «No integramos analítica ni publicidad de terceros» sigue siendo cierto (la medición es propia).
+
+### Decisión D3-a — ¿cambio material?
+- **Opción A (recomendada): aclaración no material.** El texto vigente ya declara «un conjunto mínimo de eventos internos de producto»; la actividad diaria es un dato mínimo, sin categoría nueva de dato sensible ni destinatarios nuevos. Se publica el texto ampliado con nueva fecha de vigencia y **sin pedir nueva aceptación** (§7: «nueva aceptación solo ante cambios relevantes/materiales»). Requiere decidir si la fecha/versión se actualizan manteniendo `legal_v1` (la tabla `legal_acceptances` solo guarda el id de versión) o con un sufijo que no dispare re-aceptación; esa elección técnica la cierra Central al publicar.
+- **Opción B: `legal_v2` con re-aceptación de todos los usuarios.** Más conservadora, pero fuerza un paso extra a los usuarios reales y exige migración (`legal_versions`) y verificación del flujo; solo si la verificación interna (§13) concluye que es material.
+- **Registro AAIP/RNBDP (expediente en Iniciación):** verificar que la descripción de datos tratados presentada incluya «datos de uso/actividad»; si no, **modificar el registro** (la fuente del formulario es privada: no está en este repositorio). Acción de Sebastián/Central, previa a publicar.
+
+### Orden recomendado
+Texto publicado **antes o junto con** la promoción de Metrics a Production (la captura empieza con el build); nunca después.

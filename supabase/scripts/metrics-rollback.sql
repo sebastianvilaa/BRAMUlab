@@ -1,0 +1,67 @@
+-- BRAMU Metrics V1 — RETIRO CONTROLADO (rollback). Se ejecuta A MANO, un nivel por vez, por Central, SOLO en el entorno indicado.
+--
+-- Ver docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md («BRAMU Metrics — publicación privada y retiro») y
+-- docs/BRAMUlab/Implementacion/Post_Lanzamiento/149_…md §12. Probado en PGlite sobre una base tipo Production con datos
+-- (supabase/functions/_shared/metrics-promotion-rehearsal.test.mjs): ningún dato de jugadores, partidos, grupos, Nivel ni Ranking cambia.
+--
+-- Orden recomendado ante un problema:
+--    0. Frontend: reasignar `app.bramulab.com` al deployment anterior de Production (Vercel). No toca la base. Es lo PRIMERO y casi siempre alcanza:
+--       el frontend viejo no llama a `register_app_presence` ni sirve `/admin/metrics/`.
+--    1. NIVEL 1 — apagar el acceso administrativo (reversible, sin tocar esquema).
+--    2. NIVEL 2 — retirar funciones y tablas de lectura de métricas (conserva la presencia ya capturada).
+--    3. NIVEL 3 — retiro TOTAL de la captura (DESTRUCTIVO: borra los días de actividad). Solo por decisión expresa de Sebastián.
+-- La Edge Function `admin-metrics` se retira aparte (Supabase → Edge Functions → eliminar/desactivar); sin ella nadie puede leer métricas aunque el SQL siga.
+--
+-- NO ejecutar este archivo entero de corrido: ejecutar SOLO el bloque del nivel elegido.
+
+-- =====================================================================================================================
+-- NIVEL 1 — Apagar el acceso (reversible: poner revoked_at = null para reactivar)
+-- ESPERADO: la Edge responde 403 a todos, incluido el administrador.
+-- =====================================================================================================================
+--> update public.metrics_admins set revoked_at = now() where revoked_at is null;
+
+-- =====================================================================================================================
+-- NIVEL 2 — Retirar el motor de lectura (NO borra player_activity_days ni register_app_presence)
+-- Quita: funciones metrics_* / _metrics_* y las tablas metrics_admins / metrics_internal_players (la lista de admins se pierde: reinsertar al reinstalar).
+-- =====================================================================================================================
+--> do $$
+--> declare r record;
+--> begin
+-->   for r in
+-->     select p.oid::regprocedure as sig
+-->       from pg_proc p
+-->      where p.pronamespace = 'public'::regnamespace
+-->        and (p.proname like 'metrics\_%' escape '\' or p.proname like '\_metrics\_%' escape '\')
+-->   loop
+-->     execute 'drop function ' || r.sig;
+-->   end loop;
+--> end $$;
+--> drop table if exists public.metrics_admins;
+--> drop table if exists public.metrics_internal_players;
+
+-- =====================================================================================================================
+-- NIVEL 3 — Retiro TOTAL de la captura de presencia (DESTRUCTIVO e irreversible: se pierden los días de actividad)
+-- Requiere haber hecho el NIVEL 2. Restaura el informe de acceso/copia a su definición previa (Bloque 9B, sin `activityDays`).
+-- Antes de ejecutarlo: el frontend con `recordActivity` ya debe estar retirado (paso 0), o cada apertura de app fallará en silencio (sin efecto visible).
+-- =====================================================================================================================
+--> create or replace function public.admin_export_player_data(p_player_id uuid)
+--> returns jsonb
+--> language plpgsql
+--> security definer
+--> stable
+--> set search_path = public
+--> as $$
+--> declare
+-->   v jsonb;
+--> begin
+-->   v := public._admin_export_player_data_raw(p_player_id);
+-->   if v is null or coalesce((v ->> 'ok')::boolean, false) is not true then
+-->     return v;
+-->   end if;
+-->   return public._export_redact_third_parties(v, p_player_id);
+--> end;
+--> $$;
+--> revoke all on function public.admin_export_player_data(uuid) from public, anon, authenticated;
+--> grant execute on function public.admin_export_player_data(uuid) to service_role;
+--> drop function if exists public.register_app_presence(text, text, text);
+--> drop table if exists public.player_activity_days;

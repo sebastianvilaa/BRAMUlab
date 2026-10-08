@@ -100,3 +100,11 @@ El agente ejecutor debe leer `docs/BRAMUlab/README.md`, `Metodo_Trabajo.md`, `Ba
 - Antes de considerar Production siguen pendientes las pruebas reales de sesión administrativa, denegación a usuarios comunes y política de privacidad del registro de presencia.
 
 **Estado al 08/10:** F4 implementada y su migración aplicada y verificada por Central en Supabase Staging; Vercel h30 READY. **Explorador IMPLEMENTADO en el repo (`04.37-h31`, migración `20261008130000`): falta que Central la aplique, **redeploye `admin-metrics`** y verifique (`149_…` §10.4).** Indicadores: los 55 del catálogo; series solo donde hay hechos persistidos; filtros declarados (Localidad, Estado de Nivel, Plataforma, Estado del partido), uno por vez y con k = 5 en SQL. Quedan como **DECISIÓN ABIERTA** la rama competitiva (D9), las series de WAU/MAU y saldos (D10) y los cruces/rango personalizado (D11).
+
+## 12. Salida a Production — preparada, NO ejecutada (08/10/2026)
+- Objetivo: consulta privada de datos reales desde celular y computadora, **solo con la cuenta administradora de Production**. Sin funciones nuevas.
+- **Acceso:** lista de UUID (`metrics_admins`) sin sembrar en las migraciones (Production arranca con 0 administradores = nadie); Edge con JWT; SQL solo `service_role`; 403 idéntico; la página no decide quién entra.
+- **Alcance a Production:** 4 migraciones aditivas (F1, F2, F4, F6) en orden, `admin-metrics` y el frontend; para los jugadores cambia solo la captura de presencia, 1 línea del Service Worker y la versión del bundle (verificado con `bramulab/scripts/promotion-surface.mjs`). **La captura de presencia no puede separarse de la consola** (mismo build) y empieza el día de la publicación: nunca se reconstruyen días anteriores.
+- **Privacidad:** texto propuesto y decisiones D3 en `Operacion/Privacidad_Legal.md` §18 (sin publicar); se publica antes o junto con la promoción.
+- **Procedimiento, retiro por niveles y verificadores:** `Operacion/Runbook_Operacion_y_Salida.md` Parte D. Evidencia, riesgos y decisiones abiertas: `Implementacion/Post_Lanzamiento/149_…` §12.
+- Requiere **autorización explícita de Sebastián con el SHA exacto** y las pruebas con sesión real de Staging (`metrics-access-check.mjs`).
