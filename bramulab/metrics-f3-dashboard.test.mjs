@@ -1,4 +1,4 @@
-// BRAMU Metrics V1 · F3 (bundle 04.37-h29) — consola privada /admin/metrics.
+// BRAMU Metrics V1 · F3 (04.37-h29) + F4 (04.37-h30) — consola privada /admin/metrics.
 // node --test bramulab/metrics-f3-dashboard.test.mjs
 // Cubre: funciones puras de la UI, contrato con el SQL REAL (el fixture de QA no puede divergir del backend), seguridad/privacidad
 // estática de la página, publicación en dist/ (fixture solo en Staging), Service Worker (bypass de /admin/), headers y robots.
@@ -83,9 +83,12 @@ test('availabilityView: cada estado tiene rótulo propio; no medible muestra des
   assert.equal(M.previousText({ id: 'x', kind: 'flow', previous: { value: 3 } }, false), null);
 });
 
-test('ventanas: fechas en hora de Buenos Aires y fin exclusivo de la ventana previa mostrado como el día anterior', () => {
-  assert.equal(M.windowLabel(['2026-09-09T03:00:00+00:00', '2026-10-08T12:00:00+00:00'], true), '09/09 – hoy');
-  assert.equal(M.windowLabel(['2026-08-10T03:00:00+00:00', '2026-09-09T03:00:00+00:00'], false), '10/08 – 08/09');
+test('ventanas (D8): días completos en hora de Buenos Aires; el fin exclusivo se muestra como el último día incluido (nunca «hoy»)', () => {
+  assert.equal(M.windowLabel(['2026-09-08T03:00:00+00:00', '2026-10-08T03:00:00+00:00']), '08/09 – 07/10');
+  assert.equal(M.windowLabel(['2026-08-09T03:00:00+00:00', '2026-09-08T03:00:00+00:00']), '09/08 – 07/09');
+  assert.equal(M.windowLabel(['2026-10-08T03:00:00+00:00', '2026-10-08T03:00:00+00:00']), 'sin días completos todavía', 'histórico con datos solo de hoy');
+  assert.equal(M.windowLabel(null), '—');
+  assert.ok(!/hoy/.test(M.windowLabel(['2026-09-08T03:00:00+00:00', '2026-10-08T03:00:00+00:00'])));
   assert.equal(M.baDate('2026-09-09T02:59:59+00:00'), '2026-09-08', 'antes de las 03:00Z todavía es el día anterior en BA');
   assert.equal(M.fmtDayMonth('2026-10-02'), '02/10');
 });
@@ -131,11 +134,12 @@ test('seriesFor/parseHash/apiErrorKind/qaAllowed', () => {
 
 /* ---------------- Contrato con el backend REAL ---------------- */
 
-const migration = fs.readFileSync(path.join(dir, '..', 'supabase', 'migrations', '20261008110000_metrics_f2_core.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(dir, '..', 'supabase', 'migrations', '20261008120000_metrics_f4_d8_comunidad.sql'), 'utf8');
 const sqlCatalog = JSON.parse(/\$cat\$(\[[\s\S]*?\])\$cat\$/.exec(migration)[1]);
 
-test('contrato: el catálogo del fixture es copia EXACTA del de la migración (si el backend cambia, este test obliga a actualizar el QA)', () => {
+test('contrato: el catálogo del fixture es copia EXACTA del de la última migración (si el backend cambia, este test obliga a actualizar el QA)', () => {
   assert.deepEqual(plain(Q.CATALOG), sqlCatalog);
+  assert.equal(sqlCatalog.length, 55);
 });
 
 test('contrato: cada sección del fixture trae exactamente los KPIs del catálogo, con las claves del contrato y valores coherentes', () => {
@@ -145,7 +149,8 @@ test('contrato: cada sección del fixture trae exactamente los KPIs del catálog
         const r = Q.respond({ section, range, compare: true }, state);
         assert.deepEqual(plain(r.kpis.map((k) => k.id)), sqlCatalog.filter((e) => e.section === section).map((e) => e.id), `${section}/${range}/${state}`);
         for (const k of r.kpis) {
-          assert.deepEqual(plain(Object.keys(k).sort()), ['availability', 'count', 'definition', 'delta', 'id', 'kind', 'label', 'n', 'population', 'previous', 'since', 'value']);
+          assert.deepEqual(plain(Object.keys(k).sort()), ['availability', 'count', 'definition', 'delta', 'id', 'kind', 'label', 'n', 'population', 'previous', 'since', 'snapshot', 'value']);
+          if (k.snapshot) { assert.equal(k.previous, null, k.id); assert.equal(k.delta.note, r.meta.compare ? 'stock_sin_comparacion' : 'sin_comparacion', k.id); }
           if (['insufficient_sample', 'not_instrumented', 'immature'].includes(k.availability)) { assert.equal(k.value, null); assert.equal(k.count, null); }
         }
         assert.equal(r.meta.minCell, 5); assert.equal(r.meta.environment, 'qa');
@@ -166,19 +171,20 @@ test('contrato: el armado de KPI del fixture coincide con _metrics_kpi del SQL r
   assert.ok(r.ok);
   const db = r.db;
   try {
-    const entry = (kind, minN) => ({ id: 'x.k', section: 'x', label: 'L', kind, definition: 'D', population: 'P', ...(minN ? { minN } : {}) });
+    const entry = (kind, minN, snapshot) => ({ id: 'x.k', section: 'x', label: 'L', kind, definition: 'D', population: 'P', ...(minN ? { minN } : {}), ...(snapshot ? { snapshot: true } : {}) });
     const cases = [
       ['flow', 0, { v: 10 }, { v: 5 }], ['flow', 0, { v: 4 }, { v: 0 }], ['flow', 0, { v: 0 }, { v: 0 }], ['flow', 0, { v: 3 }, { v: 7 }],
       ['stock', 0, { v: 4, n: 4 }, { v: 3, n: 3 }],
       ['ratio', 5, { v: 0.6, n: 10 }, { v: 0.4, n: 10 }], ['ratio', 5, { v: 0.6, n: 3 }, { v: 0.4, n: 10 }], ['ratio', 5, { v: 0.6, n: 10 }, { v: 0.4, n: 2 }], ['ratio', 5, { v: 0.5, n: 8 }, { v: 0.5, n: 9 }],
       ['duration', 5, { v: 9.5, n: 29 }, { v: 14.2, n: 18 }], ['duration', 5, { v: 9.5, n: 2 }, { v: 14.2, n: 18 }],
       ['ratio', 5, { v: null, a: 'immature' }, { v: null, a: 'immature' }], ['flow', 0, { v: null, a: 'not_instrumented' }, { v: null, a: 'not_instrumented' }],
+      ['ratio', 5, { v: 0.6, n: 10 }, { v: 0.4, n: 10 }, true], ['ratio', 5, { v: 0.6, n: 3 }, { v: 0.4, n: 10 }, true],
     ];
-    for (const [kind, minN, cur, prev] of cases) {
-      const e = entry(kind, minN);
+    for (const [kind, minN, cur, prev, snap] of cases) {
+      const e = entry(kind, minN, snap);
       const sql = (await db.query(`select public._metrics_kpi($1::jsonb, $2::jsonb, $3::jsonb, true) as r`, [JSON.stringify(e), JSON.stringify({ 'x.k': cur }), JSON.stringify({ 'x.k': prev })])).rows[0].r;
       const js = plain(Q.__build(e, cur, prev, true));
-      const norm = (k) => ({ value: k.value, availability: k.availability, delta: k.delta, prev: k.previous && { value: k.previous.value, availability: k.previous.availability } });
+      const norm = (k) => ({ value: k.value, availability: k.availability, delta: k.delta, snapshot: k.snapshot, prev: k.previous && { value: k.previous.value, availability: k.previous.availability } });
       assert.deepEqual(norm(js), norm(sql), JSON.stringify([kind, cur, prev]));
     }
   } finally { await db.close(); }
@@ -278,10 +284,102 @@ test('Vercel/robots: headers noindex + no-store + no-referrer para /admin/*; rob
   assert.match(env, /envName === 'production' \? 'User-agent: \*\\nDisallow: \/admin\/\\nAllow: \/\\n' : 'User-agent: \*\\nDisallow: \/\\n'/);
 });
 
-test('versionado: h29 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
-  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h29');
+test('versionado: h30 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
+  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h30');
   assert.equal(JSON.parse(read('version.json')).version, 'BRAMUlab V04.37');
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h29'/);
-  assert.match(read('sw.js'), /bramulab-v04-37-h29/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h30'/);
+  assert.match(read('sw.js'), /bramulab-v04-37-h30/);
   for (const f of ['index.html', 'app.js', 'player-home.js', 'groups.js']) assert.ok(!/admin\/metrics/.test(read(f)), `${f} no enlaza a la consola`);
+});
+
+
+/* ====================================================================== */
+/* F4 — Activación · Comunidad · Uso, D8 (días completos) y «hoy parcial»  */
+/* ====================================================================== */
+
+test('F4 · pestañas y rutas: Activación, Comunidad y Uso existen, mapean a su sección del Edge y las rutas no aceptan basura', () => {
+  assert.deepEqual(plain(M.VIEWS.map((v) => [v.id, v.section])), [['inicio', 'overview'], ['usuarios', 'users'], ['partidos', 'matches'], ['activacion', 'activation'], ['comunidad', 'community'], ['uso', 'usage']]);
+  for (const [hash, view] of [['#/activacion', 'activacion'], ['#/comunidad', 'comunidad'], ['#/uso', 'uso']]) assert.deepEqual(plain(M.parseHash(hash)), { view });
+  assert.deepEqual(plain(M.parseHash('#/kpi/community.ranking_eligible_players')), { view: 'kpi', kpiId: 'community.ranking_eligible_players' });
+  assert.deepEqual(plain(M.parseHash('#/kpi/usage.ret_w1')), { view: 'kpi', kpiId: 'usage.ret_w1' });
+  assert.deepEqual(plain(M.parseHash('#/uso/../x')), { view: 'inicio' });
+  // todas las secciones que pide la UI existen en el mapa fijo del Edge (sin cambios de backend para F4)
+  const edge = read('../supabase/functions/_shared/admin-metrics-core.mjs');
+  for (const v of M.VIEWS) assert.match(edge, new RegExp(`${v.section}: 'metrics_${v.section}'`), v.section);
+});
+
+test('F4 · series de detalle: grupos, invitaciones y activos diarios tienen gráfico; el resto de los KPIs nuevos es valor puntual', () => {
+  for (const [id, key] of [['community.groups_created', 'groups_created'], ['community.invites_created', 'invites_created'], ['usage.dau', 'active_players']]) {
+    assert.equal(plain(M.seriesFor(id, { series: { [key]: { current: [] } } })).def.key, key, id);
+  }
+  for (const id of ['community.ranking_eligible_players', 'usage.ret_w1', 'activation.fifth_match', 'community.groups_avg_members']) assert.equal(M.seriesFor(id, { series: {} }), null, id);
+});
+
+test('F4 · snapshot: los ratios foto del estado actual no muestran «anterior» ni variación (se vería «Sin cambios» falso)', () => {
+  const k = { id: 'community.level_calibrated_share', kind: 'ratio', snapshot: true, previous: { value: 0.4 }, delta: { abs: 0, pct: null, note: 'stock_sin_comparacion' } };
+  assert.equal(M.previousText(k, true), null);
+  assert.equal(plain(M.deltaView(k, true)).text, 'Saldo al corte');
+  assert.equal(M.previousText({ id: 'matches.validation_rate_closed', kind: 'ratio', previous: { value: 0.4 } }, true), `Anterior: 40${NB}%`, 'un ratio de ventana SÍ compara');
+});
+
+test('F4 · estados: Ranking sin ediciones dice «Todavía no se publicó ninguna edición»; el resto de «sin registros» no cambia', () => {
+  assert.equal(M.availabilityView({ id: 'community.ranking_eligible_players', availability: 'no_evidence' }, { minCell: 5 }).text, 'Todavía no se publicó ninguna edición de Ranking');
+  assert.equal(M.availabilityView({ id: 'community.ranking_days_since_edition', availability: 'no_evidence' }, { minCell: 5 }).text, 'Todavía no se publicó ninguna edición de Ranking');
+  assert.equal(M.availabilityView({ id: 'community.groups_created', availability: 'no_evidence' }, { minCell: 5 }).text, 'Sin registros en el período');
+});
+
+test('F4 · D8 «hoy parcial»: se presenta aparte, solo con los campos pedidos, y lo no medible dice «Todavía no medible» (nunca 0)', () => {
+  const today = { date: '2026-10-08', partial: true, asOf: '2026-10-08T17:35:00Z', signups: 1, matchesCreated: 3, matchesValidated: 0, activePlayers: null };
+  let v = plain(M.todayView(today, ['signups', 'activePlayers']));
+  assert.deepEqual(v.items.map((i) => [i.key, i.text, i.pending]), [['signups', '1', false], ['activePlayers', 'Todavía no medible', true]]);
+  assert.equal(v.upTo, '14:35', 'hora de Buenos Aires');
+  v = plain(M.todayView({ ...today, activePlayers: 0 }, ['activePlayers']));
+  assert.deepEqual(v.items.map((i) => [i.text, i.pending]), [['0', false]], 'un cero REAL con presencia instrumentada sí se muestra');
+  assert.equal(M.todayView(null, ['signups']), null);
+  assert.deepEqual(plain(M.todayView(today, ['inexistente']).items), []);
+});
+
+test('F4 · el fixture respeta D8: la ventana termina a las 00:00 de hoy (BA), las series terminan ayer y `today` viaja aparte', () => {
+  for (const range of ['7d', '30d', '90d', 'all']) {
+    const r = Q.respond({ section: 'users', range, compare: true }, '');
+    assert.equal(r.meta.completeDaysOnly, true); assert.equal(r.meta.window[1], `${r.meta.today}T03:00:00.000Z`, `${range}: fin = 00:00 BA de hoy`);
+    const last = r.series.signups.current.at(-1).start;
+    assert.ok(last < r.meta.today, `${range}: la serie termina antes de hoy (${last} < ${r.meta.today})`);
+    assert.equal(r.today.partial, true); assert.equal(r.today.date, r.meta.today);
+    if (r.meta.previousWindow) assert.equal(new Date(r.meta.window[1]) - new Date(r.meta.window[0]), new Date(r.meta.previousWindow[1]) - new Date(r.meta.previousWindow[0]), `${range}: ambas ventanas miden lo mismo`);
+  }
+  assert.equal(Q.respond({ section: 'usage', range: '30d' }, 'nopresence').today.activePlayers, null);
+});
+
+test('F4 · contrato: las claves de `today`, de los desgloses y de las series del fixture coinciden con las del SQL REAL', async () => {
+  const r = await replay({ acl: 'observed' });
+  assert.ok(r.ok);
+  try {
+    await r.db.exec(`insert into public.app_config (id, environment) values (1, 'staging')`);
+    const sql = async (fn) => (await r.db.query(`select public.${fn}('30d', true, false, '2026-10-08T12:00:00Z') as r`)).rows[0].r;
+    for (const section of ['users', 'matches', 'activation', 'community', 'usage']) {
+      const real = await sql(`metrics_${section}`); const fx = Q.respond({ section, range: '30d' }, '');
+      assert.deepEqual(plain(Object.keys(fx.today).sort()), Object.keys(real.today).sort(), `${section}: today`);
+      assert.deepEqual(plain(Object.keys(fx.breakdowns).sort()), Object.keys(real.breakdowns).sort(), `${section}: desgloses`);
+      assert.deepEqual(plain(Object.keys(fx.series).sort()), Object.keys(real.series).sort(), `${section}: series`);
+      assert.deepEqual(plain(Object.keys(fx.meta).sort()), Object.keys(real.meta).sort(), `${section}: meta`);
+      assert.deepEqual(real.kpis.map((k) => k.id), plain(fx.kpis.map((k) => k.id)), `${section}: KPIs`);
+    }
+    const ov = await sql('metrics_overview'); const fo = Q.respond({ section: 'overview', range: '30d' }, '');
+    assert.deepEqual(plain(Object.keys(fo.today).sort()), Object.keys(ov.today).sort());
+    const comm = await sql('metrics_community');
+    for (const key of ['level_status', 'group_size', 'level_band', 'ranking_density']) assert.ok(comm.breakdowns[key], key);
+    assert.equal(comm.breakdowns.level_band.minCell, 10, 'la distribución de Nivel exige n ≥ 10');
+  } finally { await r.db.close(); }
+});
+
+test('F4 · estática: las vistas nuevas no abren datos individuales, no usan innerHTML y mantienen los tres sistemas separados', () => {
+  const js = read('admin/metrics/metrics.js'); const css = read('admin/metrics/metrics.css');
+  const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML/.test(code));
+  for (const sys of ['grupos', 'nivel', 'ranking']) { assert.match(code, new RegExp(`systemSection\\('${sys}'`)); assert.match(css, new RegExp(`\\.mx-h--${sys}::before`)); }
+  assert.match(code, /'Grupos BRAMU'/); assert.match(code, /'Nivel BRAMU'/); assert.match(code, /'Ranking BRAMU'/);
+  assert.match(css, /\.mx-today/, 'estilo propio para «Hoy · parcial»');
+  assert.ok(!/windowLabel\([^)]*,\s*(true|false)\)/.test(code), 'nadie pide ya el rótulo «hoy» de la ventana (D8)');
+  assert.ok(!/\bhoy\b/.test(M.windowLabel(['2026-09-08T03:00:00+00:00', '2026-10-08T03:00:00+00:00'])));
 });

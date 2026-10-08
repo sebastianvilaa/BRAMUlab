@@ -4,7 +4,9 @@
 // Cubre: permisos (nada ejecutable por clientes), lista de administradores, ventanas BA, umbral de privacidad k=5,
 // reglas de comparación, cada trampa de datos de la Auditoría (vencido derivado, NULL de anulaciones, partidos de 1 cuenta,
 // provisionales recuperados, cuentas eliminadas), exclusión de cuentas internas, presencia/retención y NO FUGA de datos
-// personales. El fixture es el del Apéndice B de BRAMU_Metrics_Auditoria_Tecnica_V1.md.
+// personales. El fixture es el del Apéndice B de Metrics/BRAMU_Metrics_Auditoria_Tecnica_V1.md.
+// F4 (migración 20261008120000): D8 (días completos hasta ayer), «hoy parcial», snapshots sin comparación, Comunidad (Grupos · Nivel · Ranking)
+// con umbrales k=5 y n≥10 — ver la sección «F4» al final.
 import crypto from 'node:crypto';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -164,16 +166,26 @@ scenario('metrics_admins: eliminar el usuario de Auth borra la fila (cascade); n
 
 /* ---------------- Ventanas, catálogo, helpers ---------------- */
 
-scenario('ventana BA: Nd = N días calendario terminando hoy; previa de igual longitud; all sin previa; rango inválido => error', async () => {
+scenario('ventana BA (D8): Nd = N días COMPLETOS hasta ayer; previa de igual longitud también completa; all sin previa; rango inválido => error', async () => {
   const w = async (r) => (await one(`select public._metrics_window($1, $2::timestamptz) as w`, [r, ASOF])).w;
   const w7 = await w('7d');
-  assert.equal(new Date(w7.from).toISOString(), '2026-10-02T03:00:00.000Z', '08/10 BA menos 6 días a medianoche BA (UTC-3)');
-  assert.equal(new Date(w7.prevFrom).toISOString(), '2026-09-25T03:00:00.000Z');
+  assert.equal(new Date(w7.from).toISOString(), '2026-10-01T03:00:00.000Z', '08/10 BA menos 7 días a medianoche BA (UTC-3)');
+  assert.equal(new Date(w7.to).toISOString(), '2026-10-08T03:00:00.000Z', 'D8: la ventana termina a las 00:00 de HOY (BA), no en el instante de consulta');
+  assert.equal(new Date(w7.prevFrom).toISOString(), '2026-09-24T03:00:00.000Z');
   assert.equal(new Date(w7.prevTo).toISOString(), new Date(w7.from).toISOString(), 'la previa termina donde empieza la actual');
   assert.equal(w7.granularity, 'day'); assert.equal((await w('90d')).granularity, 'week_ba');
   const all = await w('all');
   assert.equal(all.prevFrom, null);
   assert.equal(new Date(all.from).toISOString(), '2026-09-01T03:00:00.000Z', 'primer dato del fixture a medianoche BA');
+  assert.equal(new Date(all.to).toISOString(), '2026-10-08T03:00:00.000Z');
+  for (const r of ['7d', '30d', '90d']) {
+    const x = await w(r);
+    assert.equal(new Date(x.to) - new Date(x.from), new Date(x.prevTo) - new Date(x.prevFrom), `${r}: ambas ventanas miden lo mismo (días completos)`);
+  }
+  // el mismo día BA devuelve la misma ventana a cualquier hora (la actividad de hoy no la mueve)
+  const early = (await one(`select public._metrics_window('30d', '2026-10-08T03:30:00Z') as w`)).w;
+  const late = (await one(`select public._metrics_window('30d', '2026-10-09T02:59:00Z') as w`)).w;
+  assert.deepEqual([early.from, early.to], [late.from, late.to]);
   for (const bad of ['1d', '', 'custom', "7d'; drop table players;--"]) {
     await db.exec('savepoint sp');
     await assert.rejects(() => db.query(`select public._metrics_window($1, $2::timestamptz)`, [bad, ASOF]), /invalid_range/);
@@ -194,7 +206,7 @@ test('catálogo: JSON válido, ids únicos, todo KPI de cada sección existe en 
   for (const s of ['users', 'matches', 'activation', 'community', 'usage']) {
     const res = await call(`metrics_${s}`);
     assert.deepEqual(res.kpis.map((k) => k.id), cat.filter((e) => e.section === s).map((e) => e.id), `${s}: KPIs = catálogo, en orden`);
-    for (const k of res.kpis) assert.deepEqual(Object.keys(k).sort(), ['availability', 'count', 'definition', 'delta', 'id', 'kind', 'label', 'n', 'population', 'previous', 'since', 'value']);
+    for (const k of res.kpis) assert.deepEqual(Object.keys(k).sort(), ['availability', 'count', 'definition', 'delta', 'id', 'kind', 'label', 'n', 'population', 'previous', 'since', 'snapshot', 'value']);
   }
 });
 
@@ -326,7 +338,7 @@ test('Uso con presencia: DAU/WAU/MAU móviles al corte, promedio, instalada, acc
   assert.deepEqual([val('usage.dau'), val('usage.wau'), val('usage.mau')], [0, 2, 4]);
   assert.equal(kpi(r, 'usage.dau').availability, 'ok', 'cero con presencia instrumentada es un cero real');
   assert.equal(val('usage.standalone_share'), 1);
-  assert.equal(val('usage.dau_avg'), 0.26);
+  assert.equal(val('usage.dau_avg'), 0.27, '10 días de presencia / 37 días completos desde el 01/09 hasta AYER');
   assert.equal(kpi(r, 'usage.dau_avg').since, '2026-09-01', 'la ventana arranca antes de la presencia: cobertura parcial rotulada');
   assert.deepEqual([val('usage.wau_with_action'), val('usage.mau_with_action')], [0, 3]);
   assert.deepEqual([kpi(r, 'usage.ret_d1').count, kpi(r, 'usage.ret_d1').n, val('usage.ret_d1')], [2, 5, 0.4]);
@@ -349,9 +361,10 @@ scenario('Uso sin presencia: todo not_instrumented (nunca 0 engañoso) pero las 
 
 scenario('Uso con presencia reciente: cobertura parcial rotulada con «desde» y ventana anterior sin datos => not_instrumented', async () => {
   await q('delete from public.player_activity_days');
-  await q(`insert into public.player_activity_days (player_id, activity_date, display_mode, platform, first_seen_at, last_seen_at) values ($1, '2026-10-07', 'browser', 'android', '2026-10-07T15:00:00Z', '2026-10-07T15:00:00Z'), ($2, '2026-10-08', 'browser', 'ios', '2026-10-08T15:00:00Z', '2026-10-08T15:00:00Z')`, [ids.a1, ids.a2]);
+  await q(`insert into public.player_activity_days (player_id, activity_date, display_mode, platform, first_seen_at, last_seen_at) values ($1, '2026-10-06', 'browser', 'android', '2026-10-06T15:00:00Z', '2026-10-06T15:00:00Z'), ($2, '2026-10-07', 'browser', 'ios', '2026-10-07T15:00:00Z', '2026-10-07T15:00:00Z'), ($3, '2026-10-08', 'browser', 'ios', '2026-10-08T09:30:00Z', '2026-10-08T09:30:00Z')`, [ids.a1, ids.a2, ids.a3]);
   const r = await call('metrics_usage', '30d');
-  assert.equal(kpi(r, 'usage.mau').value, 2); assert.equal(kpi(r, 'usage.mau').since, '2026-10-07');
+  assert.equal(kpi(r, 'usage.mau').value, 2, 'D8: la presencia de HOY (a3) no entra en MAU'); assert.equal(kpi(r, 'usage.mau').since, '2026-10-06');
+  assert.deepEqual([r.today.date, r.today.partial, r.today.activePlayers, r.today.activePlayersAvailability], ['2026-10-08', true, 1, 'ok'], 'hoy se informa aparte, rotulado parcial');
   assert.equal(kpi(r, 'usage.mau').previous.availability, 'not_instrumented', 'el período anterior es previo a la presencia');
   assert.equal(kpi(r, 'usage.mau').delta.note, 'sin_datos_suficientes');
   assert.equal(kpi(r, 'usage.standalone_share').availability, 'insufficient_sample');
@@ -457,4 +470,162 @@ scenario('rol real service_role (el de la Edge Function): ejecuta las 7 pública
     await assert.rejects(() => db.query(`select public._metrics_catalog()`), /permission denied/i);
     await db.exec('rollback to savepoint sp');
   } finally { await db.exec('reset role'); }
+});
+
+
+/* ====================================================================== */
+/* F4 — D8 (días completos), «hoy parcial», snapshots y Comunidad          */
+/* (migración 20261008120000_metrics_f4_d8_comunidad.sql)                  */
+/* ====================================================================== */
+
+const dayCount = (res, key = 'signups') => res.series[key].current.reduce((a, b) => a + b.value, 0);
+
+scenario('D8: lo que ocurre HOY no entra en flujos, series ni comparaciones; se informa aparte en `today` y no cambia la ventana durante el día', async () => {
+  const before = await call('metrics_matches', '7d');
+  const beforeU = await call('metrics_users', '7d');
+  const hoy = await mkAccount('hoy', '2026-10-08T10:00:00Z');
+  await mkMatch(hoy.pid, 'pending_validation', '2026-10-08T10:30:00Z', [hoy.pid, ids.a1, null, null]);
+  const after = await call('metrics_matches', '7d'); const afterU = await call('metrics_users', '7d');
+  assert.equal(kpi(after, 'matches.created').value, kpi(before, 'matches.created').value, 'el partido de hoy no suma al período');
+  assert.equal(kpi(afterU, 'users.signups').value, kpi(beforeU, 'users.signups').value, 'ni el alta de hoy');
+  assert.equal(dayCount(after, 'created'), dayCount(before, 'created'));
+  const lastBucket = after.series.created.current.at(-1).start;
+  assert.equal(lastBucket, '2026-10-07', 'la serie termina AYER (día completo)');
+  assert.equal(after.today.matchesCreated, 1); assert.equal(afterU.today.signups, 1); assert.equal(after.today.partial, true);
+  assert.equal(kpi(afterU, 'users.registered_now').value, kpi(beforeU, 'users.registered_now').value + 1, 'el saldo al corte SÍ incluye hoy (es estado, no flujo)');
+  // la ventana actual/previa y sus valores no dependen de la hora del día
+  const a = await call('metrics_matches', '30d', { asof: '2026-10-08T03:10:00Z' }); const b = await call('metrics_matches', '30d', { asof: '2026-10-09T02:50:00Z' });
+  assert.deepEqual(a.meta.window, b.meta.window);
+  for (const id of ['matches.created', 'matches.real', 'matches.validated']) assert.equal(kpi(a, id).value, kpi(b, id).value, id);
+  // inicio y todas las secciones traen `today` y meta lo declara
+  for (const sName of SECTIONS) { const r = await call(`metrics_${sName}`, '7d'); assert.ok(r.today && r.today.partial === true, sName); assert.equal(r.meta.completeDaysOnly, true); if (sName !== 'overview') assert.equal(r.meta.today, '2026-10-08'); }
+});
+
+scenario('D8: «hoy» respeta cuentas internas y la presencia no instrumentada devuelve null (nunca 0 engañoso)', async () => {
+  const hoy = await mkAccount('hoy2', '2026-10-08T10:00:00Z');
+  await q(`insert into public.metrics_internal_players (player_id, reason) values ($1, 'owner')`, [hoy.pid]);
+  assert.equal((await call('metrics_users', '7d')).today.signups, 0, 'interna excluida');
+  assert.equal((await call('metrics_users', '7d', { internal: true })).today.signups, 1);
+  await q('delete from public.player_activity_days');
+  const t = (await call('metrics_usage', '7d')).today;
+  assert.deepEqual([t.activePlayers, t.activePlayersAvailability], [null, 'not_instrumented']);
+});
+
+test('snapshot: los ratios que son foto del estado actual no se comparan (antes mostraban «Sin cambios» falsos) y no exponen «anterior»', async () => {
+  const u = await call('metrics_users', '30d');
+  for (const id of ['users.profile_complete_rate', 'users.with_location_rate']) {
+    const k = kpi(u, id); assert.equal(k.snapshot, true, id); assert.equal(k.previous, null, id); assert.equal(k.delta.note, 'stock_sin_comparacion', id);
+  }
+  assert.equal(kpi(u, 'users.signups').snapshot, false);
+  const c = await call('metrics_community', '30d');
+  for (const id of ['community.level_calibrated_share', 'community.ranking_eligibility_rate']) assert.equal(kpi(c, id).snapshot, true, id);
+  const off = await call('metrics_users', '30d', { compare: false });
+  assert.equal(kpi(off, 'users.profile_complete_rate').delta.note, 'sin_comparacion');
+});
+
+scenario('Comunidad · Grupos: grupos con partido calificable (criterio de Grupos BRAMU), tamaño medio solo con ≥ 5 grupos y desglose por tamaño con k', async () => {
+  // m1 (validado, 12/09, a1+a2+a3 miembros del grupo e001) pasa a ser calificable
+  await q(`update public.matches set winner_team = 'A', current_revision_id = gen_random_uuid() where match_id = $1`, [ids.m1]);
+  let r = await call('metrics_community', '90d');
+  assert.equal(kpi(r, 'community.groups_with_match').value, 1);
+  assert.equal(kpi(await call('metrics_community', '7d'), 'community.groups_with_match').value, 0, 'el partido es de septiembre');
+  let avg = kpi(r, 'community.groups_avg_members');
+  assert.deepEqual([avg.availability, avg.value, avg.n], ['insufficient_sample', null, 1], 'con 1 solo grupo no se expone el promedio');
+  assert.deepEqual(r.breakdowns.group_size.items, [], 'un grupo (< 5) no se desglosa');
+  // 4 grupos más con 3 integrantes: 5 grupos => promedio visible
+  for (let i = 3; i <= 6; i += 1) {
+    const g = (await one(`insert into public.groups (name, created_by_player_id, status, created_at) values ($1, $2, 'active', '2026-09-20T10:00:00Z') returning group_id`, [`G${i}`, ids.a1])).group_id;
+    for (const pid of [ids.a1, ids.a2, ids.a4]) await q(`insert into public.group_memberships (group_id, player_id, joined_at) values ($1, $2, '2026-09-20T10:00:00Z')`, [g, pid]);
+  }
+  r = await call('metrics_community', '90d');
+  avg = kpi(r, 'community.groups_avg_members');
+  assert.deepEqual([avg.availability, avg.value, avg.n], ['ok', 2.8, 5], '(2 + 4×3) / 5');
+  assert.deepEqual(r.breakdowns.group_size.items.map((i) => `${i.label}:${i.n}`), ['size_2_3:5']);
+  assert.equal(kpi(r, 'community.groups_active').value, 5);
+  assert.equal(dayCount(r, 'groups_created') > 0, true);
+  assert.equal(dayCount(r, 'groups_created'), kpi(r, 'community.groups_created').value, 'la serie suma el KPI');
+  assert.equal(dayCount(r, 'invites_created'), kpi(r, 'community.invites_created').value, 'ídem invitaciones');
+});
+
+scenario('Comunidad · Nivel: % calibrado sobre quienes ya iniciaron su Nivel, con muestra mínima; estados desglosados con k', async () => {
+  const accts = [];
+  for (let i = 0; i < 5; i += 1) accts.push(await mkAccount(`lv${i}`, '2026-09-03T12:00:00Z'));
+  let r = await call('metrics_community', '90d');
+  assert.equal(kpi(r, 'community.level_calibrated_share').availability, 'insufficient_sample', 'todos PENDIENTE: sin base');
+  const set = async (pid, st) => q(`update public.level_states set status = $2 where player_id = $1`, [pid, st]);
+  for (let i = 0; i < 5; i += 1) await set(accts[i].pid, i < 2 ? 'CALIBRADO' : 'CALIBRANDO');
+  await set(ids.a1, 'RECALIBRANDO');
+  r = await call('metrics_community', '90d');
+  const k = kpi(r, 'community.level_calibrated_share');
+  assert.deepEqual([k.count, k.n, k.value, k.availability, k.previous, k.snapshot], [2, 6, 0.3333, 'ok', null, true]);
+  assert.deepEqual(r.breakdowns.level_status.items.map((i) => `${i.label}:${i.n}`), ['Otros (n<5):9'], 'CALIBRADO 2 + CALIBRANDO 3 + RECALIBRANDO 1 + PENDIENTE 3: todos < 5 => un solo «Otros»');
+  for (const it of r.breakdowns.level_status.items) assert.ok(it.n >= 5 || /^Otros/.test(it.label), 'ningún segmento < 5 sin agrupar');
+});
+
+async function mkEdition(publishedAt, rows) {
+  const e = (await one(`insert into public.ranking_editions (period_start_at, period_end_at, published_at) values ($1::timestamptz - interval '7 days', $1::timestamptz - interval '1 second', $1) returning edition_id`, [publishedAt])).edition_id;
+  for (const r of rows) {
+    await q(`insert into public.ranking_rows (edition_id, player_id, scope_type, scope_key, is_eligible, total_eligible, density_status, level_status, level_band, ranking_rules_version, eligibility_reason_codes)
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ranking_v1', $10::jsonb)`,
+    [e, r.pid, r.scope || 'global', r.key || 'GLOBAL', r.elig !== false, r.total ?? 1, r.density || 'forming', r.status || 'CALIBRADO', r.band ?? 5, r.elig === false ? '["no_opt_in"]' : '[]']);
+  }
+  return e;
+}
+
+scenario('Comunidad · Ranking: sin ediciones => «sin registros» (no 0); con edición: antigüedad, elegibles, tasa sobre cuentas actuales y universos por densidad', async () => {
+  let r = await call('metrics_community', '90d');
+  for (const id of ['community.ranking_days_since_edition', 'community.ranking_eligible_players', 'community.ranking_eligibility_rate']) {
+    const k = kpi(r, id); assert.equal(k.availability, 'no_evidence', id); assert.equal(k.value, null, id);
+  }
+  assert.deepEqual(r.breakdowns.ranking_density, { items: [], suppressed: false, unit: 'universes' });
+  const six = []; for (let i = 0; i < 5; i += 1) six.push(await mkAccount(`rk${i}`, '2026-09-04T12:00:00Z'));
+  const all = [ids.a1, ids.a2, ids.a3, ids.a4, ...six.map((x) => x.pid)];
+  await mkEdition('2026-10-05T15:00:00Z', [
+    ...all.slice(0, 6).map((pid) => ({ pid, band: 4 })),
+    { pid: all[6], elig: false, status: 'CALIBRANDO', band: null }, { pid: all[0], scope: 'local', key: 'loc-1', density: 'forming' }, { pid: all[1], scope: 'local', key: 'loc-1', density: 'forming' },
+    { pid: all[2], scope: 'local', key: 'loc-2', density: 'insufficient' }, { pid: all[3], scope: 'local', key: 'loc-3', density: 'established' },
+  ]);
+  r = await call('metrics_community', '90d');
+  assert.equal(kpi(r, 'community.ranking_days_since_edition').value, 3, '08/10 − 05/10');
+  assert.equal(kpi(r, 'community.ranking_eligible_players').value, 6);
+  const rate = kpi(r, 'community.ranking_eligibility_rate');
+  assert.deepEqual([rate.count, rate.n, rate.availability, rate.previous], [6, 9, 'ok', null], '6 elegibles / 9 cuentas actuales');
+  assert.deepEqual(r.breakdowns.ranking_density.items.map((i) => `${i.label}:${i.n}`), ['established:1', 'forming:1', 'insufficient:1'], 'cuenta UNIVERSOS, no personas');
+  // distribución de Nivel: 6 calibrados (< 10) => oculta entera, aunque haya bandas con ≥ 5
+  assert.deepEqual(r.breakdowns.level_band, { items: [], suppressed: true, minCell: 10 });
+  assert.equal(kpi(r, 'community.ranking_editions').value, 1);
+});
+
+scenario('Comunidad · distribución de Nivel por banda: solo con ≥ 10 calibrados y cada banda con ≥ 5 (si no, «Otros»)', async () => {
+  const pl = []; for (let i = 0; i < 12; i += 1) pl.push(await mkAccount(`bd${i}`, '2026-09-04T12:00:00Z'));
+  await mkEdition('2026-10-05T15:00:00Z', pl.map((x, i) => ({ pid: x.pid, band: i < 7 ? 4 : i < 10 ? 5 : 6 })));
+  const r = await call('metrics_community', '90d');
+  assert.deepEqual(r.breakdowns.level_band.items.map((i) => `${i.label}:${i.n}`), ['band_4:7', 'Otros (n<5):5'], 'bandas 5 (3) y 6 (2) suman 5 => un solo «Otros»');
+  assert.equal(r.breakdowns.level_band.minCell, 5);
+  const txt = JSON.stringify(r);
+  assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(txt), 'sin UUID');
+  await q(`insert into public.metrics_internal_players (player_id, reason) select player_id, 'test' from public.players where display_name like 'Nombre bd%' limit 4`);
+  const ex = await call('metrics_community', '90d');
+  assert.equal(ex.breakdowns.level_band.suppressed, true, 'excluidas las internas quedan 8 (< 10)');
+});
+
+test('F4 — permisos: las funciones nuevas (`_metrics_today`, `_metrics_community_breakdowns`) y las reemplazadas siguen sin acceso de clientes ', async () => {
+  for (const [label, d] of [['strict', dbStrict], ['observed', db], ['open', dbOpen]]) {
+    for (const fn of ['_metrics_today', '_metrics_community_breakdowns', '_metrics_window', '_metrics_community_core', '_metrics_run', '_metrics_catalog', 'metrics_overview', 'metrics_community']) {
+      const rows = (await d.query(`select p.oid from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = $1`, [fn])).rows;
+      assert.ok(rows.length >= 1, `${label}: ${fn} existe`);
+      for (const { oid } of rows) for (const role of ['anon', 'authenticated']) {
+        assert.equal((await d.query(`select has_function_privilege($1, $2::oid, 'execute') x`, [role, oid])).rows[0].x, false, `${label}: ${role} NO ejecuta ${fn}`);
+      }
+    }
+  }
+});
+
+test('F4 — catálogo: +6 KPIs community.* (ruteo de detalle sin cambios en el cliente), todos con definición y los ratios snapshot con muestra mínima', async () => {
+  const cat = (await one(`select public._metrics_catalog() as c`)).c;
+  const comm = cat.filter((e) => e.section === 'community').map((e) => e.id);
+  assert.equal(cat.length, 55);
+  assert.deepEqual(comm.slice(-6), ['community.groups_with_match', 'community.groups_avg_members', 'community.level_calibrated_share', 'community.ranking_days_since_edition', 'community.ranking_eligible_players', 'community.ranking_eligibility_rate']);
+  for (const e of cat.filter((x) => x.snapshot)) { assert.equal(e.kind, 'ratio', e.id); assert.ok(e.minN >= 5, e.id); }
+  assert.deepEqual(cat.filter((x) => x.snapshot).map((x) => x.id).sort(), ['community.level_calibrated_share', 'community.ranking_eligibility_rate', 'users.profile_complete_rate', 'users.with_location_rate']);
 });

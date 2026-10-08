@@ -1,6 +1,6 @@
 # 148 — Plan de implementación · BRAMU Metrics V1 (`/admin/metrics`) — 08OCT26
 
-**Estado (08/10/2026):** F1 y F2 **aplicadas y verificadas parcialmente por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) desplegada en Staging (`04.37-h29`), código cerrado y QA vivo parcial** (ver `149_…` §7); **F4 ya tiene alcance técnico mínimo definido (§11) y NO está implementada**; F5–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
+**Estado (08/10/2026):** F1 y F2 **aplicadas y verificadas parcialmente por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) desplegada en Staging (`04.37-h29`), código cerrado y QA vivo parcial** (ver `149_…` §7); **F4 (§11) implementada en el repo el 08/10/2026 (resultado y verificación para Central en `149_…` §8; migración `20261008120000` aún sin aplicar)**; F5–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
 > **Nota de nombres (F1):** la RPC de presencia se llama `register_app_presence` (no `record_app_activity`): los controles de grants del repo tratan cualquier función `record_*` ejecutable por `authenticated` como administrativa/interna.
 **Leer antes:** `README.md`, `Metodo_Trabajo.md`, `BRAMU_Metrics.md` (producto) y su marco confirmado — `BRAMU_Metrics_UX_V1.md` (paneles + Explorar), `BRAMU_Metrics_Privacidad_V1.md`, `BRAMU_Metrics_Comparaciones_V1.md` — y `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas, hallazgos).
 **No se toca en ninguna fase:** `main`, Vercel Production, Supabase Production (salvo lecturas autorizadas por Central y, **solo tras autorización explícita**, la promoción de la Fase 5), BRAMUlive, fórmula de Nivel, lógica deportiva oficial, datos de usuarios.
@@ -279,7 +279,9 @@ Tras el último pull se incorporaron los documentos de decisión de Central/Seba
 
 ---
 
-## 11. F4 — alcance técnico mínimo (propuesta del 08/10/2026; NO implementada, a revisar por Central)
+## 11. F4 — alcance técnico mínimo (aprobado e IMPLEMENTADO el 08/10/2026 — ver `149_…` §8)
+
+> **Cambios respecto de la propuesta:** (1) D8 confirmada (días completos hasta ayer; `today` parcial aparte) se resolvió en esta misma migración; (2) se corrigió el comportamiento de los ratios «foto del estado actual» (`snapshot`: sin comparación); (3) `community.ranking_days_since_edition` reemplaza al «last_edition_at» (los KPIs son numéricos); (4) los 6 KPIs nuevos llevan prefijo `community.` para no tocar el Edge ni el ruteo del cliente; catálogo 49 → 55.
 
 **Hallazgo que define el alcance:** el backend de F2 **ya calcula** las secciones `activation`, `community` y `usage` (31 de los 49 KPIs del catálogo: 10 + 9 + 12, con umbral k, comparación, estados de disponibilidad y pruebas), y el Edge ya las enruta (`SECTION_FUNCTIONS`); el cliente ya sabe abrir el detalle de sus KPIs (`SECTION_OF_PREFIX`). Lo que **falta es la pantalla** y una pequeña cantidad de SQL para lo que hoy no tiene indicador (Grupos con actividad, Nivel y Ranking más allá de conteos). **F4 reutiliza el backend, no agrega tablas ni captura nueva, y no requiere redeploy de la Edge Function.**
 

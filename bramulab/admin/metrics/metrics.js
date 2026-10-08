@@ -2,13 +2,14 @@
  *
  * Página estática SIN datos: todo sale de la Edge Function `admin-metrics`, que verifica el JWT y autoriza al administrador EN SERVIDOR
  * (lista metrics_admins por UUID). Nada de acá decide quién es administrador: ni el @usuario, ni el email, ni el nombre.
- * Contrato real del backend: docs/BRAMUlab/BRAMU_Metrics_Auditoria_Tecnica_V1.md §4 y Implementacion/Post_Lanzamiento/149_*.md.
+ * Contrato real del backend: docs/BRAMUlab/Metrics/BRAMU_Metrics_Auditoria_Tecnica_V1.md §4 y Implementacion/Post_Lanzamiento/149_*.md (F4: 148 §11).
  *
  * Reglas que este archivo respeta:
  *   - nunca inventa datos: sin respuesta del servidor no hay números (los estados no medibles se rotulan, jamás se muestran como 0);
  *   - solo agregados: no existe ninguna vista por jugador;
  *   - el DOM se arma con textContent/createElement (nada de innerHTML con datos del servidor);
  *   - los datos no se guardan en storage: solo preferencias (período, comparar, incluir internas);
+ *   - D8 (días completos): los períodos terminan AYER; lo de hoy se muestra aparte, rotulado «parcial», y nunca entra en comparaciones;
  *   - el modo `?qa=1` (fixture rotulado «NO PRODUCTION») solo existe fuera de Production y el fixture ni se publica en ese build.
  */
 (function (global) {
@@ -30,19 +31,29 @@
     { id: 'inicio', label: 'Inicio', section: 'overview', hash: '#/' },
     { id: 'usuarios', label: 'Usuarios', section: 'users', hash: '#/usuarios' },
     { id: 'partidos', label: 'Partidos', section: 'matches', hash: '#/partidos' },
+    { id: 'activacion', label: 'Activación', section: 'activation', hash: '#/activacion' },
+    { id: 'comunidad', label: 'Comunidad', section: 'community', hash: '#/comunidad' },
+    { id: 'uso', label: 'Uso', section: 'usage', hash: '#/uso' },
   ];
   const SECTION_OF_PREFIX = { users: 'users', matches: 'matches', activation: 'activation', community: 'community', usage: 'usage' };
 
   /* Qué dirección es «buena» solo cuando el producto lo define; el resto se muestra en azul neutro (sin juicio). */
   const GOOD_UP = new Set(['users.signups', 'matches.created', 'matches.real', 'matches.validated', 'matches.validation_rate_closed', 'matches.authors',
-    'matches.registered_participants', 'usage.dau', 'usage.wau', 'usage.mau', 'usage.dau_avg']);
-  const GOOD_DOWN = new Set(['matches.annulled', 'matches.expired_derived', 'matches.validation_p50_hours', 'matches.validation_p90_hours']);
+    'matches.registered_participants', 'usage.dau', 'usage.wau', 'usage.mau', 'usage.dau_avg', 'usage.wau_with_action', 'usage.mau_with_action',
+    'usage.ret_w1', 'usage.ret_w4', 'usage.ret_d1', 'usage.ret_d7', 'usage.ret_d30',
+    'activation.level_initial', 'activation.loaded_first', 'activation.participated_first', 'activation.participated_validated', 'activation.third_match',
+    'activation.fifth_match', 'activation.returned_other_week',
+    'community.groups_created', 'community.groups_with_match', 'community.invites_created', 'community.invites_claimed', 'community.invite_conversion']);
+  const GOOD_DOWN = new Set(['matches.annulled', 'matches.expired_derived', 'matches.validation_p50_hours', 'matches.validation_p90_hours', 'activation.median_days_to_first_load']);
 
   /* Gráficos con serie temporal: KPI -> [clave en `series` de su sección]. */
   const KPI_SERIES = {
     'users.signups': { section: 'users', key: 'signups', title: 'Altas por ' },
     'matches.created': { section: 'matches', key: 'created', title: 'Partidos cargados por ' },
     'matches.validated': { section: 'matches', key: 'validated', title: 'Partidos validados por ' },
+    'community.groups_created': { section: 'community', key: 'groups_created', title: 'Grupos creados por ' },
+    'community.invites_created': { section: 'community', key: 'invites_created', title: 'Invitaciones creadas por ' },
+    'usage.dau': { section: 'usage', key: 'active_players', title: 'Jugadores activos por ' },
   };
 
   const STATUS_LABELS = {
@@ -53,6 +64,18 @@
     annulled_author_retracted: ['Anulados · carga retirada', 'dim'],
     annulled_admin: ['Anulados · administrativo', 'dim'],
   };
+  const LEVEL_LABELS = { PENDIENTE: ['Pendiente', 'dim'], CALIBRANDO: ['Calibrando', 'blue'], CALIBRADO: ['Calibrado', ''], RECALIBRANDO: ['Recalibrando', 'amber'] };
+  const SIZE_LABELS = { size_1: ['1 integrante', 'dim'], size_2_3: ['2–3 integrantes', ''], size_4_6: ['4–6 integrantes', ''], size_7_plus: ['7 o más integrantes', ''] };
+  const DENSITY_LABELS = { insufficient: ['Insuficiente (0–4 elegibles)', 'dim'], forming: ['En formación (5–14)', 'blue'], established: ['Consolidado (15 o más)', ''] };
+  const PLATFORM_LABELS = { ios: ['iPhone / iPad', ''], android: ['Android', 'blue'], desktop: ['Escritorio', 'amber'], other: ['Otra', 'dim'] };
+  const ORDERS = {
+    level: ['PENDIENTE', 'CALIBRANDO', 'CALIBRADO', 'RECALIBRANDO'],
+    size: ['size_1', 'size_2_3', 'size_4_6', 'size_7_plus'],
+    density: ['insufficient', 'forming', 'established'],
+  };
+  const FUNNEL_IDS = ['activation.cohort', 'activation.level_initial', 'activation.loaded_first', 'activation.participated_first', 'activation.participated_validated',
+    'activation.third_match', 'activation.fifth_match'];
+  const RANKING_WAIT = /^community\.ranking_(days_since_edition|eligible_players|eligibility_rate)$/;
   const FUNNEL_LABELS = {
     'activation.level_initial': 'Completó el Nivel inicial',
     'activation.loaded_first': 'Cargó su primer partido',
@@ -110,7 +133,7 @@
 
   function previousText(kpi, compareOn) {
     if (!compareOn || !kpi || !kpi.previous) return null;
-    if (kpi.kind === 'stock') return null;
+    if (kpi.kind === 'stock' || kpi.snapshot) return null;
     const p = kpi.previous;
     if (p.value === null || p.value === undefined) return 'Anterior: sin datos';
     return 'Anterior: ' + formatValue(kpi, p.value);
@@ -124,7 +147,9 @@
   function availabilityView(kpi, meta) {
     const min = (meta && meta.minCell) || 5;
     switch (kpi && kpi.availability) {
-      case 'no_evidence': return { tone: 'none', text: 'Sin registros en el período' };
+      case 'no_evidence':
+        if (kpi.id && RANKING_WAIT.test(kpi.id)) return { tone: 'none', text: 'Todavía no se publicó ninguna edición de Ranking' };
+        return { tone: 'none', text: 'Sin registros en el período' };
       case 'insufficient_sample': return { tone: 'sample', text: 'Muestra insuficiente' + (kpi.n !== null && kpi.n !== undefined ? ` · n = ${fmtNum(kpi.n)}` : '') + ` (mínimo ${min})` };
       case 'not_instrumented': return { tone: 'wait', text: 'Todavía no medible' + (kpi.since ? ` · captura desde ${fmtDayMonth(kpi.since)}` : ' · sin fecha de inicio de captura') };
       case 'immature': return { tone: 'wait', text: 'Cohortes todavía inmaduras' };
@@ -148,12 +173,27 @@
     return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   }
 
-  /** «09/09 – hoy» o «10/08 – 08/09». El fin de la ventana previa es exclusivo (== inicio de la actual): se muestra el día anterior. */
-  function windowLabel(win, isCurrent) {
+  /** «01/10 – 07/10»: días COMPLETOS (D8). El fin de la ventana es exclusivo (las 00:00 de hoy, o donde empieza la actual): se muestra el último día incluido. */
+  function windowLabel(win) {
     if (!win || win.length < 2) return '—';
-    const start = fmtDayMonth(baDate(win[0]));
-    const end = isCurrent ? 'hoy' : fmtDayMonth(baDate(new Date(new Date(win[1]).getTime() - 1).toISOString()));
-    return `${start} – ${end}`;
+    const start = baDate(win[0]);
+    const end = baDate(new Date(new Date(win[1]).getTime() - 1).toISOString());
+    if (!start || !end || end < start) return 'sin días completos todavía';
+    return `${fmtDayMonth(start)} – ${fmtDayMonth(end)}`;
+  }
+
+  /** «Hoy (parcial)»: actividad del día en curso, aparte de todo período y de toda comparación. `keys` = qué mostrar. null si el servidor no la mandó. */
+  const TODAY_FIELDS = {
+    signups: 'Altas', matchesCreated: 'Partidos cargados', matchesValidated: 'Partidos validados', activePlayers: 'Jugadores activos',
+  };
+  function todayView(today, keys) {
+    if (!today || typeof today !== 'object') return null;
+    const items = (keys || []).filter((k) => TODAY_FIELDS[k]).map((k) => {
+      const v = today[k];
+      if (k === 'activePlayers' && (v === null || v === undefined)) return { key: k, label: TODAY_FIELDS[k], text: 'Todavía no medible', pending: true };
+      return { key: k, label: TODAY_FIELDS[k], text: fmtNum(v), pending: false };
+    });
+    return { items, upTo: today.asOf ? fmtBA(today.asOf, { hour: '2-digit', minute: '2-digit', hour12: false }) : null, date: today.date || null };
   }
 
   function seriesFor(kpiId, data) {
@@ -213,6 +253,9 @@
     if (h === '' || h === 'inicio') return { view: 'inicio' };
     if (h === 'usuarios') return { view: 'usuarios' };
     if (h === 'partidos') return { view: 'partidos' };
+    if (h === 'activacion') return { view: 'activacion' };
+    if (h === 'comunidad') return { view: 'comunidad' };
+    if (h === 'uso') return { view: 'uso' };
     const m = /^kpi\/([a-z_]+\.[a-z0-9_]+)$/.exec(h);
     if (m && SECTION_OF_PREFIX[m[1].split('.')[0]]) return { view: 'kpi', kpiId: m[1] };
     return { view: 'inicio' };
@@ -232,8 +275,8 @@
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(String(hostname || ''));
   }
 
-  const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
-    RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN };
+  const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
+    RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS };
 
   /* ====================================================================== */
   /* Interfaz (solo con DOM)                                                 */
@@ -431,17 +474,21 @@
     hit.addEventListener('pointerleave', hide); hit.addEventListener('pointercancel', hide);
 
     const legend = h('div', { class: 'mx-legend' }, [
-      h('span', null, [h('i', { class: 'mx-dot' }), `Actual${meta.window ? ' · ' + windowLabel(meta.window, true) : ''}`]),
-      S.compare && series.previous ? h('span', null, [h('i', { class: 'mx-dot mx-dot--prev' }), `Anterior${meta.previousWindow ? ' · ' + windowLabel(meta.previousWindow, false) : ''}`]) : null,
+      h('span', null, [h('i', { class: 'mx-dot' }), `Actual${meta.window ? ' · ' + windowLabel(meta.window) : ''}`]),
+      S.compare && series.previous ? h('span', null, [h('i', { class: 'mx-dot mx-dot--prev' }), `Anterior${meta.previousWindow ? ' · ' + windowLabel(meta.previousWindow) : ''}`]) : null,
     ]);
     return h('div', { class: 'mx-chart' }, [root, legend]);
   }
 
-  function hbars(items, opts) {
+  function hbars(rawItems, opts) {
     const o = opts || {};
+    const items = o.order ? rawItems.slice().sort((a, b) => {
+      const ia = o.order.indexOf(a.label); const ib = o.order.indexOf(b.label);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    }) : rawItems;
     const total = items.reduce((a, i) => a + i.n, 0) || 1;
     return h('div', { class: 'mx-hbars' }, items.map((it) => {
-      const [label, tone] = o.labels && o.labels[it.label] ? o.labels[it.label] : [it.label, ''];
+      const [label, tone] = o.labelFn ? o.labelFn(it.label) : (o.labels && o.labels[it.label] ? o.labels[it.label] : [it.label, '']);
       return h('div', { class: 'mx-hrow' }, [
         h('span', { class: 'mx-hrow__label', text: label }),
         h('span', { class: 'mx-hrow__val' }, [fmtNum(it.n), h('small', { text: `${fmtNum((it.n / total) * 100, 0)}${NBSP}%` })]),
@@ -452,17 +499,40 @@
 
   function breakdownPanel(title, sub, bd, opts) {
     if (!bd) return panel(title, sub, h('div', { class: 'mx-empty', text: 'Sin datos.' }));
-    if (bd.suppressed) return panel(title, sub, h('div', { class: 'mx-empty', text: `Sin desglose: hay menos de ${bd.minCell || 5} personas por segmento. Protegemos la privacidad: no se muestran grupos tan chicos.` }));
-    if (!bd.items.length) return panel(title, sub, h('div', { class: 'mx-empty', text: 'Sin registros en este período.' }));
-    return panel(title, sub, hbars(bd.items, opts), `Los segmentos con menos de ${bd.minCell || 5} personas se agrupan en «Otros» para proteger la privacidad.`);
+    const o = opts || {};
+    const unit = o.unit || 'personas';
+    if (bd.suppressed) return panel(title, sub, h('div', { class: 'mx-empty', text: o.suppressedText || `Sin desglose: hay menos de ${bd.minCell || 5} ${unit} por segmento. Protegemos la privacidad: no se muestran grupos tan chicos.` }));
+    if (!bd.items.length) return panel(title, sub, h('div', { class: 'mx-empty', text: o.emptyText || 'Sin registros en este período.' }));
+    const note = o.note || (bd.minCell ? `Los segmentos con menos de ${bd.minCell} ${unit} se agrupan en «Otros» para proteger la privacidad.` : null);
+    return panel(title, sub, hbars(bd.items, o), note);
   }
 
   function chartPanel(title, sub, series, opts) {
     const gran = series && series.granularity === 'week_ba' ? 'semana' : 'día';
-    return panel(title, sub || (series ? `Por ${gran} (hora de Buenos Aires)` : null), series ? chart(series, opts) : h('div', { class: 'mx-empty', text: 'Sin datos.' }), opts && opts.note);
+    const weekly = series && series.granularity === 'week_ba' ? '; las semanas de los extremos pueden estar incompletas' : '';
+    return panel(title, sub || (series ? `Por ${gran} (hora de Buenos Aires, días completos hasta ayer${weekly})` : null), series ? chart(series, opts) : h('div', { class: 'mx-empty', text: 'Sin datos.' }), opts && opts.note);
   }
 
-  function section(title, kids) { return [h('div', { class: 'mx-h', text: title }), kids]; }
+  /** «Hoy · parcial» (D8): lo de hoy va aparte, rotulado, y no participa de períodos ni de comparaciones. */
+  function todayPanel(data, keys) {
+    const v = todayView(data && data.today, keys);
+    if (!v || !v.items.length) return null;
+    return h('section', { class: 'mx-panel mx-today' }, [
+      h('div', { class: 'mx-today__head' }, [
+        h('span', { class: 'mx-today__badge', text: 'HOY · PARCIAL' }),
+        h('span', { class: 'mx-today__upto', text: v.upTo ? `hasta las ${v.upTo}` : '' }),
+      ]),
+      h('div', { class: 'mx-today__items' }, v.items.map((it) => h('div', { class: 'mx-today__item' }, [
+        h('div', { class: 'mx-today__label', text: it.label }),
+        h('div', { class: 'mx-today__value' + (it.pending ? ' is-empty' : ''), text: it.text }),
+      ]))),
+      h('p', { class: 'mx-note', text: 'El día en curso todavía no terminó: no entra en los períodos ni en las comparaciones de arriba.' }),
+    ]);
+  }
+
+  function section(title, kids) { return [h('div', { class: 'mx-h', text: title })].concat(kids); }
+  /** Encabezado de un SISTEMA (Grupos / Nivel / Ranking): borde de color propio para no mezclarlos. */
+  function systemSection(sys, title, kids) { return [h('div', { class: `mx-h mx-h--sys mx-h--${sys}`, text: title })].concat(kids); }
   function cardGrid(kpis, meta, cls, hero) { return h('div', { class: 'mx-grid' + (cls ? ` ${cls}` : '') }, kpis.map((k) => kpiCard(k, meta, hero))); }
   function pick(data, ids) { return ids.map((id) => data.kpis.find((k) => k.id === id)).filter(Boolean); }
 
@@ -475,6 +545,8 @@
     const actNode = presenceOn
       ? chartPanel('Jugadores activos (abrieron la app)', null, act, { meta, title: 'Jugadores activos', note: `Presencia medida desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}. Antes de esa fecha no hay dato: no se estima.` })
       : panel('Jugadores activos (abrieron la app)', null, h('div', { class: 'mx-empty', text: 'Todavía no medible: la presencia diaria recién empieza a registrarse cuando la captura está activa en este entorno. No se estima hacia atrás.' }));
+    const tp = todayPanel(data, ['signups', 'matchesCreated', 'activePlayers']);
+    if (tp) out.push(...section('Hoy', tp));
     out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
       chartPanel('Altas', null, sig, { meta, title: 'Altas' }),
       chartPanel('Partidos cargados', null, mc, { meta, title: 'Partidos cargados' }),
@@ -505,11 +577,13 @@
   }
 
   function factsPanel(meta) {
-    const win = meta.window ? windowLabel(meta.window, true) : '—';
+    const win = meta.window ? windowLabel(meta.window) : '—';
     const facts = [
       ['Entorno', QA ? 'QA (datos de prueba)' : String(meta.environment || '—')],
       ['Período actual', win],
-      ['Período anterior', S.compare && meta.previousWindow ? windowLabel(meta.previousWindow, false) : (S.compare ? 'No aplica (histórico)' : 'Comparación apagada')],
+      ['Período anterior', S.compare && meta.previousWindow ? windowLabel(meta.previousWindow) : (S.compare ? 'No aplica (histórico)' : 'Comparación apagada')],
+      ['Criterio de días', 'Días completos, hasta ayer'],
+      ['Hoy', 'Parcial: se muestra aparte'],
       ['Corte de datos', fmtBA(meta.asOf, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })],
       ['Presencia diaria', meta.presenceSince ? `desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}` : 'sin captura todavía'],
       ['Cuentas internas', meta.includeInternal ? 'incluidas' : (meta.internalExcluded ? `${fmtNum(meta.internalExcluded)} excluidas` : 'ninguna configurada')],
@@ -522,6 +596,8 @@
   function viewUsuarios(data) {
     const meta = data.meta; const out = [];
     out.push(...section('Cuentas', cardGrid(data.kpis, meta, '', false)));
+    const tpU = todayPanel(data, ['signups']);
+    if (tpU) out.push(...section('Hoy', tpU));
     out.push(...section('Evolución y perfil', h('div', { class: 'mx-grid mx-grid--charts' }, [
       chartPanel('Altas', null, data.series && data.series.signups, { meta, title: 'Altas', note: 'Altas brutas: incluyen cuentas que luego se eliminaron.' }),
       breakdownPanel('Localidad declarada', 'Cuentas actuales · «sin localidad» no equivale a otra localidad', data.breakdowns && data.breakdowns.location),
@@ -536,12 +612,103 @@
     out.push(...section('Validación', cardGrid(pick(data, ['matches.validation_rate_closed', 'matches.validation_p50_hours', 'matches.validation_p90_hours']), meta, '', false)));
     out.push(...section('Participación', cardGrid(pick(data, ['matches.authors', 'matches.registered_participants']), meta, '', false)));
     const ser = data.series || {};
+    const tpM = todayPanel(data, ['matchesCreated', 'matchesValidated']);
+    if (tpM) out.push(...section('Hoy', tpM));
     out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
       chartPanel('Partidos cargados', 'Fecha en que se registraron', ser.created, { meta, title: 'Partidos cargados', note: 'Fecha de carga: cuándo se registró el partido en BRAMU.' }),
       chartPanel('Partidos jugados', 'Fecha en que se jugaron (sin anulados)', ser.played, { meta, title: 'Partidos jugados', note: 'Los últimos 14 días pueden crecer: la carga retroactiva admite hasta 14 días.' }),
       chartPanel('Partidos validados', 'Fecha de validación', ser.validated, { meta, title: 'Partidos validados' }),
       breakdownPanel('Estado de los partidos cargados', 'Cargados en el período, estado al corte', data.breakdowns && data.breakdowns.status, { labels: STATUS_LABELS }),
     ])));
+    return h('div', null, out);
+  }
+
+  function viewActivacion(data) {
+    const meta = data.meta; const out = [];
+    out.push(...section('Cohorte', cardGrid(pick(data, ['activation.cohort', 'activation.cohort_immature']), meta, '', false)));
+    out.push(...section('Del alta al 5.º partido', funnelPanel(pick(data, FUNNEL_IDS), meta)));
+    out.push(...section('Primeros pasos', cardGrid(pick(data, ['activation.level_initial']), meta, '', false)));
+    out.push(...section('Primer partido', [
+      cardGrid(pick(data, ['activation.loaded_first', 'activation.participated_first', 'activation.participated_validated', 'activation.median_days_to_first_load']), meta, '', false),
+      h('p', { class: 'mx-note', text: '«Cargó» cuenta a quienes registraron un partido; «Participó» incluye a quienes jugaron un partido que cargó otra persona. Son pasos distintos.' }),
+    ]));
+    out.push(...section('Participación', cardGrid(pick(data, ['activation.third_match', 'activation.fifth_match']), meta, '', false)));
+    out.push(...section('Retorno', [
+      cardGrid(pick(data, ['activation.returned_other_week']), meta, '', false),
+      h('p', { class: 'mx-note', text: 'Retorno = una acción registrada en una semana posterior a la del alta (indicio retroactivo). La retención medida con presencia diaria está en Uso.' }),
+    ]));
+    return h('div', null, out);
+  }
+
+  function viewComunidad(data) {
+    const meta = data.meta; const out = []; const ser = data.series || {}; const bd = data.breakdowns || {};
+    out.push(...systemSection('grupos', 'Grupos BRAMU', [
+      cardGrid(pick(data, ['community.groups_active', 'community.groups_created', 'community.groups_with_match', 'community.groups_avg_members', 'community.memberships_active']), meta, '', false),
+      h('div', { class: 'mx-grid mx-grid--charts', style: 'margin-top:12px' }, [
+        chartPanel('Grupos creados', null, ser.groups_created, { meta, title: 'Grupos creados' }),
+        breakdownPanel('Grupos por tamaño', 'Grupos vigentes según sus integrantes actuales', bd.group_size, { labels: SIZE_LABELS, order: ORDERS.size, unit: 'grupos' }),
+      ]),
+    ]));
+    out.push(...systemSection('nivel', 'Nivel BRAMU', [
+      cardGrid(pick(data, ['community.level_calibrated_share']), meta, '', false),
+      h('div', { class: 'mx-grid mx-grid--charts', style: 'margin-top:12px' }, [
+        breakdownPanel('Estado del Nivel', 'Cuentas actuales según su calibración', bd.level_status, { labels: LEVEL_LABELS, order: ORDERS.level }),
+        breakdownPanel('Distribución por banda', 'Jugadores CALIBRADOS de la última edición de Ranking (banda 1–10)', bd.level_band, {
+          labelFn: (l) => [/^band_(\d+)$/.test(l) ? `Banda ${l.slice(5)}` : l, ''],
+          order: Array.from({ length: 10 }, (_, i) => `band_${i + 1}`),
+          suppressedText: `Sin distribución: hace falta un mínimo de ${(bd.level_band && bd.level_band.minCell) || 10} jugadores con Nivel calibrado en la última edición. Protegemos la privacidad.`,
+          emptyText: 'Todavía no hay una edición de Ranking publicada.',
+        }),
+      ]),
+    ]));
+    out.push(...systemSection('ranking', 'Ranking BRAMU', [
+      cardGrid(pick(data, ['community.ranking_editions', 'community.ranking_days_since_edition', 'community.ranking_eligible_players', 'community.ranking_eligibility_rate']), meta, '', false),
+      h('div', { class: 'mx-grid mx-grid--charts', style: 'margin-top:12px' }, [
+        breakdownPanel('Universos locales por densidad', 'Última edición publicada; cada universo es una localidad, no personas', bd.ranking_density, {
+          labels: DENSITY_LABELS, order: ORDERS.density, unit: 'universos',
+          note: 'Se cuentan universos (localidades), no personas. «En formación» muestra «N de total» sin podio; «Consolidado» publica puestos.',
+          emptyText: 'Todavía no hay una edición de Ranking publicada.',
+        }),
+      ]),
+    ]));
+    out.push(...section('Invitaciones a jugadores sin cuenta', [
+      cardGrid(pick(data, ['community.invites_created', 'community.invites_claimed', 'community.invites_open', 'community.invites_expired', 'community.invite_conversion']), meta, '', false),
+      h('div', { class: 'mx-grid mx-grid--charts', style: 'margin-top:12px' }, [chartPanel('Invitaciones creadas', null, ser.invites_created, { meta, title: 'Invitaciones creadas' })]),
+    ]));
+    return h('div', null, out);
+  }
+
+  function viewUso(data) {
+    const meta = data.meta; const out = []; const ser = data.series || {}; const bd = data.breakdowns || {};
+    const presenceOn = !!meta.presenceSince;
+    if (!presenceOn) {
+      out.push(...section('Presencia diaria', h('section', { class: 'mx-panel' }, h('div', { class: 'mx-empty', text: 'Todavía no medible: la presencia diaria recién empieza a registrarse cuando la captura está activa en este entorno. Nada se estima hacia atrás; los indicadores de abajo muestran desde cuándo se miden.' }))));
+    }
+    out.push(...section('Actividad (abrieron la app)', cardGrid(pick(data, ['usage.dau', 'usage.wau', 'usage.mau', 'usage.dau_avg']), meta, '', false)));
+    const tpUso = todayPanel(data, ['activePlayers']);
+    if (tpUso) out.push(...section('Hoy', tpUso));
+    out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [
+      presenceOn
+        ? chartPanel('Jugadores activos por día', null, ser.active_players, { meta, title: 'Jugadores activos', note: `Presencia medida desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}. Antes de esa fecha no hay dato: no se estima.` })
+        : panel('Jugadores activos por día', null, h('div', { class: 'mx-empty', text: 'Todavía no medible.' })),
+    ])));
+    out.push(...section('Retención', [
+      cardGrid(pick(data, ['usage.ret_w1', 'usage.ret_w4', 'usage.ret_d1', 'usage.ret_d7', 'usage.ret_d30']), meta, '', false),
+      h('p', { class: 'mx-note', text: 'Se calcula sobre altas posteriores al inicio de la captura y con la ventana objetivo ya completa; las cohortes más recientes aparecen como «inmaduras». La lectura principal es semanal (W1, W4).' }),
+    ]));
+    out.push(...section('Instalación y versiones', [
+      cardGrid(pick(data, ['usage.standalone_share']), meta, '', false),
+      h('div', { class: 'mx-grid mx-grid--charts', style: 'margin-top:12px' }, [
+        breakdownPanel('Plataforma', 'Última presencia de cada jugador en los 7 días hasta el último día completo', bd.platform, { labels: PLATFORM_LABELS }),
+        breakdownPanel('Versión de la app', 'Versión con la que abrió cada jugador por última vez', bd.bundle, {}),
+      ]),
+      h('p', { class: 'mx-note', text: '«Uso desde la app instalada» mide aperturas en modo instalado: no son instalaciones.' }),
+    ]));
+    out.push(...section('Acciones registradas (retroactivo)', [
+      cardGrid(pick(data, ['usage.wau_with_action', 'usage.mau_with_action']), meta, '', false),
+      h('p', { class: 'mx-note', text: 'Jugadores con una acción persistida (cargar, validar, grupos, Nivel). No es presencia: sirve para mirar hacia atrás, antes de que existiera la captura.' }),
+    ]));
+    out.push(...section('Estado de la recolección', factsPanel(meta)));
     return h('div', null, out);
   }
 
@@ -554,7 +721,7 @@
     const kinds = { stock: 'Saldo al corte', flow: 'Flujo del período', ratio: 'Proporción', duration: 'Duración' };
     const s = seriesFor(id, data);
     const nodes = [back,
-      h('div', { class: 'mx-detail__head' }, [h('h1', { class: 'mx-detail__title', text: kpi.label }), h('span', { class: 'mx-kind', text: kinds[kpi.kind] || kpi.kind })]),
+      h('div', { class: 'mx-detail__head' }, [h('h1', { class: 'mx-detail__title', text: kpi.label }), h('span', { class: 'mx-kind', text: (kinds[kpi.kind] || kpi.kind) + (kpi.snapshot ? ' · foto del estado actual' : '') })]),
       h('div', { class: 'mx-detail__value' }, [h('span', { class: 'big' + (shown ? ' is-empty' : ''), text: shown ? '—' : formatValue(kpi, kpi.value) }), delta, prev ? h('span', { class: 'mx-prev', text: prev }) : null]),
       stateLine(kpi, meta) ? h('div', { style: 'margin-bottom:16px' }, stateLine(kpi, meta)) : null,
     ];
@@ -570,7 +737,7 @@
       h('div', null, [h('dt', { text: 'Población' }), h('dd', { text: kpi.population })]),
       h('div', null, [h('dt', { text: 'Muestra (n)' }), h('dd', { text: kpi.n === null || kpi.n === undefined ? 'No aplica' : fmtNum(kpi.n) })]),
     ])));
-    nodes.push(h('p', { class: 'mx-note', text: `Período actual: ${windowLabel(meta.window, true)}` + (S.compare && meta.previousWindow ? ` · anterior: ${windowLabel(meta.previousWindow, false)}` : '') + '. Solo agregados; no hay datos individuales.' }));
+    nodes.push(h('p', { class: 'mx-note', text: `Período actual: ${windowLabel(meta.window)} (días completos)` + (S.compare && meta.previousWindow ? ` · anterior: ${windowLabel(meta.previousWindow)}` : '') + '. Solo agregados; no hay datos individuales.' }));
     return h('div', null, nodes);
   }
 
@@ -595,14 +762,15 @@
     if (!meta) return;
     w.appendChild(h('i', { class: 'mx-dot' }));
     w.appendChild(document.createTextNode('Actual '));
-    w.appendChild(h('b', { text: windowLabel(meta.window, true) }));
+    w.appendChild(h('b', { text: windowLabel(meta.window) }));
     if (S.compare && meta.previousWindow) {
       w.appendChild(h('i', { class: 'mx-dot mx-dot--prev' }));
       w.appendChild(document.createTextNode('Anterior '));
-      w.appendChild(h('b', { text: windowLabel(meta.previousWindow, false) }));
+      w.appendChild(h('b', { text: windowLabel(meta.previousWindow) }));
     } else if (S.compare) {
       w.appendChild(document.createTextNode(' · sin período anterior (histórico)'));
     }
+    w.appendChild(document.createTextNode(' · días completos, hasta ayer'));
   }
 
   function errorView(err) {
@@ -631,7 +799,8 @@
       renderWindowLine(data.meta);
       $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit' })}`;
       view.textContent = '';
-      view.appendChild(route.view === 'inicio' ? viewInicio(data) : route.view === 'usuarios' ? viewUsuarios(data) : route.view === 'partidos' ? viewPartidos(data) : viewKpi(route.kpiId, data));
+      const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso };
+      view.appendChild(route.view === 'kpi' ? viewKpi(route.kpiId, data) : RENDER[route.view](data));
       global.scrollTo(0, 0);
     } catch (err) {
       if (seq !== S.seq) return;

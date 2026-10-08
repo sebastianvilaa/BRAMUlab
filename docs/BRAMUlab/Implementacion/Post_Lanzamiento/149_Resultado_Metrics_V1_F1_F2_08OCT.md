@@ -1,6 +1,6 @@
 # 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
 
-> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; **§7 = cierre de F3 (verificación del 08/10/2026)**.
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026)**.
 
 **Estado (actualizado 08/10/2026):** implementado en el repo y probado localmente (PGlite = Postgres real + Node). F1/F2 **aplicados en Supabase Staging** y `admin-metrics` **desplegada** por Central; F3 (`04.37-h29`) desplegada en Staging. Estado del cierre de F3: §7. (Los §1–§5 describen lo entregado en la ronda original; sus «pendientes de Central» ya se ejecutaron salvo lo que §7 deja abierto.) Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
@@ -147,7 +147,7 @@ Backend F1/F2 instalado en Staging · `admin-metrics` desplegada · `@seba_qa` �
 ### 7.3 Observaciones de la revisión (ninguna bloquea el cierre de F3)
 | # | Observación | Riesgo | Propuesta |
 |---|---|---|---|
-| O1 | **Ventana actual parcial vs. previa completa.** `7d/30d/90d` = N días calendario BA terminando **hoy (parcial, hasta el corte)**; la previa son N días **completos**. Con flujos (altas, cargados, validados) el delta tiende a verse más bajo cuanto más temprano es el día; `usage.dau` mide el «último día de la ventana» (hoy, parcial) contra el último día completo de la previa. El rótulo «hasta hoy» lo insinúa pero no lo explica. | **Medio** (afecta la lectura de comparaciones, no los totales) | **DECISIÓN D8** (abajo). Recomendado: ventana actual = últimos N días **completos** (hasta ayer) o comparar contra la previa recortada a la misma hora; mientras se decide, rotular «incluye hoy (parcial)». Es un cambio de SQL ⇒ va en la migración de F4. |
+| O1 | **(RESUELTA en F4 con D8)** **Ventana actual parcial vs. previa completa.** `7d/30d/90d` = N días calendario BA terminando **hoy (parcial, hasta el corte)**; la previa son N días **completos**. Con flujos (altas, cargados, validados) el delta tiende a verse más bajo cuanto más temprano es el día; `usage.dau` mide el «último día de la ventana» (hoy, parcial) contra el último día completo de la previa. El rótulo «hasta hoy» lo insinúa pero no lo explica. | **Medio** (afecta la lectura de comparaciones, no los totales) | **DECISIÓN D8** (abajo). Recomendado: ventana actual = últimos N días **completos** (hasta ayer) o comparar contra la previa recortada a la misma hora; mientras se decide, rotular «incluye hoy (parcial)». Es un cambio de SQL ⇒ va en la migración de F4. |
 | O2 | Si la RPC `metrics_is_admin` falla (error de base, no «no es admin»), el Edge responde **403 `forbidden`** y la consola muestra «Acceso no autorizado» a la propia administradora. Falla cerrado (seguro), pero confunde. | Bajo | Responder 503 `metrics_unavailable` ante error de la RPC (no ante `false`); sin oráculo nuevo. Requiere redeploy de `admin-metrics` ⇒ agrupar con la próxima ronda que ya la toque. |
 | O3 | CORS de `admin-metrics` es `*` (el plan §5.1 pedía restringir al origen del entorno). Con Bearer y sin cookies no es explotable, y un no-admin recibe 403 sin datos. | Bajo | Restringir al origen del entorno junto con O2. |
 | O4 | El limitador de tasa falla abierto si el limitador mismo cae (patrón vigente en todas las funciones; posterior a la autorización). | Muy bajo | Sin acción. |
@@ -187,7 +187,54 @@ curl -s -w ' %{http_code}\n' -X POST "$SUPABASE_URL/rest/v1/rpc/metrics_overview
 ### 7.5 Decisiones y estado
 | ID | Estado |
 |---|---|
-| **D8** (nueva) — Semántica de la ventana actual (O1): ¿«últimos N días completos» o «incluye hoy parcial» con rótulo? | **ABIERTA — Sebastián/Central.** Recomendado: días completos. Se resuelve en la migración de F4 (un solo cambio en `_metrics_window`/`usage.dau`). |
+| **D8** (nueva) — Semántica de la ventana actual (O1): ¿«últimos N días completos» o «incluye hoy parcial» con rótulo? | **CONFIRMADA por Sebastián (08/10/2026): días completos, hasta ayer.** Implementada en F4 (§8). |
 | D1–D4, D7 | Sin cambios respecto de §4. **D1 + D3 son ahora lo más urgente** (ver `148` §11.5): sin ellos Production no registra presencia y el reloj de DAU/retención no corre. |
 
 **Estado de F3:** código ✔ · pruebas locales ✔ · concordancia de Inicio ✔ (Central) · acceso administrativo ✔ (revisión estática + Central) · **negativos con sesiones reales ⏳ · concordancia Usuarios/Partidos ⏳ · headers/robots ⏳ · iPhone/Android ⏳**. Production: sin tocar.
+
+---
+
+## 8. F4 — Activación · Comunidad · Uso, D8 y «hoy parcial» (08/10/2026, bundle `04.37-h30`)
+
+**Estado:** implementado en el repo y probado localmente (PGlite + Node + navegador con el fixture de QA). **NO aplicada la migración en ningún Supabase, NO desplegado** (lo hace Central). Solo Staging; Production, `main` y BRAMUlive intactos; sin cambios en la app de jugadores ni en lógica deportiva (el bump `h30` toca `store.js`/`sw.js`/`version.json`/`index.html` solo por versión). Alcance definido en `148` §11.
+
+### 8.1 Verificación previa de la reorganización (sin cambios necesarios)
+Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: las suites de Metrics (`bramulab/metrics-*.test.mjs`, que permanecen en la raíz de `bramulab/`) y las de `supabase/functions/_shared` corren sin tocar rutas; `check-docs` OK; ningún enlace de `docs/` a Metrics/Implementación está roto (los 10 enlaces rotos que existen son de `Versiones/` históricas hacia carpetas retiradas, ajenos a Metrics); el código que cita `docs/BRAMUlab/BRAMU_Metrics_*.md` se refiere a los archivos de `Metrics/` (se corrigieron las citas en `metrics.js`, el verify SQL y el encabezado de F4). Único ajuste necesario: un test viejo (`v0429-invitados-identidad`) fijaba el bundle con el regex `04.37-h2` (coincidía con `h29` por casualidad) y se relajó a `04.37-h\d+`; ese es el único cambio en pruebas ajenas, más los pines de versión de `icon-staging-h27` y `nivel-onboarding-scroll-h24` (`h29` → `h30`).
+
+### 8.2 Qué se implementó
+| Pieza | Archivo | Detalle |
+|---|---|---|
+| **Migración aditiva** | `supabase/migrations/20261008120000_metrics_f4_d8_comunidad.sql` | Sin tablas nuevas. `create or replace` de `_metrics_window`, `_metrics_meta`, `_metrics_series`, `_metrics_kpi`, `_metrics_catalog`, `_metrics_community_core`, `_metrics_run`, `metrics_overview` (conservan ACL) + 2 helpers nuevos (`_metrics_today`, `_metrics_community_breakdowns`, revocados de clientes). |
+| **D8** | idem | Ventana actual = N días **completos** hasta ayer (`to` = 00:00 de hoy BA); previa de igual longitud; `Histórico` también termina ayer. DAU/WAU/MAU miran hasta ayer. Sin cambios en el Edge. |
+| **Hoy (parcial)** | idem | Objeto `today` (`date`, `partial:true`, `asOf`, altas, partidos cargados/validados, jugadores activos o `null` + `not_instrumented`) en **todas** las secciones; nunca se compara. `meta.completeDaysOnly` y `meta.today`. |
+| **+6 KPIs `community.*`** | idem | `groups_with_match` (usa `_groups_candidate_matches_exact`, fuente única del criterio de Grupos), `groups_avg_members` (n = grupos, mín. 5), `level_calibrated_share`, `ranking_days_since_edition`, `ranking_eligible_players`, `ranking_eligibility_rate`. Catálogo: 49 → **55** KPIs. |
+| **Desgloses y series** | idem | `group_size`, `level_band` (**n ≥ 10 calibrados** + k=5 por banda; si no, oculto), `ranking_density` (cuenta **universos**, no personas); series `groups_created` e `invites_created`; `level_status` pasa al helper. |
+| **Fix de coherencia (`snapshot`)** | idem | Los ratios que son **foto del estado actual** (`users.profile_complete_rate`, `users.with_location_rate`, `community.level_calibrated_share`, `community.ranking_eligibility_rate`) no se comparan: antes el período previo repetía el mismo estado y la consola mostraba un «Sin cambios» falso. Nuevo campo `snapshot` en cada KPI. |
+| **Cliente** | `bramulab/admin/metrics/metrics.js`, `metrics.css`, `qa-fixture.js` | 3 pestañas nuevas. **Activación** (cohorte; embudo del alta al 5.º partido; primeros pasos, primer partido —cargó ≠ participó—, participación, retorno). **Comunidad** con **Grupos · Nivel · Ranking en bloques separados** (color propio) + Invitaciones. **Uso** (DAU/WAU/MAU/promedio, hoy parcial, serie, retención W1/W4/D1/D7/D30, app instalada, plataforma, versión, acciones retroactivas, estado de la recolección). Rótulos D8 en toda la consola («08/09 – 07/10 · días completos, hasta ayer»), franja «HOY · PARCIAL» en Inicio/Usuarios/Partidos/Uso, detalle de KPI para los nuevos (series de grupos, invitaciones y activos diarios). Sin `innerHTML`, sin fichas individuales. |
+| **Bundle** | `store.js`, `sw.js`, `version.json`, `index.html` | `04.37-h29` → `04.37-h30` (cuarteto sincronizado; `APP_VERSION` sin cambio, ronda invisible). |
+| **Verify de Central** | `supabase/tests/verify-metrics-v1-f1-f2.sql` | Consulta 7 ajustada a D8 y consultas 9–12 nuevas (ventana, Comunidad, concordancia, snapshots). Ejecutada en PGlite: corre completa. |
+
+### 8.3 Pruebas ejecutadas (resultado real)
+| Suite | Resultado |
+|---|---|
+| `metrics-f2-core.test.mjs` (SQL real) | **32/32** (23 de F2 ajustadas a D8 + 9 nuevas): ventana D8 (fin = 00:00 de hoy, igual longitud, estable durante el día); lo de hoy **no** entra en flujos/series/comparaciones y sí en `today`; hoy respeta cuentas internas y presencia no instrumentada = `null`; `snapshot` sin comparación; Grupos (con partido calificable, promedio solo con ≥ 5 grupos, tamaño con k); Nivel (% calibrado, estados con k); Ranking (sin ediciones = «sin registros», con edición: antigüedad, elegibles, tasa sobre cuentas actuales, universos por densidad); banda de Nivel solo con ≥ 10 calibrados y k=5 por banda (también tras excluir internas); permisos de las funciones nuevas con ACL strict/observed/open; catálogo = 55 con +6 `community.*`. La prueba de **no fuga** (6 secciones × 4 rangos × con/sin internas) corre sobre las salidas nuevas. |
+| `metrics-f3-dashboard.test.mjs` | **25/25** (17 + 8 nuevas): rutas/pestañas ↔ mapa fijo del Edge, series de detalle nuevas, `snapshot`, estados de Ranking, `todayView`, fixture D8, **claves de `today`/desgloses/series/meta del fixture = las del SQL real**, estática de seguridad de las vistas; catálogo del fixture = catálogo de la migración F4 (55). |
+| `metrics-f1-presencia-h28` · `admin-metrics-core` · `metrics-f1-activity` | sin cambios, verdes. |
+| `supabase/functions/_shared/*.test.mjs` | **150/150** (antes 141). |
+| `bramulab/tests/*` + `bramulab/*.test.mjs` | 1009 tests: **978 pass / 31 fail = idéntico a la línea base** (0 nuevas; +8 pass). |
+| `release-check` | Replay limpio de **87 migraciones** ×3 ACL ✔; `admin-metrics verify_jwt=true` ✔; mismos 3 chequeos fallidos de siempre (host de Staging hardcodeado y 2 de build Production con placeholders legales). |
+| Navegador (fixture QA `?qa=1`, escritorio y móvil 375 px) | Las 6 pestañas + 2 detalles nuevos sin errores de consola ni scroll horizontal; estados `nopresence` (Uso: «Todavía no medible», hoy «Todavía no medible», retención inmadura) y vista de Comunidad con los tres sistemas diferenciados. |
+
+### 8.4 Qué NO se hizo / límites
+- **No se aplicó nada remoto** (ni migración, ni deploy): sin credenciales; tampoco se probó contra el Edge/Supabase vivos.
+- Explorador libre **F6** no implementado. Tendencia temporal del Nivel agregado, eventos de pantallas/funciones, errores/latencia y atribución: siguen diferidos (`148` §11.3).
+- La distribución por banda usa el `level_band` del **snapshot de la última edición de Ranking** (solo jugadores con edición); no recalcula Nivel.
+- Con la base actual casi todo porcentaje/desglose saldrá «muestra insuficiente» (k=5, n≥10): es lo correcto.
+
+### 8.5 Qué debe verificar Central en Staging (en este orden)
+1. **Aplicar** `20261008120000_metrics_f4_d8_comunidad.sql` (aditiva; después de F1/F2) y correr `supabase/tests/verify-metrics-v1-f1-f2.sql`: consulta 2 = 0 filas; **9** → las 4 columnas `true`; **10** → `kpis=15`, `breakdown_keys = group_size, level_band, level_status, ranking_density`, `has_uuid=false`; **11** → pares raw = metrics (sin ediciones: elegibles `NULL`); **12** → 4 filas con `snapshot=true`, `previous_is_null=true`; consulta 7 raw = metrics. Más `audit-live-grants.sql` sin hallazgos nuevos.
+2. **Deploy** del frontend `04.37-h30` (un push ya incluye `bramulab/`; **no** hay que redeployar `admin-metrics`: el mapa de secciones no cambió).
+3. **Con `@seba_qa`**: las 6 pestañas cargan; rótulo «días completos, hasta ayer» y fechas del período (el último día es AYER); franja «HOY · PARCIAL» con hora; en **Uso** «Todavía no medible»/«desde dd/mm» coherente con `presenceSince` de Staging.
+4. **Concordancia** con el conector de solo lectura, usando el **mismo corte** (`meta.asOf` como 4.º argumento): `select public.metrics_community('30d', true, false, '<asOf>'::timestamptz)` (y activation/usage), comparando KPIs, `today` y desgloses con lo que muestra cada pestaña; repetir con 7d, 90d, histórico y «Comparar» apagado.
+5. **Comunidad**: tres sistemas separados; «Distribución por banda» oculta si hay < 10 calibrados en la última edición; con ediciones de Ranking publicadas, «universos por densidad» cuenta localidades, no personas; los 4 ratios `snapshot` no muestran «Anterior» ni variación.
+6. **Pendientes de F3 §7.4** (negativos 401/403, headers/robots con sesión de Vercel, presencia, iPhone/Android): siguen abiertos y no dependen de F4.

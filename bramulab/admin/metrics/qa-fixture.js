@@ -1,8 +1,9 @@
 /* BRAMU Metrics V1 · F3 — FIXTURE DE QA. Datos INVENTADOS para revisar la interfaz sin backend: NO son datos de ningún entorno.
  * Solo se publica en builds de Staging (build-dist.mjs lo retira en cualquier otro entorno) y metrics.js solo lo carga con ?qa=1 fuera de
- * Production. Cada pantalla muestra el banner «DATOS DE PRUEBA (QA) · NO PRODUCTION». El catálogo es copia EXACTA del de la migración
- * 20261008110000 (un test falla si divergen); los valores son arbitrarios pero respetan el contrato real (availability, delta, previous).
+ * Production. Cada pantalla muestra el banner «DATOS DE PRUEBA (QA) · NO PRODUCTION». El catálogo es copia EXACTA del de la última migración
+ * de métricas, 20261008120000 (F4) (un test falla si divergen); los valores son arbitrarios pero respetan el contrato real (availability, delta, previous).
  *
+ * D8: las ventanas son DÍAS COMPLETOS hasta ayer; `today` (parcial) viaja aparte.
  * Estados forzables: ?qa=1&qastate=empty | nopresence | error | forbidden | nosession | loading | sparse
  */
 (function (g) {
@@ -12,8 +13,8 @@
     {"id": "users.signups", "section": "users", "label": "Altas", "kind": "flow", "definition": "Cuentas que confirmaron el email en la ventana (brutas: incluye las luego eliminadas)", "population": "players registrados con created_at en la ventana"},
     {"id": "users.guests_open", "section": "users", "label": "Invitados vigentes", "kind": "stock", "definition": "Jugadores provisionales que no fueron recuperados en una cuenta", "population": "players provisionales sin recovered_into_player_id ni deleted_at"},
     {"id": "users.profile_complete", "section": "users", "label": "Perfiles completos", "kind": "stock", "definition": "Cuentas actuales con @usuario definido", "population": "cuentas registradas actuales"},
-    {"id": "users.profile_complete_rate", "section": "users", "label": "Perfiles completos (%)", "kind": "ratio", "minN": 5, "definition": "Perfiles completos sobre cuentas actuales", "population": "cuentas registradas actuales"},
-    {"id": "users.with_location_rate", "section": "users", "label": "Con localidad declarada (%)", "kind": "ratio", "minN": 5, "definition": "Cuentas actuales con localidad declarada (sin localidad no equivale a otra localidad)", "population": "cuentas registradas actuales"},
+    {"id": "users.profile_complete_rate", "section": "users", "label": "Perfiles completos (%)", "kind": "ratio", "snapshot": true, "minN": 5, "definition": "Perfiles completos sobre cuentas actuales", "population": "cuentas registradas actuales"},
+    {"id": "users.with_location_rate", "section": "users", "label": "Con localidad declarada (%)", "kind": "ratio", "snapshot": true, "minN": 5, "definition": "Cuentas actuales con localidad declarada (sin localidad no equivale a otra localidad)", "population": "cuentas registradas actuales"},
     {"id": "matches.created", "section": "matches", "label": "Partidos cargados", "kind": "flow", "definition": "Partidos creados en la ventana, en cualquier estado (hecho operativo, incluye anulados)", "population": "matches con created_at en la ventana"},
     {"id": "matches.real", "section": "matches", "label": "Partidos reales cargados", "kind": "flow", "definition": "Partidos creados en la ventana que no fueron anulados", "population": "matches con created_at en la ventana y status distinto de annulled"},
     {"id": "matches.annulled", "section": "matches", "label": "Partidos anulados", "kind": "flow", "definition": "Partidos creados en la ventana que hoy están anulados (duplicado, carga retirada o administrativa)", "population": "matches con created_at en la ventana y status annulled"},
@@ -45,9 +46,15 @@
     {"id": "community.invites_expired", "section": "community", "label": "Invitaciones vencidas sin canjear", "kind": "stock", "definition": "Pendientes con vencimiento pasado (derivado: el estado expired solo se escribe al intentar canjear)", "population": "provisional_claims pending vencidos"},
     {"id": "community.invite_conversion", "section": "community", "label": "Invitaciones canjeadas (%)", "kind": "ratio", "minN": 5, "definition": "Canjeadas / (canjeadas + vencidas sin canjear), de las creadas en la ventana", "population": "invitaciones de la ventana ya resueltas"},
     {"id": "community.ranking_editions", "section": "community", "label": "Ediciones de Ranking publicadas", "kind": "flow", "definition": "Ediciones semanales publicadas en la ventana", "population": "ranking_editions con published_at en la ventana"},
-    {"id": "usage.dau", "section": "usage", "label": "Activos del día (abrieron la app)", "kind": "flow", "definition": "Jugadores distintos con presencia en el último día de la ventana (apertura real autenticada, no último login)", "population": "player_activity_days del día"},
-    {"id": "usage.wau", "section": "usage", "label": "Activos 7 días", "kind": "flow", "definition": "Jugadores distintos con presencia en los últimos 7 días (no se suman DAU)", "population": "player_activity_days de 7 días"},
-    {"id": "usage.mau", "section": "usage", "label": "Activos 30 días", "kind": "flow", "definition": "Jugadores distintos con presencia en los últimos 30 días", "population": "player_activity_days de 30 días"},
+    {"id": "community.groups_with_match", "section": "community", "label": "Grupos con partido", "kind": "flow", "definition": "Grupos vigentes al corte con al menos un partido validado calificable (criterio de Grupos BRAMU: 3 o más integrantes) jugado dentro de la ventana", "population": "groups status active con partido calificable en la ventana"},
+    {"id": "community.groups_avg_members", "section": "community", "label": "Integrantes por grupo (promedio)", "kind": "stock", "minN": 5, "definition": "Promedio de integrantes vigentes por grupo vigente, al corte (requiere al menos 5 grupos)", "population": "groups status active"},
+    {"id": "community.level_calibrated_share", "section": "community", "label": "Nivel calibrado (%)", "kind": "ratio", "snapshot": true, "minN": 5, "definition": "Cuentas con Nivel CALIBRADO sobre las que ya iniciaron su Nivel (sin PENDIENTE), al corte. Foto del estado actual: no se compara", "population": "cuentas registradas actuales con Nivel iniciado"},
+    {"id": "community.ranking_days_since_edition", "section": "community", "label": "Días desde la última edición de Ranking", "kind": "stock", "definition": "Días de Buenos Aires entre la última edición semanal publicada y el corte", "population": "ranking_editions publicadas"},
+    {"id": "community.ranking_eligible_players", "section": "community", "label": "Elegibles en la última edición", "kind": "stock", "definition": "Cuentas elegibles para Ranking en la última edición publicada (alcance global), según el snapshot de esa edición", "population": "ranking_rows global elegibles de la última edición"},
+    {"id": "community.ranking_eligibility_rate", "section": "community", "label": "Cuentas elegibles para Ranking (%)", "kind": "ratio", "snapshot": true, "minN": 5, "definition": "Cuentas actuales que figuran como elegibles en la última edición sobre el total de cuentas actuales. Foto del estado actual: no se compara", "population": "cuentas registradas actuales"},
+    {"id": "usage.dau", "section": "usage", "label": "Activos en el último día completo", "kind": "flow", "definition": "Jugadores distintos con presencia en el último día completo de la ventana (ayer, en la ventana actual; apertura real autenticada, no último login). La actividad de hoy se informa aparte como parcial", "population": "player_activity_days del día"},
+    {"id": "usage.wau", "section": "usage", "label": "Activos 7 días", "kind": "flow", "definition": "Jugadores distintos con presencia en los 7 días completos que terminan ayer (no se suman DAU)", "population": "player_activity_days de 7 días"},
+    {"id": "usage.mau", "section": "usage", "label": "Activos 30 días", "kind": "flow", "definition": "Jugadores distintos con presencia en los 30 días completos que terminan ayer", "population": "player_activity_days de 30 días"},
     {"id": "usage.dau_avg", "section": "usage", "label": "Promedio diario de activos", "kind": "flow", "definition": "Promedio de activos por día dentro de la ventana, desde que hay presencia", "population": "días con presencia instrumentada"},
     {"id": "usage.standalone_share", "section": "usage", "label": "Uso desde la app instalada (%)", "kind": "ratio", "minN": 5, "definition": "Días de presencia abiertos en modo app instalada. Es uso, NO instalaciones", "population": "días de presencia de la ventana"},
     {"id": "usage.wau_with_action", "section": "usage", "label": "Con acción 7 días", "kind": "flow", "definition": "Jugadores distintos con una acción de usuario registrada en 7 días (retroactivo; no es presencia)", "population": "acciones de usuario persistidas"},
@@ -77,7 +84,8 @@
     'activation.returned_other_week': [0.53, 19, 0.5, 14], 'activation.median_days_to_first_load': [4.5, 4, 6, 3],
     'community.groups_active': [6], 'community.groups_created': [2, null, 1], 'community.memberships_active': [31], 'community.invites_created': [14, null, 9],
     'community.invites_claimed': [6, null, 4], 'community.invites_open': [5], 'community.invites_expired': [3], 'community.invite_conversion': [0.67, 9, 0.6, 5],
-    'community.ranking_editions': [4, null, 4],
+    'community.ranking_editions': [4, null, 4], 'community.groups_with_match': [4, null, 3], 'community.groups_avg_members': [5.2, 6],
+    'community.level_calibrated_share': [0.45, 22], 'community.ranking_days_since_edition': [3], 'community.ranking_eligible_players': [9], 'community.ranking_eligibility_rate': [0.24, 38],
     'usage.dau': [4, null, 3], 'usage.wau': [14, null, 11], 'usage.mau': [27, null, 22], 'usage.dau_avg': [5.2, 10, 4.1, 8], 'usage.standalone_share': [0.58, 61, 0.52, 44],
     'usage.wau_with_action': [12, null, 10], 'usage.mau_with_action': [26, null, 20],
     'usage.ret_w1': ['immature'], 'usage.ret_w4': ['immature'], 'usage.ret_d1': [0.4, 3, null, 0], 'usage.ret_d7': ['immature'], 'usage.ret_d30': ['immature']
@@ -95,8 +103,8 @@
 
   function windows(range) {
     var today = baToday(); var n = DAYS[range];
-    var from = addDays(today, -(n - 1));
-    var w = { range: range, from: isoAtBaMidnight(from), to: new Date().toISOString(), days: n, granularity: n <= 45 ? 'day' : 'week_ba', fromD: from, today: today };
+    var from = addDays(today, -n);
+    var w = { range: range, from: isoAtBaMidnight(from), to: isoAtBaMidnight(today), days: n, granularity: n <= 45 ? 'day' : 'week_ba', fromD: from, today: today, lastD: addDays(today, -1) };
     if (range === 'all') { w.prevFrom = null; w.prevTo = null; } else { w.prevFrom = isoAtBaMidnight(addDays(from, -n)); w.prevTo = isoAtBaMidnight(from); w.prevFromD = addDays(from, -n); }
     return w;
   }
@@ -117,7 +125,7 @@
     return out;
   }
   function series(w, total, prevTotal, seed, compare, empty) {
-    var cur = buckets(w.fromD, w.today, w.granularity);
+    var cur = buckets(w.fromD, w.lastD, w.granularity);
     var cv = distribute(empty ? 0 : total, weights(cur.length, seed));
     var res = { granularity: w.granularity, current: cur.map(function (s, i) { return { start: s, value: cv[i] }; }), previous: null };
     if (compare && w.prevFrom) {
@@ -131,11 +139,11 @@
   function scaleVal(entry, id, f, isPrev) {
     var b = BASE[id]; var kind = entry.kind;
     var v = isPrev ? b[2] : b[0]; var n = isPrev ? b[3] : b[1];
-    if (isPrev && kind === 'stock') return { v: b[0], n: b[0] };
+    if (isPrev && kind === 'stock') return { v: b[0], n: b[1] != null ? b[1] : b[0] };
     if (v === 'immature') return { v: null, a: 'immature' };
     if (v === undefined || v === null) return null;
     if (kind === 'flow') return { v: Math.round(v * f) };
-    if (kind === 'stock') return { v: v, n: v };
+    if (kind === 'stock') return { v: v, n: n != null ? n : v };
     return { v: v, n: n == null ? null : Math.max(0, Math.round(n * f)) };
   }
 
@@ -148,9 +156,12 @@
       if (kind === 'flow' && !x.v) return 'no_evidence';
       return 'ok';
     }
+    var snap = !!entry.snapshot;
+    if (snap) prev = null;
     var ca = avail(cur); var pa = avail(prev);
     var delta = { abs: null, pct: null, note: 'sin_comparacion' };
-    if (compare && prev) {
+    if (compare && (kind === 'stock' || snap)) delta.note = 'stock_sin_comparacion';
+    else if (compare && prev) {
       if (kind === 'stock') delta.note = 'stock_sin_comparacion';
       else if (['ok', 'no_evidence'].indexOf(ca) < 0 || ['ok', 'no_evidence'].indexOf(pa) < 0 || cur.v == null || prev.v == null) delta.note = 'sin_datos_suficientes';
       else if (kind === 'ratio') { delta.abs = Math.round((cur.v - prev.v) * 1000) / 10; delta.note = 'puntos_porcentuales'; }
@@ -159,7 +170,7 @@
     }
     var hide = ['insufficient_sample', 'not_instrumented', 'immature'].indexOf(ca) >= 0;
     return {
-      id: entry.id, label: entry.label, kind: kind, definition: entry.definition, population: entry.population,
+      id: entry.id, label: entry.label, kind: kind, snapshot: snap, definition: entry.definition, population: entry.population,
       value: hide ? null : cur.v, count: hide || kind !== 'ratio' || cur.n == null ? null : Math.round(cur.v * cur.n), n: cur.n == null ? null : cur.n,
       previous: compare && prev ? { value: ['ok', 'no_evidence'].indexOf(pa) >= 0 ? prev.v : null, n: prev.n == null ? null : prev.n, availability: pa } : null,
       delta: delta, availability: ca, since: cur.since || null
@@ -175,6 +186,7 @@
       if (st === 'empty') {
         cur = e.kind === 'flow' ? { v: 0 } : e.kind === 'stock' ? { v: 0, n: 0 } : { v: null, n: 0 };
         prev = prev ? Object.assign({}, cur) : null;
+        if (/^community\.ranking_(days|eligible|eligibility)/.test(e.id)) { cur = { v: null, a: 'no_evidence', n: e.kind === 'ratio' ? 0 : undefined }; prev = null; }
       }
       if (st === 'sparse') { if (e.kind === 'ratio' || e.kind === 'duration') { cur = Object.assign({}, cur, { n: 2 }); } }
       if (PRESENCE_ID.test(e.id) && !(cur && cur.a === 'immature')) {
@@ -193,8 +205,18 @@
     var hasPrev = !!w.prevFrom;
     return {
       environment: 'qa', catalogVersion: 'metrics_v1-qa', generatedAt: new Date().toISOString(), asOf: new Date().toISOString(), tz: 'America/Argentina/Buenos_Aires',
-      range: w.range, compare: compare && hasPrev, window: [w.from, w.to], previousWindow: hasPrev ? [w.prevFrom, w.prevTo] : null, granularity: w.granularity,
+      range: w.range, compare: compare && hasPrev, completeDaysOnly: true, today: ymd(w.today), window: [w.from, w.to], previousWindow: hasPrev ? [w.prevFrom, w.prevTo] : null, granularity: w.granularity,
       presenceSince: st === 'nopresence' ? null : addDays(w.today, -9).toISOString(), includeInternal: !!internal, internalExcluded: internal ? 0 : 2, minCell: 5
+    };
+  }
+
+  function todayFor(st) {
+    var empty = st === 'empty';
+    return {
+      date: ymd(baToday()), partial: true, asOf: new Date().toISOString(),
+      signups: empty ? 0 : 1, matchesCreated: empty ? 0 : 3, matchesValidated: empty ? 0 : 2,
+      activePlayers: empty || st === 'nopresence' ? null : 6, activePlayersAvailability: empty || st === 'nopresence' ? 'not_instrumented' : 'ok',
+      presenceSince: st === 'nopresence' ? null : ymd(addDays(baToday(), -9))
     };
   }
 
@@ -202,7 +224,7 @@
     var range = body.range || '30d'; var compare = body.compare !== false; var w = windows(range); var f = FACTOR[range]; var empty = st === 'empty';
     var cmp = compare && !!w.prevFrom;
     var sec = body.section;
-    var res = { ok: true, section: sec, meta: meta(w, compare, body.includeInternal, st), kpis: [], series: {}, breakdowns: {} };
+    var res = { ok: true, section: sec, meta: meta(w, compare, body.includeInternal, st), today: todayFor(st), kpis: [], series: {}, breakdowns: {} };
     var sig = function () { return series(w, Math.round(12 * f), Math.round(9 * f), 1, cmp, empty); };
     var created = function () { return series(w, Math.round(46 * f), Math.round(31 * f), 2, cmp, empty); };
     var active = function () { return series(w, Math.round(14 * f), Math.round(11 * f), 5, cmp, empty || st === 'nopresence'); };
@@ -225,9 +247,19 @@
         res.breakdowns = { status: { suppressed: false, items: empty ? [] : [{ label: 'annulled_admin', n: 1 }, { label: 'annulled_author_retracted', n: 1 }, { label: 'annulled_duplicate', n: 3 }, { label: 'expired_derived', n: 3 }, { label: 'pending', n: 9 }, { label: 'validated', n: 29 }] } };
       } else if (sec === 'usage') {
         res.series = { active_players: active() };
-        res.breakdowns = { platform: { items: [], suppressed: true, minCell: 5 }, bundle: { items: [], suppressed: true, minCell: 5 } };
+        var noPres = empty || st === 'nopresence';
+        res.breakdowns = noPres
+          ? { platform: { items: [], suppressed: true, minCell: 5 }, bundle: { items: [], suppressed: true, minCell: 5 } }
+          : { platform: { items: [{ label: 'ios', n: 14 }, { label: 'android', n: 9 }, { label: 'desktop', n: 5 }, { label: 'Otros (n<5)', n: 3 }], suppressed: false, minCell: 5 },
+              bundle: { items: [{ label: '04.37-h29', n: 22 }, { label: '04.37-h28', n: 6 }, { label: 'Otros (n<5)', n: 3 }], suppressed: false, minCell: 5 } };
       } else if (sec === 'community') {
-        res.breakdowns = { level_status: { items: [], suppressed: true, minCell: 5 } };
+        res.series = { groups_created: series(w, Math.round(2 * f), Math.round(1 * f), 6, cmp, empty), invites_created: series(w, Math.round(14 * f), Math.round(9 * f), 7, cmp, empty) };
+        res.breakdowns = empty
+          ? { level_status: { items: [], suppressed: true, minCell: 5 }, group_size: { items: [], suppressed: true, minCell: 5 }, level_band: { items: [], suppressed: true, minCell: 10 }, ranking_density: { items: [], suppressed: false, unit: 'universes' } }
+          : { level_status: { items: [{ label: 'CALIBRADO', n: 10 }, { label: 'CALIBRANDO', n: 14 }, { label: 'Otros (n<5)', n: 14 }], suppressed: false, minCell: 5 },
+              group_size: { items: [{ label: 'size_2_3', n: 7 }, { label: 'size_4_6', n: 5 }], suppressed: false, minCell: 5 },
+              level_band: { items: [{ label: 'band_4', n: 6 }, { label: 'band_5', n: 5 }, { label: 'Otros (n<5)', n: 3 }], suppressed: false, minCell: 5 },
+              ranking_density: { items: [{ label: 'established', n: 1 }, { label: 'forming', n: 2 }, { label: 'insufficient', n: 4 }], suppressed: false, unit: 'universes' } };
       } else { res.breakdowns = {}; }
     }
     return res;

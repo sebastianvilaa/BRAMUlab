@@ -99,6 +99,23 @@ a{color:inherit}
 .mx-panel__sub{font-size:12px;color:var(--text-faint);margin:0 0 12px}
 .mx-note{font-size:12px;color:var(--text-faint);margin:10px 0 0}
 
+/* ---------- Sistemas separados (Comunidad: Grupos · Nivel · Ranking) ---------- */
+.mx-h--sys{display:flex;align-items:center;gap:10px;margin-top:34px;color:var(--text);font-size:13px;letter-spacing:.16em}
+.mx-h--sys::before{content:"";width:4px;height:18px;border-radius:2px;background:var(--text-faint)}
+.mx-h--grupos::before{background:var(--lime)}
+.mx-h--nivel::before{background:var(--blue)}
+.mx-h--ranking::before{background:var(--amber)}
+
+/* ---------- Hoy (parcial): fuera de períodos y comparaciones ---------- */
+.mx-today{border-style:dashed;border-color:rgba(255,201,61,.35);background:rgba(255,201,61,.04)}
+.mx-today__head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:10px}
+.mx-today__badge{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--amber);border:1px solid rgba(255,201,61,.45);border-radius:999px;padding:3px 10px}
+.mx-today__upto{font-size:12px;color:var(--text-faint)}
+.mx-today__items{display:flex;flex-wrap:wrap;gap:12px 32px}
+.mx-today__label{font-size:12px;font-weight:700;color:var(--text-dim)}
+.mx-today__value{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
+.mx-today__value.is-empty{font-size:14px;font-weight:700;color:var(--text-faint)}
+
 /* ---------- Tarjetas KPI ---------- */
 .mx-card{
   display:flex;flex-direction:column;gap:6px;min-height:132px;text-decoration:none;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);

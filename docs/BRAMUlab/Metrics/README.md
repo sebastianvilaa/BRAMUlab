@@ -12,4 +12,4 @@ Código y pruebas: `bramulab/admin/metrics/`, `bramulab/metrics-*.test.mjs`, `su
 
 Nota de rutas: los comentarios del código que citan `docs/BRAMUlab/BRAMU_Metrics_*.md` se refieren a los archivos de esta carpeta (se movieron el 08/10/2026 sin cambiar su contenido).
 
-**Estado (08/10/2026):** F1–F3 aplicadas/desplegadas en Staging; cierre de F3 y pendientes vivos en `149_…` §7; alcance mínimo de F4 en `148_…` §11. Production no autorizada.
+**Estado (08/10/2026):** F1–F3 aplicadas/desplegadas en Staging; cierre de F3 y pendientes vivos en `149_…` §7; **F4 implementada en el repo** (alcance `148_…` §11; resultado y checklist de Central `149_…` §8; migración `20261008120000` pendiente de aplicar). D8 (días completos hasta ayer) confirmada: ver `BRAMU_Metrics_Comparaciones_V1.md`. Production no autorizada.

@@ -81,11 +81,11 @@ test('ST-4) build de Staging: iconos PWA/favicon/apple-touch ST, URLs del manife
   assert.ok(rd(dSt, 'icons', 'logo.svg').equals(rd(dOff, 'icons', 'logo.svg')) && rd(dSt, 'icons', 'logo.png').equals(rd(dOff, 'icons', 'logo.png')));
 });
 
-test('ST-5) bundle sincronizado (h29 vigente) (cache-busting de iconos para instalaciones existentes)', () => {
+test('ST-5) bundle sincronizado (h30 vigente) (cache-busting de iconos para instalaciones existentes)', () => {
   const html = rd(__dirname, 'index.html').toString('utf8');
-  assert.match(html, /icons\/favicon-64\.png\?v=04\.37-h29/);
-  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.37-h29');
-  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-37-h29/);
+  assert.match(html, /icons\/favicon-64\.png\?v=04\.37-h30/);
+  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.37-h30');
+  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-37-h30/);
 });
 
 /* ======================= Selección por ENTORNO (lo que decide Vercel), no por commit ======================= */
