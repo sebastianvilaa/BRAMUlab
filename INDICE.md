@@ -4,24 +4,26 @@ BRAMU son dos productos independientes: **BRAMUlab** (app de jugadores: partidos
 
 ## Documentos maestros — la definición vigente de cada tema
 
-Un solo documento por tema. Si dos documentos se contradicen, manda el maestro.
+Un solo documento por tema. Si dos documentos se contradicen, manda el maestro. Todos están en [`docs/BRAMUlab/`](docs/BRAMUlab/README.md), agrupados por función:
 
 | Tema | Documento maestro |
 |---|---|
-| **Nivel BRAMU** | [Nivel_BRAMU.md](docs/BRAMUlab/Nivel_BRAMU.md) |
-| **Ranking BRAMU** | [Ranking_BRAMU.md](docs/BRAMUlab/Ranking_BRAMU.md) |
-| **Grupos** | [Grupos_BRAMU.md](docs/BRAMUlab/Grupos_BRAMU.md) |
-| **Partidos e historial** | [Cargar_Partido.md](docs/BRAMUlab/Cargar_Partido.md) (cargar un partido) · [Experiencia_Inicial.md](docs/BRAMUlab/Experiencia_Inicial.md) (validar, corregir, pendientes, historial) |
-| **Experiencia inicial** | [Experiencia_Inicial.md](docs/BRAMUlab/Experiencia_Inicial.md) |
-| **BRAMU Intelligence** | [BRAMU_Intelligence.md](docs/BRAMUlab/BRAMU_Intelligence.md) |
-| **Identidad visual** | [Identidad_Visual.md](docs/BRAMUlab/Identidad_Visual.md) (los archivos de marca que usa la app: [Marca/](docs/BRAMUlab/Marca/)) |
-| **Backend e infraestructura** | [Backend_Infraestructura.md](docs/BRAMUlab/Backend_Infraestructura.md) · operación: [Runbook](docs/BRAMUlab/Runbook_Operacion_y_Salida.md) · Production y deploy: [Operacion_Vercel_Staging_Production.md](docs/BRAMUlab/Operacion_Vercel_Staging_Production.md) |
-| **Privacidad y legal** | [Privacidad_Legal.md](docs/BRAMUlab/Privacidad_Legal.md) |
-| **Emails** | [Comunicaciones_Emails.md](docs/BRAMUlab/Comunicaciones_Emails.md) |
-| **BRAMU Metrics** (en desarrollo, protegido) | [BRAMU_Metrics.md](docs/BRAMUlab/BRAMU_Metrics.md) |
+| **Nivel BRAMU** | [Producto/Nivel_BRAMU.md](docs/BRAMUlab/Producto/Nivel_BRAMU.md) |
+| **Ranking BRAMU** | [Producto/Ranking_BRAMU.md](docs/BRAMUlab/Producto/Ranking_BRAMU.md) |
+| **Grupos** | [Producto/Grupos_BRAMU.md](docs/BRAMUlab/Producto/Grupos_BRAMU.md) |
+| **Partidos e historial** | [Producto/Cargar_Partido.md](docs/BRAMUlab/Producto/Cargar_Partido.md) (cargar un partido) · [Producto/Experiencia_Inicial.md](docs/BRAMUlab/Producto/Experiencia_Inicial.md) (validar, corregir, pendientes, historial) |
+| **Experiencia inicial** | [Producto/Experiencia_Inicial.md](docs/BRAMUlab/Producto/Experiencia_Inicial.md) |
+| **BRAMU Intelligence** | [Producto/BRAMU_Intelligence.md](docs/BRAMUlab/Producto/BRAMU_Intelligence.md) |
+| **Emails** | [Producto/Comunicaciones_Emails.md](docs/BRAMUlab/Producto/Comunicaciones_Emails.md) |
+| **BRAMU Metrics** (en desarrollo, protegido) | [Metrics/README.md](docs/BRAMUlab/Metrics/README.md) → [BRAMU_Metrics.md](docs/BRAMUlab/Metrics/BRAMU_Metrics.md) |
+| **Identidad visual** | [Identidad_Visual/Identidad_Visual.md](docs/BRAMUlab/Identidad_Visual/Identidad_Visual.md) (archivos de marca que usa la app: [Marca/](docs/BRAMUlab/Identidad_Visual/Marca/)) |
+| **Backend e infraestructura** | [Operacion/Backend_Infraestructura.md](docs/BRAMUlab/Operacion/Backend_Infraestructura.md) |
+| **Operación, deploy y Production** | [Operacion/Runbook_Operacion_y_Salida.md](docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md) · [Operacion/Operacion_Vercel_Staging_Production.md](docs/BRAMUlab/Operacion/Operacion_Vercel_Staging_Production.md) · [Operacion/Pre_Production.md](docs/BRAMUlab/Operacion/Pre_Production.md) (salida a Production y pendientes) |
+| **Privacidad y legal** | [Operacion/Privacidad_Legal.md](docs/BRAMUlab/Operacion/Privacidad_Legal.md) |
 | **BRAMUlive** | [BRAMUlive.md](docs/BRAMUlive/BRAMUlive.md) |
 | **Método de trabajo** | [Metodo_Trabajo.md](docs/BRAMUlab/Metodo_Trabajo.md) (incluye las reglas para no volver a acumular documentos) |
-| **Ideas futuras y riesgos conocidos** | [BRAMUlab_Backlog.md](docs/BRAMUlab/BRAMUlab_Backlog.md) |
+| **Ideas futuras y riesgos conocidos** | [Producto/BRAMUlab_Backlog.md](docs/BRAMUlab/Producto/BRAMUlab_Backlog.md) |
+| **Historia** (qué fue cada etapa) | [Versiones/README.md](docs/BRAMUlab/Versiones/README.md) |
 
 ## Qué hay en cada carpeta del repositorio
 
@@ -30,7 +32,7 @@ Un solo documento por tema. Si dos documentos se contradicen, manda el maestro.
 | `bramulab/` | La app BRAMUlab. En la raíz: los archivos de la app (`app.js`, `index.html`, `styles.css`, `sw.js`…). `tests/`: **pruebas automáticas** de esa lógica. `scripts/`: herramientas de compilación y publicación. `assets/`, `icons/`, `icons-staging/`: recursos estáticos. `api/`, `terminos/`, `privacidad/`, `eliminar-cuenta/`, `admin/`: endpoints y páginas públicas. (Las 2 pruebas de Metrics siguen en la raíz hasta que termine su desarrollo.) |
 | `bramulive/` | La app BRAMUlive (separada). |
 | `supabase/` | El servidor: `migrations/` (cambios de la base de datos, en orden), `functions/` (procesos del servidor), `tests/` (verificaciones contra Staging) y `scripts/` (backup, ensayo de salida, `release-check`). |
-| `docs/BRAMUlab/` | Documentación. Raíz = documentos maestros. `Implementacion/` = **evidencia** técnica conservada (cierres, seguridad, ensayos). `Versiones/` = **historia** por versión. `Auditorias/` = estudio de convergencia Nivel/Ranking con sus simulaciones. `Referencias/` = material de contexto. `Marca/` = SVG maestros de la marca que usa la app. |
+| `docs/BRAMUlab/` | Documentación, por función: **`Producto/`** (qué hace la app), **`Metrics/`**, **`Operacion/`** (backend, deploy, legal), **`Identidad_Visual/`** (+ `Marca/`), **`Implementacion/`** (evidencia técnica conservada), **`Versiones/`** (historia), `Auditorias/` (estudio Nivel/Ranking con sus simulaciones, que importan el motor y por eso no se mueven). |
 | `docs/BRAMUlive/` | Documentación de BRAMUlive. |
 | `docs/check-docs.mjs` | Chequeo de orden documental. |
 
@@ -47,7 +49,7 @@ node supabase/scripts/release-check.mjs  # chequeo previo a un deploy
 
 ## Cómo interpretar la documentación
 
-- Lo que ya no sirve se **retira**; la historia queda en Git (`git log --diff-filter=D --name-only -- docs/`). No hay carpetas `Archivo/` ni `Backup/`. Las rutas de pruebas citadas en comentarios antiguos del código (`bramulab/<nombre>.test.mjs`) hoy están en `bramulab/tests/`.
+- Lo que ya no sirve se **retira**; la historia queda en Git (`git log --diff-filter=D --name-only -- docs/`). No hay carpetas `Archivo/` ni `Backup/`. Las rutas de pruebas citadas en comentarios antiguos del código (`bramulab/<nombre>.test.mjs`) hoy están en `bramulab/tests/`. Los comentarios que citan `docs/BRAMUlab/<Documento>.md` se refieren al mismo documento dentro de su carpeta (`Producto/`, `Operacion/`, `Metrics/`, `Identidad_Visual/`).
 - `Temporales/` no se versiona; no dejar allí documentación única.
 - El repositorio es público en este estado; no agregar originales privados, secretos ni documentación sensible.
 - Los originales de diseño (Illustrator, referencias) y el material privado viven en Dropbox, en `/Otros Trabajos/BRAMU/` (mapa en su `LEEME.md`). No reemplazarlos ni eliminarlos.

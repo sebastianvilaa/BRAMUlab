@@ -1,6 +1,6 @@
 # Implementación — evidencia técnica conservada
 
-**No es una fuente de producto ni una lista de tareas.** Cómo funciona cada sistema lo dice su fuente maestra (`../README.md` §2). Esta carpeta conserva únicamente la evidencia que todavía tiene una función concreta; todo handoff, plan, revisión, gate y resultado consumido se retiró el 08/10/2026 y sigue en Git (`git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/`).
+**No es una fuente de producto ni una lista de tareas.** Cómo funciona cada sistema lo dice su fuente maestra (`../README.md` §2; las fuentes están en `../Producto/`, `../Operacion/`, `../Metrics/` y `../Identidad_Visual/`). Esta carpeta conserva únicamente la evidencia que todavía tiene una función concreta; todo handoff, plan, revisión, gate y resultado consumido se retiró el 08/10/2026 y sigue en Git (`git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/`).
 
 **Regla:** una ronda en curso = **un** documento `Ronda_<tema>.md` en esta carpeta (sin numeración); al cerrar se consolida en la fuente maestra y se retira (`../Metodo_Trabajo.md`, «Higiene documental»). Chequeo: `node docs/check-docs.mjs`.
 

@@ -1,10 +1,19 @@
 # BRAMUlab — documentación activa
 
-Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investigar el árbol completo, empezar acá y leer **solo la fuente maestra del sistema involucrado**. El índice de todo el repositorio está en [`../../INDICE.md`](../../INDICE.md); BRAMUlive tiene su propia carpeta (`docs/BRAMUlive/`) y no se mezcla.
+Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUlab. Empezar acá y leer **solo la fuente maestra del sistema involucrado**. El índice del repositorio completo está en [`../../INDICE.md`](../../INDICE.md); BRAMUlive tiene su propia carpeta (`docs/BRAMUlive/`) y no se mezcla.
 
-- `Metodo_Trabajo.md` — guía operativa de coordinación de agentes, commits, pruebas, deploys y **orden documental** (leer antes de coordinar una ronda).
-- `Identidad_Visual.md` — fuente maestra de identidad visual (logo/isotipo/icono aprobados, paleta, tipografía, reglas de uso). Moodboards y referencias no son autoridad.
-- `Operacion_Vercel_Staging_Production.md` — deploy a Production, alias de Staging y **datos reales de infraestructura de Production**.
+## Cómo está organizada la documentación
+
+| Carpeta | Qué contiene | Qué es |
+|---|---|---|
+| **`README.md`** y **`Metodo_Trabajo.md`** (esta carpeta) | Estado vigente y reglas de trabajo, commits, pruebas, deploys y orden documental | Entrada |
+| **[`Producto/`](Producto/)** | Qué hace BRAMUlab: Nivel, Ranking, Grupos, Cargar partido, Experiencia inicial (ciclo de partido, historial, invitados), BRAMU Intelligence, Emails y el Backlog | **Fuentes maestras** |
+| **[`Metrics/`](Metrics/)** | BRAMU Metrics (consola administrativa, **en desarrollo**) | Fuentes maestras de Metrics |
+| **[`Operacion/`](Operacion/)** | Backend e infraestructura, operación y runbook, Vercel/Production, privacidad y legal, salida a Production | **Fuentes maestras** |
+| **[`Identidad_Visual/`](Identidad_Visual/)** | Identidad visual y `Marca/` (SVG maestros que usa la app) | **Fuente maestra** |
+| **[`Implementacion/`](Implementacion/)** | Evidencia técnica que todavía se justifica conservar (cierres de Backend, seguridad, ensayos operativos, emails G1) | Evidencia |
+| **[`Versiones/`](Versiones/)** | Historia: mapa histórico consolidado + registro por versión | Trazabilidad |
+| **[`Auditorias/`](Auditorias/)** | Estudio de convergencia Nivel/Ranking con sus simulaciones (scripts que importan el motor de `bramulab/`, por eso no se mueven) | Estudio vigente |
 
 ---
 
@@ -13,12 +22,12 @@ Este README es el **mapa de autoridad documental** de BRAMUlab. Antes de investi
 | Frente | Estado |
 |---|---|
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
-| **Production** | **ACTIVA desde el 07/10/2026** en `https://app.bramulab.com`, con bundle `04.37-h26` (commit `f1ad7d1b`, deployment `dpl_2FiyCJD1eA5t7sVj27qWyaayRnCp`). Primeros usuarios reales ya dentro. Infraestructura, legal y AAIP: `Operacion_Vercel_Staging_Production.md`. |
+| **Production** | **ACTIVA desde el 07/10/2026** en `https://app.bramulab.com`, con bundle `04.37-h26` (commit `f1ad7d1b`, deployment `dpl_2FiyCJD1eA5t7sVj27qWyaayRnCp`). Primeros usuarios reales ya dentro. Infraestructura, legal y AAIP: `Operacion/Operacion_Vercel_Staging_Production.md`. |
 | **Staging** | Taller activo: bundle `04.37-h29` (consola de métricas, no promovido, invisible para jugadores). Todo cambio nace acá. |
-| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `BRAMUlab_Backlog.md`. |
+| **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |
 
-Historia por ronda (V04.11 – V04.37): `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`, sección «registro consolidado de rondas».
+Historia por ronda (V04.11 – V04.37): `Versiones/README.md` (mapa) y `Versiones/BRAMUlab_V04/BRAMUlab_V04_Informe.md`, sección «registro consolidado de rondas».
 
 ## 1.1 Testing y lanzamiento inicial — definición vigente
 
@@ -38,7 +47,6 @@ Los nombres técnicos históricos como `pilot_events` pueden conservarse si reno
 
 ---
 
-
 ---
 
 ## 2. Fuentes maestras vigentes
@@ -47,25 +55,26 @@ Una fuente maestra por sistema. Si una ronda cambia un sistema, **se actualiza s
 
 | Sistema | Fuente maestra | Estado |
 |---|---|---|
-| **Nivel BRAMU** | `Nivel_BRAMU.md` (única fuente) | V1.3 cerrado; vigente en Production (V04.37) |
-| **Ranking BRAMU** | `Ranking_BRAMU.md` | V1 de producto/UX + backend/frontend real cerrados; snapshot semanal server-backed, sin fallback a mocks |
-| **Cargar partido / Historial** | `Cargar_Partido.md` | Flujo vigente (modo resultado, Fecha/Hora/Lugar, V04.27) |
-| **Experiencia inicial, identidad, ciclo de partido** | `Experiencia_Inicial.md` → `Backend_Infraestructura.md` (contrato técnico) | Cerrada: Estado Cero, validación por parejas, correcciones, pendientes, invitados/recuperados |
-| **Grupos BRAMU** | `Grupos_BRAMU.md` | Server-backed; top 2 / Americano; QA integral cerrada |
-| **BRAMU Intelligence** | `BRAMU_Intelligence.md` → `BRAMU_Intelligence_Implementacion.md` | V1 A–E cerrada; F generativa opcional y no bloqueante |
-| **Backend / Infraestructura** | `Backend_Infraestructura.md` → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 y Pre-Production cerrados; operación en `Runbook_Operacion_y_Salida.md` |
-| **Privacidad / Legal** | `Privacidad_Legal.md` | Cerrada y publicada; resta el número definitivo de AAIP |
-| **Identidad visual** | `Identidad_Visual.md` (+ `Marca/`) | Vigente |
-| **Salida a Production** | `Pre_Production.md` | Cerrada el 07/10/2026; conserva pendientes y reglas «no reabrir» |
-| **Método de trabajo** | `Metodo_Trabajo.md` | Vigente |
-| **BRAMU Metrics** | `BRAMU_Metrics.md` y su cadena (§3) | En curso, protegida |
-| **Emails** | `Comunicaciones_Emails.md` (copy y HTML en `supabase/email-templates/`) | Cerrado e implementado (G1) |
-| **BRAMUlive** | `../BRAMUlive/BRAMUlive.md` | Producto separado; historia en `docs/BRAMUlive/`. No se toca en rondas de BRAMUlab |
-| **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas futuras no autorizadas y riesgos conocidos |
+| **Nivel BRAMU** | [`Producto/Nivel_BRAMU.md`](Producto/Nivel_BRAMU.md) (única fuente) | V1.3 cerrado; vigente en Production (V04.37) |
+| **Ranking BRAMU** | [`Producto/Ranking_BRAMU.md`](Producto/Ranking_BRAMU.md) | V1 de producto/UX + backend/frontend real cerrados; snapshot semanal server-backed, sin fallback a mocks |
+| **Grupos BRAMU** | [`Producto/Grupos_BRAMU.md`](Producto/Grupos_BRAMU.md) | Server-backed; top 2 / Americano; QA integral cerrada |
+| **Partidos** (cargar, validar, corregir, historial, pendientes) | [`Producto/Cargar_Partido.md`](Producto/Cargar_Partido.md) (el flujo de carga) · [`Producto/Experiencia_Inicial.md`](Producto/Experiencia_Inicial.md) (ciclo del partido, historial, invitados/recuperados; contrato técnico en `Operacion/Backend_Infraestructura.md`) | Cerrados |
+| **Experiencia inicial** (Estado Cero, Perfil progresivo) | [`Producto/Experiencia_Inicial.md`](Producto/Experiencia_Inicial.md) | Cerrada |
+| **BRAMU Intelligence** | [`Producto/BRAMU_Intelligence.md`](Producto/BRAMU_Intelligence.md) → [`BRAMU_Intelligence_Implementacion.md`](Producto/BRAMU_Intelligence_Implementacion.md) | V1 A–E cerrada; F generativa opcional y no bloqueante |
+| **Emails** | [`Producto/Comunicaciones_Emails.md`](Producto/Comunicaciones_Emails.md) (copy y HTML en `supabase/email-templates/`) | Cerrado e implementado (G1) |
+| **BRAMU Metrics** | [`Metrics/BRAMU_Metrics.md`](Metrics/BRAMU_Metrics.md) y su cadena (§3) | En curso, protegida |
+| **Backend / Infraestructura** | [`Operacion/Backend_Infraestructura.md`](Operacion/Backend_Infraestructura.md) → `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md` | Bloques 1–8 y Pre-Production cerrados |
+| **Operación y deploy** | [`Operacion/Runbook_Operacion_y_Salida.md`](Operacion/Runbook_Operacion_y_Salida.md) · [`Operacion/Operacion_Vercel_Staging_Production.md`](Operacion/Operacion_Vercel_Staging_Production.md) | Vigentes |
+| **Privacidad / Legal** | [`Operacion/Privacidad_Legal.md`](Operacion/Privacidad_Legal.md) | Cerrada y publicada; resta el número definitivo de AAIP |
+| **Salida a Production** | [`Operacion/Pre_Production.md`](Operacion/Pre_Production.md) | Cerrada el 07/10/2026; conserva pendientes y reglas «no reabrir» |
+| **Identidad visual** | [`Identidad_Visual/Identidad_Visual.md`](Identidad_Visual/Identidad_Visual.md) (+ [`Marca/`](Identidad_Visual/Marca/)) | Vigente |
+| **Método de trabajo** | [`Metodo_Trabajo.md`](Metodo_Trabajo.md) | Vigente |
+| **BRAMUlive** | [`../BRAMUlive/BRAMUlive.md`](../BRAMUlive/BRAMUlive.md) | Producto separado; no se toca en rondas de BRAMUlab |
+| **Backlog futuro** | [`Producto/BRAMUlab_Backlog.md`](Producto/BRAMUlab_Backlog.md) | Solo ideas futuras no autorizadas y riesgos conocidos |
 
 ### Nivel BRAMU — fuente única
 
-`Nivel_BRAMU.md` contiene toda la definición vigente: escala y estados, onboarding V1.3, fórmula inicial, calibración y recalibración, motor de partidos, confiabilidad, invitados, persistencia/versionado, UX, tratamiento de cuentas existentes y evidencia de cierre. No hay documentos de fórmula ni de implementación aparte.
+`Producto/Nivel_BRAMU.md` contiene toda la definición vigente: escala y estados, onboarding V1.3, fórmula inicial, calibración y recalibración, motor de partidos, confiabilidad, invitados, persistencia/versionado, UX, tratamiento de cuentas existentes y evidencia de cierre. No hay documentos de fórmula ni de implementación aparte.
 
 - Estimador inicial: `nivel_inicial_v1_3` (`questionnaire_mode = full`).
 - Motor de partidos: `nivel_bramu_v1_0`, sin cambios.
@@ -78,14 +87,13 @@ Ranking BRAMU vigente es **semanal**. Nivel puede cambiar partido a partido, per
 
 ---
 
-
 ---
 
 ## 3. BRAMU Metrics — EN CURSO (protegida)
 
-Consola administrativa privada de BRAMUlab. **No reorganizar, consolidar, retirar ni reubicar ningún archivo de Metrics mientras esté en desarrollo** (`BRAMU_Metrics*.md`, `Implementacion/Post_Lanzamiento/148_*` y `149_*`, `bramulab/admin/metrics/`, `bramulab/metrics-*.test.mjs`, migraciones/Edge `metrics`/`admin-metrics`).
+Consola administrativa privada de BRAMUlab. Sus documentos están juntos en [`Metrics/`](Metrics/) (índice propio: [`Metrics/README.md`](Metrics/README.md)); el plan y el resultado de implementación (`148_*`, `149_*`) **permanecen en `Implementacion/Post_Lanzamiento/`** porque el código protegido los cita por esa ruta. **No consolidar, retirar ni modificar el contenido de Metrics mientras esté en desarrollo** (`bramulab/admin/metrics/`, `bramulab/metrics-*.test.mjs`, migraciones/Edge `metrics`/`admin-metrics`).
 
-- BRAMU Metrics (consola privada `/admin/metrics`; F1 presencia, F2 núcleo protegido y F3 dashboard implementados en repo; F4–F6 sin implementar): `BRAMU_Metrics.md` (producto; marco confirmado en `BRAMU_Metrics_UX_V1.md`, `_Privacidad_V1.md` y `_Comparaciones_V1.md`) → `BRAMU_Metrics_Auditoria_V1.md` → `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas validadas) → `Implementacion/Post_Lanzamiento/148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` (arquitectura y fases).
+- BRAMU Metrics (consola privada `/admin/metrics`; F1 presencia, F2 núcleo protegido y F3 dashboard implementados en repo; F4–F6 sin implementar): `Metrics/BRAMU_Metrics.md` (producto; marco confirmado en `BRAMU_Metrics_UX_V1.md`, `_Privacidad_V1.md` y `_Comparaciones_V1.md`) → `BRAMU_Metrics_Auditoria_V1.md` → `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas validadas) → `Implementacion/Post_Lanzamiento/148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` (arquitectura y fases).
 
 **Staging h29 (08/10/2026, NO promovido; invisible):** BRAMU Metrics V1 F3 — consola privada `/admin/metrics` (Inicio, Usuarios, Partidos, detalle de KPI; comparación con período anterior; acceso autorizado solo por el backend). `sw.js` deja pasar `/admin/*` a la red, `vercel.json` agrega headers `noindex`/`no-store` y el robots de Production excluye `/admin/`; el fixture de QA solo se publica en Staging. Sin cambios en la app ni en lógica deportiva. QA de Central: `Implementacion/Post_Lanzamiento/149_Resultado_Metrics_V1_F1_F2_08OCT.md` §6.
 
@@ -93,22 +101,11 @@ Consola administrativa privada de BRAMUlab. **No reorganizar, consolidar, retira
 
 ---
 
-## 4. Cómo está organizado `docs/BRAMUlab`
+## 4. Reglas de orden
 
-| Dónde | Qué contiene | Autoridad |
-|---|---|---|
-| **Raíz** | Fuentes maestras (tabla §2), Runbook, Operación Vercel, Backlog y Metrics | **Sí** |
-| `Marca/` | SVG maestros aprobados, derivados y generador (los lee el código y los tests) | Sí (marca) |
-| `Versiones/` | Registro histórico por versión mayor (`..._Consolidado` = decisiones/pedidos, `..._Informe` = implementación real) y el Informe de Backend (cadena de la fuente maestra de Backend) | Trazabilidad |
-| `Implementacion/Backend/` | Cierres formales de los Bloques 3–8 | Evidencia |
-| `Implementacion/Pre_Production/` | Evidencia técnica que se conserva: seguridad (138–139), hardening y ensayos operativos (82, 84, 87), emails G1 (90), cierres 122 y 146 | Evidencia |
-| `Implementacion/Post_Lanzamiento/` | Solo Metrics (148–149) | Metrics |
-| `Auditorias/` | Auditoría de convergencia Nivel/Ranking (07/10/2026) y sus simulaciones reproducibles | Estudio vigente, sin decisión tomada |
-| `Referencias/` | Material de contexto (moodboard, evaluación de IA generativa); no reemplaza una fuente maestra | Contexto |
-
-**Regla de poda.** Un handoff, plan, revisión, gate, hotfix o resultado **consumido** se retira del árbol cuando su contenido ya está en la fuente maestra (o en el registro de rondas). Git es la memoria histórica: para recuperar un documento retirado, `git log --diff-filter=D --name-only -- docs/` y luego `git show <commit>^:<ruta>`. No existe `Archivo/` ni `Backup/` dentro del repositorio: no duplicar la historia. Los comentarios de código y los textos históricos que citan documentos retirados se resuelven con ese mismo comando; **no se editan por eso** (tocar `bramulab/` dispara builds).
-
-**Dropbox** (originales de diseño, referencias visuales y material privado no versionado) está descrito en `Metodo_Trabajo.md`, «Higiene documental».
+- **Poda.** Un handoff, plan, revisión, gate, hotfix o resultado **consumido** se retira del árbol cuando su contenido ya está en la fuente maestra (o en el registro de rondas). Git es la memoria histórica: `git log --diff-filter=D --name-only -- docs/` y luego `git show <commit>^:<ruta>`. No existen `Archivo/` ni `Backup/` en el repositorio. Los comentarios del código que citan `docs/BRAMUlab/<Documento>.md` se refieren al mismo documento, hoy dentro de `Producto/`, `Operacion/`, `Metrics/` o `Identidad_Visual/` (se encuentra por nombre); **no se editan por eso** (tocar `bramulab/` dispara builds).
+- **Raíz de `docs/BRAMUlab/`:** solo `README.md`, `Metodo_Trabajo.md` y las carpetas de la tabla de arriba (lo verifica `node docs/check-docs.mjs`). Un documento nuevo va a la carpeta de su función; no se agregan documentos sueltos en la raíz.
+- **Dropbox** (originales de diseño, referencias visuales y material privado no versionado): `Metodo_Trabajo.md`, «Higiene documental».
 
 ---
 
@@ -145,16 +142,17 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 
 ## 7. Qué leer según el pedido
 
-- **“Nivel BRAMU”** → este README + `Nivel_BRAMU.md`.
-- **“Ranking”** → `Ranking_BRAMU.md` + `Nivel_BRAMU.md` solo donde Ranking dependa de Nivel.
-- **“Grupos / Race / puntos de grupo”** → `Grupos_BRAMU.md`.
-- **“Cargar partido / ingreso de resultado / Fecha-Hora-Lugar”** → `Cargar_Partido.md`.
-- **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
-- **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
-- **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`; operación y deploy: `Runbook_Operacion_y_Salida.md` y `Operacion_Vercel_Staging_Production.md`.
-- **“Emails / comunicaciones”** → `Comunicaciones_Emails.md`.
+- **“Nivel BRAMU”** → este README + `Producto/Nivel_BRAMU.md`.
+- **“Ranking”** → `Producto/Ranking_BRAMU.md` + `Nivel_BRAMU.md` solo donde Ranking dependa de Nivel.
+- **“Grupos / Race / puntos de grupo”** → `Producto/Grupos_BRAMU.md`.
+- **“Partidos: cargar / validar / corregir / historial”** → `Producto/Cargar_Partido.md` + `Producto/Experiencia_Inicial.md` (+ `Operacion/Backend_Infraestructura.md` solo para el contrato server-side).
+- **“Experiencia inicial / Estado Cero / invitados”** → `Producto/Experiencia_Inicial.md`.
+- **“BRAMU Intelligence”** → `Producto/BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
+- **“Emails / comunicaciones”** → `Producto/Comunicaciones_Emails.md`.
+- **“BRAMU Metrics / métricas / dashboard admin”** → `Metrics/README.md` → `Metrics/BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `Implementacion/Post_Lanzamiento/148_…` (estado: ver `149_…`; Production no autorizada).
+- **“Backend / producción / cuentas reales / staging”** → `Operacion/Backend_Infraestructura.md` + la sección del bloque en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`; operación y deploy: `Operacion/Runbook_Operacion_y_Salida.md` y `Operacion/Operacion_Vercel_Staging_Production.md`.
+- **“Privacidad / legal / AAIP / eliminación de cuenta”** → `Operacion/Privacidad_Legal.md` + la sección «Production» de `Operacion/Operacion_Vercel_Staging_Production.md`.
+- **“Identidad visual / logo / marca”** → `Identidad_Visual/Identidad_Visual.md` (+ `Marca/`).
 - **“BRAMUlive”** → `../BRAMUlive/BRAMUlive.md`.
-- **“Privacidad / legal / AAIP / eliminación de cuenta”** → `Privacidad_Legal.md` + la sección «Production» de `Operacion_Vercel_Staging_Production.md`.
-- **“BRAMU Metrics / métricas / dashboard admin”** → `BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `148_…` (estado: auditoría, plan, F1 y F2 en repo — ver `149_…`; panel sin implementar; Production no autorizada).
-- **“Qué falta / ideas futuras / riesgos conocidos”** → `BRAMUlab_Backlog.md` y `Pre_Production.md` §2.
-- **“Qué pasó en una versión anterior”** → `Versiones/<versión>/..._Informe.md`; ir a la sección concreta, no cargar todo por defecto.
+- **“Qué falta / ideas futuras / riesgos conocidos”** → `Producto/BRAMUlab_Backlog.md` y `Operacion/Pre_Production.md` §2.
+- **“Qué pasó en una versión anterior”** → `Versiones/README.md` y luego `Versiones/<versión>/..._Informe.md`; ir a la sección concreta, no cargar todo por defecto.

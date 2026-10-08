@@ -19,6 +19,16 @@ for (const f of tracked) {
   if (/^docs\/BRAMUlab\/(Archivo|Backup)\//.test(f)) errors.push(`carpeta prohibida (usar Git): ${f}`);
 }
 
+// 1b) Estructura por función: la raíz de docs/BRAMUlab/ solo tiene README.md, Metodo_Trabajo.md y las carpetas conocidas.
+const ROOT_FILES = new Set(['README.md', 'Metodo_Trabajo.md']);
+const ROOT_DIRS = new Set(['Producto', 'Metrics', 'Operacion', 'Identidad_Visual', 'Implementacion', 'Versiones', 'Auditorias']);
+for (const f of tracked) {
+  const m = f.match(/^docs\/BRAMUlab\/([^/]+)(\/|$)/);
+  if (!m) continue;
+  if (m[2] === '' && !ROOT_FILES.has(m[1])) errors.push(`documento suelto en la raíz de docs/BRAMUlab/ (va a la carpeta de su función): ${f}`);
+  if (m[2] === '/' && !ROOT_DIRS.has(m[1])) errors.push(`carpeta no prevista en docs/BRAMUlab/ (¿tiene una función propia? actualizar README y este chequeo): ${m[1]}/`);
+}
+
 // 2) Nombres tipo final_v2 / copia / old.
 const BAD_NAME = /(final_final|final[_-]?v\d|_v\d+_final|_copia|_old(\.|_)|_backup|\(\d\)\.)/i;
 for (const f of tracked) {

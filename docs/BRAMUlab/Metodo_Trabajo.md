@@ -387,7 +387,7 @@ El texto de arranque del nuevo chat debe exigir leer, como mínimo:
 
 - `docs/BRAMUlab/README.md`
 - `docs/BRAMUlab/Metodo_Trabajo.md`
-- `docs/BRAMUlab/Pre_Production.md`
+- `docs/BRAMUlab/Operacion/Pre_Production.md`
 - la fuente maestra del sistema que se esté trabajando;
 - el último resultado/handoff vigente del bloque en curso.
 
@@ -458,7 +458,7 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 
 ### Orden del repositorio
 
-- **Raíz de `docs/BRAMUlab/`:** solo fuentes maestras, Runbook, Operación Vercel, Backlog, Metodo y Metrics. `README.md` es un mapa corto: **el estado va en su tabla §1** (no en párrafos acumulativos) y la narrativa por ronda va al Informe de la versión. Tope orientativo: README ≤ 16 KB (lo verifica `docs/check-docs.mjs`).
+- **Estructura de `docs/BRAMUlab/` (por función):** la raíz tiene solo `README.md` (entrada) y `Metodo_Trabajo.md`; las fuentes maestras viven en `Producto/` (Nivel, Ranking, Grupos, Cargar partido, Experiencia inicial, Intelligence, Emails, Backlog), `Metrics/` (BRAMU Metrics), `Operacion/` (Backend, Runbook, Vercel/Production, Privacidad/Legal, salida a Production) e `Identidad_Visual/` (+ `Marca/`); la evidencia, en `Implementacion/`; la historia, en `Versiones/` (con su mapa). Un documento nuevo va a la carpeta de su función; **no se agregan documentos sueltos en la raíz** ni carpetas nuevas sin una función propia (lo verifica `node docs/check-docs.mjs`). `README.md` es un mapa corto: **el estado va en su tabla §1** (no en párrafos acumulativos) y la narrativa por ronda va al Informe de la versión. Tope orientativo: README ≤ 16 KB (lo verifica `docs/check-docs.mjs`).
 - **No existen `Archivo/` ni `Backup/`.** Nada «por inercia»: si un documento no es fuente maestra, evidencia con función o historia con valor concreto, se retira.
 - **Código, tests, migraciones y documentación normativa viven en Git.** No reorganizar código por estética ni borrar tests funcionales.
 - **Seguridad:** nada es privado por estar fuera de `dist/` si el repo es público. Cambios de visibilidad, GitHub Pages, URL de logos de email y cualquier efecto sobre BRAMUlive son una intervención aparte con verificación de dependencias.
