@@ -9,7 +9,7 @@
 | Documento | Qué prueba | Por qué se conserva |
 |---|---|---|
 | `Backend/Bloque_03/12_Cierre_Bloque_03.md` · `Bloque_04/09_Cierre_…` y `08_Validacion_Final_Staging.md` · `Bloque_05/16_…` · `Bloque_06/20_…` · `Bloque_07/23_…` · `Bloque_08/35_…` | Cierre formal de los Bloques 3–8 del backend (qué quedó aplicado/validado en Staging) | Los cita el Informe de Backend (`Versiones/BRAMUlab_Backend/`) y la cadena de la fuente maestra de Backend |
-| `Pre_Production/82_Resultado_Pre_Bloque_9_Hardening_Staging_30SEP.md` | Hardening de permisos/RPC, rate limits, SW/entornos | **Un test lo lee** (`bramulab/prebloque9-hardening.test.mjs`) y `supabase/tests/audit-live-grants.sql` lo cita |
+| `Pre_Production/82_Resultado_Pre_Bloque_9_Hardening_Staging_30SEP.md` | Hardening de permisos/RPC, rate limits, SW/entornos | **Un test lo lee** (`bramulab/tests/prebloque9-hardening.test.mjs`) y `supabase/tests/audit-live-grants.sql` lo cita |
 | `Pre_Production/84_Resultado_Bloque_9A_Replay_Limpio_01OCT.md` · `87_Resultado_Bloque_9B_Rehearsal_Operativo_01OCT.md` | Replay limpio de migraciones, línea base de privilegios, ensayo operativo y backup lógico | Evidencia operativa que sustenta `Runbook_Operacion_y_Salida.md` (Production se reconstruye con esto) |
 | `Pre_Production/90_Resultado_G1_Emails_Implementacion_Tecnica_01OCT.md` | Sistema de emails/Auth V1: challenges server-side, templates, secrets | Contrato técnico único de emails; lo citan `Backend_Infraestructura.md`, `Privacidad_Legal.md` y `Pre_Production.md` |
 | `Pre_Production/122_Cierre_Central_Invitados_V0429_h2_03OCT.md` | Cierre de Invitados / identidad / recuperación (gate técnico + QA visual y límites aceptados) | Único cierre identificable de una ronda de integridad de identidad y datos |

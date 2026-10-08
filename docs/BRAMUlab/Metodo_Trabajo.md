@@ -184,6 +184,8 @@ Production es el producto real. Staging es el taller.
 
 ## Pruebas
 
+- **Dónde viven:** las pruebas de `bramulab/` están en `bramulab/tests/` (cada una trata `__dirname` como la raíz de `bramulab/`); las de Metrics siguen en la raíz hasta que termine su desarrollo; las de Edge y operación, junto a su código en `supabase/`. Comando completo y `npm ci` previo: `INDICE.md`.
+
 - Probar riesgos concretos, no todo por costumbre.
 - Repetir pruebas cuando exista riesgo real de datos, identidad, auth, seguridad, migraciones o regresión.
 - No repetir baterías equivalentes si ya existe evidencia suficiente.
@@ -464,14 +466,12 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 
 ### Dropbox (originales y material no versionado)
 
-`/Otros Trabajos/BRAMU/` es la carpeta de BRAMU (mapa completo en su `LEEME.md`):
+Hay **dos carpetas visibles** en `/Otros Trabajos/` (mapa completo en `BRAMU/LEEME.md`; sin carpetas ocultas ni accesos directos):
 
-- **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/` (moodboards). **Intocable:** no renombrar, reemplazar ni reconstruir nada de adentro.
-- **`Desarrollo (código y documentación)`** — alias de Finder a la copia de trabajo del repositorio (GitHub es la fuente de verdad), que contiene los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. **La copia real sigue físicamente en `/Otros Trabajos/BRAMUlab/BRAMUlab` (carpeta `BRAMUlab` oculta en Finder) y no se mueve ni se renombra:** la memoria, el historial de sesiones, `.claude/launch.json` y los worktrees de Claude Code/Git dependen de esa ruta exacta. Nunca guardar acá algo irrecuperable que no esté en Git.
-- **`Documentos privados/`** — material no versionado y sensible (p. ej. la fuente privada de las decisiones legales con datos personales del titular). Nunca se copia al repositorio público.
-- **`Archivo histórico/`** — material retirado, separado por producto (`BRAMUlab/`, `BRAMUlive/`); no es fuente de nada.
+- **`BRAMU/`** — todo lo que no es código: `Sistema grafico/` (originales de Illustrator, identidad visual, exportaciones y `Referencias/`; **intocable**: no renombrar, reemplazar ni reconstruir nada de adentro), `Documentos privados/` (material sensible no versionado, p. ej. las decisiones legales con datos personales del titular; nunca va al repositorio público) y `Archivo histórico/` (dos zips sin copia en Git, explicados en su `LEEME.md`).
+- **`BRAMUlab/BRAMUlab/`** — la copia de trabajo del repositorio (GitHub es la fuente de verdad), con los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. **No se mueve ni se renombra** mientras la memoria, el historial de sesiones, `.claude/launch.json` y los worktrees de Claude Code dependan de esa ruta exacta. Unificarla bajo `BRAMU/` requiere migrar esos registros con la app cerrada y copia de seguridad (DECISIÓN ABIERTA en el Issue #31). Nunca guardar acá algo irrecuperable que no esté en Git.
 
-Todo material nuevo se guarda en la sección que le corresponde de `BRAMU/`; nada suelto en `Otros Trabajos`.
+Todo material nuevo se guarda en la sección que le corresponde; nada suelto en `Otros Trabajos`. Nada «por las dudas» en `Archivo histórico/`: solo material sin copia en Git ni fuente maestra, con su motivo en el `LEEME.md` de esa carpeta.
 
 No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no es un entregable ni se versiona; la copia local de `supabase/scripts/node_modules` existe solo porque los tests de `bramulab/` importan PGlite desde ahí (si falta: `cd supabase/scripts && npm ci`).
 

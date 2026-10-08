@@ -322,6 +322,13 @@ Algunas piezas ya tienen trabajo previo en Staging (por ejemplo eliminación de 
 
 ---
 
+### Revisiones legales recomendadas antes de ampliar el alcance (consolidado 08/10/2026)
+Pendientes no bloqueantes que vivían en la nota privada de decisiones (Dropbox, `Documentos privados/`); la revisión externa es reducción de riesgo, no un gate:
+- Reevaluar GDPR u otras normas extranjeras **antes** de dirigir o promocionar deliberadamente el servicio en esos mercados.
+- Antes de publicar apps móviles: correspondencia exacta entre los flujos reales, las declaraciones de privacidad de Apple, la ficha Data Safety de Google Play y las políticas públicas, incluidas las obligaciones al admitir menores sin flujo parental.
+- Redacción proporcionada (no arbitraria) de las facultades de restricción/suspensión/cierre de cuentas; de las aclaraciones sobre Nivel, Ranking e Intelligence (sin excluir responsabilidades que no puedan limitarse); y de la licencia limitada sobre contenido de usuarios.
+- Si una obligación legal concreta exigiera otro tratamiento por edad, aplicar el ajuste mínimo indispensable sin imponer una edad mínima ni un flujo complejo por anticipado.
+
 ## 16. Implementación L1 (V04.19 / 04.19-h1, 30/09/2026)
 
 Primera de las rondas L1/L2/L3 de Pre-Production (Issue #10). **Sin restricción 13+ ni flujo parental** (§6).

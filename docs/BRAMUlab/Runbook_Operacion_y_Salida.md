@@ -60,7 +60,7 @@ Cada procedimiento fue **ensayado de punta a punta** sobre una base efímera con
 - **Staging hoy:** datos de prueba; respaldo puntual con `supabase db dump` (requiere la contraseña de la base: tarea de Central, nunca de Sebastián) o exportaciones por tabla con `service_role`.
 
 ### Preflight (qué es automático y qué no)
-Requiere `npm ci` dentro de `supabase/scripts/` (el `node_modules` no se versiona y se regenera idéntico desde `package-lock.json`, verificado el 08/10/2026; en una copia nueva hay que correrlo antes de `release-check` y de los tests que importan PGlite, p. ej. `bramulab/bloque9b-ops.test.mjs`).
+Requiere `npm ci` dentro de `supabase/scripts/` (el `node_modules` no se versiona y se regenera idéntico desde `package-lock.json`, verificado el 08/10/2026; en una copia nueva hay que correrlo antes de `release-check` y de los tests que importan PGlite, p. ej. `bramulab/tests/bloque9b-ops.test.mjs`).
 
 `node supabase/scripts/release-check.mjs [--manifest m.json] [--preflight-md p.md]` ejecuta **todo lo automatizable** (migraciones, hardcodes, Edge Functions y `verify_jwt`, builds Staging/Production/credenciales cruzadas, replay limpio ×3 ACL con regresión PG17 `MAINTAIN`, ensayo operativo A/B/C, regresión Edge service-to-service) y termina con un bloque **PREFLIGHT** que separa:
 - **AUTOMÁTICO PASS/FAIL** (decide el exit code), y

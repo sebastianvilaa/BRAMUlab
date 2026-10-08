@@ -59,6 +59,8 @@ Una fuente maestra por sistema. Si una ronda cambia un sistema, **se actualiza s
 | **Salida a Production** | `Pre_Production.md` | Cerrada el 07/10/2026; conserva pendientes y reglas «no reabrir» |
 | **Método de trabajo** | `Metodo_Trabajo.md` | Vigente |
 | **BRAMU Metrics** | `BRAMU_Metrics.md` y su cadena (§3) | En curso, protegida |
+| **Emails** | `Comunicaciones_Emails.md` (copy y HTML en `supabase/email-templates/`) | Cerrado e implementado (G1) |
+| **BRAMUlive** | `../BRAMUlive/BRAMUlive.md` | Producto separado; historia en `docs/BRAMUlive/`. No se toca en rondas de BRAMUlab |
 | **Backlog futuro** | `BRAMUlab_Backlog.md` | Solo ideas futuras no autorizadas y riesgos conocidos |
 
 ### Nivel BRAMU — fuente única
@@ -150,6 +152,8 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
 - **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`; operación y deploy: `Runbook_Operacion_y_Salida.md` y `Operacion_Vercel_Staging_Production.md`.
+- **“Emails / comunicaciones”** → `Comunicaciones_Emails.md`.
+- **“BRAMUlive”** → `../BRAMUlive/BRAMUlive.md`.
 - **“Privacidad / legal / AAIP / eliminación de cuenta”** → `Privacidad_Legal.md` + la sección «Production» de `Operacion_Vercel_Staging_Production.md`.
 - **“BRAMU Metrics / métricas / dashboard admin”** → `BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `148_…` (estado: auditoría, plan, F1 y F2 en repo — ver `149_…`; panel sin implementar; Production no autorizada).
 - **“Qué falta / ideas futuras / riesgos conocidos”** → `BRAMUlab_Backlog.md` y `Pre_Production.md` §2.

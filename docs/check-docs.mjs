@@ -49,7 +49,7 @@ for (const f of allMd) {
     for (const m of line.matchAll(REF)) {
       const ref = m[1].replace(/^\.\//, '');
       if (/[*<>…]|\.\.\./.test(ref) || /^https?:/.test(ref)) continue;
-      if (/^_/.test(ref) || path.basename(ref).length < 6 || ref === 'LEEME.md') continue;   // abreviaturas («_UX_V1.md»), `p.md` de ejemplos y el LEEME de Dropbox
+      if (/^_/.test(ref) || path.basename(ref).length < 6 || /(^|\/)LEEME\.md$/.test(ref)) continue; // LEEME.md: mapas de Dropbox (fuera del repo)   // abreviaturas («_UX_V1.md»), `p.md` de ejemplos y el LEEME de Dropbox
       if (!/\//.test(ref) && !/\.md$/.test(ref)) continue;     // un nombre suelto solo cuenta si es .md
       if (!/\.md$/.test(ref) && !/^(docs|Implementacion|Versiones|Marca|Auditorias|Referencias)\//.test(ref)) continue;
       // Nota: citas a documentos retirados dentro de una nota de mantenimiento o del registro de rondas son históricas.

@@ -56,7 +56,7 @@ export const FORBIDDEN = [
   { id: 'staging-environment-seed', re: /insert\s+into\s+public\.app_config[^;]*'(staging|production)'/i, scope: 'source', pathRe: /^supabase\/(migrations|functions)\// },
 ];
 /** Archivos cuyo PROPÓSITO es sembrar violaciones para probar este escáner: se excluyen de su propio escaneo. */
-export const SCANNER_FIXTURE_FILES = new Set(['bramulab/bloque9a-release.test.mjs', 'bramulab/bloque9b-ops.test.mjs']);
+export const SCANNER_FIXTURE_FILES = new Set(['bramulab/tests/bloque9a-release.test.mjs', 'bramulab/tests/bloque9b-ops.test.mjs']);
 const EMAIL_ALLOWED = /^(bramulab@gmail\.com)$|@example\.(test|com)$|@x\.test$|@test\.com$/i;
 export function scanHardcodes(files = trackedFiles(), root = REPO) {
   const findings = [];

@@ -15,7 +15,7 @@
 
 - `bramulab/level-calibration.js` — estimador V1.3, estado del cuestionario adaptativo, calibración/recalibración. Compartido con la Edge Function `officialize-onboarding` por symlink (una sola fórmula; el servidor recalcula desde las posiciones crudas).
 - `bramulab/level.js` y `bramulab/match-level-engine.js` — motor de partidos `nivel_bramu_v1_0`.
-- Tests de reglas: `bramulab/v0428-nivel-inicial-v13.test.mjs` (estimador V1.3; el banco de preguntas del Anexo A se verifica literalmente contra este documento), `bramulab/match-level-engine.test.mjs` y la batería de `bramulab/tests.html`.
+- Tests de reglas: `bramulab/tests/v0428-nivel-inicial-v13.test.mjs` (estimador V1.3; el banco de preguntas del Anexo A se verifica literalmente contra este documento), `bramulab/tests/match-level-engine.test.mjs` y la batería de `bramulab/tests.html`.
 
 ---
 

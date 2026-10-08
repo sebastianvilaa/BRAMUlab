@@ -1,0 +1,68 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'); // raíz de bramulab/ (las pruebas viven en bramulab/tests/)
+const app = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+
+function fnBody(name) {
+  const i = app.indexOf(`function ${name}(`);
+  assert.ok(i >= 0, `falta ${name}`);
+  const end = app.indexOf('\n  }\n', i);
+  return app.slice(i, end);
+}
+
+test('handoff 63: código de validado+score distinto muestra POSIBLE PARTIDO DUPLICADO, no NECESITA REVISIÓN', () => {
+  const body = fnBody('serverMatchStatusLabel');
+  assert.match(body, /isPossibleDuplicateEntry\(f\) \? 'POSIBLE PARTIDO DUPLICADO' : 'NECESITA REVISIÓN'/);
+  const pd = fnBody('isPossibleDuplicateEntry');
+  assert.match(pd, /validated_match_needs_bloque6_correction/);
+});
+
+test('handoff 63: el outcome abre el modal con un único candidato y conserva matchId en lastError', () => {
+  const body = fnBody('handleCreateOrAttachOutcome');
+  const i = body.indexOf("code === 'validated_match_needs_bloque6_correction'");
+  const j = body.indexOf('MATCH_BUSINESS_ERROR_CODES.has(code)');
+  assert.ok(i >= 0 && j > i, 'la rama del duplicado va ANTES del error de negocio genérico');
+  assert.match(body.slice(i, j), /openPossibleDuplicateModal\(entry, existingMatchId\)/);
+  assert.match(body.slice(i, j), /lastError: \{ code, matchId: existingMatchId \}/);
+});
+
+test('handoff 63: "Es el mismo partido" deriva a la corrección vigente sin crear partido; "Es otro partido" usa disambiguationForceNew', () => {
+  const same = fnBody('resolveSameMatchAsCorrection');
+  assert.doesNotMatch(same, /removeMatchOutboxEntry/);
+  assert.match(same, /openProposeCorrection\([\s\S]*entry\.localDraftId\)/);
+  assert.doesNotMatch(same, /createOrAttach/);
+  const submit = fnBody('submitProposeCorrection');
+  assert.match(submit, /sourceOutboxDraftId[\s\S]*removeMatchOutboxEntry\(sourceOutboxDraftId\)/);
+  assert.match(fnBody('forceNewFromAmbiguous'), /disambiguationForceNew: true/);
+  // V04.34: la decisión se enruta por dupDecision (pre-check o guardado); el botón sigue cayendo en forceNewFromAmbiguous por defecto.
+  assert.match(app, /\$\('#ambiguous-match-force-new'\)\.addEventListener\('click', \(\) => \{ const d = dupDecision; if \(d && d\.onOther\) d\.onOther\(\); else forceNewFromAmbiguous\(\); \}\)/);
+  assert.match(fnBody('openPossibleDuplicateModal'), /onOther: \(\) => forceNewFromAmbiguous\(\)/);
+});
+
+test('handoff 63: múltiples candidatos conserva el copy y flujo de desambiguación existente', () => {
+  const body = fnBody('openAmbiguousMatchModal');
+  assert.match(body, /AMBIGUOUS_MODAL_COPY\.multiple\.title/);
+  assert.match(body, /resolveAmbiguousMatch\(btn\.dataset\.matchId\)/);
+  assert.match(html, /id="ambiguous-match-title"/);
+  assert.match(html, /id="ambiguous-match-text"/);
+});
+
+test('handoff 63: el banner del Resumen ofrece Revisar para el duplicado', () => {
+  assert.match(app, /outboxActionBtn\.textContent = 'Revisar';[\s\S]{0,300}openPossibleDuplicateModal/);
+});
+
+
+test('h27: cancelar o fallar una corrección no descarta el borrador y el carrusel usa copy corto', () => {
+  const close = fnBody('closeProposeCorrection');
+  assert.doesNotMatch(close, /removeMatchOutboxEntry/);
+  // Handoff 71 (C4, cierre B1) — el copy "X cargó un partido con vos" se retiró (atribuía la
+  // carga original como si fuera el evento accionable actual); el carrusel usa el copy corto
+  // neutro de siempre.
+  assert.ok(app.includes('`Partido con ${rivalNames}.`'));
+  assert.doesNotMatch(app, /Revisalo y validá el partido\./);
+});
