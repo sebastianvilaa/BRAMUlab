@@ -238,3 +238,19 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 4. **Concordancia** con el conector de solo lectura, usando el **mismo corte** (`meta.asOf` como 4.º argumento): `select public.metrics_community('30d', true, false, '<asOf>'::timestamptz)` (y activation/usage), comparando KPIs, `today` y desgloses con lo que muestra cada pestaña; repetir con 7d, 90d, histórico y «Comparar» apagado.
 5. **Comunidad**: tres sistemas separados; «Distribución por banda» oculta si hay < 10 calibrados en la última edición; con ediciones de Ranking publicadas, «universos por densidad» cuenta localidades, no personas; los 4 ratios `snapshot` no muestran «Anterior» ni variación.
 6. **Pendientes de F3 §7.4** (negativos 401/403, headers/robots con sesión de Vercel, presencia, iPhone/Android): siguen abiertos y no dependen de F4.
+
+
+---
+
+## 9. Central — aplicación y comprobación de F4 en Supabase Staging (08/10/2026)
+
+**CONFIRMADO / ejecutado por Central** con autorización explícita de Sebastián:
+
+- Aplicada correctamente en **Supabase Staging** (`serxtivkfnptzurnvewg`) la migración aditiva `20261008120000_metrics_f4_d8_comunidad.sql`. **Production, main y BRAMUlive intactos**.
+- Consultadas en vivo las seis funciones: `metrics_overview` (6 KPI), `metrics_users` (6), `metrics_matches` (12), `metrics_activation` (10), `metrics_community` (15), `metrics_usage` (12). Todas devolvieron `ok=true`, `meta.environment=staging`, `completeDaysOnly=true` y `today.partial=true`.
+- Comprobación independiente con tablas crudas (incluyendo cuentas internas): usuarios registrados **32 = 32**, partidos cargados en 30 días completos **74 = 74**, grupos activos **2 = 2**.
+- Seguridad comprobada en base real: **0 funciones de métricas ejecutables por anon/authenticated**, **0 tablas Metrics con SELECT abierto o sin RLS**, **1 admin activo**.
+- D8: ventana termina a las 00:00 de hoy BA (incluye hasta ayer), ambas ventanas tienen la misma duración. Los **4** indicadores `snapshot` no presentan comparación anterior. Comunidad: 15 KPIs, los cuatro desgloses esperados y ningún UUID encontrado en su respuesta.
+- Verificado previamente por Central: Vercel Staging h30 `dpl_4qQUVBwfdqyGxxNqPG8U7fUGGoTz` en estado READY para commit `a5f8335`. No se reasignaron alias.
+
+**Aún pendiente (no afirmar PASS total):** recorrido de las seis pestañas con sesión real `@seba_qa`, pruebas negativas HTTP 401/403 de Edge con cuentas reales y de headers bajo Vercel Authentication, concordancia visual completa por períodos, QA de móvil y registro efectivo de presencia con sesión. La implementación y comprobación de SQL no equivalen al QA integral del navegador.
