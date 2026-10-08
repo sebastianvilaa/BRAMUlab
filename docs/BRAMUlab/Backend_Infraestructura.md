@@ -6,7 +6,7 @@
 >
 > Alcance de producto de referencia: BRAMUlab V04.10.
 >
-> El informe `docs/BRAMUlab/Archivo/Backend_Infraestructura/Backend_Infraestructura_Informe.md` se conserva únicamente como diagnóstico histórico. Ante diferencias, manda este documento.
+> El diagnóstico histórico previo (`Backend_Infraestructura_Informe.md`, retirado el 08/10/2026) sigue disponible en Git. Ante diferencias, manda este documento.
 
 ---
 
@@ -554,7 +554,22 @@ Autoridad mínima:
 - cálculo alimentado únicamente por partidos oficiales/computables y, para Sorpresa, Nivel oficial anterior al partido cuando exista evidencia suficiente;
 - trazabilidad suficiente para reconstruir puntos, bonus, semanas y Race.
 
-Implementación Fase A (28/09/2026): tablas `groups`, `group_memberships` (un período por fila), `group_events`; contratos RPC y lectura deportiva `get_group_competition_data` documentados en `Implementacion/Pre_Production/66_Resultado_Grupos_Fase_A_Backend_Compartido_28SEP.md`.
+Implementación Fase A (28/09/2026, migración `20260928120000_preprod_grupos_fase_a_backend_compartido.sql`, verify `GRUPOS_FASE_A_VERIFY_PASS`): tablas server-only `groups` (borrado lógico), `group_memberships` (una fila por **período**; índice único parcial = un solo período abierto por jugador/grupo; `is_admin` en el período; el reingreso abre período nuevo y **no hereda admin**) y `group_events` (auditoría append-only), todas con RLS deny-by-default, sin políticas ni GRANT a `anon`/`authenticated` (acceso solo por RPC `SECURITY DEFINER` con autorización propia). Invariante «nunca cero admins» en dos capas: cada RPC bloquea el grupo (`FOR UPDATE`) y valida, y un constraint trigger *deferred* aborta cualquier transacción que deje un grupo activo sin admin activo. «No existe / eliminado / no soy miembro» devuelven el mismo `group_not_found`; las mutaciones repetidas son idempotentes (`changed:false`); nombre 1–60 caracteres; máx. 100 miembros (guardia de abuso, no regla de producto).
+
+Contrato RPC (todas `EXECUTE` solo `authenticated`; respuesta `{ok:true,…}` o `{ok:false, code}`; sesión inválida / rate limit = excepción):
+
+| RPC | Devuelve |
+|---|---|
+| `list_my_groups()` | `groups[{groupId,name,createdByPlayerId,createdAt,updatedAt,isAdmin,myJoinedAt,activeMemberCount}]` |
+| `get_group_detail(group)` | `group{groupId,name,…,isAdmin, members[{playerId,isActive,isAdmin,periods[{joinedAt,leftAt}]}]}` |
+| `create_group(name, member_ids[])` | `group` (creador = miembro + admin; todo o nada) |
+| `rename_group` / `add_group_member` / `remove_group_member` / `promote_group_admin` / `demote_group_admin` | `group` actualizado (+ `changed`) |
+| `delete_group(group)` | `{ok:true}` (lógico) |
+| `get_group_competition_data(group, from?, to?)` | `group` (con períodos históricos) + `matches[{matchId,playedAt,formatId,scoringSystem,winnerTeam,sets[{setNumber,gamesA,gamesB,tiebreakA,tiebreakB}],players[{playerId,team,position,isGroupMember,levelBefore}]}]` |
+
+Códigos de negocio: `group_not_found`, `not_admin`, `invalid_name`, `player_not_found`, `target_not_member`, `last_admin`, `too_many_members`.
+
+**Autoridad deportiva:** `get_group_competition_data` es *la* lectura para el motor puro `bramulab/groups.js` (**no hay fórmula de puntos/top 2/Race en SQL**). Solo entrega partidos `validated` con ≥3 miembros activos en `played_at` (filtro de privacidad/alcance; el motor re-evalúa con los períodos recibidos), con los sets de la **revisión oficial vigente** (una corrección oficial se propaga sola); un mismo partido aparece en todos los grupos donde califica. `levelBefore` = `effective_level` del resultado de Nivel aplicado y elegible de ese partido; **NULL si no hay evidencia** → el motor no otorga Sorpresa (nunca Nivel simulado ni actual). El contrato no incluye nombres/avatares (se resuelven por `player_id` con `get_players_compact`); `regulationCompleted` no existe en backend (todo `validated` cuenta como completo); los participantes no miembros (p. ej. el 4.º jugador) llegan solo con `playerId`.
 
 B2c (30/09/2026): `groups.photo_path`, evento `photo_changed`, RPC `update_group_photo`, bucket privado `group-photos` (RLS por membresía, URL firmada de 10 min) y limpieza de fotos en P0.3 — migración `20260930120000_preprod_grupos_b2c_group_photo.sql`; detalle en `Grupos_BRAMU.md` §25.
 

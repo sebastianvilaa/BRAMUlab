@@ -8,7 +8,7 @@
 
 - Empezar siempre por `docs/BRAMUlab/README.md`.
 - Después leer solo la fuente maestra del sistema afectado (README §2/§7 indica cuál).
-- `Archivo/`, `Backup/` y handoffs ya consumidos **no son autoridad normal** — solo se leen ante pedido explícito de trazabilidad puntual.
+- Los documentos retirados del árbol (handoffs, resultados, gates y revisiones consumidos) viven en Git y **no son autoridad**; solo se recuperan ante pedido explícito de trazabilidad puntual (`git log --diff-filter=D --name-only -- docs/`). No existe `Archivo/` ni `Backup/` en el repositorio.
 
 ## Separación de roles
 
@@ -366,7 +366,7 @@ Abrir un chat Central nuevo cuando:
 - el contexto quedó cargado de caminos descartados, logs o handoffs consumidos aunque todavía permita seguir escribiendo.
 
 Antes de migrar:
-1. dejar un **único handoff de continuidad** en `docs/BRAMUlab/Implementacion/Pre_Production/`;
+1. dejar un **único handoff de continuidad** como documento de ronda activa (`docs/BRAMUlab/Implementacion/Ronda_<tema>.md`, ver «Higiene documental»);
 2. registrar HEAD exacto, estado del gate, qué ya fue verificado, qué falta y decisiones humanas cerradas;
 3. el nuevo chat lee por defecto solo **README + Metodo_Trabajo + handoff activo + fuentes maestras indicadas por ese handoff**;
 4. no reconstruir la conversación anterior ni releer cadenas completas de handoffs consumidos;
@@ -434,14 +434,46 @@ Cuando el problema sea de composición, jerarquía, peso visual, espaciado o sen
 
 ## Higiene documental y orden del repositorio (regla operativa)
 
-Objetivo: que la coordinación entre agentes no produzca una colección permanente de versiones `final/final_v2`, handoffs y resultados redundantes. **No es una nueva jerarquía de fuentes:** prevalecen `README.md` y la fuente maestra de cada sistema.
+Objetivo: que la coordinación entre agentes **no produzca** una colección permanente de handoffs, resultados, gates y versiones `final/final_v2`. **No es una nueva jerarquía de fuentes:** prevalecen `README.md` y la fuente maestra de cada sistema.
 
-1. **Al comenzar:** reutilizar el handoff activo o Issue existente. Para una ronda nueva, crear como máximo un handoff consolidado cuando realmente haga falta; los prompts de ChatGPT/Claude/Work apuntan a él y no duplican su contenido.
-2. **Durante la ronda:** actualizar el mismo documento de trabajo si la tarea sigue abierta; no generar un MD nuevo por cada ida y vuelta, diagnóstico o hotfix menor. Para decisiones abiertas usar `DECISIÓN ABIERTA` dentro del documento de trabajo.
-3. **Al cerrar:** verificar implementación y evidencia; actualizar primero la fuente maestra del sistema y el estado/índice pertinente. Si conviene conservar un resultado técnico (migración, seguridad, identidad, producción, incidente), que sea **un cierre identificable**, no varios informes equivalentes.
-4. **Retirar trabajo consumido:** comprobar menciones desde README, otras fuentes maestras, scripts/tests y tareas aún activas. Solo entonces retirar del árbol activo handoffs y borradores que no aporten información única. Git conserva los documentos **previamente versionados**, pero no archivos solo locales de Dropbox.
-5. **Separación de superficies:** código, tests, migraciones y documentación normativa viven en Git; originales editables de marca y referencias visuales viven en Dropbox. No duplicar repositorios o `node_modules` como si fueran entregables de diseño. **No mover la copia local de trabajo mientras esté activa** ni tocar el original Illustrator o referencias de `Sistema grafico`.
-6. **Mantenimiento periódico:** revisar referencias rotas, índices desactualizados, handoffs consumidos y dependencias con `Temporales/` al cierre de un bloque, no producir un gran inventario nuevo cada semana.
-7. **Seguridad:** no considerar privado un archivo por estar fuera de `dist/` si está en un repositorio público. Cambios de visibilidad, Pages, URLs de email y cualquier efecto sobre BRAMUlive requieren una intervención específica y verificación de dependencias.
+**Regla en una línea:** *una fuente maestra por sistema · un documento activo por ronda · una evidencia de cierre solo si agrega valor real.*
 
-**Regla práctica:** un documento maestro por sistema; un documento activo por ronda cuando haga falta; una evidencia de cierre solo si agrega trazabilidad relevante. No reordenar código por estética ni borrar tests funcionales.
+### Durante una ronda
+
+1. **Documento activo único:** si la ronda es mediana/grande, existe **un solo** archivo `docs/BRAMUlab/Implementacion/Ronda_<tema>.md`, sin números ni sufijos de versión. Handoff, plan, resultado, corrección y cierre son **secciones del mismo archivo**, que se actualiza en el lugar en cada ida y vuelta. Prohibido crear un archivo nuevo por diagnóstico, hotfix menor, gate o reintento.
+2. Los prompts de ChatGPT/Claude/Work apuntan a ese archivo y no duplican su contenido. Decisiones abiertas: `DECISIÓN ABIERTA` dentro del mismo documento.
+3. Si la ronda es chica, no se crea documento: se registra en el commit y, al cerrar, en la fuente maestra.
+
+### Al cerrar la ronda (checklist obligatorio)
+
+1. **Fuente maestra actualizada** con cómo funciona el sistema ahora (no con cómo se llegó).
+2. **Registro:** una entrada breve en el Informe de la versión (`Versiones/…`) si la ronda cambió el producto; riesgos conocidos, decisiones diferidas e ideas → `BRAMUlab_Backlog.md`.
+3. **Evidencia que se conserva:** solo si es técnica y todavía útil (migración aplicada, seguridad, identidad/datos, producción, incidente, ensayo operativo). Se deja **un** documento de cierre identificable; no varios informes equivalentes.
+4. **Verificar referencias** antes de retirar: menciones desde README, otras fuentes maestras, tests, scripts y tareas activas (`node docs/check-docs.mjs` + `git grep`). No retirar por patrón ni por nombre; un documento que lee un test o cita una fuente vigente se adapta primero.
+5. **Retirar** del árbol el documento de ronda y todo intermedio consumido en el mismo commit documental (`docs:`). Git conserva los documentos versionados; **no** conserva archivos que solo estuvieron en Dropbox.
+6. **No tocar código para arreglar citas rotas** en comentarios: las rutas retiradas se recuperan con Git, y editar `bramulab/` o las Edge Functions dispara builds y cambia hashes de release.
+7. Agrupar la documentación de cierre en **un solo push** (ver «Presupuesto de deploys»).
+
+### Orden del repositorio
+
+- **Raíz de `docs/BRAMUlab/`:** solo fuentes maestras, Runbook, Operación Vercel, Backlog, Metodo y Metrics. `README.md` es un mapa corto: **el estado va en su tabla §1** (no en párrafos acumulativos) y la narrativa por ronda va al Informe de la versión. Tope orientativo: README ≤ 16 KB (lo verifica `docs/check-docs.mjs`).
+- **No existen `Archivo/` ni `Backup/`.** Nada «por inercia»: si un documento no es fuente maestra, evidencia con función o historia con valor concreto, se retira.
+- **Código, tests, migraciones y documentación normativa viven en Git.** No reorganizar código por estética ni borrar tests funcionales.
+- **Seguridad:** nada es privado por estar fuera de `dist/` si el repo es público. Cambios de visibilidad, GitHub Pages, URL de logos de email y cualquier efecto sobre BRAMUlive son una intervención aparte con verificación de dependencias.
+- **BRAMU Metrics** se trata como trabajo en curso: no consolidar ni mover sus archivos hasta que su responsable lo indique.
+
+### Dropbox (originales y material no versionado)
+
+`/Otros Trabajos/BRAMUlab/` contiene exactamente:
+
+- **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/` (moodboards). **Intocable:** no mover, renombrar ni reconstruir; sus rutas pueden estar referenciadas por el `.ai` y por `Identidad_Visual.md`.
+- **`BRAMUlab/`** — copia de trabajo del repositorio (GitHub es la fuente de verdad). **No mover ni renombrar mientras haya una sesión de Claude Code/Git activa:** la memoria y la configuración de las sesiones dependen de esta ruta. No guardar acá nada irrecuperable que no esté en Git.
+- **`Documentos privados/`** — material no versionado y sensible (p. ej. la fuente privada de las decisiones legales con datos personales del titular). Nunca se copia al repositorio público.
+- **`Archivo histórico/`** — material retirado de otras ubicaciones, conservado por precaución; no es fuente de nada.
+- **`LEEME.md`** — este mapa, en una página.
+
+No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no se guarda como entregable.
+
+### Mantenimiento
+
+Al cierre de cada bloque (no semanalmente): `node docs/check-docs.mjs` (referencias rotas, `Archivo/`/`Backup/`, nombres tipo `final_v2`, README demasiado grande, documentos de `Implementacion/` que ninguna fuente vigente cita) y barrer handoffs consumidos con el checklist de arriba.

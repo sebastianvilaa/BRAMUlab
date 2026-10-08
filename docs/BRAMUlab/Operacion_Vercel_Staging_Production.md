@@ -52,3 +52,34 @@ El procedimiento anterior fue reportado como exitoso por el chat que publicó h2
 ## Iconos PWA por entorno
 
 La separación del icono oficial y del azul ST está definida en `docs/BRAMUlab/Identidad_Visual.md` y `docs/BRAMUlab/Marca/README.md`. En h27 `build-dist.mjs` selecciona la variante ST solo para Staging; Production conserva la oficial incluso al construir el mismo commit. Distinguir siempre **build correcto**, **alias correcto** e **icono cacheado en iOS** antes de modificar código.
+
+## Production — infraestructura y estado de salida (verificado 07/10/2026)
+
+Consolida lo que antes vivía en los informes de G3/G4 y del primer deploy (retirados el 08/10/2026; Git los conserva). **Esta sección es la fuente para los datos reales de Production**; no contiene secretos.
+
+| Elemento | Valor |
+|---|---|
+| Dominio definitivo | `https://app.bramulab.com` (`bramulab.com` registrado en Cloudflare; `app.` conectado por CNAME a Vercel, verificado). Aliases técnicos: `bramulab.vercel.app`, `bramulab-bramu-lab.vercel.app` |
+| Vercel | proyecto `bramulab`; variables de Production separadas de Preview/Staging; `main` no se mueve; BRAMUlive no se toca |
+| Supabase Production | proyecto `bramulab-production`, ref `bgnnnfbdywefftvoqiss`, región `sa-east-1` (São Paulo), plan **Free**, `app_config.environment = production` |
+| Edge Functions | 12/12 ACTIVE al 07/10/2026 (la lista vigente se verifica con `release-check`/el panel; no confiar en este número a futuro) |
+| Cron | `bramu_weekly_ranking_publish` (lunes 00:05 Buenos Aires) y cleanup de altas abandonadas (solo Production) |
+| Auth | Site URL `https://app.bramulab.com`; redirects del dominio nuevo + los de `bramulab.vercel.app` conservados como fallback temporal; `BRAMU_PUBLIC_BASE_URL=https://app.bramulab.com` |
+| Primer deploy Production | 07/10/2026, desde `staging` (`b0889fe6`, `dpl_Nmn2pKLHi4XN8WdBKaGfDhC4Vwd4`), con datos vacíos (0 usuarios/jugadores/partidos) |
+| Promociones posteriores | h24 (`303d7038`) y h26 (`f1ad7d1b`, `dpl_2FiyCJD1eA5t7sVj27qWyaayRnCp`, vigente): ver `README.md` para el estado actual |
+
+**Incidente de aliases (07/10, resuelto):** el primer deploy dirigido desde `staging` recibió temporalmente el alias automático de la rama Staging; se reasignó al último Preview READY. Ante cualquier deploy Production dirigido, verificar siempre ambos alias (ver arriba).
+
+### Legal / AAIP / transferencias (datos reales publicados)
+
+- Los textos públicos (`bramulab/{terminos,privacidad,eliminar-cuenta}/index.html`) no tienen placeholders `[[PENDIENTE_PRODUCCION:*]]`; el build de Production los exige en cero. Vigencia 07/10/2026. La identidad y el domicilio publicables salen de la fuente privada del titular (no se copian a este repositorio; ver `Privacidad_Legal.md` §13).
+- **AAIP/RNBDP:** trámite presentado el 07/10/2026, expediente `EX-2026-97673851-APN-DNDPD#AAIP`, estado Iniciación, **sin número definitivo**. Mientras esté pendiente los textos públicos dicen literalmente que la inscripción fue presentada y está pendiente. **Al asignarse el número:** actualizar `privacidad/index.html`, esta sección y `Privacidad_Legal.md`, y modificar el registro si algún dato cambió.
+- **Transferencias internacionales:** Brasil (Supabase Production en São Paulo) y Estados Unidos (Vercel Inc. / Google LLC, con posible procesamiento global). Mecanismo para destinos sin nivel adecuado: **consentimiento expreso e informado**, recogido por el checkbox de alta y por la reaceptación.
+- **Retención / backups / logs (Supabase Free):** logs operativos accesibles las últimas 24 h; sin ventana de restauración administrada desde el panel. **No prometer backups propios que no existen**; las copias técnicas de proveedores siguen sus ciclos y no se usan para restablecer datos eliminados. Un plan con backups/PITR sigue siendo una decisión de Sebastián (G4).
+
+### Pendientes operativos de Production
+
+1. Smoke humano mínimo en `app.bramulab.com` (carga sin protección de Vercel, acceso/crear cuenta visible, Términos y Privacidad abren, logo de emails resuelve desde el dominio público). No crear datos reales solo para repetir QA deportiva ya cerrada.
+2. Seguimiento del expediente AAIP (ver arriba).
+3. Decisión G4: plan de Supabase / backups gestionados (ver `Runbook_Operacion_y_Salida.md`, «Backup»).
+4. Repositorio público, GitHub Pages viejo y logo de emails en `raw.githubusercontent.com`: **intervención independiente** (ver `Implementacion/Pre_Production/138_…` y `139_…`); nada de eso se cambia sin autorización específica y verificación de BRAMUlive/Pages.

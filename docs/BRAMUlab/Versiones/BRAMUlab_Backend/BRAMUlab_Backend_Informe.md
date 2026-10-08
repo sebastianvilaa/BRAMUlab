@@ -1,5 +1,7 @@
 # BRAMUlab — Backend/Infraestructura — Informe de implementación
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 > Registra qué se implementó, testeó y qué queda pendiente de Sebastián para
 > cada bloque de `docs/BRAMUlab/Backend_Infraestructura.md`. Ese documento
 > sigue siendo la fuente maestra de decisiones; este Informe es el registro

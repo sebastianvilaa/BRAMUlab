@@ -1,6 +1,6 @@
 # BRAMUlab — Runbook de operación y checklist de salida (Pre-Bloque 9)
 
-**Estado:** preparado en Staging el 30/09/2026 (V04.20 / 04.20-h3); procedimientos y backup ensayados en Bloque 9B (01/10/2026). **Nada de la Parte B se ejecuta sin autorización explícita de Sebastián.**
+**Estado:** preparado en Staging el 30/09/2026 (V04.20 / 04.20-h3); procedimientos y backup ensayados en Bloque 9B (01/10/2026). **La Parte B se ejecutó en la salida a Production del 07/10/2026** (datos reales en `Operacion_Vercel_Staging_Production.md`, sección «Production»); queda como procedimiento de referencia y de reconstrucción. **Cualquier mutación de Production requiere autorización explícita de Sebastián.** La Parte C fija cómo se opera con usuarios reales.
 Este documento no contiene secretos: las credenciales viven solo en variables de entorno / Vault / Vercel.
 
 ---
@@ -48,7 +48,7 @@ Cada procedimiento fue **ensayado de punta a punta** sobre una base efímera con
 
 ### Forward-fix vs rollback de migraciones
 - **Regla:** las migraciones son **append-only y se corrigen hacia adelante (forward-fix)** con una migración nueva, idempotente y con verify. **No hay rollback automático** de migraciones: casi todas incluyen DDL, grants y backfills; revertirlas a mano es más riesgoso que corregirlas. No se editan migraciones ya aplicadas en un entorno (el replay limpio exige que el archivo del repo sea un estado final equivalente; ver el caso `…232000`/`…280000` en el 84).
-- **Evidencia previa a aplicar (siempre):** `node supabase/scripts/release-check.mjs` en PASS; `84_release_manifest.json` (hash por migración y por Edge Function) contrastado con lo aplicado; `audit-live-grants.sql` en el entorno destino; si la migración toca privilegios, comparar la sección 7 antes de aplicar.
+- **Evidencia previa a aplicar (siempre):** `node supabase/scripts/release-check.mjs` en PASS; un manifest regenerado con `--manifest` (hash por migración y por Edge Function) contrastado con lo aplicado (los manifests históricos de 9A/9B se retiraron: son regenerables y están en Git); `audit-live-grants.sql` en el entorno destino; si la migración toca privilegios, comparar la sección 7 antes de aplicar.
 - **Si una migración falla a mitad:** las migraciones corren en una transacción; no se aplica parcialmente. Se corrige el archivo (todavía no aplicado) o, si ya está aplicada en otro entorno, se agrega la migración correctiva.
 - **Cuándo se considera rollback de DATOS:** solo ante corrupción de datos (no de esquema): restaurar un backup **a un proyecto nuevo** (nunca encima de Production), comparar y copiar lo necesario, y **re-aplicar el libro de eliminaciones** (ver Backup). Cualquier restauración se decide con Central y se autoriza con Sebastián.
 - **Edge Functions:** el rollback es redeployar el bundle anterior (el manifest guarda el hash por función); las funciones son sin estado.
@@ -60,20 +60,22 @@ Cada procedimiento fue **ensayado de punta a punta** sobre una base efímera con
 - **Staging hoy:** datos de prueba; respaldo puntual con `supabase db dump` (requiere la contraseña de la base: tarea de Central, nunca de Sebastián) o exportaciones por tabla con `service_role`.
 
 ### Preflight (qué es automático y qué no)
+Requiere `npm ci` dentro de `supabase/scripts/` (el `node_modules` no se versiona ni se guarda en Dropbox: se regenera idéntico desde `package-lock.json`).
+
 `node supabase/scripts/release-check.mjs [--manifest m.json] [--preflight-md p.md]` ejecuta **todo lo automatizable** (migraciones, hardcodes, Edge Functions y `verify_jwt`, builds Staging/Production/credenciales cruzadas, replay limpio ×3 ACL con regresión PG17 `MAINTAIN`, ensayo operativo A/B/C, regresión Edge service-to-service) y termina con un bloque **PREFLIGHT** que separa:
 - **AUTOMÁTICO PASS/FAIL** (decide el exit code), y
 - **4 gates externos que nunca se dan por cerrados**: G1 Comunicaciones/Auth-email · G2 browser/OTP humano (QA Legal/Acceso + E2E destructivo) · G3 autorización de Production (+ datos legales reales, AAIP/RNBDP) · G4 plan real de backups. Cada uno lista responsable, pendiente, evidencia automática disponible y con qué se cierra.
 
 ---
 
-## Parte B — Checklist reproducible de salida a Production (**NO EJECUTAR AHORA**)
+## Parte B — Checklist reproducible de salida a Production (ejecutada el 07/10/2026; **no volver a ejecutar sobre la Production existente**)
 
 Cada paso marcado ⛔ requiere **AUTORIZACIÓN DE SEBASTIÁN** previa y explícita. Orden exacto:
 
 1. ⛔ Autorización escrita de Sebastián para abrir Production (alcance: solo Sebastián primero, ver `Pre_Production.md`).
 2. Pre-requisitos cerrados: P0.2 (legal: comunicaciones/emails, QA browser, E2E destructivo con OTP) y datos reales de las páginas legales (`[[PENDIENTE_PRODUCCION:*]]` = 0; el build de Production lo exige).
 3. ⛔ Crear el proyecto Supabase Production (región y plan decididos y registrados; completar `plazos_backups_logs`, proveedor y región en las páginas legales).
-4. **Antes de tocar nada:** `node supabase/scripts/release-check.mjs` (PASS obligatorio; ver `84_Resultado_Bloque_9A…`). Luego replay REAL de migraciones en orden de nombre desde `supabase/migrations/` (todas, sin editar; incluye la línea base de privilegios `20261001060000`); `audit-live-grants.sql` y los verifies `verify-preprod-*` autocontenidos (los que piden cuentas reales no aplican a una base nueva).
+4. **Antes de tocar nada:** `node supabase/scripts/release-check.mjs` (PASS obligatorio; ver `Implementacion/Pre_Production/84_Resultado_Bloque_9A_Replay_Limpio_01OCT.md`). Luego replay REAL de migraciones en orden de nombre desde `supabase/migrations/` (todas, sin editar; incluye la línea base de privilegios `20261001060000`); `audit-live-grants.sql` y los verifies `verify-preprod-*` autocontenidos (los que piden cuentas reales no aplican a una base nueva).
 5. Configuración post-replay (la base nueva trae `app_config` vacío y `legal_versions` sin vigencia): sembrar `app_config` con `environment='production'` y `legal_version='legal_v1'` (+ `legal_versions.effective_at` real). La app verifica en runtime que `app_config.environment` coincida con el build (fail-closed).
 6. Auth: SMTP/plantillas de Production (proyecto Comunicaciones), OTP 6 dígitos, "Secure email change", URL de sitio y redirects, rate limits de Auth.
 7. Storage: buckets privados `avatars` y `group-photos` + sus políticas (vienen en migraciones); comprobar que ninguno es público.
@@ -83,3 +85,25 @@ Cada paso marcado ⛔ requiere **AUTORIZACIÓN DE SEBASTIÁN** previa y explíci
 11. Smoke (sin usuarios reales): alta con aceptación legal → OTP → perfil → Nivel; login/recuperación; carga de partido entre cuentas descartables; reaceptación; `ops_health_snapshot()`; E2E de eliminación con cuenta descartable (`e2e-delete-my-account.mjs`, ⛔ OTP humano); borrar las cuentas descartables.
 12. ⛔ Abrir a Sebastián (primer usuario real). "Cuando entra el primer usuario real, BRAMU ya empezó": no se vuelve a resembrar Production.
 13. AAIP/RNBDP y datos del responsable: ⛔ trámites personales de Sebastián; no bloquean los pasos técnicos pero sí la apertura a terceros (ver `Privacidad_Legal.md` §13).
+
+---
+
+## Parte C — Operación con usuarios reales (vigente desde 07/10/2026)
+
+Consolida la política operativa que dejó el traspaso de primeros usuarios (retirado el 08/10/2026). Production es el producto real: **no es un piloto descartable**.
+
+**Prioridad de triage** (observar el patrón antes de convertir un comentario aislado en función nueva):
+1. bloqueantes de alta/login/OTP/onboarding;
+2. pérdida, corrupción o mezcla de identidad/datos;
+3. carga/validación/duplicados de partidos;
+4. problemas visuales que impidan completar una acción;
+5. recién después, mejoras de conveniencia.
+
+**Partidos «en joda», datos incorrectos y limpieza de cuentas:**
+- Carga pendiente que nadie reconoció → el autor usa **Anular carga** (`Experiencia_Inicial.md` §14.1).
+- Partido ya oficial pero inventado, duplicado o incorrecto → se corrige, invalida o excluye del cómputo **preservando trazabilidad**. No borrar filas a ciegas cuando impacta a terceros, Nivel, Ranking, estadísticas o Intelligence.
+- Cuenta de prueba contaminada → evaluar limpieza/eliminación administrativa **después** de inspeccionar sus relaciones; eliminar una cuenta no borra el historial compartido de terceros (`Privacidad_Legal.md` §3).
+- Ante un pedido tipo «borrá estos partidos» o «limpiá esta cuenta»: primero identificar exactamente las entidades afectadas y el impacto deportivo, después ejecutar. **No construir un panel admin** solo por esta fase mientras el volumen sea bajo.
+
+**Forma de trabajo:** Staging primero para cualquier cambio; Production solo con aprobación explícita (promoción dirigida desde el SHA aprobado de `staging`, ver `Operacion_Vercel_Staging_Production.md`); un microfix bloqueante puede resolverlo Central sin handoff intermedio; no tocar BRAMUlive; no inventar estadísticas ni estados deportivos; Nivel y Ranking son sistemas distintos. Ante un reporte de scroll/visual, verificar primero que el usuario recibió el bundle nuevo (`/version.json`, alias, caché de iOS) antes de modificar CSS.
+

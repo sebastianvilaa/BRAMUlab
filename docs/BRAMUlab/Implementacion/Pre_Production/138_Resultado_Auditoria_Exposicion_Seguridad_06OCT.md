@@ -1,5 +1,7 @@
 # 138 — Resultado · Auditoría de exposición / seguridad previa a Production
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 06/10/2026  
 **Rama:** `staging` · **HEAD auditado:** `dad149c`  
 **Tipo:** auditoría focalizada, **no destructiva**. No se cambió visibilidad, configuración, credenciales, historia Git, Supabase, Vercel, `main`, Production ni BRAMUlive.  

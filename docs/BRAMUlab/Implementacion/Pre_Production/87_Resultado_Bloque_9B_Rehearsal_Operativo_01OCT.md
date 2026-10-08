@@ -1,5 +1,7 @@
 # 87 — Resultado Bloque 9B: rehearsal operativo no destructivo (Issue #20)
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 01/10/2026 · **Entorno:** solo local/efímero (cero contacto con Staging, Production, BRAMUlive, emails/Auth ni OTP) · **Bundle:** sin cambios (`04.20-h3`; no se tocó código de cliente).
 Mecanismo: el de 9A (PGlite + shim de plataforma) **fusionado**, no duplicado: `release-check.mjs` ahora incluye el ensayo operativo y el preflight.
 

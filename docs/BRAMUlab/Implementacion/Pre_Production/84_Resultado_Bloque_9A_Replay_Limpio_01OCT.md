@@ -1,5 +1,7 @@
 # 84 — Resultado Bloque 9A: replay limpio y rehearsal de salida (Issue #19)
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 01/10/2026 · **Entorno:** solo local/efímero (cero contacto con Staging, Production ni BRAMUlive) · **Bundle:** `04.20-h3`.
 
 ## 1. Veredicto

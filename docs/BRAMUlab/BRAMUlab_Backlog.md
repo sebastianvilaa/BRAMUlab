@@ -34,7 +34,7 @@ La arquitectura general y el ciclo básico de partido ya están definidos en `Ba
 - límites operativos y antiabuso para producción;
 - `supabase/tests/verify-bloque2.mjs` debería confirmar que sus propias operaciones de limpieza (borrado de cuentas/filas de prueba al final del script) realmente tuvieron éxito, en vez de dispararlas sin revisar la respuesta — un permiso faltante de `service_role` (corregido el 18/09/2026, ver Bloque 2 del Informe de Backend) dejó pasar desapercibidas dos corridas reales cuya limpieza falló en silencio. No bloquea ningún bloque; es una mejora de robustez del propio script de verificación (`verify-bloque3.mjs`, de Bloque 3, ya nace revisando el resultado de cada borrado).
 - (Bloque 3) `supabase/functions/officialize-onboarding` responde CORS con `Access-Control-Allow-Origin: '*'` — razonable para el lanzamiento inicial (la función igual exige un JWT válido), pero se puede acotar a los dominios reales de Staging/Production cuando existan, sin que sea un requisito para cerrar el bloque.
-- (Bloque 3) `complete_profile` sigue sobreescribiendo por completo los campos que recibe (sin `COALESCE` parcial, decisión explícita de `03_Revision_ChatGPT.md` §4 para no tocar más semántica de la necesaria de Bloque 2). El día que exista una pantalla "Completar datos para Ranking" que llame a `complete_profile` por segunda vez, esa pantalla necesita re-enviar también nombre/apellido/`@usuario`/términos ya cargados (o `complete_profile` necesita revisar su semántica en ese momento) para no pisarlos con `null`.
+- (Bloque 3) `complete_profile` sigue sobreescribiendo por completo los campos que recibe (sin `COALESCE` parcial, decisión explícita de la revisión de arquitectura de Bloque 3 (§4; retirada del árbol el 08/10/2026, ver Git) para no tocar más semántica de la necesaria de Bloque 2). El día que exista una pantalla "Completar datos para Ranking" que llame a `complete_profile` por segunda vez, esa pantalla necesita re-enviar también nombre/apellido/`@usuario`/términos ya cargados (o `complete_profile` necesita revisar su semántica en ese momento) para no pisarlos con `null`.
 
 No diseñar otra arquitectura paralela: estos puntos completan la fuente maestra de Backend.
 
@@ -174,7 +174,45 @@ No agregar publicidad, paywalls o planes pagos al lanzamiento inicial por defect
 
 ---
 
-## 12. Criterio para sacar algo del backlog
+## 12. Riesgos conocidos y decisiones diferidas — consolidado de rondas V04.29–V04.37 (08/10/2026)
+
+Estos puntos vivían solo en informes de rondas ya cerradas (retirados del árbol; Git los conserva). Ninguno está autorizado para implementar; todos requieren evidencia real o decisión explícita antes de abrirse.
+
+**Invitados / identidad / recuperados**
+- *Card de invitación con datos concretos antes de autenticar* (identidad + partido fuente): exigiría una función ejecutable por `anon` que expondría nombres, score y fecha a cualquiera con el link. Hoy: card genérica antes del login y datos concretos recién en `¿SOS {nombre}?`.
+- *Aviso al invitador por `NO SOY YO`*: no implementado (rechazar no prueba identidad y el link puede circular; exigiría persistir un evento nuevo en la función de claim, de concurrencia crítica).
+- *`SÍ, LO JUGUÉ` se recuerda solo localmente*: si se necesitara auditoría de la participación confirmada, hay que definir un evento server-side.
+- *Anti-abuso 1+3*: una misma persona con dos cuentas podría validarse un partido de provisionales propias vinculando una a su segunda cuenta. Riesgo conocido, sin heurística (no hay auto-validación).
+- El creador del partido no puede declararse «no participé» (regla vigente del self-report).
+- Links de invitación anteriores a V04.33 no guardan el partido de origen: `¿SOS X?` cae al partido más reciente con el copy anterior.
+- `create_or_attach_match` conserva inline el chequeo de relación de provisionales (candidato a refactor a un helper común, sin cambio de semántica). Si un partido recuperado se corrige/anula después, el ledger de Nivel no se resincroniza solo.
+- Una provisional recuperada nunca vuelve a ser seleccionable; su tombstone conserva el nombre original salvo que la cuenta se elimine (entonces se anonimiza).
+
+**Pendientes / duplicados**
+- `POR RESOLVER` incluye toda incidencia de identidad abierta y toda corrección activa aunque `get_my_matches` no distinga quién puede actuar; el gate de 5 pendientes cuenta lo que cuenta el servidor y la card de Home clasifica algunos casos distinto (ambos coherentes entre sí en el Resumen).
+- La pantalla post-claim lista solo `POR VALIDAR`; sumar los `POR RESOLVER` sería un cambio acotado en `recoveredActionableRows`.
+- Las cards de validación rápida no ofrecen el long-press de ocultar (se oculta desde `Todos`/`Recuperados`).
+- El pre-check de duplicado usa la fecha/hora del formulario al tocar `CARGAR RESULTADO` y no se reevalúa si luego cambia (el gate backend final cubre). `ES ESTE PARTIDO` descarta el borrador sin confirmación adicional.
+- La decisión durable `ES OTRO PARTIDO` cubre solo el camino `disambiguationForceNew`: no retroalimenta pares decididos antes de la migración `20261006100000` (si un par ya generó un candidato `open`, se resuelve como `resolved_different` desde la UI de duplicados). El modal de duplicado detectado por claim no se rediseñó con el mini-partido.
+- **Deduplicación temporal vigente:** ±3 horas si ambas horas son conocidas; mismo día de Buenos Aires si alguna es desconocida. Se decidió **no ampliar a ±12 h** (capturaría revanchas reales del mismo día); revisar junto con la UX de Fecha/Hora (p. ej. confirmación explícita cuando el valor es automático y el partido se carga horas después).
+- `Anular carga` no se ofrece sobre un pendiente ya vencido (comportamiento aceptado). Un reintento idempotente de `create_or_attach_match` con la misma clave tras anular devolvería el resultado original guardado (el partido no aparece en ninguna lectura); no se modificó esa función por riesgo/beneficio.
+
+**Exposición / seguridad (hardening del 06/10)**
+- `level-calibration.js` conserva en el navegador lógica posterior a partidos (`computeCalibrationTransition` y afines) que el cliente no usa: separarla a un módulo server-only requiere una ronda propia con paridad contra `officialize-onboarding`.
+- Fijar a versión exacta el import `esm.sh` de las Edge Functions (acoplado a un redeploy de Edge).
+- Repositorio público / GitHub Pages / origen del logo de emails: intervención independiente (ver `Operacion_Vercel_Staging_Production.md`, «Pendientes operativos de Production»).
+
+**Deuda técnica de pruebas (medida el 08/10/2026, sin cambios de código)**
+- `node --test bramulab/*.test.mjs` da 980 tests, **30 fallos preexistentes**: tests de versionado que fijan bundles viejos (`04.37-h2`, V04.28/V04.30…) frente al `04.37-h29` actual, y chequeos que asumían estado pre-Production (`release-check`: «build Production con placeholders legales FALLA a propósito» ya no aplica porque los placeholders se completaron; hardcode `bramulab-git-staging-bramu-lab.vercel.app` en `bramulab/app.js`). Ninguno es un fallo funcional; conviene una ronda técnica propia que los actualice, sin mezclarla con producto. Los 164 tests de `supabase/functions/_shared` y `supabase/scripts` pasan.
+
+**Producto**
+- Login por `@usuario` (hoy: email + contraseña; `@usuario` es identidad pública, no credencial) y política anti-reset tras eliminar cuenta (período de espera tipo 30 días): solo si hay evidencia real de abuso, con criterio de privacidad explícito (`Privacidad_Legal.md` §3 y §5).
+- Evolución del Nivel con un solo partido oficial en `CALIBRANDO`: hoy se muestra el gráfico real junto con el progreso de calibración desde el primer resultado computable (con 0 resultados queda oculto). Formato decimal de Intelligence con punto (`5.8`), coherente con el resto de la app.
+- Pulido visual P1 de primera impresión (`Pre_Production.md` §3): copy definitivo de Estado Cero y TU MOMENTO, motion del destacado accionable, edge cases visuales del ciclo de partido.
+
+---
+
+## 13. Criterio para sacar algo del backlog
 
 Antes de promover una idea a desarrollo registrar, como mínimo:
 

@@ -1142,7 +1142,7 @@ La ventaja competitiva de BRAMU Intelligence no debería ser “escribe como una
 [^8]: Sujay Shalawadi, Joel Wester, Samuel Rhys Cox y Niels van Berkel. [“Who Gets to Interpret the Workout? User Tensions with AI-Generated Fitness Feedback”](https://arxiv.org/abs/2604.23830), 2026.
 [^9]: Danqing Shi, Xinyue Xu, Fuling Sun, Yang Shi y Nan Cao. [“Calliope: Automatic Visual Data Story Generation from a Spreadsheet”](https://arxiv.org/abs/2010.09975), 2020.
 [^10]: Brent Winslow et al. [“A Principle-based Framework for the Development and Evaluation of Large Language Models for Health and Wellness”](https://arxiv.org/abs/2512.08936), 2025.
-[^11]: BRAMU Lab. `Nivel_BRAMU_Formula_V1.4.md`. Documento normativo interno, 10 de septiembre de 2026.
+[^11]: BRAMU Lab. `Nivel_BRAMU_Formula_V1.4.md`. Documento normativo interno, 10 de septiembre de 2026 (retirado del árbol el 08/10/2026; su contenido vigente es `Nivel_BRAMU.md`; versión original en Git).
 [^12]: BRAMU Lab. `BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md`. Evaluación interna de proveedores, costos, privacidad y arquitectura, septiembre de 2026.
 [^13]: BRAMU Lab. `Ranking_BRAMU.md`. Definición V1 cerrada, 11 de septiembre de 2026.
 

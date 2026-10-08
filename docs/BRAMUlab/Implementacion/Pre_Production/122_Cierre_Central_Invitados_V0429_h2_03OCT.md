@@ -1,5 +1,7 @@
 # Cierre Central — Invitados / Identidad / Recuperación V04.29-h2
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 03/10/2026  
 **Rama:** `staging`  
 **HEAD funcional:** `50675a8331a12eb1db8f6ca4055097990d36d9df`  

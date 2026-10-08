@@ -1,7 +1,7 @@
 # Cargar partido
 
 **Rol:** fuente maestra vigente del flujo **Cargar partido** (cargar un partido YA jugado; no hay scoring en vivo en BRAMUlab).  
-**Vigente desde:** V04.24; dirección UX V04.26 y ajustes V04.27 (QA humano 02/10/2026, Issue #24). Solo documenta las decisiones actuales. Resultado de implementación V04.27: `docs/BRAMUlab/Implementacion/Pre_Production/110_Resultado_V0427_Cargar_Partido_Pulido_02OCT.md`.
+**Vigente desde:** V04.24; dirección UX V04.26 y ajustes V04.27 (QA humano 02/10/2026, Issue #24). Solo documenta las decisiones actuales. El resultado de implementación V04.27 se retiró del árbol el 08/10/2026 (queda en Git; lo vigente está en este documento).
 
 ---
 
@@ -258,4 +258,4 @@ El Nivel se pinta en ámbar **solo con `CALIBRANDO`**. `CALIBRADO` y `RECALIBRAN
 
 ## 11. Estado
 
-V04.27 / `04.27-h2` **CERRADO / PASS humano final en iPhone (02/10/2026)**. Se validó el recorrido 1–1 → Set 3, volver/cambiar jugadores, persistencia del borrador al navegar y al reabrir la app, `CONTINUAR`, `EMPEZAR DE NUEVO`, recuperación del resultado y confirmación final. Resultado: `docs/BRAMUlab/Implementacion/Pre_Production/110_Resultado_V0427_Cargar_Partido_Pulido_02OCT.md` (handoff `109` consumido). No seguir refinando este flujo sin una regresión o necesidad nueva concreta.
+V04.27 / `04.27-h2` **CERRADO / PASS humano final en iPhone (02/10/2026)**. Se validó el recorrido 1–1 → Set 3, volver/cambiar jugadores, persistencia del borrador al navegar y al reabrir la app, `CONTINUAR`, `EMPEZAR DE NUEVO`, recuperación del resultado y confirmación final. No seguir refinando este flujo sin una regresión o necesidad nueva concreta.

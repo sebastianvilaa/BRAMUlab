@@ -31,7 +31,7 @@ No reabrir decisiones de producto cerradas salvo que:
 1. una revisión jurídica profesional determine que una obligación concreta exige un cambio; o
 2. aparezca una nueva función del producto con impacto legal/privacidad.
 
-Los datos identificatorios privados del responsable (por ejemplo domicilio completo, CUIT u otros datos personales) **no se copian a este repositorio público**. Existen en la fuente privada de trabajo y, antes de publicar documentos, debe definirse internamente qué corresponde exponer públicamente y qué usar solo en trámites, apoyándose en fuentes oficiales vigentes.
+Los datos identificatorios privados del responsable (por ejemplo domicilio completo, CUIT u otros datos personales) **no se copian a este repositorio público**. Existen en la fuente privada de trabajo (en Dropbox, carpeta `Documentos privados/`, fuera del repositorio) y, antes de publicar documentos, debe definirse internamente qué corresponde exponer públicamente y qué usar solo en trámites, apoyándose en fuentes oficiales vigentes.
 
 ---
 
@@ -339,7 +339,7 @@ Primera de las rondas L1/L2/L3 de Pre-Production (Issue #10). **Sin restricción
 
 - Aplicar la migración `20260930280000_preprod_l1_legal_acceptance_abandoned_signups.sql` en Staging, correr `supabase/tests/verify-preprod-l1-legal-cleanup.sql`, desplegar `cleanup-abandoned-signups` y programar el cron con `supabase/scripts/schedule-cleanup-abandoned-signups.sql` (service role key en Vault, nunca en el repo).
 - L2: WhatsApp on-demand y caches owner-scoped. L3: páginas legales públicas finales (`/legal/terminos/`, `/legal/privacidad/` — los links del alta ya apuntan ahí y no resuelven hasta L3), delete-my-account.
-- Los borradores `Legal/*_Borrador_V1.md` que mencionan 13 años están desfasados respecto de §6 y deben corregirse en el cierre legal publicable.
+- Los borradores `Legal/*_Borrador_V1.md` (que mencionaban 13 años, contra §6) se retiraron el 08/10/2026: el texto vigente es el de las páginas públicas `bramulab/{terminos,privacidad,eliminar-cuenta}/index.html`.
 
 ---
 
@@ -353,7 +353,7 @@ Primera de las rondas L1/L2/L3 de Pre-Production (Issue #10). **Sin restricción
 - **WhatsApp on-demand** (migración `20260930300000`): `get_public_profile` ya no devuelve el teléfono, solo `whatsapp_contact_available`; `get_whatsapp_contact(player_id)` (authenticated, 10/60 s, consentimiento leído en ese instante, respuesta uniforme `unavailable`) es la única vía al número. El cliente lo pide al tocar el botón y no lo guarda. Verify: `verify-preprod-v0420-whatsapp-on-demand.sql`.
 
 ### L3 técnico
-- **Páginas públicas** estáticas, sin JS ni sesión: `/terminos/`, `/privacidad/`, `/eliminar-cuenta/` (`bramulab/<slug>/index.html`), alineadas con este documento (sin 13+ ni flujo parental). Los datos aún inexistentes (responsable, AAIP, proveedores/regiones, backups, vigencia) usan el formato `[[PENDIENTE_PRODUCCION:clave]]`; `build-env.mjs` **corta el build de Production** mientras quede alguno (`scripts/legal-guard.mjs`). Enlaces desde alta, gate de reaceptación y Mi perfil → Mis datos → Legal y privacidad. Los borradores `Legal/*_Borrador_V1.md` quedan superados.
+- **Páginas públicas** estáticas, sin JS ni sesión: `/terminos/`, `/privacidad/`, `/eliminar-cuenta/` (`bramulab/<slug>/index.html`), alineadas con este documento (sin 13+ ni flujo parental). Los datos aún inexistentes (responsable, AAIP, proveedores/regiones, backups, vigencia) usan el formato `[[PENDIENTE_PRODUCCION:clave]]`; `build-env.mjs` **corta el build de Production** mientras quede alguno (`scripts/legal-guard.mjs`). Enlaces desde alta, gate de reaceptación y Mi perfil → Mis datos → Legal y privacidad. Los borradores `Legal/*_Borrador_V1.md` quedaron superados y se retiraron del árbol (08/10/2026; Git los conserva).
 - **Acceso y seguridad**: cambio de email autoservicio (código al email actual → nuevo email → código del nuevo; `updateUser` + `verifyOtp email_change`), cambio de contraseña con cierre de las demás sesiones, **Cerrar sesión = scope local** (antes `signOut()` era global), Cerrar todas las sesiones, y cierre de otras sesiones tras recuperación/cambio de email. Sin listado de dispositivos. **Pendiente de verificar por Central**: que «Secure email change» esté activo en Supabase para el aviso al email anterior (textos/plantillas son del proyecto de Comunicaciones).
 - **Acceso/copia**: «Solicitar copia de mis datos» abre un email a `bramulab@gmail.com` (sin exportación autoservicio); el operador genera el informe con `admin_export_player_data` / `supabase/scripts/admin-export-player-data.mjs` (solo lectura, `service_role`, terceros redactados, sin internals).
 - **Eliminación autoservicio**: Edge Function `delete-my-account` (JWT de sesión; `{confirm:true}` únicamente; identidad resuelta server-side vía `resolve_player_for_account_deletion`; exige reautenticación reciente ≤10 min por OTP/recovery de email, claim `amr`) sobre el **mismo motor P0.3** (`_shared/account-deletion-core.mjs`, compartido con el script administrativo). UI en Acceso y seguridad → Eliminar mi cuenta: código al email → confirmación con consecuencias (sin «escribí ELIMINAR») → ejecución → purga local del dueño → pantalla final neutra. Idempotente/reintentable.

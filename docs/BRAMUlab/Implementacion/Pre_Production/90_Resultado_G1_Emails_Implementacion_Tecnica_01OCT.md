@@ -1,5 +1,7 @@
 # 90 — Resultado G1: implementación técnica del sistema de emails V1
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 01/10/2026 · **Issue:** #21 · **Rama:** `staging` · **HEAD de entrada:** `a7178a9` · **Bundle:** `04.20-h4` (versión pública sin cambio: V04.20)
 **Contrato:** `89_Handoff_G1_Emails_Implementacion_01OCT.md` (producto/diseño/copy cerrados; no se tocó nada de eso).
 **Decisiones abiertas:** **NINGUNA** — no apareció ninguna limitación que obligue a cambiar la experiencia aprobada.

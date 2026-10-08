@@ -1,5 +1,7 @@
 # Backend Bloque 5 — Cierre formal
 
+> **Nota de mantenimiento (08/10/2026):** los documentos intermedios que este texto cita por nombre (handoffs, validaciones, gates, revisiones y manifests) se retiraron del árbol activo al consolidarse; siguen en Git: `git log --diff-filter=D --name-only -- docs/BRAMUlab/Implementacion/` y `git show <commit>^:<ruta>`.
+
 **Fecha:** 21/09/2026  
 **Rama:** `staging`  
 **Bundle final:** `04.10-h15`  

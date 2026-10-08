@@ -1,7 +1,7 @@
 # Nivel BRAMU — Fuente maestra
 
 **Estado:** única fuente maestra vigente de Nivel BRAMU. Todo lo que no esté acá (o en el código que acá se cita) no es normativo.
-**Cierre:** Nivel BRAMU **V1.3** cerrado en **Staging** (BRAMUlab **V04.28 / bundle `04.28-h7`**, 03/10/2026) con QA técnico y QA humano en iPhone aprobados. **No está desplegado en Production.**
+**Cierre:** Nivel BRAMU **V1.3** cerrado en **Staging** (BRAMUlab **V04.28 / bundle `04.28-h7`**, 03/10/2026) con QA técnico y QA humano en iPhone aprobados. **Production (abierta el 07/10/2026) corre esta versión** dentro de V04.37.
 **Versionado (dos ejes independientes):**
 
 | Eje | Valor vigente | Qué versiona |
@@ -442,7 +442,7 @@ Nada de esta sección es regla activa.
 2. **Parámetros sin validar con datos reales** (pendientes de validación retrospectiva con partidos propios, y cualquier cambio solo como versión nueva): equivalencia diferencia 1,0 ≈ 72–82 %; velocidad de `K`; margen 0,90–1,15; curva de confiabilidad; necesidad de corrección por desequilibrio en la pareja. Método: entrenar con parte de los partidos, predecir una muestra no usada, medir acierto y calibración por nivel y cantidad de partidos.
 3. **Distribución madura:** compararla con la pirámide competitiva argentina (concentrada en categorías bajas y medias) como control de realidad, no como cuota. Una concentración inesperada en 8–10 es señal para revisar cuestionario/calibración/inflación, no para bajar niveles automáticamente.
 4. **Recalibración:** falta UI (incluida la representación de `RECALIBRANDO`); no definir nuevas reglas de elegibilidad sin evidencia de abuso o necesidad.
-5. **Producción:** Nivel V1.3 no fue promovido a Production; requiere autorización explícita posterior.
+5. **Producción:** Production se abrió el 07/10/2026 con V04.37, que incluye Nivel V1.3 (`nivel_inicial_v1_3` + `nivel_bramu_v1_0`). Todo cambio de fórmula requiere una versión nueva, validada primero en Staging y promovida con autorización explícita.
 6. **Matchmaking:** fuera de alcance hasta tener densidad real de jugadores por ubicación, horario y nivel.
 
 ## 16. Trazabilidad histórica mínima
