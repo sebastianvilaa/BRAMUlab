@@ -163,7 +163,8 @@ Solo documentos que pueden ser necesarios para tomar decisiones actuales:
 - `Ranking_BRAMU.md`;
 - `Grupos_BRAMU.md`;
 - `BRAMU_Intelligence.md` y su implementación;
-- `Backend_Infraestructura.md`.
+- `Backend_Infraestructura.md`;
+- BRAMU Metrics (consola privada `/admin/metrics`, en diseño, **sin implementar**): `BRAMU_Metrics.md` (producto; marco confirmado en `BRAMU_Metrics_UX_V1.md`, `_Privacidad_V1.md` y `_Comparaciones_V1.md`) → `BRAMU_Metrics_Auditoria_V1.md` → `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas validadas) → `Implementacion/Post_Lanzamiento/148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` (arquitectura y fases).
 
 ### `Versiones/`
 
@@ -295,5 +296,6 @@ Una nueva versión mayor crea una nueva carpeta dentro de `Versiones/`. Una rond
 - **“BRAMU Intelligence”** → `BRAMU_Intelligence.md` + `BRAMU_Intelligence_Implementacion.md`.
 - **“Experiencia inicial / validación / correcciones / pendientes / invitados”** → `Experiencia_Inicial.md` + `Backend_Infraestructura.md` solo para el contrato server-side.
 - **“Backend / producción / cuentas reales / staging”** → `Backend_Infraestructura.md` + la sección del bloque correspondiente en `Versiones/BRAMUlab_Backend/BRAMUlab_Backend_Informe.md`.
+- **“BRAMU Metrics / métricas / dashboard admin”** → `BRAMU_Metrics.md` + `BRAMU_Metrics_Auditoria_Tecnica_V1.md` + el plan `148_…` (estado: auditoría y plan completos, nada implementado; Production no autorizada).
 - **“Qué falta / ideas futuras”** → `BRAMUlab_Backlog.md`.
 - **“Qué pasó en una versión anterior”** → `Versiones/<versión>/..._Informe.md`; ir a la sección concreta, no cargar todo por defecto.
