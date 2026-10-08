@@ -431,3 +431,17 @@ Cuando el problema sea de composición, jerarquía, peso visual, espaciado o sen
 - Toda versión desplegada que Sebastián deba distinguir/revisar visualmente **incrementa la versión pública** `V04.xx`, secuencialmente: V04.21, V04.22, V04.23…
 - Los sufijos `-hN` del bundle quedan reservados para hotfixes técnicos internos que **no** requieren que Sebastián distinga una nueva versión de QA. Un `hN` nunca sustituye una versión visible cuando se le pide QA al usuario.
 - Al subir de versión pública el bundle reinicia en `-h1` y se sincronizan `APP_VERSION`, `BUNDLE_VERSION`, `version.json`, `CACHE_NAME`/`CORE_ASSETS` del Service Worker, query strings, manifest y tests de versionado — en el mismo commit, sin un segundo push solo por documentación.
+
+## Higiene documental y orden del repositorio (regla operativa)
+
+Objetivo: que la coordinación entre agentes no produzca una colección permanente de versiones `final/final_v2`, handoffs y resultados redundantes. **No es una nueva jerarquía de fuentes:** prevalecen `README.md` y la fuente maestra de cada sistema.
+
+1. **Al comenzar:** reutilizar el handoff activo o Issue existente. Para una ronda nueva, crear como máximo un handoff consolidado cuando realmente haga falta; los prompts de ChatGPT/Claude/Work apuntan a él y no duplican su contenido.
+2. **Durante la ronda:** actualizar el mismo documento de trabajo si la tarea sigue abierta; no generar un MD nuevo por cada ida y vuelta, diagnóstico o hotfix menor. Para decisiones abiertas usar `DECISIÓN ABIERTA` dentro del documento de trabajo.
+3. **Al cerrar:** verificar implementación y evidencia; actualizar primero la fuente maestra del sistema y el estado/índice pertinente. Si conviene conservar un resultado técnico (migración, seguridad, identidad, producción, incidente), que sea **un cierre identificable**, no varios informes equivalentes.
+4. **Retirar trabajo consumido:** comprobar menciones desde README, otras fuentes maestras, scripts/tests y tareas aún activas. Solo entonces retirar del árbol activo handoffs y borradores que no aporten información única. Git conserva los documentos **previamente versionados**, pero no archivos solo locales de Dropbox.
+5. **Separación de superficies:** código, tests, migraciones y documentación normativa viven en Git; originales editables de marca y referencias visuales viven en Dropbox. No duplicar repositorios o `node_modules` como si fueran entregables de diseño. **No mover la copia local de trabajo mientras esté activa** ni tocar el original Illustrator o referencias de `Sistema grafico`.
+6. **Mantenimiento periódico:** revisar referencias rotas, índices desactualizados, handoffs consumidos y dependencias con `Temporales/` al cierre de un bloque, no producir un gran inventario nuevo cada semana.
+7. **Seguridad:** no considerar privado un archivo por estar fuera de `dist/` si está en un repositorio público. Cambios de visibilidad, Pages, URLs de email y cualquier efecto sobre BRAMUlive requieren una intervención específica y verificación de dependencias.
+
+**Regla práctica:** un documento maestro por sistema; un documento activo por ronda cuando haga falta; una evidencia de cierre solo si agrega trazabilidad relevante. No reordenar código por estética ni borrar tests funcionales.
