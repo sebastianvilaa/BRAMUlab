@@ -1,6 +1,6 @@
 # 148 — Plan de implementación · BRAMU Metrics V1 (`/admin/metrics`) — 08OCT26
 
-**Estado:** PLAN. **F1 y F2 implementadas en el repo (08/10/2026, ver `149_Resultado_Metrics_V1_F1_F2_08OCT.md`), pendientes de aplicar/verificar por Central en Staging**; F3–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
+**Estado:** PLAN. **F1 y F2 implementadas en el repo (08/10/2026, ver `149_Resultado_Metrics_V1_F1_F2_08OCT.md`), pendientes de aplicar/verificar por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) implementada en el repo, pendiente de QA de Central en Staging**; F4–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
 > **Nota de nombres (F1):** la RPC de presencia se llama `register_app_presence` (no `record_app_activity`): los controles de grants del repo tratan cualquier función `record_*` ejecutable por `authenticated` como administrativa/interna.
 **Leer antes:** `README.md`, `Metodo_Trabajo.md`, `BRAMU_Metrics.md` (producto) y su marco confirmado — `BRAMU_Metrics_UX_V1.md` (paneles + Explorar), `BRAMU_Metrics_Privacidad_V1.md`, `BRAMU_Metrics_Comparaciones_V1.md` — y `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas, hallazgos).
 **No se toca en ninguna fase:** `main`, Vercel Production, Supabase Production (salvo lecturas autorizadas por Central y, **solo tras autorización explícita**, la promoción de la Fase 5), BRAMUlive, fórmula de Nivel, lógica deportiva oficial, datos de usuarios.

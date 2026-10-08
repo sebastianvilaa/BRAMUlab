@@ -93,7 +93,7 @@ function main() {
   // Staging/Development nunca deben indexarse; evita difusión accidental
   // (Backend_Infraestructura.md §11). Production mantiene un robots.txt normal.
   const robotsContents =
-    envName === 'production' ? 'User-agent: *\nAllow: /\n' : 'User-agent: *\nDisallow: /\n';
+    envName === 'production' ? 'User-agent: *\nDisallow: /admin/\nAllow: /\n' : 'User-agent: *\nDisallow: /\n';
   writeFileSync(ROBOTS_FILE, robotsContents, 'utf8');
   console.log(`[build-env] robots.txt (${envName === 'production' ? 'indexable' : 'no-index'}) escrito en ${path.relative(BRAMULAB_DIR, ROBOTS_FILE)}`);
 }

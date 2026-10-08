@@ -1,0 +1,287 @@
+// BRAMU Metrics V1 · F3 (bundle 04.37-h29) — consola privada /admin/metrics.
+// node --test bramulab/metrics-f3-dashboard.test.mjs
+// Cubre: funciones puras de la UI, contrato con el SQL REAL (el fixture de QA no puede divergir del backend), seguridad/privacidad
+// estática de la página, publicación en dist/ (fixture solo en Staging), Service Worker (bypass de /admin/), headers y robots.
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildDist, DIST_DIRS, QA_FIXTURE_FILE } from './scripts/build-dist.mjs';
+import { replay } from '../supabase/scripts/replay-migrations.mjs';
+
+const dir = path.dirname(fileURLToPath(import.meta.url));
+const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
+const plain = (x) => JSON.parse(JSON.stringify(x));
+const NB = ' ';
+
+function loadMetrics() {
+  const sb = { console, Intl, Date, Math, Number, String, Array, Set, Object, JSON, isNaN, isFinite, URLSearchParams, __MX_NO_BOOT__: true };
+  sb.window = sb; sb.globalThis = sb; vm.createContext(sb);
+  vm.runInContext(read('admin/metrics/metrics.js'), sb);
+  return sb.PLMetricsAdmin;
+}
+function loadFixture() {
+  const sb = { console, Intl, Date, Math, Number, String, Array, Object, JSON, Promise, setTimeout };
+  sb.window = sb; sb.globalThis = sb; vm.createContext(sb);
+  vm.runInContext(read('admin/metrics/qa-fixture.js'), sb);
+  return sb.PLMetricsQaFixture;
+}
+const M = loadMetrics();
+const Q = loadFixture();
+
+/* ---------------- Formato y estados ---------------- */
+
+test('formatValue: ratio en %, horas, días, enteros con separador es-AR y guion para nulos (nunca 0 inventado)', () => {
+  assert.equal(M.formatValue({ id: 'x', kind: 'ratio' }, 0.6), `60${NB}%`);
+  assert.equal(M.formatValue({ id: 'x', kind: 'ratio' }, 0.923), `92,3${NB}%`);
+  assert.equal(M.formatValue({ id: 'matches.validation_p50_hours', kind: 'duration' }, 9.5), `9,5${NB}h`);
+  assert.equal(M.formatValue({ id: 'activation.median_days_to_first_load', kind: 'duration' }, 11.83), `11,8${NB}días`);
+  assert.equal(M.formatValue({ id: 'users.signups', kind: 'flow' }, 12), '12');
+  assert.match(M.formatValue({ id: 'users.signups', kind: 'flow' }, 12345), /^12\.?345$/);
+  assert.equal(M.formatValue({ id: 'usage.dau_avg', kind: 'flow' }, 5.24), '5,2');
+  for (const v of [null, undefined, NaN, '3']) assert.equal(M.formatValue({ id: 'x', kind: 'flow' }, v), '—');
+});
+
+test('deltaView: respeta TODAS las notas del contrato (sin % engañoso con base cero, stock sin comparación, pp en ratios)', () => {
+  const k = (id, kind, delta) => ({ id, kind, delta });
+  assert.equal(M.deltaView(k('users.signups', 'flow', { abs: 5, pct: 100, note: null }), false), null, 'comparación apagada');
+  assert.equal(M.deltaView(k('users.signups', 'flow', { abs: null, pct: null, note: 'sin_comparacion' }), true), null);
+  let d = plain(M.deltaView(k('users.signups', 'flow', { abs: 5, pct: 100, note: null }), true));
+  assert.deepEqual([d.tone, d.arrow, d.text], ['good', '▲', `+5 · +100${NB}%`]);
+  d = plain(M.deltaView(k('matches.annulled', 'flow', { abs: 2, pct: 66.7, note: null }), true));
+  assert.equal(d.tone, 'bad', 'más anulados es malo');
+  d = plain(M.deltaView(k('matches.validation_p50_hours', 'duration', { abs: -4.7, pct: -33.1, note: null }), true));
+  assert.deepEqual([d.tone, d.arrow], ['good', '▼']);
+  d = plain(M.deltaView(k('users.guests_open', 'flow', { abs: 3, pct: 20, note: null }), true));
+  assert.equal(d.tone, 'neutral', 'sin juicio de valor definido => azul neutro');
+  d = plain(M.deltaView(k('users.signups', 'flow', { abs: 4, pct: null, note: 'base_previa_cero' }), true));
+  assert.ok(!/%/.test(d.text), 'sin porcentaje con base previa 0'); assert.equal(d.sub, 'sin base previa (0)');
+  d = plain(M.deltaView(k('matches.validation_rate_closed', 'ratio', { abs: 12, pct: null, note: 'puntos_porcentuales' }), true));
+  assert.equal(d.text, `+12${NB}pp`);
+  d = plain(M.deltaView(k('users.registered_now', 'stock', { abs: null, pct: null, note: 'stock_sin_comparacion' }), true));
+  assert.equal(d.text, 'Saldo al corte');
+  d = plain(M.deltaView(k('x.y', 'ratio', { abs: null, pct: null, note: 'sin_datos_suficientes' }), true));
+  assert.equal(d.text, 'Sin datos suficientes para comparar');
+  d = plain(M.deltaView(k('users.signups', 'flow', { abs: 0, pct: 0, note: null }), true));
+  assert.deepEqual([d.tone, d.text], ['flat', 'Sin cambios']);
+});
+
+test('availabilityView: cada estado tiene rótulo propio; no medible muestra desde cuándo; la muestra insuficiente muestra n y mínimo', () => {
+  const a = (kpi, meta) => plain(M.availabilityView(kpi, meta || { minCell: 5 }));
+  assert.equal(a({ availability: 'ok' }), null);
+  assert.deepEqual(a({ availability: 'no_evidence' }), { tone: 'none', text: 'Sin registros en el período' });
+  assert.equal(a({ availability: 'insufficient_sample', n: 4 }).text, 'Muestra insuficiente · n = 4 (mínimo 5)');
+  assert.equal(a({ availability: 'not_instrumented', since: '2026-10-12' }).text, 'Todavía no medible · captura desde 12/10');
+  assert.match(a({ availability: 'not_instrumented', since: null }).text, /sin fecha de inicio de captura/);
+  assert.equal(a({ availability: 'immature' }).tone, 'wait');
+  assert.equal(a({ availability: 'ok', since: '2026-10-07' }).text, 'Captura parcial · desde 07/10');
+  assert.equal(M.previousText({ id: 'x', kind: 'flow', previous: { value: null } }, true), 'Anterior: sin datos');
+  assert.equal(M.previousText({ id: 'x', kind: 'stock', previous: { value: 3 } }, true), null, 'el stock no muestra «anterior»');
+  assert.equal(M.previousText({ id: 'x', kind: 'flow', previous: { value: 3 } }, false), null);
+});
+
+test('ventanas: fechas en hora de Buenos Aires y fin exclusivo de la ventana previa mostrado como el día anterior', () => {
+  assert.equal(M.windowLabel(['2026-09-09T03:00:00+00:00', '2026-10-08T12:00:00+00:00'], true), '09/09 – hoy');
+  assert.equal(M.windowLabel(['2026-08-10T03:00:00+00:00', '2026-09-09T03:00:00+00:00'], false), '10/08 – 08/09');
+  assert.equal(M.baDate('2026-09-09T02:59:59+00:00'), '2026-09-08', 'antes de las 03:00Z todavía es el día anterior en BA');
+  assert.equal(M.fmtDayMonth('2026-10-02'), '02/10');
+});
+
+test('chartModel: ticks enteros, barras con previa alineada por índice, vacío => estado sin datos, etiquetas acotadas', () => {
+  const days = (vals, start = 1) => vals.map((v, i) => ({ start: `2026-09-${String(start + i).padStart(2, '0')}`, value: v }));
+  let m = M.chartModel({ granularity: 'day', current: days([0, 1, 0, 1, 1]), previous: days([1, 1, 0, 0, 0], 1) }, { compare: true });
+  assert.equal(m.empty, false); assert.equal(m.kind, 'bars');
+  assert.ok(m.yTicks.every((t) => Number.isInteger(t.v)), 'ticks enteros en conteos chicos');
+  assert.equal(new Set(m.yTicks.map((t) => t.v)).size, m.yTicks.length, 'sin ticks duplicados');
+  assert.equal(m.curPts.length, 5); assert.equal(m.prevPts.length, 5);
+  assert.equal(m.prevPts[2].x, m.curPts[2].x, 'previa alineada con la actual');
+  assert.ok(m.curPts[1].y < m.curPts[0].y, 'más valor => más alto');
+  m = M.chartModel({ granularity: 'day', current: days([0, 0, 0]), previous: days([0, 0, 0]) }, { compare: true });
+  assert.equal(m.empty, true);
+  m = M.chartModel({ granularity: 'day', current: days([0, 0, 0]), previous: days([2, 0, 0]) }, { compare: false });
+  assert.equal(m.empty, true, 'con comparación apagada la previa no cuenta');
+  assert.equal(m.prevPts, null);
+  m = M.chartModel({ granularity: 'week_ba', current: days(Array.from({ length: 30 }, (_, i) => i % 5)), previous: null }, { compare: true });
+  assert.ok(m.xLabels.length <= 5 && m.xLabels.length >= 2);
+  assert.ok(m.curPts.every((p) => p.x > m.pad.l && p.x < m.W - m.pad.r));
+  assert.equal(M.chartModel({ granularity: 'day', current: [], previous: null }, {}).empty, true);
+  const big = M.chartModel({ granularity: 'day', current: days([0, 120, 40]), previous: null }, {});
+  assert.ok(big.yTicks.length <= 7); assert.ok(big.ymax >= 120);
+});
+
+test('seriesFor/parseHash/apiErrorKind/qaAllowed', () => {
+  assert.equal(plain(M.seriesFor('users.signups', { series: { signups: { current: [] } } })).def.key, 'signups');
+  assert.equal(M.seriesFor('users.registered_now', { series: {} }), null);
+  assert.equal(M.seriesFor('matches.created', { series: {} }), null);
+  assert.deepEqual(plain(M.parseHash('')), { view: 'inicio' });
+  assert.deepEqual(plain(M.parseHash('#/usuarios')), { view: 'usuarios' });
+  assert.deepEqual(plain(M.parseHash('#/kpi/matches.validated')), { view: 'kpi', kpiId: 'matches.validated' });
+  for (const bad of ['#/kpi/evil.id;drop', '#/kpi/otra.cosa', '#/kpi/../x', '#/admin', '#/kpi/users.<script>']) assert.deepEqual(plain(M.parseHash(bad)), { view: 'inicio' }, bad);
+  assert.deepEqual([401, 403, 429, 400, 500, 502].map((s) => M.apiErrorKind(s, true)), ['session', 'forbidden', 'rate', 'bad', 'server', 'server']);
+  assert.equal(M.apiErrorKind(null, true), 'network');
+  assert.equal(M.qaAllowed({ name: 'production' }, 'localhost'), false, 'nunca en Production');
+  assert.equal(M.qaAllowed({ name: 'staging' }, 'x.vercel.app'), true);
+  assert.equal(M.qaAllowed(null, 'localhost'), true);
+  assert.equal(M.qaAllowed(null, 'app.bramulab.com'), false);
+  assert.equal(M.qaAllowed(undefined, 'evil.localhost.example.com'), false);
+});
+
+/* ---------------- Contrato con el backend REAL ---------------- */
+
+const migration = fs.readFileSync(path.join(dir, '..', 'supabase', 'migrations', '20261008110000_metrics_f2_core.sql'), 'utf8');
+const sqlCatalog = JSON.parse(/\$cat\$(\[[\s\S]*?\])\$cat\$/.exec(migration)[1]);
+
+test('contrato: el catálogo del fixture es copia EXACTA del de la migración (si el backend cambia, este test obliga a actualizar el QA)', () => {
+  assert.deepEqual(plain(Q.CATALOG), sqlCatalog);
+});
+
+test('contrato: cada sección del fixture trae exactamente los KPIs del catálogo, con las claves del contrato y valores coherentes', () => {
+  for (const state of ['', 'empty', 'sparse', 'nopresence']) {
+    for (const range of ['7d', '30d', '90d', 'all']) {
+      for (const section of ['users', 'matches', 'activation', 'community', 'usage']) {
+        const r = Q.respond({ section, range, compare: true }, state);
+        assert.deepEqual(plain(r.kpis.map((k) => k.id)), sqlCatalog.filter((e) => e.section === section).map((e) => e.id), `${section}/${range}/${state}`);
+        for (const k of r.kpis) {
+          assert.deepEqual(plain(Object.keys(k).sort()), ['availability', 'count', 'definition', 'delta', 'id', 'kind', 'label', 'n', 'population', 'previous', 'since', 'value']);
+          if (['insufficient_sample', 'not_instrumented', 'immature'].includes(k.availability)) { assert.equal(k.value, null); assert.equal(k.count, null); }
+        }
+        assert.equal(r.meta.minCell, 5); assert.equal(r.meta.environment, 'qa');
+      }
+    }
+  }
+  const o = Q.respond({ section: 'overview', range: '30d' }, '');
+  assert.deepEqual(plain(o.kpis.map((k) => k.id)), ['users.registered_now', 'users.signups', 'usage.wau', 'matches.created', 'matches.validated', 'community.groups_active']);
+  assert.equal(o.funnel.length, 7);
+  const off = Q.respond({ section: 'users', range: '30d', compare: false }, '');
+  assert.equal(off.meta.compare, false); assert.equal(off.series.signups.previous, null); assert.ok(off.kpis.every((k) => k.previous === null));
+  const all = Q.respond({ section: 'matches', range: 'all' }, '');
+  assert.equal(all.meta.previousWindow, null);
+});
+
+test('contrato: el armado de KPI del fixture coincide con _metrics_kpi del SQL real en valor, disponibilidad y comparación', async () => {
+  const r = await replay({ acl: 'observed' });
+  assert.ok(r.ok);
+  const db = r.db;
+  try {
+    const entry = (kind, minN) => ({ id: 'x.k', section: 'x', label: 'L', kind, definition: 'D', population: 'P', ...(minN ? { minN } : {}) });
+    const cases = [
+      ['flow', 0, { v: 10 }, { v: 5 }], ['flow', 0, { v: 4 }, { v: 0 }], ['flow', 0, { v: 0 }, { v: 0 }], ['flow', 0, { v: 3 }, { v: 7 }],
+      ['stock', 0, { v: 4, n: 4 }, { v: 3, n: 3 }],
+      ['ratio', 5, { v: 0.6, n: 10 }, { v: 0.4, n: 10 }], ['ratio', 5, { v: 0.6, n: 3 }, { v: 0.4, n: 10 }], ['ratio', 5, { v: 0.6, n: 10 }, { v: 0.4, n: 2 }], ['ratio', 5, { v: 0.5, n: 8 }, { v: 0.5, n: 9 }],
+      ['duration', 5, { v: 9.5, n: 29 }, { v: 14.2, n: 18 }], ['duration', 5, { v: 9.5, n: 2 }, { v: 14.2, n: 18 }],
+      ['ratio', 5, { v: null, a: 'immature' }, { v: null, a: 'immature' }], ['flow', 0, { v: null, a: 'not_instrumented' }, { v: null, a: 'not_instrumented' }],
+    ];
+    for (const [kind, minN, cur, prev] of cases) {
+      const e = entry(kind, minN);
+      const sql = (await db.query(`select public._metrics_kpi($1::jsonb, $2::jsonb, $3::jsonb, true) as r`, [JSON.stringify(e), JSON.stringify({ 'x.k': cur }), JSON.stringify({ 'x.k': prev })])).rows[0].r;
+      const js = plain(Q.__build(e, cur, prev, true));
+      const norm = (k) => ({ value: k.value, availability: k.availability, delta: k.delta, prev: k.previous && { value: k.previous.value, availability: k.previous.availability } });
+      assert.deepEqual(norm(js), norm(sql), JSON.stringify([kind, cur, prev]));
+    }
+  } finally { await db.close(); }
+});
+
+/* ---------------- Seguridad y privacidad (estática) ---------------- */
+
+test('HTML: privado y no indexable, NO es PWA, supabase-js fijado con el MISMO SRI que la app, rutas absolutas', () => {
+  const html = read('admin/metrics/index.html');
+  assert.match(html, /<meta name="robots" content="noindex, nofollow, noarchive">/);
+  assert.ok(!/rel="manifest"/.test(html) && !/serviceWorker/.test(html) && !/apple-touch-icon/.test(html), 'sin manifest ni registro de SW');
+  const tag = (src) => /<script src="(https:\/\/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js@[^"]+)" integrity="([^"]+)"/.exec(src);
+  const [, u1, i1] = tag(html); const [, u2, i2] = tag(read('index.html'));
+  assert.deepEqual([u1, i1], [u2, i2], 'pin exacto + SRI idénticos a los de la app');
+  assert.match(u1, /supabase-js@\d+\.\d+\.\d+\//);
+  for (const m of html.matchAll(/(?:src|href)="(\/[^"]+)"/g)) assert.ok(fs.existsSync(path.join(dir, m[1].replace(/^\//, ''))) || m[1] === '/env.generated.js' || m[1] === '/admin/metrics/', m[1]);
+  assert.ok(!/<script(?![^>]*src)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/.test(html.replace(/<!--[\s\S]*?-->/g, '')), 'sin JS inline');
+});
+
+test('metrics.js: sin innerHTML/eval, sin secretos, la autorización la decide el servidor (no el nombre) y no guarda datos en storage', () => {
+  const js = read('admin/metrics/metrics.js');
+  const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const bad of [/innerHTML/, /outerHTML/, /insertAdjacentHTML/, /document\.write/, /\beval\(/, /new Function/, /service_role/i, /SERVICE_ROLE/, /\.from\(['"]/, /\.rpc\(/]) assert.ok(!bad.test(code), String(bad));
+  assert.match(code, /functions\.invoke\('admin-metrics'/);
+  assert.ok(!/username|@usuario|\.email|user_metadata|app_metadata|display_name/.test(code), 'ninguna decisión de acceso por nombre/email/metadatos');
+  const stor = code.match(/localStorage\.[a-zA-Z]+\([^)]*\)/g) || [];
+  assert.ok(stor.length === 2 && stor.every((s) => /PREF_KEY/.test(s)), 'solo preferencias en storage: ' + stor.join(' | '));
+  assert.ok(!/sessionStorage|indexedDB|caches\./.test(code));
+  assert.ok(!/console\.(log|info|debug)/.test(code), 'sin logs de datos');
+  assert.match(code, /meta\.environment !== env\.name/, 'verifica el entorno que responde el servidor');
+  assert.match(code, /qaAllowed\(env, global\.location\.hostname\)/);
+});
+
+test('sin fichas individuales: la consola no tiene búsqueda, listados ni navegación por jugador', () => {
+  const code = read('admin/metrics/metrics.js') + read('admin/metrics/index.html');
+  assert.ok(!/playerId|player_id|<input[^>]*type="(search|text)"|buscar|searchPlayers|search_players/i.test(code));
+  assert.equal((read('admin/metrics/index.html').match(/<input/g) || []).length, 2, 'solo los 2 interruptores');
+});
+
+test('fixture QA: rotulado como datos de prueba y solo cargable fuera de Production', () => {
+  const f = read('admin/metrics/qa-fixture.js');
+  assert.match(f, /INVENTADOS/); assert.match(f, /NO son datos de ningún entorno/);
+  assert.equal(Q.respond({ section: 'users', range: '30d' }, '').meta.environment, 'qa');
+  const js = read('admin/metrics/metrics.js');
+  assert.match(js, /DATOS DE PRUEBA \(QA\) · NO PRODUCTION/);
+  assert.match(js, /const QA = params\.get\('qa'\) === '1' && qaAllowed\(env, global\.location\.hostname\)/);
+});
+
+/* ---------------- Publicación ---------------- */
+
+test('build: admin/ entra en la allowlist; el fixture de QA solo en Staging; dist valida las referencias de la página', () => {
+  assert.ok(DIST_DIRS.includes('admin'));
+  for (const variant of ['official', 'staging']) {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'mx-dist-'));
+    try {
+      const built = buildDist({ outDir: out, requireGenerated: false, iconVariant: variant });
+      assert.deepEqual(built.problems, [], variant);
+      for (const f of ['admin/metrics/index.html', 'admin/metrics/metrics.js', 'admin/metrics/metrics.css']) assert.ok(built.files.includes(f), `${variant}: ${f}`);
+      assert.equal(built.files.includes(QA_FIXTURE_FILE), variant === 'staging', `${variant}: fixture ${variant === 'staging' ? 'presente' : 'AUSENTE'}`);
+      assert.ok(!built.files.some((f) => /\.test\.mjs$|^api\/|^scripts\//.test(f)), 'ningún test ni api en dist');
+    } finally { fs.rmSync(out, { recursive: true, force: true }); }
+  }
+});
+
+function loadSw() {
+  const listeners = {}; const log = { cacheOpen: 0, fetched: [] };
+  const sb = {
+    self: { addEventListener: (t, f) => { listeners[t] = f; }, location: { origin: 'https://app.test' }, skipWaiting() {}, clients: { claim() {} } },
+    caches: { open: async () => { log.cacheOpen += 1; return { put() {}, addAll: async () => {} }; }, match: async () => undefined, keys: async () => [], delete: async () => true },
+    fetch: async (req) => { log.fetched.push(req.url); return { clone() { return this; }, status: 200 }; },
+    Response: class { constructor(b, o) { this.body = b; this.status = o && o.status; } },
+    URL, console,
+  };
+  vm.createContext(sb); vm.runInContext(read('sw.js'), sb);
+  return { listeners, log };
+}
+
+test('Service Worker: /admin/* NO se intercepta (sin respondWith, sin caché); el resto de la app sigue como antes', async () => {
+  for (const url of ['https://app.test/admin/metrics/', 'https://app.test/admin/metrics', 'https://app.test/admin/metrics/metrics.js']) {
+    const { listeners, log } = loadSw(); let responded = false;
+    listeners.fetch({ request: { method: 'GET', url, mode: url.endsWith('/') ? 'navigate' : 'no-cors' }, respondWith: () => { responded = true; } });
+    assert.equal(responded, false, url); assert.equal(log.cacheOpen, 0);
+  }
+  const { listeners } = loadSw(); let responded = false;
+  listeners.fetch({ request: { method: 'GET', url: 'https://app.test/index.html', mode: 'navigate' }, respondWith: () => { responded = true; } });
+  assert.equal(responded, true, 'la app sí pasa por el SW');
+  assert.ok(!/admin/.test(read('sw.js').slice(read('sw.js').indexOf('CORE_ASSETS = ['), read('sw.js').indexOf('];', read('sw.js').indexOf('CORE_ASSETS = [')))), 'la consola no se precachea');
+});
+
+test('Vercel/robots: headers noindex + no-store + no-referrer para /admin/*; robots de Production excluye /admin/ y el resto sigue igual', () => {
+  const v = JSON.parse(read('vercel.json'));
+  assert.deepEqual(v.rewrites, [{ source: '/robots.txt', destination: '/robots.generated.txt' }]);
+  const h = v.headers.find((x) => x.source === '/admin/(.*)');
+  const map = Object.fromEntries(h.headers.map((x) => [x.key, x.value]));
+  assert.match(map['X-Robots-Tag'], /noindex/); assert.equal(map['Cache-Control'], 'no-store'); assert.equal(map['Referrer-Policy'], 'no-referrer');
+  const env = read('scripts/build-env.mjs');
+  assert.match(env, /envName === 'production' \? 'User-agent: \*\\nDisallow: \/admin\/\\nAllow: \/\\n' : 'User-agent: \*\\nDisallow: \/\\n'/);
+});
+
+test('versionado: h29 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
+  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h29');
+  assert.equal(JSON.parse(read('version.json')).version, 'BRAMUlab V04.37');
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h29'/);
+  assert.match(read('sw.js'), /bramulab-v04-37-h29/);
+  for (const f of ['index.html', 'app.js', 'player-home.js', 'groups.js']) assert.ok(!/admin\/metrics/.test(read(f)), `${f} no enlaza a la consola`);
+});

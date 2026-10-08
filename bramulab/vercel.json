@@ -4,6 +4,28 @@
   "outputDirectory": "dist",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
   "rewrites": [
-    { "source": "/robots.txt", "destination": "/robots.generated.txt" }
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.generated.txt"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/admin/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    }
   ]
 }

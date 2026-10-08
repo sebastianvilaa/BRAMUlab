@@ -1,4 +1,6 @@
-# 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) — 08OCT26
+# 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
+
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; **§6 = F3**.
 
 **Estado:** implementado en el repo, probado localmente (PGlite = Postgres real + Node). **NO aplicado en ningún Supabase, NO desplegado.** Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
@@ -74,3 +76,50 @@ Decisiones técnicas tomadas (compatibles con el plan):
 - Rendimiento con volumen real (sin índices extra: la PK y `player_activity_days_date_idx` cubren F1; revisar si `matches` supera ~50 k filas).
 - Que `visibilitychange`/standalone se comporten igual en iPhone/Android reales (la clasificación está probada con user-agents sintéticos).
 - Nada del panel visual (F3+). `Ranking` (elegibilidad/cobertura), duplicados/recuperaciones y Nivel público siguen para F4 (el desglose de estados de Nivel ya sale con k).
+
+---
+
+## 6. F3 — Dashboard visual `/admin/metrics` (Staging, bundle `04.37-h29`)
+
+**Estado:** implementado y probado localmente; **sin publicar en Production**. F1/F2 ya aplicados por Central en Staging (confirmado); `admin-metrics` desplegada; cuenta `@seba_qa` autorizada.
+
+### 6.1 Qué se agregó
+| Pieza | Archivo | Detalle |
+|---|---|---|
+| Página privada | `bramulab/admin/metrics/index.html` + `metrics.js` + `metrics.css` | Estática, **sin datos propios**, no es PWA (sin manifest ni SW propio), `noindex`. Reusa `env.generated.js` y el mismo `supabase-js` fijado con el mismo SRI que la app; **comparte la sesión** de la app (mismo origen). Sin sesión → pantalla «Iniciá sesión en BRAMUlab» (no hay formulario de login propio). |
+| Vistas | Inicio · Usuarios · Partidos + **detalle de cada KPI** (`#/kpi/<id>`) | Inicio: 6 KPI ancla, 3 gráficos (altas, partidos, activos por presencia), embudo de activación y «estado de la recolección». Usuarios: 6 KPI, altas, desglose por localidad (k=5). Partidos: 12 KPI en 4 grupos, 3 gráficos (cargados / jugados / validados), desglose de estados. Detalle: valor, comparación, estado de disponibilidad, gráfico + tabla de datos, definición/población/muestra. |
+| Controles | período 7/30/90 d · Histórico; **«Comparar con período anterior» (activo por defecto, apagable)**; «Incluir cuentas internas» (apagado) | Se guardan solo estas 3 preferencias en `localStorage` (nunca datos). La comparación apagada se pide al servidor (`compare:false`) y desaparece de chips, «Anterior», leyendas y barras. |
+| Gráficos | SVG propio (sin librerías) | Barras por día/semana BA con la serie previa superpuesta e identificada (barra azul + leyenda con fechas), tooltips por puntero/táctil, ticks enteros, estado vacío. |
+| Estados | carga (skeleton), sin registros, **muestra insuficiente (n y mínimo)**, no medible (+ «desde» cuando existe), cohorte inmadura, captura parcial, error de red/servidor/429, sesión vencida, acceso no autorizado | Cada estado tiene rótulo propio; **nunca** se muestra 0 para algo no instrumentado. Un 403 muestra un mensaje genérico (el servidor no revela por qué). |
+| Seguridad | Edge `admin-metrics` (sin cambios) | La autorización es **solo del backend** (UUID en `metrics_admins`); la página no mira @usuario/email/metadatos. Si `meta.environment` ≠ entorno de la página se niega a renderizar. Sin `innerHTML`, sin datos en storage, sin fichas ni búsqueda de personas. |
+| Publicación | `build-dist.mjs` (+`admin/` en la allowlist, valida referencias), `sw.js` (bypass `/admin/*`), `vercel.json` (`X-Robots-Tag`, `no-store`, `no-referrer` en `/admin/*`), `build-env.mjs` (robots de Production con `Disallow: /admin/`) | El **fixture de QA** (`qa-fixture.js`, datos inventados) solo se publica en un build de **Staging**; el de Production lo retira. |
+| Bundle | `04.37-h29` (APP_VERSION sin cambio: invisible) | Cuarteto sincronizado; tests de versión al día. La app **no** enlaza a la consola. |
+
+Decisión de alcance: la **vista detallada** reutiliza el contrato real de las secciones (definición, población, n, previo, delta y, donde existe, la serie: altas, cargados y validados). Una serie por KPI arbitrario (`metric`/`metrics_series`) y el **Explorar** con filtros quedan para **F6** (requieren backend nuevo: catálogo de series + Edge); no se simuló en el cliente.
+
+### 6.2 Pruebas ejecutadas
+| Suite | Resultado |
+|---|---|
+| `bramulab/metrics-f3-dashboard.test.mjs` | **17/17** — formato/estados/deltas con TODAS las notas del contrato; ventanas en hora BA; geometría de gráficos; ruteo y errores; **catálogo del fixture = catálogo de la migración**; **fixture ↔ `_metrics_kpi` del SQL real** (13 casos en PGlite); estática de seguridad (HTML/JS: SRI idéntico a la app, sin innerHTML/eval/secretos/decisión por nombre, storage solo de preferencias, sin fichas); build (allowlist; fixture solo en Staging); **Service Worker real**: `/admin/*` sin `respondWith` ni caché y la app intacta; headers y robots. |
+| Resto de `bramulab/*.test.mjs` | 1001 tests: **970 pass / 31 fail — las 31 son idénticas a la línea base; 0 nuevas** (+26 pass). Un test de rondas previas (ST-4, «bundle Staging idéntico al de Production») se actualizó para admitir que el fixture de QA exista solo en Staging. |
+| `supabase/functions/_shared` | 141/141 (sin cambios de backend en F3). |
+| `release-check` | Mismos 3 chequeos fallidos de siempre (hardcode del host Staging en `app.js`, 2 de build Production con placeholders legales); sin nuevos. |
+| Verificación visual local (Browser pane, `?qa=1`) | Inicio/Usuarios/Partidos/detalle en escritorio y móvil 375 px (sin scroll horizontal); estados `empty`, `sparse`, `nopresence`, `error`, `forbidden`, `nosession`; toggles y rangos. **Camino REAL** probado con un cliente Supabase simulado: pedido `admin-metrics` con `{section,range,compare,includeInternal}`, banner de entorno, 403 → «Acceso no autorizado», 401 → «Tu sesión venció», 500/red → error con reintento, entorno inconsistente → bloqueo. |
+
+### 6.3 QA de Central (instrucciones mínimas)
+**Requisito:** el deploy de Staging con bundle `04.37-h29` (este commit). URL: `https://bramulab-git-staging-bramu-lab.vercel.app/admin/metrics/` (también sin la barra final).
+
+1. **Sin sesión** (ventana privada): pantalla «Iniciá sesión en BRAMUlab»; no hace ningún pedido a `admin-metrics`.
+2. **Con `@seba_qa`** (inicia sesión en la app y abrir la URL): carga Inicio con banner **STAGING · datos de prueba**. En Network: solo `POST …/functions/v1/admin-metrics` (200) y `supabase-js` del CDN; ninguna llamada a tablas/RPC; respuesta con `meta.environment = "staging"`.
+3. **Cuenta común** (otra cuenta real de Staging): «Acceso no autorizado» (403 de la función), sin números en pantalla.
+4. **Concordancia** (la verificación de fondo): con el conector de solo lectura, `select public.metrics_overview('30d'), public.metrics_users('30d'), public.metrics_matches('30d');` y comparar contra lo que muestra el panel (mismas ventanas; «Corte de datos» está en Inicio → «Estado de la recolección»). Repetir con 7 d y Histórico y con «Comparar» apagado (el panel no debe mostrar «Anterior»).
+5. **Estados reales esperables hoy en Staging:** porcentajes con «Muestra insuficiente» (k=5), desglose de localidad suprimido, presencia «desde dd/mm» si ya hay filas de F1, retención «inmadura».
+6. **Headers/indexación:** `curl -sI <url>/admin/metrics/` → `x-robots-tag: noindex…`, `cache-control: no-store`; `<url>/robots.txt` (Staging) = `Disallow: /`.
+7. **QA visual sin backend** (opcional, para revisar diseño/estados): `<url>/admin/metrics/?qa=1` (banner rojo **DATOS DE PRUEBA (QA) · NO PRODUCTION**) y `&qastate=empty|sparse|nopresence|error|forbidden|nosession|loading`. Solo existe en Staging; en Production el fixture no se publica y el parámetro se ignora.
+8. **App sin regresión:** abrir la app normal (`/`) y navegar un par de pantallas: el SW ignora `/admin/*` y no cambió nada más.
+
+### 6.4 Pendiente / no verificado
+- Camino real contra el backend desplegado y con la sesión real de `@seba_qa` (lo cubre el QA de arriba): no tengo credenciales.
+- iPhone/Android reales (tooltips táctiles, área segura); revisión visual final de Sebastián (tokens y layout se tomaron de `Identidad_Visual.md`; los colores del wireframe conceptual no se usaron).
+- **DECISIÓN ABIERTA (no bloqueó F3):** D1–D4 y D7 de §4 siguen igual; **D3** (texto de privacidad por el «día de actividad») sigue siendo previa a cualquier promoción de la presencia a Production.
+- Production: sin tocar. La promoción de la consola exige autorización explícita (F5).

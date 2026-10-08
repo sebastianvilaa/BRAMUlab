@@ -35,7 +35,9 @@ export const DIST_FILES = Object.freeze([
 /** Archivos que genera `build-env.mjs` junto al source (se copian tal cual, sin tocar su contenido). */
 export const DIST_GENERATED = Object.freeze(['env.generated.js', 'robots.generated.txt']);
 /** Directorios completos de assets/páginas públicas. */
-export const DIST_DIRS = Object.freeze(['icons', 'assets', 'privacidad', 'terminos', 'eliminar-cuenta']);
+export const DIST_DIRS = Object.freeze(['icons', 'assets', 'privacidad', 'terminos', 'eliminar-cuenta', 'admin']);
+/** BRAMU Metrics (F3): fixture de QA con datos inventados. Solo se publica en un build de Staging; en cualquier otro entorno se retira de dist/. */
+export const QA_FIXTURE_FILE = 'admin/metrics/qa-fixture.js';
 
 /* ------------------------------------------------------------------ */
 /* Icono por entorno (Staging = variante azul ST; Production y el resto = icono oficial) */
@@ -297,6 +299,7 @@ export function buildDist(opts = {}) {
   }
 
   if (iconVariant === 'staging') problems.push(...applyStagingIcons(srcDir, outDir));
+  if (iconVariant !== 'staging') fs.rmSync(path.join(outDir, QA_FIXTURE_FILE), { force: true });
 
   const files = [];
   (function walk(dir) {
@@ -329,6 +332,14 @@ export function verifyDist(outDir, { skipGenerated = false } = {}) {
     const u = m[1];
     if (/^(https?:)?\/\//.test(u) || /^(about|data):/.test(u)) continue;
     if (!exists(u)) problems.push(`index.html referencia ${u.slice(0, 80)} y no está en dist/`);
+  }
+  // BRAMU Metrics (F3): la consola privada referencia sus archivos con rutas absolutas; todos deben existir en dist/.
+  const admin = read('admin/metrics/index.html');
+  if (!admin) problems.push('falta admin/metrics/index.html en dist/');
+  for (const m of admin.matchAll(/(?:<script[^>]+src|<link[^>]+href|<img[^>]+src)="([^"]+)"/g)) {
+    const u = m[1];
+    if (/^(https?:)?\/\//.test(u) || /^(about|data):/.test(u)) continue;
+    if (!exists(u.replace(/^\//, ''))) problems.push(`admin/metrics/index.html referencia ${u} y no está en dist/`);
   }
   try {
     const manifest = JSON.parse(read('manifest.webmanifest'));

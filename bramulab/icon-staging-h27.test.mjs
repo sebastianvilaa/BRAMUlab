@@ -69,7 +69,9 @@ test('ST-4) build de Staging: iconos PWA/favicon/apple-touch ST, URLs del manife
   const man = JSON.parse(rd(dSt, 'manifest.webmanifest').toString('utf8'));
   assert.equal(man.icons.length, 3);
   for (const ic of man.icons) assert.match(ic.src, /^icons\/[a-z0-9-]+\.png\?v=\d\d\.\d\d-h\d+-st$/);
-  assert.deepEqual(staging.files, official.files, 'misma lista de archivos');
+  // BRAMU Metrics F3: el fixture de QA (datos inventados) viaja SOLO en Staging; todo lo demás es la misma lista de archivos.
+  assert.deepEqual(staging.files.filter((f) => f !== 'admin/metrics/qa-fixture.js'), official.files, 'misma lista de archivos');
+  assert.ok(staging.files.includes('admin/metrics/qa-fixture.js') && !official.files.includes('admin/metrics/qa-fixture.js'));
   const changed = official.files.filter((f) => !rd(dOff, f).equals(rd(dSt, f)));
   assert.deepEqual(changed, ['icons/apple-touch-icon.png', 'icons/favicon-64.png', 'icons/icon-192.png', 'icons/icon-512-maskable.png', 'icons/icon-512.png', 'index.html', 'manifest.webmanifest']);
   // index.html solo difiere en el base64 del apple-touch-icon
@@ -79,11 +81,11 @@ test('ST-4) build de Staging: iconos PWA/favicon/apple-touch ST, URLs del manife
   assert.ok(rd(dSt, 'icons', 'logo.svg').equals(rd(dOff, 'icons', 'logo.svg')) && rd(dSt, 'icons', 'logo.png').equals(rd(dOff, 'icons', 'logo.png')));
 });
 
-test('ST-5) bundle sincronizado (h28 vigente) (cache-busting de iconos para instalaciones existentes)', () => {
+test('ST-5) bundle sincronizado (h29 vigente) (cache-busting de iconos para instalaciones existentes)', () => {
   const html = rd(__dirname, 'index.html').toString('utf8');
-  assert.match(html, /icons\/favicon-64\.png\?v=04\.37-h28/);
-  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.37-h28');
-  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-37-h28/);
+  assert.match(html, /icons\/favicon-64\.png\?v=04\.37-h29/);
+  assert.equal(JSON.parse(rd(__dirname, 'version.json', ).toString('utf8')).bundle, '04.37-h29');
+  assert.match(rd(__dirname, 'sw.js').toString('utf8'), /bramulab-v04-37-h29/);
 });
 
 /* ======================= Selección por ENTORNO (lo que decide Vercel), no por commit ======================= */
