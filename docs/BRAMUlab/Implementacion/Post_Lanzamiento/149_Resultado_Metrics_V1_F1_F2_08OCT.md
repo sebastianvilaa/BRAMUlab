@@ -1,8 +1,8 @@
 # 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
 
-> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; **§6 = F3**.
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; **§7 = cierre de F3 (verificación del 08/10/2026)**.
 
-**Estado:** implementado en el repo, probado localmente (PGlite = Postgres real + Node). **NO aplicado en ningún Supabase, NO desplegado.** Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
+**Estado (actualizado 08/10/2026):** implementado en el repo y probado localmente (PGlite = Postgres real + Node). F1/F2 **aplicados en Supabase Staging** y `admin-metrics` **desplegada** por Central; F3 (`04.37-h29`) desplegada en Staging. Estado del cierre de F3: §7. (Los §1–§5 describen lo entregado en la ronda original; sus «pendientes de Central» ya se ejecutaron salvo lo que §7 deja abierto.) Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
 **Bundle:** `04.37-h28` (`APP_VERSION` sin cambio: ronda invisible).
 
@@ -123,3 +123,71 @@ Decisión de alcance: la **vista detallada** reutiliza el contrato real de las s
 - iPhone/Android reales (tooltips táctiles, área segura); revisión visual final de Sebastián (tokens y layout se tomaron de `Identidad_Visual.md`; los colores del wireframe conceptual no se usaron).
 - **DECISIÓN ABIERTA (no bloqueó F3):** D1–D4 y D7 de §4 siguen igual; **D3** (texto de privacidad por el «día de actividad») sigue siendo previa a cualquier promoción de la presencia a Production.
 - Production: sin tocar. La promoción de la consola exige autorización explícita (F5).
+
+
+---
+
+## 7. Cierre de F3 — verificación del 08/10/2026 (Claude, sin acceso vivo)
+
+**Veredicto:** el **código de F3 queda cerrado** (cero defectos de seguridad o de coherencia encontrados en la revisión; 3 observaciones de menor riesgo y 1 decisión de semántica, abajo). El **QA vivo queda PARCIAL**: lo que Central ya confirmó está registrado como tal; lo que no tiene evidencia escrita y exige una sesión real figura como **pendiente de ejecución humana**. No se declara aprobada ninguna prueba que no se ejecutó.
+
+### 7.1 Confirmado por Central (dato recibido, no re-ejecutado acá)
+Backend F1/F2 instalado en Staging · `admin-metrics` desplegada · `@seba_qa` única administradora autorizada · dashboard `04.37-h29` desplegado · **los seis indicadores de Inicio coinciden con las consultas del motor en Staging** · dirección visual general aprobada por Sebastián.
+
+### 7.2 Ejecutado en esta ronda (resultado real)
+| Verificación | Resultado |
+|---|---|
+| Suites de Metrics: `metrics-f1-activity` 12 + `metrics-f2-core` 23 + `admin-metrics-core` 9 + `metrics-f1-presencia-h28` 9 + `metrics-f3-dashboard` 17 | **70/70** |
+| `supabase/functions/_shared/*.test.mjs` (todo el backend compartido) | **141/141** |
+| `bramulab/tests/*` + `bramulab/*.test.mjs` | 1001 tests: **970 pass / 31 fail = idéntico a la línea base**. Las 31 son pruebas de rondas viejas (pin de versión `04.37-h2`/`V04.30`…, ST/legal con placeholders de Production, hardcode del host de Staging). **Ninguna toca Metrics.** |
+| `node docs/check-docs.mjs` | OK, 0 errores |
+| Revisión estática del acceso administrativo (`admin-metrics/index.ts`, `admin-metrics-core.mjs`, migración F2, `metrics.js`, `vercel.json`) | Sin hallazgos de seguridad: orden JWT → administrador → rate limit → validación; la identidad sale solo de `auth.getUser` (cliente ANON) y de `metrics_is_admin` (UUID); 403 idéntico para no-admin/revocado/inexistente; las 27 funciones `metrics_*`/`_metrics_*` revocadas de `public/anon/authenticated`; solo `service_role` ejecuta 7 (`metrics_is_admin` + las 6 secciones), ningún helper; las dos tablas con RLS sin políticas y sin grants de cliente; la página no decide por @usuario/email; entorno de la respuesta ≠ entorno de la página ⇒ no renderiza; sin `innerHTML` con datos. La página y la app comparten sesión (mismo `storageKey` por defecto en `auth.js` y en `metrics.js`). |
+| Sondeo HTTP público de Staging (`curl`, sin credenciales) | `/admin/metrics/`, `/robots.txt`, `/version.json` y `/admin/metrics/qa-fixture.js` responden **302 → `vercel.com/sso-api`**: el preview de Staging está detrás de **Vercel Authentication**. Es bueno para el aislamiento, pero impide probar headers/robots/fixture sin una sesión de Vercel. El navegador integrado tampoco tiene sesión de Vercel (no se intentó iniciarla). |
+
+### 7.3 Observaciones de la revisión (ninguna bloquea el cierre de F3)
+| # | Observación | Riesgo | Propuesta |
+|---|---|---|---|
+| O1 | **Ventana actual parcial vs. previa completa.** `7d/30d/90d` = N días calendario BA terminando **hoy (parcial, hasta el corte)**; la previa son N días **completos**. Con flujos (altas, cargados, validados) el delta tiende a verse más bajo cuanto más temprano es el día; `usage.dau` mide el «último día de la ventana» (hoy, parcial) contra el último día completo de la previa. El rótulo «hasta hoy» lo insinúa pero no lo explica. | **Medio** (afecta la lectura de comparaciones, no los totales) | **DECISIÓN D8** (abajo). Recomendado: ventana actual = últimos N días **completos** (hasta ayer) o comparar contra la previa recortada a la misma hora; mientras se decide, rotular «incluye hoy (parcial)». Es un cambio de SQL ⇒ va en la migración de F4. |
+| O2 | Si la RPC `metrics_is_admin` falla (error de base, no «no es admin»), el Edge responde **403 `forbidden`** y la consola muestra «Acceso no autorizado» a la propia administradora. Falla cerrado (seguro), pero confunde. | Bajo | Responder 503 `metrics_unavailable` ante error de la RPC (no ante `false`); sin oráculo nuevo. Requiere redeploy de `admin-metrics` ⇒ agrupar con la próxima ronda que ya la toque. |
+| O3 | CORS de `admin-metrics` es `*` (el plan §5.1 pedía restringir al origen del entorno). Con Bearer y sin cookies no es explotable, y un no-admin recibe 403 sin datos. | Bajo | Restringir al origen del entorno junto con O2. |
+| O4 | El limitador de tasa falla abierto si el limitador mismo cae (patrón vigente en todas las funciones; posterior a la autorización). | Muy bajo | Sin acción. |
+| O5 | `metrics_overview` calcula 5 secciones × 2 ventanas por pedido. Hoy trivial. | Bajo (a escala) | Revisar al pasar ~50 k partidos o si Inicio supera ~1 s. |
+
+### 7.4 Pendiente de ejecución humana (qué falta exactamente y por qué)
+**Falta:** una sesión real (token) de `@seba_qa` y de **una cuenta común** de Staging, la URL/anon key de Supabase Staging (públicas, están en `env.generated.js`) y una sesión de Vercel para ver el preview protegido. **Yo no tengo ninguna** (Staging está tras Vercel Authentication; las credenciales no se comparten con el agente ni se escriben en el repo). Lo que sigue **no tiene evidencia escrita** en la documentación; si Central ya lo hizo, basta registrarlo acá.
+
+| # | Prueba | Resultado esperado | Estado |
+|---|---|---|---|
+| 1 | `POST …/functions/v1/admin-metrics` **sin** `Authorization` | 401 (gateway) | pendiente |
+| 2 | Con `Authorization: Bearer <anon key>` | 401 `invalid_session` | pendiente |
+| 3 | Con token inválido/vencido | 401 | pendiente |
+| 4 | **Cuenta común** → cualquier sección | **403 `forbidden`**; con cuerpo inválido (`{"foo":1}`) el **mismo** 403; en la consola «Acceso no autorizado» sin números | pendiente |
+| 5 | Administradora con `revoked_at` (opcional, en Staging con una cuenta de prueba) | 403 idéntico | pendiente |
+| 6 | Administradora → 200 en las 6 secciones × `7d/30d/90d/all`; cuerpo con `custom` → 400 `range_not_supported`; clave extra → 400 | según columna | pendiente (Inicio ya visto por Central) |
+| 7 | PostgREST directo con token de cuenta común: `rpc/metrics_overview`, `rpc/metrics_is_admin`, `select` sobre `metrics_admins`, `player_activity_days`, `pilot_events` | denegado (42501) o 0 filas | pendiente |
+| 8 | `supabase/tests/audit-live-grants.sql` y `verify-metrics-v1-f1-f2.sql` en Staging | consulta 2 = 0 filas; sin hallazgos nuevos | pendiente (Central dice «instalado»; falta el resultado escrito) |
+| 9 | **Presencia:** abrir la app de Staging (h28+) con cuenta real → **1** fila en `player_activity_days` del día BA; recargar/volver a primer plano → no suma | 1 fila | pendiente |
+| 10 | **Concordancia ampliada:** Usuarios y Partidos (no solo Inicio) × `7d/90d/all` y con «Comparar» apagado (sin «Anterior» en pantalla) | panel = consulta | pendiente |
+| 11 | Headers y robots de Staging con sesión de Vercel: `x-robots-tag: noindex…`, `cache-control: no-store`, `robots.txt` = `Disallow: /` | según columna | pendiente |
+| 12 | Regresión de la app: abrir `/` y navegar un par de pantallas (el SW ignora `/admin/*`) | sin cambios | pendiente (cubierto en pruebas con SW real; falta un vistazo humano) |
+| 13 | iPhone/Android reales: tooltips táctiles, área segura | legible, sin scroll horizontal | pendiente |
+
+Plantilla para 1–7 (variables de Staging; **no pegar tokens en chats ni en el repo**):
+```bash
+F="$SUPABASE_URL/functions/v1/admin-metrics"; H='Content-Type: application/json'
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$F" -H "apikey: $ANON" -H "$H" -d '{"section":"overview"}'                                   # 1 → 401
+curl -s -w ' %{http_code}\n' -X POST "$F" -H "apikey: $ANON" -H "Authorization: Bearer $ANON" -H "$H" -d '{"section":"overview"}'                # 2 → 401 invalid_session
+curl -s -w ' %{http_code}\n' -X POST "$F" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN_COMUN" -H "$H" -d '{"section":"overview"}'        # 4 → 403 forbidden
+curl -s -w ' %{http_code}\n' -X POST "$F" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN_COMUN" -H "$H" -d '{"foo":1}'                      # 4 → el MISMO 403
+curl -s -w ' %{http_code}\n' -X POST "$F" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN_ADMIN" -H "$H" -d '{"section":"users","range":"custom"}'  # 6 → 400 range_not_supported
+curl -s -w ' %{http_code}\n' -X POST "$SUPABASE_URL/rest/v1/rpc/metrics_overview" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN_COMUN" -H "$H" -d '{}'  # 7 → permission denied
+```
+**Truco de concordancia exacta (10):** el panel muestra «Corte de datos» (`meta.asOf`). Consultar con ese mismo corte para evitar diferencias por el reloj: `select public.metrics_users('30d', true, false, '<asOf del panel>'::timestamptz);` (y `metrics_matches`, idem 7d/90d/all; con `false` en el 2.º argumento para «Comparar» apagado).
+
+### 7.5 Decisiones y estado
+| ID | Estado |
+|---|---|
+| **D8** (nueva) — Semántica de la ventana actual (O1): ¿«últimos N días completos» o «incluye hoy parcial» con rótulo? | **ABIERTA — Sebastián/Central.** Recomendado: días completos. Se resuelve en la migración de F4 (un solo cambio en `_metrics_window`/`usage.dau`). |
+| D1–D4, D7 | Sin cambios respecto de §4. **D1 + D3 son ahora lo más urgente** (ver `148` §11.5): sin ellos Production no registra presencia y el reloj de DAU/retención no corre. |
+
+**Estado de F3:** código ✔ · pruebas locales ✔ · concordancia de Inicio ✔ (Central) · acceso administrativo ✔ (revisión estática + Central) · **negativos con sesiones reales ⏳ · concordancia Usuarios/Partidos ⏳ · headers/robots ⏳ · iPhone/Android ⏳**. Production: sin tocar.

@@ -1,6 +1,6 @@
 # 148 — Plan de implementación · BRAMU Metrics V1 (`/admin/metrics`) — 08OCT26
 
-**Estado:** PLAN. **F1 y F2 implementadas en el repo (08/10/2026, ver `149_Resultado_Metrics_V1_F1_F2_08OCT.md`), pendientes de aplicar/verificar por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) implementada en el repo, pendiente de QA de Central en Staging**; F4–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
+**Estado (08/10/2026):** F1 y F2 **aplicadas y verificadas parcialmente por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) desplegada en Staging (`04.37-h29`), código cerrado y QA vivo parcial** (ver `149_…` §7); **F4 ya tiene alcance técnico mínimo definido (§11) y NO está implementada**; F5–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
 > **Nota de nombres (F1):** la RPC de presencia se llama `register_app_presence` (no `record_app_activity`): los controles de grants del repo tratan cualquier función `record_*` ejecutable por `authenticated` como administrativa/interna.
 **Leer antes:** `README.md`, `Metodo_Trabajo.md`, `BRAMU_Metrics.md` (producto) y su marco confirmado — `BRAMU_Metrics_UX_V1.md` (paneles + Explorar), `BRAMU_Metrics_Privacidad_V1.md`, `BRAMU_Metrics_Comparaciones_V1.md` — y `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas, hallazgos).
 **No se toca en ninguna fase:** `main`, Vercel Production, Supabase Production (salvo lecturas autorizadas por Central y, **solo tras autorización explícita**, la promoción de la Fase 5), BRAMUlive, fórmula de Nivel, lógica deportiva oficial, datos de usuarios.
@@ -275,3 +275,60 @@ Orden recomendado para minimizar dato perdido: **F1 antes que F3** (F2 y F1 pued
 ## 10. Cierre de esta ronda (F0)
 
 Tras el último pull se incorporaron los documentos de decisión de Central/Sebastián (UX, Privacidad, Comparaciones); ninguno contradice la arquitectura. Entregado: `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (hallazgos, mapa de fuentes, matriz de medibilidad, contrato de KPIs, eventos, 16 consultas validadas y fixture esperado) y este plan. Verificación ejecutada: replay limpio de 84 migraciones + 16 consultas sobre fixture sintético en PGlite local. **No verificado:** estado vivo de Staging/Production, grants reales, comportamiento del Edge, volumen real, nada visual.
+
+
+---
+
+## 11. F4 — alcance técnico mínimo (propuesta del 08/10/2026; NO implementada, a revisar por Central)
+
+**Hallazgo que define el alcance:** el backend de F2 **ya calcula** las secciones `activation`, `community` y `usage` (31 de los 49 KPIs del catálogo: 10 + 9 + 12, con umbral k, comparación, estados de disponibilidad y pruebas), y el Edge ya las enruta (`SECTION_FUNCTIONS`); el cliente ya sabe abrir el detalle de sus KPIs (`SECTION_OF_PREFIX`). Lo que **falta es la pantalla** y una pequeña cantidad de SQL para lo que hoy no tiene indicador (Grupos con actividad, Nivel y Ranking más allá de conteos). **F4 reutiliza el backend, no agrega tablas ni captura nueva, y no requiere redeploy de la Edge Function.**
+
+### 11.1 Qué está disponible y qué no (por frente pedido)
+
+| Frente | Disponible YA (backend F2, probado) | Falta, pero se deriva de datos existentes (SQL aditivo de F4) | Requiere comenzar a recopilar datos | No se mide |
+|---|---|---|---|---|
+| **Activación** | `cohort`, `cohort_immature`, `level_initial`, `loaded_first`, `participated_first`, `participated_validated`, `third_match`, `fifth_match`, `returned_other_week`, `median_days_to_first_load` (autor ≠ participante; cohorte madura ≥ 7 días) | — (nada nuevo) | «Retorno» exacto = presencia (frente Uso); hoy es proxy por acciones | Origen de adquisición |
+| **Comunidad y grupos** | `groups_active`, `groups_created`, `memberships_active`, invitaciones (creadas/canjeadas/abiertas/vencidas/conversión) | `groups_with_match` (grupos con ≥ 1 partido calificado en el período, reutilizando `_groups_candidate_matches_exact`, la fuente única del criterio), `groups_avg_members`, desglose por tamaño de grupo, series de `groups_created` e `invites_created` | Compartir/abrir invitación (no hay evento); actividad dentro del grupo más allá de partidos y `group_events` | Rankings de grupos o de personas |
+| **Nivel BRAMU** | Desglose por estado (PENDIENTE/CALIBRANDO/CALIBRADO/RECALIBRANDO) con k | `community.level_calibrated_share` (CALIBRADO / con Nivel iniciado), distribución por banda 1–10 de **CALIBRADOS** tomada del `level_band` de la última edición de Ranking (snapshot oficial, no se recalcula), suprimida con **n < 10** (regla de Privacidad) | Tendencia temporal del Nivel agregado: se podría reconstruir desde `match_level_results` (como `get_my_level_evolution`), pero es costoso y de bajo valor ahora ⇒ **diferido** | Nivel de personas, comparaciones individuales, cualquier cálculo con `mu` crudo |
+| **Ranking BRAMU** | `ranking_editions` (ediciones publicadas en la ventana) | `community.ranking_days_since_edition`, `community.ranking_eligible_players` y `community.ranking_eligibility_rate` (última edición, `scope_type='global'`, sobre cuentas actuales), desglose de universos locales por `density_status` (`established/forming/insufficient`) | Visitas a la pantalla de Ranking (no hay evento de pantalla) | Posiciones o movimientos individuales; «Mi red» (no se materializa) |
+| **Uso y retención** | `dau`, `wau`, `mau`, `dau_avg`, `standalone_share`, `wau/mau_with_action`, retención W1/W4/D1/D7/D30, desglose por plataforma y versión, serie de activos | — (nada nuevo) | **Presencia diaria en Production: NO se está capturando** (ver 11.5). Pantallas/funciones más usadas: no hay evento (§4.4, se retoma a las 4–8 semanas de presencia) | Instalaciones PWA reales, errores/latencia de cliente, atribución |
+
+Regla de presentación (ya implementada, se mantiene): cada KPI muestra su estado — *válida / sin registros / muestra insuficiente (n, mínimo) / todavía no medible (desde dd/mm) / cohortes inmaduras / captura parcial* — y **nunca** un 0 por falta de instrumentación.
+
+### 11.2 Piezas de F4 (mínimo)
+
+**A. Migración aditiva `…_metrics_f4_community_level_ranking.sql`** (una sola; la aplica Central en Staging):
+1. Catálogo: +6 KPIs (`community.groups_with_match`, `community.groups_avg_members`, `community.level_calibrated_share`, `community.ranking_days_since_edition`, `community.ranking_eligible_players`, `community.ranking_eligibility_rate`), todos con prefijo `community.` (así el Edge y el ruteo de detalle del cliente no cambian), dentro de `_metrics_catalog()` y con `minN` cuando son razones.
+2. `_metrics_series`: +2 fuentes (`groups_created`, `invites_created`).
+3. Breakdowns de `community`: `group_size`, `level_band` (n ≥ 10 calibrados), `ranking_density`; todos pasan por `_metrics_apply_k`.
+4. **D8** (semántica de la ventana, `149` §7.3 O1) en `_metrics_window` y `usage.dau`.
+5. Mismos permisos (`revoke … from public, anon, authenticated; grant execute … to service_role`); ningún helper concedido; funciones `STABLE`.
+
+**B. Cliente (`bramulab/admin/metrics/`)**: tres vistas nuevas en las pestañas — **Activación** (embudo completo con cohorte, retorno y días a la 1.ª carga), **Comunidad** (Grupos · Nivel · Ranking en tres bloques separados, sin mezclar sistemas), **Uso** (activos DAU/WAU/MAU, retención W1/W4 y D1/D7/D30 con estado inmaduro, plataforma/versión, estado de la captura con «desde dd/mm»). Reutilizan `kpiCard`, `chart`, `hbars`, `breakdownPanel` y el detalle de KPI; `KPI_SERIES` suma los KPIs con serie nueva; el fixture QA suma los KPIs nuevos (el test «catálogo del fixture = catálogo de la migración» obliga a mantenerlos alineados). Móvil: las 6 pestañas se desplazan horizontalmente.
+
+**C. Sin cambios:** Edge `admin-metrics` (el mapa de secciones ya las incluye), `release-check`, `sw.js`, `vercel.json`, app y lógica deportiva. Bundle `04.37-h30` (invisible, `APP_VERSION` igual). **1 push funcional** + 1 migración que aplica Central.
+
+**D. Pruebas (obligatorias antes de entregar):** extender el fixture del Apéndice B de la Auditoría con grupos/membresías/ediciones/`level_states` y afirmar cada KPI nuevo; **k=5 / n≥10** (propiedad aleatoria como en F2); **no fuga** (sin UUID/email/@usuario/nombre en las 6 secciones × 4 rangos × con/sin internas); **concordancia** con consultas crudas independientes; permisos con ACL strict/observed/open y roles reales; catálogo = fixture; `metrics-f3-dashboard` y `h2-hardening-exposicion` actualizados; línea base de 31 fallas ajenas sin cambios.
+
+### 11.3 Qué NO entra en F4
+Explorar con filtros (F6), rango personalizado, drill-down por persona, evento de pantallas/funciones, errores/latencia, atribución, instalaciones PWA, tendencia temporal del Nivel agregado, alertas/exportaciones, tocar Production.
+
+### 11.4 Riesgos de F4
+| Riesgo | Mitigación |
+|---|---|
+| Volumen chico: casi todo porcentaje y desglose saldrá «muestra insuficiente» (k=5, n≥10) | Es lo correcto; la pantalla lo explica en vez de mostrar números engañosos |
+| `groups_with_match` recorre grupos con `_groups_candidate_matches_exact` (un llamado por grupo) | Trivial con decenas de grupos; medir si superan ~1 000 y, de ser necesario, materializar |
+| Distribución de Nivel con pocos calibrados reidentifica | Umbral n ≥ 10 calibrados ya fijado en §5.4; el desglose entero se oculta por debajo |
+| Banda de Nivel tomada del snapshot de Ranking sólo cubre jugadores con edición | Se rotula «según la última edición publicada»; no se recalcula el Nivel en el panel |
+| Mezclar sistemas (Nivel ≠ Ranking ≠ Grupos) | Tres bloques separados en Comunidad y definiciones propias por KPI |
+
+### 11.5 Datos que dependen de empezar a recopilar (lo más urgente del frente)
+- **Presencia en Production: hoy NO se captura** (migración F1 y h28+ solo en Staging; Production corre `04.37-h26`). Hay usuarios reales dentro desde el 07/10/2026 y **cada día sin registro es irrecuperable**. Hasta entonces, en Production DAU/WAU/MAU, retención, uso desde app instalada, plataforma y versión serán «Todavía no medible».
+- Fechas mínimas aproximadas **desde el inicio T de la captura** (el SQL manda; además exigen ≥ 5 personas en la cohorte): D1 desde T+1 día · D7 desde T+7 · W1 desde ≈ T+2 semanas · D30 desde T+31 · W4 desde ≈ T+5 semanas. WAU/MAU móviles son parciales hasta T+7/T+30 y la consola lo rotula «captura parcial».
+- **Camino:** D3 (frase de «día de actividad» en la Política de privacidad; texto ligado a AAIP) → D1 (autorizar promoción **solo** de la presencia: migración `20261008100000` + cliente h28) → Central ejecuta con el procedimiento de promoción. Recomendado hacerlo **antes** que cualquier otra cosa de Metrics.
+
+### 11.6 Orden recomendado y decisiones que necesita Central
+1. Cerrar el QA vivo pendiente de F3 (`149` §7.4).
+2. **D3 → D1** (arrancar el reloj en Production; independiente del resto de F4).
+3. **D8** (ventana con días completos) y **D2** (cuentas internas de Production) — conviene tenerlas antes de que haya datos reales que interpretar.
+4. Aprobar este alcance → Claude implementa F4 en un solo pase (migración + vistas + pruebas) → Central aplica la migración en Staging y corre las comprobaciones de concordancia → recién entonces se evalúa F5 (promoción de la consola).

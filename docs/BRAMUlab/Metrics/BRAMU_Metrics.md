@@ -68,3 +68,9 @@ El agente ejecutor debe leer `docs/BRAMUlab/README.md`, `Metodo_Trabajo.md`, `Ba
 - Layout final, nomenclatura, gráficos y filtros de cada sección bajo el sistema visual vigente.
 - El evento exacto y la periodicidad segura de actividad.
 - Si se necesita análisis por jugador individual o solo agregados. V1 prioriza agregados.
+
+## 10. Estado de ejecución y decisiones incorporadas (08/10/2026)
+- F1 (presencia diaria), F2 (núcleo protegido + Edge `admin-metrics`) y F3 (consola Inicio/Usuarios/Partidos con detalle de KPI) están aplicados/desplegados en **Staging**; Production sin tocar. Verificación y pendientes: `Implementacion/Post_Lanzamiento/149_Resultado_Metrics_V1_F1_F2_08OCT.md` §7.
+- Definiciones vigentes que concretan §3 y §5: activo = **presencia** (apertura real autenticada, 1 fila por jugador y día BA), nunca el último login; umbral de privacidad **k = 5** (n ≥ 10 calibrados para distribución de Nivel); comparación contra el período anterior por defecto y desactivable; cohortes de activación **maduras desde 7 días**; retención semanal W1/W4 como lectura principal (D1/D7/D30 secundarias).
+- **Decisión abierta D8:** semántica de la ventana actual (hoy incluye el día en curso, parcial, y se compara con un período previo completo).
+- **F4** (Activación, Comunidad y grupos, Nivel, Ranking, Uso y retención): alcance técnico mínimo en `148_…` §11. Distingue lo ya disponible (31 de 49 KPIs), lo derivable con SQL aditivo sin captura nueva y lo que exige empezar a recopilar (presencia en Production; pantallas/funciones). **La presencia aún no se captura en Production**: su promoción (D1, previa D3 de privacidad) es lo más urgente porque los días sin registro no se recuperan.
