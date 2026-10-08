@@ -22,6 +22,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROLLBACK = fs.readFileSync(path.join(HERE, '..', '..', 'scripts', 'metrics-rollback.sql'), 'utf8');
 const METRICS_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('20261008')).sort();
 const ERASURE_MIGRATION = '20261008140000_metrics_presence_erased_on_account_deletion.sql';
+const CONSENT_MIGRATION = '20261008150000_metrics_activity_consent.sql';
 const ASOF = '2026-10-08T12:00:00Z';
 let db; let before_; let uid = {}; let pid = {};
 
@@ -53,30 +54,34 @@ const stable = (x) => { const c = JSON.parse(JSON.stringify(x)); if (c.report) c
 /** Fotografía de TODO lo que ya existe (se excluyen los objetos propios de Metrics). */
 async function snapshot() {
   const tables = (await q(`select c.relname, c.relacl::text acl, c.relrowsecurity rls from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r'
-                            and c.relname not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days') order by 1`));
+                            and c.relname not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days', 'activity_consents') order by 1`));
   const rows = {};
   for (const t of tables) {
-    const r = await one(`select count(*)::int n, coalesce(md5(string_agg(x::text, '|' order by x::text)), '') h from public."${t.relname}" x`);
+    // app_config gana UNA columna nueva (vigente = NULL): se compara sin ella; el resto de las tablas, fila por fila.
+    const r = await one(t.relname === 'app_config'
+      ? `select count(*)::int n, coalesce(md5(string_agg((to_jsonb(x) - 'activity_consent_version')::text, '|' order by (to_jsonb(x) - 'activity_consent_version')::text)), '') h from public.app_config x`
+      : `select count(*)::int n, coalesce(md5(string_agg(x::text, '|' order by x::text)), '') h from public."${t.relname}" x`);
     rows[t.relname] = `${r.n}:${r.h}`;
   }
   const fns = await q(`select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as sig, md5(pg_get_functiondef(p.oid)) as def, p.proacl::text as acl
                          from pg_proc p
                         where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
                           and p.proname not like 'metrics\\_%' and p.proname not like '\\_metrics\\_%' and p.proname <> 'register_app_presence'
+                          and p.proname not in ('_activity_consent_status', '_record_activity_consent', 'get_my_activity_consent', 'set_my_activity_consent', 'activity_consents_reject_mutation')
                         order by 1`);
   const policies = await q(`select tablename, policyname, cmd, qual, with_check from pg_policies where schemaname = 'public'
-                              and tablename not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days') order by 1, 2`);
+                              and tablename not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days', 'activity_consents') order by 1, 2`);
   const triggers = await q(`select c.relname, t.tgname from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relnamespace = 'public'::regnamespace and not t.tgisinternal
-                              and c.relname not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days') order by 1, 2`);
+                              and c.relname not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days', 'activity_consents') order by 1, 2`);
   const indexes = await q(`select tablename, indexname, indexdef from pg_indexes where schemaname = 'public'
-                             and tablename not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days') order by 1, 2`);
+                             and tablename not in ('metrics_admins', 'metrics_internal_players', 'player_activity_days', 'activity_consents') order by 1, 2`);
   return { tables: tables.map((t) => [t.relname, t.acl, t.rls]), rows, fns, policies, triggers, indexes };
 }
 
 before(async () => {
   const names = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql'));
-  assert.equal(METRICS_MIGRATIONS.length, 5, 'las únicas migraciones del día son las 5 de Metrics (F1, F2, F4, F6 y el borrado de actividad al eliminar cuenta)');
-  assert.equal(METRICS_MIGRATIONS.at(-1), ERASURE_MIGRATION);
+  assert.equal(METRICS_MIGRATIONS.length, 6, 'las únicas migraciones del día son las 6 de Metrics (F1, F2, F4, F6, borrado de actividad al eliminar cuenta y consentimiento)');
+  assert.deepEqual(METRICS_MIGRATIONS.slice(-2), [ERASURE_MIGRATION, CONSENT_MIGRATION]);
   assert.ok(names.length > 80);
   const r = await replay({ acl: 'observed', exclude: ['20261008'] });
   assert.ok(r.ok, 'la base tipo Production (todo menos Metrics) reconstruye limpia');
@@ -122,7 +127,7 @@ test('1 · la base tipo Production tiene datos reales-like y NO tiene nada de Me
   assert.equal('activityDays' in before_.exportA, false);
 });
 
-test('2 · aplicar las 5 migraciones de Metrics sobre esa base NO altera NADA existente (datos, ACL, políticas, triggers, índices) y solo cambian DOS funciones', async () => {
+test('2 · aplicar las 5 migraciones de Metrics sobre esa base NO altera NADA existente (datos, ACL, políticas, triggers, índices) y solo cambian TRES funciones (+ una columna nueva en app_config)', async () => {
   await apply(METRICS_MIGRATIONS);
   const now = await snapshot();
   assert.deepEqual(now.rows, before_.snap.rows, 'ninguna fila de ninguna tabla existente cambió (conteo + checksum por tabla)');
@@ -131,8 +136,19 @@ test('2 · aplicar las 5 migraciones de Metrics sobre esa base NO altera NADA ex
   const was = Object.fromEntries(before_.snap.fns.map((f) => [f.sig, f])); const is = Object.fromEntries(now.fns.map((f) => [f.sig, f]));
   assert.deepEqual(Object.keys(is).sort(), Object.keys(was).sort(), 'no apareció ni desapareció ninguna función existente');
   const changed = Object.keys(is).filter((k) => is[k].def !== was[k].def);
-  assert.deepEqual(changed.sort(), ['admin_delete_player_account(p_player_id uuid)', 'admin_export_player_data(p_player_id uuid)'], 'las únicas funciones existentes que cambian: informe de acceso/copia (+activityDays) y eliminación de cuenta (+borrado de actividad)');
+  assert.deepEqual(changed.sort(), ['admin_delete_player_account(p_player_id uuid)', 'admin_export_player_data(p_player_id uuid)', 'handle_email_confirmed()'], 'las únicas funciones existentes que cambian: informe de acceso/copia (+activityDays/activityConsents), eliminación de cuenta (+borrado de actividad) y el alta (+registro del consentimiento declarado)');
   assert.deepEqual(Object.keys(is).filter((k) => is[k].acl !== was[k].acl), [], 'ningún permiso de función existente cambió');
+});
+
+test('2b · lo nuevo del consentimiento: 5 funciones y 1 tabla; los helpers no son de clientes; solo el jugador autenticado decide sobre sí mismo', async () => {
+  const fns = (await q(`select proname from pg_proc where pronamespace = 'public'::regnamespace and proname in ('_activity_consent_status', '_record_activity_consent', 'get_my_activity_consent', 'set_my_activity_consent', 'activity_consents_reject_mutation') order by 1`)).map((x) => x.proname);
+  assert.equal(fns.length, 5);
+  const ex = async (role, sig) => (await one(`select has_function_privilege($1, $2::regprocedure, 'execute') x`, [role, sig])).x;
+  assert.deepEqual([await ex('anon', 'public.get_my_activity_consent()'), await ex('authenticated', 'public.get_my_activity_consent()'), await ex('anon', 'public.set_my_activity_consent(text,boolean,text)'), await ex('authenticated', 'public.set_my_activity_consent(text,boolean,text)')], [false, true, false, true]);
+  for (const sig of ['public._activity_consent_status(uuid)', 'public._record_activity_consent(uuid,text,text,text,timestamptz)']) for (const role of ['anon', 'authenticated']) assert.equal(await ex(role, sig), false, `${role} ${sig}`);
+  const t = await one(`select has_table_privilege('anon', 'public.activity_consents', 'select,insert,update,delete') a, has_table_privilege('authenticated', 'public.activity_consents', 'select,insert,update,delete') u, (select relrowsecurity from pg_class where oid = 'public.activity_consents'::regclass) rls`);
+  assert.deepEqual([t.a, t.u, t.rls], [false, false, true]);
+  assert.equal((await one(`select activity_consent_version v from public.app_config`)).v, null, 'la medición queda APAGADA por defecto en cualquier entorno');
 });
 
 test('3 · reintento seguro: volver a aplicar cada migración de Metrics (corte a mitad de camino) no falla ni cambia lo existente', async () => {
@@ -142,11 +158,11 @@ test('3 · reintento seguro: volver a aplicar cada migración de Metrics (corte 
   assert.deepEqual(now.tables, before_.snap.tables);
 });
 
-test('4 · el informe de acceso/copia sigue igual y solo gana `activityDays` (derecho de acceso)', async () => {
+test('4 · el informe de acceso/copia sigue igual y solo gana `activityDays` y `activityConsents` (derecho de acceso)', async () => {
   const after_ = stable((await one(`select public.admin_export_player_data($1) as r`, [pid.a])).r);
   assert.equal(after_.ok, true);
-  assert.deepEqual(after_.activityDays, []);
-  const { activityDays, ...rest } = after_;
+  assert.deepEqual([after_.activityDays, after_.activityConsents], [[], []]);
+  const { activityDays, activityConsents, ...rest } = after_;
   assert.deepEqual(rest, before_.exportA, 'todo lo demás del informe es idéntico');
 });
 
@@ -202,30 +218,32 @@ test('7 · con usuarios reales-like: las 6 secciones y los 55 indicadores del Ex
   }
 });
 
-test('8 · la presencia: un jugador autenticado escribe SOLO su fila; sin sesión no escribe; la fecha la fija el servidor; antes de existir NO hay días reconstruidos', async () => {
+test('8 · la presencia: SIN consentimiento no se registra nada; con consentimiento escribe SOLO la fila propia, desde el consentimiento hacia adelante (nunca antes)', async () => {
   assert.equal(Number((await one(`select count(*) c from public.player_activity_days`)).c), 0, 'recién migrado: cero días de actividad (nada retroactivo)');
-  const asUser = async (key, sql, params = []) => {
-    await db.exec('begin');
-    try {
-      await db.exec(`set local role authenticated`);
-      if (key) await q(`select set_config('request.jwt.claim.sub', $1, true)`, [uid[key]]);
-      return (await db.query(sql, params)).rows[0].r;
-    } finally { await db.exec('rollback'); }
+  const present = async (key, mode = 'standalone') => {
+    await db.exec('savepoint pr'); await db.exec('set local role authenticated');
+    try { await q(`select set_config('request.jwt.claim.sub', $1, true)`, [key ? uid[key] : '']); return (await one(`select public.register_app_presence($1, 'android', '04.37-h31') r`, [mode])).r; }
+    finally { await db.exec('rollback to savepoint pr'); }
   };
-  const r = await asUser(null, `select public.register_app_presence('browser', 'ios', '04.37-h31') r`);
-  assert.deepEqual([r.ok, r.code], [false, 'not_authenticated']);
   await db.exec('begin');
   try {
-    await db.exec(`set local role authenticated`);
+    assert.equal((await present(null)).code, 'not_authenticated');
+    assert.equal((await present('b')).code, 'measurement_disabled', 'medición APAGADA por defecto en el entorno: nadie registra (ni el que aún no decidió)');
+    await db.exec(`update public.app_config set activity_consent_version = 'activity_v1'`);
+    assert.equal((await present('b')).code, 'no_consent', 'medición encendida pero sin decisión: NO se registra');
+    await q(`select public._record_activity_consent($1, 'activity_v1', 'declined', 'prompt', now())`, [pid.c]);
+    assert.equal((await present('c')).code, 'no_consent', 'quien declinó sigue usando la app y NO se registra');
+    await q(`select public._record_activity_consent($1, 'activity_v1', 'granted', 'prompt', now() - interval '1 minute')`, [pid.b]);
+    const ok = await present('b'); assert.deepEqual([ok.ok, ok.recorded], [true, true]);
     await q(`select set_config('request.jwt.claim.sub', $1, true)`, [uid.b]);
-    const ok = (await one(`select public.register_app_presence('standalone', 'android', '04.37-h31') r`)).r;
-    assert.deepEqual([ok.ok, ok.recorded], [true, true]);
-    const again = (await one(`select public.register_app_presence('standalone', 'android', '04.37-h31') r`)).r;
-    assert.deepEqual([again.ok, again.recorded], [true, false], 'idempotente por día y anti-ráfaga');
+    await db.exec('set local role authenticated');
+    assert.deepEqual((await one(`select public.register_app_presence('standalone', 'android', '04.37-h31') r`)).r, { ok: true, recorded: true });
+    assert.deepEqual((await one(`select public.register_app_presence('standalone', 'android', '04.37-h31') r`)).r, { ok: true, recorded: false }, 'idempotente por día y anti-ráfaga');
     await db.exec('reset role');
-    const rows = await q(`select player_id, activity_date = (now() at time zone 'America/Argentina/Buenos_Aires')::date as is_today_ba from public.player_activity_days`);
-    assert.equal(rows.length, 1); assert.equal(rows[0].player_id, pid.b, 'solo la fila de la sesión');
-    assert.equal(rows[0].is_today_ba, true, 'día BA fijado por el servidor');
+    const rows = await q(`select a.player_id, a.activity_date = (now() at time zone 'America/Argentina/Buenos_Aires')::date as is_today_ba,
+                                 a.first_seen_at >= (select decided_at from public.activity_consents where player_id = a.player_id and decision = 'granted') as after_consent from public.player_activity_days a`);
+    assert.equal(rows.length, 1); assert.equal(rows[0].player_id, pid.b, 'solo la fila de la sesión que consintió');
+    assert.deepEqual([rows[0].is_today_ba, rows[0].after_consent], [true, true], 'día BA fijado por el servidor y nunca anterior al consentimiento');
   } finally { await db.exec('rollback'); }
 });
 
@@ -277,6 +295,9 @@ test('11 · RETIRO niveles 2 y 3: el esquema vuelve EXACTAMENTE al de antes de M
   assert.deepEqual(now.policies, before_.snap.policies); assert.deepEqual(now.triggers, before_.snap.triggers); assert.deepEqual(now.indexes, before_.snap.indexes);
   assert.equal(Number((await one(`select count(*) c from pg_class where relnamespace = 'public'::regnamespace and relname = 'player_activity_days'`)).c), 0, 'nivel 3: sin tabla de presencia');
   assert.equal(Number((await one(`select count(*) c from pg_proc where pronamespace = 'public'::regnamespace and proname = 'register_app_presence'`)).c), 0);
+  assert.equal(Number((await one(`select count(*) c from pg_proc where pronamespace = 'public'::regnamespace and proname in ('_activity_consent_status', '_record_activity_consent', 'get_my_activity_consent', 'set_my_activity_consent', 'activity_consents_reject_mutation')`)).c), 0, 'nivel 3: sin funciones de consentimiento');
+  assert.equal(Number((await one(`select count(*) c from pg_class where relnamespace = 'public'::regnamespace and relname = 'activity_consents'`)).c), 0);
+  assert.equal(Number((await one(`select count(*) c from information_schema.columns where table_name = 'app_config' and column_name = 'activity_consent_version'`)).c), 0, 'nivel 3: la columna de app_config también se retira');
   const exp = stable((await one(`select public.admin_export_player_data($1) r`, [pid.a])).r);
   assert.deepEqual(exp, before_.exportA, 'el informe de acceso/copia es idéntico al original');
 });

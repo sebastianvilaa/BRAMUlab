@@ -237,7 +237,7 @@ function runStep1({ checked = true, unavailable = false, configured = true, lega
       signUp: async (...a) => { calls.signUp.push(a); return signUpResult; },
     },
     SIGNUP_STEP1_ERROR_TEXT: { not_configured: 'NC', legal_acceptance_required: 'LAR', legal_version_unavailable: 'LVU', unknown: 'U', email_taken: 'ET' },
-    signupDraft: Object.assign({}, draft), signupStep: 1, signupLegalVersion: null, continueBtn: { disabled: false },
+    signupActivityConsentVersion: null, signupDraft: Object.assign({}, draft), signupStep: 1, signupLegalVersion: null, continueBtn: { disabled: false },
     renderSignupStep() {}, console,
   };
   vm.createContext(sb);
@@ -274,7 +274,8 @@ test('Paso 1 feliz: signUp UNA vez con la versión vigente del servidor; passwor
   const t = runStep1({});
   await t.run();
   assert.equal(t.calls.signUp.length, 1);
-  assert.deepEqual(t.calls.signUp[0], ['Ana@Test.com', 'Clave123!', 'legal_v1']);
+  // 4.º argumento: elección de medición de actividad (null = no se ofreció la casilla; V04.38). La aceptación legal sigue siendo el 3.º y obligatoria.
+  assert.deepEqual(t.calls.signUp[0], ['Ana@Test.com', 'Clave123!', 'legal_v1', null]);
   assert.equal(t.els['#signup-password'].value, '', 'password fuera del DOM');
   assert.equal(t.els['#signup-password-repeat'].value, '');
   assert.equal(t.sb.signupStep, 2);

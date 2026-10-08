@@ -360,7 +360,7 @@
     // siguen acá — las usa la carga de partido propio ya jugado.
     ['analysis', 'history', 'manual-load', 'player-home', 'ranking', 'profile', 'companions',
       'access', 'login', 'signup', 'player-card', 'edit-data', 'complete-access', 'change-password', 'forgot-password', 'notifications',
-      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate', 'account-flow', 'account-deleted',
+      'player-search', 'player-public', 'groups-lobby', 'groups', 'group-settings', 'legal-gate', 'activity-consent', 'account-flow', 'account-deleted',
       // V04.37 — detalle histórico de Actividad (abierto desde la tarjeta ACTIVIDAD del Home).
       'activity',
       // G2 — Configuración y pantallas intermedias (sin bottom nav)
@@ -7127,6 +7127,23 @@
     if (!Auth.isConfigured()) return;
     const r = await Auth.getCurrentLegalVersion();
     signupLegalVersion = r.ok ? r.legalVersion : null;
+    prefetchSignupActivityConsent();
+  }
+
+  /** BRAMU Metrics — ofrece la casilla OPCIONAL de medición solo si el servidor tiene una versión vigente (sin ella no se muestra nada). Un fallo
+   *  de lectura NO bloquea el alta: sin casilla visible no se manda ninguna decisión y el jugador verá la pantalla de decisión más adelante. */
+  let signupActivityConsentVersion = null;
+  async function prefetchSignupActivityConsent() {
+    signupActivityConsentVersion = null;
+    const field = $('#signup-activity-consent-field');
+    if (field) field.hidden = true;
+    if (!Auth.isConfigured() || !field) return;
+    const cfg = await Auth.getActivityConsentConfig();
+    if (cfg.ok && cfg.version) {
+      signupActivityConsentVersion = cfg.version;
+      $('#signup-activity-checkbox').checked = false; // nunca marcada de antemano
+      field.hidden = false;
+    }
   }
 
   function renderSignupStep() {
@@ -7476,7 +7493,10 @@
           return;
         }
         signupLegalVersion = legal.legalVersion;
-        const result = await Auth.signUp(email, $('#signup-password').value, legal.legalVersion);
+        // BRAMU Metrics — decisión opcional de medición, tomada en este mismo paso (solo si la casilla se ofreció): marcada = granted; sin marcar = declined.
+        const activityChoice = signupActivityConsentVersion && !$('#signup-activity-consent-field').hidden
+          ? { version: signupActivityConsentVersion, granted: $('#signup-activity-checkbox').checked } : null;
+        const result = await Auth.signUp(email, $('#signup-password').value, legal.legalVersion, activityChoice);
         continueBtn.disabled = false;
         if (!result.ok) {
           step1Error.textContent = SIGNUP_STEP1_ERROR_TEXT[result.reason] || SIGNUP_STEP1_ERROR_TEXT.unknown;
@@ -8567,20 +8587,23 @@
     $('#settings-access-pending-note').hidden = hasAccess;
     $('#settings-delete-row').hidden = !settingsServerAccess();
     showView('settings');
+    refreshSettingsActivityRow();
   }
 
-  function openLegalDoc(doc, origin) {
+  function openLegalDoc(doc, origin, hash) {
     const d = LEGAL_DOCS[doc];
     if (!d) return;
     legalDocOrigin = origin || 'settings';
     $('#legal-doc-title').textContent = d.title;
-    $('#legal-doc-frame').src = d.path;
+    // ancla opcional dentro del documento (p. ej. la sección de actividad básica de uso); solo [a-z0-9-]
+    $('#legal-doc-frame').src = d.path + (hash && /^[a-z0-9-]{1,40}$/.test(hash) ? `#${hash}` : '');
     showView('legal-doc');
   }
 
   function closeLegalDoc() {
     $('#legal-doc-frame').src = 'about:blank';
     if (legalDocOrigin === 'legal-gate') showView('legal-gate');
+    else if (legalDocOrigin === 'activity-consent') showView('activity-consent');
     else if (legalDocOrigin === 'signup') showView('signup');
     else openSettings();
   }
@@ -8604,6 +8627,11 @@
     $('#settings-email-row').addEventListener('click', openSettingsEmail);
     $('#settings-password-row').addEventListener('click', openChangePasswordScreen);
     $('#settings-copy-row').addEventListener('click', () => showView('settings-copy'));
+    $('#settings-activity-row').addEventListener('click', () => {
+      const row = $('#settings-activity-row');
+      if (!row.dataset.version) return;
+      openActivityConsent({ version: row.dataset.version, origin: 'settings' }, row.dataset.status);
+    });
     $('#settings-terms-row').addEventListener('click', () => openLegalDoc('terminos', 'settings'));
     $('#settings-privacy-row').addEventListener('click', () => openLegalDoc('privacidad', 'settings'));
     $('#settings-contact-row').addEventListener('click', () => showView('settings-contact'));
@@ -8625,7 +8653,7 @@
     // Links a Términos/Política en aceptación legal y alta: abren dentro del shell y vuelven a la vista de origen.
     $all('a[data-legal-doc]').forEach((a) => a.addEventListener('click', (e) => {
       e.preventDefault();
-      openLegalDoc(a.dataset.legalDoc, a.dataset.legalOrigin);
+      openLegalDoc(a.dataset.legalDoc, a.dataset.legalOrigin, a.dataset.legalHash);
     }));
   }
 
@@ -8721,6 +8749,100 @@
       if (next) await next(); else bootDefaultScreen();
     });
     $('#legal-gate-logout-btn').addEventListener('click', doLogout);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* BRAMU Metrics — CONSENTIMIENTO para medir actividad básica de uso     */
+  /* Reutiliza la mecánica legal: el SERVIDOR decide (versión vigente en    */
+  /* app_config, decisión append-only con set_my_activity_consent).         */
+  /* ESPECÍFICO y OPCIONAL: ninguna de las dos opciones bloquea la app;     */
+  /* quien no acepta sigue usando BRAMUlab y NO se registra su actividad    */
+  /* (el servidor además lo exige). Una lectura fallida nunca bloquea.      */
+  /* ------------------------------------------------------------------ */
+  let activityConsentCtx = null; // { version, origin: 'prompt' | 'settings', onDone }
+
+  const ACTIVITY_STATUS_LABEL = { granted: 'Activada', declined: 'Desactivada', unset: 'Sin decidir' };
+
+  /** `true` si se abrió la pantalla de decisión (el llamador debe detenerse: `onDecided` continúa el flujo). Con la medición apagada, ilegible o ya
+   *  decidida no se pregunta nada; con «granted» se registra la apertura del día (best-effort, nunca bloquea). */
+  async function resolveActivityConsent(onDecided) {
+    if (!Auth.isConfigured()) return false;
+    const st = await Auth.getMyActivityConsent();
+    if (!st.ok || !st.enabled) return false;
+    if (st.status === 'granted') { Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION }); return false; }
+    if (st.status === 'unset') { openActivityConsent({ version: st.version, origin: 'prompt', onDone: onDecided }); return true; }
+    return false; // declined: ya decidió, no se vuelve a preguntar
+  }
+
+  function openActivityConsent(ctx, currentStatus) {
+    activityConsentCtx = ctx;
+    const fromSettings = ctx.origin === 'settings';
+    $('#activity-consent-header').hidden = !fromSettings;
+    $('#activity-consent-scroll').classList.toggle('access-scroll--under-header', fromSettings);
+    $('#activity-consent-title').textContent = fromSettings ? 'Medición de uso' : 'Ayudanos a mejorar BRAMUlab';
+    const cur = $('#activity-consent-current');
+    cur.hidden = !fromSettings;
+    if (fromSettings) cur.textContent = `Hoy: ${(ACTIVITY_STATUS_LABEL[currentStatus] || 'Sin decidir').toLowerCase()}.`;
+    $('#activity-consent-accept-btn').textContent = fromSettings ? 'ACTIVAR' : 'ACEPTAR';
+    $('#activity-consent-decline-btn').textContent = fromSettings ? 'DESACTIVAR' : 'NO, GRACIAS';
+    $('#activity-consent-accept-btn').disabled = false;
+    $('#activity-consent-decline-btn').disabled = false;
+    $('#activity-consent-error').hidden = true;
+    $('#activity-consent-later-btn').hidden = true;
+    showView('activity-consent');
+  }
+
+  async function decideActivityConsent(granted) {
+    const ctx = activityConsentCtx;
+    if (!ctx) return;
+    $('#activity-consent-accept-btn').disabled = true;
+    $('#activity-consent-decline-btn').disabled = true;
+    const r = await Auth.setMyActivityConsent(ctx.version, granted, ctx.origin);
+    if (!r.ok) {
+      const stale = /not_current|measurement_disabled/.test(String(r.code || ''));
+      $('#activity-consent-error').textContent = stale
+        ? 'El texto se actualizó mientras tanto. Volvé a abrir esta pantalla para decidir.'
+        : 'No pudimos guardar tu elección. Probá de nuevo.';
+      $('#activity-consent-error').hidden = false;
+      $('#activity-consent-accept-btn').disabled = stale;
+      $('#activity-consent-decline-btn').disabled = stale;
+      $('#activity-consent-later-btn').hidden = false; // nunca queda atrapada: puede seguir y decidir en otro momento
+      return;
+    }
+    activityConsentCtx = null;
+    if (ctx.origin === 'settings') {
+      showToast(granted ? 'Medición activada.' : 'Medición desactivada. Eliminamos tu actividad registrada.', 3200);
+      openSettings();
+      return;
+    }
+    if (granted) Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION });
+    const next = ctx.onDone;
+    if (next) await next(); else bootDefaultScreen();
+  }
+
+  function initActivityConsent() {
+    $('#activity-consent-accept-btn').addEventListener('click', () => decideActivityConsent(true));
+    $('#activity-consent-decline-btn').addEventListener('click', () => decideActivityConsent(false));
+    $('#activity-consent-back-btn').addEventListener('click', () => { activityConsentCtx = null; openSettings(); });
+    $('#activity-consent-later-btn').addEventListener('click', async () => {
+      const ctx = activityConsentCtx; activityConsentCtx = null;
+      if (ctx && ctx.origin === 'settings') { openSettings(); return; }
+      if (ctx && ctx.onDone) await ctx.onDone({ skipActivityConsent: true }); else bootDefaultScreen();
+    });
+  }
+
+  /** Fila «Medición de uso» de Configuración: solo con sesión real y medición vigente en el servidor. */
+  async function refreshSettingsActivityRow() {
+    const row = $('#settings-activity-row');
+    if (!row) return;
+    row.hidden = true;
+    if (!settingsServerAccess()) return;
+    const st = await Auth.getMyActivityConsent();
+    if (!st.ok || !st.enabled) return;
+    $('#settings-activity-value').textContent = ACTIVITY_STATUS_LABEL[st.status] || 'Sin decidir';
+    row.dataset.version = st.version || '';
+    row.dataset.status = st.status;
+    row.hidden = false;
   }
 
   /** Laboratorio integrado — hotfix de "sesión fantasma" (25/09/2026, revisión central):
@@ -15390,8 +15512,6 @@
     Store.cacheServerUser(serverUser);
     syncServerLevelState(serverUser);
     syncCurrentIdentityFromStore();
-    // BRAMU Metrics F1 — presencia diaria: sesión real confirmada (best-effort, nunca bloquea).
-    Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION });
     const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
     if (!onboardingDone) {
       resumeSignupProfileStep(serverUser);
@@ -15402,6 +15522,8 @@
     // L1 (V04.19) — base de reaceptación: versión legal vigente distinta de la última aceptada (o cuenta
     // histórica sin aceptación registrada) => pantalla bloqueante antes de Home/acciones privadas.
     if (await enforceLegalGate(() => resumeServerSession(options))) return;
+    // BRAMU Metrics — medición de actividad SOLO con consentimiento (después de la aceptación legal; nunca durante el alta). Pregunta una vez; no bloquea.
+    if (!options.skipActivityConsent && await resolveActivityConsent((o) => resumeServerSession({ ...options, ...(o || {}) }))) return;
     // Backend Bloque 5 — reintento de outbox en segundo plano (nunca bloquea la navegación):
     // cubre tanto "recién logueado" como "recarga con sesión ya persistida" (ambos casos pasan
     // por acá), que es exactamente cuándo hace falta reconciliar cargas sync_pending que hayan
@@ -16117,6 +16239,7 @@
     initInstallPrompt();
     initLoginScreen();
     initLegalGate();
+    initActivityConsent();
     initAccountFlow();
     initForgotPasswordScreen();
     initSignupWizard();

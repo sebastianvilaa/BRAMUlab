@@ -15,6 +15,8 @@ before(async () => {
   const r2 = await replay({ acl: 'open' });
   assert.ok(r2.ok, 'el replay con ACL abierto debe aplicar todas las migraciones');
   dbOpen = r2.db;
+  // La medición está APAGADA por defecto (app_config.activity_consent_version = NULL): estas pruebas la encienden y dan consentimiento a cada jugador.
+  for (const d of [db, dbOpen]) await d.exec(`insert into public.app_config (id, environment, activity_consent_version) values (1, 'staging', 'activity_v1')`);
 });
 after(async () => { if (db) await db.close(); if (dbOpen) await dbOpen.close(); });
 
@@ -26,10 +28,11 @@ const scenario = (name, fn) => test(name, async () => {
   try { await fn(); } finally { await db.exec('rollback'); }
 });
 
-async function mkUser(key) {
+async function mkUser(key, opts = {}) {
   const uid = crypto.randomUUID();
   await q(`insert into auth.users (id, email, email_confirmed_at) values ($1, $2, now())`, [uid, `${key}_${uid.slice(0, 6)}@example.test`]);
   const pid = (await one(`select player_id from public.players where auth_user_id = $1`, [uid])).player_id;
+  if (opts.consent !== false) await q(`select public._record_activity_consent($1, 'activity_v1', 'granted', 'prompt', now() - interval '1 minute')`, [pid]);
   return { uid, pid };
 }
 const record = async (u, mode = 'browser', platform = 'ios', bundle = '04.37-h28') => {

@@ -286,11 +286,11 @@ test('Vercel/robots: headers noindex + no-store + no-referrer para /admin/*; rob
   assert.match(env, /envName === 'production' \? 'User-agent: \*\\nDisallow: \/admin\/\\nAllow: \/\\n' : 'User-agent: \*\\nDisallow: \/\\n'/);
 });
 
-test('versionado: h31 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
-  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h31');
-  assert.equal(JSON.parse(read('version.json')).version, 'BRAMUlab V04.37');
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h31'/);
-  assert.match(read('sw.js'), /bramulab-v04-37-h31/);
+test('versionado: V04.38-h1 sincronizado (ronda visible: consentimiento de medición); la app no enlaza a la consola', () => {
+  assert.equal(JSON.parse(read('version.json')).bundle, '04.38-h1');
+  assert.equal(JSON.parse(read('version.json')).version, 'BRAMUlab V04.38');
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.38-h1'/);
+  assert.match(read('sw.js'), /bramulab-v04-38-h1/);
   for (const f of ['index.html', 'app.js', 'player-home.js', 'groups.js']) assert.ok(!/admin\/metrics/.test(read(f)), `${f} no enlaza a la consola`);
 });
 

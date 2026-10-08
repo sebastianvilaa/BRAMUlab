@@ -393,86 +393,49 @@ Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo
 
 ---
 
-## 18. Actividad básica de uso (BRAMU Metrics) — análisis y textos para revisión, SIN publicar
+## 18. Actividad básica de uso (BRAMU Metrics) — consentimiento informado, textos para revisión, SIN publicar
 
-**Estado (09/10/2026):** `privacidad/`, `terminos/` y `eliminar-cuenta/` **no se tocaron** (siguen en `legal_v1`, vigencia 07/10/2026). Production **todavía no captura** actividad. Esta sección fija lo confirmado, el análisis de si basta una aclaración, los textos listos para revisión y lo que falta verificar ante la AAIP. No es asesoramiento jurídico: la conclusión sobre «aclaración vs. nueva aceptación» **queda abierta** (§18.2).
+**Estado (09/10/2026):** `privacidad/`, `terminos/` y `eliminar-cuenta/` **no se tocaron** (siguen en `legal_v1`, vigencia 07/10/2026). Production **no captura** actividad. La solución de consentimiento (V04.38 / `04.38-h1`) está **implementada y probada solo en Staging** (migración `20261008150000`, pendiente de aplicar por Central). Esta sección fija la decisión, el diseño, los textos para revisión y lo que falta. No es asesoramiento jurídico.
 
 ### 18.1 Decisiones CONFIRMADAS por Sebastián
 1. Metrics registra **únicamente actividad básica** para mejorar BRAMUlab, **sin seguimiento individual ni publicidad**.
-2. La medición se explica con claridad en la Política de privacidad.
-3. Se prefiere **evitar una nueva aceptación** de todos los jugadores **solo si la revisión legal confirma que es adecuado**. No se asume.
-4. Al eliminar una cuenta se **elimina** su actividad (no se conserva seudonimizada: verificado que no se puede garantizar el anonimato; migración `20261008140000`, ya aplicada y verificada por Central en Staging).
-5. La **única** cuenta administradora de Production es la cuenta real y habitual **`@seba`** (identidad ya comprobada por Central).
+2. **(09/10/2026, reemplaza la preferencia de «evitar una nueva aceptación»)** Se actualiza la Política de privacidad y se solicita una **aceptación informada** del registro de actividad: usuarios ya registrados → **una única pantalla breve** integrada en BRAMUlab; usuarios nuevos → la información y la aceptación **dentro del registro habitual**, sin segunda pantalla; **no se registra ninguna apertura antes del consentimiento**; quien no consiente **no se mide** y usa BRAMUlab igual; se **conserva evidencia** de la aceptación; **no se reconstruyen** aperturas previas.
+3. Al eliminar una cuenta se **elimina** su actividad (migración `20261008140000`, ya aplicada y verificada por Central en Staging). La **evidencia del consentimiento** se conserva (como `legal_acceptances`).
+4. La **única** cuenta administradora de Production es la cuenta real y habitual **`@seba`**.
 
-### 18.2 ¿Aclaración o cambio material? — **NO CONFIRMADO** (incertidumbre legal identificada)
-**Hechos verificados (repositorio, 09/10):**
-- *Qué dice el texto vigente:* Política §2 «Datos técnicos»: «contadores anti-abuso y un conjunto mínimo de eventos internos de producto…». Política §3 (finalidades): crear/proteger la cuenta, identificar, registrar y compartir partidos, calcular Nivel/Ranking, generar Intelligence, prevenir abuso y dar soporte — **no menciona medir el uso para mejorar el producto**.
-- *Qué existía en la práctica:* los únicos «eventos internos» persistidos antes de Metrics son `signup_completed`, `level_confirmed` y `account_deleted` (eventos de cuenta). **No existía ningún registro de uso/apertura.** La actividad diaria es un dato nuevo, no la descripción de algo que ya se hacía.
-- *Qué prometen los Términos (§13) y la Política (§9):* «Si un cambio es **material para tus derechos, tu privacidad** o las condiciones esenciales, te lo informaremos y te pediremos aceptar de nuevo… Las **correcciones editoriales que no cambian el sentido** no requieren una nueva aceptación.» **No existe una tercera categoría** («cambio informativo sin aceptación»).
-- *Cómo se prueba lo aceptado:* `legal_acceptances` guarda **versión + fecha** (no el texto; decisión de minimización). Mecanismo de reaceptación ya construido y probado: si `app_config.legal_version` ≠ última aceptada, pantalla bloqueante antes de Home.
-- *Marco legal (Ley 25.326, texto original; verificar vigente):* art. 4.1 datos adecuados y no excesivos; **art. 4.3** no usar los datos para finalidades distintas o incompatibles con las que motivaron su obtención; **art. 5.1** consentimiento libre, expreso e informado (**5.2.d**: no se exige cuando los datos derivan de una relación contractual y son **necesarios para su desarrollo o cumplimiento**); **art. 6** informar **previamente**, en forma expresa y clara, finalidad, destinatarios, existencia del archivo y responsable, carácter facultativo u obligatorio, consecuencias y derechos de acceso/rectificación/supresión; **art. 21.3** (versión original) no poseer datos de naturaleza distinta de la declarada en el registro.
+### 18.2 Por qué consentimiento y no «aclaración» (hechos verificados)
+El texto vigente (Política §2 «eventos internos de producto», §3 finalidades) no menciona medir el uso; antes de Metrics solo se persistían eventos de cuenta (`signup_completed`, `level_confirmed`, `account_deleted`), **no existía registro de uso**; Términos §13 solo prevé «correcciones editoriales» (sin nueva aceptación) o «cambio material» (nueva aceptación). Hay dato nuevo y finalidad nueva (Ley 25.326 art. 4.3, 5.1, 6: información previa, expresa y clara). El consentimiento específico, opcional y revocable resuelve la incertidumbre sin afirmar que el texto vigente ya cubría el tratamiento.
 
-**Criterios de materialidad (según el propio texto de BRAMUlab):**
-| Criterio | Resultado | Lectura |
-|---|---|---|
-| ¿Nueva categoría de dato personal? | **Sí** (actividad diaria asociada a la cuenta) | Empuja a «material» |
-| ¿Nueva finalidad? | **Sí** (medir uso para mejorar el producto; no figura en §3) | Empuja a «material» (art. 4.3) |
-| ¿Nuevos destinatarios, transferencias o proveedores? | No (mismo Supabase São Paulo; sin terceros de analítica) | Empuja a «aclaración» |
-| ¿Dato sensible, contenido, ubicación, IP, pantallas? | No | Empuja a «aclaración» |
-| ¿Más intrusivo para el usuario? | Bajo: automático, mínimo, sin perfil individual, se elimina con la cuenta | Empuja a «aclaración» |
-| ¿Hay forma de oponerse sin eliminar la cuenta? | **No** (no existe interruptor) | Punto a revisar |
-| ¿Cambia derechos/obligaciones? | No; **sí** agrega un dato al informe de acceso | Neutro |
+### 18.3 Diseño implementado (reutiliza el sistema legal existente)
+- **Mismo patrón que `legal_versions`/`legal_acceptances`**, pero **específico y opcional**: versión vigente en `app_config.activity_consent_version` (**NULL = medición apagada**; la fija Central **solo después de publicar la Política**) y tabla append-only `activity_consents` (jugador, versión, `granted|declined`, origen `signup|prompt|settings`, versión legal vigente, fecha; sin texto). Aceptación legal obligatoria (`legal_v1`) y consentimiento de medición **no se mezclan**: rechazar la medición no bloquea nada.
+- **El servidor decide.** `register_app_presence` no escribe sin `granted` vigente (`measurement_disabled` / `no_consent`); el cliente tampoco llama sin estado confirmado. **Declinar o retirar elimina** la actividad ya registrada. No hay reconstrucción: la actividad previa nunca existió y una purga idempotente elimina cualquier fila capturada sin consentimiento válido.
+- **Usuarios nuevos:** casilla **opcional, desmarcada**, en el paso 1 del alta, junto a la aceptación legal; viaja como metadata y `handle_email_confirmed` registra la evidencia al confirmar el email (solo si la versión coincide con la vigente). Sin segunda pantalla.
+- **Usuarios existentes:** una pantalla («Ayudanos a mejorar BRAMUlab», ACEPTAR / NO, GRACIAS) tras el gate legal, solo si el estado es «sin decidir»; quien decide no es consultado de nuevo. Si falla la lectura o el guardado no queda atrapado (salida «Decidir más tarde»; sin consentimiento no se mide).
+- **Cambiar de opinión:** Configuración → «Medición de uso» (ACTIVAR / DESACTIVAR).
+- **Metrics:** la consola muestra cuántas cuentas consienten (con k=5) y la retención solo cuenta cohortes que consintieron desde el día de alta. DAU/WAU/MAU son **de quienes consintieron**: subestiman la actividad total (se declara en la consola).
+- **Informe de datos del jugador** (`admin_export_player_data`) incluye `activityConsents`.
 
-**Conclusión de esta revisión técnica:** el cambio **no es** una «corrección editorial que no cambia el sentido» (agrega un dato y una finalidad). Solo podría tratarse como aclaración si la verificación interna concluye que el texto vigente («eventos internos de producto») ya cubría este tratamiento —lo que choca con que antes no existía ningún registro de uso— o que la medición cae en la excepción del art. 5.2.d (que parece forzada: la medición para mejorar el producto no es estrictamente necesaria para prestar el servicio). **No puedo confirmar que sea adecuado omitir la nueva aceptación; con los hechos de arriba el riesgo de que se la considere material no es trivial.** Esa decisión corresponde a la verificación interna de Central (§13) y a Sebastián; si no se puede confirmar, rige la regla confirmada: **no asumirla**.
+### 18.4 Textos definitivos para revisión (NO publicados)
+**Pantalla de decisión (usuarios existentes):** título «Ayudanos a mejorar BRAMUlab»; «¿Nos dejás registrar tu **actividad básica de uso**?»; *Qué registramos:* el día en que abrís la app, si la usás desde el navegador o instalada, el tipo de dispositivo y la versión; sin IP, ubicación ni pantallas que visitás. *Para qué:* solo conteos agregados para mejorar BRAMUlab; sin publicidad ni seguimiento individual. *Es opcional:* si no aceptás, usás BRAMUlab igual; podés cambiarlo en Configuración y, si lo retirás, eliminamos tu actividad registrada. Enlace a la Política (`#actividad-de-uso`).
+**Casilla del alta (opcional, desmarcada):** «Opcional: acepto que BRAMUlab registre mi actividad básica de uso (qué día abro la app y desde qué tipo de dispositivo) para mejorarla, sin publicidad. Puedo cambiarlo cuando quiera. Más información».
 
-**Opciones (sin recomendar saltear el análisis):**
-- **A — Aclaración sin nueva aceptación.** Solo si la verificación interna concluye por escrito que es adecuado. Se publica el texto (§18.3) con nueva fecha de vigencia, **manteniendo `legal_v1`** y agregando «Historial de cambios» fechado (la prueba de qué texto estaba vigente al aceptar sale de `accepted_at` + ese historial + Git). Riesgos: contradice la lectura literal de Términos §13 si luego se la considera material; evidencia menos nítida (dos textos bajo un mismo id).
-- **B — `legal_v2` con nueva aceptación.** Es la opción **sin ambigüedad** y hoy es **barata**: con ≈ 6 cuentas reales la pantalla de reaceptación ya construida se muestra una vez a cada una; cuantos más usuarios haya, más costosa. Implica: insertar `legal_v2` en `legal_versions`, `app_config.legal_version = 'legal_v2'`, publicar las 3 páginas con `legal_v2`, y actualizar las pruebas que fijan `legal_v1`. La captura de actividad puede empezar recién cuando los usuarios acepten (o aceptando que la actividad de quien aún no aceptó se registra sin esa aceptación: decisión de la verificación interna).
-- **C — Reducir el alcance** (solo si ni A está confirmada ni B es aceptable): contar aperturas **sin identidad** (agregados por día/plataforma/versión). Elimina la cuestión de dato personal pero **pierde** usuarios activos distintos (DAU/WAU/MAU) y retención: implica rediseñar F1 (**función nueva**, fuera del alcance actual).
-- **En cualquiera:** el texto debe estar **publicado antes** de que empiece la captura (art. 6: información *previa*).
+**Política de privacidad** (nueva vigencia; ancla `id="actividad-de-uso"` para el enlace):
+- **§2 «Datos técnicos»** — agregar: «**Actividad básica de uso (solo si lo aceptás).** Si aceptás, cada día en que abrís BRAMUlab con tu cuenta registramos, asociada a tu cuenta, la fecha (hora de Buenos Aires), si la usaste desde el navegador o como app instalada, una clasificación general del dispositivo (iPhone/iPad, Android, computadora u otro), la versión de la app y cuántas veces la abriste ese día. No incluye tu dirección IP, tu ubicación, el modelo de tu dispositivo, las pantallas que visitás ni el contenido de lo que cargás. Si no aceptás, no registramos esta actividad.»
+- **§3 «Para qué los usamos»** — agregar: «**Medición de uso (solo con tu consentimiento).** Con la actividad básica de uso calculamos conteos agregados —por ejemplo, cuántas personas abrieron BRAMUlab en una semana o cuántas siguen usándola— para entender cómo se usa el servicio y decidir qué mejorar. No la usamos para publicidad, no la vendemos ni la compartimos con terceros para sus propios fines, y no hacemos seguimiento individual de personas: no elaboramos fichas, listados ni rankings de uso por persona.»
+- **§6 «Conservación y eliminación»** — agregar: «Tu actividad básica de uso se conserva mientras tu cuenta esté activa y el consentimiento vigente, y **se elimina** si retirás el consentimiento o eliminás la cuenta: no la conservamos anonimizada ni seudonimizada. Conservamos la constancia de tu decisión (versión, fecha y si aceptaste o no) como prueba, igual que la de tu aceptación de estos documentos.»
+- **§7 «Tus derechos»** — *Acceso y copia*: «El informe incluye tus días de actividad y tus decisiones de consentimiento.» *Supresión*: «incluye tu actividad». Agregar *Retirar el consentimiento*: «En Configuración → Medición de uso, en cualquier momento; no afecta el uso de BRAMUlab.»
+- **Fecha de vigencia + «Historial de cambios»:** «<dd> de <mes> de 2026 — Se describe la medición de actividad básica de uso, opcional y con tu consentimiento (§2, §3, §6 y §7). Sin cambios en proveedores ni destinos.»
 
-**Preguntas concretas para la verificación interna (Central, §13)** — responder por escrito:
-1. ¿«Eventos internos de producto» (§2) cubría un registro diario de apertura asociado a la cuenta? ¿Con qué fundamento, dado que antes solo existían eventos de cuenta?
-2. ¿La mejora del producto es una finalidad compatible con las del §3 (art. 4.3) o una finalidad nueva a informar?
-3. ¿Aplica el art. 5.2.d (necesidad para la relación) o se requiere consentimiento expreso para este dato? ¿Alcanza el consentimiento ya prestado al aceptar la Política vigente?
-4. ¿La ausencia de un mecanismo de oposición específico es aceptable para un dato mínimo, agregado y eliminado con la cuenta?
-5. ¿Requiere el cambio una modificación del registro ante la AAIP **antes** de empezar a capturar (§18.4)?
+**`eliminar-cuenta/index.html`** — viñeta de datos eliminados: «…; **tu registro de actividad básica de uso**; …» y nota: «Conservamos únicamente la constancia técnica de tu decisión de consentimiento (sin datos de actividad).»
 
-### 18.3 Textos definitivos para revisión (NO publicados)
-*Redacción para la Política de privacidad; igual para A y B. Va junto con la fecha de vigencia nueva y, en A, el «Historial de cambios».*
+**Términos y Condiciones:** sin cambios de contenido (la medición se explica en la Política). **Versión legal:** la Política cambia de texto pero **no se exige reaceptar `legal_v1`**: la aceptación específica se pide por el consentimiento nuevo. **Esto es un punto de verificación interna (§18.6, p. 1).**
 
-**§2 «Datos técnicos»** — reemplazar por:
-> Contadores anti-abuso y un conjunto mínimo de eventos internos de producto, sin contraseñas, tokens ni contenido de notas.
-> **Actividad básica de uso.** Cada día en que abrís BRAMUlab con tu cuenta registramos, asociada a tu cuenta, la fecha (hora de Buenos Aires), si la usaste desde el navegador o como app instalada, una clasificación general del dispositivo (iPhone/iPad, Android, computadora u otro), la versión de la app y cuántas veces la abriste ese día. Este registro no incluye tu dirección IP, tu ubicación, el modelo de tu dispositivo, las pantallas que visitás ni el contenido de lo que cargás. Se registra automáticamente mientras usás la app con tu cuenta.
+**Cuidado de redacción:** «no hacemos seguimiento individual…» es un compromiso de uso (verdadero), no «es imposible consultar la actividad de una persona»: Central con acceso a la base podría. Tampoco se afirma que el consentimiento sea condición del servicio (no lo es).
 
-**§3 «Para qué los usamos»** — agregar al final:
-> **Medición de uso.** Con la actividad básica de uso calculamos conteos agregados —por ejemplo, cuántas personas abrieron BRAMUlab en una semana o cuántas siguen usándola— para entender cómo se usa el servicio y decidir qué mejorar. No usamos esta información para publicidad, no la vendemos ni la compartimos con terceros para sus propios fines, y no hacemos seguimiento individual de personas: no elaboramos fichas, listados ni rankings de uso por persona.
+### 18.5 AAIP/RNBDP — qué falta verificar (expediente `EX-2026-97673851-APN-DNDPD#AAIP`, estado Iniciación) — **PENDIENTE EXPLÍCITO**
+**Hecho (fuentes oficiales de la AAIP, consultadas 09/10):** la inscripción no vence; «deben mantener actualizada la información declarada»; modificar es gratuito y se hace por TAD con el número de registro; sin plazo fijado. Ley 25.326 art. 21.2: el registro incluye características y finalidad, **naturaleza de los datos**, destinatarios, medidas de seguridad y **tiempo de conservación**; art. 21.3 original: no poseer datos de naturaleza distinta de la declarada.
+**La constancia es privada y no pude verificar su contenido.** Abrirla y comprobar: (1) ¿figuran datos de uso/actividad/navegación?; (2) ¿la finalidad alcanza «medir el uso para mejorar el servicio»?; (3) conservación coherente («mientras la cuenta esté activa y el consentimiento vigente; se elimina con ella»); (4) transferencias/destinatarios (Brasil/Supabase, EE. UU./Vercel y Google) sin cambios; (5) medidas de seguridad; (6) procedimiento: con el expediente en Iniciación, consultar a la AAIP si corresponde corregir en el trámite o modificar la inscripción luego. **No inventar el procedimiento.** Si faltan categorías o finalidades, ajustar **antes de empezar a capturar** (acción de Sebastián/Central, clave fiscal).
 
-**§6 «Conservación y eliminación»** — agregar:
-> Tu actividad básica de uso se conserva mientras tu cuenta esté activa y **se elimina junto con ella**: no la conservamos anonimizada ni seudonimizada.
-
-**§7 «Tus derechos»** — en *Acceso y copia* agregar «El informe incluye tus días de actividad.»; en *Supresión* agregar «incluye tu actividad».
-
-**Historial de cambios** (solo opción A; al final de la Política): «<dd> de <mes> de 2026 — Se describe el registro de actividad básica de uso (§2, §3, §6 y §7). Sin cambios en proveedores ni destinos.»
-
-**`eliminar-cuenta/index.html`** — en «Qué pasa cuando eliminás tu cuenta», viñeta de datos eliminados: «Se eliminan o anonimizan tus datos personales: nombre, @usuario, foto, fecha de nacimiento, género, mano/lado, rama, localidad, teléfono y categoría; **tu registro de actividad básica de uso**; también tus notas privadas, notificaciones, listas personales y las observaciones de Intelligence asociadas a tus partidos.»
-
-**Términos y Condiciones:** sin cambios de contenido (la medición se explica en la Política). En B solo cambian la versión y la vigencia. **Pantalla de reaceptación y textos dentro de la app:** sin cambios necesarios (genéricos y ya correctos: «se eliminan o anonimizan tus datos personales…»).
-
-**Cuidado de redacción (para no prometer de más):** el texto dice «no hacemos seguimiento individual… no elaboramos fichas, listados ni rankings por persona» (compromiso de uso, verdadero), **no** «es imposible consultar la actividad de una persona»: Central/administración con acceso a la base técnicamente podría. Tampoco se afirma que haya interruptor de oposición.
-
-### 18.4 AAIP/RNBDP — qué falta verificar (expediente `EX-2026-97673851-APN-DNDPD#AAIP`, estado Iniciación)
-**Hecho (fuentes oficiales de la AAIP, consultadas 09/10):** la inscripción no vence; «deben mantener actualizada la información declarada» y el incumplimiento «puede ocasionar sanciones»; modificar es gratuito y se hace por TAD («Modificación de Datos Registro de Bases de Datos Privadas») con el número de registro de la base. No fijan un plazo. La Ley 25.326 (art. 21.2) exige que el registro incluya características y finalidad, **naturaleza de los datos**, destinatarios, medidas de seguridad y **tiempo de conservación**; el art. 21.3 original veda poseer datos de naturaleza distinta de la declarada.
-**No pude verificar el contenido de lo presentado (la constancia es privada).** Abrir la constancia/expediente presentado el 07/10 y comprobar:
-1. **Tipos o categorías de datos declarados:** ¿figuran datos de uso/actividad/navegación, o solo identificación, perfil, deportivos y de contacto?
-2. **Finalidades declaradas:** ¿alcanzan «medir el uso para mejorar el servicio» o solo prestación del servicio, seguridad y soporte?
-3. **Conservación declarada:** coherente con «mientras la cuenta esté activa; se elimina con ella».
-4. **Transferencias y destinatarios:** Brasil (Supabase) y Estados Unidos (Vercel, Google) ya declarados; sin cambios.
-5. **Medidas de seguridad:** coherentes con acceso restringido y agregación.
-6. **Procedimiento:** al estar el expediente en Iniciación, consultar a la AAIP si corresponde **corregir dentro del expediente en trámite** o modificar la inscripción una vez asignado el número. No inventar el procedimiento.
-**Si faltan categorías o finalidades:** ajustar el registro **antes de empezar a capturar** (el art. 21.3 y el deber de mantener actualizado el registro lo aconsejan). Es una acción de Sebastián/Central (clave fiscal), no de desarrollo.
-
-### 18.5 Orden de publicación
-1. Verificación interna (§18.2) y verificación de la constancia AAIP (§18.4) **→ decisión A o B**.
-2. Publicar el texto de §18.3 (3 páginas; en B, además `legal_v2` + `app_config`) **antes o en la misma ventana** que la promoción de Metrics, nunca después.
-3. Recién entonces el procedimiento de `Runbook_Operacion_y_Salida.md` Parte D.
+### 18.6 Revisión legal pendiente y orden de publicación
+**Para la verificación interna de Central (§13), por escrito:** (1) ¿es suficiente publicar la nueva Política **sin** reaceptación de `legal_v1`, dado que la medición solo corre con consentimiento específico y opcional? ¿O conviene `legal_v2`? (2) ¿La casilla opcional del alta + pantalla única para existentes constituye consentimiento «libre, expreso e informado» (art. 5.1)? (3) ¿Hace falta conservar el **texto** del consentimiento además de versión + fecha (hoy se guarda `consent_version` y `legal_version`; el texto vive en Git/Política publicada)? (4) ¿El texto «sin interruptor de oposición» ya no aplica? (5) ¿Qué exige la AAIP antes de capturar (§18.5)?
+**Orden:** (1) verificación interna + constancia AAIP → (2) Sebastián autoriza **con SHA** → (3) publicar la Política/Eliminar cuenta (§18.4) → (4) Central aplica la migración `20261008150000` y las del Runbook Parte D → (5) **recién entonces** Central fija `app_config.activity_consent_version = 'activity_v1'` (hasta ese UPDATE la app no muestra ni pide nada y no se mide) → (6) promoción del frontend V04.38 → (7) verificar. Nunca capturar antes de publicar el texto (art. 6: información *previa*).

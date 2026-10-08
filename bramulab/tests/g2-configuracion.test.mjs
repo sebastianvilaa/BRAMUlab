@@ -30,6 +30,7 @@ function harness({ user = { id: 'u', email: 'a@x.test', serverBacked: true, user
     $: el, $all: () => anchors, console,
     Store: { getCurrentUser: () => user },
     Auth: { isConfigured: () => configured, signOutAll: async () => log.push('signOutAll') },
+    refreshSettingsActivityRow: () => {},
     showView: (v) => log.push(['view', v]),
     openAccountFlow: (m) => log.push(['flow', m]),
     openChangePasswordScreen: () => log.push(['changePassword']),

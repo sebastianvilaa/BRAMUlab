@@ -23,6 +23,8 @@ before(async () => {
   await db.exec(`insert into public.app_config (id, environment) values (1, 'staging')`);
   for (const k of ['common', 'common2', 'admin', 'revoked', 'ghost']) await mk(k);
   await q(`insert into public.metrics_admins (auth_user_id, label) values ($1, 'Admin (test)')`, [U.admin]);
+  await q(`update public.app_config set activity_consent_version = 'activity_v1'`);
+  await q(`select public._record_activity_consent($1, 'activity_v1', 'granted', 'prompt', now() - interval '1 minute')`, [P.common]);
   await q(`insert into public.metrics_admins (auth_user_id, label, revoked_at) values ($1, 'Revocada (test)', now())`, [U.revoked]);
 });
 after(async () => { if (db) await db.close(); });

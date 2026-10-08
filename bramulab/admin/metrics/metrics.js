@@ -222,6 +222,14 @@
     if (state === 'available' && hasAny === false) return 'Todavía no medible: la presencia diaria no tiene captura en este período. No se estima hacia atrás.';
     return null;
   }
+  /** Cobertura de la medición (consentimiento): la actividad solo cuenta a quienes ACEPTARON. Texto honesto, sin inventar: apagada / cuántas de cuántas / oculto por k. */
+  function measurementView(meta) {
+    const m = meta && meta.measurement;
+    if (!m) return { text: 'Sin dato de cobertura', tone: 'none' };
+    if (!m.enabled) return { text: 'Apagada: nadie registra actividad todavía', tone: 'wait' };
+    if (m.consenting === null || m.consenting === undefined) return { text: `Solo cuentas que aceptaron · cobertura oculta (muestra insuficiente) · ${fmtNum(m.accounts)} cuentas`, tone: 'sample' };
+    return { text: `Solo cuentas que aceptaron: ${fmtNum(m.consenting)} de ${fmtNum(m.accounts)} (${fmtNum((m.consenting / Math.max(1, m.accounts)) * 100, 0)}${NBSP}%)`, tone: 'partial' };
+  }
   function seriesFor(kpiId, data) {
     const m = KPI_SERIES[kpiId];
     if (!m || !data || !data.series || !data.series[m.key]) return null;
@@ -316,7 +324,7 @@
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(String(hostname || ''));
   }
 
-  const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
+  const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, measurementView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
     RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS, parseExplore, exploreHash, optionLabel, groupCatalog, seriesMessage, DEFAULT_EXPLORE_METRIC };
 
   /* ====================================================================== */
@@ -649,6 +657,7 @@
       ['Hoy', 'Parcial: se muestra aparte'],
       ['Corte de datos', fmtBA(meta.asOf, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })],
       ['Presencia diaria', meta.presenceSince ? `desde ${fmtBA(meta.presenceSince, { day: '2-digit', month: '2-digit', year: 'numeric' })}` : 'sin captura todavía'],
+      ['Medición (consentimiento)', measurementView(meta).text],
       ['Cuentas internas', meta.includeInternal ? 'incluidas' : (meta.internalExcluded ? `${fmtNum(meta.internalExcluded)} excluidas` : 'ninguna configurada')],
       ['Privacidad', `segmentos < ${meta.minCell || 5} personas se agrupan`],
       ['Zona horaria', 'Buenos Aires · semanas lun–dom'],
@@ -747,7 +756,7 @@
     if (!presenceOn) {
       out.push(...section('Presencia diaria', h('section', { class: 'mx-panel' }, h('div', { class: 'mx-empty', text: 'Todavía no medible: la presencia diaria recién empieza a registrarse cuando la captura está activa en este entorno. Nada se estima hacia atrás; los indicadores de abajo muestran desde cuándo se miden.' }))));
     }
-    out.push(...section('Actividad (abrieron la app)', cardGrid(pick(data, ['usage.dau', 'usage.wau', 'usage.mau', 'usage.dau_avg']), meta, '', false)));
+    out.push(...section('Actividad (abrieron la app)', [h('p', { class: 'mx-note mx-note--lead', text: `${measurementView(meta).text}. La actividad no incluye a quienes no aceptaron, ni días anteriores al consentimiento.` })].concat(cardGrid(pick(data, ['usage.dau', 'usage.wau', 'usage.mau', 'usage.dau_avg']), meta, '', false))));
     const tpUso = todayPanel(data, ['activePlayers']);
     if (tpUso) out.push(...section('Hoy', tpUso));
     out.push(...section('Evolución', h('div', { class: 'mx-grid mx-grid--charts' }, [

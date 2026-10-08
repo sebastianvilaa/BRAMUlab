@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-export const DEFAULT_EXPECT = Object.freeze(['app.js', 'auth.js', 'sw.js', 'store.js', 'index.html', 'version.json', 'admin/']);
+export const DEFAULT_EXPECT = Object.freeze(['app.js', 'auth.js', 'sw.js', 'store.js', 'index.html', 'styles.css', 'version.json', 'admin/']);
 const VERSION_TOKENS = [/04\.\d{2}-h\d+/g, /04-\d{2}-h\d+/g];
 
 export const normalizeVersion = (text) => VERSION_TOKENS.reduce((t, re) => t.replace(re, '<BUNDLE>'), text);

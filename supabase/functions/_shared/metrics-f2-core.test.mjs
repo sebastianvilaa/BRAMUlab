@@ -24,7 +24,7 @@ before(async () => {
   db = r.db;
   dbOpen = (await replay({ acl: 'open' })).db;
   dbStrict = (await replay({ acl: 'strict' })).db;
-  await db.exec(`insert into public.app_config (id, environment) values (1, 'staging')`);
+  await db.exec(`insert into public.app_config (id, environment, activity_consent_version) values (1, 'staging', 'activity_v1')`);
   await buildFixture();
 });
 after(async () => { for (const d of [db, dbOpen, dbStrict]) if (d) await d.close(); });
@@ -64,6 +64,10 @@ async function buildFixture() {
   const a1 = await mkAccount('a1', '2026-09-01T12:00:00Z'); const a2 = await mkAccount('a2', '2026-09-02T12:00:00Z');
   const a3 = await mkAccount('a3', '2026-09-10T12:00:00Z'); const a4 = await mkAccount('a4', '2026-09-20T12:00:00Z');
   const a5 = await mkAccount('a5', '2026-10-01T12:00:00Z', { username: false });
+  // Consentimiento de la medición (granted) otorgado el mismo día del alta por a1..a4: la retención solo mide altas que aceptaron desde el alta.
+  for (const [a, at] of [[a1, '2026-09-01T12:01:00Z'], [a2, '2026-09-02T12:01:00Z'], [a3, '2026-09-10T12:01:00Z'], [a4, '2026-09-20T12:01:00Z']]) {
+    await q(`select public._record_activity_consent($1, 'activity_v1', 'granted', 'signup', $2::timestamptz)`, [a.pid, at]);
+  }
   Object.assign(ids, { a1: a1.pid, a2: a2.pid, a3: a3.pid, a4: a4.pid, a5: a5.pid, a1u: a1.uid });
   await q(`insert into auth.users (id, email) values ($1, 'sinconfirmar@example.test')`, [crypto.randomUUID()]);
   await q(`update public.players set deleted_at = '2026-10-03T10:00:00Z', is_active = false, auth_user_id = null where player_id = $1`, [a5.pid]);

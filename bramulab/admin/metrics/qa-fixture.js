@@ -209,7 +209,8 @@
     return {
       environment: 'qa', catalogVersion: 'metrics_v1-qa', generatedAt: new Date().toISOString(), asOf: new Date().toISOString(), tz: 'America/Argentina/Buenos_Aires',
       range: w.range, compare: compare && hasPrev, completeDaysOnly: true, today: ymd(w.today), window: [w.from, w.to], previousWindow: hasPrev ? [w.prevFrom, w.prevTo] : null, granularity: w.granularity,
-      presenceSince: st === 'nopresence' ? null : addDays(w.today, -9).toISOString(), includeInternal: !!internal, internalExcluded: internal ? 0 : 2, minCell: 5
+      presenceSince: st === 'nopresence' ? null : addDays(w.today, -9).toISOString(), includeInternal: !!internal, internalExcluded: internal ? 0 : 2, minCell: 5,
+      measurement: { enabled: true, consentVersion: 'activity_v1', accounts: 38, consenting: st === 'sparse' ? null : 27 }
     };
   }
 

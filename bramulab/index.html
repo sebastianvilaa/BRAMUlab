@@ -12,7 +12,7 @@
 <meta name="application-name" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-title" content="BRAMUlab" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<link rel="icon" href="icons/favicon-64.png?v=04.37-h31" sizes="64x64" type="image/png" />
+<link rel="icon" href="icons/favicon-64.png?v=04.38-h1" sizes="64x64" type="image/png" />
 <!-- G2 — iOS pide el apple-touch-icon al "Agregar a inicio" SIN cookies/credenciales: en un deployment protegido (Staging) esa
      request recibe la página de login de Vercel en vez del PNG y el ícono queda con la inicial/captura. Se incrusta el MISMO
      PNG real (icons/apple-touch-icon.png, 180x180 opaco) como data: URI, que no depende de ninguna request. Un test verifica
@@ -31,7 +31,7 @@
      APP_VERSION/version.json/CACHE_NAME (ver la misma nota en sw.js/CORE_ASSETS) — una URL con
      un valor nunca visto antes no puede ser un cache hit, sin importar qué headers mande el
      servidor. -->
-<link rel="stylesheet" href="styles.css?v=04.37-h31" />
+<link rel="stylesheet" href="styles.css?v=04.38-h1" />
 </head>
 <body>
 
@@ -1895,7 +1895,7 @@
         <!-- 07OCT26 h9 — ficha superior inspirada en el patrón visual de una ficha de app,
              sin simular App Store: identidad BRAMUlab + capacidades reales del producto. -->
         <div class="install-prompt__app">
-          <span class="install-prompt__app-icon-frame" aria-hidden="true"><img class="install-prompt__app-icon" src="icons/icon-512.png?v=04.37-h31" alt="" /></span>
+          <span class="install-prompt__app-icon-frame" aria-hidden="true"><img class="install-prompt__app-icon" src="icons/icon-512.png?v=04.38-h1" alt="" /></span>
           <div class="install-prompt__app-meta">
             <h2 class="install-prompt__app-name" id="install-prompt-title">BRAMUlab</h2>
             <p class="install-prompt__app-sub">Donde vive tu pádel</p>
@@ -1949,7 +1949,7 @@
 
       <div id="install-prompt-ios-guide" class="install-prompt__panel" hidden>
         <div class="install-prompt__ios-head">
-          <span class="install-prompt__ios-icon-frame" aria-hidden="true"><img class="install-prompt__ios-icon" src="icons/icon-512.png?v=04.37-h31" alt="" /></span>
+          <span class="install-prompt__ios-icon-frame" aria-hidden="true"><img class="install-prompt__ios-icon" src="icons/icon-512.png?v=04.38-h1" alt="" /></span>
           <div>
             <div class="install-prompt__eyebrow">EN iOS / iPadOS</div>
             <h2 class="install-prompt__title">Agregá BRAMUlab a Inicio</h2>
@@ -1994,6 +1994,34 @@
         <button type="button" id="legal-gate-accept-btn" class="btn-start" disabled>ACEPTAR Y CONTINUAR</button>
         <button type="button" id="legal-gate-logout-btn" class="link-btn">Cerrar sesión</button>
       </form>
+    </div>
+  </section>
+
+  <!-- BRAMU Metrics — UNA pantalla breve para pedir (o revisar desde Configuración) el consentimiento a la medición de actividad básica. No muestra los
+       Términos. Las dos opciones son equivalentes y NO bloquean la app: quien no acepta sigue usando BRAMUlab igual y no se registra su actividad. La decisión
+       es una fila append-only server-side (set_my_activity_consent); declinar o retirar elimina la actividad ya registrada. -->
+  <section id="view-activity-consent" class="view view--access" hidden>
+    <div class="analysis-header" id="activity-consent-header" hidden>
+      <button type="button" id="activity-consent-back-btn" class="icon-btn" aria-label="Volver">←</button>
+      <span class="analysis-header__title">MEDICIÓN DE USO</span>
+    </div>
+    <div class="access-scroll" id="activity-consent-scroll">
+      <img class="access-logo" src="icons/logo.svg" alt="BRAMUlab" />
+      <h1 class="activity-consent__title" id="activity-consent-title">Ayudanos a mejorar BRAMUlab</h1>
+      <p class="access-subtitle activity-consent__lead">¿Nos dejás registrar tu <strong>actividad básica de uso</strong>?</p>
+      <ul class="account-flow-list activity-consent__points">
+        <li><strong>Qué registramos:</strong> el día en que abrís la app, si la usás desde el navegador o instalada, el tipo de dispositivo y la versión. Sin IP, ubicación ni pantallas que visitás.</li>
+        <li><strong>Para qué:</strong> solo conteos agregados para mejorar BRAMUlab. Sin publicidad ni seguimiento individual.</li>
+        <li><strong>Es opcional:</strong> si no aceptás, usás BRAMUlab igual. Podés cambiarlo cuando quieras en Configuración; si lo retirás, eliminamos tu actividad registrada.</li>
+      </ul>
+      <p class="settings-info__text settings-info__text--dim activity-consent__current" id="activity-consent-current" hidden></p>
+      <p class="edit-error" id="activity-consent-error" hidden></p>
+      <div class="activity-consent__actions">
+        <button type="button" id="activity-consent-accept-btn" class="btn-start">ACEPTAR</button>
+        <button type="button" id="activity-consent-decline-btn" class="btn-secondary">NO, GRACIAS</button>
+      </div>
+      <button type="button" id="activity-consent-later-btn" class="link-btn" hidden>Decidir más tarde</button>
+      <a href="privacidad/" id="activity-consent-policy-link" class="link-btn activity-consent__policy" data-legal-doc="privacidad" data-legal-hash="actividad-de-uso" data-legal-origin="activity-consent">Leer cómo funciona en la Política de Privacidad</a>
     </div>
   </section>
 
@@ -2131,6 +2159,14 @@
             <label class="field-checkbox-label">
               <input type="checkbox" id="signup-terms-checkbox" />
               <span>Acepto los <a href="terminos/" data-legal-doc="terminos" data-legal-origin="signup" id="signup-terms-link">Términos y Condiciones</a>, declaro haber leído la <a href="privacidad/" data-legal-doc="privacidad" data-legal-origin="signup" id="signup-privacy-link">Política de Privacidad</a> y autorizo el tratamiento de mis datos por proveedores fuera de Argentina.</span>
+            </label>
+          </div>
+          <!-- BRAMU Metrics — consentimiento ESPECÍFICO y OPCIONAL para medir actividad básica: separado de la aceptación legal obligatoria, NUNCA marcado
+               de antemano, y solo se muestra si el servidor tiene una versión vigente (app_config.activity_consent_version). Sin pantalla extra. -->
+          <div class="field field--checkbox" id="signup-activity-consent-field" hidden>
+            <label class="field-checkbox-label">
+              <input type="checkbox" id="signup-activity-checkbox" />
+              <span><strong>Opcional:</strong> acepto que BRAMUlab registre mi actividad básica de uso (qué día abro la app y desde qué tipo de dispositivo) para mejorarla, sin publicidad. Puedo cambiarlo cuando quiera. <a href="privacidad/" data-legal-doc="privacidad" data-legal-hash="actividad-de-uso" data-legal-origin="signup" id="signup-activity-link">Más información</a></span>
             </label>
           </div>
           <p class="edit-error" id="signup-step1-error" hidden></p>
@@ -2612,7 +2648,7 @@
       <!-- G2 ajuste final: UNA sola lista; Eliminar es la última fila (danger sutil, sin tarjeta ni título propios). -->
       <div class="settings-group" id="settings-group-privacy">
         <div class="settings-group__title">PRIVACIDAD Y CUENTA</div>
-        <div class="settings-list"><button type="button" id="settings-terms-row" class="settings-row"><span class="settings-row__label">Términos y Condiciones</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-privacy-row" class="settings-row"><span class="settings-row__label">Política de Privacidad</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-copy-row" class="settings-row"><span class="settings-row__label">Solicitar copia de mis datos</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-contact-row" class="settings-row"><span class="settings-row__label">Contacto</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-delete-row" class="settings-row settings-row--danger" hidden><span class="settings-row__label">Eliminar mi cuenta</span><span class="settings-row__chevron" aria-hidden="true">›</span></button></div>
+        <div class="settings-list"><button type="button" id="settings-terms-row" class="settings-row"><span class="settings-row__label">Términos y Condiciones</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-privacy-row" class="settings-row"><span class="settings-row__label">Política de Privacidad</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-activity-row" class="settings-row" hidden><span class="settings-row__label">Medición de uso</span><span class="settings-row__value" id="settings-activity-value">—</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-copy-row" class="settings-row"><span class="settings-row__label">Solicitar copia de mis datos</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-contact-row" class="settings-row"><span class="settings-row__label">Contacto</span><span class="settings-row__chevron" aria-hidden="true">›</span></button><button type="button" id="settings-delete-row" class="settings-row settings-row--danger" hidden><span class="settings-row__label">Eliminar mi cuenta</span><span class="settings-row__chevron" aria-hidden="true">›</span></button></div>
       </div>
       <div class="settings-logout">
         <button type="button" id="settings-logout-btn" class="btn-secondary btn-secondary--danger">CERRAR SESIÓN</button>
@@ -2664,6 +2700,7 @@
         <li><strong>Grupos:</strong> los grupos de los que formás parte.</li>
         <li><strong>Aceptaciones legales:</strong> qué versión de los Términos y la Política aceptaste, y cuándo.</li>
         <li><strong>Notificaciones y observaciones de Intelligence</strong> generadas para vos.</li>
+        <li><strong>Actividad básica de uso y tu decisión sobre medirla,</strong> si la aceptaste: los días en que abriste la app, el tipo de dispositivo y la versión.</li>
         <li><strong>Datos técnicos mínimos</strong> de seguridad y funcionamiento (por ejemplo, contadores anti-abuso).</li>
       </ul>
       <p class="settings-info__text settings-info__text--dim">De otras personas solo se incluye lo que ya ves en tus partidos compartidos. La solicitud se hace por el canal de soporte y privacidad.</p>
@@ -3350,45 +3387,45 @@
        cambiar versión+hash JUNTOS (los tests verifican que el pin tenga la forma exacta y que haya integrity). -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
   <script src="env.generated.js"></script>
-  <script src="engine.js?v=04.37-h31"></script>
-  <script src="stats.js?v=04.37-h31"></script>
-  <script src="store.js?v=04.37-h31"></script>
+  <script src="engine.js?v=04.38-h1"></script>
+  <script src="stats.js?v=04.38-h1"></script>
+  <script src="store.js?v=04.38-h1"></script>
   <!-- Hardening V04.37-h8 (exposición/IP) — el navegador YA NO carga `level.js` ni `level-context.js`: el motor
        dinámico de Nivel (expectativa, margen, K, repetición, círculo, confianza, inactividad) corre solo en las
        Edge Functions y en tests. `level-public.js` expone únicamente lo que la app usa de `PLLevel`
        (STATES, ALGORITHM_VERSION, roundPublicLevel, clampLevel). `level-calibration.js` (cuestionario/estimador
        inicial V1.3) sigue siendo client-side a propósito. Ver docs/.../139_Resultado_Hardening_Exposicion_IP_06OCT.md. -->
-  <script src="level-public.js?v=04.37-h31"></script>
-  <script src="level-calibration.js?v=04.37-h31"></script>
-  <script src="player-home.js?v=04.37-h31"></script>
-  <script src="match-load.js?v=04.37-h31"></script>
-  <script src="player-identity.js?v=04.37-h31"></script>
-  <script src="groups.js?v=04.37-h31"></script>
-  <script src="locations.js?v=04.37-h31"></script>
-  <script src="ranking.js?v=04.37-h31"></script>
+  <script src="level-public.js?v=04.38-h1"></script>
+  <script src="level-calibration.js?v=04.38-h1"></script>
+  <script src="player-home.js?v=04.38-h1"></script>
+  <script src="match-load.js?v=04.38-h1"></script>
+  <script src="player-identity.js?v=04.38-h1"></script>
+  <script src="groups.js?v=04.38-h1"></script>
+  <script src="locations.js?v=04.38-h1"></script>
+  <script src="ranking.js?v=04.38-h1"></script>
   <!-- Backend Bloque 2 — ver comentario de arriba (supabase-js/env.generated.js). auth.js es el
        único módulo que llama a Supabase; player-identity.js/store.js siguen sin depender de él. -->
-  <script src="auth.js?v=04.37-h31"></script>
+  <script src="auth.js?v=04.38-h1"></script>
   <!-- Backend Bloque 5 — matches.js (cliente de red de create_or_attach_match/get_my_matches/
        etc., mismo patrón que auth.js) + match-sync.js (funciones puras de traducción
        servidor -> forma local y separación historial/estadísticas, sin red ni DOM, mismo
        patrón que engine.js/stats.js/player-home.js). Ambos inertes sin backend configurado. -->
-  <script src="matches.js?v=04.37-h31"></script>
-  <script src="match-sync.js?v=04.37-h31"></script>
+  <script src="matches.js?v=04.38-h1"></script>
+  <script src="match-sync.js?v=04.38-h1"></script>
   <!-- Backend Bloque 6 (Fase B) — match-validation.js: cliente de red de Confirmar/Proponer
        corrección/Responder corrección/No participé/identidad/Notificaciones, mismo patrón que
        auth.js/matches.js. Inerte sin backend configurado. -->
-  <script src="match-validation.js?v=04.37-h31"></script>
+  <script src="match-validation.js?v=04.38-h1"></script>
   <!-- Hotfix 27/09/2026 (handoff 37) — match-self-heal.js: función pura/testeable que detecta
        readyForValidation=true en una lectura de get_my_matches y arma el reintento silencioso
        de officialize-match que refreshServerMatches (app.js) ya invoca. Sin red ni DOM propios,
        mismo patrón que match-sync.js. -->
-  <script src="match-self-heal.js?v=04.37-h31"></script>
+  <script src="match-self-heal.js?v=04.38-h1"></script>
   <!-- Backend Bloque 8 (Fase D) — intelligence-client.js: cliente de red de
        get-match-intelligence (BRAMU Intelligence real y persistente, mismo patrón que
        match-validation.js). Los módulos puros A/B/C/D corren exclusivamente server-side dentro
        de la Edge Function — nunca se cargan en el navegador. Inerte sin backend configurado. -->
-  <script src="intelligence-client.js?v=04.37-h31"></script>
-  <script src="app.js?v=04.37-h31"></script>
+  <script src="intelligence-client.js?v=04.38-h1"></script>
+  <script src="app.js?v=04.38-h1"></script>
 </body>
 </html>

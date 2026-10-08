@@ -9,7 +9,7 @@ const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const css=fs.readFileSync(path.join(__dirname,'styles.css'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 
-const ACCESS=['access','legal-gate','login','forgot-password','signup','player-card','account-flow','account-deleted'];
+const ACCESS=['access','legal-gate','login','forgot-password','signup','player-card','account-flow','account-deleted','activity-consent'];
 
 test('toda vista .view--access queda acotada al viewport y con scroller interno',()=>{
   // Todas las vistas de la familia: o bien estaban cubiertas antes de h25, o bien entran en la regla h25.

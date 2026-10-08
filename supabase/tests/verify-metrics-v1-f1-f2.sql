@@ -130,3 +130,28 @@ select pg_get_functiondef(p.oid) like '%delete from public.player_activity_days%
 -- 19) La retención declara que excluye cuentas eliminadas. ESPERADO: 5 filas, declares_deleted_excluded=true.
 select k ->> 'id' as kpi, (k ->> 'population') like '%sin cuentas eliminadas%' as declares_deleted_excluded
   from jsonb_array_elements(public.metrics_usage('30d') -> 'kpis') k where k ->> 'id' like 'usage.ret\_%' escape '\';
+
+-- 20) Consentimiento de medición (migración 20261008150000): la tabla de evidencia existe, es append-only, está cerrada a anon/authenticated y la función del trigger NO es ejecutable por ellos.
+--     ESPERADO: 1 fila con rls=true, anon_select=false, authenticated_select=false, anon_insert=false, authenticated_insert=false, trigger_fn_anon_exec=false, trigger_fn_auth_exec=false, append_only_trigger=true.
+select c.relrowsecurity as rls,
+       has_table_privilege('anon', c.oid, 'select') as anon_select, has_table_privilege('authenticated', c.oid, 'select') as authenticated_select,
+       has_table_privilege('anon', c.oid, 'insert') as anon_insert, has_table_privilege('authenticated', c.oid, 'insert') as authenticated_insert,
+       has_function_privilege('anon', 'public.activity_consents_reject_mutation()'::regprocedure, 'execute') as trigger_fn_anon_exec,
+       has_function_privilege('authenticated', 'public.activity_consents_reject_mutation()'::regprocedure, 'execute') as trigger_fn_auth_exec,
+       exists (select 1 from pg_trigger t where t.tgrelid = c.oid and t.tgname = 'activity_consents_append_only') as append_only_trigger
+  from pg_class c where c.oid = 'public.activity_consents'::regclass;
+
+-- 21) Funciones de consentimiento: las del jugador son ejecutables SOLO por authenticated; las internas, solo por service_role/postgres. ESPERADO: get_my_/set_my_ → authenticated=true, anon=false; _activity_consent_status/_record_activity_consent → anon=false, authenticated=false.
+select p.proname,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_exec
+  from pg_proc p where p.pronamespace = 'public'::regnamespace
+   and p.proname in ('get_my_activity_consent', 'set_my_activity_consent', '_activity_consent_status', '_record_activity_consent') order by 1;
+
+-- 22) Medición APAGADA hasta que Central fije la versión (tras publicar la Política). ESPERADO en Production tras aplicar la migración: activity_consent_version = NULL.
+select activity_consent_version from public.app_config where id = 1;
+
+-- 23) Cobertura de consentimiento (sin ids). ESPERADO: ninguna actividad de cuentas sin consentimiento vigente 'granted' (activity_without_consent = 0).
+select count(*) as activity_without_consent
+  from public.player_activity_days a
+ where public._activity_consent_status(a.player_id) <> 'granted';

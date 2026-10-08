@@ -5377,12 +5377,12 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    Mismo patrón ya validado: vista = viewport, el `.access-scroll` interno scrollea. Sin tocar contenido.
    ========================================================================== */
 #view-access, #view-legal-gate, #view-login, #view-forgot-password, #view-signup,
-#view-player-card, #view-account-flow, #view-account-deleted{
+#view-player-card, #view-account-flow, #view-account-deleted, #view-activity-consent{
   height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden;
 }
 #view-access .access-scroll, #view-legal-gate .access-scroll, #view-login .access-scroll,
 #view-forgot-password .access-scroll, #view-signup .access-scroll, #view-player-card .access-scroll,
-#view-account-flow .access-scroll, #view-account-deleted .access-scroll{
+#view-account-flow .access-scroll, #view-account-deleted .access-scroll, #view-activity-consent .access-scroll{
   flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
 }
 /* Acceso y Reaceptación legal centraban con `justify-content:center`: dentro de un contenedor que scrollea,
@@ -5405,3 +5405,13 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* La ficha de instalación (h9+) fija `overflow:hidden` por sus esquinas redondeadas: en pantallas bajas (<~420px, p. ej.
    iPhone en horizontal) "Más tarde"/"Entendido" quedaban cortados. Solo el eje vertical pasa a scrollear. */
 #install-prompt-sheet{ overflow-x:hidden; overflow-y:auto; }
+
+/* V04.38 — pantalla breve de consentimiento de medición de uso (reusa .access-scroll / .account-flow-list / .btn-start / .btn-secondary / .link-btn). */
+.activity-consent__title{ font-size: 22px; line-height: 1.2; text-align:center; margin: 6px 0 10px; color: var(--paper); }
+.activity-consent__lead{ margin-bottom: 14px; font-size: 15px; }
+.activity-consent__points{ margin: 0 0 14px 18px; }
+.activity-consent__current{ text-align:center; margin: 0 0 10px; }
+.activity-consent__actions{ display:flex; flex-direction:column; gap: 10px; margin-top: 10px; }
+.activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
+#view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
+#view-activity-consent .access-scroll--under-header{ padding-top: 12px; }

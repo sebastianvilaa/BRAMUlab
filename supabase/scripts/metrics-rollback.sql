@@ -40,7 +40,7 @@
 --> drop table if exists public.metrics_internal_players;
 
 -- =====================================================================================================================
--- NIVEL 3 — Retiro TOTAL de la captura de presencia (DESTRUCTIVO e irreversible: se pierden los días de actividad)
+-- NIVEL 3 — Retiro TOTAL de la captura de presencia y del consentimiento (DESTRUCTIVO e irreversible: se pierden los días de actividad y la constancia de consentimientos)
 -- Requiere haber hecho el NIVEL 2. Restaura el informe de acceso/copia (Bloque 9B, sin `activityDays`) y la eliminación de cuenta (G3, sin borrado de actividad) a sus definiciones previas.
 -- Antes de ejecutarlo: el frontend con `recordActivity` ya debe estar retirado (paso 0), o cada apertura de app fallará en silencio (sin efecto visible).
 -- =====================================================================================================================
@@ -164,5 +164,64 @@
 --> revoke all on function public.admin_delete_player_account(uuid) from anon;
 --> revoke all on function public.admin_delete_player_account(uuid) from authenticated;
 --> grant execute on function public.admin_delete_player_account(uuid) to service_role;
+--> -- (el alta vuelve a su definición previa a Metrics: ya no registra el consentimiento de medición)
+--> create or replace function public.handle_email_confirmed()
+--> returns trigger
+--> language plpgsql
+--> security definer
+--> set search_path = public
+--> as $$
+--> declare
+-->   v_player_id uuid;
+-->   v_legal_version text;
+--> begin
+-->   if new.email_confirmed_at is null then
+-->     return new;
+-->   end if;
+-->   if tg_op = 'UPDATE' and old.email_confirmed_at is not null then
+-->     return new;
+-->   end if;
+-->
+-->   insert into public.players (auth_user_id, type, display_name)
+-->   values (new.id, 'registered', null)
+-->   on conflict (auth_user_id) do nothing
+-->   returning player_id into v_player_id;
+-->
+-->   if v_player_id is null then
+-->     select player_id into v_player_id from public.players where auth_user_id = new.id;
+-->   end if;
+-->
+-->   insert into public.profiles (player_id)
+-->   values (v_player_id)
+-->   on conflict (player_id) do nothing;
+-->
+-->   insert into public.level_states (player_id, status)
+-->   values (v_player_id, 'PENDIENTE')
+-->   on conflict (player_id) do nothing;
+-->
+-->   -- L1 — aceptación legal declarada en el signUp (metadata `legal_version`). Solo versiones CONOCIDAS del
+-->   -- catálogo; accepted_at = momento en que el servidor creó el usuario Auth (inmediatamente posterior a la
+-->   -- aceptación en pantalla, que bloquea signUp sin checkbox). Idempotente. Falta/versión desconocida => no se
+-->   -- registra nada (nunca se fabrica): complete_profile y el gate de reaceptación lo resuelven.
+-->   v_legal_version := nullif(trim(coalesce(new.raw_user_meta_data, '{}'::jsonb) ->> 'legal_version'), '');
+-->   if v_legal_version is not null
+-->      and exists (select 1 from public.legal_versions where legal_version = v_legal_version) then
+-->     perform public.record_legal_acceptance(v_player_id, v_legal_version, 'signup', new.created_at);
+-->   end if;
+-->
+-->   insert into public.pilot_events (event_name, player_id, properties)
+-->   values ('signup_completed', v_player_id, '{}'::jsonb);
+-->
+-->   return new;
+--> end;
+--> $$;
 --> drop function if exists public.register_app_presence(text, text, text);
 --> drop table if exists public.player_activity_days;
+--> -- Consentimiento de la medición: se retira TODO (funciones, constancia y la versión vigente en app_config). Si se necesita conservar la constancia, exportarla antes.
+--> drop function if exists public.get_my_activity_consent();
+--> drop function if exists public.set_my_activity_consent(text, boolean, text);
+--> drop function if exists public._record_activity_consent(uuid, text, text, text, timestamptz);
+--> drop function if exists public._activity_consent_status(uuid);
+--> drop table if exists public.activity_consents;
+--> drop function if exists public.activity_consents_reject_mutation();
+--> alter table public.app_config drop column if exists activity_consent_version;

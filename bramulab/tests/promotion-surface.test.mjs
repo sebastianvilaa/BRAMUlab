@@ -21,9 +21,9 @@ test('compareDists distingue «solo versión», «contenido», nuevos y eliminad
 });
 
 test('evaluate marca como INESPERADO todo lo que no está en la lista permitida (carpetas con «/»)', () => {
-  const ch = [{ file: 'auth.js', kind: 'contenido' }, { file: 'admin/metrics/metrics.js', kind: 'nuevo' }, { file: 'groups.js', kind: 'contenido' }, { file: 'styles.css', kind: 'contenido' }];
+  const ch = [{ file: 'auth.js', kind: 'contenido' }, { file: 'admin/metrics/metrics.js', kind: 'nuevo' }, { file: 'groups.js', kind: 'contenido' }, { file: 'styles.css', kind: 'contenido' }, { file: 'icons-staging/a.png', kind: 'nuevo' }];
   const e = evaluate(ch, DEFAULT_EXPECT);
-  assert.deepEqual(e.unexpected.map((c) => c.file), ['groups.js', 'styles.css']);
-  assert.deepEqual(e.expected.map((c) => c.file), ['auth.js', 'admin/metrics/metrics.js']);
+  assert.deepEqual(e.unexpected.map((c) => c.file), ['groups.js', 'icons-staging/a.png']);
+  assert.deepEqual(e.expected.map((c) => c.file), ['auth.js', 'admin/metrics/metrics.js', 'styles.css']); // styles.css: la pantalla de consentimiento (V04.38)
   assert.equal(evaluate([], DEFAULT_EXPECT).unexpected.length, 0);
 });

@@ -155,6 +155,8 @@
       const c = getClient();
       if (!c) return { ok: false, skipped: 'not_configured' };
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return { ok: false, skipped: 'hidden' };
+      // Sin consentimiento CONFIRMADO por el servidor en esta sesión no se hace ni la llamada (el servidor además lo exige: no_consent).
+      if (activityConsentStatus !== 'granted') return { ok: false, skipped: 'no_consent' };
       const now = Date.now();
       let last = lastActivitySentAt;
       try {
@@ -191,6 +193,7 @@
   }
 
   const LEGAL_VERSION_RE = /^[a-z0-9_.-]{1,40}$/;
+  const ACTIVITY_VERSION_RE = LEGAL_VERSION_RE;
 
   /** L1 (V04.19) — lee la versión legal VIGENTE del servidor (`app_config.legal_version`, pública de
    *  solo lectura). NUNCA se inventa en el frontend: si no se puede leer, `{ok:false}` y el alta no
@@ -211,13 +214,20 @@
    *  aceptó en pantalla) NO se llama a Supabase Auth, así que nunca nace un usuario Auth sin
    *  aceptación previa. La versión viaja como metadata (`legal_version`); la evidencia autoritativa
    *  la registra el servidor al confirmar el email (handle_email_confirmed). */
-  async function signUp(email, password, legalVersion) {
+  async function signUp(email, password, legalVersion, activityConsent) {
     if (typeof legalVersion !== 'string' || !LEGAL_VERSION_RE.test(legalVersion)) {
       return { ok: false, reason: 'legal_acceptance_required' };
     }
     const c = getClient();
     if (!c) return { ok: false, reason: 'not_configured' };
-    const { data, error } = await c.auth.signUp({ email, password, options: { data: { legal_version: legalVersion } } });
+    const meta = { legal_version: legalVersion };
+    // Medición de actividad (consentimiento ESPECÍFICO y OPCIONAL, en el mismo paso del alta): solo si el servidor la ofreció (versión vigente) y
+    // el jugador vio la casilla. `activityConsent = { version, granted }`; sin casilla visible no se manda nada (verá la pantalla de decisión).
+    if (activityConsent && ACTIVITY_VERSION_RE.test(String(activityConsent.version || '')) && typeof activityConsent.granted === 'boolean') {
+      meta.activity_consent_version = activityConsent.version;
+      meta.activity_consent = activityConsent.granted ? 'granted' : 'declined';
+    }
+    const { data, error } = await c.auth.signUp({ email, password, options: { data: meta } });
     if (error) return { ok: false, reason: mapAuthError(error), raw: error.message };
     // Supabase puede devolver un user obfuscado sin error si el email ya existe.
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
@@ -252,6 +262,60 @@
     return { ok: true, legalVersion: data.legalVersion, acceptedAt: data.acceptedAt, alreadyAccepted: !!data.alreadyAccepted };
   }
 
+  /* ---------------------------------------------------------------------------------------------------------------------------------- */
+  /* BRAMU Metrics — consentimiento para medir actividad básica de uso. REUTILIZA la mecánica legal (versión vigente en `app_config`,            */
+  /* evidencia append-only server-side, el servidor decide): ESPECÍFICO, OPCIONAL, revocable y SIN bloquear la experiencia principal.            */
+  /* Estado cacheado SOLO en memoria (nunca en storage): `recordActivity` no hace ni una llamada si el servidor no confirmó «granted».        */
+  /* ---------------------------------------------------------------------------------------------------------------------------------- */
+  let activityConsentStatus = null; // null = desconocido | 'disabled' | 'unset' | 'granted' | 'declined'
+
+  /** Versión VIGENTE del texto de consentimiento (anon, lectura pública de `app_config`). `{ok:true, version:null}` = medición apagada. */
+  async function getActivityConsentConfig() {
+    const c = getClient();
+    if (!c) return { ok: false, reason: 'not_configured' };
+    try {
+      const { data, error } = await c.from('app_config').select('activity_consent_version').eq('id', 1).maybeSingle();
+      if (error || !data) return { ok: false, reason: 'unavailable' };
+      const v = data.activity_consent_version;
+      if (v === null || v === undefined || v === '') return { ok: true, version: null };
+      return ACTIVITY_VERSION_RE.test(String(v)) ? { ok: true, version: String(v) } : { ok: false, reason: 'unavailable' };
+    } catch (e) {
+      return { ok: false, reason: 'unavailable' };
+    }
+  }
+
+  /** Estado del jugador autenticado (RPC get_my_activity_consent). Una lectura fallida NO bloquea nada: devuelve ok:false y no se registra actividad. */
+  async function getMyActivityConsent() {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    try {
+      const { data, error } = await c.rpc('get_my_activity_consent');
+      if (error || !data) { activityConsentStatus = null; return { ok: false, code: (error && error.message) || 'unknown' }; }
+      const status = ['disabled', 'unset', 'granted', 'declined'].includes(data.status) ? data.status : 'unset';
+      activityConsentStatus = status;
+      return { ok: true, enabled: !!data.enabled, version: data.version || null, status, decidedAt: data.decidedAt || null };
+    } catch (e) {
+      activityConsentStatus = null;
+      return { ok: false, code: 'exception' };
+    }
+  }
+
+  /** Decisión explícita (RPC set_my_activity_consent): solo la versión vigente; declinar/retirar elimina la actividad ya registrada. */
+  async function setMyActivityConsent(version, granted, source) {
+    const c = getClient();
+    if (!c) return { ok: false, code: 'not_configured' };
+    if (typeof granted !== 'boolean') return { ok: false, code: 'invalid_decision' };
+    try {
+      const { data, error } = await c.rpc('set_my_activity_consent', { p_version: version, p_granted: granted, p_source: source === 'settings' ? 'settings' : 'prompt' });
+      if (error || !data) return { ok: false, code: (error && error.message) || 'unknown' };
+      activityConsentStatus = data.status === 'granted' ? 'granted' : 'declined';
+      return { ok: true, status: activityConsentStatus, changed: !!data.changed };
+    } catch (e) {
+      return { ok: false, code: 'exception' };
+    }
+  }
+  const getActivityConsentCached = () => activityConsentStatus;
+
   /** Confirma el alta con el código de 6 dígitos del email ("Confirm signup"
    *  con `{{ .Token }}` en la plantilla — configuración manual pendiente,
    *  ver el Informe de Bloque 2). Establece sesión igual que un login. */
@@ -285,6 +349,7 @@
    *    'others' → todas las DEMÁS (tras cambio de contraseña/recuperación/email)
    *    'global' → todas (Cerrar todas las sesiones) */
   async function signOut(scope) {
+    activityConsentStatus = null; // el estado de consentimiento es de la sesión: nunca sobrevive al cierre
     const c = getClient();
     if (!c) return { ok: true }; // nada que cerrar del lado del servidor
     const { error } = await c.auth.signOut({ scope: scope === 'others' || scope === 'global' ? scope : 'local' });
@@ -1179,5 +1244,6 @@
     GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
     uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
     recordActivity, classifyActivityContext,
+    getActivityConsentConfig, getMyActivityConsent, setMyActivityConsent, getActivityConsentCached,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -144,11 +144,13 @@ test('FASE B · la retención no cuenta como «no volvió» a quien eliminó su 
   for (const id of ['w1', 'w4', 'd1', 'd7', 'd30']) assert.match(r.kpis.find((k) => k.id === `usage.ret_${id}`).population, /sin cuentas eliminadas/);
   // cohorte posterior al inicio de la presencia: 2 altas del 06/10, una de ellas con actividad y luego eliminada
   const { q } = mk(B);
+  await q(`update public.app_config set activity_consent_version = 'activity_v1'`);
   const mkNew = async (key) => {
     const u = crypto.randomUUID();
     await q(`insert into auth.users (id, email, email_confirmed_at) values ($1, $2, '2026-10-06T12:00:00Z')`, [u, `${key}_${u.slice(0, 5)}@example.test`]);
     const p = (await one(`select player_id from public.players where auth_user_id = $1`, [u])).player_id;
     await q(`update public.players set created_at = '2026-10-06T12:00:00Z' where player_id = $1`, [p]);
+    await q(`select public._record_activity_consent($1, 'activity_v1', 'granted', 'signup', '2026-10-06T12:01:00Z'::timestamptz)`, [p]);
     for (const d of ['2026-10-07', '2026-10-13']) await q(`insert into public.player_activity_days (player_id, activity_date, display_mode, platform) values ($1, $2::date, 'browser', 'ios')`, [p, d]);
     return p;
   };

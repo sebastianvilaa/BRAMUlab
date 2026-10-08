@@ -516,7 +516,7 @@ test('Comunicaciones: esta ronda NO toca plantillas/copy de emails de Supabase',
 });
 
 test('Regresión: login/signup/recovery/onboarding conservan sus contratos (aceptación L1, fail-closed, reanudación)', () => {
-  assert.match(appJs, /Auth\.signUp\(email, \$\('#signup-password'\)\.value, legal\.legalVersion\)/);
+  assert.match(appJs, /Auth\.signUp\(email, \$\('#signup-password'\)\.value, legal\.legalVersion(?:, activityChoice)?\)/);
   assert.match(appJs, /if \(await enforceLegalGate\(\(\) => resumeServerSession\(options\)\)\) return;/);
   assert.match(appJs, /const SIGNUP_STEP_ORDER = \[1, 2, 'verify'\]/);
   assert.match(appJs, /Auth\.isBackendUnavailable\(\)/);
