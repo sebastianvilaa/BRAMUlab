@@ -238,6 +238,16 @@ Para emails puede mantenerse un PNG derivado por compatibilidad. Tampoco es fuen
 - `bramulab/icons/logo.png` queda **solo** por compatibilidad de emails (`/icons/logo.png`); se deriva de `logo.svg` (fondo transparente).
 - Iconos PWA/apple-touch/favicon: derivados de `BRAMUlab-IconoApp.svg` (192, 512, 512 maskable al 80 %, 180 opaco, favicon recortado alrededor de la B).
 
+### Variante ST (icono de Staging) — regla de separación (h27, 07/10/2026)
+
+- **Production usa SIEMPRE el icono oficial; Staging usa la variante azul ST** (`BRAMUlab-IconoApp ST`, mismo diseño con el isotipo en `#199fff`) para distinguir a simple vista las dos instalaciones en el celular. Es **solo** el icono instalado: logo, isotipo y todo gráfico dentro de la app son los oficiales en ambos entornos.
+- Masters ST (sanitizados igual que los oficiales, sin `<metadata>`): `docs/BRAMUlab/Marca/BRAMUlab-IconoApp-ST.svg` y `BRAMUlab-Isotipo-ST.svg`. Derivados ST: `bramulab/icons-staging/` (mismos 5 nombres/tamaños que los iconos PWA oficiales), generados con `generar-derivados.html?variante=ST`.
+- **El icono lo decide el ENTORNO del build, nunca la rama ni el commit.** `scripts/build-dist.mjs` lee el entorno horneado por `build-env.mjs` en `env.generated.js` (`BRAMU_ENV_NAME`): solo `staging` copia `icons-staging/` sobre `dist/icons/`, reemplaza el `apple-touch-icon` incrustado en `index.html` y marca las URLs de icono del manifest con `?v=<bundle>-st`. Production/Development publican `icons/` oficial; `icons-staging/` no está en la allowlist de `dist/` y ni siquiera se publica. Por eso **promover el mismo commit de `staging` a Production no puede adoptar el icono ST**; además el build aborta si `VERCEL_ENV=production` con entorno `staging`, y también si Staging no encuentra un icono ST (no cae en silencio al oficial).
+- `bramulab/icons/` y el `apple-touch-icon` del source siguen siendo el icono oficial: **no se reemplazan jamás por el ST**. Tests: `bramulab/icon-staging-h27.test.mjs`.
+- Instalaciones ya existentes: iOS fija el icono al «Agregar a inicio» → hay que quitar y volver a instalar la PWA de Staging; Android lo actualiza solo (puede demorar) o al reinstalar.
+
+---
+
 ## 11. Usos prohibidos
 
 No:

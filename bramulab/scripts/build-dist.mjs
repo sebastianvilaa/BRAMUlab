@@ -38,6 +38,47 @@ export const DIST_GENERATED = Object.freeze(['env.generated.js', 'robots.generat
 export const DIST_DIRS = Object.freeze(['icons', 'assets', 'privacidad', 'terminos', 'eliminar-cuenta']);
 
 /* ------------------------------------------------------------------ */
+/* Icono por entorno (Staging = variante azul ST; Production y el resto = icono oficial) */
+/* ------------------------------------------------------------------ */
+
+/** Carpeta FUERA de la allowlist: sus archivos solo llegan a `dist/` en un build de Staging (pisan a `icons/` con el mismo nombre). */
+export const STAGING_ICONS_DIR = 'icons-staging';
+export const STAGING_ICON_FILES = Object.freeze(['icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'favicon-64.png']);
+const APPLE_TOUCH_RE = /(rel="apple-touch-icon" sizes="180x180" href="data:image\/png;base64,)([A-Za-z0-9+/=]+)(")/;
+
+/** `staging` solo si el entorno horneado en el bundle (`env.generated.js`, que escribe build-env.mjs) se llama `staging`. */
+export function detectIconVariant(srcDir = BRAMULAB_DIR) {
+  const f = path.join(srcDir, 'env.generated.js');
+  if (!fs.existsSync(f)) return 'official';
+  const m = fs.readFileSync(f, 'utf8').match(/\bname:\s*"([^"]*)"/);
+  return m && m[1] === 'staging' ? 'staging' : 'official';
+}
+
+/** Pisa en `dist/` los iconos PWA/favicon/apple-touch con los ST y marca sus URLs del manifest (`?v=<bundle>-st`). Devuelve problemas. */
+function applyStagingIcons(srcDir, outDir) {
+  const problems = [];
+  for (const f of STAGING_ICON_FILES) {
+    const from = path.join(srcDir, STAGING_ICONS_DIR, f);
+    if (!fs.existsSync(from)) { problems.push(`falta ${STAGING_ICONS_DIR}/${f} (icono de Staging)`); continue; }
+    fs.copyFileSync(from, path.join(outDir, 'icons', f));
+  }
+  if (problems.length) return problems;
+  const htmlFile = path.join(outDir, 'index.html');
+  const html = fs.readFileSync(htmlFile, 'utf8');
+  if (!APPLE_TOUCH_RE.test(html)) problems.push('index.html: no se encontró el apple-touch-icon incrustado para reemplazar');
+  else {
+    const b64 = fs.readFileSync(path.join(srcDir, STAGING_ICONS_DIR, 'apple-touch-icon.png')).toString('base64');
+    fs.writeFileSync(htmlFile, html.replace(APPLE_TOUCH_RE, (_, a, __, c) => a + b64 + c), 'utf8');
+  }
+  const manFile = path.join(outDir, 'manifest.webmanifest');
+  const man = fs.readFileSync(manFile, 'utf8');
+  const next = man.replace(/(icons\/[A-Za-z0-9-]+\.png\?v=[^"]+?)"/g, '$1-st"');
+  if (next === man) problems.push('manifest.webmanifest: no se encontraron iconos para marcar como ST');
+  else fs.writeFileSync(manFile, next, 'utf8');
+  return problems;
+}
+
+/* ------------------------------------------------------------------ */
 /* Detección de comentarios (tokenizador, no regex ciega: respeta strings, templates, regex) */
 /* ------------------------------------------------------------------ */
 
@@ -204,13 +245,15 @@ function copyDirFiltered(srcDir, outDir, onFile) {
 
 /**
  * Construye `outDir` desde `srcDir`. Devuelve { files:[rutas relativas ordenadas], stats }.
- * @param {{srcDir?:string,outDir?:string,strip?:boolean,requireGenerated?:boolean}} [opts]
+ * `iconVariant`: 'official' (default; Production/Development y todos los tests) o 'staging' (iconos ST). La CLI lo decide por el entorno del bundle.
+ * @param {{srcDir?:string,outDir?:string,strip?:boolean,requireGenerated?:boolean,iconVariant?:'official'|'staging'}} [opts]
  */
 export function buildDist(opts = {}) {
   const srcDir = opts.srcDir || BRAMULAB_DIR;
   const outDir = opts.outDir || path.join(srcDir, 'dist');
   const strip = opts.strip !== false;
   const requireGenerated = opts.requireGenerated !== false;
+  const iconVariant = opts.iconVariant === 'staging' ? 'staging' : 'official';
   const problems = [];
 
   fs.rmSync(outDir, { recursive: true, force: true });
@@ -252,6 +295,8 @@ export function buildDist(opts = {}) {
       else { fs.mkdirSync(path.dirname(o), { recursive: true }); fs.copyFileSync(s, o); stats.files++; }
     });
   }
+
+  if (iconVariant === 'staging') problems.push(...applyStagingIcons(srcDir, outDir));
 
   const files = [];
   (function walk(dir) {
@@ -300,10 +345,15 @@ export function verifyDist(outDir, { skipGenerated = false } = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { files, stats, problems } = buildDist();
+  const iconVariant = detectIconVariant();
+  if (iconVariant === 'staging' && process.env.VERCEL_ENV === 'production') {
+    console.error('[build-dist] Build detenido: un deploy de Production nunca puede llevar el icono de Staging.');
+    process.exit(1);
+  }
+  const { files, stats, problems } = buildDist({ iconVariant });
   if (problems.length) {
     console.error('[build-dist] Build detenido:\n  - ' + problems.join('\n  - '));
     process.exit(1);
   }
-  console.log(`[build-dist] OK — ${files.length} archivos en dist/ (${stats.bytesIn} B fuente -> ${stats.bytesOut} B).`);
+  console.log(`[build-dist] OK — ${files.length} archivos en dist/ (${stats.bytesIn} B fuente -> ${stats.bytesOut} B). Iconos: ${iconVariant === 'staging' ? 'ST (Staging)' : 'oficiales'}.`);
 }

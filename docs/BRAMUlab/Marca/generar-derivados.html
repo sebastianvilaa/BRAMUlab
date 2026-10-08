@@ -17,7 +17,7 @@
 <h1>BRAMUlab — derivados técnicos de marca</h1>
 <p>Genera los PNG que necesitan la PWA y los emails <strong>a partir de los SVG maestros de esta carpeta</strong> (<code>BRAMUlab-IconoApp.svg</code>,
 <code>BRAMUlab-Logo.svg</code>). No redibuja ni edita la marca: solo rasteriza, recorta el lienzo y escala. Abrir esta página con un servidor
-estático en esta carpeta (los SVG se leen por <code>fetch</code>), tocar <em>Generar</em> y copiar los archivos a <code>bramulab/icons/</code>.
+estático en esta carpeta (los SVG se leen por <code>fetch</code>), tocar <em>Generar</em> y copiar los archivos a <code>bramulab/icons/</code>. Con <code>?variante=ST</code> usa <code>BRAMUlab-IconoApp-ST.svg</code> y genera solo los iconos de Staging (destino <code>bramulab/icons-staging/</code>).
 Ver <code>README.md</code>.</p>
 <button id="go">Generar</button><button id="all" disabled>Descargar todo</button>
 <div class="row" id="out"></div>
@@ -55,10 +55,10 @@ async function logoCrop(svgText) {
  *  Ningún path/color/filtro cambia. Es el `bramulab/icons/logo.svg` de la app. */
 const croppedLogoSvg = (svgText, vb) => svgText.replace(/viewBox="[^"]*"/, `viewBox="${vb.join(' ')}" width="${Math.round(vb[2])}" height="${Math.round(vb[3])}"`);
 
-async function buildAll() {
+/** `variante` = '' (oficial, va a bramulab/icons/) o 'ST' (Staging, va a bramulab/icons-staging/; solo iconos, sin logo). */
+async function buildAll(variante = '') {
   const files = [];
-  const iconSvg = await text('BRAMUlab-IconoApp.svg');
-  const logoSvg = await text('BRAMUlab-Logo.svg');
+  const iconSvg = await text(variante ? `BRAMUlab-IconoApp-${variante}.svg` : 'BRAMUlab-IconoApp.svg');
   const icon = await loadImg(svgUrl(iconSvg));
   const full = (size) => { const c = canvas(size); const x = c.getContext('2d'); x.fillStyle = BG; x.fillRect(0, 0, size, size); x.drawImage(icon, 0, 0, size, size); return c; };
 
@@ -84,6 +84,9 @@ async function buildAll() {
   mx.drawImage(layer, 0, 0);
   files.push({ name: 'icon-512-maskable.png', blob: await toBlob(base) });
 
+  if (variante) return { files }; // la variante ST no tiene logo propio: la app usa siempre el logo oficial
+
+  const logoSvg = await text('BRAMUlab-Logo.svg');
   // logo: SVG de la app (viewBox recortado) y PNG derivado SOLO por compatibilidad de emails (fondo transparente).
   const crop = await logoCrop(logoSvg);
   const appLogoSvg = croppedLogoSvg(logoSvg, crop.viewBox);
@@ -99,7 +102,7 @@ window.BRAMU_MARCA = { buildAll, logoCrop };
 
 document.getElementById('go').addEventListener('click', async () => {
   const out = document.getElementById('out'); out.innerHTML = '';
-  const { files } = await buildAll();
+  const { files } = await buildAll(new URLSearchParams(location.search).get('variante') || '');
   window.__files = files;
   for (const f of files) {
     const url = URL.createObjectURL(f.blob);

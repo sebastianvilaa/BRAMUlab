@@ -8,6 +8,8 @@ Autoridad visual: [`../Identidad_Visual.md`](../Identidad_Visual.md). El maestro
 | `BRAMUlab-Logo.svg` | Logo (wordmark). Se usa tal cual; no se reconstruye con tipografía. |
 | `BRAMUlab-Isotipo.svg` | Símbolo independiente. Hoy no se muestra en la UI; queda como master. |
 | `BRAMUlab-IconoApp.svg` | Aplicación del isotipo para PWA/iconos digitales (incluye su fondo oscuro). |
+| `BRAMUlab-IconoApp-ST.svg` | **Icono de Staging** (azul `#199fff`, fuente `BRAMUlab-IconoApp ST.svg` de Sistema gráfico; solo se le quitó `<metadata>`). Nunca reemplaza al oficial. |
+| `BRAMUlab-Isotipo-ST.svg` | Isotipo ST, master de referencia (no se muestra en la UI). |
 | `generar-derivados.html` | Herramienta sin dependencias que rasteriza los derivados técnicos desde estos SVG. |
 
 **Sanitizado (V04.36):** a los SVG se les quitó únicamente el bloque `<metadata>` (XMP/C2PA de Adobe). Geometría, colores, filtros y la imagen
@@ -30,3 +32,7 @@ Regenerar: servir esta carpeta con cualquier servidor estático (`python3 -m htt
 **Generar** y luego **Descargar todo**; copiar los archivos a `bramulab/icons/`, actualizar el `data:` del `apple-touch-icon` en `index.html`
 y subir el bundle (`?v=`, `CACHE_NAME`, `version.json`) en el mismo commit. Los parámetros (fondo, recortes, safe area) están al inicio del script.
 Un test (`v0436-identidad-visual.test.mjs`) fija el hash de los masters y verifica que `logo.svg` sea idéntico al master salvo `viewBox`/tamaño.
+
+## Variante ST (Staging)
+
+`generar-derivados.html?variante=ST` rasteriza `BRAMUlab-IconoApp-ST.svg` con los mismos parámetros y produce **solo** `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon.png` y `favicon-64.png`. Se copian a `bramulab/icons-staging/` (nunca a `icons/`). El build de Staging los superpone en `dist/` (ver `Identidad_Visual.md` §10, «Variante ST»); Production sigue publicando `icons/`.
