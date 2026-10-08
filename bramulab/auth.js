@@ -125,6 +125,58 @@
     return client;
   }
 
+  /* BRAMU Metrics F1 — presencia diaria (docs/BRAMUlab/Implementacion/Post_Lanzamiento/148_*.md §4.2).
+   *  Registra «el jugador abrió/volvió a la app hoy» con la RPC register_app_presence: el jugador sale de la
+   *  sesión y el día lo fija el servidor, así que acá solo viajan modo de visualización, plataforma gruesa y
+   *  bundle público. Se llama ÚNICAMENTE desde (a) la reanudación de una sesión real y (b) la vuelta a primer
+   *  plano con la sesión confirmada — nunca desde el refresco de token, version.json ni timers. Best-effort:
+   *  jamás lanza ni bloquea la UI. Throttle de 30 min por dispositivo (el servidor además deduplica por día
+   *  y no re-escribe dentro de 5 min). Sin sesión/sin backend/pestaña oculta => no hace nada. */
+  const ACTIVITY_MIN_GAP_MS = 30 * 60 * 1000;
+  const ACTIVITY_STORAGE_KEY = 'bramu_activity_ts';
+  let lastActivitySentAt = 0;
+
+  function classifyActivityContext(g) {
+    let displayMode = 'browser';
+    try {
+      if ((g.navigator && g.navigator.standalone === true)
+        || (g.matchMedia && g.matchMedia('(display-mode: standalone)').matches)) displayMode = 'standalone';
+    } catch (e) { /* noop */ }
+    const ua = (g.navigator && g.navigator.userAgent) || '';
+    let platform = 'other';
+    if (/iPhone|iPad|iPod/i.test(ua)) platform = 'ios';
+    else if (/Android/i.test(ua)) platform = 'android';
+    else if (/Windows|Macintosh|Linux|CrOS/i.test(ua)) platform = 'desktop';
+    return { displayMode, platform };
+  }
+
+  async function recordActivity(opts) {
+    try {
+      const c = getClient();
+      if (!c) return { ok: false, skipped: 'not_configured' };
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return { ok: false, skipped: 'hidden' };
+      const now = Date.now();
+      let last = lastActivitySentAt;
+      try {
+        const stored = Number(global.localStorage && global.localStorage.getItem(ACTIVITY_STORAGE_KEY));
+        if (Number.isFinite(stored) && stored > last) last = stored;
+      } catch (e) { /* noop — storage bloqueado: solo throttle en memoria */ }
+      if (last && now - last >= 0 && now - last < ACTIVITY_MIN_GAP_MS) return { ok: false, skipped: 'throttled' };
+      lastActivitySentAt = now;
+      try { global.localStorage && global.localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now)); } catch (e) { /* noop */ }
+      const ctx = classifyActivityContext(global);
+      const bundle = opts && typeof opts.appBundle === 'string' && /^[0-9]{2}\.[0-9]{2}-h[0-9]{1,3}$/.test(opts.appBundle) ? opts.appBundle : null;
+      const { data, error } = await c.rpc('register_app_presence', {
+        p_display_mode: ctx.displayMode, p_platform: ctx.platform, p_app_bundle: bundle,
+      });
+      if (error || !data || data.ok !== true) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+      return { ok: true, recorded: !!data.recorded };
+    } catch (e) {
+      return { ok: false, code: 'exception' };
+    }
+  }
+
+
   function mapAuthError(error) {
     if (!error) return null;
     const msg = (error.message || '').toLowerCase();
@@ -1106,6 +1158,7 @@
     return { ok: true, group: upd.group, cleanupOk };
   }
 
+
   global.PLAuth = {
     isConfigured, getClient, __resetClientForTests,
     resolveBackendMode, getBackendMode, verifyBackendEnvironment, isLocalDevFallbackAllowed, isBackendUnavailable,
@@ -1125,5 +1178,6 @@
     promoteGroupAdmin, demoteGroupAdmin, deleteGroup, leaveGroup, getMyLastLevelDelta, getMyLevelEvolution, getGroupCompetitionData, getGroupsLobby,
     GROUP_PHOTO_SIGNED_URL_TTL_SECONDS, resolveGroupPhotoUrl, resolveGroupPhotoUrlsBatch, removeGroupPhotoFiles,
     uploadGroupPhoto, updateGroupPhoto, changeGroupPhoto, removeGroupPhoto,
+    recordActivity, classifyActivityContext,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

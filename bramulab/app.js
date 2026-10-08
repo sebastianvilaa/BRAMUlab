@@ -15390,6 +15390,8 @@
     Store.cacheServerUser(serverUser);
     syncServerLevelState(serverUser);
     syncCurrentIdentityFromStore();
+    // BRAMU Metrics F1 — presencia diaria: sesión real confirmada (best-effort, nunca bloquea).
+    Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION });
     const onboardingDone = !!serverUser.username && !!serverUser.levelState && serverUser.levelState.status !== 'PENDIENTE';
     if (!onboardingDone) {
       resumeSignupProfileStep(serverUser);
@@ -16304,6 +16306,8 @@
         exitGhostServerSession(Store.getCurrentUser());
         return;
       }
+      // BRAMU Metrics F1 — presencia diaria: el usuario volvió a la app con la sesión confirmada viva (best-effort).
+      if (session) Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION });
       // Revisión central post-h32 — si Home es la pantalla visible, `renderPlayerHome()` YA
       // refresca notificaciones por su cuenta (`refreshB6Notifications().then(renderNotificationsBadge)`,
       // Backend Bloque 6 Fase B, sin cambios): pedir `refreshB6Notifications()` acá ADEMÁS

@@ -1,6 +1,7 @@
 # 148 — Plan de implementación · BRAMU Metrics V1 (`/admin/metrics`) — 08OCT26
 
-**Estado:** PLAN. Nada de esto está implementado. No autoriza Production. Rama de trabajo: `staging`.
+**Estado:** PLAN. **F1 y F2 implementadas en el repo (08/10/2026, ver `149_Resultado_Metrics_V1_F1_F2_08OCT.md`), pendientes de aplicar/verificar por Central en Staging**; F3–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
+> **Nota de nombres (F1):** la RPC de presencia se llama `register_app_presence` (no `record_app_activity`): los controles de grants del repo tratan cualquier función `record_*` ejecutable por `authenticated` como administrativa/interna.
 **Leer antes:** `README.md`, `Metodo_Trabajo.md`, `BRAMU_Metrics.md` (producto) y su marco confirmado — `BRAMU_Metrics_UX_V1.md` (paneles + Explorar), `BRAMU_Metrics_Privacidad_V1.md`, `BRAMU_Metrics_Comparaciones_V1.md` — y `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas, hallazgos).
 **No se toca en ninguna fase:** `main`, Vercel Production, Supabase Production (salvo lecturas autorizadas por Central y, **solo tras autorización explícita**, la promoción de la Fase 5), BRAMUlive, fórmula de Nivel, lógica deportiva oficial, datos de usuarios.
 
@@ -64,7 +65,7 @@ Central (ChatGPT) consulta **las mismas funciones** `select public.metrics_match
 
 - `supabase/scripts/release-check.mjs`: `EXPECTED_VERIFY_JWT` debe incluir `'admin-metrics': true`, y la aserción «las 10 funciones orientadas a usuario» pasa a **11**. Sin este cambio el release-check falla (correcto: obliga a declarar la función nueva).
 - `Runbook_Operacion_y_Salida.md`: lista de Edge Functions a desplegar (paso 8) y tabla de operaciones: agregar `admin-metrics` y el alta/baja de administrador de métricas.
-- `supabase/tests/audit-live-grants.sql`: sin cambios; las `metrics_*` son server-only. `record_app_activity` (presencia) es ejecutable por `authenticated` **a propósito** y no empieza con `admin_`/`_`.
+- `supabase/tests/audit-live-grants.sql`: sin cambios; las `metrics_*` son server-only. `register_app_presence` (presencia) es ejecutable por `authenticated` **a propósito** y no empieza con `admin_`/`_`.
 - `bramulab/scripts/build-dist.mjs`: la página nueva debe entrar en la allowlist (`DIST_DIRS` + verificación de referencias) y los tests de `h2-hardening-exposicion.test.mjs` se ajustan.
 - `bramulab/sw.js`: ver §5.3.
 
@@ -90,7 +91,7 @@ grant select on table public.metrics_admins to service_role;
 - Eliminar la cuenta del admin borra la fila (cascade). Revocar = `revoked_at`. No hay UI para administrar administradores (V1: una fila).
 - Recomendación (no bloqueante, D6): activar MFA/TOTP de Supabase en la cuenta admin y, más adelante, exigir `aal2` en el Edge. La app hoy no usa MFA.
 
-### 4.2 Presencia diaria — `player_activity_days` + `record_app_activity()`
+### 4.2 Presencia diaria — `player_activity_days` + `register_app_presence()`
 
 ```sql
 -- DISEÑO (no implementado)
@@ -216,7 +217,7 @@ Cada función `metrics_*` recibe `p_include_internal boolean default false` y fi
 Ordenados según `Metodo_Trabajo.md` (una sola revisión completa por fase, no relevos parciales):
 
 1. Aplicar migraciones en **Supabase Staging**, desplegar `admin-metrics` (`verify_jwt=true`), insertar la fila de `metrics_admins` de Staging.
-2. **Negativos con cuentas reales en Staging:** sin token; token vencido/inválido; **otra cuenta normal** → `403`; cuenta admin revocada → `403`; RPC `metrics_*` y `record_app_activity` de otro jugador por PostgREST directo (permission denied / no escribe ajeno); `select` sobre `metrics_admins`, `player_activity_days`, `pilot_events` como autenticado común → 0 filas o denegado; `audit-live-grants.sql` limpio.
+2. **Negativos con cuentas reales en Staging:** sin token; token vencido/inválido; **otra cuenta normal** → `403`; cuenta admin revocada → `403`; RPC `metrics_*` y `register_app_presence` de otro jugador por PostgREST directo (permission denied / no escribe ajeno); `select` sobre `metrics_admins`, `player_activity_days`, `pilot_events` como autenticado común → 0 filas o denegado; `audit-live-grants.sql` limpio.
 3. **Concordancia:** para al menos 3 ventanas (incluyendo bordes de medianoche BA y la semana en curso), cada KPI del dashboard = resultado de la misma función `metrics_*` ejecutada por el conector de solo lectura = SQL manual independiente.
 4. **Entorno:** el dashboard servido por el origen de Staging no llama al Supabase de Production y viceversa; ningún `service_role` en `dist/`.
 5. **QA visual** de Sebastián solo sobre la pantalla (lo único no automatizable).
@@ -228,7 +229,7 @@ Presupuesto de deploys (`Metodo_Trabajo.md`): **1 push funcional por fase**; las
 | Fase | Contenido | Toca `bramulab/` (deploy) | Ejecuta | Gate de salida |
 |---|---|---|---|---|
 | **F0** | Este plan + Auditoría técnica | No | Claude (hecho) | Revisión de Central |
-| **F1 — Presencia** | Migración `player_activity_days` + `record_app_activity`; helper en `auth.js` + 2 disparos en `app.js`; export de datos; test cliente + SQL; bump `hN` | Sí (mínimo) | Claude → Central aplica en Staging | Presencia escribe 1 fila/día en Staging con cuenta real; negativos del punto 6.2.2 aplicables a esta tabla; **decisión D1** para promoción temprana |
+| **F1 — Presencia** | Migración `player_activity_days` + `register_app_presence`; helper en `auth.js` + 2 disparos en `app.js`; export de datos; test cliente + SQL; bump `hN` | Sí (mínimo) | Claude → Central aplica en Staging | Presencia escribe 1 fila/día en Staging con cuenta real; negativos del punto 6.2.2 aplicables a esta tabla; **decisión D1** para promoción temprana |
 | **F2 — Núcleo seguro** | Migración `metrics_admins` + `metrics_internal_players` + funciones `metrics_*` (overview, users, matches, activation-acciones) + Edge `admin-metrics` + `release-check`/Runbook; tests 6.1.1–6.1.4 | No (solo `supabase/` y `docs/`) | Claude → Central despliega y corre gates 6.2.1–6.2.3 | Negativos PASS + concordancia de las secciones disponibles |
 | **F3 — Dashboard v1** | Página `/admin/metrics` con Inicio, Usuarios y Partidos, comparación superpuesta, **vista de detalle por KPI** (`metric` + `metrics_catalog`/`metrics_series`); SW bypass, headers, allowlist; modo QA | Sí | Claude (tras aprobar diseño con Sebastián) | Gate 6.2.4 + QA visual de Sebastián |
 | **F4 — Secciones restantes** | Activación (con presencia: retorno, retención W1/W4 y D1/D7/D30), Comunidad (Grupos con regla de puntos, Nivel público, Ranking, Invitaciones, duplicados) y Uso (presencia, standalone, versiones, estado de recolección) | Sí | Claude | Concordancia de las secciones nuevas; las de retención se marcan «inmaduro» hasta tener cohortes |
