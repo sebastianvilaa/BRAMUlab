@@ -103,7 +103,7 @@ Consola administrativa privada de BRAMUlab. Sus documentos están juntos en [`Me
 
 - **Poda.** Un handoff, plan, revisión, gate, hotfix o resultado **consumido** se retira del árbol cuando su contenido ya está en la fuente maestra (o en el registro de rondas). Git es la memoria histórica: `git log --diff-filter=D --name-only -- docs/` y luego `git show <commit>^:<ruta>`. No existen `Archivo/` ni `Backup/` en el repositorio. Los comentarios del código que citan `docs/BRAMUlab/<Documento>.md` se refieren al mismo documento, hoy dentro de `Producto/`, `Operacion/`, `Metrics/` o `Identidad_Visual/` (se encuentra por nombre); **no se editan por eso** (tocar `bramulab/` dispara builds).
 - **Raíz de `docs/BRAMUlab/`:** solo `README.md`, `Metodo_Trabajo.md` y las carpetas de la tabla de arriba (lo verifica `node docs/check-docs.mjs`). Un documento nuevo va a la carpeta de su función; no se agregan documentos sueltos en la raíz.
-- **Dropbox** (originales de diseño, referencias visuales y material privado no versionado): `Metodo_Trabajo.md`, «Higiene documental».
+- **Dropbox** (originales de diseño, referencias visuales, material privado no versionado y `Trabajo en curso/` para coordinar agentes sin pasar por Git): `Metodo_Trabajo.md`, «Higiene documental» y «Espacio compartido de coordinación».
 
 ---
 

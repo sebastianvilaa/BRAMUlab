@@ -1,6 +1,6 @@
 -- BRAMU Metrics V1 · F1+F2(+F4) — verificación de SOLO LECTURA para Central en Supabase Staging (después de aplicar las migraciones
 -- 20261008100000_metrics_f1_player_activity.sql, 20261008110000_metrics_f2_core.sql y, para F4, 20261008120000_metrics_f4_d8_comunidad.sql,
--- y desplegar la Edge Function admin-metrics). Las consultas 9–12 requieren la migración de F4 (D8: días completos hasta ayer) y las 13–16 la de F6 (Explorar, 20261008130000).
+-- y desplegar la Edge Function admin-metrics). Las consultas 9–12 requieren la migración de F4 (D8: días completos hasta ayer) las 13–16 la de F6 (Explorar, 20261008130000) y las 17–19 la del borrado de actividad al eliminar cuenta (20261008140000).
 -- No escribe nada y no imprime identidades. Cada consulta indica el resultado esperado.
 
 -- 1) Tablas nuevas: RLS activo, cero políticas, ningún privilegio de cliente. ESPERADO: 3 filas, rls=true, policies=0, client_priv=false.
@@ -114,3 +114,19 @@ select m as metric,
 -- 16) F6 · Sin UUID en las respuestas del Explorador (con y sin filtro). ESPERADO: has_uuid=false en todas las filas.
 select m, f, (public.metrics_explore(m, '90d', true, true, f, v)::text ~* '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}') as has_uuid
   from (values ('users.registered_now', 'location', 'Bella Vista, Buenos Aires'), ('matches.created', 'match_status', 'validated'), ('usage.wau', 'platform', 'ios'), ('users.signups', null, null)) t(m, f, v);
+
+-- 17) Borrado de actividad al eliminar cuenta: NINGUNA fila de actividad ni marca interna pertenece a una cuenta eliminada.
+--     ESPERADO: activity_rows_of_deleted = 0 y internal_marks_of_deleted = 0 (también tras la purga única de la migración).
+select (select count(*) from public.player_activity_days a join public.players p on p.player_id = a.player_id where p.deleted_at is not null) as activity_rows_of_deleted,
+       (select count(*) from public.metrics_internal_players i join public.players p on p.player_id = i.player_id where p.deleted_at is not null) as internal_marks_of_deleted;
+
+-- 18) La eliminación de cuenta incluye el borrado y sigue siendo ejecutable solo por service_role. ESPERADO: deletes_activity=true, anon_exec=false, authenticated_exec=false, service_role_exec=true.
+select pg_get_functiondef(p.oid) like '%delete from public.player_activity_days%' as deletes_activity,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_exec,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_exec
+  from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'admin_delete_player_account';
+
+-- 19) La retención declara que excluye cuentas eliminadas. ESPERADO: 5 filas, declares_deleted_excluded=true.
+select k ->> 'id' as kpi, (k ->> 'population') like '%sin cuentas eliminadas%' as declares_deleted_excluded
+  from jsonb_array_elements(public.metrics_usage('30d') -> 'kpis') k where k ->> 'id' like 'usage.ret\_%' escape '\';

@@ -183,10 +183,11 @@ scenario('el informe de acceso a datos incluye activityDays propios y nada de te
   assert.ok(!JSON.stringify(rep).includes(b.pid), 'no aparece el id de otro jugador');
 });
 
-scenario('eliminar cuenta (anonimiza) conserva la presencia pseudonimizada y no rompe', async () => {
+scenario('eliminar cuenta (anonimiza) ELIMINA su actividad diaria (no se conserva seudonimizada) y no rompe', async () => {
   const a = await mkUser('i');
   await record(a);
-  await q(`select public.admin_delete_player_account($1)`, [a.pid]);
   assert.equal((await rows(a.pid)).length, 1);
+  await q(`select public.admin_delete_player_account($1)`, [a.pid]);
+  assert.equal((await rows(a.pid)).length, 0, 'decisión confirmada: la actividad se elimina con la cuenta');
   assert.equal((await one(`select deleted_at is not null as d from public.players where player_id = $1`, [a.pid])).d, true);
 });

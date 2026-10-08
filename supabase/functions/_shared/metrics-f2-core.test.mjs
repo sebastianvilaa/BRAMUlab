@@ -342,7 +342,7 @@ test('Uso con presencia: DAU/WAU/MAU móviles al corte, promedio, instalada, acc
   assert.equal(val('usage.dau_avg'), 0.27, '10 días de presencia / 37 días completos desde el 01/09 hasta AYER');
   assert.equal(kpi(r, 'usage.dau_avg').since, '2026-09-01', 'la ventana arranca antes de la presencia: cobertura parcial rotulada');
   assert.deepEqual([val('usage.wau_with_action'), val('usage.mau_with_action')], [0, 3]);
-  assert.deepEqual([kpi(r, 'usage.ret_d1').count, kpi(r, 'usage.ret_d1').n, val('usage.ret_d1')], [2, 5, 0.4]);
+  assert.deepEqual([kpi(r, 'usage.ret_d1').count, kpi(r, 'usage.ret_d1').n, val('usage.ret_d1')], [null, 4, null], 'la cohorte excluye la cuenta eliminada (a5): quedan 4 altas < 5');
   assert.deepEqual([kpi(r, 'usage.ret_d7').count, kpi(r, 'usage.ret_d7').n, kpi(r, 'usage.ret_d7').availability], [null, 4, 'insufficient_sample']);
   assert.deepEqual([kpi(r, 'usage.ret_w1').count, kpi(r, 'usage.ret_w1').n, kpi(r, 'usage.ret_w1').availability], [null, 4, 'insufficient_sample']);
   assert.deepEqual([kpi(r, 'usage.ret_w4').count, kpi(r, 'usage.ret_w4').n, kpi(r, 'usage.ret_w4').availability], [null, 2, 'insufficient_sample']);

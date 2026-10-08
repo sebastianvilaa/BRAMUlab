@@ -1,6 +1,6 @@
 # 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
 
-> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026); §9 = verificación de F4 por Central; §10 = F6 Explorar (implementación del 08/10/2026); §11 = verificación de F6 por Central; **§12 = preparación de la publicación privada en Production (08/10/2026)**.
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026); §9 = verificación de F4 por Central; §10 = F6 Explorar (implementación del 08/10/2026); §11 = verificación de F6 por Central; **§12 = preparación de la publicación privada en Production (08/10/2026); §13 = cierre de seguridad y privacidad (decisión D3-b)**.
 
 **Estado (actualizado 08/10/2026):** implementado en el repo y probado localmente (PGlite = Postgres real + Node). F1/F2 **aplicados en Supabase Staging** y `admin-metrics` **desplegada** por Central; F3 (`04.37-h29`) desplegada en Staging. Estado del cierre de F3: §7. (Los §1–§5 describen lo entregado en la ronda original; sus «pendientes de Central» ya se ejecutaron salvo lo que §7 deja abierto.) Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
@@ -380,7 +380,7 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 | ID | Decisión | Recomendación |
 |---|---|---|
 | **D3-a** | ¿La actividad diaria es un cambio **material** de la Política (re-aceptación de todos) o una **aclaración**? | Aclaración (opción A, `Privacidad_Legal.md` §18). Cierra Central con verificación interna. |
-| **D3-b** | Al eliminar una cuenta: ¿se **conserva anonimizada** la actividad o se **borra**? | Conservar anonimizada (no toca la función de eliminación; ya verificado). |
+| **D3-b** | Al eliminar una cuenta: ¿se conserva anonimizada la actividad o se borra? | **CONFIRMADA por Sebastián (09/10): solo se conserva si queda realmente anonimizada; no se puede garantizar ⇒ se ELIMINA** (migración `20261008140000`, §13). |
 | **AAIP** | ¿El registro presentado describe «datos de uso/actividad»? Si no, modificarlo. | Verificar antes de publicar (fuente privada). |
 | **D4** | **¿Qué cuenta de Production** es la administradora? | La cuenta real y habitual de Sebastián (Central ubica el UUID una vez). |
 | **D2** | **¿Qué cuentas son internas/de prueba** (propias y de amigos) para excluirlas por defecto? | Marcar las del equipo antes de mirar cifras. |
@@ -393,3 +393,20 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 ### 12.6 Regresión (resultado de esta ronda)
 - `bramulab/tests/*` + `bramulab/*.test.mjs`: 1021 tests, **990 pass / 31 fail = línea base** (las mismas 31 de rondas viejas; 0 nuevas). `supabase/functions/_shared/*.test.mjs`: **186/186** (antes 169; +17 de ensayo y verificador). `check-docs`: OK.
 - `release-check`: replay limpio de 88 migraciones ×3 ACL ✔ y `admin-metrics verify_jwt=true` ✔; **los mismos 3 chequeos rojos de siempre, ninguno de Metrics**: (1) el host de Staging nombrado en `app.js` (rama de detección de entorno ya presente en el h26 publicado), (2) y (3) la guarda «el build de Production FALLA a propósito con placeholders legales», obsoleta desde que las páginas legales quedaron sin placeholders (el gate real, `checkLegalPagesReadyForProduction`, da OK). No bloquean la promoción; conviene actualizar esas expectativas en una ronda de mantenimiento.
+
+
+---
+
+## 13. Cierre de seguridad y privacidad antes de Production — decisión D3-b (09/10/2026)
+
+**Decisión CONFIRMADA por Sebastián:** los datos históricos de actividad solo pueden conservarse si quedan realmente anonimizados; si no se puede garantizar, deben eliminarse. **Resultado:** no se puede garantizar ⇒ **la actividad diaria se elimina junto con la cuenta.** Texto de privacidad revisado (sin publicar): `Operacion/Privacidad_Legal.md` §18. Coordinación de la ronda: `Trabajo en curso/Frente_Metrics.md` (fuera de Git).
+
+| Pieza | Detalle |
+|---|---|
+| **Migración** `20261008140000_metrics_presence_erased_on_account_deletion.sql` (**NO aplicada**, Staging/Production a cargo de Central) | `admin_delete_player_account` se reaplica idéntica a G3 salvo borrar la actividad y la marca interna del jugador (también en la rama «ya eliminada»; `to_regclass` → no depende de las tablas de Metrics); purga única de lo ya existente de cuentas eliminadas; `_metrics_retention` excluye cuentas eliminadas y el catálogo lo declara en los 5 KPI de retención. |
+| **Retiro** | `metrics-rollback.sql` nivel 3 restaura la eliminación de cuenta a su definición G3 exacta (probado: el esquema vuelve idéntico). |
+| **Prueba de anonimización** `metrics-deletion-anonymization.test.mjs` (6/6, esquema real) | Fase A (sin la migración): la fila sigue unida a localidad + banda + rama + partidos + grupo del mismo `player_id` ⇒ **seudonimizada, no anónima**. Fase B: la actividad y la marca interna desaparecen; ninguna tabla de Metrics conserva el id ni el usuario de Auth; las otras cuentas no cambian; las métricas ya no cuentan a la persona; reingreso = identidad nueva; purga única probada; el borrado funciona tras el retiro nivel 2 y 3; todas las vías de eliminación (autoservicio y administrativa) pasan por la misma función. |
+| **Denegación a jugadores** `metrics-player-denial.test.mjs` (6/6, Edge real + SQL real con rol `service_role`) | Matriz de ≥ 30 funciones y 3 tablas × anon / jugador común / administradora por PostgREST / revocada: **todo permission denied**; sin auto-promoción; la presencia solo escribe la fila propia y no se lee; jugador común → **403 idéntico** en catálogo, secciones, Explorador y cuerpos inválidos; revocada, inexistente y token inválido → 403/401; administradora → 200 (3 modos); al eliminarse su usuario de Auth (cascade) o revocarla, el acceso cae solo. |
+| Regresión | Ver el mensaje de entrega; los tests de F1/F2/F6/ensayo se actualizaron al nuevo comportamiento (la actividad ya no se conserva). |
+
+**Pendiente de ejecución humana (sin cambio):** `metrics-access-check.mjs --target staging` con sesiones reales, prueba viva de eliminación en Staging (consulta 17) y QA en celular. **Bloqueos reales antes de Production:** ver `Frente_Metrics.md` §6 y Runbook Parte D.2.

@@ -393,31 +393,38 @@ Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo
 
 ---
 
-## 18. Registro diario de actividad (BRAMU Metrics) — propuesta de texto, SIN publicar (08/10/2026)
+## 18. Registro diario de actividad (BRAMU Metrics) — propuesta de texto, SIN publicar (revisada)
 
-**Estado:** `privacidad/index.html` y `terminos/index.html` **no se tocaron** (siguen en `legal_v1`, vigencia 07/10/2026). Esta sección es el borrador para decisión de Sebastián (**D3**) y verificación interna de Central (§13). Production **todavía no captura** actividad: el registro empieza recién cuando se publique el build con Metrics.
+**Estado:** `privacidad/index.html`, `terminos/index.html` y `eliminar-cuenta/index.html` **no se tocaron** (siguen en `legal_v1`, vigencia 07/10/2026). Esta sección es el borrador para decisión de Sebastián (**D3-a**) y verificación interna de Central (§13). Production **todavía no captura** actividad: el registro empieza recién cuando se publique el build con Metrics.
 
-### Qué se registra (verificado en código y en el ensayo `metrics-promotion-rehearsal.test.mjs`)
+### Decisión CONFIRMADA (Sebastián): eliminar la actividad al eliminar la cuenta
+> Los datos históricos de actividad pueden conservarse **únicamente si quedan realmente anonimizados** y no permiten identificar al jugador. **Si no se puede garantizar, deben eliminarse.**
+
+**Verificación técnica** (`supabase/functions/_shared/metrics-deletion-anonymization.test.mjs`, sobre el esquema real): con el comportamiento anterior, la fila de actividad de una cuenta eliminada conservaba el `player_id`, que sigue unido a los partidos (fechas, compañeros y rivales), al Ranking publicado (localidad, banda de Nivel, rama) y a los grupos **del mismo jugador**. Quien jugó con esa persona puede ubicarla por esos datos y leer entonces todo su historial de uso: es **seudonimizado, no anónimo**. No hay forma de garantizar el anonimato sin romper ese vínculo ⇒ **se elimina**. Implementación (migración `20261008140000`): `admin_delete_player_account` borra la actividad diaria (y la marca de «cuenta interna») del jugador en la misma transacción —todas las vías de eliminación (autoservicio con OTP y vehículo administrativo) pasan por esa función—, una purga única limpia lo que ya hubiera de cuentas eliminadas y la cohorte de retención excluye cuentas eliminadas. Consecuencia asumida: las métricas históricas de uso pierden a quienes eliminan su cuenta. La cuenta que vuelve a registrarse es una identidad nueva y no hereda actividad.
+
+### Qué se registra (verificado en código y pruebas)
 - **Una fila por cuenta y por día** (hora de Buenos Aires, la fija el servidor): fecha, primera y última apertura, cantidad de aperturas (máx. 999), modo (navegador o app instalada), plataforma gruesa (`ios`/`android`/`desktop`/`other`) y versión pública de la app.
 - **Solo cuentas registradas y no eliminadas**, con sesión real (no se registra al refrescar el token ni por temporizadores). La cuenta sale siempre de la sesión: el cliente no puede escribir la actividad de otra persona.
-- **No** se guarda IP, user-agent, modelo de dispositivo, ubicación, pantallas visitadas, contenido ni nada deportivo. La tabla no es legible por clientes; solo el administrador autorizado ve **conteos agregados** (sin fichas ni rankings por persona; mínimo 5 personas por segmento).
+- **No** se guarda IP, user-agent, modelo de dispositivo, ubicación, pantallas visitadas, contenido ni nada deportivo. Nadie con sesión de jugador puede leer la tabla; solo la administradora autorizada ve **conteos agregados** (sin fichas ni rankings por persona; mínimo 5 personas por segmento).
 - **Sin histórico previo:** los días anteriores al inicio de la captura **no existen** y la consola no los estima («Captura desde dd/mm»).
-- El **informe de acceso/copia** del titular incluye ahora sus días de actividad (`activityDays`).
-
-### Eliminación de cuenta (decisión D3-b)
-Al eliminar la cuenta, el jugador queda anonimizado («Jugador eliminado», sin vínculo con Auth ni datos de perfil). Las filas de actividad **se conservan asociadas a ese identificador anónimo** (fecha, modo, plataforma, versión) y dejan de ser datos personales; las poblaciones «actuales» de Metrics excluyen a las cuentas eliminadas. Es el mismo criterio con que ya se conservan los partidos compartidos y las posiciones de Ranking (§3, §8). **Recomendado: opción A (conservar anonimizado)**, porque no requiere tocar `admin_delete_player_account` (función crítica ya en uso) y no reescribe retroactivamente las métricas. **Opción B (borrar las filas al eliminar):** más simple de explicar pero exige modificar esa función y borra historia de uso agregada; solo si Sebastián o la verificación interna lo prefieren.
+- **Conservación:** mientras la cuenta esté activa; sin purga automática en V1 (decisión opcional: fijar un plazo máximo, p. ej. revisar a los 12 meses).
+- El **informe de acceso/copia** del titular incluye sus días de actividad (`activityDays`).
 
 ### Texto propuesto (no publicado)
 - **§2 «Datos técnicos»** — reemplazar por: «Contadores anti-abuso y un conjunto mínimo de eventos internos de producto, sin contraseñas, tokens ni contenido de notas. **Actividad diaria:** por cada día en que abrís BRAMUlab con tu cuenta (hora de Buenos Aires) guardamos la fecha, si la usaste desde el navegador o como app instalada, una clasificación general del dispositivo (iPhone/iPad, Android, computadora u otro), la versión de la app y cuántas veces la abriste ese día. Este registro no incluye tu dirección IP, tu ubicación, el modelo de tu dispositivo ni las pantallas que visitás.»
 - **§3 «Para qué los usamos»** — agregar al final: «También medimos, solo en conteos agregados, cuánta gente usa BRAMUlab y cómo evoluciona ese uso para decidir qué mejorar; no elaboramos fichas, listados ni rankings de uso por persona.»
-- **§6 «Conservación y eliminación»** — agregar: «El registro de actividad diaria se conserva mientras tu cuenta esté activa. Si eliminás tu cuenta, queda asociado únicamente a la identidad anónima «Jugador eliminado» y solo se usa en conteos agregados.»
+- **§6 «Conservación y eliminación»** — agregar: «Tu registro de actividad diaria se conserva mientras tu cuenta esté activa y **se elimina junto con ella**: no lo conservamos anonimizado.»
+- **§6, frase existente** «se eliminan o anonimizan tus datos personales…» — queda correcta (la actividad se **elimina**).
 - **§7 «Acceso y copia»** — agregar: «El informe incluye tus días de actividad.»
+- **`eliminar-cuenta/index.html`, «Qué pasa cuando eliminás tu cuenta»** — agregar a la viñeta de datos eliminados: «…y tu registro de actividad diaria».
 - «No integramos analítica ni publicidad de terceros» sigue siendo cierto (la medición es propia).
+- **Textos dentro de la app** (confirmación de eliminación): «Se eliminan o anonimizan tus datos personales, foto, notas y notificaciones» sigue siendo cierto; mencionar la actividad es opcional y, si se quiere, viaja con un bump técnico del frontend.
+- Después de publicar: mantener la **versión y la vigencia** de las tres páginas coherentes entre sí (ver D3-a).
 
-### Decisión D3-a — ¿cambio material?
-- **Opción A (recomendada): aclaración no material.** El texto vigente ya declara «un conjunto mínimo de eventos internos de producto»; la actividad diaria es un dato mínimo, sin categoría nueva de dato sensible ni destinatarios nuevos. Se publica el texto ampliado con nueva fecha de vigencia y **sin pedir nueva aceptación** (§7: «nueva aceptación solo ante cambios relevantes/materiales»). Requiere decidir si la fecha/versión se actualizan manteniendo `legal_v1` (la tabla `legal_acceptances` solo guarda el id de versión) o con un sufijo que no dispare re-aceptación; esa elección técnica la cierra Central al publicar.
-- **Opción B: `legal_v2` con re-aceptación de todos los usuarios.** Más conservadora, pero fuerza un paso extra a los usuarios reales y exige migración (`legal_versions`) y verificación del flujo; solo si la verificación interna (§13) concluye que es material.
-- **Registro AAIP/RNBDP (expediente en Iniciación):** verificar que la descripción de datos tratados presentada incluya «datos de uso/actividad»; si no, **modificar el registro** (la fuente del formulario es privada: no está en este repositorio). Acción de Sebastián/Central, previa a publicar.
+### Decisión D3-a — ¿cambio material? (**DECISIÓN ABIERTA**)
+- **Opción A (recomendada): aclaración no material.** El texto vigente ya declara «un conjunto mínimo de eventos internos de producto»; la actividad diaria es un dato mínimo, sin categoría nueva de dato sensible ni destinatarios nuevos, y se elimina con la cuenta. Se publica el texto ampliado con nueva fecha de vigencia y **sin pedir nueva aceptación** (§7: «nueva aceptación solo ante cambios relevantes/materiales»). Cómo identificar la versión (mantener `legal_v1` con vigencia nueva —`legal_acceptances` solo guarda el id— o un sufijo que no dispare re-aceptación) lo cierra Central al publicar.
+- **Opción B: `legal_v2` con re-aceptación de todos los usuarios.** Más conservadora, pero fuerza un paso extra a usuarios reales y exige migración (`legal_versions`) y verificación del flujo; solo si la verificación interna (§13) concluye que es material.
+- **Registro AAIP/RNBDP (expediente en Iniciación):** verificar que la descripción de datos tratados incluya «datos de uso/actividad»; si no, **modificar el registro** (la fuente del formulario es privada). Acción de Sebastián/Central, previa a publicar.
 
 ### Orden recomendado
 Texto publicado **antes o junto con** la promoción de Metrics a Production (la captura empieza con el build); nunca después.

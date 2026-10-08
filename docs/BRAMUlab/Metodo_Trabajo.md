@@ -9,6 +9,7 @@
 - Empezar siempre por `docs/BRAMUlab/README.md`.
 - Después leer solo la fuente maestra del sistema afectado (README §2/§7 indica cuál).
 - Los documentos retirados del árbol (handoffs, resultados, gates y revisiones consumidos) viven en Git y **no son autoridad**; solo se recuperan ante pedido explícito de trazabilidad puntual (`git log --diff-filter=D --name-only -- docs/`). No existe `Archivo/` ni `Backup/` en el repositorio.
+- Los papeles de trabajo entre agentes de una ronda en curso viven **fuera de Git**, en `Trabajo en curso/` de Dropbox (ver «Espacio compartido de coordinación»). Son temporales y tampoco son autoridad: lo definitivo se traslada a la fuente maestra.
 
 ## Separación de roles
 
@@ -52,13 +53,13 @@ En ese momento ChatGPT debe:
 
 1. revisar el Brainstorming acumulado hasta ese corte;
 2. contrastarlo con `README.md` y las fuentes maestras vigentes para no transferir ideas ya implementadas, superadas o contradictorias;
-3. crear **un único documento de handoff en el repo** con las conclusiones maduras;
+3. dejar **un único documento de handoff** con las conclusiones maduras, como frente en `Trabajo en curso/` (no en el repo; ver «Espacio compartido de coordinación»);
 4. incluir decisiones **CONFIRMADAS**, ideas **DESCARTADAS** con su motivo y decisiones **FUTURAS / DIFERIDAS** que convenga preservar;
 5. no presentar una **DUDA ABIERTA** como decisión ni como autorización de implementación; si sigue realmente abierta, permanece en Brainstorming salvo que sea contexto imprescindible, en cuyo caso debe etiquetarse explícitamente como `DECISIÓN ABIERTA`;
 6. entregar a Sebastián un mensaje corto, listo para copiar al chat de Desarrollo, que apunte a ese documento en vez de duplicar todo su contenido;
 7. a partir de ese punto, Desarrollo decide la secuencia técnica: qué entra antes de Production, qué durante la preparación de salida y qué queda para después, respetando las prioridades vigentes.
 
-Después del traspaso, Brainstorming vuelve a quedar libre para ideas nuevas. El handoff y las fuentes maestras conservan la memoria de lo ya delegado.
+Después del traspaso, Brainstorming vuelve a quedar libre para ideas nuevas. El handoff (mientras el frente esté abierto) y, al cerrarlo, las fuentes maestras conservan la memoria de lo ya delegado.
 
 ### Límites
 
@@ -68,18 +69,36 @@ Después del traspaso, Brainstorming vuelve a quedar libre para ideas nuevas. El
 
 ## Tareas medianas / grandes
 
-- Consolidar contexto primero en un documento del repo.
-- Pasar al siguiente agente un handoff corto que apunte a ese documento.
+- Consolidar contexto primero en el documento vivo del frente (`Trabajo en curso/`) o, si ya existe, en la fuente maestra.
+- Pasar al siguiente agente un prompt corto que apunte a ese documento.
 - Ese agente lee el documento y avanza autónomamente.
 - Si aparece una decisión humana real, marcar `DECISIÓN ABIERTA` y continuar todo lo no bloqueado por ella.
 - No repetir investigaciones grandes ya realizadas.
 
 ## Entrega entre agentes
 
-- Una ronda técnica **no se considera terminada** mientras el resultado no sea accesible remotamente para el siguiente agente.
-- Salvo que el handoff diga explícitamente `NO PUSH`, Claude Code debe terminar con: pruebas pertinentes → diff revisado → commit lógico → push a `origin/staging` → informe/resultado guardado en el repo.
-- Sebastián no debe transportar informes técnicos entre chats. Idealmente solo informa `terminó` y ChatGPT central lee directamente HEAD, diff y documentación desde el repo.
-- Si por una limitación real no puede hacerse push, el agente debe dejarlo explícito como bloqueo operativo antes de dar la tarea por terminada.
+*(Reemplaza, desde el 08/10/2026, la regla anterior que exigía un push por defecto para que el informe fuera accesible.)*
+
+- **Los informes viajan por el espacio compartido, no por Git.** Una ronda se entrega cuando su resultado quedó asentado en el frente de `Trabajo en curso/` (ver sección siguiente). Ningún commit ni push se hace solo para transmitir un informe, análisis, decisión o handoff.
+- **El código sigue el flujo normal:** pruebas pertinentes → diff revisado → commit lógico (local) → push a `origin/staging` **cuando hace falta** para: respaldo, colaboración (Central debe revisar el diff en GitHub), QA/deploy en Staging o publicación. Una ronda de código lista para revisión o QA se pushea una vez (ver «Presupuesto de deploys»); una ronda solo de análisis, decisión o documentación de trabajo no genera push.
+- El frente debe decir en su encabezado **rama, HEAD y si está pusheado**, para que ChatGPT sepa si el diff ya es visible en GitHub. Si Central necesita revisar código que todavía no se pusheó, eso justifica el push (colaboración), no un informe aparte.
+- Sebastián no debe transportar informes técnicos entre chats. Idealmente solo informa `terminó`; ChatGPT central lee `Tablero` y el frente en Dropbox y, si hubo código, HEAD y diff desde GitHub.
+- Si una limitación real impide actualizar el frente (p. ej. Dropbox sin sincronizar), el agente lo declara como bloqueo operativo antes de dar la tarea por terminada.
+
+## Espacio compartido de coordinación (`Trabajo en curso/`)
+
+Carpeta de Dropbox `/Otros Trabajos/BRAMU/Trabajo en curso/`, **fuera del repositorio** (mapa y uso resumido en su `LEEME`). Objetivo: evitar commits, pushes, deploys y documentos solo para intercambiar informes entre agentes.
+
+**Contenido:** `Tablero` (vista general breve), un `Frente_<tema>` por frente activo y `_Plantilla_Frente`.
+
+1. **Un único documento vivo por frente activo que realmente necesite coordinación.** Sin numeración ni sufijos de versión. Una ronda chica no abre frente (se registra en el commit y, al cerrar, en la fuente maestra).
+2. **Quién escribe:** Claude Code mantiene el contenido; ChatGPT lo consulta desde Dropbox. Las decisiones de ChatGPT llegan por el prompt y Claude las asienta en la sección «Decisiones» del frente.
+3. **Todo se consolida en el mismo archivo:** handoffs, análisis, decisiones y resultados intermedios son secciones del frente; «Handoff vigente» y «Resultado de la última ronda» se **sobrescriben**, «Decisiones» se acumula con fecha. Prohibido crear un Markdown nuevo por ida y vuelta.
+4. **Tablero general:** una fila por frente con estado (Activo / Bloqueado / Cerrado), turno de escritura y próximo paso. Se actualiza en cada cambio de estado.
+5. **Una sola mano a la vez:** el encabezado del frente tiene `Turno de escritura`; solo edita quien figura ahí y lo cede al terminar. Dos agentes nunca escriben el mismo documento a la vez (evita copias en conflicto de Dropbox).
+6. **Sin secretos:** ninguna credencial, token, clave ni dato personal; el espacio es legible por ChatGPT. Material sensible → `Documentos privados/`.
+7. **Cierre del frente:** (a) trasladar las decisiones y resultados definitivos a su fuente maestra en Git, al Informe de la versión y al Backlog según corresponda (checklist de «Higiene documental»); (b) comprobar que el documento **no contiene información única necesaria** — lo borrado de Dropbox no está en Git y las versiones borradas de Dropbox no son respaldo; (c) recién entonces retirarlo y marcar el frente Cerrado en el tablero.
+8. **No se migra el pasado:** los informes anteriores a esta regla no se trasladan ni se duplican acá.
 
 ## Prompt único para Claude Code
 
@@ -92,14 +111,15 @@ Ese prompt debe ser autosuficiente como orden de ejecución, pero **no duplicar 
 - alcance expresado, cuando aplique, como **AGREGAR / FUSIONAR / REEMPLAZAR / NO TOCAR**;
 - pruebas necesarias según el riesgo real;
 - versionado/bundle si la ronda se distribuye;
-- reglas de Git, commit, push y deploy;
+- reglas de Git, commit, push y deploy (el push se hace cuando hace falta para respaldo, revisión del diff, QA o publicación; nunca solo para pasar un informe);
+- el frente de `Trabajo en curso/` donde Claude deja el resultado;
 - salida breve esperada al terminar.
 
-Si el detalle técnico ya está consolidado en un documento o Issue, el prompt debe apuntar a esa fuente en vez de copiarla completa.
+Si el detalle técnico ya está consolidado en un frente de `Trabajo en curso/`, una fuente maestra o un Issue, el prompt debe apuntar a esa fuente en vez de copiarla completa.
 
 Claude debe ejecutar autónomamente todo lo técnico posible. Si aparece una decisión humana real, debe marcarla como **DECISIÓN ABIERTA** y continuar con todo lo que no dependa de ella.
 
-Sebastián no debe actuar como integrador entre agentes ni transportar informes técnicos extensos. Idealmente solo copia el prompt inicial, aporta una decisión humana cuando realmente hace falta y al final informa **“terminó”**. ChatGPT central revisa HEAD, diff, tests y documentación directamente antes de habilitar la siguiente etapa sensible.
+Sebastián no debe actuar como integrador entre agentes ni transportar informes técnicos extensos. Idealmente solo copia el prompt inicial, aporta una decisión humana cuando realmente hace falta y al final informa **“terminó”**. ChatGPT central lee el frente en `Trabajo en curso/` y, si hubo código, revisa HEAD, diff y tests directamente antes de habilitar la siguiente etapa sensible.
 
 ## Flujo normal Staging → aprobación → Production
 
@@ -219,12 +239,12 @@ El tiempo de lanzamiento y las cuotas de los agentes son recursos del proyecto. 
 
 Este patrón viene reduciendo tiempo/contexto sin perder control y pasa a ser el default cuando el trabajo ya está bien definido:
 
-1. **Central consolida una sola vez** la decisión vigente en la fuente maestra y, si la ronda es mediana/grande, crea un handoff corto y acotado.
+1. **Central consolida una sola vez** la decisión vigente en la fuente maestra y, si la ronda es mediana/grande, deja un handoff corto y acotado en el frente de `Trabajo en curso/`.
 2. El mensaje a Claude funciona como **puntero**, no como duplicado del handoff: objetivo + archivos a leer + límites + salida esperada.
 3. Claude **no reabre producto ni relee historia** si la fuente maestra/handoff ya resuelven la pregunta. Inspecciona únicamente el código afectado.
 4. Mantener el **mismo chat de Claude mientras la etapa sea una continuación directa y el contexto siga limpio**. Abrir uno nuevo cuando cambia el frente, el chat quedó cargado de ramas descartadas o apareció una investigación distinta; no por cada microajuste.
 5. Dividir cambios grandes en **subfases con frontera técnica real** (por ejemplo backend → frontend/UX → Storage), no en microtareas arbitrarias. Cada subfase debe dejar una salida usable por la siguiente.
-6. Claude termina en repo remoto con **un resultado corto**. Central lee HEAD/diff/resultado directamente; Sebastián idealmente solo necesita decir **“terminó”**.
+6. Claude termina con **un resultado corto** asentado en el frente (y el código en Git, pusheado si hace falta revisarlo o probarlo). Central lee el frente y, si hubo código, HEAD/diff directamente; Sebastián idealmente solo necesita decir **“terminó”**.
 7. **Central absorbe aplicación/revisión que pueda hacer con herramientas propias** (por ejemplo Supabase Staging, verificación de migraciones, diff/status, documentación). No devolver esa operación a Sebastián ni volver a Claude si no aporta capacidad adicional.
 8. Una ronda backend/documental debe evitar tocar archivos de frontend si no es necesario, para permitir que Vercel omita builds y ahorrar deploys.
 9. Los informes de resultado deben registrar **qué cambió, qué pasó, qué falta y qué no se verificó**. No narrar toda la investigación ni pegar logs completos.
@@ -312,6 +332,7 @@ Default desde ahora:
 - **Claude:** 1 push funcional por ronda terminada.
 - **Central:** como máximo 1 push consolidado posterior por ronda, solo si realmente hace falta corregir/revisar algo.
 - documentación, README, PreProduction, resultados y pequeños ajustes relacionados deben **agruparse**; evitar un commit por archivo o por observación.
+- **los informes, handoffs y análisis entre agentes no son motivo de commit ni de push**: viven en `Trabajo en curso/` (ver «Espacio compartido de coordinación»). Un cambio al método o a la documentación normativa viaja en el próximo commit funcional que corresponda, no en un push propio.
 - no hacer commits “de registro” mientras todavía se está investigando el mismo bloque; acumular las conclusiones y escribirlas juntas al final.
 - no hacer commits/no-op para forzar deploy.
 - un cambio backend/documental que no necesita frontend no debe generar un nuevo deploy por capricho; si la integración Git igualmente crea intentos, tratarlo como consumo real de cuota.
@@ -368,7 +389,7 @@ Abrir un chat Central nuevo cuando:
 - el contexto quedó cargado de caminos descartados, logs o handoffs consumidos aunque todavía permita seguir escribiendo.
 
 Antes de migrar:
-1. dejar un **único handoff de continuidad** como documento de ronda activa (`docs/BRAMUlab/Implementacion/Ronda_<tema>.md`, ver «Higiene documental»);
+1. dejar un **único handoff de continuidad** como frente activo en `Trabajo en curso/` (`Frente_<tema>`, ver «Espacio compartido de coordinación»);
 2. registrar HEAD exacto, estado del gate, qué ya fue verificado, qué falta y decisiones humanas cerradas;
 3. el nuevo chat lee por defecto solo **README + Metodo_Trabajo + handoff activo + fuentes maestras indicadas por ese handoff**;
 4. no reconstruir la conversación anterior ni releer cadenas completas de handoffs consumidos;
@@ -389,7 +410,7 @@ El texto de arranque del nuevo chat debe exigir leer, como mínimo:
 - `docs/BRAMUlab/Metodo_Trabajo.md`
 - `docs/BRAMUlab/Operacion/Pre_Production.md`
 - la fuente maestra del sistema que se esté trabajando;
-- el último resultado/handoff vigente del bloque en curso.
+- `Trabajo en curso/Tablero` y el frente vigente del bloque en curso (resultado/handoff).
 
 Además, el mensaje de traspaso debe recordar explícitamente estas reglas críticas:
 
@@ -442,8 +463,8 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 
 ### Durante una ronda
 
-1. **Documento activo único:** si la ronda es mediana/grande, existe **un solo** archivo `docs/BRAMUlab/Implementacion/Ronda_<tema>.md`, sin números ni sufijos de versión. Handoff, plan, resultado, corrección y cierre son **secciones del mismo archivo**, que se actualiza en el lugar en cada ida y vuelta. Prohibido crear un archivo nuevo por diagnóstico, hotfix menor, gate o reintento.
-2. Los prompts de ChatGPT/Claude/Work apuntan a ese archivo y no duplican su contenido. Decisiones abiertas: `DECISIÓN ABIERTA` dentro del mismo documento.
+1. **Documento activo único:** si la ronda es mediana/grande, existe **un solo** archivo `Frente_<tema>` en `Trabajo en curso/` (Dropbox, fuera del repo; ver «Espacio compartido de coordinación»), sin números ni sufijos de versión. Handoff, plan, resultado, corrección y cierre son **secciones del mismo archivo**, que se actualiza en el lugar en cada ida y vuelta. No se crean `Ronda_<tema>` en el repo. Prohibido crear un archivo nuevo por diagnóstico, hotfix menor, gate o reintento.
+2. Los prompts de ChatGPT/Claude/Work apuntan a ese frente y no duplican su contenido. Decisiones abiertas: `DECISIÓN ABIERTA` dentro del mismo documento.
 3. Si la ronda es chica, no se crea documento: se registra en el commit y, al cerrar, en la fuente maestra.
 
 ### Al cerrar la ronda (checklist obligatorio)
@@ -452,9 +473,9 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 2. **Registro:** una entrada breve en el Informe de la versión (`Versiones/…`) si la ronda cambió el producto; riesgos conocidos, decisiones diferidas e ideas → `BRAMUlab_Backlog.md`.
 3. **Evidencia que se conserva:** solo si es técnica y todavía útil (migración aplicada, seguridad, identidad/datos, producción, incidente, ensayo operativo). Se deja **un** documento de cierre identificable; no varios informes equivalentes.
 4. **Verificar referencias** antes de retirar: menciones desde README, otras fuentes maestras, tests, scripts y tareas activas (`node docs/check-docs.mjs` + `git grep`). No retirar por patrón ni por nombre; un documento que lee un test o cita una fuente vigente se adapta primero.
-5. **Retirar** del árbol el documento de ronda y todo intermedio consumido en el mismo commit documental (`docs:`). Git conserva los documentos versionados; **no** conserva archivos que solo estuvieron en Dropbox.
+5. **Retirar** el frente de `Trabajo en curso/` y todo intermedio consumido **solo después de comprobar que no contiene información única necesaria** (todo lo definitivo ya está en su fuente maestra). Git conserva los documentos versionados que se retiran del árbol; **no** conserva lo que solo estuvo en Dropbox: lo borrado de `Trabajo en curso/` no se recupera de Git. Los intermedios que sí estaban versionados se retiran en el mismo commit documental (`docs:`).
 6. **No tocar código para arreglar citas rotas** en comentarios: las rutas retiradas se recuperan con Git, y editar `bramulab/` o las Edge Functions dispara builds y cambia hashes de release.
-7. Agrupar la documentación de cierre en **un solo push** (ver «Presupuesto de deploys»).
+7. Agrupar la documentación de cierre en el próximo commit/push funcional que corresponda; no hacer un push solo para eso (ver «Presupuesto de deploys»).
 
 ### Orden del repositorio
 
@@ -470,6 +491,7 @@ Una única carpeta principal visible, `/Otros Trabajos/BRAMU/` (mapa en su `LEEM
 
 - **`Desarrollo/`** — la copia de trabajo del repositorio (GitHub es la fuente de verdad) con los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. Es una copia limpia (`git clone`) creada el 08/10/2026; **no se mueve ni se renombra** mientras haya sesiones de Claude Code/Git sobre esa ruta (la memoria y el historial de cada proyecto se asocian a la ruta). Nunca guardar acá algo irrecuperable que no esté en Git; `.claude/launch.json` lleva rutas absolutas de esta carpeta.
 - **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/`. **Intocable**: no renombrar, reemplazar ni reconstruir nada de adentro.
+- **`Trabajo en curso/`** — espacio compartido de coordinación entre agentes (`Tablero`, un `Frente_<tema>` por frente activo, plantilla). Fuera de Git, temporal, sin secretos; lo definitivo se traslada a la fuente maestra antes de retirar cada documento (ver «Espacio compartido de coordinación»).
 - **`Documentos privados/`** — material sensible no versionado (p. ej. las decisiones legales con datos personales del titular); nunca va al repositorio público.
 - **`Archivo histórico/`** — dos zips sin copia en Git, explicados en su `LEEME.md`. Nada «por las dudas».
 
@@ -479,4 +501,4 @@ No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni 
 
 ### Mantenimiento
 
-Al cierre de cada bloque (no semanalmente): `node docs/check-docs.mjs` (referencias rotas, `Archivo/`/`Backup/`, nombres tipo `final_v2`, README demasiado grande, documentos de `Implementacion/` que ninguna fuente vigente cita) y barrer handoffs consumidos con el checklist de arriba.
+Al cierre de cada bloque (no semanalmente): `node docs/check-docs.mjs` (referencias rotas, `Archivo/`/`Backup/`, nombres tipo `final_v2`, README demasiado grande, documentos de `Implementacion/` que ninguna fuente vigente cita) y barrer handoffs consumidos con el checklist de arriba. Revisar también `Trabajo en curso/`: frentes marcados Cerrado sin retirar, o abiertos sin movimiento.

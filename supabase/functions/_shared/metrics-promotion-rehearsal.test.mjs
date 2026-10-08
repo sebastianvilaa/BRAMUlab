@@ -21,6 +21,7 @@ import { replay, adaptMigration, MIGRATIONS_DIR } from '../../scripts/replay-mig
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROLLBACK = fs.readFileSync(path.join(HERE, '..', '..', 'scripts', 'metrics-rollback.sql'), 'utf8');
 const METRICS_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.startsWith('20261008')).sort();
+const ERASURE_MIGRATION = '20261008140000_metrics_presence_erased_on_account_deletion.sql';
 const ASOF = '2026-10-08T12:00:00Z';
 let db; let before_; let uid = {}; let pid = {};
 
@@ -33,7 +34,7 @@ function rollbackLevel(n) {
   assert.ok(start >= 0, `nivel ${n} presente`);
   const next = ROLLBACK.indexOf('-- NIVEL', start + 10);
   const block = ROLLBACK.slice(start, next < 0 ? undefined : next);
-  return block.split('\n').filter((l) => l.startsWith('--> ')).map((l) => l.slice(4)).join('\n');
+  return block.split('\n').filter((l) => l === '-->' || l.startsWith('--> ')).map((l) => (l === '-->' ? '' : l.slice(4))).join('\n');
 }
 
 async function mkAccount(key, at, { username = true } = {}) {
@@ -74,7 +75,8 @@ async function snapshot() {
 
 before(async () => {
   const names = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql'));
-  assert.equal(METRICS_MIGRATIONS.length, 4, 'las únicas migraciones del día son las 4 de Metrics (F1, F2, F4, F6)');
+  assert.equal(METRICS_MIGRATIONS.length, 5, 'las únicas migraciones del día son las 5 de Metrics (F1, F2, F4, F6 y el borrado de actividad al eliminar cuenta)');
+  assert.equal(METRICS_MIGRATIONS.at(-1), ERASURE_MIGRATION);
   assert.ok(names.length > 80);
   const r = await replay({ acl: 'observed', exclude: ['20261008'] });
   assert.ok(r.ok, 'la base tipo Production (todo menos Metrics) reconstruye limpia');
@@ -120,7 +122,7 @@ test('1 · la base tipo Production tiene datos reales-like y NO tiene nada de Me
   assert.equal('activityDays' in before_.exportA, false);
 });
 
-test('2 · aplicar F1 → F2 → F4 → F6 sobre esa base NO altera NADA existente (datos, ACL, políticas, triggers, índices) y solo cambia UNA función', async () => {
+test('2 · aplicar las 5 migraciones de Metrics sobre esa base NO altera NADA existente (datos, ACL, políticas, triggers, índices) y solo cambian DOS funciones', async () => {
   await apply(METRICS_MIGRATIONS);
   const now = await snapshot();
   assert.deepEqual(now.rows, before_.snap.rows, 'ninguna fila de ninguna tabla existente cambió (conteo + checksum por tabla)');
@@ -129,7 +131,7 @@ test('2 · aplicar F1 → F2 → F4 → F6 sobre esa base NO altera NADA existen
   const was = Object.fromEntries(before_.snap.fns.map((f) => [f.sig, f])); const is = Object.fromEntries(now.fns.map((f) => [f.sig, f]));
   assert.deepEqual(Object.keys(is).sort(), Object.keys(was).sort(), 'no apareció ni desapareció ninguna función existente');
   const changed = Object.keys(is).filter((k) => is[k].def !== was[k].def);
-  assert.deepEqual(changed, ['admin_export_player_data(p_player_id uuid)'], 'la única función existente que cambia es el informe de acceso/copia');
+  assert.deepEqual(changed.sort(), ['admin_delete_player_account(p_player_id uuid)', 'admin_export_player_data(p_player_id uuid)'], 'las únicas funciones existentes que cambian: informe de acceso/copia (+activityDays) y eliminación de cuenta (+borrado de actividad)');
   assert.deepEqual(Object.keys(is).filter((k) => is[k].acl !== was[k].acl), [], 'ningún permiso de función existente cambió');
 });
 
@@ -227,20 +229,19 @@ test('8 · la presencia: un jugador autenticado escribe SOLO su fila; sin sesió
   } finally { await db.exec('rollback'); }
 });
 
-test('9 · eliminar una cuenta con presencia: la cuenta queda anonimizada, los días de actividad dejan de ser personales y el informe no los asocia a nadie', async () => {
+test('9 · eliminar una cuenta con presencia: queda anonimizada y su actividad diaria se ELIMINA (no se conserva seudonimizada); las poblaciones y la retención no la cuentan', async () => {
   await db.exec('begin');
   try {
     await q(`insert into public.player_activity_days (player_id, activity_date, display_mode, platform, app_bundle) values ($1, '2026-10-08', 'browser', 'ios', '04.37-h31')`, [pid.f]);
+    await q(`insert into public.metrics_internal_players (player_id, reason) values ($1, 'test')`, [pid.f]);
     const del = (await one(`select public.admin_delete_player_account($1) r`, [pid.f])).r;
     assert.equal(del.ok, true);
     const p = await one(`select display_name, deleted_at is not null del, auth_user_id from public.players where player_id = $1`, [pid.f]);
     assert.deepEqual([p.display_name, p.del, p.auth_user_id], ['Jugador eliminado', true, null], 'anonimizada y sin vínculo con Auth');
-    const kept = await q(`select * from public.player_activity_days where player_id = $1`, [pid.f]);
-    assert.equal(kept.length, 1, 'DECISIÓN D3 (opción A): la fila se conserva');
-    assert.deepEqual(Object.keys(kept[0]).sort(), ['activity_date', 'app_bundle', 'display_mode', 'first_seen_at', 'last_seen_at', 'opens', 'platform', 'player_id'], 'sin IP, user-agent, ubicación, pantalla ni contenido');
-    const ident = await one(`select (to_jsonb(pl) || coalesce(to_jsonb(pr), '{}'::jsonb))::text t from public.players pl left join public.profiles pr on pr.player_id = pl.player_id where pl.player_id = $1`, [pid.f]);
-    assert.ok(!/@example|Nombre f|user_f/.test(ident.t), 'el jugador al que apunta la fila ya no contiene datos personales');
-    // métricas: la presencia anonimizada sigue contando como actividad histórica agregada, nunca como persona; las poblaciones «actuales» excluyen eliminados
+    assert.equal((await q(`select * from public.player_activity_days where player_id = $1`, [pid.f])).length, 0, 'DECISIÓN CONFIRMADA: la actividad se elimina con la cuenta');
+    assert.equal((await q(`select * from public.metrics_internal_players where player_id = $1`, [pid.f])).length, 0, 'y también su marca de «cuenta interna»');
+    const again = (await one(`select public.admin_delete_player_account($1) r`, [pid.f])).r;
+    assert.deepEqual([again.ok, again.alreadyDeleted], [true, true], 'idempotente');
     const u = (await one(`select public.metrics_users('all', true, false, '2026-10-09T12:00:00Z') r`)).r;
     assert.equal(u.kpis.find((k) => k.id === 'users.registered_now').value, 5, 'eliminada fuera de cuentas actuales');
   } finally { await db.exec('rollback'); }
@@ -270,6 +271,8 @@ test('11 · RETIRO niveles 2 y 3: el esquema vuelve EXACTAMENTE al de antes de M
   const now = await snapshot();
   assert.deepEqual(now.rows, before_.snap.rows, 'datos de todas las tablas existentes idénticos');
   assert.deepEqual(now.tables, before_.snap.tables);
+  const diff = now.fns.filter((f, i) => JSON.stringify(f) !== JSON.stringify(before_.snap.fns[i])).map((f) => f.sig);
+  assert.deepEqual(diff, [], 'funciones distintas tras el retiro');
   assert.deepEqual(now.fns, before_.snap.fns, 'TODAS las funciones (definición y permisos) idénticas a las de antes, incluido el informe de acceso/copia restaurado');
   assert.deepEqual(now.policies, before_.snap.policies); assert.deepEqual(now.triggers, before_.snap.triggers); assert.deepEqual(now.indexes, before_.snap.indexes);
   assert.equal(Number((await one(`select count(*) c from pg_class where relnamespace = 'public'::regnamespace and relname = 'player_activity_days'`)).c), 0, 'nivel 3: sin tabla de presencia');

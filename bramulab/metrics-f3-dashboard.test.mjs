@@ -134,7 +134,9 @@ test('seriesFor/parseHash/apiErrorKind/qaAllowed', () => {
 
 /* ---------------- Contrato con el backend REAL ---------------- */
 
-const migration = fs.readFileSync(path.join(dir, '..', 'supabase', 'migrations', '20261008120000_metrics_f4_d8_comunidad.sql'), 'utf8');
+const migrationsDir = path.join(dir, '..', 'supabase', 'migrations');
+const catalogMigration = fs.readdirSync(migrationsDir).filter((f) => f.startsWith('20261008') && /\$cat\$/.test(fs.readFileSync(path.join(migrationsDir, f), 'utf8'))).sort().at(-1);
+const migration = fs.readFileSync(path.join(migrationsDir, catalogMigration), 'utf8');
 const sqlCatalog = JSON.parse(/\$cat\$(\[[\s\S]*?\])\$cat\$/.exec(migration)[1]);
 
 test('contrato: el catálogo del fixture es copia EXACTA del de la última migración (si el backend cambia, este test obliga a actualizar el QA)', () => {
