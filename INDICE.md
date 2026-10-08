@@ -40,7 +40,7 @@ Los `.mjs`, `.js`, `.ts` y `.sql` son código, pruebas, migraciones o herramient
 - Lo que ya no sirve se **retira** del árbol; la historia queda en Git (`git log --diff-filter=D --name-only -- docs/`). No hay carpetas `Archivo/` ni `Backup/`.
 - `Temporales/` no se versiona. No dejar allí documentación única: lo sensible va a `Documentos privados/` en Dropbox.
 - El repositorio es público en este estado; no agregar originales privados, secretos ni documentación sensible.
-- Los originales editables del sistema gráfico (Illustrator y referencias de diseño) se conservan en Dropbox (`Sistema grafico/`). No reemplazarlos ni eliminarlos.
+- Los originales editables del sistema gráfico (Illustrator y referencias de diseño) se conservan en Dropbox (`/Otros Trabajos/BRAMU/Sistema grafico/`; mapa en el `LEEME.md` de esa carpeta). No reemplazarlos ni eliminarlos.
 - La versión efectivamente publicada en Production o Staging se verifica en los respectivos despliegues, no a partir de un nombre de carpeta.
 
 Mantenimiento y reorganización documental: [Issue #31](https://github.com/sebastianvilaa/BRAMUlab/issues/31).

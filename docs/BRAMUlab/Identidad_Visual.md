@@ -12,7 +12,7 @@ Este documento registra únicamente decisiones visuales confirmadas y necesarias
 
 El maestro editable vive fuera del repositorio:
 
-`/Otros Trabajos/BRAMUlab/Sistema grafico/BRAMUlab-SistemaGrafico.ai`
+`/Otros Trabajos/BRAMU/Sistema grafico/BRAMUlab-SistemaGrafico.ai`
 
 Exports aprobados:
 
@@ -23,7 +23,7 @@ Exports aprobados:
 
 Ubicación externa vigente:
 
-`/Otros Trabajos/BRAMUlab/Sistema grafico/Archivos/Marca/SVG/`
+`/Otros Trabajos/BRAMU/Sistema grafico/Archivos/Marca/SVG/`
 
 Los PNG equivalentes de `Archivos/Marca/PNG/` son referencias/derivados y **no** son fuente editable.
 
@@ -270,8 +270,8 @@ Las referencias de Premier Padel y Playtomic son **archivo de investigación/moo
 
 Archivo externo:
 
-- `/Otros Trabajos/BRAMUlab/Sistema grafico/Referencias/Premier-Padel/`
-- `/Otros Trabajos/BRAMUlab/Sistema grafico/Referencias/Playtomic/`
+- `/Otros Trabajos/BRAMU/Sistema grafico/Referencias/Premier-Padel/`
+- `/Otros Trabajos/BRAMU/Sistema grafico/Referencias/Playtomic/`
 
 Pueden servir para estudiar clima, jerarquía o soluciones de producto, pero nunca para reemplazar las reglas vigentes de este documento.
 

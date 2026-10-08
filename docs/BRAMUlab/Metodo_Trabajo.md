@@ -464,13 +464,14 @@ Objetivo: que la coordinación entre agentes **no produzca** una colección perm
 
 ### Dropbox (originales y material no versionado)
 
-`/Otros Trabajos/BRAMUlab/` contiene exactamente:
+`/Otros Trabajos/BRAMU/` es la carpeta de BRAMU (mapa completo en su `LEEME.md`):
 
-- **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/` (moodboards). **Intocable:** no mover, renombrar ni reconstruir; sus rutas pueden estar referenciadas por el `.ai` y por `Identidad_Visual.md`.
-- **`BRAMUlab/`** — copia de trabajo del repositorio (GitHub es la fuente de verdad). **No mover ni renombrar mientras haya una sesión de Claude Code/Git activa:** la memoria y la configuración de las sesiones dependen de esta ruta. No guardar acá nada irrecuperable que no esté en Git.
+- **`Sistema grafico/`** — originales de Illustrator, identidad visual, exportaciones y `Referencias/` (moodboards). **Intocable:** no renombrar, reemplazar ni reconstruir nada de adentro.
+- **`Desarrollo (código y documentación)`** — alias de Finder a la copia de trabajo del repositorio (GitHub es la fuente de verdad), que contiene los dos productos (`bramulab/`, `bramulive/`), `supabase/` y `docs/`. **La copia real sigue físicamente en `/Otros Trabajos/BRAMUlab/BRAMUlab` (carpeta `BRAMUlab` oculta en Finder) y no se mueve ni se renombra:** la memoria, el historial de sesiones, `.claude/launch.json` y los worktrees de Claude Code/Git dependen de esa ruta exacta. Nunca guardar acá algo irrecuperable que no esté en Git.
 - **`Documentos privados/`** — material no versionado y sensible (p. ej. la fuente privada de las decisiones legales con datos personales del titular). Nunca se copia al repositorio público.
-- **`Archivo histórico/`** — material retirado de otras ubicaciones, conservado por precaución; no es fuente de nada.
-- **`LEEME.md`** — este mapa, en una página.
+- **`Archivo histórico/`** — material retirado, separado por producto (`BRAMUlab/`, `BRAMUlive/`); no es fuente de nada.
+
+Todo material nuevo se guarda en la sección que le corresponde de `BRAMU/`; nada suelto en `Otros Trabajos`.
 
 No duplicar entre Dropbox y GitHub sin una razón concreta (ni repositorios, ni `node_modules`, ni exports regenerables). Todo lo que se pueda regenerar con un comando (`npm ci`, `dist/`) no es un entregable ni se versiona; la copia local de `supabase/scripts/node_modules` existe solo porque los tests de `bramulab/` importan PGlite desde ahí (si falta: `cd supabase/scripts && npm ci`).
 
