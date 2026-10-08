@@ -1,0 +1,225 @@
+{
+  "anexoB": {
+    "5,0 vs 5,0 (6-4 6-4)  doc: P=50% +0,08": {
+      "pA": 0.5,
+      "dA": 0.0785,
+      "dB": -0.0785
+    },
+    "5,0 vence a 6,0       doc: P=23% +0,12": {
+      "pA": 0.2292,
+      "dA": 0.1211,
+      "dB": -0.1211
+    },
+    "6,0 vence a 5,0       doc: P=77% +0,04": {
+      "pA": 0.7708,
+      "dA": 0.036,
+      "dB": -0.036
+    },
+    "4,5 vence a 6,5       doc: P=8%  +0,14": {
+      "pA": 0.0813,
+      "dA": 0.1443,
+      "dB": -0.1443
+    }
+  },
+  "cuestionarioCurva": [
+    {
+      "percibido": 1.5,
+      "nivelInicial": 1.56,
+      "spread": 0.3,
+      "conf": 0.15
+    },
+    {
+      "percibido": 2,
+      "nivelInicial": 1.91,
+      "spread": 0.1333,
+      "conf": 0.15
+    },
+    {
+      "percibido": 2.5,
+      "nivelInicial": 2.39,
+      "spread": 0.1,
+      "conf": 0.15
+    },
+    {
+      "percibido": 3,
+      "nivelInicial": 3.13,
+      "spread": 0,
+      "conf": 0.15
+    },
+    {
+      "percibido": 3.5,
+      "nivelInicial": 3.53,
+      "spread": 0.3333,
+      "conf": 0.15
+    },
+    {
+      "percibido": 4,
+      "nivelInicial": 4.01,
+      "spread": 0.2667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 4.5,
+      "nivelInicial": 4.52,
+      "spread": 0.0667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 5,
+      "nivelInicial": 4.92,
+      "spread": 0.2667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 5.5,
+      "nivelInicial": 5.59,
+      "spread": 0.2667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 6,
+      "nivelInicial": 5.85,
+      "spread": 0.0667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 6.5,
+      "nivelInicial": 6.21,
+      "spread": 0.0667,
+      "conf": 0.15
+    },
+    {
+      "percibido": 7,
+      "nivelInicial": 7.04,
+      "spread": 0.2,
+      "conf": 0.15
+    },
+    {
+      "percibido": 7.5,
+      "nivelInicial": 7.52,
+      "spread": 0.4,
+      "conf": 0.15
+    },
+    {
+      "percibido": 8,
+      "nivelInicial": 8,
+      "spread": 1,
+      "conf": 0.15
+    },
+    {
+      "percibido": 8.5,
+      "nivelInicial": 8,
+      "spread": 1,
+      "conf": 0.15
+    },
+    {
+      "percibido": 9,
+      "nivelInicial": 8.48,
+      "spread": 1.6,
+      "conf": 0.15
+    }
+  ],
+  "cuestionarioRuido": [
+    {
+      "sigmaPregunta": 0,
+      "mediaNivelInicial": 5.587,
+      "sdNivelInicial": 0
+    },
+    {
+      "sigmaPregunta": 0.5,
+      "mediaNivelInicial": 5.491,
+      "sdNivelInicial": 0.22
+    },
+    {
+      "sigmaPregunta": 1,
+      "mediaNivelInicial": 5.403,
+      "sdNivelInicial": 0.451
+    },
+    {
+      "sigmaPregunta": 1.5,
+      "mediaNivelInicial": 5.303,
+      "sdNivelInicial": 0.718
+    }
+  ],
+  "circuloSonda": {
+    "grupo12_40partidos_real": {
+      "circleHits": 0,
+      "circleEvals": 480,
+      "hitsSegundaMitad": 0,
+      "evalsSegundaMitad": 236
+    },
+    "grupo12_40partidos_diccionarioCompleto": {
+      "circleHits": 32,
+      "circleEvals": 480,
+      "hitsSegundaMitad": 32,
+      "evalsSegundaMitad": 236
+    },
+    "grupo8_40partidos_real": {
+      "circleHits": 0,
+      "circleEvals": 320,
+      "hitsSegundaMitad": 0,
+      "evalsSegundaMitad": 156
+    },
+    "grupo8_40partidos_diccionarioCompleto": {
+      "circleHits": 60,
+      "circleEvals": 320,
+      "hitsSegundaMitad": 60,
+      "evalsSegundaMitad": 156
+    },
+    "grupo24_40partidos_diccionarioCompleto": {
+      "circleHits": 0,
+      "circleEvals": 960,
+      "hitsSegundaMitad": 0,
+      "evalsSegundaMitad": 476
+    },
+    "mismoCuarteto40partidos_real": {
+      "estadosTrasFaseRotativa": [
+        "CALIBRADO",
+        "CALIBRADO",
+        "CALIBRADO",
+        "CALIBRADO"
+      ],
+      "circleHitsFaseFija": 80,
+      "circleEvalsFaseFija": 160
+    },
+    "mismoCuarteto40partidos_diccionarioCompleto": {
+      "estadosTrasFaseRotativa": [
+        "CALIBRADO",
+        "CALIBRADO",
+        "CALIBRADO",
+        "CALIBRADO"
+      ],
+      "circleHitsFaseFija": 120,
+      "circleEvalsFaseFija": 160
+    }
+  },
+  "escalaResultados": {
+    "sg": 6.6084,
+    "tabla": [
+      {
+        "dif": 0.25,
+        "pGana": 0.592
+      },
+      {
+        "dif": 0.5,
+        "pGana": 0.678
+      },
+      {
+        "dif": 1,
+        "pGana": 0.822
+      },
+      {
+        "dif": 1.5,
+        "pGana": 0.916
+      },
+      {
+        "dif": 2,
+        "pGana": 0.966
+      },
+      {
+        "dif": 3,
+        "pGana": 0.996
+      }
+    ]
+  }
+}

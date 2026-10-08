@@ -1,0 +1,1694 @@
+{
+ "reps": 30,
+ "checkpoints": [
+  10,
+  30,
+  50
+ ],
+ "results": {
+  "F_prov_6x24_sigma0_f0": {
+   "label": "provincia 6x24 σ=0 islas",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0,
+    "f": 0,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8561,
+      "sd": 0.0234
+     },
+     "meanAbsRankShift": {
+      "mean": 16.7778,
+      "sd": 1.4677
+     },
+     "p90AbsRankShift": {
+      "mean": 37.3,
+      "sd": 3.7246
+     },
+     "topKOverlap": {
+      "mean": 0.6,
+      "sd": 0.1339
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0282,
+      "sd": 0.0074
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 34.8667,
+      "sd": 16.1965
+     },
+     "maxLocBias": {
+      "mean": 0.0359,
+      "sd": 0.0825
+     },
+     "minLocBias": {
+      "mean": -0.2473,
+      "sd": 0.0771
+     },
+     "sdLocBias": {
+      "mean": 0.0989,
+      "sd": 0.0376
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.16,
+      "sd": 0.1133
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8406,
+      "sd": 0.025
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8969,
+      "sd": 0.022
+     },
+     "meanAbsRankShift": {
+      "mean": 14.1653,
+      "sd": 1.5492
+     },
+     "p90AbsRankShift": {
+      "mean": 31.5,
+      "sd": 3.6742
+     },
+     "topKOverlap": {
+      "mean": 0.6767,
+      "sd": 0.1165
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0129,
+      "sd": 0.0054
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 27.9333,
+      "sd": 11.8959
+     },
+     "maxLocBias": {
+      "mean": 0.0357,
+      "sd": 0.0823
+     },
+     "minLocBias": {
+      "mean": -0.2473,
+      "sd": 0.0764
+     },
+     "sdLocBias": {
+      "mean": 0.0988,
+      "sd": 0.0373
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.1533,
+      "sd": 0.1042
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8834,
+      "sd": 0.0214
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.9182,
+      "sd": 0.0171
+     },
+     "meanAbsRankShift": {
+      "mean": 12.5509,
+      "sd": 1.3256
+     },
+     "p90AbsRankShift": {
+      "mean": 27.8333,
+      "sd": 3.3946
+     },
+     "topKOverlap": {
+      "mean": 0.6967,
+      "sd": 0.1245
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0066,
+      "sd": 0.0033
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 25.5333,
+      "sd": 9.4055
+     },
+     "maxLocBias": {
+      "mean": 0.0359,
+      "sd": 0.0826
+     },
+     "minLocBias": {
+      "mean": -0.2478,
+      "sd": 0.0764
+     },
+     "sdLocBias": {
+      "mean": 0.0991,
+      "sd": 0.037
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.1467,
+      "sd": 0.1137
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9058,
+      "sd": 0.0173
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma0.3_f0": {
+   "label": "provincia 6x24 σ=0.3 islas",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0.3,
+    "f": 0,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8404,
+      "sd": 0.0275
+     },
+     "meanAbsRankShift": {
+      "mean": 17.7375,
+      "sd": 1.6205
+     },
+     "p90AbsRankShift": {
+      "mean": 39.1333,
+      "sd": 4.4313
+     },
+     "topKOverlap": {
+      "mean": 0.5933,
+      "sd": 0.1285
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0362,
+      "sd": 0.0109
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 36.4,
+      "sd": 15.7537
+     },
+     "maxLocBias": {
+      "mean": 0.2268,
+      "sd": 0.1783
+     },
+     "minLocBias": {
+      "mean": -0.4881,
+      "sd": 0.2345
+     },
+     "sdLocBias": {
+      "mean": 0.2436,
+      "sd": 0.0889
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.2367,
+      "sd": 0.0964
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8401,
+      "sd": 0.0263
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8791,
+      "sd": 0.0279
+     },
+     "meanAbsRankShift": {
+      "mean": 15.3505,
+      "sd": 1.773
+     },
+     "p90AbsRankShift": {
+      "mean": 34,
+      "sd": 5.0787
+     },
+     "topKOverlap": {
+      "mean": 0.6267,
+      "sd": 0.1258
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0202,
+      "sd": 0.0096
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 33.2333,
+      "sd": 15.6859
+     },
+     "maxLocBias": {
+      "mean": 0.2267,
+      "sd": 0.1794
+     },
+     "minLocBias": {
+      "mean": -0.4888,
+      "sd": 0.2342
+     },
+     "sdLocBias": {
+      "mean": 0.2436,
+      "sd": 0.0889
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.2567,
+      "sd": 0.0935
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8822,
+      "sd": 0.0212
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8997,
+      "sd": 0.0247
+     },
+     "meanAbsRankShift": {
+      "mean": 13.9028,
+      "sd": 1.6892
+     },
+     "p90AbsRankShift": {
+      "mean": 31.1333,
+      "sd": 4.0321
+     },
+     "topKOverlap": {
+      "mean": 0.6567,
+      "sd": 0.1278
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0128,
+      "sd": 0.0069
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 27.3333,
+      "sd": 12.5488
+     },
+     "maxLocBias": {
+      "mean": 0.2271,
+      "sd": 0.1797
+     },
+     "minLocBias": {
+      "mean": -0.4894,
+      "sd": 0.2343
+     },
+     "sdLocBias": {
+      "mean": 0.2438,
+      "sd": 0.0892
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.2767,
+      "sd": 0.1006
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9051,
+      "sd": 0.0181
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma0.6_f0": {
+   "label": "provincia 6x24 σ=0.6 islas",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0.6,
+    "f": 0,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7937,
+      "sd": 0.0445
+     },
+     "meanAbsRankShift": {
+      "mean": 20.3588,
+      "sd": 2.2762
+     },
+     "p90AbsRankShift": {
+      "mean": 45.1,
+      "sd": 5.8093
+     },
+     "topKOverlap": {
+      "mean": 0.5267,
+      "sd": 0.1258
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0637,
+      "sd": 0.0226
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 42.7667,
+      "sd": 18.4011
+     },
+     "maxLocBias": {
+      "mean": 0.5064,
+      "sd": 0.3225
+     },
+     "minLocBias": {
+      "mean": -0.8599,
+      "sd": 0.4157
+     },
+     "sdLocBias": {
+      "mean": 0.4681,
+      "sd": 0.1637
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3533,
+      "sd": 0.1479
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.839,
+      "sd": 0.0275
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8291,
+      "sd": 0.0479
+     },
+     "meanAbsRankShift": {
+      "mean": 18.4056,
+      "sd": 2.7047
+     },
+     "p90AbsRankShift": {
+      "mean": 40.7667,
+      "sd": 6.4524
+     },
+     "topKOverlap": {
+      "mean": 0.57,
+      "sd": 0.1236
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0468,
+      "sd": 0.0231
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 38.5667,
+      "sd": 20.2547
+     },
+     "maxLocBias": {
+      "mean": 0.5065,
+      "sd": 0.3235
+     },
+     "minLocBias": {
+      "mean": -0.8603,
+      "sd": 0.416
+     },
+     "sdLocBias": {
+      "mean": 0.4682,
+      "sd": 0.1636
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3667,
+      "sd": 0.1184
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8806,
+      "sd": 0.0231
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8478,
+      "sd": 0.0492
+     },
+     "meanAbsRankShift": {
+      "mean": 17.2815,
+      "sd": 2.882
+     },
+     "p90AbsRankShift": {
+      "mean": 38.2667,
+      "sd": 6.8427
+     },
+     "topKOverlap": {
+      "mean": 0.5867,
+      "sd": 0.1106
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0385,
+      "sd": 0.0224
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 32.2,
+      "sd": 14.9306
+     },
+     "maxLocBias": {
+      "mean": 0.507,
+      "sd": 0.3236
+     },
+     "minLocBias": {
+      "mean": -0.8605,
+      "sd": 0.4163
+     },
+     "sdLocBias": {
+      "mean": 0.4683,
+      "sd": 0.164
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3767,
+      "sd": 0.1223
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9046,
+      "sd": 0.019
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma1_f0": {
+   "label": "provincia 6x24 σ=1 islas",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 1,
+    "f": 0,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.714,
+      "sd": 0.0738
+     },
+     "meanAbsRankShift": {
+      "mean": 24.1838,
+      "sd": 3.3176
+     },
+     "p90AbsRankShift": {
+      "mean": 52.7333,
+      "sd": 8.3787
+     },
+     "topKOverlap": {
+      "mean": 0.4533,
+      "sd": 0.1196
+     },
+     "wrongCrossPairs": {
+      "mean": 0.1157,
+      "sd": 0.0432
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 52.5,
+      "sd": 20.2156
+     },
+     "maxLocBias": {
+      "mean": 0.9192,
+      "sd": 0.5227
+     },
+     "minLocBias": {
+      "mean": -1.3374,
+      "sd": 0.6287
+     },
+     "sdLocBias": {
+      "mean": 0.7702,
+      "sd": 0.2612
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.4767,
+      "sd": 0.1501
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8377,
+      "sd": 0.0294
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.744,
+      "sd": 0.0773
+     },
+     "meanAbsRankShift": {
+      "mean": 22.787,
+      "sd": 3.7622
+     },
+     "p90AbsRankShift": {
+      "mean": 49.4,
+      "sd": 8.4552
+     },
+     "topKOverlap": {
+      "mean": 0.4767,
+      "sd": 0.1194
+     },
+     "wrongCrossPairs": {
+      "mean": 0.1013,
+      "sd": 0.0448
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 48.8667,
+      "sd": 18.8784
+     },
+     "maxLocBias": {
+      "mean": 0.9192,
+      "sd": 0.5236
+     },
+     "minLocBias": {
+      "mean": -1.3369,
+      "sd": 0.6282
+     },
+     "sdLocBias": {
+      "mean": 0.77,
+      "sd": 0.261
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.4933,
+      "sd": 0.1507
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8817,
+      "sd": 0.0228
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7591,
+      "sd": 0.0796
+     },
+     "meanAbsRankShift": {
+      "mean": 22.044,
+      "sd": 3.9399
+     },
+     "p90AbsRankShift": {
+      "mean": 48.0667,
+      "sd": 9.0704
+     },
+     "topKOverlap": {
+      "mean": 0.5,
+      "sd": 0.1287
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0934,
+      "sd": 0.0459
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 42.2,
+      "sd": 15.178
+     },
+     "maxLocBias": {
+      "mean": 0.9203,
+      "sd": 0.5236
+     },
+     "minLocBias": {
+      "mean": -1.3367,
+      "sd": 0.6275
+     },
+     "sdLocBias": {
+      "mean": 0.7701,
+      "sd": 0.2611
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.4833,
+      "sd": 0.1683
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.905,
+      "sd": 0.018
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma0.6_f0.02": {
+   "label": "provincia 6x24 σ=0.6 mezcla 0.02",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0.6,
+    "f": 0.02,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7957,
+      "sd": 0.0502
+     },
+     "meanAbsRankShift": {
+      "mean": 20.2181,
+      "sd": 2.5685
+     },
+     "p90AbsRankShift": {
+      "mean": 45.0333,
+      "sd": 6.0371
+     },
+     "topKOverlap": {
+      "mean": 0.5267,
+      "sd": 0.1311
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0626,
+      "sd": 0.0256
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 45.5,
+      "sd": 19.1433
+     },
+     "maxLocBias": {
+      "mean": 0.5079,
+      "sd": 0.3211
+     },
+     "minLocBias": {
+      "mean": -0.8596,
+      "sd": 0.4154
+     },
+     "sdLocBias": {
+      "mean": 0.468,
+      "sd": 0.1638
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3767,
+      "sd": 0.1406
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8386,
+      "sd": 0.0281
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8318,
+      "sd": 0.0512
+     },
+     "meanAbsRankShift": {
+      "mean": 18.2264,
+      "sd": 2.8474
+     },
+     "p90AbsRankShift": {
+      "mean": 40.1,
+      "sd": 6.525
+     },
+     "topKOverlap": {
+      "mean": 0.5733,
+      "sd": 0.1285
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0448,
+      "sd": 0.0245
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 35.3667,
+      "sd": 13.1686
+     },
+     "maxLocBias": {
+      "mean": 0.5041,
+      "sd": 0.3206
+     },
+     "minLocBias": {
+      "mean": -0.8565,
+      "sd": 0.4144
+     },
+     "sdLocBias": {
+      "mean": 0.4655,
+      "sd": 0.1634
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3733,
+      "sd": 0.1507
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8806,
+      "sd": 0.0262
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8504,
+      "sd": 0.0505
+     },
+     "meanAbsRankShift": {
+      "mean": 17.0088,
+      "sd": 2.9224
+     },
+     "p90AbsRankShift": {
+      "mean": 38.4667,
+      "sd": 6.9219
+     },
+     "topKOverlap": {
+      "mean": 0.5967,
+      "sd": 0.145
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0366,
+      "sd": 0.0235
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 33.3333,
+      "sd": 13.5273
+     },
+     "maxLocBias": {
+      "mean": 0.5012,
+      "sd": 0.3201
+     },
+     "minLocBias": {
+      "mean": -0.8549,
+      "sd": 0.4146
+     },
+     "sdLocBias": {
+      "mean": 0.4637,
+      "sd": 0.1626
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.38,
+      "sd": 0.1518
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9065,
+      "sd": 0.0204
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma0.6_f0.1": {
+   "label": "provincia 6x24 σ=0.6 mezcla 0.1",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0.6,
+    "f": 0.1,
+    "topK": 10
+   },
+   "reps": 30,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7942,
+      "sd": 0.0479
+     },
+     "meanAbsRankShift": {
+      "mean": 20.2046,
+      "sd": 2.4221
+     },
+     "p90AbsRankShift": {
+      "mean": 45.3,
+      "sd": 6.5923
+     },
+     "topKOverlap": {
+      "mean": 0.5167,
+      "sd": 0.1367
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0636,
+      "sd": 0.0247
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 44.9333,
+      "sd": 13.5238
+     },
+     "maxLocBias": {
+      "mean": 0.5003,
+      "sd": 0.3207
+     },
+     "minLocBias": {
+      "mean": -0.8541,
+      "sd": 0.4115
+     },
+     "sdLocBias": {
+      "mean": 0.4636,
+      "sd": 0.1599
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.36,
+      "sd": 0.1545
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8392,
+      "sd": 0.0274
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8345,
+      "sd": 0.0462
+     },
+     "meanAbsRankShift": {
+      "mean": 18.1273,
+      "sd": 2.5307
+     },
+     "p90AbsRankShift": {
+      "mean": 40.7333,
+      "sd": 6.6847
+     },
+     "topKOverlap": {
+      "mean": 0.57,
+      "sd": 0.1317
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0437,
+      "sd": 0.0225
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 35.5,
+      "sd": 15.7058
+     },
+     "maxLocBias": {
+      "mean": 0.481,
+      "sd": 0.3121
+     },
+     "minLocBias": {
+      "mean": -0.8365,
+      "sd": 0.4066
+     },
+     "sdLocBias": {
+      "mean": 0.4509,
+      "sd": 0.1551
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3667,
+      "sd": 0.1398
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8817,
+      "sd": 0.0205
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8594,
+      "sd": 0.043
+     },
+     "meanAbsRankShift": {
+      "mean": 16.5259,
+      "sd": 2.5664
+     },
+     "p90AbsRankShift": {
+      "mean": 36.9667,
+      "sd": 6.8907
+     },
+     "topKOverlap": {
+      "mean": 0.59,
+      "sd": 0.1094
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0322,
+      "sd": 0.0204
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 36.3667,
+      "sd": 14.0675
+     },
+     "maxLocBias": {
+      "mean": 0.4649,
+      "sd": 0.3042
+     },
+     "minLocBias": {
+      "mean": -0.8193,
+      "sd": 0.4003
+     },
+     "sdLocBias": {
+      "mean": 0.4387,
+      "sd": 0.1513
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.35,
+      "sd": 0.1456
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9102,
+      "sd": 0.0162
+     }
+    }
+   }
+  },
+  "F_nacion_20x12_sigma0.6_f0": {
+   "label": "nación 20x12 σ=0.6 islas",
+   "opts": {
+    "L": 20,
+    "n": 12,
+    "sigmaLoc": 0.6,
+    "f": 0,
+    "topK": 20
+   },
+   "reps": 15,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7854,
+      "sd": 0.0354
+     },
+     "meanAbsRankShift": {
+      "mean": 34.4383,
+      "sd": 2.8107
+     },
+     "p90AbsRankShift": {
+      "mean": 76.8,
+      "sd": 8.0018
+     },
+     "topKOverlap": {
+      "mean": 0.5533,
+      "sd": 0.1125
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0689,
+      "sd": 0.0153
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 87.2,
+      "sd": 26.3851
+     },
+     "maxLocBias": {
+      "mean": 0.9017,
+      "sd": 0.2483
+     },
+     "minLocBias": {
+      "mean": -1.278,
+      "sd": 0.4068
+     },
+     "sdLocBias": {
+      "mean": 0.5415,
+      "sd": 0.0787
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.1467,
+      "sd": 0.0896
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8226,
+      "sd": 0.0233
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.816,
+      "sd": 0.0307
+     },
+     "meanAbsRankShift": {
+      "mean": 31.78,
+      "sd": 2.7983
+     },
+     "p90AbsRankShift": {
+      "mean": 69.8667,
+      "sd": 6.0577
+     },
+     "topKOverlap": {
+      "mean": 0.58,
+      "sd": 0.0882
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0529,
+      "sd": 0.0132
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 82.4,
+      "sd": 28.6476
+     },
+     "maxLocBias": {
+      "mean": 0.9001,
+      "sd": 0.2502
+     },
+     "minLocBias": {
+      "mean": -1.2787,
+      "sd": 0.4078
+     },
+     "sdLocBias": {
+      "mean": 0.5417,
+      "sd": 0.079
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.16,
+      "sd": 0.0986
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8634,
+      "sd": 0.0175
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.831,
+      "sd": 0.03
+     },
+     "meanAbsRankShift": {
+      "mean": 30.315,
+      "sd": 2.836
+     },
+     "p90AbsRankShift": {
+      "mean": 67.5333,
+      "sd": 6.1396
+     },
+     "topKOverlap": {
+      "mean": 0.5967,
+      "sd": 0.0876
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0452,
+      "sd": 0.013
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 76.4667,
+      "sd": 24.1627
+     },
+     "maxLocBias": {
+      "mean": 0.8989,
+      "sd": 0.2511
+     },
+     "minLocBias": {
+      "mean": -1.2793,
+      "sd": 0.4073
+     },
+     "sdLocBias": {
+      "mean": 0.5418,
+      "sd": 0.0794
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.15,
+      "sd": 0.0926
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8882,
+      "sd": 0.0149
+     }
+    }
+   }
+  },
+  "F_nacion_20x12_sigma0.3_f0": {
+   "label": "nación 20x12 σ=0.3 islas",
+   "opts": {
+    "L": 20,
+    "n": 12,
+    "sigmaLoc": 0.3,
+    "f": 0,
+    "topK": 20
+   },
+   "reps": 15,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8406,
+      "sd": 0.0257
+     },
+     "meanAbsRankShift": {
+      "mean": 29.505,
+      "sd": 2.0679
+     },
+     "p90AbsRankShift": {
+      "mean": 65.8667,
+      "sd": 5.8293
+     },
+     "topKOverlap": {
+      "mean": 0.6,
+      "sd": 0.1052
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0397,
+      "sd": 0.0101
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 76.8667,
+      "sd": 23.5792
+     },
+     "maxLocBias": {
+      "mean": 0.4376,
+      "sd": 0.1566
+     },
+     "minLocBias": {
+      "mean": -0.7668,
+      "sd": 0.2103
+     },
+     "sdLocBias": {
+      "mean": 0.302,
+      "sd": 0.049
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.0833,
+      "sd": 0.0673
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8236,
+      "sd": 0.0205
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8744,
+      "sd": 0.0196
+     },
+     "meanAbsRankShift": {
+      "mean": 26.1161,
+      "sd": 1.7113
+     },
+     "p90AbsRankShift": {
+      "mean": 58.0667,
+      "sd": 4.7879
+     },
+     "topKOverlap": {
+      "mean": 0.6233,
+      "sd": 0.11
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0243,
+      "sd": 0.0073
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 64.3333,
+      "sd": 22.1607
+     },
+     "maxLocBias": {
+      "mean": 0.4359,
+      "sd": 0.1584
+     },
+     "minLocBias": {
+      "mean": -0.769,
+      "sd": 0.2111
+     },
+     "sdLocBias": {
+      "mean": 0.3024,
+      "sd": 0.0492
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.09,
+      "sd": 0.0712
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8637,
+      "sd": 0.0157
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 240,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8923,
+      "sd": 0.0177
+     },
+     "meanAbsRankShift": {
+      "mean": 24.1228,
+      "sd": 1.8178
+     },
+     "p90AbsRankShift": {
+      "mean": 54,
+      "sd": 5.278
+     },
+     "topKOverlap": {
+      "mean": 0.6467,
+      "sd": 0.1157
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0169,
+      "sd": 0.0058
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 57.2667,
+      "sd": 18.1874
+     },
+     "maxLocBias": {
+      "mean": 0.436,
+      "sd": 0.1571
+     },
+     "minLocBias": {
+      "mean": -0.7697,
+      "sd": 0.21
+     },
+     "sdLocBias": {
+      "mean": 0.3026,
+      "sd": 0.0496
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.0933,
+      "sd": 0.0729
+     },
+     "expectedShare": {
+      "mean": 0.05,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8857,
+      "sd": 0.0154
+     }
+    }
+   }
+  },
+  "F_prov_6x24_sigma0.6_f0_fullDict": {
+   "label": "provincia 6x24 σ=0.6 islas (diccionario completo)",
+   "opts": {
+    "L": 6,
+    "n": 24,
+    "sigmaLoc": 0.6,
+    "f": 0,
+    "mode": "fullDict",
+    "topK": 10
+   },
+   "reps": 15,
+   "byCp": {
+    "10": {
+     "m": {
+      "mean": 10,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.7909,
+      "sd": 0.0461
+     },
+     "meanAbsRankShift": {
+      "mean": 20.4537,
+      "sd": 2.3716
+     },
+     "p90AbsRankShift": {
+      "mean": 45.8667,
+      "sd": 6.1513
+     },
+     "topKOverlap": {
+      "mean": 0.5133,
+      "sd": 0.1246
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0627,
+      "sd": 0.0227
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 45.6667,
+      "sd": 17.348
+     },
+     "maxLocBias": {
+      "mean": 0.4517,
+      "sd": 0.3192
+     },
+     "minLocBias": {
+      "mean": -0.9877,
+      "sd": 0.4954
+     },
+     "sdLocBias": {
+      "mean": 0.488,
+      "sd": 0.2004
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.3467,
+      "sd": 0.1246
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.837,
+      "sd": 0.0266
+     }
+    },
+    "30": {
+     "m": {
+      "mean": 30,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8256,
+      "sd": 0.0517
+     },
+     "meanAbsRankShift": {
+      "mean": 18.5667,
+      "sd": 2.868
+     },
+     "p90AbsRankShift": {
+      "mean": 41.7333,
+      "sd": 7.1361
+     },
+     "topKOverlap": {
+      "mean": 0.5667,
+      "sd": 0.1345
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0464,
+      "sd": 0.0246
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 45.0667,
+      "sd": 23.2455
+     },
+     "maxLocBias": {
+      "mean": 0.4511,
+      "sd": 0.3205
+     },
+     "minLocBias": {
+      "mean": -0.9887,
+      "sd": 0.4964
+     },
+     "sdLocBias": {
+      "mean": 0.4882,
+      "sd": 0.2004
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.34,
+      "sd": 0.1056
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.8791,
+      "sd": 0.0218
+     }
+    },
+    "50": {
+     "m": {
+      "mean": 50,
+      "sd": 0
+     },
+     "nRanked": {
+      "mean": 144,
+      "sd": 0
+     },
+     "spearman": {
+      "mean": 0.8415,
+      "sd": 0.0558
+     },
+     "meanAbsRankShift": {
+      "mean": 17.5537,
+      "sd": 3.1918
+     },
+     "p90AbsRankShift": {
+      "mean": 39.6667,
+      "sd": 7.5467
+     },
+     "topKOverlap": {
+      "mean": 0.6,
+      "sd": 0.1069
+     },
+     "wrongCrossPairs": {
+      "mean": 0.0399,
+      "sd": 0.0257
+     },
+     "worstTrueRankInObservedTop": {
+      "mean": 34.2,
+      "sd": 18.2647
+     },
+     "maxLocBias": {
+      "mean": 0.4518,
+      "sd": 0.3214
+     },
+     "minLocBias": {
+      "mean": -0.989,
+      "sd": 0.4965
+     },
+     "sdLocBias": {
+      "mean": 0.4885,
+      "sd": 0.2008
+     },
+     "topKfromHighestBetaLoc": {
+      "mean": 0.34,
+      "sd": 0.1056
+     },
+     "expectedShare": {
+      "mean": 0.1667,
+      "sd": 0
+     },
+     "withinLocSpearman": {
+      "mean": 0.9019,
+      "sd": 0.0182
+     }
+    }
+   }
+  }
+ }
+}
