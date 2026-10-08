@@ -1,4 +1,4 @@
-// BRAMU Metrics V1 · F3 (04.37-h29) + F4 (04.37-h30) — consola privada /admin/metrics.
+// BRAMU Metrics V1 · F3 (04.37-h29) + F4 (04.37-h30) + F6 Explorar (04.37-h31) — consola privada /admin/metrics.
 // node --test bramulab/metrics-f3-dashboard.test.mjs
 // Cubre: funciones puras de la UI, contrato con el SQL REAL (el fixture de QA no puede divergir del backend), seguridad/privacidad
 // estática de la página, publicación en dist/ (fixture solo en Staging), Service Worker (bypass de /admin/), headers y robots.
@@ -284,11 +284,11 @@ test('Vercel/robots: headers noindex + no-store + no-referrer para /admin/*; rob
   assert.match(env, /envName === 'production' \? 'User-agent: \*\\nDisallow: \/admin\/\\nAllow: \/\\n' : 'User-agent: \*\\nDisallow: \/\\n'/);
 });
 
-test('versionado: h30 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
-  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h30');
+test('versionado: h31 sincronizado y APP_VERSION sin cambio (ronda invisible); la app no enlaza a la consola', () => {
+  assert.equal(JSON.parse(read('version.json')).bundle, '04.37-h31');
   assert.equal(JSON.parse(read('version.json')).version, 'BRAMUlab V04.37');
-  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h30'/);
-  assert.match(read('sw.js'), /bramulab-v04-37-h30/);
+  assert.match(read('store.js'), /BUNDLE_VERSION = '04\.37-h31'/);
+  assert.match(read('sw.js'), /bramulab-v04-37-h31/);
   for (const f of ['index.html', 'app.js', 'player-home.js', 'groups.js']) assert.ok(!/admin\/metrics/.test(read(f)), `${f} no enlaza a la consola`);
 });
 
@@ -298,14 +298,15 @@ test('versionado: h30 sincronizado y APP_VERSION sin cambio (ronda invisible); l
 /* ====================================================================== */
 
 test('F4 · pestañas y rutas: Activación, Comunidad y Uso existen, mapean a su sección del Edge y las rutas no aceptan basura', () => {
-  assert.deepEqual(plain(M.VIEWS.map((v) => [v.id, v.section])), [['inicio', 'overview'], ['usuarios', 'users'], ['partidos', 'matches'], ['activacion', 'activation'], ['comunidad', 'community'], ['uso', 'usage']]);
+  assert.deepEqual(plain(M.VIEWS.map((v) => [v.id, v.section])), [['inicio', 'overview'], ['usuarios', 'users'], ['partidos', 'matches'], ['activacion', 'activation'], ['comunidad', 'community'], ['uso', 'usage'], ['explorar', 'explore']]);
   for (const [hash, view] of [['#/activacion', 'activacion'], ['#/comunidad', 'comunidad'], ['#/uso', 'uso']]) assert.deepEqual(plain(M.parseHash(hash)), { view });
   assert.deepEqual(plain(M.parseHash('#/kpi/community.ranking_eligible_players')), { view: 'kpi', kpiId: 'community.ranking_eligible_players' });
   assert.deepEqual(plain(M.parseHash('#/kpi/usage.ret_w1')), { view: 'kpi', kpiId: 'usage.ret_w1' });
   assert.deepEqual(plain(M.parseHash('#/uso/../x')), { view: 'inicio' });
   // todas las secciones que pide la UI existen en el mapa fijo del Edge (sin cambios de backend para F4)
   const edge = read('../supabase/functions/_shared/admin-metrics-core.mjs');
-  for (const v of M.VIEWS) assert.match(edge, new RegExp(`${v.section}: 'metrics_${v.section}'`), v.section);
+  for (const v of M.VIEWS.filter((x) => x.id !== 'explorar')) assert.match(edge, new RegExp(`${v.section}: 'metrics_${v.section}'`), v.section);
+  assert.match(edge, /metrics_explore/, 'el Explorador usa funciones SQL fijas propias, no un mapa dinámico');
 });
 
 test('F4 · series de detalle: grupos, invitaciones y activos diarios tienen gráfico; el resto de los KPIs nuevos es valor puntual', () => {
@@ -382,4 +383,151 @@ test('F4 · estática: las vistas nuevas no abren datos individuales, no usan in
   assert.match(css, /\.mx-today/, 'estilo propio para «Hoy · parcial»');
   assert.ok(!/windowLabel\([^)]*,\s*(true|false)\)/.test(code), 'nadie pide ya el rótulo «hoy» de la ventana (D8)');
   assert.ok(!/\bhoy\b/.test(M.windowLabel(['2026-09-08T03:00:00+00:00', '2026-10-08T03:00:00+00:00'])));
+});
+
+
+/* ====================================================================== */
+/* F6 — Explorar                                                           */
+/* ====================================================================== */
+
+const f6migration = fs.readFileSync(path.join(dir, '..', 'supabase', 'migrations', '20261008130000_metrics_f6_explorar.sql'), 'utf8');
+const sqlSpec = JSON.parse(/\$spec\$([\s\S]*?)\$spec\$/.exec(f6migration)[1]);
+
+test('F6 · la selección vive en la URL, se valida y no admite claves ni valores hostiles (round trip)', () => {
+  const h = M.exploreHash({ metric: 'users.signups', filter: 'location', value: 'Bella Vista, Buenos Aires' });
+  assert.equal(h, '#/explorar?m=users.signups&f=location&v=Bella%20Vista%2C%20Buenos%20Aires');
+  assert.deepEqual(plain(M.parseHash(h)), { view: 'explorar', metric: 'users.signups', filter: 'location', value: 'Bella Vista, Buenos Aires' });
+  assert.deepEqual(plain(M.parseHash('#/explorar')), { view: 'explorar', metric: null, filter: null, value: null });
+  assert.equal(M.exploreHash({ metric: 'matches.created' }), '#/explorar?m=matches.created');
+  assert.equal(M.exploreHash({ filter: 'location', value: 'x' }), '#/explorar', 'sin indicador no hay filtro');
+  for (const bad of ['#/explorar?m=users.signups;drop', '#/explorar?m=Users.Signups', '#/explorar?m=../x', '#/explorar?m=' + 'a.'.repeat(40)]) assert.equal(M.parseHash(bad).metric, null, bad);
+  assert.equal(M.parseHash('#/explorar?m=users.signups&f=Bad-Filter&v=x').filter, null);
+  assert.equal(M.parseHash('#/explorar?m=users.signups&f=location&v=' + 'x'.repeat(121)).filter, null);
+  assert.equal(M.parseHash('#/explorar?m=users.signups&f=location&v=%00').filter, null);
+  assert.equal(M.parseHash('#/explorar?f=location&v=x').filter, null, 'filtro sin indicador se descarta');
+  assert.deepEqual(plain(M.parseHash('#/explorarX')), { view: 'inicio' });
+});
+
+test('F6 · etiquetas, agrupación del selector y mensajes sin gráfico (nunca una línea inventada)', () => {
+  assert.equal(M.optionLabel('level_status', 'CALIBRANDO'), 'Calibrando');
+  assert.equal(M.optionLabel('platform', 'ios'), 'iPhone / iPad');
+  assert.equal(M.optionLabel('match_status', 'expired_derived'), 'Vencidos sin validar');
+  assert.equal(M.optionLabel('location', 'Bella Vista, Buenos Aires'), 'Bella Vista, Buenos Aires');
+  assert.equal(M.optionLabel('match_status', 'algo_nuevo'), 'algo_nuevo');
+  const g = plain(M.groupCatalog(plain(Q.exploreCatalog().catalog)));
+  assert.deepEqual(g.map((x) => x.title), ['Usuarios', 'Partidos', 'Activación', 'Comunidad', 'Uso']);
+  assert.equal(g.reduce((a, x) => a + x.items.length, 0), 55);
+  assert.match(M.seriesMessage('unavailable'), /Evolución temporal no disponible/);
+  assert.match(M.seriesMessage('filter_disabled'), /Quitá el filtro/);
+  assert.match(M.seriesMessage('available', false), /Todavía no medible/);
+  assert.equal(M.seriesMessage('available', true), null);
+  assert.equal(M.DEFAULT_EXPLORE_METRIC, 'users.signups');
+});
+
+test('F6 · gráfico con huecos de captura: null no es 0, no genera NaN y una serie toda nula es «sin datos»', () => {
+  const days = (vals) => vals.map((v, i) => ({ start: `2026-09-${String(i + 1).padStart(2, '0')}`, value: v }));
+  let m = M.chartModel({ granularity: 'day', current: days([null, null, 3, 0, 2]), previous: null }, { compare: true });
+  assert.equal(m.empty, false);
+  for (const p of m.curPts) { assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), 'sin NaN'); }
+  assert.equal(m.curPts[0].v, null, 'se conserva el null para el tooltip «Sin captura»');
+  assert.ok(m.curPts[2].y < m.curPts[0].y);
+  m = M.chartModel({ granularity: 'day', current: days([null, null, null]), previous: null }, {});
+  assert.equal(m.empty, true);
+});
+
+test('F6 · contrato: la especificación del fixture es copia EXACTA de `_metrics_explore_spec()` y todo indicador declarado existe en el catálogo', () => {
+  assert.deepEqual(plain(Q.EXPLORE_SPEC), sqlSpec);
+  const ids = new Set(sqlCatalog.map((e) => e.id));
+  for (const id of Object.keys(sqlSpec.metrics)) assert.ok(ids.has(id), `${id} es del catálogo auditado (no hay indicadores ficticios)`);
+  for (const m of Object.values(sqlSpec.metrics)) for (const f of m.filters || []) assert.ok(sqlSpec.filters[f], f);
+  for (const f of Object.values(sqlSpec.filters)) { assert.ok(f.label && f.note && ['personas', 'partidos'].includes(f.unit)); }
+});
+
+test('F6 · contrato con el SQL REAL: catálogo y respuestas del Explorador del fixture tienen la misma forma que `metrics_explore*`', async () => {
+  const r = await replay({ acl: 'observed' });
+  assert.ok(r.ok);
+  try {
+    await r.db.exec(`insert into public.app_config (id, environment) values (1, 'staging')`);
+    const sqlCat = (await r.db.query(`select public.metrics_explore_catalog() as r`)).rows[0].r;
+    const fxCat = plain(Q.exploreCatalog());
+    assert.deepEqual(Object.keys(fxCat).sort(), Object.keys(sqlCat).sort());
+    assert.deepEqual(fxCat.catalog, sqlCat.catalog, 'mismo catálogo, mismo orden, mismas series y filtros');
+    assert.deepEqual(fxCat.filterDefs, sqlCat.filterDefs);
+    const keys = (o) => Object.keys(o).sort();
+    for (const [metric, filter, value] of [['users.signups', null, null], ['users.registered_now', 'location', 'Bella Vista, Buenos Aires'], ['matches.created', 'match_status', 'validated'],
+      ['usage.dau', null, null], ['usage.wau', 'platform', 'ios'], ['activation.fifth_match', null, null], ['community.groups_created', null, null]]) {
+      const real = (await r.db.query(`select public.metrics_explore($1, '30d', true, false, $2, $3, '2026-10-08T12:00:00Z') as r`, [metric, filter, value])).rows[0].r;
+      const fx = plain(Q.respondExplore({ metric, range: '30d', compare: true, ...(filter ? { filter: { id: filter, value } } : {}) }, ''));
+      assert.deepEqual(keys(fx), keys(real), `${metric}: claves de nivel superior`);
+      assert.deepEqual(keys(fx.kpi), keys(real.kpi), `${metric}: claves del KPI`);
+      assert.deepEqual(keys(fx.filters), keys(real.filters));
+      assert.deepEqual(fx.filters.available.map(keys), real.filters.available.map(keys), `${metric}: forma de los filtros`);
+      assert.deepEqual(fx.filters.available.map((f) => f.id), real.filters.available.map((f) => f.id));
+      assert.equal(fx.seriesState, real.seriesState, `${metric}: estado de la serie`);
+      assert.equal(fx.series === null, real.series === null);
+      if (real.series) { assert.deepEqual(keys(fx.series), keys(real.series)); assert.deepEqual(keys(fx.series), ['current', 'granularity', 'label', 'previous', 'source']); }
+      assert.deepEqual(keys(fx.meta), keys(real.meta)); assert.deepEqual(keys(fx.today), keys(real.today));
+    }
+    assert.deepEqual(plain(Q.respondExplore({ metric: 'nada.x' }, '')), { ok: false, code: 'invalid_metric' });
+    assert.equal(plain(Q.respondExplore({ metric: 'users.signups', filter: { id: 'platform', value: 'ios' } }, '')).code, 'invalid_filter');
+  } finally { await r.db.close(); }
+});
+
+test('F6 · el fixture del Explorador respeta las reglas: serie solo si el SQL la declara, filtro de personas sin serie, presencia anterior = null, opciones sin «Otros»', () => {
+  const cat = Q.exploreCatalog().catalog;
+  for (const e of cat) {
+    const x = plain(Q.respondExplore({ metric: e.id, range: '30d' }, ''));
+    assert.equal(x.ok, true, e.id);
+    assert.equal(x.seriesState === 'available', e.hasSeries, e.id);
+    assert.equal(x.series === null, !e.hasSeries, e.id);
+    assert.deepEqual(x.filters.available.map((f) => f.id), plain(e.filters));
+    for (const f of x.filters.available) assert.ok(f.options.every((o) => o.n >= 5 || f.unit === 'partidos') && !/Otros/.test(JSON.stringify(f.options)), `${e.id}/${f.id}`);
+    assert.equal(x.kpi.id, e.id);
+  }
+  const f = plain(Q.respondExplore({ metric: 'users.signups', range: '30d', filter: { id: 'location', value: 'Bella Vista, Buenos Aires' } }, ''));
+  assert.deepEqual([f.seriesState, f.series], ['filter_disabled', null]);
+  assert.equal(f.kpi.value, 14);
+  const hidden = plain(Q.respondExplore({ metric: 'users.signups', range: '30d', filter: { id: 'location', value: 'Loc inexistente' } }, ''));
+  assert.deepEqual([hidden.kpi.value, hidden.kpi.availability, hidden.kpi.count], [null, 'insufficient_sample', null]);
+  const m = plain(Q.respondExplore({ metric: 'matches.created', range: '30d', filter: { id: 'match_status', value: 'validated' } }, ''));
+  assert.deepEqual([m.seriesState, m.series.current.reduce((a, p) => a + p.value, 0)], ['available', m.kpi.value]);
+  const dau = plain(Q.respondExplore({ metric: 'usage.dau', range: '30d' }, ''));
+  assert.ok(dau.series.current.some((p) => p.value === null) && dau.series.current.some((p) => typeof p.value === 'number'), 'antes de la captura es null, después números');
+  assert.ok(plain(Q.respondExplore({ metric: 'usage.dau', range: '30d' }, 'nopresence')).series.current.every((p) => p.value === null));
+  assert.equal(plain(Q.respondExplore({ metric: 'usage.wau', filter: { id: 'platform', value: 'ios' }, range: '30d' }, 'nopresence')).kpi.availability, 'not_instrumented');
+});
+
+test('F6 · estática de seguridad: el cliente solo envía {catalog} o {metric, range, compare, includeInternal, filter}; sin SQL, tablas, columnas ni texto libre', () => {
+  const js = read('admin/metrics/metrics.js');
+  const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.match(code, /callServer\(\{ catalog: true \}\)/);
+  assert.match(code, /const body = \{ metric: sel\.metric, range: S\.range, compare: S\.compare, includeInternal: S\.internal \};/);
+  assert.match(code, /body\.filter = \{ id: sel\.filter, value: sel\.value \}/);
+  assert.ok(!/\b(select\s+\w+\s+from|insert\s+into|drop\s+table|p_table|p_column|order\s+by)\b/i.test(code.replace(/createElement\('select'\)|h\('select'/g, '')), 'ningún SQL en el cliente');
+  assert.ok(!/h\('input'|createElement\('input'\)|createElement\('textarea'\)|contenteditable/i.test(code), 'el Explorador usa solo <select>: no hay texto libre');
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|eval\(|new Function/.test(code));
+  // la selección no se persiste (ni datos): solo vive en la URL; el storage sigue guardando únicamente 3 preferencias
+  const stor = code.match(/localStorage\.[a-zA-Z]+\([^)]*\)/g) || [];
+  assert.ok(stor.length === 2 && stor.every((x) => /PREF_KEY/.test(x)));
+  // el valor de filtro que se envía sale de las opciones que el servidor ofreció (selects), nunca de un campo de texto
+  assert.match(code, /\(f\.options \|\| \[\]\)\.map\(\(o\) => h\('option', \{ value: o\.value/);
+  const html = read('admin/metrics/index.html');
+  assert.equal((html.match(/<input/g) || []).length, 2, 'index.html sigue con solo los 2 interruptores');
+});
+
+test('F6 · Edge: las únicas funciones SQL que invoca son las del mapa fijo y las 2 del Explorador (sin nombres que vengan del cliente)', () => {
+  const core = fs.readFileSync(path.join(dir, '..', 'supabase', 'functions', '_shared', 'admin-metrics-core.mjs'), 'utf8');
+  const fns = new Set([...core.matchAll(/fn: '([a-z_]+)'/g)].map((m) => m[1]));
+  assert.deepEqual([...fns].sort(), ['metrics_explore', 'metrics_explore_catalog']);
+  assert.ok(!/args\.p_[a-z_]+ = body\./.test(core) && !/rpc\(`/.test(core));
+});
+
+test('F6 · UX móvil: el selector de indicador y los filtros son controles nativos de ancho completo y táctiles (≥ 44 px); el diseño apila en móvil y usa 2 columnas en escritorio', () => {
+  const css = read('admin/metrics/metrics.css');
+  assert.match(css, /\.mx-select\{[^}]*width:100%[^}]*min-height:46px/);
+  assert.match(css, /\.mx-ex\{[^}]*grid-template-columns:minmax\(0,1fr\)[^}]*grid-template-areas:"pick" "main" "filters" "def"/);
+  assert.match(css, /@media \(min-width:1000px\)\{ \.mx-ex\{grid-template-columns:340px minmax\(0,1fr\)/);
+  assert.match(css, /\.mx-select\{[^}]*font-size:16px/, 'select a 16 px: iOS Safari no hace zoom automático al enfocarlo');
+  const html = read('admin/metrics/index.html');
+  assert.match(html, /viewport-fit=cover/);
 });

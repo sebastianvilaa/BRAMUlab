@@ -3,6 +3,7 @@
  * Production. Cada pantalla muestra el banner «DATOS DE PRUEBA (QA) · NO PRODUCTION». El catálogo es copia EXACTA del de la última migración
  * de métricas, 20261008120000 (F4) (un test falla si divergen); los valores son arbitrarios pero respetan el contrato real (availability, delta, previous).
  *
+ * F6 Explorar: `catalog` + `metric` (+ filtro) con la misma forma que `metrics_explore*`; ESPECIFICACIÓN = copia exacta de `_metrics_explore_spec()` (un test falla si divergen).
  * D8: las ventanas son DÍAS COMPLETOS hasta ayer; `today` (parcial) viaja aparte.
  * Estados forzables: ?qa=1&qastate=empty | nopresence | error | forbidden | nosession | loading | sparse
  */
@@ -65,6 +66,7 @@
     {"id": "usage.ret_d7", "section": "usage", "label": "Retención D7 (%)", "kind": "ratio", "minN": 5, "definition": "Altas con presencia exactamente 7 días después", "population": "altas de la ventana con el día objetivo completo"},
     {"id": "usage.ret_d30", "section": "usage", "label": "Retención D30 (%)", "kind": "ratio", "minN": 5, "definition": "Altas con presencia exactamente 30 días después", "population": "altas de la ventana con el día objetivo completo"}
   ];
+  var EXPLORE_SPEC = {"filters": {"location": {"label": "Localidad", "unit": "personas", "note": "Localidad declarada hoy en el perfil. «(sin localidad)» no equivale a otra localidad; las cuentas luego eliminadas figuran aparte."}, "level_status": {"label": "Estado de Nivel", "unit": "personas", "note": "Estado de Nivel ACTUAL de la cuenta (no el que tenía en la fecha del alta)."}, "platform": {"label": "Plataforma", "unit": "personas", "note": "Plataforma de la última apertura de cada jugador dentro del período (cada jugador cuenta una sola vez)."}, "match_status": {"label": "Estado del partido", "unit": "partidos", "note": "Estado ACTUAL del partido al corte (vencido es derivado). Cuenta partidos, no personas."}}, "metrics": {"users.registered_now": {"filters": ["location", "level_status"]}, "users.signups": {"series": {"source": "signups", "label": "Altas"}, "filters": ["location", "level_status"]}, "users.profile_complete": {"filters": ["location", "level_status"]}, "matches.created": {"series": {"source": "matches_created", "label": "Partidos cargados"}, "filters": ["match_status"]}, "matches.real": {"series": {"source": "matches_real", "label": "Partidos reales cargados"}}, "matches.annulled": {"series": {"source": "matches_annulled", "label": "Partidos anulados"}}, "matches.validated": {"series": {"source": "matches_validated", "label": "Partidos validados"}}, "community.groups_created": {"series": {"source": "groups_created", "label": "Grupos creados"}}, "community.invites_created": {"series": {"source": "invites_created", "label": "Invitaciones creadas"}}, "community.invites_claimed": {"series": {"source": "invites_claimed", "label": "Invitaciones canjeadas"}}, "community.ranking_editions": {"series": {"source": "ranking_editions", "label": "Ediciones de Ranking"}}, "usage.dau": {"series": {"source": "active_players", "label": "Jugadores activos"}, "filters": ["platform"]}, "usage.wau": {"filters": ["platform"]}, "usage.mau": {"filters": ["platform"]}}};
   var BY_ID = {}; CATALOG.forEach(function (e) { BY_ID[e.id] = e; });
   var FACTOR = { '7d': 0.3, '30d': 1, '90d': 2.6, all: 3.4 };
   var DAYS = { '7d': 7, '30d': 30, '90d': 90, all: 200 };
@@ -124,6 +126,7 @@
     while (d.getTime() <= endD.getTime()) { out.push(ymd(d)); d = addDays(d, gran === 'week_ba' ? 7 : 1); }
     return out;
   }
+  function series_(w, total, prevTotal, seed, compare, empty) { return series(w, total, prevTotal, seed, compare, empty); }
   function series(w, total, prevTotal, seed, compare, empty) {
     var cur = buckets(w.fromD, w.lastD, w.granularity);
     var cv = distribute(empty ? 0 : total, weights(cur.length, seed));
@@ -265,14 +268,79 @@
     return res;
   }
 
+  /* ---------- Explorar (F6) ---------- */
+  var SECTION_OF = function (id) { return id.split('.')[0]; };
+  function exploreCatalog() {
+    var fd = EXPLORE_SPEC.filters; var ms = EXPLORE_SPEC.metrics;
+    return { ok: true, catalogVersion: 'metrics_v1', minCell: MIN_N, filterDefs: fd, catalog: CATALOG.map(function (e) {
+      var sp = ms[e.id] || {};
+      return { id: e.id, section: e.section, label: e.label, kind: e.kind, snapshot: !!e.snapshot, hasSeries: !!sp.series, filters: sp.filters || [] };
+    }) };
+  }
+  var DEMO_OPTIONS = {
+    location: [{ value: 'Bella Vista, Buenos Aires', n: 14 }, { value: 'San Miguel, Buenos Aires', n: 9 }],
+    level_status: [{ value: 'CALIBRANDO', n: 14 }, { value: 'CALIBRADO', n: 10 }, { value: 'PENDIENTE', n: 8 }],
+    platform: [{ value: 'ios', n: 14 }, { value: 'android', n: 9 }],
+    match_status: [{ value: 'validated', n: 29 }, { value: 'pending', n: 9 }, { value: 'expired_derived', n: 3 }, { value: 'annulled_duplicate', n: 3 }, { value: 'annulled_author_retracted', n: 1 }, { value: 'annulled_admin', n: 1 }]
+  };
+  function seriesBase(id) { var b = BASE[id]; return b ? { cur: b[0], prev: b[2] != null ? b[2] : b[0] } : { cur: 10, prev: 8 }; }
+
+  function respondExplore(body, st) {
+    var id = body.metric; var entry = BY_ID[id];
+    if (!entry) return { ok: false, code: 'invalid_metric' };
+    var sp = EXPLORE_SPEC.metrics[id] || {};
+    var range = body.range || '30d'; var compare = body.compare !== false; var w = windows(range); var f = FACTOR[range]; var empty = st === 'empty';
+    var cmp = compare && !!w.prevFrom;
+    var f0 = body.filter || null;
+    if (f0 && (sp.filters || []).indexOf(f0.id) < 0) return { ok: false, code: 'invalid_filter' };
+    var kpi = kpisFor(entry.section, w, cmp, st).filter(function (k) { return k.id === id; })[0];
+    var available = (sp.filters || []).map(function (fid) {
+      var d = EXPLORE_SPEC.filters[fid];
+      return { id: fid, label: d.label, unit: d.unit, note: d.note, suppressed: false, options: empty || (st === 'nopresence' && fid === 'platform') ? [] : DEMO_OPTIONS[fid].slice() };
+    });
+    var applied = null;
+    if (f0) {
+      var opts = available.filter(function (a) { return a.id === f0.id; })[0].options;
+      var hit = opts.filter(function (o) { return o.value === f0.value; })[0];
+      var cur; var prev;
+      if (st === 'nopresence' && f0.id === 'platform') { cur = { v: null, a: 'not_instrumented' }; prev = null; }
+      else if (!hit && f0.id !== 'match_status') { cur = { v: null, a: 'insufficient_sample' }; prev = { v: null, a: 'insufficient_sample' }; }
+      else { var n = hit ? hit.n : 0; cur = { v: n, n: n }; prev = { v: Math.round(n * 0.8), n: Math.round(n * 0.8) }; }
+      if (f0.id === 'match_status') { cur = { v: hit ? hit.n : 0 }; prev = { v: Math.round(cur.v * 0.8) }; }
+      kpi = build(f0.id === 'match_status' ? entry : Object.assign({}, entry, { minN: MIN_N }), cur, cmp ? prev : null, cmp);
+      applied = { id: f0.id, value: f0.value };
+    }
+    var series = null; var state = 'unavailable';
+    if (sp.series) {
+      if (f0 && f0.id !== 'match_status') state = 'filter_disabled';
+      else {
+        state = 'available'; var sb = seriesBase(id);
+        var tot = f0 ? kpi.value || 0 : Math.round(sb.cur * f); var ptot = f0 ? (kpi.previous && kpi.previous.value) || 0 : Math.round(sb.prev * f);
+        series = series_(w, tot, ptot, 8, cmp, empty || (id === 'usage.dau' && st === 'nopresence'));
+        series.source = sp.series.source; series.label = sp.series.label;
+        if (id === 'usage.dau') {
+          var since = st === 'nopresence' ? null : ymd(addDays(w.today, -9));
+          var nul = function (arr) { return arr && arr.map(function (p) { var endD = ymd(addDays(new Date(p.start + 'T00:00:00Z'), series.granularity === 'week_ba' ? 7 : 1)); return since && endD > since ? p : { start: p.start, value: null }; }); };
+          series.current = nul(series.current); series.previous = nul(series.previous);
+        }
+      }
+    }
+    return { ok: true, section: 'explore', metric: id, meta: meta(w, compare, body.includeInternal, st), today: todayFor(st), kpi: kpi, series: series, seriesState: state, filters: { available: available, applied: applied } };
+  }
+
   g.PLMetricsQaFixture = {
     CATALOG: CATALOG,
+    EXPLORE_SPEC: EXPLORE_SPEC,
+    respondExplore: respondExplore,
+    exploreCatalog: exploreCatalog,
     get: function (body, st) {
       var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
       if (st === 'loading') return new Promise(function () {});
       return sleep(350).then(function () {
         if (st === 'error') { var e = new Error('network'); e.kind = 'network'; throw e; }
         if (st === 'forbidden') { var f = new Error('forbidden'); f.kind = 'forbidden'; f.status = 403; throw f; }
+        if (body && body.catalog === true) return exploreCatalog();
+        if (body && body.metric) { var rx = respondExplore(body, st || ''); if (!rx.ok) { var e2 = new Error(rx.code); e2.kind = 'bad'; e2.status = 400; throw e2; } return rx; }
         return respond(body || {}, st || '');
       });
     },

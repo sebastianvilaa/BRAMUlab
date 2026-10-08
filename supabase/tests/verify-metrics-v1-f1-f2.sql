@@ -1,6 +1,6 @@
 -- BRAMU Metrics V1 · F1+F2(+F4) — verificación de SOLO LECTURA para Central en Supabase Staging (después de aplicar las migraciones
 -- 20261008100000_metrics_f1_player_activity.sql, 20261008110000_metrics_f2_core.sql y, para F4, 20261008120000_metrics_f4_d8_comunidad.sql,
--- y desplegar la Edge Function admin-metrics). Las consultas 9–12 requieren la migración de F4 (D8: días completos hasta ayer).
+-- y desplegar la Edge Function admin-metrics). Las consultas 9–12 requieren la migración de F4 (D8: días completos hasta ayer) y las 13–16 la de F6 (Explorar, 20261008130000).
 -- No escribe nada y no imprime identidades. Cada consulta indica el resultado esperado.
 
 -- 1) Tablas nuevas: RLS activo, cero políticas, ningún privilegio de cliente. ESPERADO: 3 filas, rls=true, policies=0, client_priv=false.
@@ -88,3 +88,29 @@ select (select count(*) from public.groups where status = 'active') as groups_ac
 select k ->> 'id' as kpi, (k -> 'snapshot')::boolean as snapshot, k -> 'previous' is null or k -> 'previous' = 'null'::jsonb as previous_is_null
   from jsonb_array_elements((public.metrics_users('30d') -> 'kpis') || (public.metrics_community('30d') -> 'kpis')) k
  where (k -> 'snapshot')::boolean;
+
+-- 13) F6 · Explorar: las 2 funciones públicas las ejecuta service_role y NINGUNA función del Explorador es ejecutable por anon/authenticated.
+--     ESPERADO: 7 filas (2 públicas + 5 helpers); anon_exec=false y authenticated_exec=false en todas; service_role_exec=true solo en metrics_explore y metrics_explore_catalog.
+select p.proname,
+       has_function_privilege('anon', p.oid, 'execute') as anon_exec,
+       has_function_privilege('authenticated', p.oid, 'execute') as authenticated_exec,
+       has_function_privilege('service_role', p.oid, 'execute') as service_role_exec
+  from pg_proc p
+ where p.pronamespace = 'public'::regnamespace and (p.proname like '%explore%' or p.proname = '_metrics_match_bucket')
+ order by 1;
+
+-- 14) F6 · Catálogo del Explorador = catálogo de KPIs. ESPERADO: catalog_size=55, series_metrics=10 (9 aditivos + usage.dau), filtered_metrics=7, filters=level_status,location,match_status,platform.
+select jsonb_array_length(r -> 'catalog') as catalog_size,
+       (select count(*) from jsonb_array_elements(r -> 'catalog') e where (e ->> 'hasSeries')::boolean) as series_metrics,
+       (select count(*) from jsonb_array_elements(r -> 'catalog') e where jsonb_array_length(e -> 'filters') > 0) as filtered_metrics,
+       (select string_agg(k, ',' order by k) from jsonb_object_keys(r -> 'filterDefs') k) as filters
+  from (select public.metrics_explore_catalog() as r) x;
+
+-- 15) F6 · El KPI del Explorador es IDÉNTICO al de su sección (un indicador por sección, sin filtro). ESPERADO: 5 filas con identical=true.
+select m as metric,
+       (public.metrics_explore(m, '30d') -> 'kpi') = (select k from jsonb_array_elements(public._metrics_run(split_part(m, '.', 1), '30d', true, false, now()) -> 'kpis') k where k ->> 'id' = m) as identical
+  from unnest(array['users.signups', 'matches.created', 'activation.fifth_match', 'community.groups_created', 'usage.wau']) m;
+
+-- 16) F6 · Sin UUID en las respuestas del Explorador (con y sin filtro). ESPERADO: has_uuid=false en todas las filas.
+select m, f, (public.metrics_explore(m, '90d', true, true, f, v)::text ~* '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}') as has_uuid
+  from (values ('users.registered_now', 'location', 'Bella Vista, Buenos Aires'), ('matches.created', 'match_status', 'validated'), ('usage.wau', 'platform', 'ios'), ('users.signups', null, null)) t(m, f, v);

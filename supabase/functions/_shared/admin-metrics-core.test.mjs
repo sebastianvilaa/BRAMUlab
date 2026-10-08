@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAdminMetrics, validateMetricsBody, SECTION_FUNCTIONS, RANGES } from './admin-metrics-core.mjs';
+import { handleAdminMetrics, validateMetricsBody, validateExploreBody, validateAnyBody, SECTION_FUNCTIONS, RANGES, EXPLORE_CLIENT_ERRORS } from './admin-metrics-core.mjs';
 import { replay } from '../../scripts/replay-migrations.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -122,5 +122,88 @@ test('contrato con el SQL real: cada función del mapa existe y acepta exactamen
         assert.ok(Array.isArray(res.kpis), `${fn}: kpis`);
       }
     }
+  } finally { await db.close(); }
+});
+
+
+/* ---------------- F6 · Explorar ---------------- */
+
+test('F6 · validación del Explorador: solo id de catálogo, rango cerrado y UN filtro {id,value}; nada de SQL, tablas, columnas ni claves extra', () => {
+  const ok = validateExploreBody({ metric: 'users.signups' });
+  assert.deepEqual([ok.ok, ok.fn, ok.args], [true, 'metrics_explore', { p_metric: 'users.signups', p_range: '30d', p_compare: true, p_include_internal: false, p_filter: null, p_value: null }]);
+  const f = validateExploreBody({ metric: 'matches.created', range: 'all', compare: false, includeInternal: true, filter: { id: 'match_status', value: 'validated' } });
+  assert.deepEqual(f.args, { p_metric: 'matches.created', p_range: 'all', p_compare: false, p_include_internal: true, p_filter: 'match_status', p_value: 'validated' });
+  assert.deepEqual(validateExploreBody({ catalog: true }), { ok: true, mode: 'catalog', fn: 'metrics_explore_catalog', args: {} });
+  assert.equal(validateExploreBody({ metric: 'users.signups', filter: null }).args.p_filter, null);
+  const bad = [
+    [null, 'invalid_payload'], [[], 'invalid_payload'], ['x', 'invalid_payload'], [{ catalog: false }, 'invalid_payload'], [{ catalog: true, metric: 'users.signups' }, 'invalid_payload'],
+    [{ metric: 5 }, 'invalid_metric'], [{ metric: 'users' }, 'invalid_metric'], [{ metric: 'Users.Signups' }, 'invalid_metric'], [{ metric: 'users.signups; drop table players' }, 'invalid_metric'],
+    [{ metric: 'users.' + 'a'.repeat(60) }, 'invalid_metric'], [{ metric: '__proto__' }, 'invalid_metric'], [{ metric: 'matches.created\n' }, 'invalid_metric'],
+    [{ metric: 'users.signups', range: '1d' }, 'invalid_range'], [{ metric: 'users.signups', range: 'custom' }, 'range_not_supported'],
+    [{ metric: 'users.signups', compare: 'si' }, 'invalid_payload'], [{ metric: 'users.signups', includeInternal: 1 }, 'invalid_payload'],
+    [{ metric: 'users.signups', sql: 'select 1' }, 'invalid_payload'], [{ metric: 'users.signups', table: 'players' }, 'invalid_payload'], [{ metric: 'users.signups', groupBy: 'x' }, 'invalid_payload'],
+    [{ metric: 'users.signups', filter: 'location' }, 'invalid_filter'], [{ metric: 'users.signups', filter: [] }, 'invalid_filter'], [{ metric: 'users.signups', filter: { id: 'location', value: 'x', extra: 1 } }, 'invalid_filter'],
+    [{ metric: 'users.signups', filter: { id: 'Location', value: 'x' } }, 'invalid_filter'], [{ metric: 'users.signups', filter: { id: 'a'.repeat(30), value: 'x' } }, 'invalid_filter'],
+    [{ metric: 'users.signups', filter: { id: 'location' } }, 'invalid_filter_value'], [{ metric: 'users.signups', filter: { id: 'location', value: '' } }, 'invalid_filter_value'],
+    [{ metric: 'users.signups', filter: { id: 'location', value: 'x'.repeat(121) } }, 'invalid_filter_value'], [{ metric: 'users.signups', filter: { id: 'location', value: 3 } }, 'invalid_filter_value'],
+    [{ metric: 'users.signups', filter: { id: 'location', value: 'a\u0000b' } }, 'invalid_filter_value'],
+  ];
+  for (const [b, code] of bad) assert.equal(validateExploreBody(b).code, code, JSON.stringify(b));
+  // el valor es texto libre acotado: puede traer comillas/tildes (se compara, nunca se concatena)
+  assert.equal(validateExploreBody({ metric: 'users.signups', filter: { id: 'location', value: "Bella Vista' ; --" } }).ok, true);
+});
+
+test('F6 · el modo se decide por la forma del body y mezclarlos es inválido; los paneles siguen validándose igual', () => {
+  assert.equal(validateAnyBody({ section: 'users' }).fn, 'metrics_users');
+  assert.equal(validateAnyBody({ metric: 'users.signups' }).fn, 'metrics_explore');
+  assert.equal(validateAnyBody({ catalog: true }).fn, 'metrics_explore_catalog');
+  for (const b of [{ section: 'users', metric: 'users.signups' }, { section: 'users', catalog: true }, { metric: 'users.signups', catalog: true }]) assert.equal(validateAnyBody(b).ok, false, JSON.stringify(b));
+  assert.equal(validateAnyBody({ section: 'users', metric: 'users.signups' }).code, 'invalid_payload');
+});
+
+test('F6 · mismo camino de seguridad: JWT → administrador → rate limit → validación → RPC fija; un no-admin no puede sondear el Explorador', async () => {
+  for (const body of [{ metric: 'no.existe', filter: { id: 'x', value: 'y' } }, { catalog: true }, { metric: 5 }]) {
+    const { d, calls } = deps({ isAdmin: async () => false, body });
+    const r = await handleAdminMetrics(d);
+    assert.deepEqual([r.status, r.body], [403, { ok: false, code: 'forbidden' }]);
+    assert.deepEqual([calls.limit, calls.section], [[], []]);
+  }
+  const noJwt = deps({ jwt: '', body: { catalog: true } }); assert.equal((await handleAdminMetrics(noJwt.d)).status, 401);
+  const lim = deps({ withinRateLimit: async () => false, body: { catalog: true } }); const rl = await handleAdminMetrics(lim.d);
+  assert.deepEqual([rl.status, lim.calls.section.length], [429, 0]);
+  const ok = deps({ body: { metric: 'matches.created', filter: { id: 'match_status', value: 'validated' } }, callSection: async (fn, args) => { return { data: { ok: true, section: 'explore', fn, args }, error: null }; } });
+  const r = await handleAdminMetrics(ok.d);
+  assert.equal(r.status, 200); assert.equal(r.body.fn, 'metrics_explore');
+});
+
+test('F6 · errores de negocio del SQL (métrica/filtro inválidos) → 400 con código acotado; cualquier otra falla sigue siendo 500 genérico', async () => {
+  for (const code of EXPLORE_CLIENT_ERRORS) {
+    const { d } = deps({ body: { metric: 'users.signups' }, callSection: async () => ({ data: { ok: false, code }, error: null }) });
+    assert.deepEqual([(await handleAdminMetrics(d)).status, (await handleAdminMetrics(d)).body], [400, { ok: false, code }]);
+  }
+  for (const data of [{ ok: false, code: 'boom_interno' }, { ok: false }, null]) {
+    const { d } = deps({ body: { metric: 'users.signups' }, callSection: async () => ({ data, error: null }) });
+    assert.deepEqual([(await handleAdminMetrics(d)).status, (await handleAdminMetrics(d)).body], [500, { ok: false, code: 'metrics_failed' }]);
+  }
+  // un panel (section) nunca se traduce a 400 por ok:false
+  const { d } = deps({ callSection: async () => ({ data: { ok: false, code: 'invalid_metric' }, error: null }) });
+  assert.equal((await handleAdminMetrics(d)).status, 500);
+});
+
+test('F6 · contrato con el SQL real: los args que arma el núcleo calzan con metrics_explore / metrics_explore_catalog y los códigos 400 existen', async () => {
+  const r = await replay({ acl: 'observed' });
+  assert.ok(r.ok);
+  const db = r.db;
+  try {
+    await db.exec(`insert into public.app_config (id, environment) values (1, 'staging')`);
+    const call = async (body) => { const v = validateAnyBody(body); assert.equal(v.ok, true, JSON.stringify(body)); const names = Object.keys(v.args); 
+      const sql = names.length ? `select public.${v.fn}(${names.map((n, i) => `${n} => $${i + 1}`).join(', ')}) as r` : `select public.${v.fn}() as r`;
+      return (await db.query(sql, names.map((n) => v.args[n]))).rows[0].r; };
+    assert.equal((await call({ catalog: true })).catalog.length, 55);
+    for (const range of RANGES) assert.equal((await call({ metric: 'matches.created', range })).ok, true, range);
+    assert.equal((await call({ metric: 'matches.created', filter: { id: 'match_status', value: 'validated' } })).filters.applied.value, 'validated');
+    assert.equal((await call({ metric: 'no.existe' })).code, 'invalid_metric');
+    assert.equal((await call({ metric: 'users.signups', filter: { id: 'platform', value: 'ios' } })).code, 'invalid_filter');
+    assert.equal((await call({ metric: 'matches.created', filter: { id: 'match_status', value: 'x' } })).code, 'invalid_filter_value');
   } finally { await db.close(); }
 });

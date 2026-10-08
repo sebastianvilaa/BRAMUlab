@@ -9,6 +9,8 @@
  *   - solo agregados: no existe ninguna vista por jugador;
  *   - el DOM se arma con textContent/createElement (nada de innerHTML con datos del servidor);
  *   - los datos no se guardan en storage: solo preferencias (período, comparar, incluir internas);
+ *   - Explorar (F6): catálogo cerrado + UN filtro declarado por vez; nunca arma consultas: pide al Edge `{metric, range, compare, includeInternal, filter?}`;
+ *     si el servidor no mandó serie, no hay línea («Evolución temporal no disponible»); la presencia anterior a su inicio es «Sin captura», no 0;
  *   - D8 (días completos): los períodos terminan AYER; lo de hoy se muestra aparte, rotulado «parcial», y nunca entra en comparaciones;
  *   - el modo `?qa=1` (fixture rotulado «NO PRODUCTION») solo existe fuera de Production y el fixture ni se publica en ese build.
  */
@@ -34,7 +36,12 @@
     { id: 'activacion', label: 'Activación', section: 'activation', hash: '#/activacion' },
     { id: 'comunidad', label: 'Comunidad', section: 'community', hash: '#/comunidad' },
     { id: 'uso', label: 'Uso', section: 'usage', hash: '#/uso' },
+    { id: 'explorar', label: 'Explorar', section: 'explore', hash: '#/explorar' },
   ];
+  const SECTION_TITLES = { users: 'Usuarios', matches: 'Partidos', activation: 'Activación', community: 'Comunidad', usage: 'Uso' };
+  const DEFAULT_EXPLORE_METRIC = 'users.signups';
+  const METRIC_RE = /^[a-z]+\.[a-z0-9_]{1,48}$/;
+  const FILTER_RE = /^[a-z_]{1,24}$/;
   const SECTION_OF_PREFIX = { users: 'users', matches: 'matches', activation: 'activation', community: 'community', usage: 'usage' };
 
   /* Qué dirección es «buena» solo cuando el producto lo define; el resto se muestra en azul neutro (sin juicio). */
@@ -196,6 +203,25 @@
     return { items, upTo: today.asOf ? fmtBA(today.asOf, { hour: '2-digit', minute: '2-digit', hour12: false }) : null, date: today.date || null };
   }
 
+  /** Etiqueta legible de una opción de filtro (el valor técnico viaja tal cual al servidor). */
+  function optionLabel(filterId, value) {
+    const maps = { level_status: LEVEL_LABELS, platform: PLATFORM_LABELS, match_status: STATUS_LABELS };
+    const m = maps[filterId];
+    if (m && m[value]) return m[value][0];
+    return String(value);
+  }
+  /** Catálogo del Explorador agrupado por sección (orden fijo del producto). */
+  function groupCatalog(catalog) {
+    const order = ['users', 'matches', 'activation', 'community', 'usage'];
+    return order.map((sec) => ({ section: sec, title: SECTION_TITLES[sec], items: (catalog || []).filter((e) => e.section === sec) })).filter((g) => g.items.length);
+  }
+  /** Qué decir en lugar del gráfico cuando no hay serie (nunca una línea inventada). */
+  function seriesMessage(state, hasAny) {
+    if (state === 'unavailable') return 'Evolución temporal no disponible para este indicador: se calcula sobre el período completo y no hay hechos diarios que lo reconstruyan.';
+    if (state === 'filter_disabled') return 'Con este filtro no se grafica la evolución: los segmentos chicos no se muestran día a día. Quitá el filtro para ver la serie.';
+    if (state === 'available' && hasAny === false) return 'Todavía no medible: la presencia diaria no tiene captura en este período. No se estima hacia atrás.';
+    return null;
+  }
   function seriesFor(kpiId, data) {
     const m = KPI_SERIES[kpiId];
     if (!m || !data || !data.series || !data.series[m.key]) return null;
@@ -222,9 +248,9 @@
     const cur = (series && series.current) || [];
     const prev = o.compare && series && Array.isArray(series.previous) ? series.previous : null;
     const gran = (series && series.granularity) || 'day';
-    const vals = cur.map((p) => p.value).concat(prev ? prev.map((p) => p.value) : []);
+    const vals = cur.map((p) => p.value || 0).concat(prev ? prev.map((p) => p.value || 0) : []);
     const maxV = vals.length ? Math.max.apply(null, vals) : 0;
-    const total = cur.reduce((a, p) => a + p.value, 0) + (prev ? prev.reduce((a, p) => a + p.value, 0) : 0);
+    const total = cur.reduce((a, p) => a + (p.value || 0), 0) + (prev ? prev.reduce((a, p) => a + (p.value || 0), 0) : 0);
     const empty = cur.length === 0 || total === 0;
     const step = Math.max(1, niceStep(Math.max(maxV, 1) / 4)); // series de conteos: ticks enteros
     const ymax = Math.max(step * Math.ceil(Math.max(maxV, 1) / step), step);
@@ -237,8 +263,8 @@
     const slot = n ? iw / n : iw;
     const xAt = (i) => (bars ? pad.l + slot * (i + 0.5) : pad.l + (n <= 1 ? iw / 2 : (i * iw) / (n - 1)));
     const barW = Math.max(2, Math.min(34, slot * (prev ? 0.4 : 0.64)));
-    const curPts = cur.map((p, i) => ({ i, x: xAt(i), y: y(p.value), v: p.value, start: p.start }));
-    const prevPts = prev ? prev.slice(0, n || prev.length).map((p, i) => ({ i, x: xAt(i), y: y(p.value), v: p.value, start: p.start })) : null;
+    const curPts = cur.map((p, i) => ({ i, x: xAt(i), y: y(p.value || 0), v: p.value, start: p.start }));
+    const prevPts = prev ? prev.slice(0, n || prev.length).map((p, i) => ({ i, x: xAt(i), y: y(p.value || 0), v: p.value, start: p.start })) : null;
     const labelIdx = [];
     if (n) {
       const want = Math.min(n, W < 700 ? 5 : 7);
@@ -248,8 +274,23 @@
     return { W, H, pad, iw, ih, kind: 'bars', granularity: gran, ymax, yTicks, y, curPts, prevPts, barW, slot, xLabels, empty, total, baseY: y(0) };
   }
 
+  /** `#/explorar?m=<indicador>&f=<filtro>&v=<valor>`: la selección vive en la URL (se puede guardar como marcador). Todo se valida; lo raro se descarta. */
+  function parseExplore(qs) {
+    const p = new URLSearchParams(qs || '');
+    const m = p.get('m'); const f = p.get('f'); const v = p.get('v');
+    const out = { view: 'explorar', metric: m && METRIC_RE.test(m) ? m : null, filter: null, value: null };
+    if (out.metric && f && FILTER_RE.test(f) && v && v.length <= 120 && !/[\u0000-\u001f\u007f]/.test(v)) { out.filter = f; out.value = v; }
+    return out;
+  }
+  function exploreHash(sel) {
+    const s = sel || {};
+    let q = s.metric ? `?m=${encodeURIComponent(s.metric)}` : '';
+    if (s.metric && s.filter && s.value) q += `&f=${encodeURIComponent(s.filter)}&v=${encodeURIComponent(s.value)}`;
+    return `#/explorar${q}`;
+  }
   function parseHash(hash) {
     const h = String(hash || '').replace(/^#\/?/, '');
+    if (h === 'explorar' || h.indexOf('explorar?') === 0) return parseExplore(h.slice(9));
     if (h === '' || h === 'inicio') return { view: 'inicio' };
     if (h === 'usuarios') return { view: 'usuarios' };
     if (h === 'partidos') return { view: 'partidos' };
@@ -276,7 +317,7 @@
   }
 
   const pure = { fmtNum, formatValue, toneFor, deltaView, previousText, availabilityView, fmtDayMonth, fmtBA, baDate, windowLabel, todayView, seriesFor, niceStep, chartModel, parseHash, apiErrorKind, qaAllowed, dateLabelFor,
-    RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS };
+    RANGES, VIEWS, KPI_SERIES, GOOD_UP, GOOD_DOWN, TODAY_FIELDS, FUNNEL_IDS, parseExplore, exploreHash, optionLabel, groupCatalog, seriesMessage, DEFAULT_EXPLORE_METRIC };
 
   /* ====================================================================== */
   /* Interfaz (solo con DOM)                                                 */
@@ -390,6 +431,28 @@
     return data;
   }
 
+  /** Explorar: catálogo cerrado (una vez por carga de página) y un indicador por pedido. El cliente solo envía ids que el catálogo devolvió. */
+  let catalogCache = null;
+  async function getCatalog(force) {
+    if (catalogCache && !force) return catalogCache;
+    const data = await callServer({ catalog: true });
+    if (!data || !Array.isArray(data.catalog)) throw apiError(null, 'bad_catalog');
+    catalogCache = data;
+    return data;
+  }
+  function exploreKey(sel) { return ['explore', sel.metric, S.range, S.compare, S.internal, sel.filter || '', sel.value || ''].join('|'); }
+  async function getExplore(sel, force) {
+    const k = exploreKey(sel);
+    const c = cache.get(k);
+    if (!force && c && Date.now() - c.at < CACHE_TTL_MS) return c.data;
+    const body = { metric: sel.metric, range: S.range, compare: S.compare, includeInternal: S.internal };
+    if (sel.filter && sel.value) body.filter = { id: sel.filter, value: sel.value };
+    const data = await callServer(body);
+    if (!QA && (!data.meta || !env || data.meta.environment !== env.name)) throw Object.assign(new Error('env_mismatch'), { kind: 'env' });
+    cache.set(k, { at: Date.now(), data });
+    return data;
+  }
+
   /* ---------- Componentes ---------- */
   function deltaChip(kpi) {
     const d = deltaView(kpi, S.compare);
@@ -462,8 +525,8 @@
       guide.setAttribute('x1', p.x); guide.setAttribute('x2', p.x); guide.setAttribute('visibility', 'visible');
       tip.textContent = '';
       tip.appendChild(h('b', { text: dateLabelFor(p.start, m.granularity) }));
-      tip.appendChild(h('div', null, [h('span', { text: 'Actual' }), h('span', { text: fmtNum(p.v) })]));
-      if (pp) tip.appendChild(h('div', null, [h('span', { text: `Anterior · ${dateLabelFor(pp.start, m.granularity)}` }), h('span', { text: fmtNum(pp.v) })]));
+      tip.appendChild(h('div', null, [h('span', { text: 'Actual' }), h('span', { text: p.v === null ? 'Sin captura' : fmtNum(p.v) })]));
+      if (pp) tip.appendChild(h('div', null, [h('span', { text: `Anterior · ${dateLabelFor(pp.start, m.granularity)}` }), h('span', { text: pp.v === null ? 'Sin captura' : fmtNum(pp.v) })]));
       tip.hidden = false;
       const w = tip.offsetWidth; const hh = tip.offsetHeight;
       tip.style.left = `${Math.max(8, Math.min(global.innerWidth - w - 8, ev.clientX + 14))}px`;
@@ -712,6 +775,78 @@
     return h('div', null, out);
   }
 
+  /* ---------- Explorar ---------- */
+  function exploreGo(sel) { global.location.hash = exploreHash(sel); }
+
+  function metricPicker(catalog, current) {
+    const sel = h('select', { id: 'mx-ex-metric', class: 'mx-select', 'aria-label': 'Indicador a explorar', onchange: (e) => exploreGo({ metric: e.target.value }) },
+      groupCatalog(catalog.catalog).map((g) => h('optgroup', { label: g.title }, g.items.map((it) => h('option', { value: it.id, selected: it.id === current ? true : null, text: it.label })))));
+    return h('section', { class: 'mx-panel mx-ex__pick' }, [
+      h('label', { class: 'mx-ex__label', for: 'mx-ex-metric', text: 'Indicador' }), sel,
+      h('p', { class: 'mx-note', text: `${fmtNum(catalog.catalog.length)} indicadores del catálogo auditado. El período y la comparación son los de arriba (días completos, hasta ayer).` }),
+    ]);
+  }
+
+  function filterPanel(data, sel) {
+    const avail = (data.filters && data.filters.available) || [];
+    if (!avail.length) return h('section', { class: 'mx-panel mx-ex__filters' }, [h('h3', { class: 'mx-panel__title', text: 'Filtros' }), h('p', { class: 'mx-note', style: 'margin:0', text: 'Este indicador no admite filtros: no hay una partición confiable de su población.' })]);
+    const applied = data.filters.applied;
+    const rows = avail.map((f) => {
+      const usable = f.options && f.options.length > 0;
+      const isOn = applied && applied.id === f.id;
+      const select = h('select', {
+        class: 'mx-select', id: `mx-ex-f-${f.id}`, 'aria-label': f.label, disabled: usable ? null : true,
+        onchange: (e) => (e.target.value ? exploreGo({ metric: sel.metric, filter: f.id, value: e.target.value }) : exploreGo({ metric: sel.metric })),
+      }, [h('option', { value: '', text: 'Todos' })].concat((f.options || []).map((o) => h('option', { value: o.value, selected: isOn && applied.value === o.value ? true : null, text: `${optionLabel(f.id, o.value)} · ${fmtNum(o.n)}` }))));
+      return h('div', { class: 'mx-ex__filter' }, [
+        h('label', { class: 'mx-ex__label', for: `mx-ex-f-${f.id}`, text: f.label }), select,
+        usable ? null : h('p', { class: 'mx-note', text: f.unit === 'personas' ? `Sin segmentos con muestra suficiente en este período (mínimo ${(data.meta && data.meta.minCell) || 5} personas por segmento, sin que el resto delate a un segmento chico).` : 'Sin partidos en este período.' }),
+        h('p', { class: 'mx-note', text: f.note }),
+      ]);
+    });
+    return h('section', { class: 'mx-panel mx-ex__filters' }, [h('h3', { class: 'mx-panel__title', text: 'Filtros' }), h('p', { class: 'mx-panel__sub', text: 'Uno por vez. Solo se ofrecen segmentos que cumplen la privacidad (k = 5).' })].concat(rows));
+  }
+
+  function viewExplorar(catalog, data, sel) {
+    const kpi = data.kpi; const meta = data.meta;
+    const delta = deltaChip(kpi); const prev = previousText(kpi, S.compare);
+    const shown = kpi.availability === 'insufficient_sample' || kpi.availability === 'not_instrumented' || kpi.availability === 'immature';
+    const kinds = { stock: 'Saldo al corte', flow: 'Flujo del período', ratio: 'Proporción', duration: 'Duración' };
+    const applied = data.filters && data.filters.applied;
+    const fdef = applied ? ((data.filters.available || []).find((f) => f.id === applied.id) || { label: applied.id }) : null;
+
+    const head = [
+      h('div', { class: 'mx-detail__head' }, [h('h1', { class: 'mx-detail__title', text: kpi.label }), h('span', { class: 'mx-kind', text: (kinds[kpi.kind] || kpi.kind) + (kpi.snapshot ? ' · foto del estado actual' : '') })]),
+      applied ? h('div', { class: 'mx-ex__applied' }, [h('span', { class: 'mx-chip mx-chip--neutral', text: `${fdef.label}: ${optionLabel(applied.id, applied.value)}` }),
+        h('a', { class: 'mx-ex__clear', href: exploreHash({ metric: sel.metric }), text: 'Quitar filtro' })]) : null,
+      h('div', { class: 'mx-detail__value' }, [h('span', { class: 'big' + (shown ? ' is-empty' : ''), text: shown ? '—' : formatValue(kpi, kpi.value) }), delta, prev ? h('span', { class: 'mx-prev', text: prev }) : null]),
+      stateLine(kpi, meta) ? h('div', { style: 'margin-bottom:12px' }, stateLine(kpi, meta)) : null,
+    ];
+    const s = data.series;
+    const hasAny = !!(s && s.current && s.current.some((p) => p.value !== null && p.value !== undefined));
+    const msg = seriesMessage(data.seriesState, hasAny);
+    const chartNode = [];
+    if (data.seriesState === 'available' && s && hasAny) {
+      const gran = s.granularity === 'week_ba' ? 'semana' : 'día';
+      chartNode.push(chartPanel(`${s.label} por ${gran}`, null, s, { meta, title: s.label, note: s.current.some((p) => p.value === null) ? 'Los períodos anteriores a la captura de presencia figuran como «Sin captura»: no se estiman.' : null }));
+      chartNode.push(h('details', { class: 'mx-details mx-panel' }, [h('summary', { text: 'Ver datos del gráfico' }), dataTable(s)]));
+    } else {
+      chartNode.push(h('div', { class: 'mx-panel' }, h('p', { class: 'mx-note mx-ex__nochart', style: 'margin:0', text: msg || 'Evolución temporal no disponible.' })));
+    }
+    const def = h('section', { class: 'mx-panel mx-ex__def' }, [h('h3', { class: 'mx-panel__title', text: 'Cómo se calcula' }), h('dl', { class: 'mx-dl mx-dl--stack' }, [
+      h('div', null, [h('dt', { text: 'Definición' }), h('dd', { text: kpi.definition })]),
+      h('div', null, [h('dt', { text: 'Población' }), h('dd', { text: kpi.population })]),
+      h('div', null, [h('dt', { text: 'Muestra (n)' }), h('dd', { text: kpi.n === null || kpi.n === undefined ? 'No aplica' : fmtNum(kpi.n) })]),
+    ]), h('p', { class: 'mx-note', text: `Período actual: ${windowLabel(meta.window)} (días completos)` + (S.compare && meta.previousWindow ? ` · anterior: ${windowLabel(meta.previousWindow)}` : '') + '. Solo agregados; sin datos individuales.' })]);
+    const detailLink = kpi.id ? h('a', { class: 'mx-back', href: `#/kpi/${kpi.id}`, text: 'Ver ficha del indicador ›' }) : null;
+    return h('div', { class: 'mx-ex' }, [
+      metricPicker(catalog, sel.metric),
+      h('div', { class: 'mx-ex__main' }, head.concat(chartNode, [detailLink])),
+      filterPanel(data, sel),
+      def,
+    ]);
+  }
+
   function viewKpi(id, data) {
     const kpi = data.kpis.find((k) => k.id === id);
     const back = h('a', { class: 'mx-back', href: VIEWS.find((v) => v.id === S.lastTab).hash }, '‹ Volver');
@@ -737,6 +872,7 @@
       h('div', null, [h('dt', { text: 'Población' }), h('dd', { text: kpi.population })]),
       h('div', null, [h('dt', { text: 'Muestra (n)' }), h('dd', { text: kpi.n === null || kpi.n === undefined ? 'No aplica' : fmtNum(kpi.n) })]),
     ])));
+    nodes.push(h('a', { class: 'mx-back', style: 'margin-top:14px', href: exploreHash({ metric: id }), text: 'Explorar este indicador ›' }));
     nodes.push(h('p', { class: 'mx-note', text: `Período actual: ${windowLabel(meta.window)} (días completos)` + (S.compare && meta.previousWindow ? ` · anterior: ${windowLabel(meta.previousWindow)}` : '') + '. Solo agregados; no hay datos individuales.' }));
     return h('div', null, nodes);
   }
@@ -788,20 +924,27 @@
     const seq = (S.seq += 1);
     const view = $('mx-view'); view.setAttribute('aria-busy', 'true');
     const route = S.route;
-    const sectionName = route.view === 'kpi' ? SECTION_OF_PREFIX[route.kpiId.split('.')[0]] : VIEWS.find((v) => v.id === route.view).section;
-    const hadData = cache.has(cacheKey(sectionName));
+    const isExplore = route.view === 'explorar';
+    const sel = isExplore ? { metric: route.metric || DEFAULT_EXPLORE_METRIC, filter: route.filter, value: route.value } : null;
+    const sectionName = isExplore ? null : route.view === 'kpi' ? SECTION_OF_PREFIX[route.kpiId.split('.')[0]] : VIEWS.find((v) => v.id === route.view).section;
+    const hadData = cache.has(isExplore ? exploreKey(sel) : cacheKey(sectionName));
     if (!hadData || force) { view.textContent = ''; view.appendChild(skeletonView()); }
     $('mx-refresh').classList.add('is-spinning');
     try {
-      const data = await getSection(sectionName, !!force);
+      let data; let catalog = null;
+      if (isExplore) {
+        catalog = await getCatalog(!!force);
+        if (!catalog.catalog.some((e) => e.id === sel.metric)) { sel.metric = DEFAULT_EXPLORE_METRIC; sel.filter = null; sel.value = null; }
+        data = await getExplore(sel, !!force);
+      } else data = await getSection(sectionName, !!force);
       if (seq !== S.seq) return;
       S.meta = data.meta; setEnvBanner(data.meta);
       renderWindowLine(data.meta);
       $('mx-updated').textContent = `Actualizado ${fmtBA(data.meta.generatedAt, { hour: '2-digit', minute: '2-digit' })}`;
       view.textContent = '';
       const RENDER = { inicio: viewInicio, usuarios: viewUsuarios, partidos: viewPartidos, activacion: viewActivacion, comunidad: viewComunidad, uso: viewUso };
-      view.appendChild(route.view === 'kpi' ? viewKpi(route.kpiId, data) : RENDER[route.view](data));
-      global.scrollTo(0, 0);
+      view.appendChild(isExplore ? viewExplorar(catalog, data, sel) : route.view === 'kpi' ? viewKpi(route.kpiId, data) : RENDER[route.view](data));
+      if (!isExplore) global.scrollTo(0, 0);
     } catch (err) {
       if (seq !== S.seq) return;
       if (err.kind === 'session') return showGate('session');

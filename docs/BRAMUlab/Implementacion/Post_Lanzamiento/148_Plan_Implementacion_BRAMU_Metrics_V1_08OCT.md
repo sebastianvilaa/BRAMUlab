@@ -1,6 +1,6 @@
 # 148 — Plan de implementación · BRAMU Metrics V1 (`/admin/metrics`) — 08OCT26
 
-**Estado (08/10/2026):** F1 y F2 **aplicadas y verificadas parcialmente por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) desplegada en Staging (`04.37-h29`), código cerrado y QA vivo parcial** (ver `149_…` §7); **F4 (§11) implementada en el repo el 08/10/2026 (resultado y verificación para Central en `149_…` §8; migración `20261008120000` aún sin aplicar)**; F5–F6 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
+**Estado (08/10/2026):** F1 y F2 **aplicadas y verificadas parcialmente por Central en Staging**; **F3 (dashboard Inicio/Usuarios/Partidos + detalle de KPI) desplegada en Staging (`04.37-h29`), código cerrado y QA vivo parcial** (ver `149_…` §7); **F4 (§11) implementada en el repo el 08/10/2026 (resultado y verificación para Central en `149_…` §8; migración `20261008120000` aún sin aplicar)**; **F6 (Explorar) implementada en el repo el 08/10/2026 (diseño en §12; resultado y checklist en `149_…` §10; migración `20261008130000` y redeploy de `admin-metrics` pendientes de Central)**; F5 sin implementar. No autoriza Production. Rama de trabajo: `staging`.
 > **Nota de nombres (F1):** la RPC de presencia se llama `register_app_presence` (no `record_app_activity`): los controles de grants del repo tratan cualquier función `record_*` ejecutable por `authenticated` como administrativa/interna.
 **Leer antes:** `README.md`, `Metodo_Trabajo.md`, `BRAMU_Metrics.md` (producto) y su marco confirmado — `BRAMU_Metrics_UX_V1.md` (paneles + Explorar), `BRAMU_Metrics_Privacidad_V1.md`, `BRAMU_Metrics_Comparaciones_V1.md` — y `BRAMU_Metrics_Auditoria_Tecnica_V1.md` (fuentes, definiciones, consultas, hallazgos).
 **No se toca en ninguna fase:** `main`, Vercel Production, Supabase Production (salvo lecturas autorizadas por Central y, **solo tras autorización explícita**, la promoción de la Fase 5), BRAMUlive, fórmula de Nivel, lógica deportiva oficial, datos de usuarios.
@@ -334,3 +334,23 @@ Explorar con filtros (F6), rango personalizado, drill-down por persona, evento d
 2. **D3 → D1** (arrancar el reloj en Production; independiente del resto de F4).
 3. **D8** (ventana con días completos) y **D2** (cuentas internas de Production) — conviene tenerlas antes de que haya datos reales que interpretar.
 4. Aprobar este alcance → Claude implementa F4 en un solo pase (migración + vistas + pruebas) → Central aplica la migración en Staging y corre las comprobaciones de concordancia → recién entonces se evalúa F5 (promoción de la consola).
+
+---
+
+## 12. F6 — Explorar (implementado el 08/10/2026 — ver `149_…` §10)
+
+**Criterio de producto:** `Metrics/BRAMU_Metrics.md` §11 (Sebastián explora cualquier indicador medido, sin SQL, sin planilla, con comparación y filtros seguros).
+
+### 12.1 Arquitectura (mínima, reutilizando F2/F4)
+```
+Explorar (cliente, solo <select>)  ──►  Edge admin-metrics  ──►  metrics_explore_catalog() / metrics_explore(metric, range, compare, internal, filter, value)
+ {catalog:true} | {metric, range, compare,        (JWT → admin → rate limit → validación cerrada)        (service_role; _metrics_run + _metrics_kpi + _metrics_apply_k)
+  includeInternal, filter?:{id,value}}
+```
+- **Catálogo cerrado:** el id se valida contra `_metrics_catalog()`; el filtro, contra `_metrics_explore_spec()` (declara por indicador su serie y sus filtros). Nada del cliente nombra tablas, columnas ni SQL; el valor del filtro **solo se compara** con las opciones que el propio SQL calcula.
+- **KPI idéntico al panel:** `metrics_explore` obtiene el KPI de `_metrics_run` (misma definición, mismas ventanas D8, misma comparación). Con filtro, arma el KPI con `_metrics_kpi` sobre la celda visible.
+- **Series:** solo fuentes con hechos persistidos cuya suma coincide con el KPI (`_metrics_explore_series`); la presencia anterior a su inicio es `null`. Sin serie fiable → `seriesState = unavailable`; con filtro de personas → `filter_disabled`.
+- **Filtros (cuatro):** `location` y `level_status` (usuarios), `platform` (usage.dau/wau/mau, última apertura), `match_status` (matches.created; cuenta partidos). Un filtro por vez. k = 5 en SQL con la lógica de los desgloses; la opción solo existe si es visible, y el resto del total nunca queda entre 1 y 4.
+
+### 12.2 Fuera de V1 (decisiones abiertas D9–D11 en `149_…` §10.5)
+Rama competitiva, series de WAU/MAU y de saldos, cruces de filtros, rango personalizado, drill-down por persona, SQL libre.

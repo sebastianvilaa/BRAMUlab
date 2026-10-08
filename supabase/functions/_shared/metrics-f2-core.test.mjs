@@ -6,7 +6,8 @@
 // provisionales recuperados, cuentas eliminadas), exclusión de cuentas internas, presencia/retención y NO FUGA de datos
 // personales. El fixture es el del Apéndice B de Metrics/BRAMU_Metrics_Auditoria_Tecnica_V1.md.
 // F4 (migración 20261008120000): D8 (días completos hasta ayer), «hoy parcial», snapshots sin comparación, Comunidad (Grupos · Nivel · Ranking)
-// con umbrales k=5 y n≥10 — ver la sección «F4» al final.
+// con umbrales k=5 y n≥10 — ver la sección «F4». F6 (migración 20261008130000): Explorar — catálogo cerrado, filtros declarados con k en SQL
+// (incluida la inferencia por sustracción), series fiables y permisos — ver la sección «F6» al final.
 import crypto from 'node:crypto';
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -628,4 +629,264 @@ test('F4 — catálogo: +6 KPIs community.* (ruteo de detalle sin cambios en el 
   assert.deepEqual(comm.slice(-6), ['community.groups_with_match', 'community.groups_avg_members', 'community.level_calibrated_share', 'community.ranking_days_since_edition', 'community.ranking_eligible_players', 'community.ranking_eligibility_rate']);
   for (const e of cat.filter((x) => x.snapshot)) { assert.equal(e.kind, 'ratio', e.id); assert.ok(e.minN >= 5, e.id); }
   assert.deepEqual(cat.filter((x) => x.snapshot).map((x) => x.id).sort(), ['community.level_calibrated_share', 'community.ranking_eligibility_rate', 'users.profile_complete_rate', 'users.with_location_rate']);
+});
+
+
+/* ====================================================================== */
+/* F6 — Explorar (migración 20261008130000_metrics_f6_explorar.sql)        */
+/* ====================================================================== */
+
+const explore = async (metric, range = '90d', { compare = true, internal = false, asof = ASOF, filter = null, value = null } = {}) =>
+  (await one(`select public.metrics_explore($1, $2, $3, $4, $5, $6, $7::timestamptz) as r`, [metric, range, compare, internal, filter, value, asof])).r;
+const EXPLORE_SERIES_ADDITIVE = ['users.signups', 'matches.created', 'matches.real', 'matches.annulled', 'matches.validated', 'community.groups_created',
+  'community.invites_created', 'community.invites_claimed', 'community.ranking_editions'];
+const sumS = (s) => s.reduce((a, b) => a + (b.value || 0), 0);
+
+test('F6 · catálogo del Explorador: cerrado, = catálogo de KPIs (55), filtros y series declarados existen', async () => {
+  const c = (await one(`select public.metrics_explore_catalog() as r`)).r;
+  const cat = (await one(`select public._metrics_catalog() as c`)).c;
+  assert.equal(c.ok, true); assert.equal(c.minCell, 5);
+  assert.deepEqual(c.catalog.map((e) => e.id), cat.map((e) => e.id), 'mismo catálogo y mismo orden que los paneles');
+  assert.equal(c.catalog.length, 55);
+  for (const e of c.catalog) {
+    assert.deepEqual(Object.keys(e).sort(), ['filters', 'hasSeries', 'id', 'kind', 'label', 'section', 'snapshot']);
+    for (const f of e.filters) assert.ok(c.filterDefs[f], `${e.id}: filtro ${f} declarado`);
+  }
+  assert.deepEqual(c.catalog.filter((e) => e.hasSeries).map((e) => e.id).sort(), [...EXPLORE_SERIES_ADDITIVE, 'usage.dau'].sort());
+  assert.deepEqual(Object.keys(c.filterDefs).sort(), ['level_status', 'location', 'match_status', 'platform']);
+  const spec = (await one(`select public._metrics_explore_spec() as s`)).s;
+  for (const id of Object.keys(spec.metrics)) assert.ok(cat.some((e) => e.id === id), `${id} está en el catálogo (no se pueden declarar indicadores ficticios)`);
+});
+
+test('F6 · sin filtro: el KPI del Explorador es IDÉNTICO al del panel (todos los indicadores del catálogo, 7d/90d/all, con y sin comparación)', async () => {
+  const cat = (await one(`select public._metrics_catalog() as c`)).c;
+  const sections = {};
+  for (const range of ['7d', '90d', 'all']) for (const compare of [true, false]) {
+    for (const sName of ['users', 'matches', 'activation', 'community', 'usage']) sections[sName] = await call(`metrics_${sName}`, range, { compare });
+    for (const e of cat) {
+      const x = await explore(e.id, range, { compare });
+      assert.equal(x.ok, true, e.id);
+      assert.deepEqual(x.kpi, sections[e.section].kpis.find((k) => k.id === e.id), `${e.id}/${range}/${compare}`);
+      const noClock = (m) => ({ ...m, generatedAt: null });
+      assert.deepEqual(noClock(x.meta), noClock(sections[e.section].meta)); assert.equal(x.today.partial, true);
+      assert.ok(['available', 'unavailable'].includes(x.seriesState));
+    }
+  }
+});
+
+test('F6 · series: solo donde hay hechos persistidos; la suma de la serie = el KPI (actual y previa); el resto dice «unavailable» y no trae línea', async () => {
+  const cat = (await one(`select public._metrics_catalog() as c`)).c;
+  for (const range of ['7d', '30d', '90d', 'all']) {
+    for (const e of cat) {
+      const x = await explore(e.id, range);
+      if (EXPLORE_SERIES_ADDITIVE.includes(e.id)) {
+        assert.equal(x.seriesState, 'available', e.id);
+        assert.equal(sumS(x.series.current), x.kpi.value, `${e.id}/${range}: Σ serie = KPI`);
+        if (x.series.previous) assert.equal(sumS(x.series.previous), x.kpi.previous.value, `${e.id}/${range}: Σ previa = KPI previo`);
+        assert.ok(x.series.current.at(-1).start < '2026-10-08', `${e.id}: la serie termina ayer (D8)`);
+      } else if (e.id !== 'usage.dau') {
+        assert.deepEqual([x.seriesState, x.series], ['unavailable', null], e.id);
+      }
+    }
+  }
+});
+
+scenario('F6 · usage.dau: la serie es NULL (no 0) antes de que existiera la presencia y toda NULL si no hay presencia', async () => {
+  let x = await explore('usage.dau', '90d');
+  assert.equal(x.seriesState, 'available');
+  const firstPresence = '2026-09-01';
+  const before = x.series.current.filter((b) => b.start < '2026-08-25'); const after = x.series.current.filter((b) => b.start >= firstPresence);
+  assert.ok(before.length > 0 && before.every((b) => b.value === null), 'antes de la presencia: null');
+  assert.ok(after.every((b) => typeof b.value === 'number'), 'desde la presencia: números reales (0 incluidos)');
+  await q('delete from public.player_activity_days');
+  x = await explore('usage.dau', '30d');
+  assert.ok(x.series.current.every((b) => b.value === null), 'sin presencia: todo null');
+  assert.equal(x.kpi.availability, 'not_instrumented');
+});
+
+test('F6 · filtro de estado de partido: parte el KPI sin perder ni inventar (Σ buckets = cargados), la serie filtrada suma el valor y los valores inválidos se rechazan', async () => {
+  const total = (await explore('matches.created', '90d')).kpi.value;
+  let acc = 0;
+  for (const b of ['validated', 'pending', 'expired_derived', 'annulled_duplicate', 'annulled_author_retracted', 'annulled_admin']) {
+    const x = await explore('matches.created', '90d', { filter: 'match_status', value: b });
+    assert.equal(x.ok, true, b); assert.equal(x.filters.applied.value, b);
+    assert.equal(x.seriesState, 'available'); assert.equal(sumS(x.series.current), x.kpi.value, `${b}: Σ serie = valor`);
+    acc += x.kpi.value;
+  }
+  assert.equal(acc, total, 'los 6 estados suman los partidos cargados');
+  const v = await explore('matches.created', '90d', { filter: 'match_status', value: 'validated' });
+  assert.equal(v.kpi.value, 2); assert.equal(v.filters.available[0].options.reduce((a, o) => a + o.n, 0), total);
+  for (const bad of [['match_status', 'zzz'], ['match_status', ''], ['match_status', 'x'.repeat(121)]]) assert.equal((await explore('matches.created', '90d', { filter: bad[0], value: bad[1] })).code, 'invalid_filter_value', JSON.stringify(bad));
+  assert.equal((await explore('matches.real', '90d', { filter: 'match_status', value: 'validated' })).code, 'invalid_filter', 'filtro no declarado para ese indicador');
+  assert.equal((await explore('matches.created', '90d', { value: 'validated' })).code, 'invalid_filter', 'valor sin filtro');
+  assert.equal((await explore('matches.created', '90d', { filter: 'platform', value: 'ios' })).code, 'invalid_filter');
+  assert.equal((await explore('no.existe', '90d')).code, 'invalid_metric');
+  assert.equal((await explore("users.signups'; drop table public.players;--", '90d')).code, 'invalid_metric');
+  assert.equal(Number((await one(`select count(*) c from public.players`)).c) > 0, true);
+});
+
+scenario('F6 · PRIVACIDAD — localidad: una opción solo existe si es visible bajo k; pedir una oculta NO revela su cantidad ni se puede obtener restando del total', async () => {
+  const locs = {};
+  for (const [name, n] of [['Bella Vista', null], ['San Miguel', null], ['Loc C', 1], ['Loc D', 1]]) {
+    if (n) await q(`insert into public.locations (country_code, source, georef_province_id, georef_locality_id, province_label, locality_label, display_label, verified_for_ranking)
+                    values ('AR','georef','06', $1, 'Buenos Aires', $2, $2 || ', Buenos Aires', true)`, [`9${name.length}${name.slice(-1)}`, name]);
+  }
+  const bv = (await one(`select location_id from public.locations where locality_label = 'Bella Vista'`)).location_id;
+  const sm = (await one(`select location_id from public.locations where locality_label = 'San Miguel'`)).location_id;
+  const lc = (await one(`select location_id from public.locations where locality_label = 'Loc C'`)).location_id;
+  const mk = async (key, loc) => { const a = await mkAccount(key, '2026-09-25T12:00:00Z'); if (loc) await q(`update public.profiles set location_id = $2 where player_id = $1`, [a.pid, loc]); return a; };
+  // fixture base: BV 2 (a1,a2), SM 1 (a3), sin localidad 1 (a4). Se suman: BV +7 => 9, SM +5 => 6, Loc C +2 => 2, sin localidad +1 => 2
+  for (let i = 0; i < 7; i += 1) await mk(`bv${i}`, bv);
+  for (let i = 0; i < 5; i += 1) await mk(`sm${i}`, sm);
+  for (let i = 0; i < 2; i += 1) await mk(`lc${i}`, lc);
+  await mk('nl0', null);
+  const real = async (label) => Number((await one(`select count(*) c from public.players pl left join public.profiles pr on pr.player_id = pl.player_id left join public.locations l on l.location_id = pr.location_id
+      where pl.type = 'registered' and pl.is_active and pl.deleted_at is null and coalesce(l.locality_label, '(sin localidad)') = $1`, [label])).c);
+  assert.deepEqual([await real('Bella Vista'), await real('San Miguel'), await real('Loc C'), await real('(sin localidad)')], [9, 6, 2, 2], 'preparación del escenario');
+
+  const base = await explore('users.registered_now', 'all');
+  assert.equal(base.kpi.value, 19);
+  const loc = base.filters.available.find((f) => f.id === 'location');
+  assert.deepEqual(loc.options.map((o) => `${o.value}:${o.n}`), ['Bella Vista, Buenos Aires:9'], 'San Miguel (6) NO se ofrece: sin él, 19 − 9 − 6 = 4 delataría a Loc C + sin localidad');
+  const visibleSum = loc.options.reduce((a, o) => a + o.n, 0);
+  assert.ok(base.kpi.value - visibleSum === 0 || base.kpi.value - visibleSum >= 5, 'el complemento del total nunca queda en 1–4');
+  assert.ok(loc.options.every((o) => o.n >= 5) && !JSON.stringify(loc).includes('Otros'));
+  // visible => valor real
+  const bvx = await explore('users.registered_now', 'all', { filter: 'location', value: 'Bella Vista, Buenos Aires' });
+  assert.deepEqual([bvx.kpi.value, bvx.kpi.availability, bvx.kpi.count, bvx.seriesState], [9, 'ok', null, 'unavailable']);
+  // ocultas (por n < k, por absorción o inexistentes) => mismo resultado, sin cantidad
+  for (const v of ['San Miguel, Buenos Aires', 'Loc C, Buenos Aires', '(sin localidad)', 'No existe', "x'; drop table public.players;--"]) {
+    const x = await explore('users.registered_now', 'all', { filter: 'location', value: v });
+    assert.equal(x.ok, true, v);
+    assert.deepEqual([x.kpi.value, x.kpi.count, x.kpi.availability], [null, null, 'insufficient_sample'], v);
+    assert.ok(!JSON.stringify(x.kpi).match(/"n":\s*[1-9]/) || x.kpi.n === null, `${v}: no expone n`);
+  }
+  // con filtro de personas NO hay serie (celdas diarias chicas), también en indicadores de flujo
+  const sg = await explore('users.signups', '90d', { filter: 'location', value: 'Bella Vista, Buenos Aires' });
+  assert.deepEqual([sg.seriesState, sg.series], ['filter_disabled', null]);
+  // las internas se excluyen también de las celdas; si las excluidas rompen el umbral, la opción desaparece
+  await q(`insert into public.metrics_internal_players (player_id, reason) select pr.player_id, 'test' from public.profiles pr where pr.location_id = $1 limit 5`, [bv]);
+  const ex = await explore('users.registered_now', 'all');
+  assert.deepEqual(ex.filters.available.find((f) => f.id === 'location').options.map((o) => `${o.value}:${o.n}`), ['San Miguel, Buenos Aires:6'], 'BV queda en 4 (< 5) y deja de ofrecerse; SM (6) sí, porque el resto (8) ya no delata a nadie');
+  assert.equal((await explore('users.registered_now', 'all', { filter: 'location', value: 'Bella Vista, Buenos Aires' })).kpi.value, null, 'BV ya no devuelve valor');
+  const inc = await explore('users.registered_now', 'all', { internal: true });
+  assert.equal(inc.filters.available.find((f) => f.id === 'location').options.length, 1);
+  const txt = JSON.stringify([base, bvx, sg, ex]);
+  assert.ok(!/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(txt), 'sin UUID');
+});
+
+test('F6 · PRIVACIDAD — propiedad: sobre distribuciones aleatorias, toda opción visible es ≥ 5 y el complemento visible nunca queda entre 1 y 4', async () => {
+  for (let t = 0; t < 200; t += 1) {
+    const cells = Array.from({ length: 1 + Math.floor(Math.random() * 6) }, (_, i) => ({ label: `C${i}`, n: 1 + Math.floor(Math.random() * 12) }));
+    const v = (await one(`select public._metrics_explore_visible('location', $1::jsonb) as r`, [JSON.stringify(cells)])).r;
+    const total = cells.reduce((a, c) => a + c.n, 0); const shown = v.items.reduce((a, c) => a + c.n, 0);
+    assert.ok(v.items.every((i) => i.n >= 5 && cells.find((c) => c.label === i.label).n === i.n), JSON.stringify([cells, v]));
+    if (v.items.length) assert.ok(total - shown === 0 || total - shown >= 5, `complemento ${total - shown}: ${JSON.stringify(cells)}`);
+    else assert.ok(total < 5 || v.suppressed === false, `nada visible: ${JSON.stringify(cells)}`);
+  }
+  const ms = (await one(`select public._metrics_explore_visible('match_status', $1::jsonb) as r`, [JSON.stringify([{ label: 'validated', n: 1 }])])).r;
+  assert.deepEqual(ms.items, [{ label: 'validated', n: 1 }], 'los partidos son eventos: no se suprimen');
+});
+
+scenario('F6 · estado de Nivel: partición exacta por cuenta actual; plataforma: cada jugador cuenta UNA vez (última apertura) y respeta k', async () => {
+  const accts = []; for (let i = 0; i < 8; i += 1) accts.push(await mkAccount(`n${i}`, '2026-09-03T12:00:00Z'));
+  for (let i = 0; i < 6; i += 1) await q(`update public.level_states set status = 'CALIBRANDO' where player_id = $1`, [accts[i].pid]);
+  const lv = await explore('users.registered_now', 'all');
+  const f = lv.filters.available.find((x) => x.id === 'level_status');
+  assert.deepEqual(f.options.map((o) => `${o.value}:${o.n}`), ['CALIBRANDO:6', 'PENDIENTE:6'].sort((a, b) => b.split(':')[1] - a.split(':')[1] || (a < b ? -1 : 1)), 'a1..a4 + 2 de los nuevos siguen PENDIENTE');
+  const cal = await explore('users.registered_now', 'all', { filter: 'level_status', value: 'CALIBRANDO' });
+  assert.deepEqual([cal.kpi.value, cal.kpi.availability], [6, 'ok']);
+  // plataforma: ayer (07/10) 11 jugadores en iOS (uno de ellos usó Android el día anterior) y 5 en Android
+  await q('delete from public.player_activity_days');
+  const ps = []; for (let i = 0; i < 16; i += 1) ps.push(await mkAccount(`p${i}`, '2026-09-03T12:00:00Z'));
+  const pres = async (a, d, plat) => q(`insert into public.player_activity_days (player_id, activity_date, first_seen_at, last_seen_at, display_mode, platform, app_bundle) values ($1, $2::date, $2::date + time '15:00', $2::date + time '15:30', 'browser', $3, '04.37-h30')`, [a.pid, d, plat]);
+  for (let i = 0; i < 11; i += 1) await pres(ps[i], '2026-10-07', 'ios');
+  for (let i = 11; i < 16; i += 1) await pres(ps[i], '2026-10-07', 'android');
+  await pres(ps[0], '2026-10-06', 'android'); // misma persona, otra plataforma el día anterior: en WAU cuenta por su ÚLTIMA apertura (iOS)
+  const wau = await explore('usage.wau', '30d');
+  assert.equal(wau.kpi.value, 16);
+  assert.deepEqual(wau.filters.available[0].options.map((o) => `${o.value}:${o.n}`), ['ios:11', 'android:5']);
+  const ios = await explore('usage.wau', '30d', { filter: 'platform', value: 'ios' });
+  assert.deepEqual([ios.kpi.value, ios.kpi.count, ios.seriesState], [11, null, 'unavailable']);
+  assert.equal(ios.kpi.value + (await explore('usage.wau', '30d', { filter: 'platform', value: 'android' })).kpi.value, wau.kpi.value, 'la partición suma el total');
+  const dau = await explore('usage.dau', '30d');
+  assert.equal(dau.kpi.value, 16); assert.equal(dau.seriesState, 'available');
+  assert.equal((await explore('usage.dau', '30d', { filter: 'platform', value: 'ios' })).seriesState, 'filter_disabled');
+  // hoy NO entra: una apertura de hoy no cambia el valor filtrado
+  await pres(ps[0], '2026-10-08', 'desktop');
+  assert.equal((await explore('usage.wau', '30d', { filter: 'platform', value: 'ios' })).kpi.value, 11);
+  // con 3 jugadores en Android no hay celda visible: no se ofrece y pedirla no revela nada
+  await q('delete from public.player_activity_days where player_id = any($1::uuid[]) and platform = $2', [ps.slice(13).map((x) => x.pid), 'android']);
+  const small = await explore('usage.wau', '30d', { filter: 'platform', value: 'android' });
+  assert.deepEqual([small.kpi.value, small.kpi.availability], [null, 'insufficient_sample']);
+});
+
+scenario('F6 · sin presencia instrumentada, un filtro de plataforma devuelve «no medible» (nunca 0)', async () => {
+  await q('delete from public.player_activity_days');
+  const x = await explore('usage.wau', '30d', { filter: 'platform', value: 'ios' });
+  assert.deepEqual([x.kpi.availability, x.kpi.value], ['not_instrumented', null]);
+  assert.deepEqual(x.filters.available[0].options, []);
+});
+
+test('F6 · la comparación respeta D8 (ventana previa completa) y el estado/`today` no cambian con la hora del día', async () => {
+  const a = await explore('matches.created', '30d', { asof: '2026-10-08T03:10:00Z' }); const b = await explore('matches.created', '30d', { asof: '2026-10-09T02:50:00Z' });
+  assert.deepEqual([a.kpi, a.series], [b.kpi, b.series]);
+  assert.equal(a.meta.completeDaysOnly, true);
+  assert.equal(new Date(a.meta.window[1]) - new Date(a.meta.window[0]), new Date(a.meta.previousWindow[1]) - new Date(a.meta.previousWindow[0]));
+  const off = await explore('matches.created', '30d', { compare: false });
+  assert.equal(off.series.previous, null); assert.equal(off.kpi.previous, null);
+});
+
+test('F6 · no fuga: ningún indicador × filtro × rango devuelve UUID, emails, @usuario ni nombres, y la respuesta es acotada', async () => {
+  const cat = (await one(`select public.metrics_explore_catalog() as r`)).r;
+  const uuid = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const texts = [JSON.stringify(cat)];
+  for (const e of cat.catalog) {
+    for (const range of ['7d', '90d', 'all']) {
+      texts.push(JSON.stringify(await explore(e.id, range)));
+      for (const f of e.filters) texts.push(JSON.stringify(await explore(e.id, range, { internal: true, filter: f, value: f === 'match_status' ? 'validated' : 'Bella Vista, Buenos Aires' })));
+    }
+  }
+  for (const t of texts) {
+    assert.ok(!uuid.test(t), 'sin UUID'); assert.ok(!/[A-Za-z0-9._-]+@[A-Za-z0-9-]+/.test(t), 'sin emails');
+    assert.ok(!/example\.test|Nombre a|user_a|Esteban|Lucia|Snapshot/.test(t), 'sin nombres/usernames del fixture'); assert.ok(t.length < 60000);
+  }
+});
+
+test('F6 · permisos: las funciones del Explorador no son ejecutables por clientes (ACL strict/observed/open); service_role ejecuta solo las 2 públicas y ningún helper', async () => {
+  for (const [label, d] of [['strict', dbStrict], ['observed', db], ['open', dbOpen]]) {
+    const fns = (await d.query(`select p.oid, p.proname from pg_proc p where p.pronamespace = 'public'::regnamespace and (p.proname like '%explore%' or p.proname = '_metrics_match_bucket')`)).rows;
+    assert.deepEqual(fns.map((f) => f.proname).sort(), ['_metrics_explore_cells', '_metrics_explore_series', '_metrics_explore_spec', '_metrics_explore_visible', '_metrics_match_bucket', 'metrics_explore', 'metrics_explore_catalog']);
+    for (const f of fns) {
+      for (const role of ['anon', 'authenticated']) assert.equal((await d.query(`select has_function_privilege($1, $2::oid, 'execute') x`, [role, f.oid])).rows[0].x, false, `${label}: ${role} NO ejecuta ${f.proname}`);
+      const sr = (await d.query(`select has_function_privilege('service_role', $1::oid, 'execute') x`, [f.oid])).rows[0].x;
+      assert.equal(sr, ['metrics_explore', 'metrics_explore_catalog'].includes(f.proname) || label === 'open' ? sr : false, `${label}: ${f.proname}`);
+      if (label !== 'open') assert.equal(sr, ['metrics_explore', 'metrics_explore_catalog'].includes(f.proname), `${label}: service_role en ${f.proname}`);
+    }
+  }
+});
+
+scenario('F6 · rol real: authenticated/anon no ejecutan el Explorador; service_role sí (y no los helpers)', async () => {
+  for (const role of ['authenticated', 'anon']) {
+    for (const sql of [`select public.metrics_explore('users.signups')`, `select public.metrics_explore_catalog()`, `select public._metrics_explore_cells('users.signups','location', now(), now(), now(), false)`]) {
+      await db.exec('savepoint sp'); await db.exec(`set local role ${role}`);
+      await assert.rejects(() => db.query(sql), /permission denied/i, `${role}: ${sql}`);
+      await db.exec('rollback to savepoint sp');
+    }
+  }
+  await db.exec('set local role service_role');
+  try {
+    assert.equal((await db.query(`select public.metrics_explore('users.signups', '7d', true, false, null, null, $1::timestamptz) as r`, [ASOF])).rows[0].r.ok, true);
+    assert.equal((await db.query(`select public.metrics_explore_catalog() as r`)).rows[0].r.ok, true);
+    await db.exec('savepoint sp2');
+    await assert.rejects(() => db.query(`select public._metrics_explore_spec()`), /permission denied/i);
+    await db.exec('rollback to savepoint sp2');
+  } finally { await db.exec('reset role'); }
+});
+
+test('F6 · solo lectura: las funciones del Explorador son STABLE/IMMUTABLE y ninguna recibe nombres de tablas o columnas', async () => {
+  const rows = (await db.query(`select proname, provolatile, pg_get_function_arguments(oid) args from pg_proc where pronamespace = 'public'::regnamespace and proname like '%explore%'`)).rows;
+  assert.ok(rows.length >= 5);
+  assert.deepEqual(rows.filter((r) => r.provolatile === 'v').map((r) => r.proname), []);
+  for (const r of rows) assert.ok(!/p_(table|column|sql|query|order)/.test(r.args), `${r.proname}: ${r.args}`);
 });

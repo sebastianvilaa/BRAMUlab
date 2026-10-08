@@ -6,6 +6,8 @@
 // Contrato:
 //   POST  Authorization: Bearer <JWT de la sesión del administrador>
 //   body: { section: overview|users|matches|activation|community|usage, range?: 7d|30d|90d|all, compare?: boolean, includeInternal?: boolean }
+//   F6 Explorar (mismo endpoint, misma autorización): body { catalog: true } o { metric, range?, compare?, includeInternal?, filter?: {id, value} } -> metrics_explore_catalog / metrics_explore
+//     (catálogo cerrado; el filtro es un id declarado + valor acotado que SOLO se compara con las opciones que el SQL calcula; nunca SQL, tablas ni columnas del cliente).
 //   * JWT verificado (verify_jwt=true y además auth.getUser acá); el jugador/administrador sale SIEMPRE del JWT, nunca del body;
 //   * autorización en servidor en CADA llamada: UUID en public.metrics_admins sin revocar (RPC metrics_is_admin) -> 403 genérico idéntico;
 //   * rate limit por cuenta (60/min) DESPUÉS de autorizar; body validado DESPUÉS (un no-admin no puede sondear la validación);

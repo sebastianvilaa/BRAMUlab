@@ -1,6 +1,6 @@
 # 149 — Resultado · BRAMU Metrics V1 · F1 (presencia) + F2 (núcleo protegido) + F3 (dashboard) — 08OCT26
 
-> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026)**.
+> Documento de trabajo ÚNICO de Metrics V1 (se actualiza por ronda, no se crea uno nuevo): §1–§5 = F1/F2; §6 = F3; §7 = cierre de F3 (verificación del 08/10/2026); **§8 = F4 (implementación del 08/10/2026); §9 = verificación de F4 por Central; **§10 = F6 Explorar (implementación del 08/10/2026)**.
 
 **Estado (actualizado 08/10/2026):** implementado en el repo y probado localmente (PGlite = Postgres real + Node). F1/F2 **aplicados en Supabase Staging** y `admin-metrics` **desplegada** por Central; F3 (`04.37-h29`) desplegada en Staging. Estado del cierre de F3: §7. (Los §1–§5 describen lo entregado en la ronda original; sus «pendientes de Central» ya se ejecutaron salvo lo que §7 deja abierto.) Solo Staging; Production y BRAMUlive intactos; sin cambios en lógica deportiva ni en el panel visual (F3+).
 **Plan y contratos:** `148_Plan_Implementacion_BRAMU_Metrics_V1_08OCT.md` · `BRAMU_Metrics_Auditoria_Tecnica_V1.md` · UX/Privacidad/Comparaciones V1.
@@ -158,9 +158,9 @@ Backend F1/F2 instalado en Staging · `admin-metrics` desplegada · `@seba_qa` �
 
 | # | Prueba | Resultado esperado | Estado |
 |---|---|---|---|
-| 1 | `POST …/functions/v1/admin-metrics` **sin** `Authorization` | 401 (gateway) | pendiente |
+| 1 | `POST …/functions/v1/admin-metrics` **sin** `Authorization` | 401 (gateway) | **EJECUTADA por Claude el 08/10/2026 contra Staging: 401 `UNAUTHORIZED_NO_AUTH_HEADER`** (también GET → 401; OPTIONS → 200) |
 | 2 | Con `Authorization: Bearer <anon key>` | 401 `invalid_session` | pendiente |
-| 3 | Con token inválido/vencido | 401 | pendiente |
+| 3 | Con token inválido/vencido | 401 | **EJECUTADA (token malformado) el 08/10/2026 contra Staging: 401 `UNAUTHORIZED_INVALID_JWT_FORMAT`**; falta un token válido pero vencido (necesita sesión) |
 | 4 | **Cuenta común** → cualquier sección | **403 `forbidden`**; con cuerpo inválido (`{"foo":1}`) el **mismo** 403; en la consola «Acceso no autorizado» sin números | pendiente |
 | 5 | Administradora con `revoked_at` (opcional, en Staging con una cuenta de prueba) | 403 idéntico | pendiente |
 | 6 | Administradora → 200 en las 6 secciones × `7d/30d/90d/all`; cuerpo con `custom` → 400 `range_not_supported`; clave extra → 400 | según columna | pendiente (Inicio ya visto por Central) |
@@ -254,3 +254,54 @@ Rutas, imports y pruebas de Metrics siguen funcionando tras mover docs y tests: 
 - Verificado previamente por Central: Vercel Staging h30 `dpl_4qQUVBwfdqyGxxNqPG8U7fUGGoTz` en estado READY para commit `a5f8335`. No se reasignaron alias.
 
 **Aún pendiente (no afirmar PASS total):** recorrido de las seis pestañas con sesión real `@seba_qa`, pruebas negativas HTTP 401/403 de Edge con cuentas reales y de headers bajo Vercel Authentication, concordancia visual completa por períodos, QA de móvil y registro efectivo de presencia con sesión. La implementación y comprobación de SQL no equivalen al QA integral del navegador.
+
+
+---
+
+## 10. F6 — Explorar (08/10/2026, bundle `04.37-h31`)
+
+**Estado:** implementado en el repo y probado localmente (PGlite + Node + navegador con el fixture de QA). **NO aplicada la migración y NO redeployada la Edge** (lo hace Central). Solo Staging; Production, `main` y BRAMUlive intactos; sin cambios en la app de jugadores ni en lógica deportiva (el bump `h31` toca `store.js`/`sw.js`/`version.json`/`index.html` solo por versión). Criterios de producto: `Metrics/BRAMU_Metrics.md` §11. Diseño y alcance: `148` §12.
+
+### 10.1 Qué se construyó
+| Pieza | Archivo | Detalle |
+|---|---|---|
+| **Migración aditiva** | `supabase/migrations/20261008130000_metrics_f6_explorar.sql` | Sin tablas nuevas. 2 funciones públicas (`metrics_explore_catalog`, `metrics_explore`; solo `service_role`) + 5 helpers internos revocados (`_metrics_explore_spec`, `_metrics_match_bucket`, `_metrics_explore_cells`, `_metrics_explore_visible`, `_metrics_explore_series`). Reutiliza `_metrics_run` (el KPI del Explorador es **idéntico** al del panel), `_metrics_window` (D8), `_metrics_kpi` y `_metrics_apply_k`. |
+| **Edge `admin-metrics`** | `supabase/functions/_shared/admin-metrics-core.mjs` (+ comentario en `index.ts`) | Nuevos modos del MISMO endpoint y MISMA cadena JWT → administrador → rate limit → validación: `{catalog:true}` y `{metric, range?, compare?, includeInternal?, filter?:{id,value}}`. Validación cerrada (patrones de id, valor ≤ 120 sin caracteres de control, claves extra rechazadas, modos no mezclables). Errores de negocio del SQL (`invalid_metric/_filter/_filter_value`) → 400 con código acotado; todo lo demás 500 genérico. **Requiere REDESPLEGAR `admin-metrics`.** |
+| **Pantalla Explorar** | `bramulab/admin/metrics/metrics.js`, `metrics.css` | Pestaña 7.ª. Selector nativo agrupado (Usuarios · Partidos · Activación · Comunidad · Uso) con los 55 indicadores del catálogo; valor, unidad, comparación, disponibilidad, definición/población/muestra; gráfico solo si el servidor mandó serie; filtros contextuales (un `<select>` por filtro, **uno por vez**); la selección vive en la URL (`#/explorar?m=…&f=…&v=…`, apta como marcador); enlace «Explorar este indicador» desde la ficha de cada KPI. Móvil: controles de ancho completo ≥ 46 px, fuente 16 px (sin zoom en iOS), apilado; escritorio: 2 columnas. |
+| **Fixture QA** | `bramulab/admin/metrics/qa-fixture.js` | Soporta `catalog` y `metric`; su especificación es copia exacta de `_metrics_explore_spec()`. |
+| **Verify de Central** | `supabase/tests/verify-metrics-v1-f1-f2.sql` | Consultas 13–16 nuevas (ver 10.4). |
+
+### 10.2 Qué se puede explorar (todo declarado; nada inventado)
+- **Series** (solo donde hay hechos persistidos y la suma de la serie = el KPI): altas, partidos cargados / reales / anulados / validados, grupos creados, invitaciones creadas y canjeadas, ediciones de Ranking y jugadores activos por día (null —«Sin captura»— antes de que existiera la presencia, nunca 0). El resto: «Evolución temporal no disponible» (ratios, medianas, retención, WAU/MAU, saldos).
+- **Filtros** (un filtro por vez, sin cruces): **Localidad**, **Estado de Nivel** (sobre `users.registered_now`, `users.signups`, `users.profile_complete`); **Plataforma** (sobre `usage.dau/wau/mau`, por la **última** apertura de cada jugador: partición exacta); **Estado del partido** (sobre `matches.created`, cuenta partidos, con serie).
+- **Período y comparación**: los globales (7 / 30 / 90 días / Histórico; comparación activada por defecto), con **D8** (días completos hasta ayer; lo de hoy no entra).
+
+### 10.3 Privacidad (k = 5 EN SQL) y pruebas ejecutadas
+- Una opción de filtro solo se **ofrece y devuelve valor** si es visible bajo la misma regla de los desgloses (`_metrics_apply_k`: segmento < 5 → «Otros»; residuo chico se absorbe; si no alcanza, todo oculto). Pedir una opción oculta, inexistente o hostil responde «muestra insuficiente» (sin oráculo y sin cantidad). **Inferencia por sustracción**: con localidades 9 / 6 / 2 / 2 (total 19), San Miguel (6) no se ofrece porque 19 − 9 − 6 = 4 delataría a las dos chicas; test dedicado + propiedad aleatoria (200 casos): toda opción visible ≥ 5 y el complemento visible nunca queda entre 1 y 4. Con filtros de personas **no se grafica serie** (celdas diarias chicas). Las cuentas internas se excluyen también de las celdas; las eliminadas figuran aparte.
+- Límite conocido (no se afirma lo contrario): k se aplica **por consulta**; restar entre períodos distintos (p. ej. 7 d vs 30 d) del mismo filtro no está cubierto. El Explorador no ofrece rango personalizado ni cruces, que son los vectores prácticos; queda anotado como riesgo residual.
+
+| Suite | Resultado |
+|---|---|
+| `metrics-f2-core.test.mjs` (SQL real) | **46/46** (+14 de F6): catálogo cerrado (55) y spec ⊂ catálogo; **KPI del Explorador idéntico al del panel para los 55 indicadores × 7d/90d/all × con/sin comparación**; Σ serie = KPI (actual y previa) para los 9 indicadores aditivos y D8 (la serie termina ayer); `usage.dau` null antes de la presencia; estado del partido (Σ buckets = cargados, valores inválidos rechazados, inyección inerte); localidad (sustracción), Nivel, plataforma (última apertura, partición suma el total, hoy no entra, < 5 oculto), presencia no instrumentada; no fuga (todos los indicadores × filtros × rangos); permisos con ACL strict/observed/open y rol real `anon`/`authenticated`/`service_role`; solo lectura. |
+| `admin-metrics-core.test.mjs` | **14/14** (+5): validación cerrada del Explorador, modos no mezclables, no-admin no puede sondear, mapeo 400 acotado, contrato contra el SQL real. |
+| `metrics-f3-dashboard.test.mjs` | **34/34** (+9): URL ↔ selección, etiquetas, null ≠ 0 en el gráfico, spec y catálogo del fixture = SQL, **forma de las respuestas del fixture = SQL real** (7 indicadores/filtros), reglas del fixture, estática de seguridad (solo `<select>`, sin SQL ni storage de selección), UX móvil. |
+| `supabase/functions/_shared/*.test.mjs` | **169/169** (antes 150). |
+| `bramulab/tests/*` + `bramulab/*.test.mjs` | 1018 tests: **987 pass / 31 fail = idéntico a la línea base** (0 nuevas). |
+| `release-check` | Replay limpio de **88 migraciones** ×3 ACL ✔; `admin-metrics verify_jwt=true` ✔; mismos 3 chequeos fallidos de siempre. |
+| Navegador (fixture `?qa=1`) | Escritorio 1200 px y móvil 375 px: selección de indicador, filtro de localidad / estado de partido / plataforma, quitar filtro, indicador sin serie, indicador inválido en la URL → vuelve al predeterminado; sin errores de consola ni scroll horizontal; selects de 46 × 309 px. |
+| **Comprobación viva autónoma** | Ver §7.4 filas 1 y 3: pedidos **sin credenciales** a la Edge de Staging → **401** sin `Authorization` y **401** con token malformado (el gateway aplica `verify_jwt`). |
+
+### 10.4 Qué debe verificar Central en Staging (en este orden)
+1. **Aplicar** `20261008130000_metrics_f6_explorar.sql` y **REDESPLEGAR `admin-metrics`** (`verify_jwt=true`; el núcleo cambió). Correr `supabase/tests/verify-metrics-v1-f1-f2.sql`: consultas **13** (2 públicas ejecutables por `service_role`, 0 por anon/authenticated), **14** (catálogo = 55 con series/filtros), **15** (KPI del Explorador = KPI de la sección, para un indicador por sección) y **16** (sin UUID). Más `audit-live-grants.sql`.
+2. **Negativos del Explorador con cuentas reales** (como en §7.4, mismo endpoint): cuenta común → 403 idéntico también para `{catalog:true}` y para un cuerpo inválido; `{metric:'nada.x'}` con admin → 400 `invalid_metric`; filtro no declarado → 400 `invalid_filter`; `{metric, filter}` con valor > 120 caracteres → 400.
+3. **Con `@seba_qa`** (celular y computadora): pestaña **Explorar**; elegir un indicador de cada sección; cambiar 7 / 30 / 90 / Histórico y apagar «Comparar»; aplicar un filtro (con la base real la mayoría de las opciones dirá «sin segmentos con muestra suficiente»: es lo correcto); el gráfico aparece solo en los indicadores con serie; `usage.dau` muestra «Sin captura» antes de la presencia; el marcador de la URL reabre la misma selección.
+4. **Concordancia** con el conector de solo lectura y el **mismo corte**: `select public.metrics_explore('matches.created','30d',true,false,'match_status','validated','<asOf>'::timestamptz)` contra la pantalla; y `metrics_explore('users.signups','30d',…)` contra el KPI de la pestaña Usuarios (deben ser idénticos).
+5. Pendientes ya existentes que no dependen de F6 (`§7.4`: negativos con sesión real, headers/robots bajo Vercel Authentication, presencia, iPhone/Android).
+
+### 10.5 DECISIONES ABIERTAS (ninguna bloqueó F6)
+| ID | Decisión | Estado |
+|---|---|---|
+| **D9** | **Rama competitiva** (F/M) como filtro de usuarios: la fuente existe (`profiles.competitive_branch`) pero su semántica para altas históricas y «no declarada» no está validada con producto. Se dejó **fuera de V1**. | ABIERTA — Sebastián/Central |
+| **D10** | **Serie móvil de WAU/MAU** y **saldos reconstruidos** (cuentas registradas en el tiempo): derivables pero con supuestos (`is_active` no tiene historia). Hoy dicen «Evolución temporal no disponible». | ABIERTA — se retoma si Sebastián los necesita |
+| **D11** | **Cruces de dos filtros** y **rango personalizado**: excluidos a propósito (inferencia por celdas e intersecciones). Cualquier ampliación exige revisión de privacidad y pruebas de sustracción nuevas. | ABIERTA — no recomendada para V1 |
+| D3 / D1 | Sin cambios: texto de privacidad de la presencia → promoción de la presencia a Production. Siguen siendo previos a cualquier promoción de la consola. | ABIERTAS |
