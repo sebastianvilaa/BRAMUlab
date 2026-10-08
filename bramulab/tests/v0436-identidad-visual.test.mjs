@@ -15,7 +15,7 @@ const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const REPO = path.resolve(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
-const MARCA = path.join(REPO, 'docs', 'BRAMUlab', 'Marca');
+const MARCA = path.join(REPO, 'docs', 'BRAMUlab', 'Identidad_Visual', 'Marca');
 const tracked = execFileSync('git', ['ls-files', '-co', '--exclude-standard'], { cwd: REPO, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).split('\n').filter(Boolean);
 
 /** Decodificador mínimo de PNG 8 bits (RGB/RGBA, sin entrelazado): lo justo para verificar píxeles de los derivados. */
@@ -43,7 +43,7 @@ function decodePng(file) {
 
 /* ======================= Masters ======================= */
 
-test('V0436-1) los 3 SVG maestros están en docs/BRAMUlab/Marca/, sin metadata de Adobe/C2PA, y su contenido está fijado por hash', () => {
+test('V0436-1) los 3 SVG maestros están en docs/BRAMUlab/Identidad_Visual/Marca/, sin metadata de Adobe/C2PA, y su contenido está fijado por hash', () => {
   const pinned = {
     'BRAMUlab-Logo.svg': 'c2ff7a3247e169f2c7caa5c78f8685bc7b8c20b69ec2373142b2bd84acb95357',
     'BRAMUlab-Isotipo.svg': '78a9117b58223da322b8b56f2a8a840c2ff776744ec046de8543ae3980c5ddec',

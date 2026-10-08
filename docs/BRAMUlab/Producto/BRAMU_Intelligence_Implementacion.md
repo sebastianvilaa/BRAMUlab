@@ -18,7 +18,7 @@ Desarrollo debe usar, en este orden:
 2. `Nivel_BRAMU.md` — autoridad vigente para Nivel, expectativa, confianza, elegibilidad, snapshots y delta.
 3. `Ranking_BRAMU.md` — autoridad vigente para Ranking semanal, universos, elegibilidad, densidad y movimiento publicado.
 4. `Backend_Infraestructura.md` — autoridad para persistencia, identidad, seguridad, server-side y entornos.
-5. `Referencias/BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md` — proveedor, costos, privacidad y contingencia de la capa generativa.
+5. `BRAMU_Intelligence_IA_Generativa_Evaluacion_2026.md` — proveedor, costos, privacidad y contingencia de la capa generativa.
 
 `Nivel_BRAMU.md` es la única fuente normativa vigente de Nivel. El motor de partidos que Intelligence consume sigue siendo `nivel_bramu_v1_0`; documentos de fórmulas anteriores son solo historia de Git y no autoridad activa.
 

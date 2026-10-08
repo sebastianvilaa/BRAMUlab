@@ -141,8 +141,8 @@ test('Branding: iconos PWA referenciados existen, con tamaño correcto, y se gen
     assert.match(sw, new RegExp(`'\\./icons/${n.replace('.', '\\.')}\\?v=04\\.37-h2'`), n);
   });
   // V04.36: la fuente aprobada es el SVG maestro de docs/BRAMUlab/Marca/ (la identidad vieja `docs/identidad-visual/` se retiró)
-  assert.ok(fs.existsSync(path.join(__dirname, '../docs/BRAMUlab/Marca/BRAMUlab-IconoApp.svg')));
-  assert.match(fs.readFileSync(path.join(__dirname, '../docs/BRAMUlab/Marca/generar-derivados.html'), 'utf8'), /BRAMUlab-IconoApp\.svg/);
+  assert.ok(fs.existsSync(path.join(__dirname, '../docs/BRAMUlab/Identidad_Visual/Marca/BRAMUlab-IconoApp.svg')));
+  assert.match(fs.readFileSync(path.join(__dirname, '../docs/BRAMUlab/Identidad_Visual/Marca/generar-derivados.html'), 'utf8'), /BRAMUlab-IconoApp\.svg/);
   assert.ok(!fs.existsSync(path.join(__dirname, '../docs/identidad-visual')));
 });
 

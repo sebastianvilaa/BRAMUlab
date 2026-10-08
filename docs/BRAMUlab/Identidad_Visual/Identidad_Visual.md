@@ -33,7 +33,7 @@ Regla:
 - **IconoApp** = aplicación específica del isotipo para PWA/iconos digitales; no reemplaza al isotipo puro.
 - No deformar, redibujar, reacomodar ni reinterpretar estas piezas sin una nueva decisión explícita de marca.
 
-Durante V04.36 los SVG aprobados deben incorporarse al repo como assets maestros de desarrollo en `docs/BRAMUlab/Marca/`.
+Durante V04.36 los SVG aprobados deben incorporarse al repo como assets maestros de desarrollo en `docs/BRAMUlab/Identidad_Visual/Marca/`.
 
 ---
 
@@ -233,7 +233,7 @@ Para emails puede mantenerse un PNG derivado por compatibilidad. Tampoco es fuen
 
 ### Implementación en el repo (V04.36)
 
-- Masters: `docs/BRAMUlab/Marca/` (SVG aprobados, con el bloque `<metadata>` de Adobe/C2PA retirado; geometría y colores idénticos al export). Procedimiento y herramienta de derivados: `docs/BRAMUlab/Marca/README.md` + `generar-derivados.html`.
+- Masters: `docs/BRAMUlab/Identidad_Visual/Marca/` (SVG aprobados, con el bloque `<metadata>` de Adobe/C2PA retirado; geometría y colores idénticos al export). Procedimiento y herramienta de derivados: `docs/BRAMUlab/Identidad_Visual/Marca/README.md` + `generar-derivados.html`.
 - La app usa `bramulab/icons/logo.svg`: el mismo SVG del logo con el `viewBox` recortado al trazo (más `width`/`height` intrínsecos) para conservar las proporciones de layout vigentes (header 24 px, acceso 30 px, footer 18 px). Ningún path, color ni filtro cambia.
 - `bramulab/icons/logo.png` queda **solo** por compatibilidad de emails (`/icons/logo.png`); se deriva de `logo.svg` (fondo transparente).
 - Iconos PWA/apple-touch/favicon: derivados de `BRAMUlab-IconoApp.svg` (192, 512, 512 maskable al 80 %, 180 opaco, favicon recortado alrededor de la B).
@@ -241,7 +241,7 @@ Para emails puede mantenerse un PNG derivado por compatibilidad. Tampoco es fuen
 ### Variante ST (icono de Staging) — regla de separación (h27, 07/10/2026)
 
 - **Production usa SIEMPRE el icono oficial; Staging usa la variante azul ST** (`BRAMUlab-IconoApp ST`, mismo diseño con el isotipo en `#199fff`) para distinguir a simple vista las dos instalaciones en el celular. Es **solo** el icono instalado: logo, isotipo y todo gráfico dentro de la app son los oficiales en ambos entornos.
-- Masters ST (sanitizados igual que los oficiales, sin `<metadata>`): `docs/BRAMUlab/Marca/BRAMUlab-IconoApp-ST.svg` y `BRAMUlab-Isotipo-ST.svg`. Derivados ST: `bramulab/icons-staging/` (mismos 5 nombres/tamaños que los iconos PWA oficiales), generados con `generar-derivados.html?variante=ST`.
+- Masters ST (sanitizados igual que los oficiales, sin `<metadata>`): `docs/BRAMUlab/Identidad_Visual/Marca/BRAMUlab-IconoApp-ST.svg` y `BRAMUlab-Isotipo-ST.svg`. Derivados ST: `bramulab/icons-staging/` (mismos 5 nombres/tamaños que los iconos PWA oficiales), generados con `generar-derivados.html?variante=ST`.
 - **El icono lo decide el ENTORNO del build, nunca la rama ni el commit.** `scripts/build-dist.mjs` lee el entorno horneado por `build-env.mjs` en `env.generated.js` (`BRAMU_ENV_NAME`): solo `staging` copia `icons-staging/` sobre `dist/icons/`, reemplaza el `apple-touch-icon` incrustado en `index.html` y marca las URLs de icono del manifest con `?v=<bundle>-st`. Production/Development publican `icons/` oficial; `icons-staging/` no está en la allowlist de `dist/` y ni siquiera se publica. Por eso **promover el mismo commit de `staging` a Production no puede adoptar el icono ST**; además el build aborta si `VERCEL_ENV=production` con entorno `staging`, y también si Staging no encuentra un icono ST (no cae en silencio al oficial).
 - `bramulab/icons/` y el `apple-touch-icon` del source siguen siendo el icono oficial: **no se reemplazan jamás por el ST**. Tests: `bramulab/tests/icon-staging-h27.test.mjs`.
 - Instalaciones ya existentes: iOS fija el icono al «Agregar a inicio» → hay que quitar y volver a instalar la PWA de Staging; Android lo actualiza solo (puede demorar) o al reinstalar.
@@ -286,4 +286,4 @@ Cuando una tarea afecte identidad:
 4. no recuperar assets antiguos desde Git salvo trazabilidad específica;
 5. no usar documentación visual histórica como autoridad.
 
-La carpeta histórica `docs/identidad-visual/` se retiró en V04.36 (sin referencias activas; los masters vigentes están en `docs/BRAMUlab/Marca/`).
+La carpeta histórica `docs/identidad-visual/` se retiró en V04.36 (sin referencias activas; los masters vigentes están en `docs/BRAMUlab/Identidad_Visual/Marca/`).

@@ -13,7 +13,7 @@ import { buildDist, detectIconVariant, STAGING_ICON_FILES, STAGING_ICONS_DIR, DI
 
 const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'); // raíz de bramulab/ (las pruebas viven en bramulab/tests/)
 const REPO = path.resolve(__dirname, '..');
-const MARCA = path.join(REPO, 'docs', 'BRAMUlab', 'Marca');
+const MARCA = path.join(REPO, 'docs', 'BRAMUlab', 'Identidad_Visual', 'Marca');
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const rd = (...p) => fs.readFileSync(path.join(...p));
 const walk = (dir) => fs.readdirSync(dir, { recursive: true }).filter((f) => fs.statSync(path.join(dir, f)).isFile()).map((f) => f.split(path.sep).join('/')).sort();
@@ -26,7 +26,7 @@ const staging = buildDist({ srcDir: __dirname, outDir: path.join(tmp, 'dist-stag
 const dOff = path.join(tmp, 'dist-official');
 const dSt = path.join(tmp, 'dist-staging');
 
-test('ST-1) masters ST sanitizados en docs/Marca (sin metadata, azul #199fff, mismo viewBox) y derivados ST con tamaños exactos', () => {
+test('ST-1) masters ST sanitizados en docs/BRAMUlab/Identidad_Visual/Marca (sin metadata, azul #199fff, mismo viewBox) y derivados ST con tamaños exactos', () => {
   for (const f of ['BRAMUlab-IconoApp-ST.svg', 'BRAMUlab-Isotipo-ST.svg']) {
     const svg = fs.readFileSync(path.join(MARCA, f), 'utf8');
     assert.ok(!/<metadata|xpacket|xmpmeta|c2pa|cai-manifests/i.test(svg), `${f}: sin metadata`);

@@ -17,7 +17,7 @@ Documentación vigente, en este orden de precedencia (normalizado en V04.6 — v
 
 1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.5.md`
 2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md`
-3. `docs/BRAMUlab/Nivel_BRAMU.md`
+3. `docs/BRAMUlab/Producto/Nivel_BRAMU.md`
 4. `docs/BRAMUlab/Nivel_BRAMU_Handoff_Cuestionario_V1.5.md`
 
 Ante contradicción:
@@ -44,7 +44,7 @@ REEMPLAZAR las referencias antiguas del bloque de documentos fuente por los nomb
 
 - `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md`
 - `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md`
-- `docs/BRAMUlab/Nivel_BRAMU.md`
+- `docs/BRAMUlab/Producto/Nivel_BRAMU.md`
 
 No cambiar fórmula, reglas, parámetros ni alcance.
 
@@ -296,7 +296,7 @@ Hacer auditoría técnica real del repositorio, normalizar las dos deudas docume
 1. Leer completos:
    - `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md`
    - `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md`
-   - `docs/BRAMUlab/Nivel_BRAMU.md`
+   - `docs/BRAMUlab/Producto/Nivel_BRAMU.md`
    - `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md`
    - `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md`
    - este `BRAMUlab_V04_Consolidado.md`

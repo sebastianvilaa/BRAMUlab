@@ -12,10 +12,10 @@
 
 La revisión de consistencia se realizó contra la documentación actual y antecedentes relevantes:
 
-- `docs/BRAMUlab/Nivel_BRAMU.md`
-- `docs/BRAMUlab/Ranking_BRAMU.md`
-- `docs/BRAMUlab/BRAMU_Intelligence.md`
-- `docs/BRAMUlab/Backend_Infraestructura.md`
+- `docs/BRAMUlab/Producto/Nivel_BRAMU.md`
+- `docs/BRAMUlab/Producto/Ranking_BRAMU.md`
+- `docs/BRAMUlab/Producto/BRAMU_Intelligence.md`
+- `docs/BRAMUlab/Operacion/Backend_Infraestructura.md`
 - `docs/BRAMUlab/Versiones/BRAMUlab_V02/BRAMUlab_V02_Consolidado.md`
 - `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md`
 - `docs/BRAMUlab/Versiones/BRAMUlab_V04/BRAMUlab_V04_Consolidado.md`

@@ -51,7 +51,7 @@ El procedimiento anterior fue reportado como exitoso por el chat que publicó h2
 
 ## Iconos PWA por entorno
 
-La separación del icono oficial y del azul ST está definida en `docs/BRAMUlab/Identidad_Visual.md` y `docs/BRAMUlab/Marca/README.md`. En h27 `build-dist.mjs` selecciona la variante ST solo para Staging; Production conserva la oficial incluso al construir el mismo commit. Distinguir siempre **build correcto**, **alias correcto** e **icono cacheado en iOS** antes de modificar código.
+La separación del icono oficial y del azul ST está definida en `docs/BRAMUlab/Identidad_Visual/Identidad_Visual.md` y `docs/BRAMUlab/Identidad_Visual/Marca/README.md`. En h27 `build-dist.mjs` selecciona la variante ST solo para Staging; Production conserva la oficial incluso al construir el mismo commit. Distinguir siempre **build correcto**, **alias correcto** e **icono cacheado en iOS** antes de modificar código.
 
 ## Production — infraestructura y estado de salida (verificado 07/10/2026)
 

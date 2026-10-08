@@ -80,7 +80,7 @@ test('D: release-check completo (con replay y ensayo operativo) PASA y el prefli
 });
 
 test('Runbook: cada procedimiento tiene comando, evidencia previa y criterio de éxito; forward-fix vs rollback explícitos; backup sin afirmar lo no probado', () => {
-  const rb = readRepo('docs/BRAMUlab/Runbook_Operacion_y_Salida.md');
+  const rb = readRepo('docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md');
   for (const h of ['Procedimientos verificados', 'Forward-fix vs rollback', 'Backup', 'Preflight']) assert.match(rb, new RegExp(h));
   assert.match(rb, /npm run ops-rehearsal|ops-rehearsal\.mjs/);
   assert.match(rb, /forward-fix/i);

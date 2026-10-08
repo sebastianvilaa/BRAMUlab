@@ -69,7 +69,7 @@ test('Grupos: motor sin cambios (top 2, 3/4, Americano)', () => {
   assert.match(g, />= 3;/);
 });
 test('Docs: Cargar_Partido.md existe y Grupos_BRAMU.md no contradice top 2', () => {
-  const dir = path.join(__dirname, '../docs/BRAMUlab');
+  const dir = path.join(__dirname, '../docs/BRAMUlab/Producto');
   assert.ok(fs.existsSync(path.join(dir, 'Cargar_Partido.md')));
   const g = fs.readFileSync(path.join(dir, 'Grupos_BRAMU.md'), 'utf8');
   assert.doesNotMatch(g, /No entra en tus 3 mejores|Tus 3 mejores partidos cuentan|3 partidos que efectivamente/);

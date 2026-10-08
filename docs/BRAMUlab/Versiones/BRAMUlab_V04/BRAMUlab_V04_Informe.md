@@ -20,7 +20,7 @@ Se leyeron completos los 6 documentos pedidos, se aplicaron las 2 normalizacione
 
 1. `docs/BRAMUlab/Nivel_BRAMU_Formula_V1.4.md` (fórmula normativa, 847 líneas).
 2. `docs/BRAMUlab/Nivel_BRAMU_Implementacion.md` (handoff de desarrollo, 202 líneas).
-3. `docs/BRAMUlab/Nivel_BRAMU.md` (consolidado funcional base, 494 líneas).
+3. `docs/BRAMUlab/Producto/Nivel_BRAMU.md` (consolidado funcional base, 494 líneas).
 4. `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Consolidado.md` (qué se pidió en V03, 234 líneas).
 5. `docs/BRAMUlab/Versiones/BRAMUlab_V03/BRAMUlab_V03_Informe.md` (qué se implementó realmente en V03 — leído en profundidad su §0 "Arquitectura vigente" y las secciones con detalle de `store.js`/`player-home.js`).
 6. `docs/BRAMUlab/Versiones/BRAMUlab_V04/BRAMUlab_V04_Consolidado.md` (esta ronda).
@@ -228,7 +228,7 @@ El contrato de `Level.computeMatchUpdate(input)` recibe únicamente objetos plan
 - [x] No se cambió UI.
 - [x] No se reemplazó el Nivel provisional vigente (`player-home.js` intacto).
 - [x] No se conectó Ranking al motor nuevo (no existe motor nuevo todavía).
-- [x] No se tocó `BRAMU Intelligence` (se detectó trabajo en curso no relacionado — `docs/BRAMUlab/BRAMU_Intelligence.md` modificado y `BRAMU_Intelligence_Implementacion.md` nuevo, ambos fuera del alcance de esta ronda — no se abrieron ni se editaron).
+- [x] No se tocó `BRAMU Intelligence` (se detectó trabajo en curso no relacionado — `docs/BRAMUlab/Producto/BRAMU_Intelligence.md` modificado y `BRAMU_Intelligence_Implementacion.md` nuevo, ambos fuera del alcance de esta ronda — no se abrieron ni se editaron).
 - [x] No se introdujo backend.
 - [x] No se borró lógica legacy/provisional.
 - [x] No se cambió la versión pública de la app (`store.js`/`version.json`/`sw.js` sin tocar).

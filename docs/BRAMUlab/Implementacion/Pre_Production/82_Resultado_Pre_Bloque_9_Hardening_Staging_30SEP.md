@@ -30,7 +30,7 @@
 `select public.ops_health_snapshot();` (solo `service_role`, solo agregados). Fuentes **reales**: `players/profiles/level_states/legal_acceptances/matches/api_rate_limits` y los eventos que el backend efectivamente emite en `pilot_events` (`signup_completed`, `level_confirmed`, `match_created`, `match_validated`, `provisional_claimed`, `account_deleted`). No se inventaron KPIs ni se integró analítica externa. Los eventos declarados pero nunca emitidos (`signup_started`, `level_started`, `match_rejected`, `calibration_*`, `daily_active`) **no** se usan.
 
 ## 5. Operación y salida
-`docs/BRAMUlab/Runbook_Operacion_y_Salida.md`: Parte A (exportación, cuenta problemática, corrección/anulación excepcional, eliminación, altas abandonadas, purga) reutilizando scripts/RPCs existentes; Parte B (checklist de creación de Production, con ⛔ en cada paso que requiere autorización de Sebastián). **No se ejecutó ningún paso.**
+`docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md`: Parte A (exportación, cuenta problemática, corrección/anulación excepcional, eliminación, altas abandonadas, purga) reutilizando scripts/RPCs existentes; Parte B (checklist de creación de Production, con ⛔ en cada paso que requiere autorización de Sebastián). **No se ejecutó ningún paso.**
 
 ## 6. Pruebas
 - Node (focal): `bramulab/prebloque9-hardening.test.mjs` (inventario de grants, rate limits en SQL/Edge, SW con fetch real simulado, env cruzado/runtime, métricas, runbook) y regresión completa de `bramulab/*.test.mjs`, `bramulab/scripts`, `supabase/**` (resultado en el commit).

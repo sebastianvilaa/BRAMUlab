@@ -177,7 +177,7 @@ test('Métricas: ops_health_snapshot solo usa fuentes reales (eventos que el bac
 });
 
 test('Runbook: existe el checklist de salida y marca los pasos que requieren autorización; no contiene secretos', () => {
-  const rb = readRepo('docs/BRAMUlab/Runbook_Operacion_y_Salida.md');
+  const rb = readRepo('docs/BRAMUlab/Operacion/Runbook_Operacion_y_Salida.md');
   assert.match(rb, /AUTORIZACIÓN DE SEBASTIÁN/);
   assert.match(rb, /admin-delete-player-account/);
   assert.match(rb, /admin_export_player_data/);

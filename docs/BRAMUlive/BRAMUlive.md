@@ -25,7 +25,7 @@ Acceso por cuenta/licencia profesional (no necesariamente un Perfil de jugador c
 6. Mantener trazabilidad de la última versión funcional heredada de BRAMUlab (V14 en `BRAMUlive_Consolidado.md`).
 
 ## Marca
-Familia BRAMU: comparten ADN de logo, tipografía, lenguaje gráfico, iconografía, calidad visual y parte de la paleta; no deben sentirse una mega-suite. BRAMUlive puede diferenciarse con un recurso tipo punto rojo / indicador `LIVE` y un tratamiento más instrumental. La identidad visual vigente es la de `docs/BRAMUlab/Identidad_Visual.md`; cualquier variante propia de BRAMUlive es decisión futura.
+Familia BRAMU: comparten ADN de logo, tipografía, lenguaje gráfico, iconografía, calidad visual y parte de la paleta; no deben sentirse una mega-suite. BRAMUlive puede diferenciarse con un recurso tipo punto rojo / indicador `LIVE` y un tratamiento más instrumental. La identidad visual vigente es la de `docs/BRAMUlab/Identidad_Visual/Identidad_Visual.md`; cualquier variante propia de BRAMUlive es decisión futura.
 
 ## Reglas operativas
 No tocar `bramulive/` ni su configuración de Vercel en rondas de BRAMUlab sin autorización explícita (ver `docs/BRAMUlab/Metodo_Trabajo.md`).

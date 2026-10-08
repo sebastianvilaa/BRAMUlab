@@ -1,7 +1,7 @@
 # BRAMU Metrics V1 — auditoría inicial de medición y propuesta de pantalla
 
 Fecha: 08/10/2026. Estado: AUDITORÍA DE LECTURA; no hay implementación ni aprobación de Production.
-Autoridad de producto: `docs/BRAMUlab/BRAMU_Metrics.md`. Leer antes `README.md`. Este documento precisa fuentes, pero no sustituye las fuentes maestras deportivas.
+Autoridad de producto: `docs/BRAMUlab/Metrics/BRAMU_Metrics.md`. Leer antes `README.md`. Este documento precisa fuentes, pero no sustituye las fuentes maestras deportivas.
 
 ## Comprobado (esquema de Supabase Production consultado solo en lectura)
 - `auth.users` cuenta registros e inicios de sesión, pero `last_sign_in_at` **no** demuestra uso diario; también hay que revisar eliminación y confirmación.
