@@ -7130,20 +7130,17 @@
     prefetchSignupActivityConsent();
   }
 
-  /** BRAMU Metrics — ofrece la casilla OPCIONAL de medición solo si el servidor tiene una versión vigente (sin ella no se muestra nada). Un fallo
-   *  de lectura NO bloquea el alta: sin casilla visible no se manda ninguna decisión y el jugador verá la pantalla de decisión más adelante. */
+  /** BRAMU Metrics legal_v2 — una sola casilla de términos/privacidad. No mostrar la casilla opcional
+   *  antigua. El consentimiento de medición únicamente puede registrarse si el alta acepta explícitamente
+   *  legal_v2 y el servidor tiene una versión vigente de medición; sin esos requisitos no se fabrica. */
   let signupActivityConsentVersion = null;
   async function prefetchSignupActivityConsent() {
     signupActivityConsentVersion = null;
     const field = $('#signup-activity-consent-field');
     if (field) field.hidden = true;
-    if (!Auth.isConfigured() || !field) return;
+    if (!Auth.isConfigured() || signupLegalVersion !== 'legal_v2') return;
     const cfg = await Auth.getActivityConsentConfig();
-    if (cfg.ok && cfg.version) {
-      signupActivityConsentVersion = cfg.version;
-      $('#signup-activity-checkbox').checked = false; // nunca marcada de antemano
-      field.hidden = false;
-    }
+    if (cfg.ok && cfg.version) signupActivityConsentVersion = cfg.version;
   }
 
   function renderSignupStep() {
@@ -7493,9 +7490,10 @@
           return;
         }
         signupLegalVersion = legal.legalVersion;
-        // BRAMU Metrics — decisión opcional de medición, tomada en este mismo paso (solo si la casilla se ofreció): marcada = granted; sin marcar = declined.
-        const activityChoice = signupActivityConsentVersion && !$('#signup-activity-consent-field').hidden
-          ? { version: signupActivityConsentVersion, granted: $('#signup-activity-checkbox').checked } : null;
+        // legal_v2 expone y destaca en la ÚNICA casilla obligatoria la medición básica de uso.
+        // Registrar elección únicamente si legal_v2 fue aceptada y el servidor ofrece la versión vigente.
+        const activityChoice = signupActivityConsentVersion && legal.legalVersion === 'legal_v2' && $('#signup-terms-checkbox').checked
+          ? { version: signupActivityConsentVersion, granted: true } : null;
         const result = await Auth.signUp(email, $('#signup-password').value, legal.legalVersion, activityChoice);
         continueBtn.disabled = false;
         if (!result.ok) {
@@ -8744,6 +8742,9 @@
         }
         return;
       }
+      // Leer la evidencia resultante de la reaceptación; nunca dar por concedida la medición desde el cliente.
+      const activityState = await Auth.getMyActivityConsent();
+      if (activityState.ok && activityState.status === 'granted') Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION });
       const next = legalGateContinuation;
       legalGateContinuation = null;
       if (next) await next(); else bootDefaultScreen();
@@ -8770,7 +8771,9 @@
     const st = await Auth.getMyActivityConsent();
     if (!st.ok || !st.enabled) return false;
     if (st.status === 'granted') { Auth.recordActivity({ appBundle: Store.BUNDLE_VERSION }); return false; }
-    if (st.status === 'unset') { openActivityConsent({ version: st.version, origin: 'prompt', onDone: onDecided }); return true; }
+    // legal_v2: sin modal opt-in independiente. Sin aceptación legal nueva no se registra ninguna apertura.
+    // En versiones previas, si la persona aún no aceptó legal_v2, seguirá en la pantalla legal.
+    if (st.status === 'unset') return false;
     return false; // declined: ya decidió, no se vuelve a preguntar
   }
 
