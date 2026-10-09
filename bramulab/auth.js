@@ -133,7 +133,8 @@
    *  jamás lanza ni bloquea la UI. Throttle de 30 min por dispositivo (el servidor además deduplica por día
    *  y no re-escribe dentro de 5 min). Sin sesión/sin backend/pestaña oculta => no hace nada. */
   const ACTIVITY_MIN_GAP_MS = 30 * 60 * 1000;
-  const ACTIVITY_STORAGE_KEY = 'bramu_activity_ts';
+  // h6: key nueva: la versión anterior bloqueaba reintentos por 30 min incluso si servidor devolvía measurement_disabled.
+  const ACTIVITY_STORAGE_KEY = 'bramu_activity_success_ts_v2';
   let lastActivitySentAt = 0;
 
   function classifyActivityContext(g) {
@@ -164,14 +165,16 @@
         if (Number.isFinite(stored) && stored > last) last = stored;
       } catch (e) { /* noop — storage bloqueado: solo throttle en memoria */ }
       if (last && now - last >= 0 && now - last < ACTIVITY_MIN_GAP_MS) return { ok: false, skipped: 'throttled' };
-      lastActivitySentAt = now;
-      try { global.localStorage && global.localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now)); } catch (e) { /* noop */ }
       const ctx = classifyActivityContext(global);
       const bundle = opts && typeof opts.appBundle === 'string' && /^[0-9]{2}\.[0-9]{2}-h[0-9]{1,3}$/.test(opts.appBundle) ? opts.appBundle : null;
       const { data, error } = await c.rpc('register_app_presence', {
         p_display_mode: ctx.displayMode, p_platform: ctx.platform, p_app_bundle: bundle,
       });
+      // Un intento fallido, incluso measurement_disabled / offline / 401, JAMÁS inicia throttle.
+      // Solo se limita durante 30 min tras respuesta del servidor ok=true.
       if (error || !data || data.ok !== true) return { ok: false, code: (data && data.code) || (error && error.message) || 'unknown' };
+      lastActivitySentAt = now;
+      try { global.localStorage && global.localStorage.setItem(ACTIVITY_STORAGE_KEY, String(now)); } catch (e) { /* noop */ }
       return { ok: true, recorded: !!data.recorded };
     } catch (e) {
       return { ok: false, code: 'exception' };
