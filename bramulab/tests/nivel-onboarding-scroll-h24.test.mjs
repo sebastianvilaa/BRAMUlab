@@ -17,8 +17,8 @@ test('Nivel queda acotado al viewport y su contenido scrollea',()=>{
   assert.match(css,/#view-nivel-onboarding \.access-scroll\{[\s\S]*overflow-y:auto;[\s\S]*-webkit-overflow-scrolling:touch;/);
 });
 test('bundle h24 queda sincronizado',()=>{
-  assert.match(html,/styles\.css\?v=04\.39-h3/);
-  assert.match(store,/BUNDLE_VERSION = '04\.39-h3'/);
-  assert.equal(version.bundle,'04.39-h3');
-  assert.match(sw,/bramulab-v04-39-h3/);
+  assert.match(html,/styles\.css\?v=04\.39-h4/);
+  assert.match(store,/BUNDLE_VERSION = '04\.39-h4'/);
+  assert.equal(version.bundle,'04.39-h4');
+  assert.match(sw,/bramulab-v04-39-h4/);
 });

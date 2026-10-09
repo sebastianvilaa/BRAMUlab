@@ -5415,7 +5415,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
 #view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
 #view-activity-consent .access-scroll--under-header{ padding-top: 12px; }
-/* V04.39-h3 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
+/* V04.39-h4 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
 #settings-activity-row .settings-row__label{ white-space:nowrap; }
 #settings-activity-row .settings-row__value{ flex:0 0 auto; max-width:45%; }
 
@@ -5429,7 +5429,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    - Se reutilizan tokens/componentes: `.btn-start`/`.btn-secondary` (jerarquía real de los botones), pastilla lima de Estado Cero.
    ========================================================================== */
 #view-access{
-  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h3');
+  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h4');
   --welcome-hero-pos: 50% 100%;
   position: relative; isolation: isolate;
 }
@@ -5449,26 +5449,23 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 /* Con la foto como protagonista el bloque va ANCLADO abajo (logo arriba, aire en el medio): se anula el centrado de h25
    (::before/::after) a favor de un separador flexible, que se comprime a un mínimo cuando la pantalla es baja. */
 #view-access .access-scroll::before, #view-access .access-scroll::after{ flex:0 0 0; }
-#view-access .access-logo{ margin: 0 auto 18px; width: min(240px, 66vw); filter: drop-shadow(0 2px 14px rgba(3,7,13,.65)); }
-/* V04.39 h3 (2.ª pasada) — el separador pasa ARRIBA del logo: logo + claim + bajada + tarjetas + botones forman un solo bloque anclado
-   abajo y la foto respira por encima; sin la píldora «PÁDEL AMATEUR». */
-.welcome-spacer{ flex: 1 1 auto; min-height: 8px; }
-.welcome-intro{ text-align:center; margin-bottom: 18px; }
+/* V04.39 h4 — composición: [aire] · logo + claim (una sola unidad) · 3 tarjetas · [aire que deja ver la cancha] · botones al pie.
+   Los dos separadores reparten el espacio libre; en pantallas bajas se comprimen a un mínimo y el resto scrollea. */
+.welcome-spacer{ flex: 1 1 0; min-height: 8px; }
+.welcome-spacer--mid{ flex-grow: 1.15; min-height: 18px; }
+.welcome-brand{ display:flex; flex-direction:column; align-items:center; gap: 8px; margin-bottom: 20px; }
+#view-access .access-logo{ margin: 0 auto; width: min(240px, 66vw); filter: drop-shadow(0 2px 14px rgba(3,7,13,.65)); }
+/* Claim como bajada de marca: mucho más chico que el logo, mismo eje, sin competir con él. */
 .welcome-claim{
-  margin: 0; font-family: var(--font-display); font-weight:900; font-size: clamp(32px, 10vw, 42px);
-  line-height:1.04; letter-spacing:-0.015em; color: var(--paper); text-shadow: 0 2px 18px rgba(3,7,13,.75);
+  margin: 0; font-family: var(--font-display); font-weight:600; font-size: 15px; line-height:1.25; letter-spacing: 0.01em;
+  color: rgba(248,250,252,.9); text-align:center; text-shadow: 0 1px 12px rgba(3,7,13,.85);
 }
-.welcome-claim__accent{ color: var(--brand-lime); }
-.welcome-sub{
-  margin: 12px auto 0; max-width: 320px; font-size:14px; font-weight:500; line-height:1.45; color: var(--paper); opacity:.86;
-  text-shadow: 0 1px 10px rgba(3,7,13,.85); text-wrap: balance;
-}
-.welcome-benefits{ list-style:none; margin: 0 0 20px; padding:0; display:flex; flex-direction:column; gap:8px; }
+.welcome-claim__accent{ color: var(--brand-lime); font-weight:700; }
+.welcome-benefits{ list-style:none; margin: 0 0 16px; padding:0; display:flex; flex-direction:column; gap:8px; }
 .welcome-benefit{
-  --wb: 149,255,25; /* acento por tarjeta (r,g,b): lima BRAMU · azul BRAMU · ámbar de Nivel */
+  --wb: 149,255,25; /* acento del ÍCONO por tarjeta (r,g,b): lima BRAMU · azul BRAMU · ámbar del Nivel */
   display:flex; align-items:center; gap:12px; padding: 10px 14px 10px 10px;
-  background: linear-gradient(90deg, rgba(var(--wb), .09) 0%, rgba(9,19,31,.74) 46%), rgba(9,19,31,.74);
-  border:1px solid var(--line-strong); border-left: 3px solid rgba(var(--wb), .85); border-radius: 14px;
+  background: rgba(9,19,31,.78); border:1px solid var(--line-strong); border-radius: 14px;
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 .welcome-benefit--blue{ --wb: 25,159,255; }
@@ -5486,16 +5483,14 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 #view-access .invitation-card, #view-access #access-backend-unavailable{ background: rgba(9,19,31,.86); }
 /* Pantallas muy bajas (iPhone SE 1.ª gen, horizontal): bloque más compacto; igual todo scrollea. */
 @media (max-height: 640px){
-  .welcome-claim{ font-size: 30px; }
-  #view-access .access-logo{ margin-bottom: 12px; width: min(210px, 62vw); }
-  .welcome-intro{ margin-bottom: 12px; }
-  .welcome-sub{ margin-top: 8px; font-size:13px; }
-  .welcome-benefits{ gap:6px; margin-bottom:14px; }
+  #view-access .access-logo{ width: min(210px, 62vw); }
+  .welcome-brand{ margin-bottom: 14px; gap:6px; }
+  .welcome-claim{ font-size: 14px; }
+  .welcome-benefits{ gap:6px; margin-bottom:12px; }
   .welcome-benefit{ padding-top:7px; padding-bottom:7px; }
   .welcome-benefit__icon{ width:32px; height:32px; }
 }
 @media (max-width: 340px){
-  .welcome-claim{ font-size: 29px; }
   .welcome-benefit__title{ font-size:13px; }
   .welcome-benefit__sub{ font-size:11.5px; }
 }
@@ -5507,7 +5502,8 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
   margin: 14px 0 0; padding: 16px; background: var(--surface-1); border: 1px solid var(--line-strong);
   border-radius: var(--radius-card); display:flex; flex-direction:column; align-items:stretch; gap: 12px; text-align:center;
 }
-.player-search-invite__eyebrow{ font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); }
+.player-search-invite__eyebrow{ font-size: 14px; font-weight: 800; letter-spacing: 0.05em; color: var(--paper); }
+.player-search-invite__text-intro{ margin: -4px 0 2px; font-size: 13px; line-height: 1.5; color: var(--paper-dim); }
 .player-search-invite__btn{ flex:none; width:100%; }
 .player-search-invite__copy{ align-self:center; padding: 6px 10px; }
 .player-search-invite__text{
@@ -5530,3 +5526,6 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .help-faq__a p{ margin: 0 0 10px; font-size: 14px; line-height: 1.5; color: var(--paper-dim); }
 .help-faq__a p:last-child{ margin-bottom: 0; }
 .help-faq__a strong{ color: var(--paper); font-weight: 700; }
+
+/* V04.39 h4 — «?» de AYUDA en el header del Home: área táctil de 40×40 (el resto de los íconos del header comparten `.icon-btn`). */
+.player-home-help{ display:inline-flex; align-items:center; justify-content:center; min-width:40px; min-height:40px; padding:0; }

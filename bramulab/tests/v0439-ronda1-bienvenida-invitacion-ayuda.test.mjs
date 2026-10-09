@@ -30,14 +30,19 @@ function fnBody(name) {
 test('Bienvenida: logo original, claim, 3 beneficios y los 2 botones reales con su jerarquía', () => {
   const v = section('view-access');
   assert.match(v, /<img class="access-logo" src="icons\/logo\.svg" alt="BRAMUlab" \/>/, 'logo maestro intacto');
-  assert.match(v, /Donde vive<br>tu <span class="welcome-claim__accent">pádel\.<\/span>/);
+  assert.match(v, /<h1 class="welcome-claim">Donde vive tu <span class="welcome-claim__accent">pádel\.<\/span><\/h1>/);
   for (const t of ['Cargá tus partidos', 'Competí con tus amigos', 'Construí tu Nivel BRAMU']) assert.ok(v.includes(`>${t}<`), t);
-  // 2.ª pasada (h3): sin píldora, bajada bajo el claim y una línea de apoyo por tarjeta
-  assert.doesNotMatch(v, /PÁDEL AMATEUR|welcome-pill/);
-  assert.match(v, /<p class="access-subtitle welcome-sub">Cargá tus partidos\. Competí con tus amigos\. Construí tu Nivel BRAMU\.<\/p>/);
+  // h4: logo + claim = una unidad; sin píldora ni bajada repetida; una línea de apoyo por tarjeta con acentos de ícono variados
+  assert.doesNotMatch(v, /PÁDEL AMATEUR|welcome-pill|welcome-sub|welcome-intro/);
+  assert.doesNotMatch(v, /Cargá tus partidos\. Competí con tus amigos/);
+  assert.match(v, /<div class="welcome-brand">\s*<img class="access-logo" src="icons\/logo\.svg" alt="BRAMUlab" \/>\s*<h1 class="welcome-claim">/);
   for (const t of ['Guardá tus resultados y construí tu historial.', 'Compará partidos, rivales y grupos de forma simple.', 'Tu nivel evoluciona a medida que jugás.']) assert.ok(v.includes(`>${t}<`), t);
-  assert.deepEqual([...v.matchAll(/welcome-benefit--(lime|blue|gold)/g)].map((m) => m[1]), ['lime', 'blue', 'gold'], 'acentos variados por tarjeta');
-  assert.ok(v.indexOf('class="access-logo"') < v.indexOf('welcome-claim') && v.indexOf('welcome-spacer') < v.indexOf('class="access-logo"'), 'el aire va sobre el logo: logo y claim quedan juntos');
+  assert.deepEqual([...v.matchAll(/welcome-benefit--(lime|blue|gold)/g)].map((m) => m[1]), ['lime', 'blue', 'gold']);
+  const wb = css.slice(css.indexOf('.welcome-benefit{'), css.indexOf('.welcome-benefit__icon{'));
+  assert.doesNotMatch(wb, /border-left/, 'sin líneas verticales de color en las tarjetas');
+  assert.ok(v.indexOf('welcome-spacer') < v.indexOf('welcome-brand') && v.indexOf('welcome-spacer--mid') < v.indexOf('access-login-btn') && v.indexOf('welcome-benefits') < v.indexOf('welcome-spacer--mid'), 'aire arriba, bloque central, aire que deja ver la cancha, botones al pie');
+  const claimCss = css.match(/\.welcome-claim\{[^}]*font-size: (\d+)px/);
+  assert.ok(claimCss && Number(claimCss[1]) <= 16, 'el claim es una bajada de marca chica');
   assert.match(v, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>/);
   assert.match(v, /<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
   assert.match(css, /#view-access \.access-actions \.btn-secondary\{[^}]*rgba\(5,10,18/, 'CREAR CUENTA más discreto');
@@ -64,19 +69,21 @@ test('Bienvenida: la foto es una capa provisoria que se reemplaza cambiando solo
 
 test('Bienvenida: móviles chicos entran y se pueden desplazar (scroller propio + compactación en pantallas bajas)', () => {
   assert.match(css, /#view-access \.access-scroll, #view-legal-gate \.access-scroll[^{]*\{[^}]*overflow-y:auto/);
-  assert.match(css, /@media \(max-height: 640px\)\{[^}]*\.welcome-claim/);
+  assert.match(css, /@media \(max-height: 640px\)\{[\s\S]*?\.welcome-brand/);
   assert.match(css, /@media \(max-width: 340px\)/);
-  assert.match(css, /\.welcome-claim\{[^}]*clamp\(/);
   assert.match(css, /#view-access \.access-scroll::before, #view-access \.access-scroll::after\{ flex:0 0 0; \}/);
+  assert.match(css, /\.welcome-spacer--mid\{[^}]*min-height: 18px/);
 });
 
 // ---------------------------------------------------------------- 2. Invitación genérica
 test('Invitación genérica: vive en BUSCAR JUGADORES, con el copy pedido, y es distinta de la invitación personal', () => {
   const v = section('view-player-search');
   assert.match(v, /id="player-search-invite"[^>]*hidden/, 'oculta por defecto');
-  assert.match(v, /¿NO ESTÁ EN BRAMU\?/);
-  assert.match(v, /id="player-search-invite-btn"[^>]*>INVITAR A BRAMU</);
-  assert.match(v, /id="player-search-invite-copy-btn"/);
+  assert.match(v, /¿NO LO ENCONTRASTE\?/);
+  assert.match(v, /Invitalo a BRAMUlab para que también pueda registrar sus partidos y compartir esta experiencia con vos\./);
+  assert.match(v, /id="player-search-invite-btn"[^>]*>COMPARTIR INVITACIÓN</);
+  assert.match(v, /id="player-search-invite-copy-btn"[^>]*>Copiar mensaje</);
+  assert.doesNotMatch(v, /NO ESTÁ EN BRAMU|INVITAR A BRAMU/);
   assert.doesNotMatch(v.replace(/<!--[\s\S]*?-->/g, '').replace(/invite-sheet__feedback/g, ''), /invite-sheet|claim/i, 'no reutiliza el circuito de invitación personal (solo el estilo del feedback)');
 });
 
@@ -85,10 +92,14 @@ test('Invitación genérica: mensaje humano con el enlace general y sin token ni
   assert.equal(m && m[1], 'https://app.bramulab.com');
   const msg = new Function(`const GENERIC_INVITE_URL=${JSON.stringify(m[1])}; return (function(){${fnBody('buildGenericInviteMessage')}})();`)();
   assert.ok(msg.includes('https://app.bramulab.com'));
-  assert.ok(msg.length < 220, 'breve');
-  assert.match(msg, /BRAMUlab/);
-  assert.match(msg, /pádel amateur/);
-  assert.doesNotMatch(msg, /\?|token|claim/i);
+  assert.match(msg, /^Che, ¿te sumás a BRAMUlab\? 🎾/);
+  assert.match(msg, /Nivel BRAMU/);
+  assert.match(msg, /competir en grupos entre amigos/);
+  assert.match(msg, /iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio/);
+  assert.match(msg, /Android: abrilo en Chrome/);
+  assert.doesNotMatch(msg, /token|claim|\?claim=/i);
+  // instrucciones = las de la guía real de instalación de la app (Compartir → «Agregar a Inicio»)
+  assert.ok(html.includes('Elegí “Agregar a Inicio”') && html.includes('Tocá Compartir'), 'la guía de instalación real usa esos mismos pasos');
 });
 
 test('Invitación genérica: solo aparece con una búsqueda terminada sin cuentas reales (nunca ante un error)', () => {
@@ -124,15 +135,22 @@ test('Invitación genérica: sin tokens, tablas, RPC ni seguimiento; el circuito
 });
 
 // ---------------------------------------------------------------- 3. Ayuda
-test('Ayuda: se llega desde Configuración, vuelve a Configuración y no tiene bottom nav', () => {
-  assert.match(section('view-settings'), /id="settings-help-row"[^>]*><span class="settings-row__label">Preguntas frecuentes</);
-  assert.match(appJs, /\$\('#settings-help-row'\)\.addEventListener\('click', \(\) => showView\('help'\)\)/);
-  assert.match(appJs, /\$\('#help-back-btn'\)\.addEventListener\('click', openSettings\)/);
+test('Ayuda: se abre con el «?» del header del Home, vuelve al Home, no está duplicada en Configuración y no tiene bottom nav', () => {
+  const home = section('view-player-home');
+  assert.match(home, /id="player-home-help-btn"[^>]*aria-label="Ayuda y preguntas frecuentes"[^>]*>\s*<span class="ranking-help-icon-btn__circle" aria-hidden="true">\?<\/span>/);
+  assert.ok(home.indexOf('player-home-ranking-btn') < home.indexOf('player-home-help-btn') && home.indexOf('player-home-help-btn') < home.indexOf('player-home-bell-btn'), '«?» entre Ranking y Notificaciones');
+  assert.match(appJs, /\$\('#player-home-help-btn'\)\.addEventListener\('click', openHelpScreen\)/);
+  assert.match(appJs, /\$\('#help-back-btn'\)\.addEventListener\('click', \(\) => openPlayerHome\(\)\)/);
+  assert.match(fnBody('openHelpScreen'), /showView\('help'\)/);
+  assert.match(fnBody('openHelpScreen'), /getCurrentUser\(\)/, 'mismo gate de sesión');
+  assert.doesNotMatch(section('view-settings'), /help|Preguntas frecuentes|AYUDA/, 'sin acceso duplicado en Configuración');
+  assert.doesNotMatch(appJs, /settings-help-row/);
   assert.match(appJs, /'legal-doc', 'help',/, 'registrada en showView');
   const nav = appJs.match(/const BOTTOM_NAV_VIEWS = \[([^\]]*)\]/)[1];
   assert.ok(!nav.includes("'help'"));
   assert.match(css, /#view-help, #view-legal-doc\{\s*height:100vh/);
   assert.match(css, /#view-help \.access-scroll\{/);
+  assert.match(css, /\.player-home-help\{[^}]*min-width:40px; min-height:40px/);
 });
 
 test('Ayuda: 5 preguntas pedidas, textos con las reglas vigentes y sin tutorial/carrusel', () => {

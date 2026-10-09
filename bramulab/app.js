@@ -8588,6 +8588,16 @@
     refreshSettingsActivityRow();
   }
 
+  /** V04.39 h4 — AYUDA / Preguntas frecuentes. Mismo gate de sesión que el resto de las pantallas personales; las respuestas
+   *  arrancan cerradas cada vez que se abre. Se llega desde el «?» del Home y se vuelve al Home. */
+  function openHelpScreen() {
+    if (!Store.getCurrentUser()) { showView('access'); return; }
+    $all('#view-help .help-faq__item').forEach((d) => { d.open = false; });
+    showView('help');
+    const scroller = $('#view-help .access-scroll');
+    if (scroller) scroller.scrollTop = 0;
+  }
+
   function openLegalDoc(doc, origin, hash) {
     const d = LEGAL_DOCS[doc];
     if (!d) return;
@@ -8633,9 +8643,6 @@
     $('#settings-terms-row').addEventListener('click', () => openLegalDoc('terminos', 'settings'));
     $('#settings-privacy-row').addEventListener('click', () => openLegalDoc('privacidad', 'settings'));
     $('#settings-contact-row').addEventListener('click', () => showView('settings-contact'));
-    // V04.39 — AYUDA / Preguntas frecuentes (pantalla propia; vuelve a Configuración).
-    $('#settings-help-row').addEventListener('click', () => showView('help'));
-    $('#help-back-btn').addEventListener('click', openSettings);
     $('#settings-logout-btn').addEventListener('click', openLogoutOptions);
     $('#settings-delete-row').addEventListener('click', () => showView('settings-delete'));
     ['email', 'delete', 'copy', 'contact'].forEach((k) => $(`#settings-${k}-back-btn`).addEventListener('click', openSettings));
@@ -9736,6 +9743,9 @@
     // completo dentro de renderPlayerHomeCarousel en cada render, porque cambian de
     // cantidad/contenido en cada carga; no hay nada fijo que cablear una sola vez acá.
     $('#player-home-bell-btn').addEventListener('click', openNotificationsScreen);
+    // V04.39 h4 — «?» del header: abre AYUDA / Preguntas frecuentes (pantalla propia); volver regresa al Home.
+    $('#player-home-help-btn').addEventListener('click', openHelpScreen);
+    $('#help-back-btn').addEventListener('click', () => openPlayerHome());
     // BRAMUlab_V03.5 (§4, Bloque 1) — acceso a RANKING BRAMU desde el header del Home.
     $('#player-home-ranking-btn').addEventListener('click', openRankingScreen);
     // BRAMUlab_V04.5 — acceso directo mouse/touch al preview de Nivel BRAMU V1, ya no depende
@@ -13197,9 +13207,21 @@
   /* ------------------------------------------------------------------ */
   /** Enlace general de acceso. Fijo a propósito: es la dirección pública del producto, no depende del entorno que lo emite. */
   const GENERIC_INVITE_URL = 'https://app.bramulab.com';
-  /** Mensaje breve y humano que explica qué es BRAMU e incluye el enlace general. Sin token ni datos del usuario. */
+  /** Mensaje conversacional para WhatsApp: qué es BRAMU, el enlace general y cómo dejarla instalada (mismos pasos reales que la guía
+   *  de instalación de la app: Compartir → «Agregar a Inicio» en iPhone; menú de Chrome en Android). Sin token ni datos del usuario. */
   function buildGenericInviteMessage() {
-    return '¡Hola! Estoy usando BRAMUlab, una app de pádel amateur para cargar partidos, competir con amigos y construir tu Nivel BRAMU. Sumate acá: ' + GENERIC_INVITE_URL;
+    return [
+      'Che, ¿te sumás a BRAMUlab? 🎾',
+      '',
+      'Estoy usando esta app para ir guardando los partidos de pádel que jugamos. Nos queda todo el historial, cada uno va construyendo su Nivel BRAMU y también podemos competir en grupos entre amigos.',
+      '',
+      'Te paso el link para que te hagas tu cuenta:',
+      GENERIC_INVITE_URL,
+      '',
+      'Y si querés dejarla instalada en el celu, es fácil:',
+      '📱 iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio.',
+      '📱 Android: abrilo en Chrome, tocá el menú ⋮ y elegí Instalar app (o Agregar a la pantalla principal).',
+    ].join('\n');
   }
   function setGenericInviteVisible(visible) {
     const box = $('#player-search-invite');
