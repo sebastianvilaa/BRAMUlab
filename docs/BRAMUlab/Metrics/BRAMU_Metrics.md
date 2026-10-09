@@ -6,6 +6,20 @@
 
 
 
+## 09/10/2026 — Hotfix `04.38-h6` PUBLICADO en Production (cierre)
+
+**Autorización explícita del responsable en el chat Central:** «si», en respuesta directa al pedido de publicar *únicamente* el hotfix de reintentos de aperturas `04.38-h6`.
+
+**Deployment:** Vercel proyecto `bramulab`, entorno `production`, build del commit **exacto** `0dcb55a9fc0bcfc4e6e26b7c5648a46065e5954e` de `staging` (NO se promovió el bundle preview ni se arrastró el estado nuevo de la rama). Deployment `dpl_DCSuFLGFSnbNKAuzQjxFP4zCfg3c` `READY`, alias `app.bramulab.com` apuntando allí, confirmado tras el despliegue. Alias separado de Staging continúa en `dpl_HN3JVpjgZKdEGp6vFfuutmZQN5fB`. Sin cambios en `main` ni BRAMUlive.
+
+**Contenido único del hotfix:** `auth.js` inicia el throttle de 30 minutos solo tras respuesta positiva de `register_app_presence`; los errores no impiden reintentos. Clave local nueva `bramu_activity_success_ts_v2` para no heredar marcas incorrectas. Bump coherente de `index.html`, `store.js`, `sw.js` y `version.json` a `04.38-h6`. **NO TOCAR:** nuevas migraciones, esquemas Supabase, documentos legales, reglas deportivas u otros módulos.
+
+**Checks Production postdeploy:** `environment=production`, `legal_version=legal_v2`, `activity_consent_version=activity_v1`, `activity_capture_enabled=TRUE`. **7 cuentas reales conservadas**, 1 aceptación `legal_v2` al instante y **1 player-day / 1 apertura efectiva** en `player_activity_days`. La apertura real ya existía **antes** del despliegue h6: día 09/10/2026, primera entrada `2026-10-09T07:52:58.736035Z` (04:52 AR); nunca atribuir retrospectivamente al hotfix. No se generaron aperturas artificiales para probar Production. Pruebas de `auth.js` con cliente RPC simulado (respuesta `measurement_disabled` → retry exitoso → throttle de duplicado) PASS en Staging. Pendiente únicamente observación de aperturas reales futuras en h6 sin exigir pruebas manuales redundantes al titular.
+
+**AAIP:** persiste la cuestión jurídica y administrativa de la ampliación presentada como medición opcional vs consentimiento dentro de casilla obligatoria. No afirmar aprobación; el cambio h6 no altera esa situación.
+
+---
+
 ## 09/10/2026 — Corrección de aperturas no registradas (Staging `04.38-h6`)
 
 **Diagnóstico a partir de uso real:** el jugador que aceptó `legal_v2` a las 04:19 hora argentina confirmó haber entrado y navegado por Production, pero `player_activity_days` permanecía vacío. Los logs de Supabase Production muestran `POST /rest/v1/rpc/register_app_presence` desde navegador iPhone a `2026-10-09T07:19:16.752Z`, inmediatamente después del registro de aceptación legal, cuando la captura aún estaba desactivada. El servidor contestó HTTP 200 (respuesta JSON RPC, no equivale a éxito del registro); **cero filas** registradas. El código del cliente `bramulab/auth.js` anterior grababa `lastActivitySentAt` y `localStorage['bramu_activity_ts']` **antes de esperar la respuesta**, así que también bloqueaba reintentos 30 minutos tras errores `measurement_disabled`/conexión. Además, las visitas a Grupos/Perfil/Historial no son nuevas aperturas y no generan evento; solo arranque/reanudación y vuelta a primer plano.
