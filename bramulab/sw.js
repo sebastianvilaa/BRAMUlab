@@ -203,8 +203,8 @@
 // BRAMU Metrics V1 · F6 (08/10/2026) — `04.37-h31`: solo la consola privada /admin/metrics (pestaña Explorar); bump técnico invisible.
 // V04.38 (08/10/2026) — BRAMU Metrics: consentimiento informado y opcional para medir actividad básica de uso (una pantalla breve para jugadores existentes,
 // casilla opcional en el alta, fila «Medición de uso» en Configuración). La medición queda APAGADA hasta que el servidor fije la versión vigente.
-// V04.39 (09/10/2026) — Ronda 1 post-lanzamiento: Bienvenida con la fotografía de BRAMUlab-Inicio (bundle h4), invitación genérica en Buscar jugadores y Ayuda / Preguntas frecuentes.
-const CACHE_NAME = 'bramulab-v04-39-h4';
+// V04.39 (09/10/2026) — Ronda 1 post-lanzamiento: Bienvenida con la fotografía de BRAMUlab-Inicio (bundle h5), invitación genérica en Buscar jugadores y Ayuda / Preguntas frecuentes.
+const CACHE_NAME = 'bramulab-v04-39-h5';
 // V03.1.6 — "?v=X" en los JS/CSS propios: DEBE ser el mismo valor que usan los <script src>/
 // <link> de index.html (ver nota ahí — bug real de update-loop en producción, nunca
 // reproducido en el dev server local porque ese sí manda Cache-Control: no-store en todo). Si
@@ -215,48 +215,49 @@ const CACHE_NAME = 'bramulab-v04-39-h4';
 const CORE_ASSETS = [
   './',
   './index.html',
-  './styles.css?v=04.39-h4',
-  './engine.js?v=04.39-h4',
-  './stats.js?v=04.39-h4',
-  './store.js?v=04.39-h4',
+  './styles.css?v=04.39-h5',
+  './engine.js?v=04.39-h5',
+  './stats.js?v=04.39-h5',
+  './store.js?v=04.39-h5',
   // BRAMUlab_V04.5 — quedaban fuera de CORE_ASSETS desde que se agregaron a index.html en
   // V04.4 (a propósito, sin bump todavía); esta es la primera release real que los incluye.
-  './level-public.js?v=04.39-h4',
-  './level-calibration.js?v=04.39-h4',
-  './player-home.js?v=04.39-h4',
-  './match-load.js?v=04.39-h4',
-  './player-identity.js?v=04.39-h4',
-  './groups.js?v=04.39-h4',
-  './locations.js?v=04.39-h4',
-  './ranking.js?v=04.39-h4',
+  './level-public.js?v=04.39-h5',
+  './level-calibration.js?v=04.39-h5',
+  './player-home.js?v=04.39-h5',
+  './match-load.js?v=04.39-h5',
+  './player-identity.js?v=04.39-h5',
+  './groups.js?v=04.39-h5',
+  './locations.js?v=04.39-h5',
+  './ranking.js?v=04.39-h5',
   // Backend Bloque 2 — auth.js (nuevo). El CDN de supabase-js y env.generated.js NO se
   // pre-cachean acá a propósito: el primero es de otro origen (el fetch handler de abajo ya
   // trata cualquier origen externo aparte, "mejor esfuerzo" sin bloquear el install), y el
   // segundo varía por deploy (Vercel lo genera en build) — igual queda cacheado la primera vez
   // que se pide, por el fetch handler genérico de más abajo.
-  './auth.js?v=04.39-h4',
+  './auth.js?v=04.39-h5',
   // Backend Bloque 5 — matches.js/match-sync.js (nuevos). Igual criterio que auth.js: quedan
   // inertes sin backend configurado, pero se pre-cachean igual (offline-first para todos).
-  './matches.js?v=04.39-h4',
-  './match-sync.js?v=04.39-h4',
-  './match-validation.js?v=04.39-h4',
+  './matches.js?v=04.39-h5',
+  './match-sync.js?v=04.39-h5',
+  './match-validation.js?v=04.39-h5',
   // Hotfix 27/09/2026 (handoff 37) — match-self-heal.js (nuevo). Mismo criterio: sin red/DOM
   // propios, pre-cacheado igual.
-  './match-self-heal.js?v=04.39-h4',
+  './match-self-heal.js?v=04.39-h5',
   // Backend Bloque 8 (Fase D) — intelligence-client.js (nuevo). Mismo criterio: inerte sin
   // backend configurado, pre-cacheado igual.
-  './intelligence-client.js?v=04.39-h4',
-  './app.js?v=04.39-h4',
+  './intelligence-client.js?v=04.39-h5',
+  './app.js?v=04.39-h5',
   './manifest.webmanifest',
-  './icons/icon-192.png?v=04.39-h4',
-  './icons/icon-512.png?v=04.39-h4',
-  './icons/icon-512-maskable.png?v=04.39-h4',
-  './icons/apple-touch-icon.png?v=04.39-h4',
-  './icons/favicon-64.png?v=04.39-h4',
-  './assets/home-primer-partido.jpg?v=04.39-h4',
-  './assets/bienvenida-hero.jpg?v=04.39-h4',
+  './icons/icon-192.png?v=04.39-h5',
+  './icons/icon-512.png?v=04.39-h5',
+  './icons/icon-512-maskable.png?v=04.39-h5',
+  './icons/apple-touch-icon.png?v=04.39-h5',
+  './icons/favicon-64.png?v=04.39-h5',
+  './assets/home-primer-partido.jpg?v=04.39-h5',
+  './assets/bienvenida-hero.jpg?v=04.39-h5',
+  './assets/bienvenida-hero-desktop.jpg?v=04.39-h5',
   './icons/padel-court-example.svg',
-  './icons/logo.svg?v=04.39-h4',
+  './icons/logo.svg?v=04.39-h5',
 ];
 
 self.addEventListener('install', (event) => {

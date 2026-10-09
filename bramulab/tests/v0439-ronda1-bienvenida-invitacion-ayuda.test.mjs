@@ -30,7 +30,8 @@ function fnBody(name) {
 test('Bienvenida: logo original, claim, 3 beneficios y los 2 botones reales con su jerarquía', () => {
   const v = section('view-access');
   assert.match(v, /<img class="access-logo" src="icons\/logo\.svg" alt="BRAMUlab" \/>/, 'logo maestro intacto');
-  assert.match(v, /<h1 class="welcome-claim">Donde vive tu <span class="welcome-claim__accent">pádel\.<\/span><\/h1>/);
+  assert.match(v, /<h1 class="welcome-claim">Donde vive tu pádel\.<\/h1>/);
+  assert.doesNotMatch(v, /welcome-claim__accent/, 'h5: sin verde en «pádel» (no compite con «lab»)');
   for (const t of ['Cargá tus partidos', 'Competí con tus amigos', 'Construí tu Nivel BRAMU']) assert.ok(v.includes(`>${t}<`), t);
   // h4: logo + claim = una unidad; sin píldora ni bajada repetida; una línea de apoyo por tarjeta con acentos de ícono variados
   assert.doesNotMatch(v, /PÁDEL AMATEUR|welcome-pill|welcome-sub|welcome-intro/);
@@ -40,8 +41,9 @@ test('Bienvenida: logo original, claim, 3 beneficios y los 2 botones reales con 
   assert.deepEqual([...v.matchAll(/welcome-benefit--(lime|blue|gold)/g)].map((m) => m[1]), ['lime', 'blue', 'gold']);
   const wb = css.slice(css.indexOf('.welcome-benefit{'), css.indexOf('.welcome-benefit__icon{'));
   assert.doesNotMatch(wb, /border-left/, 'sin líneas verticales de color en las tarjetas');
+  assert.match(wb, /background: rgba\(4,9,16,\.58\)/, 'h5: tarjetas más oscuras e integradas a la foto');
   assert.ok(v.indexOf('welcome-spacer') < v.indexOf('welcome-brand') && v.indexOf('welcome-spacer--mid') < v.indexOf('access-login-btn') && v.indexOf('welcome-benefits') < v.indexOf('welcome-spacer--mid'), 'aire arriba, bloque central, aire que deja ver la cancha, botones al pie');
-  const claimCss = css.match(/\.welcome-claim\{[^}]*font-size: (\d+)px/);
+  const claimCss = css.match(/\.welcome-claim\{[^}]*font-size: ([\d.]+)px/);
   assert.ok(claimCss && Number(claimCss[1]) <= 16, 'el claim es una bajada de marca chica');
   assert.match(v, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>/);
   assert.match(v, /<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
@@ -65,6 +67,18 @@ test('Bienvenida: la foto es una capa provisoria que se reemplaza cambiando solo
   assert.match(css, /\.welcome-hero::after\{[^}]*linear-gradient/, 'degradés listos para la foto definitiva');
   assert.match(sw, /\.\/assets\/bienvenida-hero\.jpg\?v=/, 'el recurso está en el precache');
   assert.ok(fs.statSync(path.join(root, 'assets/bienvenida-hero.jpg')).size > 50000, 'existe el recurso provisorio');
+});
+
+test('Bienvenida: foto vertical en móvil y foto horizontal propia en pantallas anchas (sin estirar)', () => {
+  assert.match(css, /--welcome-hero-image-desktop: url\('assets\/bienvenida-hero-desktop\.jpg\?v=[\d.]+-h\d+'\)/);
+  assert.match(css, /@media \(min-aspect-ratio: 1\/1\)\{\s*#view-access\{ --welcome-hero-image: var\(--welcome-hero-image-desktop\)/);
+  assert.match(css, /@media \(min-aspect-ratio: 1\/1\)\{[\s\S]*?radial-gradient/, 'viñeta detrás de la columna central');
+  assert.match(sw, /\.\/assets\/bienvenida-hero-desktop\.jpg\?v=/);
+  assert.ok(fs.statSync(path.join(root, 'assets/bienvenida-hero-desktop.jpg')).size > 50000);
+  const jpgSize = (f) => { const b = fs.readFileSync(path.join(root, f)); let i = 2; while (i < b.length) { if (b[i] !== 0xff) { i++; continue; } const m = b[i + 1]; if (m >= 0xc0 && m <= 0xc3) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) }; i += 2 + b.readUInt16BE(i + 2); } };
+  const mob = jpgSize('assets/bienvenida-hero.jpg'), desk = jpgSize('assets/bienvenida-hero-desktop.jpg');
+  assert.ok(mob.h > mob.w, 'la de móvil es vertical');
+  assert.ok(desk.w > desk.h, 'la de escritorio es horizontal');
 });
 
 test('Bienvenida: móviles chicos entran y se pueden desplazar (scroller propio + compactación en pantallas bajas)', () => {
@@ -92,11 +106,19 @@ test('Invitación genérica: mensaje humano con el enlace general y sin token ni
   assert.equal(m && m[1], 'https://app.bramulab.com');
   const msg = new Function(`const GENERIC_INVITE_URL=${JSON.stringify(m[1])}; return (function(){${fnBody('buildGenericInviteMessage')}})();`)();
   assert.ok(msg.includes('https://app.bramulab.com'));
-  assert.match(msg, /^Che, ¿te sumás a BRAMUlab\? 🎾/);
-  assert.match(msg, /Nivel BRAMU/);
-  assert.match(msg, /competir en grupos entre amigos/);
-  assert.match(msg, /iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio/);
-  assert.match(msg, /Android: abrilo en Chrome/);
+  const approved = [
+    'Che, ¿te sumás a BRAMUlab? 🎾',
+    '',
+    'Estoy usando esta app para ir guardando los partidos de pádel que jugamos. Nos queda todo el historial, cada uno va construyendo su Nivel BRAMU y también podemos competir en grupos entre amigos.',
+    '',
+    'Te paso el link para que te hagas tu cuenta:',
+    'https://app.bramulab.com',
+    '',
+    'Y si querés dejarla instalada en el celu, es fácil:',
+    '📱 iPhone: abrí el link en Safari, tocá Compartir y elegí Agregar a Inicio.',
+    '📱 Android: abrilo en Chrome, tocá el menú ⋮ y elegí Instalar app (o Agregar a la pantalla principal).',
+  ].join('\n');
+  assert.equal(msg, approved, 'el mensaje compartido es EXACTAMENTE el aprobado');
   assert.doesNotMatch(msg, /token|claim|\?claim=/i);
   // instrucciones = las de la guía real de instalación de la app (Compartir → «Agregar a Inicio»)
   assert.ok(html.includes('Elegí “Agregar a Inicio”') && html.includes('Tocá Compartir'), 'la guía de instalación real usa esos mismos pasos');
@@ -138,7 +160,7 @@ test('Invitación genérica: sin tokens, tablas, RPC ni seguimiento; el circuito
 test('Ayuda: se abre con el «?» del header del Home, vuelve al Home, no está duplicada en Configuración y no tiene bottom nav', () => {
   const home = section('view-player-home');
   assert.match(home, /id="player-home-help-btn"[^>]*aria-label="Ayuda y preguntas frecuentes"[^>]*>\s*<span class="ranking-help-icon-btn__circle" aria-hidden="true">\?<\/span>/);
-  assert.ok(home.indexOf('player-home-ranking-btn') < home.indexOf('player-home-help-btn') && home.indexOf('player-home-help-btn') < home.indexOf('player-home-bell-btn'), '«?» entre Ranking y Notificaciones');
+  assert.ok(home.indexOf('player-home-help-btn') < home.indexOf('player-home-ranking-btn') && home.indexOf('player-home-ranking-btn') < home.indexOf('player-home-bell-btn'), 'h5: orden Ayuda → Ranking → Notificaciones');
   assert.match(appJs, /\$\('#player-home-help-btn'\)\.addEventListener\('click', openHelpScreen\)/);
   assert.match(appJs, /\$\('#help-back-btn'\)\.addEventListener\('click', \(\) => openPlayerHome\(\)\)/);
   assert.match(fnBody('openHelpScreen'), /showView\('help'\)/);

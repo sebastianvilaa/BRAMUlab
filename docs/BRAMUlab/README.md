@@ -40,7 +40,7 @@ Con autorización explícita del responsable se publicó **solo** el hotfix `04.
 |---|---|
 | **Producto** | BRAMUlab **V04.37**. Backend Bloques 1–8, Pre-Bloque 9, 9A/9B, G1–G3 y todos los frentes P0 de salida **cerrados**. |
 | **Production** | **ACTIVA desde el 07/10/2026** en `https://app.bramulab.com`, con bundle `04.37-h26` (commit `f1ad7d1b`, deployment `dpl_2FiyCJD1eA5t7sVj27qWyaayRnCp`). Primeros usuarios reales ya dentro. Infraestructura, legal y AAIP: `Operacion/Operacion_Vercel_Staging_Production.md`. |
-| **Staging** | Taller activo: **V04.39 / bundle `04.39-h4`** (Ronda 1 del frente Comunidad y descubrimiento: Bienvenida con la foto BRAMUlab-Inicio refinada, invitación cálida y «?» de Ayuda en el Home, invitación genérica y Ayuda; pendiente de QA de Sebastián, no promovida). Todo cambio nace acá. |
+| **Staging** | Taller activo: **V04.39 / bundle `04.39-h5`** (Ronda 1 del frente Comunidad y descubrimiento: Bienvenida con la foto BRAMUlab-Inicio refinada, invitación cálida y «?» de Ayuda en el Home, invitación genérica y Ayuda; pendiente de QA de Sebastián, no promovida). Todo cambio nace acá. |
 | **Pendientes reales** | Seguimiento del expediente AAIP, smoke humano mínimo de Production, decisión de backups (G4), QA humano de la fecha de nacimiento en Android, y el frente independiente de repositorio público/GitHub Pages. Detalle: `Operacion/Pre_Production.md` §2. Ideas futuras y riesgos conocidos: `Producto/BRAMUlab_Backlog.md`. |
 | **BRAMU Metrics** | **EN CURSO — protegido** (ver §3). |
 
