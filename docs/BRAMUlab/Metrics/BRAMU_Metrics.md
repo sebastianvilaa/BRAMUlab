@@ -6,6 +6,18 @@
 
 
 
+## 09/10/2026 04:24 AR — Captura básica de actividad ACTIVADA en Production
+
+**Nueva autorización explícita del titular en el chat Central (posterior a publicar legal_v2):** «con respecto a si lo podemos encender, yo lo encendería ... hagámoslo». Se ejecutó **solo** `UPDATE app_config SET activity_capture_enabled=TRUE` en el proyecto Supabase **Production** `bgnnnfbdywefftvoqiss`, con precondiciones servidor `environment=production`, `legal_version='legal_v2'`, `activity_consent_version='activity_v1'`, interruptor previamente `FALSE` y al menos una aceptación legal_v2 real. Resultado: exactamente una fila actualizada, valor `TRUE` verificado. No se cambió el frontend ni se hizo deploy. Continúa bundle `04.38-h5` en deployment `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn`.
+
+**Estado verificado tras el cambio:** 7 cuentas registradas, 1 aceptación legal_v2 con autorización `activity_v1` granted, 0 filas de actividad al momento de la consulta (nueva captura solo al abrir la app). Solo quedan habilitados quienes aceptaron efectivamente `legal_v2`; los seis restantes todavía NO se miden hasta reaceptar. Server `register_app_presence` exige sesión registrada, versión, autorización `granted` y switch; guarda una fila por jugador/día; incremento de aperturas solo fuera de intervalos de cinco minutos. No hay históricos retrospectivos; la privacidad y revocación siguen vigentes. Mantener métricas `not_instrumented` cuando no hay fuente o evidencia; no inventar estadísticas.
+
+**SITUACIÓN LEGAL NO RESUELTA:** la ampliación del expediente AAIP describe medición opcional y `legal_v2` contiene medición dentro de casilla obligatoria, retirándose desde Configuración posteriormente. El consentimiento efectivamente prestado es verificable, pero **su carácter libre para una medición identificable no esencial no está validado** (Ley 25.326, arts. 5 y 6). La activación es una decisión consciente del responsable bajo ese riesgo, no equivale a aprobación de AAIP. Corresponde consultar/aclarar en el expediente en curso que el procedimiento vigente integra información y consentimiento en el alta/reaceptación legal; no inventar aprobación ni afirmar que la captura es «opt-in separada». **Si la AAIP exige cambiar o detener el tratamiento, usar el interruptor reversible `activity_capture_enabled=FALSE` inmediatamente y ajustar el procedimiento/documentación según resolución; no borrar BRAMUlab o las cuentas sin exigencia legal concreta.**
+
+**NO TOCAR:** `main`, BRAMUlive, cuenta/perfiles/partidos, y TAD sin instrucción específica; no compartir información personal en una corrección administrativa. El aviso a AAIP aún no está presentado para este cambio.
+
+---
+
 ## 09/10/2026 — Publicación legal_v2 en Production COMPLETADA
 
 **AUTORIZACIÓN EXPLÍCITA del responsable en el chat Central:** «ok publica» para publicar exclusivamente los documentos legales/aceptación que vio en Staging (un único checkbox para nuevas altas; una reaceptación breve a los siete existentes) y mantener captura de aperturas OFF.
