@@ -364,7 +364,7 @@
       // V04.37 — detalle histórico de Actividad (abierto desde la tarjeta ACTIVIDAD del Home).
       'activity',
       // G2 — Configuración y pantallas intermedias (sin bottom nav)
-      'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc',
+      'settings', 'settings-email', 'settings-delete', 'settings-copy', 'settings-contact', 'legal-doc', 'help',
       // BRAMUlab_V04.4 (Etapa D, bloque 1) — onboarding de Nivel BRAMU V1, solo detrás del flag.
       'nivel-onboarding',
       // V04.30 — partidos recuperados tras vincular una identidad. V04.34 — pantalla propia de Partidos pendientes.
@@ -8633,6 +8633,9 @@
     $('#settings-terms-row').addEventListener('click', () => openLegalDoc('terminos', 'settings'));
     $('#settings-privacy-row').addEventListener('click', () => openLegalDoc('privacidad', 'settings'));
     $('#settings-contact-row').addEventListener('click', () => showView('settings-contact'));
+    // V04.39 — AYUDA / Preguntas frecuentes (pantalla propia; vuelve a Configuración).
+    $('#settings-help-row').addEventListener('click', () => showView('help'));
+    $('#help-back-btn').addEventListener('click', openSettings);
     $('#settings-logout-btn').addEventListener('click', openLogoutOptions);
     $('#settings-delete-row').addEventListener('click', () => showView('settings-delete'));
     ['email', 'delete', 'copy', 'contact'].forEach((k) => $(`#settings-${k}-back-btn`).addEventListener('click', openSettings));
@@ -13155,6 +13158,7 @@
     const wrap = $('#player-search-list');
     const emptyEl = $('#player-search-empty');
     const trimmed = (query || '').trim();
+    setGenericInviteVisible(false);
     if (trimmed.length < 2) {
       listSection.hidden = true;
       wrap.innerHTML = '';
@@ -13184,6 +13188,67 @@
     });
     emptyEl.hidden = !isEmpty;
     emptyEl.textContent = 'Sin coincidencias.';
+    // V04.39 — solo con una búsqueda real que TERMINÓ bien y no devolvió cuentas (el error de conexión ya salió arriba).
+    setGenericInviteVisible(isEmpty);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* V04.39 · Ronda 1 — INVITACIÓN GENÉRICA a BRAMU (BUSCAR JUGADORES)    */
+  /* ------------------------------------------------------------------ */
+  /** Enlace general de acceso. Fijo a propósito: es la dirección pública del producto, no depende del entorno que lo emite. */
+  const GENERIC_INVITE_URL = 'https://app.bramulab.com';
+  /** Mensaje breve y humano que explica qué es BRAMU e incluye el enlace general. Sin token ni datos del usuario. */
+  function buildGenericInviteMessage() {
+    return '¡Hola! Estoy usando BRAMUlab, una app de pádel amateur para cargar partidos, competir con amigos y construir tu Nivel BRAMU. Sumate acá: ' + GENERIC_INVITE_URL;
+  }
+  function setGenericInviteVisible(visible) {
+    const box = $('#player-search-invite');
+    if (!box) return;
+    box.hidden = !visible;
+    if (!visible) resetGenericInviteFeedback();
+  }
+  function resetGenericInviteFeedback() {
+    const feedback = $('#player-search-invite-feedback');
+    const manual = $('#player-search-invite-text');
+    if (feedback) { feedback.hidden = true; feedback.textContent = ''; feedback.classList.remove('invite-sheet__feedback--error'); }
+    if (manual) { manual.hidden = true; manual.value = ''; }
+  }
+  function showGenericInviteFeedback(text) {
+    const feedback = $('#player-search-invite-feedback');
+    feedback.textContent = text;
+    feedback.hidden = false;
+  }
+  /** Copia el mensaje; si el navegador no deja escribir en el portapapeles, lo muestra seleccionado para copiarlo a mano. */
+  async function copyGenericInviteMessage() {
+    const message = buildGenericInviteMessage();
+    const manual = $('#player-search-invite-text');
+    let copied = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(message); copied = true; }
+    } catch (e) { copied = false; }
+    if (copied) {
+      manual.hidden = true;
+      showGenericInviteFeedback('Mensaje copiado. Pegalo en WhatsApp.');
+    } else {
+      manual.value = message;
+      manual.hidden = false;
+      try { manual.focus(); manual.select(); } catch (e) { /* noop */ }
+      showGenericInviteFeedback('Copiá el mensaje y pegalo en WhatsApp.');
+    }
+  }
+  /** Prioriza el menú nativo de compartir (incluye WhatsApp); sin él, copia el mensaje. Cancelar el menú no es un error. */
+  async function shareGenericInvite() {
+    resetGenericInviteFeedback();
+    const message = buildGenericInviteMessage();
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text: message });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    await copyGenericInviteMessage();
   }
 
   /** §4/§5 — abre BUSCAR JUGADORES desde la tarjeta del Home. Mismo gate de sesión que el
@@ -13192,6 +13257,7 @@
     syncCurrentIdentityFromStore();
     if (!currentPlayerName) { openAccessFlow(); return; }
     $('#player-search-input').value = '';
+    setGenericInviteVisible(false);
     renderPlayerSearchResults('');
     showView('player-search');
     setTimeout(() => $('#player-search-input').focus(), 60);
@@ -13203,8 +13269,12 @@
   let playerSearchDebounceId = null;
   function initPlayerSearchScreen() {
     $('#player-search-back-btn').addEventListener('click', () => openPlayerHome());
+    $('#player-search-invite-btn').addEventListener('click', shareGenericInvite);
+    $('#player-search-invite-copy-btn').addEventListener('click', () => { resetGenericInviteFeedback(); copyGenericInviteMessage(); });
     $('#player-search-input').addEventListener('input', (e) => {
       const value = e.target.value;
+      // La invitación pertenece al resultado de ESA búsqueda: al seguir escribiendo se retira hasta la próxima respuesta.
+      setGenericInviteVisible(false);
       const currentUser = Store.getCurrentUser();
       if (Auth.isConfigured() && currentUser && currentUser.serverBacked) {
         clearTimeout(playerSearchDebounceId);

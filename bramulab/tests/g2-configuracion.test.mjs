@@ -68,8 +68,8 @@ test('G2-2 · engranaje discreto en el header de Perfil abre Configuración; bac
 
 test('G2-3 · Configuración: orden, secciones, filas compactas centradas y zona destructiva aislada al final', () => {
   const v = section('view-settings');
-  assert.deepEqual([...v.matchAll(/settings-group__title">([^<]+)</g)].map((m) => m[1]), ['CUENTA Y SEGURIDAD', 'PRIVACIDAD Y CUENTA'], 'solo dos encabezados');
-  for (const gone of ['PRIVACIDAD Y DATOS', '>LEGAL<', 'AYUDA', '>SESIÓN<', 'ZONA DE CUENTA', 'settings-group--danger', 'settings-group--session', 'settings-logout-row']) assert.ok(!v.includes(gone), `ya no existe ${gone}`);
+  assert.deepEqual([...v.matchAll(/settings-group__title">([^<]+)</g)].map((m) => m[1]), ['CUENTA Y SEGURIDAD', 'AYUDA', 'PRIVACIDAD Y CUENTA'], 'tres encabezados (V04.39 agrega AYUDA con Preguntas frecuentes)');
+  for (const gone of ['PRIVACIDAD Y DATOS', '>LEGAL<', '>SESIÓN<', 'ZONA DE CUENTA', 'settings-group--danger', 'settings-group--session', 'settings-logout-row']) assert.ok(!v.includes(gone), `ya no existe ${gone}`);
   const order = ['settings-email-row', 'settings-password-row', 'PRIVACIDAD Y CUENTA', 'settings-terms-row', 'settings-privacy-row', 'settings-copy-row', 'settings-contact-row', 'settings-delete-row', 'settings-logout-btn'];
   let at = 0; for (const t of order) { const i = v.indexOf(t, at); assert.ok(i >= 0, `falta/desordenado: ${t}`); at = i; }
   // Eliminar: fila danger DENTRO del mismo bloque (misma lista que Términos), sin borde rojo de bloque

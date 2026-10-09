@@ -3916,11 +3916,11 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    Reusa el shell .view--access + .analysis-header. Lista compacta: UNA superficie por grupo (sin card dentro de card),
    filas de 46px con label/valor/chevron centrados verticalmente (flex + align-items:center) y divisores uniformes.
    ========================================================================== */
-#view-settings, #view-settings-email, #view-settings-delete, #view-settings-copy, #view-settings-contact, #view-legal-doc{
+#view-settings, #view-settings-email, #view-settings-delete, #view-settings-copy, #view-settings-contact, #view-help, #view-legal-doc{
   height:100vh; height:100dvh; min-height:0; max-height:100dvh; overflow:hidden;
 }
 #view-settings .access-scroll, #view-settings-email .access-scroll, #view-settings-delete .access-scroll,
-#view-settings-copy .access-scroll, #view-settings-contact .access-scroll{
+#view-settings-copy .access-scroll, #view-settings-contact .access-scroll, #view-help .access-scroll{
   flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
   padding: 16px 18px calc(28px + var(--safe-bottom));
 }
@@ -5415,6 +5415,107 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
 #view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
 #view-activity-consent .access-scroll--under-header{ padding-top: 12px; }
-/* V04.38-h2 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
+/* V04.39-h1 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
 #settings-activity-row .settings-row__label{ white-space:nowrap; }
 #settings-activity-row .settings-row__value{ flex:0 0 auto; max-width:45%; }
+
+/* ==========================================================================
+   V04.39 · Ronda 1 — BIENVENIDA (#view-access): fotografía nocturna protagonista + claim + 3 beneficios.
+   - La foto vive en una capa fija DETRÁS del contenido (`.welcome-hero`); el contenido scrollea por encima (`.access-scroll` ya es el
+     scroller: ver bloque «07OCT26 h25»), así que en pantallas bajas (iPhone SE, horizontal) nada queda fuera de alcance.
+   - FOTOGRAFÍA DEFINITIVA: se incorpora cambiando SOLO `--welcome-hero-image` (y, si hace falta, `--welcome-hero-pos`). El recurso actual
+     (`assets/bienvenida-hero.jpg`: copia de la cancha azul nocturna de Estado Cero, horizontal) es PROVISORIO: la foto definitiva se entrega
+     con ESE nombre de archivo (o se cambia la variable) y no requiere tocar nada más. Los degradés ya están calibrados para fotos oscuras verticales.
+   - Se reutilizan tokens/componentes: `.btn-start`/`.btn-secondary` (jerarquía real de los botones), pastilla lima de Estado Cero.
+   ========================================================================== */
+#view-access{
+  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h1');
+  --welcome-hero-pos: 72% 38%;
+  position: relative; isolation: isolate;
+}
+.welcome-hero{ position:absolute; inset:0 0 auto 0; height: min(72dvh, 640px); z-index:0; pointer-events:none; overflow:hidden; }
+.welcome-hero__photo{
+  position:absolute; inset:0;
+  background: var(--welcome-hero-image) var(--welcome-hero-pos) / cover no-repeat, var(--surface-3);
+}
+/* Degradés: oscurecen el borde superior (logo legible), dejan respirar la foto en el centro y la funden con el fondo de la app
+   hacia abajo, donde viven claim, beneficios y botones. */
+.welcome-hero::after{
+  content:""; position:absolute; inset:0;
+  background:
+    linear-gradient(180deg, rgba(3,7,13,.78) 0%, rgba(3,7,13,.25) 26%, rgba(5,10,18,.30) 48%, rgba(5,10,18,.86) 80%, var(--bg) 100%),
+    linear-gradient(90deg, rgba(3,7,13,.35) 0%, rgba(3,7,13,0) 55%);
+}
+#view-access .access-scroll{ position:relative; z-index:1; }
+/* Con la foto como protagonista el bloque va ANCLADO abajo (logo arriba, aire en el medio): se anula el centrado de h25
+   (::before/::after) a favor de un separador flexible, que se comprime a un mínimo cuando la pantalla es baja. */
+#view-access .access-scroll::before, #view-access .access-scroll::after{ flex:0 0 0; }
+#view-access .access-logo{ margin-bottom: 0; filter: drop-shadow(0 2px 14px rgba(3,7,13,.65)); }
+.welcome-spacer{ flex: 1 1 auto; min-height: clamp(24px, 6dvh, 64px); }
+.welcome-intro{ text-align:center; margin-bottom: 18px; }
+.welcome-pill{
+  display:inline-flex; align-items:center; padding:5px 12px; border-radius:999px;
+  border:1px solid rgba(149,255,25,.40); background: rgba(5,12,22,.55);
+  color: var(--brand-lime); font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase;
+}
+.welcome-claim{
+  margin: 12px 0 0; font-family: var(--font-display); font-weight:900; font-size: clamp(30px, 9.4vw, 40px);
+  line-height:1.05; letter-spacing:-0.01em; color: var(--paper); text-shadow: 0 2px 18px rgba(3,7,13,.75);
+}
+.welcome-claim__accent{ color: var(--brand-lime); }
+.welcome-sub{ margin: 10px 0 0; font-size:14px; line-height:1.4; color: var(--paper); opacity:.82; text-shadow: 0 1px 10px rgba(3,7,13,.8); }
+.welcome-benefits{ list-style:none; margin: 0 0 20px; padding:0; display:flex; flex-direction:column; gap:8px; }
+.welcome-benefit{
+  display:flex; align-items:center; gap:12px; min-height:44px; padding: 8px 14px 8px 10px;
+  background: rgba(9,19,31,.72); border:1px solid var(--line-strong); border-radius: 14px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.welcome-benefit__icon{
+  flex:none; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:10px; color: var(--brand-lime); background: rgba(149,255,25,.10); border:1px solid rgba(149,255,25,.28);
+}
+.welcome-benefit__text{ font-size:14px; font-weight:700; color: var(--paper); line-height:1.25; }
+#view-access .access-actions{ margin-top: 0; }
+#view-access .invitation-card, #view-access #access-backend-unavailable{ background: rgba(9,19,31,.86); }
+/* Pantallas muy bajas (iPhone SE 1.ª gen, horizontal): beneficios y claim más compactos; igual todo scrollea. */
+@media (max-height: 600px){
+  .welcome-claim{ font-size: 28px; }
+  .welcome-benefits{ gap:6px; margin-bottom:14px; }
+  .welcome-benefit{ min-height:40px; padding-top:5px; padding-bottom:5px; }
+  .welcome-intro{ margin-bottom:12px; }
+}
+@media (max-width: 340px){
+  .welcome-claim{ font-size: 28px; }
+  .welcome-benefit__text{ font-size:13px; }
+}
+
+/* ==========================================================================
+   V04.39 · Ronda 1 — INVITACIÓN GENÉRICA (BUSCAR JUGADORES) y AYUDA / Preguntas frecuentes.
+   ========================================================================== */
+.player-search-invite{
+  margin: 14px 0 0; padding: 16px; background: var(--surface-1); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card); display:flex; flex-direction:column; align-items:stretch; gap: 12px; text-align:center;
+}
+.player-search-invite__eyebrow{ font-size: 12px; font-weight: 800; letter-spacing: 0.06em; color: var(--paper-dim); }
+.player-search-invite__btn{ flex:none; width:100%; }
+.player-search-invite__copy{ align-self:center; padding: 6px 10px; }
+.player-search-invite__text{
+  width:100%; box-sizing:border-box; padding: 10px 12px; border-radius: 12px; resize:none;
+  background: var(--ink-softer); color: var(--paper); border: 1px solid var(--line); font: inherit; font-size: 13px; line-height:1.45; text-align:left;
+}
+.player-search-invite .invite-sheet__feedback{ margin:0; }
+
+/* AYUDA: una sola superficie (mismo `.settings-list` que Configuración) con acordeones nativos <details>. */
+.help-faq__item + .help-faq__item{ border-top: 1px solid var(--line); }
+.help-faq__q{
+  display:flex; align-items:center; gap: 12px; min-height: 52px; padding: 10px 16px; box-sizing:border-box;
+  font-size: 14px; font-weight: 700; color: var(--paper); cursor:pointer; list-style:none; line-height:1.3;
+}
+.help-faq__q::-webkit-details-marker{ display:none; }
+.help-faq__q > span:first-child{ flex:1 1 auto; }
+.help-faq__chev{ flex:none; width:12px; text-align:center; color: var(--paper-faint); font-size:18px; line-height:1; transition: transform .15s ease; }
+.help-faq__item[open] > .help-faq__q .help-faq__chev{ transform: rotate(90deg); color: var(--brand-lime); }
+.help-faq__a{ padding: 0 16px 16px; }
+.help-faq__a p{ margin: 0 0 10px; font-size: 14px; line-height: 1.5; color: var(--paper-dim); }
+.help-faq__a p:last-child{ margin-bottom: 0; }
+.help-faq__a strong{ color: var(--paper); font-weight: 700; }

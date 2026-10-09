@@ -15,7 +15,7 @@ test('toda vista .view--access queda acotada al viewport y con scroller interno'
   // Todas las vistas de la familia: o bien estaban cubiertas antes de h25, o bien entran en la regla h25.
   const covered=new Set([
     ...ACCESS,'group-settings','edit-data','complete-access','change-password','nivel-onboarding',
-    'settings','settings-email','settings-delete','settings-copy','settings-contact','legal-doc'
+    'settings','settings-email','settings-delete','settings-copy','settings-contact','legal-doc','help'
   ]);
   const declared=[...html.matchAll(/id="view-([a-z-]+)" class="view view--access"/g)].map((m)=>m[1]);
   assert.ok(declared.length>=19);

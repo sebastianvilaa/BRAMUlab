@@ -1253,6 +1253,8 @@ BRAMU debe poder entenderse por la propia interfaz.
 
 Si una función concreta demuestra confusión en pruebas reales, se resuelve con ayuda contextual puntual en ese lugar.
 
+*(V04.39: la única superficie general es la pantalla breve **Ayuda / Preguntas frecuentes** (§28.3), consultable bajo demanda desde Configuración; no es un recorrido ni un tutorial obligatorio.)*
+
 ---
 
 ## 20. TU MOMENTO durante la progresión inicial
@@ -1576,3 +1578,33 @@ No usar “Semana 40”, “Semana 41” como lectura principal. El rango de fec
 - si no hay actividad oficial, la tarjeta sigue las reglas de Estado Cero existentes y no abre un detalle vacío.
 
 La pantalla puede reutilizar el lenguaje visual de las barras del Home, pero debe priorizar lectura clara de fechas + jugados/ganados/perdidos + efectividad.
+
+---
+
+## 28. V04.39 — Bienvenida, invitación genérica y Ayuda (Ronda 1, Staging)
+
+Primera ronda del frente *Comunidad y descubrimiento*. No cambia reglas deportivas, de identidad ni legales.
+
+### 28.1 Pantalla de Bienvenida (`#view-access`)
+
+Quien llega por primera vez debe entender de inmediato que BRAMUlab es **una app de pádel amateur**.
+
+- Composición: logo BRAMUlab original (sin rediseño) · fotografía nocturna de pádel como protagonista, en una capa fija detrás del contenido · pastilla `PÁDEL AMATEUR` · claim **«Donde vive tu pádel.»** · «La app para jugadores de pádel amateur.» · tres tarjetas compactas (**Cargá tus partidos · Competí con tus amigos · Construí tu Nivel BRAMU**) · `INICIAR SESIÓN` (principal, lima) y `CREAR CUENTA` (secundario).
+- Se retira el subtítulo anterior («Entrá con tu cuenta o creá tu jugador para empezar.»). Se conservan sin cambios: tarjeta contextual de invitación personal (`?claim=`), aviso de servidor no disponible, instalación PWA opcional (§2.0) y la acción de laboratorio.
+- **No** se agrega aceptación legal automática ni la frase «Al continuar aceptás…»: el consentimiento real y los enlaces a Términos/Privacidad siguen **únicamente** en el alta.
+- La fotografía sale de `--welcome-hero-image` (`styles.css`, archivo `assets/bienvenida-hero.jpg`). **Hoy es un recurso provisorio** (copia de la cancha azul nocturna de Estado Cero, horizontal). La foto vertical definitiva se incorpora reemplazando ese archivo (y, si hace falta, `--welcome-hero-pos`); los degradés ya están calibrados.
+- Móvil: sin recortes en 320×568 ni en horizontal; el contenido scrollea dentro de `.access-scroll` cuando no entra.
+
+### 28.2 Invitación genérica (BUSCAR JUGADORES)
+
+Función **distinta** de la invitación personal para recuperar identidades provisionales y partidos (§15), que no se toca.
+
+- Aparece **solo** cuando una búsqueda server-backed terminó bien (≥ 2 caracteres) y devolvió 0 cuentas reales: tarjeta «¿NO ESTÁ EN BRAMU?» + `INVITAR A BRAMU`. Nunca ante un error de conexión, ni con la búsqueda vacía/corta; se retira apenas se sigue escribiendo.
+- Al tocarla: menú nativo de compartir (incluye WhatsApp) con un mensaje breve y humano que explica qué es BRAMU e incluye el enlace general `https://app.bramulab.com`. Si el dispositivo no lo soporta (o falla), copia el mensaje y confirma («Mensaje copiado. Pegalo en WhatsApp.»); si el portapapeles también falla, muestra el texto para copiarlo a mano. Un enlace secundario «Copiar mensaje para WhatsApp» queda siempre disponible. Cancelar el menú no es un error.
+- Sin tokens, sin seguimiento de referidos, sin tablas ni RPC, sin identidades provisionales.
+
+### 28.3 Ayuda / Preguntas frecuentes
+
+Configuración → **AYUDA → Preguntas frecuentes** (`#view-help`, mismo shell de Configuración, sin barra inferior). Cinco acordeones nativos y breves: qué es BRAMU · cómo cargar un partido ya jugado (hasta 14 días atrás; valida uno de los dos rivales; 30 días) · Nivel BRAMU (1,0–10,0; CALIBRANDO → CALIBRADO con 5 partidos contra ≥ 3 rivales distintos) · Ranking BRAMU (semanal, cada lunes; requisitos para tener puesto) · Grupos (≥ 3 de 4 jugadores; 2 mejores partidos por semana; Race anual; no modifican Nivel ni Ranking). Los textos repiten reglas ya vigentes y la ayuda existente de Ranking/Grupos: si una regla cambia, se actualizan ambos lugares.
+
+**Fuera de esta ronda (Ronda 2 o posteriores):** gente que quizás conozcas, jugadores de tu zona, RPC/algoritmo de descubrimiento, cambios sociales en Mis jugadores y landing pública.
