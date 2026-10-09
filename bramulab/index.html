@@ -1982,12 +1982,12 @@
   <section id="view-legal-gate" class="view view--access" hidden>
     <div class="access-scroll">
       <img class="access-logo" src="icons/logo.svg" alt="BRAMUlab" />
-      <p class="access-subtitle" id="legal-gate-subtitle">Para seguir usando BRAMUlab necesitamos que aceptes nuestros Términos y la Política de Privacidad vigentes.</p>
+      <p class="access-subtitle" id="legal-gate-subtitle">Actualizamos nuestros Términos y la Política de Privacidad. La actualización describe la medición de uso de BRAMUlab. Revisá y aceptá los documentos para continuar.</p>
       <form id="legal-gate-form" class="access-form">
         <div class="field field--checkbox">
           <label class="field-checkbox-label">
             <input type="checkbox" id="legal-gate-checkbox" />
-            <span>Acepto los <a href="terminos/" data-legal-doc="terminos" data-legal-origin="legal-gate">Términos y Condiciones</a>, declaro haber leído la <a href="privacidad/" data-legal-doc="privacidad" data-legal-origin="legal-gate">Política de Privacidad</a> y autorizo el tratamiento de mis datos por proveedores fuera de Argentina.</span>
+            <span><strong>Acepto expresamente</strong> los <a href="terminos/" data-legal-doc="terminos" data-legal-origin="legal-gate">Términos y Condiciones</a>, declaro haber leído la <a href="privacidad/" data-legal-doc="privacidad" data-legal-origin="legal-gate">Política de Privacidad</a> y autorizo el tratamiento de mis datos por proveedores fuera de Argentina y, <strong>para estadísticas internas de BRAMUlab, el registro de los días y cantidad de aperturas de la aplicación, el tipo general de dispositivo, la modalidad de acceso y la versión utilizada</strong>, como detalla la Política. Podré retirar esta autorización para medir actividad desde Configuración.</span>
           </label>
         </div>
         <p class="edit-error" id="legal-gate-error" hidden></p>
@@ -2158,11 +2158,10 @@
           <div class="field field--checkbox">
             <label class="field-checkbox-label">
               <input type="checkbox" id="signup-terms-checkbox" />
-              <span>Acepto los <a href="terminos/" data-legal-doc="terminos" data-legal-origin="signup" id="signup-terms-link">Términos y Condiciones</a>, declaro haber leído la <a href="privacidad/" data-legal-doc="privacidad" data-legal-origin="signup" id="signup-privacy-link">Política de Privacidad</a> y autorizo el tratamiento de mis datos por proveedores fuera de Argentina.</span>
+              <span><strong>Acepto expresamente</strong> los <a href="terminos/" data-legal-doc="terminos" data-legal-origin="signup" id="signup-terms-link">Términos y Condiciones</a>, declaro haber leído la <a href="privacidad/" data-legal-doc="privacidad" data-legal-origin="signup" id="signup-privacy-link">Política de Privacidad</a> y autorizo el tratamiento de mis datos por proveedores fuera de Argentina y, <strong>para estadísticas internas de BRAMUlab, el registro de los días y cantidad de aperturas de la aplicación, el tipo general de dispositivo, la modalidad de acceso y la versión utilizada</strong>, como detalla la Política. Podré retirar esta autorización para medir actividad desde Configuración.</span>
             </label>
           </div>
-          <!-- BRAMU Metrics — consentimiento ESPECÍFICO y OPCIONAL para medir actividad básica: separado de la aceptación legal obligatoria, NUNCA marcado
-               de antemano, y solo se muestra si el servidor tiene una versión vigente (app_config.activity_consent_version). Sin pantalla extra. -->
+          <!-- Campo legado del diseño opcional, conservado oculto por compatibilidad del DOM; el alta mostrará exclusivamente la casilla legal unificada. -->
           <div class="field field--checkbox" id="signup-activity-consent-field" hidden>
             <label class="field-checkbox-label">
               <input type="checkbox" id="signup-activity-checkbox" />
