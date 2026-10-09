@@ -6,6 +6,18 @@
 
 
 
+## 09/10/2026 — Corrección de aperturas no registradas (Staging `04.38-h6`)
+
+**Diagnóstico a partir de uso real:** el jugador que aceptó `legal_v2` a las 04:19 hora argentina confirmó haber entrado y navegado por Production, pero `player_activity_days` permanecía vacío. Los logs de Supabase Production muestran `POST /rest/v1/rpc/register_app_presence` desde navegador iPhone a `2026-10-09T07:19:16.752Z`, inmediatamente después del registro de aceptación legal, cuando la captura aún estaba desactivada. El servidor contestó HTTP 200 (respuesta JSON RPC, no equivale a éxito del registro); **cero filas** registradas. El código del cliente `bramulab/auth.js` anterior grababa `lastActivitySentAt` y `localStorage['bramu_activity_ts']` **antes de esperar la respuesta**, así que también bloqueaba reintentos 30 minutos tras errores `measurement_disabled`/conexión. Además, las visitas a Grupos/Perfil/Historial no son nuevas aperturas y no generan evento; solo arranque/reanudación y vuelta a primer plano.
+
+**REEMPLAZAR en Staging:** `bramulab/auth.js` mueve el inicio del throttle de 30 minutos **después** de `data.ok===true`; la respuesta `ok:false` o error no deja marca local. Cambia clave local a `bramu_activity_success_ts_v2` para ignorar la marca de tiempo fallida de la versión anterior, sin borrar otras claves. **AGREGAR:** bump coherente de `index.html`, `store.js`, `sw.js` y `version.json` a `04.38-h6`. **NO TOCAR:** backend, esquema de Metrics, documentos legales, `main`, BRAMUlive y Production sin autorización adicional.
+
+**Verificación técnica realizada:** prueba del archivo `auth.js` real ejecutado con cliente Supabase simulado: primer RPC `measurement_disabled` => ninguna marca local; segundo RPC exitoso => marca nueva; tercer intento inmediato => throttle; marca antigua ignorada. PASS. Pruebas SQL Staging del 09/10 verificaron guardias/anti-duplicados 5 min/retiro de consentimiento con ROLLBACK. Vercel Preview `dpl_HN3JVpjgZKdEGp6vFfuutmZQN5fB` READY y alias Staging redirigido; Production continúa `04.38-h5` deployment `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn`.
+
+**Estado:** corregido solo en Staging. **PENDIENTE autorización explícita** para promover exactamente el hotfix `04.38-h6` a Production, sin otros cambios. Tras promover, las entradas siguientes (arranque o foreground) podrán registrarse para cuentas que aceptaron `legal_v2`, sin reaceptación y sin retroactividad. Monitorear resultado real sin fabricar entradas.
+
+---
+
 ## 09/10/2026 04:24 AR — Captura básica de actividad ACTIVADA en Production
 
 **Nueva autorización explícita del titular en el chat Central (posterior a publicar legal_v2):** «con respecto a si lo podemos encender, yo lo encendería ... hagámoslo». Se ejecutó **solo** `UPDATE app_config SET activity_capture_enabled=TRUE` en el proyecto Supabase **Production** `bgnnnfbdywefftvoqiss`, con precondiciones servidor `environment=production`, `legal_version='legal_v2'`, `activity_consent_version='activity_v1'`, interruptor previamente `FALSE` y al menos una aceptación legal_v2 real. Resultado: exactamente una fila actualizada, valor `TRUE` verificado. No se cambió el frontend ni se hizo deploy. Continúa bundle `04.38-h5` en deployment `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn`.
