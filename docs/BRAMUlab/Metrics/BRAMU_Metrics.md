@@ -6,6 +6,22 @@
 
 
 
+## 09/10/2026 — Publicación legal_v2 en Production COMPLETADA
+
+**AUTORIZACIÓN EXPLÍCITA del responsable en el chat Central:** «ok publica» para publicar exclusivamente los documentos legales/aceptación que vio en Staging (un único checkbox para nuevas altas; una reaceptación breve a los siete existentes) y mantener captura de aperturas OFF.
+
+**VERIFICADO EN PRODUCTION:** frontend `04.38-h5`, origen exacto Git SHA `c6c72f0d32dc4c5180d82411d51bbed68d4caf73`, deployment Vercel production `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn` READY, dominios `app.bramulab.com`, `bramulab.vercel.app`, `bramulab-bramu-lab.vercel.app` asignados. Staging conserva su alias de Preview `dpl_7RjDGwKCZrjXz9EP23EozZuJTMub`. No se tocó `main` ni BRAMUlive.
+
+**Backend Production:** se aplicaron, ordenadas, las migraciones `20261009030000`, `20261009031000`, `20261009032000`, `20261009033000`. Config verificada `environment=production`, `legal_version=legal_v2`, `activity_consent_version=activity_v1`, **`activity_capture_enabled=FALSE`** (separado de consentimiento). Las funciones `accept_legal_version` / `handle_email_confirmed` registran `legal_v2` y evidencia `activity_v1` cuando el jugador efectivamente acepta, incluso con captura apagada. El servidor no registra aperturas con FALSE. Comprobación postdespliegue: siete jugadores registrados, 7 aceptaciones `legal_v1` preservadas, 0 aceptaciones `legal_v2` todavía (usuarios aún no ingresaron), 0 consentimientos de actividad, 0 filas de presencia. Los números son la instantánea del momento, no hardcodear.
+
+**QA:** código JS parseado, guardias SQL y pruebas transaccionales Staging PASS (aceptación, bloqueos y retirada); QA visual en Staging corroborado por capturas del responsable. No se completó recorrido nuevo signUp con OTP y reaceptación autenticada en Production; no inventar resultado de esa prueba.
+
+**PENDIENTE LEGAL, no autoriza activación:** la ampliación AAIP presentada describe medición OPCIONAL. Las nuevas condiciones visuales de `legal_v2` la incluyen en un checkbox legal obligatorio. Una aceptación documentada **no resuelve por sí sola** la condición de consentimiento libre para analítica identificable no esencial (Ley 25.326 art. 5), ni su coherencia con el registro en trámite. Si AAIP observa o rechaza ese aspecto, corregir su contenido y la base jurídica; en su caso podría requerirse una nueva versión legal / aceptación. Hasta resolver, dejar `activity_capture_enabled=FALSE` en Production. Ante órdenes formales seguir sus exigencias, sin asumir que una observación aislada exige dar de baja la aplicación.
+
+**REGRA OPERATIVA:** no alterar Production, switch ni expediente sin nueva autorización expresa; monitorizar futuras decisiones AAIP cuando llegue respuesta.
+
+---
+
 ## 09/10/2026 — Publicar aceptación legal sin capturar aperturas (bloque técnico resuelto en Staging)
 
 **Necesidad de producto:** evitar que las altas futuras se acumulen en la cohorte de usuarios que deberán volver a aceptar documentos. Publicar `legal_v2` (un único checkbox en el alta, un único gate para `legal_v1`) es **independiente** de habilitar el registro de aperturas. No inventar consentimientos previos. **La aceptación se registra desde la acción real del jugador, aun si la medición está apagada; esto no certifica por sí mismo su suficiencia jurídica.**
