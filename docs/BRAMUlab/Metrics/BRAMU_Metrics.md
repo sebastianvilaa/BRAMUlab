@@ -4,6 +4,22 @@
 **Estado:** propuesta funcional confirmada para iniciar diseño/implementación en Staging; **NO autoriza Production**.  
 **Producto:** consola privada de análisis de BRAMUlab; BRAMUlive fuera de alcance.
 
+
+## Decisión UX prioritaria — 09/10/2026 (prevalece sobre el consentimiento opcional anterior)
+
+**Confirmado por el responsable del producto:** la incorporación de jugadores debe mantener **UNA sola casilla obligatoria** para la aceptación informada de Términos/Política/transferencias, sin una segunda casilla ni pantalla promocional «Ayudanos a mejorar BRAMUlab». El objetivo esencial de Metrics es saber cuántas personas usan BRAMUlab y vuelven, sin distorsionar indicadores por una decisión UX opt-in que no se validó con el responsable. Los 7 usuarios reales actuales no deben recibir una nueva pantalla de «¿querés ayudarnos?» como mecanismo de producto.
+
+**Condición legal de ejecución, no una decisión UX pendiente:** no se puede inferir autorización para nuevo tratamiento identificable a partir de la aceptación histórica de `legal_v1`, ni fingir que una aceptación conjunta resuelve por sí sola el requisito de consentimiento libre, expreso e informado del art. 5 Ley 25.326. El propio art. 5 exige que un consentimiento prestado junto con otras declaraciones figure **expresa y destacadamente**. La excepción para datos necesarios a un contrato (art. 5.2.d) no se presume aplicable a métricas de crecimiento. Desarrollar primero una medición agregada **efectivamente anónima** que no persista ni permita reconstruir identidad por persona; separar de ella los KPI de usuarios únicos/retención, que requieren una base legal concreta y no pueden falsificarse mediante simples conteos. Si no existe fundamento suficiente para algún KPI, declararlo no medible, no registrar silenciosamente identidad.
+
+**Experiencia objetivo:** un solo checkbox visible (sin marcar de antemano) con enlace a la Política actualizada, y dentro del texto una referencia **expresa y destacada** al tratamiento de datos vigente que corresponda. No pedir aceptaciones genéricas «para cualquier publicidad futura». Publicidad contextual futura no está descartada, pero nuevos tratamientos (por ejemplo, perfilado/anuncios dirigidos) tendrán evaluación y transparencia específicas; la documentación actual debe describir el presente, sin promesas de prohibición perpetua.
+
+**NO TOCAR:** Production, `main`, BRAMUlive, la inscripción original ni el complemento AAIP ya presentado. La captura identificable opcional actual sigue **apagada** (`activity_consent_version=NULL` en Production). **REEMPLAZAR en Staging, previa revisión técnica/jurídica concreta:** segunda casilla del alta y pantalla opt-in como mecanismos centrales; suprimir/reutilizar sin romper los controles vigentes de datos ni adjudicar consentimiento a los usuarios existentes. **AGREGAR:** conteos anónimos mínimos con controles antiabuso y definiciones honestas de «aperturas» vs. «personas»; **FUSIONAR:** el texto informativo del tratamiento vigente en la única aceptación de registro, destacándolo.
+
+**Estado:** decisión UX documentada, **NO implementada ni publicada**. Encargo único de implementación/validación: Issue #33. No activar la captura existente para resolverlo mediante un atajo.
+
+---
+
+
 ## 1. Objetivo confirmado
 Panel interno para el propietario de BRAMUlab, accesible con su cuenta habitual, sin exposición a jugadores comunes, que permita observar el crecimiento, uso y salud del producto sobre **datos reales de Production**, comparar períodos y extraer decisiones de producto. Este chat de Metrics es el centro de interpretación; el dashboard, la visualización habitual.
 
