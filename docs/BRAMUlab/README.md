@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 09/10/2026 — Hotfix de aperturas `04.38-h6` en Production (estado más reciente)
+
+Con autorización explícita del responsable se publicó **solo** el hotfix `04.38-h6`, SHA exacto `0dcb55a9fc0bcfc4e6e26b7c5648a46065e5954e`, deployment Vercel `dpl_DCSuFLGFSnbNKAuzQjxFP4zCfg3c` READY y alias `app.bramulab.com` verificado. Soluciona el throttle local de 30 min aplicado erróneamente aunque fallara el registro de aperturas. Se verificaron **7 cuentas reales conservadas**, `legal_v2` vigente y captura `activity_capture_enabled=TRUE`. Ya existe **1 apertura real del 09/10/2026** registrada antes del hotfix. Staging permanece aislado; `main`, BRAMUlive, Supabase schema y AAIP sin cambios por este hotfix. Ver fuente maestra `Metrics/BRAMU_Metrics.md` sección «Hotfix 04.38-h6 PUBLICADO en Production».
+
+---
+
 ## 09/10/2026 04:24 AR — Nueva actualización de Production (prevalece sobre estado anterior)
 
 **BRAMU Metrics: captura de aperturas activada expresamente por el responsable en Production**. Config: `legal_version=legal_v2`, `activity_consent_version=activity_v1`, `activity_capture_enabled=TRUE`. Misma versión de frontend `04.38-h5`; siete cuentas preservadas; al activar, una única cuenta había aceptado legal_v2 y 0 filas de actividad. Captura SOLO desde nuevas aperturas de cuentas con aceptación registrada, nunca retroactiva. **Advertencia:** queda pendiente regularizar la discrepancia ante AAIP entre declaración de consentimiento opcional y aceptación legal obligatoria con posibilidad de retirar autorización. No afirmar que la AAIP ya aprobó. En caso de observación u orden formal sobre esta captura, el switch `activity_capture_enabled=FALSE` permite desactivarla sin tocar otras funcionalidades. Fuente maestra: `Metrics/BRAMU_Metrics.md` (apartado de 04:24 AR). `main`, BRAMUlive y frontend no se tocaron con la activación.
