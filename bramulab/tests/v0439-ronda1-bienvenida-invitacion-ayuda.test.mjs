@@ -32,9 +32,15 @@ test('Bienvenida: logo original, claim, 3 beneficios y los 2 botones reales con 
   assert.match(v, /<img class="access-logo" src="icons\/logo\.svg" alt="BRAMUlab" \/>/, 'logo maestro intacto');
   assert.match(v, /Donde vive<br>tu <span class="welcome-claim__accent">pádel\.<\/span>/);
   for (const t of ['Cargá tus partidos', 'Competí con tus amigos', 'Construí tu Nivel BRAMU']) assert.ok(v.includes(`>${t}<`), t);
-  assert.match(v, /PÁDEL AMATEUR/, 'debe decir de entrada que es pádel amateur');
+  // 2.ª pasada (h3): sin píldora, bajada bajo el claim y una línea de apoyo por tarjeta
+  assert.doesNotMatch(v, /PÁDEL AMATEUR|welcome-pill/);
+  assert.match(v, /<p class="access-subtitle welcome-sub">Cargá tus partidos\. Competí con tus amigos\. Construí tu Nivel BRAMU\.<\/p>/);
+  for (const t of ['Guardá tus resultados y construí tu historial.', 'Compará partidos, rivales y grupos de forma simple.', 'Tu nivel evoluciona a medida que jugás.']) assert.ok(v.includes(`>${t}<`), t);
+  assert.deepEqual([...v.matchAll(/welcome-benefit--(lime|blue|gold)/g)].map((m) => m[1]), ['lime', 'blue', 'gold'], 'acentos variados por tarjeta');
+  assert.ok(v.indexOf('class="access-logo"') < v.indexOf('welcome-claim') && v.indexOf('welcome-spacer') < v.indexOf('class="access-logo"'), 'el aire va sobre el logo: logo y claim quedan juntos');
   assert.match(v, /<button type="button" id="access-login-btn" class="btn-start">INICIAR SESIÓN<\/button>/);
   assert.match(v, /<button type="button" id="access-signup-btn" class="btn-secondary">CREAR CUENTA<\/button>/);
+  assert.match(css, /#view-access \.access-actions \.btn-secondary\{[^}]*rgba\(5,10,18/, 'CREAR CUENTA más discreto');
   assert.ok(v.indexOf('access-login-btn') < v.indexOf('access-signup-btn'), 'INICIAR SESIÓN primero (principal)');
 });
 
@@ -58,7 +64,7 @@ test('Bienvenida: la foto es una capa provisoria que se reemplaza cambiando solo
 
 test('Bienvenida: móviles chicos entran y se pueden desplazar (scroller propio + compactación en pantallas bajas)', () => {
   assert.match(css, /#view-access \.access-scroll, #view-legal-gate \.access-scroll[^{]*\{[^}]*overflow-y:auto/);
-  assert.match(css, /@media \(max-height: 600px\)\{[^}]*\.welcome-claim/);
+  assert.match(css, /@media \(max-height: 640px\)\{[^}]*\.welcome-claim/);
   assert.match(css, /@media \(max-width: 340px\)/);
   assert.match(css, /\.welcome-claim\{[^}]*clamp\(/);
   assert.match(css, /#view-access \.access-scroll::before, #view-access \.access-scroll::after\{ flex:0 0 0; \}/);

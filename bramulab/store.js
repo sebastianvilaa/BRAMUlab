@@ -100,7 +100,7 @@
   // server-backed de jugador (avatar/username/Nivel real en Buscar Jugadores/RECIENTES), Mis
   // Jugadores server-backed real (player_saved_players), y títulos de Notificaciones honestos
   // (ver docs/BRAMUlab/Implementacion/Pre_Production/21_Resultado_Correccion_QA_26SEP.md).
-  const BUNDLE_VERSION = '04.39-h2';
+  const BUNDLE_VERSION = '04.39-h3';
   const KEYS = {
     ACTIVE_MATCH: 'bramulab.activeMatch.v1',
     HISTORY: 'bramulab.history.v1',
