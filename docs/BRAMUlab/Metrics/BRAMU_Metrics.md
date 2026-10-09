@@ -5,6 +5,23 @@
 **Producto:** consola privada de análisis de BRAMUlab; BRAMUlive fuera de alcance.
 
 
+
+## 09/10/2026 — Publicar aceptación legal sin capturar aperturas (bloque técnico resuelto en Staging)
+
+**Necesidad de producto:** evitar que las altas futuras se acumulen en la cohorte de usuarios que deberán volver a aceptar documentos. Publicar `legal_v2` (un único checkbox en el alta, un único gate para `legal_v1`) es **independiente** de habilitar el registro de aperturas. No inventar consentimientos previos. **La aceptación se registra desde la acción real del jugador, aun si la medición está apagada; esto no certifica por sí mismo su suficiencia jurídica.**
+
+**AGREGAR:** migración `20261009033000_metrics_capture_enable_separate.sql` crea `app_config.activity_capture_enabled BOOLEAN NOT NULL DEFAULT FALSE`. `register_app_presence` solo persiste aperturas si `activity_consent_version` está vigente **Y** `activity_capture_enabled=TRUE` **Y** la decisión actual del jugador es `granted`. Las tres condiciones se comprueban en servidor. Con FALSE no escribe, aunque exista aceptación de `legal_v2`.
+
+**FUSIONAR:** `20261009032000_legal_v2_acceptance_before_capture.sql` conserva evidencia `activity_v1` al aceptar realmente `legal_v2` en alta o reaceptación, incluso si `activity_consent_version=NULL`; nunca la inventa para `legal_v1` ni sobreescribe un rechazo previo. **Configuración sugerida para salida parcial:** `legal_version='legal_v2'`, `activity_consent_version='activity_v1'`, `activity_capture_enabled=FALSE`. Así el jugador puede gestionar/revocar la autorización desde Configuración, aunque todavía no se recolecte actividad.
+
+**REEMPLAZAR (cuando corresponda autorizar medición):** habilitar `activity_capture_enabled=TRUE`, **sin cambiar la versión legal**, solo después de confirmar fundamento jurídico y compatibilidad con la ampliación AAIP, que describió consentimiento opcional. Esa promoción a Production requiere **autorización explícita** y QA del flujo; nunca habilitar simultáneamente por accidente durante una promoción parcial.
+
+**NO TOCAR:** Production `legal_v1` / `activity_consent_version=NULL`, las cuentas reales, `main` y BRAMUlive. Todavía no hay autorización para publicar `legal_v2` ni capturar aperturas en Production.
+
+**Verificación Staging:** ambas migraciones aplicadas exitosamente; configuración `legal_v2`, `activity_v1`, `activity_capture_enabled=FALSE`. Prueba SQL transaccional con jugador sintético de Staging (ROLLBACK): la reaceptación insertó `legal_acceptances` y `activity_consents`, `register_app_presence` devolvió `measurement_disabled`, retirada desde Configuración registró `declined`, cero filas nuevas de aperturas. El flujo real de alta con OTP requiere QA específico antes de Production.
+
+---
+
 ## Decisión UX prioritaria — 09/10/2026 (prevalece sobre el consentimiento opcional anterior)
 
 **Decisión UX actualizada por Sebastián (09/10/2026 03:21 AR, sustituye la anterior):** UNA única casilla obligatoria en el alta para aceptar Términos, Política, transferencias internacionales y la información **expresa, visible y destacada** relativa a la medición básica. No presentar otra casilla ni la pantalla «Ayudanos a mejorar». Para los 7 usuarios existentes, Sebastián autoriza UNA sola reaceptación de documentos actualizados («Actualizamos nuestros Términos y Política de Privacidad» + checkbox único + «ACEPTAR Y CONTINUAR»). La aceptación nueva se registra con la versión y fecha reales; no atribuir consentimiento anterior ni reconstruir aperturas previas. La medición solo puede comenzar después de la aceptación efectiva y si existe base jurídica suficiente para el tipo de dato tratado.
