@@ -17,6 +17,12 @@ Este README es el **punto de entrada y mapa de autoridad documental** de BRAMUla
 
 ---
 
+## 09/10/2026 04:24 AR — Nueva actualización de Production (prevalece sobre estado anterior)
+
+**BRAMU Metrics: captura de aperturas activada expresamente por el responsable en Production**. Config: `legal_version=legal_v2`, `activity_consent_version=activity_v1`, `activity_capture_enabled=TRUE`. Misma versión de frontend `04.38-h5`; siete cuentas preservadas; al activar, una única cuenta había aceptado legal_v2 y 0 filas de actividad. Captura SOLO desde nuevas aperturas de cuentas con aceptación registrada, nunca retroactiva. **Advertencia:** queda pendiente regularizar la discrepancia ante AAIP entre declaración de consentimiento opcional y aceptación legal obligatoria con posibilidad de retirar autorización. No afirmar que la AAIP ya aprobó. En caso de observación u orden formal sobre esta captura, el switch `activity_capture_enabled=FALSE` permite desactivarla sin tocar otras funcionalidades. Fuente maestra: `Metrics/BRAMU_Metrics.md` (apartado de 04:24 AR). `main`, BRAMUlive y frontend no se tocaron con la activación.
+
+---
+
 ## 1. Estado actual (09/10/2026)
 
 **ACTUALIZACIÓN VIGENTE — prevalece sobre la tabla histórica inmediatamente inferior:** Production está en `04.38-h5` desde el 09/10/2026, publicación autorizada por el responsable, deployment Vercel `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn` desde SHA `c6c72f0d32dc4c5180d82411d51bbed68d4caf73`. Los documentos legales `legal_v2` están vigentes: nuevos usuarios aceptan la casilla única al registrarse, los siete existentes deben reaceptar una sola vez cuando vuelvan a entrar. **BRAMU Metrics sigue accesible exclusivamente para el administrador, pero el registro de aperturas de usuarios continúa APAGADO:** `activity_consent_version=activity_v1` y `activity_capture_enabled=FALSE` (dos conceptos distintos). Se registran las nuevas aceptaciones, no las aperturas. Los siete registros y las aceptaciones `legal_v1` permanecen intactos. El backend aplicó las cuatro migraciones `20261009030000` a `20261009033000` en Production. El trámite AAIP original y su ampliación están presentados, no aprobados. **La validez de hacer obligatoria la aceptación para analítica de uso identificable continúa pendiente de resolución, no habilitar captura sin nueva autorización y fundamento legal.** Fuente maestra y checklist: `Metrics/BRAMU_Metrics.md` sección «Publicación legal_v2 en Production» y `Operacion/Privacidad_Legal.md` §18. Staging continúa aislado; `main` y BRAMUlive intactos.
