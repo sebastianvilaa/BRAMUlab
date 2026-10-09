@@ -5415,7 +5415,7 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
 .activity-consent__actions .btn-start, .activity-consent__actions .btn-secondary{ width:100%; }
 #view-activity-consent .link-btn{ align-self:center; margin-top: 14px; }
 #view-activity-consent .access-scroll--under-header{ padding-top: 12px; }
-/* V04.39-h1 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
+/* V04.39-h2 — la fila «Medición de uso» tiene un valor corto («Activada»): sin esto el valor reserva el 55 % del ancho y el rótulo se parte en dos líneas. */
 #settings-activity-row .settings-row__label{ white-space:nowrap; }
 #settings-activity-row .settings-row__value{ flex:0 0 auto; max-width:45%; }
 
@@ -5424,27 +5424,26 @@ a.profile-row-action{ text-decoration:none; color: inherit; display:flex; }
    - La foto vive en una capa fija DETRÁS del contenido (`.welcome-hero`); el contenido scrollea por encima (`.access-scroll` ya es el
      scroller: ver bloque «07OCT26 h25»), así que en pantallas bajas (iPhone SE, horizontal) nada queda fuera de alcance.
    - FOTOGRAFÍA DEFINITIVA: se incorpora cambiando SOLO `--welcome-hero-image` (y, si hace falta, `--welcome-hero-pos`). El recurso actual
-     (`assets/bienvenida-hero.jpg`: copia de la cancha azul nocturna de Estado Cero, horizontal) es PROVISORIO: la foto definitiva se entrega
-     con ESE nombre de archivo (o se cambia la variable) y no requiere tocar nada más. Los degradés ya están calibrados para fotos oscuras verticales.
+     (`assets/bienvenida-hero.jpg`, derivada de `Sistema grafico/Archivos/BRAMUlab-Inicio.png`, vertical 941×1672) puede
+     reemplazarse por una versión retocada con ESE nombre de archivo (y un bump de bundle) sin tocar nada más. Los degradés ya están calibrados para fotos oscuras verticales.
    - Se reutilizan tokens/componentes: `.btn-start`/`.btn-secondary` (jerarquía real de los botones), pastilla lima de Estado Cero.
    ========================================================================== */
 #view-access{
-  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h1');
-  --welcome-hero-pos: 72% 38%;
+  --welcome-hero-image: url('assets/bienvenida-hero.jpg?v=04.39-h2');
+  --welcome-hero-pos: 50% 100%;
   position: relative; isolation: isolate;
 }
-.welcome-hero{ position:absolute; inset:0 0 auto 0; height: min(72dvh, 640px); z-index:0; pointer-events:none; overflow:hidden; }
+.welcome-hero{ position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden; background: var(--bg); }
 .welcome-hero__photo{
   position:absolute; inset:0;
   background: var(--welcome-hero-image) var(--welcome-hero-pos) / cover no-repeat, var(--surface-3);
 }
-/* Degradés: oscurecen el borde superior (logo legible), dejan respirar la foto en el centro y la funden con el fondo de la app
-   hacia abajo, donde viven claim, beneficios y botones. */
+/* Degradés: el cielo oscuro de la foto ya sostiene el logo (arriba solo un velo mínimo); desde la red hacia abajo se oscurece la
+   cancha azul para que claim, tarjetas y botones se lean, y se funde con el fondo de la app al pie. */
 .welcome-hero::after{
   content:""; position:absolute; inset:0;
   background:
-    linear-gradient(180deg, rgba(3,7,13,.78) 0%, rgba(3,7,13,.25) 26%, rgba(5,10,18,.30) 48%, rgba(5,10,18,.86) 80%, var(--bg) 100%),
-    linear-gradient(90deg, rgba(3,7,13,.35) 0%, rgba(3,7,13,0) 55%);
+    linear-gradient(180deg, rgba(3,7,13,.45) 0%, rgba(3,7,13,0) 16%, rgba(3,7,13,0) 36%, rgba(4,9,16,.40) 54%, rgba(5,10,18,.68) 74%, rgba(5,10,18,.92) 100%);
 }
 #view-access .access-scroll{ position:relative; z-index:1; }
 /* Con la foto como protagonista el bloque va ANCLADO abajo (logo arriba, aire en el medio): se anula el centrado de h25
