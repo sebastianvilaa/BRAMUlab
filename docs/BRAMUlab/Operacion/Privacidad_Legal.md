@@ -393,6 +393,15 @@ Mientras Comunicaciones trabaja, puede adelantarse **hardening de Staging previo
 
 ---
 
+## 18. Actividad básica de uso (BRAMU Metrics) — estado vigente 09/10/2026
+
+**Actualización que prevalece sobre la descripción histórica que sigue:** Production ya publicó Términos y Política `legal_v2` y el frontend `04.38-h5` (commit `c6c72f0d`; deployment `dpl_AteeNe6fyRSD9pnJ3uYAp9wa26Wn`). Para los siete usuarios existentes se pide una sola reaceptación de documentos; para altas futuras, una sola casilla integrada en el registro, con mención expresa a la medición básica. Se puede registrar la aceptación `activity_v1` aun con captura apagada. Las migraciones `20261009030000` a `20261009033000` desacoplan evidencia y captura: en Production `activity_consent_version='activity_v1'` y **`activity_capture_enabled=FALSE`**. **NO se registran aperturas en Production hasta nueva autorización y verificación jurídica específica.**
+
+**AAIP:** expediente original `EX-2026-97673851-APN-DNPDP#AAIP` y complemento `RE-2026-98625195-APN-DTD#JGM` presentados, aún sin aprobación. La presentación complementaria califica como opcional la medición, mientras `legal_v2` la integra en una aceptación legal obligatoria. Se mantiene abierto el análisis de consentimiento libre/expreso/informado (Ley 25.326 art. 5) y de coherencia registral. Si la AAIP observa o rechaza una finalidad, cumplir el requerimiento: subsanar, modificar o suspender el tratamiento alcanzado; no dar por autorizada la captura. **No cancelar la inscripción ni borrar la base como reacción automática.** Ver detalle técnico verificado en `Metrics/BRAMU_Metrics.md`, «Publicación legal_v2 en Production».
+
+---
+
+### Historial previo a la publicación de 09/10/2026 (desactualizado; no aplicar como estado vigente)
 ## 18. Actividad básica de uso (BRAMU Metrics) — consentimiento informado, textos para revisión, SIN publicar
 
 **Estado (08/10/2026):** `privacidad/` y `eliminar-cuenta/` están **actualizados en el repositorio y visibles solo en Staging** (V04.38-h2, siguen en `legal_v1`; `terminos/` no cambia). **Ninguna de las dos está publicada en Production** (verificado: Production sirve `04.37-h26`). Production **no captura** actividad. La solución de consentimiento (V04.38 / `04.38-h1`) está **implementada y probada solo en Staging** (migración `20261008150000`, pendiente de aplicar por Central). Esta sección fija la decisión, el diseño, los textos para revisión y lo que falta. No es asesoramiento jurídico.
