@@ -58,6 +58,8 @@ En ese momento ChatGPT debe:
 5. no presentar una **DUDA ABIERTA** como decisión ni como autorización de implementación; si sigue realmente abierta, permanece en Brainstorming salvo que sea contexto imprescindible, en cuyo caso debe etiquetarse explícitamente como `DECISIÓN ABIERTA`;
 6. entregar a Sebastián un mensaje corto, listo para copiar al chat de Desarrollo, que apunte a ese documento en vez de duplicar todo su contenido;
 7. a partir de ese punto, Desarrollo decide la secuencia técnica: qué entra antes de Production, qué durante la preparación de salida y qué queda para después, respetando las prioridades vigentes.
+8. **No hace falta cerrar microcopy ni diseño técnico para habilitar el traspaso** si la intención de producto, la jerarquía, los límites de privacidad/semántica y los estados ya están decididos. El copy puede viajar como dirección o ejemplo y pulirse durante UX/implementación, salvo que una frase sea en sí misma una decisión legal o de producto.
+9. Desarrollo recibe el **qué y por qué** ya cerrado y propone el **cómo**: arquitectura, secuencia, reutilización de componentes, migraciones/RPCs, pruebas y fronteras entre agentes. No debe devolver a Brainstorming decisiones técnicas que pueda resolver autónomamente.
 
 Después del traspaso, Brainstorming vuelve a quedar libre para ideas nuevas. El handoff (mientras el frente esté abierto) y, al cerrarlo, las fuentes maestras conservan la memoria de lo ya delegado.
 
