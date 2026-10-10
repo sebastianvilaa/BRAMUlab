@@ -452,9 +452,13 @@ El texto vigente (Política §2 «eventos internos de producto», §3 finalidade
 
 ---
 
-## 19. Descubrimiento de jugadores (V04.40, Staging) — análisis de privacidad y DECISIÓN ABIERTA
+## 19. Descubrimiento de jugadores (V04.40) — decisión de publicación aprobada 10/10/2026
 
 *Evaluación interna de producto, no asesoramiento legal. No se crea una nueva versión legal ni un nuevo consentimiento por reflejo.*
+
+**DECISIÓN DE PRODUCTO AUTORIZADA (10/10/2026):** Sebastián confirmó publicar V04.40 y agregar a la Política pública la aclaración informativa sobre sugerencias deportivas, sin pantalla nueva, sin reaceptación y conservando `legal_v2`. Se incorpora en `bramulab/privacidad/index.html` (Ubicación, Partidos, Finalidades e Historial de cambios). La aclaración describe el uso real de datos previamente tratados para sugerencias entre usuarios autenticados; no autoriza exponer detalles ajenos, nuevas categorías de datos, monitoreo, ni expandir el algoritmo. **El cambio informativo no debe disparar un gate de reaceptación.** La publicación de frontend y migración Production debe verificarse por separado.
+
+**SEGUIMIENTO REGISTRAL PENDIENTE, no declarar resuelto:** la constancia privada de la inscripción AAIP no fue inspeccionada aquí, por lo que no está confirmado su texto exacto de finalidades. Revisar que cubra la interacción/descubrimiento entre jugadores y, de no cubrirla, regularizar dentro del expediente conforme al procedimiento oficial. La autorización de producto no implica aprobación administrativa de la AAIP. No mezclar este punto con la discrepancia distinta de consentimiento de BRAMU Metrics (§18).
 
 **Qué hace.** Dentro de BUSCAR JUGADORES: «Gente que quizás conozcas» (conexión indirecta derivada de partidos oficiales compartidos) y «Jugadores de tu zona» (misma `profiles.location_id`). Detalle técnico: `Backend_Infraestructura.md` §8.4.1.
 
@@ -464,7 +468,7 @@ El texto vigente (Política §2 «eventos internos de producto», §3 finalidade
 
 **Valoración.** Mismo universo de datos y de destinatarios que hoy, sin información nueva visible y sin cambiar proveedores ni destinos; la finalidad es compatible con la ya declarada (facilitar la comunidad competitiva: registrar y compartir partidos, Nivel, Ranking). No hay impedimento para probarlo en Staging. **Antes de publicarlo en Production falta transparencia**, no consentimiento.
 
-**DECISIÓN ABIERTA (no bloquea Staging; bloquea la publicación del descubrimiento en Production).** Propuesta concreta:
+**Decisión adoptada para V04.40 (implementación y comunicación; seguimiento registral indicado arriba):**
 1. Agregar a la Política §3 una frase corta («Podemos sugerirte jugadores que quizás conozcas, a partir de tu localidad y de los partidos oficiales que compartiste con otros jugadores, y sugerirte a ellos; no mostramos qué partidos originan una sugerencia») y, en §2 «Ubicación», aclarar que la localidad puede usarse para sugerir jugadores de la misma zona; registrarlo en el historial de cambios.
 2. Tratarlo como **cambio no material** (no pide reaceptación ni opt-in/opt-out): usa datos ya tratados, con los mismos destinatarios y sin información adicional visible. Si la revisión legal interna lo considerara material, se integraría en la próxima actualización de `legal_v2` junto con la medición, sin segunda pantalla.
 3. Verificar que la finalidad declarada ante AAIP/RNBDP (expediente en curso, ver §18.5) alcance «facilitar la interacción entre jugadores»; si no, incluirlo en el mismo trámite de actualización.
