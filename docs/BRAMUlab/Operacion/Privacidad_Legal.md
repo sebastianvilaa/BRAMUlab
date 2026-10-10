@@ -452,7 +452,11 @@ El texto vigente (Política §2 «eventos internos de producto», §3 finalidade
 
 ---
 
-## 19. Descubrimiento de jugadores (V04.40) — decisión de publicación aprobada 10/10/2026
+## 19. Descubrimiento de jugadores (V04.40) — Production publicada 10/10/2026
+
+**ESTADO FINAL DE PUBLICACIÓN (verificado por Central):** Política pública modificada y fechada 10/10/2026 con la aclaración sobre localidad y conexiones deportivas, mismo identificador `legal_v2`, sin reaceptación. Frontend BRAMUlab V04.40 / `04.40-h1` desplegado con entorno Production desde SHA exacto `e5d3e6a60e2ff4dd9aa1b4259350afdb2d6f9677`; Vercel deployment `dpl_FXFXcfkp92KMNNWBikhPiZc6BPZm` READY, alias `app.bramulab.com` confirmado. La única diferencia de ese SHA respecto del HEAD documental inmediato era un cambio de documentación interna, omitido por el Ignored Build Step de Vercel. Migración `discovery_get_player_discovery` aplicada a Supabase Production: RPC autenticada, rol anon denegado, índice creado; tras aplicar se comprobaron 7 jugadores y 1 partido existentes. No hay constancia de prueba HTTP end-to-end en navegador real de Production desde esta sesión; alias y build sí están verificados.
+
+**PENDIENTE FUERA DEL DESPLIEGUE:** cotejar texto exacto de la finalidad declarada en constancia AAIP/RNBDP y, si hace falta, regularizar. No confundir este seguimiento con aprobación de la AAIP ni con el asunto independiente de medición de actividad (§18).
 
 *Evaluación interna de producto, no asesoramiento legal. No se crea una nueva versión legal ni un nuevo consentimiento por reflejo.*
 
